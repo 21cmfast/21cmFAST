@@ -257,7 +257,7 @@ void set_prop_rng(gsl_rng *rng, bool from_catalog, double *interp, double * inpu
 int add_properties_cat(unsigned long long int seed, float redshift, HaloField *halos){
     //set up the rng
     gsl_rng * rng_stoc[user_params_global->N_THREADS];
-    seed_rng_threads(rng_stoc,seed);
+    seed_rng_threads_fast(rng_stoc,seed);
 
     LOG_DEBUG("computing rng for %llu halos",halos->n_halos);
 
@@ -953,7 +953,7 @@ int stochastic_halofield(UserParams *user_params, CosmoParams *cosmo_params,
 
     //set up the rng
     gsl_rng * rng_stoc[user_params->N_THREADS];
-    seed_rng_threads(rng_stoc,seed);
+    seed_rng_threads_fast(rng_stoc,seed);
 
     struct HaloSamplingConstants hs_constants;
     stoc_set_consts_z(&hs_constants,redshift,redshift_desc);
@@ -1003,7 +1003,7 @@ int single_test_sample(UserParams *user_params, CosmoParams *cosmo_params, Astro
 
         //set up the rng
         gsl_rng * rng_stoc[user_params->N_THREADS];
-        seed_rng_threads(rng_stoc,seed);
+        seed_rng_threads_fast(rng_stoc,seed);
 
         if(z_in > 0 && z_out <= z_in){
             LOG_DEBUG("progenitor sampling must go back in time z_out=%.2f z_in=%.2f",z_out,z_in);

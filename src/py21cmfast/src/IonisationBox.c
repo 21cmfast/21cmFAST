@@ -890,7 +890,7 @@ int setup_radii(struct RadiusSpec **rspec_array, struct IonBoxConstants *consts)
 }
 
 void find_ionised_regions(IonizedBox *box, IonizedBox *previous_ionize_box, PerturbedField *perturbed_field, TsBox *spin_temp, struct RadiusSpec rspec,
-                            struct IonBoxConstants *consts, struct FilteredGrids *fg_struct,
+                            struct IonBoxConstants *consts, struct FilteredGrids *fg_struct, gsl_rng **cell_rng,
                             double f_limit_acg, double f_limit_mcg){
     double mean_fix_term_acg = 1.;
     double mean_fix_term_mcg = 1.;
@@ -908,11 +908,6 @@ void find_ionised_regions(IonizedBox *box, IonizedBox *previous_ionize_box, Pert
         box->mean_f_coll = rspec.f_coll_grid_mean;
         box->mean_f_coll_MINI = rspec.f_coll_grid_mean_MINI;
     }
-
-    int i;
-    gsl_rng * r[user_params_global->N_THREADS];
-    //TODO: proper seed
-    seed_rng_threads(r,0);
 
     #pragma omp parallel num_threads(user_params_global->N_THREADS)
     {
@@ -1036,7 +1031,7 @@ void find_ionised_regions(IonizedBox *box, IonizedBox *previous_ionize_box, Pert
                                 N_halos_in_cell = 1.;
                             }
                             else {
-                                N_halos_in_cell = (int)gsl_ran_poisson(r[omp_get_thread_num()],
+                                N_halos_in_cell = (int)gsl_ran_poisson(cell_rng[omp_get_thread_num()],
                                                                         global_params.N_POISSON);
                             }
 
@@ -1086,10 +1081,6 @@ void find_ionised_regions(IonizedBox *box, IonizedBox *previous_ionize_box, Pert
                 } // k
             } // j
         } // i
-    }
-
-    for (i=0; i<user_params_global->N_THREADS; i++) {
-        gsl_rng_free(r[i]);
     }
 }
 
@@ -1338,6 +1329,18 @@ int ComputeIonizedBox(float redshift, float prev_redshift, UserParams *user_para
     double exp_global_hii = box->mean_f_coll * ionbox_constants.ion_eff_factor_gl \
                             + box->mean_f_coll_MINI * ionbox_constants.ion_eff_factor_mini_gl;
 
+    //We need some RNG for the cell-scale partial ionisations,
+    // but we don't want to init inside find_ionsed regions since its a bit slow
+    bool need_rng = !user_params->NO_RNG && !flag_options->USE_HALO_FIELD;
+    gsl_rng * cell_rng[user_params->N_THREADS];
+
+    //TODO: I want to move this in the `else` below but freeing becomes annoying
+    if(need_rng){
+        //TODO: proper seeding (not zero)
+        seed_rng_threads_fast(cell_rng,0);
+    }
+
+    //TODO: change this from an if-else to an early-exit / cleanup call
     if(exp_global_hii < global_params.HII_ROUND_ERR){ // way too small to ionize anything...
         LOG_DEBUG("Mean collapsed fraciton %.3e too small to ionize, stopping early",exp_global_hii);
         global_xH = set_fully_neutral_box(box,spin_temp,perturbed_field,&ionbox_constants);
@@ -1418,7 +1421,8 @@ int ComputeIonizedBox(float redshift, float prev_redshift, UserParams *user_para
                 if (curr_radius.f_coll_grid_mean <= FRACT_FLOAT_ERR) curr_radius.f_coll_grid_mean = FRACT_FLOAT_ERR;
             }
 
-            find_ionised_regions(box,previous_ionize_box,perturbed_field,spin_temp,curr_radius,&ionbox_constants,grid_struct,f_limit_acg,f_limit_mcg);
+            find_ionised_regions(box,previous_ionize_box,perturbed_field,spin_temp,curr_radius,&ionbox_constants,
+                                    grid_struct,cell_rng,f_limit_acg,f_limit_mcg);
 
             LOG_SUPER_DEBUG("z_re_box after R=%f: ", curr_radius.R);
             debugSummarizeBox(box->z_re_box, user_params->HII_DIM, user_params->NON_CUBIC_FACTOR, "  ");
@@ -1475,10 +1479,14 @@ int ComputeIonizedBox(float redshift, float prev_redshift, UserParams *user_para
             freeSigmaMInterpTable();
     }
 
-    //This function checks for allocation
+    //This function checks for allocation so don't worry about double-freeing tables
     free_conditional_tables();
 
     free(radii_spec);
+
+    if(need_rng){
+        free_rng_threads(cell_rng);
+    }
 
     LOG_DEBUG("finished!\n");
 
