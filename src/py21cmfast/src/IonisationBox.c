@@ -713,6 +713,7 @@ void calculate_fcoll_grid(IonizedBox *box, IonizedBox *previous_ionize_box, stru
         double Splined_Fcoll,Splined_Fcoll_MINI;
         double log10_Mturnover,log10_Mturnover_MINI;
         double prev_dens,prev_Splined_Fcoll,prev_Splined_Fcoll_MINI;
+        log10_Mturnover = log10(consts->mturn_a_nofb); //is only overwritten with minihalos
         #pragma omp for reduction(+:f_coll_total,f_coll_MINI_total)
         for (x = 0; x < user_params_global->HII_DIM; x++) {
             for (y = 0; y < user_params_global->HII_DIM; y++) {
@@ -778,9 +779,6 @@ void calculate_fcoll_grid(IonizedBox *box, IonizedBox *previous_ionize_box, stru
                                     prev_Splined_Fcoll = 0.;
                                     prev_Splined_Fcoll_MINI = 0.;
                                 }
-                            }
-                            else{
-                                log10_Mturnover = log10(astro_params_global->M_TURN);
                             }
                             Splined_Fcoll = EvaluateNion_Conditional(curr_dens,log10_Mturnover,consts->growth_factor,
                                                                     consts->M_min,rspec->M_max_R,rspec->M_max_R,
