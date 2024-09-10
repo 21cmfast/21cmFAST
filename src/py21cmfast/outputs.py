@@ -936,10 +936,23 @@ class _HighLevelOutput:
         return self._write(direc=direc, fname=fname, clobber=clobber)
 
     @classmethod
-    def _read_inputs(cls, fname):
+    def _read_inputs(cls, fname, safe=True):
         kwargs = {}
         with h5py.File(fname, "r") as fl:
             glbls = dict(fl["_globals"].attrs)
+            if glbls.keys() != global_params.keys():
+                message = (
+                    f"There are extra or missing global params in the file to be read.\n"
+                    f"EXTRAS: {[(k,v) for k,v in glbls.items() if k not in global_params.keys()]}\n"
+                    f"MISSING: {[(k,v) for k,v in global_params.items() if k not in glbls.keys()]}\n"
+                )
+                if safe:
+                    raise ValueError(message)
+                else:
+                    warnings.warn(
+                        message
+                        + "\nExtras are ignored and missing are set to default (shown) values"
+                    )
             kwargs["redshift"] = float(fl.attrs["redshift"])
 
             if "photon_nonconservation_data" in fl.keys():
@@ -949,8 +962,8 @@ class _HighLevelOutput:
         return kwargs, glbls
 
     @classmethod
-    def read(cls, fname, direc="."):
-        """Read a lightcone file from disk, creating a LightCone object.
+    def read(cls, fname, direc=".", safe=True):
+        """Read the HighLevelOutput file from disk, creating a LightCone or Coeval object.
 
         Parameters
         ----------
@@ -972,7 +985,7 @@ class _HighLevelOutput:
         if not os.path.exists(fname):
             raise FileExistsError(f"The file {fname} does not exist!")
 
-        park, glbls = cls._read_inputs(fname)
+        park, glbls = cls._read_inputs(fname, safe=safe)
         boxk = cls._read_particular(fname)
 
         with global_params.use(**glbls):
@@ -1271,7 +1284,7 @@ class LightCone(_HighLevelOutput):
             self._current_index = index
 
     @classmethod
-    def _read_inputs(cls, fname):
+    def _read_inputs(cls, fname, safe=True):
         kwargs = {}
         with h5py.File(fname, "r") as fl:
             for k, kls in [
@@ -1280,8 +1293,21 @@ class LightCone(_HighLevelOutput):
                 ("flag_options", FlagOptions),
                 ("astro_params", AstroParams),
             ]:
-                grp = fl[k]
-                kwargs[k] = kls(dict(grp.attrs))
+                dct = dict(fl[k].attrs)
+                if kls.__defaults__.keys() != dct.keys():
+                    message = (
+                        f"There are extra or missing global params in the file to be read.\n"
+                        f"EXTRAS: {[(k,v) for k,v in dct.items() if k not in kls.__defaults__.keys()]}\n"
+                        f"MISSING: {[(k,v) for k,v in kls.__defaults__.items() if k not in dct.keys()]}\n"
+                    )
+                    if safe:
+                        raise ValueError(message)
+                    else:
+                        warnings.warn(
+                            message
+                            + "\nExtras are ignored and missing are set to default (shown) values"
+                        )
+                kwargs[k] = kls(dct)
             kwargs["random_seed"] = int(fl.attrs["random_seed"])
             kwargs["current_redshift"] = fl.attrs.get("current_redshift", None)
             kwargs["current_index"] = fl.attrs.get("current_index", None)

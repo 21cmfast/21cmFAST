@@ -9,6 +9,7 @@ from py21cmfast import (
     InitialConditions,
     LightCone,
     TsBox,
+    UserParams,
     global_params,
     run_coeval,
     run_lightcone,
@@ -54,6 +55,81 @@ def ang_lightcone(ic, lc):
         write=True,
         flag_options={"APPLY_RSDS": False},
     )
+
+
+def test_read_bad_file_lc(test_direc, lc_xh):
+    # create a bad hdf5 file with some good fields,
+    #  some bad fields, and some missing fields
+    #  in both input parameters and box structures
+    fname = lc_xh.save(direc=test_direc)
+    with h5py.File(fname, "r+") as f:
+        # make gluts, these should be ignored on reading
+        f["user_params"].attrs["NotARealParameter"] = "fake_param"
+        f["_globals"].attrs["NotARealGlobal"] = "fake_param"
+
+        # make gaps
+        del f["user_params"].attrs["BOX_LEN"]
+        del f["_globals"].attrs["OPTIMIZE_MIN_MASS"]
+
+    # load without compatibility mode, make sure we throw the right error
+    with pytest.raises(ValueError, match="There are extra or missing"):
+        LightCone.read(fname, direc=test_direc, safe=True)
+
+    # load in compatibility mode, check that we warn correctly
+    with pytest.warns(UserWarning, match="There are extra or missing"):
+        lc2 = LightCone.read(fname, direc=test_direc, safe=False)
+
+    # check that the fake fields didn't show up in the struct
+    assert not hasattr(lc2.user_params, "NotARealParameter")
+    assert not hasattr(lc2.global_params, "NotARealGlobal")
+
+    # check that missing fields are set to default
+    assert lc2.user_params.BOX_LEN == UserParams._defaults_["BOX_LEN"]
+    assert lc2.global_params.OPTIMIZE_MIN_MASS == global_params.OPTIMIZE_MIN_MASS
+
+    # check that the fields which are good are read in the struct
+    lc2.user_params.BOX_LEN = lc_xh.user_params.BOX_LEN
+    assert lc2.user_params == lc_xh.user_params
+    for k, v in lc2.global_params.items():
+        if k != "OPTIMIZE_MIN_MASS":
+            assert v == lc_xh.global_params[k]
+
+
+def test_read_bad_file_coev(test_direc, coeval):
+    # create a bad hdf5 file with some good fields,
+    #  some bad fields, and some missing fields
+    #  in both input parameters and box structures
+    fname = coeval.save(direc=test_direc)
+    with h5py.File(fname, "r+") as f:
+        # make gluts, these should be ignored on reading
+        f["user_params"].attrs["NotARealParameter"] = "fake_param"
+        f["_globals"].attrs["NotARealGlobal"] = "fake_param"
+
+        # make gaps
+        del f["user_params"].attrs["BOX_LEN"]
+        del f["_globals"].attrs["OPTIMIZE_MIN_MASS"]
+
+    # load in the coeval check that we warn correctly
+    with pytest.raises(ValueError, match="There are extra or missing"):
+        Coeval.read(fname, direc=test_direc, safe=True)
+
+    with pytest.warns(UserWarning, match="There are extra or missing"):
+        cv2 = Coeval.read(fname, direc=test_direc, safe=False)
+
+    # check that the fake params didn't show up in the struct
+    assert not hasattr(cv2.user_params, "NotARealParameter")
+    assert "NotARealGlobal" not in cv2.global_params.keys()
+
+    # check that missing fields are set to default
+    assert cv2.user_params.BOX_LEN == UserParams._defaults_["BOX_LEN"]
+    assert cv2.global_params["OPTIMIZE_MIN_MASS"] == global_params.OPTIMIZE_MIN_MASS
+
+    # check that the fields which are good are read in the struct
+    cv2.user_params.BOX_LEN = coeval.user_params.BOX_LEN
+    assert cv2.user_params == coeval.user_params
+    for k, v in cv2.global_params.items():
+        if k != "OPTIMIZE_MIN_MASS":
+            assert v == coeval.global_params[k]
 
 
 def test_lightcone_roundtrip(test_direc, lc):
