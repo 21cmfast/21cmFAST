@@ -1294,11 +1294,11 @@ class LightCone(_HighLevelOutput):
                 ("astro_params", AstroParams),
             ]:
                 dct = dict(fl[k].attrs)
-                if kls.__defaults__.keys() != dct.keys():
+                if kls._defaults_.keys() != dct.keys():
                     message = (
                         f"There are extra or missing global params in the file to be read.\n"
-                        f"EXTRAS: {[(k,v) for k,v in dct.items() if k not in kls.__defaults__.keys()]}\n"
-                        f"MISSING: {[(k,v) for k,v in kls.__defaults__.items() if k not in dct.keys()]}\n"
+                        f"EXTRAS: {[(k,v) for k,v in dct.items() if k not in kls._defaults_.keys()]}\n"
+                        f"MISSING: {[(k,v) for k,v in kls._defaults_.items() if k not in dct.keys()]}\n"
                     )
                     if safe:
                         raise ValueError(message)
@@ -1313,7 +1313,7 @@ class LightCone(_HighLevelOutput):
             kwargs["current_index"] = fl.attrs.get("current_index", None)
 
         # Get the standard inputs.
-        kw, glbls = _HighLevelOutput._read_inputs(fname)
+        kw, glbls = _HighLevelOutput._read_inputs(fname, safe=safe)
         return {**kw, **kwargs}, glbls
 
     @classmethod

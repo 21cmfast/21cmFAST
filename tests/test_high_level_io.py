@@ -57,11 +57,11 @@ def ang_lightcone(ic, lc):
     )
 
 
-def test_read_bad_file_lc(test_direc, lc_xh):
+def test_read_bad_file_lc(test_direc, lc):
     # create a bad hdf5 file with some good fields,
     #  some bad fields, and some missing fields
     #  in both input parameters and box structures
-    fname = lc_xh.save(direc=test_direc)
+    fname = lc.save(direc=test_direc)
     with h5py.File(fname, "r+") as f:
         # make gluts, these should be ignored on reading
         f["user_params"].attrs["NotARealParameter"] = "fake_param"
@@ -81,18 +81,18 @@ def test_read_bad_file_lc(test_direc, lc_xh):
 
     # check that the fake fields didn't show up in the struct
     assert not hasattr(lc2.user_params, "NotARealParameter")
-    assert not hasattr(lc2.global_params, "NotARealGlobal")
+    assert "NotARealGlobal" not in lc2.global_params.keys()
 
     # check that missing fields are set to default
     assert lc2.user_params.BOX_LEN == UserParams._defaults_["BOX_LEN"]
-    assert lc2.global_params.OPTIMIZE_MIN_MASS == global_params.OPTIMIZE_MIN_MASS
+    assert lc2.global_params["OPTIMIZE_MIN_MASS"] == global_params.OPTIMIZE_MIN_MASS
 
     # check that the fields which are good are read in the struct
-    lc2.user_params.BOX_LEN = lc_xh.user_params.BOX_LEN
-    assert lc2.user_params == lc_xh.user_params
+    lc2.user_params.BOX_LEN = lc.user_params.BOX_LEN
+    assert lc2.user_params == lc.user_params
     for k, v in lc2.global_params.items():
         if k != "OPTIMIZE_MIN_MASS":
-            assert v == lc_xh.global_params[k]
+            assert v == lc.global_params[k]
 
 
 def test_read_bad_file_coev(test_direc, coeval):
