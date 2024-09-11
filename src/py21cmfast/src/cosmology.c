@@ -114,10 +114,10 @@ double TF_CLASS(double k, int flag_int, int flag_dv)
     if (k > kclass[CLASS_LENGTH-1]) { // k>kmax
         LOG_WARNING("Called TF_CLASS with k=%f, larger than kmax! Returning value at kmax.", k);
         if(flag_dv == 0){ // output is density
-            return (Tmclass[CLASS_LENGTH]/kclass[CLASS_LENGTH-1]/kclass[CLASS_LENGTH-1]);
+            return (Tmclass[CLASS_LENGTH-1]/kclass[CLASS_LENGTH-1]/kclass[CLASS_LENGTH-1]);
         }
         else if(flag_dv == 1){ // output is rel velocity
-            return (Tvclass_vcb[CLASS_LENGTH]/kclass[CLASS_LENGTH-1]/kclass[CLASS_LENGTH-1]);
+            return (Tvclass_vcb[CLASS_LENGTH-1]/kclass[CLASS_LENGTH-1]/kclass[CLASS_LENGTH-1]);
         }    //we just set it to the last value, since sometimes it wants large k for R<<cell_size, which does not matter much.
         else{
             LOG_ERROR("Invalid flag_dv %d passed to TF_CLASS",flag_dv);

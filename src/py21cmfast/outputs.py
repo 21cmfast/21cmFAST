@@ -1129,10 +1129,33 @@ class _HighLevelOutput:
         return self._write(direc=direc, fname=fname, clobber=clobber)
 
     @classmethod
-    def _read_inputs(cls, fname):
+    def _read_inputs(cls, fname, safe=True):
         kwargs = {}
         with h5py.File(fname, "r") as fl:
             glbls = dict(fl["_globals"].attrs)
+            if glbls.keys() != global_params.keys():
+                missing_items = [
+                    (k, v) for k, v in global_params.items() if k not in glbls.keys()
+                ]
+                extra_items = [
+                    (k, v) for k, v in glbls.items() if k not in global_params.keys()
+                ]
+                message = (
+                    f"There are extra or missing global params in the file to be read.\n"
+                    f"EXTRAS: {extra_items}\n"
+                    f"MISSING: {missing_items}\n"
+                )
+                # we don't save None values (we probably should) or paths so ignore these
+                # We also only print the warning for these fields if "safe" is turned off
+                if safe and any(
+                    v is not None for k, v in missing_items if "path" not in k
+                ):
+                    raise ValueError(message)
+                else:
+                    warnings.warn(
+                        message
+                        + "\nExtras are ignored and missing are set to default (shown) values"
+                    )
             kwargs["redshift"] = float(fl.attrs["redshift"])
 
             if "photon_nonconservation_data" in fl.keys():
@@ -1142,8 +1165,8 @@ class _HighLevelOutput:
         return kwargs, glbls
 
     @classmethod
-    def read(cls, fname, direc="."):
-        """Read a lightcone file from disk, creating a LightCone object.
+    def read(cls, fname, direc=".", safe=True):
+        """Read the HighLevelOutput file from disk, creating a LightCone or Coeval object.
 
         Parameters
         ----------
@@ -1153,6 +1176,10 @@ class _HighLevelOutput:
             If fname, is relative, the directory in which to find the file. By default,
             both the current directory and default cache and the  will be searched, in
             that order.
+        safe : bool
+            If safe is true, we throw an error if the parameter structures in the file do not
+            match the structures in the `inputs.py` module. If false, we allow extra and missing
+            items, setting the missing items to the default values and ignoring extra items.
 
         Returns
         -------
@@ -1165,7 +1192,7 @@ class _HighLevelOutput:
         if not os.path.exists(fname):
             raise FileExistsError(f"The file {fname} does not exist!")
 
-        park, glbls = cls._read_inputs(fname)
+        park, glbls = cls._read_inputs(fname, safe=safe)
         boxk = cls._read_particular(fname)
 
         with global_params.use(**glbls):
@@ -1480,7 +1507,7 @@ class LightCone(_HighLevelOutput):
             self._current_index = index
 
     @classmethod
-    def _read_inputs(cls, fname):
+    def _read_inputs(cls, fname, safe=True):
         kwargs = {}
         with h5py.File(fname, "r") as fl:
             for k, kls in [
@@ -1489,14 +1516,34 @@ class LightCone(_HighLevelOutput):
                 ("flag_options", FlagOptions),
                 ("astro_params", AstroParams),
             ]:
-                grp = fl[k]
-                kwargs[k] = kls(dict(grp.attrs))
+                dct = dict(fl[k].attrs)
+                if kls._defaults_.keys() != dct.keys():
+                    missing_items = [
+                        (k, v) for k, v in kls._defaults_.items() if k not in dct.keys()
+                    ]
+                    extra_items = [
+                        (k, v) for k, v in dct.items() if k not in kls._defaults_.keys()
+                    ]
+                    message = (
+                        f"There are extra or missing {kls} in the file to be read.\n"
+                        f"EXTRAS: {extra_items}\n"
+                        f"MISSING: {missing_items}\n"
+                    )
+                    if safe and any(v is not None for k, v in missing_items):
+                        raise ValueError(message)
+                    else:
+                        warnings.warn(
+                            message
+                            + "\nExtras are ignored and missing are set to default (shown) values."
+                            + "\nUsing these parameter structures in further computation will give inconsistent results."
+                        )
+                kwargs[k] = kls(dct)
             kwargs["random_seed"] = int(fl.attrs["random_seed"])
             kwargs["current_redshift"] = fl.attrs.get("current_redshift", None)
             kwargs["current_index"] = fl.attrs.get("current_index", None)
 
         # Get the standard inputs.
-        kw, glbls = _HighLevelOutput._read_inputs(fname)
+        kw, glbls = _HighLevelOutput._read_inputs(fname, safe=safe)
         return {**kw, **kwargs}, glbls
 
     @classmethod
