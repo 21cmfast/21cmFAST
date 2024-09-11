@@ -888,7 +888,7 @@ int setup_radii(struct RadiusSpec **rspec_array, struct IonBoxConstants *consts)
 }
 
 void find_ionised_regions(IonizedBox *box, IonizedBox *previous_ionize_box, PerturbedField *perturbed_field, TsBox *spin_temp, struct RadiusSpec rspec,
-                            struct IonBoxConstants *consts, struct FilteredGrids *fg_struct, gsl_rng **cell_rng,
+                            struct IonBoxConstants *consts, struct FilteredGrids *fg_struct, gsl_rng *cell_rng[],
                             double f_limit_acg, double f_limit_mcg){
     double mean_fix_term_acg = 1.;
     double mean_fix_term_mcg = 1.;
@@ -918,7 +918,7 @@ void find_ionised_regions(IonizedBox *box, IonizedBox *previous_ionize_box, Pert
 
         double ave_M_coll_cell;
         double ave_N_min_cell;
-        int N_halos_in_cell;
+        unsigned int N_halos_in_cell;
         #pragma omp for
         for(x = 0; x < user_params_global->HII_DIM; x++) {
             for(y = 0; y < user_params_global->HII_DIM; y++) {
@@ -1029,7 +1029,7 @@ void find_ionised_regions(IonizedBox *box, IonizedBox *previous_ionize_box, Pert
                                 N_halos_in_cell = 1.;
                             }
                             else {
-                                N_halos_in_cell = (int)gsl_ran_poisson(cell_rng[omp_get_thread_num()],
+                                N_halos_in_cell = gsl_ran_poisson(cell_rng[omp_get_thread_num()],
                                                                         global_params.N_POISSON);
                             }
 
@@ -1239,8 +1239,6 @@ int ComputeIonizedBox(float redshift, float prev_redshift, UserParams *user_para
 
     LOG_SUPER_DEBUG("z_re_box init: ");
     debugSummarizeBox(box->z_re_box, user_params->HII_DIM, user_params->NON_CUBIC_FACTOR, "  ");
-
-    //These are intentionally done before any photoncons redshift adjustment
 
     // Modify the current sampled redshift to a redshift which matches the expected filling factor given our astrophysical parameterisation.
     // This is the photon non-conservation correction

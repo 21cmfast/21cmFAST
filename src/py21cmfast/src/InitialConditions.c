@@ -52,9 +52,7 @@ void seed_rng_threads(gsl_rng * rng_arr[], unsigned long long int seed){
     gsl_ran_choose(rseed, seeds, user_params_global->N_THREADS, many_ints, num_int, sizeof(unsigned int)); // Populate the seeds array from the large list of integers
     gsl_ran_shuffle(rseed, seeds, user_params_global->N_THREADS, sizeof(unsigned int)); // Shuffle the randomly selected integers
 
-    int checker;
-
-    checker = 0;
+    int checker=0;
     // seed the random number generators
     for (thread_num = 0; thread_num < user_params_global->N_THREADS; thread_num++){
         switch (checker){
@@ -87,8 +85,8 @@ void seed_rng_threads(gsl_rng * rng_arr[], unsigned long long int seed){
         }
     }
 
-    gsl_rng_free(rseed);
     free(many_ints);
+    gsl_rng_free(rseed);
 }
 
 //I'm putting a faster version of the RNG seeding here to use when we need one seeding per snapshot.
