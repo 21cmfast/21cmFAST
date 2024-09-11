@@ -941,12 +941,22 @@ class _HighLevelOutput:
         with h5py.File(fname, "r") as fl:
             glbls = dict(fl["_globals"].attrs)
             if glbls.keys() != global_params.keys():
+                missing_items = [
+                    (k, v) for k, v in global_params.items() if k not in glbls.keys()
+                ]
+                extra_items = [
+                    (k, v) for k, v in glbls.items() if k not in global_params.keys()
+                ]
                 message = (
                     f"There are extra or missing global params in the file to be read.\n"
-                    f"EXTRAS: {[(k,v) for k,v in glbls.items() if k not in global_params.keys()]}\n"
-                    f"MISSING: {[(k,v) for k,v in global_params.items() if k not in glbls.keys()]}\n"
+                    f"EXTRAS: {extra_items}\n"
+                    f"MISSING: {missing_items}\n"
                 )
-                if safe:
+                # we don't save None values (we probably should) or paths so ignore these
+                # We also only print the warning for these fields if "safe" is turned off
+                if safe and any(
+                    v is not None for k, v in missing_items if "path" not in k
+                ):
                     raise ValueError(message)
                 else:
                     warnings.warn(
@@ -1295,17 +1305,24 @@ class LightCone(_HighLevelOutput):
             ]:
                 dct = dict(fl[k].attrs)
                 if kls._defaults_.keys() != dct.keys():
+                    missing_items = [
+                        (k, v) for k, v in kls._defaults_.items() if k not in dct.keys()
+                    ]
+                    extra_items = [
+                        (k, v) for k, v in dct.items() if k not in kls._defaults_.keys()
+                    ]
                     message = (
-                        f"There are extra or missing global params in the file to be read.\n"
-                        f"EXTRAS: {[(k,v) for k,v in dct.items() if k not in kls._defaults_.keys()]}\n"
-                        f"MISSING: {[(k,v) for k,v in kls._defaults_.items() if k not in dct.keys()]}\n"
+                        f"There are extra or missing {kls} in the file to be read.\n"
+                        f"EXTRAS: {extra_items}\n"
+                        f"MISSING: {missing_items}\n"
                     )
-                    if safe:
+                    if safe and any(v is not None for k, v in missing_items):
                         raise ValueError(message)
                     else:
                         warnings.warn(
                             message
-                            + "\nExtras are ignored and missing are set to default (shown) values"
+                            + "\nExtras are ignored and missing are set to default (shown) values."
+                            + "\nUsing these parameter structures in further computation will give inconsistent results."
                         )
                 kwargs[k] = kls(dct)
             kwargs["random_seed"] = int(fl.attrs["random_seed"])
