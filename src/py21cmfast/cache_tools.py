@@ -82,9 +82,11 @@ def readbox(
     cls = getattr(outputs, kind)
 
     if hasattr(cls, "from_file"):
-        inst = cls.from_file(fname, direc=direc, load_data=load_data)
+        inst = cls.from_file(
+            fname, direc=direc, load_data=load_data
+        )  # for OutputStruct
     else:
-        inst = cls.read(fname, direc=direc)
+        inst = cls.read(fname, direc=direc)  # for HighlevelOutputStruct
 
     return inst
 
@@ -236,12 +238,9 @@ def clear_cache(**kwargs):
     kwargs :
         All options passed through to :func:`query_cache`.
     """
-    if "show" not in kwargs:
-        kwargs["show"] = False
-
     direc = kwargs.get("direc", path.expanduser(config["direc"]))
     number = 0
-    for fname, _ in query_cache(**kwargs):
+    for fname in list_datasets(**kwargs):
         if kwargs.get("show", True):
             logger.info(f"Removing {fname}")
         os.remove(path.join(direc, fname))

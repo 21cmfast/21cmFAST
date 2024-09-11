@@ -335,7 +335,11 @@ class GlobalParams(StructInstanceWrapper):
 
         for k, val in kwargs.items():
             if k.upper() not in this_attr_upper:
-                raise ValueError(f"{k} is not a valid parameter of global_params")
+                warnings.warn(
+                    f"{k} is not a valid parameter of global_params, and will be ignored",
+                    UserWarning,
+                )
+                continue
             key = this_attr_upper[k.upper()]
             prev[key] = getattr(self, key)
             setattr(self, key, val)
