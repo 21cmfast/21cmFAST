@@ -983,6 +983,10 @@ class _HighLevelOutput:
             If fname, is relative, the directory in which to find the file. By default,
             both the current directory and default cache and the  will be searched, in
             that order.
+        safe : bool
+            If safe is true, we throw an error if the parameter structures in the file do not
+            match the structures in the `inputs.py` module. If false, we allow extra and missing
+            items, setting the missing items to the default values and ignoring extra items.
 
         Returns
         -------
