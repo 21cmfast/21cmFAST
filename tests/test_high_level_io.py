@@ -88,11 +88,16 @@ def test_read_bad_file_lc(test_direc, lc):
     assert lc2.global_params["OPTIMIZE_MIN_MASS"] == global_params.OPTIMIZE_MIN_MASS
 
     # check that the fields which are good are read in the struct
-    lc2.user_params.BOX_LEN = lc.user_params.BOX_LEN
-    assert lc2.user_params == lc.user_params
-    for k, v in lc2.global_params.items():
-        if k != "OPTIMIZE_MIN_MASS":
-            assert v == lc.global_params[k]
+    assert all(
+        getattr(lc2.user_params, k) == getattr(lc.user_params, k)
+        for k in UserParams._defaults_.keys()
+        if k != "BOX_LEN"
+    )
+    assert all(
+        lc2.global_params[k] == lc.global_params[k]
+        for k in global_params.keys()
+        if k != "OPTIMIZE_MIN_MASS"
+    )
 
 
 def test_read_bad_file_coev(test_direc, coeval):
@@ -125,11 +130,16 @@ def test_read_bad_file_coev(test_direc, coeval):
     assert cv2.global_params["OPTIMIZE_MIN_MASS"] == global_params.OPTIMIZE_MIN_MASS
 
     # check that the fields which are good are read in the struct
-    cv2.user_params.BOX_LEN = coeval.user_params.BOX_LEN
-    assert cv2.user_params == coeval.user_params
-    for k, v in cv2.global_params.items():
-        if k != "OPTIMIZE_MIN_MASS":
-            assert v == coeval.global_params[k]
+    assert all(
+        getattr(cv2.user_params, k) == getattr(coeval.user_params, k)
+        for k in UserParams._defaults_.keys()
+        if k != "BOX_LEN"
+    )
+    assert all(
+        cv2.global_params[k] == coeval.global_params[k]
+        for k in global_params.keys()
+        if k != "OPTIMIZE_MIN_MASS"
+    )
 
 
 def test_lightcone_roundtrip(test_direc, lc):
