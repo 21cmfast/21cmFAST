@@ -650,42 +650,20 @@ void Print_HMF(double z, struct UserParams *user_params)
 
 	// Some settings
 	nm = 1000;
-	lm1 = 2.0;
+	lm1 = 7.0;
 	lm2 = 20.0;
 	growthf = dicke(z);
 	dlm = (lm2 - lm1) / ((double)nm - 1.0);
 	lm = lm1;
-
+	
 	OutputFile = fopen("HMF_Table_tmp.txt", "a");
 	fprintf(OutputFile, "%E  ", z);
 
 	for (idx = 0; idx < nm; idx++)
 	{
 		m = pow(10.0, lm);
-		if (user_params->HMF == 0)
-		{
-			hmf = dNdM(growthf, m);
-		}
-		else if (user_params->HMF == 1)
-		{
-			hmf = dNdM_st(growthf, m);
-		}
-		else if (user_params->HMF == 2)
-		{
-			hmf = dNdM_WatsonFOF(growthf, m);
-		}
-		else if (user_params->HMF == 3)
-		{
-			hmf = dNdM_WatsonFOF_z(z, growthf, m);
-		}
-		else
-		{
-			hmf = 0.0;
-			LOG_ERROR("Wrong choice of HMF!");
-			Throw(ValueError);
-		}
+		hmf = dNdM_st(growthf, m);
 		lm = lm + dlm;
-
 		fprintf(OutputFile, "%E  ", hmf);
 	}
 	fprintf(OutputFile, "\n");
