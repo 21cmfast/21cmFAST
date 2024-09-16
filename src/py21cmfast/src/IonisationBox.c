@@ -888,8 +888,7 @@ int setup_radii(struct RadiusSpec **rspec_array, struct IonBoxConstants *consts)
 }
 
 void find_ionised_regions(IonizedBox *box, IonizedBox *previous_ionize_box, PerturbedField *perturbed_field, TsBox *spin_temp, struct RadiusSpec rspec,
-                            struct IonBoxConstants *consts, struct FilteredGrids *fg_struct, gsl_rng *cell_rng[],
-                            double f_limit_acg, double f_limit_mcg){
+                            struct IonBoxConstants *consts, struct FilteredGrids *fg_struct, double f_limit_acg, double f_limit_mcg){
     double mean_fix_term_acg = 1.;
     double mean_fix_term_mcg = 1.;
     int fc_r_idx;
@@ -1016,45 +1015,9 @@ void find_ionised_regions(IonizedBox *box, IonizedBox *previous_ionize_box, Pert
                     } // end ionized
                         // If not fully ionized, then assign partial ionizations
                     else if (rspec.R_index==0 && (box->xH_box[HII_R_INDEX(x, y, z)] > TINY)) {
-                        //TODO: figure out why this model exists
-                        //This places some RNG at the cell-scale on the last filter step for partial reionisations
-                        //  This is done by sampling from the Poisson distribution, in units of the *total halo mass in the cell*
-                        //  with an average value of (default)5.
-                        //With NO_RNG, this means that all non-ionised cells have 1/5 of their previous collapsed fraction?
-                        if (!flag_options_global->USE_HALO_FIELD){
-                            //TODO: the N_halos.. was previously in the above loop, but was only used for partial ionisations anyway
-                            ave_M_coll_cell = (curr_fcoll + curr_fcoll_mini) * consts->pixel_mass * (1. + curr_dens);
-                            ave_N_min_cell = ave_M_coll_cell / consts->M_min; // ave # of M_MIN halos in cell
-                            if(user_params_global->NO_RNG) {
-                                N_halos_in_cell = 1.;
-                            }
-                            else {
-                                N_halos_in_cell = gsl_ran_poisson(cell_rng[omp_get_thread_num()],
-                                                                        global_params.N_POISSON);
-                            }
-
-                            if (curr_fcoll>1) curr_fcoll=1;
-                            if (curr_fcoll_mini>1) curr_fcoll_mini=1;
-                            if(ave_N_min_cell < global_params.N_POISSON) {
-                                curr_fcoll = N_halos_in_cell * ( ave_M_coll_cell / (float)global_params.N_POISSON ) / (consts->pixel_mass*(1. + curr_dens));
-                                if (flag_options_global->USE_MINI_HALOS){
-                                    curr_fcoll_mini = curr_fcoll * (curr_fcoll_mini * consts->ion_eff_factor) \
-                                                     / (curr_fcoll * consts->ion_eff_factor + curr_fcoll_mini * consts->ion_eff_factor_mini);
-                                    curr_fcoll = curr_fcoll - curr_fcoll_mini;
-                                }
-                                else{
-                                    curr_fcoll_mini = 0.;
-                                }
-                            }
-
-                            if (ave_M_coll_cell < (consts->M_min / 5.)) {
-                                curr_fcoll = 0.;
-                                curr_fcoll_mini = 0.;
-                            }
-
-                            if (curr_fcoll>1) curr_fcoll=1;
-                            if (curr_fcoll_mini>1) curr_fcoll_mini=1;
-                        }
+                        //NOTE: Previously there was an RNG model here which multiplied Fcoll by a sampled
+                        //  Poisson/<Poisson> term if 1/5 < M_coll / M_min < 5. This only ever affected the
+                        //  old parametrisation due to the M_min term.
 
                         res_xH = 1. - curr_fcoll * consts->ion_eff_factor - curr_fcoll_mini * consts->ion_eff_factor_mini;
                         // put the partial ionization here because we need to exclude xHII_from_xrays...
@@ -1325,17 +1288,6 @@ int ComputeIonizedBox(float redshift, float prev_redshift, UserParams *user_para
     double exp_global_hii = box->mean_f_coll * ionbox_constants.ion_eff_factor_gl \
                             + box->mean_f_coll_MINI * ionbox_constants.ion_eff_factor_mini_gl;
 
-    //We need some RNG for the cell-scale partial ionisations,
-    // but we don't want to init inside find_ionsed regions since its a bit slow
-    bool need_rng = !user_params->NO_RNG && !flag_options->USE_HALO_FIELD;
-    gsl_rng * cell_rng[user_params->N_THREADS];
-
-    //TODO: I want to move this in the `else` below but freeing becomes annoying
-    if(need_rng){
-        //TODO: proper seeding (not zero)
-        seed_rng_threads_fast(cell_rng,0);
-    }
-
     //TODO: change this from an if-else to an early-exit / cleanup call
     if(exp_global_hii < global_params.HII_ROUND_ERR){ // way too small to ionize anything...
         LOG_DEBUG("Mean collapsed fraciton %.3e too small to ionize, stopping early",exp_global_hii);
@@ -1418,7 +1370,7 @@ int ComputeIonizedBox(float redshift, float prev_redshift, UserParams *user_para
             }
 
             find_ionised_regions(box,previous_ionize_box,perturbed_field,spin_temp,curr_radius,&ionbox_constants,
-                                    grid_struct,cell_rng,f_limit_acg,f_limit_mcg);
+                                    grid_struct,f_limit_acg,f_limit_mcg);
 
             LOG_SUPER_DEBUG("z_re_box after R=%f: ", curr_radius.R);
             debugSummarizeBox(box->z_re_box, user_params->HII_DIM, user_params->NON_CUBIC_FACTOR, "  ");
@@ -1479,10 +1431,6 @@ int ComputeIonizedBox(float redshift, float prev_redshift, UserParams *user_para
     free_conditional_tables();
 
     free(radii_spec);
-
-    if(need_rng){
-        free_rng_threads(cell_rng);
-    }
 
     LOG_DEBUG("finished!\n");
 

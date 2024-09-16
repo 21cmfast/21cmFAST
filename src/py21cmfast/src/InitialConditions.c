@@ -34,7 +34,6 @@
 //  In order to keep consistency with master I'm leaving it as is for now, but I really want to
 //  understand why it was done this way.
 void seed_rng_threads(gsl_rng * rng_arr[], unsigned long long int seed){
-    // setting tbe random seeds
     gsl_rng * rseed = gsl_rng_alloc(gsl_rng_mt19937); // An RNG for generating seeds for multithreading
 
     gsl_rng_set(rseed, seed);
@@ -96,7 +95,6 @@ void seed_rng_threads(gsl_rng * rng_arr[], unsigned long long int seed){
 //  as well as be applied to different cells/halos, so I can't forsee any issues.
 //Just in case I'm not using it for the initial conditions, which is okay since the slower version is only used once
 void seed_rng_threads_fast(gsl_rng * rng_arr[], unsigned long long int seed){
-    // setting tbe random seeds
     gsl_rng * rseed = gsl_rng_alloc(gsl_rng_mt19937); // An RNG for generating seeds for multithreading
     gsl_rng_set(rseed, seed);
 
