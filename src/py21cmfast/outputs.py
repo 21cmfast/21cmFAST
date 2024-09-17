@@ -544,6 +544,8 @@ class IonizedBox(_AllParamsBox):
             "Nion_box": shape,
             "z_re_box": shape,
             "Nrec_box": shape,
+            "nHI_box": shape,
+            "C_box": shape,
             "temp_kinetic_all_gas": shape,
             "Fcoll": filter_shape,
         }
@@ -581,6 +583,8 @@ class IonizedBox(_AllParamsBox):
             if self.flag_options.INHOMO_RECO:
                 required += [
                     "Nrec_box",
+                    "nHI_box",
+                    "C_box",
                 ]
             if (
                 self.flag_options.USE_MASS_DEPENDENT_ZETA
@@ -1119,6 +1123,7 @@ class LightCone(_HighLevelOutput):
         random_seed,
         lightcones,
         node_redshifts=None,
+        node_redshifts_adjusted=None,
         mean_f_colls=None,
         mean_f_coll_MINIs=None,
         global_quantities=None,
@@ -1135,6 +1140,7 @@ class LightCone(_HighLevelOutput):
         self.astro_params = astro_params
         self.flag_options = flag_options
         self.node_redshifts = node_redshifts
+        self.node_redshifts_adjusted = node_redshifts_adjusted
         self.cache_files = cache_files
         self.log10_mturnovers = log10_mturnovers
         self.log10_mturnovers_mini = log10_mturnovers_mini
@@ -1146,7 +1152,7 @@ class LightCone(_HighLevelOutput):
             mean_f_colls
             * 10**astro_params.F_STAR10
             * 10**astro_params.F_ESC10
-            * ((1.0 + self.node_redshifts) / 8) ** astro_params.BETA_ESC
+            * ((1.0 + self.node_redshifts_adjusted) / 8) ** astro_params.BETA_ESC
             * self.global_params["Pop2_ion"]
         )
         self.Nion_mcg = (
@@ -1249,6 +1255,9 @@ class LightCone(_HighLevelOutput):
                 global_q[k] = v
 
             f["node_redshifts"] = self.node_redshifts
+            f["node_redshifts_adjusted"] = self.node_redshifts_adjusted
+            f["Nion_acg"] = self.Nion_acg
+            f["Nion_mcg"] = self.Nion_mcg
 
     @classmethod
     def _read_inputs(cls, fname):

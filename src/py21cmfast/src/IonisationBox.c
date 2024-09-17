@@ -117,7 +117,7 @@ LOG_SUPER_DEBUG("defined parameters");
 
     pixel_volume = pow(user_params->BOX_LEN/((float)(user_params->HII_DIM)), 3);
 
-	double F_ESC10_zterm, prev_F_ESC10_zterm;
+    double F_ESC10_zterm, prev_F_ESC10_zterm;
 
     // For recombinations
     if(flag_options->INHOMO_RECO) {
@@ -181,6 +181,7 @@ LOG_DEBUG("original prev_redshift=%f, updated prev_redshift=%f delta-z = %f", st
 //            Throw(ParameterError);
             Throw(PhotonConsError);
         }
+        box->redshift_PC = redshift;
     }
 
     if(flag_options->USE_MASS_DEPENDENT_ZETA) {
@@ -192,7 +193,7 @@ LOG_DEBUG("original prev_redshift=%f, updated prev_redshift=%f delta-z = %f", st
         if(flag_options->PHOTON_CONS) {
             stored_F_ESC10_zterm = pow((1.+stored_redshift)/8., astro_params->BETA_ESC);
             stored_prev_F_ESC10_zterm = pow((1.+stored_prev_redshift)/8., astro_params->BETA_ESC);
-		}
+        }
     }
     else {
         ION_EFF_FACTOR = astro_params->HII_EFF_FACTOR;
@@ -380,10 +381,10 @@ LOG_DEBUG("first redshift, do some initialization");
             R_BUBBLE_MAX = 25.483241248322766 / cosmo_params->hlittle;
         else
             R_BUBBLE_MAX = 112 / cosmo_params->hlittle * pow( (1.+redshift) / 5. , -4.4);
-		if (flag_options->USE_MINI_HALOS){
-			R_BUBBLE_MAX_MAX = astro_params->R_BUBBLE_MAX;
-			LOG_DEBUG("set max radius at this redshift as  %f vs all %f", R_BUBBLE_MAX,  R_BUBBLE_MAX_MAX);
-		}
+        if (flag_options->USE_MINI_HALOS){
+            R_BUBBLE_MAX_MAX = astro_params->R_BUBBLE_MAX;
+            LOG_DEBUG("set max radius at this redshift as  %f vs all %f", R_BUBBLE_MAX,  R_BUBBLE_MAX_MAX);
+        }
     }
     else
         R_BUBBLE_MAX = astro_params->R_BUBBLE_MAX;
@@ -399,10 +400,10 @@ LOG_DEBUG("first redshift, do some initialization");
                 // really painful to get the length...
                 counter = 1;
                 R=fmax(global_params.R_BUBBLE_MIN, (cell_length_factor*user_params->BOX_LEN/(float)user_params->HII_DIM));
-				if (flag_options->EVOLVING_R_BUBBLE_MAX)
-					R_BUBBLE_MAX_tmp = R_BUBBLE_MAX_MAX;
-				else
-					R_BUBBLE_MAX_tmp = R_BUBBLE_MAX;
+                if (flag_options->EVOLVING_R_BUBBLE_MAX)
+                    R_BUBBLE_MAX_tmp = R_BUBBLE_MAX_MAX;
+                else
+                    R_BUBBLE_MAX_tmp = R_BUBBLE_MAX;
                 while ((R - fmin(R_BUBBLE_MAX_tmp, L_FACTOR*user_params->BOX_LEN)) <= FRACT_FLOAT_ERR ){
                     if(R >= fmin(R_BUBBLE_MAX_tmp, L_FACTOR*user_params->BOX_LEN)) {
                         stored_R = R/(global_params.DELTA_R_HII_FACTOR);
@@ -415,10 +416,6 @@ LOG_DEBUG("first redshift, do some initialization");
                 previous_ionize_box->Fcoll_MINI  = (float *) calloc(HII_TOT_NUM_PIXELS*counter, sizeof(float));
                 previous_ionize_box->mean_f_coll = 0.0;
                 previous_ionize_box->mean_f_coll_MINI = 0.0;
-                if(flag_options->PHOTON_CONS) {
-                    previous_ionize_box->mean_f_coll_PC = 0.0;
-                    previous_ionize_box->mean_f_coll_MINI_PC = 0.0;
-                }
 
 #pragma omp parallel shared(prev_deltax_unfiltered) private(i,j,k) num_threads(user_params->N_THREADS)
                 {
@@ -524,10 +521,10 @@ LOG_SUPER_DEBUG("average turnover masses are %.2f and %.2f for ACGs and MCGs", b
         Mlim_Fstar = Mass_limit_bisection(M_MIN, 1e16, astro_params->ALPHA_STAR, astro_params->F_STAR10);
         Mlim_Fesc  = Mass_limit_bisection(M_MIN, 1e16, astro_params->ALPHA_ESC, astro_params->F_ESC10* F_ESC10_zterm);
         prev_Mlim_Fesc  = Mass_limit_bisection(M_MIN, 1e16, astro_params->ALPHA_ESC, astro_params->F_ESC10* prev_F_ESC10_zterm);
-		if(flag_options->PHOTON_CONS){
+        if(flag_options->PHOTON_CONS){
           stored_Mlim_Fesc  = Mass_limit_bisection(M_MIN, 1e16, astro_params->ALPHA_ESC, astro_params->F_ESC10* stored_F_ESC10_zterm);
           stored_prev_Mlim_Fesc  = Mass_limit_bisection(M_MIN, 1e16, astro_params->ALPHA_ESC, astro_params->F_ESC10* stored_prev_F_ESC10_zterm);
-		}
+        }
     }
     else {
 
@@ -605,39 +602,20 @@ LOG_SUPER_DEBUG("sigma table has been initialised");
     // Determine the normalisation for the excursion set algorithm
     if (flag_options->USE_MASS_DEPENDENT_ZETA) {
         if (flag_options->USE_MINI_HALOS){
-            if (previous_ionize_box->mean_f_coll * prev_ION_EFF_FACTOR < 1e-4){
+            if (previous_ionize_box->mean_f_coll * prev_ION_EFF_FACTOR < 1e-4)
                 box->mean_f_coll = Nion_General(redshift,M_MIN,Mturnover,astro_params->ALPHA_STAR,astro_params->ALPHA_ESC,
                                                 astro_params->F_STAR10,astro_params->F_ESC10* F_ESC10_zterm,Mlim_Fstar,Mlim_Fesc);
-                if(flag_options->PHOTON_CONS) {
-                    box->mean_f_coll_PC = Nion_General(stored_redshift,M_MIN,Mturnover,astro_params->ALPHA_STAR,astro_params->ALPHA_ESC,
-                                                astro_params->F_STAR10,astro_params->F_ESC10* stored_F_ESC10_zterm,Mlim_Fstar,stored_Mlim_Fesc);
-                }
-            }
-            else{
+            else
                 box->mean_f_coll = previous_ionize_box->mean_f_coll + \
                                     Nion_General(redshift,M_MIN,Mturnover,astro_params->ALPHA_STAR,astro_params->ALPHA_ESC,
                                                  astro_params->F_STAR10,astro_params->F_ESC10 * F_ESC10_zterm,Mlim_Fstar,Mlim_Fesc) - \
                                     Nion_General(prev_redshift,M_MIN,Mturnover,astro_params->ALPHA_STAR,astro_params->ALPHA_ESC,
                                                  astro_params->F_STAR10,astro_params->F_ESC10 * F_ESC10_zterm,Mlim_Fstar,Mlim_Fesc);// similar to Mturnover, F_ESC10_zterm should not be prev_F_ESC10_zterm
-                if(flag_options->PHOTON_CONS) {
-                    box->mean_f_coll_PC = previous_ionize_box->mean_f_coll_PC + \
-                                    Nion_General(stored_redshift,M_MIN,Mturnover,astro_params->ALPHA_STAR,astro_params->ALPHA_ESC,
-                                                 astro_params->F_STAR10,astro_params->F_ESC10 *stored_F_ESC10_zterm,Mlim_Fstar,stored_Mlim_Fesc) - \
-                                    Nion_General(stored_prev_redshift,M_MIN,Mturnover,astro_params->ALPHA_STAR,astro_params->ALPHA_ESC,
-                                                 astro_params->F_STAR10,astro_params->F_ESC10 *stored_F_ESC10_zterm,Mlim_Fstar,stored_Mlim_Fesc);
-                }
-            }
-            if (previous_ionize_box->mean_f_coll_MINI * ION_EFF_FACTOR_MINI < 1e-4){
+            if (previous_ionize_box->mean_f_coll_MINI * ION_EFF_FACTOR_MINI < 1e-4)
                 box->mean_f_coll_MINI = Nion_General_MINI(redshift,M_MIN,Mturnover_MINI,Mcrit_atom,
                                                           astro_params->ALPHA_STAR_MINI,astro_params->ALPHA_ESC,astro_params->F_STAR7_MINI,
                                                           astro_params->F_ESC7_MINI,Mlim_Fstar_MINI,Mlim_Fesc_MINI);
-                if(flag_options->PHOTON_CONS) {
-                    box->mean_f_coll_MINI_PC = Nion_General_MINI(stored_redshift,M_MIN,Mturnover_MINI,Mcrit_atom,
-                                                          astro_params->ALPHA_STAR_MINI,astro_params->ALPHA_ESC,astro_params->F_STAR7_MINI,
-                                                          astro_params->F_ESC7_MINI,Mlim_Fstar_MINI,Mlim_Fesc_MINI);
-                }
-            }
-            else{
+            else
                 box->mean_f_coll_MINI = previous_ionize_box->mean_f_coll_MINI + \
                                         Nion_General_MINI(redshift,M_MIN,Mturnover_MINI,Mcrit_atom,astro_params->ALPHA_STAR_MINI,
                                                           astro_params->ALPHA_ESC,astro_params->F_STAR7_MINI,astro_params->F_ESC7_MINI
@@ -645,16 +623,6 @@ LOG_SUPER_DEBUG("sigma table has been initialised");
                                         Nion_General_MINI(prev_redshift,M_MIN,Mturnover_MINI,Mcrit_atom,astro_params->ALPHA_STAR_MINI,
                                                           astro_params->ALPHA_ESC,astro_params->F_STAR7_MINI,astro_params->F_ESC7_MINI,
                                                           Mlim_Fstar_MINI,Mlim_Fesc_MINI);
-                if(flag_options->PHOTON_CONS) {
-                    box->mean_f_coll_MINI_PC = previous_ionize_box->mean_f_coll_MINI_PC + \
-                                        Nion_General_MINI(stored_redshift,M_MIN,Mturnover_MINI,Mcrit_atom,astro_params->ALPHA_STAR_MINI,
-                                                          astro_params->ALPHA_ESC,astro_params->F_STAR7_MINI,astro_params->F_ESC7_MINI
-                                                          ,Mlim_Fstar_MINI,Mlim_Fesc_MINI) - \
-                                        Nion_General_MINI(stored_prev_redshift,M_MIN,Mturnover_MINI,Mcrit_atom,astro_params->ALPHA_STAR_MINI,
-                                                          astro_params->ALPHA_ESC,astro_params->F_STAR7_MINI,astro_params->F_ESC7_MINI,
-                                                          Mlim_Fstar_MINI,Mlim_Fesc_MINI);
-                }
-            }
             f_coll_min = Nion_General(global_params.Z_HEAT_MAX,M_MIN,Mturnover,astro_params->ALPHA_STAR,
                                       astro_params->ALPHA_ESC,astro_params->F_STAR10,astro_params->F_ESC10*F_ESC10_zterm,Mlim_Fstar,Mlim_Fesc);
             f_coll_min_MINI = Nion_General_MINI(global_params.Z_HEAT_MAX,M_MIN,Mturnover_MINI,Mcrit_atom,
@@ -665,20 +633,12 @@ LOG_SUPER_DEBUG("sigma table has been initialised");
             box->mean_f_coll = Nion_General(redshift,M_MIN,Mturnover,astro_params->ALPHA_STAR,astro_params->ALPHA_ESC,
                                             astro_params->F_STAR10,astro_params->F_ESC10*F_ESC10_zterm,Mlim_Fstar,Mlim_Fesc);
             box->mean_f_coll_MINI = 0.;
-            if(flag_options->PHOTON_CONS) {
-                box->mean_f_coll_PC = Nion_General(stored_redshift,M_MIN,Mturnover,astro_params->ALPHA_STAR,astro_params->ALPHA_ESC,
-                                            astro_params->F_STAR10,astro_params->F_ESC10*stored_F_ESC10_zterm,Mlim_Fstar,stored_Mlim_Fesc);
-                box->mean_f_coll_MINI_PC = 0.;
-            }
             f_coll_min = Nion_General(global_params.Z_HEAT_MAX,M_MIN,Mturnover,astro_params->ALPHA_STAR,astro_params->ALPHA_ESC,
                                       astro_params->F_STAR10,astro_params->F_ESC10*F_ESC10_zterm,Mlim_Fstar,Mlim_Fesc);
         }
     }
     else {
         box->mean_f_coll = FgtrM_General(redshift, M_MIN);
-        if(flag_options->PHOTON_CONS) {
-            box->mean_f_coll_PC = FgtrM_General(stored_redshift, M_MIN);
-        }
     }
 
     if(isfinite(box->mean_f_coll)==0) {
@@ -819,10 +779,10 @@ LOG_SUPER_DEBUG("excursion set normalisation, mean_f_coll_MINI: %e", box->mean_f
         // loop through the filter radii (in Mpc)
         R=fmax(global_params.R_BUBBLE_MIN, (cell_length_factor*user_params->BOX_LEN/(float)user_params->HII_DIM));
 
-		if ((flag_options->EVOLVING_R_BUBBLE_MAX) && (flag_options->USE_MINI_HALOS))
-			R_BUBBLE_MAX_tmp = R_BUBBLE_MAX_MAX;
-		else
-			R_BUBBLE_MAX_tmp = R_BUBBLE_MAX;
+        if ((flag_options->EVOLVING_R_BUBBLE_MAX) && (flag_options->USE_MINI_HALOS))
+            R_BUBBLE_MAX_tmp = R_BUBBLE_MAX_MAX;
+        else
+            R_BUBBLE_MAX_tmp = R_BUBBLE_MAX;
 
         while ((R - fmin(R_BUBBLE_MAX_tmp, L_FACTOR * user_params->BOX_LEN)) <= FRACT_FLOAT_ERR) {
             R *= global_params.DELTA_R_HII_FACTOR;
@@ -1414,10 +1374,10 @@ LOG_ULTRA_DEBUG("while loop for until RtoM(R)=%f reaches M_MIN=%f", RtoM(R), M_M
 
                             // check if fully ionized!
                             if ( (f_coll * ION_EFF_FACTOR + f_coll_MINI * ION_EFF_FACTOR_MINI> (1. - xHII_from_xrays)*(1.0+rec)) ){ //IONIZED!!
-								// This is for the evolving Rmax case in minihalo runs
-								// We need to make sure the filtering radii are consitent across all snapshots
-								// But we do not need, at higher redshift, to assign reionization for radius larger than the real Rmax
-								if (~((flag_options->EVOLVING_R_BUBBLE_MAX) && (flag_options->USE_MINI_HALOS) && (R > R_BUBBLE_MAX))){
+                                // This is for the evolving Rmax case in minihalo runs
+                                // We need to make sure the filtering radii are consitent across all snapshots
+                                // But we do not need, at higher redshift, to assign reionization for radius larger than the real Rmax
+                                if (~((flag_options->EVOLVING_R_BUBBLE_MAX) && (flag_options->USE_MINI_HALOS) && (R > R_BUBBLE_MAX))){
                                 // if this is the first crossing of the ionization barrier for this cell (largest R), record the gamma
                                 // this assumes photon-starved growth of HII regions...  breaks down post EoR
                                 if (flag_options->INHOMO_RECO && (box->xH_box[HII_R_INDEX(x,y,z)] > FRACT_FLOAT_ERR) ){
@@ -1439,7 +1399,7 @@ LOG_ULTRA_DEBUG("while loop for until RtoM(R)=%f reaches M_MIN=%f", RtoM(R), M_M
                                 if (global_params.FIND_BUBBLE_ALGORITHM == 1) // sphere method
                                     update_in_sphere(box->xH_box, user_params->HII_DIM, HII_D_PARA, R/(user_params->BOX_LEN), \
                                                      x/(user_params->HII_DIM+0.0), y/(user_params->HII_DIM+0.0), z/(HII_D_PARA+0.0));
-								}
+                                }
                             } // end ionized
                                 // If not fully ionized, then assign partial ionizations
                             else if (LAST_FILTER_STEP && (box->xH_box[HII_R_INDEX(x, y, z)] > TINY)) {
@@ -1590,6 +1550,8 @@ LOG_ULTRA_DEBUG("while loop for until RtoM(R)=%f reaches M_MIN=%f", RtoM(R), M_M
 
                             dNrec = splined_recombination_rate(z_eff - 1., box->Gamma12_box[HII_R_INDEX(x, y, z)]) *
                                     fabs_dtdz * ZSTEP * (1. - box->xH_box[HII_R_INDEX(x, y, z)]);
+							box->C_box[HII_R_INDEX(x, y, z)] = splined_clumping_factor(z_eff - 1., box->Gamma12_box[HII_R_INDEX(x, y, z)]);
+							box->nHI_box[HII_R_INDEX(x, y, z)] = splined_residual_neutral_hydrogen(z_eff - 1., box->Gamma12_box[HII_R_INDEX(x, y, z)]);
 
                             if (isfinite(dNrec) == 0) {
                                 something_finite_or_infinite = 1;

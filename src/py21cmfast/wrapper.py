@@ -2793,6 +2793,7 @@ def run_lightcone(
         global_q = {quantity: np.zeros(len(scrollz)) for quantity in global_quantities}
         mean_f_colls = np.zeros(len(scrollz))
         mean_f_coll_MINIs = np.zeros(len(scrollz))
+        node_redshifts_adjusted = np.zeros(len(scrollz))
         pf = None
 
         perturb_files = []
@@ -2863,16 +2864,11 @@ def run_lightcone(
                 write=write,  # quick hack for running MultiNest
                 cleanup=(cleanup and iz == (len(scrollz) - 1)),
             )
-            mean_f_colls[iz] = (
-                ib2.mean_f_coll_PC if flag_options.PHOTON_CONS else ib2.mean_f_coll
-            )
-            mean_f_coll_MINIs[iz] = (
-                ib2.mean_f_coll_MINI_PC
-                if ib2.flag_options.PHOTON_CONS
-                else ib2.mean_f_coll_MINI
-            )
+            mean_f_colls[iz] = ib2.mean_f_coll
+            mean_f_coll_MINIs[iz] = ib2.mean_f_coll_MINI
             log10_mturnovers[iz] = ib2.log10_Mturnover_ave
             log10_mturnovers_mini[iz] = ib2.log10_Mturnover_MINI_ave
+            node_redshifts_adjusted[iz] = ib2.redshift_PC
 
             bt2 = brightness_temperature(
                 ionized_box=ib2,
@@ -2927,7 +2923,7 @@ def run_lightcone(
 
             # Save mean/global quantities
             for quantity in global_quantities:
-                if quantity == "Nion_box":
+                if quantity in ["Nion_box", "C_box", "nHI_box"]:
                     global_q[quantity][iz] = np.ma.masked_equal(
                         getattr(outs[_fld_names[quantity]][1], quantity), 0
                     ).mean()
@@ -2998,6 +2994,7 @@ def run_lightcone(
                 init_box.random_seed,
                 lc,
                 node_redshifts=scrollz,
+                node_redshifts_adjusted=node_redshifts_adjusted,
                 global_quantities=global_q,
                 mean_f_colls=mean_f_colls,
                 mean_f_coll_MINIs=mean_f_coll_MINIs,

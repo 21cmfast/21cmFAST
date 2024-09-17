@@ -20,18 +20,25 @@ static gsl_spline *beta_spline;
 #define RR_lnGamma_min (double) (-10) // min ln gamma12 used
 #define RR_DEL_lnGamma (float) (0.1)
 static double RR_table[RR_Z_NPTS][RR_lnGamma_NPTS], lnGamma_values[RR_lnGamma_NPTS];
-static gsl_interp_accel *RR_acc[RR_Z_NPTS];
-static gsl_spline *RR_spline[RR_Z_NPTS];
+static double CF_table[RR_Z_NPTS][RR_lnGamma_NPTS], RNH_table[RR_Z_NPTS][RR_lnGamma_NPTS];
+static gsl_interp_accel *RR_acc[RR_Z_NPTS], *CF_acc[RR_Z_NPTS], *RNH_acc[RR_Z_NPTS];
+static gsl_spline *RR_spline[RR_Z_NPTS], *CF_spline[RR_Z_NPTS], *RNH_spline[RR_Z_NPTS];
 
 
 /***  FUNCTION PROTOTYPES ***/
 double splined_recombination_rate(double z_eff, double gamma12_bg); // assumes T=1e4 and case B
+double splined_clumping_factor(double z_eff, double gamma12_bg); // assumes T=1e4 and case B
+double splined_residual_neutral_hydrogen(double z_eff, double gamma12_bg); // assumes T=1e4 and case B
 
 double recombination_rate(double z_eff, double gamma12_bg, double T4, int usecaseB);
+double clumping_factor(double z_eff, double gamma12_bg, double T4, int usecaseB);
+double residual_neutral_hydrogen(double z_eff, double gamma12_bg, double T4, int usecaseB);
 void init_MHR(); /*initializes the lookup table for the PDF density integral in MHR00 model at redshift z*/
 void free_MHR(); /* deallocates the gsl structures from init_MHR */
 double Gamma_SS(double Gamma_bg, double Delta, double T_4, double z);//ionization rate w. self shielding
 double MHR_rr (double del, void *params);
+double MHR_cf (double del, void *params);
+double MHR_rnh (double del, void *params);
 double A_MHR(double z); /*returns the A parameter in MHR00model*/
 double C_MHR(double z); /*returns the C parameter in MHR00model*/
 double beta_MHR(double z); /*returns the beta parameter in MHR00model*/
@@ -69,6 +76,52 @@ double splined_recombination_rate(double z_eff, double gamma12_bg){
   return gsl_spline_eval(RR_spline[z_ct], lnGamma, RR_acc[z_ct]);
 }
 
+double splined_clumping_factor(double z_eff, double gamma12_bg){
+  int z_ct = (int) (z_eff / RR_DEL_Z + 0.5); // round to nearest int
+  double lnGamma = log(gamma12_bg);
+
+  // check out of bounds
+  if ( z_ct < 0 ){ // out of array bounds
+    z_ct = 0;
+  }
+  else if (z_ct  >= RR_Z_NPTS){
+    z_ct = RR_Z_NPTS-1;
+  }
+
+  if (lnGamma < RR_lnGamma_min){
+    return 0;
+  }
+  else if (lnGamma >= (RR_lnGamma_min + RR_DEL_lnGamma * ( RR_lnGamma_NPTS - 1 )) ){
+    LOG_WARNING("splined_clumping_factor: Gamma12 of %g is outside of interpolation array", gamma12_bg);
+    lnGamma =  RR_lnGamma_min + RR_DEL_lnGamma * ( RR_lnGamma_NPTS - 1 ) - FRACT_FLOAT_ERR;
+  }
+
+  return gsl_spline_eval(CF_spline[z_ct], lnGamma, CF_acc[z_ct]);
+}
+
+double splined_residual_neutral_hydrogen(double z_eff, double gamma12_bg){
+  int z_ct = (int) (z_eff / RR_DEL_Z + 0.5); // round to nearest int
+  double lnGamma = log(gamma12_bg);
+
+  // check out of bounds
+  if ( z_ct < 0 ){ // out of array bounds
+    z_ct = 0;
+  }
+  else if (z_ct  >= RR_Z_NPTS){
+    z_ct = RR_Z_NPTS-1;
+  }
+
+  if (lnGamma < RR_lnGamma_min){
+    return 0;
+  }
+  else if (lnGamma >= (RR_lnGamma_min + RR_DEL_lnGamma * ( RR_lnGamma_NPTS - 1 )) ){
+    LOG_WARNING("splined_residual_neutral_hydrogen: Gamma12 of %g is outside of interpolation array", gamma12_bg);
+    lnGamma =  RR_lnGamma_min + RR_DEL_lnGamma * ( RR_lnGamma_NPTS - 1 ) - FRACT_FLOAT_ERR;
+  }
+
+  return gsl_spline_eval(RNH_spline[z_ct], lnGamma, RNH_acc[z_ct]);
+}
+
 void init_MHR(){
   int z_ct, gamma_ct;
   float z, gamma;
@@ -88,12 +141,20 @@ void init_MHR(){
       lnGamma_values[gamma_ct] = RR_lnGamma_min  + gamma_ct*RR_DEL_lnGamma;  // ln of Gamma12
       gamma = exp(lnGamma_values[gamma_ct]);
       RR_table[z_ct][gamma_ct] = recombination_rate(z, gamma, 1, 1); // CHANGE THIS TO INCLUDE TEMPERATURE
+      CF_table[z_ct][gamma_ct] = clumping_factor(z, gamma, 1, 1); // CHANGE THIS TO INCLUDE TEMPERATURE
+      RNH_table[z_ct][gamma_ct] = residual_neutral_hydrogen(z, gamma, 1, 1); // CHANGE THIS TO INCLUDE TEMPERATURE
     }
 
     // set up the spline in gamma
     RR_acc[z_ct] = gsl_interp_accel_alloc();
+    CF_acc[z_ct] = gsl_interp_accel_alloc();
+    RNH_acc[z_ct] = gsl_interp_accel_alloc();
     RR_spline[z_ct] = gsl_spline_alloc (gsl_interp_cspline, RR_lnGamma_NPTS);
     gsl_spline_init(RR_spline[z_ct], lnGamma_values, RR_table[z_ct], RR_lnGamma_NPTS);
+    CF_spline[z_ct] = gsl_spline_alloc (gsl_interp_cspline, RR_lnGamma_NPTS);
+    gsl_spline_init(CF_spline[z_ct], lnGamma_values, CF_table[z_ct], RR_lnGamma_NPTS);
+    RNH_spline[z_ct] = gsl_spline_alloc (gsl_interp_cspline, RR_lnGamma_NPTS);
+    gsl_spline_init(RNH_spline[z_ct], lnGamma_values, RNH_table[z_ct], RR_lnGamma_NPTS);
 
   } // go to next redshift
 
@@ -111,6 +172,10 @@ void free_MHR(){
   for (z_ct=0; z_ct < RR_Z_NPTS; z_ct++){
     gsl_spline_free (RR_spline[z_ct]);
     gsl_interp_accel_free(RR_acc[z_ct]);
+    gsl_spline_free (CF_spline[z_ct]);
+    gsl_interp_accel_free(CF_acc[z_ct]);
+    gsl_spline_free (RNH_spline[z_ct]);
+    gsl_interp_accel_free(RNH_acc[z_ct]);
   }
 
   return;
@@ -147,6 +212,33 @@ double MHR_rr (double lnD, void *params){
   return 1e15*n_H * PDelta * alpha * x_e * x_e * del * del;//note extra D since we are integrating over lnD
 }
 
+double MHR_cf (double lnD, void *params){
+  double del=exp(lnD);
+  RR_par p = *(RR_par *) params;
+  double z = p.z;
+  double gamma = Gamma_SS(p.gamma12_bg, del, p.T4, z);
+  double n_H = p.avenH*del;
+  double x_e = 1.0 - neutral_fraction(n_H, p.T4, gamma, p.usecaseB);
+  double PDelta;
+
+  PDelta = p.A * exp( - 0.5*pow((pow(del,-2.0/3.0)- p.C_0 ) / ((2.0*7.61/(3.0*(1.0+z)))), 2)) * pow(del, p.beta);
+
+  return del * PDelta * x_e * x_e * del * del;//note extra D since we are integrating over lnD
+}
+
+double MHR_rnh (double lnD, void *params){
+  double del=exp(lnD);
+  RR_par p = *(RR_par *) params;
+  double z = p.z;
+  double gamma = Gamma_SS(p.gamma12_bg, del, p.T4, z);
+  double n_H = p.avenH*del;
+  double x_HI = neutral_fraction(n_H, p.T4, gamma, p.usecaseB);
+  double PDelta;
+
+  PDelta = p.A * exp( - 0.5*pow((pow(del,-2.0/3.0)- p.C_0 ) / ((2.0*7.61/(3.0*(1.0+z)))), 2)) * pow(del, p.beta);
+
+  return 1e6 * del * PDelta * x_HI * del;//note extra D since we are integrating over lnD
+}
 
 // returns the recombination rate per baryon (1/1e15s), integrated over the MHR density PDF,
 // given an ionizing background of gamma12_bg
@@ -160,6 +252,70 @@ double recombination_rate(double z, double gamma12_bg, double T4, int usecaseB){
   RR_par p = {z, gamma12_bg, T4, A_MHR(z), C_MHR(z), beta_MHR(z), No*pow( 1+z, 3), usecaseB};
 
   F.function = &MHR_rr;
+  F.params=&p;
+  lower_limit = log(0.01);
+  upper_limit = log(200);
+
+  int status;
+
+  gsl_set_error_handler_off();
+
+  status = gsl_integration_qag (&F, lower_limit, upper_limit, 0, rel_tol,
+		       1000, GSL_INTEG_GAUSS61, w, &result, &error);
+
+  if(status!=0) {
+      LOG_ERROR("gsl integration error occured!");
+      LOG_ERROR("(function argument): lower_limit=%e upper_limit=%e rel_tol=%e result=%e error=%e",lower_limit,upper_limit,rel_tol,result,error);
+      LOG_ERROR("data: z=%e gamma12_bg=%e T4=%e A_MHR(z)=%e",z,gamma12_bg,T4,A_MHR(z));
+      LOG_ERROR("data: C_MHR(z)=%e beta_MHR(z)=%e nH=%e usecaseB=%d\n",C_MHR(z),beta_MHR(z),No*pow( 1+z, 3),usecaseB);
+      GSL_ERROR(status);
+  }
+
+  gsl_integration_workspace_free (w);
+
+  return result;
+}
+
+double clumping_factor(double z, double gamma12_bg, double T4, int usecaseB){
+  double result, error, lower_limit, upper_limit, A, C_0, beta, avenH;
+  gsl_function F;
+  double rel_tol  = 0.01; //<- relative tolerance
+  gsl_integration_workspace * w = gsl_integration_workspace_alloc (1000);
+  RR_par p = {z, gamma12_bg, T4, A_MHR(z), C_MHR(z), beta_MHR(z), No*pow( 1+z, 3), usecaseB};
+
+  F.function = &MHR_cf;
+  F.params=&p;
+  lower_limit = log(0.01);
+  upper_limit = log(200);
+
+  int status;
+
+  gsl_set_error_handler_off();
+
+  status = gsl_integration_qag (&F, lower_limit, upper_limit, 0, rel_tol,
+		       1000, GSL_INTEG_GAUSS61, w, &result, &error);
+
+  if(status!=0) {
+      LOG_ERROR("gsl integration error occured!");
+      LOG_ERROR("(function argument): lower_limit=%e upper_limit=%e rel_tol=%e result=%e error=%e",lower_limit,upper_limit,rel_tol,result,error);
+      LOG_ERROR("data: z=%e gamma12_bg=%e T4=%e A_MHR(z)=%e",z,gamma12_bg,T4,A_MHR(z));
+      LOG_ERROR("data: C_MHR(z)=%e beta_MHR(z)=%e nH=%e usecaseB=%d\n",C_MHR(z),beta_MHR(z),No*pow( 1+z, 3),usecaseB);
+      GSL_ERROR(status);
+  }
+
+  gsl_integration_workspace_free (w);
+
+  return result;
+}
+
+double residual_neutral_hydrogen(double z, double gamma12_bg, double T4, int usecaseB){
+  double result, error, lower_limit, upper_limit, A, C_0, beta, avenH;
+  gsl_function F;
+  double rel_tol  = 0.01; //<- relative tolerance
+  gsl_integration_workspace * w = gsl_integration_workspace_alloc (1000);
+  RR_par p = {z, gamma12_bg, T4, A_MHR(z), C_MHR(z), beta_MHR(z), No*pow( 1+z, 3), usecaseB};
+
+  F.function = &MHR_rnh;
   F.params=&p;
   lower_limit = log(0.01);
   upper_limit = log(200);

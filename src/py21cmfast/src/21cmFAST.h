@@ -126,16 +126,17 @@ struct TsBox{
 };
 
 struct IonizedBox{
+	double redshift_PC;
     double mean_f_coll;
     double mean_f_coll_MINI;
-    double mean_f_coll_PC;
-    double mean_f_coll_MINI_PC;
     double log10_Mturnover_ave;
     double log10_Mturnover_MINI_ave;
     float *xH_box;
     float *Gamma12_box;
     float *MFP_box;
     float *z_re_box;
+    float *C_box;
+    float *nHI_box;
     float *Nrec_box;
 	float *Nion_box;
     float *temp_kinetic_all_gas;
