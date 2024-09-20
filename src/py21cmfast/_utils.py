@@ -1135,7 +1135,7 @@ class OutputStruct(StructWrapper, metaclass=ABCMeta):
         self,
         direc: Union[str, Path, None] = None,
         fname: Union[str, Path, None, h5py.File, h5py.Group] = None,
-        keys: Optional[Sequence[str]] = [],
+        keys: Optional[Sequence[str]] = (),
     ):
         """
         Try find and read existing boxes from cache, which match the parameters of this instance.
@@ -1217,7 +1217,7 @@ class OutputStruct(StructWrapper, metaclass=ABCMeta):
         fname,
         direc=None,
         h5_group: Union[str, None] = None,
-        arrays_to_load=[],
+        arrays_to_load=(),
     ):
         """Create an instance from a file on disk.
 
