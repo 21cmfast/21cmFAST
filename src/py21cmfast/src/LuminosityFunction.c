@@ -75,7 +75,8 @@ void cleanup_ComputeLF(){
 }
 
 int ComputeLF(int nbins, UserParams *user_params, CosmoParams *cosmo_params, AstroParams *astro_params,
-               FlagOptions *flag_options, int component, int NUM_OF_REDSHIFT_FOR_LF, float *z_LF, float *M_TURNs, double *M_uv_z, double *M_h_z, double *log10phi) {
+               FlagOptions *flag_options, int component, int NUM_OF_REDSHIFT_FOR_LF, float *z_LF,
+               float *M_TURNs, double *M_uv_z, double *M_h_z, double *log10phi) {
     /*
         This is an API-level function and thus returns an int status.
     */
@@ -185,8 +186,8 @@ int ComputeLF(int nbins, UserParams *user_params, CosmoParams *cosmo_params, Ast
                 else
                     f_duty_upper = exp(-(Mhalo_param[i]/Mcrit_atom));
 
-                log10phi[i + i_z*nbins] = log10( unconditional_mf(growthf,lnMhalo_i,z_LF[i_z],mf)
-                                        * exp(-(M_TURNs[i_z]/Mhalo_param[i]) * (cosmo_params->OMm*RHOcrit))
+                log10phi[i + i_z*nbins] = log10( unconditional_mf(growthf,lnMhalo_i,z_LF[i_z],mf) / Mhalo_param[i]
+                                        * exp(-(M_TURNs[i_z]/Mhalo_param[i])) * (cosmo_params->OMm*RHOcrit)
                                         * f_duty_upper / fabs(dMuvdMhalo) );
 
                 if (isinf(log10phi[i + i_z*nbins]) || isnan(log10phi[i + i_z*nbins]) || log10phi[i + i_z*nbins] < -30.)
@@ -245,7 +246,7 @@ int ComputeLF(int nbins, UserParams *user_params, CosmoParams *cosmo_params, Ast
                 else
                     f_duty_upper = exp(-(Mhalo_param[i]/Mcrit_atom));
 
-                dndm = unconditional_mf(growthf, log(Mhalo_param[i]),z_LF[i_z], mf);
+                dndm = unconditional_mf(growthf, log(Mhalo_param[i]),z_LF[i_z], mf) * (cosmo_params->OMm*RHOcrit) / Mhalo_param[i];
                 log10phi[i + i_z*nbins] = log10(dndm * exp(-(M_TURNs[i_z]/Mhalo_param[i])) * f_duty_upper / deriv[i]);
                 if (isinf(log10phi[i + i_z*nbins]) || isnan(log10phi[i + i_z*nbins]) || log10phi[i + i_z*nbins] < -30.)
                     log10phi[i + i_z*nbins] = -30.;

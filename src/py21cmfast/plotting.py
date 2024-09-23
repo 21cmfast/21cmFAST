@@ -118,7 +118,7 @@ def _imshow_slice(
         else:
             # short edge colorbar
             frac = ax_short / (asp * ax_long + ax_short)
-            pad = 0.05
+            pad = 0.02
 
         cb = plt.colorbar(
             orientation="horizontal" if cbar_horizontal else "vertical",
@@ -228,7 +228,7 @@ def lightcone_sliceplot(
     zticks: str = "redshift",
     fig: plt.Figure | None = None,
     ax: plt.Axes | None = None,
-    z_max=None,
+    z_range=None,
     **kwargs,
 ):
     """Create a 2D plot of a slice through a lightcone.
@@ -276,18 +276,20 @@ def lightcone_sliceplot(
 
     plot_shape = [lightcone.shape[axis_dct["x"]], lightcone.shape[axis_dct["y"]]]
     plot_crd = [
-        lightcone.lightcone_dimensions[axis_dct["x"]],
-        lightcone.lightcone_dimensions[axis_dct["y"]],
+        [0, lightcone.lightcone_dimensions[axis_dct["x"]]],
+        [0, lightcone.lightcone_dimensions[axis_dct["y"]]],
     ]
 
     plot_sel = Ellipsis
-    if z_max is not None and slice_axis in (0, 1):
-        zmax_idx = np.argmin(np.fabs(z_max - lightcone.lightcone_redshifts))
-        plot_shape[1 if vertical else 0] = zmax_idx
-        plot_crd[1 if vertical else 0] = (
-            lightcone.lightcone_coords[zmax_idx].to("Mpc").value
-        )
-        plot_sel = slice(0, zmax_idx, 1)
+    if z_range is not None and slice_axis in (0, 1):
+        zmax_idx = np.argmin(np.fabs(z_range[1] - lightcone.lightcone_redshifts))
+        zmin_idx = np.argmin(np.fabs(z_range[0] - lightcone.lightcone_redshifts))
+        ax_idx = 1 if vertical else 0
+        plot_shape[ax_idx] = zmax_idx - zmin_idx
+
+        plot_crd[ax_idx][1] = lightcone.lightcone_coords[zmax_idx].to("Mpc").value
+        plot_crd[ax_idx][0] = lightcone.lightcone_coords[zmin_idx].to("Mpc").value
+        plot_sel = slice(zmin_idx, zmax_idx, 1)
 
     if fig is None and ax is None:
         fig, ax = plt.subplots(
@@ -314,10 +316,10 @@ def lightcone_sliceplot(
         )
 
     extent = (
-        0,
-        plot_crd[0],
-        0,
-        plot_crd[1],
+        plot_crd[0][0],
+        plot_crd[0][1],
+        plot_crd[1][0],
+        plot_crd[1][1],
     )
 
     cmap = kwargs.pop("cmap", "EoR" if kind == "brightness_temp" else "viridis")
@@ -351,7 +353,7 @@ def lightcone_sliceplot(
         )
 
     if z_axis:
-        zlabel = _set_zaxis_ticks(ax, lightcone, zticks, z_axis, z_max)
+        zlabel = _set_zaxis_ticks(ax, lightcone, zticks, z_axis, z_range)
 
     if ylabel != "":
         ax.set_ylabel(ylabel or zlabel)
@@ -377,19 +379,26 @@ def lightcone_sliceplot(
     return fig, ax
 
 
-def _set_zaxis_ticks(ax, lightcone, zticks, z_axis, z_max):
+def _set_zaxis_ticks(ax, lightcone, zticks, z_axis, z_range):
     if zticks == "none":
         getattr(ax, f"set_{z_axis}ticks")([])
         getattr(ax, f"set_{z_axis}ticklabels")([])
         return ""
 
     if zticks != "distance":
-        if z_max is None:
+        if z_range is None:
             z_max = lightcone.lightcone_redshifts.max()
+            z_min = lightcone.lightcone_redshifts.max()
+        else:
+            z_min, z_max = z_range
 
         loc = AutoLocator()
         # Get redshift ticks.
-        lc_z = lightcone.lightcone_redshifts[lightcone.lightcone_redshifts < z_max]
+
+        lc_z = lightcone.lightcone_redshifts[
+            (lightcone.lightcone_redshifts < z_max)
+            & (lightcone.lightcone_redshifts > z_min)
+        ]
 
         if zticks == "redshift":
             coords = lc_z
