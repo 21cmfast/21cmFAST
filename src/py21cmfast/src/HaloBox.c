@@ -28,6 +28,7 @@
 struct HaloBoxConstants{
     double redshift;
     bool fix_mean;
+    bool scaling_median;
 
     double fstar_10;
     double alpha_star;
@@ -86,6 +87,7 @@ void set_hbox_constants(double redshift, AstroParams *astro_params, FlagOptions 
     //whether to fix *integrated* (not sampled) galaxy properties to the expected mean
     //  constant for now, to be a flag later
     consts->fix_mean = true;
+    consts->scaling_median = flag_options->HALO_SCALING_RELATIONS_MEDIAN;
 
     consts->fstar_10 = astro_params->F_STAR10;
     consts->alpha_star = astro_params->ALPHA_STAR;
@@ -231,7 +233,8 @@ void get_halo_stellarmass(double halo_mass, double mturn_acg, double mturn_mcg, 
     double sm_sample,sm_sample_mini;
 
     double baryon_ratio = cosmo_params_global->OMb / cosmo_params_global->OMm;
-    double stoc_adjustment_term = sigma_star * sigma_star / 2.; //adjustment to the mean for lognormal scatter
+    //adjustment to the mean for lognormal scatter
+    double stoc_adjustment_term = consts->scaling_median ? 0 : sigma_star * sigma_star / 2.;
 
     //We don't want an upturn even with a negative ALPHA_STAR
     if(flag_options_global->USE_UPPER_STELLAR_TURNOVER && (f_a > fu_a)){
@@ -277,7 +280,8 @@ void get_halo_sfr(double stellar_mass, double stellar_mass_mini, double sfr_rng,
     }
     sfr_mean = stellar_mass / (consts->t_star * consts->t_h);
 
-    double stoc_adjustment_term = sigma_sfr * sigma_sfr / 2.; //adjustment to the mean for lognormal scatter
+    //adjustment to the mean for lognormal scatter
+    double stoc_adjustment_term = consts->scaling_median ? 0 : sigma_sfr * sigma_sfr / 2.;
     sfr_sample = sfr_mean * exp(sfr_rng*sigma_sfr - stoc_adjustment_term);
     *sfr = sfr_sample;
 
@@ -302,7 +306,9 @@ void get_halo_metallicity(double sfr, double stellar, double redshift, double *z
 
 void get_halo_xray(double sfr, double sfr_mini, double metallicity, double xray_rng, struct HaloBoxConstants *consts, double *xray_out){
     double sigma_xray = consts->sigma_xray;
-    double stoc_adjustment_term = sigma_xray * sigma_xray / 2.; //adjustment to the mean for lognormal scatter
+
+    //adjustment to the mean for lognormal scatter
+    double stoc_adjustment_term = consts->scaling_median ? 0 : sigma_xray * sigma_xray / 2.;
     double rng_factor = exp(xray_rng*consts->sigma_xray - stoc_adjustment_term);
 
     double lx_over_sfr = get_lx_on_sfr(sfr,metallicity,consts->l_x);

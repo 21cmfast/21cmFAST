@@ -218,13 +218,17 @@ void set_ionbox_constants(double redshift, double prev_redshift, CosmoParams *co
         consts->ion_eff_factor_mini = consts->ion_eff_factor_mini_gl;
     }
 
-    //Yuxiang's evolving Rmax for MFP in ionised regions
-    if(flag_options->USE_EXP_FILTER){
-        if (redshift > 6)
-            consts->mfp_meandens = 25.483241248322766 / cosmo_params->hlittle;
-        else
-            consts->mfp_meandens = 112 / cosmo_params->hlittle * pow( (1.+redshift) / 5. , -4.4);
-    }
+    //MFP USED FOR THE EXPNENTIAL FILTER
+    //Yuxiang's evolving Rmax for MFP in ionised regions fit from Songaila+2010
+    // if(flag_options->USE_EXP_FILTER){
+    //     if (redshift > 6)
+    //         consts->mfp_meandens = 25.483241248322766 / cosmo_params->hlittle;
+    //     else
+    //         consts->mfp_meandens = 112 / cosmo_params->hlittle * pow( (1.+redshift) / 5. , -4.4);
+    //     LOG_DEBUG("Set mfp = %.4e",consts->mfp_meandens);
+    // }
+    //Constant MFP
+    consts->mfp_meandens = 25.483241248322766 / cosmo_params->hlittle;
 
     //set the minimum source mass
     consts->M_min = minimum_source_mass(redshift,false,astro_params,flag_options);
@@ -929,10 +933,10 @@ void find_ionised_regions(IonizedBox *box, IonizedBox *previous_ionize_box, Pert
                 for(z = 0; z < HII_D_PARA; z++) {
                     //Use unfiltered density for CELL_RECOMB case, since the "Fcoll" represents photons
                     //  reaching the central cell rather than photons in the entire sphere
-                    //TODO: if we don't filter on the last step either, should we use the original field to prevent aliasing?
                     //TODO: test using the filtered density here with CELL_RECOMB, since it's what Davies+22 does,
                     //  It's not clear how the MFP filter should count recombinations/local density.
-                    if(flag_options_global->CELL_RECOMB)
+                    //If we don't filter on the last step, might as well use the original field to prevent aliasing?
+                    if(rspec.R_index==0)
                         curr_dens = perturbed_field->density[HII_R_INDEX(x,y,z)]*consts->photoncons_adjustment_factor;
                     else
                         curr_dens = *((float *)fg_struct->deltax_filtered + HII_R_FFT_INDEX(x,y,z));
