@@ -1246,7 +1246,14 @@ int ComputeIonizedBox(float redshift, float prev_redshift, UserParams *user_para
     //Find the mass limits and average turnovers
     double Mturnover_global_avg, Mturnover_global_avg_MINI;
     if (flag_options->USE_MASS_DEPENDENT_ZETA){
-        if (flag_options->USE_MINI_HALOS){
+        if (flag_options->USE_HALO_FIELD){
+            //Here these are only used for the global calculations
+            box->log10_Mturnover_ave = halos->log10_Mcrit_ACG_ave;
+            box->log10_Mturnover_MINI_ave = halos->log10_Mcrit_MCG_ave;
+            Mturnover_global_avg                 = pow(10., halos->log10_Mcrit_ACG_ave);
+            Mturnover_global_avg_MINI            = pow(10., halos->log10_Mcrit_MCG_ave);
+        }
+        else if (flag_options->USE_MINI_HALOS){
             LOG_SUPER_DEBUG("Calculating and outputting Mcrit boxes for atomic and molecular halos...");
             calculate_mcrit_boxes(previous_ionize_box,
                                     spin_temp,
