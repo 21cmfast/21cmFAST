@@ -249,14 +249,10 @@ void set_ionbox_constants(double redshift, double prev_redshift, CosmoParams *co
     else
         consts->gamma_prefactor /= consts->t_star_sec;
     consts->gamma_prefactor_mini = consts->gamma_prefactor * consts->ion_eff_factor_mini / consts->ion_eff_factor;
-
-
 }
 
 
 void allocate_fftw_grids(struct FilteredGrids **fg_struct){
-    //NOTE FOR REFACTOR: These don't need to be allocated/filtered if (USE_HALO FIELD && CELL_RECOMB)
-    // Also, I don't think deltax_unfiltered_original is useful at all since we have the PerturbedField
     *fg_struct = malloc(sizeof(**fg_struct));
 
     (*fg_struct)->deltax_unfiltered = (fftwf_complex *) fftwf_malloc(sizeof(fftwf_complex)*HII_KSPACE_NUM_PIXELS);
@@ -396,6 +392,19 @@ void setup_first_z_prevbox(IonizedBox *previous_ionize_box, PerturbedField *prev
                 previous_perturb->density[ct] = -1.5;
             }
         }
+    }
+}
+
+void free_first_z_prevbox(IonizedBox *previous_ionize_box, PerturbedField *previous_perturb){
+    free(previous_ionize_box->z_re_box);
+    if(flag_options_global->USE_MINI_HALOS){
+        free(previous_perturb->density);
+        free(previous_ionize_box->Gamma12_box);
+        free(previous_ionize_box->Fcoll);
+        free(previous_ionize_box->Fcoll_MINI);
+    }
+    if(flag_options_global->INHOMO_RECO){
+        free(previous_ionize_box->dNrec_box);
     }
 }
 
@@ -859,7 +868,7 @@ int setup_radii(struct RadiusSpec **rspec_array, struct IonBoxConstants *consts)
     double minimum_radius = fmax(global_params.R_BUBBLE_MIN,cell_length_factor*consts->pixel_length);
 
     //minimum number such that min_R*delta^N > max_R
-    int n_radii = ceil(log(maximum_radius/minimum_radius)/log(global_params.DELTA_R_HII_FACTOR)) + 1;
+    int n_radii = (int)(log(maximum_radius/minimum_radius)/log(global_params.DELTA_R_HII_FACTOR) + 1);
     *rspec_array = malloc(sizeof(**rspec_array)*n_radii);
 
     //We want the following behaviour from our radius Values:
@@ -914,10 +923,6 @@ void find_ionised_regions(IonizedBox *box, IonizedBox *previous_ionize_box, Pert
         double curr_fcoll_mini;
         double rec,xHII_from_xrays;
         double res_xH;
-
-        double ave_M_coll_cell;
-        double ave_N_min_cell;
-        unsigned int N_halos_in_cell;
         #pragma omp for
         for(x = 0; x < user_params_global->HII_DIM; x++) {
             for(y = 0; y < user_params_global->HII_DIM; y++) {
@@ -1107,6 +1112,13 @@ void set_recombination_rates(IonizedBox *box, IonizedBox *previous_ionize_box, P
                     curr_dens = 1.0 + (perturbed_field->density[HII_R_INDEX(x, y, z)]);
                     z_eff = pow(curr_dens, 1.0 / 3.0);
                     z_eff *= (1 + consts->stored_redshift);
+
+#if LOG_LEVEL >= SUPER_DEBUG_LEVEL
+                    if(x+y+z == 0){
+                        LOG_SUPER_DEBUG("Cell 0: d %.4e | G12 %.4e | xH %.4e",
+                                            curr_dens,box->Gamma12_box,box->xH_box);
+                    }
+#endif
 
                     dNrec = splined_recombination_rate(z_eff - 1., box->Gamma12_box[HII_R_INDEX(x, y, z)]) *
                             consts->fabs_dtdz * consts->dz * (1. - box->xH_box[HII_R_INDEX(x, y, z)]);
@@ -1351,6 +1363,7 @@ int ComputeIonizedBox(float redshift, float prev_redshift, UserParams *user_para
             LOG_ULTRA_DEBUG("while loop for until RtoM(R)=%f reaches M_MIN=%f", RtoM(curr_radius.R), ionbox_constants.M_min);
 
             //do all the filtering and inverse transform
+            LOG_SUPER_DEBUG("filtering...");
             copy_filter_transform(grid_struct,&ionbox_constants,curr_radius);
 
             bool need_prev_ion = previous_ionize_box->mean_f_coll_MINI * ionbox_constants.ion_eff_factor_mini_gl + \
@@ -1361,6 +1374,7 @@ int ComputeIonizedBox(float redshift, float prev_redshift, UserParams *user_para
                 LOG_SUPER_DEBUG("Initialised tables");
             }
 
+            LOG_SUPER_DEBUG("getting fcoll...");
             calculate_fcoll_grid(box,previous_ionize_box,grid_struct,&ionbox_constants,&curr_radius);
             // To avoid ST_over_PS becoming nan when f_coll = 0, I set f_coll = FRACT_FLOAT_ERR.
             // TODO: This was the previous behaviour, but is this right?
@@ -1376,6 +1390,7 @@ int ComputeIonizedBox(float redshift, float prev_redshift, UserParams *user_para
                 if (curr_radius.f_coll_grid_mean <= FRACT_FLOAT_ERR) curr_radius.f_coll_grid_mean = FRACT_FLOAT_ERR;
             }
 
+            LOG_SUPER_DEBUG("finding bubbles...");
             find_ionised_regions(box,previous_ionize_box,perturbed_field,spin_temp,curr_radius,&ionbox_constants,
                                     grid_struct,f_limit_acg,f_limit_mcg);
 
@@ -1406,7 +1421,7 @@ int ComputeIonizedBox(float redshift, float prev_redshift, UserParams *user_para
         }
 
         // update the N_rec field
-        if (flag_options->INHOMO_RECO) {
+        if (flag_options->INHOMO_RECO){
             set_recombination_rates(box,previous_ionize_box,perturbed_field,&ionbox_constants);
         }
 
@@ -1421,17 +1436,11 @@ int ComputeIonizedBox(float redshift, float prev_redshift, UserParams *user_para
     free_fftw_grids(grid_struct);
     LOG_SUPER_DEBUG("freed fftw boxes");
     if (prev_redshift < 1){
-        free(previous_ionize_box->z_re_box);
-        if (flag_options->USE_MASS_DEPENDENT_ZETA && flag_options->USE_MINI_HALOS){
-            free(previous_ionize_box->Gamma12_box);
-            free(previous_ionize_box->dNrec_box);
-            free(previous_ionize_box->Fcoll);
-            free(previous_ionize_box->Fcoll_MINI);
-        }
+        free_first_z_prevbox(previous_ionize_box,previous_perturbed_field);
     }
 
     if(!flag_options->USE_TS_FLUCT && user_params->USE_INTERPOLATION_TABLES) {
-            freeSigmaMInterpTable();
+        freeSigmaMInterpTable();
     }
 
     //This function checks for allocation so don't worry about double-freeing tables
