@@ -299,6 +299,52 @@ int stoc_halo_sample(struct HaloSamplingConstants *hs_constants, gsl_rng * rng, 
     return 0;
 }
 
+//same but with a mass tolerance for comparison with Ivan
+int stoc_halo_sample_tol(struct HaloSamplingConstants *hs_constants, gsl_rng * rng, int *n_halo_out, float *M_out){
+    double exp_N = hs_constants->expected_N;
+    double exp_M = hs_constants->expected_M;
+    int ii, nh=0, attempts;
+    int halo_count=0;
+    double mass_tot=0.;
+    double m_sample;
+    static int n_failures = 0;
+
+    double tbl_arg = hs_constants->cond_val;
+
+    int min_N = 1;
+    int max_N = hs_constants->M_cond / hs_constants->M_min;
+    while(nh < min_N || nh > max_N) nh = gsl_ran_poisson(rng,exp_N);
+
+    for(attempts=0;attempts<10;attempts++){
+        for(ii=0;ii<nh;ii++){
+            m_sample = sample_dndM_inverse(tbl_arg,hs_constants,rng);
+            M_out[halo_count++] = m_sample;
+            mass_tot = m_sample;
+        }
+        //break if we found a good sample
+        if(mass_tot > 0.9*exp_M && mass_tot < 1.1*exp_M){
+            break;
+            n_failures = 0;
+        }
+        //reset if we don't
+        halo_count = 0.;
+        mass_tot = 0.;
+    }
+
+    //if we don't find a sample, try again with new N
+    if(attempts >= 10){
+        n_failures++;
+        if(n_failures >= 10){
+            LOG_ERROR("Poisson Sampling took too many attempts, something is likely wrong with the tables");
+            Throw(TableEvaluationError);
+        }
+        return stoc_halo_sample_tol(hs_constants,rng,n_halo_out,M_out);
+    }
+
+    *n_halo_out = halo_count;
+    return 0;
+}
+
 double remove_random_halo(gsl_rng * rng, int n_halo, int *idx, double *M_prog, float *M_out){
     double last_M_del;
     int random_idx;
@@ -646,6 +692,7 @@ int stoc_sample(struct HaloSamplingConstants * hs_constants, gsl_rng * rng, int 
     //We always use Number-Limited sampling for grid-based cases
     if(user_params_global->SAMPLE_METHOD == 1 || !hs_constants->from_catalog){
         err = stoc_halo_sample(hs_constants, rng, n_halo_out, M_out);
+        // err = stoc_halo_sample_tol(hs_constants, rng, n_halo_out, M_out);
     }
     else if(user_params_global->SAMPLE_METHOD == 0){
         err = stoc_mass_sample(hs_constants, rng, n_halo_out, M_out);
