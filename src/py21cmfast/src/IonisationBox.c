@@ -146,7 +146,7 @@ void set_ionbox_constants(double redshift, double prev_redshift, CosmoParams *co
     if (prev_redshift < 1)
         consts->dz = (1. + redshift) * (global_params.ZPRIME_STEP_FACTOR - 1.);
     else
-        consts->dz = redshift - prev_redshift;
+        consts->dz = prev_redshift - redshift;
 
     //TODO: Figure out why we have the 1e15 here
     consts->fabs_dtdz = fabs(dtdz(redshift))/1e15; //reduce to have good precision
@@ -253,6 +253,8 @@ void set_ionbox_constants(double redshift, double prev_redshift, CosmoParams *co
     else
         consts->gamma_prefactor /= consts->t_star_sec;
     consts->gamma_prefactor_mini = consts->gamma_prefactor * consts->ion_eff_factor_mini / consts->ion_eff_factor;
+    LOG_SUPER_DEBUG("Gamma Prefactor %.3e ion eff factor %.3e",consts->gamma_prefactor,consts->ion_eff_factor);
+    LOG_SUPER_DEBUG("Mini Gamma %.3e Mini ion %.3e",consts->gamma_prefactor_mini,consts->ion_eff_factor_mini);
 }
 
 
@@ -330,8 +332,6 @@ void prepare_box_for_filtering(float *input_box, fftwf_complex *output_c_box, do
     int i,j,k;
     unsigned long long int ct;
     double curr_cell;
-
-    LOG_ULTRA_DEBUG("Starting one grid...");
     //NOTE: Meraxes just applies a pointer cast box = (fftwf_complex *) input. Figure out why this works,
     //      They pad the input by a factor of 2 to cover the complex part, but from the type I thought it would be stored [(r,c),(r,c)...]
     //      Not [(r,r,r,r....),(c,c,c....)] so the alignment should be wrong, right?
@@ -689,7 +689,7 @@ void setup_integration_tables(struct FilteredGrids *fg_struct, struct IonBoxCons
                                     flag_options_global->USE_MINI_HALOS,false);
 
             //previous redshift tables if needed
-            if(need_prev){
+            if(need_prev && flag_options_global->USE_MINI_HALOS){
                 initialise_Nion_Conditional_spline(consts->prev_redshift,consts->mturn_a_nofb,prev_min_density,prev_max_density,consts->M_min,rspec.M_max_R,rspec.M_max_R,
                                         log10Mturn_min,log10Mturn_max,log10Mturn_min_MINI,log10Mturn_max_MINI,
                                         consts->alpha_star, consts->alpha_star_mini,
@@ -906,15 +906,20 @@ void find_ionised_regions(IonizedBox *box, IonizedBox *previous_ionize_box, Pert
     double mean_fix_term_mcg = 1.;
     int fc_r_idx;
     fc_r_idx = flag_options_global->USE_MINI_HALOS ? rspec.R_index : 0;
+
+    LOG_SUPER_DEBUG("global mean fcoll (mini) %.3e (%.3e) box mean fcoll %.3e (%.3e) ratio %.3e (%.3e)",
+                    box->mean_f_coll,box->mean_f_coll_MINI,
+                    rspec.f_coll_grid_mean,rspec.f_coll_grid_mean_MINI,
+                    box->mean_f_coll/rspec.f_coll_grid_mean,box->mean_f_coll/rspec.f_coll_grid_mean);
     if(consts->fix_mean){
         mean_fix_term_acg = box->mean_f_coll/rspec.f_coll_grid_mean;
-        mean_fix_term_mcg = box->mean_f_coll_MINI/rspec.f_coll_grid_mean_MINI;
-        LOG_SUPER_DEBUG("global mean fcoll %.4e box mean fcoll %.4e ratio %.4e",box->mean_f_coll,rspec.f_coll_grid_mean,mean_fix_term_acg);
-        LOG_SUPER_DEBUG("MINI: global mean fcoll %.4e box mean fcoll %.4e ratio %.4e",box->mean_f_coll_MINI,rspec.f_coll_grid_mean_MINI,mean_fix_term_acg);
+        if(flag_options_global->USE_MINI_HALOS){
+            mean_fix_term_mcg = box->mean_f_coll_MINI/rspec.f_coll_grid_mean_MINI;
+        }
     }
     else{
         //if we don't fix the mean, make the mean_f_coll in the output reflect the box
-        //since currently is is the global expected mean from the Unconditional MF
+        //since currently it is the global expected mean from the Unconditional MF
         box->mean_f_coll = rspec.f_coll_grid_mean;
         box->mean_f_coll_MINI = rspec.f_coll_grid_mean_MINI;
     }
@@ -982,13 +987,10 @@ void find_ionised_regions(IonizedBox *box, IonizedBox *previous_ionize_box, Pert
                         xHII_from_xrays = 0.;
                     }
 
-#if LOG_LEVEL > SUPER_DEBUG_LEVEL
-                    if(x+y+z == 0 && !flag_options_global->USE_HALO_FIELD){
-                        LOG_SUPER_DEBUG("Cell 0: R=%.1f | d %.4e | fcoll %.4e | rec %.4e | X %.4e",
-                                            rspec.R,curr_dens,curr_fcoll,rec,xHII_from_xrays);
-                        if(flag_options_global->USE_MINI_HALOS){
-                            LOG_SUPER_DEBUG("Mini %.4e",curr_fcoll_mini);
-                        }
+#if LOG_LEVEL >= SUPER_DEBUG_LEVEL
+                    if(x+y+z == 0){
+                        LOG_SUPER_DEBUG("Cell 0: R=%.1f | d %.4e | fcoll %.4e (%.4e) | rec %.4e | X %.4e",
+                                            rspec.R,curr_dens,curr_fcoll,curr_fcoll_mini,rec,xHII_from_xrays);
                     }
 #endif
 
@@ -1003,7 +1005,7 @@ void find_ionised_regions(IonizedBox *box, IonizedBox *previous_ionize_box, Pert
                                                                     * (*((float *)fg_struct->sfr_filtered + HII_R_FFT_INDEX(x,y,z)));
                             }
                             else{
-                                box->Gamma12_box[HII_R_INDEX(x,y,z)] = rspec.R * consts->gamma_prefactor * curr_fcoll + consts->gamma_prefactor_mini * curr_fcoll_mini;
+                                box->Gamma12_box[HII_R_INDEX(x,y,z)] = rspec.R * (consts->gamma_prefactor * curr_fcoll + consts->gamma_prefactor_mini * curr_fcoll_mini);
                             }
                             box->MFP_box[HII_R_INDEX(x,y,z)] = rspec.R;
                         }
@@ -1117,13 +1119,6 @@ void set_recombination_rates(IonizedBox *box, IonizedBox *previous_ionize_box, P
                     z_eff = pow(curr_dens, 1.0 / 3.0);
                     z_eff *= (1 + consts->stored_redshift);
 
-#if LOG_LEVEL >= SUPER_DEBUG_LEVEL
-                    if(x+y+z == 0){
-                        LOG_SUPER_DEBUG("Cell 0: d %.4e | G12 %.4e | xH %.4e",
-                                            curr_dens,box->Gamma12_box,box->xH_box);
-                    }
-#endif
-
                     dNrec = splined_recombination_rate(z_eff - 1., box->Gamma12_box[HII_R_INDEX(x, y, z)]) *
                             consts->fabs_dtdz * consts->dz * (1. - box->xH_box[HII_R_INDEX(x, y, z)]);
 
@@ -1133,6 +1128,16 @@ void set_recombination_rates(IonizedBox *box, IonizedBox *previous_ionize_box, P
 
                     box->dNrec_box[HII_R_INDEX(x, y, z)] =
                             previous_ionize_box->dNrec_box[HII_R_INDEX(x, y, z)] + dNrec;
+
+#if LOG_LEVEL >= SUPER_DEBUG_LEVEL
+                    if(x+y+z == 0){
+                        LOG_SUPER_DEBUG("Cell 0: d %.4e | G12 %.4e | xH %.4e ==> dNrec %.4e Nrec (%.4e --> %.4e)",
+                                            curr_dens,box->Gamma12_box[HII_R_INDEX(x,y,z)],
+                                            box->xH_box[HII_R_INDEX(x,y,z)],dNrec,
+                                            previous_ionize_box->dNrec_box[HII_R_INDEX(x, y, z)],
+                                            box->dNrec_box[HII_R_INDEX(x, y, z)]);
+                    }
+#endif
                 }
             }
         }
@@ -1159,7 +1164,7 @@ int ComputeIonizedBox(float redshift, float prev_redshift, UserParams *user_para
     Try{ // This Try brackets the whole function, so we don't indent.
     LOG_DEBUG("input values:");
     LOG_DEBUG("redshift=%f, prev_redshift=%f", redshift, prev_redshift);
-    #if LOG_LEVEL >= DEBUG_LEVEL
+    #if LOG_LEVEL >= SUPER_DEBUG_LEVEL
         writeUserParams(user_params);
         writeCosmoParams(cosmo_params);
         writeAstroParams(flag_options, astro_params);
@@ -1300,7 +1305,6 @@ int ComputeIonizedBox(float redshift, float prev_redshift, UserParams *user_para
         else
             initialiseSigmaMInterpTable(ionbox_constants.M_min,1e20);
     }
-    LOG_SUPER_DEBUG("sigma table has been initialised");
 
     if(user_params->INTEGRATION_METHOD_ATOMIC == 1 || (flag_options->USE_MINI_HALOS && user_params->INTEGRATION_METHOD_MINI == 1))
         initialise_GL(ionbox_constants.lnMmin, ionbox_constants.lnMmax_gl);
@@ -1317,7 +1321,6 @@ int ComputeIonizedBox(float redshift, float prev_redshift, UserParams *user_para
         global_xH = set_fully_neutral_box(box,spin_temp,perturbed_field,&ionbox_constants);
     }
     else{
-        LOG_SUPER_DEBUG("Starting FFTs");
         //DO THE R2C TRANSFORMS
         //TODO: add debug average printing to these boxes
         //TODO: put a flag for to turn off clipping instead of putting the wide limits
@@ -1367,18 +1370,16 @@ int ComputeIonizedBox(float redshift, float prev_redshift, UserParams *user_para
             LOG_ULTRA_DEBUG("while loop for until RtoM(R)=%f reaches M_MIN=%f", RtoM(curr_radius.R), ionbox_constants.M_min);
 
             //do all the filtering and inverse transform
-            LOG_SUPER_DEBUG("filtering...");
             copy_filter_transform(grid_struct,&ionbox_constants,curr_radius);
 
-            bool need_prev_ion = previous_ionize_box->mean_f_coll_MINI * ionbox_constants.ion_eff_factor_mini_gl + \
-                            previous_ionize_box->mean_f_coll * ionbox_constants.ion_eff_factor_gl > 1e-4;
+            bool need_prev_ion = flag_options->USE_MINI_HALOS && \
+                            (previous_ionize_box->mean_f_coll_MINI * ionbox_constants.ion_eff_factor_mini_gl + \
+                            previous_ionize_box->mean_f_coll * ionbox_constants.ion_eff_factor_gl > 1e-4);
 
             if (!flag_options->USE_HALO_FIELD) {
                 setup_integration_tables(grid_struct,&ionbox_constants,curr_radius,need_prev_ion);
-                LOG_SUPER_DEBUG("Initialised tables");
             }
 
-            LOG_SUPER_DEBUG("getting fcoll...");
             calculate_fcoll_grid(box,previous_ionize_box,grid_struct,&ionbox_constants,&curr_radius);
             // To avoid ST_over_PS becoming nan when f_coll = 0, I set f_coll = FRACT_FLOAT_ERR.
             // TODO: This was the previous behaviour, but is this right?
@@ -1394,14 +1395,14 @@ int ComputeIonizedBox(float redshift, float prev_redshift, UserParams *user_para
                 if (curr_radius.f_coll_grid_mean <= FRACT_FLOAT_ERR) curr_radius.f_coll_grid_mean = FRACT_FLOAT_ERR;
             }
 
-            LOG_SUPER_DEBUG("finding bubbles...");
             find_ionised_regions(box,previous_ionize_box,perturbed_field,spin_temp,curr_radius,&ionbox_constants,
                                     grid_struct,f_limit_acg,f_limit_mcg);
 
-            LOG_SUPER_DEBUG("z_re_box after R=%f: ", curr_radius.R);
+#if LOG_LEVEL >= ULTRA_DEBUG_LEVEL
+            LOG_ULTRA_DEBUG("z_re_box after R=%f: ", curr_radius.R);
             debugSummarizeBox(box->z_re_box, user_params->HII_DIM, user_params->NON_CUBIC_FACTOR, "  ");
+#endif
         }
-
         set_ionized_temperatures(box,perturbed_field,spin_temp,&ionbox_constants);
 
         // find the neutral fraction
@@ -1438,7 +1439,6 @@ int ComputeIonizedBox(float redshift, float prev_redshift, UserParams *user_para
 
     LOG_DEBUG("global_xH = %e",global_xH);
     free_fftw_grids(grid_struct);
-    LOG_SUPER_DEBUG("freed fftw boxes");
     if (prev_redshift < 1){
         free_first_z_prevbox(previous_ionize_box,previous_perturbed_field);
     }

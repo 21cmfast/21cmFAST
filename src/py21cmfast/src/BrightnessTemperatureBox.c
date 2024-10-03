@@ -107,7 +107,7 @@ int ComputeBrightnessTemp(float redshift, UserParams *user_params, CosmoParams *
     sqrt( (0.15/(cosmo_params->OMm)/(cosmo_params->hlittle)/(cosmo_params->hlittle)) * (1.+redshift)/10.0 );
 
     ///////////////////////////////  END INITIALIZATION /////////////////////////////////////////////
-    LOG_DEBUG("Performed Initialization.");
+    LOG_SUPER_DEBUG("Performed Initialization.");
 
     // ok, lets fill the delta_T box; which will be the same size as the bubble box
 #pragma omp parallel shared(const_factor,perturb_field,ionized_box,box,redshift,spin_temp,T_rad) \
@@ -141,7 +141,7 @@ int ComputeBrightnessTemp(float redshift, UserParams *user_params, CosmoParams *
         }
     }
 
-    LOG_DEBUG("Filled delta_T.");
+    LOG_SUPER_DEBUG("Filled delta_T.");
 
     if(isfinite(ave)==0) {
         LOG_ERROR("Average brightness temperature is infinite or NaN!");
@@ -211,7 +211,7 @@ int ComputeBrightnessTemp(float redshift, UserParams *user_params, CosmoParams *
         }
     }
 
-    LOG_DEBUG("Included velocities.");
+    LOG_SUPER_DEBUG("Included velocities.");
 
 
     if(isfinite(ave)==0) {
@@ -233,7 +233,7 @@ int ComputeBrightnessTemp(float redshift, UserParams *user_params, CosmoParams *
     free(delta_T_RSD_LOS);
     fftwf_cleanup_threads();
     fftwf_cleanup();
-    LOG_DEBUG("Cleaned up.");
+    LOG_SUPER_DEBUG("Cleaned up.");
 
     } // End of try
     Catch(status){
