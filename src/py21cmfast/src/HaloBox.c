@@ -496,7 +496,7 @@ int set_fixed_grids(double M_min, double M_max, InitialConditions *ini_boxes,
             if(eulerian)
                 dens = perturbed_field->density[i];
             else
-                dens = ini_boxes->lowres_density[i];
+                dens = ini_boxes->lowres_density[i] * growth_z;
             if(dens > max_density) max_density = dens;
             if(dens < min_density) min_density = dens;
 
@@ -584,7 +584,7 @@ int set_fixed_grids(double M_min, double M_max, InitialConditions *ini_boxes,
                 dens_fac = (1.+dens);
             }
             else{
-                dens = ini_boxes->lowres_density[i];
+                dens = ini_boxes->lowres_density[i] * growth_z;
                 dens_fac = 1.;
             }
             l10_mturn_a = mturn_a_grid[i];
