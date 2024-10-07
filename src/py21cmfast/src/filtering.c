@@ -1,7 +1,4 @@
 
-//filter_box, filter_box_annulus and filter_box_mfp should be combined in a better way, they require different inputs
-//and they are run on different subsets of the boxes but they contain a lot of the same math
-
 #include <stdlib.h>
 #include <stdio.h>
 #include <math.h>
@@ -44,8 +41,8 @@ double exp_mfp_filter(double k, double R, double mfp, double R_constant, double 
         return limit;
 
     kR2 = k*mfp;
+
     //Davies & Furlanetto MFP-eps(r) window function
-    //The filter no longer approaches 1 at k->0, so we can't use the limit
     f = (kR2*kR2*R + 2*mfp + R)*kR2*cos(kR);
     f += (-kR2*kR2*mfp + kR2*kR2*R + mfp + R)*sin(kR);
     f *= R_constant;
