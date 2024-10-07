@@ -16,6 +16,7 @@ from py21cmfast import (
 from py21cmfast.c_21cmfast import ffi, lib
 
 from . import produce_integration_test_data as prd
+from .test_c_interpolation_tables import print_failure_stats
 
 options_filter = [0, 1, 2, 3, 4]  # cell densities to draw samples from
 R_PARAM_LIST = [1.5, 5, 10, 25]  # default test HII_DIM = 50
@@ -123,13 +124,9 @@ def test_filters(filter_flag, R, plt):
     Rp_cells = R_param / up.BOX_LEN * up.HII_DIM
     r_from_centre = np.linalg.norm(
         np.mgrid[0 : up.HII_DIM, 0 : up.HII_DIM, 0 : up.HII_DIM]
-        - np.array(
-            [
-                up.HII_DIM // 2,
-                up.HII_DIM // 2,
-                up.HII_DIM // 2,
-            ]
-        )[:, None, None, None],
+        - np.array([up.HII_DIM // 2, up.HII_DIM // 2, up.HII_DIM // 2])[
+            :, None, None, None
+        ],
         axis=0,
     )
     # average value of R in a sphere with same volume of the cell
@@ -140,6 +137,8 @@ def test_filters(filter_flag, R, plt):
         r_from_centre, R_cells, Rp_cells, filter_flag
     )
 
+    abs_tol_pixel = exp_output_centre.max() * 1e-2
+    rel_tol_pixel = 2e-1
     if plt == mpl.pyplot:
         r_bins = np.linspace(0, (up.HII_DIM / 2 * np.sqrt(3)), num=32)
         r_cen = (r_bins[1:] + r_bins[:-1]) / 2
@@ -155,6 +154,8 @@ def test_filters(filter_flag, R, plt):
             r_grid=r_from_centre,
             slice_index=up.HII_DIM // 2,
             slice_axis=0,
+            abs_tol=abs_tol_pixel,
+            rel_tol=rel_tol_pixel,
             plt=plt,
         )
 
@@ -169,16 +170,37 @@ def test_filters(filter_flag, R, plt):
         norm_factor = 1
     # firstly, make sure the filters are normalised
     np.testing.assert_allclose(
-        input_box_centre.sum() * norm_factor, output_box_centre.sum(), atol=1e-4
+        input_box_centre.sum() * norm_factor, output_box_centre.sum(), atol=1e-6
     )
 
     # then make sure we get the right shapes (more lenient for aliasing)
-    np.testing.assert_allclose(output_box_centre, exp_output_centre, atol=1e-4)
+    # absolute tolerance is set by the maximum, and some relative tolerance is added for aliasing
+    print_failure_stats(
+        output_box_centre,
+        exp_output_centre,
+        [r_from_centre],
+        abs_tol=abs_tol_pixel,
+        rel_tol=rel_tol_pixel,
+        name="pixel",
+    )
+    np.testing.assert_allclose(
+        output_box_centre, exp_output_centre, rtol=rel_tol_pixel, atol=abs_tol_pixel
+    )
 
 
 # since the filters are symmetric I'm doing an R vs value plot instead of imshowing slices
 def filter_plot(
-    inputs, outputs, binned_truths, truths, r_bins, r_grid, slice_index, slice_axis, plt
+    inputs,
+    outputs,
+    binned_truths,
+    truths,
+    r_bins,
+    r_grid,
+    slice_index,
+    slice_axis,
+    abs_tol,
+    rel_tol,
+    plt,
 ):
     if not (len(inputs) == len(binned_truths) == len(outputs)):
         raise ValueError(
@@ -194,24 +216,20 @@ def filter_plot(
         layout="constrained",
         squeeze=False,
     )
-    fig.get_layout_engine().set(w_pad=2 / 72, h_pad=2 / 72, hspace=0.0, wspace=0.0)
+    fig.get_layout_engine().set(w_pad=0 / 72, h_pad=0 / 72, hspace=0.0, wspace=0.0)
 
     r_cen = (r_bins[1:] + r_bins[:-1]) / 2
 
-    axs[0, 0].set_title("Input")
-    axs[0, 1].set_title("output")
-    axs[0, 2].set_title("Expected")
-    axs[0, 3].set_title("Radii")
+    axs[0, 0].set_title("Output")
+    axs[0, 1].set_title("Expected")
+    axs[0, 2].set_title("Radii")
+    axs[0, 3].set_title("Pixels")
     for idx, (i, o, t, tt) in enumerate(zip(inputs, outputs, binned_truths, truths)):
         axs[idx, 0].pcolormesh(
-            i.take(indices=slice_index, axis=slice_axis),
-            norm=Normalize(vmin=0, vmax=o.max()),
-        )
-        axs[idx, 1].pcolormesh(
             o.take(indices=slice_index, axis=slice_axis),
             norm=Normalize(vmin=0, vmax=o.max()),
         )
-        axs[idx, 2].pcolormesh(
+        axs[idx, 1].pcolormesh(
             tt.take(indices=slice_index, axis=slice_axis),
             norm=Normalize(vmin=0, vmax=o.max()),
         )
@@ -219,24 +237,43 @@ def filter_plot(
         stats_o = get_binned_stats(
             r_grid, o, r_bins, stats=["mean", "errmin", "errmax"]
         )
-        axs[idx, 3].errorbar(
-            r_cen,
-            stats_o["mean"],
-            markerfacecolor="b",
-            elinewidth=1,
-            capsize=3,
-            markersize=5,
-            marker="o",
-            color="b",
-            yerr=[stats_o["errmin"], stats_o["errmax"]],
-            label="filtered grid",
-        )
-        axs[idx, 3].plot(r_cen, t, "m:", linewidth=2, label="Expected")
-        axs[idx, 3].grid()
-        axs[idx, 3].set_xlabel("dist from centre")
-        axs[idx, 3].set_ylabel("cell value")
 
-        axst = axs[idx, 3].twinx()
-        axst.plot(r_cen, stats_o["mean"] / (t + 1e-16) - 1, "r-")
-        axst.set_ylim(-10, 10)
-        axst.set_ylabel("out-truth/truth")
+        lns = []
+        lns.append(
+            axs[idx, 2].errorbar(
+                r_cen,
+                stats_o["mean"],
+                markerfacecolor="b",
+                elinewidth=1,
+                capsize=3,
+                markersize=5,
+                marker="o",
+                color="b",
+                yerr=[stats_o["errmin"], stats_o["errmax"]],
+                label="filtered grid",
+                zorder=2,
+            )
+        )
+
+        lns.append(
+            axs[idx, 2].plot(r_cen, t, "m:", linewidth=2, label="Expected", zorder=3)[0]
+        )
+        axs[idx, 2].grid()
+        axs[idx, 2].set_xlabel("dist from centre")
+        axs[idx, 2].set_ylabel("cell value")
+        axs[idx, 2].legend()
+
+        err_base = np.linspace(tt.min(), tt.max(), num=100)
+        err_max = err_base + (abs_tol + np.fabs(err_base) * rel_tol)
+        err_min = err_base - (abs_tol + np.fabs(err_base) * rel_tol)
+        axs[idx, 3].plot(err_base, err_max, "k:")
+        axs[idx, 3].plot(err_base, err_min, "k:")
+        axs[idx, 3].plot(err_base, err_base, "k--")
+        print(err_base, err_max, err_min)
+
+        axs[idx, 3].scatter(tt, o, s=1, alpha=0.5, rasterized=True)
+        # axs[idx, 3].set_yscale('symlog')
+        # axs[idx, 3].set_xscale('symlog')
+        axs[idx, 3].grid()
+        axs[idx, 3].set_xlabel("expected cell value")
+        axs[idx, 3].set_ylabel("filtered cell value")
