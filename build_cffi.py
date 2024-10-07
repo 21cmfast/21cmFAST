@@ -27,6 +27,10 @@ c_files = [
     if f.endswith(".c")
 ]
 
+# compiled cuda code
+extra_objects = [os.path.join(CLOC, "hello_world.o")]
+extra_link_args = ["-lcudart"]
+
 # Set the C-code logging level.
 # If DEBUG is set, we default to the highest level, but if not,
 # we set it to the level just above no logging at all.
@@ -74,7 +78,8 @@ libraries = ["m", "gsl", "gslcblas", "fftw3f_omp", "fftw3f"]
 
 # stuff for gperftools
 if "PROFILE" in os.environ:
-    libraries += ["profiler", "tcmalloc"]
+    # libraries += ["profiler", "tcmalloc"]
+    libraries += ["profiler"]
     # we need this even if DEBUG is off
     extra_compile_args += ["-g"]
 
@@ -110,6 +115,8 @@ ffi.set_source(
     library_dirs=library_dirs,
     libraries=libraries,
     extra_compile_args=extra_compile_args,
+    extra_objects=extra_objects,
+    extra_link_args=extra_link_args,
 )
 
 # Header files containing types, globals and function prototypes
