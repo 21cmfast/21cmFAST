@@ -208,8 +208,10 @@ double get_lx_on_sfr(double sfr, double metallicity, double lx_constant){
     // return lx_on_sfr_Lehmer(metallicity);
     // return lx_on_sfr_Schechter(metallicity, lx_constant);
     // return lx_on_sfr_PL_Kaur(sfr,metallicity, lx_constant);
-    return lx_on_sfr_doublePL(metallicity, lx_constant);
-    // return lx_constant;
+    //HACK: new/old model switch with upperstellar flag
+    if(flag_options_global->USE_UPPER_STELLAR_TURNOVER)
+        return lx_on_sfr_doublePL(metallicity, lx_constant);
+    return lx_constant;
 }
 
 void get_halo_stellarmass(double halo_mass, double mturn_acg, double mturn_mcg, double star_rng,
