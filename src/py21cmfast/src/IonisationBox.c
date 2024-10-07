@@ -1220,8 +1220,7 @@ LOG_SUPER_DEBUG("excursion set normalisation, mean_f_coll_MINI: %e", box->mean_f
 
                             //TODO: There may be a reason to use unfiltered density for CELL_RECOMB case,
                             // since the "Fcoll" represents photons reaching the central cell rather than
-                            // photons in the entire sphere, but it makes reionisation look stranger so
-                            // more investigation is needed
+                            // photons in the entire sphere (See issue #434)
                             // if(flag_options->CELL_RECOMB)
                             //     curr_dens = perturbed_field->density[HII_R_INDEX(x,y,z)];
                             // else

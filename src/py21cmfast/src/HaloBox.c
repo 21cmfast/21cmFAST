@@ -83,8 +83,9 @@ struct HaloProperties{
 
 void set_hbox_constants(double redshift, AstroParams *astro_params, FlagOptions *flag_options, struct HaloBoxConstants *consts){
     consts->redshift = redshift;
+    
     //whether to fix *integrated* (not sampled) galaxy properties to the expected mean
-    //  constant for now, to be a flag later
+    //Set on for the fixed grid case since we are missing halos above the cell mass
     consts->fix_mean = flag_options->FIXED_HALO_GRIDS;
 
     consts->fstar_10 = astro_params->F_STAR10;
