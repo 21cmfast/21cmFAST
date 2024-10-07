@@ -17,9 +17,6 @@ from py21cmfast.c_21cmfast import ffi, lib
 
 from . import produce_integration_test_data as prd
 
-# tolerance for aliasing errors
-RELATIVE_TOLERANCE = 1e-1
-
 options_filter = [0, 1, 2, 3, 4]  # cell densities to draw samples from
 R_PARAM_LIST = [1.5, 5, 10, 25]  # default test HII_DIM = 50
 
@@ -60,7 +57,7 @@ def get_expected_output_centre(r_in, R_filter, R_param, filter_flag):
         return (R_ratio < 1) * (R_param <= r_in) / exp_vol
 
 
-# return binned mean & 1-2 sigma quantiles
+# return binned quantities
 def get_binned_stats(x_arr, y_arr, bins, stats):
     x_in = x_arr.flatten()
     y_in = y_arr.flatten()
@@ -76,6 +73,8 @@ def get_binned_stats(x_arr, y_arr, bins, stats):
         "err2u": lambda x: np.maximum(np.percentile(x, 97.5) - np.mean(x), 0),
         "err1l": lambda x: np.maximum(np.mean(x) - np.percentile(x, 16), 0),
         "err2l": lambda x: np.maximum(np.mean(x) - np.percentile(x, 2.5), 0),
+        "errmin": lambda x: np.mean(x) - np.amin(x),
+        "errmax": lambda x: np.amax(x) - np.mean(x),
     }
 
     for stat in stats:
@@ -148,18 +147,10 @@ def test_filters(filter_flag, R, plt):
             r_cen, R_cells, Rp_cells, filter_flag
         )
         filter_plot(
-            inputs=[
-                input_box_centre,
-            ],
-            outputs=[
-                output_box_centre,
-            ],
-            binned_truths=[
-                binned_truth_centre,
-            ],
-            truths=[
-                exp_output_centre,
-            ],
+            inputs=[input_box_centre],
+            outputs=[output_box_centre],
+            binned_truths=[binned_truth_centre],
+            truths=[exp_output_centre],
             r_bins=r_bins,
             r_grid=r_from_centre,
             slice_index=up.HII_DIM // 2,
@@ -170,21 +161,19 @@ def test_filters(filter_flag, R, plt):
     # All filters should be normalised aside from the exp filter
     if filter_flag == 3:
         # ratio of exponential and sphere volume integrals
-        norm_factor = (
-            2 * R_param**3
-            - R_param * np.exp(-R / R_param) * (2 * R_param**2 + 2 * R_param * R + R**2)
-        ) / (3 * R**3)
+        R_q = R_param / R
+        norm_factor = 6 * R_q**3 - np.exp(-1 / R_q) * (
+            6 * R_q**3 + 6 * R_q**2 + 3 * R_q
+        )
     else:
         norm_factor = 1
     # firstly, make sure the filters are normalised
     np.testing.assert_allclose(
-        input_box_centre.sum() * norm_factor, output_box_centre.sum(), rtol=1e-4
+        input_box_centre.sum() * norm_factor, output_box_centre.sum(), atol=1e-4
     )
 
     # then make sure we get the right shapes (more lenient for aliasing)
-    np.testing.assert_allclose(
-        output_box_centre, exp_output_centre, rtol=RELATIVE_TOLERANCE
-    )
+    np.testing.assert_allclose(output_box_centre, exp_output_centre, atol=1e-4)
 
 
 # since the filters are symmetric I'm doing an R vs value plot instead of imshowing slices
@@ -227,7 +216,9 @@ def filter_plot(
             norm=Normalize(vmin=0, vmax=o.max()),
         )
 
-        stats_o = get_binned_stats(r_grid, o, r_bins, stats=["mean", "err1u", "err1l"])
+        stats_o = get_binned_stats(
+            r_grid, o, r_bins, stats=["mean", "errmin", "errmax"]
+        )
         axs[idx, 3].errorbar(
             r_cen,
             stats_o["mean"],
@@ -237,15 +228,15 @@ def filter_plot(
             markersize=5,
             marker="o",
             color="b",
-            yerr=[stats_o["err1l"], stats_o["err1u"]],
+            yerr=[stats_o["errmin"], stats_o["errmax"]],
             label="filtered grid",
         )
-        axs[idx, 3].plot(r_cen, t, "m:", label="Expected")
+        axs[idx, 3].plot(r_cen, t, "m:", linewidth=2, label="Expected")
         axs[idx, 3].grid()
         axs[idx, 3].set_xlabel("dist from centre")
         axs[idx, 3].set_ylabel("cell value")
 
         axst = axs[idx, 3].twinx()
-        axst.plot(r_cen, stats_o["mean"] / t - 1, "r-")
+        axst.plot(r_cen, stats_o["mean"] / (t + 1e-16) - 1, "r-")
         axst.set_ylim(-10, 10)
         axst.set_ylabel("out-truth/truth")

@@ -18,8 +18,9 @@
 #include "dft.h"
 
 double real_tophat_filter(double kR){
+    //Second order taylor expansion around kR==0
     if (kR < 1e-4)
-        return 1;
+        return 1 - kR*kR/10;
     return 3.0*pow(kR, -3) * (sin(kR) - cos(kR)*kR);
 }
 
@@ -36,21 +37,27 @@ double gaussian_filter(double kR_squared){
     return exp(-0.643*0.643*kR_squared/2.);
 }
 
-double exp_mfp_filter(double k, double R, double mfp, double R_constant, double limit){
-    double kR,kR2,f;
+double exp_mfp_filter(double k, double R, double mfp, double exp_term){
+    double f;
 
-    kR = k*R;
-    if(kR < 1e-4)
-        return limit;
+    double kR = k*R;
+    double ratio = mfp/R;
+    //Second order taylor expansion around kR==0
+    //NOTE: the taylor coefficients could be stored and passed in
+    //  but there aren't any super expensive operations here
+    //  assuming the integer pow calls are optimized by the compiler
+    //  test with the profiler
+    if(kR < 1e-4){
+        double ts_0 = 6*pow(ratio,3) - exp_term*(6*pow(ratio,3) + 6*pow(ratio,2) + 3*ratio);
+        return ts_0 + (exp_term*(2*pow(ratio,2) + 0.5*ratio) - 2*ts_0*pow(ratio,2))*kR*kR;
+    }
 
-    kR2 = k*mfp;
     //Davies & Furlanetto MFP-eps(r) window function
-    //The filter no longer approaches 1 at k->0, so we can't use the limit
-    f = (kR2*kR2*R + 2*mfp + R)*kR2*cos(kR);
-    f += (-kR2*kR2*mfp + kR2*kR2*R + mfp + R)*sin(kR);
-    f *= R_constant;
-    f -= 2*kR2*mfp;
-    f *= -3.0*mfp/(kR*R*R*(kR2*kR2+1)*(kR2*kR2+1));
+    f = (kR*kR*pow(ratio,2) + 2*ratio + 1)*ratio*cos(kR);
+    f += (kR*kR*(pow(ratio,2)-pow(ratio,3)) + ratio + 1)*sin(kR)/kR;
+    f *= exp_term;
+    f -= 2*pow(ratio,2);
+    f *= -3*ratio/pow(pow(kR*ratio,2) + 1,2);
     return f;
 }
 
@@ -58,8 +65,11 @@ double spherical_shell_filter(double k, double R_outer, double R_inner){
     double kR_inner = k*R_inner;
     double kR_outer = k*R_outer;
 
+    //Second order taylor expansion around kR_outer==0
     if (kR_outer < 1e-4)
-        return 1.;
+        return 1. - kR_outer*kR_outer/10 * \
+                (pow(R_inner/R_outer,5) - 1) / \
+                (pow(R_inner/R_outer,3) - 1);
 
     return 3.0/(pow(kR_outer, 3) - pow(kR_inner, 3)) \
         * (sin(kR_outer) - cos(kR_outer)*kR_outer \
@@ -84,11 +94,9 @@ void filter_box(fftwf_complex *box, int RES, int filter_type, float R, float R_p
     }
 
     //setup constants if needed
-    float R_constant_1, R_constant_2;
+    double R_const;
     if(filter_type == 3){
-        R_constant_1 = exp(-R/R_param); //independent of k
-        //k->0 limit of the mfp filter
-        R_constant_2 = (2*R_param*R_param - R_constant_1*(2*R_param*R_param + 2*R_param*R + R*R))*3*R_param/(R*R*R);
+        R_const = exp(-R/R_param);
     }
 
     // loop through k-box
@@ -131,7 +139,7 @@ void filter_box(fftwf_complex *box, int RES, int filter_type, float R, float R_p
                     //The next two filters are not given by the HII_FILTER global, but used for specific grids
                     else if (filter_type == 3){ // exponentially decaying tophat, param == scale of decay (MFP)
                         //NOTE: This should be optimized, I havne't looked at it in a while
-                        box[grid_index] *= exp_mfp_filter(sqrt(k_mag_sq),R,R_param,R_constant_1,R_constant_2);
+                        box[grid_index] *= exp_mfp_filter(sqrt(k_mag_sq),R,R_param,R_const);
                     }
                     else if (filter_type == 4){ //spherical shell, R_param == inner radius
                         box[grid_index] *= spherical_shell_filter(sqrt(k_mag_sq),R,R_param);
