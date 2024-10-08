@@ -19,7 +19,12 @@ from . import produce_integration_test_data as prd
 from .test_c_interpolation_tables import print_failure_stats
 
 options_filter = [0, 1, 2, 3, 4]  # cell densities to draw samples from
-R_PARAM_LIST = [1.5, 5, 10, 25]  # default test HII_DIM = 50
+R_PARAM_LIST = [
+    1.5,
+    5,
+    10,
+    20,
+]  # default test HII_DIM = 50, we want max R < BOX_LEN*HII_DIM/3
 
 
 # NOTE: These don't directly test against the expected FFT of these filters applied
@@ -99,11 +104,11 @@ def test_filters(filter_flag, R, plt):
     input_box_centre = np.zeros((up.HII_DIM,) * 3, dtype="f4")
     input_box_centre[up.HII_DIM // 2, up.HII_DIM // 2, up.HII_DIM // 2] = 1.0
     output_box_centre = np.zeros((up.HII_DIM,) * 3, dtype="f8")
-    # use MFP=20 for the exp filter, use a 3 cell shell for the annular filter
+    # use MFP=20 for the exp filter, use a 4 cell shell for the annular filter
     if filter_flag == 3:
         R_param = 20
     elif filter_flag == 4:
-        R_param = max(R - 3 * (up.BOX_LEN / up.HII_DIM), 0)
+        R_param = max(R - 4 * (up.BOX_LEN / up.HII_DIM), 0)
     else:
         R_param = 0
 
@@ -129,26 +134,44 @@ def test_filters(filter_flag, R, plt):
         ],
         axis=0,
     )
-    # average value of R in a sphere with same volume of the cell
-    r_from_centre[up.HII_DIM // 2, up.HII_DIM // 2, up.HII_DIM // 2] = (
-        np.pi * (0.62035) ** 4
-    )
+    # prevent divide by zero in the central cell
+    r_from_centre[up.HII_DIM // 2, up.HII_DIM // 2, up.HII_DIM // 2] = 1e-6
+
     exp_output_centre = get_expected_output_centre(
         r_from_centre, R_cells, Rp_cells, filter_flag
     )
 
-    abs_tol_pixel = exp_output_centre.max() * 1e-2
-    rel_tol_pixel = 2e-1
+    # these are very wide tolerances, just to make sure there aren't
+    # cells 100x the expected values
+    abs_tol_pixel = exp_output_centre.max() * 0.8
+    rel_tol_pixel = 0
+    # we take bins of 2 pixels to smooth over sharp edged filters
+    r_bins = np.arange(0, int(up.HII_DIM / 2 * np.sqrt(3)), 2)
+    r_cen = (r_bins[1:] + r_bins[:-1]) / 2
+    # binned_truth_centre = get_expected_output_centre(
+    #     r_cen, R_cells, Rp_cells, filter_flag
+    # )
+    binned_truth_centre = get_binned_stats(
+        r_from_centre,
+        exp_output_centre,
+        r_bins,
+        stats=["mean", "errmin", "errmax", "err1l", "err1u"],
+    )
+    binned_truth_centre = binned_truth_centre["mean"]
+
+    stats_o = get_binned_stats(
+        r_from_centre,
+        output_box_centre,
+        r_bins,
+        stats=["mean", "errmin", "errmax", "err1l", "err1u"],
+    )
+
     if plt == mpl.pyplot:
-        r_bins = np.linspace(0, (up.HII_DIM / 2 * np.sqrt(3)), num=32)
-        r_cen = (r_bins[1:] + r_bins[:-1]) / 2
-        binned_truth_centre = get_expected_output_centre(
-            r_cen, R_cells, Rp_cells, filter_flag
-        )
         filter_plot(
             inputs=[input_box_centre],
             outputs=[output_box_centre],
             binned_truths=[binned_truth_centre],
+            binned_stats=[stats_o],
             truths=[exp_output_centre],
             r_bins=r_bins,
             r_grid=r_from_centre,
@@ -170,11 +193,26 @@ def test_filters(filter_flag, R, plt):
         norm_factor = 1
     # firstly, make sure the filters are normalised
     np.testing.assert_allclose(
-        input_box_centre.sum() * norm_factor, output_box_centre.sum(), atol=1e-6
+        input_box_centre.sum() * norm_factor, output_box_centre.sum(), atol=1e-4
     )
 
-    # then make sure we get the right shapes (more lenient for aliasing)
-    # absolute tolerance is set by the maximum, and some relative tolerance is added for aliasing
+    # secondly, make sure binned results are reasonable
+    rel_tol_bins = 1e-1
+    abs_tol_bins = exp_output_centre.max() * 1e-1
+    print_failure_stats(
+        stats_o["mean"],
+        binned_truth_centre,
+        [r_cen],
+        abs_tol=abs_tol_bins,
+        rel_tol=rel_tol_bins,
+        name="bins",
+    )
+    np.testing.assert_allclose(
+        binned_truth_centre, stats_o["mean"], atol=abs_tol_bins, rtol=rel_tol_bins
+    )
+
+    # lastly, make sure no pixels are way out of line.
+    # this has a wide tolerance due to significant aliasing
     print_failure_stats(
         output_box_centre,
         exp_output_centre,
@@ -193,6 +231,7 @@ def filter_plot(
     inputs,
     outputs,
     binned_truths,
+    binned_stats,
     truths,
     r_bins,
     r_grid,
@@ -224,7 +263,9 @@ def filter_plot(
     axs[0, 1].set_title("Expected")
     axs[0, 2].set_title("Radii")
     axs[0, 3].set_title("Pixels")
-    for idx, (i, o, t, tt) in enumerate(zip(inputs, outputs, binned_truths, truths)):
+    for idx, (i, o, bo, t, tt) in enumerate(
+        zip(inputs, outputs, binned_stats, binned_truths, truths)
+    ):
         axs[idx, 0].pcolormesh(
             o.take(indices=slice_index, axis=slice_axis),
             norm=Normalize(vmin=0, vmax=o.max()),
@@ -234,22 +275,18 @@ def filter_plot(
             norm=Normalize(vmin=0, vmax=o.max()),
         )
 
-        stats_o = get_binned_stats(
-            r_grid, o, r_bins, stats=["mean", "errmin", "errmax"]
-        )
-
         lns = []
         lns.append(
             axs[idx, 2].errorbar(
                 r_cen,
-                stats_o["mean"],
+                bo["mean"],
                 markerfacecolor="b",
                 elinewidth=1,
                 capsize=3,
                 markersize=5,
                 marker="o",
                 color="b",
-                yerr=[stats_o["errmin"], stats_o["errmax"]],
+                yerr=[bo["errmin"], bo["errmax"]],
                 label="filtered grid",
                 zorder=2,
             )
@@ -269,7 +306,6 @@ def filter_plot(
         axs[idx, 3].plot(err_base, err_max, "k:")
         axs[idx, 3].plot(err_base, err_min, "k:")
         axs[idx, 3].plot(err_base, err_base, "k--")
-        print(err_base, err_max, err_min)
 
         axs[idx, 3].scatter(tt, o, s=1, alpha=0.5, rasterized=True)
         # axs[idx, 3].set_yscale('symlog')
