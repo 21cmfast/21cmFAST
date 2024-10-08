@@ -152,12 +152,14 @@ LOG_SUPER_DEBUG("defined parameters");
 
     //Yuxiang's evolving Rmax for MFP in ionised regions
     double exp_mfp;
-    if(flag_options->USE_EXP_FILTER){
-        if (redshift > 6)
-            exp_mfp = 25.483241248322766 / cosmo_params->hlittle;
-        else
-            exp_mfp = 112 / cosmo_params->hlittle * pow( (1.+redshift) / 5. , -4.4);
-    }
+    // if(flag_options->USE_EXP_FILTER){
+    //     if (redshift > 6)
+    //         exp_mfp = 25.483241248322766 / cosmo_params->hlittle;
+    //     else
+    //         exp_mfp = 112 / cosmo_params->hlittle * pow( (1.+redshift) / 5. , -4.4);
+    // }
+    //constant for now, the pow(4.4) makes kinks in reionisation
+    exp_mfp = 25.483241248322766 / cosmo_params->hlittle;
 
     // For recombinations
     bool recomb_filter_flag = flag_options->INHOMO_RECO && !flag_options->CELL_RECOMB;
@@ -1216,12 +1218,13 @@ LOG_SUPER_DEBUG("excursion set normalisation, mean_f_coll_MINI: %e", box->mean_f
                     for (y = 0; y < user_params->HII_DIM; y++) {
                         for (z = 0; z < HII_D_PARA; z++) {
 
-                            //Use unfiltered density for CELL_RECOMB case, since the "Fcoll" represents photons
-                            //  reaching the central cell rather than photons in the entire sphere
-                            if(flag_options->CELL_RECOMB)
-                                curr_dens = perturbed_field->density[HII_R_INDEX(x,y,z)];
-                            else
-                                curr_dens = *((float *)deltax_filtered + HII_R_FFT_INDEX(x,y,z));
+                            //TODO: There may be a reason to use unfiltered density for CELL_RECOMB case,
+                            // since the "Fcoll" represents photons reaching the central cell rather than
+                            // photons in the entire sphere (See issue #434)
+                            // if(flag_options->CELL_RECOMB)
+                            //     curr_dens = perturbed_field->density[HII_R_INDEX(x,y,z)];
+                            // else
+                            curr_dens = *((float *)deltax_filtered + HII_R_FFT_INDEX(x,y,z));
 
                             Splined_Fcoll = box->Fcoll[counter * HII_TOT_NUM_PIXELS + HII_R_INDEX(x,y,z)];
 
