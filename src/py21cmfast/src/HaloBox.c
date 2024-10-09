@@ -84,9 +84,10 @@ struct HaloProperties{
 
 void set_hbox_constants(double redshift, AstroParams *astro_params, FlagOptions *flag_options, struct HaloBoxConstants *consts){
     consts->redshift = redshift;
+
+    //Set on for the fixed grid case since we are missing halos above the cell mass
+    consts->fix_mean = flag_options->FIXED_HALO_GRIDS;
     //whether to fix *integrated* (not sampled) galaxy properties to the expected mean
-    //  constant for now, to be a flag later
-    consts->fix_mean = true;
     consts->scaling_median = flag_options->HALO_SCALING_RELATIONS_MEDIAN;
 
     consts->fstar_10 = astro_params->F_STAR10;
@@ -453,7 +454,7 @@ void mean_fix_grids(double M_min, double M_max, HaloBox *grids, struct HaloPrope
 //This outputs the UN-NORMALISED grids (before mean-adjustment)
 int set_fixed_grids(double M_min, double M_max, InitialConditions *ini_boxes,
                     PerturbedField *perturbed_field, TsBox *previous_spin_temp, IonizedBox *previous_ionize_box,
-                    struct HaloBoxConstants *consts, HaloBox *grids, struct HaloProperties *averages){
+                    struct HaloBoxConstants *consts, HaloBox *grids, struct HaloProperties *averages, const bool eulerian){
     double M_cell = RHOcrit * cosmo_params_global->OMm * VOLUME / HII_TOT_NUM_PIXELS; //mass in cell of mean dens
     double growth_z = dicke(consts->redshift);
 
@@ -501,8 +502,10 @@ int set_fixed_grids(double M_min, double M_max, InitialConditions *ini_boxes,
             reduction(max:max_density,max_log10_mturn_a,max_log10_mturn_m)\
             reduction(+:l10_mlim_m_sum,l10_mlim_a_sum,l10_mlim_r_sum)
         for(i=0;i<HII_TOT_NUM_PIXELS;i++){
-            // dens = perturbed_field->density[i];
-            dens = euler_to_lagrangian_delta(perturbed_field->density[i]);
+            if(eulerian)
+                dens = perturbed_field->density[i];
+            else
+                dens = ini_boxes->lowres_density[i] * growth_z;
             if(dens > max_density) max_density = dens;
             if(dens < min_density) min_density = dens;
 
@@ -581,11 +584,18 @@ int set_fixed_grids(double M_min, double M_max, InitialConditions *ini_boxes,
         double mass_intgrl, h_count;
         double intgrl_fesc_weighted, intgrl_stars_only;
         double intgrl_fesc_weighted_mini=0., intgrl_stars_only_mini=0.;
+        double dens_fac;
 
 #pragma omp for reduction(+:hm_sum,sm_sum,sm_sum_mini,sfr_sum,sfr_sum_mini,xray_sum,nion_sum,wsfr_sum)
         for(i=0;i<HII_TOT_NUM_PIXELS;i++){
-            // dens = perturbed_field->density[i];
-            dens = euler_to_lagrangian_delta(perturbed_field->density[i]);
+            if(eulerian){
+                dens = perturbed_field->density[i];
+                dens_fac = (1.+dens);
+            }
+            else{
+                dens = ini_boxes->lowres_density[i] * growth_z;
+                dens_fac = 1.;
+            }
             l10_mturn_a = mturn_a_grid[i];
             l10_mturn_m = mturn_m_grid[i];
 
@@ -602,15 +612,15 @@ int set_fixed_grids(double M_min, double M_max, InitialConditions *ini_boxes,
                                                             l10_mturn_a,consts->Mlim_Fstar,consts->Mlim_Fesc,false);
             }
 
-            grids->count[i] = (int)(h_count * M_cell * (1+dens)); //NOTE: truncated
-            grids->halo_mass[i] = mass_intgrl * prefactor_mass * (1+dens);
-            grids->halo_sfr[i] = (intgrl_stars_only*prefactor_sfr) * (1+dens);
-            grids->halo_sfr_mini[i] = intgrl_stars_only_mini*prefactor_sfr_mini * (1+dens);
-            grids->n_ion[i] = (intgrl_fesc_weighted*prefactor_nion + intgrl_fesc_weighted_mini*prefactor_nion_mini) * (1+dens);
-            grids->whalo_sfr[i] = (intgrl_fesc_weighted*prefactor_wsfr + intgrl_fesc_weighted_mini*prefactor_wsfr_mini) * (1+dens);
-            grids->halo_xray[i] = (intgrl_stars_only*prefactor_xray + intgrl_stars_only_mini*prefactor_xray_mini) * (1+dens);
-            grids->halo_stars[i] = intgrl_stars_only*prefactor_stars * (1+dens);
-            grids->halo_stars_mini[i] = intgrl_stars_only_mini*prefactor_stars_mini * (1+dens);
+            grids->count[i] = (int)(h_count * M_cell * dens_fac); //NOTE: truncated
+            grids->halo_mass[i] = mass_intgrl * prefactor_mass * dens_fac;
+            grids->halo_sfr[i] = (intgrl_stars_only*prefactor_sfr) * dens_fac;
+            grids->halo_sfr_mini[i] = intgrl_stars_only_mini*prefactor_sfr_mini * dens_fac;
+            grids->n_ion[i] = (intgrl_fesc_weighted*prefactor_nion + intgrl_fesc_weighted_mini*prefactor_nion_mini) * dens_fac;
+            grids->whalo_sfr[i] = (intgrl_fesc_weighted*prefactor_wsfr + intgrl_fesc_weighted_mini*prefactor_wsfr_mini) * dens_fac;
+            grids->halo_xray[i] = (intgrl_stars_only*prefactor_xray + intgrl_stars_only_mini*prefactor_xray_mini) * dens_fac;
+            grids->halo_stars[i] = intgrl_stars_only*prefactor_stars * dens_fac;
+            grids->halo_stars_mini[i] = intgrl_stars_only_mini*prefactor_stars_mini * dens_fac;
 
             hm_sum += grids->halo_mass[i];
             nion_sum += grids->n_ion[i];
@@ -962,14 +972,14 @@ int ComputeHaloBox(double redshift, UserParams *user_params, CosmoParams *cosmo_
         //Since we need the average turnover masses before we can calculate the global means, we do the CMF integrals first
         //Then we calculate the expected UMF integrals before doing the adjustment
         if(flag_options->FIXED_HALO_GRIDS){
-            set_fixed_grids(M_min, M_max, ini_boxes, perturbed_field, previous_spin_temp, previous_ionize_box, &hbox_consts, grids, &averages_box);
+            set_fixed_grids(M_min, M_max, ini_boxes, perturbed_field, previous_spin_temp, previous_ionize_box, &hbox_consts, grids, &averages_box, true);
         }
         else{
             //set below-resolution properties
             if(user_params->AVG_BELOW_SAMPLER && M_min < user_params->SAMPLER_MIN_MASS){
                 set_fixed_grids(M_min, user_params->SAMPLER_MIN_MASS, ini_boxes,
                                 perturbed_field, previous_spin_temp, previous_ionize_box,
-                                &hbox_consts, grids, &averages_subsampler);
+                                &hbox_consts, grids, &averages_subsampler, false);
                 //This is pretty redundant, but since the fixed grids have density units (X Mpc-3) I have to re-multiply before adding the halos.
                 //      I should instead have a flag to output the summed values in cell. (2*N_pixel > N_halo so generally i don't want to do it in the halo loop)
                 #pragma omp parallel for num_threads(user_params->N_THREADS) private(idx)
