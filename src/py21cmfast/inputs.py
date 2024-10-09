@@ -840,6 +840,10 @@ class FlagOptions(StructWithDefaults):
         Whether to use an additional powerlaw in stellar mass fraction at high halo mass. The pivot mass scale and power-law index are
         controlled by two global parameters, UPPER_STELLAR_TURNOVER_MASS and UPPER_STELLAR_TURNOVER_INDEX respectively.
         This is currently only implemented in the halo model (USE_HALO_FIELD=True), and has no effect otherwise.
+    HALO_SCALING_RELATIONS_MEDIAN: bool, optional
+        If True, halo scaling relation parameters (F_STAR10,t_STAR etc...) define the median of their conditional distributions
+        If False, they describe the mean.
+        This becomes important when using non-symmetric dristributions such as the log-normal
     """
 
     _ffi = ffi
@@ -862,6 +866,7 @@ class FlagOptions(StructWithDefaults):
         "CELL_RECOMB": True,
         "PHOTON_CONS_TYPE": 0,  # Should these all be boolean?
         "USE_UPPER_STELLAR_TURNOVER": True,
+        "HALO_SCALING_RELATIONS_MEDIAN": False,
     }
 
     @property
@@ -935,7 +940,10 @@ class FlagOptions(StructWithDefaults):
                 "USE_EXP_FILTER can only be used with a real-space tophat HII_FILTER==0"
             )
         if self._USE_EXP_FILTER and not self.CELL_RECOMB:
-            raise ValueError("USE_EXP_FILTER can only be used with CELL_RECOMB")
+            warnings.warn(
+                "USE_EXP_FILTER without CELL_RECOMB double-counts recombinations"
+            )
+            # raise ValueError("USE_EXP_FILTER can only be used with CELL_RECOMB")
 
         return self._USE_EXP_FILTER
 

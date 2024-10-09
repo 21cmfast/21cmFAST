@@ -1399,6 +1399,10 @@ def make_integral_comparison_plot(x1, x2, integral_list, integral_list_second, p
     axs[1, 1].set_xlabel("delta")
     axs[1, 0].set_ylabel("Integral")
     axs[0, 0].set_ylabel("Integral")
+    axs[0, 0].grid()
+    axs[0, 1].grid()
+    axs[1, 0].grid()
+    axs[1, 1].grid()
 
 
 # copied and expanded from test_integration_features.py

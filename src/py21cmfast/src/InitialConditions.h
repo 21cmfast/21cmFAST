@@ -11,7 +11,10 @@ int ComputeInitialConditions(
     CosmoParams *cosmo_params, InitialConditions *boxes
 );
 
+//TODO: these seeding functions should probably be somewhere else
+//  Possibly make an rng.c/h
 void seed_rng_threads(gsl_rng * rng_arr[], unsigned long long int seed);
+void seed_rng_threads_fast(gsl_rng * rng_arr[], unsigned long long int seed);
 void free_rng_threads(gsl_rng * rng_arr[]);
 
 #endif

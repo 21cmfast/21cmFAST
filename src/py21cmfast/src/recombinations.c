@@ -39,6 +39,8 @@ static double RR_table[RR_Z_NPTS][RR_lnGamma_NPTS], lnGamma_values[RR_lnGamma_NP
 static gsl_interp_accel *RR_acc[RR_Z_NPTS];
 static gsl_spline *RR_spline[RR_Z_NPTS];
 
+static bool oob_warning_printed;
+
 double recombination_rate(double z_eff, double gamma12_bg, double T4, int usecaseB);
 void free_MHR(); /* deallocates the gsl structures from init_MHR */
 double Gamma_SS(double Gamma_bg, double Delta, double T_4, double z);//ionization rate w. self shielding
@@ -72,8 +74,13 @@ double splined_recombination_rate(double z_eff, double gamma12_bg){
     return 0;
   }
   else if (lnGamma >= (RR_lnGamma_min + RR_DEL_lnGamma * ( RR_lnGamma_NPTS - 1 )) ){
-    LOG_WARNING("splined_recombination_rate: Gamma12 of %g is outside of interpolation array", gamma12_bg);
     lnGamma =  RR_lnGamma_min + RR_DEL_lnGamma * ( RR_lnGamma_NPTS - 1 ) - FRACT_FLOAT_ERR;
+    if(!oob_warning_printed){
+        LOG_WARNING("splined_recombination_rate: Gamma12 of %g is outside of interpolation array", gamma12_bg);
+        LOG_WARNING("gamma will be set to the maximum value %.3e", exp(lnGamma));
+        LOG_WARNING("THIS WARNING IS PRINTED ONLY ONCE PER RUN");
+        oob_warning_printed = true;
+    }
   }
 
   return gsl_spline_eval(RR_spline[z_ct], lnGamma, RR_acc[z_ct]);
@@ -106,6 +113,7 @@ void init_MHR(){
     gsl_spline_init(RR_spline[z_ct], lnGamma_values, RR_table[z_ct], RR_lnGamma_NPTS);
 
   } // go to next redshift
+  oob_warning_printed = false;
 
   return;
 }

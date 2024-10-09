@@ -206,6 +206,7 @@ int ComputePerturbField(
 
     // ***************   BEGIN INITIALIZATION   ************************** //
 
+    LOG_DEBUG("Computing Perturbed Field at z=%.3f",redshift);
     // perform a very rudimentary check to see if we are underresolved and not using the linear approx
     if ((user_params->BOX_LEN > user_params->DIM) && !(global_params.EVOLVE_DENSITY_LINEARLY)){
         LOG_WARNING("Resolution is likely too low for accurate evolved density fields\n \
@@ -242,8 +243,6 @@ int ComputePerturbField(
     // check if the linear evolution flag was set
     if (global_params.EVOLVE_DENSITY_LINEARLY){
 
-        LOG_DEBUG("Linearly evolve density field");
-
 #pragma omp parallel shared(growth_factor,boxes,LOWRES_density_perturb,HIRES_density_perturb,dimension) private(i,j,k) num_threads(user_params->N_THREADS)
         {
 #pragma omp for
@@ -263,7 +262,6 @@ int ComputePerturbField(
     }
     else {
         // Apply Zel'dovich/2LPT correction
-        LOG_DEBUG("Apply Zel'dovich");
 
 #pragma omp parallel shared(LOWRES_density_perturb,HIRES_density_perturb,dimension) private(i,j,k) num_threads(user_params->N_THREADS)
         {
@@ -312,7 +310,6 @@ int ComputePerturbField(
         // * ************************************************************************* * //
         // reference: reference: Scoccimarro R., 1998, MNRAS, 299, 1097-1118 Appendix D
         if(user_params->USE_2LPT){
-            LOG_DEBUG("Apply 2LPT");
 
             // allocate memory for the velocity boxes and read them in
             velocity_displacement_factor_2LPT = (displacement_factor_2LPT - init_displacement_factor_2LPT) / user_params->BOX_LEN;
@@ -356,7 +353,6 @@ int ComputePerturbField(
         }
 
         // go through the high-res box, mapping the mass onto the low-res (updated) box
-        LOG_DEBUG("Perturb the density field");
         #pragma omp parallel \
             shared(init_growth_factor,boxes,f_pixel_factor,resampled_box,dimension) \
             private(i,j,k,xi,xf,yi,yf,zi,zf,HII_i,HII_j,HII_k,d_x,d_y,d_z,t_x,t_y,t_z,xp1,yp1,zp1) \
@@ -523,7 +519,6 @@ int ComputePerturbField(
             }
         }
         free(resampled_box);
-        LOG_DEBUG("Finished perturbing the density field");
 
         LOG_SUPER_DEBUG("density_perturb: ");
         if(user_params->PERTURB_ON_HIGH_RES){
@@ -576,14 +571,10 @@ int ComputePerturbField(
                 }
             }
         }
-        LOG_DEBUG("Cleanup velocities for perturb");
     }
 
     // Now, if I still have the high resolution density grid (HIRES_density_perturb) I need to downsample it to the low-resolution grid
     if(user_params->PERTURB_ON_HIGH_RES) {
-
-        LOG_DEBUG("Downsample the high-res perturbed density");
-
         // Transform to Fourier space to sample (filter) the box
         dft_r2c_cube(user_params->USE_FFTW_WISDOM, user_params->DIM, D_PARA, user_params->N_THREADS, HIRES_density_perturb);
 
@@ -700,8 +691,6 @@ int ComputePerturbField(
     }
 
     // ****  Convert to velocities ***** //
-    LOG_DEBUG("Generate velocity fields");
-
     float dDdt_over_D;
 
     dDdt_over_D = dDdt/growth_factor;
@@ -762,6 +751,7 @@ int ComputePerturbField(
         fftwf_free(HIRES_density_perturb_saved);
     }
     fftwf_cleanup();
+    LOG_DEBUG("Done.");
 
     } // End of Try{}
     Catch(status){

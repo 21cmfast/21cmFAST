@@ -398,6 +398,7 @@ class PerturbHaloField(_AllParamsBox):
         **kwargs,
     ):
         self.buffer_size = buffer_size
+        self.n_halos = buffer_size  # we know how many halos we have by this point
         super().__init__(**kwargs)
 
     def _get_box_structures(self) -> dict[str, dict | tuple[int]]:
