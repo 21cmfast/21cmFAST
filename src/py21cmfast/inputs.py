@@ -1308,6 +1308,10 @@ def validate_all_inputs(
     The input params may be modified in-place in this function, but if so, a warning
     should be emitted.
     """
+    if global_params.HII_FILTER not in [0, 1, 2]:
+        raise ValueError(
+            "global_params.HII_FITLER is not within the available options, 0: real space top-hat, 1: sharp k-space, 2: Gaussian."
+        )
     if astro_params is not None:
         if astro_params.R_BUBBLE_MAX > user_params.BOX_LEN:
             astro_params.update(R_BUBBLE_MAX=user_params.BOX_LEN)

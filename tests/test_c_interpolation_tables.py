@@ -1453,7 +1453,9 @@ def print_failure_stats(test, truth, input_arr, abs_tol, rel_tol, name):
             f"max abs diff of failures {np.fabs(truth - test)[sel_failed].max():.4e} relative {(np.fabs(truth - test) / truth)[sel_failed].max():.4e}"
         )
 
-        print(f"first 10 = {truth.flatten()[:10]} {test.flatten()[:10]}")
+        print(
+            f"first 10 = {truth[sel_failed].flatten()[:10]} {test[sel_failed].flatten()[:10]}"
+        )
 
 
 def massfunc_table_comparison_plot(
