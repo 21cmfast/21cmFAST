@@ -299,50 +299,44 @@ int stoc_halo_sample(struct HaloSamplingConstants *hs_constants, gsl_rng * rng, 
     return 0;
 }
 
-//same but with a mass tolerance for comparison with Ivan
+//same as stoc_halo_sample but with a mass tolerance for comparison with Ivan
 int stoc_halo_sample_tol(struct HaloSamplingConstants *hs_constants, gsl_rng * rng, int *n_halo_out, float *M_out){
     double exp_N = hs_constants->expected_N;
     double exp_M = hs_constants->expected_M;
-    int ii, nh=0, attempts;
+    int ii, nh=0;
     int halo_count=0;
     double mass_tot=0.;
     double m_sample;
-    static int n_failures = 0;
+    int attempts, n_failures;
 
     double tbl_arg = hs_constants->cond_val;
 
-    int min_N = 1;
-    int max_N = hs_constants->M_cond / hs_constants->M_min;
-    while(nh < min_N || nh > max_N) nh = gsl_ran_poisson(rng,exp_N);
+    //number limits that *can* fall in the tolerance
+    int min_N = 1; //assuming exp_M*0.9 < M_cond
+    int max_N = (int)(exp_M*1.1 / hs_constants->M_min);
 
-    for(attempts=0;attempts<10;attempts++){
-        for(ii=0;ii<nh;ii++){
-            m_sample = sample_dndM_inverse(tbl_arg,hs_constants,rng);
-            M_out[halo_count++] = m_sample;
-            mass_tot = m_sample;
+    for(n_failures=0;n_failures<1000;n_failures++){
+        do {
+            nh = gsl_ran_poisson(rng,exp_N);
+        } while((nh < min_N) || (nh > max_N));
+        for(attempts=0;attempts<10;attempts++){
+            halo_count = 0;
+            mass_tot = 0.;
+            for(ii=0;ii<nh;ii++){
+                m_sample = sample_dndM_inverse(tbl_arg,hs_constants,rng);
+                M_out[halo_count++] = m_sample;
+                mass_tot += m_sample;
+            }
+            //return if we found a good sample
+            if((mass_tot > 0.9*exp_M) && (mass_tot < 1.1*exp_M)){
+                *n_halo_out = halo_count;
+                return 0;
+            }
         }
-        //break if we found a good sample
-        if(mass_tot > 0.9*exp_M && mass_tot < 1.1*exp_M){
-            break;
-            n_failures = 0;
-        }
-        //reset if we don't
-        halo_count = 0.;
-        mass_tot = 0.;
     }
 
-    //if we don't find a sample, try again with new N
-    if(attempts >= 10){
-        n_failures++;
-        if(n_failures >= 10){
-            LOG_ERROR("Poisson Sampling took too many attempts, something is likely wrong with the tables");
-            Throw(TableEvaluationError);
-        }
-        return stoc_halo_sample_tol(hs_constants,rng,n_halo_out,M_out);
-    }
-
-    *n_halo_out = halo_count;
-    return 0;
+    //if we go through the whole loop raise an error
+    return TableEvaluationError;
 }
 
 double remove_random_halo(gsl_rng * rng, int n_halo, int *idx, double *M_prog, float *M_out){
@@ -706,6 +700,10 @@ int stoc_sample(struct HaloSamplingConstants * hs_constants, gsl_rng * rng, int 
     else{
         LOG_ERROR("Invalid sampling method");
         Throw(ValueError);
+    }
+    if(err){
+        LOG_ERROR("Error %d encountered in Halo sampling",err);
+        Throw(err);
     }
     if(*n_halo_out > MAX_HALO_CELL){
         LOG_ERROR("too many halos in condition, buffer overflow");

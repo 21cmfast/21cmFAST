@@ -885,7 +885,7 @@ void sum_halos_onto_grid(InitialConditions *ini_boxes, TsBox *previous_spin_temp
         }
     }
     total_n_halos = halos->n_halos - n_halos_cut;
-    LOG_SUPER_DEBUG("Cell 0 Halo: HM: %.2e SM: %.2e (%.2e) SF: %.2e (%.2e) X: %.2e NI: %.2e WS: %.2e ct : %d",grids->halo_mass[HII_R_INDEX(0,0,0)],
+    LOG_SUPER_DEBUG("Cell 0 Totals: HM: %.2e SM: %.2e (%.2e) SF: %.2e (%.2e) X: %.2e NI: %.2e WS: %.2e ct : %d",grids->halo_mass[HII_R_INDEX(0,0,0)],
                         grids->halo_stars[HII_R_INDEX(0,0,0)],grids->halo_stars_mini[HII_R_INDEX(0,0,0)],
                         grids->halo_sfr[HII_R_INDEX(0,0,0)],grids->halo_sfr_mini[HII_R_INDEX(0,0,0)],
                         grids->halo_xray[HII_R_INDEX(0,0,0)],grids->n_ion[HII_R_INDEX(0,0,0)],
