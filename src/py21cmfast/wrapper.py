@@ -367,10 +367,14 @@ def _call_c_simple(fnc, *args):
     return result[0]
 
 
+def _get_config_direc(direc):
+    return str(os.path.expanduser(config["direc"] if direc is None else direc))
+
+
 def _get_config_options(
     direc, regenerate, write, hooks
 ) -> tuple[str, bool, dict[Callable, dict[str, Any]]]:
-    direc = str(os.path.expanduser(config["direc"] if direc is None else direc))
+    direc = _get_config_direc(direc)
 
     if hooks is None or len(hooks) > 0:
         hooks = hooks or {}
@@ -2692,8 +2696,7 @@ def run_coeval(
         if redshift is None and perturb is None:
             raise ValueError("Either redshift or perturb must be given")
 
-        direc, regenerate, hooks = _get_config_options(direc, regenerate, write, hooks)
-
+        direc = _get_config_direc(direc)
         singleton = False
         # Ensure perturb is a list of boxes, not just one.
         if perturb is None:
@@ -2721,7 +2724,12 @@ def run_coeval(
         if use_interp_perturb_field and flag_options.USE_MINI_HALOS:
             raise ValueError("Cannot use an interpolated perturb field with minihalos!")
 
-        iokw = {"regenerate": regenerate, "hooks": hooks, "direc": direc}
+        iokw = {
+            "regenerate": regenerate,
+            "hooks": hooks,
+            "direc": direc,
+            "write": write,
+        }
 
         if init_box is None:
             init_box = initial_conditions(
@@ -2791,18 +2799,14 @@ def run_coeval(
 
         perturb = perturb_
 
-        # Now we can purge init_box further.
-        try:
-            init_box.prepare_for_halos(flag_options=flag_options, force=always_purge)
-        except OSError:
-            pass
-
         # get the halos (reverse redshift order)
         pt_halos = []
+        # since the HaloField can be quite large, by default only save PerturbHaloField
+        kw_hf = {**kw, "write": write if write else False}
         if flag_options.USE_HALO_FIELD and not flag_options.FIXED_HALO_GRIDS:
             halos_desc = None
             for i, z in enumerate(redshifts[::-1]):
-                halos = determine_halo_list(redshift=z, halos_desc=halos_desc, **kw)
+                halos = determine_halo_list(redshift=z, halos_desc=halos_desc, **kw_hf)
                 pt_halos += [perturb_halo_list(redshift=z, halo_field=halos, **kw)]
 
                 # we never want to store every halofield
@@ -3169,7 +3173,7 @@ def run_lightcone(
     regenerate, write, direc, random_seed
         See docs of :func:`initial_conditions` for more information.
     """
-    direc, regenerate, hooks = _get_config_options(direc, regenerate, write, hooks)
+    direc = _get_config_direc(direc)
 
     if cosmo_params is None and lightconer is not None:
         cosmo_params = CosmoParams.from_astropy(lightconer.cosmo)
@@ -3276,7 +3280,12 @@ def run_lightcone(
             scrollz, coeval_callback, coeval_callback_redshifts
         )
 
-        iokw = {"hooks": hooks, "regenerate": regenerate, "direc": direc}
+        iokw = {
+            "hooks": hooks,
+            "regenerate": regenerate,
+            "direc": direc,
+            "write": write,
+        }
 
         if init_box is None:  # no need to get cosmo, user params out of it.
             init_box = initial_conditions(
@@ -3422,22 +3431,17 @@ def run_lightcone(
 
         pf = None
 
-        # Now we can purge init_box further.
-        try:
-            init_box.prepare_for_halos(flag_options=flag_options, force=always_purge)
-        except OSError:
-            pass
-
-        # we explicitly pass the descendant halos here since we have a redshift list prior
-        #   this will generate the extra fields if STOC_MINIMUM_Z is given
         pt_halos = []
+
+        # since the HaloField can be quite large, by default only save PerturbHaloField
+        kw_hf = {**kw, "write": write if write else False}
         if flag_options.USE_HALO_FIELD and not flag_options.FIXED_HALO_GRIDS:
             halos_desc = None
             for iz, z in enumerate(scrollz[::-1]):
                 halo_field = determine_halo_list(
                     redshift=z,
                     halos_desc=halos_desc,
-                    **kw,
+                    **kw_hf,
                 )
                 halos_desc = halo_field
                 pt_halos += [perturb_halo_list(redshift=z, halo_field=halo_field, **kw)]
