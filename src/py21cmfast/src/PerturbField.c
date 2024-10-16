@@ -1,7 +1,28 @@
 // Re-write of perturb_field.c for being accessible within the MCMC
+#include <stdlib.h>
+#include <stdio.h>
+#include <math.h>
+#include <complex.h>
+#include <omp.h>
+#include <fftw3.h>
+
+#include "cexcept.h"
+#include "exceptions.h"
+#include "logger.h"
+#include "Constants.h"
+#include "indexing.h"
+#include "InputParameters.h"
+#include "OutputStructs.h"
+#include "cosmology.h"
+#include "dft.h"
+#include "debugging.h"
+#include "filtering.h"
+
+#include "PerturbField.h"
+
 void compute_perturbed_velocities(
     unsigned short axis,
-    struct UserParams *user_params,
+    UserParams *user_params,
     fftwf_complex *HIRES_density_perturb,
     fftwf_complex *HIRES_density_perturb_saved,
     fftwf_complex *LOWRES_density_perturb,
@@ -14,8 +35,8 @@ void compute_perturbed_velocities(
 ){
 
     float k_x, k_y, k_z, k_sq;
-    int n_x, n_y, n_z;
-    int i,j,k;
+    unsigned long long int n_x, n_y, n_z;
+    unsigned long long int i,j,k;
 
     float kvec[3];
 
@@ -94,7 +115,7 @@ void compute_perturbed_velocities(
 
         // smooth the high resolution field ready for resampling
         if (user_params->DIM != user_params->HII_DIM)
-            filter_box(HIRES_density_perturb, 0, 0, L_FACTOR*user_params->BOX_LEN/(user_params->HII_DIM+0.0));
+            filter_box(HIRES_density_perturb, 0, 0, L_FACTOR*user_params->BOX_LEN/(user_params->HII_DIM+0.0), 0.);
 
         dft_c2r_cube(user_params->USE_FFTW_WISDOM, user_params->DIM, D_PARA, user_params->N_THREADS, HIRES_density_perturb);
 
@@ -137,8 +158,8 @@ void compute_perturbed_velocities(
 }
 
 int ComputePerturbField(
-    float redshift, struct UserParams *user_params, struct CosmoParams *cosmo_params,
-    struct InitialConditions *boxes, struct PerturbedField *perturbed_field
+    float redshift, UserParams *user_params, CosmoParams *cosmo_params,
+    InitialConditions *boxes, PerturbedField *perturbed_field
 ){
     /*
      ComputePerturbField uses the first-order Langragian displacement field to move the
@@ -153,8 +174,7 @@ int ComputePerturbField(
 
     // Makes the parameter structs visible to a variety of functions/macros
     // Do each time to avoid Python garbage collection issues
-    Broadcast_struct_global_PS(user_params,cosmo_params);
-    Broadcast_struct_global_UF(user_params,cosmo_params);
+    Broadcast_struct_global_noastro(user_params,cosmo_params);
 
     omp_set_num_threads(user_params->N_THREADS);
 
@@ -164,9 +184,8 @@ int ComputePerturbField(
     float growth_factor, displacement_factor_2LPT, init_growth_factor, init_displacement_factor_2LPT;
     double xf, yf, zf;
     float mass_factor, dDdt, f_pixel_factor, velocity_displacement_factor, velocity_displacement_factor_2LPT;
-    unsigned long long ct, HII_i, HII_j, HII_k;
+    unsigned long long HII_i, HII_j, HII_k;
     int i,j,k,xi, yi, zi, dimension, switch_mid;
-    double ave_delta, new_ave_delta;
 
     // Variables to perform cloud in cell re-distribution of mass for the perturbed field
     int xp1,yp1,zp1;
@@ -573,7 +592,7 @@ int ComputePerturbField(
 
         // Now filter the box
         if (user_params->DIM != user_params->HII_DIM) {
-            filter_box(HIRES_density_perturb, 0, 0, L_FACTOR*user_params->BOX_LEN/(user_params->HII_DIM+0.0));
+            filter_box(HIRES_density_perturb, 0, 0, L_FACTOR*user_params->BOX_LEN/(user_params->HII_DIM+0.0), 0.);
         }
 
         // FFT back to real space
@@ -628,7 +647,7 @@ int ComputePerturbField(
 
     //smooth the field
     if (!global_params.EVOLVE_DENSITY_LINEARLY && global_params.SMOOTH_EVOLVED_DENSITY_FIELD){
-        filter_box(LOWRES_density_perturb, 1, 2, global_params.R_smooth_density*user_params->BOX_LEN/(float)user_params->HII_DIM);
+        filter_box(LOWRES_density_perturb, 1, 2, global_params.R_smooth_density*user_params->BOX_LEN/(float)user_params->HII_DIM, 0.);
     }
 
     LOG_SUPER_DEBUG("LOWRES_density_perturb after smoothing: ");
@@ -683,8 +702,7 @@ int ComputePerturbField(
     // ****  Convert to velocities ***** //
     LOG_DEBUG("Generate velocity fields");
 
-    float k_x, k_y, k_z, k_sq, dDdt_over_D;
-    int n_x, n_y, n_z;
+    float dDdt_over_D;
 
     dDdt_over_D = dDdt/growth_factor;
 

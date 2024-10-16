@@ -1,29 +1,44 @@
+/*  */
+#include <stdlib.h>
+#include <stdio.h>
+#include <stdbool.h>
+#include <math.h>
+#include <omp.h>
+#include <complex.h>
+#include <fftw3.h>
+#include "cexcept.h"
+#include "exceptions.h"
+#include "logger.h"
 
-// Re-write of find_HII_bubbles.c for being accessible within the MCMC
+#include "Constants.h"
+#include "InputParameters.h"
+#include "OutputStructs.h"
+#include "cosmology.h"
+#include "indexing.h"
+#include "subcell_rsds.h"
+#include "dft.h"
 
-void get_velocity_gradient(struct UserParams *user_params, float *v, float *vel_gradient)
+#include "BrightnessTemperatureBox.h"
+
+float clip(float x, float min, float max){
+    if(x<min) return min;
+    if(x>max) return max;
+    return x;
+}
+
+void get_velocity_gradient(UserParams *user_params, float *v, float *vel_gradient)
 {
     memcpy(vel_gradient, v, sizeof(fftwf_complex)*HII_KSPACE_NUM_PIXELS);
 
     dft_r2c_cube(user_params->USE_FFTW_WISDOM, user_params->HII_DIM, HII_D_PARA, user_params->N_THREADS, (fftwf_complex *)vel_gradient);
 
-    float k_x, k_y, k_z;
+    float k_z;
     int n_x, n_y, n_z;
-#pragma omp parallel shared(vel_gradient) private(n_x,n_y,n_z,k_x,k_y,k_z) num_threads(user_params->N_THREADS)
+#pragma omp parallel shared(vel_gradient) private(n_x,n_y,n_z,k_z) num_threads(user_params->N_THREADS)
     {
         #pragma omp for
         for (n_x=0; n_x<user_params->HII_DIM; n_x++){
-            if (n_x>HII_MIDDLE)
-                k_x =(n_x-user_params->HII_DIM) * DELTA_K;  // wrap around for FFT convention
-            else
-                k_x = n_x * DELTA_K;
-
             for (n_y=0; n_y<user_params->HII_DIM; n_y++){
-                if (n_y>HII_MIDDLE)
-                    k_y =(n_y-user_params->HII_DIM) * DELTA_K;
-                else
-                    k_y = n_y * DELTA_K;
-
                 for (n_z=0; n_z<=HII_MIDDLE_PARA; n_z++){
                     k_z = n_z * DELTA_K_PARA;
 
@@ -37,22 +52,19 @@ void get_velocity_gradient(struct UserParams *user_params, float *v, float *vel_
     dft_c2r_cube(user_params->USE_FFTW_WISDOM, user_params->HII_DIM, HII_D_PARA, user_params->N_THREADS, (fftwf_complex *)vel_gradient);
 }
 
-int ComputeBrightnessTemp(float redshift, struct UserParams *user_params, struct CosmoParams *cosmo_params,
-                           struct AstroParams *astro_params, struct FlagOptions *flag_options,
-                           struct TsBox *spin_temp, struct IonizedBox *ionized_box,
-                           struct PerturbedField *perturb_field, struct BrightnessTemp *box) {
+int ComputeBrightnessTemp(float redshift, UserParams *user_params, CosmoParams *cosmo_params,
+                           AstroParams *astro_params, FlagOptions *flag_options,
+                           TsBox *spin_temp, IonizedBox *ionized_box,
+                           PerturbedField *perturb_field, BrightnessTemp *box){
 
     int status;
     Try{ // Try block around whole function.
     LOG_DEBUG("Starting Brightness Temperature calculation for redshift %f", redshift);
     // Makes the parameter structs visible to a variety of functions/macros
     // Do each time to avoid Python garbage collection issues
-    Broadcast_struct_global_PS(user_params,cosmo_params);
-    Broadcast_struct_global_UF(user_params,cosmo_params);
+    Broadcast_struct_global_all(user_params,cosmo_params,astro_params,flag_options);
 
-    char wisdom_filename[500];
-    int i, ii, j, k, n_x, n_y, n_z;
-    float k_x, k_y, k_z;
+    int i, j, k;
     double ave;
 
     ave = 0.;
@@ -82,7 +94,7 @@ int ComputeBrightnessTemp(float redshift, struct UserParams *user_params, struct
         }
     }
 
-    float gradient_component, min_gradient_component;
+    float gradient_component;
 
     double dvdx, max_v_deriv;
     float const_factor, T_rad, pixel_Ts_factor, pixel_x_HI, pixel_deltax, H;
@@ -146,7 +158,6 @@ int ComputeBrightnessTemp(float redshift, struct UserParams *user_params, struct
         // now add the velocity correction to the delta_T maps (only used for T_S >> T_CMB case).
         max_v_deriv = fabs(global_params.MAX_DVDR*H);
 
-        int fft_index, real_index;
         if(!(flag_options->USE_TS_FLUCT && flag_options->SUBCELL_RSD )){
             // Do this unless we are doing BOTH Ts fluctuations and subcell RSDs
             #pragma omp parallel shared(vel_gradient,T_rad,redshift,spin_temp,box,max_v_deriv) \
@@ -166,8 +177,6 @@ int ComputeBrightnessTemp(float redshift, struct UserParams *user_params, struct
             ave /= (float)HII_TOT_NUM_PIXELS;
         } else {
             // This is if we're doing both TS_FLUCT and SUBCELL_RSD
-            min_gradient_component = 1.0;
-
             #pragma omp parallel shared(vel_gradient,T_rad,redshift,spin_temp,box,max_v_deriv) \
                 private(i,j,k,gradient_component,dvdx) num_threads(user_params->N_THREADS)
             {
@@ -175,20 +184,18 @@ int ComputeBrightnessTemp(float redshift, struct UserParams *user_params, struct
                 for (i=0; i<user_params->HII_DIM; i++){
                     for (j=0; j<user_params->HII_DIM; j++){
                         for (k=0; k<HII_D_PARA; k++){
-
                             gradient_component = fabs(vel_gradient[HII_R_FFT_INDEX(i,j,k)]/H + 1.0);
-                            real_index = HII_R_INDEX(i,j,k);
 
                             // Calculate the brightness temperature, using the optical depth
                             if(gradient_component < FRACT_FLOAT_ERR) {
                                 // Gradient component goes to zero, optical depth diverges.
                                 // But, since we take exp(-tau), this goes to zero and (1 - exp(-tau)) goes to unity.
                                 // Again, factors of 1000. are conversions from K to mK
-                                box->brightness_temp[real_index] = 1000.*(spin_temp->Ts_box[real_index] - T_rad)/(1. + redshift);
+                                box->brightness_temp[HII_R_INDEX(i,j,k)] = 1000.*(spin_temp->Ts_box[HII_R_INDEX(i,j,k)] - T_rad)/(1. + redshift);
                             }
                             else {
-                                box->brightness_temp[real_index] = (1. - exp(- box->brightness_temp[real_index]/gradient_component ))*\
-                                                                            1000.*(spin_temp->Ts_box[real_index] - T_rad)/(1. + redshift);
+                                box->brightness_temp[HII_R_INDEX(i,j,k)] = (1. - exp(- box->brightness_temp[HII_R_INDEX(i,j,k)]/gradient_component ))*\
+                                                                            1000.*(spin_temp->Ts_box[HII_R_INDEX(i,j,k)] - T_rad)/(1. + redshift);
                             }
                         }
                     }

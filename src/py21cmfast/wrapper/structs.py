@@ -753,7 +753,8 @@ class OutputStruct(StructWrapper, metaclass=ABCMeta):
             The filename to read. By default, use the filename associated with this
             object. Can be an open h5py File or Group, which will be directly written to.
         keys
-            The names of boxes to read in (can be a subset). By default, read everything.
+            The names of boxes to read in (can be a subset). By default, read nothing.
+            If `None` is explicitly passed, read everything
         """
         if not isinstance(fname, (h5py.File, h5py.Group)):
             pth = self._get_path(direc, fname)
@@ -761,7 +762,8 @@ class OutputStruct(StructWrapper, metaclass=ABCMeta):
         else:
             fl = fname
 
-        keys = keys or []
+        if keys is None:
+            keys = self._array_structure
         try:
             try:
                 boxes = fl[self._name]
@@ -818,7 +820,7 @@ class OutputStruct(StructWrapper, metaclass=ABCMeta):
         direc=None,
         load_data=True,
         h5_group: str | None = None,
-        arrays_to_load=None,
+        arrays_to_load=(),
     ):
         """Create an instance from a file on disk.
 
@@ -829,12 +831,13 @@ class OutputStruct(StructWrapper, metaclass=ABCMeta):
         direc : str, optional
             The directory from which fname is relative to (if it is relative). By
             default, will be the cache directory in config.
-        load_data : bool, optional
-            Whether to read in the data when creating the instance. If False, a bare
-            instance is created with input parameters -- the instance can read data
-            with the :func:`read` method.
         h5_group
             The path to the group within the file in which the object is stored.
+        arrays_to_load : list of str, optional
+            A list of array names to load into memory
+            If the list is empty (default), a bare instance is created with input parameters
+            -- the instance can read data with the :func:`read` method.
+            If `None` is explicitly passed, all arrays are loaded into memory
         """
         direc = Path(direc or config["direc"]).expanduser()
         fname = Path(fname)
@@ -847,9 +850,6 @@ class OutputStruct(StructWrapper, metaclass=ABCMeta):
                 self = cls(**cls._read_inputs(fl[h5_group]))
             else:
                 self = cls(**cls._read_inputs(fl))
-
-        if not load_data:
-            arrays_to_load = []
 
         if h5_group is not None:
             with h5py.File(fname, "r") as fl:

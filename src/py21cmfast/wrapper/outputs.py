@@ -312,7 +312,7 @@ class HaloField(_AllParamsBox):
         self,
         *,
         desc_redshift: float | None = None,
-        buffer_size: int = 0.0,
+        buffer_size: int = 0,
         **kwargs,
     ):
         self.desc_redshift = desc_redshift

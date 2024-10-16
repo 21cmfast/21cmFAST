@@ -4,9 +4,26 @@
 // ComputePerturbHaloField reads in the linear velocity field, and uses
 // it to update halo locations with a corresponding displacement field
 
-int ComputePerturbHaloField(float redshift, struct UserParams *user_params, struct CosmoParams *cosmo_params,
-                            struct AstroParams *astro_params, struct FlagOptions *flag_options,
-                            struct InitialConditions *boxes, struct HaloField *halos, struct PerturbHaloField *halos_perturbed) {
+#include <stdlib.h>
+#include <stdio.h>
+#include <math.h>
+#include <complex.h>
+#include <fftw3.h>
+#include "cexcept.h"
+#include "exceptions.h"
+#include "logger.h"
+#include "Constants.h"
+#include "indexing.h"
+#include "InputParameters.h"
+#include "OutputStructs.h"
+#include "debugging.h"
+#include "cosmology.h"
+
+#include "PerturbHaloField.h"
+
+int ComputePerturbHaloField(float redshift, UserParams *user_params, CosmoParams *cosmo_params,
+                            AstroParams *astro_params, FlagOptions *flag_options,
+                            InitialConditions *boxes, HaloField *halos, PerturbHaloField *halos_perturbed) {
 
     int status;
 
@@ -23,15 +40,13 @@ LOG_DEBUG("redshift=%f", redshift);
 
         // Makes the parameter structs visible to a variety of functions/macros
         // Do each time to avoid Python garbage collection issues
-        Broadcast_struct_global_PS(user_params,cosmo_params);
-        Broadcast_struct_global_UF(user_params,cosmo_params);
+        Broadcast_struct_global_all(user_params,cosmo_params,astro_params,flag_options);
 
         omp_set_num_threads(user_params->N_THREADS);
 
-        float growth_factor, displacement_factor_2LPT, mass, xf, yf, zf, z, growth_factor_over_BOX_LEN,displacement_factor_2LPT_over_BOX_LEN;
-        int i, j, k, xi, yi, zi, DI, dimension;
-        unsigned long long ct, i_halo;
-        float dz = 1e-10;
+        float growth_factor, displacement_factor_2LPT, xf, yf, zf, growth_factor_over_BOX_LEN,displacement_factor_2LPT_over_BOX_LEN;
+        unsigned long long int i, j, k, DI, dimension;
+        unsigned long long i_halo;
 
 LOG_DEBUG("Begin Initialisation");
 
@@ -112,16 +127,9 @@ LOG_DEBUG("Begin Initialisation");
         // ************************************************************************* //
         //                            END 2LPT PART                                  //
         // ************************************************************************* //
-
-        unsigned long long n_halos;
-
         halos_perturbed->n_halos = halos->n_halos;
 
         // ******************   END INITIALIZATION     ******************************** //
-
-        float mean_correction = 0.0, mean_correction_2LPT = 0.0, mean_ratio = 0.0;
-        float max_correction = 1e-10, max_correction_2LPT = 1e-10, max_ratio = 1e-10;
-        int den = 0;
 
 #pragma omp parallel shared(boxes,halos,halos_perturbed) \
                     private(i_halo,i,j,k,xf,yf,zf) num_threads(user_params->N_THREADS)
@@ -250,7 +258,7 @@ LOG_DEBUG("Begin Initialisation");
     return(0);
 }
 
-void free_phf(struct PerturbHaloField* halos){
+void free_phf(PerturbHaloField* halos){
     LOG_DEBUG("Freeing PerturbHaloField");
     free(halos->halo_masses);
     free(halos->halo_coords);

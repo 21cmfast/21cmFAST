@@ -14,11 +14,31 @@
 // or find z at a given Q -> z_at_Q(Q, &(z)).
 // 3) free memory allocation -> free_Q_value()
 
+#include <stdlib.h>
+#include <stdio.h>
+#include <math.h>
+#include <gsl/gsl_errno.h>
+#include <gsl/gsl_interp.h>
+#include <gsl/gsl_spline.h>
+
+#include "cexcept.h"
+#include "exceptions.h"
+#include "logger.h"
+#include "Constants.h"
+#include "InputParameters.h"
+#include "cosmology.h"
+#include "hmf.h"
+#include "interp_tables.h"
+#include "debugging.h"
+
+#include "photoncons.h"
+
+bool photon_cons_allocated = false;
 //These globals hold values relevant for the photon conservation (z-shift) model
-float calibrated_NF_min;
-double *deltaz, *deltaz_smoothed, *NeutralFractions, *z_Q, *Q_value, *nf_vals, *z_vals;
-int N_NFsamples,N_extrapolated, N_analytic, N_calibrated, N_deltaz;
-double FinalNF_Estimate, FirstNF_Estimate;
+static float calibrated_NF_min;
+static double *deltaz, *deltaz_smoothed, *NeutralFractions, *z_Q, *Q_value, *nf_vals, *z_vals;
+static int N_NFsamples,N_extrapolated, N_analytic, N_calibrated, N_deltaz;
+static double FinalNF_Estimate, FirstNF_Estimate;
 
 static gsl_interp_accel *Q_at_z_spline_acc;
 static gsl_spline *Q_at_z_spline;
@@ -40,8 +60,8 @@ void z_at_NFHist(double xHI_Hist, double *splined_value);
 void NFHist_at_z(double z, double *splined_value);
 
 //   Set up interpolation table for the volume filling factor, Q, at a given redshift z and redshift at a given Q.
-int InitialisePhotonCons(struct UserParams *user_params, struct CosmoParams *cosmo_params,
-                         struct AstroParams *astro_params, struct FlagOptions *flag_options)
+int InitialisePhotonCons(UserParams *user_params, CosmoParams *cosmo_params,
+                         AstroParams *astro_params, FlagOptions *flag_options)
 {
 
     /*
@@ -50,8 +70,7 @@ int InitialisePhotonCons(struct UserParams *user_params, struct CosmoParams *cos
 
     int status;
     Try{  // this try wraps the whole function.
-    Broadcast_struct_global_PS(user_params,cosmo_params);
-    Broadcast_struct_global_UF(user_params,cosmo_params);
+    Broadcast_struct_global_all(user_params,cosmo_params,astro_params,flag_options);
     init_ps();
     //     To solve differentail equation, uses Euler's method.
     //     NOTE:
@@ -65,7 +84,7 @@ int InitialisePhotonCons(struct UserParams *user_params, struct CosmoParams *cos
     double a_start = 0.03, a_end = 1./(1. + global_params.PhotonConsEndCalibz); // Scale factors of 0.03 and 0.17 correspond to redshifts of ~32 and ~5.0, respectively.
     double C_HII = 3., T_0 = 2e4;
     double reduce_ratio = 1.003;
-    double Q0,Q1,Nion0,Nion1,Trec,da,a,z0,z1,zi,dadt,ans,delta_a,zi_prev,Q1_prev;
+    double Q0,Q1,Nion0,Nion1,Trec,da,a,z0,z1,zi,dadt,delta_a,zi_prev,Q1_prev;
     double *z_arr,*Q_arr;
     int Nmax = 2000; // This is the number of step, enough with 'da = 2e-3'. If 'da' is reduced, this number should be checked.
     int cnt, nbin, i, istart;
@@ -179,7 +198,7 @@ int InitialisePhotonCons(struct UserParams *user_params, struct CosmoParams *cos
                 Q1 = Q0 + ((Nion0-Nion1)/2/delta_a)*da; // No Recombination
             }
             else {
-                dadt = Ho*sqrt(cosmo_params_ps->OMm/a + global_params.OMr/a/a + cosmo_params_ps->OMl*a*a); // da/dt = Ho*a*sqrt(OMm/a^3 + OMr/a^4 + OMl)
+                dadt = Ho*sqrt(cosmo_params->OMm/a + global_params.OMr/a/a + cosmo_params->OMl*a*a); // da/dt = Ho*a*sqrt(OMm/a^3 + OMr/a^4 + OMl)
                 Trec = 0.93 * 1e9 * SperYR * pow(C_HII/3.,-1) * pow(T_0/2e4,0.7) * pow((1.+zi)/7.,-3);
                 Q1 = Q0 + ((Nion0-Nion1)/2./delta_a - Q0/Trec/dadt)*da;
             }
@@ -242,7 +261,7 @@ int InitialisePhotonCons(struct UserParams *user_params, struct CosmoParams *cos
 
     gsl_set_error_handler_off();
     gsl_status = gsl_spline_init(Q_at_z_spline, z_Q, Q_value, nbin);
-    GSL_ERROR(gsl_status);
+    CATCH_GSL_ERROR(gsl_status);
 
     Zmin = z_Q[0];
     Zmax = z_Q[nbin-1];
@@ -261,7 +280,7 @@ int InitialisePhotonCons(struct UserParams *user_params, struct CosmoParams *cos
     }
 
     gsl_status = gsl_spline_init(z_at_Q_spline, Q_z, z_value, nbin);
-    GSL_ERROR(gsl_status);
+    CATCH_GSL_ERROR(gsl_status);
 
     free(z_arr);
     free(Q_arr);
@@ -326,7 +345,7 @@ void determine_deltaz_for_photoncons() {
 
     int i, j, increasing_val, counter, smoothing_int;
     double temp;
-    float z_cal, z_analytic, NF_sample, returned_value, NF_sample_min, gradient_analytic, z_analytic_at_endpoint, const_offset, z_analytic_2, smoothing_width;
+    float z_cal, z_analytic, NF_sample, NF_sample_min, gradient_analytic, z_analytic_at_endpoint, const_offset, z_analytic_2, smoothing_width;
     float bin_width, delta_NF, val1, val2, extrapolated_value;
 
     LOG_DEBUG("Determining deltaz for photon cons.");
@@ -422,7 +441,7 @@ void determine_deltaz_for_photoncons() {
                 LOG_ERROR("NF %.3f dz %.3f",NeutralFractions[i],deltaz[i]);
             }
         }
-        GSL_ERROR(gsl_status);
+        CATCH_GSL_ERROR(gsl_status);
         return;
     }
 
@@ -632,19 +651,19 @@ void determine_deltaz_for_photoncons() {
     gsl_set_error_handler_off();
     int gsl_status;
     gsl_status = gsl_spline_init(deltaz_spline_for_photoncons, NeutralFractions, deltaz, N_NFsamples + N_extrapolated + 1);
-    GSL_ERROR(gsl_status);
+    CATCH_GSL_ERROR(gsl_status);
 
 }
 
 
-float adjust_redshifts_for_photoncons(
-    struct AstroParams *astro_params, struct FlagOptions *flag_options, float *redshift,
+void adjust_redshifts_for_photoncons(
+    AstroParams *astro_params, FlagOptions *flag_options, float *redshift,
     float *stored_redshift, float *absolute_delta_z
 ) {
 
-    int i, new_counter;
+    int new_counter;
     double temp;
-    float required_NF, adjusted_redshift, future_z, gradient_extrapolation, const_extrapolation, temp_redshift, check_required_NF;
+    float required_NF, adjusted_redshift, temp_redshift, check_required_NF;
 
     LOG_DEBUG("Adjusting redshifts for photon cons.");
 
@@ -897,14 +916,14 @@ void initialise_NFHistory_spline(double *redshifts, double *NF_estimate, int NSp
     gsl_set_error_handler_off();
     int gsl_status;
     gsl_status = gsl_spline_init(NFHistory_spline, nf_vals, z_vals, (counter+1));
-    GSL_ERROR(gsl_status);
+    CATCH_GSL_ERROR(gsl_status);
 
     z_NFHistory_spline_acc = gsl_interp_accel_alloc ();
 //    z_NFHistory_spline = gsl_spline_alloc (gsl_interp_cspline, (counter+1));
     z_NFHistory_spline = gsl_spline_alloc (gsl_interp_linear, (counter+1));
 
     gsl_status = gsl_spline_init(z_NFHistory_spline, z_vals, nf_vals, (counter+1));
-    GSL_ERROR(gsl_status);
+    CATCH_GSL_ERROR(gsl_status);
 }
 
 

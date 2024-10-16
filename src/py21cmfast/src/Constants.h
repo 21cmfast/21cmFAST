@@ -8,6 +8,10 @@
     NOTE: Not all 21cmFAST variables will be found below. Only those useful for 21CMMC
 
  */
+#ifndef _CONSTANTS_H
+#define _CONSTANTS_H
+
+#include "InputParameters.h"
 
 // ----------------------------------------------------------------------------------------- //
 
@@ -16,14 +20,6 @@
 // ----------------------------------------------------------------------------------------- //
 
 #define L_FACTOR (float) (0.620350491) // factor relating cube length to filter radius = (4PI/3)^(-1/3)
-
-// ----------------------------------------------------------------------------------------- //
-
-// Taken from elec_interp.c
-
-// ----------------------------------------------------------------------------------------- //
-
-
 
 /*
  Filenames of the appropriate output from RECFAST to be used as boundary conditions in Ts.c
@@ -177,12 +173,6 @@
 // ----------------------------------------------------------------------------------------- //
 
 
-
-#define x_int_NXHII  14
-#define x_int_NENERGY  258
-
-
-
 // ----------------------------------------------------------------------------------------- //
 
 // From ps.c (temporary way to including transfer function from CLASS
@@ -221,3 +211,17 @@
 #define REION_SM13_B  (double) -2.1
 #define REION_SM13_C  (double) 2.0
 #define REION_SM13_D  (double) 2.5
+
+#endif
+
+// -------------------------------------------------------------------------------------
+// Taken from COSMOLOGY.H
+// -------------------------------------------------------------------------------------
+#define Ho  (double) (cosmo_params_global->hlittle*3.2407e-18) // s^-1 at z=0
+#define RHOcrit (double) ( (3.0*Ho*Ho / (8.0*PI*G)) * (CMperMPC*CMperMPC*CMperMPC)/Msun) // Msun Mpc^-3 ---- at z=0
+#define RHOcrit_cgs (double) (3.0*Ho*Ho / (8.0*PI*G)) // g pcm^-3 ---- at z=0
+#define No  (double) (RHOcrit_cgs*cosmo_params_global->OMb*(1-global_params.Y_He)/m_p)  //  current hydrogen number density estimate  (#/cm^3)  ~1.92e-7
+#define He_No (double) (RHOcrit_cgs*cosmo_params_global->OMb*global_params.Y_He/(4.0*m_p)) //  current helium number density estimate
+#define N_b0 (double) (No+He_No) // present-day baryon num density, H + He
+#define f_H (double) (No/(No+He_No))  // hydrogen number fraction
+#define f_He (double) (He_No/(No+He_No))  // helium number fraction

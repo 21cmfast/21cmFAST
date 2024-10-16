@@ -57,11 +57,11 @@ NOTES:
                     lib.adjust_redshifts_for_photoncons()
                         lib.determine_deltaz_for_photoncons() (first time only) --> calculates the deltaz array with some smoothing
                         --> does more smoothing and returns the adjusted redshift
-            ELIF PHOTON_CONS_TYPE==1:
+            ELIF PHOTON_CONS_TYPE==2:
                 photoncons_alpha() --> computes and stores ALPHA_ESC shift vs global neutral fraction
                 lib.ComputeIonizedBox()
                     get_fesc_fit() --> applies the fit to the current redshift
-            ELIF PHOTON_CONS_TYPE==2:
+            ELIF PHOTON_CONS_TYPE==3:
                 photoncons_fesc() --> computes and stores F_ESC10 shift vs global neutral fraction
                 lib.ComputeIonizedBox()
                     get_fesc_fit() --> applies the fit to the current redshift
@@ -326,11 +326,13 @@ def calibrate_photon_cons(
         astro_params_photoncons = deepcopy(astro_params)
         astro_params_photoncons._R_BUBBLE_MAX = astro_params.R_BUBBLE_MAX
 
-        flag_options_photoncons = FlagOptions(
-            USE_MASS_DEPENDENT_ZETA=flag_options.USE_MASS_DEPENDENT_ZETA,
-            M_MIN_in_Mass=flag_options.M_MIN_in_Mass,
+        flag_options_photoncons = flag_options.clone(
+            USE_TS_FLUCT=False,
+            INHOMO_RECO=False,
+            USE_MINI_HALOS=False,
+            HALO_STOCHASTICITY=False,
+            PHOTON_CONS_TYPE=0,
         )
-
         ib = None
         prev_perturb = None
 
