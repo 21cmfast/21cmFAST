@@ -132,6 +132,10 @@ class InitialConditions(_OutputStruct):
     def prepare_for_spin_temp(self, flag_options: FlagOptions, force: bool = False):
         """Ensure ICs have all boxes required for spin_temp, and no more."""
         keep = []
+        # below the sampler resoltion we use Lagrangian density to get CHMF integrals
+        if flag_options.HALO_STOCHASTICITY:
+            keep.append("lowres_density")
+
         if self.user_params.USE_RELATIVE_VELOCITIES:
             keep.append("lowres_vcb")
         self.prepare(keep=keep, force=force)

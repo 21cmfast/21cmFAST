@@ -3373,14 +3373,6 @@ def run_lightcone(
         perturb = perturb_
         perturb_min = perturb[np.argmin(scrollz)]
 
-        # Now that we've got all the perturb fields, we can purge init more.
-        try:
-            init_box.prepare_for_spin_temp(
-                flag_options=flag_options, force=always_purge
-            )
-        except OSError:
-            pass
-
         kw = {
             **{
                 "init_boxes": init_box,
@@ -3389,6 +3381,29 @@ def run_lightcone(
             },
             **iokw,
         }
+
+        # since the HaloField can be quite large, by default only save PerturbHaloField
+        pt_halos = []
+        kw_hf = {**kw, "write": write if write else False}
+        if flag_options.USE_HALO_FIELD and not flag_options.FIXED_HALO_GRIDS:
+            halos_desc = None
+            for iz, z in enumerate(scrollz[::-1]):
+                halo_field = determine_halo_list(
+                    redshift=z,
+                    halos_desc=halos_desc,
+                    **kw_hf,
+                )
+                halos_desc = halo_field
+                pt_halos += [perturb_halo_list(redshift=z, halo_field=halo_field, **kw)]
+
+                # we never want to store every halofield
+                try:
+                    pt_halos[iz].purge(force=always_purge)
+                except OSError:
+                    pass
+
+            # reverse the halo lists to be in line with the redshift lists
+            pt_halos = pt_halos[::-1]
 
         photon_nonconservation_data = None
         if flag_options.PHOTON_CONS_TYPE != 0:
@@ -3429,32 +3444,6 @@ def run_lightcone(
             st, ib, prev_perturb = None, None, None
             pf = None
 
-        pf = None
-
-        pt_halos = []
-
-        # since the HaloField can be quite large, by default only save PerturbHaloField
-        kw_hf = {**kw, "write": write if write else False}
-        if flag_options.USE_HALO_FIELD and not flag_options.FIXED_HALO_GRIDS:
-            halos_desc = None
-            for iz, z in enumerate(scrollz[::-1]):
-                halo_field = determine_halo_list(
-                    redshift=z,
-                    halos_desc=halos_desc,
-                    **kw_hf,
-                )
-                halos_desc = halo_field
-                pt_halos += [perturb_halo_list(redshift=z, halo_field=halo_field, **kw)]
-
-                # we never want to store every halofield
-                try:
-                    pt_halos[iz].purge(force=always_purge)
-                except OSError:
-                    pass
-
-            # reverse the halo lists to be in line with the redshift lists
-            pt_halos = pt_halos[::-1]
-
         # Now that we've got all the perturb fields, we can purge init more.
         try:
             init_box.prepare_for_spin_temp(
@@ -3462,8 +3451,6 @@ def run_lightcone(
             )
         except OSError:
             pass
-
-        ph = None
 
         perturb_files = []
         spin_temp_files = []
@@ -3477,6 +3464,7 @@ def run_lightcone(
         z_halos = []
         coeval = None
         prev_coeval = None
+        ph = None
         st2 = None
         hbox2 = None
         hbox = None
