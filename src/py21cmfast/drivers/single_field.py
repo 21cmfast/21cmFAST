@@ -61,7 +61,7 @@ def set_globals(func: callable):
 
 
 @set_globals
-def initial_conditions(
+def compute_initial_conditions(
     *,
     user_params: UserParams | dict = UserParams(),
     cosmo_params: CosmoParams | dict = CosmoParams(),
@@ -169,7 +169,7 @@ def perturb_field(
 
     Examples
     --------
-    >>> init_boxes = initial_conditions()
+    >>> init_boxes = compute_initial_conditions()
     >>> field7 = perturb_field(7.0, init_boxes)
     >>> field8 = perturb_field(8.0, init_boxes)
 

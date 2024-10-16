@@ -19,9 +19,9 @@ import numpy as np
 from cached_property import cached_property
 
 from .. import __version__
-from ._utils import OutputStruct as _BaseOutputStruct
-from .c_21cmfast import ffi, lib
+from ..c_21cmfast import ffi, lib
 from .inputs import AstroParams, CosmoParams, FlagOptions, UserParams, global_params
+from .structs import OutputStruct as _BaseOutputStruct
 
 logger = logging.getLogger(__name__)
 

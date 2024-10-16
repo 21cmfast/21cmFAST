@@ -174,7 +174,7 @@ class _HighLevelOutput:
 
     def _write(self, direc=None, fname=None, clobber=False):
         """
-        Write the lightcone to file in standard HDF5 format.
+        Write the high level output to file in standard HDF5 format.
 
         This method is primarily meant for the automatic caching. Its default
         filename is a hash generated based on the input data, and the directory is
@@ -578,7 +578,7 @@ def run_coeval(
     iokw = {"regenerate": regenerate, "hooks": hooks, "direc": direc}
 
     if initial_conditions is None:
-        initial_conditions = sf.initial_conditions(
+        initial_conditions = sf.compute_initial_conditions(
             user_params=inputs.user_params,
             cosmo_params=inputs.cosmo_params,
             random_seed=random_seed,
@@ -749,8 +749,6 @@ def run_coeval(
             halobox=hb2,
             spin_temp=st2 if inputs.flag_options.USE_TS_FLUCT else None,
             z_heat_max=global_params.Z_HEAT_MAX,
-            # cleanup if its the last time through
-            cleanup=cleanup and z == redshifts[-1],
             **kw,
         )
 

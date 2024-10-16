@@ -697,7 +697,7 @@ def _run_lightcone_from_perturbed_fields(
 
         perturb_files.append((z, direc / pf2.filename))
         if flag_options.USE_HALO_FIELD and not flag_options.FIXED_HALO_GRIDS:
-            hbox_files.append((z, direc.hbox2.filename))
+            hbox_files.append((z, direc / hbox2.filename))
             pth_files.append((z, direc / ph.filename))
         if flag_options.USE_TS_FLUCT:
             spin_temp_files.append((z, direc / st2.filename))
@@ -753,7 +753,8 @@ def _run_lightcone_from_perturbed_fields(
         pf = pf2
         hbox = hbox2
 
-        if iz == 0:
+        # last redshift things
+        if iz == len(scrollz) - 1:
             if flag_options.PHOTON_CONS_TYPE == 1:
                 photon_nonconservation_data = _get_photon_nonconservation_data()
 
@@ -761,15 +762,10 @@ def _run_lightcone_from_perturbed_fields(
                 lib.FreePhotonConsMemory()
 
             lightcone.photon_nonconservation_data = photon_nonconservation_data
-
-        if (
-            iz == len(scrollz) - 1
-            and isinstance(lightcone, AngularLightcone)
-            and lightconer.get_los_velocity
-        ):
-            lightcone.compute_rsds(
-                fname=lightcone_filename, n_subcells=astro_params.N_RSD_STEPS
-            )
+            if isinstance(lightcone, AngularLightcone) and lightconer.get_los_velocity:
+                lightcone.compute_rsds(
+                    fname=lightcone_filename, n_subcells=astro_params.N_RSD_STEPS
+                )
 
         # Append some info to the lightcone before we return
         lightcone.cache_files = {
@@ -943,7 +939,7 @@ def run_lightcone(
     iokw = {"hooks": hooks, "regenerate": regenerate, "direc": direc}
 
     if initial_conditions is None:  # no need to get cosmo, user params out of it.
-        initial_conditions = sf.initial_conditions(
+        initial_conditions = sf.compute_initial_conditions(
             user_params=user_params,
             cosmo_params=cosmo_params,
             random_seed=random_seed,
