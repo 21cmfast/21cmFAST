@@ -7,14 +7,9 @@ from scipy.interpolate import interp1d
 from typing import Literal, Sequence
 
 from ..c_21cmfast import ffi, lib
+from ..drivers.param_config import InputParameters
 from ._utils import _process_exitcode
-from .inputs import (
-    AstroParams,
-    CosmoParams,
-    FlagOptions,
-    UserParams,
-    convert_input_dicts,
-)
+from .inputs import AstroParams, CosmoParams, FlagOptions, UserParams
 
 logger = logging.getLogger(__name__)
 
@@ -96,7 +91,7 @@ def compute_tau(
         If `redshifts` and `global_xHI` have inconsistent length or if redshifts are not
         in ascending order.
     """
-    user_params, cosmo_params, _, _ = convert_input_dicts(user_params, cosmo_params)
+    inputs = InputParameters(user_params, cosmo_params)
 
     if len(redshifts) != len(global_xHI):
         raise ValueError("redshifts and global_xHI must have same length")
@@ -112,7 +107,9 @@ def compute_tau(
     xHI = ffi.cast("float *", ffi.from_buffer(global_xHI))
 
     # Run the C code
-    return lib.ComputeTau(user_params(), cosmo_params(), len(redshifts), z, xHI)
+    return lib.ComputeTau(
+        inputs.user_params(), inputs.cosmo_params(), len(redshifts), z, xHI
+    )
 
 
 def compute_luminosity_function(
@@ -162,9 +159,16 @@ def compute_luminosity_function(
         Number density of haloes corresponding to each bin defined by `Muvfunc`.
         Shape [nredshifts, nbins].
     """
-    user_params, cosmo_params, astro_params, flag_options = convert_input_dicts(
-        user_params, cosmo_params, astro_params, flag_options
+    inputs = InputParameters(
+        user_params=user_params,
+        cosmo_params=cosmo_params,
+        astro_params=astro_params,
+        flag_options=flag_options,
     )
+    user_params = inputs.user_params
+    cosmo_params = inputs.cosmo_params
+    astro_params = inputs.astro_params
+    flag_options = inputs.flag_options
 
     redshifts = np.array(redshifts, dtype="float32")
     if flag_options.USE_MINI_HALOS:

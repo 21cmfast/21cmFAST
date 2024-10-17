@@ -29,15 +29,9 @@ import numpy as np
 from copy import deepcopy
 from scipy.optimize import curve_fit
 
-from .c_21cmfast import ffi, lib
-from .wrapper._utils import _process_exitcode
-from .wrapper.inputs import (
-    AstroParams,
-    CosmoParams,
-    FlagOptions,
-    UserParams,
-    global_params,
-)
+from ..c_21cmfast import ffi, lib
+from ._utils import _process_exitcode
+from .inputs import AstroParams, CosmoParams, FlagOptions, UserParams, global_params
 
 logger = logging.getLogger(__name__)
 
@@ -52,16 +46,16 @@ NOTES:
                 _init_photon_conservation_correction() --> computes and stores global evolution
                 -->perfoms calibration simulation
                 _calibrate_photon_conservation_correction() --> stores calibration evolution
-            IF PHOTON_CONS_TYPE==1:
+            IF PHOTON_CONS_TYPE=='z-photoncons':
                 lib.ComputeIonizedBox()
                     lib.adjust_redshifts_for_photoncons()
                         lib.determine_deltaz_for_photoncons() (first time only) --> calculates the deltaz array with some smoothing
                         --> does more smoothing and returns the adjusted redshift
-            ELIF PHOTON_CONS_TYPE==2:
+            ELIF PHOTON_CONS_TYPE=='alpha-photoncons':
                 photoncons_alpha() --> computes and stores ALPHA_ESC shift vs global neutral fraction
                 lib.ComputeIonizedBox()
                     get_fesc_fit() --> applies the fit to the current redshift
-            ELIF PHOTON_CONS_TYPE==3:
+            ELIF PHOTON_CONS_TYPE=='f-photoncons':
                 photoncons_fesc() --> computes and stores F_ESC10 shift vs global neutral fraction
                 lib.ComputeIonizedBox()
                     get_fesc_fit() --> applies the fit to the current redshift
@@ -238,7 +232,7 @@ def setup_photon_cons(
 
     direc, regenerate, hooks = _get_config_options(direc, regenerate, None, hooks)
 
-    if flag_options.PHOTON_CONS_TYPE == 0:
+    if flag_options.PHOTON_CONS_TYPE == "no-photoncons":
         return
 
     if init_boxes is not None:
@@ -264,15 +258,15 @@ def setup_photon_cons(
     )
 
     # The PHOTON_CONS_TYPE == 1 case is handled in C (for now....), but we get the data anyway
-    if flag_options.PHOTON_CONS_TYPE == 1:
+    if flag_options.PHOTON_CONS_TYPE == "z-photoncons":
         photoncons_data = _get_photon_nonconservation_data()
 
-    if flag_options.PHOTON_CONS_TYPE == 2:
+    if flag_options.PHOTON_CONS_TYPE == "alpha-photoncons":
         photoncons_data = photoncons_alpha(
             cosmo_params, user_params, astro_params, flag_options
         )
 
-    if flag_options.PHOTON_CONS_TYPE == 3:
+    if flag_options.PHOTON_CONS_TYPE == "f-photoncons":
         photoncons_data = photoncons_fesc(
             cosmo_params, user_params, astro_params, flag_options
         )
@@ -330,8 +324,8 @@ def calibrate_photon_cons(
             USE_TS_FLUCT=False,
             INHOMO_RECO=False,
             USE_MINI_HALOS=False,
-            HALO_STOCHASTICITY=False,
-            PHOTON_CONS_TYPE=0,
+            USE_HALO_FIELD=False,
+            PHOTON_CONS_TYPE="no-photoncons",
         )
         ib = None
         prev_perturb = None

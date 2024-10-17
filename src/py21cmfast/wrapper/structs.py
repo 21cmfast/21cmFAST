@@ -18,8 +18,12 @@ from typing import Any, Sequence
 from .. import __version__
 from .._cfg import config
 from ..c_21cmfast import lib
-from ..utils import float_to_string_precision, get_all_subclasses, snake_to_camel
-from ._utils import asarray
+from ._utils import (
+    asarray,
+    float_to_string_precision,
+    get_all_subclasses,
+    snake_to_camel,
+)
 from .arraystate import ArrayState
 from .exceptions import _process_exitcode
 
@@ -41,6 +45,10 @@ class StructWrapper:
     _name: str = attrs.field(converter=str)
 
     _ffi = None
+
+    @_name.default
+    def _name_default(self):
+        return self.__class__.__name__
 
     def __attrs_post_init__(self):
         """Post-initializion actions.

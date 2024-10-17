@@ -26,7 +26,17 @@ class InputCrossValidationError(ValueError):
 
 
 def input_param_field(kls: InputStruct, default: bool = True):
-    """An attrs field that must be an InputStruct."""
+    """An attrs field that must be an InputStruct.
+
+    Parameters
+    ----------
+    kls : InputStruct subclass
+        The parameter structure which should be returned as an attrs field
+    default : boolean
+        If True, this field's default will be the default parameter structure
+        as opposed to None
+
+    """
     if default:
         return attrs.field(
             default=kls(),
@@ -35,6 +45,7 @@ def input_param_field(kls: InputStruct, default: bool = True):
         )
     else:
         return attrs.field(
+            default=None,
             converter=attrs.converters.optional(kls.new),
             validator=attrs.validators.optional(attrs.validators.instance_of(kls)),
         )
@@ -87,7 +98,7 @@ class InputParameters:
         if val.USE_EXP_FILTER and not val.USE_HALO_FIELD:
             warnings.warn("USE_EXP_FILTER has no effect unless USE_HALO_FIELD is true")
 
-    @astro_params.validator
+    @_astro_params.validator
     def _astro_params_validator(self, att, val):
         if val is None:
             return

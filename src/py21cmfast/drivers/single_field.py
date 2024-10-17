@@ -15,14 +15,7 @@ from functools import wraps
 from pathlib import Path
 from typing import Any, Callable
 
-from ..wrapper import (
-    _check_compatible_inputs,
-    _get_config_options,
-    _setup_inputs,
-    _verify_types,
-    construct_fftw_wisdoms,
-)
-from ..wrapper.cfuncs import get_halo_list_buffer_size
+from ..wrapper.cfuncs import construct_fftw_wisdoms, get_halo_list_buffer_size
 from ..wrapper.inputs import (
     AstroParams,
     CosmoParams,
@@ -41,7 +34,7 @@ from ..wrapper.outputs import (
     TsBox,
     XraySourceBox,
 )
-from .param_config import InputParameters
+from .param_config import InputParameters, _get_config_options
 
 logger = logging.getLogger(__name__)
 
@@ -1228,9 +1221,6 @@ def brightness_temperature(
     inputs = InputParameters.from_output_structs(
         (ionized_box, perturbed_field, spin_temp)
     )
-
-    # don't ignore redshift here
-    _check_compatible_inputs(ionized_box, perturbed_field, spin_temp, ignore=[])
 
     if not ionized_box.redshift == perturbed_field.redshift == spin_temp.redshift:
         raise ValueError("All input boxes must have the same redshift.")

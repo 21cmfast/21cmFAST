@@ -460,7 +460,7 @@ def _run_lightcone_from_perturbed_fields(
         )
 
     if (
-        inputs.flag_options.PHOTON_CONS_TYPE == 1
+        inputs.flag_options.PHOTON_CONS_TYPE == "z-photoncons"
         and np.amin(scrollz) < global_params.PhotonConsEndCalibz
     ):
         raise ValueError(
@@ -534,7 +534,7 @@ def _run_lightcone_from_perturbed_fields(
     }
 
     photon_nonconservation_data = None
-    if flag_options.PHOTON_CONS_TYPE != 0:
+    if flag_options.PHOTON_CONS_TYPE != "no-photoncons":
         setup_photon_cons(**kw)
 
     # Iterate through redshift from top to bottom
@@ -755,7 +755,7 @@ def _run_lightcone_from_perturbed_fields(
 
         # last redshift things
         if iz == len(scrollz) - 1:
-            if flag_options.PHOTON_CONS_TYPE == 1:
+            if flag_options.PHOTON_CONS_TYPE == "z-photoncons":
                 photon_nonconservation_data = _get_photon_nonconservation_data()
 
             if lib.photon_cons_allocated:

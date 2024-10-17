@@ -608,7 +608,7 @@ def run_coeval(
         **iokw,
     }
     photon_nonconservation_data = None
-    if flag_options.PHOTON_CONS_TYPE != 0:
+    if flag_options.PHOTON_CONS_TYPE != "no-photoncons":
         photon_nonconservation_data = setup_photon_cons(**kw)
 
     if not hasattr(redshift, "__len__"):
@@ -666,7 +666,7 @@ def run_coeval(
             flag_options=flag_options, force=always_purge
         )
     if (
-        flag_options.PHOTON_CONS_TYPE == 1
+        flag_options.PHOTON_CONS_TYPE == "z-photoncons"
         and np.amin(redshifts) < global_params.PhotonConsEndCalibz
     ):
         raise ValueError(
@@ -807,7 +807,7 @@ def run_coeval(
         if _bt is not None:
             brightness_files.append((z, os.path.join(direc, _bt.filename)))
 
-    if inputs.flag_options.PHOTON_CONS_TYPE == 1:
+    if inputs.flag_options.PHOTON_CONS_TYPE == "z-photoncons":
         photon_nonconservation_data = _get_photon_nonconservation_data()
 
     if lib.photon_cons_allocated:

@@ -25,7 +25,7 @@ from attrs import validators
 
 from .._cfg import config
 from .._data import DATA_PATH
-from .c_21cmfast import ffi, lib
+from ..c_21cmfast import ffi, lib
 from .globals import global_params
 from .structs import InputStruct
 
@@ -115,7 +115,7 @@ class CosmoParams(InputStruct):
     SIGMA_8 = field(default=0.8102, converter=float, validator=validators.gt(0))
     hlittle = field(default=Planck18.h, converter=float, validator=validators.gt(0))
     OMm = field(default=Planck18.Om0, converter=float, validator=validators.gt(0))
-    OMb = field(default=Planck18.OMb, converter=float, validator=validators.gt(0))
+    OMb = field(default=Planck18.Ob0, converter=float, validator=validators.gt(0))
     POWER_INDEX = field(default=0.9665, converter=float, validator=validators.gt(0))
 
     @property
@@ -282,7 +282,7 @@ class UserParams(InputStruct):
     )
     USE_RELATIVE_VELOCITIES = field(default=False, converter=bool)
     POWER_SPECTRUM = field(
-        converter=int,
+        converter=str,
         validator=validators.in_(_power_models),
         transformer=choice_transformer(_power_models),
     )
@@ -446,6 +446,13 @@ class FlagOptions(InputStruct):
         This is currently only implemented in the halo model (USE_HALO_FIELD=True), and has no effect otherwise.
     """
 
+    _photoncons_models = [
+        "no-photoncons",
+        "z-photoncons",
+        "alpha-photoncons",
+        "f-photoncons",
+    ]
+
     _ffi = ffi
     USE_MINI_HALOS = field(default=False, converter=bool)
     USE_CMB_HEATING = field(default=True, converter=bool)
@@ -462,7 +469,10 @@ class FlagOptions(InputStruct):
     FIXED_HALO_GRIDS = field(default=False, converter=bool)
     CELL_RECOMB = field(default=True, converter=bool)
     PHOTON_CONS_TYPE = field(
-        default=0, converter=int, validator=validators.in_((0, 1, 2, 3))
+        default="no-photoncons",
+        converter=str,
+        validator=validators.in_(_photoncons_models),
+        transformer=choice_transformer(_photoncons_models),
     )
     USE_UPPER_STELLAR_TURNOVER = field(default=True, converter=bool)
 
@@ -504,10 +514,10 @@ class FlagOptions(InputStruct):
     @PHOTON_CONS_TYPE.validator
     def _PHOTON_CONS_TYPE_vld(self, att, val):
         """Automatically setting PHOTON_CONS to False if USE_MINI_HALOS."""
-        if (self.USE_MINI_HALOS or self.USE_HALO_FIELD) and val == 1:
+        if (self.USE_MINI_HALOS or self.USE_HALO_FIELD) and val == "z-photoncons":
             raise ValueError(
                 "USE_MINI_HALOS and USE_HALO_FIELD are not compatible with the redshift-based"
-                " photon conservation corrections (PHOTON_CONS_TYPE==1)! "
+                " photon conservation corrections (PHOTON_CONS_TYPE=='z_photoncons')! "
             )
 
     @HALO_STOCHASTICITY.validator
@@ -676,7 +686,6 @@ class AstroParams(InputStruct):
         transformer=logtransformer,
     )
     F_ESC7_MINI = field(
-        default=-2.0,
         converter=float,
         validator=between(-3.0, 0.0),
         transformer=logtransformer,
@@ -688,7 +697,7 @@ class AstroParams(InputStruct):
     M_TURN = field(
         converter=float, validator=validators.gt(0), transformer=logtransformer
     )
-    R_BUBBLE_MAX = field(converter=float, validators=validators.gt(0))
+    R_BUBBLE_MAX = field(converter=float, validator=validators.gt(0))
     ION_Tvir_MIN = field(
         default=4.69897,
         converter=float,
