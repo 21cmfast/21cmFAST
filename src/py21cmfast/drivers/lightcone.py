@@ -18,7 +18,6 @@ from ..lightcones import Lightconer, RectilinearLightconer
 from ..wrapper.globals import global_params
 from ..wrapper.inputs import AstroParams, CosmoParams, FlagOptions, UserParams
 from ..wrapper.outputs import InitialConditions, PerturbedField
-from ..wrapper.param_config import _get_config_options, _setup_inputs
 from ..wrapper.photoncons import _get_photon_nonconservation_data, setup_photon_cons
 from . import single_field as sf
 from .coeval import (
@@ -27,7 +26,7 @@ from .coeval import (
     _HighLevelOutput,
     get_logspaced_redshifts,
 )
-from .param_config import InputParameters
+from .param_config import InputParameters, _get_config_options
 from .single_field import set_globals
 
 logger = logging.getLogger(__name__)

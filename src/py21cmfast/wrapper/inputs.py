@@ -83,7 +83,7 @@ Planck18 = Planck15.clone(
 )
 
 
-@define(frozen=True, kw_only=True)
+@define(kw_only=True)
 class CosmoParams(InputStruct):
     """
     Cosmological parameters (with defaults) which translates to a C struct.
@@ -145,7 +145,7 @@ class CosmoParams(InputStruct):
         )
 
 
-@define(frozen=True, kw_only=True)
+@define(kw_only=True)
 class UserParams(InputStruct):
     """
     Structure containing user parameters (with defaults).
@@ -373,7 +373,7 @@ class UserParams(InputStruct):
         return (self.BOX_LEN / self.DIM) * un.Mpc
 
 
-@define(frozen=True, kw_only=True)
+@define(kw_only=True)
 class FlagOptions(InputStruct):
     """
     Flag-style options for the ionization routines.
@@ -538,7 +538,7 @@ class FlagOptions(InputStruct):
             raise ValueError("USE_EXP_FILTER is True but CELL_RECOMB is False")
 
 
-@define(frozen=True, kw_only=True)
+@define(kw_only=True)
 class AstroParams(InputStruct):
     """
     Astrophysical parameters.

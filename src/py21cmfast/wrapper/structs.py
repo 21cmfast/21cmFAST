@@ -88,7 +88,7 @@ class StructWrapper:
         }
 
 
-@attrs.define(frozen=True, kw_only=True)
+@attrs.define(kw_only=True)
 class InputStruct(StructWrapper):
     """
     A convenient interface to create a C structure with defaults specified.

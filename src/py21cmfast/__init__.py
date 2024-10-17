@@ -22,8 +22,8 @@ from . import cache_tools, lightcones, plotting, wrapper
 from ._cfg import config
 from ._logging import configure_logging
 from .cache_tools import query_cache
-from .drivers.coeval import run_coeval
-from .drivers.lightcone import run_lightcone
+from .drivers.coeval import Coeval, run_coeval
+from .drivers.lightcone import LightCone, run_lightcone
 from .drivers.single_field import (
     brightness_temperature,
     compute_halo_grid,
@@ -51,12 +51,10 @@ from .wrapper.inputs import (
 )
 from .wrapper.outputs import (
     BrightnessTemp,
-    Coeval,
     HaloBox,
     HaloField,
     InitialConditions,
     IonizedBox,
-    LightCone,
     PerturbedField,
     PerturbHaloField,
     TsBox,

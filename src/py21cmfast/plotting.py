@@ -11,8 +11,9 @@ from matplotlib import colormaps, colors
 from matplotlib.ticker import AutoLocator
 from typing import Optional, Union
 
+from .drivers.coeval import Coeval
+from .drivers.lightcone import LightCone
 from .wrapper import outputs
-from .wrapper.outputs import Coeval, LightCone
 
 eor_colour = colors.LinearSegmentedColormap.from_list(
     "EoR",
