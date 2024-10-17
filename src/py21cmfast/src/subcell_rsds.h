@@ -4,6 +4,9 @@
 #include "InputParameters.h"
 #include "OutputStructs.h"
 
+#ifdef __cplusplus
+extern "C" {
+#endif
 double apply_subcell_rsds(
     UserParams *user_params,
     CosmoParams *cosmo_params,
@@ -18,4 +21,7 @@ double apply_subcell_rsds(
     float H
 );
 
+#ifdef __cplusplus
+}
+#endif
 #endif

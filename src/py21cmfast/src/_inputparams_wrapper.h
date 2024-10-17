@@ -4,6 +4,10 @@
 //WARNING: DO NOT #include THIS FILE IN THE C CODE EXCEPT FOR IN InputParameters.h
 
 
+// #ifdef __cplusplus
+// extern "C" {
+// #endif
+
 typedef struct CosmoParams{
 
     float SIGMA_8;
@@ -210,3 +214,7 @@ extern AstroParams *astro_params_global;
 extern FlagOptions *flag_options_global;
 
 extern GlobalParams global_params;
+
+// #ifdef __cplusplus
+// }
+// #endif

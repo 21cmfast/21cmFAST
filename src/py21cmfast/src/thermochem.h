@@ -3,6 +3,9 @@
 
 #include "InputParameters.h"
 
+#ifdef __cplusplus
+extern "C" {
+#endif
 float ComputeTau(UserParams *user_params, CosmoParams *cosmo_params, int Npoints, float *redshifts, float *global_xHI);
 double molecular_cooling_threshold(float z);
 double atomic_cooling_threshold(float z);
@@ -21,4 +24,7 @@ double HeII_ion_crosssec(double nu);
 double HI_ion_crosssec(double nu);
 double neutral_fraction(double density, double T4, double gamma, int usecaseB);
 
+#ifdef __cplusplus
+}
+#endif
 #endif

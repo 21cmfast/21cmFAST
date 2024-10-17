@@ -1,6 +1,7 @@
 #include <stdlib.h>
 #include <stdio.h>
 #include <math.h>
+#include <omp.h>
 #include <complex.h>
 #include <fftw3.h>
 
@@ -14,10 +15,12 @@
 #include "cexcept.h"
 #include "exceptions.h"
 #include "logger.h"
+
 #include "Constants.h"
 #include "InputParameters.h"
 #include "indexing.h"
 #include "dft.h"
+#include "filtering.h"
 
 __device__ inline double real_tophat_filter(double kR) {
     // Second order taylor expansion around kR==0
@@ -73,12 +76,11 @@ __device__ inline double spherical_shell_filter(double k, double R_outer, double
 // __global__ void filter_box_kernel(fftwf_complex *box, int dimension, int midpoint, int midpoint_para, double delta_k, float R, float R_param, double R_const, int filter_type) {
 __global__ void filter_box_kernel(cuFloatComplex *box, int dimension, int midpoint, int midpoint_para, double delta_k, float R, float R_param, double R_const, int filter_type) {
 
-    // Get index of d_box (flattened k-box)
+    // Get index of box (flattened k-box)
     unsigned long long idx = blockIdx.x * blockDim.x + threadIdx.x;
 
-    float kR;
-
     // Compute the 3D indices (n_x, n_y, n_z) for the k-box from the flattened index (idx)
+    // Based on convenience macros in indexing.h
     int n_z = idx % (midpoint_para + 1);
     unsigned long long remaining = idx / (midpoint_para + 1); // Calculate remaining index
     int n_y = remaining % dimension;
@@ -92,10 +94,10 @@ __global__ void filter_box_kernel(cuFloatComplex *box, int dimension, int midpoi
     // Compute squared magnitude of wave vector
     float k_mag_sq = k_x*k_x + k_y*k_y + k_z*k_z;
 
+    float kR;
     if (filter_type == 0) { // real space top-hat
         kR = sqrt(k_mag_sq) * R;
         // box[idx] *= real_tophat_filter(kR);
-        // box[idx] = cuCmul(box[idx], real_tophat_filter(kR));
         box[idx] = cuCmulf(box[idx], make_cuFloatComplex((float)real_tophat_filter(kR), 0.f));
     }
     else if (filter_type == 1) { // k-space top hat
@@ -116,16 +118,20 @@ __global__ void filter_box_kernel(cuFloatComplex *box, int dimension, int midpoi
         // box[idx] *= spherical_shell_filter(sqrt(k_mag_sq), R, R_param);
         box[idx] = cuCmulf(box[idx], make_cuFloatComplex((float)spherical_shell_filter(sqrt(k_mag_sq), R, R_param), 0.f));
     }
-    else {
-        if (idx == 0) {
-            LOG_WARNING("Filter type %i is undefined. Box is unfiltered.", filter_type);
-        }
-    }
+    // This doesn't work from device
+    // else {
+    //     if (idx == 0) {
+    //         LOG_WARNING("Filter type %i is undefined. Box is unfiltered.", filter_type);
+    //     }
+    // }
 
 }
 
 // *box is a pointer, so only memory address is passed, not entire array
-void filter_box(fftwf_complex *box, int RES, int filter_type, float R, float R_param) {
+// #ifdef __cplusplus
+// extern "C"
+// #endif
+void filter_box_gpu(fftwf_complex *box, int RES, int filter_type, float R, float R_param) {
 
     // Get required values
     int dimension, midpoint, midpoint_para, num_pixels;
@@ -167,6 +173,7 @@ void filter_box(fftwf_complex *box, int RES, int filter_type, float R, float R_p
     int threadsPerBlock = 256;
     int numBlocks = (num_pixels + threadsPerBlock - 1) / threadsPerBlock;
     filter_box_kernel<<<numBlocks, threadsPerBlock>>>(reinterpret_cast<cuFloatComplex *>(d_box), dimension, midpoint, midpoint_para, delta_k, R, R_param, R_const, filter_type);
+    // filter_box_kernel<<<numBlocks, threadsPerBlock>>>((cuFloatComplex *)d_box, dimension, midpoint, midpoint_para, delta_k, R, R_param, R_const, filter_type);
 
     // Copy results from device to host
     cudaMemcpy(box, d_box, size, cudaMemcpyDeviceToHost);
@@ -176,7 +183,7 @@ void filter_box(fftwf_complex *box, int RES, int filter_type, float R, float R_p
 }
 
 // Test function to filter a box without computing a whole output box
-int test_filter(UserParams *user_params, CosmoParams *cosmo_params, AstroParams *astro_params, FlagOptions *flag_options
+int test_filter_gpu(UserParams *user_params, CosmoParams *cosmo_params, AstroParams *astro_params, FlagOptions *flag_options
                     , float *input_box, double R, double R_param, int filter_flag, double *result) {
     int i,j,k;
     unsigned long long int ii;
@@ -194,16 +201,19 @@ int test_filter(UserParams *user_params, CosmoParams *cosmo_params, AstroParams 
 
     dft_r2c_cube(user_params->USE_FFTW_WISDOM, user_params->HII_DIM, HII_D_PARA, user_params->N_THREADS, box_unfiltered);
 
-    float num_pixels = HII_TOT_NUM_PIXELS;
+    cuFloatComplex* box_unfiltered_cu = reinterpret_cast<cuFloatComplex*>(box_unfiltered);
+
+    // float num_pixels = HII_TOT_NUM_PIXELS;
     for(ii=0;ii<HII_KSPACE_NUM_PIXELS;ii++){
         // box_unfiltered[ii] /= (double)HII_TOT_NUM_PIXELS;
         // box_unfiltered[ii] = cuCdivf(box_unfiltered[ii], make_cuFloatComplex((float)HII_TOT_NUM_PIXELS, 0.f));
-        box_unfiltered[ii] = cuCdivf(box_unfiltered[ii], make_cuFloatComplex((float)num_pixels, 0.f));
+        // box_unfiltered[ii] = cuCdivf(box_unfiltered[ii], make_cuFloatComplex((float)num_pixels, 0.f));
+        box_unfiltered_cu[ii] = cuCdivf(box_unfiltered_cu[ii], make_cuFloatComplex((float)HII_TOT_NUM_PIXELS, 0.f));
     }
 
     memcpy(box_filtered, box_unfiltered, sizeof(fftwf_complex) * HII_KSPACE_NUM_PIXELS);
 
-    filter_box(box_filtered, 1, filter_flag, R, R_param);
+    filter_box_gpu(box_filtered, 1, filter_flag, R, R_param);
 
     dft_c2r_cube(user_params->USE_FFTW_WISDOM, user_params->HII_DIM, HII_D_PARA, user_params->N_THREADS, box_filtered);
 

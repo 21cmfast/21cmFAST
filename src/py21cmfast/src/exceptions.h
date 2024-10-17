@@ -3,6 +3,9 @@
 
 #include "cexcept.h"
 
+#ifdef __cplusplus
+extern "C" {
+#endif
 define_exception_type(int);
 
 //NOTE: declaration here, definition in debugging.c
@@ -22,4 +25,7 @@ extern struct exception_context the_exception_context[1];
 
 #define CATCH_GSL_ERROR(status) if(status>0) {LOG_ERROR("GSL Error Encountered (Code = %d): %s", status, gsl_strerror(status)); Throw(GSLError);}
 
+#ifdef __cplusplus
+}
+#endif
 #endif

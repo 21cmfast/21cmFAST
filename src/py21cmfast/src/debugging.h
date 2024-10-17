@@ -6,6 +6,9 @@
 #include "InputParameters.h"
 #include "OutputStructs.h"
 
+#ifdef __cplusplus
+extern "C" {
+#endif
 //Input debugging
 void writeFlagOptions(FlagOptions *p);
 void writeUserParams(UserParams *p);
@@ -24,4 +27,7 @@ int SomethingThatCatches(bool sub_func);
 int FunctionThatCatches(bool sub_func, bool pass, double* result);
 void FunctionThatThrows();
 
+#ifdef __cplusplus
+}
+#endif
 #endif

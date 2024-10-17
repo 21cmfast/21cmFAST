@@ -7,6 +7,9 @@
 #define MAX_DELTAC_FRAC (float)0.99 //max delta/deltac for the mass function integrals
 #define DELTA_MIN -1 //minimum delta for Lagrangian mass function integrals
 
+#ifdef __cplusplus
+extern "C" {
+#endif
 //Parameters used for gsl integral on the mass function
 struct parameters_gsl_MF_integrals{
     //parameters for all MF integrals
@@ -67,4 +70,7 @@ double sheth_delc_dexm(double del, double sig);
 float Mass_limit_bisection(float Mmin, float Mmax, float PL, float FRAC);
 double euler_to_lagrangian_delta(double delta);
 
+#ifdef __cplusplus
+}
+#endif
 #endif

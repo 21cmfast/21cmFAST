@@ -4,6 +4,9 @@
 #include "InputParameters.h"
 #include "OutputStructs.h"
 
+#ifdef __cplusplus
+extern "C" {
+#endif
 int ComputeTsBox(float redshift, float prev_redshift, UserParams *user_params, CosmoParams *cosmo_params,
                   AstroParams *astro_params, FlagOptions *flag_options,
                   float perturbed_field_redshift, short cleanup,
@@ -14,4 +17,7 @@ int UpdateXraySourceBox(UserParams *user_params, CosmoParams *cosmo_params,
                   AstroParams *astro_params, FlagOptions *flag_options, HaloBox *halobox,
                   double R_inner, double R_outer, int R_ct, XraySourceBox *source_box);
 
+#ifdef __cplusplus
+}
+#endif
 #endif

@@ -28,6 +28,7 @@ c_files = [
 ]
 
 # compiled cuda code
+# extra_objects = [os.path.join(CLOC, "hello_world.o")]
 extra_objects = [os.path.join(CLOC, "hello_world.o"), os.path.join(CLOC, "filtering.o")]
 extra_link_args = ["-lcudart"]
 

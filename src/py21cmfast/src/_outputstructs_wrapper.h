@@ -3,6 +3,9 @@
 */
 //WARNING: DO NOT #include THIS FILE IN THE C CODE EXCEPT FOR IN OutputStructs.h
 
+// #ifdef __cplusplus
+// extern "C" {
+// #endif
 typedef struct InitialConditions{
     float *lowres_density, *lowres_vx, *lowres_vy, *lowres_vz, *lowres_vx_2LPT, *lowres_vy_2LPT, *lowres_vz_2LPT;
     float *hires_density, *hires_vx, *hires_vy, *hires_vz, *hires_vx_2LPT, *hires_vy_2LPT, *hires_vz_2LPT; //cw addition
@@ -91,3 +94,7 @@ typedef struct IonizedBox{
 typedef struct BrightnessTemp{
     float *brightness_temp;
 } BrightnessTemp;
+
+// #ifdef __cplusplus
+// }
+// #endif

@@ -11,6 +11,9 @@
 #include "InputParameters.h"
 #include "OutputStructs.h"
 
+#ifdef __cplusplus
+extern "C" {
+#endif
 //Compute the HaloBox Object
 int ComputeHaloBox(double redshift, UserParams *user_params, CosmoParams *cosmo_params, AstroParams *astro_params,
                     FlagOptions * flag_options, InitialConditions *ini_boxes, PerturbedField * perturbed_field, PerturbHaloField *halos,
@@ -21,4 +24,7 @@ int test_halo_props(double redshift, UserParams *user_params, CosmoParams *cosmo
                     FlagOptions * flag_options, float * vcb_grid, float *J21_LW_grid, float *z_re_grid, float *Gamma12_ion_grid,
                     PerturbHaloField *halos, float *halo_props_out);
 
+#ifdef __cplusplus
+}
+#endif
 #endif

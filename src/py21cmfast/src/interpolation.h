@@ -3,6 +3,9 @@
 
 #include <stdbool.h>
 
+#ifdef __cplusplus
+extern "C" {
+#endif
 typedef struct RGTable1D{
     int n_bin;
     double x_min;
@@ -58,4 +61,7 @@ double EvaluateRGTable2D(double x, double y, RGTable2D *table);
 double EvaluateRGTable1D_f(double x, RGTable1D_f *table);
 double EvaluateRGTable2D_f(double x, double y, RGTable2D_f *table);
 
+#ifdef __cplusplus
+}
+#endif
 #endif

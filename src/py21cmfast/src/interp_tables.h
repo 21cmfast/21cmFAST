@@ -6,6 +6,9 @@
 //Functions within interp_tables.c need the parameter structures, but we don't want to pass them all down the chain, so we broadcast them
 //TODO: in future it would be better to use a context struct. See `HaloBox.c`
 
+#ifdef __cplusplus
+extern "C" {
+#endif
 void initialise_SFRD_spline(int Nbin, float zmin, float zmax, float Alpha_star, float Alpha_star_mini, float Fstar10, float Fstar7_MINI,
                              float mturn_a_const, bool minihalos);
 double EvaluateSFRD(double redshift, double Mlim_Fstar);
@@ -62,4 +65,7 @@ void free_conditional_tables();
 void free_global_tables();
 void free_dNdM_tables();
 
+#ifdef __cplusplus
+}
+#endif
 #endif

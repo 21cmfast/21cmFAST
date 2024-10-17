@@ -15,6 +15,9 @@
 
 #include "dft.h"
 
+// #ifdef __cplusplus
+// extern "C"
+// #endif
 int dft_c2r_cube(bool use_wisdom, int dim, int dim_los, int n_threads, fftwf_complex *box){
     char wisdom_filename[500];
     unsigned flag = FFTW_ESTIMATE;
@@ -43,6 +46,9 @@ int dft_c2r_cube(bool use_wisdom, int dim, int dim_los, int n_threads, fftwf_com
     return(0);
 }
 
+// #ifdef __cplusplus
+// extern "C"
+// #endif
 int dft_r2c_cube(bool use_wisdom, int dim, int dim_los, int n_threads, fftwf_complex *box){
     char wisdom_filename[500];
     unsigned flag = FFTW_ESTIMATE;

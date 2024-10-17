@@ -1,6 +1,9 @@
 #ifndef _HEATHELPER_H
 #define _HEATHELPER_H
 
+#ifdef __cplusplus
+extern "C" {
+#endif
 // * initialization routine * //
 int init_heat();
 
@@ -50,4 +53,7 @@ double nu_tau_one(double zp, double zpp, double x_e, double HI_filling_factor_zp
 //xray heating integrals over frequency
 double integrate_over_nu(double zp, double local_x_e, double lower_int_limit, int FLAG);
 
+#ifdef __cplusplus
+}
+#endif
 #endif

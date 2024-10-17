@@ -42,6 +42,10 @@
 #include <unistd.h>
 #include <omp.h>
 
+#ifdef __cplusplus
+extern "C" {
+#endif
+
 // === auxiliary functions
 static inline char *timenow();
 
@@ -132,4 +136,7 @@ static inline char *timenow() {
     return buffer;
 }
 
+#ifdef __cplusplus
+}
+#endif
 #endif

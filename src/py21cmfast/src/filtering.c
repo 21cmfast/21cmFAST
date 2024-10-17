@@ -16,6 +16,7 @@
 #include "InputParameters.h"
 #include "indexing.h"
 #include "dft.h"
+#include "filtering.h"
 
 double real_tophat_filter(double kR){
     //Second order taylor expansion around kR==0
@@ -76,7 +77,7 @@ double spherical_shell_filter(double k, double R_outer, double R_inner){
         -  sin(kR_inner) + cos(kR_inner)*kR_inner);
 }
 
-void filter_box(fftwf_complex *box, int RES, int filter_type, float R, float R_param){
+void filter_box_cpu(fftwf_complex *box, int RES, int filter_type, float R, float R_param){
     int dimension, midpoint; //TODO: figure out why defining as ULL breaks this
     switch(RES) {
         case 0:
@@ -152,8 +153,17 @@ void filter_box(fftwf_complex *box, int RES, int filter_type, float R, float R_p
     return;
 }
 
+void filter_box(fftwf_complex *box, int RES, int filter_type, float R, float R_param){
+    if (1) {
+        filter_box_gpu(box, RES, filter_type, R, R_param);
+    } else {
+        // Call the CPU version
+        filter_box_cpu(box, RES, filter_type, R, R_param);
+    }
+}
+
 //Test function to filter a box without computing a whole output box
-int test_filter(UserParams *user_params, CosmoParams *cosmo_params, AstroParams *astro_params, FlagOptions *flag_options
+int test_filter_cpu(UserParams *user_params, CosmoParams *cosmo_params, AstroParams *astro_params, FlagOptions *flag_options
                     , float *input_box, double R, double R_param, int filter_flag, double *result){
     int i,j,k;
     unsigned long long int ii;
@@ -177,7 +187,7 @@ int test_filter(UserParams *user_params, CosmoParams *cosmo_params, AstroParams 
 
     memcpy(box_filtered,box_unfiltered,sizeof(fftwf_complex) * HII_KSPACE_NUM_PIXELS);
 
-    filter_box(box_filtered,1,filter_flag,R,R_param);
+    filter_box_cpu(box_filtered,1,filter_flag,R,R_param);
 
     dft_c2r_cube(user_params->USE_FFTW_WISDOM, user_params->HII_DIM, HII_D_PARA, user_params->N_THREADS, box_filtered);
 
@@ -190,4 +200,13 @@ int test_filter(UserParams *user_params, CosmoParams *cosmo_params, AstroParams 
     fftwf_free(box_filtered);
 
     return 0;
+}
+
+int test_filter(UserParams *user_params, CosmoParams *cosmo_params, AstroParams *astro_params, FlagOptions *flag_options,
+                float *input_box, double R, double R_param, int filter_flag, double *result) {
+    if (1) {
+        return test_filter_gpu(user_params, cosmo_params, astro_params, flag_options, input_box, R, R_param, filter_flag, result);
+    } else {
+        return test_filter_cpu(user_params, cosmo_params, astro_params, flag_options, input_box, R, R_param, filter_flag, result);
+    }
 }

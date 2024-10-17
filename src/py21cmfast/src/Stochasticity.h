@@ -4,6 +4,9 @@
 #include "InputParameters.h"
 #include "OutputStructs.h"
 
+#ifdef __cplusplus
+extern "C" {
+#endif
 int stochastic_halofield(UserParams *user_params, CosmoParams *cosmo_params, AstroParams *astro_params, FlagOptions *flag_options
                         , unsigned long long int seed, float redshift_desc, float redshift, float *dens_field, float *halo_overlap_box,
                         HaloField *halos_desc, HaloField *halos);
@@ -19,4 +22,7 @@ double expected_nhalo(double redshift, UserParams *user_params, CosmoParams *cos
 //used in HaloField.c to assign rng to DexM halos
 int add_properties_cat(unsigned long long int seed, float redshift, HaloField *halos);
 
+#ifdef __cplusplus
+}
+#endif
 #endif

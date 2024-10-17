@@ -5,6 +5,10 @@
 #define x_int_NXHII  14
 #define x_int_NENERGY  258
 
+#ifdef __cplusplus
+extern "C" {
+#endif
+
 void initialize_interp_arrays();
 
 // Primary functions to compute heating fractions and number of Lya photons or ionization produced,
@@ -25,4 +29,7 @@ int locate_xHII_index(float xHII_call);
 // TODO: remove it and make it static in elec_interp.c
 extern float x_int_XHII[x_int_NXHII];
 
+#ifdef __cplusplus
+}
+#endif
 #endif
