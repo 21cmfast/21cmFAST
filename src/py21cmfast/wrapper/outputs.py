@@ -20,6 +20,7 @@ from cached_property import cached_property
 
 from .. import __version__
 from ..c_21cmfast import ffi, lib
+from ..drivers.param_config import InputParameters
 from .inputs import AstroParams, CosmoParams, FlagOptions, UserParams, global_params
 from .structs import OutputStruct as _BaseOutputStruct
 
@@ -29,9 +30,13 @@ logger = logging.getLogger(__name__)
 class _OutputStruct(_BaseOutputStruct):
     _global_params = global_params
 
-    def __init__(self, *, user_params=None, cosmo_params=None, **kwargs):
-        self.cosmo_params = cosmo_params or CosmoParams()
-        self.user_params = user_params or UserParams()
+    def __init__(self, *, inputs: InputParameters | None = None, **kwargs):
+        if inputs:
+            self.cosmo_params = inputs.cosmo_params
+            self.user_params = inputs.user_params
+        else:
+            self.cosmo_params = CosmoParams()
+            self.user_params = UserParams()
 
         super().__init__(**kwargs)
 
@@ -283,15 +288,17 @@ class _AllParamsBox(_OutputStructZ):
     def __init__(
         self,
         *,
-        astro_params: AstroParams | None = None,
-        flag_options: FlagOptions | None = None,
+        inputs: InputParameters | None = None,
         **kwargs,
     ):
-        self.flag_options = flag_options or FlagOptions()
-        self.astro_params = astro_params or AstroParams(
-            INHOMO_RECO=self.flag_options.INHOMO_RECO
-        )
+        if inputs:
+            self.flag_options = inputs.flag_options
+            self.astro_params = inputs.astro_params
+        else:
+            self.flag_options = FlagOptions()
+            self.astro_params = AstroParams(INHOMO_RECO=self.flag_options.INHOMO_RECO)
 
+        # TODO: This only seems to be used in IonizedBox
         self.log10_Mturnover_ave = 0.0
         self.log10_Mturnover_MINI_ave = 0.0
 
