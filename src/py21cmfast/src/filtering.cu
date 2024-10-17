@@ -175,6 +175,19 @@ void filter_box_gpu(fftwf_complex *box, int RES, int filter_type, float R, float
     filter_box_kernel<<<numBlocks, threadsPerBlock>>>(reinterpret_cast<cuFloatComplex *>(d_box), dimension, midpoint, midpoint_para, delta_k, R, R_param, R_const, filter_type);
     // filter_box_kernel<<<numBlocks, threadsPerBlock>>>((cuFloatComplex *)d_box, dimension, midpoint, midpoint_para, delta_k, R, R_param, R_const, filter_type);
 
+    // Only use during development!
+    cudaError_t err = cudaDeviceSynchronize();
+    CATCH_CUDA_ERROR(err);
+    // if (err != cudaSuccess) {
+    //     LOG_ERROR("cudaDeviceSynchronize error: %s", cudaGetErrorString(err));
+    //     Throw(RuntimeError);
+    // }
+    err = cudaGetLastError();
+    if (err != cudaSuccess) {
+        LOG_ERROR("Kernel launch error: %s", cudaGetErrorString(err));
+        Throw(CudaError); // Or the appropriate exception type
+    }
+
     // Copy results from device to host
     cudaMemcpy(box, d_box, size, cudaMemcpyDeviceToHost);
 
