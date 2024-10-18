@@ -141,6 +141,8 @@ class InitialConditions(_OutputStruct):
     def prepare_for_spin_temp(self, flag_options: FlagOptions, force: bool = False):
         """Ensure ICs have all boxes required for spin_temp, and no more."""
         keep = []
+        if flag_options.HALO_STOCHASTICITY and self.user_params.AVG_BELOW_SAMPLER:
+            keep.append("lowres_density")  # for the sub-resolution halos
         if self.user_params.USE_RELATIVE_VELOCITIES:
             keep.append("lowres_vcb")
         self.prepare(keep=keep, force=force)
@@ -481,7 +483,7 @@ class HaloBox(_AllParamsBox):
             if not self.flag_options.FIXED_HALO_GRIDS:
                 required += ["halo_coords", "halo_masses", "star_rng", "sfr_rng"]
         elif isinstance(input_box, PerturbedField):
-            if self.flag_options.FIXED_HALO_GRIDS or self.user_params.AVG_BELOW_SAMPLER:
+            if self.flag_options.FIXED_HALO_GRIDS:
                 required += ["density"]
         elif isinstance(input_box, TsBox):
             required += ["J_21_LW_box"]
@@ -490,6 +492,11 @@ class HaloBox(_AllParamsBox):
         elif isinstance(input_box, InitialConditions):
             if self.user_params.USE_RELATIVE_VELOCITIES:
                 required += ["lowres_vcb"]
+            if (
+                self.flag_options.HALO_STOCHASTICITY
+                and self.user_params.AVG_BELOW_SAMPLER
+            ):
+                required += ["lowres_density"]
         else:
             raise ValueError(f"{type(input_box)} is not an input required for HaloBox!")
 
