@@ -19,7 +19,7 @@ import logging
 import warnings
 from astropy import units as un
 from astropy.cosmology import FLRW, Planck15
-from attrs import define
+from attrs import converters, define
 from attrs import field as _field
 from attrs import validators
 
@@ -507,9 +507,6 @@ class FlagOptions(InputStruct):
             raise ValueError(
                 "You have set USE_MINI_HALOS to True but USE_TS_FLUCT is False! "
             )
-        raise ValueError(
-            "You have set USE_MINI_HALOS to True but USE_MASS_DEPENDENT_ZETA is False! "
-        )
 
     @PHOTON_CONS_TYPE.validator
     def _PHOTON_CONS_TYPE_vld(self, att, val):
@@ -663,8 +660,13 @@ class AstroParams(InputStruct):
     """
 
     _ffi = ffi
-    INHOMO_RECO = field(converter=bool)
-    USE_MINI_HALOS = field(converter=bool)
+
+    # Some defaults require values from the flag options
+    flag_options = field(
+        default=None,
+        converter=converters.optional(FlagOptions.new),
+        validator=validators.optional(validators.instance_of(FlagOptions)),
+    )
 
     HII_EFF_FACTOR = field(default=30.0, converter=float, validator=validators.gt(0))
     F_STAR10 = field(
@@ -673,11 +675,11 @@ class AstroParams(InputStruct):
         validator=between(-3.0, 0.0),
         transformer=logtransformer,
     )
-    F_STAR7_MINI = field(converter=float, transformer=logtransformer)
     ALPHA_STAR = field(
         default=0.5,
         converter=float,
     )
+    F_STAR7_MINI = field(converter=float, transformer=logtransformer)
     ALPHA_STAR_MINI = field(converter=float)
     F_ESC10 = field(
         default=-1.0,
@@ -685,14 +687,14 @@ class AstroParams(InputStruct):
         validator=between(-3.0, 0.0),
         transformer=logtransformer,
     )
+    ALPHA_ESC = field(
+        default=-0.5,
+        converter=float,
+    )
     F_ESC7_MINI = field(
         converter=float,
         validator=between(-3.0, 0.0),
         transformer=logtransformer,
-    )
-    ALPHA_ESC = field(
-        default=-0.5,
-        converter=float,
     )
     M_TURN = field(
         converter=float, validator=validators.gt(0), transformer=logtransformer
@@ -744,12 +746,20 @@ class AstroParams(InputStruct):
     @R_BUBBLE_MAX.default
     def _R_BUBBLE_MAX_default(self):
         """Maximum radius of bubbles to be searched. Set dynamically."""
-        return 50.0 if self.INHOMO_RECO else 15.0
+        if not isinstance(self.flag_options, FlagOptions):
+            raise ValueError(
+                "to use default R_BUBBLE_MAX, a FlagOptions instance must be provdided to AstroParams"
+            )
+        return 50.0 if self.flag_options.INHOMO_RECO else 15.0
 
     @M_TURN.default
     def _M_TURN_default(self):
         """The minimum turnover mass for halos which host stars, (set dynamically based on USE_MINI_HALOS)."""
-        return 5 if self.USE_MINI_HALOS else 8.7
+        if not isinstance(self.flag_options, FlagOptions):
+            raise ValueError(
+                "to use default M_TURN, a FlagOptions instance must be provdided to AstroParams"
+            )
+        return 5 if self.flag_options.USE_MINI_HALOS else 8.7
 
     # set the default of the minihalo scalings to continue the same PL
     @F_STAR7_MINI.default
@@ -777,6 +787,15 @@ class AstroParams(InputStruct):
         If the MCG scaling relations are not provided, we extend the ACG ones
         """
         return self.ALPHA_STAR
+
+    @L_X_MINI.default
+    def _L_X_MINI_default(self):
+        """
+        The Lx/SFR normalisation for Molecularly cooled galaxies.
+
+        If the MCG scaling relations are not provided, we extend the ACG ones
+        """
+        return self.L_X
 
     @X_RAY_Tvir_MIN.default
     def _X_RAY_Tvir_MIN_default(self):
