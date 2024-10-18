@@ -50,11 +50,12 @@ class StructWrapper:
     def _name_default(self):
         return self.__class__.__name__
 
-    def __attrs_post_init__(self):
-        """Post-initializion actions.
+    def __init__(self, *args):
+        """Custom initializion actions.
 
         This instantiates the memory associated with the C struct, attached to this inst.
         """
+        self.__attrs_init__(*args)
         self.cstruct = self._new()
 
     def _new(self):
@@ -88,7 +89,7 @@ class StructWrapper:
         }
 
 
-@attrs.define(kw_only=True)
+@attrs.define(frozen=True, kw_only=True)
 class InputStruct(StructWrapper):
     """
     A convenient interface to create a C structure with defaults specified.
