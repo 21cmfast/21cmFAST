@@ -9,7 +9,7 @@ import warnings
 
 from py21cmfast import AstroParams  # An example of a struct with defaults
 from py21cmfast import CosmoParams, FlagOptions, UserParams, __version__, global_params
-from py21cmfast.inputs import validate_all_inputs
+from py21cmfast.wrapper.inputs import validate_all_inputs
 
 
 @pytest.fixture(scope="module")

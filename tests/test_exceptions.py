@@ -1,8 +1,8 @@
 import pytest
 
-from py21cmfast._utils import PHOTONCONSERROR, ParameterError
 from py21cmfast.c_21cmfast import lib
 from py21cmfast.wrapper import _call_c_simple
+from py21cmfast.wrapper._utils import PHOTONCONSERROR, ParameterError
 
 
 @pytest.mark.parametrize("subfunc", [True, False])
