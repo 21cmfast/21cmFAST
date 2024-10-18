@@ -65,7 +65,7 @@ class StructWrapper:
     @property
     def fields(self) -> dict[str, Any]:
         """A list of fields of the underlying C struct (a list of tuples of "name, type")."""
-        return self.get_fields(self.cstruct)
+        return dict(self._ffi.typeof(self.cstruct[0]).fields)
 
     @property
     def fieldnames(self) -> list[str]:
@@ -141,7 +141,7 @@ class InputStruct(StructWrapper):
     @cached_property
     def struct(self) -> StructWrapper:
         """The python-wrapped struct associated with this input object."""
-        return StructWrapper(name=self.__class__.__name__)
+        return StructWrapper(self.__class__.__name__)
 
     @cached_property
     def cstruct(self) -> StructWrapper:
@@ -1084,7 +1084,14 @@ class OutputStruct(StructWrapper, metaclass=ABCMeta):
         # Construct the args. All StructWrapper objects need to actually pass their
         # underlying cstruct, rather than themselves. OutputStructs also pass the
         # class in that's calling this.
-        inputs = [arg() if isinstance(arg, StructWrapper) else arg for arg in args]
+        inputs = [
+            (
+                arg()
+                if isinstance(arg, OutputStruct)
+                else arg.cstruct if isinstance(arg, InputStruct) else arg
+            )
+            for arg in args
+        ]
 
         # Ensure we haven't already tried to compute this instance.
         if self.is_computed:
@@ -1097,8 +1104,7 @@ class OutputStruct(StructWrapper, metaclass=ABCMeta):
             exitcode = self._c_compute_function(*inputs, self())
         except TypeError as e:
             logger.error(
-                f"Arguments to {self._c_compute_function.__name__}: "
-                f"{[arg() if isinstance(arg, StructWrapper) else arg for arg in args]}"
+                f"Arguments to {self._c_compute_function.__name__}: " f"{inputs}"
             )
             raise e
 

@@ -63,15 +63,7 @@ class InputParameters:
     user_params: UserParams = input_param_field(UserParams, default=True)
     cosmo_params: CosmoParams = input_param_field(CosmoParams, default=True)
     flag_options: FlagOptions = input_param_field(FlagOptions, default=False)
-    _astro_params: AstroParams = input_param_field(AstroParams, default=False)
-
-    @cached_property
-    def astro_params(self) -> AstroParams:
-        """The AstroParams instance."""
-        return self._astro_params.clone(
-            INHOMO_RECO=self.flag_options.INHOMO_RECO,
-            USE_MINI_HALOS=self.flag_options.USE_MINI_HALOS,
-        )
+    astro_params: AstroParams = input_param_field(AstroParams, default=False)
 
     @flag_options.validator
     def _flag_options_validator(self, att, val):
@@ -98,7 +90,7 @@ class InputParameters:
         if val.USE_EXP_FILTER and not val.USE_HALO_FIELD:
             warnings.warn("USE_EXP_FILTER has no effect unless USE_HALO_FIELD is true")
 
-    @_astro_params.validator
+    @astro_params.validator
     def _astro_params_validator(self, att, val):
         if val is None:
             return

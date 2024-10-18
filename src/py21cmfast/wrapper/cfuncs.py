@@ -360,8 +360,8 @@ def construct_fftw_wisdoms(
         Parameters defining the simulation run.
 
     """
-    user_params = UserParams(user_params)
-    cosmo_params = CosmoParams(cosmo_params)
+    user_params = UserParams.new(user_params)
+    cosmo_params = CosmoParams.new(cosmo_params)
 
     # Run the C code
     if user_params.USE_FFTW_WISDOM:

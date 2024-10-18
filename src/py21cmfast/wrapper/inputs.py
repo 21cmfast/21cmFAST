@@ -111,7 +111,9 @@ class CosmoParams(InputStruct):
 
     _ffi = ffi
 
-    _base_cosmo = field(default=Planck18, validator=validators.instance_of(FLRW))
+    _base_cosmo = field(
+        default=Planck18, validator=validators.instance_of(FLRW), eq=False
+    )
     SIGMA_8 = field(default=0.8102, converter=float, validator=validators.gt(0))
     hlittle = field(default=Planck18.h, converter=float, validator=validators.gt(0))
     OMm = field(default=Planck18.Om0, converter=float, validator=validators.gt(0))

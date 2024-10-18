@@ -785,8 +785,8 @@ def _run_lightcone_from_perturbed_fields(
 
 def run_lightcone(
     *,
-    node_redshifts: np.ndarray,
     lightconer: Lightconer,
+    node_redshifts: np.ndarray | None = None,
     user_params=None,
     cosmo_params=None,
     astro_params=None,
@@ -796,7 +796,7 @@ def run_lightcone(
     global_quantities=("brightness_temp", "xH_box"),
     direc=None,
     initial_conditions: InitialConditions | None = None,
-    perturbed_fields: Sequence[PerturbedField] | None = None,
+    perturbed_fields: Sequence[PerturbedField | None] = (None,),
     random_seed=None,
     cleanup=True,
     hooks=None,
@@ -902,9 +902,10 @@ def run_lightcone(
     """
     direc, regenerate, hooks = _get_config_options(direc, regenerate, write, hooks)
 
-    if perturbed_fields is not None and initial_conditions is None:
+    pf_given = any(perturbed_fields)
+    if pf_given and initial_conditions is None:
         raise ValueError(
-            "If perturbed_fields are provided, initial_conditions must be provided"
+            f"If perturbed_fields {perturbed_fields} are provided, initial_conditions {initial_conditions} must be provided"
         )
 
     if cosmo_params is None and initial_conditions is None:
@@ -918,10 +919,14 @@ def run_lightcone(
         flag_options=flag_options,
     )
 
-    if perturbed_fields is None and node_redshifts is None:
-        raise ValueError("either perturbed_fields or node_redshifts must be specified")
-    elif perturbed_fields is not None:
+    if pf_given:
         node_redshifts = [pf.redshift for pf in perturbed_fields]
+    elif node_redshifts is None:
+        node_redshifts = get_logspaced_redshifts(
+            lightconer.lc_redshifts.min(),
+            global_params.ZPRIME_STEP_FACTOR,
+            lightconer.lc_redshifts.max(),
+        )
 
     lcz = lightconer.lc_redshifts
     if not np.all(min(node_redshifts) * 0.99 < lcz) and np.all(
@@ -956,7 +961,7 @@ def run_lightcone(
     except OSError:
         pass
 
-    if perturbed_fields is None:
+    if not pf_given:
         perturbed_fields = []
         for z in node_redshifts:
             p = sf.perturb_field(redshift=z, init_boxes=initial_conditions, **iokw)
