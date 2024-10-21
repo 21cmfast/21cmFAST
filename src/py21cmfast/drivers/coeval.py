@@ -603,7 +603,7 @@ def run_coeval(
         **{
             "astro_params": inputs.astro_params,
             "flag_options": inputs.flag_options,
-            "init_boxes": initial_conditions,
+            "initial_conditions": initial_conditions,
         },
         **iokw,
     }
@@ -627,7 +627,7 @@ def run_coeval(
     perturb_ = []
     for z in redshifts:
         p = (
-            sf.perturb_field(redshift=z, init_boxes=initial_conditions, **iokw)
+            sf.perturb_field(redshift=z, initial_conditions=initial_conditions, **iokw)
             if z not in pz
             else perturbed_field[pz.index(z)]
         )

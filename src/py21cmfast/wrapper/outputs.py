@@ -34,17 +34,18 @@ class _OutputStruct(_BaseOutputStruct):
         if inputs:
             self.cosmo_params = inputs.cosmo_params
             self.user_params = inputs.user_params
+            # TODO: probably move the InputParameters to BaseOutputStruct
+            #   but that will cause a circular import unless more restructuring is done
+            self.inputs = inputs
         else:
             self.cosmo_params = CosmoParams()
             self.user_params = UserParams()
 
         super().__init__(**kwargs)
 
-    _ffi = ffi
-
 
 class _OutputStructZ(_OutputStruct):
-    _inputs = _OutputStruct._inputs + ("redshift",)
+    _param_inputs = _OutputStruct._param_inputs + ("redshift",)
 
 
 class InitialConditions(_OutputStruct):
@@ -278,7 +279,7 @@ class PerturbedField(_OutputStructZ):
 
 class _AllParamsBox(_OutputStructZ):
     _meta = True
-    _inputs = _OutputStructZ._inputs + ("flag_options", "astro_params")
+    _param_inputs = _OutputStructZ._param_inputs + ("flag_options", "astro_params")
 
     _filter_params = _OutputStruct._filter_params + [
         "T_USE_VELOCITIES",  # bt
@@ -309,7 +310,7 @@ class HaloField(_AllParamsBox):
     """A class containing all fields related to halos."""
 
     _meta = False
-    _inputs = _AllParamsBox._inputs + (
+    _kwarg_inputs = _AllParamsBox._kwarg_inputs + (
         "desc_redshift",
         "buffer_size",
     )
@@ -381,7 +382,7 @@ class PerturbHaloField(_AllParamsBox):
 
     _c_compute_function = lib.ComputePerturbHaloField
     _meta = False
-    _inputs = _AllParamsBox._inputs + ("buffer_size",)
+    _kwarg_inputs = _AllParamsBox._kwarg_inputs + ("buffer_size",)
 
     def __init__(
         self,
@@ -441,7 +442,6 @@ class HaloBox(_AllParamsBox):
 
     _meta = False
     _c_compute_function = lib.ComputeHaloBox
-    _inputs = _AllParamsBox._inputs
 
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
@@ -517,7 +517,6 @@ class XraySourceBox(_AllParamsBox):
 
     _meta = False
     _c_compute_function = lib.UpdateXraySourceBox
-    _inputs = _AllParamsBox._inputs
 
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
@@ -580,7 +579,10 @@ class TsBox(_AllParamsBox):
 
     _c_compute_function = lib.ComputeTsBox
     _meta = False
-    _inputs = _AllParamsBox._inputs + ("prev_spin_redshift", "perturbed_field_redshift")
+    _kwarg_inputs = _AllParamsBox._kwarg_inputs + (
+        "prev_spin_redshift",
+        "perturbed_field_redshift",
+    )
 
     def __init__(
         self,
@@ -694,7 +696,7 @@ class IonizedBox(_AllParamsBox):
 
     _meta = False
     _c_compute_function = lib.ComputeIonizedBox
-    _inputs = _AllParamsBox._inputs + ("prev_ionize_redshift",)
+    _kwarg_inputs = _AllParamsBox._kwarg_inputs + ("prev_ionize_redshift",)
 
     def __init__(self, *, prev_ionize_redshift: float | None = None, **kwargs):
         self.prev_ionize_redshift = prev_ionize_redshift

@@ -964,16 +964,18 @@ def run_lightcone(
     if not pf_given:
         perturbed_fields = []
         for z in node_redshifts:
-            p = sf.perturb_field(redshift=z, init_boxes=initial_conditions, **iokw)
+            p = sf.perturb_field(
+                redshift=z, initial_conditions=initial_conditions, **iokw
+            )
             if user_params.MINIMIZE_MEMORY:
                 with contextlib.suppress(OSError):
                     p.purge(force=always_purge)
             perturbed_fields.append(p)
 
     yield from _run_lightcone_from_perturbed_fields(
-        initial_conditions,
-        perturbed_fields,
-        lightconer,
+        initial_conditions=initial_conditions,
+        perturbed_fields=perturbed_fields,
+        lightconer=lightconer,
         astro_params=inputs.astro_params,
         flag_options=inputs.flag_options,
         regenerate=regenerate,

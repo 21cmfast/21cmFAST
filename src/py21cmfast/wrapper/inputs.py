@@ -109,8 +109,6 @@ class CosmoParams(InputStruct):
         Spectral index of the power spectrum.
     """
 
-    _ffi = ffi
-
     _base_cosmo = field(
         default=Planck18, validator=validators.instance_of(FLRW), eq=False
     )
@@ -262,9 +260,16 @@ class UserParams(InputStruct):
         sampling on a timestep of ZPRIME_STEP_FACTOR=1.02.
         If ZPRIME_STEP_FACTOR is increased, this value should be set closer to 1.
         This factor is also used in the partition (SAMPLE_METHOD==2) sampler, dividing nu(M) of each sample drawn.
+    PARKINSON_G0: float, optional
+        Only used when SAMPLE_METHOD==3, sets the normalisation of the correction to the extended press-schecter
+        used in Parkinson et al. 2008.
+    PARKINSON_y1: float, optional
+        Only used when SAMPLE_METHOD==3, sets the index of the sigma power-law term of the correction to the
+        extended Press-Schechter mass function used in Parkinson et al. 2008.
+    PARKINSON_y2: float, optional
+        Only used when SAMPLE_METHOD==3, sets the index of the delta power-law term of the correction to the
+        extended Press-Schechter mass function used in Parkinson et al. 2008.
     """
-
-    _ffi = ffi
 
     _hmf_models = ["PS", "ST", "WATSON", "WATSON-Z", "DELOS"]
     _power_models = ["EH", "BBKS", "EFSTATHIOU", "PEEBLES", "WHITE", "CLASS"]
@@ -318,10 +323,13 @@ class UserParams(InputStruct):
         validator=validators.in_(_sample_methods),
         transformer=choice_transformer(_sample_methods),
     )
-    AVG_BELOW_SAPMLER = field(default=True, converter=bool)
+    AVG_BELOW_SAMPLER = field(default=True, converter=bool)
     HALOMASS_CORRECTION = field(
         default=0.9, converter=float, validator=validators.gt(0)
     )
+    PARKINSON_G0 = field(default=1.0, converter=float, validator=validators.gt(0))
+    PARKINSON_y1 = field(default=0.0, converter=float)
+    PARKINSON_y2 = field(default=0.0, converter=float)
 
     @DIM.default
     def _dim_default(self):
@@ -455,7 +463,6 @@ class FlagOptions(InputStruct):
         "f-photoncons",
     ]
 
-    _ffi = ffi
     USE_MINI_HALOS = field(default=False, converter=bool)
     USE_CMB_HEATING = field(default=True, converter=bool)
     USE_LYA_HEATING = field(default=True, converter=bool)
@@ -661,13 +668,12 @@ class AstroParams(InputStruct):
         Self-correlation length used for updating xray luminosity, see "CORR_STAR" for details.
     """
 
-    _ffi = ffi
-
     # Some defaults require values from the flag options
-    flag_options = field(
+    _flag_options = field(
         default=None,
         converter=converters.optional(FlagOptions.new),
         validator=validators.optional(validators.instance_of(FlagOptions)),
+        eq=False,
     )
 
     HII_EFF_FACTOR = field(default=30.0, converter=float, validator=validators.gt(0))
@@ -748,20 +754,20 @@ class AstroParams(InputStruct):
     @R_BUBBLE_MAX.default
     def _R_BUBBLE_MAX_default(self):
         """Maximum radius of bubbles to be searched. Set dynamically."""
-        if not isinstance(self.flag_options, FlagOptions):
+        if not isinstance(self._flag_options, FlagOptions):
             raise ValueError(
                 "to use default R_BUBBLE_MAX, a FlagOptions instance must be provdided to AstroParams"
             )
-        return 50.0 if self.flag_options.INHOMO_RECO else 15.0
+        return 50.0 if self._flag_options.INHOMO_RECO else 15.0
 
     @M_TURN.default
     def _M_TURN_default(self):
         """The minimum turnover mass for halos which host stars, (set dynamically based on USE_MINI_HALOS)."""
-        if not isinstance(self.flag_options, FlagOptions):
+        if not isinstance(self._flag_options, FlagOptions):
             raise ValueError(
                 "to use default M_TURN, a FlagOptions instance must be provdided to AstroParams"
             )
-        return 5 if self.flag_options.USE_MINI_HALOS else 8.7
+        return 5 if self._flag_options.USE_MINI_HALOS else 8.7
 
     # set the default of the minihalo scalings to continue the same PL
     @F_STAR7_MINI.default

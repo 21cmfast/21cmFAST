@@ -17,7 +17,7 @@ from typing import Any, Sequence
 
 from .. import __version__
 from .._cfg import config
-from ..c_21cmfast import lib
+from ..c_21cmfast import ffi, lib
 from ._utils import (
     asarray,
     float_to_string_precision,
@@ -43,8 +43,8 @@ class StructWrapper:
     """
 
     _name: str = attrs.field(converter=str)
-
-    _ffi = None
+    cstruct = attrs.field(default=None)
+    _ffi = attrs.field(default=ffi)
 
     @_name.default
     def _name_default(self):
@@ -90,7 +90,7 @@ class StructWrapper:
 
 
 @attrs.define(frozen=True, kw_only=True)
-class InputStruct(StructWrapper):
+class InputStruct:
     """
     A convenient interface to create a C structure with defaults specified.
 
@@ -113,6 +113,8 @@ class InputStruct(StructWrapper):
     ffi : cffi object
         The ffi object from any cffi-wrapped library.
     """
+
+    _write_exclude_fields = ()
 
     @classmethod
     def new(cls, x: dict | InputStruct | None):
@@ -176,7 +178,7 @@ class InputStruct(StructWrapper):
         """
         return attrs.asdict(self)
 
-    @property
+    @cached_property
     def cdict(self) -> dict:
         """A python dictionary containing the properties of the wrapped C-struct.
 
@@ -198,7 +200,8 @@ class InputStruct(StructWrapper):
         out = {}
         for k in self.struct.fieldnames:
             val = getattr(self, k)
-            trns = transformers[k]
+            # we assume properties (as opposed to attributes) are already converted
+            trns = transformers[k] if k in transformers.keys() else None
             out[k] = val if trns is None else trns(val)
         return out
 
@@ -212,14 +215,23 @@ class InputStruct(StructWrapper):
     """
 
 
-class OutputStruct(StructWrapper, metaclass=ABCMeta):
+class OutputStruct(metaclass=ABCMeta):
     """Base class for any class that wraps a C struct meant to be output from a C function."""
 
     _meta = True
     _fields_ = []
     _global_params = None
-    _inputs = ("user_params", "cosmo_params", "_random_seed")
-    _filter_params = ["external_table_path", "wisdoms_path"]
+    _param_inputs = (
+        "user_params",
+        "cosmo_params",
+    )  # inputs provided in the InputParameter class
+    _kwarg_inputs = ("_random_seed",)  # other keyword arguments
+    _filter_params = [
+        "external_table_path",
+        "wisdoms_path",
+        "_flag_options",
+        "_base_cosmo",
+    ]
     _c_based_pointers = ()
     _c_compute_function = None
 
@@ -241,15 +253,14 @@ class OutputStruct(StructWrapper, metaclass=ABCMeta):
             initialized, but do not need to be computed to pass into another
             struct's compute().
         """
-        super().__init__()
-
+        self._name = self.__class__.__name__
         self.version = ".".join(__version__.split(".")[:2])
         self.patch_version = ".".join(__version__.split(".")[2:])
         self._paths = []
 
         self._random_seed = random_seed
 
-        for k in self._inputs:
+        for k in self._kwarg_inputs + self._param_inputs:
             if k not in self.__dict__:
                 try:
                     setattr(self, k, kwargs.pop(k))
@@ -272,8 +283,23 @@ class OutputStruct(StructWrapper, metaclass=ABCMeta):
             k: ArrayState() for k in self._c_based_pointers
         }
         for k in self._array_structure:
-            if k not in self.pointer_fields:
+            if k not in self.struct.pointer_fields:
                 raise TypeError(f"Key {k} in {self} not a defined pointer field in C.")
+
+    @cached_property
+    def struct(self) -> StructWrapper:
+        """The python-wrapped struct associated with this input object."""
+        return StructWrapper(self._name)
+
+    @cached_property
+    def cstruct(self) -> StructWrapper:
+        """The object pointing to the memory accessed by C-code for this struct."""
+        self._init_cstruct()
+        return self.struct.cstruct
+
+    @property
+    def _all_inputs(self):
+        return self._param_inputs + self._kwarg_inputs + ("_global_params",)
 
     @property
     def path(self) -> tuple[None, Path]:
@@ -325,7 +351,7 @@ class OutputStruct(StructWrapper, metaclass=ABCMeta):
                 continue
 
             params = self._array_structure[k]
-            tp = self._TYPEMAP.inverse[self.fields[k].type.cname]
+            tp = self._TYPEMAP.inverse[self.struct.fields[k].type.cname]
 
             if isinstance(params, tuple):
                 shape = params
@@ -359,29 +385,26 @@ class OutputStruct(StructWrapper, metaclass=ABCMeta):
             # to unnecessarily load things in. We leave it to the user to ensure that all
             # required arrays are loaded into memory before calling this function.
             if state.initialized:
-                setattr(self.cstruct, k, self._ary2buf(getattr(self, k)))
+                setattr(self.struct.cstruct, k, self._ary2buf(getattr(self, k)))
 
-        for k in self.primitive_fields:
+        for k in self.struct.primitive_fields:
             with contextlib.suppress(AttributeError):
-                setattr(self.cstruct, k, getattr(self, k))
+                setattr(self.struct.cstruct, k, getattr(self, k))
 
     def _ary2buf(self, ary):
         if not isinstance(ary, np.ndarray):
             raise ValueError("ary must be a numpy array")
-        return self._ffi.cast(
-            OutputStruct._TYPEMAP[ary.dtype.name], self._ffi.from_buffer(ary)
+        return self.struct._ffi.cast(
+            OutputStruct._TYPEMAP[ary.dtype.name], self.struct._ffi.from_buffer(ary)
         )
 
     def __call__(self):
-        """Initialize/allocate a fresh C struct in memory and return it."""
-        if not self.dummy:
-            self._init_cstruct()
-
+        """Return the C structure, will initialise if not already initialised."""
         return self.cstruct
 
     def __expose(self):
         """Expose the non-array primitives of the ctype to the top-level object."""
-        for k in self.primitive_fields:
+        for k in self.struct.primitive_fields:
             setattr(self, k, getattr(self.cstruct, k))
 
     @property
@@ -532,7 +555,7 @@ class OutputStruct(StructWrapper, metaclass=ABCMeta):
 
     def _check_parameters(self, fname):
         with h5py.File(fname, "r") as f:
-            for k in self._inputs + ("_global_params",):
+            for k in self._all_inputs:
                 q = getattr(self, k)
 
                 # The key name as it should appear in file.
@@ -552,7 +575,7 @@ class OutputStruct(StructWrapper, metaclass=ABCMeta):
                 elif isinstance(q, (InputStruct, StructInstanceWrapper)):
                     grp = f[kfile]
 
-                    dct = q.self if isinstance(q, InputStruct) else q
+                    dct = q.asdict() if isinstance(q, InputStruct) else q
                     for kk, v in dct.items():
                         if kk not in self._filter_params:
                             file_v = grp.attrs[kk]
@@ -633,14 +656,14 @@ class OutputStruct(StructWrapper, metaclass=ABCMeta):
             try:
                 # Save input parameters to the file
                 if write_inputs:
-                    for k in self._inputs + ("_global_params",):
+                    for k in self._all_inputs:
                         q = getattr(self, k)
 
                         kfile = k.lstrip("_")
 
                         if isinstance(q, (InputStruct, StructInstanceWrapper)):
                             grp = fl.create_group(kfile)
-                            dct = q.self if isinstance(q, InputStruct) else q
+                            dct = q.asdict() if isinstance(q, InputStruct) else q
                             for kk, v in dct.items():
                                 if kk not in self._filter_params:
                                     try:
@@ -667,7 +690,7 @@ class OutputStruct(StructWrapper, metaclass=ABCMeta):
 
         except OSError as e:
             logger.warning(
-                f"When attempting to write {self.__class__.__name__} to file, write failed with the following error. Continuing without caching."
+                f"When attempting to write {self._name} to file, write failed with the following error. Continuing without caching."
             )
 
             logger.warning(e)
@@ -686,7 +709,7 @@ class OutputStruct(StructWrapper, metaclass=ABCMeta):
             group.create_dataset(k, data=getattr(self, k))
             state.on_disk = True
 
-        for k in self.primitive_fields:
+        for k in self.struct.primitive_fields:
             group.attrs[k] = getattr(self, k)
 
     def save(self, fname=None, direc=".", h5_group=None):
@@ -874,7 +897,8 @@ class OutputStruct(StructWrapper, metaclass=ABCMeta):
 
         # Read the input parameter dictionaries from file.
         kwargs = {}
-        for k in cls._inputs:
+        inputstructs = {}
+        for k in cls._param_inputs + cls._kwarg_inputs:
             kfile = k.lstrip("_")
             input_class_name = snake_to_camel(kfile)
 
@@ -883,7 +907,7 @@ class OutputStruct(StructWrapper, metaclass=ABCMeta):
                     input_classes.index(input_class_name)
                 ]
                 subgrp = grp[kfile]
-                kwargs[k] = input_class(
+                inputstructs[k] = input_class(
                     {k: v for k, v in dict(subgrp.attrs).items() if v != "none"}
                 )
             else:
@@ -923,7 +947,7 @@ class OutputStruct(StructWrapper, metaclass=ABCMeta):
                     )
                     for k, v in [
                         (k, getattr(self, k))
-                        for k in self._inputs + ("_global_params",)
+                        for k in self._all_inputs
                         if k != "_random_seed"
                     ]
                 )
@@ -944,7 +968,10 @@ class OutputStruct(StructWrapper, metaclass=ABCMeta):
                     if isinstance(v, InputStruct)
                     else k.lstrip("_") + ":" + repr(v)
                 )
-                for k, v in [(k, getattr(self, k)) for k in self._inputs]
+                for k, v in [
+                    (k, getattr(self, k))
+                    for k in self._param_inputs + self._kwarg_inputs
+                ]
             )
         ) + ")"
 
@@ -1021,7 +1048,7 @@ class OutputStruct(StructWrapper, metaclass=ABCMeta):
 
         out += "".join(
             f"{indent}    {fieldname:>15}: {getattr(self, fieldname, 'non-existent')}\n"
-            for fieldname in self.primitive_fields
+            for fieldname in self.struct.primitive_fields
         )
 
         for fieldname, state in self._array_state.items():

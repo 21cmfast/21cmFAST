@@ -190,6 +190,20 @@ class InputParameters:
             out = cls.combine(input_params)
             return out.merge(cls(**defaults))
 
+    def __repr__(self):
+        """
+        String representation of the structure.
+
+        Created by combining repr methods from the InputStructs
+        which make up this object
+        """
+        return (
+            f"{repr(self.cosmo_params)}_"
+            + f"{repr(self.user_params)}_"
+            + f"{repr(self.astro_params)}_"
+            + f"{repr(self.flag_options)}_"
+        )
+
 
 # def _configure_inputs(
 #     defaults: list,
