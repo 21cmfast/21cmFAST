@@ -160,6 +160,12 @@ void filter_box(fftwf_complex *box, int RES, int filter_type, float R, float R_p
         // Call the CPU version
         filter_box_cpu(box, RES, filter_type, R, R_param);
     }
+    // switch(GPU) {
+    //     case 0:
+    //         filter_box_cpu(box, RES, filter_type, R, R_param);
+    //     case 1:
+    //         filter_box_gpu(box, RES, filter_type, R, R_param);
+    // }
 }
 
 //Test function to filter a box without computing a whole output box

@@ -74,10 +74,13 @@ __device__ inline double spherical_shell_filter(double k, double R_outer, double
 }
 
 // __global__ void filter_box_kernel(fftwf_complex *box, int dimension, int midpoint, int midpoint_para, double delta_k, float R, float R_param, double R_const, int filter_type) {
-__global__ void filter_box_kernel(cuFloatComplex *box, int dimension, int midpoint, int midpoint_para, double delta_k, float R, float R_param, double R_const, int filter_type) {
+__global__ void filter_box_kernel(cuFloatComplex *box, size_t size, int dimension, int midpoint, int midpoint_para, double delta_k, float R, float R_param, double R_const, int filter_type) {
 
     // Get index of box (flattened k-box)
     unsigned long long idx = blockIdx.x * blockDim.x + threadIdx.x;
+
+    // TODO: Add bound check (in case number of threads != multiple of block size)
+    // while (idx < size) {
 
     // Compute the 3D indices (n_x, n_y, n_z) for the k-box from the flattened index (idx)
     // Based on convenience macros in indexing.h
@@ -86,10 +89,16 @@ __global__ void filter_box_kernel(cuFloatComplex *box, int dimension, int midpoi
     int n_y = remaining % dimension;
     int n_x = remaining / dimension;
 
+    // TODO: Alternative
+    // array(int) cell_coords = (idx % (midpoint_para + 1), (idx / (midpoint_para + 1)) % dimension, (idx / (midpoint_para + 1)) / dimension)
+
     // Compute wave vector components
     float k_x = (n_x - dimension * (n_x > midpoint)) * delta_k; // Wrap around midpoint
     float k_y = (n_y - dimension * (n_y > midpoint)) * delta_k;
     float k_z = n_z * delta_k;
+
+    // TODO: Alternative
+    // (as above and * delta_k to vector at end)
 
     // Compute squared magnitude of wave vector
     float k_mag_sq = k_x*k_x + k_y*k_y + k_z*k_z;
@@ -127,10 +136,6 @@ __global__ void filter_box_kernel(cuFloatComplex *box, int dimension, int midpoi
 
 }
 
-// *box is a pointer, so only memory address is passed, not entire array
-// #ifdef __cplusplus
-// extern "C"
-// #endif
 void filter_box_gpu(fftwf_complex *box, int RES, int filter_type, float R, float R_param) {
 
     // Get required values
@@ -172,7 +177,7 @@ void filter_box_gpu(fftwf_complex *box, int RES, int filter_type, float R, float
     // Invoke kernel
     int threadsPerBlock = 256;
     int numBlocks = (num_pixels + threadsPerBlock - 1) / threadsPerBlock;
-    filter_box_kernel<<<numBlocks, threadsPerBlock>>>(reinterpret_cast<cuFloatComplex *>(d_box), dimension, midpoint, midpoint_para, delta_k, R, R_param, R_const, filter_type);
+    filter_box_kernel<<<numBlocks, threadsPerBlock>>>(reinterpret_cast<cuFloatComplex *>(d_box), size, dimension, midpoint, midpoint_para, delta_k, R, R_param, R_const, filter_type);
     // filter_box_kernel<<<numBlocks, threadsPerBlock>>>((cuFloatComplex *)d_box, dimension, midpoint, midpoint_para, delta_k, R, R_param, R_const, filter_type);
 
     // Only use during development!
