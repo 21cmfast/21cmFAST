@@ -11,6 +11,14 @@ int ComputePerturbField(
     float redshift, UserParams *user_params, CosmoParams *cosmo_params,
     InitialConditions *boxes, PerturbedField *perturbed_field
 );
+int ComputePerturbField_cpu(
+    float redshift, UserParams *user_params, CosmoParams *cosmo_params,
+    InitialConditions *boxes, PerturbedField *perturbed_field
+);
+int ComputePerturbField_gpu(
+    float redshift, UserParams *user_params, CosmoParams *cosmo_params,
+    InitialConditions *boxes, PerturbedField *perturbed_field
+);
 
 #ifdef __cplusplus
 }
