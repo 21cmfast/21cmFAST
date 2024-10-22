@@ -581,10 +581,7 @@ class TsBox(_AllParamsBox):
 
     _c_compute_function = lib.ComputeTsBox
     _meta = False
-    _inputs = _AllParamsBox._inputs + (
-        "prev_spin_redshift",
-        "perturbed_field_redshift",
-    )
+    _inputs = _AllParamsBox._inputs + ("prev_spin_redshift",)
 
     def __init__(
         self,
@@ -594,7 +591,6 @@ class TsBox(_AllParamsBox):
         **kwargs,
     ):
         self.prev_spin_redshift = prev_spin_redshift
-        self.perturbed_field_redshift = perturbed_field_redshift
         super().__init__(**kwargs)
 
     def _get_box_structures(self) -> dict[str, dict | tuple[int]]:
@@ -683,7 +679,7 @@ class TsBox(_AllParamsBox):
             self.cosmo_params,
             self.astro_params,
             self.flag_options,
-            self.perturbed_field_redshift,
+            perturbed_field.redshift,
             cleanup,
             perturbed_field,
             xray_source_box,

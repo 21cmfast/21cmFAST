@@ -67,7 +67,7 @@ void print_hs_consts(struct HaloSamplingConstants * c){
 }
 
 //This function, designed to be used in the wrapper to estimate Halo catalogue size, takes the parameters and returns average number of halos within the entire box
-double expected_nhalo(double redshift, struct UserParams *user_params, struct CosmoParams *cosmo_params){
+double expected_nhalo(double redshift, UserParams *user_params, CosmoParams *cosmo_params){
     //minimum sampled mass
     Broadcast_struct_global_noastro(user_params,cosmo_params);
     double M_min = user_params->SAMPLER_MIN_MASS;

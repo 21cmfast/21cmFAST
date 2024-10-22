@@ -182,8 +182,6 @@ def perturb_field(
         redshift=redshift,
     )
 
-    logger.info(inputs)
-
     # Initialize perturbed boxes.
     fields = PerturbedField(inputs=inputs)
 
@@ -263,7 +261,6 @@ def determine_halo_list(
         astro_params=astro_params,
         flag_options=flag_options,
     )
-    logger.info(inputs)
 
     if inputs.user_params.HMF != "ST":
         warnings.warn(
@@ -345,7 +342,7 @@ def perturb_halo_list(
 
     Returns
     -------
-    :class:`~XraySourceBox`
+    :class:`~PerturbHaloField`
 
     Other Parameters
     ----------------
@@ -655,7 +652,7 @@ def compute_xray_source_field(
     direc, regenerate, hooks = _get_config_options(direc, regenerate, write, hooks)
 
     inputs = InputParameters.from_output_structs(
-        hboxes + [initial_conditions], redshift=hboxes[-1:].redshift
+        hboxes + [initial_conditions], redshift=hboxes[-1].redshift
     )
 
     # Initialize halo list boxes.
@@ -952,7 +949,11 @@ def compute_ionization_field(
             inputs=inputs.evolve(redshift=0.0), initial=True
         )
 
-    if previous_perturbed_field is None:
+    if not inputs.flag_options.USE_MINI_HALOS:
+        previous_perturbed_field = PerturbedField(
+            inputs=inputs.evolve(redshift=0.0), dummy=True
+        )
+    elif previous_perturbed_field is None:
         # If we are beyond Z_HEAT_MAX, just make an empty box
         if prev_z == 0:
             previous_perturbed_field = PerturbedField(
@@ -1126,7 +1127,7 @@ def spin_temperature(
         )
     else:
         # Set prev_z to anything, since we don't need it.
-        prev_z = np.inf
+        prev_z = 300  # needs to be castable to float type
 
     # Ensure the previous spin temperature has a higher redshift than this one.
     if prev_z <= inputs.redshift:

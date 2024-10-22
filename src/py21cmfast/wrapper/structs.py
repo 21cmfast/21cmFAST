@@ -671,7 +671,11 @@ class OutputStruct(metaclass=ABCMeta):
                                             f"key {kk} with value {v} is not able to be written to HDF5 attrs!"
                                         ) from e
                         else:
-                            fl.attrs[kfile] = q
+                            try:
+                                fl.attrs[kfile] = q
+                            except TypeError as e:
+                                logger.info(f"name {k} val {q}, type {type(q)}")
+                                raise e
 
                     # Write 21cmFAST version to the file
                     fl.attrs["version"] = __version__
@@ -1124,7 +1128,6 @@ class OutputStruct(metaclass=ABCMeta):
                 f"You are trying to compute {self.__class__.__name__}, but it has already been computed."
             )
 
-        logger.info(f"Arguments to {self._c_compute_function.__name__}: " f"{inputs}")
         # Perform the C computation
         try:
             exitcode = self._c_compute_function(*inputs, self())

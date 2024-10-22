@@ -437,6 +437,7 @@ def _run_lightcone_from_perturbed_fields(
         (initial_conditions, *perturbed_fields),
         astro_params=astro_params,
         flag_options=flag_options,
+        redshift=None,
     )
 
     lightconer.validate_options(inputs.user_params, inputs.flag_options)
@@ -647,7 +648,7 @@ def _run_lightcone_from_perturbed_fields(
             if flag_options.USE_TS_FLUCT:
                 z_halos.append(z)
                 hboxes.append(hbox2)
-                xray_source_box = sf.xray_source(
+                xray_source_box = sf.compute_xray_source_field(
                     redshift=z,
                     z_halos=z_halos,
                     hboxes=hboxes,
@@ -666,9 +667,9 @@ def _run_lightcone_from_perturbed_fields(
                 **kw,
             )
 
-        ib2 = sf.ionize_box(
+        ib2 = sf.compute_ionization_field(
             redshift=z,
-            previous_ionize_box=ib,
+            previous_ionized_box=ib,
             perturbed_field=pf2,
             previous_perturbed_field=prev_perturb,
             spin_temp=st2,
@@ -921,6 +922,7 @@ def run_lightcone(
         user_params=user_params,
         astro_params=astro_params,
         flag_options=flag_options,
+        redshift=None,
     )
 
     if pf_given:
@@ -929,7 +931,7 @@ def run_lightcone(
         node_redshifts = get_logspaced_redshifts(
             lightconer.lc_redshifts.min(),
             global_params.ZPRIME_STEP_FACTOR,
-            lightconer.lc_redshifts.max(),
+            max(lightconer.lc_redshifts.max(), global_params.Z_HEAT_MAX),
         )
 
     lcz = lightconer.lc_redshifts

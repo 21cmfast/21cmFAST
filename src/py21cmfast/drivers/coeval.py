@@ -240,7 +240,6 @@ class _HighLevelOutput:
                 for k, val in self.photon_nonconservation_data.items():
                     photon_data[k] = val
 
-            f.attrs["redshift"] = self.redshift
             f.attrs["random_seed"] = self.random_seed
             f.attrs["version"] = __version__
 
