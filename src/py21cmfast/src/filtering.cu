@@ -79,26 +79,24 @@ __global__ void filter_box_kernel(cuFloatComplex *box, size_t size, int dimensio
     // Get index of box (flattened k-box)
     unsigned long long idx = blockIdx.x * blockDim.x + threadIdx.x;
 
-    // TODO: Add bound check (in case number of threads != multiple of block size)
+    // TODO: Do we need a bound check? (in case number of threads != multiple of block size)
     // while (idx < size) {
 
     // Compute the 3D indices (n_x, n_y, n_z) for the k-box from the flattened index (idx)
     // Based on convenience macros in indexing.h
     int n_z = idx % (midpoint_para + 1);
-    unsigned long long remaining = idx / (midpoint_para + 1); // Calculate remaining index
+    unsigned long long remaining = idx / (midpoint_para + 1);
     int n_y = remaining % dimension;
     int n_x = remaining / dimension;
-
-    // TODO: Alternative
-    // array(int) cell_coords = (idx % (midpoint_para + 1), (idx / (midpoint_para + 1)) % dimension, (idx / (midpoint_para + 1)) / dimension)
 
     // Compute wave vector components
     float k_x = (n_x - dimension * (n_x > midpoint)) * delta_k; // Wrap around midpoint
     float k_y = (n_y - dimension * (n_y > midpoint)) * delta_k;
     float k_z = n_z * delta_k;
 
-    // TODO: Alternative
-    // (as above and * delta_k to vector at end)
+    // TODO: Try alternative vectorised coords & wave vector components?
+    // int *cell_coords = (int[]) {idx % (midpoint_para + 1), (idx / (midpoint_para + 1)) % dimension, (idx / (midpoint_para + 1)) / dimension)};    // (as above and * delta_k to vector at end)
+    // int *wave_vector = (float[]) { ... }
 
     // Compute squared magnitude of wave vector
     float k_mag_sq = k_x*k_x + k_y*k_y + k_z*k_z;
@@ -143,14 +141,14 @@ void filter_box_gpu(fftwf_complex *box, int RES, int filter_type, float R, float
     switch(RES) {
         case 0:
             dimension = user_params_global->DIM;
-            midpoint = MIDDLE;  // DIM / 2
-            midpoint_para = MID_PARA;  // NON_CUBIC_FACTOR * HII_DIM / 2
+            midpoint = MIDDLE;  // midpoint of x,y = DIM / 2
+            midpoint_para = MID_PARA;  // midpoint of z = NON_CUBIC_FACTOR * HII_DIM / 2
             num_pixels = KSPACE_NUM_PIXELS;
             break;
         case 1:
             dimension = user_params_global->HII_DIM;
-            midpoint = HII_MIDDLE;  // HII_DIM / 2
-            midpoint_para = HII_MID_PARA;  // NON_CUBIC_FACTOR * HII_DIM / 2
+            midpoint = HII_MIDDLE;  // midpoint of x,y = HII_DIM / 2
+            midpoint_para = HII_MID_PARA;  // midpoint of z = NON_CUBIC_FACTOR * HII_DIM / 2
             num_pixels = HII_KSPACE_NUM_PIXELS;
             break;
         default:
@@ -219,13 +217,11 @@ int test_filter_gpu(UserParams *user_params, CosmoParams *cosmo_params, AstroPar
 
     dft_r2c_cube(user_params->USE_FFTW_WISDOM, user_params->HII_DIM, HII_D_PARA, user_params->N_THREADS, box_unfiltered);
 
+    // Convert to CUDA complex type
     cuFloatComplex* box_unfiltered_cu = reinterpret_cast<cuFloatComplex*>(box_unfiltered);
 
-    // float num_pixels = HII_TOT_NUM_PIXELS;
     for(ii=0;ii<HII_KSPACE_NUM_PIXELS;ii++){
         // box_unfiltered[ii] /= (double)HII_TOT_NUM_PIXELS;
-        // box_unfiltered[ii] = cuCdivf(box_unfiltered[ii], make_cuFloatComplex((float)HII_TOT_NUM_PIXELS, 0.f));
-        // box_unfiltered[ii] = cuCdivf(box_unfiltered[ii], make_cuFloatComplex((float)num_pixels, 0.f));
         box_unfiltered_cu[ii] = cuCdivf(box_unfiltered_cu[ii], make_cuFloatComplex((float)HII_TOT_NUM_PIXELS, 0.f));
     }
 
