@@ -166,16 +166,34 @@ void compute_perturbed_velocities(
 
 }
 
+// ----------------------------------------------------------------------------------------------------------------------------
+
+// #define R_INDEX(x,y,z)((unsigned long long)((z)+D_PARA*((y)+D*(x))))
 __device__ inline double compute_R_INDEX(int i, int j, int k, int DIM, int D_PARA) {
     return k + D_PARA * (j + DIM * i)
 }
 
-__device__ inline double compute_HII_R_INDEX(int i, int j, int k, int DIM, int MID_PARA) {
-    return k + 2 * (MID_PARA + 1) * (j + DIM * i)
+// #define HII_R_INDEX(x,y,z)((unsigned long long)((z)+HII_D_PARA*((y)+HII_D*(x))))
+__device__ inline double compute_HII_R_INDEX(int i, int j, int k, int HII_D_PARA, int HII_D) {
+    return k + HII_D_PARA * (j + HII_D * i)
 }
 
 __global__ void perturb_density_field_kernel(
-    double *resampled_box, int dimension, int DIM, int D_PARA, int MID_PARA,
+    double *resampled_box,
+    const float* __restrict__ hires_density, // Is const needed as well as __restrict__?
+    const float* __restrict__ hires_vx,
+    const float* __restrict__ hires_vy,
+    const float* __restrict__ hires_vz,
+    const float* __restrict__ lowres_vx,
+    const float* __restrict__ lowres_vy,
+    const float* __restrict__ lowres_vz,
+    const float* __restrict__ hires_vx_2LPT,
+    const float* __restrict__ hires_vy_2LPT,
+    const float* __restrict__ hires_vz_2LPT,
+    const float* __restrict__ lowres_vx_2LPT,
+    const float* __restrict__ lowres_vy_2LPT,
+    const float* __restrict__ lowres_vz_2LPT,
+    int dimension, int DIM, int D_PARA, int MID_PARA,
     int NON_CUBIC_FACTOR, float f_pixel_factor, float init_growth_factor,
     bool PERTURB_ON_HIGH_RES, bool USE_2LPT,
     ) {
@@ -186,6 +204,8 @@ __global__ void perturb_density_field_kernel(
     int i = idx / (D_PARA * DIM);
     int j = (idx / D_PARA) % DIM;
     int k = idx % D_PARA;
+
+    int r_index = compute_R_INDEX(i, j, k);
     
     // Map index to location in units of box size
     float xf = (i + 0.5) / DIM;
@@ -194,30 +214,31 @@ __global__ void perturb_density_field_kernel(
 
     // Update locations
     if (PERTURB_ON_HIGH_RES) {
-        xf += hires_vx[compute_R_INDEX(i, j, k)];
-        yf += hires_vy[compute_R_INDEX(i, j, k)];
-        zf += hires_vz[compute_R_INDEX(i, j, k)];
+        xf += __ldg(&hires_vx[r_index]);
+        yf += __ldg(&hires_vy[r_index]);
+        zf += __ldg(&hires_vz[r_index]);
     }
     else {
         unsigned long long HII_i = (unsigned long long)(i / f_pixel_factor);
         unsigned long long HII_j = (unsigned long long)(j / f_pixel_factor);
         unsigned long long HII_k = (unsigned long long)(k / f_pixel_factor);
-        xf += lowres_vx[compute_HII_R_INDEX(HII_i, HII_j, HII_k)];
-        yf += lowres_vy[compute_HII_R_INDEX(HII_i, HII_j, HII_k)];
-        zf += lowres_vz[compute_HII_R_INDEX(HII_i, HII_j, HII_k)];
+        int HII_index = compute_HII_R_INDEX(HII_i, HII_j, HII_k, HII_D_PARA, HII_D);
+        xf += __ldg(&lowres_vx[HII_index]);
+        yf += __ldg(&lowres_vy[HII_index]);
+        zf += __ldg(&lowres_vz[HII_index]);
     }
 
     // 2LPT (add second order corrections)
     if (USE_2LPT) {
         if (PERTURB_ON_HIGH_RES) {
-            xf -= hires_vx_2LPT[compute_R_INDEX(i, j, k)];
-            yf -= hires_vy_2LP[compute_R_INDEX(i, j, k)];
-            zf -= hires_vz_2LPT[compute_R_INDEX(i, j, k)];
+            xf -= __ldg(&hires_vx_2LPT[r_index]);
+            yf -= __ldg(&hires_vy_2LP[r_index]);
+            zf -= __ldg(&hires_vz_2LPT[r_index]);
         }
         else {
-            xf -= lowres_vx_2LPT[compute_HII_R_INDEX(HII_i, HII_j, HII_k)];
-            yf -= lowres_vy_2LPT[compute_HII_R_INDEX(HII_i, HII_j, HII_k)];
-            zf -= lowres_vz_2LPT[compute_HII_R_INDEX(HII_i, HII_j, HII_k)];
+            xf -= __ldg(&lowres_vx_2LPT[HII_index]);
+            yf -= __ldg(&lowres_vy_2LPT[HII_index]);
+            zf -= __ldg(&lowres_vz_2LPT[HII_index]);
         }
     }
 
@@ -278,29 +299,33 @@ __global__ void perturb_density_field_kernel(
     int yp1 = (yi + 1) % dimension;
     int zp1 = (zi + 1) % (unsigned long long)(NON_CUBIC_FACTOR * dimension);
 
+    double scaled_density = 1 + init_growth_factor * __ldg(&hires_density[r_index]);
+
     if (PERTURB_ON_HIGH_RES) {
         // Redistribute the mass over the 8 neighbouring cells according to cloud in cell
         // Cell mass = (1 + init_growth_factor * orig_density) * (proportion of mass to distribute)
-        atomicAdd(&resampled_box[compute_R_INDEX(xi, yi, zi)], (double)(1 + init_growth_factor * hires_density[compute_R_INDEX(i, j, k)]) * t_x * t_y * t_z);
-        atomicAdd(&resampled_box[compute_R_INDEX(xp1, yi, zi)], (double)(1 + init_growth_factor * hires_density[compute_R_INDEX(i, j, k)]) * d_x * t_y * t_z);
-        atomicAdd(&resampled_box[compute_R_INDEX(xi, yp1, zi)], (double)(1 + init_growth_factor * hires_density[compute_R_INDEX(i, j, k)]) * t_x * d_y * t_z);
-        atomicAdd(&resampled_box[compute_R_INDEX(xp1, yp1, zi)], (double)(1 + init_growth_factor * hires_density[compute_R_INDEX(i, j, k)]) * d_x * d_y * t_z);
-        atomicAdd(&resampled_box[compute_R_INDEX(xi, yi, zp1)], (double)(1 + init_growth_factor * hires_density[compute_R_INDEX(i, j, k)]) * t_x * t_y * d_z);
-        atomicAdd(&resampled_box[compute_R_INDEX(xp1, yi, zp1)], (double)(1 + init_growth_factor * hires_density[compute_R_INDEX(i, j, k)]) * d_x * t_y * d_z);
-        atomicAdd(&resampled_box[compute_R_INDEX(xi, yp1, zp1)], (double)(1 + init_growth_factor * hires_density[compute_R_INDEX(i, j, k)]) * t_x * d_y * d_z);
-        atomicAdd(&resampled_box[compute_R_INDEX(xp1, yp1, zp1)], (double)(1 + init_growth_factor * hires_density[compute_R_INDEX(i, j, k)]) * d_x * d_y * d_z);
+        atomicAdd(&resampled_box[compute_R_INDEX(xi, yi, zi)], scaled_density * t_x * t_y * t_z);
+        atomicAdd(&resampled_box[compute_R_INDEX(xp1, yi, zi)], scaled_density * d_x * t_y * t_z);
+        atomicAdd(&resampled_box[compute_R_INDEX(xi, yp1, zi)], scaled_density * t_x * d_y * t_z);
+        atomicAdd(&resampled_box[compute_R_INDEX(xp1, yp1, zi)], scaled_density * d_x * d_y * t_z);
+        atomicAdd(&resampled_box[compute_R_INDEX(xi, yi, zp1)], scaled_density * t_x * t_y * d_z);
+        atomicAdd(&resampled_box[compute_R_INDEX(xp1, yi, zp1)], scaled_density * d_x * t_y * d_z);
+        atomicAdd(&resampled_box[compute_R_INDEX(xi, yp1, zp1)], scaled_density * t_x * d_y * d_z);
+        atomicAdd(&resampled_box[compute_R_INDEX(xp1, yp1, zp1)], scaled_density * d_x * d_y * d_z);
     }
     else {
-        atomicAdd(&resampled_box[compute_HII_R_INDEX(xi, yi, zi)], (double)(1 + init_growth_factor * hires_density[compute_R_INDEX(i, j, k)]) * t_x * t_y * t_z);
-        atomicAdd(&resampled_box[compute_HII_R_INDEX(xp1, yi, zi)], (double)(1 + init_growth_factor * hires_density[compute_R_INDEX(i, j, k)]) * d_x * t_y * t_z);
-        atomicAdd(&resampled_box[compute_HII_R_INDEX(xi, yp1, zi)], (double)(1 + init_growth_factor * hires_density[compute_R_INDEX(i, j, k)]) * t_x * d_y * t_z);
-        atomicAdd(&resampled_box[compute_HII_R_INDEX(xp1, yp1, zi)], (double)(1 + init_growth_factor * hires_density[compute_R_INDEX(i, j, k)]) * d_x * d_y * t_z);
-        atomicAdd(&resampled_box[compute_HII_R_INDEX(xi, yi, zp1)], (double)(1 + init_growth_factor * hires_density[compute_R_INDEX(i, j, k)]) * t_x * t_y * d_z);
-        atomicAdd(&resampled_box[compute_HII_R_INDEX(xp1, yi, zp1)], (double)(1 + init_growth_factor * hires_density[compute_R_INDEX(i, j, k)]) * d_x * t_y * d_z);
-        atomicAdd(&resampled_box[compute_HII_R_INDEX(xi, yp1, zp1)], (double)(1 + init_growth_factor * hires_density[compute_R_INDEX(i, j, k)]) * t_x * d_y * d_z);
-        atomicAdd(&resampled_box[compute_HII_R_INDEX(xp1, yp1, zp1)], (double)(1 + init_growth_factor * hires_density[compute_R_INDEX(i, j, k)]) * d_x * d_y * d_z);
+        atomicAdd(&resampled_box[compute_HII_R_INDEX(xi, yi, zi)], scaled_density * t_x * t_y * t_z);
+        atomicAdd(&resampled_box[compute_HII_R_INDEX(xp1, yi, zi)], scaled_density * d_x * t_y * t_z);
+        atomicAdd(&resampled_box[compute_HII_R_INDEX(xi, yp1, zi)], scaled_density * t_x * d_y * t_z);
+        atomicAdd(&resampled_box[compute_HII_R_INDEX(xp1, yp1, zi)], scaled_density * d_x * d_y * t_z);
+        atomicAdd(&resampled_box[compute_HII_R_INDEX(xi, yi, zp1)], scaled_density * t_x * t_y * d_z);
+        atomicAdd(&resampled_box[compute_HII_R_INDEX(xp1, yi, zp1)], scaled_density * d_x * t_y * d_z);
+        atomicAdd(&resampled_box[compute_HII_R_INDEX(xi, yp1, zp1)], scaled_density * t_x * d_y * d_z);
+        atomicAdd(&resampled_box[compute_HII_R_INDEX(xp1, yp1, zp1)], scaled_density * d_x * d_y * d_z);
     }
 }
+
+// ------------------------------------------------------------------------------------------------------------------------------------------------------------------
 
 int ComputePerturbField_gpu(
     float redshift, UserParams *user_params, CosmoParams *cosmo_params,
@@ -487,6 +512,8 @@ int ComputePerturbField_gpu(
         // ************  END INITIALIZATION **************************** //
 
 
+        // ----------------------------------------------------------------------------------------------------------------------------
+
         // Box shapes from outputs.py and convenience macros
         if(user_params->PERTURB_ON_HIGH_RES) {
             int num_pixels = TOT_NUM_PIXELS;
@@ -603,6 +630,8 @@ int ComputePerturbField_gpu(
                 cudaFree(lowres_vz_2LPT);
             }
         }
+
+        // ----------------------------------------------------------------------------------------------------------------------------
 
         LOG_SUPER_DEBUG("resampled_box: ");
         debugSummarizeBoxDouble(resampled_box, dimension, user_params->NON_CUBIC_FACTOR, "  ");
