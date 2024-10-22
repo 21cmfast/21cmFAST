@@ -190,7 +190,7 @@ void filter_box_gpu(fftwf_complex *box, int RES, int filter_type, float R, float
     err = cudaGetLastError();
     if (err != cudaSuccess) {
         LOG_ERROR("Kernel launch error: %s", cudaGetErrorString(err));
-        Throw(CudaError); // Or the appropriate exception type
+        Throw(CudaError);
     }
 
     // Copy results from device to host
