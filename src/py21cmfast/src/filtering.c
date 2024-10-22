@@ -1,7 +1,3 @@
-
-//filter_box, filter_box_annulus and filter_box_mfp should be combined in a better way, they require different inputs
-//and they are run on different subsets of the boxes but they contain a lot of the same math
-
 #include <stdlib.h>
 #include <stdio.h>
 #include <math.h>
@@ -157,15 +153,8 @@ void filter_box(fftwf_complex *box, int RES, int filter_type, float R, float R_p
     if (1) {
         filter_box_gpu(box, RES, filter_type, R, R_param);
     } else {
-        // Call the CPU version
         filter_box_cpu(box, RES, filter_type, R, R_param);
     }
-    // switch(GPU) {
-    //     case 0:
-    //         filter_box_cpu(box, RES, filter_type, R, R_param);
-    //     case 1:
-    //         filter_box_gpu(box, RES, filter_type, R, R_param);
-    // }
 }
 
 //Test function to filter a box without computing a whole output box
