@@ -34,21 +34,46 @@ class _OutputStruct(_BaseOutputStruct):
         if inputs:
             self.cosmo_params = inputs.cosmo_params
             self.user_params = inputs.user_params
+            self._random_seed = inputs.random_seed
             # TODO: probably move the InputParameters to BaseOutputStruct
             #   but that will cause a circular import unless more restructuring is done
             self.inputs = inputs
-        else:
-            self.cosmo_params = CosmoParams()
-            self.user_params = UserParams()
 
         super().__init__(**kwargs)
 
 
 class _OutputStructZ(_OutputStruct):
-    _param_inputs = _OutputStruct._param_inputs
-    _kwarg_inputs = _OutputStruct._kwarg_inputs + ("redshift",)
+    _inputs = _OutputStruct._inputs + ("redshift",)
 
     def __init__(self, *, inputs: InputParameters | None = None, **kwargs):
+        if inputs:
+            self.redshift = inputs.redshift
+        super().__init__(inputs=inputs, **kwargs)
+
+
+class _AllParamsBox(_OutputStructZ):
+    _meta = True
+    _inputs = _OutputStructZ._inputs + ("flag_options", "astro_params")
+
+    _filter_params = _OutputStruct._filter_params + [
+        "T_USE_VELOCITIES",  # bt
+        "MAX_DVDR",  # bt
+    ]
+
+    def __init__(
+        self,
+        *,
+        inputs: InputParameters | None = None,
+        **kwargs,
+    ):
+        if inputs:
+            self.flag_options = inputs.flag_options
+            self.astro_params = inputs.astro_params
+
+        # TODO: This only seems to be used in IonizedBox
+        self.log10_Mturnover_ave = 0.0
+        self.log10_Mturnover_MINI_ave = 0.0
+
         super().__init__(inputs=inputs, **kwargs)
 
 
@@ -283,40 +308,11 @@ class PerturbedField(_OutputStructZ):
         return self.velocity_z  # for backwards compatibility
 
 
-class _AllParamsBox(_OutputStructZ):
-    _meta = True
-    _param_inputs = _OutputStructZ._param_inputs + ("flag_options", "astro_params")
-
-    _filter_params = _OutputStruct._filter_params + [
-        "T_USE_VELOCITIES",  # bt
-        "MAX_DVDR",  # bt
-    ]
-
-    def __init__(
-        self,
-        *,
-        inputs: InputParameters | None = None,
-        **kwargs,
-    ):
-        if inputs:
-            self.flag_options = inputs.flag_options
-            self.astro_params = inputs.astro_params
-        else:
-            self.flag_options = FlagOptions()
-            self.astro_params = AstroParams(flag_options=FlagOptions())
-
-        # TODO: This only seems to be used in IonizedBox
-        self.log10_Mturnover_ave = 0.0
-        self.log10_Mturnover_MINI_ave = 0.0
-
-        super().__init__(inputs=inputs, **kwargs)
-
-
 class HaloField(_AllParamsBox):
     """A class containing all fields related to halos."""
 
     _meta = False
-    _kwarg_inputs = _AllParamsBox._kwarg_inputs + (
+    _inputs = _AllParamsBox._inputs + (
         "desc_redshift",
         "buffer_size",
     )
@@ -388,7 +384,7 @@ class PerturbHaloField(_AllParamsBox):
 
     _c_compute_function = lib.ComputePerturbHaloField
     _meta = False
-    _kwarg_inputs = _AllParamsBox._kwarg_inputs + ("buffer_size",)
+    _inputs = _AllParamsBox._inputs + ("buffer_size",)
 
     def __init__(
         self,
@@ -585,7 +581,7 @@ class TsBox(_AllParamsBox):
 
     _c_compute_function = lib.ComputeTsBox
     _meta = False
-    _kwarg_inputs = _AllParamsBox._kwarg_inputs + (
+    _inputs = _AllParamsBox._inputs + (
         "prev_spin_redshift",
         "perturbed_field_redshift",
     )
@@ -702,7 +698,7 @@ class IonizedBox(_AllParamsBox):
 
     _meta = False
     _c_compute_function = lib.ComputeIonizedBox
-    _kwarg_inputs = _AllParamsBox._kwarg_inputs + ("prev_ionize_redshift",)
+    _inputs = _AllParamsBox._inputs + ("prev_ionize_redshift",)
 
     def __init__(self, *, prev_ionize_redshift: float | None = None, **kwargs):
         self.prev_ionize_redshift = prev_ionize_redshift

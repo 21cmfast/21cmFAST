@@ -122,7 +122,7 @@ void stoc_set_consts_z(struct HaloSamplingConstants *const_struct, double redshi
 
     const_struct->sigma_min = EvaluateSigma(const_struct->lnM_min);
 
-    if(redshift_desc >= 0){
+    if(redshift_desc > 0){
         const_struct->growth_in = dicke(redshift_desc);
         if(astro_params_global->CORR_SFR > 0)
             const_struct->corr_sfr = exp(-(redshift - redshift_desc)/astro_params_global->CORR_SFR);
@@ -960,7 +960,7 @@ int stochastic_halofield(UserParams *user_params, CosmoParams *cosmo_params,
 
     //Fill them
     //NOTE:Halos prev in the first box corresponds to the large DexM halos
-    if(redshift_desc < 0.){
+    if(redshift_desc <= 0.){
         LOG_DEBUG("building first halo field at z=%.1f", redshift);
         sample_halo_grids(rng_stoc,redshift,dens_field,halo_overlap_box,halos_desc,halos,&hs_constants);
     }

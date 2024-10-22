@@ -221,11 +221,11 @@ class OutputStruct(metaclass=ABCMeta):
     _meta = True
     _fields_ = []
     _global_params = None
-    _param_inputs = (
+    _inputs = (
         "user_params",
         "cosmo_params",
+        "_random_seed",
     )  # inputs provided in the InputParameter class
-    _kwarg_inputs = ("_random_seed",)  # other keyword arguments
     _filter_params = [
         "external_table_path",
         "wisdoms_path",
@@ -237,7 +237,7 @@ class OutputStruct(metaclass=ABCMeta):
 
     _TYPEMAP = bidict({"float32": "float *", "float64": "double *", "int32": "int *"})
 
-    def __init__(self, *, random_seed=None, dummy=False, initial=False, **kwargs):
+    def __init__(self, *, dummy=False, initial=False, **kwargs):
         """
         Base type for output structures from C functions.
 
@@ -258,9 +258,7 @@ class OutputStruct(metaclass=ABCMeta):
         self.patch_version = ".".join(__version__.split(".")[2:])
         self._paths = []
 
-        self._random_seed = random_seed
-
-        for k in self._kwarg_inputs + self._param_inputs:
+        for k in self._inputs:
             if k not in self.__dict__:
                 try:
                     setattr(self, k, kwargs.pop(k))
@@ -299,7 +297,7 @@ class OutputStruct(metaclass=ABCMeta):
 
     @property
     def _all_inputs(self):
-        return self._param_inputs + self._kwarg_inputs + ("_global_params",)
+        return self._inputs + ("_global_params",)
 
     @property
     def path(self) -> tuple[None, Path]:
@@ -898,7 +896,7 @@ class OutputStruct(metaclass=ABCMeta):
         # Read the input parameter dictionaries from file.
         kwargs = {}
         inputstructs = {}
-        for k in cls._param_inputs + cls._kwarg_inputs:
+        for k in cls._inputs:
             kfile = k.lstrip("_")
             input_class_name = snake_to_camel(kfile)
 
@@ -971,10 +969,7 @@ class OutputStruct(metaclass=ABCMeta):
                     if isinstance(v, InputStruct)
                     else k.lstrip("_") + ":" + repr(v)
                 )
-                for k, v in [
-                    (k, getattr(self, k))
-                    for k in self._param_inputs + self._kwarg_inputs
-                ]
+                for k, v in [(k, getattr(self, k)) for k in self._inputs]
             )
         ) + ")"
 
@@ -1129,6 +1124,7 @@ class OutputStruct(metaclass=ABCMeta):
                 f"You are trying to compute {self.__class__.__name__}, but it has already been computed."
             )
 
+        logger.info(f"Arguments to {self._c_compute_function.__name__}: " f"{inputs}")
         # Perform the C computation
         try:
             exitcode = self._c_compute_function(*inputs, self())

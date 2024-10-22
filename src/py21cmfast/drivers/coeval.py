@@ -26,7 +26,11 @@ from ..wrapper.outputs import (
 )
 from ..wrapper.photoncons import _get_photon_nonconservation_data, setup_photon_cons
 from . import single_field as sf
-from .param_config import InputParameters, _get_config_options
+from .param_config import (
+    InputParameters,
+    _get_config_options,
+    check_redshift_consistency,
+)
 from .single_field import set_globals
 
 logger = logging.getLogger(__name__)
@@ -222,7 +226,7 @@ class _HighLevelOutput:
                 grp = f.create_group(kfile)
 
                 try:
-                    dct = q.self
+                    dct = q.asdict()
                 except AttributeError:
                     dct = q
 
@@ -331,7 +335,8 @@ class Coeval(_HighLevelOutput):
     ):
 
         # Check that all the fields have the same input parameters.
-        InputParameters.from_output_structs(
+        # TODO: use this instead of all the parameter methods
+        input_struct = InputParameters.from_output_structs(
             (
                 initial_conditions,
                 perturbed_field,
@@ -339,7 +344,18 @@ class Coeval(_HighLevelOutput):
                 ionized_box,
                 brightness_temp,
                 ts_box,
-            )
+            ),
+            redshift=redshift,
+        )
+        check_redshift_consistency(
+            input_struct,
+            (
+                perturbed_field,
+                halobox,
+                ionized_box,
+                brightness_temp,
+                ts_box,
+            ),
         )
 
         self.redshift = redshift
@@ -569,6 +585,7 @@ def run_coeval(
     )
 
     inputs = InputParameters(
+        random_seed=random_seed,
         user_params=user_params,
         cosmo_params=cosmo_params,
         astro_params=astro_params,

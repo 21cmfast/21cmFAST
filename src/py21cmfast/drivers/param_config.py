@@ -47,7 +47,7 @@ def input_param_field(kls: InputStruct):
     )
 
 
-@attrs.define
+@attrs.define(kw_only=True)
 class InputParameters:
     """A class defining a collection of InputStruct instances.
 
@@ -56,6 +56,8 @@ class InputParameters:
     different sets of instances.
     """
 
+    random_seed = attrs.field(default=None, converter=attrs.converters.optional(int))
+    redshift = attrs.field(default=None, converter=attrs.converters.optional(float))
     user_params: UserParams = input_param_field(UserParams)
     cosmo_params: CosmoParams = input_param_field(CosmoParams)
     flag_options: FlagOptions = input_param_field(FlagOptions)
@@ -113,10 +115,14 @@ class InputParameters:
             else:
                 raise ValueError(msg)
 
-    def keys(self):
+    def merge_keys(self):
         """The list of available structs in this instance."""
         # Allow using **input_parameters
-        return [field.name for field in attrs.fields(self.__class__)]
+        return [
+            field.name
+            for field in attrs.fields(self.__class__)
+            if field.name != "redshift"
+        ]
 
     def __getitem__(self, key):
         """Get an item from the instance in a dict-like manner."""
@@ -138,15 +144,14 @@ class InputParameters:
 
         return not any(
             other[key] is not None and self[key] is not None and self[key] != other[key]
-            for key in self.keys()
+            for key in self.merge_keys()
         )
 
     def merge(self, other: InputParameters) -> InputParameters:
         """Merge another InputParameters instance with this one, checking for compatibility."""
         if not self.is_compatible_with(other):
             raise ValueError("Input parameters are not compatible.")
-        logger.info(f"merging: {({k: self[k] or other[k] for k in self.keys()})}")
-        return InputParameters(**{k: self[k] or other[k] for k in self.keys()})
+        return InputParameters(**{k: self[k] or other[k] for k in self.merge_keys()})
 
     @classmethod
     def combine(cls, inputs: Sequence[InputParameters]) -> InputParameters:
@@ -171,13 +176,14 @@ class InputParameters:
         return this
 
     @classmethod
-    def from_output_structs(cls, output_structs, **defaults) -> InputParameters:
+    def from_output_structs(
+        cls, output_structs, redshift, **defaults
+    ) -> InputParameters:
         """Generate a new InputParameters instance given a list of OutputStructs."""
         input_params = []
         for struct in output_structs:
             if struct is not None:
                 input_params.append(struct.inputs)
-                logger.info(f"added struct {struct.__class__} inputs {struct.inputs}")
 
         if len(input_params) == 0:
             return cls(**defaults)
@@ -185,8 +191,12 @@ class InputParameters:
             # Combine all the parameter structs from input boxes
             out = cls.combine(input_params)
             # Now combine with provided kwargs
-            logger.info(f"adding kwargs {defaults}")
-            return out.merge(cls(**defaults))
+            return attrs.evolve(out.merge(cls(**defaults)), redshift=redshift)
+
+    # NOTE: This may not be a method in attrs for a reason....
+    def evolve(self, **kwargs):
+        """Generate a copy of the InputParameter structure with specified changes."""
+        return attrs.evolve(self, **kwargs)
 
     def __repr__(self):
         """
@@ -203,40 +213,15 @@ class InputParameters:
         )
 
 
-# def configure_redshift(redshift, *structs):
-#     """
-#     Check and obtain a redshift from given default and structs.
-
-#     Parameters
-#     ----------
-#     redshift : float
-#         The default redshift to use
-#     structs : list of :class:`~_utils.OutputStruct`
-#         A number of output datasets from which to find the redshift.
-
-#     Raises
-#     ------
-#     ValueError :
-#         If both `redshift` and *all* structs have a value of `None`, **or** if any of them
-#         are different from each other (and not `None`).
-#     """
-#     zs = {s.redshift for s in structs if s is not None and hasattr(s, "redshift")}
-#     zs = list(zs)
-
-#     if len(zs) > 1 or (
-#         len(zs) == 1
-#         and redshift is not None
-#         and not np.isclose(zs[0], redshift, atol=1e-5)
-#     ):
-#         raise ValueError("Incompatible redshifts in inputs")
-#     elif len(zs) == 1:
-#         return zs[0]
-#     elif redshift is None:
-#         raise ValueError(
-#             "Either redshift must be provided, or a data set containing it."
-#         )
-#     else:
-#         return redshift
+# TODO: In order to fully combine this with the other paramter config, we
+# need to pass in a boolean sequence to InputParamters.from_output_structs
+# marking structs (previous, initial) as exempt from redshift comparison.
+# This would make .merge and .is_compatible ignore their redshifts
+def check_redshift_consistency(inputs: InputParameters, output_structs):
+    """Check the redshifts between provided OutputStruct objects and an InputParamters instance."""
+    for struct in output_structs:
+        if struct is not None and struct.inputs.redshift != inputs.redshift:
+            raise ValueError("Incompatible redshifts in inputs")
 
 
 def _get_config_options(
