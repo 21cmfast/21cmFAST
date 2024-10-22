@@ -297,7 +297,7 @@ class _AllParamsBox(_OutputStructZ):
             self.astro_params = inputs.astro_params
         else:
             self.flag_options = FlagOptions()
-            self.astro_params = AstroParams(INHOMO_RECO=self.flag_options.INHOMO_RECO)
+            self.astro_params = AstroParams(flag_options=FlagOptions())
 
         # TODO: This only seems to be used in IonizedBox
         self.log10_Mturnover_ave = 0.0

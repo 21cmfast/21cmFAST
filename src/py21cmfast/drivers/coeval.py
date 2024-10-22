@@ -467,7 +467,7 @@ def get_logspaced_redshifts(min_redshift: float, z_step_factor: float, zmax: flo
     while redshifts[-1] < zmax:
         redshifts.append((redshifts[-1] + 1.0) * z_step_factor - 1.0)
 
-    return redshifts
+    return np.array(redshifts)[::-1]
 
 
 @set_globals

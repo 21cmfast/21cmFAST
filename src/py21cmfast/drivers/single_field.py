@@ -248,7 +248,11 @@ def determine_halo_list(
 
     # Configure and check input/output parameters/structs
     inputs = InputParameters.from_output_structs(
-        initial_conditions, astro_params=astro_params, flag_options=flag_options
+        [
+            initial_conditions,
+        ],
+        astro_params=astro_params,
+        flag_options=flag_options,
     )
     random_seed = initial_conditions.random_seed
 
@@ -296,7 +300,6 @@ def determine_halo_list(
         ics=initial_conditions,
         hooks=hooks,
         descendant_halos=descendant_halos,
-        random_seed=random_seed,
     )
 
 
@@ -352,11 +355,16 @@ def perturb_halo_list(
 
     hbuffer_size = halo_field.n_halos
 
+    # Configure and check input/output parameters/structs
+    inputs = InputParameters.from_output_structs(
+        [initial_conditions, halo_field],
+    )
+
     # Initialize halo list boxes.
     fields = PerturbHaloField(
         redshift=redshift,
         buffer_size=hbuffer_size,
-        inputs=halo_field.inputs,
+        inputs=inputs,
         random_seed=halo_field.random_seed,
     )
 

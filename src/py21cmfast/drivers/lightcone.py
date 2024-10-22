@@ -442,19 +442,21 @@ def _run_lightcone_from_perturbed_fields(
     lightconer.validate_options(inputs.user_params, inputs.flag_options)
 
     # Get the redshift through which we scroll and evaluate the ionization field.
-    scrollz = [pf.redshift for pf in perturbed_fields]
-    if np.any(np.diff(scrollz)) >= 0:
+    scrollz = np.array([pf.redshift for pf in perturbed_fields])
+    if np.any(np.diff(scrollz) >= 0):
         raise ValueError(
-            "The perturb fields must be ordered by redshift in descending order."
+            "The perturb fields must be ordered by redshift in descending order.\n"
+            + f"redshifts: {scrollz}\n"
+            + f"diffs: {np.diff(scrollz)}"
         )
 
     lcz = lightconer.lc_redshifts
-    if not np.all(min(scrollz) * 0.99 < lcz) and np.all(lcz < max(scrollz) * 1.01):
+    if not np.all(scrollz.min() * 0.99 < lcz) and np.all(lcz < scrollz.max() * 1.01):
         # We have a 1% tolerance on the redshifts, because the lightcone redshifts are
         # computed via inverse fitting the comoving_distance.
         raise ValueError(
             "The lightcone redshifts are not compatible with the given redshift."
-            f"The range of computed redshifts is {min(scrollz)} to {max(scrollz)}, "
+            f"The range of computed redshifts is {scrollz.min()} to {scrollz.max()}, "
             f"while the lightcone redshift range is {lcz.min()} to {lcz.max()}."
         )
 
@@ -537,7 +539,9 @@ def _run_lightcone_from_perturbed_fields(
         setup_photon_cons(**kw)
 
     # Iterate through redshift from top to bottom
-    if not np.isclose(lightcone.node_redshifts.min(), lightcone._current_redshift):
+    if lightcone._current_redshift and not np.isclose(
+        lightcone.node_redshifts.min(), lightcone._current_redshift
+    ):
         logger.info(
             f"Finding boxes at z={lightcone._current_redshift} with seed {lightcone.random_seed} and direc={direc}"
         )

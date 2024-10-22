@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import attrs
+import logging
 import os
 import warnings
 from functools import cached_property
@@ -18,6 +19,8 @@ from ..wrapper.inputs import (
     UserParams,
 )
 
+logger = logging.getLogger(__name__)
+
 
 class InputCrossValidationError(ValueError):
     """Error when two parameters from different structs aren't consistent."""
@@ -25,7 +28,7 @@ class InputCrossValidationError(ValueError):
     pass
 
 
-def input_param_field(kls: InputStruct, default: bool = True):
+def input_param_field(kls: InputStruct):
     """An attrs field that must be an InputStruct.
 
     Parameters
@@ -37,18 +40,11 @@ def input_param_field(kls: InputStruct, default: bool = True):
         as opposed to None
 
     """
-    if default:
-        return attrs.field(
-            default=kls(),
-            converter=kls.new,
-            validator=attrs.validators.instance_of(kls),
-        )
-    else:
-        return attrs.field(
-            default=None,
-            converter=attrs.converters.optional(kls.new),
-            validator=attrs.validators.optional(attrs.validators.instance_of(kls)),
-        )
+    return attrs.field(
+        default=None,
+        converter=attrs.converters.optional(kls.new),
+        validator=attrs.validators.optional(attrs.validators.instance_of(kls)),
+    )
 
 
 @attrs.define
@@ -60,32 +56,33 @@ class InputParameters:
     different sets of instances.
     """
 
-    user_params: UserParams = input_param_field(UserParams, default=True)
-    cosmo_params: CosmoParams = input_param_field(CosmoParams, default=True)
-    flag_options: FlagOptions = input_param_field(FlagOptions, default=False)
-    astro_params: AstroParams = input_param_field(AstroParams, default=False)
+    user_params: UserParams = input_param_field(UserParams)
+    cosmo_params: CosmoParams = input_param_field(CosmoParams)
+    flag_options: FlagOptions = input_param_field(FlagOptions)
+    astro_params: AstroParams = input_param_field(AstroParams)
 
     @flag_options.validator
     def _flag_options_validator(self, att, val):
         if val is None:
             return
 
-        if (
-            val.USE_MINI_HALOS
-            and not self.user_params.USE_RELATIVE_VELOCITIES
-            and not val.FIX_VCB_AVG
-        ):
-            warnings.warn(
-                "USE_MINI_HALOS needs USE_RELATIVE_VELOCITIES to get the right evolution!"
-            )
+        if self.user_params is not None:
+            if (
+                val.USE_MINI_HALOS
+                and not self.user_params.USE_RELATIVE_VELOCITIES
+                and not val.FIX_VCB_AVG
+            ):
+                warnings.warn(
+                    "USE_MINI_HALOS needs USE_RELATIVE_VELOCITIES to get the right evolution!"
+                )
 
-        if val.HALO_STOCHASTICITY and self.user_params.PERTURB_ON_HIGH_RES:
-            msg = (
-                "Since the lowres density fields are required for the halo sampler"
-                "We are currently unable to use PERTURB_ON_HIGH_RES and HALO_STOCHASTICITY"
-                "Simultaneously."
-            )
-            raise NotImplementedError(msg)
+            if val.HALO_STOCHASTICITY and self.user_params.PERTURB_ON_HIGH_RES:
+                msg = (
+                    "Since the lowres density fields are required for the halo sampler"
+                    "We are currently unable to use PERTURB_ON_HIGH_RES and HALO_STOCHASTICITY"
+                    "Simultaneously."
+                )
+                raise NotImplementedError(msg)
 
         if val.USE_EXP_FILTER and not val.USE_HALO_FIELD:
             warnings.warn("USE_EXP_FILTER has no effect unless USE_HALO_FIELD is true")
@@ -93,6 +90,8 @@ class InputParameters:
     @astro_params.validator
     def _astro_params_validator(self, att, val):
         if val is None:
+            return
+        if self.user_params is None:
             return
 
         if val.R_BUBBLE_MAX > self.user_params.BOX_LEN:
@@ -142,7 +141,8 @@ class InputParameters:
             return False
 
         return not any(
-            other[key] is not None and self[key] != other[key] for key in self.keys()
+            other[key] is not None and self[key] is not None and self[key] != other[key]
+            for key in self.keys()
         )
 
     def merge(self, other: InputParameters) -> InputParameters:
@@ -180,14 +180,14 @@ class InputParameters:
         input_params = []
         for struct in output_structs:
             if struct is not None:
-                for k, v in dir(struct).items():
-                    if isinstance(v, InputParameters):
-                        input_params.append(v)
+                input_params.append(struct.inputs)
 
         if len(input_params) == 0:
             return cls(**defaults)
         else:
+            # Combine all the parameter structs from input boxes
             out = cls.combine(input_params)
+            # Now combine with provided kwargs
             return out.merge(cls(**defaults))
 
     def __repr__(self):

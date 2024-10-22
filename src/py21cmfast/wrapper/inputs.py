@@ -692,7 +692,6 @@ class AstroParams(InputStruct):
     F_ESC10 = field(
         default=-1.0,
         converter=float,
-        validator=between(-3.0, 0.0),
         transformer=logtransformer,
     )
     ALPHA_ESC = field(
@@ -701,7 +700,6 @@ class AstroParams(InputStruct):
     )
     F_ESC7_MINI = field(
         converter=float,
-        validator=between(-3.0, 0.0),
         transformer=logtransformer,
     )
     M_TURN = field(

@@ -133,7 +133,7 @@ class InputStruct:
             return cls(**x)
         elif isinstance(x, InputStruct):
             return x
-        elif isinstance(x, None):
+        elif x is None:
             return cls()
         else:
             raise ValueError(
@@ -907,7 +907,10 @@ class OutputStruct(metaclass=ABCMeta):
                     input_classes.index(input_class_name)
                 ]
                 subgrp = grp[kfile]
-                inputstructs[k] = input_class(
+                logger.info(
+                    {k: v for k, v in dict(subgrp.attrs).items() if v != "none"}
+                )
+                inputstructs[k] = input_class.new(
                     {k: v for k, v in dict(subgrp.attrs).items() if v != "none"}
                 )
             else:

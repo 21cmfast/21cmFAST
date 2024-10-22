@@ -30,7 +30,7 @@ def get_expected_nhalo(
     cosmo_params : :class:`~CosmoParams`
         Cosmological parameters.
     """
-    return lib.expected_nhalo(redshift, user_params(), cosmo_params())
+    return lib.expected_nhalo(redshift, user_params.cstruct, cosmo_params.cstruct)
 
 
 def get_halo_list_buffer_size(
@@ -108,7 +108,7 @@ def compute_tau(
 
     # Run the C code
     return lib.ComputeTau(
-        inputs.user_params(), inputs.cosmo_params(), len(redshifts), z, xHI
+        inputs.user_params.cstruct, inputs.cosmo_params.cstruct, len(redshifts), z, xHI
     )
 
 
@@ -233,10 +233,10 @@ def compute_luminosity_function(
         # Run the C code
         errcode = lib.ComputeLF(
             nbins,
-            user_params(),
-            cosmo_params(),
-            astro_params(),
-            flag_options(),
+            user_params.cstruct,
+            cosmo_params.cstruct,
+            astro_params.cstruct,
+            flag_options.cstruct,
             1,
             len(redshifts),
             ffi.cast("float *", ffi.from_buffer(redshifts)),
@@ -251,10 +251,10 @@ def compute_luminosity_function(
             lib.ComputeLF,
             (
                 nbins,
-                user_params,
-                cosmo_params,
-                astro_params,
-                flag_options,
+                user_params.cstruct,
+                cosmo_params.cstruct,
+                astro_params.cstruct,
+                flag_options.cstruct,
                 1,
                 len(redshifts),
             ),
@@ -264,10 +264,10 @@ def compute_luminosity_function(
         # Run the C code
         errcode = lib.ComputeLF(
             nbins,
-            user_params(),
-            cosmo_params(),
-            astro_params(),
-            flag_options(),
+            user_params.cstruct,
+            cosmo_params.cstruct,
+            astro_params.cstruct,
+            flag_options.cstruct,
             2,
             len(redshifts),
             ffi.cast("float *", ffi.from_buffer(redshifts)),
@@ -282,10 +282,10 @@ def compute_luminosity_function(
             lib.ComputeLF,
             (
                 nbins,
-                user_params,
-                cosmo_params,
-                astro_params,
-                flag_options,
+                user_params.cstruct,
+                cosmo_params.cstruct,
+                astro_params.cstruct,
+                flag_options.cstruct,
                 2,
                 len(redshifts),
             ),
@@ -365,6 +365,6 @@ def construct_fftw_wisdoms(
 
     # Run the C code
     if user_params.USE_FFTW_WISDOM:
-        return lib.CreateFFTWWisdoms(user_params(), cosmo_params())
+        return lib.CreateFFTWWisdoms(user_params.cstruct, cosmo_params.cstruct)
     else:
         return 0
