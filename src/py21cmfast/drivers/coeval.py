@@ -649,7 +649,9 @@ def run_coeval(
     if inputs.flag_options.USE_HALO_FIELD and not inputs.flag_options.FIXED_HALO_GRIDS:
         halos_desc = None
         for i, z in enumerate(redshifts[::-1]):
-            halos = sf.determine_halo_list(redshift=z, halos_desc=halos_desc, **kw)
+            halos = sf.determine_halo_list(
+                redshift=z, descendant_halos=halos_desc, **kw
+            )
             pt_halos += [sf.perturb_halo_list(redshift=z, halo_field=halos, **kw)]
 
             # we never want to store every halofield
@@ -707,7 +709,7 @@ def run_coeval(
 
             hb2 = sf.compute_halo_grid(
                 redshift=z,
-                pt_halos=ph2,
+                perturbed_halo_list=ph2,
                 perturbed_field=pf2,
                 previous_ionize_box=ib,
                 previous_spin_temp=st,

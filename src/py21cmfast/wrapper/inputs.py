@@ -484,6 +484,15 @@ class FlagOptions(InputStruct):
         transformer=choice_transformer(_photoncons_models),
     )
     USE_UPPER_STELLAR_TURNOVER = field(default=True, converter=bool)
+    M_MIN_in_Mass = field(default=True, converter=bool)
+
+    @M_MIN_in_Mass.validator
+    def _M_MIN_in_Mass_vld(self, att, val):
+        """M_MIN_in_Mass must be true if USE_MASS_DEPENDENT_ZETA is true."""
+        if not val and self.USE_MASS_DEPENDENT_ZETA:
+            raise ValueError(
+                "M_MIN_in_Mass must be true if USE_MASS_DEPENDENT_ZETA is true."
+            )
 
     @SUBCELL_RSD.validator
     def _SUBCELL_RSD_vld(self, att, val):

@@ -173,10 +173,10 @@ def perturb_field(
 
     random_seed = initial_conditions.random_seed
 
+    inputs = initial_conditions.inputs
+
     # Initialize perturbed boxes.
-    fields = PerturbedField(
-        redshift=redshift, random_seed=random_seed, inputs=initial_conditions.inputs
-    )
+    fields = PerturbedField(redshift=redshift, random_seed=random_seed, inputs=inputs)
 
     # Check whether the boxes already exist
     if not regenerate:
@@ -189,7 +189,9 @@ def perturb_field(
             return fields
 
     # Construct FFTW wisdoms. Only if required
-    construct_fftw_wisdoms(**initial_conditions.inputs)
+    construct_fftw_wisdoms(
+        user_params=inputs.user_params, cosmo_params=inputs.cosmo_params
+    )
 
     # Run the C Code
     return fields.compute(ics=initial_conditions, hooks=hooks)
@@ -201,7 +203,6 @@ def determine_halo_list(
     redshift: float,
     initial_conditions: InitialConditions,
     descendant_halos: HaloField | None = None,
-    desc_z=None,
     astro_params=None,
     flag_options=None,
     regenerate=None,
@@ -256,7 +257,7 @@ def determine_halo_list(
     )
     random_seed = initial_conditions.random_seed
 
-    if inputs.user_params.HMF != 1:
+    if inputs.user_params.HMF != "ST":
         warnings.warn(
             "DexM Halofinder sses a fit to the Sheth-Tormen mass function."
             "With HMF!=1 the Halos from DexM will not be from the same mass function",
@@ -266,9 +267,16 @@ def determine_halo_list(
         redshift, inputs.user_params, inputs.cosmo_params
     )
 
+    if descendant_halos is None:
+        descendant_halos = HaloField(
+            redshift=-1.0,
+            dummy=True,
+            inputs=inputs,
+        )
+
     # Initialize halo list boxes.
     fields = HaloField(
-        desc_redshift=desc_z,
+        desc_redshift=descendant_halos.redshift,
         buffer_size=hbuffer_size,
         redshift=redshift,
         random_seed=random_seed,
@@ -287,13 +295,6 @@ def determine_halo_list(
                 f"(seed={fields.random_seed})."
             )
             return fields
-
-    if descendant_halos is None:
-        descendant_halos = HaloField(
-            redshift=0,
-            dummy=True,
-            inputs=inputs,
-        )
 
     # Run the C Code
     return fields.compute(
@@ -436,7 +437,8 @@ def compute_halo_grid(
             previous_ionize_box,
         )
     )
-    random_seed = previous_spin_temp.random_seed
+
+    random_seed = initial_conditions.random_seed
 
     # Initialize halo list boxes.
     box = HaloBox(redshift=redshift, random_seed=random_seed, inputs=inputs)
@@ -919,9 +921,9 @@ def compute_ionization_field(
                 "Previous ionized box must have a higher redshift than that being evaluated."
             )
     elif (
-        inputs.flag_options.INHOMO_RECO
-        or inputs.flag_options.USE_TS_FLUCT
-        and redshift >= global_params.Z_HEAT_MAX
+        not inputs.flag_options.INHOMO_RECO
+        and not inputs.flag_options.USE_TS_FLUCT
+        or redshift >= global_params.Z_HEAT_MAX
     ):
         prev_z = 0  # signal value for first box
     else:

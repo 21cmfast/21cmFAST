@@ -584,7 +584,7 @@ def _run_lightcone_from_perturbed_fields(
         for iz, z in enumerate(scrollz[::-1]):
             halo_field = sf.determine_halo_list(
                 redshift=z,
-                halos_desc=halos_desc,
+                descendant_halos=halos_desc,
                 **kw,
             )
             halos_desc = halo_field
@@ -635,9 +635,9 @@ def _run_lightcone_from_perturbed_fields(
                 ph = pt_halos[iz]
                 ph.load_all()
 
-            hbox2 = sf.halo_box(
+            hbox2 = sf.compute_halo_grid(
                 redshift=z,
-                pt_halos=ph,
+                perturbed_halo_list=ph,
                 previous_ionize_box=ib,
                 previous_spin_temp=st,
                 perturbed_field=pf2,

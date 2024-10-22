@@ -45,7 +45,11 @@ class _OutputStruct(_BaseOutputStruct):
 
 
 class _OutputStructZ(_OutputStruct):
-    _param_inputs = _OutputStruct._param_inputs + ("redshift",)
+    _param_inputs = _OutputStruct._param_inputs
+    _kwarg_inputs = _OutputStruct._kwarg_inputs + ("redshift",)
+
+    def __init__(self, *, inputs: InputParameters | None = None, **kwargs):
+        super().__init__(inputs=inputs, **kwargs)
 
 
 class InitialConditions(_OutputStruct):
@@ -131,6 +135,8 @@ class InitialConditions(_OutputStruct):
     def prepare_for_spin_temp(self, flag_options: FlagOptions, force: bool = False):
         """Ensure ICs have all boxes required for spin_temp, and no more."""
         keep = []
+        if flag_options.USE_HALO_FIELD and self.user_params.AVG_BELOW_SAMPLER:
+            keep.append("lowres_density")  # for the cmfs
         if self.user_params.USE_RELATIVE_VELOCITIES:
             keep.append("lowres_vcb")
         self.prepare(keep=keep, force=force)
@@ -303,7 +309,7 @@ class _AllParamsBox(_OutputStructZ):
         self.log10_Mturnover_ave = 0.0
         self.log10_Mturnover_MINI_ave = 0.0
 
-        super().__init__(**kwargs)
+        super().__init__(inputs=inputs, **kwargs)
 
 
 class HaloField(_AllParamsBox):

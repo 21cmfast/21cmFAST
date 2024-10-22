@@ -56,7 +56,7 @@ int ComputeHaloField(float redshift_desc, float redshift, UserParams *user_param
 
     LOG_DEBUG("input value:");
     LOG_DEBUG("redshift=%f", redshift);
-    #if LOG_LEVEL >= DEBUG_LEVEL
+    #if LOG_LEVEL >= SUPER_DEBUG_LEVEL
             writeUserParams(user_params);
             writeCosmoParams(cosmo_params);
             writeAstroParams(flag_options, astro_params);
