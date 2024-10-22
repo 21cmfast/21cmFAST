@@ -169,12 +169,12 @@ void compute_perturbed_velocities(
 // ----------------------------------------------------------------------------------------------------------------------------
 
 // #define R_INDEX(x,y,z)((unsigned long long)((z)+D_PARA*((y)+D*(x))))
-__device__ inline double compute_R_INDEX(int i, int j, int k, int DIM, int D_PARA) {
+__device__ inline unsigned long long compute_R_INDEX(int i, int j, int k, int DIM, int D_PARA) {
     return k + D_PARA * (j + DIM * i)
 }
 
 // #define HII_R_INDEX(x,y,z)((unsigned long long)((z)+HII_D_PARA*((y)+HII_D*(x))))
-__device__ inline double compute_HII_R_INDEX(int i, int j, int k, int HII_D_PARA, int HII_D) {
+__device__ inline unsigned long long compute_HII_R_INDEX(int i, int j, int k, int HII_D_PARA, int HII_D) {
     return k + HII_D_PARA * (j + HII_D * i)
 }
 
@@ -205,12 +205,12 @@ __global__ void perturb_density_field_kernel(
     int j = (idx / D_PARA) % DIM;
     int k = idx % D_PARA;
 
-    int r_index = compute_R_INDEX(i, j, k);
+    unsigned long long r_index = compute_R_INDEX(i, j, k);
     
     // Map index to location in units of box size
-    float xf = (i + 0.5) / DIM;
-    float yf = (j + 0.5) / DIM;
-    float zf = (k + 0.5) / D_PARA;
+    double xf = (i + 0.5) / DIM;
+    double yf = (j + 0.5) / DIM;
+    double zf = (k + 0.5) / D_PARA;
 
     // Update locations
     if (PERTURB_ON_HIGH_RES) {
@@ -222,7 +222,7 @@ __global__ void perturb_density_field_kernel(
         unsigned long long HII_i = (unsigned long long)(i / f_pixel_factor);
         unsigned long long HII_j = (unsigned long long)(j / f_pixel_factor);
         unsigned long long HII_k = (unsigned long long)(k / f_pixel_factor);
-        int HII_index = compute_HII_R_INDEX(HII_i, HII_j, HII_k, HII_D_PARA, HII_D);
+        unsigned long long HII_index = compute_HII_R_INDEX(HII_i, HII_j, HII_k, HII_D_PARA, HII_D);
         xf += __ldg(&lowres_vx[HII_index]);
         yf += __ldg(&lowres_vy[HII_index]);
         zf += __ldg(&lowres_vz[HII_index]);
@@ -242,17 +242,27 @@ __global__ void perturb_density_field_kernel(
         }
     }
 
+    // TODO: shared between threads?
+    // Convert once to reduce overhead of multiple casts
+    double dimension_double = (double)(dimension);
+    double dimension_factored_double = dimension_double * (double)(NON_CUBIC_FACTOR);
+    int dimension_factored = dimension * NON_CUBIC_FACTOR;
+
     // Scale coordinates back to grid size
-    xf *= (double)(dimension);
-    yf *= (double)(dimension);
-    zf *= (double)((unsigned long long)(NON_CUBIC_FACTOR * dimension));
+    xf *= dimension_double;
+    yf *= dimension_double;
+    zf *= dimension_factored_double;
 
     // Wrap coordinates to keep them within valid boundaries
-    xf = fmod(fmod(xf, dimension) + dimension, dimension);
-    yf = fmod(fmod(yf, dimension) + dimension, dimension);
-    zf = fmod(fmod(zf, dimension * NCF) + dimension * NCF, dimension * NCF);
+    xf = fmod(fmod(xf, dimension_double) + dimension_double, dimension_double);
+    yf = fmod(fmod(yf, dimension_double) + dimension_double, dimension_double);
+    zf = fmod(fmod(zf, dimension_factored_double) + dimension_factored_double, dimension_factored_double);
 
-    // Get integer values for indices from floating point values
+    // FROM NVIDIA DOCS:
+    // __device__ doublenearbyint(double x) // Round the input argument to the nearest integer.
+    // There are SO many double-to-int conversion intrinsics. How to know if should use any?
+
+    // Get integer values for indices from double precision values
     int xi = xf;
     int yi = yf;
     int zi = zf;
@@ -260,7 +270,7 @@ __global__ void perturb_density_field_kernel(
     // Wrap index coordinates to ensure no out-of-bounds array access will be attempted
     xi = (xi % dimension + dimension) % dimension;
     yi = (yi % dimension + dimension) % dimension;
-    zi = (zi % dimension * NCF + dimension * NCF) % dimension * NCF;
+    zi = (zi % dimension_factored + dimension_factored) % dimension_factored;
 
     // Determine the fraction of the perturbed cell which overlaps with the 8 nearest grid cells,
     // based on the grid cell which contains the centre of the perturbed cell
@@ -586,7 +596,9 @@ int ComputePerturbField_gpu(
         int threadsPerBlock = 256;
         int numBlocks = (num_pixels + threadsPerBlock - 1) / threadsPerBlock;
         perturb_density_field_kernel<<<numBlocks, threadsPerBlock>>>(
-            d_box, dimension, user_params->DIM, D_PARA, MID_PARA, user_params->NON_CUBIC_FACTOR,
+            d_box, hires_density, hires_vx, hires_vy, hires_vz, lowres_vx, lowres_vy, lowres_vz,
+            hires_vx_2LPT, hires_vy_2LPT, hires_vz_2LPT, lowres_vx_2LPT, lowres_vy_2LPT, lowres_vz_2LPT
+            dimension, user_params->DIM, D_PARA, MID_PARA, user_params->NON_CUBIC_FACTOR,
             f_pixel_factor, init_growth_factor, user_params->PERTURB_ON_HIGH_RES, user_params->USE_2LPT,
         );
 
@@ -596,7 +608,7 @@ int ComputePerturbField_gpu(
         err = cudaGetLastError();
         if (err != cudaSuccess) {
             LOG_ERROR("Kernel launch error: %s", cudaGetErrorString(err));
-            Throw(CudaError); // Or the appropriate exception type
+            Throw(CudaError);
         }
 
         // Copy results from device to host
