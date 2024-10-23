@@ -488,7 +488,7 @@ def get_logspaced_redshifts(min_redshift: float, z_step_factor: float, zmax: flo
 @set_globals
 def run_coeval(
     *,
-    redshift: float | np.ndarray | None = None,
+    out_redshifts: float | np.ndarray | None = None,
     user_params: UserParams | dict | None = None,
     cosmo_params: CosmoParams | dict | None = None,
     flag_options: FlagOptions | dict | None = None,
@@ -564,8 +564,8 @@ def run_coeval(
     regenerate, write, direc, random_seed :
         See docs of :func:`initial_conditions` for more information.
     """
-    if redshift is None and perturbed_field is None:
-        raise ValueError("Either redshift or perturb must be given")
+    if out_redshifts is None and perturbed_field is None:
+        raise ValueError("Either out_redshifts or perturb must be given")
 
     direc, regenerate, hooks = _get_config_options(direc, regenerate, write, hooks)
 
@@ -608,12 +608,12 @@ def run_coeval(
             flag_options=flag_options, force=always_purge
         )
     if perturbed_field:
-        if redshift is not None and any(
-            p.redshift != z for p, z in zip(perturbed_field, redshift)
+        if out_redshifts is not None and any(
+            p.redshift != z for p, z in zip(perturbed_field, out_redshifts)
         ):
             raise ValueError("Input redshifts do not match perturb field redshifts")
         else:
-            redshift = [p.redshift for p in perturbed_field]
+            out_redshifts = [p.redshift for p in perturbed_field]
 
     kw = {
         **{
@@ -627,21 +627,21 @@ def run_coeval(
     if flag_options.PHOTON_CONS_TYPE != "no-photoncons":
         photon_nonconservation_data = setup_photon_cons(**kw)
 
-    if not hasattr(redshift, "__len__"):
+    if not hasattr(out_redshifts, "__len__"):
         singleton = True
-        redshift = [redshift]
+        out_redshifts = [out_redshifts]
 
-    if isinstance(redshift, np.ndarray):
-        redshift = redshift.tolist()
+    if isinstance(out_redshifts, np.ndarray):
+        out_redshifts = out_redshifts.tolist()
 
     # Get the list of redshift we need to scroll through.
-    redshifts = _get_required_redshifts_coeval(flag_options, redshift)
+    node_redshifts = _get_required_redshifts_coeval(flag_options, out_redshifts)
 
     # Get all the perturb boxes early. We need to get the perturb at every
     # redshift.
     pz = [p.redshift for p in perturbed_field]
     perturb_ = []
-    for z in redshifts:
+    for z in node_redshifts:
         p = (
             sf.perturb_field(redshift=z, initial_conditions=initial_conditions, **iokw)
             if z not in pz
@@ -664,7 +664,7 @@ def run_coeval(
     pt_halos = []
     if inputs.flag_options.USE_HALO_FIELD and not inputs.flag_options.FIXED_HALO_GRIDS:
         halos_desc = None
-        for i, z in enumerate(redshifts[::-1]):
+        for i, z in enumerate(node_redshifts[::-1]):
             halos = sf.determine_halo_list(
                 redshift=z, descendant_halos=halos_desc, **kw
             )
@@ -685,25 +685,25 @@ def run_coeval(
         )
     if (
         flag_options.PHOTON_CONS_TYPE == "z-photoncons"
-        and np.amin(redshifts) < global_params.PhotonConsEndCalibz
+        and np.amin(node_redshifts) < global_params.PhotonConsEndCalibz
     ):
         raise ValueError(
-            f"You have passed a redshift (z = {np.amin(redshifts)}) that is lower than"
+            f"You have passed a redshift (z = {np.amin(node_redshifts)}) that is lower than"
             "the endpoint of the photon non-conservation correction"
             f"(global_params.PhotonConsEndCalibz = {global_params.PhotonConsEndCalibz})."
             "If this behaviour is desired then set global_params.PhotonConsEndCalibz"
-            f"to a value lower than z = {np.amin(redshifts)}."
+            f"to a value lower than z = {np.amin(node_redshifts)}."
         )
 
-    ib_tracker = [0] * len(redshift)
-    bt = [0] * len(redshift)
+    ib_tracker = [0] * len(out_redshifts)
+    bt = [0] * len(out_redshifts)
     # At first we don't have any "previous" st or ib.
     st, ib, pf, hb = None, None, None, None
     # optional fields which remain None if their flags are off
-    hb2, ph2 = None, None
+    hb2, ph2, st2, xrs = None, None, None, None
 
-    hb_tracker = [None] * len(redshift)
-    st_tracker = [None] * len(redshift)
+    hb_tracker = [None] * len(out_redshifts)
+    st_tracker = [None] * len(out_redshifts)
 
     spin_temp_files = []
     hbox_files = []
@@ -715,7 +715,7 @@ def run_coeval(
     # Iterate through redshift from top to bottom
     z_halos = []
     hbox_arr = []
-    for iz, z in enumerate(redshifts):
+    for iz, z in enumerate(node_redshifts):
         pf2 = perturbed_field[iz]
         pf2.load_all()
 
@@ -737,7 +737,7 @@ def run_coeval(
             z_halos += [z]
             hbox_arr += [hb2]
             if flag_options.USE_HALO_FIELD:
-                xray_source_box = sf.compute_xray_source_field(
+                xrs = sf.compute_xray_source_field(
                     redshift=z,
                     z_halos=z_halos,
                     hboxes=hbox_arr,
@@ -748,15 +748,10 @@ def run_coeval(
                 redshift=z,
                 previous_spin_temp=st,
                 perturbed_field=pf2,
-                xray_source_box=(
-                    xray_source_box if inputs.flag_options.USE_HALO_FIELD else None
-                ),
+                xray_source_box=xrs,
                 **kw,
-                cleanup=(cleanup and z == redshifts[-1]),
+                cleanup=(cleanup and z == node_redshifts[-1]),
             )
-
-            if z not in redshift:
-                st = st2
 
         ib2 = sf.compute_ionization_field(
             redshift=z,
@@ -765,7 +760,7 @@ def run_coeval(
             # perturb field *not* interpolated here.
             previous_perturbed_field=pf,
             halobox=hb2,
-            spin_temp=st2 if inputs.flag_options.USE_TS_FLUCT else None,
+            spin_temp=st2,
             z_heat_max=global_params.Z_HEAT_MAX,
             **kw,
         )
@@ -788,31 +783,27 @@ def run_coeval(
                     ],
                     force=always_purge,
                 )
-        if z in redshift:
+        if z in out_redshifts:
             logger.debug(f"PID={os.getpid()} doing brightness temp for z={z}")
-            ib_tracker[redshift.index(z)] = ib2
-            st_tracker[redshift.index(z)] = (
-                st2 if inputs.flag_options.USE_TS_FLUCT else None
-            )
-
-            hb_tracker[redshift.index(z)] = (
-                hb2 if inputs.flag_options.USE_HALO_FIELD else None
-            )
+            ib_tracker[out_redshifts.index(z)] = ib2
+            st_tracker[out_redshifts.index(z)] = st2
+            hb_tracker[out_redshifts.index(z)] = hb2
 
             _bt = sf.brightness_temperature(
                 ionized_box=ib2,
                 perturbed_field=pf2,
-                spin_temp=st2 if inputs.flag_options.USE_TS_FLUCT else None,
+                spin_temp=st2,
                 **iokw,
             )
 
-            bt[redshift.index(z)] = _bt
+            bt[out_redshifts.index(z)] = _bt
 
         else:
             ib = ib2
             pf = pf2
             _bt = None
             hb = hb2
+            st = st2
 
         perturb_files.append((z, os.path.join(direc, pf2.filename)))
         if inputs.flag_options.USE_HALO_FIELD:
@@ -835,11 +826,11 @@ def run_coeval(
         Coeval(
             redshift=z,
             initial_conditions=initial_conditions,
-            perturbed_field=perturbed_field[redshifts.index(z)],
+            perturbed_field=perturbed_field[node_redshifts.index(z)],
             ionized_box=ib,
             brightness_temp=_bt,
             ts_box=st,
-            halobox=hb if flag_options.USE_HALO_FIELD else None,
+            halobox=hb,
             photon_nonconservation_data=photon_nonconservation_data,
             cache_files={
                 "init": [(0, os.path.join(direc, initial_conditions.filename))],
@@ -851,7 +842,9 @@ def run_coeval(
                 "pt_halos": pth_files,
             },
         )
-        for z, ib, _bt, st, hb in zip(redshift, ib_tracker, bt, st_tracker, hb_tracker)
+        for z, ib, _bt, st, hb in zip(
+            out_redshifts, ib_tracker, bt, st_tracker, hb_tracker
+        )
     ]
 
     # If a single redshift was passed, then pass back singletons.

@@ -539,9 +539,15 @@ def _run_lightcone_from_perturbed_fields(
     if flag_options.PHOTON_CONS_TYPE != "no-photoncons":
         setup_photon_cons(**kw)
 
-    # Iterate through redshift from top to bottom
-    if lightcone._current_redshift and not np.isclose(
-        lightcone.node_redshifts.min(), lightcone._current_redshift
+    # At first we don't have any "previous" fields.
+    st, ib, pf, hbox = None, None, None, None
+    # optional fields which remain None if their flags are off
+    hbox2, ph2, st2, xrs = None, None, None, None
+
+    if (
+        lightcone._current_redshift
+        and not np.isclose(lightcone.node_redshifts.min(), lightcone._current_redshift)
+        and not inputs.flag_options.USE_HALO_FIELD
     ):
         logger.info(
             f"Finding boxes at z={lightcone._current_redshift} with seed {lightcone.random_seed} and direc={direc}"
@@ -557,7 +563,7 @@ def _run_lightcone_from_perturbed_fields(
         )
         try:
             st = cached_boxes["TsBox"][0] if flag_options.USE_TS_FLUCT else None
-            prev_perturb = cached_boxes["PerturbedField"][0]
+            pf = cached_boxes["PerturbedField"][0]
             ib = cached_boxes["IonizedBox"][0]
         except (KeyError, IndexError):
             raise OSError(
@@ -565,12 +571,6 @@ def _run_lightcone_from_perturbed_fields(
                 f"seed {lightcone.random_seed} and direc={direc}. You need to have "
                 "run with write=True to continue from a checkpoint."
             )
-        pf = prev_perturb
-    else:
-        st, ib, prev_perturb = None, None, None
-        pf = None
-
-    pf = None
 
     # Now we can purge init_box further.
     with contextlib.suppress(OSError):
@@ -602,27 +602,31 @@ def _run_lightcone_from_perturbed_fields(
         initial_conditions.prepare_for_spin_temp(
             flag_options=flag_options, force=always_purge
         )
-    ph = None
 
+    # arrays to hold cache filenames
     perturb_files = []
     spin_temp_files = []
     ionize_files = []
     brightness_files = []
     hbox_files = []
     pth_files = []
+
+    # saved global quantities which aren't lightcones
     log10_mturnovers = np.zeros(len(scrollz))
     log10_mturnovers_mini = np.zeros(len(scrollz))
+
+    # structs which need to be kept beyond one snapshot
     hboxes = []
     z_halos = []
+
+    # coeval objects to interpolate onto the lightcone
     coeval = None
     prev_coeval = None
-    st2 = None
-    hbox2 = None
-    hbox = None
 
     if lightcone_filename and not Path(lightcone_filename).exists():
         lightcone.save(lightcone_filename)
 
+    # Iterate through redshift from top to bottom
     for iz, z in enumerate(scrollz):
         logger.info(f"Computing Redshift {z} ({iz + 1}/{len(scrollz)}) iterations.")
 
@@ -633,12 +637,12 @@ def _run_lightcone_from_perturbed_fields(
         pf2.load_all()
         if flag_options.USE_HALO_FIELD:
             if not flag_options.FIXED_HALO_GRIDS:
-                ph = pt_halos[iz]
-                ph.load_all()
+                ph2 = pt_halos[iz]
+                ph2.load_all()
 
             hbox2 = sf.compute_halo_grid(
                 redshift=z,
-                perturbed_halo_list=ph,
+                perturbed_halo_list=ph2,
                 previous_ionize_box=ib,
                 previous_spin_temp=st,
                 perturbed_field=pf2,
@@ -648,7 +652,7 @@ def _run_lightcone_from_perturbed_fields(
             if flag_options.USE_TS_FLUCT:
                 z_halos.append(z)
                 hboxes.append(hbox2)
-                xray_source_box = sf.compute_xray_source_field(
+                xrs = sf.compute_xray_source_field(
                     redshift=z,
                     z_halos=z_halos,
                     hboxes=hboxes,
@@ -660,9 +664,7 @@ def _run_lightcone_from_perturbed_fields(
                 redshift=z,
                 previous_spin_temp=st,
                 perturbed_field=pf2,
-                xray_source_box=(
-                    xray_source_box if flag_options.USE_HALO_FIELD else None
-                ),
+                xray_source_box=xrs,
                 cleanup=(cleanup and iz == (len(scrollz) - 1)),
                 **kw,
             )
@@ -671,7 +673,7 @@ def _run_lightcone_from_perturbed_fields(
             redshift=z,
             previous_ionized_box=ib,
             perturbed_field=pf2,
-            previous_perturbed_field=prev_perturb,
+            previous_perturbed_field=pf,
             spin_temp=st2,
             halobox=hbox2,
             cleanup=(cleanup and iz == (len(scrollz) - 1)),
@@ -702,7 +704,7 @@ def _run_lightcone_from_perturbed_fields(
         perturb_files.append((z, direc / pf2.filename))
         if flag_options.USE_HALO_FIELD and not flag_options.FIXED_HALO_GRIDS:
             hbox_files.append((z, direc / hbox2.filename))
-            pth_files.append((z, direc / ph.filename))
+            pth_files.append((z, direc / ph2.filename))
         if flag_options.USE_TS_FLUCT:
             spin_temp_files.append((z, direc / st2.filename))
         ionize_files.append((z, direc / ib2.filename))
@@ -733,15 +735,15 @@ def _run_lightcone_from_perturbed_fields(
             st = st2
         ib = ib2
         if flag_options.USE_MINI_HALOS:
-            prev_perturb = pf2
+            pf = pf2
         prev_coeval = coeval
 
         if pf is not None:
             with contextlib.suppress(OSError):
                 pf.purge(force=always_purge)
-        if ph is not None:
+        if ph2 is not None:
             with contextlib.suppress(OSError):
-                ph.purge(force=always_purge)
+                ph2.purge(force=always_purge)
         # we only need the SFR fields at previous redshifts for XraySourceBox
         if hbox is not None:
             with contextlib.suppress(OSError):
