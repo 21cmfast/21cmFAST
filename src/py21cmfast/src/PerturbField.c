@@ -780,10 +780,4 @@ int ComputePerturbField(
         } else {
             ComputePerturbField_cpu(redshift, user_params, cosmo_params, boxes, perturbed_field)
         }
-        // switch(GPU) {
-        //     case 0:
-        //         filter_box_cpu(box, RES, filter_type, R, R_param);
-        //     case 1:
-        //         filter_box_gpu(box, RES, filter_type, R, R_param);
-        // }
     }   

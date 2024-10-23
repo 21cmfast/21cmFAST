@@ -6,6 +6,11 @@
 #include <omp.h>
 #include <fftw3.h>
 
+// GPU
+#include <cuda.h>
+#include <cuda_runtime.h>
+// #include <cuComplex.h>
+
 #include "cexcept.h"
 #include "exceptions.h"
 #include "logger.h"
@@ -94,18 +99,28 @@ void compute_perturbed_velocities(
                     // now set the velocities
                     if ((n_x==0) && (n_y==0) && (n_z==0)) { // DC mode
                         if(user_params->PERTURB_ON_HIGH_RES) {
-                            HIRES_density_perturb[0] = 0;
+                            // HIRES_density_perturb[0] = 0;
+                            HIRES_density_perturb[0][0] = 0.;
+                            HIRES_density_perturb[0][1] = 0.;
                         }
                         else {
-                            LOWRES_density_perturb[0] = 0;
+                            // LOWRES_density_perturb[0] = 0;
+                            LOWRES_density_perturb[0][0] = 0.;
+                            LOWRES_density_perturb[0][1] = 0.;
                         }
                     }
                     else{
                         if(user_params->PERTURB_ON_HIGH_RES) {
-                            HIRES_density_perturb[C_INDEX(n_x,n_y,n_z)] *= dDdt_over_D*kvec[axis]*I/k_sq/(TOT_NUM_PIXELS+0.0);
+                            // HIRES_density_perturb[C_INDEX(n_x,n_y,n_z)] *= dDdt_over_D*kvec[axis]*I/k_sq/(TOT_NUM_PIXELS+0.0);
+                            // HIRES_density_perturb[C_INDEX(n_x,n_y,n_z)] *= dDdt_over_D*kvec[axis]/k_sq/(TOT_NUM_PIXELS+0.0);
+                            // reinterpret_cast<std::complex<float> &>(HIRES_density_perturb[C_INDEX(n_x,n_y,n_z)]) *= std::complex<float>(0., dDdt_over_D*kvec[axis]*I/k_sq/(TOT_NUM_PIXELS+0.0));
+                            reinterpret_cast<std::complex<float> &>(HIRES_density_perturb[C_INDEX(n_x,n_y,n_z)]) *= std::complex<float>(0., dDdt_over_D*kvec[axis]/k_sq/(TOT_NUM_PIXELS+0.0));
                         }
                         else {
-                            LOWRES_density_perturb[HII_C_INDEX(n_x,n_y,n_z)] *= dDdt_over_D*kvec[axis]*I/k_sq/(HII_TOT_NUM_PIXELS+0.0);
+                            // LOWRES_density_perturb[HII_C_INDEX(n_x,n_y,n_z)] *= dDdt_over_D*kvec[axis]*I/k_sq/(HII_TOT_NUM_PIXELS+0.0);
+                            // LOWRES_density_perturb[HII_C_INDEX(n_x,n_y,n_z)] *= dDdt_over_D*kvec[axis]/k_sq/(HII_TOT_NUM_PIXELS+0.0);
+                            // reinterpret_cast<std::complex<float> &>(LOWRES_density_perturb[HII_C_INDEX(n_x,n_y,n_z)]) *= std::complex<float>(0., dDdt_over_D*kvec[axis]*I/k_sq/(HII_TOT_NUM_PIXELS+0.0));
+                            reinterpret_cast<std::complex<float> &>(LOWRES_density_perturb[HII_C_INDEX(n_x,n_y,n_z)]) *= std::complex<float>(0., dDdt_over_D*kvec[axis]/k_sq/(HII_TOT_NUM_PIXELS+0.0));
                         }
                     }
                 }
@@ -122,7 +137,7 @@ void compute_perturbed_velocities(
         // smooth the high resolution field ready for resampling
         // ALICE: RES=0 (dimension=DIM, midpoint=MIDDLE), filter_type=0 (real space top-hat filtering)
         if (user_params->DIM != user_params->HII_DIM)
-            filter_box(HIRES_density_perturb, 0, 0, L_FACTOR*user_params->BOX_LEN/(user_params->HII_DIM+0.0));
+            filter_box(HIRES_density_perturb, 0, 0, L_FACTOR*user_params->BOX_LEN/(user_params->HII_DIM+0.0), 0.);
 
         dft_c2r_cube(user_params->USE_FFTW_WISDOM, user_params->DIM, D_PARA, user_params->N_THREADS, HIRES_density_perturb);
 
@@ -169,18 +184,19 @@ void compute_perturbed_velocities(
 // ----------------------------------------------------------------------------------------------------------------------------
 
 // #define R_INDEX(x,y,z)((unsigned long long)((z)+D_PARA*((y)+D*(x))))
-__device__ inline unsigned long long compute_R_INDEX(int i, int j, int k, int DIM, int D_PARA) {
-    return k + D_PARA * (j + DIM * i)
+__device__ inline unsigned long long compute_R_INDEX(int i, int j, int k, int dim, long long d_para) {
+    return k + d_para * (j + dim * i);
 }
 
 // #define HII_R_INDEX(x,y,z)((unsigned long long)((z)+HII_D_PARA*((y)+HII_D*(x))))
-__device__ inline unsigned long long compute_HII_R_INDEX(int i, int j, int k, int HII_D_PARA, int HII_D) {
-    return k + HII_D_PARA * (j + HII_D * i)
+__device__ inline unsigned long long compute_HII_R_INDEX(int i, int j, int k, int hii_d, long long hii_d_para) {
+    return k + hii_d_para * (j + hii_d * i);
 }
 
+// Is const needed as well as __restrict__?
 __global__ void perturb_density_field_kernel(
     double *resampled_box,
-    const float* __restrict__ hires_density, // Is const needed as well as __restrict__?
+    const float* __restrict__ hires_density,
     const float* __restrict__ hires_vx,
     const float* __restrict__ hires_vy,
     const float* __restrict__ hires_vz,
@@ -193,27 +209,29 @@ __global__ void perturb_density_field_kernel(
     const float* __restrict__ lowres_vx_2LPT,
     const float* __restrict__ lowres_vy_2LPT,
     const float* __restrict__ lowres_vz_2LPT,
-    int dimension, int DIM, int D_PARA, int MID_PARA,
-    int NON_CUBIC_FACTOR, float f_pixel_factor, float init_growth_factor,
-    bool PERTURB_ON_HIGH_RES, bool USE_2LPT,
+    int dimension, int DIM, long long d_para, long long hii_d, long long hii_d_para,
+    int non_cubic_factor, float f_pixel_factor, float init_growth_factor,
+    bool perturb_on_high_res, bool use_2lpt
     ) {
 
     unsigned long long idx = blockIdx.x * blockDim.x + threadIdx.x;
 
     // Get index of density cell
-    int i = idx / (D_PARA * DIM);
-    int j = (idx / D_PARA) % DIM;
-    int k = idx % D_PARA;
+    int i = idx / (d_para * DIM);
+    int j = (idx / d_para) % DIM;
+    int k = idx % d_para;
 
-    unsigned long long r_index = compute_R_INDEX(i, j, k);
+    unsigned long long r_index = compute_R_INDEX(i, j, k, DIM, d_para);
     
     // Map index to location in units of box size
     double xf = (i + 0.5) / DIM;
     double yf = (j + 0.5) / DIM;
-    double zf = (k + 0.5) / D_PARA;
+    double zf = (k + 0.5) / d_para;
 
     // Update locations
-    if (PERTURB_ON_HIGH_RES) {
+    unsigned long long HII_index;
+
+    if (perturb_on_high_res) {
         xf += __ldg(&hires_vx[r_index]);
         yf += __ldg(&hires_vy[r_index]);
         zf += __ldg(&hires_vz[r_index]);
@@ -222,17 +240,17 @@ __global__ void perturb_density_field_kernel(
         unsigned long long HII_i = (unsigned long long)(i / f_pixel_factor);
         unsigned long long HII_j = (unsigned long long)(j / f_pixel_factor);
         unsigned long long HII_k = (unsigned long long)(k / f_pixel_factor);
-        unsigned long long HII_index = compute_HII_R_INDEX(HII_i, HII_j, HII_k, HII_D_PARA, HII_D);
+        HII_index = compute_HII_R_INDEX(HII_i, HII_j, HII_k, hii_d, hii_d_para); // This is accessing HII_D and HII_D_PARA macros!
         xf += __ldg(&lowres_vx[HII_index]);
         yf += __ldg(&lowres_vy[HII_index]);
         zf += __ldg(&lowres_vz[HII_index]);
     }
 
     // 2LPT (add second order corrections)
-    if (USE_2LPT) {
-        if (PERTURB_ON_HIGH_RES) {
+    if (use_2lpt) {
+        if (perturb_on_high_res) {
             xf -= __ldg(&hires_vx_2LPT[r_index]);
-            yf -= __ldg(&hires_vy_2LP[r_index]);
+            yf -= __ldg(&hires_vy_2LPT[r_index]);
             zf -= __ldg(&hires_vz_2LPT[r_index]);
         }
         else {
@@ -245,8 +263,8 @@ __global__ void perturb_density_field_kernel(
     // TODO: shared between threads?
     // Convert once to reduce overhead of multiple casts
     double dimension_double = (double)(dimension);
-    double dimension_factored_double = dimension_double * (double)(NON_CUBIC_FACTOR);
-    int dimension_factored = dimension * NON_CUBIC_FACTOR;
+    double dimension_factored_double = dimension_double * (double)(non_cubic_factor);
+    int dimension_factored = dimension * non_cubic_factor;
 
     // Scale coordinates back to grid size
     xf *= dimension_double;
@@ -295,7 +313,7 @@ __global__ void perturb_density_field_kernel(
     if(zf < (double)(zi + 0.5)) {
         d_z = 1. - d_z;
         zi -= 1;
-        zi += (zi + (unsigned long long)(NON_CUBIC_FACTOR * dimension)) % (unsigned long long)(NON_CUBIC_FACTOR * dimension);
+        zi += (zi + (unsigned long long)(non_cubic_factor * dimension)) % (unsigned long long)(non_cubic_factor * dimension);
     }
     // The fractions of mass which will remain with perturbed cell
     float t_x = 1. - d_x;
@@ -307,35 +325,35 @@ __global__ void perturb_density_field_kernel(
     // Takes into account the offset based on cell centre determined above
     int xp1 = (xi + 1) % dimension;
     int yp1 = (yi + 1) % dimension;
-    int zp1 = (zi + 1) % (unsigned long long)(NON_CUBIC_FACTOR * dimension);
+    int zp1 = (zi + 1) % (unsigned long long)(non_cubic_factor * dimension);
 
     double scaled_density = 1 + init_growth_factor * __ldg(&hires_density[r_index]);
 
-    if (PERTURB_ON_HIGH_RES) {
+    if (perturb_on_high_res) {
         // Redistribute the mass over the 8 neighbouring cells according to cloud in cell
         // Cell mass = (1 + init_growth_factor * orig_density) * (proportion of mass to distribute)
-        atomicAdd(&resampled_box[compute_R_INDEX(xi, yi, zi)], scaled_density * t_x * t_y * t_z);
-        atomicAdd(&resampled_box[compute_R_INDEX(xp1, yi, zi)], scaled_density * d_x * t_y * t_z);
-        atomicAdd(&resampled_box[compute_R_INDEX(xi, yp1, zi)], scaled_density * t_x * d_y * t_z);
-        atomicAdd(&resampled_box[compute_R_INDEX(xp1, yp1, zi)], scaled_density * d_x * d_y * t_z);
-        atomicAdd(&resampled_box[compute_R_INDEX(xi, yi, zp1)], scaled_density * t_x * t_y * d_z);
-        atomicAdd(&resampled_box[compute_R_INDEX(xp1, yi, zp1)], scaled_density * d_x * t_y * d_z);
-        atomicAdd(&resampled_box[compute_R_INDEX(xi, yp1, zp1)], scaled_density * t_x * d_y * d_z);
-        atomicAdd(&resampled_box[compute_R_INDEX(xp1, yp1, zp1)], scaled_density * d_x * d_y * d_z);
+        atomicAdd(&resampled_box[compute_R_INDEX(xi, yi, zi, DIM, d_para)], scaled_density * t_x * t_y * t_z);
+        atomicAdd(&resampled_box[compute_R_INDEX(xp1, yi, zi, DIM, d_para)], scaled_density * d_x * t_y * t_z);
+        atomicAdd(&resampled_box[compute_R_INDEX(xi, yp1, zi, DIM, d_para)], scaled_density * t_x * d_y * t_z);
+        atomicAdd(&resampled_box[compute_R_INDEX(xp1, yp1, zi, DIM, d_para)], scaled_density * d_x * d_y * t_z);
+        atomicAdd(&resampled_box[compute_R_INDEX(xi, yi, zp1, DIM, d_para)], scaled_density * t_x * t_y * d_z);
+        atomicAdd(&resampled_box[compute_R_INDEX(xp1, yi, zp1, DIM, d_para)], scaled_density * d_x * t_y * d_z);
+        atomicAdd(&resampled_box[compute_R_INDEX(xi, yp1, zp1, DIM, d_para)], scaled_density * t_x * d_y * d_z);
+        atomicAdd(&resampled_box[compute_R_INDEX(xp1, yp1, zp1, DIM, d_para)], scaled_density * d_x * d_y * d_z);
     }
     else {
-        atomicAdd(&resampled_box[compute_HII_R_INDEX(xi, yi, zi)], scaled_density * t_x * t_y * t_z);
-        atomicAdd(&resampled_box[compute_HII_R_INDEX(xp1, yi, zi)], scaled_density * d_x * t_y * t_z);
-        atomicAdd(&resampled_box[compute_HII_R_INDEX(xi, yp1, zi)], scaled_density * t_x * d_y * t_z);
-        atomicAdd(&resampled_box[compute_HII_R_INDEX(xp1, yp1, zi)], scaled_density * d_x * d_y * t_z);
-        atomicAdd(&resampled_box[compute_HII_R_INDEX(xi, yi, zp1)], scaled_density * t_x * t_y * d_z);
-        atomicAdd(&resampled_box[compute_HII_R_INDEX(xp1, yi, zp1)], scaled_density * d_x * t_y * d_z);
-        atomicAdd(&resampled_box[compute_HII_R_INDEX(xi, yp1, zp1)], scaled_density * t_x * d_y * d_z);
-        atomicAdd(&resampled_box[compute_HII_R_INDEX(xp1, yp1, zp1)], scaled_density * d_x * d_y * d_z);
+        atomicAdd(&resampled_box[compute_HII_R_INDEX(xi, yi, zi, hii_d, hii_d_para)], scaled_density * t_x * t_y * t_z);
+        atomicAdd(&resampled_box[compute_HII_R_INDEX(xp1, yi, zi, hii_d, hii_d_para)], scaled_density * d_x * t_y * t_z);
+        atomicAdd(&resampled_box[compute_HII_R_INDEX(xi, yp1, zi, hii_d, hii_d_para)], scaled_density * t_x * d_y * t_z);
+        atomicAdd(&resampled_box[compute_HII_R_INDEX(xp1, yp1, zi, hii_d, hii_d_para)], scaled_density * d_x * d_y * t_z);
+        atomicAdd(&resampled_box[compute_HII_R_INDEX(xi, yi, zp1, hii_d, hii_d_para)], scaled_density * t_x * t_y * d_z);
+        atomicAdd(&resampled_box[compute_HII_R_INDEX(xp1, yi, zp1, hii_d, hii_d_para)], scaled_density * d_x * t_y * d_z);
+        atomicAdd(&resampled_box[compute_HII_R_INDEX(xi, yp1, zp1, hii_d, hii_d_para)], scaled_density * t_x * d_y * d_z);
+        atomicAdd(&resampled_box[compute_HII_R_INDEX(xp1, yp1, zp1, hii_d, hii_d_para)], scaled_density * d_x * d_y * d_z);
     }
 }
 
-// ------------------------------------------------------------------------------------------------------------------------------------------------------------------
+// ------------------------------------------------------------------------------------------------------------------------
 
 int ComputePerturbField_gpu(
     float redshift, UserParams *user_params, CosmoParams *cosmo_params,
@@ -406,7 +424,7 @@ int ComputePerturbField_gpu(
         HIRES_density_perturb_saved = (fftwf_complex *) fftwf_malloc(sizeof(fftwf_complex)*KSPACE_NUM_PIXELS);
     }
 
-    double *resampled_box;
+    // double *resampled_box;
 
     //TODO: debugSummarizeIC is bugged when not all the fields are in memory
     // debugSummarizeIC(boxes, user_params->HII_DIM, user_params->DIM, user_params->NON_CUBIC_FACTOR);
@@ -525,82 +543,92 @@ int ComputePerturbField_gpu(
         // ----------------------------------------------------------------------------------------------------------------------------
 
         // Box shapes from outputs.py and convenience macros
+        size_t size;
+        unsigned long long num_pixels;
         if(user_params->PERTURB_ON_HIGH_RES) {
-            int num_pixels = TOT_NUM_PIXELS;
-            size_t size = TOT_NUM_PIXELS * sizeof(double);
+            num_pixels = TOT_NUM_PIXELS;
+            size = TOT_NUM_PIXELS * sizeof(double);
         }
         else {
-            int num_pixels = HII_TOT_NUM_PIXELS;
-            size_t size = HII_TOT_NUM_PIXELS * sizeof(double);
+            num_pixels = HII_TOT_NUM_PIXELS;
+            size = HII_TOT_NUM_PIXELS * sizeof(double);
         }
+
+        // Allocat host memory for output box
+        double* resampled_box = (double*)malloc(size);
 
         // Allocate device memory for output box
         double* d_box;
         cudaMalloc(&d_box, size);
-        cudaMemset(d_box, 0, sizeof(double) * size);
+        cudaMemset(d_box, 0, size);
 
         // Allocate device memory for density field
         float* hires_density;
-        cudaMalloc(&hires_density);
-        cudaMemcpy(hires_density, boxes->hires_density, size, cudaMemcpyHostToDevice);
+        cudaMalloc(&hires_density, (HII_TOT_NUM_PIXELS * sizeof(double)));
+        cudaMemcpy(hires_density, boxes->hires_density, (HII_TOT_NUM_PIXELS * sizeof(double)), cudaMemcpyHostToDevice);
 
         // Allocate device memory and copy arrays to device as per user_params
+        float* hires_vx;
+        float* hires_vy;
+        float* hires_vz;
+        float* lowres_vx;
+        float* lowres_vy;
+        float* lowres_vz;
+        float* hires_vx_2LPT;
+        float* hires_vy_2LPT;
+        float* hires_vz_2LPT;
+        float* lowres_vx_2LPT;
+        float* lowres_vy_2LPT;
+        float* lowres_vz_2LPT;
+
         if (user_params->PERTURB_ON_HIGH_RES) {
-            float* hires_vx;
-            float* hires_vy;
-            float* hires_vz;
-            cudaMalloc(&hires_vx);
-            cudaMalloc(&hires_vy);
-            cudaMalloc(&hires_vz);
+            cudaMalloc(&hires_vx, size); // size isn't neccessarily correct, but it will be correct for whichever branch is run.
+            cudaMalloc(&hires_vy, size);
+            cudaMalloc(&hires_vz, size);
             cudaMemcpy(hires_vx, boxes->hires_vx, size, cudaMemcpyHostToDevice);
             cudaMemcpy(hires_vy, boxes->hires_vy, size, cudaMemcpyHostToDevice);
             cudaMemcpy(hires_vz, boxes->hires_vz, size, cudaMemcpyHostToDevice);
         }
         else {
-            float* lowres_vx;
-            float* lowres_vy;
-            float* lowres_vz;
-            cudaMalloc(&lowres_vx);
-            cudaMalloc(&lowres_vy);
-            cudaMalloc(&lowres_vz);
+            cudaMalloc(&lowres_vx, size);
+            cudaMalloc(&lowres_vy, size);
+            cudaMalloc(&lowres_vz, size);
             cudaMemcpy(lowres_vx, boxes->lowres_vx, size, cudaMemcpyHostToDevice);
             cudaMemcpy(lowres_vy, boxes->lowres_vy, size, cudaMemcpyHostToDevice);
             cudaMemcpy(lowres_vz, boxes->lowres_vz, size, cudaMemcpyHostToDevice);
         }
         if (user_params->USE_2LPT) {
             if (user_params->PERTURB_ON_HIGH_RES) {
-                float* hires_vx_2LPT;
-                float* hires_vy_2LPT;
-                float* hires_vz_2LPT;
-                cudaMalloc(&hires_vx_2LPT);
-                cudaMalloc(&hires_vy_2LPT);
-                cudaMalloc(&hires_vz_2LPT);
+                cudaMalloc(&hires_vx_2LPT, size);
+                cudaMalloc(&hires_vy_2LPT, size);
+                cudaMalloc(&hires_vz_2LPT, size);
                 cudaMemcpy(hires_vx_2LPT, boxes->hires_vx_2LPT, size, cudaMemcpyHostToDevice);
                 cudaMemcpy(hires_vy_2LPT, boxes->hires_vy_2LPT, size, cudaMemcpyHostToDevice);
                 cudaMemcpy(hires_vz_2LPT, boxes->hires_vz_2LPT, size, cudaMemcpyHostToDevice);
             }
             else {
-                float* lowres_vx_2LPT;
-                float* lowres_vy_2LPT;
-                float* lowres_vz_2LPT;
-                cudaMalloc(&lowres_vx_2LPT);
-                cudaMalloc(&lowres_vy_2LPT);
-                cudaMalloc(&lowres_vz_2LPT);
+                cudaMalloc(&lowres_vx_2LPT, size);
+                cudaMalloc(&lowres_vy_2LPT, size);
+                cudaMalloc(&lowres_vz_2LPT, size);
                 cudaMemcpy(lowres_vx_2LPT, boxes->lowres_vx_2LPT, size, cudaMemcpyHostToDevice);
                 cudaMemcpy(lowres_vy_2LPT, boxes->lowres_vy_2LPT, size, cudaMemcpyHostToDevice);
                 cudaMemcpy(lowres_vz_2LPT, boxes->lowres_vz_2LPT, size, cudaMemcpyHostToDevice);
             }
         }
 
+        // Can't seem to pass macro straight to kernel.
+        long long d_para = D_PARA;
+        long long hii_d = HII_D;
+        long long hii_d_para = HII_D_PARA;
+
         // Invoke kernel
         int threadsPerBlock = 256;
         int numBlocks = (num_pixels + threadsPerBlock - 1) / threadsPerBlock;
         perturb_density_field_kernel<<<numBlocks, threadsPerBlock>>>(
             d_box, hires_density, hires_vx, hires_vy, hires_vz, lowres_vx, lowres_vy, lowres_vz,
-            hires_vx_2LPT, hires_vy_2LPT, hires_vz_2LPT, lowres_vx_2LPT, lowres_vy_2LPT, lowres_vz_2LPT
-            dimension, user_params->DIM, D_PARA, MID_PARA, user_params->NON_CUBIC_FACTOR,
-            f_pixel_factor, init_growth_factor, user_params->PERTURB_ON_HIGH_RES, user_params->USE_2LPT,
-        );
+            hires_vx_2LPT, hires_vy_2LPT, hires_vz_2LPT, lowres_vx_2LPT, lowres_vy_2LPT, lowres_vz_2LPT,
+            dimension, user_params->DIM, d_para, hii_d, hii_d_para, user_params->NON_CUBIC_FACTOR,
+            f_pixel_factor, init_growth_factor, user_params->PERTURB_ON_HIGH_RES, user_params->USE_2LPT);
 
         // Only use during development!
         cudaError_t err = cudaDeviceSynchronize();
@@ -612,8 +640,6 @@ int ComputePerturbField_gpu(
         }
 
         // Copy results from device to host
-        double *resampled_box;
-        // resampled_box = (double *)calloc(num_pixels, sizeof(double)); // is this needed?
         cudaMemcpy(resampled_box, d_box, size, cudaMemcpyDeviceToHost);
 
         // Deallocate device memory
@@ -739,7 +765,7 @@ int ComputePerturbField_gpu(
         // Now filter the box
         // ALICE: RES=0 (dimension=DIM, midpoint=MIDDLE), filter_type=0 (real space top-hat filtering)
         if (user_params->DIM != user_params->HII_DIM) {
-            filter_box(HIRES_density_perturb, 0, 0, L_FACTOR*user_params->BOX_LEN/(user_params->HII_DIM+0.0));
+            filter_box(HIRES_density_perturb, 0, 0, L_FACTOR*user_params->BOX_LEN/(user_params->HII_DIM+0.0), 0.);
         }
 
         // FFT back to real space
@@ -798,7 +824,7 @@ int ComputePerturbField_gpu(
     // smooth the field
     // ALICE: RES=1 (dimension=HII_DIM, midpoint=HII_MIDDLE), filter_type=2 (Gaussian filtering)
     if (!global_params.EVOLVE_DENSITY_LINEARLY && global_params.SMOOTH_EVOLVED_DENSITY_FIELD){
-        filter_box(LOWRES_density_perturb, 1, 2, global_params.R_smooth_density*user_params->BOX_LEN/(float)user_params->HII_DIM);
+        filter_box(LOWRES_density_perturb, 1, 2, global_params.R_smooth_density*user_params->BOX_LEN/(float)user_params->HII_DIM, 0.);
     }
 
     LOG_SUPER_DEBUG("LOWRES_density_perturb after smoothing: ");
