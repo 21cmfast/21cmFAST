@@ -212,11 +212,9 @@ class InputParameters:
             + f"flag_options: {repr(self.flag_options)}\n"
         )
 
+    # TODO: methods for equality: w/o redshift, w/o seed
 
-# TODO: In order to fully combine this with the other paramter config, we
-# need to pass in a boolean sequence to InputParamters.from_output_structs
-# marking structs (previous, initial) as exempt from redshift comparison.
-# This would make .merge and .is_compatible ignore their redshifts
+
 def check_redshift_consistency(inputs: InputParameters, output_structs):
     """Check the redshifts between provided OutputStruct objects and an InputParamters instance."""
     for struct in output_structs:

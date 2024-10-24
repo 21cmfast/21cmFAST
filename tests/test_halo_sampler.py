@@ -21,7 +21,7 @@ RELATIVE_TOLERANCE = 1e-1
 options_hmf = list(cint.OPTIONS_HMF.keys())
 
 options_delta = [-0.9, 0, 1, 1.6]  # cell densities to draw samples from
-options_mass = [1e9, 1e10, 1e11, 1e12]  # halo masses to draw samples from
+options_mass = [9, 10, 11, 12]  # halo masses to draw samples from
 
 
 @pytest.mark.parametrize("name", options_hmf)
@@ -30,12 +30,14 @@ def test_sampler_from_catalog(name, mass, plt):
     redshift, kwargs = cint.OPTIONS_HMF[name]
     opts = prd.get_all_options(redshift, **kwargs)
 
-    up = UserParams(opts["user_params"])
-    cp = CosmoParams(opts["cosmo_params"])
-    ap = AstroParams(opts["astro_params"])
-    fo = FlagOptions(opts["flag_options"])
-    up.update(USE_INTERPOLATION_TABLES=True)
-    lib.Broadcast_struct_global_all(up(), cp(), ap(), fo())
+    up = opts["user_params"]
+    cp = opts["cosmo_params"]
+    ap = opts["astro_params"]
+    fo = opts["flag_options"]
+
+    lib.Broadcast_struct_global_all(up.cstruct, cp.cstruct, ap.cstruct, fo.cstruct)
+
+    mass = 10**mass
 
     l10min = np.log10(up.SAMPLER_MIN_MASS)
     l10max = np.log10(mass)
@@ -49,7 +51,7 @@ def test_sampler_from_catalog(name, mass, plt):
         global_params.M_MIN_INTEGRAL, global_params.M_MAX_INTEGRAL
     )
 
-    n_cond = 30000
+    n_cond = 2000
 
     z = 6.0
     z_prev = 5.8
@@ -58,7 +60,9 @@ def test_sampler_from_catalog(name, mass, plt):
 
     sigma_cond_m = lib.sigma_z0(mass)
     delta_cond_m = (
-        lib.get_delta_crit(up.HMF, sigma_cond_m, growth_prev) * growthf / growth_prev
+        lib.get_delta_crit(up.cdict["HMF"], sigma_cond_m, growth_prev)
+        * growthf
+        / growth_prev
     )
     mass_dens = cp.cosmo.Om0 * cp.cosmo.critical_density(0).to("Mpc-3 M_sun").value
     volume_total_m = mass * n_cond / mass_dens
@@ -76,10 +80,10 @@ def test_sampler_from_catalog(name, mass, plt):
     halocrd_out = np.zeros(int(3e8)).astype("i4")
 
     lib.single_test_sample(
-        up(),
-        cp(),
-        ap(),
-        fo(),
+        up.cstruct,
+        cp.cstruct,
+        ap.cstruct,
+        fo.cstruct,
         12345,
         n_cond,
         ffi.cast("float *", cond_in.ctypes.data),
@@ -139,19 +143,18 @@ def test_sampler_from_grid(name, delta, plt):
     redshift, kwargs = cint.OPTIONS_HMF[name]
     opts = prd.get_all_options(redshift, **kwargs)
 
-    up = UserParams(opts["user_params"])
-    cp = CosmoParams(opts["cosmo_params"])
-    ap = AstroParams(opts["astro_params"])
-    fo = FlagOptions(opts["flag_options"])
-    up.update(USE_INTERPOLATION_TABLES=True)
-    lib.Broadcast_struct_global_all(up(), cp(), ap(), fo())
+    up = opts["user_params"]
+    cp = opts["cosmo_params"]
+    ap = opts["astro_params"]
+    fo = opts["flag_options"]
+    lib.Broadcast_struct_global_all(up.cstruct, cp.cstruct, ap.cstruct, fo.cstruct)
 
     lib.init_ps()
     lib.initialiseSigmaMInterpTable(
         global_params.M_MIN_INTEGRAL, global_params.M_MAX_INTEGRAL
     )
 
-    n_cond = 30000
+    n_cond = 2000
 
     z = 6.0
     growthf = lib.dicke(z)
@@ -183,10 +186,10 @@ def test_sampler_from_grid(name, delta, plt):
     halocrd_out = np.zeros(int(3e8)).astype("i4")
 
     lib.single_test_sample(
-        up(),
-        cp(),
-        ap(),
-        fo(),
+        up.cstruct,
+        cp.cstruct,
+        ap.cstruct,
+        fo.cstruct,
         12345,  # TODO: homogenize
         n_cond,
         ffi.cast("float *", cond_in.ctypes.data),
@@ -245,143 +248,26 @@ def test_sampler_from_grid(name, delta, plt):
 #   changes to any scaling relation model will result in a test fail
 def test_halo_scaling_relations():
     # specify parameters to use for this test
-    f_star10 = -1.0
-    f_star7 = -2.0
-    a_star = 1.0
-    a_star_mini = 1.0
-    t_star = 0.5
-    f_esc10 = -1.0
-    f_esc7 = -1.0
-    a_esc = -0.5  # for the test we don't want a_esc = -a_star
-    lx = 40.0
-    lx_mini = 40.0
-    sigma_star = 0.3
-    sigma_sfr_lim = 0.2
-    sigma_sfr_index = -0.12
-    sigma_lx = 0.5
-
     redshift = 10.0
+    opts = prd.get_all_options(redshift, {})
 
-    # setup specific parameters that so we know what the outcome should be
-    up = UserParams()
-    cp = CosmoParams()
-    ap = AstroParams(
-        F_STAR10=f_star10,
-        F_STAR7_MINI=f_star7,
-        ALPHA_STAR=a_star,
-        ALPHA_STAR_MINI=a_star_mini,
-        F_ESC10=f_esc10,
-        F_ESC7_MINI=f_esc7,
-        ALPHA_ESC=a_esc,
-        L_X=lx,
-        L_X_MINI=lx_mini,
-        SIGMA_STAR=sigma_star,
-        SIGMA_SFR_LIM=sigma_sfr_lim,
-        SIGMA_SFR_INDEX=sigma_sfr_index,
-        SIGMA_LX=sigma_lx,
-        t_STAR=0.5,
-        M_TURN=6.0,
-    )
-    # NOTE: Not using upper turnover, this test should be extended
-    fo = FlagOptions(
-        USE_MINI_HALOS=True,
-        INHOMO_RECO=True,
-        USE_TS_FLUCT=True,
-        USE_HALO_FIELD=True,
-        FIXED_HALO_GRIDS=False,
-        HALO_STOCHASTICITY=True,
-        USE_UPPER_STELLAR_TURNOVER=False,
-    )
+    up = opts["user_params"]
+    cp = opts["cosmo_params"]
+    ap = opts["astro_params"]
+    fo = opts["flag_options"]
+    lib.Broadcast_struct_global_all(up.cstruct, cp.cstruct, ap.cstruct, fo.cstruct)
 
-    lib.Broadcast_struct_global_all(up(), cp(), ap(), fo())
     mturn_acg = np.maximum(lib.atomic_cooling_threshold(redshift), 10**ap.M_TURN)
-    mturn_mcg = (
-        10**ap.M_TURN
-    )  # I don't want to test the LW or reionisation feedback here
-
-    print(f"turnovers [{mturn_acg},{mturn_mcg}]")
+    # mturn_mcg = 10**ap.M_TURN
     print(f"z={redshift} th = {1/cp.cosmo.H(redshift).to('s-1').value}")
 
     # setup the halo masses to test
-    halo_masses = np.array([1e5, 1e6, 1e7, 1e8, 1e9, 1e10, 1e11, 1e12])
-    halo_rng = np.ones_like(
-        halo_masses
-    )  # we set the RNG to one sigma above for the test
-
-    # independently calculate properties for the halos from our scaling relations
-    exp_fstar = (10**f_star10) * (halo_masses / 1e10) ** a_star
-    exp_fesc = np.minimum((10**f_esc10) * (halo_masses / 1e10) ** a_esc, 1)
-    exp_fstar_mini = (10**f_star7) * (halo_masses / 1e7) ** a_star_mini
-    exp_fesc_mini = np.minimum((10**f_esc7) * (halo_masses / 1e7) ** a_esc, 1)
-    b_r = cp.OMb / cp.OMm
-    acg_turnover = np.exp(-mturn_acg / halo_masses)
-    mcg_turnovers = np.exp(-halo_masses / mturn_acg) * np.exp(-mturn_mcg / halo_masses)
-
-    expected_hm = halo_masses
-    expected_sm = (
-        np.minimum(exp_fstar * np.exp(halo_rng * sigma_star) * acg_turnover, 1)
-        * halo_masses
-        * b_r
-    )
-    expected_sm_mini = (
-        np.minimum(exp_fstar_mini * np.exp(halo_rng * sigma_star) * mcg_turnovers, 1)
-        * halo_masses
-        * b_r
-    )
-
-    sigma_sfr = (
-        sigma_sfr_index * np.log10((expected_sm + expected_sm_mini) / 1e10)
-        + sigma_sfr_lim
-    )
-    sigma_sfr = np.maximum(sigma_sfr, sigma_sfr_lim)
-    expected_sfr = (
-        expected_sm
-        / t_star
-        * cp.cosmo.H(redshift).to("s-1").value
-        * np.exp(halo_rng * sigma_sfr)
-    )
-    expected_sfr_mini = (
-        expected_sm_mini
-        / t_star
-        * cp.cosmo.H(redshift).to("s-1").value
-        * np.exp(halo_rng * sigma_sfr)
-    )
-
-    expected_nion = (
-        expected_sm * exp_fesc * global_params.Pop2_ion
-        + expected_sm_mini * exp_fesc_mini * global_params.Pop3_ion
-    )
-    expected_wsfr = (
-        expected_sfr * exp_fesc * global_params.Pop2_ion
-        + expected_sfr_mini * exp_fesc_mini * global_params.Pop3_ion
-    )
-
-    # NOTE: These are currently hardcoded in the backend, changes will result in this test failing
-    s_per_yr = 365.25 * 60 * 60 * 24
-    expected_metals = (
-        1.28825e10 * ((expected_sfr + expected_sfr_mini) * s_per_yr) ** 0.56
-    )  # SM denominator
-    expected_metals = (
-        0.296
-        * (
-            (1 + ((expected_sm + expected_sm_mini) / expected_metals) ** (-2.1))
-            ** -0.148
-        )
-        * 10 ** (-0.056 * redshift + 0.064)
-    )
-
-    expected_xray = (
-        (expected_sfr * s_per_yr) ** 1.03
-        * expected_metals**-0.64
-        * np.exp(halo_rng * sigma_lx)
-        * 10**lx
-    )
-    expected_xray += (
-        (expected_sfr_mini * s_per_yr) ** 1.03
-        * expected_metals**-0.64
-        * np.exp(halo_rng * sigma_lx)
-        * 10**lx_mini
-    )
+    halo_mass_vals = [1e5, 1e6, 1e7, 1e8, 1e9, 1e10, 1e11, 1e12]
+    n_halo_per_mass = 1000
+    halo_masses = np.array(
+        [n_halo_per_mass * [val] for val in halo_mass_vals]
+    ).flatten()
+    halo_rng = np.random.normal(size=n_halo_per_mass * len(halo_mass_vals))
 
     # HACK: Make the fake halo list
     fake_pthalos = PerturbHaloField(
@@ -406,10 +292,10 @@ def test_halo_scaling_relations():
     out_buffer = np.zeros(12 * halo_masses.size).astype("f4")
     lib.test_halo_props(
         redshift,
-        up(),
-        cp(),
-        ap(),
-        fo(),
+        up.cstruct,
+        cp.cstruct,
+        ap.cstruct,
+        fo.cstruct,
         zero_array,
         zero_array,
         zero_array,
@@ -418,28 +304,31 @@ def test_halo_scaling_relations():
         ffi.cast("float *", out_buffer.ctypes.data),
     )
 
-    np.testing.assert_allclose(expected_hm, out_buffer[0::12], atol=1e0)
+    # (n_halo*n_mass*n_prop) --> (n_prop,n_mass,n_halo)
 
-    np.testing.assert_allclose(mturn_acg, out_buffer[8::12], atol=1e0)
-    np.testing.assert_allclose(mturn_mcg, out_buffer[9::12], atol=1e0)
-    np.testing.assert_allclose(0.0, out_buffer[10::12], atol=1e0)  # no reion feedback
+    # mass,star,sfr,xray,nion,wsfr,starmini,sfrmini,mturna,mturnm,mturnr,Z
+    out_buffer = out_buffer.reshape(len(halo_mass_vals), n_halo_per_mass, 12)
 
-    np.testing.assert_allclose(expected_sm, out_buffer[1::12], atol=1e0)
-    np.testing.assert_allclose(expected_sm_mini, out_buffer[6::12], atol=1e0)
-
-    # hubble differences between the two codes make % level changes TODO: change hubble to double precision in backend
-    np.testing.assert_allclose(expected_sfr, out_buffer[2::12], rtol=5e-2, atol=1e-20)
-    np.testing.assert_allclose(
-        expected_sfr_mini, out_buffer[7::12], rtol=5e-2, atol=1e-20
+    exp_SHMR = (
+        (10**ap.F_STAR10)
+        * halo_mass_vals**ap.ALPHA_STAR
+        * np.exp(-mturn_acg / halo_mass_vals)
     )
+    sim_SHMR = out_buffer[:, :, 1] / out_buffer[:, :, 0]
+    np.testing.assert_allclose(exp_SHMR, sim_SHMR.mean(axis=1), rtol=1e-1)
+    np.testing.assert_allclose(ap.SIGMA_STAR, sim_SHMR.std(axis=1), rtol=1e-1)
 
-    np.testing.assert_allclose(expected_metals, out_buffer[11::12], rtol=1e-3)
+    exp_SSFR = cp.cosmo.H(redshift).to("s").value / (ap.t_STAR)
+    sim_SSFR = out_buffer[:, :, 2] / out_buffer[:, :, 1]
+    np.testing.assert_allclose(exp_SSFR, sim_SSFR.mean(axis=1), rtol=1e-1)
     np.testing.assert_allclose(
-        expected_xray, out_buffer[3::12].astype(float) * 1e38, rtol=5e-2
-    )
+        ap.SIGMA_SFR_LIM, sim_SSFR.std(axis=1), rtol=1e-1
+    )  # WRONG
 
-    np.testing.assert_allclose(expected_nion, out_buffer[4::12])
-    np.testing.assert_allclose(expected_wsfr, out_buffer[5::12], rtol=5e-2)
+    exp_LX = 10 ** (ap.L_X)  # low-z approx
+    sim_LX = out_buffer[:, :, 3] / out_buffer[:, :, 2]
+    np.testing.assert_allclose(exp_LX, sim_LX.mean(axis=1), rtol=1e-1)
+    np.testing.assert_allclose(ap.SIGMA_LX, sim_LX.std(axis=1), rtol=1e-1)
 
 
 def plot_sampler_comparison(

@@ -1,7 +1,9 @@
 import pytest
 
+import attrs
 import h5py
 import numpy as np
+from collections import deque
 
 from py21cmfast import (
     BrightnessTemp,
@@ -18,30 +20,36 @@ from py21cmfast.lightcones import AngularLightconer, RectilinearLightconer
 
 
 @pytest.fixture(scope="module")
-def coeval(ic):
+def coeval(ic, default_flag_options_ts):
     return run_coeval(
-        redshift=25.0, init_box=ic, write=True, flag_options={"USE_TS_FLUCT": True}
+        out_redshifts=25.0,
+        initial_conditions=ic,
+        write=True,
+        flag_options=default_flag_options_ts,
     )
 
 
 @pytest.fixture(scope="module")
-def lightcone(ic):
+def lightcone(ic, default_flag_options_ts):
     lcn = RectilinearLightconer.with_equal_cdist_slices(
         min_redshift=25.0,
         max_redshift=35.0,
         resolution=ic.user_params.cell_size,
     )
 
-    return run_lightcone(
+    lc_gen = run_lightcone(
         lightconer=lcn,
         init_box=ic,
         write=True,
-        flag_options={"USE_TS_FLUCT": True},
+        flag_options=default_flag_options_ts,
     )
+
+    iz, z, coev, lc = deque(lc_gen, maxlen=1)
+    return lc
 
 
 @pytest.fixture(scope="module")
-def ang_lightcone(ic, lc):
+def ang_lightcone(ic, lc, default_flag_options_ts):
     lcn = AngularLightconer.like_rectilinear(
         match_at_z=lc.lightcone_redshifts.min(),
         max_redshift=lc.lightcone_redshifts.max(),
@@ -49,12 +57,15 @@ def ang_lightcone(ic, lc):
         get_los_velocity=True,
     )
 
-    return run_lightcone(
+    lc_gen = run_lightcone(
         lightconer=lcn,
         init_box=ic,
         write=True,
-        flag_options={"APPLY_RSDS": False},
+        flag_options=attrs.evolve(default_flag_options_ts, APPLY_RSDS=False),
     )
+
+    iz, z, coev, lc = deque(lc_gen, maxlen=1)
+    return lc
 
 
 def test_read_bad_file_lc(test_direc, lc):

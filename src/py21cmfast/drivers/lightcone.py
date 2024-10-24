@@ -222,7 +222,12 @@ class LightCone(_HighLevelOutput):
         """Determine if this is equal to another object."""
         return (
             isinstance(other, self.__class__)
-            and other.redshift == self.redshift
+            and other.random_seed == self.random_seed
+            and np.all(
+                np.isclose(
+                    other.lightcone_redshifts, self.lightcone_redshifts, atol=1e-3
+                )
+            )
             and np.all(np.isclose(other.node_redshifts, self.node_redshifts, atol=1e-3))
             and self.user_params == other.user_params
             and self.cosmo_params == other.cosmo_params
@@ -324,8 +329,8 @@ def _run_lightcone_from_perturbed_fields(
     initial_conditions: InitialConditions,
     perturbed_fields: Sequence[PerturbedField],
     lightconer: Lightconer,
-    astro_params: AstroParams | None = None,
-    flag_options: FlagOptions | None = None,
+    astro_params: AstroParams,
+    flag_options: FlagOptions,
     regenerate: bool | None = None,
     global_quantities: tuple[str] = ("brightness_temp", "xH_box"),
     direc: Path | str | None = None,
@@ -529,14 +534,14 @@ def _run_lightcone_from_perturbed_fields(
     kw = {
         **{
             "initial_conditions": initial_conditions,
-            "astro_params": astro_params,
-            "flag_options": flag_options,
+            "astro_params": inputs.astro_params,
+            "flag_options": inputs.flag_options,
         },
         **iokw,
     }
 
     photon_nonconservation_data = None
-    if flag_options.PHOTON_CONS_TYPE != "no-photoncons":
+    if inputs.flag_options.PHOTON_CONS_TYPE != "no-photoncons":
         setup_photon_cons(**kw)
 
     # At first we don't have any "previous" fields.
@@ -562,7 +567,7 @@ def _run_lightcone_from_perturbed_fields(
             astro_params=inputs.astro_params,
         )
         try:
-            st = cached_boxes["TsBox"][0] if flag_options.USE_TS_FLUCT else None
+            st = cached_boxes["TsBox"][0] if inputs.flag_options.USE_TS_FLUCT else None
             pf = cached_boxes["PerturbedField"][0]
             ib = cached_boxes["IonizedBox"][0]
         except (KeyError, IndexError):
@@ -575,12 +580,12 @@ def _run_lightcone_from_perturbed_fields(
     # Now we can purge init_box further.
     with contextlib.suppress(OSError):
         initial_conditions.prepare_for_halos(
-            flag_options=flag_options, force=always_purge
+            flag_options=inputs.flag_options, force=always_purge
         )
     # we explicitly pass the descendant halos here since we have a redshift list prior
     #   this will generate the extra fields if STOC_MINIMUM_Z is given
     pt_halos = []
-    if flag_options.USE_HALO_FIELD and not flag_options.FIXED_HALO_GRIDS:
+    if inputs.flag_options.USE_HALO_FIELD and not inputs.flag_options.FIXED_HALO_GRIDS:
         halos_desc = None
         for iz, z in enumerate(scrollz[::-1]):
             halo_field = sf.determine_halo_list(
@@ -600,7 +605,7 @@ def _run_lightcone_from_perturbed_fields(
     # Now that we've got all the perturb fields, we can purge init more.
     with contextlib.suppress(OSError):
         initial_conditions.prepare_for_spin_temp(
-            flag_options=flag_options, force=always_purge
+            flag_options=inputs.flag_options, force=always_purge
         )
 
     # arrays to hold cache filenames
@@ -635,8 +640,8 @@ def _run_lightcone_from_perturbed_fields(
         # This ensures that all the arrays that are required for spin_temp are there,
         # in case we dumped them from memory into file.
         pf2.load_all()
-        if flag_options.USE_HALO_FIELD:
-            if not flag_options.FIXED_HALO_GRIDS:
+        if inputs.flag_options.USE_HALO_FIELD:
+            if not inputs.flag_options.FIXED_HALO_GRIDS:
                 ph2 = pt_halos[iz]
                 ph2.load_all()
 
@@ -649,7 +654,7 @@ def _run_lightcone_from_perturbed_fields(
                 **kw,
             )
 
-            if flag_options.USE_TS_FLUCT:
+            if inputs.flag_options.USE_TS_FLUCT:
                 z_halos.append(z)
                 hboxes.append(hbox2)
                 xrs = sf.compute_xray_source_field(
@@ -659,7 +664,7 @@ def _run_lightcone_from_perturbed_fields(
                     **kw,
                 )
 
-        if flag_options.USE_TS_FLUCT:
+        if inputs.flag_options.USE_TS_FLUCT:
             st2 = sf.spin_temperature(
                 redshift=z,
                 previous_spin_temp=st,
@@ -702,10 +707,13 @@ def _run_lightcone_from_perturbed_fields(
         )
 
         perturb_files.append((z, direc / pf2.filename))
-        if flag_options.USE_HALO_FIELD and not flag_options.FIXED_HALO_GRIDS:
+        if (
+            inputs.flag_options.USE_HALO_FIELD
+            and not inputs.flag_options.FIXED_HALO_GRIDS
+        ):
             hbox_files.append((z, direc / hbox2.filename))
             pth_files.append((z, direc / ph2.filename))
-        if flag_options.USE_TS_FLUCT:
+        if inputs.flag_options.USE_TS_FLUCT:
             spin_temp_files.append((z, direc / st2.filename))
         ionize_files.append((z, direc / ib2.filename))
         brightness_files.append((z, direc / bt2.filename))
@@ -730,14 +738,7 @@ def _run_lightcone_from_perturbed_fields(
                     lightcone_filename, redshift=z, index=lc_index
                 )
 
-        # Save current ones as old ones.
-        if flag_options.USE_TS_FLUCT:
-            st = st2
-        ib = ib2
-        if flag_options.USE_MINI_HALOS:
-            pf = pf2
-        prev_coeval = coeval
-
+        # purge arrays we don't need
         if pf is not None:
             with contextlib.suppress(OSError):
                 pf.purge(force=always_purge)
@@ -756,12 +757,17 @@ def _run_lightcone_from_perturbed_fields(
                     ],
                     force=always_purge,
                 )
+
+        # Save current ones as old ones.
         pf = pf2
         hbox = hbox2
+        st = st2
+        ib = ib2
+        prev_coeval = coeval
 
         # last redshift things
         if iz == len(scrollz) - 1:
-            if flag_options.PHOTON_CONS_TYPE == "z-photoncons":
+            if inputs.flag_options.PHOTON_CONS_TYPE == "z-photoncons":
                 photon_nonconservation_data = _get_photon_nonconservation_data()
 
             if lib.photon_cons_allocated:
@@ -770,7 +776,7 @@ def _run_lightcone_from_perturbed_fields(
             lightcone.photon_nonconservation_data = photon_nonconservation_data
             if isinstance(lightcone, AngularLightcone) and lightconer.get_los_velocity:
                 lightcone.compute_rsds(
-                    fname=lightcone_filename, n_subcells=astro_params.N_RSD_STEPS
+                    fname=lightcone_filename, n_subcells=inputs.astro_params.N_RSD_STEPS
                 )
 
         # Append some info to the lightcone before we return
@@ -918,14 +924,11 @@ def run_lightcone(
     if cosmo_params is None and initial_conditions is None:
         cosmo_params = CosmoParams.from_astropy(lightconer.cosmo)
 
-    inputs = InputParameters.from_output_structs(
-        (initial_conditions, *perturbed_fields),
-        cosmo_params=cosmo_params,
-        user_params=user_params,
-        astro_params=astro_params,
-        flag_options=flag_options,
-        redshift=None,
-    )
+    # For the high-level, we need all the InputStruct initialised
+    cosmo_params = CosmoParams.new(cosmo_params)
+    user_params = UserParams.new(user_params)
+    flag_options = AstroParams.new(flag_options)
+    astro_params = AstroParams.new(astro_params, flag_options=flag_options)
 
     if pf_given:
         node_redshifts = [pf.redshift for pf in perturbed_fields]
@@ -984,8 +987,8 @@ def run_lightcone(
         initial_conditions=initial_conditions,
         perturbed_fields=perturbed_fields,
         lightconer=lightconer,
-        astro_params=inputs.astro_params,
-        flag_options=inputs.flag_options,
+        astro_params=astro_params,
+        flag_options=flag_options,
         regenerate=regenerate,
         global_quantities=global_quantities,
         direc=direc,

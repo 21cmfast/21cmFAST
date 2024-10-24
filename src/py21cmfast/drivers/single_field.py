@@ -1136,8 +1136,14 @@ def spin_temperature(
             "that being evaluated."
         )
 
-    if inputs.flag_options.USE_HALO_FIELD and xray_source_box is None:
-        raise ValueError("xray_source_box is required when USE_HALO_FIELD is True")
+    if xray_source_box is None:
+        if inputs.flag_options.USE_HALO_FIELD:
+            raise ValueError("xray_source_box is required when USE_HALO_FIELD is True")
+        else:
+            xray_source_box = XraySourceBox(
+                inputs=inputs.evolve(redshift=0.0),
+                dummy=True,
+            )
 
     # Set up the box without computing anything.
     box = TsBox(

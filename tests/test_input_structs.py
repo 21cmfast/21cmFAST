@@ -9,7 +9,7 @@ import warnings
 
 from py21cmfast import AstroParams  # An example of a struct with defaults
 from py21cmfast import CosmoParams, FlagOptions, UserParams, __version__, global_params
-from py21cmfast.wrapper.inputs import validate_all_inputs
+from py21cmfast.drivers.param_config import InputParameters
 
 
 @pytest.fixture(scope="module")
@@ -170,8 +170,11 @@ def test_validation():
 
     with global_params.use(HII_FILTER=2):
         with pytest.warns(UserWarning, match="Setting R_BUBBLE_MAX to BOX_LEN"):
-            validate_all_inputs(
-                cosmo_params=c, astro_params=a, flag_options=f, user_params=u
+            InputParameters(
+                cosmo_params=c,
+                astro_params=a,
+                user_params=u,
+                flag_options=f,
             )
 
         assert a.R_BUBBLE_MAX == u.BOX_LEN
@@ -180,8 +183,11 @@ def test_validation():
 
     with global_params.use(HII_FILTER=1):
         with pytest.raises(ValueError, match="Your R_BUBBLE_MAX is > BOX_LEN/3"):
-            validate_all_inputs(
-                cosmo_params=c, astro_params=a, flag_options=f, user_params=u
+            InputParameters(
+                cosmo_params=c,
+                astro_params=a,
+                user_params=u,
+                flag_options=f,
             )
 
 

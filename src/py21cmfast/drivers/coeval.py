@@ -10,9 +10,9 @@ from pathlib import Path
 from typing import Any, Sequence
 
 from .. import __version__
-from .. import utils as _ut
 from .._cfg import config
 from ..c_21cmfast import lib
+from ..wrapper._utils import camel_to_snake
 from ..wrapper.globals import global_params
 from ..wrapper.inputs import AstroParams, CosmoParams, FlagOptions, UserParams
 from ..wrapper.outputs import (
@@ -456,9 +456,9 @@ class Coeval(_HighLevelOutput):
         kwargs = {}
 
         with h5py.File(fname, "r") as fl:
-            for output_class in _ut.OutputStruct._implementations():
+            for output_class in _OutputStruct._implementations():
                 if output_class.__name__ in fl:
-                    kwargs[_ut.camel_to_snake(output_class.__name__)] = (
+                    kwargs[camel_to_snake(output_class.__name__)] = (
                         output_class.from_file(fname)
                     )
 
@@ -468,6 +468,7 @@ class Coeval(_HighLevelOutput):
         """Determine if this is equal to another object."""
         return (
             isinstance(other, self.__class__)
+            and other.random_seed == self.random_seed
             and other.redshift == self.redshift
             and self.user_params == other.user_params
             and self.cosmo_params == other.cosmo_params
@@ -583,20 +584,18 @@ def run_coeval(
         else random_seed
     )
 
-    inputs = InputParameters(
-        random_seed=random_seed,
-        user_params=user_params,
-        cosmo_params=cosmo_params,
-        astro_params=astro_params,
-        flag_options=flag_options,
-    )
+    # For the high-level, we need all the InputStruct initialised
+    cosmo_params = CosmoParams.new(cosmo_params)
+    user_params = UserParams.new(user_params)
+    flag_options = FlagOptions.new(flag_options)
+    astro_params = AstroParams.new(astro_params, flag_options=flag_options)
 
     iokw = {"regenerate": regenerate, "hooks": hooks, "direc": direc}
 
     if initial_conditions is None:
         initial_conditions = sf.compute_initial_conditions(
-            user_params=inputs.user_params,
-            cosmo_params=inputs.cosmo_params,
+            user_params=user_params,
+            cosmo_params=cosmo_params,
             random_seed=random_seed,
             **iokw,
         )
@@ -617,8 +616,8 @@ def run_coeval(
 
     kw = {
         **{
-            "astro_params": inputs.astro_params,
-            "flag_options": inputs.flag_options,
+            "astro_params": astro_params,
+            "flag_options": flag_options,
             "initial_conditions": initial_conditions,
         },
         **iokw,
@@ -662,7 +661,7 @@ def run_coeval(
         )
     # get the halos (reverse redshift order)
     pt_halos = []
-    if inputs.flag_options.USE_HALO_FIELD and not inputs.flag_options.FIXED_HALO_GRIDS:
+    if flag_options.USE_HALO_FIELD and not flag_options.FIXED_HALO_GRIDS:
         halos_desc = None
         for i, z in enumerate(node_redshifts[::-1]):
             halos = sf.determine_halo_list(
@@ -716,6 +715,9 @@ def run_coeval(
     z_halos = []
     hbox_arr = []
     for iz, z in enumerate(node_redshifts):
+        logger.info(
+            f"Computing Redshift {z} ({iz + 1}/{len(node_redshifts)}) iterations."
+        )
         pf2 = perturbed_field[iz]
         pf2.load_all()
 
@@ -755,7 +757,7 @@ def run_coeval(
 
         ib2 = sf.compute_ionization_field(
             redshift=z,
-            previous_ionize_box=ib,
+            previous_ionized_box=ib,
             perturbed_field=pf2,
             # perturb field *not* interpolated here.
             previous_perturbed_field=pf,
@@ -797,7 +799,6 @@ def run_coeval(
             )
 
             bt[out_redshifts.index(z)] = _bt
-
         else:
             ib = ib2
             pf = pf2
@@ -806,17 +807,17 @@ def run_coeval(
             st = st2
 
         perturb_files.append((z, os.path.join(direc, pf2.filename)))
-        if inputs.flag_options.USE_HALO_FIELD:
+        if flag_options.USE_HALO_FIELD:
             hbox_files.append((z, os.path.join(direc, hb2.filename)))
             pth_files.append((z, os.path.join(direc, ph2.filename)))
-        if inputs.flag_options.USE_TS_FLUCT:
+        if flag_options.USE_TS_FLUCT:
             spin_temp_files.append((z, os.path.join(direc, st2.filename)))
         ionize_files.append((z, os.path.join(direc, ib2.filename)))
 
         if _bt is not None:
             brightness_files.append((z, os.path.join(direc, _bt.filename)))
 
-    if inputs.flag_options.PHOTON_CONS_TYPE == "z-photoncons":
+    if flag_options.PHOTON_CONS_TYPE == "z-photoncons":
         photon_nonconservation_data = _get_photon_nonconservation_data()
 
     if lib.photon_cons_allocated:

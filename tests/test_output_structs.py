@@ -12,9 +12,14 @@ from py21cmfast import InitialConditions  # An example of an output struct
 from py21cmfast import IonizedBox, PerturbedField, TsBox, global_params
 
 
+@pytest.fixture(scope="module")
+def input_struct_noseed(default_input_struct):
+    return default_input_struct.evolve(random_seed=None)
+
+
 @pytest.fixture(scope="function")
-def init(default_user_params):
-    return InitialConditions(user_params=default_user_params)
+def init(input_struct_noseed):
+    return InitialConditions(inputs=input_struct_noseed)
 
 
 @pytest.mark.parametrize("cls", [InitialConditions, PerturbedField, IonizedBox, TsBox])
@@ -46,8 +51,8 @@ def test_writeability(init):
         init.write()
 
 
-def test_readability(ic, tmpdirec, default_user_params):
-    ic2 = InitialConditions(user_params=default_user_params)
+def test_readability(ic, tmpdirec, input_struct_noseed):
+    ic2 = InitialConditions(inputs=input_struct_noseed)
 
     # without seeds, they are obviously exactly the same.
     assert ic._seedless_repr() == ic2._seedless_repr()
@@ -63,8 +68,8 @@ def test_readability(ic, tmpdirec, default_user_params):
     assert ic is not ic2
 
 
-def test_different_seeds(init, default_user_params):
-    ic2 = InitialConditions(random_seed=2, user_params=default_user_params)
+def test_different_seeds(init, input_struct_noseed):
+    ic2 = InitialConditions(inputs=input_struct_noseed.evolve(random_seed=2))
 
     assert init is not ic2
     assert init != ic2
@@ -77,8 +82,9 @@ def test_different_seeds(init, default_user_params):
     assert init._random_seed is None
 
 
-def test_pickleability(default_user_params):
-    ic_ = InitialConditions(init=True, user_params=default_user_params)
+def test_pickleability(input_struct_noseed):
+    # TODO: remove init kwarg which does nothing?
+    ic_ = InitialConditions(init=True, inputs=input_struct_noseed)
     ic_.filled = True
     ic_.random_seed
 
@@ -88,14 +94,14 @@ def test_pickleability(default_user_params):
     assert repr(ic_) == repr(ic2)
 
 
-def test_fname(default_user_params):
-    ic1 = InitialConditions(user_params=default_user_params)
-    ic2 = InitialConditions(user_params=default_user_params)
+def test_fname(input_struct_noseed):
+    ic1 = InitialConditions(inputs=input_struct_noseed)
+    ic2 = InitialConditions(inputs=input_struct_noseed)
 
     # we didn't give them seeds, so can't access the filename attribute
     # (it is undefined until a seed is set)
     with pytest.raises(AttributeError):
-        assert ic1.filename != ic2.filename  # random seeds are different
+        assert ic1.filename != ic2.filename
 
     # *but* should be able to get a skeleton filename:
     assert ic1._fname_skeleton == ic2._fname_skeleton
@@ -107,15 +113,15 @@ def test_fname(default_user_params):
     assert ic1._fname_skeleton == ic2._fname_skeleton
 
 
-def test_match_seed(tmpdirec, default_user_params):
-    ic2 = InitialConditions(random_seed=1, user_params=default_user_params)
+def test_match_seed(tmpdirec, input_struct_noseed):
+    ic2 = InitialConditions(inputs=input_struct_noseed.evolve(random_seed=3))
 
     # This fails because we've set the seed and it's different to the existing one.
     with pytest.raises(IOError):
         ic2.read(direc=tmpdirec)
 
 
-def test_bad_class_definition(default_user_params):
+def test_bad_class_definition(input_struct_noseed):
     class CustomInitialConditions(InitialConditions):
         _name = "InitialConditions"
 
@@ -129,7 +135,7 @@ def test_bad_class_definition(default_user_params):
             return out
 
     with pytest.raises(TypeError):
-        CustomInitialConditions(init=True, user_params=default_user_params)
+        CustomInitialConditions(inputs=input_struct_noseed)
 
 
 def test_bad_write(init):

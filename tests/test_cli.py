@@ -14,11 +14,11 @@ def runner():
 @pytest.fixture(scope="module")
 def cfg(default_user_params, tmpdirec):
     with open(tmpdirec / "cfg.yml", "w") as f:
-        yaml.dump({"user_params": default_user_params.self}, f)
+        yaml.dump({"user_params": default_user_params.asdict()}, f)
     return tmpdirec / "cfg.yml"
 
 
-def test_init(module_direc, default_user_params, runner, cfg):
+def test_init(module_direc, default_input_struct, runner, cfg):
     # Run the CLI. There's no way to turn off writing from the CLI (since that
     # would be useless). We produce a *new* initial conditions box in a new
     # directory and check that it exists. It gets auto-deleted after.
@@ -32,7 +32,10 @@ def test_init(module_direc, default_user_params, runner, cfg):
 
     assert result.exit_code == 0
 
-    ic = InitialConditions(user_params=default_user_params, random_seed=101010)
+    ic = InitialConditions(
+        inputs=default_input_struct,
+        random_seed=101010,
+    )
     assert ic.exists(direc=str(module_direc))
 
 

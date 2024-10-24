@@ -141,7 +141,7 @@ class CosmoParams(InputStruct):
         values.
         """
         return cls(
-            hlittle=cosmo.h, OMm=cosmo.Om0, OMb=cosmo.Ob0, _base_cosmo=cosmo, **kwargs
+            hlittle=cosmo.h, OMm=cosmo.Om0, OMb=cosmo.Ob0, base_cosmo=cosmo, **kwargs
         )
 
 

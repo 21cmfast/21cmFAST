@@ -117,7 +117,7 @@ class InputStruct:
     _write_exclude_fields = ()
 
     @classmethod
-    def new(cls, x: dict | InputStruct | None):
+    def new(cls, x: dict | InputStruct | None, **kwargs):
         """
         Create a new instance of the struct.
 
@@ -130,11 +130,11 @@ class InputStruct:
             struct will be initialised with default values.
         """
         if isinstance(x, dict):
-            return cls(**x)
+            return cls(**x, **kwargs)
         elif isinstance(x, InputStruct):
             return x
         elif x is None:
-            return cls()
+            return cls(**kwargs)
         else:
             raise ValueError(
                 f"Cannot instantiate {cls.__name__} with type {x.__class__}"
@@ -266,6 +266,10 @@ class OutputStruct(metaclass=ABCMeta):
                     raise KeyError(
                         f"{self.__class__.__name__} requires the keyword argument {k}"
                     ) from e
+                if getattr(self, k) is None:
+                    raise KeyError(
+                        f"{self.__class__.__name__} has required input {k} == None"
+                    )
 
         if kwargs:
             warnings.warn(
@@ -773,7 +777,7 @@ class OutputStruct(metaclass=ABCMeta):
         self,
         direc: str | Path | None = None,
         fname: str | Path | None | h5py.File | h5py.Group = None,
-        keys: Sequence[str] | None = None,
+        keys: Sequence[str] | None = (),
     ):
         """
         Try find and read existing boxes from cache, which match the parameters of this instance.
@@ -880,16 +884,9 @@ class OutputStruct(metaclass=ABCMeta):
             fname = direc / fname
 
         with h5py.File(fname, "r") as fl:
-            if h5_group is not None:
-                self = cls(**cls._read_inputs(fl[h5_group]))
-            else:
-                self = cls(**cls._read_inputs(fl))
-
-        if h5_group is not None:
-            with h5py.File(fname, "r") as fl:
-                self.read(fname=fl[h5_group], keys=arrays_to_load)
-        else:
-            self.read(fname=fname, keys=arrays_to_load)
+            fl_inp = fl[h5_group] if h5_group else fl
+            self = cls(**cls._read_inputs(fl_inp))
+            self.read(fname=fl_inp, keys=arrays_to_load)
 
         return self
 
@@ -899,7 +896,6 @@ class OutputStruct(metaclass=ABCMeta):
 
         # Read the input parameter dictionaries from file.
         kwargs = {}
-        inputstructs = {}
         for k in cls._inputs:
             kfile = k.lstrip("_")
             input_class_name = snake_to_camel(kfile)
@@ -909,14 +905,11 @@ class OutputStruct(metaclass=ABCMeta):
                     input_classes.index(input_class_name)
                 ]
                 subgrp = grp[kfile]
-                logger.info(
-                    {k: v for k, v in dict(subgrp.attrs).items() if v != "none"}
-                )
-                inputstructs[k] = input_class.new(
+                kwargs[k] = input_class.new(
                     {k: v for k, v in dict(subgrp.attrs).items() if v != "none"}
                 )
             else:
-                kwargs[kfile] = grp.attrs[kfile]
+                kwargs[k] = grp.attrs[kfile]
         return kwargs
 
     def __repr__(self):
