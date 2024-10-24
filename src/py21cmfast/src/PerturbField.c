@@ -176,6 +176,11 @@ int ComputePerturbField(
     // Do each time to avoid Python garbage collection issues
     Broadcast_struct_global_noastro(user_params,cosmo_params);
 
+    #if LOG_LEVEL >= SUPER_DEBUG_LEVEL
+            writeUserParams(user_params);
+            writeCosmoParams(cosmo_params);
+    #endif
+
     omp_set_num_threads(user_params->N_THREADS);
 
     fftwf_complex *HIRES_density_perturb, *HIRES_density_perturb_saved;

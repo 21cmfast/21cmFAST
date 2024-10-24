@@ -7,6 +7,7 @@ and then numerical noise gets relatively more important, and can make the compar
 fail at the tens-of-percent level.
 """
 
+import attrs
 import click
 import glob
 import h5py
@@ -25,10 +26,10 @@ from py21cmfast import (
     FlagOptions,
     InitialConditions,
     UserParams,
+    compute_initial_conditions,
     config,
     determine_halo_list,
     global_params,
-    initial_conditions,
     perturb_field,
     perturb_halo_list,
     run_coeval,
@@ -41,12 +42,15 @@ logging.basicConfig()
 
 SEED = 12345
 DATA_PATH = Path(__file__).parent / "test_data"
+
+# NOTE: Since this is called in `evolve()` AFTER the OPTIONS kwargs,
+#   These should only contain dimensions, which don't show up in the
+#   OPTIONS dicts
 DEFAULT_USER_PARAMS = {
     "HII_DIM": 50,
     "DIM": 150,
     "BOX_LEN": 100,
     "NO_RNG": True,
-    "USE_INTERPOLATION_TABLES": True,
 }
 DEFAULT_ZPRIME_STEP_FACTOR = 1.04
 
@@ -274,23 +278,32 @@ if len(set(OPTIONS_HALO.keys())) != len(list(OPTIONS_HALO.keys())):
     raise ValueError("There is a non-unique option_halo name!")
 
 
-def get_defaults(kwargs, cls):
-    return {k: kwargs.get(k, v) for k, v in cls._defaults_.items()}
+def get_input_struct(kwargs, cls):
+    fieldnames = [field.name.lstrip("_") for field in attrs.fields(cls)]
+    subdict = {k: v for (k, v) in kwargs.items() if k in fieldnames}
+    return cls.new(subdict)
 
 
-def get_all_defaults(kwargs):
-    flag_options = get_defaults(kwargs, FlagOptions)
-    astro_params = get_defaults(kwargs, AstroParams)
-    cosmo_params = get_defaults(kwargs, CosmoParams)
-    user_params = get_defaults(kwargs, UserParams)
+def get_all_input_structs(kwargs):
+    flag_options = get_input_struct(kwargs, FlagOptions)
+    cosmo_params = get_input_struct(kwargs, CosmoParams)
+    user_params = get_input_struct(kwargs, UserParams)
+
+    kwargs_a = kwargs.copy()
+    kwargs_a.update({"flag_options": flag_options})
+    logger.info(kwargs_a)
+    astro_params = get_input_struct(kwargs_a, AstroParams)
     return user_params, cosmo_params, astro_params, flag_options
 
 
 def get_all_options(redshift, **kwargs):
-    user_params, cosmo_params, astro_params, flag_options = get_all_defaults(kwargs)
-    user_params.update(DEFAULT_USER_PARAMS)
+    user_params, cosmo_params, astro_params, flag_options = get_all_input_structs(
+        kwargs
+    )
+    user_params = attrs.evolve(user_params, **DEFAULT_USER_PARAMS)
+
     out = {
-        "redshift": redshift,
+        "out_redshifts": redshift,
         "user_params": user_params,
         "cosmo_params": cosmo_params,
         "astro_params": astro_params,
@@ -306,7 +319,9 @@ def get_all_options(redshift, **kwargs):
 
 
 def get_all_options_ics(**kwargs):
-    user_params, cosmo_params, astro_params, flag_options = get_all_defaults(kwargs)
+    user_params, cosmo_params, astro_params, flag_options = get_all_input_structs(
+        kwargs
+    )
     user_params.update(DEFAULT_USER_PARAMS)
     out = {
         "user_params": user_params,
@@ -321,10 +336,12 @@ def get_all_options_ics(**kwargs):
 
 
 def get_all_options_halo(redshift, **kwargs):
-    user_params, cosmo_params, astro_params, flag_options = get_all_defaults(kwargs)
+    user_params, cosmo_params, astro_params, flag_options = get_all_input_structs(
+        kwargs
+    )
     user_params.update(DEFAULT_USER_PARAMS)
     out = {
-        "redshift": redshift,
+        "out_redshifts": redshift,
         "user_params": user_params,
         "cosmo_params": cosmo_params,
         "astro_params": astro_params,
@@ -411,7 +428,7 @@ def produce_perturb_field_data(redshift, **kwargs):
     velocity_normalisation = 1e16
 
     with config.use(regenerate=True, write=False):
-        init_box = initial_conditions(**options_ics)
+        init_box = compute_initial_conditions(**options_ics)
         pt_box = perturb_field(redshift=redshift, init_boxes=init_box, **out)
 
     p_dens, k_dens = get_power(

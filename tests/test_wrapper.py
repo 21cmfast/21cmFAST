@@ -10,36 +10,42 @@ import h5py
 import numpy as np
 from astropy import units as un
 
-from py21cmfast import wrapper
+import py21cmfast as p21c
 
 
 @pytest.fixture(scope="module")
 def perturb_field_lowz(ic, low_redshift):
     """A default perturb_field"""
-    return wrapper.perturb_field(redshift=low_redshift, init_boxes=ic, write=True)
+    return p21c.perturb_field(redshift=low_redshift, initial_conditions=ic, write=True)
 
 
 @pytest.fixture(scope="module")
-def ionize_box(perturbed_field):
+def ionize_box(ic, perturbed_field):
     """A default ionize_box"""
-    return wrapper.ionize_box(perturbed_field=perturbed_field, write=True)
+    return p21c.compute_ionization_field(
+        initial_conditions=ic, perturbed_field=perturbed_field, write=True
+    )
 
 
 @pytest.fixture(scope="module")
-def ionize_box_lowz(perturb_field_lowz):
+def ionize_box_lowz(ic, perturb_field_lowz):
     """A default ionize_box at lower redshift."""
-    return wrapper.ionize_box(perturbed_field=perturb_field_lowz, write=True)
+    return p21c.compute_ionization_field(
+        initial_conditions=ic, perturbed_field=perturb_field_lowz, write=True
+    )
 
 
 @pytest.fixture(scope="module")
-def spin_temp(perturbed_field):
+def spin_temp(ic, perturbed_field):
     """A default perturb_field"""
-    return wrapper.spin_temperature(perturbed_field=perturbed_field, write=True)
+    return p21c.spin_temperature(
+        initial_conditions=ic, perturbed_field=perturbed_field, write=True
+    )
 
 
 def test_perturb_field_no_ic(default_user_params, redshift, perturbed_field):
     """Run a perturb field without passing an init box"""
-    pf = wrapper.perturb_field(redshift=redshift, user_params=default_user_params)
+    pf = p21c.perturb_field(redshift=redshift, user_params=default_user_params)
     assert len(pf.density) == pf.user_params.HII_DIM == default_user_params.HII_DIM
     assert pf.redshift == redshift
     assert pf.random_seed != perturbed_field.random_seed
@@ -50,20 +56,20 @@ def test_perturb_field_no_ic(default_user_params, redshift, perturbed_field):
 
 def test_ib_no_z(ic):
     with pytest.raises(ValueError):
-        wrapper.ionize_box(init_boxes=ic)
+        p21c.compute_ionization_field(initial_conditions=ic)
 
 
 def test_pf_unnamed_param():
     """Try using an un-named parameter."""
     with pytest.raises(TypeError):
-        wrapper.perturb_field(7)
+        p21c.perturb_field(7)
 
 
 def test_perturb_field_ic(perturbed_field, ic):
     # this will run perturb_field again, since by default regenerate=True for tests.
     # BUT it should produce exactly the same as the default perturb_field since it has
     # the same seed.
-    pf = wrapper.perturb_field(redshift=perturbed_field.redshift, init_boxes=ic)
+    pf = p21c.perturb_field(redshift=perturbed_field.redshift, initial_conditions=ic)
 
     assert len(pf.density) == len(ic.lowres_density)
     assert pf.cosmo_params == ic.cosmo_params
@@ -77,7 +83,7 @@ def test_perturb_field_ic(perturbed_field, ic):
 
 
 def test_cache_exists(default_user_params, perturbed_field, tmpdirec):
-    pf = wrapper.PerturbedField(
+    pf = p21c.PerturbedField(
         redshift=perturbed_field.redshift,
         cosmo_params=perturbed_field.cosmo_params,
         user_params=default_user_params,
@@ -91,7 +97,7 @@ def test_cache_exists(default_user_params, perturbed_field, tmpdirec):
 
 
 def test_pf_new_seed(perturbed_field, tmpdirec):
-    pf = wrapper.perturb_field(
+    pf = p21c.perturb_field(
         redshift=perturbed_field.redshift,
         user_params=perturbed_field.user_params,
         random_seed=1,
@@ -107,12 +113,12 @@ def test_pf_new_seed(perturbed_field, tmpdirec):
 def test_ib_new_seed(ionize_box_lowz, perturb_field_lowz, tmpdirec):
     # this should fail because perturb_field has a seed set already, which isn't 1.
     with pytest.raises(ValueError):
-        wrapper.ionize_box(
+        p21c.compute_ionization_field(
             perturbed_field=perturb_field_lowz,
             random_seed=1,
         )
 
-    ib = wrapper.ionize_box(
+    ib = p21c.compute_ionization_field(
         cosmo_params=perturb_field_lowz.cosmo_params,
         redshift=perturb_field_lowz.redshift,
         user_params=perturb_field_lowz.user_params,
@@ -128,12 +134,12 @@ def test_ib_new_seed(ionize_box_lowz, perturb_field_lowz, tmpdirec):
 def test_st_new_seed(spin_temp, perturbed_field, tmpdirec):
     # this should fail because perturb_field has a seed set already, which isn't 1.
     with pytest.raises(ValueError):
-        wrapper.spin_temperature(
+        p21c.spin_temperature(
             perturbed_field=perturbed_field,
             random_seed=1,
         )
 
-    st = wrapper.spin_temperature(
+    st = p21c.spin_temperature(
         cosmo_params=spin_temp.cosmo_params,
         user_params=spin_temp.user_params,
         astro_params=spin_temp.astro_params,
@@ -151,7 +157,7 @@ def test_st_new_seed(spin_temp, perturbed_field, tmpdirec):
 def test_st_from_z(perturb_field_lowz, spin_temp):
     # This one has all the same parameters as the nominal spin_temp, but is evaluated
     # with an interpolated perturb_field
-    st = wrapper.spin_temperature(
+    st = p21c.spin_temperature(
         perturbed_field=perturb_field_lowz,
         astro_params=spin_temp.astro_params,
         flag_options=spin_temp.flag_options,
@@ -163,14 +169,14 @@ def test_st_from_z(perturb_field_lowz, spin_temp):
 
 
 def test_ib_from_pf(perturbed_field):
-    ib = wrapper.ionize_box(perturbed_field=perturbed_field)
+    ib = p21c.compute_ionization_field(perturbed_field=perturbed_field)
     assert ib.redshift == perturbed_field.redshift
     assert ib.user_params == perturbed_field.user_params
     assert ib.cosmo_params == perturbed_field.cosmo_params
 
 
 def test_ib_from_z(default_user_params, perturbed_field):
-    ib = wrapper.ionize_box(
+    ib = p21c.compute_ionization_field(
         redshift=perturbed_field.redshift,
         user_params=default_user_params,
         regenerate=False,
@@ -183,7 +189,7 @@ def test_ib_from_z(default_user_params, perturbed_field):
 
 def test_ib_override_z(perturbed_field):
     with pytest.raises(ValueError):
-        wrapper.ionize_box(
+        p21c.compute_ionization_field(
             redshift=perturbed_field.redshift + 1,
             perturbed_field=perturbed_field,
         )
@@ -191,33 +197,33 @@ def test_ib_override_z(perturbed_field):
 
 def test_ib_override_z_heat_max(perturbed_field):
     # save previous z_heat_max
-    zheatmax = wrapper.global_params.Z_HEAT_MAX
+    zheatmax = p21c.global_params.Z_HEAT_MAX
 
-    wrapper.ionize_box(
+    p21c.compute_ionization_field(
         redshift=perturbed_field.redshift,
         perturbed_field=perturbed_field,
         z_heat_max=12.0,
     )
 
-    assert wrapper.global_params.Z_HEAT_MAX == zheatmax
+    assert p21c.global_params.Z_HEAT_MAX == zheatmax
 
 
 def test_ib_bad_st(ic, redshift):
     with pytest.raises(ValueError):
-        wrapper.ionize_box(redshift=redshift, spin_temp=ic)
+        p21c.compute_ionization_field(redshift=redshift, spin_temp=ic)
 
 
 def test_bt(ionize_box, spin_temp, perturbed_field):
     with pytest.raises(TypeError):  # have to specify param names
-        wrapper.brightness_temperature(ionize_box, spin_temp, perturbed_field)
+        p21c.brightness_temperature(ionize_box, spin_temp, perturbed_field)
 
     # this will fail because ionized_box was not created with spin temperature.
     with pytest.raises(ValueError):
-        wrapper.brightness_temperature(
+        p21c.brightness_temperature(
             ionized_box=ionize_box, perturbed_field=perturbed_field, spin_temp=spin_temp
         )
 
-    bt = wrapper.brightness_temperature(
+    bt = p21c.brightness_temperature(
         ionized_box=ionize_box, perturbed_field=perturbed_field
     )
 
@@ -228,7 +234,7 @@ def test_bt(ionize_box, spin_temp, perturbed_field):
 
 
 def test_coeval_against_direct(ic, perturbed_field, ionize_box):
-    coeval = wrapper.run_coeval(perturb=perturbed_field, init_box=ic)
+    coeval = p21c.run_coeval(perturb=perturbed_field, initial_conditions=ic)
 
     assert coeval.init_struct == ic
     assert coeval.perturb_struct == perturbed_field
@@ -242,8 +248,8 @@ def test_lightcone(lc, default_user_params, redshift, max_redshift):
 
 
 def test_lightcone_quantities(ic, max_redshift, perturbed_field):
-    lc = wrapper.run_lightcone(
-        init_box=ic,
+    lc = p21c.run_lightcone(
+        initial_conditions=ic,
         perturb=perturbed_field,
         max_redshift=max_redshift,
         lightcone_quantities=("dNrec_box", "density", "brightness_temp"),
@@ -266,8 +272,8 @@ def test_lightcone_quantities(ic, max_redshift, perturbed_field):
 
     # Raise an error since we're not doing spin temp.
     with pytest.raises(AttributeError):
-        wrapper.run_lightcone(
-            init_box=ic,
+        p21c.run_lightcone(
+            initial_conditions=ic,
             perturb=perturbed_field,
             max_redshift=20.0,
             lightcone_quantities=("Ts_box", "density"),
@@ -275,8 +281,8 @@ def test_lightcone_quantities(ic, max_redshift, perturbed_field):
 
     # And also raise an error for global quantities.
     with pytest.raises(AttributeError):
-        wrapper.run_lightcone(
-            init_box=ic,
+        p21c.run_lightcone(
+            initial_conditions=ic,
             perturb=perturbed_field,
             max_redshift=20.0,
             global_quantities=("Ts_box",),
@@ -284,18 +290,16 @@ def test_lightcone_quantities(ic, max_redshift, perturbed_field):
 
 
 def test_run_lf():
-    muv, mhalo, lf = wrapper.compute_luminosity_function(redshifts=[7, 8, 9], nbins=100)
+    muv, mhalo, lf = p21c.compute_luminosity_function(redshifts=[7, 8, 9], nbins=100)
     assert np.all(lf[~np.isnan(lf)] > -30)
     assert lf.shape == (3, 100)
 
     # Check that memory is in-tact and a second run also works:
-    muv, mhalo, lf2 = wrapper.compute_luminosity_function(
-        redshifts=[7, 8, 9], nbins=100
-    )
+    muv, mhalo, lf2 = p21c.compute_luminosity_function(redshifts=[7, 8, 9], nbins=100)
     assert lf2.shape == (3, 100)
     assert np.allclose(lf2[~np.isnan(lf2)], lf[~np.isnan(lf)])
 
-    muv_minih, mhalo_minih, lf_minih = wrapper.compute_luminosity_function(
+    muv_minih, mhalo_minih, lf_minih = p21c.compute_luminosity_function(
         redshifts=[7, 8, 9],
         nbins=100,
         component=0,
@@ -312,32 +316,35 @@ def test_run_lf():
 
 
 def test_coeval_st(ic, perturbed_field):
-    coeval = wrapper.run_coeval(
-        init_box=ic,
+    coeval = p21c.run_coeval(
+        initial_conditions=ic,
         perturb=perturbed_field,
         flag_options={"USE_TS_FLUCT": True},
     )
 
-    assert isinstance(coeval.spin_temp_struct, wrapper.TsBox)
+    assert isinstance(coeval.spin_temp_struct, p21c.TsBox)
 
 
 def _global_Tb(coeval_box):
-    assert isinstance(coeval_box, wrapper.Coeval)
+    assert isinstance(coeval_box, p21c.Coeval)
     global_Tb = coeval_box.brightness_temp.mean(dtype=np.float64).astype(np.float32)
     assert np.isclose(global_Tb, coeval_box.brightness_temp_struct.global_Tb)
     return global_Tb
 
 
-def test_coeval_callback(ic, max_redshift, perturbed_field):
-    lc, coeval_output = wrapper.run_lightcone(
-        init_box=ic,
+def test_coeval_callback(
+    rectlcn, ic, max_redshift, perturbed_field, default_flag_options
+):
+    lc, coeval_output = p21c.run_lightcone(
+        lightconer=rectlcn,
+        initial_conditions=ic,
         perturb=perturbed_field,
-        max_redshift=max_redshift,
+        flag_options=default_flag_options,
         lightcone_quantities=("brightness_temp",),
         global_quantities=("brightness_temp",),
         coeval_callback=_global_Tb,
     )
-    assert isinstance(lc, wrapper.LightCone)
+    assert isinstance(lc, p21c.LightCone)
     assert isinstance(coeval_output, list)
     assert len(lc.node_redshifts) == len(coeval_output)
     assert np.allclose(
@@ -345,15 +352,18 @@ def test_coeval_callback(ic, max_redshift, perturbed_field):
     )
 
 
-def test_coeval_callback_redshifts(ic, redshift, max_redshift, perturbed_field):
+def test_coeval_callback_redshifts(
+    rectlcn, ic, redshift, max_redshift, perturbed_field, default_flag_options
+):
     coeval_callback_redshifts = np.array(
         [max_redshift, max_redshift, (redshift + max_redshift) / 2, redshift],
         dtype=np.float32,
     )
-    lc, coeval_output = wrapper.run_lightcone(
-        init_box=ic,
+    lc, coeval_output = p21c.run_lightcone(
+        lightconer=rectlcn,
+        initial_conditions=ic,
         perturb=perturbed_field,
-        max_redshift=max_redshift,
+        flag_options=default_flag_options,
         coeval_callback=lambda x: x.redshift,
         coeval_callback_redshifts=coeval_callback_redshifts,
     )
@@ -369,20 +379,23 @@ def Heaviside(x):
     return 1 if x > 0 else 0
 
 
-def test_coeval_callback_exceptions(ic, redshift, max_redshift, perturbed_field):
+def test_coeval_callback_exceptions(
+    rectlcn, ic, redshift, max_redshift, perturbed_field, default_flag_options
+):
     # should output warning in logs and not raise an error
-    lc, coeval_output = wrapper.run_lightcone(
-        init_box=ic,
+    lc, coeval_output = p21c.run_lightcone(
+        lightconer=rectlcn,
+        initial_conditions=ic,
         perturb=perturbed_field,
-        max_redshift=max_redshift,
+        flag_options=default_flag_options,
         coeval_callback=lambda x: 1
         / Heaviside(x.redshift - (redshift + max_redshift) / 2),
         coeval_callback_redshifts=[max_redshift, redshift],
     )
     # should raise an error
     with pytest.raises(RuntimeError) as excinfo:
-        lc, coeval_output = wrapper.run_lightcone(
-            init_box=ic,
+        lc, coeval_output = p21c.run_lightcone(
+            initial_conditions=ic,
             perturb=perturbed_field,
             max_redshift=max_redshift,
             coeval_callback=lambda x: 1 / 0,
@@ -392,18 +405,18 @@ def test_coeval_callback_exceptions(ic, redshift, max_redshift, perturbed_field)
 
 
 def test_coeval_vs_low_level(ic):
-    coeval = wrapper.run_coeval(
-        redshift=20,
-        init_box=ic,
+    coeval = p21c.run_coeval(
+        out_redshifts=20,
+        initial_conditions=ic,
         zprime_step_factor=1.1,
         regenerate=True,
         flag_options={"USE_TS_FLUCT": True},
         write=False,
     )
 
-    st = wrapper.spin_temperature(
+    st = p21c.spin_temperature(
         redshift=20,
-        init_boxes=ic,
+        initial_conditions=ic,
         zprime_step_factor=1.1,
         regenerate=True,
         flag_options={"USE_TS_FLUCT": True},
@@ -421,16 +434,16 @@ def test_using_cached_halo_field(ic, test_direc):
     Prior to v3.1 this was segfaulting, so this test ensure that this behaviour does
     not regress.
     """
-    halo_field = wrapper.determine_halo_list(
+    halo_field = p21c.determine_halo_list(
         redshift=10.0,
-        init_boxes=ic,
+        initial_conditions=ic,
         write=True,
         direc=test_direc,
     )
 
-    pt_halos = wrapper.perturb_halo_list(
+    pt_halos = p21c.perturb_halo_list(
         redshift=10.0,
-        init_boxes=ic,
+        initial_conditions=ic,
         halo_field=halo_field,
         write=True,
         direc=test_direc,
@@ -438,13 +451,13 @@ def test_using_cached_halo_field(ic, test_direc):
 
     print("DONE WITH FIRST BOXES!")
     # Now get the halo field again at the same redshift -- should be cached
-    new_halo_field = wrapper.determine_halo_list(
-        redshift=10.0, init_boxes=ic, write=False, regenerate=False
+    new_halo_field = p21c.determine_halo_list(
+        redshift=10.0, initial_conditions=ic, write=False, regenerate=False
     )
 
-    new_pt_halos = wrapper.perturb_halo_list(
+    new_pt_halos = p21c.perturb_halo_list(
         redshift=10.0,
-        init_boxes=ic,
+        initial_conditions=ic,
         halo_field=new_halo_field,
         write=False,
         regenerate=False,
@@ -467,7 +480,7 @@ def test_run_coeval_bad_inputs():
     with pytest.raises(
         ValueError, match="Cannot use an interpolated perturb field with minihalos"
     ):
-        wrapper.run_coeval(
+        p21c.run_coeval(
             redshift=6.0,
             flag_options={
                 "USE_MINI_HALOS": True,
@@ -482,24 +495,24 @@ def test_run_lc_bad_inputs(default_user_params):
     with pytest.raises(
         ValueError, match="You must provide either redshift, perturb or lightconer"
     ):
-        wrapper.run_lightcone()
+        p21c.run_lightcone()
 
     with pytest.warns(
         DeprecationWarning, match="passing redshift directly is deprecated"
     ):
-        wrapper.run_lightcone(redshift=6.0, user_params=default_user_params)
+        p21c.run_lightcone(redshift=6.0, user_params=default_user_params)
 
     with pytest.raises(
         ValueError,
         match="If trying to minimize memory usage, you must be caching. Set write=True",
     ):
-        wrapper.run_lightcone(
+        p21c.run_lightcone(
             redshift=6.0,
             user_params={"MINIMIZE_MEMORY": True},
             write=False,
         )
 
-    lcn = wrapper.RectilinearLightconer.with_equal_redshift_slices(
+    lcn = p21c.RectilinearLightconer.with_equal_redshift_slices(
         min_redshift=6.0,
         max_redshift=7.0,
         resolution=0.1 * un.Mpc,
@@ -509,7 +522,7 @@ def test_run_lc_bad_inputs(default_user_params):
         ValueError,
         match="The lightcone redshifts are not compatible with the given redshift.",
     ):
-        wrapper.run_lightcone(
+        p21c.run_lightcone(
             redshift=8.0,
             lightconer=lcn,
         )
@@ -517,17 +530,17 @@ def test_run_lc_bad_inputs(default_user_params):
 
 def test_lc_with_lightcone_filename(rectlcn, perturbed_field, tmpdirec):
     fname = tmpdirec / "lightcone.h5"
-    lc = wrapper.run_lightcone(
+    lc = p21c.run_lightcone(
         lightconer=rectlcn, perturb=perturbed_field, lightcone_filename=fname
     )
     assert fname.exists()
 
-    lc_loaded = wrapper.LightCone.read(fname)
+    lc_loaded = p21c.LightCone.read(fname)
     assert lc_loaded == lc
     del lc_loaded
 
     # This one should NOT run anything.
-    lc2 = wrapper.run_lightcone(
+    lc2 = p21c.run_lightcone(
         lightconer=rectlcn, lightcone_filename=fname, perturb=perturbed_field
     )
     assert lc2 == lc
@@ -542,7 +555,7 @@ def test_lc_partial_eval(rectlcn, perturbed_field, tmpdirec, lc):
     with pytest.raises(
         ValueError, match="Returning before the final redshift requires caching"
     ):
-        wrapper.run_lightcone(
+        p21c.run_lightcone(
             lightconer=rectlcn,
             perturb=perturbed_field,
             lightcone_filename=fname,
@@ -550,7 +563,7 @@ def test_lc_partial_eval(rectlcn, perturbed_field, tmpdirec, lc):
             write=False,
         )
 
-    partial = wrapper.run_lightcone(
+    partial = p21c.run_lightcone(
         lightconer=rectlcn,
         perturb=perturbed_field,
         lightcone_filename=fname,
@@ -563,7 +576,7 @@ def test_lc_partial_eval(rectlcn, perturbed_field, tmpdirec, lc):
     assert partial._current_redshift <= 20.0
     assert partial._current_redshift > 15.0
 
-    finished = wrapper.run_lightcone(
+    finished = p21c.run_lightcone(
         lightconer=rectlcn,
         perturb=perturbed_field,
         lightcone_filename=fname,
@@ -577,7 +590,7 @@ def test_lc_partial_eval(rectlcn, perturbed_field, tmpdirec, lc):
         fl.attrs["current_redshift"] = 2 * partial._current_redshift
 
     with pytest.raises(IOError, match="No component boxes found at z"):
-        wrapper.run_lightcone(
+        p21c.run_lightcone(
             lightconer=rectlcn,
             perturb=perturbed_field,
             lightcone_filename=fname,
@@ -588,15 +601,17 @@ def test_lc_pass_redshift_deprecation(rectlcn, ic):
     with pytest.warns(
         DeprecationWarning, match="passing redshift directly is deprecated"
     ):
-        wrapper.run_lightcone(
-            lightconer=rectlcn, redshift=rectlcn.lc_redshifts.min(), init_box=ic
+        p21c.run_lightcone(
+            lightconer=rectlcn,
+            redshift=rectlcn.lc_redshifts.min(),
+            initial_conditions=ic,
         )
 
 
 def test_coeval_lowerz_than_photon_cons(ic):
     with pytest.raises(ValueError, match="You have passed a redshift"):
-        wrapper.run_coeval(
-            init_box=ic,
+        p21c.run_coeval(
+            initial_conditions=ic,
             redshift=2.0,
             flag_options={
                 "PHOTON_CONS_TYPE": 1,
@@ -608,8 +623,8 @@ def test_coeval_lowerz_than_photon_cons(ic):
 
 def test_lc_lowerz_than_photon_cons(rectlcn, ic):
     with pytest.raises(ValueError, match="You have passed a redshift"):
-        wrapper.run_lightcone(
-            init_box=ic,
+        p21c.run_lightcone(
+            initial_conditions=ic,
             redshift=2.0,
             flag_options={
                 "PHOTON_CONS_TYPE": 1,

@@ -817,15 +817,16 @@ void sum_halos_onto_grid(InitialConditions *ini_boxes, TsBox *previous_spin_temp
 
             #if LOG_LEVEL >= ULTRA_DEBUG_LEVEL
             if(x+y+z == 0){
+                // LOG_ULTRA_DEBUG("(%d %d %d) i_cell %llu i_halo %llu",x,y,z,i_cell, i_halo);
                 LOG_ULTRA_DEBUG("Cell 0 Halo: HM: %.2e SM: %.2e (%.2e) SF: %.2e (%.2e) X: %.2e NI: %.2e WS: %.2e Z : %.2e ct : %llu",
                                     hmass,stars,stars_mini,sfr,sfr_mini,xray,nion,wsfr,out_props.metallicity,i_halo);
 
-                LOG_ULTRA_DEBUG("Cell 0 Sums: HM: %.2e SM: %.2e (%.2e) SF: %.2e (%.2e) X: %.2e NI: %.2e WS: %.2e Z : %.2e ct : %d",
-                        grids->halo_mass[HII_R_INDEX(0,0,0)],
-                        grids->halo_stars[HII_R_INDEX(0,0,0)],grids->halo_stars_mini[HII_R_INDEX(0,0,0)],
-                        grids->halo_sfr[HII_R_INDEX(0,0,0)],grids->halo_sfr_mini[HII_R_INDEX(0,0,0)],
-                        grids->halo_xray[HII_R_INDEX(0,0,0)],grids->n_ion[HII_R_INDEX(0,0,0)],
-                        grids->whalo_sfr[HII_R_INDEX(0,0,0)],grids->count[HII_R_INDEX(0,0,0)]);
+                // LOG_ULTRA_DEBUG("Cell 0 Sums: HM: %.2e SM: %.2e (%.2e) SF: %.2e (%.2e) X: %.2e NI: %.2e WS: %.2e ct : %d",
+                //         grids->halo_mass[HII_R_INDEX(0,0,0)],
+                //         grids->halo_stars[HII_R_INDEX(0,0,0)],grids->halo_stars_mini[HII_R_INDEX(0,0,0)],
+                //         grids->halo_sfr[HII_R_INDEX(0,0,0)],grids->halo_sfr_mini[HII_R_INDEX(0,0,0)],
+                //         grids->halo_xray[HII_R_INDEX(0,0,0)],grids->n_ion[HII_R_INDEX(0,0,0)],
+                //         grids->whalo_sfr[HII_R_INDEX(0,0,0)],grids->count[HII_R_INDEX(0,0,0)]);
                 LOG_ULTRA_DEBUG("Mturn_a %.2e Mturn_m %.2e RNG %.3f %.3f %.3f",M_turn_a,M_turn_m,in_props[0],in_props[1],in_props[2]);
             }
             #endif
@@ -925,6 +926,13 @@ int ComputeHaloBox(double redshift, UserParams *user_params, CosmoParams *cosmo_
     Try{
         //get parameters
         Broadcast_struct_global_all(user_params,cosmo_params,astro_params,flag_options);
+
+        #if LOG_LEVEL >= SUPER_DEBUG_LEVEL
+                writeUserParams(user_params);
+                writeCosmoParams(cosmo_params);
+                writeAstroParams(flag_options, astro_params);
+                writeFlagOptions(flag_options);
+        #endif
 
         unsigned long long int idx;
         #pragma omp parallel for num_threads(user_params->N_THREADS) private(idx)

@@ -14,7 +14,7 @@ def cfgdir(tmp_path_factory):
 
 def test_config_context(cfgdir, default_user_params):
     with p21.config.use(direc=cfgdir, write=True):
-        init = p21.initial_conditions(user_params=default_user_params)
+        init = p21.compute_initial_conditions(user_params=default_user_params)
 
     assert (cfgdir / init.filename).exists()
     assert "config_test_dir" not in p21.config["direc"]
