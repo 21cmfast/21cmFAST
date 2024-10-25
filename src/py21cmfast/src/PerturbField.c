@@ -347,7 +347,7 @@ int ComputePerturbField_cpu(
 
         // ************  END INITIALIZATION **************************** //
 
-        // Perturbing the density field required adding over multiple cells. Store intermediate result as a double to avoid rounding errors
+        // Perturbing the density field requires adding over multiple cells. Store intermediate result as a double to avoid rounding errors
         if(user_params->PERTURB_ON_HIGH_RES) {
             resampled_box = (double *)calloc(TOT_NUM_PIXELS,sizeof(double));
         }
@@ -775,9 +775,10 @@ int ComputePerturbField(
     float redshift, UserParams *user_params, CosmoParams *cosmo_params,
     InitialConditions *boxes, PerturbedField *perturbed_field
     ){
-        if (1) {
-            ComputePerturbField_gpu(redshift, user_params, cosmo_params, boxes, perturbed_field)
+        // int result;
+        if (0) {
+            return ComputePerturbField_gpu(redshift, user_params, cosmo_params, boxes, perturbed_field);
         } else {
-            ComputePerturbField_cpu(redshift, user_params, cosmo_params, boxes, perturbed_field)
+            return ComputePerturbField_cpu(redshift, user_params, cosmo_params, boxes, perturbed_field);
         }
     }   

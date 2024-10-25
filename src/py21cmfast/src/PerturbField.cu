@@ -109,7 +109,7 @@ void compute_perturbed_velocities(
                             LOWRES_density_perturb[0][1] = 0.;
                         }
                     }
-                    else{
+                    else {
                         if(user_params->PERTURB_ON_HIGH_RES) {
                             // HIRES_density_perturb[C_INDEX(n_x,n_y,n_z)] *= dDdt_over_D*kvec[axis]*I/k_sq/(TOT_NUM_PIXELS+0.0);
                             // HIRES_density_perturb[C_INDEX(n_x,n_y,n_z)] *= dDdt_over_D*kvec[axis]/k_sq/(TOT_NUM_PIXELS+0.0);
@@ -420,8 +420,8 @@ int ComputePerturbField_gpu(
     LOWRES_density_perturb_saved = (fftwf_complex *) fftwf_malloc(sizeof(fftwf_complex)*HII_KSPACE_NUM_PIXELS);
 
     if(user_params->PERTURB_ON_HIGH_RES) {
-        HIRES_density_perturb = (fftwf_complex *) fftwf_malloc(sizeof(fftwf_complex)*KSPACE_NUM_PIXELS);
-        HIRES_density_perturb_saved = (fftwf_complex *) fftwf_malloc(sizeof(fftwf_complex)*KSPACE_NUM_PIXELS);
+        HIRES_density_perturb = (fftwf_complex *) fftwf_malloc(sizeof(fftwf_complex)*KSPACE_NUM_PIXELS); // D * D * NCF * D/2
+        HIRES_density_perturb_saved = (fftwf_complex *) fftwf_malloc(sizeof(fftwf_complex)*KSPACE_NUM_PIXELS); // sizeof(fftwf_complex) = 2 * sizeof(float)?
     }
 
     // double *resampled_box;
@@ -439,10 +439,17 @@ int ComputePerturbField_gpu(
 #pragma omp parallel shared(growth_factor,boxes,LOWRES_density_perturb,HIRES_density_perturb,dimension) private(i,j,k) num_threads(user_params->N_THREADS)
         {
 #pragma omp for
-            for (i=0; i<dimension; i++){
-                for (j=0; j<dimension; j++){
-                    for (k=0; k<(unsigned long long)(user_params->NON_CUBIC_FACTOR*dimension); k++){
+            for (i=0; i<dimension; i++){ // D
+                for (j=0; j<dimension; j++){ // D
+                    for (k=0; k<(unsigned long long)(user_params->NON_CUBIC_FACTOR*dimension); k++){ // NCF * D
+                    // max (i, j, k) = (D, D, NCF * D)
                         if(user_params->PERTURB_ON_HIGH_RES) {
+                            // HIRES_density_perturb is of type fftwf_complex
+                            // HIRES_density_perturb has size D * D * NCF * D/2
+                            
+                            // hires_density is of type float
+                            // hires_density has size D * D * NCF * D
+
                             *((float *)HIRES_density_perturb + R_FFT_INDEX(i,j,k)) = growth_factor*boxes->hires_density[R_INDEX(i,j,k)];
                         }
                         else {
@@ -557,15 +564,28 @@ int ComputePerturbField_gpu(
         // Allocat host memory for output box
         double* resampled_box = (double*)malloc(size);
 
-        // Allocate device memory for output box
+        // Allocate device memory for output box and set to 0.
         double* d_box;
         cudaMalloc(&d_box, size);
-        cudaMemset(d_box, 0, size);
+        cudaMemset(d_box, 0, size); // fills size bytes with byte=0
+
+        err = cudaGetLastError();
+        if (err != cudaSuccess) {
+            LOG_ERROR("CUDA error: %s", cudaGetErrorString(err));
+            Throw(CudaError);
+        }
 
         // Allocate device memory for density field
         float* hires_density;
-        cudaMalloc(&hires_density, (HII_TOT_NUM_PIXELS * sizeof(double)));
-        cudaMemcpy(hires_density, boxes->hires_density, (HII_TOT_NUM_PIXELS * sizeof(double)), cudaMemcpyHostToDevice);
+        // cudaMalloc(&hires_density, (HII_TOT_NUM_PIXELS * sizeof(double))); // from outputs.py & indexing.h
+        cudaMalloc(&hires_density, (TOT_NUM_PIXELS * sizeof(double))); // from outputs.py & indexing.h
+        cudaMemcpy(hires_density, boxes->hires_density, (TOT_NUM_PIXELS * sizeof(double)), cudaMemcpyHostToDevice);
+
+        err = cudaGetLastError();
+        if (err != cudaSuccess) {
+            LOG_ERROR("CUDA error: %s", cudaGetErrorString(err));
+            Throw(CudaError);
+        }
 
         // Allocate device memory and copy arrays to device as per user_params
         float* hires_vx;
@@ -616,7 +636,13 @@ int ComputePerturbField_gpu(
             }
         }
 
-        // Can't seem to pass macro straight to kernel.
+        err = cudaGetLastError();
+        if (err != cudaSuccess) {
+            LOG_ERROR("CUDA error: %s", cudaGetErrorString(err));
+            Throw(CudaError);
+        }
+
+        // Seemingly can't pass macro straight to kernel
         long long d_para = D_PARA;
         long long hii_d = HII_D;
         long long hii_d_para = HII_D_PARA;
@@ -640,7 +666,12 @@ int ComputePerturbField_gpu(
         }
 
         // Copy results from device to host
-        cudaMemcpy(resampled_box, d_box, size, cudaMemcpyDeviceToHost);
+        // cudaMemcpy(resampled_box, d_box, size, cudaMemcpyDeviceToHost);
+        cudaError_t err = cudaMemcpy(resampled_box, d_box, size, cudaMemcpyDeviceToHost);
+        if (err != cudaSuccess) {
+            LOG_ERROR("CUDA error: %s", cudaGetErrorString(err));
+            Throw(CudaError);
+        }
 
         // Deallocate device memory
         cudaFree(d_box);
@@ -667,6 +698,12 @@ int ComputePerturbField_gpu(
                 cudaFree(lowres_vy_2LPT);
                 cudaFree(lowres_vz_2LPT);
             }
+        }
+
+        err = cudaGetLastError();
+        if (err != cudaSuccess) {
+            LOG_ERROR("CUDA error: %s", cudaGetErrorString(err));
+            Throw(CudaError);
         }
 
         // ----------------------------------------------------------------------------------------------------------------------------
