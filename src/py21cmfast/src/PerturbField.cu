@@ -196,160 +196,191 @@ __device__ inline unsigned long long compute_HII_R_INDEX(int i, int j, int k, in
 // Is const needed as well as __restrict__?
 __global__ void perturb_density_field_kernel(
     double *resampled_box,
-    const float* __restrict__ hires_density,
-    const float* __restrict__ hires_vx,
-    const float* __restrict__ hires_vy,
-    const float* __restrict__ hires_vz,
-    const float* __restrict__ lowres_vx,
-    const float* __restrict__ lowres_vy,
-    const float* __restrict__ lowres_vz,
-    const float* __restrict__ hires_vx_2LPT,
-    const float* __restrict__ hires_vy_2LPT,
-    const float* __restrict__ hires_vz_2LPT,
-    const float* __restrict__ lowres_vx_2LPT,
-    const float* __restrict__ lowres_vy_2LPT,
-    const float* __restrict__ lowres_vz_2LPT,
-    int dimension, int DIM, long long d_para, long long hii_d, long long hii_d_para,
-    int non_cubic_factor, float f_pixel_factor, float init_growth_factor,
+    // const float* __restrict__ hires_density,
+    // const float* __restrict__ hires_vx,
+    // const float* __restrict__ hires_vy,
+    // const float* __restrict__ hires_vz,
+    // const float* __restrict__ lowres_vx,
+    // const float* __restrict__ lowres_vy,
+    // const float* __restrict__ lowres_vz,
+    // const float* __restrict__ hires_vx_2LPT,
+    // const float* __restrict__ hires_vy_2LPT,
+    // const float* __restrict__ hires_vz_2LPT,
+    // const float* __restrict__ lowres_vx_2LPT,
+    // const float* __restrict__ lowres_vy_2LPT,
+    // const float* __restrict__ lowres_vz_2LPT,
+    float* hires_density,
+    float* hires_vx,
+    float* hires_vy,
+    float* hires_vz,
+    float* lowres_vx,
+    float* lowres_vy,
+    float* lowres_vz,
+    float* hires_vx_2LPT,
+    float* hires_vy_2LPT,
+    float* hires_vz_2LPT,
+    float* lowres_vx_2LPT,
+    float* lowres_vy_2LPT,
+    float* lowres_vz_2LPT,
+    int dimension, int DIM,
+    long long d_para, long long hii_d, long long hii_d_para,
+    int non_cubic_factor,
+    float f_pixel_factor, float init_growth_factor,
     bool perturb_on_high_res, bool use_2lpt
     ) {
 
     unsigned long long idx = blockIdx.x * blockDim.x + threadIdx.x;
 
-    // Get index of density cell
-    int i = idx / (d_para * DIM);
-    int j = (idx / d_para) % DIM;
-    int k = idx % d_para;
+    if (idx < DIM * DIM * d_para) {
 
-    unsigned long long r_index = compute_R_INDEX(i, j, k, DIM, d_para);
-    
-    // Map index to location in units of box size
-    double xf = (i + 0.5) / DIM;
-    double yf = (j + 0.5) / DIM;
-    double zf = (k + 0.5) / d_para;
+        // Get index of density cell
+        int i = idx / (d_para * DIM);
+        int j = (idx / d_para) % DIM;
+        int k = idx % d_para;
 
-    // Update locations
-    unsigned long long HII_index;
+        unsigned long long r_index = compute_R_INDEX(i, j, k, DIM, d_para);
+        
+        // Map index to location in units of box size
+        double xf = (i + 0.5) / DIM;
+        double yf = (j + 0.5) / DIM;
+        double zf = (k + 0.5) / d_para;
 
-    if (perturb_on_high_res) {
-        xf += __ldg(&hires_vx[r_index]);
-        yf += __ldg(&hires_vy[r_index]);
-        zf += __ldg(&hires_vz[r_index]);
-    }
-    else {
-        unsigned long long HII_i = (unsigned long long)(i / f_pixel_factor);
-        unsigned long long HII_j = (unsigned long long)(j / f_pixel_factor);
-        unsigned long long HII_k = (unsigned long long)(k / f_pixel_factor);
-        HII_index = compute_HII_R_INDEX(HII_i, HII_j, HII_k, hii_d, hii_d_para); // This is accessing HII_D and HII_D_PARA macros!
-        xf += __ldg(&lowres_vx[HII_index]);
-        yf += __ldg(&lowres_vy[HII_index]);
-        zf += __ldg(&lowres_vz[HII_index]);
-    }
+        // Update locations
+        unsigned long long HII_index;
 
-    // 2LPT (add second order corrections)
-    if (use_2lpt) {
         if (perturb_on_high_res) {
-            xf -= __ldg(&hires_vx_2LPT[r_index]);
-            yf -= __ldg(&hires_vy_2LPT[r_index]);
-            zf -= __ldg(&hires_vz_2LPT[r_index]);
+            // xf += __ldg(&hires_vx[r_index]);
+            // yf += __ldg(&hires_vy[r_index]);
+            // zf += __ldg(&hires_vz[r_index]);
+            xf += hires_vx[r_index];
+            yf += hires_vy[r_index];
+            zf += hires_vz[r_index];
         }
         else {
-            xf -= __ldg(&lowres_vx_2LPT[HII_index]);
-            yf -= __ldg(&lowres_vy_2LPT[HII_index]);
-            zf -= __ldg(&lowres_vz_2LPT[HII_index]);
+            unsigned long long HII_i = (unsigned long long)(i / f_pixel_factor);
+            unsigned long long HII_j = (unsigned long long)(j / f_pixel_factor);
+            unsigned long long HII_k = (unsigned long long)(k / f_pixel_factor);
+            HII_index = compute_HII_R_INDEX(HII_i, HII_j, HII_k, hii_d, hii_d_para); // This is accessing HII_D and HII_D_PARA macros!
+            // xf += __ldg(&lowres_vx[HII_index]);
+            // yf += __ldg(&lowres_vy[HII_index]);
+            // zf += __ldg(&lowres_vz[HII_index]);
+            xf += lowres_vx[HII_index];
+            yf += lowres_vy[HII_index];
+            zf += lowres_vz[HII_index];
         }
-    }
 
-    // TODO: shared between threads?
-    // Convert once to reduce overhead of multiple casts
-    double dimension_double = (double)(dimension);
-    double dimension_factored_double = dimension_double * (double)(non_cubic_factor);
-    int dimension_factored = dimension * non_cubic_factor;
+        // 2LPT (add second order corrections)
+        if (use_2lpt) {
+            if (perturb_on_high_res) {
+                // xf -= __ldg(&hires_vx_2LPT[r_index]);
+                // yf -= __ldg(&hires_vy_2LPT[r_index]);
+                // zf -= __ldg(&hires_vz_2LPT[r_index]);
+                xf -= hires_vx_2LPT[r_index];
+                yf -= hires_vy_2LPT[r_index];
+                zf -= hires_vz_2LPT[r_index];
+            }
+            else {
+                // xf -= __ldg(&lowres_vx_2LPT[HII_index]);
+                // yf -= __ldg(&lowres_vy_2LPT[HII_index]);
+                // zf -= __ldg(&lowres_vz_2LPT[HII_index]);
+                xf -= lowres_vx_2LPT[HII_index];
+                yf -= lowres_vy_2LPT[HII_index];
+                zf -= lowres_vz_2LPT[HII_index];
+            }
+        }
 
-    // Scale coordinates back to grid size
-    xf *= dimension_double;
-    yf *= dimension_double;
-    zf *= dimension_factored_double;
+        // TODO: shared between threads?
+        // Convert once to reduce overhead of multiple casts
+        double dimension_double = (double)(dimension);
+        double dimension_factored_double = dimension_double * (double)(non_cubic_factor);
+        int dimension_factored = dimension * non_cubic_factor;
 
-    // Wrap coordinates to keep them within valid boundaries
-    xf = fmod(fmod(xf, dimension_double) + dimension_double, dimension_double);
-    yf = fmod(fmod(yf, dimension_double) + dimension_double, dimension_double);
-    zf = fmod(fmod(zf, dimension_factored_double) + dimension_factored_double, dimension_factored_double);
+        // Scale coordinates back to grid size
+        xf *= dimension_double;
+        yf *= dimension_double;
+        zf *= dimension_factored_double;
 
-    // FROM NVIDIA DOCS:
-    // __device__ doublenearbyint(double x) // Round the input argument to the nearest integer.
-    // There are SO many double-to-int conversion intrinsics. How to know if should use any?
+        // Wrap coordinates to keep them within valid boundaries
+        xf = fmod(fmod(xf, dimension_double) + dimension_double, dimension_double);
+        yf = fmod(fmod(yf, dimension_double) + dimension_double, dimension_double);
+        zf = fmod(fmod(zf, dimension_factored_double) + dimension_factored_double, dimension_factored_double);
 
-    // Get integer values for indices from double precision values
-    int xi = xf;
-    int yi = yf;
-    int zi = zf;
+        // FROM NVIDIA DOCS:
+        // __device__ doublenearbyint(double x) // Round the input argument to the nearest integer.
+        // There are SO many double-to-int conversion intrinsics. How to know if should use any?
 
-    // Wrap index coordinates to ensure no out-of-bounds array access will be attempted
-    xi = (xi % dimension + dimension) % dimension;
-    yi = (yi % dimension + dimension) % dimension;
-    zi = (zi % dimension_factored + dimension_factored) % dimension_factored;
+        // Get integer values for indices from double precision values
+        int xi = xf;
+        int yi = yf;
+        int zi = zf;
 
-    // Determine the fraction of the perturbed cell which overlaps with the 8 nearest grid cells,
-    // based on the grid cell which contains the centre of the perturbed cell
-    float d_x = fabs(xf - (double)(xi + 0.5)); // Absolute distances from grid cell centre to perturbed cell centre
-    float d_y = fabs(yf - (double)(yi + 0.5)); // (also) The fractions of mass which will be moved to neighbouring cells
-    float d_z = fabs(zf - (double)(zi + 0.5));
+        // Wrap index coordinates to ensure no out-of-bounds array access will be attempted
+        xi = (xi % dimension + dimension) % dimension;
+        yi = (yi % dimension + dimension) % dimension;
+        zi = (zi % dimension_factored + dimension_factored) % dimension_factored;
 
-    // 8 neighbour cells-of-interest will be shifted left/down/behind if perturbed midpoint is in left/bottom/back corner of cell.
-    if (xf < (double)(xi + 0.5)) {
-        // If perturbed cell centre is less than the mid-point then update fraction
-        // of mass in the cell and determine the cell centre of neighbour to be the
-        // lowest grid point index
-        d_x = 1. - d_x;
-        xi -= 1;
-        xi += (xi + dimension) % dimension; // Only this critera is possible as iterate back by one (we cannot exceed DIM)
-    }
-    if(yf < (double)(yi + 0.5)) {
-        d_y = 1. - d_y;
-        yi -= 1;
-        yi += (yi + dimension) % dimension;
-    }
-    if(zf < (double)(zi + 0.5)) {
-        d_z = 1. - d_z;
-        zi -= 1;
-        zi += (zi + (unsigned long long)(non_cubic_factor * dimension)) % (unsigned long long)(non_cubic_factor * dimension);
-    }
-    // The fractions of mass which will remain with perturbed cell
-    float t_x = 1. - d_x;
-    float t_y = 1. - d_y;
-    float t_z = 1. - d_z;
+        // Determine the fraction of the perturbed cell which overlaps with the 8 nearest grid cells,
+        // based on the grid cell which contains the centre of the perturbed cell
+        float d_x = fabs(xf - (double)(xi + 0.5)); // Absolute distances from grid cell centre to perturbed cell centre
+        float d_y = fabs(yf - (double)(yi + 0.5)); // (also) The fractions of mass which will be moved to neighbouring cells
+        float d_z = fabs(zf - (double)(zi + 0.5));
 
-    // Determine the grid coordinates of the 8 neighbouring cells.
-    // Neighbours will be in positive direction; front/right/above cells (-> 2x2 cube, with perturbed cell bottom/left/back)
-    // Takes into account the offset based on cell centre determined above
-    int xp1 = (xi + 1) % dimension;
-    int yp1 = (yi + 1) % dimension;
-    int zp1 = (zi + 1) % (unsigned long long)(non_cubic_factor * dimension);
+        // 8 neighbour cells-of-interest will be shifted left/down/behind if perturbed midpoint is in left/bottom/back corner of cell.
+        if (xf < (double)(xi + 0.5)) {
+            // If perturbed cell centre is less than the mid-point then update fraction
+            // of mass in the cell and determine the cell centre of neighbour to be the
+            // lowest grid point index
+            d_x = 1. - d_x;
+            xi -= 1;
+            xi += (xi + dimension) % dimension; // Only this critera is possible as iterate back by one (we cannot exceed DIM)
+        }
+        if(yf < (double)(yi + 0.5)) {
+            d_y = 1. - d_y;
+            yi -= 1;
+            yi += (yi + dimension) % dimension;
+        }
+        if(zf < (double)(zi + 0.5)) {
+            d_z = 1. - d_z;
+            zi -= 1;
+            zi += (zi + (unsigned long long)(non_cubic_factor * dimension)) % (unsigned long long)(non_cubic_factor * dimension);
+        }
+        // The fractions of mass which will remain with perturbed cell
+        float t_x = 1. - d_x;
+        float t_y = 1. - d_y;
+        float t_z = 1. - d_z;
 
-    double scaled_density = 1 + init_growth_factor * __ldg(&hires_density[r_index]);
+        // Determine the grid coordinates of the 8 neighbouring cells.
+        // Neighbours will be in positive direction; front/right/above cells (-> 2x2 cube, with perturbed cell bottom/left/back)
+        // Takes into account the offset based on cell centre determined above
+        int xp1 = (xi + 1) % dimension;
+        int yp1 = (yi + 1) % dimension;
+        int zp1 = (zi + 1) % (unsigned long long)(non_cubic_factor * dimension);
 
-    if (perturb_on_high_res) {
-        // Redistribute the mass over the 8 neighbouring cells according to cloud in cell
-        // Cell mass = (1 + init_growth_factor * orig_density) * (proportion of mass to distribute)
-        atomicAdd(&resampled_box[compute_R_INDEX(xi, yi, zi, DIM, d_para)], scaled_density * t_x * t_y * t_z);
-        atomicAdd(&resampled_box[compute_R_INDEX(xp1, yi, zi, DIM, d_para)], scaled_density * d_x * t_y * t_z);
-        atomicAdd(&resampled_box[compute_R_INDEX(xi, yp1, zi, DIM, d_para)], scaled_density * t_x * d_y * t_z);
-        atomicAdd(&resampled_box[compute_R_INDEX(xp1, yp1, zi, DIM, d_para)], scaled_density * d_x * d_y * t_z);
-        atomicAdd(&resampled_box[compute_R_INDEX(xi, yi, zp1, DIM, d_para)], scaled_density * t_x * t_y * d_z);
-        atomicAdd(&resampled_box[compute_R_INDEX(xp1, yi, zp1, DIM, d_para)], scaled_density * d_x * t_y * d_z);
-        atomicAdd(&resampled_box[compute_R_INDEX(xi, yp1, zp1, DIM, d_para)], scaled_density * t_x * d_y * d_z);
-        atomicAdd(&resampled_box[compute_R_INDEX(xp1, yp1, zp1, DIM, d_para)], scaled_density * d_x * d_y * d_z);
-    }
-    else {
-        atomicAdd(&resampled_box[compute_HII_R_INDEX(xi, yi, zi, hii_d, hii_d_para)], scaled_density * t_x * t_y * t_z);
-        atomicAdd(&resampled_box[compute_HII_R_INDEX(xp1, yi, zi, hii_d, hii_d_para)], scaled_density * d_x * t_y * t_z);
-        atomicAdd(&resampled_box[compute_HII_R_INDEX(xi, yp1, zi, hii_d, hii_d_para)], scaled_density * t_x * d_y * t_z);
-        atomicAdd(&resampled_box[compute_HII_R_INDEX(xp1, yp1, zi, hii_d, hii_d_para)], scaled_density * d_x * d_y * t_z);
-        atomicAdd(&resampled_box[compute_HII_R_INDEX(xi, yi, zp1, hii_d, hii_d_para)], scaled_density * t_x * t_y * d_z);
-        atomicAdd(&resampled_box[compute_HII_R_INDEX(xp1, yi, zp1, hii_d, hii_d_para)], scaled_density * d_x * t_y * d_z);
-        atomicAdd(&resampled_box[compute_HII_R_INDEX(xi, yp1, zp1, hii_d, hii_d_para)], scaled_density * t_x * d_y * d_z);
-        atomicAdd(&resampled_box[compute_HII_R_INDEX(xp1, yp1, zp1, hii_d, hii_d_para)], scaled_density * d_x * d_y * d_z);
+        // double scaled_density = 1 + init_growth_factor * __ldg(&hires_density[r_index]);
+        double scaled_density = 1 + init_growth_factor * hires_density[r_index];
+
+        if (perturb_on_high_res) {
+            // Redistribute the mass over the 8 neighbouring cells according to cloud in cell
+            // Cell mass = (1 + init_growth_factor * orig_density) * (proportion of mass to distribute)
+            atomicAdd(&resampled_box[compute_R_INDEX(xi, yi, zi, DIM, d_para)], scaled_density * t_x * t_y * t_z);
+            atomicAdd(&resampled_box[compute_R_INDEX(xp1, yi, zi, DIM, d_para)], scaled_density * d_x * t_y * t_z);
+            atomicAdd(&resampled_box[compute_R_INDEX(xi, yp1, zi, DIM, d_para)], scaled_density * t_x * d_y * t_z);
+            atomicAdd(&resampled_box[compute_R_INDEX(xp1, yp1, zi, DIM, d_para)], scaled_density * d_x * d_y * t_z);
+            atomicAdd(&resampled_box[compute_R_INDEX(xi, yi, zp1, DIM, d_para)], scaled_density * t_x * t_y * d_z);
+            atomicAdd(&resampled_box[compute_R_INDEX(xp1, yi, zp1, DIM, d_para)], scaled_density * d_x * t_y * d_z);
+            atomicAdd(&resampled_box[compute_R_INDEX(xi, yp1, zp1, DIM, d_para)], scaled_density * t_x * d_y * d_z);
+            atomicAdd(&resampled_box[compute_R_INDEX(xp1, yp1, zp1, DIM, d_para)], scaled_density * d_x * d_y * d_z);
+        }
+        else {
+            atomicAdd(&resampled_box[compute_HII_R_INDEX(xi, yi, zi, hii_d, hii_d_para)], scaled_density * t_x * t_y * t_z);
+            atomicAdd(&resampled_box[compute_HII_R_INDEX(xp1, yi, zi, hii_d, hii_d_para)], scaled_density * d_x * t_y * t_z);
+            atomicAdd(&resampled_box[compute_HII_R_INDEX(xi, yp1, zi, hii_d, hii_d_para)], scaled_density * t_x * d_y * t_z);
+            atomicAdd(&resampled_box[compute_HII_R_INDEX(xp1, yp1, zi, hii_d, hii_d_para)], scaled_density * d_x * d_y * t_z);
+            atomicAdd(&resampled_box[compute_HII_R_INDEX(xi, yi, zp1, hii_d, hii_d_para)], scaled_density * t_x * t_y * d_z);
+            atomicAdd(&resampled_box[compute_HII_R_INDEX(xp1, yi, zp1, hii_d, hii_d_para)], scaled_density * d_x * t_y * d_z);
+            atomicAdd(&resampled_box[compute_HII_R_INDEX(xi, yp1, zp1, hii_d, hii_d_para)], scaled_density * t_x * d_y * d_z);
+            atomicAdd(&resampled_box[compute_HII_R_INDEX(xp1, yp1, zp1, hii_d, hii_d_para)], scaled_density * d_x * d_y * d_z);
+        }
     }
 }
 
@@ -550,26 +581,28 @@ int ComputePerturbField_gpu(
         // ----------------------------------------------------------------------------------------------------------------------------
 
         // Box shapes from outputs.py and convenience macros
-        size_t size;
+        size_t size_double, size_float;
         unsigned long long num_pixels;
         if(user_params->PERTURB_ON_HIGH_RES) {
             num_pixels = TOT_NUM_PIXELS;
-            size = TOT_NUM_PIXELS * sizeof(double);
+            size_double = TOT_NUM_PIXELS * sizeof(double);
+            size_float = TOT_NUM_PIXELS * sizeof(float);
         }
         else {
             num_pixels = HII_TOT_NUM_PIXELS;
-            size = HII_TOT_NUM_PIXELS * sizeof(double);
+            size_double = HII_TOT_NUM_PIXELS * sizeof(double);
+            size_float = HII_TOT_NUM_PIXELS * sizeof(float);
         }
 
         // Allocat host memory for output box
-        double* resampled_box = (double*)malloc(size);
+        double* resampled_box = (double*)malloc(size_double);
 
         // Allocate device memory for output box and set to 0.
         double* d_box;
-        cudaMalloc(&d_box, size);
-        cudaMemset(d_box, 0, size); // fills size bytes with byte=0
+        cudaMalloc(&d_box, size_double);
+        cudaMemset(d_box, 0, size_double); // fills size bytes with byte=0
 
-        err = cudaGetLastError();
+        cudaError_t err = cudaGetLastError();
         if (err != cudaSuccess) {
             LOG_ERROR("CUDA error: %s", cudaGetErrorString(err));
             Throw(CudaError);
@@ -577,9 +610,10 @@ int ComputePerturbField_gpu(
 
         // Allocate device memory for density field
         float* hires_density;
-        // cudaMalloc(&hires_density, (HII_TOT_NUM_PIXELS * sizeof(double))); // from outputs.py & indexing.h
-        cudaMalloc(&hires_density, (TOT_NUM_PIXELS * sizeof(double))); // from outputs.py & indexing.h
-        cudaMemcpy(hires_density, boxes->hires_density, (TOT_NUM_PIXELS * sizeof(double)), cudaMemcpyHostToDevice);
+        // cudaMalloc(&hires_density, (HII_TOT_NUM_PIXELS * sizeof(double))); // from 21cmFAST.h, outputs.py & indexing.h
+        //  cudaMemcpy(hires_density, boxes->hires_density, (HII_TOT_NUM_PIXELS * sizeof(double)), cudaMemcpyHostToDevice);
+        cudaMalloc(&hires_density, (TOT_NUM_PIXELS * sizeof(float))); // from 21cmFAST.h, outputs.py & indexing.h
+        cudaMemcpy(hires_density, boxes->hires_density, (TOT_NUM_PIXELS * sizeof(float)), cudaMemcpyHostToDevice);
 
         err = cudaGetLastError();
         if (err != cudaSuccess) {
@@ -588,6 +622,7 @@ int ComputePerturbField_gpu(
         }
 
         // Allocate device memory and copy arrays to device as per user_params
+        // floats as per 21cmFAST.h
         float* hires_vx;
         float* hires_vy;
         float* hires_vz;
@@ -602,37 +637,37 @@ int ComputePerturbField_gpu(
         float* lowres_vz_2LPT;
 
         if (user_params->PERTURB_ON_HIGH_RES) {
-            cudaMalloc(&hires_vx, size); // size isn't neccessarily correct, but it will be correct for whichever branch is run.
-            cudaMalloc(&hires_vy, size);
-            cudaMalloc(&hires_vz, size);
-            cudaMemcpy(hires_vx, boxes->hires_vx, size, cudaMemcpyHostToDevice);
-            cudaMemcpy(hires_vy, boxes->hires_vy, size, cudaMemcpyHostToDevice);
-            cudaMemcpy(hires_vz, boxes->hires_vz, size, cudaMemcpyHostToDevice);
+            cudaMalloc(&hires_vx, size_float);
+            cudaMalloc(&hires_vy, size_float);
+            cudaMalloc(&hires_vz, size_float);
+            cudaMemcpy(hires_vx, boxes->hires_vx, size_float, cudaMemcpyHostToDevice);
+            cudaMemcpy(hires_vy, boxes->hires_vy, size_float, cudaMemcpyHostToDevice);
+            cudaMemcpy(hires_vz, boxes->hires_vz, size_float, cudaMemcpyHostToDevice);
         }
         else {
-            cudaMalloc(&lowres_vx, size);
-            cudaMalloc(&lowres_vy, size);
-            cudaMalloc(&lowres_vz, size);
-            cudaMemcpy(lowres_vx, boxes->lowres_vx, size, cudaMemcpyHostToDevice);
-            cudaMemcpy(lowres_vy, boxes->lowres_vy, size, cudaMemcpyHostToDevice);
-            cudaMemcpy(lowres_vz, boxes->lowres_vz, size, cudaMemcpyHostToDevice);
+            cudaMalloc(&lowres_vx, size_float);
+            cudaMalloc(&lowres_vy, size_float);
+            cudaMalloc(&lowres_vz, size_float);
+            cudaMemcpy(lowres_vx, boxes->lowres_vx, size_float, cudaMemcpyHostToDevice);
+            cudaMemcpy(lowres_vy, boxes->lowres_vy, size_float, cudaMemcpyHostToDevice);
+            cudaMemcpy(lowres_vz, boxes->lowres_vz, size_float, cudaMemcpyHostToDevice);
         }
         if (user_params->USE_2LPT) {
             if (user_params->PERTURB_ON_HIGH_RES) {
-                cudaMalloc(&hires_vx_2LPT, size);
-                cudaMalloc(&hires_vy_2LPT, size);
-                cudaMalloc(&hires_vz_2LPT, size);
-                cudaMemcpy(hires_vx_2LPT, boxes->hires_vx_2LPT, size, cudaMemcpyHostToDevice);
-                cudaMemcpy(hires_vy_2LPT, boxes->hires_vy_2LPT, size, cudaMemcpyHostToDevice);
-                cudaMemcpy(hires_vz_2LPT, boxes->hires_vz_2LPT, size, cudaMemcpyHostToDevice);
+                cudaMalloc(&hires_vx_2LPT, size_float);
+                cudaMalloc(&hires_vy_2LPT, size_float);
+                cudaMalloc(&hires_vz_2LPT, size_float);
+                cudaMemcpy(hires_vx_2LPT, boxes->hires_vx_2LPT, size_float, cudaMemcpyHostToDevice);
+                cudaMemcpy(hires_vy_2LPT, boxes->hires_vy_2LPT, size_float, cudaMemcpyHostToDevice);
+                cudaMemcpy(hires_vz_2LPT, boxes->hires_vz_2LPT, size_float, cudaMemcpyHostToDevice);
             }
             else {
-                cudaMalloc(&lowres_vx_2LPT, size);
-                cudaMalloc(&lowres_vy_2LPT, size);
-                cudaMalloc(&lowres_vz_2LPT, size);
-                cudaMemcpy(lowres_vx_2LPT, boxes->lowres_vx_2LPT, size, cudaMemcpyHostToDevice);
-                cudaMemcpy(lowres_vy_2LPT, boxes->lowres_vy_2LPT, size, cudaMemcpyHostToDevice);
-                cudaMemcpy(lowres_vz_2LPT, boxes->lowres_vz_2LPT, size, cudaMemcpyHostToDevice);
+                cudaMalloc(&lowres_vx_2LPT, size_float);
+                cudaMalloc(&lowres_vy_2LPT, size_float);
+                cudaMalloc(&lowres_vz_2LPT, size_float);
+                cudaMemcpy(lowres_vx_2LPT, boxes->lowres_vx_2LPT, size_float, cudaMemcpyHostToDevice);
+                cudaMemcpy(lowres_vy_2LPT, boxes->lowres_vy_2LPT, size_float, cudaMemcpyHostToDevice);
+                cudaMemcpy(lowres_vz_2LPT, boxes->lowres_vz_2LPT, size_float, cudaMemcpyHostToDevice);
             }
         }
 
@@ -649,7 +684,8 @@ int ComputePerturbField_gpu(
 
         // Invoke kernel
         int threadsPerBlock = 256;
-        int numBlocks = (num_pixels + threadsPerBlock - 1) / threadsPerBlock;
+        // int numBlocks = (num_pixels + threadsPerBlock - 1) / threadsPerBlock;
+        int numBlocks = (TOT_NUM_PIXELS + threadsPerBlock - 1) / threadsPerBlock;
         perturb_density_field_kernel<<<numBlocks, threadsPerBlock>>>(
             d_box, hires_density, hires_vx, hires_vy, hires_vz, lowres_vx, lowres_vy, lowres_vz,
             hires_vx_2LPT, hires_vy_2LPT, hires_vz_2LPT, lowres_vx_2LPT, lowres_vy_2LPT, lowres_vz_2LPT,
@@ -657,7 +693,7 @@ int ComputePerturbField_gpu(
             f_pixel_factor, init_growth_factor, user_params->PERTURB_ON_HIGH_RES, user_params->USE_2LPT);
 
         // Only use during development!
-        cudaError_t err = cudaDeviceSynchronize();
+        err = cudaDeviceSynchronize();
         CATCH_CUDA_ERROR(err);
         err = cudaGetLastError();
         if (err != cudaSuccess) {
@@ -666,8 +702,8 @@ int ComputePerturbField_gpu(
         }
 
         // Copy results from device to host
-        // cudaMemcpy(resampled_box, d_box, size, cudaMemcpyDeviceToHost);
-        cudaError_t err = cudaMemcpy(resampled_box, d_box, size, cudaMemcpyDeviceToHost);
+        // cudaMemcpy(resampled_box, d_box, size_double, cudaMemcpyDeviceToHost);
+        err = cudaMemcpy(resampled_box, d_box, size_double, cudaMemcpyDeviceToHost);
         if (err != cudaSuccess) {
             LOG_ERROR("CUDA error: %s", cudaGetErrorString(err));
             Throw(CudaError);
@@ -705,6 +741,12 @@ int ComputePerturbField_gpu(
             LOG_ERROR("CUDA error: %s", cudaGetErrorString(err));
             Throw(CudaError);
         }
+
+        // LOG_DEBUG("resampled_box[:50] = ");
+        // for (int element = 0; element < 50; element++) {
+        //     LOG_DEBUG("%.4e ", resampled_box[element]);
+        // }
+        // LOG_DEBUG("\n");
 
         // ----------------------------------------------------------------------------------------------------------------------------
 

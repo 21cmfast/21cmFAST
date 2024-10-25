@@ -499,6 +499,12 @@ int ComputePerturbField_cpu(
             }
         }
 
+        // LOG_DEBUG("resampled_box[:50] = ");
+        // for (int element = 0; element < 50; element++) {
+        //     LOG_DEBUG("%.4e ", resampled_box[element]);
+        // }
+        // LOG_DEBUG("\n");
+
         LOG_SUPER_DEBUG("resampled_box: ");
         debugSummarizeBoxDouble(resampled_box, dimension, user_params->NON_CUBIC_FACTOR, "  ");
 
@@ -776,7 +782,7 @@ int ComputePerturbField(
     InitialConditions *boxes, PerturbedField *perturbed_field
     ){
         // int result;
-        if (0) {
+        if (1) {
             return ComputePerturbField_gpu(redshift, user_params, cosmo_params, boxes, perturbed_field);
         } else {
             return ComputePerturbField_cpu(redshift, user_params, cosmo_params, boxes, perturbed_field);
