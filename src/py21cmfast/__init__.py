@@ -23,7 +23,7 @@ from ._cfg import config
 from ._logging import configure_logging
 from .cache_tools import query_cache
 from .drivers.coeval import Coeval, run_coeval
-from .drivers.lightcone import LightCone, run_lightcone
+from .drivers.lightcone import LightCone, exhaust_lightcone, run_lightcone
 from .drivers.param_config import InputParameters
 from .drivers.single_field import (
     brightness_temperature,

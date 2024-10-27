@@ -300,7 +300,7 @@ def get_all_options(redshift, **kwargs):
     user_params, cosmo_params, astro_params, flag_options = get_all_input_structs(
         kwargs
     )
-    user_params = attrs.evolve(user_params, **DEFAULT_USER_PARAMS)
+    user_params = user_params.clone(**DEFAULT_USER_PARAMS)
 
     out = {
         "out_redshifts": redshift,

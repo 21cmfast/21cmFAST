@@ -110,7 +110,7 @@ class CosmoParams(InputStruct):
     """
 
     _base_cosmo = field(
-        default=Planck18, validator=validators.instance_of(FLRW), eq=False
+        default=Planck18, validator=validators.instance_of(FLRW), eq=False, repr=False
     )
     SIGMA_8 = field(default=0.8102, converter=float, validator=validators.gt(0))
     hlittle = field(default=Planck18.h, converter=float, validator=validators.gt(0))
@@ -504,7 +504,7 @@ class FlagOptions(InputStruct):
 
     @USE_HALO_FIELD.validator
     def _USE_HALO_FIELD_vld(self, att, val):
-        """Automatically setting USE_HALO_FIELD to False if not USE_MASS_DEPENDENT_ZETA."""
+        """Raise an error if USE_HALO_FIELD is True and USE_MASS_DEPENDENT_ZETA is False."""
         if val and not self.USE_MASS_DEPENDENT_ZETA:
             raise ValueError(
                 "You have set USE_MASS_DEPENDENT_ZETA to False but USE_HALO_FIELD is True! "
@@ -512,7 +512,12 @@ class FlagOptions(InputStruct):
 
     @USE_MINI_HALOS.validator
     def _USE_MINI_HALOS_vald(self, att, val):
-        """Automatically setting USE_MASS_DEPENDENT_ZETA to True if USE_MINI_HALOS."""
+        """
+        Raise an error USE_MINI_HALOS is True with incompatible flags.
+
+        This happens when anyof of USE_MASS_DEPENDENT_ZETA, INHOMO_RECO,
+        or USE_TS_FLUCT is False.
+        """
         if val and not self.USE_MASS_DEPENDENT_ZETA:
             raise ValueError(
                 "You have set USE_MINI_HALOS to True but USE_MASS_DEPENDENT_ZETA is False! "
@@ -528,7 +533,7 @@ class FlagOptions(InputStruct):
 
     @PHOTON_CONS_TYPE.validator
     def _PHOTON_CONS_TYPE_vld(self, att, val):
-        """Automatically setting PHOTON_CONS to False if USE_MINI_HALOS."""
+        """Raise an error if using PHOTON_CONS_TYPE='z_photoncons' and USE_MINI_HALOS is True."""
         if (self.USE_MINI_HALOS or self.USE_HALO_FIELD) and val == "z-photoncons":
             raise ValueError(
                 "USE_MINI_HALOS and USE_HALO_FIELD are not compatible with the redshift-based"
@@ -537,13 +542,13 @@ class FlagOptions(InputStruct):
 
     @HALO_STOCHASTICITY.validator
     def _HALO_STOCHASTICITY_vld(self, att, val):
-        """Automatically setting HALO_STOCHASTICITY to False if not USE_HALO_FIELD."""
+        """Raise an error if HALO_STOCHASTICITY is True and USE_HALO_FIELD is False."""
         if val and not self.USE_HALO_FIELD:
             raise ValueError("HALO_STOCHASTICITY is True but USE_HALO_FIELD is False")
 
     @USE_EXP_FILTER.validator
     def _USE_EXP_FILTER_vld(self, att, val):
-        """Automatically setting USE_EXP_FILTER to False if not HII_FILTER==0."""
+        """Raise an error if USE_EXP_FILTER is False and HII_FILTER!=0."""
         if val and global_params.HII_FILTER != 0:
             raise ValueError(
                 "USE_EXP_FILTER can only be used with a real-space tophat HII_FILTER==0"
@@ -683,6 +688,7 @@ class AstroParams(InputStruct):
         converter=converters.optional(FlagOptions.new),
         validator=validators.optional(validators.instance_of(FlagOptions)),
         eq=False,
+        repr=False,
     )
 
     HII_EFF_FACTOR = field(default=30.0, converter=float, validator=validators.gt(0))
@@ -757,6 +763,17 @@ class AstroParams(InputStruct):
     # NOTE (Jdavies): It's difficult to know what this should be, ASTRID doesn't have
     # the xrays and I don't know which hydros do
     CORR_LX = field(default=0.2, converter=float)
+
+    def __attrs_post_init__(self):
+        """Print warnings for valid but unusual parameter choices."""
+        if self.R_BUBBLE_MAX != 50 and getattr(
+            self._flag_options, "INHOMO_RECO", False
+        ):
+            warnings.warn(
+                "You are setting R_BUBBLE_MAX != 50 when INHOMO_RECO=True. "
+                "This is non-standard (but allowed), and usually occurs upon manual "
+                "update of INHOMO_RECO"
+            )
 
     @R_BUBBLE_MAX.default
     def _R_BUBBLE_MAX_default(self):

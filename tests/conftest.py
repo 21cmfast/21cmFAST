@@ -122,24 +122,17 @@ def default_user_params():
 
 
 @pytest.fixture(scope="session")
+def default_cosmo_params():
+    return CosmoParams()
+
+
+@pytest.fixture(scope="session")
 def default_flag_options():
     return FlagOptions(
         USE_HALO_FIELD=False,
         USE_EXP_FILTER=False,
         CELL_RECOMB=False,
         HALO_STOCHASTICITY=False,
-    )
-
-
-@pytest.fixture(scope="session")
-def default_input_struct(default_user_params, default_flag_options):
-    return InputParameters(
-        redshift=10.0,
-        random_seed=1,
-        cosmo_params=CosmoParams.new(),
-        astro_params=AstroParams.new(default_flag_options),
-        user_params=default_user_params,
-        flag_options=default_flag_options,
     )
 
 
@@ -151,6 +144,28 @@ def default_flag_options_ts():
         CELL_RECOMB=False,
         HALO_STOCHASTICITY=False,
         USE_TS_FLUCT=True,
+    )
+
+
+@pytest.fixture(scope="session")
+def default_astro_params(default_flag_options):
+    return AstroParams.new(None, flag_options=default_flag_options)
+
+
+@pytest.fixture(scope="session")
+def default_input_struct(
+    default_user_params,
+    default_cosmo_params,
+    default_astro_params,
+    default_flag_options,
+):
+    return InputParameters(
+        redshift=10.0,
+        random_seed=None,
+        cosmo_params=default_cosmo_params,
+        astro_params=default_astro_params,
+        user_params=default_user_params,
+        flag_options=default_flag_options,
     )
 
 
@@ -196,9 +211,11 @@ def rectlcn(perturbed_field, max_redshift) -> RectilinearLightconer:
 
 
 @pytest.fixture(scope="session")
-def lc(perturbed_field, rectlcn, default_flag_options):
+def lc(rectlcn, ic, default_flag_options):
     lc_gen = run_lightcone(
-        lightconer=rectlcn, perturb=perturbed_field, flag_options=default_flag_options
+        lightconer=rectlcn,
+        initial_conditions=ic,
+        flag_options=default_flag_options,
     )
-    iz, z, coev, lc = deque(lc_gen, maxlen=1)
+    [[iz, z, coev, lc]] = deque(lc_gen, maxlen=1)
     return lc

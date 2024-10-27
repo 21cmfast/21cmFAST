@@ -159,16 +159,10 @@ def compute_luminosity_function(
         Number density of haloes corresponding to each bin defined by `Muvfunc`.
         Shape [nredshifts, nbins].
     """
-    inputs = InputParameters(
-        user_params=user_params,
-        cosmo_params=cosmo_params,
-        astro_params=astro_params,
-        flag_options=flag_options,
-    )
-    user_params = inputs.user_params
-    cosmo_params = inputs.cosmo_params
-    astro_params = inputs.astro_params
-    flag_options = inputs.flag_options
+    user_params = UserParams.new(user_params)
+    cosmo_params = CosmoParams.new(cosmo_params)
+    flag_options = FlagOptions.new(flag_options)
+    astro_params = AstroParams.new(astro_params, flag_options=flag_options)
 
     redshifts = np.array(redshifts, dtype="float32")
     if flag_options.USE_MINI_HALOS:

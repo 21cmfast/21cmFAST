@@ -39,12 +39,12 @@ def lightcone(ic, default_flag_options_ts):
 
     lc_gen = run_lightcone(
         lightconer=lcn,
-        init_box=ic,
+        initial_conditions=ic,
         write=True,
         flag_options=default_flag_options_ts,
     )
 
-    iz, z, coev, lc = deque(lc_gen, maxlen=1)
+    [[iz, z, coev, lc]] = deque(lc_gen, maxlen=1)
     return lc
 
 
@@ -59,12 +59,12 @@ def ang_lightcone(ic, lc, default_flag_options_ts):
 
     lc_gen = run_lightcone(
         lightconer=lcn,
-        init_box=ic,
+        initial_conditions=ic,
         write=True,
-        flag_options=attrs.evolve(default_flag_options_ts, APPLY_RSDS=False),
+        flag_options=default_flag_options_ts.clone(APPLY_RSDS=False),
     )
 
-    iz, z, coev, lc = deque(lc_gen, maxlen=1)
+    [[iz, z, coev, lc]] = deque(lc_gen, maxlen=1)
     return lc
 
 
@@ -95,14 +95,14 @@ def test_read_bad_file_lc(test_direc, lc):
     assert "NotARealGlobal" not in lc2.global_params.keys()
 
     # check that missing fields are set to default
-    assert lc2.user_params.BOX_LEN == UserParams._defaults_["BOX_LEN"]
+    assert lc2.user_params.BOX_LEN == UserParams().BOX_LEN
     assert lc2.global_params["OPTIMIZE_MIN_MASS"] == global_params.OPTIMIZE_MIN_MASS
 
     # check that the fields which are good are read in the struct
     assert all(
-        getattr(lc2.user_params, k) == getattr(lc.user_params, k)
-        for k in UserParams._defaults_.keys()
-        if k != "BOX_LEN"
+        getattr(lc2.user_params, field.name) == getattr(lc.user_params, field.name)
+        for field in attrs.fields(UserParams)
+        if field.name != "BOX_LEN"
     )
     assert all(
         lc2.global_params[k] == lc.global_params[k]
@@ -137,13 +137,13 @@ def test_read_bad_file_coev(test_direc, coeval):
     assert "NotARealGlobal" not in cv2.global_params.keys()
 
     # check that missing fields are set to default
-    assert cv2.user_params.BOX_LEN == UserParams._defaults_["BOX_LEN"]
+    assert cv2.user_params.BOX_LEN == UserParams().BOX_LEN
     assert cv2.global_params["OPTIMIZE_MIN_MASS"] == global_params.OPTIMIZE_MIN_MASS
 
     # check that the fields which are good are read in the struct
     assert all(
         getattr(cv2.user_params, k) == getattr(coeval.user_params, k)
-        for k in UserParams._defaults_.keys()
+        for k in coeval.user_params.asdict().keys()
         if k != "BOX_LEN"
     )
     assert all(
@@ -233,12 +233,10 @@ def test_lightcone_cache(lightcone):
     )
 
     assert isinstance(out, BrightnessTemp)
-    assert out.redshift != lightcone.redshift
 
     with pytest.raises(ValueError):
         lightcone.get_cached_data(kind="bad", redshift=100.0)
 
-    print(lightcone.cache_files)
     lightcone.gather(fname="tmp_lightcone_gather.h5", clean=["brightness_temp"])
 
     with pytest.raises(IOError):

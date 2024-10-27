@@ -210,9 +210,42 @@ class InputStruct:
         d = self.asdict()
         biggest_k = max(len(k) for k in d)
         params = "\n    ".join(sorted(f"{k:<{biggest_k}}: {v}" for k, v in d.items()))
-        return f"""{self.__class__.__name__}:
-    {params}
-    """
+        return f"""{self.__class__.__name__}:{params} """
+
+    @classmethod
+    def from_subdict(cls, dct, safe=True):
+        """Construct an instance of a parameter structure from a dictionary."""
+        fieldnames = [
+            field.name
+            for field in attrs.fields(cls)
+            if field.eq and field.default is not None
+        ]
+        if set(fieldnames) != set(dct.keys()):
+            missing_items = [
+                (field.name, field.default)
+                for field in attrs.fields(cls)
+                if field.name not in dct.keys() and field.name in fieldnames
+            ]
+            extra_items = [(k, v) for k, v in dct.items() if k not in fieldnames]
+            message = (
+                f"There are extra or missing {cls.__name__} in the file to be read.\n"
+                f"EXTRAS: {extra_items}\n"
+                f"MISSING: {missing_items}\n"
+            )
+            if safe:
+                raise ValueError(
+                    message
+                    + "set `safe=False` to load structures from previous versions"
+                )
+            else:
+                warnings.warn(
+                    message
+                    + "\nExtras are ignored and missing are set to default (shown) values."
+                    + "\nUsing these parameter structures in further computation will give inconsistent results."
+                )
+            dct = {k: v for k, v in dct.items() if k in fieldnames}
+
+        return cls.new(dct)
 
 
 class OutputStruct(metaclass=ABCMeta):
@@ -740,13 +773,10 @@ class OutputStruct(metaclass=ABCMeta):
         fname = Path(fname)
         if fname.is_absolute():
             direc = fname.parent
-            fname = fname.name
+            fname = Path(fname.name)
 
         if h5_group is not None:
-            if not fname.is_absolute():
-                fname = direc / fname
-
-            fl = h5py.File(fname, "a")
+            fl = h5py.File(direc / fname, "a")
 
             try:
                 grp = fl.create_group(h5_group)
@@ -859,6 +889,7 @@ class OutputStruct(metaclass=ABCMeta):
         load_data=True,
         h5_group: str | None = None,
         arrays_to_load=(),
+        safe=True,
     ):
         """Create an instance from a file on disk.
 
@@ -885,13 +916,13 @@ class OutputStruct(metaclass=ABCMeta):
 
         with h5py.File(fname, "r") as fl:
             fl_inp = fl[h5_group] if h5_group else fl
-            self = cls(**cls._read_inputs(fl_inp))
+            self = cls(**cls._read_inputs(fl_inp, safe=safe))
             self.read(fname=fl_inp, keys=arrays_to_load)
 
         return self
 
     @classmethod
-    def _read_inputs(cls, grp: h5py.File | h5py.Group):
+    def _read_inputs(cls, grp: h5py.File | h5py.Group, safe=True):
         input_classes = [c.__name__ for c in InputStruct.__subclasses__()]
 
         # Read the input parameter dictionaries from file.
@@ -901,13 +932,12 @@ class OutputStruct(metaclass=ABCMeta):
             input_class_name = snake_to_camel(kfile)
 
             if input_class_name in input_classes:
-                input_class = InputStruct.__subclasses__()[
+                kls = InputStruct.__subclasses__()[
                     input_classes.index(input_class_name)
                 ]
                 subgrp = grp[kfile]
-                kwargs[k] = input_class.new(
-                    {k: v for k, v in dict(subgrp.attrs).items() if v != "none"}
-                )
+                dct = dict(subgrp.attrs)
+                kwargs[k] = kls.from_subdict(dct, safe=safe)
             else:
                 kwargs[k] = grp.attrs[kfile]
         return kwargs

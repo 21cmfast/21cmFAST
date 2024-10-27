@@ -5,6 +5,7 @@ import h5py
 import logging
 import numpy as np
 import os
+import warnings
 from hashlib import md5
 from pathlib import Path
 from typing import Any, Sequence
@@ -152,11 +153,7 @@ class _HighLevelOutput:
         return fname
 
     def _get_prefix(self):
-        return "{name}_z{redshift:.4}_{{hash}}_r{seed}.h5".format(
-            name=self.__class__.__name__,
-            redshift=float(self.redshift),
-            seed=self.random_seed,
-        )
+        pass
 
     def _input_rep(self):
         return "".join(
@@ -271,11 +268,39 @@ class _HighLevelOutput:
         return self._write(direc=direc, fname=fname, clobber=clobber)
 
     @classmethod
-    def _read_inputs(cls, fname):
+    def _read_inputs(cls, fname, safe=True):
         kwargs = {}
         with h5py.File(fname, "r") as fl:
+            global_req_keys = [
+                k for k, v in global_params.items() if "path" not in k and v is not None
+            ]
             glbls = dict(fl["_globals"].attrs)
-            kwargs["redshift"] = fl.attrs["redshift"]
+            if set(glbls.keys()) != set(global_req_keys):
+                missing_items = [
+                    (k, v)
+                    for k, v in global_params.items()
+                    if k not in glbls.keys() and k in global_req_keys
+                ]
+                extra_items = [
+                    (k, v) for k, v in glbls.items() if k not in global_params.keys()
+                ]
+                message = (
+                    f"There are extra or missing global params in the file to be read.\n"
+                    f"EXTRAS: {extra_items}\n"
+                    f"MISSING: {missing_items}\n"
+                )
+                # we don't save None values (we probably should) or paths so ignore these
+                # We also only print the warning for these fields if "safe" is turned off
+                if safe:
+                    raise ValueError(
+                        message
+                        + "set `safe=False` to load structures from previous versions"
+                    )
+                else:
+                    warnings.warn(
+                        message
+                        + "\nExtras are ignored and missing are set to default (shown) values"
+                    )
 
             if "photon_nonconservation_data" in fl.keys():
                 d = fl["photon_nonconservation_data"]
@@ -284,8 +309,8 @@ class _HighLevelOutput:
         return kwargs, glbls
 
     @classmethod
-    def read(cls, fname, direc="."):
-        """Read a lightcone file from disk, creating a LightCone object.
+    def read(cls, fname, direc=".", safe=True):
+        """Read the HighLevelOutput file from disk, creating a LightCone or Coeval object.
 
         Parameters
         ----------
@@ -295,6 +320,10 @@ class _HighLevelOutput:
             If fname, is relative, the directory in which to find the file. By default,
             both the current directory and default cache and the  will be searched, in
             that order.
+        safe : bool
+            If safe is true, we throw an error if the parameter structures in the file do not
+            match the structures in the `inputs.py` module. If false, we allow extra and missing
+            items, setting the missing items to the default values and ignoring extra items.
 
         Returns
         -------
@@ -307,13 +336,16 @@ class _HighLevelOutput:
         if not os.path.exists(fname):
             raise FileExistsError(f"The file {fname} does not exist!")
 
-        park, glbls = cls._read_inputs(fname)
-        boxk = cls._read_particular(fname)
+        park, glbls = cls._read_inputs(fname, safe=safe)
+        boxk = cls._read_particular(fname, safe=safe)
 
         with global_params.use(**glbls):
             out = cls(**park, **boxk)
 
         return out
+
+    def _read_particular(self, fname, safe=True):
+        pass
 
 
 class Coeval(_HighLevelOutput):
@@ -429,6 +461,13 @@ class Coeval(_HighLevelOutput):
         """Random seed shared by all datasets."""
         return self.brightness_temp_struct.random_seed
 
+    def _get_prefix(self):
+        return "{name}_z{redshift:.4}_{{hash}}_r{seed}.h5".format(
+            name=self.__class__.__name__,
+            redshift=float(self.redshift),
+            seed=self.random_seed,
+        )
+
     def _particular_rep(self):
         return ""
 
@@ -452,14 +491,15 @@ class Coeval(_HighLevelOutput):
                             fl.attrs[inp] = getattr(struct, inp)
 
     @classmethod
-    def _read_particular(cls, fname):
+    def _read_particular(cls, fname, safe=True):
         kwargs = {}
 
         with h5py.File(fname, "r") as fl:
+            kwargs["redshift"] = float(fl.attrs["redshift"])
             for output_class in _OutputStruct._implementations():
                 if output_class.__name__ in fl:
                     kwargs[camel_to_snake(output_class.__name__)] = (
-                        output_class.from_file(fname)
+                        output_class.from_file(fname, safe=safe)
                     )
 
         return kwargs

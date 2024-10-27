@@ -50,11 +50,12 @@ def test_modified_cosmo(ic):
 
 def test_transfer_function(ic, default_user_params):
     """Test using a modified transfer function"""
-    user_params = default_user_params.clone(POWER_SPECTRUM=5)
+    user_params = default_user_params.clone(POWER_SPECTRUM="CLASS")
     ic2 = p21c.compute_initial_conditions(
         random_seed=ic.random_seed,
         user_params=user_params,
     )
+    print(ic2.cosmo_params)
 
     rmsnew = np.sqrt(np.mean(ic2.hires_density**2))
     rmsdelta = np.sqrt(np.mean((ic2.hires_density - ic.hires_density) ** 2))
@@ -71,7 +72,7 @@ def test_relvels():
             HII_DIM=100,
             DIM=300,
             BOX_LEN=300,
-            POWER_SPECTRUM=5,
+            POWER_SPECTRUM="CLASS",
             USE_RELATIVE_VELOCITIES=True,
             N_THREADS=cpu_count(),  # To make this one a bit faster.
         ),

@@ -511,7 +511,7 @@ def test_FgtrM_conditional_tables(name, R, plt):
         edges_d[:-1], redshift, sigma_min, sigma_cond
     )
 
-    up = attrs.evolve(up, USE_INTERPOLATION_TABLES=False)
+    up = up.clone(USE_INTERPOLATION_TABLES=False)
     lib.Broadcast_struct_global_all(up.cstruct, cp.cstruct, ap.cstruct, fo.cstruct)
 
     fcoll_integrals = np.vectorize(lib.EvaluateFcoll_delta)(
@@ -570,8 +570,7 @@ def test_SFRD_z_tables(name, plt):
     ap = opts["astro_params"]
     fo = opts["flag_options"]
 
-    fo = attrs.evolve(
-        fo,
+    fo = fo.clone(
         USE_MINI_HALOS=True,
         INHOMO_RECO=True,
         USE_TS_FLUCT=True,
@@ -695,8 +694,7 @@ def test_Nion_z_tables(name, plt):
     ap = opts["astro_params"]
     fo = opts["flag_options"]
 
-    fo = attrs.evolve(
-        fo,
+    fo = fo.clone(
         USE_MINI_HALOS=True,
         INHOMO_RECO=True,
         USE_TS_FLUCT=True,
@@ -845,13 +843,11 @@ def test_Nion_conditional_tables(name, R, mini, intmethod, plt):
     ap = opts["astro_params"]
     fo = opts["flag_options"]
 
-    up = attrs.evolve(
-        up,
+    up = up.clone(
         INTEGRATION_METHOD_ATOMIC=OPTIONS_INTMETHOD[intmethod],
         INTEGRATION_METHOD_MINI=OPTIONS_INTMETHOD[intmethod],
     )
-    fo = attrs.evolve(
-        fo,
+    fo = fo.clone(
         USE_MINI_HALOS=mini_flag,
         INHOMO_RECO=True,
         USE_TS_FLUCT=True,
@@ -1031,13 +1027,11 @@ def test_SFRD_conditional_table(name, R, intmethod, plt):
     ap = opts["astro_params"]
     fo = opts["flag_options"]
 
-    up = attrs.evolve(
-        up,
+    up = up.clone(
         INTEGRATION_METHOD_ATOMIC=OPTIONS_INTMETHOD[intmethod],
         INTEGRATION_METHOD_MINI=OPTIONS_INTMETHOD[intmethod],
     )
-    fo = attrs.evolve(
-        fo,
+    fo = fo.clone(
         USE_MINI_HALOS=True,
         INHOMO_RECO=True,
         USE_TS_FLUCT=True,
@@ -1192,18 +1186,19 @@ def test_conditional_integral_methods(R, name, integrand, plt):
     ap = opts["astro_params"]
     fo = opts["flag_options"]
 
-    up = attrs.evolve(up, USE_INTERPOLATION_TABLES=True)
-    fo = attrs.evolve(
-        fo,
+    up = up.clone(USE_INTERPOLATION_TABLES=True)
+    fo = fo.clone(
         USE_MINI_HALOS=True,
         USE_MASS_DEPENDENT_ZETA=True,
         INHOMO_RECO=True,
         USE_TS_FLUCT=True,
     )
     if "sfr" in integrand:
-        ap = attrs.evolve(
-            ap, F_ESC10=0.0, F_ESC7_MINI=0.0, ALPHA_ESC=0.0
-        )  # F_ESCX is in log10
+        ap = ap.clone(
+            F_ESC10=0.0,
+            F_ESC7_MINI=0.0,
+            ALPHA_ESC=0.0,
+        )
 
     lib.Broadcast_struct_global_all(up.cstruct, cp.cstruct, ap.cstruct, fo.cstruct)
 
@@ -1246,8 +1241,9 @@ def test_conditional_integral_methods(R, name, integrand, plt):
         if name != "PS" and method == "GAMMA-APPROX":
             continue
 
-        up = attrs.evolve(
-            up, INTEGRATION_METHOD_ATOMIC=method, INTEGRATION_METHOD_MINI=method
+        up = up.clone(
+            INTEGRATION_METHOD_ATOMIC=method,
+            INTEGRATION_METHOD_MINI=method,
         )
         lib.Broadcast_struct_global_all(up.cstruct, cp.cstruct, ap.cstruct, fo.cstruct)
 

@@ -44,26 +44,22 @@ def test_bad_construction(c):
     with pytest.raises(TypeError):
         CosmoParams(1)
 
-
-def test_warning_bad_params():
-    with pytest.warns(
-        UserWarning, match="The following parameters to CosmoParams are not supported"
-    ):
-        CosmoParams(SIGMA_8=0.8, bad_param=1)
+    with pytest.raises(TypeError):
+        CosmoParams.new(None, SIGMA_8=0.8, bad_param=1)
 
 
 def test_constructed_from_itself(c):
-    c3 = CosmoParams(c)
+    c3 = CosmoParams.new(c)
 
     assert c == c3
-    assert c is not c3
+    assert c is c3
 
 
 def test_dynamic_variables():
     u = UserParams()
     assert u.DIM == 3 * u.HII_DIM
 
-    u.update(DIM=200)
+    u = u.clone(DIM=200)
 
     assert u.DIM == 200
 
@@ -72,10 +68,11 @@ def test_clone():
     u = UserParams()
     v = u.clone()
     assert u == v
+    assert u is not v
 
 
 def test_repr(c):
-    assert "SIGMA_8:0.8" in repr(c)
+    assert "SIGMA_8=0.8" in repr(c)
 
 
 def test_pickle(c):
@@ -85,54 +82,33 @@ def test_pickle(c):
     assert c == c4
 
     # Make sure the c data gets loaded fine.
-    assert c4._cstruct.SIGMA_8 == c._cstruct.SIGMA_8
+    assert c4.cstruct.SIGMA_8 == c.cstruct.SIGMA_8
 
 
 def test_self(c):
-    c5 = CosmoParams(c.self)
+    c5 = CosmoParams.new(c)
     assert c5 == c
-    assert c5.pystruct == c.pystruct
-    assert c5.defining_dict == c.defining_dict
+    assert c5.asdict() == c.asdict()
+    assert c5.cdict == c.cdict
     assert (
-        c5.defining_dict != c5.pystruct
+        c5.cdict != c5.asdict()
     )  # not the same because the former doesn't include dynamic parameters.
-    assert c5.self == c.self
-
-
-def test_update():
-    c = CosmoParams()
-    c_pystruct = c.pystruct
-
-    c.update(
-        SIGMA_8=0.9
-    )  # update c parameters. since pystruct as dynamically created, it is a new object each call.
-    assert c_pystruct != c.pystruct
+    assert c5 == c
 
 
 def test_c_structures(c):
     # See if the C structures are behaving correctly
     c2 = CosmoParams(SIGMA_8=0.8)
 
-    assert c() != c2()
-    assert (
-        c() is c()
-    )  # Re-calling should not re-make the object (object should have persistence)
-
-
-def test_c_struct_update():
-    c = CosmoParams()
-    _c = c()
-    c.update(SIGMA_8=0.8)
-    assert _c != c()
+    assert c is not c2
 
 
 def test_update_inhomo_reco():
-    ap = AstroParams(R_BUBBLE_MAX=25)
+    ap = AstroParams(R_BUBBLE_MAX=25, M_TURN=8.0)
     # regex
     msg = r"This is non\-standard \(but allowed\), and usually occurs upon manual update of INHOMO_RECO"
     with pytest.warns(UserWarning, match=msg):
-        ap.update(INHOMO_RECO=True)
-        ap.R_BUBBLE_MAX
+        ap = ap.clone(flag_options=FlagOptions(INHOMO_RECO=True))
 
 
 def test_mmin():
@@ -150,26 +126,14 @@ def test_globals():
     assert global_params.Z_HEAT_MAX == orig
 
 
-@pytest.mark.xfail(
-    __version__ >= "4.0.0", reason="the warning can be removed in v4", strict=True
-)
-def test_interpolation_table_warning():
-    with pytest.warns(UserWarning, match="setting has changed in v3.1.2"):
-        UserParams().USE_INTERPOLATION_TABLES
-
-    with warnings.catch_warnings():
-        warnings.simplefilter("error")
-        UserParams(USE_INTERPOLATION_TABLES=True).USE_INTERPOLATION_TABLES
-
-
 def test_validation():
     c = CosmoParams()
-    a = AstroParams(R_BUBBLE_MAX=100)
     f = FlagOptions(USE_EXP_FILTER=False)  # needed for HII_FILTER checks
+    a = AstroParams(R_BUBBLE_MAX=100, flag_options=f)
     u = UserParams(BOX_LEN=50)
 
     with global_params.use(HII_FILTER=2):
-        with pytest.warns(UserWarning, match="Setting R_BUBBLE_MAX to BOX_LEN"):
+        with pytest.raises(ValueError, match="R_BUBBLE_MAX is larger than BOX_LEN"):
             InputParameters(
                 cosmo_params=c,
                 astro_params=a,
@@ -177,10 +141,7 @@ def test_validation():
                 flag_options=f,
             )
 
-        assert a.R_BUBBLE_MAX == u.BOX_LEN
-
-    a.update(R_BUBBLE_MAX=20)
-
+    a = a.clone(R_BUBBLE_MAX=20)
     with global_params.use(HII_FILTER=1):
         with pytest.raises(ValueError, match="Your R_BUBBLE_MAX is > BOX_LEN/3"):
             InputParameters(
@@ -203,7 +164,6 @@ def test_user_params():
         match="NON_CUBIC_FACTOR \\* DIM and NON_CUBIC_FACTOR \\* HII_DIM must be integers",
     ):
         up = UserParams(NON_CUBIC_FACTOR=1.1047642)
-        up.NON_CUBIC_FACTOR
 
     assert up.cell_size / up.cell_size_hires == up.DIM / up.HII_DIM
 
@@ -211,70 +171,71 @@ def test_user_params():
 # Testing all the FlagOptions dependencies, including emitted warnings
 def test_flag_options():
     with pytest.raises(
-        ValueError, match="You have set SUBCELL_RSD to True but APPLY_RSDS is False"
+        ValueError,
+        match="The SUBCELL_RSD flag is only effective if APPLY_RSDS is True.",
     ):
-        flg = FlagOptions(SUBCELL_RSD=True, APPLY_RSDS=False)
-        flg.SUBCELL_RSD
+        FlagOptions(SUBCELL_RSD=True, APPLY_RSDS=False)
 
     with pytest.raises(
-        ValueError, match="USE_HALO_FIELD requires USE_MASS_DEPENDENT_ZETA"
+        ValueError,
+        match="You have set USE_MASS_DEPENDENT_ZETA to False but USE_HALO_FIELD is True!",
     ):
-        flg = FlagOptions(USE_MASS_DEPENDENT_ZETA=False, USE_HALO_FIELD=True)
-        flg.USE_MASS_DEPENDENT_ZETA
+        FlagOptions(USE_MASS_DEPENDENT_ZETA=False, USE_HALO_FIELD=True)
     with pytest.raises(
-        ValueError, match="USE_MINI_HALOS requires USE_MASS_DEPENDENT_ZETA"
+        ValueError,
+        match="You have set USE_MINI_HALOS to True but USE_MASS_DEPENDENT_ZETA is False!",
     ):
-        flg = FlagOptions(
+        FlagOptions(
             USE_MASS_DEPENDENT_ZETA=False,
             USE_HALO_FIELD=False,
             USE_MINI_HALOS=True,
             INHOMO_RECO=True,
             USE_TS_FLUCT=True,
         )
-        flg.USE_MASS_DEPENDENT_ZETA
     with pytest.raises(
         ValueError,
-        match="You have set USE_MASS_DEPENDENT_ZETA to True but M_Min_in_Mass is False!",
+        match="M_MIN_in_Mass must be true if USE_MASS_DEPENDENT_ZETA is true.",
     ):
-        flg = FlagOptions(USE_MASS_DEPENDENT_ZETA=True, M_MIN_in_Mass=False)
-        flg.USE_MASS_DEPENDENT_ZETA
+        FlagOptions(USE_MASS_DEPENDENT_ZETA=True, M_MIN_in_Mass=False)
 
-    with pytest.raises(ValueError, match="USE_MINI_HALOS requires INHOMO_RECO"):
-        flg = FlagOptions(USE_MINI_HALOS=True, USE_TS_FLUCT=True, INHOMO_RECO=False)
-        flg.USE_MINI_HALOS
-    with pytest.raises(ValueError, match="USE_MINI_HALOS requires USE_TS_FLUCT"):
-        flg = FlagOptions(USE_MINI_HALOS=True, INHOMO_RECO=True, USE_TS_FLUCT=False)
-        flg.USE_MINI_HALOS
+    with pytest.raises(
+        ValueError,
+        match="You have set USE_MINI_HALOS to True but INHOMO_RECO is False!",
+    ):
+        FlagOptions(USE_MINI_HALOS=True, USE_TS_FLUCT=True, INHOMO_RECO=False)
+    with pytest.raises(
+        ValueError,
+        match="You have set USE_MINI_HALOS to True but USE_TS_FLUCT is False!",
+    ):
+        FlagOptions(USE_MINI_HALOS=True, INHOMO_RECO=True, USE_TS_FLUCT=False)
 
     with pytest.raises(
         ValueError, match="USE_MINI_HALOS and USE_HALO_FIELD are not compatible"
     ):
-        flg = FlagOptions(
-            PHOTON_CONS_TYPE=1, USE_MINI_HALOS=True, INHOMO_RECO=True, USE_TS_FLUCT=True
+        FlagOptions(
+            PHOTON_CONS_TYPE="z-photoncons",
+            USE_MINI_HALOS=True,
+            INHOMO_RECO=True,
+            USE_TS_FLUCT=True,
         )
-        flg.PHOTON_CONS_TYPE
     with pytest.raises(
         ValueError, match="USE_MINI_HALOS and USE_HALO_FIELD are not compatible"
     ):
-        flg = FlagOptions(PHOTON_CONS_TYPE=1, USE_HALO_FIELD=True)
-        flg.PHOTON_CONS_TYPE
+        FlagOptions(PHOTON_CONS_TYPE="z-photoncons", USE_HALO_FIELD=True)
 
     with pytest.raises(
-        ValueError, match="HALO_STOCHASTICITY must be used with USE_HALO_FIELD"
+        ValueError, match="HALO_STOCHASTICITY is True but USE_HALO_FIELD is False"
     ):
-        flg = FlagOptions(USE_HALO_FIELD=False, HALO_STOCHASTICITY=True)
-        flg.HALO_STOCHASTICITY
+        FlagOptions(USE_HALO_FIELD=False, HALO_STOCHASTICITY=True)
 
     with pytest.raises(
-        ValueError, match="USE_EXP_FILTER can only be used with CELL_RECOMB"
+        ValueError, match="USE_EXP_FILTER is True but CELL_RECOMB is False"
     ):
-        flg = FlagOptions(USE_EXP_FILTER=True, CELL_RECOMB=False)
-        flg.USE_EXP_FILTER
+        FlagOptions(USE_EXP_FILTER=True, CELL_RECOMB=False)
 
     with global_params.use(HII_FILTER=1):
         with pytest.raises(
             ValueError,
             match="USE_EXP_FILTER can only be used with a real-space tophat HII_FILTER==0",
         ):
-            flg = FlagOptions(USE_EXP_FILTER=True)
-            flg.USE_EXP_FILTER
+            FlagOptions(USE_EXP_FILTER=True)

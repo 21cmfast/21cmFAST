@@ -8,6 +8,7 @@ import os
 import warnings
 from astropy import units
 from astropy.cosmology import z_at_value
+from collections import deque
 from cosmotile import apply_rsds
 from pathlib import Path
 from typing import Sequence
@@ -39,7 +40,6 @@ class LightCone(_HighLevelOutput):
         self,
         distances,
         inputs,
-        random_seed,
         lightcones,
         node_redshifts=None,
         global_quantities=None,
@@ -51,7 +51,7 @@ class LightCone(_HighLevelOutput):
         current_redshift=None,
         current_index=None,
     ):
-        self.random_seed = random_seed
+        self.random_seed = inputs.random_seed
         self.user_params = inputs.user_params
         self.cosmo_params = inputs.cosmo_params
         self.astro_params = inputs.astro_params
@@ -134,6 +134,14 @@ class LightCone(_HighLevelOutput):
             ]
         )
 
+    def _get_prefix(self):
+        return "{name}_z{zmin:.4}-{zmax:.4}_{{hash}}_r{seed}.h5".format(
+            name=self.__class__.__name__,
+            zmin=float(self.lightcone_redshifts.min()),
+            zmax=float(self.lightcone_redshifts.max()),
+            seed=self.random_seed,
+        )
+
     def _particular_rep(self):
         return (
             str(np.round(self.node_redshifts, 3))
@@ -181,8 +189,9 @@ class LightCone(_HighLevelOutput):
             self._current_index = index
 
     @classmethod
-    def _read_inputs(cls, fname):
+    def _read_inputs(cls, fname, safe=True):
         kwargs = {}
+        parkw = {}
         with h5py.File(fname, "r") as fl:
             for k, kls in [
                 ("user_params", UserParams),
@@ -190,18 +199,21 @@ class LightCone(_HighLevelOutput):
                 ("flag_options", FlagOptions),
                 ("astro_params", AstroParams),
             ]:
-                grp = fl[k]
-                kwargs[k] = kls(dict(grp.attrs))
-            kwargs["random_seed"] = fl.attrs["random_seed"]
+                dct = dict(fl[k].attrs)
+                parkw[k] = kls.from_subdict(dct, safe=safe)
+
+            parkw["random_seed"] = fl.attrs["random_seed"]
+            kwargs["inputs"] = InputParameters(**parkw)
             kwargs["current_redshift"] = fl.attrs.get("current_redshift", None)
             kwargs["current_index"] = fl.attrs.get("current_index", None)
 
         # Get the standard inputs.
-        kw, glbls = _HighLevelOutput._read_inputs(fname)
+        kw, glbls = _HighLevelOutput._read_inputs(fname, safe=safe)
+
         return {**kw, **kwargs}, glbls
 
     @classmethod
-    def _read_particular(cls, fname):
+    def _read_particular(cls, fname, safe=True):
         kwargs = {}
         with h5py.File(fname, "r") as fl:
             boxes = fl["lightcones"]
@@ -490,7 +502,7 @@ def _run_lightcone_from_perturbed_fields(
             logger.info(
                 f"Lightcone already full at z={lightcone._current_redshift}. Returning."
             )
-            return lightcone
+            return None, None, None, lightcone
         lc = lightcone.lightcones
     else:
         lcn_cls = (
@@ -515,7 +527,6 @@ def _run_lightcone_from_perturbed_fields(
         lightcone = lcn_cls(
             lightconer.lc_distances,
             inputs,
-            initial_conditions.random_seed,
             lc,
             node_redshifts=scrollz,
             log10_mturnovers=np.zeros_like(scrollz),
@@ -921,13 +932,13 @@ def run_lightcone(
             f"If perturbed_fields {perturbed_fields} are provided, initial_conditions {initial_conditions} must be provided"
         )
 
+    # For the high-level, we need all the InputStruct initialised
     if cosmo_params is None and initial_conditions is None:
         cosmo_params = CosmoParams.from_astropy(lightconer.cosmo)
 
-    # For the high-level, we need all the InputStruct initialised
     cosmo_params = CosmoParams.new(cosmo_params)
     user_params = UserParams.new(user_params)
-    flag_options = AstroParams.new(flag_options)
+    flag_options = FlagOptions.new(flag_options)
     astro_params = AstroParams.new(astro_params, flag_options=flag_options)
 
     if pf_given:
@@ -998,3 +1009,14 @@ def run_lightcone(
         lightcone_filename=lightcone_filename,
         **global_kwargs,
     )
+
+
+def exhaust_lightcone(**kwargs):
+    """
+    Convenience function to run through an entire lightcone.
+
+    keywords passed are identical to run_lightcone.
+    """
+    lc_gen = run_lightcone(**kwargs)
+    [[iz, z, coev, lc]] = deque(lc_gen, maxlen=1)
+    return iz, z, coev, lc

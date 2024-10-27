@@ -35,9 +35,6 @@ class _OutputStruct(_BaseOutputStruct):
             self.cosmo_params = inputs.cosmo_params
             self.user_params = inputs.user_params
             self._random_seed = inputs.random_seed
-            # TODO: probably move the InputParameters to BaseOutputStruct
-            #   but that will cause a circular import unless more restructuring is done
-            self.inputs = inputs
 
         super().__init__(**kwargs)
 

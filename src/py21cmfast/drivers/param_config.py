@@ -183,7 +183,12 @@ class InputParameters:
         input_params = []
         for struct in output_structs:
             if struct is not None:
-                input_params.append(struct.inputs)
+                ip_args = {
+                    k.lstrip("_"): getattr(struct, k, None)
+                    for k in struct._inputs
+                    if k.lstrip("_") in [field.name for field in attrs.fields(cls)]
+                }
+                input_params.append(cls(**ip_args))
 
         if len(input_params) == 0:
             return cls(**defaults)
@@ -194,7 +199,7 @@ class InputParameters:
             return attrs.evolve(out.merge(cls(**defaults)), redshift=redshift)
 
     # NOTE: This may not be a method in attrs for a reason....
-    def evolve(self, **kwargs):
+    def clone(self, **kwargs):
         """Generate a copy of the InputParameter structure with specified changes."""
         return attrs.evolve(self, **kwargs)
 
@@ -218,7 +223,7 @@ class InputParameters:
 def check_redshift_consistency(inputs: InputParameters, output_structs):
     """Check the redshifts between provided OutputStruct objects and an InputParamters instance."""
     for struct in output_structs:
-        if struct is not None and struct.inputs.redshift != inputs.redshift:
+        if struct is not None and struct.redshift != inputs.redshift:
             raise ValueError("Incompatible redshifts in inputs")
 
 

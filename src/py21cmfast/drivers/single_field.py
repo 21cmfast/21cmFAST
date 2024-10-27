@@ -274,7 +274,7 @@ def determine_halo_list(
 
     if descendant_halos is None:
         descendant_halos = HaloField(
-            inputs=inputs.evolve(redshift=0.0),
+            inputs=inputs.clone(redshift=0.0),
             dummy=True,
         )
 
@@ -464,7 +464,7 @@ def compute_halo_grid(
             )
         else:
             perturbed_field = PerturbedField(
-                inputs=inputs.evolve(redshift=0.0),
+                inputs=inputs.clone(redshift=0.0),
                 dummy=True,
             )
     elif perturbed_halo_list is None:
@@ -474,7 +474,7 @@ def compute_halo_grid(
             )
         else:
             perturbed_halo_list = PerturbHaloField(
-                inputs=inputs.evolve(redshift=0.0),
+                inputs=inputs.clone(redshift=0.0),
                 dummy=True,
             )
 
@@ -489,7 +489,7 @@ def compute_halo_grid(
         ):
             # Dummy spin temp is OK since we're above Z_HEAT_MAX
             previous_spin_temp = TsBox(
-                inputs=inputs.evolve(redshift=0.0),
+                inputs=inputs.clone(redshift=0.0),
                 dummy=True,
             )
         else:
@@ -502,7 +502,7 @@ def compute_halo_grid(
         ):
             # Dummy ionize box is OK since we're above Z_HEAT_MAX
             previous_ionize_box = IonizedBox(
-                inputs=inputs.evolve(redshift=0.0), dummy=True
+                inputs=inputs.clone(redshift=0.0), dummy=True
             )
         else:
             raise ValueError(
@@ -615,7 +615,6 @@ def compute_xray_source_field(
     write=None,
     direc=None,
     regenerate=None,
-    random_seed=None,
     hooks=None,
     **global_kwargs,
 ) -> XraySourceBox:
@@ -946,18 +945,18 @@ def compute_ionization_field(
     # Get appropriate previous ionization box
     if previous_ionized_box is None:
         previous_ionized_box = IonizedBox(
-            inputs=inputs.evolve(redshift=0.0), initial=True
+            inputs=inputs.clone(redshift=0.0), initial=True
         )
 
     if not inputs.flag_options.USE_MINI_HALOS:
         previous_perturbed_field = PerturbedField(
-            inputs=inputs.evolve(redshift=0.0), dummy=True
+            inputs=inputs.clone(redshift=0.0), dummy=True
         )
     elif previous_perturbed_field is None:
         # If we are beyond Z_HEAT_MAX, just make an empty box
         if prev_z == 0:
             previous_perturbed_field = PerturbedField(
-                inputs=inputs.evolve(redshift=0.0), initial=True
+                inputs=inputs.clone(redshift=0.0), initial=True
             )
         else:
             raise ValueError("No previous perturbed field given, but one is required.")
@@ -965,7 +964,7 @@ def compute_ionization_field(
     if not flag_options.USE_HALO_FIELD:
         # Construct an empty halo field to pass in to the function.
         halobox = HaloBox(
-            inputs=inputs.evolve(redshift=0.0),
+            inputs=inputs.clone(redshift=0.0),
             dummy=True,
         )
     elif halobox is None:
@@ -974,7 +973,7 @@ def compute_ionization_field(
     # Set empty spin temp box if necessary.
     if not flag_options.USE_TS_FLUCT:
         spin_temp = TsBox(
-            inputs=inputs.evolve(redshift=0.0),
+            inputs=inputs.clone(redshift=0.0),
             dummy=True,
         )
     elif spin_temp is None:
@@ -1141,7 +1140,7 @@ def spin_temperature(
             raise ValueError("xray_source_box is required when USE_HALO_FIELD is True")
         else:
             xray_source_box = XraySourceBox(
-                inputs=inputs.evolve(redshift=0.0),
+                inputs=inputs.clone(redshift=0.0),
                 dummy=True,
             )
 
@@ -1172,7 +1171,7 @@ def spin_temperature(
         # We end up never even using this box, just need to define it
         # unallocated to be able to send into the C code.
         previous_spin_temp = TsBox(
-            inputs=inputs.evolve(redshift=0.0),
+            inputs=inputs.clone(redshift=0.0),
             dummy=True,
         )
 
@@ -1234,7 +1233,7 @@ def brightness_temperature(
             )
         else:
             spin_temp = TsBox(
-                inputs=inputs.evolve(redshift=0.0),
+                inputs=inputs.clone(redshift=0.0),
                 dummy=True,
             )
 

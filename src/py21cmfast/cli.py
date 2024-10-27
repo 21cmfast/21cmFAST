@@ -12,7 +12,6 @@ import yaml
 from astropy import units as un
 from os import path, remove
 from pathlib import Path
-from wrapper._utils import camel_to_snake
 
 from . import _cfg, cache_tools, global_params, plotting
 from .drivers.coeval import run_coeval
@@ -24,6 +23,7 @@ from .drivers.single_field import (
     spin_temperature,
 )
 from .lightcones import RectilinearLightconer
+from .wrapper._utils import camel_to_snake
 from .wrapper.inputs import AstroParams, CosmoParams, FlagOptions, UserParams
 
 

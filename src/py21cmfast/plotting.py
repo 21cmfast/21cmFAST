@@ -169,7 +169,7 @@ def coeval_sliceplot(
     """
     if kind is None:
         if isinstance(struct, outputs._OutputStruct):
-            kind = struct.fieldnames[0]
+            kind = struct.struct.fieldnames[0]
         elif isinstance(struct, Coeval):
             kind = "brightness_temp"
 
@@ -389,7 +389,7 @@ def _set_zaxis_ticks(ax, lightcone, zticks, z_axis, z_range):
     if zticks != "distance":
         if z_range is None:
             z_max = lightcone.lightcone_redshifts.max()
-            z_min = lightcone.lightcone_redshifts.max()
+            z_min = lightcone.lightcone_redshifts.min()
         else:
             z_min, z_max = z_range
 

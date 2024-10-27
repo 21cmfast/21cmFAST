@@ -20,7 +20,7 @@ RELATIVE_TOLERANCE = 1e-1
 
 options_hmf = list(cint.OPTIONS_HMF.keys())
 
-options_delta = [-0.9, 0, 1, 1.6]  # cell densities to draw samples from
+options_delta = [-0.9, -0.5, 0, 1, 1.45]  # cell densities to draw samples from
 options_mass = [9, 10, 11, 12]  # halo masses to draw samples from
 
 
@@ -76,8 +76,8 @@ def test_sampler_from_catalog(name, mass, plt):
     M_out = np.zeros(n_cond).astype("f8")
     exp_M = np.zeros(n_cond).astype("f8")
     exp_N = np.zeros(n_cond).astype("f8")
-    halomass_out = np.zeros(int(1e8)).astype("f4")
-    halocrd_out = np.zeros(int(3e8)).astype("i4")
+    halomass_out = np.zeros(int(1e7)).astype("f4")
+    halocrd_out = np.zeros(int(3e7)).astype("i4")
 
     lib.single_test_sample(
         up.cstruct,
@@ -182,8 +182,8 @@ def test_sampler_from_grid(name, delta, plt):
     M_out = np.zeros(n_cond).astype("f8")
     exp_M = np.zeros(n_cond).astype("f8")
     exp_N = np.zeros(n_cond).astype("f8")
-    halomass_out = np.zeros(int(1e8)).astype("f4")
-    halocrd_out = np.zeros(int(3e8)).astype("i4")
+    halomass_out = np.zeros(int(1e7)).astype("f4")
+    halocrd_out = np.zeros(int(3e7)).astype("i4")
 
     lib.single_test_sample(
         up.cstruct,
@@ -246,10 +246,10 @@ def test_sampler_from_grid(name, delta, plt):
 # NOTE: this test is pretty circular. The only way I think I can test the scaling relations are to
 #   calculate them in the backend and re-write them in the test for a few masses. This means that
 #   changes to any scaling relation model will result in a test fail
-def test_halo_scaling_relations():
+def test_halo_scaling_relations(ic):
     # specify parameters to use for this test
     redshift = 10.0
-    opts = prd.get_all_options(redshift, {})
+    opts = prd.get_all_options(redshift)
 
     up = opts["user_params"]
     cp = opts["cosmo_params"]
@@ -259,7 +259,7 @@ def test_halo_scaling_relations():
 
     mturn_acg = np.maximum(lib.atomic_cooling_threshold(redshift), 10**ap.M_TURN)
     # mturn_mcg = 10**ap.M_TURN
-    print(f"z={redshift} th = {1/cp.cosmo.H(redshift).to('s-1').value}")
+    print(f"z={redshift} th = {1 / cp.cosmo.H(redshift).to('s-1').value}")
 
     # setup the halo masses to test
     halo_mass_vals = [1e5, 1e6, 1e7, 1e8, 1e9, 1e10, 1e11, 1e12]
@@ -273,8 +273,7 @@ def test_halo_scaling_relations():
     fake_pthalos = PerturbHaloField(
         redshift=redshift,
         buffer_size=halo_masses.size,
-        user_params=up,
-        cosmo_params=cp,
+        initial_conditions=ic,
         astro_params=ap,
         flag_options=fo,
     )
