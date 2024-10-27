@@ -81,7 +81,7 @@ __global__ void perturb_density_field_kernel(
         int k = idx % d_para;
 
         unsigned long long r_index = compute_R_INDEX(i, j, k, DIM, d_para);
-        
+
         // Map index to location in units of box size
         double xf = (i + 0.5) / (DIM + 0.0);
         double yf = (j + 0.5) / (DIM + 0.0);
@@ -235,7 +235,7 @@ double* MapMass_gpu(
 ) {
     // Makes the parameter structs visible to a variety of functions/macros
     // Do each time to avoid Python garbage collection issues
-    Broadcast_struct_global_noastro(user_params,cosmo_params);
+    Broadcast_struct_global_noastro(user_params, cosmo_params);
 
     // Box shapes from outputs.py and convenience macros
     size_t size_double, size_float;
