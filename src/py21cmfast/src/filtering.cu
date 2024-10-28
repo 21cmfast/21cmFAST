@@ -73,7 +73,6 @@ __device__ inline double spherical_shell_filter(double k, double R_outer, double
         -  sin(kR_inner) + cos(kR_inner) * kR_inner);
 }
 
-// __global__ void filter_box_kernel(fftwf_complex *box, int dimension, int midpoint, int midpoint_para, double delta_k, float R, float R_param, double R_const, int filter_type) {
 __global__ void filter_box_kernel(cuFloatComplex *box, size_t size, int dimension, int midpoint, int midpoint_para, double delta_k, float R, float R_param, double R_const, int filter_type) {
 
     // Get index of box (flattened k-box)
@@ -125,16 +124,15 @@ __global__ void filter_box_kernel(cuFloatComplex *box, size_t size, int dimensio
         // box[idx] *= spherical_shell_filter(sqrt(k_mag_sq), R, R_param);
         box[idx] = cuCmulf(box[idx], make_cuFloatComplex((float)spherical_shell_filter(sqrt(k_mag_sq), R, R_param), 0.f));
     }
-    // This doesn't work from device
-    // else {
-    //     if (idx == 0) {
-    //         LOG_WARNING("Filter type %i is undefined. Box is unfiltered.", filter_type);
-    //     }
-    // }
-
 }
 
 void filter_box_gpu(fftwf_complex *box, int RES, int filter_type, float R, float R_param) {
+
+    // Check for valid filter type
+    if (filter_type < 0 || filter_type > 4) {
+        LOG_WARNING("Filter type %i is undefined. Box is unfiltered.", filter_type);
+        return;
+    }
 
     // Get required values
     int dimension, midpoint, midpoint_para, num_pixels;
@@ -175,20 +173,17 @@ void filter_box_gpu(fftwf_complex *box, int RES, int filter_type, float R, float
     // Invoke kernel
     int threadsPerBlock = 256;
     int numBlocks = (num_pixels + threadsPerBlock - 1) / threadsPerBlock;
+    // d_box must be cast to cuFloatComplex (from fftwf_complex) for CUDA
     filter_box_kernel<<<numBlocks, threadsPerBlock>>>(reinterpret_cast<cuFloatComplex *>(d_box), size, dimension, midpoint, midpoint_para, delta_k, R, R_param, R_const, filter_type);
-    // filter_box_kernel<<<numBlocks, threadsPerBlock>>>((cuFloatComplex *)d_box, dimension, midpoint, midpoint_para, delta_k, R, R_param, R_const, filter_type);
 
     // Only use during development!
     cudaError_t err = cudaDeviceSynchronize();
     CATCH_CUDA_ERROR(err);
-    // if (err != cudaSuccess) {
-    //     LOG_ERROR("cudaDeviceSynchronize error: %s", cudaGetErrorString(err));
-    //     Throw(RuntimeError);
-    // }
+
     err = cudaGetLastError();
     if (err != cudaSuccess) {
         LOG_ERROR("Kernel launch error: %s", cudaGetErrorString(err));
-        Throw(CudaError);
+        Throw(CUDAError);
     }
 
     // Copy results from device to host

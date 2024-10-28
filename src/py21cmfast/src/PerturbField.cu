@@ -1,4 +1,5 @@
 // Re-write of perturb_field.c for being accessible within the MCMC
+
 #include <stdlib.h>
 #include <stdio.h>
 #include <math.h>
@@ -9,7 +10,6 @@
 // GPU
 #include <cuda.h>
 #include <cuda_runtime.h>
-// #include <cuComplex.h>
 
 #include "cexcept.h"
 #include "exceptions.h"
@@ -102,7 +102,7 @@ __global__ void perturb_density_field_kernel(
             unsigned long long HII_i = (unsigned long long)(i / f_pixel_factor);
             unsigned long long HII_j = (unsigned long long)(j / f_pixel_factor);
             unsigned long long HII_k = (unsigned long long)(k / f_pixel_factor);
-            HII_index = compute_HII_R_INDEX(HII_i, HII_j, HII_k, hii_d, hii_d_para); // This is accessing HII_D and HII_D_PARA macros!
+            HII_index = compute_HII_R_INDEX(HII_i, HII_j, HII_k, hii_d, hii_d_para);
             // xf += __ldg(&lowres_vx[HII_index]);
             // yf += __ldg(&lowres_vy[HII_index]);
             // zf += __ldg(&lowres_vz[HII_index]);
@@ -174,19 +174,16 @@ __global__ void perturb_density_field_kernel(
             // lowest grid point index
             d_x = 1. - d_x;
             xi -= 1;
-            // xi += (xi + dimension) % dimension; // Only this critera is possible as iterate back by one (we cannot exceed DIM)
-            xi = (xi + dimension) % dimension;
+            xi = (xi + dimension) % dimension; // Only this critera is possible as iterate back by one (we cannot exceed DIM)
         }
         if(yf < (double)(yi + 0.5)) {
             d_y = 1. - d_y;
             yi -= 1;
-            // yi += (yi + dimension) % dimension;
             yi = (yi + dimension) % dimension;
         }
         if(zf < (double)(zi + 0.5)) {
             d_z = 1. - d_z;
             zi -= 1;
-            // zi += (zi + (unsigned long long)(non_cubic_factor * dimension)) % (unsigned long long)(non_cubic_factor * dimension);
             zi = (zi + (unsigned long long)(non_cubic_factor * dimension)) % (unsigned long long)(non_cubic_factor * dimension);
         }
         // The fractions of mass which will remain with perturbed cell
@@ -239,49 +236,39 @@ double* MapMass_gpu(
 
     // Box shapes from outputs.py and convenience macros
     size_t size_double, size_float;
-    // unsigned long long num_pixels;
     if(user_params->PERTURB_ON_HIGH_RES) {
-        // num_pixels = TOT_NUM_PIXELS;
         size_double = TOT_NUM_PIXELS * sizeof(double);
         size_float = TOT_NUM_PIXELS * sizeof(float);
     }
     else {
-        // num_pixels = HII_TOT_NUM_PIXELS;
         size_double = HII_TOT_NUM_PIXELS * sizeof(double);
         size_float = HII_TOT_NUM_PIXELS * sizeof(float);
     }
 
-    // Allocat host memory for output box
-    // double* resampled_box = (double*)malloc(size_double);
-    // double* resampled_box = (double *)calloc(num_pixels, sizeof(double)); // initialise to 0
-
     // Allocate device memory for output box and set to 0.
-    double* d_box;
-    cudaMalloc((void**)&d_box, size_double);
-    cudaMemset(d_box, 0, size_double); // fills size bytes with byte=0
+    double* d_resampled_box;
+    cudaMalloc((void**)&d_resampled_box, size_double);
+    cudaMemset(d_resampled_box, 0, size_double); // fills size_double bytes with byte=0
 
     cudaError_t err = cudaGetLastError();
     if (err != cudaSuccess) {
         LOG_ERROR("CUDA error: %s", cudaGetErrorString(err));
-        Throw(CudaError);
+        Throw(CUDAError);
     }
 
     // Allocate device memory for density field
     float* hires_density;
-    // cudaMalloc(&hires_density, (HII_TOT_NUM_PIXELS * sizeof(double))); // from 21cmFAST.h, outputs.py & indexing.h
-    //  cudaMemcpy(hires_density, boxes->hires_density, (HII_TOT_NUM_PIXELS * sizeof(double)), cudaMemcpyHostToDevice);
     cudaMalloc(&hires_density, (TOT_NUM_PIXELS * sizeof(float))); // from 21cmFAST.h, outputs.py & indexing.h
     cudaMemcpy(hires_density, boxes->hires_density, (TOT_NUM_PIXELS * sizeof(float)), cudaMemcpyHostToDevice);
 
     err = cudaGetLastError();
     if (err != cudaSuccess) {
         LOG_ERROR("CUDA error: %s", cudaGetErrorString(err));
-        Throw(CudaError);
+        Throw(CUDAError);
     }
 
     // Allocate device memory and copy arrays to device as per user_params
-    // floats as per 21cmFAST.h
-    float* hires_vx;
+    float* hires_vx; // floats as per 21cmFAST.h
     float* hires_vy;
     float* hires_vz;
     float* lowres_vx;
@@ -332,20 +319,19 @@ double* MapMass_gpu(
     err = cudaGetLastError();
     if (err != cudaSuccess) {
         LOG_ERROR("CUDA error: %s", cudaGetErrorString(err));
-        Throw(CudaError);
+        Throw(CUDAError);
     }
 
-    // Seemingly can't pass macro straight to kernel
+    // Can't pass macro straight to kernel
     long long d_para = D_PARA;
     long long hii_d = HII_D;
     long long hii_d_para = HII_D_PARA;
 
     // Invoke kernel
     int threadsPerBlock = 256;
-    // int numBlocks = (num_pixels + threadsPerBlock - 1) / threadsPerBlock;
     int numBlocks = (TOT_NUM_PIXELS + threadsPerBlock - 1) / threadsPerBlock;
     perturb_density_field_kernel<<<numBlocks, threadsPerBlock>>>(
-        d_box, hires_density, hires_vx, hires_vy, hires_vz, lowres_vx, lowres_vy, lowres_vz,
+        d_resampled_box, hires_density, hires_vx, hires_vy, hires_vz, lowres_vx, lowres_vy, lowres_vz,
         hires_vx_2LPT, hires_vy_2LPT, hires_vz_2LPT, lowres_vx_2LPT, lowres_vy_2LPT, lowres_vz_2LPT,
         dimension, user_params->DIM, d_para, hii_d, hii_d_para, user_params->NON_CUBIC_FACTOR,
         f_pixel_factor, init_growth_factor, user_params->PERTURB_ON_HIGH_RES, user_params->USE_2LPT);
@@ -353,22 +339,22 @@ double* MapMass_gpu(
     // Only use during development!
     err = cudaDeviceSynchronize();
     CATCH_CUDA_ERROR(err);
+
     err = cudaGetLastError();
     if (err != cudaSuccess) {
         LOG_ERROR("Kernel launch error: %s", cudaGetErrorString(err));
-        Throw(CudaError);
+        Throw(CUDAError);
     }
 
     // Copy results from device to host
-    // cudaMemcpy(resampled_box, d_box, size_double, cudaMemcpyDeviceToHost);
-    err = cudaMemcpy(resampled_box, d_box, size_double, cudaMemcpyDeviceToHost);
+    err = cudaMemcpy(resampled_box, d_resampled_box, size_double, cudaMemcpyDeviceToHost);
     if (err != cudaSuccess) {
         LOG_ERROR("CUDA error: %s", cudaGetErrorString(err));
-        Throw(CudaError);
+        Throw(CUDAError);
     }
 
     // Deallocate device memory
-    cudaFree(d_box);
+    cudaFree(d_resampled_box);
     cudaFree(hires_density);
 
     if (user_params->PERTURB_ON_HIGH_RES) {
@@ -397,14 +383,8 @@ double* MapMass_gpu(
     err = cudaGetLastError();
     if (err != cudaSuccess) {
         LOG_ERROR("CUDA error: %s", cudaGetErrorString(err));
-        Throw(CudaError);
+        Throw(CUDAError);
     }
-
-    // LOG_DEBUG("resampled_box[:50] = ");
-    // for (int element = 0; element < 50; element++) {
-    //     LOG_DEBUG("%.4e ", resampled_box[element]);
-    // }
-    // LOG_DEBUG("\n");
 
     return resampled_box;
 }
