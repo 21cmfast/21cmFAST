@@ -909,6 +909,7 @@ def compute_ionization_field(
         if prev_z <= inputs.redshift:
             raise ValueError(
                 "Previous ionized box must have a higher redshift than that being evaluated."
+                + f"{prev_z} <= {inputs.redshift}"
             )
     elif (
         not inputs.flag_options.INHOMO_RECO

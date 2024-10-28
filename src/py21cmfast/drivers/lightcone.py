@@ -335,6 +335,60 @@ class AngularLightcone(LightCone):
         return tb_with_rsds
 
 
+def setup_lightcone_instance(
+    lightconer: Lightconer,
+    inputs: InputParameters,
+    scrollz: Sequence[float],
+    global_quantities: Sequence[str],
+    lightcone_filename: Path | None = None,
+):
+    """Returns a LightCone instance given a lightconer as input."""
+    if lightcone_filename and Path(lightcone_filename).exists():
+        lightcone = LightCone.read(lightcone_filename)
+        start_idx = np.sum(
+            scrollz >= lightcone._current_redshift
+        )  # NOTE: assuming descending
+        logger.info(f"Read in LC file at z={lightcone._current_redshift}")
+        if start_idx < len(scrollz):
+            logger.info(
+                f"starting at z={scrollz[start_idx]}, step ({start_idx+1}/{len(scrollz)+1}"
+            )
+    else:
+        lcn_cls = (
+            LightCone
+            if isinstance(lightconer, RectilinearLightconer)
+            else AngularLightcone
+        )
+        lc = {
+            quantity: np.zeros(
+                lightconer.get_shape(inputs.user_params),
+                dtype=np.float32,
+            )
+            for quantity in lightconer.quantities
+        }
+
+        # Special case: AngularLightconer can also save los_velocity
+        if getattr(lightconer, "get_los_velocity", False):
+            lc["los_velocity"] = np.zeros(
+                lightconer.get_shape(inputs.user_params), dtype=np.float32
+            )
+
+        lightcone = lcn_cls(
+            lightconer.lc_distances,
+            inputs,
+            lc,
+            node_redshifts=scrollz,
+            log10_mturnovers=np.zeros_like(scrollz),
+            log10_mturnovers_mini=np.zeros_like(scrollz),
+            global_quantities={
+                quantity: np.zeros(len(scrollz)) for quantity in global_quantities
+            },
+            _globals=dict(global_params.items()),
+        )
+        start_idx = 0
+    return lightcone, start_idx
+
+
 @set_globals
 def _run_lightcone_from_perturbed_fields(
     *,
@@ -494,48 +548,20 @@ def _run_lightcone_from_perturbed_fields(
 
     iokw = {"hooks": hooks, "regenerate": regenerate, "direc": direc}
 
-    if lightcone_filename and Path(lightcone_filename).exists():
-        lightcone = LightCone.read(lightcone_filename)
-        scrollz = scrollz[scrollz < lightcone._current_redshift]
-        if len(scrollz) == 0:
-            # The entire lightcone is already full!
-            logger.info(
-                f"Lightcone already full at z={lightcone._current_redshift}. Returning."
-            )
-            return None, None, None, lightcone
-        lc = lightcone.lightcones
-    else:
-        lcn_cls = (
-            LightCone
-            if isinstance(lightconer, RectilinearLightconer)
-            else AngularLightcone
+    # Create the LightCone instance, loading from file if needed
+    lightcone, start_idx = setup_lightcone_instance(
+        lightconer=lightconer,
+        inputs=inputs,
+        scrollz=scrollz,
+        global_quantities=global_quantities,
+        lightcone_filename=lightcone_filename,
+    )
+    if start_idx >= len(scrollz):
+        logger.info(
+            f"Lightcone already full at z={lightcone._current_redshift}. Returning."
         )
-        lc = {
-            quantity: np.zeros(
-                lightconer.get_shape(inputs.user_params),
-                dtype=np.float32,
-            )
-            for quantity in lightconer.quantities
-        }
-
-        # Special case: AngularLightconer can also save los_velocity
-        if getattr(lightconer, "get_los_velocity", False):
-            lc["los_velocity"] = np.zeros(
-                lightconer.get_shape(inputs.user_params), dtype=np.float32
-            )
-
-        lightcone = lcn_cls(
-            lightconer.lc_distances,
-            inputs,
-            lc,
-            node_redshifts=scrollz,
-            log10_mturnovers=np.zeros_like(scrollz),
-            log10_mturnovers_mini=np.zeros_like(scrollz),
-            global_quantities={
-                quantity: np.zeros(len(scrollz)) for quantity in global_quantities
-            },
-            _globals=dict(global_params.items()),
-        )
+        # effectively adds one more iteration, but since start_idx > len(scrollz) it will be the only one
+        yield None, None, None, lightcone
 
     # Remove anything in initial_conditions not required for spin_temp
     with contextlib.suppress(OSError):
@@ -644,6 +670,8 @@ def _run_lightcone_from_perturbed_fields(
 
     # Iterate through redshift from top to bottom
     for iz, z in enumerate(scrollz):
+        if iz < start_idx:
+            continue
         logger.info(f"Computing Redshift {z} ({iz + 1}/{len(scrollz)}) iterations.")
 
         # Best to get a perturb for this redshift, to pass to brightness_temperature
@@ -736,6 +764,7 @@ def _run_lightcone_from_perturbed_fields(
             )
 
         # Get lightcone slices
+        lc_index = None
         if prev_coeval is not None:
             for quantity, idx, this_lc in lightconer.make_lightcone_slices(
                 coeval, prev_coeval
@@ -744,7 +773,8 @@ def _run_lightcone_from_perturbed_fields(
                     lightcone.lightcones[quantity][..., idx] = this_lc
                     lc_index = idx
 
-            if lightcone_filename:
+            # only checkpoint if we have slices
+            if lightcone_filename and lc_index is not None:
                 lightcone.make_checkpoint(
                     lightcone_filename, redshift=z, index=lc_index
                 )
@@ -1018,5 +1048,7 @@ def exhaust_lightcone(**kwargs):
     keywords passed are identical to run_lightcone.
     """
     lc_gen = run_lightcone(**kwargs)
-    [[iz, z, coev, lc]] = deque(lc_gen, maxlen=1)
+    out = deque(lc_gen, maxlen=1)
+    [[iz, z, coev, lc]] = out
+
     return iz, z, coev, lc

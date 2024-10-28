@@ -30,7 +30,7 @@ from .exceptions import _process_exitcode
 logger = logging.getLogger(__name__)
 
 
-@attrs.define
+@attrs.define(slots=False)
 class StructWrapper:
     """
     A base-class python wrapper for C structures (not instances of them).
@@ -85,7 +85,9 @@ class StructWrapper:
     def __getstate__(self):
         """Return the current state of the class without pointers."""
         return {
-            k: v for k, v in self.__dict__.items() if k not in ["_strings", "cstruct"]
+            k: v
+            for k, v in self.__dict__.items()
+            if k not in ["_strings", "cstruct", "_ffi"]
         }
 
 

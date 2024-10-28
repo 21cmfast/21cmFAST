@@ -20,11 +20,12 @@ from py21cmfast.lightcones import AngularLightconer, RectilinearLightconer
 
 
 @pytest.fixture(scope="module")
-def coeval(ic, default_flag_options_ts):
+def coeval(ic, default_astro_params, default_flag_options_ts):
     return run_coeval(
         out_redshifts=25.0,
         initial_conditions=ic,
         write=True,
+        astro_params=default_astro_params,
         flag_options=default_flag_options_ts,
     )
 

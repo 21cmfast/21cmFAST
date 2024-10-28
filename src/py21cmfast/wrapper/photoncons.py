@@ -69,13 +69,16 @@ def _init_photon_conservation_correction(
     # This function calculates the global expected evolution of reionisation and saves
     #   it to C global arrays z_Q and Q_value (as well as other non-global confusingly named arrays),
     #   and constructs a GSL interpolator z_at_Q_spline
-    user_params = UserParams(user_params)
-    cosmo_params = CosmoParams(cosmo_params)
-    astro_params = AstroParams(astro_params)
-    flag_options = FlagOptions(flag_options)
+    user_params = UserParams.new(user_params)
+    cosmo_params = CosmoParams.new(cosmo_params)
+    flag_options = FlagOptions.new(flag_options)
+    astro_params = AstroParams.new(astro_params, flag_options=flag_options)
 
     return lib.InitialisePhotonCons(
-        user_params(), cosmo_params(), astro_params(), flag_options()
+        user_params.cstruct,
+        cosmo_params.cstruct,
+        astro_params.cstruct,
+        flag_options.cstruct,
     )
 
 
@@ -98,7 +101,7 @@ def _calibrate_photon_conservation_correction(
 def _calc_zstart_photon_cons():
     # gets the starting redshift of the z-based photon conservation model
     #   Set by neutral fraction global_params.PhotonConsStart
-    from .wrapper import _call_c_simple
+    from ._utils import _call_c_simple
 
     return _call_c_simple(lib.ComputeZstart_PhotonCons)
 
@@ -188,7 +191,7 @@ def setup_photon_cons(
     regenerate,
     hooks,
     direc,
-    init_boxes=None,
+    initial_conditions=None,
     user_params=None,
     cosmo_params=None,
     **global_kwargs,
@@ -215,7 +218,7 @@ def setup_photon_cons(
     flag_options: :class:`~FlagOptions`, optional
         Options concerning how the reionization process is run, eg. if spin temperature
         fluctuations are required.
-    init_boxes : :class:`~InitialConditions`, optional
+    initial_conditions : :class:`~InitialConditions`, optional
         If given, the user and cosmo params will be set from this object, and it will not be
         re-calculated.
     \*\*global_kwargs :
@@ -228,20 +231,20 @@ def setup_photon_cons(
     regenerate, write
         See docs of :func:`initial_conditions` for more information.
     """
-    from .wrapper import _get_config_options
+    from ..drivers.single_field import _get_config_options
 
     direc, regenerate, hooks = _get_config_options(direc, regenerate, None, hooks)
 
     if flag_options.PHOTON_CONS_TYPE == "no-photoncons":
         return
 
-    if init_boxes is not None:
-        cosmo_params = init_boxes.cosmo_params
-        user_params = init_boxes.user_params
+    if initial_conditions is not None:
+        cosmo_params = initial_conditions.cosmo_params
+        user_params = initial_conditions.user_params
 
     if cosmo_params is None or user_params is None:
         raise ValueError(
-            "user_params and cosmo_params must be given if init_boxes is not"
+            "user_params and cosmo_params must be given if initial_conditions is not"
         )
 
     # calculate global and calibration simulation xH histories and save them in C
@@ -251,7 +254,7 @@ def setup_photon_cons(
         regenerate=regenerate,
         hooks=hooks,
         direc=direc,
-        init_boxes=init_boxes,
+        initial_conditions=initial_conditions,
         user_params=user_params,
         cosmo_params=cosmo_params,
         **global_kwargs,
@@ -280,7 +283,7 @@ def calibrate_photon_cons(
     regenerate,
     hooks,
     direc,
-    init_boxes=None,
+    initial_conditions=None,
     user_params=None,
     cosmo_params=None,
     **global_kwargs,
@@ -299,7 +302,7 @@ def calibrate_photon_cons(
     flag_options: :class:`~FlagOptions`, optional
         Options concerning how the reionization process is run, eg. if spin temperature
         fluctuations are required.
-    init_boxes : :class:`~InitialConditions`, optional
+    initial_conditions : :class:`~InitialConditions`, optional
         If given, the user and cosmo params will be set from this object, and it will not be
         re-calculated.
     \*\*global_kwargs :
@@ -313,12 +316,11 @@ def calibrate_photon_cons(
         See docs of :func:`initial_conditions` for more information.
     """
     # avoiding circular imports by importing here
-    from .wrapper import ionize_box, perturb_field
+    from ..drivers.single_field import compute_ionization_field, perturb_field
 
     with global_params.use(**global_kwargs):
         # Create a new astro_params and flag_options just for the photon_cons correction
-        astro_params_photoncons = deepcopy(astro_params)
-        astro_params_photoncons._R_BUBBLE_MAX = astro_params.R_BUBBLE_MAX
+        astro_params_photoncons = astro_params.clone()
 
         flag_options_photoncons = flag_options.clone(
             USE_TS_FLUCT=False,
@@ -353,16 +355,16 @@ def calibrate_photon_cons(
             # turned off.
             this_perturb = perturb_field(
                 redshift=z,
-                init_boxes=init_boxes,
+                initial_conditions=initial_conditions,
                 regenerate=regenerate,
                 hooks=hooks,
                 direc=direc,
             )
 
-            ib2 = ionize_box(
+            ib2 = compute_ionization_field(
                 redshift=z,
                 previous_ionize_box=ib,
-                init_boxes=init_boxes,
+                initial_conditions=initial_conditions,
                 perturbed_field=this_perturb,
                 previous_perturbed_field=prev_perturb,
                 astro_params=astro_params_photoncons,
@@ -411,8 +413,8 @@ def get_photoncons_dz(astro_params, flag_options, redshift):
     redshift_pc_in = np.array([redshift]).astype("f4")
     stored_redshift_pc_in = np.array([redshift]).astype("f4")
     lib.adjust_redshifts_for_photoncons(
-        astro_params(),
-        flag_options(),
+        astro_params.cstruct,
+        flag_options.cstruct,
         ffi.cast("float *", redshift_pc_in.ctypes.data),
         ffi.cast("float *", stored_redshift_pc_in.ctypes.data),
         ffi.cast("float *", deltaz.ctypes.data),

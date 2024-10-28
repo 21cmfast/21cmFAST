@@ -18,20 +18,24 @@ def test_lightcone(lc, default_user_params, redshift, max_redshift):
     assert lc.cell_size == default_user_params.BOX_LEN / default_user_params.HII_DIM
 
 
-def test_lightcone_quantities(ic, redshift, max_redshift):
+def test_lightcone_quantities(ic, default_flag_options, redshift, max_redshift):
     lcn = p21c.RectilinearLightconer.with_equal_cdist_slices(
         min_redshift=redshift,
         max_redshift=max_redshift,
         resolution=ic.user_params.cell_size,
         cosmo=ic.cosmo_params.cosmo,
-        quantities=("dNrec_box", "density", "brightness_temp", "Gamma12"),
+        quantities=("dNrec_box", "density", "brightness_temp", "Gamma12_box"),
     )
 
-    lc = p21c.exhaust_lightcone(
+    _, _, _, lc = p21c.exhaust_lightcone(
         lightconer=lcn,
         initial_conditions=ic,
-        max_redshift=max_redshift,
+        flag_options=default_flag_options,
+        global_quantities=("density", "Gamma12_box"),
     )
+
+    print(lc.lightcones.keys())
+    print(lc.global_quantities.keys())
 
     assert hasattr(lc, "dNrec_box")
     assert hasattr(lc, "density")
@@ -47,97 +51,106 @@ def test_lightcone_quantities(ic, redshift, max_redshift):
     # Simply ensure that different quantities are not getting crossed/referred to each other.
     assert lc.density.min() != lc.brightness_temp.min() != lc.brightness_temp.max()
 
+    lcn_ts = p21c.RectilinearLightconer.with_equal_cdist_slices(
+        min_redshift=redshift,
+        max_redshift=max_redshift,
+        resolution=ic.user_params.cell_size,
+        cosmo=ic.cosmo_params.cosmo,
+        quantities=("Ts_box", "density"),
+    )
+
     # Raise an error since we're not doing spin temp.
     with pytest.raises(AttributeError):
         p21c.exhaust_lightcone(
-            lightconer=lcn,
+            lightconer=lcn_ts,
             initial_conditions=ic,
-            lightcone_quantities=("Ts_box", "density"),
+            flag_options=default_flag_options,
         )
 
     # And also raise an error for global quantities.
     with pytest.raises(AttributeError):
         p21c.exhaust_lightcone(
-            lightconer=lcn,
+            lightconer=lcn_ts,
             initial_conditions=ic,
+            flag_options=default_flag_options,
             global_quantities=("Ts_box",),
         )
 
 
-def _global_Tb(coeval_box):
-    assert isinstance(coeval_box, p21c.Coeval)
-    global_Tb = coeval_box.brightness_temp.mean(dtype=np.float64).astype(np.float32)
-    assert np.isclose(global_Tb, coeval_box.brightness_temp_struct.global_Tb)
-    return global_Tb
+# TODO: decide if we want callbacks at all, since run_lightcone is now a generator
+# def _global_Tb(coeval_box):
+#     assert isinstance(coeval_box, p21c.Coeval)
+#     global_Tb = coeval_box.brightness_temp.mean(dtype=np.float64).astype(np.float32)
+#     assert np.isclose(global_Tb, coeval_box.brightness_temp_struct.global_Tb)
+#     return global_Tb
+
+# def test_coeval_callback(
+#     rectlcn, ic, max_redshift, perturbed_field, default_flag_options
+# ):
+#     iz, z, coeval_output, lc = p21c.exhaust_lightcone(
+#         lightconer=rectlcn,
+#         initial_conditions=ic,
+#         flag_options=default_flag_options,
+#         lightcone_quantities=("brightness_temp",),
+#         global_quantities=("brightness_temp",),
+#         coeval_callback=_global_Tb,
+#     )
+#     assert isinstance(lc, p21c.LightCone)
+#     assert isinstance(coeval_output, list)
+#     assert len(lc.node_redshifts) == len(coeval_output)
+#     assert np.allclose(
+#         lc.global_brightness_temp, np.array(coeval_output, dtype=np.float32)
+#     )
 
 
-def test_coeval_callback(
-    rectlcn, ic, max_redshift, perturbed_field, default_flag_options
-):
-    iz, z, coeval_output, lc = p21c.exhaust_lightcone(
-        lightconer=rectlcn,
-        initial_conditions=ic,
-        flag_options=default_flag_options,
-        lightcone_quantities=("brightness_temp",),
-        global_quantities=("brightness_temp",),
-        coeval_callback=_global_Tb,
-    )
-    assert isinstance(lc, p21c.LightCone)
-    assert isinstance(coeval_output, list)
-    assert len(lc.node_redshifts) == len(coeval_output)
-    assert np.allclose(
-        lc.global_brightness_temp, np.array(coeval_output, dtype=np.float32)
-    )
+# def test_coeval_callback_redshifts(
+#     rectlcn, ic, redshift, max_redshift, perturbed_field, default_flag_options
+# ):
+#     coeval_callback_redshifts = np.array(
+#         [max_redshift, max_redshift, (redshift + max_redshift) / 2, redshift],
+#         dtype=np.float32,
+#     )
+#     iz, z, coeval_output, lc = p21c.exhaust_lightcone(
+#         lightconer=rectlcn,
+#         initial_conditions=ic,
+#         flag_options=default_flag_options,
+#         coeval_callback=lambda x: x.redshift,
+#         coeval_callback_redshifts=coeval_callback_redshifts,
+#     )
+#     assert len(coeval_callback_redshifts) - 1 == len(coeval_output)
+#     computed_redshifts = [
+#         lc.node_redshifts[np.argmin(np.abs(i - lc.node_redshifts))]
+#         for i in coeval_callback_redshifts[1:]
+#     ]
+#     assert np.allclose(coeval_output, computed_redshifts)
 
 
-def test_coeval_callback_redshifts(
-    rectlcn, ic, redshift, max_redshift, perturbed_field, default_flag_options
-):
-    coeval_callback_redshifts = np.array(
-        [max_redshift, max_redshift, (redshift + max_redshift) / 2, redshift],
-        dtype=np.float32,
-    )
-    iz, z, coeval_output, lc = p21c.exhaust_lightcone(
-        lightconer=rectlcn,
-        initial_conditions=ic,
-        flag_options=default_flag_options,
-        coeval_callback=lambda x: x.redshift,
-        coeval_callback_redshifts=coeval_callback_redshifts,
-    )
-    assert len(coeval_callback_redshifts) - 1 == len(coeval_output)
-    computed_redshifts = [
-        lc.node_redshifts[np.argmin(np.abs(i - lc.node_redshifts))]
-        for i in coeval_callback_redshifts[1:]
-    ]
-    assert np.allclose(coeval_output, computed_redshifts)
+# def Heaviside(x):
+#     return 1 if x > 0 else 0
 
 
-def Heaviside(x):
-    return 1 if x > 0 else 0
-
-
-def test_coeval_callback_exceptions(
-    rectlcn, ic, redshift, max_redshift, perturbed_field, default_flag_options
-):
-    # should output warning in logs and not raise an error
-    iz, z, coeval_output, lc = p21c.exhaust_lightcone(
-        lightconer=rectlcn,
-        initial_conditions=ic,
-        flag_options=default_flag_options,
-        coeval_callback=lambda x: 1
-        / Heaviside(x.redshift - (redshift + max_redshift) / 2),
-        coeval_callback_redshifts=[max_redshift, redshift],
-    )
-    # should raise an error
-    with pytest.raises(RuntimeError) as excinfo:
-        iz, z, coeval_output, lc = p21c.exhaust_lightcone(
-            lightconer=rectlcn,
-            initial_conditions=ic,
-            max_redshift=max_redshift,
-            coeval_callback=lambda x: 1 / 0,
-            coeval_callback_redshifts=[max_redshift, redshift],
-        )
-    assert "coeval_callback computation failed on first trial" in str(excinfo.value)
+# def test_coeval_callback_exceptions(
+#     rectlcn, ic, redshift, max_redshift, perturbed_field, default_flag_options
+# ):
+#     # should output warning in logs and not raise an error
+#     iz, z, coeval_output, lc = p21c.exhaust_lightcone(
+#         lightconer=rectlcn,
+#         initial_conditions=ic,
+#         flag_options=default_flag_options,
+#         coeval_callback=lambda x: 1
+#         / Heaviside(x.redshift - (redshift + max_redshift) / 2),
+#         coeval_callback_redshifts=[max_redshift, redshift],
+#     )
+#     # should raise an error
+#     with pytest.raises(RuntimeError) as excinfo:
+#         iz, z, coeval_output, lc = p21c.exhaust_lightcone(
+#             lightconer=rectlcn,
+#             initial_conditions=ic,
+#             max_redshift=max_redshift,
+#             coeval_callback=lambda x: 1 / 0,
+#             coeval_callback_redshifts=[max_redshift, redshift],
+#         )
+#     assert "coeval_callback computation failed on first trial" in str(excinfo.value)
 
 
 def test_lightcone_coords(lc):
@@ -149,27 +162,18 @@ def test_lightcone_coords(lc):
     )
 
 
-def test_run_lc_bad_inputs(rectlcn, default_user_params):
-    with pytest.raises(
-        ValueError, match="You must provide either redshift, perturb or lightconer"
-    ):
-        p21c.exhaust_lightcone(lightconer=rectlcn)
-
-    with pytest.raises(
-        ValueError,
-        match="If trying to minimize memory usage, you must be caching. Set write=True",
-    ):
+def test_run_lc_bad_inputs(ic):
+    with pytest.raises(TypeError):
         p21c.exhaust_lightcone(
-            lightconer=rectlcn,
-            redshift=6.0,
-            user_params={"MINIMIZE_MEMORY": True},
-            write=False,
+            initial_conditions=ic,
         )
 
 
-def test_lc_with_lightcone_filename(rectlcn, perturbed_field, tmpdirec):
+def test_lc_with_lightcone_filename(ic, rectlcn, perturbed_field, tmpdirec):
     fname = tmpdirec / "lightcone.h5"
-    _, _, _, lc = p21c.exhaust_lightcone(lightconer=rectlcn, lightcone_filename=fname)
+    _, _, _, lc = p21c.exhaust_lightcone(
+        lightconer=rectlcn, initial_conditions=ic, lightcone_filename=fname
+    )
     assert fname.exists()
 
     lc_loaded = p21c.LightCone.read(fname)
@@ -179,24 +183,29 @@ def test_lc_with_lightcone_filename(rectlcn, perturbed_field, tmpdirec):
     # This one should NOT run anything.
     _, _, _, lc2 = p21c.exhaust_lightcone(
         lightconer=rectlcn,
+        initial_conditions=ic,
         lightcone_filename=fname,
     )
+
     assert lc2 == lc
     del lc2
 
     fname.unlink()
 
 
-def test_lc_partial_eval(rectlcn, perturbed_field, tmpdirec, lc):
+def test_lc_partial_eval(rectlcn, ic, default_flag_options, tmpdirec, lc):
     fname = tmpdirec / "lightcone_partial.h5"
 
-    z = rectlcn.max_redshift
+    z = rectlcn.lc_redshifts.max()
+    lc_gen = p21c.run_lightcone(
+        lightconer=rectlcn,
+        initial_conditions=ic,
+        flag_options=default_flag_options,
+        lightcone_filename=fname,
+        write=True,
+    )
     while z > 20.0:
-        z, _, _, partial = p21c.run_lightcone(
-            lightconer=rectlcn,
-            lightcone_filename=fname,
-            write=True,
-        )
+        iz, z, _, partial = next(lc_gen)
 
     assert partial._current_index < len(rectlcn.lc_redshifts)
     assert partial._current_index > 0
@@ -205,6 +214,8 @@ def test_lc_partial_eval(rectlcn, perturbed_field, tmpdirec, lc):
 
     _, _, _, finished = p21c.exhaust_lightcone(
         lightconer=rectlcn,
+        initial_conditions=ic,
+        flag_options=default_flag_options,
         lightcone_filename=fname,
     )
 
@@ -216,19 +227,28 @@ def test_lc_partial_eval(rectlcn, perturbed_field, tmpdirec, lc):
         fl.attrs["current_redshift"] = 2 * partial._current_redshift
 
     with pytest.raises(IOError, match="No component boxes found at z"):
-        p21c.run_lightcone(
+        p21c.exhaust_lightcone(
             lightconer=rectlcn,
+            initial_conditions=ic,
+            flag_options=default_flag_options,
             lightcone_filename=fname,
         )
 
 
-def test_lc_lowerz_than_photon_cons(rectlcn, ic):
+def test_lc_lowerz_than_photon_cons(ic, max_redshift):
     with pytest.raises(ValueError, match="You have passed a redshift"):
-        p21c.run_lightcone(
+        lcn = p21c.RectilinearLightconer.with_equal_cdist_slices(
+            min_redshift=2.0,
+            max_redshift=max_redshift,
+            resolution=ic.user_params.cell_size,
+            cosmo=ic.cosmo_params.cosmo,
+        )
+
+        p21c.exhaust_lightcone(
+            lightconer=lcn,
             initial_conditions=ic,
-            out_redshift=2.0,
             flag_options={
-                "PHOTON_CONS_TYPE": 1,
+                "PHOTON_CONS_TYPE": "z-photoncons",
                 "USE_HALO_FIELD": False,
                 "HALO_STOCHASTICITY": False,
             },

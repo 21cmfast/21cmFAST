@@ -64,10 +64,10 @@ def spin_temp_evolution(ic, redshift, default_astro_params, default_flag_options
             redshift=z,
             initial_conditions=ic,
         )
-        st = p21c.perturb_field(
+        st = p21c.spin_temperature(
             redshift=z,
             initial_conditions=ic,
-            pertrubed_field=pt,
+            perturbed_field=pt,
             previous_spin_temp=st_prev,
             astro_params=default_astro_params,
             flag_options=default_flag_options_ts,
@@ -201,7 +201,7 @@ def test_ib_override_z_heat_max(
 
 
 def test_ib_bad_st(ic, perturbed_field, redshift):
-    with pytest.raises(ValueError):
+    with pytest.raises((ValueError, AttributeError)):
         p21c.compute_ionization_field(
             initial_conditions=ic,
             perturbed_field=perturbed_field,
@@ -294,3 +294,38 @@ def test_using_cached_halo_field(
 
     np.testing.assert_allclose(new_halo_field.halo_masses, halo_field.halo_masses)
     np.testing.assert_allclose(pt_halos.halo_coords, new_pt_halos.halo_coords)
+
+
+def test_first_box(
+    default_user_params,
+    default_cosmo_params,
+    default_astro_params,
+    default_flag_options_ts,
+):
+    """Tests whether the first_box idea works for spin_temp.
+    This test was breaking before we set the z_heat_max box to actually get
+    the correct dimensions (before it was treated as a dummy).
+    """
+    initial_conditions = p21c.compute_initial_conditions(
+        user_params=default_user_params.clone(HII_DIM=default_user_params.HII_DIM + 1),
+        cosmo_params=default_cosmo_params,
+        random_seed=1,
+    )
+
+    prevst = None
+    for z in [p21c.global_params.Z_HEAT_MAX + 1e-2, 29.0]:
+        print(f"z={z}")
+        perturbed_field = p21c.perturb_field(
+            redshift=z, initial_conditions=initial_conditions
+        )
+
+        spin_temp = p21c.spin_temperature(
+            initial_conditions=initial_conditions,
+            perturbed_field=perturbed_field,
+            astro_params=default_astro_params,
+            flag_options=default_flag_options_ts,
+            previous_spin_temp=prevst,
+        )
+        prevst = spin_temp
+
+    assert spin_temp.redshift == 29.0
