@@ -109,7 +109,7 @@ def test_inverse_cmf_tables(name, plt):
     ap = opts["astro_params"]
     fo = opts["flag_options"]
 
-    hist_size = 1000
+    hist_size = 200
     edges = np.logspace(7, 12, num=hist_size).astype("f4")
     edges_ln = np.log(edges)
 
@@ -274,7 +274,7 @@ def test_Massfunc_conditional_tables(name, plt):
     fo = opts["flag_options"]
     lib.Broadcast_struct_global_all(up.cstruct, cp.cstruct, ap.cstruct, fo.cstruct)
 
-    hist_size = 1000
+    hist_size = 200
     edges = np.logspace(7, 12, num=hist_size).astype("f4")
     edges_ln = np.log(edges)
 
@@ -477,7 +477,7 @@ def test_FgtrM_conditional_tables(name, R, plt):
     fo = opts["flag_options"]
     lib.Broadcast_struct_global_all(up.cstruct, cp.cstruct, ap.cstruct, fo.cstruct)
 
-    hist_size = 1000
+    hist_size = 200
     M_min = global_params.M_MIN_INTEGRAL
     M_max = global_params.M_MAX_INTEGRAL
 
@@ -577,7 +577,7 @@ def test_SFRD_z_tables(name, plt):
     )
     lib.Broadcast_struct_global_all(up.cstruct, cp.cstruct, ap.cstruct, fo.cstruct)
 
-    hist_size = 1000
+    hist_size = 200
     M_min = global_params.M_MIN_INTEGRAL
     M_max = global_params.M_MAX_INTEGRAL
     z_array = np.linspace(6, 35, num=hist_size)
@@ -706,7 +706,7 @@ def test_Nion_z_tables(name, plt):
     f10e = 10**ap.F_ESC10
     f7e = 10**ap.F_ESC7_MINI
 
-    hist_size = 1000
+    hist_size = 200
     M_min = global_params.M_MIN_INTEGRAL
     M_max = global_params.M_MAX_INTEGRAL
     z_array = np.linspace(6, 40, num=hist_size)
@@ -854,7 +854,7 @@ def test_Nion_conditional_tables(name, R, mini, intmethod, plt):
     )
     lib.Broadcast_struct_global_all(up.cstruct, cp.cstruct, ap.cstruct, fo.cstruct)
 
-    hist_size = 1000
+    hist_size = 200
     M_min = global_params.M_MIN_INTEGRAL
     M_max = global_params.M_MAX_INTEGRAL
 
@@ -1038,7 +1038,7 @@ def test_SFRD_conditional_table(name, R, intmethod, plt):
     )
     lib.Broadcast_struct_global_all(up.cstruct, cp.cstruct, ap.cstruct, fo.cstruct)
 
-    hist_size = 1000
+    hist_size = 200
     M_min = global_params.M_MIN_INTEGRAL
     M_max = global_params.M_MAX_INTEGRAL
 
@@ -1202,7 +1202,7 @@ def test_conditional_integral_methods(R, name, integrand, plt):
 
     lib.Broadcast_struct_global_all(up.cstruct, cp.cstruct, ap.cstruct, fo.cstruct)
 
-    hist_size = 1000
+    hist_size = 200
     M_min = global_params.M_MIN_INTEGRAL
     M_max = global_params.M_MAX_INTEGRAL
 
