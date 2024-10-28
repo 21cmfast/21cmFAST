@@ -175,9 +175,15 @@ class MassDepZetaError(ParameterError):
 
 
 class MemoryAllocError(FatalCError):
-    """An exception when unable to allocated memory."""
+    """An exception when unable to allocate memory."""
 
     default_message = """An error has occured while attempting to allocate memory! (check the LOG for more info)"""
+
+
+class CUDAError(FatalCError):
+    """An exception when an error occurs with CUDA."""
+
+    default_message = """A CUDA error has occured! (check the LOG for more info)"""
 
 
 SUCCESS = 0
@@ -190,6 +196,7 @@ TABLEEVALUATIONERROR = 6
 INFINITYORNANERROR = 7
 MASSDEPZETAERROR = 8
 MEMORYALLOCERROR = 9
+CUDAERROR = 10
 
 
 def _process_exitcode(exitcode, fnc, args):
@@ -209,6 +216,7 @@ def _process_exitcode(exitcode, fnc, args):
                     INFINITYORNANERROR: InfinityorNaNError,
                     MASSDEPZETAERROR: MassDepZetaError,
                     MEMORYALLOCERROR: MemoryAllocError,
+                    CUDAERROR: CUDAError,
                 }[exitcode]
             except KeyError:  # pragma: no cover
                 raise FatalCError(
