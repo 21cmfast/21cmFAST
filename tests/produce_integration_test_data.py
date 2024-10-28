@@ -43,15 +43,22 @@ logging.basicConfig()
 SEED = 12345
 DATA_PATH = Path(__file__).parent / "test_data"
 
-# NOTE: Since this is called in `evolve()` AFTER the OPTIONS kwargs,
-#   These should only contain dimensions, which don't show up in the
-#   OPTIONS dicts
+# These defaults are overwritten by the OPTIONS kwargs
 DEFAULT_USER_PARAMS = {
     "HII_DIM": 50,
     "DIM": 150,
     "BOX_LEN": 100,
     "NO_RNG": True,
 }
+
+DEFAULT_FLAG_OPTIONS = {
+    "USE_HALO_FIELD": False,
+    "USE_EXP_FILTER": False,
+    "CELL_RECOMB": False,
+    "HALO_STOCHASTICITY": False,
+    "USE_TS_FLUCT": False,
+}
+
 DEFAULT_ZPRIME_STEP_FACTOR = 1.04
 
 LIGHTCONE_FIELDS = [
@@ -285,13 +292,12 @@ def get_input_struct(kwargs, cls):
 
 
 def get_all_input_structs(kwargs):
-    flag_options = get_input_struct(kwargs, FlagOptions)
+    flag_options = get_input_struct({**DEFAULT_FLAG_OPTIONS, **kwargs}, FlagOptions)
     cosmo_params = get_input_struct(kwargs, CosmoParams)
-    user_params = get_input_struct(kwargs, UserParams)
+    user_params = get_input_struct({**DEFAULT_USER_PARAMS, **kwargs}, UserParams)
 
     kwargs_a = kwargs.copy()
     kwargs_a.update({"flag_options": flag_options})
-    logger.info(kwargs_a)
     astro_params = get_input_struct(kwargs_a, AstroParams)
     return user_params, cosmo_params, astro_params, flag_options
 
@@ -300,7 +306,6 @@ def get_all_options(redshift, **kwargs):
     user_params, cosmo_params, astro_params, flag_options = get_all_input_structs(
         kwargs
     )
-    user_params = user_params.clone(**DEFAULT_USER_PARAMS)
 
     out = {
         "out_redshifts": redshift,
@@ -322,7 +327,6 @@ def get_all_options_ics(**kwargs):
     user_params, cosmo_params, astro_params, flag_options = get_all_input_structs(
         kwargs
     )
-    user_params.update(DEFAULT_USER_PARAMS)
     out = {
         "user_params": user_params,
         "cosmo_params": cosmo_params,
@@ -339,7 +343,6 @@ def get_all_options_halo(redshift, **kwargs):
     user_params, cosmo_params, astro_params, flag_options = get_all_input_structs(
         kwargs
     )
-    user_params.update(DEFAULT_USER_PARAMS)
     out = {
         "out_redshifts": redshift,
         "user_params": user_params,
