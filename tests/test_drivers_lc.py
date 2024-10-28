@@ -18,10 +18,10 @@ def test_lightcone(lc, default_user_params, redshift, max_redshift):
     assert lc.cell_size == default_user_params.BOX_LEN / default_user_params.HII_DIM
 
 
-def test_lightcone_quantities(ic, rectlcn, max_redshift):
+def test_lightcone_quantities(ic, redshift, max_redshift):
     lcn = p21c.RectilinearLightconer.with_equal_cdist_slices(
-        min_redshift=rectlcn.min_redshift,
-        max_redshift=rectlcn.max_redshift,
+        min_redshift=redshift,
+        max_redshift=max_redshift,
         resolution=ic.user_params.cell_size,
         cosmo=ic.cosmo_params.cosmo,
         quantities=("dNrec_box", "density", "brightness_temp", "Gamma12"),
@@ -50,18 +50,16 @@ def test_lightcone_quantities(ic, rectlcn, max_redshift):
     # Raise an error since we're not doing spin temp.
     with pytest.raises(AttributeError):
         p21c.exhaust_lightcone(
-            lightconer=rectlcn,
+            lightconer=lcn,
             initial_conditions=ic,
-            max_redshift=20.0,
             lightcone_quantities=("Ts_box", "density"),
         )
 
     # And also raise an error for global quantities.
     with pytest.raises(AttributeError):
         p21c.exhaust_lightcone(
-            lightconer=rectlcn,
+            lightconer=lcn,
             initial_conditions=ic,
-            max_redshift=20.0,
             global_quantities=("Ts_box",),
         )
 

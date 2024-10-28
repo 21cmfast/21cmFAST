@@ -566,8 +566,9 @@ def interp_halo_boxes(
 
     # I set the box redshift to be the stored one so it is read properly into the ionize box
     # for the xray source it doesn't matter, also since it is not _compute()'d, it won't be cached
+    inputs = InputParameters.from_output_structs(halo_boxes, redshift=redshift)
     hbox_out = HaloBox(
-        inputs=halo_boxes[0].inputs,
+        inputs=inputs,
     )
     # initialise hbox memory
     hbox_out()

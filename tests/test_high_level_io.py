@@ -30,26 +30,7 @@ def coeval(ic, default_flag_options_ts):
 
 
 @pytest.fixture(scope="module")
-def lightcone(ic, default_flag_options_ts):
-    lcn = RectilinearLightconer.with_equal_cdist_slices(
-        min_redshift=25.0,
-        max_redshift=35.0,
-        resolution=ic.user_params.cell_size,
-    )
-
-    lc_gen = run_lightcone(
-        lightconer=lcn,
-        initial_conditions=ic,
-        write=True,
-        flag_options=default_flag_options_ts,
-    )
-
-    [[iz, z, coev, lc]] = deque(lc_gen, maxlen=1)
-    return lc
-
-
-@pytest.fixture(scope="module")
-def ang_lightcone(ic, lc, default_flag_options_ts):
+def ang_lightcone(ic, lc, default_astro_params, default_flag_options_ts):
     lcn = AngularLightconer.like_rectilinear(
         match_at_z=lc.lightcone_redshifts.min(),
         max_redshift=lc.lightcone_redshifts.max(),
@@ -61,6 +42,7 @@ def ang_lightcone(ic, lc, default_flag_options_ts):
         lightconer=lcn,
         initial_conditions=ic,
         write=True,
+        astro_params=default_astro_params,
         flag_options=default_flag_options_ts.clone(APPLY_RSDS=False),
     )
 
@@ -220,27 +202,25 @@ def test_gather(coeval, test_direc):
         assert "z0.00" in fl["cache"]["init"]
 
 
-def test_lightcone_cache(lightcone):
-    assert lightcone.cache_files is not None
-    out = lightcone.get_cached_data(
-        kind="brightness_temp", redshift=25.1, load_data=True
-    )
+def test_lightcone_cache(lc):
+    assert lc.cache_files is not None
+    out = lc.get_cached_data(kind="brightness_temp", redshift=15.1, load_data=True)
 
     assert isinstance(out, BrightnessTemp)
 
-    out = lightcone.get_cached_data(
+    out = lc.get_cached_data(
         kind="brightness_temp", redshift=global_params.Z_HEAT_MAX * 1.01, load_data=True
     )
 
     assert isinstance(out, BrightnessTemp)
 
     with pytest.raises(ValueError):
-        lightcone.get_cached_data(kind="bad", redshift=100.0)
+        lc.get_cached_data(kind="bad", redshift=100.0)
 
-    lightcone.gather(fname="tmp_lightcone_gather.h5", clean=["brightness_temp"])
+    lc.gather(fname="tmp_lc_gather.h5", clean=["brightness_temp"])
 
     with pytest.raises(IOError):
-        lightcone.get_cached_data(kind="brightness_temp", redshift=25.1)
+        lc.get_cached_data(kind="brightness_temp", redshift=25.1)
 
 
 def test_ang_lightcone(lc, ang_lightcone):

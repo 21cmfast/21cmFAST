@@ -170,9 +170,13 @@ def default_input_struct(
 
 
 @pytest.fixture(scope="session")
-def ic(default_user_params, tmpdirec):
+def ic(default_user_params, default_cosmo_params, tmpdirec):
     return compute_initial_conditions(
-        user_params=default_user_params, write=True, direc=tmpdirec, random_seed=12
+        user_params=default_user_params,
+        cosmo_params=default_cosmo_params,
+        write=True,
+        direc=tmpdirec,
+        random_seed=12,
     )
 
 
@@ -211,10 +215,11 @@ def rectlcn(perturbed_field, max_redshift) -> RectilinearLightconer:
 
 
 @pytest.fixture(scope="session")
-def lc(rectlcn, ic, default_flag_options):
+def lc(rectlcn, ic, default_astro_params, default_flag_options):
     lc_gen = run_lightcone(
         lightconer=rectlcn,
         initial_conditions=ic,
+        astro_params=default_astro_params,
         flag_options=default_flag_options,
     )
     [[iz, z, coev, lc]] = deque(lc_gen, maxlen=1)

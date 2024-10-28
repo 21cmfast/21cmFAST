@@ -53,13 +53,13 @@ def ionize_box_lowz(ic, perturb_field_lowz, default_astro_params, default_flag_o
 
 @pytest.fixture(scope="module")
 def spin_temp_evolution(ic, redshift, default_astro_params, default_flag_options_ts):
-    """A default perturb_field"""
+    """An example spin temperature evolution"""
     scrollz = get_logspaced_redshifts(
         redshift, p21c.global_params.ZPRIME_STEP_FACTOR, p21c.global_params.Z_HEAT_MAX
     )
     st_prev = None
     outputs = []
-    for iz, z in scrollz:
+    for iz, z in enumerate(scrollz):
         pt = p21c.perturb_field(
             redshift=z,
             initial_conditions=ic,
@@ -72,7 +72,13 @@ def spin_temp_evolution(ic, redshift, default_astro_params, default_flag_options
             astro_params=default_astro_params,
             flag_options=default_flag_options_ts,
         )
-        outputs.append([pt, st])
+        outputs.append(
+            {
+                "redshift": z,
+                "perturbed_field": pt,
+                "spin_temp": st,
+            }
+        )
         st_prev = st
 
     return outputs
@@ -204,7 +210,7 @@ def test_ib_bad_st(ic, perturbed_field, redshift):
 
 
 def test_bt(ionize_box, spin_temp_evolution, perturbed_field):
-    curr_st = spin_temp_evolution[-1][1]
+    curr_st = spin_temp_evolution[-1]["spin_temp"]
     with pytest.raises(TypeError):  # have to specify param names
         p21c.brightness_temperature(ionize_box, curr_st, perturbed_field)
 

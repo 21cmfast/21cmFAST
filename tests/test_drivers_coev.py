@@ -22,16 +22,14 @@ def test_coeval_st(ic, perturbed_field):
 
 def test_run_coeval_bad_inputs():
     with pytest.raises(
-        ValueError, match="Cannot use an interpolated perturb field with minihalos"
+        ValueError, match="Either out_redshifts or perturb must be given"
     ):
         run_coeval(
-            redshift=6.0,
             flag_options={
                 "USE_MINI_HALOS": True,
                 "INHOMO_RECO": True,
                 "USE_TS_FLUCT": True,
             },
-            use_interp_perturb_field=True,
         )
 
 
@@ -39,7 +37,7 @@ def test_coeval_lowerz_than_photon_cons(ic):
     with pytest.raises(ValueError, match="You have passed a redshift"):
         run_coeval(
             initial_conditions=ic,
-            out_redshift=2.0,
+            out_redshifts=2.0,
             flag_options={
                 "PHOTON_CONS_TYPE": 1,
                 "USE_HALO_FIELD": False,
