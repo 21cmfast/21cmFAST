@@ -176,9 +176,11 @@ void filter_box_gpu(fftwf_complex *box, int RES, int filter_type, float R, float
     // d_box must be cast to cuFloatComplex (from fftwf_complex) for CUDA
     filter_box_kernel<<<numBlocks, threadsPerBlock>>>(reinterpret_cast<cuFloatComplex *>(d_box), size, dimension, midpoint, midpoint_para, delta_k, R, R_param, R_const, filter_type);
 
-    // Only use during development!
-    cudaError_t err = cudaDeviceSynchronize();
-    CATCH_CUDA_ERROR(err);
+    cudaError_t err;
+
+    // // Only use during development!
+    // err = cudaDeviceSynchronize();
+    // CATCH_CUDA_ERROR(err);
 
     err = cudaGetLastError();
     if (err != cudaSuccess) {

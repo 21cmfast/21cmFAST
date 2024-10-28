@@ -336,9 +336,9 @@ double* MapMass_gpu(
         dimension, user_params->DIM, d_para, hii_d, hii_d_para, user_params->NON_CUBIC_FACTOR,
         f_pixel_factor, init_growth_factor, user_params->PERTURB_ON_HIGH_RES, user_params->USE_2LPT);
 
-    // Only use during development!
-    err = cudaDeviceSynchronize();
-    CATCH_CUDA_ERROR(err);
+    // // Only use during development!
+    // err = cudaDeviceSynchronize();
+    // CATCH_CUDA_ERROR(err);
 
     err = cudaGetLastError();
     if (err != cudaSuccess) {
