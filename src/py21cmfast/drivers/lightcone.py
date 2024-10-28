@@ -1048,7 +1048,6 @@ def exhaust_lightcone(**kwargs):
     keywords passed are identical to run_lightcone.
     """
     lc_gen = run_lightcone(**kwargs)
-    out = deque(lc_gen, maxlen=1)
-    [[iz, z, coev, lc]] = out
+    [[iz, z, coev, lc]] = deque(lc_gen, maxlen=1)
 
     return iz, z, coev, lc

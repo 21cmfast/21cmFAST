@@ -3,7 +3,6 @@ import pytest
 import logging
 import os
 from astropy import units as un
-from collections import deque
 
 from py21cmfast import (
     AstroParams,
@@ -13,6 +12,7 @@ from py21cmfast import (
     UserParams,
     compute_initial_conditions,
     config,
+    exhaust_lightcone,
     global_params,
     perturb_field,
     run_lightcone,
@@ -216,11 +216,10 @@ def rectlcn(perturbed_field, max_redshift) -> RectilinearLightconer:
 
 @pytest.fixture(scope="session")
 def lc(rectlcn, ic, default_astro_params, default_flag_options):
-    lc_gen = run_lightcone(
+    iz, z, coev, lc = exhaust_lightcone(
         lightconer=rectlcn,
         initial_conditions=ic,
         astro_params=default_astro_params,
         flag_options=default_flag_options,
     )
-    [[iz, z, coev, lc]] = deque(lc_gen, maxlen=1)
     return lc

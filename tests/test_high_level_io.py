@@ -3,7 +3,6 @@ import pytest
 import attrs
 import h5py
 import numpy as np
-from collections import deque
 
 from py21cmfast import (
     BrightnessTemp,
@@ -12,6 +11,7 @@ from py21cmfast import (
     LightCone,
     TsBox,
     UserParams,
+    exhaust_lightcone,
     global_params,
     run_coeval,
     run_lightcone,
@@ -39,15 +39,13 @@ def ang_lightcone(ic, lc, default_astro_params, default_flag_options_ts):
         get_los_velocity=True,
     )
 
-    lc_gen = run_lightcone(
+    iz, z, coev, lc = exhaust_lightcone(
         lightconer=lcn,
         initial_conditions=ic,
         write=True,
         astro_params=default_astro_params,
         flag_options=default_flag_options_ts.clone(APPLY_RSDS=False),
     )
-
-    [[iz, z, coev, lc]] = deque(lc_gen, maxlen=1)
     return lc
 
 

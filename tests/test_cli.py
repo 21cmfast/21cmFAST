@@ -33,8 +33,7 @@ def test_init(module_direc, default_input_struct, runner, cfg):
     assert result.exit_code == 0
 
     ic = InitialConditions(
-        inputs=default_input_struct,
-        random_seed=101010,
+        inputs=default_input_struct.clone(random_seed=101010),
     )
     assert ic.exists(direc=str(module_direc))
 

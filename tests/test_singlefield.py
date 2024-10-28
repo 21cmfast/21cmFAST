@@ -120,7 +120,7 @@ def test_perturb_field_ic(perturbed_field, ic):
 
 def test_cache_exists(default_input_struct, perturbed_field, tmpdirec):
     pf = p21c.PerturbedField(
-        inputs=default_input_struct,
+        inputs=default_input_struct.clone(random_seed=perturbed_field._random_seed),
     )
 
     assert pf.exists(tmpdirec)
