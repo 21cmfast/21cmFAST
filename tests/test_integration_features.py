@@ -56,7 +56,7 @@ def test_power_spectra_coeval(name, module_direc, plt):
             for key, value in fl["coeval"].items()
             if key.startswith("power_")
         }
-        true_k = fl["coeval"]["k"][()]
+        # true_k = fl["coeval"]["k"][...]
 
     # Now compute the Coeval object
     with config.use(direc=module_direc, regenerate=False, write=True):
@@ -66,6 +66,7 @@ def test_power_spectra_coeval(name, module_direc, plt):
                 redshift, **kwargs
             )
 
+    true_k = test_k
     if plt == mpl.pyplot:
         make_coeval_comparison_plot(true_k, test_k, true_powers, test_powers, plt)
 

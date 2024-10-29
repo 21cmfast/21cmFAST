@@ -116,9 +116,6 @@ class InitialConditions(_OutputStruct):
         """Ensure the ICs have all the boxes loaded for perturb, but no extra."""
         keep = ["hires_density"]
 
-        if flag_options.HALO_STOCHASTICITY:
-            keep.append("lowres_density")
-
         if not self.user_params.PERTURB_ON_HIGH_RES:
             keep.append("lowres_density")
             keep.append("lowres_vx")
@@ -351,7 +348,13 @@ class HaloField(_AllParamsBox):
             else:
                 required += ["hires_density"]
         elif isinstance(input_box, HaloField):
-            required += ["halo_masses", "halo_coords", "star_rng", "sfr_rng"]
+            required += [
+                "halo_masses",
+                "halo_coords",
+                "star_rng",
+                "sfr_rng",
+                "xray_rng",
+            ]
         else:
             raise ValueError(
                 f"{type(input_box)} is not an input required for HaloField!"
@@ -414,7 +417,13 @@ class PerturbHaloField(_AllParamsBox):
             if self.user_params.USE_2LPT:
                 required += [k + "_2LPT" for k in required]
         elif isinstance(input_box, HaloField):
-            required += ["halo_coords", "halo_masses"]
+            required += [
+                "halo_coords",
+                "halo_masses",
+                "star_rng",
+                "sfr_rng",
+                "xray_rng",
+            ]
         else:
             raise ValueError(
                 f"{type(input_box)} is not an input required for PerturbHaloField!"
@@ -469,15 +478,26 @@ class HaloBox(_AllParamsBox):
         required = []
         if isinstance(input_box, PerturbHaloField):
             if not self.flag_options.FIXED_HALO_GRIDS:
-                required += ["halo_coords", "halo_masses", "star_rng", "sfr_rng"]
+                required += [
+                    "halo_coords",
+                    "halo_masses",
+                    "star_rng",
+                    "sfr_rng",
+                    "xray_rng",
+                ]
         elif isinstance(input_box, PerturbedField):
-            if self.flag_options.FIXED_HALO_GRIDS or self.user_params.AVG_BELOW_SAMPLER:
+            if self.flag_options.FIXED_HALO_GRIDS:
                 required += ["density"]
         elif isinstance(input_box, TsBox):
             required += ["J_21_LW_box"]
         elif isinstance(input_box, IonizedBox):
             required += ["Gamma12_box", "z_re_box"]
         elif isinstance(input_box, InitialConditions):
+            if (
+                self.flag_options.HALO_STOCHASTICITY
+                and self.user_params.AVG_BELOW_SAMPLER
+            ):
+                required += ["lowres_density"]
             if self.user_params.USE_RELATIVE_VELOCITIES:
                 required += ["lowres_vcb"]
         else:
@@ -840,6 +860,7 @@ class BrightnessTemp(_AllParamsBox):
         """Return all input arrays required to compute this object."""
         required = []
         if isinstance(input_box, PerturbedField):
+            required += ["density"]
             if self.flag_options.APPLY_RSDS:
                 required += ["velocity_z"]
         elif isinstance(input_box, TsBox):

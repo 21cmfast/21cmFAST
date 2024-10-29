@@ -49,6 +49,7 @@ DEFAULT_USER_PARAMS = {
     "DIM": 150,
     "BOX_LEN": 100,
     "NO_RNG": True,
+    "SAMPLER_MIN_MASS": 2e9,
 }
 
 DEFAULT_FLAG_OPTIONS = {
@@ -58,6 +59,7 @@ DEFAULT_FLAG_OPTIONS = {
     "HALO_STOCHASTICITY": False,
     "USE_TS_FLUCT": False,
     "USE_UPPER_STELLAR_TURNOVER": False,
+    "USE_MASS_DEPENDENT_ZETA": False,
 }
 
 DEFAULT_ZPRIME_STEP_FACTOR = 1.04
@@ -117,7 +119,7 @@ OPTIONS = {
         8.5,
         {
             "USE_MASS_DEPENDENT_ZETA": True,
-            "PHOTON_CONS_TYPE": 1,
+            "PHOTON_CONS_TYPE": "z-photoncons",
             "z_heat_max": 25,
             "zprime_step_factor": "z-photoncons",
         },
@@ -174,7 +176,6 @@ OPTIONS = {
         {
             "USE_MASS_DEPENDENT_ZETA": True,
             "USE_HALO_FIELD": True,
-            "USE_TS_FLUCT": False,
             "PERTURB_ON_HIGH_RES": True,
             "N_THREADS": 4,
             "z_heat_max": 25,

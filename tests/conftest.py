@@ -221,5 +221,6 @@ def lc(rectlcn, ic, default_astro_params, default_flag_options):
         initial_conditions=ic,
         astro_params=default_astro_params,
         flag_options=default_flag_options,
+        write=True,
     )
     return lc
