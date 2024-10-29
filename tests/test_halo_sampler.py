@@ -51,7 +51,7 @@ def test_sampler_from_catalog(name, mass, plt):
         global_params.M_MIN_INTEGRAL, global_params.M_MAX_INTEGRAL
     )
 
-    n_cond = 2000
+    n_cond = 10000
 
     z = 6.0
     z_prev = 5.8
@@ -154,7 +154,7 @@ def test_sampler_from_grid(name, delta, plt):
         global_params.M_MIN_INTEGRAL, global_params.M_MAX_INTEGRAL
     )
 
-    n_cond = 2000
+    n_cond = 5000
 
     z = 6.0
     growthf = lib.dicke(z)
@@ -246,7 +246,7 @@ def test_sampler_from_grid(name, delta, plt):
 # NOTE: this test is pretty circular. The only way I think I can test the scaling relations are to
 #   calculate them in the backend and re-write them in the test for a few masses. This means that
 #   changes to any scaling relation model will result in a test fail
-def test_halo_scaling_relations(ic):
+def test_halo_scaling_relations(ic, default_input_struct):
     # specify parameters to use for this test
     redshift = 10.0
     opts = prd.get_all_options(redshift)
@@ -271,11 +271,8 @@ def test_halo_scaling_relations(ic):
 
     # HACK: Make the fake halo list
     fake_pthalos = PerturbHaloField(
-        redshift=redshift,
+        inputs=default_input_struct,
         buffer_size=halo_masses.size,
-        initial_conditions=ic,
-        astro_params=ap,
-        flag_options=fo,
     )
     fake_pthalos()  # initialise memory
     fake_pthalos.halo_masses = halo_masses.astype("f4")

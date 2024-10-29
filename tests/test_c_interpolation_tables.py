@@ -31,8 +31,8 @@ OPTIONS_PS = {
 }
 
 OPTIONS_HMF = {
-    "PS": [10, {"HMF": "PS"}],
-    "ST": [10, {"HMF": "ST"}],
+    "PS": [10, {"HMF": "PS", "USE_MASS_DEPENDENT_ZETA": True}],
+    "ST": [10, {"HMF": "ST", "USE_MASS_DEPENDENT_ZETA": True}],
     # "Watson": [10, {"HMF": "WATSON"}],
     # "Watsonz": [10, {"HMF": "WATSON-Z"}],
     # "Delos": [10, {"HMF": "DELOS"}],

@@ -545,10 +545,6 @@ class FlagOptions(InputStruct):
         """Raise an error if HALO_STOCHASTICITY is True and USE_HALO_FIELD is False."""
         if val and not self.USE_HALO_FIELD:
             raise ValueError("HALO_STOCHASTICITY is True but USE_HALO_FIELD is False")
-        if val and self.PERTURB_ON_HIGH_RES:
-            raise NotImplementedError(
-                "HALO_STOCHASTICITY cannot currently be used with PERTURB_ON_HIGH_RES"
-            )
 
     @USE_EXP_FILTER.validator
     def _USE_EXP_FILTER_vld(self, att, val):

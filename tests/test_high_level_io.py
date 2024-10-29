@@ -31,7 +31,7 @@ def coeval(ic, default_astro_params, default_flag_options_ts):
 
 
 @pytest.fixture(scope="module")
-def ang_lightcone(ic, lc, default_astro_params, default_flag_options_ts):
+def ang_lightcone(ic, lc, default_astro_params, default_flag_options):
     lcn = AngularLightconer.like_rectilinear(
         match_at_z=lc.lightcone_redshifts.min(),
         max_redshift=lc.lightcone_redshifts.max(),
@@ -39,14 +39,14 @@ def ang_lightcone(ic, lc, default_astro_params, default_flag_options_ts):
         get_los_velocity=True,
     )
 
-    iz, z, coev, lc = exhaust_lightcone(
+    iz, z, coev, anglc = exhaust_lightcone(
         lightconer=lcn,
         initial_conditions=ic,
         write=True,
         astro_params=default_astro_params,
-        flag_options=default_flag_options_ts.clone(APPLY_RSDS=False),
+        flag_options=default_flag_options.clone(APPLY_RSDS=False),
     )
-    return lc
+    return anglc
 
 
 def test_read_bad_file_lc(test_direc, lc):
