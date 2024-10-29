@@ -282,7 +282,7 @@ class UserParams(InputStruct):
     NON_CUBIC_FACTOR = field(default=1.0, converter=float, validator=validators.gt(0))
     USE_FFTW_WISDOM = field(default=False, converter=bool)
     HMF = field(
-        default="PS",
+        default="ST",
         converter=str,
         validator=validators.in_(_hmf_models),
         transformer=choice_transformer(_hmf_models),

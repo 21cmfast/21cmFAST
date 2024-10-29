@@ -57,6 +57,7 @@ DEFAULT_FLAG_OPTIONS = {
     "CELL_RECOMB": False,
     "HALO_STOCHASTICITY": False,
     "USE_TS_FLUCT": False,
+    "USE_UPPER_STELLAR_TURNOVER": False,
 }
 
 DEFAULT_ZPRIME_STEP_FACTOR = 1.04
@@ -87,14 +88,14 @@ OPTIONS = {
     "change_z_heat_max": [30, {"z_heat_max": 40}],
     "larger_step_factor": [
         13,
-        {"zprime_step_factor": 1.05, "z_heat_max": 25, "HMF": 0},
+        {"zprime_step_factor": 1.05, "z_heat_max": 25, "HMF": "PS"},
     ],
     "interp_perturb_field": [16, {"interp_perturb_field": True}],
     "mdzeta": [14, {"USE_MASS_DEPENDENT_ZETA": True}],
     "rsd": [9, {"SUBCELL_RSD": True}],
     "inhomo": [10, {"INHOMO_RECO": True}],
-    "tsfluct": [16, {"HMF": 3, "USE_TS_FLUCT": True}],
-    "mmin_in_mass": [20, {"z_heat_max": 45, "M_MIN_in_Mass": True, "HMF": 2}],
+    "tsfluct": [16, {"HMF": "WATSON-Z", "USE_TS_FLUCT": True}],
+    "mmin_in_mass": [20, {"z_heat_max": 45, "M_MIN_in_Mass": True, "HMF": "WATSON"}],
     "fftw_wisdom": [35, {"USE_FFTW_WISDOM": True}],
     "mini_halos": [
         18,
@@ -111,14 +112,14 @@ OPTIONS = {
         },
     ],
     "nthreads": [8, {"N_THREADS": 2}],
-    "photoncons": [10, {"PHOTON_CONS_TYPE": 1}],
+    "photoncons": [10, {"PHOTON_CONS_TYPE": "z-photoncons"}],
     "mdz_and_photoncons": [
         8.5,
         {
             "USE_MASS_DEPENDENT_ZETA": True,
             "PHOTON_CONS_TYPE": 1,
             "z_heat_max": 25,
-            "zprime_step_factor": 1.1,
+            "zprime_step_factor": "z-photoncons",
         },
     ],
     "mdz_and_ts_fluct": [
@@ -127,7 +128,7 @@ OPTIONS = {
             "USE_MASS_DEPENDENT_ZETA": True,
             "USE_TS_FLUCT": True,
             "INHOMO_RECO": True,
-            "PHOTON_CONS_TYPE": 1,
+            "PHOTON_CONS_TYPE": "z-photoncons",
             "z_heat_max": 25,
             "zprime_step_factor": 1.1,
         },
@@ -138,7 +139,7 @@ OPTIONS = {
             "USE_MASS_DEPENDENT_ZETA": True,
             "USE_TS_FLUCT": True,
             "INHOMO_RECO": True,
-            "PHOTON_CONS_TYPE": 1,
+            "PHOTON_CONS_TYPE": "z-photoncons",
             "z_heat_max": 25,
             "zprime_step_factor": 1.1,
             "MINIMIZE_MEMORY": True,
@@ -152,7 +153,7 @@ OPTIONS = {
             "USE_MASS_DEPENDENT_ZETA": True,
             "INHOMO_RECO": True,
             "USE_TS_FLUCT": True,
-            "PHOTON_CONS_TYPE": 1,
+            "PHOTON_CONS_TYPE": "z-photoncons",
             "z_heat_max": 25,
             "zprime_step_factor": 1.1,
         },
@@ -221,7 +222,7 @@ OPTIONS = {
         18,
         {
             "N_THREADS": 4,
-            "INTEGRATION_METHOD_MINI": 2,
+            "INTEGRATION_METHOD_MINI": "GAMMA-APPROX",
             "USE_INTERPOLATION_TABLES": True,
         },
     ],
@@ -229,7 +230,7 @@ OPTIONS = {
         8,
         {
             "N_THREADS": 4,
-            "INTEGRATION_METHOD_MINI": 2,
+            "INTEGRATION_METHOD_MINI": "GAMMA-APPROX",
             "USE_INTERPOLATION_TABLES": True,
         },
     ],
@@ -242,7 +243,7 @@ OPTIONS = {
             "N_THREADS": 4,
             "NUM_FILTER_STEPS_FOR_Ts": 8,
             "USE_INTERPOLATION_TABLES": True,
-            "INTEGRATION_METHOD_MINI": 2,
+            "INTEGRATION_METHOD_MINI": "GAMMA-APPROX",
             "USE_RELATIVE_VELOCITIES": True,
         },
     ],
@@ -360,6 +361,9 @@ def get_all_options_halo(redshift, **kwargs):
 
 def produce_coeval_power_spectra(redshift, **kwargs):
     options = get_all_options(redshift, **kwargs)
+    print("----- OPTIONS USED -----")
+    print(options)
+    print("------------------------")
 
     with config.use(ignore_R_BUBBLE_MAX_error=True):
         coeval = run_coeval(write=write_ics_only_hook, **options)
@@ -376,15 +380,18 @@ def produce_coeval_power_spectra(redshift, **kwargs):
 
 def produce_lc_power_spectra(redshift, **kwargs):
     options = get_all_options(redshift, **kwargs)
+    print("----- OPTIONS USED -----")
+    print(options)
+    print("------------------------")
 
     # NOTE: this is here only so that we get the same answer as previous versions,
     #       which have a bug where the max_redshift gets set higher than it needs to be.
     flag_options = FlagOptions(options.pop("flag_options"))
     if flag_options.INHOMO_RECO or flag_options.USE_TS_FLUCT:
         max_redshift = options.get("z_heat_max", global_params.Z_HEAT_MAX)
-        del options["redshift"]
+        del options["out_redshifts"]
     else:
-        max_redshift = options.pop("redshift") + 2
+        max_redshift = options.pop("out_redshifts") + 2
 
     lcn = RectilinearLightconer.with_equal_cdist_slices(
         min_redshift=redshift,

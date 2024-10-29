@@ -47,7 +47,7 @@ options_halo = list(prd.OPTIONS_HALO.keys())
 @pytest.mark.parametrize("name", options)
 def test_power_spectra_coeval(name, module_direc, plt):
     redshift, kwargs = prd.OPTIONS[name]
-    print(f"Options used for the test at z={redshift}: ", kwargs, flush=True)
+    print(f"Options used for the test {name} at z={redshift}: ", kwargs)
 
     # First get pre-made data
     with h5py.File(prd.get_filename("power_spectra", name), "r") as fl:
@@ -56,7 +56,7 @@ def test_power_spectra_coeval(name, module_direc, plt):
             for key, value in fl["coeval"].items()
             if key.startswith("power_")
         }
-        # true_k = fl["coeval"]["k"][()]
+        true_k = fl["coeval"]["k"][()]
 
     # Now compute the Coeval object
     with config.use(direc=module_direc, regenerate=False, write=True):
@@ -67,9 +67,7 @@ def test_power_spectra_coeval(name, module_direc, plt):
             )
 
     if plt == mpl.pyplot:
-        make_coeval_comparison_plot(
-            test_k * np.sqrt(3), test_k, true_powers, test_powers, plt
-        )
+        make_coeval_comparison_plot(true_k, test_k, true_powers, test_powers, plt)
 
     for key in prd.COEVAL_FIELDS:
         if key not in true_powers:
@@ -87,7 +85,7 @@ def test_power_spectra_coeval(name, module_direc, plt):
 @pytest.mark.parametrize("name", options)
 def test_power_spectra_lightcone(name, module_direc, plt):
     redshift, kwargs = prd.OPTIONS[name]
-    print(f"Options used for the test at z={redshift}: ", kwargs)
+    print(f"Options used for the test {name} at z={redshift}: ", kwargs)
 
     # First get pre-made data
     with h5py.File(prd.get_filename("power_spectra", name), "r") as fl:
