@@ -35,9 +35,6 @@ def input_param_field(kls: InputStruct):
     ----------
     kls : InputStruct subclass
         The parameter structure which should be returned as an attrs field
-    default : boolean
-        If True, this field's default will be the default parameter structure
-        as opposed to None
 
     """
     return attrs.field(
@@ -198,7 +195,6 @@ class InputParameters:
             # Now combine with provided kwargs
             return attrs.evolve(out.merge(cls(**defaults)), redshift=redshift)
 
-    # NOTE: This may not be a method in attrs for a reason....
     def clone(self, **kwargs):
         """Generate a copy of the InputParameter structure with specified changes."""
         return attrs.evolve(self, **kwargs)

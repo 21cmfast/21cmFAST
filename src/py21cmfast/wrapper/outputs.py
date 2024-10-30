@@ -508,7 +508,7 @@ class HaloBox(_AllParamsBox):
     def compute(
         self,
         *,
-        init_boxes: InitialConditions,
+        initial_conditions: InitialConditions,
         pt_halos: PerturbHaloField,
         perturbed_field: PerturbedField,
         previous_spin_temp: TsBox,
@@ -522,7 +522,7 @@ class HaloBox(_AllParamsBox):
             self.cosmo_params,
             self.astro_params,
             self.flag_options,
-            init_boxes,
+            initial_conditions,
             perturbed_field,
             pt_halos,
             previous_spin_temp,

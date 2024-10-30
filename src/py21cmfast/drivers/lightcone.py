@@ -414,11 +414,8 @@ def _run_lightcone_from_perturbed_fields(
 
     Parameters
     ----------
-    redshift : float
-        The minimum redshift of the lightcone.
-    max_redshift : float, optional
-        The maximum redshift at which to keep lightcone information. By default, this is equal to
-        `z_heat_max`. Note that this is not *exact*, but will be typically slightly exceeded.
+    lightconer : :class:`~Lightconer`
+        This object specifies the dimensions, redshifts, and quantities required by the lightcone run
     user_params : `~UserParams`, optional
         Defines the overall options and parameters of the run.
     astro_params : :class:`~AstroParams`, optional
@@ -428,54 +425,24 @@ def _run_lightcone_from_perturbed_fields(
     flag_options : :class:`~FlagOptions`, optional
         Options concerning how the reionization process is run, eg. if spin temperature
         fluctuations are required.
-    lightcone_quantities : tuple of str, optional
-        The quantities to form into a lightcone. By default, just the brightness
-        temperature. Note that these quantities must exist in one of the output
-        structures:
-
-        * :class:`~InitialConditions`
-        * :class:`~PerturbField`
-        * :class:`~TsBox`
-        * :class:`~IonizedBox`
-        * :class:`BrightnessTemp`
-
-        To get a full list of possible quantities, run :func:`get_all_fieldnames`.
     global_quantities : tuple of str, optional
         The quantities to save as globally-averaged redshift-dependent functions.
         These may be any of the quantities that can be used in ``lightcone_quantities``.
         The mean is taken over the full 3D cube at each redshift, rather than a 2D
         slice.
-    init_box : :class:`~InitialConditions`, optional
+    initial_conditions : :class:`~InitialConditions`, optional
         If given, the user and cosmo params will be set from this object, and it will not be
         re-calculated.
-    perturb : list of :class:`~PerturbedField`, optional
-        If given, must be compatible with init_box. It will merely negate the necessity of
+    perturbed_fields : list of :class:`~PerturbedField`, optional
+        If given, must be compatible with initial_conditions. It will merely negate the necessity of
         re-calculating the
         perturb fields. It will also be used to set the redshift if given.
-    coeval_callback : callable, optional
-        User-defined arbitrary function computed on :class:`~Coeval`, at redshifts defined in
-        `coeval_callback_redshifts`.
-        If given, the function returns :class:`~LightCone` and the list of `coeval_callback` outputs.
-    coeval_callback_redshifts : list or int, optional
-        Redshifts for `coeval_callback` computation.
-        If list, computes the function on `node_redshifts` closest to the specified ones.
-        If positive integer, computes the function on every n-th redshift in `node_redshifts`.
-        Ignored in the case `coeval_callback is None`.
-    use_interp_perturb_field : bool, optional
-        Whether to use a single perturb field, at the lowest redshift of the lightcone,
-        to determine all spin temperature fields. If so, this field is interpolated in the
-        underlying C-code to the correct redshift. This is less accurate (and no more efficient),
-        but provides compatibility with older versions of 21cmFAST.
     cleanup : bool, optional
         A flag to specify whether the C routine cleans up its memory before returning.
         Typically, if `spin_temperature` is called directly, you will want this to be
         true, as if the next box to be calculate has different shape, errors will occur
         if memory is not cleaned. Note that internally, this is set to False until the
         last iteration.
-    minimize_memory_usage
-        If switched on, the routine will do all it can to minimize peak memory usage.
-        This will be at the cost of disk I/O and CPU time. Recommended to only set this
-        if you are running particularly large boxes, or have low RAM.
     lightcone_filename
         The filename to which to save the lightcone. The lightcone is returned in
         memory, and can be saved manually later, but including this filename will
@@ -614,7 +581,7 @@ def _run_lightcone_from_perturbed_fields(
                 "run with write=True to continue from a checkpoint."
             )
 
-    # Now we can purge init_box further.
+    # Now we can purge initial_conditions further.
     with contextlib.suppress(OSError):
         initial_conditions.prepare_for_halos(
             flag_options=inputs.flag_options, force=always_purge
@@ -659,7 +626,6 @@ def _run_lightcone_from_perturbed_fields(
 
     # structs which need to be kept beyond one snapshot
     hboxes = []
-    z_halos = []
 
     # coeval objects to interpolate onto the lightcone
     coeval = None
@@ -693,10 +659,8 @@ def _run_lightcone_from_perturbed_fields(
             )
 
             if inputs.flag_options.USE_TS_FLUCT:
-                z_halos.append(z)
                 hboxes.append(hbox2)
                 xrs = sf.compute_xray_source_field(
-                    z_halos=z_halos,
                     hboxes=hboxes,
                     **kw,
                 )
@@ -855,18 +819,18 @@ def run_lightcone(
     **global_kwargs,
 ):
     r"""
-    Evaluate a full lightcone ending at a given redshift.
+    Create a generator function for a lightcone run.
 
     This is generally the easiest and most efficient way to generate a lightcone, though it can
     be done manually by using the lower-level functions which are called by this function.
 
     Parameters
     ----------
-    redshift : float
-        The minimum redshift of the lightcone.
-    max_redshift : float, optional
-        The maximum redshift at which to keep lightcone information. By default, this is equal to
-        `z_heat_max`. Note that this is not *exact*, but will be typically slightly exceeded.
+    lightconer : :class:`~Lightconer`
+        This object specifies the dimensions, redshifts, and quantities required by the lightcone run
+    node_redshifts : array_like, optional
+        This array specifies the redshifts at which the simulation snapshots occur.
+        By default it is evenly spaced in log(1+z) by a factor set by global_params.ZPRIME_STEP_FACTOR
     user_params : `~UserParams`, optional
         Defines the overall options and parameters of the run.
     astro_params : :class:`~AstroParams`, optional
@@ -876,63 +840,28 @@ def run_lightcone(
     flag_options : :class:`~FlagOptions`, optional
         Options concerning how the reionization process is run, eg. if spin temperature
         fluctuations are required.
-    lightcone_quantities : tuple of str, optional
-        The quantities to form into a lightcone. By default, just the brightness
-        temperature. Note that these quantities must exist in one of the output
-        structures:
-
-        * :class:`~InitialConditions`
-        * :class:`~PerturbField`
-        * :class:`~TsBox`
-        * :class:`~IonizedBox`
-        * :class:`BrightnessTemp`
-
-        To get a full list of possible quantities, run :func:`get_all_fieldnames`.
     global_quantities : tuple of str, optional
         The quantities to save as globally-averaged redshift-dependent functions.
-        These may be any of the quantities that can be used in ``lightcone_quantities``.
+        These may be any of the quantities that can be used in ``Lightconer.quantities``.
         The mean is taken over the full 3D cube at each redshift, rather than a 2D
         slice.
-    init_box : :class:`~InitialConditions`, optional
+    initial_conditions : :class:`~InitialConditions`, optional
         If given, the user and cosmo params will be set from this object, and it will not be
         re-calculated.
-    perturb : list of :class:`~PerturbedField`, optional
-        If given, must be compatible with init_box. It will merely negate the necessity of
+    perturbed_fields : list of :class:`~PerturbedField`, optional
+        If given, must be compatible with initial_conditions. It will merely negate the necessity of
         re-calculating the
         perturb fields. It will also be used to set the redshift if given.
-    coeval_callback : callable, optional
-        User-defined arbitrary function computed on :class:`~Coeval`, at redshifts defined in
-        `coeval_callback_redshifts`.
-        If given, the function returns :class:`~LightCone` and the list of `coeval_callback` outputs.
-    coeval_callback_redshifts : list or int, optional
-        Redshifts for `coeval_callback` computation.
-        If list, computes the function on `node_redshifts` closest to the specified ones.
-        If positive integer, computes the function on every n-th redshift in `node_redshifts`.
-        Ignored in the case `coeval_callback is None`.
-    use_interp_perturb_field : bool, optional
-        Whether to use a single perturb field, at the lowest redshift of the lightcone,
-        to determine all spin temperature fields. If so, this field is interpolated in the
-        underlying C-code to the correct redshift. This is less accurate (and no more efficient),
-        but provides compatibility with older versions of 21cmFAST.
     cleanup : bool, optional
         A flag to specify whether the C routine cleans up its memory before returning.
         Typically, if `spin_temperature` is called directly, you will want this to be
         true, as if the next box to be calculate has different shape, errors will occur
         if memory is not cleaned. Note that internally, this is set to False until the
         last iteration.
-    minimize_memory_usage
-        If switched on, the routine will do all it can to minimize peak memory usage.
-        This will be at the cost of disk I/O and CPU time. Recommended to only set this
-        if you are running particularly large boxes, or have low RAM.
     lightcone_filename
         The filename to which to save the lightcone. The lightcone is returned in
         memory, and can be saved manually later, but including this filename will
         save the lightcone on each iteration, which can be helpful for checkpointing.
-    return_at_z
-        If given, evaluation of the lightcone will be stopped at the given redshift,
-        and the partial lightcone object will be returned. Lightcone evaluation can
-        continue if the returned lightcone is saved to file, and this file is passed
-        as `lightcone_filename`.
     \*\*global_kwargs :
         Any attributes for :class:`~py21cmfast.inputs.GlobalParams`. This will
         *temporarily* set global attributes for the duration of the function. Note that
@@ -947,7 +876,7 @@ def run_lightcone(
 
     Other Parameters
     ----------------
-    regenerate, write, direc, random_seed
+    regenerate, write, direc, random_seed, hooks
         See docs of :func:`initial_conditions` for more information.
     """
     direc, regenerate, hooks = _get_config_options(direc, regenerate, write, hooks)
@@ -998,11 +927,11 @@ def run_lightcone(
             **iokw,
         )
 
-    # We can go ahead and purge some of the stuff in the init_box, but only if
+    # We can go ahead and purge some of the stuff in the initial_conditions, but only if
     # it is cached -- otherwise we could be losing information.
     try:
         # TODO: should really check that the file at path actually contains a fully
-        # working copy of the init_box.
+        # working copy of the initial_conditions.
         initial_conditions.prepare_for_perturb(
             flag_options=flag_options, force=always_purge
         )

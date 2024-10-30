@@ -559,7 +559,7 @@ def run_coeval(
 
     Parameters
     ----------
-    redshift: array_like
+    out_redshifts: array_like
         A single redshift, or multiple redshift, at which to return results. The minimum of these
         will define the log-scrolling behaviour (if necessary).
     user_params : :class:`~inputs.UserParams`, optional
@@ -570,17 +570,12 @@ def run_coeval(
         The astrophysical parameters defining the course of reionization.
     flag_options : :class:`~inputs.FlagOptions` , optional
         Some options passed to the reionization routine.
-    init_box : :class:`~InitialConditions`, optional
+    initial_conditions : :class:`~InitialConditions`, optional
         If given, the user and cosmo params will be set from this object, and it will not
         be re-calculated.
-    perturb : list of :class:`~PerturbedField`, optional
-        If given, must be compatible with init_box. It will merely negate the necessity
+    perturbed_field : list of :class:`~PerturbedField`, optional
+        If given, must be compatible with initial_conditions. It will merely negate the necessity
         of re-calculating the perturb fields.
-    use_interp_perturb_field : bool, optional
-        Whether to use a single perturb field, at the lowest redshift of the lightcone,
-        to determine all spin temperature fields. If so, this field is interpolated in
-        the underlying C-code to the correct redshift. This is less accurate (and no more
-        efficient), but provides compatibility with older versions of 21cmFAST.
     cleanup : bool, optional
         A flag to specify whether the C routine cleans up its memory before returning.
         Typically, if `spin_temperature` is called directly, you will want this to be
@@ -640,7 +635,7 @@ def run_coeval(
             **iokw,
         )
 
-    # We can go ahead and purge some of the stuff in the init_box, but only if
+    # We can go ahead and purge some of the stuff in the initial_conditions, but only if
     # it is cached -- otherwise we could be losing information.
     with contextlib.suppress(OSError):
         initial_conditions.prepare_for_perturb(
@@ -694,7 +689,7 @@ def run_coeval(
 
     perturbed_field = perturb_
 
-    # Now we can purge init_box further.
+    # Now we can purge initial_conditions further.
     with contextlib.suppress(OSError):
         initial_conditions.prepare_for_halos(
             flag_options=flag_options, force=always_purge
@@ -717,7 +712,7 @@ def run_coeval(
         # reverse to get the right redshift order
         pt_halos = pt_halos[::-1]
 
-    # Now we can purge init_box further.
+    # Now we can purge initial_conditions further.
     with contextlib.suppress(OSError):
         initial_conditions.prepare_for_spin_temp(
             flag_options=flag_options, force=always_purge
@@ -752,7 +747,6 @@ def run_coeval(
     pth_files = []
 
     # Iterate through redshift from top to bottom
-    z_halos = []
     hbox_arr = []
     for iz, z in enumerate(node_redshifts):
         logger.info(
@@ -775,11 +769,9 @@ def run_coeval(
 
         if flag_options.USE_TS_FLUCT:
             # append the halo redshift array so we have all halo boxes [z,zmax]
-            z_halos += [z]
             hbox_arr += [hb2]
             if flag_options.USE_HALO_FIELD:
                 xrs = sf.compute_xray_source_field(
-                    z_halos=z_halos,
                     hboxes=hbox_arr,
                     **kw,
                 )

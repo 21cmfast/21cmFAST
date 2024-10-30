@@ -126,7 +126,7 @@ def compute_initial_conditions(
         with contextlib.suppress(OSError):
             ics.read(direc)
             logger.info(
-                f"Existing init_boxes found and read in (seed={ics.random_seed})."
+                f"Existing initial_conditions found and read in (seed={ics.random_seed})."
             )
             return ics
     return ics.compute(hooks=hooks)
@@ -150,7 +150,7 @@ def perturb_field(
     ----------
     redshift : float
         The redshift at which to compute the perturbed field.
-    initial_conditions : :class:`~InitialConditions`
+    initial_conditions : :class:`~InitialConditions` instance
         The initial conditions.
     \*\*global_kwargs :
         Any attributes for :class:`~py21cmfast.inputs.GlobalParams`. This will
@@ -168,9 +168,9 @@ def perturb_field(
 
     Examples
     --------
-    >>> init_boxes = compute_initial_conditions()
-    >>> field7 = perturb_field(7.0, init_boxes)
-    >>> field8 = perturb_field(8.0, init_boxes)
+    >>> initial_conditions = compute_initial_conditions()
+    >>> field7 = perturb_field(7.0, initial_conditions)
+    >>> field8 = perturb_field(8.0, initial_conditions)
 
     The user and cosmo parameter structures are by default inferred from the
     ``initial_conditions``.
@@ -210,8 +210,8 @@ def determine_halo_list(
     redshift: float,
     initial_conditions: InitialConditions,
     descendant_halos: HaloField | None = None,
-    astro_params=None,
-    flag_options=None,
+    astro_params: AstroParams | None = None,
+    flag_options: FlagOptions | None = None,
     regenerate=None,
     write=None,
     direc=None,
@@ -225,7 +225,7 @@ def determine_halo_list(
     ----------
     redshift : float
         The redshift at which to determine the halo list.
-    initial_conditions : :class:`~InitialConditions`
+    initial_conditions : :class:`~InitialConditions` instance
         The initial conditions fields (density, velocity).
     descendant_halos : :class:`~HaloField` instance, optional
         The halos that form the descendants (i.e. lower redshift) of those computed by
@@ -233,6 +233,8 @@ def determine_halo_list(
         directly in this function (and progenitors can then be determined by these).
     astro_params: :class:`~AstroParams` instance, optional
         The astrophysical parameters defining the course of reionization.
+    flag_options: :class:`FlagOptions` instance, optional
+        The flag options enabling/disabling extra modules in the simulation.
     \*\*global_kwargs :
         Any attributes for :class:`~py21cmfast.inputs.GlobalParams`. This will
         *temporarily* set global attributes for the duration of the function. Note that
@@ -256,7 +258,7 @@ def determine_halo_list(
 
     # Configure and check input/output parameters/structs
     inputs = InputParameters.from_output_structs(
-        [initial_conditions],
+        [initial_conditions, descendant_halos],
         redshift=redshift,
         astro_params=astro_params,
         flag_options=flag_options,
@@ -322,18 +324,11 @@ def perturb_halo_list(
 
     Parameters
     ----------
-    redshift : float
-        The redshift at which to determine the halo list.
-    init_boxes : :class:`~InitialConditions`, optional
-        If given, these initial conditions boxes will be used, otherwise initial conditions will
-        be generated. If given,
-        the user and cosmo params will be set from this object.
-    user_params : :class:`~UserParams`, optional
-        Defines the overall options and parameters of the run.
-    cosmo_params : :class:`~CosmoParams`, optional
-        Defines the cosmological parameters used to compute initial conditions.
-    astro_params: :class:`~AstroParams` instance, optional
-        The astrophysical parameters defining the course of reionization.
+    initial_conditions : :class:`~InitialConditions`
+        The initial conditions of the run. The user and cosmo params
+        as well as the random seed will be set from this object.
+    halo_field: :class: `~HaloField`
+        The halo catalogue in Lagrangian space to be perturbed.
     \*\*global_kwargs :
         Any attributes for :class:`~py21cmfast.inputs.GlobalParams`. This will
         *temporarily* set global attributes for the duration of the function. Note that
@@ -405,9 +400,17 @@ def compute_halo_grid(
 
     Parameters
     ----------
+    initial_conditions : :class:`~InitialConditions`
+        The initial conditions of the run. The user and cosmo params
     perturbed_halo_list: :class:`~PerturbHaloField` or None, optional
         This contains all the dark matter haloes obtained if using the USE_HALO_FIELD.
         This is a list of halo masses and coords for the dark matter haloes.
+    perturbed_field : :class:`~PerturbField`, optional
+        The perturbed density field. Used when calculating fixed source grids from CMF integrals
+    previous_spin_temp : :class:`TsBox`, optional
+        The previous spin temperature box. Used for feedback when USE_MINI_HALOS==True
+    previous_ionize_box: :class:`IonizedBox` or None
+        An at the last timestep. Used for feedback when USE_MINI_HALOS==True
     \*\*global_kwargs :
         Any attributes for :class:`~py21cmfast.inputs.GlobalParams`. This will
         *temporarily* set global attributes for the duration of the function. Note that
@@ -513,7 +516,7 @@ def compute_halo_grid(
             )
 
     return box.compute(
-        init_boxes=initial_conditions,
+        initial_conditions=initial_conditions,
         pt_halos=perturbed_halo_list,
         perturbed_field=perturbed_field,
         previous_ionize_box=previous_ionize_box,
@@ -613,7 +616,6 @@ def interp_halo_boxes(
 def compute_xray_source_field(
     *,
     initial_conditions: InitialConditions,
-    z_halos=None,
     hboxes: list[HaloBox],
     write=None,
     direc=None,
@@ -632,9 +634,10 @@ def compute_xray_source_field(
 
     Parameters
     ----------
-    hbox_file: list of str or None, optional
-        If passed, this contains the list of files which contain saved
-        :class:`~HaloBox` boxes which are used to create this source field
+    initial_conditions : :class:`~InitialConditions`
+        The initial conditions of the run. The user and cosmo params
+    hboxes: Sequence of :class:`~HaloBox` instances
+        This contains the list of Halobox instances which are used to create this source field
     \*\*global_kwargs :
         Any attributes for :class:`~py21cmfast.inputs.GlobalParams`. This will
         *temporarily* set global attributes for the duration of the function. Note that
@@ -653,8 +656,9 @@ def compute_xray_source_field(
     """
     direc, regenerate, hooks = _get_config_options(direc, regenerate, write, hooks)
 
+    z_halos = [hb.redshift for hb in hboxes]
     inputs = InputParameters.from_output_structs(
-        hboxes + [initial_conditions], redshift=hboxes[-1].redshift
+        hboxes + [initial_conditions], redshift=z_halos[-1]
     )
 
     # Initialize halo list boxes.
@@ -784,29 +788,29 @@ def compute_ionization_field(
 
     Parameters
     ----------
-    perturbed_field : :class:`~PerturbField`, optional
+    initial_conditions : :class:`~InitialConditions`
+        The initial conditions
+    perturbed_field : :class:`~PerturbField`
         The perturbed density field.
     previous_perturbed_field : :class:`~PerturbField`, optional
-        An perturbed field at higher redshift. This is only used if mini_halo is included.
+        An perturbed field at higher redshift. This is only used if USE_MINI_HALOS is included.
     previous_ionize_box: :class:`IonizedBox` or None
-        An ionized box at higher redshift. This is only used if `INHOMO_RECO` and/or `do_spin_temp`
+        An ionized box at higher redshift. This is only used if `INHOMO_RECO` and/or `USE_TS_FLUCT`
         are true. If either of these are true, and this is not given, then it will be assumed that
         this is the "first box", i.e. that it can be populated accurately without knowing source
         statistics.
     spin_temp: :class:`TsBox` or None, optional
-        A spin-temperature box, only required if `do_spin_temp` is True. If None, will try to read
+        A spin-temperature box, only required if `USE_TS_FLUCT` is True. If None, will try to read
         in a spin temp box at the current redshift, and failing that will try to automatically
         create one, using the previous ionized box redshift as the previous spin temperature
         redshift.
     halobox: :class:`~HaloBox` or None, optional
         If passed, this contains all the dark matter haloes obtained if using the USE_HALO_FIELD.
-        These are grids of halo masses and F_ESC-weighted Stellar Mass and Star Formation Rates
-        If not passed, it will try and automatically create them using the available initial conditions.
-    cleanup : bool, optional
-        A flag to specify whether the C routine cleans up its memory before returning. Typically,
-        if `spin_temperature` is called directly, you will want this to be true, as if the next box
-        to be calculate has different shape, errors will occur if memory is not cleaned. However,
-        it can be useful to set it to False if scrolling through parameters for the same box shape.
+        These are grids of containing summed halo properties such as ionizing emissivity.
+    astro_params: :class:`~AstroParams` instance, optional
+        The astrophysical parameters defining the course of reionization.
+    flag_options: :class:`FlagOptions` instance, optional
+        The flag options enabling/disabling extra modules in the simulation.
     \*\*global_kwargs :
         Any attributes for :class:`~py21cmfast.inputs.GlobalParams`. This will
         *temporarily* set global attributes for the duration of the function. Note that
@@ -1018,25 +1022,24 @@ def spin_temperature(
 
     Parameters
     ----------
-    astro_params : :class:`~AstroParams`, optional
-        The astrophysical parameters defining the course of reionization.
-    flag_options : :class:`~FlagOptions`, optional
-        Some options passed to the reionization routine.
     initial_conditions : :class:`~InitialConditions`
         The initial conditions
     perturbed_field : :class:`~PerturbField`, optional
         If given, this field will be used, otherwise it will be generated. To be generated,
-        either `init_boxes` and `redshift` must be given, or `user_params`, `cosmo_params` and
+        either `initial_conditions` and `redshift` must be given, or `user_params`, `cosmo_params` and
         `redshift`. By default, this will be generated at the same redshift as the spin temperature
         box. The redshift of perturb field is allowed to be different than `redshift`. If so, it
         will be interpolated to the correct redshift, which can provide a speedup compared to
         actually computing it at the desired redshift.
+    xray_source_box : :class:`XraySourceBox`, optional
+        If USE_HALO_FIELD is True, this box specifies the filtered sfr and xray emissivity at all
+        redshifts/filter radii required by the spin temperature algorithm.
     previous_spin_temp : :class:`TsBox` or None
-        The previous spin temperature box.
-    user_params : :class:`~UserParams`, optional
-        Defines the overall options and parameters of the run.
-    cosmo_params : :class:`~CosmoParams`, optional
-        Defines the cosmological parameters used to compute initial conditions.
+        The previous spin temperature box. Needed when we are beyond the first snapshot
+    astro_params: :class:`~AstroParams` instance, optional
+        The astrophysical parameters defining the course of reionization.
+    flag_options: :class:`FlagOptions` instance, optional
+        The flag options enabling/disabling extra modules in the simulation.
     cleanup : bool, optional
         A flag to specify whether the C routine cleans up its memory before returning.
         Typically, if `spin_temperature` is called directly, you will want this to be
