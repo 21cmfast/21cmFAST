@@ -631,7 +631,7 @@ def _run_lightcone_from_perturbed_fields(
                 **kw,
             )
             halos_desc = halo_field
-            pt_halos += [sf.perturb_halo_list(redshift=z, halo_field=halo_field, **kw)]
+            pt_halos += [sf.perturb_halo_list(halo_field=halo_field, **kw)]
 
             # we never want to store every halofield
             with contextlib.suppress(OSError):
@@ -685,7 +685,6 @@ def _run_lightcone_from_perturbed_fields(
                 ph2.load_all()
 
             hbox2 = sf.compute_halo_grid(
-                redshift=z,
                 perturbed_halo_list=ph2,
                 previous_ionize_box=ib,
                 previous_spin_temp=st,
@@ -697,7 +696,6 @@ def _run_lightcone_from_perturbed_fields(
                 z_halos.append(z)
                 hboxes.append(hbox2)
                 xrs = sf.compute_xray_source_field(
-                    redshift=z,
                     z_halos=z_halos,
                     hboxes=hboxes,
                     **kw,
@@ -705,7 +703,6 @@ def _run_lightcone_from_perturbed_fields(
 
         if inputs.flag_options.USE_TS_FLUCT:
             st2 = sf.spin_temperature(
-                redshift=z,
                 previous_spin_temp=st,
                 perturbed_field=pf2,
                 xray_source_box=xrs,
@@ -714,7 +711,6 @@ def _run_lightcone_from_perturbed_fields(
             )
 
         ib2 = sf.compute_ionization_field(
-            redshift=z,
             previous_ionized_box=ib,
             perturbed_field=pf2,
             previous_perturbed_field=pf,

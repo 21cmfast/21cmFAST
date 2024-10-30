@@ -158,9 +158,10 @@ def default_input_struct(
     default_cosmo_params,
     default_astro_params,
     default_flag_options,
+    redshift,
 ):
     return InputParameters(
-        redshift=10.0,
+        redshift=redshift,
         random_seed=None,
         cosmo_params=default_cosmo_params,
         astro_params=default_astro_params,

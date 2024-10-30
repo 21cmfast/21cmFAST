@@ -262,12 +262,13 @@ def test_halo_scaling_relations(ic, default_input_struct):
     print(f"z={redshift} th = {1 / cp.cosmo.H(redshift).to('s-1').value}")
 
     # setup the halo masses to test
-    halo_mass_vals = [1e5, 1e6, 1e7, 1e8, 1e9, 1e10, 1e11, 1e12]
+    halo_mass_vals = np.array([1e5, 1e6, 1e7, 1e8, 1e9, 1e10, 1e11, 1e12])
+    n_masses = halo_mass_vals.size
     n_halo_per_mass = 1000
     halo_masses = np.array(
         [n_halo_per_mass * [val] for val in halo_mass_vals]
     ).flatten()
-    halo_rng = np.random.normal(size=n_halo_per_mass * len(halo_mass_vals))
+    halo_rng = np.random.normal(size=n_halo_per_mass * n_masses)
 
     # HACK: Make the fake halo list
     fake_pthalos = PerturbHaloField(
@@ -303,12 +304,10 @@ def test_halo_scaling_relations(ic, default_input_struct):
     # (n_halo*n_mass*n_prop) --> (n_prop,n_mass,n_halo)
 
     # mass,star,sfr,xray,nion,wsfr,starmini,sfrmini,mturna,mturnm,mturnr,Z
-    out_buffer = out_buffer.reshape(len(halo_mass_vals), n_halo_per_mass, 12)
+    out_buffer = out_buffer.reshape(n_masses, n_halo_per_mass, 12)
 
     exp_SHMR = (
-        (10**ap.F_STAR10)
-        * halo_mass_vals**ap.ALPHA_STAR
-        * np.exp(-mturn_acg / halo_mass_vals)
+        (10**ap.F_STAR10) * n_masses**ap.ALPHA_STAR * np.exp(-mturn_acg / n_masses)
     )
     sim_SHMR = out_buffer[:, :, 1] / out_buffer[:, :, 0]
     np.testing.assert_allclose(exp_SHMR, sim_SHMR.mean(axis=1), rtol=1e-1)

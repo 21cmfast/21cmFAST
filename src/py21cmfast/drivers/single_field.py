@@ -309,7 +309,6 @@ def determine_halo_list(
 @set_globals
 def perturb_halo_list(
     *,
-    redshift: float,
     initial_conditions: InitialConditions,
     halo_field: HaloField,
     regenerate=None,
@@ -374,7 +373,7 @@ def perturb_halo_list(
         with contextlib.suppress(OSError):
             fields.read(direc)
             logger.info(
-                f"Existing z={redshift} perturb_halo_list boxes found and read in "
+                f"Existing z={inputs.redshift} perturb_halo_list boxes found and read in "
                 f"(seed={fields.random_seed})."
             )
             return fields
@@ -386,7 +385,6 @@ def perturb_halo_list(
 @set_globals
 def compute_halo_grid(
     *,
-    redshift: float,
     initial_conditions: InitialConditions,
     perturbed_halo_list: PerturbHaloField | None = None,
     perturbed_field: PerturbedField | None = None,
@@ -428,6 +426,15 @@ def compute_halo_grid(
     """
     direc, regenerate, hooks = _get_config_options(direc, regenerate, write, hooks)
 
+    if perturbed_halo_list:
+        redshift = perturbed_halo_list.redshift
+    elif perturbed_field:
+        redshift = perturbed_field.redshift
+    else:
+        raise ValueError(
+            "Either perturbed_field or perturbed_halo_list are required (or both)."
+        )
+
     inputs = InputParameters.from_output_structs(
         (
             initial_conditions,
@@ -448,16 +455,12 @@ def compute_halo_grid(
         with contextlib.suppress(OSError):
             box.read(direc)
             logger.info(
-                f"Existing z={redshift} halo_box boxes found and read in "
+                f"Existing z={inputs.redshift} halo_box boxes found and read in "
                 f"(seed={box.random_seed})."
             )
             return box
 
-    if perturbed_field is None and perturbed_halo_list is None:
-        raise ValueError(
-            "Either perturbed_field or perturbed_halo_list are required (or both)."
-        )
-    elif perturbed_field is None:
+    if perturbed_field is None:
         if inputs.flag_options.FIXED_HALO_GRIDS or inputs.user_params.AVG_BELOW_SAMPLER:
             raise ValueError(
                 "You must provide the perturbed field if FIXED_HALO_GRIDS is True or AVG_BELOW_SAMPLER is True"
@@ -484,7 +487,7 @@ def compute_halo_grid(
     # NOTE: if USE_MINI_HALOS is TRUE, so is USE_TS_FLUCT and INHOMO_RECO
     if previous_spin_temp is None:
         if (
-            redshift >= global_params.Z_HEAT_MAX
+            inputs.redshift >= global_params.Z_HEAT_MAX
             or not inputs.flag_options.USE_MINI_HALOS
         ):
             # Dummy spin temp is OK since we're above Z_HEAT_MAX
@@ -497,7 +500,7 @@ def compute_halo_grid(
 
     if previous_ionize_box is None:
         if (
-            redshift >= global_params.Z_HEAT_MAX
+            inputs.redshift >= global_params.Z_HEAT_MAX
             or not inputs.flag_options.USE_MINI_HALOS
         ):
             # Dummy ionize box is OK since we're above Z_HEAT_MAX
@@ -609,7 +612,6 @@ def interp_halo_boxes(
 @set_globals
 def compute_xray_source_field(
     *,
-    redshift: float,
     initial_conditions: InitialConditions,
     z_halos=None,
     hboxes: list[HaloBox],
@@ -668,7 +670,7 @@ def compute_xray_source_field(
         with contextlib.suppress(OSError):
             box.read(direc)
             logger.info(
-                f"Existing z={redshift} xray_source boxes found and read in "
+                f"Existing z={inputs.redshift} xray_source boxes found and read in "
                 f"(seed={box.random_seed})."
             )
             return box
@@ -680,7 +682,7 @@ def compute_xray_source_field(
 
     # now we need to find the closest halo box to the redshift of the shell
     cosmo_ap = inputs.cosmo_params.cosmo
-    cmd_zp = cosmo_ap.comoving_distance(redshift)
+    cmd_zp = cosmo_ap.comoving_distance(inputs.redshift)
     R_steps = np.arange(0, global_params.NUM_FILTER_STEPS_FOR_Ts)
     R_factor = (global_params.R_XLy_MAX / R_min) ** (
         R_steps / global_params.NUM_FILTER_STEPS_FOR_Ts
@@ -694,7 +696,7 @@ def compute_xray_source_field(
     ]
     # the `average` redshift of the shell is the average of the
     # inner and outer redshifts (following the C code)
-    zpp_avg = zpp_edges - np.diff(np.insert(zpp_edges, 0, redshift)) / 2
+    zpp_avg = zpp_edges - np.diff(np.insert(zpp_edges, 0, inputs.redshift)) / 2
 
     # call the box the initialize the memory, since I give some values before computing
     box()

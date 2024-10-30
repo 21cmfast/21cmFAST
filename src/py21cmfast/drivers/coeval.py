@@ -707,7 +707,7 @@ def run_coeval(
             halos = sf.determine_halo_list(
                 redshift=z, descendant_halos=halos_desc, **kw
             )
-            pt_halos += [sf.perturb_halo_list(redshift=z, halo_field=halos, **kw)]
+            pt_halos += [sf.perturb_halo_list(halo_field=halos, **kw)]
 
             # we never want to store every halofield
             with contextlib.suppress(OSError):
@@ -766,7 +766,6 @@ def run_coeval(
                 ph2 = pt_halos[iz]
 
             hb2 = sf.compute_halo_grid(
-                redshift=z,
                 perturbed_halo_list=ph2,
                 perturbed_field=pf2,
                 previous_ionize_box=ib,
@@ -780,14 +779,12 @@ def run_coeval(
             hbox_arr += [hb2]
             if flag_options.USE_HALO_FIELD:
                 xrs = sf.compute_xray_source_field(
-                    redshift=z,
                     z_halos=z_halos,
                     hboxes=hbox_arr,
                     **kw,
                 )
 
             st2 = sf.spin_temperature(
-                redshift=z,
                 previous_spin_temp=st,
                 perturbed_field=pf2,
                 xray_source_box=xrs,
@@ -796,7 +793,6 @@ def run_coeval(
             )
 
         ib2 = sf.compute_ionization_field(
-            redshift=z,
             previous_ionized_box=ib,
             perturbed_field=pf2,
             # perturb field *not* interpolated here.
