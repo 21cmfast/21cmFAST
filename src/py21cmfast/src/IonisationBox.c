@@ -152,12 +152,14 @@ LOG_SUPER_DEBUG("defined parameters");
 
     //Yuxiang's evolving Rmax for MFP in ionised regions
     double exp_mfp;
-    if(flag_options->USE_EXP_FILTER){
-        if (redshift > 6)
-            exp_mfp = 25.483241248322766 / cosmo_params->hlittle;
-        else
-            exp_mfp = 112 / cosmo_params->hlittle * pow( (1.+redshift) / 5. , -4.4);
-    }
+    // if(flag_options->USE_EXP_FILTER){
+    //     if (redshift > 6)
+    //         exp_mfp = 25.483241248322766 / cosmo_params->hlittle;
+    //     else
+    //         exp_mfp = 112 / cosmo_params->hlittle * pow( (1.+redshift) / 5. , -4.4);
+    // }
+    //constant for now, the pow(4.4) makes kinks in reionisation
+    exp_mfp = 25.483241248322766 / cosmo_params->hlittle;
 
     // For recombinations
     bool recomb_filter_flag = flag_options->INHOMO_RECO && !flag_options->CELL_RECOMB;
@@ -790,26 +792,21 @@ LOG_SUPER_DEBUG("excursion set normalisation, mean_f_coll_MINI: %e", box->mean_f
                 ((R - cell_length_factor * (user_params->BOX_LEN / (double) (user_params->HII_DIM))) >
                  FRACT_FLOAT_ERR)) {
                 if (flag_options->USE_TS_FLUCT) {
-                    filter_box(xe_filtered, 1, global_params.HII_FILTER, R);
+                    filter_box(xe_filtered, 1, global_params.HII_FILTER, R, 0.);
                 }
                 if (recomb_filter_flag) {
-                    filter_box(N_rec_filtered, 1, global_params.HII_FILTER, R);
+                    filter_box(N_rec_filtered, 1, global_params.HII_FILTER, R, 0.);
                 }
                 if (flag_options->USE_HALO_FIELD) {
-                    if(flag_options->USE_EXP_FILTER){
-                        filter_box_mfp(stars_filtered, 1, R, exp_mfp);
-                        filter_box_mfp(sfr_filtered, 1, R, exp_mfp);
-                    }
-                    else{
-                        filter_box(stars_filtered, 1, global_params.HII_FILTER, R);
-                        filter_box(sfr_filtered, 1, global_params.HII_FILTER, R);
-                    }
+                        int filter_hf = flag_options->USE_EXP_FILTER ? 3 : global_params.HII_FILTER;
+                        filter_box(stars_filtered, 1, filter_hf, R, exp_mfp);
+                        filter_box(sfr_filtered, 1, filter_hf, R, exp_mfp);
                 }
-                filter_box(deltax_filtered, 1, global_params.HII_FILTER, R);
+                filter_box(deltax_filtered, 1, global_params.HII_FILTER, R, 0.);
                 if(flag_options->USE_MINI_HALOS){
-                    filter_box(prev_deltax_filtered, 1, global_params.HII_FILTER, R);
-                    filter_box(log10_Mturnover_MINI_filtered, 1, global_params.HII_FILTER, R);
-                    filter_box(log10_Mturnover_filtered, 1, global_params.HII_FILTER, R);
+                    filter_box(prev_deltax_filtered, 1, global_params.HII_FILTER, R, 0.);
+                    filter_box(log10_Mturnover_MINI_filtered, 1, global_params.HII_FILTER, R, 0.);
+                    filter_box(log10_Mturnover_filtered, 1, global_params.HII_FILTER, R, 0.);
                 }
             }
 
@@ -1216,12 +1213,13 @@ LOG_SUPER_DEBUG("excursion set normalisation, mean_f_coll_MINI: %e", box->mean_f
                     for (y = 0; y < user_params->HII_DIM; y++) {
                         for (z = 0; z < HII_D_PARA; z++) {
 
-                            //Use unfiltered density for CELL_RECOMB case, since the "Fcoll" represents photons
-                            //  reaching the central cell rather than photons in the entire sphere
-                            if(flag_options->CELL_RECOMB)
-                                curr_dens = perturbed_field->density[HII_R_INDEX(x,y,z)];
-                            else
-                                curr_dens = *((float *)deltax_filtered + HII_R_FFT_INDEX(x,y,z));
+                            //TODO: There may be a reason to use unfiltered density for CELL_RECOMB case,
+                            // since the "Fcoll" represents photons reaching the central cell rather than
+                            // photons in the entire sphere (See issue #434)
+                            // if(flag_options->CELL_RECOMB)
+                            //     curr_dens = perturbed_field->density[HII_R_INDEX(x,y,z)];
+                            // else
+                            curr_dens = *((float *)deltax_filtered + HII_R_FFT_INDEX(x,y,z));
 
                             Splined_Fcoll = box->Fcoll[counter * HII_TOT_NUM_PIXELS + HII_R_INDEX(x,y,z)];
 
