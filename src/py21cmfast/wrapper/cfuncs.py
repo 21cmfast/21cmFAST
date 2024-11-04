@@ -1228,7 +1228,8 @@ def halo_sample_test(
 # TODO: make this able to take a proper HaloField/PerturbHaloField
 #    with corresponding Ts/ion/Ic fields for feedback
 def convert_halo_properties(
-    *redshift: float,
+    *,
+    redshift: float,
     astro_params: AstroParams,
     flag_options: FlagOptions,
     ics: InitialConditions,
@@ -1260,13 +1261,19 @@ def convert_halo_properties(
         astro_params.cstruct,
         flag_options.cstruct,
     )
-    # HACK: Make the fake halo list
-    fake_pthalos = PerturbHaloField(
-        redshift=redshift,
-        buffer_size=halo_masses.size,
-        initial_conditions=ics,
+    inputs = InputParameters.from_output_structs(
+        [
+            ics,
+        ],
         astro_params=astro_params,
         flag_options=flag_options,
+        redshift=redshift,
+    )
+
+    # HACK: Make the fake halo list
+    fake_pthalos = PerturbHaloField(
+        inputs=inputs,
+        buffer_size=halo_masses.size,
     )
     fake_pthalos()  # initialise memory
     fake_pthalos.halo_masses = halo_masses.astype("f4")
@@ -1275,6 +1282,9 @@ def convert_halo_properties(
     fake_pthalos.sfr_rng = halo_rng.astype("f4")
     fake_pthalos.xray_rng = halo_rng.astype("f4")
     fake_pthalos.n_halos = halo_masses.size
+
+    # TODO: ask Steven if this is a memory leak
+    fake_pthalos._init_cstruct()
 
     # single element zero array to act as the grids (vcb, J_21_LW, z_reion, Gamma12)
     zero_array = ffi.cast("float *", np.zeros(1).ctypes.data)

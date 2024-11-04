@@ -23,7 +23,7 @@ RELATIVE_TOLERANCE = 1e-1
 options_hmf = list(cint.OPTIONS_HMF.keys())
 
 options_delta = [-0.9, -0.5, 0, 1, 1.45]  # cell densities to draw samples from
-options_log10mass = [9, 10, 11, 12]  # halo masses to draw samples from
+options_log10mass = [9, 10, 11, 12, 13]  # halo masses to draw samples from
 
 
 @pytest.mark.parametrize("name", options_hmf)
@@ -136,18 +136,17 @@ def test_halo_scaling_relations(ic, default_input_struct):
 
     # setup the halo masses to test
     halo_mass_vals = np.array([1e5, 1e6, 1e7, 1e8, 1e9, 1e10, 1e11, 1e12])
-    n_masses = halo_mass_vals.size
     n_halo_per_mass = 1000
-    halo_masses = np.array(
-        [n_halo_per_mass * [val] for val in halo_mass_vals]
+    halo_masses = np.broadcast_to(
+        halo_mass_vals[:, None], (halo_mass_vals.size, n_halo_per_mass)
     ).flatten()
-    halo_rng = np.random.normal(size=n_halo_per_mass * n_masses)
+    halo_rng = np.random.normal(size=n_halo_per_mass * halo_mass_vals.size)
 
     # (n_halo*n_mass*n_prop) --> (n_prop,n_mass,n_halo)
 
     # mass,star,sfr,xray,nion,wsfr,starmini,sfrmini,mturna,mturnm,mturnr,Z
     out_dict = cf.convert_halo_properties(
-        initial_conditions=ic,
+        ics=ic,
         redshift=redshift,
         astro_params=ap,
         flag_options=fo,
@@ -156,14 +155,14 @@ def test_halo_scaling_relations(ic, default_input_struct):
     )
 
     halo_mass_out = out_dict["halo_mass"].reshape(
-        (len(halo_mass_vals), n_halo_per_mass)
+        (halo_mass_vals.size, n_halo_per_mass)
     )
     halo_stars_out = out_dict["halo_stars"].reshape(
-        (len(halo_mass_vals), n_halo_per_mass)
+        (halo_mass_vals.size, n_halo_per_mass)
     )
-    halo_sfr_out = out_dict["halo_sfr"].reshape((len(halo_mass_vals), n_halo_per_mass))
+    halo_sfr_out = out_dict["halo_sfr"].reshape((halo_mass_vals.size, n_halo_per_mass))
     halo_xray_out = out_dict["halo_xray"].reshape(
-        (len(halo_mass_vals), n_halo_per_mass)
+        (halo_mass_vals.size, n_halo_per_mass)
     )
 
     # assuming same value for all halos
