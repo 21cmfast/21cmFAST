@@ -8,6 +8,7 @@ from astropy import units as u
 
 from py21cmfast import AstroParams, CosmoParams, FlagOptions, UserParams, global_params
 from py21cmfast.c_21cmfast import ffi, lib
+from py21cmfast.wrapper import cfuncs as cf
 
 from . import produce_integration_test_data as prd
 
@@ -57,7 +58,6 @@ options_intmethod = list(OPTIONS_INTMETHOD.keys())
 # options_intmethod[2] = pytest.param("FFCOLL", marks=pytest.mark.xfail)
 
 
-# TODO: write tests for the redshift interpolation tables (global Nion, SFRD, FgtrM)
 @pytest.mark.parametrize("name", options_ps)
 def test_sigma_table(name, plt):
     abs_tol = 0
@@ -67,14 +67,19 @@ def test_sigma_table(name, plt):
 
     up = opts["user_params"]
     cp = opts["cosmo_params"]
-    lib.Broadcast_struct_global_noastro(up.cstruct, cp.cstruct)
+    mass_range = np.logspace(7, 14, num=100)
 
-    lib.init_ps()
-    lib.initialiseSigmaMInterpTable(
-        global_params.M_MIN_INTEGRAL, global_params.M_MAX_INTEGRAL
+    sigma_tables = cf.evaluate_sigma(
+        user_params=up,
+        cosmo_params=cp,
+        masses=mass_range,
     )
 
-    mass_range = np.logspace(7, 14, num=100)
+    sigma_integrams = cf.evaluate_sigma(
+        user_params=up.clone(USE_INTERPOLATION_TABLES=False),
+        cosmo_params=cp,
+        masses=mass_range,
+    )
 
     sigma_ref = np.vectorize(lib.sigma_z0)(mass_range)
     dsigmasq_ref = np.vectorize(lib.dsigmasqdm_z0)(mass_range)
@@ -85,9 +90,9 @@ def test_sigma_table(name, plt):
     if plt == mpl.pyplot:
         make_table_comparison_plot(
             [mass_range, mass_range],
-            [np.array([0]), np.array([0])],
-            [sigma_table[:, None], dsigmasq_table[:, None]],
-            [sigma_ref[:, None], dsigmasq_ref[:, None]],
+            [None, None],
+            [sigma_table, dsigmasq_table],
+            [sigma_ref, dsigmasq_ref],
             plt,
         )
 
@@ -100,7 +105,8 @@ def test_sigma_table(name, plt):
 
 
 @pytest.mark.parametrize("name", options_hmf)
-def test_inverse_cmf_tables(name, plt):
+@pytest.mark.parametrize("from_cat", ["cat", "grid"])
+def test_inverse_cmf_tables(name, from_cat, plt):
     redshift, kwargs = OPTIONS_HMF[name]
     opts = prd.get_all_options(redshift, **kwargs)
 
@@ -110,152 +116,90 @@ def test_inverse_cmf_tables(name, plt):
     fo = opts["flag_options"]
 
     hist_size = 200
-    edges = np.logspace(7, 12, num=hist_size).astype("f4")
-    edges_ln = np.log(edges)
-
-    lib.Broadcast_struct_global_all(up.cstruct, cp.cstruct, ap.cstruct, fo.cstruct)
-
-    lib.init_ps()
-    lib.initialiseSigmaMInterpTable(
-        global_params.M_MIN_INTEGRAL, global_params.M_MAX_INTEGRAL
-    )
-
-    growth_out = lib.dicke(redshift)
-    growth_in = lib.dicke(redshift / global_params.ZPRIME_STEP_FACTOR)
-    cell_mass = (
-        (
-            cp.cosmo.critical_density(0)
-            * cp.OMm
-            * u.Mpc**3
-            * (up.BOX_LEN / up.HII_DIM) ** 3
+    mass_arr = np.logspace(7, 12, num=hist_size).astype("f4")
+    from_cat = "cat" in from_cat
+    if not from_cat:
+        delta_arr = np.linspace(-1, 1.6, num=hist_size - 1).astype("f4")
+        M_cond = (
+            (
+                cp.cosmo.critical_density(0)
+                * cp.OMm
+                * u.Mpc**3
+                * (up.BOX_LEN / up.HII_DIM) ** 3
+            )
+            .to("M_sun")
+            .value
         )
-        .to("M_sun")
-        .value
+        inputs_cond, inputs_mass = np.meshgrid(delta_arr, mass_arr, indexing="ij")
+        z_desc = None
+        inputs_delta = inputs_cond
+    else:
+        inputs_cond, inputs_mass = np.meshgrid(
+            np.log(mass_arr), mass_arr, indexing="ij"
+        )
+        inputs_delta = None
+        z_desc = (1 + redshift) / global_params.ZPRIME_STEP_FACTOR - 1
+        M_cond = np.exp(inputs_cond)
+
+    # ----CELLS-----
+    # Get the Integrals
+    cmf_integral = cf.get_cmf_integral(
+        user_params=up,
+        cosmo_params=cp,
+        astro_params=ap,
+        flag_options=fo,
+        M_min=inputs_mass,
+        M_max=mass_arr.max(),
+        M_cond=M_cond,
+        redshift=redshift,
+        delta=inputs_delta,
+        z_desc=z_desc,
+    ).squeeze()  # (cond, minmass)
+
+    # Normalize by max value to get CDF
+    max_p_cond = cmf_integral[:, :1]
+    max_p_cond[max_p_cond == 0] = 1.0
+    cmf_integral /= max_p_cond
+
+    # Take those probabilites to the inverse table
+    cmf_table = cf.evaluate_inv_massfunc_cond(
+        user_params=up,
+        cosmo_params=cp,
+        astro_params=ap,
+        flag_options=fo,
+        M_min=mass_arr.min(),
+        redshift=redshift,
+        cond_param=z_desc if from_cat else M_cond,
+        cond_array=inputs_cond,
+        probabilities=cmf_integral,
+        from_catalog=from_cat,
     )
-
-    sigma_cond_cell = lib.sigma_z0(cell_mass)
-    sigma_cond_halo = np.vectorize(lib.sigma_z0)(edges)
-    delta_crit = lib.get_delta_crit(up.cdict["HMF"], sigma_cond_cell, growth_in)
-    delta_update = (
-        np.vectorize(lib.get_delta_crit)(up.cdict["HMF"], sigma_cond_halo, growth_in)
-        * growth_out
-        / growth_in
-    )
-    edges_d = np.linspace(-1, delta_crit * 1.1, num=hist_size).astype("f4")
-
-    # Cell Integrals
-    arg_list_inv_d = np.meshgrid(edges_d[:-1], edges_ln[:-1], indexing="ij")
-    N_cmfi_cell = np.vectorize(lib.Nhalo_Conditional)(
-        growth_out,
-        arg_list_inv_d[1],  # lnM
-        edges_ln[-1],  # integrate to max mass
-        cell_mass,
-        sigma_cond_cell,
-        arg_list_inv_d[0],  # density
-        0,
-    )
-
-    max_in_d = N_cmfi_cell[:, :1]
-    max_in_d[edges_d[:-1] == -1, :] = 1.0  # fix delta=-1 where all entries are zero
-    N_cmfi_cell = (
-        N_cmfi_cell / max_in_d
-    )  # to get P(>M) since the y-axis is the lower integral limit
-
-    lib.initialise_dNdM_inverse_table(
-        edges_d[0],
-        edges_d[-1],
-        edges_ln[0],
-        growth_out,
-        np.log(cell_mass),
-        False,
-    )
-
-    N_inverse_cell = (
-        np.vectorize(lib.EvaluateNhaloInv)(arg_list_inv_d[0], N_cmfi_cell) * cell_mass
-    )  # Mass evaluated at the probabilities given by the integral
-
-    # Halo Integrals
-    arg_list_inv_m = np.meshgrid(edges_ln[:-1], edges_ln[:-1], indexing="ij")
-    N_cmfi_halo = np.vectorize(lib.Nhalo_Conditional)(
-        growth_out,
-        arg_list_inv_m[1],
-        edges_ln[-1],
-        edges[:-1, None],
-        sigma_cond_halo[:-1, None],  # (condition,masslimit)
-        delta_update[:-1, None],
-        0,
-    )
-
-    # To get P(>M), NOTE that some conditions have no integral
-    N_cmfi_halo = N_cmfi_halo / (
-        N_cmfi_halo[:, :1] + np.all(N_cmfi_halo == 0, axis=1)[:, None]
-    )  # if all entries are zero, do not nan the row, just divide by 1
-
-    lib.initialise_dNdM_inverse_table(
-        edges_ln[0],
-        edges_ln[-1],
-        edges_ln[0],
-        growth_out,
-        growth_in,
-        True,
-    )
-
-    N_inverse_halo = (
-        np.vectorize(lib.EvaluateNhaloInv)(arg_list_inv_m[0], N_cmfi_halo)
-        * edges[:-1, None]
-    )  # LOG MASS, evaluated at the probabilities given by the integral
-
-    # NOTE: The tables get inaccurate in the smallest halo bin where the condition mass approaches the minimum
-    #       We set the absolute tolerance to be insiginificant in sampler terms (~1% of the smallest halo)
-    abs_tol_halo = 1e-2
 
     if plt == mpl.pyplot:
-        xl = edges_d[:-1].size
-        sel = (xl * np.arange(6) / 6).astype(int)
-        massfunc_table_comparison_plot(
-            edges[:-1],
-            edges[sel],
-            N_cmfi_halo[sel, :],
-            N_inverse_halo[sel, :],
-            edges_d[sel],
-            N_cmfi_cell[sel, :],
-            N_inverse_cell[sel, :],
+        sel = (inputs_cond.shape[0] * np.arange(6) / 6).astype(int)
+        make_table_comparison_plot(
+            [cmf_integral[sel, :].T],
+            [inputs_cond[sel, 0]],
+            [cmf_table[sel, :].T],
+            [mass_arr],
             plt,
+            xlabels=["Probability"],
+            ylabels=["Mass"],
+            zlabels=[r"$\delta =$" if not from_cat else r"$M=$"],
         )
 
-    mask_halo_compare = arg_list_inv_m[1] < arg_list_inv_m[0]  # condtition > halo
-    mask_cell_compare = arg_list_inv_d[0] < delta_crit  # delta < delta_crit
-
-    N_inverse_halo[mask_halo_compare] = np.exp(arg_list_inv_m[1][mask_halo_compare])
-    N_inverse_cell[mask_cell_compare] = np.exp(arg_list_inv_d[1][mask_cell_compare])
-
     print_failure_stats(
-        N_inverse_halo,
-        np.exp(arg_list_inv_m[1]),
-        arg_list_inv_m,
+        cmf_table,
+        inputs_mass,
+        [mass_arr, mass_arr],
         0.0,
         RELATIVE_TOLERANCE,
-        "Inverse Halo",
-    )
-    print_failure_stats(
-        N_inverse_cell,
-        np.exp(arg_list_inv_d[1]),
-        arg_list_inv_d,
-        0.0,
-        RELATIVE_TOLERANCE,
-        "Inverse Cell",
+        "Inverse CMF",
     )
 
     np.testing.assert_allclose(
-        np.exp(arg_list_inv_d[1]),
-        N_inverse_cell,
-        atol=edges[0] * abs_tol_halo,
-        rtol=RELATIVE_TOLERANCE,
-    )
-    np.testing.assert_allclose(
-        np.exp(arg_list_inv_m[1]),
-        N_inverse_halo,
-        atol=edges[0] * abs_tol_halo,
+        inputs_mass,
+        cmf_table,
         rtol=RELATIVE_TOLERANCE,
     )
 
@@ -263,207 +207,93 @@ def test_inverse_cmf_tables(name, plt):
 # NOTE: This test currently fails (~10% differences in mass in <1% of bins)
 #   I don't want to relax the tolerance yet since it can be improved, but
 #   for now this is acceptable
-# @pytest.mark.xfail
 @pytest.mark.parametrize("name", options_hmf)
-def test_Massfunc_conditional_tables(name, plt):
+@pytest.mark.parametrize("from_cat", ["cat", "grid"])
+def test_massfunc_conditional_tables(name, from_cat, plt):
     redshift, kwargs = OPTIONS_HMF[name]
     opts = prd.get_all_options(redshift, **kwargs)
     up = opts["user_params"]
     cp = opts["cosmo_params"]
     ap = opts["astro_params"]
     fo = opts["flag_options"]
-    lib.Broadcast_struct_global_all(up.cstruct, cp.cstruct, ap.cstruct, fo.cstruct)
 
     hist_size = 200
-    edges = np.logspace(7, 12, num=hist_size).astype("f4")
-    edges_ln = np.log(edges)
+    M_min = 1e7
+    M_max = 1e14
+    from_cat = "cat" in from_cat
 
-    lib.init_ps()
-    lib.initialiseSigmaMInterpTable(
-        global_params.M_MIN_INTEGRAL, global_params.M_MAX_INTEGRAL
-    )
-
-    growth_out = lib.dicke(redshift)
-    growth_in = lib.dicke(redshift / global_params.ZPRIME_STEP_FACTOR)
-    cell_mass = (
-        (
-            cp.cosmo.critical_density(0)
-            * cp.OMm
-            * u.Mpc**3
-            * (up.BOX_LEN / up.HII_DIM) ** 3
+    if from_cat:
+        # condition array is halo mass, parameter is descendant redshift
+        cond_arr = np.linspace(np.log(M_min), np.log(M_max), num=hist_size)
+        cond_param = (1 + redshift) / global_params.ZPRIME_STEP_FACTOR - 1
+    else:
+        # condition array is density, parameter is cell mass
+        cond_param = (
+            (
+                cp.cosmo.critical_density(0)
+                * cp.OMm
+                * u.Mpc**3
+                * (up.BOX_LEN / up.HII_DIM) ** 3
+            )
+            .to("M_sun")
+            .value
         )
-        .to("M_sun")
-        .value
-    )
+        cond_arr = np.linspace(-1, 1.6, num=hist_size).astype("f4")
 
-    sigma_cond_cell = lib.sigma_z0(cell_mass)
-    sigma_cond_halo = np.vectorize(lib.sigma_z0)(edges)
-    delta_crit = lib.get_delta_crit(up.cdict["HMF"], sigma_cond_cell, growth_in)
-    delta_update = (
-        np.vectorize(lib.get_delta_crit)(up.cdict["HMF"], sigma_cond_halo, growth_in)
-        * growth_out
-        / growth_in
+    nhalo_tbl, mcoll_tbl = cf.evaluate_massfunc_cond(
+        user_params=up,
+        cosmo_params=cp,
+        astro_params=ap,
+        flag_options=fo,
+        M_min=M_min,
+        M_max=M_max,
+        redshift=redshift,
+        cond_param=cond_param,
+        cond_array=cond_arr,
+        from_catalog=from_cat,
     )
-    edges_d = np.linspace(-1, delta_crit * 1.1, num=hist_size).astype("f4")
-
-    M_cmf_cell = (
-        np.vectorize(lib.Mcoll_Conditional)(
-            growth_out,
-            edges_ln[0],
-            edges_ln[-1],
-            cell_mass,
-            sigma_cond_cell,
-            edges_d[:-1],
-            0,
-        )
-        * cell_mass
+    nhalo_exp, mcoll_exp = cf.evaluate_massfunc_cond(
+        user_params=up.clone(USE_INTERPOLATION_TABLES=False),
+        cosmo_params=cp,
+        astro_params=ap,
+        flag_options=fo,
+        M_min=M_min,
+        M_max=M_max,
+        redshift=redshift,
+        cond_param=cond_param,
+        cond_array=cond_arr,
+        from_catalog=from_cat,
     )
-    N_cmf_cell = (
-        np.vectorize(lib.Nhalo_Conditional)(
-            growth_out,
-            edges_ln[0],
-            edges_ln[-1],
-            cell_mass,
-            sigma_cond_cell,
-            edges_d[:-1],
-            0,
-        )
-        * cell_mass
-    )
-
-    # Cell Tables
-    lib.initialise_dNdM_tables(
-        edges_d[0],
-        edges_d[-1],
-        edges_ln[0],
-        edges_ln[-1],
-        growth_out,
-        np.log(cell_mass),
-        False,
-    )
-
-    M_exp_cell = (
-        np.vectorize(lib.EvaluateMcoll)(edges_d[:-1], 0.0, 0.0, 0.0, 0.0, 0.0, 0.0)
-        * cell_mass
-    )
-    N_exp_cell = (
-        np.vectorize(lib.EvaluateNhalo)(edges_d[:-1], 0.0, 0.0, 0.0, 0.0, 0.0, 0.0)
-        * cell_mass
-    )
-
-    M_cmf_halo = (
-        np.vectorize(lib.Mcoll_Conditional)(
-            growth_out,
-            edges_ln[0],
-            edges_ln[-1],
-            edges[:-1],
-            sigma_cond_halo[:-1],
-            delta_update[:-1],
-            0,
-        )
-        * edges[:-1]
-    )
-    N_cmf_halo = (
-        np.vectorize(lib.Nhalo_Conditional)(
-            growth_out,
-            edges_ln[0],
-            edges_ln[-1],
-            edges[:-1],
-            sigma_cond_halo[:-1],
-            delta_update[:-1],
-            0,
-        )
-        * edges[:-1]
-    )
-
-    # Halo Tables
-    lib.initialise_dNdM_tables(
-        edges_ln[0],
-        edges_ln[-1],
-        edges_ln[0],
-        edges_ln[-1],
-        growth_out,
-        growth_in,
-        True,
-    )
-    M_exp_halo = (
-        np.vectorize(lib.EvaluateMcoll)(edges_ln[:-1], 0.0, 0.0, 0.0, 0.0, 0.0, 0.0)
-        * edges[:-1]
-    )
-    N_exp_halo = (
-        np.vectorize(lib.EvaluateNhalo)(edges_ln[:-1], 0.0, 0.0, 0.0, 0.0, 0.0, 0.0)
-        * edges[:-1]
-    )
-
-    # NOTE: The tables get inaccurate in the smallest halo bin where the condition mass approaches the minimum
-    #       We set the absolute tolerance to be insiginificant in sampler terms (~1% of the smallest halo)
-    abs_tol_halo = 1e-2
 
     if plt == mpl.pyplot:
+        plot_arr = np.exp(cond_arr) if from_cat else cond_arr
         make_table_comparison_plot(
-            [edges[:-1], edges_d[:-1], edges[:-1], edges_d[:-1]],
-            [np.array([0]), np.array([0]), np.array([0]), np.array([0])],
-            [
-                N_exp_halo[:, None],
-                N_exp_cell[:, None],
-                M_exp_halo[:, None],
-                M_exp_cell[:, None],
-            ],
-            [
-                N_cmf_halo[:, None],
-                N_cmf_cell[:, None],
-                M_cmf_halo[:, None],
-                M_cmf_cell[:, None],
-            ],
+            [cond_arr, cond_arr],
+            [None, None],
+            [nhalo_tbl, mcoll_tbl],
+            [nhalo_exp, mcoll_exp],
             plt,
         )
 
     print_failure_stats(
-        N_cmf_halo,
-        N_exp_halo,
-        [edges[:-1]],
-        abs_tol_halo,
+        nhalo_tbl,
+        nhalo_exp,
+        [cond_arr],
+        0.0,
         RELATIVE_TOLERANCE,
         "expected N halo",
     )
     print_failure_stats(
-        M_cmf_halo,
-        M_exp_halo,
-        [edges[:-1]],
-        abs_tol_halo,
+        mcoll_tbl,
+        mcoll_exp,
+        [cond_arr],
+        0.0,
         RELATIVE_TOLERANCE,
         "expected M halo",
     )
 
-    print_failure_stats(
-        N_cmf_cell,
-        N_exp_cell,
-        [edges_d[:-1]],
-        abs_tol_halo,
-        RELATIVE_TOLERANCE,
-        "expected N cell",
-    )
-    print_failure_stats(
-        M_cmf_cell,
-        M_exp_cell,
-        [edges_d[:-1]],
-        abs_tol_halo,
-        RELATIVE_TOLERANCE,
-        "expected M cell",
-    )
-
-    np.testing.assert_allclose(
-        N_cmf_halo, N_exp_halo, atol=abs_tol_halo, rtol=RELATIVE_TOLERANCE
-    )
-    np.testing.assert_allclose(
-        N_cmf_cell, N_exp_cell, atol=abs_tol_halo, rtol=RELATIVE_TOLERANCE
-    )
-    np.testing.assert_allclose(
-        M_cmf_halo, M_exp_halo, atol=edges[0] * abs_tol_halo, rtol=RELATIVE_TOLERANCE
-    )
-    np.testing.assert_allclose(
-        M_cmf_cell, M_exp_cell, atol=edges[0] * abs_tol_halo, rtol=RELATIVE_TOLERANCE
-    )
+    np.testing.assert_allclose(nhalo_exp, nhalo_tbl, rtol=RELATIVE_TOLERANCE)
+    np.testing.assert_allclose(mcoll_exp, mcoll_tbl, rtol=RELATIVE_TOLERANCE)
 
 
 @pytest.mark.parametrize("R", R_PARAM_LIST)
@@ -475,58 +305,47 @@ def test_FgtrM_conditional_tables(name, R, plt):
     cp = opts["cosmo_params"]
     ap = opts["astro_params"]
     fo = opts["flag_options"]
-    lib.Broadcast_struct_global_all(up.cstruct, cp.cstruct, ap.cstruct, fo.cstruct)
 
     hist_size = 200
     M_min = global_params.M_MIN_INTEGRAL
     M_max = global_params.M_MAX_INTEGRAL
-
-    lib.init_ps()
-    lib.initialiseSigmaMInterpTable(M_min, M_max)
-
-    growth_out = lib.dicke(redshift)
-    sigma_min = lib.sigma_z0(M_min)
 
     cond_mass = (
         (4.0 / 3.0 * np.pi * (R * u.Mpc) ** 3 * cp.cosmo.critical_density(0) * cp.OMm)
         .to("M_sun")
         .value
     )
-    sigma_cond = lib.sigma_z0(cond_mass)
-    delta_crit = lib.get_delta_crit(up.cdict["HMF"], sigma_cond, growth_out)
 
-    edges_d = np.linspace(-1, delta_crit * 1.1, num=hist_size).astype(
-        "f4"
-    )  # EPS is forced with FgtrM due to the erfc functions
-
-    # NOTE: Rather than keeping zp constant we keep zpp constant
-    lib.initialise_FgtrM_delta_table(
-        edges_d[0], edges_d[-1], redshift, growth_out, sigma_min, sigma_cond
+    edges_d = np.linspace(-1, 1.6, num=hist_size).astype("f4")
+    fcoll_tables, dfcoll_tables = cf.evaluate_FgtrM_cond(
+        user_params=up,
+        cosmo_params=cp,
+        astro_params=ap,
+        flag_options=fo,
+        M_min=M_min,
+        M_max=M_max,
+        redshift=redshift,
+        cond_mass=cond_mass,
+        densities=edges_d,
     )
-
-    fcoll_tables = np.vectorize(lib.EvaluateFcoll_delta)(
-        edges_d[:-1], growth_out, sigma_min, sigma_cond
-    )
-    dfcoll_tables = np.vectorize(lib.EvaluatedFcolldz)(
-        edges_d[:-1], redshift, sigma_min, sigma_cond
-    )
-
-    up = up.clone(USE_INTERPOLATION_TABLES=False)
-    lib.Broadcast_struct_global_all(up.cstruct, cp.cstruct, ap.cstruct, fo.cstruct)
-
-    fcoll_integrals = np.vectorize(lib.EvaluateFcoll_delta)(
-        edges_d[:-1], growth_out, sigma_min, sigma_cond
-    )
-    dfcoll_integrals = np.vectorize(lib.EvaluatedFcolldz)(
-        edges_d[:-1], redshift, sigma_min, sigma_cond
+    fcoll_integrals, dfcoll_integrals = cf.evaluate_FgtrM_cond(
+        user_params=up.clone(USE_INTERPOLATION_TABLES=False),
+        cosmo_params=cp,
+        astro_params=ap,
+        flag_options=fo,
+        M_min=M_min,
+        M_max=M_max,
+        redshift=redshift,
+        cond_mass=cond_mass,
+        densities=edges_d,
     )
 
     if plt == mpl.pyplot:
         make_table_comparison_plot(
-            [edges_d[:-1], edges_d[:-1]],
-            [np.array([0]), np.array([0])],
-            [fcoll_tables[:, None], dfcoll_tables[:, None]],
-            [fcoll_integrals[:, None], dfcoll_integrals[:, None]],
+            [edges_d, edges_d],
+            [None, None],
+            [fcoll_tables, np.fabs(dfcoll_tables)],
+            [fcoll_integrals, np.fabs(dfcoll_integrals)],
             plt,
         )
 
@@ -534,9 +353,7 @@ def test_FgtrM_conditional_tables(name, R, plt):
     print_failure_stats(
         fcoll_tables,
         fcoll_integrals,
-        [
-            edges_d[:-1],
-        ],
+        [edges_d],
         abs_tol,
         RELATIVE_TOLERANCE,
         "fcoll",
@@ -545,9 +362,7 @@ def test_FgtrM_conditional_tables(name, R, plt):
     print_failure_stats(
         dfcoll_tables,
         fcoll_integrals,
-        [
-            edges_d[:-1],
-        ],
+        [edges_d],
         abs_tol,
         RELATIVE_TOLERANCE,
         "dfcoll",
@@ -568,92 +383,47 @@ def test_SFRD_z_tables(name, plt):
     up = opts["user_params"]
     cp = opts["cosmo_params"]
     ap = opts["astro_params"]
-    fo = opts["flag_options"]
-
-    fo = fo.clone(
+    fo = opts["flag_options"].clone(
         USE_MINI_HALOS=True,
         INHOMO_RECO=True,
         USE_TS_FLUCT=True,
     )
-    lib.Broadcast_struct_global_all(up.cstruct, cp.cstruct, ap.cstruct, fo.cstruct)
 
     hist_size = 200
     M_min = global_params.M_MIN_INTEGRAL
     M_max = global_params.M_MAX_INTEGRAL
     z_array = np.linspace(6, 35, num=hist_size)
     edges_m = np.logspace(5, 8, num=int(hist_size / 10)).astype("f4")
-    f10s = 10**ap.F_STAR10
-    f7s = 10**ap.F_STAR7_MINI
 
-    lib.init_ps()
-
-    if up.INTEGRATION_METHOD_ATOMIC == 1 or up.INTEGRATION_METHOD_MINI == 1:
-        lib.initialise_GL(np.log(M_min), np.log(M_max))
-
-    Mlim_Fstar = 1e10 * (10**ap.F_STAR10) ** (-1.0 / ap.ALPHA_STAR)
-    Mlim_Fstar_MINI = 1e7 * (10**ap.F_STAR7_MINI) ** (-1.0 / ap.ALPHA_STAR_MINI)
-
-    lib.initialiseSigmaMInterpTable(M_min, M_max)
-
-    lib.initialise_SFRD_spline(
-        400,
-        z_array[0],
-        z_array[-1],
-        ap.ALPHA_STAR,
-        ap.ALPHA_STAR_MINI,
-        f10s,
-        f7s,
-        ap.M_TURN,
-        True,
+    SFRD_tables, SFRD_tables_mini = cf.evaluate_SFRD_z(
+        user_params=up,
+        cosmo_params=cp,
+        astro_params=ap,
+        flag_options=fo,
+        M_min=M_min,
+        M_max=M_max,
+        redshifts=z_array,
+        mturnovers=edges_m,
     )
-
-    # for the atomic cooling threshold
-    # omz = cp.cosmo.Om(z_array)
-    # d_nl = 18*np.pi*np.pi + 82*(omz-1) - 39*(omz-1)**2
-    # M_turn_a = 7030.97 / (cp.hlittle) * np.sqrt(omz / (cp.OMm*d_nl)) * (1e4/(0.59*(1+z_array)))**1.5
-    M_turn_a = np.vectorize(lib.atomic_cooling_threshold)(z_array)
-
-    input_arr = np.meshgrid(z_array[:-1], np.log10(edges_m[:-1]), indexing="ij")
-
-    SFRD_tables = np.vectorize(lib.EvaluateSFRD)(z_array[:-1], Mlim_Fstar)
-    SFRD_tables_mini = np.vectorize(lib.EvaluateSFRD_MINI)(
-        input_arr[0], input_arr[1], Mlim_Fstar_MINI
-    )
-
-    SFRD_integrals = np.vectorize(lib.Nion_General)(
-        z_array[:-1],
-        np.log(M_min),
-        np.log(M_max),
-        M_turn_a[:-1],
-        ap.ALPHA_STAR,
-        0.0,
-        f10s,
-        1.0,
-        Mlim_Fstar,
-        0.0,
-    )
-    SFRD_integrals_mini = np.vectorize(lib.Nion_General_MINI)(
-        input_arr[0],
-        np.log(M_min),
-        np.log(M_max),
-        10 ** input_arr[1],
-        M_turn_a[:-1][:, None],
-        ap.ALPHA_STAR_MINI,
-        0.0,
-        f7s,
-        1.0,
-        Mlim_Fstar_MINI,
-        0.0,
+    SFRD_integrals, SFRD_integrals_mini = cf.evaluate_SFRD_z(
+        user_params=up.clone(USE_INTERPOLATION_TABLES=False),
+        cosmo_params=cp,
+        astro_params=ap,
+        flag_options=fo,
+        M_min=M_min,
+        M_max=M_max,
+        redshifts=z_array,
+        mturnovers=edges_m,
     )
 
     if plt == mpl.pyplot:
-        xl = input_arr[1].shape[1]
+        xl = edges_m.size
         sel_m = (xl * np.arange(6) / 6).astype(int)
         make_table_comparison_plot(
-            [z_array[:-1], z_array[:-1]],
+            [z_array, z_array],
             [np.array([0]), edges_m[sel_m]],
-            [SFRD_tables[:, None], SFRD_tables_mini[..., sel_m]],
-            [SFRD_integrals[:, None], SFRD_integrals_mini[..., sel_m]],
+            [SFRD_tables, SFRD_tables_mini[..., sel_m]],
+            [SFRD_integrals, SFRD_integrals_mini[..., sel_m]],
             plt,
         )
 
@@ -661,9 +431,7 @@ def test_SFRD_z_tables(name, plt):
     print_failure_stats(
         SFRD_tables,
         SFRD_integrals,
-        [
-            z_array[:-1],
-        ],
+        [z_array],
         abs_tol,
         RELATIVE_TOLERANCE,
         "SFRD_z",
@@ -671,7 +439,7 @@ def test_SFRD_z_tables(name, plt):
     print_failure_stats(
         SFRD_tables_mini,
         SFRD_integrals_mini,
-        input_arr,
+        [z_array, edges_m],
         abs_tol,
         RELATIVE_TOLERANCE,
         "SFRD_z_mini",
@@ -692,97 +460,44 @@ def test_Nion_z_tables(name, plt):
     up = opts["user_params"]
     cp = opts["cosmo_params"]
     ap = opts["astro_params"]
-    fo = opts["flag_options"]
-
-    fo = fo.clone(
+    fo = opts["flag_options"].clone(
         USE_MINI_HALOS=True,
         INHOMO_RECO=True,
         USE_TS_FLUCT=True,
     )
-    lib.Broadcast_struct_global_all(up.cstruct, cp.cstruct, ap.cstruct, fo.cstruct)
-
-    f10s = 10**ap.F_STAR10
-    f7s = 10**ap.F_STAR7_MINI
-    f10e = 10**ap.F_ESC10
-    f7e = 10**ap.F_ESC7_MINI
 
     hist_size = 200
     M_min = global_params.M_MIN_INTEGRAL
     M_max = global_params.M_MAX_INTEGRAL
-    z_array = np.linspace(6, 40, num=hist_size)
+    z_array = np.linspace(6, 35, num=hist_size)
     edges_m = np.logspace(5, 8, num=int(hist_size / 10)).astype("f4")
 
-    lib.init_ps()
-
-    if up.INTEGRATION_METHOD_ATOMIC == 1 or up.INTEGRATION_METHOD_MINI == 1:
-        lib.initialise_GL(np.log(M_min), np.log(M_max))
-
-    Mlim_Fstar = 1e10 * (10**ap.F_STAR10) ** (-1.0 / ap.ALPHA_STAR)
-    Mlim_Fesc = 1e10 * (10**ap.F_ESC10) ** (-1.0 / ap.ALPHA_ESC)
-    Mlim_Fstar_MINI = 1e7 * (10**ap.F_STAR7_MINI) ** (-1.0 / ap.ALPHA_STAR_MINI)
-    Mlim_Fesc_MINI = 1e7 * (10**ap.F_ESC7_MINI) ** (-1.0 / ap.ALPHA_ESC)
-
-    lib.initialiseSigmaMInterpTable(M_min, M_max)
-
-    lib.initialise_Nion_Ts_spline(
-        400,
-        z_array[0],
-        z_array[-1],
-        ap.ALPHA_STAR,
-        ap.ALPHA_STAR_MINI,
-        ap.ALPHA_ESC,
-        f10s,
-        f10e,
-        f7s,
-        f7e,
-        ap.M_TURN,
-        True,
+    Nion_tables, Nion_tables_mini = cf.evaluate_Nion_z(
+        user_params=up,
+        cosmo_params=cp,
+        astro_params=ap,
+        flag_options=fo,
+        M_min=M_min,
+        M_max=M_max,
+        redshifts=z_array,
+        mturnovers=edges_m,
     )
-
-    # for the atomic cooling threshold
-    # omz = cp.cosmo.Om(z_array)
-    # d_nl = 18*np.pi*np.pi + 82*(omz-1) - 39*(omz-1)**2
-    # M_turn_a = 7030.97 / (cp.hlittle) * np.sqrt(omz / (cp.OMm*d_nl)) * (1e4/(0.59*(1+z_array)))**1.5
-    M_turn_a = np.vectorize(lib.atomic_cooling_threshold)(z_array)
-
-    input_arr = np.meshgrid(z_array[:-1], np.log10(edges_m[:-1]), indexing="ij")
-
-    Nion_tables = np.vectorize(lib.EvaluateNionTs)(z_array[:-1], Mlim_Fstar, Mlim_Fesc)
-    Nion_tables_mini = np.vectorize(lib.EvaluateNionTs_MINI)(
-        input_arr[0], input_arr[1], Mlim_Fstar_MINI, Mlim_Fesc_MINI
-    )
-
-    Nion_integrals = np.vectorize(lib.Nion_General)(
-        z_array[:-1],
-        np.log(M_min),
-        np.log(M_max),
-        M_turn_a[:-1],
-        ap.ALPHA_STAR,
-        ap.ALPHA_ESC,
-        f10s,
-        f10e,
-        Mlim_Fstar,
-        Mlim_Fesc,
-    )
-    Nion_integrals_mini = np.vectorize(lib.Nion_General_MINI)(
-        input_arr[0],
-        np.log(M_min),
-        np.log(M_max),
-        10 ** input_arr[1],
-        M_turn_a[:-1][:, None],
-        ap.ALPHA_STAR_MINI,
-        ap.ALPHA_ESC,
-        f7s,
-        f7e,
-        Mlim_Fstar_MINI,
-        Mlim_Fesc_MINI,
+    Nion_integrals, Nion_integrals_mini = cf.evaluate_Nion_z(
+        user_params=up.clone(USE_INTERPOLATION_TABLES=False),
+        cosmo_params=cp,
+        astro_params=ap,
+        flag_options=fo,
+        M_min=M_min,
+        M_max=M_max,
+        redshifts=z_array,
+        mturnovers=edges_m,
     )
 
     if plt == mpl.pyplot:
-        xl = input_arr[1].shape[1]
+        xl = edges_m.size
         sel_m = (xl * np.arange(6) / 6).astype(int)
         make_table_comparison_plot(
-            [z_array[:-1], z_array[:-1]],
+            [z_array, z_array],
             [np.array([0]), edges_m[sel_m]],
             [Nion_tables[:, None], Nion_tables_mini[..., sel_m]],
             [Nion_integrals[:, None], Nion_integrals_mini[..., sel_m]],
@@ -793,9 +508,7 @@ def test_Nion_z_tables(name, plt):
     print_failure_stats(
         Nion_tables,
         Nion_integrals,
-        [
-            z_array[:-1],
-        ],
+        [z_array],
         abs_tol,
         RELATIVE_TOLERANCE,
         "Nion_z",
@@ -803,7 +516,7 @@ def test_Nion_z_tables(name, plt):
     print_failure_stats(
         Nion_tables_mini,
         Nion_integrals_mini,
-        input_arr,
+        [z_array, edges_m],
         abs_tol,
         RELATIVE_TOLERANCE,
         "Nion_z_mini",
@@ -838,106 +551,55 @@ def test_Nion_conditional_tables(name, R, mini, intmethod, plt):
 
     redshift, kwargs = OPTIONS_HMF[name]
     opts = prd.get_all_options(redshift, **kwargs)
-    up = opts["user_params"]
-    cp = opts["cosmo_params"]
-    ap = opts["astro_params"]
-    fo = opts["flag_options"]
-
-    up = up.clone(
+    up = opts["user_params"].clone(
         INTEGRATION_METHOD_ATOMIC=OPTIONS_INTMETHOD[intmethod],
         INTEGRATION_METHOD_MINI=OPTIONS_INTMETHOD[intmethod],
     )
-    fo = fo.clone(
+    cp = opts["cosmo_params"]
+    ap = opts["astro_params"]
+    fo = opts["flag_options"].clone(
         USE_MINI_HALOS=mini_flag,
         INHOMO_RECO=True,
         USE_TS_FLUCT=True,
     )
-    lib.Broadcast_struct_global_all(up.cstruct, cp.cstruct, ap.cstruct, fo.cstruct)
 
     hist_size = 200
     M_min = global_params.M_MIN_INTEGRAL
     M_max = global_params.M_MAX_INTEGRAL
 
-    lib.init_ps()
-
-    if "GAUSS-LEGENDRE" in (up.INTEGRATION_METHOD_ATOMIC, up.INTEGRATION_METHOD_MINI):
-        lib.initialise_GL(np.log(M_min), np.log(M_max))
-
-    growth_out = lib.dicke(redshift)
     cond_mass = (
         (4.0 / 3.0 * np.pi * (R * u.Mpc) ** 3 * cp.cosmo.critical_density(0) * cp.OMm)
         .to("M_sun")
         .value
     )
-    sigma_cond = lib.sigma_z0(cond_mass)
-    delta_crit = lib.get_delta_crit(up.cdict["HMF"], sigma_cond, growth_out)
 
-    edges_d = np.linspace(-1, delta_crit * 1.1, num=hist_size).astype("f4")
+    edges_d = np.linspace(-1, 1.6, num=hist_size).astype("f4")
     edges_m = np.logspace(5, 10, num=int(hist_size / 10)).astype("f4")
 
-    Mlim_Fstar = 1e10 * (10**ap.F_STAR10) ** (-1.0 / ap.ALPHA_STAR)
-    Mlim_Fesc = 1e10 * (10**ap.F_ESC10) ** (-1.0 / ap.ALPHA_ESC)
-    Mlim_Fstar_MINI = 1e7 * (10**ap.F_STAR7_MINI) ** (-1.0 / ap.ALPHA_STAR_MINI)
-    Mlim_Fesc_MINI = 1e7 * (10**ap.F_ESC7_MINI) ** (-1.0 / ap.ALPHA_ESC)
-
-    lib.initialiseSigmaMInterpTable(M_min, max(cond_mass, M_max))
-
-    lib.initialise_Nion_Conditional_spline(
-        redshift,
-        10**ap.M_TURN,  # not the redshift dependent version in this test
-        edges_d[0],
-        edges_d[-1],
-        M_min,
-        M_max,
-        cond_mass,
-        np.log10(edges_m[0]),
-        np.log10(edges_m[-1]),
-        np.log10(edges_m[0]),
-        np.log10(edges_m[-1]),
-        ap.ALPHA_STAR,
-        ap.ALPHA_STAR_MINI,
-        ap.ALPHA_ESC,
-        10**ap.F_STAR10,
-        10**ap.F_ESC10,
-        Mlim_Fstar,
-        Mlim_Fesc,
-        10**ap.F_STAR7_MINI,
-        10**ap.F_ESC7_MINI,
-        Mlim_Fstar_MINI,
-        Mlim_Fesc_MINI,
-        up.cdict["INTEGRATION_METHOD_ATOMIC"],
-        up.cdict["INTEGRATION_METHOD_MINI"],
-        mini_flag,
-        False,
+    Nion_tables, Nion_tables_mini = cf.evaluate_Nion_cond(
+        user_params=up,
+        cosmo_params=cp,
+        astro_params=ap,
+        flag_options=fo,
+        M_min=M_min,
+        M_max=M_max,
+        redshift=redshift,
+        cond_mass=cond_mass,
+        densities=edges_d,
+        mturns=edges_m,
     )
 
-    if mini_flag:
-        input_arr = np.meshgrid(edges_d[:-1], np.log10(edges_m[:-1]), indexing="ij")
-    else:
-        input_arr = [
-            edges_d[:-1],
-            np.full_like(edges_d[:-1], ap.M_TURN),
-        ]  # mturn already in log10
-
-    Nion_tables = np.vectorize(lib.EvaluateNion_Conditional)(
-        input_arr[0], input_arr[1], 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, False
-    )
-
-    Nion_integrals = np.vectorize(lib.Nion_ConditionalM)(
-        growth_out,
-        np.log(M_min),
-        np.log(M_max),
-        cond_mass,
-        sigma_cond,
-        input_arr[0],
-        10 ** input_arr[1],
-        ap.ALPHA_STAR,
-        ap.ALPHA_ESC,
-        10**ap.F_STAR10,
-        10**ap.F_ESC10,
-        Mlim_Fstar,
-        Mlim_Fesc,
-        up.cdict["INTEGRATION_METHOD_ATOMIC"],
+    Nion_integrals, Nion_integrals_mini = cf.evaluate_Nion_cond(
+        user_params=up.clone(USE_INTERPOLATION_TABLES=False),
+        cosmo_params=cp,
+        astro_params=ap,
+        flag_options=fo,
+        M_min=M_min,
+        M_max=M_max,
+        redshift=redshift,
+        cond_mass=cond_mass,
+        densities=edges_d,
+        mturns=edges_m,
     )
 
     #### FIRST ASSERT ####
@@ -945,38 +607,17 @@ def test_Nion_conditional_tables(name, R, mini, intmethod, plt):
     print_failure_stats(
         Nion_tables,
         Nion_integrals,
-        input_arr if mini_flag else input_arr[:1],
+        [edges_d, edges_m] if mini_flag else [edges_d],
         abs_tol,
         RELATIVE_TOLERANCE,
         "Nion_c",
     )
 
     if mini_flag:
-        Nion_tables_mini = np.vectorize(lib.EvaluateNion_Conditional_MINI)(
-            input_arr[0], input_arr[1], 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, False
-        )
-
-        Nion_integrals_mini = np.vectorize(lib.Nion_ConditionalM_MINI)(
-            growth_out,
-            np.log(M_min),
-            np.log(M_max),
-            cond_mass,
-            sigma_cond,
-            input_arr[0],
-            10 ** input_arr[1],
-            10**ap.M_TURN,
-            ap.ALPHA_STAR_MINI,
-            ap.ALPHA_ESC,
-            10**ap.F_STAR7_MINI,
-            10**ap.F_ESC7_MINI,
-            Mlim_Fstar_MINI,
-            Mlim_Fesc_MINI,
-            up.cdict["INTEGRATION_METHOD_MINI"],
-        )
         print_failure_stats(
             Nion_tables_mini,
             Nion_integrals_mini,
-            input_arr,
+            [edges_d, edges_m],
             abs_tol,
             RELATIVE_TOLERANCE,
             "Nion_c_mini",
@@ -987,7 +628,7 @@ def test_Nion_conditional_tables(name, R, mini, intmethod, plt):
 
     if plt == mpl.pyplot:
         if mini_flag:
-            xl = input_arr[1].shape[1]
+            xl = edges_m.shape[1]
             sel_m = (xl * np.arange(6) / 6).astype(int)
             Nion_tb_plot = Nion_tables[..., sel_m]
             Nion_il_plot = Nion_integrals[..., sel_m]
@@ -997,7 +638,7 @@ def test_Nion_conditional_tables(name, R, mini, intmethod, plt):
             sel_m = np.array([0]).astype(int)
 
         make_table_comparison_plot(
-            [edges_d[:-1], edges_d[:-1]],
+            [edges_d, edges_d],
             [edges_m[sel_m], edges_m[sel_m]],
             [Nion_tb_plot, Nion_tables_mini[..., sel_m]],
             [Nion_il_plot, Nion_integrals_mini[..., sel_m]],
@@ -1022,123 +663,63 @@ def test_SFRD_conditional_table(name, R, intmethod, plt):
 
     redshift, kwargs = OPTIONS_HMF[name]
     opts = prd.get_all_options(redshift, **kwargs)
-    up = opts["user_params"]
-    cp = opts["cosmo_params"]
-    ap = opts["astro_params"]
-    fo = opts["flag_options"]
-
-    up = up.clone(
+    up = opts["user_params"].clone(
         INTEGRATION_METHOD_ATOMIC=OPTIONS_INTMETHOD[intmethod],
         INTEGRATION_METHOD_MINI=OPTIONS_INTMETHOD[intmethod],
     )
-    fo = fo.clone(
+    cp = opts["cosmo_params"].clone(
         USE_MINI_HALOS=True,
         INHOMO_RECO=True,
         USE_TS_FLUCT=True,
     )
-    lib.Broadcast_struct_global_all(up.cstruct, cp.cstruct, ap.cstruct, fo.cstruct)
+    ap = opts["astro_params"]
+    fo = opts["flag_options"]
 
     hist_size = 200
     M_min = global_params.M_MIN_INTEGRAL
     M_max = global_params.M_MAX_INTEGRAL
 
-    lib.init_ps()
-
-    if "GAUSS-LEGENDRE" in (up.INTEGRATION_METHOD_ATOMIC, up.INTEGRATION_METHOD_MINI):
-        lib.initialise_GL(np.log(M_min), np.log(M_max))
-
-    growth_out = lib.dicke(redshift)
     cond_mass = (
         (4.0 / 3.0 * np.pi * (R * u.Mpc) ** 3 * cp.cosmo.critical_density(0) * cp.OMm)
         .to("M_sun")
         .value
     )
     sigma_cond = lib.sigma_z0(cond_mass)
-    delta_crit = lib.get_delta_crit(up.cdict["HMF"], sigma_cond, growth_out)
 
-    edges_d = np.linspace(-1, delta_crit * 1.1, num=hist_size).astype("f4")
+    edges_d = np.linspace(-1, 1.6, num=hist_size).astype("f4")
     edges_m = np.logspace(5, 10, num=int(hist_size / 10)).astype("f4")
 
-    Mlim_Fstar = 1e10 * (10**ap.F_STAR10) ** (-1.0 / ap.ALPHA_STAR)
-    Mlim_Fstar_MINI = 1e7 * (10**ap.F_STAR7_MINI) ** (-1.0 / ap.ALPHA_STAR_MINI)
-
-    lib.initialiseSigmaMInterpTable(M_min, max(cond_mass, M_max))
-
-    lib.initialise_SFRD_Conditional_table(
-        edges_d[0],
-        edges_d[-1],
-        growth_out,
-        10**ap.M_TURN,
-        M_min,
-        M_max,
-        cond_mass,
-        ap.ALPHA_STAR,
-        ap.ALPHA_STAR_MINI,
-        10**ap.F_STAR10,
-        10**ap.F_STAR7_MINI,
-        up.cdict["INTEGRATION_METHOD_ATOMIC"],
-        up.cdict["INTEGRATION_METHOD_MINI"],
-        fo.USE_MINI_HALOS,
-    )
-    # since the turnover mass table edges are hardcoded, we make sure we are within those limits
-    SFRD_tables = np.vectorize(lib.EvaluateSFRD_Conditional)(
-        edges_d[:-1], 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0
-    )
-    input_arr = np.meshgrid(edges_d[:-1], np.log10(edges_m[:-1]), indexing="ij")
-    SFRD_tables_mini = np.vectorize(lib.EvaluateSFRD_Conditional_MINI)(
-        input_arr[0],
-        input_arr[1],
-        0.0,
-        0.0,
-        0.0,
-        0.0,
-        0.0,
-        0.0,
-        0.0,
+    SFRD_tables, SFRD_tables_mini = cf.evaluate_SFRD_cond(
+        user_params=up,
+        cosmo_params=cp,
+        astro_params=ap,
+        flag_options=fo,
+        M_min=M_min,
+        M_max=M_max,
+        redshift=redshift,
+        cond_mass=cond_mass,
+        densities=edges_d,
+        mturns=edges_m,
     )
 
-    SFRD_integrals = np.vectorize(lib.Nion_ConditionalM)(
-        growth_out,
-        np.log(M_min),
-        np.log(M_max),
-        cond_mass,
-        sigma_cond,
-        edges_d[:-1],
-        10**ap.M_TURN,
-        ap.ALPHA_STAR,
-        0.0,
-        10**ap.F_STAR10,
-        1.0,
-        Mlim_Fstar,
-        0.0,
-        up.cdict["INTEGRATION_METHOD_ATOMIC"],
-    )
-
-    SFRD_integrals_mini = np.vectorize(lib.Nion_ConditionalM_MINI)(
-        growth_out,
-        np.log(M_min),
-        np.log(M_max),
-        cond_mass,
-        sigma_cond,
-        input_arr[0],
-        10 ** input_arr[1],
-        10**ap.M_TURN,
-        ap.ALPHA_STAR_MINI,
-        0.0,
-        10**ap.F_STAR7_MINI,
-        1.0,
-        Mlim_Fstar_MINI,
-        0.0,
-        up.cdict["INTEGRATION_METHOD_MINI"],
+    SFRD_integrals, SFRD_integrals_mini = cf.evaluate_SFRD_cond(
+        user_params=up.clone(USE_INTERPOLATION_TABLES=False),
+        cosmo_params=cp,
+        astro_params=ap,
+        flag_options=fo,
+        M_min=M_min,
+        M_max=M_max,
+        redshift=redshift,
+        cond_mass=cond_mass,
+        densities=edges_d,
+        mturns=edges_m,
     )
 
     abs_tol = 5e-18  # minimum = exp(-40) ~1e-18
     print_failure_stats(
         SFRD_tables,
         SFRD_integrals,
-        [
-            edges_d[:-1],
-        ],
+        [edges_d],
         abs_tol,
         RELATIVE_TOLERANCE,
         "SFRD_c",
@@ -1146,17 +727,17 @@ def test_SFRD_conditional_table(name, R, intmethod, plt):
     print_failure_stats(
         SFRD_tables_mini,
         SFRD_integrals_mini,
-        input_arr,
+        [edges_d, edges_m],
         abs_tol,
         RELATIVE_TOLERANCE,
         "SFRD_c_mini",
     )
 
     if plt == mpl.pyplot:
-        xl = input_arr[1].shape[1]
+        xl = edges_m.size
         sel_m = (xl * np.arange(6) / 6).astype(int)
         make_table_comparison_plot(
-            [edges_d[:-1], edges_d[:-1]],
+            [edges_d, edges_d],
             [np.array([0]), edges_m[sel_m]],
             [SFRD_tables[:, None], SFRD_tables_mini[..., sel_m]],
             [SFRD_integrals[:, None], SFRD_integrals_mini[..., sel_m]],
@@ -1177,65 +758,35 @@ INTEGRAND_OPTIONS = ["sfrd", "n_ion"]
 @pytest.mark.parametrize("R", R_PARAM_LIST)
 @pytest.mark.parametrize("name", options_hmf)
 @pytest.mark.parametrize("integrand", INTEGRAND_OPTIONS)
-# @pytest.mark.xfail
 def test_conditional_integral_methods(R, name, integrand, plt):
     redshift, kwargs = OPTIONS_HMF[name]
     opts = prd.get_all_options(redshift, **kwargs)
-    up = opts["user_params"]
+    up = opts["user_params"].clone(USE_INTERPOLATION_TABLES=False)
     cp = opts["cosmo_params"]
     ap = opts["astro_params"]
-    fo = opts["flag_options"]
-
-    up = up.clone(USE_INTERPOLATION_TABLES=True)
-    fo = fo.clone(
+    fo = opts["flag_options"].clone(
         USE_MINI_HALOS=True,
         USE_MASS_DEPENDENT_ZETA=True,
         INHOMO_RECO=True,
         USE_TS_FLUCT=True,
     )
-    if "sfr" in integrand:
-        ap = ap.clone(
-            F_ESC10=0.0,
-            F_ESC7_MINI=0.0,
-            ALPHA_ESC=0.0,
-        )
 
-    lib.Broadcast_struct_global_all(up.cstruct, cp.cstruct, ap.cstruct, fo.cstruct)
+    intgrl_func = cf.evaluate_SFRD_cond if "sfr" in integrand else cf.evaluate_Nion_cond
 
     hist_size = 200
     M_min = global_params.M_MIN_INTEGRAL
     M_max = global_params.M_MAX_INTEGRAL
-
-    lib.init_ps()
-    if "GAUSS-LEGENDRE" in (up.INTEGRATION_METHOD_ATOMIC, up.INTEGRATION_METHOD_MINI):
-        lib.initialise_GL(np.log(M_min), np.log(M_max))
-
-    growth_out = lib.dicke(redshift)
     cond_mass = (
         (4.0 / 3.0 * np.pi * (R * u.Mpc) ** 3 * cp.cosmo.critical_density(0) * cp.OMm)
         .to("M_sun")
         .value
     )
-    sigma_cond = lib.sigma_z0(cond_mass)
-    delta_crit = lib.get_delta_crit(up.cdict["HMF"], sigma_cond, growth_out)
 
-    edges_d = np.linspace(-1, delta_crit * 1.1, num=hist_size).astype("f4")
+    edges_d = np.linspace(-1, 1.6, num=hist_size).astype("f4")
     edges_m = np.logspace(5, 10, num=int(hist_size / 10)).astype("f4")
-
-    Mlim_Fstar = 1e10 * (10**ap.F_STAR10) ** (-1.0 / ap.ALPHA_STAR)
-    Mlim_Fstar_MINI = 1e7 * (10**ap.F_STAR7_MINI) ** (-1.0 / ap.ALPHA_STAR_MINI)
-    if ap.ALPHA_ESC != 0.0:
-        Mlim_Fesc = 1e10 * (10**ap.F_ESC10) ** (-1.0 / ap.ALPHA_ESC)
-        Mlim_Fesc_MINI = 1e7 * (10**ap.F_ESC7_MINI) ** (-1.0 / ap.ALPHA_ESC)
-    else:
-        Mlim_Fesc = 0.0
-        Mlim_Fesc_MINI = 0.0
-
-    lib.initialiseSigmaMInterpTable(M_min, max(cond_mass, M_max))
 
     integrals = []
     integrals_mini = []
-    input_arr = np.meshgrid(edges_d[:-1], np.log10(edges_m[:-1]), indexing="ij")
     for method in ["GSL-QAG", "GAUSS-LEGENDRE", "GAMMA-APPROX"]:
         print(f"Starting method {method}", flush=True)
         if name != "PS" and method == "GAMMA-APPROX":
@@ -1245,54 +796,29 @@ def test_conditional_integral_methods(R, name, integrand, plt):
             INTEGRATION_METHOD_ATOMIC=method,
             INTEGRATION_METHOD_MINI=method,
         )
-        lib.Broadcast_struct_global_all(up.cstruct, cp.cstruct, ap.cstruct, fo.cstruct)
 
-        integrals.append(
-            np.vectorize(lib.Nion_ConditionalM)(
-                growth_out,
-                np.log(M_min),
-                np.log(M_max),
-                cond_mass,
-                sigma_cond,
-                edges_d[:-1],
-                10**ap.M_TURN,
-                ap.ALPHA_STAR,
-                ap.ALPHA_ESC,
-                10**ap.F_STAR10,
-                10**ap.F_ESC10,
-                Mlim_Fstar,
-                Mlim_Fesc,
-                up.cdict["INTEGRATION_METHOD_ATOMIC"],
-            )
+        buf, buf_mini = intgrl_func(
+            user_params=up,
+            cosmo_params=cp,
+            astro_params=ap,
+            flag_options=fo,
+            M_min=M_min,
+            M_max=M_max,
+            redshift=redshift,
+            cond_mass=cond_mass,
+            densities=edges_d,
+            mturns=edges_m,
         )
-        integrals_mini.append(
-            np.vectorize(lib.Nion_ConditionalM_MINI)(
-                growth_out,
-                np.log(M_min),
-                np.log(M_max),
-                cond_mass,
-                sigma_cond,
-                input_arr[0],
-                10 ** input_arr[1],
-                10**ap.M_TURN,
-                ap.ALPHA_STAR_MINI,
-                ap.ALPHA_ESC,
-                10**ap.F_STAR7_MINI,
-                10**ap.F_ESC7_MINI,
-                Mlim_Fstar_MINI,
-                Mlim_Fesc_MINI,
-                up.cdict["INTEGRATION_METHOD_MINI"],
-            )
-        )
+        integrals.append(buf)
+        integrals_mini.append(buf_mini)
 
     abs_tol = 5e-18  # minimum = exp(-40) ~1e-18
     if plt == mpl.pyplot:
-        xl = input_arr[1].shape[1]
+        xl = edges_m.shape[1]
         sel_m = (xl * np.arange(6) / 6).astype(int)
         iplot_mini = [i[..., sel_m] for i in integrals_mini]
-        print(sel_m, flush=True)
         make_integral_comparison_plot(
-            edges_d[:-1],
+            edges_d,
             edges_m[sel_m],
             integrals,
             iplot_mini,
@@ -1338,22 +864,29 @@ def make_table_comparison_plot(
     **kwargs,
 ):
     # rows = values,fracitonal diff, cols = 1d table, 2d table
-    fig, axs = plt.subplots(nrows=2, ncols=len(x), figsize=(16, 16 / len(x) * 2))
+    fig, axs = plt.subplots(
+        nrows=2, ncols=len(x), figsize=(8, 6 / len(x) * 2), squeeze=False
+    )
     xlabels = kwargs.pop("xlabels", ["delta"] * len(x))
     ylabels = kwargs.pop("ylabels", ["MF_integral"] * len(x))
     zlabels = kwargs.pop("zlabels", ["Mturn"] * len(x))
     for j, z in enumerate(tb_z):
-        for i in range(z.size):
-            zlab = zlabels[j] + f" = {z[i]:.2e}"
+        n_lines = z.size if z is not None else 1
+        for i in range(n_lines):
+            zlab = zlabels[j] + f" = {z[i]:.2e}" if z is not None else ""
+            # allow single arrays
+            x_plot = x[j][:, i] if len(x[j].shape) > 1 else x[j]
+            i_plot = integrals[j][:, i] if len(integrals[j].shape) > 1 else integrals[j]
+            t_plot = tables[j][:, i] if len(tables[j].shape) > 1 else tables[j]
             make_comparison_plot(
-                x[j],
-                integrals[j][:, i],
-                tables[j][:, i],
+                x_plot,
+                i_plot,
+                t_plot,
                 ax=axs[:, j],
                 xlab=xlabels[j],
                 ylab=ylabels[j],
                 label_base=zlab,
-                logx=False,
+                logx=kwargs.pop("logx", False),
                 color=f"C{i:d}",
             )
 
@@ -1416,8 +949,9 @@ def make_comparison_plot(
     ax[1].set_ylabel("Fractional Difference")
 
 
-def print_failure_stats(test, truth, input_arr, abs_tol, rel_tol, name):
+def print_failure_stats(test, truth, inputs, abs_tol, rel_tol, name):
     sel_failed = np.fabs(truth - test) > (abs_tol + np.fabs(truth) * rel_tol)
+    failed_idx = np.where(sel_failed)
     if sel_failed.sum() > 0:
         print(
             f"{name}: atol {abs_tol} rtol {rel_tol} failed {sel_failed.sum()} of {sel_failed.size} {sel_failed.sum() / sel_failed.size * 100:.4f}%"
@@ -1425,9 +959,9 @@ def print_failure_stats(test, truth, input_arr, abs_tol, rel_tol, name):
         print(
             f"subcube of failures [min] [max] {np.argwhere(sel_failed).min(axis=0)} {np.argwhere(sel_failed).max(axis=0)}"
         )
-        for i, row in enumerate(input_arr):
+        for i, inp in enumerate(inputs):
             print(
-                f"failure range of inputs axis {i} {row[sel_failed].min():.2e} {row[sel_failed].max():.2e}"
+                f"failure range of inputs axis {i} {inp[failed_idx[i]].min():.2e} {inp[failed_idx[i]].max():.2e}"
             )
         print(
             f"failure range truth ({truth[sel_failed].min():.3e},{truth[sel_failed].max():.3e}) test ({test[sel_failed].min():.3e},{test[sel_failed].max():.3e})"
@@ -1439,68 +973,3 @@ def print_failure_stats(test, truth, input_arr, abs_tol, rel_tol, name):
         print(
             f"first 10 = {truth[sel_failed].flatten()[:10]} {test[sel_failed].flatten()[:10]}"
         )
-
-
-def massfunc_table_comparison_plot(
-    massbins,
-    conds_m,
-    N_cmfi_halo,
-    M_inverse_halo,
-    conds_d,
-    N_cmfi_cell,
-    M_inverse_cell,
-    plt,
-):
-    fig, axs = plt.subplots(nrows=1, ncols=2, figsize=(16, 8))
-    for ax in axs:
-        ax.grid()
-        ax.set_xlabel("M_halo")
-        ax.set_xlim([1e7, 5e11])
-        ax.set_xscale("log")
-        ax.set_ylabel("P(>M)")
-        ax.set_ylim([1e-8, 1.2])
-        ax.set_yscale("log")
-
-    [
-        axs[0].plot(
-            massbins,
-            N_cmfi_halo[i, :],
-            color=f"C{i:d}",
-            linestyle="-",
-            label=f"M = {m:.3e}",
-        )
-        for i, m in enumerate(conds_m)
-    ]
-    [
-        axs[0].plot(
-            M_inverse_halo[i, :],
-            N_cmfi_halo[i, :],
-            color=f"C{i:d}",
-            linestyle=":",
-            linewidth=3,
-        )
-        for i, m in enumerate(conds_m)
-    ]
-    axs[0].legend()
-
-    [
-        axs[1].plot(
-            massbins,
-            N_cmfi_cell[i, :],
-            color=f"C{i:d}",
-            linestyle="-",
-            label=f"d = {d:.3f}",
-        )
-        for i, d in enumerate(conds_d)
-    ]
-    [
-        axs[1].plot(
-            M_inverse_cell[i, :],
-            N_cmfi_cell[i, :],
-            color=f"C{i:d}",
-            linestyle=":",
-            linewidth=3,
-        )
-        for i, d in enumerate(conds_d)
-    ]
-    axs[1].legend()
