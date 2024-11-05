@@ -1,5 +1,5 @@
 """
-Various tests of the initial_conditions() function and InitialConditions class.
+Various tests of the compute_initial_conditions() function and InitialConditions class.
 """
 
 import pytest
@@ -7,7 +7,7 @@ import pytest
 import numpy as np
 from multiprocessing import cpu_count
 
-from py21cmfast import wrapper
+import py21cmfast as p21c
 
 
 def test_box_shape(ic):
@@ -32,13 +32,13 @@ def test_box_shape(ic):
 
     assert not hasattr(ic, "lowres_vcb")
 
-    assert ic.cosmo_params == wrapper.CosmoParams()
+    assert ic.cosmo_params == p21c.CosmoParams()
 
 
 def test_modified_cosmo(ic):
     """Test using a modified cosmology"""
-    cosmo = wrapper.CosmoParams(SIGMA_8=0.9)
-    ic2 = wrapper.initial_conditions(
+    cosmo = p21c.CosmoParams(SIGMA_8=0.9)
+    ic2 = p21c.compute_initial_conditions(
         cosmo_params=cosmo,
         user_params=ic.user_params,
     )
@@ -50,11 +50,12 @@ def test_modified_cosmo(ic):
 
 def test_transfer_function(ic, default_user_params):
     """Test using a modified transfer function"""
-    user_params = default_user_params.clone(POWER_SPECTRUM=5)
-    ic2 = wrapper.initial_conditions(
+    user_params = default_user_params.clone(POWER_SPECTRUM="CLASS")
+    ic2 = p21c.compute_initial_conditions(
         random_seed=ic.random_seed,
         user_params=user_params,
     )
+    print(ic2.cosmo_params)
 
     rmsnew = np.sqrt(np.mean(ic2.hires_density**2))
     rmsdelta = np.sqrt(np.mean((ic2.hires_density - ic.hires_density) ** 2))
@@ -65,13 +66,13 @@ def test_transfer_function(ic, default_user_params):
 
 def test_relvels():
     """Test for relative velocity initial conditions"""
-    ic = wrapper.initial_conditions(
+    ic = p21c.compute_initial_conditions(
         random_seed=1,
-        user_params=wrapper.UserParams(
+        user_params=p21c.UserParams(
             HII_DIM=100,
             DIM=300,
             BOX_LEN=300,
-            POWER_SPECTRUM=5,
+            POWER_SPECTRUM="CLASS",
             USE_RELATIVE_VELOCITIES=True,
             N_THREADS=cpu_count(),  # To make this one a bit faster.
         ),

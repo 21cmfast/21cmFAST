@@ -95,10 +95,10 @@ def get_binned_stats(x_arr, y_arr, bins, stats):
 def test_filters(filter_flag, R, plt):
     opts = prd.get_all_options(redshift=10.0)
 
-    up = UserParams(opts["user_params"])
-    cp = CosmoParams(opts["cosmo_params"])
-    ap = AstroParams(opts["astro_params"])
-    fo = FlagOptions(opts["flag_options"])
+    up = opts["user_params"]
+    cp = opts["cosmo_params"]
+    ap = opts["astro_params"]
+    fo = opts["flag_options"]
 
     # testing a single pixel source
     input_box_centre = np.zeros((up.HII_DIM,) * 3, dtype="f4")
@@ -113,10 +113,10 @@ def test_filters(filter_flag, R, plt):
         R_param = 0
 
     lib.test_filter(
-        up(),
-        cp(),
-        ap(),
-        fo(),
+        up.cstruct,
+        cp.cstruct,
+        ap.cstruct,
+        fo.cstruct,
         ffi.cast("float *", input_box_centre.ctypes.data),
         R,
         R_param,

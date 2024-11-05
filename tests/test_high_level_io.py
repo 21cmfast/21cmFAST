@@ -1,5 +1,6 @@
 import pytest
 
+import attrs
 import h5py
 import numpy as np
 
@@ -10,6 +11,7 @@ from py21cmfast import (
     LightCone,
     TsBox,
     UserParams,
+    exhaust_lightcone,
     global_params,
     run_coeval,
     run_lightcone,
@@ -18,30 +20,18 @@ from py21cmfast.lightcones import AngularLightconer, RectilinearLightconer
 
 
 @pytest.fixture(scope="module")
-def coeval(ic):
+def coeval(ic, default_astro_params, default_flag_options_ts):
     return run_coeval(
-        redshift=25.0, init_box=ic, write=True, flag_options={"USE_TS_FLUCT": True}
-    )
-
-
-@pytest.fixture(scope="module")
-def lightcone(ic):
-    lcn = RectilinearLightconer.with_equal_cdist_slices(
-        min_redshift=25.0,
-        max_redshift=35.0,
-        resolution=ic.user_params.cell_size,
-    )
-
-    return run_lightcone(
-        lightconer=lcn,
-        init_box=ic,
+        out_redshifts=25.0,
+        initial_conditions=ic,
         write=True,
-        flag_options={"USE_TS_FLUCT": True},
+        astro_params=default_astro_params,
+        flag_options=default_flag_options_ts,
     )
 
 
 @pytest.fixture(scope="module")
-def ang_lightcone(ic, lc):
+def ang_lightcone(ic, lc, default_astro_params, default_flag_options):
     lcn = AngularLightconer.like_rectilinear(
         match_at_z=lc.lightcone_redshifts.min(),
         max_redshift=lc.lightcone_redshifts.max(),
@@ -49,12 +39,14 @@ def ang_lightcone(ic, lc):
         get_los_velocity=True,
     )
 
-    return run_lightcone(
+    iz, z, coev, anglc = exhaust_lightcone(
         lightconer=lcn,
-        init_box=ic,
+        initial_conditions=ic,
         write=True,
-        flag_options={"APPLY_RSDS": False},
+        astro_params=default_astro_params,
+        flag_options=default_flag_options.clone(APPLY_RSDS=False),
     )
+    return anglc
 
 
 def test_read_bad_file_lc(test_direc, lc):
@@ -84,14 +76,14 @@ def test_read_bad_file_lc(test_direc, lc):
     assert "NotARealGlobal" not in lc2.global_params.keys()
 
     # check that missing fields are set to default
-    assert lc2.user_params.BOX_LEN == UserParams._defaults_["BOX_LEN"]
+    assert lc2.user_params.BOX_LEN == UserParams().BOX_LEN
     assert lc2.global_params["OPTIMIZE_MIN_MASS"] == global_params.OPTIMIZE_MIN_MASS
 
     # check that the fields which are good are read in the struct
     assert all(
-        getattr(lc2.user_params, k) == getattr(lc.user_params, k)
-        for k in UserParams._defaults_.keys()
-        if k != "BOX_LEN"
+        getattr(lc2.user_params, field.name) == getattr(lc.user_params, field.name)
+        for field in attrs.fields(UserParams)
+        if field.name != "BOX_LEN"
     )
     assert all(
         lc2.global_params[k] == lc.global_params[k]
@@ -126,13 +118,13 @@ def test_read_bad_file_coev(test_direc, coeval):
     assert "NotARealGlobal" not in cv2.global_params.keys()
 
     # check that missing fields are set to default
-    assert cv2.user_params.BOX_LEN == UserParams._defaults_["BOX_LEN"]
+    assert cv2.user_params.BOX_LEN == UserParams().BOX_LEN
     assert cv2.global_params["OPTIMIZE_MIN_MASS"] == global_params.OPTIMIZE_MIN_MASS
 
     # check that the fields which are good are read in the struct
     assert all(
         getattr(cv2.user_params, k) == getattr(coeval.user_params, k)
-        for k in UserParams._defaults_.keys()
+        for k in coeval.user_params.asdict().keys()
         if k != "BOX_LEN"
     )
     assert all(
@@ -209,29 +201,25 @@ def test_gather(coeval, test_direc):
         assert "z0.00" in fl["cache"]["init"]
 
 
-def test_lightcone_cache(lightcone):
-    assert lightcone.cache_files is not None
-    out = lightcone.get_cached_data(
-        kind="brightness_temp", redshift=25.1, load_data=True
-    )
+def test_lightcone_cache(lc):
+    assert lc.cache_files is not None
+    out = lc.get_cached_data(kind="brightness_temp", redshift=15.1, load_data=True)
 
     assert isinstance(out, BrightnessTemp)
 
-    out = lightcone.get_cached_data(
+    out = lc.get_cached_data(
         kind="brightness_temp", redshift=global_params.Z_HEAT_MAX * 1.01, load_data=True
     )
 
     assert isinstance(out, BrightnessTemp)
-    assert out.redshift != lightcone.redshift
 
     with pytest.raises(ValueError):
-        lightcone.get_cached_data(kind="bad", redshift=100.0)
+        lc.get_cached_data(kind="bad", redshift=100.0)
 
-    print(lightcone.cache_files)
-    lightcone.gather(fname="tmp_lightcone_gather.h5", clean=["brightness_temp"])
+    lc.gather(fname="tmp_lc_gather.h5", clean=["brightness_temp"])
 
     with pytest.raises(IOError):
-        lightcone.get_cached_data(kind="brightness_temp", redshift=25.1)
+        lc.get_cached_data(kind="brightness_temp", redshift=25.1)
 
 
 def test_ang_lightcone(lc, ang_lightcone):

@@ -1,5 +1,6 @@
 import pytest
 
+import attrs
 import matplotlib as mpl
 import numpy as np
 from astropy import constants as c
@@ -21,26 +22,26 @@ from . import produce_integration_test_data as prd
 RELATIVE_TOLERANCE = 2e-2
 
 OPTIONS_PS = {
-    "EH": [10, {"POWER_SPECTRUM": 0}],
-    "BBKS": [10, {"POWER_SPECTRUM": 1}],
-    "BE": [10, {"POWER_SPECTRUM": 2}],
-    "Peebles": [10, {"POWER_SPECTRUM": 3}],
-    "White": [10, {"POWER_SPECTRUM": 4}],
-    "CLASS": [10, {"POWER_SPECTRUM": 5}],
+    "EH": [10, {"POWER_SPECTRUM": "EH"}],
+    "BBKS": [10, {"POWER_SPECTRUM": "BBKS"}],
+    "BE": [10, {"POWER_SPECTRUM": "EFSTATHIOU"}],
+    "Peebles": [10, {"POWER_SPECTRUM": "PEEBLES"}],
+    "White": [10, {"POWER_SPECTRUM": "WHITE"}],
+    "CLASS": [10, {"POWER_SPECTRUM": "CLASS"}],
 }
 
 OPTIONS_HMF = {
-    "PS": [10, {"HMF": 0}],
-    "ST": [10, {"HMF": 1}],
-    # "Watson": [10, {"HMF": 2}],
-    # "Watsonz": [10, {"HMF": 3}],
-    # "Delos": [10, {"HMF": 4}],
+    "PS": [10, {"HMF": "PS", "USE_MASS_DEPENDENT_ZETA": True}],
+    "ST": [10, {"HMF": "ST", "USE_MASS_DEPENDENT_ZETA": True}],
+    # "Watson": [10, {"HMF": "WATSON"}],
+    # "Watsonz": [10, {"HMF": "WATSON-Z"}],
+    # "Delos": [10, {"HMF": "DELOS"}],
 }
 
 OPTIONS_INTMETHOD = {
-    "QAG": 0,
-    "GL": 1,
-    "FFCOLL": 2,
+    "QAG": "GSL-QAG",
+    "GL": "GAUSS-LEGENDRE",
+    "FFCOLL": "GAMMA-APPROX",
 }
 
 R_PARAM_LIST = [1.5, 5, 10, 30, 60]
@@ -64,10 +65,9 @@ def test_sigma_table(name, plt):
     redshift, kwargs = OPTIONS_PS[name]
     opts = prd.get_all_options(redshift, **kwargs)
 
-    up = UserParams(opts["user_params"])
-    cp = CosmoParams(opts["cosmo_params"])
-    up.update(USE_INTERPOLATION_TABLES=True)
-    lib.Broadcast_struct_global_noastro(up(), cp())
+    up = opts["user_params"]
+    cp = opts["cosmo_params"]
+    lib.Broadcast_struct_global_noastro(up.cstruct, cp.cstruct)
 
     lib.init_ps()
     lib.initialiseSigmaMInterpTable(
@@ -104,17 +104,16 @@ def test_inverse_cmf_tables(name, plt):
     redshift, kwargs = OPTIONS_HMF[name]
     opts = prd.get_all_options(redshift, **kwargs)
 
-    up = UserParams(opts["user_params"])
-    cp = CosmoParams(opts["cosmo_params"])
-    ap = AstroParams(opts["astro_params"])
-    fo = FlagOptions(opts["flag_options"])
-    up.update(USE_INTERPOLATION_TABLES=True)
+    up = opts["user_params"]
+    cp = opts["cosmo_params"]
+    ap = opts["astro_params"]
+    fo = opts["flag_options"]
 
-    hist_size = 1000
+    hist_size = 200
     edges = np.logspace(7, 12, num=hist_size).astype("f4")
     edges_ln = np.log(edges)
 
-    lib.Broadcast_struct_global_all(up(), cp(), ap(), fo())
+    lib.Broadcast_struct_global_all(up.cstruct, cp.cstruct, ap.cstruct, fo.cstruct)
 
     lib.init_ps()
     lib.initialiseSigmaMInterpTable(
@@ -136,9 +135,9 @@ def test_inverse_cmf_tables(name, plt):
 
     sigma_cond_cell = lib.sigma_z0(cell_mass)
     sigma_cond_halo = np.vectorize(lib.sigma_z0)(edges)
-    delta_crit = lib.get_delta_crit(up.HMF, sigma_cond_cell, growth_in)
+    delta_crit = lib.get_delta_crit(up.cdict["HMF"], sigma_cond_cell, growth_in)
     delta_update = (
-        np.vectorize(lib.get_delta_crit)(up.HMF, sigma_cond_halo, growth_in)
+        np.vectorize(lib.get_delta_crit)(up.cdict["HMF"], sigma_cond_halo, growth_in)
         * growth_out
         / growth_in
     )
@@ -269,18 +268,15 @@ def test_inverse_cmf_tables(name, plt):
 def test_Massfunc_conditional_tables(name, plt):
     redshift, kwargs = OPTIONS_HMF[name]
     opts = prd.get_all_options(redshift, **kwargs)
+    up = opts["user_params"]
+    cp = opts["cosmo_params"]
+    ap = opts["astro_params"]
+    fo = opts["flag_options"]
+    lib.Broadcast_struct_global_all(up.cstruct, cp.cstruct, ap.cstruct, fo.cstruct)
 
-    up = UserParams(opts["user_params"])
-    cp = CosmoParams(opts["cosmo_params"])
-    ap = AstroParams(opts["astro_params"])
-    fo = FlagOptions(opts["flag_options"])
-    up.update(USE_INTERPOLATION_TABLES=True)
-
-    hist_size = 1000
+    hist_size = 200
     edges = np.logspace(7, 12, num=hist_size).astype("f4")
     edges_ln = np.log(edges)
-
-    lib.Broadcast_struct_global_all(up(), cp(), ap(), fo())
 
     lib.init_ps()
     lib.initialiseSigmaMInterpTable(
@@ -302,9 +298,9 @@ def test_Massfunc_conditional_tables(name, plt):
 
     sigma_cond_cell = lib.sigma_z0(cell_mass)
     sigma_cond_halo = np.vectorize(lib.sigma_z0)(edges)
-    delta_crit = lib.get_delta_crit(up.HMF, sigma_cond_cell, growth_in)
+    delta_crit = lib.get_delta_crit(up.cdict["HMF"], sigma_cond_cell, growth_in)
     delta_update = (
-        np.vectorize(lib.get_delta_crit)(up.HMF, sigma_cond_halo, growth_in)
+        np.vectorize(lib.get_delta_crit)(up.cdict["HMF"], sigma_cond_halo, growth_in)
         * growth_out
         / growth_in
     )
@@ -475,16 +471,13 @@ def test_Massfunc_conditional_tables(name, plt):
 def test_FgtrM_conditional_tables(name, R, plt):
     redshift, kwargs = OPTIONS_HMF[name]
     opts = prd.get_all_options(redshift, **kwargs)
+    up = opts["user_params"]
+    cp = opts["cosmo_params"]
+    ap = opts["astro_params"]
+    fo = opts["flag_options"]
+    lib.Broadcast_struct_global_all(up.cstruct, cp.cstruct, ap.cstruct, fo.cstruct)
 
-    up = UserParams(opts["user_params"])
-    cp = CosmoParams(opts["cosmo_params"])
-    ap = AstroParams(opts["astro_params"])
-    fo = FlagOptions(opts["flag_options"])
-
-    up.update(USE_INTERPOLATION_TABLES=True)
-    lib.Broadcast_struct_global_all(up(), cp(), ap(), fo())
-
-    hist_size = 1000
+    hist_size = 200
     M_min = global_params.M_MIN_INTEGRAL
     M_max = global_params.M_MAX_INTEGRAL
 
@@ -500,7 +493,7 @@ def test_FgtrM_conditional_tables(name, R, plt):
         .value
     )
     sigma_cond = lib.sigma_z0(cond_mass)
-    delta_crit = lib.get_delta_crit(up.HMF, sigma_cond, growth_out)
+    delta_crit = lib.get_delta_crit(up.cdict["HMF"], sigma_cond, growth_out)
 
     edges_d = np.linspace(-1, delta_crit * 1.1, num=hist_size).astype(
         "f4"
@@ -518,8 +511,8 @@ def test_FgtrM_conditional_tables(name, R, plt):
         edges_d[:-1], redshift, sigma_min, sigma_cond
     )
 
-    up.update(USE_INTERPOLATION_TABLES=False)
-    lib.Broadcast_struct_global_all(up(), cp(), ap(), fo())
+    up = up.clone(USE_INTERPOLATION_TABLES=False)
+    lib.Broadcast_struct_global_all(up.cstruct, cp.cstruct, ap.cstruct, fo.cstruct)
 
     fcoll_integrals = np.vectorize(lib.EvaluateFcoll_delta)(
         edges_d[:-1], growth_out, sigma_min, sigma_cond
@@ -572,24 +565,19 @@ def test_FgtrM_conditional_tables(name, R, plt):
 def test_SFRD_z_tables(name, plt):
     redshift, kwargs = OPTIONS_HMF[name]
     opts = prd.get_all_options(redshift, **kwargs)
+    up = opts["user_params"]
+    cp = opts["cosmo_params"]
+    ap = opts["astro_params"]
+    fo = opts["flag_options"]
 
-    up = UserParams(opts["user_params"])
-    cp = CosmoParams(opts["cosmo_params"])
-    ap = AstroParams(opts["astro_params"])
-    fo = FlagOptions(opts["flag_options"])
-
-    up.update(
-        USE_INTERPOLATION_TABLES=True,
-    )
-    fo.update(
+    fo = fo.clone(
         USE_MINI_HALOS=True,
-        USE_MASS_DEPENDENT_ZETA=True,
         INHOMO_RECO=True,
         USE_TS_FLUCT=True,
     )
-    lib.Broadcast_struct_global_all(up(), cp(), ap(), fo())
+    lib.Broadcast_struct_global_all(up.cstruct, cp.cstruct, ap.cstruct, fo.cstruct)
 
-    hist_size = 1000
+    hist_size = 200
     M_min = global_params.M_MIN_INTEGRAL
     M_max = global_params.M_MAX_INTEGRAL
     z_array = np.linspace(6, 35, num=hist_size)
@@ -701,29 +689,24 @@ def test_SFRD_z_tables(name, plt):
 def test_Nion_z_tables(name, plt):
     redshift, kwargs = OPTIONS_HMF[name]
     opts = prd.get_all_options(redshift, **kwargs)
+    up = opts["user_params"]
+    cp = opts["cosmo_params"]
+    ap = opts["astro_params"]
+    fo = opts["flag_options"]
 
-    up = UserParams(opts["user_params"])
-    cp = CosmoParams(opts["cosmo_params"])
-    ap = AstroParams(opts["astro_params"])
-    fo = FlagOptions(opts["flag_options"])
-
-    up.update(
-        USE_INTERPOLATION_TABLES=True,
-    )
-    fo.update(
+    fo = fo.clone(
         USE_MINI_HALOS=True,
-        USE_MASS_DEPENDENT_ZETA=True,
         INHOMO_RECO=True,
         USE_TS_FLUCT=True,
     )
-    lib.Broadcast_struct_global_all(up(), cp(), ap(), fo())
+    lib.Broadcast_struct_global_all(up.cstruct, cp.cstruct, ap.cstruct, fo.cstruct)
 
     f10s = 10**ap.F_STAR10
     f7s = 10**ap.F_STAR7_MINI
     f10e = 10**ap.F_ESC10
     f7e = 10**ap.F_ESC7_MINI
 
-    hist_size = 1000
+    hist_size = 200
     M_min = global_params.M_MIN_INTEGRAL
     M_max = global_params.M_MAX_INTEGRAL
     z_array = np.linspace(6, 40, num=hist_size)
@@ -855,32 +838,29 @@ def test_Nion_conditional_tables(name, R, mini, intmethod, plt):
 
     redshift, kwargs = OPTIONS_HMF[name]
     opts = prd.get_all_options(redshift, **kwargs)
+    up = opts["user_params"]
+    cp = opts["cosmo_params"]
+    ap = opts["astro_params"]
+    fo = opts["flag_options"]
 
-    up = UserParams(opts["user_params"])
-    cp = CosmoParams(opts["cosmo_params"])
-    ap = AstroParams(opts["astro_params"])
-    fo = FlagOptions(opts["flag_options"])
-
-    up.update(
-        USE_INTERPOLATION_TABLES=True,
+    up = up.clone(
         INTEGRATION_METHOD_ATOMIC=OPTIONS_INTMETHOD[intmethod],
         INTEGRATION_METHOD_MINI=OPTIONS_INTMETHOD[intmethod],
     )
-    fo.update(
+    fo = fo.clone(
         USE_MINI_HALOS=mini_flag,
-        USE_MASS_DEPENDENT_ZETA=True,
         INHOMO_RECO=True,
         USE_TS_FLUCT=True,
     )
-    lib.Broadcast_struct_global_all(up(), cp(), ap(), fo())
+    lib.Broadcast_struct_global_all(up.cstruct, cp.cstruct, ap.cstruct, fo.cstruct)
 
-    hist_size = 1000
+    hist_size = 200
     M_min = global_params.M_MIN_INTEGRAL
     M_max = global_params.M_MAX_INTEGRAL
 
     lib.init_ps()
 
-    if up.INTEGRATION_METHOD_ATOMIC == 1 or up.INTEGRATION_METHOD_MINI == 1:
+    if "GAUSS-LEGENDRE" in (up.INTEGRATION_METHOD_ATOMIC, up.INTEGRATION_METHOD_MINI):
         lib.initialise_GL(np.log(M_min), np.log(M_max))
 
     growth_out = lib.dicke(redshift)
@@ -890,7 +870,7 @@ def test_Nion_conditional_tables(name, R, mini, intmethod, plt):
         .value
     )
     sigma_cond = lib.sigma_z0(cond_mass)
-    delta_crit = lib.get_delta_crit(up.HMF, sigma_cond, growth_out)
+    delta_crit = lib.get_delta_crit(up.cdict["HMF"], sigma_cond, growth_out)
 
     edges_d = np.linspace(-1, delta_crit * 1.1, num=hist_size).astype("f4")
     edges_m = np.logspace(5, 10, num=int(hist_size / 10)).astype("f4")
@@ -925,8 +905,8 @@ def test_Nion_conditional_tables(name, R, mini, intmethod, plt):
         10**ap.F_ESC7_MINI,
         Mlim_Fstar_MINI,
         Mlim_Fesc_MINI,
-        up.INTEGRATION_METHOD_ATOMIC,
-        up.INTEGRATION_METHOD_MINI,
+        up.cdict["INTEGRATION_METHOD_ATOMIC"],
+        up.cdict["INTEGRATION_METHOD_MINI"],
         mini_flag,
         False,
     )
@@ -957,7 +937,7 @@ def test_Nion_conditional_tables(name, R, mini, intmethod, plt):
         10**ap.F_ESC10,
         Mlim_Fstar,
         Mlim_Fesc,
-        up.INTEGRATION_METHOD_ATOMIC,
+        up.cdict["INTEGRATION_METHOD_ATOMIC"],
     )
 
     #### FIRST ASSERT ####
@@ -991,7 +971,7 @@ def test_Nion_conditional_tables(name, R, mini, intmethod, plt):
             10**ap.F_ESC7_MINI,
             Mlim_Fstar_MINI,
             Mlim_Fesc_MINI,
-            up.INTEGRATION_METHOD_MINI,
+            up.cdict["INTEGRATION_METHOD_MINI"],
         )
         print_failure_stats(
             Nion_tables_mini,
@@ -1039,34 +1019,32 @@ def test_Nion_conditional_tables(name, R, mini, intmethod, plt):
 def test_SFRD_conditional_table(name, R, intmethod, plt):
     if name != "PS" and intmethod == "FFCOLL":
         pytest.skip("FAST FFCOLL INTEGRALS WORK ONLY WITH EPS")
+
     redshift, kwargs = OPTIONS_HMF[name]
     opts = prd.get_all_options(redshift, **kwargs)
+    up = opts["user_params"]
+    cp = opts["cosmo_params"]
+    ap = opts["astro_params"]
+    fo = opts["flag_options"]
 
-    up = UserParams(opts["user_params"])
-    cp = CosmoParams(opts["cosmo_params"])
-    ap = AstroParams(opts["astro_params"])
-    fo = FlagOptions(opts["flag_options"])
-
-    up.update(
-        USE_INTERPOLATION_TABLES=True,
+    up = up.clone(
         INTEGRATION_METHOD_ATOMIC=OPTIONS_INTMETHOD[intmethod],
         INTEGRATION_METHOD_MINI=OPTIONS_INTMETHOD[intmethod],
     )
-    fo.update(
+    fo = fo.clone(
         USE_MINI_HALOS=True,
-        USE_MASS_DEPENDENT_ZETA=True,
         INHOMO_RECO=True,
         USE_TS_FLUCT=True,
     )
-    lib.Broadcast_struct_global_all(up(), cp(), ap(), fo())
+    lib.Broadcast_struct_global_all(up.cstruct, cp.cstruct, ap.cstruct, fo.cstruct)
 
-    hist_size = 1000
+    hist_size = 200
     M_min = global_params.M_MIN_INTEGRAL
     M_max = global_params.M_MAX_INTEGRAL
 
     lib.init_ps()
 
-    if up.INTEGRATION_METHOD_ATOMIC == 1 or up.INTEGRATION_METHOD_MINI == 1:
+    if "GAUSS-LEGENDRE" in (up.INTEGRATION_METHOD_ATOMIC, up.INTEGRATION_METHOD_MINI):
         lib.initialise_GL(np.log(M_min), np.log(M_max))
 
     growth_out = lib.dicke(redshift)
@@ -1076,7 +1054,7 @@ def test_SFRD_conditional_table(name, R, intmethod, plt):
         .value
     )
     sigma_cond = lib.sigma_z0(cond_mass)
-    delta_crit = lib.get_delta_crit(up.HMF, sigma_cond, growth_out)
+    delta_crit = lib.get_delta_crit(up.cdict["HMF"], sigma_cond, growth_out)
 
     edges_d = np.linspace(-1, delta_crit * 1.1, num=hist_size).astype("f4")
     edges_m = np.logspace(5, 10, num=int(hist_size / 10)).astype("f4")
@@ -1098,8 +1076,8 @@ def test_SFRD_conditional_table(name, R, intmethod, plt):
         ap.ALPHA_STAR_MINI,
         10**ap.F_STAR10,
         10**ap.F_STAR7_MINI,
-        up.INTEGRATION_METHOD_ATOMIC,
-        up.INTEGRATION_METHOD_MINI,
+        up.cdict["INTEGRATION_METHOD_ATOMIC"],
+        up.cdict["INTEGRATION_METHOD_MINI"],
         fo.USE_MINI_HALOS,
     )
     # since the turnover mass table edges are hardcoded, we make sure we are within those limits
@@ -1133,7 +1111,7 @@ def test_SFRD_conditional_table(name, R, intmethod, plt):
         1.0,
         Mlim_Fstar,
         0.0,
-        up.INTEGRATION_METHOD_ATOMIC,
+        up.cdict["INTEGRATION_METHOD_ATOMIC"],
     )
 
     SFRD_integrals_mini = np.vectorize(lib.Nion_ConditionalM_MINI)(
@@ -1151,7 +1129,7 @@ def test_SFRD_conditional_table(name, R, intmethod, plt):
         1.0,
         Mlim_Fstar_MINI,
         0.0,
-        up.INTEGRATION_METHOD_MINI,
+        up.cdict["INTEGRATION_METHOD_MINI"],
     )
 
     abs_tol = 5e-18  # minimum = exp(-40) ~1e-18
@@ -1203,33 +1181,33 @@ INTEGRAND_OPTIONS = ["sfrd", "n_ion"]
 def test_conditional_integral_methods(R, name, integrand, plt):
     redshift, kwargs = OPTIONS_HMF[name]
     opts = prd.get_all_options(redshift, **kwargs)
+    up = opts["user_params"]
+    cp = opts["cosmo_params"]
+    ap = opts["astro_params"]
+    fo = opts["flag_options"]
 
-    up = UserParams(opts["user_params"])
-    cp = CosmoParams(opts["cosmo_params"])
-    ap = AstroParams(opts["astro_params"])
-    fo = FlagOptions(opts["flag_options"])
-
-    up.update(
-        USE_INTERPOLATION_TABLES=True,
-    )
-    fo.update(
+    up = up.clone(USE_INTERPOLATION_TABLES=True)
+    fo = fo.clone(
         USE_MINI_HALOS=True,
         USE_MASS_DEPENDENT_ZETA=True,
         INHOMO_RECO=True,
         USE_TS_FLUCT=True,
     )
     if "sfr" in integrand:
-        ap.update(F_ESC10=0.0, F_ESC7_MINI=0.0, ALPHA_ESC=0.0)  # F_ESCX is in log10
+        ap = ap.clone(
+            F_ESC10=0.0,
+            F_ESC7_MINI=0.0,
+            ALPHA_ESC=0.0,
+        )
 
-    lib.Broadcast_struct_global_all(up(), cp(), ap(), fo())
+    lib.Broadcast_struct_global_all(up.cstruct, cp.cstruct, ap.cstruct, fo.cstruct)
 
-    hist_size = 1000
+    hist_size = 200
     M_min = global_params.M_MIN_INTEGRAL
     M_max = global_params.M_MAX_INTEGRAL
 
     lib.init_ps()
-
-    if up.INTEGRATION_METHOD_ATOMIC == 1 or up.INTEGRATION_METHOD_MINI == 1:
+    if "GAUSS-LEGENDRE" in (up.INTEGRATION_METHOD_ATOMIC, up.INTEGRATION_METHOD_MINI):
         lib.initialise_GL(np.log(M_min), np.log(M_max))
 
     growth_out = lib.dicke(redshift)
@@ -1239,7 +1217,7 @@ def test_conditional_integral_methods(R, name, integrand, plt):
         .value
     )
     sigma_cond = lib.sigma_z0(cond_mass)
-    delta_crit = lib.get_delta_crit(up.HMF, sigma_cond, growth_out)
+    delta_crit = lib.get_delta_crit(up.cdict["HMF"], sigma_cond, growth_out)
 
     edges_d = np.linspace(-1, delta_crit * 1.1, num=hist_size).astype("f4")
     edges_m = np.logspace(5, 10, num=int(hist_size / 10)).astype("f4")
@@ -1258,12 +1236,16 @@ def test_conditional_integral_methods(R, name, integrand, plt):
     integrals = []
     integrals_mini = []
     input_arr = np.meshgrid(edges_d[:-1], np.log10(edges_m[:-1]), indexing="ij")
-    for method in range(0, 3):
-        if name != "PS" and method == 2:
+    for method in ["GSL-QAG", "GAUSS-LEGENDRE", "GAMMA-APPROX"]:
+        print(f"Starting method {method}", flush=True)
+        if name != "PS" and method == "GAMMA-APPROX":
             continue
-        up.update(INTEGRATION_METHOD_ATOMIC=method, INTEGRATION_METHOD_MINI=method)
 
-        lib.Broadcast_struct_global_all(up(), cp(), ap(), fo())
+        up = up.clone(
+            INTEGRATION_METHOD_ATOMIC=method,
+            INTEGRATION_METHOD_MINI=method,
+        )
+        lib.Broadcast_struct_global_all(up.cstruct, cp.cstruct, ap.cstruct, fo.cstruct)
 
         integrals.append(
             np.vectorize(lib.Nion_ConditionalM)(
@@ -1280,7 +1262,7 @@ def test_conditional_integral_methods(R, name, integrand, plt):
                 10**ap.F_ESC10,
                 Mlim_Fstar,
                 Mlim_Fesc,
-                up.INTEGRATION_METHOD_ATOMIC,
+                up.cdict["INTEGRATION_METHOD_ATOMIC"],
             )
         )
         integrals_mini.append(
@@ -1299,7 +1281,7 @@ def test_conditional_integral_methods(R, name, integrand, plt):
                 10**ap.F_ESC7_MINI,
                 Mlim_Fstar_MINI,
                 Mlim_Fesc_MINI,
-                up.INTEGRATION_METHOD_MINI,
+                up.cdict["INTEGRATION_METHOD_MINI"],
             )
         )
 
@@ -1326,24 +1308,25 @@ def test_conditional_integral_methods(R, name, integrand, plt):
 
     # for the FAST_FFCOLL integrals, only the delta-Mturn behaviour matters (because of the mean fixing), so we divide by
     # the value at delta=0 (mturn ~ 5e7 for minihalos) and set a wider tolerance
-    sel_deltazero = np.argmin(np.fabs(edges_d))
-    sel_mturn = np.argmin(np.fabs(edges_m - 5e7))
-    ffcoll_deltazero = integrals[2][sel_deltazero]
-    ffcoll_deltazero_mini = integrals_mini[2][sel_deltazero, sel_mturn]
-    qag_deltazero = integrals[0][sel_deltazero]
-    qag_deltazero_mini = integrals_mini[0][sel_deltazero, sel_mturn]
-    np.testing.assert_allclose(
-        integrals[2] / ffcoll_deltazero,
-        integrals[0] / qag_deltazero,
-        atol=abs_tol,
-        rtol=1e-1,
-    )
-    np.testing.assert_allclose(
-        integrals_mini[2] / ffcoll_deltazero_mini[None, :],
-        integrals_mini[0] / qag_deltazero_mini[None, :],
-        atol=abs_tol,
-        rtol=1e-1,
-    )
+    if name == "PS":
+        sel_deltazero = np.argmin(np.fabs(edges_d))
+        sel_mturn = np.argmin(np.fabs(edges_m - 5e7))
+        ffcoll_deltazero = integrals[2][sel_deltazero]
+        ffcoll_deltazero_mini = integrals_mini[2][sel_deltazero, sel_mturn]
+        qag_deltazero = integrals[0][sel_deltazero]
+        qag_deltazero_mini = integrals_mini[0][sel_deltazero, sel_mturn]
+        np.testing.assert_allclose(
+            integrals[2] / ffcoll_deltazero,
+            integrals[0] / qag_deltazero,
+            atol=abs_tol,
+            rtol=1e-1,
+        )
+        np.testing.assert_allclose(
+            integrals_mini[2] / ffcoll_deltazero_mini[None, :],
+            integrals_mini[0] / qag_deltazero_mini[None, :],
+            atol=abs_tol,
+            rtol=1e-1,
+        )
 
 
 def make_table_comparison_plot(

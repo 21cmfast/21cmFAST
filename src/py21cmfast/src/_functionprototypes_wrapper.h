@@ -166,5 +166,5 @@ double sigma_z0(double M);
 double dsigmasqdm_z0(double M);
 double get_delta_crit(int HMF, double sigma, double growthf);
 double atomic_cooling_threshold(float z);
-double expected_nhalo(double redshift,  UserParams *user_params,  CosmoParams *cosmo_params,  AstroParams *astro_params,  FlagOptions * flag_options);
+double expected_nhalo(double redshift,  UserParams *user_params,  CosmoParams *cosmo_params);
 /*-----------------------*/
