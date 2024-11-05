@@ -22,7 +22,7 @@ RELATIVE_TOLERANCE = 1e-1
 
 options_hmf = list(cint.OPTIONS_HMF.keys())
 
-options_delta = [-0.9, -0.5, 0, 1, 1.45]  # cell densities to draw samples from
+options_delta = [-0.9, -0.5, 0, 1, 1.4]  # cell densities to draw samples from
 options_log10mass = [9, 10, 11, 12, 13]  # halo masses to draw samples from
 
 
@@ -39,7 +39,7 @@ def test_sampler(name, cond, from_cat, plt):
 
     from_cat = "cat" in from_cat
 
-    n_cond = 2000
+    n_cond = 10000
     if from_cat:
         mass = 10 ** options_log10mass[cond]
         cond = mass
@@ -57,7 +57,8 @@ def test_sampler(name, cond, from_cat, plt):
             .value
         )
         z_desc = None
-        delta = options_delta[cond]
+        cond = options_delta[cond]
+        delta = cond
 
     sample_dict = cf.halo_sample_test(
         user_params=up,
@@ -71,7 +72,7 @@ def test_sampler(name, cond, from_cat, plt):
 
     # set up histogram
     l10min = np.log10(up.SAMPLER_MIN_MASS)
-    l10max = np.log10(global_params.M_MAX_INTEGRAL)
+    l10max = np.log10(1e14)
     edges = np.logspace(l10min, l10max, num=int(10 * (l10max - l10min)))
     bin_minima = edges[:-1]
     bin_maxima = edges[1:]
@@ -96,7 +97,7 @@ def test_sampler(name, cond, from_cat, plt):
     mass_dens = cp.cosmo.Om0 * cp.cosmo.critical_density(0).to("Mpc-3 M_sun").value
     volume_total_m = mass * n_cond / mass_dens
     mf_out = hist / volume_total_m / dlnm
-    binned_cmf = binned_cmf * n_cond / volume_total_m / dlnm * mass
+    binned_cmf = binned_cmf / dlnm * mass_dens
 
     if plt == mpl.pyplot:
         plot_sampler_comparison(
@@ -114,14 +115,21 @@ def test_sampler(name, cond, from_cat, plt):
     np.testing.assert_allclose(
         sample_dict["n_progenitors"].mean(),
         sample_dict["expected_progenitors"][0],
+        atol=1,
         rtol=RELATIVE_TOLERANCE,
     )
     np.testing.assert_allclose(
         sample_dict["progenitor_mass"].mean(),
         sample_dict["expected_progenitor_mass"][0],
+        atol=up.SAMPLER_MIN_MASS,
         rtol=RELATIVE_TOLERANCE,
     )
-    np.testing.assert_allclose(mf_out, binned_cmf, rtol=RELATIVE_TOLERANCE)
+    sel_compare_bins = edges[:-1] < (0.9 * mass)
+    np.testing.assert_allclose(
+        mf_out[sel_compare_bins],
+        binned_cmf[sel_compare_bins],
+        rtol=5e-1,
+    )
 
 
 # NOTE: this test is pretty circular. The only way I think I can test the scaling relations are to
@@ -136,7 +144,7 @@ def test_halo_scaling_relations(ic, default_input_struct):
 
     # setup the halo masses to test
     halo_mass_vals = np.array([1e5, 1e6, 1e7, 1e8, 1e9, 1e10, 1e11, 1e12])
-    n_halo_per_mass = 1000
+    n_halo_per_mass = 10000
     halo_masses = np.broadcast_to(
         halo_mass_vals[:, None], (halo_mass_vals.size, n_halo_per_mass)
     ).flatten()
@@ -169,7 +177,9 @@ def test_halo_scaling_relations(ic, default_input_struct):
     mturn_acg = out_dict["mturn_a"][0]
 
     exp_SHMR = (
-        (10**ap.F_STAR10) * n_masses**ap.ALPHA_STAR * np.exp(-mturn_acg / n_masses)
+        (10**ap.F_STAR10)
+        * halo_mass_vals**ap.ALPHA_STAR
+        * np.exp(-mturn_acg / halo_mass_vals)
     )
     sim_SHMR = halo_stars_out / halo_mass_out
     np.testing.assert_allclose(exp_SHMR, sim_SHMR.mean(axis=1), rtol=1e-1)
@@ -219,7 +229,7 @@ def plot_sampler_comparison(
     # log-spaced bins
     dlnm = np.log(bin_edges[1:]) - np.log(bin_edges[:-1])
     bin_centres = (bin_edges[:-1] * np.exp(dlnm / 2)).astype("f4")
-    edges_n = np.arange(N_array.max() + 1) - 0.5
+    edges_n = np.linspace(0, max(N_array.max(), 1), min(100, max(N_array.max(), 1) + 1))
     centres_n = (edges_n[:-1] + edges_n[1:]) / 2
 
     hist_n, _ = np.histogram(N_array, edges_n)

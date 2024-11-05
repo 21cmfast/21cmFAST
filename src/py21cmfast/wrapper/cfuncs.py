@@ -370,6 +370,13 @@ def construct_fftw_wisdoms(
 #  They are mostly used for testing but may be useful in some post-processing applications
 
 
+def get_delta_crit(user_params, cosmo_params, mass, redshift):
+    """Gets the critical collapse density given a mass, redshift and parameters."""
+    sigma, _ = evaluate_sigma(user_params, cosmo_params, mass)
+    growth = lib.dicke(redshift)
+    return np.vectorize(lib.get_delta_crit)(user_params.cdict["HMF"], sigma, growth)
+
+
 def evaluate_sigma(
     user_params: UserParams,
     cosmo_params: CosmoParams,
@@ -384,7 +391,9 @@ def evaluate_sigma(
 
     lib.init_ps()
     if user_params.USE_INTERPOLATION_TABLES:
-        lib.initialiseSigmaMInterpTable(masses.min(), masses.max())
+        lib.initialiseSigmaMInterpTable(
+            global_params.M_MIN_INTEGRAL, global_params.M_MAX_INTEGRAL
+        )
 
     sigma = np.vectorize(lib.EvaluateSigma)(np.log(masses))
     dsigmasq = np.vectorize(lib.EvaluatedSigmasqdm)(np.log(masses))
@@ -1182,7 +1191,7 @@ def halo_sample_test(
     # HALO MASS CONDITIONS WITH FIXED z-step
     cond_array = cond_array.astype("f4")
 
-    z_prev = 0.0
+    z_prev = -1
     if from_cat:
         z_prev = (1 + redshift) / global_params.ZPRIME_STEP_FACTOR - 1
 
