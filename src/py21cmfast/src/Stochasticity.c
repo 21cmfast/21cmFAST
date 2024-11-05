@@ -1072,6 +1072,7 @@ int single_test_sample(UserParams *user_params, CosmoParams *cosmo_params, Astro
         }
 
         out_n_tot[0] = n_halo_tot;
+        LOG_DEBUG("Found %d halos", n_halo_tot);
 
         //get expected values from the saved mass range
         if(hs_constants->from_catalog){

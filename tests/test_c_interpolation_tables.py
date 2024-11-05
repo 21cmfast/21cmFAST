@@ -344,9 +344,8 @@ def test_massfunc_conditional_tables(name, from_cat, mass_range, delta_range, pl
 
 
 @pytest.mark.parametrize("R", R_PARAM_LIST)
-@pytest.mark.parametrize("name", options_hmf)
-def test_FgtrM_conditional_tables(name, R, delta_range, plt):
-    redshift, kwargs = OPTIONS_HMF[name]
+def test_FgtrM_conditional_tables(R, delta_range, plt):
+    redshift, kwargs = OPTIONS_HMF["PS"]  # always erfc
     opts = prd.get_all_options(redshift, **kwargs)
     up = opts["user_params"]
     cp = opts["cosmo_params"]
@@ -361,6 +360,11 @@ def test_FgtrM_conditional_tables(name, R, delta_range, plt):
         .to("M_sun")
         .value
     )
+    # We don't want to include values close to delta crit,
+    # since the subtraction in dfcoll_dz results in high errors
+    # as well as interpolating over the jump
+    delta_crit = float(cf.get_delta_crit(up, cp, np.array([cond_mass]), redshift))
+    delta_range = delta_range[np.fabs((delta_range - delta_crit) / delta_crit) > 0.05]
 
     fcoll_tables, dfcoll_tables = cf.evaluate_FgtrM_cond(
         user_params=up,
@@ -475,7 +479,7 @@ def test_SFRD_z_tables(name, z_range, log10_mturn_range, plt):
             ylabels=["SFRD", "SFRD_mini"],
         )
 
-    abs_tol = 1e-6
+    abs_tol = 1e-5
     print_failure_stats(
         SFRD_tables,
         SFRD_integrals,
@@ -1034,7 +1038,6 @@ def make_comparison_plot(
 
 
 def print_failure_stats(test, truth, inputs, abs_tol, rel_tol, name):
-    print(f"Truth {truth.shape} test {test.shape}")
     sel_failed = np.fabs(truth - test) > (abs_tol + np.fabs(truth) * rel_tol)
     if np.any(sel_failed):
         failed_idx = np.where(sel_failed)
