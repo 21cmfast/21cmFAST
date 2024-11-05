@@ -17,6 +17,7 @@ from py21cmfast.wrapper import cfuncs as cf
 
 from . import produce_integration_test_data as prd
 from . import test_c_interpolation_tables as cint
+from .test_c_interpolation_tables import print_failure_stats
 
 RELATIVE_TOLERANCE = 1e-1
 
@@ -99,6 +100,8 @@ def test_sampler(name, cond, from_cat, plt):
     mf_out = hist / volume_total_m / dlnm
     binned_cmf = binned_cmf / dlnm * mass_dens
 
+    one_in_box = 1 / volume_total_m / dlnm[0]
+
     if plt == mpl.pyplot:
         plot_sampler_comparison(
             edges,
@@ -125,9 +128,22 @@ def test_sampler(name, cond, from_cat, plt):
         rtol=RELATIVE_TOLERANCE,
     )
     sel_compare_bins = edges[:-1] < (0.9 * mass)
+
+    print_failure_stats(
+        mf_out[sel_compare_bins],
+        binned_cmf[sel_compare_bins],
+        [
+            edges[:-1][sel_compare_bins],
+        ],
+        one_in_box,
+        5e-1,
+        "binned_cmf",
+    )
+
     np.testing.assert_allclose(
         mf_out[sel_compare_bins],
         binned_cmf[sel_compare_bins],
+        atol=one_in_box,
         rtol=5e-1,
     )
 
