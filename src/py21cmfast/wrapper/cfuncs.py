@@ -603,7 +603,6 @@ def evaluate_inv_massfunc_cond(
         )
         * cond_mass
     )
-
     return masses
 
 
@@ -927,7 +926,8 @@ def evaluate_SFRD_cond(
     )
 
     growthf = lib.dicke(redshift)
-    SFRD_mcg = 0.0
+    if not flag_options.USE_MINI_HALOS:
+        SFRD_mcg = np.zeros((densities.size, l10mturns.size))
     # Unfortunately we have to do this until we sort out the USE_INTERPOLATION_TABLES flag
     # Since these integrals take forever if the flag is false
     if return_integral:
@@ -1072,8 +1072,9 @@ def evaluate_Nion_cond(
         else 0.0
     )
 
+    if not flag_options.USE_MINI_HALOS:
+        Nion_mcg = np.zeros((densities.size, l10mturns.size))
     growthf = lib.dicke(redshift)
-    Nion_mcg = 0.0
     # Unfortunately we have to do this until we sort out the USE_INTERPOLATION_TABLES flag
     # Since these integrals take forever if the flag is false
     if return_integral:
