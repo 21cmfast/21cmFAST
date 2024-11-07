@@ -689,11 +689,6 @@ def run_coeval(
 
     perturbed_field = perturb_
 
-    # Now we can purge initial_conditions further.
-    with contextlib.suppress(OSError):
-        initial_conditions.prepare_for_halos(
-            flag_options=flag_options, force=always_purge
-        )
     # get the halos (reverse redshift order)
     pt_halos = []
     if flag_options.USE_HALO_FIELD and not flag_options.FIXED_HALO_GRIDS:

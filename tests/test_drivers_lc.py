@@ -171,10 +171,16 @@ def test_run_lc_bad_inputs(ic):
         )
 
 
-def test_lc_with_lightcone_filename(ic, rectlcn, perturbed_field, tmpdirec):
+def test_lc_with_lightcone_filename(
+    ic, rectlcn, default_astro_params, default_flag_options, tmpdirec
+):
     fname = tmpdirec / "lightcone.h5"
     _, _, _, lc = p21c.exhaust_lightcone(
-        lightconer=rectlcn, initial_conditions=ic, lightcone_filename=fname
+        lightconer=rectlcn,
+        initial_conditions=ic,
+        astro_params=default_astro_params,
+        flag_options=default_flag_options,
+        lightcone_filename=fname,
     )
     assert fname.exists()
 
@@ -186,6 +192,8 @@ def test_lc_with_lightcone_filename(ic, rectlcn, perturbed_field, tmpdirec):
     _, _, _, lc2 = p21c.exhaust_lightcone(
         lightconer=rectlcn,
         initial_conditions=ic,
+        astro_params=default_astro_params,
+        flag_options=default_flag_options,
         lightcone_filename=fname,
     )
 
