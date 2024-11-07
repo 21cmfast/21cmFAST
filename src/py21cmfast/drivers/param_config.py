@@ -1,0 +1,248 @@
+"""Functions for setting up and configuring inputs to driver functions."""
+
+from __future__ import annotations
+
+import attrs
+import logging
+import os
+import warnings
+from functools import cached_property
+from typing import Any, Sequence
+
+from .._cfg import config
+from ..wrapper.globals import global_params
+from ..wrapper.inputs import (
+    AstroParams,
+    CosmoParams,
+    FlagOptions,
+    InputStruct,
+    UserParams,
+)
+
+logger = logging.getLogger(__name__)
+
+
+class InputCrossValidationError(ValueError):
+    """Error when two parameters from different structs aren't consistent."""
+
+    pass
+
+
+def input_param_field(kls: InputStruct):
+    """An attrs field that must be an InputStruct.
+
+    Parameters
+    ----------
+    kls : InputStruct subclass
+        The parameter structure which should be returned as an attrs field
+
+    """
+    return attrs.field(
+        default=None,
+        converter=attrs.converters.optional(kls.new),
+        validator=attrs.validators.optional(attrs.validators.instance_of(kls)),
+    )
+
+
+@attrs.define(kw_only=True)
+class InputParameters:
+    """A class defining a collection of InputStruct instances.
+
+    This class simplifies combining different InputStruct instances together, performing
+    validation checks between them, and being able to cross-check compatibility between
+    different sets of instances.
+    """
+
+    random_seed = attrs.field(default=None, converter=attrs.converters.optional(int))
+    redshift = attrs.field(default=None, converter=attrs.converters.optional(float))
+    user_params: UserParams = input_param_field(UserParams)
+    cosmo_params: CosmoParams = input_param_field(CosmoParams)
+    flag_options: FlagOptions = input_param_field(FlagOptions)
+    astro_params: AstroParams = input_param_field(AstroParams)
+
+    @flag_options.validator
+    def _flag_options_validator(self, att, val):
+        if val is None:
+            return
+
+        if self.user_params is not None:
+            if (
+                val.USE_MINI_HALOS
+                and not self.user_params.USE_RELATIVE_VELOCITIES
+                and not val.FIX_VCB_AVG
+            ):
+                warnings.warn(
+                    "USE_MINI_HALOS needs USE_RELATIVE_VELOCITIES to get the right evolution!"
+                )
+
+            if val.HALO_STOCHASTICITY and self.user_params.PERTURB_ON_HIGH_RES:
+                msg = (
+                    "Since the lowres density fields are required for the halo sampler"
+                    "We are currently unable to use PERTURB_ON_HIGH_RES and HALO_STOCHASTICITY"
+                    "Simultaneously."
+                )
+                raise NotImplementedError(msg)
+
+        if val.USE_EXP_FILTER and not val.USE_HALO_FIELD:
+            warnings.warn("USE_EXP_FILTER has no effect unless USE_HALO_FIELD is true")
+
+    @astro_params.validator
+    def _astro_params_validator(self, att, val):
+        if val is None:
+            return
+        if self.user_params is None:
+            return
+
+        if val.R_BUBBLE_MAX > self.user_params.BOX_LEN:
+            raise InputCrossValidationError(
+                f"R_BUBBLE_MAX is larger than BOX_LEN ({val.R_BUBBLE_MAX} > {self.user_params.BOX_LEN}). This is not allowed."
+            )
+
+        if (
+            global_params.HII_FILTER == 1
+            and val.R_BUBBLE_MAX > self.user_params.BOX_LEN / 3
+        ):
+            msg = (
+                "Your R_BUBBLE_MAX is > BOX_LEN/3 "
+                f"({val.R_BUBBLE_MAX} > {self.user_params.BOX_LEN / 3})."
+            )
+
+            if config["ignore_R_BUBBLE_MAX_error"]:
+                warnings.warn(msg)
+            else:
+                raise ValueError(msg)
+
+    def merge_keys(self):
+        """The list of available structs in this instance."""
+        # Allow using **input_parameters
+        return [
+            field.name
+            for field in attrs.fields(self.__class__)
+            if field.name != "redshift"
+        ]
+
+    def __getitem__(self, key):
+        """Get an item from the instance in a dict-like manner."""
+        # Also allow using **input_parameters
+        return getattr(self, key)
+
+    def is_compatible_with(self, other: InputParameters) -> bool:
+        """Check if this object is compatible with another parameter struct.
+
+        Compatibility is slightly different from strict equality. Compatibility requires
+        that if a parameter struct *exists* on the other object, then it must be equal
+        to this one. That is, if astro_params is None on the other InputParameter object,
+        then this one can have astro_params as NOT None, and it will still be
+        compatible. However the inverse is not true -- if this one has astro_params as
+        None, then all others must have it as None as well.
+        """
+        if not isinstance(other, InputParameters):
+            return False
+
+        return not any(
+            other[key] is not None and self[key] is not None and self[key] != other[key]
+            for key in self.merge_keys()
+        )
+
+    def merge(self, other: InputParameters) -> InputParameters:
+        """Merge another InputParameters instance with this one, checking for compatibility."""
+        if not self.is_compatible_with(other):
+            raise ValueError("Input parameters are not compatible.")
+        return InputParameters(**{k: self[k] or other[k] for k in self.merge_keys()})
+
+    @classmethod
+    def combine(cls, inputs: Sequence[InputParameters]) -> InputParameters:
+        """Combine multiple input parameter structs into one.
+
+        Parameters
+        ----------
+        inputs : list of :class:`InputParameters`
+            The input parameter structs to combine.
+
+        Returns
+        -------
+        :class:`InputParameters`
+            The combined input parameter struct.
+        """
+        # Create an empty instance of InputParameters
+        this = inputs[0]
+
+        for inp in inputs[1:]:
+            this = this.merge(inp)
+
+        return this
+
+    @classmethod
+    def from_output_structs(
+        cls, output_structs, redshift, **defaults
+    ) -> InputParameters:
+        """Generate a new InputParameters instance given a list of OutputStructs."""
+        input_params = []
+        for struct in output_structs:
+            if struct is not None:
+                ip_args = {
+                    k.lstrip("_"): getattr(struct, k, None)
+                    for k in struct._inputs
+                    if k.lstrip("_") in [field.name for field in attrs.fields(cls)]
+                }
+                input_params.append(cls(**ip_args))
+
+        if len(input_params) == 0:
+            return cls(**defaults)
+        else:
+            # Combine all the parameter structs from input boxes
+            out = cls.combine(input_params)
+            # Now combine with provided kwargs
+            return attrs.evolve(out.merge(cls(**defaults)), redshift=redshift)
+
+    def clone(self, **kwargs):
+        """Generate a copy of the InputParameter structure with specified changes."""
+        return attrs.evolve(self, **kwargs)
+
+    def __repr__(self):
+        """
+        String representation of the structure.
+
+        Created by combining repr methods from the InputStructs
+        which make up this object
+        """
+        return (
+            f"cosmo_params: {repr(self.cosmo_params)}\n"
+            + f"user_params: {repr(self.user_params)}\n"
+            + f"astro_params: {repr(self.astro_params)}\n"
+            + f"flag_options: {repr(self.flag_options)}\n"
+        )
+
+    # TODO: methods for equality: w/o redshift, w/o seed
+
+
+def check_redshift_consistency(inputs: InputParameters, output_structs):
+    """Check the redshifts between provided OutputStruct objects and an InputParamters instance."""
+    for struct in output_structs:
+        if struct is not None and struct.redshift != inputs.redshift:
+            raise ValueError("Incompatible redshifts in inputs")
+
+
+def _get_config_options(
+    direc, regenerate, write, hooks
+) -> tuple[str, bool, dict[callable, dict[str, Any]]]:
+    direc = str(os.path.expanduser(config["direc"] if direc is None else direc))
+
+    if hooks is None or len(hooks) > 0:
+        hooks = hooks or {}
+
+        if callable(write) and write not in hooks:
+            hooks[write] = {"direc": direc}
+
+        if not hooks:
+            if write is None:
+                write = config["write"]
+
+            if not callable(write) and write:
+                hooks["write"] = {"direc": direc}
+
+    return (
+        direc,
+        bool(config["regenerate"] if regenerate is None else regenerate),
+        hooks,
+    )

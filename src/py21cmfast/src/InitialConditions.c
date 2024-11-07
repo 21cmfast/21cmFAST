@@ -214,6 +214,11 @@ int ComputeInitialConditions(
     // Do each time to avoid Python garbage collection issues
     Broadcast_struct_global_noastro(user_params,cosmo_params);
 
+    #if LOG_LEVEL >= DEBUG_LEVEL
+            writeUserParams(user_params);
+            writeCosmoParams(cosmo_params);
+    #endif
+
     int n_x, n_y, n_z, i, j, k, ii, dimension;
     float k_x, k_y, k_z, k_mag, p, a, b, k_sq;
     float p_vcb, vcb_i;

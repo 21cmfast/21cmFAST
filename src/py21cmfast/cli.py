@@ -1,5 +1,6 @@
 """Module that contains the command line app."""
 
+import attrs
 import builtins
 import click
 import inspect
@@ -13,8 +14,26 @@ from os import path, remove
 from pathlib import Path
 
 from . import _cfg, cache_tools, global_params, plotting
-from . import wrapper as lib
+from .drivers.coeval import run_coeval
+from .drivers.lightcone import exhaust_lightcone, run_lightcone
+from .drivers.param_config import InputParameters
+from .drivers.single_field import (
+    compute_initial_conditions,
+    compute_ionization_field,
+    perturb_field,
+    spin_temperature,
+)
 from .lightcones import RectilinearLightconer
+from .wrapper._utils import camel_to_snake
+from .wrapper.inputs import AstroParams, CosmoParams, FlagOptions, UserParams
+from .wrapper.outputs import (
+    HaloBox,
+    InitialConditions,
+    IonizedBox,
+    PerturbedField,
+    TsBox,
+    XraySourceBox,
+)
 
 
 def _get_config(config=None):
@@ -44,6 +63,7 @@ def _ctx_to_dct(args):
 
 
 def _update(obj, ctx):
+    """Override attributes of an object using the click context"""
     # Try to use the extra arguments as an override of config.
     kk = list(ctx.keys())
     for k in kk:
@@ -62,18 +82,35 @@ def _update(obj, ctx):
                     pass
 
 
-def _override(ctx, *param_dicts):
+def _get_params_from_ctx(ctx, cfg):
+    """Construct InputStruct objects from the click context and config."""
     # Try to use the extra arguments as an override of config.
+    ctx = _ctx_to_dct(ctx.args)
+    params = {}
 
-    if ctx.args:
-        ctx = _ctx_to_dct(ctx.args)
-        for p in param_dicts:
-            _update(p, ctx)
+    for kls in (UserParams, CosmoParams, AstroParams, FlagOptions):
+        fieldnames = [field.name for field in attrs.fields(kls)]
+        klsname = camel_to_snake(kls.__name__)
 
-        # Also update globals, always.
-        _update(global_params, ctx)
-        if ctx:
-            warnings.warn("The following arguments were not able to be set: %s" % ctx)
+        # get paramters from context
+        ctx_params = {k: v for k, v in ctx.items() if k in fieldnames}
+        # remove used params from context
+        [ctx.pop(k) for k in ctx_params.keys()]
+
+        # assign to a parameter dict, prioritising arguments > config > defaults
+        params[klsname] = {**cfg.get(klsname, {}), **ctx_params}
+
+    user_params = UserParams.new(params["user_params"])
+    cosmo_params = CosmoParams.new(params["cosmo_params"])
+    flag_options = FlagOptions.new(params["flag_options"])
+    astro_params = AstroParams.new(params["astro_params"], flag_options=flag_options)
+
+    # Also update globals, always.
+    _update(global_params, ctx)
+    if ctx:
+        warnings.warn("The following arguments were not able to be set: %s" % ctx)
+
+    return user_params, cosmo_params, astro_params, flag_options
 
 
 main = click.Group()
@@ -125,15 +162,11 @@ def init(ctx, config, regen, direc, seed):
     seed : int
         Random seed used to generate data.
     """
+
     cfg = _get_config(config)
-
     # Set user/cosmo params from config.
-    user_params = lib.UserParams(**cfg.get("user_params", {}))
-    cosmo_params = lib.CosmoParams(**cfg.get("cosmo_params", {}))
-
-    _override(ctx, user_params, cosmo_params)
-
-    lib.initial_conditions(
+    user_params, cosmo_params, _, _ = _get_params_from_ctx(ctx, cfg)
+    compute_initial_conditions(
         user_params=user_params,
         cosmo_params=cosmo_params,
         regenerate=regen,
@@ -193,21 +226,23 @@ def perturb(ctx, redshift, config, regen, direc, seed):
         Random seed used to generate data.
     """
     cfg = _get_config(config)
-
     # Set user/cosmo params from config.
-    user_params = lib.UserParams(**cfg.get("user_params", {}))
-    cosmo_params = lib.CosmoParams(**cfg.get("cosmo_params", {}))
+    user_params, cosmo_params, _, _ = _get_params_from_ctx(ctx, cfg)
 
-    _override(ctx, user_params, cosmo_params)
-
-    lib.perturb_field(
-        redshift=redshift,
+    inputs = InputParameters(
+        random_seed=seed,
         user_params=user_params,
         cosmo_params=cosmo_params,
+        redshift=redshift,
+    )
+    ics = InitialConditions(inputs=inputs)
+
+    perturb_field(
+        redshift=redshift,
+        initial_conditions=ics,
         regenerate=regen,
         write=True,
         direc=direc,
-        random_seed=seed,
     )
 
 
@@ -269,29 +304,39 @@ def spin(ctx, redshift, prev_z, config, regen, direc, seed):
     seed : int
         Random seed used to generate data.
     """
+
+    raise NotImplementedError(
+        "Spin Temerature requires inputs over specific redshifts. Use the python wrapper or coeval/lightcone"
+    )
     cfg = _get_config(config)
 
-    # Set user/cosmo params from config.
-    user_params = lib.UserParams(**cfg.get("user_params", {}))
-    cosmo_params = lib.CosmoParams(**cfg.get("cosmo_params", {}))
-    flag_options = lib.FlagOptions(**cfg.get("flag_options", {}))
-    astro_params = lib.AstroParams(
-        **cfg.get("astro_params", {}), INHOMO_RECO=flag_options.INHOMO_RECO
+    # Set params from config
+    user_params, cosmo_params, astro_params, flag_options = _get_params_from_ctx(
+        ctx, cfg
     )
-
-    _override(ctx, user_params, cosmo_params, astro_params, flag_options)
-
-    lib.spin_temperature(
+    inputs = InputParameters(
+        random_seed=seed,
+        user_params=user_params,
+        astro_params=astro_params,
+        cosmo_params=cosmo_params,
+        flag_options=flag_options,
         redshift=redshift,
+    )
+    ics = InitialConditions(inputs=inputs)
+    pt = PerturbedField(inputs=inputs)
+    xrs = XraySourceBox(inputs=inputs)
+    prev_ts = TsBox(inputs=inputs.clone(redshift=prev_z))
+
+    spin_temperature(
+        initial_conditions=ics,
+        perturb_field=pt,
+        xray_source_box=xrs,
         astro_params=astro_params,
         flag_options=flag_options,
-        previous_spin_temp=prev_z,
-        user_params=user_params,
-        cosmo_params=cosmo_params,
+        previous_spin_temp=prev_ts,
         regenerate=regen,
         write=True,
         direc=direc,
-        random_seed=seed,
     )
 
 
@@ -355,25 +400,45 @@ def ionize(ctx, redshift, prev_z, config, regen, direc, seed):
     """
     cfg = _get_config(config)
 
-    # Set user/cosmo params from config.
-    user_params = lib.UserParams(**cfg.get("user_params", {}))
-    cosmo_params = lib.CosmoParams(**cfg.get("cosmo_params", {}))
-    flag_options = lib.FlagOptions(
-        **cfg.get("flag_options", {}),
+    # Set params from config
+    user_params, cosmo_params, astro_params, flag_options = _get_params_from_ctx(
+        ctx, cfg
     )
-    astro_params = lib.AstroParams(
-        **cfg.get("astro_params", {}), INHOMO_RECO=flag_options.INHOMO_RECO
-    )
+    if (
+        flag_options.USE_TS_FLUCT
+        or flag_options.INHOMO_RECO
+        or flag_options.HALO_STOCHASTICITY
+    ):
+        raise NotImplementedError(
+            "Ionized box with any of (USE_TS_FLUCT,INHOMO_RECO,HALO_STOCHASTICITY)"
+            "requires inputs over specific redshifts."
+            "Use the python wrapper or coeval/lightcone"
+        )
 
-    _override(ctx, user_params, cosmo_params, astro_params, flag_options)
-
-    lib.ionize_box(
+    inputs = InputParameters(
+        random_seed=seed,
+        user_params=user_params,
+        astro_params=astro_params,
+        cosmo_params=cosmo_params,
+        flag_options=flag_options,
         redshift=redshift,
+    )
+    ics = InitialConditions(inputs=inputs)
+    pt = PerturbedField(inputs=inputs)
+    hb = HaloBox(inputs=inputs)
+    prev_ion = IonizedBox(inputs=inputs.clone(redshift=prev_z))
+    prev_pt = PerturbedField(inputs=inputs.clone(redshift=prev_z))
+    ts = TsBox(inputs=inputs)
+
+    compute_ionization_field(
+        initial_conditions=ics,
+        perturbed_field=pt,
+        halobox=hb,
+        spin_temp=ts,
+        previous_perturbed_field=prev_pt,
         astro_params=astro_params,
         flag_options=flag_options,
-        previous_ionize_box=prev_z,
-        user_params=user_params,
-        cosmo_params=cosmo_params,
+        previous_ionize_box=prev_ion,
         regenerate=regen,
         write=True,
         direc=direc,
@@ -450,18 +515,13 @@ def coeval(ctx, redshift, config, out, regen, direc, seed):
 
     cfg = _get_config(config)
 
-    # Set user/cosmo params from config.
-    user_params = lib.UserParams(**cfg.get("user_params", {}))
-    cosmo_params = lib.CosmoParams(**cfg.get("cosmo_params", {}))
-    flag_options = lib.FlagOptions(**cfg.get("flag_options", {}))
-    astro_params = lib.AstroParams(
-        **cfg.get("astro_params", {}), INHOMO_RECO=flag_options.INHOMO_RECO
+    # Set params from config
+    user_params, cosmo_params, astro_params, flag_options = _get_params_from_ctx(
+        ctx, cfg
     )
 
-    _override(ctx, user_params, cosmo_params, astro_params, flag_options)
-
-    coeval = lib.run_coeval(
-        redshift=redshift,
+    coeval = run_coeval(
+        out_redshifts=redshift,
         astro_params=astro_params,
         flag_options=flag_options,
         user_params=user_params,
@@ -565,15 +625,10 @@ def lightcone(ctx, redshift, config, out, regen, direc, max_z, seed, lq):
         elif not out.parent.exists():
             out.parent.mkdir()
 
-    # Set user/cosmo params from config.
-    user_params = lib.UserParams(**cfg.get("user_params", {}))
-    cosmo_params = lib.CosmoParams(**cfg.get("cosmo_params", {}))
-    flag_options = lib.FlagOptions(**cfg.get("flag_options", {}))
-    astro_params = lib.AstroParams(
-        **cfg.get("astro_params", {}), INHOMO_RECO=flag_options.INHOMO_RECO
+    # Set params from config
+    user_params, cosmo_params, astro_params, flag_options = _get_params_from_ctx(
+        ctx, cfg
     )
-
-    _override(ctx, user_params, cosmo_params, astro_params, flag_options)
 
     # For now, always use the old default lightconing algorithm
     lcn = RectilinearLightconer.with_equal_cdist_slices(
@@ -584,7 +639,7 @@ def lightcone(ctx, redshift, config, out, regen, direc, max_z, seed, lq):
         quantities=lq,
     )
 
-    lc = lib.run_lightcone(
+    lc = exhaust_lightcone(
         lightconer=lcn,
         astro_params=astro_params,
         flag_options=flag_options,
@@ -780,7 +835,7 @@ def pr_feature(
 
     if lightcone:
         print("Running default lightcone...")
-        lc_default = lib.run_lightcone(
+        lc_default = run_lightcone(
             redshift=redshift,
             max_redshift=max_redshift,
             random_seed=random_seed,
@@ -790,7 +845,7 @@ def pr_feature(
         structs[struct][param] = value
 
         print("Running lightcone with new feature...")
-        lc_new = lib.run_lightcone(
+        lc_new = run_lightcone(
             redshift=redshift,
             max_redshift=max_redshift,
             random_seed=random_seed,

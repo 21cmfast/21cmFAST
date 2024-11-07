@@ -631,6 +631,11 @@ void initialise_dNdM_inverse_table(double xmin, double xmax, double lnM_min, dou
             }
             else{
                 delta = x;
+                if(delta >= MAX_DELTAC_FRAC*get_delta_crit(user_params_global->HMF,sigma_cond,growth_out)){
+                    for(k=1;k<np;k++)
+                        Nhalo_inv_table.z_arr[i][k] = 1.;
+                    continue;
+                }
             }
 
             M_cond = exp(lnM_cond);
@@ -673,7 +678,7 @@ void initialise_dNdM_inverse_table(double xmin, double xmax, double lnM_min, dou
                     if (status == GSL_SUCCESS){
                         lnM_init = lnM_lo;
                         Nhalo_inv_table.z_arr[i][k] = exp(lnM_guess)/M_cond;
-                        // LOG_ULTRA_DEBUG("Found %.6e --> %.6e",lnM_guess,exp(lnM_guess)/M_cond);
+                        // LOG_ULTRA_DEBUG("Found (M %.2e d %.2f p %.3e) %.6e --> %.6e",M_cond,delta,exp(pa[k]),lnM_guess,exp(lnM_guess)/M_cond);
                     }
 
                 }while((status == GSL_CONTINUE) && (iter < MAX_ITER_RF));

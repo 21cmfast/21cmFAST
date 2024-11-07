@@ -15,9 +15,9 @@ from functools import cached_property, partial
 from scipy.spatial.transform import Rotation
 from typing import Sequence
 
-from .inputs import Planck18  # Not *quite* the same as astropy's Planck18
-from .inputs import FlagOptions, UserParams
-from .outputs import Coeval
+from .drivers.coeval import Coeval
+from .wrapper.inputs import Planck18  # Not *quite* the same as astropy's Planck18
+from .wrapper.inputs import FlagOptions, UserParams
 
 _LIGHTCONERS = {}
 _LENGTH = "length"

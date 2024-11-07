@@ -67,9 +67,9 @@ void print_hs_consts(struct HaloSamplingConstants * c){
 }
 
 //This function, designed to be used in the wrapper to estimate Halo catalogue size, takes the parameters and returns average number of halos within the entire box
-double expected_nhalo(double redshift, UserParams *user_params, CosmoParams *cosmo_params, AstroParams *astro_params, FlagOptions * flag_options){
+double expected_nhalo(double redshift, UserParams *user_params, CosmoParams *cosmo_params){
     //minimum sampled mass
-    Broadcast_struct_global_all(user_params,cosmo_params,astro_params,flag_options);
+    Broadcast_struct_global_noastro(user_params,cosmo_params);
     double M_min = user_params->SAMPLER_MIN_MASS;
     //maximum sampled mass
     double M_max = RHOcrit * cosmo_params->OMm * VOLUME / HII_TOT_NUM_PIXELS;
@@ -122,7 +122,7 @@ void stoc_set_consts_z(struct HaloSamplingConstants *const_struct, double redshi
 
     const_struct->sigma_min = EvaluateSigma(const_struct->lnM_min);
 
-    if(redshift_desc >= 0){
+    if(redshift_desc > 0){
         const_struct->growth_in = dicke(redshift_desc);
         if(astro_params_global->CORR_SFR > 0)
             const_struct->corr_sfr = exp(-(redshift - redshift_desc)/astro_params_global->CORR_SFR);
@@ -1007,7 +1007,7 @@ int stochastic_halofield(UserParams *user_params, CosmoParams *cosmo_params,
 
     //Fill them
     //NOTE:Halos prev in the first box corresponds to the large DexM halos
-    if(redshift_desc < 0.){
+    if(redshift_desc <= 0.){
         LOG_DEBUG("building first halo field at z=%.1f", redshift);
         sample_halo_grids(rng_stoc,redshift,dens_field,halo_overlap_box,halos_desc,halos,&hs_constants);
     }
@@ -1119,6 +1119,7 @@ int single_test_sample(UserParams *user_params, CosmoParams *cosmo_params, Astro
         }
 
         out_n_tot[0] = n_halo_tot;
+        LOG_DEBUG("Found %d halos", n_halo_tot);
 
         //get expected values from the saved mass range
         if(hs_constants->from_catalog){
