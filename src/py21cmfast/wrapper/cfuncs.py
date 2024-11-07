@@ -373,7 +373,14 @@ def construct_fftw_wisdoms(
 def get_delta_crit(user_params, cosmo_params, mass, redshift):
     """Gets the critical collapse density given a mass, redshift and parameters."""
     sigma, _ = evaluate_sigma(user_params, cosmo_params, mass)
+    # evaluate_sigma already broadcasts the paramters so we don't need to repeat
     growth = lib.dicke(redshift)
+    return get_delta_crit_nu(user_params, sigma, growth)
+
+
+def get_delta_crit_nu(user_params, sigma, growth):
+    """Uses the nu paramters (sigma and growth factor) to get critical density."""
+    # None of the parameter structs are used in this function so we don't need a broadcast
     return np.vectorize(lib.get_delta_crit)(user_params.cdict["HMF"], sigma, growth)
 
 

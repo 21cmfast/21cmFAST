@@ -208,7 +208,8 @@ def perturbed_field(ic, redshift):
 @pytest.fixture(scope="session")
 def rectlcn(perturbed_field, max_redshift) -> RectilinearLightconer:
     return RectilinearLightconer.with_equal_cdist_slices(
-        min_redshift=perturbed_field.redshift,
+        min_redshift=perturbed_field.redshift
+        + 0.1,  # we don't want to overwrite pertubed_field
         max_redshift=max_redshift,
         resolution=perturbed_field.user_params.cell_size,
         cosmo=perturbed_field.cosmo_params.cosmo,

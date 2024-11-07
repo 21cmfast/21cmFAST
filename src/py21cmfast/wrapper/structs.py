@@ -608,7 +608,18 @@ class OutputStruct(metaclass=ABCMeta):
                     and not isinstance(q, StructInstanceWrapper)
                     and f.attrs[kfile] != q
                 ):
-                    return False
+                    if not isinstance(q, (float, np.float32)) or not (
+                        float_to_string_precision(q, config["cache_param_sigfigs"])
+                        == float_to_string_precision(
+                            f.attrs[kfile], config["cache_param_sigfigs"]
+                        )
+                    ):
+                        logger.debug(f"For file {fname}:")
+                        logger.debug(
+                            f"\tThough md5 and seed matched, the parameter {kfile} did not match,"
+                            f" with values {f.attrs[kfile]} and {q} in file and user respectively"
+                        )
+                        return False
                 elif isinstance(q, (InputStruct, StructInstanceWrapper)):
                     grp = f[kfile]
 

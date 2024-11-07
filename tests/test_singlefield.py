@@ -126,7 +126,7 @@ def test_cache_exists(default_input_struct, perturbed_field, tmpdirec):
     assert pf.exists(tmpdirec)
 
     pf.read(tmpdirec)
-    assert np.all(pf.density == perturbed_field.density)
+    np.testing.assert_allclose(pf.density, perturbed_field.density)
     assert pf == perturbed_field
 
 
