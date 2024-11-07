@@ -581,11 +581,6 @@ def _run_lightcone_from_perturbed_fields(
                 "run with write=True to continue from a checkpoint."
             )
 
-    # Now we can purge initial_conditions further.
-    with contextlib.suppress(OSError):
-        initial_conditions.prepare_for_halos(
-            flag_options=inputs.flag_options, force=always_purge
-        )
     # we explicitly pass the descendant halos here since we have a redshift list prior
     #   this will generate the extra fields if STOC_MINIMUM_Z is given
     pt_halos = []

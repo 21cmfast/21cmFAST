@@ -142,15 +142,6 @@ class InitialConditions(_OutputStruct):
 
         self.prepare(keep=keep, force=force)
 
-    def prepare_for_halos(self, flag_options: FlagOptions, force: bool = False):
-        """Ensure ICs have all boxes required for the halos, and no more."""
-        keep = ["hires_density"]  # for dexm
-        if flag_options.HALO_STOCHASTICITY:
-            keep.append("lowres_density")  # for the sampler
-        if self.user_params.USE_RELATIVE_VELOCITIES:
-            keep.append("lowres_vcb")
-        self.prepare(keep=keep, force=force)
-
     def prepare_for_spin_temp(self, flag_options: FlagOptions, force: bool = False):
         """Ensure ICs have all boxes required for spin_temp, and no more."""
         keep = []
