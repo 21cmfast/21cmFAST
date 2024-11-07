@@ -12,15 +12,17 @@ import numpy as np
 import py21cmfast as p21c
 
 
-def test_lightcone(lc, default_user_params, redshift, max_redshift):
+def test_lightcone(lc, default_user_params, lightcone_min_redshift, max_redshift):
     assert lc.lightcone_redshifts[-1] >= max_redshift
-    assert np.isclose(lc.lightcone_redshifts[0], redshift, atol=1e-4)
+    assert np.isclose(lc.lightcone_redshifts[0], lightcone_min_redshift, atol=1e-4)
     assert lc.cell_size == default_user_params.BOX_LEN / default_user_params.HII_DIM
 
 
-def test_lightcone_quantities(ic, default_flag_options, redshift, max_redshift):
+def test_lightcone_quantities(
+    ic, default_flag_options, lightcone_min_redshift, max_redshift
+):
     lcn = p21c.RectilinearLightconer.with_equal_cdist_slices(
-        min_redshift=redshift,
+        min_redshift=lightcone_min_redshift,
         max_redshift=max_redshift,
         resolution=ic.user_params.cell_size,
         cosmo=ic.cosmo_params.cosmo,
@@ -52,7 +54,7 @@ def test_lightcone_quantities(ic, default_flag_options, redshift, max_redshift):
     assert lc.density.min() != lc.brightness_temp.min() != lc.brightness_temp.max()
 
     lcn_ts = p21c.RectilinearLightconer.with_equal_cdist_slices(
-        min_redshift=redshift,
+        min_redshift=lightcone_min_redshift,
         max_redshift=max_redshift,
         resolution=ic.user_params.cell_size,
         cosmo=ic.cosmo_params.cosmo,

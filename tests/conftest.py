@@ -188,6 +188,11 @@ def redshift():
 
 
 @pytest.fixture(scope="session")
+def lightcone_min_redshift(redshift):
+    return redshift + 0.1
+
+
+@pytest.fixture(scope="session")
 def max_redshift():
     """A default redshift to evaluate at. Not too high, not too low."""
     return 25
@@ -206,12 +211,12 @@ def perturbed_field(ic, redshift):
 
 
 @pytest.fixture(scope="session")
-def rectlcn(perturbed_field, max_redshift) -> RectilinearLightconer:
+def rectlcn(lightcone_min_redshift, ic, max_redshift) -> RectilinearLightconer:
     return RectilinearLightconer.with_equal_cdist_slices(
-        min_redshift=perturbed_field.redshift,
+        min_redshift=lightcone_min_redshift,
         max_redshift=max_redshift,
-        resolution=perturbed_field.user_params.cell_size,
-        cosmo=perturbed_field.cosmo_params.cosmo,
+        resolution=ic.user_params.cell_size,
+        cosmo=ic.cosmo_params.cosmo,
     )
 
 
