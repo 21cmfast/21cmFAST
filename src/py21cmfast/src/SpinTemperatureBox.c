@@ -935,42 +935,51 @@ void calculate_sfrd_from_grid(int R_ct, float *dens_R_grid, float *Mcrit_R_grid,
         }
     }
 
-    #pragma omp parallel num_threads(user_params_global->N_THREADS)
-    {
-        unsigned long long int box_ct;
-        double curr_dens;
-        double curr_mcrit = 0.;
-        double fcoll, dfcoll;
-        double fcoll_MINI=0;
+    // --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+    // If GPU is to be used and flags are ideal, call GPU version of reduction
+    if (true && flag_options_global->USE_MASS_DEPENDENT_ZETA && user_params_global->USE_INTERPOLATION_TABLES && !flag_options_global->USE_MINI_HALOS) {
+        calculate_sfrd_from_grid_gpu(&SFRD_conditional_table, dens_R_grid, zpp_growth, R_ct, sfrd_grid, ave_sfrd_buf, HII_TOT_NUM_PIXELS);
+    } else {
+        // Else, run CPU reduction
+        #pragma omp parallel num_threads(user_params_global->N_THREADS)
+        {
+            unsigned long long int box_ct;
+            double curr_dens;
+            double curr_mcrit = 0.;
+            double fcoll, dfcoll;
+            double fcoll_MINI=0;
 
-        #pragma omp for reduction(+:ave_sfrd_buf,ave_sfrd_buf_mini)
-        for (box_ct=0; box_ct<HII_TOT_NUM_PIXELS; box_ct++){
-            curr_dens = dens_R_grid[box_ct]*zpp_growth[R_ct];
-            if(flag_options_global->USE_MINI_HALOS)
-                curr_mcrit = Mcrit_R_grid[box_ct];
+            #pragma omp for reduction(+:ave_sfrd_buf,ave_sfrd_buf_mini)
+            for (box_ct=0; box_ct<HII_TOT_NUM_PIXELS; box_ct++){
+                curr_dens = dens_R_grid[box_ct]*zpp_growth[R_ct];
+                if(flag_options_global->USE_MINI_HALOS)
+                    curr_mcrit = Mcrit_R_grid[box_ct];
 
-            if(flag_options_global->USE_MASS_DEPENDENT_ZETA){
-                    fcoll = EvaluateSFRD_Conditional(curr_dens,zpp_growth[R_ct],M_min_R[R_ct],M_max_R[R_ct],M_max_R[R_ct],sigma_max[R_ct],
-                                                    Mcrit_atom_interp_table[R_ct],Mlim_Fstar_g);
-                    sfrd_grid[box_ct] = (1.+curr_dens)*fcoll;
+                if(flag_options_global->USE_MASS_DEPENDENT_ZETA){
+                        fcoll = EvaluateSFRD_Conditional(curr_dens,zpp_growth[R_ct],M_min_R[R_ct],M_max_R[R_ct],M_max_R[R_ct],sigma_max[R_ct],
+                                                        Mcrit_atom_interp_table[R_ct],Mlim_Fstar_g);
+                        sfrd_grid[box_ct] = (1.+curr_dens)*fcoll;
 
-                    if (flag_options_global->USE_MINI_HALOS){
-                        fcoll_MINI = EvaluateSFRD_Conditional_MINI(curr_dens,curr_mcrit,zpp_growth[R_ct],M_min_R[R_ct],M_max_R[R_ct],M_max_R[R_ct],
-                                                                    sigma_max[R_ct],Mcrit_atom_interp_table[R_ct],Mlim_Fstar_MINI_g);
-                        sfrd_grid_mini[box_ct] = (1.+curr_dens)*fcoll_MINI;
-                    }
+                        if (flag_options_global->USE_MINI_HALOS){
+                            fcoll_MINI = EvaluateSFRD_Conditional_MINI(curr_dens,curr_mcrit,zpp_growth[R_ct],M_min_R[R_ct],M_max_R[R_ct],M_max_R[R_ct],
+                                                                        sigma_max[R_ct],Mcrit_atom_interp_table[R_ct],Mlim_Fstar_MINI_g);
+                            sfrd_grid_mini[box_ct] = (1.+curr_dens)*fcoll_MINI;
+                        }
+                }
+                else{
+                    fcoll = EvaluateFcoll_delta(curr_dens,zpp_growth[R_ct],sigma_min[R_ct],sigma_max[R_ct]);
+                    dfcoll = EvaluatedFcolldz(curr_dens,zpp_for_evolve_list[R_ct],sigma_min[R_ct],sigma_max[R_ct]);
+                    sfrd_grid[box_ct] = (1.+curr_dens)*dfcoll;
+                }
+                ave_sfrd_buf += fcoll;
+                ave_sfrd_buf_mini += fcoll_MINI;
             }
-            else{
-                fcoll = EvaluateFcoll_delta(curr_dens,zpp_growth[R_ct],sigma_min[R_ct],sigma_max[R_ct]);
-                dfcoll = EvaluatedFcolldz(curr_dens,zpp_for_evolve_list[R_ct],sigma_min[R_ct],sigma_max[R_ct]);
-                sfrd_grid[box_ct] = (1.+curr_dens)*dfcoll;
-            }
-            ave_sfrd_buf += fcoll;
-            ave_sfrd_buf_mini += fcoll_MINI;
         }
     }
-    *ave_sfrd = ave_sfrd_buf/HII_TOT_NUM_PIXELS;
-    *ave_sfrd_mini = ave_sfrd_buf_mini/HII_TOT_NUM_PIXELS;
+    // --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+
+    *ave_sfrd = ave_sfrd_buf / HII_TOT_NUM_PIXELS;
+    *ave_sfrd_mini = ave_sfrd_buf_mini / HII_TOT_NUM_PIXELS;
 
     //These functions check for allocation
     free_conditional_tables();
