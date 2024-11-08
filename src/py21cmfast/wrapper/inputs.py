@@ -489,7 +489,7 @@ class FlagOptions(InputStruct):
     )
     USE_UPPER_STELLAR_TURNOVER = field(default=True, converter=bool)
     M_MIN_in_Mass = field(default=True, converter=bool)
-    HALOS_SCALING_RELATIONS_MEDIAN = field(default=False, converter=bool)
+    HALO_SCALING_RELATIONS_MEDIAN = field(default=False, converter=bool)
 
     @M_MIN_in_Mass.validator
     def _M_MIN_in_Mass_vld(self, att, val):
