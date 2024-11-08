@@ -32,6 +32,7 @@ extra_objects = [
     os.path.join(CLOC, "hello_world.o"),
     os.path.join(CLOC, "filtering.o"),
     os.path.join(CLOC, "PerturbField.o"),
+    os.path.join(CLOC, "SpinTemperatureBox.o"),
 ]
 extra_link_args = ["-lcudart"]
 
