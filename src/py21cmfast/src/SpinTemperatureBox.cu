@@ -27,21 +27,19 @@
 #include "dft.h"
 #include "filtering.h"
 #include "thermochem.h"
+#include "interpolation.h"
 
 #include "SpinTemperatureBox.h"
 
 
-__device__ inline double EvaluateRGTable1D_f_gpu(double x, RGTable1D_f *table) {
+__device__ inline double EvaluateRGTable1D_f_gpu(double x, double *x_min, double *x_width, double *y_arr) {
 
-    double x_min = table->x_min;
-    double x_width = table->x_width;
+    int idx = (int)floor((x - *x_min) / *x_width);
 
-    int idx = (int)floor((x - x_min) / x_width);
+    double table_val = *x_min + *x_width * (float)idx;
+    double interp_point = (x - table_val) / *x_width;
 
-    double table_val = x_min + x_width * (float)idx;
-    double interp_point = (x - table_val) / x_width;
-
-    return table->y_arr[idx] * (1 - interp_point) + table->y_arr[idx + 1] * (interp_point);
+    return y_arr[idx] * (1 - interp_point) + y_arr[idx + 1] * (interp_point);
 }
 
 template <unsigned int threadsPerBlock>
@@ -58,7 +56,9 @@ __device__ void warp_reduce(volatile double *sdata, unsigned int tid) {
 
 template <unsigned int threadsPerBlock>
 __global__ void compute_and_reduce(
-    RGTable1D_f *SFRD_conditional_table, // input data
+    double *x_min, // input data
+    double *x_width, // input data
+    double *y_arr, // input data
     float *dens_R_grid, // input data
     double zpp_growth_R_ct, // input value
     float *sfrd_grid, // star formation rate density grid to be updated
@@ -89,8 +89,8 @@ __global__ void compute_and_reduce(
         curr_dens_j = dens_R_grid[i + threadsPerBlock] * zpp_growth_R_ct;
 
         // Compute fraction of mass that has collapsed to form stars/other structures
-        fcoll_i = exp(EvaluateRGTable1D_f_gpu(curr_dens_i, &SFRD_conditional_table));
-        fcoll_j = exp(EvaluateRGTable1D_f_gpu(curr_dens_j, &SFRD_conditional_table));
+        fcoll_i = exp(EvaluateRGTable1D_f_gpu(curr_dens_i, x_min, x_width, y_arr));
+        fcoll_j = exp(EvaluateRGTable1D_f_gpu(curr_dens_j, x_min, x_width, y_arr));
 
         // Update the shared buffer with the collapse fractions
         sdata[tid] += fcoll_i + fcoll_j;
@@ -109,7 +109,7 @@ __global__ void compute_and_reduce(
     if (threadsPerBlock >= 128) { if (tid < 64) { sdata[tid] += sdata[tid + 64]; } __syncthreads(); }
 
     // Final reduction by separate kernel
-    if (tid < 32) warp_reduce(sdata, tid);
+    if (tid < 32) warp_reduce<threadsPerBlock>(sdata, tid);
 
     // The first thread of each block updates the block totals
     if (tid == 0) ave_sfrd_buf[blockIdx.x] = sdata[0];
@@ -190,23 +190,23 @@ void calculate_sfrd_from_grid_gpu(
     // Invoke kernel
     switch (threadsPerBlock) {
         case 512:
-            compute_and_reduce<512><<< numBlocks, threadsPerBlock, smemSize >>>(&x_min, &x_width, &y_arr, &d_dens_R_grid, zpp_growth_R_ct, &d_sfrd_grid, &d_ave_sfrd_buf, num_pixels);
+            compute_and_reduce<512><<< numBlocks, threadsPerBlock, smemSize >>>(x_min, x_width, y_arr, d_dens_R_grid, zpp_growth_R_ct, d_sfrd_grid, d_ave_sfrd_buf, num_pixels);
             break;
         case 256:
-            compute_and_reduce<256><<< numBlocks, threadsPerBlock, smemSize >>>(&x_min, &x_width, &y_arr, &d_dens_R_grid, zpp_growth_R_ct, &d_sfrd_grid, &d_ave_sfrd_buf, num_pixels);
+            compute_and_reduce<256><<< numBlocks, threadsPerBlock, smemSize >>>(x_min, x_width, y_arr, d_dens_R_grid, zpp_growth_R_ct, d_sfrd_grid, d_ave_sfrd_buf, num_pixels);
             break;
         case 128:
-            compute_and_reduce<128><<< numBlocks, threadsPerBlock, smemSize >>>(&x_min, &x_width, &y_arr, &d_dens_R_grid, zpp_growth_R_ct, &d_sfrd_grid, &d_ave_sfrd_buf, num_pixels);
+            compute_and_reduce<128><<< numBlocks, threadsPerBlock, smemSize >>>(x_min, x_width, y_arr, d_dens_R_grid, zpp_growth_R_ct, d_sfrd_grid, d_ave_sfrd_buf, num_pixels);
             break;
         case 64:
-            compute_and_reduce<64><<< numBlocks, threadsPerBlock, smemSize >>>(&x_min, &x_width, &y_arr, &d_dens_R_grid, zpp_growth_R_ct, &d_sfrd_grid, &d_ave_sfrd_buf, num_pixels);
+            compute_and_reduce<64><<< numBlocks, threadsPerBlock, smemSize >>>(x_min, x_width, y_arr, d_dens_R_grid, zpp_growth_R_ct, d_sfrd_grid, d_ave_sfrd_buf, num_pixels);
             break;
         case 32:
-            compute_and_reduce<32><<< numBlocks, threadsPerBlock, smemSize >>>(&x_min, &x_width, &y_arr, &d_dens_R_grid, zpp_growth_R_ct, &d_sfrd_grid, &d_ave_sfrd_buf, num_pixels);
+            compute_and_reduce<32><<< numBlocks, threadsPerBlock, smemSize >>>(x_min, x_width, y_arr, d_dens_R_grid, zpp_growth_R_ct, d_sfrd_grid, d_ave_sfrd_buf, num_pixels);
             break;
         default:
             // LOG_WARNING("Thread size invalid; defaulting to 256.")
-            compute_and_reduce<256><<< numBlocks, 256, 256 * sizeof(double) >>>(&x_min, &x_width, &y_arr, &d_dens_R_grid, zpp_growth_R_ct, &d_sfrd_grid, &d_ave_sfrd_buf, num_pixels);
+            compute_and_reduce<256><<< numBlocks, 256, 256 * sizeof(double) >>>(x_min, x_width, y_arr, d_dens_R_grid, zpp_growth_R_ct, d_sfrd_grid, d_ave_sfrd_buf, num_pixels);
     }
 
     // Only use during development!
@@ -224,7 +224,8 @@ void calculate_sfrd_from_grid_gpu(
     // Wrap device pointer in a thrust::device_ptr
     thrust::device_ptr<double> d_ave_sfrd_buf_ptr(d_ave_sfrd_buf);
     // Reduce final buffer values to one value
-    ave_sfrd_buf = thrust::reduce(d_ave_sfrd_buf_ptr, d_ave_sfrd_buf_ptr + buffer_length, 0., thrust::plus<double>());
+    double reduced_value = thrust::reduce(d_ave_sfrd_buf_ptr, d_ave_sfrd_buf_ptr + buffer_length, 0., thrust::plus<double>());
+    *ave_sfrd_buf = reduced_value;
 
     // Copy results from device to host.
     err = cudaMemcpy(sfrd_grid, d_sfrd_grid, sizeof(float) * num_pixels, cudaMemcpyDeviceToHost);
