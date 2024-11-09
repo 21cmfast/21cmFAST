@@ -938,7 +938,17 @@ void calculate_sfrd_from_grid(int R_ct, float *dens_R_grid, float *Mcrit_R_grid,
     // --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
     // If GPU is to be used and flags are ideal, call GPU version of reduction
     if (true && flag_options_global->USE_MASS_DEPENDENT_ZETA && user_params_global->USE_INTERPOLATION_TABLES && !flag_options_global->USE_MINI_HALOS) {
-        calculate_sfrd_from_grid_gpu(&SFRD_conditional_table, dens_R_grid, zpp_growth, R_ct, sfrd_grid, ave_sfrd_buf, HII_TOT_NUM_PIXELS);
+        RGTable1D_f* SFRD_conditional_table = get_SFRD_conditional_table();
+        // ave_sfrd_buf = calculate_sfrd_from_grid_gpu(&SFRD_conditional_table, dens_R_grid, zpp_growth, R_ct, sfrd_grid, HII_TOT_NUM_PIXELS);
+
+        // -------------- CODE FOR CORRUPTION BUG WORKAROUND
+        double x_min = SFRD_conditional_table->x_min;
+        double x_width = SFRD_conditional_table->x_width;
+        int n_bin = SFRD_conditional_table->n_bin;
+        float* y_arr = SFRD_conditional_table->y_arr; // pointer, not new array!
+        ave_sfrd_buf = calculate_sfrd_from_grid_gpu(x_min, x_width, n_bin, y_arr, dens_R_grid, zpp_growth, R_ct, sfrd_grid, HII_TOT_NUM_PIXELS);
+        // -------------- CODE FOR CORRUPTION BUG WORKAROUND
+
     } else {
         // Else, run CPU reduction
         #pragma omp parallel num_threads(user_params_global->N_THREADS)
