@@ -2,6 +2,7 @@
 #define _INTERP_TABLES_H
 
 #include "InputParameters.h"
+#include "interpolation.h"
 
 //Functions within interp_tables.c need the parameter structures, but we don't want to pass them all down the chain, so we broadcast them
 //TODO: in future it would be better to use a context struct. See `HaloBox.c`
@@ -64,6 +65,8 @@ void freeSigmaMInterpTable();
 void free_conditional_tables();
 void free_global_tables();
 void free_dNdM_tables();
+
+RGTable1D_f* get_SFRD_conditional_table(void);
 
 #ifdef __cplusplus
 }

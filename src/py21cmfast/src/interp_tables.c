@@ -18,7 +18,7 @@
 #include "cosmology.h"
 #include "InputParameters.h"
 #include "hmf.h"
-#include "interpolation.h"
+// #include "interpolation.h"
 
 #include "interp_tables.h"
 
@@ -1045,4 +1045,9 @@ double EvaluatedSigmasqdm(double lnM){
         return -pow(10., EvaluateRGTable1D_f(lnM, &dSigmasqdm_InterpTable));
     }
     return dsigmasqdm_z0(exp(lnM));
+}
+
+// Accessor function for the GPU SpinTemp kernel to access table.
+RGTable1D_f* get_SFRD_conditional_table(void) {
+    return &SFRD_conditional_table;
 }
