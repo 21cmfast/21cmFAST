@@ -34,7 +34,9 @@ extra_objects = [
     os.path.join(CLOC, "PerturbField.o"),
     os.path.join(CLOC, "SpinTemperatureBox.o"),
 ]
-extra_link_args = ["-lcudart"]
+# extra_link_args = ["-lcudart"]
+# extra_link_args = ["-lcudart", "-no-undefined"]
+extra_link_args = ["-lcudart", "-lstdc++"]
 
 # Set the C-code logging level.
 # If DEBUG is set, we default to the highest level, but if not,
@@ -87,7 +89,7 @@ libraries = ["m", "gsl", "gslcblas", "fftw3f_omp", "fftw3f"]
 
 # stuff for gperftools
 if "PROFILE" in os.environ:
-    # libraries += ["profiler", "tcmalloc"]
+    # libraries += ["profiler", "tcmalloc"] # tcmalloc causing errors
     libraries += ["profiler"]
     # we need this even if DEBUG is off
     extra_compile_args += ["-g"]
