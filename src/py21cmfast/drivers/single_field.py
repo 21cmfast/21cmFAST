@@ -576,7 +576,8 @@ def interp_halo_boxes(
     hbox_out = HaloBox(
         inputs=inputs,
     )
-    # initialise hbox memory
+
+    # initialise the memory
     hbox_out()
 
     # interpolate halo boxes in gridded SFR
@@ -587,20 +588,24 @@ def interp_halo_boxes(
         interp_field = (1 - interp_param) * getattr(
             hbox_desc, field
         ) + interp_param * getattr(hbox_prog, field)
-        setattr(hbox_out, field, interp_field)
+        if field in hbox_out._array_state.keys():
+            getattr(hbox_out, field)[...] = interp_field
+        else:
+            setattr(hbox_out, field, interp_field)
 
     logger.debug(
         f"interpolated to z={redshift} between [{z_desc},{z_prog}] ({interp_param})"
     )
     logger.debug(
-        f"SFR averages desc {idx_desc}: {hbox_desc.halo_sfr.mean()} interp {hbox_out.halo_sfr.mean()} prog ({idx_prog}) {hbox_prog.halo_sfr.mean()}"
-    )
-    logger.debug(
-        f"top-level struct min-max-mean {hbox_out.halo_sfr.min()}, {hbox_out.halo_sfr.max()}, {hbox_out.halo_sfr.mean()}"
+        f"{fields[0]} averages desc ({idx_desc}): {getattr(hbox_desc, fields[0]).mean()}"
+        + f" interp {getattr(hbox_out, fields[0]).mean()}"
+        + f" prog ({idx_prog}) {getattr(hbox_prog, fields[0]).mean()}"
     )
 
-    # pass the arrays to the c struct by calling again
-    hbox_out()
+    # HACK: this passes the field pointers to the backend,
+    # NOTE: the arrays are initialised in the call above so they shouldn't
+    # be re-initialised causing a memory leak
+    hbox_out._init_cstruct()
     # HACK: Since we don't compute, we have to mark the struct as computed
     for k, state in hbox_out._array_state.items():
         if state.initialized and k in fields:

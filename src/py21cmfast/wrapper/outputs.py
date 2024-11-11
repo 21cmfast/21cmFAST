@@ -142,15 +142,6 @@ class InitialConditions(_OutputStruct):
 
         self.prepare(keep=keep, force=force)
 
-    def prepare_for_halos(self, flag_options: FlagOptions, force: bool = False):
-        """Ensure ICs have all boxes required for the halos, and no more."""
-        keep = ["hires_density"]  # for dexm
-        if flag_options.HALO_STOCHASTICITY:
-            keep.append("lowres_density")  # for the sampler
-        if self.user_params.USE_RELATIVE_VELOCITIES:
-            keep.append("lowres_vcb")
-        self.prepare(keep=keep, force=force)
-
     def prepare_for_spin_temp(self, flag_options: FlagOptions, force: bool = False):
         """Ensure ICs have all boxes required for spin_temp, and no more."""
         keep = []
@@ -341,20 +332,21 @@ class HaloField(_AllParamsBox):
         if isinstance(input_box, InitialConditions):
             if self.flag_options.HALO_STOCHASTICITY:
                 # when the sampler is on, the grids are only needed for the first sample
-                if self.desc_redshift < 0:
+                if self.desc_redshift <= 0:
                     required += ["hires_density"]
                     required += ["lowres_density"]
             # without the sampler, dexm needs the hires density at each redshift
             else:
                 required += ["hires_density"]
         elif isinstance(input_box, HaloField):
-            required += [
-                "halo_masses",
-                "halo_coords",
-                "star_rng",
-                "sfr_rng",
-                "xray_rng",
-            ]
+            if self.flag_options.HALO_STOCHASTICITY:
+                required += [
+                    "halo_masses",
+                    "halo_coords",
+                    "star_rng",
+                    "sfr_rng",
+                    "xray_rng",
+                ]
         else:
             raise ValueError(
                 f"{type(input_box)} is not an input required for HaloField!"
