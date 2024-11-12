@@ -300,7 +300,9 @@ int stoc_halo_sample(struct HaloSamplingConstants *hs_constants, gsl_rng * rng, 
     return 0;
 }
 
-//same as stoc_halo_sample but with a mass tolerance for comparison with Ivan
+//This performs the number-limited sampling as above, modified to include a mass tolerance
+// halo samples are entirely thrown out and re-drawn if they do not meet the tolerance
+// This version is only currently used for internal testing against Nikolic et al. 2024,
 int stoc_halo_sample_tol(struct HaloSamplingConstants *hs_constants, gsl_rng * rng, int *n_halo_out, float *M_out){
     double exp_N = hs_constants->expected_N;
     double exp_M = hs_constants->expected_M;

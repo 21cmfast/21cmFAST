@@ -1171,13 +1171,6 @@ int ComputeIonizedBox(float redshift, float prev_redshift, UserParams *user_para
         writeFlagOptions(flag_options);
     #endif
 
-    //TODO: moved from inside the R loop, either place verification in python wrapper or write a function to verify backend parameters
-    if (global_params.FIND_BUBBLE_ALGORITHM != 2 && global_params.FIND_BUBBLE_ALGORITHM != 1){ // center method
-        LOG_ERROR("Incorrect choice of find bubble algorithm: %i",
-                    global_params.FIND_BUBBLE_ALGORITHM);
-        Throw(ValueError);
-    }
-
     // Makes the parameter structs visible to a variety of functions/macros
     // Do each time to avoid Python garbage collection issues
     Broadcast_struct_global_all(user_params,cosmo_params,astro_params,flag_options);
@@ -1245,12 +1238,6 @@ int ComputeIonizedBox(float redshift, float prev_redshift, UserParams *user_para
         }
     }
     /////////////////////////////////   BEGIN INITIALIZATION   //////////////////////////////////
-
-    // perform a very rudimentary check to see if we are underresolved and not using the linear approx
-    if ((user_params->BOX_LEN > user_params->DIM) && !(global_params.EVOLVE_DENSITY_LINEARLY)){
-        LOG_WARNING("Resolution is likely too low for accurate evolved density fields\n It Is recommended \
-                    that you either increase the resolution (DIM/BOX_LEN) or set the EVOLVE_DENSITY_LINEARLY flag to 1\n");
-    }
 
     struct RadiusSpec *radii_spec;
     int n_radii;

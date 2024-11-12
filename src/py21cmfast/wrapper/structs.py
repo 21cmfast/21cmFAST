@@ -1242,6 +1242,7 @@ class StructInstanceWrapper:
         with contextlib.suppress(AttributeError):
             setattr(self._cobj, name, value)
         object.__setattr__(self, name, value)
+        self.validate()
 
     def items(self):
         """Yield (name, value) pairs for each element of the struct."""
@@ -1277,3 +1278,7 @@ class StructInstanceWrapper:
                 if k not in filter_params
             )
         ) + ")"
+
+    def validate(self):
+        """Validate members of this structure against each other."""
+        pass
