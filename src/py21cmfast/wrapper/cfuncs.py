@@ -1203,13 +1203,14 @@ def halo_sample_test(
     if from_cat:
         z_prev = (1 + redshift) / global_params.ZPRIME_STEP_FACTOR - 1
 
+    buffer_size = int(2e7)
     nhalo_out = np.zeros(1).astype("i4")
     N_out = np.zeros(n_cond).astype("i4")
     M_out = np.zeros(n_cond).astype("f8")
     exp_M = np.zeros(n_cond).astype("f8")
     exp_N = np.zeros(n_cond).astype("f8")
-    halomass_out = np.zeros(int(1e7)).astype("f4")
-    halocrd_out = np.zeros(int(3e7)).astype("i4")
+    halomass_out = np.zeros(buffer_size).astype("f4")
+    halocrd_out = np.zeros(int(3 * buffer_size)).astype("i4")
 
     lib.single_test_sample(
         user_params.cstruct,
