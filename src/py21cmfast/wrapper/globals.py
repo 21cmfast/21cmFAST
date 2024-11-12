@@ -324,7 +324,7 @@ class GlobalParams(StructInstanceWrapper):
 
     def validate(self):
         """Validate the global parameters to ensure the passed values do not clash."""
-        if self.FIND_BUBBLE_ALGORITHM not in [1, 2]:
+        if getattr(self._cobj, "FIND_BUBBLE_ALGORITHM") not in [1, 2]:
             raise ValueError(
                 "FIND_BUBBLE_ALGORITHM MUST BE 1 (entire sphere) or 2 (central pixel)"
             )

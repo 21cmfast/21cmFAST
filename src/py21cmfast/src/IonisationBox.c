@@ -355,14 +355,15 @@ void prepare_box_for_filtering(float *input_box, fftwf_complex *output_c_box, do
     }
 }
 
-//Making a dummy previous box which has the required fields for the first snapshot:
+//Populating a previous box which has the required fields for the first snapshot:
+// Since the values of all arrays should be passed in as zero, we only assign special
+// first snapshot values here
 void setup_first_z_prevbox(IonizedBox *previous_ionize_box, PerturbedField *previous_perturb, int n_radii){
     LOG_DEBUG("first redshift, do some initialization");
     int i,j,k;
     unsigned long long int ct;
 
     //z_re_box is used in all cases
-    previous_ionize_box->z_re_box    = (float *) calloc(HII_TOT_NUM_PIXELS, sizeof(float));
     #pragma omp parallel shared(previous_ionize_box) private(i,j,k) num_threads(user_params_global->N_THREADS)
     {
         #pragma omp for
@@ -375,40 +376,18 @@ void setup_first_z_prevbox(IonizedBox *previous_ionize_box, PerturbedField *prev
         }
     }
 
-    //dNrec is used for INHOMO_RECO
-    if(flag_options_global->INHOMO_RECO)
-        previous_ionize_box->dNrec_box = (float *) calloc(HII_TOT_NUM_PIXELS, sizeof(float));
-
     //previous Gamma12 is used for reionisation feedback when USE_MINI_HALOS
     //previous delta and Fcoll are used for the trapezoidal integral when USE_MINI_HALOS
     if(flag_options_global->USE_MINI_HALOS){
-        previous_ionize_box->Gamma12_box = (float *) calloc(HII_TOT_NUM_PIXELS, sizeof(float));
-        previous_ionize_box->Fcoll       = (float *) calloc(HII_TOT_NUM_PIXELS*n_radii, sizeof(float));
-        previous_ionize_box->Fcoll_MINI  = (float *) calloc(HII_TOT_NUM_PIXELS*n_radii, sizeof(float));
         previous_ionize_box->mean_f_coll = 0.0;
         previous_ionize_box->mean_f_coll_MINI = 0.0;
-
-        previous_perturb->density = (float *) calloc(HII_TOT_NUM_PIXELS*n_radii, sizeof(float));
         #pragma omp parallel private(ct) num_threads(user_params_global->N_THREADS)
         {
             #pragma omp for
             for(ct=0;ct<HII_TOT_NUM_PIXELS;ct++){
-                previous_perturb->density[ct] = -1.5;
+                previous_perturb->density[ct] = -1.5; //TODO: figure out why 1.5, ensures no sources?
             }
         }
-    }
-}
-
-void free_first_z_prevbox(IonizedBox *previous_ionize_box, PerturbedField *previous_perturb){
-    free(previous_ionize_box->z_re_box);
-    if(flag_options_global->USE_MINI_HALOS){
-        free(previous_perturb->density);
-        free(previous_ionize_box->Gamma12_box);
-        free(previous_ionize_box->Fcoll);
-        free(previous_ionize_box->Fcoll_MINI);
-    }
-    if(flag_options_global->INHOMO_RECO){
-        free(previous_ionize_box->dNrec_box);
     }
 }
 
@@ -1020,7 +999,7 @@ void find_ionised_regions(IonizedBox *box, IonizedBox *previous_ionize_box, Pert
                         // FLAG CELL(S) AS IONIZED
                         if (global_params.FIND_BUBBLE_ALGORITHM == 2) // center method
                             box->xH_box[HII_R_INDEX(x,y,z)] = 0;
-                        if (global_params.FIND_BUBBLE_ALGORITHM == 1) // sphere method
+                        else if (global_params.FIND_BUBBLE_ALGORITHM == 1) // sphere method
                             update_in_sphere(box->xH_box, user_params_global->HII_DIM, HII_D_PARA, rspec.R/(user_params_global->BOX_LEN), \
                                                 x/(user_params_global->HII_DIM+0.0), y/(user_params_global->HII_DIM+0.0), z/(HII_D_PARA+0.0));
                     } // end ionized
@@ -1189,20 +1168,10 @@ int ComputeIonizedBox(float redshift, float prev_redshift, UserParams *user_para
     set_ionbox_constants(redshift,prev_redshift,cosmo_params,astro_params,flag_options,&ionbox_constants);
 
     //boxes which aren't guaranteed to have every element assigned to need to be initialised
-    //TODO: they should be zero'd in the wrapper, right?
     if(flag_options->INHOMO_RECO) {
         if(INIT_RECOMBINATIONS) {
             init_MHR();
             INIT_RECOMBINATIONS=0;
-        }
-
-        #pragma omp parallel shared(box) private(ct) num_threads(user_params->N_THREADS)
-        {
-            #pragma omp for
-            for (ct=0; ct<HII_TOT_NUM_PIXELS; ct++) {
-                box->Gamma12_box[ct] = 0.0;
-                box->MFP_box[ct] = 0.0;
-            }
         }
     }
 
@@ -1426,9 +1395,6 @@ int ComputeIonizedBox(float redshift, float prev_redshift, UserParams *user_para
 
     LOG_DEBUG("global_xH = %e",global_xH);
     free_fftw_grids(grid_struct);
-    if (prev_redshift < 1){
-        free_first_z_prevbox(previous_ionize_box,previous_perturbed_field);
-    }
 
     if(!flag_options->USE_TS_FLUCT && user_params->USE_INTERPOLATION_TABLES) {
         freeSigmaMInterpTable();

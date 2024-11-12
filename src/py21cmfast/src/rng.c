@@ -92,6 +92,7 @@ bool array_unique(unsigned int array[], int array_size){
     return true;
 }
 
+//Samples a number of integers, repeating the samples if any repeat
 void sample_n_unique_integers(unsigned int n, unsigned long long int seed, unsigned int array[]){
     gsl_rng * rseed = gsl_rng_alloc(gsl_rng_mt19937); // An RNG for generating seeds for multithreading
     gsl_rng_set(rseed, seed);
@@ -101,7 +102,7 @@ void sample_n_unique_integers(unsigned int n, unsigned long long int seed, unsig
         for(idx = 0; idx < n; idx++){
             array[idx] = gsl_rng_get(rseed);
         }
-    } while(array_unique(array,n));
+    } while(!array_unique(array,n));
 
     gsl_rng_free(rseed);
 }

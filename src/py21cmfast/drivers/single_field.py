@@ -963,7 +963,7 @@ def compute_ionization_field(
 
     if not inputs.flag_options.USE_MINI_HALOS:
         previous_perturbed_field = PerturbedField(
-            inputs=inputs.clone(redshift=0.0), dummy=True
+            inputs=inputs.clone(redshift=0.0), initial=True
         )
     elif previous_perturbed_field is None:
         # If we are beyond Z_HEAT_MAX, just make an empty box
