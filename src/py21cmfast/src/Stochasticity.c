@@ -17,6 +17,7 @@
 #include "hmf.h"
 #include "cosmology.h"
 #include "InitialConditions.h"
+#include "rng.h"
 
 #include "Stochasticity.h"
 //buffer size (per cell of arbitrary size) in the sampling function
