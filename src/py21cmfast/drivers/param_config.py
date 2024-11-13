@@ -112,6 +112,18 @@ class InputParameters:
             else:
                 raise ValueError(msg)
 
+    @user_params.validator
+    def _user_params_validator(self, att, val):
+        if val is None:
+            return
+        # perform a very rudimentary check to see if we are underresolved and not using the linear approx
+        if val.BOX_LEN > val.DIM and not global_params.EVOLVE_DENSITY_LINEARLY:
+            warnings.warn(
+                "Resolution is likely too low for accurate evolved density fields\n It Is recommended"
+                + "that you either increase the resolution (DIM/BOX_LEN) or"
+                + "set the EVOLVE_DENSITY_LINEARLY flag to 1"
+            )
+
     def merge_keys(self):
         """The list of available structs in this instance."""
         # Allow using **input_parameters

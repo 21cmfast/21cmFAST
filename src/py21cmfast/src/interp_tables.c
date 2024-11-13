@@ -296,18 +296,17 @@ void initialise_Nion_Conditional_spline(float z, float Mcrit_atom, float min_den
 
     sigma2 = EvaluateSigma(log(Mcond));
 
-    if(prev){
-        table_2d = &Nion_conditional_table_prev;
-        table_mini = &Nion_conditional_table_MINI_prev;
-    }
-    else{
-        table_2d = &Nion_conditional_table2D;
-        table_mini = &Nion_conditional_table_MINI;
-    }
-
     //If we use minihalos, both tables are 2D (delta,mturn) due to reionisaiton feedback
     //otherwise, the Nion table is 1D, since reionsaiton feedback is only active with minihalos
     if (minihalos){
+        if(prev){
+            table_2d = &Nion_conditional_table_prev;
+            table_mini = &Nion_conditional_table_MINI_prev;
+        }
+        else{
+            table_2d = &Nion_conditional_table2D;
+            table_mini = &Nion_conditional_table_MINI;
+        }
         if(!table_2d->allocated) {
             allocate_RGTable2D_f(NDELTA,NMTURN,table_2d);
         }

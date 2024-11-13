@@ -462,8 +462,7 @@ def photoncons_alpha(cosmo_params, user_params, astro_params, flag_options):
     )
     for i, a in enumerate(alpha_arr):
         # alter astro params with new alpha
-        astro_params_photoncons = deepcopy(astro_params)
-        astro_params_photoncons.ALPHA_ESC = a
+        astro_params_photoncons = astro_params.clone(ALPHA_ESC=a)
 
         # find the analytic curve wth that alpha
         # TODO: Theres a small memory leak here since global arrays are allocated (for some reason)

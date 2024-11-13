@@ -49,7 +49,7 @@ DEFAULT_USER_PARAMS = {
     "DIM": 150,
     "BOX_LEN": 100,
     "NO_RNG": True,
-    "SAMPLER_MIN_MASS": 5e8,
+    "SAMPLER_MIN_MASS": 1e9,
 }
 
 DEFAULT_FLAG_OPTIONS = {

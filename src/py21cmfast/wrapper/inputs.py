@@ -454,6 +454,10 @@ class FlagOptions(InputStruct):
         Whether to use an additional powerlaw in stellar mass fraction at high halo mass. The pivot mass scale and power-law index are
         controlled by two global parameters, UPPER_STELLAR_TURNOVER_MASS and UPPER_STELLAR_TURNOVER_INDEX respectively.
         This is currently only implemented in the halo model (USE_HALO_FIELD=True), and has no effect otherwise.
+    HALO_SCALING_RELATIONS_MEDIAN: bool, optional
+        If True, halo scaling relation parameters (F_STAR10,t_STAR etc...) define the median of their conditional distributions
+        If False, they describe the mean.
+        This becomes important when using non-symmetric dristributions such as the log-normal
     """
 
     _photoncons_models = [
@@ -485,6 +489,7 @@ class FlagOptions(InputStruct):
     )
     USE_UPPER_STELLAR_TURNOVER = field(default=True, converter=bool)
     M_MIN_in_Mass = field(default=True, converter=bool)
+    HALO_SCALING_RELATIONS_MEDIAN = field(default=False, converter=bool)
 
     @M_MIN_in_Mass.validator
     def _M_MIN_in_Mass_vld(self, att, val):

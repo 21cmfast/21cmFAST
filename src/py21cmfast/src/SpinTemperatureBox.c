@@ -97,9 +97,10 @@ int ComputeTsBox(float redshift, float prev_redshift, UserParams *user_params, C
     Try{ // This Try{} wraps the whole function.
     LOG_DEBUG("input values:");
     LOG_DEBUG("redshift=%f, prev_redshift=%f perturbed_field_redshift=%f", redshift, prev_redshift, perturbed_field_redshift);
-    if (LOG_LEVEL >= DEBUG_LEVEL){
-        writeAstroParams(flag_options, astro_params);
-    }
+
+#if LOG_LEVEL >= SUPER_DEBUG_LEVEL
+    writeAstroParams(flag_options, astro_params);
+#endif
 
     // Makes the parameter structs visible to a variety of functions/macros
     // Do each time to avoid Python garbage collection issues
@@ -313,7 +314,6 @@ void setup_z_edges(double zp){
     double zpp, prev_zpp, prev_R;
     double dzpp_for_evolve;
     int R_ct;
-    LOG_DEBUG("Starting z edges");
 
     R = L_FACTOR*user_params_global->BOX_LEN/(float)user_params_global->HII_DIM;
     R_factor = pow(global_params.R_XLy_MAX/R, 1/((float)global_params.NUM_FILTER_STEPS_FOR_Ts));
@@ -780,11 +780,6 @@ void fill_freqint_tables(double zp, double x_e_ave, double filling_factor_of_HI_
                     freq_int_lya_tbl_diff[x_e_ct-1][R_ct] = freq_int_lya_tbl[x_e_ct][R_ct] - freq_int_lya_tbl[x_e_ct-1][R_ct];
                 }
             }
-            LOG_ULTRA_DEBUG("%d of %d heat: %.3e %.3e %.3e ion: %.3e %.3e %.3e lya: %.3e %.3e %.3e lower %.3e"
-                ,R_ct,global_params.NUM_FILTER_STEPS_FOR_Ts
-                ,freq_int_heat_tbl[0][R_ct],freq_int_heat_tbl[x_int_NXHII/2][R_ct],freq_int_heat_tbl[x_int_NXHII-1][R_ct]
-                ,freq_int_ion_tbl[0][R_ct],freq_int_ion_tbl[x_int_NXHII/2][R_ct],freq_int_ion_tbl[x_int_NXHII-1][R_ct]
-                ,freq_int_lya_tbl[0][R_ct],freq_int_lya_tbl[x_int_NXHII/2][R_ct],freq_int_lya_tbl[x_int_NXHII-1][R_ct], lower_int_limit);
         }
 //separating the inverse diff loop to prevent a race on different R_ct (shouldn't matter)
 #pragma omp for
@@ -908,8 +903,6 @@ int global_reion_properties(double zp, double x_e_ave, double *log10_Mcrit_LW_av
         fill_freqint_tables(zp,x_e_ave,*Q_HI,log10_Mcrit_LW_ave,0);
     }
 
-    LOG_DEBUG("Done.");
-
     return sum_nion + sum_nion_mini > 1e-15 ? 0 : 1; //NO_LIGHT returned
 }
 
@@ -997,7 +990,6 @@ struct spintemp_from_sfr_prefactors{
 
 void set_zp_consts(double zp, struct spintemp_from_sfr_prefactors *consts){
     //constant prefactors for the R_ct==0 part
-    LOG_DEBUG("Setting zp constants");
     double luminosity_converstion_factor;
     double gamma_alpha;
     consts->growth_zp = dicke(zp);
@@ -1258,8 +1250,6 @@ void ts_main(float redshift, float prev_redshift, UserParams *user_params, Cosmo
     for(R_ct=0;R_ct<global_params.NUM_FILTER_STEPS_FOR_Ts;R_ct++){
         sigma_min[R_ct] = EvaluateSigma(log(M_min_R[R_ct]));
         sigma_max[R_ct] = EvaluateSigma(log(M_max_R[R_ct]));
-        LOG_ULTRA_DEBUG("R %d = %.2e z %.2e || M = [%.2e, %.2e] sig [%.2e %.2e]",R_ct,R_values[R_ct],
-                    zpp_for_evolve_list[R_ct],M_min_R[R_ct],M_max_R[R_ct],sigma_min[R_ct],sigma_max[R_ct]);
     }
 
     //Initialize heating interpolation arrays
@@ -1526,7 +1516,7 @@ void ts_main(float redshift, float prev_redshift, UserParams *user_params, Cosmo
                     }
 
                     //I cannot check the integral if we are using the halo field since delNL0 (filtered density) is not calculated
-                    #if LOG_LEVEL >= SUPER_DEBUG_LEVEL
+#if LOG_LEVEL >= SUPER_DEBUG_LEVEL
                     if(box_ct==0 && !flag_options->USE_HALO_FIELD){
                         double integral_db;
                         if(flag_options->USE_MASS_DEPENDENT_ZETA){
@@ -1555,7 +1545,7 @@ void ts_main(float redshift, float prev_redshift, UserParams *user_params, Cosmo
                         if(flag_options->USE_LYA_HEATING)
                             LOG_SUPER_DEBUG("ct %.2e | ij %.2e",dstarlya_cont_dt_box[box_ct],dstarlya_inj_dt_box[box_ct]);
                     }
-                    #endif
+#endif
                 }
             }
         }

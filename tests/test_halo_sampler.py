@@ -34,14 +34,14 @@ def test_sampler(name, cond, from_cat, plt):
     redshift, kwargs = cint.OPTIONS_HMF[name]
     redshift = 8
     opts = prd.get_all_options(redshift, **kwargs)
-    up = opts["user_params"]
+    up = opts["user_params"].clone(SAMPLER_MIN_MASS=2e8)
     cp = opts["cosmo_params"]
     ap = opts["astro_params"]
     fo = opts["flag_options"]
 
     from_cat = "cat" in from_cat
 
-    n_cond = 10000
+    n_cond = 15000
     if from_cat:
         mass = 10 ** options_log10mass[cond]
         cond = mass
@@ -70,11 +70,12 @@ def test_sampler(name, cond, from_cat, plt):
         redshift=redshift,
         from_cat=from_cat,
         cond_array=np.full(n_cond, cond),
+        seed=987,
     )
 
     # set up histogram
     l10min = np.log10(up.SAMPLER_MIN_MASS)
-    l10max = np.log10(1e14)
+    l10max = np.log10(mass * 1.01)
     edges = np.logspace(l10min, l10max, num=int(10 * (l10max - l10min)))
     bin_minima = edges[:-1]
     bin_maxima = edges[1:]
@@ -133,7 +134,7 @@ def test_sampler(name, cond, from_cat, plt):
     # The histograms get inaccurate when the volume is too small
     # so only compare when we expect real halos
     if sample_dict["expected_progenitor_mass"][0] > up.SAMPLER_MIN_MASS:
-        sel_compare_bins = edges[:-1] < (0.9 * mass)
+        sel_compare_bins = edges[1:] < (0.9 * mass)
 
         print_failure_stats(
             mf_out[sel_compare_bins],
@@ -243,7 +244,6 @@ def plot_sampler_comparison(
     # mass function axis
     axs[0].set_title(title)
     axs[0].set_ylim([1e-6, 1e2])
-    axs[0].set_xlim([bin_edges[0], bin_edges[np.argmax(exp_mf == 0)]])
     axs[0].set_yscale("log")
     axs[0].set_ylabel("dn/dlnM")
 

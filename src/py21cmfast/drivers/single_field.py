@@ -715,8 +715,11 @@ def compute_xray_source_field(
         R_outer = R_range[i].to("Mpc").value
 
         if zpp_avg[i] >= z_max:
+            box.filtered_sfr[i] = 0
+            box.filtered_sfr_mini[i] = 0
+            box.filtered_xray[i] = 0
+            box.mean_log10_Mcrit_LW[i] = inputs.astro_params.M_TURN  # minimum
             logger.debug(f"ignoring Radius {i} which is above Z_HEAT_MAX")
-            box.filtered_sfr[i, ...] = 0
             continue
 
         hbox_interp = interp_halo_boxes(
@@ -730,6 +733,7 @@ def compute_xray_source_field(
             box.filtered_sfr[i] = 0
             box.filtered_sfr_mini[i] = 0
             box.filtered_xray[i] = 0
+            box.mean_log10_Mcrit_LW[i] = hbox_interp.log10_Mcrit_MCG_ave
             logger.debug(f"ignoring Radius {i} due to no stars")
             continue
 
@@ -963,7 +967,7 @@ def compute_ionization_field(
 
     if not inputs.flag_options.USE_MINI_HALOS:
         previous_perturbed_field = PerturbedField(
-            inputs=inputs.clone(redshift=0.0), dummy=True
+            inputs=inputs.clone(redshift=0.0), initial=True
         )
     elif previous_perturbed_field is None:
         # If we are beyond Z_HEAT_MAX, just make an empty box

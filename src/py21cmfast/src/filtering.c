@@ -1,7 +1,4 @@
 
-//filter_box, filter_box_annulus and filter_box_mfp should be combined in a better way, they require different inputs
-//and they are run on different subsets of the boxes but they contain a lot of the same math
-
 #include <stdlib.h>
 #include <stdio.h>
 #include <math.h>
