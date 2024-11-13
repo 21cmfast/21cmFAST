@@ -1,6 +1,5 @@
 import pytest
 
-import attrs
 import matplotlib as mpl
 import numpy as np
 from astropy import constants as c

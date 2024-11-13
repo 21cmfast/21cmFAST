@@ -774,7 +774,7 @@ void calculate_fcoll_grid(IonizedBox *box, IonizedBox *previous_ionize_box, stru
                             }
                             Splined_Fcoll = EvaluateNion_Conditional(curr_dens,log10_Mturnover,consts->growth_factor,
                                                                     consts->M_min,rspec->M_max_R,rspec->M_max_R,
-                                                                    rspec->sigma_maxmass,consts->Mlim_Fstar,consts->Mlim_Fesc,true);
+                                                                    rspec->sigma_maxmass,consts->Mlim_Fstar,consts->Mlim_Fesc,false);
                         }
                         else{
                             Splined_Fcoll = EvaluateFcoll_delta(curr_dens,consts->growth_factor,consts->sigma_minmass,rspec->sigma_maxmass);
