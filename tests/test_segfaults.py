@@ -1,9 +1,13 @@
 """
-This file contains tests which run a lightcone under various flag options to test the C backend for segfaults.
-These will not test the outputs of the run, just that the run completes without error
+This file contains tests which run a lightcone under various flag options
+to test the C backend for segfaults.
+These will not test the outputs of the run past the fact that they are finite,
+just that the run completes without error
 """
 
 import pytest
+
+import numpy as np
 
 import py21cmfast as p21c
 
@@ -131,3 +135,4 @@ def test_lc_runs(name, max_redshift):
         )
 
     assert isinstance(lightcone, p21c.LightCone)
+    assert np.all(np.isfinite(lightcone.brightness_temp))

@@ -1082,26 +1082,33 @@ class OutputStruct(metaclass=ABCMeta):
     def summarize(self, indent=0) -> str:
         """Generate a string summary of the struct."""
         indent = indent * "    "
-        out = f"\n{indent}{self.__class__.__name__}\n"
 
-        out += "".join(
-            f"{indent}    {fieldname:>15}: {getattr(self, fieldname, 'non-existent')}\n"
-            for fieldname in self.struct.primitive_fields
+        # print array type and column headings
+        out = (
+            f"\n{indent}{self.__class__.__name__:>25}    "
+            + "   1st:         End:         Min:         Max:         Mean:         \n"
         )
 
+        # print array extrema and means
         for fieldname, state in self._array_state.items():
             if not state.initialized:
-                out += f"{indent}    {fieldname:>15}: uninitialized\n"
+                out += f"{indent}    {fieldname:>25}:  uninitialized\n"
             elif not state.computed:
-                out += f"{indent}    {fieldname:>15}: initialized\n"
+                out += f"{indent}    {fieldname:>25}:  initialized\n"
             elif not state.computed_in_mem:
-                out += f"{indent}    {fieldname:>15}: computed on disk\n"
+                out += f"{indent}    {fieldname:>25}:  computed on disk\n"
             else:
                 x = getattr(self, fieldname).flatten()
                 if len(x) > 0:
-                    out += f"{indent}    {fieldname:>15}: {x[0]:1.4e}, {x[-1]:1.4e}, {x.min():1.4e}, {x.max():1.4e}, {np.mean(x):1.4e}\n"
+                    out += f"{indent}    {fieldname:>25}: {x[0]:11.4e}, {x[-1]:11.4e}, {x.min():11.4e}, {x.max():11.4e}, {np.mean(x):11.4e}\n"
                 else:
-                    out += f"{indent}    {fieldname:>15}: size zero\n"
+                    out += f"{indent}    {fieldname:>25}: size zero\n"
+
+        # print primitive fields
+        out += "".join(
+            f"{indent}    {fieldname:>25}: {getattr(self, fieldname, 'non-existent')}\n"
+            for fieldname in self.struct.primitive_fields
+        )
 
         return out
 
