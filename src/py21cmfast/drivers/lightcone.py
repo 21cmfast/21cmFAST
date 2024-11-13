@@ -351,7 +351,7 @@ def setup_lightcone_instance(
         logger.info(f"Read in LC file at z={lightcone._current_redshift}")
         if start_idx < len(scrollz):
             logger.info(
-                f"starting at z={scrollz[start_idx]}, step ({start_idx+1}/{len(scrollz)+1}"
+                f"starting at z={scrollz[start_idx]}, step ({start_idx + 1}/{len(scrollz) + 1}"
             )
     else:
         lcn_cls = (
