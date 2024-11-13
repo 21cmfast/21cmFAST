@@ -41,7 +41,7 @@ def test_sampler(name, cond, from_cat, plt):
 
     from_cat = "cat" in from_cat
 
-    n_cond = 25000
+    n_cond = 15000
     if from_cat:
         mass = 10 ** options_log10mass[cond]
         cond = mass

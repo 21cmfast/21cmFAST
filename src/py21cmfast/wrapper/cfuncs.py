@@ -1203,7 +1203,7 @@ def halo_sample_test(
     if from_cat:
         z_prev = (1 + redshift) / global_params.ZPRIME_STEP_FACTOR - 1
 
-    buffer_size = int(2e7)
+    buffer_size = int(3e7)  # about 500MB total 2e7 * 4 (float) * 4 (mass + 3crd)
     nhalo_out = np.zeros(1).astype("i4")
     N_out = np.zeros(n_cond).astype("i4")
     M_out = np.zeros(n_cond).astype("f8")
