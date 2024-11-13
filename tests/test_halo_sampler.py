@@ -34,7 +34,7 @@ def test_sampler(name, cond, from_cat, plt):
     redshift, kwargs = cint.OPTIONS_HMF[name]
     redshift = 8
     opts = prd.get_all_options(redshift, **kwargs)
-    up = opts["user_params"]
+    up = opts["user_params"].clone(SAMPLER_MIN_MASS=2e8)
     cp = opts["cosmo_params"]
     ap = opts["astro_params"]
     fo = opts["flag_options"]
