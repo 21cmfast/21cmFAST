@@ -11,6 +11,7 @@ on:
     branches:
       - 'master'
       - 'production'
+      - 'v4-prep'
 
 
 jobs:
