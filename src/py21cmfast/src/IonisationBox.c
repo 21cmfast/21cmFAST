@@ -631,9 +631,13 @@ void clip_and_get_extrema(fftwf_complex * grid, double lower_limit, double upper
 void setup_integration_tables(struct FilteredGrids *fg_struct, struct IonBoxConstants *consts, struct RadiusSpec rspec, bool need_prev){
     double min_density, max_density, prev_min_density, prev_max_density;
     double log10Mturn_min, log10Mturn_max, log10Mturn_min_MINI, log10Mturn_max_MINI;
+
+    //TODO: instead of putting a random upper limit, put a proper flag for switching of one/both sides of the clipping
+    clip_and_get_extrema(fg_struct->deltax_filtered,-1,1e6,&min_density,&max_density);
+    min_density -= 0.001;
+    max_density += 0.001;
+
     if (flag_options_global->USE_MASS_DEPENDENT_ZETA){
-        //TODO: instead of putting a random upper limit, put a proper flag for switching of one/both sides of the clipping
-        clip_and_get_extrema(fg_struct->deltax_filtered,-1,1e6,&min_density,&max_density);
         if (flag_options_global->USE_MINI_HALOS){
             // do the same for prev
             clip_and_get_extrema(fg_struct->prev_deltax_filtered,-1,1e6,&prev_min_density,&prev_max_density);
@@ -648,8 +652,6 @@ void setup_integration_tables(struct FilteredGrids *fg_struct, struct IonBoxCons
             initialise_GL(consts->lnMmin, rspec.ln_M_max_R);
         if(user_params_global->USE_INTERPOLATION_TABLES){
             //Buffers to avoid both zero bin widths and max cell segfault in 2D interptables
-            min_density -= 0.001;
-            max_density += 0.001;
             prev_min_density -= 0.001;
             prev_max_density += 0.001;
             log10Mturn_min = log10Mturn_min * 0.99;
@@ -682,8 +684,9 @@ void setup_integration_tables(struct FilteredGrids *fg_struct, struct IonBoxCons
     }
     else {
         //This was previously one table for all R, which can be done with the EPS mass function (and some others)
-        //TODO: I don't expect this to be a bottleneck, but we can look into re-making the ERFC table if needed
-        initialise_FgtrM_delta_table(min_density, max_density, consts->redshift, consts->growth_factor, consts->sigma_minmass, rspec.sigma_maxmass);
+        //TODO: I don't expect this to be a bottleneck, but we can look into re-making the 2/3D ERFC tables if needed
+        if(user_params_global->USE_INTERPOLATION_TABLES)
+            initialise_FgtrM_delta_table(min_density, max_density, consts->redshift, consts->growth_factor, consts->sigma_minmass, rspec.sigma_maxmass);
     }
 }
 
