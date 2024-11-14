@@ -1148,13 +1148,22 @@ class LightCone(_HighLevelOutput):
         # A *copy* of the current global parameters.
         self.global_params = _globals or dict(global_params.items())
 
-        self.Nion_acg = (
-            mean_f_colls
-            * 10**astro_params.F_STAR10
-            * 10**astro_params.F_ESC10
-            * ((1.0 + self.node_redshifts_adjusted) / 8) ** astro_params.BETA_ESC
-            * self.global_params["Pop2_ion"]
-        )
+        if self.flag_options.PHOTON_CONS:
+            self.Nion_acg = (
+                mean_f_colls
+                * 10**astro_params.F_STAR10
+                * 10**astro_params.F_ESC10
+                * ((1.0 + self.node_redshifts_adjusted) / 8) ** astro_params.BETA_ESC
+                * self.global_params["Pop2_ion"]
+            )
+        else:
+            self.Nion_acg = (
+                mean_f_colls
+                * 10**astro_params.F_STAR10
+                * 10**astro_params.F_ESC10
+                * ((1.0 + self.node_redshifts) / 8) ** astro_params.BETA_ESC
+                * self.global_params["Pop2_ion"]
+            )
         self.Nion_mcg = (
             mean_f_coll_MINIs
             * 10**astro_params.F_STAR7_MINI
