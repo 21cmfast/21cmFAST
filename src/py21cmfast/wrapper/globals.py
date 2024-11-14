@@ -316,6 +316,8 @@ class GlobalParams(StructInstanceWrapper):
             prev[key] = getattr(self, key)
             setattr(self, key, val)
 
+        self.validate()
+
         yield
 
         # Restore everything back to the way it was.
