@@ -651,7 +651,7 @@ void setup_integration_tables(struct FilteredGrids *fg_struct, struct IonBoxCons
             clip_and_get_extrema(fg_struct->log10_Mturnover_MINI_filtered,0.,LOG10_MTURN_MAX,&log10Mturn_min_MINI,&log10Mturn_max_MINI);
         }
 
-        LOG_ULTRA_DEBUG("Tb limits d (%.2e,%.2e), m (%.2e,%.2e) t (%.2e,%.2e) tm (%.2e,%.2e)",
+        LOG_SUPER_DEBUG("Tb limits d (%.2e,%.2e), m (%.2e,%.2e) t (%.2e,%.2e) tm (%.2e,%.2e)",
                         min_density,max_density,consts->M_min,rspec.M_max_R,log10Mturn_min,log10Mturn_max,
                         log10Mturn_min_MINI,log10Mturn_max_MINI);
         if(user_params_global->INTEGRATION_METHOD_ATOMIC == 1 || (flag_options_global->USE_MINI_HALOS && user_params_global->INTEGRATION_METHOD_MINI == 1))
@@ -831,7 +831,7 @@ void calculate_fcoll_grid(IonizedBox *box, IonizedBox *previous_ionize_box, stru
                         //    box->Fcoll_MINI[counter * HII_TOT_NUM_PIXELS + HII_R_INDEX(x,y,z)] = previous_ionize_box->Fcoll_MINI[counter * HII_TOT_NUM_PIXELS + HII_R_INDEX(x,y,z)];
                         f_coll_MINI_total += box->Fcoll_MINI[fc_r_idx * HII_TOT_NUM_PIXELS + HII_R_INDEX(x,y,z)];
                         if(isfinite(f_coll_MINI_total)==0){
-                            LOG_ERROR("f_coll_MINI is either infinite or NaN! %d %g (%d,%d,%d)?: dens %g, prev %g",
+                            LOG_ERROR("f_coll_MINI is either infinite or NaN %d R=%g (%d,%d,%d)?: dens %g, prev %g",
                                     rspec->R_index,rspec->R,x,y,z,curr_dens,prev_dens);
                             LOG_ERROR("prev box %g intgrl %g curr int %g --> %g  l10mturn %g (%g)",
                                     previous_ionize_box->Fcoll_MINI[fc_r_idx * HII_TOT_NUM_PIXELS + HII_R_INDEX(x,y,z)],
@@ -1312,6 +1312,10 @@ int ComputeIonizedBox(float redshift, float prev_redshift, UserParams *user_para
                                 user_params->N_THREADS, grid_struct->log10_Mturnover_MINI_unfiltered);
                 dft_r2c_cube(user_params->USE_FFTW_WISDOM, user_params->HII_DIM, HII_D_PARA,
                                 user_params->N_THREADS, grid_struct->log10_Mturnover_unfiltered);
+                for (ct=0; ct<HII_KSPACE_NUM_PIXELS; ct++){
+                    grid_struct->log10_Mturnover_unfiltered[ct] /= (float)HII_TOT_NUM_PIXELS;
+                    grid_struct->log10_Mturnover_MINI_unfiltered[ct] /= (float)HII_TOT_NUM_PIXELS;
+                }
             }
         }
         if(flag_options->USE_TS_FLUCT){
