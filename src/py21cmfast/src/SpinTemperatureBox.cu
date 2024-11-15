@@ -59,11 +59,11 @@ __device__ void warp_reduce(volatile double *sdata, unsigned int tid) {
 
 template <unsigned int threadsPerBlock>
 __global__ void compute_and_reduce(
-    double *x_min, // input data
-    double *x_width, // input data
-    float *y_arr, // input data
-    float *dens_R_grid, // input data
-    double zpp_growth_R_ct, // input value
+    double *x_min, // reference
+    double *x_width, // reference
+    float *y_arr, // reference
+    float *dens_R_grid, // reference
+    double zpp_growth_R_ct, // value
     float *sfrd_grid, // star formation rate density grid to be updated
     double *ave_sfrd_buf, // output buffer of length ceil(n / (threadsPerBlock * 2))
     unsigned int num_pixels // length of input data
@@ -119,13 +119,7 @@ __global__ void compute_and_reduce(
 }
 
 double calculate_sfrd_from_grid_gpu(
-    // RGTable1D_f *SFRD_conditional_table, // input data
-    // -------------- CODE FOR CORRUPTION BUG WORKAROUND
-    double x_min,
-    double x_width,
-    int n_bin,
-    float* y_arr,
-    // -------------- CODE FOR CORRUPTION BUG WORKAROUND
+    RGTable1D_f *SFRD_conditional_table, // input data
     float *dens_R_grid, // input data
     double *zpp_growth, // input data
     int R_ct, // input data
@@ -133,81 +127,45 @@ double calculate_sfrd_from_grid_gpu(
     unsigned int num_pixels // length of input data
 ) {
     cudaError_t err = cudaGetLastError();
-    // <-- ADD BREAKPOINT HERE
+
     // Input data
     double zpp_growth_R_ct = zpp_growth[R_ct];
 
     // The kernel only needs access to some fields of the SFRD_conditional_table struct
     // so we allocate device memory and copy data only for required fields.
 
-
-    // -------------- CODE FOR CORRUPTION BUG WORKAROUND
     // Create device pointers
-    double *d_x_min, *d_x_width;
-    float *d_y_arr;
+    double *x_min, *x_width;
+    float *y_arr;
 
     // Allocate device memory
-    cudaMalloc(&d_x_min, sizeof(double));
-    cudaMalloc(&d_x_width, sizeof(double));
-    cudaMalloc(&d_y_arr, sizeof(float) * n_bin);
+    cudaMalloc(&x_min, sizeof(double)); // TODO: don't allocate, just pass in?
+    cudaMalloc(&x_width, sizeof(double));
+    cudaMalloc(&y_arr, sizeof(float) * SFRD_conditional_table->n_bin);
     LOG_INFO("SFRD_conditional_table fields allocated on device.");
 
-    LOG_INFO("x_min: %f, x_width: %f, n_bin: %d", x_min, x_width, n_bin);
-    // <-- ADD BREAKPOINT HERE
+    LOG_INFO("x_min: %f, x_width: %f, n_bin: %d", SFRD_conditional_table->x_min, SFRD_conditional_table->x_width, SFRD_conditional_table->n_bin);
+
     // Copy data from host to device
-    err = cudaMemcpy(d_x_min, &x_min, sizeof(double), cudaMemcpyHostToDevice); // Can also pass in
+    err = cudaMemcpy(x_min, &SFRD_conditional_table->x_min, sizeof(double), cudaMemcpyHostToDevice); // Can also pass in
     if (err != cudaSuccess) {
         LOG_ERROR("CUDA error: %s", cudaGetErrorString(err));
         Throw(CUDAError);
     }
-    // <-- ADD BREAKPOINT HERE
-    err = cudaMemcpy(d_x_width, &x_width, sizeof(double), cudaMemcpyHostToDevice); // Can also pass in
+
+    err = cudaMemcpy(x_width, &SFRD_conditional_table->x_width, sizeof(double), cudaMemcpyHostToDevice); // Can also pass in
     if (err != cudaSuccess) {
         LOG_ERROR("CUDA error: %s", cudaGetErrorString(err));
         Throw(CUDAError);
     }
-    // <-- ADD BREAKPOINT HERE
-    err = cudaMemcpy(d_y_arr, y_arr, sizeof(float) * n_bin, cudaMemcpyHostToDevice);
+
+    err = cudaMemcpy(y_arr, SFRD_conditional_table->y_arr, sizeof(float) * SFRD_conditional_table->n_bin, cudaMemcpyHostToDevice);
     if (err != cudaSuccess) {
         LOG_ERROR("CUDA error: %s", cudaGetErrorString(err));
         Throw(CUDAError);
     }
-    // <-- ADD BREAKPOINT HERE
+
     LOG_INFO("SFRD_conditional_table fields copied to device.");
-    // -------------- CODE FOR CORRUPTION BUG WORKAROUND
-
-    // // Create device pointers
-    // double *x_min, *x_width;
-    // float *y_arr;
-
-    // // Allocate device memory
-    // cudaMalloc(&x_min, sizeof(double));
-    // cudaMalloc(&x_width, sizeof(double));
-    // cudaMalloc(&y_arr, sizeof(float) * SFRD_conditional_table->n_bin);
-    // LOG_INFO("SFRD_conditional_table fields allocated on device.");
-
-    // LOG_INFO("x_min: %f, x_width: %f, n_bin: %d", SFRD_conditional_table->x_min, SFRD_conditional_table->x_width, SFRD_conditional_table->n_bin);
-    // // <-- ADD BREAKPOINT HERE
-    // // Copy data from host to device
-    // err = cudaMemcpy(x_min, &SFRD_conditional_table->x_min, sizeof(double), cudaMemcpyHostToDevice); // Can also pass in
-    // if (err != cudaSuccess) {
-    //     LOG_ERROR("CUDA error: %s", cudaGetErrorString(err));
-    //     Throw(CUDAError);
-    // }
-    // // <-- ADD BREAKPOINT HERE
-    // err = cudaMemcpy(x_width, &SFRD_conditional_table->x_width, sizeof(double), cudaMemcpyHostToDevice); // Can also pass in
-    // if (err != cudaSuccess) {
-    //     LOG_ERROR("CUDA error: %s", cudaGetErrorString(err));
-    //     Throw(CUDAError);
-    // }
-    // // <-- ADD BREAKPOINT HERE
-    // err = cudaMemcpy(y_arr, SFRD_conditional_table->y_arr, sizeof(float) * SFRD_conditional_table->n_bin, cudaMemcpyHostToDevice);
-    // if (err != cudaSuccess) {
-    //     LOG_ERROR("CUDA error: %s", cudaGetErrorString(err));
-    //     Throw(CUDAError);
-    // }
-    // // <-- ADD BREAKPOINT HERE
-    // LOG_INFO("SFRD_conditional_table fields copied to device.");
 
     // Allocate & populate device memory for other inputs.
 
@@ -257,7 +215,7 @@ double calculate_sfrd_from_grid_gpu(
     unsigned int buffer_length = ceil(num_pixels / (threadsPerBlock * 2));
     cudaMalloc(&d_ave_sfrd_buf, sizeof(double) * buffer_length); // 91m & 256 -> 177979
     LOG_INFO("buffer allocated on device.");
-    // cudaMalloc((void**)&d_ave_sfrd_buf, sizeof(double) * buffer_length);
+    // cudaMalloc((void**)&d_ave_sfrd_buf, sizeof(double) * buffer_length); // TODO: should I be using this instead?
     cudaMemset(d_ave_sfrd_buf, 0, sizeof(double) * buffer_length); // fill with byte=0
     LOG_INFO("buffer copied to device.");
 
@@ -267,51 +225,27 @@ double calculate_sfrd_from_grid_gpu(
         Throw(CUDAError);
     }
 
-    // -------------- CODE FOR CORRUPTION BUG WORKAROUND
     // Invoke kernel
     switch (threadsPerBlock) {
         case 512:
-            compute_and_reduce<512><<< numBlocks, threadsPerBlock, smemSize >>>(d_x_min, d_x_width, d_y_arr, d_dens_R_grid, zpp_growth_R_ct, d_sfrd_grid, d_ave_sfrd_buf, num_pixels);
+            compute_and_reduce<512><<< numBlocks, threadsPerBlock, smemSize >>>(x_min, x_width, y_arr, d_dens_R_grid, zpp_growth_R_ct, d_sfrd_grid, d_ave_sfrd_buf, num_pixels);
             break;
         case 256:
-            compute_and_reduce<256><<< numBlocks, threadsPerBlock, smemSize >>>(d_x_min, d_x_width, d_y_arr, d_dens_R_grid, zpp_growth_R_ct, d_sfrd_grid, d_ave_sfrd_buf, num_pixels);
+            compute_and_reduce<256><<< numBlocks, threadsPerBlock, smemSize >>>(x_min, x_width, y_arr, d_dens_R_grid, zpp_growth_R_ct, d_sfrd_grid, d_ave_sfrd_buf, num_pixels);
             break;
         case 128:
-            compute_and_reduce<128><<< numBlocks, threadsPerBlock, smemSize >>>(d_x_min, d_x_width, d_y_arr, d_dens_R_grid, zpp_growth_R_ct, d_sfrd_grid, d_ave_sfrd_buf, num_pixels);
+            compute_and_reduce<128><<< numBlocks, threadsPerBlock, smemSize >>>(x_min, x_width, y_arr, d_dens_R_grid, zpp_growth_R_ct, d_sfrd_grid, d_ave_sfrd_buf, num_pixels);
             break;
         case 64:
-            compute_and_reduce<64><<< numBlocks, threadsPerBlock, smemSize >>>(d_x_min, d_x_width, d_y_arr, d_dens_R_grid, zpp_growth_R_ct, d_sfrd_grid, d_ave_sfrd_buf, num_pixels);
+            compute_and_reduce<64><<< numBlocks, threadsPerBlock, smemSize >>>(x_min, x_width, y_arr, d_dens_R_grid, zpp_growth_R_ct, d_sfrd_grid, d_ave_sfrd_buf, num_pixels);
             break;
         case 32:
-            compute_and_reduce<32><<< numBlocks, threadsPerBlock, smemSize >>>(d_x_min, d_x_width, d_y_arr, d_dens_R_grid, zpp_growth_R_ct, d_sfrd_grid, d_ave_sfrd_buf, num_pixels);
+            compute_and_reduce<32><<< numBlocks, threadsPerBlock, smemSize >>>(x_min, x_width, y_arr, d_dens_R_grid, zpp_growth_R_ct, d_sfrd_grid, d_ave_sfrd_buf, num_pixels);
             break;
         default:
             // LOG_WARNING("Thread size invalid; defaulting to 256.")
-            compute_and_reduce<256><<< numBlocks, 256, 256 * sizeof(double) >>>(d_x_min, d_x_width, d_y_arr, d_dens_R_grid, zpp_growth_R_ct, d_sfrd_grid, d_ave_sfrd_buf, num_pixels);
+            compute_and_reduce<256><<< numBlocks, 256, 256 * sizeof(double) >>>(x_min, x_width, y_arr, d_dens_R_grid, zpp_growth_R_ct, d_sfrd_grid, d_ave_sfrd_buf, num_pixels);
     }
-    // -------------- CODE FOR CORRUPTION BUG WORKAROUND
-
-    // // Invoke kernel
-    // switch (threadsPerBlock) {
-    //     case 512:
-    //         compute_and_reduce<512><<< numBlocks, threadsPerBlock, smemSize >>>(x_min, x_width, y_arr, d_dens_R_grid, zpp_growth_R_ct, d_sfrd_grid, d_ave_sfrd_buf, num_pixels);
-    //         break;
-    //     case 256:
-    //         compute_and_reduce<256><<< numBlocks, threadsPerBlock, smemSize >>>(x_min, x_width, y_arr, d_dens_R_grid, zpp_growth_R_ct, d_sfrd_grid, d_ave_sfrd_buf, num_pixels);
-    //         break;
-    //     case 128:
-    //         compute_and_reduce<128><<< numBlocks, threadsPerBlock, smemSize >>>(x_min, x_width, y_arr, d_dens_R_grid, zpp_growth_R_ct, d_sfrd_grid, d_ave_sfrd_buf, num_pixels);
-    //         break;
-    //     case 64:
-    //         compute_and_reduce<64><<< numBlocks, threadsPerBlock, smemSize >>>(x_min, x_width, y_arr, d_dens_R_grid, zpp_growth_R_ct, d_sfrd_grid, d_ave_sfrd_buf, num_pixels);
-    //         break;
-    //     case 32:
-    //         compute_and_reduce<32><<< numBlocks, threadsPerBlock, smemSize >>>(x_min, x_width, y_arr, d_dens_R_grid, zpp_growth_R_ct, d_sfrd_grid, d_ave_sfrd_buf, num_pixels);
-    //         break;
-    //     default:
-    //         // LOG_WARNING("Thread size invalid; defaulting to 256.")
-    //         compute_and_reduce<256><<< numBlocks, 256, 256 * sizeof(double) >>>(x_min, x_width, y_arr, d_dens_R_grid, zpp_growth_R_ct, d_sfrd_grid, d_ave_sfrd_buf, num_pixels);
-    // }
     LOG_INFO("kernel called.");
 
     // Only use during development!
@@ -342,14 +276,9 @@ double calculate_sfrd_from_grid_gpu(
     }
 
     // Deallocate device memory.
-    // -------------- CODE FOR CORRUPTION BUG WORKAROUND
-    cudaFree(d_x_min);
-    cudaFree(d_x_width);
-    cudaFree(d_y_arr);
-    // -------------- CODE FOR CORRUPTION BUG WORKAROUND
-    // cudaFree(x_min);
-    // cudaFree(x_width);
-    // cudaFree(y_arr);
+    cudaFree(x_min);
+    cudaFree(x_width);
+    cudaFree(y_arr);
     cudaFree(d_dens_R_grid);
     cudaFree(d_sfrd_grid);
     cudaFree(d_ave_sfrd_buf);

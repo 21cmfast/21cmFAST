@@ -23,13 +23,8 @@ int UpdateXraySourceBox(UserParams *user_params, CosmoParams *cosmo_params,
 void calculate_sfrd_from_grid(int R_ct, float *dens_R_grid, float *Mcrit_R_grid, float *sfrd_grid,
                   float *sfrd_grid_mini, double *ave_sfrd, double *ave_sfrd_mini);
 
-// double calculate_sfrd_from_grid_gpu(RGTable1D_f *SFRD_conditional_table, float *dens_R_grid, double *zpp_growth,
-//                   int R_ct, float *sfrd_grid, unsigned int num_pixels);
-
-// -------------- CODE FOR CORRUPTION BUG WORKAROUND
-double calculate_sfrd_from_grid_gpu(double x_min, double x_width, int n_bin, float* y_arr, float *dens_R_grid, double *zpp_growth,
+double calculate_sfrd_from_grid_gpu(RGTable1D_f *SFRD_conditional_table, float *dens_R_grid, double *zpp_growth,
                   int R_ct, float *sfrd_grid, unsigned int num_pixels);
-// -------------- CODE FOR CORRUPTION BUG WORKAROUND
 
 #ifdef __cplusplus
 }
