@@ -35,12 +35,12 @@
 #include "SpinTemperatureBox.h"
 
 
-__device__ inline double EvaluateRGTable1D_f_gpu(double x, double *x_min, double *x_width, float *y_arr) {
+__device__ inline double EvaluateRGTable1D_f_gpu(double x, double x_min, double x_width, float *y_arr) {
 
-    int idx = (int)floor((x - *x_min) / *x_width);
+    int idx = (int)floor((x - x_min) / x_width);
 
-    double table_val = *x_min + *x_width * (float)idx;
-    double interp_point = (x - table_val) / *x_width;
+    double table_val = x_min + x_width * (float)idx;
+    double interp_point = (x - table_val) / x_width;
 
     return y_arr[idx] * (1 - interp_point) + y_arr[idx + 1] * (interp_point);
 }
@@ -59,8 +59,8 @@ __device__ void warp_reduce(volatile double *sdata, unsigned int tid) {
 
 template <unsigned int threadsPerBlock>
 __global__ void compute_and_reduce(
-    double *x_min, // reference
-    double *x_width, // reference
+    double x_min, // reference
+    double x_width, // reference
     float *y_arr, // reference
     float *dens_R_grid, // reference
     double zpp_growth_R_ct, // value
@@ -122,70 +122,81 @@ double calculate_sfrd_from_grid_gpu(
     RGTable1D_f *SFRD_conditional_table, // input data
     float *dens_R_grid, // input data
     double *zpp_growth, // input data
-    int R_ct, // input data
+    int R_ct, // filter step/loop iteration/spherical annuli (out of 40 by default)
     float *sfrd_grid, // star formation rate density grid to be updated
-    unsigned int num_pixels // length of input data
+    unsigned int num_pixels, // length of input data
+    float *d_y_arr, float *d_dens_R_grid, float *d_sfrd_grid, double *d_ave_sfrd_buf // device pointers
 ) {
     cudaError_t err = cudaGetLastError();
 
-    // Input data
+    // Set bools for initial and final filtering steps to allow for memory reuse
+    bool initial_filter_step = false;
+    bool final_filter_step = false;
+
+    // Default NUM_FILTER_STEPS_FOR_Ts = 40
+    if (global_params.NUM_FILTER_STEPS_FOR_Ts - 1 == R_ct) {
+        initial_filter_step = true;
+    } else if (R_ct == 0) {
+        final_filter_step = true;
+    } else if (global_params.NUM_FILTER_STEPS_FOR_Ts == 1) {
+        // Would case of NUM_FILTER_STEPS_FOR_Ts = 1 ever occur?
+        initial_filter_step = true;
+        final_filter_step = true;
+    }
+
+    // Get growth factor for current filter step
     double zpp_growth_R_ct = zpp_growth[R_ct];
 
-    // The kernel only needs access to some fields of the SFRD_conditional_table struct
-    // so we allocate device memory and copy data only for required fields.
+    // ============================================================ <- these pointers need to persist across kernel calls, i.e. across loop iterations!
+    // Device pointers are initialised before loop
+    // if (initial_filter_step) {
+    //     float *d_y_arr, *d_dens_R_grid, *d_sfrd_grid;
+    //     double* d_ave_sfrd_buf;
+    // }
+    // ============================================================
 
-    // Create device pointers
-    double *x_min, *x_width;
-    float *y_arr;
+    // Allocate device memory ------------------------------------------------------------------------------------------
+    if (initial_filter_step) {
+        err = cudaMalloc((void**)&d_y_arr, sizeof(float) * SFRD_conditional_table->n_bin);
+        if (err != cudaSuccess) {
+            LOG_ERROR("CUDA error: %s", cudaGetErrorString(err));
+            Throw(CUDAError);
+        }
+        err = cudaMalloc((void**)&d_dens_R_grid, sizeof(float) * num_pixels);
+        if (err != cudaSuccess) {
+            LOG_ERROR("CUDA error: %s", cudaGetErrorString(err));
+            Throw(CUDAError);
+        }
+        err = cudaMalloc((void**)&d_sfrd_grid, sizeof(float) * num_pixels);
+        if (err != cudaSuccess) {
+            LOG_ERROR("CUDA error: %s", cudaGetErrorString(err));
+            Throw(CUDAError);
+        }
+        LOG_INFO("SFRD_conditional_table.y_arr and density and sfrd grids allocated on device.");
+    }
 
-    // Allocate device memory
-    cudaMalloc(&x_min, sizeof(double)); // TODO: don't allocate, just pass in?
-    cudaMalloc(&x_width, sizeof(double));
-    cudaMalloc(&y_arr, sizeof(float) * SFRD_conditional_table->n_bin);
-    LOG_INFO("SFRD_conditional_table fields allocated on device.");
-
-    LOG_INFO("x_min: %f, x_width: %f, n_bin: %d", SFRD_conditional_table->x_min, SFRD_conditional_table->x_width, SFRD_conditional_table->n_bin);
-
-    // Copy data from host to device
-    err = cudaMemcpy(x_min, &SFRD_conditional_table->x_min, sizeof(double), cudaMemcpyHostToDevice); // Can also pass in
+    // Copy data from host to device -----------------------------------------------------------------------------------
+    err = cudaMemcpy(d_y_arr, SFRD_conditional_table->y_arr, sizeof(float) * SFRD_conditional_table->n_bin, cudaMemcpyHostToDevice);
     if (err != cudaSuccess) {
         LOG_ERROR("CUDA error: %s", cudaGetErrorString(err));
         Throw(CUDAError);
     }
-
-    err = cudaMemcpy(x_width, &SFRD_conditional_table->x_width, sizeof(double), cudaMemcpyHostToDevice); // Can also pass in
+    err = cudaMemcpy(d_dens_R_grid, dens_R_grid, sizeof(float) * num_pixels, cudaMemcpyHostToDevice); // TODO: Does this change between filter steps?
     if (err != cudaSuccess) {
         LOG_ERROR("CUDA error: %s", cudaGetErrorString(err));
         Throw(CUDAError);
     }
-
-    err = cudaMemcpy(y_arr, SFRD_conditional_table->y_arr, sizeof(float) * SFRD_conditional_table->n_bin, cudaMemcpyHostToDevice);
-    if (err != cudaSuccess) {
-        LOG_ERROR("CUDA error: %s", cudaGetErrorString(err));
-        Throw(CUDAError);
-    }
-
-    LOG_INFO("SFRD_conditional_table fields copied to device.");
-
-    // Allocate & populate device memory for other inputs.
-
-    // Create device pointers
-    float *d_dens_R_grid, *d_sfrd_grid;
-
-    // Allocate device memory
-    cudaMalloc(&d_dens_R_grid, sizeof(float) * num_pixels);
-    cudaMalloc(&d_sfrd_grid, sizeof(float) * num_pixels);
-    LOG_INFO("density and sfrd grids allocated on device.");
-
-    // Copy data from host to device
-    cudaMemcpy(d_dens_R_grid, dens_R_grid, sizeof(float) * num_pixels, cudaMemcpyHostToDevice);
-    cudaMemcpy(d_sfrd_grid, sfrd_grid, sizeof(float) * num_pixels, cudaMemcpyHostToDevice);
-    LOG_INFO("density and sfrd grids copied to device.");
-
-    err = cudaGetLastError();
-    if (err != cudaSuccess) {
-        LOG_ERROR("CUDA error: %s", cudaGetErrorString(err));
-        Throw(CUDAError);
+    // In initial filter step, set array to 0;
+    // for future steps, previous array values will be written over
+    if (initial_filter_step) {
+        err = cudaMemset(d_sfrd_grid, 0, sizeof(float) * num_pixels); // fill with byte=0
+        if (err != cudaSuccess) {
+            LOG_ERROR("CUDA error: %s", cudaGetErrorString(err));
+            Throw(CUDAError);
+        }
+        LOG_INFO("SFRD_conditional_table.y_arr and density and sfrd grids copied to device.");
+    } else {
+        LOG_INFO("SFRD_conditional_table.y_arr and density grid copied to device.");
     }
 
     // Get max threads/block for device
@@ -208,47 +219,51 @@ double calculate_sfrd_from_grid_gpu(
         threadsPerBlock = 16;
     }
     int numBlocks = (num_pixels + threadsPerBlock - 1) / threadsPerBlock; // 91m & 256 -> 355959
-    int smemSize = threadsPerBlock * sizeof(double);  // shared memory
+    int smemSize = threadsPerBlock * sizeof(double); // shared memory
 
-    // Allocate device memory for output buffer and set to 0
-    double* d_ave_sfrd_buf;
+    // Allocate memory for SFRD sum buffer and initialise to 0 only for initial filter step;
+    // reuse memory for remaining filter steps.
     unsigned int buffer_length = ceil(num_pixels / (threadsPerBlock * 2));
-    cudaMalloc(&d_ave_sfrd_buf, sizeof(double) * buffer_length); // 91m & 256 -> 177979
-    LOG_INFO("buffer allocated on device.");
-    // cudaMalloc((void**)&d_ave_sfrd_buf, sizeof(double) * buffer_length); // TODO: should I be using this instead?
-    cudaMemset(d_ave_sfrd_buf, 0, sizeof(double) * buffer_length); // fill with byte=0
-    LOG_INFO("buffer copied to device.");
+    if (initial_filter_step) {
+        err = cudaMalloc((void**)&d_ave_sfrd_buf, sizeof(double) * buffer_length); // 91m & 256 -> 177979
+        if (err != cudaSuccess) {
+            LOG_ERROR("CUDA error: %s", cudaGetErrorString(err));
+            Throw(CUDAError);
+        }
+        LOG_INFO("SFRD sum reduction buffer allocated on device.");
 
-    err = cudaGetLastError();
-    if (err != cudaSuccess) {
-        LOG_ERROR("CUDA error: %s", cudaGetErrorString(err));
-        Throw(CUDAError);
+        err = cudaMemset(d_ave_sfrd_buf, 0, sizeof(double) * buffer_length); // fill with byte=0
+        if (err != cudaSuccess) {
+            LOG_ERROR("CUDA error: %s", cudaGetErrorString(err));
+            Throw(CUDAError);
+        }
+        LOG_INFO("SFRD sum reduction buffer initialised to 0.");
     }
 
     // Invoke kernel
     switch (threadsPerBlock) {
         case 512:
-            compute_and_reduce<512><<< numBlocks, threadsPerBlock, smemSize >>>(x_min, x_width, y_arr, d_dens_R_grid, zpp_growth_R_ct, d_sfrd_grid, d_ave_sfrd_buf, num_pixels);
+            compute_and_reduce<512><<< numBlocks, threadsPerBlock, smemSize >>>(SFRD_conditional_table->x_min, SFRD_conditional_table->x_width, d_y_arr, d_dens_R_grid, zpp_growth_R_ct, d_sfrd_grid, d_ave_sfrd_buf, num_pixels);
             break;
         case 256:
-            compute_and_reduce<256><<< numBlocks, threadsPerBlock, smemSize >>>(x_min, x_width, y_arr, d_dens_R_grid, zpp_growth_R_ct, d_sfrd_grid, d_ave_sfrd_buf, num_pixels);
+            compute_and_reduce<256><<< numBlocks, threadsPerBlock, smemSize >>>(SFRD_conditional_table->x_min, SFRD_conditional_table->x_width, d_y_arr, d_dens_R_grid, zpp_growth_R_ct, d_sfrd_grid, d_ave_sfrd_buf, num_pixels);
             break;
         case 128:
-            compute_and_reduce<128><<< numBlocks, threadsPerBlock, smemSize >>>(x_min, x_width, y_arr, d_dens_R_grid, zpp_growth_R_ct, d_sfrd_grid, d_ave_sfrd_buf, num_pixels);
+            compute_and_reduce<128><<< numBlocks, threadsPerBlock, smemSize >>>(SFRD_conditional_table->x_min, SFRD_conditional_table->x_width, d_y_arr, d_dens_R_grid, zpp_growth_R_ct, d_sfrd_grid, d_ave_sfrd_buf, num_pixels);
             break;
         case 64:
-            compute_and_reduce<64><<< numBlocks, threadsPerBlock, smemSize >>>(x_min, x_width, y_arr, d_dens_R_grid, zpp_growth_R_ct, d_sfrd_grid, d_ave_sfrd_buf, num_pixels);
+            compute_and_reduce<64><<< numBlocks, threadsPerBlock, smemSize >>>(SFRD_conditional_table->x_min, SFRD_conditional_table->x_width, d_y_arr, d_dens_R_grid, zpp_growth_R_ct, d_sfrd_grid, d_ave_sfrd_buf, num_pixels);
             break;
         case 32:
-            compute_and_reduce<32><<< numBlocks, threadsPerBlock, smemSize >>>(x_min, x_width, y_arr, d_dens_R_grid, zpp_growth_R_ct, d_sfrd_grid, d_ave_sfrd_buf, num_pixels);
+            compute_and_reduce<32><<< numBlocks, threadsPerBlock, smemSize >>>(SFRD_conditional_table->x_min, SFRD_conditional_table->x_width, d_y_arr, d_dens_R_grid, zpp_growth_R_ct, d_sfrd_grid, d_ave_sfrd_buf, num_pixels);
             break;
         default:
-            // LOG_WARNING("Thread size invalid; defaulting to 256.")
-            compute_and_reduce<256><<< numBlocks, 256, 256 * sizeof(double) >>>(x_min, x_width, y_arr, d_dens_R_grid, zpp_growth_R_ct, d_sfrd_grid, d_ave_sfrd_buf, num_pixels);
+            LOG_WARNING("Thread size invalid; defaulting to 256.");
+            compute_and_reduce<256><<< numBlocks, 256, 256 * sizeof(double) >>>(SFRD_conditional_table->x_min, SFRD_conditional_table->x_width, d_y_arr, d_dens_R_grid, zpp_growth_R_ct, d_sfrd_grid, d_ave_sfrd_buf, num_pixels);
     }
-    LOG_INFO("kernel called.");
+    LOG_INFO("SpinTemperatureBox compute-and-reduce kernel called.");
 
-    // Only use during development!
+    // Only use during development?
     err = cudaDeviceSynchronize();
     CATCH_CUDA_ERROR(err);
 
@@ -258,37 +273,45 @@ double calculate_sfrd_from_grid_gpu(
         Throw(CUDAError);
     }
 
-    // Use thrust to reduce computed buffer values to one value.
+    // Use thrust to reduce computed sums to one value
 
     // Wrap device pointer in a thrust::device_ptr
     thrust::device_ptr<double> d_ave_sfrd_buf_ptr(d_ave_sfrd_buf);
-    // Reduce final buffer values to one value
+    // Reduce final buffer sums to one value
     double ave_sfrd_buf = thrust::reduce(d_ave_sfrd_buf_ptr, d_ave_sfrd_buf_ptr + buffer_length, 0., thrust::plus<double>());
-    LOG_INFO("thrust reduced buffer.");
+    LOG_INFO("SFRD sum reduced to single value by thrust::reduce operation.");
 
     // Copy results from device to host.
     err = cudaMemcpy(sfrd_grid, d_sfrd_grid, sizeof(float) * num_pixels, cudaMemcpyDeviceToHost);
-    LOG_INFO("buffer copied to host.");
-
     if (err != cudaSuccess) {
         LOG_ERROR("CUDA error: %s", cudaGetErrorString(err));
         Throw(CUDAError);
     }
+    LOG_INFO("SFRD sum copied to host.");
 
-    // Deallocate device memory.
-    cudaFree(x_min);
-    cudaFree(x_width);
-    cudaFree(y_arr);
-    cudaFree(d_dens_R_grid);
-    cudaFree(d_sfrd_grid);
-    cudaFree(d_ave_sfrd_buf);
-
-    LOG_INFO("remaining memory freed.");
-
-    err = cudaGetLastError();
-    if (err != cudaSuccess) {
-        LOG_ERROR("CUDA error: %s", cudaGetErrorString(err));
-        Throw(CUDAError);
+    // Deallocate device memory on final filter step.
+    if (final_filter_step) {
+        err = cudaFree(d_y_arr);
+        if (err != cudaSuccess) {
+            LOG_ERROR("CUDA error: %s", cudaGetErrorString(err));
+            Throw(CUDAError);
+        }
+        err = cudaFree(d_dens_R_grid);
+        if (err != cudaSuccess) {
+            LOG_ERROR("CUDA error: %s", cudaGetErrorString(err));
+            Throw(CUDAError);
+        }
+        err = cudaFree(d_sfrd_grid);
+        if (err != cudaSuccess) {
+            LOG_ERROR("CUDA error: %s", cudaGetErrorString(err));
+            Throw(CUDAError);
+        }
+        err = cudaFree(d_ave_sfrd_buf);
+        if (err != cudaSuccess) {
+            LOG_ERROR("CUDA error: %s", cudaGetErrorString(err));
+            Throw(CUDAError);
+        }
+        LOG_INFO("Device memory freed.");
     }
 
     return ave_sfrd_buf;
