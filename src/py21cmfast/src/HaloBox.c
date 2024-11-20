@@ -302,7 +302,7 @@ void get_halo_metallicity(double sfr, double stellar, double redshift, double *z
     //Hardcoded for now: 6 extra fit parameters in the equation
     double z_denom, z_result;
     z_denom = (1.28825e10 * pow(sfr*SperYR,0.56));
-    z_result = 0.296 * pow(1 + pow(stellar/z_denom,-2.1),-0.148) * pow(10,-0.056*redshift + 0.064);
+    z_result = 1.23 * pow(1 + pow(stellar/z_denom,-2.1),-0.148) * pow(10,-0.056*redshift + 0.064);
 
     *z_out = z_result;
 }
