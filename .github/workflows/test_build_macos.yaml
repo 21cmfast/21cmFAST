@@ -61,12 +61,6 @@ jobs:
           conda config --show
           printenv | sort
 
-      # - name: Setup GCC
-      #   if: matrix.compiler == 'gcc'
-      #   uses: Dup4/actions-setup-gcc@v1
-      #   with:
-      #     version: latest
-
       - name: Install 21cmFAST
         run: |
           CC=${{ matrix.compiler }} CFLAGS="-isysroot /Library/Developer/CommandLineTools/SDKs/MacOSX.sdk" pip install .
