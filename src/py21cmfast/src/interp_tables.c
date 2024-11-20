@@ -1051,3 +1051,8 @@ double EvaluatedSigmasqdm(double lnM){
 RGTable1D_f* get_SFRD_conditional_table(void) {
     return &SFRD_conditional_table;
 }
+
+// Accessor function for the GPU SpinTemp memory allocation function to access nbins.
+int get_nbins(void) {
+    return NDELTA;
+}
