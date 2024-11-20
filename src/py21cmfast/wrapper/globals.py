@@ -316,6 +316,8 @@ class GlobalParams(StructInstanceWrapper):
             prev[key] = getattr(self, key)
             setattr(self, key, val)
 
+        self.validate()
+
         yield
 
         # Restore everything back to the way it was.
@@ -326,7 +328,7 @@ class GlobalParams(StructInstanceWrapper):
         """Validate the global parameters to ensure the passed values do not clash."""
         if getattr(self._cobj, "FIND_BUBBLE_ALGORITHM") not in [1, 2]:
             raise ValueError(
-                "FIND_BUBBLE_ALGORITHM MUST BE 1 (entire sphere) or 2 (central pixel)"
+                f"FIND_BUBBLE_ALGORITHM ({getattr(self._cobj, 'FIND_BUBBLE_ALGORITHM')})  MUST BE 1 (entire sphere) or 2 (central pixel)"
             )
 
 
