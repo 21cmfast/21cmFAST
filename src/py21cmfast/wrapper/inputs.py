@@ -18,7 +18,7 @@ from __future__ import annotations
 import logging
 import warnings
 from astropy import units as un
-from astropy.cosmology import FLRW, Planck15
+from astropy.cosmology import FLRW
 from attrs import converters, define
 from attrs import field as _field
 from attrs import validators
@@ -26,6 +26,7 @@ from attrs import validators
 from .._cfg import config
 from .._data import DATA_PATH
 from ..c_21cmfast import ffi, lib
+from ..run_templates import Planck18, active_param_template
 from .globals import global_params
 from .structs import InputStruct
 
@@ -40,6 +41,16 @@ def field(*, transformer=None, **kw):
     C-code (e.g. by transformin from log to linear space).
     """
     return _field(metadata={"transformer": transformer}, **kw)
+
+
+def field_tmpl(name, **kwargs):
+    """Most (but not all) of our fields have a default set from run templates.
+
+    This function sets the default of the field based on a name from the
+    globally defined active_param_template
+    """
+    # TODO: check if attrs has a way to grab the name from the field without passing directly
+    return field(default=active_param_template[name], **kwargs)
 
 
 def logtransformer(x):
@@ -71,16 +82,6 @@ def between(mn, mx):
     def vld(inst, att, val):
         if val < mn or val > mx:
             raise ValueError(f"{att.name} must be between {mn} and {mx}")
-
-
-# Cosmology is from https://arxiv.org/pdf/1807.06209.pdf
-# Table 2, last column. [TT,TE,EE+lowE+lensing+BAO]
-Planck18 = Planck15.clone(
-    Om0=(0.02242 + 0.11933) / 0.6766**2,
-    Ob0=0.02242 / 0.6766**2,
-    H0=67.66,
-    name="Planck18",
-)
 
 
 @define(frozen=True, kw_only=True)

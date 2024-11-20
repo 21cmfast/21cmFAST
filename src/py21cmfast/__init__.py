@@ -37,6 +37,7 @@ from .drivers.single_field import (
     spin_temperature,
 )
 from .lightcones import AngularLightconer, RectilinearLightconer
+from .run_templates import active_param_template, set_active_template
 from .utils import get_all_fieldnames
 from .wrapper.cfuncs import (
     compute_luminosity_function,
