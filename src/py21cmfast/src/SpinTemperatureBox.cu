@@ -66,7 +66,7 @@ __global__ void compute_and_reduce(
     double zpp_growth_R_ct, // value
     float *sfrd_grid, // star formation rate density grid to be updated
     double *ave_sfrd_buf, // output buffer of length ceil(n / (threadsPerBlock * 2))
-    unsigned int num_pixels // length of input data
+    unsigned long long num_pixels // length of input data
     ) {
 
     // An array to store intermediate summations
@@ -131,7 +131,7 @@ unsigned int init_sfrd_gpu_data(
     cudaError_t err = cudaGetLastError();
 
     // Allocate device memory ------------------------------------------------------------------------------------------
-    err = cudaMalloc((void**)d_y_arr, sizeof(float) * nbins); // already pointers to pointers (no &)
+    err = cudaMalloc((void**)d_y_arr, sizeof(float) * nbins); // already pointers to pointers (no & needed)
     if (err != cudaSuccess) {
         LOG_ERROR("CUDA error: %s", cudaGetErrorString(err));
         Throw(CUDAError);
@@ -148,14 +148,13 @@ unsigned int init_sfrd_gpu_data(
     }
     LOG_INFO("SFRD_conditional_table.y_arr and density and sfrd grids allocated on device.");
 
-    // Initialise sfrd_grid to 0 ----------------------------------------------------------------------------------------
-    // dereference the pointers to pointers (*)
-    err = cudaMemset(*d_sfrd_grid, 0, sizeof(float) * num_pixels); // fill with byte=0
+    // Initialise sfrd_grid to 0 (fill with byte=0) ----------------------------------------------------------------------
+    err = cudaMemset(*d_sfrd_grid, 0, sizeof(float) * num_pixels); // dereference the pointer to a pointer (*)
     if (err != cudaSuccess) {
         LOG_ERROR("CUDA error: %s: %p", cudaGetErrorString(err), d_sfrd_grid);
         Throw(CUDAError);
     }
-    LOG_INFO("density grid copied to device. sfrd grid initialised to 0.");
+    LOG_INFO("sfrd grid initialised to 0.");
 
     // Get max threads/block for device
     int maxThreadsPerBlock;
@@ -180,16 +179,15 @@ unsigned int init_sfrd_gpu_data(
     // Allocate memory for SFRD sum buffer and initialise to 0 only for initial filter step;
     // reuse memory for remaining filter steps.
     unsigned int buffer_length = ceil(num_pixels / (threadsPerBlock * 2));
-    // already pointers to pointers (no &)
-    err = cudaMalloc((void**)d_ave_sfrd_buf, sizeof(double) * buffer_length); // 91m & 256 -> 177979
+    err = cudaMalloc((void**)d_ave_sfrd_buf, sizeof(double) * buffer_length); // already pointer to a pointer (no & needed) ...91m & 256 -> 177979
     if (err != cudaSuccess) {
         LOG_ERROR("CUDA error: %s", cudaGetErrorString(err));
         Throw(CUDAError);
     }
     LOG_INFO("SFRD sum reduction buffer allocated on device.");
 
-    // dereference the pointers to pointers (*)
-    err = cudaMemset(*d_ave_sfrd_buf, 0, sizeof(double) * buffer_length); // fill with byte=0
+    // Initialise buffer to 0 (fill with byte=0)
+    err = cudaMemset(*d_ave_sfrd_buf, 0, sizeof(double) * buffer_length); // dereference the pointer to a pointer (*)
     if (err != cudaSuccess) {
         LOG_ERROR("CUDA error: %s", cudaGetErrorString(err));
         Throw(CUDAError);
@@ -223,7 +221,7 @@ double calculate_sfrd_from_grid_gpu(
         LOG_ERROR("CUDA error: %s", cudaGetErrorString(err));
         Throw(CUDAError);
     }
-    err = cudaMemcpy(d_dens_R_grid, dens_R_grid, sizeof(float) * num_pixels, cudaMemcpyHostToDevice); // TODO: Does this change between filter steps?
+    err = cudaMemcpy(d_dens_R_grid, dens_R_grid, sizeof(float) * num_pixels, cudaMemcpyHostToDevice);
     if (err != cudaSuccess) {
         LOG_ERROR("CUDA error: %s", cudaGetErrorString(err));
         Throw(CUDAError);
@@ -275,7 +273,7 @@ double calculate_sfrd_from_grid_gpu(
     double ave_sfrd_buf = thrust::reduce(d_ave_sfrd_buf_ptr, d_ave_sfrd_buf_ptr + buffer_length, 0., thrust::plus<double>());
     LOG_INFO("SFRD sum reduced to single value by thrust::reduce operation.");
 
-    // Copy results from device to host.
+    // Copy results from device to host
     err = cudaMemcpy(sfrd_grid, d_sfrd_grid, sizeof(float) * num_pixels, cudaMemcpyDeviceToHost);
     if (err != cudaSuccess) {
         LOG_ERROR("CUDA error: %s", cudaGetErrorString(err));
@@ -294,7 +292,7 @@ void free_sfrd_gpu_data(
 ) {
     cudaError_t err = cudaGetLastError();
 
-    // Need to dereference the pointers to pointers
+    // Need to dereference the pointers to pointers (*)
     err = cudaFree(*d_y_arr);
     if (err != cudaSuccess) {
         LOG_ERROR("CUDA error: %s", cudaGetErrorString(err));
