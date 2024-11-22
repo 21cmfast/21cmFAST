@@ -395,8 +395,7 @@ def _run_lightcone_from_perturbed_fields(
     initial_conditions: InitialConditions,
     perturbed_fields: Sequence[PerturbedField],
     lightconer: Lightconer,
-    astro_params: AstroParams,
-    flag_options: FlagOptions,
+    inputs: InputParameters,
     regenerate: bool | None = None,
     global_quantities: tuple[str] = ("brightness_temp", "xH_box"),
     direc: Path | str | None = None,
@@ -471,13 +470,6 @@ def _run_lightcone_from_perturbed_fields(
     """
     direc = Path(direc)
 
-    inputs = InputParameters.from_output_structs(
-        (initial_conditions, *perturbed_fields),
-        astro_params=astro_params,
-        flag_options=flag_options,
-        redshift=None,
-    )
-
     lightconer.validate_options(inputs.user_params, inputs.flag_options)
 
     # Get the redshift through which we scroll and evaluate the ionization field.
@@ -533,7 +525,7 @@ def _run_lightcone_from_perturbed_fields(
     # Remove anything in initial_conditions not required for spin_temp
     with contextlib.suppress(OSError):
         initial_conditions.prepare_for_spin_temp(
-            flag_options=flag_options, force=always_purge
+            flag_options=inputs.flag_options, force=always_purge
         )
     kw = {
         **{
@@ -796,10 +788,7 @@ def run_lightcone(
     *,
     lightconer: Lightconer,
     node_redshifts: np.ndarray | None = None,
-    user_params=None,
-    cosmo_params=None,
-    astro_params=None,
-    flag_options=None,
+    inputs: InputParameters | str | None = None,
     regenerate=None,
     write=None,
     global_quantities=("brightness_temp", "xH_box"),
@@ -883,13 +872,20 @@ def run_lightcone(
         )
 
     # For the high-level, we need all the InputStruct initialised
-    if cosmo_params is None and initial_conditions is None:
-        cosmo_params = CosmoParams.from_astropy(lightconer.cosmo)
+    # NOTE: the random seed is now set here instead of in the OutputStruct init
+    #   if it's passed as None
+    # TODO: make sure cosmo_params is consistent with lightconer.cosmo
+    if isinstance(inputs, str):
+        inputs = InputParameters.from_template(inputs, seed=random_seed)
+    elif inputs is None:
+        inputs = InputParameters.from_defaults(seed=random_seed)
+    # For the high-level, we need all the InputStruct initialised
+    cosmo_params = inputs.cosmo_params
+    user_params = inputs.user_params
+    flag_options = inputs.astro_params
+    astro_params = inputs.flag_options
 
-    cosmo_params = CosmoParams.new(cosmo_params)
-    user_params = UserParams.new(user_params)
-    flag_options = FlagOptions.new(flag_options)
-    astro_params = AstroParams.new(astro_params, flag_options=flag_options)
+    random_seed = inputs.random_seed
 
     if pf_given:
         node_redshifts = [pf.redshift for pf in perturbed_fields]

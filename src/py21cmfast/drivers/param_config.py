@@ -4,12 +4,14 @@ from __future__ import annotations
 
 import attrs
 import logging
+import numpy as np
 import os
 import warnings
 from functools import cached_property
 from typing import Any, Sequence
 
 from .._cfg import config
+from ..run_templates import create_params_from_template
 from ..wrapper.globals import global_params
 from ..wrapper.inputs import (
     AstroParams,
@@ -220,6 +222,49 @@ class InputParameters:
             out = cls.combine(input_params)
             # Now combine with provided kwargs
             return attrs.evolve(out.merge(cls(**defaults)), redshift=redshift)
+
+    @classmethod
+    def from_template(cls, name, seed=None):
+        """Construct full InputParameters instance from native or TOML file template."""
+        return cls(**create_params_from_template(name))._add_seed(seed)
+
+    @classmethod
+    def from_inputstructs(
+        cls,
+        cosmo_params: CosmoParams,
+        user_params: UserParams,
+        astro_params: AstroParams,
+        flag_options: flag_options,
+        seed: int | None = None,
+    ):
+        """Construct full InputParameters instance from InputStruct instances."""
+        return cls(
+            cosmo_params=cosmo_params,
+            user_params=user_params,
+            astro_params=astro_params,
+            flag_options=flag_options,
+        )._add_seed(seed)
+
+    @classmethod
+    def from_defaults(cls, seed=None):
+        """Construct full InputParameters instance from default values."""
+        # TODO: add kwargs to modify values e.g run_templates._construct_param_objects?
+        cosmo_params = CosmoParams.new()
+        user_params = UserParams.new()
+        astro_params = CosmoParams.new()
+        flag_options = FlagOptions.new()
+
+        return cls(
+            cosmo_params=cosmo_params,
+            user_params=user_params,
+            astro_params=astro_params,
+            flag_options=flag_options,
+        )._add_seed(seed)
+
+    def _add_seed(self, seed=None):
+        if seed is None:
+            seed = np.random.randint(np.iinfo(np.int32).max)
+        self.random_seed = seed
 
     def clone(self, **kwargs):
         """Generate a copy of the InputParameter structure with specified changes."""

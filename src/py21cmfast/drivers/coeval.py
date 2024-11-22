@@ -530,10 +530,7 @@ def get_logspaced_redshifts(min_redshift: float, z_step_factor: float, zmax: flo
 def run_coeval(
     *,
     out_redshifts: float | np.ndarray | None = None,
-    user_params: UserParams | dict | None = None,
-    cosmo_params: CosmoParams | dict | None = None,
-    flag_options: FlagOptions | dict | None = None,
-    astro_params: AstroParams | dict | None = None,
+    inputs: InputParameters | str | None = None,
     regenerate: bool | None = None,
     write: bool | None = None,
     direc: str | Path | None = None,
@@ -619,11 +616,17 @@ def run_coeval(
         else random_seed
     )
 
+    if isinstance(inputs, str):
+        inputs = InputParameters.from_template(inputs, seed=random_seed)
+    elif inputs is None:
+        inputs = InputParameters.from_defaults(seed=random_seed)
     # For the high-level, we need all the InputStruct initialised
-    cosmo_params = CosmoParams.new(cosmo_params)
-    user_params = UserParams.new(user_params)
-    flag_options = FlagOptions.new(flag_options)
-    astro_params = AstroParams.new(astro_params, flag_options=flag_options)
+    cosmo_params = inputs.cosmo_params
+    user_params = inputs.user_params
+    flag_options = inputs.astro_params
+    astro_params = inputs.flag_options
+
+    random_seed = inputs.random_seed
 
     iokw = {"regenerate": regenerate, "hooks": hooks, "direc": direc}
 

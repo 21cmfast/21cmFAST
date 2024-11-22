@@ -29,3 +29,15 @@ name = "mini-dhalos"
 file = "mini-dhalos.toml"
 aliases = ["mini-dhalos"]
 description = "Run with discrete halos, including the molecularly cooled galaxy component"
+
+[[templates]]
+name = "Park19"
+file = "park19.toml"
+aliases = ["Park19"]
+description = "Exact fiducial parameters from Park et al 2019. Disables modules implemented afterwards"
+
+[[templates]]
+name = "Qin20"
+file = "qin20.toml"
+aliases = ["Qin20"]
+description = "Exact fiducial parameters from Qin et al 2020. Disables modules implemented afterwards"
