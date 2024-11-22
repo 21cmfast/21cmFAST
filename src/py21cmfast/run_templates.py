@@ -75,7 +75,7 @@ def create_params_from_template(template_name: str, **kwargs):
     manifest = tomllib.load("PATH_TO_21CMFAST_DATA/templates/manifest.toml")
     for manf_entry in manifest:
         if template_name.lower in manf_entry["aliases"]:
-            template = tomllib.load(manf_entry)
+            template = tomllib.load(manf_entry["file"])
             break
 
     if template is not None:

@@ -1,0 +1,17 @@
+# Run template for latest fiducial halo-based 21cmfast runs with molecularly cooled halos / PopIII stars
+
+[CosmoParams]
+
+[UserParams]
+
+[AstroParams]
+
+[FlagOptions]
+USE_HALO_FIELD = true
+HALO_STOCHASTICITY = true
+USE_EXP_FILTER = true
+CELL_RECOMB = true
+USE_MINI_HALOS = true
+USE_RELATIVE_VELOCITIES = true
+USE_TS_FLUCT = true
+INHOMO_RECO = true

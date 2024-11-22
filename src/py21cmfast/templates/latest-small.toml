@@ -1,8 +1,10 @@
-# Run template for simple 21cmfast runs
+# Run template for a small run
 
 [CosmoParams]
 
 [UserParams]
+HII_DIM=48
+BOX_LEN=64
 
 [AstroParams]
 
@@ -12,5 +14,5 @@ HALO_STOCHASTICITY = false
 USE_EXP_FILTER = false
 CELL_RECOMB = false
 USE_MINI_HALOS = false
-USE_TS_FLUCT = false
-INHOMO_RECO = false
+USE_TS_FLUCT = true
+INHOMO_RECO = true

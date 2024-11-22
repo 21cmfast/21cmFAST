@@ -1,0 +1,27 @@
+# Run template for reproducing Park19 fiducial results
+
+[CosmoParams]
+
+[UserParams]
+
+[AstroParams]
+F_STAR10 = -1.3
+F_ESC10 = -1.0
+ALPHA_STAR = 0.5
+ALPHA_ESC = -0.5
+M_TURN = 8.7
+t_STAR = 0.5
+L_X = 40.5
+NU_X_THRESH = 500
+
+[FlagOptions]
+USE_HALO_FIELD = false
+HALO_STOCHASTICITY = false
+USE_EXP_FILTER = false
+CELL_RECOMB = false
+USE_MINI_HALOS = false
+USE_RELATIVE_VELOCITIES = false
+USE_CMB_HEATING = false
+USE_LYA_HEATING = false
+USE_TS_FLUCT = true
+INHOMO_RECO = true

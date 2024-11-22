@@ -41,3 +41,9 @@ name = "Qin20"
 file = "qin20.toml"
 aliases = ["Qin20"]
 description = "Exact fiducial parameters from Qin et al 2020. Disables modules implemented afterwards"
+
+[[templates]]
+name = "latest-small"
+file = "latest-small.toml"
+aliases = ["latest-small"]
+description = "Small version of latest.toml"

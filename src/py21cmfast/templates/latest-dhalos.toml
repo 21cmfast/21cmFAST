@@ -1,0 +1,16 @@
+# Run template for latest fiducial grid-based 21cmfast runs
+
+[CosmoParams]
+
+[UserParams]
+
+[AstroParams]
+
+[FlagOptions]
+USE_HALO_FIELD = true
+HALO_STOCHASTICITY = true
+USE_EXP_FILTER = true
+CELL_RECOMB = true
+USE_MINI_HALOS = false
+USE_TS_FLUCT = true
+INHOMO_RECO = true
