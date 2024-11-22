@@ -1,0 +1,13 @@
+# Run template for simple 21cmfast runs
+
+title = "simple"
+
+aliases = []
+
+[CosmoParams]
+
+[UserParams]
+
+[AstroParams]
+
+[FlagOptions]

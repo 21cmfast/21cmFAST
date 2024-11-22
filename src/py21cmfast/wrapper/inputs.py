@@ -18,7 +18,7 @@ from __future__ import annotations
 import logging
 import warnings
 from astropy import units as un
-from astropy.cosmology import FLRW
+from astropy.cosmology import FLRW, Planck15
 from attrs import converters, define
 from attrs import field as _field
 from attrs import validators
@@ -26,7 +26,6 @@ from attrs import validators
 from .._cfg import config
 from .._data import DATA_PATH
 from ..c_21cmfast import ffi, lib
-from ..run_templates import Planck18, active_param_template
 from .globals import global_params
 from .structs import InputStruct
 
@@ -41,16 +40,6 @@ def field(*, transformer=None, **kw):
     C-code (e.g. by transformin from log to linear space).
     """
     return _field(metadata={"transformer": transformer}, **kw)
-
-
-def field_tmpl(name, **kwargs):
-    """Most (but not all) of our fields have a default set from run templates.
-
-    This function sets the default of the field based on a name from the
-    globally defined active_param_template
-    """
-    # TODO: check if attrs has a way to grab the name from the field without passing directly
-    return field(default=active_param_template[name], **kwargs)
 
 
 def logtransformer(x):
@@ -82,6 +71,16 @@ def between(mn, mx):
     def vld(inst, att, val):
         if val < mn or val > mx:
             raise ValueError(f"{att.name} must be between {mn} and {mx}")
+
+
+# Cosmology is from https://arxiv.org/pdf/1807.06209.pdf
+# Table 2, last column. [TT,TE,EE+lowE+lensing+BAO]
+Planck18 = Planck15.clone(
+    Om0=(0.02242 + 0.11933) / 0.6766**2,
+    Ob0=0.02242 / 0.6766**2,
+    H0=67.66,
+    name="Planck18",
+)
 
 
 @define(frozen=True, kw_only=True)
@@ -688,15 +687,6 @@ class AstroParams(InputStruct):
         Self-correlation length used for updating xray luminosity, see "CORR_STAR" for details.
     """
 
-    # Some defaults require values from the flag options
-    _flag_options = field(
-        default=None,
-        converter=converters.optional(FlagOptions.new),
-        validator=validators.optional(validators.instance_of(FlagOptions)),
-        eq=False,
-        repr=False,
-    )
-
     HII_EFF_FACTOR = field(default=30.0, converter=float, validator=validators.gt(0))
     F_STAR10 = field(
         default=-1.3,
@@ -724,7 +714,10 @@ class AstroParams(InputStruct):
         transformer=logtransformer,
     )
     M_TURN = field(
-        converter=float, validator=validators.gt(0), transformer=logtransformer
+        default=8.7,
+        converter=float,
+        validator=validators.gt(0),
+        transformer=logtransformer,
     )
     R_BUBBLE_MAX = field(converter=float, validator=validators.gt(0))
     ION_Tvir_MIN = field(
@@ -769,35 +762,6 @@ class AstroParams(InputStruct):
     # NOTE (Jdavies): It's difficult to know what this should be, ASTRID doesn't have
     # the xrays and I don't know which hydros do
     CORR_LX = field(default=0.2, converter=float)
-
-    def __attrs_post_init__(self):
-        """Print warnings for valid but unusual parameter choices."""
-        if self.R_BUBBLE_MAX != 50 and getattr(
-            self._flag_options, "INHOMO_RECO", False
-        ):
-            warnings.warn(
-                "You are setting R_BUBBLE_MAX != 50 when INHOMO_RECO=True. "
-                "This is non-standard (but allowed), and usually occurs upon manual "
-                "update of INHOMO_RECO"
-            )
-
-    @R_BUBBLE_MAX.default
-    def _R_BUBBLE_MAX_default(self):
-        """Maximum radius of bubbles to be searched. Set dynamically."""
-        if not isinstance(self._flag_options, FlagOptions):
-            raise ValueError(
-                "to use default R_BUBBLE_MAX, a FlagOptions instance must be provdided to AstroParams"
-            )
-        return 50.0 if self._flag_options.INHOMO_RECO else 15.0
-
-    @M_TURN.default
-    def _M_TURN_default(self):
-        """The minimum turnover mass for halos which host stars, (set dynamically based on USE_MINI_HALOS)."""
-        if not isinstance(self._flag_options, FlagOptions):
-            raise ValueError(
-                "to use default M_TURN, a FlagOptions instance must be provdided to AstroParams"
-            )
-        return 5 if self._flag_options.USE_MINI_HALOS else 8.7
 
     # set the default of the minihalo scalings to continue the same PL
     @F_STAR7_MINI.default

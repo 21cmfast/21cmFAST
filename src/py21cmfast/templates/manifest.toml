@@ -1,0 +1,31 @@
+# Contains names, aliases and descriptions of all available native templates in 21cmfast
+
+[[templates]]
+name = "simple"
+file = "simple.toml"
+aliases = ["simple"]
+description = "A simple 21cmFAST run with no minihalos, discrete halos, recombinations or spin temperature fluctuations"
+
+[[templates]]
+name = "latest"
+file = "latest.toml"
+aliases = ["latest"]
+description = "Our latest fiducial run without discrete halos, includes recominations and spin temperature fluctuations"
+
+[[templates]]
+name = "mini"
+file = "mini.toml"
+aliases = ["mini"]
+description = "A run including minihalos"
+
+[[templates]]
+name = "latest-dhalos"
+file = "dhalos.toml"
+aliases = ["latest-dhalos"]
+description = "Our latest fiducial run with discrete halos, recominations and spin temperature fluctuations"
+
+[[templates]]
+name = "mini-dhalos"
+file = "mini-dhalos.toml"
+aliases = ["mini-dhalos"]
+description = "Run with discrete halos, including the molecularly cooled galaxy component"

@@ -98,6 +98,20 @@ class InputParameters:
                 f"R_BUBBLE_MAX is larger than BOX_LEN ({val.R_BUBBLE_MAX} > {self.user_params.BOX_LEN}). This is not allowed."
             )
 
+        if val.R_BUBBLE_MAX != 50 and self.flag_options.INHOMO_RECO:
+            warnings.warn(
+                "You are setting R_BUBBLE_MAX != 50 when INHOMO_RECO=True. "
+                "This is non-standard (but allowed), and usually occurs upon manual "
+                "update of INHOMO_RECO"
+            )
+
+        if val.M_TURN > 8 and self.flag_options.USE_MINI_HALOS:
+            warnings.warn(
+                "You are setting M_TURN > 8 when USE_MINI_HALOS=True. "
+                "This is non-standard (but allowed), and usually occurs upon manual "
+                "update of M_TURN"
+            )
+
         if (
             global_params.HII_FILTER == 1
             and val.R_BUBBLE_MAX > self.user_params.BOX_LEN / 3
