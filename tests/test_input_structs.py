@@ -239,3 +239,9 @@ def test_flag_options():
             match="USE_EXP_FILTER can only be used with a real-space tophat HII_FILTER==0",
         ):
             FlagOptions(USE_EXP_FILTER=True)
+
+def test_native_template_loading():
+    assert isinstance(InputParameters.from_template('simple'),InputParameters)
+    assert isinstance(InputParameters.from_template('latest'),InputParameters)
+    assert isinstance(InputParameters.from_template('Park19'),InputParameters)
+    assert isinstance(InputParameters.from_template('latest-dhalos'),InputParameters)
