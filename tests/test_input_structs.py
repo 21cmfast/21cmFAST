@@ -240,8 +240,9 @@ def test_flag_options():
         ):
             FlagOptions(USE_EXP_FILTER=True)
 
+
 def test_native_template_loading():
-    assert isinstance(InputParameters.from_template('simple'),InputParameters)
-    assert isinstance(InputParameters.from_template('latest'),InputParameters)
-    assert isinstance(InputParameters.from_template('Park19'),InputParameters)
-    assert isinstance(InputParameters.from_template('latest-dhalos'),InputParameters)
+    assert isinstance(InputParameters.from_template("simple"), InputParameters)
+    assert isinstance(InputParameters.from_template("latest"), InputParameters)
+    assert isinstance(InputParameters.from_template("Park19"), InputParameters)
+    assert isinstance(InputParameters.from_template("latest-dhalos"), InputParameters)
