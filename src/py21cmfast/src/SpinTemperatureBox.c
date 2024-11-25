@@ -942,9 +942,6 @@ void calculate_sfrd_from_grid(int R_ct, float *dens_R_grid, float *Mcrit_R_grid,
     if (true && flag_options_global->USE_MASS_DEPENDENT_ZETA && user_params_global->USE_INTERPOLATION_TABLES && !flag_options_global->USE_MINI_HALOS) {
 
         RGTable1D_f* SFRD_conditional_table = get_SFRD_conditional_table();
-        // ave_sfrd_buf = calculate_sfrd_from_grid_gpu(SFRD_conditional_table, dens_R_grid, zpp_growth, R_ct, sfrd_grid, HII_TOT_NUM_PIXELS);
-        // ave_sfrd_buf = calculate_sfrd_from_grid_gpu(SFRD_conditional_table, dens_R_grid, zpp_growth, R_ct, sfrd_grid, HII_TOT_NUM_PIXELS,
-        //                                             d_y_arr, d_dens_R_grid, d_sfrd_grid, d_ave_sfrd_buf);
         ave_sfrd_buf = calculate_sfrd_from_grid_gpu(SFRD_conditional_table, dens_R_grid, zpp_growth, R_ct, sfrd_grid, HII_TOT_NUM_PIXELS, threadsPerBlock,
                                                     // d_data
                                                     d_y_arr, d_dens_R_grid, d_sfrd_grid, d_ave_sfrd_buf
