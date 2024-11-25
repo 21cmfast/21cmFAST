@@ -927,7 +927,7 @@ def run_lightcone(
         # TODO: should really check that the file at path actually contains a fully
         # working copy of the initial_conditions.
         initial_conditions.prepare_for_perturb(
-            flag_options=flag_options, force=always_purge
+            flag_options=inputs.flag_options, force=always_purge
         )
     except OSError:
         pass
@@ -938,7 +938,7 @@ def run_lightcone(
             p = sf.perturb_field(
                 redshift=z, initial_conditions=initial_conditions, **iokw
             )
-            if user_params.MINIMIZE_MEMORY:
+            if inputs.user_params.MINIMIZE_MEMORY:
                 with contextlib.suppress(OSError):
                     p.purge(force=always_purge)
             perturbed_fields.append(p)

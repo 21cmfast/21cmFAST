@@ -170,7 +170,7 @@ def default_input_struct(
     )
 
 @pytest.fixture(scope="session")
-def default_input_struct_ts(default_input_struct):
+def default_input_struct_ts(default_input_struct,default_flag_options_ts):
     return default_input_struct.clone(flag_options=default_flag_options_ts)
 
 @pytest.fixture(scope="session")
@@ -224,7 +224,7 @@ def rectlcn(lightcone_min_redshift, ic, max_redshift) -> RectilinearLightconer:
 
 
 @pytest.fixture(scope="session")
-def lc(rectlcn, ic, default_astro_params, default_flag_options):
+def lc(rectlcn, ic, default_input_struct):
     iz, z, coev, lc = exhaust_lightcone(
         lightconer=rectlcn,
         initial_conditions=ic,

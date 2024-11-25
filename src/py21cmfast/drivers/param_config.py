@@ -175,7 +175,7 @@ class InputParameters:
     def merge(self, other: InputParameters) -> InputParameters:
         """Merge another InputParameters instance with this one, checking for compatibility."""
         if not self.is_compatible_with(other):
-            raise ValueError("Input parameters are not compatible.")
+            raise ValueError(f"Input parameters are not compatible. \n SELF {self} \n OTHER {other}")
         return InputParameters(**{k: self[k] or other[k] for k in self.merge_keys()})
 
     @classmethod

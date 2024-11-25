@@ -607,7 +607,7 @@ def run_coeval(
     if perturbed_field is None:
         perturbed_field = ()
     elif not hasattr(perturbed_field, "__len__"):
-        perturbed_field = (perturbed_field)
+        perturbed_field = (perturbed_field,)
         singleton = True
 
     random_seed = (
@@ -645,7 +645,7 @@ def run_coeval(
     # it is cached -- otherwise we could be losing information.
     with contextlib.suppress(OSError):
         initial_conditions.prepare_for_perturb(
-            flag_options=flag_options, force=always_purge
+            flag_options=inputs.flag_options, force=always_purge
         )
     if perturbed_field:
         if out_redshifts is not None and any(
@@ -675,7 +675,7 @@ def run_coeval(
         out_redshifts = out_redshifts.tolist()
 
     # Get the list of redshift we need to scroll through.
-    node_redshifts = _get_required_redshifts_coeval(flag_options, out_redshifts)
+    node_redshifts = _get_required_redshifts_coeval(inputs.flag_options, out_redshifts)
 
     # Get all the perturb boxes early. We need to get the perturb at every
     # redshift.
