@@ -14,9 +14,10 @@ import logging
 import tomllib
 import warnings
 from pathlib import Path
+
+from .wrapper._utils import camel_to_snake
 from .wrapper.inputs import AstroParams, CosmoParams, FlagOptions, UserParams
 from .wrapper.structs import InputStruct
-from .wrapper._utils import camel_to_snake
 
 TEMPLATE_PATH = Path(__file__).parent / "templates/"
 
@@ -74,11 +75,11 @@ def create_params_from_template(template_name: str, **kwargs):
         template = tomllib.load(template_name)
 
     # Next, check if the string matches one of our template aliases
-    with open(TEMPLATE_PATH / "manifest.toml",'rb') as f:
+    with open(TEMPLATE_PATH / "manifest.toml", "rb") as f:
         manifest = tomllib.load(f)
     for manf_entry in manifest["templates"]:
-        if template_name.casefold() in [x.casefold() for x  in manf_entry["aliases"]]:
-            with open(TEMPLATE_PATH / manf_entry["file"],'rb') as f:
+        if template_name.casefold() in [x.casefold() for x in manf_entry["aliases"]]:
+            with open(TEMPLATE_PATH / manf_entry["file"], "rb") as f:
                 template = tomllib.load(f)
             break
 
@@ -90,7 +91,7 @@ def create_params_from_template(template_name: str, **kwargs):
         f"Template {template_name} not found on-disk or in native template aliases"
     )
     logger.error("Available native templates are:")
-    for manf_entry in manifest['templates']:
+    for manf_entry in manifest["templates"]:
         logger.error(f" {manf_entry['name']}: {manf_entry['aliases']}")
         logger.error(f"     {manf_entry['description']}:")
         logger.error("")

@@ -102,6 +102,7 @@ def test_c_structures(c):
 
     assert c is not c2
 
+
 def test_mmin():
     fo = FlagOptions(USE_MASS_DEPENDENT_ZETA=True)
     assert fo.M_MIN_in_Mass
@@ -145,12 +146,13 @@ def test_validation():
     f = f.clone(INHOMO_RECO=True)
     msg = r"This is non\-standard \(but allowed\), and usually occurs upon manual update of INHOMO_RECO"
     with pytest.warns(UserWarning, match=msg):
-            InputParameters(
-                cosmo_params=c,
-                astro_params=a,
-                user_params=u,
-                flag_options=f,
-            )
+        InputParameters(
+            cosmo_params=c,
+            astro_params=a,
+            user_params=u,
+            flag_options=f,
+        )
+
 
 def test_user_params():
     up = UserParams()

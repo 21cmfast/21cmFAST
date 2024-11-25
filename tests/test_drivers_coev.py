@@ -25,7 +25,7 @@ def test_run_coeval_bad_inputs(ic, default_input_struct, default_flag_options):
     ):
         run_coeval(
             initial_conditions=ic,
-        inputs=default_input_struct,
+            inputs=default_input_struct,
         )
 
 

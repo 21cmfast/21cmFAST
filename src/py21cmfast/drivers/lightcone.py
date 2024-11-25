@@ -878,10 +878,10 @@ def run_lightcone(
         raise ValueError(
             f"If perturbed_fields {perturbed_fields} are provided, initial_conditions {initial_conditions} must be provided"
         )
-    
+
     # TODO: make sure cosmo_params is consistent with lightconer.cosmo as well
     inputs = InputParameters.from_output_structs(
-        (initial_conditions,)+perturbed_fields,
+        (initial_conditions,) + perturbed_fields,
         cosmo_params=inputs.cosmo_params,
         user_params=inputs.user_params,
         astro_params=inputs.astro_params,

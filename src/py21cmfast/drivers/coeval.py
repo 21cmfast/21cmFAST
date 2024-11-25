@@ -620,9 +620,9 @@ def run_coeval(
         inputs = InputParameters.from_template(inputs, seed=random_seed)
     elif inputs is None:
         inputs = InputParameters.from_defaults(seed=random_seed)
-    
+
     inputs = InputParameters.from_output_structs(
-        (initial_conditions,)+perturbed_field,
+        (initial_conditions,) + perturbed_field,
         cosmo_params=inputs.cosmo_params,
         user_params=inputs.user_params,
         astro_params=inputs.astro_params,

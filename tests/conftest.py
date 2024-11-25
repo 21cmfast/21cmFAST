@@ -169,9 +169,11 @@ def default_input_struct(
         flag_options=default_flag_options,
     )
 
+
 @pytest.fixture(scope="session")
-def default_input_struct_ts(default_input_struct,default_flag_options_ts):
+def default_input_struct_ts(default_input_struct, default_flag_options_ts):
     return default_input_struct.clone(flag_options=default_flag_options_ts)
+
 
 @pytest.fixture(scope="session")
 def ic(default_user_params, default_cosmo_params, tmpdirec):
