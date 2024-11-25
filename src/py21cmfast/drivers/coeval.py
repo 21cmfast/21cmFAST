@@ -605,9 +605,9 @@ def run_coeval(
     singleton = False
     # Ensure perturb is a list of boxes, not just one.
     if perturbed_field is None:
-        perturbed_field = []
+        perturbed_field = ()
     elif not hasattr(perturbed_field, "__len__"):
-        perturbed_field = [perturbed_field]
+        perturbed_field = (perturbed_field)
         singleton = True
 
     random_seed = (
@@ -620,11 +620,14 @@ def run_coeval(
         inputs = InputParameters.from_template(inputs, seed=random_seed)
     elif inputs is None:
         inputs = InputParameters.from_defaults(seed=random_seed)
-    # For the high-level, we need all the InputStruct initialised
-    cosmo_params = inputs.cosmo_params
-    user_params = inputs.user_params
-    flag_options = inputs.astro_params
-    astro_params = inputs.flag_options
+    
+    inputs = InputParameters.from_output_structs(
+        (initial_conditions,)+perturbed_field,
+        cosmo_params=inputs.cosmo_params,
+        user_params=inputs.user_params,
+        astro_params=inputs.astro_params,
+        flag_options=inputs.flag_options,
+    )
 
     random_seed = inputs.random_seed
 
@@ -632,8 +635,8 @@ def run_coeval(
 
     if initial_conditions is None:
         initial_conditions = sf.compute_initial_conditions(
-            user_params=user_params,
-            cosmo_params=cosmo_params,
+            user_params=inputs.user_params,
+            cosmo_params=inputs.cosmo_params,
             random_seed=random_seed,
             **iokw,
         )
@@ -654,8 +657,8 @@ def run_coeval(
 
     kw = {
         **{
-            "astro_params": astro_params,
-            "flag_options": flag_options,
+            "astro_params": inputs.astro_params,
+            "flag_options": inputs.flag_options,
             "initial_conditions": initial_conditions,
         },
         **iokw,

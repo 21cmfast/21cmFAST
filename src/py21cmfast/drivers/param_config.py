@@ -202,7 +202,7 @@ class InputParameters:
 
     @classmethod
     def from_output_structs(
-        cls, output_structs, redshift, **defaults
+        cls, output_structs, redshift=None, **defaults
     ) -> InputParameters:
         """Generate a new InputParameters instance given a list of OutputStructs."""
         input_params = []
@@ -251,7 +251,7 @@ class InputParameters:
         # TODO: add kwargs to modify values e.g run_templates._construct_param_objects?
         cosmo_params = CosmoParams.new()
         user_params = UserParams.new()
-        astro_params = CosmoParams.new()
+        astro_params = AstroParams.new()
         flag_options = FlagOptions.new()
 
         return cls(
@@ -265,6 +265,7 @@ class InputParameters:
         if seed is None:
             seed = np.random.randint(np.iinfo(np.int32).max)
         self.random_seed = seed
+        return self
 
     def clone(self, **kwargs):
         """Generate a copy of the InputParameter structure with specified changes."""
@@ -288,7 +289,7 @@ class InputParameters:
 
 
 def check_redshift_consistency(inputs: InputParameters, output_structs):
-    """Check the redshifts between provided OutputStruct objects and an InputParamters instance."""
+    """Check the redshifts between provided OutputStruct objects and an InputParameters instance."""
     for struct in output_structs:
         if struct is not None and struct.redshift != inputs.redshift:
             raise ValueError("Incompatible redshifts in inputs")

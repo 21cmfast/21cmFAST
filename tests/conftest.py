@@ -149,7 +149,7 @@ def default_flag_options_ts():
 
 @pytest.fixture(scope="session")
 def default_astro_params(default_flag_options):
-    return AstroParams.new(None, flag_options=default_flag_options)
+    return AstroParams.new()
 
 
 @pytest.fixture(scope="session")
@@ -169,6 +169,9 @@ def default_input_struct(
         flag_options=default_flag_options,
     )
 
+@pytest.fixture(scope="session")
+def default_input_struct_ts(default_input_struct):
+    return default_input_struct.clone(flag_options=default_flag_options_ts)
 
 @pytest.fixture(scope="session")
 def ic(default_user_params, default_cosmo_params, tmpdirec):
@@ -225,8 +228,7 @@ def lc(rectlcn, ic, default_astro_params, default_flag_options):
     iz, z, coev, lc = exhaust_lightcone(
         lightconer=rectlcn,
         initial_conditions=ic,
-        astro_params=default_astro_params,
-        flag_options=default_flag_options,
+        inputs=default_input_struct,
         write=True,
     )
     return lc

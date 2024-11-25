@@ -3,8 +3,10 @@
 [CosmoParams]
 
 [UserParams]
+USE_RELATIVE_VELOCITIES = true
 
 [AstroParams]
+R_BUBBLE_MAX = 50.0
 
 [FlagOptions]
 USE_HALO_FIELD = true
@@ -12,6 +14,5 @@ HALO_STOCHASTICITY = true
 USE_EXP_FILTER = true
 CELL_RECOMB = true
 USE_MINI_HALOS = true
-USE_RELATIVE_VELOCITIES = true
 USE_TS_FLUCT = true
 INHOMO_RECO = true

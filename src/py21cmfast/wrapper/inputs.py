@@ -719,7 +719,7 @@ class AstroParams(InputStruct):
         validator=validators.gt(0),
         transformer=logtransformer,
     )
-    R_BUBBLE_MAX = field(converter=float, validator=validators.gt(0))
+    R_BUBBLE_MAX = field(default=15.,converter=float, validator=validators.gt(0))
     ION_Tvir_MIN = field(
         default=4.69897,
         converter=float,

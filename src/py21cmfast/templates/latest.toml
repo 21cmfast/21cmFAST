@@ -5,6 +5,7 @@
 [UserParams]
 
 [AstroParams]
+R_BUBBLE_MAX = 50.0
 
 [FlagOptions]
 USE_HALO_FIELD = false

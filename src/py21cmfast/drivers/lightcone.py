@@ -865,25 +865,28 @@ def run_lightcone(
     """
     direc, regenerate, hooks = _get_config_options(direc, regenerate, write, hooks)
 
+    # For the high-level, we need all the InputStruct initialised
+    # NOTE: the random seed is now set here instead of in the OutputStruct init
+    #   if it's passed as None
+    if isinstance(inputs, str):
+        inputs = InputParameters.from_template(inputs, seed=random_seed)
+    elif inputs is None:
+        inputs = InputParameters.from_defaults(seed=random_seed)
+
     pf_given = any(perturbed_fields)
     if pf_given and initial_conditions is None:
         raise ValueError(
             f"If perturbed_fields {perturbed_fields} are provided, initial_conditions {initial_conditions} must be provided"
         )
-
-    # For the high-level, we need all the InputStruct initialised
-    # NOTE: the random seed is now set here instead of in the OutputStruct init
-    #   if it's passed as None
-    # TODO: make sure cosmo_params is consistent with lightconer.cosmo
-    if isinstance(inputs, str):
-        inputs = InputParameters.from_template(inputs, seed=random_seed)
-    elif inputs is None:
-        inputs = InputParameters.from_defaults(seed=random_seed)
-    # For the high-level, we need all the InputStruct initialised
-    cosmo_params = inputs.cosmo_params
-    user_params = inputs.user_params
-    flag_options = inputs.astro_params
-    astro_params = inputs.flag_options
+    
+    # TODO: make sure cosmo_params is consistent with lightconer.cosmo as well
+    inputs = InputParameters.from_output_structs(
+        (initial_conditions,)+perturbed_fields,
+        cosmo_params=inputs.cosmo_params,
+        user_params=inputs.user_params,
+        astro_params=inputs.astro_params,
+        flag_options=inputs.flag_options,
+    )
 
     random_seed = inputs.random_seed
 
@@ -912,8 +915,8 @@ def run_lightcone(
 
     if initial_conditions is None:  # no need to get cosmo, user params out of it.
         initial_conditions = sf.compute_initial_conditions(
-            user_params=user_params,
-            cosmo_params=cosmo_params,
+            user_params=inputs.user_params,
+            cosmo_params=inputs.cosmo_params,
             random_seed=random_seed,
             **iokw,
         )
@@ -944,8 +947,7 @@ def run_lightcone(
         initial_conditions=initial_conditions,
         perturbed_fields=perturbed_fields,
         lightconer=lightconer,
-        astro_params=astro_params,
-        flag_options=flag_options,
+        inputs=inputs,
         regenerate=regenerate,
         global_quantities=global_quantities,
         direc=direc,

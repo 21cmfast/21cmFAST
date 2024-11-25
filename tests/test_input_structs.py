@@ -102,15 +102,6 @@ def test_c_structures(c):
 
     assert c is not c2
 
-
-def test_update_inhomo_reco():
-    ap = AstroParams(R_BUBBLE_MAX=25, M_TURN=8.0)
-    # regex
-    msg = r"This is non\-standard \(but allowed\), and usually occurs upon manual update of INHOMO_RECO"
-    with pytest.warns(UserWarning, match=msg):
-        ap = ap.clone(flag_options=FlagOptions(INHOMO_RECO=True))
-
-
 def test_mmin():
     fo = FlagOptions(USE_MASS_DEPENDENT_ZETA=True)
     assert fo.M_MIN_in_Mass
@@ -129,7 +120,7 @@ def test_globals():
 def test_validation():
     c = CosmoParams()
     f = FlagOptions(USE_EXP_FILTER=False)  # needed for HII_FILTER checks
-    a = AstroParams(R_BUBBLE_MAX=100, flag_options=f)
+    a = AstroParams(R_BUBBLE_MAX=100)
     u = UserParams(BOX_LEN=50)
 
     with global_params.use(HII_FILTER=2):
@@ -151,6 +142,15 @@ def test_validation():
                 flag_options=f,
             )
 
+    f = f.clone(INHOMO_RECO=True)
+    msg = r"This is non\-standard \(but allowed\), and usually occurs upon manual update of INHOMO_RECO"
+    with pytest.warns(UserWarning, match=msg):
+            InputParameters(
+                cosmo_params=c,
+                astro_params=a,
+                user_params=u,
+                flag_options=f,
+            )
 
 def test_user_params():
     up = UserParams()

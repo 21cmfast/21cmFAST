@@ -3,6 +3,7 @@
 [CosmoParams]
 
 [UserParams]
+USE_RELATIVE_VELOCITIES = true
 
 [AstroParams]
 
@@ -12,6 +13,5 @@ HALO_STOCHASTICITY = false
 USE_EXP_FILTER = false
 CELL_RECOMB = false
 USE_MINI_HALOS = true
-USE_RELATIVE_VELOCITIES = true
 USE_TS_FLUCT = true
 INHOMO_RECO = true

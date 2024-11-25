@@ -119,7 +119,7 @@ class InputStruct:
     _write_exclude_fields = ()
 
     @classmethod
-    def new(cls, x: dict | InputStruct | None, **kwargs):
+    def new(cls, x: dict | InputStruct | None = None, **kwargs):
         """
         Create a new instance of the struct.
 

@@ -19,7 +19,7 @@ def test_lightcone(lc, default_user_params, lightcone_min_redshift, max_redshift
 
 
 def test_lightcone_quantities(
-    ic, default_flag_options, lightcone_min_redshift, max_redshift
+    ic, default_input_struct, lightcone_min_redshift, max_redshift
 ):
     lcn = p21c.RectilinearLightconer.with_equal_cdist_slices(
         min_redshift=lightcone_min_redshift,
@@ -32,7 +32,7 @@ def test_lightcone_quantities(
     _, _, _, lc = p21c.exhaust_lightcone(
         lightconer=lcn,
         initial_conditions=ic,
-        flag_options=default_flag_options,
+        inputs=default_input_struct,
         global_quantities=("density", "Gamma12_box"),
     )
 
@@ -66,7 +66,7 @@ def test_lightcone_quantities(
         p21c.exhaust_lightcone(
             lightconer=lcn_ts,
             initial_conditions=ic,
-            flag_options=default_flag_options,
+            inputs=default_input_struct,
         )
 
     # And also raise an error for global quantities.
@@ -74,7 +74,7 @@ def test_lightcone_quantities(
         p21c.exhaust_lightcone(
             lightconer=lcn_ts,
             initial_conditions=ic,
-            flag_options=default_flag_options,
+            inputs=default_input_struct,
             global_quantities=("Ts_box",),
         )
 

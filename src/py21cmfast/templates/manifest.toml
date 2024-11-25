@@ -20,7 +20,7 @@ description = "A run including minihalos"
 
 [[templates]]
 name = "latest-dhalos"
-file = "dhalos.toml"
+file = "latest-dhalos.toml"
 aliases = ["latest-dhalos"]
 description = "Our latest fiducial run with discrete halos, recominations and spin temperature fluctuations"
 
