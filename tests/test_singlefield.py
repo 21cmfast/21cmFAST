@@ -230,9 +230,7 @@ def test_bt(ionize_box, spin_temp_evolution, perturbed_field):
     assert bt.astro_params == ionize_box.astro_params
 
 
-def test_coeval_against_direct(
-    ic, perturbed_field, ionize_box, default_input_struct
-):
+def test_coeval_against_direct(ic, perturbed_field, ionize_box, default_input_struct):
     coeval = p21c.run_coeval(
         perturbed_field=perturbed_field,
         initial_conditions=ic,

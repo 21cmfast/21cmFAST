@@ -128,10 +128,10 @@ def test_lc_runs(name, max_redshift):
     )
 
     inputs = p21c.InputParameters(
-        cosmo_params=options.pop('cosmo_params'),
-        user_params=options.pop('user_params'),
-        astro_params=options.pop('astro_params'),
-        flag_options=options.pop('flag_options'),
+        cosmo_params=options.pop("cosmo_params"),
+        user_params=options.pop("user_params"),
+        astro_params=options.pop("astro_params"),
+        flag_options=options.pop("flag_options"),
     )
 
     with p21c.config.use(ignore_R_BUBBLE_MAX_error=True):
