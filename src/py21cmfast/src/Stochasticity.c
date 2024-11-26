@@ -17,6 +17,7 @@
 #include "hmf.h"
 #include "cosmology.h"
 #include "InitialConditions.h"
+#include "rng.h"
 
 #include "Stochasticity.h"
 //buffer size (per cell of arbitrary size) in the sampling function
@@ -67,9 +68,9 @@ void print_hs_consts(struct HaloSamplingConstants * c){
 }
 
 //This function, designed to be used in the wrapper to estimate Halo catalogue size, takes the parameters and returns average number of halos within the entire box
-double expected_nhalo(double redshift, UserParams *user_params, CosmoParams *cosmo_params, AstroParams *astro_params, FlagOptions * flag_options){
+double expected_nhalo(double redshift, UserParams *user_params, CosmoParams *cosmo_params){
     //minimum sampled mass
-    Broadcast_struct_global_all(user_params,cosmo_params,astro_params,flag_options);
+    Broadcast_struct_global_noastro(user_params,cosmo_params);
     double M_min = user_params->SAMPLER_MIN_MASS;
     //maximum sampled mass
     double M_max = RHOcrit * cosmo_params->OMm * VOLUME / HII_TOT_NUM_PIXELS;
@@ -122,7 +123,7 @@ void stoc_set_consts_z(struct HaloSamplingConstants *const_struct, double redshi
 
     const_struct->sigma_min = EvaluateSigma(const_struct->lnM_min);
 
-    if(redshift_desc >= 0){
+    if(redshift_desc > 0){
         const_struct->growth_in = dicke(redshift_desc);
         if(astro_params_global->CORR_SFR > 0)
             const_struct->corr_sfr = exp(-(redshift - redshift_desc)/astro_params_global->CORR_SFR);
@@ -257,7 +258,7 @@ void set_prop_rng(gsl_rng *rng, bool from_catalog, double *interp, double * inpu
 int add_properties_cat(unsigned long long int seed, float redshift, HaloField *halos){
     //set up the rng
     gsl_rng * rng_stoc[user_params_global->N_THREADS];
-    seed_rng_threads(rng_stoc,seed);
+    seed_rng_threads_fast(rng_stoc,seed);
 
     LOG_DEBUG("computing rng for %llu halos",halos->n_halos);
 
@@ -297,6 +298,48 @@ int stoc_halo_sample(struct HaloSamplingConstants *hs_constants, gsl_rng * rng, 
 
     *n_halo_out = halo_count;
     return 0;
+}
+
+//This performs the number-limited sampling as above, modified to include a mass tolerance
+// halo samples are entirely thrown out and re-drawn if they do not meet the tolerance
+// This version is only currently used for internal testing against Nikolic et al. 2024,
+int stoc_halo_sample_tol(struct HaloSamplingConstants *hs_constants, gsl_rng * rng, int *n_halo_out, float *M_out){
+    double exp_N = hs_constants->expected_N;
+    double exp_M = hs_constants->expected_M;
+    int ii, nh=0;
+    int halo_count=0;
+    double mass_tot=0.;
+    double m_sample;
+    int attempts, n_failures;
+
+    double tbl_arg = hs_constants->cond_val;
+
+    //number limits that *can* fall in the tolerance
+    int min_N = 1; //assuming exp_M*0.9 < M_cond
+    int max_N = (int)(exp_M*1.1 / hs_constants->M_min);
+
+    for(n_failures=0;n_failures<1000;n_failures++){
+        do {
+            nh = gsl_ran_poisson(rng,exp_N);
+        } while((nh < min_N) || (nh > max_N));
+        for(attempts=0;attempts<10;attempts++){
+            halo_count = 0;
+            mass_tot = 0.;
+            for(ii=0;ii<nh;ii++){
+                m_sample = sample_dndM_inverse(tbl_arg,hs_constants,rng);
+                M_out[halo_count++] = m_sample;
+                mass_tot += m_sample;
+            }
+            //return if we found a good sample
+            if((mass_tot > 0.9*exp_M) && (mass_tot < 1.1*exp_M)){
+                *n_halo_out = halo_count;
+                return 0;
+            }
+        }
+    }
+
+    //if we go through the whole loop raise an error
+    return TableEvaluationError;
 }
 
 double remove_random_halo(gsl_rng * rng, int n_halo, int *idx, double *M_prog, float *M_out){
@@ -646,6 +689,7 @@ int stoc_sample(struct HaloSamplingConstants * hs_constants, gsl_rng * rng, int 
     //We always use Number-Limited sampling for grid-based cases
     if(user_params_global->SAMPLE_METHOD == 1 || !hs_constants->from_catalog){
         err = stoc_halo_sample(hs_constants, rng, n_halo_out, M_out);
+        // err = stoc_halo_sample_tol(hs_constants, rng, n_halo_out, M_out);
     }
     else if(user_params_global->SAMPLE_METHOD == 0){
         err = stoc_mass_sample(hs_constants, rng, n_halo_out, M_out);
@@ -659,6 +703,10 @@ int stoc_sample(struct HaloSamplingConstants * hs_constants, gsl_rng * rng, int 
     else{
         LOG_ERROR("Invalid sampling method");
         Throw(ValueError);
+    }
+    if(err){
+        LOG_ERROR("Error %d encountered in Halo sampling",err);
+        Throw(err);
     }
     if(*n_halo_out > MAX_HALO_CELL){
         LOG_ERROR("too many halos in condition, buffer overflow");
@@ -953,14 +1001,14 @@ int stochastic_halofield(UserParams *user_params, CosmoParams *cosmo_params,
 
     //set up the rng
     gsl_rng * rng_stoc[user_params->N_THREADS];
-    seed_rng_threads(rng_stoc,seed);
+    seed_rng_threads_fast(rng_stoc,seed);
 
     struct HaloSamplingConstants hs_constants;
     stoc_set_consts_z(&hs_constants,redshift,redshift_desc);
 
     //Fill them
     //NOTE:Halos prev in the first box corresponds to the large DexM halos
-    if(redshift_desc < 0.){
+    if(redshift_desc <= 0.){
         LOG_DEBUG("building first halo field at z=%.1f", redshift);
         sample_halo_grids(rng_stoc,redshift,dens_field,halo_overlap_box,halos_desc,halos,&hs_constants);
     }
@@ -1003,7 +1051,7 @@ int single_test_sample(UserParams *user_params, CosmoParams *cosmo_params, Astro
 
         //set up the rng
         gsl_rng * rng_stoc[user_params->N_THREADS];
-        seed_rng_threads(rng_stoc,seed);
+        seed_rng_threads_fast(rng_stoc,seed);
 
         if(z_in > 0 && z_out <= z_in){
             LOG_DEBUG("progenitor sampling must go back in time z_out=%.2f z_in=%.2f",z_out,z_in);
@@ -1072,6 +1120,7 @@ int single_test_sample(UserParams *user_params, CosmoParams *cosmo_params, Astro
         }
 
         out_n_tot[0] = n_halo_tot;
+        LOG_DEBUG("Found %d halos", n_halo_tot);
 
         //get expected values from the saved mass range
         if(hs_constants->from_catalog){

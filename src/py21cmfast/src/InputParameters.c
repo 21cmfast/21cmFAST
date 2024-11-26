@@ -39,7 +39,7 @@ GlobalParams global_params = {
     .OPTIMIZE_MIN_MASS = 1e11,
 
 
-    .CRIT_DENS_TRANSITION = 1.5,
+    .CRIT_DENS_TRANSITION = 1.2,
     .MIN_DENSITY_LOW_LIMIT = 9e-8,
 
     .RecombPhotonCons = 0,

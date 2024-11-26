@@ -99,7 +99,7 @@ void initialize_interp_arrays()
     // Skip third line -- first have to get past the second line ending.
     skipline(input_file, 2);
 
-    LOG_SUPER_DEBUG("Reading %s", input_file_name);
+    LOG_ULTRA_DEBUG("Reading %s", input_file_name);
 
     for (i=0;i<x_int_NENERGY;i++) {
 
@@ -116,7 +116,7 @@ void initialize_interp_arrays()
 
     }
 
-    LOG_SUPER_DEBUG("Done reading %s", input_file_name);
+    LOG_ULTRA_DEBUG("Done reading %s", input_file_name);
 
     fclose(input_file);
 
