@@ -6,6 +6,7 @@
 USE_RELATIVE_VELOCITIES = true
 
 [AstroParams]
+R_BUBBLE_MAX = 50.
 
 [FlagOptions]
 USE_HALO_FIELD = false
