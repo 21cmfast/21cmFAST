@@ -315,7 +315,6 @@ def get_all_options(redshift, **kwargs):
         "cosmo_params": cosmo_params,
         "astro_params": astro_params,
         "flag_options": flag_options,
-        "use_interp_perturb_field": kwargs.get("use_interp_perturb_field", False),
         "random_seed": SEED,
     }
 
@@ -339,26 +338,6 @@ def get_all_options_ics(**kwargs):
         if key.upper() in (k.upper() for k in global_params.keys()):
             out[key] = kwargs[key]
     return out
-
-
-def get_all_options_halo(redshift, **kwargs):
-    user_params, cosmo_params, astro_params, flag_options = get_all_input_structs(
-        kwargs
-    )
-    out = {
-        "out_redshifts": redshift,
-        "user_params": user_params,
-        "cosmo_params": cosmo_params,
-        "astro_params": astro_params,
-        "flag_options": flag_options,
-        "random_seed": SEED,
-    }
-
-    for key in kwargs:
-        if key.upper() in (k.upper() for k in global_params.keys()):
-            out[key] = kwargs[key]
-    return out
-
 
 def produce_coeval_power_spectra(redshift, **kwargs):
     options = get_all_options(redshift, **kwargs)
@@ -476,7 +455,7 @@ def produce_perturb_field_data(redshift, **kwargs):
 
 
 def produce_halo_field_data(redshift, **kwargs):
-    options_halo = get_all_options_halo(redshift, **kwargs)
+    options_halo = get_all_options(redshift, **kwargs)
 
     with config.use(regenerate=True, write=False):
         pt_halos = perturb_halo_list(**options_halo)

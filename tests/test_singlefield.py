@@ -231,13 +231,12 @@ def test_bt(ionize_box, spin_temp_evolution, perturbed_field):
 
 
 def test_coeval_against_direct(
-    ic, perturbed_field, ionize_box, default_astro_params, default_flag_options
+    ic, perturbed_field, ionize_box, default_input_struct
 ):
     coeval = p21c.run_coeval(
         perturbed_field=perturbed_field,
         initial_conditions=ic,
-        astro_params=default_astro_params,
-        flag_options=default_flag_options,
+        inputs=default_input_struct,
     )
 
     assert coeval.init_struct == ic

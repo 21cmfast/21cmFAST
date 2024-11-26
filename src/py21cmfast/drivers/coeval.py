@@ -664,7 +664,7 @@ def run_coeval(
         **iokw,
     }
     photon_nonconservation_data = None
-    if flag_options.PHOTON_CONS_TYPE != "no-photoncons":
+    if inputs.flag_options.PHOTON_CONS_TYPE != "no-photoncons":
         photon_nonconservation_data = setup_photon_cons(**kw)
 
     if not hasattr(out_redshifts, "__len__"):
@@ -688,7 +688,7 @@ def run_coeval(
             else perturbed_field[pz.index(z)]
         )
 
-        if user_params.MINIMIZE_MEMORY:
+        if inputs.user_params.MINIMIZE_MEMORY:
             with contextlib.suppress(OSError):
                 p.purge(force=always_purge)
         perturb_.append(p)
@@ -697,7 +697,7 @@ def run_coeval(
 
     # get the halos (reverse redshift order)
     pt_halos = []
-    if flag_options.USE_HALO_FIELD and not flag_options.FIXED_HALO_GRIDS:
+    if inputs.flag_options.USE_HALO_FIELD and not inputs.flag_options.FIXED_HALO_GRIDS:
         halos_desc = None
         for i, z in enumerate(node_redshifts[::-1]):
             halos = sf.determine_halo_list(
@@ -716,10 +716,10 @@ def run_coeval(
     # Now we can purge initial_conditions further.
     with contextlib.suppress(OSError):
         initial_conditions.prepare_for_spin_temp(
-            flag_options=flag_options, force=always_purge
+            flag_options=inputs.flag_options, force=always_purge
         )
     if (
-        flag_options.PHOTON_CONS_TYPE == "z-photoncons"
+        inputs.flag_options.PHOTON_CONS_TYPE == "z-photoncons"
         and np.amin(node_redshifts) < global_params.PhotonConsEndCalibz
     ):
         raise ValueError(
@@ -756,8 +756,8 @@ def run_coeval(
         pf2 = perturbed_field[iz]
         pf2.load_all()
 
-        if flag_options.USE_HALO_FIELD:
-            if not flag_options.FIXED_HALO_GRIDS:
+        if inputs.flag_options.USE_HALO_FIELD:
+            if not inputs.flag_options.FIXED_HALO_GRIDS:
                 ph2 = pt_halos[iz]
 
             hb2 = sf.compute_halo_grid(
@@ -768,10 +768,10 @@ def run_coeval(
                 **kw,
             )
 
-        if flag_options.USE_TS_FLUCT:
+        if inputs.flag_options.USE_TS_FLUCT:
             # append the halo redshift array so we have all halo boxes [z,zmax]
             hbox_arr += [hb2]
-            if flag_options.USE_HALO_FIELD:
+            if inputs.flag_options.USE_HALO_FIELD:
                 xrs = sf.compute_xray_source_field(
                     hboxes=hbox_arr,
                     **kw,
@@ -836,17 +836,17 @@ def run_coeval(
             st = st2
 
         perturb_files.append((z, os.path.join(direc, pf2.filename)))
-        if flag_options.USE_HALO_FIELD:
+        if inputs.flag_options.USE_HALO_FIELD:
             hbox_files.append((z, os.path.join(direc, hb2.filename)))
             pth_files.append((z, os.path.join(direc, ph2.filename)))
-        if flag_options.USE_TS_FLUCT:
+        if inputs.flag_options.USE_TS_FLUCT:
             spin_temp_files.append((z, os.path.join(direc, st2.filename)))
         ionize_files.append((z, os.path.join(direc, ib2.filename)))
 
         if _bt is not None:
             brightness_files.append((z, os.path.join(direc, _bt.filename)))
 
-    if flag_options.PHOTON_CONS_TYPE == "z-photoncons":
+    if inputs.flag_options.PHOTON_CONS_TYPE == "z-photoncons":
         photon_nonconservation_data = _get_photon_nonconservation_data()
 
     if lib.photon_cons_allocated:

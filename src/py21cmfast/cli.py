@@ -103,7 +103,7 @@ def _get_params_from_ctx(ctx, cfg):
     user_params = UserParams.new(params["user_params"])
     cosmo_params = CosmoParams.new(params["cosmo_params"])
     flag_options = FlagOptions.new(params["flag_options"])
-    astro_params = AstroParams.new(params["astro_params"], flag_options=flag_options)
+    astro_params = AstroParams.new(params["astro_params"])
 
     # Also update globals, always.
     _update(global_params, ctx)
@@ -520,12 +520,17 @@ def coeval(ctx, redshift, config, out, regen, direc, seed):
         ctx, cfg
     )
 
-    coeval = run_coeval(
-        out_redshifts=redshift,
+    inputs = InputParameters(
+        cosmo_params=cosmo_params,
+        user_params=user_params,
         astro_params=astro_params,
         flag_options=flag_options,
-        user_params=user_params,
-        cosmo_params=cosmo_params,
+        random_seed=seed,
+    )
+
+    coeval = run_coeval(
+        out_redshifts=redshift,
+        inputs=inputs,
         regenerate=regen,
         write=True,
         direc=direc,
@@ -630,6 +635,14 @@ def lightcone(ctx, redshift, config, out, regen, direc, max_z, seed, lq):
         ctx, cfg
     )
 
+    inputs = InputParameters(
+        cosmo_params=cosmo_params,
+        user_params=user_params,
+        astro_params=astro_params,
+        flag_options=flag_options,
+        random_seed=seed,
+    )
+
     # For now, always use the old default lightconing algorithm
     lcn = RectilinearLightconer.with_equal_cdist_slices(
         min_redshift=redshift,
@@ -641,10 +654,7 @@ def lightcone(ctx, redshift, config, out, regen, direc, max_z, seed, lq):
 
     lc = exhaust_lightcone(
         lightconer=lcn,
-        astro_params=astro_params,
-        flag_options=flag_options,
-        user_params=user_params,
-        cosmo_params=cosmo_params,
+        inputs=inputs,
         regenerate=regen,
         write=True,
         direc=direc,

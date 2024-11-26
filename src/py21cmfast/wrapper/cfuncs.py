@@ -164,7 +164,7 @@ def compute_luminosity_function(
     user_params = UserParams.new(user_params)
     cosmo_params = CosmoParams.new(cosmo_params)
     flag_options = FlagOptions.new(flag_options)
-    astro_params = AstroParams.new(astro_params, flag_options=flag_options)
+    astro_params = AstroParams.new(astro_params)
 
     redshifts = np.array(redshifts, dtype="float32")
     if flag_options.USE_MINI_HALOS:

@@ -127,11 +127,18 @@ def test_lc_runs(name, max_redshift):
         resolution=options["user_params"].cell_size,
     )
 
+    inputs = p21c.InputParameters(
+        cosmo_params=options.pop('cosmo_params'),
+        user_params=options.pop('user_params'),
+        astro_params=options.pop('astro_params'),
+        flag_options=options.pop('flag_options'),
+    )
+
     with p21c.config.use(ignore_R_BUBBLE_MAX_error=True):
         _, _, _, lightcone = p21c.exhaust_lightcone(
             lightconer=lcn,
             write=False,
-            **options,
+            inputs=inputs,
         )
 
     assert isinstance(lightcone, p21c.LightCone)
