@@ -555,17 +555,11 @@ def run_coeval(
 
     Parameters
     ----------
-    out_redshifts: array_like
+    inputs: :class:`~InputParameters`
+        This object specifies the input parameters for the run, including the random seed
+    out_redshifts: array_like, optional
         A single redshift, or multiple redshift, at which to return results. The minimum of these
         will define the log-scrolling behaviour (if necessary).
-    user_params : :class:`~inputs.UserParams`, optional
-        Defines the overall options and parameters of the run.
-    cosmo_params : :class:`~inputs.CosmoParams` , optional
-        Defines the cosmological parameters used to compute initial conditions.
-    astro_params : :class:`~inputs.AstroParams` , optional
-        The astrophysical parameters defining the course of reionization.
-    flag_options : :class:`~inputs.FlagOptions` , optional
-        Some options passed to the reionization routine.
     initial_conditions : :class:`~InitialConditions`, optional
         If given, the user and cosmo params will be set from this object, and it will not
         be re-calculated.
@@ -621,7 +615,7 @@ def run_coeval(
 
     # if no random seed was given to the inputs, and no output structs were passed,
     #   raise an error
-    if not isinstance(inputs.random_seed,int):
+    if not isinstance(inputs.random_seed, int):
         raise ValueError("An integer seed, or initial conditions must be given")
 
     iokw = {"regenerate": regenerate, "hooks": hooks, "direc": direc}

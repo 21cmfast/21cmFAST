@@ -415,15 +415,8 @@ def _run_lightcone_from_perturbed_fields(
     ----------
     lightconer : :class:`~Lightconer`
         This object specifies the dimensions, redshifts, and quantities required by the lightcone run
-    user_params : `~UserParams`, optional
-        Defines the overall options and parameters of the run.
-    astro_params : :class:`~AstroParams`, optional
-        Defines the astrophysical parameters of the run.
-    cosmo_params : :class:`~CosmoParams`, optional
-        Defines the cosmological parameters used to compute initial conditions.
-    flag_options : :class:`~FlagOptions`, optional
-        Options concerning how the reionization process is run, eg. if spin temperature
-        fluctuations are required.
+    inputs: :class:`~InputParameters`
+        This object specifies the input parameters for the run, including the random seed
     global_quantities : tuple of str, optional
         The quantities to save as globally-averaged redshift-dependent functions.
         These may be any of the quantities that can be used in ``lightcone_quantities``.
@@ -789,14 +782,14 @@ def run_lightcone(
     lightconer: Lightconer,
     inputs: InputParameters,
     node_redshifts: np.ndarray | None = None,
-    regenerate=None,
-    write=None,
     global_quantities=("brightness_temp", "xH_box"),
-    direc=None,
     initial_conditions: InitialConditions | None = None,
     perturbed_fields: Sequence[PerturbedField | None] = (None,),
     cleanup=True,
+    write=None,
+    direc=None,
     hooks=None,
+    regenerate=None,
     always_purge: bool = False,
     lightcone_filename: str | Path = None,
     **global_kwargs,
@@ -811,18 +804,11 @@ def run_lightcone(
     ----------
     lightconer : :class:`~Lightconer`
         This object specifies the dimensions, redshifts, and quantities required by the lightcone run
+    inputs: :class:`~InputParameters`
+        This object specifies the input parameters for the run, including the random seed
     node_redshifts : array_like, optional
         This array specifies the redshifts at which the simulation snapshots occur.
         By default it is evenly spaced in log(1+z) by a factor set by global_params.ZPRIME_STEP_FACTOR
-    user_params : `~UserParams`, optional
-        Defines the overall options and parameters of the run.
-    astro_params : :class:`~AstroParams`, optional
-        Defines the astrophysical parameters of the run.
-    cosmo_params : :class:`~CosmoParams`, optional
-        Defines the cosmological parameters used to compute initial conditions.
-    flag_options : :class:`~FlagOptions`, optional
-        Options concerning how the reionization process is run, eg. if spin temperature
-        fluctuations are required.
     global_quantities : tuple of str, optional
         The quantities to save as globally-averaged redshift-dependent functions.
         These may be any of the quantities that can be used in ``Lightconer.quantities``.
@@ -834,7 +820,7 @@ def run_lightcone(
     perturbed_fields : list of :class:`~PerturbedField`, optional
         If given, must be compatible with initial_conditions. It will merely negate the necessity of
         re-calculating the
-        perturb fields. It will also be used to set the redshift if given.
+        perturb fields. It will also be used to set the node redshifts if given.
     cleanup : bool, optional
         A flag to specify whether the C routine cleans up its memory before returning.
         Typically, if `spin_temperature` is called directly, you will want this to be
@@ -859,7 +845,7 @@ def run_lightcone(
 
     Other Parameters
     ----------------
-    regenerate, write, direc, random_seed, hooks
+    regenerate, write, direc, hooks
         See docs of :func:`initial_conditions` for more information.
     """
     direc, regenerate, hooks = _get_config_options(direc, regenerate, write, hooks)
@@ -879,10 +865,10 @@ def run_lightcone(
         flag_options=inputs.flag_options,
         random_seed=inputs.random_seed,
     )
-    
+
     # if no random seed was given to the inputs, and no output structs were passed,
     #   raise an error
-    if not isinstance(inputs.random_seed,int):
+    if not isinstance(inputs.random_seed, int):
         raise ValueError("An integer seed, or initial conditions must be given")
 
     if pf_given:
