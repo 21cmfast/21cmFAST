@@ -228,7 +228,7 @@ class InputParameters:
     @classmethod
     def from_template(cls, name, random_seed):
         """Construct full InputParameters instance from native or TOML file template."""
-        return cls(**create_params_from_template(name),random_seed=seed)
+        return cls(**create_params_from_template(name), random_seed=random_seed)
 
     @classmethod
     def from_inputstructs(

@@ -858,30 +858,30 @@ def compute_ionization_field(
     By default, no spin temperature is used, and neither are inhomogeneous recombinations,
     so that no evolution is required, thus the following will compute a coeval ionization box:
 
-    >>> xHI = ionize_box(redshift=7.0)
+    >>> xHI = compute_ionization_field(redshift=7.0)
 
     However, if either of those options are true, then a full evolution will be required:
 
-    >>> xHI = ionize_box(redshift=7.0, flag_options=FlagOptions(INHOMO_RECO=True,USE_TS_FLUCT=True))
+    >>> xHI = compute_ionization_field(redshift=7.0, flag_options=FlagOptions(INHOMO_RECO=True,USE_TS_FLUCT=True))
 
     This will by default evolve the field from a redshift of *at least* `Z_HEAT_MAX` (a global
     parameter), in logarithmic steps of `ZPRIME_STEP_FACTOR`. To change these:
 
-    >>> xHI = ionize_box(redshift=7.0, zprime_step_factor=1.2, z_heat_max=15.0,
+    >>> xHI = compute_ionization_field(redshift=7.0, zprime_step_factor=1.2, z_heat_max=15.0,
     >>>                  flag_options={"USE_TS_FLUCT":True})
 
     Alternatively, one can pass an exact previous redshift, which will be sought in the disk
     cache, or evaluated:
 
-    >>> ts_box = ionize_box(redshift=7.0, previous_ionize_box=8.0, flag_options={
+    >>> ts_box = compute_ionization_field(redshift=7.0, previous_ionize_box=8.0, flag_options={
     >>>                     "USE_TS_FLUCT":True})
 
     Beware that doing this, if the previous box is not found on disk, will continue to evaluate
     prior boxes based on `ZPRIME_STEP_FACTOR`. Alternatively, one can pass a previous
     :class:`~IonizedBox`:
 
-    >>> xHI_0 = ionize_box(redshift=8.0, flag_options={"USE_TS_FLUCT":True})
-    >>> xHI = ionize_box(redshift=7.0, previous_ionize_box=xHI_0)
+    >>> xHI_0 = compute_ionization_field(redshift=8.0, flag_options={"USE_TS_FLUCT":True})
+    >>> xHI = compute_ionization_field(redshift=7.0, previous_ionize_box=xHI_0)
 
     Again, the first line here will implicitly use ``ZPRIME_STEP_FACTOR`` to evolve the field from
     ``Z_HEAT_MAX``. Note that in the second line, all of the input parameters are taken directly from
@@ -893,7 +893,7 @@ def compute_ionization_field(
     One can also pass an explicit spin temperature object:
 
     >>> ts = spin_temperature(redshift=7.0)
-    >>> xHI = ionize_box(redshift=7.0, spin_temp=ts)
+    >>> xHI = compute_ionization_field(redshift=7.0, spin_temp=ts)
 
     If automatic recursion is used, then it is done in such a way that no large boxes are kept
     around in memory for longer than they need to be (only two at a time are required).
