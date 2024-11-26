@@ -164,10 +164,26 @@ def test_lightcone_coords(lc):
     )
 
 
-def test_run_lc_bad_inputs(ic):
-    with pytest.raises(TypeError):
+def test_run_lc_bad_inputs(rectlcn, perturbed_field, default_input_struct):
+    with pytest.raises(
+        ValueError, match="An integer seed, or initial conditions must be given"
+    ):
         p21c.exhaust_lightcone(
-            initial_conditions=ic,
+            lightconer=rectlcn,
+            inputs=default_input_struct.clone(
+                random_seed=None,
+            ),
+        )
+    with pytest.raises(
+        ValueError,
+        match="If perturbed_fields are provided, initial_conditions must be provided",
+    ):
+        p21c.exhaust_lightcone(
+            inputs=default_input_struct,
+            lightconer=rectlcn,
+            perturbed_fields=[
+                perturbed_field,
+            ],
         )
 
 

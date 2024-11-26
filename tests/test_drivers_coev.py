@@ -28,6 +28,16 @@ def test_run_coeval_bad_inputs(ic, default_input_struct, default_flag_options):
             inputs=default_input_struct,
         )
 
+    with pytest.raises(
+        ValueError, match="An integer seed, or initial conditions must be given"
+    ):
+        run_coeval(
+            out_redshifts=20.0,
+            inputs=default_input_struct.clone(
+                random_seed=None,
+            ),
+        )
+
 
 def test_coeval_lowerz_than_photon_cons(ic, default_input_struct, default_flag_options):
     with pytest.raises(ValueError, match="You have passed a redshift"):

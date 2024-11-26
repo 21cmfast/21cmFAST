@@ -825,7 +825,8 @@ def run_coeval(
         perturb_files.append((z, os.path.join(direc, pf2.filename)))
         if inputs.flag_options.USE_HALO_FIELD:
             hbox_files.append((z, os.path.join(direc, hb2.filename)))
-            pth_files.append((z, os.path.join(direc, ph2.filename)))
+            if not inputs.flag_options.FIXED_HALO_GRIDS:
+                pth_files.append((z, os.path.join(direc, ph2.filename)))
         if inputs.flag_options.USE_TS_FLUCT:
             spin_temp_files.append((z, os.path.join(direc, st2.filename)))
         ionize_files.append((z, os.path.join(direc, ib2.filename)))

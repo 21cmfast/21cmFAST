@@ -25,6 +25,7 @@ from py21cmfast import (
     CosmoParams,
     FlagOptions,
     InitialConditions,
+    InputParameters,
     UserParams,
     compute_initial_conditions,
     config,
@@ -324,6 +325,19 @@ def get_all_options(redshift, **kwargs):
     return out
 
 
+def get_all_options_struct(redshift, **kwargs):
+    options = get_all_options(redshift, **kwargs)
+
+    options["inputs"] = InputParameters(
+        random_seed=options.pop("random_seed"),
+        cosmo_params=options.pop("cosmo_params"),
+        astro_params=options.pop("astro_params"),
+        user_params=options.pop("user_params"),
+        flag_options=options.pop("flag_options"),
+    )
+    return options
+
+
 def get_all_options_ics(**kwargs):
     user_params, cosmo_params, astro_params, flag_options = get_all_input_structs(
         kwargs
@@ -360,7 +374,7 @@ def produce_coeval_power_spectra(redshift, **kwargs):
 
 
 def produce_lc_power_spectra(redshift, **kwargs):
-    options = get_all_options(redshift, **kwargs)
+    options = get_all_options_struct(redshift, **kwargs)
     print("----- OPTIONS USED -----")
     print(options)
     print("------------------------")
@@ -407,7 +421,7 @@ def produce_lc_power_spectra(redshift, **kwargs):
 
 
 def produce_perturb_field_data(redshift, **kwargs):
-    options = get_all_options(redshift, **kwargs)
+    options = get_all_options_struct(redshift, **kwargs)
     options_ics = get_all_options_ics(**kwargs)
 
     out = {
@@ -457,9 +471,14 @@ def produce_perturb_field_data(redshift, **kwargs):
 
 def produce_halo_field_data(redshift, **kwargs):
     options_halo = get_all_options(redshift, **kwargs)
+    options_ics = get_all_options_ics(**kwargs)
 
     with config.use(regenerate=True, write=False):
-        pt_halos = perturb_halo_list(**options_halo)
+        init_box = compute_initial_conditions(**options_ics)
+        halos = determine_halo_list(initial_conditions=init_box, **options_halo)
+        pt_halos = perturb_halo_list(
+            initial_conditions=init_box, halo_field=halos, **options_halo
+        )
 
     return pt_halos
 

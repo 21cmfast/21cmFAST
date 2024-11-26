@@ -686,12 +686,10 @@ def _run_lightcone_from_perturbed_fields(
         )
 
         perturb_files.append((z, direc / pf2.filename))
-        if (
-            inputs.flag_options.USE_HALO_FIELD
-            and not inputs.flag_options.FIXED_HALO_GRIDS
-        ):
+        if inputs.flag_options.USE_HALO_FIELD:
             hbox_files.append((z, direc / hbox2.filename))
-            pth_files.append((z, direc / ph2.filename))
+            if not inputs.flag_options.FIXED_HALO_GRIDS:
+                pth_files.append((z, direc / ph2.filename))
         if inputs.flag_options.USE_TS_FLUCT:
             spin_temp_files.append((z, direc / st2.filename))
         ionize_files.append((z, direc / ib2.filename))
@@ -853,7 +851,7 @@ def run_lightcone(
     pf_given = any(perturbed_fields)
     if pf_given and initial_conditions is None:
         raise ValueError(
-            f"If perturbed_fields {perturbed_fields} are provided, initial_conditions {initial_conditions} must be provided"
+            "If perturbed_fields are provided, initial_conditions must be provided"
         )
 
     # TODO: make sure cosmo_params is consistent with lightconer.cosmo as well

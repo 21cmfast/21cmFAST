@@ -236,7 +236,7 @@ class InputParameters:
         cosmo_params: CosmoParams,
         user_params: UserParams,
         astro_params: AstroParams,
-        flag_options: flag_options,
+        flag_options: FlagOptions,
         random_seed: int,
     ):
         """Construct full InputParameters instance from InputStruct instances."""

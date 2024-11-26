@@ -14,7 +14,7 @@ M_TURN = 8.7
 t_STAR = 0.5
 L_X = 40.5
 NU_X_THRESH = 500
-R_BUBBLE_MAX = 50
+R_BUBBLE_MAX = 50.0
 
 [FlagOptions]
 USE_HALO_FIELD = false

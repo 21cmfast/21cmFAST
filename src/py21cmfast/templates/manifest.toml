@@ -7,6 +7,12 @@ aliases = ["simple"]
 description = "A simple 21cmFAST run with no minihalos, discrete halos, recombinations or spin temperature fluctuations"
 
 [[templates]]
+name = "const-zeta"
+file = "const-zeta.toml"
+aliases = ["const-zeta"]
+description = "A 21cmFAST run with constant ionising efficiency for halos of all mass"
+
+[[templates]]
 name = "latest"
 file = "latest.toml"
 aliases = ["latest"]

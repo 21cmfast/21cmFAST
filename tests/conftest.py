@@ -153,7 +153,7 @@ def default_flag_options_ts():
 
 
 @pytest.fixture(scope="session")
-def default_astro_params(default_flag_options):
+def default_astro_params():
     return AstroParams.new()
 
 

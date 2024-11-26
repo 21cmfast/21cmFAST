@@ -381,6 +381,8 @@ def perturb_halo_list(
 def compute_halo_grid(
     *,
     initial_conditions: InitialConditions,
+    astro_params: AstroParams | None = None,
+    flag_options: FlagOptions | None = None,
     perturbed_halo_list: PerturbHaloField | None = None,
     perturbed_field: PerturbedField | None = None,
     previous_spin_temp: TsBox | None = None,
@@ -447,6 +449,8 @@ def compute_halo_grid(
             previous_ionize_box,
         ),
         redshift=redshift,
+        astro_params=astro_params,
+        flag_options=flag_options,
     )
     check_redshift_consistency(inputs, (perturbed_halo_list, perturbed_field))
 

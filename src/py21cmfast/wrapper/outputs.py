@@ -380,7 +380,7 @@ class PerturbHaloField(_AllParamsBox):
 
     def __init__(
         self,
-        buffer_size: int = 0.0,
+        buffer_size: int = 0,
         **kwargs,
     ):
         self.buffer_size = buffer_size
