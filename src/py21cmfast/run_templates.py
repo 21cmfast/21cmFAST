@@ -54,8 +54,11 @@ def create_params_from_template(template_name: str, **kwargs):
         alternatively, is the path to a TOML file containing tables titled [CosmoParams],
         [UserParams], [AstroParams] and [FlagOptions] with parameter settings
 
-    kwargs,
-        names and values of parameters in the ``InputStruct`` subclasses to override the template values with.
+    Other Parameters
+    ----------------
+    Any other parameter passed is considered to be a name and
+    value of a parameter in any of the `InputStruct` subclasses,
+    and will be used to over-ride the template values.
 
     Returns
     -------
@@ -87,15 +90,12 @@ def create_params_from_template(template_name: str, **kwargs):
         return _construct_param_objects(template, **kwargs)
 
     # We have not found a template in our templates or on file, raise an error
-    logger.error(
-        f"Template {template_name} not found on-disk or in native template aliases"
+    message = (
+        f"Template {template_name} not found on-disk or in native template aliases\n"
+        + "Available native templates are:\n"
     )
-    logger.error("Available native templates are:")
     for manf_entry in manifest["templates"]:
-        logger.error(f" {manf_entry['name']}: {manf_entry['aliases']}")
-        logger.error(f"     {manf_entry['description']}:")
-        logger.error("")
+        message += f"{manf_entry['name']}: {manf_entry['aliases']}\n"
+        message += f"     {manf_entry['description']}:\n\n"
 
-    raise ValueError(
-        f"template {template_name} not found on-disk or in native template aliases"
-    )
+    raise ValueError(message)

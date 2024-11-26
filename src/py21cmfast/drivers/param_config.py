@@ -248,13 +248,36 @@ class InputParameters:
         )._add_seed(seed)
 
     @classmethod
-    def from_defaults(cls, seed=None):
+    def from_defaults(cls, seed=None, **kwargs):
         """Construct full InputParameters instance from default values."""
-        # TODO: add kwargs to modify values e.g run_templates._construct_param_objects?
-        cosmo_params = CosmoParams.new()
-        user_params = UserParams.new()
-        astro_params = AstroParams.new()
-        flag_options = FlagOptions.new()
+        cosmo_params = CosmoParams.new(
+            {
+                k: v
+                for k, v in kwargs.items()
+                if k in [f.name for f in attrs.fields(CosmoParams)]
+            }
+        )
+        user_params = UserParams.new(
+            {
+                k: v
+                for k, v in kwargs.items()
+                if k in [f.name for f in attrs.fields(UserParams)]
+            }
+        )
+        astro_params = AstroParams.new(
+            {
+                k: v
+                for k, v in kwargs.items()
+                if k in [f.name for f in attrs.fields(AstroParams)]
+            }
+        )
+        flag_options = FlagOptions.new(
+            {
+                k: v
+                for k, v in kwargs.items()
+                if k in [f.name for f in attrs.fields(FlagOptions)]
+            }
+        )
 
         return cls(
             cosmo_params=cosmo_params,

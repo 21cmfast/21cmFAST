@@ -243,6 +243,28 @@ def test_flag_options():
             FlagOptions(USE_EXP_FILTER=True)
 
 
+def test_inputstruct_init():
+    default_struct = InputParameters.from_defaults()
+    altered_struct = InputParameters.from_defaults(BOX_LEN=30)
+
+    assert default_struct.cosmo_params == CosmoParams.new()
+    assert default_struct.user_params == UserParams.new()
+    assert default_struct.astro_params == AstroParams.new()
+    assert default_struct.flag_options == FlagOptions.new()
+    assert altered_struct.user_params.BOX_LEN == 30
+
+
+def test_inputstruct_outputs(ic):
+    inputs = InputParameters.from_output_structs((ic,))
+
+    with pytest.raises(ValueError, match="Input parameters are not compatible."):
+        InputParameters.from_output_structs(
+            (ic,), user_params=ic.user_params.clone(BOX_LEN=ic.user_params.BOX_LEN * 2)
+        )
+
+    assert inputs.user_params == ic.user_params
+
+
 def test_native_template_loading():
     assert isinstance(InputParameters.from_template("simple"), InputParameters)
     assert isinstance(InputParameters.from_template("latest"), InputParameters)

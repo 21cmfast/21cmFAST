@@ -529,14 +529,13 @@ def get_logspaced_redshifts(min_redshift: float, z_step_factor: float, zmax: flo
 @set_globals
 def run_coeval(
     *,
+    inputs: InputParameters,
     out_redshifts: float | np.ndarray | None = None,
-    inputs: InputParameters | str | None = None,
     regenerate: bool | None = None,
     write: bool | None = None,
     direc: str | Path | None = None,
     initial_conditions: InitialConditions | None = None,
     perturbed_field: PerturbedField | None = None,
-    random_seed: int | None = None,
     cleanup: bool = True,
     hooks: dict[callable, dict[str, Any]] | None = None,
     always_purge: bool = False,
@@ -610,26 +609,18 @@ def run_coeval(
         perturbed_field = (perturbed_field,)
         singleton = True
 
-    random_seed = (
-        initial_conditions.random_seed
-        if initial_conditions is not None
-        else random_seed
-    )
-
-    if isinstance(inputs, str):
-        inputs = InputParameters.from_template(inputs, seed=random_seed)
-    elif inputs is None:
-        inputs = InputParameters.from_defaults(seed=random_seed)
-
+    # ensure inputs are compatible with ICs/Perturbedfields
+    # NOTE: if no random seed was given to the inputs, and no output structs were passed,
+    #   the seed will be generated here, if a random seed is given that is inconsistent with
+    #   an output struct it will raise an error
     inputs = InputParameters.from_output_structs(
         (initial_conditions,) + perturbed_field,
         cosmo_params=inputs.cosmo_params,
         user_params=inputs.user_params,
         astro_params=inputs.astro_params,
         flag_options=inputs.flag_options,
+        random_seed=inputs.random_seed,
     )
-
-    random_seed = inputs.random_seed
 
     iokw = {"regenerate": regenerate, "hooks": hooks, "direc": direc}
 
@@ -637,7 +628,7 @@ def run_coeval(
         initial_conditions = sf.compute_initial_conditions(
             user_params=inputs.user_params,
             cosmo_params=inputs.cosmo_params,
-            random_seed=random_seed,
+            random_seed=inputs.random_seed,
             **iokw,
         )
 

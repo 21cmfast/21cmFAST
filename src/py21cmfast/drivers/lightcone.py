@@ -351,7 +351,7 @@ def setup_lightcone_instance(
         logger.info(f"Read in LC file at z={lightcone._current_redshift}")
         if start_idx < len(scrollz):
             logger.info(
-                f"starting at z={scrollz[start_idx]}, step ({start_idx+1}/{len(scrollz)+1}"
+                f"starting at z={scrollz[start_idx]}, step ({start_idx + 1}/{len(scrollz) + 1}"
             )
     else:
         lcn_cls = (
@@ -787,15 +787,14 @@ def _run_lightcone_from_perturbed_fields(
 def run_lightcone(
     *,
     lightconer: Lightconer,
+    inputs: InputParameters,
     node_redshifts: np.ndarray | None = None,
-    inputs: InputParameters | str | None = None,
     regenerate=None,
     write=None,
     global_quantities=("brightness_temp", "xH_box"),
     direc=None,
     initial_conditions: InitialConditions | None = None,
     perturbed_fields: Sequence[PerturbedField | None] = (None,),
-    random_seed=None,
     cleanup=True,
     hooks=None,
     always_purge: bool = False,
@@ -865,14 +864,6 @@ def run_lightcone(
     """
     direc, regenerate, hooks = _get_config_options(direc, regenerate, write, hooks)
 
-    # For the high-level, we need all the InputStruct initialised
-    # NOTE: the random seed is now set here instead of in the OutputStruct init
-    #   if it's passed as None
-    if isinstance(inputs, str):
-        inputs = InputParameters.from_template(inputs, seed=random_seed)
-    elif inputs is None:
-        inputs = InputParameters.from_defaults(seed=random_seed)
-
     pf_given = any(perturbed_fields)
     if pf_given and initial_conditions is None:
         raise ValueError(
@@ -880,15 +871,17 @@ def run_lightcone(
         )
 
     # TODO: make sure cosmo_params is consistent with lightconer.cosmo as well
+    # NOTE: if no random seed was given to the inputs, and no output structs were passed,
+    #   the seed will be generated here, if a random seed is given that is inconsistent with
+    #   an output struct it will raise an error
     inputs = InputParameters.from_output_structs(
         (initial_conditions,) + perturbed_fields,
         cosmo_params=inputs.cosmo_params,
         user_params=inputs.user_params,
         astro_params=inputs.astro_params,
         flag_options=inputs.flag_options,
+        random_seed=inputs.random_seed,
     )
-
-    random_seed = inputs.random_seed
 
     if pf_given:
         node_redshifts = [pf.redshift for pf in perturbed_fields]
@@ -917,7 +910,7 @@ def run_lightcone(
         initial_conditions = sf.compute_initial_conditions(
             user_params=inputs.user_params,
             cosmo_params=inputs.cosmo_params,
-            random_seed=random_seed,
+            random_seed=inputs.random_seed,
             **iokw,
         )
 
