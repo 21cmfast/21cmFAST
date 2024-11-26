@@ -243,9 +243,9 @@ def test_flag_options():
             FlagOptions(USE_EXP_FILTER=True)
 
 
-def test_inputstruct_init():
-    default_struct = InputParameters.from_defaults()
-    altered_struct = InputParameters.from_defaults(BOX_LEN=30)
+def test_inputstruct_init(default_seed):
+    default_struct = InputParameters.from_defaults(random_seed=default_seed)
+    altered_struct = InputParameters.from_defaults(BOX_LEN=30, random_seed=default_seed)
 
     assert default_struct.cosmo_params == CosmoParams.new()
     assert default_struct.user_params == UserParams.new()
@@ -265,8 +265,20 @@ def test_inputstruct_outputs(ic):
     assert inputs.user_params == ic.user_params
 
 
-def test_native_template_loading():
-    assert isinstance(InputParameters.from_template("simple"), InputParameters)
-    assert isinstance(InputParameters.from_template("latest"), InputParameters)
-    assert isinstance(InputParameters.from_template("Park19"), InputParameters)
-    assert isinstance(InputParameters.from_template("latest-dhalos"), InputParameters)
+def test_native_template_loading(default_seed):
+    assert isinstance(
+        InputParameters.from_template("simple", random_seed=default_seed),
+        InputParameters,
+    )
+    assert isinstance(
+        InputParameters.from_template("latest", random_seed=default_seed),
+        InputParameters,
+    )
+    assert isinstance(
+        InputParameters.from_template("Park19", random_seed=default_seed),
+        InputParameters,
+    )
+    assert isinstance(
+        InputParameters.from_template("latest-dhalos", random_seed=default_seed),
+        InputParameters,
+    )

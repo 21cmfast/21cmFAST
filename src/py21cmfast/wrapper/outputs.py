@@ -34,7 +34,7 @@ class _OutputStruct(_BaseOutputStruct):
         if inputs:
             self.cosmo_params = inputs.cosmo_params
             self.user_params = inputs.user_params
-            self._random_seed = inputs.random_seed
+            self.random_seed = inputs.random_seed
 
         super().__init__(**kwargs)
 

@@ -112,7 +112,7 @@ OPTIONS_CTEST = {
 
 
 @pytest.mark.parametrize("name", list(OPTIONS_CTEST.keys()))
-def test_lc_runs(name, max_redshift):
+def test_lc_runs(name, max_redshift, default_seed):
     redshift, kwargs = OPTIONS_CTEST[name]
     options = prd.get_all_options(redshift, **kwargs)
 
@@ -132,6 +132,7 @@ def test_lc_runs(name, max_redshift):
         user_params=options.pop("user_params"),
         astro_params=options.pop("astro_params"),
         flag_options=options.pop("flag_options"),
+        random_seed=default_seed,
     )
 
     with p21c.config.use(ignore_R_BUBBLE_MAX_error=True):

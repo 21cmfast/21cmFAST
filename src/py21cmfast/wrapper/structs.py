@@ -537,7 +537,7 @@ class OutputStruct(metaclass=ABCMeta):
     @property
     def filename(self):
         """The base filename of this object."""
-        if self._random_seed is None:
+        if self.random_seed is None:
             raise AttributeError("filename not defined until random_seed has been set")
 
         return self._fname_skeleton.format(seed=self.random_seed)
@@ -567,19 +567,10 @@ class OutputStruct(metaclass=ABCMeta):
         str
             The filename of an existing set of boxes, or None.
         """
-        # First, if appropriate, find a file without specifying seed.
-        # Need to do this first, otherwise the seed will be chosen randomly upon
-        # choosing a filename!
         direc = Path(direc or config["direc"]).expanduser()
-
-        if not self._random_seed:
-            f = self._find_file_without_seed(direc)
-            if f and self._check_parameters(f):
-                return f
-        else:
-            f = self._get_fname(direc)
-            if f.exists() and self._check_parameters(f):
-                return f
+        f = self._get_fname(direc)
+        if f.exists() and self._check_parameters(f):
+            return f
         return None
 
     def _check_parameters(self, fname):
@@ -669,7 +660,7 @@ class OutputStruct(metaclass=ABCMeta):
                 f"Non-computed boxes: {[k for k, v in self._array_state.items() if not v.computed]}"
             )
 
-        if not self._random_seed:
+        if not self.random_seed:
             raise ValueError(
                 "Attempting to write when no random seed has been set. "
                 "Struct has been 'computed' inconsistently."
@@ -875,7 +866,7 @@ class OutputStruct(metaclass=ABCMeta):
 
             # Need to make sure that the seed is set to the one that's read in.
             seed = fl.attrs["random_seed"]
-            self._random_seed = int(seed)
+            self.random_seed = int(seed)
         finally:
             self.__expose()
             if isinstance(fl, h5py.File):
@@ -952,7 +943,7 @@ class OutputStruct(metaclass=ABCMeta):
         # This is the class name and all parameters which belong to C-based input structs,
         # eg. InitialConditions(HII_DIM:100,SIGMA_8:0.8,...)
         # eg. InitialConditions(HII_DIM:100,SIGMA_8:0.8,...)
-        return f"{self._seedless_repr()}_random_seed={self._random_seed}"
+        return f"{self._seedless_repr()}_random_seed={self.random_seed}"
 
     def _seedless_repr(self):
         # The same as __repr__ except without the seed.
@@ -981,7 +972,7 @@ class OutputStruct(metaclass=ABCMeta):
                     for k, v in [
                         (k, getattr(self, k))
                         for k in self._all_inputs
-                        if k != "_random_seed"
+                        if k != "random_seed"
                     ]
                 )
             )

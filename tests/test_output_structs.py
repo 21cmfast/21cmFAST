@@ -60,7 +60,7 @@ def test_readability(ic, tmpdirec, default_input_struct):
     assert ic is not ic2
 
 
-def test_different_seeds(init, default_input_struct):
+def test_different_seeds(init, default_input_struct, default_seed):
     ic2 = InitialConditions(inputs=default_input_struct.clone(random_seed=2))
 
     assert init is not ic2
@@ -71,13 +71,12 @@ def test_different_seeds(init, default_input_struct):
     assert init._md5 == ic2._md5
 
     # make sure we didn't inadvertantly set the random seed while doing any of this
-    assert init._random_seed is None
+    assert init.random_seed == default_seed
 
 
 def test_pickleability(default_input_struct):
     ic_ = InitialConditions(inputs=default_input_struct)
     ic_.filled = True
-    ic_.random_seed
 
     s = pickle.dumps(ic_)
 
@@ -87,18 +86,7 @@ def test_pickleability(default_input_struct):
 
 def test_fname(default_input_struct):
     ic1 = InitialConditions(inputs=default_input_struct)
-    ic2 = InitialConditions(inputs=default_input_struct)
-
-    # we didn't give them seeds, so can't access the filename attribute
-    # (it is undefined until a seed is set)
-    with pytest.raises(AttributeError):
-        assert ic1.filename != ic2.filename
-
-    # *but* should be able to get a skeleton filename:
-    assert ic1._fname_skeleton == ic2._fname_skeleton
-
-    ic1.random_seed  # sets the random seed
-    ic2.random_seed
+    ic2 = InitialConditions(inputs=default_input_struct.clone(random_seed=2))
 
     assert ic1.filename != ic2.filename  # random seeds should now be different
     assert ic1._fname_skeleton == ic2._fname_skeleton

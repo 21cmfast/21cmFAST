@@ -35,12 +35,13 @@ def test_box_shape(ic):
     assert ic.cosmo_params == p21c.CosmoParams()
 
 
-def test_modified_cosmo(ic):
+def test_modified_cosmo(ic, default_seed):
     """Test using a modified cosmology"""
     cosmo = p21c.CosmoParams(SIGMA_8=0.9)
     ic2 = p21c.compute_initial_conditions(
         cosmo_params=cosmo,
         user_params=ic.user_params,
+        random_seed=default_seed,
     )
 
     assert ic2.cosmo_params != ic.cosmo_params

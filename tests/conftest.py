@@ -117,6 +117,11 @@ def setup_and_teardown_package(tmpdirec, request):
 
 
 @pytest.fixture(scope="session")
+def default_seed():
+    return 12
+
+
+@pytest.fixture(scope="session")
 def default_user_params():
     return UserParams(HII_DIM=35, DIM=70, BOX_LEN=50, KEEP_3D_VELOCITIES=True)
 
@@ -158,11 +163,12 @@ def default_input_struct(
     default_cosmo_params,
     default_astro_params,
     default_flag_options,
+    default_seed,
     redshift,
 ):
     return InputParameters(
         redshift=redshift,
-        random_seed=None,
+        random_seed=default_seed,
         cosmo_params=default_cosmo_params,
         astro_params=default_astro_params,
         user_params=default_user_params,
@@ -176,13 +182,13 @@ def default_input_struct_ts(default_input_struct, default_flag_options_ts):
 
 
 @pytest.fixture(scope="session")
-def ic(default_user_params, default_cosmo_params, tmpdirec):
+def ic(default_user_params, default_cosmo_params, default_seed, tmpdirec):
     return compute_initial_conditions(
         user_params=default_user_params,
         cosmo_params=default_cosmo_params,
         write=True,
         direc=tmpdirec,
-        random_seed=12,
+        random_seed=default_seed,
     )
 
 
