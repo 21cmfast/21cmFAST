@@ -339,6 +339,7 @@ def get_all_options_ics(**kwargs):
             out[key] = kwargs[key]
     return out
 
+
 def produce_coeval_power_spectra(redshift, **kwargs):
     options = get_all_options(redshift, **kwargs)
     print("----- OPTIONS USED -----")

@@ -46,7 +46,7 @@ def ang_lightcone(ic, lc, default_input_struct, default_flag_options):
             flag_options=default_flag_options.clone(
                 APPLY_RSDS=False,
             )
-        )
+        ),
     )
     return anglc
 

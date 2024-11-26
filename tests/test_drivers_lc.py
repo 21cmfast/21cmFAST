@@ -171,9 +171,7 @@ def test_run_lc_bad_inputs(ic):
         )
 
 
-def test_lc_with_lightcone_filename(
-    ic, rectlcn, default_input_struct, tmpdirec
-):
+def test_lc_with_lightcone_filename(ic, rectlcn, default_input_struct, tmpdirec):
     fname = tmpdirec / "lightcone.h5"
     _, _, _, lc = p21c.exhaust_lightcone(
         lightconer=rectlcn,
@@ -243,7 +241,9 @@ def test_lc_partial_eval(rectlcn, ic, default_input_struct, tmpdirec, lc):
         )
 
 
-def test_lc_lowerz_than_photon_cons(ic, default_input_struct, default_flag_options, max_redshift):
+def test_lc_lowerz_than_photon_cons(
+    ic, default_input_struct, default_flag_options, max_redshift
+):
     with pytest.raises(ValueError, match="You have passed a redshift"):
         lcn = p21c.RectilinearLightconer.with_equal_cdist_slices(
             min_redshift=2.0,
