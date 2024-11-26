@@ -871,9 +871,6 @@ def run_lightcone(
         )
 
     # TODO: make sure cosmo_params is consistent with lightconer.cosmo as well
-    # NOTE: if no random seed was given to the inputs, and no output structs were passed,
-    #   the seed will be generated here, if a random seed is given that is inconsistent with
-    #   an output struct it will raise an error
     inputs = InputParameters.from_output_structs(
         (initial_conditions,) + perturbed_fields,
         cosmo_params=inputs.cosmo_params,
@@ -882,6 +879,11 @@ def run_lightcone(
         flag_options=inputs.flag_options,
         random_seed=inputs.random_seed,
     )
+    
+    # if no random seed was given to the inputs, and no output structs were passed,
+    #   raise an error
+    if not isinstance(inputs.random_seed,int):
+        raise ValueError("An integer seed, or initial conditions must be given")
 
     if pf_given:
         node_redshifts = [pf.redshift for pf in perturbed_fields]

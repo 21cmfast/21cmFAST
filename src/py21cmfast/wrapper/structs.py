@@ -259,7 +259,7 @@ class OutputStruct(metaclass=ABCMeta):
     _inputs = (
         "user_params",
         "cosmo_params",
-        "_random_seed",
+        "random_seed",
     )  # inputs provided in the InputParameter class
     _filter_params = [
         "external_table_path",
@@ -403,14 +403,6 @@ class OutputStruct(metaclass=ABCMeta):
 
             # Add it to initialized arrays.
             state.initialized = True
-
-    @property
-    def random_seed(self):
-        """The random seed for this particular instance."""
-        if self._random_seed is None:
-            self._random_seed = int(np.random.randint(1, int(1e12)))
-
-        return self._random_seed
 
     def _init_cstruct(self):
         # Initialize all uninitialized arrays.

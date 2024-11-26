@@ -226,9 +226,9 @@ class InputParameters:
             return attrs.evolve(out.merge(cls(**defaults)), redshift=redshift)
 
     @classmethod
-    def from_template(cls, name, seed=None):
+    def from_template(cls, name, random_seed):
         """Construct full InputParameters instance from native or TOML file template."""
-        return cls(**create_params_from_template(name))._add_seed(seed)
+        return cls(**create_params_from_template(name),random_seed=seed)
 
     @classmethod
     def from_inputstructs(
@@ -237,7 +237,7 @@ class InputParameters:
         user_params: UserParams,
         astro_params: AstroParams,
         flag_options: flag_options,
-        seed: int | None = None,
+        random_seed: int,
     ):
         """Construct full InputParameters instance from InputStruct instances."""
         return cls(
@@ -245,10 +245,11 @@ class InputParameters:
             user_params=user_params,
             astro_params=astro_params,
             flag_options=flag_options,
-        )._add_seed(seed)
+            random_seed=random_seed,
+        )
 
     @classmethod
-    def from_defaults(cls, seed=None, **kwargs):
+    def from_defaults(cls, random_seed, **kwargs):
         """Construct full InputParameters instance from default values."""
         cosmo_params = CosmoParams.new(
             {
@@ -284,13 +285,8 @@ class InputParameters:
             user_params=user_params,
             astro_params=astro_params,
             flag_options=flag_options,
-        )._add_seed(seed)
-
-    def _add_seed(self, seed=None):
-        if seed is None:
-            seed = np.random.randint(np.iinfo(np.int32).max)
-        self.random_seed = seed
-        return self
+            random_seed=random_seed,
+        )
 
     def clone(self, **kwargs):
         """Generate a copy of the InputParameter structure with specified changes."""

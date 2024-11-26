@@ -610,9 +610,6 @@ def run_coeval(
         singleton = True
 
     # ensure inputs are compatible with ICs/Perturbedfields
-    # NOTE: if no random seed was given to the inputs, and no output structs were passed,
-    #   the seed will be generated here, if a random seed is given that is inconsistent with
-    #   an output struct it will raise an error
     inputs = InputParameters.from_output_structs(
         (initial_conditions,) + perturbed_field,
         cosmo_params=inputs.cosmo_params,
@@ -621,6 +618,11 @@ def run_coeval(
         flag_options=inputs.flag_options,
         random_seed=inputs.random_seed,
     )
+
+    # if no random seed was given to the inputs, and no output structs were passed,
+    #   raise an error
+    if not isinstance(inputs.random_seed,int):
+        raise ValueError("An integer seed, or initial conditions must be given")
 
     iokw = {"regenerate": regenerate, "hooks": hooks, "direc": direc}
 

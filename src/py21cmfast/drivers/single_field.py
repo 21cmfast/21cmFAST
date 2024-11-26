@@ -60,9 +60,9 @@ def set_globals(func: callable):
 @set_globals
 def compute_initial_conditions(
     *,
+    random_seed: int,
     user_params: UserParams | dict = UserParams(),
     cosmo_params: CosmoParams | dict = CosmoParams(),
-    random_seed: int | None = None,
     regenerate: bool | None = None,
     write: bool | None = None,
     direc: Path | None = None,
