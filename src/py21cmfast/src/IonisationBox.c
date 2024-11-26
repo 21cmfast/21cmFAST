@@ -1005,6 +1005,10 @@ void find_ionised_regions(IonizedBox *box, IonizedBox *previous_ionize_box, Pert
                         else if (global_params.FIND_BUBBLE_ALGORITHM == 1) // sphere method
                             update_in_sphere(box->xH_box, user_params_global->HII_DIM, HII_D_PARA, rspec.R/(user_params_global->BOX_LEN), \
                                                 x/(user_params_global->HII_DIM+0.0), y/(user_params_global->HII_DIM+0.0), z/(HII_D_PARA+0.0));
+                        else{
+                            LOG_ERROR("Invalid global_params.FIND_BUBBLE_ALGORITHM, should be 1(sphere) or 2(centre)");
+                            Throw(ValueError);
+                        }
                     } // end ionized
                         // If not fully ionized, then assign partial ionizations
                     else if (rspec.R_index==0 && (box->xH_box[HII_R_INDEX(x, y, z)] > TINY)) {
