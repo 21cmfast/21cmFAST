@@ -8,6 +8,7 @@ pip-wheel-metadata/
 \.idea/
 .eggs
 *.pyc
+.python-version
 
 *.fftwf_wisdom
 src/21cmFAST.egg-info/

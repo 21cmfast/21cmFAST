@@ -150,11 +150,11 @@ void filter_box_cpu(fftwf_complex *box, int RES, int filter_type, float R, float
 }
 
 void filter_box(fftwf_complex *box, int RES, int filter_type, float R, float R_param){
-    if (1) {
+#if CUDA_FOUND
         filter_box_gpu(box, RES, filter_type, R, R_param);
-    } else {
+#else
         filter_box_cpu(box, RES, filter_type, R, R_param);
-    }
+#endif
 }
 
 //Test function to filter a box without computing a whole output box
@@ -199,9 +199,9 @@ int test_filter_cpu(UserParams *user_params, CosmoParams *cosmo_params, AstroPar
 
 int test_filter(UserParams *user_params, CosmoParams *cosmo_params, AstroParams *astro_params, FlagOptions *flag_options,
                 float *input_box, double R, double R_param, int filter_flag, double *result) {
-    if (1) {
+#if CUDA_FOUND
         return test_filter_gpu(user_params, cosmo_params, astro_params, flag_options, input_box, R, R_param, filter_flag, result);
-    } else {
+#else
         return test_filter_cpu(user_params, cosmo_params, astro_params, flag_options, input_box, R, R_param, filter_flag, result);
-    }
+#endif
 }

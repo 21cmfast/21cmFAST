@@ -19,7 +19,6 @@
 #include "indexing.h"
 #include "dft.h"
 #include "filtering.h"
-#include "hello_world.h"
 
 #include "InitialConditions.h"
 
@@ -155,7 +154,6 @@ int ComputeInitialConditions(
     int status;
 
     printf("Begin computing initial conditions");
-    call_cuda();
 
     Try{ // This Try wraps the entire function so we don't indent.
 
