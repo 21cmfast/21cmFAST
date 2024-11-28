@@ -12,11 +12,10 @@ def cfgdir(tmp_path_factory):
     return tmp_path_factory.mktemp("config_test_dir")
 
 
-def test_config_context(cfgdir, default_user_params, default_seed):
+def test_config_context(cfgdir, default_input_struct):
     with p21.config.use(direc=cfgdir, write=True):
         init = p21.compute_initial_conditions(
-            user_params=default_user_params,
-            random_seed=default_seed,
+            inputs=default_input_struct,
         )
 
     assert (cfgdir / init.filename).exists()

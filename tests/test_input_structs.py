@@ -131,6 +131,7 @@ def test_validation():
                 astro_params=a,
                 user_params=u,
                 flag_options=f,
+                random_seed=1,
             )
 
     a = a.clone(R_BUBBLE_MAX=20)
@@ -141,6 +142,7 @@ def test_validation():
                 astro_params=a,
                 user_params=u,
                 flag_options=f,
+                random_seed=1,
             )
 
     f = f.clone(INHOMO_RECO=True)
@@ -151,6 +153,7 @@ def test_validation():
             astro_params=a,
             user_params=u,
             flag_options=f,
+            random_seed=1,
         )
 
 
@@ -245,7 +248,9 @@ def test_flag_options():
 
 def test_inputstruct_init(default_seed):
     default_struct = InputParameters.from_defaults(random_seed=default_seed)
-    altered_struct = InputParameters.from_defaults(BOX_LEN=30, random_seed=default_seed)
+    altered_struct = InputParameters.from_defaults(
+        random_seed=default_seed
+    ).evolve_inputstructs(BOX_LEN=30)
 
     assert default_struct.cosmo_params == CosmoParams.new()
     assert default_struct.user_params == UserParams.new()
@@ -254,12 +259,29 @@ def test_inputstruct_init(default_seed):
     assert altered_struct.user_params.BOX_LEN == 30
 
 
-def test_inputstruct_outputs(ic):
-    inputs = InputParameters.from_output_structs((ic,))
+def test_inputstruct_outputs(ic, perturbed_field):
+    inputs = InputParameters.from_output_structs(
+        (ic, perturbed_field),
+        astro_params=AstroParams(),
+        flag_options=FlagOptions(),
+    )
 
-    with pytest.raises(ValueError, match="Input parameters are not compatible."):
+    with pytest.raises(
+        ValueError, match="InputParameters.from_output_struct got multiple values"
+    ):
         InputParameters.from_output_structs(
-            (ic,), user_params=ic.user_params.clone(BOX_LEN=ic.user_params.BOX_LEN * 2)
+            (ic,),
+            user_params=ic.user_params.clone(BOX_LEN=ic.user_params.BOX_LEN * 2),
+            astro_params=AstroParams(),
+            flag_options=FlagOptions(),
+        )
+
+    with pytest.raises(
+        ValueError, match="InputParameters.from_output_struct got no values"
+    ):
+        InputParameters.from_output_structs(
+            (ic,),
+            flag_options=FlagOptions(),
         )
 
     assert inputs.user_params == ic.user_params

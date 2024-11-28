@@ -27,6 +27,10 @@ from .structs import OutputStruct as _BaseOutputStruct
 logger = logging.getLogger(__name__)
 
 
+# NOTE: The `inputs` arguments to the __init__ methods are set this way such that the
+#   required fields (`_inputs`) can be read either from the file
+#   (done in structs.OutputStruct.__init__) or the input struct (done here)
+# TODO: there is certainly a better way to organise it
 class _OutputStruct(_BaseOutputStruct):
     _global_params = global_params
 
@@ -42,9 +46,15 @@ class _OutputStruct(_BaseOutputStruct):
 class _OutputStructZ(_OutputStruct):
     _inputs = _OutputStruct._inputs + ("redshift",)
 
-    def __init__(self, *, inputs: InputParameters | None = None, **kwargs):
-        if inputs:
-            self.redshift = inputs.redshift
+    def __init__(
+        self,
+        *,
+        redshift: float | None = None,
+        inputs: InputParameters | None = None,
+        **kwargs,
+    ):
+        self.redshift = redshift
+
         super().__init__(inputs=inputs, **kwargs)
 
 

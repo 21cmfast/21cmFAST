@@ -30,7 +30,7 @@ def coeval(ic, default_input_struct_ts):
 
 
 @pytest.fixture(scope="module")
-def ang_lightcone(ic, lc, default_input_struct, default_flag_options):
+def ang_lightcone(ic, lc, default_input_struct_lc, default_flag_options):
     lcn = AngularLightconer.like_rectilinear(
         match_at_z=lc.lightcone_redshifts.min(),
         max_redshift=lc.lightcone_redshifts.max(),
@@ -42,7 +42,7 @@ def ang_lightcone(ic, lc, default_input_struct, default_flag_options):
         lightconer=lcn,
         initial_conditions=ic,
         write=True,
-        inputs=default_input_struct.clone(
+        inputs=default_input_struct_lc.clone(
             flag_options=default_flag_options.clone(
                 APPLY_RSDS=False,
             )

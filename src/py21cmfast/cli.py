@@ -165,10 +165,21 @@ def init(ctx, config, regen, direc, seed):
 
     cfg = _get_config(config)
     # Set user/cosmo params from config.
-    user_params, cosmo_params, _, _ = _get_params_from_ctx(ctx, cfg)
-    compute_initial_conditions(
+    user_params, cosmo_params, astro_params, flag_options = _get_params_from_ctx(
+        ctx, cfg
+    )
+
+    inputs = InputParameters(
+        random_seed=seed,
         user_params=user_params,
         cosmo_params=cosmo_params,
+        astro_params=astro_params,
+        flag_options=flag_options,
+        node_redshifts=[],
+    )
+
+    compute_initial_conditions(
+        inputs=inputs,
         regenerate=regen,
         write=True,
         direc=direc,
@@ -227,19 +238,24 @@ def perturb(ctx, redshift, config, regen, direc, seed):
     """
     cfg = _get_config(config)
     # Set user/cosmo params from config.
-    user_params, cosmo_params, _, _ = _get_params_from_ctx(ctx, cfg)
+    user_params, cosmo_params, astro_params, flag_options = _get_params_from_ctx(
+        ctx, cfg
+    )
 
     inputs = InputParameters(
         random_seed=seed,
         user_params=user_params,
         cosmo_params=cosmo_params,
-        redshift=redshift,
+        astro_params=astro_params,
+        flag_options=flag_options,
+        node_redshifts=[],
     )
     ics = InitialConditions(inputs=inputs)
 
     perturb_field(
         redshift=redshift,
-        initial_conditions=ics,
+        inputs=inputs,
+        initial_conditions=ics.read(direc),
         regenerate=regen,
         write=True,
         direc=direc,
@@ -317,10 +333,10 @@ def spin(ctx, redshift, prev_z, config, regen, direc, seed):
     inputs = InputParameters(
         random_seed=seed,
         user_params=user_params,
-        astro_params=astro_params,
         cosmo_params=cosmo_params,
+        astro_params=astro_params,
         flag_options=flag_options,
-        redshift=redshift,
+        node_redshifts=[],
     )
     ics = InitialConditions(inputs=inputs)
     pt = PerturbedField(inputs=inputs)
@@ -328,12 +344,12 @@ def spin(ctx, redshift, prev_z, config, regen, direc, seed):
     prev_ts = TsBox(inputs=inputs.clone(redshift=prev_z))
 
     spin_temperature(
-        initial_conditions=ics,
-        perturb_field=pt,
-        xray_source_box=xrs,
-        astro_params=astro_params,
-        flag_options=flag_options,
-        previous_spin_temp=prev_ts,
+        redshift=redshift,
+        inputs=inputs,
+        initial_conditions=ics.read(direc),
+        perturb_field=pt.read(direc),
+        xray_source_box=xrs.read(direc),
+        previous_spin_temp=prev_ts.read(direc),
         regenerate=regen,
         write=True,
         direc=direc,
@@ -418,11 +434,12 @@ def ionize(ctx, redshift, prev_z, config, regen, direc, seed):
     inputs = InputParameters(
         random_seed=seed,
         user_params=user_params,
-        astro_params=astro_params,
         cosmo_params=cosmo_params,
+        astro_params=astro_params,
         flag_options=flag_options,
-        redshift=redshift,
+        node_redshifts=[],
     )
+
     ics = InitialConditions(inputs=inputs)
     pt = PerturbedField(inputs=inputs)
     hb = HaloBox(inputs=inputs)
@@ -431,14 +448,13 @@ def ionize(ctx, redshift, prev_z, config, regen, direc, seed):
     ts = TsBox(inputs=inputs)
 
     compute_ionization_field(
-        initial_conditions=ics,
-        perturbed_field=pt,
-        halobox=hb,
-        spin_temp=ts,
-        previous_perturbed_field=prev_pt,
-        astro_params=astro_params,
-        flag_options=flag_options,
-        previous_ionize_box=prev_ion,
+        inputs=inputs,
+        initial_conditions=ics.read(direc),
+        perturbed_field=pt.read(direc),
+        halobox=hb.read(direc),
+        spin_temp=ts.read(direc),
+        previous_perturbed_field=prev_pt.read(direc),
+        previous_ionize_box=prev_ion.read(direc),
         regenerate=regen,
         write=True,
         direc=direc,
@@ -526,6 +542,7 @@ def coeval(ctx, redshift, config, out, regen, direc, seed):
         astro_params=astro_params,
         flag_options=flag_options,
         random_seed=seed,
+        min_redshift=min(redshift),
     )
 
     coeval = run_coeval(
@@ -641,6 +658,9 @@ def lightcone(ctx, redshift, config, out, regen, direc, max_z, seed, lq):
         astro_params=astro_params,
         flag_options=flag_options,
         random_seed=seed,
+        min_redshift=redshift,
+        max_redshift=max_z,
+        node_redshifts="logspaced",
     )
 
     # For now, always use the old default lightconing algorithm

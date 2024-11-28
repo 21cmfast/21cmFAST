@@ -31,6 +31,7 @@ from .param_config import (
     InputParameters,
     _get_config_options,
     check_redshift_consistency,
+    get_logspaced_redshifts,
 )
 from .single_field import set_globals
 
@@ -365,21 +366,9 @@ class Coeval(_HighLevelOutput):
         _globals=None,
     ):
 
-        # Check that all the fields have the same input parameters.
-        # TODO: use this instead of all the parameter methods
-        input_struct = InputParameters.from_output_structs(
-            (
-                initial_conditions,
-                perturbed_field,
-                halobox,
-                ionized_box,
-                brightness_temp,
-                ts_box,
-            ),
-            redshift=redshift,
-        )
+        # Check that all the fields have the same redshift.
         check_redshift_consistency(
-            input_struct,
+            redshift,
             (
                 perturbed_field,
                 halobox,
@@ -517,15 +506,6 @@ class Coeval(_HighLevelOutput):
         )
 
 
-def get_logspaced_redshifts(min_redshift: float, z_step_factor: float, zmax: float):
-    """Compute a sequence of redshifts to evolve over that are log-spaced."""
-    redshifts = [min_redshift]
-    while redshifts[-1] < zmax:
-        redshifts.append((redshifts[-1] + 1.0) * z_step_factor - 1.0)
-
-    return np.array(redshifts)[::-1]
-
-
 @set_globals
 def run_coeval(
     *,
@@ -604,27 +584,13 @@ def run_coeval(
         singleton = True
 
     # ensure inputs are compatible with ICs/Perturbedfields
-    inputs = InputParameters.from_output_structs(
-        (initial_conditions,) + perturbed_field,
-        cosmo_params=inputs.cosmo_params,
-        user_params=inputs.user_params,
-        astro_params=inputs.astro_params,
-        flag_options=inputs.flag_options,
-        random_seed=inputs.random_seed,
-    )
-
-    # if no random seed was given to the inputs, and no output structs were passed,
-    #   raise an error
-    if not isinstance(inputs.random_seed, int):
-        raise ValueError("An integer seed, or initial conditions must be given")
+    inputs.check_output_compatibility((initial_conditions,) + perturbed_field)
 
     iokw = {"regenerate": regenerate, "hooks": hooks, "direc": direc}
 
     if initial_conditions is None:
         initial_conditions = sf.compute_initial_conditions(
-            user_params=inputs.user_params,
-            cosmo_params=inputs.cosmo_params,
-            random_seed=inputs.random_seed,
+            inputs=inputs,
             **iokw,
         )
 
@@ -644,13 +610,13 @@ def run_coeval(
 
     kw = {
         **{
-            "astro_params": inputs.astro_params,
-            "flag_options": inputs.flag_options,
+            "inputs": inputs,
             "initial_conditions": initial_conditions,
         },
         **iokw,
     }
     photon_nonconservation_data = None
+    logger.info("db1")
     if inputs.flag_options.PHOTON_CONS_TYPE != "no-photoncons":
         photon_nonconservation_data = setup_photon_cons(**kw)
 
@@ -662,15 +628,18 @@ def run_coeval(
         out_redshifts = out_redshifts.tolist()
 
     # Get the list of redshift we need to scroll through.
-    node_redshifts = _get_required_redshifts_coeval(inputs.flag_options, out_redshifts)
+    all_redshifts = _get_required_redshifts_coeval(inputs.node_redshifts, out_redshifts)
 
     # Get all the perturb boxes early. We need to get the perturb at every
     # redshift.
     pz = [p.redshift for p in perturbed_field]
     perturb_ = []
-    for z in node_redshifts:
+    logger.info("db2")
+    for z in all_redshifts:
         p = (
-            sf.perturb_field(redshift=z, initial_conditions=initial_conditions, **iokw)
+            sf.perturb_field(
+                redshift=z, inputs=inputs, initial_conditions=initial_conditions, **iokw
+            )
             if z not in pz
             else perturbed_field[pz.index(z)]
         )
@@ -686,7 +655,7 @@ def run_coeval(
     pt_halos = []
     if inputs.flag_options.USE_HALO_FIELD and not inputs.flag_options.FIXED_HALO_GRIDS:
         halos_desc = None
-        for i, z in enumerate(node_redshifts[::-1]):
+        for i, z in enumerate(all_redshifts[::-1]):
             halos = sf.determine_halo_list(
                 redshift=z, descendant_halos=halos_desc, **kw
             )
@@ -707,14 +676,14 @@ def run_coeval(
         )
     if (
         inputs.flag_options.PHOTON_CONS_TYPE == "z-photoncons"
-        and np.amin(node_redshifts) < global_params.PhotonConsEndCalibz
+        and np.amin(all_redshifts) < global_params.PhotonConsEndCalibz
     ):
         raise ValueError(
-            f"You have passed a redshift (z = {np.amin(node_redshifts)}) that is lower than"
+            f"You have passed a redshift (z = {np.amin(all_redshifts)}) that is lower than"
             "the endpoint of the photon non-conservation correction"
             f"(global_params.PhotonConsEndCalibz = {global_params.PhotonConsEndCalibz})."
             "If this behaviour is desired then set global_params.PhotonConsEndCalibz"
-            f"to a value lower than z = {np.amin(node_redshifts)}."
+            f"to a value lower than z = {np.amin(all_redshifts)}."
         )
 
     ib_tracker = [0] * len(out_redshifts)
@@ -732,13 +701,13 @@ def run_coeval(
     perturb_files = []
     ionize_files = []
     brightness_files = []
-    pth_files = []
+    phf_files = []
 
     # Iterate through redshift from top to bottom
     hbox_arr = []
-    for iz, z in enumerate(node_redshifts):
+    for iz, z in enumerate(all_redshifts):
         logger.info(
-            f"Computing Redshift {z} ({iz + 1}/{len(node_redshifts)}) iterations."
+            f"Computing Redshift {z} ({iz + 1}/{len(all_redshifts)}) iterations."
         )
         pf2 = perturbed_field[iz]
         pf2.load_all()
@@ -769,7 +738,7 @@ def run_coeval(
                 perturbed_field=pf2,
                 xray_source_box=xrs,
                 **kw,
-                cleanup=(cleanup and z == node_redshifts[-1]),
+                cleanup=(cleanup and z == all_redshifts[-1]),
             )
 
         ib2 = sf.compute_ionization_field(
@@ -808,6 +777,7 @@ def run_coeval(
             hb_tracker[out_redshifts.index(z)] = hb2
 
             _bt = sf.brightness_temperature(
+                inputs=inputs,
                 ionized_box=ib2,
                 perturbed_field=pf2,
                 spin_temp=st2,
@@ -826,7 +796,7 @@ def run_coeval(
         if inputs.flag_options.USE_HALO_FIELD:
             hbox_files.append((z, os.path.join(direc, hb2.filename)))
             if not inputs.flag_options.FIXED_HALO_GRIDS:
-                pth_files.append((z, os.path.join(direc, ph2.filename)))
+                phf_files.append((z, os.path.join(direc, ph2.filename)))
         if inputs.flag_options.USE_TS_FLUCT:
             spin_temp_files.append((z, os.path.join(direc, st2.filename)))
         ionize_files.append((z, os.path.join(direc, ib2.filename)))
@@ -844,7 +814,7 @@ def run_coeval(
         Coeval(
             redshift=z,
             initial_conditions=initial_conditions,
-            perturbed_field=perturbed_field[node_redshifts.index(z)],
+            perturbed_field=perturbed_field[all_redshifts.index(z)],
             ionized_box=ib,
             brightness_temp=_bt,
             ts_box=st,
@@ -857,7 +827,7 @@ def run_coeval(
                 "ionized_box": ionize_files,
                 "brightness_temp": brightness_files,
                 "spin_temp": spin_temp_files,
-                "pt_halos": pth_files,
+                "pt_halos": phf_files,
             },
         )
         for z, ib, _bt, st, hb in zip(
@@ -874,28 +844,12 @@ def run_coeval(
     return coevals
 
 
-def _get_required_redshifts_coeval(flag_options, redshift) -> list[float]:
-    if min(redshift) < global_params.Z_HEAT_MAX and (
-        flag_options.INHOMO_RECO or flag_options.USE_TS_FLUCT
-    ):
-        redshifts = get_logspaced_redshifts(
-            min(redshift),
-            global_params.ZPRIME_STEP_FACTOR,
-            global_params.Z_HEAT_MAX,
-        )
-        # Set the highest redshift to exactly Z_HEAT_MAX. This makes the coeval run
-        # at exactly the same redshift as the spin temperature box. There's literally
-        # no point going higher for a coeval, since the user is only interested in
-        # the final "redshift" (if they've specified a z in redshift that is higher
-        # that Z_HEAT_MAX, we add it back in below, and so they'll still get it).
-        redshifts = np.clip(redshifts, None, global_params.Z_HEAT_MAX)
-
-    else:
-        redshifts = [min(redshift)]
+def _get_required_redshifts_coeval(node_redshifts, user_redshifts) -> list[float]:
     # Add in the redshift defined by the user, and sort in order
     # Turn into a set so that exact matching user-set redshift
     # don't double-up with scrolling ones.
-    redshifts = np.concatenate((redshifts, redshift))
+    needed_nodes = [z for z in node_redshifts if z > min(user_redshifts)]
+    redshifts = np.concatenate((needed_nodes, user_redshifts))
     redshifts = np.sort(np.unique(redshifts))[::-1]
     return redshifts.tolist()
 

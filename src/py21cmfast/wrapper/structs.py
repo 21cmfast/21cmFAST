@@ -134,7 +134,7 @@ class InputStruct:
         if isinstance(x, dict):
             return cls(**x, **kwargs)
         elif isinstance(x, InputStruct):
-            return x
+            return x  # x.clone(**kwargs)????
         elif x is None:
             return cls(**kwargs)
         else:
@@ -309,7 +309,7 @@ class OutputStruct(metaclass=ABCMeta):
         if kwargs:
             warnings.warn(
                 f"{self.__class__.__name__} received the following unexpected "
-                f"arguments: {list(kwargs.keys())}"
+                f"arguments: {list(kwargs.keys())}, these are ignored."
             )
 
         self.dummy = dummy
@@ -537,9 +537,6 @@ class OutputStruct(metaclass=ABCMeta):
     @property
     def filename(self):
         """The base filename of this object."""
-        if self.random_seed is None:
-            raise AttributeError("filename not defined until random_seed has been set")
-
         return self._fname_skeleton.format(seed=self.random_seed)
 
     def _get_fname(self, direc=None):
@@ -658,12 +655,6 @@ class OutputStruct(metaclass=ABCMeta):
             raise OSError(
                 "Not all boxes have been computed (or maybe some have been purged). Cannot write."
                 f"Non-computed boxes: {[k for k, v in self._array_state.items() if not v.computed]}"
-            )
-
-        if not self.random_seed:
-            raise ValueError(
-                "Attempting to write when no random seed has been set. "
-                "Struct has been 'computed' inconsistently."
             )
 
         if not write_inputs:

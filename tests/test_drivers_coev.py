@@ -19,7 +19,9 @@ def test_coeval_st(ic, default_input_struct_ts, perturbed_field):
     assert isinstance(coeval.spin_temp_struct, p21c.TsBox)
 
 
-def test_run_coeval_bad_inputs(ic, default_input_struct, default_flag_options):
+def test_run_coeval_bad_inputs(
+    ic, perturbed_field, default_input_struct, default_flag_options
+):
     with pytest.raises(
         ValueError, match="Either out_redshifts or perturb must be given"
     ):
@@ -28,14 +30,11 @@ def test_run_coeval_bad_inputs(ic, default_input_struct, default_flag_options):
             inputs=default_input_struct,
         )
 
-    with pytest.raises(
-        ValueError, match="An integer seed, or initial conditions must be given"
-    ):
+    with pytest.raises(ValueError, match="Input redshifts do not match"):
         run_coeval(
             out_redshifts=20.0,
-            inputs=default_input_struct.clone(
-                random_seed=None,
-            ),
+            inputs=default_input_struct,
+            perturbed_field=perturbed_field,
         )
 
 

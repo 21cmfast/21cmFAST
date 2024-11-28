@@ -40,13 +40,36 @@ def input_param_field(kls: InputStruct):
 
     """
     return attrs.field(
-        default=None,
-        converter=attrs.converters.optional(kls.new),
-        validator=attrs.validators.optional(attrs.validators.instance_of(kls)),
+        converter=kls.new,
+        validator=attrs.validators.instance_of(kls),
     )
 
 
-@attrs.define(kw_only=True)
+def get_logspaced_redshifts(min_redshift: float, z_step_factor: float, zmax: float):
+    """Compute a sequence of redshifts to evolve over that are log-spaced."""
+    redshifts = [min_redshift]
+    while redshifts[-1] < zmax:
+        redshifts.append((redshifts[-1] + 1.0) * z_step_factor - 1.0)
+
+    return np.array(redshifts)[::-1]
+
+
+# node_redshifts takes either a list of floats OR the string "logspaced"
+def _node_redshifts_converter(value, self):
+    if value == "logspaced":
+        # if "logspaced" is passed, set logspaced nodes
+        value = get_logspaced_redshifts(
+            min_redshift=self._min_redshift,
+            z_step_factor=self._redshift_step,
+            zmax=self._max_redshift,
+        )
+    # we otherwise assume an array-like is passed
+    if len(value) > 0:
+        return np.sort(np.array(value, dtype=float).flatten())[::-1]
+    return np.array([])
+
+
+@attrs.define(kw_only=True, frozen=True)
 class InputParameters:
     """A class defining a collection of InputStruct instances.
 
@@ -55,18 +78,48 @@ class InputParameters:
     different sets of instances.
     """
 
-    random_seed = attrs.field(default=None, converter=attrs.converters.optional(int))
-    redshift = attrs.field(default=None, converter=attrs.converters.optional(float))
+    random_seed = attrs.field(converter=int)
     user_params: UserParams = input_param_field(UserParams)
     cosmo_params: CosmoParams = input_param_field(CosmoParams)
     flag_options: FlagOptions = input_param_field(FlagOptions)
     astro_params: AstroParams = input_param_field(AstroParams)
 
+    # These private fields can be used for controlling node_redshifts if an array is not passed explicitly,
+    #   but are not used for comparisons
+    _min_redshift = attrs.field(converter=float, default=6.0, eq=False, repr=False)
+    _max_redshift = attrs.field(
+        converter=float, default=global_params.Z_HEAT_MAX, eq=False, repr=False
+    )
+    _redshift_step = attrs.field(
+        converter=float, default=global_params.ZPRIME_STEP_FACTOR, eq=False, repr=False
+    )
+
+    # passed to the converter, TODO: this can be cleaned up
+    node_redshifts = attrs.field(
+        converter=attrs.Converter(_node_redshifts_converter, takes_self=True)
+    )
+
+    @node_redshifts.default
+    def _node_redshifts_default(self):
+        return (
+            "logspaced"
+            if (self.flag_options.INHOMO_RECO or self.flag_options.USE_TS_FLUCT)
+            else []
+        )
+
+    @node_redshifts.validator
+    def _node_redshifts_validator(self, att, val):
+        if (
+            self.flag_options.INHOMO_RECO or self.flag_options.USE_TS_FLUCT
+        ) and val.max() < global_params.Z_HEAT_MAX:
+            raise ValueError(
+                "For runs with inhomogeneous recombinations or spin temperature fluctuations,\n"
+                + "your maximum passed node_redshifts must be above Z_HEAT_MAX, pass in\n"
+                + "`node_redshifts='logspaced'` or explicitly define `node_redshifts` as an array\n'"
+            )
+
     @flag_options.validator
     def _flag_options_validator(self, att, val):
-        if val is None:
-            return
-
         if self.user_params is not None:
             if (
                 val.USE_MINI_HALOS
@@ -90,11 +143,6 @@ class InputParameters:
 
     @astro_params.validator
     def _astro_params_validator(self, att, val):
-        if val is None:
-            return
-        if self.user_params is None:
-            return
-
         if val.R_BUBBLE_MAX > self.user_params.BOX_LEN:
             raise InputCrossValidationError(
                 f"R_BUBBLE_MAX is larger than BOX_LEN ({val.R_BUBBLE_MAX} > {self.user_params.BOX_LEN}). This is not allowed."
@@ -130,8 +178,6 @@ class InputParameters:
 
     @user_params.validator
     def _user_params_validator(self, att, val):
-        if val is None:
-            return
         # perform a very rudimentary check to see if we are underresolved and not using the linear approx
         if val.BOX_LEN > val.DIM and not global_params.EVOLVE_DENSITY_LINEARLY:
             warnings.warn(
@@ -139,15 +185,6 @@ class InputParameters:
                 + "that you either increase the resolution (DIM/BOX_LEN) or"
                 + "set the EVOLVE_DENSITY_LINEARLY flag to 1"
             )
-
-    def merge_keys(self):
-        """The list of available structs in this instance."""
-        # Allow using **input_parameters
-        return [
-            field.name
-            for field in attrs.fields(self.__class__)
-            if field.name != "redshift"
-        ]
 
     def __getitem__(self, key):
         """Get an item from the instance in a dict-like manner."""
@@ -172,63 +209,124 @@ class InputParameters:
             for key in self.merge_keys()
         )
 
-    def merge(self, other: InputParameters) -> InputParameters:
-        """Merge another InputParameters instance with this one, checking for compatibility."""
-        if not self.is_compatible_with(other):
-            raise ValueError(
-                f"Input parameters are not compatible. \n SELF {self} \n OTHER {other}"
-            )
-        return InputParameters(**{k: self[k] or other[k] for k in self.merge_keys()})
-
     @classmethod
-    def combine(cls, inputs: Sequence[InputParameters]) -> InputParameters:
-        """Combine multiple input parameter structs into one.
+    def from_output_structs(cls, output_structs, **kwargs) -> InputParameters:
+        """Generate a new InputParameters instance given a list of OutputStructs.
 
-        Parameters
-        ----------
-        inputs : list of :class:`InputParameters`
-            The input parameter structs to combine.
+        In contrast to other construction methods, we do not accept overwriting of
+        sub-fields here, since it will no longer be compatible with the output structs.
 
-        Returns
-        -------
-        :class:`InputParameters`
-            The combined input parameter struct.
+        All required fields not present in the `OutputStruct` objects need to be provided.
         """
-        # Create an empty instance of InputParameters
-        this = inputs[0]
-
-        for inp in inputs[1:]:
-            this = this.merge(inp)
-
-        return this
-
-    @classmethod
-    def from_output_structs(
-        cls, output_structs, redshift=None, **defaults
-    ) -> InputParameters:
-        """Generate a new InputParameters instance given a list of OutputStructs."""
-        input_params = []
+        # get matching fields in each output struct
+        fieldnames = [field.name for field in attrs.fields(cls) if field.eq]
+        input_params = {k: [] for k in fieldnames}
+        default_fields = []
         for struct in output_structs:
-            if struct is not None:
-                ip_args = {
-                    k.lstrip("_"): getattr(struct, k, None)
-                    for k in struct._inputs
-                    if k.lstrip("_") in [field.name for field in attrs.fields(cls)]
-                }
-                input_params.append(cls(**ip_args))
+            if struct is None:
+                continue
+            for k in struct._inputs:
+                name = k.lstrip("_")
+                if name in fieldnames:
+                    input_params[name].append(getattr(struct, k, None))
 
-        if len(input_params) == 0:
-            return cls(**defaults)
-        else:
-            # Combine all the parameter structs from input boxes
-            out = cls.combine(input_params)
-            # Now combine with provided kwargs
-            return attrs.evolve(out.merge(cls(**defaults)), redshift=redshift)
+        # Now we have a list of [value | None,...] for each field,
+        for field, values in input_params.items():
+            # Append any provided structures
+            values.append(kwargs.pop(field, None))
+            # remove None and any duplicates
+            # NOTE: Types are not necessarily hashable so cannot use set
+            values = [
+                val
+                for i, val in enumerate(values)
+                if val is not None and val not in values[:i]
+            ]
+
+            # If we have multiple values, it means there is a clash
+            if len(values) > 1:
+                raise ValueError(
+                    f"InputParameters.from_output_struct got multiple values for {field}: {values}"
+                )
+            elif len(values) == 0:
+                if attrs.fields_dict(cls)[field].default:
+                    # If the parameter has a default, we want to remove them
+                    #    from the dict (after the loop)
+                    # TODO: this is messy, try to clean it up
+                    default_fields.append(field)
+                else:
+                    raise ValueError(
+                        f"InputParameters.from_output_struct got no values for required attribute {field}"
+                    )
+            # otherwise set value to the singleton
+            else:
+                input_params[field] = values.pop()
+
+        [input_params.pop(field) for field in default_fields]
+        return cls(**input_params)
+
+    def check_output_compatibility(self, output_structs):
+        """Raises an error if the inputs are incompatible with the provided OutputStruct objects.
+
+        Does not change the input struct.
+        """
+        InputParameters.from_output_structs(
+            output_structs,
+            node_redshifts=self.node_redshifts,
+            cosmo_params=self.cosmo_params,
+            user_params=self.user_params,
+            astro_params=self.astro_params,
+            flag_options=self.flag_options,
+            random_seed=self.random_seed,
+        )
+
+    def evolve_inputstructs(self, **kwargs):
+        """Return an altered clone of the `InputParamters` structs.
+
+        Unlike clone(), this function takes fields from the constituent `InputStruct` classes
+        and only overwrites those sub-fields instead of the entire field
+        """
+        cosmo_params = self.cosmo_params.clone(
+            **{
+                k: v
+                for k, v in kwargs.items()
+                if k in self.cosmo_params.asdict().keys()
+            }
+        )
+        user_params = self.user_params.clone(
+            **{k: v for k, v in kwargs.items() if k in self.user_params.asdict().keys()}
+        )
+        astro_params = self.astro_params.clone(
+            **{
+                k: v
+                for k, v in kwargs.items()
+                if k in self.astro_params.asdict().keys()
+            }
+        )
+        flag_options = self.flag_options.clone(
+            **{
+                k: v
+                for k, v in kwargs.items()
+                if k in self.flag_options.asdict().keys()
+            }
+        )
+
+        return self.clone(
+            cosmo_params=cosmo_params,
+            user_params=user_params,
+            astro_params=astro_params,
+            flag_options=flag_options,
+        )
 
     @classmethod
-    def from_template(cls, name, random_seed):
-        """Construct full InputParameters instance from native or TOML file template."""
-        return cls(**create_params_from_template(name), random_seed=random_seed)
+    def from_template(cls, name, **kwargs):
+        """Construct full InputParameters instance from native or TOML file template.
+
+        Takes `InputStruct` fields as keyword arguments which overwrite the template/default fields
+        """
+        return cls(
+            **create_params_from_template(name),
+            **kwargs,
+        )
 
     @classmethod
     def from_inputstructs(
@@ -238,6 +336,7 @@ class InputParameters:
         astro_params: AstroParams,
         flag_options: FlagOptions,
         random_seed: int,
+        **kwargs,
     ):
         """Construct full InputParameters instance from InputStruct instances."""
         return cls(
@@ -246,46 +345,21 @@ class InputParameters:
             astro_params=astro_params,
             flag_options=flag_options,
             random_seed=random_seed,
+            **kwargs,
         )
 
     @classmethod
-    def from_defaults(cls, random_seed, **kwargs):
-        """Construct full InputParameters instance from default values."""
-        cosmo_params = CosmoParams.new(
-            {
-                k: v
-                for k, v in kwargs.items()
-                if k in [f.name for f in attrs.fields(CosmoParams)]
-            }
-        )
-        user_params = UserParams.new(
-            {
-                k: v
-                for k, v in kwargs.items()
-                if k in [f.name for f in attrs.fields(UserParams)]
-            }
-        )
-        astro_params = AstroParams.new(
-            {
-                k: v
-                for k, v in kwargs.items()
-                if k in [f.name for f in attrs.fields(AstroParams)]
-            }
-        )
-        flag_options = FlagOptions.new(
-            {
-                k: v
-                for k, v in kwargs.items()
-                if k in [f.name for f in attrs.fields(FlagOptions)]
-            }
-        )
+    def from_defaults(cls, **kwargs):
+        """Construct full InputParameters instance from default values.
 
+        Takes `InputStruct` fields as keyword arguments which overwrite the template/default fields
+        """
         return cls(
-            cosmo_params=cosmo_params,
-            user_params=user_params,
-            astro_params=astro_params,
-            flag_options=flag_options,
-            random_seed=random_seed,
+            cosmo_params=CosmoParams.new(),
+            user_params=UserParams.new(),
+            astro_params=AstroParams.new(),
+            flag_options=FlagOptions.new(),
+            **kwargs,
         )
 
     def clone(self, **kwargs):
@@ -306,14 +380,16 @@ class InputParameters:
             + f"flag_options: {repr(self.flag_options)}\n"
         )
 
-    # TODO: methods for equality: w/o redshift, w/o seed
+    # TODO: methods for equality: w/o redshifts, w/o seed
 
 
-def check_redshift_consistency(inputs: InputParameters, output_structs):
+def check_redshift_consistency(redshift, output_structs):
     """Check the redshifts between provided OutputStruct objects and an InputParameters instance."""
     for struct in output_structs:
-        if struct is not None and struct.redshift != inputs.redshift:
-            raise ValueError("Incompatible redshifts in inputs")
+        if struct is not None and struct.redshift != redshift:
+            raise ValueError(
+                f"Incompatible redshifts with inputs and {struct.__class__.__name__}: {redshift} != {struct.redshift}"
+            )
 
 
 def _get_config_options(

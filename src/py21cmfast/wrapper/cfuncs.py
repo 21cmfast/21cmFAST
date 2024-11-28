@@ -66,8 +66,7 @@ def compute_tau(
     *,
     redshifts: Sequence[float],
     global_xHI: Sequence[float],
-    user_params: UserParams | dict | None = None,
-    cosmo_params: CosmoParams | dict | None = None,
+    inputs: InputParameters,
 ) -> float:
     """Compute the optical depth to reionization under the given model.
 
@@ -93,8 +92,6 @@ def compute_tau(
         If `redshifts` and `global_xHI` have inconsistent length or if redshifts are not
         in ascending order.
     """
-    inputs = InputParameters(user_params, cosmo_params)
-
     if len(redshifts) != len(global_xHI):
         raise ValueError("redshifts and global_xHI must have same length")
 
@@ -117,10 +114,7 @@ def compute_tau(
 def compute_luminosity_function(
     *,
     redshifts: Sequence[float],
-    user_params: UserParams | dict | None = None,
-    cosmo_params: CosmoParams | dict | None = None,
-    astro_params: AstroParams | dict | None = None,
-    flag_options: FlagOptions | dict | None = None,
+    inputs: InputParameters,
     nbins: int = 100,
     mturnovers: np.ndarray | None = None,
     mturnovers_mini: np.ndarray | None = None,
@@ -161,10 +155,10 @@ def compute_luminosity_function(
         Number density of haloes corresponding to each bin defined by `Muvfunc`.
         Shape [nredshifts, nbins].
     """
-    user_params = UserParams.new(user_params)
-    cosmo_params = CosmoParams.new(cosmo_params)
-    flag_options = FlagOptions.new(flag_options)
-    astro_params = AstroParams.new(astro_params)
+    user_params = inputs.user_params
+    cosmo_params = inputs.cosmo_params
+    flag_options = inputs.flag_options
+    astro_params = inputs.astro_params
 
     redshifts = np.array(redshifts, dtype="float32")
     if flag_options.USE_MINI_HALOS:

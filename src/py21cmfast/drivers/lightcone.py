@@ -21,13 +21,8 @@ from ..wrapper.inputs import AstroParams, CosmoParams, FlagOptions, UserParams
 from ..wrapper.outputs import InitialConditions, PerturbedField
 from ..wrapper.photoncons import _get_photon_nonconservation_data, setup_photon_cons
 from . import single_field as sf
-from .coeval import (
-    Coeval,
-    _get_coeval_callbacks,
-    _HighLevelOutput,
-    get_logspaced_redshifts,
-)
-from .param_config import InputParameters, _get_config_options
+from .coeval import Coeval, _get_coeval_callbacks, _HighLevelOutput
+from .param_config import InputParameters, _get_config_options, get_logspaced_redshifts
 from .single_field import set_globals
 
 logger = logging.getLogger(__name__)
@@ -41,7 +36,6 @@ class LightCone(_HighLevelOutput):
         distances,
         inputs,
         lightcones,
-        node_redshifts=None,
         global_quantities=None,
         photon_nonconservation_data=None,
         cache_files: dict | None = None,
@@ -56,7 +50,7 @@ class LightCone(_HighLevelOutput):
         self.cosmo_params = inputs.cosmo_params
         self.astro_params = inputs.astro_params
         self.flag_options = inputs.flag_options
-        self.node_redshifts = node_redshifts
+        self.node_redshifts = inputs.node_redshifts
         self.cache_files = cache_files
         self.log10_mturnovers = log10_mturnovers
         self.log10_mturnovers_mini = log10_mturnovers_mini
@@ -203,6 +197,7 @@ class LightCone(_HighLevelOutput):
                 parkw[k] = kls.from_subdict(dct, safe=safe)
 
             parkw["random_seed"] = fl.attrs["random_seed"]
+            parkw["node_redshifts"] = fl["node_redshifts"][...]
             kwargs["inputs"] = InputParameters(**parkw)
             kwargs["current_redshift"] = fl.attrs.get("current_redshift", None)
             kwargs["current_index"] = fl.attrs.get("current_index", None)
@@ -221,8 +216,6 @@ class LightCone(_HighLevelOutput):
 
             glb = fl["global_quantities"]
             kwargs["global_quantities"] = {k: glb[k][...] for k in glb.keys()}
-
-            kwargs["node_redshifts"] = fl["node_redshifts"][...]
             kwargs["distances"] = fl["distances"][...]
 
             kwargs["log10_mturnovers"] = fl["log10_mturnovers"][...]
@@ -337,8 +330,8 @@ class AngularLightcone(LightCone):
 
 def setup_lightcone_instance(
     lightconer: Lightconer,
-    inputs: InputParameters,
-    scrollz: Sequence[float],
+    scrollz,
+    inputs,
     global_quantities: Sequence[str],
     lightcone_filename: Path | None = None,
 ):
@@ -377,7 +370,6 @@ def setup_lightcone_instance(
             lightconer.lc_distances,
             inputs,
             lc,
-            node_redshifts=scrollz,
             log10_mturnovers=np.zeros_like(scrollz),
             log10_mturnovers_mini=np.zeros_like(scrollz),
             global_quantities={
@@ -523,8 +515,7 @@ def _run_lightcone_from_perturbed_fields(
     kw = {
         **{
             "initial_conditions": initial_conditions,
-            "astro_params": inputs.astro_params,
-            "flag_options": inputs.flag_options,
+            "inputs": inputs,
         },
         **iokw,
     }
@@ -540,7 +531,7 @@ def _run_lightcone_from_perturbed_fields(
 
     if (
         lightcone._current_redshift
-        and not np.isclose(lightcone.node_redshifts.min(), lightcone._current_redshift)
+        and not np.isclose(scrollz.min(), lightcone._current_redshift)
         and not inputs.flag_options.USE_HALO_FIELD
     ):
         logger.info(
@@ -598,7 +589,7 @@ def _run_lightcone_from_perturbed_fields(
     ionize_files = []
     brightness_files = []
     hbox_files = []
-    pth_files = []
+    phf_files = []
 
     # saved global quantities which aren't lightcones
     log10_mturnovers = np.zeros(len(scrollz))
@@ -667,6 +658,7 @@ def _run_lightcone_from_perturbed_fields(
         log10_mturnovers_mini[iz] = ib2.log10_Mturnover_MINI_ave
 
         bt2 = sf.brightness_temperature(
+            inputs=inputs,
             ionized_box=ib2,
             perturbed_field=pf2,
             spin_temp=st2,
@@ -689,7 +681,7 @@ def _run_lightcone_from_perturbed_fields(
         if inputs.flag_options.USE_HALO_FIELD:
             hbox_files.append((z, direc / hbox2.filename))
             if not inputs.flag_options.FIXED_HALO_GRIDS:
-                pth_files.append((z, direc / ph2.filename))
+                phf_files.append((z, direc / ph2.filename))
         if inputs.flag_options.USE_TS_FLUCT:
             spin_temp_files.append((z, direc / st2.filename))
         ionize_files.append((z, direc / ib2.filename))
@@ -766,7 +758,7 @@ def _run_lightcone_from_perturbed_fields(
             "brightness_temp": brightness_files,
             "spin_temp": spin_temp_files,
             "halobox": hbox_files,
-            "pt_halos": pth_files,
+            "pt_halos": phf_files,
         }
 
         lightcone.log10_mturnovers = log10_mturnovers
@@ -779,7 +771,6 @@ def run_lightcone(
     *,
     lightconer: Lightconer,
     inputs: InputParameters,
-    node_redshifts: np.ndarray | None = None,
     global_quantities=("brightness_temp", "xH_box"),
     initial_conditions: InitialConditions | None = None,
     perturbed_fields: Sequence[PerturbedField | None] = (None,),
@@ -804,9 +795,6 @@ def run_lightcone(
         This object specifies the dimensions, redshifts, and quantities required by the lightcone run
     inputs: :class:`~InputParameters`
         This object specifies the input parameters for the run, including the random seed
-    node_redshifts : array_like, optional
-        This array specifies the redshifts at which the simulation snapshots occur.
-        By default it is evenly spaced in log(1+z) by a factor set by global_params.ZPRIME_STEP_FACTOR
     global_quantities : tuple of str, optional
         The quantities to save as globally-averaged redshift-dependent functions.
         These may be any of the quantities that can be used in ``Lightconer.quantities``.
@@ -854,39 +842,33 @@ def run_lightcone(
             "If perturbed_fields are provided, initial_conditions must be provided"
         )
 
-    # TODO: make sure cosmo_params is consistent with lightconer.cosmo as well
-    inputs = InputParameters.from_output_structs(
-        (initial_conditions,) + perturbed_fields,
-        cosmo_params=inputs.cosmo_params,
-        user_params=inputs.user_params,
-        astro_params=inputs.astro_params,
-        flag_options=inputs.flag_options,
-        random_seed=inputs.random_seed,
-    )
+    # TODO: make sure cosmo_params is consistent with lightconer.cosmo and cell sizes as well
+    inputs.check_output_compatibility((initial_conditions,) + perturbed_fields)
 
-    # if no random seed was given to the inputs, and no output structs were passed,
-    #   raise an error
-    if not isinstance(inputs.random_seed, int):
-        raise ValueError("An integer seed, or initial conditions must be given")
-
-    if pf_given:
-        node_redshifts = [pf.redshift for pf in perturbed_fields]
-    elif node_redshifts is None:
-        node_redshifts = get_logspaced_redshifts(
-            lightconer.lc_redshifts.min(),
-            global_params.ZPRIME_STEP_FACTOR,
-            max(lightconer.lc_redshifts.max(), global_params.Z_HEAT_MAX),
+    if len(inputs.node_redshifts) == 0:
+        raise ValueError(
+            "You are attempting to run a lightcone with no node_redshifts.\n"
+            + "This can only be done with coevals without evolution"
         )
 
+    # while we still use the full list for caching etc, we don't need to run below the lightconer instance
+    #   So stop one after the lightconer
+    final_node = np.argmax(inputs.node_redshifts <= min(lightconer.lc_redshifts))
+    scrollz = inputs.node_redshifts[: final_node + 1]  # inclusive
+
+    if pf_given and scrollz != [pf.redshift for pf in perturbed_fields]:
+        raise ValueError(
+            f"given PerturbField redshifts {[pf.redshift for pf in perturbed_fields]}"
+            + f"do not match selected InputParameters.node_redshifts {scrollz}"
+        )
     lcz = lightconer.lc_redshifts
-    if not np.all(min(node_redshifts) * 0.99 < lcz) and np.all(
-        lcz < max(node_redshifts) * 1.01
-    ):
+
+    if not np.all(min(scrollz) * 0.99 < lcz) and np.all(lcz < max(scrollz) * 1.01):
         # We have a 1% tolerance on the redshifts, because the lightcone redshifts are
         # computed via inverse fitting the comoving_distance.
         raise ValueError(
             "The lightcone redshifts are not compatible with the given redshift."
-            f"The range of computed redshifts is {min(node_redshifts)} to {max(node_redshifts)}, "
+            f"The range of computed redshifts is {min(scrollz)} to {max(scrollz)}, "
             f"while the lightcone redshift range is {lcz.min()} to {lcz.max()}."
         )
 
@@ -894,9 +876,7 @@ def run_lightcone(
 
     if initial_conditions is None:  # no need to get cosmo, user params out of it.
         initial_conditions = sf.compute_initial_conditions(
-            user_params=inputs.user_params,
-            cosmo_params=inputs.cosmo_params,
-            random_seed=inputs.random_seed,
+            inputs=inputs,
             **iokw,
         )
 
@@ -913,9 +893,9 @@ def run_lightcone(
 
     if not pf_given:
         perturbed_fields = []
-        for z in node_redshifts:
+        for z in scrollz:
             p = sf.perturb_field(
-                redshift=z, initial_conditions=initial_conditions, **iokw
+                redshift=z, inputs=inputs, initial_conditions=initial_conditions, **iokw
             )
             if inputs.user_params.MINIMIZE_MEMORY:
                 with contextlib.suppress(OSError):

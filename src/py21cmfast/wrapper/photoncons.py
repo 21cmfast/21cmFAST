@@ -72,7 +72,7 @@ def _init_photon_conservation_correction(
     user_params = UserParams.new(user_params)
     cosmo_params = CosmoParams.new(cosmo_params)
     flag_options = FlagOptions.new(flag_options)
-    astro_params = AstroParams.new(astro_params, flag_options=flag_options)
+    astro_params = AstroParams.new(astro_params)
 
     return lib.InitialisePhotonCons(
         user_params.cstruct,
@@ -186,8 +186,7 @@ def _get_photon_nonconservation_data():
 
 
 def setup_photon_cons(
-    astro_params,
-    flag_options,
+    inputs,
     regenerate,
     hooks,
     direc,
@@ -235,57 +234,50 @@ def setup_photon_cons(
 
     direc, regenerate, hooks = _get_config_options(direc, regenerate, None, hooks)
 
-    if flag_options.PHOTON_CONS_TYPE == "no-photoncons":
+    if inputs.flag_options.PHOTON_CONS_TYPE == "no-photoncons":
         return
 
-    if initial_conditions is not None:
-        cosmo_params = initial_conditions.cosmo_params
-        user_params = initial_conditions.user_params
-
-    if cosmo_params is None or user_params is None:
-        raise ValueError(
-            "user_params and cosmo_params must be given if initial_conditions is not"
-        )
+    inputs.check_output_compatibility([initial_conditions])
 
     # calculate global and calibration simulation xH histories and save them in C
     calibrate_photon_cons(
-        astro_params=astro_params,
-        flag_options=flag_options,
+        inputs=inputs,
         regenerate=regenerate,
         hooks=hooks,
         direc=direc,
         initial_conditions=initial_conditions,
-        user_params=user_params,
-        cosmo_params=cosmo_params,
         **global_kwargs,
     )
 
     # The PHOTON_CONS_TYPE == 1 case is handled in C (for now....), but we get the data anyway
-    if flag_options.PHOTON_CONS_TYPE == "z-photoncons":
+    if inputs.flag_options.PHOTON_CONS_TYPE == "z-photoncons":
         photoncons_data = _get_photon_nonconservation_data()
 
-    if flag_options.PHOTON_CONS_TYPE == "alpha-photoncons":
+    if inputs.flag_options.PHOTON_CONS_TYPE == "alpha-photoncons":
         photoncons_data = photoncons_alpha(
-            cosmo_params, user_params, astro_params, flag_options
+            inputs.cosmo_params,
+            inputs.user_params,
+            inputs.astro_params,
+            inputs.flag_options,
         )
 
-    if flag_options.PHOTON_CONS_TYPE == "f-photoncons":
+    if inputs.flag_options.PHOTON_CONS_TYPE == "f-photoncons":
         photoncons_data = photoncons_fesc(
-            cosmo_params, user_params, astro_params, flag_options
+            inputs.cosmo_params,
+            inputs.user_params,
+            inputs.astro_params,
+            inputs.flag_options,
         )
 
     return photoncons_data
 
 
 def calibrate_photon_cons(
-    astro_params,
-    flag_options,
+    inputs,
     regenerate,
     hooks,
     direc,
-    initial_conditions=None,
-    user_params=None,
-    cosmo_params=None,
+    initial_conditions,
     **global_kwargs,
 ):
     r"""
@@ -320,9 +312,7 @@ def calibrate_photon_cons(
 
     with global_params.use(**global_kwargs):
         # Create a new astro_params and flag_options just for the photon_cons correction
-        astro_params_photoncons = astro_params.clone()
-
-        flag_options_photoncons = flag_options.clone(
+        inputs_calibration = inputs.evolve_inputstructs(
             USE_TS_FLUCT=False,
             INHOMO_RECO=False,
             USE_MINI_HALOS=False,
@@ -339,10 +329,10 @@ def calibrate_photon_cons(
         # Initialise the analytic expression for the reionisation history
         logger.info("About to start photon conservation correction")
         _init_photon_conservation_correction(
-            user_params=user_params,
-            cosmo_params=cosmo_params,
-            astro_params=astro_params,
-            flag_options=flag_options,
+            user_params=inputs.user_params,
+            cosmo_params=inputs.cosmo_params,
+            astro_params=inputs.astro_params,
+            flag_options=inputs.flag_options,
         )
 
         # Determine the starting redshift to start scrolling through to create the
@@ -355,6 +345,7 @@ def calibrate_photon_cons(
             # turned off.
             this_perturb = perturb_field(
                 redshift=z,
+                inputs=inputs_calibration,
                 initial_conditions=initial_conditions,
                 regenerate=regenerate,
                 hooks=hooks,
@@ -363,12 +354,11 @@ def calibrate_photon_cons(
 
             ib2 = compute_ionization_field(
                 redshift=z,
+                inputs=inputs_calibration,
                 previous_ionize_box=ib,
                 initial_conditions=initial_conditions,
                 perturbed_field=this_perturb,
                 previous_perturbed_field=prev_perturb,
-                astro_params=astro_params_photoncons,
-                flag_options=flag_options_photoncons,
                 spin_temp=None,
                 regenerate=regenerate,
                 hooks=hooks,
@@ -390,7 +380,7 @@ def calibrate_photon_cons(
                 z -= 0.5
 
             ib = ib2
-            if flag_options.USE_MINI_HALOS:
+            if inputs.flag_options.USE_MINI_HALOS:
                 prev_perturb = this_perturb
 
         z_for_photon_cons = np.array(z_for_photon_cons[::-1])

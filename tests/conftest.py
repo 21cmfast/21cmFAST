@@ -164,31 +164,42 @@ def default_input_struct(
     default_astro_params,
     default_flag_options,
     default_seed,
-    redshift,
 ):
     return InputParameters(
-        redshift=redshift,
         random_seed=default_seed,
         cosmo_params=default_cosmo_params,
         astro_params=default_astro_params,
         user_params=default_user_params,
         flag_options=default_flag_options,
+        node_redshifts=[],
     )
 
 
 @pytest.fixture(scope="session")
-def default_input_struct_ts(default_input_struct, default_flag_options_ts):
-    return default_input_struct.clone(flag_options=default_flag_options_ts)
+def default_input_struct_ts(
+    redshift, max_redshift, default_input_struct, default_flag_options_ts
+):
+    return default_input_struct.clone(
+        flag_options=default_flag_options_ts,
+        min_redshift=redshift,
+        max_redshift=global_params.Z_HEAT_MAX,
+        node_redshifts="logspaced",
+    )
 
 
 @pytest.fixture(scope="session")
-def ic(default_user_params, default_cosmo_params, default_seed, tmpdirec):
+def default_input_struct_lc(redshift, max_redshift, default_input_struct):
+    return default_input_struct.clone(
+        min_redshift=redshift, max_redshift=max_redshift, node_redshifts="logspaced"
+    )
+
+
+@pytest.fixture(scope="session")
+def ic(default_input_struct, default_seed, tmpdirec):
     return compute_initial_conditions(
-        user_params=default_user_params,
-        cosmo_params=default_cosmo_params,
+        inputs=default_input_struct,
         write=True,
         direc=tmpdirec,
-        random_seed=default_seed,
     )
 
 
@@ -216,27 +227,34 @@ def low_redshift():
 
 
 @pytest.fixture(scope="session")
-def perturbed_field(ic, redshift):
+def perturbed_field(ic, default_input_struct, redshift):
     """A default perturb_field"""
-    return perturb_field(redshift=redshift, initial_conditions=ic, write=True)
-
-
-@pytest.fixture(scope="session")
-def rectlcn(lightcone_min_redshift, ic, max_redshift) -> RectilinearLightconer:
-    return RectilinearLightconer.with_equal_cdist_slices(
-        min_redshift=lightcone_min_redshift,
-        max_redshift=max_redshift,
-        resolution=ic.user_params.cell_size,
-        cosmo=ic.cosmo_params.cosmo,
+    return perturb_field(
+        redshift=redshift,
+        inputs=default_input_struct,
+        initial_conditions=ic,
+        write=True,
     )
 
 
 @pytest.fixture(scope="session")
-def lc(rectlcn, ic, default_input_struct):
+def rectlcn(
+    lightcone_min_redshift, max_redshift, default_user_params, default_cosmo_params
+) -> RectilinearLightconer:
+    return RectilinearLightconer.with_equal_cdist_slices(
+        min_redshift=lightcone_min_redshift,
+        max_redshift=max_redshift,
+        resolution=default_user_params.cell_size,
+        cosmo=default_cosmo_params.cosmo,
+    )
+
+
+@pytest.fixture(scope="session")
+def lc(rectlcn, ic, default_input_struct_lc):
     iz, z, coev, lc = exhaust_lightcone(
         lightconer=rectlcn,
         initial_conditions=ic,
-        inputs=default_input_struct,
+        inputs=default_input_struct_lc,
         write=True,
     )
     return lc
