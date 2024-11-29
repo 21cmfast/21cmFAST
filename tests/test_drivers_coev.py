@@ -30,7 +30,7 @@ def test_run_coeval_bad_inputs(
             inputs=default_input_struct,
         )
 
-    with pytest.raises(ValueError, match="Input redshifts do not match"):
+    with pytest.raises(ValueError, match="Input redshifts"):
         run_coeval(
             out_redshifts=20.0,
             inputs=default_input_struct,

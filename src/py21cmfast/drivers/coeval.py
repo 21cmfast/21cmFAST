@@ -600,11 +600,21 @@ def run_coeval(
         initial_conditions.prepare_for_perturb(
             flag_options=inputs.flag_options, force=always_purge
         )
+
+    if out_redshifts is not None and not hasattr(out_redshifts, "__len__"):
+        singleton = True
+        out_redshifts = [out_redshifts]
+
+    if isinstance(out_redshifts, np.ndarray):
+        out_redshifts = out_redshifts.tolist()
     if perturbed_field:
         if out_redshifts is not None and any(
             p.redshift != z for p, z in zip(perturbed_field, out_redshifts)
         ):
-            raise ValueError("Input redshifts do not match perturb field redshifts")
+            raise ValueError(
+                f"Input redshifts {out_redshifts} do not match "
+                + f"perturb field redshifts {[p.redshift for p in perturbed_field]}"
+            )
         else:
             out_redshifts = [p.redshift for p in perturbed_field]
 
@@ -616,16 +626,8 @@ def run_coeval(
         **iokw,
     }
     photon_nonconservation_data = None
-    logger.info("db1")
     if inputs.flag_options.PHOTON_CONS_TYPE != "no-photoncons":
         photon_nonconservation_data = setup_photon_cons(**kw)
-
-    if not hasattr(out_redshifts, "__len__"):
-        singleton = True
-        out_redshifts = [out_redshifts]
-
-    if isinstance(out_redshifts, np.ndarray):
-        out_redshifts = out_redshifts.tolist()
 
     # Get the list of redshift we need to scroll through.
     all_redshifts = _get_required_redshifts_coeval(inputs.node_redshifts, out_redshifts)
@@ -634,7 +636,6 @@ def run_coeval(
     # redshift.
     pz = [p.redshift for p in perturbed_field]
     perturb_ = []
-    logger.info("db2")
     for z in all_redshifts:
         p = (
             sf.perturb_field(

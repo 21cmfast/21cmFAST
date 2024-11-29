@@ -1150,7 +1150,7 @@ int ComputeIonizedBox(float redshift, float prev_redshift, UserParams *user_para
     Try{ // This Try brackets the whole function, so we don't indent.
     LOG_DEBUG("input values:");
     LOG_DEBUG("redshift=%f, prev_redshift=%f", redshift, prev_redshift);
-    #if LOG_LEVEL >= SUPER_DEBUG_LEVEL
+    #if LOG_LEVEL >= DEBUG_LEVEL
         writeUserParams(user_params);
         writeCosmoParams(cosmo_params);
         writeAstroParams(flag_options, astro_params);

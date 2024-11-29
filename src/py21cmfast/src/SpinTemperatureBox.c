@@ -95,7 +95,7 @@ int ComputeTsBox(float redshift, float prev_redshift, UserParams *user_params, C
                   InitialConditions *ini_boxes, TsBox *this_spin_temp) {
     int status;
     Try{ // This Try{} wraps the whole function.
-    LOG_DEBUG("input values:");
+    LOG_DEBUG("Spintemp input values:");
     LOG_DEBUG("redshift=%f, prev_redshift=%f perturbed_field_redshift=%f", redshift, prev_redshift, perturbed_field_redshift);
 
 #if LOG_LEVEL >= SUPER_DEBUG_LEVEL
@@ -1215,10 +1215,6 @@ void ts_main(float redshift, float prev_redshift, UserParams *user_params, Cosmo
     double growth_factor_z, growth_factor_zp;
     double inverse_growth_factor_z;
     double dzp;
-
-    LOG_DEBUG("starting halo spintemp");
-    LOG_DEBUG("input values:");
-    LOG_DEBUG("redshift=%f, prev_redshift=%f perturbed_field_redshift=%f", redshift, prev_redshift, perturbed_field_redshift);
 
     init_ps(); //Must be always initialised due to the strange way Ionisationbox.c expects some initialisation
 
