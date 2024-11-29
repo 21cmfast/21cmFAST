@@ -1,0 +1,167 @@
+#include <cuda_runtime.h>
+
+#include <math.h>
+// #include <stdio.h>
+
+// #include "InputParameters.h"
+#include "interpolation_types.h"
+
+#include "interp_tables.cuh"
+
+// define relevant variables stored in constant memory
+__constant__ RGTable1D d_Nhalo_table;
+__constant__ RGTable1D d_Mcoll_table;
+__constant__ RGTable2D d_Nhalo_inv_table;
+
+// specify a max size of yarr
+const int device_n_max = 200;
+__constant__ double d_Nhalo_yarr[device_n_max];
+__constant__ double d_Mcoll_yarr[device_n_max];
+
+
+// copy tables to gpu
+void copyTablesToDevice(RGTable1D h_Nhalo_table, RGTable1D h_Mcoll_table, RGTable2D h_Nhalo_inv_table)
+{
+    // copy Nhalo table and its member y_arr 
+    size_t size_Nhalo_yarr = sizeof(double) * h_Nhalo_table.n_bin;
+    // get a copy of the Nhalo table
+    RGTable1D h_Nhalo_table_to_device = h_Nhalo_table;
+    if (h_Nhalo_table.n_bin > device_n_max){
+        // double *d_Nhalo_yarr;
+        // todo: declare device yarr (not using constant)
+        return;
+    }
+    else{
+        cudaMemcpyToSymbol(d_Nhalo_yarr, h_Nhalo_table.y_arr, size_Nhalo_yarr, 0, cudaMemcpyHostToDevice);
+        
+        h_Nhalo_table_to_device.y_arr = d_Nhalo_yarr;
+    }
+    cudaMemcpyToSymbol(d_Nhalo_table, &h_Nhalo_table_to_device, sizeof(RGTable1D), 0, cudaMemcpyHostToDevice);
+
+    // copy Mcoll table and its member y_arr
+    size_t size_Mcoll_yarr = sizeof(double) * h_Mcoll_table.n_bin;
+    // get a copy of Mcoll table
+    RGTable1D h_Mcoll_table_to_device = h_Mcoll_table;
+    if (h_Mcoll_table.n_bin > device_n_max){
+        return;
+    }
+    else{
+        cudaMemcpyToSymbol(d_Mcoll_yarr, h_Mcoll_table.y_arr, size_Mcoll_yarr, 0, cudaMemcpyHostToDevice);
+        h_Mcoll_table_to_device.y_arr = d_Mcoll_yarr;
+    }
+    cudaMemcpyToSymbol(d_Mcoll_table, &h_Mcoll_table_to_device, sizeof(RGTable1D), 0, cudaMemcpyHostToDevice);
+
+    // copy Nhalo_inv table and its member flatten_data
+    size_t size_Nhalo_inv_flatten_data = sizeof(double) * h_Nhalo_inv_table.nx_bin * h_Nhalo_inv_table.ny_bin;
+    // get a copy of Nhalo_inv_table
+    RGTable2D h_Nhalo_inv_table_to_device = h_Nhalo_inv_table;
+    
+    double *d_Nhalo_flatten_data;
+    cudaMalloc(&d_Nhalo_flatten_data, size_Nhalo_inv_flatten_data);
+    cudaMemcpy(d_Nhalo_flatten_data, h_Nhalo_inv_table.flatten_data, size_Nhalo_inv_flatten_data, cudaMemcpyHostToDevice);
+
+    double **d_z_arr, **z_arr_to_device;
+    size_t size_z_arr = sizeof(double *) * h_Nhalo_inv_table.nx_bin;
+    cudaHostAlloc((void **)&z_arr_to_device, size_z_arr, cudaHostAllocDefault);
+    // get the address of flatten data on the device
+    int i;
+    for (i=0;i<h_Nhalo_inv_table.nx_bin;i++){
+        z_arr_to_device[i] = &d_Nhalo_flatten_data[i * h_Nhalo_inv_table.ny_bin];
+    }
+
+    cudaMalloc(&d_z_arr, size_z_arr);
+    cudaMemcpy(d_z_arr, z_arr_to_device, size_z_arr, cudaMemcpyHostToDevice);
+
+    h_Nhalo_inv_table_to_device.flatten_data = d_Nhalo_flatten_data;
+    h_Nhalo_inv_table_to_device.z_arr = d_z_arr;
+
+    cudaMemcpyToSymbol(d_Nhalo_inv_table, &h_Nhalo_inv_table_to_device, sizeof(RGTable2D), 0, cudaMemcpyHostToDevice);
+
+    
+}
+
+// assume use interpolation table is true at this stage, add the check later
+// todo: double check whether I should use float or double or x, it's been mixed used in c code
+__device__ double EvaluateSigma(float x, double x_min, double x_width, float *y_arr, int n_bin)
+{
+    // using log units to make the fast option faster and the slow option slower
+    // return EvaluateRGTable1D_f(lnM, table);
+    int idx = (int)floor((x - x_min) / x_width);
+    if (idx < 0 || idx >= n_bin - 1)
+    {
+        return 0.0; // Out-of-bounds handling
+    }
+
+    double table_val = x_min + x_width * (float)idx;
+    double interp_point = (x - table_val) / x_width;
+
+    return y_arr[idx] * (1 - interp_point) + y_arr[idx + 1] * (interp_point);
+}
+
+// __device__ double EvaluateNhaloInv(double condition, double prob, double x_min, double x_width, double y_width, double **z_arr, double MIN_LOGPROB)
+// {
+//     if (prob == 0.)
+//         return 1.; // q == 1 -> condition mass
+//     double lnp = log(prob);
+//     if (lnp < user_params_global->MIN_LOGPROB)
+//         return extrapolate_dNdM_inverse(condition, lnp, x_min, x_width, y_width, z_arr, MIN_LOGPROB);
+//     return EvaluateRGTable2D(condition, lnp, &Nhalo_inv_table);
+// }
+
+// __device__ double extrapolate_dNdM_inverse(double condition, double lnp)
+// {
+//     double x_min = d_Nhalo_inv_table.x_min;
+//     double x_width = d_Nhalo_inv_table.x_width;
+//     int x_idx = (int)floor((condition - x_min) / x_width);
+//     double x_table = x_min + x_idx * x_width;
+//     double interp_point_x = (condition - x_table) / x_width;
+
+//     double extrap_point_y = (lnp - user_params_global->MIN_LOGPROB) / d_Nhalo_inv_table.y_width;
+
+//     // find the log-mass at the edge of the table for this condition
+//     double xlimit = d_Nhalo_inv_table.z_arr[x_idx][0] * (interp_point_x) + d_Nhalo_inv_table.z_arr[x_idx + 1][0] * (1 - interp_point_x);
+//     double xlimit_m1 = d_Nhalo_inv_table.z_arr[x_idx][1] * (interp_point_x) + d_Nhalo_inv_table.z_arr[x_idx + 1][1] * (1 - interp_point_x);
+
+//     double result = xlimit + (xlimit_m1 - xlimit) * (extrap_point_y);
+
+//     return result;
+// }
+
+// double EvaluateNhaloInv(double condition, double prob)
+// {
+//     if (prob == 0.)
+//         return 1.; // q == 1 -> condition mass
+//     double lnp = log(prob);
+//     if (lnp < user_params_global->MIN_LOGPROB)
+//         return extrapolate_dNdM_inverse(condition, lnp);
+//     return EvaluateRGTable2D(condition, lnp, &Nhalo_inv_table);
+// }
+
+// __device__ double extrapolate_dNdM_inverse(double condition, double lnp, double x_min, double x_width, double y_width, double **z_arr, double MIN_LOGPROB)
+// {
+//     int x_idx = (int)floor((condition - x_min) / x_width);
+//     double x_table = x_min + x_idx * x_width;
+//     double interp_point_x = (condition - x_table) / x_width;
+
+//     double extrap_point_y = (lnp - MIN_LOGPROB) / y_width;
+
+//     // find the log-mass at the edge of the table for this condition
+//     double xlimit = z_arr[x_idx][0] * (interp_point_x) + z_arr[x_idx + 1][0] * (1 - interp_point_x);
+//     double xlimit_m1 = z_arr[x_idx][1] * (interp_point_x) + z_arr[x_idx + 1][1] * (1 - interp_point_x);
+
+//     double result = xlimit + (xlimit_m1 - xlimit) * (extrap_point_y);
+
+//     return result;
+// }
+
+// __device__ double EvaluateMcoll()
+// {
+//     // placeholder
+//     return 0.0;
+// }
+
+// __device__ double EvaluateNhalo()
+// {
+//     // placeholder
+//     return 0.0;
+// }
