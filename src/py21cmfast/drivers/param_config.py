@@ -56,7 +56,7 @@ def get_logspaced_redshifts(min_redshift: float, z_step_factor: float, zmax: flo
 
 # node_redshifts takes either a list of floats OR the string "logspaced"
 def _node_redshifts_converter(value, self):
-    if value == "logspaced":
+    if isinstance(value, str) and value == "logspaced":
         # if "logspaced" is passed, set logspaced nodes
         value = get_logspaced_redshifts(
             min_redshift=self._min_redshift,
