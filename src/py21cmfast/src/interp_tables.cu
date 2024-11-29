@@ -7,6 +7,9 @@
 #include "interpolation_types.h"
 
 #include "interp_tables.cuh"
+#include "DeviceConstants.cuh"
+
+#include "interpolation.cu"
 
 // define relevant variables stored in constant memory
 __constant__ RGTable1D d_Nhalo_table;
@@ -33,8 +36,11 @@ void copyTablesToDevice(RGTable1D h_Nhalo_table, RGTable1D h_Mcoll_table, RGTabl
     }
     else{
         cudaMemcpyToSymbol(d_Nhalo_yarr, h_Nhalo_table.y_arr, size_Nhalo_yarr, 0, cudaMemcpyHostToDevice);
-        
-        h_Nhalo_table_to_device.y_arr = d_Nhalo_yarr;
+        // get memory address on the device
+        double *d_Nhalo_yarr_device;
+        cudaGetSymbolAddress((void **)&d_Nhalo_yarr_device, d_Nhalo_yarr);
+
+        h_Nhalo_table_to_device.y_arr = d_Nhalo_yarr_device;
     }
     cudaMemcpyToSymbol(d_Nhalo_table, &h_Nhalo_table_to_device, sizeof(RGTable1D), 0, cudaMemcpyHostToDevice);
 
@@ -47,7 +53,11 @@ void copyTablesToDevice(RGTable1D h_Nhalo_table, RGTable1D h_Mcoll_table, RGTabl
     }
     else{
         cudaMemcpyToSymbol(d_Mcoll_yarr, h_Mcoll_table.y_arr, size_Mcoll_yarr, 0, cudaMemcpyHostToDevice);
-        h_Mcoll_table_to_device.y_arr = d_Mcoll_yarr;
+        // get memory address on the device
+        double *d_Mcoll_yarr_device;
+        cudaGetSymbolAddress((void **)&d_Mcoll_yarr_device, d_Mcoll_yarr);
+
+        h_Mcoll_table_to_device.y_arr = d_Mcoll_yarr_device;
     }
     cudaMemcpyToSymbol(d_Mcoll_table, &h_Mcoll_table_to_device, sizeof(RGTable1D), 0, cudaMemcpyHostToDevice);
 
@@ -98,70 +108,49 @@ __device__ double EvaluateSigma(float x, double x_min, double x_width, float *y_
     return y_arr[idx] * (1 - interp_point) + y_arr[idx + 1] * (interp_point);
 }
 
-// __device__ double EvaluateNhaloInv(double condition, double prob, double x_min, double x_width, double y_width, double **z_arr, double MIN_LOGPROB)
-// {
-//     if (prob == 0.)
-//         return 1.; // q == 1 -> condition mass
-//     double lnp = log(prob);
-//     if (lnp < user_params_global->MIN_LOGPROB)
-//         return extrapolate_dNdM_inverse(condition, lnp, x_min, x_width, y_width, z_arr, MIN_LOGPROB);
-//     return EvaluateRGTable2D(condition, lnp, &Nhalo_inv_table);
-// }
+__device__ double extrapolate_dNdM_inverse(double condition, double lnp)
+{
+    double x_min = d_Nhalo_inv_table.x_min;
+    double x_width = d_Nhalo_inv_table.x_width;
+    // printf("condition: %f; lnp: %f \n", condition, lnp); //tmp
+    int x_idx = (int)floor((condition - x_min) / x_width);
+    double x_table = x_min + x_idx * x_width;
+    double interp_point_x = (condition - x_table) / x_width;
 
-// __device__ double extrapolate_dNdM_inverse(double condition, double lnp)
-// {
-//     double x_min = d_Nhalo_inv_table.x_min;
-//     double x_width = d_Nhalo_inv_table.x_width;
-//     int x_idx = (int)floor((condition - x_min) / x_width);
-//     double x_table = x_min + x_idx * x_width;
-//     double interp_point_x = (condition - x_table) / x_width;
+    double extrap_point_y = (lnp - d_user_params.MIN_LOGPROB) / d_Nhalo_inv_table.y_width;
 
-//     double extrap_point_y = (lnp - user_params_global->MIN_LOGPROB) / d_Nhalo_inv_table.y_width;
+    // find the log-mass at the edge of the table for this condition
+    double xlimit = d_Nhalo_inv_table.z_arr[x_idx][0] * (interp_point_x) + d_Nhalo_inv_table.z_arr[x_idx + 1][0] * (1 - interp_point_x);
+    double xlimit_m1 = d_Nhalo_inv_table.z_arr[x_idx][1] * (interp_point_x) + d_Nhalo_inv_table.z_arr[x_idx + 1][1] * (1 - interp_point_x);
 
-//     // find the log-mass at the edge of the table for this condition
-//     double xlimit = d_Nhalo_inv_table.z_arr[x_idx][0] * (interp_point_x) + d_Nhalo_inv_table.z_arr[x_idx + 1][0] * (1 - interp_point_x);
-//     double xlimit_m1 = d_Nhalo_inv_table.z_arr[x_idx][1] * (interp_point_x) + d_Nhalo_inv_table.z_arr[x_idx + 1][1] * (1 - interp_point_x);
+    double result = xlimit + (xlimit_m1 - xlimit) * (extrap_point_y);
 
-//     double result = xlimit + (xlimit_m1 - xlimit) * (extrap_point_y);
+    return result;
+}
 
-//     return result;
-// }
+__device__ double EvaluateNhaloInv(double condition, double prob)
+{
+    if (prob == 0.)
+        return 1.; // q == 1 -> condition mass
+    double lnp = log(prob);
+    if (lnp < d_user_params.MIN_LOGPROB)
+        return extrapolate_dNdM_inverse(condition, lnp);
+    return EvaluateRGTable2D(condition, lnp, &d_Nhalo_inv_table);
+}
 
-// double EvaluateNhaloInv(double condition, double prob)
-// {
-//     if (prob == 0.)
-//         return 1.; // q == 1 -> condition mass
-//     double lnp = log(prob);
-//     if (lnp < user_params_global->MIN_LOGPROB)
-//         return extrapolate_dNdM_inverse(condition, lnp);
-//     return EvaluateRGTable2D(condition, lnp, &Nhalo_inv_table);
-// }
+__device__ double EvaluateMcoll(double condition, double growthf, double lnMmin, double lnMmax, double M_cond, double sigma, double delta)
+{
+    if (d_user_params.USE_INTERPOLATION_TABLES)
+        return EvaluateRGTable1D(condition, &d_Mcoll_table);
+    // todo: implement Mcoll_Conditional
+    return 0;
+}
 
-// __device__ double extrapolate_dNdM_inverse(double condition, double lnp, double x_min, double x_width, double y_width, double **z_arr, double MIN_LOGPROB)
-// {
-//     int x_idx = (int)floor((condition - x_min) / x_width);
-//     double x_table = x_min + x_idx * x_width;
-//     double interp_point_x = (condition - x_table) / x_width;
+__device__ double EvaluateNhalo(double condition, double growthf, double lnMmin, double lnMmax, double M_cond, double sigma, double delta)
+{
+    if (d_user_params.USE_INTERPOLATION_TABLES)
+        return EvaluateRGTable1D(condition, &d_Nhalo_table);
+    // todo: implement Nhalo_Conditional
+    return 0;
+}
 
-//     double extrap_point_y = (lnp - MIN_LOGPROB) / y_width;
-
-//     // find the log-mass at the edge of the table for this condition
-//     double xlimit = z_arr[x_idx][0] * (interp_point_x) + z_arr[x_idx + 1][0] * (1 - interp_point_x);
-//     double xlimit_m1 = z_arr[x_idx][1] * (interp_point_x) + z_arr[x_idx + 1][1] * (1 - interp_point_x);
-
-//     double result = xlimit + (xlimit_m1 - xlimit) * (extrap_point_y);
-
-//     return result;
-// }
-
-// __device__ double EvaluateMcoll()
-// {
-//     // placeholder
-//     return 0.0;
-// }
-
-// __device__ double EvaluateNhalo()
-// {
-//     // placeholder
-//     return 0.0;
-// }
