@@ -30,11 +30,11 @@ from py21cmfast import (
     compute_initial_conditions,
     config,
     determine_halo_list,
+    exhaust_lightcone,
     global_params,
     perturb_field,
     perturb_halo_list,
     run_coeval,
-    run_lightcone,
 )
 from py21cmfast.lightcones import RectilinearLightconer
 
@@ -355,7 +355,7 @@ def get_all_options_ics(**kwargs):
 
 
 def produce_coeval_power_spectra(redshift, **kwargs):
-    options = get_all_options(redshift, **kwargs)
+    options = get_all_options_struct(redshift, **kwargs)
     print("----- OPTIONS USED -----")
     print(options)
     print("------------------------")
@@ -381,12 +381,18 @@ def produce_lc_power_spectra(redshift, **kwargs):
 
     # NOTE: this is here only so that we get the same answer as previous versions,
     #       which have a bug where the max_redshift gets set higher than it needs to be.
-    flag_options = FlagOptions(options.pop("flag_options"))
+    flag_options = options["inputs"].flag_options
     if flag_options.INHOMO_RECO or flag_options.USE_TS_FLUCT:
         max_redshift = options.get("z_heat_max", global_params.Z_HEAT_MAX)
-        del options["out_redshifts"]
     else:
-        max_redshift = options.pop("out_redshifts") + 2
+        max_redshift = options["out_redshifts"] + 2
+
+    # convert options to lightcone version
+    options["inputs"] = options["inputs"].clone(
+        min_redshift=options.pop("out_redshifts"),
+        max_redshift=max_redshift,
+        node_redshifts="logspaced",
+    )
 
     lcn = RectilinearLightconer.with_equal_cdist_slices(
         min_redshift=redshift,
@@ -399,14 +405,13 @@ def produce_lc_power_spectra(redshift, **kwargs):
                 or k not in ("Ts_box", "x_e_box", "Tk_box", "J_21_LW_box")
             )
         ],
-        resolution=UserParams(options["user_params"]).cell_size,
+        resolution=options["inputs"].user_params.cell_size,
     )
 
     with config.use(ignore_R_BUBBLE_MAX_error=True):
-        lightcone = run_lightcone(
+        _, _, _, lightcone = exhaust_lightcone(
             lightconer=lcn,
             write=write_ics_only_hook,
-            flag_options=flag_options,
             **options,
         )
 
@@ -414,7 +419,8 @@ def produce_lc_power_spectra(redshift, **kwargs):
     for field in LIGHTCONE_FIELDS:
         if hasattr(lightcone, field):
             p[field], k = get_power(
-                getattr(lightcone, field), boxlength=lightcone.lightcone_dimensions
+                getattr(lightcone, field),
+                boxlength=lightcone.lightcone_dimensions,
             )
 
     return k, p, lightcone
