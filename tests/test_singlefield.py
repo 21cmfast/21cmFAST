@@ -261,7 +261,7 @@ def test_using_cached_halo_field(ic, test_direc, default_input_struct):
     Prior to v3.1 this was segfaulting, so this test ensure that this behaviour does
     not regress.
     """
-    inputs = default_input_struct.evolve_inputstructs(USE_HALO_FIELD=True)
+    inputs = default_input_struct.evolve_input_structs(USE_HALO_FIELD=True)
     halo_field = p21c.determine_halo_list(
         redshift=10.0,
         initial_conditions=ic,
@@ -306,7 +306,7 @@ def test_first_box(default_input_struct_ts):
     This test was breaking before we set the z_heat_max box to actually get
     the correct dimensions (before it was treated as a dummy).
     """
-    inputs = default_input_struct_ts.evolve_inputstructs(
+    inputs = default_input_struct_ts.evolve_input_structs(
         HII_DIM=default_input_struct_ts.user_params.HII_DIM + 1
     )
     initial_conditions = p21c.compute_initial_conditions(

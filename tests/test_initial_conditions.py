@@ -37,7 +37,7 @@ def test_box_shape(ic):
 
 def test_modified_cosmo(ic, default_input_struct):
     """Test using a modified cosmology"""
-    inputs = default_input_struct.evolve_inputstructs(SIGMA_8=0.9)
+    inputs = default_input_struct.evolve_input_structs(SIGMA_8=0.9)
     ic2 = p21c.compute_initial_conditions(inputs=inputs)
 
     assert ic2.cosmo_params != ic.cosmo_params
@@ -47,7 +47,7 @@ def test_modified_cosmo(ic, default_input_struct):
 
 def test_transfer_function(ic, default_input_struct):
     """Test using a modified transfer function"""
-    inputs = default_input_struct.evolve_inputstructs(POWER_SPECTRUM="CLASS")
+    inputs = default_input_struct.evolve_input_structs(POWER_SPECTRUM="CLASS")
     ic2 = p21c.compute_initial_conditions(
         inputs=inputs,
     )

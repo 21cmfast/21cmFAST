@@ -330,8 +330,8 @@ class AngularLightcone(LightCone):
 
 def setup_lightcone_instance(
     lightconer: Lightconer,
-    scrollz,
-    inputs,
+    scrollz: Sequence[float],
+    inputs: InputParameters,
     global_quantities: Sequence[str],
     lightcone_filename: Path | None = None,
 ):

@@ -312,7 +312,7 @@ def calibrate_photon_cons(
 
     with global_params.use(**global_kwargs):
         # Create a new astro_params and flag_options just for the photon_cons correction
-        inputs_calibration = inputs.evolve_inputstructs(
+        inputs_calibration = inputs.evolve_input_structs(
             USE_TS_FLUCT=False,
             INHOMO_RECO=False,
             USE_MINI_HALOS=False,

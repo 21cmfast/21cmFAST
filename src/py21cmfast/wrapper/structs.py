@@ -134,7 +134,7 @@ class InputStruct:
         if isinstance(x, dict):
             return cls(**x, **kwargs)
         elif isinstance(x, InputStruct):
-            return x  # x.clone(**kwargs)????
+            return x.clone(**kwargs)
         elif x is None:
             return cls(**kwargs)
         else:

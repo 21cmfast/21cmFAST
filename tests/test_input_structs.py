@@ -52,7 +52,14 @@ def test_constructed_from_itself(c):
     c3 = CosmoParams.new(c)
 
     assert c == c3
-    assert c is c3
+    assert c is not c3
+
+
+def test_altered_construction(c):
+    c3 = CosmoParams.new(c, SIGMA_8=0.7)
+
+    assert c != c3
+    assert c3.SIGMA_8 == 0.7
 
 
 def test_dynamic_variables():
@@ -250,7 +257,7 @@ def test_inputstruct_init(default_seed):
     default_struct = InputParameters.from_defaults(random_seed=default_seed)
     altered_struct = InputParameters.from_defaults(
         random_seed=default_seed
-    ).evolve_inputstructs(BOX_LEN=30)
+    ).evolve_input_structs(BOX_LEN=30)
 
     assert default_struct.cosmo_params == CosmoParams.new()
     assert default_struct.user_params == UserParams.new()

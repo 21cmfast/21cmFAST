@@ -279,43 +279,20 @@ class InputParameters:
             random_seed=self.random_seed,
         )
 
-    def evolve_inputstructs(self, **kwargs):
-        """Return an altered clone of the `InputParamters` structs.
+    def evolve_input_structs(self, **kwargs):
+        """Return an altered clone of the `InputParameters` structs.
 
         Unlike clone(), this function takes fields from the constituent `InputStruct` classes
         and only overwrites those sub-fields instead of the entire field
         """
-        cosmo_params = self.cosmo_params.clone(
-            **{
-                k: v
-                for k, v in kwargs.items()
-                if k in self.cosmo_params.asdict().keys()
-            }
-        )
-        user_params = self.user_params.clone(
-            **{k: v for k, v in kwargs.items() if k in self.user_params.asdict().keys()}
-        )
-        astro_params = self.astro_params.clone(
-            **{
-                k: v
-                for k, v in kwargs.items()
-                if k in self.astro_params.asdict().keys()
-            }
-        )
-        flag_options = self.flag_options.clone(
-            **{
-                k: v
-                for k, v in kwargs.items()
-                if k in self.flag_options.asdict().keys()
-            }
-        )
+        struct_args = {}
+        for inp_type in ("cosmo_params", "user_params", "astro_params", "flag_options"):
+            obj = getattr(self, inp_type)
+            struct_args[inp_type] = obj.clone(
+                **{k: v for k, v in kwargs.items() if hasattr(obj, k)}
+            )
 
-        return self.clone(
-            cosmo_params=cosmo_params,
-            user_params=user_params,
-            astro_params=astro_params,
-            flag_options=flag_options,
-        )
+        return self.clone(**struct_args)
 
     @classmethod
     def from_template(cls, name, **kwargs):
@@ -329,7 +306,7 @@ class InputParameters:
         )
 
     @classmethod
-    def from_inputstructs(
+    def from_input_structs(
         cls,
         cosmo_params: CosmoParams,
         user_params: UserParams,
@@ -384,7 +361,7 @@ class InputParameters:
 
 
 def check_redshift_consistency(redshift, output_structs):
-    """Check the redshifts between provided OutputStruct objects and an InputParameters instance."""
+    """Make sure all given OutputStruct objects exist at the same given redshift."""
     for struct in output_structs:
         if struct is not None and struct.redshift != redshift:
             raise ValueError(
