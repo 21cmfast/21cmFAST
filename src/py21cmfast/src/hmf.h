@@ -29,6 +29,12 @@ struct parameters_gsl_MF_integrals{
     double alpha_esc;
     double Mlim_esc;
 
+    //log-versions
+    double ln_n_esc;
+    double ln_l_esc;
+    double ln_n_star;
+    double ln_l_star;
+
     //Minihalo additions
     double Mturn_upper;
 };

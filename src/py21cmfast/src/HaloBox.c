@@ -19,50 +19,9 @@
 #include "thermochem.h"
 #include "hmf.h"
 #include "photoncons.h"
+#include "scaling_relations.h"
 
 #include "HaloBox.h"
-
-//Parameters for the halo box calculations
-//  These are just the values which are calculated at the beginning of ComputeHaloBox and don't change
-//  using this reduces the use of the global parameter structs and allows fewer exp/log unit changes
-struct HaloBoxConstants{
-    double redshift;
-    bool fix_mean;
-    bool scaling_median;
-
-    double fstar_10;
-    double alpha_star;
-    double sigma_star;
-
-    double alpha_upper;
-    double pivot_upper;
-    double upper_pivot_ratio;
-
-    double fstar_7;
-    double alpha_star_mini;
-
-    double t_h;
-    double t_star;
-    double sigma_sfr_lim;
-    double sigma_sfr_idx;
-
-    double l_x;
-    double l_x_mini;
-    double sigma_xray;
-
-    double fesc_10;
-    double alpha_esc;
-    double fesc_7;
-
-    double vcb_norel;
-    double mturn_a_nofb;
-    double mturn_m_nofb;
-
-    double Mlim_Fstar;
-    double Mlim_Fesc;
-    double Mlim_Fstar_mini;
-    double Mlim_Fesc_mini;
-};
 
 //struct holding each halo property we currently need.
 //This is only used for both averages over the box/catalogues
@@ -82,249 +41,6 @@ struct HaloProperties{
     double m_turn_reion;
 };
 
-void set_hbox_constants(double redshift, AstroParams *astro_params, FlagOptions *flag_options, struct HaloBoxConstants *consts){
-    consts->redshift = redshift;
-
-    //Set on for the fixed grid case since we are missing halos above the cell mass
-    consts->fix_mean = flag_options->FIXED_HALO_GRIDS;
-    //whether to fix *integrated* (not sampled) galaxy properties to the expected mean
-    consts->scaling_median = flag_options->HALO_SCALING_RELATIONS_MEDIAN;
-
-    consts->fstar_10 = astro_params->F_STAR10;
-    consts->alpha_star = astro_params->ALPHA_STAR;
-    consts->sigma_star = astro_params->SIGMA_STAR;
-
-    consts->alpha_upper = astro_params->UPPER_STELLAR_TURNOVER_INDEX;
-    consts->pivot_upper = astro_params->UPPER_STELLAR_TURNOVER_MASS;
-    consts->upper_pivot_ratio = pow(astro_params->UPPER_STELLAR_TURNOVER_MASS/1e10,astro_params->ALPHA_STAR);
-
-    consts->fstar_7 = astro_params->F_STAR7_MINI;
-    consts->alpha_star_mini = astro_params->ALPHA_STAR_MINI;
-
-    consts->t_h = t_hubble(redshift);
-    consts->t_star = astro_params->t_STAR;
-    consts->sigma_sfr_lim = astro_params->SIGMA_SFR_LIM;
-    consts->sigma_sfr_idx = astro_params->SIGMA_SFR_INDEX;
-
-    consts->l_x = astro_params->L_X * 1e-38; //setting units to 1e38 erg s -1 so we can store in float
-    consts->l_x_mini = astro_params->L_X_MINI * 1e-38;
-    consts->sigma_xray = astro_params->SIGMA_LX;
-
-    consts->alpha_esc = astro_params->ALPHA_ESC;
-    consts->fesc_10= astro_params->F_ESC10;
-    consts->fesc_7 = astro_params->F_ESC7_MINI;
-
-    if(flag_options->PHOTON_CONS_TYPE == 2)
-        consts->alpha_esc = get_fesc_fit(redshift);
-    else if(flag_options->PHOTON_CONS_TYPE == 3)
-        consts->fesc_10 = get_fesc_fit(redshift);
-
-    consts->mturn_a_nofb = flag_options->USE_MINI_HALOS ? atomic_cooling_threshold(redshift) : astro_params->M_TURN;
-
-    consts->mturn_m_nofb = 0.;
-    if(flag_options->USE_MINI_HALOS){
-        consts->vcb_norel = flag_options->FIX_VCB_AVG ? global_params.VAVG : 0;
-        consts->mturn_m_nofb = lyman_werner_threshold(redshift, 0., consts->vcb_norel, astro_params);
-    }
-
-    if(flag_options->FIXED_HALO_GRIDS || user_params_global->AVG_BELOW_SAMPLER){
-        consts->Mlim_Fstar = Mass_limit_bisection(global_params.M_MIN_INTEGRAL, global_params.M_MAX_INTEGRAL, consts->alpha_star, consts->fstar_10);
-        consts->Mlim_Fesc = Mass_limit_bisection(global_params.M_MIN_INTEGRAL, global_params.M_MAX_INTEGRAL, consts->alpha_esc, consts->fesc_10);
-
-        if(flag_options->USE_MINI_HALOS){
-            consts->Mlim_Fstar_mini = Mass_limit_bisection(global_params.M_MIN_INTEGRAL, global_params.M_MAX_INTEGRAL, consts->alpha_star_mini,
-                                                            consts->fstar_7 * pow(1e3,consts->alpha_star_mini));
-            consts->Mlim_Fesc_mini = Mass_limit_bisection(global_params.M_MIN_INTEGRAL, global_params.M_MAX_INTEGRAL, consts->alpha_esc,
-                                                            consts->fesc_7 * pow(1e3,consts->alpha_esc));
-        }
-    }
-}
-
-//The mean Lx_over_SFR given by Lehmer+2021, by integrating analyitically over their double power-law + exponential Luminosity function
-//NOTE: this relation is fit to low-z, and there is a PEAK of Lx/SFR around 10% solar due to the critical L term
-//NOTE: this relation currently also has no normalisation, and is fixed to the Lehmer values for now
-double lx_on_sfr_Lehmer(double metallicity){
-    double l10z = log10(metallicity);
-
-    //LF parameters from Lehmer+2021
-    double slope_low = 1.74;
-    double slope_high = 1.16 + 1.34*l10z;
-    double xray_norm = 1.29;
-    double l10break_L = 38.54 - 38.; //the -38 written explicitly for clarity on our units
-    double l10crit_L = 39.98 - 38. + 0.6*l10z;
-    double L_ratio = pow(10,l10break_L - l10crit_L);
-
-    //The double power-law + exponential integrates to an upper and lower incomplete Gamma function
-    //since the slope is < 2 we don't need to set a lower limit, but this can be done by replacing
-    //gamma(2-y_low) with gamma_inc(2-y_low,L_lower/L_crit)
-    double prefactor_low = pow(10,l10crit_L*(2-slope_low));
-    double prefactor_high = pow(10,l10crit_L*(2-slope_high) + l10break_L*(slope_high-slope_low));
-    double gamma_low = gsl_sf_gamma(2-slope_low) - gsl_sf_gamma_inc(2-slope_low,L_ratio);
-    double gamma_high = gsl_sf_gamma_inc(2-slope_high,L_ratio);
-
-    double lx_over_sfr = xray_norm*(prefactor_low*gamma_low + prefactor_high*gamma_high);
-
-    return lx_over_sfr;
-}
-
-//double power-law in Z with the low-metallicity PL fixed as constant
-double lx_on_sfr_doublePL(double metallicity, double lx_constant){
-    double z_index = -0.64; //power-law index of LX/SFR at high-z
-    double z_pivot = 0.05; // Z at which LX/SFR == constant/2
-    double z_ratio = metallicity/z_pivot;
-
-    double lx_over_sfr = lx_constant / (pow(z_ratio,-z_index) + 1.);
-    return lx_over_sfr;
-}
-
-//first order power law Lx (e.g Kaur+22, Nikolic+24)
-//here the constant defines the value at 1 Zsun and 1 Msun yr-1
-double lx_on_sfr_PL_Kaur(double sfr, double metallicity, double lx_constant){
-    //Hardcoded for now (except the lx normalisation and the scatter): 3 extra fit parameters in the equation
-    //taking values from Kaur+22, constant factors controlled by astro_params->L_X
-    double sfr_index = 0.03;
-    double z_index = -0.64;
-    double cross_index = 0.0;
-    double l10z = log10(metallicity);
-
-    double lx_over_sfr = (cross_index*l10z + sfr_index)*log10(sfr*SperYR) + z_index*l10z;
-    return pow(10,lx_over_sfr) * lx_constant;
-}
-
-//Schechter function from Kaur+22
-//Here the constant defines the value minus 1 at the turnover Z
-double lx_on_sfr_Schechter(double metallicity, double lx_constant){
-    //Hardcoded for now (except the lx normalisation and the scatter): 3 extra fit parameters in the equation
-    //taking values from Kaur+22, constant factors controlled by astro_params->L_X
-    double z_turn = 8e-3/0.02; //convert to solar
-    double logz_index = 0.3;
-    double l10z = log10(metallicity/z_turn);
-
-    double lx_over_sfr = logz_index*l10z - metallicity/z_turn;
-    return pow(10,lx_over_sfr) * lx_constant;
-}
-
-double get_lx_on_sfr(double sfr, double metallicity, double lx_constant){
-    //Future TODO: experiment more with these models and parameterise properly
-    // return lx_on_sfr_Lehmer(metallicity);
-    // return lx_on_sfr_Schechter(metallicity, lx_constant);
-    // return lx_on_sfr_PL_Kaur(sfr,metallicity, lx_constant);
-    //HACK: new/old model switch with upperstellar flag
-    if(flag_options_global->USE_UPPER_STELLAR_TURNOVER)
-        return lx_on_sfr_doublePL(metallicity, lx_constant);
-    return lx_constant;
-}
-
-void get_halo_stellarmass(double halo_mass, double mturn_acg, double mturn_mcg, double star_rng,
-                             struct HaloBoxConstants *consts, double *star_acg, double *star_mcg){
-    //low-mass ACG power-law parameters
-    double f_10 = consts->fstar_10;
-    double f_a = consts->alpha_star;
-    double sigma_star = consts->sigma_star;
-
-    //high-mass ACG power-law parameters
-    double fu_a = consts->alpha_upper;
-    double fu_p = consts->pivot_upper;
-
-    //MCG parameters
-    double f_7 = consts->fstar_7;
-    double f_a_mini = consts->alpha_star_mini;
-
-    //intermediates
-    double fstar_mean;
-    double f_sample, f_sample_mini;
-    double sm_sample,sm_sample_mini;
-
-    double baryon_ratio = cosmo_params_global->OMb / cosmo_params_global->OMm;
-    //adjustment to the mean for lognormal scatter
-    double stoc_adjustment_term = consts->scaling_median ? 0 : sigma_star * sigma_star / 2.;
-
-    //We don't want an upturn even with a negative ALPHA_STAR
-    if(flag_options_global->USE_UPPER_STELLAR_TURNOVER && (f_a > fu_a)){
-        fstar_mean = consts->upper_pivot_ratio / (pow(halo_mass/fu_p,-f_a)+pow(halo_mass/fu_p,-fu_a));
-    }
-    else{
-        fstar_mean = pow(halo_mass/1e10,f_a); //PL term
-    }
-    f_sample = f_10 * fstar_mean * exp(-mturn_acg/halo_mass + star_rng*sigma_star - stoc_adjustment_term); //1e10 normalisation of stellar mass
-    if(f_sample > 1.) f_sample = 1.;
-
-    sm_sample = f_sample * halo_mass * baryon_ratio;
-    *star_acg = sm_sample;
-
-    if(!flag_options_global->USE_MINI_HALOS){
-        *star_mcg = 0.;
-        return;
-    }
-
-    f_sample_mini = pow(halo_mass/1e7,f_a_mini) * f_7;
-    f_sample_mini *= exp(-mturn_mcg/halo_mass - halo_mass/mturn_acg + star_rng*sigma_star - stoc_adjustment_term);
-    if(f_sample_mini > 1.) f_sample_mini = 1.;
-
-    sm_sample_mini = f_sample_mini * halo_mass * baryon_ratio;
-    *star_mcg = sm_sample_mini;
-}
-
-void get_halo_sfr(double stellar_mass, double stellar_mass_mini, double sfr_rng,
-                     struct HaloBoxConstants *consts, double *sfr, double *sfr_mini){
-    double sfr_mean, sfr_mean_mini;
-    double sfr_sample, sfr_sample_mini;
-
-    double sigma_sfr_lim = consts->sigma_sfr_lim;
-    double sigma_sfr_idx = consts->sigma_sfr_idx;
-
-    //set the scatter based on the total Stellar mass
-    //We use the total stellar mass (MCG + ACG) NOTE: it might be better to separate later
-    double sigma_sfr=0.;
-
-    if(sigma_sfr_lim > 0.){
-        sigma_sfr = sigma_sfr_idx * log10((stellar_mass+stellar_mass_mini)/1e10) + sigma_sfr_lim;
-        if(sigma_sfr < sigma_sfr_lim) sigma_sfr = sigma_sfr_lim;
-    }
-    sfr_mean = stellar_mass / (consts->t_star * consts->t_h);
-
-    //adjustment to the mean for lognormal scatter
-    double stoc_adjustment_term = consts->scaling_median ? 0 : sigma_sfr * sigma_sfr / 2.;
-    sfr_sample = sfr_mean * exp(sfr_rng*sigma_sfr - stoc_adjustment_term);
-    *sfr = sfr_sample;
-
-    if(!flag_options_global->USE_MINI_HALOS){
-        *sfr_mini = 0.;
-        return;
-    }
-
-    sfr_mean_mini = stellar_mass_mini / (consts->t_star * consts->t_h);
-    sfr_sample_mini = sfr_mean_mini * exp(sfr_rng*sigma_sfr - stoc_adjustment_term);
-    *sfr_mini = sfr_sample_mini;
-}
-
-void get_halo_metallicity(double sfr, double stellar, double redshift, double *z_out){
-    //Hardcoded for now: 6 extra fit parameters in the equation
-    double z_denom, z_result;
-    z_denom = (1.28825e10 * pow(sfr*SperYR,0.56));
-    z_result = 0.296 * pow(1 + pow(stellar/z_denom,-2.1),-0.148) * pow(10,-0.056*redshift + 0.064);
-
-    *z_out = z_result;
-}
-
-void get_halo_xray(double sfr, double sfr_mini, double metallicity, double xray_rng, struct HaloBoxConstants *consts, double *xray_out){
-    double sigma_xray = consts->sigma_xray;
-
-    //adjustment to the mean for lognormal scatter
-    double stoc_adjustment_term = consts->scaling_median ? 0 : sigma_xray * sigma_xray / 2.;
-    double rng_factor = exp(xray_rng*consts->sigma_xray - stoc_adjustment_term);
-
-    double lx_over_sfr = get_lx_on_sfr(sfr,metallicity,consts->l_x);
-    double xray = lx_over_sfr*(sfr*SperYR)*rng_factor;
-
-    if(flag_options_global->USE_MINI_HALOS){
-        lx_over_sfr = get_lx_on_sfr(sfr_mini,metallicity,consts->l_x_mini); //Since there *are* some SFR-dependent models, this is done separately
-        xray += lx_over_sfr*(sfr_mini*SperYR)*rng_factor;
-    }
-
-    *xray_out = xray ;
-}
-
 //calculates halo properties from astro parameters plus the correlated rng
 //The inputs include all properties with a separate RNG
 //The outputs include all sampled halo properties PLUS all properties which cannot be recovered when mixing all the halos together
@@ -335,7 +51,7 @@ void get_halo_xray(double sfr, double sfr_mini, double metallicity, double xray_
 //  we treat the minihalos as a shift in the mean, where each halo will have both components, representing a smooth
 //  transition in halo mass from one set of SFR/emmissivity parameters to the other.
 void set_halo_properties(double halo_mass, double M_turn_a, double M_turn_m,
-                         struct HaloBoxConstants *consts, double *input_rng, struct HaloProperties *output){
+                         struct ScalingConstants *consts, double *input_rng, struct HaloProperties *output){
     double n_ion_sample, wsfr_sample;
     double fesc;
     double fesc_mini=0.;
@@ -374,7 +90,7 @@ void set_halo_properties(double halo_mass, double M_turn_a, double M_turn_m,
 
 //Expected global averages for box quantities for mean adjustment
 //WARNING: THESE AVERAGE BOXES ARE WRONG, CHECK THEM
-int get_box_averages(double M_min, double M_max, double M_turn_a, double M_turn_m, struct HaloBoxConstants *consts, struct HaloProperties *averages_out){
+int get_box_averages(double M_min, double M_max, double M_turn_a, double M_turn_m, struct ScalingConstants *consts, struct HaloProperties *averages_out){
     LOG_SUPER_DEBUG("Getting Box averages z=%.2f M [%.2e %.2e] Mt [%.2e %.2e]",consts->redshift,M_min,M_max,M_turn_a,M_turn_m);
     double t_h = consts->t_h;
     double lnMmax = log(M_max);
@@ -429,7 +145,7 @@ int get_box_averages(double M_min, double M_max, double M_turn_a, double M_turn_
 //This takes a HaloBox struct and fixes it's mean to exactly what we expect from the UMF integrals.
 //  Generally should only be done for the fixed portion of the grids, since
 //  it will otherwise make the box inconsistent with the input catalogue
-void mean_fix_grids(double M_min, double M_max, HaloBox *grids, struct HaloProperties *averages_box, struct HaloBoxConstants *consts){
+void mean_fix_grids(double M_min, double M_max, HaloBox *grids, struct HaloProperties *averages_box, struct ScalingConstants *consts){
     struct HaloProperties averages_global;
     double M_turn_a_global = averages_box->m_turn_acg;
     double M_turn_m_global = averages_box->m_turn_mcg;
@@ -454,7 +170,7 @@ void mean_fix_grids(double M_min, double M_max, HaloBox *grids, struct HaloPrope
 //This outputs the UN-NORMALISED grids (before mean-adjustment)
 int set_fixed_grids(double M_min, double M_max, InitialConditions *ini_boxes,
                     PerturbedField *perturbed_field, TsBox *previous_spin_temp, IonizedBox *previous_ionize_box,
-                    struct HaloBoxConstants *consts, HaloBox *grids, struct HaloProperties *averages, const bool eulerian){
+                    struct ScalingConstants *consts, HaloBox *grids, struct HaloProperties *averages, const bool eulerian){
     double M_cell = RHOcrit * cosmo_params_global->OMm * VOLUME / HII_TOT_NUM_PIXELS; //mass in cell of mean dens
     double growth_z = dicke(consts->redshift);
 
@@ -661,7 +377,7 @@ int set_fixed_grids(double M_min, double M_max, InitialConditions *ini_boxes,
     return 0;
 }
 
-void halobox_debug_print_avg(struct HaloProperties *averages_box, struct HaloProperties *averages_subsampler, struct HaloBoxConstants *consts, double M_min, double M_max){
+void halobox_debug_print_avg(struct HaloProperties *averages_box, struct HaloProperties *averages_subsampler, struct ScalingConstants *consts, double M_min, double M_max){
     if(LOG_LEVEL < DEBUG_LEVEL)
         return;
     struct HaloProperties averages_sub_expected, averages_global;
@@ -698,7 +414,7 @@ void halobox_debug_print_avg(struct HaloProperties *averages_box, struct HaloPro
 //Sometimes we don't calculate these on the grid (if we use halos and no sub-sampler)
 //So this function simply returns the volume-weighted average log10 turnover mass
 void get_mean_log10_turnovers(InitialConditions *ini_boxes, TsBox *previous_spin_temp, IonizedBox *previous_ionize_box,
-                                PerturbedField *perturbed_field, struct HaloBoxConstants *consts, double turnovers[3]){
+                                PerturbedField *perturbed_field, struct ScalingConstants *consts, double turnovers[3]){
     if(!flag_options_global->USE_MINI_HALOS){
         turnovers[0] = log10(consts->mturn_a_nofb); //ACG
         turnovers[1] = log10(consts->mturn_m_nofb); //MCG
@@ -747,7 +463,7 @@ void get_mean_log10_turnovers(InitialConditions *ini_boxes, TsBox *previous_spin
 }
 
 void sum_halos_onto_grid(InitialConditions *ini_boxes, TsBox *previous_spin_temp, IonizedBox * previous_ionize_box,
-                          PerturbHaloField *halos, struct HaloBoxConstants *consts, HaloBox *grids, struct HaloProperties *averages){
+                          PerturbHaloField *halos, struct ScalingConstants *consts, HaloBox *grids, struct HaloProperties *averages){
     double redshift = consts->redshift;
     //averages
     double hm_avg=0.,sm_avg=0.,sfr_avg=0.;
@@ -955,9 +671,9 @@ int ComputeHaloBox(double redshift, UserParams *user_params, CosmoParams *cosmo_
             grids->count[idx] = 0;
         }
 
-        struct HaloBoxConstants hbox_consts;
+        struct ScalingConstants hbox_consts;
 
-        set_hbox_constants(redshift,astro_params,flag_options,&hbox_consts);
+        set_scaling_constants(redshift,astro_params,flag_options,&hbox_consts);
 
         LOG_DEBUG("Gridding %llu halos...",halos->n_halos);
 
@@ -1041,8 +757,8 @@ int test_halo_props(double redshift, UserParams *user_params, CosmoParams *cosmo
         //get parameters
         Broadcast_struct_global_all(user_params,cosmo_params,astro_params,flag_options);
 
-        struct HaloBoxConstants hbox_consts;
-        set_hbox_constants(redshift,astro_params,flag_options,&hbox_consts);
+        struct ScalingConstants hbox_consts;
+        set_scaling_constants(redshift,astro_params,flag_options,&hbox_consts);
 
         LOG_DEBUG("Getting props for %llu halos at z=%.2f",halos->n_halos,redshift);
 

@@ -28,18 +28,6 @@
 static float xi_GL[NGL_INT+1], wi_GL[NGL_INT+1];
 static float GL_limit[2] = {0};
 
-//gets the (stellar/escape) fraction at a certain mass (in units of 1/normalisation at 1e10)
-double get_frac_limit(double M, double norm, double alpha, double limit, bool mini){
-    double pivot = mini ? 1e7 : 1e10;
-    if ((alpha > 0. && M > limit) || (alpha < 0. && M < limit))
-        return 1/norm;
-
-    //if alpha is zero, this returns 1 as expected (note strict inequalities above)
-    return pow(M/pivot,alpha);
-}
-
-////MASS FUNCTIONS BELOW//////
-
 /* sheth correction to delta crit */
 double sheth_delc_dexm(double del, double sig){
     return sqrt(SHETH_a)*del*(1. + global_params.SHETH_b*pow(sig*sig/(SHETH_a*del*del), global_params.SHETH_c));
@@ -67,6 +55,7 @@ double euler_to_lagrangian_delta(double delta){
     return -1.35*pow(dp1,-2./3.) + 0.78785*pow(dp1,-0.58661) - 1.12431*pow(dp1,-0.5) + 1.68647;
 }
 
+////MASS FUNCTIONS BELOW//////
 /*
 Unconditional Mass function from Delos 2023 (https://arxiv.org/pdf/2311.17986.pdf)
 Matches well with N-bodies (M200), has a corresponding Conditional Mass Function (below) and
@@ -291,39 +280,6 @@ double dNdlnM_WatsonFOF_z(double z, double growthf, double lnM){
     return -(dsigmadm/sigma) * f_sigma;
 }
 
-double nion_fraction(double M, void *param_struct){
-    struct parameters_gsl_MF_integrals params = *(struct parameters_gsl_MF_integrals *)param_struct;
-    double M_turn_lower = params.Mturn;
-    double f_starn = params.f_star_norm;
-    double a_star = params.alpha_star;
-    double f_escn = params.f_esc_norm;
-    double a_esc = params.alpha_esc;
-    double Mlim_star = params.Mlim_star;
-    double Mlim_esc = params.Mlim_esc;
-
-    double Fstar = get_frac_limit(M,f_starn,a_star,Mlim_star,false);
-    double Fesc = get_frac_limit(M,f_escn,a_esc,Mlim_esc,false);
-
-    return Fstar * Fesc * exp(-M_turn_lower/M);
-}
-
-double nion_fraction_mini(double M, void *param_struct){
-    struct parameters_gsl_MF_integrals params = *(struct parameters_gsl_MF_integrals *)param_struct;
-    double M_turn_lower = params.Mturn;
-    double M_turn_upper = params.Mturn_upper;
-    double f_starn = params.f_star_norm;
-    double a_star = params.alpha_star;
-    double f_escn = params.f_esc_norm;
-    double a_esc = params.alpha_esc;
-    double Mlim_star = params.Mlim_star;
-    double Mlim_esc = params.Mlim_esc;
-
-    double Fstar = get_frac_limit(M,f_starn,a_star,Mlim_star,true);
-    double Fesc = get_frac_limit(M,f_escn,a_esc,Mlim_esc,true);
-
-    return Fstar * Fesc * exp(-M_turn_lower/M - M/M_turn_upper);
-}
-
 double conditional_mf(double growthf, double lnM, double delta, double sigma, int HMF){
     //dNdlnM = dfcoll/dM * M / M * constants
     if(HMF==0) {
@@ -405,19 +361,18 @@ double u_fcoll_integrand(double lnM, void *param_struct){
 double u_nion_integrand(double lnM, void *param_struct){
     struct parameters_gsl_MF_integrals params = *(struct parameters_gsl_MF_integrals *)param_struct;
     double M_turn = params.Mturn;
-    double f_starn = params.f_star_norm;
+    double f_starn = params.ln_n_star;
     double a_star = params.alpha_star;
-    double f_escn = params.f_esc_norm;
+    double f_escn = params.ln_n_esc;
     double a_esc = params.alpha_esc;
-    double Mlim_star = params.Mlim_star;
-    double Mlim_esc = params.Mlim_esc;
+    double Mlim_star = params.ln_l_star;
+    double Mlim_esc = params.ln_l_esc;
 
-    double M = exp(lnM);
+    double Fstar = log_scaling_PL_limit(lnM,f_starn,a_star,Mlim_star,10*LN10);
+    double Fesc = log_scaling_PL_limit(lnM,f_escn,a_esc,Mlim_esc,10*LN10);
+    double exponent = Fstar + Fesc - M_turn/exp(lnM) + lnM;
 
-    double Fstar = get_frac_limit(M,f_starn,a_star,Mlim_star,false);
-    double Fesc = get_frac_limit(M,f_escn,a_esc,Mlim_esc,false);
-
-    return M * Fstar * Fesc * exp(-M_turn/M) * u_mf_integrand(lnM,param_struct);
+    return exp(exponent) * u_mf_integrand(lnM,param_struct);
 }
 
 //The reason this is separated from the above is the second exponent
@@ -425,51 +380,20 @@ double u_nion_integrand_mini(double lnM, void *param_struct){
     struct parameters_gsl_MF_integrals params = *(struct parameters_gsl_MF_integrals *)param_struct;
     double M_turn_lower = params.Mturn;
     double M_turn_upper = params.Mturn_upper;
-    double f_starn = params.f_star_norm;
+    double f_starn = params.ln_n_star;
     double a_star = params.alpha_star;
-    double f_escn = params.f_esc_norm;
+    double f_escn = params.ln_n_esc;
     double a_esc = params.alpha_esc;
-    double Mlim_star = params.Mlim_star;
-    double Mlim_esc = params.Mlim_esc;
+    double Mlim_star = params.ln_l_star;
+    double Mlim_esc = params.ln_l_esc;
 
-    double M = exp(lnM);
-
-    double Fstar = get_frac_limit(M,f_starn,a_star,Mlim_star,true);
-    double Fesc = get_frac_limit(M,f_escn,a_esc,Mlim_esc,true);
-
-    return M * Fstar * Fesc * exp(-M_turn_lower/M - M/M_turn_upper) * u_mf_integrand(lnM,param_struct);
+    return nion_fraction(lnM,M_turn_lower,M_turn_upper) * u_mf_integrand(lnM,param_struct);
 }
 
 ///// INTEGRATION ROUTINES BELOW /////
-
-//TODO: make type enum for clarity (but cffi doesn't seem to like enum in 21cmFAST.h)
-//NOTE: SFR is obtained from nion with alpha_esc==0 and f_esc==1
-//Currently the scheme is to use negative numbers for conditionals, and (1,2,3,4) for (number,mass,n_ion,n_ion_mini)
-double (*get_integrand_function(int type))(double,void*){
-    if(type==1)
-        return &u_mf_integrand; //Unondtional mass function integral
-    if(type==2)
-        return &u_fcoll_integrand; //Unconditional collapsed fraction integral
-    if(type==3)
-        return &u_nion_integrand; //Unconditional N_ion integral (two power-laws and one exponential)
-    if(type==4)
-        return &u_nion_integrand_mini; //Unconditional N_ion minihalo integral (two power-laws and two exponentials)
-    if(type==-1)
-        return &c_mf_integrand; //Conditional mass function integral
-    if(type==-2)
-        return &c_fcoll_integrand; //Conditional collapsed fraction integral
-    if(type==-3)
-        return &c_nion_integrand; //Conditional N_ion integral (two power-laws and one exponential)
-    if(type==-4)
-        return &c_nion_integrand_mini; //Conditional N_ion minihalo integral (two power-laws and two exponentials)
-
-    LOG_ERROR("Invalid type %d for MF integral",type);
-    Throw(ValueError);
-}
-
 //Integral of a CMF or UMF
 //In future all MF integrals will go through here, simply selecting the integrand function from a switch
-double IntegratedNdM_QAG(double lnM_lo, double lnM_hi, struct parameters_gsl_MF_integrals params, int type){
+double IntegratedNdM_QAG(double lnM_lo, double lnM_hi, struct parameters_gsl_MF_integrals params, double (*integrand)(double,void*)){
     double result, error, lower_limit, upper_limit;
     gsl_function F;
     // double rel_tol = FRACT_FLOAT_ERR*128; //<- relative tolerance
@@ -479,7 +403,7 @@ double IntegratedNdM_QAG(double lnM_lo, double lnM_hi, struct parameters_gsl_MF_
     = gsl_integration_workspace_alloc (w_size);
 
     int status;
-    F.function = get_integrand_function(type);
+    F.function = integrand;
     F.params = &params;
     lower_limit = lnM_lo;
     upper_limit = lnM_hi;
@@ -559,7 +483,7 @@ void initialise_GL(float lnM_Min, float lnM_Max){
 
 //actually perform the GL integration
 //NOTE: that the lnM limits are not used
-double IntegratedNdM_GL(double lnM_lo, double lnM_hi, struct parameters_gsl_MF_integrals params, int type){
+double IntegratedNdM_GL(double lnM_lo, double lnM_hi, struct parameters_gsl_MF_integrals params, double (*integrand)(double,void*)){
     int i;
     double integral = 0;
     if((float)lnM_lo != (float)GL_limit[0] || (float)lnM_hi != (float)GL_limit[1]){
@@ -568,7 +492,7 @@ double IntegratedNdM_GL(double lnM_lo, double lnM_hi, struct parameters_gsl_MF_i
     }
 
     for(i=1; i<(NGL_INT+1); i++){
-        integral += wi_GL[i]*(get_integrand_function(type))(xi_GL[i],&params);
+        integral += wi_GL[i]*(integrand)(xi_GL[i],&params);
     }
 
     return integral;
@@ -594,7 +518,7 @@ double Fcollapprox_condition(double numin, double nucondition, double beta){
 //  and takes advantage of the fact that Gamma_inc(x,min) = integral_min^inf (t^(x-1)exp(-t)) dt which is satisfied for the HMF when the
 //  above approximations are made
 //Originally written by JBM within the GL integration before it was separated here and generalised to the other integrals
-double MFIntegral_Approx(double lnM_lo, double lnM_hi, struct parameters_gsl_MF_integrals params, int type){
+double MFIntegral_Approx(double lnM_lo, double lnM_hi, struct parameters_gsl_MF_integrals params, double (*integrand)(double,void*)){
     //variables used in the calculation
     double delta,sigma_c;
     double index_base;
@@ -605,6 +529,7 @@ double MFIntegral_Approx(double lnM_lo, double lnM_hi, struct parameters_gsl_MF_
         Throw(TableGenerationError);
     }
     double growthf = params.growthf;
+    FIXALLTHETYPESTUFF
     if(type < 0){
         //we are a conditional mf
         delta = params.delta;
@@ -727,13 +652,13 @@ double MFIntegral_Approx(double lnM_lo, double lnM_hi, struct parameters_gsl_MF_
     return fcoll;
 }
 
-double IntegratedNdM(double lnM_lo, double lnM_hi, struct parameters_gsl_MF_integrals params, int type, int method){
+double IntegratedNdM(double lnM_lo, double lnM_hi, struct parameters_gsl_MF_integrals params, double (*integrand)(double,void*), int method){
     if(method==0 || (method==1 && params.delta > global_params.CRIT_DENS_TRANSITION))
-        return IntegratedNdM_QAG(lnM_lo, lnM_hi, params, type);
+        return IntegratedNdM_QAG(lnM_lo, lnM_hi, params, integrand);
     if(method==1)
-        return IntegratedNdM_GL(lnM_lo, lnM_hi, params, type);
+        return IntegratedNdM_GL(lnM_lo, lnM_hi, params, integrand);
     if(method==2)
-        return MFIntegral_Approx(lnM_lo, lnM_hi, params, type);
+        return MFIntegral_Approx(lnM_lo, lnM_hi, params, integrand);
 
     LOG_ERROR("Invalid integration method %d",method);
     Throw(ValueError);
@@ -773,7 +698,7 @@ double Nhalo_General(double z, double lnM_min, double lnM_max){
                 .growthf = dicke(z),
                 .HMF = user_params_global->HMF,
     };
-    return IntegratedNdM(lnM_min, lnM_max, integral_params, 1, 0);
+    return IntegratedNdM(lnM_min, lnM_max, integral_params, &u_mf_integrand, 0);
 }
 
 double Fcoll_General(double z, double lnM_min, double lnM_max){
@@ -782,7 +707,7 @@ double Fcoll_General(double z, double lnM_min, double lnM_max){
                 .growthf = dicke(z),
                 .HMF = user_params_global->HMF,
     };
-    return IntegratedNdM(lnM_min, lnM_max, integral_params, 2, 0);
+    return IntegratedNdM(lnM_min, lnM_max, integral_params, &u_fcoll_integrand, 0);
 }
 
 double Nion_General(double z, double lnM_Min, double lnM_Max, double MassTurnover, double Alpha_star, double Alpha_esc, double Fstar10,
@@ -799,7 +724,7 @@ double Nion_General(double z, double lnM_Min, double lnM_Max, double MassTurnove
         .Mlim_esc = Mlim_Fesc,
         .HMF = user_params_global->HMF,
     };
-    return IntegratedNdM(lnM_Min,lnM_Max,params,3,0);
+    return IntegratedNdM(lnM_Min,lnM_Max,params,&u_nion_integrand,0);
 }
 
 double Nion_General_MINI(double z, double lnM_Min, double lnM_Max, double MassTurnover, double MassTurnover_upper, double Alpha_star,
@@ -817,7 +742,7 @@ double Nion_General_MINI(double z, double lnM_Min, double lnM_Max, double MassTu
         .Mlim_esc = Mlim_Fesc,
         .HMF = user_params_global->HMF,
     };
-    return IntegratedNdM(lnM_Min,lnM_Max,params,4,0);
+    return IntegratedNdM(lnM_Min,lnM_Max,params,&u_nion_integrand_mini,0);
 }
 
 double Nhalo_Conditional(double growthf, double lnM1, double lnM2, double M_cond, double sigma, double delta, int method){
@@ -838,7 +763,7 @@ double Nhalo_Conditional(double growthf, double lnM1, double lnM2, double M_cond
             return 0.;
     }
 
-    return IntegratedNdM(lnM1,lnM2,params,-1, method);
+    return IntegratedNdM(lnM1,lnM2,params,&c_mf_integrand, method);
 }
 
 double Mcoll_Conditional(double growthf, double lnM1, double lnM2, double M_cond, double sigma, double delta, int method){
@@ -858,7 +783,7 @@ double Mcoll_Conditional(double growthf, double lnM1, double lnM2, double M_cond
         else
             return 0.;
     }
-    return IntegratedNdM(lnM1,lnM2,params,-2, method);
+    return IntegratedNdM(lnM1,lnM2,params,&c_fcoll_integrand, method);
 }
 
 double Nion_ConditionalM_MINI(double growthf, double lnM1, double lnM2, double M_cond, double sigma2, double delta2, double MassTurnover,
@@ -896,7 +821,7 @@ double Nion_ConditionalM_MINI(double growthf, double lnM1, double lnM2, double M
     if(params.HMF != 0 && params.HMF != 1 && params.HMF != 4)
         params.HMF = 0;
 
-    return IntegratedNdM(lnM1,lnM2,params,-4,method);
+    return IntegratedNdM(lnM1,lnM2,params,&c_nion_integrand_mini,method);
 }
 
 double Nion_ConditionalM(double growthf, double lnM1, double lnM2, double M_cond, double sigma2, double delta2, double MassTurnover,
@@ -931,7 +856,7 @@ double Nion_ConditionalM(double growthf, double lnM1, double lnM2, double M_cond
     if(params.HMF != 0 && params.HMF != 1 && params.HMF != 4)
         params.HMF = 0;
 
-    return IntegratedNdM(lnM1,lnM2,params,-3, method);
+    return IntegratedNdM(lnM1,lnM2,params,&c_nion_integrand_mini,method);
 }
 
 float erfcc(float x)
