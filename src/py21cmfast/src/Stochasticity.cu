@@ -10,6 +10,7 @@
 #include "Stochasticity.h"
 
 // #include "tiger_checks.h"
+#include "cuda_utils.cuh"
 #include "Stochasticity.cuh"
 #include "DeviceConstants.cuh"
 #include "hmf.cu"
@@ -229,16 +230,29 @@ __device__ int stoc_mass_sample(struct HaloSamplingConstants *hs_constants, cura
 
     double tbl_arg = hs_constants->cond_val;
 
-    while (M_prog < exp_M){
-        M_sample = sample_dndM_inverse(tbl_arg, hs_constants, state);
+    // tmp (start)
+    M_sample = sample_dndM_inverse(tbl_arg, hs_constants, state);
 
-        M_prog += M_sample;
-        M_out[n_halo_sampled++] = M_sample;
-    }
+    M_prog += M_sample;
+    *M_out = M_sample;
+
+
+    // tmp (end)
+
+    // while (M_prog < exp_M){
+    //     M_sample = sample_dndM_inverse(tbl_arg, hs_constants, state);
+
+    //     M_prog += M_sample;
+    //     M_out[n_halo_sampled++] = M_sample;
+    // }
+    // todo: enable fix_mass_sample
     // The above sample is above the expected mass, by up to 100%. I wish to make the average mass equal to exp_M
-    fix_mass_sample(state, exp_M, &n_halo_sampled, &M_prog, M_out);
+    // fix_mass_sample(state, exp_M, &n_halo_sampled, &M_prog, M_out);
 
     *n_halo_out = n_halo_sampled;
+    if (M_prog < exp_M){
+        return 1;
+    }
     return 0;
 }
 
@@ -369,9 +383,13 @@ __global__ void update_halo_constants(float *d_halo_masses, float *d_y_arr, doub
                                       unsigned long long int n_halos, int n_bin, struct HaloSamplingConstants d_hs_constants,
                                       int HMF, curandState *d_states, 
                                       float *d_halo_masses_out, float *star_rng_out,
-                                      float *sfr_rng_out, float *xray_rng_out, float *halo_coords_out)
+                                      float *sfr_rng_out, float *xray_rng_out, float *halo_coords_out, int *d_sum_check)
 {
+    // Define shared memory for block-level reduction
+    // __shared__ int shared_check[256];
+    
     // get thread idx
+    int tid = threadIdx.x;
     int ind = blockIdx.x * blockDim.x + threadIdx.x;
     if (ind >= n_halos)
     {
@@ -407,14 +425,33 @@ __global__ void update_halo_constants(float *d_halo_masses, float *d_y_arr, doub
     // double tmp2 = 681273355217.0;
     // float tmp3 = 101976856.0; 
     // remove_random_halo(&local_state, 59, &tmp1, &tmp2, &tmp3);
-
+    // int check = stoc_sample(&d_hs_constants, &local_state, &n_prog, &d_halo_masses_out[ind]);
     d_states[ind] = local_state;
 
-        // Sample the CMF set by the descendant
-        // stoc_sample(&hs_constants, &local_state, &n_prog, prog_buf);
+    // shared_check[tid] = check;
+    // __syncthreads();
 
-        // double sigma = EvaluateSigma(log(M), x_min, x_width, d_y_arr, n_bin);
-        // double delta = get_delta_crit(HMF, sigma, d_hs_constants.growth_in)\
+    // Perform reduction within the block
+    // for (int stride = blockDim.x / 2; stride > 0; stride /= 2)
+    // {
+    //     if (tid < stride)
+    //     {
+    //         shared_check[tid] += shared_check[tid + stride];
+    //     }
+    //     __syncthreads(); // Ensure all threads have completed each stage of reduction
+    // }
+
+    // Write the result from each block to the global sum 
+    // if (tid == 0)
+    // {
+    //     atomicAdd(d_sum_check, shared_check[0]);
+    // }
+
+    // Sample the CMF set by the descendant
+    // stoc_sample(&hs_constants, &local_state, &n_prog, prog_buf);
+
+    // double sigma = EvaluateSigma(log(M), x_min, x_width, d_y_arr, n_bin);
+    // double delta = get_delta_crit(HMF, sigma, d_hs_constants.growth_in)\
     //                                 / d_hs_constants.growth_in * d_hs_constants.growth_out;
 
     return;
@@ -427,31 +464,36 @@ int updateHaloOut(float *halo_masses, unsigned long long int n_halos, float *y_a
     // allocate memory and copy halo_masses to the device
     size_t size_halo = sizeof(float) * n_halos;
     float *d_halo_masses;
-    cudaMalloc(&d_halo_masses, size_halo);
-    cudaMemcpy(d_halo_masses, halo_masses, size_halo, cudaMemcpyHostToDevice);
+    CALL_CUDA(cudaMalloc(&d_halo_masses, size_halo));
+    CALL_CUDA(cudaMemcpy(d_halo_masses, halo_masses, size_halo, cudaMemcpyHostToDevice));
 
     // allocate memory and copy y_arr of sigma_table to the device
     size_t size_yarr = sizeof(float) * n_bin_y;
     float *d_y_arr;
-    cudaMalloc(&d_y_arr, size_yarr);
-    cudaMemcpy(d_y_arr, y_arr, size_yarr, cudaMemcpyHostToDevice);
+    CALL_CUDA(cudaMalloc(&d_y_arr, size_yarr));
+    CALL_CUDA(cudaMemcpy(d_y_arr, y_arr, size_yarr, cudaMemcpyHostToDevice));
+
+    // allocate memory for d_check_sum (tmp)
+    int *d_sum_check;
+    CALL_CUDA(cudaMalloc((void **)&d_sum_check, sizeof(int)));
+    CALL_CUDA(cudaMemset(d_sum_check, 0, sizeof(int)));
 
     // allocate memory for out halos
     size_t buffer_size = sizeof(float) * n_buffer;
     float *d_halo_masses_out;
-    cudaMalloc(&d_halo_masses_out, buffer_size);
+    CALL_CUDA(cudaMalloc(&d_halo_masses_out, buffer_size));
 
     float *star_rng_out;
-    cudaMalloc(&star_rng_out, buffer_size);
+    CALL_CUDA(cudaMalloc(&star_rng_out, buffer_size));
 
     float *sfr_rng_out;
-    cudaMalloc(&sfr_rng_out, buffer_size);
+    CALL_CUDA(cudaMalloc(&sfr_rng_out, buffer_size));
 
     float *xray_rng_out;
-    cudaMalloc(&xray_rng_out, buffer_size);
+    CALL_CUDA(cudaMalloc(&xray_rng_out, buffer_size));
 
     float *halo_coords_out;
-    cudaMalloc(&halo_coords_out, buffer_size * 3);
+    CALL_CUDA(cudaMalloc(&halo_coords_out, buffer_size * 3));
 
     // get parameters needed by the kernel
     int HMF = user_params_global->HMF;
@@ -463,21 +505,35 @@ int updateHaloOut(float *halo_masses, unsigned long long int n_halos, float *y_a
 
     // Allocate memory for RNG states
     curandState *d_states;
-    cudaMalloc((void **)&d_states, total_threads * sizeof(curandState));
+    CALL_CUDA(cudaMalloc((void **)&d_states, total_threads * sizeof(curandState)));
 
     // setup random states
     setup_random_states<<<n_blocks, n_threads>>>(d_states, 1234ULL);
 
+    // Check kernel launch errors
+    CALL_CUDA(cudaGetLastError());
+
     // launch kernel grid
     update_halo_constants<<<n_blocks, n_threads>>>(d_halo_masses, d_y_arr, x_min, x_width, n_halos, n_bin_y, hs_constants, HMF, d_states, d_halo_masses_out, star_rng_out,
-                                                       sfr_rng_out, xray_rng_out, halo_coords_out);
+                                                       sfr_rng_out, xray_rng_out, halo_coords_out, d_sum_check);
 
-    cudaDeviceSynchronize();
+    // Check kernel launch errors
+    CALL_CUDA(cudaGetLastError());
+    
+    CALL_CUDA(cudaDeviceSynchronize());
+
+    // copy data from device to host
+    int h_sum_check;
+    CALL_CUDA(cudaMemcpy(&h_sum_check, d_sum_check, sizeof(int), cudaMemcpyDeviceToHost));
+
+    // float *h_halo_masses_out;
+    // cudaHostAlloc((void **)&h_halo_masses_out, buffer_size, cudaHostAllocDefault);
+    // cudaMemcpy(&h_halo_masses_out, d_halo_masses_out, buffer_size, cudaMemcpyDeviceToHost);
 
     // Free device memory
-    cudaFree(d_halo_masses);
-    cudaFree(d_y_arr);
-    cudaFree(d_states);
+    CALL_CUDA(cudaFree(d_halo_masses));
+    CALL_CUDA(cudaFree(d_y_arr));
+    CALL_CUDA(cudaFree(d_states));
 
     return 0;
 }

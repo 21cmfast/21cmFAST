@@ -6,6 +6,7 @@
 // #include "InputParameters.h"
 #include "interpolation_types.h"
 
+#include "cuda_utils.cuh"
 #include "interp_tables.cuh"
 #include "DeviceConstants.cuh"
 
@@ -35,14 +36,14 @@ void copyTablesToDevice(RGTable1D h_Nhalo_table, RGTable1D h_Mcoll_table, RGTabl
         return;
     }
     else{
-        cudaMemcpyToSymbol(d_Nhalo_yarr, h_Nhalo_table.y_arr, size_Nhalo_yarr, 0, cudaMemcpyHostToDevice);
+        CALL_CUDA(cudaMemcpyToSymbol(d_Nhalo_yarr, h_Nhalo_table.y_arr, size_Nhalo_yarr, 0, cudaMemcpyHostToDevice));
         // get memory address on the device
         double *d_Nhalo_yarr_device;
-        cudaGetSymbolAddress((void **)&d_Nhalo_yarr_device, d_Nhalo_yarr);
+        CALL_CUDA(cudaGetSymbolAddress((void **)&d_Nhalo_yarr_device, d_Nhalo_yarr));
 
         h_Nhalo_table_to_device.y_arr = d_Nhalo_yarr_device;
     }
-    cudaMemcpyToSymbol(d_Nhalo_table, &h_Nhalo_table_to_device, sizeof(RGTable1D), 0, cudaMemcpyHostToDevice);
+    CALL_CUDA(cudaMemcpyToSymbol(d_Nhalo_table, &h_Nhalo_table_to_device, sizeof(RGTable1D), 0, cudaMemcpyHostToDevice));
 
     // copy Mcoll table and its member y_arr
     size_t size_Mcoll_yarr = sizeof(double) * h_Mcoll_table.n_bin;
@@ -52,14 +53,14 @@ void copyTablesToDevice(RGTable1D h_Nhalo_table, RGTable1D h_Mcoll_table, RGTabl
         return;
     }
     else{
-        cudaMemcpyToSymbol(d_Mcoll_yarr, h_Mcoll_table.y_arr, size_Mcoll_yarr, 0, cudaMemcpyHostToDevice);
+        CALL_CUDA(cudaMemcpyToSymbol(d_Mcoll_yarr, h_Mcoll_table.y_arr, size_Mcoll_yarr, 0, cudaMemcpyHostToDevice));
         // get memory address on the device
         double *d_Mcoll_yarr_device;
-        cudaGetSymbolAddress((void **)&d_Mcoll_yarr_device, d_Mcoll_yarr);
+        CALL_CUDA(cudaGetSymbolAddress((void **)&d_Mcoll_yarr_device, d_Mcoll_yarr));
 
         h_Mcoll_table_to_device.y_arr = d_Mcoll_yarr_device;
     }
-    cudaMemcpyToSymbol(d_Mcoll_table, &h_Mcoll_table_to_device, sizeof(RGTable1D), 0, cudaMemcpyHostToDevice);
+    CALL_CUDA(cudaMemcpyToSymbol(d_Mcoll_table, &h_Mcoll_table_to_device, sizeof(RGTable1D), 0, cudaMemcpyHostToDevice));
 
     // copy Nhalo_inv table and its member flatten_data
     size_t size_Nhalo_inv_flatten_data = sizeof(double) * h_Nhalo_inv_table.nx_bin * h_Nhalo_inv_table.ny_bin;
@@ -67,27 +68,28 @@ void copyTablesToDevice(RGTable1D h_Nhalo_table, RGTable1D h_Mcoll_table, RGTabl
     RGTable2D h_Nhalo_inv_table_to_device = h_Nhalo_inv_table;
     
     double *d_Nhalo_flatten_data;
-    cudaMalloc(&d_Nhalo_flatten_data, size_Nhalo_inv_flatten_data);
-    cudaMemcpy(d_Nhalo_flatten_data, h_Nhalo_inv_table.flatten_data, size_Nhalo_inv_flatten_data, cudaMemcpyHostToDevice);
+    CALL_CUDA(cudaMalloc(&d_Nhalo_flatten_data, size_Nhalo_inv_flatten_data));
+    CALL_CUDA(cudaMemcpy(d_Nhalo_flatten_data, h_Nhalo_inv_table.flatten_data, size_Nhalo_inv_flatten_data, cudaMemcpyHostToDevice));
 
     double **d_z_arr, **z_arr_to_device;
     size_t size_z_arr = sizeof(double *) * h_Nhalo_inv_table.nx_bin;
-    cudaHostAlloc((void **)&z_arr_to_device, size_z_arr, cudaHostAllocDefault);
+    CALL_CUDA(cudaHostAlloc((void **)&z_arr_to_device, size_z_arr, cudaHostAllocDefault));
     // get the address of flatten data on the device
     int i;
     for (i=0;i<h_Nhalo_inv_table.nx_bin;i++){
         z_arr_to_device[i] = &d_Nhalo_flatten_data[i * h_Nhalo_inv_table.ny_bin];
     }
 
-    cudaMalloc(&d_z_arr, size_z_arr);
-    cudaMemcpy(d_z_arr, z_arr_to_device, size_z_arr, cudaMemcpyHostToDevice);
+    CALL_CUDA(cudaMalloc(&d_z_arr, size_z_arr));
+    CALL_CUDA(cudaMemcpy(d_z_arr, z_arr_to_device, size_z_arr, cudaMemcpyHostToDevice));
+    
+    // free data after it's been copied to the device
+    CALL_CUDA(cudaFreeHost(z_arr_to_device));
 
     h_Nhalo_inv_table_to_device.flatten_data = d_Nhalo_flatten_data;
     h_Nhalo_inv_table_to_device.z_arr = d_z_arr;
 
-    cudaMemcpyToSymbol(d_Nhalo_inv_table, &h_Nhalo_inv_table_to_device, sizeof(RGTable2D), 0, cudaMemcpyHostToDevice);
-
-    
+    CALL_CUDA(cudaMemcpyToSymbol(d_Nhalo_inv_table, &h_Nhalo_inv_table_to_device, sizeof(RGTable2D), 0, cudaMemcpyHostToDevice));
 }
 
 // assume use interpolation table is true at this stage, add the check later
