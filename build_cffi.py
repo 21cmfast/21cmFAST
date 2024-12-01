@@ -27,6 +27,12 @@ c_files = [
     if f.endswith(".c")
 ]
 
+# compiled cuda code
+extra_objects = [os.path.join(CLOC, "hello_world.o"), os.path.join(CLOC, "filtering_cuda.o"), os.path.join(CLOC, "Stochasticity_cuda.o")
+                 , os.path.join(CLOC, "HaloField_cuda.o"), os.path.join(CLOC, "combined_cuda.o")]
+                #  os.path.join(CLOC, "interp_tables_cuda.o")]
+extra_link_args = ["-lcudart", "-lcudadevrt"]
+
 # Set the C-code logging level.
 # If DEBUG is set, we default to the highest level, but if not,
 # we set it to the level just above no logging at all.
@@ -78,6 +84,7 @@ if "PROFILE" in os.environ:
     libraries += ["profiler"]
     # we need this even if DEBUG is off
     extra_compile_args += ["-g"]
+    # extra_compile_args += ["-g", "-pg"]
 
 if compiler == "clang":
     libraries += ["omp"]
@@ -111,6 +118,8 @@ ffi.set_source(
     library_dirs=library_dirs,
     libraries=libraries,
     extra_compile_args=extra_compile_args,
+    extra_objects=extra_objects,
+    extra_link_args=extra_link_args,
 )
 
 # Header files containing types, globals and function prototypes
@@ -130,4 +139,4 @@ ffi.cdef(
 )
 
 if __name__ == "__main__":
-    ffi.compile()
+    ffi.compile(verbose=False)
