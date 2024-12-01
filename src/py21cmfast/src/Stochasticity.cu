@@ -5,6 +5,13 @@
 #include <curand.h> // host-side header file
 #include <curand_kernel.h> // device-side header file
 
+#include <thrust/host_vector.h>
+#include <thrust/device_vector.h>
+#include <thrust/reduce.h>
+#include <thrust/remove.h>
+#include <thrust/copy.h>
+#include <iostream>
+
 #include "Constants.h"
 #include "interpolation_types.h"
 #include "Stochasticity.h"
@@ -18,18 +25,6 @@
 
 
 
-// define macros
-// #ifndef JENKINS_a
-// #define JENKINS_a (0.73) // Jenkins+01, SMT has 0.707
-// #endif
-
-// #ifndef JENKINS_b
-// #define JENKINS_b (0.34) // Jenkins+01 fit from Barkana+01, SMT has 0.5
-// #endif
-
-// #ifndef JENKINS_c
-// #define JENKINS_c (0.81) // Jenkins+01 from from Barkana+01, SMT has 0.6
-// #endif
 
 #ifndef MAX_DELTAC_FRAC
 #define MAX_DELTAC_FRAC (float)0.99 // max delta/deltac for the mass function integrals
@@ -43,72 +38,94 @@
 #define MAX_HALO_CELL (int)1e5
 #endif
 
-// device functions
-// __device__ double sheth_delc_fixed(double del, double sig)
-// {
-//     return sqrt(JENKINS_a) * del * (1. + JENKINS_b * pow(sig * sig / (JENKINS_a * del * del), JENKINS_c));
-// }
+void validate_thrust()
+{
+    // Create a host vector with some values
+    thrust::host_vector<int> h_vec(5);
+    h_vec[0] = 1;
+    h_vec[1] = 2;
+    h_vec[2] = 3;
+    h_vec[3] = 4;
+    h_vec[4] = 5;
 
-// // Get the relevant excursion set barrier density given the user-specified HMF
-// __device__ double get_delta_crit(int HMF, double sigma, double growthf)
-// {
-//     if (HMF == 4)
-//         return DELTAC_DELOS;
-//     if (HMF == 1)
-//         return sheth_delc_fixed(Deltac / growthf, sigma) * growthf;
+    // Transfer data from host to device
+    thrust::device_vector<int> d_vec = h_vec;
 
-//     return Deltac;
-// }
+    // Calculate the sum of all elements in the device vector
+    int sum = thrust::reduce(d_vec.begin(), d_vec.end(), 0, thrust::plus<int>());
 
-// __device__ double EvaluateRGTable1D_f(double x, RGTable1D_f *table)
-// {
-//     double x_min = table->x_min;
-//     double x_width = table->x_width;
-//     int idx = (int)floor((x - x_min) / x_width);
-//     double table_val = x_min + x_width * (float)idx;
-//     double interp_point = (x - table_val) / x_width;
+    // Print the result
+    std::cout << "Sum is: " << sum << std::endl; // Should print "Sum is: 15"
+}
 
-//     return table->y_arr[idx] * (1 - interp_point) + table->y_arr[idx + 1] * (interp_point);
-// }
+void condense_device_vector()
+{
+    // Step 1: Create a device vector with some elements, including -1
+    thrust::device_vector<int> d_vec(10);
+    d_vec[0] = 1;
+    d_vec[1] = -1;
+    d_vec[2] = 3;
+    d_vec[3] = -1;
+    d_vec[4] = 5;
+    d_vec[5] = 6;
+    d_vec[6] = -1;
+    d_vec[7] = 7;
+    d_vec[8] = -1;
+    d_vec[9] = 9;
 
-// // assume use interpolation table is true at this stage, add the check later
-// // todo: double check whether I should use float or double or x, it's been mixed used in c code
-// __device__ double EvaluateSigma(float x, double x_min, double x_width, float *y_arr, int n_bin)
-// {
-//     // using log units to make the fast option faster and the slow option slower
-//     // return EvaluateRGTable1D_f(lnM, table);
-//     int idx = (int)floor((x - x_min) / x_width);
-//     if (idx < 0 || idx >= n_bin - 1)
-//     {
-//         return 0.0; // Out-of-bounds handling
-//     }
+    // Step 2: Use thrust::remove_if to remove all occurrences of -1
+    thrust::device_vector<int>::iterator new_end = thrust::remove(d_vec.begin(), d_vec.end(), -1);
 
-//     double table_val = x_min + x_width * (float)idx;
-//     double interp_point = (x - table_val) / x_width;
+    // Step 3: Resize the vector to remove the trailing elements after the "new_end" iterator
+    d_vec.erase(new_end, d_vec.end());
 
-//     return y_arr[idx] * (1 - interp_point) + y_arr[idx + 1] * (interp_point);
-// }
+    // Step 4: Copy the result to the host to check
+    thrust::host_vector<int> h_vec = d_vec;
 
-// double EvaluateRGTable1D(double x, RGTable1D *table)
-// {
-//     double x_min = table->x_min;
-//     double x_width = table->x_width;
-//     int idx = (int)floor((x - x_min) / x_width);
-//     double table_val = x_min + x_width * (double)idx;
-//     double interp_point = (x - table_val) / x_width;
+    // Step 5: Print the result
+    std::cout << "Condensed Vector: ";
+    for (size_t i = 0; i < h_vec.size(); i++)
+    {
+        std::cout << h_vec[i] << " ";
+    }
+    std::cout << std::endl;
+}
 
-//     // a + f(a-b) is one fewer operation but less precise
-//     double result = table->y_arr[idx] * (1 - interp_point) + table->y_arr[idx + 1] * (interp_point);
+int condenseDeviceArray(int *d_array, int original_size)
+{
+    // Wrap the raw device pointer into a thrust device pointer
+    thrust::device_ptr<int> d_array_ptr(d_array);
 
-//     return result;
-// }
+    // Remove elements with value 0
+    // thrust::device_vector<int>::iterator new_end = thrust::remove(d_array_ptr, d_array_ptr + original_size, 0);
+    // thrust::device_ptr<int> new_end = thrust::remove(d_array_ptr, d_array_ptr + original_size, 0);
+    auto new_end = thrust::remove(d_array_ptr, d_array_ptr + original_size, 0);
 
-// // assume use interpolation table is true at this stage, add the check later
-// __device__ double EvaluateNhalo(double condition, double growthf, double lnMmin, double lnMmax, double M_cond, double sigma, double delta)
-// {
-//     return EvaluateRGTable1D(condition, &Nhalo_table);
-   
-// }
+    // Calculate the number of valid elements
+    int valid_size = new_end - d_array_ptr;
+
+    // Print results (on host side)
+    std::cout << "Valid elements count: " << valid_size << "\n";
+    return valid_size;
+}
+
+int filterWithMask(float *d_data, int *d_mask, int original_size)
+{
+    // Wrap the raw pointers into thrust device pointers
+    thrust::device_ptr<float> d_data_ptr(d_data);
+    thrust::device_ptr<int> d_mask_ptr(d_mask);
+
+    // Use the mask to select only elements that correspond to a value of 1 in the mask
+    auto end = thrust::copy_if(d_data_ptr, d_data_ptr + original_size, d_mask_ptr, d_data_ptr, thrust::identity<float>());
+
+    // Calculate the new valid size after filtering
+    int valid_size = end - d_data_ptr;
+
+    // Optionally, print the number of valid elements
+    std::cout << "Valid elements count: " << valid_size << "\n";
+
+    return valid_size;
+}
 
 // 11-30: the following implementation works (before using any global params on gpu)
 __device__ void stoc_set_consts_cond(struct HaloSamplingConstants *const_struct, float cond_val, int HMF, double x_min, double x_width, float *d_y_arr, int n_bin)
@@ -215,7 +232,7 @@ __device__ void fix_mass_sample(curandState *state, double exp_M, int *n_halo_pt
     }
 }
 
-__device__ int stoc_mass_sample(struct HaloSamplingConstants *hs_constants, curandState *state, int *n_halo_out, float *M_out){
+__device__ int stoc_mass_sample(struct HaloSamplingConstants *hs_constants, curandState *state, int *n_halo_out, float *M_out, int *further_process){
     double exp_M = hs_constants->expected_M;
 
     // The mass-limited sampling as-is has a slight bias to producing too many halos,
@@ -234,9 +251,6 @@ __device__ int stoc_mass_sample(struct HaloSamplingConstants *hs_constants, cura
     M_sample = sample_dndM_inverse(tbl_arg, hs_constants, state);
 
     M_prog += M_sample;
-    *M_out = M_sample;
-
-
     // tmp (end)
 
     // while (M_prog < exp_M){
@@ -251,12 +265,14 @@ __device__ int stoc_mass_sample(struct HaloSamplingConstants *hs_constants, cura
 
     *n_halo_out = n_halo_sampled;
     if (M_prog < exp_M){
+        *further_process = 1;
         return 1;
     }
+    *M_out = M_sample;
     return 0;
 }
 
-__device__ int stoc_sample(struct HaloSamplingConstants *hs_constants, curandState *state, int *n_halo_out, float *M_out){
+__device__ int stoc_sample(struct HaloSamplingConstants *hs_constants, curandState *state, int *n_halo_out, float *M_out, int *further_process){
     // TODO: really examine the case for number/mass sampling
     // The poisson sample fails spectacularly for high delta (from_catalogs or dense cells)
     //   and excludes the correlation between number and mass (e.g many small halos or few large ones)
@@ -291,7 +307,7 @@ __device__ int stoc_sample(struct HaloSamplingConstants *hs_constants, curandSta
     }
     else if (d_user_params.SAMPLE_METHOD == 0)
     {
-        err = stoc_mass_sample(hs_constants, state, n_halo_out, M_out);
+        err = stoc_mass_sample(hs_constants, state, n_halo_out, M_out, further_process);
     }
     else if (d_user_params.SAMPLE_METHOD == 2)
     {
@@ -383,10 +399,11 @@ __global__ void update_halo_constants(float *d_halo_masses, float *d_y_arr, doub
                                       unsigned long long int n_halos, int n_bin, struct HaloSamplingConstants d_hs_constants,
                                       int HMF, curandState *d_states, 
                                       float *d_halo_masses_out, float *star_rng_out,
-                                      float *sfr_rng_out, float *xray_rng_out, float *halo_coords_out, int *d_sum_check)
+                                      float *sfr_rng_out, float *xray_rng_out, float *halo_coords_out, int *d_sum_check,
+                                      int *further_process)
 {
     // Define shared memory for block-level reduction
-    // __shared__ int shared_check[256];
+    __shared__ int shared_check[256];
     
     // get thread idx
     int tid = threadIdx.x;
@@ -425,27 +442,27 @@ __global__ void update_halo_constants(float *d_halo_masses, float *d_y_arr, doub
     // double tmp2 = 681273355217.0;
     // float tmp3 = 101976856.0; 
     // remove_random_halo(&local_state, 59, &tmp1, &tmp2, &tmp3);
-    // int check = stoc_sample(&d_hs_constants, &local_state, &n_prog, &d_halo_masses_out[ind]);
+    int check = stoc_sample(&d_hs_constants, &local_state, &n_prog, &d_halo_masses_out[ind], &further_process[ind]);
     d_states[ind] = local_state;
 
-    // shared_check[tid] = check;
-    // __syncthreads();
+    shared_check[tid] = check;
+    __syncthreads();
 
     // Perform reduction within the block
-    // for (int stride = blockDim.x / 2; stride > 0; stride /= 2)
-    // {
-    //     if (tid < stride)
-    //     {
-    //         shared_check[tid] += shared_check[tid + stride];
-    //     }
-    //     __syncthreads(); // Ensure all threads have completed each stage of reduction
-    // }
+    for (int stride = blockDim.x / 2; stride > 0; stride /= 2)
+    {
+        if (tid < stride)
+        {
+            shared_check[tid] += shared_check[tid + stride];
+        }
+        __syncthreads(); // Ensure all threads have completed each stage of reduction
+    }
 
     // Write the result from each block to the global sum 
-    // if (tid == 0)
-    // {
-    //     atomicAdd(d_sum_check, shared_check[0]);
-    // }
+    if (tid == 0)
+    {
+        atomicAdd(d_sum_check, shared_check[0]);
+    }
 
     // Sample the CMF set by the descendant
     // stoc_sample(&hs_constants, &local_state, &n_prog, prog_buf);
@@ -453,6 +470,58 @@ __global__ void update_halo_constants(float *d_halo_masses, float *d_y_arr, doub
     // double sigma = EvaluateSigma(log(M), x_min, x_width, d_y_arr, n_bin);
     // double delta = get_delta_crit(HMF, sigma, d_hs_constants.growth_in)\
     //                                 / d_hs_constants.growth_in * d_hs_constants.growth_out;
+
+    return;
+}
+
+__global__ void update_halo_constants_multi(float *d_halo_masses, float *d_y_arr, double x_min, double x_width,
+                                      unsigned long long int n_halos, int n_bin, struct HaloSamplingConstants d_hs_constants,
+                                      int HMF, curandState *d_states,
+                                      float *d_halo_masses_out, float *star_rng_out,
+                                      float *sfr_rng_out, float *xray_rng_out, float *halo_coords_out, int *d_sum_check,
+                                      int *further_process)
+{
+    // Define shared memory for block-level reduction
+    __shared__ int shared_check[256];
+
+    // get thread idx
+    int tid = threadIdx.x;
+    int ind = blockIdx.x * blockDim.x + threadIdx.x;
+    if (ind >= n_halos)
+    {
+        return;
+    }
+
+    float M = d_halo_masses[ind];
+
+    int n_prog; // the value will be updated after calling stoc_sample
+
+    // set condition-dependent variables for sampling
+    stoc_set_consts_cond(&d_hs_constants, M, HMF, x_min, x_width, d_y_arr, n_bin);
+
+    // todo: each thread across different blocks has unique random state
+    curandState local_state = d_states[ind];
+    int check = stoc_sample(&d_hs_constants, &local_state, &n_prog, &d_halo_masses_out[ind], &further_process[ind]);
+    d_states[ind] = local_state;
+
+    shared_check[tid] = check;
+    __syncthreads();
+
+    // Perform reduction within the block
+    for (int stride = blockDim.x / 2; stride > 0; stride /= 2)
+    {
+        if (tid < stride)
+        {
+            shared_check[tid] += shared_check[tid + stride];
+        }
+        __syncthreads(); // Ensure all threads have completed each stage of reduction
+    }
+
+    // Write the result from each block to the global sum
+    if (tid == 0)
+    {
+        atomicAdd(d_sum_check, shared_check[0]);
+    }
 
     return;
 }
@@ -479,7 +548,7 @@ int updateHaloOut(float *halo_masses, unsigned long long int n_halos, float *y_a
     CALL_CUDA(cudaMemset(d_sum_check, 0, sizeof(int)));
 
     // allocate memory for out halos
-    size_t buffer_size = sizeof(float) * n_buffer;
+    size_t buffer_size = sizeof(float) * n_buffer * 2;
     float *d_halo_masses_out;
     CALL_CUDA(cudaMalloc(&d_halo_masses_out, buffer_size));
 
@@ -494,6 +563,10 @@ int updateHaloOut(float *halo_masses, unsigned long long int n_halos, float *y_a
 
     float *halo_coords_out;
     CALL_CUDA(cudaMalloc(&halo_coords_out, buffer_size * 3));
+
+    // allocate memory to store list of halo index need further process
+    int *d_further_process;
+    CALL_CUDA(cudaMalloc(&d_further_process, size_halo));
 
     // get parameters needed by the kernel
     int HMF = user_params_global->HMF;
@@ -515,25 +588,45 @@ int updateHaloOut(float *halo_masses, unsigned long long int n_halos, float *y_a
 
     // launch kernel grid
     update_halo_constants<<<n_blocks, n_threads>>>(d_halo_masses, d_y_arr, x_min, x_width, n_halos, n_bin_y, hs_constants, HMF, d_states, d_halo_masses_out, star_rng_out,
-                                                       sfr_rng_out, xray_rng_out, halo_coords_out, d_sum_check);
+                                                       sfr_rng_out, xray_rng_out, halo_coords_out, d_sum_check, d_further_process);
 
     // Check kernel launch errors
     CALL_CUDA(cudaGetLastError());
-    
+
     CALL_CUDA(cudaDeviceSynchronize());
+
+    // filtered halos
+    int n_filter_halo = filterWithMask(d_halo_masses, d_further_process, n_halos);
+    float *h_filter_halos;
+    CALL_CUDA(cudaHostAlloc((void **)&h_filter_halos, sizeof(float)*n_filter_halo, cudaHostAllocDefault));
+    CALL_CUDA(cudaMemcpy(h_filter_halos, d_halo_masses, sizeof(float)*n_filter_halo, cudaMemcpyDeviceToHost));
+
+    // launch second kernel
+    
+
 
     // copy data from device to host
     int h_sum_check;
     CALL_CUDA(cudaMemcpy(&h_sum_check, d_sum_check, sizeof(int), cudaMemcpyDeviceToHost));
 
-    // float *h_halo_masses_out;
-    // cudaHostAlloc((void **)&h_halo_masses_out, buffer_size, cudaHostAllocDefault);
-    // cudaMemcpy(&h_halo_masses_out, d_halo_masses_out, buffer_size, cudaMemcpyDeviceToHost);
+    float *h_halo_masses_out;
+    CALL_CUDA(cudaHostAlloc((void **)&h_halo_masses_out, buffer_size, cudaHostAllocDefault));
+    CALL_CUDA(cudaMemcpy(h_halo_masses_out, d_halo_masses_out, buffer_size, cudaMemcpyDeviceToHost));
 
     // Free device memory
     CALL_CUDA(cudaFree(d_halo_masses));
     CALL_CUDA(cudaFree(d_y_arr));
     CALL_CUDA(cudaFree(d_states));
+    CALL_CUDA(cudaFree(d_halo_masses_out));
+    CALL_CUDA(cudaFree(star_rng_out));
+    CALL_CUDA(cudaFree(sfr_rng_out));
+    CALL_CUDA(cudaFree(xray_rng_out));
+    CALL_CUDA(cudaFree(halo_coords_out));
+    CALL_CUDA(cudaFree(d_further_process));
+
+    validate_thrust();
+
+    condense_device_vector();
 
     return 0;
 }
