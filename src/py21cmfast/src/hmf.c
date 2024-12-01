@@ -280,6 +280,49 @@ double dNdlnM_WatsonFOF_z(double z, double growthf, double lnM){
     return -(dsigmadm/sigma) * f_sigma;
 }
 
+//Halo property helper functions for HMF integrals
+//scaling relation for M_halo --> n_ion used in integrands
+double nion_fraction(double lnM, void *param_struct){
+    struct parameters_gsl_MF_integrals p = *(struct parameters_gsl_MF_integrals *)param_struct;
+    double Fstar = log_scaling_PL_limit(lnM,p.f_star_norm,p.alpha_star,p.Mlim_star,10*LN10);
+    double Fesc = log_scaling_PL_limit(lnM,p.f_esc_norm,p.alpha_esc,p.Mlim_esc,10*LN10);
+
+    return exp(Fstar + Fesc - p.Mturn/exp(lnM) + lnM);
+}
+
+double nion_fraction_mini(double lnM, void *param_struct){
+    struct parameters_gsl_MF_integrals p = *(struct parameters_gsl_MF_integrals *)param_struct;
+    double Fstar = log_scaling_PL_limit(lnM,p.f_star_norm,p.alpha_star,p.Mlim_star,7*LN10);
+    double Fesc = log_scaling_PL_limit(lnM,p.f_esc_norm,p.alpha_esc,p.Mlim_esc,7*LN10);
+    double M = exp(lnM);
+
+    return exp(Fstar + Fesc - M/p.Mturn_upper - p.Mturn/M + lnM);
+}
+
+//Due to the log(1+Mstar) in the metallicity, this is hard to simplify into log-space
+//  As a result this will be slower, and is currently used only for integrals in HaloBox
+//  below the sampler mass.
+double xray_fraction_doublePL(double lnM, void *param_struct){
+    struct parameters_gsl_MF_integrals p = *(struct parameters_gsl_MF_integrals *)param_struct;
+    double M = exp(lnM);
+    double Fstar = scaling_PL_limit(M,p.f_star_norm,p.alpha_star,p.Mlim_star,1e10) * exp(-p.Mturn/M);
+
+    //using the escape fraction variables for minihalos
+    double Fstar_mini = 0.;
+    if(flag_options_global->USE_MINI_HALOS)
+        Fstar_mini = scaling_PL_limit(M,p.f_esc_norm,p.alpha_esc,p.Mlim_esc,1e7) * exp(-p.Mturn/M - M/p.Mturn_upper);
+
+    double sfr = M*Fstar/(p.t_star*p.t_h);
+    double sfr_mini = M*Fstar_mini/(p.t_star*p.t_h);
+
+    double metallicity;
+    get_halo_metallicity(sfr+sfr_mini,M*(Fstar+Fstar_mini),p.redshift,&metallicity);
+    double l_x = get_lx_on_sfr(sfr,metallicity,p.l_x_norm);
+    double l_x_mini = get_lx_on_sfr(sfr_mini,metallicity,p.l_x_norm_mini);
+
+    return sfr*l_x + sfr_mini*l_x_mini;
+}
+
 double conditional_mf(double growthf, double lnM, double delta, double sigma, int HMF){
     //dNdlnM = dfcoll/dM * M / M * constants
     if(HMF==0) {
@@ -312,13 +355,15 @@ double c_fcoll_integrand(double lnM, void *param_struct){
 }
 
 double c_nion_integrand(double lnM, void *param_struct){
-    return nion_fraction(exp(lnM),param_struct) * exp(lnM) * c_mf_integrand(lnM,param_struct);
+    return nion_fraction(lnM,param_struct) * c_mf_integrand(lnM,param_struct);
 }
 
-//The reason this is separated from the above is the second exponent
 double c_nion_integrand_mini(double lnM, void *param_struct){
+    return nion_fraction_mini(lnM,param_struct) * c_mf_integrand(lnM,param_struct);
+}
 
-    return nion_fraction_mini(exp(lnM),param_struct) * exp(lnM) * c_mf_integrand(lnM,param_struct);
+double c_xray_integrand(double lnM, void *param_struct){
+    return xray_fraction_doublePL(lnM,param_struct) * c_mf_integrand(lnM,param_struct);
 }
 
 double unconditional_mf(double growthf, double lnM, double z, int HMF){
@@ -359,35 +404,16 @@ double u_fcoll_integrand(double lnM, void *param_struct){
 }
 
 double u_nion_integrand(double lnM, void *param_struct){
-    struct parameters_gsl_MF_integrals params = *(struct parameters_gsl_MF_integrals *)param_struct;
-    double M_turn = params.Mturn;
-    double f_starn = params.ln_n_star;
-    double a_star = params.alpha_star;
-    double f_escn = params.ln_n_esc;
-    double a_esc = params.alpha_esc;
-    double Mlim_star = params.ln_l_star;
-    double Mlim_esc = params.ln_l_esc;
-
-    double Fstar = log_scaling_PL_limit(lnM,f_starn,a_star,Mlim_star,10*LN10);
-    double Fesc = log_scaling_PL_limit(lnM,f_escn,a_esc,Mlim_esc,10*LN10);
-    double exponent = Fstar + Fesc - M_turn/exp(lnM) + lnM;
-
-    return exp(exponent) * u_mf_integrand(lnM,param_struct);
+    return nion_fraction(lnM,param_struct) * u_mf_integrand(lnM,param_struct);
 }
 
 //The reason this is separated from the above is the second exponent
 double u_nion_integrand_mini(double lnM, void *param_struct){
-    struct parameters_gsl_MF_integrals params = *(struct parameters_gsl_MF_integrals *)param_struct;
-    double M_turn_lower = params.Mturn;
-    double M_turn_upper = params.Mturn_upper;
-    double f_starn = params.ln_n_star;
-    double a_star = params.alpha_star;
-    double f_escn = params.ln_n_esc;
-    double a_esc = params.alpha_esc;
-    double Mlim_star = params.ln_l_star;
-    double Mlim_esc = params.ln_l_esc;
+    return nion_fraction_mini(lnM,param_struct) * u_mf_integrand(lnM,param_struct);
+}
 
-    return nion_fraction(lnM,M_turn_lower,M_turn_upper) * u_mf_integrand(lnM,param_struct);
+double u_xray_integrand(double lnM, void *param_struct){
+    return xray_fraction_doublePL(lnM,param_struct) * u_mf_integrand(lnM,param_struct);
 }
 
 ///// INTEGRATION ROUTINES BELOW /////
@@ -414,8 +440,9 @@ double IntegratedNdM_QAG(double lnM_lo, double lnM_hi, struct parameters_gsl_MF_
 
     if(status!=0) {
         LOG_ERROR("gsl integration error occured!");
-        LOG_ERROR("(function argument): lower_limit=%.3e (%.3e) upper_limit=%.3e (%.3e) rel_tol=%.3e result=%.3e error=%.3e",lower_limit,exp(lower_limit),upper_limit,exp(upper_limit),rel_tol,result,error);
-        LOG_ERROR("data: z=%.3e growthf=%.3e  HMF=%d type=%d ",params.redshift,params.growthf,params.HMF,type);
+        LOG_ERROR("(function argument): lower_limit=%.3e (%.3e) upper_limit=%.3e (%.3e) rel_tol=%.3e result=%.3e error=%.3e",
+                    lower_limit,exp(lower_limit),upper_limit,exp(upper_limit),rel_tol,result,error);
+        LOG_ERROR("data: z=%.3e growthf=%.3e  HMF=%d ",params.redshift,params.growthf,params.HMF);
         LOG_ERROR("sigma=%.3e delta=%.3e",params.sigma_cond,params.delta);
         LOG_ERROR("Mturn_lo=%.3e f*=%.3e a*=%.3e Mlim*=%.3e",params.Mturn,params.f_star_norm,params.alpha_star,params.Mlim_star);
         LOG_ERROR("f_escn=%.3e a_esc=%.3e Mlim_esc=%.3e",params.f_esc_norm,params.alpha_esc,params.Mlim_esc);
@@ -745,6 +772,29 @@ double Nion_General_MINI(double z, double lnM_Min, double lnM_Max, double MassTu
     return IntegratedNdM(lnM_Min,lnM_Max,params,&u_nion_integrand_mini,0);
 }
 
+double Xray_General(double z, double lnM_Min, double lnM_Max, double MassTurnover, double MassTurnover_upper, double Alpha_star,
+                     double Alpha_star_mini, double Fstar10, double Fstar7, double l_x, double l_x_mini, double t_h,
+                     double t_star, double Mlim_Fstar, double Mlim_Fstar_mini){
+    struct parameters_gsl_MF_integrals params = {
+        .redshift = z,
+        .growthf = dicke(z),
+        .Mturn = MassTurnover,
+        .Mturn_upper = MassTurnover_upper,
+        .alpha_star = Alpha_star,
+        .alpha_esc = Alpha_star_mini,
+        .f_star_norm = Fstar10,
+        .f_esc_norm = Fstar7,
+        .Mlim_star = Mlim_Fstar,
+        .Mlim_esc = Mlim_Fstar_mini,
+        .HMF = user_params_global->HMF,
+        .l_x_norm = l_x,
+        .l_x_norm_mini = l_x_mini,
+        .t_h = t_h,
+        .t_star = t_star,
+    };
+    return IntegratedNdM(lnM_Min,lnM_Max,params,&u_xray_integrand,0);
+}
+
 double Nhalo_Conditional(double growthf, double lnM1, double lnM2, double M_cond, double sigma, double delta, int method){
     struct parameters_gsl_MF_integrals params = {
         .growthf = growthf,
@@ -857,6 +907,43 @@ double Nion_ConditionalM(double growthf, double lnM1, double lnM2, double M_cond
         params.HMF = 0;
 
     return IntegratedNdM(lnM1,lnM2,params,&c_nion_integrand_mini,method);
+}
+
+double Xray_ConditionalM(double growthf, double lnM1, double lnM2, double M_cond, double sigma2, double delta2, double MassTurnover,
+                        double Alpha_star, double Alpha_star_mini, double Fstar10, double Fstar7, double Mlim_Fstar,
+                        double Mlim_Fstar_mini, double l_x, double l_x_mini, double t_h, double t_star, int method){
+    struct parameters_gsl_MF_integrals params = {
+        .growthf = growthf,
+        .Mturn = MassTurnover,
+        .alpha_star = Alpha_star,
+        .alpha_esc = Alpha_star_mini,
+        .f_star_norm = Fstar10,
+        .f_esc_norm = Fstar7,
+        .Mlim_star = Mlim_Fstar,
+        .Mlim_esc = Mlim_Fstar_mini,
+        .HMF = user_params_global->HMF,
+        .l_x_norm = l_x,
+        .l_x_norm_mini = l_x_mini,
+        .t_h = t_h,
+        .t_star = t_star,
+    };
+
+    if(delta2 <= -1. || lnM1 >= log(M_cond))
+        return 0.;
+    //return 1 halo at the condition mass if delta is exceeded
+    if(delta2 > MAX_DELTAC_FRAC*get_delta_crit(params.HMF,sigma2,growthf)){
+        if(M_cond*(1-FRACT_FLOAT_ERR) <= exp(lnM2))
+            return xray_fraction_doublePL(M_cond,&params); //NOTE: condition mass is used as if it were Lagrangian (no 1+delta)
+        else
+            return 0.;
+    }
+
+    //If we don't have a corresponding CMF, use EPS and normalise
+    //NOTE: it's possible we may want to use another default
+    if(params.HMF != 0 && params.HMF != 1 && params.HMF != 4)
+        params.HMF = 0;
+
+    return IntegratedNdM(lnM1,lnM2,params,&c_xray_integrand,method);
 }
 
 float erfcc(float x)

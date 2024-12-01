@@ -70,45 +70,12 @@ void set_scaling_constants(double redshift, AstroParams *astro_params, FlagOptio
                                                             consts->fesc_7 * pow(1e3,consts->alpha_esc));
         }
     }
-
-    //saving natural logs
-    consts->ln_n_star = log(consts->fstar_10);
-    consts->ln_n_star_mini = log(consts->fstar_7);
-    consts->ln_l_star = log(consts->Mlim_Fstar);
-    consts->ln_l_star_mini = log(consts->Mlim_Fstar_mini);
-    consts->ln_n_esc = log(consts->fesc_10);
-    consts->ln_n_esc_mini = log(consts->fesc_7);
-    consts->ln_l_esc = log(consts->Mlim_Fesc);
-    consts->ln_l_esc_mini = log(consts->Mlim_Fesc_mini);
 }
 
-//single power-law with provided limit for scaling == 1, returns scaling/norm
-//limit is provided ahead of time for efficiency
-double scaling_PL_limit(double M, double norm, double alpha, double pivot, double limit){
-    if ((alpha > 0. && M > limit) || (alpha < 0. && M < limit))
-        return 1/norm;
-
-    //if alpha is zero, this returns 1 as expected (note strict inequalities above)
-    return pow(M/pivot,alpha);
-}
-
-//log version for possible acceleration
-double log_scaling_PL_limit(double lnM, double ln_norm, double alpha, double ln_pivot, double ln_limit){
-    if ((alpha > 0. && lnM > ln_limit) || (alpha < 0. && lnM < ln_limit))
-        return -ln_norm;
-
-    //if alpha is zero, this returns log(1) as expected (note strict inequalities above)
-    return alpha*(lnM - ln_pivot);
-}
-
-//concave-down double power-law, we pass pivot_ratio == (pivot_hi/pivot_lo)^alpha_lo
-//  to save pow() calls. Due to the double power-law we gain little from a log verison
-double scaling_double_PL(double M, double alpha_lo, double pivot_ratio,
-                double norm_hi, double alpha_hi, double pivot_hi)
-{
-    //if alpha is zero, this returns 1 as expected (note strict inequalities above)
-    return pivot_ratio / (pow(M/pivot_hi,-alpha_lo) + pow(M/pivot_hi,-alpha_hi));
-}
+/*
+Scaling relations used in the halo sampler. Quantities calculated for a single halo mass
+and are summed onto grids.
+*/
 
 //The mean Lx_over_SFR given by Lehmer+2021, by integrating analyitically over their double power-law + exponential Luminosity function
 //NOTE: this relation is fit to low-z, and there is a PEAK of Lx/SFR around 10% solar due to the critical L term
@@ -295,24 +262,38 @@ void get_halo_xray(double sfr, double sfr_mini, double metallicity, double xray_
     *xray_out = xray;
 }
 
-//scaling relation for M_halo --> n_ion used in integrands
-double nion_fraction(double lnM, double M_turn, double ln_n_star, double a_star, double ln_n_esc,
-                    double a_esc, double ln_l_star, double ln_l_esc){
-    double Fstar = log_scaling_PL_limit(lnM,ln_n_star,a_star,ln_l_star,10*LN10);
-    double Fesc = log_scaling_PL_limit(lnM,ln_n_esc,a_esc,ln_l_esc,10*LN10);
+/*
+Scaling realtions used in mass function integrals.
 
-    return exp(Fstar + Fesc - M_turn/exp(lnM) + lnM);
+These are usually integrated over log(M) and can avoid a few of pow/exp calls
+by keeping them in log. Since they are called within integrals they don't use the
+ScalingConstants. Instead pulling from the GSL integration parameter structs
+*/
+
+//single power-law with provided limit for scaling == 1, returns scaling/norm
+//limit is provided ahead of time for efficiency
+double scaling_PL_limit(double M, double norm, double alpha, double pivot, double limit){
+    if ((alpha > 0. && M > limit) || (alpha < 0. && M < limit))
+        return 1/norm;
+
+    //if alpha is zero, this returns 1 as expected (note strict inequalities above)
+    return pow(M/pivot,alpha);
 }
 
-double nion_fraction_mini(double lnM, double M_turn_lo, struct ScalingConstants *consts){
-    double Fstar = log_scaling_PL_limit(lnM,consts->ln_n_star,a_star,ln_l_star,7*LN10);
-    double Fesc = log_scaling_PL_limit(lnM,ln_n_esc,a_esc,ln_l_esc,7*LN10);
+//log version for possible acceleration
+double log_scaling_PL_limit(double lnM, double ln_norm, double alpha, double ln_pivot, double ln_limit){
+    if ((alpha > 0. && lnM > ln_limit) || (alpha < 0. && lnM < ln_limit))
+        return -ln_norm;
 
-    return exp(Fstar + Fesc - exp(lnM)/M_turn_hi - exp(lnM)/M_turn_lo + lnM);
+    //if alpha is zero, this returns log(1) as expected (note strict inequalities above)
+    return alpha*(lnM - ln_pivot);
 }
 
-double xray_frac(double lnM, double M_turn, struct ScalingConstants *consts){
-    double Fstar = log_scaling_PL_limit(lnM,consts->ln_n_star,consts->alpha_star,consts->ln_l_star,10*LN10);
-
-    return exp(Fstar + M_turn/exp(lnM) + lnM)/(consts->t_star*consts->t_h);
+//concave-down double power-law, we pass pivot_ratio == (pivot_hi/pivot_lo)^alpha_lo
+//  to save pow() calls. Due to the double power-law we gain little from a log verison
+double scaling_double_PL(double M, double alpha_lo, double pivot_ratio,
+                double norm_hi, double alpha_hi, double pivot_hi)
+{
+    //if alpha is zero, this returns 1 as expected (note strict inequalities above)
+    return pivot_ratio / (pow(M/pivot_hi,-alpha_lo) + pow(M/pivot_hi,-alpha_hi));
 }

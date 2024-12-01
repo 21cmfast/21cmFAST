@@ -41,16 +41,6 @@ struct ScalingConstants{
     double Mlim_Fesc;
     double Mlim_Fstar_mini;
     double Mlim_Fesc_mini;
-
-    double ln_n_esc;
-    double ln_n_esc_mini;
-    double ln_l_esc;
-    double ln_l_esc_mini;
-
-    double ln_n_star;
-    double ln_n_star_mini;
-    double ln_l_star;
-    double ln_l_star_mini;
 };
 
 double nion_fraction(double lnM, double M_turn, double ln_n_star, double a_star, double ln_n_esc,

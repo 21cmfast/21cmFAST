@@ -105,11 +105,9 @@ int get_box_averages(double M_min, double M_max, double M_turn_a, double M_turn_
     double prefactor_nion_mini = prefactor_stars_mini * consts->fesc_7 * global_params.Pop3_ion;
     double prefactor_wsfr = prefactor_sfr * consts->fesc_10;
     double prefactor_wsfr_mini = prefactor_sfr_mini * consts->fesc_7;
-    double prefactor_xray = prefactor_sfr * consts->l_x * SperYR;
-    double prefactor_xray_mini = prefactor_sfr_mini * consts->l_x_mini * SperYR;
 
     double mass_intgrl;
-    double intgrl_fesc_weighted, intgrl_stars_only;
+    double intgrl_fesc_weighted, intgrl_stars_only, integral_xray;
     double intgrl_fesc_weighted_mini=0., intgrl_stars_only_mini=0.;
 
     //NOTE: we use the atomic method for all halo mass/count here
@@ -127,6 +125,11 @@ int get_box_averages(double M_min, double M_max, double M_turn_a, double M_turn_
                                             consts->alpha_star_mini, 0., consts->fstar_7,
                                             1., consts->Mlim_Fstar_mini, 0.);
     }
+    if(flag_options_global->USE_TS_FLUCT){
+        integral_xray = Xray_General(consts->redshift, lnMmin, lnMmax, M_turn_m, M_turn_a,
+                                            consts->alpha_star, consts->alpha_star_mini, consts->fstar_10,
+                                            consts->fesc_7, consts->Mlim_Fstar, consts->Mlim_Fstar_mini);
+    }
 
     averages_out->halo_mass = mass_intgrl * prefactor_mass;
     averages_out->stellar_mass = intgrl_stars_only * prefactor_stars;
@@ -135,7 +138,7 @@ int get_box_averages(double M_min, double M_max, double M_turn_a, double M_turn_
     averages_out->sfr_mini = intgrl_stars_only_mini * prefactor_sfr_mini;
     averages_out->n_ion = intgrl_fesc_weighted*prefactor_nion + intgrl_fesc_weighted_mini*prefactor_nion_mini;
     averages_out->fescweighted_sfr = intgrl_fesc_weighted*prefactor_wsfr + intgrl_fesc_weighted_mini*prefactor_wsfr_mini;
-    averages_out->halo_xray = intgrl_stars_only*prefactor_xray + intgrl_stars_only_mini*prefactor_xray_mini;
+    averages_out->halo_xray = integral_xray;
     averages_out->m_turn_acg = M_turn_a;
     averages_out->m_turn_mcg = M_turn_m;
 
@@ -298,7 +301,7 @@ int set_fixed_grids(double M_min, double M_max, InitialConditions *ini_boxes,
         double dens;
         double l10_mturn_a,l10_mturn_m;
         double mass_intgrl, h_count;
-        double intgrl_fesc_weighted, intgrl_stars_only;
+        double intgrl_fesc_weighted, intgrl_stars_only, integral_xray;
         double intgrl_fesc_weighted_mini=0., intgrl_stars_only_mini=0.;
         double dens_fac;
 
@@ -328,13 +331,20 @@ int set_fixed_grids(double M_min, double M_max, InitialConditions *ini_boxes,
                                                             l10_mturn_a,consts->Mlim_Fstar,consts->Mlim_Fesc,false);
             }
 
+            if(flag_options_global->USE_TS_FLUCT){
+                //MAKE A NEW TABLEdouble delta, double log10Mturn_m, double growthf, double M_min, double M_max, double M_cond, double sigma_max,
+                                  //   double Mturn_a, double Mlim_Fstar, double Mlim_Fstar_MINI
+                integral_xray = EvaluateXray_Conditional(dens,l10_mturn_m,growth_z,M_min,M_max,M_cell,sigma_cell,
+                                                            l10_mturn_a,consts->Mlim_Fstar,consts->Mlim_Fstar_mini);
+            }
+
             grids->count[i] = (int)(h_count * M_cell * dens_fac); //NOTE: truncated
             grids->halo_mass[i] = mass_intgrl * prefactor_mass * dens_fac;
             grids->halo_sfr[i] = (intgrl_stars_only*prefactor_sfr) * dens_fac;
             grids->halo_sfr_mini[i] = intgrl_stars_only_mini*prefactor_sfr_mini * dens_fac;
             grids->n_ion[i] = (intgrl_fesc_weighted*prefactor_nion + intgrl_fesc_weighted_mini*prefactor_nion_mini) * dens_fac;
             grids->whalo_sfr[i] = (intgrl_fesc_weighted*prefactor_wsfr + intgrl_fesc_weighted_mini*prefactor_wsfr_mini) * dens_fac;
-            grids->halo_xray[i] = (intgrl_stars_only*prefactor_xray + intgrl_stars_only_mini*prefactor_xray_mini) * dens_fac;
+            grids->halo_xray[i] = integral_xray*dens_fac;
             grids->halo_stars[i] = intgrl_stars_only*prefactor_stars * dens_fac;
             grids->halo_stars_mini[i] = intgrl_stars_only_mini*prefactor_stars_mini * dens_fac;
 
