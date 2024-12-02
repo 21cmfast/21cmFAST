@@ -306,26 +306,6 @@ class InputParameters:
         )
 
     @classmethod
-    def from_input_structs(
-        cls,
-        cosmo_params: CosmoParams,
-        user_params: UserParams,
-        astro_params: AstroParams,
-        flag_options: FlagOptions,
-        random_seed: int,
-        **kwargs,
-    ):
-        """Construct full InputParameters instance from InputStruct instances."""
-        return cls(
-            cosmo_params=cosmo_params,
-            user_params=user_params,
-            astro_params=astro_params,
-            flag_options=flag_options,
-            random_seed=random_seed,
-            **kwargs,
-        )
-
-    @classmethod
     def from_defaults(cls, **kwargs):
         """Construct full InputParameters instance from default values.
 
