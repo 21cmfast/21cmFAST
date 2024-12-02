@@ -40,15 +40,20 @@ def input_param_field(kls: InputStruct):
 
     """
     return attrs.field(
+        default=kls.new(),
         converter=kls.new,
         validator=attrs.validators.instance_of(kls),
     )
 
 
-def get_logspaced_redshifts(min_redshift: float, z_step_factor: float, zmax: float):
+def get_logspaced_redshifts(
+    min_redshift: float = 6.0,
+    z_step_factor: float = global_params.ZPRIME_STEP_FACTOR,
+    max_redshift: float = global_params.Z_HEAT_MAX,
+):
     """Compute a sequence of redshifts to evolve over that are log-spaced."""
     redshifts = [min_redshift]
-    while redshifts[-1] < zmax:
+    while redshifts[-1] < max_redshift:
         redshifts.append((redshifts[-1] + 1.0) * z_step_factor - 1.0)
 
     return np.array(redshifts)[::-1]
@@ -56,16 +61,11 @@ def get_logspaced_redshifts(min_redshift: float, z_step_factor: float, zmax: flo
 
 # node_redshifts takes either a list of floats OR the string "logspaced"
 def _node_redshifts_converter(value, self):
-    if isinstance(value, str) and value == "logspaced":
-        # if "logspaced" is passed, set logspaced nodes
-        value = get_logspaced_redshifts(
-            min_redshift=self._min_redshift,
-            z_step_factor=self._redshift_step,
-            zmax=self._max_redshift,
-        )
-    # we otherwise assume an array-like is passed
-    if len(value) > 0:
+    # we assume an array-like is passed
+    if hasattr(value, "__len__"):
         return np.sort(np.array(value, dtype=float).flatten())[::-1]
+    if isinstance(value, float):
+        return np.array([value])
     return np.array([])
 
 
@@ -84,16 +84,6 @@ class InputParameters:
     flag_options: FlagOptions = input_param_field(FlagOptions)
     astro_params: AstroParams = input_param_field(AstroParams)
 
-    # These private fields can be used for controlling node_redshifts if an array is not passed explicitly,
-    #   but are not used for comparisons
-    _min_redshift = attrs.field(converter=float, default=6.0, eq=False, repr=False)
-    _max_redshift = attrs.field(
-        converter=float, default=global_params.Z_HEAT_MAX, eq=False, repr=False
-    )
-    _redshift_step = attrs.field(
-        converter=float, default=global_params.ZPRIME_STEP_FACTOR, eq=False, repr=False
-    )
-
     # passed to the converter, TODO: this can be cleaned up
     node_redshifts = attrs.field(
         converter=attrs.Converter(_node_redshifts_converter, takes_self=True)
@@ -102,9 +92,9 @@ class InputParameters:
     @node_redshifts.default
     def _node_redshifts_default(self):
         return (
-            "logspaced"
+            get_logspaced_redshifts()
             if (self.flag_options.INHOMO_RECO or self.flag_options.USE_TS_FLUCT)
-            else []
+            else None
         )
 
     @node_redshifts.validator
@@ -114,8 +104,7 @@ class InputParameters:
         ) and val.max() < global_params.Z_HEAT_MAX:
             raise ValueError(
                 "For runs with inhomogeneous recombinations or spin temperature fluctuations,\n"
-                + "your maximum passed node_redshifts must be above Z_HEAT_MAX, pass in\n"
-                + "`node_redshifts='logspaced'` or explicitly define `node_redshifts` as an array\n'"
+                + f"your maximum passed node_redshifts {val.max()} must be above Z_HEAT_MAX {global_params.Z_HEAT_MAX}"
             )
 
     @flag_options.validator
@@ -209,8 +198,7 @@ class InputParameters:
             for key in self.merge_keys()
         )
 
-    @classmethod
-    def from_output_structs(cls, output_structs, **kwargs) -> InputParameters:
+    def check_output_compatibility(self, output_structs):
         """Generate a new InputParameters instance given a list of OutputStructs.
 
         In contrast to other construction methods, we do not accept overwriting of
@@ -219,65 +207,24 @@ class InputParameters:
         All required fields not present in the `OutputStruct` objects need to be provided.
         """
         # get matching fields in each output struct
-        fieldnames = [field.name for field in attrs.fields(cls) if field.eq]
-        input_params = {k: [] for k in fieldnames}
-        default_fields = []
+        fieldnames = [field.name for field in attrs.fields(self.__class__) if field.eq]
         for struct in output_structs:
             if struct is None:
                 continue
-            for k in struct._inputs:
-                name = k.lstrip("_")
-                if name in fieldnames:
-                    input_params[name].append(getattr(struct, k, None))
 
-        # Now we have a list of [value | None,...] for each field,
-        for field, values in input_params.items():
-            # Append any provided structures
-            values.append(kwargs.pop(field, None))
-            # remove None and any duplicates
-            # NOTE: Types are not necessarily hashable so cannot use set
-            values = [
-                val
-                for i, val in enumerate(values)
-                if val is not None and val not in values[:i]
-            ]
+            input_params = {
+                k.lstrip(""): getattr(struct, k, None)
+                for k in struct._inputs
+                if k.lstrip("") in fieldnames
+            }
 
-            # If we have multiple values, it means there is a clash
-            if len(values) > 1:
-                raise ValueError(
-                    f"InputParameters.from_output_struct got multiple values for {field}: {values}"
-                )
-            elif len(values) == 0:
-                if attrs.fields_dict(cls)[field].default:
-                    # If the parameter has a default, we want to remove them
-                    #    from the dict (after the loop)
-                    # TODO: this is messy, try to clean it up
-                    default_fields.append(field)
-                else:
+            # Since self is always complete we can just compare against it
+            for field, struct_val in input_params.items():
+                input_val = getattr(self, field)
+                if struct_val is not None and struct_val != input_val:
                     raise ValueError(
-                        f"InputParameters.from_output_struct got no values for required attribute {field}"
+                        f"InputParameters not compatible with {struct} {field}: inputs {input_val} != struct {struct_val}"
                     )
-            # otherwise set value to the singleton
-            else:
-                input_params[field] = values.pop()
-
-        [input_params.pop(field) for field in default_fields]
-        return cls(**input_params)
-
-    def check_output_compatibility(self, output_structs):
-        """Raises an error if the inputs are incompatible with the provided OutputStruct objects.
-
-        Does not change the input struct.
-        """
-        InputParameters.from_output_structs(
-            output_structs,
-            node_redshifts=self.node_redshifts,
-            cosmo_params=self.cosmo_params,
-            user_params=self.user_params,
-            astro_params=self.astro_params,
-            flag_options=self.flag_options,
-            random_seed=self.random_seed,
-        )
 
     def evolve_input_structs(self, **kwargs):
         """Return an altered clone of the `InputParameters` structs.
@@ -302,20 +249,6 @@ class InputParameters:
         """
         return cls(
             **create_params_from_template(name),
-            **kwargs,
-        )
-
-    @classmethod
-    def from_defaults(cls, **kwargs):
-        """Construct full InputParameters instance from default values.
-
-        Takes `InputStruct` fields as keyword arguments which overwrite the template/default fields
-        """
-        return cls(
-            cosmo_params=CosmoParams.new(),
-            user_params=UserParams.new(),
-            astro_params=AstroParams.new(),
-            flag_options=FlagOptions.new(),
             **kwargs,
         )
 

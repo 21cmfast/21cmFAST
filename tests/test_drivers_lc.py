@@ -261,11 +261,8 @@ def test_lc_lowerz_than_photon_cons(
 ):
     with pytest.raises(ValueError, match="You have passed a redshift"):
         inputs = default_input_struct_lc.clone(
-            min_redshift=1.9,
-            node_redshifts="logspaced",
-            flag_options=default_flag_options.clone(
-                PHOTON_CONS_TYPE="z-photoncons",
-            ),
+            node_redshifts=p21c.get_logspaced_redshifts(min_redshift=1.9),
+            flag_options=default_flag_options.clone(PHOTON_CONS_TYPE="z-photoncons"),
         )
         lcn = p21c.RectilinearLightconer.with_equal_cdist_slices(
             min_redshift=2.0,

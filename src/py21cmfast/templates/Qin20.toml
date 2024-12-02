@@ -15,7 +15,7 @@ ALPHA_ESC = 0.0
 M_TURN = 5.0 # not included in Qin20, so we set very low
 t_STAR = 0.5
 L_X = 40.5
-XRAY_SPEC_INDEX = 1.0
+X_RAY_SPEC_INDEX = 1.0
 NU_X_THRESH = 500
 R_BUBBLE_MAX = 50.0
 

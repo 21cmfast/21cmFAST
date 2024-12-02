@@ -10,7 +10,7 @@ import py21cmfast as p21c
 
 
 def test_run_lf():
-    inputs = p21c.InputParameters.from_defaults(random_seed=9)
+    inputs = p21c.InputParameters(random_seed=9)
     muv, mhalo, lf = p21c.compute_luminosity_function(
         inputs=inputs, redshifts=[7, 8, 9], nbins=100
     )
@@ -39,7 +39,7 @@ def test_run_lf():
 
 
 def test_run_tau():
-    inputs = p21c.InputParameters.from_defaults(random_seed=9)
+    inputs = p21c.InputParameters(random_seed=9)
     tau = p21c.compute_tau(
         redshifts=[7, 8, 9],
         global_xHI=[0.1, 0.2, 0.3],

@@ -62,15 +62,13 @@ def test_transfer_function(ic, default_input_struct):
 
 def test_relvels():
     """Test for relative velocity initial conditions"""
-    inputs = p21c.InputParameters.from_defaults(random_seed=1).clone(
-        user_params=p21c.UserParams(
-            HII_DIM=100,
-            DIM=300,
-            BOX_LEN=300,
-            POWER_SPECTRUM="CLASS",
-            USE_RELATIVE_VELOCITIES=True,
-            N_THREADS=cpu_count(),  # To make this one a bit faster.
-        ),
+    inputs = p21c.InputParameters(random_seed=1).evolve_input_structs(
+        HII_DIM=100,
+        DIM=300,
+        BOX_LEN=300,
+        POWER_SPECTRUM="CLASS",
+        USE_RELATIVE_VELOCITIES=True,
+        N_THREADS=cpu_count(),  # To make this one a bit faster.
     )
     ic = p21c.compute_initial_conditions(inputs=inputs)
 

@@ -44,9 +44,15 @@ description = "Exact fiducial parameters from Park et al 2019. Disables modules 
 
 [[templates]]
 name = "Qin20"
-file = "qin20.toml"
+file = "Qin20.toml"
 aliases = ["Qin20"]
 description = "Exact fiducial parameters from Qin et al 2020. Disables modules implemented afterwards"
+
+[[templates]]
+name = "Munoz21"
+file = "Munoz21.toml"
+aliases = ["Munoz21"]
+description = "Exact fiducial parameters from Munoz et al 2021. Disables modules implemented afterwards"
 
 [[templates]]
 name = "latest-small"

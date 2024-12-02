@@ -13,6 +13,7 @@ from py21cmfast import (
     compute_initial_conditions,
     config,
     exhaust_lightcone,
+    get_logspaced_redshifts,
     global_params,
     perturb_field,
     run_lightcone,
@@ -181,16 +182,22 @@ def default_input_struct_ts(
 ):
     return default_input_struct.clone(
         flag_options=default_flag_options_ts,
-        min_redshift=redshift,
-        max_redshift=global_params.Z_HEAT_MAX,
-        node_redshifts="logspaced",
+        node_redshifts=get_logspaced_redshifts(
+            min_redshift=redshift,
+            max_redshift=global_params.Z_HEAT_MAX,
+            z_step_factor=global_params.ZPRIME_STEP_FACTOR,
+        ),
     )
 
 
 @pytest.fixture(scope="session")
 def default_input_struct_lc(redshift, max_redshift, default_input_struct):
     return default_input_struct.clone(
-        min_redshift=redshift, max_redshift=max_redshift, node_redshifts="logspaced"
+        node_redshifts=get_logspaced_redshifts(
+            min_redshift=redshift,
+            max_redshift=max_redshift,
+            z_step_factor=global_params.ZPRIME_STEP_FACTOR,
+        )
     )
 
 

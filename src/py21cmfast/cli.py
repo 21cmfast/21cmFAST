@@ -16,7 +16,7 @@ from pathlib import Path
 from . import _cfg, cache_tools, global_params, plotting
 from .drivers.coeval import run_coeval
 from .drivers.lightcone import exhaust_lightcone, run_lightcone
-from .drivers.param_config import InputParameters
+from .drivers.param_config import InputParameters, get_logspaced_redshifts
 from .drivers.single_field import (
     compute_initial_conditions,
     compute_ionization_field,
@@ -542,7 +542,6 @@ def coeval(ctx, redshift, config, out, regen, direc, seed):
         astro_params=astro_params,
         flag_options=flag_options,
         random_seed=seed,
-        min_redshift=min(redshift),
     )
 
     coeval = run_coeval(
@@ -658,9 +657,11 @@ def lightcone(ctx, redshift, config, out, regen, direc, max_z, seed, lq):
         astro_params=astro_params,
         flag_options=flag_options,
         random_seed=seed,
-        min_redshift=redshift,
-        max_redshift=max_z,
-        node_redshifts="logspaced",
+        node_redshifts=get_logspaced_redshifts(
+            min_redshift=redshift,
+            max_redshift=max_z,
+            z_step_factor=global_params.ZPRIME_STEP_FACTOR,
+        ),
     )
 
     # For now, always use the old default lightconing algorithm

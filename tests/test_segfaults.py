@@ -124,10 +124,22 @@ def test_lc_runs(name, max_redshift):
     redshift, kwargs = OPTIONS_CTEST[name]
     options = prd.get_all_options_struct(redshift, **kwargs)
 
+    node_maxz = max_redshift
+    if (
+        options["inputs"].flag_options.USE_TS_FLUCT
+        or options["inputs"].flag_options.INHOMO_RECO
+    ):
+        node_maxz = p21c.global_params.Z_HEAT_MAX
     options["inputs"] = options["inputs"].clone(
         user_params=p21c.UserParams.new(DEFAULT_USER_PARAMS_CTEST),
-        node_redshifts="logspaced",
+        node_redshifts=p21c.get_logspaced_redshifts(
+            min_redshift=redshift,
+            max_redshift=node_maxz,
+            z_step_factor=p21c.global_params.ZPRIME_STEP_FACTOR,
+        ),
     )
+
+    print(options["inputs"].node_redshifts)
 
     lcn = p21c.RectilinearLightconer.with_equal_cdist_slices(
         min_redshift=redshift,

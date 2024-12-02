@@ -853,8 +853,11 @@ def run_lightcone(
 
     # while we still use the full list for caching etc, we don't need to run below the lightconer instance
     #   So stop one after the lightconer
-    final_node = np.argmax(inputs.node_redshifts <= min(lightconer.lc_redshifts))
-    scrollz = inputs.node_redshifts[: final_node + 1]  # inclusive
+    scrollz = np.copy(inputs.node_redshifts)
+    below_lc_z = inputs.node_redshifts <= min(lightconer.lc_redshifts)
+    if np.any(below_lc_z):
+        final_node = np.argmax(below_lc_z)
+        scrollz = scrollz[: final_node + 1]  # inclusive
 
     if pf_given and scrollz != [pf.redshift for pf in perturbed_fields]:
         raise ValueError(

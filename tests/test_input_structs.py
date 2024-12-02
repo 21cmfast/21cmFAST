@@ -5,11 +5,20 @@ Unit tests for input structures
 import pytest
 
 import pickle
+import tomllib
 import warnings
+from pathlib import Path
 
-from py21cmfast import AstroParams  # An example of a struct with defaults
-from py21cmfast import CosmoParams, FlagOptions, UserParams, __version__, global_params
-from py21cmfast.drivers.param_config import InputParameters
+from py21cmfast import (
+    AstroParams,
+    CosmoParams,
+    FlagOptions,
+    InputParameters,
+    IonizedBox,
+    UserParams,
+    __version__,
+    global_params,
+)
 
 
 @pytest.fixture(scope="module")
@@ -254,10 +263,8 @@ def test_flag_options():
 
 
 def test_inputstruct_init(default_seed):
-    default_struct = InputParameters.from_defaults(random_seed=default_seed)
-    altered_struct = InputParameters.from_defaults(
-        random_seed=default_seed
-    ).evolve_input_structs(BOX_LEN=30)
+    default_struct = InputParameters(random_seed=default_seed)
+    altered_struct = default_struct.evolve_input_structs(BOX_LEN=30)
 
     assert default_struct.cosmo_params == CosmoParams.new()
     assert default_struct.user_params == UserParams.new()
@@ -266,48 +273,25 @@ def test_inputstruct_init(default_seed):
     assert altered_struct.user_params.BOX_LEN == 30
 
 
-def test_inputstruct_outputs(ic, perturbed_field):
-    inputs = InputParameters.from_output_structs(
-        (ic, perturbed_field),
-        astro_params=AstroParams(),
-        flag_options=FlagOptions(),
-    )
+def test_inputstruct_outputs(
+    default_input_struct, default_input_struct_lc, perturbed_field
+):
+    example_ib = IonizedBox(inputs=default_input_struct_lc)  # doesn't compute
+    with pytest.raises(ValueError, match="InputParameters not compatible with"):
+        default_input_struct.check_output_compatibility([example_ib])
 
-    with pytest.raises(
-        ValueError, match="InputParameters.from_output_struct got multiple values"
-    ):
-        InputParameters.from_output_structs(
-            (ic,),
-            user_params=ic.user_params.clone(BOX_LEN=ic.user_params.BOX_LEN * 2),
-            astro_params=AstroParams(),
-            flag_options=FlagOptions(),
-        )
-
-    with pytest.raises(
-        ValueError, match="InputParameters.from_output_struct got no values"
-    ):
-        InputParameters.from_output_structs(
-            (ic,),
-            flag_options=FlagOptions(),
-        )
-
-    assert inputs.user_params == ic.user_params
+    default_input_struct.check_output_compatibility([perturbed_field])
 
 
 def test_native_template_loading(default_seed):
-    assert isinstance(
-        InputParameters.from_template("simple", random_seed=default_seed),
-        InputParameters,
-    )
-    assert isinstance(
-        InputParameters.from_template("latest", random_seed=default_seed),
-        InputParameters,
-    )
-    assert isinstance(
-        InputParameters.from_template("Park19", random_seed=default_seed),
-        InputParameters,
-    )
-    assert isinstance(
-        InputParameters.from_template("latest-dhalos", random_seed=default_seed),
-        InputParameters,
-    )
+    template_path = Path(__file__).parent.parent / "src/py21cmfast/templates/"
+    with open(template_path / "manifest.toml", "rb") as f:
+        manifest = tomllib.load(f)
+
+    # check all files and all aliases work
+    for manf_entry in manifest["templates"]:
+        for alias in manf_entry["aliases"]:
+            assert isinstance(
+                InputParameters.from_template(alias, random_seed=default_seed),
+                InputParameters,
+            )

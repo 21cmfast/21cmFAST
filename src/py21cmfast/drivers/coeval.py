@@ -630,7 +630,7 @@ def run_coeval(
         photon_nonconservation_data = setup_photon_cons(**kw)
 
     # Get the list of redshift we need to scroll through.
-    all_redshifts = _get_required_redshifts_coeval(inputs.node_redshifts, out_redshifts)
+    all_redshifts = _get_required_redshifts_coeval(inputs, out_redshifts)
 
     # Get all the perturb boxes early. We need to get the perturb at every
     # redshift.
@@ -845,11 +845,21 @@ def run_coeval(
     return coevals
 
 
-def _get_required_redshifts_coeval(node_redshifts, user_redshifts) -> list[float]:
+def _get_required_redshifts_coeval(
+    inputs: InputParameters, user_redshifts: Sequence
+) -> list[float]:
     # Add in the redshift defined by the user, and sort in order
     # Turn into a set so that exact matching user-set redshift
     # don't double-up with scrolling ones.
-    needed_nodes = [z for z in node_redshifts if z > min(user_redshifts)]
+    if (
+        inputs.flag_options.USE_TS_FLUCT or inputs.flag_options.INHOMO_RECO
+    ) and inputs.node_redshifts.min() > min(user_redshifts):
+        warnings.warn(
+            f"minimum node redshift {inputs.node_redshifts.min()} is above output redshift {min(user_redshifts)},"
+            + "This may result in strange evolution"
+        )
+
+    needed_nodes = [z for z in inputs.node_redshifts if z > min(user_redshifts)]
     redshifts = np.concatenate((needed_nodes, user_redshifts))
     redshifts = np.sort(np.unique(redshifts))[::-1]
     return redshifts.tolist()
