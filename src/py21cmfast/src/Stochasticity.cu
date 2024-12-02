@@ -127,6 +127,13 @@ int filterWithMask(float *d_data, int *d_mask, int original_size)
     return valid_size;
 }
 
+// decide the number of sparsity
+int getSparsity(int n_buffer, int n_halo){
+    int power = floor(log2(n_buffer / n_halo));
+    int sparsity = 1 << power;
+    return sparsity;
+}
+
 // 11-30: the following implementation works (before using any global params on gpu)
 __device__ void stoc_set_consts_cond(struct HaloSamplingConstants *const_struct, float cond_val, int HMF, double x_min, double x_width, float *d_y_arr, int n_bin)
 {
@@ -534,7 +541,8 @@ int updateHaloOut(float *halo_masses, unsigned long long int n_halos, float *y_a
 
     // allocate memory to store list of halo index need further process
     int *d_further_process;
-    CALL_CUDA(cudaMalloc(&d_further_process, size_halo));
+    CALL_CUDA(cudaMalloc(&d_further_process, sizeof(int)*n_halos));
+    CALL_CUDA(cudaMemset(d_further_process, 0, sizeof(int)*n_halos));
 
     // get parameters needed by the kernel
     int HMF = user_params_global->HMF;
@@ -563,34 +571,52 @@ int updateHaloOut(float *halo_masses, unsigned long long int n_halos, float *y_a
     // initiate offset for writing output data
     unsigned long long int write_offset = 0;
 
+    // initialize n filter halo
+    unsigned long long int n_filter_halo = n_halos;
+
     // launch kernel grid
-    update_halo_constants<<<n_blocks, n_threads>>>(d_halo_masses, d_y_arr, x_min, x_width, n_halos, n_bin_y, hs_constants, HMF, d_states, d_halo_masses_out, star_rng_out,
-                                                       sfr_rng_out, xray_rng_out, halo_coords_out, d_sum_check, d_further_process, sparsity, write_offset);
+    while (n_filter_halo > 0){
+        update_halo_constants<<<n_blocks, n_threads>>>(d_halo_masses, d_y_arr, x_min, x_width, n_halos, n_bin_y, hs_constants, HMF, d_states, d_halo_masses_out, star_rng_out,
+                                                        sfr_rng_out, xray_rng_out, halo_coords_out, d_sum_check, d_further_process, sparsity, write_offset);
 
-    // Check kernel launch errors
-    CALL_CUDA(cudaGetLastError());
+        // Check kernel launch errors
+        CALL_CUDA(cudaGetLastError());
 
-    CALL_CUDA(cudaDeviceSynchronize());
+        CALL_CUDA(cudaDeviceSynchronize());
 
-    // filter device halo masses in-place
-    int n_filter_halo = filterWithMask(d_halo_masses, d_further_process, n_halos);
+        // filter device halo masses in-place
+        n_filter_halo = filterWithMask(d_halo_masses, d_further_process, n_halos);
 
-    // tmp: the following is just needed for debugging purpose
-    float *h_filter_halos;
-    CALL_CUDA(cudaHostAlloc((void **)&h_filter_halos, sizeof(float)*n_filter_halo, cudaHostAllocDefault));
-    CALL_CUDA(cudaMemcpy(h_filter_halos, d_halo_masses, sizeof(float)*n_filter_halo, cudaMemcpyDeviceToHost));
+        // tmp: the following is just needed for debugging purpose
+        float *h_filter_halos;
+        CALL_CUDA(cudaHostAlloc((void **)&h_filter_halos, sizeof(float)*n_filter_halo, cudaHostAllocDefault));
+        CALL_CUDA(cudaMemcpy(h_filter_halos, d_halo_masses, sizeof(float)*n_filter_halo, cudaMemcpyDeviceToHost));
 
-    
+        
+        // update sparsity value
+        sparsity = getSparsity(n_halos, n_filter_halo);
+        // update write offset
+        write_offset += total_threads;
 
+        // reset mask array
+        CALL_CUDA(cudaMemset(d_further_process, 0, sizeof(int) * n_halos));
 
+        // copy data from device to host
+        int h_sum_check;
+        CALL_CUDA(cudaMemcpy(&h_sum_check, d_sum_check, sizeof(int), cudaMemcpyDeviceToHost));
 
-    // copy data from device to host
-    int h_sum_check;
-    CALL_CUDA(cudaMemcpy(&h_sum_check, d_sum_check, sizeof(int), cudaMemcpyDeviceToHost));
+        // tmp: for debug only
+        CALL_CUDA(cudaFreeHost(h_filter_halos));
+        // CALL_CUDA(cudaFreeHost(h_sum_check));
+
+    }
 
     float *h_halo_masses_out;
     CALL_CUDA(cudaHostAlloc((void **)&h_halo_masses_out, buffer_size, cudaHostAllocDefault));
     CALL_CUDA(cudaMemcpy(h_halo_masses_out, d_halo_masses_out, buffer_size, cudaMemcpyDeviceToHost));
+
+
+    
 
     // Free device memory
     CALL_CUDA(cudaFree(d_halo_masses));
