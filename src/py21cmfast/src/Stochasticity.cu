@@ -232,7 +232,7 @@ __device__ void fix_mass_sample(curandState *state, double exp_M, int *n_halo_pt
     }
 }
 
-__device__ int stoc_mass_sample(struct HaloSamplingConstants *hs_constants, curandState *state, int *n_halo_out, float *M_out, int *further_process){
+__device__ int stoc_mass_sample(struct HaloSamplingConstants *hs_constants, curandState *state, float *M_out){
     double exp_M = hs_constants->expected_M;
 
     // The mass-limited sampling as-is has a slight bias to producing too many halos,
@@ -241,16 +241,16 @@ __device__ int stoc_mass_sample(struct HaloSamplingConstants *hs_constants, cura
     // exp_M *= user_params_global->HALOMASS_CORRECTION;
     exp_M *= d_user_params.HALOMASS_CORRECTION;
 
-    int n_halo_sampled = 0;
-    double M_prog = 0;
-    double M_sample;
+    // int n_halo_sampled = 0;
+    // double M_prog = 0;
+    // double M_sample;
 
     double tbl_arg = hs_constants->cond_val;
 
     // tmp (start)
-    M_sample = sample_dndM_inverse(tbl_arg, hs_constants, state);
+    double M_sample = sample_dndM_inverse(tbl_arg, hs_constants, state);
 
-    M_prog += M_sample;
+    // M_prog += M_sample;
     // tmp (end)
 
     // while (M_prog < exp_M){
@@ -263,16 +263,16 @@ __device__ int stoc_mass_sample(struct HaloSamplingConstants *hs_constants, cura
     // The above sample is above the expected mass, by up to 100%. I wish to make the average mass equal to exp_M
     // fix_mass_sample(state, exp_M, &n_halo_sampled, &M_prog, M_out);
 
-    *n_halo_out = n_halo_sampled;
-    if (M_prog < exp_M){
-        *further_process = 1;
-        return 1;
-    }
+    // *n_halo_out = n_halo_sampled;
+    // if (M_prog < exp_M){
+    //     *further_process = 1;
+    //     return 1;
+    // }
     *M_out = M_sample;
     return 0;
 }
 
-__device__ int stoc_sample(struct HaloSamplingConstants *hs_constants, curandState *state, int *n_halo_out, float *M_out, int *further_process){
+__device__ int stoc_sample(struct HaloSamplingConstants *hs_constants, curandState *state, float *M_out){
     // TODO: really examine the case for number/mass sampling
     // The poisson sample fails spectacularly for high delta (from_catalogs or dense cells)
     //   and excludes the correlation between number and mass (e.g many small halos or few large ones)
@@ -286,12 +286,12 @@ __device__ int stoc_sample(struct HaloSamplingConstants *hs_constants, curandSta
     // NOTE: some of these conditions are redundant with set_consts_cond()
     if (hs_constants->delta <= DELTA_MIN || hs_constants->expected_M < d_user_params.SAMPLER_MIN_MASS)
     {
-        *n_halo_out = 0;
+        // *n_halo_out = 0;
         return 0;
     }
     // if delta is above critical, form one big halo
     if (hs_constants->delta >= MAX_DELTAC_FRAC * get_delta_crit(d_user_params.HMF, hs_constants->sigma_cond, hs_constants->growth_out)){
-        *n_halo_out = 1;
+        // *n_halo_out = 1;
 
         // Expected mass takes into account potential dexm overlap
         M_out[0] = hs_constants->expected_M;
@@ -307,7 +307,7 @@ __device__ int stoc_sample(struct HaloSamplingConstants *hs_constants, curandSta
     }
     else if (d_user_params.SAMPLE_METHOD == 0)
     {
-        err = stoc_mass_sample(hs_constants, state, n_halo_out, M_out, further_process);
+        err = stoc_mass_sample(hs_constants, state, M_out);
     }
     else if (d_user_params.SAMPLE_METHOD == 2)
     {
@@ -327,13 +327,13 @@ __device__ int stoc_sample(struct HaloSamplingConstants *hs_constants, curandSta
         // LOG_ERROR("Invalid sampling method");
         // Throw(ValueError);
     }
-    if (*n_halo_out > MAX_HALO_CELL)
-    {
-        printf("too many halos in conditin, buffer overflow");
-        // todo: check how to throw error in cuda
-        // LOG_ERROR("too many halos in condition, buffer overflow");
-        // Throw(ValueError);
-    }
+    // if (*n_halo_out > MAX_HALO_CELL)
+    // {
+    //     printf("too many halos in conditin, buffer overflow\n");
+    //     // todo: check how to throw error in cuda
+    //     // LOG_ERROR("too many halos in condition, buffer overflow");
+    //     // Throw(ValueError);
+    // }
     return err;
 }
 
@@ -397,13 +397,13 @@ __global__ void setup_random_states(curandState *d_states, unsigned long long in
 
 __global__ void update_halo_constants(float *d_halo_masses, float *d_y_arr, double x_min, double x_width,
                                       unsigned long long int n_halos, int n_bin, struct HaloSamplingConstants d_hs_constants,
-                                      int HMF, curandState *d_states, 
+                                      int HMF, curandState *d_states,
                                       float *d_halo_masses_out, float *star_rng_out,
                                       float *sfr_rng_out, float *xray_rng_out, float *halo_coords_out, int *d_sum_check,
-                                      int *further_process)
+                                      int *d_further_process, int sparsity, unsigned long long int write_offset)
 {
     // Define shared memory for block-level reduction
-    __shared__ int shared_check[256];
+    __shared__ float shared_mass[256];
     
     // get thread idx
     int tid = threadIdx.x;
@@ -413,9 +413,14 @@ __global__ void update_halo_constants(float *d_halo_masses, float *d_y_arr, doub
         return;
     }
 
-    float M = d_halo_masses[ind];
+    // determine which halo mass to access
+    int hid = ind / sparsity;
+    float M = d_halo_masses[hid];
 
-    int n_prog; // the value will be updated after calling stoc_sample
+    // idx of d_halo_masses_out
+    int out_id = write_offset + ind;
+
+    // int n_prog = 0; // the value will be updated after calling stoc_sample
 
     // set condition-dependent variables for sampling
     stoc_set_consts_cond(&d_hs_constants, M, HMF, x_min, x_width, d_y_arr, n_bin);
@@ -442,27 +447,42 @@ __global__ void update_halo_constants(float *d_halo_masses, float *d_y_arr, doub
     // double tmp2 = 681273355217.0;
     // float tmp3 = 101976856.0; 
     // remove_random_halo(&local_state, 59, &tmp1, &tmp2, &tmp3);
-    int check = stoc_sample(&d_hs_constants, &local_state, &n_prog, &d_halo_masses_out[ind], &further_process[ind]);
+    stoc_sample(&d_hs_constants, &local_state, &shared_mass[tid]);
     d_states[ind] = local_state;
 
-    shared_check[tid] = check;
     __syncthreads();
 
-    // Perform reduction within the block
-    for (int stride = blockDim.x / 2; stride > 0; stride /= 2)
-    {
-        if (tid < stride)
-        {
-            shared_check[tid] += shared_check[tid + stride];
+    // passing value to arrays in global memory is done by one thread per group
+    if (tid % sparsity == 0){
+        float Mprog = 0.0;
+        for (int i = 0; i < sparsity; ++i){
+            if (Mprog >= d_hs_constants.expected_M)
+            {
+                break;
+            }
+            Mprog += shared_mass[tid+i];
+            d_halo_masses_out[out_id+i] = shared_mass[tid+i];
+                }
+        if (Mprog < d_hs_constants.expected_M){
+            d_further_process[hid] = 1;
         }
-        __syncthreads(); // Ensure all threads have completed each stage of reduction
     }
 
+    // Perform reduction within the block
+    // for (int stride = blockDim.x / 2; stride > 0; stride /= 2)
+    // {
+    //     if (tid < stride)
+    //     {
+    //         shared_check[tid] += shared_check[tid + stride];
+    //     }
+    //     __syncthreads(); // Ensure all threads have completed each stage of reduction
+    // }
+
     // Write the result from each block to the global sum 
-    if (tid == 0)
-    {
-        atomicAdd(d_sum_check, shared_check[0]);
-    }
+    // if (tid == 0)
+    // {
+    //     atomicAdd(d_sum_check, shared_check[0]);
+    // }
 
     // Sample the CMF set by the descendant
     // stoc_sample(&hs_constants, &local_state, &n_prog, prog_buf);
@@ -470,58 +490,6 @@ __global__ void update_halo_constants(float *d_halo_masses, float *d_y_arr, doub
     // double sigma = EvaluateSigma(log(M), x_min, x_width, d_y_arr, n_bin);
     // double delta = get_delta_crit(HMF, sigma, d_hs_constants.growth_in)\
     //                                 / d_hs_constants.growth_in * d_hs_constants.growth_out;
-
-    return;
-}
-
-__global__ void update_halo_constants_multi(float *d_halo_masses, float *d_y_arr, double x_min, double x_width,
-                                      unsigned long long int n_halos, int n_bin, struct HaloSamplingConstants d_hs_constants,
-                                      int HMF, curandState *d_states,
-                                      float *d_halo_masses_out, float *star_rng_out,
-                                      float *sfr_rng_out, float *xray_rng_out, float *halo_coords_out, int *d_sum_check,
-                                      int *further_process)
-{
-    // Define shared memory for block-level reduction
-    __shared__ int shared_check[256];
-
-    // get thread idx
-    int tid = threadIdx.x;
-    int ind = blockIdx.x * blockDim.x + threadIdx.x;
-    if (ind >= n_halos)
-    {
-        return;
-    }
-
-    float M = d_halo_masses[ind];
-
-    int n_prog; // the value will be updated after calling stoc_sample
-
-    // set condition-dependent variables for sampling
-    stoc_set_consts_cond(&d_hs_constants, M, HMF, x_min, x_width, d_y_arr, n_bin);
-
-    // todo: each thread across different blocks has unique random state
-    curandState local_state = d_states[ind];
-    int check = stoc_sample(&d_hs_constants, &local_state, &n_prog, &d_halo_masses_out[ind], &further_process[ind]);
-    d_states[ind] = local_state;
-
-    shared_check[tid] = check;
-    __syncthreads();
-
-    // Perform reduction within the block
-    for (int stride = blockDim.x / 2; stride > 0; stride /= 2)
-    {
-        if (tid < stride)
-        {
-            shared_check[tid] += shared_check[tid + stride];
-        }
-        __syncthreads(); // Ensure all threads have completed each stage of reduction
-    }
-
-    // Write the result from each block to the global sum
-    if (tid == 0)
-    {
-        atomicAdd(d_sum_check, shared_check[0]);
-    }
 
     return;
 }
@@ -585,24 +553,35 @@ int updateHaloOut(float *halo_masses, unsigned long long int n_halos, float *y_a
 
     // Check kernel launch errors
     CALL_CUDA(cudaGetLastError());
+    
+    // start with one thread work with one halo
+    int sparsity = 1;
+
+    // initiate n_halo check
+    unsigned long long int n_halo_check = n_halos;
+
+    // initiate offset for writing output data
+    unsigned long long int write_offset = 0;
 
     // launch kernel grid
     update_halo_constants<<<n_blocks, n_threads>>>(d_halo_masses, d_y_arr, x_min, x_width, n_halos, n_bin_y, hs_constants, HMF, d_states, d_halo_masses_out, star_rng_out,
-                                                       sfr_rng_out, xray_rng_out, halo_coords_out, d_sum_check, d_further_process);
+                                                       sfr_rng_out, xray_rng_out, halo_coords_out, d_sum_check, d_further_process, sparsity, write_offset);
 
     // Check kernel launch errors
     CALL_CUDA(cudaGetLastError());
 
     CALL_CUDA(cudaDeviceSynchronize());
 
-    // filtered halos
+    // filter device halo masses in-place
     int n_filter_halo = filterWithMask(d_halo_masses, d_further_process, n_halos);
+
+    // tmp: the following is just needed for debugging purpose
     float *h_filter_halos;
     CALL_CUDA(cudaHostAlloc((void **)&h_filter_halos, sizeof(float)*n_filter_halo, cudaHostAllocDefault));
     CALL_CUDA(cudaMemcpy(h_filter_halos, d_halo_masses, sizeof(float)*n_filter_halo, cudaMemcpyDeviceToHost));
 
-    // launch second kernel
     
+
 
 
     // copy data from device to host
