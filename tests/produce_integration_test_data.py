@@ -31,6 +31,7 @@ from py21cmfast import (
     config,
     determine_halo_list,
     exhaust_lightcone,
+    get_logspaced_redshifts,
     global_params,
     perturb_field,
     perturb_halo_list,
@@ -51,6 +52,7 @@ DEFAULT_USER_PARAMS = {
     "BOX_LEN": 100,
     "NO_RNG": True,
     "SAMPLER_MIN_MASS": 1e9,
+    "ZPRIME_STEP_FACTOR": 1.04,
 }
 
 DEFAULT_FLAG_OPTIONS = {
@@ -62,8 +64,6 @@ DEFAULT_FLAG_OPTIONS = {
     "USE_UPPER_STELLAR_TURNOVER": False,
     "USE_MASS_DEPENDENT_ZETA": False,
 }
-
-DEFAULT_ZPRIME_STEP_FACTOR = 1.04
 
 LIGHTCONE_FIELDS = [
     "density",
@@ -88,22 +88,22 @@ OPTIONS = {
     "simple": [12, {}],
     "perturb_high_res": [12, {"PERTURB_ON_HIGH_RES": True}],
     "change_step_factor": [11, {"zprime_step_factor": 1.02}],
-    "change_z_heat_max": [30, {"z_heat_max": 40}],
+    "change_z_heat_max": [30, {"Z_HEAT_MAX": 40}],
     "larger_step_factor": [
         13,
-        {"zprime_step_factor": 1.05, "z_heat_max": 25, "HMF": "PS"},
+        {"zprime_step_factor": 1.05, "Z_HEAT_MAX": 25, "HMF": "PS"},
     ],
     "interp_perturb_field": [16, {"interp_perturb_field": True}],
     "mdzeta": [14, {"USE_MASS_DEPENDENT_ZETA": True}],
     "rsd": [9, {"SUBCELL_RSD": True}],
     "inhomo": [10, {"INHOMO_RECO": True}],
     "tsfluct": [16, {"HMF": "WATSON-Z", "USE_TS_FLUCT": True}],
-    "mmin_in_mass": [20, {"z_heat_max": 45, "M_MIN_in_Mass": True, "HMF": "WATSON"}],
+    "mmin_in_mass": [20, {"Z_HEAT_MAX": 45, "M_MIN_in_Mass": True, "HMF": "WATSON"}],
     "fftw_wisdom": [35, {"USE_FFTW_WISDOM": True}],
     "mini_halos": [
         18,
         {
-            "z_heat_max": 25,
+            "Z_HEAT_MAX": 25,
             "USE_MINI_HALOS": True,
             "USE_MASS_DEPENDENT_ZETA": True,
             "INHOMO_RECO": True,
@@ -121,7 +121,7 @@ OPTIONS = {
         {
             "USE_MASS_DEPENDENT_ZETA": True,
             "PHOTON_CONS_TYPE": "z-photoncons",
-            "z_heat_max": 25,
+            "Z_HEAT_MAX": 25,
             "zprime_step_factor": "z-photoncons",
         },
     ],
@@ -132,7 +132,7 @@ OPTIONS = {
             "USE_TS_FLUCT": True,
             "INHOMO_RECO": True,
             "PHOTON_CONS_TYPE": "z-photoncons",
-            "z_heat_max": 25,
+            "Z_HEAT_MAX": 25,
             "zprime_step_factor": 1.1,
         },
     ],
@@ -143,7 +143,7 @@ OPTIONS = {
             "USE_TS_FLUCT": True,
             "INHOMO_RECO": True,
             "PHOTON_CONS_TYPE": "z-photoncons",
-            "z_heat_max": 25,
+            "Z_HEAT_MAX": 25,
             "zprime_step_factor": 1.1,
             "MINIMIZE_MEMORY": True,
         },
@@ -157,7 +157,7 @@ OPTIONS = {
             "INHOMO_RECO": True,
             "USE_TS_FLUCT": True,
             "PHOTON_CONS_TYPE": "z-photoncons",
-            "z_heat_max": 25,
+            "Z_HEAT_MAX": 25,
             "zprime_step_factor": 1.1,
         },
     ],
@@ -168,7 +168,7 @@ OPTIONS = {
             "USE_MASS_DEPENDENT_ZETA": True,
             "USE_HALO_FIELD": True,
             "USE_TS_FLUCT": True,
-            "z_heat_max": 25,
+            "Z_HEAT_MAX": 25,
             "zprime_step_factor": 1.1,
         },
     ],
@@ -179,7 +179,7 @@ OPTIONS = {
             "USE_HALO_FIELD": True,
             "PERTURB_ON_HIGH_RES": True,
             "N_THREADS": 4,
-            "z_heat_max": 25,
+            "Z_HEAT_MAX": 25,
             "zprime_step_factor": 1.1,
         },
     ],
@@ -190,7 +190,7 @@ OPTIONS = {
             "USE_TS_FLUCT": True,
             "PERTURB_ON_HIGH_RES": False,
             "N_THREADS": 4,
-            "z_heat_max": 25,
+            "Z_HEAT_MAX": 25,
             "zprime_step_factor": 1.2,
             "NUM_FILTER_STEPS_FOR_Ts": 4,
             "USE_INTERPOLATION_TABLES": False,
@@ -201,7 +201,7 @@ OPTIONS = {
         {
             "USE_TS_FLUCT": True,
             "N_THREADS": 4,
-            "z_heat_max": 25,
+            "Z_HEAT_MAX": 25,
             "zprime_step_factor": 1.2,
             "NUM_FILTER_STEPS_FOR_Ts": 4,
             "USE_INTERPOLATION_TABLES": False,
@@ -214,7 +214,7 @@ OPTIONS = {
             "USE_MASS_DEPENDENT_ZETA": True,
             "USE_TS_FLUCT": True,
             "N_THREADS": 4,
-            "z_heat_max": 25,
+            "Z_HEAT_MAX": 25,
             "zprime_step_factor": 1.1,
             "NUM_FILTER_STEPS_FOR_Ts": 4,
             "USE_INTERPOLATION_TABLES": False,
@@ -239,7 +239,7 @@ OPTIONS = {
     "relvel": [
         18,
         {
-            "z_heat_max": 25,
+            "Z_HEAT_MAX": 25,
             "USE_MINI_HALOS": True,
             "zprime_step_factor": 1.1,
             "N_THREADS": 4,
@@ -383,15 +383,17 @@ def produce_lc_power_spectra(redshift, **kwargs):
     #       which have a bug where the max_redshift gets set higher than it needs to be.
     flag_options = options["inputs"].flag_options
     if flag_options.INHOMO_RECO or flag_options.USE_TS_FLUCT:
-        max_redshift = options.get("z_heat_max", global_params.Z_HEAT_MAX)
+        max_redshift = options["inputs"].user_params.Z_HEAT_MAX
     else:
         max_redshift = options["out_redshifts"] + 2
 
     # convert options to lightcone version
     options["inputs"] = options["inputs"].clone(
-        min_redshift=options.pop("out_redshifts"),
-        max_redshift=max_redshift,
-        node_redshifts="logspaced",
+        node_redshifts=get_logspaced_redshifts(
+            min_redshift=options.pop("out_redshifts"),
+            max_redshift=max_redshift,
+            z_step_factor=options["inputs"].user_params.ZPRIME_STEP_FACTOR,
+        )
     )
 
     lcn = RectilinearLightconer.with_equal_cdist_slices(
@@ -647,7 +649,6 @@ def go(
     names,
 ):
     logger.setLevel(log_level.upper())
-    global_params.ZPRIME_STEP_FACTOR = DEFAULT_ZPRIME_STEP_FACTOR
 
     if names != list(OPTIONS.keys()):
         remove = False

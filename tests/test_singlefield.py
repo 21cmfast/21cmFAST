@@ -191,18 +191,18 @@ def test_ib_from_pf(perturbed_field, ic, default_input_struct):
     assert ib.cosmo_params == perturbed_field.cosmo_params
 
 
-def test_ib_override_z_heat_max(ic, perturbed_field, default_input_struct):
+def test_ib_override_global(ic, perturbed_field, default_input_struct):
     # save previous z_heat_max
-    zheatmax = p21c.global_params.Z_HEAT_MAX
+    saved_val = p21c.global_params.Pop2_ion
 
     p21c.compute_ionization_field(
         initial_conditions=ic,
         perturbed_field=perturbed_field,
         inputs=default_input_struct,
-        z_heat_max=12.0,
+        pop2_ion=3500,
     )
 
-    assert p21c.global_params.Z_HEAT_MAX == zheatmax
+    assert p21c.global_params.Pop2_ion == saved_val
 
 
 def test_ib_bad_st(ic, default_input_struct, perturbed_field, redshift):
@@ -315,7 +315,7 @@ def test_first_box(default_input_struct_ts):
     )
 
     prevst = None
-    for z in [p21c.global_params.Z_HEAT_MAX + 1e-2, 29.0]:
+    for z in [default_input_struct_ts.user_params.Z_HEAT_MAX + 1e-2, 29.0]:
         print(f"z={z}")
         perturbed_field = p21c.perturb_field(
             inputs=inputs,

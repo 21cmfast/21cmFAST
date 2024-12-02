@@ -60,11 +60,7 @@ def test_power_spectra_coeval(name, module_direc, plt):
 
     # Now compute the Coeval object
     with config.use(direc=module_direc, regenerate=False, write=True):
-        with global_params.use(zprime_step_factor=prd.DEFAULT_ZPRIME_STEP_FACTOR):
-            # Note that if zprime_step_factor is set in kwargs, it will over-ride this.
-            test_k, test_powers, _ = prd.produce_coeval_power_spectra(
-                redshift, **kwargs
-            )
+        test_k, test_powers, _ = prd.produce_coeval_power_spectra(redshift, **kwargs)
 
     true_k = test_k
     if plt == mpl.pyplot:
@@ -101,9 +97,7 @@ def test_power_spectra_lightcone(name, module_direc, plt):
 
     # Now compute the lightcone
     with config.use(direc=module_direc, regenerate=False, write=True):
-        with global_params.use(zprime_step_factor=prd.DEFAULT_ZPRIME_STEP_FACTOR):
-            # Note that if zprime_step_factor is set in kwargs, it will over-ride this.
-            test_k, test_powers, lc = prd.produce_lc_power_spectra(redshift, **kwargs)
+        test_k, test_powers, lc = prd.produce_lc_power_spectra(redshift, **kwargs)
 
     assert np.allclose(true_k, test_k)
 
@@ -209,19 +203,17 @@ def test_perturb_field_data(name):
         pdf_dens = f["pdf_dens"][...]
         pdf_vel = f["pdf_vel"][...]
 
-    with global_params.use(zprime_step_factor=prd.DEFAULT_ZPRIME_STEP_FACTOR):
-        # Note that if zprime_step_factor is set in kwargs, it will over-ride this.
-        (
-            k_dens,
-            p_dens,
-            k_vel,
-            p_vel,
-            x_dens,
-            y_dens,
-            x_vel,
-            y_vel,
-            ic,
-        ) = prd.produce_perturb_field_data(redshift, **kwargs)
+    (
+        k_dens,
+        p_dens,
+        k_vel,
+        p_vel,
+        x_dens,
+        y_dens,
+        x_vel,
+        y_vel,
+        ic,
+    ) = prd.produce_perturb_field_data(redshift, **kwargs)
 
     assert np.allclose(power_dens, p_dens, atol=5e-3, rtol=1e-3)
     assert np.allclose(power_vel, p_vel, atol=5e-3, rtol=1e-3)
@@ -239,9 +231,7 @@ def test_halo_field_data(name):
         n_pt_halos = f["n_pt_halos"][...]
         pt_halo_masses = f["pt_halo_masses"][...]
 
-    with global_params.use(zprime_step_factor=prd.DEFAULT_ZPRIME_STEP_FACTOR):
-        # Note that if zprime_step_factor is set in kwargs, it will over-ride this.
-        pt_halos = prd.produce_halo_field_data(redshift, **kwargs)
+    pt_halos = prd.produce_halo_field_data(redshift, **kwargs)
 
     np.testing.assert_allclose(n_pt_halos, pt_halos.n_halos, atol=5e-3, rtol=1e-3)
     np.testing.assert_allclose(

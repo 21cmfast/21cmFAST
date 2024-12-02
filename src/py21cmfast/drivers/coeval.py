@@ -749,7 +749,6 @@ def run_coeval(
             previous_perturbed_field=pf,
             halobox=hb2,
             spin_temp=st2,
-            z_heat_max=global_params.Z_HEAT_MAX,
             **kw,
         )
 

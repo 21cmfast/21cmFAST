@@ -47,9 +47,9 @@ def input_param_field(kls: InputStruct):
 
 
 def get_logspaced_redshifts(
-    min_redshift: float = 6.0,
-    z_step_factor: float = global_params.ZPRIME_STEP_FACTOR,
-    max_redshift: float = global_params.Z_HEAT_MAX,
+    min_redshift: float,
+    z_step_factor: float,
+    max_redshift: float,
 ):
     """Compute a sequence of redshifts to evolve over that are log-spaced."""
     redshifts = [min_redshift]
@@ -92,7 +92,11 @@ class InputParameters:
     @node_redshifts.default
     def _node_redshifts_default(self):
         return (
-            get_logspaced_redshifts()
+            get_logspaced_redshifts(
+                min_redshift=5.5,
+                max_redshift=self.user_params.Z_HEAT_MAX,
+                z_step_factor=self.user_params.ZPRIME_STEP_FACTOR,
+            )
             if (self.flag_options.INHOMO_RECO or self.flag_options.USE_TS_FLUCT)
             else None
         )
@@ -101,10 +105,10 @@ class InputParameters:
     def _node_redshifts_validator(self, att, val):
         if (
             self.flag_options.INHOMO_RECO or self.flag_options.USE_TS_FLUCT
-        ) and val.max() < global_params.Z_HEAT_MAX:
+        ) and val.max() < self.user_params.Z_HEAT_MAX:
             raise ValueError(
                 "For runs with inhomogeneous recombinations or spin temperature fluctuations,\n"
-                + f"your maximum passed node_redshifts {val.max()} must be above Z_HEAT_MAX {global_params.Z_HEAT_MAX}"
+                + f"your maximum passed node_redshifts {val.max()} must be above Z_HEAT_MAX {self.user_params.Z_HEAT_MAX}"
             )
 
     @flag_options.validator

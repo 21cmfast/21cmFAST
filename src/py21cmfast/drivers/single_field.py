@@ -492,7 +492,7 @@ def compute_halo_grid(
     # NOTE: if USE_MINI_HALOS is TRUE, so is USE_TS_FLUCT and INHOMO_RECO
     if previous_spin_temp is None:
         if (
-            redshift >= global_params.Z_HEAT_MAX
+            redshift >= inputs.user_params.Z_HEAT_MAX
             or not inputs.flag_options.USE_MINI_HALOS
         ):
             # Dummy spin temp is OK since we're above Z_HEAT_MAX
@@ -506,7 +506,7 @@ def compute_halo_grid(
 
     if previous_ionize_box is None:
         if (
-            redshift >= global_params.Z_HEAT_MAX
+            redshift >= inputs.user_params.Z_HEAT_MAX
             or not inputs.flag_options.USE_MINI_HALOS
         ):
             # Dummy ionize box is OK since we're above Z_HEAT_MAX
@@ -692,7 +692,7 @@ def compute_xray_source_field(
     # set minimum R at cell size
     l_factor = (4 * np.pi / 3.0) ** (-1 / 3)
     R_min = inputs.user_params.BOX_LEN / inputs.user_params.HII_DIM * l_factor
-    z_max = min(max(z_halos), global_params.Z_HEAT_MAX)
+    z_max = min(max(z_halos), inputs.user_params.Z_HEAT_MAX)
 
     # now we need to find the closest halo box to the redshift of the shell
     cosmo_ap = inputs.cosmo_params.cosmo
@@ -932,7 +932,7 @@ def compute_ionization_field(
     elif (
         not inputs.flag_options.INHOMO_RECO
         and not inputs.flag_options.USE_TS_FLUCT
-        or redshift >= global_params.Z_HEAT_MAX
+        or redshift >= inputs.user_params.Z_HEAT_MAX
     ):
         prev_z = 0  # signal value for first box
     else:
@@ -1079,19 +1079,9 @@ def spin_temperature(
     -----
     Typically, the spin temperature field at any redshift is dependent on the evolution of spin
     temperature up until that redshift, which necessitates providing a previous spin temperature
-    field to define the current one. This function provides several options for doing so. Either
-    (in order of precedence):
-
-    1. a specific previous spin temperature object is provided, which will be used directly,
-    2. a previous redshift is provided, for which a cached field on disk will be sought,
-    3. a step factor is provided which recursively steps through redshift, calculating previous
-       fields up until Z_HEAT_MAX, and returning just the final field at the current redshift, or
-    4. the function is instructed to treat the current field as being an initial "high-redshift"
-       field such that specific sources need not be found and evolved.
-
-    .. note:: If a previous specific redshift is given, but no cached field is found at that
-              redshift, the previous spin temperature field will be evaluated based on
-              ``z_step_factor``.
+    field to define the current one. Either a specific previous spin temperature object is provided,
+    or the function is instructed to treat the current field as being an initial "high-redshift"
+    field such that specific sources need not be found and evolved.:
 
     Examples
     --------
@@ -1139,7 +1129,7 @@ def spin_temperature(
     # Get the previous redshift
     if previous_spin_temp is not None:
         prev_z = previous_spin_temp.redshift
-    elif redshift < global_params.Z_HEAT_MAX:
+    elif redshift < inputs.user_params.Z_HEAT_MAX:
         raise ValueError(
             "previous_spin_temp is required when the redshift is lower than Z_HEAT_MAX"
         )

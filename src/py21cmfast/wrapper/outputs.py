@@ -109,10 +109,8 @@ class InitialConditions(_OutputStruct):
         "INITIAL_REDSHIFT",  # pf
         "HEAT_FILTER",  # st
         "CLUMPING_FACTOR",  # st
-        "Z_HEAT_MAX",  # st
         "R_XLy_MAX",  # st
         "NUM_FILTER_STEPS_FOR_Ts",  # ts
-        "ZPRIME_STEP_FACTOR",  # ts
         "TK_at_Z_HEAT_MAX",  # ts
         "XION_at_Z_HEAT_MAX",  # ts
         "Pop",  # ib
@@ -228,10 +226,8 @@ class PerturbedField(_OutputStructZ):
         "HII_FILTER",  # ib
         "HEAT_FILTER",  # st
         "CLUMPING_FACTOR",  # st
-        "Z_HEAT_MAX",  # st
         "R_XLy_MAX",  # st
         "NUM_FILTER_STEPS_FOR_Ts",  # ts
-        "ZPRIME_STEP_FACTOR",  # ts
         "TK_at_Z_HEAT_MAX",  # ts
         "XION_at_Z_HEAT_MAX",  # ts
         "Pop",  # ib

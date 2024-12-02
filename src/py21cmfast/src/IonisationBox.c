@@ -135,16 +135,17 @@ struct FilteredGrids{
     fftwf_complex *sfr_unfiltered, *sfr_filtered;
 };
 
-void set_ionbox_constants(double redshift, double prev_redshift, CosmoParams *cosmo_params, AstroParams *astro_params,
-                         FlagOptions *flag_options, struct IonBoxConstants *consts){
+void set_ionbox_constants(double redshift, double prev_redshift, CosmoParams *cosmo_params, UserParams *user_params,
+                         AstroParams *astro_params, FlagOptions *flag_options, struct IonBoxConstants *consts){
     consts->redshift = redshift;
     //defaults for no photoncons
     consts->stored_redshift = redshift;
     consts->photoncons_adjustment_factor = 1.;
 
     //dz is only used if inhomo_reco
+    //On the first step we assume a dz determined by ZPRIME_STEP_FACTOR
     if (prev_redshift < 1)
-        consts->dz = (1. + redshift) * (global_params.ZPRIME_STEP_FACTOR - 1.);
+        consts->dz = (1. + redshift) * (user_params->ZPRIME_STEP_FACTOR - 1.);
     else
         consts->dz = prev_redshift - redshift;
 
@@ -447,7 +448,7 @@ void set_mean_fcoll(struct IonBoxConstants *c, IonizedBox *prev_box, IonizedBox 
     if(flag_options_global->USE_MASS_DEPENDENT_ZETA){
         f_coll_curr = Nion_General(c->redshift,c->lnMmin,c->lnMmax_gl,mturn_acg,c->alpha_star,c->alpha_esc,
                                     c->fstar_10,c->fesc_10,c->Mlim_Fstar,c->Mlim_Fesc);
-        *f_limit_acg = Nion_General(global_params.Z_HEAT_MAX,c->lnMmin,c->lnMmax_gl,mturn_acg,c->alpha_star,c->alpha_esc,
+        *f_limit_acg = Nion_General(user_params_global->Z_HEAT_MAX,c->lnMmin,c->lnMmax_gl,mturn_acg,c->alpha_star,c->alpha_esc,
                                     c->fstar_10,c->fesc_10,c->Mlim_Fstar,c->Mlim_Fesc);
 
         if (flag_options_global->USE_MINI_HALOS){
@@ -470,7 +471,7 @@ void set_mean_fcoll(struct IonBoxConstants *c, IonizedBox *prev_box, IonizedBox 
                                                           c->alpha_esc,c->fstar_7,c->fesc_7,c->Mlim_Fstar_mini,c->Mlim_Fesc_mini);
                 curr_box->mean_f_coll_MINI = prev_box->mean_f_coll_MINI + f_coll_curr_mini - f_coll_prev_mini;
             }
-            *f_limit_mcg = Nion_General_MINI(global_params.Z_HEAT_MAX,c->lnMmin,c->lnMmax_gl,mturn_mcg,mturn_acg,c->alpha_star_mini,
+            *f_limit_mcg = Nion_General_MINI(user_params_global->Z_HEAT_MAX,c->lnMmin,c->lnMmax_gl,mturn_mcg,mturn_acg,c->alpha_star_mini,
                                                           c->alpha_esc,c->fstar_7,c->fesc_7,
                                                           c->Mlim_Fstar_mini,c->Mlim_Fesc_mini);
         }
@@ -481,7 +482,7 @@ void set_mean_fcoll(struct IonBoxConstants *c, IonizedBox *prev_box, IonizedBox 
     }
     else {
         curr_box->mean_f_coll = Fcoll_General(c->redshift, c->lnMmin, c->lnMmax_gl);
-        *f_limit_acg = Fcoll_General(global_params.Z_HEAT_MAX, c->lnMmin, c->lnMmax_gl); //JD: the old parametrisation didn't have this limit before
+        *f_limit_acg = Fcoll_General(user_params_global->Z_HEAT_MAX, c->lnMmin, c->lnMmax_gl); //JD: the old parametrisation didn't have this limit before
     }
 
     if(isfinite(curr_box->mean_f_coll)==0){
@@ -1172,7 +1173,7 @@ int ComputeIonizedBox(float redshift, float prev_redshift, UserParams *user_para
     init_ps();
 
     struct IonBoxConstants ionbox_constants;
-    set_ionbox_constants(redshift,prev_redshift,cosmo_params,astro_params,flag_options,&ionbox_constants);
+    set_ionbox_constants(redshift,prev_redshift,cosmo_params,user_params,astro_params,flag_options,&ionbox_constants);
 
     //boxes which aren't guaranteed to have every element assigned to need to be initialised
     if(flag_options->INHOMO_RECO) {
@@ -1199,7 +1200,7 @@ int ComputeIonizedBox(float redshift, float prev_redshift, UserParams *user_para
     float redshift_pc, stored_redshift_pc;
     if(flag_options->PHOTON_CONS_TYPE == 1) {
         redshift_pc = redshift;
-        adjust_redshifts_for_photoncons(astro_params,flag_options,&redshift_pc,&stored_redshift_pc,&absolute_delta_z);
+        adjust_redshifts_for_photoncons(user_params,astro_params,flag_options,&redshift_pc,&stored_redshift_pc,&absolute_delta_z);
         ionbox_constants.redshift = redshift_pc;
         ionbox_constants.stored_redshift = stored_redshift_pc;
         ionbox_constants.photoncons_adjustment_factor = dicke(redshift_pc)/dicke(stored_redshift_pc);

@@ -125,13 +125,13 @@ def test_mmin():
 
 
 def test_globals():
-    orig = global_params.Z_HEAT_MAX
+    orig = global_params.Pop2_ion
 
-    with global_params.use(Z_HEAT_MAX=10.0):
-        assert global_params.Z_HEAT_MAX == 10.0
-        assert global_params._cobj.Z_HEAT_MAX == 10.0
+    with global_params.use(Pop2_ion=1000.0):
+        assert global_params.Pop2_ion == 1000.0
+        assert global_params._cobj.Pop2_ion == 1000.0
 
-    assert global_params.Z_HEAT_MAX == orig
+    assert global_params.Pop2_ion == orig
 
 
 def test_validation():
@@ -274,9 +274,11 @@ def test_inputstruct_init(default_seed):
 
 
 def test_inputstruct_outputs(
-    default_input_struct, default_input_struct_lc, perturbed_field
+    default_input_struct, default_input_struct_ts, perturbed_field
 ):
-    example_ib = IonizedBox(inputs=default_input_struct_lc)  # doesn't compute
+    # NOTE: node_redshifts are not yet saved in inputstruct, so two OutputStruct
+    # can still be compatible with different node_redshifts
+    example_ib = IonizedBox(inputs=default_input_struct_ts)  # doesn't compute
     with pytest.raises(ValueError, match="InputParameters not compatible with"):
         default_input_struct.check_output_compatibility([example_ib])
 

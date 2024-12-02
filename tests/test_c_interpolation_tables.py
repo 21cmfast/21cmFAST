@@ -161,7 +161,7 @@ def test_inverse_cmf_tables(name, from_cat, delta_range, mass_range, plt):
             np.log(mass_range), mmin_range, indexing="ij"
         )
         inputs_delta = None
-        z_desc = (1 + redshift) / global_params.ZPRIME_STEP_FACTOR - 1
+        z_desc = (1 + redshift) / up.ZPRIME_STEP_FACTOR - 1
         M_cond = np.exp(inputs_cond)
 
     # ----CELLS-----
@@ -274,7 +274,7 @@ def test_massfunc_conditional_tables(name, from_cat, mass_range, delta_range, pl
     if from_cat:
         # condition array is halo mass, parameter is descendant redshift
         cond_arr = np.log(mass_range)
-        cond_param = (1 + redshift) / global_params.ZPRIME_STEP_FACTOR - 1
+        cond_param = (1 + redshift) / up.ZPRIME_STEP_FACTOR - 1
     else:
         # condition array is density, parameter is cell mass
         cond_param = (

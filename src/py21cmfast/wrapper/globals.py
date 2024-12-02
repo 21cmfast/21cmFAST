@@ -28,12 +28,12 @@ class GlobalParams(StructInstanceWrapper):
     >>> global_params.ALPHA_UVB = 5.5
 
     The class also provides a context manager for setting parameters for a well-defined
-    portion of the code. For example, if you would like to set ``Z_HEAT_MAX`` for a given
+    portion of the code. For example, if you would like to set ``Pop2_ion`` for a given
     run:
 
-    >>> with global_params.use(Z_HEAT_MAX=25):
-    >>>     p21c.run_lightcone(...)  # uses Z_HEAT_MAX=25 for the entire run.
-    >>> print(global_params.Z_HEAT_MAX)
+    >>> with global_params.use(Pop2_ion=3000):
+    >>>     p21c.run_lightcone(...)  # uses Pop2_ion=3000 for the entire run.
+    >>> print(global_params.Pop2_ion)
     35.0
 
     Attributes
@@ -70,6 +70,7 @@ class GlobalParams(StructInstanceWrapper):
         especially in mostly ionized universes, so only use for lower resolution boxes
         (HII_DIM<~400). (2) Center pixel only method (Zahn et al. 2007). This is faster.
     N_POISSON : int
+        JD: this has been removed as the RNG option for IonizedBox is gone
         If not using the halo field to generate HII regions, we provide the option of
         including Poisson scatter in the number of sources obtained through the conditional
         collapse fraction (which only gives the *mean* collapse fraction on a particular
@@ -129,10 +130,9 @@ class GlobalParams(StructInstanceWrapper):
         Used to perturb field
     CRIT_DENS_TRANSITION : float
         A transition value for the interpolation tables for calculating the number of ionising
-        photons produced given the input parameters. Log sampling is desired, however the numerical
-        accuracy near the critical density for collapse (i.e. 1.69) broke down. Therefore, below the
-        value for `CRIT_DENS_TRANSITION` log sampling of the density values is used, whereas above
-        this value linear sampling is used.
+        photons produced given the input parameters. Gauss-Legendre integration breaks down
+        near the critical density, where the HMF loses it's smoothness. Therefore, above the
+        value for `CRIT_DENS_TRANSITION` if Gauss-Legendre integration is requested, we use GSL-QAG.
     MIN_DENSITY_LOW_LIMIT : float
         Required for using the interpolation tables for the number of ionising photons. This is a
         lower limit for the density values that is slightly larger than -1. Defined as a density
@@ -159,10 +159,6 @@ class GlobalParams(StructInstanceWrapper):
     CLUMPING_FACTOR : float
         Sub grid scale. If you want to run-down from a very high redshift (>50), you should
         set this to one.
-    Z_HEAT_MAX : float
-        Maximum redshift used in the Tk and x_e evolution equations.
-        Temperature and x_e are assumed to be homogeneous at higher redshifts.
-        Lower values will increase performance.
     R_XLy_MAX : float
         Maximum radius of influence for computing X-ray and Lya pumping in cMpc. This
         should be larger than the mean free path of the relevant photons.
@@ -171,10 +167,6 @@ class GlobalParams(StructInstanceWrapper):
         The spherical annuli are evenly spaced in logR, ranging from the cell size to the box
         size. :func:`~wrapper.spin_temp` will create this many boxes of size `HII_DIM`,
         so be wary of memory usage if values are high.
-    ZPRIME_STEP_FACTOR : float
-        Logarithmic redshift step-size used in the z' integral.  Logarithmic dz.
-        Decreasing (closer to unity) increases total simulation time for lightcones,
-        and for Ts calculations.
     TK_at_Z_HEAT_MAX : float
         If positive, then overwrite default boundary conditions for the evolution
         equations with this value. The default is to use the value obtained from RECFAST.

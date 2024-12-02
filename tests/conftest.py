@@ -90,10 +90,9 @@ def test_direc(tmp_path_factory):
 def setup_and_teardown_package(tmpdirec, request):
     # Set nice global defaults for testing purposes, to make runs faster
     # (can always be over-ridden per-test).
-    original_zprime = global_params.ZPRIME_STEP_FACTOR
 
     # Set default global parameters for all tests
-    global_params.ZPRIME_STEP_FACTOR = 1.2
+    # ------ #
 
     # Set default config parameters for all tests.
     config["direc"] = str(tmpdirec)
@@ -109,7 +108,6 @@ def setup_and_teardown_package(tmpdirec, request):
     printdir(tmpdirec)
 
     clear_cache(direc=str(tmpdirec))
-    global_params.ZPRIME_STEP_FACTOR = original_zprime
 
 
 # ======================================================================================
@@ -124,7 +122,13 @@ def default_seed():
 
 @pytest.fixture(scope="session")
 def default_user_params():
-    return UserParams(HII_DIM=35, DIM=70, BOX_LEN=50, KEEP_3D_VELOCITIES=True)
+    return UserParams(
+        HII_DIM=35,
+        DIM=70,
+        BOX_LEN=50,
+        KEEP_3D_VELOCITIES=True,
+        ZPRIME_STEP_FACTOR=1.2,
+    )
 
 
 @pytest.fixture(scope="session")
@@ -184,8 +188,8 @@ def default_input_struct_ts(
         flag_options=default_flag_options_ts,
         node_redshifts=get_logspaced_redshifts(
             min_redshift=redshift,
-            max_redshift=global_params.Z_HEAT_MAX,
-            z_step_factor=global_params.ZPRIME_STEP_FACTOR,
+            max_redshift=default_input_struct.user_params.Z_HEAT_MAX,
+            z_step_factor=default_input_struct.user_params.ZPRIME_STEP_FACTOR,
         ),
     )
 
@@ -196,7 +200,7 @@ def default_input_struct_lc(redshift, max_redshift, default_input_struct):
         node_redshifts=get_logspaced_redshifts(
             min_redshift=redshift,
             max_redshift=max_redshift,
-            z_step_factor=global_params.ZPRIME_STEP_FACTOR,
+            z_step_factor=default_input_struct.user_params.ZPRIME_STEP_FACTOR,
         )
     )
 

@@ -660,7 +660,7 @@ def lightcone(ctx, redshift, config, out, regen, direc, max_z, seed, lq):
         node_redshifts=get_logspaced_redshifts(
             min_redshift=redshift,
             max_redshift=max_z,
-            z_step_factor=global_params.ZPRIME_STEP_FACTOR,
+            z_step_factor=user_params.ZPRIME_STEP_FACTOR,
         ),
     )
 

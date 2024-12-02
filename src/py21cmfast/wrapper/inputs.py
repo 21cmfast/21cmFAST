@@ -218,14 +218,6 @@ class UserParams(InputStruct):
     MINIMIZE_MEMORY: bool, optional
         If set, the code will run in a mode that minimizes memory usage, at the expense
         of some CPU/disk-IO. Good for large boxes / small computers.
-    STOC_MINIMUM_Z: float, optional
-        The minimum (first) redshift at which to calculate the halo boxes, will behave as follows:
-        If STOC_MINIMUM_Z is set, we step DOWN from the requested redshift by ZPRIME_STEP_FACTOR
-        until we get to STOC_MINIMUM_Z, where the last z-step will be shorter to be exactly at
-        STOC_MINIMUM_Z, we then build the halo boxes from low to high redshift.
-        If STOC_MINIMUM_Z is not provided, we simply sample at the given redshift, unless
-        USE_TS_FLUCT is given or we want a lightcone, in which case the minimum redshift is set
-        to the minimum redshift of those fields.
     SAMPLER_MIN_MASS: float, optional
         The minimum mass to sample in the halo sampler when USE_HALO_FIELD and HALO_STOCHASTICITY are true,
         decreasing this can drastically increase both compute time and memory usage.
@@ -269,6 +261,14 @@ class UserParams(InputStruct):
     PARKINSON_y2: float, optional
         Only used when SAMPLE_METHOD==3, sets the index of the delta power-law term of the correction to the
         extended Press-Schechter mass function used in Parkinson et al. 2008.
+    Z_HEAT_MAX : float, optional
+        Maximum redshift used in the Tk and x_e evolution equations.
+        Temperature and x_e are assumed to be homogeneous at higher redshifts.
+        Lower values will increase performance.
+    ZPRIME_STEP_FACTOR : float, optional
+        Logarithmic redshift step-size used in the z' integral.  Logarithmic dz.
+        Decreasing (closer to unity) increases total simulation time for lightcones,
+        and for Ts calculations.
     """
 
     _hmf_models = ["PS", "ST", "WATSON", "WATSON-Z", "DELOS"]
@@ -330,6 +330,8 @@ class UserParams(InputStruct):
     PARKINSON_G0 = field(default=1.0, converter=float, validator=validators.gt(0))
     PARKINSON_y1 = field(default=0.0, converter=float)
     PARKINSON_y2 = field(default=0.0, converter=float)
+    Z_HEAT_MAX = field(default=35.0, converter=float)
+    ZPRIME_STEP_FACTOR = field(default=1.02, converter=float)
 
     @DIM.default
     def _dim_default(self):

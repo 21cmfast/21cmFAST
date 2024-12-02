@@ -1250,7 +1250,7 @@ void ts_main(float redshift, float prev_redshift, UserParams *user_params, Cosmo
 
     //Initialize heating interpolation arrays
     init_heat();
-    if(redshift >= global_params.Z_HEAT_MAX){
+    if(redshift >= user_params->Z_HEAT_MAX){
         LOG_DEBUG("redshift greater than Z_HEAT_MAX");
         init_first_Ts(this_spin_temp,perturbed_field->density,perturbed_field_redshift,redshift,&x_e_ave_p,&Tk_ave_p);
         return;

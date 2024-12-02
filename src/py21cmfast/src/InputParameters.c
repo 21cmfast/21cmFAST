@@ -51,10 +51,8 @@ GlobalParams global_params = {
 
     .HEAT_FILTER = 0,
     .CLUMPING_FACTOR = 2.,
-    .Z_HEAT_MAX = 35.0,
     .R_XLy_MAX = 500.,
     .NUM_FILTER_STEPS_FOR_Ts = 40,
-    .ZPRIME_STEP_FACTOR = 1.02,
     .TK_at_Z_HEAT_MAX = -1,
     .XION_at_Z_HEAT_MAX = -1,
     .Pop = 2,

@@ -1184,6 +1184,7 @@ def halo_sample_test(
     redshift: float,
     from_cat: bool,
     cond_array,
+    redshift_prev: float = None,
     seed: int = 12345,
 ):
     """Constructs a halo sample given a descendant catalogue and redshifts."""
@@ -1193,9 +1194,7 @@ def halo_sample_test(
     # HALO MASS CONDITIONS WITH FIXED z-step
     cond_array = cond_array.astype("f4")
 
-    z_prev = -1
-    if from_cat:
-        z_prev = (1 + redshift) / global_params.ZPRIME_STEP_FACTOR - 1
+    z_prev = -1 if redshift_prev is None else redshift_prev
 
     buffer_size = int(3e7)  # about 500MB total 2e7 * 4 (float) * 4 (mass + 3crd)
     nhalo_out = np.zeros(1).astype("i4")

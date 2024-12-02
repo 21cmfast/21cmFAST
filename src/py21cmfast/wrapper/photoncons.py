@@ -397,12 +397,13 @@ def calibrate_photon_cons(
 
 # (Jdavies): I needed a function to access the delta z from the wrapper
 # get_photoncons_data does not have the edge cases that adjust_redshifts_for_photoncons does
-def get_photoncons_dz(astro_params, flag_options, redshift):
+def get_photoncons_dz(user_params, astro_params, flag_options, redshift):
     """Accesses the delta z arrays from the photon conservation model in C."""
     deltaz = np.zeros(1).astype("f4")
     redshift_pc_in = np.array([redshift]).astype("f4")
     stored_redshift_pc_in = np.array([redshift]).astype("f4")
     lib.adjust_redshifts_for_photoncons(
+        user_params.cstruct,
         astro_params.cstruct,
         flag_options.cstruct,
         ffi.cast("float *", redshift_pc_in.ctypes.data),
