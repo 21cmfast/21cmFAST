@@ -13,6 +13,7 @@
 #include "InputParameters.h"
 #include "cosmology.h"
 #include "interp_tables.h"
+#include "scaling_relations.h"
 
 #include "hmf.h"
 
@@ -305,12 +306,12 @@ double nion_fraction_mini(double lnM, void *param_struct){
 double xray_fraction_doublePL(double lnM, void *param_struct){
     struct parameters_gsl_MF_integrals p = *(struct parameters_gsl_MF_integrals *)param_struct;
     double M = exp(lnM);
-    double Fstar = scaling_PL_limit(M,p.f_star_norm,p.alpha_star,p.Mlim_star,1e10) * exp(-p.Mturn/M);
+    double Fstar = p.f_star_norm * scaling_PL_limit(M,p.f_star_norm,p.alpha_star,p.Mlim_star,1e10) * exp(-p.Mturn_upper/M);
 
     //using the escape fraction variables for minihalos
     double Fstar_mini = 0.;
     if(flag_options_global->USE_MINI_HALOS)
-        Fstar_mini = scaling_PL_limit(M,p.f_esc_norm,p.alpha_esc,p.Mlim_esc,1e7) * exp(-p.Mturn/M - M/p.Mturn_upper);
+        Fstar_mini = p.f_esc_norm * scaling_PL_limit(M,p.f_esc_norm,p.alpha_esc,p.Mlim_esc,1e7) * exp(-p.Mturn/M - M/p.Mturn_upper);
 
     double sfr = M*Fstar/(p.t_star*p.t_h);
     double sfr_mini = M*Fstar_mini/(p.t_star*p.t_h);
@@ -545,7 +546,7 @@ double Fcollapprox_condition(double numin, double nucondition, double beta){
 //  and takes advantage of the fact that Gamma_inc(x,min) = integral_min^inf (t^(x-1)exp(-t)) dt which is satisfied for the HMF when the
 //  above approximations are made
 //Originally written by JBM within the GL integration before it was separated here and generalised to the other integrals
-double MFIntegral_Approx(double lnM_lo, double lnM_hi, struct parameters_gsl_MF_integrals params, double (*integrand)(double,void*)){
+double MFIntegral_Approx(double lnM_lo, double lnM_hi, struct parameters_gsl_MF_integrals params){
     //variables used in the calculation
     double delta,sigma_c;
     double index_base;
@@ -555,9 +556,16 @@ double MFIntegral_Approx(double lnM_lo, double lnM_hi, struct parameters_gsl_MF_
         LOG_ERROR("Ensure parameter input specifically to this function has HMF==0");
         Throw(TableGenerationError);
     }
+    if(abs(params.gamma_type) > 4 || abs(params.gamma_type)){
+        LOG_ERROR("Approximate Fcoll only works for single power-law scaling relations");
+        LOG_ERROR("These include the following General/Conditional integration functions");
+        LOG_ERROR("Nhalo, Fcoll, Nion, Nion_MINI");
+        LOG_ERROR("Something has gone wrong in the backend such that the 'Gamma-Approx'");
+        LOG_ERROR("integration method was used on a more complex scaling relation");
+        Throw(TableGenerationError);
+    }
     double growthf = params.growthf;
-    FIXALLTHETYPESTUFF
-    if(type < 0){
+    if(params.gamma_type < 0){
         //we are a conditional mf
         delta = params.delta;
         sigma_c = params.sigma_cond;
@@ -580,10 +588,10 @@ double MFIntegral_Approx(double lnM_lo, double lnM_hi, struct parameters_gsl_MF_
     //The below limit setting is done simply so that variables which do not conern particular integrals
     //      can be left undefined, rather than explicitly set to some value (0 or 1e20)
     //Mass and number integrals set the lower cutoff to the integral limit
-    if(fabs(type) >= 3 && lnMturn_l > lnM_lo_limit)
+    if(abs(params.gamma_type) >= 3 && lnMturn_l > lnM_lo_limit)
         lnM_lo_limit = lnMturn_l;
     //non-minihalo integrals set the upper cutoff to the integral limit
-    if(fabs(type) == 4 && lnMturn_u < lnM_hi_limit)
+    if(abs(params.gamma_type) == 4 && lnMturn_u < lnM_hi_limit)
         lnM_hi_limit = lnMturn_u;
 
     //it is possible for the lower turnover (LW crit or reion feedback)
@@ -593,10 +601,10 @@ double MFIntegral_Approx(double lnM_lo, double lnM_hi, struct parameters_gsl_MF_
     }
 
     //n_ion or MINI
-    if(fabs(type) >= 3)
+    if(abs(params.gamma_type) >= 3)
         index_base = params.alpha_star + params.alpha_esc;
     //fcoll
-    else if(fabs(type)==2)
+    else if(abs(params.gamma_type)==2)
         index_base = 0.;
     //nhalo
     else
@@ -633,7 +641,7 @@ double MFIntegral_Approx(double lnM_lo, double lnM_hi, struct parameters_gsl_MF_
     //NOTES: For speed the minihalos ignore the condition mass limit (assuming nu_hi_limit(tilde) < nu_condition (no tilde))
     //    and never get into the high mass power law (nu_hi_limit < nu_pivot1 (both tilde))
     //ACGs ignore the upper mass limit (no upper turnover), both assume the condition is above the highest pivot
-    if(fabs(type) == 4){
+    if(abs(params.gamma_type) == 4){
       // re-written for further speedups
       if (nu_hi_limit <= nu_pivot2){ //if both are below pivot2 don't bother adding and subtracting the high contribution
         fcoll += (Fcollapprox(nu_lo_limit,beta3))*pow(nu_pivot2_umf,-beta3);
@@ -685,7 +693,7 @@ double IntegratedNdM(double lnM_lo, double lnM_hi, struct parameters_gsl_MF_inte
     if(method==1)
         return IntegratedNdM_GL(lnM_lo, lnM_hi, params, integrand);
     if(method==2)
-        return MFIntegral_Approx(lnM_lo, lnM_hi, params, integrand);
+        return MFIntegral_Approx(lnM_lo, lnM_hi, params);
 
     LOG_ERROR("Invalid integration method %d",method);
     Throw(ValueError);
@@ -721,18 +729,20 @@ double FgtrM_wsigma(double z, double sig){
 
 double Nhalo_General(double z, double lnM_min, double lnM_max){
     struct parameters_gsl_MF_integrals integral_params = {
-                .redshift = z,
-                .growthf = dicke(z),
-                .HMF = user_params_global->HMF,
+        .redshift = z,
+        .growthf = dicke(z),
+        .HMF = user_params_global->HMF,
+        .gamma_type=1,
     };
     return IntegratedNdM(lnM_min, lnM_max, integral_params, &u_mf_integrand, 0);
 }
 
 double Fcoll_General(double z, double lnM_min, double lnM_max){
     struct parameters_gsl_MF_integrals integral_params = {
-                .redshift = z,
-                .growthf = dicke(z),
-                .HMF = user_params_global->HMF,
+        .redshift = z,
+        .growthf = dicke(z),
+        .HMF = user_params_global->HMF,
+        .gamma_type=2,
     };
     return IntegratedNdM(lnM_min, lnM_max, integral_params, &u_fcoll_integrand, 0);
 }
@@ -750,6 +760,7 @@ double Nion_General(double z, double lnM_Min, double lnM_Max, double MassTurnove
         .Mlim_star = Mlim_Fstar,
         .Mlim_esc = Mlim_Fesc,
         .HMF = user_params_global->HMF,
+        .gamma_type=3,
     };
     return IntegratedNdM(lnM_Min,lnM_Max,params,&u_nion_integrand,0);
 }
@@ -768,6 +779,7 @@ double Nion_General_MINI(double z, double lnM_Min, double lnM_Max, double MassTu
         .Mlim_star = Mlim_Fstar,
         .Mlim_esc = Mlim_Fesc,
         .HMF = user_params_global->HMF,
+        .gamma_type=4,
     };
     return IntegratedNdM(lnM_Min,lnM_Max,params,&u_nion_integrand_mini,0);
 }
@@ -791,6 +803,7 @@ double Xray_General(double z, double lnM_Min, double lnM_Max, double MassTurnove
         .l_x_norm_mini = l_x_mini,
         .t_h = t_h,
         .t_star = t_star,
+        .gamma_type=5,
     };
     return IntegratedNdM(lnM_Min,lnM_Max,params,&u_xray_integrand,0);
 }
@@ -801,6 +814,7 @@ double Nhalo_Conditional(double growthf, double lnM1, double lnM2, double M_cond
         .HMF = user_params_global->HMF,
         .sigma_cond = sigma,
         .delta = delta,
+        .gamma_type=-1,
     };
 
     if(delta <= -1. || lnM1 >= log(M_cond))
@@ -822,6 +836,7 @@ double Mcoll_Conditional(double growthf, double lnM1, double lnM2, double M_cond
         .HMF = user_params_global->HMF,
         .sigma_cond = sigma,
         .delta = delta,
+        .gamma_type=-2,
     };
 
     if(delta <= -1. || lnM1 >= log(M_cond))
@@ -852,6 +867,7 @@ double Nion_ConditionalM_MINI(double growthf, double lnM1, double lnM2, double M
         .HMF = user_params_global->HMF,
         .sigma_cond = sigma2,
         .delta = delta2,
+        .gamma_type=-4,
     };
 
     if(delta2 <= -1. || lnM1 >= log(M_cond))
@@ -889,6 +905,7 @@ double Nion_ConditionalM(double growthf, double lnM1, double lnM2, double M_cond
         .HMF = user_params_global->HMF,
         .sigma_cond = sigma2,
         .delta = delta2,
+        .gamma_type=-3,
     };
 
     if(delta2 <= -1. || lnM1 >= log(M_cond))
@@ -909,12 +926,14 @@ double Nion_ConditionalM(double growthf, double lnM1, double lnM2, double M_cond
     return IntegratedNdM(lnM1,lnM2,params,&c_nion_integrand_mini,method);
 }
 
-double Xray_ConditionalM(double growthf, double lnM1, double lnM2, double M_cond, double sigma2, double delta2, double MassTurnover,
+double Xray_ConditionalM(double growthf, double lnM1, double lnM2, double M_cond, double sigma2, double delta2,
+                         double MassTurnover, double MassTurnover_upper,
                         double Alpha_star, double Alpha_star_mini, double Fstar10, double Fstar7, double Mlim_Fstar,
                         double Mlim_Fstar_mini, double l_x, double l_x_mini, double t_h, double t_star, int method){
     struct parameters_gsl_MF_integrals params = {
         .growthf = growthf,
         .Mturn = MassTurnover,
+        .Mturn_upper = MassTurnover_upper,
         .alpha_star = Alpha_star,
         .alpha_esc = Alpha_star_mini,
         .f_star_norm = Fstar10,
@@ -926,6 +945,7 @@ double Xray_ConditionalM(double growthf, double lnM1, double lnM2, double M_cond
         .l_x_norm_mini = l_x_mini,
         .t_h = t_h,
         .t_star = t_star,
+        .gamma_type=-5,
     };
 
     if(delta2 <= -1. || lnM1 >= log(M_cond))

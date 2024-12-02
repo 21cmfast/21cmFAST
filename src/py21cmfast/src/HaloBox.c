@@ -18,7 +18,6 @@
 #include "interp_tables.h"
 #include "thermochem.h"
 #include "hmf.h"
-#include "photoncons.h"
 #include "scaling_relations.h"
 
 #include "HaloBox.h"
@@ -107,8 +106,8 @@ int get_box_averages(double M_min, double M_max, double M_turn_a, double M_turn_
     double prefactor_wsfr_mini = prefactor_sfr_mini * consts->fesc_7;
 
     double mass_intgrl;
-    double intgrl_fesc_weighted, intgrl_stars_only, integral_xray;
-    double intgrl_fesc_weighted_mini=0., intgrl_stars_only_mini=0.;
+    double intgrl_fesc_weighted, intgrl_stars_only;
+    double intgrl_fesc_weighted_mini=0., intgrl_stars_only_mini=0., integral_xray=0.;
 
     //NOTE: we use the atomic method for all halo mass/count here
     mass_intgrl = Fcoll_General(consts->redshift,lnMmin,lnMmax);
@@ -128,7 +127,8 @@ int get_box_averages(double M_min, double M_max, double M_turn_a, double M_turn_
     if(flag_options_global->USE_TS_FLUCT){
         integral_xray = Xray_General(consts->redshift, lnMmin, lnMmax, M_turn_m, M_turn_a,
                                             consts->alpha_star, consts->alpha_star_mini, consts->fstar_10,
-                                            consts->fesc_7, consts->Mlim_Fstar, consts->Mlim_Fstar_mini);
+                                            consts->fesc_7, consts->l_x, consts->l_x_mini, consts->t_h, consts->t_star,
+                                            consts->Mlim_Fstar, consts->Mlim_Fstar_mini);
     }
 
     averages_out->halo_mass = mass_intgrl * prefactor_mass;
@@ -301,8 +301,8 @@ int set_fixed_grids(double M_min, double M_max, InitialConditions *ini_boxes,
         double dens;
         double l10_mturn_a,l10_mturn_m;
         double mass_intgrl, h_count;
-        double intgrl_fesc_weighted, intgrl_stars_only, integral_xray;
-        double intgrl_fesc_weighted_mini=0., intgrl_stars_only_mini=0.;
+        double intgrl_fesc_weighted, intgrl_stars_only;
+        double intgrl_fesc_weighted_mini=0., intgrl_stars_only_mini=0., integral_xray=0;
         double dens_fac;
 
 #pragma omp for reduction(+:hm_sum,sm_sum,sm_sum_mini,sfr_sum,sfr_sum_mini,xray_sum,nion_sum,wsfr_sum)
@@ -335,7 +335,7 @@ int set_fixed_grids(double M_min, double M_max, InitialConditions *ini_boxes,
                 //MAKE A NEW TABLEdouble delta, double log10Mturn_m, double growthf, double M_min, double M_max, double M_cond, double sigma_max,
                                   //   double Mturn_a, double Mlim_Fstar, double Mlim_Fstar_MINI
                 integral_xray = EvaluateXray_Conditional(dens,l10_mturn_m,growth_z,M_min,M_max,M_cell,sigma_cell,
-                                                            l10_mturn_a,consts->Mlim_Fstar,consts->Mlim_Fstar_mini);
+                                                            l10_mturn_a,consts->t_h,consts->Mlim_Fstar,consts->Mlim_Fstar_mini);
             }
 
             grids->count[i] = (int)(h_count * M_cell * dens_fac); //NOTE: truncated

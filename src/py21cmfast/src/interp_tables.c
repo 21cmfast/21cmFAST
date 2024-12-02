@@ -485,7 +485,8 @@ void initialise_SFRD_Conditional_table(double min_density, double max_density, d
 //This function initialises one table, for table Rx arrays I will call this function in a loop
 void initialise_Xray_Conditional_table(double min_density, double max_density, double growthf,
                                     float Mcrit_atom, double Mmin, double Mmax, double Mcond, float Alpha_star, float Alpha_star_mini,
-                                    float Fstar10, float Fstar7_MINI, int method, int method_mini, bool minihalos){
+                                    float Fstar10, float Fstar7_MINI, double l_x, double l_x_mini, double t_h, double t_star,
+                                    int method, int method_mini, bool minihalos){
     float Mlim_Fstar,sigma2;
     float Mlim_Fstar_MINI=0.;
     int i,k;
@@ -534,7 +535,9 @@ void initialise_Xray_Conditional_table(double min_density, double max_density, d
             curr_dens = min_density + (float)i/((float)NDELTA-1.)*(max_density - min_density);
             if(!minihalos){
                 Xray_conditional_table_1D.y_arr[i] = log(Xray_ConditionalM(growthf,lnMmin,lnMmax,Mcond,sigma2,curr_dens,
-                                                Mcrit_atom,Alpha_star,0.,Fstar10,0.,Mlim_Fstar,0.,user_params_global->INTEGRATION_METHOD_ATOMIC));
+                                            0.,Mcrit_atom,Alpha_star,0.,Fstar10,0.,Mlim_Fstar,0.,
+                                            l_x, l_x_mini, t_h, t_star,
+                                            user_params_global->INTEGRATION_METHOD_ATOMIC));
 
                 if(Xray_conditional_table_1D.y_arr[i] < -50.)
                     Xray_conditional_table_1D.y_arr[i] = -50.;
@@ -545,6 +548,7 @@ void initialise_Xray_Conditional_table(double min_density, double max_density, d
                 Xray_conditional_table_2D.z_arr[i][k] = log(Xray_ConditionalM(growthf,lnMmin,lnMmax,Mcond,sigma2,
                                             curr_dens,MassTurnover[k],Mcrit_atom,
                                             Alpha_star,Alpha_star_mini,Fstar10,Fstar7_MINI,Mlim_Fstar,Mlim_Fstar_MINI,
+                                            l_x, l_x_mini, t_h, t_star,
                                             user_params_global->INTEGRATION_METHOD_MINI)); //Using mini integration method for both
 
                 if(Xray_conditional_table_2D.z_arr[i][k] < -50.)
@@ -855,7 +859,7 @@ void free_conditional_tables(){
     free_RGTable2D_f(&Nion_conditional_table_MINI);
     free_RGTable2D_f(&Nion_conditional_table_prev);
     free_RGTable2D_f(&Nion_conditional_table_MINI_prev);
-    free_RGTable2D_f(&Xray_conditional_table_1D);
+    free_RGTable1D_f(&Xray_conditional_table_1D);
     free_RGTable2D_f(&Xray_conditional_table_2D);
 }
 
@@ -866,7 +870,7 @@ void free_global_tables(){
     free_RGTable2D(&Nion_z_table_MINI);
     free_RGTable1D(&fcoll_z_table);
     free_RGTable1D(&Xray_z_table_1D);
-    free_RGTable1D(&Xray_z_table_2D);
+    free_RGTable2D(&Xray_z_table_2D);
 }
 
 //JD: moving the interp table evaluations here since some of them are needed in nu_tau_one
@@ -992,17 +996,19 @@ double EvaluateNion_Conditional_MINI(double delta, double log10Mturn_m, double g
                                 Mlim_Fesc,user_params_global->INTEGRATION_METHOD_MINI);
 }
 
-double EvaluateXray_Conditional_MINI(double delta, double log10Mturn_m, double growthf, double M_min, double M_max, double M_cond, double sigma_max,
-                                     double Mturn_a, double Mlim_Fstar, double Mlim_Fstar_MINI){
+double EvaluateXray_Conditional(double delta, double log10Mturn_m, double growthf, double M_min, double M_max, double M_cond, double sigma_max,
+                                     double Mturn_a, double t_h, double Mlim_Fstar, double Mlim_Fstar_MINI){
     if(user_params_global->USE_INTERPOLATION_TABLES){
         if(flag_options_global->USE_MINI_HALOS)
             return exp(EvaluateRGTable2D_f(delta,log10Mturn_m,&Xray_conditional_table_2D));
         return exp(EvaluateRGTable1D_f(delta,&Xray_conditional_table_1D));
     }
 
-    return Xray_ConditionalM(growthf,log(M_min),log(M_max),M_cond,sigma_max,delta,pow(10,log10Mturn_m),Mturn_a,astro_params_global->ALPHA_STAR,
-                                astro_params_global->ALPHA_STAR_MINI,astro_params_global->F_STAR10,astro_params_global->F_STAR7_MINI,
-                                Mlim_Fstar, Mlim_Fstar_MINI, user_params_global->INTEGRATION_METHOD_MINI);
+    return Xray_ConditionalM(growthf, log(M_min), log(M_max), M_cond, sigma_max, delta, pow(10,log10Mturn_m),
+                                Mturn_a, astro_params_global->ALPHA_STAR, astro_params_global->ALPHA_STAR_MINI,
+                                astro_params_global->F_STAR10, astro_params_global->F_STAR7_MINI,
+                                Mlim_Fstar, Mlim_Fstar_MINI, astro_params_global->L_X, astro_params_global->L_X_MINI,t_h,
+                                astro_params_global->t_STAR, user_params_global->INTEGRATION_METHOD_MINI);
 }
 
 double EvaluateFcoll_delta(double delta, double growthf, double sigma_min, double sigma_max){

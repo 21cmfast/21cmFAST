@@ -4,6 +4,7 @@
 #include <stdio.h>
 #include <stdbool.h>
 #include <math.h>
+#include <gsl/gsl_sf_gamma.h>
 #include "cexcept.h"
 #include "exceptions.h"
 #include "logger.h"
@@ -11,6 +12,9 @@
 #include "Constants.h"
 #include "InputParameters.h"
 #include "cosmology.h"
+#include "photoncons.h"
+#include "hmf.h"
+#include "thermochem.h"
 
 #include "scaling_relations.h"
 
@@ -28,7 +32,8 @@ void set_scaling_constants(double redshift, AstroParams *astro_params, FlagOptio
 
     consts->alpha_upper = astro_params->UPPER_STELLAR_TURNOVER_INDEX;
     consts->pivot_upper = astro_params->UPPER_STELLAR_TURNOVER_MASS;
-    consts->upper_pivot_ratio = pow(astro_params->UPPER_STELLAR_TURNOVER_MASS/1e10,astro_params->ALPHA_STAR);
+    consts->upper_pivot_ratio = pow(consts->pivot_upper/1e10,consts->alpha_star) + \
+                                pow(consts->pivot_upper/1e10,consts->alpha_upper);
 
     consts->fstar_7 = astro_params->F_STAR7_MINI;
     consts->alpha_star_mini = astro_params->ALPHA_STAR_MINI;
@@ -81,6 +86,14 @@ by keeping them in log. Since they are called within integrals they don't use th
 ScalingConstants. Instead pulling from the GSL integration parameter structs
 */
 
+double scaling_single_PL(double M, double alpha, double pivot){
+    return pow(M/pivot,alpha);
+}
+
+double log_scaling_single_PL(double lnM, double alpha, double ln_pivot){
+    return alpha*(lnM - ln_pivot);
+}
+
 //single power-law with provided limit for scaling == 1, returns f(M)/f(pivot) == norm
 //limit is provided ahead of time for efficiency
 double scaling_PL_limit(double M, double norm, double alpha, double pivot, double limit){
@@ -88,7 +101,7 @@ double scaling_PL_limit(double M, double norm, double alpha, double pivot, doubl
         return 1/norm;
 
     //if alpha is zero, this returns 1 as expected (note strict inequalities above)
-    return scaling_single_PL(M,alpha_pivot);
+    return scaling_single_PL(M,alpha,pivot);
 }
 
 //log version for possible acceleration
@@ -100,7 +113,7 @@ double log_scaling_PL_limit(double lnM, double ln_norm, double alpha, double ln_
     return log_scaling_single_PL(lnM,alpha,ln_pivot);
 }
 
-//concave-down double power-law, we pass pivot_ratio == (pivot_hi/pivot_lo)^alpha_lo
+//concave-down double power-law, we pass pivot_ratio == denominator(M=pivot_lo)
 //  to save pow() calls. Due to the double power-law we gain little from a log verison
 //  returns f(M)/f(M==pivot_lo)
 double scaling_double_PL(double M, double alpha_lo, double pivot_ratio,
@@ -108,15 +121,6 @@ double scaling_double_PL(double M, double alpha_lo, double pivot_ratio,
     //if alpha is zero, this returns 1 as expected (note strict inequalities above)
     return pivot_ratio / (pow(M/pivot_hi,-alpha_lo) + pow(M/pivot_hi,-alpha_hi));
 }
-
-double scaling_single_PL(double M, double alpha, double pivot){
-    return pow(M/pivot,alpha);
-}
-
-double log_scaling_single_PL(double lnM, double alpha, double ln_pivot){
-    return alpha*(lnM - ln_pivot);
-}
-
 
 /*
 Scaling relations used in the halo sampler. Quantities calculated for a single halo mass
@@ -152,11 +156,11 @@ double lx_on_sfr_Lehmer(double metallicity){
 
 //double power-law in Z with the low-metallicity PL fixed as constant
 double lx_on_sfr_doublePL(double metallicity, double lx_constant){
-    double hiz_index = -0.64; //power-law index of LX/SFR at high-z
-    double loz_index = 0.;
-    double z_pivot = 0.05; // Z at which LX/SFR == lx_constant
+    double hi_z_index = -0.64; //power-law index of LX/SFR at high-z
+    double lo_z_index = 0.;
+    double z_pivot = 0.05; // Z at which LX/SFR == lx_constant / 2
 
-    return lx_constant*scaling_double_PL(metallicity,loz_index.,1.,z_index,z_pivot);
+    return lx_constant*scaling_double_PL(metallicity,lo_z_index,1.,hi_z_index,z_pivot);
 }
 
 //first order power law Lx with cross-term (e.g Kaur+22)
@@ -223,11 +227,10 @@ void get_halo_stellarmass(double halo_mass, double mturn_acg, double mturn_mcg, 
 
     //We don't want an upturn even with a negative ALPHA_STAR
     if(flag_options_global->USE_UPPER_STELLAR_TURNOVER && (f_a > fu_a)){
-        fstar_mean = scaling_double_PL(halo_mass,)
-        fstar_mean = consts->upper_pivot_ratio / (pow(halo_mass/fu_p,-f_a)+pow(halo_mass/fu_p,-fu_a));
+        fstar_mean = scaling_double_PL(halo_mass,f_a,consts->upper_pivot_ratio,fu_a,fu_p);
     }
     else{
-        fstar_mean = pow(halo_mass/1e10,f_a); //PL term
+        fstar_mean = scaling_single_PL(halo_mass,consts->alpha_star,1e10); //PL term
     }
     f_sample = f_10 * fstar_mean * exp(-mturn_acg/halo_mass + star_rng*sigma_star - stoc_adjustment_term); //1e10 normalisation of stellar mass
     if(f_sample > 1.) f_sample = 1.;

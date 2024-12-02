@@ -33,7 +33,12 @@ double EvaluateNion_Conditional(double delta, double log10Mturn, double growthf,
                                 double Mlim_Fstar, double Mlim_Fesc, bool prev);
 double EvaluateNion_Conditional_MINI(double delta, double log10Mturn_m, double growthf, double M_min, double M_max, double M_cond, double sigma_max,
                                     double Mturn_a, double Mlim_Fstar, double Mlim_Fesc, bool prev);
-
+void initialise_Xray_Conditional_table(double min_density, double max_density, double growthf,
+                                    float Mcrit_atom, double Mmin, double Mmax, double Mcond, float Alpha_star, float Alpha_star_mini,
+                                    float Fstar10, float Fstar7_MINI, double l_x, double l_x_mini, double t_h, double t_star,
+                                    int method, int method_mini, bool minihalos);
+double EvaluateXray_Conditional(double delta, double log10Mturn_m, double growthf, double M_min, double M_max, double M_cond, double sigma_max,
+                                     double Mturn_a, double t_h, double Mlim_Fstar, double Mlim_Fstar_MINI);
 void initialise_SFRD_Conditional_table(double min_density, double max_density, double growthf,
                                     float Mcrit_atom, double Mmin, double Mmax, double Mcond, float Alpha_star, float Alpha_star_mini,
                                     float Fstar10, float Fstar7_MINI, int method, int method_mini, bool minihalos);
