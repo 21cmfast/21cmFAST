@@ -72,6 +72,52 @@ void set_scaling_constants(double redshift, AstroParams *astro_params, FlagOptio
     }
 }
 
+
+/*
+General Scaling realtions used in mass function integrals and sampling.
+
+These are usually integrated over log(M) and can avoid a few of pow/exp calls
+by keeping them in log. Since they are called within integrals they don't use the
+ScalingConstants. Instead pulling from the GSL integration parameter structs
+*/
+
+//single power-law with provided limit for scaling == 1, returns f(M)/f(pivot) == norm
+//limit is provided ahead of time for efficiency
+double scaling_PL_limit(double M, double norm, double alpha, double pivot, double limit){
+    if ((alpha > 0. && M > limit) || (alpha < 0. && M < limit))
+        return 1/norm;
+
+    //if alpha is zero, this returns 1 as expected (note strict inequalities above)
+    return scaling_single_PL(M,alpha_pivot);
+}
+
+//log version for possible acceleration
+double log_scaling_PL_limit(double lnM, double ln_norm, double alpha, double ln_pivot, double ln_limit){
+    if ((alpha > 0. && lnM > ln_limit) || (alpha < 0. && lnM < ln_limit))
+        return -ln_norm;
+
+    //if alpha is zero, this returns log(1) as expected (note strict inequalities above)
+    return log_scaling_single_PL(lnM,alpha,ln_pivot);
+}
+
+//concave-down double power-law, we pass pivot_ratio == (pivot_hi/pivot_lo)^alpha_lo
+//  to save pow() calls. Due to the double power-law we gain little from a log verison
+//  returns f(M)/f(M==pivot_lo)
+double scaling_double_PL(double M, double alpha_lo, double pivot_ratio,
+                        double alpha_hi, double pivot_hi){
+    //if alpha is zero, this returns 1 as expected (note strict inequalities above)
+    return pivot_ratio / (pow(M/pivot_hi,-alpha_lo) + pow(M/pivot_hi,-alpha_hi));
+}
+
+double scaling_single_PL(double M, double alpha, double pivot){
+    return pow(M/pivot,alpha);
+}
+
+double log_scaling_single_PL(double lnM, double alpha, double ln_pivot){
+    return alpha*(lnM - ln_pivot);
+}
+
+
 /*
 Scaling relations used in the halo sampler. Quantities calculated for a single halo mass
 and are summed onto grids.
@@ -106,15 +152,14 @@ double lx_on_sfr_Lehmer(double metallicity){
 
 //double power-law in Z with the low-metallicity PL fixed as constant
 double lx_on_sfr_doublePL(double metallicity, double lx_constant){
-    double z_index = -0.64; //power-law index of LX/SFR at high-z
-    double z_pivot = 0.05; // Z at which LX/SFR == constant/2
-    double z_ratio = metallicity/z_pivot;
+    double hiz_index = -0.64; //power-law index of LX/SFR at high-z
+    double loz_index = 0.;
+    double z_pivot = 0.05; // Z at which LX/SFR == lx_constant
 
-    double lx_over_sfr = lx_constant / (pow(z_ratio,-z_index) + 1.);
-    return lx_over_sfr;
+    return lx_constant*scaling_double_PL(metallicity,loz_index.,1.,z_index,z_pivot);
 }
 
-//first order power law Lx (e.g Kaur+22, Nikolic+24)
+//first order power law Lx with cross-term (e.g Kaur+22)
 //here the constant defines the value at 1 Zsun and 1 Msun yr-1
 double lx_on_sfr_PL_Kaur(double sfr, double metallicity, double lx_constant){
     //Hardcoded for now (except the lx normalisation and the scatter): 3 extra fit parameters in the equation
@@ -178,6 +223,7 @@ void get_halo_stellarmass(double halo_mass, double mturn_acg, double mturn_mcg, 
 
     //We don't want an upturn even with a negative ALPHA_STAR
     if(flag_options_global->USE_UPPER_STELLAR_TURNOVER && (f_a > fu_a)){
+        fstar_mean = scaling_double_PL(halo_mass,)
         fstar_mean = consts->upper_pivot_ratio / (pow(halo_mass/fu_p,-f_a)+pow(halo_mass/fu_p,-fu_a));
     }
     else{
@@ -260,40 +306,4 @@ void get_halo_xray(double sfr, double sfr_mini, double metallicity, double xray_
     }
 
     *xray_out = xray;
-}
-
-/*
-Scaling realtions used in mass function integrals.
-
-These are usually integrated over log(M) and can avoid a few of pow/exp calls
-by keeping them in log. Since they are called within integrals they don't use the
-ScalingConstants. Instead pulling from the GSL integration parameter structs
-*/
-
-//single power-law with provided limit for scaling == 1, returns scaling/norm
-//limit is provided ahead of time for efficiency
-double scaling_PL_limit(double M, double norm, double alpha, double pivot, double limit){
-    if ((alpha > 0. && M > limit) || (alpha < 0. && M < limit))
-        return 1/norm;
-
-    //if alpha is zero, this returns 1 as expected (note strict inequalities above)
-    return pow(M/pivot,alpha);
-}
-
-//log version for possible acceleration
-double log_scaling_PL_limit(double lnM, double ln_norm, double alpha, double ln_pivot, double ln_limit){
-    if ((alpha > 0. && lnM > ln_limit) || (alpha < 0. && lnM < ln_limit))
-        return -ln_norm;
-
-    //if alpha is zero, this returns log(1) as expected (note strict inequalities above)
-    return alpha*(lnM - ln_pivot);
-}
-
-//concave-down double power-law, we pass pivot_ratio == (pivot_hi/pivot_lo)^alpha_lo
-//  to save pow() calls. Due to the double power-law we gain little from a log verison
-double scaling_double_PL(double M, double alpha_lo, double pivot_ratio,
-                double norm_hi, double alpha_hi, double pivot_hi)
-{
-    //if alpha is zero, this returns 1 as expected (note strict inequalities above)
-    return pivot_ratio / (pow(M/pivot_hi,-alpha_lo) + pow(M/pivot_hi,-alpha_hi));
 }

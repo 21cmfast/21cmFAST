@@ -43,10 +43,18 @@ struct ScalingConstants{
     double Mlim_Fesc_mini;
 };
 
-double nion_fraction(double lnM, double M_turn, double ln_n_star, double a_star, double ln_n_esc,
-                    double a_esc, double ln_l_star, double ln_l_esc);
+void set_scaling_constants(double redshift, AstroParams *astro_params, FlagOptions *flag_options, struct ScalingConstants *consts);
 
-double nion_fraction_mini(double lnM, double M_turn_lo, double M_turn_hi, double ln_n_star,
-                     double a_star, double ln_n_esc, double a_esc, double ln_l_star, double ln_l_esc);
+double get_lx_on_sfr(double sfr, double metallicity, double lx_constant);
+void get_halo_stellarmass(double halo_mass, double mturn_acg, double mturn_mcg, double star_rng,
+                             struct ScalingConstants *consts, double *star_acg, double *star_mcg);
+void get_halo_sfr(double stellar_mass, double stellar_mass_mini, double sfr_rng,
+                     struct ScalingConstants *consts, double *sfr, double *sfr_mini);
+void get_halo_metallicity(double sfr, double stellar, double redshift, double *z_out);
+void get_halo_xray(double sfr, double sfr_mini, double metallicity, double xray_rng, struct ScalingConstants *consts, double *xray_out);
 
+double scaling_PL_limit(double M, double norm, double alpha, double pivot, double limit);
+double log_scaling_PL_limit(double lnM, double ln_norm, double alpha, double ln_pivot, double ln_limit);
+double scaling_double_PL(double M, double alpha_lo, double pivot_ratio,
+                double alpha_hi, double pivot_hi);
 #endif
