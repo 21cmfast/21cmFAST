@@ -120,6 +120,7 @@ typedef struct FlagOptions{
     bool CELL_RECOMB;
     int PHOTON_CONS_TYPE;
     bool USE_UPPER_STELLAR_TURNOVER;
+    bool HALO_SCALING_RELATIONS_MEDIAN;
 } FlagOptions;
 
 typedef struct GlobalParams{

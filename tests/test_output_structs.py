@@ -13,19 +13,16 @@ from py21cmfast import IonizedBox, PerturbedField, TsBox, global_params
 
 
 @pytest.fixture(scope="function")
-def init(default_user_params):
-    return InitialConditions(user_params=default_user_params)
+def init(default_input_struct):
+    return InitialConditions(inputs=default_input_struct)
 
 
 @pytest.mark.parametrize("cls", [InitialConditions, PerturbedField, IonizedBox, TsBox])
-def test_pointer_fields(cls):
-    if cls is InitialConditions:
-        inst = cls()
-    else:
-        with pytest.raises(KeyError):
-            cls()
+def test_pointer_fields(cls, default_input_struct):
+    with pytest.raises(KeyError):
+        cls()
 
-        inst = cls(redshift=7.0)
+    inst = cls(inputs=default_input_struct)
 
     # Get list of fields before and after array initialisation
     d = copy.copy(list(inst.__dict__.keys()))
@@ -33,7 +30,7 @@ def test_pointer_fields(cls):
     new_names = [name for name in inst.__dict__ if name not in d]
 
     assert new_names
-    assert all(n in inst.pointer_fields for n in new_names)
+    assert all(n in inst.struct.pointer_fields for n in new_names)
 
 
 def test_non_existence(init, test_direc):
@@ -46,8 +43,8 @@ def test_writeability(init):
         init.write()
 
 
-def test_readability(ic, tmpdirec, default_user_params):
-    ic2 = InitialConditions(user_params=default_user_params)
+def test_readability(ic, tmpdirec, default_input_struct):
+    ic2 = InitialConditions(inputs=default_input_struct)
 
     # without seeds, they are obviously exactly the same.
     assert ic._seedless_repr() == ic2._seedless_repr()
@@ -63,8 +60,8 @@ def test_readability(ic, tmpdirec, default_user_params):
     assert ic is not ic2
 
 
-def test_different_seeds(init, default_user_params):
-    ic2 = InitialConditions(random_seed=2, user_params=default_user_params)
+def test_different_seeds(init, default_input_struct):
+    ic2 = InitialConditions(inputs=default_input_struct.clone(random_seed=2))
 
     assert init is not ic2
     assert init != ic2
@@ -77,8 +74,8 @@ def test_different_seeds(init, default_user_params):
     assert init._random_seed is None
 
 
-def test_pickleability(default_user_params):
-    ic_ = InitialConditions(init=True, user_params=default_user_params)
+def test_pickleability(default_input_struct):
+    ic_ = InitialConditions(inputs=default_input_struct)
     ic_.filled = True
     ic_.random_seed
 
@@ -88,14 +85,14 @@ def test_pickleability(default_user_params):
     assert repr(ic_) == repr(ic2)
 
 
-def test_fname(default_user_params):
-    ic1 = InitialConditions(user_params=default_user_params)
-    ic2 = InitialConditions(user_params=default_user_params)
+def test_fname(default_input_struct):
+    ic1 = InitialConditions(inputs=default_input_struct)
+    ic2 = InitialConditions(inputs=default_input_struct)
 
     # we didn't give them seeds, so can't access the filename attribute
     # (it is undefined until a seed is set)
     with pytest.raises(AttributeError):
-        assert ic1.filename != ic2.filename  # random seeds are different
+        assert ic1.filename != ic2.filename
 
     # *but* should be able to get a skeleton filename:
     assert ic1._fname_skeleton == ic2._fname_skeleton
@@ -107,21 +104,23 @@ def test_fname(default_user_params):
     assert ic1._fname_skeleton == ic2._fname_skeleton
 
 
-def test_match_seed(tmpdirec, default_user_params):
-    ic2 = InitialConditions(random_seed=1, user_params=default_user_params)
+def test_match_seed(tmpdirec, default_input_struct):
+    ic2 = InitialConditions(inputs=default_input_struct.clone(random_seed=3))
 
     # This fails because we've set the seed and it's different to the existing one.
     with pytest.raises(IOError):
         ic2.read(direc=tmpdirec)
 
 
-def test_bad_class_definition(default_user_params):
+def test_bad_class_definition(default_input_struct):
     class CustomInitialConditions(InitialConditions):
-        _name = "InitialConditions"
-
         """
         A class containing all initial conditions boxes.
         """
+
+        def __init__(self):
+            super.__init__(self)
+            self._name = "InitialConditions"
 
         def _get_box_structures(self):
             out = super()._get_box_structures()
@@ -129,7 +128,7 @@ def test_bad_class_definition(default_user_params):
             return out
 
     with pytest.raises(TypeError):
-        CustomInitialConditions(init=True, user_params=default_user_params)
+        CustomInitialConditions(inputs=default_input_struct)
 
 
 def test_bad_write(init):

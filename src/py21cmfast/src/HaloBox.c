@@ -28,6 +28,7 @@
 struct HaloBoxConstants{
     double redshift;
     bool fix_mean;
+    bool scaling_median;
 
     double fstar_10;
     double alpha_star;
@@ -84,9 +85,10 @@ struct HaloProperties{
 void set_hbox_constants(double redshift, AstroParams *astro_params, FlagOptions *flag_options, struct HaloBoxConstants *consts){
     consts->redshift = redshift;
 
-    //whether to fix *integrated* (not sampled) galaxy properties to the expected mean
     //Set on for the fixed grid case since we are missing halos above the cell mass
     consts->fix_mean = flag_options->FIXED_HALO_GRIDS;
+    //whether to fix *integrated* (not sampled) galaxy properties to the expected mean
+    consts->scaling_median = flag_options->HALO_SCALING_RELATIONS_MEDIAN;
 
     consts->fstar_10 = astro_params->F_STAR10;
     consts->alpha_star = astro_params->ALPHA_STAR;
@@ -121,8 +123,8 @@ void set_hbox_constants(double redshift, AstroParams *astro_params, FlagOptions 
 
     consts->mturn_m_nofb = 0.;
     if(flag_options->USE_MINI_HALOS){
-        consts->mturn_m_nofb = lyman_werner_threshold(redshift, 0., consts->vcb_norel, astro_params);
         consts->vcb_norel = flag_options->FIX_VCB_AVG ? global_params.VAVG : 0;
+        consts->mturn_m_nofb = lyman_werner_threshold(redshift, 0., consts->vcb_norel, astro_params);
     }
 
     if(flag_options->FIXED_HALO_GRIDS || user_params_global->AVG_BELOW_SAMPLER){
@@ -207,8 +209,10 @@ double get_lx_on_sfr(double sfr, double metallicity, double lx_constant){
     // return lx_on_sfr_Lehmer(metallicity);
     // return lx_on_sfr_Schechter(metallicity, lx_constant);
     // return lx_on_sfr_PL_Kaur(sfr,metallicity, lx_constant);
-    return lx_on_sfr_doublePL(metallicity, lx_constant);
-    // return lx_constant;
+    //HACK: new/old model switch with upperstellar flag
+    if(flag_options_global->USE_UPPER_STELLAR_TURNOVER)
+        return lx_on_sfr_doublePL(metallicity, lx_constant);
+    return lx_constant;
 }
 
 void get_halo_stellarmass(double halo_mass, double mturn_acg, double mturn_mcg, double star_rng,
@@ -232,7 +236,8 @@ void get_halo_stellarmass(double halo_mass, double mturn_acg, double mturn_mcg, 
     double sm_sample,sm_sample_mini;
 
     double baryon_ratio = cosmo_params_global->OMb / cosmo_params_global->OMm;
-    double stoc_adjustment_term = sigma_star * sigma_star / 2.; //adjustment to the mean for lognormal scatter
+    //adjustment to the mean for lognormal scatter
+    double stoc_adjustment_term = consts->scaling_median ? 0 : sigma_star * sigma_star / 2.;
 
     //We don't want an upturn even with a negative ALPHA_STAR
     if(flag_options_global->USE_UPPER_STELLAR_TURNOVER && (f_a > fu_a)){
@@ -278,7 +283,8 @@ void get_halo_sfr(double stellar_mass, double stellar_mass_mini, double sfr_rng,
     }
     sfr_mean = stellar_mass / (consts->t_star * consts->t_h);
 
-    double stoc_adjustment_term = sigma_sfr * sigma_sfr / 2.; //adjustment to the mean for lognormal scatter
+    //adjustment to the mean for lognormal scatter
+    double stoc_adjustment_term = consts->scaling_median ? 0 : sigma_sfr * sigma_sfr / 2.;
     sfr_sample = sfr_mean * exp(sfr_rng*sigma_sfr - stoc_adjustment_term);
     *sfr = sfr_sample;
 
@@ -303,7 +309,9 @@ void get_halo_metallicity(double sfr, double stellar, double redshift, double *z
 
 void get_halo_xray(double sfr, double sfr_mini, double metallicity, double xray_rng, struct HaloBoxConstants *consts, double *xray_out){
     double sigma_xray = consts->sigma_xray;
-    double stoc_adjustment_term = sigma_xray * sigma_xray / 2.; //adjustment to the mean for lognormal scatter
+
+    //adjustment to the mean for lognormal scatter
+    double stoc_adjustment_term = consts->scaling_median ? 0 : sigma_xray * sigma_xray / 2.;
     double rng_factor = exp(xray_rng*consts->sigma_xray - stoc_adjustment_term);
 
     double lx_over_sfr = get_lx_on_sfr(sfr,metallicity,consts->l_x);
@@ -817,15 +825,16 @@ void sum_halos_onto_grid(InitialConditions *ini_boxes, TsBox *previous_spin_temp
 
             #if LOG_LEVEL >= ULTRA_DEBUG_LEVEL
             if(x+y+z == 0){
+                // LOG_ULTRA_DEBUG("(%d %d %d) i_cell %llu i_halo %llu",x,y,z,i_cell, i_halo);
                 LOG_ULTRA_DEBUG("Cell 0 Halo: HM: %.2e SM: %.2e (%.2e) SF: %.2e (%.2e) X: %.2e NI: %.2e WS: %.2e Z : %.2e ct : %llu",
                                     hmass,stars,stars_mini,sfr,sfr_mini,xray,nion,wsfr,out_props.metallicity,i_halo);
 
-                LOG_ULTRA_DEBUG("Cell 0 Sums: HM: %.2e SM: %.2e (%.2e) SF: %.2e (%.2e) X: %.2e NI: %.2e WS: %.2e Z : %.2e ct : %d",
-                        grids->halo_mass[HII_R_INDEX(0,0,0)],
-                        grids->halo_stars[HII_R_INDEX(0,0,0)],grids->halo_stars_mini[HII_R_INDEX(0,0,0)],
-                        grids->halo_sfr[HII_R_INDEX(0,0,0)],grids->halo_sfr_mini[HII_R_INDEX(0,0,0)],
-                        grids->halo_xray[HII_R_INDEX(0,0,0)],grids->n_ion[HII_R_INDEX(0,0,0)],
-                        grids->whalo_sfr[HII_R_INDEX(0,0,0)],grids->count[HII_R_INDEX(0,0,0)]);
+                // LOG_ULTRA_DEBUG("Cell 0 Sums: HM: %.2e SM: %.2e (%.2e) SF: %.2e (%.2e) X: %.2e NI: %.2e WS: %.2e ct : %d",
+                //         grids->halo_mass[HII_R_INDEX(0,0,0)],
+                //         grids->halo_stars[HII_R_INDEX(0,0,0)],grids->halo_stars_mini[HII_R_INDEX(0,0,0)],
+                //         grids->halo_sfr[HII_R_INDEX(0,0,0)],grids->halo_sfr_mini[HII_R_INDEX(0,0,0)],
+                //         grids->halo_xray[HII_R_INDEX(0,0,0)],grids->n_ion[HII_R_INDEX(0,0,0)],
+                //         grids->whalo_sfr[HII_R_INDEX(0,0,0)],grids->count[HII_R_INDEX(0,0,0)]);
                 LOG_ULTRA_DEBUG("Mturn_a %.2e Mturn_m %.2e RNG %.3f %.3f %.3f",M_turn_a,M_turn_m,in_props[0],in_props[1],in_props[2]);
             }
             #endif
@@ -876,7 +885,7 @@ void sum_halos_onto_grid(InitialConditions *ini_boxes, TsBox *previous_spin_temp
         }
     }
     total_n_halos = halos->n_halos - n_halos_cut;
-    LOG_SUPER_DEBUG("Cell 0 Halo: HM: %.2e SM: %.2e (%.2e) SF: %.2e (%.2e) X: %.2e NI: %.2e WS: %.2e ct : %d",grids->halo_mass[HII_R_INDEX(0,0,0)],
+    LOG_SUPER_DEBUG("Cell 0 Totals: HM: %.2e SM: %.2e (%.2e) SF: %.2e (%.2e) X: %.2e NI: %.2e WS: %.2e ct : %d",grids->halo_mass[HII_R_INDEX(0,0,0)],
                         grids->halo_stars[HII_R_INDEX(0,0,0)],grids->halo_stars_mini[HII_R_INDEX(0,0,0)],
                         grids->halo_sfr[HII_R_INDEX(0,0,0)],grids->halo_sfr_mini[HII_R_INDEX(0,0,0)],
                         grids->halo_xray[HII_R_INDEX(0,0,0)],grids->n_ion[HII_R_INDEX(0,0,0)],
@@ -925,6 +934,13 @@ int ComputeHaloBox(double redshift, UserParams *user_params, CosmoParams *cosmo_
     Try{
         //get parameters
         Broadcast_struct_global_all(user_params,cosmo_params,astro_params,flag_options);
+
+        #if LOG_LEVEL >= SUPER_DEBUG_LEVEL
+                writeUserParams(user_params);
+                writeCosmoParams(cosmo_params);
+                writeAstroParams(flag_options, astro_params);
+                writeFlagOptions(flag_options);
+        #endif
 
         unsigned long long int idx;
         #pragma omp parallel for num_threads(user_params->N_THREADS) private(idx)

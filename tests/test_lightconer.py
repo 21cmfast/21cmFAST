@@ -112,15 +112,15 @@ def test_incompatible_coevals(equal_cdist):
 
     # artificially change a cosmo param
     orig = z7.cosmo_params.SIGMA_8
-    z7.cosmo_params.update(SIGMA_8=2 * orig)
+    z7.cosmo_params = z7.cosmo_params.clone(SIGMA_8=2 * orig)
 
     with pytest.raises(ValueError, match="c1 and c2 must have the same cosmo"):
         next(equal_cdist.make_lightcone_slices(z6, z7))
 
-    z7.cosmo_params.update(SIGMA_8=orig)
+    z7.cosmo_params = z7.cosmo_params.clone(SIGMA_8=orig)
 
     orig = z7.user_params.BOX_LEN
-    z7.user_params.update(BOX_LEN=2 * z7.user_params.BOX_LEN)
+    z7.user_params = z7.user_params.clone(BOX_LEN=2 * z7.user_params.BOX_LEN)
 
     with pytest.raises(
         ValueError, match="c1 and c2 must have the same user parameters"
