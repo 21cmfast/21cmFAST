@@ -181,9 +181,7 @@ def default_input_struct(
 
 
 @pytest.fixture(scope="session")
-def default_input_struct_ts(
-    redshift, max_redshift, default_input_struct, default_flag_options_ts
-):
+def default_input_struct_ts(redshift, default_input_struct, default_flag_options_ts):
     return default_input_struct.clone(
         flag_options=default_flag_options_ts,
         node_redshifts=get_logspaced_redshifts(
@@ -195,10 +193,10 @@ def default_input_struct_ts(
 
 
 @pytest.fixture(scope="session")
-def default_input_struct_lc(redshift, max_redshift, default_input_struct):
+def default_input_struct_lc(lightcone_min_redshift, max_redshift, default_input_struct):
     return default_input_struct.clone(
         node_redshifts=get_logspaced_redshifts(
-            min_redshift=redshift,
+            min_redshift=lightcone_min_redshift,
             max_redshift=max_redshift,
             z_step_factor=default_input_struct.user_params.ZPRIME_STEP_FACTOR,
         )
@@ -206,7 +204,7 @@ def default_input_struct_lc(redshift, max_redshift, default_input_struct):
 
 
 @pytest.fixture(scope="session")
-def ic(default_input_struct, default_seed, tmpdirec):
+def ic(default_input_struct, tmpdirec):
     return compute_initial_conditions(
         inputs=default_input_struct,
         write=True,
@@ -238,13 +236,14 @@ def low_redshift():
 
 
 @pytest.fixture(scope="session")
-def perturbed_field(ic, default_input_struct, redshift):
+def perturbed_field(ic, default_input_struct, redshift, tmpdirec):
     """A default perturb_field"""
     return perturb_field(
         redshift=redshift,
         inputs=default_input_struct,
         initial_conditions=ic,
         write=True,
+        direc=tmpdirec,
     )
 
 
