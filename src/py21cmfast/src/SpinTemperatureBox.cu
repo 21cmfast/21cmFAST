@@ -49,14 +49,17 @@ template <unsigned int threadsPerBlock>
 __device__ void warp_reduce(volatile double *sdata, unsigned int tid) {
     // Reduce by half
     // No syncing required with threads < 32
-    if (threadsPerBlock >= 64) sdata[tid] += sdata[tid + 32];
-    if (threadsPerBlock >= 32) sdata[tid] += sdata[tid + 16];
-    if (threadsPerBlock >= 16) sdata[tid] += sdata[tid + 8];
-    if (threadsPerBlock >= 8) sdata[tid] += sdata[tid + 4];
-    if (threadsPerBlock >= 4) sdata[tid] += sdata[tid + 2];
-    if (threadsPerBlock >= 2) sdata[tid] += sdata[tid + 1];
+    if (threadsPerBlock >= 64) { sdata[tid] += sdata[tid + 32]; }
+    if (threadsPerBlock >= 32) { sdata[tid] += sdata[tid + 16]; }
+    if (threadsPerBlock >= 16) { sdata[tid] += sdata[tid + 8]; }
+    if (threadsPerBlock >= 8) { sdata[tid] += sdata[tid + 4]; }
+    if (threadsPerBlock >= 4) { sdata[tid] += sdata[tid + 2]; }
+    if (threadsPerBlock >= 2) { sdata[tid] += sdata[tid + 1]; }
 }
 
+// As seen in talk by Mark Harris, NVIDIA.
+// https://developer.download.nvidia.com/assets/cuda/files/reduction.pdf
+// https://www.youtube.com/watch?v=NrWhZMHrP4w
 template <unsigned int threadsPerBlock>
 __global__ void compute_and_reduce(
     double x_min, // reference
@@ -89,18 +92,23 @@ __global__ void compute_and_reduce(
     while (i < num_pixels) {
         // Compute current density from density grid value * redshift-scaled growth factor
         curr_dens_i = dens_R_grid[i] * zpp_growth_R_ct;
-        curr_dens_j = dens_R_grid[i + threadsPerBlock] * zpp_growth_R_ct;
 
         // Compute fraction of mass that has collapsed to form stars/other structures
         fcoll_i = exp(EvaluateRGTable1D_f_gpu(curr_dens_i, x_min, x_width, y_arr));
-        fcoll_j = exp(EvaluateRGTable1D_f_gpu(curr_dens_j, x_min, x_width, y_arr));
 
         // Update the shared buffer with the collapse fractions
-        sdata[tid] += fcoll_i + fcoll_j;
+        sdata[tid] += fcoll_i;
 
         // Update the relevant cells in the star formation rate density grid
         sfrd_grid[i] = (1. + curr_dens_i) * fcoll_i;
-        sfrd_grid[i + threadsPerBlock] = (1. + curr_dens_j) * fcoll_j;
+
+        // Repeat for i + threadsPerBlock
+        if ((i + threadsPerBlock) < num_pixels) {
+            curr_dens_j = dens_R_grid[i + threadsPerBlock] * zpp_growth_R_ct;
+            fcoll_j = exp(EvaluateRGTable1D_f_gpu(curr_dens_j, x_min, x_width, y_arr));
+            sdata[tid] += fcoll_j;
+            sfrd_grid[i + threadsPerBlock] = (1. + curr_dens_j) * fcoll_j;
+        }
 
         i += gridSize;
     }
@@ -112,10 +120,10 @@ __global__ void compute_and_reduce(
     if (threadsPerBlock >= 128) { if (tid < 64) { sdata[tid] += sdata[tid + 64]; } __syncthreads(); }
 
     // Final reduction by separate kernel
-    if (tid < 32) warp_reduce<threadsPerBlock>(sdata, tid);
+    if (tid < 32) { warp_reduce<threadsPerBlock>(sdata, tid); }
 
     // The first thread of each block updates the block totals
-    if (tid == 0) ave_sfrd_buf[blockIdx.x] = sdata[0];
+    if (tid == 0) { ave_sfrd_buf[blockIdx.x] = sdata[0]; }
 }
 
 unsigned int init_sfrd_gpu_data(
@@ -178,8 +186,8 @@ unsigned int init_sfrd_gpu_data(
 
     // Allocate memory for SFRD sum buffer and initialise to 0 only for initial filter step;
     // reuse memory for remaining filter steps.
-    unsigned int buffer_length = ceil(num_pixels / (threadsPerBlock * 2));
-    err = cudaMalloc((void**)d_ave_sfrd_buf, sizeof(double) * buffer_length); // already pointer to a pointer (no & needed) ...91m & 256 -> 177979
+    unsigned int numBlocks = ceil(num_pixels / (threadsPerBlock * 2));
+    err = cudaMalloc((void**)d_ave_sfrd_buf, sizeof(double) * numBlocks); // already pointer to a pointer (no & needed) ...91m & 256 -> 177979
     if (err != cudaSuccess) {
         LOG_ERROR("CUDA error: %s", cudaGetErrorString(err));
         Throw(CUDAError);
@@ -187,7 +195,7 @@ unsigned int init_sfrd_gpu_data(
     LOG_INFO("SFRD sum reduction buffer allocated on device.");
 
     // Initialise buffer to 0 (fill with byte=0)
-    err = cudaMemset(*d_ave_sfrd_buf, 0, sizeof(double) * buffer_length); // dereference the pointer to a pointer (*)
+    err = cudaMemset(*d_ave_sfrd_buf, 0, sizeof(double) * numBlocks); // dereference the pointer to a pointer (*)
     if (err != cudaSuccess) {
         LOG_ERROR("CUDA error: %s", cudaGetErrorString(err));
         Throw(CUDAError);
@@ -228,9 +236,8 @@ double calculate_sfrd_from_grid_gpu(
     }
     LOG_INFO("SFRD_conditional_table.y_arr and density grid copied to device.");
 
-    unsigned int numBlocks = (num_pixels + threadsPerBlock - 1) / threadsPerBlock; // 91m & 256 -> 355959
+    unsigned int numBlocks = ceil(num_pixels / (threadsPerBlock * 2));
     unsigned int smemSize = threadsPerBlock * sizeof(double); // shared memory
-    unsigned int buffer_length = ceil(num_pixels / (threadsPerBlock * 2));
 
     // Invoke kernel
     switch (threadsPerBlock) {
@@ -270,7 +277,7 @@ double calculate_sfrd_from_grid_gpu(
     // Wrap device pointer in a thrust::device_ptr
     thrust::device_ptr<double> d_ave_sfrd_buf_ptr(d_ave_sfrd_buf);
     // Reduce final buffer sums to one value
-    double ave_sfrd_buf = thrust::reduce(d_ave_sfrd_buf_ptr, d_ave_sfrd_buf_ptr + buffer_length, 0., thrust::plus<double>());
+    double ave_sfrd_buf = thrust::reduce(d_ave_sfrd_buf_ptr, d_ave_sfrd_buf_ptr + numBlocks, 0., thrust::plus<double>());
     LOG_INFO("SFRD sum reduced to single value by thrust::reduce operation.");
 
     // Copy results from device to host
