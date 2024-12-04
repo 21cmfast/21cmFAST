@@ -27,15 +27,12 @@ c_files = [
     if f.endswith(".c")
 ]
 
-# Compiled cuda code
+# Compiled CUDA code
 extra_objects = [
-    os.path.join(CLOC, "hello_world.o"),
     os.path.join(CLOC, "filtering.o"),
     os.path.join(CLOC, "PerturbField.o"),
     os.path.join(CLOC, "SpinTemperatureBox.o"),
 ]
-# extra_link_args = ["-lcudart"]
-# extra_link_args = ["-lcudart", "-no-undefined"]
 extra_link_args = ["-lcudart", "-lstdc++"]
 
 # Set the C-code logging level.

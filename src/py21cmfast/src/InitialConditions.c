@@ -19,7 +19,6 @@
 #include "indexing.h"
 #include "dft.h"
 #include "filtering.h"
-#include "hello_world.h"
 #include "rng.h"
 
 #include "InitialConditions.h"
@@ -88,9 +87,6 @@ int ComputeInitialConditions(
 //     Date: 9/29/06
 
     int status;
-
-    printf("Begin computing initial conditions");
-    call_cuda();
 
     Try{ // This Try wraps the entire function so we don't indent.
 
