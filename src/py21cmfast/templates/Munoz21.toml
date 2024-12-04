@@ -1,0 +1,33 @@
+# Run template for reproducing Munoz21 EOS21 simulation results
+
+[CosmoParams]
+
+[UserParams]
+INTEGRATION_METHOD_MINI='GAMMA-APPROX'
+USE_RELATIVE_VELOCITIES = true
+
+[AstroParams]
+F_STAR10 = -1.25
+F_STAR7_MINI = -2.5
+F_ESC10 = -1.22
+F_ESC7_MINI = -2.22
+ALPHA_STAR = 0.5
+ALPHA_STAR_MINI = 0.0
+ALPHA_ESC = -0.3
+M_TURN = 5.0 # not included in Munoz21, so we set very low
+t_STAR = 0.5
+L_X = 40.5
+X_RAY_SPEC_INDEX = 1.0
+NU_X_THRESH = 500
+R_BUBBLE_MAX = 50.0
+
+[FlagOptions]
+USE_HALO_FIELD = false
+HALO_STOCHASTICITY = false
+USE_EXP_FILTER = false
+CELL_RECOMB = false
+USE_MINI_HALOS = true
+USE_CMB_HEATING = false
+USE_LYA_HEATING = false
+USE_TS_FLUCT = true
+INHOMO_RECO = true

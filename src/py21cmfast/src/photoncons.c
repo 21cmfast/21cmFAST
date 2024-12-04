@@ -656,7 +656,7 @@ void determine_deltaz_for_photoncons() {
 }
 
 
-void adjust_redshifts_for_photoncons(
+void adjust_redshifts_for_photoncons(UserParams *user_params,
     AstroParams *astro_params, FlagOptions *flag_options, float *redshift,
     float *stored_redshift, float *absolute_delta_z
 ) {
@@ -716,11 +716,11 @@ void adjust_redshifts_for_photoncons(
                 temp_redshift = *redshift;
                 check_required_NF = required_NF;
 
-                // Ok, find when in the past we exceeded the asymptote threshold value using the global_params.ZPRIME_STEP_FACTOR
+                // Ok, find when in the past we exceeded the asymptote threshold value using the user_params->ZPRIME_STEP_FACTOR
                 // In doing it this way, co-eval boxes will be the same as lightcone boxes with regard to redshift sampling
                 while( check_required_NF < global_params.PhotonConsAsymptoteTo ) {
 
-                    temp_redshift = ((1. + temp_redshift)*global_params.ZPRIME_STEP_FACTOR - 1.);
+                    temp_redshift = ((1. + temp_redshift)*user_params->ZPRIME_STEP_FACTOR - 1.);
 
                     Q_at_z(temp_redshift, &(temp));
                     check_required_NF = 1.0 - (float)temp;
@@ -766,11 +766,11 @@ void adjust_redshifts_for_photoncons(
             temp_redshift = *redshift;
             check_required_NF = required_NF;
 
-            // Ok, find when in the past we exceeded the asymptote threshold value using the global_params.ZPRIME_STEP_FACTOR
+            // Ok, find when in the past we exceeded the asymptote threshold value using the user_params->ZPRIME_STEP_FACTOR
             // In doing it this way, co-eval boxes will be the same as lightcone boxes with regard to redshift sampling
             while( check_required_NF < NeutralFractions[0] ) {
 
-                temp_redshift = ((1. + temp_redshift)*global_params.ZPRIME_STEP_FACTOR - 1.);
+                temp_redshift = ((1. + temp_redshift)*user_params->ZPRIME_STEP_FACTOR - 1.);
 
                 Q_at_z(temp_redshift, &(temp));
                 check_required_NF = 1.0 - (float)temp;

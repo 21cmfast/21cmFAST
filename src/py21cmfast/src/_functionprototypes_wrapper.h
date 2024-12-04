@@ -48,7 +48,7 @@ int InitialisePhotonCons( UserParams *user_params,  CosmoParams *cosmo_params,
 int PhotonCons_Calibration(double *z_estimate, double *xH_estimate, int NSpline);
 int ComputeZstart_PhotonCons(double *zstart);
 
-void adjust_redshifts_for_photoncons(
+void adjust_redshifts_for_photoncons(UserParams *user_params,
      AstroParams *astro_params,  FlagOptions *flag_options, float *redshift,
     float *stored_redshift, float *absolute_delta_z
 );

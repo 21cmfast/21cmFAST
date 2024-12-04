@@ -1,0 +1,61 @@
+# Contains names, aliases and descriptions of all available native templates in 21cmfast
+
+[[templates]]
+name = "simple"
+file = "simple.toml"
+aliases = ["simple"]
+description = "A simple 21cmFAST run with no minihalos, discrete halos, recombinations or spin temperature fluctuations"
+
+[[templates]]
+name = "const-zeta"
+file = "const-zeta.toml"
+aliases = ["const-zeta"]
+description = "A 21cmFAST run with constant ionising efficiency for halos of all mass"
+
+[[templates]]
+name = "latest"
+file = "latest.toml"
+aliases = ["latest"]
+description = "Our latest fiducial run without discrete halos, includes recominations and spin temperature fluctuations"
+
+[[templates]]
+name = "mini"
+file = "mini.toml"
+aliases = ["mini"]
+description = "A run including minihalos"
+
+[[templates]]
+name = "latest-dhalos"
+file = "latest-dhalos.toml"
+aliases = ["latest-dhalos"]
+description = "Our latest fiducial run with discrete halos, recominations and spin temperature fluctuations"
+
+[[templates]]
+name = "mini-dhalos"
+file = "mini-dhalos.toml"
+aliases = ["mini-dhalos"]
+description = "Run with discrete halos, including the molecularly cooled galaxy component"
+
+[[templates]]
+name = "Park19"
+file = "park19.toml"
+aliases = ["Park19"]
+description = "Exact fiducial parameters from Park et al 2019. Disables modules implemented afterwards"
+
+[[templates]]
+name = "Qin20"
+file = "Qin20.toml"
+aliases = ["Qin20"]
+description = "Exact fiducial parameters from Qin et al 2020. Disables modules implemented afterwards"
+
+[[templates]]
+name = "Munoz21"
+file = "Munoz21.toml"
+aliases = ["Munoz21"]
+description = "Exact fiducial parameters from Munoz et al 2021. Disables modules implemented afterwards"
+
+[[templates]]
+name = "latest-small"
+file = "latest-small.toml"
+aliases = ["latest-small"]
+description = "Small version of latest.toml"

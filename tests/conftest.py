@@ -13,6 +13,7 @@ from py21cmfast import (
     compute_initial_conditions,
     config,
     exhaust_lightcone,
+    get_logspaced_redshifts,
     global_params,
     perturb_field,
     run_lightcone,
@@ -89,10 +90,9 @@ def test_direc(tmp_path_factory):
 def setup_and_teardown_package(tmpdirec, request):
     # Set nice global defaults for testing purposes, to make runs faster
     # (can always be over-ridden per-test).
-    original_zprime = global_params.ZPRIME_STEP_FACTOR
 
     # Set default global parameters for all tests
-    global_params.ZPRIME_STEP_FACTOR = 1.2
+    # ------ #
 
     # Set default config parameters for all tests.
     config["direc"] = str(tmpdirec)
@@ -108,7 +108,6 @@ def setup_and_teardown_package(tmpdirec, request):
     printdir(tmpdirec)
 
     clear_cache(direc=str(tmpdirec))
-    global_params.ZPRIME_STEP_FACTOR = original_zprime
 
 
 # ======================================================================================
@@ -117,8 +116,19 @@ def setup_and_teardown_package(tmpdirec, request):
 
 
 @pytest.fixture(scope="session")
+def default_seed():
+    return 12
+
+
+@pytest.fixture(scope="session")
 def default_user_params():
-    return UserParams(HII_DIM=35, DIM=70, BOX_LEN=50, KEEP_3D_VELOCITIES=True)
+    return UserParams(
+        HII_DIM=35,
+        DIM=70,
+        BOX_LEN=50,
+        KEEP_3D_VELOCITIES=True,
+        ZPRIME_STEP_FACTOR=1.2,
+    )
 
 
 @pytest.fixture(scope="session")
@@ -148,8 +158,8 @@ def default_flag_options_ts():
 
 
 @pytest.fixture(scope="session")
-def default_astro_params(default_flag_options):
-    return AstroParams.new(None, flag_options=default_flag_options)
+def default_astro_params():
+    return AstroParams.new()
 
 
 @pytest.fixture(scope="session")
@@ -158,26 +168,47 @@ def default_input_struct(
     default_cosmo_params,
     default_astro_params,
     default_flag_options,
-    redshift,
+    default_seed,
 ):
     return InputParameters(
-        redshift=redshift,
-        random_seed=None,
+        random_seed=default_seed,
         cosmo_params=default_cosmo_params,
         astro_params=default_astro_params,
         user_params=default_user_params,
         flag_options=default_flag_options,
+        node_redshifts=[],
     )
 
 
 @pytest.fixture(scope="session")
-def ic(default_user_params, default_cosmo_params, tmpdirec):
+def default_input_struct_ts(redshift, default_input_struct, default_flag_options_ts):
+    return default_input_struct.clone(
+        flag_options=default_flag_options_ts,
+        node_redshifts=get_logspaced_redshifts(
+            min_redshift=redshift,
+            max_redshift=default_input_struct.user_params.Z_HEAT_MAX,
+            z_step_factor=default_input_struct.user_params.ZPRIME_STEP_FACTOR,
+        ),
+    )
+
+
+@pytest.fixture(scope="session")
+def default_input_struct_lc(lightcone_min_redshift, max_redshift, default_input_struct):
+    return default_input_struct.clone(
+        node_redshifts=get_logspaced_redshifts(
+            min_redshift=lightcone_min_redshift,
+            max_redshift=max_redshift,
+            z_step_factor=default_input_struct.user_params.ZPRIME_STEP_FACTOR,
+        )
+    )
+
+
+@pytest.fixture(scope="session")
+def ic(default_input_struct, tmpdirec):
     return compute_initial_conditions(
-        user_params=default_user_params,
-        cosmo_params=default_cosmo_params,
+        inputs=default_input_struct,
         write=True,
         direc=tmpdirec,
-        random_seed=12,
     )
 
 
@@ -205,28 +236,35 @@ def low_redshift():
 
 
 @pytest.fixture(scope="session")
-def perturbed_field(ic, redshift):
+def perturbed_field(ic, default_input_struct, redshift, tmpdirec):
     """A default perturb_field"""
-    return perturb_field(redshift=redshift, initial_conditions=ic, write=True)
-
-
-@pytest.fixture(scope="session")
-def rectlcn(lightcone_min_redshift, ic, max_redshift) -> RectilinearLightconer:
-    return RectilinearLightconer.with_equal_cdist_slices(
-        min_redshift=lightcone_min_redshift,
-        max_redshift=max_redshift,
-        resolution=ic.user_params.cell_size,
-        cosmo=ic.cosmo_params.cosmo,
+    return perturb_field(
+        redshift=redshift,
+        inputs=default_input_struct,
+        initial_conditions=ic,
+        write=True,
+        direc=tmpdirec,
     )
 
 
 @pytest.fixture(scope="session")
-def lc(rectlcn, ic, default_astro_params, default_flag_options):
+def rectlcn(
+    lightcone_min_redshift, max_redshift, default_user_params, default_cosmo_params
+) -> RectilinearLightconer:
+    return RectilinearLightconer.with_equal_cdist_slices(
+        min_redshift=lightcone_min_redshift,
+        max_redshift=max_redshift,
+        resolution=default_user_params.cell_size,
+        cosmo=default_cosmo_params.cosmo,
+    )
+
+
+@pytest.fixture(scope="session")
+def lc(rectlcn, ic, default_input_struct_lc):
     iz, z, coev, lc = exhaust_lightcone(
         lightconer=rectlcn,
         initial_conditions=ic,
-        astro_params=default_astro_params,
-        flag_options=default_flag_options,
+        inputs=default_input_struct_lc,
         write=True,
     )
     return lc

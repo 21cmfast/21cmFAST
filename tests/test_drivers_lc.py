@@ -19,7 +19,7 @@ def test_lightcone(lc, default_user_params, lightcone_min_redshift, max_redshift
 
 
 def test_lightcone_quantities(
-    ic, default_flag_options, lightcone_min_redshift, max_redshift
+    ic, default_input_struct_lc, lightcone_min_redshift, max_redshift
 ):
     lcn = p21c.RectilinearLightconer.with_equal_cdist_slices(
         min_redshift=lightcone_min_redshift,
@@ -32,7 +32,7 @@ def test_lightcone_quantities(
     _, _, _, lc = p21c.exhaust_lightcone(
         lightconer=lcn,
         initial_conditions=ic,
-        flag_options=default_flag_options,
+        inputs=default_input_struct_lc,
         global_quantities=("density", "Gamma12_box"),
     )
 
@@ -66,7 +66,7 @@ def test_lightcone_quantities(
         p21c.exhaust_lightcone(
             lightconer=lcn_ts,
             initial_conditions=ic,
-            flag_options=default_flag_options,
+            inputs=default_input_struct_lc,
         )
 
     # And also raise an error for global quantities.
@@ -74,7 +74,7 @@ def test_lightcone_quantities(
         p21c.exhaust_lightcone(
             lightconer=lcn_ts,
             initial_conditions=ic,
-            flag_options=default_flag_options,
+            inputs=default_input_struct_lc,
             global_quantities=("Ts_box",),
         )
 
@@ -164,22 +164,34 @@ def test_lightcone_coords(lc):
     )
 
 
-def test_run_lc_bad_inputs(ic):
-    with pytest.raises(TypeError):
+def test_run_lc_bad_inputs(rectlcn, perturbed_field, default_input_struct_lc):
+    with pytest.raises(
+        ValueError,
+        match="You are attempting to run a lightcone with no node_redshifts.",
+    ):
         p21c.exhaust_lightcone(
-            initial_conditions=ic,
+            lightconer=rectlcn,
+            inputs=default_input_struct_lc.clone(node_redshifts=[]),
+        )
+    with pytest.raises(
+        ValueError,
+        match="If perturbed_fields are provided, initial_conditions must be provided",
+    ):
+        p21c.exhaust_lightcone(
+            inputs=default_input_struct_lc,
+            lightconer=rectlcn,
+            perturbed_fields=[
+                perturbed_field,
+            ],
         )
 
 
-def test_lc_with_lightcone_filename(
-    ic, rectlcn, default_astro_params, default_flag_options, tmpdirec
-):
+def test_lc_with_lightcone_filename(ic, rectlcn, default_input_struct_lc, tmpdirec):
     fname = tmpdirec / "lightcone.h5"
     _, _, _, lc = p21c.exhaust_lightcone(
         lightconer=rectlcn,
         initial_conditions=ic,
-        astro_params=default_astro_params,
-        flag_options=default_flag_options,
+        inputs=default_input_struct_lc,
         lightcone_filename=fname,
     )
     assert fname.exists()
@@ -192,8 +204,7 @@ def test_lc_with_lightcone_filename(
     _, _, _, lc2 = p21c.exhaust_lightcone(
         lightconer=rectlcn,
         initial_conditions=ic,
-        astro_params=default_astro_params,
-        flag_options=default_flag_options,
+        inputs=default_input_struct_lc,
         lightcone_filename=fname,
     )
 
@@ -203,14 +214,14 @@ def test_lc_with_lightcone_filename(
     fname.unlink()
 
 
-def test_lc_partial_eval(rectlcn, ic, default_flag_options, tmpdirec, lc):
+def test_lc_partial_eval(rectlcn, ic, default_input_struct_lc, tmpdirec, lc):
     fname = tmpdirec / "lightcone_partial.h5"
 
     z = rectlcn.lc_redshifts.max()
     lc_gen = p21c.run_lightcone(
         lightconer=rectlcn,
         initial_conditions=ic,
-        flag_options=default_flag_options,
+        inputs=default_input_struct_lc,
         lightcone_filename=fname,
         write=True,
     )
@@ -225,7 +236,7 @@ def test_lc_partial_eval(rectlcn, ic, default_flag_options, tmpdirec, lc):
     _, _, _, finished = p21c.exhaust_lightcone(
         lightconer=rectlcn,
         initial_conditions=ic,
-        flag_options=default_flag_options,
+        inputs=default_input_struct_lc,
         lightcone_filename=fname,
     )
 
@@ -240,13 +251,23 @@ def test_lc_partial_eval(rectlcn, ic, default_flag_options, tmpdirec, lc):
         p21c.exhaust_lightcone(
             lightconer=rectlcn,
             initial_conditions=ic,
-            flag_options=default_flag_options,
+            inputs=default_input_struct_lc,
             lightcone_filename=fname,
         )
 
 
-def test_lc_lowerz_than_photon_cons(ic, max_redshift):
+def test_lc_lowerz_than_photon_cons(
+    ic, default_input_struct_lc, default_flag_options, max_redshift
+):
     with pytest.raises(ValueError, match="You have passed a redshift"):
+        inputs = default_input_struct_lc.clone(
+            node_redshifts=p21c.get_logspaced_redshifts(
+                min_redshift=1.9,
+                max_redshift=default_input_struct_lc.node_redshifts.max(),
+                z_step_factor=default_input_struct_lc.user_params.ZPRIME_STEP_FACTOR,
+            ),
+            flag_options=default_flag_options.clone(PHOTON_CONS_TYPE="z-photoncons"),
+        )
         lcn = p21c.RectilinearLightconer.with_equal_cdist_slices(
             min_redshift=2.0,
             max_redshift=max_redshift,
@@ -257,9 +278,5 @@ def test_lc_lowerz_than_photon_cons(ic, max_redshift):
         p21c.exhaust_lightcone(
             lightconer=lcn,
             initial_conditions=ic,
-            flag_options={
-                "PHOTON_CONS_TYPE": "z-photoncons",
-                "USE_HALO_FIELD": False,
-                "HALO_STOCHASTICITY": False,
-            },
+            inputs=inputs,
         )

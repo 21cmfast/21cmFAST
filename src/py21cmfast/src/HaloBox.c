@@ -514,7 +514,7 @@ int set_fixed_grids(double M_min, double M_max, InitialConditions *ini_boxes,
                     curr_vcb = ini_boxes->lowres_vcb[i];
                 }
                 J21_val=Gamma12_val=zre_val=0.;
-                if(consts->redshift < global_params.Z_HEAT_MAX){
+                if(consts->redshift < user_params_global->Z_HEAT_MAX){
                     J21_val = previous_spin_temp->J_21_LW_box[i];
                     Gamma12_val = previous_ionize_box->Gamma12_box[i];
                     zre_val = previous_ionize_box->z_re_box[i];
@@ -722,7 +722,7 @@ void get_mean_log10_turnovers(InitialConditions *ini_boxes, TsBox *previous_spin
                 curr_vcb = ini_boxes->lowres_vcb[i];
             }
             J21_val=Gamma12_val=zre_val=0.;
-            if(consts->redshift < global_params.Z_HEAT_MAX){
+            if(consts->redshift < user_params_global->Z_HEAT_MAX){
                 J21_val = previous_spin_temp->J_21_LW_box[i];
                 Gamma12_val = previous_ionize_box->Gamma12_box[i];
                 zre_val = previous_ionize_box->z_re_box[i];
@@ -795,7 +795,7 @@ void sum_halos_onto_grid(InitialConditions *ini_boxes, TsBox *previous_spin_temp
                     curr_vcb = ini_boxes->lowres_vcb[i_cell];
 
                 J21_val=Gamma12_val=zre_val=0.;
-                if(consts->redshift < global_params.Z_HEAT_MAX){
+                if(consts->redshift < user_params_global->Z_HEAT_MAX){
                     J21_val = previous_spin_temp->J_21_LW_box[i_cell];
                     Gamma12_val = previous_ionize_box->Gamma12_box[i_cell];
                     zre_val = previous_ionize_box->z_re_box[i_cell];
@@ -1081,7 +1081,7 @@ int test_halo_props(double redshift, UserParams *user_params, CosmoParams *cosmo
                         curr_vcb = vcb_grid[i_cell];
 
                     J21_val=Gamma12_val=zre_val=0.;
-                    if(redshift < global_params.Z_HEAT_MAX){
+                    if(redshift < user_params_global->Z_HEAT_MAX){
                         J21_val = J21_LW_grid[i_cell];
                         Gamma12_val = Gamma12_ion_grid[i_cell];
                         zre_val = z_re_grid[i_cell];

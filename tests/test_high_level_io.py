@@ -20,18 +20,17 @@ from py21cmfast.lightcones import AngularLightconer, RectilinearLightconer
 
 
 @pytest.fixture(scope="module")
-def coeval(ic, default_astro_params, default_flag_options_ts):
+def coeval(ic, default_input_struct_ts):
     return run_coeval(
         out_redshifts=25.0,
         initial_conditions=ic,
         write=True,
-        astro_params=default_astro_params,
-        flag_options=default_flag_options_ts,
+        inputs=default_input_struct_ts,
     )
 
 
 @pytest.fixture(scope="module")
-def ang_lightcone(ic, lc, default_astro_params, default_flag_options):
+def ang_lightcone(ic, lc, default_input_struct_lc, default_flag_options):
     lcn = AngularLightconer.like_rectilinear(
         match_at_z=lc.lightcone_redshifts.min(),
         max_redshift=lc.lightcone_redshifts.max(),
@@ -43,8 +42,11 @@ def ang_lightcone(ic, lc, default_astro_params, default_flag_options):
         lightconer=lcn,
         initial_conditions=ic,
         write=True,
-        astro_params=default_astro_params,
-        flag_options=default_flag_options.clone(APPLY_RSDS=False),
+        inputs=default_input_struct_lc.clone(
+            flag_options=default_flag_options.clone(
+                APPLY_RSDS=False,
+            )
+        ),
     )
     return anglc
 
@@ -171,7 +173,7 @@ def test_coeval_cache(coeval):
     assert np.all(out.brightness_temp == coeval.brightness_temp)
 
     out = coeval.get_cached_data(
-        kind="spin_temp", redshift=global_params.Z_HEAT_MAX * 1.01, load_data=True
+        kind="spin_temp", redshift=coeval.user_params.Z_HEAT_MAX * 1.01, load_data=True
     )
 
     assert isinstance(out, TsBox)
@@ -208,7 +210,9 @@ def test_lightcone_cache(lc):
     assert isinstance(out, BrightnessTemp)
 
     out = lc.get_cached_data(
-        kind="brightness_temp", redshift=global_params.Z_HEAT_MAX * 1.01, load_data=True
+        kind="brightness_temp",
+        redshift=lc.user_params.Z_HEAT_MAX * 1.01,
+        load_data=True,
     )
 
     assert isinstance(out, BrightnessTemp)

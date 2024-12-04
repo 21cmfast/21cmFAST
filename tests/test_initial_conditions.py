@@ -35,25 +35,21 @@ def test_box_shape(ic):
     assert ic.cosmo_params == p21c.CosmoParams()
 
 
-def test_modified_cosmo(ic):
+def test_modified_cosmo(ic, default_input_struct):
     """Test using a modified cosmology"""
-    cosmo = p21c.CosmoParams(SIGMA_8=0.9)
-    ic2 = p21c.compute_initial_conditions(
-        cosmo_params=cosmo,
-        user_params=ic.user_params,
-    )
+    inputs = default_input_struct.evolve_input_structs(SIGMA_8=0.9)
+    ic2 = p21c.compute_initial_conditions(inputs=inputs)
 
     assert ic2.cosmo_params != ic.cosmo_params
-    assert ic2.cosmo_params == cosmo
-    assert ic2.cosmo_params.SIGMA_8 == cosmo.SIGMA_8
+    assert ic2.cosmo_params == inputs.cosmo_params
+    assert ic2.cosmo_params.SIGMA_8 == inputs.cosmo_params.SIGMA_8
 
 
-def test_transfer_function(ic, default_user_params):
+def test_transfer_function(ic, default_input_struct):
     """Test using a modified transfer function"""
-    user_params = default_user_params.clone(POWER_SPECTRUM="CLASS")
+    inputs = default_input_struct.evolve_input_structs(POWER_SPECTRUM="CLASS")
     ic2 = p21c.compute_initial_conditions(
-        random_seed=ic.random_seed,
-        user_params=user_params,
+        inputs=inputs,
     )
     print(ic2.cosmo_params)
 
@@ -66,17 +62,15 @@ def test_transfer_function(ic, default_user_params):
 
 def test_relvels():
     """Test for relative velocity initial conditions"""
-    ic = p21c.compute_initial_conditions(
-        random_seed=1,
-        user_params=p21c.UserParams(
-            HII_DIM=100,
-            DIM=300,
-            BOX_LEN=300,
-            POWER_SPECTRUM="CLASS",
-            USE_RELATIVE_VELOCITIES=True,
-            N_THREADS=cpu_count(),  # To make this one a bit faster.
-        ),
+    inputs = p21c.InputParameters(random_seed=1).evolve_input_structs(
+        HII_DIM=100,
+        DIM=300,
+        BOX_LEN=300,
+        POWER_SPECTRUM="CLASS",
+        USE_RELATIVE_VELOCITIES=True,
+        N_THREADS=cpu_count(),  # To make this one a bit faster.
     )
+    ic = p21c.compute_initial_conditions(inputs=inputs)
 
     vcbrms_lowres = np.sqrt(np.mean(ic.lowres_vcb**2))
     vcbavg_lowres = np.mean(ic.lowres_vcb)

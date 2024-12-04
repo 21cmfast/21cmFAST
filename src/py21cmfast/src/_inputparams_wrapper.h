@@ -34,6 +34,8 @@ typedef struct UserParams{
     bool USE_2LPT;
     bool MINIMIZE_MEMORY;
     bool KEEP_3D_VELOCITIES;
+    double Z_HEAT_MAX;
+    double ZPRIME_STEP_FACTOR;
 
     //Halo Sampler Options
     float SAMPLER_MIN_MASS;
@@ -152,10 +154,8 @@ typedef struct GlobalParams{
 
     int HEAT_FILTER;
     double CLUMPING_FACTOR;
-    float Z_HEAT_MAX;
     float R_XLy_MAX;
     int NUM_FILTER_STEPS_FOR_Ts;
-    float ZPRIME_STEP_FACTOR;
     double TK_at_Z_HEAT_MAX;
     double XION_at_Z_HEAT_MAX;
     int Pop;

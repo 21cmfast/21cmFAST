@@ -95,7 +95,7 @@ int ComputeTsBox(float redshift, float prev_redshift, UserParams *user_params, C
                   InitialConditions *ini_boxes, TsBox *this_spin_temp) {
     int status;
     Try{ // This Try{} wraps the whole function.
-    LOG_DEBUG("input values:");
+    LOG_DEBUG("Spintemp input values:");
     LOG_DEBUG("redshift=%f, prev_redshift=%f perturbed_field_redshift=%f", redshift, prev_redshift, perturbed_field_redshift);
 
 #if LOG_LEVEL >= SUPER_DEBUG_LEVEL
@@ -1216,10 +1216,6 @@ void ts_main(float redshift, float prev_redshift, UserParams *user_params, Cosmo
     double inverse_growth_factor_z;
     double dzp;
 
-    LOG_DEBUG("starting halo spintemp");
-    LOG_DEBUG("input values:");
-    LOG_DEBUG("redshift=%f, prev_redshift=%f perturbed_field_redshift=%f", redshift, prev_redshift, perturbed_field_redshift);
-
     init_ps(); //Must be always initialised due to the strange way Ionisationbox.c expects some initialisation
 
     //allocate the global arrays we always use
@@ -1254,7 +1250,7 @@ void ts_main(float redshift, float prev_redshift, UserParams *user_params, Cosmo
 
     //Initialize heating interpolation arrays
     init_heat();
-    if(redshift >= global_params.Z_HEAT_MAX){
+    if(redshift >= user_params->Z_HEAT_MAX){
         LOG_DEBUG("redshift greater than Z_HEAT_MAX");
         init_first_Ts(this_spin_temp,perturbed_field->density,perturbed_field_redshift,redshift,&x_e_ave_p,&Tk_ave_p);
         return;

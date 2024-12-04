@@ -218,14 +218,6 @@ class UserParams(InputStruct):
     MINIMIZE_MEMORY: bool, optional
         If set, the code will run in a mode that minimizes memory usage, at the expense
         of some CPU/disk-IO. Good for large boxes / small computers.
-    STOC_MINIMUM_Z: float, optional
-        The minimum (first) redshift at which to calculate the halo boxes, will behave as follows:
-        If STOC_MINIMUM_Z is set, we step DOWN from the requested redshift by ZPRIME_STEP_FACTOR
-        until we get to STOC_MINIMUM_Z, where the last z-step will be shorter to be exactly at
-        STOC_MINIMUM_Z, we then build the halo boxes from low to high redshift.
-        If STOC_MINIMUM_Z is not provided, we simply sample at the given redshift, unless
-        USE_TS_FLUCT is given or we want a lightcone, in which case the minimum redshift is set
-        to the minimum redshift of those fields.
     SAMPLER_MIN_MASS: float, optional
         The minimum mass to sample in the halo sampler when USE_HALO_FIELD and HALO_STOCHASTICITY are true,
         decreasing this can drastically increase both compute time and memory usage.
@@ -269,6 +261,14 @@ class UserParams(InputStruct):
     PARKINSON_y2: float, optional
         Only used when SAMPLE_METHOD==3, sets the index of the delta power-law term of the correction to the
         extended Press-Schechter mass function used in Parkinson et al. 2008.
+    Z_HEAT_MAX : float, optional
+        Maximum redshift used in the Tk and x_e evolution equations.
+        Temperature and x_e are assumed to be homogeneous at higher redshifts.
+        Lower values will increase performance.
+    ZPRIME_STEP_FACTOR : float, optional
+        Logarithmic redshift step-size used in the z' integral.  Logarithmic dz.
+        Decreasing (closer to unity) increases total simulation time for lightcones,
+        and for Ts calculations.
     """
 
     _hmf_models = ["PS", "ST", "WATSON", "WATSON-Z", "DELOS"]
@@ -330,6 +330,8 @@ class UserParams(InputStruct):
     PARKINSON_G0 = field(default=1.0, converter=float, validator=validators.gt(0))
     PARKINSON_y1 = field(default=0.0, converter=float)
     PARKINSON_y2 = field(default=0.0, converter=float)
+    Z_HEAT_MAX = field(default=35.0, converter=float)
+    ZPRIME_STEP_FACTOR = field(default=1.02, converter=float)
 
     @DIM.default
     def _dim_default(self):
@@ -687,15 +689,6 @@ class AstroParams(InputStruct):
         Self-correlation length used for updating xray luminosity, see "CORR_STAR" for details.
     """
 
-    # Some defaults require values from the flag options
-    _flag_options = field(
-        default=None,
-        converter=converters.optional(FlagOptions.new),
-        validator=validators.optional(validators.instance_of(FlagOptions)),
-        eq=False,
-        repr=False,
-    )
-
     HII_EFF_FACTOR = field(default=30.0, converter=float, validator=validators.gt(0))
     F_STAR10 = field(
         default=-1.3,
@@ -723,9 +716,12 @@ class AstroParams(InputStruct):
         transformer=logtransformer,
     )
     M_TURN = field(
-        converter=float, validator=validators.gt(0), transformer=logtransformer
+        default=8.7,
+        converter=float,
+        validator=validators.gt(0),
+        transformer=logtransformer,
     )
-    R_BUBBLE_MAX = field(converter=float, validator=validators.gt(0))
+    R_BUBBLE_MAX = field(default=15.0, converter=float, validator=validators.gt(0))
     ION_Tvir_MIN = field(
         default=4.69897,
         converter=float,
@@ -768,35 +764,6 @@ class AstroParams(InputStruct):
     # NOTE (Jdavies): It's difficult to know what this should be, ASTRID doesn't have
     # the xrays and I don't know which hydros do
     CORR_LX = field(default=0.2, converter=float)
-
-    def __attrs_post_init__(self):
-        """Print warnings for valid but unusual parameter choices."""
-        if self.R_BUBBLE_MAX != 50 and getattr(
-            self._flag_options, "INHOMO_RECO", False
-        ):
-            warnings.warn(
-                "You are setting R_BUBBLE_MAX != 50 when INHOMO_RECO=True. "
-                "This is non-standard (but allowed), and usually occurs upon manual "
-                "update of INHOMO_RECO"
-            )
-
-    @R_BUBBLE_MAX.default
-    def _R_BUBBLE_MAX_default(self):
-        """Maximum radius of bubbles to be searched. Set dynamically."""
-        if not isinstance(self._flag_options, FlagOptions):
-            raise ValueError(
-                "to use default R_BUBBLE_MAX, a FlagOptions instance must be provdided to AstroParams"
-            )
-        return 50.0 if self._flag_options.INHOMO_RECO else 15.0
-
-    @M_TURN.default
-    def _M_TURN_default(self):
-        """The minimum turnover mass for halos which host stars, (set dynamically based on USE_MINI_HALOS)."""
-        if not isinstance(self._flag_options, FlagOptions):
-            raise ValueError(
-                "to use default M_TURN, a FlagOptions instance must be provdided to AstroParams"
-            )
-        return 5 if self._flag_options.USE_MINI_HALOS else 8.7
 
     # set the default of the minihalo scalings to continue the same PL
     @F_STAR7_MINI.default

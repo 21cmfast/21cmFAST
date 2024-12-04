@@ -45,7 +45,7 @@ def test_sampler(name, cond, from_cat, plt):
     if from_cat:
         mass = 10 ** options_log10mass[cond]
         cond = mass
-        z_desc = (1 + redshift) / global_params.ZPRIME_STEP_FACTOR - 1
+        z_desc = (1 + redshift) / up.ZPRIME_STEP_FACTOR - 1
         delta = None
     else:
         mass = (
@@ -69,6 +69,7 @@ def test_sampler(name, cond, from_cat, plt):
         flag_options=fo,
         redshift=redshift,
         from_cat=from_cat,
+        redshift_prev=z_desc,
         cond_array=np.full(n_cond, cond),
         seed=987,
     )

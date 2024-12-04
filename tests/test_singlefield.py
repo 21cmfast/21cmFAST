@@ -15,53 +15,57 @@ from py21cmfast.drivers.coeval import get_logspaced_redshifts
 
 
 @pytest.fixture(scope="module")
-def ic_newseed(default_user_params, tmpdirec):
+def ic_newseed(default_input_struct, tmpdirec):
     return p21c.compute_initial_conditions(
-        user_params=default_user_params, write=True, direc=tmpdirec, random_seed=33
+        inputs=default_input_struct.clone(random_seed=33),
+        write=True,
+        direc=tmpdirec,
     )
 
 
 @pytest.fixture(scope="module")
-def perturb_field_lowz(ic, low_redshift):
+def perturb_field_lowz(ic, default_input_struct, low_redshift):
     """A default perturb_field"""
-    return p21c.perturb_field(redshift=low_redshift, initial_conditions=ic, write=True)
+    return p21c.perturb_field(
+        redshift=low_redshift,
+        inputs=default_input_struct,
+        initial_conditions=ic,
+        write=True,
+    )
 
 
 @pytest.fixture(scope="module")
-def ionize_box(ic, perturbed_field, default_astro_params, default_flag_options):
+def ionize_box(ic, perturbed_field, default_input_struct):
     """A default ionize_box"""
     return p21c.compute_ionization_field(
         initial_conditions=ic,
-        astro_params=default_astro_params,
-        flag_options=default_flag_options,
+        inputs=default_input_struct,
         perturbed_field=perturbed_field,
         write=True,
     )
 
 
 @pytest.fixture(scope="module")
-def ionize_box_lowz(ic, perturb_field_lowz, default_astro_params, default_flag_options):
+def ionize_box_lowz(ic, perturb_field_lowz, default_input_struct):
     """A default ionize_box at lower redshift."""
     return p21c.compute_ionization_field(
         initial_conditions=ic,
-        astro_params=default_astro_params,
-        flag_options=default_flag_options,
+        inputs=default_input_struct,
         perturbed_field=perturb_field_lowz,
         write=True,
     )
 
 
 @pytest.fixture(scope="module")
-def spin_temp_evolution(ic, redshift, default_astro_params, default_flag_options_ts):
+def spin_temp_evolution(ic, redshift, default_input_struct_ts):
     """An example spin temperature evolution"""
-    scrollz = get_logspaced_redshifts(
-        redshift, p21c.global_params.ZPRIME_STEP_FACTOR, p21c.global_params.Z_HEAT_MAX
-    )
+    scrollz = default_input_struct_ts.node_redshifts
     st_prev = None
     outputs = []
     for iz, z in enumerate(scrollz):
         pt = p21c.perturb_field(
             redshift=z,
+            inputs=default_input_struct_ts,
             initial_conditions=ic,
         )
         st = p21c.spin_temperature(
@@ -69,8 +73,7 @@ def spin_temp_evolution(ic, redshift, default_astro_params, default_flag_options
             initial_conditions=ic,
             perturbed_field=pt,
             previous_spin_temp=st_prev,
-            astro_params=default_astro_params,
-            flag_options=default_flag_options_ts,
+            inputs=default_input_struct_ts,
         )
         outputs.append(
             {
@@ -84,15 +87,17 @@ def spin_temp_evolution(ic, redshift, default_astro_params, default_flag_options
     return outputs
 
 
-def test_perturb_field_no_ic(default_user_params, redshift, perturbed_field):
+def test_perturb_field_no_ic(default_input_struct, redshift, perturbed_field):
     """Run a perturb field without passing an init box"""
     with pytest.raises(TypeError):
-        p21c.perturb_field(redshift=redshift, user_params=default_user_params)
+        p21c.perturb_field(redshift=redshift, user_params=default_input_struct)
 
 
-def test_ib_no_z(ic):
+def test_ib_no_z(ic, default_input_struct):
     with pytest.raises(TypeError):
-        p21c.compute_ionization_field(initial_conditions=ic)
+        p21c.compute_ionization_field(
+            initial_conditions=ic, inputs=default_input_struct
+        )
 
 
 def test_pf_unnamed_param():
@@ -101,11 +106,15 @@ def test_pf_unnamed_param():
         p21c.perturb_field(7)
 
 
-def test_perturb_field_ic(perturbed_field, ic):
+def test_perturb_field_ic(perturbed_field, default_input_struct, ic):
     # this will run perturb_field again, since by default regenerate=True for tests.
     # BUT it should produce exactly the same as the default perturb_field since it has
     # the same seed.
-    pf = p21c.perturb_field(redshift=perturbed_field.redshift, initial_conditions=ic)
+    pf = p21c.perturb_field(
+        redshift=perturbed_field.redshift,
+        initial_conditions=ic,
+        inputs=default_input_struct,
+    )
 
     assert len(pf.density) == len(ic.lowres_density)
     assert pf.cosmo_params == ic.cosmo_params
@@ -120,7 +129,8 @@ def test_perturb_field_ic(perturbed_field, ic):
 
 def test_cache_exists(default_input_struct, perturbed_field, tmpdirec):
     pf = p21c.PerturbedField(
-        inputs=default_input_struct.clone(random_seed=perturbed_field._random_seed),
+        redshift=perturbed_field.redshift,
+        inputs=default_input_struct,
     )
 
     assert pf.exists(tmpdirec)
@@ -134,14 +144,15 @@ def test_new_seeds(
     ic_newseed,
     perturb_field_lowz,
     ionize_box_lowz,
-    default_astro_params,
-    default_flag_options,
+    default_input_struct,
     tmpdirec,
 ):
+    inputs_newseed = default_input_struct.clone(random_seed=ic_newseed.random_seed)
     # Perturbed Field
     pf = p21c.perturb_field(
         redshift=perturb_field_lowz.redshift,
         initial_conditions=ic_newseed,
+        inputs=inputs_newseed,
     )
 
     # we didn't write it, and this has a different seed
@@ -154,15 +165,13 @@ def test_new_seeds(
         p21c.compute_ionization_field(
             initial_conditions=ic_newseed,
             perturbed_field=perturb_field_lowz,
-            astro_params=default_astro_params,
-            flag_options=default_flag_options,
+            inputs=default_input_struct,
         )
 
     ib = p21c.compute_ionization_field(
         initial_conditions=ic_newseed,
         perturbed_field=pf,
-        astro_params=default_astro_params,
-        flag_options=default_flag_options,
+        inputs=inputs_newseed,
     )
 
     # we didn't write it, and this has a different seed
@@ -171,57 +180,61 @@ def test_new_seeds(
     assert not np.all(ib.xH_box == ionize_box_lowz.xH_box)
 
 
-def test_ib_from_pf(perturbed_field, ic, default_astro_params, default_flag_options):
+def test_ib_from_pf(perturbed_field, ic, default_input_struct):
     ib = p21c.compute_ionization_field(
         initial_conditions=ic,
         perturbed_field=perturbed_field,
-        astro_params=default_astro_params,
-        flag_options=default_flag_options,
+        inputs=default_input_struct,
     )
     assert ib.redshift == perturbed_field.redshift
     assert ib.user_params == perturbed_field.user_params
     assert ib.cosmo_params == perturbed_field.cosmo_params
 
 
-def test_ib_override_z_heat_max(
-    ic, perturbed_field, default_astro_params, default_flag_options
-):
+def test_ib_override_global(ic, perturbed_field, default_input_struct):
     # save previous z_heat_max
-    zheatmax = p21c.global_params.Z_HEAT_MAX
+    saved_val = p21c.global_params.Pop2_ion
 
     p21c.compute_ionization_field(
         initial_conditions=ic,
         perturbed_field=perturbed_field,
-        astro_params=default_astro_params,
-        flag_options=default_flag_options,
-        z_heat_max=12.0,
+        inputs=default_input_struct,
+        pop2_ion=3500,
     )
 
-    assert p21c.global_params.Z_HEAT_MAX == zheatmax
+    assert p21c.global_params.Pop2_ion == saved_val
 
 
-def test_ib_bad_st(ic, perturbed_field, redshift):
+def test_ib_bad_st(ic, default_input_struct, perturbed_field, redshift):
     with pytest.raises((ValueError, AttributeError)):
         p21c.compute_ionization_field(
+            inputs=default_input_struct,
             initial_conditions=ic,
             perturbed_field=perturbed_field,
             spin_temp=ic,
         )
 
 
-def test_bt(ionize_box, spin_temp_evolution, perturbed_field):
+def test_bt(ionize_box, default_input_struct, spin_temp_evolution, perturbed_field):
     curr_st = spin_temp_evolution[-1]["spin_temp"]
     with pytest.raises(TypeError):  # have to specify param names
-        p21c.brightness_temperature(ionize_box, curr_st, perturbed_field)
+        p21c.brightness_temperature(
+            default_input_struct, ionize_box, curr_st, perturbed_field
+        )
 
     # this will fail because ionized_box was not created with spin temperature.
     with pytest.raises(ValueError):
         p21c.brightness_temperature(
-            ionized_box=ionize_box, perturbed_field=perturbed_field, spin_temp=curr_st
+            inputs=default_input_struct,
+            ionized_box=ionize_box,
+            perturbed_field=perturbed_field,
+            spin_temp=curr_st,
         )
 
     bt = p21c.brightness_temperature(
-        ionized_box=ionize_box, perturbed_field=perturbed_field
+        ionized_box=ionize_box,
+        perturbed_field=perturbed_field,
+        inputs=default_input_struct,
     )
 
     assert bt.cosmo_params == perturbed_field.cosmo_params
@@ -230,14 +243,11 @@ def test_bt(ionize_box, spin_temp_evolution, perturbed_field):
     assert bt.astro_params == ionize_box.astro_params
 
 
-def test_coeval_against_direct(
-    ic, perturbed_field, ionize_box, default_astro_params, default_flag_options
-):
+def test_coeval_against_direct(ic, perturbed_field, ionize_box, default_input_struct):
     coeval = p21c.run_coeval(
         perturbed_field=perturbed_field,
         initial_conditions=ic,
-        astro_params=default_astro_params,
-        flag_options=default_flag_options,
+        inputs=default_input_struct,
     )
 
     assert coeval.init_struct == ic
@@ -245,29 +255,24 @@ def test_coeval_against_direct(
     assert coeval.ionization_struct == ionize_box
 
 
-def test_using_cached_halo_field(
-    ic, test_direc, default_astro_params, default_flag_options
-):
+def test_using_cached_halo_field(ic, test_direc, default_input_struct):
     """Test whether the C-based memory in halo fields is cached correctly.
 
     Prior to v3.1 this was segfaulting, so this test ensure that this behaviour does
     not regress.
     """
-    f = default_flag_options.clone(USE_HALO_FIELD=True)
+    inputs = default_input_struct.evolve_input_structs(USE_HALO_FIELD=True)
     halo_field = p21c.determine_halo_list(
         redshift=10.0,
         initial_conditions=ic,
-        astro_params=default_astro_params,
-        flag_options=f,
+        inputs=inputs,
         write=True,
         direc=test_direc,
     )
 
     pt_halos = p21c.perturb_halo_list(
-        redshift=10.0,
         initial_conditions=ic,
-        astro_params=default_astro_params,
-        flag_options=f,
+        inputs=inputs,
         halo_field=halo_field,
         write=True,
         direc=test_direc,
@@ -278,8 +283,7 @@ def test_using_cached_halo_field(
     new_halo_field = p21c.determine_halo_list(
         redshift=10.0,
         initial_conditions=ic,
-        astro_params=default_astro_params,
-        flag_options=f,
+        inputs=inputs,
         write=False,
         regenerate=False,
     )
@@ -287,6 +291,7 @@ def test_using_cached_halo_field(
     new_pt_halos = p21c.perturb_halo_list(
         redshift=10.0,
         initial_conditions=ic,
+        inputs=inputs,
         halo_field=new_halo_field,
         write=False,
         regenerate=False,
@@ -296,34 +301,32 @@ def test_using_cached_halo_field(
     np.testing.assert_allclose(pt_halos.halo_coords, new_pt_halos.halo_coords)
 
 
-def test_first_box(
-    default_user_params,
-    default_cosmo_params,
-    default_astro_params,
-    default_flag_options_ts,
-):
+def test_first_box(default_input_struct_ts):
     """Tests whether the first_box idea works for spin_temp.
     This test was breaking before we set the z_heat_max box to actually get
     the correct dimensions (before it was treated as a dummy).
     """
+    inputs = default_input_struct_ts.evolve_input_structs(
+        HII_DIM=default_input_struct_ts.user_params.HII_DIM + 1
+    )
     initial_conditions = p21c.compute_initial_conditions(
-        user_params=default_user_params.clone(HII_DIM=default_user_params.HII_DIM + 1),
-        cosmo_params=default_cosmo_params,
+        inputs=inputs,
         random_seed=1,
     )
 
     prevst = None
-    for z in [p21c.global_params.Z_HEAT_MAX + 1e-2, 29.0]:
+    for z in [default_input_struct_ts.user_params.Z_HEAT_MAX + 1e-2, 29.0]:
         print(f"z={z}")
         perturbed_field = p21c.perturb_field(
-            redshift=z, initial_conditions=initial_conditions
+            inputs=inputs,
+            redshift=z,
+            initial_conditions=initial_conditions,
         )
 
         spin_temp = p21c.spin_temperature(
             initial_conditions=initial_conditions,
             perturbed_field=perturbed_field,
-            astro_params=default_astro_params,
-            flag_options=default_flag_options_ts,
+            inputs=inputs,
             previous_spin_temp=prevst,
         )
         prevst = spin_temp

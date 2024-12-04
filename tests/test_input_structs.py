@@ -5,11 +5,20 @@ Unit tests for input structures
 import pytest
 
 import pickle
+import tomllib
 import warnings
+from pathlib import Path
 
-from py21cmfast import AstroParams  # An example of a struct with defaults
-from py21cmfast import CosmoParams, FlagOptions, UserParams, __version__, global_params
-from py21cmfast.drivers.param_config import InputParameters
+from py21cmfast import (
+    AstroParams,
+    CosmoParams,
+    FlagOptions,
+    InputParameters,
+    IonizedBox,
+    UserParams,
+    __version__,
+    global_params,
+)
 
 
 @pytest.fixture(scope="module")
@@ -52,7 +61,14 @@ def test_constructed_from_itself(c):
     c3 = CosmoParams.new(c)
 
     assert c == c3
-    assert c is c3
+    assert c is not c3
+
+
+def test_altered_construction(c):
+    c3 = CosmoParams.new(c, SIGMA_8=0.7)
+
+    assert c != c3
+    assert c3.SIGMA_8 == 0.7
 
 
 def test_dynamic_variables():
@@ -103,33 +119,25 @@ def test_c_structures(c):
     assert c is not c2
 
 
-def test_update_inhomo_reco():
-    ap = AstroParams(R_BUBBLE_MAX=25, M_TURN=8.0)
-    # regex
-    msg = r"This is non\-standard \(but allowed\), and usually occurs upon manual update of INHOMO_RECO"
-    with pytest.warns(UserWarning, match=msg):
-        ap = ap.clone(flag_options=FlagOptions(INHOMO_RECO=True))
-
-
 def test_mmin():
     fo = FlagOptions(USE_MASS_DEPENDENT_ZETA=True)
     assert fo.M_MIN_in_Mass
 
 
 def test_globals():
-    orig = global_params.Z_HEAT_MAX
+    orig = global_params.Pop2_ion
 
-    with global_params.use(Z_HEAT_MAX=10.0):
-        assert global_params.Z_HEAT_MAX == 10.0
-        assert global_params._cobj.Z_HEAT_MAX == 10.0
+    with global_params.use(Pop2_ion=1000.0):
+        assert global_params.Pop2_ion == 1000.0
+        assert global_params._cobj.Pop2_ion == 1000.0
 
-    assert global_params.Z_HEAT_MAX == orig
+    assert global_params.Pop2_ion == orig
 
 
 def test_validation():
     c = CosmoParams()
     f = FlagOptions(USE_EXP_FILTER=False)  # needed for HII_FILTER checks
-    a = AstroParams(R_BUBBLE_MAX=100, flag_options=f)
+    a = AstroParams(R_BUBBLE_MAX=100)
     u = UserParams(BOX_LEN=50)
 
     with global_params.use(HII_FILTER=2):
@@ -139,6 +147,7 @@ def test_validation():
                 astro_params=a,
                 user_params=u,
                 flag_options=f,
+                random_seed=1,
             )
 
     a = a.clone(R_BUBBLE_MAX=20)
@@ -149,7 +158,19 @@ def test_validation():
                 astro_params=a,
                 user_params=u,
                 flag_options=f,
+                random_seed=1,
             )
+
+    f = f.clone(INHOMO_RECO=True)
+    msg = r"This is non\-standard \(but allowed\), and usually occurs upon manual update of INHOMO_RECO"
+    with pytest.warns(UserWarning, match=msg):
+        InputParameters(
+            cosmo_params=c,
+            astro_params=a,
+            user_params=u,
+            flag_options=f,
+            random_seed=1,
+        )
 
 
 def test_user_params():
@@ -239,3 +260,40 @@ def test_flag_options():
             match="USE_EXP_FILTER can only be used with a real-space tophat HII_FILTER==0",
         ):
             FlagOptions(USE_EXP_FILTER=True)
+
+
+def test_inputstruct_init(default_seed):
+    default_struct = InputParameters(random_seed=default_seed)
+    altered_struct = default_struct.evolve_input_structs(BOX_LEN=30)
+
+    assert default_struct.cosmo_params == CosmoParams.new()
+    assert default_struct.user_params == UserParams.new()
+    assert default_struct.astro_params == AstroParams.new()
+    assert default_struct.flag_options == FlagOptions.new()
+    assert altered_struct.user_params.BOX_LEN == 30
+
+
+def test_inputstruct_outputs(
+    default_input_struct, default_input_struct_ts, perturbed_field
+):
+    # NOTE: node_redshifts are not yet saved in inputstruct, so two OutputStruct
+    # can still be compatible with different node_redshifts
+    example_ib = IonizedBox(inputs=default_input_struct_ts)  # doesn't compute
+    with pytest.raises(ValueError, match="InputParameters not compatible with"):
+        default_input_struct.check_output_compatibility([example_ib])
+
+    default_input_struct.check_output_compatibility([perturbed_field])
+
+
+def test_native_template_loading(default_seed):
+    template_path = Path(__file__).parent.parent / "src/py21cmfast/templates/"
+    with open(template_path / "manifest.toml", "rb") as f:
+        manifest = tomllib.load(f)
+
+    # check all files and all aliases work
+    for manf_entry in manifest["templates"]:
+        for alias in manf_entry["aliases"]:
+            assert isinstance(
+                InputParameters.from_template(alias, random_seed=default_seed),
+                InputParameters,
+            )

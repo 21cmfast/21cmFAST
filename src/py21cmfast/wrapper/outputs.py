@@ -27,6 +27,10 @@ from .structs import OutputStruct as _BaseOutputStruct
 logger = logging.getLogger(__name__)
 
 
+# NOTE: The `inputs` arguments to the __init__ methods are set this way such that the
+#   required fields (`_inputs`) can be read either from the file
+#   (done in structs.OutputStruct.__init__) or the input struct (done here)
+# TODO: there is certainly a better way to organise it
 class _OutputStruct(_BaseOutputStruct):
     _global_params = global_params
 
@@ -34,7 +38,7 @@ class _OutputStruct(_BaseOutputStruct):
         if inputs:
             self.cosmo_params = inputs.cosmo_params
             self.user_params = inputs.user_params
-            self._random_seed = inputs.random_seed
+            self.random_seed = inputs.random_seed
 
         super().__init__(**kwargs)
 
@@ -42,9 +46,15 @@ class _OutputStruct(_BaseOutputStruct):
 class _OutputStructZ(_OutputStruct):
     _inputs = _OutputStruct._inputs + ("redshift",)
 
-    def __init__(self, *, inputs: InputParameters | None = None, **kwargs):
-        if inputs:
-            self.redshift = inputs.redshift
+    def __init__(
+        self,
+        *,
+        redshift: float | None = None,
+        inputs: InputParameters | None = None,
+        **kwargs,
+    ):
+        self.redshift = redshift
+
         super().__init__(inputs=inputs, **kwargs)
 
 
@@ -99,10 +109,8 @@ class InitialConditions(_OutputStruct):
         "INITIAL_REDSHIFT",  # pf
         "HEAT_FILTER",  # st
         "CLUMPING_FACTOR",  # st
-        "Z_HEAT_MAX",  # st
         "R_XLy_MAX",  # st
         "NUM_FILTER_STEPS_FOR_Ts",  # ts
-        "ZPRIME_STEP_FACTOR",  # ts
         "TK_at_Z_HEAT_MAX",  # ts
         "XION_at_Z_HEAT_MAX",  # ts
         "Pop",  # ib
@@ -218,10 +226,8 @@ class PerturbedField(_OutputStructZ):
         "HII_FILTER",  # ib
         "HEAT_FILTER",  # st
         "CLUMPING_FACTOR",  # st
-        "Z_HEAT_MAX",  # st
         "R_XLy_MAX",  # st
         "NUM_FILTER_STEPS_FOR_Ts",  # ts
-        "ZPRIME_STEP_FACTOR",  # ts
         "TK_at_Z_HEAT_MAX",  # ts
         "XION_at_Z_HEAT_MAX",  # ts
         "Pop",  # ib
@@ -380,7 +386,7 @@ class PerturbHaloField(_AllParamsBox):
 
     def __init__(
         self,
-        buffer_size: int = 0.0,
+        buffer_size: int = 0,
         **kwargs,
     ):
         self.buffer_size = buffer_size
