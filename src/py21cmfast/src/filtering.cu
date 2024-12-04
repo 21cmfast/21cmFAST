@@ -73,14 +73,15 @@ __device__ inline double spherical_shell_filter(double k, double R_outer, double
         -  sin(kR_inner) + cos(kR_inner) * kR_inner);
 }
 
-__global__ void filter_box_kernel(cuFloatComplex *box, size_t size, int dimension, int midpoint, int midpoint_para, double delta_k, float R, float R_param, double R_const, int filter_type) {
+__global__ void filter_box_kernel(cuFloatComplex *box, int num_pixels, int dimension, int midpoint, int midpoint_para, double delta_k, float R, float R_param, double R_const, int filter_type) {
 
     // Get index of box (flattened k-box)
     unsigned long long idx = blockIdx.x * blockDim.x + threadIdx.x;
 
-    // TODO: Do we need a bound check? (in case number of threads != multiple of block size)
-    // while (idx < size) {
-
+    // Bound check (in case number of threads != multiple of block size)
+    if (idx >= num_pixels) {
+        return;
+    }
     // Compute the 3D indices (n_x, n_y, n_z) for the k-box from the flattened index (idx)
     // Based on convenience macros in indexing.h
     int n_z = idx % (midpoint_para + 1);
@@ -174,7 +175,7 @@ void filter_box_gpu(fftwf_complex *box, int RES, int filter_type, float R, float
     int threadsPerBlock = 256;
     int numBlocks = (num_pixels + threadsPerBlock - 1) / threadsPerBlock;
     // d_box must be cast to cuFloatComplex (from fftwf_complex) for CUDA
-    filter_box_kernel<<<numBlocks, threadsPerBlock>>>(reinterpret_cast<cuFloatComplex *>(d_box), size, dimension, midpoint, midpoint_para, delta_k, R, R_param, R_const, filter_type);
+    filter_box_kernel<<<numBlocks, threadsPerBlock>>>(reinterpret_cast<cuFloatComplex *>(d_box), num_pixels, dimension, midpoint, midpoint_para, delta_k, R, R_param, R_const, filter_type);
 
     cudaError_t err;
 
