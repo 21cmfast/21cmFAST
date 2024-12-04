@@ -59,7 +59,6 @@ def get_logspaced_redshifts(
     return np.array(redshifts)[::-1]
 
 
-# node_redshifts takes either a list of floats OR the string "logspaced"
 def _node_redshifts_converter(value, self):
     # we assume an array-like is passed
     if hasattr(value, "__len__"):
