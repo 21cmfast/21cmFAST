@@ -10,8 +10,8 @@ from pathlib import Path
 from typing import Any, Sequence
 
 from .._cfg import config
-from ..run_templates import create_params_from_template
 from ..io.caching import OutputCache
+from ..run_templates import create_params_from_template
 from ..wrapper.globals import global_params
 from ..wrapper.inputs import (
     AstroParams,

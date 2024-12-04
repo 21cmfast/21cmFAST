@@ -518,7 +518,9 @@ def compute_halo_grid(
             or not inputs.flag_options.USE_MINI_HALOS
         ):
             # Dummy ionize box is OK since we're above Z_HEAT_MAX
-            previous_ionize_box = IonizedBox.new(redshift=0.0, inputs=inputs, dummy=True)
+            previous_ionize_box = IonizedBox.new(
+                redshift=0.0, inputs=inputs, dummy=True
+            )
         else:
             raise ValueError(
                 "Below Z_HEAT_MAX you must specify the previous_ionize_box"
