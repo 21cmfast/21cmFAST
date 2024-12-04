@@ -5,13 +5,13 @@ from __future__ import annotations
 import attrs
 import logging
 import numpy as np
-import os
 import warnings
-from functools import cached_property
+from pathlib import Path
 from typing import Any, Sequence
 
 from .._cfg import config
 from ..run_templates import create_params_from_template
+from ..io.caching import OutputCache
 from ..wrapper.globals import global_params
 from ..wrapper.inputs import (
     AstroParams,
@@ -286,10 +286,8 @@ def check_redshift_consistency(redshift, output_structs):
 
 
 def _get_config_options(
-    direc, regenerate, write, hooks
-) -> tuple[str, bool, dict[callable, dict[str, Any]]]:
-    direc = str(os.path.expanduser(config["direc"] if direc is None else direc))
-
+    direc: str | Path | None, write: bool | callable, hooks: dict
+) -> tuple[OutputCache, dict[callable, dict[str, Any]]]:
     if hooks is None or len(hooks) > 0:
         hooks = hooks or {}
 
@@ -304,7 +302,6 @@ def _get_config_options(
                 hooks["write"] = {"direc": direc}
 
     return (
-        direc,
-        bool(config["regenerate"] if regenerate is None else regenerate),
+        OutputCache(direc),
         hooks,
     )

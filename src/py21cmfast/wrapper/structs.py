@@ -13,7 +13,7 @@ from bidict import bidict
 from functools import cached_property
 from hashlib import md5
 from pathlib import Path
-from typing import Any, Sequence
+from typing import Any, Self, Sequence
 
 from .. import __version__
 from .._cfg import config
@@ -24,6 +24,7 @@ from ._utils import (
     get_all_subclasses,
     snake_to_camel,
 )
+from .arrays import Array
 from .arraystate import ArrayState
 from .exceptions import _process_exitcode
 
@@ -45,6 +46,8 @@ class StructWrapper:
     _name: str = attrs.field(converter=str)
     cstruct = attrs.field(default=None)
     _ffi = attrs.field(default=ffi)
+
+    _TYPEMAP = bidict({"float32": "float *", "float64": "double *", "int32": "int *"})
 
     @_name.default
     def _name_default(self):
@@ -250,78 +253,64 @@ class InputStruct:
         return cls.new(dct)
 
 
-class OutputStruct(metaclass=ABCMeta):
+@attrs.define(slots=False)
+class OutputStruct(ABCMeta):
     """Base class for any class that wraps a C struct meant to be output from a C function."""
 
     _meta = True
     _fields_ = []
     _global_params = None
-    _inputs = (
-        "user_params",
-        "cosmo_params",
-        "random_seed",
-    )  # inputs provided in the InputParameter class
-    _filter_params = [
-        "external_table_path",
-        "wisdoms_path",
-        "_flag_options",
-        "_base_cosmo",
-    ]
     _c_based_pointers = ()
     _c_compute_function = None
 
     _TYPEMAP = bidict({"float32": "float *", "float64": "double *", "int32": "int *"})
 
-    def __init__(self, *, dummy=False, initial=False, **kwargs):
-        """
-        Base type for output structures from C functions.
+    inputs: InputParameters = attrs.field(
+        validator=attrs.validators.instance_of(InputParameters)
+    )
+    dummy: bool = attrs.field(default=False, converter=bool)
+    initial: bool = attrs.field(default=False, converter=bool)
 
-        Parameters
-        ----------
-        random_seed
-            Seed associated with the output.
-        dummy
-            Specify this as a dummy struct, in which no arrays are to be
-            initialized or computed.
-        initial
-            Specify this as an initial struct, where arrays are to be
-            initialized, but do not need to be computed to pass into another
-            struct's compute().
-        """
-        self._name = self.__class__.__name__
-        self.version = ".".join(__version__.split(".")[:2])
-        self.patch_version = ".".join(__version__.split(".")[2:])
-        self._paths = []
+    @property
+    def _name(self):
+        """The name of the struct."""
+        return self.__class__.__name__
 
-        for k in self._inputs:
-            if k not in self.__dict__:
-                try:
-                    setattr(self, k, kwargs.pop(k))
-                except KeyError as e:
-                    raise KeyError(
-                        f"{self.__class__.__name__} requires the keyword argument {k}"
-                    ) from e
-                if getattr(self, k) is None:
-                    raise KeyError(
-                        f"{self.__class__.__name__} has required input {k} == None"
-                    )
+    @property
+    def arrays(self) -> dict[str, Array]:
+        me = attrs.asdict(self)
+        return {k: x for k, x in me.items() if isinstance(x, Array)}
 
-        if kwargs:
-            warnings.warn(
-                f"{self.__class__.__name__} received the following unexpected "
-                f"arguments: {list(kwargs.keys())}, these are ignored."
-            )
+    # @cached_property
+    # def _array_structure(self) -> dict[str, tuple[int] | dict[str, Any]]:
+    #     """A dictionary of names and shapes of arrays in the struct."""
+    #     return self._get_box_structures()
 
-        self.dummy = dummy
-        self.initial = initial
+    # def __init__(self, *, dummy=False, initial=False, **kwargs):
+    #     """
+    #     Base type for output structures from C functions.
 
-        self._array_structure = self._get_box_structures()
-        self._array_state = {k: ArrayState() for k in self._array_structure} | {
-            k: ArrayState() for k in self._c_based_pointers
-        }
-        for k in self._array_structure:
-            if k not in self.struct.pointer_fields:
-                raise TypeError(f"Key {k} in {self} not a defined pointer field in C.")
+    #     Parameters
+    #     ----------
+    #     random_seed
+    #         Seed associated with the output.
+    #     dummy
+    #         Specify this as a dummy struct, in which no arrays are to be
+    #         initialized or computed.
+    #     initial
+    #         Specify this as an initial struct, where arrays are to be
+    #         initialized, but do not need to be computed to pass into another
+    #         struct's compute().
+    #     """
+    #     self._name = self.__class__.__name__
+
+    #     self._array_structure = self._get_box_structures()
+    #     self._array_state = {k: ArrayState() for k in self._array_structure} | {
+    #         k: ArrayState() for k in self._c_based_pointers
+    #     }
+    #     for k in self._array_structure:
+    #         if k not in self.struct.pointer_fields:
+    #             raise TypeError(f"Key {k} in {self} not a defined pointer field in C.")
 
     @cached_property
     def struct(self) -> StructWrapper:
@@ -334,112 +323,89 @@ class OutputStruct(metaclass=ABCMeta):
         self._init_cstruct()
         return self.struct.cstruct
 
-    @property
-    def _all_inputs(self):
-        return self._inputs + ("_global_params",)
+    # @property
+    # def path(self) -> tuple[None, Path]:
+    #     """The path to an on-disk version of this object."""
+    #     if not self._paths:
+    #         return None
 
-    @property
-    def path(self) -> tuple[None, Path]:
-        """The path to an on-disk version of this object."""
-        if not self._paths:
-            return None
+    #     for pth in self._paths:
+    #         if pth.exists():
+    #             return pth
 
-        for pth in self._paths:
-            if pth.exists():
-                return pth
+    #     logger.info(f"All paths that defined {self} have been deleted on disk.")
+    #     return None
 
-        logger.info(f"All paths that defined {self} have been deleted on disk.")
-        return None
+    # @abstractmethod
+    # def _get_box_structures(self) -> dict[str, dict | tuple[int]]:
+    #     """Return a dictionary of names mapping to shapes for each array in the struct.
 
-    @abstractmethod
-    def _get_box_structures(self) -> dict[str, dict | tuple[int]]:
-        """Return a dictionary of names mapping to shapes for each array in the struct.
+    #     The reason this is a function, not a simple attribute, is that we may need to
+    #     decide on what arrays need to be initialized based on the inputs (eg. if USE_2LPT
+    #     is True or False).
 
-        The reason this is a function, not a simple attribute, is that we may need to
-        decide on what arrays need to be initialized based on the inputs (eg. if USE_2LPT
-        is True or False).
+    #     Each actual OutputStruct subclass needs to implement this. Note that the arrays
+    #     are not actually initialized here -- that's done automatically by :func:`_init_arrays`
+    #     using this information. This function means that the names of the actually required
+    #     arrays can be accessed without doing any actual initialization.
 
-        Each actual OutputStruct subclass needs to implement this. Note that the arrays
-        are not actually initialized here -- that's done automatically by :func:`_init_arrays`
-        using this information. This function means that the names of the actually required
-        arrays can be accessed without doing any actual initialization.
-
-        Note also that this only contains arrays allocated *by Python* not C. Arrays
-        allocated by C are specified in :func:`_c_shape`.
-        """
-        pass
+    #     Note also that this only contains arrays allocated *by Python* not C. Arrays
+    #     allocated by C are specified in :func:`_c_shape`.
+    #     """
+    #     pass
 
     def _c_shape(self, cstruct) -> dict[str, tuple[int]]:
         """Return a dictionary of field: shape for arrays allocated within C."""
         return {}
 
-    @classmethod
-    def _implementations(cls):
-        all_classes = get_all_subclasses(cls)
-        return [c for c in all_classes if not c._meta]
+    # @classmethod
+    # def _implementations(cls):
+    #     all_classes = get_all_subclasses(cls)
+    #     return [c for c in all_classes if not c._meta]
 
     def _init_arrays(self):
-        for k, state in self._array_state.items():
+        for k, array in self.arrays.items():
             # Don't initialize C-based pointers or already-inited stuff, or stuff
             # that's computed on disk (if it's on disk, accessing the array should
             # just give the computed version, which is what we would want, not a
             # zero-inited array).
-            if k in self._c_based_pointers or state.initialized or state.on_disk:
+            if array.state.c_memory or array.state.initialized or array.state.on_disk:
                 continue
 
-            params = self._array_structure[k]
-            tp = self._TYPEMAP.inverse[self.struct.fields[k].type.cname]
+            # TODO: maybe change to a simple InputParameters object
+            setattr(self, k, array.initialize(self.user_params, self.flag_options))
 
-            if isinstance(params, tuple):
-                shape = params
-                fnc = np.zeros
-            elif isinstance(params, dict):
-                fnc = params.get("init", np.zeros)
-                shape = params.get("shape")
-            else:
-                raise ValueError("params is not a tuple or dict")
+    @property
+    def random_seed(self):
+        """The random seed for this particular instance."""
+        if self._random_seed is None:
+            self._random_seed = int(np.random.randint(1, int(1e12)))
 
-            setattr(self, k, fnc(shape, dtype=tp))
+        return self._random_seed
 
-            # Add it to initialized arrays.
-            state.initialized = True
+    def sync(self):
+        """Sync the current state of the object with the underlying C-struct.
 
-    def _init_cstruct(self):
+        This will link any memory initialized by numpy in this object with the underlying
+        C-struct, and also update this object with any values computed from within C.
+        """
         # Initialize all uninitialized arrays.
         self._init_arrays()
 
-        for k, state in self._array_state.items():
+        for name, array in self.arrays.items():
+
             # We do *not* set COMPUTED_ON_DISK items to the C-struct here, because we have no
             # way of knowing (in this function) what is required to load in, and we don't want
             # to unnecessarily load things in. We leave it to the user to ensure that all
             # required arrays are loaded into memory before calling this function.
-            if state.initialized:
-                setattr(self.struct.cstruct, k, self._ary2buf(getattr(self, k)))
+            if array.state.initialized:
+                array.expose_to_c(self.struct, name)
 
         for k in self.struct.primitive_fields:
-            with contextlib.suppress(AttributeError):
+            if hasattr(self, k):
                 setattr(self.struct.cstruct, k, getattr(self, k))
-
-    def _ary2buf(self, ary):
-        if not isinstance(ary, np.ndarray):
-            raise ValueError("ary must be a numpy array")
-        return self.struct._ffi.cast(
-            OutputStruct._TYPEMAP[ary.dtype.name], self.struct._ffi.from_buffer(ary)
-        )
-
-    def __call__(self):
-        """Return the C structure, will initialise if not already initialised."""
-        return self.cstruct
-
-    def __expose(self):
-        """Expose the non-array primitives of the ctype to the top-level object."""
-        for k in self.struct.primitive_fields:
-            setattr(self, k, getattr(self.cstruct, k))
-
-    @property
-    def _fname_skeleton(self):
-        """The filename without specifying the random seed."""
-        return f"{self._name}_{self._md5}" + "_r{seed}.h5"
+            else:
+                setattr(self, k, getattr(self.cstruct, k))
 
     def prepare(
         self,
@@ -470,12 +436,12 @@ class OutputStruct(metaclass=ABCMeta):
             raise ValueError("Must provide either flush or keep")
 
         if flush is not None and keep is None:
-            keep = [k for k in self._array_state if k not in flush]
+            keep = [k for k in self.arrays if k not in flush]
         elif flush is None:
             flush = [
                 k
-                for k in self._array_state
-                if k not in keep and self._array_state[k].initialized
+                for k, array in self.arrays.items()
+                if k not in keep and array.state.initialized
             ]
 
         flush = flush or []
@@ -486,12 +452,15 @@ class OutputStruct(metaclass=ABCMeta):
 
         # Accessing the array loads it into memory.
         for k in keep:
-            getattr(self, k)
+            setattr(self, k, getattr(self, k).loaded_from_disk())
 
-    def _remove_array(self, k, force=False):
-        state = self._array_state[k]
+    def _remove_array(self, k: str, force=False):
+        array = self.arrays[k]
+        state = array.state
 
-        if not state.initialized and k in self._array_structure:
+        if (
+            not state.initialized
+        ):  # TODO: how to handle the case where some arrays aren't required at all?
             warnings.warn(f"Trying to remove array that isn't yet created: {k}")
             return
 
@@ -500,25 +469,10 @@ class OutputStruct(metaclass=ABCMeta):
                 f"Trying to purge array '{k}' from memory that hasn't been stored! Use force=True if you meant to do this."
             )
 
-        if state.c_has_active_memory:
+        if state.c_has_active_memory:  # TODO: do we need C-managed memory any more?
             lib.free(getattr(self.cstruct, k))
 
-        delattr(self, k)
-        state.initialized = False
-
-    def __getattr__(self, item):
-        """Gets arrays that aren't already in memory."""
-        # Have to use __dict__ here to test membership, otherwise we get recursion error.
-        if "_array_state" not in self.__dict__ or item not in self._array_state:
-            raise self.__getattribute__(item)
-
-        if not self._array_state[item].on_disk:
-            raise OSError(
-                f"Cannot get {item} as it is not in memory, and this object is not cached to disk."
-            )
-
-        self.read(fname=self.path, keys=[item])
-        return getattr(self, item)
+        setattr(self, k, array.without_value())
 
     def purge(self, force=False):
         """Flush all the boxes out of memory.
@@ -534,471 +488,76 @@ class OutputStruct(metaclass=ABCMeta):
         """Load all possible arrays into memory."""
         self.prepare(flush=[])
 
-    @property
-    def filename(self):
-        """The base filename of this object."""
-        return self._fname_skeleton.format(seed=self.random_seed)
+    # def __repr__(self):
+    #     """Return a fully unique representation of the instance."""
+    #     # This is the class name and all parameters which belong to C-based input structs,
+    #     # eg. InitialConditions(HII_DIM:100,SIGMA_8:0.8,...)
+    #     # eg. InitialConditions(HII_DIM:100,SIGMA_8:0.8,...)
+    #     return f"{self._seedless_repr()}_random_seed={self._random_seed}"
 
-    def _get_fname(self, direc=None):
-        direc = Path(direc or config["direc"]).expanduser().absolute()
-        return direc / self.filename
+    # def _seedless_repr(self):
+    #     # The same as __repr__ except without the seed.
+    #     return (
+    #         (
+    #             self._name
+    #             + "("
+    #             + "; ".join(
+    #                 (
+    #                     repr(v)
+    #                     if isinstance(v, InputStruct)
+    #                     else (
+    #                         v.filtered_repr(self._filter_params)
+    #                         if isinstance(v, StructInstanceWrapper)
+    #                         else k.lstrip("_")
+    #                         + ":"
+    #                         + (
+    #                             float_to_string_precision(
+    #                                 v, config["cache_param_sigfigs"]
+    #                             )
+    #                             if isinstance(v, (float, np.float32))
+    #                             else repr(v)
+    #                         )
+    #                     )
+    #                 )
+    #                 for k, v in [
+    #                     (k, getattr(self, k))
+    #                     for k in self._all_inputs
+    #                     if k != "_random_seed"
+    #                 ]
+    #             )
+    #         )
+    #         + f"; v{self.version}"
+    #         + ")"
+    #     )
 
-    def _find_file_without_seed(self, direc):
-        if allfiles := list(Path(direc).glob(self._fname_skeleton.format(seed="*"))):
-            return allfiles[0]
-        else:
-            return None
+    # def __str__(self):
+    #     """Return a human-readable representation of the instance."""
+    #     # this is *not* a unique representation, and doesn't include global params.
+    #     return (
+    #         self._name
+    #         + "("
+    #         + ";\n\t".join(
+    #             (
+    #                 repr(v)
+    #                 if isinstance(v, InputStruct)
+    #                 else k.lstrip("_") + ":" + repr(v)
+    #             )
+    #             for k, v in [(k, getattr(self, k)) for k in self._inputs]
+    #         )
+    #     ) + ")"
 
-    def find_existing(self, direc=None):
-        """
-        Try to find existing boxes which match the parameters of this instance.
+    # def __hash__(self):
+    #     """Return a unique hsh for this instance, even global params and random seed."""
+    #     return hash(repr(self))
 
-        Parameters
-        ----------
-        direc : str, optional
-            The directory in which to search for the boxes. By default, this is the
-            centrally-managed directory, given by the ``config.yml`` in ``~/.21cmfast/``.
+    # @property
+    # def _md5(self):
+    #     """Return a unique hsh of the object, *not* taking into account the random seed."""
+    #     return md5(self._seedless_repr().encode()).hexdigest()
 
-        Returns
-        -------
-        str
-            The filename of an existing set of boxes, or None.
-        """
-        direc = Path(direc or config["direc"]).expanduser()
-        f = self._get_fname(direc)
-        if f.exists() and self._check_parameters(f):
-            return f
-        return None
-
-    def _check_parameters(self, fname):
-        with h5py.File(fname, "r") as f:
-            for k in self._all_inputs:
-                q = getattr(self, k)
-
-                # The key name as it should appear in file.
-                kfile = k.lstrip("_")
-
-                # If this particular variable is set to None, this is interpreted
-                # as meaning that we don't care about matching it to file.
-                if q is None:
-                    continue
-
-                if (
-                    not isinstance(q, InputStruct)
-                    and not isinstance(q, StructInstanceWrapper)
-                    and f.attrs[kfile] != q
-                ):
-                    if not isinstance(q, (float, np.float32)) or not (
-                        float_to_string_precision(q, config["cache_param_sigfigs"])
-                        == float_to_string_precision(
-                            f.attrs[kfile], config["cache_param_sigfigs"]
-                        )
-                    ):
-                        logger.debug(f"For file {fname}:")
-                        logger.debug(
-                            f"\tThough md5 and seed matched, the parameter {kfile} did not match,"
-                            f" with values {f.attrs[kfile]} and {q} in file and user respectively"
-                        )
-                        return False
-                elif isinstance(q, (InputStruct, StructInstanceWrapper)):
-                    grp = f[kfile]
-
-                    dct = q.asdict() if isinstance(q, InputStruct) else q
-                    for kk, v in dct.items():
-                        if kk not in self._filter_params:
-                            file_v = grp.attrs[kk]
-                            if file_v == "none":
-                                file_v = None
-                            if file_v != v:
-                                logger.debug(f"For file {fname}:")
-                                logger.debug(
-                                    f"\tThough md5 and seed matched, the parameter {kk} did not match,"
-                                    f" with values {file_v} and {v} in file and user respectively"
-                                )
-                                return False
-        return True
-
-    def exists(self, direc=None):
-        """
-        Return a bool indicating whether a box matching the parameters of this instance is in cache.
-
-        Parameters
-        ----------
-        direc : str, optional
-            The directory in which to search for the boxes. By default, this is the
-            centrally-managed directory, given by the ``config.yml`` in ``~/.21cmfast/``.
-        """
-        return self.find_existing(direc) is not None
-
-    def write(
-        self,
-        direc=None,
-        fname: str | Path | None | h5py.File | h5py.Group = None,
-        write_inputs=True,
-        mode="w",
-    ):
-        """
-        Write the struct in standard HDF5 format.
-
-        Parameters
-        ----------
-        direc : str, optional
-            The directory in which to write the boxes. By default, this is the
-            centrally-managed directory, given by the ``config.yml`` in ``~/.21cmfast/``.
-        fname : str, optional
-            The filename to write to. By default creates a unique filename from the hash.
-        write_inputs : bool, optional
-            Whether to write the inputs to the file. Can be useful to set to False if
-            the input file already exists and has parts already written.
-        """
-        if not all(v.computed for v in self._array_state.values()):
-            raise OSError(
-                "Not all boxes have been computed (or maybe some have been purged). Cannot write."
-                f"Non-computed boxes: {[k for k, v in self._array_state.items() if not v.computed]}"
-            )
-
-        if not write_inputs:
-            mode = "a"
-
-        try:
-            if not isinstance(fname, (h5py.File, h5py.Group)):
-                direc = Path(direc or config["direc"]).expanduser()
-
-                if not direc.exists():
-                    direc.mkdir()
-
-                fname = Path(fname or self._get_fname(direc))
-                if not fname.is_absolute():
-                    fname = direc / fname
-
-                fl = h5py.File(fname, mode)
-            else:
-                fl = fname
-
-            try:
-                # Save input parameters to the file
-                if write_inputs:
-                    for k in self._all_inputs:
-                        q = getattr(self, k)
-
-                        kfile = k.lstrip("_")
-
-                        if isinstance(q, (InputStruct, StructInstanceWrapper)):
-                            grp = fl.create_group(kfile)
-                            dct = q.asdict() if isinstance(q, InputStruct) else q
-                            for kk, v in dct.items():
-                                if kk not in self._filter_params:
-                                    try:
-                                        grp.attrs[kk] = "none" if v is None else v
-                                    except TypeError as e:
-                                        raise TypeError(
-                                            f"key {kk} with value {v} is not able to be written to HDF5 attrs!"
-                                        ) from e
-                        else:
-                            try:
-                                fl.attrs[kfile] = q
-                            except TypeError as e:
-                                logger.info(f"name {k} val {q}, type {type(q)}")
-                                raise e
-
-                    # Write 21cmFAST version to the file
-                    fl.attrs["version"] = __version__
-
-                # Save the boxes to the file
-                boxes = fl.create_group(self._name)
-
-                self.write_data_to_hdf5_group(boxes)
-
-            finally:
-                if not isinstance(fname, (h5py.File, h5py.Group)):
-                    fl.close()
-                    self._paths.insert(0, Path(fname))
-
-        except OSError as e:
-            logger.warning(
-                f"When attempting to write {self._name} to file, write failed with the following error. Continuing without caching."
-            )
-
-            logger.warning(e)
-
-    def write_data_to_hdf5_group(self, group: h5py.Group):
-        """
-        Write out this object to a particular HDF5 subgroup.
-
-        Parameters
-        ----------
-        group
-            The HDF5 group into which to write the object.
-        """
-        # Go through all fields in this struct, and save
-        for k, state in self._array_state.items():
-            group.create_dataset(k, data=getattr(self, k))
-            state.on_disk = True
-
-        for k in self.struct.primitive_fields:
-            group.attrs[k] = getattr(self, k)
-
-    def save(self, fname=None, direc=".", h5_group=None):
-        """Save the box to disk.
-
-        In detail, this just calls write, but changes the default directory to the
-        local directory. This is more user-friendly, while :meth:`write` is for
-        automatic use under-the-hood.
-
-        Parameters
-        ----------
-        fname : str, optional
-            The filename to write. Can be an absolute or relative path. If relative,
-            by default it is relative to the current directory (otherwise relative
-            to ``direc``). By default, the filename is auto-generated as unique to
-            the set of parameters that go into producing the data.
-        direc : str, optional
-            The directory into which to write the data. By default the current directory.
-            Ignored if ``fname`` is an absolute path.
-        """
-        # If fname is absolute path, then get direc from it, otherwise assume current dir.
-        fname = Path(fname)
-        if fname.is_absolute():
-            direc = fname.parent
-            fname = Path(fname.name)
-
-        if h5_group is not None:
-            fl = h5py.File(direc / fname, "a")
-
-            try:
-                grp = fl.create_group(h5_group)
-                self.write(direc, grp)
-            finally:
-                fl.close()
-        else:
-            self.write(direc, fname)
-
-    def _get_path(
-        self, direc: str | Path | None = None, fname: str | Path | None = None
-    ) -> Path:
-        if direc is None and fname is None and self.path:
-            return self.path
-
-        if fname is None:
-            pth = self.find_existing(direc)
-
-            if pth is None:
-                raise OSError(f"No boxes exist for these parameters. {pth} {direc}")
-        else:
-            direc = Path(direc or config["direc"]).expanduser()
-            fname = Path(fname)
-            pth = fname if fname.exists() else direc / fname
-        return pth
-
-    def read(
-        self,
-        direc: str | Path | None = None,
-        fname: str | Path | None | h5py.File | h5py.Group = None,
-        keys: Sequence[str] | None = (),
-    ):
-        """
-        Try find and read existing boxes from cache, which match the parameters of this instance.
-
-        Parameters
-        ----------
-        direc
-            The directory in which to search for the boxes. By default, this is the
-            centrally-managed directory, given by the ``config.yml`` in ``~/.21cmfast/``.
-        fname
-            The filename to read. By default, use the filename associated with this
-            object. Can be an open h5py File or Group, which will be directly written to.
-        keys
-            The names of boxes to read in (can be a subset). By default, read nothing.
-            If `None` is explicitly passed, read everything
-        """
-        if not isinstance(fname, (h5py.File, h5py.Group)):
-            pth = self._get_path(direc, fname)
-            fl = h5py.File(pth, "r")
-        else:
-            fl = fname
-
-        if keys is None:
-            keys = self._array_structure
-        try:
-            try:
-                boxes = fl[self._name]
-            except KeyError as e:
-                raise OSError(
-                    f"While trying to read in {self._name}, the file exists, but does not have the "
-                    "correct structure."
-                ) from e
-
-            # Set our arrays.
-            for k in boxes.keys():
-                self._array_state[k].on_disk = True
-                if k in keys:
-                    setattr(self, k, boxes[k][...])
-                    self._array_state[k].computed_in_mem = True
-                    setattr(self.cstruct, k, self._ary2buf(getattr(self, k)))
-
-            for k in boxes.attrs.keys():
-                if k == "version":
-                    version = ".".join(boxes.attrs[k].split(".")[:2])
-                    patch = ".".join(boxes.attrs[k].split(".")[2:])
-
-                    if version != ".".join(__version__.split(".")[:2]):
-                        # Ensure that the major and minor versions are the same.
-                        warnings.warn(
-                            f"The file {pth} is out of date (version = {version}.{patch}). "
-                            f"Consider using another box and removing it!"
-                        )
-
-                    self.version = version
-                    self.patch_version = patch
-
-                setattr(self, k, boxes.attrs[k])
-                with contextlib.suppress(AttributeError):
-                    setattr(self.cstruct, k, getattr(self, k))
-
-            # Need to make sure that the seed is set to the one that's read in.
-            seed = fl.attrs["random_seed"]
-            self.random_seed = int(seed)
-        finally:
-            self.__expose()
-            if isinstance(fl, h5py.File):
-                self._paths.insert(0, Path(fl.filename))
-            else:
-                self._paths.insert(0, Path(fl.file.filename))
-
-            if not isinstance(fname, (h5py.File, h5py.Group)):
-                fl.close()
-
-    @classmethod
-    def from_file(
-        cls,
-        fname,
-        direc=None,
-        load_data=True,
-        h5_group: str | None = None,
-        arrays_to_load=(),
-        safe=True,
-    ):
-        """Create an instance from a file on disk.
-
-        Parameters
-        ----------
-        fname : str, optional
-            Path to the file on disk. May be relative or absolute.
-        direc : str, optional
-            The directory from which fname is relative to (if it is relative). By
-            default, will be the cache directory in config.
-        h5_group
-            The path to the group within the file in which the object is stored.
-        arrays_to_load : list of str, optional
-            A list of array names to load into memory
-            If the list is empty (default), a bare instance is created with input parameters
-            -- the instance can read data with the :func:`read` method.
-            If `None` is explicitly passed, all arrays are loaded into memory
-        """
-        direc = Path(direc or config["direc"]).expanduser()
-        fname = Path(fname)
-
-        if not fname.exists():
-            fname = direc / fname
-
-        with h5py.File(fname, "r") as fl:
-            fl_inp = fl[h5_group] if h5_group else fl
-            self = cls(**cls._read_inputs(fl_inp, safe=safe))
-            self.read(fname=fl_inp, keys=arrays_to_load)
-
-        return self
-
-    @classmethod
-    def _read_inputs(cls, grp: h5py.File | h5py.Group, safe=True):
-        input_classes = [c.__name__ for c in InputStruct.__subclasses__()]
-
-        # Read the input parameter dictionaries from file.
-        kwargs = {}
-        for k in cls._inputs:
-            kfile = k.lstrip("_")
-            input_class_name = snake_to_camel(kfile)
-
-            if input_class_name in input_classes:
-                kls = InputStruct.__subclasses__()[
-                    input_classes.index(input_class_name)
-                ]
-                subgrp = grp[kfile]
-                dct = dict(subgrp.attrs)
-                kwargs[k] = kls.from_subdict(dct, safe=safe)
-            else:
-                kwargs[k] = grp.attrs[kfile]
-        return kwargs
-
-    def __repr__(self):
-        """Return a fully unique representation of the instance."""
-        # This is the class name and all parameters which belong to C-based input structs,
-        # eg. InitialConditions(HII_DIM:100,SIGMA_8:0.8,...)
-        # eg. InitialConditions(HII_DIM:100,SIGMA_8:0.8,...)
-        return f"{self._seedless_repr()}_random_seed={self.random_seed}"
-
-    def _seedless_repr(self):
-        # The same as __repr__ except without the seed.
-        return (
-            (
-                self._name
-                + "("
-                + "; ".join(
-                    (
-                        repr(v)
-                        if isinstance(v, InputStruct)
-                        else (
-                            v.filtered_repr(self._filter_params)
-                            if isinstance(v, StructInstanceWrapper)
-                            else k.lstrip("_")
-                            + ":"
-                            + (
-                                float_to_string_precision(
-                                    v, config["cache_param_sigfigs"]
-                                )
-                                if isinstance(v, (float, np.float32))
-                                else repr(v)
-                            )
-                        )
-                    )
-                    for k, v in [
-                        (k, getattr(self, k))
-                        for k in self._all_inputs
-                        if k != "random_seed"
-                    ]
-                )
-            )
-            + f"; v{self.version}"
-            + ")"
-        )
-
-    def __str__(self):
-        """Return a human-readable representation of the instance."""
-        # this is *not* a unique representation, and doesn't include global params.
-        return (
-            self._name
-            + "("
-            + ";\n\t".join(
-                (
-                    repr(v)
-                    if isinstance(v, InputStruct)
-                    else k.lstrip("_") + ":" + repr(v)
-                )
-                for k, v in [(k, getattr(self, k)) for k in self._inputs]
-            )
-        ) + ")"
-
-    def __hash__(self):
-        """Return a unique hsh for this instance, even global params and random seed."""
-        return hash(repr(self))
-
-    @property
-    def _md5(self):
-        """Return a unique hsh of the object, *not* taking into account the random seed."""
-        return md5(self._seedless_repr().encode()).hexdigest()
-
-    def __eq__(self, other):
-        """Check equality with another object via its __repr__."""
-        return repr(self) == repr(other)
+    # def __eq__(self, other):
+    #     """Check equality with another object via its __repr__."""
+    #     return repr(self) == repr(other)
 
     @property
     def is_computed(self) -> bool:
@@ -1013,14 +572,14 @@ class OutputStruct(metaclass=ABCMeta):
         memory without writing. Use :meth:`has` to check whether certain arrays
         are available.
         """
-        return any(v.computed for v in self._array_state.values())
+        return any(v.state.computed for v in self.arrays.values())
 
     def ensure_arrays_computed(self, *arrays, load=False) -> bool:
         """Check if the given arrays are computed (not just initialized)."""
         if not self.is_computed:
             return False
 
-        computed = all(self._array_state[k].computed for k in arrays)
+        computed = all(self.arrays[k].state.computed for k in arrays)
 
         if computed and load:
             self.prepare(keep=arrays, flush=[])
@@ -1029,7 +588,7 @@ class OutputStruct(metaclass=ABCMeta):
 
     def ensure_arrays_inited(self, *arrays, init=False) -> bool:
         """Check if the given arrays are initialized (or computed)."""
-        inited = all(self._array_state[k].initialized for k in arrays)
+        inited = all(self.arrays[k].state.initialized for k in arrays)
 
         if init and not inited:
             self._init_arrays()
@@ -1037,7 +596,7 @@ class OutputStruct(metaclass=ABCMeta):
         return True
 
     @abstractmethod
-    def get_required_input_arrays(self, input_box) -> list[str]:
+    def get_required_input_arrays(self, input_box: Self) -> list[str]:
         """Return all input arrays required to compute this object."""
         pass
 
@@ -1064,7 +623,8 @@ class OutputStruct(metaclass=ABCMeta):
         )
 
         # print array extrema and means
-        for fieldname, state in self._array_state.items():
+        for fieldname, array in self.arrays.items():
+            state = array.state
             if not state.initialized:
                 out += f"{indent}    {fieldname:>25}:  uninitialized\n"
             elif not state.computed:
@@ -1128,14 +688,9 @@ class OutputStruct(metaclass=ABCMeta):
             self._log_call_arguments(*args)
 
         # Construct the args. All StructWrapper objects need to actually pass their
-        # underlying cstruct, rather than themselves. OutputStructs also pass the
-        # class in that's calling this.
+        # underlying cstruct, rather than themselves.
         inputs = [
-            (
-                arg()
-                if isinstance(arg, OutputStruct)
-                else arg.cstruct if isinstance(arg, InputStruct) else arg
-            )
+            arg.struct.cstruct if isinstance(arg, (OutputStruct, InputStruct)) else arg
             for arg in args
         ]
 
@@ -1147,7 +702,7 @@ class OutputStruct(metaclass=ABCMeta):
 
         # Perform the C computation
         try:
-            exitcode = self._c_compute_function(*inputs, self())
+            exitcode = self._c_compute_function(*inputs, self.struct.cstruct)
         except TypeError as e:
             logger.error(
                 f"Arguments to {self._c_compute_function.__name__}: " f"{inputs}"
@@ -1161,13 +716,10 @@ class OutputStruct(metaclass=ABCMeta):
             if state.initialized:
                 state.computed_in_mem = True
 
-        self.__memory_map()
-        self.__expose()
+        self.sync()
 
         # Optionally do stuff with the result (like writing it)
         self._call_hooks(hooks)
-
-        return self
 
     def _call_hooks(self, hooks):
         if hooks is None:
@@ -1178,21 +730,6 @@ class OutputStruct(metaclass=ABCMeta):
                 hook(self, **params)
             else:
                 getattr(self, hook)(**params)
-
-    def __memory_map(self):
-        shapes = self._c_shape(self.cstruct)
-        for item in self._c_based_pointers:
-            setattr(self, item, asarray(getattr(self.cstruct, item), shapes[item]))
-            self._array_state[item].c_memory = True
-            self._array_state[item].computed_in_mem = True
-
-    def __del__(self):
-        """Safely delete the object and its C-allocated memory."""
-        # TODO: figure out why this breaks the C memory if purged, _remove_array should set .initialised to false,
-        #       which should make .c_has_active_memory false
-        for k in self._c_based_pointers:
-            if self._array_state[k].c_has_active_memory:
-                lib.free(getattr(self.cstruct, k))
 
 
 class StructInstanceWrapper:

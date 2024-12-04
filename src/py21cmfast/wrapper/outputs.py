@@ -14,111 +14,91 @@ parameter objects necessary to define it.
 
 from __future__ import annotations
 
+import attrs
 import logging
 import numpy as np
 from cached_property import cached_property
+from typing import Self
 
 from .. import __version__
 from ..c_21cmfast import ffi, lib
 from ..drivers.param_config import InputParameters
+from ..wrapper.arrays import Array
 from .inputs import AstroParams, CosmoParams, FlagOptions, UserParams, global_params
-from .structs import OutputStruct as _BaseOutputStruct
+from .structs import OutputStruct
 
 logger = logging.getLogger(__name__)
 
 
-# NOTE: The `inputs` arguments to the __init__ methods are set this way such that the
-#   required fields (`_inputs`) can be read either from the file
-#   (done in structs.OutputStruct.__init__) or the input struct (done here)
-# TODO: there is certainly a better way to organise it
-class _OutputStruct(_BaseOutputStruct):
-    _global_params = global_params
-
-    def __init__(self, *, inputs: InputParameters | None = None, **kwargs):
-        if inputs:
-            self.cosmo_params = inputs.cosmo_params
-            self.user_params = inputs.user_params
-            self.random_seed = inputs.random_seed
-
-        super().__init__(**kwargs)
+def arrayfield(optional: bool = False, **kw):
+    if optional:
+        return attrs.field(
+            validator=attrs.validators.optional(attrs.validators.instance_of(Array))
+        )
+    else:
+        return attrs.field(validator=attrs.validators.instance_of(Array))
 
 
-class _OutputStructZ(_OutputStruct):
-    _inputs = _OutputStruct._inputs + ("redshift",)
-
-    def __init__(
-        self,
-        *,
-        redshift: float | None = None,
-        inputs: InputParameters | None = None,
-        **kwargs,
-    ):
-        self.redshift = redshift
-
-        super().__init__(inputs=inputs, **kwargs)
-
-
-class _AllParamsBox(_OutputStructZ):
-    _meta = True
-    _inputs = _OutputStructZ._inputs + ("flag_options", "astro_params")
-
-    _filter_params = _OutputStruct._filter_params + [
-        "T_USE_VELOCITIES",  # bt
-        "MAX_DVDR",  # bt
-    ]
-
-    def __init__(
-        self,
-        *,
-        inputs: InputParameters | None = None,
-        **kwargs,
-    ):
-        if inputs:
-            self.flag_options = inputs.flag_options
-            self.astro_params = inputs.astro_params
-
-        # TODO: This only seems to be used in IonizedBox
-        self.log10_Mturnover_ave = 0.0
-        self.log10_Mturnover_MINI_ave = 0.0
-
-        super().__init__(inputs=inputs, **kwargs)
-
-
-class InitialConditions(_OutputStruct):
-    """A class containing all initial conditions boxes."""
+class InitialConditions(OutputStruct):
+    """A class representing an InitialConditions C-struct."""
 
     _c_compute_function = lib.ComputeInitialConditions
-
-    # The filter params indicates parameters to overlook when deciding if a cached box
-    # matches current parameters.
-    # It is useful for ignoring certain global parameters which may not apply to this
-    # step or its dependents.
     _meta = False
-    _filter_params = _OutputStruct._filter_params + [
-        "ALPHA_UVB",  # ionization
-        "EVOLVE_DENSITY_LINEARLY",  # perturb
-        "SMOOTH_EVOLVED_DENSITY_FIELD",  # perturb
-        "R_smooth_density",  # perturb
-        "HII_ROUND_ERR",  # ionization
-        "FIND_BUBBLE_ALGORITHM",  # ib
-        "N_POISSON",  # ib
-        "T_USE_VELOCITIES",  # bt
-        "MAX_DVDR",  # bt
-        "DELTA_R_HII_FACTOR",  # ib
-        "HII_FILTER",  # ib
-        "INITIAL_REDSHIFT",  # pf
-        "HEAT_FILTER",  # st
-        "CLUMPING_FACTOR",  # st
-        "R_XLy_MAX",  # st
-        "NUM_FILTER_STEPS_FOR_Ts",  # ts
-        "TK_at_Z_HEAT_MAX",  # ts
-        "XION_at_Z_HEAT_MAX",  # ts
-        "Pop",  # ib
-        "Pop2_ion",  # ib
-        "Pop3_ion",  # ib
-        "NU_X_BAND_MAX",  # st
-        "NU_X_MAX",  # ib
-    ]
+
+    lowres_density = arrayfield()
+    lowres_vx = arrayfield()
+    lowres_vy = arrayfield()
+    lowres_vz = arrayfield()
+    hires_density = arrayfield()
+    hires_vx = arrayfield()
+    hires_vy = arrayfield()
+    hires_vz = arrayfield()
+
+    lowres_vx_2LPT = arrayfield(optional=True)
+    lowres_vy_2LPT = arrayfield(optional=True)
+    lowres_vz_2LPT = arrayfield(optional=True)
+    hires_vx_2LPT = arrayfield(optional=True)
+    hires_vy_2LPT = arrayfield(optional=True)
+    hires_vz_2LPT = arrayfield(optional=True)
+
+    lowres_vcb = arrayfield(optional=True)
+
+    @classmethod
+    def new(cls, inputs: InputParameters) -> Self:
+        """Create a new instance, given a set of input parameters."""
+
+        shape = (inputs.user_params.HII_DIM,) * 2 + (
+            int(inputs.user_params.NON_CUBIC_FACTOR * inputs.user_params.HII_DIM),
+        )
+        hires_shape = (inputs.user_params.DIM,) * 2 + (
+            int(inputs.user_params.NON_CUBIC_FACTOR * inputs.user_params.DIM),
+        )
+
+        out = {
+            "lowres_density": Array(shape),
+            "lowres_vx": Array(shape),
+            "lowres_vy": Array(shape),
+            "lowres_vz": Array(shape),
+            "hires_density": Array(hires_shape),
+            "hires_vx": Array(hires_shape),
+            "hires_vy": Array(hires_shape),
+            "hires_vz": Array(hires_shape),
+        }
+
+        if inputs.user_params.USE_2LPT:
+            out |= {
+                "lowres_vx_2LPT": Array(shape),
+                "lowres_vy_2LPT": Array(shape),
+                "lowres_vz_2LPT": Array(shape),
+                "hires_vx_2LPT": Array(hires_shape),
+                "hires_vy_2LPT": Array(hires_shape),
+                "hires_vz_2LPT": Array(hires_shape),
+            }
+
+        if inputs.user_params.USE_RELATIVE_VELOCITIES:
+            out["lowres_vcb"] = Array(shape)
+
+        return cls(inputs=inputs, **out)
 
     def prepare_for_perturb(self, flag_options: FlagOptions, force: bool = False):
         """Ensure the ICs have all the boxes loaded for perturb, but no extra."""
@@ -159,43 +139,7 @@ class InitialConditions(_OutputStruct):
             keep.append("lowres_vcb")
         self.prepare(keep=keep, force=force)
 
-    def _get_box_structures(self) -> dict[str, dict | tuple[int]]:
-        shape = (self.user_params.HII_DIM,) * 2 + (
-            int(self.user_params.NON_CUBIC_FACTOR * self.user_params.HII_DIM),
-        )
-        hires_shape = (self.user_params.DIM,) * 2 + (
-            int(self.user_params.NON_CUBIC_FACTOR * self.user_params.DIM),
-        )
-
-        out = {
-            "lowres_density": shape,
-            "lowres_vx": shape,
-            "lowres_vy": shape,
-            "lowres_vz": shape,
-            "hires_density": hires_shape,
-            "hires_vx": hires_shape,
-            "hires_vy": hires_shape,
-            "hires_vz": hires_shape,
-        }
-
-        if self.user_params.USE_2LPT:
-            out.update(
-                {
-                    "lowres_vx_2LPT": shape,
-                    "lowres_vy_2LPT": shape,
-                    "lowres_vz_2LPT": shape,
-                    "hires_vx_2LPT": hires_shape,
-                    "hires_vy_2LPT": hires_shape,
-                    "hires_vz_2LPT": hires_shape,
-                }
-            )
-
-        if self.user_params.USE_RELATIVE_VELOCITIES:
-            out.update({"lowres_vcb": shape})
-
-        return out
-
-    def get_required_input_arrays(self, input_box: _BaseOutputStruct) -> list[str]:
+    def get_required_input_arrays(self, input_box: OutputStruct) -> list[str]:
         """Return all input arrays required to compute this object."""
         return []
 
@@ -209,48 +153,34 @@ class InitialConditions(_OutputStruct):
         )
 
 
-class PerturbedField(_OutputStructZ):
+class PerturbedField(OutputStruct):
     """A class containing all perturbed field boxes."""
 
     _c_compute_function = lib.ComputePerturbField
-
     _meta = False
-    _filter_params = _OutputStruct._filter_params + [
-        "ALPHA_UVB",  # ionization
-        "HII_ROUND_ERR",  # ionization
-        "FIND_BUBBLE_ALGORITHM",  # ib
-        "N_POISSON",  # ib
-        "T_USE_VELOCITIES",  # bt
-        "MAX_DVDR",  # bt
-        "DELTA_R_HII_FACTOR",  # ib
-        "HII_FILTER",  # ib
-        "HEAT_FILTER",  # st
-        "CLUMPING_FACTOR",  # st
-        "R_XLy_MAX",  # st
-        "NUM_FILTER_STEPS_FOR_Ts",  # ts
-        "TK_at_Z_HEAT_MAX",  # ts
-        "XION_at_Z_HEAT_MAX",  # ts
-        "Pop",  # ib
-        "Pop2_ion",  # ib
-        "Pop3_ion",  # ib
-        "NU_X_BAND_MAX",  # st
-        "NU_X_MAX",  # ib
-    ]
 
-    def _get_box_structures(self) -> dict[str, dict | tuple[int]]:
+    density = arrayfield()
+    velocity_z = arrayfield()
+    velocity_x = arrayfield(optional=True)
+    velocity_y = arrayfield(optional=True)
+
+    @classmethod
+    def new(cls, inputs: InputParameters) -> Self:
+        dim = inputs.user_params.HII_DIM
+
+        shape = (dim, dim, int(inputs.user_params.NON_CUBIC_FACTOR * dim))
+
         out = {
-            "density": (self.user_params.HII_DIM,) * 2
-            + (int(self.user_params.NON_CUBIC_FACTOR * self.user_params.HII_DIM),),
-            "velocity_z": (self.user_params.HII_DIM,) * 2
-            + (int(self.user_params.NON_CUBIC_FACTOR * self.user_params.HII_DIM),),
+            "density": Array(shape),
+            "velocity_z": Array(shape),
         }
-        if self.user_params.KEEP_3D_VELOCITIES:
-            out["velocity_x"] = out["density"]
-            out["velocity_y"] = out["density"]
+        if inputs.user_params.KEEP_3D_VELOCITIES:
+            out["velocity_x"] = Array(shape)
+            out["velocity_y"] = Array(shape)
 
         return out
 
-    def get_required_input_arrays(self, input_box: _BaseOutputStruct) -> list[str]:
+    def get_required_input_arrays(self, input_box: OutputStruct) -> list[str]:
         """Return all input arrays required to compute this object."""
         required = []
 
@@ -299,40 +229,77 @@ class PerturbedField(_OutputStructZ):
         return self.velocity_z  # for backwards compatibility
 
 
-class HaloField(_AllParamsBox):
+class PerturbHaloField(OutputStruct):
     """A class containing all fields related to halos."""
 
+    _c_compute_function = lib.ComputePerturbHaloField
     _meta = False
-    _inputs = _AllParamsBox._inputs + (
-        "desc_redshift",
-        "buffer_size",
-    )
-    _c_compute_function = lib.ComputeHaloField
+    buffer_size: int = attrs.field(default=0, converter=int)
 
-    def __init__(
-        self,
-        *,
-        desc_redshift: float | None = None,
-        buffer_size: int = 0,
-        **kwargs,
-    ):
-        self.desc_redshift = desc_redshift
-        self.buffer_size = buffer_size
+    halo_masses = arrayfield()
+    star_rng = arrayfield()
+    sfr_rng = arrayfield()
+    xray_rng = arrayfield()
+    halo_coords = arrayfield()
 
-        super().__init__(**kwargs)
+    @classmethod
+    def new(cls, inputs: InputParameters, buffer_size: int = 0, **kw) -> Self:
+        return cls(
+            inputs,
+            halo_masses=Array((buffer_size,)),
+            star_rng=Array((buffer_size,)),
+            sfr_rng=Array((buffer_size,)),
+            xray_rng=Array((buffer_size,)),
+            halo_coords=Array((buffer_size, 3)),
+            **kw,
+        )
 
-    def _get_box_structures(self) -> dict[str, dict | tuple[int]]:
-        out = {
-            "halo_masses": (self.buffer_size,),
-            "star_rng": (self.buffer_size,),
-            "sfr_rng": (self.buffer_size,),
-            "xray_rng": (self.buffer_size,),
-            "halo_coords": (self.buffer_size, 3),
-        }
+    def get_required_input_arrays(self, input_box: OutputStruct) -> list[str]:
+        """Return all input arrays required to compute this object."""
+        required = []
+        if isinstance(input_box, InitialConditions):
+            if self.user_params.PERTURB_ON_HIGH_RES:
+                required += ["hires_vx", "hires_vy", "hires_vz"]
+            else:
+                required += ["lowres_vx", "lowres_vy", "lowres_vz"]
 
-        return out
+            if self.user_params.USE_2LPT:
+                required += [f"{k}_2LPT" for k in required]
+        elif isinstance(input_box, HaloField):
+            required += [
+                "halo_coords",
+                "halo_masses",
+                "star_rng",
+                "sfr_rng",
+                "xray_rng",
+            ]
+        else:
+            raise ValueError(
+                f"{type(input_box)} is not an input required for PerturbHaloField!"
+            )
 
-    def get_required_input_arrays(self, input_box: _BaseOutputStruct) -> list[str]:
+        return required
+
+    def compute(self, *, ics: InitialConditions, halo_field: HaloField, hooks: dict):
+        """Compute the function."""
+        return self._compute(
+            self.redshift,
+            self.user_params,
+            self.cosmo_params,
+            self.astro_params,
+            self.flag_options,
+            ics,
+            halo_field,
+            hooks=hooks,
+        )
+
+
+class HaloField(PerturbHaloField):
+    """A class containing all fields related to halos."""
+
+    desc_redshift: float | None = attrs.field(default=None)
+
+    def get_required_input_arrays(self, input_box: OutputStruct) -> list[str]:
         """Return all input arrays required to compute this object."""
         required = []
         if isinstance(input_box, InitialConditions):
@@ -377,101 +344,43 @@ class HaloField(_AllParamsBox):
         )
 
 
-class PerturbHaloField(_AllParamsBox):
-    """A class containing all fields related to halos."""
-
-    _c_compute_function = lib.ComputePerturbHaloField
-    _meta = False
-    _inputs = _AllParamsBox._inputs + ("buffer_size",)
-
-    def __init__(
-        self,
-        buffer_size: int = 0,
-        **kwargs,
-    ):
-        self.buffer_size = buffer_size
-        super().__init__(**kwargs)
-
-    def _get_box_structures(self) -> dict[str, dict | tuple[int]]:
-        out = {
-            "halo_masses": (self.buffer_size,),
-            "star_rng": (self.buffer_size,),
-            "sfr_rng": (self.buffer_size,),
-            "xray_rng": (self.buffer_size,),
-            "halo_coords": (self.buffer_size, 3),
-        }
-
-        return out
-
-    def get_required_input_arrays(self, input_box: _BaseOutputStruct) -> list[str]:
-        """Return all input arrays required to compute this object."""
-        required = []
-        if isinstance(input_box, InitialConditions):
-            if self.user_params.PERTURB_ON_HIGH_RES:
-                required += ["hires_vx", "hires_vy", "hires_vz"]
-            else:
-                required += ["lowres_vx", "lowres_vy", "lowres_vz"]
-
-            if self.user_params.USE_2LPT:
-                required += [k + "_2LPT" for k in required]
-        elif isinstance(input_box, HaloField):
-            required += [
-                "halo_coords",
-                "halo_masses",
-                "star_rng",
-                "sfr_rng",
-                "xray_rng",
-            ]
-        else:
-            raise ValueError(
-                f"{type(input_box)} is not an input required for PerturbHaloField!"
-            )
-
-        return required
-
-    def compute(self, *, ics: InitialConditions, halo_field: HaloField, hooks: dict):
-        """Compute the function."""
-        return self._compute(
-            self.redshift,
-            self.user_params,
-            self.cosmo_params,
-            self.astro_params,
-            self.flag_options,
-            ics,
-            halo_field,
-            hooks=hooks,
-        )
-
-
-class HaloBox(_AllParamsBox):
+class HaloBox(OutputStruct):
     """A class containing all gridded halo properties."""
 
     _meta = False
     _c_compute_function = lib.ComputeHaloBox
 
-    def __init__(self, **kwargs):
-        super().__init__(**kwargs)
+    halo_mass = arrayfield()
+    halo_stars = arrayfield()
+    halo_stars_mini = arrayfield()
+    count = arrayfield()
+    halo_sfr = arrayfield()
+    halo_sfr_mini = arrayfield()
+    halo_xray = arrayfield()
+    n_ion = arrayfield()
+    whalo_sfr = arrayfield()
 
-    def _get_box_structures(self) -> dict[str, dict | tuple[int]]:
-        shape = (self.user_params.HII_DIM,) * 2 + (
-            int(self.user_params.NON_CUBIC_FACTOR * self.user_params.HII_DIM),
+    @classmethod
+    def new(cls, inputs: InputParameters) -> Self:
+        dim = inputs.user_params.HII_DIM
+        shape = (dim, dim, int(inputs.user_params.NON_CUBIC_FACTOR * dim))
+
+        return cls(
+            inputs,
+            **{
+                "halo_mass": Array(shape),
+                "halo_stars": Array(shape),
+                "halo_stars_mini": Array(shape),
+                "count": Array(shape),
+                "halo_sfr": Array(shape),
+                "halo_sfr_mini": Array(shape),
+                "halo_xray": Array(shape),
+                "n_ion": Array(shape),
+                "whalo_sfr": Array(shape),
+            },
         )
 
-        out = {
-            "halo_mass": shape,
-            "halo_stars": shape,
-            "halo_stars_mini": shape,
-            "count": shape,
-            "halo_sfr": shape,
-            "halo_sfr_mini": shape,
-            "halo_xray": shape,
-            "n_ion": shape,
-            "whalo_sfr": shape,
-        }
-
-        return out
-
-    def get_required_input_arrays(self, input_box: _BaseOutputStruct) -> list[str]:
+    def get_required_input_arrays(self, input_box: OutputStruct) -> list[str]:
         """Return all input arrays required to compute this object."""
         required = []
         if isinstance(input_box, PerturbHaloField):
@@ -529,43 +438,46 @@ class HaloBox(_AllParamsBox):
         )
 
 
-class XraySourceBox(_AllParamsBox):
+class XraySourceBox(OutputStruct):
     """A class containing the filtered sfr grids."""
 
     _meta = False
     _c_compute_function = lib.UpdateXraySourceBox
 
-    def __init__(self, **kwargs):
-        super().__init__(**kwargs)
+    filtered_sfr = arrayfield()
+    filtered_sfr_mini = arrayfield()
+    filtered_xray = arrayfield()
+    mean_sfr = arrayfield()
+    mean_sfr_mini = arrayfield()
+    mean_log10_Mcrit_LW = arrayfield()
 
-    def _get_box_structures(self) -> dict[str, dict | tuple[int]]:
+    @classmethod
+    def new(cls, inputs) -> Self:
         shape = (
             (global_params.NUM_FILTER_STEPS_FOR_Ts,)
-            + (self.user_params.HII_DIM,) * 2
-            + (int(self.user_params.NON_CUBIC_FACTOR * self.user_params.HII_DIM),)
+            + (inputs.user_params.HII_DIM,) * 2
+            + (int(inputs.user_params.NON_CUBIC_FACTOR * inputs.user_params.HII_DIM),)
         )
 
-        out = {
-            "filtered_sfr": shape,
-            "filtered_sfr_mini": shape,
-            "filtered_xray": shape,
-            "mean_sfr": (global_params.NUM_FILTER_STEPS_FOR_Ts,),
-            "mean_sfr_mini": (global_params.NUM_FILTER_STEPS_FOR_Ts,),
-            "mean_log10_Mcrit_LW": (global_params.NUM_FILTER_STEPS_FOR_Ts,),
-        }
+        return cls(
+            inputs,
+            filtered_sfr=Array(shape),
+            filtered_sfr_mini=Array(shape),
+            filtered_xray=Array(shape),
+            mean_sfr=Array(shape),
+            mean_sfr_mini=Array((global_params.NUM_FILTER_STEPS_FOR_Ts,)),
+            mean_log10_Mcrit_LW=Array((global_params.NUM_FILTER_STEPS_FOR_Ts,)),
+        )
 
-        return out
-
-    def get_required_input_arrays(self, input_box: _BaseOutputStruct) -> list[str]:
+    def get_required_input_arrays(self, input_box: OutputStruct) -> list[str]:
         """Return all input arrays required to compute this object."""
         required = []
-        if isinstance(input_box, HaloBox):
-            required += ["halo_sfr", "halo_xray"]
-            if self.flag_options.USE_MINI_HALOS:
-                required += ["halo_sfr_mini"]
-        else:
+        if not isinstance(input_box, HaloBox):
             raise ValueError(f"{type(input_box)} is not an input required for HaloBox!")
 
+        required += ["halo_sfr", "halo_xray"]
+        if self.flag_options.USE_MINI_HALOS:
+            required += ["halo_sfr_mini"]
         return required
 
     def compute(
@@ -591,33 +503,32 @@ class XraySourceBox(_AllParamsBox):
         )
 
 
-class TsBox(_AllParamsBox):
+class TsBox(OutputStruct):
     """A class containing all spin temperature boxes."""
 
     _c_compute_function = lib.ComputeTsBox
     _meta = False
-    _inputs = _AllParamsBox._inputs + ("prev_spin_redshift",)
 
-    def __init__(
-        self,
-        *,
-        prev_spin_redshift: float | None = None,
-        perturbed_field_redshift: float | None = None,
-        **kwargs,
-    ):
-        self.prev_spin_redshift = prev_spin_redshift
-        super().__init__(**kwargs)
+    prev_spin_redshift: float | None = attrs.field(default=None)
 
-    def _get_box_structures(self) -> dict[str, dict | tuple[int]]:
-        shape = (self.user_params.HII_DIM,) * 2 + (
-            int(self.user_params.NON_CUBIC_FACTOR * self.user_params.HII_DIM),
+    Ts_box = arrayfield()
+    x_e_box = arrayfield()
+    Tk_box = arrayfield()
+    J_21_LW_box = arrayfield()
+
+    @classmethod
+    def new(cls, inputs, prev_spin_redshift: float | None = None) -> Self:
+        shape = (inputs.user_params.HII_DIM,) * 2 + (
+            int(inputs.user_params.NON_CUBIC_FACTOR * inputs.user_params.HII_DIM),
         )
-        return {
-            "Ts_box": shape,
-            "x_e_box": shape,
-            "Tk_box": shape,
-            "J_21_LW_box": shape,
-        }
+        return cls(
+            inputs,
+            Ts_box=Array(shape),
+            x_e_box=Array(shape),
+            Tk_box=Array(shape),
+            J_21_LW_box=Array(shape),
+            prev_spin_redshift=prev_spin_redshift,
+        )
 
     @cached_property
     def global_Ts(self):
@@ -649,7 +560,7 @@ class TsBox(_AllParamsBox):
         else:
             return np.mean(self.x_e_box)
 
-    def get_required_input_arrays(self, input_box: _BaseOutputStruct) -> list[str]:
+    def get_required_input_arrays(self, input_box: OutputStruct) -> list[str]:
         """Return all input arrays required to compute this object."""
         required = []
         if isinstance(input_box, InitialConditions):
@@ -704,31 +615,29 @@ class TsBox(_AllParamsBox):
         )
 
 
-class IonizedBox(_AllParamsBox):
+class IonizedBox(OutputStruct):
     """A class containing all ionized boxes."""
 
     _meta = False
     _c_compute_function = lib.ComputeIonizedBox
-    _inputs = _AllParamsBox._inputs + ("prev_ionize_redshift",)
 
-    def __init__(self, *, prev_ionize_redshift: float | None = None, **kwargs):
-        self.prev_ionize_redshift = prev_ionize_redshift
-        super().__init__(**kwargs)
+    prev_ionize_redshift: float | None = attrs.field(default=None)
 
-    def _get_box_structures(self) -> dict[str, dict | tuple[int]]:
-        if self.flag_options.USE_MINI_HALOS:
+    @classmethod
+    def new(cls, inputs, prev_ionize_redshift: float | None) -> Self:
+        if inputs.flag_options.USE_MINI_HALOS:
             n_filtering = (
                 int(
                     np.log(
                         min(
-                            self.astro_params.R_BUBBLE_MAX,
-                            0.620350491 * self.user_params.BOX_LEN,
+                            inputs.astro_params.R_BUBBLE_MAX,
+                            0.620350491 * inputs.user_params.BOX_LEN,
                         )
                         / max(
                             global_params.R_BUBBLE_MIN,
                             0.620350491
-                            * self.user_params.BOX_LEN
-                            / self.user_params.HII_DIM,
+                            * inputs.user_params.BOX_LEN
+                            / inputs.user_params.HII_DIM,
                         )
                     )
                     / np.log(global_params.DELTA_R_HII_FACTOR)
@@ -738,23 +647,23 @@ class IonizedBox(_AllParamsBox):
         else:
             n_filtering = 1
 
-        shape = (self.user_params.HII_DIM,) * 2 + (
-            int(self.user_params.NON_CUBIC_FACTOR * self.user_params.HII_DIM),
+        shape = (inputs.user_params.HII_DIM,) * 2 + (
+            int(inputs.user_params.NON_CUBIC_FACTOR * inputs.user_params.HII_DIM),
         )
         filter_shape = (n_filtering,) + shape
 
         out = {
-            "xH_box": {"init": np.ones, "shape": shape},
-            "Gamma12_box": shape,
-            "MFP_box": shape,
-            "z_re_box": shape,
-            "dNrec_box": shape,
-            "temp_kinetic_all_gas": shape,
-            "Fcoll": filter_shape,
+            "xH_box": Array(shape, initfunc=np.ones),
+            "Gamma12_box": Array(shape),
+            "MFP_box": Array(shape),
+            "z_re_box": Array(shape),
+            "dNrec_box": Array(shape),
+            "temp_kinetic_all_gas": Array(shape),
+            "Fcoll": Array(filter_shape),
         }
 
-        if self.flag_options.USE_MINI_HALOS:
-            out["Fcoll_MINI"] = filter_shape
+        if inputs.flag_options.USE_MINI_HALOS:
+            out["Fcoll_MINI"] = Array(filter_shape)
 
         return out
 
@@ -768,7 +677,7 @@ class IonizedBox(_AllParamsBox):
         else:
             return np.mean(self.xH_box)
 
-    def get_required_input_arrays(self, input_box: _BaseOutputStruct) -> list[str]:
+    def get_required_input_arrays(self, input_box: OutputStruct) -> list[str]:
         """Return all input arrays required to compute this object."""
         required = []
         if isinstance(input_box, InitialConditions):
@@ -830,19 +739,24 @@ class IonizedBox(_AllParamsBox):
         )
 
 
-class BrightnessTemp(_AllParamsBox):
+class BrightnessTemp(OutputStruct):
     """A class containing the brightness temperature box."""
 
     _c_compute_function = lib.ComputeBrightnessTemp
 
     _meta = False
-    _filter_params = _OutputStructZ._filter_params
+    brightness_temp = arrayfield()
 
-    def _get_box_structures(self) -> dict[str, dict | tuple[int]]:
-        return {
-            "brightness_temp": (self.user_params.HII_DIM,) * 2
-            + (int(self.user_params.NON_CUBIC_FACTOR * self.user_params.HII_DIM),)
-        }
+    @classmethod
+    def new(cls, inputs) -> Self:
+        shape = (inputs.user_params.HII_DIM,) * 2 + (
+            int(inputs.user_params.NON_CUBIC_FACTOR * inputs.user_params.HII_DIM),
+        )
+
+        return cls(
+            inputs,
+            brightness_temp=Array(shape),
+        )
 
     @cached_property
     def global_Tb(self):
@@ -854,7 +768,7 @@ class BrightnessTemp(_AllParamsBox):
         else:
             return np.mean(self.brightness_temp)
 
-    def get_required_input_arrays(self, input_box: _BaseOutputStruct) -> list[str]:
+    def get_required_input_arrays(self, input_box: OutputStruct) -> list[str]:
         """Return all input arrays required to compute this object."""
         required = []
         if isinstance(input_box, PerturbedField):

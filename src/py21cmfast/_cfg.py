@@ -21,8 +21,6 @@ class Config(dict):
 
     _defaults = {
         "direc": "~/21cmFAST-cache",
-        "regenerate": False,
-        "write": True,
         "cache_param_sigfigs": 6,
         "cache_redshift_sigfigs": 4,
         "ignore_R_BUBBLE_MAX_error": False,

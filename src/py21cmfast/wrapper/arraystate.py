@@ -1,5 +1,7 @@
 """Classes dealing with the state of arrays."""
 
+import attrs
+
 
 class ArrayStateError(ValueError):
     """Errors arising from incorrectly modifying array state."""
@@ -7,58 +9,35 @@ class ArrayStateError(ValueError):
     pass
 
 
+@attrs.define(frozen=True)
 class ArrayState:
     """Define the memory state of a struct array."""
 
-    def __init__(
-        self, initialized=False, c_memory=False, computed_in_mem=False, on_disk=False
-    ):
-        self._initialized = initialized
-        self._c_memory = c_memory
-        self._computed_in_mem = computed_in_mem
-        self._on_disk = on_disk
+    initialized = attrs.field(default=False, converter=bool)
+    c_memory = attrs.field(default=False, converter=bool)
+    computed_in_mem = attrs.field(default=False, converter=bool)
+    on_disk = attrs.field(default=False, converter=bool)
 
-    @property
-    def initialized(self):
-        """Whether the array is initialized (i.e. allocated memory)."""
-        return self._initialized
+    def deinitialize(self):
+        return attrs.evolve(initialized=False, computed_in_mem=False)
 
-    @initialized.setter
-    def initialized(self, val):
-        if not val:
-            # if its not initialized, can't be computed in memory
-            self.computed_in_mem = False
-        self._initialized = bool(val)
+    def initialize(self):
+        return attrs.evolve(initialized=True)
 
-    @property
-    def c_memory(self):
-        """Whether the array's memory (if any) is controlled by C."""
-        return self._c_memory
+    def as_computed(self):
+        return attrs.evolve(computed_in_mem=True, initialized=True)
 
-    @c_memory.setter
-    def c_memory(self, val):
-        self._c_memory = bool(val)
+    def dropped(self):
+        return attrs.evolve(initialized=False, computed_in_mem=False)
 
-    @property
-    def computed_in_mem(self):
-        """Whether the array is computed and stored in memory."""
-        return self._computed_in_mem
+    def written(self):
+        return attrs.evolve(on_disk=True)
 
-    @computed_in_mem.setter
-    def computed_in_mem(self, val):
-        if val:
-            # any time we pull something into memory, it must be initialized.
-            self.initialized = True
-        self._computed_in_mem = bool(val)
+    def purged_to_disk(self):
+        return attrs.evolve(initialized=False, computed_in_mem=False, on_disk=True)
 
-    @property
-    def on_disk(self):
-        """Whether the array is computed and store on disk."""
-        return self._on_disk
-
-    @on_disk.setter
-    def on_disk(self, val):
-        self._on_disk = bool(val)
+    def loaded_from_disk(self):
+        return attrs.evolve(initialized=True, computed_in_mem=True, on_disk=True)
 
     @property
     def computed(self):
