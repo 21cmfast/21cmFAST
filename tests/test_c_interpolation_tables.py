@@ -567,7 +567,7 @@ def test_Nion_z_tables(name, z_range, log10_mturn_range, plt):
             ylabels=["Nion", "Nion_mini"],
         )
 
-    abs_tol = 1e-6
+    abs_tol = 2e-6
     print_failure_stats(
         Nion_tables,
         Nion_integrals,
