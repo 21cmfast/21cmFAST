@@ -7,52 +7,17 @@
 #define MAX_DELTAC_FRAC (float)0.99 //max delta/deltac for the mass function integrals
 #define DELTA_MIN -1 //minimum delta for Lagrangian mass function integrals
 
-//Parameters used for gsl integral on the mass function
-struct parameters_gsl_MF_integrals{
-    //parameters for all MF integrals
-    double redshift;
-    double growthf;
-    int HMF;
-
-    //Conditional parameters
-    double sigma_cond;
-    double delta;
-
-    //SFR additions
-    double Mturn;
-    double f_star_norm;
-    double alpha_star;
-    double Mlim_star;
-
-    //Nion additions
-    double f_esc_norm;
-    double alpha_esc;
-    double Mlim_esc;
-
-    //Minihalo additions
-    double Mturn_upper;
-
-    //X-ray additions
-    double l_x_norm;
-    double l_x_norm_mini;
-    double t_h;
-    double t_star;
-
-    //needed for FAST_FCOLL gamma approximations
-    int gamma_type;
-};
-
 /* HMF Integrals */
 void initialise_GL(float lnM_Min, float lnM_Max);
-double Nhalo_Conditional(double growthf, double lnM1, double lnM2, double M_cond, double sigma, double delta, int method);
-double Mcoll_Conditional(double growthf, double lnM1, double lnM2, double M_cond, double sigma, double delta, int method);
-double Nion_ConditionalM(double growthf, double lnM1, double lnM2, double M_cond, double sigma2, double delta2, double MassTurnover,
+double Nhalo_Conditional(double growthf, double lnM1, double lnM2, double lnM_cond, double sigma, double delta, int method);
+double Mcoll_Conditional(double growthf, double lnM1, double lnM2, double lnM_cond, double sigma, double delta, int method);
+double Nion_ConditionalM(double growthf, double lnM1, double lnM2, double lnM_cond, double sigma2, double delta2, double MassTurnover,
                         double Alpha_star, double Alpha_esc, double Fstar10, double Fesc10, double Mlim_Fstar,
                         double Mlim_Fesc, int method);
-double Nion_ConditionalM_MINI(double growthf, double lnM1, double lnM2, double M_cond, double sigma2, double delta2, double MassTurnover,
+double Nion_ConditionalM_MINI(double growthf, double lnM1, double lnM2, double lnM_cond, double sigma2, double delta2, double MassTurnover,
                             double MassTurnover_upper, double Alpha_star, double Alpha_esc, double Fstar7,
                             double Fesc7, double Mlim_Fstar, double Mlim_Fesc, int method);
-double Xray_ConditionalM(double growthf, double lnM1, double lnM2, double M_cond, double sigma2, double delta2,
+double Xray_ConditionalM(double redshift, double growthf, double lnM1, double lnM2, double lnM_cond, double sigma2, double delta2,
                          double MassTurnover, double MassTurnover_upper,
                         double Alpha_star, double Alpha_star_mini, double Fstar10, double Fstar7, double Mlim_Fstar,
                         double Mlim_Fstar_mini, double l_x, double l_x_mini, double t_h, double t_star, int method);

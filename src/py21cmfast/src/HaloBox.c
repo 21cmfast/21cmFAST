@@ -202,10 +202,10 @@ int set_fixed_grids(double M_min, double M_max, InitialConditions *ini_boxes,
     //find grid limits for tables
     double min_density = 0.;
     double max_density = 0.;
-    double min_log10_mturn_a = 0.;
-    double min_log10_mturn_m = 0.;
-    double max_log10_mturn_a = 0.;
-    double max_log10_mturn_m = 0.;
+    double min_log10_mturn_a = log10(global_params.M_MAX_INTEGRAL);
+    double min_log10_mturn_m = log10(global_params.M_MAX_INTEGRAL);
+    double max_log10_mturn_a = log10(astro_params_global->M_TURN);
+    double max_log10_mturn_m = log10(astro_params_global->M_TURN);
     float *mturn_a_grid = calloc(HII_TOT_NUM_PIXELS,sizeof(float));
     float *mturn_m_grid = calloc(HII_TOT_NUM_PIXELS,sizeof(float));
     #pragma omp parallel num_threads(user_params_global->N_THREADS)
@@ -293,6 +293,17 @@ int set_fixed_grids(double M_min, double M_max, InitialConditions *ini_boxes,
                                 flag_options_global->USE_MINI_HALOS, false);
 
         initialise_dNdM_tables(min_density, max_density, lnMmin, lnMmax, growth_z, lnMcell, false);
+        if(flag_options_global->USE_TS_FLUCT){
+            initialise_Xray_Conditional_table(
+                min_density, max_density, consts->redshift, growth_z, consts->mturn_a_nofb, M_min, M_max, M_cell,
+                consts->alpha_star, consts->alpha_star_mini,
+                consts->fstar_10, consts->fstar_7, consts->l_x, consts->l_x_mini, consts->t_h,
+                consts->t_star,
+                user_params_global->INTEGRATION_METHOD_ATOMIC,
+                user_params_global->INTEGRATION_METHOD_MINI,
+                flag_options_global->USE_MINI_HALOS
+            );
+        }
     }
 
 #pragma omp parallel num_threads(user_params_global->N_THREADS)
@@ -334,7 +345,7 @@ int set_fixed_grids(double M_min, double M_max, InitialConditions *ini_boxes,
             if(flag_options_global->USE_TS_FLUCT){
                 //MAKE A NEW TABLEdouble delta, double log10Mturn_m, double growthf, double M_min, double M_max, double M_cond, double sigma_max,
                                   //   double Mturn_a, double Mlim_Fstar, double Mlim_Fstar_MINI
-                integral_xray = EvaluateXray_Conditional(dens,l10_mturn_m,growth_z,M_min,M_max,M_cell,sigma_cell,
+                integral_xray = EvaluateXray_Conditional(dens,l10_mturn_m,consts->redshift,growth_z,M_min,M_max,M_cell,sigma_cell,
                                                             l10_mturn_a,consts->t_h,consts->Mlim_Fstar,consts->Mlim_Fstar_mini);
             }
 
@@ -842,10 +853,12 @@ int test_halo_props(double redshift, UserParams *user_params, CosmoParams *cosmo
                 halo_props_out[12*i_halo + 10] = M_turn_r;
                 halo_props_out[12*i_halo + 11] = out_props.metallicity;
 
-                LOG_ULTRA_DEBUG("HM %.2e SM %.2e SF %.2e NI %.2e LX %.2e",out_props.halo_mass,out_props.stellar_mass,out_props.halo_sfr,out_props.n_ion,out_props.halo_xray);
-                LOG_ULTRA_DEBUG("MINI: SM %.2e SF %.2e WSF %.2e Mta %.2e Mtm %.2e Mtr %.2e",out_props.stellar_mass_mini,out_props.sfr_mini,out_props.fescweighted_sfr,
-                                out_props.m_turn_acg,out_props.m_turn_mcg,out_props.m_turn_reion);
-                LOG_ULTRA_DEBUG("RNG: STAR %.2e SFR %.2e XRAY %.2e",in_props[0],in_props[1],in_props[2]);
+                if (i_halo < 10){
+                    LOG_ULTRA_DEBUG("HM %.2e SM %.2e SF %.2e NI %.2e LX %.2e",out_props.halo_mass,out_props.stellar_mass,out_props.halo_sfr,out_props.n_ion,out_props.halo_xray);
+                    LOG_ULTRA_DEBUG("MINI: SM %.2e SF %.2e WSF %.2e",out_props.stellar_mass_mini,out_props.sfr_mini,out_props.fescweighted_sfr);
+                    LOG_ULTRA_DEBUG("Mturns ACG %.2e MCG %.2e Reion %.2e",out_props.m_turn_acg,out_props.m_turn_mcg,out_props.m_turn_reion);
+                    LOG_ULTRA_DEBUG("RNG: STAR %.2e SFR %.2e XRAY %.2e",in_props[0],in_props[1],in_props[2]);
+                }
             }
         }
     }
