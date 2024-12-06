@@ -99,6 +99,10 @@ void initialise_Nion_Conditional_spline(float z, float Mcrit_atom, float min_den
 void initialise_SFRD_Conditional_table(double min_density, double max_density, double growthf,
                                     float Mcrit_atom, double Mmin, double Mmax, double Mcond, float Alpha_star, float Alpha_star_mini,
                                     float Fstar10, float Fstar7_MINI, int method, int method_mini, bool minihalos);
+void initialise_Xray_Conditional_table(double min_density, double max_density, double redshift, double growthf,
+                                    float Mcrit_atom, double Mmin, double Mmax, double Mcond, float Alpha_star, float Alpha_star_mini,
+                                    float Fstar10, float Fstar7_MINI, double l_x, double l_x_mini, double t_h, double t_star,
+                                    int method, int method_mini, bool minihalos);
 
 void initialise_dNdM_tables(double xmin, double xmax, double ymin, double ymax, double growth1, double param, bool from_catalog);
 void initialise_dNdM_inverse_table(double xmin, double xmax, double lnM_min, double growth1, double param, bool from_catalog);
@@ -114,6 +118,8 @@ double EvaluateNion_Conditional(double delta, double log10Mturn, double growthf,
                                 double Mlim_Fstar, double Mlim_Fesc, bool prev);
 double EvaluateNion_Conditional_MINI(double delta, double log10Mturn_m, double growthf, double M_min, double M_max, double M_cond, double sigma_max,
                                     double Mturn_a, double Mlim_Fstar, double Mlim_Fesc, bool prev);
+double EvaluateXray_Conditional(double delta, double log10Mturn_m, double redshift, double growthf, double M_min, double M_max, double M_cond, double sigma_max,
+                                     double Mturn_a, double t_h, double Mlim_Fstar, double Mlim_Fstar_MINI);
 double EvaluateNhalo(double condition, double growthf, double lnMmin, double lnMmax, double M_cond, double sigma, double delta);
 double EvaluateMcoll(double condition, double growthf, double lnMmin, double lnMmax, double M_cond, double sigma, double delta);
 double EvaluateNhaloInv(double condition, double prob);
@@ -134,10 +140,17 @@ double Nion_ConditionalM(double growthf, double lnM1, double lnM2, double M_cond
 double Nion_ConditionalM_MINI(double growthf, double lnM1, double lnM2, double M_cond, double sigma2, double delta2, double MassTurnover,
                             double MassTurnover_upper, double Alpha_star, double Alpha_esc, double Fstar7,
                             double Fesc7, double Mlim_Fstar, double Mlim_Fesc, int method);
+double Xray_ConditionalM(double redshift, double growthf, double lnM1, double lnM2, double lnM_cond, double sigma2, double delta2,
+                         double MassTurnover, double MassTurnover_upper,
+                        double Alpha_star, double Alpha_star_mini, double Fstar10, double Fstar7, double Mlim_Fstar,
+                        double Mlim_Fstar_mini, double l_x, double l_x_mini, double t_h, double t_star, int method);
 double Nion_General(double z, double lnM_Min, double lnM_Max, double MassTurnover, double Alpha_star, double Alpha_esc, double Fstar10,
                      double Fesc10, double Mlim_Fstar, double Mlim_Fesc);
 double Nion_General_MINI(double z, double lnM_Min, double lnM_Max, double MassTurnover, double MassTurnover_upper, double Alpha_star,
                          double Alpha_esc, double Fstar7_MINI, double Fesc7_MINI, double Mlim_Fstar, double Mlim_Fesc);
+double Xray_General(double z, double lnM_Min, double lnM_Max, double MassTurnover, double MassTurnover_upper, double Alpha_star,
+                     double Alpha_star_mini, double Fstar10, double Fstar7, double l_x, double l_x_mini, double t_h,
+                     double t_star, double Mlim_Fstar, double Mlim_Fstar_mini);
 double Fcoll_General(double z, double lnM_min, double lnM_max);
 double unconditional_mf(double growthf, double lnM, double z, int HMF);
 double conditional_mf(double growthf, double lnM, double delta_cond, double sigma_cond, int HMF);

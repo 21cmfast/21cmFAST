@@ -537,7 +537,7 @@ void initialise_Xray_Conditional_table(double min_density, double max_density, d
             if(!minihalos){
                 Xray_conditional_table_1D.y_arr[i] = log(Xray_ConditionalM(redshift,growthf,lnMmin,lnMmax,lnM_condition,sigma2,curr_dens,
                                             0.,Mcrit_atom,Alpha_star,0.,Fstar10,0.,Mlim_Fstar,0.,
-                                            l_x, l_x_mini, t_h, t_star,
+                                            l_x, 0., t_h, t_star,
                                             user_params_global->INTEGRATION_METHOD_ATOMIC));
 
                 if(Xray_conditional_table_1D.y_arr[i] < -50.)

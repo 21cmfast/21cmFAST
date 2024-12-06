@@ -104,6 +104,7 @@ int get_box_averages(double M_min, double M_max, double M_turn_a, double M_turn_
     double prefactor_nion_mini = prefactor_stars_mini * consts->fesc_7 * global_params.Pop3_ion;
     double prefactor_wsfr = prefactor_sfr * consts->fesc_10;
     double prefactor_wsfr_mini = prefactor_sfr_mini * consts->fesc_7;
+    double prefactor_xray = RHOcrit * cosmo_params_global->OMb;
 
     double mass_intgrl;
     double intgrl_fesc_weighted, intgrl_stars_only;
@@ -138,7 +139,7 @@ int get_box_averages(double M_min, double M_max, double M_turn_a, double M_turn_
     averages_out->sfr_mini = intgrl_stars_only_mini * prefactor_sfr_mini;
     averages_out->n_ion = intgrl_fesc_weighted*prefactor_nion + intgrl_fesc_weighted_mini*prefactor_nion_mini;
     averages_out->fescweighted_sfr = intgrl_fesc_weighted*prefactor_wsfr + intgrl_fesc_weighted_mini*prefactor_wsfr_mini;
-    averages_out->halo_xray = integral_xray;
+    averages_out->halo_xray = prefactor_xray*integral_xray;
     averages_out->m_turn_acg = M_turn_a;
     averages_out->m_turn_mcg = M_turn_m;
 
@@ -192,8 +193,9 @@ int set_fixed_grids(double M_min, double M_max, InitialConditions *ini_boxes,
     double prefactor_nion_mini = prefactor_stars_mini * consts->fesc_7 * global_params.Pop3_ion;
     double prefactor_wsfr = prefactor_sfr * consts->fesc_10;
     double prefactor_wsfr_mini = prefactor_sfr_mini * consts->fesc_7;
-    double prefactor_xray = prefactor_sfr * consts->l_x * SperYR;
-    double prefactor_xray_mini = prefactor_sfr_mini * consts->l_x_mini * SperYR;
+    // double prefactor_xray = prefactor_sfr * consts->l_x * SperYR;
+    // double prefactor_xray_mini = prefactor_sfr_mini * consts->l_x_mini * SperYR;
+    double prefactor_xray = RHOcrit * cosmo_params_global->OMb;
 
     double hm_sum=0, nion_sum=0, wsfr_sum=0, xray_sum=0;
     double sm_sum=0, sm_sum_mini=0, sfr_sum=0, sfr_sum_mini=0;
@@ -355,9 +357,20 @@ int set_fixed_grids(double M_min, double M_max, InitialConditions *ini_boxes,
             grids->halo_sfr_mini[i] = intgrl_stars_only_mini*prefactor_sfr_mini * dens_fac;
             grids->n_ion[i] = (intgrl_fesc_weighted*prefactor_nion + intgrl_fesc_weighted_mini*prefactor_nion_mini) * dens_fac;
             grids->whalo_sfr[i] = (intgrl_fesc_weighted*prefactor_wsfr + intgrl_fesc_weighted_mini*prefactor_wsfr_mini) * dens_fac;
-            grids->halo_xray[i] = integral_xray*dens_fac;
+            grids->halo_xray[i] = prefactor_xray*integral_xray*dens_fac;
             grids->halo_stars[i] = intgrl_stars_only*prefactor_stars * dens_fac;
             grids->halo_stars_mini[i] = intgrl_stars_only_mini*prefactor_stars_mini * dens_fac;
+
+            #if LOG_LEVEL >= ULTRA_DEBUG_LEVEL
+            if(i == 0){
+                // LOG_ULTRA_DEBUG("(%d %d %d) i_cell %llu i_halo %llu",x,y,z,i_cell, i_halo);
+                LOG_ULTRA_DEBUG(
+                    "Cell 0 fixed: HM: %.2e SM: %.2e (%.2e) SF: %.2e (%.2e) X: %.2e NI: %.2e WS: %.2e ct : %llu",
+                    grids->halo_mass[i],grids->halo_stars[i],grids->halo_stars_mini[i],grids->halo_sfr[i],grids->halo_sfr_mini[i],
+                    grids->halo_xray[i],grids->n_ion[i],grids->whalo_sfr[i],grids->count[i]);
+                LOG_ULTRA_DEBUG("Mturn_a %.2e Mturn_m %.2e",l10_mturn_a,l10_mturn_m);
+            }
+            #endif
 
             hm_sum += grids->halo_mass[i];
             nion_sum += grids->n_ion[i];

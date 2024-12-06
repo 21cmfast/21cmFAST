@@ -485,6 +485,7 @@ double IntegratedNdM_QAG(double lnM_lo, double lnM_hi, struct parameters_gsl_MF_
         LOG_ERROR("sigma=%.3e delta=%.3e",params.sigma_cond,params.delta);
         LOG_ERROR("Mturn_lo=%.3e f*=%.3e a*=%.3e Mlim*=%.3e",params.Mturn,params.f_star_norm,params.alpha_star,params.Mlim_star);
         LOG_ERROR("f_escn=%.3e a_esc=%.3e Mlim_esc=%.3e",params.f_esc_norm,params.alpha_esc,params.Mlim_esc);
+        LOG_ERROR("t_*=%.3e t_h=%.3e lx=%.3e lxmini %.3e",params.t_star,params.t_h,params.l_x_norm,params.l_x_norm_mini);
         LOG_ERROR("Mturn_hi %.3e gamma_type %d",params.Mturn_upper,params.gamma_type);
         CATCH_GSL_ERROR(status);
     }
@@ -984,6 +985,8 @@ double Xray_ConditionalM(double redshift, double growthf, double lnM1, double ln
         .l_x_norm_mini = l_x_mini,
         .t_h = t_h,
         .t_star = t_star,
+        .sigma_cond = sigma2,
+        .delta = delta2,
         .gamma_type=-5,
     };
 
