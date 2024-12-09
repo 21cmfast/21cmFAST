@@ -1056,6 +1056,11 @@ RGTable1D_f* get_SFRD_conditional_table(void) {
     return &SFRD_conditional_table;
 }
 
+// Accessor function for the GPU Ionisation kernel to access table.
+RGTable1D_f* get_Nion_conditional_table1D(void) {
+    return &Nion_conditional_table1D;
+}
+
 // Accessor function for the GPU SpinTemp memory allocation function to access nbins.
 int get_nbins(void) {
     return NDELTA;

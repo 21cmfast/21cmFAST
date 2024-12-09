@@ -67,6 +67,7 @@ void free_global_tables();
 void free_dNdM_tables();
 
 RGTable1D_f* get_SFRD_conditional_table(void);
+RGTable1D_f* get_Nion_conditional_table1D(void);
 int get_nbins(void);
 
 #ifdef __cplusplus
