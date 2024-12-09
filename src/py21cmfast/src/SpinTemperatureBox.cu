@@ -70,7 +70,7 @@ __global__ void compute_and_reduce(
     float *sfrd_grid, // star formation rate density grid to be updated
     double *ave_sfrd_buf, // output buffer of length ceil(n / (threadsPerBlock * 2))
     unsigned long long num_pixels // length of input data
-    ) {
+) {
 
     // An array to store intermediate summations
     // Shared between all threads in block
