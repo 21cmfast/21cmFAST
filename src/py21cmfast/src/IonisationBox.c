@@ -693,7 +693,7 @@ void setup_integration_tables(struct FilteredGrids *fg_struct, struct IonBoxCons
 //TODO: We should speed test different configurations, separating grids, parallel sections etc.
 //  See the note above copy_filter_transform() for the general idea
 //  If we separate by grid we can reuse the clipping function above
-void calculate_fcoll_grid(IonizedBox *box, IonizedBox *previous_ionize_box, struct FilteredGrids *fg_struct, struct IonBoxConstants *consts,
+void calculate_fcoll_grid(IonizedBox *box, IonizedBox *previous_ionize_box, struct FilteredGrids *fg_struct, struct IonBoxConstants *consts, //                 <-------- HERE
                              struct RadiusSpec *rspec){
     double f_coll_total,f_coll_MINI_total;
     //TODO: make proper error tracking through the parallel region
@@ -763,7 +763,7 @@ void calculate_fcoll_grid(IonizedBox *box, IonizedBox *previous_ionize_box, stru
                                 if (previous_ionize_box->mean_f_coll_MINI * consts->ion_eff_factor_mini_gl +
                                         previous_ionize_box->mean_f_coll * consts->ion_eff_factor_gl > 1e-4){
                                     prev_dens = *((float *)fg_struct->prev_deltax_filtered + HII_R_FFT_INDEX(x,y,z));
-                                    prev_Splined_Fcoll = EvaluateNion_Conditional(prev_dens,log10_Mturnover,consts->prev_growth_factor,
+                                    prev_Splined_Fcoll = EvaluateNion_Conditional(prev_dens,log10_Mturnover,consts->prev_growth_factor, //                       <-------- HERE
                                                                                         consts->M_min,rspec->M_max_R,rspec->M_max_R,
                                                                                         rspec->sigma_maxmass,consts->Mlim_Fstar,consts->Mlim_Fesc,true);
                                     prev_Splined_Fcoll_MINI = EvaluateNion_Conditional_MINI(prev_dens,log10_Mturnover_MINI,consts->prev_growth_factor,consts->M_min,
@@ -775,7 +775,7 @@ void calculate_fcoll_grid(IonizedBox *box, IonizedBox *previous_ionize_box, stru
                                     prev_Splined_Fcoll_MINI = 0.;
                                 }
                             }
-                            Splined_Fcoll = EvaluateNion_Conditional(curr_dens,log10_Mturnover,consts->growth_factor,
+                            Splined_Fcoll = EvaluateNion_Conditional(curr_dens,log10_Mturnover,consts->growth_factor, //                                          <-------- HERE
                                                                     consts->M_min,rspec->M_max_R,rspec->M_max_R,
                                                                     rspec->sigma_maxmass,consts->Mlim_Fstar,consts->Mlim_Fesc,false);
                         }
@@ -815,7 +815,7 @@ void calculate_fcoll_grid(IonizedBox *box, IonizedBox *previous_ionize_box, stru
                         box->Fcoll_MINI[fc_r_idx * HII_TOT_NUM_PIXELS + HII_R_INDEX(x,y,z)] = \
                                     previous_ionize_box->Fcoll_MINI[fc_r_idx * HII_TOT_NUM_PIXELS + HII_R_INDEX(x,y,z)] + Splined_Fcoll_MINI - prev_Splined_Fcoll_MINI;
 
-                        if (box->Fcoll_MINI[fc_r_idx * HII_TOT_NUM_PIXELS + HII_R_INDEX(x,y,z)] >1.) box->Fcoll_MINI[fc_r_idx * HII_TOT_NUM_PIXELS + HII_R_INDEX(x,y,z)] = 1.;
+                        if (box->Fcoll_MINI[fc_r_idx * HII_TOT_NUM_PIXELS + HII_R_INDEX(x,y,z)] > 1.) box->Fcoll_MINI[fc_r_idx * HII_TOT_NUM_PIXELS + HII_R_INDEX(x,y,z)] = 1.;
                         //if (box->Fcoll_MINI[counter * HII_TOT_NUM_PIXELS + HII_R_INDEX(x,y,z)] <0.) box->Fcoll_MINI[counter * HII_TOT_NUM_PIXELS + HII_R_INDEX(x,y,z)] = 1e-40;
                         //if (box->Fcoll_MINI[counter * HII_TOT_NUM_PIXELS + HII_R_INDEX(x,y,z)] < previous_ionize_box->Fcoll_MINI[counter * HII_TOT_NUM_PIXELS + HII_R_INDEX(x,y,z)])
                         //    box->Fcoll_MINI[counter * HII_TOT_NUM_PIXELS + HII_R_INDEX(x,y,z)] = previous_ionize_box->Fcoll_MINI[counter * HII_TOT_NUM_PIXELS + HII_R_INDEX(x,y,z)];
@@ -1317,6 +1317,34 @@ int ComputeIonizedBox(float redshift, float prev_redshift, UserParams *user_para
         // set the max radius we will use, making sure we are always sampling the same values of radius
         // (this avoids aliasing differences w redshift)
 
+        fftwf_complex *d_deltax_filtered = NULL;
+        fftwf_complex *d_N_rec_filtered = NULL;
+        fftwf_complex *d_xe_filtered = NULL;
+        float *d_y_arr = NULL;
+        float *d_Fcoll = NULL; //_outputstructs_wrapper.h
+
+        unsigned int threadsPerBlock = NULL;
+        unsigned int numBlocks = NULL;
+
+        // If GPU & flags call init_ionbox_gpu_data()
+        if (flag_options_global->USE_MASS_DEPENDENT_ZETA && !flag_options_global->USE_MINI_HALOS && !flag_options_global->USE_HALO_FIELD) {
+
+            unsigned int Nion_nbins = get_nbins();
+
+            init_ionbox_gpu_data(
+                &d_deltax_filtered,
+                &d_N_rec_filtered,
+                &d_xe_filtered,
+                &d_y_arr,
+                &d_Fcoll,
+                Nion_nbins,
+                HII_TOT_NUM_PIXELS,
+                HII_KSPACE_NUM_PIXELS,
+                &threadsPerBlock,
+                &numBlocks
+            );
+        }
+
         int R_ct;
         struct RadiusSpec curr_radius;
         for(R_ct=n_radii;R_ct--;){
@@ -1343,7 +1371,34 @@ int ComputeIonizedBox(float redshift, float prev_redshift, UserParams *user_para
                 setup_integration_tables(grid_struct,&ionbox_constants,curr_radius,need_prev_ion);
             }
 
-            calculate_fcoll_grid(box,previous_ionize_box,grid_struct,&ionbox_constants,&curr_radius);
+            // If GPU & flags, call gpu version of calculate_fcoll_grid()
+            if (flag_options_global->USE_MASS_DEPENDENT_ZETA && !flag_options_global->USE_MINI_HALOS && !flag_options_global->USE_HALO_FIELD) {
+                calculate_fcoll_grid_gpu(
+                    box,
+                    // grid_struct,
+                    grid_struct->deltax_filtered,
+                    grid_struct->N_rec_filtered,
+                    grid_struct->xe_filtered,
+                    // &ionbox_constants,
+                    &ionbox_constants.filter_recombinations,
+                    // &curr_radius,
+                    &curr_radius.f_coll_grid_mean,
+                    d_deltax_filtered,
+                    d_N_rec_filtered,
+                    d_xe_filtered,
+                    d_Fcoll,
+                    d_y_arr,
+                    HII_TOT_NUM_PIXELS,
+                    HII_KSPACE_NUM_PIXELS,
+                    &threadsPerBlock,
+                    &numBlocks
+                );
+            } else {
+                calculate_fcoll_grid(box, previous_ionize_box, grid_struct, &ionbox_constants, &curr_radius); //                                                          <-------- HERE
+            }
+            // calculate_fcoll_grid(box, previous_ionize_box, grid_struct, &ionbox_constants, &curr_radius); //                                                          <-------- HERE
+
+
             // To avoid ST_over_PS becoming nan when f_coll = 0, I set f_coll = FRACT_FLOAT_ERR.
             // TODO: This was the previous behaviour, but is this right?
             // setting the *total* to the minimum for the adjustment factor,
@@ -1366,6 +1421,17 @@ int ComputeIonizedBox(float redshift, float prev_redshift, UserParams *user_para
             debugSummarizeBox(box->z_re_box, user_params->HII_DIM, user_params->NON_CUBIC_FACTOR, "  ");
 #endif
         }
+        // If GPU & flags, call free_ionbox_gpu_data()
+            if (flag_options_global->USE_MASS_DEPENDENT_ZETA && !flag_options_global->USE_MINI_HALOS && !flag_options_global->USE_HALO_FIELD) {
+                free_ionbox_gpu_data(
+                    &d_deltax_filtered,
+                    &d_N_rec_filtered,
+                    &d_xe_filtered,
+                    &d_y_arr,
+                    &d_Fcoll
+                );
+            }
+
         set_ionized_temperatures(box,perturbed_field,spin_temp,&ionbox_constants);
 
         // find the neutral fraction
