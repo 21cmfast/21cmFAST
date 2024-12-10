@@ -627,8 +627,8 @@ void initialise_dNdM_tables(double xmin, double xmax, double ymin, double ymax, 
             }
 
             M_cond = exp(lnM_cond);
-            Nhalo_table.y_arr[i] = Nhalo_Conditional(growth_out,ymin,ymax,M_cond,sigma_cond,delta,0);
-            Mcoll_table.y_arr[i] = Mcoll_Conditional(growth_out,ymin,ymax,M_cond,sigma_cond,delta,0);
+            Nhalo_table.y_arr[i] = Nhalo_Conditional(growth_out,ymin,ymax,lnM_cond,sigma_cond,delta,0);
+            Mcoll_table.y_arr[i] = Mcoll_Conditional(growth_out,ymin,ymax,lnM_cond,sigma_cond,delta,0);
         }
     }
     LOG_DEBUG("Done.");
@@ -648,7 +648,7 @@ struct rf_inv_params{
 
 double dndm_inv_f(double lnM_min, void * params){
     struct rf_inv_params *p = (struct rf_inv_params *)params;
-    double integral = Nhalo_Conditional(p->growthf,lnM_min,p->lnM_cond,p->M_cond,p->sigma,p->delta,0);
+    double integral = Nhalo_Conditional(p->growthf,lnM_min,p->lnM_cond,p->lnM_cond,p->sigma,p->delta,0);
     //This ensures that we never find the root if the ratio is zero, since that will set to M_cond
     double result = integral == 0 ? 2*user_params_global->MIN_LOGPROB : log(integral / p->rf_norm);
 
@@ -742,7 +742,7 @@ void initialise_dNdM_inverse_table(double xmin, double xmax, double lnM_min, dou
             params_rf.sigma = sigma_cond;
 
             //NOTE: The total number density and collapsed fraction must be
-            norm = Nhalo_Conditional(growth_out,lnM_min,lnM_cond,M_cond,sigma_cond,delta,0);
+            norm = Nhalo_Conditional(growth_out,lnM_min,lnM_cond,lnM_cond,sigma_cond,delta,0);
             // LOG_ULTRA_DEBUG("cond x: %.2e M_min %.2e M_cond %.2e d %.4f D %.2f n %d ==> %.8e",x,exp(lnM_min),exp(lnM_cond),delta,growth_out,i,norm);
             params_rf.rf_norm = norm;
 

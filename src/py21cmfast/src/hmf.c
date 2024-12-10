@@ -597,7 +597,7 @@ double MFIntegral_Approx(double lnM_lo, double lnM_hi, struct parameters_gsl_MF_
         LOG_ERROR("Ensure parameter input specifically to this function has HMF==0");
         Throw(TableGenerationError);
     }
-    if(abs(params.gamma_type) > 4 || abs(params.gamma_type)){
+    if(abs(params.gamma_type) > 4){
         LOG_ERROR("Approximate Fcoll only works for single power-law scaling relations");
         LOG_ERROR("These include the following General/Conditional integration functions");
         LOG_ERROR("Nhalo, Fcoll, Nion, Nion_MINI");
@@ -863,7 +863,7 @@ double Nhalo_Conditional(double growthf, double lnM1, double lnM2, double lnM_co
     //return 1 halo AT THE CONDITION MASS if delta is exceeded
     if(delta > MAX_DELTAC_FRAC*get_delta_crit(params.HMF,sigma,growthf)){
         if(lnM_cond*(1-FRACT_FLOAT_ERR) <= lnM2) //this limit is not ideal, but covers floating point errors when we set lnM2 == log(M_cond)
-            return 1./lnM_cond;
+            return 1./exp(lnM_cond);
         else
             return 0.;
     }
