@@ -164,12 +164,22 @@ void filter_box_gpu(fftwf_complex *box, int RES, int filter_type, float R, float
     // Get size of flattened array
     size_t size = num_pixels * sizeof(fftwf_complex);
 
+    cudaError_t err;
+
     // Allocate device memory
     fftwf_complex* d_box;
-    cudaMalloc(&d_box, size);
+    err = cudaMalloc(&d_box, size);
+    if (err != cudaSuccess) {
+        LOG_ERROR("CUDA error: %s", cudaGetErrorString(err));
+        Throw(CUDAError);
+    }
 
     // Copy array from host to device
-    cudaMemcpy(d_box, box, size, cudaMemcpyHostToDevice);
+    err = cudaMemcpy(d_box, box, size, cudaMemcpyHostToDevice);
+    if (err != cudaSuccess) {
+        LOG_ERROR("CUDA error: %s", cudaGetErrorString(err));
+        Throw(CUDAError);
+    }
 
     // Invoke kernel
     int threadsPerBlock = 256;
@@ -177,11 +187,9 @@ void filter_box_gpu(fftwf_complex *box, int RES, int filter_type, float R, float
     // d_box must be cast to cuFloatComplex (from fftwf_complex) for CUDA
     filter_box_kernel<<<numBlocks, threadsPerBlock>>>(reinterpret_cast<cuFloatComplex *>(d_box), num_pixels, dimension, midpoint, midpoint_para, delta_k, R, R_param, R_const, filter_type);
 
-    cudaError_t err;
-
     // // Only use during development!
-    // err = cudaDeviceSynchronize();
-    // CATCH_CUDA_ERROR(err);
+    err = cudaDeviceSynchronize();
+    CATCH_CUDA_ERROR(err);
 
     err = cudaGetLastError();
     if (err != cudaSuccess) {
@@ -190,10 +198,18 @@ void filter_box_gpu(fftwf_complex *box, int RES, int filter_type, float R, float
     }
 
     // Copy results from device to host
-    cudaMemcpy(box, d_box, size, cudaMemcpyDeviceToHost);
+    err = cudaMemcpy(box, d_box, size, cudaMemcpyDeviceToHost);
+    if (err != cudaSuccess) {
+        LOG_ERROR("CUDA error: %s", cudaGetErrorString(err));
+        Throw(CUDAError);
+    }
 
     // Deallocate device memory
-    cudaFree(d_box);
+    err = cudaFree(d_box);
+    if (err != cudaSuccess) {
+        LOG_ERROR("CUDA error: %s", cudaGetErrorString(err));
+        Throw(CUDAError);
+    }
 }
 
 // Test function to filter a box without computing a whole output box
