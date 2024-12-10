@@ -243,7 +243,7 @@ void get_halo_stellarmass(double halo_mass, double mturn_acg, double mturn_mcg, 
         return;
     }
 
-    f_sample_mini = pow(halo_mass/1e7,f_a_mini) * f_7;
+    f_sample_mini = scaling_single_PL(halo_mass,f_a_mini,1e7)*f_7;
     f_sample_mini *= exp(-mturn_mcg/halo_mass - halo_mass/mturn_acg + star_rng*sigma_star - stoc_adjustment_term);
     if(f_sample_mini > 1.) f_sample_mini = 1.;
 
@@ -290,8 +290,8 @@ void get_halo_metallicity(double sfr, double stellar, double redshift, double *z
     double redshift_scaling = pow(10,-0.056*redshift + 0.064);
     double stellar_term = 1.;
     if(stellar > 0.){
-      stellar_term = pow(1 + pow(stellar/z_denom,-2.1),-0.148);
-      z_denom = (1.28825e10 * pow(sfr*SperYR,0.56));
+        z_denom = (1.28825e10 * pow(sfr*SperYR,0.56));
+        stellar_term = pow(1 + pow(stellar/z_denom,-2.1),-0.148);
     }
 
     z_result = 1.23 * stellar_term * redshift_scaling;

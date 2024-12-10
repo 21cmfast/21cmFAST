@@ -357,7 +357,9 @@ double xray_fraction_doublePL(double lnM, void *param_struct){
     double metallicity;
     get_halo_metallicity(sfr+sfr_mini,stars+stars_mini,p.redshift,&metallicity);
     double l_x = get_lx_on_sfr(sfr,metallicity,p.l_x_norm);
-    double l_x_mini = get_lx_on_sfr(sfr_mini,metallicity,p.l_x_norm_mini);
+    double l_x_mini = 0.;
+    if(flag_options_global->USE_MINI_HALOS)
+        l_x_mini = get_lx_on_sfr(sfr_mini,metallicity,p.l_x_norm_mini);
 
     return SperYR*(sfr*l_x + sfr_mini*l_x_mini);
 }
@@ -794,10 +796,10 @@ double Nion_General(double z, double lnM_Min, double lnM_Max, double MassTurnove
         .Mturn = MassTurnover,
         .alpha_star = Alpha_star,
         .alpha_esc = Alpha_esc,
-        .f_star_norm = Fstar10,
-        .f_esc_norm = Fesc10,
-        .Mlim_star = Mlim_Fstar,
-        .Mlim_esc = Mlim_Fesc,
+        .f_star_norm = log(Fstar10),
+        .f_esc_norm = log(Fesc10),
+        .Mlim_star = log(Mlim_Fstar),
+        .Mlim_esc = log(Mlim_Fesc),
         .HMF = user_params_global->HMF,
         .gamma_type=3,
     };
@@ -813,10 +815,10 @@ double Nion_General_MINI(double z, double lnM_Min, double lnM_Max, double MassTu
         .Mturn_upper = MassTurnover_upper,
         .alpha_star = Alpha_star,
         .alpha_esc = Alpha_esc,
-        .f_star_norm = Fstar7_MINI,
-        .f_esc_norm = Fesc7_MINI,
-        .Mlim_star = Mlim_Fstar,
-        .Mlim_esc = Mlim_Fesc,
+        .f_star_norm = log(Fstar7_MINI),
+        .f_esc_norm = log(Fesc7_MINI),
+        .Mlim_star = log(Mlim_Fstar),
+        .Mlim_esc = log(Mlim_Fesc),
         .HMF = user_params_global->HMF,
         .gamma_type=4,
     };

@@ -104,7 +104,7 @@ int get_box_averages(double M_min, double M_max, double M_turn_a, double M_turn_
     double prefactor_nion_mini = prefactor_stars_mini * consts->fesc_7 * global_params.Pop3_ion;
     double prefactor_wsfr = prefactor_sfr * consts->fesc_10;
     double prefactor_wsfr_mini = prefactor_sfr_mini * consts->fesc_7;
-    double prefactor_xray = RHOcrit * cosmo_params_global->OMb;
+    double prefactor_xray = RHOcrit * cosmo_params_global->OMm;
 
     double mass_intgrl;
     double intgrl_fesc_weighted, intgrl_stars_only;
@@ -128,7 +128,7 @@ int get_box_averages(double M_min, double M_max, double M_turn_a, double M_turn_
     if(flag_options_global->USE_TS_FLUCT){
         integral_xray = Xray_General(consts->redshift, lnMmin, lnMmax, M_turn_m, M_turn_a,
                                             consts->alpha_star, consts->alpha_star_mini, consts->fstar_10,
-                                            consts->fesc_7, consts->l_x, consts->l_x_mini, consts->t_h, consts->t_star,
+                                            consts->fstar_7, consts->l_x, consts->l_x_mini, consts->t_h, consts->t_star,
                                             consts->Mlim_Fstar, consts->Mlim_Fstar_mini);
     }
 
@@ -193,9 +193,7 @@ int set_fixed_grids(double M_min, double M_max, InitialConditions *ini_boxes,
     double prefactor_nion_mini = prefactor_stars_mini * consts->fesc_7 * global_params.Pop3_ion;
     double prefactor_wsfr = prefactor_sfr * consts->fesc_10;
     double prefactor_wsfr_mini = prefactor_sfr_mini * consts->fesc_7;
-    // double prefactor_xray = prefactor_sfr * consts->l_x * SperYR;
-    // double prefactor_xray_mini = prefactor_sfr_mini * consts->l_x_mini * SperYR;
-    double prefactor_xray = RHOcrit * cosmo_params_global->OMb;
+    double prefactor_xray = RHOcrit * cosmo_params_global->OMm;
 
     double hm_sum=0, nion_sum=0, wsfr_sum=0, xray_sum=0;
     double sm_sum=0, sm_sum_mini=0, sfr_sum=0, sfr_sum_mini=0;
