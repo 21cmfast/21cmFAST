@@ -22,6 +22,7 @@ void init_ionbox_gpu_data(
     fftwf_complex **d_xe_filtered,
     float **d_y_arr,
     float **d_Fcoll,
+    bool filter_recombinations, // member of consts
     unsigned int nbins, // nbins for Nion_conditional_table1D->y
     unsigned long long hii_tot_num_pixels, // HII_TOT_NUM_PIXELS
     unsigned long long hii_kspace_num_pixels, // HII_KSPACE_NUM_PIXELS
@@ -50,7 +51,8 @@ void free_ionbox_gpu_data(
     fftwf_complex **d_N_rec_filtered,
     fftwf_complex **d_xe_filtered,
     float **d_y_arr,
-    float **d_Fcoll
+    float **d_Fcoll,
+    bool filter_recombinations // member of consts
 );
 
 #ifdef __cplusplus

@@ -116,6 +116,7 @@ void init_ionbox_gpu_data(
     fftwf_complex **d_xe_filtered,
     float **d_y_arr,
     float **d_Fcoll,
+    bool filter_recombinations, // member of consts
     unsigned int nbins, // nbins for Nion_conditional_table1D->y
     unsigned long long hii_tot_num_pixels, // HII_TOT_NUM_PIXELS
     unsigned long long hii_kspace_num_pixels, // HII_KSPACE_NUM_PIXELS
@@ -126,17 +127,25 @@ void init_ionbox_gpu_data(
     // Fcoll is of length HII_TOT_NUM_PIXELS (outputs.py)
 
     CALL_CUDA(cudaMalloc((void**)d_deltax_filtered, sizeof(fftwf_complex) * hii_kspace_num_pixels)); // already pointers to pointers (no & needed)
-    CALL_CUDA(cudaMalloc((void**)d_N_rec_filtered, sizeof(fftwf_complex) * hii_kspace_num_pixels));
-    CALL_CUDA(cudaMalloc((void**)d_xe_filtered, sizeof(fftwf_complex) * hii_kspace_num_pixels));
-    CALL_CUDA(cudaMalloc((void**)d_y_arr, sizeof(float) * nbins));
-    CALL_CUDA(cudaMalloc((void**)d_Fcoll, sizeof(float) * hii_tot_num_pixels));
-    LOG_INFO("Ionisation grids allocated on device.");
-
     CALL_CUDA(cudaMemset(*d_deltax_filtered, 0, sizeof(fftwf_complex) * hii_kspace_num_pixels)); // dereference the pointer to a pointer (*)
-    CALL_CUDA(cudaMemset(*d_N_rec_filtered, 0, sizeof(fftwf_complex) * hii_kspace_num_pixels));
-    CALL_CUDA(cudaMemset(*d_xe_filtered, 0, sizeof(fftwf_complex) * hii_kspace_num_pixels));
+
+    if (filter_recombinations) {
+        CALL_CUDA(cudaMalloc((void**)d_N_rec_filtered, sizeof(fftwf_complex) * hii_kspace_num_pixels));
+        CALL_CUDA(cudaMemset(*d_N_rec_filtered, 0, sizeof(fftwf_complex) * hii_kspace_num_pixels));
+    }
+
+    if (flag_options_global->USE_TS_FLUCT) {
+        CALL_CUDA(cudaMalloc((void**)d_xe_filtered, sizeof(fftwf_complex) * hii_kspace_num_pixels));
+        CALL_CUDA(cudaMemset(*d_xe_filtered, 0, sizeof(fftwf_complex) * hii_kspace_num_pixels));
+    }
+
+    CALL_CUDA(cudaMalloc((void**)d_y_arr, sizeof(float) * nbins));
     CALL_CUDA(cudaMemset(*d_y_arr, 0, sizeof(float) * nbins));
+
+    CALL_CUDA(cudaMalloc((void**)d_Fcoll, sizeof(float) * hii_tot_num_pixels));
     CALL_CUDA(cudaMemset(*d_Fcoll, 0, sizeof(float) * hii_tot_num_pixels));
+
+    LOG_INFO("Ionisation grids allocated on device.");
     LOG_INFO("Ionisation grids initialised on device.");
 
     // Get max threads/block for device
@@ -186,8 +195,12 @@ void calculate_fcoll_grid_gpu(
 
     // Copy grids from host to device
     CALL_CUDA(cudaMemcpy(d_deltax_filtered, h_deltax_filtered, sizeof(fftwf_complex) * hii_kspace_num_pixels, cudaMemcpyHostToDevice));
-    CALL_CUDA(cudaMemcpy(d_N_rec_filtered, h_N_rec_filtered, sizeof(fftwf_complex) * hii_kspace_num_pixels, cudaMemcpyHostToDevice));
-    CALL_CUDA(cudaMemcpy(d_xe_filtered, h_xe_filtered, sizeof(fftwf_complex) * hii_kspace_num_pixels, cudaMemcpyHostToDevice));
+    if (filter_recombinations) {
+        CALL_CUDA(cudaMemcpy(d_N_rec_filtered, h_N_rec_filtered, sizeof(fftwf_complex) * hii_kspace_num_pixels, cudaMemcpyHostToDevice));
+    }
+    if (flag_options_global->USE_TS_FLUCT) {
+        CALL_CUDA(cudaMemcpy(d_xe_filtered, h_xe_filtered, sizeof(fftwf_complex) * hii_kspace_num_pixels, cudaMemcpyHostToDevice));
+    }
     CALL_CUDA(cudaMemcpy(d_y_arr, Nion_conditional_table1D->y_arr, sizeof(float) * Nion_conditional_table1D->n_bin, cudaMemcpyHostToDevice));
     LOG_INFO("Ionisation grids copied to device.");
 
@@ -229,8 +242,12 @@ void calculate_fcoll_grid_gpu(
     // Copy results from device to host
     CALL_CUDA(cudaMemcpy(box->Fcoll, d_Fcoll, sizeof(float) * hii_tot_num_pixels, cudaMemcpyDeviceToHost));
     CALL_CUDA(cudaMemcpy(h_deltax_filtered, d_deltax_filtered, sizeof(fftwf_complex) * hii_kspace_num_pixels, cudaMemcpyDeviceToHost));
-    CALL_CUDA(cudaMemcpy(h_N_rec_filtered, d_N_rec_filtered, sizeof(fftwf_complex) * hii_kspace_num_pixels, cudaMemcpyDeviceToHost));
-    CALL_CUDA(cudaMemcpy(h_xe_filtered, d_xe_filtered, sizeof(fftwf_complex) * hii_kspace_num_pixels, cudaMemcpyDeviceToHost));
+    if (filter_recombinations) {
+        CALL_CUDA(cudaMemcpy(h_N_rec_filtered, d_N_rec_filtered, sizeof(fftwf_complex) * hii_kspace_num_pixels, cudaMemcpyDeviceToHost));
+    }
+    if (flag_options_global->USE_TS_FLUCT) {
+        CALL_CUDA(cudaMemcpy(h_xe_filtered, d_xe_filtered, sizeof(fftwf_complex) * hii_kspace_num_pixels, cudaMemcpyDeviceToHost));
+    }
     LOG_INFO("Grids copied to host.");
 }
 
@@ -239,11 +256,16 @@ void free_ionbox_gpu_data(
     fftwf_complex **d_N_rec_filtered,
     fftwf_complex **d_xe_filtered,
     float **d_y_arr,
-    float **d_Fcoll
+    float **d_Fcoll,
+    bool filter_recombinations // member of consts
 ) {
     CALL_CUDA(cudaFree(*d_deltax_filtered)); // Need to dereference the pointers to pointers (*)
-    CALL_CUDA(cudaFree(*d_N_rec_filtered));
-    CALL_CUDA(cudaFree(*d_xe_filtered));
+    if (filter_recombinations) {
+        CALL_CUDA(cudaFree(*d_N_rec_filtered));
+    }
+    if (flag_options_global->USE_TS_FLUCT) {
+        CALL_CUDA(cudaFree(*d_xe_filtered));
+    }
     CALL_CUDA(cudaFree(*d_y_arr));
     CALL_CUDA(cudaFree(*d_Fcoll));
     LOG_INFO("Device memory freed.");

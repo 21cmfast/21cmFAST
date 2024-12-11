@@ -1325,8 +1325,8 @@ int ComputeIonizedBox(float redshift, float prev_redshift, UserParams *user_para
         float *d_Fcoll = NULL; //_outputstructs_wrapper.h
         LOG_DEBUG("ION device pointers allocated.");
 
-        unsigned int threadsPerBlock = NULL;
-        unsigned int numBlocks = NULL;
+        unsigned int threadsPerBlock;
+        unsigned int numBlocks;
 
         // If GPU & flags call init_ionbox_gpu_data()
         if (flag_options_global->USE_MASS_DEPENDENT_ZETA && !flag_options_global->USE_MINI_HALOS && !flag_options_global->USE_HALO_FIELD) {
@@ -1339,6 +1339,7 @@ int ComputeIonizedBox(float redshift, float prev_redshift, UserParams *user_para
                 &d_xe_filtered,
                 &d_y_arr,
                 &d_Fcoll,
+                ionbox_constants.filter_recombinations,
                 Nion_nbins,
                 HII_TOT_NUM_PIXELS,
                 HII_KSPACE_NUM_PIXELS,
@@ -1383,7 +1384,7 @@ int ComputeIonizedBox(float redshift, float prev_redshift, UserParams *user_para
                     grid_struct->deltax_filtered,
                     grid_struct->N_rec_filtered,
                     grid_struct->xe_filtered,
-                    &ionbox_constants.filter_recombinations,
+                    ionbox_constants.filter_recombinations,
                     &curr_radius.f_coll_grid_mean,
                     d_deltax_filtered,
                     d_N_rec_filtered,
@@ -1432,7 +1433,8 @@ int ComputeIonizedBox(float redshift, float prev_redshift, UserParams *user_para
                     &d_N_rec_filtered,
                     &d_xe_filtered,
                     &d_y_arr,
-                    &d_Fcoll
+                    &d_Fcoll,
+                    ionbox_constants.filter_recombinations
                 );
                 LOG_DEBUG("ION free_ionbox_gpu_data called.");
             }
