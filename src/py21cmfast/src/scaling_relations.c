@@ -289,7 +289,14 @@ void get_halo_metallicity(double sfr, double stellar, double redshift, double *z
     double z_denom, z_result;
     double redshift_scaling = pow(10,-0.056*redshift + 0.064);
     double stellar_term = 1.;
-    if(stellar > 0.){
+
+    //We need to avoid denominator == 0. In this case at sfr == 0 the
+    //  metallicity won't matter since it's used solely for lx/sfr
+    //  the case where stellar > 0 and sfr == 0 makes no sense in this
+    //  scaling relation and only currently occurs due to underflow of sfr
+    //  where M* ~ 1e-300, but if we change the SSFR relation to a MAR relation
+    //  we will need to change this as well
+    if(stellar > 0 && sfr > 0.){
         z_denom = (1.28825e10 * pow(sfr*SperYR,0.56));
         stellar_term = pow(1 + pow(stellar/z_denom,-2.1),-0.148);
     }
