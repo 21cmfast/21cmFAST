@@ -38,6 +38,7 @@
 #include "InitialConditions.h"
 
 #include "IonisationBox.h"
+#include "cuda_utils.cuh"
 
 
 __device__ inline double EvaluateRGTable1D_f_gpu(double x, double x_min, double x_width, float *y_arr) {
@@ -121,68 +122,26 @@ void init_ionbox_gpu_data(
     unsigned int *threadsPerBlock,
     unsigned int *numBlocks
 ) {
-    cudaError_t err = cudaGetLastError();
-
     // deltax_filtered, N_rec_filtered & xe_filtered are of length HII_KSPACE_NUM_PIXELS
     // Fcoll is of length HII_TOT_NUM_PIXELS (outputs.py)
 
-    err = cudaMalloc((void**)d_deltax_filtered, sizeof(fftwf_complex) * hii_kspace_num_pixels); // already pointers to pointers (no & needed)
-    if (err != cudaSuccess) {
-        LOG_ERROR("CUDA error: %s", cudaGetErrorString(err));
-        Throw(CUDAError);
-    }
-    err = cudaMalloc((void**)d_N_rec_filtered, sizeof(fftwf_complex) * hii_kspace_num_pixels);
-    if (err != cudaSuccess) {
-        LOG_ERROR("CUDA error: %s", cudaGetErrorString(err));
-        Throw(CUDAError);
-    }
-    err = cudaMalloc((void**)d_xe_filtered, sizeof(fftwf_complex) * hii_kspace_num_pixels);
-    if (err != cudaSuccess) {
-        LOG_ERROR("CUDA error: %s", cudaGetErrorString(err));
-        Throw(CUDAError);
-    }
-    err = cudaMalloc((void**)d_y_arr, sizeof(float) * nbins);
-    if (err != cudaSuccess) {
-        LOG_ERROR("CUDA error: %s", cudaGetErrorString(err));
-        Throw(CUDAError);
-    }
-    err = cudaMalloc((void**)d_Fcoll, sizeof(float) * hii_tot_num_pixels);
-    if (err != cudaSuccess) {
-        LOG_ERROR("CUDA error: %s", cudaGetErrorString(err));
-        Throw(CUDAError);
-    }
+    CALL_CUDA(cudaMalloc((void**)d_deltax_filtered, sizeof(fftwf_complex) * hii_kspace_num_pixels)); // already pointers to pointers (no & needed)
+    CALL_CUDA(cudaMalloc((void**)d_N_rec_filtered, sizeof(fftwf_complex) * hii_kspace_num_pixels));
+    CALL_CUDA(cudaMalloc((void**)d_xe_filtered, sizeof(fftwf_complex) * hii_kspace_num_pixels));
+    CALL_CUDA(cudaMalloc((void**)d_y_arr, sizeof(float) * nbins));
+    CALL_CUDA(cudaMalloc((void**)d_Fcoll, sizeof(float) * hii_tot_num_pixels));
     LOG_INFO("Ionisation grids allocated on device.");
 
-    err = cudaMemset(*d_deltax_filtered, 0, sizeof(fftwf_complex) * hii_kspace_num_pixels); // dereference the pointer to a pointer (*)
-    if (err != cudaSuccess) {
-        LOG_ERROR("CUDA error: %s", cudaGetErrorString(err));
-        Throw(CUDAError);
-    }
-    err = cudaMemset(*d_N_rec_filtered, 0, sizeof(fftwf_complex) * hii_kspace_num_pixels);
-    if (err != cudaSuccess) {
-        LOG_ERROR("CUDA error: %s", cudaGetErrorString(err));
-        Throw(CUDAError);
-    }
-    err = cudaMemset(*d_xe_filtered, 0, sizeof(fftwf_complex) * hii_kspace_num_pixels);
-    if (err != cudaSuccess) {
-        LOG_ERROR("CUDA error: %s", cudaGetErrorString(err));
-        Throw(CUDAError);
-    }
-    err = cudaMemset(*d_y_arr, 0, sizeof(float) * nbins);
-    if (err != cudaSuccess) {
-        LOG_ERROR("CUDA error: %s", cudaGetErrorString(err));
-        Throw(CUDAError);
-    }
-    err = cudaMemset(*d_Fcoll, 0, sizeof(float) * hii_tot_num_pixels);
-    if (err != cudaSuccess) {
-        LOG_ERROR("CUDA error: %s", cudaGetErrorString(err));
-        Throw(CUDAError);
-    }
+    CALL_CUDA(cudaMemset(*d_deltax_filtered, 0, sizeof(fftwf_complex) * hii_kspace_num_pixels)); // dereference the pointer to a pointer (*)
+    CALL_CUDA(cudaMemset(*d_N_rec_filtered, 0, sizeof(fftwf_complex) * hii_kspace_num_pixels));
+    CALL_CUDA(cudaMemset(*d_xe_filtered, 0, sizeof(fftwf_complex) * hii_kspace_num_pixels));
+    CALL_CUDA(cudaMemset(*d_y_arr, 0, sizeof(float) * nbins));
+    CALL_CUDA(cudaMemset(*d_Fcoll, 0, sizeof(float) * hii_tot_num_pixels));
     LOG_INFO("Ionisation grids initialised on device.");
 
     // Get max threads/block for device
     int maxThreadsPerBlock;
-    cudaDeviceGetAttribute(&maxThreadsPerBlock, cudaDevAttrMaxThreadsPerBlock, 0);
+    CALL_CUDA(cudaDeviceGetAttribute(&maxThreadsPerBlock, cudaDevAttrMaxThreadsPerBlock, 0));
 
     // Set threads/block based on device max
     if (maxThreadsPerBlock >= 512) {
@@ -219,8 +178,6 @@ void calculate_fcoll_grid_gpu(
     unsigned int *threadsPerBlock,
     unsigned int *numBlocks
 ) {
-    cudaError_t err = cudaGetLastError();
-
     // TODO: Potentially use thrust to clip grids here instead of in kernel...
 
     RGTable1D_f* Nion_conditional_table1D = get_Nion_conditional_table1D();
@@ -228,26 +185,10 @@ void calculate_fcoll_grid_gpu(
     // unsigned long long hii_tot_fft_num_pixels = HII_TOT_FFT_NUM_PIXELS;
 
     // Copy grids from host to device
-    err = cudaMemcpy(d_deltax_filtered, h_deltax_filtered, sizeof(fftwf_complex) * hii_kspace_num_pixels, cudaMemcpyHostToDevice);
-    if (err != cudaSuccess) {
-        LOG_ERROR("CUDA error: %s", cudaGetErrorString(err));
-        Throw(CUDAError);
-    }
-    err = cudaMemcpy(d_N_rec_filtered, h_N_rec_filtered, sizeof(fftwf_complex) * hii_kspace_num_pixels, cudaMemcpyHostToDevice);
-    if (err != cudaSuccess) {
-        LOG_ERROR("CUDA error: %s", cudaGetErrorString(err));
-        Throw(CUDAError);
-    }
-    err = cudaMemcpy(d_xe_filtered, h_xe_filtered, sizeof(fftwf_complex) * hii_kspace_num_pixels, cudaMemcpyHostToDevice);
-    if (err != cudaSuccess) {
-        LOG_ERROR("CUDA error: %s", cudaGetErrorString(err));
-        Throw(CUDAError);
-    }
-    err = cudaMemcpy(d_y_arr, Nion_conditional_table1D->y_arr, sizeof(float) * Nion_conditional_table1D->n_bin, cudaMemcpyHostToDevice);
-    if (err != cudaSuccess) {
-        LOG_ERROR("CUDA error: %s", cudaGetErrorString(err));
-        Throw(CUDAError);
-    }
+    CALL_CUDA(cudaMemcpy(d_deltax_filtered, h_deltax_filtered, sizeof(fftwf_complex) * hii_kspace_num_pixels, cudaMemcpyHostToDevice));
+    CALL_CUDA(cudaMemcpy(d_N_rec_filtered, h_N_rec_filtered, sizeof(fftwf_complex) * hii_kspace_num_pixels, cudaMemcpyHostToDevice));
+    CALL_CUDA(cudaMemcpy(d_xe_filtered, h_xe_filtered, sizeof(fftwf_complex) * hii_kspace_num_pixels, cudaMemcpyHostToDevice));
+    CALL_CUDA(cudaMemcpy(d_y_arr, Nion_conditional_table1D->y_arr, sizeof(float) * Nion_conditional_table1D->n_bin, cudaMemcpyHostToDevice));
     LOG_INFO("Ionisation grids copied to device.");
 
     // TODO: Can I pass these straight to kernel? (or access in kernel w/ Tiger's method)
@@ -274,47 +215,23 @@ void calculate_fcoll_grid_gpu(
         hii_mid_para,
         d_Fcoll
     );
+    CALL_CUDA(cudaDeviceSynchronize());
     LOG_INFO("IonisationBox compute_Fcoll kernel called.");
 
-    err = cudaDeviceSynchronize();
-    CATCH_CUDA_ERROR(err);
-
-    err = cudaGetLastError();
-    if (err != cudaSuccess) {
-        LOG_ERROR("Kernel launch error: %s", cudaGetErrorString(err));
-        Throw(CUDAError);
-    }
-
-    // Use thrust to reduce computed sums to one value
-
+    // Use thrust to reduce computed sums to one value.
     // Wrap device pointer in a thrust::device_ptr
     thrust::device_ptr<float> d_Fcoll_ptr(d_Fcoll);
     // Reduce final buffer sums to one value
     *f_coll_grid_mean = thrust::reduce(d_Fcoll_ptr, d_Fcoll_ptr + hii_tot_num_pixels, 0., thrust::plus<double>());
+    CALL_CUDA(cudaDeviceSynchronize());
     LOG_INFO("Fcoll sum reduced to single value by thrust::reduce operation.");
 
     // Copy results from device to host
-    err = cudaMemcpy(box->Fcoll, d_Fcoll, sizeof(float) * hii_tot_num_pixels, cudaMemcpyDeviceToHost);
-    if (err != cudaSuccess) {
-        LOG_ERROR("CUDA error: %s", cudaGetErrorString(err));
-        Throw(CUDAError);
-    }
-    err = cudaMemcpy(h_deltax_filtered, d_deltax_filtered, sizeof(fftwf_complex) * hii_kspace_num_pixels, cudaMemcpyDeviceToHost);
-    if (err != cudaSuccess) {
-        LOG_ERROR("CUDA error: %s", cudaGetErrorString(err));
-        Throw(CUDAError);
-    }
-    err = cudaMemcpy(h_N_rec_filtered, d_N_rec_filtered, sizeof(fftwf_complex) * hii_kspace_num_pixels, cudaMemcpyDeviceToHost);
-    if (err != cudaSuccess) {
-        LOG_ERROR("CUDA error: %s", cudaGetErrorString(err));
-        Throw(CUDAError);
-    }
-    err = cudaMemcpy(h_xe_filtered, d_xe_filtered, sizeof(fftwf_complex) * hii_kspace_num_pixels, cudaMemcpyDeviceToHost);
-    if (err != cudaSuccess) {
-        LOG_ERROR("CUDA error: %s", cudaGetErrorString(err));
-        Throw(CUDAError);
-    }
-    LOG_INFO("Fcoll grid copied to host.");
+    CALL_CUDA(cudaMemcpy(box->Fcoll, d_Fcoll, sizeof(float) * hii_tot_num_pixels, cudaMemcpyDeviceToHost));
+    CALL_CUDA(cudaMemcpy(h_deltax_filtered, d_deltax_filtered, sizeof(fftwf_complex) * hii_kspace_num_pixels, cudaMemcpyDeviceToHost));
+    CALL_CUDA(cudaMemcpy(h_N_rec_filtered, d_N_rec_filtered, sizeof(fftwf_complex) * hii_kspace_num_pixels, cudaMemcpyDeviceToHost));
+    CALL_CUDA(cudaMemcpy(h_xe_filtered, d_xe_filtered, sizeof(fftwf_complex) * hii_kspace_num_pixels, cudaMemcpyDeviceToHost));
+    LOG_INFO("Grids copied to host.");
 }
 
 void free_ionbox_gpu_data(
@@ -324,33 +241,10 @@ void free_ionbox_gpu_data(
     float **d_y_arr,
     float **d_Fcoll
 ) {
-    cudaError_t err = cudaGetLastError();
-
-    cudaFree(*d_deltax_filtered); // Need to dereference the pointers to pointers (*)
-    if (err != cudaSuccess) {
-        LOG_ERROR("CUDA error: %s", cudaGetErrorString(err));
-        Throw(CUDAError);
-    }
-    cudaFree(*d_N_rec_filtered);
-    if (err != cudaSuccess) {
-        LOG_ERROR("CUDA error: %s", cudaGetErrorString(err));
-        Throw(CUDAError);
-    }
-    cudaFree(*d_xe_filtered);
-    if (err != cudaSuccess) {
-        LOG_ERROR("CUDA error: %s", cudaGetErrorString(err));
-        Throw(CUDAError);
-    }
-    cudaFree(*d_y_arr);
-    if (err != cudaSuccess) {
-        LOG_ERROR("CUDA error: %s", cudaGetErrorString(err));
-        Throw(CUDAError);
-    }
-    cudaFree(*d_Fcoll);
-    if (err != cudaSuccess) {
-        LOG_ERROR("CUDA error: %s", cudaGetErrorString(err));
-        Throw(CUDAError);
-    }
-
+    CALL_CUDA(cudaFree(*d_deltax_filtered)); // Need to dereference the pointers to pointers (*)
+    CALL_CUDA(cudaFree(*d_N_rec_filtered));
+    CALL_CUDA(cudaFree(*d_xe_filtered));
+    CALL_CUDA(cudaFree(*d_y_arr));
+    CALL_CUDA(cudaFree(*d_Fcoll));
     LOG_INFO("Device memory freed.");
 }
