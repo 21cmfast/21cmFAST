@@ -1317,11 +1317,13 @@ int ComputeIonizedBox(float redshift, float prev_redshift, UserParams *user_para
         // set the max radius we will use, making sure we are always sampling the same values of radius
         // (this avoids aliasing differences w redshift)
 
+        LOG_DEBUG("ION device pointers about to be allocated.");
         fftwf_complex *d_deltax_filtered = NULL;
         fftwf_complex *d_N_rec_filtered = NULL;
         fftwf_complex *d_xe_filtered = NULL;
         float *d_y_arr = NULL;
         float *d_Fcoll = NULL; //_outputstructs_wrapper.h
+        LOG_DEBUG("ION device pointers allocated.");
 
         unsigned int threadsPerBlock = NULL;
         unsigned int numBlocks = NULL;
@@ -1330,7 +1332,7 @@ int ComputeIonizedBox(float redshift, float prev_redshift, UserParams *user_para
         if (flag_options_global->USE_MASS_DEPENDENT_ZETA && !flag_options_global->USE_MINI_HALOS && !flag_options_global->USE_HALO_FIELD) {
 
             unsigned int Nion_nbins = get_nbins();
-
+            LOG_DEBUG("ION init_ionbox_gpu_data about to be called.");
             init_ionbox_gpu_data(
                 &d_deltax_filtered,
                 &d_N_rec_filtered,
@@ -1343,12 +1345,14 @@ int ComputeIonizedBox(float redshift, float prev_redshift, UserParams *user_para
                 &threadsPerBlock,
                 &numBlocks
             );
+            LOG_DEBUG("ION init_ionbox_gpu_data called.");
         }
 
         int R_ct;
         struct RadiusSpec curr_radius;
         for(R_ct=n_radii;R_ct--;){
             curr_radius = radii_spec[R_ct];
+            LOG_DEBUG("ION loop: R_ct=%u.",R_ct);
 
             //TODO: As far as I can tell, This was the previous behaviour with the while loop
             //  So if the cell size is smaller than the minimum mass (rare) we still filter the last step
@@ -1373,15 +1377,13 @@ int ComputeIonizedBox(float redshift, float prev_redshift, UserParams *user_para
 
             // If GPU & flags, call gpu version of calculate_fcoll_grid()
             if (flag_options_global->USE_MASS_DEPENDENT_ZETA && !flag_options_global->USE_MINI_HALOS && !flag_options_global->USE_HALO_FIELD) {
+                LOG_DEBUG("ION calculate_fcoll_grid_gpu about to be called.");
                 calculate_fcoll_grid_gpu(
                     box,
-                    // grid_struct,
                     grid_struct->deltax_filtered,
                     grid_struct->N_rec_filtered,
                     grid_struct->xe_filtered,
-                    // &ionbox_constants,
                     &ionbox_constants.filter_recombinations,
-                    // &curr_radius,
                     &curr_radius.f_coll_grid_mean,
                     d_deltax_filtered,
                     d_N_rec_filtered,
@@ -1393,6 +1395,7 @@ int ComputeIonizedBox(float redshift, float prev_redshift, UserParams *user_para
                     &threadsPerBlock,
                     &numBlocks
                 );
+                LOG_DEBUG("ION calculate_fcoll_grid_gpu called.");
             } else {
                 calculate_fcoll_grid(box, previous_ionize_box, grid_struct, &ionbox_constants, &curr_radius); //                                                          <-------- HERE
             }
@@ -1423,6 +1426,7 @@ int ComputeIonizedBox(float redshift, float prev_redshift, UserParams *user_para
         }
         // If GPU & flags, call free_ionbox_gpu_data()
             if (flag_options_global->USE_MASS_DEPENDENT_ZETA && !flag_options_global->USE_MINI_HALOS && !flag_options_global->USE_HALO_FIELD) {
+                LOG_DEBUG("ION free_ionbox_gpu_data about to be called.");
                 free_ionbox_gpu_data(
                     &d_deltax_filtered,
                     &d_N_rec_filtered,
@@ -1430,6 +1434,7 @@ int ComputeIonizedBox(float redshift, float prev_redshift, UserParams *user_para
                     &d_y_arr,
                     &d_Fcoll
                 );
+                LOG_DEBUG("ION free_ionbox_gpu_data called.");
             }
 
         set_ionized_temperatures(box,perturbed_field,spin_temp,&ionbox_constants);
