@@ -936,7 +936,7 @@ def evaluate_SFRD_cond(
             growthf,
             np.log(M_min),
             np.log(M_max),
-            cond_mass,
+            np.log(cond_mass),
             sigma_cond,
             densities,
             mcrit_atom,
@@ -953,7 +953,7 @@ def evaluate_SFRD_cond(
                 growthf,
                 np.log(M_min),
                 np.log(M_max),
-                cond_mass,
+                np.log(cond_mass),
                 sigma_cond,
                 densities[:, None],
                 10 ** l10mturns[None, :],
@@ -1083,7 +1083,7 @@ def evaluate_Nion_cond(
             growthf,
             np.log(M_min),
             np.log(M_max),
-            cond_mass,
+            np.log(cond_mass),
             sigma_cond,
             densities[:, None] if flag_options.USE_MINI_HALOS else densities,
             10 ** l10mturns[None, :] if flag_options.USE_MINI_HALOS else mcrit_atom,
@@ -1100,7 +1100,7 @@ def evaluate_Nion_cond(
                 growthf,
                 np.log(M_min),
                 np.log(M_max),
-                cond_mass,
+                np.log(cond_mass),
                 sigma_cond,
                 densities[:, None],
                 10 ** l10mturns[None, :],
@@ -1173,6 +1173,127 @@ def evaluate_Nion_cond(
             False,
         )
     return Nion_acg, Nion_mcg
+
+
+def evaluate_Xray_cond(
+    *,
+    user_params: UserParams,
+    cosmo_params: CosmoParams,
+    astro_params: AstroParams,
+    flag_options: FlagOptions,
+    M_min: float,
+    M_max: float,
+    redshift: float,
+    cond_mass: float,
+    densities: Sequence[float],
+    l10mturns: Sequence[float],
+    return_integral: bool = False,
+):
+    """Evaluates the conditional ionising emissivity expected at a range of densities."""
+    lib.Broadcast_struct_global_all(
+        user_params.cstruct,
+        cosmo_params.cstruct,
+        astro_params.cstruct,
+        flag_options.cstruct,
+    )
+
+    lib.init_ps()
+    if user_params.USE_INTERPOLATION_TABLES:
+        lib.initialiseSigmaMInterpTable(M_min, M_max)
+
+    if (
+        user_params.INTEGRATION_METHOD_ATOMIC == "GAUSS-LEGENDRE"
+        or user_params.INTEGRATION_METHOD_MINI == "GAUSS-LEGENDRE"
+    ):
+        lib.initialise_GL(np.log(M_min), np.log(M_max))
+
+    ap_c = astro_params.cdict
+
+    sigma_cond = lib.EvaluateSigma(np.log(cond_mass))
+    mcrit_atom = (
+        lib.atomic_cooling_threshold(redshift)
+        if flag_options.USE_MINI_HALOS
+        else ap_c["M_TURN"]
+    )
+
+    mlim_fstar_acg = (
+        1e10 * ap_c["F_STAR10"] ** (-1.0 / ap_c["ALPHA_STAR"])
+        if ap_c["ALPHA_STAR"]
+        else 0.0
+    )
+    mlim_fstar_mcg = (
+        1e7 * ap_c["F_STAR7_MINI"] ** (-1.0 / ap_c["ALPHA_STAR_MINI"])
+        if ap_c["ALPHA_STAR_MINI"]
+        else 0.0
+    )
+    growthf = lib.dicke(redshift)
+    t_h = (1 / cosmo_params.cosmo.H(redshift)).to("s").value
+    # Unfortunately we have to do this until we sort out the USE_INTERPOLATION_TABLES flag
+    # Since these integrals take forever if the flag is false
+    if return_integral:
+        Xray = np.vectorize(lib.Xray_ConditionalM)(
+            redshift,
+            growthf,
+            np.log(M_min),
+            np.log(M_max),
+            np.log(cond_mass),
+            sigma_cond,
+            densities[:, None] if flag_options.USE_MINI_HALOS else densities,
+            10 ** l10mturns[None, :] if flag_options.USE_MINI_HALOS else 1.0,
+            mcrit_atom,
+            ap_c["ALPHA_STAR"],
+            ap_c["ALPHA_STAR_MINI"],
+            ap_c["F_STAR10"],
+            ap_c["F_STAR7_MINI"],
+            mlim_fstar_acg,
+            mlim_fstar_mcg,
+            ap_c["L_X"],
+            ap_c["L_X_MINI"],
+            t_h,
+            ap_c["t_STAR"],
+            user_params.cdict["INTEGRATION_METHOD_ATOMIC"],
+        )
+        return Xray
+
+    # TODO: this function needs cleanup
+    if user_params.USE_INTERPOLATION_TABLES:
+        lib.initialise_Xray_Conditional_table(
+            densities.min() - 0.01,
+            densities.max() + 0.01,
+            redshift,
+            growthf,
+            mcrit_atom,
+            M_min,
+            M_max,
+            cond_mass,
+            ap_c["ALPHA_STAR"],
+            ap_c["ALPHA_STAR_MINI"],
+            ap_c["F_STAR10"],
+            ap_c["F_STAR7_MINI"],
+            ap_c["L_X"],
+            ap_c["L_X_MINI"],
+            t_h,
+            ap_c["t_STAR"],
+            user_params.cdict["INTEGRATION_METHOD_ATOMIC"],
+            user_params.cdict["INTEGRATION_METHOD_MINI"],
+            flag_options.USE_MINI_HALOS,
+        )
+
+    Xray = np.vectorize(lib.EvaluateXray_Conditional)(
+        densities[:, None] if flag_options.USE_MINI_HALOS else densities,
+        l10mturns[None, :] if flag_options.USE_MINI_HALOS else mcrit_atom,
+        redshift,
+        growthf,
+        M_min,
+        M_max,
+        cond_mass,
+        sigma_cond,
+        mcrit_atom,
+        t_h,
+        mlim_fstar_acg,
+        mlim_fstar_mcg,
+    )
+    return Xray
 
 
 def halo_sample_test(

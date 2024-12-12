@@ -159,7 +159,7 @@ def test_sampler(name, cond, from_cat, plt):
 #   calculate them in the backend and re-write them in the test for a few masses. This means that
 #   changes to any scaling relation model will result in a test fail
 @pytest.mark.xfail(reason="robust tests for scaling relations not yet implemented")
-def test_halo_scaling_relations(ic, default_input_struct):
+def test_halo_prop_sampling(ic, default_input_struct):
     # specify parameters to use for this test
     redshift = 10.0
     opts = prd.get_all_options(redshift)

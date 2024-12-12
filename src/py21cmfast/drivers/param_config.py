@@ -129,6 +129,12 @@ class InputParameters:
                     "Simultaneously."
                 )
                 raise NotImplementedError(msg)
+            if val.USE_HALO_FIELD and "GAMMA-APPROX" in (
+                self.user_params.INTEGRATION_METHOD_MINI,
+                self.user_params.INTEGRATION_METHOD_ATOMIC,
+            ):
+                msg = "the USE_HALO_FIELD mode uses more complex scaling relations which are not compatible with 'GAMMA-APPROX' integration"
+                raise ValueError(msg)
 
         if val.USE_EXP_FILTER and not val.USE_HALO_FIELD:
             warnings.warn("USE_EXP_FILTER has no effect unless USE_HALO_FIELD is true")
