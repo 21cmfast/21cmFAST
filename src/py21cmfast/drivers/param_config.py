@@ -256,7 +256,7 @@ class single_field_func(_OutputStructComputationInspect):  # noqa: N801
         return out
 
 
-class high_level_func:
+class high_level_func:  # noqa: N801
     """A decorator for high-level functions like ``run_coeval``."""
 
     def __init__(self, _func: callable):
