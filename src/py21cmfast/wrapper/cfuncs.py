@@ -7,10 +7,9 @@ from scipy.interpolate import interp1d
 from typing import Literal, Sequence
 
 from ..c_21cmfast import ffi, lib
-from ..drivers.param_config import InputParameters
 from ._utils import _process_exitcode
 from .globals import global_params
-from .inputs import AstroParams, CosmoParams, FlagOptions, UserParams
+from .inputs import AstroParams, CosmoParams, FlagOptions, InputParameters, UserParams
 from .outputs import InitialConditions, PerturbHaloField
 
 logger = logging.getLogger(__name__)

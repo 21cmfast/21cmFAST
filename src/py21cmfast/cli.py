@@ -3,6 +3,7 @@
 import attrs
 import builtins
 import click
+import contextlib
 import inspect
 import logging
 import matplotlib.pyplot as plt
@@ -13,19 +14,26 @@ from astropy import units as un
 from os import path, remove
 from pathlib import Path
 
-from . import _cfg, cache_tools, global_params, plotting
+from . import _cfg, global_params, plotting
 from .drivers.coeval import run_coeval
 from .drivers.lightcone import exhaust_lightcone, run_lightcone
-from .drivers.param_config import InputParameters, get_logspaced_redshifts
 from .drivers.single_field import (
     compute_initial_conditions,
     compute_ionization_field,
+    compute_spin_temperature,
     perturb_field,
-    spin_temperature,
 )
+from .io.caching import OutputCache
 from .lightcones import RectilinearLightconer
 from .wrapper._utils import camel_to_snake
-from .wrapper.inputs import AstroParams, CosmoParams, FlagOptions, UserParams
+from .wrapper.inputs import (
+    AstroParams,
+    CosmoParams,
+    FlagOptions,
+    InputParameters,
+    UserParams,
+    get_logspaced_redshifts,
+)
 from .wrapper.outputs import (
     HaloBox,
     InitialConditions,
@@ -70,16 +78,14 @@ def _update(obj, ctx):
         # noinspection PyProtectedMember
         if hasattr(obj, k):
             try:
-                val = getattr(obj, "_" + k)
-                setattr(obj, "_" + k, type(val)(ctx[k]))
+                val = getattr(obj, f"_{k}")
+                setattr(obj, f"_{k}", type(val)(ctx[k]))
                 ctx.pop(k)
             except (AttributeError, TypeError):
-                try:
+                with contextlib.suppress(AttributeError):
                     val = getattr(obj, k)
                     setattr(obj, k, type(val)(ctx[k]))
                     ctx.pop(k)
-                except AttributeError:
-                    pass
 
 
 def _get_params_from_ctx(ctx, cfg):
@@ -95,7 +101,7 @@ def _get_params_from_ctx(ctx, cfg):
         # get paramters from context
         ctx_params = {k: v for k, v in ctx.items() if k in fieldnames}
         # remove used params from context
-        [ctx.pop(k) for k in ctx_params.keys()]
+        [ctx.pop(k) for k in ctx_params]
 
         # assign to a parameter dict, prioritising arguments > config > defaults
         params[klsname] = {**cfg.get(klsname, {}), **ctx_params}
@@ -108,7 +114,7 @@ def _get_params_from_ctx(ctx, cfg):
     # Also update globals, always.
     _update(global_params, ctx)
     if ctx:
-        warnings.warn("The following arguments were not able to be set: %s" % ctx)
+        warnings.warn(f"The following arguments were not able to be set: {ctx}")
 
     return user_params, cosmo_params, astro_params, flag_options
 
@@ -182,8 +188,7 @@ def init(ctx, config, regen, direc, seed):
         inputs=inputs,
         regenerate=regen,
         write=True,
-        direc=direc,
-        random_seed=seed,
+        cache=OutputCache(direc),
     )
 
 
@@ -343,7 +348,7 @@ def spin(ctx, redshift, prev_z, config, regen, direc, seed):
     xrs = XraySourceBox(inputs=inputs)
     prev_ts = TsBox(inputs=inputs.clone(redshift=prev_z))
 
-    spin_temperature(
+    compute_spin_temperature(
         redshift=redshift,
         inputs=inputs,
         initial_conditions=ics.read(direc),
@@ -678,8 +683,7 @@ def lightcone(ctx, redshift, config, out, regen, direc, max_z, seed, lq):
         inputs=inputs,
         regenerate=regen,
         write=True,
-        direc=direc,
-        random_seed=seed,
+        cache=OutputCache(direc),
     )
 
     if out:
@@ -687,85 +691,6 @@ def lightcone(ctx, redshift, config, out, regen, direc, max_z, seed, lq):
         lc.save(fname)
 
         print(f"Saved Lightcone to {fname}.")
-
-
-def _query(
-    direc=None,
-    kind=None,
-    md5=None,
-    seed=None,
-    clear=False,
-    sort_by=("kind", "redshift"),
-    show=None,
-):
-    objects = list(
-        cache_tools.query_cache(direc=direc, kind=kind, hsh=md5, seed=seed, show=False)
-    )
-
-    if not clear:
-        print(f"{len(objects)} Data Sets Found:")
-        print("------------------")
-    else:
-        print(f"Removing {len(objects)} data sets...")
-
-    for sorter in sort_by[::-1]:
-        if sorter == "kind":
-            objects = sorted(objects, key=lambda x: x[1].__class__.__name__)
-        elif sorter == "filename":
-            objects = sorted(objects, key=lambda x: x[0])
-        else:
-            objects = sorted(objects, key=lambda x: getattr(x[1], sorter, 0.0))
-
-    for file, c in objects:
-        if not clear:
-            print(f"  @ {file}:")
-            if not show:
-                print(f"  {c}")
-            else:
-                for s in show:
-                    print(f"  {s}: {getattr(c, s, None)}")
-            print()
-
-        else:
-            direc = direc or path.expanduser(_cfg.config["direc"])
-            remove(path.join(direc, file))
-
-
-@main.command()
-@click.option(
-    "-d",
-    "--direc",
-    type=click.Path(exists=True, dir_okay=True),
-    default=None,
-    help="directory to write data and plots to -- must exist.",
-)
-@click.option("-k", "--kind", type=str, default=None, help="filter by kind of data.")
-@click.option("-m", "--md5", type=str, default=None, help="filter by md5 hsh")
-@click.option("-s", "--seed", type=str, default=None, help="filter by random seed")
-@click.option(
-    "--clear/--no-clear",
-    default=False,
-    help="remove all data sets returned by this query.",
-)
-@click.option("--fields", type=str, multiple=True, default=None)
-@click.option("--sort", type=str, multiple=True, default=["kind", "redshift"])
-def query(direc, kind, md5, seed, clear, fields, sort):
-    """Query the cache database.
-
-    Parameters
-    ----------
-    direc : str
-        Directory in which to search for cache items
-    kind : str
-        Filter output by kind of box (eg. InitialConditions)
-    md5 : str
-        Filter output by hsh
-    seed : float
-        Filter output by random seed.
-    clear : bool
-        Remove all data sets returned by the query.
-    """
-    _query(direc, kind, md5, seed, clear, show=fields, sort_by=tuple(sort))
 
 
 @main.command()

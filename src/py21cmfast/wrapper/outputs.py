@@ -17,33 +17,442 @@ from __future__ import annotations
 import attrs
 import logging
 import numpy as np
+import warnings
+from abc import ABC, abstractmethod
+from bidict import bidict
 from cached_property import cached_property
-from typing import Self
+from enum import Enum
+from typing import Any, Literal, Self, Sequence
 
 from .. import __version__
 from ..c_21cmfast import ffi, lib
-from ..drivers.param_config import InputParameters
 from ..wrapper.arrays import Array
-from .inputs import AstroParams, CosmoParams, FlagOptions, UserParams, global_params
-from .structs import OutputStruct
+from .exceptions import _process_exitcode
+from .inputs import (
+    AstroParams,
+    CosmoParams,
+    FlagOptions,
+    InputParameters,
+    InputStruct,
+    UserParams,
+    global_params,
+)
+from .structs import StructWrapper
 
 logger = logging.getLogger(__name__)
+
+_ALL_OUTPUT_STRUCTS = {}
 
 
 def arrayfield(optional: bool = False, **kw):
     if optional:
         return attrs.field(
-            validator=attrs.validators.optional(attrs.validators.instance_of(Array))
+            default=None,
+            validator=attrs.validators.optional(attrs.validators.instance_of(Array)),
+            eq=False,
+            type=Array,
         )
     else:
-        return attrs.field(validator=attrs.validators.instance_of(Array))
+        return attrs.field(
+            validator=attrs.validators.instance_of(Array),
+            eq=False,
+            type=Array,
+        )
 
 
+class _HashType(Enum):
+    user_cosmo = 0
+    zgrid = 1
+    full = 2
+
+
+@attrs.define(slots=False, kw_only=True)
+class OutputStruct(ABC):
+    """Base class for any class that wraps a C struct meant to be output from a C function."""
+
+    _meta = False
+    _fields_ = []
+    _global_params = None
+    _c_based_pointers = ()
+    _c_compute_function = None
+    _compat_hash = _HashType.full
+
+    _TYPEMAP = bidict({"float32": "float *", "float64": "double *", "int32": "int *"})
+
+    inputs: InputParameters = attrs.field(
+        validator=attrs.validators.instance_of(InputParameters)
+    )
+    dummy: bool = attrs.field(default=False, converter=bool)
+    initial: bool = attrs.field(default=False, converter=bool)
+
+    @property
+    def _name(self):
+        """The name of the struct."""
+        return self.__class__.__name__
+
+    def __init_subclass__(cls):
+        if not cls._meta:
+            _ALL_OUTPUT_STRUCTS[cls.__name__] = cls
+
+        return super().__init_subclass__()
+
+    @property
+    def user_params(self) -> UserParams:
+        return self.inputs.user_params
+
+    @property
+    def cosmo_params(self) -> CosmoParams:
+        return self.inputs.cosmo_params
+
+    @property
+    def astro_params(self) -> AstroParams:
+        return self.inputs.astro_params
+
+    @property
+    def flag_Options(self) -> FlagOptions:
+        return self.inputs.flag_options
+
+    def inputs_compatible_with(self, other: OutputStruct | InputParameters) -> bool:
+        if not isinstance(other, OutputStruct | InputParameters):
+            return False
+
+        if isinstance(other, InputParameters):
+            # Compare at the level required by this object only
+            return getattr(self.inputs, f"{self._compat_hash.name}_hash") == getattr(
+                other, f"{self._compat_hash.name}_hash"
+            )
+
+        min_req = min(self._compat_hash.value, other._compat_hash.value)
+        min_req = _HashType(min_req)
+
+        return getattr(self.inputs, f"{min_req.name}_hash") == getattr(
+            other.inputs, f"{min_req.name}_hash"
+        )
+
+    @property
+    def arrays(self) -> dict[str, Array]:
+        me = attrs.asdict(self, recurse=False)
+        return {k: x for k, x in me.items() if isinstance(x, Array)}
+
+    @cached_property
+    def struct(self) -> StructWrapper:
+        """The python-wrapped struct associated with this input object."""
+        return StructWrapper(self._name)
+
+    @cached_property
+    def cstruct(self) -> StructWrapper:
+        """The object pointing to the memory accessed by C-code for this struct."""
+        return self.struct.cstruct
+
+    def _init_arrays(self):
+        for k, array in self.arrays.items():
+            # Don't initialize C-based pointers or already-inited stuff, or stuff
+            # that's computed on disk (if it's on disk, accessing the array should
+            # just give the computed version, which is what we would want, not a
+            # zero-inited array).
+            if array.state.c_memory or array.state.initialized or array.state.on_disk:
+                continue
+
+            setattr(self, k, array.initialize())
+
+    @property
+    def random_seed(self) -> int:
+        """The random seed for this particular instance."""
+        return self.inputs.random_seed
+
+    def sync(self):
+        """Sync the current state of the object with the underlying C-struct.
+
+        This will link any memory initialized by numpy in this object with the underlying
+        C-struct, and also update this object with any values computed from within C.
+        """
+        # Initialize all uninitialized arrays.
+        self._init_arrays()
+        for name, array in self.arrays.items():
+            # We do *not* set COMPUTED_ON_DISK items to the C-struct here, because we have no
+            # way of knowing (in this function) what is required to load in, and we don't want
+            # to unnecessarily load things in. We leave it to the user to ensure that all
+            # required arrays are loaded into memory before calling this function.
+            if array.state.initialized:
+                self.struct.expose_to_c(array, name)
+
+        for k in self.struct.primitive_fields:
+            if getattr(self, k) is not None:
+                setattr(self.struct.cstruct, k, getattr(self, k))
+            else:
+                setattr(self, k, getattr(self.cstruct, k))
+
+    def get(self, ary: str | Array):
+        """If possible, load an array from disk, storing it and returning the underlying array."""
+        if isinstance(ary, str):
+            name = ary
+            try:
+                ary = self.arrays[ary]
+            except KeyError as e:
+                raise AttributeError(f"The array {ary} does not exist") from e
+        elif names := [name for name, x in self.arrays.items() if x is ary]:
+            name = names[0]
+
+        else:
+            raise ValueError("The given array is not a part of this instance.")
+        if not ary.state.on_disk and not ary.state.initialized:
+            raise ValueError(f"Array '{ary.name}' is not on disk and not initialized.")
+
+        if ary.state.on_disk and not ary.state.computed_in_mem:
+            ary = ary.loaded_from_disk()
+            setattr(self, name, ary)
+
+        return ary.value
+
+    def prepare(
+        self,
+        flush: Sequence[str] | None = None,
+        keep: Sequence[str] | None = None,
+        force: bool = False,
+    ):
+        """Prepare the instance for being passed to another function.
+
+        This will flush all arrays in "flush" from memory, and ensure all arrays
+        in "keep" are in memory. At least one of these must be provided. By default,
+        the complement of the given parameter is all flushed/kept.
+
+        Parameters
+        ----------
+        flush
+            Arrays to flush out of memory. Note that if no file is associated with this
+            instance, these arrays will be lost forever.
+        keep
+            Arrays to keep or load into memory. Note that if these do not already
+            exist, they will be loaded from file (if the file exists). Only one of
+            ``flush`` and ``keep`` should be specified.
+        force
+            Whether to force flushing arrays even if no disk storage exists.
+        """
+        if flush is None and keep is None:
+            raise ValueError("Must provide either flush or keep")
+
+        if flush is not None and keep is None:
+            keep = [k for k in self.arrays if k not in flush]
+        elif flush is None:
+            flush = [
+                k
+                for k, array in self.arrays.items()
+                if k not in keep and array.state.initialized
+            ]
+
+        flush = flush or []
+        keep = keep or []
+
+        for k in flush:
+            self._remove_array(k, force=force)
+
+        # For everything we want to keep, we check if it is computed in memory,
+        # and if not, load it from disk.
+        for k in keep:
+            self.get(k)
+
+    def _remove_array(self, k: str, *, force=False):
+        array = self.arrays[k]
+        state = array.state
+
+        if (
+            not state.initialized
+        ):  # TODO: how to handle the case where some arrays aren't required at all?
+            warnings.warn(f"Trying to remove array that isn't yet created: {k}")
+            return
+
+        if state.computed_in_mem and not state.on_disk and not force:
+            raise OSError(
+                f"Trying to purge array '{k}' from memory that hasn't been stored! Use force=True if you meant to do this."
+            )
+
+        if state.c_has_active_memory:  # TODO: do we need C-managed memory any more?
+            lib.free(getattr(self.cstruct, k))
+
+        setattr(self, k, array.without_value())
+
+    def purge(self, force=False):
+        """Flush all the boxes out of memory.
+
+        Parameters
+        ----------
+        force
+            Whether to force the purge even if no disk storage exists.
+        """
+        self.prepare(keep=[], force=force)
+
+    def load_all(self):
+        """Load all possible arrays into memory."""
+        for x in self.arrays:
+            self.get(x)
+
+    @property
+    def is_computed(self) -> bool:
+        """Whether this instance has been computed at all.
+
+        This is true either if the current instance has called :meth:`compute`,
+        or if it has a current existing :attr:`path` pointing to stored data,
+        or if such a path exists.
+
+        Just because the instance has been computed does *not* mean that all
+        relevant quantities are available -- some may have been purged from
+        memory without writing. Use :meth:`has` to check whether certain arrays
+        are available.
+        """
+        return any(v.state.computed for v in self.arrays.values())
+
+    def ensure_arrays_computed(self, *arrays, load=False) -> bool:
+        """Check if the given arrays are computed (not just initialized)."""
+        if not self.is_computed:
+            return False
+
+        computed = all(self.arrays[k].state.computed for k in arrays)
+
+        if computed and load:
+            self.prepare(keep=arrays, flush=[])
+
+        return computed
+
+    def ensure_arrays_inited(self, *arrays, init=False) -> bool:
+        """Check if the given arrays are initialized (or computed)."""
+        inited = all(self.arrays[k].state.initialized for k in arrays)
+
+        if init and not inited:
+            self._init_arrays()
+        return True
+
+    @abstractmethod
+    def get_required_input_arrays(self, input_box: Self) -> list[str]:
+        """Return all input arrays required to compute this object."""
+        pass
+
+    def ensure_input_computed(self, input_box: Self, load: bool = False) -> bool:
+        """Ensure all the inputs have been computed."""
+        if input_box.dummy:
+            return True
+
+        arrays = self.get_required_input_arrays(input_box)
+        if input_box.initial:
+            return input_box.ensure_arrays_inited(*arrays, init=load)
+
+        return input_box.ensure_arrays_computed(*arrays, load=load)
+
+    def summarize(self, indent: int = 0) -> str:
+        """Generate a string summary of the struct."""
+        indent = indent * "    "
+
+        # print array type and column headings
+        out = (
+            f"\n{indent}{self.__class__.__name__:>25}    "
+            + "   1st:         End:         Min:         Max:         Mean:         \n"
+        )
+
+        # print array extrema and means
+        for fieldname, array in self.arrays.items():
+            state = array.state
+            if not state.initialized:
+                out += f"{indent}    {fieldname:>25}:  uninitialized\n"
+            elif not state.computed:
+                out += f"{indent}    {fieldname:>25}:  initialized\n"
+            elif not state.computed_in_mem:
+                out += f"{indent}    {fieldname:>25}:  computed on disk\n"
+            else:
+                x = getattr(self, fieldname).flatten()
+                if len(x) > 0:
+                    out += f"{indent}    {fieldname:>25}: {x[0]:11.4e}, {x[-1]:11.4e}, {x.min():11.4e}, {x.max():11.4e}, {np.mean(x):11.4e}\n"
+                else:
+                    out += f"{indent}    {fieldname:>25}: size zero\n"
+
+        # print primitive fields
+        out += "".join(
+            f"{indent}    {fieldname:>25}: {getattr(self, fieldname, 'non-existent')}\n"
+            for fieldname in self.struct.primitive_fields
+        )
+
+        return out
+
+    @classmethod
+    def _log_call_arguments(cls, *args):
+        logger.debug(f"Calling {cls._c_compute_function.__name__} with following args:")
+
+        for arg in args:
+            if isinstance(arg, OutputStruct):
+                for line in arg.summarize(indent=1).split("\n"):
+                    logger.debug(line)
+            elif isinstance(arg, InputStruct):
+                for line in str(arg).split("\n"):
+                    logger.debug(f"    {line}")
+            else:
+                logger.debug(f"    {arg}")
+
+    def _ensure_arguments_exist(self, *args):
+        for arg in args:
+            if (
+                isinstance(arg, OutputStruct)
+                and not arg.dummy
+                and not self.ensure_input_computed(arg, load=True)
+            ):
+                raise ValueError(
+                    f"Trying to use {arg.__class__.__name__} to compute "
+                    f"{self.__class__.__name__}, but some required arrays "
+                    f"are not computed!\nArrays required: "
+                    f"{self.get_required_input_arrays(arg)}\n"
+                    f"Current State: {[(k, str(v.state)) for k, v in self.arrays.items()]}"
+                )
+
+    def _compute(self, *args):
+        """Compute the actual function that fills this struct."""
+        # Check that all required inputs are really computed, and load them into memory
+        # if they're not already.
+        self._ensure_arguments_exist(*args)
+
+        # Write a detailed message about call arguments if debug turned on.
+        if logger.getEffectiveLevel() <= logging.DEBUG:
+            self._log_call_arguments(*args)
+
+        # Construct the args. All StructWrapper objects need to actually pass their
+        # underlying cstruct, rather than themselves.
+        inputs = [
+            arg.cstruct if isinstance(arg, (OutputStruct, InputStruct)) else arg
+            for arg in args
+        ]
+        # Sync the python/C memory
+        self.sync()
+        for arg in args:
+            if isinstance(arg, OutputStruct):
+                arg.sync()
+
+        # Ensure we haven't already tried to compute this instance.
+        if self.is_computed:
+            raise ValueError(
+                f"You are trying to compute {self.__class__.__name__}, but it has already been computed."
+            )
+
+        # Perform the C computation
+        try:
+            exitcode = self._c_compute_function(*inputs, self.cstruct)
+        except TypeError as e:
+            logger.error(
+                f"Arguments to {self._c_compute_function.__name__}: " f"{inputs}"
+            )
+            raise e
+
+        _process_exitcode(exitcode, self._c_compute_function, args)
+
+        for name, array in self.arrays.items():
+            setattr(self, name, array.set_value(array.value))
+
+        self.sync()
+        return self
+
+
+@attrs.define(slots=False, kw_only=True)
 class InitialConditions(OutputStruct):
     """A class representing an InitialConditions C-struct."""
 
     _c_compute_function = lib.ComputeInitialConditions
     _meta = False
+    _compat_hash = _HashType.user_cosmo
 
     lowres_density = arrayfield()
     lowres_vx = arrayfield()
@@ -64,9 +473,8 @@ class InitialConditions(OutputStruct):
     lowres_vcb = arrayfield(optional=True)
 
     @classmethod
-    def new(cls, inputs: InputParameters) -> Self:
+    def new(cls, inputs: InputParameters, **kw) -> Self:
         """Create a new instance, given a set of input parameters."""
-
         shape = (inputs.user_params.HII_DIM,) * 2 + (
             int(inputs.user_params.NON_CUBIC_FACTOR * inputs.user_params.HII_DIM),
         )
@@ -75,30 +483,30 @@ class InitialConditions(OutputStruct):
         )
 
         out = {
-            "lowres_density": Array(shape),
-            "lowres_vx": Array(shape),
-            "lowres_vy": Array(shape),
-            "lowres_vz": Array(shape),
-            "hires_density": Array(hires_shape),
-            "hires_vx": Array(hires_shape),
-            "hires_vy": Array(hires_shape),
-            "hires_vz": Array(hires_shape),
+            "lowres_density": Array(shape, dtype=np.float32),
+            "lowres_vx": Array(shape, dtype=np.float32),
+            "lowres_vy": Array(shape, dtype=np.float32),
+            "lowres_vz": Array(shape, dtype=np.float32),
+            "hires_density": Array(hires_shape, dtype=np.float32),
+            "hires_vx": Array(hires_shape, dtype=np.float32),
+            "hires_vy": Array(hires_shape, dtype=np.float32),
+            "hires_vz": Array(hires_shape, dtype=np.float32),
         }
 
         if inputs.user_params.USE_2LPT:
             out |= {
-                "lowres_vx_2LPT": Array(shape),
-                "lowres_vy_2LPT": Array(shape),
-                "lowres_vz_2LPT": Array(shape),
-                "hires_vx_2LPT": Array(hires_shape),
-                "hires_vy_2LPT": Array(hires_shape),
-                "hires_vz_2LPT": Array(hires_shape),
+                "lowres_vx_2LPT": Array(shape, dtype=np.float32),
+                "lowres_vy_2LPT": Array(shape, dtype=np.float32),
+                "lowres_vz_2LPT": Array(shape, dtype=np.float32),
+                "hires_vx_2LPT": Array(hires_shape, dtype=np.float32),
+                "hires_vy_2LPT": Array(hires_shape, dtype=np.float32),
+                "hires_vz_2LPT": Array(hires_shape, dtype=np.float32),
             }
 
         if inputs.user_params.USE_RELATIVE_VELOCITIES:
-            out["lowres_vcb"] = Array(shape)
+            out["lowres_vcb"] = Array(shape, dtype=np.float32)
 
-        return cls(inputs=inputs, **out)
+        return cls(inputs=inputs, **out, **kw)
 
     def prepare_for_perturb(self, flag_options: FlagOptions, force: bool = False):
         """Ensure the ICs have all the boxes loaded for perturb, but no extra."""
@@ -143,21 +551,28 @@ class InitialConditions(OutputStruct):
         """Return all input arrays required to compute this object."""
         return []
 
-    def compute(self, hooks: dict):
+    def compute(self):
         """Compute the function."""
         return self._compute(
-            self.random_seed,
-            self.user_params,
-            self.cosmo_params,
-            hooks=hooks,
+            self.inputs.random_seed,
+            self.inputs.user_params,
+            self.inputs.cosmo_params,
         )
 
 
-class PerturbedField(OutputStruct):
+@attrs.define(slots=False, kw_only=True)
+class OutputStructZ(OutputStruct):
+    _meta = True
+    redshift: float = attrs.field(converter=float)
+
+
+@attrs.define(slots=False, kw_only=True)
+class PerturbedField(OutputStructZ):
     """A class containing all perturbed field boxes."""
 
     _c_compute_function = lib.ComputePerturbField
     _meta = False
+    _compat_hash = _HashType.zgrid
 
     density = arrayfield()
     velocity_z = arrayfield()
@@ -165,20 +580,20 @@ class PerturbedField(OutputStruct):
     velocity_y = arrayfield(optional=True)
 
     @classmethod
-    def new(cls, inputs: InputParameters) -> Self:
+    def new(cls, inputs: InputParameters, redshift: float, **kw) -> Self:
         dim = inputs.user_params.HII_DIM
 
         shape = (dim, dim, int(inputs.user_params.NON_CUBIC_FACTOR * dim))
 
         out = {
-            "density": Array(shape),
-            "velocity_z": Array(shape),
+            "density": Array(shape, dtype=np.float32),
+            "velocity_z": Array(shape, dtype=np.float32),
         }
         if inputs.user_params.KEEP_3D_VELOCITIES:
-            out["velocity_x"] = Array(shape)
-            out["velocity_y"] = Array(shape)
+            out["velocity_x"] = Array(shape, dtype=np.float32)
+            out["velocity_y"] = Array(shape, dtype=np.float32)
 
-        return out
+        return cls(redshift=redshift, inputs=inputs, **out, **kw)
 
     def get_required_input_arrays(self, input_box: OutputStruct) -> list[str]:
         """Return all input arrays required to compute this object."""
@@ -213,14 +628,13 @@ class PerturbedField(OutputStruct):
 
         return required
 
-    def compute(self, *, ics: InitialConditions, hooks: dict):
+    def compute(self, *, ics: InitialConditions):
         """Compute the function."""
         return self._compute(
             self.redshift,
             self.user_params,
             self.cosmo_params,
             ics,
-            hooks=hooks,
         )
 
     @property
@@ -229,11 +643,14 @@ class PerturbedField(OutputStruct):
         return self.velocity_z  # for backwards compatibility
 
 
-class PerturbHaloField(OutputStruct):
+@attrs.define(slots=False, kw_only=True)
+class PerturbHaloField(OutputStructZ):
     """A class containing all fields related to halos."""
 
     _c_compute_function = lib.ComputePerturbHaloField
     _meta = False
+    _compat_hash = _HashType.zgrid
+
     buffer_size: int = attrs.field(default=0, converter=int)
 
     halo_masses = arrayfield()
@@ -241,16 +658,17 @@ class PerturbHaloField(OutputStruct):
     sfr_rng = arrayfield()
     xray_rng = arrayfield()
     halo_coords = arrayfield()
+    n_halos: float = attrs.field(default=None)
 
     @classmethod
     def new(cls, inputs: InputParameters, buffer_size: int = 0, **kw) -> Self:
         return cls(
-            inputs,
-            halo_masses=Array((buffer_size,)),
-            star_rng=Array((buffer_size,)),
-            sfr_rng=Array((buffer_size,)),
-            xray_rng=Array((buffer_size,)),
-            halo_coords=Array((buffer_size, 3)),
+            inputs=inputs,
+            halo_masses=Array((buffer_size,), dtype=np.float32),
+            star_rng=Array((buffer_size,), dtype=np.float32),
+            sfr_rng=Array((buffer_size,), dtype=np.float32),
+            xray_rng=Array((buffer_size,), dtype=np.float32),
+            halo_coords=Array((buffer_size, 3), dtype=np.int32),
             **kw,
         )
 
@@ -280,7 +698,7 @@ class PerturbHaloField(OutputStruct):
 
         return required
 
-    def compute(self, *, ics: InitialConditions, halo_field: HaloField, hooks: dict):
+    def compute(self, *, ics: InitialConditions, halo_field: HaloField):
         """Compute the function."""
         return self._compute(
             self.redshift,
@@ -290,13 +708,14 @@ class PerturbHaloField(OutputStruct):
             self.flag_options,
             ics,
             halo_field,
-            hooks=hooks,
         )
 
 
+@attrs.define(slots=False, kw_only=True)
 class HaloField(PerturbHaloField):
     """A class containing all fields related to halos."""
 
+    _c_compute_function = lib.ComputeHaloField
     desc_redshift: float | None = attrs.field(default=None)
 
     def get_required_input_arrays(self, input_box: OutputStruct) -> list[str]:
@@ -327,7 +746,10 @@ class HaloField(PerturbHaloField):
         return required
 
     def compute(
-        self, *, descendant_halos: HaloField, ics: InitialConditions, hooks: dict
+        self,
+        *,
+        descendant_halos: HaloField,
+        ics: InitialConditions,
     ):
         """Compute the function."""
         return self._compute(
@@ -340,11 +762,11 @@ class HaloField(PerturbHaloField):
             ics,
             ics.random_seed,
             descendant_halos,
-            hooks=hooks,
         )
 
 
-class HaloBox(OutputStruct):
+@attrs.define(slots=False, kw_only=True)
+class HaloBox(OutputStructZ):
     """A class containing all gridded halo properties."""
 
     _meta = False
@@ -360,24 +782,29 @@ class HaloBox(OutputStruct):
     n_ion = arrayfield()
     whalo_sfr = arrayfield()
 
+    log10_Mcrit_ACG_ave: float = attrs.field(default=None)
+    log10_Mcrit_MCG_ave: float = attrs.field(default=None)
+
     @classmethod
-    def new(cls, inputs: InputParameters) -> Self:
+    def new(cls, inputs: InputParameters, redshift: float, **kw) -> Self:
         dim = inputs.user_params.HII_DIM
         shape = (dim, dim, int(inputs.user_params.NON_CUBIC_FACTOR * dim))
 
         return cls(
-            inputs,
+            inputs=inputs,
+            redshift=redshift,
             **{
-                "halo_mass": Array(shape),
-                "halo_stars": Array(shape),
-                "halo_stars_mini": Array(shape),
-                "count": Array(shape),
-                "halo_sfr": Array(shape),
-                "halo_sfr_mini": Array(shape),
-                "halo_xray": Array(shape),
-                "n_ion": Array(shape),
-                "whalo_sfr": Array(shape),
+                "halo_mass": Array(shape, dtype=np.float32),
+                "halo_stars": Array(shape, dtype=np.float32),
+                "halo_stars_mini": Array(shape, dtype=np.float32),
+                "count": Array(shape, dtype=np.int32),
+                "halo_sfr": Array(shape, dtype=np.float32),
+                "halo_sfr_mini": Array(shape, dtype=np.float32),
+                "halo_xray": Array(shape, dtype=np.float32),
+                "n_ion": Array(shape, dtype=np.float32),
+                "whalo_sfr": Array(shape, dtype=np.float32),
             },
+            **kw,
         )
 
     def get_required_input_arrays(self, input_box: OutputStruct) -> list[str]:
@@ -420,7 +847,6 @@ class HaloBox(OutputStruct):
         perturbed_field: PerturbedField,
         previous_spin_temp: TsBox,
         previous_ionize_box: IonizedBox,
-        hooks: dict,
     ):
         """Compute the function."""
         return self._compute(
@@ -434,11 +860,11 @@ class HaloBox(OutputStruct):
             pt_halos,
             previous_spin_temp,
             previous_ionize_box,
-            hooks=hooks,
         )
 
 
-class XraySourceBox(OutputStruct):
+@attrs.define(slots=False, kw_only=True)
+class XraySourceBox(OutputStructZ):
     """A class containing the filtered sfr grids."""
 
     _meta = False
@@ -452,7 +878,7 @@ class XraySourceBox(OutputStruct):
     mean_log10_Mcrit_LW = arrayfield()
 
     @classmethod
-    def new(cls, inputs) -> Self:
+    def new(cls, inputs: InputParameters, redshift: float, **kw) -> Self:
         shape = (
             (global_params.NUM_FILTER_STEPS_FOR_Ts,)
             + (inputs.user_params.HII_DIM,) * 2
@@ -460,13 +886,15 @@ class XraySourceBox(OutputStruct):
         )
 
         return cls(
-            inputs,
-            filtered_sfr=Array(shape),
-            filtered_sfr_mini=Array(shape),
-            filtered_xray=Array(shape),
+            inputs=inputs,
+            redshift=redshift,
+            filtered_sfr=Array(shape, dtype=np.float32),
+            filtered_sfr_mini=Array(shape, dtype=np.float32),
+            filtered_xray=Array(shape, dtype=np.float32),
             mean_sfr=Array(shape),
             mean_sfr_mini=Array((global_params.NUM_FILTER_STEPS_FOR_Ts,)),
             mean_log10_Mcrit_LW=Array((global_params.NUM_FILTER_STEPS_FOR_Ts,)),
+            **kw,
         )
 
     def get_required_input_arrays(self, input_box: OutputStruct) -> list[str]:
@@ -487,7 +915,6 @@ class XraySourceBox(OutputStruct):
         R_inner,
         R_outer,
         R_ct,
-        hooks: dict,
     ):
         """Compute the function."""
         return self._compute(
@@ -499,17 +926,15 @@ class XraySourceBox(OutputStruct):
             R_inner,
             R_outer,
             R_ct,
-            hooks=hooks,
         )
 
 
-class TsBox(OutputStruct):
+@attrs.define(slots=False, kw_only=True)
+class TsBox(OutputStructZ):
     """A class containing all spin temperature boxes."""
 
     _c_compute_function = lib.ComputeTsBox
     _meta = False
-
-    prev_spin_redshift: float | None = attrs.field(default=None)
 
     Ts_box = arrayfield()
     x_e_box = arrayfield()
@@ -517,17 +942,18 @@ class TsBox(OutputStruct):
     J_21_LW_box = arrayfield()
 
     @classmethod
-    def new(cls, inputs, prev_spin_redshift: float | None = None) -> Self:
+    def new(cls, inputs: InputParameters, redshift: float, **kw) -> Self:
         shape = (inputs.user_params.HII_DIM,) * 2 + (
             int(inputs.user_params.NON_CUBIC_FACTOR * inputs.user_params.HII_DIM),
         )
         return cls(
-            inputs,
-            Ts_box=Array(shape),
-            x_e_box=Array(shape),
-            Tk_box=Array(shape),
-            J_21_LW_box=Array(shape),
-            prev_spin_redshift=prev_spin_redshift,
+            inputs=inputs,
+            redshift=redshift,
+            Ts_box=Array(shape, dtype=np.float32),
+            x_e_box=Array(shape, dtype=np.float32),
+            Tk_box=Array(shape, dtype=np.float32),
+            J_21_LW_box=Array(shape, dtype=np.float32),
+            **kw,
         )
 
     @cached_property
@@ -593,14 +1019,13 @@ class TsBox(OutputStruct):
         cleanup: bool,
         perturbed_field: PerturbedField,
         xray_source_box: XraySourceBox,
-        prev_spin_temp,
+        prev_spin_temp: TsBox,
         ics: InitialConditions,
-        hooks: dict,
     ):
         """Compute the function."""
         return self._compute(
             self.redshift,
-            self.prev_spin_redshift,
+            prev_spin_temp.redshift,
             self.user_params,
             self.cosmo_params,
             self.astro_params,
@@ -611,20 +1036,31 @@ class TsBox(OutputStruct):
             xray_source_box,
             prev_spin_temp,
             ics,
-            hooks=hooks,
         )
 
 
-class IonizedBox(OutputStruct):
+@attrs.define(slots=False, kw_only=True)
+class IonizedBox(OutputStructZ):
     """A class containing all ionized boxes."""
 
     _meta = False
     _c_compute_function = lib.ComputeIonizedBox
 
-    prev_ionize_redshift: float | None = attrs.field(default=None)
+    xH_box = arrayfield()
+    Gamma12_box = arrayfield()
+    MFP_box = arrayfield()
+    z_re_box = arrayfield()
+    dNrec_box = arrayfield()
+    temp_kinetic_all_gas = arrayfield()
+    Fcoll = arrayfield()
+    Fcoll_MINI = arrayfield(optional=True)
+    log10_Mturnover_ave: float = attrs.field(default=None)
+    log10_Mturnover_MINI_ave: float = attrs.field(default=None)
+    mean_f_coll: float = attrs.field(default=None)
+    mean_f_coll_MINI: float = attrs.field(default=None)
 
     @classmethod
-    def new(cls, inputs, prev_ionize_redshift: float | None) -> Self:
+    def new(cls, inputs, redshift: float, **kw) -> Self:
         if inputs.flag_options.USE_MINI_HALOS:
             n_filtering = (
                 int(
@@ -653,19 +1089,19 @@ class IonizedBox(OutputStruct):
         filter_shape = (n_filtering,) + shape
 
         out = {
-            "xH_box": Array(shape, initfunc=np.ones),
-            "Gamma12_box": Array(shape),
-            "MFP_box": Array(shape),
-            "z_re_box": Array(shape),
-            "dNrec_box": Array(shape),
-            "temp_kinetic_all_gas": Array(shape),
-            "Fcoll": Array(filter_shape),
+            "xH_box": Array(shape, initfunc=np.ones, dtype=np.float32),
+            "Gamma12_box": Array(shape, dtype=np.float32),
+            "MFP_box": Array(shape, dtype=np.float32),
+            "z_re_box": Array(shape, dtype=np.float32),
+            "dNrec_box": Array(shape, dtype=np.float32),
+            "temp_kinetic_all_gas": Array(shape, dtype=np.float32),
+            "Fcoll": Array(filter_shape, dtype=np.float32),
         }
 
         if inputs.flag_options.USE_MINI_HALOS:
-            out["Fcoll_MINI"] = Array(filter_shape)
+            out["Fcoll_MINI"] = Array(filter_shape, dtype=np.float32)
 
-        return out
+        return cls(inputs=inputs, redshift=redshift, **out, **kw)
 
     @cached_property
     def global_xH(self):
@@ -692,13 +1128,13 @@ class IonizedBox(OutputStruct):
             required += ["J_21_LW_box", "x_e_box", "Tk_box"]
         elif isinstance(input_box, IonizedBox):
             required += ["z_re_box", "Gamma12_box"]
-            if self.flag_options.INHOMO_RECO:
+            if self.inputs.flag_options.INHOMO_RECO:
                 required += [
                     "dNrec_box",
                 ]
             if (
-                self.flag_options.USE_MASS_DEPENDENT_ZETA
-                and self.flag_options.USE_MINI_HALOS
+                self.inputs.flag_options.USE_MASS_DEPENDENT_ZETA
+                and self.inputs.flag_options.USE_MINI_HALOS
             ):
                 required += ["Fcoll", "Fcoll_MINI"]
         elif isinstance(input_box, HaloBox):
@@ -719,27 +1155,26 @@ class IonizedBox(OutputStruct):
         spin_temp: TsBox,
         halobox: HaloBox,
         ics: InitialConditions,
-        hooks: dict,
     ):
         """Compute the function."""
         return self._compute(
             self.redshift,
-            self.prev_ionize_redshift,
-            self.user_params,
-            self.cosmo_params,
-            self.astro_params,
-            self.flag_options,
+            prev_perturbed_field.redshift,
+            self.inputs.user_params,
+            self.inputs.cosmo_params,
+            self.inputs.astro_params,
+            self.inputs.flag_options,
             perturbed_field,
             prev_perturbed_field,
             prev_ionize_box,
             spin_temp,
             halobox,
             ics,
-            hooks=hooks,
         )
 
 
-class BrightnessTemp(OutputStruct):
+@attrs.define(slots=False, kw_only=True)
+class BrightnessTemp(OutputStructZ):
     """A class containing the brightness temperature box."""
 
     _c_compute_function = lib.ComputeBrightnessTemp
@@ -748,14 +1183,16 @@ class BrightnessTemp(OutputStruct):
     brightness_temp = arrayfield()
 
     @classmethod
-    def new(cls, inputs) -> Self:
+    def new(cls, inputs: InputParameters, redshift: float, **kw) -> Self:
         shape = (inputs.user_params.HII_DIM,) * 2 + (
             int(inputs.user_params.NON_CUBIC_FACTOR * inputs.user_params.HII_DIM),
         )
 
         return cls(
-            inputs,
-            brightness_temp=Array(shape),
+            inputs=inputs,
+            redshift=redshift,
+            brightness_temp=Array(shape, dtype=np.float32),
+            **kw,
         )
 
     @cached_property
@@ -792,7 +1229,6 @@ class BrightnessTemp(OutputStruct):
         spin_temp: TsBox,
         ionized_box: IonizedBox,
         perturbed_field: PerturbedField,
-        hooks: dict,
     ):
         """Compute the function."""
         return self._compute(
@@ -804,5 +1240,4 @@ class BrightnessTemp(OutputStruct):
             spin_temp,
             ionized_box,
             perturbed_field,
-            hooks=hooks,
         )

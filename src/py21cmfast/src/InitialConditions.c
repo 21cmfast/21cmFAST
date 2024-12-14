@@ -203,6 +203,8 @@ int ComputeInitialConditions(
         }
     }
 
+    LOG_DEBUG("Saved HIRES_box to struct.");
+
     // *** If required, let's also create a lower-resolution version of the density field  *** //
     memcpy(HIRES_box, HIRES_box_saved, sizeof(fftwf_complex)*KSPACE_NUM_PIXELS);
 

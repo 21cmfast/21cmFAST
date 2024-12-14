@@ -147,6 +147,10 @@ def test_lc_runs(name, max_redshift):
         ],
         resolution=options["inputs"].user_params.cell_size,
     )
+
+    # TODO: can this be removed from the get_all_options_struct function?
+    del options["out_redshifts"]
+
     with p21c.config.use(ignore_R_BUBBLE_MAX_error=True):
         _, _, _, lightcone = p21c.exhaust_lightcone(
             lightconer=lcn,
@@ -155,7 +159,7 @@ def test_lc_runs(name, max_redshift):
         )
 
     assert isinstance(lightcone, p21c.LightCone)
-    assert np.all(np.isfinite(lightcone.brightness_temp))
+    assert np.all(np.isfinite(lightcone.lightcones["brightness_temp"]))
     assert lightcone.user_params == options["inputs"].user_params
     assert lightcone.cosmo_params == options["inputs"].cosmo_params
     assert lightcone.astro_params == options["inputs"].astro_params

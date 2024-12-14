@@ -16,8 +16,7 @@ import warnings
 from pathlib import Path
 
 from .wrapper._utils import camel_to_snake
-from .wrapper.inputs import AstroParams, CosmoParams, FlagOptions, UserParams
-from .wrapper.structs import InputStruct
+from .wrapper.inputs import InputStruct
 
 TEMPLATE_PATH = Path(__file__).parent / "templates/"
 

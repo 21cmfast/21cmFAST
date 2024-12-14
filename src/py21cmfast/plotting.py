@@ -168,17 +168,15 @@ def coeval_sliceplot(
     and the `imshow_kw` argument, which allows arbitrary styling of the plot.
     """
     if kind is None:
-        if isinstance(struct, outputs._OutputStruct):
+        if isinstance(struct, outputs.OutputStruct):
             kind = struct.struct.fieldnames[0]
         elif isinstance(struct, Coeval):
             kind = "brightness_temp"
 
-    try:
+    if isinstance(struct, outputs.OutputStruct):
+        cube = struct.get(kind)
+    elif isinstance(struct, Coeval):
         cube = getattr(struct, kind)
-    except AttributeError:
-        raise AttributeError(
-            f"The given OutputStruct does not have the quantity {kind}"
-        )
 
     if kind != "brightness_temp" and "cmap" not in kwargs:
         kwargs["cmap"] = "viridis"
@@ -327,7 +325,7 @@ def lightcone_sliceplot(
     cbar_horizontal = kwargs.pop("cbar_horizontal", not vertical)
     if lightcone2 is None:
         fig, ax = _imshow_slice(
-            getattr(lightcone, kind)[:, :, plot_sel],
+            lightcone.lightcones[kind][:, :, plot_sel],
             extent=extent,
             slice_axis=slice_axis,
             rotate=not vertical,
@@ -338,7 +336,7 @@ def lightcone_sliceplot(
             **kwargs,
         )
     else:
-        d = (getattr(lightcone, kind)[:, :, plot_sel] - getattr(lightcone2, kind))[
+        d = (lightcone.lightcones[kind][:, :, plot_sel] - getattr(lightcone2, kind))[
             :, :, plot_sel
         ]
         fig, ax = _imshow_slice(

@@ -1,6 +1,6 @@
 """Utilities for interacting with 21cmFAST data structures."""
 
-from .wrapper.outputs import InitialConditions, _OutputStructZ
+from .wrapper.outputs import InitialConditions, OutputStruct
 
 
 def get_all_fieldnames(
@@ -18,7 +18,7 @@ def get_all_fieldnames(
         Whether to return results as a dictionary of ``quantity: class_name``.
         Otherwise returns a set of quantities.
     """
-    classes = [cls(redshift=0, dummy=True) for cls in _OutputStructZ._implementations()]
+    classes = [cls(redshift=0, dummy=True) for cls in OutputStruct._implementations()]
 
     if not lightcone_only:
         classes.append(InitialConditions())

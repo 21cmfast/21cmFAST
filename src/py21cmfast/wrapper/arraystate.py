@@ -22,22 +22,24 @@ class ArrayState:
         return attrs.evolve(initialized=False, computed_in_mem=False)
 
     def initialize(self):
-        return attrs.evolve(initialized=True)
+        return attrs.evolve(self, initialized=True)
 
     def as_computed(self):
-        return attrs.evolve(computed_in_mem=True, initialized=True)
+        return attrs.evolve(self, computed_in_mem=True, initialized=True)
 
     def dropped(self):
-        return attrs.evolve(initialized=False, computed_in_mem=False)
+        return attrs.evolve(self, initialized=False, computed_in_mem=False)
 
     def written(self):
-        return attrs.evolve(on_disk=True)
+        return attrs.evolve(self, on_disk=True)
 
     def purged_to_disk(self):
-        return attrs.evolve(initialized=False, computed_in_mem=False, on_disk=True)
+        return attrs.evolve(
+            self, initialized=False, computed_in_mem=False, on_disk=True
+        )
 
     def loaded_from_disk(self):
-        return attrs.evolve(initialized=True, computed_in_mem=True, on_disk=True)
+        return attrs.evolve(self, initialized=True, computed_in_mem=True, on_disk=True)
 
     @property
     def computed(self):

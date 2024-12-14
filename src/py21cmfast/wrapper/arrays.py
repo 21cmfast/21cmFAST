@@ -9,8 +9,6 @@ from pathlib import Path
 from typing import Sequence
 
 from .arraystate import ArrayState
-from .inputs import FlagOptions, UserParams
-from .structs import StructWrapper
 
 
 def tuple_of_ints(x: Sequence[float | int]) -> tuple[int]:
@@ -54,18 +52,16 @@ class H5Backend(CacheBackend):
 
 @attrs.define(slots=False, frozen=True)
 class Array:
-    _shape = attrs.field(converter=tuple_of_ints)
+    shape = attrs.field(converter=tuple_of_ints)
     dtype = attrs.field(default=float, kw_only=True)
     state = attrs.field(factory=ArrayState, kw_only=True)
     initfunc = attrs.field(default=np.zeros, kw_only=True)
-    value = attrs.field(converter=np.asarray, default=None, kw_only=True)
+    value = attrs.field(
+        converter=attrs.converters.optional(np.asarray), default=None, kw_only=True
+    )
     cache_backend = attrs.field(
         default=None, validator=optional(instance_of(CacheBackend)), kw_only=True
     )
-
-    @property
-    def shape(self, up: UserParams, fg: FlagOptions) -> tuple[int]:
-        return self._shape
 
     @value.validator
     def value_validator(self, att, val):
@@ -75,25 +71,24 @@ class Array:
         if val.shape != self.shape:
             raise ValueError(f"Shape mismatch: expected {self.shape}, got {val.shape}")
 
-    def initialize(self, up: UserParams, fg: FlagOptions):
+    def initialize(self):
         """Initialize the array to its initial/default allocated state."""
         if self.state.initialized:
             return self
         else:
             return attrs.evolve(
                 self,
-                value=self.initfunc(self.shape(up, fg)),
+                value=self.initfunc(self.shape, dtype=self.dtype),
                 state=self.state.initialize(),
             )
 
     def set_value(self, val: np.ndarray):
         """Set the array to a given value."""
-        return attrs.evolve(value=val, state=self.state.as_computed())
+        return attrs.evolve(self, value=val, state=self.state.as_computed())
 
     def without_value(self):
         """Remove the allocated data from the array."""
-        self.state.computed_in_mem = False
-        return attrs.evolve(value=None, state=self.state.dropped())
+        return attrs.evolve(self, value=None, state=self.state.dropped())
 
     def written_to_disk(self, backend: CacheBackend | None):
         """Write the array to disk and return a new object with correct state."""
@@ -103,13 +98,13 @@ class Array:
             raise ValueError("backend must be specified")
 
         backend.write(self.value)
-        return attrs.evolve(cache_backend=backend, state=self.state.written())
+        return attrs.evolve(self, cache_backend=backend, state=self.state.written())
 
     def purged_to_disk(self, backend: CacheBackend | None):
         """Move the array data to disk."""
         return attrs.evolve(self.written_to_disk(backend), value=None)
 
-    def loaded_from_disk(self, backend: CacheBackend | None):
+    def loaded_from_disk(self, backend: CacheBackend | None = None):
         if self.value is not None:
             return attrs.evolve(self, cache_backend=backend)
 
@@ -120,16 +115,8 @@ class Array:
 
         value = backend.read()
         return attrs.evolve(
-            value=value, cache_backend=backend, state=self.state.loaded_from_disk()
+            self,
+            value=value,
+            cache_backend=backend,
+            state=self.state.loaded_from_disk(),
         )
-
-    def expose_to_c(self, struct: StructWrapper, name: str):
-        if not self.state.initialized:
-            raise ValueError("Array must be initialized before exposing to C")
-
-        def _ary2buf(ary):
-            return self.struct._ffi.cast(
-                struct._TYPEMAP[ary.dtype.name], struct._ffi.from_buffer(ary)
-            )
-
-        setattr(struct.cstruct, name, _ary2buf(self.value))

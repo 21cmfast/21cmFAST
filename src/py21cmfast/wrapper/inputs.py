@@ -15,19 +15,19 @@ used throughout the computation which are very rarely varied.
 
 from __future__ import annotations
 
+import attrs
 import logging
 import warnings
 from astropy import units as un
 from astropy.cosmology import FLRW, Planck15
-from attrs import converters, define
+from attrs import asdict, define, evolve
 from attrs import field as _field
 from attrs import validators
+from functools import cached_property
 
 from .._cfg import config
-from .._data import DATA_PATH
-from ..c_21cmfast import ffi, lib
 from .globals import global_params
-from .structs import InputStruct
+from .structs import StructWrapper
 
 logger = logging.getLogger(__name__)
 
@@ -72,6 +72,8 @@ def between(mn, mx):
         if val < mn or val > mx:
             raise ValueError(f"{att.name} must be between {mn} and {mx}")
 
+    return vld
+
 
 # Cosmology is from https://arxiv.org/pdf/1807.06209.pdf
 # Table 2, last column. [TT,TE,EE+lowE+lensing+BAO]
@@ -81,6 +83,171 @@ Planck18 = Planck15.clone(
     H0=67.66,
     name="Planck18",
 )
+
+
+define(frozen=True, kw_only=True)
+
+
+class InputStruct:
+    """
+    A convenient interface to create a C structure with defaults specified.
+
+    It is provided for the purpose of *creating* C structures in Python to be passed to
+    C functions, where sensible defaults are available. Structures which are created
+    within C and passed back do not need to be wrapped.
+
+    This provides a *fully initialised* structure, and will fail if not all fields are
+    specified with defaults.
+
+    .. note:: The actual C structure is gotten by calling an instance. This is
+              auto-generated when called, based on the parameters in the class.
+
+    .. warning:: This class will *not* deal well with parameters of the struct which are
+                 pointers. All parameters should be primitive types, except for strings,
+                 which are dealt with specially.
+
+    Parameters
+    ----------
+    ffi : cffi object
+        The ffi object from any cffi-wrapped library.
+    """
+
+    _subclasses = {}
+    _write_exclude_fields = ()
+
+    @classmethod
+    def new(cls, x: dict | InputStruct | None = None, **kwargs):
+        """
+        Create a new instance of the struct.
+
+        Parameters
+        ----------
+        x : dict | InputStruct | None
+            Initial values for the struct. If `x` is a dictionary, it should map field
+            names to their corresponding values. If `x` is an instance of this class,
+            its attributes will be used as initial values. If `x` is None, the
+            struct will be initialised with default values.
+        """
+        if isinstance(x, dict):
+            return cls(**x, **kwargs)
+        elif isinstance(x, InputStruct):
+            return x.clone(**kwargs)
+        elif x is None:
+            return cls(**kwargs)
+        else:
+            raise ValueError(
+                f"Cannot instantiate {cls.__name__} with type {x.__class__}"
+            )
+
+    def __init_subclass__(cls) -> None:
+        cls._subclasses[cls.__name__] = cls
+
+    @cached_property
+    def struct(self) -> StructWrapper:
+        """The python-wrapped struct associated with this input object."""
+        return StructWrapper(self.__class__.__name__)
+
+    @cached_property
+    def cstruct(self) -> StructWrapper:
+        """The object pointing to the memory accessed by C-code for this struct."""
+        cdict = self.cdict
+        for k in self.struct.fieldnames:
+            val = cdict[k]
+
+            if isinstance(val, str):
+                # If it is a string, need to convert it to C string ourselves.
+                val = self.ffi.new("char[]", val.encode())
+
+            setattr(self.struct.cstruct, k, val)
+
+        return self.struct.cstruct
+
+    def clone(self, **kwargs):
+        """Make a fresh copy of the instance with arbitrary parameters updated."""
+        return evolve(self, **kwargs)
+
+    def asdict(self) -> dict:
+        """Return a dict representation of the instance.
+
+        Examples
+        --------
+        This dict should be such that doing the following should work, i.e. it can be
+        used exactly to construct a new instance of the same object::
+
+        >>> inp = InputStruct(**params)
+        >>> newinp =InputStruct(**inp.asdict())
+        >>> inp == newinp
+        """
+        return asdict(self)
+
+    @cached_property
+    def cdict(self) -> dict:
+        """A python dictionary containing the properties of the wrapped C-struct.
+
+        The memory pointed to by this dictionary is *not* owned by the wrapped C-struct,
+        but is rather just a python dict. However, in contrast to :meth:`asdict`, this
+        method transforms the properties to what they should be in C (e.g. linear space
+        vs. log-space) before putting them into the dict.
+
+        This dict also contains *only* the properties of the wrapped C-struct, rather
+        than all properties of the :class:`InputStruct` instance (some attributes of the
+        python instance are there only to guide setting of defaults, and don't appear
+        in the C-struct at all).
+        """
+        fields = attrs.fields(self.__class__)
+        transformers = {
+            field.name: field.metadata.get("transformer", None) for field in fields
+        }
+
+        out = {}
+        for k in self.struct.fieldnames:
+            val = getattr(self, k)
+            # we assume properties (as opposed to attributes) are already converted
+            trns = transformers.get(k)
+            out[k] = val if trns is None else trns(val)
+        return out
+
+    def __str__(self):
+        """Human-readable string representation of the object."""
+        d = self.asdict()
+        biggest_k = max(len(k) for k in d)
+        params = "\n    ".join(sorted(f"{k:<{biggest_k}}: {v}" for k, v in d.items()))
+        return f"""{self.__class__.__name__}:{params} """
+
+    @classmethod
+    def from_subdict(cls, dct, safe=True):
+        """Construct an instance of a parameter structure from a dictionary."""
+        fieldnames = [
+            field.name
+            for field in attrs.fields(cls)
+            if field.eq and field.default is not None
+        ]
+        if set(fieldnames) != set(dct.keys()):
+            missing_items = [
+                (field.name, field.default)
+                for field in attrs.fields(cls)
+                if field.name not in dct.keys() and field.name in fieldnames
+            ]
+            extra_items = [(k, v) for k, v in dct.items() if k not in fieldnames]
+            message = (
+                f"There are extra or missing {cls.__name__} in the file to be read.\n"
+                f"EXTRAS: {extra_items}\n"
+                f"MISSING: {missing_items}\n"
+            )
+            if safe:
+                raise ValueError(
+                    message
+                    + "set `safe=False` to load structures from previous versions"
+                )
+            else:
+                warnings.warn(
+                    message
+                    + "\nExtras are ignored and missing are set to default (shown) values."
+                    + "\nUsing these parameter structures in further computation will give inconsistent results."
+                )
+            dct = {k: v for k, v in dct.items() if k in fieldnames}
+
+        return cls.new(dct)
 
 
 @define(frozen=True, kw_only=True)
@@ -143,6 +310,11 @@ class CosmoParams(InputStruct):
         return cls(
             hlittle=cosmo.h, OMm=cosmo.Om0, OMb=cosmo.Ob0, base_cosmo=cosmo, **kwargs
         )
+
+    def asdict(self) -> dict:
+        d = super().asdict()
+        del d["_base_cosmo"]
+        return d
 
 
 @define(frozen=True, kw_only=True)
@@ -828,3 +1000,262 @@ class AstroParams(InputStruct):
                 NU_X_MAX
                 """
             )
+
+
+class InputCrossValidationError(ValueError):
+    """Error when two parameters from different structs aren't consistent."""
+
+    pass
+
+
+def input_param_field(kls: InputStruct):
+    """An attrs field that must be an InputStruct.
+
+    Parameters
+    ----------
+    kls : InputStruct subclass
+        The parameter structure which should be returned as an attrs field
+
+    """
+    return _field(
+        default=kls.new(),
+        converter=kls.new,
+        validator=validators.instance_of(kls),
+    )
+
+
+def get_logspaced_redshifts(
+    min_redshift: float,
+    z_step_factor: float,
+    max_redshift: float,
+) -> tuple[float]:
+    """Compute a sequence of redshifts to evolve over that are log-spaced."""
+    redshifts = [min_redshift]
+    while redshifts[-1] < max_redshift:
+        redshifts.append((redshifts[-1] + 1.0) * z_step_factor - 1.0)
+
+    return tuple(redshifts[::-1])
+
+
+def _node_redshifts_converter(value) -> tuple[float] | None:
+    if value is None or len(value) == 0:
+        return ()
+    if hasattr(value, "__len__"):
+        return tuple(sorted([float(v) for v in value], reverse=True))
+    return (float(value),)
+
+
+@define(kw_only=True, frozen=True)
+class InputParameters:
+    """A class defining a collection of InputStruct instances.
+
+    This class simplifies combining different InputStruct instances together, performing
+    validation checks between them, and being able to cross-check compatibility between
+    different sets of instances.
+    """
+
+    random_seed = _field(converter=int)
+    user_params: UserParams = input_param_field(UserParams)
+    cosmo_params: CosmoParams = input_param_field(CosmoParams)
+    flag_options: FlagOptions = input_param_field(FlagOptions)
+    astro_params: AstroParams = input_param_field(AstroParams)
+    node_redshifts = _field(converter=_node_redshifts_converter)
+
+    @node_redshifts.default
+    def _node_redshifts_default(self):
+        return (
+            get_logspaced_redshifts(
+                min_redshift=5.5,
+                max_redshift=self.user_params.Z_HEAT_MAX,
+                z_step_factor=self.user_params.ZPRIME_STEP_FACTOR,
+            )
+            if (self.flag_options.INHOMO_RECO or self.flag_options.USE_TS_FLUCT)
+            else None
+        )
+
+    @node_redshifts.validator
+    def _node_redshifts_validator(self, att, val):
+        if (self.flag_options.INHOMO_RECO or self.flag_options.USE_TS_FLUCT) and max(
+            val
+        ) < self.user_params.Z_HEAT_MAX:
+            raise ValueError(
+                "For runs with inhomogeneous recombinations or spin temperature fluctuations,\n"
+                + f"your maximum passed node_redshifts {max(val)} must be above Z_HEAT_MAX {self.user_params.Z_HEAT_MAX}"
+            )
+
+    @flag_options.validator
+    def _flag_options_validator(self, att, val):
+        if self.user_params is not None:
+            if (
+                val.USE_MINI_HALOS
+                and not self.user_params.USE_RELATIVE_VELOCITIES
+                and not val.FIX_VCB_AVG
+            ):
+                warnings.warn(
+                    "USE_MINI_HALOS needs USE_RELATIVE_VELOCITIES to get the right evolution!"
+                )
+
+            if val.HALO_STOCHASTICITY and self.user_params.PERTURB_ON_HIGH_RES:
+                msg = (
+                    "Since the lowres density fields are required for the halo sampler"
+                    "We are currently unable to use PERTURB_ON_HIGH_RES and HALO_STOCHASTICITY"
+                    "Simultaneously."
+                )
+                raise NotImplementedError(msg)
+
+        if val.USE_EXP_FILTER and not val.USE_HALO_FIELD:
+            warnings.warn("USE_EXP_FILTER has no effect unless USE_HALO_FIELD is true")
+
+    @astro_params.validator
+    def _astro_params_validator(self, att, val):
+        if val.R_BUBBLE_MAX > self.user_params.BOX_LEN:
+            raise InputCrossValidationError(
+                f"R_BUBBLE_MAX is larger than BOX_LEN ({val.R_BUBBLE_MAX} > {self.user_params.BOX_LEN}). This is not allowed."
+            )
+
+        if val.R_BUBBLE_MAX != 50 and self.flag_options.INHOMO_RECO:
+            warnings.warn(
+                "You are setting R_BUBBLE_MAX != 50 when INHOMO_RECO=True. "
+                "This is non-standard (but allowed), and usually occurs upon manual "
+                "update of INHOMO_RECO"
+            )
+
+        if val.M_TURN > 8 and self.flag_options.USE_MINI_HALOS:
+            warnings.warn(
+                "You are setting M_TURN > 8 when USE_MINI_HALOS=True. "
+                "This is non-standard (but allowed), and usually occurs upon manual "
+                "update of M_TURN"
+            )
+
+        if (
+            global_params.HII_FILTER == 1
+            and val.R_BUBBLE_MAX > self.user_params.BOX_LEN / 3
+        ):
+            msg = (
+                "Your R_BUBBLE_MAX is > BOX_LEN/3 "
+                f"({val.R_BUBBLE_MAX} > {self.user_params.BOX_LEN / 3})."
+            )
+
+            if config["ignore_R_BUBBLE_MAX_error"]:
+                warnings.warn(msg)
+            else:
+                raise ValueError(msg)
+
+    @user_params.validator
+    def _user_params_validator(self, att, val):
+        # perform a very rudimentary check to see if we are underresolved and not using the linear approx
+        if val.BOX_LEN > val.DIM and not global_params.EVOLVE_DENSITY_LINEARLY:
+            warnings.warn(
+                "Resolution is likely too low for accurate evolved density fields\n It Is recommended"
+                + "that you either increase the resolution (DIM/BOX_LEN) or"
+                + "set the EVOLVE_DENSITY_LINEARLY flag to 1"
+            )
+
+    def __getitem__(self, key):
+        """Get an item from the instance in a dict-like manner."""
+        # Also allow using **input_parameters
+        return getattr(self, key)
+
+    def is_compatible_with(self, other: InputParameters) -> bool:
+        """Check if this object is compatible with another parameter struct.
+
+        Compatibility is slightly different from strict equality. Compatibility requires
+        that if a parameter struct *exists* on the other object, then it must be equal
+        to this one. That is, if astro_params is None on the other InputParameter object,
+        then this one can have astro_params as NOT None, and it will still be
+        compatible. However the inverse is not true -- if this one has astro_params as
+        None, then all others must have it as None as well.
+        """
+        if not isinstance(other, InputParameters):
+            return False
+
+        return not any(
+            other[key] is not None and self[key] is not None and self[key] != other[key]
+            for key in self.merge_keys()
+        )
+
+    def check_output_compatibility(self, output_structs):
+        """Generate a new InputParameters instance given a list of OutputStructs.
+
+        In contrast to other construction methods, we do not accept overwriting of
+        sub-fields here, since it will no longer be compatible with the output structs.
+
+        All required fields not present in the `OutputStruct` objects need to be provided.
+        """
+        # get matching fields in each output struct
+        fieldnames = [field.name for field in attrs.fields(self.__class__) if field.eq]
+        for struct in output_structs:
+            if struct is None:
+                continue
+
+            input_params = {
+                k.lstrip(""): getattr(struct, k, None)
+                for k in struct._inputs
+                if k.lstrip("") in fieldnames
+            }
+
+            # Since self is always complete we can just compare against it
+            for field, struct_val in input_params.items():
+                input_val = getattr(self, field)
+                if struct_val is not None and struct_val != input_val:
+                    raise ValueError(
+                        f"InputParameters not compatible with {struct} {field}: inputs {input_val} != struct {struct_val}"
+                    )
+
+    def evolve_input_structs(self, **kwargs):
+        """Return an altered clone of the `InputParameters` structs.
+
+        Unlike clone(), this function takes fields from the constituent `InputStruct` classes
+        and only overwrites those sub-fields instead of the entire field
+        """
+        struct_args = {}
+        for inp_type in ("cosmo_params", "user_params", "astro_params", "flag_options"):
+            obj = getattr(self, inp_type)
+            struct_args[inp_type] = obj.clone(
+                **{k: v for k, v in kwargs.items() if hasattr(obj, k)}
+            )
+
+        return self.clone(**struct_args)
+
+    @classmethod
+    def from_template(cls, name, **kwargs):
+        """Construct full InputParameters instance from native or TOML file template.
+
+        Takes `InputStruct` fields as keyword arguments which overwrite the template/default fields
+        """
+        from ..run_templates import create_params_from_template
+
+        return cls(
+            **create_params_from_template(name),
+            **kwargs,
+        )
+
+    def clone(self, **kwargs):
+        """Generate a copy of the InputParameter structure with specified changes."""
+        return evolve(self, **kwargs)
+
+    def __repr__(self):
+        """
+        String representation of the structure.
+
+        Created by combining repr methods from the InputStructs
+        which make up this object
+        """
+        return (
+            f"cosmo_params: {repr(self.cosmo_params)}\n"
+            + f"user_params: {repr(self.user_params)}\n"
+            + f"astro_params: {repr(self.astro_params)}\n"
+            + f"flag_options: {repr(self.flag_options)}\n"
+        )
+
+    @cached_property
+    def user_cosmo_hash(self):
+        return hash((self.random_seed, self.user_params, self.cosmo_params))
+
+    @cached_property
+    def zgrid_hash(self):
+        return hash((self.user_cosmo_hash, self.node_redshifts))
+
+    @cached_property
+    def full_hash(self):
+        return hash(self)

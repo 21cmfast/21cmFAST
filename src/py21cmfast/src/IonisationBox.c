@@ -377,6 +377,8 @@ void setup_first_z_prevbox(IonizedBox *previous_ionize_box, PerturbedField *prev
         }
     }
 
+    LOG_DEBUG("Got Z_RE_BOX for previous.");
+
     //previous Gamma12 is used for reionisation feedback when USE_MINI_HALOS
     //previous delta and Fcoll are used for the trapezoidal integral when USE_MINI_HALOS
     if(flag_options_global->USE_MINI_HALOS){
@@ -390,6 +392,8 @@ void setup_first_z_prevbox(IonizedBox *previous_ionize_box, PerturbedField *prev
             }
         }
     }
+    LOG_DEBUG("Got DENSITY for previous.");
+
 }
 
 void calculate_mcrit_boxes(IonizedBox *prev_ionbox, TsBox *spin_temp, InitialConditions *ini_boxes, struct IonBoxConstants *consts,

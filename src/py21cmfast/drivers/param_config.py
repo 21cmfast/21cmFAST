@@ -2,306 +2,268 @@
 
 from __future__ import annotations
 
-import attrs
+import contextlib
+import inspect
 import logging
 import numpy as np
-import warnings
-from pathlib import Path
-from typing import Any, Sequence
+from typing import Any, get_args
 
-from .._cfg import config
-from ..run_templates import create_params_from_template
+from ..io import h5
 from ..io.caching import OutputCache
-from ..wrapper.globals import global_params
-from ..wrapper.inputs import (
-    AstroParams,
-    CosmoParams,
-    FlagOptions,
-    InputStruct,
-    UserParams,
-)
+from ..wrapper.cfuncs import construct_fftw_wisdoms
+from ..wrapper.inputs import InputParameters
+from ..wrapper.outputs import OutputStruct, OutputStructZ, _HashType
 
 logger = logging.getLogger(__name__)
 
 
-class InputCrossValidationError(ValueError):
-    """Error when two parameters from different structs aren't consistent."""
-
-    pass
-
-
-def input_param_field(kls: InputStruct):
-    """An attrs field that must be an InputStruct.
-
-    Parameters
-    ----------
-    kls : InputStruct subclass
-        The parameter structure which should be returned as an attrs field
-
-    """
-    return attrs.field(
-        default=kls.new(),
-        converter=kls.new,
-        validator=attrs.validators.instance_of(kls),
-    )
-
-
-def get_logspaced_redshifts(
-    min_redshift: float,
-    z_step_factor: float,
-    max_redshift: float,
+def check_redshift_consistency(
+    redshift: float, output_structs: list[OutputStruct], funcname: str = "unknown"
 ):
-    """Compute a sequence of redshifts to evolve over that are log-spaced."""
-    redshifts = [min_redshift]
-    while redshifts[-1] < max_redshift:
-        redshifts.append((redshifts[-1] + 1.0) * z_step_factor - 1.0)
-
-    return np.array(redshifts)[::-1]
-
-
-def _node_redshifts_converter(value, self):
-    # we assume an array-like is passed
-    if hasattr(value, "__len__"):
-        return np.sort(np.array(value, dtype=float).flatten())[::-1]
-    if isinstance(value, float):
-        return np.array([value])
-    return np.array([])
-
-
-@attrs.define(kw_only=True, frozen=True)
-class InputParameters:
-    """A class defining a collection of InputStruct instances.
-
-    This class simplifies combining different InputStruct instances together, performing
-    validation checks between them, and being able to cross-check compatibility between
-    different sets of instances.
-    """
-
-    random_seed = attrs.field(converter=int)
-    user_params: UserParams = input_param_field(UserParams)
-    cosmo_params: CosmoParams = input_param_field(CosmoParams)
-    flag_options: FlagOptions = input_param_field(FlagOptions)
-    astro_params: AstroParams = input_param_field(AstroParams)
-
-    # passed to the converter, TODO: this can be cleaned up
-    node_redshifts = attrs.field(
-        converter=attrs.Converter(_node_redshifts_converter, takes_self=True)
-    )
-
-    @node_redshifts.default
-    def _node_redshifts_default(self):
-        return (
-            get_logspaced_redshifts(
-                min_redshift=5.5,
-                max_redshift=self.user_params.Z_HEAT_MAX,
-                z_step_factor=self.user_params.ZPRIME_STEP_FACTOR,
-            )
-            if (self.flag_options.INHOMO_RECO or self.flag_options.USE_TS_FLUCT)
-            else None
-        )
-
-    @node_redshifts.validator
-    def _node_redshifts_validator(self, att, val):
-        if (
-            self.flag_options.INHOMO_RECO or self.flag_options.USE_TS_FLUCT
-        ) and val.max() < self.user_params.Z_HEAT_MAX:
-            raise ValueError(
-                "For runs with inhomogeneous recombinations or spin temperature fluctuations,\n"
-                + f"your maximum passed node_redshifts {val.max()} must be above Z_HEAT_MAX {self.user_params.Z_HEAT_MAX}"
-            )
-
-    @flag_options.validator
-    def _flag_options_validator(self, att, val):
-        if self.user_params is not None:
-            if (
-                val.USE_MINI_HALOS
-                and not self.user_params.USE_RELATIVE_VELOCITIES
-                and not val.FIX_VCB_AVG
-            ):
-                warnings.warn(
-                    "USE_MINI_HALOS needs USE_RELATIVE_VELOCITIES to get the right evolution!"
-                )
-
-            if val.HALO_STOCHASTICITY and self.user_params.PERTURB_ON_HIGH_RES:
-                msg = (
-                    "Since the lowres density fields are required for the halo sampler"
-                    "We are currently unable to use PERTURB_ON_HIGH_RES and HALO_STOCHASTICITY"
-                    "Simultaneously."
-                )
-                raise NotImplementedError(msg)
-
-        if val.USE_EXP_FILTER and not val.USE_HALO_FIELD:
-            warnings.warn("USE_EXP_FILTER has no effect unless USE_HALO_FIELD is true")
-
-    @astro_params.validator
-    def _astro_params_validator(self, att, val):
-        if val.R_BUBBLE_MAX > self.user_params.BOX_LEN:
-            raise InputCrossValidationError(
-                f"R_BUBBLE_MAX is larger than BOX_LEN ({val.R_BUBBLE_MAX} > {self.user_params.BOX_LEN}). This is not allowed."
-            )
-
-        if val.R_BUBBLE_MAX != 50 and self.flag_options.INHOMO_RECO:
-            warnings.warn(
-                "You are setting R_BUBBLE_MAX != 50 when INHOMO_RECO=True. "
-                "This is non-standard (but allowed), and usually occurs upon manual "
-                "update of INHOMO_RECO"
-            )
-
-        if val.M_TURN > 8 and self.flag_options.USE_MINI_HALOS:
-            warnings.warn(
-                "You are setting M_TURN > 8 when USE_MINI_HALOS=True. "
-                "This is non-standard (but allowed), and usually occurs upon manual "
-                "update of M_TURN"
-            )
-
-        if (
-            global_params.HII_FILTER == 1
-            and val.R_BUBBLE_MAX > self.user_params.BOX_LEN / 3
-        ):
-            msg = (
-                "Your R_BUBBLE_MAX is > BOX_LEN/3 "
-                f"({val.R_BUBBLE_MAX} > {self.user_params.BOX_LEN / 3})."
-            )
-
-            if config["ignore_R_BUBBLE_MAX_error"]:
-                warnings.warn(msg)
-            else:
-                raise ValueError(msg)
-
-    @user_params.validator
-    def _user_params_validator(self, att, val):
-        # perform a very rudimentary check to see if we are underresolved and not using the linear approx
-        if val.BOX_LEN > val.DIM and not global_params.EVOLVE_DENSITY_LINEARLY:
-            warnings.warn(
-                "Resolution is likely too low for accurate evolved density fields\n It Is recommended"
-                + "that you either increase the resolution (DIM/BOX_LEN) or"
-                + "set the EVOLVE_DENSITY_LINEARLY flag to 1"
-            )
-
-    def __getitem__(self, key):
-        """Get an item from the instance in a dict-like manner."""
-        # Also allow using **input_parameters
-        return getattr(self, key)
-
-    def is_compatible_with(self, other: InputParameters) -> bool:
-        """Check if this object is compatible with another parameter struct.
-
-        Compatibility is slightly different from strict equality. Compatibility requires
-        that if a parameter struct *exists* on the other object, then it must be equal
-        to this one. That is, if astro_params is None on the other InputParameter object,
-        then this one can have astro_params as NOT None, and it will still be
-        compatible. However the inverse is not true -- if this one has astro_params as
-        None, then all others must have it as None as well.
-        """
-        if not isinstance(other, InputParameters):
-            return False
-
-        return not any(
-            other[key] is not None and self[key] is not None and self[key] != other[key]
-            for key in self.merge_keys()
-        )
-
-    def check_output_compatibility(self, output_structs):
-        """Generate a new InputParameters instance given a list of OutputStructs.
-
-        In contrast to other construction methods, we do not accept overwriting of
-        sub-fields here, since it will no longer be compatible with the output structs.
-
-        All required fields not present in the `OutputStruct` objects need to be provided.
-        """
-        # get matching fields in each output struct
-        fieldnames = [field.name for field in attrs.fields(self.__class__) if field.eq]
-        for struct in output_structs:
-            if struct is None:
-                continue
-
-            input_params = {
-                k.lstrip(""): getattr(struct, k, None)
-                for k in struct._inputs
-                if k.lstrip("") in fieldnames
-            }
-
-            # Since self is always complete we can just compare against it
-            for field, struct_val in input_params.items():
-                input_val = getattr(self, field)
-                if struct_val is not None and struct_val != input_val:
-                    raise ValueError(
-                        f"InputParameters not compatible with {struct} {field}: inputs {input_val} != struct {struct_val}"
-                    )
-
-    def evolve_input_structs(self, **kwargs):
-        """Return an altered clone of the `InputParameters` structs.
-
-        Unlike clone(), this function takes fields from the constituent `InputStruct` classes
-        and only overwrites those sub-fields instead of the entire field
-        """
-        struct_args = {}
-        for inp_type in ("cosmo_params", "user_params", "astro_params", "flag_options"):
-            obj = getattr(self, inp_type)
-            struct_args[inp_type] = obj.clone(
-                **{k: v for k, v in kwargs.items() if hasattr(obj, k)}
-            )
-
-        return self.clone(**struct_args)
-
-    @classmethod
-    def from_template(cls, name, **kwargs):
-        """Construct full InputParameters instance from native or TOML file template.
-
-        Takes `InputStruct` fields as keyword arguments which overwrite the template/default fields
-        """
-        return cls(
-            **create_params_from_template(name),
-            **kwargs,
-        )
-
-    def clone(self, **kwargs):
-        """Generate a copy of the InputParameter structure with specified changes."""
-        return attrs.evolve(self, **kwargs)
-
-    def __repr__(self):
-        """
-        String representation of the structure.
-
-        Created by combining repr methods from the InputStructs
-        which make up this object
-        """
-        return (
-            f"cosmo_params: {repr(self.cosmo_params)}\n"
-            + f"user_params: {repr(self.user_params)}\n"
-            + f"astro_params: {repr(self.astro_params)}\n"
-            + f"flag_options: {repr(self.flag_options)}\n"
-        )
-
-    # TODO: methods for equality: w/o redshifts, w/o seed
-
-
-def check_redshift_consistency(redshift, output_structs):
     """Make sure all given OutputStruct objects exist at the same given redshift."""
     for struct in output_structs:
         if struct is not None and struct.redshift != redshift:
             raise ValueError(
-                f"Incompatible redshifts with inputs and {struct.__class__.__name__}: {redshift} != {struct.redshift}"
+                f"Incompatible redshifts with inputs and {struct.__class__.__name__} in {funcname}: {redshift} != {struct.redshift}"
             )
 
 
-def _get_config_options(
-    direc: str | Path | None, write: bool | callable, hooks: dict
-) -> tuple[OutputCache, dict[callable, dict[str, Any]]]:
-    if hooks is None or len(hooks) > 0:
-        hooks = hooks or {}
+def check_output_consistency(outputs: dict[str, OutputStruct]) -> None:
+    """Ensure all OutputStruct objects have consistent InputParameters."""
+    outputs = {n: output for n, output in outputs.items() if output is not None}
 
-        if callable(write) and write not in hooks:
-            hooks[write] = {"direc": direc}
+    if len(outputs) < 2:
+        return
 
-        if not hooks:
-            if write is None:
-                write = config["write"]
+    o0 = list(outputs.values())[0]
+    n0 = list(outputs.keys())[0]
 
-            if not callable(write) and write:
-                hooks["write"] = {"direc": direc}
+    for name, output in outputs.items():
+        if not output.inputs_compatible_with(o0):
+            raise ValueError(
+                f"InputParameters in {name} do not match those in {n0}. Got:\n\n"
+                f"{name}: {output.inputs}\n\n"
+                f"{n0}: {o0.inputs}\n\n"
+            )
 
-    return (
-        OutputCache(direc),
-        hooks,
-    )
+
+class _OutputStructComputationInspect:
+    """A class that wraps single-field computations."""
+
+    def __init__(self, _func: callable):
+        self._func = _func
+        self._signature = inspect.signature(_func)
+        self._kls = self._signature.return_annotation
+
+        if not issubclass(self._signature.return_annotation, OutputStruct):
+            raise TypeError(
+                f"{_func.__name__} must return an instance of OutputStruct (and be annotated as such)."
+            )
+
+    @staticmethod
+    def _get_inputs(kwargs: dict[str, Any]) -> InputParameters:
+        """Return the most detailed input parameters available.
+
+        For a given set of parameters to a single-field function, find the "inputs"
+        that should be used for instantiating the OutputStruct that the function will
+        return.
+
+        If the parameter "inputs" is given directly, just return that. If not, the
+        inputs must be determined from given OutputStruct parameters that are
+        dependencies of the desired OutputStruct. In this case, we can run into the
+        situation that different dependent OutputStruct's have different inputs. Even
+        though all must be compatible with each other, more basic OutputStructs (like
+        InitialConditions) might not have the same zgrid as the PerturbedField (for
+        example) and this fine. So, here we return the inputs of the "most advanced"
+        OutputStruct that is given.
+        """
+        inputs = kwargs.get("inputs")
+        if inputs is not None:
+            return inputs
+
+        outputs = single_field_func._get_all_output_struct_inputs(kwargs)
+
+        minreq = _HashType(0)
+        for output in outputs.values():
+            if output._compat_hash.value >= minreq.value:
+                inputs = output.inputs
+                minreq = output._compat_hash
+
+        return inputs
+
+    @staticmethod
+    def _get_all_output_struct_inputs(kwargs):
+        return {k: v for k, v in kwargs.items() if isinstance(v, OutputStruct)}
+
+    @staticmethod
+    def check_consistency(kwargs, outputs: dict[str, OutputStruct]):
+        """Check consistency of input parameters amongst output struct inputs."""
+        check_output_consistency(outputs)
+
+        given_inputs = kwargs.get("inputs")
+        if given_inputs is not None:
+            # Also check consistency with explicitly given inputs.
+            # Here, we only need to check consistency at the level required by the
+            # *output* object in each case.
+            for name, output in outputs.items():
+                if not output.inputs_compatible_with(given_inputs):
+                    raise ValueError(
+                        f"{name} has inconsistent inputs with the given inputs.\n\n"
+                        f"OutputStruct inputs:\n{output.inputs}\n\n"
+                        f"Inputs:\n{given_inputs}.\n"
+                        f"Comparison hash type: {output._compat_hash}"
+                    )
+
+    def _make_wisdoms(self, inputs: InputParameters):
+        """Decorator for single-field functions that needs FFTW wisdom."""
+        construct_fftw_wisdoms(
+            user_params=inputs.user_params, cosmo_params=inputs.cosmo_params
+        )
+
+    def check_output_struct_types(self, outputs: dict[str, OutputStruct]):
+        """Check given OutputStruct-type parameters."""
+        for name, param in self._signature.parameters.items():
+            val = outputs.get(name)
+            tp = param.annotation
+            if np.issubclass_(tp, OutputStruct) and not isinstance(val, tp):
+                raise TypeError(
+                    f"{name} should be of type {param.annotation.__name__}, got {type(val)}"
+                )
+            elif potential_types := get_args(tp):
+                if type(None) in potential_types and val is None:
+                    continue
+                kls = tuple(
+                    kls for kls in potential_types if np.issubclass_(kls, OutputStruct)
+                )
+                if not kls:
+                    # This is not an OutputStruct kind of parameter, ignore.
+                    continue
+                elif len(kls) > 1:
+                    raise TypeError(
+                        f"{name} parameter has a badly defined type in the signature. Please report this on Github."
+                    )
+                else:
+                    kls = kls[0]
+                    if not isinstance(val, kls):
+                        raise TypeError(
+                            f"{name} should be of type {kls.__name__}, got {type(val)}"
+                        )
+
+    def _get_current_redshift(
+        self, outputs: dict[str, OutputStructZ], kwargs
+    ) -> float | None:
+        redshift = kwargs.get("redshift")
+        if redshift is None:
+            if current_outputs := [
+                v for k, v in outputs.items() if not k.startswith("previous_")
+            ]:
+                redshift = current_outputs[0].redshift
+
+        return redshift
+
+    def ensure_redshift_consistency(
+        self, current_redshift: float, outputs: dict[str, OutputStruct]
+    ):
+        if not outputs:
+            return
+
+        if current_outputs := [
+            v for k, v in outputs.items() if not k.startswith("previous_")
+        ]:
+            check_redshift_consistency(
+                current_redshift, current_outputs, funcname=self._func.__name__
+            )
+
+        previous_outputs = [v for k, v in outputs.items() if k.startswith("previous_")]
+        inputs = list(outputs.values())[0].inputs
+        if inputs.node_redshifts is not None:
+            previous_z = [z for z in inputs.node_redshifts if z > current_redshift]
+            if previous_outputs and previous_z:
+                previous_z = previous_z[-1]
+                check_redshift_consistency(
+                    previous_z,
+                    previous_outputs,
+                    funcname=f"{self._func.__name__} (previous z)",
+                )
+
+    def _handle_read_from_cache(
+        self,
+        inputs: InputParameters,
+        current_redshfit: float | None,
+        cache: OutputCache | None,
+        kwargs,
+    ) -> OutputStruct | None:
+        if kwargs.pop("regenerate", True):
+            return
+
+        # First check whether the boxes already exist.
+        if issubclass(self._, OutputStructZ):
+            obj = self._kls.new(inputs=inputs, redshift=current_redshfit)
+        else:
+            obj = self._kls.new(inputs=inputs)
+
+        path = cache.find_existing(obj)
+        if path is not None:
+            with contextlib.suppress(OSError):
+                this = h5.read_output_struct(path)
+                if hasattr(this, "redshift"):
+                    logger.info(
+                        f"Existing {obj.__name__} found at z={this.redshift} and read in (seed={this.random_seed})."
+                    )
+                else:
+                    logger.info(
+                        f"Existing {obj.__name__} found and read in (seed={this.random_seed})."
+                    )
+                return this
+
+    def _handle_write_to_cache(
+        self, cache: OutputCache | None, write, obj: OutputStruct
+    ):
+        if write and not cache:
+            raise ValueError("Cannot write to cache without a cache object.")
+
+        if write:
+            cache.write(obj)
+
+
+class single_field_func(_OutputStructComputationInspect):  # noqa: N801
+    def __call__(self, **kwargs) -> OutputStruct:
+        """Call the single field function."""
+        inputs = self._get_inputs(kwargs)
+        outputs = self._get_all_output_struct_inputs(kwargs)
+        outputsz = {k: v for k, v in outputs.items() if isinstance(v, OutputStructZ)}
+
+        # Get current redshift (could be None)
+        current_redshift = self._get_current_redshift(outputsz, kwargs)
+
+        self.check_consistency(kwargs, outputs)
+        self.check_output_struct_types(outputs)
+        # The following checks both current and previous redshifts, if applicable
+        self.ensure_redshift_consistency(current_redshift, outputsz)
+
+        cache = kwargs.pop("cache", None)
+        regen = kwargs.pop("regenerate", True)
+        write = kwargs.pop("write", False)
+        out = None
+        if cache is not None and not regen:
+            out = self._handle_read_from_cache(inputs, current_redshift, cache, kwargs)
+
+        if out is None:
+            self._make_wisdoms(inputs)
+            out = self._func(**kwargs)
+            self._handle_write_to_cache(cache, write, out)
+
+        return out
+
+
+class high_level_func:
+    """A decorator for high-level functions like ``run_coeval``."""
+
+    def __init__(self, _func: callable):
+        self._func = _func
+
+    def __call__(self, **kwargs):
+        """Call the function."""
+        outputs = _OutputStructComputationInspect._get_all_output_struct_inputs(kwargs)
+        _OutputStructComputationInspect.check_consistency(kwargs, outputs)
+        yield from self._func(**kwargs)
