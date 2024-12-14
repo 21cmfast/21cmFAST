@@ -12,6 +12,7 @@
 #include <thrust/copy.h>
 #include <thrust/fill.h>
 #include <iostream>
+#include <algorithm>
 
 #include "Constants.h"
 #include "interpolation_types.h"
@@ -157,6 +158,35 @@ void getDeviceProperties(){
     printf("max threads per block: %d \n", deviceProp.maxThreadsPerBlock);
     printf("total constant memory: %zu bytes \n", deviceProp.totalConstMem);
 }   
+
+// void getKernelAttr(){
+//     cudaFuncAttributes attr;
+//     cudaFuncGetAttributes(&attr, myKernel);
+//     printf("Kernel Shared Memory per Block: %zu bytes\n", attr.sharedSizeBytes);
+//     printf("Kernel Registers per Thread: %d\n", attr.numRegs);
+//     printf("Kernel Max Threads per Block: %d\n", attr.maxThreadsPerBlock);
+// }
+
+struct GridLayout{
+    int n_threads;
+    int n_blocks;
+};
+// calculate workload for the second iteration
+GridLayout getWorkload(int sparsity, unsigned long long int n_halos){
+    GridLayout res;
+    int n_threads, n_blocks;
+    if (sparsity == 4){
+        n_threads = 256;
+    }
+    else {
+        n_threads = std::min(sparsity,512);
+    }
+    res.n_threads = n_threads;
+    n_blocks = (n_halos * sparsity + n_threads -1)/n_threads;
+    res.n_blocks = n_blocks;
+    return res;
+}
+
 // 11-30: the following implementation works (before using any global params on gpu)
 __device__ void stoc_set_consts_cond(struct HaloSamplingConstants *const_struct, float cond_val, int HMF, double x_min, double x_width, float *d_y_arr, int n_bin, double *expected_mass)
 {
@@ -214,52 +244,52 @@ __device__ double sample_dndM_inverse(double condition, struct HaloSamplingConst
     return result;
 }
 
-__device__ double remove_random_halo(curandState *state, int n_halo, int *idx, double *M_prog, float *M_out){
+__device__ double remove_random_halo(curandState *state, int n_halo, int *idx, float *M_prog, float *M_out){
     double last_M_del;
     int random_idx;
     do {
         random_idx = (int)(curand_uniform(state) * n_halo);
-    } while (M_out[random_idx] == 0);
+    } while (M_out[random_idx] == -1.f);
     last_M_del = M_out[random_idx];
     *M_prog -= last_M_del;
-    M_out[random_idx] = 0; // zero mass halos are skipped and not counted
+    M_out[random_idx] = -1.f; // -1 mass halos are skipped and not counted
 
     *idx = random_idx;
     return last_M_del;
 }
 
-__device__ void fix_mass_sample(curandState *state, double exp_M, int *n_halo_pt, double *M_tot_pt, float *M_out){
+__device__ void fix_mass_sample(curandState *state, double exp_M, float *M_prog, float *M_out, int write_limit){
     // Keep the last halo if it brings us closer to the expected mass
     // This is done by addition or subtraction over the limit to balance
     // the bias of the last halo being larger
     int random_idx;
     double last_M_del;
     int sel = curand(state) % 2;
-    // bool sel = gsl_rng_uniform_int(rng, 2);
-    // int sel = 1;
+    // int sel = 1; //tmp: implement the first case 
     if (sel)
     {
-        if (fabs(*M_tot_pt - M_out[*n_halo_pt - 1] - exp_M) < fabs(*M_tot_pt - exp_M))
+        if (fabs(*M_prog - M_out[write_limit] - exp_M) < fabs(*M_prog - exp_M))
         {
-            *M_tot_pt -= M_out[*n_halo_pt - 1];
+            // *M_tot_pt -= M_out[*n_halo_pt - 1];
             // here we remove by setting the counter one lower so it isn't read
-            (*n_halo_pt)--; // increment has preference over dereference
+            M_out[write_limit] = -1.f;
         }
     }
     else
     {
         do {
             // here we remove by setting halo mass to zero, skipping it during the consolidation
-            last_M_del = remove_random_halo(state, *n_halo_pt, &random_idx, M_tot_pt, M_out);
-        } while (*M_tot_pt > exp_M);
+            last_M_del = remove_random_halo(state, write_limit+1, &random_idx, M_prog, M_out);
+        } while (*M_prog > exp_M);
 
         // if the sample with the last subtracted halo is closer to the expected mass, keep it
         // LOG_ULTRA_DEBUG("Deciding to keep last halo M %.3e tot %.3e exp %.3e",last_M_del,*M_tot_pt,exp_M);
-        if (fabs(*M_tot_pt + last_M_del - exp_M) < fabs(*M_tot_pt - exp_M))
+        if (fabs(*M_prog + last_M_del - exp_M) < fabs(*M_prog - exp_M))
         {
             M_out[random_idx] = last_M_del;
-            *M_tot_pt += last_M_del;
+            *M_prog += last_M_del;
         }
+        
     }
 }
 
@@ -434,6 +464,7 @@ __global__ void update_halo_constants(float *d_halo_masses, float *d_y_arr, doub
                                       int *d_further_process, int *d_nprog_predict, int sparsity, unsigned long long int write_offset, double *expected_mass)
 {
     // Define shared memory for block-level reduction
+    // extern __shared__ float shared_mass[];
     __shared__ float shared_mass[256];
     
     // get thread idx
@@ -483,18 +514,36 @@ __global__ void update_halo_constants(float *d_halo_masses, float *d_y_arr, doub
 
     __syncthreads();
 
+    // printf("the first element of shared mass: %f \n", shared_mass[0]);
     // passing value to arrays in global memory is done by one thread per group
     if (tid % sparsity == 0){
         float Mprog = 0.0;
+        int write_limit = 0;
+        int meetCondition = 0; 
+
         for (int i = 0; i < sparsity; ++i){
+            Mprog += shared_mass[tid + i];
             if (Mprog >= d_hs_constants.expected_M)
             {
+                write_limit = i;
+                meetCondition = 1;
                 break;
             }
-            Mprog += shared_mass[tid+i];
-            d_halo_masses_out[out_id+i] = shared_mass[tid+i];
-                }
-        if (Mprog < d_hs_constants.expected_M){
+            
+            // d_halo_masses_out[out_id+i] = shared_mass[tid+i];
+            }
+        if (meetCondition){
+            // correct the mass samples
+            fix_mass_sample(&local_state, d_hs_constants.expected_M, &Mprog, &shared_mass[tid], write_limit);
+
+            for (int i = 0; i < write_limit; ++i)
+            {
+
+                // write the final mass sample to array in global memory
+                d_halo_masses_out[out_id + i] = shared_mass[tid + i];
+            }
+        }
+        else{
             d_further_process[hid] = 1;
             d_nprog_predict[hid] = ceil(d_hs_constants.expected_M * sparsity / Mprog);
         
@@ -567,12 +616,18 @@ int updateHaloOut(float *halo_masses, unsigned long long int n_halos, float *y_a
     // get parameters needed by the kernel
     int HMF = user_params_global->HMF;
 
-    // define threads layout
-    int n_threads = 256;
-    int n_blocks = (int)((n_halos + 255) / 256);
-    int total_threads = n_threads * n_blocks;
+    // start with 4 threads work with one halo
+    int sparsity = 4;
 
-    // allocate memory for out halos
+    // define threads layout for starting
+    // int n_threads = 256;
+    // int n_blocks = (int)((n_halos*sparsity + 255) / 256);
+    // int total_threads = n_threads * n_blocks;
+
+    GridLayout grids = getWorkload(sparsity, n_halos);
+    int total_threads = grids.n_threads * grids.n_blocks;
+
+    // allocate memory for out halos (just allocate once at each call of this grid launch function)
 
     // size_t buffer_size = sizeof(float) * max(total_threads * 2, n_buffer) * 2;
     size_t d_n_buffer = total_threads * 4 + 10;
@@ -599,13 +654,10 @@ int updateHaloOut(float *halo_masses, unsigned long long int n_halos, float *y_a
     CALL_CUDA(cudaMalloc((void **)&d_states, total_threads * sizeof(curandState)));
 
     // setup random states
-    setup_random_states<<<n_blocks, n_threads>>>(d_states, 1234ULL);
+    setup_random_states<<<grids.n_blocks, grids.n_threads>>>(d_states, 1234ULL);
 
     // Check kernel launch errors
     CALL_CUDA(cudaGetLastError());
-    
-    // start with one thread work with one halo
-    int sparsity = 4;
 
     // initiate n_halo check
     unsigned long long int n_halo_check = n_halos;
@@ -618,9 +670,16 @@ int updateHaloOut(float *halo_masses, unsigned long long int n_halos, float *y_a
 
     getDeviceProperties();
 
+    cudaFuncAttributes attr;
+    cudaFuncGetAttributes(&attr, update_halo_constants);
+    printf("Kernel Shared Memory per Block: %zu bytes\n", attr.sharedSizeBytes);
+    printf("Kernel Registers per Thread: %d\n", attr.numRegs);
+    printf("Kernel Max Threads per Block: %d\n", attr.maxThreadsPerBlock);
+
     // launch kernel grid
-    // while (n_filter_halo > 0){
-    update_halo_constants<<<n_blocks, n_threads>>>(d_halo_masses, d_y_arr, x_min, x_width, n_halos, n_bin_y, hs_constants, HMF, d_states, d_halo_masses_out, star_rng_out,
+    while (n_filter_halo > 0){
+    size_t shared_size = grids.n_threads*sizeof(float);
+    update_halo_constants<<<grids.n_blocks, grids.n_threads>>>(d_halo_masses, d_y_arr, x_min, x_width, n_halos, n_bin_y, hs_constants, HMF, d_states, d_halo_masses_out, star_rng_out,
                                                        sfr_rng_out, xray_rng_out, halo_coords_out, d_sum_check, d_further_process, d_nprog_predict, sparsity, write_offset, d_expected_mass);
 
     // Check kernel launch errors
@@ -649,6 +708,19 @@ int updateHaloOut(float *halo_masses, unsigned long long int n_halos, float *y_a
     unsigned long long int available_n_buffer = d_n_buffer - n_processed_prog;
     sparsity = getSparsity(available_n_buffer, n_filter_halo);
 
+    // check max threadblock size
+    int device;
+    CALL_CUDA(cudaGetDevice(&device));
+    cudaDeviceProp deviceProp;
+    CALL_CUDA(cudaGetDeviceProperties(&deviceProp, device));
+    int max_threads_pb = deviceProp.maxThreadsPerBlock;
+
+    // sparsity should not exceed the max threads per block
+    sparsity = std::min(sparsity, 512);
+
+    // reset grids layout
+    grids = getWorkload(sparsity, n_filter_halo);
+
     // update write offset
     write_offset = n_processed_prog;
 
@@ -663,14 +735,15 @@ int updateHaloOut(float *halo_masses, unsigned long long int n_halos, float *y_a
     CALL_CUDA(cudaFreeHost(h_filter_halos));
     // CALL_CUDA(cudaFreeHost(h_sum_check));
 
-    // }
+    }
 
+    // tmp: for debugging purpose; out halo need to copy back to host after all halos being processed
     float *h_halo_masses_out;
     CALL_CUDA(cudaHostAlloc((void **)&h_halo_masses_out, buffer_size, cudaHostAllocDefault));
     CALL_CUDA(cudaMemcpy(h_halo_masses_out, d_halo_masses_out, buffer_size, cudaMemcpyDeviceToHost));
 
-
-    
+    CALL_CUDA(cudaFreeHost(h_halo_masses_out));
+    // }
 
     // Free device memory
     CALL_CUDA(cudaFree(d_halo_masses));
