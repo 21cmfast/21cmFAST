@@ -235,7 +235,8 @@ void calculate_fcoll_grid_gpu(
     // Wrap device pointer in a thrust::device_ptr
     thrust::device_ptr<float> d_Fcoll_ptr(d_Fcoll);
     // Reduce final buffer sums to one value
-    *f_coll_grid_mean = thrust::reduce(d_Fcoll_ptr, d_Fcoll_ptr + hii_tot_num_pixels, 0., thrust::plus<double>());
+    double f_coll_grid_total = thrust::reduce(d_Fcoll_ptr, d_Fcoll_ptr + hii_tot_num_pixels, 0., thrust::plus<double>());
+    *f_coll_grid_mean = f_coll_grid_total / (double) hii_tot_num_pixels;
     CALL_CUDA(cudaDeviceSynchronize());
     LOG_INFO("Fcoll sum reduced to single value by thrust::reduce operation.");
 
