@@ -18,11 +18,9 @@ int ComputeIonizedBox(float redshift, float prev_redshift, UserParams *user_para
                         IonizedBox *box);
 void init_ionbox_gpu_data(
     fftwf_complex **d_deltax_filtered, // copies of pointers to pointers
-    fftwf_complex **d_N_rec_filtered,
     fftwf_complex **d_xe_filtered,
     float **d_y_arr,
     float **d_Fcoll,
-    bool filter_recombinations, // member of consts
     unsigned int nbins, // nbins for Nion_conditional_table1D->y
     unsigned long long hii_tot_num_pixels, // HII_TOT_NUM_PIXELS
     unsigned long long hii_kspace_num_pixels, // HII_KSPACE_NUM_PIXELS
@@ -32,12 +30,9 @@ void init_ionbox_gpu_data(
 void calculate_fcoll_grid_gpu(
     IonizedBox *box, // for box->Fcoll
     fftwf_complex *h_deltax_filtered, // members of fg_struct
-    fftwf_complex *h_N_rec_filtered,
     fftwf_complex *h_xe_filtered,
-    bool filter_recombinations, // member of consts
     double *f_coll_grid_mean, // member of rspec
     fftwf_complex *d_deltax_filtered, // device pointers
-    fftwf_complex *d_N_rec_filtered,
     fftwf_complex *d_xe_filtered,
     float *d_Fcoll,
     float *d_y_arr,
@@ -48,11 +43,9 @@ void calculate_fcoll_grid_gpu(
 );
 void free_ionbox_gpu_data(
     fftwf_complex **d_deltax_filtered, // copies of pointers to pointers
-    fftwf_complex **d_N_rec_filtered,
     fftwf_complex **d_xe_filtered,
     float **d_y_arr,
-    float **d_Fcoll,
-    bool filter_recombinations // member of consts
+    float **d_Fcoll
 );
 
 #ifdef __cplusplus

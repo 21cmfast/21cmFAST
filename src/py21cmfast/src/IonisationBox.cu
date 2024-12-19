@@ -54,13 +54,11 @@ __device__ inline double EvaluateRGTable1D_f_gpu(double x, double x_min, double 
 // template <unsigned int threadsPerBlock>
 __global__ void compute_Fcoll(
     cuFloatComplex *deltax_filtered, // fg_struct
-    cuFloatComplex *N_rec_filtered, // fg_struct
     cuFloatComplex *xe_filtered, // fg_struct
     float *y_arr, // Nion_conditional_table1D
     double x_min, // Nion_conditional_table1D
     double x_width, // Nion_conditional_table1D
     double fract_float_err, // FRACT_FLOAT_ERR
-    bool filter_recomb, // consts->filter_recombinations
     bool use_ts_fluct, // flag_options_global->USE_TS_FLUCT
     unsigned long long hii_tot_num_pixels, // HII_TOT_NUM_PIXELS
     long long hii_d, // HII_D
@@ -68,7 +66,6 @@ __global__ void compute_Fcoll(
     long long hii_mid_para, // HII_MID_PARA
     float *Fcoll // box
 ) {
-
     // Get index of grids
     unsigned long long idx = blockIdx.x * blockDim.x + threadIdx.x;
 
@@ -90,49 +87,31 @@ __global__ void compute_Fcoll(
 
     // Clip the filtered grids to physical values
     // delta cannot be less than -1
-    // deltax_filtered[fft_idx] = fmaxf(deltax_filtered[fft_idx], -1. + fract_float_err);
     *((float *) deltax_filtered + fft_idx) = fmaxf(*((float *) deltax_filtered + fft_idx), -1. + fract_float_err);
     // <N_rec> cannot be less than zero
-    if (filter_recomb) {
-        // N_rec_filtered[fft_idx] = fmaxf(N_rec_filtered[fft_idx], 0.0);
-        *((float *) N_rec_filtered + fft_idx) = fmaxf(*((float *) N_rec_filtered + fft_idx), 0.0);
-    }
     // x_e has to be between zero and unity
     if (use_ts_fluct) {
-        // xe_filtered[fft_idx] = fmaxf(xe_filtered[fft_idx], 0.0);
-        // xe_filtered[fft_idx] = fminf(xe_filtered[fft_idx], 0.999);
         *((float *) xe_filtered + fft_idx) = fmaxf(*((float *) xe_filtered + fft_idx), 0.0);
         *((float *) xe_filtered + fft_idx) = fminf(*((float *) xe_filtered + fft_idx), 0.999);
     }
 
     // Compute collapse fraction
-    // Fcoll[idx] = exp(EvaluateRGTable1D_f_gpu(deltax_filtered[fft_idx], x_min, x_width, y_arr));
     Fcoll[idx] = exp(EvaluateRGTable1D_f_gpu(*((float *) deltax_filtered + fft_idx), x_min, x_width, y_arr));
 }
 
 void init_ionbox_gpu_data(
     fftwf_complex **d_deltax_filtered, // copies of pointers to pointers
-    fftwf_complex **d_N_rec_filtered,
     fftwf_complex **d_xe_filtered,
     float **d_y_arr,
     float **d_Fcoll,
-    bool filter_recombinations, // member of consts
     unsigned int nbins, // nbins for Nion_conditional_table1D->y
     unsigned long long hii_tot_num_pixels, // HII_TOT_NUM_PIXELS
     unsigned long long hii_kspace_num_pixels, // HII_KSPACE_NUM_PIXELS
     unsigned int *threadsPerBlock,
     unsigned int *numBlocks
 ) {
-    // deltax_filtered, N_rec_filtered & xe_filtered are of length HII_KSPACE_NUM_PIXELS
-    // Fcoll is of length HII_TOT_NUM_PIXELS (outputs.py)
-
     CALL_CUDA(cudaMalloc((void**)d_deltax_filtered, sizeof(fftwf_complex) * hii_kspace_num_pixels)); // already pointers to pointers (no & needed)
     CALL_CUDA(cudaMemset(*d_deltax_filtered, 0, sizeof(fftwf_complex) * hii_kspace_num_pixels)); // dereference the pointer to a pointer (*)
-
-    if (filter_recombinations) {
-        CALL_CUDA(cudaMalloc((void**)d_N_rec_filtered, sizeof(fftwf_complex) * hii_kspace_num_pixels));
-        CALL_CUDA(cudaMemset(*d_N_rec_filtered, 0, sizeof(fftwf_complex) * hii_kspace_num_pixels));
-    }
 
     if (flag_options_global->USE_TS_FLUCT) {
         CALL_CUDA(cudaMalloc((void**)d_xe_filtered, sizeof(fftwf_complex) * hii_kspace_num_pixels));
@@ -173,12 +152,9 @@ void init_ionbox_gpu_data(
 void calculate_fcoll_grid_gpu(
     IonizedBox *box, // for box->Fcoll
     fftwf_complex *h_deltax_filtered, // members of fg_struct
-    fftwf_complex *h_N_rec_filtered,
     fftwf_complex *h_xe_filtered,
-    bool filter_recombinations, // member of consts
     double *f_coll_grid_mean, // member of rspec
     fftwf_complex *d_deltax_filtered, // device pointers
-    fftwf_complex *d_N_rec_filtered,
     fftwf_complex *d_xe_filtered,
     float *d_Fcoll,
     float *d_y_arr,
@@ -195,9 +171,6 @@ void calculate_fcoll_grid_gpu(
 
     // Copy grids from host to device
     CALL_CUDA(cudaMemcpy(d_deltax_filtered, h_deltax_filtered, sizeof(fftwf_complex) * hii_kspace_num_pixels, cudaMemcpyHostToDevice));
-    if (filter_recombinations) {
-        CALL_CUDA(cudaMemcpy(d_N_rec_filtered, h_N_rec_filtered, sizeof(fftwf_complex) * hii_kspace_num_pixels, cudaMemcpyHostToDevice));
-    }
     if (flag_options_global->USE_TS_FLUCT) {
         CALL_CUDA(cudaMemcpy(d_xe_filtered, h_xe_filtered, sizeof(fftwf_complex) * hii_kspace_num_pixels, cudaMemcpyHostToDevice));
     }
@@ -214,13 +187,11 @@ void calculate_fcoll_grid_gpu(
     // Invoke kernel
     compute_Fcoll<<< *numBlocks, *threadsPerBlock >>>(
         reinterpret_cast<cuFloatComplex *>(d_deltax_filtered),
-        reinterpret_cast<cuFloatComplex *>(d_N_rec_filtered),
         reinterpret_cast<cuFloatComplex *>(d_xe_filtered),
         d_y_arr,
         Nion_conditional_table1D->x_min,
         Nion_conditional_table1D->x_width,
         fract_float_err,
-        filter_recombinations,
         use_ts_fluct,
         hii_tot_num_pixels,
         hii_d,
@@ -243,9 +214,6 @@ void calculate_fcoll_grid_gpu(
     // Copy results from device to host
     CALL_CUDA(cudaMemcpy(box->Fcoll, d_Fcoll, sizeof(float) * hii_tot_num_pixels, cudaMemcpyDeviceToHost));
     CALL_CUDA(cudaMemcpy(h_deltax_filtered, d_deltax_filtered, sizeof(fftwf_complex) * hii_kspace_num_pixels, cudaMemcpyDeviceToHost));
-    if (filter_recombinations) {
-        CALL_CUDA(cudaMemcpy(h_N_rec_filtered, d_N_rec_filtered, sizeof(fftwf_complex) * hii_kspace_num_pixels, cudaMemcpyDeviceToHost));
-    }
     if (flag_options_global->USE_TS_FLUCT) {
         CALL_CUDA(cudaMemcpy(h_xe_filtered, d_xe_filtered, sizeof(fftwf_complex) * hii_kspace_num_pixels, cudaMemcpyDeviceToHost));
     }
@@ -254,16 +222,11 @@ void calculate_fcoll_grid_gpu(
 
 void free_ionbox_gpu_data(
     fftwf_complex **d_deltax_filtered, // copies of pointers to pointers
-    fftwf_complex **d_N_rec_filtered,
     fftwf_complex **d_xe_filtered,
     float **d_y_arr,
-    float **d_Fcoll,
-    bool filter_recombinations // member of consts
+    float **d_Fcoll
 ) {
     CALL_CUDA(cudaFree(*d_deltax_filtered)); // Need to dereference the pointers to pointers (*)
-    if (filter_recombinations) {
-        CALL_CUDA(cudaFree(*d_N_rec_filtered));
-    }
     if (flag_options_global->USE_TS_FLUCT) {
         CALL_CUDA(cudaFree(*d_xe_filtered));
     }
