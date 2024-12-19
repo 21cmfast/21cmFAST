@@ -167,7 +167,7 @@ void init_ionbox_gpu_data(
         *threadsPerBlock = 16;
     }
 
-    *numBlocks = ceil(hii_tot_num_pixels / (*threadsPerBlock * 2));
+    *numBlocks = ceil(hii_tot_num_pixels / *threadsPerBlock) + 1;
 }
 
 void calculate_fcoll_grid_gpu(
@@ -235,7 +235,7 @@ void calculate_fcoll_grid_gpu(
     // Wrap device pointer in a thrust::device_ptr
     thrust::device_ptr<float> d_Fcoll_ptr(d_Fcoll);
     // Reduce final buffer sums to one value
-    double f_coll_grid_total = thrust::reduce(d_Fcoll_ptr, d_Fcoll_ptr + hii_tot_num_pixels, 0., thrust::plus<double>());
+    double f_coll_grid_total = thrust::reduce(d_Fcoll_ptr, d_Fcoll_ptr + hii_tot_num_pixels, 0., thrust::plus<float>());
     *f_coll_grid_mean = f_coll_grid_total / (double) hii_tot_num_pixels;
     CALL_CUDA(cudaDeviceSynchronize());
     LOG_INFO("Fcoll sum reduced to single value by thrust::reduce operation.");
