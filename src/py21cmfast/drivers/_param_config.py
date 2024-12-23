@@ -2,11 +2,12 @@
 
 from __future__ import annotations
 
+import attrs
 import contextlib
 import inspect
 import logging
 import numpy as np
-from typing import Any, get_args
+from typing import Any, Sequence, get_args
 
 from ..io import h5
 from ..io.caching import OutputCache
@@ -19,17 +20,97 @@ logger = logging.getLogger(__name__)
 
 def check_redshift_consistency(
     redshift: float, output_structs: list[OutputStruct], funcname: str = "unknown"
-):
-    """Make sure all given OutputStruct objects exist at the same given redshift."""
+) -> None:
+    """
+    Check if all given :class:`OutputStruct` objects have the same redshift.
+
+    This function iterates over a list of OutputStruct objects and verifies that all
+    the redshifts are consistent with the provided redshift value. If any inconsistency
+    is found, a ValueError is raised.
+
+    Parameters
+    ----------
+    redshift
+        The reference redshift value to compare with the redshifts of the OutputStruct
+        objects.
+    output_structs
+        A list of :class:`OutputStruct` objects to check for redshift consistency.
+    funcname (str, optional)
+        The name of the function or method where this check is being performed. Used
+        in the error raised. Default is "unknown".
+
+    Raises
+    ------
+    ValueError
+        If any :class:`OutputStruct` object in the list has a redshift different from
+        the provided redshift value.
+    """
     for struct in output_structs:
         if struct is not None and struct.redshift != redshift:
             raise ValueError(
-                f"Incompatible redshifts with inputs and {struct.__class__.__name__} in {funcname}: {redshift} != {struct.redshift}"
+                f"Incompatible redshifts with inputs and {struct.__class__.__name__} in"
+                f" {funcname}: {redshift} != {struct.redshift}"
             )
 
 
+def _get_incompatible_params(
+    inputs1: InputParameters, inputs2: InputParameters
+) -> dict[str, Any]:
+    """Return a dict of parameters that differ between two InputParameters objects."""
+    incompatible = {}
+    d1 = attrs.asdict(inputs1)  # recursive
+    d2 = attrs.asdict(inputs2)  # recursive
+
+    for name, struct in d1.items():
+        struct2 = d2[name]
+
+        if isinstance(struct, dict):
+            incompatible[name] = {}
+
+            for key, val in struct.items():
+                val2 = struct2[key]
+                if val2 != val:
+                    incompatible[name][key] = (val, val2)
+        elif struct != struct2:
+            incompatible[name] = (struct, struct2)
+
+    # Remove empty sub-dicts (i.e. InputStructs that totally match)
+    return {
+        k: v for k, v in incompatible.items() if not isinstance(v, dict) or len(v) > 0
+    }
+
+
+def _get_incompatible_param_diffstring(
+    inputs1: InputParameters, inputs2: InputParameters
+) -> str:
+    incompatible_params = _get_incompatible_params(inputs1, inputs2)
+
+    return "".join(
+        (
+            f"{name}:\n"
+            + "\n".join(
+                f"  {key}:\n    {v1:>12}\n    {v2:>12}" for key, (v1, v2) in val.items()
+            )
+            if isinstance(val, dict)
+            else f"{name}:\n  {val[0]}\n  {val[1]}"
+        )
+        for name, val in incompatible_params.items()
+    )
+
+
 def check_output_consistency(outputs: dict[str, OutputStruct]) -> None:
-    """Ensure all OutputStruct objects have consistent InputParameters."""
+    """Ensure all OutputStruct objects have consistent InputParameters.
+
+    This function compares each given OutputStruct with a reference element, and ensures
+    that each is compatible. Recall that two :class:`InputParameters` can be compatible
+    even if they differ, as long as they agree on the input components to which each
+    of the OutputStructs are dependent.
+
+    Raises
+    ------
+    ValueError
+        If any of the OutputStructs are not compatible.
+    """
     outputs = {n: output for n, output in outputs.items() if output is not None}
 
     if len(outputs) < 2:
@@ -39,16 +120,41 @@ def check_output_consistency(outputs: dict[str, OutputStruct]) -> None:
     n0 = list(outputs.keys())[0]
 
     for name, output in outputs.items():
-        if not output.inputs_compatible_with(o0):
+        if not output._inputs_compatible_with(o0):
+            diff = _get_incompatible_param_diffstring(output.inputs, o0.inputs)
             raise ValueError(
-                f"InputParameters in {name} do not match those in {n0}. Got:\n\n"
-                f"{name}: {output.inputs}\n\n"
-                f"{n0}: {o0.inputs}\n\n"
+                f"InputParameters in {name} do not match those in {n0}. Got:\n\n{diff}"
+            )
+
+
+def check_consistency_of_outputs_with_inputs(
+    inputs: InputParameters, outputs: Sequence[OutputStruct]
+):
+    """Check that all structs in `outputs` are compatible with the `inputs`.
+
+    See Also
+    --------
+    :func:`check_output_consistency`
+        Similar function that checks consistency between several outputs.
+    """
+    for output in outputs:
+        if not output._inputs_compatible_with(inputs):
+            diff = _get_incompatible_param_diffstring(output.inputs, inputs)
+            raise ValueError(
+                f"InputParameters in {output.__class__.__name__} do not match those in "
+                f"the provided InputParameters. Got:\n\n{diff}"
             )
 
 
 class _OutputStructComputationInspect:
-    """A class that wraps single-field computations."""
+    """A class that does introspection on a single-field computation function.
+
+    This class implements methods for inspecting the arguments of a single-field
+    computation function (e.g. :func:`compute_initial_conditions`) and doing validation,
+    cache-checking and other quality-of-life improvements.
+
+    It is an internal toolset, not meant to be used by users directly.
+    """
 
     def __init__(self, _func: callable):
         self._func = _func
@@ -96,23 +202,12 @@ class _OutputStructComputationInspect:
         return {k: v for k, v in kwargs.items() if isinstance(v, OutputStruct)}
 
     @staticmethod
-    def check_consistency(kwargs, outputs: dict[str, OutputStruct]):
+    def check_consistency(kwargs: dict[str, Any], outputs: dict[str, OutputStruct]):
         """Check consistency of input parameters amongst output struct inputs."""
         check_output_consistency(outputs)
-
         given_inputs = kwargs.get("inputs")
         if given_inputs is not None:
-            # Also check consistency with explicitly given inputs.
-            # Here, we only need to check consistency at the level required by the
-            # *output* object in each case.
-            for name, output in outputs.items():
-                if not output.inputs_compatible_with(given_inputs):
-                    raise ValueError(
-                        f"{name} has inconsistent inputs with the given inputs.\n\n"
-                        f"OutputStruct inputs:\n{output.inputs}\n\n"
-                        f"Inputs:\n{given_inputs}.\n"
-                        f"Comparison hash type: {output._compat_hash}"
-                    )
+            check_consistency_of_outputs_with_inputs(given_inputs, outputs.values())
 
     def _make_wisdoms(self, inputs: InputParameters):
         """Decorator for single-field functions that needs FFTW wisdom."""
@@ -121,7 +216,14 @@ class _OutputStructComputationInspect:
         )
 
     def check_output_struct_types(self, outputs: dict[str, OutputStruct]):
-        """Check given OutputStruct-type parameters."""
+        """Check given OutputStruct parameters.
+
+        This method checks each OutputStruct given to the compuation function to ensure
+        that it is of the correct type (i.e. `InitialConditions` when requested). The
+        types must be specified as standard Python types (so this is essentially just
+        automated run-time type-checking). It only checks OutputStructs, and allows for
+        optional values.
+        """
         for name, param in self._signature.parameters.items():
             val = outputs.get(name)
             tp = param.annotation
@@ -143,40 +245,67 @@ class _OutputStructComputationInspect:
                         f"{name} parameter has a badly defined type in the signature. Please report this on Github."
                     )
                 else:
+                    if type(None) not in potential_types:
+                        # This is supposed to be a list/sequence of OutputStruct,
+                        # but this is hard to check because these values are already
+                        # stripped out of the `outputs` variable that is passed here.
+                        # So for now, just ignore it.
+                        continue
+
                     kls = kls[0]
+
                     if not isinstance(val, kls):
                         raise TypeError(
                             f"{name} should be of type {kls.__name__}, got {type(val)}"
                         )
 
     def _get_current_redshift(
-        self, outputs: dict[str, OutputStructZ], kwargs
+        self, outputs: dict[str, OutputStructZ], kwargs: dict[str, Any]
     ) -> float | None:
+        """Get the current redshift of evolution from the given parameters.
+
+        If redshift is given directly, return that. Otherwise, return a redshift from
+        any given OutputStruct whose name doesn't start with "previous" or "descendant".
+        We can return the first such redshift we find, because another method will check
+        that all redshifts are the same.
+        """
         redshift = kwargs.get("redshift")
         if redshift is None:
             if current_outputs := [
-                v for k, v in outputs.items() if not k.startswith("previous_")
+                v
+                for k, v in outputs.items()
+                if not k.startswith("previous_") and not k.startswith("descendant_")
             ]:
                 redshift = current_outputs[0].redshift
 
         return redshift
 
     def ensure_redshift_consistency(
-        self, current_redshift: float, outputs: dict[str, OutputStruct]
+        self, current_redshift: float, outputs: dict[str, OutputStructZ]
     ):
+        """Ensure that each OutputStruct has the same redshift, if it exists.
+
+        Checks all given OutputStruct objects that have redshifts to check if their
+        redshifts are the same. It does this in three groups: previous, descendant and
+        current-redshift boxes.
+        """
         if not outputs:
             return
 
         if current_outputs := [
-            v for k, v in outputs.items() if not k.startswith("previous_")
+            v
+            for k, v in outputs.items()
+            if not k.startswith("previous_") and not k.startswith("descendant_")
         ]:
             check_redshift_consistency(
                 current_redshift, current_outputs, funcname=self._func.__name__
             )
 
-        previous_outputs = [v for k, v in outputs.items() if k.startswith("previous_")]
         inputs = list(outputs.values())[0].inputs
         if inputs.node_redshifts is not None:
+            previous_outputs = [
+                v for k, v in outputs.items() if k.startswith("previous_")
+            ]
             previous_z = [z for z in inputs.node_redshifts if z > current_redshift]
             if previous_outputs and previous_z:
                 previous_z = previous_z[-1]
@@ -186,13 +315,31 @@ class _OutputStructComputationInspect:
                     funcname=f"{self._func.__name__} (previous z)",
                 )
 
+            descendant_outputs = [
+                v for k, v in outputs.items() if k.startswith("descendant_")
+            ]
+            descendant_z = [z for z in inputs.node_redshifts if z < current_redshift]
+
+            if descendant_outputs and descendant_z:
+                descendant_z = descendant_z[0]
+                check_redshift_consistency(
+                    descendant_z,
+                    descendant_outputs,
+                    funcname=f"{self._func.__name__} (descendant z)",
+                )
+
     def _handle_read_from_cache(
         self,
         inputs: InputParameters,
         current_redshfit: float | None,
         cache: OutputCache | None,
-        kwargs,
+        kwargs: dict[str, Any],
     ) -> OutputStruct | None:
+        """Handle potential reading from cache.
+
+        Checks the given input parameters for cache-related keywords and manages reading
+        an OutputStruct from cache if possible and desired.
+        """
         if kwargs.pop("regenerate", True):
             return
 
@@ -219,6 +366,7 @@ class _OutputStructComputationInspect:
     def _handle_write_to_cache(
         self, cache: OutputCache | None, write, obj: OutputStruct
     ):
+        """Handle writing a box to cache."""
         if write and not cache:
             raise ValueError("Cannot write to cache without a cache object.")
 
@@ -227,6 +375,11 @@ class _OutputStructComputationInspect:
 
 
 class single_field_func(_OutputStructComputationInspect):  # noqa: N801
+    """A decorator for functions that compute single fields.
+
+    This decorator is meant for internal use only.
+    """
+
     def __call__(self, **kwargs) -> OutputStruct:
         """Call the single field function."""
         inputs = self._get_inputs(kwargs)
@@ -247,6 +400,13 @@ class single_field_func(_OutputStructComputationInspect):  # noqa: N801
         out = None
         if cache is not None and not regen:
             out = self._handle_read_from_cache(inputs, current_redshift, cache, kwargs)
+
+        if "inputs" in self._signature.parameters:
+            # Here we set the inputs (if accepted by the function signature)
+            # to the most advanced ones. This is the explicitly-passed inputs if
+            # they exist, but otherwise the inputs derived from the dependency
+            # that is the most advanced in the computation.
+            kwargs["inputs"] = inputs
 
         if out is None:
             self._make_wisdoms(inputs)

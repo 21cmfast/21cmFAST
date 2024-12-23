@@ -11,7 +11,6 @@ import warnings
 from astropy import units as un
 from astropy.cosmology import z_at_value
 
-from ..wrapper.cfuncs import get_halo_list_buffer_size
 from ..wrapper.inputs import InputParameters, global_params
 from ..wrapper.outputs import (
     BrightnessTemp,
@@ -24,7 +23,7 @@ from ..wrapper.outputs import (
     TsBox,
     XraySourceBox,
 )
-from .param_config import (
+from ._param_config import (
     check_output_consistency,
     check_redshift_consistency,
     single_field_func,
@@ -95,9 +94,6 @@ def perturb_field(
     The user and cosmo parameter structures are by default inferred from the
     ``initial_conditions``.
     """
-    if inputs is None:
-        inputs = initial_conditions.inputs
-
     # Initialize perturbed boxes.
     fields = PerturbedField.new(redshift=redshift, inputs=inputs)
 
@@ -109,6 +105,7 @@ def perturb_field(
 def determine_halo_list(
     *,
     redshift: float,
+    inputs: InputParameters | None = None,
     initial_conditions: InitialConditions,
     descendant_halos: HaloField | None = None,
 ) -> HaloField:
@@ -125,40 +122,16 @@ def determine_halo_list(
         The halos that form the descendants (i.e. lower redshift) of those computed by
         this function. If this is not provided, we generate the initial stochastic halos
         directly in this function (and progenitors can then be determined by these).
-    astro_params: :class:`~AstroParams` instance, optional
-        The astrophysical parameters defining the course of reionization.
-    flag_options: :class:`FlagOptions` instance, optional
-        The flag options enabling/disabling extra modules in the simulation.
-    \*\*global_kwargs :
-        Any attributes for :class:`~py21cmfast.inputs.GlobalParams`. This will
-        *temporarily* set global attributes for the duration of the function. Note that
-        arguments will be treated as case-insensitive.
 
     Returns
     -------
     :class:`~HaloField`
-
-    Other Parameters
-    ----------------
-    regenerate, write, direc, random_seed:
-        See docs of :func:`initial_conditions` for more information.
-
-    Examples
-    --------
-    Fill this in once finalised
-
     """
-    inputs = initial_conditions.inputs
-
     if inputs.user_params.HMF != "ST":
         warnings.warn(
             "DexM Halofinder sses a fit to the Sheth-Tormen mass function."
             "With HMF!=1 the Halos from DexM will not be from the same mass function",
         )
-
-    hbuffer_size = get_halo_list_buffer_size(
-        redshift, inputs.user_params, inputs.cosmo_params
-    )
 
     if descendant_halos is None:
         descendant_halos = HaloField.new(
@@ -171,7 +144,6 @@ def determine_halo_list(
     fields = HaloField.new(
         redshift=redshift,
         desc_redshift=descendant_halos.redshift,
-        buffer_size=hbuffer_size,
         inputs=inputs,
     )
 
@@ -262,23 +234,12 @@ def compute_halo_grid(
         The previous spin temperature box. Used for feedback when USE_MINI_HALOS==True
     previous_ionize_box: :class:`IonizedBox` or None
         An at the last timestep. Used for feedback when USE_MINI_HALOS==True
-    \*\*global_kwargs :
-        Any attributes for :class:`~py21cmfast.inputs.GlobalParams`. This will
-        *temporarily* set global attributes for the duration of the function. Note that
-        arguments will be treated as case-insensitive.
 
     Returns
     -------
     :class:`~HaloBox` :
         An object containing the halo box data.
-
-    Other Parameters
-    ----------------
-    regenerate, write, direc :
-        See docs of :func:`initial_conditions` for more information.
-
     """
-
     if perturbed_halo_list:
         redshift = perturbed_halo_list.redshift
     elif perturbed_field:
@@ -287,10 +248,6 @@ def compute_halo_grid(
         raise ValueError(
             "Either perturbed_field or perturbed_halo_list are required (or both)."
         )
-
-    # Initialize halo list boxes.
-    if inputs is None:
-        initial_conditions.inputs
 
     box = HaloBox.new(redshift=redshift, inputs=inputs)
 
@@ -408,8 +365,10 @@ def interp_halo_boxes(
 
     # I set the box redshift to be the stored one so it is read properly into the ionize box
     # for the xray source it doesn't matter, also since it is not _compute()'d, it won't be cached
-    check_output_consistency(halo_boxes)
-    hbox_out = HaloBox(redshift=redshift, inputs=inputs)
+    check_output_consistency(
+        dict(zip([f"box-{i}" for i in range(len(halo_boxes))], halo_boxes))
+    )
+    hbox_out = HaloBox.new(redshift=redshift, inputs=inputs)
 
     # initialise the memory
     hbox_out._init_arrays()
@@ -419,18 +378,18 @@ def interp_halo_boxes(
     hbox_desc = halo_boxes[idx_desc]
 
     for field in fields:
-        interp_field = (1 - interp_param) * getattr(
-            hbox_desc, field
-        ).value + interp_param * getattr(hbox_prog, field).value
-        getattr(hbox_out, field).set_value(interp_field)
+        interp_field = (1 - interp_param) * hbox_desc.get(
+            field
+        ) + interp_param * hbox_prog.get(field)
+        hbox_out.set(field, interp_field)
 
     logger.debug(
         f"interpolated to z={redshift} between [{z_desc},{z_prog}] ({interp_param})"
     )
     logger.debug(
-        f"{fields[0]} averages desc ({idx_desc}): {getattr(hbox_desc, fields[0]).mean()}"
-        + f" interp {getattr(hbox_out, fields[0]).mean()}"
-        + f" prog ({idx_prog}) {getattr(hbox_prog, fields[0]).mean()}"
+        f"{fields[0]} averages desc ({idx_desc}): {hbox_desc.get(fields[0]).mean()}"
+        + f" interp {hbox_out.get(fields[0]).mean()}"
+        + f" prog ({idx_prog}) {hbox_prog.get(fields[0]).mean()}"
     )
 
     hbox_out.sync()
@@ -513,10 +472,9 @@ def compute_xray_source_field(
             continue
 
         hbox_interp = interp_halo_boxes(
-            inputs,
-            hboxes[::-1],
-            ["halo_sfr", "halo_xray", "halo_sfr_mini", "log10_Mcrit_MCG_ave"],
-            zpp_avg[i],
+            halo_boxes=hboxes[::-1],
+            fields=["halo_sfr", "halo_xray", "halo_sfr_mini", "log10_Mcrit_MCG_ave"],
+            redshift=zpp_avg[i],
         )
 
         # if we have no halos we ignore the whole shell
@@ -533,13 +491,14 @@ def compute_xray_source_field(
             R_inner=R_inner,
             R_outer=R_outer,
             R_ct=i,
+            allow_already_computed=True,
         )
 
     # Sometimes we don't compute on the last step
     # (if the first zpp > z_max or there are no halos at max R)
     # in which case the array is not marked as computed
-    for array in box.arrays:
-        array.set_value(array.value)
+    for name, array in box.arrays.items():
+        setattr(box, name, array.with_value(array.value))
 
     box.sync()
 
@@ -584,8 +543,6 @@ def compute_spin_temperature(
         An object containing the spin temperature box data.
     """
     redshift = perturbed_field.redshift
-    if inputs is None:
-        inputs = perturbed_field.inputs
 
     if redshift >= inputs.user_params.Z_HEAT_MAX:
         previous_spin_temp = TsBox.new(inputs=inputs, redshift=0.0, dummy=True)
@@ -666,9 +623,6 @@ def compute_ionization_field(
     flag options) are used, no evolution needs to be done. If the redshift is beyond
     Z_HEAT_MAX, previous fields are not required either.
     """
-    if inputs is None:
-        inputs = perturbed_field.inputs
-
     redshift = perturbed_field.redshift
 
     if redshift >= inputs.user_params.Z_HEAT_MAX:
@@ -678,7 +632,7 @@ def compute_ionization_field(
             redshift=0.0, inputs=inputs, initial=True
         )
 
-    if len(inputs.node_redshifts) > 0:
+    if inputs.evolution_required:
         if previous_ionized_box is None:
             raise ValueError(
                 "You need to provide a previous ionized box when redshift < Z_HEAT_MAX."

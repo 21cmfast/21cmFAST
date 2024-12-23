@@ -10,6 +10,7 @@ import pytest
 import numpy as np
 
 import py21cmfast as p21c
+from py21cmfast.drivers import exhaust
 
 from . import produce_integration_test_data as prd
 
@@ -120,7 +121,7 @@ OPTIONS_CTEST = {
 
 
 @pytest.mark.parametrize("name", list(OPTIONS_CTEST.keys()))
-def test_lc_runs(name, max_redshift):
+def test_lc_runs(name, max_redshift, cache):
     redshift, kwargs = OPTIONS_CTEST[name]
     options = prd.get_all_options_struct(redshift, **kwargs)
 
@@ -130,6 +131,7 @@ def test_lc_runs(name, max_redshift):
         or options["inputs"].flag_options.INHOMO_RECO
     ):
         node_maxz = options["inputs"].user_params.Z_HEAT_MAX
+
     options["inputs"] = options["inputs"].clone(
         user_params=p21c.UserParams.new(DEFAULT_USER_PARAMS_CTEST),
         node_redshifts=p21c.get_logspaced_redshifts(
@@ -137,6 +139,9 @@ def test_lc_runs(name, max_redshift):
             max_redshift=node_maxz,
             z_step_factor=options["inputs"].user_params.ZPRIME_STEP_FACTOR,
         ),
+    )
+    print(
+        options["inputs"].user_params.Z_HEAT_MAX, max(options["inputs"].node_redshifts)
     )
 
     lcn = p21c.RectilinearLightconer.with_equal_cdist_slices(
@@ -155,6 +160,7 @@ def test_lc_runs(name, max_redshift):
         _, _, _, lightcone = p21c.exhaust_lightcone(
             lightconer=lcn,
             write=False,
+            cache=cache,
             **options,
         )
 
@@ -167,7 +173,7 @@ def test_lc_runs(name, max_redshift):
 
 
 @pytest.mark.parametrize("name", list(OPTIONS_CTEST.keys()))
-def test_cv_runs(name, default_seed):
+def test_cv_runs(name, cache):
     redshift, kwargs = OPTIONS_CTEST[name]
     options = prd.get_all_options_struct(redshift, **kwargs)
 
@@ -176,9 +182,12 @@ def test_cv_runs(name, default_seed):
     )
 
     with p21c.config.use(ignore_R_BUBBLE_MAX_error=True):
-        cv = p21c.run_coeval(
-            write=False,
-            **options,
+        cv = exhaust(
+            p21c.run_coeval(
+                write=False,
+                cache=cache,
+                **options,
+            )
         )
 
     assert isinstance(cv, p21c.Coeval)

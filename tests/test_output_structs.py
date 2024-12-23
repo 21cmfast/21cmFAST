@@ -23,7 +23,7 @@ from py21cmfast.wrapper import outputs as ox
 
 
 @pytest.fixture(scope="function")
-def init(default_input_struct):
+def init(default_input_struct: InputParameters):
     return InitialConditions.new(inputs=default_input_struct)
 
 
@@ -61,8 +61,6 @@ def test_different_seeds(
 
 def test_pickleability(default_input_struct: InputParameters):
     ic_ = InitialConditions.new(inputs=default_input_struct)
-    # ic_.filled = True
-
     s = pickle.dumps(ic_)
 
     ic2 = pickle.loads(s)

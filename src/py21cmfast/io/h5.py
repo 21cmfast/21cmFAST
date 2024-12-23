@@ -1,4 +1,34 @@
-"""Module defining HDF5 backends for reading/writing output structures."""
+"""Module defining HDF5 backends for reading/writing output structures.
+
+These functions are those used by default in the caching system of 21cmFAST.
+In the future, it is possible that other backends might be implemented.
+
+As of version 4, all cache files from 21cmFAST will have the following heirarchical
+structure::
+
+    /attrs/
+      |-- 21cmFAST-version
+      |-- [redshift]
+    /<OutputStructName>/
+      /InputParameters/
+        /attrs/
+          |-- 21cmFAST-version
+          |-- random_seed
+        /user_params/
+        /cosmo_params/
+        /flag_options/
+        /astro_params/
+        /node_redshifts/
+      /OutputFields/
+        /attrs/
+          |-- [primitive_field_1]
+          |-- [primitive_field_2]
+          |-- [...]
+        /[field_1]/
+        /[field_2]/
+        /.../
+
+"""
 
 import attrs
 import h5py
@@ -32,15 +62,14 @@ def write_output_to_hdf5(
         The path to write the output struct to.
     group : str, optional
         The HDF5 group into which to write the object. By default, this is the root.
-    write_inputs : bool, optional
-        Whether to write the inputs to the file. Can be useful to set to False if
-        the input file already exists and has parts already written.
+    mode : str
+        The mode in which to open the file.
     """
-    if not all(v.state.computed for v in output.arrays.values()):
+    if not all(v.state.is_computed for v in output.arrays.values()):
         raise OSError(
             "Not all boxes have been computed (or maybe some have been purged). Cannot write."
-            f"Non-computed boxes: {[k for k, v in output.arrays.items() if not v.state.computed]}. "
-            f"Computed boxes: {[k for k, v in output.arrays.items() if v.state.computed]}"
+            f"Non-computed boxes: {[k for k, v in output.arrays.items() if not v.state.is_computed]}. "
+            f"Computed boxes: {[k for k, v in output.arrays.items() if v.state.is_computed]}"
         )
 
     path = Path(path)
@@ -63,10 +92,10 @@ def write_output_to_hdf5(
             group.attrs["redshift"] = output.redshift
 
         write_outputs_to_group(output, group)
-        write_inputs_to_group(output.inputs, group)
+        _write_inputs_to_group(output.inputs, group)
 
 
-def write_input_struct(struct, fl: h5py.File | h5py.Group):
+def write_input_struct(struct, fl: h5py.File | h5py.Group) -> None:
     """Write a particular input struct (e.g. UserParams) to an HDF5 file."""
     dct = struct.asdict()
 
@@ -79,7 +108,23 @@ def write_input_struct(struct, fl: h5py.File | h5py.Group):
             ) from e
 
 
-def write_inputs_to_group(inputs, group: h5py.Group | h5py.File | str | Path):
+def _write_inputs_to_group(
+    inputs: InputParameters, group: h5py.Group | h5py.File | str | Path
+) -> None:
+    """Write an InputParameters object into a cache file.
+
+    Here we are careful to close the file only if a raw Path is given, and keep it open
+    if a h5py.File/Group is given (since then this is likely being called from another
+    function that is also writing other objects to the same file).
+
+    Parameters
+    ----------
+    inputs
+        The input parameters object to write.
+    group : h5py.Group | h5py.File | str | Path
+        The group or file into which to write the inputs. Note that a new group called
+        "InputParameters" will be created inside this group/file.
+    """
     must_close = False
     if isinstance(group, str | Path):
         file = h5py.File(group, "a")
@@ -91,7 +136,6 @@ def write_inputs_to_group(inputs, group: h5py.Group | h5py.File | str | Path):
     # Write 21cmFAST version to the file
     grp.attrs["21cmFAST-version"] = __version__
 
-    # TODO: need to get global params in here somehow
     write_input_struct(inputs.user_params, grp.create_group("user_params"))
     write_input_struct(inputs.cosmo_params, grp.create_group("cosmo_params"))
     write_input_struct(inputs.astro_params, grp.create_group("astro_params"))
@@ -112,12 +156,19 @@ def write_outputs_to_group(
     output: ostruct.OutputStruct, group: h5py.Group | h5py.File | str | Path
 ):
     """
-    Write out this object to a particular HDF5 subgroup.
+    Write the compute fields of an OutputStruct to a particular HDF5 subgroup.
+
+    Here we are careful to close the file only if a raw Path is given, and keep it open
+    if a h5py.File/Group is given (since then this is likely being called from another
+    function that is also writing other objects to the same file).
 
     Parameters
     ----------
+    output
+        The OutputStruct to write.
     group
-        The HDF5 group into which to write the object.
+        The HDF5 group into which to write the object. A new group "OutputFields" will
+        be created inside this group/file.
     """
     need_to_close = False
     if isinstance(group, str | Path):
@@ -146,7 +197,7 @@ def write_outputs_to_group(
 
 def read_output_struct(
     path: Path, group: str = "/", struct: str | None = None, safe: bool = True
-):
+) -> ostruct.OutputStruct:
     """
     Read an output struct from an HDF5 file.
 
@@ -157,6 +208,19 @@ def read_output_struct(
     group : str, optional
         A path within the HDF5 heirarchy to the top-level of the OutputStruct. This is
         usually the root of the file.
+    struct
+        A string specifying the kind of OutputStruct to read (e.g. InitialConditions).
+        Generally, this does not need to be provided, as cache files contain just a
+        single output struct.
+    safe
+        Whether to read the file in "safe" mode. If True, keys found in the file that
+        are not valid attributes of the struct will raise an exception. If False, only
+        a warning will be raised.
+
+    Returns
+    -------
+    OutputStruct
+        An OutputStruct that is contained in the cache file.
     """
     with h5py.File(path, "r") as fl:
         group = fl[group]
@@ -174,7 +238,7 @@ def read_output_struct(
 
         redshift = group.attrs.get("redshift")
         inputs = read_inputs(group["InputParameters"], safe=safe)
-        outputs = read_outputs(group["OutputFields"])
+        outputs = _read_outputs(group["OutputFields"])
 
     if redshift is not None:
         outputs["redshift"] = redshift
@@ -184,7 +248,24 @@ def read_output_struct(
     return out
 
 
-def read_inputs(group: h5py.Group | Path | h5py.File, safe: bool = True):
+def read_inputs(
+    group: h5py.Group | Path | h5py.File, safe: bool = True
+) -> InputParameters:
+    """Read the InputParameters from a cache file.
+
+    Parameters
+    ----------
+    group : h5py.Group | Path | h5py.File
+        A file, or HDF5 Group within a file, to read the input parameters from.
+    safe : bool, optional
+        If in safe mode, errors will be raised if keys exist in the file that are not
+        valid attributes of the InputParameters. Otherwise, only warnings will be raised.
+
+    Returns
+    -------
+    inputs : InputParameters
+        The input parameters contained in the file.
+    """
     close_after = False
     if isinstance(group, Path):
         file = h5py.File(group, "r")
@@ -261,7 +342,7 @@ def _read_inputs_v4(group: h5py.Group, safe: bool = True):
     return InputParameters(**kwargs)
 
 
-def read_outputs(group: h5py.Group):
+def _read_outputs(group: h5py.Group):
     file_version = group.attrs.get("21cmFAST-version", None)
 
     if file_version > __version__:

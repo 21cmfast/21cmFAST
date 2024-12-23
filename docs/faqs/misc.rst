@@ -41,27 +41,6 @@ To make the current configuration permanent, simply use the ``write`` method::
     >>> p21.config['direc'] = 'my_own_cache'
     >>> p21.config.write()
 
-Global Parameters
------------------
-There are a bunch of "global" parameters that are used throughout the C code. These are
-parameters that are deemed to be constant enough to not expose them through the
-regularly-used input structs, but nevertheless may necessitate modification from
-time-to-time. These are accessed through the ``global_params`` object::
-
-    >>> from py21cmfast import global_params
-
-Help on the attributes can be obtained via ``help(global_params)`` or
-`in the docs <../reference/_autosummary/py21cmfast.inputs.html>`_. Setting the
-attributes (which affects them everywhere throughout the code) is as simple as, eg::
-
-    >>> global_params.Z_HEAT_MAX = 30.0
-
-If you wish to use a certain parameter for a fixed portion of your code (eg. for a single
-run), it is encouraged to use the context manager, eg.::
-
-    >>> with global_params.use(Z_HEAT_MAX=10):
-    >>>    run_lightcone(...)
-
 How can I read a Coeval object from disk?
 -----------------------------------------
 
@@ -69,7 +48,7 @@ The simplest way to read a :class:`py21cmfast.outputs.Coeval` object that has be
 written to disk is by doing::
 
     import py21cmfast as p21c
-    coeval = p21c.Coeval.read("my_coeval.h5")
+    coeval = p21c.Coeval.from_file("my_coeval.h5")
 
 However, you may want to read parts of the data, or read the data using a different
 language or environment. You can do this as long as you have the HDF5 library (i.e.
@@ -83,9 +62,6 @@ structure of the file yourself interactively. But here is an example using h5py:
     # print a dict of all the UserParams
     # the CosmoParams, FlagOptions and AstroParams are accessed the same way.
     print(dict(fl['user_params'].attrs))
-
-    # print a dict of all globals used for the coeval
-    print(dict(fl['_globals'].attrs))
 
     # Get the redshift and random seed of the coeval box
     redshift = fl.attrs['redshift']

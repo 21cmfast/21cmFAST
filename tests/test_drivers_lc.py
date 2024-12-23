@@ -19,7 +19,7 @@ def test_lightcone(lc, default_user_params, lightcone_min_redshift, max_redshift
 
 
 def test_lightcone_quantities(
-    ic, default_input_struct_lc, lightcone_min_redshift, max_redshift
+    ic, default_input_struct_lc, lightcone_min_redshift, max_redshift, cache
 ):
     lcn = p21c.RectilinearLightconer.with_equal_cdist_slices(
         min_redshift=lightcone_min_redshift,
@@ -34,6 +34,7 @@ def test_lightcone_quantities(
         initial_conditions=ic,
         inputs=default_input_struct_lc,
         global_quantities=("density", "Gamma12_box"),
+        cache=cache,
     )
 
     assert "dNrec_box" in lc.lightcones
@@ -70,6 +71,7 @@ def test_lightcone_quantities(
             lightconer=lcn_ts,
             initial_conditions=ic,
             inputs=default_input_struct_lc,
+            cache=cache,
         )
 
     # And also raise an error for global quantities.
@@ -79,6 +81,7 @@ def test_lightcone_quantities(
             initial_conditions=ic,
             inputs=default_input_struct_lc,
             global_quantities=("Ts_box",),
+            cache=cache,
         )
 
 
@@ -91,7 +94,7 @@ def test_lightcone_coords(lc):
     )
 
 
-def test_run_lc_bad_inputs(rectlcn, perturbed_field, default_input_struct_lc):
+def test_run_lc_bad_inputs(rectlcn, perturbed_field, default_input_struct_lc, cache):
     with pytest.raises(
         ValueError,
         match="You are attempting to run a lightcone with no node_redshifts.",
@@ -110,6 +113,7 @@ def test_run_lc_bad_inputs(rectlcn, perturbed_field, default_input_struct_lc):
             perturbed_fields=[
                 perturbed_field,
             ],
+            cache=cache,
         )
 
 
@@ -174,7 +178,7 @@ def test_lc_partial_eval(rectlcn, ic, default_input_struct_lc, tmpdirec, lc, cac
 
 
 def test_lc_lowerz_than_photon_cons(
-    ic, default_input_struct_lc, default_flag_options, max_redshift
+    ic, default_input_struct_lc, default_flag_options, max_redshift, cache
 ):
     with pytest.raises(ValueError, match="You have passed a redshift"):
         inputs = default_input_struct_lc.clone(
@@ -193,7 +197,5 @@ def test_lc_lowerz_than_photon_cons(
         )
 
         p21c.exhaust_lightcone(
-            lightconer=lcn,
-            initial_conditions=ic,
-            inputs=inputs,
+            lightconer=lcn, initial_conditions=ic, inputs=inputs, cache=cache
         )

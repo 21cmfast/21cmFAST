@@ -24,13 +24,14 @@ from py21cmfast.lightcones import AngularLightconer, RectilinearLightconer
 
 
 @pytest.fixture(scope="module")
-def coeval(ic, default_input_struct_ts):
+def coeval(ic, default_input_struct_ts, cache):
     return exhaust(
         run_coeval(
             out_redshifts=25.0,
             initial_conditions=ic,
             write=True,
             inputs=default_input_struct_ts,
+            cache=cache,
         )
     )
 

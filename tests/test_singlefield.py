@@ -70,28 +70,24 @@ def ionize_box_lowz(
 
 
 @pytest.fixture(scope="module")
-def spin_temp_evolution(
-    ic: InitialConditions,
-    default_input_struct_ts: TsBox,
-):
+def spin_temp_evolution(ic: InitialConditions, default_input_struct_ts: TsBox, cache):
     """An example spin temperature evolution"""
     scrollz = default_input_struct_ts.node_redshifts
     st_prev = None
     outputs = []
-    print(max(scrollz), ic.user_params.Z_HEAT_MAX)
     for z in scrollz:
-        print("HERE: ", ic._compat_hash)
         pt = p21c.perturb_field(
             redshift=z,
             initial_conditions=ic,
             inputs=default_input_struct_ts,
+            cache=cache,
         )
-        print("NOW: ", ic._compat_hash)
         st = p21c.compute_spin_temperature(
             initial_conditions=ic,
             perturbed_field=pt,
             previous_spin_temp=st_prev,
             inputs=default_input_struct_ts,
+            cache=cache,
         )
         outputs.append(
             {
@@ -111,13 +107,12 @@ def test_pf_unnamed_param():
         p21c.perturb_field(7)
 
 
-def test_perturb_field_ic(perturbed_field, default_input_struct, ic):
+def test_perturb_field_ic(perturbed_field, default_input_struct, ic, cache):
     # this will run perturb_field again, since by default regenerate=True for tests.
     # BUT it should produce exactly the same as the default perturb_field since it has
     # the same seed.
     pf = p21c.perturb_field(
-        redshift=perturbed_field.redshift,
-        initial_conditions=ic,
+        redshift=perturbed_field.redshift, initial_conditions=ic, cache=cache
     )
 
     assert pf.density.shape == ic.lowres_density.shape
@@ -141,8 +136,6 @@ def test_cache_exists(default_input_struct, perturbed_field, cache):
 
     pf = cache.load(pf)
     pf.load_all()
-    print(pf.density.value)
-    print(perturbed_field.density.value)
     np.testing.assert_allclose(pf.density.value, perturbed_field.density.value)
     assert pf == perturbed_field
 
@@ -156,8 +149,7 @@ def test_new_seeds(
 ):
     # Perturbed Field
     pf = p21c.perturb_field(
-        redshift=perturb_field_lowz.redshift,
-        initial_conditions=ic_newseed,
+        redshift=perturb_field_lowz.redshift, initial_conditions=ic_newseed, cache=cache
     )
 
     # we didn't write it, and this has a different seed
@@ -170,11 +162,11 @@ def test_new_seeds(
         p21c.compute_ionization_field(
             initial_conditions=ic_newseed,
             perturbed_field=perturb_field_lowz,
+            cache=cache,
         )
 
     ib = p21c.compute_ionization_field(
-        initial_conditions=ic_newseed,
-        perturbed_field=pf,
+        initial_conditions=ic_newseed, perturbed_field=pf, cache=cache
     )
 
     # we didn't write it, and this has a different seed
@@ -183,10 +175,9 @@ def test_new_seeds(
     assert not np.all(ib.xH_box.value == ionize_box_lowz.xH_box.value)
 
 
-def test_ib_from_pf(perturbed_field, ic, default_input_struct):
+def test_ib_from_pf(perturbed_field, ic, cache):
     ib = p21c.compute_ionization_field(
-        initial_conditions=ic,
-        perturbed_field=perturbed_field,
+        initial_conditions=ic, perturbed_field=perturbed_field, cache=cache
     )
     assert ib.redshift == perturbed_field.redshift
     assert ib.inputs == perturbed_field.inputs
@@ -206,17 +197,20 @@ def test_ib_from_pf(perturbed_field, ic, default_input_struct):
 #     assert p21c.global_params.Pop2_ion == saved_val
 
 
-def test_ib_bad_st(ic, default_input_struct, perturbed_field, redshift):
+def test_ib_bad_st(ic, default_input_struct, perturbed_field, redshift, cache):
     with pytest.raises(TypeError, match="spin_temp should be of type TsBox"):
         p21c.compute_ionization_field(
             inputs=default_input_struct,
             initial_conditions=ic,
             perturbed_field=perturbed_field,
             spin_temp=ic,
+            cache=cache,
         )
 
 
-def test_bt(ionize_box, default_input_struct, spin_temp_evolution, perturbed_field):
+def test_bt(
+    ionize_box, default_input_struct, spin_temp_evolution, perturbed_field, cache
+):
     curr_st = spin_temp_evolution[-1]["spin_temp"]
     # with pytest.raises(TypeError):  # have to specify param names
     #     p21c.brightness_temperature(
@@ -230,11 +224,11 @@ def test_bt(ionize_box, default_input_struct, spin_temp_evolution, perturbed_fie
             ionized_box=ionize_box,
             perturbed_field=perturbed_field,
             spin_temp=curr_st,
+            cache=cache,
         )
 
     bt = p21c.brightness_temperature(
-        ionized_box=ionize_box,
-        perturbed_field=perturbed_field,
+        ionized_box=ionize_box, perturbed_field=perturbed_field, cache=cache
     )
 
     assert bt.inputs == perturbed_field.inputs
@@ -244,11 +238,11 @@ def test_coeval_against_direct(
     ic: p21c.InitialConditions,
     perturbed_field: p21c.PerturbedField,
     ionize_box: p21c.IonizedBox,
+    cache,
 ):
     coeval = exhaust(
         p21c.run_coeval(
-            perturbed_field=perturbed_field,
-            initial_conditions=ic,
+            perturbed_field=perturbed_field, initial_conditions=ic, cache=cache
         )
     )
 

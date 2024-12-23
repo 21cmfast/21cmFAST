@@ -24,8 +24,8 @@ from ..wrapper.outputs import InitialConditions, PerturbedField
 from ..wrapper.photoncons import _get_photon_nonconservation_data, setup_photon_cons
 from . import exhaust
 from . import single_field as sf
+from ._param_config import high_level_func
 from .coeval import _redshift_loop_generator, evolve_perturb_halos
-from .param_config import high_level_func
 
 logger = logging.getLogger(__name__)
 
@@ -137,7 +137,7 @@ class LightCone:
         """Save the lightcone object to disk."""
         path = Path(path)
         path.parent.mkdir(parents=True, exist_ok=True)
-        h5.write_inputs_to_group(self.inputs, path)
+        h5._write_inputs_to_group(self.inputs, path)
 
         with h5py.File(path, "a") as fl:
             fl.attrs["lightcone"] = True  # marker identifying this as a coeval box

@@ -26,7 +26,7 @@ from typing import Any, Literal, Self, Sequence
 
 from .. import __version__
 from ..c_21cmfast import ffi, lib
-from ..wrapper.arrays import Array
+from .arrays import Array
 from .exceptions import _process_exitcode
 from .inputs import (
     AstroParams,
@@ -44,7 +44,7 @@ logger = logging.getLogger(__name__)
 _ALL_OUTPUT_STRUCTS = {}
 
 
-def arrayfield(optional: bool = False, **kw):
+def _arrayfield(optional: bool = False, **kw):
     if optional:
         return attrs.field(
             default=None,
@@ -91,6 +91,7 @@ class OutputStruct(ABC):
         return self.__class__.__name__
 
     def __init_subclass__(cls):
+        """Store subclasses for easy access."""
         if not cls._meta:
             _ALL_OUTPUT_STRUCTS[cls.__name__] = cls
 
@@ -98,39 +99,51 @@ class OutputStruct(ABC):
 
     @property
     def user_params(self) -> UserParams:
+        """The UserParams object for this output struct."""
         return self.inputs.user_params
 
     @property
     def cosmo_params(self) -> CosmoParams:
+        """The CosmoParams object for this output struct."""
         return self.inputs.cosmo_params
 
     @property
     def astro_params(self) -> AstroParams:
+        """The AstroParams object for this output struct."""
         return self.inputs.astro_params
 
     @property
-    def flag_Options(self) -> FlagOptions:
+    def flag_options(self) -> FlagOptions:
+        """The FlagOptions object for this output struct."""
         return self.inputs.flag_options
 
-    def inputs_compatible_with(self, other: OutputStruct | InputParameters) -> bool:
+    def _inputs_compatible_with(self, other: OutputStruct | InputParameters) -> bool:
+        """Check whether this objects' inputs are compatible with another object's.
+
+        This check is sensitive to the fact that the other object may be at a different
+        level of the simulation heirarchy, and therefore may be compatible even if the
+        params are different. As long as they are the same at the level higher than the
+        minimum level of the simulation, they are considered compatible.
+        """
         if not isinstance(other, OutputStruct | InputParameters):
             return False
 
         if isinstance(other, InputParameters):
             # Compare at the level required by this object only
-            return getattr(self.inputs, f"{self._compat_hash.name}_hash") == getattr(
+            return getattr(self.inputs, f"_{self._compat_hash.name}_hash") == getattr(
                 other, f"{self._compat_hash.name}_hash"
             )
 
         min_req = min(self._compat_hash.value, other._compat_hash.value)
         min_req = _HashType(min_req)
 
-        return getattr(self.inputs, f"{min_req.name}_hash") == getattr(
-            other.inputs, f"{min_req.name}_hash"
+        return getattr(self.inputs, f"_{min_req.name}_hash") == getattr(
+            other.inputs, f"_{min_req.name}_hash"
         )
 
     @property
     def arrays(self) -> dict[str, Array]:
+        """A dictionary of Array objects whose memory is shared between this object and the C backend."""
         me = attrs.asdict(self, recurse=False)
         return {k: x for k, x in me.items() if isinstance(x, Array)}
 
@@ -189,7 +202,10 @@ class OutputStruct(ABC):
             try:
                 ary = self.arrays[ary]
             except KeyError as e:
-                raise AttributeError(f"The array {ary} does not exist") from e
+                try:
+                    return getattr(self, ary)  # could be a different attribute...
+                except AttributeError:
+                    raise AttributeError(f"The array {ary} does not exist") from e
         elif names := [name for name, x in self.arrays.items() if x is ary]:
             name = names[0]
 
@@ -203,6 +219,16 @@ class OutputStruct(ABC):
             setattr(self, name, ary)
 
         return ary.value
+
+    def set(self, name: str, value: Any):  # noqa: A003
+        """Set the value of an array."""
+        if name not in self.arrays:
+            try:
+                setattr(self, name, value)
+            except AttributeError:
+                raise AttributeError(f"The attribute '{name}' does not exist") from None
+        else:
+            setattr(self, name, self.arrays[name].with_value(value))
 
     def prepare(
         self,
@@ -299,14 +325,14 @@ class OutputStruct(ABC):
         memory without writing. Use :meth:`has` to check whether certain arrays
         are available.
         """
-        return any(v.state.computed for v in self.arrays.values())
+        return any(v.state.is_computed for v in self.arrays.values())
 
     def ensure_arrays_computed(self, *arrays, load=False) -> bool:
         """Check if the given arrays are computed (not just initialized)."""
         if not self.is_computed:
             return False
 
-        computed = all(self.arrays[k].state.computed for k in arrays)
+        computed = all(self.arrays[k].state.is_computed for k in arrays)
 
         if computed and load:
             self.prepare(keep=arrays, flush=[])
@@ -352,7 +378,7 @@ class OutputStruct(ABC):
             state = array.state
             if not state.initialized:
                 out += f"{indent}    {fieldname:>25}:  uninitialized\n"
-            elif not state.computed:
+            elif not state.is_computed:
                 out += f"{indent}    {fieldname:>25}:  initialized\n"
             elif not state.computed_in_mem:
                 out += f"{indent}    {fieldname:>25}:  computed on disk\n"
@@ -400,7 +426,7 @@ class OutputStruct(ABC):
                     f"Current State: {[(k, str(v.state)) for k, v in self.arrays.items()]}"
                 )
 
-    def _compute(self, *args):
+    def _compute(self, allow_already_computed: bool = False, *args):
         """Compute the actual function that fills this struct."""
         # Check that all required inputs are really computed, and load them into memory
         # if they're not already.
@@ -423,7 +449,7 @@ class OutputStruct(ABC):
                 arg.sync()
 
         # Ensure we haven't already tried to compute this instance.
-        if self.is_computed:
+        if self.is_computed and not allow_already_computed:
             raise ValueError(
                 f"You are trying to compute {self.__class__.__name__}, but it has already been computed."
             )
@@ -440,7 +466,7 @@ class OutputStruct(ABC):
         _process_exitcode(exitcode, self._c_compute_function, args)
 
         for name, array in self.arrays.items():
-            setattr(self, name, array.set_value(array.value))
+            setattr(self, name, array.with_value(array.value))
 
         self.sync()
         return self
@@ -454,23 +480,23 @@ class InitialConditions(OutputStruct):
     _meta = False
     _compat_hash = _HashType.user_cosmo
 
-    lowres_density = arrayfield()
-    lowres_vx = arrayfield()
-    lowres_vy = arrayfield()
-    lowres_vz = arrayfield()
-    hires_density = arrayfield()
-    hires_vx = arrayfield()
-    hires_vy = arrayfield()
-    hires_vz = arrayfield()
+    lowres_density = _arrayfield()
+    lowres_vx = _arrayfield()
+    lowres_vy = _arrayfield()
+    lowres_vz = _arrayfield()
+    hires_density = _arrayfield()
+    hires_vx = _arrayfield()
+    hires_vy = _arrayfield()
+    hires_vz = _arrayfield()
 
-    lowres_vx_2LPT = arrayfield(optional=True)
-    lowres_vy_2LPT = arrayfield(optional=True)
-    lowres_vz_2LPT = arrayfield(optional=True)
-    hires_vx_2LPT = arrayfield(optional=True)
-    hires_vy_2LPT = arrayfield(optional=True)
-    hires_vz_2LPT = arrayfield(optional=True)
+    lowres_vx_2LPT = _arrayfield(optional=True)
+    lowres_vy_2LPT = _arrayfield(optional=True)
+    lowres_vz_2LPT = _arrayfield(optional=True)
+    hires_vx_2LPT = _arrayfield(optional=True)
+    hires_vy_2LPT = _arrayfield(optional=True)
+    hires_vz_2LPT = _arrayfield(optional=True)
 
-    lowres_vcb = arrayfield(optional=True)
+    lowres_vcb = _arrayfield(optional=True)
 
     @classmethod
     def new(cls, inputs: InputParameters, **kw) -> Self:
@@ -551,9 +577,10 @@ class InitialConditions(OutputStruct):
         """Return all input arrays required to compute this object."""
         return []
 
-    def compute(self):
+    def compute(self, allow_already_computed: bool = False):
         """Compute the function."""
         return self._compute(
+            allow_already_computed,
             self.inputs.random_seed,
             self.inputs.user_params,
             self.inputs.cosmo_params,
@@ -562,6 +589,8 @@ class InitialConditions(OutputStruct):
 
 @attrs.define(slots=False, kw_only=True)
 class OutputStructZ(OutputStruct):
+    """The same as an OutputStruct, but containing a redshift."""
+
     _meta = True
     redshift: float = attrs.field(converter=float)
 
@@ -574,13 +603,27 @@ class PerturbedField(OutputStructZ):
     _meta = False
     _compat_hash = _HashType.zgrid
 
-    density = arrayfield()
-    velocity_z = arrayfield()
-    velocity_x = arrayfield(optional=True)
-    velocity_y = arrayfield(optional=True)
+    density = _arrayfield()
+    velocity_z = _arrayfield()
+    velocity_x = _arrayfield(optional=True)
+    velocity_y = _arrayfield(optional=True)
 
     @classmethod
     def new(cls, inputs: InputParameters, redshift: float, **kw) -> Self:
+        """Create a new PerturbedField instance with the given inputs.
+
+        Parameters
+        ----------
+        inputs : InputParameters
+            The input parameters defining the output struct.
+        redshift : float
+            The redshift at which to compute fields.
+
+        Other Parameters
+        ----------------
+        All other parameters are passed through to the :class:`PerturbedField`
+        constructor.
+        """
         dim = inputs.user_params.HII_DIM
 
         shape = (dim, dim, int(inputs.user_params.NON_CUBIC_FACTOR * dim))
@@ -628,9 +671,10 @@ class PerturbedField(OutputStructZ):
 
         return required
 
-    def compute(self, *, ics: InitialConditions):
+    def compute(self, *, allow_already_computed: bool = False, ics: InitialConditions):
         """Compute the function."""
         return self._compute(
+            allow_already_computed,
             self.redshift,
             self.user_params,
             self.cosmo_params,
@@ -651,17 +695,38 @@ class PerturbHaloField(OutputStructZ):
     _meta = False
     _compat_hash = _HashType.zgrid
 
-    buffer_size: int = attrs.field(default=0, converter=int)
-
-    halo_masses = arrayfield()
-    star_rng = arrayfield()
-    sfr_rng = arrayfield()
-    xray_rng = arrayfield()
-    halo_coords = arrayfield()
-    n_halos: float = attrs.field(default=None)
+    halo_masses = _arrayfield()
+    star_rng = _arrayfield()
+    sfr_rng = _arrayfield()
+    xray_rng = _arrayfield()
+    halo_coords = _arrayfield()
+    n_halos: int = attrs.field(default=None)
+    buffer_size: int = attrs.field(default=None)
 
     @classmethod
-    def new(cls, inputs: InputParameters, buffer_size: int = 0, **kw) -> Self:
+    def new(
+        cls, inputs: InputParameters, redshift: float, buffer_size: int = 0, **kw
+    ) -> Self:
+        """Create a new PerturbedHaloField instance with the given inputs.
+
+        Parameters
+        ----------
+        inputs : InputParameters
+            The input parameters defining the output struct.
+        redshift : float
+            The redshift at which to compute fields.
+
+        Other Parameters
+        ----------------
+        All other parameters are passed through to the :class:`PerturbedHaloField`
+        constructor.
+        """
+        from .cfuncs import get_halo_list_buffer_size
+
+        buffer_size = get_halo_list_buffer_size(
+            redshift, inputs.user_params, inputs.cosmo_params
+        )
+
         return cls(
             inputs=inputs,
             halo_masses=Array((buffer_size,), dtype=np.float32),
@@ -669,6 +734,8 @@ class PerturbHaloField(OutputStructZ):
             sfr_rng=Array((buffer_size,), dtype=np.float32),
             xray_rng=Array((buffer_size,), dtype=np.float32),
             halo_coords=Array((buffer_size, 3), dtype=np.int32),
+            redshift=redshift,
+            buffer_size=buffer_size,
             **kw,
         )
 
@@ -698,9 +765,16 @@ class PerturbHaloField(OutputStructZ):
 
         return required
 
-    def compute(self, *, ics: InitialConditions, halo_field: HaloField):
+    def compute(
+        self,
+        *,
+        ics: InitialConditions,
+        halo_field: HaloField,
+        allow_already_computed: bool = False,
+    ):
         """Compute the function."""
         return self._compute(
+            allow_already_computed,
             self.redshift,
             self.user_params,
             self.cosmo_params,
@@ -750,9 +824,11 @@ class HaloField(PerturbHaloField):
         *,
         descendant_halos: HaloField,
         ics: InitialConditions,
+        allow_already_computed: bool = False,
     ):
         """Compute the function."""
         return self._compute(
+            allow_already_computed,
             self.desc_redshift,
             self.redshift,
             self.user_params,
@@ -772,21 +848,35 @@ class HaloBox(OutputStructZ):
     _meta = False
     _c_compute_function = lib.ComputeHaloBox
 
-    halo_mass = arrayfield()
-    halo_stars = arrayfield()
-    halo_stars_mini = arrayfield()
-    count = arrayfield()
-    halo_sfr = arrayfield()
-    halo_sfr_mini = arrayfield()
-    halo_xray = arrayfield()
-    n_ion = arrayfield()
-    whalo_sfr = arrayfield()
+    halo_mass = _arrayfield()
+    halo_stars = _arrayfield()
+    halo_stars_mini = _arrayfield()
+    count = _arrayfield()
+    halo_sfr = _arrayfield()
+    halo_sfr_mini = _arrayfield()
+    halo_xray = _arrayfield()
+    n_ion = _arrayfield()
+    whalo_sfr = _arrayfield()
 
     log10_Mcrit_ACG_ave: float = attrs.field(default=None)
     log10_Mcrit_MCG_ave: float = attrs.field(default=None)
 
     @classmethod
     def new(cls, inputs: InputParameters, redshift: float, **kw) -> Self:
+        """Create a new HaloBox instance with the given inputs.
+
+        Parameters
+        ----------
+        inputs : InputParameters
+            The input parameters defining the output struct.
+        redshift : float
+            The redshift at which to compute fields.
+
+        Other Parameters
+        ----------------
+        All other parameters are passed through to the :class:`HaloBox`
+        constructor.
+        """
         dim = inputs.user_params.HII_DIM
         shape = (dim, dim, int(inputs.user_params.NON_CUBIC_FACTOR * dim))
 
@@ -847,9 +937,11 @@ class HaloBox(OutputStructZ):
         perturbed_field: PerturbedField,
         previous_spin_temp: TsBox,
         previous_ionize_box: IonizedBox,
+        allow_already_computed: bool = False,
     ):
         """Compute the function."""
         return self._compute(
+            allow_already_computed,
             self.redshift,
             self.user_params,
             self.cosmo_params,
@@ -870,15 +962,29 @@ class XraySourceBox(OutputStructZ):
     _meta = False
     _c_compute_function = lib.UpdateXraySourceBox
 
-    filtered_sfr = arrayfield()
-    filtered_sfr_mini = arrayfield()
-    filtered_xray = arrayfield()
-    mean_sfr = arrayfield()
-    mean_sfr_mini = arrayfield()
-    mean_log10_Mcrit_LW = arrayfield()
+    filtered_sfr = _arrayfield()
+    filtered_sfr_mini = _arrayfield()
+    filtered_xray = _arrayfield()
+    mean_sfr = _arrayfield()
+    mean_sfr_mini = _arrayfield()
+    mean_log10_Mcrit_LW = _arrayfield()
 
     @classmethod
     def new(cls, inputs: InputParameters, redshift: float, **kw) -> Self:
+        """Create a new XraySourceBox instance with the given inputs.
+
+        Parameters
+        ----------
+        inputs : InputParameters
+            The input parameters defining the output struct.
+        redshift : float
+            The redshift at which to compute fields.
+
+        Other Parameters
+        ----------------
+        All other parameters are passed through to the :class:`XraySourceBox`
+        constructor.
+        """
         shape = (
             (global_params.NUM_FILTER_STEPS_FOR_Ts,)
             + (inputs.user_params.HII_DIM,) * 2
@@ -915,9 +1021,11 @@ class XraySourceBox(OutputStructZ):
         R_inner,
         R_outer,
         R_ct,
+        allow_already_computed: bool = False,
     ):
         """Compute the function."""
         return self._compute(
+            allow_already_computed,
             self.user_params,
             self.cosmo_params,
             self.astro_params,
@@ -936,13 +1044,27 @@ class TsBox(OutputStructZ):
     _c_compute_function = lib.ComputeTsBox
     _meta = False
 
-    Ts_box = arrayfield()
-    x_e_box = arrayfield()
-    Tk_box = arrayfield()
-    J_21_LW_box = arrayfield()
+    Ts_box = _arrayfield()
+    x_e_box = _arrayfield()
+    Tk_box = _arrayfield()
+    J_21_LW_box = _arrayfield()
 
     @classmethod
     def new(cls, inputs: InputParameters, redshift: float, **kw) -> Self:
+        """Create a new TsBox instance with the given inputs.
+
+        Parameters
+        ----------
+        inputs : InputParameters
+            The input parameters defining the output struct.
+        redshift : float
+            The redshift at which to compute fields.
+
+        Other Parameters
+        ----------------
+        All other parameters are passed through to the :class:`TsBox`
+        constructor.
+        """
         shape = (inputs.user_params.HII_DIM,) * 2 + (
             int(inputs.user_params.NON_CUBIC_FACTOR * inputs.user_params.HII_DIM),
         )
@@ -1021,9 +1143,11 @@ class TsBox(OutputStructZ):
         xray_source_box: XraySourceBox,
         prev_spin_temp: TsBox,
         ics: InitialConditions,
+        allow_already_computed: bool = False,
     ):
         """Compute the function."""
         return self._compute(
+            allow_already_computed,
             self.redshift,
             prev_spin_temp.redshift,
             self.user_params,
@@ -1046,14 +1170,14 @@ class IonizedBox(OutputStructZ):
     _meta = False
     _c_compute_function = lib.ComputeIonizedBox
 
-    xH_box = arrayfield()
-    Gamma12_box = arrayfield()
-    MFP_box = arrayfield()
-    z_re_box = arrayfield()
-    dNrec_box = arrayfield()
-    temp_kinetic_all_gas = arrayfield()
-    Fcoll = arrayfield()
-    Fcoll_MINI = arrayfield(optional=True)
+    xH_box = _arrayfield()
+    Gamma12_box = _arrayfield()
+    MFP_box = _arrayfield()
+    z_re_box = _arrayfield()
+    dNrec_box = _arrayfield()
+    temp_kinetic_all_gas = _arrayfield()
+    Fcoll = _arrayfield()
+    Fcoll_MINI = _arrayfield(optional=True)
     log10_Mturnover_ave: float = attrs.field(default=None)
     log10_Mturnover_MINI_ave: float = attrs.field(default=None)
     mean_f_coll: float = attrs.field(default=None)
@@ -1061,6 +1185,20 @@ class IonizedBox(OutputStructZ):
 
     @classmethod
     def new(cls, inputs, redshift: float, **kw) -> Self:
+        """Create a new IonizedBox instance with the given inputs.
+
+        Parameters
+        ----------
+        inputs : InputParameters
+            The input parameters defining the output struct.
+        redshift : float
+            The redshift at which to compute fields.
+
+        Other Parameters
+        ----------------
+        All other parameters are passed through to the :class:`IonizedBox`
+        constructor.
+        """
         if inputs.flag_options.USE_MINI_HALOS:
             n_filtering = (
                 int(
@@ -1155,9 +1293,11 @@ class IonizedBox(OutputStructZ):
         spin_temp: TsBox,
         halobox: HaloBox,
         ics: InitialConditions,
+        allow_already_computed: bool = False,
     ):
         """Compute the function."""
         return self._compute(
+            allow_already_computed,
             self.redshift,
             prev_perturbed_field.redshift,
             self.inputs.user_params,
@@ -1180,10 +1320,24 @@ class BrightnessTemp(OutputStructZ):
     _c_compute_function = lib.ComputeBrightnessTemp
 
     _meta = False
-    brightness_temp = arrayfield()
+    brightness_temp = _arrayfield()
 
     @classmethod
     def new(cls, inputs: InputParameters, redshift: float, **kw) -> Self:
+        """Create a new BrightnessTemp instance with the given inputs.
+
+        Parameters
+        ----------
+        inputs : InputParameters
+            The input parameters defining the output struct.
+        redshift : float
+            The redshift at which to compute fields.
+
+        Other Parameters
+        ----------------
+        All other parameters are passed through to the :class:`BrightnessTemp`
+        constructor.
+        """
         shape = (inputs.user_params.HII_DIM,) * 2 + (
             int(inputs.user_params.NON_CUBIC_FACTOR * inputs.user_params.HII_DIM),
         )
@@ -1210,7 +1364,7 @@ class BrightnessTemp(OutputStructZ):
         required = []
         if isinstance(input_box, PerturbedField):
             required += ["density"]
-            if self.flag_options.APPLY_RSDS:
+            if self.inputs.flag_options.APPLY_RSDS:
                 required += ["velocity_z"]
         elif isinstance(input_box, TsBox):
             required += ["Ts_box"]
@@ -1229,14 +1383,16 @@ class BrightnessTemp(OutputStructZ):
         spin_temp: TsBox,
         ionized_box: IonizedBox,
         perturbed_field: PerturbedField,
+        allow_already_computed: bool = False,
     ):
         """Compute the function."""
         return self._compute(
+            allow_already_computed,
             self.redshift,
-            self.user_params,
-            self.cosmo_params,
-            self.astro_params,
-            self.flag_options,
+            self.inputs.user_params,
+            self.inputs.cosmo_params,
+            self.inputs.astro_params,
+            self.inputs.flag_options,
             spin_temp,
             ionized_box,
             perturbed_field,

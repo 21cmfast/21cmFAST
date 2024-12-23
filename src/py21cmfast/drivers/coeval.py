@@ -30,7 +30,7 @@ from ..wrapper.outputs import (
 )
 from ..wrapper.photoncons import _get_photon_nonconservation_data, setup_photon_cons
 from . import single_field as sf
-from .param_config import high_level_func
+from ._param_config import high_level_func
 
 logger = logging.getLogger(__name__)
 
@@ -98,8 +98,8 @@ class Coeval:
         objects that are attributes of the Coeval instance. It filters out any
         non-OutputStruct attributes.
 
-        Returns:
-        --------
+        Returns
+        -------
         dict[str, OutputStruct]
             A dictionary where the keys are attribute names and the values are
             the corresponding OutputStruct objects.
@@ -275,8 +275,13 @@ def evolve_perturb_halos(
     halos_desc = None
     for i, z in enumerate(all_redshifts[::-1]):
         halos = sf.determine_halo_list(
-            redshift=z, descendant_halos=halos_desc, write=write.halo_field, **kw
+            redshift=z,
+            inputs=inputs,
+            descendant_halos=halos_desc,
+            write=write.halo_field,
+            **kw,
         )
+
         pt_halos.append(
             sf.perturb_halo_list(
                 halo_field=halos, write=write.perturbed_halo_field, **kw
@@ -286,7 +291,11 @@ def evolve_perturb_halos(
         # we never want to store every halofield
         with contextlib.suppress(OSError):
             pt_halos[i].purge(force=always_purge)
-        halos_desc = halos
+
+        if z in inputs.node_redshifts:
+            # Only evolve on the node_redshifts, not any redshifts in-between
+            # that the user might care about.
+            halos_desc = halos
 
     # reverse to get the right redshift order
     return pt_halos[::-1]

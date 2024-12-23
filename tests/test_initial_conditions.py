@@ -10,7 +10,7 @@ from multiprocessing import cpu_count
 import py21cmfast as p21c
 
 
-def test_box_shape(ic):
+def test_box_shape(ic: p21c.InitialConditions):
     """Test basic properties of the InitialConditions struct"""
     shape = (35, 35, 35)
     hires_shape = tuple(2 * s for s in shape)
@@ -35,23 +35,24 @@ def test_box_shape(ic):
     assert ic.cosmo_params == p21c.CosmoParams()
 
 
-def test_modified_cosmo(ic, default_input_struct):
+def test_modified_cosmo(
+    ic: p21c.InitialConditions, default_input_struct: p21c.InputParameters, cache
+):
     """Test using a modified cosmology"""
     inputs = default_input_struct.evolve_input_structs(SIGMA_8=0.9)
-    ic2 = p21c.compute_initial_conditions(inputs=inputs)
+    ic2 = p21c.compute_initial_conditions(inputs=inputs, cache=cache)
 
     assert ic2.cosmo_params != ic.cosmo_params
     assert ic2.cosmo_params == inputs.cosmo_params
     assert ic2.cosmo_params.SIGMA_8 == inputs.cosmo_params.SIGMA_8
 
 
-def test_transfer_function(ic, default_input_struct):
+def test_transfer_function(
+    ic: p21c.InitialConditions, default_input_struct: p21c.InputParameters, cache
+):
     """Test using a modified transfer function"""
     inputs = default_input_struct.evolve_input_structs(POWER_SPECTRUM="CLASS")
-    ic2 = p21c.compute_initial_conditions(
-        inputs=inputs,
-    )
-    print(ic2.cosmo_params)
+    ic2 = p21c.compute_initial_conditions(inputs=inputs, cache=cache)
     hrd2 = ic2.hires_density.value
     hrd = ic.hires_density.value
 

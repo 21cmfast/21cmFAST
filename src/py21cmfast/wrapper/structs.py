@@ -78,6 +78,7 @@ class StructWrapper:
         }
 
     def expose_to_c(self, array: Array, name: str):
+        """Expose the memory of a particular Array to the backend C code."""
         if not array.state.initialized:
             raise ValueError("Array must be initialized before exposing to C")
 

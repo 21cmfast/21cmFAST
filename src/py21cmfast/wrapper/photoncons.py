@@ -9,43 +9,44 @@ to bring the bubble maps more in line with the expected global values.
 The application of the model is controlled by the flag option PHOTON_CONS_TYPE, which
 can take 4 values:
 
-0: No correction is applied
-1: We use the ionizing emissivity grids from a different redshift when calculating
+0. No correction is applied
+1. We use the ionizing emissivity grids from a different redshift when calculating
    ionized bubble maps, this mapping from one redshift to another is obtained by
    performing a calibration simulation and measuring its redshift difference with the
    expected global evolution.
-2: The power-law slope of the ionizing escape fraction is adjusted, using a fit
+2. The power-law slope of the ionizing escape fraction is adjusted, using a fit
    ALPHA_ESC -> X + Y*Q(z), where Q is the expected global ionized fraction. This
    relation is fit by performing a calibration simulation as in (1), and comparing it to
    a range of expected global histories with different power-law slopes.
-3: The normalisation of the ionizing escape fraction is adjusted, using a fit
+3. The normalisation of the ionizing escape fraction is adjusted, using a fit
    F_ESC10 -> X + Y*Q(z), where Q is the expected global ionized fraction. This relation
    is fit by performing a calibration simulation as in (1), and taking its ratio with
    the expected global evolution.
 
 Notes
 -----
-The function map for the photon conservation model looks like:
+The function map for the photon conservation model looks like::
 
-wrapper.run_lightcone/coeval()
-    setup_photon_cons_correction()
-        calibrate_photon_cons_correction()
-            _init_photon_conservation_correction() --> computes and stores global evolution
-            -->perfoms calibration simulation
-            _calibrate_photon_conservation_correction() --> stores calibration evolution
-        IF PHOTON_CONS_TYPE=='z-photoncons':
-            lib.ComputeIonizedBox()
-                lib.adjust_redshifts_for_photoncons()
-                    lib.determine_deltaz_for_photoncons() (first time only) --> calculates the deltaz array with some smoothing
-                    --> does more smoothing and returns the adjusted redshift
-        ELIF PHOTON_CONS_TYPE=='alpha-photoncons':
-            photoncons_alpha() --> computes and stores ALPHA_ESC shift vs global neutral fraction
-            lib.ComputeIonizedBox()
-                get_fesc_fit() --> applies the fit to the current redshift
-        ELIF PHOTON_CONS_TYPE=='f-photoncons':
-            photoncons_fesc() --> computes and stores F_ESC10 shift vs global neutral fraction
-            lib.ComputeIonizedBox()
-                get_fesc_fit() --> applies the fit to the current redshift
+    wrapper.run_lightcone/coeval()
+        setup_photon_cons_correction()
+            calibrate_photon_cons_correction()
+                _init_photon_conservation_correction() --> computes and stores global evolution
+                -->perfoms calibration simulation
+                _calibrate_photon_conservation_correction() --> stores calibration evolution
+            IF PHOTON_CONS_TYPE=='z-photoncons':
+                lib.ComputeIonizedBox()
+                    lib.adjust_redshifts_for_photoncons()
+                        lib.determine_deltaz_for_photoncons() (first time only) --> calculates the deltaz array with some smoothing
+                        --> does more smoothing and returns the adjusted redshift
+            ELIF PHOTON_CONS_TYPE=='alpha-photoncons':
+                photoncons_alpha() --> computes and stores ALPHA_ESC shift vs global neutral fraction
+                lib.ComputeIonizedBox()
+                    get_fesc_fit() --> applies the fit to the current redshift
+            ELIF PHOTON_CONS_TYPE=='f-photoncons':
+                photoncons_fesc() --> computes and stores F_ESC10 shift vs global neutral fraction
+                lib.ComputeIonizedBox()
+                    get_fesc_fit() --> applies the fit to the current redshift
+
 """
 
 import logging
@@ -53,6 +54,7 @@ import numpy as np
 from scipy.optimize import curve_fit
 
 from ..c_21cmfast import ffi, lib
+from ..drivers._param_config import check_consistency_of_outputs_with_inputs
 from ._utils import _process_exitcode
 from .inputs import (
     AstroParams,
@@ -110,7 +112,7 @@ def _calc_zstart_photon_cons():
     return _call_c_simple(lib.ComputeZstart_PhotonCons)
 
 
-def _get_photon_nonconservation_data():
+def _get_photon_nonconservation_data() -> dict:
     """
     Access C global data representing the photon-nonconservation corrections.
 
@@ -132,7 +134,7 @@ def _get_photon_nonconservation_data():
     """
     # Check if photon conservation has been initialised at all
     if not lib.photon_cons_allocated:
-        return None
+        return {}
 
     arbitrary_large_size = 2000
 
@@ -226,9 +228,9 @@ def setup_photon_cons(
             inputs = initial_conditions.inputs
 
     if inputs.flag_options.PHOTON_CONS_TYPE == "no-photoncons":
-        return
+        return {}
 
-    inputs.check_output_compatibility([initial_conditions])
+    check_consistency_of_outputs_with_inputs(inputs, [initial_conditions])
 
     # calculate global and calibration simulation xH histories and save them in C
     calibrate_photon_cons(
@@ -291,11 +293,8 @@ def calibrate_photon_cons(
         USE_HALO_FIELD=False,
         PHOTON_CONS_TYPE="no-photoncons",
     )
-    ib = None
-    prev_perturb = None
 
     # Arrays for redshift and neutral fraction for the calibration curve
-    z_for_photon_cons = []
     neutral_fraction_photon_cons = []
 
     # Initialise the analytic expression for the reionisation history
@@ -312,6 +311,10 @@ def calibrate_photon_cons(
     logger.info("Calculating photon conservation zstart")
     z = _calc_zstart_photon_cons()
 
+    fast_node_redshifts = [z]
+
+    inputs_calibration = inputs_calibration.clone(node_redshifts=fast_node_redshifts)
+
     while z > global_params.PhotonConsEndCalibz:
         # Determine the ionisation box with recombinations, spin temperature etc.
         # turned off.
@@ -323,21 +326,12 @@ def calibrate_photon_cons(
         )
 
         ib2 = compute_ionization_field(
-            redshift=z,
-            inputs=inputs_calibration,
-            previous_ionize_box=ib,
             initial_conditions=initial_conditions,
             perturbed_field=this_perturb,
-            previous_perturbed_field=prev_perturb,
-            spin_temp=None,
             **kwargs,
         )
 
-        mean_nf = np.mean(ib2.xH_box)
-
-        # Save mean/global quantities
-        neutral_fraction_photon_cons.append(mean_nf)
-        z_for_photon_cons.append(z)
+        mean_nf = np.mean(ib2.get("xH_box"))
 
         # Can speed up sampling in regions where the evolution is slower
         if 0.3 < mean_nf <= 0.9:
@@ -347,20 +341,21 @@ def calibrate_photon_cons(
         else:
             z -= 0.5
 
-        ib = ib2
-        if inputs.flag_options.USE_MINI_HALOS:
-            prev_perturb = this_perturb
+        fast_node_redshifts.append(z)
 
-        z_for_photon_cons = np.array(z_for_photon_cons[::-1])
-        neutral_fraction_photon_cons = np.array(neutral_fraction_photon_cons[::-1])
+        # Save mean/global quantities
+        neutral_fraction_photon_cons.append(mean_nf)
 
-        # Construct the spline for the calibration curve
-        logger.info("Calibrating photon conservation correction")
-        _calibrate_photon_conservation_correction(
-            redshifts_estimate=z_for_photon_cons,
-            nf_estimate=neutral_fraction_photon_cons,
-            NSpline=len(z_for_photon_cons),
-        )
+    fast_node_redshifts = np.array(fast_node_redshifts[::-1])
+    neutral_fraction_photon_cons = np.array(neutral_fraction_photon_cons[::-1])
+
+    # Construct the spline for the calibration curve
+    logger.info("Calibrating photon conservation correction")
+    _calibrate_photon_conservation_correction(
+        redshifts_estimate=fast_node_redshifts,
+        nf_estimate=neutral_fraction_photon_cons,
+        NSpline=len(fast_node_redshifts),
+    )
 
 
 # (Jdavies): I needed a function to access the delta z from the wrapper

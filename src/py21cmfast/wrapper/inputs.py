@@ -127,6 +127,21 @@ class InputStruct:
             names to their corresponding values. If `x` is an instance of this class,
             its attributes will be used as initial values. If `x` is None, the
             struct will be initialised with default values.
+
+        Examples
+        --------
+        >>> up = UserParams({'HII_DIM': 250})
+        >>> up.HII_DIM
+        250
+        >>> up = UserParams(up)
+        >>> up.HII_DIM
+        250
+        >>> up = UserParams()
+        >>> up.HII_DIM
+        200
+        >>> up = UserParams(HII_DIM=256)
+        >>> up.HII_DIM
+        256
         """
         if isinstance(x, dict):
             return cls(**x, **kwargs)
@@ -140,6 +155,7 @@ class InputStruct:
             )
 
     def __init_subclass__(cls) -> None:
+        """Store each subclass for easy access."""
         cls._subclasses[cls.__name__] = cls
 
     @cached_property
@@ -207,7 +223,7 @@ class InputStruct:
             out[k] = val if trns is None else trns(val)
         return out
 
-    def __str__(self):
+    def __str__(self) -> str:
         """Human-readable string representation of the object."""
         d = self.asdict()
         biggest_k = max(len(k) for k in d)
@@ -312,6 +328,17 @@ class CosmoParams(InputStruct):
         )
 
     def asdict(self) -> dict:
+        """Return a dict representation of the instance.
+
+        Examples
+        --------
+        This dict is such that doing the following should work, i.e. it can be
+        used exactly to construct a new instance of the same object::
+
+        >>> inp = InputStruct(**params)
+        >>> newinp =InputStruct(**inp.asdict())
+        >>> inp == newinp
+        """
         d = super().asdict()
         del d["_base_cosmo"]
         return d
@@ -1174,34 +1201,6 @@ class InputParameters:
             for key in self.merge_keys()
         )
 
-    def check_output_compatibility(self, output_structs):
-        """Generate a new InputParameters instance given a list of OutputStructs.
-
-        In contrast to other construction methods, we do not accept overwriting of
-        sub-fields here, since it will no longer be compatible with the output structs.
-
-        All required fields not present in the `OutputStruct` objects need to be provided.
-        """
-        # get matching fields in each output struct
-        fieldnames = [field.name for field in attrs.fields(self.__class__) if field.eq]
-        for struct in output_structs:
-            if struct is None:
-                continue
-
-            input_params = {
-                k.lstrip(""): getattr(struct, k, None)
-                for k in struct._inputs
-                if k.lstrip("") in fieldnames
-            }
-
-            # Since self is always complete we can just compare against it
-            for field, struct_val in input_params.items():
-                input_val = getattr(self, field)
-                if struct_val is not None and struct_val != input_val:
-                    raise ValueError(
-                        f"InputParameters not compatible with {struct} {field}: inputs {input_val} != struct {struct_val}"
-                    )
-
     def evolve_input_structs(self, **kwargs):
         """Return an altered clone of the `InputParameters` structs.
 
@@ -1249,13 +1248,23 @@ class InputParameters:
         )
 
     @cached_property
-    def user_cosmo_hash(self):
+    def _user_cosmo_hash(self):
+        """A hash generated from the user and cosmo params as well random seed."""
         return hash((self.random_seed, self.user_params, self.cosmo_params))
 
     @cached_property
-    def zgrid_hash(self):
-        return hash((self.user_cosmo_hash, self.node_redshifts))
+    def _zgrid_hash(self):
+        return hash((self._user_cosmo_hash, self.node_redshifts))
 
     @cached_property
-    def full_hash(self):
+    def _full_hash(self):
         return hash(self)
+
+    @property
+    def evolution_required(self) -> bool:
+        """Whether evolution is required for these parameters."""
+        return (
+            self.flag_options.USE_TS_FLUCT
+            or self.flag_options.INHOMO_RECO
+            or self.flag_options.USE_MINI_HALOS
+        )
