@@ -131,7 +131,7 @@ class OutputStruct(ABC):
         if isinstance(other, InputParameters):
             # Compare at the level required by this object only
             return getattr(self.inputs, f"_{self._compat_hash.name}_hash") == getattr(
-                other, f"{self._compat_hash.name}_hash"
+                other, f"_{self._compat_hash.name}_hash"
             )
 
         min_req = min(self._compat_hash.value, other._compat_hash.value)
