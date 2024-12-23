@@ -10,7 +10,6 @@ from collections import deque
 from typing import Generator
 
 from .coeval import Coeval, run_coeval
-from .lightcone import AngularLightcone, LightCone, run_lightcone
 from .single_field import (
     compute_initial_conditions,
     compute_ionization_field,
