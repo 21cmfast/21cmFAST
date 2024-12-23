@@ -138,6 +138,7 @@ struct FilteredGrids{
 void set_ionbox_constants(double redshift, double prev_redshift, CosmoParams *cosmo_params, UserParams *user_params,
                          AstroParams *astro_params, FlagOptions *flag_options, struct IonBoxConstants *consts){
     consts->redshift = redshift;
+    consts->prev_redshift = prev_redshift;
     //defaults for no photoncons
     consts->stored_redshift = redshift;
     consts->photoncons_adjustment_factor = 1.;
@@ -489,15 +490,19 @@ void set_mean_fcoll(struct IonBoxConstants *c, IonizedBox *prev_box, IonizedBox 
         *f_limit_acg = Fcoll_General(user_params_global->Z_HEAT_MAX, c->lnMmin, c->lnMmax_gl); //JD: the old parametrisation didn't have this limit before
     }
 
-    if(isfinite(curr_box->mean_f_coll)==0){
-        LOG_ERROR("Mean collapse fraction is either infinite or NaN!");
+    if(isfinite(curr_box->mean_f_coll)==0 || curr_box->mean_f_coll < 0){
+        LOG_ERROR("Mean collapse fraction is invalid");
+        LOG_ERROR("prev box %g prev intgrl %g curr intrgl %g --> %g",
+                    prev_box->mean_f_coll, f_coll_prev, f_coll_curr, curr_box->mean_f_coll);
         Throw(InfinityorNaNError);
     }
     LOG_SUPER_DEBUG("excursion set normalisation, mean_f_coll: %e", curr_box->mean_f_coll);
 
     if (flag_options_global->USE_MINI_HALOS){
-        if(isfinite(curr_box->mean_f_coll_MINI)==0){
-            LOG_ERROR("Mean collapse fraction of MINI is either infinite or NaN!");
+        if(isfinite(curr_box->mean_f_coll_MINI)==0 || curr_box->mean_f_coll_MINI < 0){
+            LOG_ERROR("Mean collapse fraction is invalid");
+            LOG_ERROR("prev box %g prev intgrl %g curr intrgl %g --> %g",
+                        prev_box->mean_f_coll_MINI, f_coll_prev_mini, f_coll_curr_mini, curr_box->mean_f_coll_MINI);
             Throw(InfinityorNaNError);
         }
         LOG_SUPER_DEBUG("excursion set normalisation, mean_f_coll_MINI: %e", curr_box->mean_f_coll_MINI);
@@ -650,7 +655,7 @@ void setup_integration_tables(struct FilteredGrids *fg_struct, struct IonBoxCons
             clip_and_get_extrema(fg_struct->log10_Mturnover_MINI_filtered,0.,LOG10_MTURN_MAX,&log10Mturn_min_MINI,&log10Mturn_max_MINI);
         }
 
-        LOG_ULTRA_DEBUG("Tb limits d (%.2e,%.2e), m (%.2e,%.2e) t (%.2e,%.2e) tm (%.2e,%.2e)",
+        LOG_SUPER_DEBUG("Tb limits d (%.2e,%.2e), m (%.2e,%.2e) t (%.2e,%.2e) tm (%.2e,%.2e)",
                         min_density,max_density,consts->M_min,rspec.M_max_R,log10Mturn_min,log10Mturn_max,
                         log10Mturn_min_MINI,log10Mturn_max_MINI);
         if(user_params_global->INTEGRATION_METHOD_ATOMIC == 1 || (flag_options_global->USE_MINI_HALOS && user_params_global->INTEGRATION_METHOD_MINI == 1))
@@ -676,6 +681,7 @@ void setup_integration_tables(struct FilteredGrids *fg_struct, struct IonBoxCons
 
             //previous redshift tables if needed
             if(need_prev && flag_options_global->USE_MINI_HALOS){
+                //NOTE: we intentionally use the lower turnovers at this redshift, but should we be doing the same for the upper turnover?
                 initialise_Nion_Conditional_spline(consts->prev_redshift,consts->mturn_a_nofb,prev_min_density,prev_max_density,consts->M_min,rspec.M_max_R,rspec.M_max_R,
                                         log10Mturn_min,log10Mturn_max,log10Mturn_min_MINI,log10Mturn_max_MINI,
                                         consts->alpha_star, consts->alpha_star_mini,
@@ -805,12 +811,15 @@ void calculate_fcoll_grid(IonizedBox *box, IonizedBox *previous_ionize_box, stru
                         //if (box->Fcoll[counter * HII_TOT_NUM_PIXELS + HII_R_INDEX(x,y,z)] < previous_ionize_box->Fcoll[counter * HII_TOT_NUM_PIXELS + HII_R_INDEX(x,y,z)])
                         //    box->Fcoll[counter * HII_TOT_NUM_PIXELS + HII_R_INDEX(x,y,z)] = previous_ionize_box->Fcoll[counter * HII_TOT_NUM_PIXELS + HII_R_INDEX(x,y,z)];
                         f_coll_total += box->Fcoll[fc_r_idx * HII_TOT_NUM_PIXELS + HII_R_INDEX(x,y,z)];
-                        if(isfinite(f_coll_total)==0) {
-                            LOG_ERROR("f_coll is either infinite or NaN!(%d,%d,%d)%g,%g,%g,%g,%g,%g,%g,%g,%g",\
-                                    x,y,z,curr_dens,prev_dens,previous_ionize_box->Fcoll[fc_r_idx * HII_TOT_NUM_PIXELS + HII_R_INDEX(x,y,z)],\
-                                    Splined_Fcoll, prev_Splined_Fcoll, curr_dens, prev_dens, log10_Mturnover,
+                        if(isfinite(f_coll_total)==0){
+                            LOG_ERROR("f_coll is either infinite or NaN! %d %g (%d,%d,%d)?: dens %g, prev %g",
+                                    rspec->R_index,rspec->R,x,y,z,curr_dens,prev_dens);
+                            LOG_ERROR("prev box %g intgrl %g curr %g --> %g l10mturn %g (%g)",
+                                    previous_ionize_box->Fcoll[fc_r_idx * HII_TOT_NUM_PIXELS + HII_R_INDEX(x,y,z)],
+                                    prev_Splined_Fcoll, Splined_Fcoll,
+                                    box->Fcoll[fc_r_idx * HII_TOT_NUM_PIXELS + HII_R_INDEX(x,y,z)],
+                                    log10_Mturnover,
                                     *((float *)fg_struct->log10_Mturnover_filtered + HII_R_FFT_INDEX(x,y,z)));
-                            Throw(InfinityorNaNError);
                         }
 
                         if (Splined_Fcoll_MINI > 1.) Splined_Fcoll_MINI = 1.;
@@ -825,13 +834,15 @@ void calculate_fcoll_grid(IonizedBox *box, IonizedBox *previous_ionize_box, stru
                         //if (box->Fcoll_MINI[counter * HII_TOT_NUM_PIXELS + HII_R_INDEX(x,y,z)] < previous_ionize_box->Fcoll_MINI[counter * HII_TOT_NUM_PIXELS + HII_R_INDEX(x,y,z)])
                         //    box->Fcoll_MINI[counter * HII_TOT_NUM_PIXELS + HII_R_INDEX(x,y,z)] = previous_ionize_box->Fcoll_MINI[counter * HII_TOT_NUM_PIXELS + HII_R_INDEX(x,y,z)];
                         f_coll_MINI_total += box->Fcoll_MINI[fc_r_idx * HII_TOT_NUM_PIXELS + HII_R_INDEX(x,y,z)];
-                        if(isfinite(f_coll_MINI_total)==0) {
-                            LOG_ERROR("f_coll_MINI is either infinite or NaN!(%d,%d,%d)%g,%g,%g,%g,%g,%g,%g",\
-                                        x,y,z,curr_dens, prev_dens, previous_ionize_box->Fcoll_MINI[fc_r_idx * HII_TOT_NUM_PIXELS + HII_R_INDEX(x,y,z)],\
-                                        Splined_Fcoll_MINI, prev_Splined_Fcoll_MINI, log10_Mturnover_MINI,\
-                                        *((float *)fg_struct->log10_Mturnover_MINI_filtered + HII_R_FFT_INDEX(x,y,z)));
-                            LOG_DEBUG("%g,%g",previous_ionize_box->Fcoll[fc_r_idx * HII_TOT_NUM_PIXELS + HII_R_INDEX(x,y,z)],\
-                                        previous_ionize_box->Fcoll_MINI[fc_r_idx * HII_TOT_NUM_PIXELS + HII_R_INDEX(x,y,z)]);
+                        if(isfinite(f_coll_MINI_total)==0){
+                            LOG_ERROR("f_coll_MINI is either infinite or NaN %d R=%g (%d,%d,%d)?: dens %g, prev %g",
+                                    rspec->R_index,rspec->R,x,y,z,curr_dens,prev_dens);
+                            LOG_ERROR("prev box %g intgrl %g curr int %g --> %g  l10mturn %g (%g)",
+                                    previous_ionize_box->Fcoll_MINI[fc_r_idx * HII_TOT_NUM_PIXELS + HII_R_INDEX(x,y,z)],
+                                    prev_Splined_Fcoll_MINI, Splined_Fcoll_MINI,
+                                    box->Fcoll_MINI[fc_r_idx * HII_TOT_NUM_PIXELS + HII_R_INDEX(x,y,z)],
+                                    log10_Mturnover_MINI,
+                                    *((float *)fg_struct->log10_Mturnover_MINI_filtered + HII_R_FFT_INDEX(x,y,z)));
                             Throw(InfinityorNaNError);
                         }
                     }
@@ -1305,6 +1316,10 @@ int ComputeIonizedBox(float redshift, float prev_redshift, UserParams *user_para
                                 user_params->N_THREADS, grid_struct->log10_Mturnover_MINI_unfiltered);
                 dft_r2c_cube(user_params->USE_FFTW_WISDOM, user_params->HII_DIM, HII_D_PARA,
                                 user_params->N_THREADS, grid_struct->log10_Mturnover_unfiltered);
+                for (ct=0; ct<HII_KSPACE_NUM_PIXELS; ct++){
+                    grid_struct->log10_Mturnover_unfiltered[ct] /= (float)HII_TOT_NUM_PIXELS;
+                    grid_struct->log10_Mturnover_MINI_unfiltered[ct] /= (float)HII_TOT_NUM_PIXELS;
+                }
             }
         }
         if(flag_options->USE_TS_FLUCT){

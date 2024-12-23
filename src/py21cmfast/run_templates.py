@@ -74,7 +74,8 @@ def create_params_from_template(template_name: str, **kwargs):
     # First check if the provided name is a path to an existsing TOML file
     template = None
     if Path(template_name).is_file():
-        template = tomllib.load(template_name)
+        with open(template_name, "rb") as template_file:
+            template = tomllib.load(template_file)
 
     # Next, check if the string matches one of our template aliases
     with open(TEMPLATE_PATH / "manifest.toml", "rb") as f:

@@ -911,6 +911,7 @@ class AstroParams(InputStruct):
         converter=float,
     )
     F_ESC7_MINI = field(
+        default=-2.0,
         converter=float,
         transformer=logtransformer,
     )
@@ -973,14 +974,6 @@ class AstroParams(InputStruct):
         If the MCG scaling relations are not provided, we extend the ACG ones
         """
         return self.F_STAR10 - 3 * self.ALPHA_STAR  # -3*alpha since 1e7/1e10 = 1e-3
-
-    # NOTE: Currently the default is not `None`, so this would normally do nothing.
-    #   We need to examine the MCG/ACG connection to popII/popIII stars and
-    #   discuss what this model should be.
-    @F_ESC7_MINI.default
-    def _F_ESC7_MINI_default(self):
-        """The stellar-to-halo mass ratio at 1e7 Solar Masses for Molecularly cooled galaxies."""
-        return self.F_ESC10 - 3 * self.ALPHA_ESC  # -3*alpha since 1e7/1e10 = 1e-3
 
     @ALPHA_STAR_MINI.default
     def _ALPHA_STAR_MINI_default(self):

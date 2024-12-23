@@ -36,8 +36,10 @@
 //Tables for the grids
 static RGTable1D SFRD_z_table = {.allocated = false};
 static RGTable1D Nion_z_table = {.allocated = false};
+static RGTable1D Xray_z_table_1D = {.allocated = false};
 static RGTable2D SFRD_z_table_MINI = {.allocated = false};
 static RGTable2D Nion_z_table_MINI = {.allocated = false};
+static RGTable2D Xray_z_table_2D = {.allocated = false};
 static RGTable1D_f Nion_conditional_table1D = {.allocated = false};
 static RGTable1D_f SFRD_conditional_table = {.allocated = false};
 static RGTable2D_f Nion_conditional_table2D = {.allocated = false};
@@ -45,6 +47,8 @@ static RGTable2D_f Nion_conditional_table_MINI = {.allocated = false};
 static RGTable2D_f SFRD_conditional_table_MINI = {.allocated = false};
 static RGTable2D_f Nion_conditional_table_prev = {.allocated = false};
 static RGTable2D_f Nion_conditional_table_MINI_prev = {.allocated = false};
+static RGTable2D_f Xray_conditional_table_2D = {.allocated = false};
+static RGTable1D_f Xray_conditional_table_1D = {.allocated = false};
 
 //Tables for the catalogues
 static RGTable1D Nhalo_table = {.allocated = false};
@@ -289,6 +293,7 @@ void initialise_Nion_Conditional_spline(float z, float Mcrit_atom, float min_den
     RGTable2D_f *table_2d, *table_mini;
 
     LOG_SUPER_DEBUG("Initialising Nion conditional table at mass %.2e from delta %.2e to %.2e",Mcond,min_density,max_density);
+    LOG_SUPER_DEBUG("l10Mturns ACG %.2e %.2e MCG %.2e %.2e",log10Mturn_min,log10Mturn_max,log10Mturn_min_MINI,log10Mturn_max_MINI);
 
     growthf = dicke(z);
     double lnMmin = log(Mmin);
@@ -347,7 +352,7 @@ void initialise_Nion_Conditional_spline(float z, float Mcrit_atom, float min_den
         for(i=0;i<NDELTA;i++){
             if(!minihalos){
                 //pass constant M_turn as minimum
-                Nion_conditional_table1D.y_arr[i] = log(Nion_ConditionalM(growthf,lnMmin,lnMmax,Mcond,sigma2,
+                Nion_conditional_table1D.y_arr[i] = log(Nion_ConditionalM(growthf,lnMmin,lnMmax,log(Mcond),sigma2,
                                                 overdense_table[i],Mcrit_atom,Alpha_star,Alpha_esc,
                                                 Fstar10,Fesc10,Mlim_Fstar,Mlim_Fesc,user_params_global->INTEGRATION_METHOD_ATOMIC));
                 if(Nion_conditional_table1D.y_arr[i] < -40.)
@@ -356,14 +361,14 @@ void initialise_Nion_Conditional_spline(float z, float Mcrit_atom, float min_den
                 continue;
             }
             for (j=0; j<NMTURN; j++){
-                table_2d->z_arr[i][j] = log(Nion_ConditionalM(growthf,lnMmin,lnMmax,Mcond,sigma2,
+                table_2d->z_arr[i][j] = log(Nion_ConditionalM(growthf,lnMmin,lnMmax,log(Mcond),sigma2,
                                                 overdense_table[i],mturns[j],Alpha_star,Alpha_esc,
                                                 Fstar10,Fesc10,Mlim_Fstar,Mlim_Fesc,user_params_global->INTEGRATION_METHOD_ATOMIC));
 
                 if(table_2d->z_arr[i][j] < -40.)
                     table_2d->z_arr[i][j] = -40.;
 
-                table_mini->z_arr[i][j] = log(Nion_ConditionalM_MINI(growthf,lnMmin,lnMmax,Mcond,sigma2,overdense_table[i],
+                table_mini->z_arr[i][j] = log(Nion_ConditionalM_MINI(growthf,lnMmin,lnMmax,log(Mcond),sigma2,overdense_table[i],
                                                     mturns_MINI[j],Mcrit_atom,Alpha_star_mini,Alpha_esc,Fstar7_MINI,Fesc7_MINI,
                                                     Mlim_Fstar_MINI,Mlim_Fesc_MINI,user_params_global->INTEGRATION_METHOD_MINI));
 
@@ -444,7 +449,7 @@ void initialise_SFRD_Conditional_table(double min_density, double max_density, d
 #pragma omp for
         for (i=0; i<NDELTA; i++){
             curr_dens = min_density + (float)i/((float)NDELTA-1.)*(max_density - min_density);
-            SFRD_conditional_table.y_arr[i] = log(Nion_ConditionalM(growthf,lnMmin,lnMmax,Mcond,sigma2,curr_dens,\
+            SFRD_conditional_table.y_arr[i] = log(Nion_ConditionalM(growthf,lnMmin,lnMmax,lnM_condition,sigma2,curr_dens,\
                                             Mcrit_atom,Alpha_star,0.,Fstar10,1.,Mlim_Fstar,0., user_params_global->INTEGRATION_METHOD_ATOMIC));
 
             if(SFRD_conditional_table.y_arr[i] < -50.)
@@ -453,7 +458,7 @@ void initialise_SFRD_Conditional_table(double min_density, double max_density, d
             if(!minihalos) continue;
 
             for (k=0; k<NMTURN; k++){
-                SFRD_conditional_table_MINI.z_arr[i][k] = log(Nion_ConditionalM_MINI(growthf,lnMmin,lnMmax,Mcond,sigma2,\
+                SFRD_conditional_table_MINI.z_arr[i][k] = log(Nion_ConditionalM_MINI(growthf,lnMmin,lnMmax,lnM_condition,sigma2,\
                                             curr_dens,MassTurnover[k],Mcrit_atom,\
                                             Alpha_star_mini,0.,Fstar7_MINI,1.,Mlim_Fstar_MINI, 0., user_params_global->INTEGRATION_METHOD_MINI));
 
@@ -472,6 +477,97 @@ void initialise_SFRD_Conditional_table(double min_density, double max_density, d
         for (k=0; k<NMTURN; k++){
             if(isfinite(SFRD_conditional_table_MINI.z_arr[i][k])==0) {
                 LOG_ERROR("Detected either an infinite or NaN value in MCG SFRD conditional table");
+                Throw(TableGenerationError);
+            }
+        }
+    }
+}
+
+//This function initialises one table, for table Rx arrays I will call this function in a loop
+void initialise_Xray_Conditional_table(double min_density, double max_density, double redshift, double growthf,
+                                    float Mcrit_atom, double Mmin, double Mmax, double Mcond, float Alpha_star, float Alpha_star_mini,
+                                    float Fstar10, float Fstar7_MINI, double l_x, double l_x_mini, double t_h, double t_star,
+                                    int method, int method_mini, bool minihalos){
+    float Mlim_Fstar,sigma2;
+    float Mlim_Fstar_MINI=0.;
+    int i,k;
+
+    LOG_SUPER_DEBUG("Initialising Xray conditional table at mass %.2e from delta %.2e to %.2e",Mcond,min_density,max_density);
+
+    double lnM_condition = log(Mcond);
+    Mlim_Fstar = Mass_limit_bisection(global_params.M_MIN_INTEGRAL, global_params.M_MAX_INTEGRAL, Alpha_star, Fstar10);
+    float MassTurnover[NMTURN];
+    for(i=0;i<NMTURN;i++){
+        MassTurnover[i] = pow(10., LOG10_MTURN_MIN + (float)i/((float)NMTURN-1.)*(LOG10_MTURN_MAX-LOG10_MTURN_MIN));
+    }
+
+    //NOTE: Here we use the constant Mturn_acg limits instead of variables like in the Nion tables
+    if(minihalos){
+        if(!Xray_conditional_table_2D.allocated){
+            allocate_RGTable2D_f(NDELTA,NMTURN,&Xray_conditional_table_2D);
+        }
+        Xray_conditional_table_2D.x_min = min_density;
+        Xray_conditional_table_2D.x_width = (max_density - min_density)/(NDELTA-1.);
+        Xray_conditional_table_2D.y_min = LOG10_MTURN_MIN;
+        Xray_conditional_table_2D.y_width = (LOG10_MTURN_MAX - LOG10_MTURN_MIN)/(NMTURN-1.);
+        Mlim_Fstar_MINI = Mass_limit_bisection(global_params.M_MIN_INTEGRAL, global_params.M_MAX_INTEGRAL, Alpha_star_mini, Fstar7_MINI * pow(1e3, Alpha_star_mini));
+    }
+    else{
+        if(!Xray_conditional_table_1D.allocated){
+            allocate_RGTable1D_f(NDELTA,&Xray_conditional_table_1D);
+        }
+        Xray_conditional_table_1D.x_min = min_density;
+        Xray_conditional_table_1D.x_width = (max_density - min_density)/(NDELTA-1.);
+    }
+
+
+    double lnMmin = log(Mmin);
+    double lnMmax = log(Mmax);
+    sigma2 = EvaluateSigma(lnM_condition); //sigma is always the condition, whereas lnMmax is just the integral limit
+    // double growthf, double lnM1, double lnM2, double M_cond, double sigma2, double delta2, double MassTurnover,
+    //                     double Alpha_star, double Alpha_star_mini, double Fstar10, double Fstar7, double Mlim_Fstar,
+    //                     double Mlim_Fstar_mini, double l_x, double l_x_mini, double t_h, double t_star, int method
+
+#pragma omp parallel private(i,k) num_threads(user_params_global->N_THREADS)
+    {
+        double curr_dens;
+#pragma omp for
+        for (i=0; i<NDELTA; i++){
+            curr_dens = min_density + (float)i/((float)NDELTA-1.)*(max_density - min_density);
+            if(!minihalos){
+                Xray_conditional_table_1D.y_arr[i] = log(Xray_ConditionalM(redshift,growthf,lnMmin,lnMmax,lnM_condition,sigma2,curr_dens,
+                                            0.,Mcrit_atom,Alpha_star,0.,Fstar10,0.,Mlim_Fstar,0.,
+                                            l_x, 0., t_h, t_star,
+                                            user_params_global->INTEGRATION_METHOD_ATOMIC));
+
+                if(Xray_conditional_table_1D.y_arr[i] < -50.)
+                    Xray_conditional_table_1D.y_arr[i] = -50.;
+                continue;
+            }
+
+            for (k=0; k<NMTURN; k++){
+                Xray_conditional_table_2D.z_arr[i][k] = log(Xray_ConditionalM(redshift,growthf,lnMmin,lnMmax,lnM_condition,sigma2,
+                                            curr_dens,MassTurnover[k],Mcrit_atom,
+                                            Alpha_star,Alpha_star_mini,Fstar10,Fstar7_MINI,Mlim_Fstar,Mlim_Fstar_MINI,
+                                            l_x, l_x_mini, t_h, t_star,
+                                            user_params_global->INTEGRATION_METHOD_MINI)); //Using mini integration method for both
+
+                if(Xray_conditional_table_2D.z_arr[i][k] < -50.)
+                    Xray_conditional_table_2D.z_arr[i][k] = -50.;
+            }
+        }
+    }
+    for (i=0; i<NDELTA; i++){
+        if(!minihalos){
+            if(isfinite(Xray_conditional_table_1D.y_arr[i])==0) {
+                LOG_ERROR("Detected either an infinite or NaN value in 1D Xray conditional table");
+                Throw(TableGenerationError);
+            }
+            continue;
+        }
+        for (k=0; k<NMTURN; k++){
+            if(isfinite(Xray_conditional_table_2D.z_arr[i][k])==0) {
+                LOG_ERROR("Detected either an infinite or NaN value in 2D Xray conditional table");
                 Throw(TableGenerationError);
             }
         }
@@ -531,8 +627,8 @@ void initialise_dNdM_tables(double xmin, double xmax, double ymin, double ymax, 
             }
 
             M_cond = exp(lnM_cond);
-            Nhalo_table.y_arr[i] = Nhalo_Conditional(growth_out,ymin,ymax,M_cond,sigma_cond,delta,0);
-            Mcoll_table.y_arr[i] = Mcoll_Conditional(growth_out,ymin,ymax,M_cond,sigma_cond,delta,0);
+            Nhalo_table.y_arr[i] = Nhalo_Conditional(growth_out,ymin,ymax,lnM_cond,sigma_cond,delta,0);
+            Mcoll_table.y_arr[i] = Mcoll_Conditional(growth_out,ymin,ymax,lnM_cond,sigma_cond,delta,0);
         }
     }
     LOG_DEBUG("Done.");
@@ -552,7 +648,7 @@ struct rf_inv_params{
 
 double dndm_inv_f(double lnM_min, void * params){
     struct rf_inv_params *p = (struct rf_inv_params *)params;
-    double integral = Nhalo_Conditional(p->growthf,lnM_min,p->lnM_cond,p->M_cond,p->sigma,p->delta,0);
+    double integral = Nhalo_Conditional(p->growthf,lnM_min,p->lnM_cond,p->lnM_cond,p->sigma,p->delta,0);
     //This ensures that we never find the root if the ratio is zero, since that will set to M_cond
     double result = integral == 0 ? 2*user_params_global->MIN_LOGPROB : log(integral / p->rf_norm);
 
@@ -646,7 +742,7 @@ void initialise_dNdM_inverse_table(double xmin, double xmax, double lnM_min, dou
             params_rf.sigma = sigma_cond;
 
             //NOTE: The total number density and collapsed fraction must be
-            norm = Nhalo_Conditional(growth_out,lnM_min,lnM_cond,M_cond,sigma_cond,delta,0);
+            norm = Nhalo_Conditional(growth_out,lnM_min,lnM_cond,lnM_cond,sigma_cond,delta,0);
             // LOG_ULTRA_DEBUG("cond x: %.2e M_min %.2e M_cond %.2e d %.4f D %.2f n %d ==> %.8e",x,exp(lnM_min),exp(lnM_cond),delta,growth_out,i,norm);
             params_rf.rf_norm = norm;
 
@@ -764,6 +860,8 @@ void free_conditional_tables(){
     free_RGTable2D_f(&Nion_conditional_table_MINI);
     free_RGTable2D_f(&Nion_conditional_table_prev);
     free_RGTable2D_f(&Nion_conditional_table_MINI_prev);
+    free_RGTable1D_f(&Xray_conditional_table_1D);
+    free_RGTable2D_f(&Xray_conditional_table_2D);
 }
 
 void free_global_tables(){
@@ -772,6 +870,8 @@ void free_global_tables(){
     free_RGTable1D(&Nion_z_table);
     free_RGTable2D(&Nion_z_table_MINI);
     free_RGTable1D(&fcoll_z_table);
+    free_RGTable1D(&Xray_z_table_1D);
+    free_RGTable2D(&Xray_z_table_2D);
 }
 
 //JD: moving the interp table evaluations here since some of them are needed in nu_tau_one
@@ -858,7 +958,7 @@ double EvaluateSFRD_Conditional(double delta, double growthf, double M_min, doub
     if(user_params_global->USE_INTERPOLATION_TABLES){
         return exp(EvaluateRGTable1D_f(delta,&SFRD_conditional_table));
     }
-    return Nion_ConditionalM(growthf,log(M_min),log(M_max),M_cond,sigma_max,delta,Mturn_a,
+    return Nion_ConditionalM(growthf,log(M_min),log(M_max),log(M_cond),sigma_max,delta,Mturn_a,
                                 astro_params_global->ALPHA_STAR,0.,astro_params_global->F_STAR10,1.,Mlim_Fstar,0., user_params_global->INTEGRATION_METHOD_ATOMIC);
 }
 
@@ -867,7 +967,7 @@ double EvaluateSFRD_Conditional_MINI(double delta, double log10Mturn_m, double g
         return exp(EvaluateRGTable2D_f(delta,log10Mturn_m,&SFRD_conditional_table_MINI));
     }
 
-    return Nion_ConditionalM_MINI(growthf,log(M_min),log(M_max),M_cond,sigma_max,delta,pow(10,log10Mturn_m),Mturn_a,astro_params_global->ALPHA_STAR_MINI,
+    return Nion_ConditionalM_MINI(growthf,log(M_min),log(M_max),log(M_cond),sigma_max,delta,pow(10,log10Mturn_m),Mturn_a,astro_params_global->ALPHA_STAR_MINI,
                                 0.,astro_params_global->F_STAR7_MINI,1.,Mlim_Fstar, 0., user_params_global->INTEGRATION_METHOD_MINI);
 }
 
@@ -880,7 +980,7 @@ double EvaluateNion_Conditional(double delta, double log10Mturn, double growthf,
         return exp(EvaluateRGTable1D_f(delta, &Nion_conditional_table1D));
     }
 
-    return Nion_ConditionalM(growthf,log(M_min),log(M_max),M_cond,sigma_max,delta,pow(10,log10Mturn),
+    return Nion_ConditionalM(growthf,log(M_min),log(M_max),log(M_cond),sigma_max,delta,pow(10,log10Mturn),
                                 astro_params_global->ALPHA_STAR,astro_params_global->ALPHA_ESC,astro_params_global->F_STAR10,
                                 astro_params_global->F_ESC10,Mlim_Fstar,Mlim_Fesc,user_params_global->INTEGRATION_METHOD_ATOMIC);
 }
@@ -892,9 +992,24 @@ double EvaluateNion_Conditional_MINI(double delta, double log10Mturn_m, double g
         return exp(EvaluateRGTable2D_f(delta,log10Mturn_m,table));
     }
 
-    return Nion_ConditionalM_MINI(growthf,log(M_min),log(M_max),M_cond,sigma_max,delta,pow(10,log10Mturn_m),Mturn_a,astro_params_global->ALPHA_STAR_MINI,
+    return Nion_ConditionalM_MINI(growthf,log(M_min),log(M_max),log(M_cond),sigma_max,delta,pow(10,log10Mturn_m),Mturn_a,astro_params_global->ALPHA_STAR_MINI,
                                 astro_params_global->ALPHA_ESC,astro_params_global->F_STAR7_MINI,astro_params_global->F_ESC7_MINI,Mlim_Fstar,
                                 Mlim_Fesc,user_params_global->INTEGRATION_METHOD_MINI);
+}
+
+double EvaluateXray_Conditional(double delta, double log10Mturn_m, double redshift, double growthf, double M_min, double M_max, double M_cond, double sigma_max,
+                                     double Mturn_a, double t_h, double Mlim_Fstar, double Mlim_Fstar_MINI){
+    if(user_params_global->USE_INTERPOLATION_TABLES){
+        if(flag_options_global->USE_MINI_HALOS)
+            return exp(EvaluateRGTable2D_f(delta,log10Mturn_m,&Xray_conditional_table_2D));
+        return exp(EvaluateRGTable1D_f(delta,&Xray_conditional_table_1D));
+    }
+
+    return Xray_ConditionalM(redshift, growthf, log(M_min), log(M_max), log(M_cond), sigma_max, delta, pow(10,log10Mturn_m),
+                                Mturn_a, astro_params_global->ALPHA_STAR, astro_params_global->ALPHA_STAR_MINI,
+                                astro_params_global->F_STAR10, astro_params_global->F_STAR7_MINI,
+                                Mlim_Fstar, Mlim_Fstar_MINI, astro_params_global->L_X, astro_params_global->L_X_MINI,t_h,
+                                astro_params_global->t_STAR, user_params_global->INTEGRATION_METHOD_MINI);
 }
 
 double EvaluateFcoll_delta(double delta, double growthf, double sigma_min, double sigma_max){
@@ -914,13 +1029,13 @@ double EvaluatedFcolldz(double delta, double redshift, double sigma_min, double 
 double EvaluateNhalo(double condition, double growthf, double lnMmin, double lnMmax, double M_cond, double sigma, double delta){
     if(user_params_global->USE_INTERPOLATION_TABLES)
         return EvaluateRGTable1D(condition,&Nhalo_table);
-    return Nhalo_Conditional(growthf, lnMmin, lnMmax, M_cond, sigma, delta, 0);
+    return Nhalo_Conditional(growthf, lnMmin, lnMmax, log(M_cond), sigma, delta, 0);
 }
 
 double EvaluateMcoll(double condition, double growthf, double lnMmin, double lnMmax, double M_cond, double sigma, double delta){
     if(user_params_global->USE_INTERPOLATION_TABLES)
         return EvaluateRGTable1D(condition,&Mcoll_table);
-    return Mcoll_Conditional(growthf, lnMmin, lnMmax, M_cond, sigma, delta, 0);
+    return Mcoll_Conditional(growthf, lnMmin, lnMmax, log(M_cond), sigma, delta, 0);
 }
 
 //extrapolation function for log-probability based tables

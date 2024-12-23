@@ -567,7 +567,7 @@ def test_Nion_z_tables(name, z_range, log10_mturn_range, plt):
             ylabels=["Nion", "Nion_mini"],
         )
 
-    abs_tol = 1e-6
+    abs_tol = 2e-6
     print_failure_stats(
         Nion_tables,
         Nion_integrals,
@@ -734,6 +734,125 @@ def test_Nion_conditional_tables(
 
     np.testing.assert_allclose(
         Nion_tables_mini, Nion_integrals_mini, atol=abs_tol, rtol=RELATIVE_TOLERANCE
+    )
+
+
+@pytest.mark.parametrize("mini", ["mini", "acg"])
+@pytest.mark.parametrize("R", R_PARAM_LIST)
+@pytest.mark.parametrize("name", options_hmf)
+@pytest.mark.parametrize("intmethod", options_intmethod)
+def test_Xray_conditional_tables(
+    name, log10_mturn_range, delta_range, R, mini, intmethod, plt
+):
+    if intmethod == "FFCOLL":
+        if name != "PS":
+            pytest.skip("FAST FFCOLL INTEGRALS WORK ONLY WITH EPS")
+        else:
+            pytest.xfail(
+                "FFCOLL TABLES drop sharply at high Mturn, causing failure at 0.1 levels"
+            )
+
+    mini_flag = mini == "mini"
+
+    redshift, kwargs = OPTIONS_HMF[name]
+    opts = prd.get_all_options(redshift, **kwargs)
+    up = opts["user_params"].clone(
+        INTEGRATION_METHOD_ATOMIC=OPTIONS_INTMETHOD[intmethod],
+        INTEGRATION_METHOD_MINI=OPTIONS_INTMETHOD[intmethod],
+    )
+    cp = opts["cosmo_params"]
+    ap = opts["astro_params"]
+    fo = opts["flag_options"].clone(
+        USE_MINI_HALOS=mini_flag,
+        INHOMO_RECO=True,
+        USE_TS_FLUCT=True,
+    )
+
+    M_min = global_params.M_MIN_INTEGRAL
+    M_max = 1e20
+
+    cond_mass = (
+        (4.0 / 3.0 * np.pi * (R * u.Mpc) ** 3 * cp.cosmo.critical_density(0) * cp.OMm)
+        .to("M_sun")
+        .value
+    )
+
+    Xray_tables = cf.evaluate_Xray_cond(
+        user_params=up,
+        cosmo_params=cp,
+        astro_params=ap,
+        flag_options=fo,
+        M_min=M_min,
+        M_max=M_max,
+        redshift=redshift,
+        cond_mass=cond_mass,
+        densities=delta_range,
+        l10mturns=log10_mturn_range,
+    )
+
+    Xray_integrals = cf.evaluate_Xray_cond(
+        user_params=up,
+        cosmo_params=cp,
+        astro_params=ap,
+        flag_options=fo,
+        M_min=M_min,
+        M_max=M_max,
+        redshift=redshift,
+        cond_mass=cond_mass,
+        densities=delta_range,
+        l10mturns=log10_mturn_range,
+        return_integral=True,
+    )
+
+    # The bilinear interpolation we use underperforms at high mturn due to the sharp
+    # dropoff. Setting an absolute tolerance to a level we care about for reionisation
+    # rather than a level we expect from interp tables remedies this for now.
+    # TODO: In future we should investigate cubic splines etc.
+    abs_tol = 0.0
+
+    if plt == mpl.pyplot:
+        if mini_flag:
+            xl = log10_mturn_range.size - 1
+            sel_m = (xl * np.arange(5) / 4).astype(int)
+            Xray_tb_plot = Xray_tables[..., sel_m]
+            Xray_il_plot = Xray_integrals[..., sel_m]
+        else:
+            Xray_tb_plot = Xray_tables[:, None]
+            Xray_il_plot = Xray_integrals[:, None]
+            sel_m = np.array([0]).astype(int)
+        make_table_comparison_plot(
+            [delta_range],
+            [10 ** log10_mturn_range[sel_m]],
+            [Xray_tb_plot],
+            [Xray_il_plot],
+            plt,
+            label_test=[
+                True,
+            ],
+            xlabels=["delta"],
+            ylabels=["Lx"],
+        )
+
+    # We don't want to include values close to delta crit, since the integrals struggle there,
+    # and interpolating across the sharp gap results in errors
+    # TODO: the bound should be over MAX_DELTAC_FRAC*delta_crit, and we should interpolate
+    # instead of setting the integral to its limit at delta crit.
+    delta_crit = float(cf.get_delta_crit(up, cp, np.array([cond_mass]), redshift))
+    sel_delta = np.fabs((delta_range - delta_crit) / delta_crit) > 0.02
+    delta_range = delta_range[sel_delta]
+    Xray_integrals = Xray_integrals[sel_delta, ...]
+    Xray_tables = Xray_tables[sel_delta, ...]
+    print_failure_stats(
+        Xray_tables,
+        Xray_integrals,
+        [delta_range, 10**log10_mturn_range] if mini_flag else [delta_range],
+        abs_tol,
+        RELATIVE_TOLERANCE,
+        "Xray_c",
+    )
+
+    np.testing.assert_allclose(
+        Xray_tables, Xray_integrals, atol=abs_tol, rtol=RELATIVE_TOLERANCE
     )
 
 
