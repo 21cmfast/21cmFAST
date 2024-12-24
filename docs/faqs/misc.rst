@@ -98,3 +98,19 @@ while the globally averaged quantities are in the ``global_quantities`` group::
     redshifts = fl['node_redshifts']
 
     plt.plot(redshifts, global_Tb)
+
+Can I instantiate my own OutputStruct objects?
+-------------------------------------------
+Usually, you create instances of an :class:`py21cmfast.wrapper.outputs.OutputStruct`
+object by running either :func:`py21cmfast.run_coeval` or some lower-level function,
+like :func:`py21cmfast.compute_initial_conditions`. However, it's possible you want to
+switch out a simulation step from ``21cmFAST`` and insert your own, but then go on using
+that box in further ``21cmFAST`` simulation components. The way to do this is as follows,
+using the ``InitialConditions`` as an example::
+
+    ics = p21c.InitialConditions.new(inputs=p21c.InputParameters())
+    ics.set('lowres_density', my_computed_value)
+
+You would use this ``.set()`` method on each of the fields you needed to set. Now this
+data should be properly shared with the backend C-code, and the object can be used
+in subsequent steps within ``21cmFAST``.

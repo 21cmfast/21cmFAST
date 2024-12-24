@@ -42,6 +42,13 @@ def _construct_param_objects(template_dict, **kwargs):
     return input_dict
 
 
+def list_templates() -> list[dict]:
+    """Return a list of the available templates."""
+    with open(TEMPLATE_PATH / "manifest.toml", "rb") as f:
+        manifest = tomllib.load(f)
+    return manifest["templates"]
+
+
 def create_params_from_template(template_name: str, **kwargs):
     """
     Constructs the required InputStruct instances for a run from a given template.
