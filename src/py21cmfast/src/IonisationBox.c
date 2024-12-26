@@ -693,7 +693,7 @@ void setup_integration_tables(struct FilteredGrids *fg_struct, struct IonBoxCons
 //TODO: We should speed test different configurations, separating grids, parallel sections etc.
 //  See the note above copy_filter_transform() for the general idea
 //  If we separate by grid we can reuse the clipping function above
-void calculate_fcoll_grid(IonizedBox *box, IonizedBox *previous_ionize_box, struct FilteredGrids *fg_struct, struct IonBoxConstants *consts, //                 <-------- HERE
+void calculate_fcoll_grid(IonizedBox *box, IonizedBox *previous_ionize_box, struct FilteredGrids *fg_struct, struct IonBoxConstants *consts,
                              struct RadiusSpec *rspec){
     double f_coll_total,f_coll_MINI_total;
     //TODO: make proper error tracking through the parallel region
@@ -763,7 +763,7 @@ void calculate_fcoll_grid(IonizedBox *box, IonizedBox *previous_ionize_box, stru
                                 if (previous_ionize_box->mean_f_coll_MINI * consts->ion_eff_factor_mini_gl +
                                         previous_ionize_box->mean_f_coll * consts->ion_eff_factor_gl > 1e-4){
                                     prev_dens = *((float *)fg_struct->prev_deltax_filtered + HII_R_FFT_INDEX(x,y,z));
-                                    prev_Splined_Fcoll = EvaluateNion_Conditional(prev_dens,log10_Mturnover,consts->prev_growth_factor, //                       <-------- HERE
+                                    prev_Splined_Fcoll = EvaluateNion_Conditional(prev_dens,log10_Mturnover,consts->prev_growth_factor,
                                                                                         consts->M_min,rspec->M_max_R,rspec->M_max_R,
                                                                                         rspec->sigma_maxmass,consts->Mlim_Fstar,consts->Mlim_Fesc,true);
                                     prev_Splined_Fcoll_MINI = EvaluateNion_Conditional_MINI(prev_dens,log10_Mturnover_MINI,consts->prev_growth_factor,consts->M_min,
@@ -775,7 +775,7 @@ void calculate_fcoll_grid(IonizedBox *box, IonizedBox *previous_ionize_box, stru
                                     prev_Splined_Fcoll_MINI = 0.;
                                 }
                             }
-                            Splined_Fcoll = EvaluateNion_Conditional(curr_dens,log10_Mturnover,consts->growth_factor, //                                          <-------- HERE
+                            Splined_Fcoll = EvaluateNion_Conditional(curr_dens,log10_Mturnover,consts->growth_factor,
                                                                     consts->M_min,rspec->M_max_R,rspec->M_max_R,
                                                                     rspec->sigma_maxmass,consts->Mlim_Fstar,consts->Mlim_Fesc,false);
                         }
@@ -1346,7 +1346,6 @@ int ComputeIonizedBox(float redshift, float prev_redshift, UserParams *user_para
         struct RadiusSpec curr_radius;
         for(R_ct=n_radii;R_ct--;){
             curr_radius = radii_spec[R_ct];
-            LOG_DEBUG("ION loop: R_ct=%u.",R_ct); // TODO: Remove this
 
             //TODO: As far as I can tell, This was the previous behaviour with the while loop
             //  So if the cell size is smaller than the minimum mass (rare) we still filter the last step
@@ -1386,9 +1385,9 @@ int ComputeIonizedBox(float redshift, float prev_redshift, UserParams *user_para
                     &numBlocks
                 );
             } else {
-                calculate_fcoll_grid(box, previous_ionize_box, grid_struct, &ionbox_constants, &curr_radius); //                                                          <-------- HERE
+                calculate_fcoll_grid(box, previous_ionize_box, grid_struct, &ionbox_constants, &curr_radius);
             }
-            // calculate_fcoll_grid(box, previous_ionize_box, grid_struct, &ionbox_constants, &curr_radius); //                                                          <-------- HERE
+            // calculate_fcoll_grid(box, previous_ionize_box, grid_struct, &ionbox_constants, &curr_radius);
 
 
             // To avoid ST_over_PS becoming nan when f_coll = 0, I set f_coll = FRACT_FLOAT_ERR.
@@ -1415,14 +1414,12 @@ int ComputeIonizedBox(float redshift, float prev_redshift, UserParams *user_para
         }
         // If GPU & flags, call free_ionbox_gpu_data()
             if (flag_options_global->USE_MASS_DEPENDENT_ZETA && !flag_options_global->USE_MINI_HALOS && !flag_options_global->USE_HALO_FIELD) {
-                LOG_DEBUG("ION free_ionbox_gpu_data about to be called.");
                 free_ionbox_gpu_data(
                     &d_deltax_filtered,
                     &d_xe_filtered,
                     &d_y_arr,
                     &d_Fcoll
                 );
-                LOG_DEBUG("ION free_ionbox_gpu_data called.");
             }
 
         set_ionized_temperatures(box,perturbed_field,spin_temp,&ionbox_constants);
