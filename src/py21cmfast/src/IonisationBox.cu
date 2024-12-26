@@ -163,11 +163,7 @@ void calculate_fcoll_grid_gpu(
     unsigned int *threadsPerBlock,
     unsigned int *numBlocks
 ) {
-    // TODO: Potentially use thrust to clip grids here instead of in kernel...
-
     RGTable1D_f* Nion_conditional_table1D = get_Nion_conditional_table1D();
-    // unsigned long long hii_tot_num_pixels = HII_TOT_NUM_PIXELS;
-    // unsigned long long hii_tot_fft_num_pixels = HII_TOT_FFT_NUM_PIXELS;
 
     // Copy grids from host to device
     CALL_CUDA(cudaMemcpy(d_deltax_filtered, h_deltax_filtered, sizeof(fftwf_complex) * hii_kspace_num_pixels, cudaMemcpyHostToDevice));
