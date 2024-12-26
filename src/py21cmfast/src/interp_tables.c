@@ -1061,7 +1061,7 @@ RGTable1D_f* get_Nion_conditional_table1D(void) {
     return &Nion_conditional_table1D;
 }
 
-// Accessor function for the GPU SpinTemp memory allocation function to access nbins.
+// Accessor function for GPU memory allocation functions to access nbins.
 int get_nbins(void) {
     return NDELTA;
 }
