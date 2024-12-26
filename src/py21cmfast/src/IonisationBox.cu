@@ -146,7 +146,7 @@ void init_ionbox_gpu_data(
         *threadsPerBlock = 16;
     }
 
-    *numBlocks = ceil(hii_tot_num_pixels / *threadsPerBlock) + 1;
+    *numBlocks = (hii_tot_num_pixels + *threadsPerBlock - 1) / *threadsPerBlock;
 }
 
 void calculate_fcoll_grid_gpu(
