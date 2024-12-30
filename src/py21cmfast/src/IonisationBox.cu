@@ -99,6 +99,54 @@ __global__ void compute_Fcoll(
     Fcoll[idx] = exp(EvaluateRGTable1D_f_gpu(*((float *) deltax_filtered + fft_idx), x_min, x_width, y_arr));
 }
 
+// Warp-shuffle reduction as per these sources
+// slides: https://www.olcf.ornl.gov/wp-content/uploads/2019/12/05_Atomics_Reductions_Warp_Shuffle.pdf
+// code: https://github.com/olcf/cuda-training-series/blob/master/exercises/hw5/reductions.cu
+// video: https://vimeo.com/428453188
+__global__ void reduce_fcoll_ws(float *gdata, const size_t num_pixels, double *out) {
+    __shared__ double sdata[32];
+
+    int tid = threadIdx.x; // thread within block
+    int idx = threadIdx.x + blockDim.x * blockIdx.x; // data index
+    double val = 0.0f; // partial sum for thread
+    unsigned mask = 0xFFFFFFFFU; // all threads participate
+    int lane = threadIdx.x % warpSize; // lane within warp [0-31]
+    int warpID = threadIdx.x / warpSize; // warp number [0...]
+
+    // Grid-stride loop
+    while (idx < num_pixels) {
+        val += gdata[idx];
+        idx += gridDim.x * blockDim.x;
+    }
+
+    // Warp-shuffle
+    // "offset >>=" is a bitwise right shift operation (essentially integer division by 2)
+    for (int offset = warpSize / 2; offset > 0; offset >>= 1) {
+        val += __shfl_down_sync(mask, val, offset);
+    }
+
+    // Thread 0 of each warp writes to shared memory
+    if (lane == 0) {
+        sdata[warpID] = val;
+    }
+    __syncthreads();
+
+    // Final reduction by warp 0
+    if (warpID == 0) {
+        val = (tid < blockDim.x / warpSize) ? sdata[lane] : 0;
+
+        // Warp-shuffle
+        for (int offset = warpSize / 2; offset > 0; offset >>= 1) {
+            val += __shfl_down_sync(mask, val, offset);
+        }
+
+        // Thread 0 of warp 0 accumuates final result
+        if (tid == 0) {
+            atomicAdd(out, val);
+        }
+    }
+}
+
 void init_ionbox_gpu_data(
     fftwf_complex **d_deltax_filtered, // copies of pointers to pointers
     fftwf_complex **d_xe_filtered,
@@ -195,16 +243,33 @@ void calculate_fcoll_grid_gpu(
         hii_mid_para,
         d_Fcoll
     );
-    CALL_CUDA(cudaDeviceSynchronize());
+    CALL_CUDA(cudaGetLastError());
+    // CALL_CUDA(cudaDeviceSynchronize()); // Only use during development
     LOG_INFO("IonisationBox compute_Fcoll kernel called.");
 
-    // Use thrust to reduce computed sums to one value.
-    // Wrap device pointer in a thrust::device_ptr
-    thrust::device_ptr<float> d_Fcoll_ptr(d_Fcoll);
-    // Reduce final buffer sums to one value
-    double f_coll_grid_total = thrust::reduce(d_Fcoll_ptr, d_Fcoll_ptr + hii_tot_num_pixels, 0., thrust::plus<float>());
-    *f_coll_grid_mean = f_coll_grid_total / (double) hii_tot_num_pixels;
-    LOG_INFO("Fcoll sum reduced to single value by thrust::reduce operation.");
+    // // Use thrust to reduce computed sums to one value.
+    // // Wrap device pointer in a thrust::device_ptr
+    // thrust::device_ptr<float> d_Fcoll_ptr(d_Fcoll);
+    // // Reduce final buffer sums to one value
+    // double f_coll_grid_total = thrust::reduce(d_Fcoll_ptr, d_Fcoll_ptr + hii_tot_num_pixels, 0., thrust::plus<float>());
+    // CALL_CUDA(cudaGetLastError());
+    // // CALL_CUDA(cudaDeviceSynchronize()); // Only use during development
+    // *f_coll_grid_mean = f_coll_grid_total / (double) hii_tot_num_pixels;
+    // LOG_INFO("Fcoll sum reduced to single value by thrust::reduce operation.");
+
+    // -----
+    double *d_fcoll_sum;
+    double *h_fcoll_sum = (double*)malloc(sizeof(double));
+    CALL_CUDA(cudaMalloc(&d_fcoll_sum, sizeof(double)));  // Allocate device space for sum
+    CALL_CUDA(cudaMemset(d_fcoll_sum, 0, sizeof(double)));
+    reduce_fcoll_ws<<< *numBlocks, *threadsPerBlock >>>(d_Fcoll, hii_tot_num_pixels, d_fcoll_sum);
+    // CALL_CUDA(cudaDeviceSynchronize()); // Development only
+    CALL_CUDA(cudaGetLastError());
+    CALL_CUDA(cudaMemcpy(h_fcoll_sum, d_fcoll_sum, sizeof(double), cudaMemcpyDeviceToHost));
+    CALL_CUDA(cudaFree(d_fcoll_sum));
+    *f_coll_grid_mean = *h_fcoll_sum / (double) hii_tot_num_pixels;
+    LOG_INFO("Fcoll grid mean computed by warp shuffle operation.");
+    // -----
 
     // Copy results from device to host
     CALL_CUDA(cudaMemcpy(box->Fcoll, d_Fcoll, sizeof(float) * hii_tot_num_pixels, cudaMemcpyDeviceToHost));
