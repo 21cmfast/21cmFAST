@@ -138,9 +138,9 @@ unsigned int init_sfrd_gpu_data(
     double **d_ave_sfrd_buf
 ) {
     // Allocate device memory
-    CALL_CUDA(cudaMalloc((void**)d_y_arr, sizeof(float) * nbins)); // already pointers to pointers (no & needed)
-    CALL_CUDA(cudaMalloc((void**)d_dens_R_grid, sizeof(float) * num_pixels));
-    CALL_CUDA(cudaMalloc((void**)d_sfrd_grid, sizeof(float) * num_pixels));
+    CALL_CUDA(cudaMalloc(d_y_arr, sizeof(float) * nbins)); // already pointers to pointers (no & needed)
+    CALL_CUDA(cudaMalloc(d_dens_R_grid, sizeof(float) * num_pixels));
+    CALL_CUDA(cudaMalloc(d_sfrd_grid, sizeof(float) * num_pixels));
     LOG_INFO("SFRD_conditional_table.y_arr and density and sfrd grids allocated on device.");
 
     // Initialise sfrd_grid to 0 (fill with byte=0)
@@ -170,7 +170,7 @@ unsigned int init_sfrd_gpu_data(
     // Allocate memory for SFRD sum buffer and initialise to 0 only for initial filter step;
     // reuse memory for remaining filter steps.
     unsigned int numBlocks = ceil(num_pixels / (threadsPerBlock * 2));
-    CALL_CUDA(cudaMalloc((void**)d_ave_sfrd_buf, sizeof(double) * numBlocks)); // already pointer to a pointer (no & needed) ...91m & 256 -> 177979
+    CALL_CUDA(cudaMalloc(d_ave_sfrd_buf, sizeof(double) * numBlocks)); // already pointer to a pointer (no & needed)
     LOG_INFO("SFRD sum reduction buffer allocated on device.");
 
     // Initialise buffer to 0 (fill with byte=0)
