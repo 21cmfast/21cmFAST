@@ -225,8 +225,8 @@ double calculate_sfrd_from_grid_gpu(
             LOG_WARNING("Thread size invalid; defaulting to 256.");
             compute_and_reduce<256><<< numBlocks, 256, 256 * sizeof(double) >>>(SFRD_conditional_table->x_min, SFRD_conditional_table->x_width, d_y_arr, d_dens_R_grid, zpp_growth_R_ct, d_sfrd_grid, d_ave_sfrd_buf, num_pixels);
     }
-    // CALL_CUDA(cudaDeviceSynchronize()); // Only use during development
     CALL_CUDA(cudaGetLastError());
+    // CALL_CUDA(cudaDeviceSynchronize()); // Only use during development
     LOG_INFO("SpinTemperatureBox compute-and-reduce kernel called.");
 
     // Use thrust to reduce computed sums to one value.
@@ -235,6 +235,7 @@ double calculate_sfrd_from_grid_gpu(
     // Reduce final buffer sums to one value
     double ave_sfrd_buf = thrust::reduce(d_ave_sfrd_buf_ptr, d_ave_sfrd_buf_ptr + numBlocks, 0., thrust::plus<double>());
     CALL_CUDA(cudaGetLastError());
+    // CALL_CUDA(cudaDeviceSynchronize()); // Only use during development
     LOG_INFO("SFRD sum reduced to single value by thrust::reduce operation.");
 
     // Copy results from device to host
