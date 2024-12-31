@@ -257,9 +257,11 @@ void calculate_fcoll_grid_gpu(
     // *f_coll_grid_mean = f_coll_grid_total / (double) hii_tot_num_pixels;
     // LOG_INFO("Fcoll sum reduced to single value by thrust::reduce operation.");
 
-    // -----
+    // These are better off allocated/freed outside loop
     double *d_fcoll_sum;
-    double *h_fcoll_sum = (double*)malloc(sizeof(double));
+    // double *h_fcoll_sum = (double*)malloc(sizeof(double));
+    double *h_fcoll_sum;
+
     CALL_CUDA(cudaMalloc(&d_fcoll_sum, sizeof(double)));  // Allocate device space for sum
     CALL_CUDA(cudaMemset(d_fcoll_sum, 0, sizeof(double)));
     reduce_fcoll_ws<<< *numBlocks, *threadsPerBlock >>>(d_Fcoll, hii_tot_num_pixels, d_fcoll_sum);
@@ -268,8 +270,8 @@ void calculate_fcoll_grid_gpu(
     CALL_CUDA(cudaMemcpy(h_fcoll_sum, d_fcoll_sum, sizeof(double), cudaMemcpyDeviceToHost));
     CALL_CUDA(cudaFree(d_fcoll_sum));
     *f_coll_grid_mean = *h_fcoll_sum / (double) hii_tot_num_pixels;
+    // free(h_fcoll_sum);
     LOG_INFO("Fcoll grid mean computed by warp shuffle operation.");
-    // -----
 
     // Copy results from device to host
     CALL_CUDA(cudaMemcpy(box->Fcoll, d_Fcoll, sizeof(float) * hii_tot_num_pixels, cudaMemcpyDeviceToHost));
