@@ -33,6 +33,8 @@
 
 #define LOG10_MTURN_MAX ((double)(10)) //maximum mturn limit enforced on grids
 
+#define GPU_STRATEGY 1 // (1) compute then ws reduce, (2) ws compute+reduce
+
 int INIT_RECOMBINATIONS = 1;
 
 //Parameters for the ionisation box calculations
@@ -1321,7 +1323,8 @@ int ComputeIonizedBox(float redshift, float prev_redshift, UserParams *user_para
         fftwf_complex *d_xe_filtered = NULL;
         float *d_y_arr = NULL;
         float *d_Fcoll = NULL; //_outputstructs_wrapper.h
-
+        double *d_Fcoll_sum = NULL;
+        double h_Fcoll_sum;
         unsigned int threadsPerBlock;
         unsigned int numBlocks;
 
@@ -1329,17 +1332,37 @@ int ComputeIonizedBox(float redshift, float prev_redshift, UserParams *user_para
         if (flag_options_global->USE_MASS_DEPENDENT_ZETA && !flag_options_global->USE_MINI_HALOS && !flag_options_global->USE_HALO_FIELD) {
 
             unsigned int Nion_nbins = get_nbins();
-            init_ionbox_gpu_data(
-                &d_deltax_filtered,
-                &d_xe_filtered,
-                &d_y_arr,
-                &d_Fcoll,
-                Nion_nbins,
-                HII_TOT_NUM_PIXELS,
-                HII_KSPACE_NUM_PIXELS,
-                &threadsPerBlock,
-                &numBlocks
-            );
+
+            // compute then ws reduce
+            #if GPU_STRATEGY == 1
+                LOG_DEBUG("Inside GPU_STRATEGY==1");
+                init_ionbox_gpu_data(
+                    &d_deltax_filtered,
+                    &d_xe_filtered,
+                    &d_y_arr,
+                    &d_Fcoll,
+                    Nion_nbins,
+                    HII_TOT_NUM_PIXELS,
+                    HII_KSPACE_NUM_PIXELS,
+                    &threadsPerBlock,
+                    &numBlocks
+                );
+            // ws compute+reduce
+            #elif GPU_STRATEGY == 2
+                LOG_DEBUG("Inside GPU_STRATEGY==2");
+                init_ionbox_gpu_data_ws(
+                    &d_deltax_filtered,
+                    &d_xe_filtered,
+                    &d_y_arr,
+                    &d_Fcoll,
+                    &d_Fcoll_sum,
+                    Nion_nbins,
+                    HII_TOT_NUM_PIXELS,
+                    HII_KSPACE_NUM_PIXELS,
+                    &threadsPerBlock,
+                    &numBlocks
+                );
+            #endif
         }
 
         int R_ct;
@@ -1370,20 +1393,42 @@ int ComputeIonizedBox(float redshift, float prev_redshift, UserParams *user_para
 
             // If GPU & flags, call gpu version of calculate_fcoll_grid()
             if (flag_options_global->USE_MASS_DEPENDENT_ZETA && !flag_options_global->USE_MINI_HALOS && !flag_options_global->USE_HALO_FIELD) {
-                calculate_fcoll_grid_gpu(
-                    box,
-                    grid_struct->deltax_filtered,
-                    grid_struct->xe_filtered,
-                    &curr_radius.f_coll_grid_mean,
-                    d_deltax_filtered,
-                    d_xe_filtered,
-                    d_Fcoll,
-                    d_y_arr,
-                    HII_TOT_NUM_PIXELS,
-                    HII_KSPACE_NUM_PIXELS,
-                    &threadsPerBlock,
-                    &numBlocks
-                );
+                // compute then ws reduce
+                #if GPU_STRATEGY == 1
+                    LOG_DEBUG("Inside GPU_STRATEGY==1");
+                    calculate_fcoll_grid_gpu(
+                        box,
+                        grid_struct->deltax_filtered,
+                        grid_struct->xe_filtered,
+                        &curr_radius.f_coll_grid_mean,
+                        d_deltax_filtered,
+                        d_xe_filtered,
+                        d_Fcoll,
+                        d_y_arr,
+                        HII_TOT_NUM_PIXELS,
+                        HII_KSPACE_NUM_PIXELS,
+                        &threadsPerBlock,
+                        &numBlocks
+                    );
+                // ws compute+reduce
+                #elif GPU_STRATEGY == 2
+                    LOG_DEBUG("Inside GPU_STRATEGY==2");
+                    calculate_fcoll_grid_gpu_ws(
+                        box,
+                        grid_struct->deltax_filtered,
+                        grid_struct->xe_filtered,
+                        &curr_radius.f_coll_grid_mean,
+                        &h_Fcoll_sum,
+                        d_deltax_filtered,
+                        d_xe_filtered,
+                        d_Fcoll,
+                        d_y_arr,
+                        HII_TOT_NUM_PIXELS,
+                        HII_KSPACE_NUM_PIXELS,
+                        &threadsPerBlock,
+                        &numBlocks
+                    );
+                #endif
             } else {
                 calculate_fcoll_grid(box, previous_ionize_box, grid_struct, &ionbox_constants, &curr_radius);
             }
@@ -1414,12 +1459,27 @@ int ComputeIonizedBox(float redshift, float prev_redshift, UserParams *user_para
         }
         // If GPU & flags, call free_ionbox_gpu_data()
             if (flag_options_global->USE_MASS_DEPENDENT_ZETA && !flag_options_global->USE_MINI_HALOS && !flag_options_global->USE_HALO_FIELD) {
-                free_ionbox_gpu_data(
-                    &d_deltax_filtered,
-                    &d_xe_filtered,
-                    &d_y_arr,
-                    &d_Fcoll
-                );
+
+                // compute then ws reduce
+                #if GPU_STRATEGY == 1
+                    LOG_DEBUG("Inside GPU_STRATEGY==1");
+                    free_ionbox_gpu_data(
+                        &d_deltax_filtered,
+                        &d_xe_filtered,
+                        &d_y_arr,
+                        &d_Fcoll
+                    );
+                // ws compute+reduce
+                #elif GPU_STRATEGY == 2
+                    LOG_DEBUG("Inside GPU_STRATEGY==2");
+                    free_ionbox_gpu_data_ws(
+                        &d_deltax_filtered,
+                        &d_xe_filtered,
+                        &d_y_arr,
+                        &d_Fcoll,
+                        &d_Fcoll_sum
+                    );
+                #endif
             }
 
         set_ionized_temperatures(box,perturbed_field,spin_temp,&ionbox_constants);
