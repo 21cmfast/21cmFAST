@@ -33,7 +33,7 @@
 
 #define LOG10_MTURN_MAX ((double)(10)) //maximum mturn limit enforced on grids
 
-#define GPU_STRATEGY 1 // (1) compute then ws reduce, (2) ws compute+reduce
+#define GPU_STRATEGY 2 // (1) compute then ws reduce, (2) ws compute+reduce
 
 int INIT_RECOMBINATIONS = 1;
 
@@ -1335,7 +1335,6 @@ int ComputeIonizedBox(float redshift, float prev_redshift, UserParams *user_para
 
             // compute then ws reduce
             #if GPU_STRATEGY == 1
-                LOG_DEBUG("Inside GPU_STRATEGY==1");
                 init_ionbox_gpu_data(
                     &d_deltax_filtered,
                     &d_xe_filtered,
@@ -1349,7 +1348,6 @@ int ComputeIonizedBox(float redshift, float prev_redshift, UserParams *user_para
                 );
             // ws compute+reduce
             #elif GPU_STRATEGY == 2
-                LOG_DEBUG("Inside GPU_STRATEGY==2");
                 init_ionbox_gpu_data_ws(
                     &d_deltax_filtered,
                     &d_xe_filtered,
@@ -1395,7 +1393,6 @@ int ComputeIonizedBox(float redshift, float prev_redshift, UserParams *user_para
             if (flag_options_global->USE_MASS_DEPENDENT_ZETA && !flag_options_global->USE_MINI_HALOS && !flag_options_global->USE_HALO_FIELD) {
                 // compute then ws reduce
                 #if GPU_STRATEGY == 1
-                    LOG_DEBUG("Inside GPU_STRATEGY==1");
                     calculate_fcoll_grid_gpu(
                         box,
                         grid_struct->deltax_filtered,
@@ -1412,7 +1409,6 @@ int ComputeIonizedBox(float redshift, float prev_redshift, UserParams *user_para
                     );
                 // ws compute+reduce
                 #elif GPU_STRATEGY == 2
-                    LOG_DEBUG("Inside GPU_STRATEGY==2");
                     calculate_fcoll_grid_gpu_ws(
                         box,
                         grid_struct->deltax_filtered,
@@ -1422,6 +1418,7 @@ int ComputeIonizedBox(float redshift, float prev_redshift, UserParams *user_para
                         d_deltax_filtered,
                         d_xe_filtered,
                         d_Fcoll,
+                        d_Fcoll_sum,
                         d_y_arr,
                         HII_TOT_NUM_PIXELS,
                         HII_KSPACE_NUM_PIXELS,
@@ -1433,7 +1430,6 @@ int ComputeIonizedBox(float redshift, float prev_redshift, UserParams *user_para
                 calculate_fcoll_grid(box, previous_ionize_box, grid_struct, &ionbox_constants, &curr_radius);
             }
             // calculate_fcoll_grid(box, previous_ionize_box, grid_struct, &ionbox_constants, &curr_radius);
-
 
             // To avoid ST_over_PS becoming nan when f_coll = 0, I set f_coll = FRACT_FLOAT_ERR.
             // TODO: This was the previous behaviour, but is this right?
@@ -1462,7 +1458,6 @@ int ComputeIonizedBox(float redshift, float prev_redshift, UserParams *user_para
 
                 // compute then ws reduce
                 #if GPU_STRATEGY == 1
-                    LOG_DEBUG("Inside GPU_STRATEGY==1");
                     free_ionbox_gpu_data(
                         &d_deltax_filtered,
                         &d_xe_filtered,
@@ -1471,7 +1466,6 @@ int ComputeIonizedBox(float redshift, float prev_redshift, UserParams *user_para
                     );
                 // ws compute+reduce
                 #elif GPU_STRATEGY == 2
-                    LOG_DEBUG("Inside GPU_STRATEGY==2");
                     free_ionbox_gpu_data_ws(
                         &d_deltax_filtered,
                         &d_xe_filtered,
