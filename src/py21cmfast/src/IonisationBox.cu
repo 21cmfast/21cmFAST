@@ -51,7 +51,6 @@ __device__ inline double EvaluateRGTable1D_f_gpu(double x, double x_min, double 
     return y_arr[idx] * (1 - interp_point) + y_arr[idx + 1] * (interp_point);
 }
 
-// template <unsigned int threadsPerBlock>
 __global__ void compute_Fcoll(
     cuFloatComplex *deltax_filtered, // fg_struct
     cuFloatComplex *xe_filtered, // fg_struct
@@ -82,8 +81,6 @@ __global__ void compute_Fcoll(
 
     // Get FFT index using HII_R_FFT_INDEX macro formula
     unsigned long long fft_idx = z + 2 * (hii_mid_para + 1) * (y + hii_d * x);
-
-    // These clippings could be made in the calling function, using thrust, rather than here...
 
     // Clip the filtered grids to physical values
     // delta cannot be less than -1
@@ -158,18 +155,18 @@ void init_ionbox_gpu_data(
     unsigned int *threadsPerBlock,
     unsigned int *numBlocks
 ) {
-    CALL_CUDA(cudaMalloc((void**)d_deltax_filtered, sizeof(fftwf_complex) * hii_kspace_num_pixels)); // already pointers to pointers (no & needed)
+    CALL_CUDA(cudaMalloc(d_deltax_filtered, sizeof(fftwf_complex) * hii_kspace_num_pixels)); // already pointers to pointers (no & needed)
     CALL_CUDA(cudaMemset(*d_deltax_filtered, 0, sizeof(fftwf_complex) * hii_kspace_num_pixels)); // dereference the pointer to a pointer (*)
 
     if (flag_options_global->USE_TS_FLUCT) {
-        CALL_CUDA(cudaMalloc((void**)d_xe_filtered, sizeof(fftwf_complex) * hii_kspace_num_pixels));
+        CALL_CUDA(cudaMalloc(d_xe_filtered, sizeof(fftwf_complex) * hii_kspace_num_pixels));
         CALL_CUDA(cudaMemset(*d_xe_filtered, 0, sizeof(fftwf_complex) * hii_kspace_num_pixels));
     }
 
-    CALL_CUDA(cudaMalloc((void**)d_y_arr, sizeof(float) * nbins));
+    CALL_CUDA(cudaMalloc(d_y_arr, sizeof(float) * nbins));
     CALL_CUDA(cudaMemset(*d_y_arr, 0, sizeof(float) * nbins));
 
-    CALL_CUDA(cudaMalloc((void**)d_Fcoll, sizeof(float) * hii_tot_num_pixels));
+    CALL_CUDA(cudaMalloc(d_Fcoll, sizeof(float) * hii_tot_num_pixels));
     CALL_CUDA(cudaMemset(*d_Fcoll, 0, sizeof(float) * hii_tot_num_pixels));
 
     LOG_INFO("Ionisation grids allocated on device.");
@@ -247,30 +244,20 @@ void calculate_fcoll_grid_gpu(
     // CALL_CUDA(cudaDeviceSynchronize()); // Only use during development
     LOG_INFO("IonisationBox compute_Fcoll kernel called.");
 
-    // // Use thrust to reduce computed sums to one value.
-    // // Wrap device pointer in a thrust::device_ptr
-    // thrust::device_ptr<float> d_Fcoll_ptr(d_Fcoll);
-    // // Reduce final buffer sums to one value
-    // double f_coll_grid_total = thrust::reduce(d_Fcoll_ptr, d_Fcoll_ptr + hii_tot_num_pixels, 0., thrust::plus<float>());
-    // CALL_CUDA(cudaGetLastError());
-    // // CALL_CUDA(cudaDeviceSynchronize()); // Only use during development
-    // *f_coll_grid_mean = f_coll_grid_total / (double) hii_tot_num_pixels;
-    // LOG_INFO("Fcoll sum reduced to single value by thrust::reduce operation.");
-
     // These are better off allocated/freed outside loop
     double *d_fcoll_sum;
-    // double *h_fcoll_sum = (double*)malloc(sizeof(double));
-    double *h_fcoll_sum;
+    double *h_fcoll_sum = (double*)malloc(sizeof(double));
+    // double *h_fcoll_sum; // better on stack perhaps, but threw error
 
     CALL_CUDA(cudaMalloc(&d_fcoll_sum, sizeof(double)));  // Allocate device space for sum
     CALL_CUDA(cudaMemset(d_fcoll_sum, 0, sizeof(double)));
     reduce_fcoll_ws<<< *numBlocks, *threadsPerBlock >>>(d_Fcoll, hii_tot_num_pixels, d_fcoll_sum);
-    // CALL_CUDA(cudaDeviceSynchronize()); // Development only
+    // CALL_CUDA(cudaDeviceSynchronize()); // Only use during development
     CALL_CUDA(cudaGetLastError());
     CALL_CUDA(cudaMemcpy(h_fcoll_sum, d_fcoll_sum, sizeof(double), cudaMemcpyDeviceToHost));
     CALL_CUDA(cudaFree(d_fcoll_sum));
     *f_coll_grid_mean = *h_fcoll_sum / (double) hii_tot_num_pixels;
-    // free(h_fcoll_sum);
+    free(h_fcoll_sum);
     LOG_INFO("Fcoll grid mean computed by warp shuffle operation.");
 
     // Copy results from device to host

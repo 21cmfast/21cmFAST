@@ -146,22 +146,21 @@ void init_ionbox_gpu_data_ws(
     unsigned int *threadsPerBlock,
     unsigned int *numBlocks
 ) {
-    CALL_CUDA(cudaMalloc((void**)d_deltax_filtered, sizeof(fftwf_complex) * hii_kspace_num_pixels)); // already pointers to pointers (no & needed)
+    CALL_CUDA(cudaMalloc(d_deltax_filtered, sizeof(fftwf_complex) * hii_kspace_num_pixels)); // already pointers to pointers (no & needed)
     CALL_CUDA(cudaMemset(*d_deltax_filtered, 0, sizeof(fftwf_complex) * hii_kspace_num_pixels)); // dereference the pointer to a pointer (*)
 
     if (flag_options_global->USE_TS_FLUCT) {
-        CALL_CUDA(cudaMalloc((void**)d_xe_filtered, sizeof(fftwf_complex) * hii_kspace_num_pixels));
+        CALL_CUDA(cudaMalloc(d_xe_filtered, sizeof(fftwf_complex) * hii_kspace_num_pixels));
         CALL_CUDA(cudaMemset(*d_xe_filtered, 0, sizeof(fftwf_complex) * hii_kspace_num_pixels));
     }
 
-    CALL_CUDA(cudaMalloc((void**)d_y_arr, sizeof(float) * nbins));
+    CALL_CUDA(cudaMalloc(d_y_arr, sizeof(float) * nbins));
     CALL_CUDA(cudaMemset(*d_y_arr, 0, sizeof(float) * nbins));
 
-    CALL_CUDA(cudaMalloc((void**)d_Fcoll, sizeof(float) * hii_tot_num_pixels));
+    CALL_CUDA(cudaMalloc(d_Fcoll, sizeof(float) * hii_tot_num_pixels));
     CALL_CUDA(cudaMemset(*d_Fcoll, 0, sizeof(float) * hii_tot_num_pixels));
 
-    CALL_CUDA(cudaMalloc(&d_Fcoll_sum, sizeof(double)));
-    CALL_CUDA(cudaMemset(d_Fcoll_sum, 0, sizeof(double)));
+    CALL_CUDA(cudaMalloc(d_Fcoll_sum, sizeof(double)));
 
     LOG_INFO("Ionisation grids allocated on device.");
     LOG_INFO("Ionisation grids initialised on device.");
@@ -213,6 +212,9 @@ void calculate_fcoll_grid_gpu_ws(
     }
     CALL_CUDA(cudaMemcpy(d_y_arr, Nion_conditional_table1D->y_arr, sizeof(float) * Nion_conditional_table1D->n_bin, cudaMemcpyHostToDevice));
     LOG_INFO("Ionisation grids copied to device.");
+
+    // Set/reset sum to 0
+    CALL_CUDA(cudaMemset(d_Fcoll_sum, 0, sizeof(double)));
 
     // TODO: Can I pass these straight to kernel? (or access in kernel w/ Tiger's method)
     double fract_float_err = FRACT_FLOAT_ERR;
