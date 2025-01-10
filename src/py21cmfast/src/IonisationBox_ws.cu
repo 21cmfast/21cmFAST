@@ -224,7 +224,24 @@ void calculate_fcoll_grid_gpu_ws(
     long long hii_mid_para = HII_MID_PARA;
 
     // Invoke kernel
-    ws_compute_reduce_Fcoll<<< *numBlocks, *threadsPerBlock >>>(
+    // ws_compute_reduce_Fcoll<<< *numBlocks, *threadsPerBlock >>>(
+    //     reinterpret_cast<cuFloatComplex *>(d_deltax_filtered),
+    //     reinterpret_cast<cuFloatComplex *>(d_xe_filtered),
+    //     d_y_arr,
+    //     Nion_conditional_table1D->x_min,
+    //     Nion_conditional_table1D->x_width,
+    //     fract_float_err,
+    //     use_ts_fluct,
+    //     hii_tot_num_pixels,
+    //     hii_d,
+    //     hii_d_para,
+    //     hii_mid_para,
+    //     d_Fcoll,
+    //     d_Fcoll_sum
+    // );
+    int numSMs;
+    CALL_CUDA(cudaDeviceGetAttribute(&numSMs, cudaDevAttrMultiProcessorCount, 0));
+    ws_compute_reduce_Fcoll<<< 32*numSMs, 256 >>>(
         reinterpret_cast<cuFloatComplex *>(d_deltax_filtered),
         reinterpret_cast<cuFloatComplex *>(d_xe_filtered),
         d_y_arr,
