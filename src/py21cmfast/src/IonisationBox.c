@@ -1099,7 +1099,7 @@ void set_ionized_temperatures(IonizedBox *box, PerturbedField *perturbed_field, 
 }
 
 void set_recombination_rates(IonizedBox *box, IonizedBox *previous_ionize_box, PerturbedField *perturbed_field, struct IonBoxConstants *consts){
-    bool finite_error;
+    bool finite_error = false;
     #pragma omp parallel num_threads(user_params_global->N_THREADS)
     {
         int x,y,z;
@@ -1120,8 +1120,13 @@ void set_recombination_rates(IonizedBox *box, IonizedBox *previous_ionize_box, P
                     dNrec = splined_recombination_rate(z_eff - 1., box->Gamma12_box[HII_R_INDEX(x, y, z)]) *
                             consts->fabs_dtdz * consts->dz * (1. - box->xH_box[HII_R_INDEX(x, y, z)]);
 
-                    if (isfinite(dNrec) == 0) {
+                    if(isfinite(dNrec) == 0){
                         finite_error = true;
+                        LOG_ERROR("RECOMB: non-finite cell (%d,%d,%d): d %.4e | G12 %.4e | xH %.4e ==> dNrec %.4e Nrec_last (%.4e --> %.4e)",
+                                            x,y,z,curr_dens,box->Gamma12_box[HII_R_INDEX(x,y,z)],
+                                            box->xH_box[HII_R_INDEX(x,y,z)],dNrec,
+                                            previous_ionize_box->dNrec_box[HII_R_INDEX(x, y, z)],
+                                            box->dNrec_box[HII_R_INDEX(x, y, z)]);
                     }
 
                     box->dNrec_box[HII_R_INDEX(x, y, z)] =
