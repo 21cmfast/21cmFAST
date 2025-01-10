@@ -1326,21 +1326,21 @@ int ComputeIonizedBox(float redshift, float prev_redshift, UserParams *user_para
         unsigned int numBlocks;
 
         // If GPU & flags call init_ionbox_gpu_data()
-        if (flag_options_global->USE_MASS_DEPENDENT_ZETA && !flag_options_global->USE_MINI_HALOS && !flag_options_global->USE_HALO_FIELD) {
+        // if (flag_options_global->USE_MASS_DEPENDENT_ZETA && !flag_options_global->USE_MINI_HALOS && !flag_options_global->USE_HALO_FIELD) {
 
-            unsigned int Nion_nbins = get_nbins();
-            init_ionbox_gpu_data(
-                &d_deltax_filtered,
-                &d_xe_filtered,
-                &d_y_arr,
-                &d_Fcoll,
-                Nion_nbins,
-                HII_TOT_NUM_PIXELS,
-                HII_KSPACE_NUM_PIXELS,
-                &threadsPerBlock,
-                &numBlocks
-            );
-        }
+        //     unsigned int Nion_nbins = get_nbins();
+        //     init_ionbox_gpu_data(
+        //         &d_deltax_filtered,
+        //         &d_xe_filtered,
+        //         &d_y_arr,
+        //         &d_Fcoll,
+        //         Nion_nbins,
+        //         HII_TOT_NUM_PIXELS,
+        //         HII_KSPACE_NUM_PIXELS,
+        //         &threadsPerBlock,
+        //         &numBlocks
+        //     );
+        // }
 
         int R_ct;
         struct RadiusSpec curr_radius;
@@ -1369,25 +1369,25 @@ int ComputeIonizedBox(float redshift, float prev_redshift, UserParams *user_para
             }
 
             // If GPU & flags, call gpu version of calculate_fcoll_grid()
-            if (flag_options_global->USE_MASS_DEPENDENT_ZETA && !flag_options_global->USE_MINI_HALOS && !flag_options_global->USE_HALO_FIELD) {
-                calculate_fcoll_grid_gpu(
-                    box,
-                    grid_struct->deltax_filtered,
-                    grid_struct->xe_filtered,
-                    &curr_radius.f_coll_grid_mean,
-                    d_deltax_filtered,
-                    d_xe_filtered,
-                    d_Fcoll,
-                    d_y_arr,
-                    HII_TOT_NUM_PIXELS,
-                    HII_KSPACE_NUM_PIXELS,
-                    &threadsPerBlock,
-                    &numBlocks
-                );
-            } else {
-                calculate_fcoll_grid(box, previous_ionize_box, grid_struct, &ionbox_constants, &curr_radius);
-            }
-            // calculate_fcoll_grid(box, previous_ionize_box, grid_struct, &ionbox_constants, &curr_radius);
+            // if (flag_options_global->USE_MASS_DEPENDENT_ZETA && !flag_options_global->USE_MINI_HALOS && !flag_options_global->USE_HALO_FIELD) {
+            //     calculate_fcoll_grid_gpu(
+            //         box,
+            //         grid_struct->deltax_filtered,
+            //         grid_struct->xe_filtered,
+            //         &curr_radius.f_coll_grid_mean,
+            //         d_deltax_filtered,
+            //         d_xe_filtered,
+            //         d_Fcoll,
+            //         d_y_arr,
+            //         HII_TOT_NUM_PIXELS,
+            //         HII_KSPACE_NUM_PIXELS,
+            //         &threadsPerBlock,
+            //         &numBlocks
+            //     );
+            // } else {
+            //     calculate_fcoll_grid(box, previous_ionize_box, grid_struct, &ionbox_constants, &curr_radius);
+            // }
+            calculate_fcoll_grid(box, previous_ionize_box, grid_struct, &ionbox_constants, &curr_radius);
 
 
             // To avoid ST_over_PS becoming nan when f_coll = 0, I set f_coll = FRACT_FLOAT_ERR.
@@ -1413,14 +1413,14 @@ int ComputeIonizedBox(float redshift, float prev_redshift, UserParams *user_para
 #endif
         }
         // If GPU & flags, call free_ionbox_gpu_data()
-            if (flag_options_global->USE_MASS_DEPENDENT_ZETA && !flag_options_global->USE_MINI_HALOS && !flag_options_global->USE_HALO_FIELD) {
-                free_ionbox_gpu_data(
-                    &d_deltax_filtered,
-                    &d_xe_filtered,
-                    &d_y_arr,
-                    &d_Fcoll
-                );
-            }
+        // if (flag_options_global->USE_MASS_DEPENDENT_ZETA && !flag_options_global->USE_MINI_HALOS && !flag_options_global->USE_HALO_FIELD) {
+        //     free_ionbox_gpu_data(
+        //         &d_deltax_filtered,
+        //         &d_xe_filtered,
+        //         &d_y_arr,
+        //         &d_Fcoll
+        //     );
+        // }
 
         set_ionized_temperatures(box,perturbed_field,spin_temp,&ionbox_constants);
 

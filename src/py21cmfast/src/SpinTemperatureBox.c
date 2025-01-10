@@ -930,16 +930,15 @@ void calculate_sfrd_from_grid(int R_ct, float *dens_R_grid, float *Mcrit_R_grid,
         }
     }
 
-    // --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
     // If GPU is to be used and flags are ideal, call GPU version of reduction
-    if (true && flag_options_global->USE_MASS_DEPENDENT_ZETA && user_params_global->USE_INTERPOLATION_TABLES && !flag_options_global->USE_MINI_HALOS) {
+    // if (true && flag_options_global->USE_MASS_DEPENDENT_ZETA && user_params_global->USE_INTERPOLATION_TABLES && !flag_options_global->USE_MINI_HALOS) {
 
-        RGTable1D_f* SFRD_conditional_table = get_SFRD_conditional_table();
-        ave_sfrd_buf = calculate_sfrd_from_grid_gpu(SFRD_conditional_table, dens_R_grid, zpp_growth, R_ct, sfrd_grid, HII_TOT_NUM_PIXELS, threadsPerBlock,
-                                                    // d_data
-                                                    d_y_arr, d_dens_R_grid, d_sfrd_grid, d_ave_sfrd_buf
-        );
-    } else {
+    //     RGTable1D_f* SFRD_conditional_table = get_SFRD_conditional_table();
+    //     ave_sfrd_buf = calculate_sfrd_from_grid_gpu(SFRD_conditional_table, dens_R_grid, zpp_growth, R_ct, sfrd_grid, HII_TOT_NUM_PIXELS, threadsPerBlock,
+    //                                                 // d_data
+    //                                                 d_y_arr, d_dens_R_grid, d_sfrd_grid, d_ave_sfrd_buf
+    //     );
+    // } else {
         // Else, run CPU reduction
         #pragma omp parallel num_threads(user_params_global->N_THREADS)
         {
@@ -975,8 +974,7 @@ void calculate_sfrd_from_grid(int R_ct, float *dens_R_grid, float *Mcrit_R_grid,
                 ave_sfrd_buf_mini += fcoll_MINI;
             }
         }
-    }
-    // --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+    // }
 
     *ave_sfrd = ave_sfrd_buf / HII_TOT_NUM_PIXELS;
     *ave_sfrd_mini = ave_sfrd_buf_mini / HII_TOT_NUM_PIXELS;
@@ -1417,34 +1415,17 @@ void ts_main(float redshift, float prev_redshift, UserParams *user_params, Cosmo
     //if we have stars, fill in the heating term boxes
     if(!NO_LIGHT) {
 
-        // Device pointers that reference GPU memory and need to persist across loop iterations -------------------------------------------------------------------------
+        // Device pointers that reference GPU memory and need to persist across loop iterations
         float *d_y_arr = NULL;
         float *d_dens_R_grid = NULL;
         float *d_sfrd_grid = NULL;
         double *d_ave_sfrd_buf = NULL;
 
-        // initialise pointer to struct of pointers ----------------------------------------------------------------------------------------------------------------------
-        // sfrd_gpu_data *device_data;
-        // sfrd_gpu_data *device_data = (sfrd_gpu_data *)malloc(sizeof(sfrd_gpu_data));
         unsigned int threadsPerBlock = 0;
         unsigned int sfrd_nbins = get_nbins();
 
-        // GPU=True
-        // if (true) {
-        //     // unsigned int init_sfrd_gpu_data(float *dens_R_grid, float *sfrd_grid, unsigned long long num_pixels,
-        //         //   unsigned int nbins, sfrd_gpu_data *d_data);
-        //     threadsPerBlock = init_sfrd_gpu_data(delta_box_input, del_fcoll_Rct, HII_TOT_NUM_PIXELS, sfrd_nbins, &device_data);
-        // }
-        // struct ---------------------------------------------------------------------------------------------------------------------------------------------------------
-        // threadsPerBlock = init_sfrd_gpu_data(delta_box_input, del_fcoll_Rct, HII_TOT_NUM_PIXELS, sfrd_nbins, &device_data);
-        // pointers -------------------------------------------------------------------------------------------------------------------------------------------------------
-        threadsPerBlock = init_sfrd_gpu_data(delta_box_input, del_fcoll_Rct, HII_TOT_NUM_PIXELS, sfrd_nbins, &d_y_arr, &d_dens_R_grid, &d_sfrd_grid, &d_ave_sfrd_buf);
-        // threadsPerBlock = init_sfrd_gpu_data(delta_box_input, del_fcoll_Rct, HII_TOT_NUM_PIXELS, sfrd_nbins, d_y_arr, d_dens_R_grid, d_sfrd_grid, d_ave_sfrd_buf);
-        if (threadsPerBlock == 0) {
-            LOG_DEBUG("Memory allocation failed inside init_sfrd_gpu_data.");
-        } else {
-            LOG_DEBUG("threadsPerBlock = %u", threadsPerBlock);
-        } // ---------------------------------------------------------------------------------------------------------------------------------------------------------------
+        // if GPU=True
+        // threadsPerBlock = init_sfrd_gpu_data(delta_box_input, del_fcoll_Rct, HII_TOT_NUM_PIXELS, sfrd_nbins, &d_y_arr, &d_dens_R_grid, &d_sfrd_grid, &d_ave_sfrd_buf);
 
         // R_ct starts at 39 and goes down to 0
         for(R_ct=global_params.NUM_FILTER_STEPS_FOR_Ts; R_ct--;){
@@ -1485,13 +1466,7 @@ void ts_main(float redshift, float prev_redshift, UserParams *user_params, Cosmo
                 if(flag_options->USE_MINI_HALOS){
                     Mcrit_box_input = log10_Mcrit_LW[R_index];
                 }
-                // struct ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
-                // calculate_sfrd_from_grid(R_ct, delta_box_input, Mcrit_box_input, del_fcoll_Rct, del_fcoll_Rct_MINI, &ave_fcoll, &ave_fcoll_MINI, threadsPerBlock, device_data);
-                // pointers ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
                 calculate_sfrd_from_grid(R_ct, delta_box_input, Mcrit_box_input, del_fcoll_Rct, del_fcoll_Rct_MINI, &ave_fcoll, &ave_fcoll_MINI, threadsPerBlock, d_y_arr, d_dens_R_grid, d_sfrd_grid, d_ave_sfrd_buf);
-                // calculate_sfrd_from_grid(R_ct, delta_box_input, Mcrit_box_input, del_fcoll_Rct, del_fcoll_Rct_MINI, &ave_fcoll, &ave_fcoll_MINI, d_y_arr, d_dens_R_grid, d_sfrd_grid, d_ave_sfrd_buf);
-                // calculate_sfrd_from_grid(R_ct,delta_box_input,Mcrit_box_input,del_fcoll_Rct,del_fcoll_Rct_MINI,&ave_fcoll,&ave_fcoll_MINI);
-                // -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
                 avg_fix_term = mean_sfr_zpp[R_ct]/ave_fcoll;
                 if(flag_options->USE_MINI_HALOS) avg_fix_term_MINI = mean_sfr_zpp_mini[R_ct]/ave_fcoll_MINI;
 
@@ -1602,12 +1577,7 @@ void ts_main(float redshift, float prev_redshift, UserParams *user_params, Cosmo
                 }
             }
         }
-        // struct ------------------------------------------------------------------------------------------------------------------------------------------------------------------
-        // free_sfrd_gpu_data(device_data);
-        // free(device_data);
-        // pointers ----------------------------------------------------------------------------------------------------------------------------------------------------------------
-        free_sfrd_gpu_data(&d_y_arr, &d_dens_R_grid, &d_sfrd_grid, &d_ave_sfrd_buf);
-        // -------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+        // free_sfrd_gpu_data(&d_y_arr, &d_dens_R_grid, &d_sfrd_grid, &d_ave_sfrd_buf);
     }
 
     //we definitely don't need these tables anymore

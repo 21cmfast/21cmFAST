@@ -150,7 +150,7 @@ void filter_box_cpu(fftwf_complex *box, int RES, int filter_type, float R, float
 }
 
 void filter_box(fftwf_complex *box, int RES, int filter_type, float R, float R_param){
-    if (1) {
+    if (0) {
         filter_box_gpu(box, RES, filter_type, R, R_param);
     } else {
         filter_box_cpu(box, RES, filter_type, R, R_param);

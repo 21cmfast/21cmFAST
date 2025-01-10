@@ -362,9 +362,9 @@ int ComputePerturbField(
         }
 
         // If using GPU, call CUDA function
-        if (1) {
-            resampled_box = MapMass_gpu(user_params, cosmo_params, boxes, resampled_box, dimension, f_pixel_factor, init_growth_factor);
-        } else {
+        // if (1) {
+        //     resampled_box = MapMass_gpu(user_params, cosmo_params, boxes, resampled_box, dimension, f_pixel_factor, init_growth_factor);
+        // } else {
             // go through the high-res box, mapping the mass onto the low-res (updated) box
             LOG_DEBUG("Perturb the density field");
             #pragma omp parallel \
@@ -508,13 +508,7 @@ int ComputePerturbField(
                     }
                 }
             }
-        }
-
-        // LOG_DEBUG("resampled_box[:50] = ");
-        // for (int element = 0; element < 50; element++) {
-        //     LOG_DEBUG("%.4e ", resampled_box[element]);
         // }
-        // LOG_DEBUG("\n");
 
         LOG_SUPER_DEBUG("resampled_box: ");
         debugSummarizeBoxDouble(resampled_box, dimension, user_params->NON_CUBIC_FACTOR, "  ");
