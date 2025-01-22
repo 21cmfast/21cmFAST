@@ -128,15 +128,12 @@ typedef struct GlobalParams{
     float R_smooth_density;
     float HII_ROUND_ERR;
     int FIND_BUBBLE_ALGORITHM;
-    int N_POISSON;
-    int T_USE_VELOCITIES;
     float MAX_DVDR;
     float DELTA_R_HII_FACTOR;
     float DELTA_R_FACTOR;
     int HII_FILTER;
     float INITIAL_REDSHIFT;
     float R_OVERLAP_FACTOR;
-    int DELTA_CRIT_MODE;
     int HALO_FILTER;
     int OPTIMIZE;
     float OPTIMIZE_MIN_MASS;
@@ -156,16 +153,13 @@ typedef struct GlobalParams{
     double CLUMPING_FACTOR;
     float R_XLy_MAX;
     int NUM_FILTER_STEPS_FOR_Ts;
-    double TK_at_Z_HEAT_MAX;
-    double XION_at_Z_HEAT_MAX;
+
     int Pop;
     float Pop2_ion;
     float Pop3_ion;
 
     float NU_X_BAND_MAX;
     float NU_X_MAX;
-
-    int NBINS_LF;
 
     int P_CUTOFF;
     float M_WDM;

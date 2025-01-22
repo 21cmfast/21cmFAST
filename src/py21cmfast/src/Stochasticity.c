@@ -460,8 +460,8 @@ int stoc_partition_sample(struct HaloSamplingConstants * hs_constants, gsl_rng *
     double nu_fudge_factor = user_params_global->HALOMASS_CORRECTION;
 
     //set initial amount
-    // M_remaining = M_cond; // full condition
-    M_remaining = exp_M; //subtract unresolved mass
+    M_remaining = M_cond; // full condition
+    // M_remaining = exp_M; //subtract unresolved mass
     lnM_remaining = log(M_remaining);
 
     double nu_min;
