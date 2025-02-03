@@ -150,8 +150,13 @@ void filter_box_cpu(fftwf_complex *box, int RES, int filter_type, float R, float
 }
 
 void filter_box(fftwf_complex *box, int RES, int filter_type, float R, float R_param){
-    if (1) {
+    bool use_cuda = false; // pass this as a parameter later
+    if (use_cuda) {
+#if CUDA_FOUND
         filter_box_gpu(box, RES, filter_type, R, R_param);
+#else
+        LOG_ERROR("CUDA version of filter_box() called but code was not compiled for CUDA.");
+#endif
     } else {
         filter_box_cpu(box, RES, filter_type, R, R_param);
     }
@@ -199,8 +204,14 @@ int test_filter_cpu(UserParams *user_params, CosmoParams *cosmo_params, AstroPar
 
 int test_filter(UserParams *user_params, CosmoParams *cosmo_params, AstroParams *astro_params, FlagOptions *flag_options,
                 float *input_box, double R, double R_param, int filter_flag, double *result) {
-    if (1) {
+    bool use_cuda = false; // pass this as a parameter later
+    if (use_cuda) {
+#if CUDA_FOUND
         return test_filter_gpu(user_params, cosmo_params, astro_params, flag_options, input_box, R, R_param, filter_flag, result);
+#else
+        LOG_ERROR("CUDA version of test_filter() called but code was not compiled for CUDA.");
+        return 1;
+#endif
     } else {
         return test_filter_cpu(user_params, cosmo_params, astro_params, flag_options, input_box, R, R_param, filter_flag, result);
     }
