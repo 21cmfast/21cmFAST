@@ -402,7 +402,7 @@ double init_ps(){
     theta_cmb = T_cmb / 2.7;
 
     // Translate Parameters into forms GLOBALVARIABLES form
-    f_nu = global_params.OMn/cosmo_params_global->OMm;
+    f_nu = cosmo_params_global->OMn/cosmo_params_global->OMm;
     f_baryon = cosmo_params_global->OMb/cosmo_params_global->OMm;
     if (f_nu < TINY) f_nu = 1e-10;
     if (f_baryon < TINY) f_baryon = 1e-10;
@@ -653,7 +653,7 @@ double RtoM(double R){
 
 /* Omega matter at redshift z */
 double omega_mz(float z){
-    return cosmo_params_global->OMm*pow(1+z,3) / (cosmo_params_global->OMm*pow(1+z,3) + cosmo_params_global->OMl + global_params.OMr*pow(1+z,4) + global_params.OMk*pow(1+z, 2));
+    return cosmo_params_global->OMm*pow(1+z,3) / (cosmo_params_global->OMm*pow(1+z,3) + cosmo_params_global->OMl + cosmo_params_global->OMr*pow(1+z,4) + cosmo_params_global->OMk*pow(1+z, 2));
 }
 
 /* Physical (non-linear) overdensity at virialization (relative to critical density)
@@ -707,22 +707,22 @@ double dicke(double z){
     if (fabs(cosmo_params_global->OMm-1.0) < tiny){ //OMm = 1 (Einstein de-Sitter)
         return 1.0/(1.0+z);
     }
-    else if ( (cosmo_params_global->OMl > (-tiny)) && (fabs(cosmo_params_global->OMl+cosmo_params_global->OMm+global_params.OMr-1.0) < 0.01) && (fabs(global_params.wl+1.0) < tiny) ){
+    else if ( (cosmo_params_global->OMl > (-tiny)) && (fabs(cosmo_params_global->OMl+cosmo_params_global->OMm+cosmo_params_global->OMr-1.0) < 0.01) && (fabs(cosmo_params_global->wl+1.0) < tiny) ){
         //this is a flat, cosmological CONSTANT universe, with only lambda, matter and radiation
         //it is taken from liddle et al.
-        omegaM_z = cosmo_params_global->OMm*pow(1+z,3) / ( cosmo_params_global->OMl + cosmo_params_global->OMm*pow(1+z,3) + global_params.OMr*pow(1+z,4) );
+        omegaM_z = cosmo_params_global->OMm*pow(1+z,3) / ( cosmo_params_global->OMl + cosmo_params_global->OMm*pow(1+z,3) + cosmo_params_global->OMr*pow(1+z,4) );
         dick_z = 2.5*omegaM_z / ( 1.0/70.0 + omegaM_z*(209-omegaM_z)/140.0 + pow(omegaM_z, 4.0/7.0) );
         dick_0 = 2.5*cosmo_params_global->OMm / ( 1.0/70.0 + cosmo_params_global->OMm*(209-cosmo_params_global->OMm)/140.0 + pow(cosmo_params_global->OMm, 4.0/7.0) );
         return dick_z / (dick_0 * (1.0+z));
     }
-    else if ( (global_params.OMtot < (1+tiny)) && (fabs(cosmo_params_global->OMl) < tiny) ){ //open, zero lambda case (peebles, pg. 53)
+    else if ( (cosmo_params_global->OMtot < (1+tiny)) && (fabs(cosmo_params_global->OMl) < tiny) ){ //open, zero lambda case (peebles, pg. 53)
         x_0 = 1.0/(cosmo_params_global->OMm+0.0) - 1.0;
         dick_0 = 1 + 3.0/x_0 + 3*log(sqrt(1+x_0)-sqrt(x_0))*sqrt(1+x_0)/pow(x_0,1.5);
         x = fabs(1.0/(cosmo_params_global->OMm+0.0) - 1.0) / (1+z);
         dick_z = 1 + 3.0/x + 3*log(sqrt(1+x)-sqrt(x))*sqrt(1+x)/pow(x,1.5);
         return dick_z/dick_0;
     }
-    else if ( (cosmo_params_global->OMl > (-tiny)) && (fabs(global_params.OMtot-1.0) < tiny) && (fabs(global_params.wl+1) > tiny) ){
+    else if ( (cosmo_params_global->OMl > (-tiny)) && (fabs(cosmo_params_global->OMtot-1.0) < tiny) && (fabs(cosmo_params_global->wl+1) > tiny) ){
         LOG_WARNING("IN WANG.");
         Throw(ValueError);
     }
@@ -754,11 +754,11 @@ double ddickedt(double z){
     if (fabs(cosmo_params_global->OMm-1.0) < tiny){ //OMm = 1 (Einstein de-Sitter)
         return -pow(1+z,-2)/dtdz(z);
     }
-    else if ( (cosmo_params_global->OMl > (-tiny)) && (fabs(cosmo_params_global->OMl+cosmo_params_global->OMm+global_params.OMr-1.0) < 0.01) && (fabs(global_params.wl+1.0) < tiny) ){
+    else if ( (cosmo_params_global->OMl > (-tiny)) && (fabs(cosmo_params_global->OMl+cosmo_params_global->OMm+cosmo_params_global->OMr-1.0) < 0.01) && (fabs(cosmo_params_global->wl+1.0) < tiny) ){
         //this is a flat, cosmological CONSTANT universe, with only lambda, matter and radiation
         //it is taken from liddle et al.
-        omegaM_z = cosmo_params_global->OMm*pow(1+z,3) / ( cosmo_params_global->OMl + cosmo_params_global->OMm*pow(1+z,3) + global_params.OMr*pow(1+z,4) );
-        domegaMdz = omegaM_z*3/(1+z) - cosmo_params_global->OMm*pow(1+z,3)*pow(cosmo_params_global->OMl + cosmo_params_global->OMm*pow(1+z,3) + global_params.OMr*pow(1+z,4), -2) * (3*cosmo_params_global->OMm*(1+z)*(1+z) + 4*global_params.OMr*pow(1+z,3));
+        omegaM_z = cosmo_params_global->OMm*pow(1+z,3) / ( cosmo_params_global->OMl + cosmo_params_global->OMm*pow(1+z,3) + cosmo_params_global->OMr*pow(1+z,4) );
+        domegaMdz = omegaM_z*3/(1+z) - cosmo_params_global->OMm*pow(1+z,3)*pow(cosmo_params_global->OMl + cosmo_params_global->OMm*pow(1+z,3) + cosmo_params_global->OMr*pow(1+z,4), -2) * (3*cosmo_params_global->OMm*(1+z)*(1+z) + 4*cosmo_params_global->OMr*pow(1+z,3));
         dick_0 = cosmo_params_global->OMm / ( 1.0/70.0 + cosmo_params_global->OMm*(209-cosmo_params_global->OMm)/140.0 + pow(cosmo_params_global->OMm, 4.0/7.0) );
 
         ddickdz = (domegaMdz/(1+z)) * (1.0/70.0*pow(omegaM_z,-2) + 1.0/140.0 + 3.0/7.0*pow(omegaM_z, -10.0/3.0)) * pow(1.0/70.0/omegaM_z + (209.0-omegaM_z)/140.0 + pow(omegaM_z, -3.0/7.0) , -2);
@@ -773,7 +773,7 @@ double ddickedt(double z){
 
 /* returns the hubble "constant" (in 1/sec) at z */
 double hubble(float z){
-    return Ho*sqrt(cosmo_params_global->OMm*pow(1+z,3) + global_params.OMr*pow(1+z,4) + cosmo_params_global->OMl);
+    return Ho*sqrt(cosmo_params_global->OMm*pow(1+z,3) + cosmo_params_global->OMr*pow(1+z,4) + cosmo_params_global->OMl);
 }
 
 

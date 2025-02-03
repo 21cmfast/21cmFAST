@@ -198,7 +198,7 @@ int InitialisePhotonCons(UserParams *user_params, CosmoParams *cosmo_params,
                 Q1 = Q0 + ((Nion0-Nion1)/2/delta_a)*da; // No Recombination
             }
             else {
-                dadt = Ho*sqrt(cosmo_params->OMm/a + global_params.OMr/a/a + cosmo_params->OMl*a*a); // da/dt = Ho*a*sqrt(OMm/a^3 + OMr/a^4 + OMl)
+                dadt = Ho*sqrt(cosmo_params->OMm/a + cosmo_params_global->OMr/a/a + cosmo_params->OMl*a*a); // da/dt = Ho*a*sqrt(OMm/a^3 + OMr/a^4 + OMl)
                 Trec = 0.93 * 1e9 * SperYR * pow(C_HII/3.,-1) * pow(T_0/2e4,0.7) * pow((1.+zi)/7.,-3);
                 Q1 = Q0 + ((Nion0-Nion1)/2./delta_a - Q0/Trec/dadt)*da;
             }

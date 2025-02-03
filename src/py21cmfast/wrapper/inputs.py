@@ -118,6 +118,17 @@ class CosmoParams(InputStruct):
     OMb = field(default=Planck18.Ob0, converter=float, validator=validators.gt(0))
     POWER_INDEX = field(default=0.9665, converter=float, validator=validators.gt(0))
 
+    OMn = field(default=0.0, converter=float, validator=validators.ge(0))
+    OMk = field(default=0.0, converter=float, validator=validators.ge(0))
+    OMr = field(default=8.6e-5, converter=float, validator=validators.ge(0))
+    OMtot = field(
+        default=1.0, converter=float, validator=validators.ge(0)
+    )  # TODO: force this to be the sum of the others
+    Y_He = field(default=0.24, converter=float, validator=validators.ge(0))
+    wl = field(default=-1.0, converter=float)
+
+    # TODO: Combined validation via Astropy?
+
     @property
     def OMl(self):
         """Omega lambda, dark energy density."""
@@ -765,6 +776,8 @@ class AstroParams(InputStruct):
     # NOTE (Jdavies): It's difficult to know what this should be, ASTRID doesn't have
     # the xrays and I don't know which hydros do
     CORR_LX = field(default=0.2, converter=float)
+
+    T_RE = field(default=2e4, converter=float)
 
     # set the default of the minihalo scalings to continue the same PL
     @F_STAR7_MINI.default

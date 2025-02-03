@@ -61,6 +61,7 @@ struct IonBoxConstants{
     double fesc_10;
     double alpha_esc;
     double fesc_7;
+    double T_re;
 
     //astro calculated values
     double vcb_norel;
@@ -177,6 +178,8 @@ void set_ionbox_constants(double redshift, double prev_redshift, CosmoParams *co
         consts->alpha_esc = get_fesc_fit(redshift);
     else if(flag_options->PHOTON_CONS_TYPE == 3)
         consts->fesc_10 = get_fesc_fit(redshift);
+
+    consts->T_re = astro_params->T_RE;
 
     consts->mturn_a_nofb = flag_options->USE_MINI_HALOS ? atomic_cooling_threshold(redshift) : astro_params->M_TURN;
 
@@ -1031,11 +1034,11 @@ void find_ionised_regions(IonizedBox *box, IonizedBox *previous_ionize_box, Pert
                         res_xH = 1. - curr_fcoll * consts->ion_eff_factor - curr_fcoll_mini * consts->ion_eff_factor_mini;
                         // put the partial ionization here because we need to exclude xHII_from_xrays...
                         if (flag_options_global->USE_TS_FLUCT){
-                            box->temp_kinetic_all_gas[HII_R_INDEX(x,y,z)] = ComputePartiallyIoinizedTemperature(spin_temp->Tk_box[HII_R_INDEX(x,y,z)], res_xH);
+                            box->temp_kinetic_all_gas[HII_R_INDEX(x,y,z)] = ComputePartiallyIoinizedTemperature(spin_temp->Tk_box[HII_R_INDEX(x,y,z)], res_xH, consts->T_re);
                         }
                         else{
                             box->temp_kinetic_all_gas[HII_R_INDEX(x,y,z)] = ComputePartiallyIoinizedTemperature(
-                                    consts->TK_nofluct*(1 + consts->adia_TK_term*perturbed_field->density[HII_R_INDEX(x,y,z)]), res_xH);
+                                    consts->TK_nofluct*(1 + consts->adia_TK_term*perturbed_field->density[HII_R_INDEX(x,y,z)]), res_xH, consts->T_re);
                         }
                         res_xH -= xHII_from_xrays;
 
@@ -1066,7 +1069,8 @@ void set_ionized_temperatures(IonizedBox *box, PerturbedField *perturbed_field, 
                     if ((box->z_re_box[HII_R_INDEX(x,y,z)]>0) && (box->xH_box[HII_R_INDEX(x,y,z)] < TINY)){
                         //TODO: do we want to use the photoncons redshift here or the original one?
                         box->temp_kinetic_all_gas[HII_R_INDEX(x,y,z)] = ComputeFullyIoinizedTemperature(box->z_re_box[HII_R_INDEX(x,y,z)], \
-                                                                    consts->stored_redshift, perturbed_field->density[HII_R_INDEX(x,y,z)]);
+                                                                    consts->stored_redshift, perturbed_field->density[HII_R_INDEX(x,y,z)],
+                                                                    consts->T_re);
                         // Below sometimes (very rare though) can happen when the density drops too fast and to below T_HI
                         if (flag_options_global->USE_TS_FLUCT){
                             if (box->temp_kinetic_all_gas[HII_R_INDEX(x,y,z)] < spin_temp->Tk_box[HII_R_INDEX(x,y,z)])

@@ -8,8 +8,8 @@ double molecular_cooling_threshold(float z);
 double atomic_cooling_threshold(float z);
 double lyman_werner_threshold(float z, float J_21_LW, float vcb, AstroParams *astro_params);
 double reionization_feedback(float z, float Gamma_halo_HII, float z_IN);
-float ComputeFullyIoinizedTemperature(float z_re, float z, float delta);
-float ComputePartiallyIoinizedTemperature(float T_HI, float res_xH);
+float ComputeFullyIoinizedTemperature(float z_re, float z, float delta, float T_re);
+float ComputePartiallyIoinizedTemperature(float T_HI, float res_xH, float T_re);
 
 /* returns the case A hydrogen recombination coefficient (Abel et al. 1997) in cm^3 s^-1*/
 double alpha_A(double T);

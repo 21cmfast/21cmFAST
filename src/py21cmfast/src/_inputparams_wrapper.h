@@ -5,13 +5,19 @@
 
 
 typedef struct CosmoParams{
-
     float SIGMA_8;
     float hlittle;
     float OMm;
     float OMl;
     float OMb;
     float POWER_INDEX;
+
+    float OMn;
+    float OMk;
+    float OMr;
+    float OMtot;
+    float Y_He;
+    float wl;
 
 } CosmoParams;
 
@@ -82,6 +88,8 @@ typedef struct AstroParams{
     float F_ESC10;
     float ALPHA_ESC;
     float F_ESC7_MINI;
+
+    float T_RE;
 
     float M_TURN;
     float R_BUBBLE_MAX;
@@ -164,14 +172,6 @@ typedef struct GlobalParams{
     int P_CUTOFF;
     float M_WDM;
     float g_x;
-    float OMn;
-    float OMk;
-    float OMr;
-    float OMtot;
-    float Y_He;
-    float wl;
-    float SHETH_b;
-    float SHETH_c;
     double Zreion_HeII;
     int FILTER;
 
@@ -180,8 +180,6 @@ typedef struct GlobalParams{
     float R_BUBBLE_MIN;
     float M_MIN_INTEGRAL;
     float M_MAX_INTEGRAL;
-
-    float T_RE;
 
     float VAVG;
 

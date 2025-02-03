@@ -69,24 +69,10 @@ GlobalParams global_params = {
     .M_WDM = 2, //Used in setting minimum mass if P_CUTOFF is True. (delete?)
     .g_x = 1.5, //Used in setting minimum mass if P_CUTOFF is True. (delete?)
 
-     //Move These to CosmoParams
-    .OMn = 0.0,
-    .OMk = 0.0,
-    .OMr = 8.6e-5,
-    .OMtot = 1.0,
-    .Y_He = 0.245,
-    .wl = -1.0,
-
-    //Adjustments to SMT Barrier so that DexM fits the mass function (Move to UserParams?)
-    .SHETH_b = 0.15, //In the literature this is 0.485 (RM08) or 0.5 (SMT01) or 0.34 (Barkana+01)
-    .SHETH_c = 0.05, //In the literature this is 0.615 (RM08) or 0.6 (SMT01) or 0.81 (Barkana+01)
-
     .Zreion_HeII = 3.0, //used in tau computation, move to tau arguments
     .R_BUBBLE_MIN = 0.620350491, //minimum bubble radius in cMpc, used as a ceiling for the last radius (define?)
     .M_MIN_INTEGRAL = 1e5, //minimum mass for the integrals of the mass function (define?)
     .M_MAX_INTEGRAL = 1e16, //maximum mass for the integrals of the mass function (define?)
-
-    .T_RE = 2e4, //reionisation temperature, move to AstroParams
 
     .VAVG=25.86, //Move to AstroParams, when FlagOptions.FIX_VCB_AVG is true, this is the value
 

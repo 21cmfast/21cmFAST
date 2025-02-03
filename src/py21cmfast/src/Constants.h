@@ -58,11 +58,6 @@
 #define BODE_e (0.361) // Epsilon parameter in Bode et al. 2000 trans. funct.
 #define BODE_n (5.0) // Eda parameter in Bode et al. 2000 trans. funct.
 #define BODE_v (1.2) // Nu parameter in Bode et al. 2000 trans. funct.
-// SHETH params gotten from barkana et al. 2001, pg. 487
-#define SHETH_a (0.73) // Sheth and Tormen a parameter (from Jenkins et al. 2001)
-#define SHETH_p (0.175) // Sheth and Tormen p parameter (from Jenkins et al. 2001)
-#define SHETH_A (0.353) // Sheth and Tormen A parameter (from Jenkins et al. 2001)
-
 
 #define SIGMAVCB (29.0) //rms value of the DM-b relative velocity [im km/s]
 
@@ -220,8 +215,8 @@
 #define Ho  (double) (cosmo_params_global->hlittle*3.2407e-18) // s^-1 at z=0
 #define RHOcrit (double) ( (3.0*Ho*Ho / (8.0*PI*G)) * (CMperMPC*CMperMPC*CMperMPC)/Msun) // Msun Mpc^-3 ---- at z=0
 #define RHOcrit_cgs (double) (3.0*Ho*Ho / (8.0*PI*G)) // g pcm^-3 ---- at z=0
-#define No  (double) (RHOcrit_cgs*cosmo_params_global->OMb*(1-global_params.Y_He)/m_p)  //  current hydrogen number density estimate  (#/cm^3)  ~1.92e-7
-#define He_No (double) (RHOcrit_cgs*cosmo_params_global->OMb*global_params.Y_He/(4.0*m_p)) //  current helium number density estimate
+#define No  (double) (RHOcrit_cgs*cosmo_params_global->OMb*(1-cosmo_params_global->Y_He)/m_p)  //  current hydrogen number density estimate  (#/cm^3)  ~1.92e-7
+#define He_No (double) (RHOcrit_cgs*cosmo_params_global->OMb*cosmo_params_global->Y_He/(4.0*m_p)) //  current helium number density estimate
 #define N_b0 (double) (No+He_No) // present-day baryon num density, H + He
 #define f_H (double) (No/(No+He_No))  // hydrogen number fraction
 #define f_He (double) (He_No/(No+He_No))  // helium number fraction

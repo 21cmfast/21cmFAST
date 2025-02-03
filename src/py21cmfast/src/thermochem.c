@@ -13,7 +13,7 @@
 
 #include "thermochem.h"
 
-float ComputeFullyIoinizedTemperature(float z_re, float z, float delta){
+float ComputeFullyIoinizedTemperature(float z_re, float z, float delta, float T_re){
     // z_re: the redshift of reionization
     // z:    the current redshift
     // delta:the density contrast
@@ -31,7 +31,7 @@ float ComputeFullyIoinizedTemperature(float z_re, float z, float delta){
         result *= pow((1. + z) / (1. + z_re), 3.4);
         result *= expf(pow((1. + z)/7.1, 2.5) - pow((1. + z_re)/7.1, 2.5));
     }
-    result *= pow(global_params.T_RE, 1.7);
+    result *= pow(T_re, 1.7);
     // 1e4 before helium reionization; double it after
     result += pow(1e4 * ((1. + z)/4.), 1.7) * ( 1 + delta);
     result  = pow(result, 0.5882);
@@ -39,11 +39,11 @@ float ComputeFullyIoinizedTemperature(float z_re, float z, float delta){
     return result;
 }
 
-float ComputePartiallyIoinizedTemperature(float T_HI, float res_xH){
-    if (res_xH<=0.) return global_params.T_RE;
+float ComputePartiallyIoinizedTemperature(float T_HI, float res_xH, float T_re){
+    if (res_xH<=0.) return T_re;
     if (res_xH>=1) return T_HI;
 
-    return T_HI * res_xH + global_params.T_RE * (1. - res_xH);
+    return T_HI * res_xH + T_re * (1. - res_xH);
 }
 
 /* returns the case A hydrogen recombination coefficient (Abel et al. 1997) in cm^3 s^-1*/
@@ -71,7 +71,7 @@ double alpha_B(double T){
  ionization rate (1e-12 s^-1)
  */
 double neutral_fraction(double density, double T4, double gamma, int usecaseB){
-    double chi, b, alpha, corr_He = 1.0/(4.0/global_params.Y_He - 3);
+    double chi, b, alpha, corr_He = 1.0/(4.0/cosmo_params_global->Y_He - 3);
 
     if (usecaseB)
         alpha = alpha_B(T4*1e4);
