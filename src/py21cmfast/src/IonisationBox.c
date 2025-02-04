@@ -1326,9 +1326,10 @@ int ComputeIonizedBox(float redshift, float prev_redshift, UserParams *user_para
         unsigned int numBlocks;
 
         // If GPU & flags call init_ionbox_gpu_data()
-        if (flag_options_global->USE_MASS_DEPENDENT_ZETA && !flag_options_global->USE_MINI_HALOS && !flag_options_global->USE_HALO_FIELD) {
-
+        bool use_cuda = false; // pass this as a parameter later
+        if (use_cuda && flag_options_global->USE_MASS_DEPENDENT_ZETA && !flag_options_global->USE_MINI_HALOS && !flag_options_global->USE_HALO_FIELD) {
             unsigned int Nion_nbins = get_nbins();
+#if CUDA_FOUND
             init_ionbox_gpu_data(
                 &d_deltax_filtered,
                 &d_xe_filtered,
@@ -1340,6 +1341,9 @@ int ComputeIonizedBox(float redshift, float prev_redshift, UserParams *user_para
                 &threadsPerBlock,
                 &numBlocks
             );
+#else
+            LOG_ERROR("CUDA function init_ionbox_gpu_data() called but code was not compiled for CUDA.");
+#endif
         }
 
         int R_ct;
@@ -1369,7 +1373,9 @@ int ComputeIonizedBox(float redshift, float prev_redshift, UserParams *user_para
             }
 
             // If GPU & flags, call gpu version of calculate_fcoll_grid()
-            if (flag_options_global->USE_MASS_DEPENDENT_ZETA && !flag_options_global->USE_MINI_HALOS && !flag_options_global->USE_HALO_FIELD) {
+            bool use_cuda = false; // pass this as a parameter later
+            if (use_cuda && flag_options_global->USE_MASS_DEPENDENT_ZETA && !flag_options_global->USE_MINI_HALOS && !flag_options_global->USE_HALO_FIELD) {
+#if CUDA_FOUND
                 calculate_fcoll_grid_gpu(
                     box,
                     grid_struct->deltax_filtered,
@@ -1384,6 +1390,9 @@ int ComputeIonizedBox(float redshift, float prev_redshift, UserParams *user_para
                     &threadsPerBlock,
                     &numBlocks
                 );
+#else
+                LOG_ERROR("CUDA function calculate_fcoll_grid_gpu() called but code was not compiled for CUDA.");
+#endif
             } else {
                 calculate_fcoll_grid(box, previous_ionize_box, grid_struct, &ionbox_constants, &curr_radius);
             }
@@ -1413,14 +1422,19 @@ int ComputeIonizedBox(float redshift, float prev_redshift, UserParams *user_para
 #endif
         }
         // If GPU & flags, call free_ionbox_gpu_data()
-            if (flag_options_global->USE_MASS_DEPENDENT_ZETA && !flag_options_global->USE_MINI_HALOS && !flag_options_global->USE_HALO_FIELD) {
-                free_ionbox_gpu_data(
-                    &d_deltax_filtered,
-                    &d_xe_filtered,
-                    &d_y_arr,
-                    &d_Fcoll
-                );
-            }
+        bool use_cuda = false; // pass this as a parameter later
+        if (use_cuda && flag_options_global->USE_MASS_DEPENDENT_ZETA && !flag_options_global->USE_MINI_HALOS && !flag_options_global->USE_HALO_FIELD) {
+#if USE_CUDA
+            free_ionbox_gpu_data(
+                &d_deltax_filtered,
+                &d_xe_filtered,
+                &d_y_arr,
+                &d_Fcoll
+            );
+#else
+            LOG_ERROR("CUDA function free_ionbox_gpu_data() called but code was not compiled for CUDA.");
+#endif
+        }
 
         set_ionized_temperatures(box,perturbed_field,spin_temp,&ionbox_constants);
 
