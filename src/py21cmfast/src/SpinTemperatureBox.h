@@ -1,7 +1,7 @@
 #ifndef _SPINTEMP_H
 #define _SPINTEMP_H
 
-#include <cuda_runtime.h>
+// #include <cuda_runtime.h>
 
 #include "InputParameters.h"
 #include "OutputStructs.h"

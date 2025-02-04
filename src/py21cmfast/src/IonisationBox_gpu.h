@@ -2,7 +2,7 @@
 #define _IONBOX_H
 
 #include <fftw3.h>
-#include <cuda_runtime.h>
+// #include <cuda_runtime.h>
 
 #include "InputParameters.h"
 #include "OutputStructs.h"
