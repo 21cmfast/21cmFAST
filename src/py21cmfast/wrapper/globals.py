@@ -126,8 +126,6 @@ class GlobalParams(StructInstanceWrapper):
         0. real space top hat filter
         1. k-space top hat filter
         2. gaussian filter
-    INITIAL_REDSHIFT : float
-        Used to perturb field
     CRIT_DENS_TRANSITION : float
         A transition value for the interpolation tables for calculating the number of ionising
         photons produced given the input parameters. Gauss-Legendre integration breaks down

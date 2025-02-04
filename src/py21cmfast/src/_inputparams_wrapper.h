@@ -37,7 +37,7 @@ typedef struct UserParams{
     bool USE_INTERPOLATION_TABLES;
     int INTEGRATION_METHOD_ATOMIC;
     int INTEGRATION_METHOD_MINI;
-    bool USE_2LPT;
+    int PERTURB_ALGORITHM;
     bool MINIMIZE_MEMORY;
     bool KEEP_3D_VELOCITIES;
     double Z_HEAT_MAX;
@@ -59,6 +59,7 @@ typedef struct UserParams{
 
     int FILTER;
     int HALO_FILTER;
+    float INITIAL_REDSHIFT;
 } UserParams;
 
 typedef struct AstroParams{
@@ -141,14 +142,13 @@ typedef struct FlagOptions{
 
 typedef struct GlobalParams{
     float ALPHA_UVB;
-    int EVOLVE_DENSITY_LINEARLY;
     int SMOOTH_EVOLVED_DENSITY_FIELD;
     float R_smooth_density;
     int FIND_BUBBLE_ALGORITHM;
     float MAX_DVDR;
     float DELTA_R_HII_FACTOR;
     float DELTA_R_FACTOR;
-    float INITIAL_REDSHIFT;
+
     float R_OVERLAP_FACTOR;
     int OPTIMIZE;
     float OPTIMIZE_MIN_MASS;

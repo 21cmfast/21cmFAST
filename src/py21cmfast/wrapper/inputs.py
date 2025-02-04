@@ -286,6 +286,8 @@ class UserParams(InputStruct):
     HALO_FILTER : string, optional
         Filter to use for the DexM halo finder.
         available options are: `spherical-tophat`, `sharp-k` and `gaussian`
+    INITIAL_REDSHIFT : float, optional
+        Initial redshift used to perturb field from
     """
 
     _hmf_models = ["PS", "ST", "WATSON", "WATSON-Z", "DELOS"]
@@ -297,6 +299,7 @@ class UserParams(InputStruct):
         "sharp-k",
         "gaussian",
     ]
+    _perturb_options = ["LINEAR", "ZELDOVICH", "2LPT"]
 
     BOX_LEN = field(default=300.0, converter=float, validator=validators.gt(0))
     HII_DIM = field(default=200, converter=int, validator=validators.gt(0))
@@ -331,7 +334,6 @@ class UserParams(InputStruct):
         validator=validators.in_(_integral_methods),
         transformer=choice_transformer(_integral_methods),
     )
-    USE_2LPT = field(default=True, converter=bool)
     MINIMIZE_MEMORY = field(default=False, converter=bool)
     KEEP_3D_VELOCITIES = field(default=False, converter=bool)
     SAMPLER_MIN_MASS = field(default=1e8, converter=float, validator=validators.gt(0))
@@ -358,6 +360,20 @@ class UserParams(InputStruct):
         default="spherical-tophat",
         converter=str,
         validator=validators.in_(_filter_options[(0, 2)]),
+        transformer=choice_transformer(_filter_options),
+    )
+    HALO_FILTER = field(
+        default="spherical-tophat",
+        converter=str,
+        validator=validators.in_(_filter_options),
+        transformer=choice_transformer(_filter_options),
+    )
+    INITIAL_REDSHIFT = field(default=300.0, converter=float)
+    PERTURB_ALGORITHM = field(
+        default="2LPT",
+        converter=str,
+        validator=validators.in_(_perturb_options),
+        transformer=choice_transformer(_perturb_options),
     )
 
     @DIM.default
@@ -538,11 +554,13 @@ class FlagOptions(InputStruct):
         default="spherical-tophat",
         converter=str,
         validator=validators.in_(_filter_options),
+        transformer=choice_transformer(_filter_options),
     )
     HEAT_FILTER = field(
         default="spherical-tophat",
         converter=str,
         validator=validators.in_(_filter_options),
+        transformer=choice_transformer(_filter_options),
     )
 
     @M_MIN_in_Mass.validator

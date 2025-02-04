@@ -22,6 +22,7 @@ FlagOptions *flag_options_global;
 //  they are used, and my tentative decision on what to do with them
 GlobalParams global_params = {
     .ALPHA_UVB = 5.0, // IonisationBox, for Gamma (move to AstroParams)
+
     .EVOLVE_DENSITY_LINEARLY = 0, //PerturnbedField, uses linear growth instead of 1/2LPT (move to UserParams)
     .SMOOTH_EVOLVED_DENSITY_FIELD = 0, //PerturbedField, smooth field after perturb (delete)
     .R_smooth_density = 0.2, //With above, radius for smoothing (delete)
@@ -30,8 +31,6 @@ GlobalParams global_params = {
     .MAX_DVDR = 0.2, //BrightnessTemp, maximum velocity gradient for RSDS (move to AstroParams?)
     .DELTA_R_HII_FACTOR = 1.1, //IonisationBox, radius factor for reion ES (move to AstroParams)
     .DELTA_R_FACTOR = 1.1, //HaloField, radius factor for DexM halo ES (move to UserParams)
-
-    .INITIAL_REDSHIFT = 300., //PerturbField, initial redshift for moving the particles (move to UserParams)
 
     .OPTIMIZE = 0, //HaloField, excluding zones around existing halos for speed (delete?)
     .R_OVERLAP_FACTOR = 1., //HaloField, exclude cells within X*radius for optimisation (delete?)

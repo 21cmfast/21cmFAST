@@ -164,7 +164,7 @@ int ComputePerturbField(
     /*
      ComputePerturbField uses the first-order Langragian displacement field to move the
      masses in the cells of the density field. The high-res density field is extrapolated
-     to some high-redshift (global_params.INITIAL_REDSHIFT), then uses the zeldovich
+     to some high-redshift (user_params.INITIAL_REDSHIFT), then uses the zeldovich
      approximation to move the grid "particles" onto the lower-res grid we use for the
      maps. Then we recalculate the velocity fields on the perturbed grid.
     */
@@ -213,16 +213,16 @@ int ComputePerturbField(
 
     LOG_DEBUG("Computing Perturbed Field at z=%.3f",redshift);
     // perform a very rudimentary check to see if we are underresolved and not using the linear approx
-    if ((user_params->BOX_LEN > user_params->DIM) && !(global_params.EVOLVE_DENSITY_LINEARLY)){
+    if ((user_params->BOX_LEN > user_params->DIM) && user_params->PERTURB_ALGORITHM > 0){
         LOG_WARNING("Resolution is likely too low for accurate evolved density fields\n \
-                It is recommended that you either increase the resolution (DIM/BOX_LEN) or set the EVOLVE_DENSITY_LINEARLY flag to 1\n");
+                It is recommended that you either increase the resolution (DIM/BOX_LEN) or set PERTURB_ALGORITHM to 'LINEAR'\n");
     }
 
     growth_factor = dicke(redshift);
     displacement_factor_2LPT = -(3.0/7.0) * growth_factor*growth_factor; // 2LPT eq. D8
 
     dDdt = ddickedt(redshift); // time derivative of the growth factor (1/s)
-    init_growth_factor = dicke(global_params.INITIAL_REDSHIFT);
+    init_growth_factor = dicke(user_params->INITIAL_REDSHIFT);
     init_displacement_factor_2LPT = -(3.0/7.0) * init_growth_factor*init_growth_factor; // 2LPT eq. D8
 
     // find factor of HII pixel size / deltax pixel size
@@ -246,7 +246,7 @@ int ComputePerturbField(
                     growth_factor, displacement_factor_2LPT, dDdt, init_growth_factor, init_displacement_factor_2LPT, mass_factor);
 
     // check if the linear evolution flag was set
-    if (global_params.EVOLVE_DENSITY_LINEARLY){
+    if (user_params->PERTURB_ALGORITHM == 0){
 
 #pragma omp parallel shared(growth_factor,boxes,LOWRES_density_perturb,HIRES_density_perturb,dimension) private(i,j,k) num_threads(user_params->N_THREADS)
         {
@@ -314,7 +314,7 @@ int ComputePerturbField(
         // *                           BEGIN 2LPT PART                                 * //
         // * ************************************************************************* * //
         // reference: reference: Scoccimarro R., 1998, MNRAS, 299, 1097-1118 Appendix D
-        if(user_params->USE_2LPT){
+        if(user_params->PERTURB_ALGORITHM == 2){
 
             // allocate memory for the velocity boxes and read them in
             velocity_displacement_factor_2LPT = (displacement_factor_2LPT - init_displacement_factor_2LPT) / user_params->BOX_LEN;
@@ -390,7 +390,7 @@ int ComputePerturbField(
 
                         // 2LPT PART
                         // add second order corrections
-                        if(user_params->USE_2LPT){
+                        if(user_params->PERTURB_ALGORITHM == 2){
                             if(user_params->PERTURB_ON_HIGH_RES) {
                                 xf -= (boxes->hires_vx_2LPT)[R_INDEX(i,j,k)];
                                 yf -= (boxes->hires_vy_2LPT)[R_INDEX(i,j,k)];
@@ -554,7 +554,7 @@ int ComputePerturbField(
             }
         }
 
-        if(user_params->USE_2LPT){
+        if(user_params->PERTURB_ALGORITHM == 2){
 #pragma omp parallel shared(boxes,velocity_displacement_factor_2LPT,dimension) private(i,j,k) num_threads(user_params->N_THREADS)
             {
 #pragma omp for
@@ -618,7 +618,7 @@ int ComputePerturbField(
     }
     else {
 
-        if (!global_params.EVOLVE_DENSITY_LINEARLY){
+        if (user_params->PERTURB_ALGORITHM > 0){
 
 #pragma omp parallel shared(LOWRES_density_perturb,mass_factor) private(i,j,k) num_threads(user_params->N_THREADS)
             {
@@ -642,7 +642,7 @@ int ComputePerturbField(
     dft_r2c_cube(user_params->USE_FFTW_WISDOM, user_params->HII_DIM, HII_D_PARA, user_params->N_THREADS, LOWRES_density_perturb);
 
     //smooth the field
-    if (!global_params.EVOLVE_DENSITY_LINEARLY && global_params.SMOOTH_EVOLVED_DENSITY_FIELD){
+    if (user_params->PERTURB_ALGORITHM > 0 && global_params.SMOOTH_EVOLVED_DENSITY_FIELD){
         filter_box(LOWRES_density_perturb, 1, 2, global_params.R_smooth_density*user_params->BOX_LEN/(float)user_params->HII_DIM, 0.);
     }
 
