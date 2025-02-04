@@ -255,8 +255,8 @@ void set_ionbox_constants(double redshift, double prev_redshift, CosmoParams *co
     consts->pixel_length = user_params_global->BOX_LEN/(double)user_params_global->HII_DIM;
     consts->pixel_mass = cosmo_params_global->OMm * RHOcrit * pow(consts->pixel_length,3);
 
-    consts->gamma_prefactor = pow(1+redshift,2) * CMperMPC * SIGMA_HI * global_params.ALPHA_UVB \
-                                 / (global_params.ALPHA_UVB+2.75) * N_b0 * consts->ion_eff_factor / 1.0e-12;
+    consts->gamma_prefactor = pow(1+redshift,2) * CMperMPC * SIGMA_HI * astro_params_global->ALPHA_UVB \
+                                 / (astro_params_global->ALPHA_UVB+2.75) * N_b0 * consts->ion_eff_factor / 1.0e-12;
     if(flag_options->USE_HALO_FIELD)
         consts->gamma_prefactor /= RHOcrit * cosmo_params->OMb; //TODO: double-check these unit differences, HaloBox.halo_wsfr vs Nion_General units
     else

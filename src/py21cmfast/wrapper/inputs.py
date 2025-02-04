@@ -763,6 +763,10 @@ class AstroParams(InputStruct):
         Number of ionizing photons per baryon produced by Pop II stars.
     POP3_ION: float, optional
         Number of ionizing photons per baryon produced by Pop III stars.
+    CLUMPING_FACTOR: float, optional
+        Clumping factor of the IGM used ONLY in the x-ray partial ionisations (not the reionsiation model). Default is 2.0.
+    ALPHA_UVB: float, optional
+        The power-law index of the UVB spectrum. Used for Gamma12 in the recombination model
     """
 
     HII_EFF_FACTOR = field(default=30.0, converter=float, validator=validators.gt(0))
@@ -848,6 +852,8 @@ class AstroParams(InputStruct):
     POP3_ION = field(default=44021.0, converter=float)
 
     PHOTONCONS_CALIBRATION_END = field(default=3.5, converter=float)
+    CLUMPING_FACTOR = field(default=2.0, converter=float, validator=validators.gt(0))
+    CLUMPING_FACTOR = field(default=5.0, converter=float)
 
     # set the default of the minihalo scalings to continue the same PL
     @F_STAR7_MINI.default

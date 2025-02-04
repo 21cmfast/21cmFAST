@@ -13,6 +13,8 @@
 
 #include "thermochem.h"
 
+#define MIN_DENSITY_LOW_LIMIT (9e-8)
+
 float ComputeFullyIoinizedTemperature(float z_re, float z, float delta, float T_re){
     // z_re: the redshift of reionization
     // z:    the current redshift
@@ -24,9 +26,9 @@ float ComputeFullyIoinizedTemperature(float z_re, float z, float delta, float T_
     else{
         // linearly extrapolate to get density at reionization
         delta_re = delta * (1. + z ) / (1. + z_re);
-        if (delta_re<=-1) delta_re=-1. + global_params.MIN_DENSITY_LOW_LIMIT;
+        if (delta_re<=-1) delta_re=-1. + MIN_DENSITY_LOW_LIMIT;
         // evolving ionized box eq. 6 of McQuinn 2015, ignored the dependency of density at ionization
-        if (delta<=-1) delta=-1. + global_params.MIN_DENSITY_LOW_LIMIT;
+        if (delta<=-1) delta=-1. + MIN_DENSITY_LOW_LIMIT;
         result  = pow((1. + delta) / (1. + delta_re), 1.1333);
         result *= pow((1. + z) / (1. + z_re), 3.4);
         result *= expf(pow((1. + z)/7.1, 2.5) - pow((1. + z_re)/7.1, 2.5));

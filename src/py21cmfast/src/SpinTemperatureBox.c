@@ -1077,7 +1077,7 @@ struct Ts_cell get_Ts_fast(float zp, float dzp, struct spintemp_from_sfr_prefact
 
     // Electron density
     //NOTE: Nb_zp includes helium, TODO: make sure this is right
-    dxion_sink_dt = alpha_A(rad->prev_Tk) * global_params.CLUMPING_FACTOR * rad->prev_xe*rad->prev_xe * f_H * consts->Nb_zp * \
+    dxion_sink_dt = alpha_A(rad->prev_Tk) * astro_params_global->CLUMPING_FACTOR * rad->prev_xe*rad->prev_xe * f_H * consts->Nb_zp * \
                     (1.+rad->delta);
 
     dxe_dzp = consts->dt_dzp*(rad->dxion_dt - dxion_sink_dt);

@@ -21,9 +21,6 @@ FlagOptions *flag_options_global;
 // These need to be removed, I am commenting below roughly where/when
 //  they are used, and my tentative decision on what to do with them
 GlobalParams global_params = {
-    .ALPHA_UVB = 5.0, // IonisationBox, for Gamma (move to AstroParams)
-
-    .EVOLVE_DENSITY_LINEARLY = 0, //PerturnbedField, uses linear growth instead of 1/2LPT (move to UserParams)
     .SMOOTH_EVOLVED_DENSITY_FIELD = 0, //PerturbedField, smooth field after perturb (delete)
     .R_smooth_density = 0.2, //With above, radius for smoothing (delete)
 
@@ -37,9 +34,7 @@ GlobalParams global_params = {
     .OPTIMIZE_MIN_MASS = 1e11, //don't optimize below this mass (delete?)
 
     .CRIT_DENS_TRANSITION = 1.2, //Gauss-Legendre does poorly at high delta, switch to GSL-QAG here (define?)
-    .MIN_DENSITY_LOW_LIMIT = 9e-8, //lower limit for extrapolated density in ionised temperatures (define)
 
-    .CLUMPING_FACTOR = 2., //SpinTemperature, for recombinations in neutral IGM
     .R_XLy_MAX = 500., //SpinTemperature, max radius for ES (Move to AstroParams)
     .NUM_FILTER_STEPS_FOR_Ts = 40, //SpinTemperature, self-explanatory (move to AstroParams)
 

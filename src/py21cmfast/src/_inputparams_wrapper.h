@@ -114,6 +114,8 @@ typedef struct AstroParams{
 
     int N_RSD_STEPS;
     double PHOTONCONS_CALIBRATION_END;
+    double CLUMPING_FACTOR;
+    double ALPHA_UVB;
 } AstroParams;
 
 typedef struct FlagOptions{
@@ -141,7 +143,6 @@ typedef struct FlagOptions{
 } FlagOptions;
 
 typedef struct GlobalParams{
-    float ALPHA_UVB;
     int SMOOTH_EVOLVED_DENSITY_FIELD;
     float R_smooth_density;
     int FIND_BUBBLE_ALGORITHM;
@@ -154,9 +155,7 @@ typedef struct GlobalParams{
     float OPTIMIZE_MIN_MASS;
 
     float CRIT_DENS_TRANSITION;
-    float MIN_DENSITY_LOW_LIMIT;
 
-    double CLUMPING_FACTOR;
     float R_XLy_MAX;
     int NUM_FILTER_STEPS_FOR_Ts;
 
