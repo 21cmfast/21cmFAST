@@ -96,7 +96,7 @@ int InitialisePhotonCons(UserParams *user_params, CosmoParams *cosmo_params,
 
     //set the minimum source mass
     if (flag_options->USE_MASS_DEPENDENT_ZETA) {
-        ION_EFF_FACTOR = global_params.Pop2_ion * astro_params->F_STAR10 * astro_params->F_ESC10;
+        ION_EFF_FACTOR = astro_params->POP2_ION * astro_params->F_STAR10 * astro_params->F_ESC10;
 
         M_MIN = astro_params->M_TURN/50.;
         Mlim_Fstar = Mass_limit_bisection(M_MIN, global_params.M_MAX_INTEGRAL, astro_params->ALPHA_STAR, astro_params->F_STAR10);

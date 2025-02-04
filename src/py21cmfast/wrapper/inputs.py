@@ -741,6 +741,10 @@ class AstroParams(InputStruct):
         Self-correlation length used for updating xray luminosity, see "CORR_STAR" for details.
     FIXED_VAVG : float, optional
         The fixed value of the average velocity used when FlagOptions.FIX_VCB_AVG is set to True.
+    POP2_ION: float, optional
+        Number of ionizing photons per baryon produced by Pop II stars.
+    POP3_ION: float, optional
+        Number of ionizing photons per baryon produced by Pop III stars.
     """
 
     HII_EFF_FACTOR = field(default=30.0, converter=float, validator=validators.gt(0))
@@ -822,6 +826,8 @@ class AstroParams(InputStruct):
 
     T_RE = field(default=2e4, converter=float)
     FIXED_VAVG = field(default=25.86, converter=float, validator=validators.gt(0))
+    POP2_ION = field(default=5000.0, converter=float)
+    POP3_ION = field(default=44021.0, converter=float)
 
     # set the default of the minihalo scalings to continue the same PL
     @F_STAR7_MINI.default

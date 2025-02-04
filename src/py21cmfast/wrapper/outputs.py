@@ -94,6 +94,7 @@ class InitialConditions(_OutputStruct):
     # It is useful for ignoring certain global parameters which may not apply to this
     # step or its dependents.
     _meta = False
+    # TODO: globals have been removed, so this should be updated IF the output struct overhaul doesn't solve this
     _filter_params = _OutputStruct._filter_params + [
         "ALPHA_UVB",  # ionization
         "EVOLVE_DENSITY_LINEARLY",  # perturb

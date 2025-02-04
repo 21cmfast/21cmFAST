@@ -304,9 +304,9 @@ double spectral_emissivity(double nu_norm, int flag, int Population)
 
             for (i=1;i<(NSPEC_MAX-1);i++) {
                 n0_fac = (pow(nu_n[i+1],alpha_S_2[i]+1) - pow(nu_n[i],alpha_S_2[i]+1));
-                N0_2[i] *= (alpha_S_2[i]+1)/n0_fac*global_params.Pop2_ion;
+                N0_2[i] *= (alpha_S_2[i]+1)/n0_fac*astro_params_global->POP2_ION;
                 n0_fac = (pow(nu_n[i+1],alpha_S_3[i]+1) - pow(nu_n[i],alpha_S_3[i]+1));
-                N0_3[i] *= (alpha_S_3[i]+1)/n0_fac*global_params.Pop3_ion;
+                N0_3[i] *= (alpha_S_3[i]+1)/n0_fac*astro_params_global->POP3_ION;
             }
 
             return 0.0;
@@ -832,8 +832,8 @@ double tauX_MINI(double nu, double x_e, double x_e_ave, double zp, double zpp, d
     p.nu_0 = nu/(1+zp);
     p.x_e = x_e;
     p.x_e_ave = x_e_ave;
-    p.ion_eff = global_params.Pop2_ion*astro_params_global->F_STAR10*astro_params_global->F_ESC10;
-    p.ion_eff_MINI = global_params.Pop3_ion*astro_params_global->F_STAR7_MINI*astro_params_global->F_ESC7_MINI;
+    p.ion_eff = astro_params_global->POP2_ION*astro_params_global->F_STAR10*astro_params_global->F_ESC10;
+    p.ion_eff_MINI = astro_params_global->POP3_ION*astro_params_global->F_STAR7_MINI*astro_params_global->F_ESC7_MINI;
     p.log10_Mturn_MINI = log10_Mturn_MINI;
     p.Mlim_Fstar = Mlim_Fstar;
     p.Mlim_Fesc = Mlim_Fesc;
@@ -876,7 +876,7 @@ double tauX(double nu, double x_e, double x_e_ave, double zp, double zpp, double
     p.Mlim_Fesc = Mlim_Fesc;
 
     if(flag_options_global->USE_MASS_DEPENDENT_ZETA) {
-        p.ion_eff = global_params.Pop2_ion*astro_params_global->F_STAR10*astro_params_global->F_ESC10;
+        p.ion_eff = astro_params_global->POP2_ION*astro_params_global->F_STAR10*astro_params_global->F_ESC10;
     }
     else {
         //if we don't have an explicit ionising efficiency, we estimate one by using the values at zp

@@ -208,8 +208,8 @@ void set_ionbox_constants(double redshift, double prev_redshift, CosmoParams *co
     }
 
     if(flag_options->USE_MASS_DEPENDENT_ZETA) {
-        consts->ion_eff_factor_gl = global_params.Pop2_ion * astro_params->F_STAR10 * consts->fesc_10;
-        consts->ion_eff_factor_mini_gl = global_params.Pop3_ion * astro_params->F_STAR7_MINI * astro_params->F_ESC7_MINI;
+        consts->ion_eff_factor_gl = astro_params->POP2_ION * astro_params->F_STAR10 * consts->fesc_10;
+        consts->ion_eff_factor_mini_gl = astro_params->POP3_ION * astro_params->F_STAR7_MINI * astro_params->F_ESC7_MINI;
     }
     else {
         consts->ion_eff_factor_gl = astro_params->HII_EFF_FACTOR;

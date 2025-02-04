@@ -108,6 +108,8 @@ typedef struct AstroParams{
     double BETA_VCB;
 
     double FIXED_VAVG;
+    double POP2_ION;
+    double POP3_ION;
 
     int N_RSD_STEPS;
 } AstroParams;
@@ -165,10 +167,6 @@ typedef struct GlobalParams{
     double CLUMPING_FACTOR;
     float R_XLy_MAX;
     int NUM_FILTER_STEPS_FOR_Ts;
-
-    int Pop;
-    float Pop2_ion;
-    float Pop3_ion;
 
     float NU_X_BAND_MAX;
     float NU_X_MAX;

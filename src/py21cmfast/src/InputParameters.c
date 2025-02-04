@@ -26,6 +26,7 @@ GlobalParams global_params = {
     .SMOOTH_EVOLVED_DENSITY_FIELD = 0, //PerturbedField, smooth field after perturb (delete)
     .R_smooth_density = 0.2, //With above, radius for smoothing (delete)
     .HII_ROUND_ERR = 1e-5, // IonisationBox, Nion threshold to run the ES (move to define)
+
     .FIND_BUBBLE_ALGORITHM = 2, // IonisationBox central pixel vs sphere (move to UserParams)
     .MAX_DVDR = 0.2, //BrightnessTemp, maximum velocity gradient for RSDS (move to AstroParams?)
     .DELTA_R_HII_FACTOR = 1.1, //IonisationBox, radius factor for reion ES (move to AstroParams)
@@ -52,10 +53,6 @@ GlobalParams global_params = {
     .CLUMPING_FACTOR = 2., //SpinTemperature, for recombinations in neutral IGM
     .R_XLy_MAX = 500., //SpinTemperature, max radius for ES (Move to AstroParams)
     .NUM_FILTER_STEPS_FOR_Ts = 40, //SpinTemperature, self-explanatory (move to AstroParams)
-
-    .Pop = 2, //Only used in lyman alpha spectral calculations, when minihalos are off (delete)
-    .Pop2_ion = 5000, //Move to AstroParams
-    .Pop3_ion = 44021, // Move to AstroParams
 
     .NU_X_BAND_MAX = 2000.0, //Used in SFR -> Lx conversion factor (define)
     .NU_X_MAX = 10000.0, //Limit for nu integrals (define)

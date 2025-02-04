@@ -56,6 +56,9 @@ void set_scaling_constants(double redshift, AstroParams *astro_params, FlagOptio
     else if(flag_options->PHOTON_CONS_TYPE == 3)
         consts->fesc_10 = get_fesc_fit(redshift);
 
+    consts->pop2_ion = astro_params->POP2_ION;
+    consts->pop3_ion = astro_params->POP3_ION;
+
     consts->mturn_a_nofb = flag_options->USE_MINI_HALOS ? atomic_cooling_threshold(redshift) : astro_params->M_TURN;
 
     consts->mturn_m_nofb = 0.;

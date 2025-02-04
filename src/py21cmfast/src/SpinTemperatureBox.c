@@ -385,8 +385,8 @@ void calculate_spectral_factors(double zp){
         //in case we use LYA_HEATING, we separate the ==2 and >2 cases
         nuprime = nu_n(2)*(1.+zpp)/(1.+zp);
         if(zpp < zmax(zp,2)){
+            sum_ly2_val = frecycle(2) * spectral_emissivity(nuprime, 0, 2);
             if(flag_options_global->USE_MINI_HALOS){
-                sum_ly2_val = frecycle(2) * spectral_emissivity(nuprime, 0, 2);
                 sum_ly2_val_MINI = frecycle(2) * spectral_emissivity(nuprime, 0, 3);
 
                 if (nuprime < NU_LW_THRESH / NUIONIZATION)
@@ -399,9 +399,6 @@ void calculate_spectral_factors(double zp){
                 sum_lyLW_val  += (1. - astro_params_global->F_H2_SHIELD) * spectral_emissivity(nuprime, 2, 2);
                 sum_lyLW_val_MINI += (1. - astro_params_global->F_H2_SHIELD) * spectral_emissivity(nuprime, 2, 3);
             }
-            else{
-                sum_ly2_val = frecycle(2) * spectral_emissivity(nuprime, 0, global_params.Pop);
-            }
         }
 
         for (n_ct=NSPEC_MAX; n_ct>=3; n_ct--){
@@ -409,9 +406,8 @@ void calculate_spectral_factors(double zp){
                 continue;
 
             nuprime = nu_n(n_ct)*(1+zpp)/(1.0+zp);
-
+            sum_lynto2_val += frecycle(n_ct) * spectral_emissivity(nuprime, 0, 2);
             if(flag_options_global->USE_MINI_HALOS){
-                sum_lynto2_val += frecycle(n_ct) * spectral_emissivity(nuprime, 0, 2);
                 sum_lynto2_val_MINI += frecycle(n_ct) * spectral_emissivity(nuprime, 0, 3);
 
                 if (nuprime < NU_LW_THRESH / NUIONIZATION)
@@ -420,11 +416,6 @@ void calculate_spectral_factors(double zp){
                     continue;
                 sum_lyLW_val  += (1. - astro_params_global->F_H2_SHIELD) * spectral_emissivity(nuprime, 2, 2);
                 sum_lyLW_val_MINI += (1. - astro_params_global->F_H2_SHIELD) * spectral_emissivity(nuprime, 2, 3);
-            }
-            else{
-                //This is only useful if global_params.Pop is ever used, which I think is rare
-                //Otherwise we can remove the if-else
-                sum_lynto2_val += frecycle(n_ct) * spectral_emissivity(nuprime, 0, global_params.Pop);
             }
         }
         sum_lyn_val = sum_ly2_val + sum_lynto2_val;
@@ -884,8 +875,8 @@ int global_reion_properties(double zp, double x_e_ave, double *log10_Mcrit_LW_av
     LOG_DEBUG("nion zp = %.3e (%.3e MINI)",sum_nion,sum_nion_mini);
 
     double ION_EFF_FACTOR,ION_EFF_FACTOR_MINI;
-    ION_EFF_FACTOR = astro_params_global->F_STAR10 * astro_params_global->F_ESC10 * global_params.Pop2_ion;
-    ION_EFF_FACTOR_MINI = astro_params_global->F_STAR7_MINI * astro_params_global->F_ESC7_MINI * global_params.Pop3_ion;
+    ION_EFF_FACTOR = astro_params_global->F_STAR10 * astro_params_global->F_ESC10 * astro_params_global->POP2_ION;
+    ION_EFF_FACTOR_MINI = astro_params_global->F_STAR7_MINI * astro_params_global->F_ESC7_MINI * astro_params_global->POP3_ION;
 
     //NOTE: only used without MASS_DEPENDENT_ZETA
     *Q_HI = 1 - ( ION_EFF_FACTOR * sum_nion + ION_EFF_FACTOR_MINI * sum_nion_mini )/ (1.0 - x_e_ave);
