@@ -932,13 +932,17 @@ void calculate_sfrd_from_grid(int R_ct, float *dens_R_grid, float *Mcrit_R_grid,
 
     // --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
     // If GPU is to be used and flags are ideal, call GPU version of reduction
-    if (true && flag_options_global->USE_MASS_DEPENDENT_ZETA && user_params_global->USE_INTERPOLATION_TABLES && !flag_options_global->USE_MINI_HALOS) {
+    bool use_cuda = false; // pass this as a parameter later
+    if (use_cuda && flag_options_global->USE_MASS_DEPENDENT_ZETA && user_params_global->USE_INTERPOLATION_TABLES && !flag_options_global->USE_MINI_HALOS) {
 
         RGTable1D_f* SFRD_conditional_table = get_SFRD_conditional_table();
+#if CUDA_FOUND
         ave_sfrd_buf = calculate_sfrd_from_grid_gpu(SFRD_conditional_table, dens_R_grid, zpp_growth, R_ct, sfrd_grid, HII_TOT_NUM_PIXELS, threadsPerBlock,
                                                     // d_data
-                                                    d_y_arr, d_dens_R_grid, d_sfrd_grid, d_ave_sfrd_buf
-        );
+                                                    d_y_arr, d_dens_R_grid, d_sfrd_grid, d_ave_sfrd_buf);
+#else
+        LOG_ERROR("calculate_sfrd_from_grid_gpu() called but code was not compiled for CUDA.");
+#endif
     } else {
         // Else, run CPU reduction
         #pragma omp parallel num_threads(user_params_global->N_THREADS)
@@ -1438,13 +1442,15 @@ void ts_main(float redshift, float prev_redshift, UserParams *user_params, Cosmo
         // struct ---------------------------------------------------------------------------------------------------------------------------------------------------------
         // threadsPerBlock = init_sfrd_gpu_data(delta_box_input, del_fcoll_Rct, HII_TOT_NUM_PIXELS, sfrd_nbins, &device_data);
         // pointers -------------------------------------------------------------------------------------------------------------------------------------------------------
-        threadsPerBlock = init_sfrd_gpu_data(delta_box_input, del_fcoll_Rct, HII_TOT_NUM_PIXELS, sfrd_nbins, &d_y_arr, &d_dens_R_grid, &d_sfrd_grid, &d_ave_sfrd_buf);
-        // threadsPerBlock = init_sfrd_gpu_data(delta_box_input, del_fcoll_Rct, HII_TOT_NUM_PIXELS, sfrd_nbins, d_y_arr, d_dens_R_grid, d_sfrd_grid, d_ave_sfrd_buf);
-        if (threadsPerBlock == 0) {
-            LOG_DEBUG("Memory allocation failed inside init_sfrd_gpu_data.");
-        } else {
-            LOG_DEBUG("threadsPerBlock = %u", threadsPerBlock);
-        } // ---------------------------------------------------------------------------------------------------------------------------------------------------------------
+        bool use_cuda = false; // pass this as a parameter later
+        if (use_cuda) {
+#if CUDA_FOUND
+            threadsPerBlock = init_sfrd_gpu_data(delta_box_input, del_fcoll_Rct, HII_TOT_NUM_PIXELS, sfrd_nbins, &d_y_arr, &d_dens_R_grid, &d_sfrd_grid, &d_ave_sfrd_buf);
+#else
+            LOG_ERROR("CUDA function init_sfrd_gpu_data() called but code was not compiled for CUDA.");
+#endif
+        }
+        // ---------------------------------------------------------------------------------------------------------------------------------------------------------------
 
         // R_ct starts at 39 and goes down to 0
         for(R_ct=global_params.NUM_FILTER_STEPS_FOR_Ts; R_ct--;){
@@ -1606,7 +1612,13 @@ void ts_main(float redshift, float prev_redshift, UserParams *user_params, Cosmo
         // free_sfrd_gpu_data(device_data);
         // free(device_data);
         // pointers ----------------------------------------------------------------------------------------------------------------------------------------------------------------
-        free_sfrd_gpu_data(&d_y_arr, &d_dens_R_grid, &d_sfrd_grid, &d_ave_sfrd_buf);
+        if (use_cuda) {
+#if CUDA_FOUND
+            free_sfrd_gpu_data(&d_y_arr, &d_dens_R_grid, &d_sfrd_grid, &d_ave_sfrd_buf);
+#else
+            LOG_ERROR("CUDA function free_sfrd_gpu_data() called but code was not compiled for CUDA.");
+#endif
+        }
         // -------------------------------------------------------------------------------------------------------------------------------------------------------------------------
     }
 
