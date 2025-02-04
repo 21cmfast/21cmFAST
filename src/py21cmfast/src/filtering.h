@@ -2,7 +2,7 @@
 #define _FILTERING_H
 
 #include <fftw3.h>
-#include <cuda_runtime.h>
+// #include <cuda_runtime.h>
 
 #ifdef __cplusplus
 extern "C" {

@@ -1,7 +1,7 @@
 #ifndef _PERTURBFIELD_H
 #define _PERTURBFIELD_H
 
-#include <cuda_runtime.h>
+// #include <cuda_runtime.h>
 
 #include "InputParameters.h"
 #include "OutputStructs.h"
