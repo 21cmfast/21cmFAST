@@ -521,7 +521,7 @@ void prepare_filter_boxes(double redshift, float *input_dens, float *input_vcb, 
     }
 
     if(flag_options_global->USE_MINI_HALOS){
-        curr_vcb = flag_options_global->FIX_VCB_AVG ? global_params.VAVG : 0;
+        curr_vcb = flag_options_global->FIX_VCB_AVG ? astro_params_global->FIXED_VAVG : 0;
         #pragma omp parallel for firstprivate(curr_vcb) private(i,j,k,curr_j21,M_buf) num_threads(user_params_global->N_THREADS) collapse(3)
         for(i=0;i<user_params_global->HII_DIM;i++){
             for(j=0;j<user_params_global->HII_DIM;j++){
@@ -567,7 +567,7 @@ void fill_Rbox_table(float **result, fftwf_complex *unfiltered_box, double * R_a
 
             // don't filter on cell size
             if (R > L_FACTOR*(user_params_global->BOX_LEN / user_params_global->HII_DIM)){
-                filter_box(box, 1, global_params.HEAT_FILTER, R, 0.);
+                filter_box(box, 1, flag_options_global->HEAT_FILTER, R, 0.);
             }
 
             // now fft back to real space

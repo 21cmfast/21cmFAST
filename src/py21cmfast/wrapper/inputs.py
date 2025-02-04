@@ -280,12 +280,23 @@ class UserParams(InputStruct):
         Logarithmic redshift step-size used in the z' integral.  Logarithmic dz.
         Decreasing (closer to unity) increases total simulation time for lightcones,
         and for Ts calculations.
+    FILTER : string, optional
+        Filter to use for sigma (matter field variance) and radius to mass conversions.
+        available options are: `spherical-tophat` and `gaussian`
+    HALO_FILTER : string, optional
+        Filter to use for the DexM halo finder.
+        available options are: `spherical-tophat`, `sharp-k` and `gaussian`
     """
 
     _hmf_models = ["PS", "ST", "WATSON", "WATSON-Z", "DELOS"]
     _power_models = ["EH", "BBKS", "EFSTATHIOU", "PEEBLES", "WHITE", "CLASS"]
     _sample_methods = ["MASS-LIMITED", "NUMBER-LIMITED", "PARTITION", "BINARY-SPLIT"]
     _integral_methods = ["GSL-QAG", "GAUSS-LEGENDRE", "GAMMA-APPROX"]
+    _filter_options = [
+        "spherical-tophat",
+        "sharp-k",
+        "gaussian",
+    ]
 
     BOX_LEN = field(default=300.0, converter=float, validator=validators.gt(0))
     HII_DIM = field(default=200, converter=int, validator=validators.gt(0))
@@ -343,6 +354,11 @@ class UserParams(InputStruct):
     PARKINSON_y2 = field(default=0.0, converter=float)
     Z_HEAT_MAX = field(default=35.0, converter=float)
     ZPRIME_STEP_FACTOR = field(default=1.02, converter=float)
+    FILTER = field(
+        default="spherical-tophat",
+        converter=str,
+        validator=validators.in_(_filter_options[(0, 2)]),
+    )
 
     @DIM.default
     def _dim_default(self):
@@ -471,6 +487,12 @@ class FlagOptions(InputStruct):
         If True, halo scaling relation parameters (F_STAR10,t_STAR etc...) define the median of their conditional distributions
         If False, they describe the mean.
         This becomes important when using non-symmetric dristributions such as the log-normal
+    HII_FILTER : string
+        Filter for the halo or density field used to generate ionization field
+        Available options are: 'spherical-tophat', 'sharp-k', and 'gaussian'
+    HEAT_FILTER : int
+        Filter for the halo or density field used to generate the spin-temperature field
+        Available options are: 'spherical-tophat', 'sharp-k', and 'gaussian'
     """
 
     _photoncons_models = [
@@ -478,6 +500,15 @@ class FlagOptions(InputStruct):
         "z-photoncons",
         "alpha-photoncons",
         "f-photoncons",
+    ]
+    _filter_options = [
+        "spherical-tophat",
+        "sharp-k",
+        "gaussian",
+        # special cases set by other flags, think about how best to incorporate
+        # "exponential-mfp",
+        # "finite-shell",
+        # "thin-shell",
     ]
 
     USE_MINI_HALOS = field(default=False, converter=bool)
@@ -503,6 +534,16 @@ class FlagOptions(InputStruct):
     USE_UPPER_STELLAR_TURNOVER = field(default=True, converter=bool)
     M_MIN_in_Mass = field(default=True, converter=bool)
     HALO_SCALING_RELATIONS_MEDIAN = field(default=False, converter=bool)
+    HII_FILTER = field(
+        default="spherical-tophat",
+        converter=str,
+        validator=validators.in_(_filter_options),
+    )
+    HEAT_FILTER = field(
+        default="spherical-tophat",
+        converter=str,
+        validator=validators.in_(_filter_options),
+    )
 
     @M_MIN_in_Mass.validator
     def _M_MIN_in_Mass_vld(self, att, val):
@@ -698,6 +739,8 @@ class AstroParams(InputStruct):
         This scatter is uniform across all halo properties and redshifts.
     CORR_LX : float, optional
         Self-correlation length used for updating xray luminosity, see "CORR_STAR" for details.
+    FIXED_VAVG : float, optional
+        The fixed value of the average velocity used when FlagOptions.FIX_VCB_AVG is set to True.
     """
 
     HII_EFF_FACTOR = field(default=30.0, converter=float, validator=validators.gt(0))
@@ -778,6 +821,7 @@ class AstroParams(InputStruct):
     CORR_LX = field(default=0.2, converter=float)
 
     T_RE = field(default=2e4, converter=float)
+    FIXED_VAVG = field(default=25.86, converter=float, validator=validators.gt(0))
 
     # set the default of the minihalo scalings to continue the same PL
     @F_STAR7_MINI.default

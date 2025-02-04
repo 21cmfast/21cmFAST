@@ -31,11 +31,6 @@ GlobalParams global_params = {
     .DELTA_R_HII_FACTOR = 1.1, //IonisationBox, radius factor for reion ES (move to AstroParams)
     .DELTA_R_FACTOR = 1.1, //HaloField, radius factor for DexM halo ES (move to UserParams)
 
-    .HII_FILTER = 0, //IonisationBox, filter for reion ES (move to AstroParams)
-    .HALO_FILTER = 0, //HaloField, filter for halo ES (move to UserParams)
-    .HEAT_FILTER = 0, //SpinTemperature, filter for Ts model (move to AstroParams)
-    .FILTER = 0, //Filter for calculating sigma(M) and R <---> M conversions Unlike others this is 0: Tophat, 1: Gaussian
-
     .INITIAL_REDSHIFT = 300., //PerturbField, initial redshift for moving the particles (move to UserParams)
 
     .OPTIMIZE = 0, //HaloField, excluding zones around existing halos for speed (delete?)
@@ -72,8 +67,6 @@ GlobalParams global_params = {
     .R_BUBBLE_MIN = 0.620350491, //minimum bubble radius in cMpc, used as a ceiling for the last radius (define?)
     .M_MIN_INTEGRAL = 1e5, //minimum mass for the integrals of the mass function (define?)
     .M_MAX_INTEGRAL = 1e16, //maximum mass for the integrals of the mass function (define?)
-
-    .VAVG=25.86, //Move to AstroParams, when FlagOptions.FIX_VCB_AVG is true, this is the value
 
     .USE_ADIABATIC_FLUCTUATIONS = 1, //For first Ts Box, (fix to True)
 };

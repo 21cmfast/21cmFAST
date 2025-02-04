@@ -209,22 +209,22 @@ double tau_e(float zstart, float zend, float *zarry, float *xHarry, int len, flo
 
     if (zend > z_re_HeII){// && (zstart < Zreion_HeII)){
         if (zstart < z_re_HeII){
-            status = gsl_integration_qag (&F, global_params.Zreion_HeII, zstart, 0, rel_tol,
+            status = gsl_integration_qag (&F, z_re_HeII, zstart, 0, rel_tol,
                                  1000, GSL_INTEG_GAUSS61, w, &prehelium, &error);
 
             if(status!=0) {
                 LOG_ERROR("gsl integration error occured!");
-                LOG_ERROR("(function argument): lower_limit=%e upper_limit=%e rel_tol=%e result=%e error=%e",global_params.Zreion_HeII,zstart,rel_tol,prehelium,error);
+                LOG_ERROR("(function argument): lower_limit=%e upper_limit=%e rel_tol=%e result=%e error=%e",z_re_HeII,zstart,rel_tol,prehelium,error);
                 LOG_ERROR("data: zstart=%e zend=%e",zstart,zend);
                 CATCH_GSL_ERROR(status);
             }
 
-            status = gsl_integration_qag (&F, zend, global_params.Zreion_HeII, 0, rel_tol,
+            status = gsl_integration_qag (&F, zend, z_re_HeII, 0, rel_tol,
                                  1000, GSL_INTEG_GAUSS61, w, &posthelium, &error);
 
             if(status!=0) {
                 LOG_ERROR("gsl integration error occured!");
-                LOG_ERROR("(function argument): lower_limit=%e upper_limit=%e rel_tol=%e result=%e error=%e",zend,global_params.Zreion_HeII,rel_tol,posthelium,error);
+                LOG_ERROR("(function argument): lower_limit=%e upper_limit=%e rel_tol=%e result=%e error=%e",zend,z_re_HeII,rel_tol,posthelium,error);
                 LOG_ERROR("data: zstart=%e zend=%e",zstart,zend);
                 CATCH_GSL_ERROR(status);
             }

@@ -56,6 +56,9 @@ typedef struct UserParams{
     double PARKINSON_G0;
     double PARKINSON_y1;
     double PARKINSON_y2;
+
+    int FILTER;
+    int HALO_FILTER;
 } UserParams;
 
 typedef struct AstroParams{
@@ -104,6 +107,8 @@ typedef struct AstroParams{
     double A_VCB;
     double BETA_VCB;
 
+    double FIXED_VAVG;
+
     int N_RSD_STEPS;
 } AstroParams;
 
@@ -127,6 +132,8 @@ typedef struct FlagOptions{
     int PHOTON_CONS_TYPE;
     bool USE_UPPER_STELLAR_TURNOVER;
     bool HALO_SCALING_RELATIONS_MEDIAN;
+    int HII_FILTER;
+    int HEAT_FILTER;
 } FlagOptions;
 
 typedef struct GlobalParams{
@@ -139,10 +146,8 @@ typedef struct GlobalParams{
     float MAX_DVDR;
     float DELTA_R_HII_FACTOR;
     float DELTA_R_FACTOR;
-    int HII_FILTER;
     float INITIAL_REDSHIFT;
     float R_OVERLAP_FACTOR;
-    int HALO_FILTER;
     int OPTIMIZE;
     float OPTIMIZE_MIN_MASS;
 
@@ -157,7 +162,6 @@ typedef struct GlobalParams{
     float PhotonConsEndCalibz;
     int PhotonConsSmoothing;
 
-    int HEAT_FILTER;
     double CLUMPING_FACTOR;
     float R_XLy_MAX;
     int NUM_FILTER_STEPS_FOR_Ts;
@@ -172,15 +176,12 @@ typedef struct GlobalParams{
     int P_CUTOFF;
     float M_WDM;
     float g_x;
-    int FILTER;
 
     char *external_table_path;
     char *wisdoms_path;
     float R_BUBBLE_MIN;
     float M_MIN_INTEGRAL;
     float M_MAX_INTEGRAL;
-
-    float VAVG;
 
     bool USE_ADIABATIC_FLUCTUATIONS;
 }GlobalParams;

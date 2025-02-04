@@ -208,15 +208,15 @@ double dsigma_dk(double k, void *params){
 
     kR = k*Radius;
 
-    if ( (global_params.FILTER == 0) || (sigma_norm < 0) ){ // top hat
+    if ( (user_params_global->FILTER == 0) || (sigma_norm < 0) ){ // top hat
         if ( (kR) < 1.0e-4 ){ w = 1.0;} // w converges to 1 as (kR) -> 0
         else { w = 3.0 * (sin(kR)/pow(kR, 3) - cos(kR)/pow(kR, 2));}
     }
-    else if (global_params.FILTER == 1){ // gaussian of width 1/R
+    else if (user_params_global->FILTER == 2){ // gaussian of width 1/R
         w = pow(E, -kR*kR/2.0);
     }
     else {
-        LOG_ERROR("No such filter: %i. Output is bogus.", global_params.FILTER);
+        LOG_ERROR("No such filter: %i. Output is bogus.", user_params_global->FILTER);
         Throw(ValueError);
     }
     return k*k*p*w*w;
@@ -527,7 +527,7 @@ double dsigmasq_dm(double k, void *params){
 
     // now get the value of the window function
     kR = k * Radius;
-    if (global_params.FILTER == 0){ // top hat
+    if (user_params_global->FILTER == 0){ // top hat
         if ( (kR) < 1.0e-4 ){ w = 1.0; }// w converges to 1 as (kR) -> 0
         else { w = 3.0 * (sin(kR)/pow(kR, 3) - cos(kR)/pow(kR, 2));}
 
@@ -538,13 +538,13 @@ double dsigmasq_dm(double k, void *params){
         //     dwdr = -1e8 * k / (R*1e3);
         drdm = 1.0 / (4.0*PI * cosmo_params_global->OMm*RHOcrit * Radius*Radius);
     }
-    else if (global_params.FILTER == 1){ // gaussian of width 1/R
+    else if (user_params_global->FILTER == 2){ // gaussian of width 1/R
         w = pow(E, -kR*kR/2.0);
         dwdr = - k*kR * w;
         drdm = 1.0 / (pow(2*PI, 1.5) * cosmo_params_global->OMm*RHOcrit * 3*Radius*Radius);
     }
     else {
-        LOG_ERROR("No such filter: %i. Output is bogus.", global_params.FILTER);
+        LOG_ERROR("No such filter: %i. Output is bogus.", user_params_global->FILTER);
         Throw(ValueError);
     }
 
@@ -630,24 +630,24 @@ double ddicke_dz(double z){
 double MtoR(double M){
 
     // set R according to M<->R conversion defined by the filter type in ../Parameter_files/COSMOLOGY.H
-    if (global_params.FILTER == 0) //top hat M = (4/3) PI <rho> R^3
+    if (user_params_global->FILTER == 0) //top hat M = (4/3) PI <rho> R^3
         return pow(3*M/(4*PI*cosmo_params_global->OMm*RHOcrit), 1.0/3.0);
-    else if (global_params.FILTER == 1) //gaussian: M = (2PI)^1.5 <rho> R^3
+    else if (user_params_global->FILTER == 2) //gaussian: M = (2PI)^1.5 <rho> R^3
         return pow( M/(pow(2*PI, 1.5) * cosmo_params_global->OMm * RHOcrit), 1.0/3.0 );
     else // filter not defined
-        LOG_ERROR("No such filter = %i. Results are bogus.", global_params.FILTER);
+        LOG_ERROR("No such filter = %i. Results are bogus.", user_params_global->FILTER);
     Throw(ValueError);
 }
 
 /* R in Mpc, M in Msun */
 double RtoM(double R){
     // set M according to M<->R conversion defined by the filter type in ../Parameter_files/COSMOLOGY.H
-    if (global_params.FILTER == 0) //top hat M = (4/3) PI <rho> R^3
+    if (user_params_global->FILTER == 0) //top hat M = (4/3) PI <rho> R^3
         return (4.0/3.0)*PI*pow(R,3)*(cosmo_params_global->OMm*RHOcrit);
-    else if (global_params.FILTER == 1) //gaussian: M = (2PI)^1.5 <rho> R^3
+    else if (user_params_global->FILTER == 2) //gaussian: M = (2PI)^1.5 <rho> R^3
         return pow(2*PI, 1.5) * cosmo_params_global->OMm*RHOcrit * pow(R, 3);
     else // filter not defined
-        LOG_ERROR("No such filter = %i. Results are bogus.", global_params.FILTER);
+        LOG_ERROR("No such filter = %i. Results are bogus.", user_params_global->FILTER);
     Throw(ValueError);
 }
 

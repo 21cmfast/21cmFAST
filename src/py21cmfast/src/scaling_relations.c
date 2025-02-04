@@ -60,7 +60,7 @@ void set_scaling_constants(double redshift, AstroParams *astro_params, FlagOptio
 
     consts->mturn_m_nofb = 0.;
     if(flag_options->USE_MINI_HALOS){
-        consts->vcb_norel = flag_options->FIX_VCB_AVG ? global_params.VAVG : 0;
+        consts->vcb_norel = flag_options->FIX_VCB_AVG ? astro_params->FIXED_VAVG : 0;
         consts->mturn_m_nofb = lyman_werner_threshold(redshift, 0., consts->vcb_norel, astro_params);
     }
 

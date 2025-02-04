@@ -50,6 +50,7 @@ struct IonBoxConstants{
     //compound/alternate flags
     bool fix_mean;
     bool filter_recombinations;
+    int hii_filter;
 
     //astro parameters
     double fstar_10;
@@ -174,6 +175,8 @@ void set_ionbox_constants(double redshift, double prev_redshift, CosmoParams *co
     consts->fesc_10= astro_params->F_ESC10;
     consts->fesc_7 = astro_params->F_ESC7_MINI;
 
+    consts->hii_filter = flag_options->HII_FILTER;
+
     if(flag_options->PHOTON_CONS_TYPE == 2)
         consts->alpha_esc = get_fesc_fit(redshift);
     else if(flag_options->PHOTON_CONS_TYPE == 3)
@@ -185,7 +188,7 @@ void set_ionbox_constants(double redshift, double prev_redshift, CosmoParams *co
 
     consts->mturn_m_nofb = 0.;
     if(flag_options->USE_MINI_HALOS){
-        consts->vcb_norel = flag_options->FIX_VCB_AVG ? global_params.VAVG : 0;
+        consts->vcb_norel = flag_options->FIX_VCB_AVG ? astro_params->FIXED_VAVG : 0;
         consts->mturn_m_nofb = lyman_werner_threshold(redshift, 0., consts->vcb_norel, astro_params);
     }
 
@@ -564,23 +567,23 @@ void copy_filter_transform(struct FilteredGrids *fg_struct, struct IonBoxConstan
 
     if(rspec.R_index > 0){
         double R = rspec.R;
-        filter_box(fg_struct->deltax_filtered, 1, global_params.HII_FILTER, R, 0.);
+        filter_box(fg_struct->deltax_filtered, 1, consts->hii_filter, R, 0.);
         if (flag_options_global->USE_TS_FLUCT) {
-            filter_box(fg_struct->xe_filtered, 1, global_params.HII_FILTER, R, 0.);
+            filter_box(fg_struct->xe_filtered, 1, consts->hii_filter, R, 0.);
         }
         if (consts->filter_recombinations) {
-            filter_box(fg_struct->N_rec_filtered, 1, global_params.HII_FILTER, R, 0.);
+            filter_box(fg_struct->N_rec_filtered, 1, consts->hii_filter, R, 0.);
         }
         if (flag_options_global->USE_HALO_FIELD) {
-                int filter_hf = flag_options_global->USE_EXP_FILTER ? 3 : global_params.HII_FILTER;
+                int filter_hf = flag_options_global->USE_EXP_FILTER ? 3 : consts->hii_filter;
                 filter_box(fg_struct->stars_filtered, 1, filter_hf, R, consts->mfp_meandens);
                 filter_box(fg_struct->sfr_filtered, 1, filter_hf, R, consts->mfp_meandens);
         }
         else{
             if(flag_options_global->USE_MINI_HALOS){
-                filter_box(fg_struct->prev_deltax_filtered, 1, global_params.HII_FILTER, R, 0.);
-                filter_box(fg_struct->log10_Mturnover_MINI_filtered, 1, global_params.HII_FILTER, R, 0.);
-                filter_box(fg_struct->log10_Mturnover_filtered, 1, global_params.HII_FILTER, R, 0.);
+                filter_box(fg_struct->prev_deltax_filtered, 1, consts->hii_filter, R, 0.);
+                filter_box(fg_struct->log10_Mturnover_MINI_filtered, 1, consts->hii_filter, R, 0.);
+                filter_box(fg_struct->log10_Mturnover_filtered, 1, consts->hii_filter, R, 0.);
             }
         }
     }
