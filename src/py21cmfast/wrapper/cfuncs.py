@@ -67,6 +67,7 @@ def compute_tau(
     redshifts: Sequence[float],
     global_xHI: Sequence[float],
     inputs: InputParameters,
+    z_re_HeII: float = 3.0,
 ) -> float:
     """Compute the optical depth to reionization under the given model.
 
@@ -76,15 +77,15 @@ def compute_tau(
         Redshifts defining an evolution of the neutral fraction.
     global_xHI : array-like
         The mean neutral fraction at `redshifts`.
-    user_params : :class:`~inputs.UserParams`
-        Parameters defining the simulation run.
-    cosmo_params : :class:`~inputs.CosmoParams`
-        Cosmological parameters.
+    inputs : :class:`~InputParameters`
+        Defines the input parameters of the run
+    z_re_HeII : float, optional
+        The redshift at which helium reionization occurs.
 
     Returns
     -------
     tau : float
-        The optional depth to reionization
+        The optical depth to reionization
 
     Raises
     ------
@@ -107,7 +108,12 @@ def compute_tau(
 
     # Run the C code
     return lib.ComputeTau(
-        inputs.user_params.cstruct, inputs.cosmo_params.cstruct, len(redshifts), z, xHI
+        inputs.user_params.cstruct,
+        inputs.cosmo_params.cstruct,
+        len(redshifts),
+        z,
+        xHI,
+        z_re_HeII,
     )
 
 

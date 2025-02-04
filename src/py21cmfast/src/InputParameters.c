@@ -69,7 +69,6 @@ GlobalParams global_params = {
     .M_WDM = 2, //Used in setting minimum mass if P_CUTOFF is True. (delete?)
     .g_x = 1.5, //Used in setting minimum mass if P_CUTOFF is True. (delete?)
 
-    .Zreion_HeII = 3.0, //used in tau computation, move to tau arguments
     .R_BUBBLE_MIN = 0.620350491, //minimum bubble radius in cMpc, used as a ceiling for the last radius (define?)
     .M_MIN_INTEGRAL = 1e5, //minimum mass for the integrals of the mass function (define?)
     .M_MAX_INTEGRAL = 1e16, //maximum mass for the integrals of the mass function (define?)

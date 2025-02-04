@@ -172,7 +172,6 @@ typedef struct GlobalParams{
     int P_CUTOFF;
     float M_WDM;
     float g_x;
-    double Zreion_HeII;
     int FILTER;
 
     char *external_table_path;

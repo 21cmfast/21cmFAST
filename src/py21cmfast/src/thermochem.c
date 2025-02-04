@@ -182,7 +182,7 @@ double dtau_e_dz(double z, void *params){
         return xi*(1+z)*(1+z)*drdz(z);
     }
 }
-double tau_e(float zstart, float zend, float *zarry, float *xHarry, int len){
+double tau_e(float zstart, float zend, float *zarry, float *xHarry, int len, float z_re_HeII){
     double prehelium, posthelium, error;
     gsl_function F;
     double rel_tol  = 1e-3; //<- relative tolerance
@@ -207,8 +207,8 @@ double tau_e(float zstart, float zend, float *zarry, float *xHarry, int len){
 
     gsl_set_error_handler_off();
 
-    if (zend > global_params.Zreion_HeII){// && (zstart < Zreion_HeII)){
-        if (zstart < global_params.Zreion_HeII){
+    if (zend > z_re_HeII){// && (zstart < Zreion_HeII)){
+        if (zstart < z_re_HeII){
             status = gsl_integration_qag (&F, global_params.Zreion_HeII, zstart, 0, rel_tol,
                                  1000, GSL_INTEG_GAUSS61, w, &prehelium, &error);
 
@@ -257,10 +257,10 @@ double tau_e(float zstart, float zend, float *zarry, float *xHarry, int len){
     return SIGMAT * ( (N_b0+He_No)*prehelium + N_b0*posthelium );
 }
 
-float ComputeTau(UserParams *user_params, CosmoParams *cosmo_params, int NPoints, float *redshifts, float *global_xHI) {
+float ComputeTau(UserParams *user_params, CosmoParams *cosmo_params, int NPoints, float *redshifts, float *global_xHI, float z_re_HeII){
     Broadcast_struct_global_noastro(user_params,cosmo_params);
 
-    return tau_e(0, redshifts[NPoints-1], redshifts, global_xHI, NPoints);
+    return tau_e(0, redshifts[NPoints-1], redshifts, global_xHI, NPoints, z_re_HeII);
 }
 
 double atomic_cooling_threshold(float z){
