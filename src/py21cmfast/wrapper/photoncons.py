@@ -340,7 +340,7 @@ def calibrate_photon_cons(
         logger.info("Calculating photon conservation zstart")
         z = _calc_zstart_photon_cons()
 
-        while z > global_params.PhotonConsEndCalibz:
+        while z > inputs.astro_params.PHOTONCONS_CALIBRATION_END:
             # Determine the ionisation box with recombinations, spin temperature etc.
             # turned off.
             this_perturb = perturb_field(

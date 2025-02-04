@@ -112,6 +112,7 @@ typedef struct AstroParams{
     double POP3_ION;
 
     int N_RSD_STEPS;
+    double PHOTONCONS_CALIBRATION_END;
 } AstroParams;
 
 typedef struct FlagOptions{
@@ -143,7 +144,6 @@ typedef struct GlobalParams{
     int EVOLVE_DENSITY_LINEARLY;
     int SMOOTH_EVOLVED_DENSITY_FIELD;
     float R_smooth_density;
-    float HII_ROUND_ERR;
     int FIND_BUBBLE_ALGORITHM;
     float MAX_DVDR;
     float DELTA_R_HII_FACTOR;
@@ -153,16 +153,8 @@ typedef struct GlobalParams{
     int OPTIMIZE;
     float OPTIMIZE_MIN_MASS;
 
-
     float CRIT_DENS_TRANSITION;
     float MIN_DENSITY_LOW_LIMIT;
-
-    int RecombPhotonCons;
-    float PhotonConsStart;
-    float PhotonConsEnd;
-    float PhotonConsAsymptoteTo;
-    float PhotonConsEndCalibz;
-    int PhotonConsSmoothing;
 
     double CLUMPING_FACTOR;
     float R_XLy_MAX;

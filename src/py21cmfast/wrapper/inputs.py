@@ -829,6 +829,8 @@ class AstroParams(InputStruct):
     POP2_ION = field(default=5000.0, converter=float)
     POP3_ION = field(default=44021.0, converter=float)
 
+    PHOTONCONS_CALIBRATION_END = field(default=3.5, converter=float)
+
     # set the default of the minihalo scalings to continue the same PL
     @F_STAR7_MINI.default
     def _F_STAR7_MINI_default(self):

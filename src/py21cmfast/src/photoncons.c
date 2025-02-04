@@ -59,6 +59,15 @@ void initialise_NFHistory_spline(double *redshifts, double *NF_estimate, int NSp
 void z_at_NFHist(double xHI_Hist, double *splined_value);
 void NFHist_at_z(double z, double *splined_value);
 
+
+//all the z-photoncons parameters
+//TODO: these will rarely be changed but probably shouldn't be hard-coded
+static bool RecombPhotonCons = false; //apply recombinations to the expected (not calibration) neutral fraction
+static bool PhotonConsSmoothing = true; //whether to smooth the fit at low HI
+static double PhotonConsStart = 0.995; //staring HI fraction for photon conservation
+static double PhotonConsEnd = 0.3; //HI fraction to start the smoothing (not using the exact calibration)
+static double PhotonConsAsymptoteTo = 0.01; //Final HI fraction for the photon conservation
+
 //   Set up interpolation table for the volume filling factor, Q, at a given redshift z and redshift at a given Q.
 int InitialisePhotonCons(UserParams *user_params, CosmoParams *cosmo_params,
                          AstroParams *astro_params, FlagOptions *flag_options)
@@ -81,7 +90,7 @@ int InitialisePhotonCons(UserParams *user_params, CosmoParams *cosmo_params,
     //     the difference for the redshift where the reionization end (Q = 1) is ~0.2 % compared with accurate calculation.
     float ION_EFF_FACTOR,M_MIN,M_MIN_z0,M_MIN_z1,Mlim_Fstar, Mlim_Fesc;
     double lnMmin, lnMmax;
-    double a_start = 0.03, a_end = 1./(1. + global_params.PhotonConsEndCalibz); // Scale factors of 0.03 and 0.17 correspond to redshifts of ~32 and ~5.0, respectively.
+    double a_start = 0.03, a_end = 1./(1. + astro_params_global->PHOTONCONS_CALIBRATION_END); // Scale factors of 0.03 and 0.17 correspond to redshifts of ~32 and ~5.0, respectively.
     double C_HII = 3., T_0 = 2e4;
     double reduce_ratio = 1.003;
     double Q0,Q1,Nion0,Nion1,Trec,da,a,z0,z1,zi,dadt,delta_a,zi_prev,Q1_prev;
@@ -194,7 +203,7 @@ int InitialisePhotonCons(UserParams *user_params, CosmoParams *cosmo_params,
             }
 
             // With scale factor a, the above equation is written as dQ/da = n_{ion}/da - Q/t_{rec}*(dt/da)
-            if (!global_params.RecombPhotonCons) {
+            if (!RecombPhotonCons) {
                 Q1 = Q0 + ((Nion0-Nion1)/2/delta_a)*da; // No Recombination
             }
             else {
@@ -305,7 +314,7 @@ int InitialisePhotonCons(UserParams *user_params, CosmoParams *cosmo_params,
 int PhotonCons_Calibration(double *z_estimate, double *xH_estimate, int NSpline){
     int status;
     Try{
-        if(xH_estimate[NSpline-1] > 0.0 && xH_estimate[NSpline-2] > 0.0 && xH_estimate[NSpline-3] > 0.0 && xH_estimate[0] <= global_params.PhotonConsStart) {
+        if(xH_estimate[NSpline-1] > 0.0 && xH_estimate[NSpline-2] > 0.0 && xH_estimate[NSpline-3] > 0.0 && xH_estimate[0] <= PhotonConsStart) {
             initialise_NFHistory_spline(z_estimate,xH_estimate,NSpline);
         }
     }
@@ -321,13 +330,13 @@ int ComputeZstart_PhotonCons(double *zstart) {
     double temp;
 
     Try{
-        if((1.-global_params.PhotonConsStart) > Qmax) {
+        if((1.-PhotonConsStart) > Qmax) {
             // It is possible that reionisation never even starts
             // Just need to arbitrarily set a high redshift to perform the algorithm
             temp = 20.;
         }
         else {
-            z_at_Q(1. - global_params.PhotonConsStart,&(temp));
+            z_at_Q(1. - PhotonConsStart,&(temp));
         // Multiply the result by 10 per-cent to fix instances when this isn't high enough
             temp *= 1.1;
         }
@@ -359,29 +368,29 @@ void determine_deltaz_for_photoncons() {
     smoothing_width = 35.;
 
 
-    // The photon non-conservation correction has a threshold (in terms of neutral fraction; global_params.PhotonConsEnd) for which we switch
+    // The photon non-conservation correction has a threshold (in terms of neutral fraction; PhotonConsEnd) for which we switch
     // from using the exact correction between the calibrated (21cmFAST all flag options off) to analytic expression to some extrapolation.
     // This threshold is required due to the behaviour of 21cmFAST at very low neutral fractions, which cause extreme behaviour with recombinations on
 
     // A lot of the steps and choices are not completely rubust, just chosed to smooth/average the data to have smoother resultant reionisation histories
 
     // Determine the number of extrapolated points required, if required at all.
-    if(!global_params.PhotonConsSmoothing){
-        NF_sample_min = global_params.PhotonConsAsymptoteTo;
+    if(!PhotonConsSmoothing){
+        NF_sample_min = PhotonConsAsymptoteTo;
         N_extrapolated = 0;
     }
-    else if(calibrated_NF_min < global_params.PhotonConsEnd) {
+    else if(calibrated_NF_min < PhotonConsEnd) {
         // We require extrapolation, set minimum point to the threshold, and extrapolate beyond.
-        NF_sample_min = global_params.PhotonConsEnd;
+        NF_sample_min = PhotonConsEnd;
 
-        // Determine the number of extrapolation points (to better smooth the correction) between the threshod (global_params.PhotonConsEnd) and a
-        // point close to zero neutral fraction (set by global_params.PhotonConsAsymptoteTo)
+        // Determine the number of extrapolation points (to better smooth the correction) between the threshod (PhotonConsEnd) and a
+        // point close to zero neutral fraction (set by PhotonConsAsymptoteTo)
         // Choice is to get the delta neutral fraction between extrapolated points to be similar to the cadence in the exact correction
-        if(calibrated_NF_min > global_params.PhotonConsAsymptoteTo) {
-            N_extrapolated = ((float)N_NFsamples - 1.)*(NF_sample_min - calibrated_NF_min)/( global_params.PhotonConsStart - NF_sample_min );
+        if(calibrated_NF_min > PhotonConsAsymptoteTo) {
+            N_extrapolated = ((float)N_NFsamples - 1.)*(NF_sample_min - calibrated_NF_min)/( PhotonConsStart - NF_sample_min );
         }
         else {
-            N_extrapolated = ((float)N_NFsamples - 1.)*(NF_sample_min - global_params.PhotonConsAsymptoteTo)/( global_params.PhotonConsStart - NF_sample_min );
+            N_extrapolated = ((float)N_NFsamples - 1.)*(NF_sample_min - PhotonConsAsymptoteTo)/( PhotonConsStart - NF_sample_min );
         }
         N_extrapolated = (int)floor( N_extrapolated ) - 1; // Minus one as the zero point is added below
     }
@@ -393,7 +402,7 @@ void determine_deltaz_for_photoncons() {
     }
 
     // Determine the bin width for the sampling of the neutral fraction for the correction
-    bin_width = ( global_params.PhotonConsStart - NF_sample_min )/((float)N_NFsamples - 1.);
+    bin_width = ( PhotonConsStart - NF_sample_min )/((float)N_NFsamples - 1.);
 
     // allocate memory for arrays required to determine the photon non-conservation correction
     deltaz = calloc(N_NFsamples + N_extrapolated + 1,sizeof(double));
@@ -420,7 +429,7 @@ void determine_deltaz_for_photoncons() {
     }
 
     // Determining the end-point (lowest neutral fraction) for the photon non-conservation correction
-    if(!global_params.PhotonConsSmoothing){
+    if(!PhotonConsSmoothing){
         NeutralFractions[0] = 0.999*NF_sample_min;
         if(deltaz[1] < deltaz[2])
             deltaz[0] = 0.999*deltaz[1];
@@ -446,7 +455,7 @@ void determine_deltaz_for_photoncons() {
     }
 
     //SMOOTHING STUFF HERE
-    if(calibrated_NF_min >= global_params.PhotonConsEnd) {
+    if(calibrated_NF_min >= PhotonConsEnd) {
 
         increasing_val = 0;
         counter = 0;
@@ -494,11 +503,11 @@ void determine_deltaz_for_photoncons() {
         const_offset = ( NeutralFractions[1+N_extrapolated] + delta_NF ) - gradient_analytic * z_analytic;
 
         // determine the extrapolation end point
-        if(calibrated_NF_min > global_params.PhotonConsAsymptoteTo) {
+        if(calibrated_NF_min > PhotonConsAsymptoteTo) {
             extrapolated_value = calibrated_NF_min;
         }
         else {
-            extrapolated_value = global_params.PhotonConsAsymptoteTo;
+            extrapolated_value = PhotonConsAsymptoteTo;
         }
 
         // calculate the delta z for the extrapolated end point
@@ -510,13 +519,13 @@ void determine_deltaz_for_photoncons() {
         deltaz[0] = fabs( z_cal - z_analytic_at_endpoint );
         NeutralFractions[0] = extrapolated_value;
 
-        // If performing extrapolation, add in all the extrapolated points between the end-point and the threshold to end the correction (global_params.PhotonConsEnd)
+        // If performing extrapolation, add in all the extrapolated points between the end-point and the threshold to end the correction (PhotonConsEnd)
         for(i=0;i<N_extrapolated;i++) {
-            if(calibrated_NF_min > global_params.PhotonConsAsymptoteTo) {
+            if(calibrated_NF_min > PhotonConsAsymptoteTo) {
                 NeutralFractions[i+1] = calibrated_NF_min + (NF_sample_min - calibrated_NF_min)*(float)(i+1)/((float)N_extrapolated + 1.);
             }
             else {
-                NeutralFractions[i+1] = global_params.PhotonConsAsymptoteTo + (NF_sample_min - global_params.PhotonConsAsymptoteTo)*(float)(i+1)/((float)N_extrapolated + 1.);
+                NeutralFractions[i+1] = PhotonConsAsymptoteTo + (NF_sample_min - PhotonConsAsymptoteTo)*(float)(i+1)/((float)N_extrapolated + 1.);
             }
 
             deltaz[i+1] = deltaz[0] + ( deltaz[1+N_extrapolated] - deltaz[0] )*(float)(i+1)/((float)N_extrapolated + 1.);
@@ -551,7 +560,7 @@ void determine_deltaz_for_photoncons() {
         // and that the NF_sample_min is less than around 0.8. That is, if a reasonable fraction of the reionisation history is sampled.
         while( NeutralFractions[i+1] > 0.95 && val2 < val1 && NF_sample_min < 0.8 && counter < 100) {
 
-            NF_sample = global_params.PhotonConsStart - 0.001*(counter+1);
+            NF_sample = PhotonConsStart - 0.001*(counter+1);
 
             // Determine redshift given a neutral fraction for the calibration curve
             z_at_NFHist(NF_sample,&(temp));
@@ -667,11 +676,11 @@ void adjust_redshifts_for_photoncons(UserParams *user_params,
 
     LOG_DEBUG("Adjusting redshifts for photon cons.");
 
-    if(*redshift < global_params.PhotonConsEndCalibz) {
+    if(*redshift < astro_params_global->PHOTONCONS_CALIBRATION_END) {
         LOG_ERROR(
             "You have passed a redshift (z = %f) that is lower than the enpoint of the photon non-conservation correction "\
-            "(global_params.PhotonConsEndCalibz = %f). If this behaviour is desired then set global_params.PhotonConsEndCalibz "\
-            "to a value lower than z = %f.",*redshift,global_params.PhotonConsEndCalibz,*redshift
+            "(astro_params->PHOTONCONS_CALIBRATION_END = %f). If this behaviour is desired then set astro_params->PHOTONCONS_CALIBRATION_END "\
+            "to a value lower than z = %f.",*redshift,astro_params_global->PHOTONCONS_CALIBRATION_END,*redshift
                   );
 //        Throw(ParameterError);
         Throw(PhotonConsError);
@@ -682,13 +691,13 @@ void adjust_redshifts_for_photoncons(UserParams *user_params,
     required_NF = 1.0 - (float)temp;
 
     // Find which redshift we need to sample in order for the calibration reionisation history to match the analytic expression
-    if(required_NF > global_params.PhotonConsStart) {
+    if(required_NF > PhotonConsStart) {
         // We haven't started ionising yet, so keep redshifts the same
         adjusted_redshift = *redshift;
 
         *absolute_delta_z = 0.;
     }
-    else if(required_NF<=global_params.PhotonConsEnd) {
+    else if(required_NF<=PhotonConsEnd) {
         // We have gone beyond the threshold for the end of the photon non-conservation correction
         // Deemed to be roughly where the calibration curve starts to approach the analytic expression
 
@@ -706,11 +715,11 @@ void adjust_redshifts_for_photoncons(UserParams *user_params,
             }
 
             // We have crossed the NF threshold for the photon conservation correction so now set to the delta z at the threshold
-            if(required_NF < global_params.PhotonConsAsymptoteTo) {
+            if(required_NF < PhotonConsAsymptoteTo) {
 
                 // This counts the number of times we have exceeded the extrapolated point and attempts to modify the delta z
                 // to try and make the function a little smoother
-                *absolute_delta_z = gsl_spline_eval(deltaz_spline_for_photoncons, global_params.PhotonConsAsymptoteTo, deltaz_spline_for_photoncons_acc);
+                *absolute_delta_z = gsl_spline_eval(deltaz_spline_for_photoncons, PhotonConsAsymptoteTo, deltaz_spline_for_photoncons_acc);
 
                 new_counter = 0;
                 temp_redshift = *redshift;
@@ -718,7 +727,7 @@ void adjust_redshifts_for_photoncons(UserParams *user_params,
 
                 // Ok, find when in the past we exceeded the asymptote threshold value using the user_params->ZPRIME_STEP_FACTOR
                 // In doing it this way, co-eval boxes will be the same as lightcone boxes with regard to redshift sampling
-                while( check_required_NF < global_params.PhotonConsAsymptoteTo ) {
+                while( check_required_NF < PhotonConsAsymptoteTo ) {
 
                     temp_redshift = ((1. + temp_redshift)*user_params->ZPRIME_STEP_FACTOR - 1.);
 
@@ -841,9 +850,9 @@ void z_at_Q(double Q, double *splined_value){
     }
     else if (Q > Qmax) {
         LOG_ERROR("The maximum value of Q is %.4e. Reionization ends at ~%.4f.",Qmax,Zmin);
-        LOG_ERROR("This error can occur if global_params.PhotonConsEndCalibz is close to "\
+        LOG_ERROR("This error can occur if astro_params->PHOTONCONS_CALIBRATION_END is close to "\
                   "the final sampled redshift. One can consider a lower value for "\
-                  "global_params.PhotonConsEndCalibz to mitigate this");
+                  "astro_params->PHOTONCONS_CALIBRATION_END to mitigate this");
 //        Throw(ParameterError);
         Throw(PhotonConsError);
     }

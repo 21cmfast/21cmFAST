@@ -32,6 +32,7 @@
 #include "IonisationBox.h"
 
 #define LOG10_MTURN_MAX ((double)(10)) //maximum mturn limit enforced on grids
+#define HII_ROUND_ERR (1e-5) //do not run excursion-set below this expected HII fraction
 
 int INIT_RECOMBINATIONS = 1;
 
@@ -1303,7 +1304,7 @@ int ComputeIonizedBox(float redshift, float prev_redshift, UserParams *user_para
                             + box->mean_f_coll_MINI * ionbox_constants.ion_eff_factor_mini_gl;
 
     //TODO: change this from an if-else to an early-exit / cleanup call
-    if(exp_global_hii < global_params.HII_ROUND_ERR){ // way too small to ionize anything...
+    if(exp_global_hii < HII_ROUND_ERR){ // way too small to ionize anything...
         LOG_DEBUG("Mean collapsed fraciton %.3e too small to ionize, stopping early",exp_global_hii);
         global_xH = set_fully_neutral_box(box,spin_temp,perturbed_field,&ionbox_constants);
     }

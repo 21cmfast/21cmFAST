@@ -25,7 +25,6 @@ GlobalParams global_params = {
     .EVOLVE_DENSITY_LINEARLY = 0, //PerturnbedField, uses linear growth instead of 1/2LPT (move to UserParams)
     .SMOOTH_EVOLVED_DENSITY_FIELD = 0, //PerturbedField, smooth field after perturb (delete)
     .R_smooth_density = 0.2, //With above, radius for smoothing (delete)
-    .HII_ROUND_ERR = 1e-5, // IonisationBox, Nion threshold to run the ES (move to define)
 
     .FIND_BUBBLE_ALGORITHM = 2, // IonisationBox central pixel vs sphere (move to UserParams)
     .MAX_DVDR = 0.2, //BrightnessTemp, maximum velocity gradient for RSDS (move to AstroParams?)
@@ -40,15 +39,6 @@ GlobalParams global_params = {
 
     .CRIT_DENS_TRANSITION = 1.2, //Gauss-Legendre does poorly at high delta, switch to GSL-QAG here (define?)
     .MIN_DENSITY_LOW_LIMIT = 9e-8, //lower limit for extrapolated density in ionised temperatures (define)
-
-    //all the z-photoncons parameters
-    //TODO: walk through the model again, it's confusing
-    .RecombPhotonCons = 0,
-    .PhotonConsStart = 0.995,
-    .PhotonConsEnd = 0.3,
-    .PhotonConsAsymptoteTo = 0.01,
-    .PhotonConsEndCalibz = 3.5,
-    .PhotonConsSmoothing = 1,
 
     .CLUMPING_FACTOR = 2., //SpinTemperature, for recombinations in neutral IGM
     .R_XLy_MAX = 500., //SpinTemperature, max radius for ES (Move to AstroParams)
