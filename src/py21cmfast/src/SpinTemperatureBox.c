@@ -123,17 +123,17 @@ int ComputeTsBox(float redshift, float prev_redshift, UserParams *user_params, C
 void alloc_global_arrays(){
     int i;
     //z-edges
-    zpp_for_evolve_list = calloc(global_params.NUM_FILTER_STEPS_FOR_Ts,sizeof(double));
-    zpp_growth = calloc(global_params.NUM_FILTER_STEPS_FOR_Ts,sizeof(double));
-    zpp_edge = calloc(global_params.NUM_FILTER_STEPS_FOR_Ts,sizeof(double));
-    dzpp_list = calloc(global_params.NUM_FILTER_STEPS_FOR_Ts,sizeof(double));
-    dtdz_list = calloc(global_params.NUM_FILTER_STEPS_FOR_Ts,sizeof(double));
-    R_values = calloc(global_params.NUM_FILTER_STEPS_FOR_Ts,sizeof(double));
+    zpp_for_evolve_list = calloc(astro_params_global->N_STEP_TS,sizeof(double));
+    zpp_growth = calloc(astro_params_global->N_STEP_TS,sizeof(double));
+    zpp_edge = calloc(astro_params_global->N_STEP_TS,sizeof(double));
+    dzpp_list = calloc(astro_params_global->N_STEP_TS,sizeof(double));
+    dtdz_list = calloc(astro_params_global->N_STEP_TS,sizeof(double));
+    R_values = calloc(astro_params_global->N_STEP_TS,sizeof(double));
 
-    sigma_min = calloc(global_params.NUM_FILTER_STEPS_FOR_Ts,sizeof(double));
-    sigma_max = calloc(global_params.NUM_FILTER_STEPS_FOR_Ts,sizeof(double));
-    M_min_R = calloc(global_params.NUM_FILTER_STEPS_FOR_Ts,sizeof(double));
-    M_max_R = calloc(global_params.NUM_FILTER_STEPS_FOR_Ts,sizeof(double));
+    sigma_min = calloc(astro_params_global->N_STEP_TS,sizeof(double));
+    sigma_max = calloc(astro_params_global->N_STEP_TS,sizeof(double));
+    M_min_R = calloc(astro_params_global->N_STEP_TS,sizeof(double));
+    M_max_R = calloc(astro_params_global->N_STEP_TS,sizeof(double));
 
     //frequency integral tables
     freq_int_heat_tbl = (double **)calloc(x_int_NXHII,sizeof(double *));
@@ -143,12 +143,12 @@ void alloc_global_arrays(){
     freq_int_ion_tbl_diff = (double **)calloc(x_int_NXHII,sizeof(double *));
     freq_int_lya_tbl_diff = (double **)calloc(x_int_NXHII,sizeof(double *));
     for(i=0;i<x_int_NXHII;i++) {
-        freq_int_heat_tbl[i] = (double *)calloc(global_params.NUM_FILTER_STEPS_FOR_Ts,sizeof(double));
-        freq_int_ion_tbl[i] = (double *)calloc(global_params.NUM_FILTER_STEPS_FOR_Ts,sizeof(double));
-        freq_int_lya_tbl[i] = (double *)calloc(global_params.NUM_FILTER_STEPS_FOR_Ts,sizeof(double));
-        freq_int_heat_tbl_diff[i] = (double *)calloc(global_params.NUM_FILTER_STEPS_FOR_Ts,sizeof(double));
-        freq_int_ion_tbl_diff[i] = (double *)calloc(global_params.NUM_FILTER_STEPS_FOR_Ts,sizeof(double));
-        freq_int_lya_tbl_diff[i] = (double *)calloc(global_params.NUM_FILTER_STEPS_FOR_Ts,sizeof(double));
+        freq_int_heat_tbl[i] = (double *)calloc(astro_params_global->N_STEP_TS,sizeof(double));
+        freq_int_ion_tbl[i] = (double *)calloc(astro_params_global->N_STEP_TS,sizeof(double));
+        freq_int_lya_tbl[i] = (double *)calloc(astro_params_global->N_STEP_TS,sizeof(double));
+        freq_int_heat_tbl_diff[i] = (double *)calloc(astro_params_global->N_STEP_TS,sizeof(double));
+        freq_int_ion_tbl_diff[i] = (double *)calloc(astro_params_global->N_STEP_TS,sizeof(double));
+        freq_int_lya_tbl_diff[i] = (double *)calloc(astro_params_global->N_STEP_TS,sizeof(double));
     }
     inverse_diff = (float *)calloc(x_int_NXHII,sizeof(float));
     //actual heating term boxes
@@ -165,25 +165,25 @@ void alloc_global_arrays(){
     }
 
     //spectral stuff
-    dstarlya_dt_prefactor = calloc(global_params.NUM_FILTER_STEPS_FOR_Ts,sizeof(double));
+    dstarlya_dt_prefactor = calloc(astro_params_global->N_STEP_TS,sizeof(double));
     if(flag_options_global->USE_LYA_HEATING){
-        dstarlya_cont_dt_prefactor = calloc(global_params.NUM_FILTER_STEPS_FOR_Ts,sizeof(double));
-        dstarlya_inj_dt_prefactor = calloc(global_params.NUM_FILTER_STEPS_FOR_Ts,sizeof(double));
+        dstarlya_cont_dt_prefactor = calloc(astro_params_global->N_STEP_TS,sizeof(double));
+        dstarlya_inj_dt_prefactor = calloc(astro_params_global->N_STEP_TS,sizeof(double));
     }
 
     if(flag_options_global->USE_MINI_HALOS){
-        dstarlya_dt_prefactor_MINI = calloc(global_params.NUM_FILTER_STEPS_FOR_Ts,sizeof(double));
-        dstarlyLW_dt_prefactor = calloc(global_params.NUM_FILTER_STEPS_FOR_Ts,sizeof(double));
-        dstarlyLW_dt_prefactor_MINI = calloc(global_params.NUM_FILTER_STEPS_FOR_Ts,sizeof(double));
+        dstarlya_dt_prefactor_MINI = calloc(astro_params_global->N_STEP_TS,sizeof(double));
+        dstarlyLW_dt_prefactor = calloc(astro_params_global->N_STEP_TS,sizeof(double));
+        dstarlyLW_dt_prefactor_MINI = calloc(astro_params_global->N_STEP_TS,sizeof(double));
         if(flag_options_global->USE_LYA_HEATING){
-            dstarlya_cont_dt_prefactor_MINI = calloc(global_params.NUM_FILTER_STEPS_FOR_Ts,sizeof(double));
-            dstarlya_inj_dt_prefactor_MINI = calloc(global_params.NUM_FILTER_STEPS_FOR_Ts,sizeof(double));
+            dstarlya_cont_dt_prefactor_MINI = calloc(astro_params_global->N_STEP_TS,sizeof(double));
+            dstarlya_inj_dt_prefactor_MINI = calloc(astro_params_global->N_STEP_TS,sizeof(double));
         }
     }
 
 
     //Nonhalo stuff
-    int num_R_boxes = user_params_global->MINIMIZE_MEMORY ? 1 : global_params.NUM_FILTER_STEPS_FOR_Ts;
+    int num_R_boxes = user_params_global->MINIMIZE_MEMORY ? 1 : astro_params_global->N_STEP_TS;
     if(!flag_options_global->USE_HALO_FIELD){
         delNL0 = (float **)calloc(num_R_boxes,sizeof(float *));
         for(i=0;i<num_R_boxes;i++) {
@@ -201,15 +201,15 @@ void alloc_global_arrays(){
             del_fcoll_Rct_MINI = calloc(HII_TOT_NUM_PIXELS,sizeof(float));
         }
 
-        min_densities = calloc(global_params.NUM_FILTER_STEPS_FOR_Ts,sizeof(double));
-        max_densities = calloc(global_params.NUM_FILTER_STEPS_FOR_Ts,sizeof(double));
+        min_densities = calloc(astro_params_global->N_STEP_TS,sizeof(double));
+        max_densities = calloc(astro_params_global->N_STEP_TS,sizeof(double));
     }
 
     //helpers for the interpolation
     //NOTE: The frequency integrals are tables regardless of the flag
     m_xHII_low_box = (int *)calloc(HII_TOT_NUM_PIXELS,sizeof(int));
     inverse_val_box = (float *)calloc(HII_TOT_NUM_PIXELS,sizeof(float));
-    Mcrit_atom_interp_table = (float *)calloc(global_params.NUM_FILTER_STEPS_FOR_Ts,sizeof(float));
+    Mcrit_atom_interp_table = (float *)calloc(astro_params_global->N_STEP_TS,sizeof(float));
 
     TsInterpArraysInitialised = true;
 }
@@ -282,7 +282,7 @@ void free_ts_global_arrays(){
     free(Mcrit_atom_interp_table);
 
     //interp tables
-    int num_R_boxes = user_params_global->MINIMIZE_MEMORY ? 1 : global_params.NUM_FILTER_STEPS_FOR_Ts;
+    int num_R_boxes = user_params_global->MINIMIZE_MEMORY ? 1 : astro_params_global->N_STEP_TS;
     if(!flag_options_global->USE_HALO_FIELD){
         for(i=0;i<num_R_boxes;i++) {
             free(delNL0[i]);
@@ -316,9 +316,9 @@ void setup_z_edges(double zp){
     int R_ct;
 
     R = L_FACTOR*user_params_global->BOX_LEN/(float)user_params_global->HII_DIM;
-    R_factor = pow(global_params.R_XLy_MAX/R, 1/((float)global_params.NUM_FILTER_STEPS_FOR_Ts));
+    R_factor = pow(astro_params_global->R_MAX_TS/R, 1/((float)astro_params_global->N_STEP_TS));
 
-    for (R_ct=0; R_ct<global_params.NUM_FILTER_STEPS_FOR_Ts; R_ct++){
+    for (R_ct=0; R_ct<astro_params_global->N_STEP_TS; R_ct++){
         R_values[R_ct] = R;
         if(R_ct==0){
             prev_zpp = zp;
@@ -370,7 +370,7 @@ void calculate_spectral_factors(double zp){
     double sum_ly2_prev = 0., sum_ly2_prev_MINI = 0.;
     double sum_lynto2_prev = 0., sum_lynto2_prev_MINI = 0.;
     double prev_zpp = 0;
-    for (R_ct=0; R_ct<global_params.NUM_FILTER_STEPS_FOR_Ts; R_ct++){
+    for (R_ct=0; R_ct<astro_params_global->N_STEP_TS; R_ct++){
         zpp = zpp_for_evolve_list[R_ct];
         //We need to set up prefactors for how much of Lyman-N radiation is recycled to Lyman-alpha
         sum_lyn_val = 0.;
@@ -707,7 +707,7 @@ int UpdateXraySourceBox(UserParams *user_params, CosmoParams *cosmo_params,
         source_box->mean_sfr_mini[R_ct] = fsfr_avg_mini;
         source_box->mean_log10_Mcrit_LW[R_ct] = halobox->log10_Mcrit_MCG_ave;
 
-        if(R_ct == global_params.NUM_FILTER_STEPS_FOR_Ts - 1) LOG_DEBUG("finished XraySourceBox");
+        if(R_ct == astro_params->N_STEP_TS - 1) LOG_DEBUG("finished XraySourceBox");
 
         LOG_SUPER_DEBUG("R_inner = %8.3f | mean filtered sfr  = %10.3e (%10.3e MINI) unfiltered %10.3e (%10.3e MINI) mean log10McritLW %.4e",
                             R_inner,fsfr_avg,fsfr_avg_mini,sfr_avg,sfr_avg_mini,source_box->mean_log10_Mcrit_LW[R_ct]);
@@ -739,7 +739,7 @@ void fill_freqint_tables(double zp, double x_e_ave, double filling_factor_of_HI_
     }
     else{
         R_start = 0;
-        R_end = global_params.NUM_FILTER_STEPS_FOR_Ts;
+        R_end = astro_params_global->N_STEP_TS;
     }
 #pragma omp parallel private(R_ct,x_e_ct,lower_int_limit) num_threads(user_params_global->N_THREADS)
     {
@@ -779,7 +779,7 @@ void fill_freqint_tables(double zp, double x_e_ave, double filling_factor_of_HI_
         }
     }
 
-    for (R_ct=0; R_ct<global_params.NUM_FILTER_STEPS_FOR_Ts; R_ct++){
+    for (R_ct=0; R_ct<astro_params_global->N_STEP_TS; R_ct++){
         for (x_e_ct = 0; x_e_ct < x_int_NXHII; x_e_ct++){
             if(isfinite(freq_int_heat_tbl[x_e_ct][R_ct])==0 || isfinite(freq_int_ion_tbl[x_e_ct][R_ct])==0 || isfinite(freq_int_lya_tbl[x_e_ct][R_ct])==0) {
                 LOG_ERROR("One of the frequency interpolation tables has an infinity or a NaN");
@@ -840,7 +840,7 @@ int global_reion_properties(double zp, double x_e_ave, double *log10_Mcrit_LW_av
     if(user_params_global->USE_INTERPOLATION_TABLES){
         determine_zpp_min = zp*0.999;
         //NOTE: must be called after setup_z_edges for this line
-        determine_zpp_max = zpp_for_evolve_list[global_params.NUM_FILTER_STEPS_FOR_Ts-1]*1.001;
+        determine_zpp_max = zpp_for_evolve_list[astro_params_global->N_STEP_TS-1]*1.001;
 
         //We need the tables for the frequency integrals & mean fixing
         //NOTE: These global tables confuse me, we do ~400 (x50 for mini) integrals to build the table, despite only having
@@ -884,7 +884,7 @@ int global_reion_properties(double zp, double x_e_ave, double *log10_Mcrit_LW_av
     //Initialise freq tables & prefactors (x_e by R tables)
     if(!user_params_global->MINIMIZE_MEMORY){
         //Now global SFRD at (R_ct) for the mean fixing
-        for(R_ct=0;R_ct<global_params.NUM_FILTER_STEPS_FOR_Ts;R_ct++){
+        for(R_ct=0;R_ct<astro_params_global->N_STEP_TS;R_ct++){
             zpp = zpp_for_evolve_list[R_ct];
             mean_sfr_zpp[R_ct] = EvaluateSFRD(zpp,Mlim_Fstar_g);
             if(flag_options_global->USE_MINI_HALOS){
@@ -1225,7 +1225,7 @@ void ts_main(float redshift, float prev_redshift, UserParams *user_params, Cosmo
     setup_z_edges(redshift);
 
     //with the TtoM limit, we use the largest redshift, to cover the whole range
-    double M_MIN_tb = M_min_R[global_params.NUM_FILTER_STEPS_FOR_Ts - 1];
+    double M_MIN_tb = M_min_R[astro_params->N_STEP_TS - 1];
     //This M_MIN just sets the sigma table range, the minimum mass for the integrals is set per radius in setup_z_edges
     if(user_params->INTEGRATION_METHOD_ATOMIC == 2 || user_params->INTEGRATION_METHOD_MINI == 2)
         M_MIN_tb = fmin(MMIN_FAST,M_MIN_tb);
@@ -1234,7 +1234,7 @@ void ts_main(float redshift, float prev_redshift, UserParams *user_params, Cosmo
         initialiseSigmaMInterpTable(M_MIN_tb/2,1e20); //we need a larger table here due to the large radii
 
     //now that we have the sigma table we can assign the sigma arrays
-    for(R_ct=0;R_ct<global_params.NUM_FILTER_STEPS_FOR_Ts;R_ct++){
+    for(R_ct=0;R_ct<astro_params->N_STEP_TS;R_ct++){
         sigma_min[R_ct] = EvaluateSigma(log(M_min_R[R_ct]));
         sigma_max[R_ct] = EvaluateSigma(log(M_max_R[R_ct]));
     }
@@ -1253,10 +1253,10 @@ void ts_main(float redshift, float prev_redshift, UserParams *user_params, Cosmo
     //Since we use the average Mturn for the global tables this must be done first
     //NOTE: The filtered Mturn for the previous snapshot is used for Fcoll at ALL zpp
     //  regardless of distance from current reshift, this also goes for the averages
-    double ave_log10_MturnLW[global_params.NUM_FILTER_STEPS_FOR_Ts];
-    double min_log10_MturnLW[global_params.NUM_FILTER_STEPS_FOR_Ts];
-    double max_log10_MturnLW[global_params.NUM_FILTER_STEPS_FOR_Ts];
-    double ave_dens[global_params.NUM_FILTER_STEPS_FOR_Ts];
+    double ave_log10_MturnLW[astro_params->N_STEP_TS];
+    double min_log10_MturnLW[astro_params->N_STEP_TS];
+    double max_log10_MturnLW[astro_params->N_STEP_TS];
+    double ave_dens[astro_params->N_STEP_TS];
     fftwf_complex *log10_Mcrit_LW_unfiltered = NULL;
     fftwf_complex *delta_unfiltered = NULL;
     double log10_Mcrit_limit;
@@ -1271,11 +1271,11 @@ void ts_main(float redshift, float prev_redshift, UserParams *user_params, Cosmo
                             delta_unfiltered,log10_Mcrit_LW_unfiltered);
         //fill the filtered boxes if we are storing them all
         if(!user_params->MINIMIZE_MEMORY){
-            fill_Rbox_table(delNL0,delta_unfiltered,R_values,global_params.NUM_FILTER_STEPS_FOR_Ts,-1,inverse_growth_factor_z,min_densities,ave_dens,max_densities);
+            fill_Rbox_table(delNL0,delta_unfiltered,R_values,astro_params->N_STEP_TS,-1,inverse_growth_factor_z,min_densities,ave_dens,max_densities);
             if(flag_options->USE_MINI_HALOS){
                 //NOTE: we are using previous_zp LW threshold for all zpp, inconsistent with the halo model
                 log10_Mcrit_limit = log10(lyman_werner_threshold(redshift, 0., 0.,astro_params)); //minimum turnover NOTE: should be zpp_max?
-                fill_Rbox_table(log10_Mcrit_LW,log10_Mcrit_LW_unfiltered,R_values,global_params.NUM_FILTER_STEPS_FOR_Ts,log10_Mcrit_limit,1,min_log10_MturnLW,ave_log10_MturnLW,max_log10_MturnLW);
+                fill_Rbox_table(log10_Mcrit_LW,log10_Mcrit_LW_unfiltered,R_values,astro_params->N_STEP_TS,log10_Mcrit_limit,1,min_log10_MturnLW,ave_log10_MturnLW,max_log10_MturnLW);
             }
         }
         else{
@@ -1291,7 +1291,7 @@ void ts_main(float redshift, float prev_redshift, UserParams *user_params, Cosmo
         //set limits for the table
         //NOTE: these are only used for interp tables but I adjust here to avoid these values
         //  containing different numbers depending on the flags
-        for(R_ct=0;R_ct<global_params.NUM_FILTER_STEPS_FOR_Ts;R_ct++){
+        for(R_ct=0;R_ct<astro_params->N_STEP_TS;R_ct++){
             if (flag_options->USE_MINI_HALOS)
                 Mcrit_atom_interp_table[R_ct] = atomic_cooling_threshold(zpp_for_evolve_list[R_ct]);
             else
@@ -1310,7 +1310,7 @@ void ts_main(float redshift, float prev_redshift, UserParams *user_params, Cosmo
         }
     }
     else{
-        for(R_ct=0;R_ct<global_params.NUM_FILTER_STEPS_FOR_Ts;R_ct++){
+        for(R_ct=0;R_ct<astro_params->N_STEP_TS;R_ct++){
             ave_log10_MturnLW[R_ct] = source_box->mean_log10_Mcrit_LW[R_ct];
         }
     }
@@ -1332,8 +1332,8 @@ void ts_main(float redshift, float prev_redshift, UserParams *user_params, Cosmo
     LOG_DEBUG("Prev Box: x_e_ave %.3e | TK_ave %.3e",x_e_ave_p,Tk_ave_p);
 
     int NO_LIGHT;
-    double mean_sfr_zpp[global_params.NUM_FILTER_STEPS_FOR_Ts];
-    double mean_sfr_zpp_mini[global_params.NUM_FILTER_STEPS_FOR_Ts];
+    double mean_sfr_zpp[astro_params->N_STEP_TS];
+    double mean_sfr_zpp_mini[astro_params->N_STEP_TS];
 
     //this should initialise and use the global tables (given box average turnovers)
     //  and use them to give: Filling factor at zp (only used for !MASS_DEPENDENT_ZETA to get ion_eff)
@@ -1387,7 +1387,7 @@ void ts_main(float redshift, float prev_redshift, UserParams *user_params, Cosmo
 
     //if we have stars, fill in the heating term boxes
     if(!NO_LIGHT) {
-        for(R_ct=global_params.NUM_FILTER_STEPS_FOR_Ts; R_ct--;){
+        for(R_ct=astro_params->N_STEP_TS; R_ct--;){
             dzpp_for_evolve = dzpp_list[R_ct];
             zpp = zpp_for_evolve_list[R_ct];
             if(flag_options->USE_HALO_FIELD)

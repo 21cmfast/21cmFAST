@@ -853,7 +853,9 @@ class AstroParams(InputStruct):
 
     PHOTONCONS_CALIBRATION_END = field(default=3.5, converter=float)
     CLUMPING_FACTOR = field(default=2.0, converter=float, validator=validators.gt(0))
-    CLUMPING_FACTOR = field(default=5.0, converter=float)
+    ALPHA_UVB = field(default=5.0, converter=float)
+    R_MAX_TS = field(default=500.0, converter=float, validator=validators.gt(0))
+    N_STEP_TS = field(default=40, converter=int, validator=validators.gt(0))
 
     # set the default of the minihalo scalings to continue the same PL
     @F_STAR7_MINI.default

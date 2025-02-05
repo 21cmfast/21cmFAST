@@ -541,7 +541,7 @@ class XraySourceBox(_AllParamsBox):
 
     def _get_box_structures(self) -> dict[str, dict | tuple[int]]:
         shape = (
-            (global_params.NUM_FILTER_STEPS_FOR_Ts,)
+            (self.astro_params.N_STEP_TS,)
             + (self.user_params.HII_DIM,) * 2
             + (int(self.user_params.NON_CUBIC_FACTOR * self.user_params.HII_DIM),)
         )
@@ -550,9 +550,9 @@ class XraySourceBox(_AllParamsBox):
             "filtered_sfr": shape,
             "filtered_sfr_mini": shape,
             "filtered_xray": shape,
-            "mean_sfr": (global_params.NUM_FILTER_STEPS_FOR_Ts,),
-            "mean_sfr_mini": (global_params.NUM_FILTER_STEPS_FOR_Ts,),
-            "mean_log10_Mcrit_LW": (global_params.NUM_FILTER_STEPS_FOR_Ts,),
+            "mean_sfr": (self.astro_params.N_STEP_TS,),
+            "mean_sfr_mini": (self.astro_params.N_STEP_TS,),
+            "mean_log10_Mcrit_LW": (self.astro_params.N_STEP_TS,),
         }
 
         return out

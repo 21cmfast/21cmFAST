@@ -697,9 +697,9 @@ def compute_xray_source_field(
     # now we need to find the closest halo box to the redshift of the shell
     cosmo_ap = inputs.cosmo_params.cosmo
     cmd_zp = cosmo_ap.comoving_distance(redshift)
-    R_steps = np.arange(0, global_params.NUM_FILTER_STEPS_FOR_Ts)
+    R_steps = np.arange(0, inputs.astro_params.N_STEP_TS)
     R_factor = (global_params.R_XLy_MAX / R_min) ** (
-        R_steps / global_params.NUM_FILTER_STEPS_FOR_Ts
+        R_steps / inputs.astro_params.N_STEP_TS
     )
     R_range = un.Mpc * R_min * R_factor
     cmd_edges = cmd_zp + R_range  # comoving distance edges
@@ -715,7 +715,7 @@ def compute_xray_source_field(
     # call the box the initialize the memory, since I give some values before computing
     box()
     final_box_computed = False
-    for i in range(global_params.NUM_FILTER_STEPS_FOR_Ts):
+    for i in range(inputs.astro_params.N_STEP_TS):
         R_inner = R_range[i - 1].to("Mpc").value if i > 0 else 0
         R_outer = R_range[i].to("Mpc").value
 
@@ -750,7 +750,7 @@ def compute_xray_source_field(
                 state.computed_in_mem = False
 
         # we only want to call hooks at the end so we set a dummy hook here
-        hooks_in = hooks if i == global_params.NUM_FILTER_STEPS_FOR_Ts - 1 else {}
+        hooks_in = hooks if i == inputs.astro_params.N_STEP_TS - 1 else {}
 
         box = box.compute(
             halobox=hbox_interp,
@@ -759,7 +759,7 @@ def compute_xray_source_field(
             R_ct=i,
             hooks=hooks_in,
         )
-        if i == global_params.NUM_FILTER_STEPS_FOR_Ts - 1:
+        if i == inputs.astro_params.N_STEP_TS - 1:
             final_box_computed = True
 
     # HACK: sometimes we don't compute on the last step

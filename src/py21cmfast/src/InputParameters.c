@@ -35,9 +35,6 @@ GlobalParams global_params = {
 
     .CRIT_DENS_TRANSITION = 1.2, //Gauss-Legendre does poorly at high delta, switch to GSL-QAG here (define?)
 
-    .R_XLy_MAX = 500., //SpinTemperature, max radius for ES (Move to AstroParams)
-    .NUM_FILTER_STEPS_FOR_Ts = 40, //SpinTemperature, self-explanatory (move to AstroParams)
-
     .NU_X_BAND_MAX = 2000.0, //Used in SFR -> Lx conversion factor (define)
     .NU_X_MAX = 10000.0, //Limit for nu integrals (define)
 

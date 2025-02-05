@@ -116,6 +116,9 @@ typedef struct AstroParams{
     double PHOTONCONS_CALIBRATION_END;
     double CLUMPING_FACTOR;
     double ALPHA_UVB;
+
+    float R_MAX_TS;
+    int N_STEP_TS;
 } AstroParams;
 
 typedef struct FlagOptions{
@@ -155,9 +158,6 @@ typedef struct GlobalParams{
     float OPTIMIZE_MIN_MASS;
 
     float CRIT_DENS_TRANSITION;
-
-    float R_XLy_MAX;
-    int NUM_FILTER_STEPS_FOR_Ts;
 
     float NU_X_BAND_MAX;
     float NU_X_MAX;
