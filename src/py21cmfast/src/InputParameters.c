@@ -41,10 +41,6 @@ GlobalParams global_params = {
     .NU_X_BAND_MAX = 2000.0, //Used in SFR -> Lx conversion factor (define)
     .NU_X_MAX = 10000.0, //Limit for nu integrals (define)
 
-    .P_CUTOFF = 0, //Used in EH power spectrum and with WDM in setting minimum mass, seems inconsistent (delete?)
-    .M_WDM = 2, //Used in setting minimum mass if P_CUTOFF is True. (delete?)
-    .g_x = 1.5, //Used in setting minimum mass if P_CUTOFF is True. (delete?)
-
     .R_BUBBLE_MIN = 0.620350491, //minimum bubble radius in cMpc, used as a ceiling for the last radius (define?)
     .M_MIN_INTEGRAL = 1e5, //minimum mass for the integrals of the mass function (define?)
     .M_MAX_INTEGRAL = 1e16, //maximum mass for the integrals of the mass function (define?)

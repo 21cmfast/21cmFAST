@@ -162,10 +162,6 @@ typedef struct GlobalParams{
     float NU_X_BAND_MAX;
     float NU_X_MAX;
 
-    int P_CUTOFF;
-    float M_WDM;
-    float g_x;
-
     char *external_table_path;
     char *wisdoms_path;
     float R_BUBBLE_MIN;

@@ -161,7 +161,8 @@ double dsigma_dk(double k, void *params){
     if (user_params_global->POWER_SPECTRUM == 0){ // Eisenstein & Hu
         T = TFmdm(k);
         // check if we should cuttoff power spectrum according to Bode et al. 2000 transfer function
-        if (global_params.P_CUTOFF) T *= pow(1 + pow(BODE_e*k*R_CUTOFF, 2*BODE_v), -BODE_n/BODE_v);
+        //TODO: revisit the WDM model perhaps as another power spectrum option (which may also alter Mturn)
+        // if (global_params.P_CUTOFF) T *= pow(1 + pow(BODE_e*k*R_CUTOFF, 2*BODE_v), -BODE_n/BODE_v);
         p = pow(k, cosmo_params_global->POWER_INDEX) * T * T;
     }
     else if (user_params_global->POWER_SPECTRUM == 1){ // BBKS
@@ -312,7 +313,7 @@ double power_in_k(double k){
     if (user_params_global->POWER_SPECTRUM == 0){ // Eisenstein & Hu
         T = TFmdm(k);
         // check if we should cuttoff power spectrum according to Bode et al. 2000 transfer function
-        if (global_params.P_CUTOFF) T *= pow(1 + pow(BODE_e*k*R_CUTOFF, 2*BODE_v), -BODE_n/BODE_v);
+        // if (global_params.P_CUTOFF) T *= pow(1 + pow(BODE_e*k*R_CUTOFF, 2*BODE_v), -BODE_n/BODE_v);
         p = pow(k, cosmo_params_global->POWER_INDEX) * T * T;
         //p = pow(k, POWER_INDEX - 0.05*log(k/0.05)) * T * T; //running, alpha=0.05
     }
@@ -396,7 +397,7 @@ double init_ps(){
     }
 
     // Set cuttoff scale for WDM (eq. 4 in Barkana et al. 2001) in comoving Mpc
-    R_CUTOFF = 0.201*pow((cosmo_params_global->OMm-cosmo_params_global->OMb)*cosmo_params_global->hlittle*cosmo_params_global->hlittle/0.15, 0.15)*pow(global_params.g_x/1.5, -0.29)*pow(global_params.M_WDM, -1.15);
+    // R_CUTOFF = 0.201*pow((cosmo_params_global->OMm-cosmo_params_global->OMb)*cosmo_params_global->hlittle*cosmo_params_global->hlittle/0.15, 0.15)*pow(global_params.g_x/1.5, -0.29)*pow(global_params.M_WDM, -1.15);
 
     omhh = cosmo_params_global->OMm*cosmo_params_global->hlittle*cosmo_params_global->hlittle;
     theta_cmb = T_cmb / 2.7;
@@ -449,7 +450,7 @@ double init_ps(){
     LOG_DEBUG("Initialized Power Spectrum.");
 
     sigma_norm = cosmo_params_global->SIGMA_8/sqrt(result); //takes care of volume factor
-    return R_CUTOFF;
+    return;
 }
 
 
@@ -479,7 +480,7 @@ double dsigmasq_dm(double k, void *params){
     if (user_params_global->POWER_SPECTRUM == 0){ // Eisenstein & Hu ApJ, 1999, 511, 5
         T = TFmdm(k);
         // check if we should cuttoff power spectrum according to Bode et al. 2000 transfer function
-        if (global_params.P_CUTOFF) T *= pow(1 + pow(BODE_e*k*R_CUTOFF, 2*BODE_v), -BODE_n/BODE_v);
+        // if (global_params.P_CUTOFF) T *= pow(1 + pow(BODE_e*k*R_CUTOFF, 2*BODE_v), -BODE_n/BODE_v);
         p = pow(k, cosmo_params_global->POWER_INDEX) * T * T;
         //p = pow(k, POWER_INDEX - 0.05*log(k/0.05)) * T * T; //running, alpha=0.05
     }
@@ -500,7 +501,7 @@ double dsigmasq_dm(double k, void *params){
     else if (user_params_global->POWER_SPECTRUM == 3){ // Peebles, pg. 626
         gamma = cosmo_params_global->OMm * cosmo_params_global->hlittle * pow(E, -(cosmo_params_global->OMb) - (cosmo_params_global->OMb)/(cosmo_params_global->OMm));
         aa = 8.0 / (cosmo_params_global->hlittle*gamma);
-        bb = 4.7 / (cosmo_params_global->hlittle*gamma);
+        bb = 4.7 / (cosmo_params_global->hlittle*gamma); //NOTE: Different here than the other two functions???
         p = pow(k, cosmo_params_global->POWER_INDEX) / pow(1 + aa*k + bb*k*k, 2);
     }
     else if (user_params_global->POWER_SPECTRUM == 4){ // White, SDM and Frenk, CS, 1991, 379, 52
@@ -508,7 +509,7 @@ double dsigmasq_dm(double k, void *params){
         aa = 1.7/(cosmo_params_global->hlittle*gamma);
         bb = 9.0/pow(cosmo_params_global->hlittle*gamma, 1.5);
         cc = 1.0/pow(cosmo_params_global->hlittle*gamma, 2);
-        p = pow(k, cosmo_params_global->POWER_INDEX) * 19400.0 / pow(1 + aa*k + pow(bb*k, 1.5) + cc*k*k, 2);
+        p = pow(k, cosmo_params_global->POWER_INDEX) * 19400.0 / pow(1 + aa*k + pow(bb*k, 1.5) + cc*k*k, 2); //NOTE: Different here than the other two functions???
     }
     else if (user_params_global->POWER_SPECTRUM == 5){ // JBM: CLASS
       T = TF_CLASS(k, 1, 0); //read from z=0 output of CLASS
@@ -611,11 +612,13 @@ double dsigmasqdm_z0(double M){
 /* returns the "effective Jeans mass" in Msun
  corresponding to the gas analog of WDM ; eq. 10 in Barkana+ 2001 */
 double M_J_WDM(){
+    //these were global_params but never really used
+    double g_x = 1.5; //degrees of freedom (1.5 for fermions)
+    double M_WDM = 2.0; // Mass of particle in keV
+
     double z_eq, fudge=60;
-    if (!(global_params.P_CUTOFF))
-        return 0;
     z_eq = 3600*(cosmo_params_global->OMm-cosmo_params_global->OMb)*cosmo_params_global->hlittle*cosmo_params_global->hlittle/0.15;
-    return fudge*3.06e8 * (1.5/global_params.g_x) * sqrt((cosmo_params_global->OMm-cosmo_params_global->OMb)*cosmo_params_global->hlittle*cosmo_params_global->hlittle/0.15) * pow(global_params.M_WDM, -4) * pow(z_eq/3000.0, 1.5);
+    return fudge*3.06e8 * (1.5/g_x) * sqrt((cosmo_params_global->OMm-cosmo_params_global->OMb)*cosmo_params_global->hlittle*cosmo_params_global->hlittle/0.15) * pow(M_WDM, -4) * pow(z_eq/3000.0, 1.5);
 }
 
 /* redshift derivative of the growth function at z */

@@ -1173,10 +1173,10 @@ double minimum_source_mass(double redshift, bool xray, AstroParams *astro_params
         Mmin = TtoM(redshift, t_vir_min, mu_factor);
     }
 
-    //This is mostly unused and needs to be tested
-    if(global_params.P_CUTOFF){
-        Mmin = fmax(Mmin,M_J_WDM());
-    }
+    //Unused WDM model
+    // if(global_params.P_CUTOFF){
+    //     Mmin = fmax(Mmin,M_J_WDM());
+    // }
 
     Mmin /= min_factor;
 
