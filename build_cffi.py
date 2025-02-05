@@ -28,13 +28,18 @@ c_files = [
 ]
 
 # Compiled CUDA code
-extra_objects = [
-    os.path.join(CLOC, "filtering.o"),
-    os.path.join(CLOC, "PerturbField.o"),
-    os.path.join(CLOC, "SpinTemperatureBox.o"),
-    os.path.join(CLOC, "IonisationBox.o"),
-]
-extra_link_args = ["-lcudart", "-lstdc++"]
+extra_link_args = []
+extra_objects = []
+if os.environ.get("CUDA_FOUND"):
+    extra_objects.extend(
+        [
+            os.path.join(CLOC, "filtering.o"),
+            os.path.join(CLOC, "PerturbField.o"),
+            os.path.join(CLOC, "SpinTemperatureBox.o"),
+            os.path.join(CLOC, "IonisationBox.o"),
+        ]
+    )
+    extra_link_args.extend(["-lcudart", "-lstdc++"])
 
 # Set the C-code logging level.
 # If DEBUG is set, we default to the highest level, but if not,
@@ -59,8 +64,9 @@ try:
 except ValueError:
     # note: for py35 support, can't use f strings.
     raise ValueError(
-        "LOG_LEVEL must be specified as a positive integer, or one "
-        "of {}".format(available_levels)
+        "LOG_LEVEL must be specified as a positive integer, or one " "of {}".format(
+            available_levels
+        )
     )
 
 # ==================================================

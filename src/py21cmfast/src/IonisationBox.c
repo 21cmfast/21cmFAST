@@ -1422,7 +1422,6 @@ int ComputeIonizedBox(float redshift, float prev_redshift, UserParams *user_para
 #endif
         }
         // If GPU & flags, call free_ionbox_gpu_data()
-        bool use_cuda = false; // pass this as a parameter later
         if (use_cuda && flag_options_global->USE_MASS_DEPENDENT_ZETA && !flag_options_global->USE_MINI_HALOS && !flag_options_global->USE_HALO_FIELD) {
 #if USE_CUDA
             free_ionbox_gpu_data(

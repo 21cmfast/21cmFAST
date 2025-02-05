@@ -196,14 +196,8 @@ int ComputePerturbField(
     fftwf_complex *LOWRES_density_perturb, *LOWRES_density_perturb_saved;
 
     float growth_factor, displacement_factor_2LPT, init_growth_factor, init_displacement_factor_2LPT;
-    double xf, yf, zf;
     float mass_factor, dDdt, f_pixel_factor, velocity_displacement_factor, velocity_displacement_factor_2LPT;
-    unsigned long long HII_i, HII_j, HII_k;
     int i,j,k,xi, yi, zi, dimension, switch_mid;
-
-    // Variables to perform cloud in cell re-distribution of mass for the perturbed field
-    int xp1,yp1,zp1;
-    float d_x,d_y,d_z,t_x,t_y,t_z;
 
     // Function for deciding the dimensions of loops when we could
     // use either the low or high resolution grids.
