@@ -167,8 +167,6 @@ typedef struct GlobalParams{
     float R_BUBBLE_MIN;
     float M_MIN_INTEGRAL;
     float M_MAX_INTEGRAL;
-
-    bool USE_ADIABATIC_FLUCTUATIONS;
 }GlobalParams;
 
 

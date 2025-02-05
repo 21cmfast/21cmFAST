@@ -42,5 +42,4 @@ GlobalParams global_params = {
     .M_MIN_INTEGRAL = 1e5, //minimum mass for the integrals of the mass function (define?)
     .M_MAX_INTEGRAL = 1e16, //maximum mass for the integrals of the mass function (define?)
 
-    .USE_ADIABATIC_FLUCTUATIONS = 1, //For first Ts Box, (fix to True)
 };
