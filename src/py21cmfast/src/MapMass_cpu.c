@@ -29,13 +29,20 @@ double *MapMass_cpu(
     float f_pixel_factor,
     float init_growth_factor
 ){
+    double xf, yf, zf;
+    unsigned long long int i,j,k;
+    int xi, yi, zi;
+    unsigned long long HII_i, HII_j, HII_k;
+    // Variables to perform cloud in cell re-distribution of mass for the perturbed field
+    int xp1,yp1,zp1;
+    float d_x,d_y,d_z,t_x,t_y,t_z;
+
     #pragma omp parallel \
         shared(init_growth_factor,boxes,f_pixel_factor,resampled_box,dimension) \
         private(i,j,k,xi,xf,yi,yf,zi,zf,HII_i,HII_j,HII_k,d_x,d_y,d_z,t_x,t_y,t_z,xp1,yp1,zp1) \
         num_threads(user_params->N_THREADS)
     {
         #pragma omp for
-        unsigned long long int i,j,k;
         for (i=0; i<user_params->DIM;i++){
             for (j=0; j<user_params->DIM;j++){
                 for (k=0; k<D_PARA;k++){
