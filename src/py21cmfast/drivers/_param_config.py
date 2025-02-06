@@ -167,6 +167,23 @@ class _OutputStructComputationInspect:
             )
 
     @staticmethod
+    def _get_all_output_struct_inputs(
+        kwargs, recurse: bool = False
+    ) -> dict[str, OutputStruct]:
+        """Return all the arguments that are OutputStructs.
+
+        If recurse is True, also add all OutputStructs that are part of iterables.
+        """
+        d = {k: v for k, v in kwargs.items() if isinstance(v, OutputStruct)}
+
+        if recurse:
+            for k, v in kwargs.items():
+                if hasattr(v, "__len__") and isinstance(v[0], OutputStruct):
+                    d |= {f"{k}_{i}": vv for i, vv in enumerate(v)}
+
+        return d
+
+    @staticmethod
     def _get_inputs(kwargs: dict[str, Any]) -> InputParameters:
         """Return the most detailed input parameters available.
 
@@ -180,14 +197,16 @@ class _OutputStructComputationInspect:
         situation that different dependent OutputStruct's have different inputs. Even
         though all must be compatible with each other, more basic OutputStructs (like
         InitialConditions) might not have the same zgrid as the PerturbedField (for
-        example) and this fine. So, here we return the inputs of the "most advanced"
+        example) and this is fine. So, here we return the inputs of the "most advanced"
         OutputStruct that is given.
         """
         inputs = kwargs.get("inputs")
         if inputs is not None:
             return inputs
 
-        outputs = single_field_func._get_all_output_struct_inputs(kwargs)
+        outputs = _OutputStructComputationInspect._get_all_output_struct_inputs(
+            kwargs, recurse=True
+        )
 
         minreq = _HashType(0)
         for output in outputs.values():
@@ -195,11 +214,12 @@ class _OutputStructComputationInspect:
                 inputs = output.inputs
                 minreq = output._compat_hash
 
-        return inputs
+        if inputs is None:
+            raise ValueError(
+                "No parameter 'inputs' given, and no dependent OutputStruct found!"
+            )
 
-    @staticmethod
-    def _get_all_output_struct_inputs(kwargs):
-        return {k: v for k, v in kwargs.items() if isinstance(v, OutputStruct)}
+        return inputs
 
     @staticmethod
     def check_consistency(kwargs: dict[str, Any], outputs: dict[str, OutputStruct]):
@@ -384,12 +404,13 @@ class single_field_func(_OutputStructComputationInspect):  # noqa: N801
         """Call the single field function."""
         inputs = self._get_inputs(kwargs)
         outputs = self._get_all_output_struct_inputs(kwargs)
+        outputs_rec = self._get_all_output_struct_inputs(kwargs, recurse=True)
         outputsz = {k: v for k, v in outputs.items() if isinstance(v, OutputStructZ)}
 
         # Get current redshift (could be None)
         current_redshift = self._get_current_redshift(outputsz, kwargs)
 
-        self.check_consistency(kwargs, outputs)
+        self.check_consistency(kwargs, outputs_rec)
         self.check_output_struct_types(outputs)
         # The following checks both current and previous redshifts, if applicable
         self.ensure_redshift_consistency(current_redshift, outputsz)
@@ -424,6 +445,17 @@ class high_level_func:  # noqa: N801
 
     def __call__(self, **kwargs):
         """Call the function."""
-        outputs = _OutputStructComputationInspect._get_all_output_struct_inputs(kwargs)
+        outputs = _OutputStructComputationInspect._get_all_output_struct_inputs(
+            kwargs, recurse=True
+        )
         _OutputStructComputationInspect.check_consistency(kwargs, outputs)
+
+        inputs = self._get_inputs(kwargs)
+        if "inputs" in self._signature.parameters:
+            # Here we set the inputs (if accepted by the function signature)
+            # to the most advanced ones. This is the explicitly-passed inputs if
+            # they exist, but otherwise the inputs derived from the dependency
+            # that is the most advanced in the computation.
+            kwargs["inputs"] = inputs
+
         yield from self._func(**kwargs)

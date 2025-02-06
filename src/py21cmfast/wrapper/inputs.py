@@ -128,6 +128,11 @@ class InputStruct:
             its attributes will be used as initial values. If `x` is None, the
             struct will be initialised with default values.
 
+        Other Parameters
+        ----------------
+        All other parameters should be passed as if directly to the class constructor
+        (i.e. as parameter names).
+
         Examples
         --------
         >>> up = UserParams({'HII_DIM': 250})
@@ -156,7 +161,7 @@ class InputStruct:
 
     def __init_subclass__(cls) -> None:
         """Store each subclass for easy access."""
-        cls._subclasses[cls.__name__] = cls
+        InputStruct._subclasses[cls.__name__] = cls
 
     @cached_property
     def struct(self) -> StructWrapper:

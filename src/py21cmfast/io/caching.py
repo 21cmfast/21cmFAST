@@ -168,7 +168,7 @@ class OutputCache:
         if all_seeds:
             hashes["seed"] = r"\d+"
 
-        hashes["reshift"] = str(redshift) if redshift is not None else ".+?"
+        hashes["redshift"] = str(redshift) if redshift is not None else ".+?"
 
         allfiles = self.direc.glob("**/*")
         template = self._path_structures.get(kind, self._path_structures["other"])
@@ -394,7 +394,7 @@ class RunCache:
                 if not fl.exists():
                     return False
 
-    def get_completion_redshift(self) -> tuple[float, int]:
+    def get_completed_redshift(self) -> tuple[float, int]:
         """Obtain the redshift down to which the cache is complete."""
         if not self.InitialConditions.exists():
             return None, -1
@@ -414,7 +414,7 @@ class RunCache:
 
     def is_partial(self):
         """Whether the cache is complete down to some redshift, but not the last z."""
-        z, idx = self.get_completion_redshift()
+        z, idx = self.get_completed_redshift()
         return idx == len(self.inputs.node_redshifts) - 1
 
 

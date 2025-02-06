@@ -428,7 +428,7 @@ def compute_xray_source_field(
         An object containing x ray heating, ionisation, and lyman alpha rates.
     """
     z_halos = [hb.redshift for hb in hboxes]
-    inputs = initial_conditions.inputs
+    inputs = hboxes[0].inputs
     redshift = z_halos[-1]
 
     # Initialize halo list boxes.

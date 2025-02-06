@@ -128,7 +128,7 @@ int ComputeInitialConditions(
     f_pixel_factor = user_params->DIM/(float)user_params->HII_DIM;
 
     // ************  END INITIALIZATION ****************** //
-    LOG_DEBUG("Finished initialization.");
+    LOG_SUPER_DEBUG("Finished initialization.");
     // ************ CREATE K-SPACE GAUSSIAN RANDOM FIELD *********** //
 
     init_ps();
@@ -179,7 +179,7 @@ int ComputeInitialConditions(
             }
         }
     }
-    LOG_DEBUG("Drawn random fields.");
+    LOG_SUPER_DEBUG("Drawn random fields.");
 
     // *****  Adjust the complex conjugate relations for a real array  ***** //
     adj_complex_conj(HIRES_box,user_params,cosmo_params);
@@ -189,7 +189,7 @@ int ComputeInitialConditions(
     // FFT back to real space
     int stat = dft_c2r_cube(user_params->USE_FFTW_WISDOM, user_params->DIM, D_PARA, user_params->N_THREADS, HIRES_box);
     if(stat>0) Throw(stat);
-    LOG_DEBUG("FFT'd hires boxes.");
+    LOG_SUPER_DEBUG("FFT'd hires boxes.");
 
 #pragma omp parallel shared(boxes,HIRES_box) private(i,j,k) num_threads(user_params->N_THREADS)
     {
@@ -203,7 +203,7 @@ int ComputeInitialConditions(
         }
     }
 
-    LOG_DEBUG("Saved HIRES_box to struct.");
+    LOG_SUPER_DEBUG("Saved HIRES_box to struct.");
 
     // *** If required, let's also create a lower-resolution version of the density field  *** //
     memcpy(HIRES_box, HIRES_box_saved, sizeof(fftwf_complex)*KSPACE_NUM_PIXELS);
@@ -317,7 +317,7 @@ int ComputeInitialConditions(
         }
 
     }
-    LOG_DEBUG("Completed Relative velocities.");
+    LOG_SUPER_DEBUG("Completed Relative velocities.");
     // ******* End of Relative Velocity part ******* //
 
     // Now look at the velocities
@@ -430,7 +430,7 @@ int ComputeInitialConditions(
         }
     }
 
-    LOG_DEBUG("Done Inverse FT.");
+    LOG_SUPER_DEBUG("Done Inverse FT.");
 
     // * *************************************************** * //
     // *              BEGIN 2LPT PART                        * //
@@ -789,7 +789,7 @@ int ComputeInitialConditions(
         fftwf_free(phi_1);
 
     }
-    LOG_DEBUG("Done 2LPT.");
+    LOG_SUPER_DEBUG("Done 2LPT.");
 
     // * *********************************************** * //
     // *               END 2LPT PART                     * //
@@ -805,7 +805,7 @@ int ComputeInitialConditions(
     free_ps();
 
     free_rng_threads(r);
-    LOG_DEBUG("Cleaned Up.");
+    LOG_SUPER_DEBUG("Cleaned Up.");
     } // End of Try{}
 
     Catch(status){

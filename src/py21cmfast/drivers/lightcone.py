@@ -140,7 +140,7 @@ class LightCone:
         h5._write_inputs_to_group(self.inputs, path)
 
         with h5py.File(path, "a") as fl:
-            fl.attrs["lightcone"] = True  # marker identifying this as a coeval box
+            fl.attrs["lightcone"] = True  # marker identifying this as a lightcone box
 
             fl.attrs["last_completed_node"] = self._last_completed_node
             fl.attrs["last_completed_lcidx"] = self._last_completed_lcidx

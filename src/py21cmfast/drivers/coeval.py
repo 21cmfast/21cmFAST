@@ -363,16 +363,6 @@ def run_coeval(
     elif not hasattr(perturbed_field, "__len__"):
         perturbed_field = (perturbed_field,)
 
-    if inputs is None:
-        if initial_conditions is None and not perturbed_field:
-            raise ValueError(
-                "Either inputs or initial_conditions or perturbed_field must be given"
-            )
-        elif initial_conditions is not None:
-            inputs = initial_conditions.inputs
-        elif perturbed_field:
-            inputs = perturbed_field[0].inputs
-
     if not out_redshifts and not perturbed_field and not inputs.node_redshifts:
         raise ValueError(
             "Either out_redshifts or perturb must be given if inputs has no node redshifts"

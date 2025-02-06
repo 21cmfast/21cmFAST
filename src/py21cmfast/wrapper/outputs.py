@@ -191,9 +191,9 @@ class OutputStruct(ABC):
 
         for k in self.struct.primitive_fields:
             if getattr(self, k) is not None:
-                setattr(self.struct.cstruct, k, getattr(self, k))
-            else:
-                setattr(self, k, getattr(self.cstruct, k))
+                setattr(self.cstruct, k, getattr(self, k))
+
+            setattr(self, k, getattr(self.cstruct, k))
 
     def get(self, ary: str | Array):
         """If possible, load an array from disk, storing it and returning the underlying array."""
