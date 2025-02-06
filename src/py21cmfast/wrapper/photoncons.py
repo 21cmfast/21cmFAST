@@ -317,6 +317,7 @@ def calibrate_photon_cons(
             INHOMO_RECO=False,
             USE_MINI_HALOS=False,
             USE_HALO_FIELD=False,
+            HALO_STOCHASTICITY=False,
             PHOTON_CONS_TYPE="no-photoncons",
         )
         ib = None
@@ -631,6 +632,12 @@ def photoncons_fesc(cosmo_params, user_params, astro_params, flag_options):
     fit_fesc = ratio_ref * 10**astro_params.F_ESC10
     sel = np.isfinite(fit_fesc) & (ref_interp < max_q_fit) & (ref_interp > min_q_fit)
 
+    logger.info("PHOTONCONS DEBUG")
+    logger.info(f"z Calibration {ref_pc_data['z_calibration']}")
+    logger.info(f"Q Analytic    {ref_interp}")
+    logger.info(f"Q Calibration {1 - ref_pc_data['nf_calibration']}")
+    logger.info(f"Fesc {fit_fesc}")
+    logger.info(f"Mask {sel}")
     popt, pcov = curve_fit(alpha_func, ref_interp[sel], fit_fesc[sel])
     # pass to C
     logger.info(f"F_ESC10 Original = {10**astro_params.F_ESC10:.3f}")
