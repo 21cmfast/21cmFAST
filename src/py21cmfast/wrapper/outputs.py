@@ -216,6 +216,7 @@ class PerturbedField(_OutputStructZ):
     _c_compute_function = lib.ComputePerturbField
 
     _meta = False
+    # TODO: globals have been removed, so this should be updated IF the output struct overhaul doesn't solve this
     _filter_params = _OutputStruct._filter_params + [
         "ALPHA_UVB",  # ionization
         "HII_ROUND_ERR",  # ionization
