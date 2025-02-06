@@ -452,7 +452,7 @@ def run_coeval(
             f"to a value lower than z = {np.amin(all_redshifts)}."
         )
 
-    yield from _redshift_loop_generator(
+    for coeval in _redshift_loop_generator(
         inputs=inputs,
         initial_conditions=initial_conditions,
         all_redshifts=all_redshifts,
@@ -464,7 +464,8 @@ def run_coeval(
         always_purge=always_purge,
         photon_nonconservation_data=photon_nonconservation_data,
         iokw=iokw,
-    )
+    ):
+        yield coeval, coeval.redshift in inputs.node_redshifts
 
     if lib.photon_cons_allocated:
         lib.FreePhotonConsMemory()
@@ -596,11 +597,14 @@ def _redshift_loop_generator(
             photon_nonconservation_data=photon_nonconservation_data,
         )
 
-        ib = ib2
-        pf = pf2
-        _bt = None
-        hb = hb2
-        st = st2
+        if z in inputs.node_redshifts:
+            # Only evolve on the node_redshifts, not any redshifts in-between
+            # that the user might care about.
+            ib = ib2
+            pf = pf2
+            _bt = None
+            hb = hb2
+            st = st2
 
 
 def _get_required_redshifts_coeval(

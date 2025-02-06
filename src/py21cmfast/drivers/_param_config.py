@@ -450,7 +450,7 @@ class high_level_func:  # noqa: N801
         )
         _OutputStructComputationInspect.check_consistency(kwargs, outputs)
 
-        inputs = self._get_inputs(kwargs)
+        inputs = _OutputStructComputationInspect._get_inputs(kwargs)
         if "inputs" in self._signature.parameters:
             # Here we set the inputs (if accepted by the function signature)
             # to the most advanced ones. This is the explicitly-passed inputs if
