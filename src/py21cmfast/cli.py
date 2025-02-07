@@ -16,7 +16,7 @@ from pathlib import Path
 
 from . import _cfg, global_params, plotting
 from .drivers.coeval import run_coeval
-from .drivers.lightcone import exhaust_lightcone, run_lightcone
+from .drivers.lightcone import run_lightcone
 from .drivers.single_field import (
     compute_initial_conditions,
     compute_ionization_field,
@@ -492,7 +492,7 @@ def ionize(ctx, redshift, prev_z, config, regen, direc, seed):
     help="Whether to force regeneration of init/perturb files if they already exist.",
 )
 @click.option(
-    "--direc",
+    "--cache-dir",
     type=click.Path(exists=True, dir_okay=True),
     default=None,
     help="cache directory",
@@ -504,7 +504,7 @@ def ionize(ctx, redshift, prev_z, config, regen, direc, seed):
     help="specify a random seed for the initial conditions",
 )
 @click.pass_context
-def coeval(ctx, redshift, config, out, regen, direc, seed):
+def coeval(ctx, redshift, config, out, regen, cache_dir, seed):
     """Efficiently generate coeval cubes at a given redshift.
 
     Parameters
@@ -554,8 +554,7 @@ def coeval(ctx, redshift, config, out, regen, direc, seed):
         inputs=inputs,
         regenerate=regen,
         write=True,
-        direc=direc,
-        random_seed=seed,
+        cache=OutputCache(cache_dir) if cache_dir else None,
     )
 
     if out:
@@ -678,7 +677,7 @@ def lightcone(ctx, redshift, config, out, regen, direc, max_z, seed, lq):
         quantities=lq,
     )
 
-    lc = exhaust_lightcone(
+    lc = run_lightcone(
         lightconer=lcn,
         inputs=inputs,
         regenerate=regen,

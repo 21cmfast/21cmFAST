@@ -113,7 +113,7 @@ def test_coeval(module_direc, runner, cfg):
         [
             "coeval",
             "35",
-            "--direc",
+            "--cache-dir",
             str(module_direc),
             "--seed",
             "101010",

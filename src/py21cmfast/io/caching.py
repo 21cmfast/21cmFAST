@@ -340,8 +340,8 @@ class RunCache:
     def get_output_struct_at_z(
         self,
         kind: type[OutputStruct] | str,
-        z: float,
-        index: int,
+        z: float | None = None,
+        index: int | None = None,
         match_z_within: float = 0.01,
     ):
         """Return an output struct of a given kind at or close to a given redshift.
@@ -364,9 +364,9 @@ class RunCache:
             kind = kind.__name__
         if kind not in attrs.fields_dict(kind):
             raise ValueError(f"Unknown output kind: {kind}")
-        if index is not None and z is not None:
-            raise ValueError("Cannot specify both z and index")
         if index is not None:
+            if z is not None:
+                raise ValueError("Cannot specify both z and index")
             z = self.inputs.node_redshifts[index]
 
         zs_of_kind = list(getattr(self, kind).keys())
@@ -381,6 +381,37 @@ class RunCache:
         fl = getattr(self, kind)[z]
         return read_output_struct(fl)
 
+    def get_all_boxes_at_z(
+        self,
+        z: float | None,
+        index: int | None,
+        match_z_within: float = 0.01,
+    ) -> dict[str, OutputStruct]:
+        """Return all boxes at or close to a given redshift.
+
+        Parameters
+        ----------
+        z : float
+            The redshift at which to return the boxes.
+        index : int
+            The node-redshift index at which to return the boxes.
+        allow_closest : bool
+            Whether to allow the closest redshift available in the cache to be returned.
+
+        Returns
+        -------
+        dict[str, Box]
+            A dictionary mapping box names to their corresponding Box instances.
+        """
+        kinds = [
+            k
+            for k, v in attrs.asdict(self, recurse=False).items()
+            if isinstance(v, dict)
+        ]
+        return {
+            k: self.get_output_struct_at_z(k, z, index, match_z_within) for k in kinds
+        }
+
     def is_complete(self) -> bool:
         """Whether the cache for the full simulation is complete."""
         if not self.InitialConditions.exists():
@@ -394,28 +425,28 @@ class RunCache:
                 if not fl.exists():
                     return False
 
-    def get_completed_redshift(self) -> tuple[float, int]:
-        """Obtain the redshift down to which the cache is complete."""
-        if not self.InitialConditions.exists():
-            return None, -1
+    # def get_completed_redshift(self) -> tuple[float, int]:
+    #     """Obtain the redshift down to which the cache is complete."""
+    #     if not self.InitialConditions.exists():
+    #         return None, -1
 
-        zgrid_files = {
-            k: v
-            for k, v in attrs.asdict(self, recurse=False).items()
-            if isinstance(v, dict)
-        }
+    #     zgrid_files = {
+    #         k: v
+    #         for k, v in attrs.asdict(self, recurse=False).items()
+    #         if isinstance(v, dict)
+    #     }
 
-        for i, z in enumerate(self.inputs.node_redshifts):
-            for file_dict in zgrid_files.values():
-                if z not in file_dict:
-                    return self.inputs.node_redshifts[i - 1], i - 1
+    #     for i, z in enumerate(self.inputs.node_redshifts):
+    #         for file_dict in zgrid_files.values():
+    #             if z not in file_dict:
+    #                 return self.inputs.node_redshifts[i - 1], i - 1
 
-        return self.inputs.node_redshifts[-1], len(self.inputs.node_redshifts) - 1
+    #     return self.inputs.node_redshifts[-1], len(self.inputs.node_redshifts) - 1
 
-    def is_partial(self):
-        """Whether the cache is complete down to some redshift, but not the last z."""
-        z, idx = self.get_completed_redshift()
-        return idx == len(self.inputs.node_redshifts) - 1
+    # def is_partial(self):
+    #     """Whether the cache is complete down to some redshift, but not the last z."""
+    #     z, idx = self.get_completed_redshift()
+    #     return idx == len(self.inputs.node_redshifts) - 1
 
 
 @attrs.define

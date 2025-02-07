@@ -6,7 +6,6 @@ but whether different parameter options work/don't work as intended.
 
 import pytest
 
-import h5py
 import numpy as np
 
 import py21cmfast as p21c
@@ -96,7 +95,6 @@ def test_lightcone_coords(lc):
 
 def test_run_lc_bad_inputs(
     rectlcn,
-    perturbed_field_lc: p21c.PerturbedField,
     default_input_struct_lc: p21c.InputParameters,
     cache,
 ):
@@ -107,21 +105,6 @@ def test_run_lc_bad_inputs(
         p21c.run_lightcone(
             lightconer=rectlcn,
             inputs=default_input_struct_lc.clone(node_redshifts=[]),
-        )
-
-    with pytest.raises(
-        ValueError,
-        match="If perturbed_fields are provided, initial_conditions must be provided",
-    ):
-        # The perturbed_field here has no node redshifts (because it doesn't
-        # require any since USE_TS_FLUCT is False). This
-        p21c.run_lightcone(
-            inputs=default_input_struct_lc,
-            lightconer=rectlcn,
-            perturbed_fields=[
-                perturbed_field_lc,
-            ],
-            cache=cache,
         )
 
 

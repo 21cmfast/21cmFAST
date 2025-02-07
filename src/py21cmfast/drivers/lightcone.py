@@ -20,12 +20,17 @@ from ..io.caching import CacheConfig, OutputCache, RunCache
 from ..lightcones import Lightconer, RectilinearLightconer
 from ..wrapper.globals import global_params
 from ..wrapper.inputs import InputParameters
-from ..wrapper.outputs import InitialConditions, PerturbedField
+from ..wrapper.outputs import InitialConditions, PerturbedField, PerturbHaloField
 from ..wrapper.photoncons import _get_photon_nonconservation_data, setup_photon_cons
 from . import exhaust
 from . import single_field as sf
 from ._param_config import high_level_func
-from .coeval import _redshift_loop_generator, evolve_perturb_halos
+from .coeval import (
+    _obtain_starting_point_for_scrolling,
+    _redshift_loop_generator,
+    _setup_ics_and_pfs_for_scrolling,
+    evolve_perturb_halos,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -363,6 +368,8 @@ def _run_lightcone_from_perturbed_fields(
     perturbed_fields: Sequence[PerturbedField],
     lightconer: Lightconer,
     inputs: InputParameters,
+    photon_nonconservation_data: dict,
+    pt_halos: list[PerturbHaloField],
     regenerate: bool | None = None,
     global_quantities: tuple[str] = ("brightness_temp", "xH_box"),
     cache: OutputCache = OutputCache("."),
@@ -375,12 +382,6 @@ def _run_lightcone_from_perturbed_fields(
 
     # Get the redshift through which we scroll and evaluate the ionization field.
     scrollz = np.array([pf.redshift for pf in perturbed_fields])
-    if np.any(np.diff(scrollz) >= 0):
-        raise ValueError(
-            "The perturb fields must be ordered by redshift in descending order.\n"
-            + f"redshifts: {scrollz}\n"
-            + f"diffs: {np.diff(scrollz)}"
-        )
 
     lcz = lightconer.lc_redshifts
     if not np.all(scrollz.min() * 0.99 < lcz) and np.all(lcz < scrollz.max() * 1.01):
@@ -392,27 +393,7 @@ def _run_lightcone_from_perturbed_fields(
             f"while the lightcone redshift range is {lcz.min()} to {lcz.max()}."
         )
 
-    if (
-        inputs.flag_options.PHOTON_CONS_TYPE == "z-photoncons"
-        and np.amin(scrollz) < global_params.PhotonConsEndCalibz
-    ):
-        raise ValueError(
-            f"""
-            You have passed a redshift (z = {np.amin(scrollz)}) that is lower than the
-            endpoint of the photon non-conservation correction
-            (global_params.PhotonConsEndCalibz = {global_params.PhotonConsEndCalibz}).
-            If this behaviour is desired then set global_params.PhotonConsEndCalibz to a
-            value lower than z = {np.amin(scrollz)}.
-            """
-        )
-
     iokw = {"regenerate": regenerate, "cache": cache}
-
-    photon_nonconservation_data = {}
-    if inputs.flag_options.PHOTON_CONS_TYPE != "no-photoncons":
-        photon_nonconservation_data = setup_photon_cons(
-            initial_conditions=initial_conditions, **iokw
-        )
 
     # Create the LightCone instance, loading from file if needed
     lightcone = setup_lightcone_instance(
@@ -427,76 +408,26 @@ def _run_lightcone_from_perturbed_fields(
         logger.info("Lightcone already full. Returning.")
         yield None, None, None, lightcone
 
-    # Remove anything in initial_conditions not required for spin_temp
-    with contextlib.suppress(OSError):
-        initial_conditions.prepare_for_spin_temp(
-            flag_options=inputs.flag_options, force=always_purge
-        )
-    kw = {
-        "initial_conditions": initial_conditions,
-        **iokw,
-    }
-
-    # At first we don't have any "previous" fields.
-    st, ib = None, None
-
-    if lightcone._last_completed_node > -1 and not inputs.flag_options.USE_HALO_FIELD:
-        logger.info(
-            f"Finding boxes at z={scrollz[lightcone._last_completed_node]} in {cache}..."
-        )
-        rc = RunCache.from_inputs(inputs, cache)
-
-        for idx in range(lightcone._last_completed_node, -1, -1):
-            _z = inputs.node_redshifts[idx]
-            if (
-                not inputs.flag_options.USE_TS_FLUCT or rc.TsBox[_z].exists()
-            ) and rc.IonizedBox[_z].exists():
-                st = (
-                    h5.read_output_struct(rc.TsBox[_z])
-                    if inputs.flag_options.USE_TS_FLUCT
-                    else None
-                )
-                ib = h5.read_output_struct(rc.IonizedBox[_z])
-                break
-
-        if ib is None:
-            raise ValueError(
-                f"There are no boxes stored in the cache '{cache}' for the given inputs. "
-                f"You need to have run with caching turned on to continue from a checkpoint."
-                f"Files that form the run: {rc}"
-            )
-
-        if idx < lightcone._last_completed_node:
-            warnings.warn(
-                f"The cache at {cache} only contains complete coeval boxes for {idx + 1} redshift nodes, "
-                f"instead of {lightcone._last_completed_node + 1}, which is the current checkpointing "
-                f"redshift of the lightcone. Repeating the higher-z calculations..."
-            )
-
-        lightcone._last_completed_node = idx
-        lightcone._last_completed_lcidx = (
-            np.sum(
-                lightcone.lightcone_redshifts >= scrollz[lightcone._last_completed_node]
-            )
-            - 1
-        )
-
-    pt_halos = evolve_perturb_halos(
+    idx, prev_coeval = _obtain_starting_point_for_scrolling(
         inputs=inputs,
-        all_redshifts=scrollz,
-        write=write,
-        always_purge=always_purge,
-        **kw,
+        cache=cache,
+        initial_conditions=initial_conditions,
+        photon_nonconservation_data=photon_nonconservation_data,
+        minimum_node=lightcone._last_completed_node,
     )
-    # Now that we've got all the perturb fields, we can purge init more.
-    with contextlib.suppress(OSError):
-        initial_conditions.prepare_for_spin_temp(
-            flag_options=inputs.flag_options, force=always_purge
+
+    if idx < lightcone._last_completed_node:
+        warnings.warn(
+            f"The cache at {cache} only contains complete coeval boxes for {idx + 1} redshift nodes, "
+            f"instead of {lightcone._last_completed_node + 1}, which is the current checkpointing "
+            f"redshift of the lightcone. Repeating the higher-z calculations..."
         )
 
-    # coeval objects to interpolate onto the lightcone
-    coeval = None
-    prev_coeval = None
+    lightcone._last_completed_node = idx
+    lightcone._last_completed_lcidx = (
+        np.sum(lightcone.lightcone_redshifts >= scrollz[lightcone._last_completed_node])
+        - 1
+    )
 
     if lightcone_filename and not Path(lightcone_filename).exists():
         lightcone.save(lightcone_filename)
@@ -509,13 +440,11 @@ def _run_lightcone_from_perturbed_fields(
             perturbed_field=perturbed_fields,
             pt_halos=pt_halos,
             write=write,
-            kw=kw,
             cleanup=cleanup,
             always_purge=always_purge,
             photon_nonconservation_data=photon_nonconservation_data,
             start_idx=lightcone._last_completed_node + 1,
-            st=st,
-            ib=ib,
+            init_coeval=prev_coeval,
             iokw=iokw,
         )
     ):
@@ -554,9 +483,6 @@ def _run_lightcone_from_perturbed_fields(
                     fname=lightcone_filename, n_subcells=inputs.astro_params.N_RSD_STEPS
                 )
 
-        # lightcone.log10_mturnovers = log10_mturnovers
-        # lightcone.log10_mturnovers_mini = log10_mturnovers_mini
-
         yield iz, coeval.redshift, coeval, lightcone
 
 
@@ -567,7 +493,6 @@ def generate_lightcone(
     inputs: InputParameters,
     global_quantities=("brightness_temp", "xH_box"),
     initial_conditions: InitialConditions | None = None,
-    perturbed_fields: Sequence[PerturbedField | None] = (None,),
     cleanup: bool = True,
     write: CacheConfig = CacheConfig(),
     cache: OutputCache = OutputCache("."),
@@ -595,10 +520,6 @@ def generate_lightcone(
     initial_conditions : :class:`~InitialConditions`, optional
         If given, the user and cosmo params will be set from this object, and it will not be
         re-calculated.
-    perturbed_fields : list of :class:`~PerturbedField`, optional
-        If given, must be compatible with initial_conditions. It will merely negate the necessity of
-        re-calculating the
-        perturb fields. It will also be used to set the node redshifts if given.
     cleanup : bool, optional
         A flag to specify whether the C routine cleans up its memory before returning.
         Typically, if `spin_temperature` is called directly, you will want this to be
@@ -625,16 +546,10 @@ def generate_lightcone(
     if isinstance(write, bool):
         write = CacheConfig() if write else CacheConfig.off()
 
-    pf_given = any(perturbed_fields)
-    if pf_given and initial_conditions is None:
-        raise ValueError(
-            "If perturbed_fields are provided, initial_conditions must be provided"
-        )
-
     if len(inputs.node_redshifts) == 0:
         raise ValueError(
-            "You are attempting to run a lightcone with no node_redshifts.\n"
-            + "This can only be done for coevals without evolution"
+            "You are attempting to run a lightcone with no node_redshifts."
+            "Please set node_redshifts on the `inputs` parameter."
         )
 
     # while we still use the full list for caching etc, we don't need to run below the lightconer instance
@@ -645,11 +560,6 @@ def generate_lightcone(
         final_node = np.argmax(below_lc_z)
         scrollz = scrollz[: final_node + 1]  # inclusive
 
-    if pf_given and scrollz != [pf.redshift for pf in perturbed_fields]:
-        raise ValueError(
-            f"given PerturbField redshifts {[pf.redshift for pf in perturbed_fields]}"
-            + f"do not match selected InputParameters.node_redshifts {scrollz}"
-        )
     lcz = lightconer.lc_redshifts
 
     if not np.all(min(scrollz) * 0.99 < lcz) and np.all(lcz < max(scrollz) * 1.01):
@@ -663,28 +573,19 @@ def generate_lightcone(
 
     iokw = {"cache": cache, "regenerate": regenerate}
 
-    if initial_conditions is None:  # no need to get cosmo, user params out of it.
-        initial_conditions = sf.compute_initial_conditions(inputs=inputs, **iokw)
-
-    # We can go ahead and purge some of the stuff in the initial_conditions, but only if
-    # it is cached -- otherwise we could be losing information.
-    with contextlib.suppress(OSError):
-        # TODO: should really check that the file at path actually contains a fully
-        # working copy of the initial_conditions.
-        initial_conditions.prepare_for_perturb(
-            flag_options=inputs.flag_options, force=always_purge
-        )
-
-    if not pf_given:
-        perturbed_fields = []
-        for z in scrollz:
-            p = sf.perturb_field(
-                redshift=z, inputs=inputs, initial_conditions=initial_conditions, **iokw
-            )
-            if inputs.user_params.MINIMIZE_MEMORY:
-                with contextlib.suppress(OSError):
-                    p.purge(force=always_purge)
-            perturbed_fields.append(p)
+    (
+        initial_conditions,
+        perturbed_fields,
+        pt_halos,
+        photon_nonconservation_data,
+    ) = _setup_ics_and_pfs_for_scrolling(
+        all_redshifts=scrollz,
+        initial_conditions=initial_conditions,
+        inputs=inputs,
+        write=write,
+        always_purge=always_purge,
+        **iokw,
+    )
 
     yield from _run_lightcone_from_perturbed_fields(
         initial_conditions=initial_conditions,
@@ -692,6 +593,8 @@ def generate_lightcone(
         lightconer=lightconer,
         inputs=inputs,
         regenerate=regenerate,
+        pt_halos=pt_halos,
+        photon_nonconservation_data=photon_nonconservation_data,
         global_quantities=global_quantities,
         cache=cache,
         write=write,
