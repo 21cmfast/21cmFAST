@@ -302,7 +302,7 @@ def evolve_perturb_halos(
 
 
 @high_level_func
-def run_coeval(
+def generate_coeval(
     *,
     inputs: InputParameters | None = None,
     out_redshifts: float | tuple[float] = (),
@@ -469,6 +469,13 @@ def run_coeval(
 
     if lib.photon_cons_allocated:
         lib.FreePhotonConsMemory()
+
+
+def run_coeval(**kwargs) -> list[Coeval]:  # noqa: D103
+    return [coeval for coeval, in_nodes in generate_coeval(**kwargs) if in_nodes]
+
+
+run_coeval.__doc__ = generate_coeval.__doc__
 
 
 def _redshift_loop_generator(

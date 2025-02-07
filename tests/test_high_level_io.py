@@ -6,34 +6,28 @@ import numpy as np
 from pathlib import Path
 
 from py21cmfast import (
-    BrightnessTemp,
     Coeval,
     InitialConditions,
     LightCone,
     OutputCache,
-    TsBox,
     UserParams,
-    exhaust_lightcone,
-    global_params,
     run_coeval,
+    run_lightcone,
 )
-from py21cmfast.drivers import exhaust
 from py21cmfast.drivers.lightcone import AngularLightcone
 from py21cmfast.io import h5
-from py21cmfast.lightcones import AngularLightconer, RectilinearLightconer
+from py21cmfast.lightcones import AngularLightconer
 
 
 @pytest.fixture(scope="module")
-def coeval(ic, default_input_struct_ts, cache):
-    return exhaust(
-        run_coeval(
-            out_redshifts=25.0,
-            initial_conditions=ic,
-            write=True,
-            inputs=default_input_struct_ts,
-            cache=cache,
-        )
-    )
+def coeval(ic, default_input_struct_ts, cache) -> Coeval:
+    return run_coeval(
+        out_redshifts=25.0,
+        initial_conditions=ic,
+        write=True,
+        inputs=default_input_struct_ts,
+        cache=cache,
+    )[0]
 
 
 @pytest.fixture(scope="module")
@@ -45,7 +39,7 @@ def ang_lightcone(ic, lc, default_input_struct_lc, default_flag_options, cache):
         get_los_velocity=True,
     )
 
-    iz, z, coev, anglc = exhaust_lightcone(
+    iz, z, coev, anglc = run_lightcone(
         lightconer=lcn,
         initial_conditions=ic,
         write=True,

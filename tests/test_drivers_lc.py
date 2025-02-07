@@ -29,7 +29,7 @@ def test_lightcone_quantities(
         quantities=("dNrec_box", "density", "brightness_temp", "Gamma12_box"),
     )
 
-    _, _, _, lc = p21c.exhaust_lightcone(
+    _, _, _, lc = p21c.run_lightcone(
         lightconer=lcn,
         initial_conditions=ic,
         inputs=default_input_struct_lc,
@@ -67,7 +67,7 @@ def test_lightcone_quantities(
 
     # Raise an error since we're not doing spin temp.
     with pytest.raises(AttributeError):
-        p21c.exhaust_lightcone(
+        p21c.run_lightcone(
             lightconer=lcn_ts,
             initial_conditions=ic,
             inputs=default_input_struct_lc,
@@ -76,7 +76,7 @@ def test_lightcone_quantities(
 
     # And also raise an error for global quantities.
     with pytest.raises(AttributeError):
-        p21c.exhaust_lightcone(
+        p21c.run_lightcone(
             lightconer=lcn_ts,
             initial_conditions=ic,
             inputs=default_input_struct_lc,
@@ -94,24 +94,32 @@ def test_lightcone_coords(lc):
     )
 
 
-def test_run_lc_bad_inputs(rectlcn, perturbed_field, default_input_struct_lc, cache):
+def test_run_lc_bad_inputs(
+    rectlcn,
+    perturbed_field_lc: p21c.PerturbedField,
+    default_input_struct_lc: p21c.InputParameters,
+    cache,
+):
     with pytest.raises(
         ValueError,
         match="You are attempting to run a lightcone with no node_redshifts.",
     ):
-        p21c.exhaust_lightcone(
+        p21c.run_lightcone(
             lightconer=rectlcn,
             inputs=default_input_struct_lc.clone(node_redshifts=[]),
         )
+
     with pytest.raises(
         ValueError,
         match="If perturbed_fields are provided, initial_conditions must be provided",
     ):
-        p21c.exhaust_lightcone(
+        # The perturbed_field here has no node redshifts (because it doesn't
+        # require any since USE_TS_FLUCT is False). This
+        p21c.run_lightcone(
             inputs=default_input_struct_lc,
             lightconer=rectlcn,
             perturbed_fields=[
-                perturbed_field,
+                perturbed_field_lc,
             ],
             cache=cache,
         )
@@ -121,7 +129,7 @@ def test_lc_with_lightcone_filename(
     ic, rectlcn, default_input_struct_lc, tmpdirec, cache
 ):
     fname = tmpdirec / "lightcone.h5"
-    _, _, _, lc = p21c.exhaust_lightcone(
+    _, _, _, lc = p21c.run_lightcone(
         lightconer=rectlcn,
         initial_conditions=ic,
         inputs=default_input_struct_lc,
@@ -135,7 +143,7 @@ def test_lc_with_lightcone_filename(
     del lc_loaded
 
     # This one should NOT run anything.
-    _, _, _, lc2 = p21c.exhaust_lightcone(
+    _, _, _, lc2 = p21c.run_lightcone(
         lightconer=rectlcn,
         initial_conditions=ic,
         inputs=default_input_struct_lc,
@@ -153,7 +161,7 @@ def test_lc_partial_eval(rectlcn, ic, default_input_struct_lc, tmpdirec, lc, cac
     fname = tmpdirec / "lightcone_partial.h5"
 
     z = rectlcn.lc_redshifts.max()
-    lc_gen = p21c.run_lightcone(
+    lc_gen = p21c.generate_lightcone(
         lightconer=rectlcn,
         initial_conditions=ic,
         inputs=default_input_struct_lc,
@@ -166,7 +174,7 @@ def test_lc_partial_eval(rectlcn, ic, default_input_struct_lc, tmpdirec, lc, cac
 
     assert 0 < partial._last_completed_node < len(rectlcn.lc_redshifts) - 1
 
-    _, _, _, finished = p21c.exhaust_lightcone(
+    _, _, _, finished = p21c.run_lightcone(
         lightconer=rectlcn,
         initial_conditions=ic,
         inputs=default_input_struct_lc,
@@ -196,6 +204,6 @@ def test_lc_lowerz_than_photon_cons(
             cosmo=ic.cosmo_params.cosmo,
         )
 
-        p21c.exhaust_lightcone(
+        p21c.run_lightcone(
             lightconer=lcn, initial_conditions=ic, inputs=inputs, cache=cache
         )

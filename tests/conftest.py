@@ -14,9 +14,9 @@ from py21cmfast import (
     UserParams,
     compute_initial_conditions,
     config,
-    exhaust_lightcone,
     get_logspaced_redshifts,
     perturb_field,
+    run_lightcone,
 )
 from py21cmfast.io.caching import CacheConfig
 from py21cmfast.lightcones import RectilinearLightconer
@@ -202,14 +202,11 @@ def cache(tmpdirec: Path):
 
 @pytest.fixture(scope="session")
 def ic(default_input_struct, cache) -> InitialConditions:
-    print("before anything ", InitialConditions._compat_hash)
-    out = compute_initial_conditions(
+    return compute_initial_conditions(
         inputs=default_input_struct,
         write=True,
         cache=cache,
     )
-    print("after compute: ", out._compat_hash, InitialConditions._compat_hash)
-    return out
 
 
 @pytest.fixture(scope="session")
@@ -247,6 +244,23 @@ def perturbed_field(ic, redshift, cache):
 
 
 @pytest.fixture(scope="session")
+def perturbed_field_lc(
+    ic: InitialConditions,
+    default_input_struct_lc: InputParameters,
+    redshift: float,
+    cache,
+):
+    """A default PerturbedField for a lightcone (which requires node_redshifts)."""
+    return perturb_field(
+        redshift=redshift,
+        inputs=default_input_struct_lc,
+        initial_conditions=ic,
+        write=True,
+        cache=cache,
+    )
+
+
+@pytest.fixture(scope="session")
 def rectlcn(
     lightcone_min_redshift, max_redshift, default_user_params, default_cosmo_params
 ) -> RectilinearLightconer:
@@ -260,7 +274,7 @@ def rectlcn(
 
 @pytest.fixture(scope="session")
 def lc(rectlcn, ic, cache, default_input_struct_lc):
-    *_, lc = exhaust_lightcone(
+    *_, lc = run_lightcone(
         lightconer=rectlcn,
         initial_conditions=ic,
         inputs=default_input_struct_lc,

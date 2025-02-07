@@ -10,7 +10,6 @@ import pytest
 import numpy as np
 
 import py21cmfast as p21c
-from py21cmfast.drivers import exhaust
 
 from . import produce_integration_test_data as prd
 
@@ -157,7 +156,7 @@ def test_lc_runs(name, max_redshift, cache):
     del options["out_redshifts"]
 
     with p21c.config.use(ignore_R_BUBBLE_MAX_error=True):
-        _, _, _, lightcone = p21c.exhaust_lightcone(
+        _, _, _, lightcone = p21c.run_lightcone(
             lightconer=lcn,
             write=False,
             cache=cache,
@@ -182,12 +181,10 @@ def test_cv_runs(name, cache):
     )
 
     with p21c.config.use(ignore_R_BUBBLE_MAX_error=True):
-        cv = exhaust(
-            p21c.run_coeval(
-                write=False,
-                cache=cache,
-                **options,
-            )
+        cv = p21c.run_coeval(
+            write=False,
+            cache=cache,
+            **options,
         )
 
     assert isinstance(cv, p21c.Coeval)

@@ -561,7 +561,7 @@ def _run_lightcone_from_perturbed_fields(
 
 
 @high_level_func
-def run_lightcone(
+def generate_lightcone(
     *,
     lightconer: Lightconer,
     inputs: InputParameters,
@@ -701,10 +701,8 @@ def run_lightcone(
     )
 
 
-def exhaust_lightcone(**kwargs):
-    """
-    Convenience function to run through an entire lightcone.
+def run_lightcone(**kwargs):  # noqa: D103
+    return exhaust(generate_lightcone(**kwargs))
 
-    keywords passed are identical to run_lightcone.
-    """
-    return exhaust(run_lightcone(**kwargs))
+
+run_lightcone.__doc__ = generate_lightcone.__doc__

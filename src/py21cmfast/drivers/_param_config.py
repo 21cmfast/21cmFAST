@@ -437,25 +437,27 @@ class single_field_func(_OutputStructComputationInspect):  # noqa: N801
         return out
 
 
-class high_level_func:  # noqa: N801
+class high_level_func(_OutputStructComputationInspect):  # noqa: N801
     """A decorator for high-level functions like ``run_coeval``."""
 
+    # def __init__(self, _func: callable):
+    #     self._func = _func
     def __init__(self, _func: callable):
         self._func = _func
+        self._signature = inspect.signature(_func)
+        self._kls = self._signature.return_annotation
 
     def __call__(self, **kwargs):
         """Call the function."""
-        outputs = _OutputStructComputationInspect._get_all_output_struct_inputs(
-            kwargs, recurse=True
-        )
-        _OutputStructComputationInspect.check_consistency(kwargs, outputs)
-
-        inputs = _OutputStructComputationInspect._get_inputs(kwargs)
+        outputs = self._get_all_output_struct_inputs(kwargs, recurse=True)
+        inputs = self._get_inputs(kwargs)
         if "inputs" in self._signature.parameters:
             # Here we set the inputs (if accepted by the function signature)
             # to the most advanced ones. This is the explicitly-passed inputs if
             # they exist, but otherwise the inputs derived from the dependency
             # that is the most advanced in the computation.
             kwargs["inputs"] = inputs
+
+        self.check_consistency(kwargs, outputs)
 
         yield from self._func(**kwargs)

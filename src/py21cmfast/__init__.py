@@ -18,8 +18,8 @@ from . import lightcones, plotting, wrapper
 from ._cfg import config
 from ._data import DATA_PATH
 from ._logging import configure_logging
-from .drivers.coeval import Coeval, run_coeval
-from .drivers.lightcone import LightCone, exhaust_lightcone, run_lightcone
+from .drivers.coeval import Coeval, generate_coeval, run_coeval
+from .drivers.lightcone import LightCone, generate_lightcone, run_lightcone
 from .drivers.single_field import (
     brightness_temperature,
     compute_halo_grid,

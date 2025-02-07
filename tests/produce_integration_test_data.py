@@ -30,12 +30,12 @@ from py21cmfast import (
     compute_initial_conditions,
     config,
     determine_halo_list,
-    exhaust_lightcone,
     get_logspaced_redshifts,
     global_params,
     perturb_field,
     perturb_halo_list,
     run_coeval,
+    run_lightcone,
 )
 from py21cmfast.lightcones import RectilinearLightconer
 
@@ -411,7 +411,7 @@ def produce_lc_power_spectra(redshift, **kwargs):
     )
 
     with config.use(ignore_R_BUBBLE_MAX_error=True):
-        _, _, _, lightcone = exhaust_lightcone(
+        _, _, _, lightcone = run_lightcone(
             lightconer=lcn,
             write=write_ics_only_hook,
             **options,

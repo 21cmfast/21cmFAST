@@ -11,14 +11,7 @@ import numpy as np
 from astropy import units as un
 
 import py21cmfast as p21c
-from py21cmfast import (
-    InitialConditions,
-    InputParameters,
-    OutputCache,
-    TsBox,
-    get_logspaced_redshifts,
-)
-from py21cmfast.drivers import exhaust
+from py21cmfast import InitialConditions, OutputCache, TsBox
 
 
 @pytest.fixture(scope="module")
@@ -240,10 +233,8 @@ def test_coeval_against_direct(
     ionize_box: p21c.IonizedBox,
     cache,
 ):
-    coeval = exhaust(
-        p21c.run_coeval(
-            perturbed_field=perturbed_field, initial_conditions=ic, cache=cache
-        )
+    coeval = p21c.run_coeval(
+        perturbed_field=perturbed_field, initial_conditions=ic, cache=cache
     )
 
     assert coeval.initial_conditions == ic
