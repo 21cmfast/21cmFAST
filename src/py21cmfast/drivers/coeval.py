@@ -465,7 +465,7 @@ def generate_coeval(
         photon_nonconservation_data=photon_nonconservation_data,
         iokw=iokw,
     ):
-        yield coeval, coeval.redshift in inputs.node_redshifts
+        yield coeval, coeval.redshift in out_redshifts
 
     if lib.photon_cons_allocated:
         lib.FreePhotonConsMemory()
