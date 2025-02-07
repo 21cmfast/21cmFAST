@@ -594,6 +594,16 @@ class OutputStructZ(OutputStruct):
     _meta = True
     redshift: float = attrs.field(converter=float)
 
+    @classmethod
+    def dummy(cls, inputs: InputParameters = InputParameters(random_seed=1)):
+        """Create a dummy instance with the given inputs."""
+        return cls.new(inputs=inputs, redshift=-1.0, dummy=True)
+
+    @classmethod
+    def initial(cls, inputs: InputParameters = InputParameters(random_seed=1)):
+        """Create a dummy instance with the given inputs."""
+        return cls.new(inputs=inputs, redshift=-1.0, initial=True)
+
 
 @attrs.define(slots=False, kw_only=True)
 class PerturbedField(OutputStructZ):

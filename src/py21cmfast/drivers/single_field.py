@@ -134,11 +134,7 @@ def determine_halo_list(
         )
 
     if descendant_halos is None:
-        descendant_halos = HaloField.new(
-            redshift=0.0,
-            inputs=inputs,
-            dummy=True,
-        )
+        descendant_halos = HaloField.dummy()
 
     # Initialize halo list boxes.
     fields = HaloField.new(
@@ -257,22 +253,15 @@ def compute_halo_grid(
                 "You must provide the perturbed field if FIXED_HALO_GRIDS is True or AVG_BELOW_SAMPLER is True"
             )
         else:
-            perturbed_field = PerturbedField.new(
-                redshift=0.0,
-                inputs=inputs,
-                dummy=True,
-            )
+            perturbed_field = PerturbedField.dummy()
+
     elif perturbed_halo_list is None:
         if not inputs.flag_options.FIXED_HALO_GRIDS:
             raise ValueError(
                 "You must provide the perturbed halo list if FIXED_HALO_GRIDS is False"
             )
         else:
-            perturbed_halo_list = PerturbHaloField.new(
-                redshift=0.0,
-                inputs=inputs,
-                dummy=True,
-            )
+            perturbed_halo_list = PerturbHaloField.dummy()
 
     # NOTE: due to the order, we use the previous spin temp here, like spin_temperature,
     #       but UNLIKE ionize_box, which uses the current box
@@ -284,11 +273,7 @@ def compute_halo_grid(
             or not inputs.flag_options.USE_MINI_HALOS
         ):
             # Dummy spin temp is OK since we're above Z_HEAT_MAX
-            previous_spin_temp = TsBox.new(
-                redshift=0.0,
-                inputs=inputs,
-                dummy=True,
-            )
+            previous_spin_temp = TsBox.dummy()
         else:
             raise ValueError("Below Z_HEAT_MAX you must specify the previous_spin_temp")
 
@@ -298,9 +283,7 @@ def compute_halo_grid(
             or not inputs.flag_options.USE_MINI_HALOS
         ):
             # Dummy ionize box is OK since we're above Z_HEAT_MAX
-            previous_ionize_box = IonizedBox.new(
-                redshift=0.0, inputs=inputs, dummy=True
-            )
+            previous_ionize_box = IonizedBox.dummy()
         else:
             raise ValueError(
                 "Below Z_HEAT_MAX you must specify the previous_ionize_box"
@@ -551,11 +534,7 @@ def compute_spin_temperature(
         if inputs.flag_options.USE_HALO_FIELD:
             raise ValueError("xray_source_box is required when USE_HALO_FIELD is True")
         else:
-            xray_source_box = XraySourceBox.new(
-                redshift=0.0,
-                inputs=inputs,
-                dummy=True,
-            )
+            xray_source_box = XraySourceBox.dummy()
 
     # Set up the box without computing anything.
     box = TsBox.new(
@@ -627,10 +606,8 @@ def compute_ionization_field(
 
     if redshift >= inputs.user_params.Z_HEAT_MAX:
         # Previous boxes must be "initial"
-        previous_ionized_box = IonizedBox.new(redshift=0.0, inputs=inputs, initial=True)
-        previous_perturbed_field = PerturbedField.new(
-            redshift=0.0, inputs=inputs, initial=True
-        )
+        previous_ionized_box = IonizedBox.initial()
+        previous_perturbed_field = PerturbedField.initial()
 
     if inputs.evolution_required:
         if previous_ionized_box is None:
@@ -643,31 +620,21 @@ def compute_ionization_field(
             )
     else:
         if previous_ionized_box is None:
-            previous_ionized_box = IonizedBox.new(inputs, redshift=-1, initial=True)
+            previous_ionized_box = IonizedBox.initial()
         if previous_perturbed_field is None:
-            previous_perturbed_field = PerturbedField.new(
-                inputs, redshift=-1, initial=True
-            )
+            previous_perturbed_field = PerturbedField.initial()
 
     box = IonizedBox.new(inputs=inputs, redshift=redshift)
 
     if not inputs.flag_options.USE_HALO_FIELD:
         # Construct an empty halo field to pass in to the function.
-        halobox = HaloBox.new(
-            redshift=0.0,
-            inputs=inputs,
-            dummy=True,
-        )
+        halobox = HaloBox.dummy()
     elif halobox is None:
         raise ValueError("No halo box given but USE_HALO_FIELD=True")
 
     # Set empty spin temp box if necessary.
     if not inputs.flag_options.USE_TS_FLUCT:
-        spin_temp = TsBox.new(
-            redshift=0.0,
-            inputs=inputs,
-            dummy=True,
-        )
+        spin_temp = TsBox.dummy()
     elif spin_temp is None:
         raise ValueError("No spin temperature box given but USE_TS_FLUCT=True")
 
@@ -714,11 +681,7 @@ def brightness_temperature(
                 "You have USE_TS_FLUCT=True, but have not provided a spin_temp!"
             )
         else:
-            spin_temp = TsBox.new(
-                redshift=0.0,
-                inputs=inputs,
-                dummy=True,
-            )
+            spin_temp = TsBox.dummy()
 
     box = BrightnessTemp.new(redshift=redshift, inputs=inputs)
 

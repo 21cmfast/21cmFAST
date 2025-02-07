@@ -18,7 +18,7 @@ def get_all_fieldnames(
         Whether to return results as a dictionary of ``quantity: class_name``.
         Otherwise returns a set of quantities.
     """
-    classes = [cls(redshift=0, dummy=True) for cls in OutputStruct._implementations()]
+    classes = [cls.dummy() for cls in OutputStruct._implementations()]
 
     if not lightcone_only:
         classes.append(InitialConditions())
