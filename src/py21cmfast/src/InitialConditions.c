@@ -22,6 +22,9 @@
 
 #include "InitialConditions.h"
 
+#include "hello_world.h"
+#include "device_rng.cuh"
+
 void seed_rng_threads(gsl_rng * rng_arr[], unsigned long long int seed){
     // setting tbe random seeds
     gsl_rng * rseed = gsl_rng_alloc(gsl_rng_mt19937); // An RNG for generating seeds for multithreading
@@ -152,6 +155,10 @@ int ComputeInitialConditions(
 //     Date: 9/29/06
 
     int status;
+    printf("Start computing initial conditions\n");
+    call_cuda();
+    init_rand_states(random_seed, 10000000);
+    printf("finish init rand states \n");
 
     Try{ // This Try wraps the entire function so we don't indent.
 
