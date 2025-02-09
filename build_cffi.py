@@ -29,7 +29,7 @@ c_files = [
 
 # compiled cuda code
 extra_objects = [os.path.join(CLOC, "hello_world.o"), os.path.join(CLOC, "filtering_cuda.o"), os.path.join(CLOC, "Stochasticity_cuda.o")
-                 , os.path.join(CLOC, "HaloField_cuda.o"), os.path.join(CLOC, "combined_cuda.o")]
+                 , os.path.join(CLOC, "HaloField_cuda.o"), os.path.join(CLOC, "combined_cuda.o"), os.path.join(CLOC, "device_rng_cuda.o")]
                 #  os.path.join(CLOC, "interp_tables_cuda.o")]
 extra_link_args = ["-lcudart", "-lcudadevrt"]
 
