@@ -373,6 +373,7 @@ class HaloField(_AllParamsBox):
         self, *, halos_desc, ics: InitialConditions, random_seed: int, hooks: dict
     ):
         """Compute the function."""
+        # breakpoint()
         return self._compute(
             self.desc_redshift,
             self.redshift,

@@ -98,6 +98,8 @@ from pathlib import Path
 from scipy.interpolate import interp1d
 from typing import Any, Callable, Sequence
 
+import time
+
 from ._cfg import config
 from ._utils import OutputStruct, _check_compatible_inputs, _process_exitcode, asarray
 from .c_21cmfast import ffi, lib
@@ -1004,7 +1006,7 @@ def perturb_field(
         # Run the C Code
         return fields.compute(ics=init_boxes, hooks=hooks)
 
-
+# @profile
 def determine_halo_list(
     *,
     redshift,
@@ -1097,6 +1099,7 @@ def determine_halo_list(
         # precedence is as follows: If the descendant field is given, use that no matter what.
         #   otherwise, if STOC_MINIMUM_Z == -1 *OR* we would jump over STOC_MINIMUM_Z, calculate this as the first box
         #   if neither of the above are true, step back ZPRIME_STEP_FACTOR and calculate that box
+        # breakpoint()
         if not isinstance(halos_desc, HaloField) or not halos_desc.is_computed:
             # If a descendant field is not provided, we step back toward the minimum z
             if desc_z is None:
@@ -1121,6 +1124,7 @@ def determine_halo_list(
         hbuffer_size = lib.expected_nhalo(
             redshift, user_params(), cosmo_params(), astro_params(), flag_options()
         )
+        # breakpoint()
         hbuffer_size = int((hbuffer_size + 1) * user_params.MAXHALO_FACTOR)
         # set a minimum in case of fluctuation at high z
         hbuffer_size = int(max(hbuffer_size, 1e6))
@@ -1185,7 +1189,7 @@ def determine_halo_list(
                 flag_options=flag_options,
                 dummy=True,
             )
-
+        # breakpoint()
         # Run the C Code
         return fields.compute(
             ics=init_boxes, hooks=hooks, halos_desc=halos_desc, random_seed=random_seed
@@ -3045,7 +3049,7 @@ def _get_required_redshifts_coeval(flag_options, redshift) -> list[float]:
     redshifts = np.sort(np.unique(redshifts))[::-1]
     return redshifts.tolist()
 
-
+# @profile
 def run_lightcone(
     *,
     redshift: float = None,
@@ -3246,8 +3250,12 @@ def run_lightcone(
                 redshift, global_params.ZPRIME_STEP_FACTOR, max_redshift
             )
         )
-
+        print("max redshift: ", max_redshift)
+        print("number of z of iteration: ", scrollz.shape)
+        print("scrollz: ", scrollz)
+        # breakpoint()
         lcz = lightconer.lc_redshifts
+        
         if not np.all(min(scrollz) * 0.99 < lcz) and np.all(lcz < max(scrollz) * 1.01):
             # We have a 1% tolerance on the redshifts, because the lightcone redshifts are
             # computed via inverse fitting the comoving_distance.
@@ -3342,12 +3350,13 @@ def run_lightcone(
                 },
                 _globals=dict(global_params.items()),
             )
-
+            # breakpoint()
+        print(f"PerturbField calcuation start: {time.strftime('%H:%M:%S')}")
         if perturb is None:
             zz = scrollz
         else:
             zz = scrollz[:-1]
-
+        # breakpoint()
         perturb_ = []
         for z in zz:
             p = perturb_field(redshift=z, init_boxes=init_box, **iokw)
@@ -3358,12 +3367,13 @@ def run_lightcone(
                     pass
 
             perturb_.append(p)
-
+        
         if perturb is not None:
             perturb_.append(perturb)
         perturb = perturb_
         perturb_min = perturb[np.argmin(scrollz)]
-
+        print(f"PerturbField calcuation finish: {time.strftime('%H:%M:%S')}")
+        # breakpoint()
         # Now that we've got all the perturb fields, we can purge init more.
         try:
             init_box.prepare_for_spin_temp(
@@ -3390,7 +3400,7 @@ def run_lightcone(
                 "Returning before the final redshift requires caching in order to "
                 "continue the simulation later. Set write=True!"
             )
-
+        # breakpoint()
         # Iterate through redshift from top to bottom
         if lightcone.redshift != lightcone._current_redshift:
             logger.info(
@@ -3421,7 +3431,7 @@ def run_lightcone(
             pf = None
 
         pf = None
-
+        # breakpoint()
         # Now we can purge init_box further.
         try:
             init_box.prepare_for_halos(flag_options=flag_options, force=always_purge)
@@ -3430,6 +3440,7 @@ def run_lightcone(
 
         # we explicitly pass the descendant halos here since we have a redshift list prior
         #   this will generate the extra fields if STOC_MINIMUM_Z is given
+        print(f"HaloField calcuation start: {time.strftime('%H:%M:%S')}")
         pt_halos = []
         if flag_options.USE_HALO_FIELD and not flag_options.FIXED_HALO_GRIDS:
             halos_desc = None
@@ -3439,6 +3450,7 @@ def run_lightcone(
                     halos_desc=halos_desc,
                     **kw,
                 )
+                # breakpoint()
                 halos_desc = halo_field
                 pt_halos += [perturb_halo_list(redshift=z, halo_field=halo_field, **kw)]
 
@@ -3450,7 +3462,8 @@ def run_lightcone(
 
             # reverse the halo lists to be in line with the redshift lists
             pt_halos = pt_halos[::-1]
-
+        print(f"HaloField calcuation finish: {time.strftime('%H:%M:%S')}")
+        # breakpoint()
         # Now that we've got all the perturb fields, we can purge init more.
         try:
             init_box.prepare_for_spin_temp(
@@ -3543,7 +3556,7 @@ def run_lightcone(
                 spin_temp=st2,
                 **iokw,
             )
-
+            # breakpoint()
             coeval = Coeval(
                 redshift=z,
                 initial_conditions=init_box,
@@ -3584,7 +3597,7 @@ def run_lightcone(
                 lightcone.global_quantities[quantity][iz] = np.mean(
                     getattr(coeval, quantity)
                 )
-
+            # breakpoint()
             # Get lightcone slices
             if prev_coeval is not None:
                 for quantity, idx, this_lc in lightconer.make_lightcone_slices(
@@ -3593,7 +3606,7 @@ def run_lightcone(
                     if this_lc is not None:
                         lightcone.lightcones[quantity][..., idx] = this_lc
                         lc_index = idx
-
+                        # breakpoint()
                 if lightcone_filename:
                     lightcone.make_checkpoint(
                         lightcone_filename, redshift=z, index=lc_index
