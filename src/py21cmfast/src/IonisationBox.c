@@ -870,7 +870,7 @@ int setup_radii(struct RadiusSpec **rspec_array, struct IonBoxConstants *consts)
     if(flag_options_global->USE_HALO_FIELD && !flag_options_global->IONISE_ENTIRE_SPHERE && (consts->pixel_length < 1))
         cell_length_factor = 1.;
 
-    double minimum_radius = fmax(global_params.R_BUBBLE_MIN,cell_length_factor*consts->pixel_length);
+    double minimum_radius = fmax(astro_params_global->R_BUBBLE_MIN,cell_length_factor*consts->pixel_length);
 
     //minimum number such that min_R*delta^N > max_R
     int n_radii = (int)(log(maximum_radius/minimum_radius)/log(astro_params_global->DELTA_R_HII_FACTOR) + 1);

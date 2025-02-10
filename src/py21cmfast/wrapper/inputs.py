@@ -290,6 +290,10 @@ class UserParams(InputStruct):
         Initial redshift used to perturb field from
     DELTA_R_FACTOR: float, optional
         The factor by which to decrease the size of the filter in DexM when creating halo catalogues.
+    SMOOTH_EVOLVED_DENSITY_FIELD: bool, optional
+        Smooth the evolved density field after perturbation.
+    DENSITY_SMOOTH_RADIUS: float, optional
+        The radius of the smoothing kernel in Mpc.
     """
 
     _hmf_models = ["PS", "ST", "WATSON", "WATSON-Z", "DELOS"]
@@ -378,6 +382,11 @@ class UserParams(InputStruct):
         transformer=choice_transformer(_perturb_options),
     )
     DELTA_R_FACTOR = field(default=1.1, converter=float, validator=validators.gt(1.0))
+
+    SMOOTH_EVOLVED_DENSITY_FIELD = field(default=False, converter=bool)
+    DENSITY_SMOOTH_RADIUS = field(
+        default=0.2, converter=float, validator=validators.gt(0)
+    )
 
     @DIM.default
     def _dim_default(self):
@@ -776,6 +785,8 @@ class AstroParams(InputStruct):
         The power-law index of the UVB spectrum. Used for Gamma12 in the recombination model
     DELTA_R_HII_FACTOR: float, optional
         The factor by which to decrease the size of the HII filter when calculating the HII regions.
+    R_BUBBLE_MIN: float, optional
+        Minimum size of ionized regions in Mpc. Default is 0.620350491.
     """
 
     HII_EFF_FACTOR = field(default=30.0, converter=float, validator=validators.gt(0))
@@ -812,6 +823,9 @@ class AstroParams(InputStruct):
         transformer=logtransformer,
     )
     R_BUBBLE_MAX = field(default=15.0, converter=float, validator=validators.gt(0))
+    R_BUBBLE_MIN = field(
+        default=0.620350491, converter=float, validator=validators.gt(0)
+    )
     ION_Tvir_MIN = field(
         default=4.69897,
         converter=float,

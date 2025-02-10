@@ -61,6 +61,8 @@ typedef struct UserParams{
     int HALO_FILTER;
     float INITIAL_REDSHIFT;
     double DELTA_R_FACTOR;
+    bool SMOOTH_EVOLVED_DENSITY_FIELD;
+    double DENSITY_SMOOTH_RADIUS;
 } UserParams;
 
 typedef struct AstroParams{
@@ -121,6 +123,7 @@ typedef struct AstroParams{
     float R_MAX_TS;
     int N_STEP_TS;
     double DELTA_R_HII_FACTOR;
+    float R_BUBBLE_MIN;
 } AstroParams;
 
 typedef struct FlagOptions{
@@ -149,21 +152,12 @@ typedef struct FlagOptions{
 } FlagOptions;
 
 typedef struct GlobalParams{
-    int SMOOTH_EVOLVED_DENSITY_FIELD;
-    float R_smooth_density;
-
     float R_OVERLAP_FACTOR;
     int OPTIMIZE;
     float OPTIMIZE_MIN_MASS;
 
-    float CRIT_DENS_TRANSITION;
-
-    float NU_X_BAND_MAX;
-    float NU_X_MAX;
-
     char *external_table_path;
     char *wisdoms_path;
-    float R_BUBBLE_MIN;
 }GlobalParams;
 
 

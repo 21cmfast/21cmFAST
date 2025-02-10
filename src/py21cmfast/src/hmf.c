@@ -37,6 +37,11 @@
 #define NGL_INT 100 // 100
 //These arrays hold the points and weights for the Gauss-Legendre integration routine
 //(JD) Since these were always malloc'd one at a time with fixed length ~100, I've changed them to fixed-length arrays
+
+//Gauss-Legendre does poorly at high delta, switch to GSL-QAG here
+//TODO: define a fraction (90%?) of the barrier rather than a fixed number
+#define CRIT_DENS_TRANSITION (1.2)
+
 static float xi_GL[NGL_INT+1], wi_GL[NGL_INT+1];
 static float GL_limit[2] = {0};
 
@@ -740,7 +745,7 @@ double MFIntegral_Approx(double lnM_lo, double lnM_hi, struct parameters_gsl_MF_
 }
 
 double IntegratedNdM(double lnM_lo, double lnM_hi, struct parameters_gsl_MF_integrals params, double (*integrand)(double,void*), int method){
-    if(method==0 || (method==1 && params.delta > global_params.CRIT_DENS_TRANSITION))
+    if(method==0 || (method==1 && params.delta > CRIT_DENS_TRANSITION))
         return IntegratedNdM_QAG(lnM_lo, lnM_hi, params, integrand);
     if(method==1)
         return IntegratedNdM_GL(lnM_lo, lnM_hi, params, integrand);

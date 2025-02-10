@@ -642,8 +642,8 @@ int ComputePerturbField(
     dft_r2c_cube(user_params->USE_FFTW_WISDOM, user_params->HII_DIM, HII_D_PARA, user_params->N_THREADS, LOWRES_density_perturb);
 
     //smooth the field
-    if (user_params->PERTURB_ALGORITHM > 0 && global_params.SMOOTH_EVOLVED_DENSITY_FIELD){
-        filter_box(LOWRES_density_perturb, 1, 2, global_params.R_smooth_density*user_params->BOX_LEN/(float)user_params->HII_DIM, 0.);
+    if (user_params->PERTURB_ALGORITHM > 0 && user_params->SMOOTH_EVOLVED_DENSITY_FIELD){
+        filter_box(LOWRES_density_perturb, 1, 2, user_params->DENSITY_SMOOTH_RADIUS*user_params->BOX_LEN/(float)user_params->HII_DIM, 0.);
     }
 
     LOG_SUPER_DEBUG("LOWRES_density_perturb after smoothing: ");
