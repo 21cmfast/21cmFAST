@@ -60,6 +60,7 @@ typedef struct UserParams{
     int FILTER;
     int HALO_FILTER;
     float INITIAL_REDSHIFT;
+    double DELTA_R_FACTOR;
 } UserParams;
 
 typedef struct AstroParams{
@@ -119,6 +120,7 @@ typedef struct AstroParams{
 
     float R_MAX_TS;
     int N_STEP_TS;
+    double DELTA_R_HII_FACTOR;
 } AstroParams;
 
 typedef struct FlagOptions{
@@ -143,15 +145,12 @@ typedef struct FlagOptions{
     bool HALO_SCALING_RELATIONS_MEDIAN;
     int HII_FILTER;
     int HEAT_FILTER;
+    bool IONISE_ENTIRE_SPHERE;
 } FlagOptions;
 
 typedef struct GlobalParams{
     int SMOOTH_EVOLVED_DENSITY_FIELD;
     float R_smooth_density;
-    int FIND_BUBBLE_ALGORITHM;
-    float MAX_DVDR;
-    float DELTA_R_HII_FACTOR;
-    float DELTA_R_FACTOR;
 
     float R_OVERLAP_FACTOR;
     int OPTIMIZE;
@@ -165,8 +164,6 @@ typedef struct GlobalParams{
     char *external_table_path;
     char *wisdoms_path;
     float R_BUBBLE_MIN;
-    float M_MIN_INTEGRAL;
-    float M_MAX_INTEGRAL;
 }GlobalParams;
 
 

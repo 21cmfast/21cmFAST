@@ -197,13 +197,13 @@ void set_ionbox_constants(double redshift, double prev_redshift, CosmoParams *co
     if(consts->mturn_a_nofb < astro_params->M_TURN)consts->mturn_a_nofb = astro_params->M_TURN;
 
     if(flag_options->FIXED_HALO_GRIDS || user_params_global->AVG_BELOW_SAMPLER){
-        consts->Mlim_Fstar = Mass_limit_bisection(global_params.M_MIN_INTEGRAL, global_params.M_MAX_INTEGRAL, consts->alpha_star, consts->fstar_10);
-        consts->Mlim_Fesc = Mass_limit_bisection(global_params.M_MIN_INTEGRAL, global_params.M_MAX_INTEGRAL, consts->alpha_esc, consts->fesc_10);
+        consts->Mlim_Fstar = Mass_limit_bisection(M_MIN_INTEGRAL, M_MAX_INTEGRAL, consts->alpha_star, consts->fstar_10);
+        consts->Mlim_Fesc = Mass_limit_bisection(M_MIN_INTEGRAL, M_MAX_INTEGRAL, consts->alpha_esc, consts->fesc_10);
 
         if(flag_options->USE_MINI_HALOS){
-            consts->Mlim_Fstar_mini = Mass_limit_bisection(global_params.M_MIN_INTEGRAL, global_params.M_MAX_INTEGRAL, consts->alpha_star_mini,
+            consts->Mlim_Fstar_mini = Mass_limit_bisection(M_MIN_INTEGRAL, M_MAX_INTEGRAL, consts->alpha_star_mini,
                                                             consts->fstar_7 * pow(1e3,consts->alpha_star_mini));
-            consts->Mlim_Fesc_mini = Mass_limit_bisection(global_params.M_MIN_INTEGRAL, global_params.M_MAX_INTEGRAL, consts->alpha_esc,
+            consts->Mlim_Fesc_mini = Mass_limit_bisection(M_MIN_INTEGRAL, M_MAX_INTEGRAL, consts->alpha_esc,
                                                             consts->fesc_7 * pow(1e3,consts->alpha_esc));
         }
     }
@@ -242,7 +242,7 @@ void set_ionbox_constants(double redshift, double prev_redshift, CosmoParams *co
     //set the minimum source mass
     consts->M_min = minimum_source_mass(redshift,false,astro_params,flag_options);
     consts->lnMmin = log(consts->M_min);
-    consts->lnMmax_gl = log(global_params.M_MAX_INTEGRAL);
+    consts->lnMmax_gl = log(M_MAX_INTEGRAL);
     consts->sigma_minmass = sigma_z0(consts->M_min);
 
     //global TK and adiabatic terms for temperature without the Ts Calculation
@@ -867,13 +867,13 @@ int setup_radii(struct RadiusSpec **rspec_array, struct IonBoxConstants *consts)
 
     double cell_length_factor = L_FACTOR;
     //TODO: figure out why this is used in such a specific case
-    if(flag_options_global->USE_HALO_FIELD && (global_params.FIND_BUBBLE_ALGORITHM == 2) && (consts->pixel_length < 1))
+    if(flag_options_global->USE_HALO_FIELD && !flag_options_global->IONISE_ENTIRE_SPHERE && (consts->pixel_length < 1))
         cell_length_factor = 1.;
 
     double minimum_radius = fmax(global_params.R_BUBBLE_MIN,cell_length_factor*consts->pixel_length);
 
     //minimum number such that min_R*delta^N > max_R
-    int n_radii = (int)(log(maximum_radius/minimum_radius)/log(global_params.DELTA_R_HII_FACTOR) + 1);
+    int n_radii = (int)(log(maximum_radius/minimum_radius)/log(astro_params_global->DELTA_R_HII_FACTOR) + 1);
     *rspec_array = malloc(sizeof(**rspec_array)*n_radii);
 
     //We want the following behaviour from our radius Values:
@@ -886,7 +886,7 @@ int setup_radii(struct RadiusSpec **rspec_array, struct IonBoxConstants *consts)
     int i;
     for(i=0;i<n_radii;i++){
         (*rspec_array)[i].R_index = i;
-        (*rspec_array)[i].R = minimum_radius * pow(global_params.DELTA_R_HII_FACTOR,i);
+        (*rspec_array)[i].R = minimum_radius * pow(astro_params_global->DELTA_R_HII_FACTOR,i);
         //TODO: is this necessary? prevents the last step being small, but could hide some
         // unexpected behaviour/bugs if it finishes earlier than n_radii-2
         if((*rspec_array)[i].R > maximum_radius - FRACT_FLOAT_ERR){
@@ -1019,15 +1019,11 @@ void find_ionised_regions(IonizedBox *box, IonizedBox *previous_ionize_box, Pert
                         }
 
                         // FLAG CELL(S) AS IONIZED
-                        if (global_params.FIND_BUBBLE_ALGORITHM == 2) // center method
+                        if (!flag_options_global->IONISE_ENTIRE_SPHERE) // center method
                             box->xH_box[HII_R_INDEX(x,y,z)] = 0;
-                        else if (global_params.FIND_BUBBLE_ALGORITHM == 1) // sphere method
+                        else // sphere method
                             update_in_sphere(box->xH_box, user_params_global->HII_DIM, HII_D_PARA, rspec.R/(user_params_global->BOX_LEN), \
                                                 x/(user_params_global->HII_DIM+0.0), y/(user_params_global->HII_DIM+0.0), z/(HII_D_PARA+0.0));
-                        else{
-                            LOG_ERROR("Invalid global_params.FIND_BUBBLE_ALGORITHM, should be 1(sphere) or 2(centre)");
-                            Throw(ValueError);
-                        }
                     } // end ionized
                         // If not fully ionized, then assign partial ionizations
                     else if (rspec.R_index==0 && (box->xH_box[HII_R_INDEX(x, y, z)] > TINY)) {

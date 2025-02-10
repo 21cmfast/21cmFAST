@@ -121,10 +121,10 @@ int ComputeHaloField(float redshift_desc, float redshift, UserParams *user_param
     // unsigned long long int arraysize_local = arraysize_total / user_params->N_THREADS;
 
     #if LOG_LEVEL >= DEBUG_LEVEL
-        initialiseSigmaMInterpTable(M_MIN,global_params.M_MAX_INTEGRAL);
-        double nhalo_debug = Nhalo_General(redshift, log(M_MIN), log(global_params.M_MAX_INTEGRAL)) * VOLUME * cosmo_params->OMm * RHOcrit;
+        initialiseSigmaMInterpTable(M_MIN,M_MAX_INTEGRAL);
+        double nhalo_debug = Nhalo_General(redshift, log(M_MIN), log(M_MAX_INTEGRAL)) * VOLUME * cosmo_params->OMm * RHOcrit;
         //expected halos above minimum filter mass
-        LOG_DEBUG("DexM: We expect %.2f Halos between Masses [%.2e,%.2e] D %.3e",nhalo_debug,M_MIN,global_params.M_MAX_INTEGRAL, growth_factor);
+        LOG_DEBUG("DexM: We expect %.2f Halos between Masses [%.2e,%.2e] D %.3e",nhalo_debug,M_MIN,M_MAX_INTEGRAL, growth_factor);
     #endif
 
     #pragma omp parallel shared(boxes,density_field) private(i,j,k) num_threads(user_params->N_THREADS)
@@ -158,7 +158,7 @@ int ComputeHaloField(float redshift_desc, float redshift, UserParams *user_param
     LOG_DEBUG("Prepare to filter to find halos");
 
     while (R < L_FACTOR*user_params->BOX_LEN)
-        R*=global_params.DELTA_R_FACTOR;
+        R*=user_params->DELTA_R_FACTOR;
 
     HaloField *halos_dexm;
     if(flag_options->HALO_STOCHASTICITY){
@@ -184,7 +184,7 @@ int ComputeHaloField(float redshift_desc, float redshift, UserParams *user_param
         // that we don't have to worry about them (let's define 7 sigma away, as in Mesinger et al 05)
         if ((sigma_z0(M)*growth_factor*7.) < delta_crit){
             LOG_SUPER_DEBUG("Haloes too rare for M = %e! Skipping...", M);
-            R /= global_params.DELTA_R_FACTOR;
+            R /= user_params->DELTA_R_FACTOR;
             continue;
         }
 
@@ -265,7 +265,7 @@ int ComputeHaloField(float redshift_desc, float redshift, UserParams *user_param
         total_halo_num += r_halo_num;
         LOG_SUPER_DEBUG("n_halo = %llu, total = %llu , D = %.3f, delcrit = %.3f", r_halo_num, total_halo_num, growth_factor, delta_crit);
 
-        R /= global_params.DELTA_R_FACTOR;
+        R /= user_params->DELTA_R_FACTOR;
     }
 
     LOG_DEBUG("Obtained %llu halo masses and positions, now saving to HaloField struct.",total_halo_num);

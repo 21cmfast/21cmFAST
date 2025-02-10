@@ -1300,12 +1300,12 @@ void ts_main(float redshift, float prev_redshift, UserParams *user_params, Cosmo
 
         //These are still re-calculated internally in each table initialisation
         //TODO: combine into a struct and remove globals
-        Mlim_Fstar_g = Mass_limit_bisection(global_params.M_MIN_INTEGRAL, global_params.M_MAX_INTEGRAL, astro_params->ALPHA_STAR, astro_params->F_STAR10);
-        Mlim_Fesc_g = Mass_limit_bisection(global_params.M_MIN_INTEGRAL, global_params.M_MAX_INTEGRAL, astro_params->ALPHA_ESC, astro_params->F_ESC10);
+        Mlim_Fstar_g = Mass_limit_bisection(M_MIN_INTEGRAL, M_MAX_INTEGRAL, astro_params->ALPHA_STAR, astro_params->F_STAR10);
+        Mlim_Fesc_g = Mass_limit_bisection(M_MIN_INTEGRAL, M_MAX_INTEGRAL, astro_params->ALPHA_ESC, astro_params->F_ESC10);
         if(flag_options->USE_MINI_HALOS){
-            Mlim_Fstar_MINI_g = Mass_limit_bisection(global_params.M_MIN_INTEGRAL, global_params.M_MAX_INTEGRAL, astro_params->ALPHA_STAR_MINI,
+            Mlim_Fstar_MINI_g = Mass_limit_bisection(M_MIN_INTEGRAL, M_MAX_INTEGRAL, astro_params->ALPHA_STAR_MINI,
                                                     astro_params->F_STAR7_MINI * pow(1e3, astro_params->ALPHA_STAR_MINI));
-            Mlim_Fesc_MINI_g = Mass_limit_bisection(global_params.M_MIN_INTEGRAL, global_params.M_MAX_INTEGRAL, astro_params->ALPHA_ESC,
+            Mlim_Fesc_MINI_g = Mass_limit_bisection(M_MIN_INTEGRAL, M_MAX_INTEGRAL, astro_params->ALPHA_ESC,
                                                 astro_params->F_ESC7_MINI * pow(1e3, astro_params->ALPHA_ESC));
         }
     }
@@ -1431,14 +1431,14 @@ void ts_main(float redshift, float prev_redshift, UserParams *user_params, Cosmo
 
                 LOG_SUPER_DEBUG("z %6.2f ave sfrd val %.3e global %.3e (int %.3e) Mmin %.3e ratio %.4e z_edge %.4e",
                                     zpp_for_evolve_list[R_ct],ave_fcoll,mean_sfr_zpp[R_ct],
-                                    Nion_General(zpp_for_evolve_list[R_ct], log(M_min_R[R_ct]), log(global_params.M_MAX_INTEGRAL),
+                                    Nion_General(zpp_for_evolve_list[R_ct], log(M_min_R[R_ct]), log(M_MAX_INTEGRAL),
                                                     Mcrit_atom_interp_table[R_ct], astro_params_global->ALPHA_STAR, 0.,
                                                     astro_params_global->F_STAR10, 1., Mlim_Fstar_g, 0.),
                                     M_min_R[R_ct],avg_fix_term,z_edge_factor);
                 if(flag_options_global->USE_MINI_HALOS){
                     LOG_SUPER_DEBUG("MINI sfrd val %.3e global %.3e (int %.3e) ratio %.3e log10McritLW %.3e Mlim %.3e",
                                     ave_fcoll_MINI,mean_sfr_zpp_mini[R_ct],
-                                    Nion_General_MINI(zpp_for_evolve_list[R_ct], log(M_min_R[R_ct]), log(global_params.M_MAX_INTEGRAL),
+                                    Nion_General_MINI(zpp_for_evolve_list[R_ct], log(M_min_R[R_ct]), log(M_MAX_INTEGRAL),
                                                         pow(10.,ave_log10_MturnLW[R_ct]), Mcrit_atom_interp_table[R_ct],
                                                         astro_params_global->ALPHA_STAR_MINI, 0., astro_params_global->F_STAR7_MINI,
                                                         1., Mlim_Fstar_MINI_g, 0.),

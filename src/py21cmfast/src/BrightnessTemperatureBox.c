@@ -20,6 +20,8 @@
 
 #include "BrightnessTemperatureBox.h"
 
+#define MAX_DVDR (0.2) //TODO: AstroParam? I don't think anyone has used this and I'm not sure what a reasonable value is
+
 float clip(float x, float min, float max){
     if(x<min) return min;
     if(x>max) return max;
@@ -156,7 +158,7 @@ int ComputeBrightnessTemp(float redshift, UserParams *user_params, CosmoParams *
         get_velocity_gradient(user_params, v, vel_gradient);
 
         // now add the velocity correction to the delta_T maps (only used for T_S >> T_CMB case).
-        max_v_deriv = fabs(global_params.MAX_DVDR*H);
+        max_v_deriv = fabs(MAX_DVDR*H);
 
         if(!(flag_options->USE_TS_FLUCT && flag_options->SUBCELL_RSD )){
             // Do this unless we are doing BOTH Ts fluctuations and subcell RSDs

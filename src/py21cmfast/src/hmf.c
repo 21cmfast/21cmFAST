@@ -1158,7 +1158,7 @@ double minimum_source_mass(double redshift, bool xray, AstroParams *astro_params
 
     // automatically false if !USE_MASS_DEPENDENT_ZETA
     if(flag_options->USE_MINI_HALOS){
-        Mmin = global_params.M_MIN_INTEGRAL;
+        Mmin = M_MIN_INTEGRAL;
     }
     // automatically true if USE_MASS_DEPENDENT_ZETA
     else if(flag_options->M_MIN_in_Mass) {

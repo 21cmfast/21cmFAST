@@ -108,8 +108,8 @@ int InitialisePhotonCons(UserParams *user_params, CosmoParams *cosmo_params,
         ION_EFF_FACTOR = astro_params->POP2_ION * astro_params->F_STAR10 * astro_params->F_ESC10;
 
         M_MIN = astro_params->M_TURN/50.;
-        Mlim_Fstar = Mass_limit_bisection(M_MIN, global_params.M_MAX_INTEGRAL, astro_params->ALPHA_STAR, astro_params->F_STAR10);
-        Mlim_Fesc = Mass_limit_bisection(M_MIN, global_params.M_MAX_INTEGRAL, astro_params->ALPHA_ESC, astro_params->F_ESC10);
+        Mlim_Fstar = Mass_limit_bisection(M_MIN, M_MAX_INTEGRAL, astro_params->ALPHA_STAR, astro_params->F_STAR10);
+        Mlim_Fesc = Mass_limit_bisection(M_MIN, M_MAX_INTEGRAL, astro_params->ALPHA_ESC, astro_params->F_ESC10);
         if(user_params->INTEGRATION_METHOD_ATOMIC == 2 || user_params->INTEGRATION_METHOD_MINI == 2){
           initialiseSigmaMInterpTable(fmin(MMIN_FAST,M_MIN),1e20);
         }
@@ -117,7 +117,7 @@ int InitialisePhotonCons(UserParams *user_params, CosmoParams *cosmo_params,
           initialiseSigmaMInterpTable(M_MIN,1e20);
         }
         lnMmin = log(M_MIN);
-        lnMmax = log(global_params.M_MAX_INTEGRAL);
+        lnMmax = log(M_MAX_INTEGRAL);
     }
     else {
         ION_EFF_FACTOR = astro_params->HII_EFF_FACTOR;

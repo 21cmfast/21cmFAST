@@ -288,6 +288,8 @@ class UserParams(InputStruct):
         available options are: `spherical-tophat`, `sharp-k` and `gaussian`
     INITIAL_REDSHIFT : float, optional
         Initial redshift used to perturb field from
+    DELTA_R_FACTOR: float, optional
+        The factor by which to decrease the size of the filter in DexM when creating halo catalogues.
     """
 
     _hmf_models = ["PS", "ST", "WATSON", "WATSON-Z", "DELOS"]
@@ -375,6 +377,7 @@ class UserParams(InputStruct):
         validator=validators.in_(_perturb_options),
         transformer=choice_transformer(_perturb_options),
     )
+    DELTA_R_FACTOR = field(default=1.1, converter=float, validator=validators.gt(1.0))
 
     @DIM.default
     def _dim_default(self):
@@ -509,6 +512,9 @@ class FlagOptions(InputStruct):
     HEAT_FILTER : int
         Filter for the halo or density field used to generate the spin-temperature field
         Available options are: 'spherical-tophat', 'sharp-k', and 'gaussian'
+    IONISE_ENTIRE_SPHERE: bool, optional
+        If True, ionises the entire sphere on the filter scale when an ionised region is found
+        in the excursion set.
     """
 
     _photoncons_models = [
@@ -562,6 +568,7 @@ class FlagOptions(InputStruct):
         validator=validators.in_(_filter_options),
         transformer=choice_transformer(_filter_options),
     )
+    IONISE_ENTIRE_SPHERE = field(default=False, converter=bool)
 
     @M_MIN_in_Mass.validator
     def _M_MIN_in_Mass_vld(self, att, val):
@@ -767,6 +774,8 @@ class AstroParams(InputStruct):
         Clumping factor of the IGM used ONLY in the x-ray partial ionisations (not the reionsiation model). Default is 2.0.
     ALPHA_UVB: float, optional
         The power-law index of the UVB spectrum. Used for Gamma12 in the recombination model
+    DELTA_R_HII_FACTOR: float, optional
+        The factor by which to decrease the size of the HII filter when calculating the HII regions.
     """
 
     HII_EFF_FACTOR = field(default=30.0, converter=float, validator=validators.gt(0))
@@ -856,6 +865,10 @@ class AstroParams(InputStruct):
     ALPHA_UVB = field(default=5.0, converter=float)
     R_MAX_TS = field(default=500.0, converter=float, validator=validators.gt(0))
     N_STEP_TS = field(default=40, converter=int, validator=validators.gt(0))
+
+    DELTA_R_HII_FACTOR = field(
+        default=1.1, converter=float, validator=validators.gt(1.0)
+    )
 
     # set the default of the minihalo scalings to continue the same PL
     @F_STAR7_MINI.default

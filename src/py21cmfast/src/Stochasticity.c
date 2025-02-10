@@ -107,7 +107,7 @@ void stoc_set_consts_z(struct HaloSamplingConstants *const_struct, double redshi
 
     const_struct->M_min = user_params_global->SAMPLER_MIN_MASS / user_params_global->SAMPLER_BUFFER_FACTOR;
     const_struct->lnM_min = log(const_struct->M_min);
-    const_struct->M_max_tables = global_params.M_MAX_INTEGRAL;
+    const_struct->M_max_tables = M_MAX_INTEGRAL;
     const_struct->lnM_max_tb = log(const_struct->M_max_tables);
 
     init_ps();
