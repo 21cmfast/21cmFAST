@@ -119,17 +119,26 @@ static inline char *timenow();
 #define LOG_IF_ERROR(condition, message, args...)
 #endif
 
-static inline char *timenow() {
-    static char buffer[64];
-    time_t rawtime;
-    struct tm *timeinfo;
+#ifdef __cplusplus
+extern "C"
+{
+#endif
+    static inline char *timenow()
+    {
+        static char buffer[64];
+        time_t rawtime;
+        struct tm *timeinfo;
 
-    time(&rawtime);
-    timeinfo = localtime(&rawtime);
+        time(&rawtime);
+        timeinfo = localtime(&rawtime);
 
-    strftime(buffer, 64, "%Y-%m-%d %H:%M:%S", timeinfo);
+        strftime(buffer, 64, "%Y-%m-%d %H:%M:%S", timeinfo);
 
-    return buffer;
+        return buffer;
+    }
+
+#ifdef __cplusplus
 }
+#endif
 
 #endif
