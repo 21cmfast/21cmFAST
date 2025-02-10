@@ -13,6 +13,8 @@
 #include <thrust/fill.h>
 #include <iostream>
 #include <algorithm>
+#include <vector>
+#include <cassert>
 
 #include "Constants.h"
 #include "interpolation_types.h"
@@ -22,6 +24,7 @@
 #include "cuda_utils.cuh"
 #include "Stochasticity.cuh"
 #include "DeviceConstants.cuh"
+#include "device_rng.cuh"
 #include "hmf.cu"
 #include "interp_tables.cu"
 
@@ -93,23 +96,78 @@ void condense_device_vector()
     std::cout << std::endl;
 }
 
-int condenseDeviceArray(float *d_array, int original_size, float mask_value)
+// int condenseDeviceArray(float *d_array, int original_size, float mask_value)
+// {
+//     // Wrap the raw device pointer into a thrust device pointer
+//     thrust::device_ptr<float> d_array_ptr(d_array);
+
+//     // Remove elements with mask value 
+//     // i.e.move elements not equal to mask value to the beginning of the array without changing order
+//     auto new_end = thrust::remove(d_array_ptr, d_array_ptr + original_size, mask_value);
+
+//     // Calculate the number of valid elements
+//     int valid_size = new_end - d_array_ptr;
+
+//     // Fill the remaining space with mask value
+//     thrust::fill(new_end, d_array_ptr + original_size, mask_value);
+
+//     // Print results (on host side)
+//     // std::cout << "Valid elements count: " << valid_size << "\n";
+//     return valid_size;
+// }
+
+template <typename T>
+int condenseDeviceArray(T *d_array, int original_size, T mask_value)
 {
     // Wrap the raw device pointer into a thrust device pointer
-    thrust::device_ptr<float> d_array_ptr(d_array);
+    thrust::device_ptr<T> d_array_ptr(d_array);
 
-    // Remove elements with value 0
-    // thrust::device_vector<int>::iterator new_end = thrust::remove(d_array_ptr, d_array_ptr + original_size, 0);
-    // thrust::device_ptr<int> new_end = thrust::remove(d_array_ptr, d_array_ptr + original_size, 0);
+    // Remove elements with mask value
     auto new_end = thrust::remove(d_array_ptr, d_array_ptr + original_size, mask_value);
 
     // Calculate the number of valid elements
     int valid_size = new_end - d_array_ptr;
+
+    // Fill the remaining space with mask value
     thrust::fill(new_end, d_array_ptr + original_size, mask_value);
 
-    // Print results (on host side)
-    // std::cout << "Valid elements count: " << valid_size << "\n";
     return valid_size;
+}
+
+void testCondenseDeviceArray()
+{
+    // Input data
+    float h_array[] = {1.0f, 0.0f, 2.0f, 3.0f, 0.0f, 4.0f};
+    float mask_value = 0.0f;
+    int original_size = 6;
+
+    // Expected outputs
+    float expected_array[] = {1.0f, 2.0f, 3.0f, 4.0f, 0.0f, 0.0f};
+    int expected_valid_size = 4;
+
+    // Allocate and copy to device
+    float *d_array;
+    cudaMalloc(&d_array, original_size * sizeof(float));
+    cudaMemcpy(d_array, h_array, original_size * sizeof(float), cudaMemcpyHostToDevice);
+
+    // Call the function from Stochasticity.cu
+    int valid_size = condenseDeviceArray(d_array, original_size, mask_value);
+
+    // Copy the results back to the host
+    float h_result[original_size];
+    cudaMemcpy(h_result, d_array, original_size * sizeof(float), cudaMemcpyDeviceToHost);
+
+    // Validate the results
+    assert(valid_size == expected_valid_size);
+    for (int i = 0; i < original_size; ++i)
+    {
+        assert(h_result[i] == expected_array[i]);
+    }
+
+    std::cout << "Test passed: condenseDeviceArray\n";
+
+    // Free device memory
+    cudaFree(d_array);
 }
 
 int filterWithMask(float *d_data, int *d_mask, int original_size)
@@ -130,16 +188,90 @@ int filterWithMask(float *d_data, int *d_mask, int original_size)
     return valid_size;
 }
 
+void testFilterWithMask()
+{
+    // Input arrays
+    float h_data[] = {1.1f, 2.2f, 3.3f, 4.4f, 5.5f}; // Input data
+    int h_mask[] = {1, 0, 1, 0, 1};                  // Mask array
+    int original_size = 5;
+
+    // Expected outputs
+    float expected_data[] = {1.1f, 3.3f, 5.5f}; // Expected filtered data
+    int expected_size = 3;                      // Number of valid elements
+
+    // Allocate device memory
+    float *d_data;
+    int *d_mask;
+    cudaMalloc(&d_data, original_size * sizeof(float));
+    cudaMalloc(&d_mask, original_size * sizeof(int));
+
+    // Copy data to device
+    cudaMemcpy(d_data, h_data, original_size * sizeof(float), cudaMemcpyHostToDevice);
+    cudaMemcpy(d_mask, h_mask, original_size * sizeof(int), cudaMemcpyHostToDevice);
+
+    // Call the function
+    int valid_size = filterWithMask(d_data, d_mask, original_size);
+
+    // Copy the filtered data back to host
+    float h_result[original_size];
+    cudaMemcpy(h_result, d_data, original_size * sizeof(float), cudaMemcpyDeviceToHost);
+
+    // Validate the size of the filtered array
+    assert(valid_size == expected_size);
+
+    // Validate the filtered elements
+    for (int i = 0; i < valid_size; ++i)
+    {
+        assert(h_result[i] == expected_data[i]);
+    }
+
+    // Print success message
+    std::cout << "Test passed: filterWithMask\n";
+
+    // Free device memory
+    cudaFree(d_data);
+    cudaFree(d_mask);
+}
+
+void countElements(const int *array, int size, const std::vector<int> &values_to_count)
+{
+    // Initialize a frequency array to count occurrences
+    int count[values_to_count.size()] = {0};
+
+    // Iterate through the input array
+    for (int i = 0; i < size; ++i)
+    {
+        // Find the index of the value in values_to_count
+        for (size_t j = 0; j < values_to_count.size(); ++j)
+        {
+            if (array[i] == values_to_count[j])
+            {
+                count[j]++;
+                break;
+            }
+        }
+    }
+
+    // Print the results
+    for (size_t i = 0; i < values_to_count.size(); ++i)
+    {
+        std::cout << "Value " << values_to_count[i] << ": " << count[i] << " occurrences\n";
+    }
+}
+
 // decide the number of sparsity
 int getSparsity(int n_buffer, int n_halo){
-    int power = floor(log2(n_buffer / n_halo));
-    int sparsity = 1 << power;
-    return sparsity;
+    if (n_halo > 0){
+        int power = floor(log2(n_buffer / n_halo));
+        int sparsity = 1 << power;
+        return sparsity;
+    }
+
 }
 
 // initialize device array with given value
-void initializeArray(float *d_array, int n_elements, float value){
-    thrust::device_ptr<float> d_array_ptr(d_array);
+void initializeArray(int *d_array, int n_elements, int value){
+    thrust::device_ptr<int> d_array_ptr(d_array);
     thrust::fill(d_array_ptr, d_array_ptr + n_elements, value);
 }
 // more members of deviceprop can be found in cura_runtime_api documentation
@@ -171,11 +303,12 @@ struct GridLayout{
     int n_threads;
     int n_blocks;
 };
-// calculate workload for the second iteration
+// calculate workload 
+// todo: add more checks on sparsity
 GridLayout getWorkload(int sparsity, unsigned long long int n_halos){
     GridLayout res;
     int n_threads, n_blocks;
-    if (sparsity == 4){
+    if (sparsity != 0 && 256 % sparsity == 0){
         n_threads = 256;
     }
     else {
@@ -238,6 +371,7 @@ __device__ double sample_dndM_inverse(double condition, struct HaloSamplingConst
 {
     double p_in, result;
     p_in = curand_uniform_double(state);
+    // printf("curand uniform random number: %f\n", p_in);
     result = EvaluateNhaloInv(condition, p_in);
     result = fmin(1.0, fmax(0.0, result)); // clip in case of extrapolation
     result = result * hs_constants->M_cond;
@@ -249,16 +383,16 @@ __device__ double remove_random_halo(curandState *state, int n_halo, int *idx, f
     int random_idx;
     do {
         random_idx = (int)(curand_uniform(state) * n_halo);
-    } while (M_out[random_idx] == -1.f);
+    } while (M_out[random_idx] == 0.0f);
     last_M_del = M_out[random_idx];
     *M_prog -= last_M_del;
-    M_out[random_idx] = -1.f; // -1 mass halos are skipped and not counted
+    M_out[random_idx] = 0.0f; // -1 mass halos are skipped and not counted
 
     *idx = random_idx;
     return last_M_del;
 }
 
-__device__ void fix_mass_sample(curandState *state, double exp_M, float *M_prog, float *M_out, int write_limit){
+__device__ void fix_mass_sample(curandState *state, double exp_M, float *M_prog, float *M_out, int write_limit, int *n_prog){
     // Keep the last halo if it brings us closer to the expected mass
     // This is done by addition or subtraction over the limit to balance
     // the bias of the last halo being larger
@@ -272,7 +406,8 @@ __device__ void fix_mass_sample(curandState *state, double exp_M, float *M_prog,
         {
             // *M_tot_pt -= M_out[*n_halo_pt - 1];
             // here we remove by setting the counter one lower so it isn't read
-            M_out[write_limit] = -1.f;
+            M_out[write_limit] = 0.0f;
+            (*n_prog)--;
         }
     }
     else
@@ -333,7 +468,7 @@ __device__ int stoc_mass_sample(struct HaloSamplingConstants *hs_constants, cura
     return 0;
 }
 
-__device__ int stoc_sample(struct HaloSamplingConstants *hs_constants, curandState *state, float *M_out){
+__device__ int stoc_sample(struct HaloSamplingConstants *hs_constants, curandState *state, float *M_out, int *sampleCondition){
     // TODO: really examine the case for number/mass sampling
     // The poisson sample fails spectacularly for high delta (from_catalogs or dense cells)
     //   and excludes the correlation between number and mass (e.g many small halos or few large ones)
@@ -348,6 +483,7 @@ __device__ int stoc_sample(struct HaloSamplingConstants *hs_constants, curandSta
     if (hs_constants->delta <= DELTA_MIN || hs_constants->expected_M < d_user_params.SAMPLER_MIN_MASS)
     {
         // *n_halo_out = 0;
+        *sampleCondition = 0;
         return 0;
     }
     // if delta is above critical, form one big halo
@@ -355,7 +491,8 @@ __device__ int stoc_sample(struct HaloSamplingConstants *hs_constants, curandSta
         // *n_halo_out = 1;
 
         // Expected mass takes into account potential dexm overlap
-        M_out[0] = hs_constants->expected_M;
+        *M_out = hs_constants->expected_M;
+        *sampleCondition = 1;
         return 0;
     }
 
@@ -425,29 +562,28 @@ __device__ int stoc_sample(struct HaloSamplingConstants *hs_constants, curandSta
 //     LOG_SUPER_DEBUG("Set %llu elements beyond %llu to zero", halofield->buffer_size - count_total, count_total);
 // }
 
-// todo: implement set_prop_rng
-// __device__ void set_prop_rng(gsl_rng *rng, bool from_catalog, double *interp, double *input, double *output)
-// {
-//     double rng_star, rng_sfr, rng_xray;
+__device__ void set_prop_rng(curandState *state, bool from_catalog, double *interp, float *input, float *output)
+{
+    float rng_star, rng_sfr, rng_xray;
 
-//     // Correlate properties by interpolating between the sampled and descendant gaussians
-//     rng_star = astro_params_global->SIGMA_STAR > 0. ? gsl_ran_ugaussian(rng) : 0.;
-//     rng_sfr = astro_params_global->SIGMA_SFR_LIM > 0. ? gsl_ran_ugaussian(rng) : 0.;
-//     rng_xray = astro_params_global->SIGMA_LX > 0. ? gsl_ran_ugaussian(rng) : 0.;
+    // Correlate properties by interpolating between the sampled and descendant gaussians
+    rng_star = d_astro_params.SIGMA_STAR > 0. ? curand_normal(state) : 0.;
+    rng_sfr = d_astro_params.SIGMA_SFR_LIM > 0. ? curand_normal(state) : 0.;
+    rng_xray = d_astro_params.SIGMA_LX > 0. ? curand_normal(state) : 0.;
 
-//     if (from_catalog)
-//     {
-//         // this transforms the sample to one from the multivariate Gaussian, conditioned on the first sample
-//         rng_star = sqrt(1 - interp[0] * interp[0]) * rng_star + interp[0] * input[0];
-//         rng_sfr = sqrt(1 - interp[1] * interp[1]) * rng_sfr + interp[1] * input[1];
-//         rng_xray = sqrt(1 - interp[2] * interp[2]) * rng_xray + interp[2] * input[2];
-//     }
+    if (from_catalog)
+    {
+        // this transforms the sample to one from the multivariate Gaussian, conditioned on the first sample
+        rng_star = sqrt(1 - interp[0] * interp[0]) * rng_star + interp[0] * input[0];
+        rng_sfr = sqrt(1 - interp[1] * interp[1]) * rng_sfr + interp[1] * input[1];
+        rng_xray = sqrt(1 - interp[2] * interp[2]) * rng_xray + interp[2] * input[2];
+    }
 
-//     output[0] = rng_star;
-//     output[1] = rng_sfr;
-//     output[2] = rng_xray;
-//     return;
-// }
+    output[0] = rng_star;
+    output[1] = rng_sfr;
+    output[2] = rng_xray;
+    return;
+}
 
 // kernel function
 __global__ void setup_random_states(curandState *d_states, unsigned long long int random_seed){
@@ -456,36 +592,70 @@ __global__ void setup_random_states(curandState *d_states, unsigned long long in
     curand_init(random_seed, ind, 0, &d_states[ind]);
 }
 
-__global__ void update_halo_constants(float *d_halo_masses, float *d_y_arr, double x_min, double x_width,
+__global__ void update_halo_constants(float *d_halo_masses, float *d_star_rng_in, float *d_sfr_rng_in, float *d_xray_rng_in, 
+                                      int *d_halo_coords_in, float *d_y_arr, double x_min, double x_width,
                                       unsigned long long int n_halos, int n_bin, struct HaloSamplingConstants d_hs_constants,
                                       int HMF, curandState *d_states,
-                                      float *d_halo_masses_out, float *star_rng_out,
-                                      float *sfr_rng_out, float *xray_rng_out, float *halo_coords_out, int *d_sum_check,
-                                      int *d_further_process, int *d_nprog_predict, int sparsity, unsigned long long int write_offset, double *expected_mass)
+                                      float *d_halo_masses_out, float *d_star_rng_out,
+                                      float *d_sfr_rng_out, float *d_xray_rng_out, int *d_halo_coords_out, int *d_sum_check,
+                                      int *d_further_process, int *d_nprog_predict, int sparsity, unsigned long long int write_offset, 
+                                      double *expected_mass, int *d_n_prog, int offset_shared)
 {
     // Define shared memory for block-level reduction
-    // extern __shared__ float shared_mass[];
-    __shared__ float shared_mass[256];
-    
-    // get thread idx
+    extern __shared__ float shared_memory[];
+    // __shared__ float shared_mass[256];
+
+    // partition shared memory
+    float *shared_mass = shared_memory;
+    float *shared_prop_rng = shared_memory + offset_shared;
+
+    // get local thread idx
     int tid = threadIdx.x;
+
+    // initialize shared_mass
+    shared_mass[tid] = 0.0f;
+
+    // initialize shared_prop_rng
+    for (int i=0;i<3;i++){
+        shared_prop_rng[tid+i*offset_shared] = 0.0f;
+    }
+    
+
+    // get global thread idx
     int ind = blockIdx.x * blockDim.x + threadIdx.x;
-    if (ind >= n_halos)
+    
+    // get halo idx
+    int hid = ind / sparsity;
+    if (hid >= n_halos)
     {
+        // printf("Out of halo range.\n");
         return;
     }
 
-    // determine which halo mass to access
-    int hid = ind / sparsity;
+    // get halo mass
     float M = d_halo_masses[hid];
 
-    // idx of d_halo_masses_out
-    int out_id = write_offset + ind;
+    // get stoc properties from in halo
+    float prop_in[3] = {d_star_rng_in[hid], d_sfr_rng_in[hid], d_xray_rng_in[hid]};
 
-    // int n_prog = 0; // the value will be updated after calling stoc_sample
+    // get correction
+    double corr_arr[3] = {d_hs_constants.corr_star, d_hs_constants.corr_sfr, d_hs_constants.corr_xray};
+
+    // get coordinate
+    int coords_in[3] = {d_halo_coords_in[hid*3], d_halo_coords_in[hid*3+1], d_halo_coords_in[hid*3+2]};
+
+    // idx of d_halo_masses_out and other halo field arrays
+    int out_id = write_offset + ind;
 
     // set condition-dependent variables for sampling
     stoc_set_consts_cond(&d_hs_constants, M, HMF, x_min, x_width, d_y_arr, n_bin, &expected_mass[hid]);
+    // if (hid == 1){
+    //     printf("check here. \n");
+    // }
+
+    // if (hid == 2){
+    //     printf("check here. \n");
+    // }
 
     // tmp: just to verify the tables have been copied correctly
     if (ind == 0)
@@ -497,94 +667,165 @@ __global__ void update_halo_constants(float *d_halo_masses, float *d_y_arr, doub
         printf("test params: %f \n", d_test_params);
         printf("A_VCB: %f \n", d_astro_params.A_VCB);
         printf("SIGMA_8: %f \n", d_cosmo_params.SIGMA_8);
+        // printf("number of rng states: %d\n", g_numRNGStates);
+        // // tiger tmp: debug (start)
+        // double res1, res2, res3, res4;
+        // res1 = EvaluateNhaloInv(18.694414138793945, 0.0046723012881037529);
+        // printf("tmp res1 on gpu: %.17f \n", res1);
+        // res2 = EvaluateNhaloInv(20.084152221679688, 0.32153863360286256);
+        // printf("tmp res2 on gpu: %.17f \n", res2);
+        // res3 = EvaluateNhaloInv(26.806314468383789, 0.8698794976081996);
+        // printf("tmp res3 on gpu: %.17f \n", res3);
+        // res4 = EvaluateNhaloInv(19.00053596496582, 0.83130413049947305);
+        // printf("tmp res4 on gpu: %.17f \n", res4);
+        // // tiger tmp: debug (end)
     }
+    // if (ind < 10000){
+    //     curandState ls_tmp = d_rngStates[ind];
+    // }
 
     // todo: each thread across different blocks has unique random state
     // curand_init(seed, threadIdx.x, 0, &d_states[threadIdx.x]);
     // curandState local_state = d_states[threadIdx.x];
     curandState local_state = d_states[ind];
+    // if (blockIdx.x > 100000){
+    //     // printf("check here. \n");
+    // }
     // tmp: for validation only
     // sample_dndM_inverse(0.38, &d_hs_constants, &local_state);
     // int tmp1 = 20;
     // double tmp2 = 681273355217.0;
-    // float tmp3 = 101976856.0; 
+    // float tmp3 = 101976856.0;
     // remove_random_halo(&local_state, 59, &tmp1, &tmp2, &tmp3);
-    stoc_sample(&d_hs_constants, &local_state, &shared_mass[tid]);
-    d_states[ind] = local_state;
+
+    // check sample condition
+    // condition 0: no sampling; condition 1: use expected_M; condition 2: sampling
+    int sampleCondition = 2;
+    stoc_sample(&d_hs_constants, &local_state, &shared_mass[tid], &sampleCondition);
+
+    // get stochastic halo properties
+    set_prop_rng(&local_state, true, corr_arr, prop_in, &shared_prop_rng[tid*3]);
+
+    
 
     __syncthreads();
 
-    // printf("the first element of shared mass: %f \n", shared_mass[0]);
-    // passing value to arrays in global memory is done by one thread per group
     if (tid % sparsity == 0){
-        float Mprog = 0.0;
-        int write_limit = 0;
-        int meetCondition = 0; 
+        if (sampleCondition == 0){
+            d_n_prog[hid] = 0;
+        }
+        if (sampleCondition == 1){
+            if(shared_mass[tid] >= d_user_params.SAMPLER_MIN_MASS){
+                d_halo_masses_out[out_id] = shared_mass[tid];
+                d_n_prog[hid] = 1;
+                d_star_rng_out[out_id] = shared_prop_rng[3 * tid];
+                d_sfr_rng_out[out_id] = shared_prop_rng[3 * tid + 1];
+                d_xray_rng_out[out_id] = shared_prop_rng[3 * tid + 2];
+                d_halo_coords_out[out_id*3] = coords_in[0];
+                d_halo_coords_out[out_id*3+1] = coords_in[1];
+                d_halo_coords_out[out_id*3+2] = coords_in[2];
 
-        for (int i = 0; i < sparsity; ++i){
-            Mprog += shared_mass[tid + i];
-            if (Mprog >= d_hs_constants.expected_M)
-            {
-                write_limit = i;
-                meetCondition = 1;
-                break;
-            }
-            
-            // d_halo_masses_out[out_id+i] = shared_mass[tid+i];
-            }
-        if (meetCondition){
-            // correct the mass samples
-            fix_mass_sample(&local_state, d_hs_constants.expected_M, &Mprog, &shared_mass[tid], write_limit);
-
-            for (int i = 0; i < write_limit; ++i)
-            {
-
-                // write the final mass sample to array in global memory
-                d_halo_masses_out[out_id + i] = shared_mass[tid + i];
             }
         }
-        else{
-            d_further_process[hid] = 1;
-            d_nprog_predict[hid] = ceil(d_hs_constants.expected_M * sparsity / Mprog);
-        
+        if (sampleCondition == 2){
+            float Mprog = 0.0;
+            int write_limit = 0;
+            int meetCondition = 0;
+
+            for (int i = 0; i < sparsity; ++i){
+                Mprog += shared_mass[tid + i];
+                if (Mprog >= d_hs_constants.expected_M)
+                {
+                    write_limit = i;
+                    meetCondition = 1;
+                    break;
+                }
+                }
+            
+            if (meetCondition){
+                // correct the mass samples
+                int n_prog = write_limit +1;
+                
+                fix_mass_sample(&local_state, d_hs_constants.expected_M, &Mprog, &shared_mass[tid], write_limit, &n_prog);
+
+                // record number of progenitors
+                d_n_prog[hid] = min(100,n_prog);
+
+                for (int i = 0; i < write_limit + 1; ++i)
+                {
+                    if(shared_mass[tid + i] < d_user_params.SAMPLER_MIN_MASS) continue;
+                    // write the final mass sample to array in global memory
+                    d_halo_masses_out[out_id + i] = shared_mass[tid + i];
+                    d_star_rng_out[out_id + i] = shared_prop_rng[3*(tid +i)];
+                    d_sfr_rng_out[out_id + i] = shared_prop_rng[3*(tid+i) + 1];
+                    d_xray_rng_out[out_id + i] = shared_prop_rng[3*(tid+i) + 2];
+                    d_halo_coords_out[(out_id+i) * 3] = coords_in[0];
+                    d_halo_coords_out[(out_id+i) * 3 + 1] = coords_in[1];
+                    d_halo_coords_out[(out_id+i) * 3 + 2] = coords_in[2];
+                }
+            }
+            else{
+                d_further_process[hid] = 1;
+                d_nprog_predict[hid] = ceil(d_hs_constants.expected_M * sparsity / Mprog);
+
+            }
         }
     }
 
-    // Perform reduction within the block
-    // for (int stride = blockDim.x / 2; stride > 0; stride /= 2)
-    // {
-    //     if (tid < stride)
-    //     {
-    //         shared_check[tid] += shared_check[tid + stride];
-    //     }
-    //     __syncthreads(); // Ensure all threads have completed each stage of reduction
-    // }
+        // Perform reduction within the block
+        // for (int stride = blockDim.x / 2; stride > 0; stride /= 2)
+        // {
+        //     if (tid < stride)
+        //     {
+        //         shared_check[tid] += shared_check[tid + stride];
+        //     }
+        //     __syncthreads(); // Ensure all threads have completed each stage of reduction
+        // }
 
-    // Write the result from each block to the global sum 
-    // if (tid == 0)
-    // {
-    //     atomicAdd(d_sum_check, shared_check[0]);
-    // }
+        // Write the result from each block to the global sum
+        // if (tid == 0)
+        // {
+        //     atomicAdd(d_sum_check, shared_check[0]);
+        // }
 
-    // Sample the CMF set by the descendant
-    // stoc_sample(&hs_constants, &local_state, &n_prog, prog_buf);
+        // Sample the CMF set by the descendant
+        // stoc_sample(&hs_constants, &local_state, &n_prog, prog_buf);
 
-    // double sigma = EvaluateSigma(log(M), x_min, x_width, d_y_arr, n_bin);
-    // double delta = get_delta_crit(HMF, sigma, d_hs_constants.growth_in)\
+        // double sigma = EvaluateSigma(log(M), x_min, x_width, d_y_arr, n_bin);
+        // double delta = get_delta_crit(HMF, sigma, d_hs_constants.growth_in)\
     //                                 / d_hs_constants.growth_in * d_hs_constants.growth_out;
 
+    d_states[ind] = local_state;
     return;
 }
 
 // function to launch kernel grids
-int updateHaloOut(float *halo_masses, unsigned long long int n_halos, float *y_arr, int n_bin_y, double x_min, double x_width,
-                  struct HaloSamplingConstants hs_constants, unsigned long long int n_buffer)
+int updateHaloOut(float *halo_masses, float *star_rng, float *sfr_rng, float *xray_rng, int *halo_coords,
+                  unsigned long long int n_halos, float *y_arr, int n_bin_y, double x_min, double x_width,
+                  struct HaloSamplingConstants hs_constants, unsigned long long int n_buffer, HaloField *halofield_out)
 {
-    // allocate memory and copy halo_masses to the device
+    // allocate memory and copy halo data to the device (halo in)
     size_t size_halo = sizeof(float) * n_halos;
     float *d_halo_masses;
     CALL_CUDA(cudaMalloc(&d_halo_masses, size_halo));
     CALL_CUDA(cudaMemcpy(d_halo_masses, halo_masses, size_halo, cudaMemcpyHostToDevice));
+
+    float *d_star_rng;
+    CALL_CUDA(cudaMalloc(&d_star_rng, size_halo));
+    CALL_CUDA(cudaMemcpy(d_star_rng, star_rng, size_halo, cudaMemcpyHostToDevice));
+
+    float *d_sfr_rng;
+    CALL_CUDA(cudaMalloc(&d_sfr_rng, size_halo));
+    CALL_CUDA(cudaMemcpy(d_sfr_rng, sfr_rng, size_halo, cudaMemcpyHostToDevice));
+
+    float *d_xray_rng;
+    CALL_CUDA(cudaMalloc(&d_xray_rng, size_halo));
+    CALL_CUDA(cudaMemcpy(d_xray_rng, xray_rng, size_halo, cudaMemcpyHostToDevice));
+
+    int *d_halo_coords;
+    size_t size_halo_coords = 3 * sizeof(int) * n_halos;
+    CALL_CUDA(cudaMalloc(&d_halo_coords, size_halo_coords));
+    CALL_CUDA(cudaMemcpy(d_halo_coords, halo_coords, size_halo_coords, cudaMemcpyHostToDevice));
 
     // allocate memory and copy y_arr of sigma_table to the device
     size_t size_yarr = sizeof(float) * n_bin_y;
@@ -602,6 +843,11 @@ int updateHaloOut(float *halo_masses, unsigned long long int n_halos, float *y_a
     CALL_CUDA(cudaMalloc(&d_further_process, sizeof(int)*n_halos));
     CALL_CUDA(cudaMemset(d_further_process, 0, sizeof(int)*n_halos));
 
+    // allocate memory to store number of progenitors per halo
+    int *d_n_prog;
+    CALL_CUDA(cudaMalloc(&d_n_prog, sizeof(int) * n_halos));
+    initializeArray(d_n_prog, n_halos, 32);
+
     // allocate memory to store estimated n_prog after the first kernel launch
     int *d_nprog_predict;
     CALL_CUDA(cudaMalloc(&d_nprog_predict, sizeof(int) * n_halos));
@@ -616,49 +862,48 @@ int updateHaloOut(float *halo_masses, unsigned long long int n_halos, float *y_a
     // get parameters needed by the kernel
     int HMF = user_params_global->HMF;
 
-    // start with 4 threads work with one halo
-    int sparsity = 4;
-
-    // define threads layout for starting
-    // int n_threads = 256;
-    // int n_blocks = (int)((n_halos*sparsity + 255) / 256);
-    // int total_threads = n_threads * n_blocks;
-
-    GridLayout grids = getWorkload(sparsity, n_halos);
-    int total_threads = grids.n_threads * grids.n_blocks;
+    // set buffer size (hard-coded)
+    int scale = 5;
+    size_t d_n_buffer = n_halos * scale;
+    size_t buffer_size = sizeof(float) * d_n_buffer;
 
     // allocate memory for out halos (just allocate once at each call of this grid launch function)
-
-    // size_t buffer_size = sizeof(float) * max(total_threads * 2, n_buffer) * 2;
-    size_t d_n_buffer = total_threads * 4 + 10;
-    size_t buffer_size = sizeof(float) * d_n_buffer;
     float *d_halo_masses_out;
     CALL_CUDA(cudaMalloc(&d_halo_masses_out, buffer_size));
-    // CALL_CUDA(cudaMemset(d_halo_masses_out, 0, buffer_size));
-    initializeArray(d_halo_masses_out, d_n_buffer, -1.0f);
+    CALL_CUDA(cudaMemset(d_halo_masses_out, 0, buffer_size));
+    // initializeArray(d_halo_masses_out, d_n_buffer, -1.2f);
 
-    float *star_rng_out;
-    CALL_CUDA(cudaMalloc(&star_rng_out, buffer_size));
+    float *d_star_rng_out;
+    CALL_CUDA(cudaMalloc(&d_star_rng_out, buffer_size));
+    CALL_CUDA(cudaMemset(d_star_rng_out, 0, buffer_size));
 
-    float *sfr_rng_out;
-    CALL_CUDA(cudaMalloc(&sfr_rng_out, buffer_size));
+    float *d_sfr_rng_out;
+    CALL_CUDA(cudaMalloc(&d_sfr_rng_out, buffer_size));
+    CALL_CUDA(cudaMemset(d_sfr_rng_out, 0, buffer_size));
 
-    float *xray_rng_out;
-    CALL_CUDA(cudaMalloc(&xray_rng_out, buffer_size));
+    float *d_xray_rng_out;
+    CALL_CUDA(cudaMalloc(&d_xray_rng_out, buffer_size));
+    CALL_CUDA(cudaMemset(d_xray_rng_out, 0, buffer_size));
 
-    float *halo_coords_out;
-    CALL_CUDA(cudaMalloc(&halo_coords_out, buffer_size * 3));
+    int *d_halo_coords_out;
+    CALL_CUDA(cudaMalloc(&d_halo_coords_out, sizeof(int) * d_n_buffer * 3));
+    initializeArray(d_halo_coords_out, d_n_buffer * 3, -1000);
 
+    // setup RNG (todo: set it only once for iteration over different redshift)
+    GridLayout grids_rng = getWorkload(1, d_n_buffer);
+    int total_threads_rng = grids_rng.n_threads * grids_rng.n_blocks;
     // Allocate memory for RNG states
     curandState *d_states;
-    CALL_CUDA(cudaMalloc((void **)&d_states, total_threads * sizeof(curandState)));
+    CALL_CUDA(cudaMalloc((void **)&d_states, total_threads_rng * sizeof(curandState)));
 
     // setup random states
-    setup_random_states<<<grids.n_blocks, grids.n_threads>>>(d_states, 1234ULL);
-
+    setup_random_states<<<grids_rng.n_blocks, grids_rng.n_threads>>>(d_states, 1234ULL);
     // Check kernel launch errors
     CALL_CUDA(cudaGetLastError());
+    // CALL_CUDA(cudaDeviceSynchronize());
 
+    free_rand_states();
+    
     // initiate n_halo check
     unsigned long long int n_halo_check = n_halos;
 
@@ -666,7 +911,10 @@ int updateHaloOut(float *halo_masses, unsigned long long int n_halos, float *y_a
     unsigned long long int write_offset = 0;
 
     // initialize n filter halo
-    unsigned long long int n_filter_halo = n_halos;
+    unsigned long long int n_halos_tbp = n_halos;
+
+    // initialize number of progenitors processed
+    unsigned long long int n_processed_prog;
 
     getDeviceProperties();
 
@@ -676,89 +924,151 @@ int updateHaloOut(float *halo_masses, unsigned long long int n_halos, float *y_a
     printf("Kernel Registers per Thread: %d\n", attr.numRegs);
     printf("Kernel Max Threads per Block: %d\n", attr.maxThreadsPerBlock);
 
+    // start with 4 threads work with one halo
+    int sparsity = 4;
+
+    // Check if sparsity is smaller than scale
+    if (sparsity >= scale)
+    {
+        throw std::runtime_error("'sparsity' must be smaller than 'scale'.");
+    }
+
+    // initial kernel grid
+    GridLayout grids = getWorkload(sparsity, n_halos);
+
     // launch kernel grid
-    while (n_filter_halo > 0){
-    size_t shared_size = grids.n_threads*sizeof(float);
-    update_halo_constants<<<grids.n_blocks, grids.n_threads>>>(d_halo_masses, d_y_arr, x_min, x_width, n_halos, n_bin_y, hs_constants, HMF, d_states, d_halo_masses_out, star_rng_out,
-                                                       sfr_rng_out, xray_rng_out, halo_coords_out, d_sum_check, d_further_process, d_nprog_predict, sparsity, write_offset, d_expected_mass);
+    while (n_halos_tbp > 0){
+    size_t shared_size = grids.n_threads * sizeof(float) * 4;
+    int offset_shared = grids.n_threads;
+    printf("start launching kernel function.\n");
+    update_halo_constants<<<grids.n_blocks, grids.n_threads, shared_size>>>(d_halo_masses, d_star_rng, d_sfr_rng, d_xray_rng, d_halo_coords,
+                                                       d_y_arr, x_min, x_width, n_halos_tbp, n_bin_y, hs_constants, HMF, d_states, d_halo_masses_out, d_star_rng_out,
+                                                       d_sfr_rng_out, d_xray_rng_out, d_halo_coords_out, d_sum_check, d_further_process, d_nprog_predict, sparsity, write_offset, d_expected_mass, 
+                                                       d_n_prog, offset_shared);
 
     // Check kernel launch errors
     CALL_CUDA(cudaGetLastError());
 
-    CALL_CUDA(cudaDeviceSynchronize());
+    // CALL_CUDA(cudaDeviceSynchronize());
 
     // filter device halo masses in-place
-    n_filter_halo = filterWithMask(d_halo_masses, d_further_process, n_halos);
-    printf("The number of halos for further processing: %d \n", n_filter_halo);
+    n_halos_tbp = filterWithMask(d_halo_masses, d_further_process, n_halos_tbp);
+    printf("The number of halos for further processing: %d \n", n_halos_tbp);
 
-    // condense out halo mass array
-    unsigned long long int n_processed_prog = condenseDeviceArray(d_halo_masses_out, d_n_buffer, -1.0f);
+    // // tmp 2025-01-19: check d_halo_masses_out writing out 
+    // float *h_halo_masses_out_check;
+    // CALL_CUDA(cudaHostAlloc((void **)&h_halo_masses_out_check, buffer_size, cudaHostAllocDefault));
+    // CALL_CUDA(cudaMemcpy(h_halo_masses_out_check, d_halo_masses_out, buffer_size, cudaMemcpyDeviceToHost));
+
+    // number of progenitors per halo
+    int *h_n_prog;
+    CALL_CUDA(cudaHostAlloc((void **)&h_n_prog, sizeof(int)*n_halos, cudaHostAllocDefault));
+    CALL_CUDA(cudaMemcpy(h_n_prog, d_n_prog, sizeof(int)*n_halos, cudaMemcpyDeviceToHost));
+
+    // Values to count
+    std::vector<int> values_to_count = {0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 100,32};
+
+    // Count and display occurrences
+    countElements(h_n_prog, n_halos, values_to_count);
+
+    // condense halo mass array on the device
+    n_processed_prog = condenseDeviceArray(d_halo_masses_out, d_n_buffer, 0.0f);
     printf("The number of progenitors written in out halo field so far: %d \n", n_processed_prog);
+    
+    // condense other halo field arrays on the device
+    // unsigned long long int n_processed_star_rng = condenseDeviceArray(d_star_rng_out, d_n_buffer, 0.0f);
+    // printf("The number of star prop rng written in out halo field so far: %d \n", n_processed_star_rng);
+
+    // unsigned long long int n_processed_sfr_rng = condenseDeviceArray(d_sfr_rng_out, d_n_buffer, 0.0f);
+    // printf("The number of sfr prop rng written in out halo field so far: %d \n", n_processed_sfr_rng);
+
+    // unsigned long long int n_processed_xray_rng = condenseDeviceArray(d_xray_rng_out, d_n_buffer, 0.0f);
+    // printf("The number of xray prop rng written in out halo field so far: %d \n", n_processed_xray_rng);
+
+    // unsigned long long int n_processed_coords = condenseDeviceArray(d_halo_coords_out, d_n_buffer*3, -1000);
+    // printf("The number of halo coords written in out halo field so far: %d \n", n_processed_coords);
 
     // tmp: the following is just needed for debugging purpose
-    float *h_filter_halos;
-    CALL_CUDA(cudaHostAlloc((void **)&h_filter_halos, sizeof(float) * n_filter_halo, cudaHostAllocDefault));
-    CALL_CUDA(cudaMemcpy(h_filter_halos, d_halo_masses, sizeof(float) * n_filter_halo, cudaMemcpyDeviceToHost));
+    // float *h_filter_halos;
+    // CALL_CUDA(cudaHostAlloc((void **)&h_filter_halos, sizeof(float) * n_halos_tbp, cudaHostAllocDefault));
+    // CALL_CUDA(cudaMemcpy(h_filter_halos, d_halo_masses, sizeof(float) * n_halos_tbp, cudaMemcpyDeviceToHost));
 
-    int *h_nprog_predict;
-    CALL_CUDA(cudaHostAlloc((void **)&h_nprog_predict, sizeof(int) * n_halos, cudaHostAllocDefault));
-    CALL_CUDA(cudaMemcpy(h_nprog_predict, d_nprog_predict, sizeof(int) * n_halos, cudaMemcpyDeviceToHost));
+    // int *h_nprog_predict;
+    // CALL_CUDA(cudaHostAlloc((void **)&h_nprog_predict, sizeof(int) * n_halos, cudaHostAllocDefault));
+    // CALL_CUDA(cudaMemcpy(h_nprog_predict, d_nprog_predict, sizeof(int) * n_halos, cudaMemcpyDeviceToHost));
 
-    // update sparsity value
-    unsigned long long int available_n_buffer = d_n_buffer - n_processed_prog;
-    sparsity = getSparsity(available_n_buffer, n_filter_halo);
+    if (n_halos_tbp > 0){
+        // update sparsity value
+        unsigned long long int available_n_buffer = d_n_buffer - n_processed_prog;
+        sparsity = getSparsity(available_n_buffer, n_halos_tbp);
 
-    // check max threadblock size
-    int device;
-    CALL_CUDA(cudaGetDevice(&device));
-    cudaDeviceProp deviceProp;
-    CALL_CUDA(cudaGetDeviceProperties(&deviceProp, device));
-    int max_threads_pb = deviceProp.maxThreadsPerBlock;
+        // check max threadblock size
+        int device;
+        CALL_CUDA(cudaGetDevice(&device));
+        cudaDeviceProp deviceProp;
+        CALL_CUDA(cudaGetDeviceProperties(&deviceProp, device));
+        int max_threads_pb = deviceProp.maxThreadsPerBlock;
 
-    // sparsity should not exceed the max threads per block
-    sparsity = std::min(sparsity, 512);
+        // sparsity should not exceed the max threads per block
+        // sparsity = 256;
+        sparsity = std::min(sparsity, 512);
 
-    // reset grids layout
-    grids = getWorkload(sparsity, n_filter_halo);
+        // reset grids layout
+        grids = getWorkload(sparsity, n_halos_tbp);
 
-    // update write offset
-    write_offset = n_processed_prog;
+        // update write offset
+        write_offset = n_processed_prog;
 
-    // reset mask array
-    CALL_CUDA(cudaMemset(d_further_process, 0, sizeof(int) * n_halos));
-
-    // copy data from device to host
-    int h_sum_check;
-    CALL_CUDA(cudaMemcpy(&h_sum_check, d_sum_check, sizeof(int), cudaMemcpyDeviceToHost));
-
+        // reset mask array
+        CALL_CUDA(cudaMemset(d_further_process, 0, sizeof(int) * n_halos));
+        
+        // copy data from device to host
+        int h_sum_check;
+        CALL_CUDA(cudaMemcpy(&h_sum_check, d_sum_check, sizeof(int), cudaMemcpyDeviceToHost));
+    }
     // tmp: for debug only
-    CALL_CUDA(cudaFreeHost(h_filter_halos));
+    // CALL_CUDA(cudaFreeHost(h_filter_halos));
     // CALL_CUDA(cudaFreeHost(h_sum_check));
 
     }
 
-    // tmp: for debugging purpose; out halo need to copy back to host after all halos being processed
-    float *h_halo_masses_out;
-    CALL_CUDA(cudaHostAlloc((void **)&h_halo_masses_out, buffer_size, cudaHostAllocDefault));
-    CALL_CUDA(cudaMemcpy(h_halo_masses_out, d_halo_masses_out, buffer_size, cudaMemcpyDeviceToHost));
+    // write data back to the host
+    halofield_out->n_halos = n_processed_prog;
+    size_t out_size = sizeof(float) * n_processed_prog;
+    
+    // float *h_halo_masses_out;
+    // CALL_CUDA(cudaHostAlloc((void **)&h_halo_masses_out, out_size, cudaHostAllocDefault));
+    CALL_CUDA(cudaMemcpy(halofield_out->halo_masses, d_halo_masses_out, out_size, cudaMemcpyDeviceToHost));
 
-    CALL_CUDA(cudaFreeHost(h_halo_masses_out));
-    // }
+    
+    CALL_CUDA(cudaMemcpy(halofield_out->star_rng, d_star_rng_out, out_size, cudaMemcpyDeviceToHost));
+    CALL_CUDA(cudaMemcpy(halofield_out->sfr_rng, d_sfr_rng_out, out_size, cudaMemcpyDeviceToHost));
+    CALL_CUDA(cudaMemcpy(halofield_out->xray_rng, d_xray_rng_out, out_size, cudaMemcpyDeviceToHost));
 
+    size_t out_coords_size = sizeof(int) * n_processed_prog * 3;
+    CALL_CUDA(cudaMemcpy(halofield_out->halo_coords, d_halo_coords_out, out_coords_size, cudaMemcpyDeviceToHost));
+
+    
     // Free device memory
     CALL_CUDA(cudaFree(d_halo_masses));
     CALL_CUDA(cudaFree(d_y_arr));
     CALL_CUDA(cudaFree(d_states));
     CALL_CUDA(cudaFree(d_halo_masses_out));
-    CALL_CUDA(cudaFree(star_rng_out));
-    CALL_CUDA(cudaFree(sfr_rng_out));
-    CALL_CUDA(cudaFree(xray_rng_out));
-    CALL_CUDA(cudaFree(halo_coords_out));
+    CALL_CUDA(cudaFree(d_star_rng_out));
+    CALL_CUDA(cudaFree(d_sfr_rng_out));
+    CALL_CUDA(cudaFree(d_xray_rng_out));
+    CALL_CUDA(cudaFree(d_halo_coords_out));
     CALL_CUDA(cudaFree(d_further_process));
 
     validate_thrust();
 
     condense_device_vector();
+
+    testCondenseDeviceArray();
+
+    testFilterWithMask();
+
+
 
     return 0;
 }
