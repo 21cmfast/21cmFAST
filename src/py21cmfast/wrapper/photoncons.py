@@ -191,8 +191,6 @@ def setup_photon_cons(
     hooks,
     direc,
     initial_conditions=None,
-    user_params=None,
-    cosmo_params=None,
     **global_kwargs,
 ):
     r"""
@@ -233,6 +231,10 @@ def setup_photon_cons(
     from ..drivers.single_field import _get_config_options
 
     direc, regenerate, hooks = _get_config_options(direc, regenerate, None, hooks)
+
+    logger.info(
+        f"Setting up photon conservation correction for {inputs.flag_options.PHOTON_CONS_TYPE}"
+    )
 
     if inputs.flag_options.PHOTON_CONS_TYPE == "no-photoncons":
         return
@@ -312,6 +314,10 @@ def calibrate_photon_cons(
 
     with global_params.use(**global_kwargs):
         # Create a new astro_params and flag_options just for the photon_cons correction
+        # NOTE: Since the calibration cannot do INHOMO_RECO, we set the R_BUBBLE_MAX
+        #   to the default w/o recombinations ONLY when the original box has INHOMO_RECO enabled.
+        # TODO: figure out if it's possible to find a "closest" Rmax, since the correction fails when
+        # the histories are too different.
         inputs_calibration = inputs.evolve_input_structs(
             USE_TS_FLUCT=False,
             INHOMO_RECO=False,
@@ -319,6 +325,11 @@ def calibrate_photon_cons(
             USE_HALO_FIELD=False,
             HALO_STOCHASTICITY=False,
             PHOTON_CONS_TYPE="no-photoncons",
+            R_BUBBLE_MAX=(
+                15
+                if inputs.flag_options.INHOMO_RECO
+                else inputs.astro_params.R_BUBBLE_MAX
+            ),
         )
         ib = None
         prev_perturb = None
@@ -528,7 +539,6 @@ def photoncons_alpha(cosmo_params, user_params, astro_params, flag_options):
             x0 = alpha_arr[alpha_idx]
             x1 = alpha_arr[alpha_idx + 1]
             guesses = -y0 * (x1 - x0) / (y1 - y0) + x0
-            # logger.info(f'roots at alpha={x1} ')
 
             # choose the root which gives the smoothest alpha vs z curve
             # arr_out[i] = guesses[np.argmin(np.fabs(guesses - astro_params.ALPHA_ESC))]
@@ -537,10 +547,12 @@ def photoncons_alpha(cosmo_params, user_params, astro_params, flag_options):
 
     # initialise the output structure before the fits
     results = {
-        "z_cal": ref_pc_data["z_calibration"],
-        "Q_ana": ref_interp,
+        "z_calibration": ref_pc_data["z_calibration"],
+        "z_analytic": ref_pc_data["z_analytic"],
+        "Q_analytic": ref_pc_data["Q_analytic"],
+        "nf_photoncons": 1 - ref_interp,
         "Q_alpha": test_pc_data,
-        "Q_cal": (1 - ref_pc_data["nf_calibration"]),
+        "nf_calibration": ref_pc_data["nf_calibration"],
         "alpha_ratio": alpha_estimate_ratio,
         "alpha_diff": alpha_estimate_diff,
         "alpha_reverse": alpha_estimate_reverse,
@@ -645,11 +657,13 @@ def photoncons_fesc(cosmo_params, user_params, astro_params, flag_options):
 
     # initialise the output structure before the fits
     results = {
-        "z_cal": ref_pc_data["z_calibration"],
-        "Q_ana": ref_interp,
-        "Q_cal": (1 - ref_pc_data["nf_calibration"]),
+        "z_calibration": ref_pc_data["z_calibration"],
+        "z_analytic": ref_pc_data["z_analytic"],
+        "Q_analytic": ref_pc_data["Q_analytic"],
+        "nf_calibration": ref_pc_data["nf_calibration"],
+        "nf_photoncons": 1 - ref_interp,
         "Q_ratio": ratio_ref,
-        "fit_target": fit_fesc,
+        "fesc_target": fit_fesc,
         "fit_yint": popt[0],
         "fit_slope": popt[1],  # start with no correction
     }
