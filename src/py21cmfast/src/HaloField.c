@@ -30,6 +30,8 @@
 
 #include "HaloField.h"
 
+// #include "HaloField.cuh"
+
 int check_halo(char * in_halo, UserParams *user_params, float R, int x, int y, int z, int check_type);
 void init_halo_coords(HaloField *halos, long long unsigned int n_halos);
 int pixel_in_halo(int grid_dim, int z_dim, int x, int x_index, int y, int y_index, int z, int z_index, float Rsq_curr_index );
@@ -41,6 +43,9 @@ int ComputeHaloField(float redshift_desc, float redshift, UserParams *user_param
                      HaloField * halos_desc, HaloField *halos) {
 
     int status;
+
+    // update the global params to the device
+    // updateGlobalParams(user_params, cosmo_params, astro_params);
 
     Try{ // This Try brackets the whole function, so we don't indent.
 

@@ -1,4 +1,4 @@
-name: 21cmfast
+name: tiger21_dev_module
 channels:
   - defaults
 dependencies:
@@ -113,7 +113,7 @@ dependencies:
   - h5py
   - jupyter
   - nb_conda
-  - pytest-plt
+#  - pytest-plt
   - questionary
-  - pip:
-      - pre-commit
+#  - pip:
+#      - pre-commit

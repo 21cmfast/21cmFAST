@@ -70,7 +70,13 @@ RGTable1D_f* get_SFRD_conditional_table(void);
 RGTable1D_f* get_Nion_conditional_table1D(void);
 int get_nbins(void);
 
+RGTable1D *GetNhaloTable();
+RGTable1D *GetMcollTable();
+RGTable2D *GetNhaloInvTable();
+RGTable1D_f *GetSigmaInterpTable();
+
 #ifdef __cplusplus
 }
 #endif
-#endif
+
+#endif //_INTERP_TABLES_H

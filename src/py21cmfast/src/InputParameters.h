@@ -7,12 +7,14 @@
 #include "_inputparams_wrapper.h"
 
 #ifdef __cplusplus
-extern "C" {
+extern "C"
+{
 #endif
-void Broadcast_struct_global_all(UserParams *user_params, CosmoParams *cosmo_params, AstroParams *astro_params, FlagOptions *flag_options);
-void Broadcast_struct_global_noastro(UserParams *user_params, CosmoParams *cosmo_params);
-
+    void Broadcast_struct_global_all(UserParams *user_params, CosmoParams *cosmo_params, AstroParams *astro_params, FlagOptions *flag_options);
+    void Broadcast_struct_global_noastro(UserParams *user_params, CosmoParams *cosmo_params);
+    
 #ifdef __cplusplus
 }
 #endif
-#endif
+
+#endif // _PARAMSTRUCTURES_H

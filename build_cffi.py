@@ -29,12 +29,23 @@ c_files = [
 
 # Compiled CUDA code
 extra_objects = [
+    os.path.join(CLOC, "hello_world.o"),
+    os.path.join(CLOC, "Stochasticity_cuda.o"),
+    os.path.join(CLOC, "HaloField_cuda.o"),
+    os.path.join(CLOC, "device_rng_cuda.o"),
+    os.path.join(CLOC, "combined_cuda.o"),
     os.path.join(CLOC, "filtering.o"),
     os.path.join(CLOC, "PerturbField.o"),
     os.path.join(CLOC, "SpinTemperatureBox.o"),
     os.path.join(CLOC, "IonisationBox.o"),
 ]
 extra_link_args = ["-lcudart", "-lstdc++"]
+
+# # compiled cuda code
+# extra_objects = [os.path.join(CLOC, "hello_world.o"), os.path.join(CLOC, "filtering_cuda.o"), os.path.join(CLOC, "Stochasticity_cuda.o")
+#                  , os.path.join(CLOC, "HaloField_cuda.o"), os.path.join(CLOC, "combined_cuda.o"), os.path.join(CLOC, "device_rng_cuda.o")]
+#                 #  os.path.join(CLOC, "interp_tables_cuda.o")]
+# extra_link_args = ["-lcudart", "-lcudadevrt"]
 
 # Set the C-code logging level.
 # If DEBUG is set, we default to the highest level, but if not,
@@ -87,10 +98,11 @@ libraries = ["m", "gsl", "gslcblas", "fftw3f_omp", "fftw3f"]
 
 # stuff for gperftools
 if "PROFILE" in os.environ:
-    # libraries += ["profiler", "tcmalloc"] # tcmalloc causing errors
+    #libraries += ["profiler", "tcmalloc"]
     libraries += ["profiler"]
     # we need this even if DEBUG is off
     extra_compile_args += ["-g"]
+    # extra_compile_args += ["-g", "-pg"]
 
 if compiler == "clang":
     libraries += ["omp"]
@@ -145,4 +157,4 @@ ffi.cdef(
 )
 
 if __name__ == "__main__":
-    ffi.compile()
+    ffi.compile(verbose=False)

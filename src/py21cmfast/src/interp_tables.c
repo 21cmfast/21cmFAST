@@ -18,7 +18,7 @@
 #include "cosmology.h"
 #include "InputParameters.h"
 #include "hmf.h"
-// #include "interpolation.h"
+#include "interpolation.h"
 
 #include "interp_tables.h"
 
@@ -929,6 +929,7 @@ double EvaluateMcoll(double condition, double growthf, double lnMmin, double lnM
 double extrapolate_dNdM_inverse(double condition, double lnp){
     double x_min = Nhalo_inv_table.x_min;
     double x_width = Nhalo_inv_table.x_width;
+    // printf("condition: %f; lnp: %f \n", condition, lnp); //tmp
     int x_idx = (int)floor((condition - x_min)/x_width);
     double x_table = x_min + x_idx*x_width;
     double interp_point_x = (condition - x_table)/x_width;
@@ -1065,3 +1066,29 @@ RGTable1D_f* get_Nion_conditional_table1D(void) {
 int get_nbins(void) {
     return NDELTA;
 }
+
+// todo: only return when it's been initialized
+RGTable1D *GetNhaloTable()
+{
+    printf("The number of bins: %d; x_min: %f\n", Nhalo_table.n_bin, Nhalo_table.x_min);
+    return &Nhalo_table;
+}
+
+RGTable1D *GetMcollTable()
+{
+    printf("The number of bins: %d; x_min: %f\n", Mcoll_table.n_bin, Mcoll_table.x_min);
+    return &Mcoll_table;
+}
+
+RGTable2D *GetNhaloInvTable()
+{
+    printf("The number of nx bins: %d; the number of ny bins: %d \n", Nhalo_inv_table.nx_bin, Nhalo_inv_table.ny_bin);
+    return &Nhalo_inv_table;
+}
+
+RGTable1D_f *GetSigmaInterpTable()
+{
+    printf("The number of bins: %d; x_min: %f\n", Sigma_InterpTable.n_bin, Sigma_InterpTable.x_min);
+    return &Sigma_InterpTable;
+}
+
