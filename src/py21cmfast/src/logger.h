@@ -43,7 +43,7 @@
 #include <omp.h>
 
 // === auxiliary functions
-static inline char *timenow();
+// static inline char *timenow();
 
 #define _FILE strrchr(__FILE__, '/') ? strrchr(__FILE__, '/') + 1 : __FILE__
 

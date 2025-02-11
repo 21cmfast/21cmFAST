@@ -34,12 +34,12 @@ extra_objects = [
     os.path.join(CLOC, "HaloField_cuda.o"),
     os.path.join(CLOC, "device_rng_cuda.o"),
     os.path.join(CLOC, "combined_cuda.o"),
-    os.path.join(CLOC, "filtering.o"),
-    os.path.join(CLOC, "PerturbField.o"),
-    os.path.join(CLOC, "SpinTemperatureBox.o"),
-    os.path.join(CLOC, "IonisationBox.o"),
+    os.path.join(CLOC, "filtering_cuda.o"),
+    os.path.join(CLOC, "PerturbField_cuda.o"),
+    os.path.join(CLOC, "SpinTemperatureBox_cuda.o"),
+    os.path.join(CLOC, "IonisationBox_cuda.o"),
 ]
-extra_link_args = ["-lcudart", "-lstdc++"]
+extra_link_args = ["-lcudart", "-lcudadevrt", "-lstdc++"]
 
 # # compiled cuda code
 # extra_objects = [os.path.join(CLOC, "hello_world.o"), os.path.join(CLOC, "filtering_cuda.o"), os.path.join(CLOC, "Stochasticity_cuda.o")
