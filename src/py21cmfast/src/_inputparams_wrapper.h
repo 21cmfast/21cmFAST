@@ -46,7 +46,6 @@ typedef struct UserParams{
     //Halo Sampler Options
     float SAMPLER_MIN_MASS;
     double SAMPLER_BUFFER_FACTOR;
-    float MAXHALO_FACTOR;
     int N_COND_INTERP;
     int N_PROB_INTERP;
     double MIN_LOGPROB;
@@ -63,6 +62,10 @@ typedef struct UserParams{
     double DELTA_R_FACTOR;
     bool SMOOTH_EVOLVED_DENSITY_FIELD;
     double DENSITY_SMOOTH_RADIUS;
+
+    bool DEXM_OPTIMIZE;
+    double DEXM_OPTIMIZE_MINMASS;
+    double DEXM_R_OVERLAP;
 } UserParams;
 
 typedef struct AstroParams{
@@ -151,14 +154,12 @@ typedef struct FlagOptions{
     bool IONISE_ENTIRE_SPHERE;
 } FlagOptions;
 
-typedef struct GlobalParams{
-    float R_OVERLAP_FACTOR;
-    int OPTIMIZE;
-    float OPTIMIZE_MIN_MASS;
+typedef struct ConfigSettings{
+    double HALO_CATALOG_MEM_FACTOR;
 
     char *external_table_path;
     char *wisdoms_path;
-}GlobalParams;
+}ConfigSettings;
 
 
 /* Previously, we had a few structures spread throughout the code e.g user_params_ufunc which
@@ -171,9 +172,10 @@ typedef struct GlobalParams{
    (look at HaloBox.c), and force the broadcast at each _compute() step (or even decorate any library call)
    However this would require us to be very careful about initialising the globals when ANY function from that
    file is called */
+//The structs declared here defined in InputParameters.c
 extern UserParams *user_params_global;
 extern CosmoParams *cosmo_params_global;
 extern AstroParams *astro_params_global;
 extern FlagOptions *flag_options_global;
 
-extern GlobalParams global_params;
+extern ConfigSettings ConfigSettings;

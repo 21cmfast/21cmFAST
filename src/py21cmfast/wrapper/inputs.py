@@ -7,10 +7,6 @@ and :class:`FlagOptions`. Each of them defines a number of variables, and all of
 have default values, to minimize the burden on the user. These defaults are accessed via
 the ``_defaults_`` class attribute of each class. The available parameters for each are
 listed in the documentation for each class below.
-
-Along with these, the module exposes ``global_params``, a singleton object of type
-:class:`GlobalParams`, which is a simple class providing read/write access to a number of parameters
-used throughout the computation which are very rarely varied.
 """
 
 from __future__ import annotations
@@ -26,7 +22,6 @@ from attrs import validators
 from .._cfg import config
 from .._data import DATA_PATH
 from ..c_21cmfast import ffi, lib
-from .globals import global_params
 from .structs import InputStruct
 
 logger = logging.getLogger(__name__)
@@ -294,6 +289,12 @@ class UserParams(InputStruct):
         Smooth the evolved density field after perturbation.
     DENSITY_SMOOTH_RADIUS: float, optional
         The radius of the smoothing kernel in Mpc.
+    DEXM_OPTMIZE: bool, optional
+        Use a faster version of the DexM halo finder which excludes halos from forming within a certain distance of larger halos.
+    DEXM_OPTIMIZE_MINMASS: float, optional
+        The minimum mass of a halo for which to use the DexM optimization if DEXM_OPTIMIZE is True.
+    DEXM_R_OVERLAP: float, optional
+        The factor by which to multiply the halo radius to determine the distance within which smaller halos are excluded.
     """
 
     _hmf_models = ["PS", "ST", "WATSON", "WATSON-Z", "DELOS"]
@@ -344,7 +345,6 @@ class UserParams(InputStruct):
     KEEP_3D_VELOCITIES = field(default=False, converter=bool)
     SAMPLER_MIN_MASS = field(default=1e8, converter=float, validator=validators.gt(0))
     SAMPLER_BUFFER_FACTOR = field(default=2.0, converter=float)
-    MAXHALO_FACTOR = field(default=2.0, converter=float)
     N_COND_INTERP = field(default=200, converter=int)
     N_PROB_INTERP = field(default=400, converter=int)
     MIN_LOGPROB = field(default=-12, converter=float)
@@ -387,6 +387,11 @@ class UserParams(InputStruct):
     DENSITY_SMOOTH_RADIUS = field(
         default=0.2, converter=float, validator=validators.gt(0)
     )
+    DEXM_OPTIMIZE = field(default=False, converter=bool)
+    DEXM_OPTIMIZE_MINMASS = field(
+        default=1e11, converter=float, validator=validators.gt(0)
+    )
+    DEXM_R_OVERLAP = field(default=2, converter=float, validator=validators.gt(0))
 
     @DIM.default
     def _dim_default(self):
@@ -642,7 +647,7 @@ class FlagOptions(InputStruct):
     @USE_EXP_FILTER.validator
     def _USE_EXP_FILTER_vld(self, att, val):
         """Raise an error if USE_EXP_FILTER is False and HII_FILTER!=0."""
-        if val and global_params.HII_FILTER != 0:
+        if val and astro_params.HII_FILTER != 0:
             raise ValueError(
                 "USE_EXP_FILTER can only be used with a real-space tophat HII_FILTER==0"
             )

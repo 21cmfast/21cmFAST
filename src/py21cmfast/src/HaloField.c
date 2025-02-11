@@ -108,7 +108,7 @@ int ComputeHaloField(float redshift_desc, float redshift, UserParams *user_param
     // initialize
     memset(in_halo, 0, sizeof(char)*TOT_NUM_PIXELS);
 
-    if(global_params.OPTIMIZE) {
+    if(user_params->DEXM_OPTIMIZE) {
         forbidden = (char *) malloc(sizeof(char)*TOT_NUM_PIXELS);
     }
 
@@ -199,8 +199,8 @@ int ComputeHaloField(float redshift_desc, float redshift, UserParams *user_param
 
         // *****************  BEGIN OPTIMIZATION ***************** //
         // to optimize speed, if the filter size is large (switch to collapse fraction criteria later)
-        if(global_params.OPTIMIZE) {
-            if(M > global_params.OPTIMIZE_MIN_MASS) {
+        if(user_params->DEXM_OPTIMIZE) {
+            if(M > user_params->DEXM_OPTIMIZE_MIN_MASS) {
                 memset(forbidden, 0, sizeof(char)*TOT_NUM_PIXELS);
                 // now go through the list of existing halos and paint on the no-go region onto <forbidden>
 
@@ -214,7 +214,7 @@ int ComputeHaloField(float redshift_desc, float redshift, UserParams *user_param
                                 halo_buf = halo_field[R_INDEX(x,y,z)];
                                 if(halo_buf > 0.) {
                                     R_temp = MtoR(halo_buf);
-                                    check_halo(forbidden, user_params, R_temp+global_params.R_OVERLAP_FACTOR*R, x,y,z,2);
+                                    check_halo(forbidden, user_params, R_temp+user_params->DEXM_R_OVERLAP*R, x,y,z,2);
                                 }
                             }
                         }
@@ -235,10 +235,10 @@ int ComputeHaloField(float redshift_desc, float redshift, UserParams *user_param
                     delta_m = *((float *)density_field + R_FFT_INDEX(x,y,z)) * growth_factor / TOT_NUM_PIXELS;
                     // if not within a larger halo, and radii don't overlap, update in_halo box
                     // *****************  BEGIN OPTIMIZATION ***************** //
-                    if(global_params.OPTIMIZE && (M > global_params.OPTIMIZE_MIN_MASS)) {
+                    if(user_params->DEXM_OPTIMIZE && (M > user_params->DEXM_OPTIMIZE_MIN_MASS)) {
                         if ( (delta_m > delta_crit) && !forbidden[R_INDEX(x,y,z)]){
                             check_halo(in_halo, user_params, R, x,y,z,2); // flag the pixels contained within this halo
-                            check_halo(forbidden, user_params, (1.+global_params.R_OVERLAP_FACTOR)*R, x,y,z,2); // flag the pixels contained within this halo
+                            check_halo(forbidden, user_params, (1.+user_params->DEXM_R_OVERLAP)*R, x,y,z,2); // flag the pixels contained within this halo
 
                             halo_field[R_INDEX(x,y,z)] = M;
 
@@ -357,7 +357,7 @@ int ComputeHaloField(float redshift_desc, float redshift, UserParams *user_param
     free(in_halo);
     free(halo_field);
 
-    if(global_params.OPTIMIZE) {
+    if(user_params->DEXM_OPTIMIZE) {
         free(forbidden);
     }
 
@@ -399,7 +399,7 @@ int check_halo(char * in_halo, UserParams *user_params, float R, int x, int y, i
 
     if(check_type==1) {
         // scale R to a effective overlap size, using R_OVERLAP_FACTOR
-        R *= global_params.R_OVERLAP_FACTOR;
+        R *= user_params_global->DEXM_R_OVERLAP_FACTOR;
     }
 
     int grid_dim = user_params->DIM;

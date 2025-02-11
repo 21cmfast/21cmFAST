@@ -78,7 +78,7 @@ double T_RECFAST(float z, int flag)
 
     if (flag == 1) {
         // Read in the recfast data
-        sprintf(filename,"%s/%s",global_params.external_table_path,RECFAST_FILENAME);
+        sprintf(filename,"%s/%s",config_settings.external_table_path,RECFAST_FILENAME);
         if ( !(F=fopen(filename, "r")) ){
             LOG_ERROR("T_RECFAST: Unable to open file: %s for reading.", filename);
             Throw(IOError);
@@ -132,7 +132,7 @@ double xion_RECFAST(float z, int flag)
 
     if (flag == 1) {
         // Initialize vectors
-        sprintf(filename,"%s/%s",global_params.external_table_path,RECFAST_FILENAME);
+        sprintf(filename,"%s/%s",config_settings.external_table_path,RECFAST_FILENAME);
         if ( !(F=fopen(filename, "r")) ){
             LOG_ERROR("xion_RECFAST: Unable to open file: %s for reading.", RECFAST_FILENAME);
             Throw IOError;
@@ -283,7 +283,7 @@ double spectral_emissivity(double nu_norm, int flag, int Population)
 
         case 1:
             // * Read in the data * //
-            sprintf(filename,"%s/%s",global_params.external_table_path,STELLAR_SPECTRA_FILENAME);
+            sprintf(filename,"%s/%s",config_settings.external_table_path,STELLAR_SPECTRA_FILENAME);
             if (!(F = fopen(filename, "r"))){
                LOG_ERROR("spectral_emissivity: Unable to open file: stellar_spectra.dat for reading.");
                 Throw IOError;
@@ -1177,7 +1177,7 @@ double Energy_Lya_heating(double Tk, double Ts, double tau_gp, int flag)
 
     if (flag == 1) {
         //Read in the Lya heating table
-        sprintf(filename,"%s/%s",global_params.external_table_path,LYA_HEATING_FILENAME);
+        sprintf(filename,"%s/%s",config_settings.external_table_path,LYA_HEATING_FILENAME);
 
         if ( !(F=fopen(filename, "r")) ){
             LOG_ERROR("Energy_Lya_heating: Unable to open file: %s for reading.", filename);

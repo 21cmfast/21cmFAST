@@ -831,8 +831,8 @@ int sample_halo_grids(gsl_rng **rng_arr, double redshift, float *dens_field, flo
 
                         if(count >= arraysize_local){
                             LOG_ERROR("More than %llu halos (expected %.1e) with buffer size factor %.1f",
-                                        arraysize_local,arraysize_local/user_params_global->MAXHALO_FACTOR,user_params_global->MAXHALO_FACTOR);
-                            LOG_ERROR("If you expected to have an above average halo number try raising user_params->MAXHALO_FACTOR");
+                                        arraysize_local,arraysize_local/config_settings.HALO_CATALOG_MEM_FACTOR,config_settings.HALO_CATALOG_MEM_FACTOR);
+                            LOG_ERROR("If you expected to have an above average halo number try raising config_settings.HALO_CATALOG_MEM_FACTOR");
                             Throw(ValueError);
                         }
 

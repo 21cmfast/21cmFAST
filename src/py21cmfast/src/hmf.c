@@ -163,8 +163,8 @@ double dNdlnM_conditional_Delos(double growthf, double lnM, double delta_cond, d
 double st_taylor_factor(double sig, double sig_cond, double growthf, double *zeroth_order){
     int i;
     double a = JENKINS_a;
-    double alpha = JENKINS_c; //fixed instead of global_params.SHETH_c bc of DexM corrections
-    double beta = JENKINS_b; //fixed instead of global_params.SHETH_b
+    double alpha = JENKINS_c; //fixed instead of SHETH_c_DEXM bc of DexM corrections
+    double beta = JENKINS_b; //fixed instead of SHETH_b_DEXM
 
     double del = Deltac/growthf;
 
@@ -1179,7 +1179,7 @@ double minimum_source_mass(double redshift, bool xray, AstroParams *astro_params
     }
 
     //Unused WDM model
-    // if(global_params.P_CUTOFF){
+    // if(P_CUTOFF){
     //     Mmin = fmax(Mmin,M_J_WDM());
     // }
 

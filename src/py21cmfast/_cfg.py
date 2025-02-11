@@ -7,7 +7,10 @@ import copy
 import warnings
 from pathlib import Path
 
+from ..c_21cmfast import ffi, lib
 from . import yaml
+from ._data import DATA_PATH
+from .wrapper.structs import StructInstanceWrapper
 
 
 class ConfigurationError(Exception):
@@ -16,68 +19,51 @@ class ConfigurationError(Exception):
     pass
 
 
+# TODO: force config to be a singleton
 class Config(dict):
     """Simple over-ride of dict that adds a context manager."""
 
     _defaults = {
-        "direc": "~/21cmFAST-cache",
+        "direc": Path("~/21cmFAST-cache").expanduser(),
         "regenerate": False,
         "write": True,
         "cache_param_sigfigs": 6,
         "cache_redshift_sigfigs": 4,
         "ignore_R_BUBBLE_MAX_error": False,
+        "external_table_path": DATA_PATH,
+        "HALO_CATALOG_MEM_FACTOR": 1.2,
     }
+    _defaults["wisdoms_path"] = Path(_defaults["direc"]) / "wisdoms"
 
-    _aliases = {"direc": ("boxdir",)}
-
-    def __init__(self, *args, write=True, file_name=None, **kwargs):
+    def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
-        self.file_name = file_name
+        # keep the config settings from the C library here
+        self._c_config_settings = StructInstanceWrapper(lib.config_settings, ffi)
 
-        # Ensure the keys that got read in are the right keys for the current version
-        do_write = False
         for k, v in self._defaults.items():
             if k not in self:
-                if k not in self._aliases:
-                    if self.file_name:
-                        warnings.warn(
-                            "Your configuration file is out of date. Updating..."
-                        )
-                    do_write = True
-                    self[k] = v
-
-                else:
-                    for alias in self._aliases[k]:
-                        if alias in self:
-                            do_write = True
-                            warnings.warn(
-                                f"Your configuration file has old key '{alias}' which "
-                                f"has been re-named '{k}'. Updating..."
-                            )
-                            self[k] = self[alias]
-                            del self[alias]
-                            break
-                    else:
-                        if self.file_name:
-                            warnings.warn(
-                                "Your configuration file is out of date. Updating..."
-                            )
-                        do_write = True
-                        self[k] = v
+                self[k] = v
 
         for k, v in self.items():
             if k not in self._defaults:
                 raise ConfigurationError(
-                    f"The configuration file has key '{k}' which is not known to 21cmFAST."
+                    f"You passed the key '{k}' to config, which is not known to 21cmFAST."
                 )
 
         self["direc"] = Path(self["direc"]).expanduser().absolute()
 
-        if do_write and write and self.file_name:
-            try:
-                self.write()
-            except Exception:
-                pass
+    def __setitem__(self, key, value):
+        """Set an item in the config. Also updating the backend if it exists there"""
+        # set the value in the dict
+        super().__setitem__(key, value)
+        # set the value in the backend
+        if key in self._c_config_settings.keys():
+            if isinstance(value, (Path, str)):
+                setattr(
+                    self._c_config_settings, key, ffi.new("char[]", str(value).encode())
+                )
+            else:
+                setattr(self._c_config_settings, key, value)
 
     @contextlib.contextmanager
     def use(self, **kwargs):
@@ -115,7 +101,8 @@ class Config(dict):
             return cls(write=True)
 
 
-config = Config.load(Path("~/.21cmfast/config.yml"))
+# On import, load the default config
+config = Config()
 
 # Keep an original copy around
 default_config = copy.deepcopy(config)

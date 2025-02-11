@@ -55,7 +55,7 @@ double TF_CLASS(double k, int flag_int, int flag_dv)
     FILE *F;
 
     char filename[500];
-    sprintf(filename,"%s/%s",global_params.external_table_path,CLASS_FILENAME);
+    sprintf(filename,"%s/%s",config_settings.external_table_path,CLASS_FILENAME);
 
 
     if (flag_int == 0) {  // Initialize vectors and read file

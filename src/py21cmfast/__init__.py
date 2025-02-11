@@ -19,7 +19,7 @@ from os import mkdir as _mkdir
 from os import path
 
 from . import cache_tools, lightcones, plotting, wrapper
-from ._cfg import config
+from ._cfg import config, config_settings
 from ._logging import configure_logging
 from .cache_tools import query_cache
 from .drivers.coeval import Coeval, run_coeval
@@ -44,13 +44,7 @@ from .wrapper.cfuncs import (
     compute_tau,
     construct_fftw_wisdoms,
 )
-from .wrapper.inputs import (
-    AstroParams,
-    CosmoParams,
-    FlagOptions,
-    UserParams,
-    global_params,
-)
+from .wrapper.inputs import AstroParams, CosmoParams, FlagOptions, UserParams
 from .wrapper.outputs import (
     BrightnessTemp,
     HaloBox,
