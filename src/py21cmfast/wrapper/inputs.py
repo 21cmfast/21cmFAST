@@ -366,7 +366,10 @@ class UserParams(InputStruct):
     FILTER = field(
         default="spherical-tophat",
         converter=str,
-        validator=validators.in_(_filter_options[(0, 2)]),
+        validator=[
+            validators.in_(_filter_options),
+            validators.not_(validators.in_("sharp-k")),
+        ],  # TODO: seems bad
         transformer=choice_transformer(_filter_options),
     )
     HALO_FILTER = field(
@@ -648,7 +651,7 @@ class FlagOptions(InputStruct):
     @USE_EXP_FILTER.validator
     def _USE_EXP_FILTER_vld(self, att, val):
         """Raise an error if USE_EXP_FILTER is False and HII_FILTER!=0."""
-        if val and self.HII_FILTER != 0:
+        if val and self.HII_FILTER != "spherical-tophat":
             raise ValueError(
                 "USE_EXP_FILTER can only be used with a real-space tophat HII_FILTER==0"
             )
@@ -897,7 +900,7 @@ class AstroParams(InputStruct):
         default=1.1, converter=float, validator=validators.gt(1.0)
     )
 
-    NU_X_BAND_MAX = field(default=2000.0, converter=float, valdiator=validators.gt(0))
+    NU_X_BAND_MAX = field(default=2000.0, converter=float, validator=validators.gt(0))
     NU_X_MAX = field(default=10000.0, converter=float, validator=validators.gt(0))
 
     # set the default of the minihalo scalings to continue the same PL

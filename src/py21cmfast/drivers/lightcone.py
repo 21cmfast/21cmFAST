@@ -638,7 +638,6 @@ def _run_lightcone_from_perturbed_fields(
             previous_perturbed_field=pf,
             spin_temp=st2,
             halobox=hbox2,
-            cleanup=(cleanup and iz == (len(scrollz) - 1)),
             **kw,
         )
         log10_mturnovers[iz] = ib2.log10_Mturnover_ave

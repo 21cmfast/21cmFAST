@@ -60,11 +60,6 @@ class _AllParamsBox(_OutputStructZ):
     _meta = True
     _inputs = _OutputStructZ._inputs + ("flag_options", "astro_params")
 
-    _filter_params = _OutputStruct._filter_params + [
-        "T_USE_VELOCITIES",  # bt
-        "MAX_DVDR",  # bt
-    ]
-
     def __init__(
         self,
         *,
@@ -98,7 +93,7 @@ class InitialConditions(_OutputStruct):
             keep.append("lowres_vy")
             keep.append("lowres_vz")
 
-            if self.user_params.USE_2LPT:
+            if self.user_params.PERTURB_ALGORITHM == "2LPT":
                 keep.append("lowres_vx_2LPT")
                 keep.append("lowres_vy_2LPT")
                 keep.append("lowres_vz_2LPT")
@@ -108,7 +103,7 @@ class InitialConditions(_OutputStruct):
             keep.append("hires_vy")
             keep.append("hires_vz")
 
-            if self.user_params.USE_2LPT:
+            if self.user_params.PERTURB_ALGORITHM == "2LPT":
                 keep.append("hires_vx_2LPT")
                 keep.append("hires_vy_2LPT")
                 keep.append("hires_vz_2LPT")
@@ -146,7 +141,7 @@ class InitialConditions(_OutputStruct):
             "hires_vz": hires_shape,
         }
 
-        if self.user_params.USE_2LPT:
+        if self.user_params.PERTURB_ALGORITHM == "2LPT":
             out.update(
                 {
                     "lowres_vx_2LPT": shape,
@@ -212,13 +207,13 @@ class PerturbedField(_OutputStructZ):
         if self.user_params.PERTURB_ON_HIGH_RES:
             required += ["hires_vx", "hires_vy", "hires_vz"]
 
-            if self.user_params.USE_2LPT:
+            if self.user_params.PERTURB_ALGORITHM == "2LPT":
                 required += ["hires_vx_2LPT", "hires_vy_2LPT", "hires_vz_2LPT"]
 
         else:
             required += ["lowres_density", "lowres_vx", "lowres_vy", "lowres_vz"]
 
-            if self.user_params.USE_2LPT:
+            if self.user_params.PERTURB_ALGORITHM == "2LPT":
                 required += [
                     "lowres_vx_2LPT",
                     "lowres_vy_2LPT",
@@ -359,7 +354,7 @@ class PerturbHaloField(_AllParamsBox):
             else:
                 required += ["lowres_vx", "lowres_vy", "lowres_vz"]
 
-            if self.user_params.USE_2LPT:
+            if self.user_params.PERTURB_ALGORITHM == "2LPT":
                 required += [k + "_2LPT" for k in required]
         elif isinstance(input_box, HaloField):
             required += [
@@ -783,7 +778,6 @@ class BrightnessTemp(_AllParamsBox):
     _c_compute_function = lib.ComputeBrightnessTemp
 
     _meta = False
-    _filter_params = _OutputStructZ._filter_params
 
     def _get_box_structures(self) -> dict[str, dict | tuple[int]]:
         return {

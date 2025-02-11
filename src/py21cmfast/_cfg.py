@@ -7,16 +7,82 @@ import copy
 import warnings
 from pathlib import Path
 
-from ..c_21cmfast import ffi, lib
 from . import yaml
 from ._data import DATA_PATH
-from .wrapper.structs import StructInstanceWrapper
+from .c_21cmfast import ffi, lib
 
 
 class ConfigurationError(Exception):
     """An error with the config file."""
 
     pass
+
+
+# TODO: This has been moved for the sole purpose of avoiding circular imports, and should be moved back to structs.py
+# if possible after the output struct overhaul
+class StructInstanceWrapper:
+    """A wrapper for *instances* of C structs.
+
+    This is as opposed to :class:`StructWrapper`, which is for the un-instantiated structs.
+
+    Parameters
+    ----------
+    wrapped :
+        The reference to the C object to wrap (contained in the ``cffi.lib`` object).
+    ffi :
+        The ``cffi.ffi`` object.
+    """
+
+    def __init__(self, wrapped, ffi):
+        self._cobj = wrapped
+        self._ffi = ffi
+
+        for nm, tp in self._ffi.typeof(self._cobj).fields:
+            setattr(self, nm, getattr(self._cobj, nm))
+
+        # Get the name of the structure
+        self._ctype = self._ffi.typeof(self._cobj).cname.split()[-1]
+
+    def __setattr__(self, name, value):
+        """Set an attribute of the instance, attempting to change it in the C struct as well."""
+        with contextlib.suppress(AttributeError):
+            setattr(self._cobj, name, value)
+        object.__setattr__(self, name, value)
+
+    def items(self):
+        """Yield (name, value) pairs for each element of the struct."""
+        for nm, tp in self._ffi.typeof(self._cobj).fields:
+            yield nm, getattr(self, nm)
+
+    def keys(self):
+        """Return a list of names of elements in the struct."""
+        return [nm for nm, tp in self.items()]
+
+    def __repr__(self):
+        """Return a unique representation of the instance."""
+        return (
+            self._ctype
+            + "("
+            + ";".join(f"{k}={str(v)}" for k, v in sorted(self.items()))
+        ) + ")"
+
+    def filtered_repr(self, filter_params):
+        """Get a fully unique representation of the instance that filters out some parameters.
+
+        Parameters
+        ----------
+        filter_params : list of str
+            The parameter names which should not appear in the representation.
+        """
+        return (
+            self._ctype
+            + "("
+            + ";".join(
+                f"{k}={str(v)}"
+                for k, v in sorted(self.items())
+                if k not in filter_params
+            )
+        ) + ")"
 
 
 # TODO: force config to be a singleton
@@ -55,15 +121,15 @@ class Config(dict):
         # since the subclass __setitem__ is not called in the super().__init__ call, we re-do the setting here
         # NOTE: This seems messy but I don't know a better way to do it
         for k in self._c_config_settings.keys():
-            self.pass_to_backend(k, self[k])
+            self._pass_to_backend(k, self[k])
 
     def __setitem__(self, key, value):
         """Set an item in the config. Also updating the backend if it exists there."""
         super().__setitem__(key, value)
         if key in self._c_config_settings.keys():
-            self.pass_to_backend(key, value)
+            self._pass_to_backend(key, value)
 
-    def pass_to_backend(self, key, value):
+    def _pass_to_backend(self, key, value):
         """Set the value in the backend."""
         # we should possibly do a typemap for the ffi
         if isinstance(value, (Path, str)):
@@ -111,6 +177,3 @@ class Config(dict):
 
 # On import, load the default config
 config = Config()
-
-# Keep an original copy around
-default_config = copy.deepcopy(config)

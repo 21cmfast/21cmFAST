@@ -573,11 +573,7 @@ class OutputStruct(metaclass=ABCMeta):
                 if q is None:
                     continue
 
-                if (
-                    not isinstance(q, InputStruct)
-                    and not isinstance(q, StructInstanceWrapper)
-                    and f.attrs[kfile] != q
-                ):
+                if not isinstance(q, InputStruct) and f.attrs[kfile] != q:
                     if not isinstance(q, (float, np.float32)) or not (
                         float_to_string_precision(q, config["cache_param_sigfigs"])
                         == float_to_string_precision(
@@ -590,10 +586,9 @@ class OutputStruct(metaclass=ABCMeta):
                             f" with values {f.attrs[kfile]} and {q} in file and user respectively"
                         )
                         return False
-                elif isinstance(q, (InputStruct, StructInstanceWrapper)):
+                elif isinstance(q, InputStruct):
                     grp = f[kfile]
-
-                    dct = q.asdict() if isinstance(q, InputStruct) else q
+                    dct = q.asdict()
                     for kk, v in dct.items():
                         # TODO: I'm guessing the output overhaul solves this better
                         if not kk.startswith("_"):
@@ -674,9 +669,9 @@ class OutputStruct(metaclass=ABCMeta):
 
                         kfile = k.lstrip("_")
 
-                        if isinstance(q, (InputStruct, StructInstanceWrapper)):
+                        if isinstance(q, InputStruct):
                             grp = fl.create_group(kfile)
-                            dct = q.asdict() if isinstance(q, InputStruct) else q
+                            dct = q.asdict()
                             for kk, v in dct.items():
                                 if kk not in self._filter_params:
                                     try:
@@ -938,9 +933,7 @@ class OutputStruct(metaclass=ABCMeta):
                         repr(v)
                         if isinstance(v, InputStruct)
                         else (
-                            v.filtered_repr(self._filter_params)
-                            if isinstance(v, StructInstanceWrapper)
-                            else k.lstrip("_")
+                            k.lstrip("_")
                             + ":"
                             + (
                                 float_to_string_precision(
@@ -1184,68 +1177,3 @@ class OutputStruct(metaclass=ABCMeta):
         for k in self._c_based_pointers:
             if self._array_state[k].c_has_active_memory:
                 lib.free(getattr(self.cstruct, k))
-
-
-class StructInstanceWrapper:
-    """A wrapper for *instances* of C structs.
-
-    This is as opposed to :class:`StructWrapper`, which is for the un-instantiated structs.
-
-    Parameters
-    ----------
-    wrapped :
-        The reference to the C object to wrap (contained in the ``cffi.lib`` object).
-    ffi :
-        The ``cffi.ffi`` object.
-    """
-
-    def __init__(self, wrapped, ffi):
-        self._cobj = wrapped
-        self._ffi = ffi
-
-        for nm, tp in self._ffi.typeof(self._cobj).fields:
-            setattr(self, nm, getattr(self._cobj, nm))
-
-        # Get the name of the structure
-        self._ctype = self._ffi.typeof(self._cobj).cname.split()[-1]
-
-    def __setattr__(self, name, value):
-        """Set an attribute of the instance, attempting to change it in the C struct as well."""
-        with contextlib.suppress(AttributeError):
-            setattr(self._cobj, name, value)
-        object.__setattr__(self, name, value)
-
-    def items(self):
-        """Yield (name, value) pairs for each element of the struct."""
-        for nm, tp in self._ffi.typeof(self._cobj).fields:
-            yield nm, getattr(self, nm)
-
-    def keys(self):
-        """Return a list of names of elements in the struct."""
-        return [nm for nm, tp in self.items()]
-
-    def __repr__(self):
-        """Return a unique representation of the instance."""
-        return (
-            self._ctype
-            + "("
-            + ";".join(f"{k}={str(v)}" for k, v in sorted(self.items()))
-        ) + ")"
-
-    def filtered_repr(self, filter_params):
-        """Get a fully unique representation of the instance that filters out some parameters.
-
-        Parameters
-        ----------
-        filter_params : list of str
-            The parameter names which should not appear in the representation.
-        """
-        return (
-            self._ctype
-            + "("
-            + ";".join(
-                f"{k}={str(v)}"
-                for k, v in sorted(self.items())
-                if k not in filter_params
-            )
-        ) + ")"

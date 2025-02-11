@@ -6,6 +6,7 @@ from functools import cache
 from scipy.interpolate import interp1d
 from typing import Literal, Sequence
 
+from .._cfg import config
 from ..c_21cmfast import ffi, lib
 from ..drivers.param_config import InputParameters
 from ._utils import _process_exitcode
@@ -55,7 +56,7 @@ def get_halo_list_buffer_size(
     """
     # find the buffer size from expected halos in the box
     hbuffer_size = get_expected_nhalo(redshift, user_params, cosmo_params)
-    hbuffer_size = int((hbuffer_size + 1) * user_params.MAXHALO_FACTOR)
+    hbuffer_size = int((hbuffer_size + 1) * config["HALO_CATALOG_MEM_FACTOR"])
 
     # set a minimum in case of fluctuation at high z
     return int(max(hbuffer_size, min_size))

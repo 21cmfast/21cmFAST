@@ -19,7 +19,7 @@ from os import mkdir as _mkdir
 from os import path
 
 from . import cache_tools, lightcones, plotting, wrapper
-from ._cfg import config, config_settings
+from ._cfg import config
 from ._logging import configure_logging
 from .cache_tools import query_cache
 from .drivers.coeval import Coeval, run_coeval
