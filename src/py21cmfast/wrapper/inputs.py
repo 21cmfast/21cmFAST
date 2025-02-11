@@ -215,8 +215,9 @@ class UserParams(InputStruct):
         0: GSL QAG adaptive integration,
         1: Gauss-Legendre integration, previously forced in the interpolation tables,
         2: Approximate integration, assuming sharp cutoffs and a triple power-law for sigma(M) based on EPS
-    USE_2LPT: bool, optional
-        Whether to use second-order Lagrangian perturbation theory (2LPT).
+    PERTURB_ALGORITHM: str, optional
+        Whether to use second-order Lagrangian perturbation theory (2LPT), Zel'dovich (ZELDOVICH),
+        or linear evolution (LIENAR).
         Set this to True if the density field or the halo positions are extrapolated to
         low redshifts. The current implementation is very naive and adds a factor ~6 to
         the memory requirements. Reference: Scoccimarro R., 1998, MNRAS, 299, 1097-1118
@@ -514,7 +515,7 @@ class FlagOptions(InputStruct):
         This flag simply turns off the filtering of N_rec grids, and takes the recombinations in the central cell.
     USE_UPPER_STELLAR_TURNOVER: bool, optional
         Whether to use an additional powerlaw in stellar mass fraction at high halo mass. The pivot mass scale and power-law index are
-        controlled by two global parameters, UPPER_STELLAR_TURNOVER_MASS and UPPER_STELLAR_TURNOVER_INDEX respectively.
+        controlled by two parameters, UPPER_STELLAR_TURNOVER_MASS and UPPER_STELLAR_TURNOVER_INDEX respectively.
         This is currently only implemented in the halo model (USE_HALO_FIELD=True), and has no effect otherwise.
     HALO_SCALING_RELATIONS_MEDIAN: bool, optional
         If True, halo scaling relation parameters (F_STAR10,t_STAR etc...) define the median of their conditional distributions
@@ -647,7 +648,7 @@ class FlagOptions(InputStruct):
     @USE_EXP_FILTER.validator
     def _USE_EXP_FILTER_vld(self, att, val):
         """Raise an error if USE_EXP_FILTER is False and HII_FILTER!=0."""
-        if val and astro_params.HII_FILTER != 0:
+        if val and self.HII_FILTER != 0:
             raise ValueError(
                 "USE_EXP_FILTER can only be used with a real-space tophat HII_FILTER==0"
             )
@@ -792,6 +793,12 @@ class AstroParams(InputStruct):
         The factor by which to decrease the size of the HII filter when calculating the HII regions.
     R_BUBBLE_MIN: float, optional
         Minimum size of ionized regions in Mpc. Default is 0.620350491.
+    MAX_DVDR: float, optional
+        Maximum value of the gradient of the velocity field used in the RSD algorithm.
+    NU_X_BAND_MAX: float, optional
+        The maximum frequency of the X-ray band used to calculate the X-ray Luminosity.
+    NU_X_MAX: float, optional
+        The maximum frequency of the integrals over nu for the x-ray heating/ionisation rates.
     """
 
     HII_EFF_FACTOR = field(default=30.0, converter=float, validator=validators.gt(0))
@@ -884,10 +891,14 @@ class AstroParams(InputStruct):
     ALPHA_UVB = field(default=5.0, converter=float)
     R_MAX_TS = field(default=500.0, converter=float, validator=validators.gt(0))
     N_STEP_TS = field(default=40, converter=int, validator=validators.gt(0))
+    MAX_DVDR = field(default=0.2, converter=float, validator=validators.ge(0))
 
     DELTA_R_HII_FACTOR = field(
         default=1.1, converter=float, validator=validators.gt(1.0)
     )
+
+    NU_X_BAND_MAX = field(default=2000.0, converter=float, valdiator=validators.gt(0))
+    NU_X_MAX = field(default=10000.0, converter=float, validator=validators.gt(0))
 
     # set the default of the minihalo scalings to continue the same PL
     @F_STAR7_MINI.default
@@ -929,18 +940,18 @@ class AstroParams(InputStruct):
             raise ValueError(
                 "Chosen NU_X_THRESH is < 100 eV. NU_X_THRESH must be above 100 eV as it describes X-ray photons"
             )
-        elif val >= global_params.NU_X_BAND_MAX:
+        elif val >= self.NU_X_BAND_MAX:
             raise ValueError(
                 f"""
-                Chosen NU_X_THRESH > {global_params.NU_X_BAND_MAX}, which is the upper limit of the adopted X-ray band
+                Chosen NU_X_THRESH > {self.NU_X_BAND_MAX}, which is the upper limit of the adopted X-ray band
                 (fiducially the soft band 0.5 - 2.0 keV). If you know what you are doing with this
-                choice, please modify the global parameter: NU_X_BAND_MAX"""
+                choice, please modify the parameter: NU_X_BAND_MAX"""
             )
-        elif global_params.NU_X_BAND_MAX > global_params.NU_X_MAX:
+        elif self.NU_X_BAND_MAX > self.NU_X_MAX:
             raise ValueError(
                 f"""
-                Chosen NU_X_BAND_MAX > {global_params.NU_X_MAX}, which is the upper limit of X-ray integrals (fiducially 10 keV)
-                If you know what you are doing, please modify the global parameter:
+                Chosen NU_X_BAND_MAX > {self.NU_X_MAX}, which is the upper limit of X-ray integrals (fiducially 10 keV)
+                If you know what you are doing, please modify the parameter:
                 NU_X_MAX
                 """
             )

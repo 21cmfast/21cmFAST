@@ -52,18 +52,26 @@ class Config(dict):
 
         self["direc"] = Path(self["direc"]).expanduser().absolute()
 
+        # since the subclass __setitem__ is not called in the super().__init__ call, we re-do the setting here
+        # NOTE: This seems messy but I don't know a better way to do it
+        for k in self._c_config_settings.keys():
+            self.pass_to_backend(k, self[k])
+
     def __setitem__(self, key, value):
-        """Set an item in the config. Also updating the backend if it exists there"""
-        # set the value in the dict
+        """Set an item in the config. Also updating the backend if it exists there."""
         super().__setitem__(key, value)
-        # set the value in the backend
         if key in self._c_config_settings.keys():
-            if isinstance(value, (Path, str)):
-                setattr(
-                    self._c_config_settings, key, ffi.new("char[]", str(value).encode())
-                )
-            else:
-                setattr(self._c_config_settings, key, value)
+            self.pass_to_backend(key, value)
+
+    def pass_to_backend(self, key, value):
+        """Set the value in the backend."""
+        # we should possibly do a typemap for the ffi
+        if isinstance(value, (Path, str)):
+            setattr(
+                self._c_config_settings, key, ffi.new("char[]", str(value).encode())
+            )
+        else:
+            setattr(self._c_config_settings, key, value)
 
     @contextlib.contextmanager
     def use(self, **kwargs):

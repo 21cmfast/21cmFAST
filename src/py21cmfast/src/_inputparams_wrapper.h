@@ -127,6 +127,9 @@ typedef struct AstroParams{
     int N_STEP_TS;
     double DELTA_R_HII_FACTOR;
     float R_BUBBLE_MIN;
+    double MAX_DVDR;
+    double NU_X_MAX;
+    double NU_X_BAND_MAX;
 } AstroParams;
 
 typedef struct FlagOptions{
@@ -178,4 +181,4 @@ extern CosmoParams *cosmo_params_global;
 extern AstroParams *astro_params_global;
 extern FlagOptions *flag_options_global;
 
-extern ConfigSettings ConfigSettings;
+extern ConfigSettings config_settings;

@@ -255,18 +255,12 @@ class OutputStruct(metaclass=ABCMeta):
 
     _meta = True
     _fields_ = []
-    _global_params = None
     _inputs = (
         "user_params",
         "cosmo_params",
         "random_seed",
     )  # inputs provided in the InputParameter class
-    _filter_params = [
-        "external_table_path",
-        "wisdoms_path",
-        "_flag_options",
-        "_base_cosmo",
-    ]
+
     _c_based_pointers = ()
     _c_compute_function = None
 
@@ -333,10 +327,6 @@ class OutputStruct(metaclass=ABCMeta):
         """The object pointing to the memory accessed by C-code for this struct."""
         self._init_cstruct()
         return self.struct.cstruct
-
-    @property
-    def _all_inputs(self):
-        return self._inputs + ("_global_params",)
 
     @property
     def path(self) -> tuple[None, Path]:
@@ -572,7 +562,7 @@ class OutputStruct(metaclass=ABCMeta):
 
     def _check_parameters(self, fname):
         with h5py.File(fname, "r") as f:
-            for k in self._all_inputs:
+            for k in self._inputs:
                 q = getattr(self, k)
 
                 # The key name as it should appear in file.
@@ -605,7 +595,8 @@ class OutputStruct(metaclass=ABCMeta):
 
                     dct = q.asdict() if isinstance(q, InputStruct) else q
                     for kk, v in dct.items():
-                        if kk not in self._filter_params:
+                        # TODO: I'm guessing the output overhaul solves this better
+                        if not kk.startswith("_"):
                             file_v = grp.attrs[kk]
                             if file_v == "none":
                                 file_v = None
@@ -678,7 +669,7 @@ class OutputStruct(metaclass=ABCMeta):
             try:
                 # Save input parameters to the file
                 if write_inputs:
-                    for k in self._all_inputs:
+                    for k in self._inputs:
                         q = getattr(self, k)
 
                         kfile = k.lstrip("_")
@@ -962,7 +953,7 @@ class OutputStruct(metaclass=ABCMeta):
                     )
                     for k, v in [
                         (k, getattr(self, k))
-                        for k in self._all_inputs
+                        for k in self._inputs
                         if k != "random_seed"
                     ]
                 )
@@ -973,7 +964,7 @@ class OutputStruct(metaclass=ABCMeta):
 
     def __str__(self):
         """Return a human-readable representation of the instance."""
-        # this is *not* a unique representation, and doesn't include global params.
+        # this is *not* a unique representation
         return (
             self._name
             + "("
@@ -988,7 +979,7 @@ class OutputStruct(metaclass=ABCMeta):
         ) + ")"
 
     def __hash__(self):
-        """Return a unique hsh for this instance, even global params and random seed."""
+        """Return a unique hsh for this instance, including random seed."""
         return hash(repr(self))
 
     @property

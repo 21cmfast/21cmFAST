@@ -988,11 +988,11 @@ void set_zp_consts(double zp, struct spintemp_from_sfr_prefactors *consts){
     consts->dgrowth_dzp = ddicke_dz(zp);
     consts->dt_dzp = dtdz(zp);
     if(fabs(astro_params_global->X_RAY_SPEC_INDEX - 1.0) < 1e-6) {
-        luminosity_converstion_factor = (astro_params_global->NU_X_THRESH)*NU_over_EV * log( NU_X_BAND_MAX/(astro_params_global->NU_X_THRESH) );
+        luminosity_converstion_factor = (astro_params_global->NU_X_THRESH)*NU_over_EV * log( astro_params_global->NU_X_BAND_MAX/(astro_params_global->NU_X_THRESH) );
         luminosity_converstion_factor = 1./luminosity_converstion_factor;
     }
     else {
-        luminosity_converstion_factor = pow( (NU_X_BAND_MAX)*NU_over_EV , 1. - (astro_params_global->X_RAY_SPEC_INDEX) ) - \
+        luminosity_converstion_factor = pow( (astro_params_global->NU_X_BAND_MAX)*NU_over_EV , 1. - (astro_params_global->X_RAY_SPEC_INDEX) ) - \
                                         pow( (astro_params_global->NU_X_THRESH)*NU_over_EV , 1. - (astro_params_global->X_RAY_SPEC_INDEX) ) ;
         luminosity_converstion_factor = 1./luminosity_converstion_factor;
         luminosity_converstion_factor *= pow( (astro_params_global->NU_X_THRESH)*NU_over_EV, - (astro_params_global->X_RAY_SPEC_INDEX) )*\

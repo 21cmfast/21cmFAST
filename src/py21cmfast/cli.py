@@ -13,7 +13,7 @@ from astropy import units as un
 from os import path, remove
 from pathlib import Path
 
-from . import _cfg, cache_tools, global_params, plotting
+from . import _cfg, cache_tools, plotting
 from .drivers.coeval import run_coeval
 from .drivers.lightcone import exhaust_lightcone, run_lightcone
 from .drivers.param_config import InputParameters, get_logspaced_redshifts
@@ -105,8 +105,6 @@ def _get_params_from_ctx(ctx, cfg):
     flag_options = FlagOptions.new(params["flag_options"])
     astro_params = AstroParams.new(params["astro_params"])
 
-    # Also update globals, always.
-    _update(global_params, ctx)
     if ctx:
         warnings.warn("The following arguments were not able to be set: %s" % ctx)
 

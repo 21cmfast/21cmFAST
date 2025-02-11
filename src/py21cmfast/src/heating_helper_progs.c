@@ -720,10 +720,10 @@ double integrate_over_nu(double zp, double local_x_e, double lower_int_limit, in
 
     int status;
     gsl_set_error_handler_off();
-    status = gsl_integration_qag (&F, lower_int_limit, NU_X_MAX*NU_over_EV, 0, rel_tol, 1000, GSL_INTEG_GAUSS15, w, &result, &error);
+    status = gsl_integration_qag (&F, lower_int_limit, astro_params_global->NU_X_MAX*NU_over_EV, 0, rel_tol, 1000, GSL_INTEG_GAUSS15, w, &result, &error);
 
     if(status!=0){
-        LOG_ERROR("(function argument): lower_limit=%e upper_limit=%e rel_tol=%e result=%e error=%e",lower_int_limit,NU_X_MAX*NU_over_EV,rel_tol,result,error);
+        LOG_ERROR("(function argument): lower_limit=%e upper_limit=%e rel_tol=%e result=%e error=%e",lower_int_limit,astro_params_global->NU_X_MAX*NU_over_EV,rel_tol,result,error);
         LOG_ERROR("data: zp=%e local_x_e=%e FLAG=%d",zp,local_x_e,FLAG);
         CATCH_GSL_ERROR(status);
     }

@@ -14,7 +14,6 @@ from .. import __version__
 from .._cfg import config
 from ..c_21cmfast import lib
 from ..wrapper._utils import camel_to_snake
-from ..wrapper.globals import global_params
 from ..wrapper.inputs import AstroParams, CosmoParams, FlagOptions, UserParams
 from ..wrapper.outputs import (
     BrightnessTemp,
@@ -33,7 +32,6 @@ from .param_config import (
     check_redshift_consistency,
     get_logspaced_redshifts,
 )
-from .single_field import set_globals
 
 logger = logging.getLogger(__name__)
 
@@ -164,7 +162,6 @@ class _HighLevelOutput:
                 "cosmo_params",
                 "astro_params",
                 "flag_options",
-                "global_params",
             ]
         )
 
@@ -217,11 +214,9 @@ class _HighLevelOutput:
                 "cosmo_params",
                 "flag_options",
                 "astro_params",
-                "global_params",
             ]:
                 q = getattr(self, k)
-                kfile = "_globals" if k == "global_params" else k
-                grp = f.create_group(kfile)
+                grp = f.create_group(k)
 
                 try:
                     dct = q.asdict()
@@ -272,42 +267,11 @@ class _HighLevelOutput:
     def _read_inputs(cls, fname, safe=True):
         kwargs = {}
         with h5py.File(fname, "r") as fl:
-            global_req_keys = [
-                k for k, v in global_params.items() if "path" not in k and v is not None
-            ]
-            glbls = dict(fl["_globals"].attrs)
-            if set(glbls.keys()) != set(global_req_keys):
-                missing_items = [
-                    (k, v)
-                    for k, v in global_params.items()
-                    if k not in glbls.keys() and k in global_req_keys
-                ]
-                extra_items = [
-                    (k, v) for k, v in glbls.items() if k not in global_params.keys()
-                ]
-                message = (
-                    f"There are extra or missing global params in the file to be read.\n"
-                    f"EXTRAS: {extra_items}\n"
-                    f"MISSING: {missing_items}\n"
-                )
-                # we don't save None values (we probably should) or paths so ignore these
-                # We also only print the warning for these fields if "safe" is turned off
-                if safe:
-                    raise ValueError(
-                        message
-                        + "set `safe=False` to load structures from previous versions"
-                    )
-                else:
-                    warnings.warn(
-                        message
-                        + "\nExtras are ignored and missing are set to default (shown) values"
-                    )
-
             if "photon_nonconservation_data" in fl.keys():
                 d = fl["photon_nonconservation_data"]
                 kwargs["photon_nonconservation_data"] = {k: d[k][...] for k in d.keys()}
 
-        return kwargs, glbls
+        return kwargs
 
     @classmethod
     def read(cls, fname, direc=".", safe=True):
@@ -337,11 +301,10 @@ class _HighLevelOutput:
         if not os.path.exists(fname):
             raise FileExistsError(f"The file {fname} does not exist!")
 
-        park, glbls = cls._read_inputs(fname, safe=safe)
+        park = cls._read_inputs(fname, safe=safe)
         boxk = cls._read_particular(fname, safe=safe)
 
-        with global_params.use(**glbls):
-            out = cls(**park, **boxk)
+        out = cls(**park, **boxk)
 
         return out
 
@@ -363,7 +326,6 @@ class Coeval(_HighLevelOutput):
         halobox: HaloBox | None = None,
         cache_files: dict | None = None,
         photon_nonconservation_data=None,
-        _globals=None,
     ):
 
         # Check that all the fields have the same redshift.
@@ -389,8 +351,6 @@ class Coeval(_HighLevelOutput):
         self.cache_files = cache_files
 
         self.photon_nonconservation_data = photon_nonconservation_data
-        # A *copy* of the current global parameters.
-        self.global_params = _globals or dict(global_params.items())
 
         # Expose all the fields of the structs to the surface of the Coeval object
         for box in [
@@ -475,7 +435,6 @@ class Coeval(_HighLevelOutput):
                             "cosmo_params",
                             "flag_options",
                             "astro_params",
-                            "global_params",
                         ]:
                             fl.attrs[inp] = getattr(struct, inp)
 
@@ -506,7 +465,6 @@ class Coeval(_HighLevelOutput):
         )
 
 
-@set_globals
 def run_coeval(
     *,
     inputs: InputParameters,
@@ -519,7 +477,6 @@ def run_coeval(
     cleanup: bool = True,
     hooks: dict[callable, dict[str, Any]] | None = None,
     always_purge: bool = False,
-    **global_kwargs,
 ):
     r"""
     Evaluate a coeval ionized box at a given redshift, or multiple redshifts.
@@ -552,10 +509,6 @@ def run_coeval(
         true, as if the next box to be calculate has different shape, errors will occur
         if memory is not cleaned. Note that internally, this is set to False until the
         last iteration.
-    \*\*global_kwargs :
-        Any attributes for :class:`~py21cmfast.inputs.GlobalParams`. This will
-        *temporarily* set global attributes for the duration of the function. Note that
-        arguments will be treated as case-insensitive.
 
     Returns
     -------
@@ -677,13 +630,13 @@ def run_coeval(
         )
     if (
         inputs.flag_options.PHOTON_CONS_TYPE == "z-photoncons"
-        and np.amin(all_redshifts) < global_params.PhotonConsEndCalibz
+        and np.amin(all_redshifts) < inputs.astro_params.PHOTONCONS_CALIBRATION_END
     ):
         raise ValueError(
             f"You have passed a redshift (z = {np.amin(all_redshifts)}) that is lower than"
             "the endpoint of the photon non-conservation correction"
-            f"(global_params.PhotonConsEndCalibz = {global_params.PhotonConsEndCalibz})."
-            "If this behaviour is desired then set global_params.PhotonConsEndCalibz"
+            f"(inputs.astro_params.PHOTONCONS_CALIBRATION_END = {inputs.astro_params.PHOTONCONS_CALIBRATION_END})."
+            "If this behaviour is desired then set inputs.astro_params.PHOTONCONS_CALIBRATION_END"
             f"to a value lower than z = {np.amin(all_redshifts)}."
         )
 

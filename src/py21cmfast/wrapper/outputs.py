@@ -21,7 +21,7 @@ from cached_property import cached_property
 from .. import __version__
 from ..c_21cmfast import ffi, lib
 from ..drivers.param_config import InputParameters
-from .inputs import AstroParams, CosmoParams, FlagOptions, UserParams, global_params
+from .inputs import AstroParams, CosmoParams, FlagOptions, UserParams
 from .structs import OutputStruct as _BaseOutputStruct
 
 logger = logging.getLogger(__name__)
@@ -32,8 +32,6 @@ logger = logging.getLogger(__name__)
 #   (done in structs.OutputStruct.__init__) or the input struct (done here)
 # TODO: there is certainly a better way to organise it
 class _OutputStruct(_BaseOutputStruct):
-    _global_params = global_params
-
     def __init__(self, *, inputs: InputParameters | None = None, **kwargs):
         if inputs:
             self.cosmo_params = inputs.cosmo_params
@@ -88,38 +86,7 @@ class InitialConditions(_OutputStruct):
     """A class containing all initial conditions boxes."""
 
     _c_compute_function = lib.ComputeInitialConditions
-
-    # The filter params indicates parameters to overlook when deciding if a cached box
-    # matches current parameters.
-    # It is useful for ignoring certain global parameters which may not apply to this
-    # step or its dependents.
     _meta = False
-    # TODO: globals have been removed, so this should be updated IF the output struct overhaul doesn't solve this
-    _filter_params = _OutputStruct._filter_params + [
-        "ALPHA_UVB",  # ionization
-        "EVOLVE_DENSITY_LINEARLY",  # perturb
-        "SMOOTH_EVOLVED_DENSITY_FIELD",  # perturb
-        "R_smooth_density",  # perturb
-        "HII_ROUND_ERR",  # ionization
-        "FIND_BUBBLE_ALGORITHM",  # ib
-        "N_POISSON",  # ib
-        "T_USE_VELOCITIES",  # bt
-        "MAX_DVDR",  # bt
-        "DELTA_R_HII_FACTOR",  # ib
-        "HII_FILTER",  # ib
-        "INITIAL_REDSHIFT",  # pf
-        "HEAT_FILTER",  # st
-        "CLUMPING_FACTOR",  # st
-        "R_XLy_MAX",  # st
-        "NUM_FILTER_STEPS_FOR_Ts",  # ts
-        "TK_at_Z_HEAT_MAX",  # ts
-        "XION_at_Z_HEAT_MAX",  # ts
-        "Pop",  # ib
-        "Pop2_ion",  # ib
-        "Pop3_ion",  # ib
-        "NU_X_BAND_MAX",  # st
-        "NU_X_MAX",  # ib
-    ]
 
     def prepare_for_perturb(self, flag_options: FlagOptions, force: bool = False):
         """Ensure the ICs have all the boxes loaded for perturb, but no extra."""
@@ -216,28 +183,6 @@ class PerturbedField(_OutputStructZ):
     _c_compute_function = lib.ComputePerturbField
 
     _meta = False
-    # TODO: globals have been removed, so this should be updated IF the output struct overhaul doesn't solve this
-    _filter_params = _OutputStruct._filter_params + [
-        "ALPHA_UVB",  # ionization
-        "HII_ROUND_ERR",  # ionization
-        "FIND_BUBBLE_ALGORITHM",  # ib
-        "N_POISSON",  # ib
-        "T_USE_VELOCITIES",  # bt
-        "MAX_DVDR",  # bt
-        "DELTA_R_HII_FACTOR",  # ib
-        "HII_FILTER",  # ib
-        "HEAT_FILTER",  # st
-        "CLUMPING_FACTOR",  # st
-        "R_XLy_MAX",  # st
-        "NUM_FILTER_STEPS_FOR_Ts",  # ts
-        "TK_at_Z_HEAT_MAX",  # ts
-        "XION_at_Z_HEAT_MAX",  # ts
-        "Pop",  # ib
-        "Pop2_ion",  # ib
-        "Pop3_ion",  # ib
-        "NU_X_BAND_MAX",  # st
-        "NU_X_MAX",  # ib
-    ]
 
     def _get_box_structures(self) -> dict[str, dict | tuple[int]]:
         out = {
@@ -727,13 +672,13 @@ class IonizedBox(_AllParamsBox):
                             0.620350491 * self.user_params.BOX_LEN,
                         )
                         / max(
-                            global_params.R_BUBBLE_MIN,
+                            self.astro_params.R_BUBBLE_MIN,
                             0.620350491
                             * self.user_params.BOX_LEN
                             / self.user_params.HII_DIM,
                         )
                     )
-                    / np.log(global_params.DELTA_R_HII_FACTOR)
+                    / np.log(self.astro_params.DELTA_R_HII_FACTOR)
                 )
                 + 1
             )

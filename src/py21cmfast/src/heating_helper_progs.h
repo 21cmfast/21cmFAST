@@ -1,12 +1,6 @@
 #ifndef _HEATHELPER_H
 #define _HEATHELPER_H
 
-//Used in SFR -> Lx conversion factor, power-law for L_X calculation
-// is defined between NU_X_THRESH and NU_X_MAX
-#define NU_X_BAND_MAX (2000.0)
-//Limit for nu integrals when calculating rates / L_X tables
-#define NU_X_MAX (10000.0)
-
 // * initialization routine * //
 int init_heat();
 

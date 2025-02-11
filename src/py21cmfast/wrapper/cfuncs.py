@@ -9,7 +9,6 @@ from typing import Literal, Sequence
 from ..c_21cmfast import ffi, lib
 from ..drivers.param_config import InputParameters
 from ._utils import _process_exitcode
-from .globals import global_params
 from .inputs import AstroParams, CosmoParams, FlagOptions, UserParams
 from .outputs import InitialConditions, PerturbHaloField
 
@@ -398,9 +397,8 @@ def evaluate_sigma(
 
     lib.init_ps()
     if user_params.USE_INTERPOLATION_TABLES:
-        lib.initialiseSigmaMInterpTable(
-            global_params.M_MIN_INTEGRAL, global_params.M_MAX_INTEGRAL
-        )
+        # hard-coded limits for now
+        lib.initialiseSigmaMInterpTable(1e5, 1e16)
 
     sigma = np.vectorize(lib.EvaluateSigma)(np.log(masses))
     dsigmasq = np.vectorize(lib.EvaluatedSigmasqdm)(np.log(masses))
@@ -435,9 +433,7 @@ def evaluate_massfunc_cond(
 
     lib.init_ps()
     if user_params.USE_INTERPOLATION_TABLES:
-        lib.initialiseSigmaMInterpTable(
-            global_params.M_MIN_INTEGRAL, global_params.M_MAX_INTEGRAL
-        )
+        lib.initialiseSigmaMInterpTable(1e5, 1e16)
 
     growth_out = lib.dicke(redshift)
     if from_catalog:
@@ -522,9 +518,7 @@ def get_cmf_integral(
         flag_options.cstruct,
     )
     lib.init_ps()
-    lib.initialiseSigmaMInterpTable(
-        global_params.M_MIN_INTEGRAL, global_params.M_MAX_INTEGRAL
-    )
+    lib.initialiseSigmaMInterpTable(1e5, 1e16)
 
     sigma = np.vectorize(lib.EvaluateSigma)(np.log(M_cond))
 
@@ -581,9 +575,7 @@ def evaluate_inv_massfunc_cond(
     )
 
     lib.init_ps()
-    lib.initialiseSigmaMInterpTable(
-        global_params.M_MIN_INTEGRAL, global_params.M_MAX_INTEGRAL
-    )
+    lib.initialiseSigmaMInterpTable(1e5, 1e16)
 
     growth_out = lib.dicke(redshift)
 

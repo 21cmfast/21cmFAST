@@ -16,13 +16,7 @@ from pathlib import Path
 from typing import Any, Callable
 
 from ..wrapper.cfuncs import construct_fftw_wisdoms, get_halo_list_buffer_size
-from ..wrapper.inputs import (
-    AstroParams,
-    CosmoParams,
-    FlagOptions,
-    UserParams,
-    global_params,
-)
+from ..wrapper.inputs import AstroParams, CosmoParams, FlagOptions, UserParams
 from ..wrapper.outputs import (
     BrightnessTemp,
     HaloBox,
@@ -43,21 +37,6 @@ from .param_config import (
 logger = logging.getLogger(__name__)
 
 
-def set_globals(func: callable):
-    """Decorator that sets global parameters."""
-
-    @wraps(func)
-    def inner(*args, **kwargs):
-        # Get all kwargs that are actually global params
-        global_kwargs = {k: v for k, v in kwargs.items() if k in global_params.keys()}
-        other_kwargs = {k: v for k, v in kwargs.items() if k not in global_kwargs}
-        with global_params.use(**global_kwargs):
-            return func(*args, **other_kwargs)
-
-    return inner
-
-
-@set_globals
 def compute_initial_conditions(
     *,
     inputs: InputParameters,
@@ -65,7 +44,6 @@ def compute_initial_conditions(
     write: bool | None = None,
     direc: Path | None = None,
     hooks: dict[Callable, dict[str, Any]] | None = None,
-    **global_kwargs,
 ) -> InitialConditions:
     r"""
     Compute initial conditions.
@@ -96,13 +74,6 @@ def compute_initial_conditions(
         ``~/.21cmfast/config.yml``. This is recursively applied to any potential
         sub-calculations.
 
-    Other Parameters
-    ----------------
-    \*\*global_kwargs :
-        Any attributes for :class:`~py21cmfast.inputs.GlobalParams`. This will
-        *temporarily* set global attributes for the duration of the function. Note that
-        arguments will be treated as case-insensitive.
-
     Returns
     -------
     :class:`~InitialConditions`
@@ -128,7 +99,6 @@ def compute_initial_conditions(
     return ics.compute(hooks=hooks)
 
 
-@set_globals
 def perturb_field(
     *,
     redshift: float,
@@ -138,7 +108,6 @@ def perturb_field(
     write: bool | None = None,
     direc: Path | None = None,
     hooks: dict[Callable, dict[str, Any]] | None = None,
-    **global_kwargs,
 ) -> PerturbedField:
     r"""
     Compute a perturbed field at a given redshift.
@@ -149,10 +118,6 @@ def perturb_field(
         The redshift at which to compute the perturbed field.
     initial_conditions : :class:`~InitialConditions` instance
         The initial conditions.
-    \*\*global_kwargs :
-        Any attributes for :class:`~py21cmfast.inputs.GlobalParams`. This will
-        *temporarily* set global attributes for the duration of the function. Note that
-        arguments will be treated as case-insensitive.
 
     Returns
     -------
@@ -200,7 +165,6 @@ def perturb_field(
     return fields.compute(ics=initial_conditions, hooks=hooks)
 
 
-@set_globals
 def determine_halo_list(
     *,
     redshift: float,
@@ -211,7 +175,6 @@ def determine_halo_list(
     write=None,
     direc=None,
     hooks=None,
-    **global_kwargs,
 ):
     r"""
     Find a halo list, given a redshift.
@@ -230,10 +193,6 @@ def determine_halo_list(
         The astrophysical parameters defining the course of reionization.
     flag_options: :class:`FlagOptions` instance, optional
         The flag options enabling/disabling extra modules in the simulation.
-    \*\*global_kwargs :
-        Any attributes for :class:`~py21cmfast.inputs.GlobalParams`. This will
-        *temporarily* set global attributes for the duration of the function. Note that
-        arguments will be treated as case-insensitive.
 
     Returns
     -------
@@ -302,7 +261,6 @@ def determine_halo_list(
     )
 
 
-@set_globals
 def perturb_halo_list(
     *,
     inputs: InputParameters,
@@ -312,7 +270,6 @@ def perturb_halo_list(
     write=None,
     direc=None,
     hooks=None,
-    **global_kwargs,
 ):
     r"""
     Given a halo list, perturb the halos for a given redshift.
@@ -324,10 +281,6 @@ def perturb_halo_list(
         as well as the random seed will be set from this object.
     halo_field: :class: `~HaloField`
         The halo catalogue in Lagrangian space to be perturbed.
-    \*\*global_kwargs :
-        Any attributes for :class:`~py21cmfast.inputs.GlobalParams`. This will
-        *temporarily* set global attributes for the duration of the function. Note that
-        arguments will be treated as case-insensitive.
 
     Returns
     -------
@@ -374,7 +327,6 @@ def perturb_halo_list(
     return fields.compute(ics=initial_conditions, halo_field=halo_field, hooks=hooks)
 
 
-@set_globals
 def compute_halo_grid(
     *,
     initial_conditions: InitialConditions,
@@ -387,7 +339,6 @@ def compute_halo_grid(
     direc=None,
     regenerate: bool | None = None,
     hooks=None,
-    **global_kwargs,
 ) -> HaloBox:
     r"""
     Compute grids of halo properties from a catalogue.
@@ -409,10 +360,6 @@ def compute_halo_grid(
         The previous spin temperature box. Used for feedback when USE_MINI_HALOS==True
     previous_ionize_box: :class:`IonizedBox` or None
         An at the last timestep. Used for feedback when USE_MINI_HALOS==True
-    \*\*global_kwargs :
-        Any attributes for :class:`~py21cmfast.inputs.GlobalParams`. This will
-        *temporarily* set global attributes for the duration of the function. Note that
-        arguments will be treated as case-insensitive.
 
     Returns
     -------
@@ -622,7 +569,6 @@ def interp_halo_boxes(
 # NOTE: the current implementation of this box is very hacky, since I have trouble figuring out a way to _compute()
 #   over multiple redshifts in a nice way using this wrapper.
 # TODO: if we move some code to jax or similar I think this would be one of the first candidates (just filling out some filtered grids)
-@set_globals
 def compute_xray_source_field(
     *,
     inputs: InputParameters,
@@ -632,7 +578,6 @@ def compute_xray_source_field(
     direc=None,
     regenerate=None,
     hooks=None,
-    **global_kwargs,
 ) -> XraySourceBox:
     r"""
     Compute filtered grid of SFR for use in spin temperature calculation.
@@ -649,10 +594,6 @@ def compute_xray_source_field(
         The initial conditions of the run. The user and cosmo params
     hboxes: Sequence of :class:`~HaloBox` instances
         This contains the list of Halobox instances which are used to create this source field
-    \*\*global_kwargs :
-        Any attributes for :class:`~py21cmfast.inputs.GlobalParams`. This will
-        *temporarily* set global attributes for the duration of the function. Note that
-        arguments will be treated as case-insensitive.
 
     Returns
     -------
@@ -698,7 +639,7 @@ def compute_xray_source_field(
     cosmo_ap = inputs.cosmo_params.cosmo
     cmd_zp = cosmo_ap.comoving_distance(redshift)
     R_steps = np.arange(0, inputs.astro_params.N_STEP_TS)
-    R_factor = (global_params.R_XLy_MAX / R_min) ** (
+    R_factor = (inputs.astro_params.R_MAX_TS / R_min) ** (
         R_steps / inputs.astro_params.N_STEP_TS
     )
     R_range = un.Mpc * R_min * R_factor
@@ -778,7 +719,6 @@ def compute_xray_source_field(
     return box
 
 
-@set_globals
 def compute_ionization_field(
     *,
     inputs: InputParameters,
@@ -792,7 +732,6 @@ def compute_ionization_field(
     write=None,
     direc=None,
     hooks=None,
-    **global_kwargs,
 ) -> IonizedBox:
     r"""
     Compute an ionized box at a given redshift.
@@ -825,10 +764,6 @@ def compute_ionization_field(
         The astrophysical parameters defining the course of reionization.
     flag_options: :class:`FlagOptions` instance, optional
         The flag options enabling/disabling extra modules in the simulation.
-    \*\*global_kwargs :
-        Any attributes for :class:`~py21cmfast.inputs.GlobalParams`. This will
-        *temporarily* set global attributes for the duration of the function. Note that
-        arguments will be treated as case-insensitive.
 
     Returns
     -------
@@ -1014,7 +949,6 @@ def compute_ionization_field(
     )
 
 
-@set_globals
 def spin_temperature(
     *,
     inputs: InputParameters,
@@ -1027,7 +961,6 @@ def spin_temperature(
     direc=None,
     cleanup=True,
     hooks=None,
-    **global_kwargs,
 ) -> TsBox:
     r"""
     Compute spin temperature boxes at a given redshift.
@@ -1060,10 +993,6 @@ def spin_temperature(
         true, as if the next box to be calculate has different shape, errors will occur
         if memory is not cleaned. However, it can be useful to set it to False if
         scrolling through parameters for the same box shape.
-    \*\*global_kwargs :
-        Any attributes for :class:`~py21cmfast.inputs.GlobalParams`. This will
-        *temporarily* set global attributes for the duration of the function. Note that
-        arguments will be treated as case-insensitive.
 
     Returns
     -------
@@ -1198,7 +1127,6 @@ def spin_temperature(
     )
 
 
-@set_globals
 def brightness_temperature(
     *,
     inputs: InputParameters,
@@ -1209,7 +1137,6 @@ def brightness_temperature(
     regenerate: bool | None = None,
     direc=None,
     hooks=None,
-    **global_kwargs,
 ) -> BrightnessTemp:
     r"""
     Compute a coeval brightness temperature box.
@@ -1222,10 +1149,6 @@ def brightness_temperature(
         A pre-computed perturbed field at the same redshift as `ionized_box`.
     spin_temp: :class:`TsBox`, optional
         A pre-computed spin temperature, at the same redshift as the other boxes.
-    \*\*global_kwargs :
-        Any attributes for :class:`~py21cmfast.inputs.GlobalParams`. This will
-        *temporarily* set global attributes for the duration of the function. Note that
-        arguments will be treated as case-insensitive.
 
     Returns
     -------
