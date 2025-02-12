@@ -14,7 +14,6 @@ from py21cmfast import (
     config,
     exhaust_lightcone,
     get_logspaced_redshifts,
-    global_params,
     perturb_field,
     run_lightcone,
 )

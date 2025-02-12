@@ -509,7 +509,7 @@ def _run_lightcone_from_perturbed_fields(
 
     photon_nonconservation_data = None
     if inputs.flag_options.PHOTON_CONS_TYPE != "no-photoncons":
-        setup_photon_cons(**kw)
+        photon_nonconservation_data = setup_photon_cons(**kw)
 
     # At first we don't have any "previous" fields.
     st, ib, pf, hbox = None, None, None, None
@@ -658,7 +658,7 @@ def _run_lightcone_from_perturbed_fields(
             ionized_box=ib2,
             brightness_temp=bt2,
             ts_box=st2,
-            halobox=hbox2,
+            halo_box=hbox2,
             photon_nonconservation_data=photon_nonconservation_data,
         )
 
@@ -742,7 +742,7 @@ def _run_lightcone_from_perturbed_fields(
             "ionized_box": ionize_files,
             "brightness_temp": brightness_files,
             "spin_temp": spin_temp_files,
-            "halobox": hbox_files,
+            "halo_box": hbox_files,
             "pt_halos": phf_files,
         }
 

@@ -196,7 +196,10 @@ void set_ionbox_constants(double redshift, double prev_redshift, CosmoParams *co
     if(consts->mturn_m_nofb < astro_params->M_TURN)consts->mturn_m_nofb = astro_params->M_TURN;
     if(consts->mturn_a_nofb < astro_params->M_TURN)consts->mturn_a_nofb = astro_params->M_TURN;
 
-    if(flag_options->FIXED_HALO_GRIDS || user_params_global->AVG_BELOW_SAMPLER){
+    if(!flag_options_global->USE_HALO_FIELD || \
+        flag_options->FIXED_HALO_GRIDS || \
+        user_params_global->AVG_BELOW_SAMPLER)
+    {
         consts->Mlim_Fstar = Mass_limit_bisection(M_MIN_INTEGRAL, M_MAX_INTEGRAL, consts->alpha_star, consts->fstar_10);
         consts->Mlim_Fesc = Mass_limit_bisection(M_MIN_INTEGRAL, M_MAX_INTEGRAL, consts->alpha_esc, consts->fesc_10);
 

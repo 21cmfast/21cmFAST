@@ -1017,7 +1017,7 @@ double get_fesc_fit(double redshift){
     Q_at_z(redshift,&Q);
     if(Q > 1.) Q = 1.;
     fesc_fit = fesc_photoncons_yint + Q*fesc_photoncons_slope;
-    LOG_DEBUG("Alpha photon cons fit activated z = %.2e, fit yint,slope = %.2e, %.2e, alpha = %.2e", redshift,
+    LOG_DEBUG("photon cons fit activated z = %.2f Q = %.2f, fit (yint, slope) = (%.2f, %.2f), val = %.2f", redshift, Q,
                 fesc_photoncons_yint,fesc_photoncons_slope,fesc_fit);
     return fesc_fit;
 }

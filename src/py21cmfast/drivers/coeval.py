@@ -87,7 +87,7 @@ class _HighLevelOutput:
         kinds = {
             "init": InitialConditions,
             "perturb_field": PerturbedField,
-            "halobox": HaloBox,
+            "halo_box": HaloBox,
             "ionized_box": IonizedBox,
             "spin_temp": TsBox,
             "brightness_temp": BrightnessTemp,
@@ -107,7 +107,7 @@ class _HighLevelOutput:
         kinds = kinds or [
             "init",
             "perturb_field",
-            "halobox",
+            "halo_box",
             "ionized_box",
             "spin_temp",
             "brightness_temp",
@@ -323,7 +323,7 @@ class Coeval(_HighLevelOutput):
         ionized_box: IonizedBox,
         brightness_temp: BrightnessTemp,
         ts_box: TsBox | None = None,
-        halobox: HaloBox | None = None,
+        halo_box: HaloBox | None = None,
         cache_files: dict | None = None,
         photon_nonconservation_data=None,
     ):
@@ -333,7 +333,7 @@ class Coeval(_HighLevelOutput):
             redshift,
             (
                 perturbed_field,
-                halobox,
+                halo_box,
                 ionized_box,
                 brightness_temp,
                 ts_box,
@@ -345,7 +345,7 @@ class Coeval(_HighLevelOutput):
         self.perturb_struct = perturbed_field
         self.ionization_struct = ionized_box
         self.brightness_temp_struct = brightness_temp
-        self.halobox_struct = halobox
+        self.halo_box_struct = halo_box
         self.spin_temp_struct = ts_box
 
         self.cache_files = cache_files
@@ -356,7 +356,7 @@ class Coeval(_HighLevelOutput):
         for box in [
             initial_conditions,
             perturbed_field,
-            halobox,
+            halo_box,
             ionized_box,
             brightness_temp,
             ts_box,
@@ -421,7 +421,14 @@ class Coeval(_HighLevelOutput):
         return ""
 
     def _write_particulars(self, fname):
-        for name in ["init", "perturb", "ionization", "brightness_temp", "spin_temp"]:
+        for name in [
+            "init",
+            "perturb",
+            "halo_box",
+            "ionization",
+            "brightness_temp",
+            "spin_temp",
+        ]:
             struct = getattr(self, f"{name}_struct")
             if struct is not None:
                 struct.write(fname=fname, write_inputs=False)
@@ -771,7 +778,7 @@ def run_coeval(
             ionized_box=ib,
             brightness_temp=_bt,
             ts_box=st,
-            halobox=hb,
+            halo_box=hb,
             photon_nonconservation_data=photon_nonconservation_data,
             cache_files={
                 "init": [(0, os.path.join(direc, initial_conditions.filename))],

@@ -181,7 +181,6 @@ def init(ctx, config, regen, direc, seed):
         regenerate=regen,
         write=True,
         direc=direc,
-        random_seed=seed,
     )
 
 
@@ -456,7 +455,6 @@ def ionize(ctx, redshift, prev_z, config, regen, direc, seed):
         regenerate=regen,
         write=True,
         direc=direc,
-        random_seed=seed,
     )
 
 
@@ -548,7 +546,6 @@ def coeval(ctx, redshift, config, out, regen, direc, seed):
         regenerate=regen,
         write=True,
         direc=direc,
-        random_seed=seed,
     )
 
     if out:
@@ -677,7 +674,6 @@ def lightcone(ctx, redshift, config, out, regen, direc, max_z, seed, lq):
         regenerate=regen,
         write=True,
         direc=direc,
-        random_seed=seed,
     )
 
     if out:
@@ -867,7 +863,6 @@ def pr_feature(
         lc_default = run_lightcone(
             redshift=redshift,
             max_redshift=max_redshift,
-            random_seed=random_seed,
             regenerate=regenerate,
             **structs,
         )
@@ -877,7 +872,6 @@ def pr_feature(
         lc_new = run_lightcone(
             redshift=redshift,
             max_redshift=max_redshift,
-            random_seed=random_seed,
             regenerate=regenerate,
             **structs,
         )

@@ -665,24 +665,27 @@ class OutputStruct(metaclass=ABCMeta):
                 # Save input parameters to the file
                 if write_inputs:
                     for k in self._inputs:
+                        # TODO: since globals are gone, changed filter params to instead exclude keys
+                        #   that start with _. Try to think of a cleaner way
+                        if k.startswith("_"):
+                            continue
                         q = getattr(self, k)
 
-                        kfile = k.lstrip("_")
-
                         if isinstance(q, InputStruct):
-                            grp = fl.create_group(kfile)
+                            grp = fl.create_group(k)
                             dct = q.asdict()
                             for kk, v in dct.items():
-                                if kk not in self._filter_params:
-                                    try:
-                                        grp.attrs[kk] = "none" if v is None else v
-                                    except TypeError as e:
-                                        raise TypeError(
-                                            f"key {kk} with value {v} is not able to be written to HDF5 attrs!"
-                                        ) from e
+                                if kk.startswith("_"):
+                                    continue
+                                try:
+                                    grp.attrs[kk] = "none" if v is None else v
+                                except TypeError as e:
+                                    raise TypeError(
+                                        f"key {kk} with value {v} is not able to be written to HDF5 attrs!"
+                                    ) from e
                         else:
                             try:
-                                fl.attrs[kfile] = q
+                                fl.attrs[k] = q
                             except TypeError as e:
                                 logger.info(f"name {k} val {q}, type {type(q)}")
                                 raise e

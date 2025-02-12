@@ -12,7 +12,6 @@ from py21cmfast import (
     TsBox,
     UserParams,
     exhaust_lightcone,
-    global_params,
     run_coeval,
     run_lightcone,
 )
@@ -59,11 +58,9 @@ def test_read_bad_file_lc(test_direc, lc):
     with h5py.File(fname, "r+") as f:
         # make gluts, these should be ignored on reading
         f["user_params"].attrs["NotARealParameter"] = "fake_param"
-        f["_globals"].attrs["NotARealGlobal"] = "fake_param"
 
         # make gaps
         del f["user_params"].attrs["BOX_LEN"]
-        del f["_globals"].attrs["OPTIMIZE_MIN_MASS"]
 
     # load without compatibility mode, make sure we throw the right error
     with pytest.raises(ValueError, match="There are extra or missing"):
@@ -75,22 +72,15 @@ def test_read_bad_file_lc(test_direc, lc):
 
     # check that the fake fields didn't show up in the struct
     assert not hasattr(lc2.user_params, "NotARealParameter")
-    assert "NotARealGlobal" not in lc2.global_params.keys()
 
     # check that missing fields are set to default
     assert lc2.user_params.BOX_LEN == UserParams().BOX_LEN
-    assert lc2.global_params["OPTIMIZE_MIN_MASS"] == global_params.OPTIMIZE_MIN_MASS
 
     # check that the fields which are good are read in the struct
     assert all(
         getattr(lc2.user_params, field.name) == getattr(lc.user_params, field.name)
         for field in attrs.fields(UserParams)
         if field.name != "BOX_LEN"
-    )
-    assert all(
-        lc2.global_params[k] == lc.global_params[k]
-        for k in global_params.keys()
-        if k != "OPTIMIZE_MIN_MASS"
     )
 
 
@@ -102,11 +92,9 @@ def test_read_bad_file_coev(test_direc, coeval):
     with h5py.File(fname, "r+") as f:
         # make gluts, these should be ignored on reading
         f["user_params"].attrs["NotARealParameter"] = "fake_param"
-        f["_globals"].attrs["NotARealGlobal"] = "fake_param"
 
         # make gaps
         del f["user_params"].attrs["BOX_LEN"]
-        del f["_globals"].attrs["OPTIMIZE_MIN_MASS"]
 
     # load in the coeval check that we warn correctly
     with pytest.raises(ValueError, match="There are extra or missing"):
@@ -117,22 +105,15 @@ def test_read_bad_file_coev(test_direc, coeval):
 
     # check that the fake params didn't show up in the struct
     assert not hasattr(cv2.user_params, "NotARealParameter")
-    assert "NotARealGlobal" not in cv2.global_params.keys()
 
     # check that missing fields are set to default
     assert cv2.user_params.BOX_LEN == UserParams().BOX_LEN
-    assert cv2.global_params["OPTIMIZE_MIN_MASS"] == global_params.OPTIMIZE_MIN_MASS
 
     # check that the fields which are good are read in the struct
     assert all(
         getattr(cv2.user_params, k) == getattr(coeval.user_params, k)
         for k in coeval.user_params.asdict().keys()
         if k != "BOX_LEN"
-    )
-    assert all(
-        cv2.global_params[k] == coeval.global_params[k]
-        for k in global_params.keys()
-        if k != "OPTIMIZE_MIN_MASS"
     )
 
 
@@ -258,7 +239,6 @@ def test_write_to_group(ic, test_direc):
 
     with h5py.File(test_direc / "a_new_file.h5", "r") as fl:
         assert "new_group" in fl
-        assert "global_params" in fl["new_group"]
 
     ic2 = InitialConditions.from_file(
         test_direc / "a_new_file.h5", h5_group="new_group"

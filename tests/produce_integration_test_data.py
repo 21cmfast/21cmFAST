@@ -32,7 +32,6 @@ from py21cmfast import (
     determine_halo_list,
     exhaust_lightcone,
     get_logspaced_redshifts,
-    global_params,
     perturb_field,
     perturb_halo_list,
     run_coeval,
@@ -318,10 +317,6 @@ def get_all_options(redshift, **kwargs):
         "flag_options": flag_options,
         "random_seed": SEED,
     }
-
-    for key in kwargs:
-        if key.upper() in (k.upper() for k in global_params.keys()):
-            out[key] = kwargs[key]
     return out
 
 
@@ -347,10 +342,6 @@ def get_all_options_ics(**kwargs):
         "cosmo_params": cosmo_params,
         "random_seed": SEED,
     }
-
-    for key in kwargs:
-        if key.upper() in (k.upper() for k in global_params.keys()):
-            out[key] = kwargs[key]
     return out
 
 
@@ -432,17 +423,11 @@ def produce_perturb_field_data(redshift, **kwargs):
     options = get_all_options_struct(redshift, **kwargs)
     options_ics = get_all_options_ics(**kwargs)
 
-    out = {
-        key: kwargs[key]
-        for key in kwargs
-        if key.upper() in (k.upper() for k in global_params.keys())
-    }
-
     velocity_normalisation = 1e16
 
     with config.use(regenerate=True, write=False):
         init_box = compute_initial_conditions(**options_ics)
-        pt_box = perturb_field(redshift=redshift, init_boxes=init_box, **out)
+        pt_box = perturb_field(redshift=redshift, init_boxes=init_box)
 
     p_dens, k_dens = get_power(
         pt_box.density,
