@@ -160,7 +160,7 @@ class InputParameters:
             )
 
         if (
-            self.flag_options.HII_FILTER == 1
+            self.flag_options.HII_FILTER == "sharp-k"
             and val.R_BUBBLE_MAX > self.user_params.BOX_LEN / 3
         ):
             msg = (

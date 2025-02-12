@@ -14,4 +14,4 @@ CELL_RECOMB = true
 USE_MINI_HALOS = false
 USE_TS_FLUCT = true
 INHOMO_RECO = true
-FIXED_HALO_GRID = true
+FIXED_HALO_GRIDS = true

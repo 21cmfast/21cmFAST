@@ -126,7 +126,7 @@ def test_mmin():
 def test_validation():
     c = CosmoParams()
     f = FlagOptions(
-        USE_EXP_FILTER=False, HII_FILTER="Gaussian"
+        USE_EXP_FILTER=False, HII_FILTER="gaussian"
     )  # needed for HII_FILTER checks
     a = AstroParams(R_BUBBLE_MAX=100)
     u = UserParams(BOX_LEN=50)
@@ -152,6 +152,7 @@ def test_validation():
         )
 
     f = f.clone(INHOMO_RECO=True)
+    a = a.clone(R_BUBBLE_MAX=10)
     msg = r"This is non\-standard \(but allowed\), and usually occurs upon manual update of INHOMO_RECO"
     with pytest.warns(UserWarning, match=msg):
         InputParameters(

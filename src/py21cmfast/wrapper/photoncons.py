@@ -351,13 +351,11 @@ def calibrate_photon_cons(
         )
 
         ib2 = compute_ionization_field(
-            redshift=z,
             inputs=inputs_calibration,
-            previous_ionize_box=ib,
+            previous_ionized_box=ib,
             initial_conditions=initial_conditions,
             perturbed_field=this_perturb,
             previous_perturbed_field=prev_perturb,
-            spin_temp=None,
             regenerate=regenerate,
             hooks=hooks,
             direc=direc,

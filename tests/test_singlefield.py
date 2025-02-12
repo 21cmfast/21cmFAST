@@ -69,7 +69,6 @@ def spin_temp_evolution(ic, redshift, default_input_struct_ts):
             initial_conditions=ic,
         )
         st = p21c.spin_temperature(
-            redshift=z,
             initial_conditions=ic,
             perturbed_field=pt,
             previous_spin_temp=st_prev,
@@ -275,7 +274,6 @@ def test_using_cached_halo_field(ic, test_direc, default_input_struct):
     )
 
     new_pt_halos = p21c.perturb_halo_list(
-        redshift=10.0,
         initial_conditions=ic,
         inputs=inputs,
         halo_field=new_halo_field,
@@ -294,10 +292,9 @@ def test_first_box(default_input_struct_ts):
     """
     inputs = default_input_struct_ts.evolve_input_structs(
         HII_DIM=default_input_struct_ts.user_params.HII_DIM + 1
-    )
+    ).clone(random_seed=1)
     initial_conditions = p21c.compute_initial_conditions(
         inputs=inputs,
-        random_seed=1,
     )
 
     prevst = None

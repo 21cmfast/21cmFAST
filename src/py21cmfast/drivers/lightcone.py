@@ -197,9 +197,9 @@ class LightCone(_HighLevelOutput):
             kwargs["current_index"] = fl.attrs.get("current_index", None)
 
         # Get the standard inputs.
-        kw, glbls = _HighLevelOutput._read_inputs(fname, safe=safe)
+        kw = _HighLevelOutput._read_inputs(fname, safe=safe)
 
-        return {**kw, **kwargs}, glbls
+        return {**kw, **kwargs}
 
     @classmethod
     def _read_particular(cls, fname, safe=True):
