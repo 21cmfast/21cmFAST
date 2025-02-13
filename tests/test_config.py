@@ -4,7 +4,7 @@ import yaml
 from os import path
 
 import py21cmfast as p21
-from py21cmfast._cfg import Config
+from py21cmfast._cfg import Config, ConfigurationError
 
 
 @pytest.fixture(scope="module")
@@ -36,14 +36,5 @@ def test_config_write(cfgdir):
     with open(cfgdir / "config.yml", "w") as fl:
         yaml.dump(new_config, fl)
 
-    with pytest.warns(UserWarning):
+    with pytest.raises(ConfigurationError):
         new_config = Config.load(cfgdir / "config.yml")
-
-    assert "boxdir" not in new_config
-    assert "direc" in new_config
-
-    with open(cfgdir / "config.yml") as fl:
-        new_config = yaml.load(fl, Loader=yaml.FullLoader)
-
-    assert "boxdir" not in new_config
-    assert "direc" in new_config

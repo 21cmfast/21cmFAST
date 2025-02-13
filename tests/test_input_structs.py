@@ -17,7 +17,6 @@ from py21cmfast import (
     IonizedBox,
     UserParams,
     __version__,
-    global_params,
 )
 
 
@@ -124,44 +123,36 @@ def test_mmin():
     assert fo.M_MIN_in_Mass
 
 
-def test_globals():
-    orig = global_params.Pop2_ion
-
-    with global_params.use(Pop2_ion=1000.0):
-        assert global_params.Pop2_ion == 1000.0
-        assert global_params._cobj.Pop2_ion == 1000.0
-
-    assert global_params.Pop2_ion == orig
-
-
 def test_validation():
     c = CosmoParams()
-    f = FlagOptions(USE_EXP_FILTER=False)  # needed for HII_FILTER checks
+    f = FlagOptions(
+        USE_EXP_FILTER=False, HII_FILTER="gaussian"
+    )  # needed for HII_FILTER checks
     a = AstroParams(R_BUBBLE_MAX=100)
     u = UserParams(BOX_LEN=50)
 
-    with global_params.use(HII_FILTER=2):
-        with pytest.raises(ValueError, match="R_BUBBLE_MAX is larger than BOX_LEN"):
-            InputParameters(
-                cosmo_params=c,
-                astro_params=a,
-                user_params=u,
-                flag_options=f,
-                random_seed=1,
-            )
+    with pytest.raises(ValueError, match="R_BUBBLE_MAX is larger than BOX_LEN"):
+        InputParameters(
+            cosmo_params=c,
+            astro_params=a,
+            user_params=u,
+            flag_options=f,
+            random_seed=1,
+        )
 
+    f = f.clone(HII_FILTER="sharp-k")
     a = a.clone(R_BUBBLE_MAX=20)
-    with global_params.use(HII_FILTER=1):
-        with pytest.raises(ValueError, match="Your R_BUBBLE_MAX is > BOX_LEN/3"):
-            InputParameters(
-                cosmo_params=c,
-                astro_params=a,
-                user_params=u,
-                flag_options=f,
-                random_seed=1,
-            )
+    with pytest.raises(ValueError, match="Your R_BUBBLE_MAX is > BOX_LEN/3"):
+        InputParameters(
+            cosmo_params=c,
+            astro_params=a,
+            user_params=u,
+            flag_options=f,
+            random_seed=1,
+        )
 
     f = f.clone(INHOMO_RECO=True)
+    a = a.clone(R_BUBBLE_MAX=10)
     msg = r"This is non\-standard \(but allowed\), and usually occurs upon manual update of INHOMO_RECO"
     with pytest.warns(UserWarning, match=msg):
         InputParameters(
@@ -254,12 +245,11 @@ def test_flag_options():
     ):
         FlagOptions(USE_EXP_FILTER=True, CELL_RECOMB=False)
 
-    with global_params.use(HII_FILTER=1):
-        with pytest.raises(
-            ValueError,
-            match="USE_EXP_FILTER can only be used with a real-space tophat HII_FILTER==0",
-        ):
-            FlagOptions(USE_EXP_FILTER=True)
+    with pytest.raises(
+        ValueError,
+        match="USE_EXP_FILTER can only be used with a real-space tophat HII_FILTER==0",
+    ):
+        FlagOptions(USE_EXP_FILTER=True, HII_FILTER="sharp-k")
 
 
 def test_inputstruct_init(default_seed):

@@ -16,14 +16,12 @@ from typing import Sequence
 from ..c_21cmfast import lib
 from ..cache_tools import get_boxes_at_redshift
 from ..lightcones import Lightconer, RectilinearLightconer
-from ..wrapper.globals import global_params
 from ..wrapper.inputs import AstroParams, CosmoParams, FlagOptions, UserParams
 from ..wrapper.outputs import InitialConditions, PerturbedField
 from ..wrapper.photoncons import _get_photon_nonconservation_data, setup_photon_cons
 from . import single_field as sf
 from .coeval import Coeval, _get_coeval_callbacks, _HighLevelOutput
 from .param_config import InputParameters, _get_config_options, get_logspaced_redshifts
-from .single_field import set_globals
 
 logger = logging.getLogger(__name__)
 
@@ -39,7 +37,6 @@ class LightCone(_HighLevelOutput):
         global_quantities=None,
         photon_nonconservation_data=None,
         cache_files: dict | None = None,
-        _globals=None,
         log10_mturnovers=None,
         log10_mturnovers_mini=None,
         current_redshift=None,
@@ -59,9 +56,6 @@ class LightCone(_HighLevelOutput):
 
         if not hasattr(self.lightcone_distances, "unit"):
             self.lightcone_distances <<= units.Mpc
-
-        # A *copy* of the current global parameters.
-        self.global_params = _globals or dict(global_params.items())
 
         if global_quantities:
             for name, data in global_quantities.items():
@@ -203,9 +197,9 @@ class LightCone(_HighLevelOutput):
             kwargs["current_index"] = fl.attrs.get("current_index", None)
 
         # Get the standard inputs.
-        kw, glbls = _HighLevelOutput._read_inputs(fname, safe=safe)
+        kw = _HighLevelOutput._read_inputs(fname, safe=safe)
 
-        return {**kw, **kwargs}, glbls
+        return {**kw, **kwargs}
 
     @classmethod
     def _read_particular(cls, fname, safe=True):
@@ -288,8 +282,8 @@ class AngularLightcone(LightCone):
             # Now, clip dvdx...
             dvdx_on_h = np.clip(
                 dvdx_on_h,
-                -global_params.MAX_DVDR,
-                global_params.MAX_DVDR,
+                -self.astro_params.MAX_DVDR,
+                self.astro_params.MAX_DVDR,
                 out=dvdx_on_h,
             )
 
@@ -375,13 +369,11 @@ def setup_lightcone_instance(
             global_quantities={
                 quantity: np.zeros(len(scrollz)) for quantity in global_quantities
             },
-            _globals=dict(global_params.items()),
         )
         start_idx = 0
     return lightcone, start_idx
 
 
-@set_globals
 def _run_lightcone_from_perturbed_fields(
     *,
     initial_conditions: InitialConditions,
@@ -395,7 +387,6 @@ def _run_lightcone_from_perturbed_fields(
     hooks: dict | None = None,
     always_purge: bool = False,
     lightcone_filename: str | Path = None,
-    **global_kwargs,
 ):
     r"""
     Evaluate a full lightcone ending at a given redshift.
@@ -436,10 +427,6 @@ def _run_lightcone_from_perturbed_fields(
         and the partial lightcone object will be returned. Lightcone evaluation can
         continue if the returned lightcone is saved to file, and this file is passed
         as `lightcone_filename`.
-    \*\*global_kwargs :
-        Any attributes for :class:`~py21cmfast.inputs.GlobalParams`. This will
-        *temporarily* set global attributes for the duration of the function. Note that
-        arguments will be treated as case-insensitive.
 
     Returns
     -------
@@ -478,14 +465,14 @@ def _run_lightcone_from_perturbed_fields(
 
     if (
         inputs.flag_options.PHOTON_CONS_TYPE == "z-photoncons"
-        and np.amin(scrollz) < global_params.PhotonConsEndCalibz
+        and np.amin(scrollz) < inputs.astro_params.PHOTONCONS_CALIBRATION_END
     ):
         raise ValueError(
             f"""
             You have passed a redshift (z = {np.amin(scrollz)}) that is lower than the
             endpoint of the photon non-conservation correction
-            (global_params.PhotonConsEndCalibz = {global_params.PhotonConsEndCalibz}).
-            If this behaviour is desired then set global_params.PhotonConsEndCalibz to a
+            (inputs.astro_params.PHOTONCONS_CALIBRATION_END = {inputs.astro_params.PHOTONCONS_CALIBRATION_END}).
+            If this behaviour is desired then set inputs.astro_params.PHOTONCONS_CALIBRATION_END to a
             value lower than z = {np.amin(scrollz)}.
             """
         )
@@ -522,7 +509,7 @@ def _run_lightcone_from_perturbed_fields(
 
     photon_nonconservation_data = None
     if inputs.flag_options.PHOTON_CONS_TYPE != "no-photoncons":
-        setup_photon_cons(**kw)
+        photon_nonconservation_data = setup_photon_cons(**kw)
 
     # At first we don't have any "previous" fields.
     st, ib, pf, hbox = None, None, None, None
@@ -651,7 +638,6 @@ def _run_lightcone_from_perturbed_fields(
             previous_perturbed_field=pf,
             spin_temp=st2,
             halobox=hbox2,
-            cleanup=(cleanup and iz == (len(scrollz) - 1)),
             **kw,
         )
         log10_mturnovers[iz] = ib2.log10_Mturnover_ave
@@ -672,9 +658,8 @@ def _run_lightcone_from_perturbed_fields(
             ionized_box=ib2,
             brightness_temp=bt2,
             ts_box=st2,
-            halobox=hbox2,
+            halo_box=hbox2,
             photon_nonconservation_data=photon_nonconservation_data,
-            _globals=None,
         )
 
         perturb_files.append((z, direc / pf2.filename))
@@ -757,7 +742,7 @@ def _run_lightcone_from_perturbed_fields(
             "ionized_box": ionize_files,
             "brightness_temp": brightness_files,
             "spin_temp": spin_temp_files,
-            "halobox": hbox_files,
+            "halo_box": hbox_files,
             "pt_halos": phf_files,
         }
 
@@ -781,7 +766,6 @@ def run_lightcone(
     regenerate=None,
     always_purge: bool = False,
     lightcone_filename: str | Path = None,
-    **global_kwargs,
 ):
     r"""
     Create a generator function for a lightcone run.
@@ -817,10 +801,6 @@ def run_lightcone(
         The filename to which to save the lightcone. The lightcone is returned in
         memory, and can be saved manually later, but including this filename will
         save the lightcone on each iteration, which can be helpful for checkpointing.
-    \*\*global_kwargs :
-        Any attributes for :class:`~py21cmfast.inputs.GlobalParams`. This will
-        *temporarily* set global attributes for the duration of the function. Note that
-        arguments will be treated as case-insensitive.
 
     Returns
     -------
@@ -917,7 +897,6 @@ def run_lightcone(
         hooks=hooks,
         always_purge=always_purge,
         lightcone_filename=lightcone_filename,
-        **global_kwargs,
     )
 
 

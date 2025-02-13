@@ -73,8 +73,8 @@ void set_halo_properties(double halo_mass, double M_turn_a, double M_turn_m,
     if(flag_options_global->USE_MINI_HALOS)
         fesc_mini = fmin(consts->fesc_7*pow(halo_mass/1e7,consts->alpha_esc),1);
 
-    n_ion_sample = stellar_mass*global_params.Pop2_ion*fesc + stellar_mass_mini*global_params.Pop3_ion*fesc_mini;
-    wsfr_sample = sfr*global_params.Pop2_ion*fesc + sfr_mini*global_params.Pop3_ion*fesc_mini;
+    n_ion_sample = stellar_mass*consts->pop2_ion*fesc + stellar_mass_mini*consts->pop3_ion*fesc_mini;
+    wsfr_sample = sfr*consts->pop2_ion*fesc + sfr_mini*consts->pop3_ion*fesc_mini;
 
     output->halo_mass = halo_mass;
     output->stellar_mass = stellar_mass;
@@ -100,8 +100,8 @@ int get_box_averages(double M_min, double M_max, double M_turn_a, double M_turn_
     double prefactor_stars_mini = RHOcrit * cosmo_params_global->OMb * consts->fstar_7;
     double prefactor_sfr = prefactor_stars / consts->t_star / t_h;
     double prefactor_sfr_mini = prefactor_stars_mini / consts->t_star / t_h;
-    double prefactor_nion = prefactor_stars * consts->fesc_10 * global_params.Pop2_ion;
-    double prefactor_nion_mini = prefactor_stars_mini * consts->fesc_7 * global_params.Pop3_ion;
+    double prefactor_nion = prefactor_stars * consts->fesc_10 * consts->pop2_ion;
+    double prefactor_nion_mini = prefactor_stars_mini * consts->fesc_7 * consts->pop3_ion;
     double prefactor_wsfr = prefactor_sfr * consts->fesc_10;
     double prefactor_wsfr_mini = prefactor_sfr_mini * consts->fesc_7;
     double prefactor_xray = RHOcrit * cosmo_params_global->OMm;
@@ -189,8 +189,8 @@ int set_fixed_grids(double M_min, double M_max, InitialConditions *ini_boxes,
     double prefactor_stars_mini = RHOcrit * cosmo_params_global->OMb * consts->fstar_7;
     double prefactor_sfr = prefactor_stars / consts->t_star / consts->t_h;
     double prefactor_sfr_mini = prefactor_stars_mini / consts->t_star / consts->t_h;
-    double prefactor_nion = prefactor_stars * consts->fesc_10 * global_params.Pop2_ion;
-    double prefactor_nion_mini = prefactor_stars_mini * consts->fesc_7 * global_params.Pop3_ion;
+    double prefactor_nion = prefactor_stars * consts->fesc_10 * consts->pop2_ion;
+    double prefactor_nion_mini = prefactor_stars_mini * consts->fesc_7 * consts->pop3_ion;
     double prefactor_wsfr = prefactor_sfr * consts->fesc_10;
     double prefactor_wsfr_mini = prefactor_sfr_mini * consts->fesc_7;
     double prefactor_xray = RHOcrit * cosmo_params_global->OMm;
@@ -202,8 +202,8 @@ int set_fixed_grids(double M_min, double M_max, InitialConditions *ini_boxes,
     //find grid limits for tables
     double min_density = 0.;
     double max_density = 0.;
-    double min_log10_mturn_a = log10(global_params.M_MAX_INTEGRAL);
-    double min_log10_mturn_m = log10(global_params.M_MAX_INTEGRAL);
+    double min_log10_mturn_a = log10(M_MAX_INTEGRAL);
+    double min_log10_mturn_m = log10(M_MAX_INTEGRAL);
     double max_log10_mturn_a = log10(astro_params_global->M_TURN);
     double max_log10_mturn_m = log10(astro_params_global->M_TURN);
     float *mturn_a_grid = calloc(HII_TOT_NUM_PIXELS,sizeof(float));
@@ -710,7 +710,7 @@ int ComputeHaloBox(double redshift, UserParams *user_params, CosmoParams *cosmo_
         LOG_DEBUG("Gridding %llu halos...",halos->n_halos);
 
         double M_min = minimum_source_mass(redshift,false,astro_params,flag_options);
-        double M_max = global_params.M_MAX_INTEGRAL;
+        double M_max = M_MAX_INTEGRAL;
         double cell_volume = VOLUME/HII_TOT_NUM_PIXELS;
 
         double turnovers[3];
@@ -719,7 +719,7 @@ int ComputeHaloBox(double redshift, UserParams *user_params, CosmoParams *cosmo_
 
         init_ps();
         if(user_params->USE_INTERPOLATION_TABLES){
-            initialiseSigmaMInterpTable(M_min/2, global_params.M_MAX_INTEGRAL); //this needs to be initialised above MMax because of Nion_General
+            initialiseSigmaMInterpTable(M_min/2, M_MAX_INTEGRAL); //this needs to be initialised above MMax because of Nion_General
         }
         //do the mean HMF box
         //The default 21cmFAST has a strange behaviour where the nonlinear density is used as linear,

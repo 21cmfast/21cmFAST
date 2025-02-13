@@ -30,7 +30,7 @@ import logging
 import matplotlib as mpl
 import numpy as np
 
-from py21cmfast import config, global_params
+from py21cmfast import config
 from py21cmfast.lightcones import RectilinearLightconer
 
 from . import produce_integration_test_data as prd

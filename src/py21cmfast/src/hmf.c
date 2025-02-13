@@ -18,14 +18,30 @@
 #include "hmf.h"
 
 #define EPS2 3.0e-11 //small number limit for GL integration
+
+// SHETH-TORMEN PARAMETERS
+// For the Barrier
 #define JENKINS_a (0.73) //Jenkins+01, SMT has 0.707
 #define JENKINS_b (0.34) //Jenkins+01 fit from Barkana+01, SMT has 0.5
 #define JENKINS_c (0.81) //Jenkins+01 from from Barkana+01, SMT has 0.6
+
+#define SHETH_b_DEXM (0.15) // Sheth-Tormen b parameter found to match the ST mass function using DexM
+#define SHETH_c_DEXM (0.05) // Sheth-Tormen c parameter found to match the ST mass function using DexM
+
+// For the HMF
+#define SHETH_a (0.73) // Sheth and Tormen a parameter (from Jenkins et al. 2001)
+#define SHETH_p (0.175) // Sheth and Tormen p parameter (from Jenkins et al. 2001)
+#define SHETH_A (0.353) // Sheth and Tormen A parameter (from Jenkins et al. 2001)
 
 //Gauss-Legendre integration constants
 #define NGL_INT 100 // 100
 //These arrays hold the points and weights for the Gauss-Legendre integration routine
 //(JD) Since these were always malloc'd one at a time with fixed length ~100, I've changed them to fixed-length arrays
+
+//Gauss-Legendre does poorly at high delta, switch to GSL-QAG here
+//TODO: define a fraction (90%?) of the barrier rather than a fixed number
+#define CRIT_DENS_TRANSITION (1.2)
+
 static float xi_GL[NGL_INT+1], wi_GL[NGL_INT+1];
 static float GL_limit[2] = {0};
 
@@ -67,7 +83,7 @@ struct parameters_gsl_MF_integrals{
 
 /* sheth correction to delta crit */
 double sheth_delc_dexm(double del, double sig){
-    return sqrt(SHETH_a)*del*(1. + global_params.SHETH_b*pow(sig*sig/(SHETH_a*del*del), global_params.SHETH_c));
+    return sqrt(SHETH_a)*del*(1. + SHETH_b_DEXM*pow(sig*sig/(SHETH_a*del*del), SHETH_c_DEXM));
 }
 
 /*DexM uses a fit to this barrier to acheive MF similar to ST, Here I use the fixed version for the sampler*/
@@ -147,8 +163,8 @@ double dNdlnM_conditional_Delos(double growthf, double lnM, double delta_cond, d
 double st_taylor_factor(double sig, double sig_cond, double growthf, double *zeroth_order){
     int i;
     double a = JENKINS_a;
-    double alpha = JENKINS_c; //fixed instead of global_params.SHETH_c bc of DexM corrections
-    double beta = JENKINS_b; //fixed instead of global_params.SHETH_b
+    double alpha = JENKINS_c; //fixed instead of SHETH_c_DEXM bc of DexM corrections
+    double beta = JENKINS_b; //fixed instead of SHETH_b_DEXM
 
     double del = Deltac/growthf;
 
@@ -306,7 +322,7 @@ double dNdlnM_WatsonFOF_z(double z, double growthf, double lnM){
     sigma = sigma * growthf;
     dsigmadm = dsigmadm * (growthf*growthf/(2.*sigma));
 
-    Omega_m_z = (cosmo_params_global->OMm)*pow(1.+z,3.) / ( (cosmo_params_global->OMl) + (cosmo_params_global->OMm)*pow(1.+z,3.) + (global_params.OMr)*pow(1.+z,4.) );
+    Omega_m_z = (cosmo_params_global->OMm)*pow(1.+z,3.) / ( (cosmo_params_global->OMl) + (cosmo_params_global->OMm)*pow(1.+z,3.) + (cosmo_params_global->OMr)*pow(1.+z,4.) );
 
     A_z = Omega_m_z * ( Watson_A_z_1 * pow(1. + z, Watson_A_z_2 ) + Watson_A_z_3 );
     alpha_z = Omega_m_z * ( Watson_alpha_z_1 * pow(1.+z, Watson_alpha_z_2 ) + Watson_alpha_z_3 );
@@ -729,7 +745,7 @@ double MFIntegral_Approx(double lnM_lo, double lnM_hi, struct parameters_gsl_MF_
 }
 
 double IntegratedNdM(double lnM_lo, double lnM_hi, struct parameters_gsl_MF_integrals params, double (*integrand)(double,void*), int method){
-    if(method==0 || (method==1 && params.delta > global_params.CRIT_DENS_TRANSITION))
+    if(method==0 || (method==1 && params.delta > CRIT_DENS_TRANSITION))
         return IntegratedNdM_QAG(lnM_lo, lnM_hi, params, integrand);
     if(method==1)
         return IntegratedNdM_GL(lnM_lo, lnM_hi, params, integrand);
@@ -1147,7 +1163,7 @@ double minimum_source_mass(double redshift, bool xray, AstroParams *astro_params
 
     // automatically false if !USE_MASS_DEPENDENT_ZETA
     if(flag_options->USE_MINI_HALOS){
-        Mmin = global_params.M_MIN_INTEGRAL;
+        Mmin = M_MIN_INTEGRAL;
     }
     // automatically true if USE_MASS_DEPENDENT_ZETA
     else if(flag_options->M_MIN_in_Mass) {
@@ -1162,10 +1178,10 @@ double minimum_source_mass(double redshift, bool xray, AstroParams *astro_params
         Mmin = TtoM(redshift, t_vir_min, mu_factor);
     }
 
-    //This is mostly unused and needs to be tested
-    if(global_params.P_CUTOFF){
-        Mmin = fmax(Mmin,M_J_WDM());
-    }
+    //Unused WDM model
+    // if(P_CUTOFF){
+    //     Mmin = fmax(Mmin,M_J_WDM());
+    // }
 
     Mmin /= min_factor;
 

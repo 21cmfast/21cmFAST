@@ -7,10 +7,6 @@ and :class:`FlagOptions`. Each of them defines a number of variables, and all of
 have default values, to minimize the burden on the user. These defaults are accessed via
 the ``_defaults_`` class attribute of each class. The available parameters for each are
 listed in the documentation for each class below.
-
-Along with these, the module exposes ``global_params``, a singleton object of type
-:class:`GlobalParams`, which is a simple class providing read/write access to a number of parameters
-used throughout the computation which are very rarely varied.
 """
 
 from __future__ import annotations
@@ -26,7 +22,6 @@ from attrs import validators
 from .._cfg import config
 from .._data import DATA_PATH
 from ..c_21cmfast import ffi, lib
-from .globals import global_params
 from .structs import InputStruct
 
 logger = logging.getLogger(__name__)
@@ -117,6 +112,17 @@ class CosmoParams(InputStruct):
     OMm = field(default=Planck18.Om0, converter=float, validator=validators.gt(0))
     OMb = field(default=Planck18.Ob0, converter=float, validator=validators.gt(0))
     POWER_INDEX = field(default=0.9665, converter=float, validator=validators.gt(0))
+
+    OMn = field(default=0.0, converter=float, validator=validators.ge(0))
+    OMk = field(default=0.0, converter=float, validator=validators.ge(0))
+    OMr = field(default=8.6e-5, converter=float, validator=validators.ge(0))
+    OMtot = field(
+        default=1.0, converter=float, validator=validators.ge(0)
+    )  # TODO: force this to be the sum of the others
+    Y_He = field(default=0.24, converter=float, validator=validators.ge(0))
+    wl = field(default=-1.0, converter=float)
+
+    # TODO: Combined validation via Astropy?
 
     @property
     def OMl(self):
@@ -209,8 +215,9 @@ class UserParams(InputStruct):
         0: GSL QAG adaptive integration,
         1: Gauss-Legendre integration, previously forced in the interpolation tables,
         2: Approximate integration, assuming sharp cutoffs and a triple power-law for sigma(M) based on EPS
-    USE_2LPT: bool, optional
-        Whether to use second-order Lagrangian perturbation theory (2LPT).
+    PERTURB_ALGORITHM: str, optional
+        Whether to use second-order Lagrangian perturbation theory (2LPT), Zel'dovich (ZELDOVICH),
+        or linear evolution (LIENAR).
         Set this to True if the density field or the halo positions are extrapolated to
         low redshifts. The current implementation is very naive and adds a factor ~6 to
         the memory requirements. Reference: Scoccimarro R., 1998, MNRAS, 299, 1097-1118
@@ -269,12 +276,38 @@ class UserParams(InputStruct):
         Logarithmic redshift step-size used in the z' integral.  Logarithmic dz.
         Decreasing (closer to unity) increases total simulation time for lightcones,
         and for Ts calculations.
+    FILTER : string, optional
+        Filter to use for sigma (matter field variance) and radius to mass conversions.
+        available options are: `spherical-tophat` and `gaussian`
+    HALO_FILTER : string, optional
+        Filter to use for the DexM halo finder.
+        available options are: `spherical-tophat`, `sharp-k` and `gaussian`
+    INITIAL_REDSHIFT : float, optional
+        Initial redshift used to perturb field from
+    DELTA_R_FACTOR: float, optional
+        The factor by which to decrease the size of the filter in DexM when creating halo catalogues.
+    SMOOTH_EVOLVED_DENSITY_FIELD: bool, optional
+        Smooth the evolved density field after perturbation.
+    DENSITY_SMOOTH_RADIUS: float, optional
+        The radius of the smoothing kernel in Mpc.
+    DEXM_OPTMIZE: bool, optional
+        Use a faster version of the DexM halo finder which excludes halos from forming within a certain distance of larger halos.
+    DEXM_OPTIMIZE_MINMASS: float, optional
+        The minimum mass of a halo for which to use the DexM optimization if DEXM_OPTIMIZE is True.
+    DEXM_R_OVERLAP: float, optional
+        The factor by which to multiply the halo radius to determine the distance within which smaller halos are excluded.
     """
 
     _hmf_models = ["PS", "ST", "WATSON", "WATSON-Z", "DELOS"]
     _power_models = ["EH", "BBKS", "EFSTATHIOU", "PEEBLES", "WHITE", "CLASS"]
     _sample_methods = ["MASS-LIMITED", "NUMBER-LIMITED", "PARTITION", "BINARY-SPLIT"]
     _integral_methods = ["GSL-QAG", "GAUSS-LEGENDRE", "GAMMA-APPROX"]
+    _filter_options = [
+        "spherical-tophat",
+        "sharp-k",
+        "gaussian",
+    ]
+    _perturb_options = ["LINEAR", "ZELDOVICH", "2LPT"]
 
     BOX_LEN = field(default=300.0, converter=float, validator=validators.gt(0))
     HII_DIM = field(default=200, converter=int, validator=validators.gt(0))
@@ -309,12 +342,10 @@ class UserParams(InputStruct):
         validator=validators.in_(_integral_methods),
         transformer=choice_transformer(_integral_methods),
     )
-    USE_2LPT = field(default=True, converter=bool)
     MINIMIZE_MEMORY = field(default=False, converter=bool)
     KEEP_3D_VELOCITIES = field(default=False, converter=bool)
     SAMPLER_MIN_MASS = field(default=1e8, converter=float, validator=validators.gt(0))
     SAMPLER_BUFFER_FACTOR = field(default=2.0, converter=float)
-    MAXHALO_FACTOR = field(default=2.0, converter=float)
     N_COND_INTERP = field(default=200, converter=int)
     N_PROB_INTERP = field(default=400, converter=int)
     MIN_LOGPROB = field(default=-12, converter=float)
@@ -332,6 +363,39 @@ class UserParams(InputStruct):
     PARKINSON_y2 = field(default=0.0, converter=float)
     Z_HEAT_MAX = field(default=35.0, converter=float)
     ZPRIME_STEP_FACTOR = field(default=1.02, converter=float)
+    FILTER = field(
+        default="spherical-tophat",
+        converter=str,
+        validator=[
+            validators.in_(_filter_options),
+            validators.not_(validators.in_("sharp-k")),
+        ],  # TODO: seems bad
+        transformer=choice_transformer(_filter_options),
+    )
+    HALO_FILTER = field(
+        default="spherical-tophat",
+        converter=str,
+        validator=validators.in_(_filter_options),
+        transformer=choice_transformer(_filter_options),
+    )
+    INITIAL_REDSHIFT = field(default=300.0, converter=float)
+    PERTURB_ALGORITHM = field(
+        default="2LPT",
+        converter=str,
+        validator=validators.in_(_perturb_options),
+        transformer=choice_transformer(_perturb_options),
+    )
+    DELTA_R_FACTOR = field(default=1.1, converter=float, validator=validators.gt(1.0))
+
+    SMOOTH_EVOLVED_DENSITY_FIELD = field(default=False, converter=bool)
+    DENSITY_SMOOTH_RADIUS = field(
+        default=0.2, converter=float, validator=validators.gt(0)
+    )
+    DEXM_OPTIMIZE = field(default=False, converter=bool)
+    DEXM_OPTIMIZE_MINMASS = field(
+        default=1e11, converter=float, validator=validators.gt(0)
+    )
+    DEXM_R_OVERLAP = field(default=2, converter=float, validator=validators.gt(0))
 
     @DIM.default
     def _dim_default(self):
@@ -454,12 +518,21 @@ class FlagOptions(InputStruct):
         This flag simply turns off the filtering of N_rec grids, and takes the recombinations in the central cell.
     USE_UPPER_STELLAR_TURNOVER: bool, optional
         Whether to use an additional powerlaw in stellar mass fraction at high halo mass. The pivot mass scale and power-law index are
-        controlled by two global parameters, UPPER_STELLAR_TURNOVER_MASS and UPPER_STELLAR_TURNOVER_INDEX respectively.
+        controlled by two parameters, UPPER_STELLAR_TURNOVER_MASS and UPPER_STELLAR_TURNOVER_INDEX respectively.
         This is currently only implemented in the halo model (USE_HALO_FIELD=True), and has no effect otherwise.
     HALO_SCALING_RELATIONS_MEDIAN: bool, optional
         If True, halo scaling relation parameters (F_STAR10,t_STAR etc...) define the median of their conditional distributions
         If False, they describe the mean.
         This becomes important when using non-symmetric dristributions such as the log-normal
+    HII_FILTER : string
+        Filter for the halo or density field used to generate ionization field
+        Available options are: 'spherical-tophat', 'sharp-k', and 'gaussian'
+    HEAT_FILTER : int
+        Filter for the halo or density field used to generate the spin-temperature field
+        Available options are: 'spherical-tophat', 'sharp-k', and 'gaussian'
+    IONISE_ENTIRE_SPHERE: bool, optional
+        If True, ionises the entire sphere on the filter scale when an ionised region is found
+        in the excursion set.
     """
 
     _photoncons_models = [
@@ -467,6 +540,15 @@ class FlagOptions(InputStruct):
         "z-photoncons",
         "alpha-photoncons",
         "f-photoncons",
+    ]
+    _filter_options = [
+        "spherical-tophat",
+        "sharp-k",
+        "gaussian",
+        # special cases set by other flags, think about how best to incorporate
+        # "exponential-mfp",
+        # "finite-shell",
+        # "thin-shell",
     ]
 
     USE_MINI_HALOS = field(default=False, converter=bool)
@@ -492,6 +574,19 @@ class FlagOptions(InputStruct):
     USE_UPPER_STELLAR_TURNOVER = field(default=True, converter=bool)
     M_MIN_in_Mass = field(default=True, converter=bool)
     HALO_SCALING_RELATIONS_MEDIAN = field(default=False, converter=bool)
+    HII_FILTER = field(
+        default="spherical-tophat",
+        converter=str,
+        validator=validators.in_(_filter_options),
+        transformer=choice_transformer(_filter_options),
+    )
+    HEAT_FILTER = field(
+        default="spherical-tophat",
+        converter=str,
+        validator=validators.in_(_filter_options),
+        transformer=choice_transformer(_filter_options),
+    )
+    IONISE_ENTIRE_SPHERE = field(default=False, converter=bool)
 
     @M_MIN_in_Mass.validator
     def _M_MIN_in_Mass_vld(self, att, val):
@@ -556,7 +651,7 @@ class FlagOptions(InputStruct):
     @USE_EXP_FILTER.validator
     def _USE_EXP_FILTER_vld(self, att, val):
         """Raise an error if USE_EXP_FILTER is False and HII_FILTER!=0."""
-        if val and global_params.HII_FILTER != 0:
+        if val and self.HII_FILTER != "spherical-tophat":
             raise ValueError(
                 "USE_EXP_FILTER can only be used with a real-space tophat HII_FILTER==0"
             )
@@ -687,6 +782,26 @@ class AstroParams(InputStruct):
         This scatter is uniform across all halo properties and redshifts.
     CORR_LX : float, optional
         Self-correlation length used for updating xray luminosity, see "CORR_STAR" for details.
+    FIXED_VAVG : float, optional
+        The fixed value of the average velocity used when FlagOptions.FIX_VCB_AVG is set to True.
+    POP2_ION: float, optional
+        Number of ionizing photons per baryon produced by Pop II stars.
+    POP3_ION: float, optional
+        Number of ionizing photons per baryon produced by Pop III stars.
+    CLUMPING_FACTOR: float, optional
+        Clumping factor of the IGM used ONLY in the x-ray partial ionisations (not the reionsiation model). Default is 2.0.
+    ALPHA_UVB: float, optional
+        The power-law index of the UVB spectrum. Used for Gamma12 in the recombination model
+    DELTA_R_HII_FACTOR: float, optional
+        The factor by which to decrease the size of the HII filter when calculating the HII regions.
+    R_BUBBLE_MIN: float, optional
+        Minimum size of ionized regions in Mpc. Default is 0.620350491.
+    MAX_DVDR: float, optional
+        Maximum value of the gradient of the velocity field used in the RSD algorithm.
+    NU_X_BAND_MAX: float, optional
+        The maximum frequency of the X-ray band used to calculate the X-ray Luminosity.
+    NU_X_MAX: float, optional
+        The maximum frequency of the integrals over nu for the x-ray heating/ionisation rates.
     """
 
     HII_EFF_FACTOR = field(default=30.0, converter=float, validator=validators.gt(0))
@@ -723,6 +838,9 @@ class AstroParams(InputStruct):
         transformer=logtransformer,
     )
     R_BUBBLE_MAX = field(default=15.0, converter=float, validator=validators.gt(0))
+    R_BUBBLE_MIN = field(
+        default=0.620350491, converter=float, validator=validators.gt(0)
+    )
     ION_Tvir_MIN = field(
         default=4.69897,
         converter=float,
@@ -766,6 +884,25 @@ class AstroParams(InputStruct):
     # the xrays and I don't know which hydros do
     CORR_LX = field(default=0.2, converter=float)
 
+    T_RE = field(default=2e4, converter=float)
+    FIXED_VAVG = field(default=25.86, converter=float, validator=validators.gt(0))
+    POP2_ION = field(default=5000.0, converter=float)
+    POP3_ION = field(default=44021.0, converter=float)
+
+    PHOTONCONS_CALIBRATION_END = field(default=3.5, converter=float)
+    CLUMPING_FACTOR = field(default=2.0, converter=float, validator=validators.gt(0))
+    ALPHA_UVB = field(default=5.0, converter=float)
+    R_MAX_TS = field(default=500.0, converter=float, validator=validators.gt(0))
+    N_STEP_TS = field(default=40, converter=int, validator=validators.gt(0))
+    MAX_DVDR = field(default=0.2, converter=float, validator=validators.ge(0))
+
+    DELTA_R_HII_FACTOR = field(
+        default=1.1, converter=float, validator=validators.gt(1.0)
+    )
+
+    NU_X_BAND_MAX = field(default=2000.0, converter=float, validator=validators.gt(0))
+    NU_X_MAX = field(default=10000.0, converter=float, validator=validators.gt(0))
+
     # set the default of the minihalo scalings to continue the same PL
     @F_STAR7_MINI.default
     def _F_STAR7_MINI_default(self):
@@ -806,18 +943,18 @@ class AstroParams(InputStruct):
             raise ValueError(
                 "Chosen NU_X_THRESH is < 100 eV. NU_X_THRESH must be above 100 eV as it describes X-ray photons"
             )
-        elif val >= global_params.NU_X_BAND_MAX:
+        elif val >= self.NU_X_BAND_MAX:
             raise ValueError(
                 f"""
-                Chosen NU_X_THRESH > {global_params.NU_X_BAND_MAX}, which is the upper limit of the adopted X-ray band
+                Chosen NU_X_THRESH > {self.NU_X_BAND_MAX}, which is the upper limit of the adopted X-ray band
                 (fiducially the soft band 0.5 - 2.0 keV). If you know what you are doing with this
-                choice, please modify the global parameter: NU_X_BAND_MAX"""
+                choice, please modify the parameter: NU_X_BAND_MAX"""
             )
-        elif global_params.NU_X_BAND_MAX > global_params.NU_X_MAX:
+        elif self.NU_X_BAND_MAX > self.NU_X_MAX:
             raise ValueError(
                 f"""
-                Chosen NU_X_BAND_MAX > {global_params.NU_X_MAX}, which is the upper limit of X-ray integrals (fiducially 10 keV)
-                If you know what you are doing, please modify the global parameter:
+                Chosen NU_X_BAND_MAX > {self.NU_X_MAX}, which is the upper limit of X-ray integrals (fiducially 10 keV)
+                If you know what you are doing, please modify the parameter:
                 NU_X_MAX
                 """
             )

@@ -13,7 +13,9 @@
 
 #include "thermochem.h"
 
-float ComputeFullyIoinizedTemperature(float z_re, float z, float delta){
+#define MIN_DENSITY_LOW_LIMIT (9e-8)
+
+float ComputeFullyIoinizedTemperature(float z_re, float z, float delta, float T_re){
     // z_re: the redshift of reionization
     // z:    the current redshift
     // delta:the density contrast
@@ -24,14 +26,14 @@ float ComputeFullyIoinizedTemperature(float z_re, float z, float delta){
     else{
         // linearly extrapolate to get density at reionization
         delta_re = delta * (1. + z ) / (1. + z_re);
-        if (delta_re<=-1) delta_re=-1. + global_params.MIN_DENSITY_LOW_LIMIT;
+        if (delta_re<=-1) delta_re=-1. + MIN_DENSITY_LOW_LIMIT;
         // evolving ionized box eq. 6 of McQuinn 2015, ignored the dependency of density at ionization
-        if (delta<=-1) delta=-1. + global_params.MIN_DENSITY_LOW_LIMIT;
+        if (delta<=-1) delta=-1. + MIN_DENSITY_LOW_LIMIT;
         result  = pow((1. + delta) / (1. + delta_re), 1.1333);
         result *= pow((1. + z) / (1. + z_re), 3.4);
         result *= expf(pow((1. + z)/7.1, 2.5) - pow((1. + z_re)/7.1, 2.5));
     }
-    result *= pow(global_params.T_RE, 1.7);
+    result *= pow(T_re, 1.7);
     // 1e4 before helium reionization; double it after
     result += pow(1e4 * ((1. + z)/4.), 1.7) * ( 1 + delta);
     result  = pow(result, 0.5882);
@@ -39,11 +41,11 @@ float ComputeFullyIoinizedTemperature(float z_re, float z, float delta){
     return result;
 }
 
-float ComputePartiallyIoinizedTemperature(float T_HI, float res_xH){
-    if (res_xH<=0.) return global_params.T_RE;
+float ComputePartiallyIoinizedTemperature(float T_HI, float res_xH, float T_re){
+    if (res_xH<=0.) return T_re;
     if (res_xH>=1) return T_HI;
 
-    return T_HI * res_xH + global_params.T_RE * (1. - res_xH);
+    return T_HI * res_xH + T_re * (1. - res_xH);
 }
 
 /* returns the case A hydrogen recombination coefficient (Abel et al. 1997) in cm^3 s^-1*/
@@ -71,7 +73,7 @@ double alpha_B(double T){
  ionization rate (1e-12 s^-1)
  */
 double neutral_fraction(double density, double T4, double gamma, int usecaseB){
-    double chi, b, alpha, corr_He = 1.0/(4.0/global_params.Y_He - 3);
+    double chi, b, alpha, corr_He = 1.0/(4.0/cosmo_params_global->Y_He - 3);
 
     if (usecaseB)
         alpha = alpha_B(T4*1e4);
@@ -182,7 +184,7 @@ double dtau_e_dz(double z, void *params){
         return xi*(1+z)*(1+z)*drdz(z);
     }
 }
-double tau_e(float zstart, float zend, float *zarry, float *xHarry, int len){
+double tau_e(float zstart, float zend, float *zarry, float *xHarry, int len, float z_re_HeII){
     double prehelium, posthelium, error;
     gsl_function F;
     double rel_tol  = 1e-3; //<- relative tolerance
@@ -207,24 +209,24 @@ double tau_e(float zstart, float zend, float *zarry, float *xHarry, int len){
 
     gsl_set_error_handler_off();
 
-    if (zend > global_params.Zreion_HeII){// && (zstart < Zreion_HeII)){
-        if (zstart < global_params.Zreion_HeII){
-            status = gsl_integration_qag (&F, global_params.Zreion_HeII, zstart, 0, rel_tol,
+    if (zend > z_re_HeII){// && (zstart < Zreion_HeII)){
+        if (zstart < z_re_HeII){
+            status = gsl_integration_qag (&F, z_re_HeII, zstart, 0, rel_tol,
                                  1000, GSL_INTEG_GAUSS61, w, &prehelium, &error);
 
             if(status!=0) {
                 LOG_ERROR("gsl integration error occured!");
-                LOG_ERROR("(function argument): lower_limit=%e upper_limit=%e rel_tol=%e result=%e error=%e",global_params.Zreion_HeII,zstart,rel_tol,prehelium,error);
+                LOG_ERROR("(function argument): lower_limit=%e upper_limit=%e rel_tol=%e result=%e error=%e",z_re_HeII,zstart,rel_tol,prehelium,error);
                 LOG_ERROR("data: zstart=%e zend=%e",zstart,zend);
                 CATCH_GSL_ERROR(status);
             }
 
-            status = gsl_integration_qag (&F, zend, global_params.Zreion_HeII, 0, rel_tol,
+            status = gsl_integration_qag (&F, zend, z_re_HeII, 0, rel_tol,
                                  1000, GSL_INTEG_GAUSS61, w, &posthelium, &error);
 
             if(status!=0) {
                 LOG_ERROR("gsl integration error occured!");
-                LOG_ERROR("(function argument): lower_limit=%e upper_limit=%e rel_tol=%e result=%e error=%e",zend,global_params.Zreion_HeII,rel_tol,posthelium,error);
+                LOG_ERROR("(function argument): lower_limit=%e upper_limit=%e rel_tol=%e result=%e error=%e",zend,z_re_HeII,rel_tol,posthelium,error);
                 LOG_ERROR("data: zstart=%e zend=%e",zstart,zend);
                 CATCH_GSL_ERROR(status);
             }
@@ -257,10 +259,10 @@ double tau_e(float zstart, float zend, float *zarry, float *xHarry, int len){
     return SIGMAT * ( (N_b0+He_No)*prehelium + N_b0*posthelium );
 }
 
-float ComputeTau(UserParams *user_params, CosmoParams *cosmo_params, int NPoints, float *redshifts, float *global_xHI) {
+float ComputeTau(UserParams *user_params, CosmoParams *cosmo_params, int NPoints, float *redshifts, float *global_xHI, float z_re_HeII){
     Broadcast_struct_global_noastro(user_params,cosmo_params);
 
-    return tau_e(0, redshifts[NPoints-1], redshifts, global_xHI, NPoints);
+    return tau_e(0, redshifts[NPoints-1], redshifts, global_xHI, NPoints, z_re_HeII);
 }
 
 double atomic_cooling_threshold(float z){

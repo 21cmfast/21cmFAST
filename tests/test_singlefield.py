@@ -69,7 +69,6 @@ def spin_temp_evolution(ic, redshift, default_input_struct_ts):
             initial_conditions=ic,
         )
         st = p21c.spin_temperature(
-            redshift=z,
             initial_conditions=ic,
             perturbed_field=pt,
             previous_spin_temp=st_prev,
@@ -191,20 +190,6 @@ def test_ib_from_pf(perturbed_field, ic, default_input_struct):
     assert ib.cosmo_params == perturbed_field.cosmo_params
 
 
-def test_ib_override_global(ic, perturbed_field, default_input_struct):
-    # save previous z_heat_max
-    saved_val = p21c.global_params.Pop2_ion
-
-    p21c.compute_ionization_field(
-        initial_conditions=ic,
-        perturbed_field=perturbed_field,
-        inputs=default_input_struct,
-        pop2_ion=3500,
-    )
-
-    assert p21c.global_params.Pop2_ion == saved_val
-
-
 def test_ib_bad_st(ic, default_input_struct, perturbed_field, redshift):
     with pytest.raises((ValueError, AttributeError)):
         p21c.compute_ionization_field(
@@ -289,7 +274,6 @@ def test_using_cached_halo_field(ic, test_direc, default_input_struct):
     )
 
     new_pt_halos = p21c.perturb_halo_list(
-        redshift=10.0,
         initial_conditions=ic,
         inputs=inputs,
         halo_field=new_halo_field,
@@ -308,10 +292,9 @@ def test_first_box(default_input_struct_ts):
     """
     inputs = default_input_struct_ts.evolve_input_structs(
         HII_DIM=default_input_struct_ts.user_params.HII_DIM + 1
-    )
+    ).clone(random_seed=1)
     initial_conditions = p21c.compute_initial_conditions(
         inputs=inputs,
-        random_seed=1,
     )
 
     prevst = None

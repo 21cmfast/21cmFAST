@@ -107,7 +107,7 @@ void stoc_set_consts_z(struct HaloSamplingConstants *const_struct, double redshi
 
     const_struct->M_min = user_params_global->SAMPLER_MIN_MASS / user_params_global->SAMPLER_BUFFER_FACTOR;
     const_struct->lnM_min = log(const_struct->M_min);
-    const_struct->M_max_tables = global_params.M_MAX_INTEGRAL;
+    const_struct->M_max_tables = M_MAX_INTEGRAL;
     const_struct->lnM_max_tb = log(const_struct->M_max_tables);
 
     init_ps();
@@ -460,8 +460,8 @@ int stoc_partition_sample(struct HaloSamplingConstants * hs_constants, gsl_rng *
     double nu_fudge_factor = user_params_global->HALOMASS_CORRECTION;
 
     //set initial amount
-    // M_remaining = M_cond; // full condition
-    M_remaining = exp_M; //subtract unresolved mass
+    M_remaining = M_cond; // full condition
+    // M_remaining = exp_M; //subtract unresolved mass
     lnM_remaining = log(M_remaining);
 
     double nu_min;
@@ -831,8 +831,8 @@ int sample_halo_grids(gsl_rng **rng_arr, double redshift, float *dens_field, flo
 
                         if(count >= arraysize_local){
                             LOG_ERROR("More than %llu halos (expected %.1e) with buffer size factor %.1f",
-                                        arraysize_local,arraysize_local/user_params_global->MAXHALO_FACTOR,user_params_global->MAXHALO_FACTOR);
-                            LOG_ERROR("If you expected to have an above average halo number try raising user_params->MAXHALO_FACTOR");
+                                        arraysize_local,arraysize_local/config_settings.HALO_CATALOG_MEM_FACTOR,config_settings.HALO_CATALOG_MEM_FACTOR);
+                            LOG_ERROR("If you expected to have an above average halo number try raising config_settings.HALO_CATALOG_MEM_FACTOR");
                             Throw(ValueError);
                         }
 
@@ -944,8 +944,8 @@ int sample_halo_progenitors(gsl_rng ** rng_arr, double z_in, double z_out, HaloF
 
                 if(count >= arraysize_local){
                     LOG_ERROR("More than %llu halos (expected %.1e) with buffer size factor %.1f",
-                                arraysize_local,arraysize_local/user_params_global->MAXHALO_FACTOR,user_params_global->MAXHALO_FACTOR);
-                    LOG_ERROR("If you expected to have an above average halo number try raising user_params_global->MAXHALO_FACTOR");
+                                arraysize_local,arraysize_local/config_settings.HALO_CATALOG_MEM_FACTOR,config_settings.HALO_CATALOG_MEM_FACTOR);
+                    LOG_ERROR("If you expected to have an above average halo number try raising config['HALO_CATALOG_MEM_FACTOR']");
                     Throw(ValueError);
                 }
 

@@ -9,7 +9,7 @@ import numpy as np
 import pickle
 
 from py21cmfast import InitialConditions  # An example of an output struct
-from py21cmfast import IonizedBox, PerturbedField, TsBox, global_params
+from py21cmfast import IonizedBox, PerturbedField, TsBox
 
 
 @pytest.fixture(scope="function")
@@ -123,10 +123,6 @@ def test_bad_write(init):
     # no random seed yet so shouldn't be able to write.
     with pytest.raises(IOError):
         init.write()
-
-
-def test_global_params_keys():
-    assert "HII_FILTER" in global_params.keys()
 
 
 def test_reading_purged(ic: InitialConditions):

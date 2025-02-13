@@ -21,7 +21,7 @@ from cached_property import cached_property
 from .. import __version__
 from ..c_21cmfast import ffi, lib
 from ..drivers.param_config import InputParameters
-from .inputs import AstroParams, CosmoParams, FlagOptions, UserParams, global_params
+from .inputs import AstroParams, CosmoParams, FlagOptions, UserParams
 from .structs import OutputStruct as _BaseOutputStruct
 
 logger = logging.getLogger(__name__)
@@ -32,8 +32,6 @@ logger = logging.getLogger(__name__)
 #   (done in structs.OutputStruct.__init__) or the input struct (done here)
 # TODO: there is certainly a better way to organise it
 class _OutputStruct(_BaseOutputStruct):
-    _global_params = global_params
-
     def __init__(self, *, inputs: InputParameters | None = None, **kwargs):
         if inputs:
             self.cosmo_params = inputs.cosmo_params
@@ -62,11 +60,6 @@ class _AllParamsBox(_OutputStructZ):
     _meta = True
     _inputs = _OutputStructZ._inputs + ("flag_options", "astro_params")
 
-    _filter_params = _OutputStruct._filter_params + [
-        "T_USE_VELOCITIES",  # bt
-        "MAX_DVDR",  # bt
-    ]
-
     def __init__(
         self,
         *,
@@ -88,37 +81,7 @@ class InitialConditions(_OutputStruct):
     """A class containing all initial conditions boxes."""
 
     _c_compute_function = lib.ComputeInitialConditions
-
-    # The filter params indicates parameters to overlook when deciding if a cached box
-    # matches current parameters.
-    # It is useful for ignoring certain global parameters which may not apply to this
-    # step or its dependents.
     _meta = False
-    _filter_params = _OutputStruct._filter_params + [
-        "ALPHA_UVB",  # ionization
-        "EVOLVE_DENSITY_LINEARLY",  # perturb
-        "SMOOTH_EVOLVED_DENSITY_FIELD",  # perturb
-        "R_smooth_density",  # perturb
-        "HII_ROUND_ERR",  # ionization
-        "FIND_BUBBLE_ALGORITHM",  # ib
-        "N_POISSON",  # ib
-        "T_USE_VELOCITIES",  # bt
-        "MAX_DVDR",  # bt
-        "DELTA_R_HII_FACTOR",  # ib
-        "HII_FILTER",  # ib
-        "INITIAL_REDSHIFT",  # pf
-        "HEAT_FILTER",  # st
-        "CLUMPING_FACTOR",  # st
-        "R_XLy_MAX",  # st
-        "NUM_FILTER_STEPS_FOR_Ts",  # ts
-        "TK_at_Z_HEAT_MAX",  # ts
-        "XION_at_Z_HEAT_MAX",  # ts
-        "Pop",  # ib
-        "Pop2_ion",  # ib
-        "Pop3_ion",  # ib
-        "NU_X_BAND_MAX",  # st
-        "NU_X_MAX",  # ib
-    ]
 
     def prepare_for_perturb(self, flag_options: FlagOptions, force: bool = False):
         """Ensure the ICs have all the boxes loaded for perturb, but no extra."""
@@ -130,7 +93,7 @@ class InitialConditions(_OutputStruct):
             keep.append("lowres_vy")
             keep.append("lowres_vz")
 
-            if self.user_params.USE_2LPT:
+            if self.user_params.PERTURB_ALGORITHM == "2LPT":
                 keep.append("lowres_vx_2LPT")
                 keep.append("lowres_vy_2LPT")
                 keep.append("lowres_vz_2LPT")
@@ -140,7 +103,7 @@ class InitialConditions(_OutputStruct):
             keep.append("hires_vy")
             keep.append("hires_vz")
 
-            if self.user_params.USE_2LPT:
+            if self.user_params.PERTURB_ALGORITHM == "2LPT":
                 keep.append("hires_vx_2LPT")
                 keep.append("hires_vy_2LPT")
                 keep.append("hires_vz_2LPT")
@@ -178,7 +141,7 @@ class InitialConditions(_OutputStruct):
             "hires_vz": hires_shape,
         }
 
-        if self.user_params.USE_2LPT:
+        if self.user_params.PERTURB_ALGORITHM == "2LPT":
             out.update(
                 {
                     "lowres_vx_2LPT": shape,
@@ -215,27 +178,6 @@ class PerturbedField(_OutputStructZ):
     _c_compute_function = lib.ComputePerturbField
 
     _meta = False
-    _filter_params = _OutputStruct._filter_params + [
-        "ALPHA_UVB",  # ionization
-        "HII_ROUND_ERR",  # ionization
-        "FIND_BUBBLE_ALGORITHM",  # ib
-        "N_POISSON",  # ib
-        "T_USE_VELOCITIES",  # bt
-        "MAX_DVDR",  # bt
-        "DELTA_R_HII_FACTOR",  # ib
-        "HII_FILTER",  # ib
-        "HEAT_FILTER",  # st
-        "CLUMPING_FACTOR",  # st
-        "R_XLy_MAX",  # st
-        "NUM_FILTER_STEPS_FOR_Ts",  # ts
-        "TK_at_Z_HEAT_MAX",  # ts
-        "XION_at_Z_HEAT_MAX",  # ts
-        "Pop",  # ib
-        "Pop2_ion",  # ib
-        "Pop3_ion",  # ib
-        "NU_X_BAND_MAX",  # st
-        "NU_X_MAX",  # ib
-    ]
 
     def _get_box_structures(self) -> dict[str, dict | tuple[int]]:
         out = {
@@ -265,13 +207,13 @@ class PerturbedField(_OutputStructZ):
         if self.user_params.PERTURB_ON_HIGH_RES:
             required += ["hires_vx", "hires_vy", "hires_vz"]
 
-            if self.user_params.USE_2LPT:
+            if self.user_params.PERTURB_ALGORITHM == "2LPT":
                 required += ["hires_vx_2LPT", "hires_vy_2LPT", "hires_vz_2LPT"]
 
         else:
             required += ["lowres_density", "lowres_vx", "lowres_vy", "lowres_vz"]
 
-            if self.user_params.USE_2LPT:
+            if self.user_params.PERTURB_ALGORITHM == "2LPT":
                 required += [
                     "lowres_vx_2LPT",
                     "lowres_vy_2LPT",
@@ -412,7 +354,7 @@ class PerturbHaloField(_AllParamsBox):
             else:
                 required += ["lowres_vx", "lowres_vy", "lowres_vz"]
 
-            if self.user_params.USE_2LPT:
+            if self.user_params.PERTURB_ALGORITHM == "2LPT":
                 required += [k + "_2LPT" for k in required]
         elif isinstance(input_box, HaloField):
             required += [
@@ -540,7 +482,7 @@ class XraySourceBox(_AllParamsBox):
 
     def _get_box_structures(self) -> dict[str, dict | tuple[int]]:
         shape = (
-            (global_params.NUM_FILTER_STEPS_FOR_Ts,)
+            (self.astro_params.N_STEP_TS,)
             + (self.user_params.HII_DIM,) * 2
             + (int(self.user_params.NON_CUBIC_FACTOR * self.user_params.HII_DIM),)
         )
@@ -549,9 +491,9 @@ class XraySourceBox(_AllParamsBox):
             "filtered_sfr": shape,
             "filtered_sfr_mini": shape,
             "filtered_xray": shape,
-            "mean_sfr": (global_params.NUM_FILTER_STEPS_FOR_Ts,),
-            "mean_sfr_mini": (global_params.NUM_FILTER_STEPS_FOR_Ts,),
-            "mean_log10_Mcrit_LW": (global_params.NUM_FILTER_STEPS_FOR_Ts,),
+            "mean_sfr": (self.astro_params.N_STEP_TS,),
+            "mean_sfr_mini": (self.astro_params.N_STEP_TS,),
+            "mean_log10_Mcrit_LW": (self.astro_params.N_STEP_TS,),
         }
 
         return out
@@ -725,13 +667,13 @@ class IonizedBox(_AllParamsBox):
                             0.620350491 * self.user_params.BOX_LEN,
                         )
                         / max(
-                            global_params.R_BUBBLE_MIN,
+                            self.astro_params.R_BUBBLE_MIN,
                             0.620350491
                             * self.user_params.BOX_LEN
                             / self.user_params.HII_DIM,
                         )
                     )
-                    / np.log(global_params.DELTA_R_HII_FACTOR)
+                    / np.log(self.astro_params.DELTA_R_HII_FACTOR)
                 )
                 + 1
             )
@@ -836,7 +778,6 @@ class BrightnessTemp(_AllParamsBox):
     _c_compute_function = lib.ComputeBrightnessTemp
 
     _meta = False
-    _filter_params = _OutputStructZ._filter_params
 
     def _get_box_structures(self) -> dict[str, dict | tuple[int]]:
         return {

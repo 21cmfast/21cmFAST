@@ -78,7 +78,7 @@ double T_RECFAST(float z, int flag)
 
     if (flag == 1) {
         // Read in the recfast data
-        sprintf(filename,"%s/%s",global_params.external_table_path,RECFAST_FILENAME);
+        sprintf(filename,"%s/%s",config_settings.external_table_path,RECFAST_FILENAME);
         if ( !(F=fopen(filename, "r")) ){
             LOG_ERROR("T_RECFAST: Unable to open file: %s for reading.", filename);
             Throw(IOError);
@@ -132,7 +132,7 @@ double xion_RECFAST(float z, int flag)
 
     if (flag == 1) {
         // Initialize vectors
-        sprintf(filename,"%s/%s",global_params.external_table_path,RECFAST_FILENAME);
+        sprintf(filename,"%s/%s",config_settings.external_table_path,RECFAST_FILENAME);
         if ( !(F=fopen(filename, "r")) ){
             LOG_ERROR("xion_RECFAST: Unable to open file: %s for reading.", RECFAST_FILENAME);
             Throw IOError;
@@ -172,10 +172,7 @@ double xion_RECFAST(float z, int flag)
 // approximation for the adiabatic index at z=6-50 from 2302.08506 (also 1506.04152). Linear only, used to initialize the Tk box at high z so it's not homogeneous. Otherwise half of the adiabatic fluctuations are missing. Definition is \delta Tk = Tk * cT * \delta (at each z).
 float cT_approx(float z)
 {
-    if (global_params.USE_ADIABATIC_FLUCTUATIONS)
-        return 0.58 - 0.006*(z - 10.0);
-    else
-        return 0.0;
+    return 0.58 - 0.006*(z - 10.0);
 }
 
 
@@ -286,7 +283,7 @@ double spectral_emissivity(double nu_norm, int flag, int Population)
 
         case 1:
             // * Read in the data * //
-            sprintf(filename,"%s/%s",global_params.external_table_path,STELLAR_SPECTRA_FILENAME);
+            sprintf(filename,"%s/%s",config_settings.external_table_path,STELLAR_SPECTRA_FILENAME);
             if (!(F = fopen(filename, "r"))){
                LOG_ERROR("spectral_emissivity: Unable to open file: stellar_spectra.dat for reading.");
                 Throw IOError;
@@ -304,9 +301,9 @@ double spectral_emissivity(double nu_norm, int flag, int Population)
 
             for (i=1;i<(NSPEC_MAX-1);i++) {
                 n0_fac = (pow(nu_n[i+1],alpha_S_2[i]+1) - pow(nu_n[i],alpha_S_2[i]+1));
-                N0_2[i] *= (alpha_S_2[i]+1)/n0_fac*global_params.Pop2_ion;
+                N0_2[i] *= (alpha_S_2[i]+1)/n0_fac*astro_params_global->POP2_ION;
                 n0_fac = (pow(nu_n[i+1],alpha_S_3[i]+1) - pow(nu_n[i],alpha_S_3[i]+1));
-                N0_3[i] *= (alpha_S_3[i]+1)/n0_fac*global_params.Pop3_ion;
+                N0_3[i] *= (alpha_S_3[i]+1)/n0_fac*astro_params_global->POP3_ION;
             }
 
             return 0.0;
@@ -723,10 +720,10 @@ double integrate_over_nu(double zp, double local_x_e, double lower_int_limit, in
 
     int status;
     gsl_set_error_handler_off();
-    status = gsl_integration_qag (&F, lower_int_limit, global_params.NU_X_MAX*NU_over_EV, 0, rel_tol, 1000, GSL_INTEG_GAUSS15, w, &result, &error);
+    status = gsl_integration_qag (&F, lower_int_limit, astro_params_global->NU_X_MAX*NU_over_EV, 0, rel_tol, 1000, GSL_INTEG_GAUSS15, w, &result, &error);
 
     if(status!=0){
-        LOG_ERROR("(function argument): lower_limit=%e upper_limit=%e rel_tol=%e result=%e error=%e",lower_int_limit,global_params.NU_X_MAX*NU_over_EV,rel_tol,result,error);
+        LOG_ERROR("(function argument): lower_limit=%e upper_limit=%e rel_tol=%e result=%e error=%e",lower_int_limit,astro_params_global->NU_X_MAX*NU_over_EV,rel_tol,result,error);
         LOG_ERROR("data: zp=%e local_x_e=%e FLAG=%d",zp,local_x_e,FLAG);
         CATCH_GSL_ERROR(status);
     }
@@ -832,8 +829,8 @@ double tauX_MINI(double nu, double x_e, double x_e_ave, double zp, double zpp, d
     p.nu_0 = nu/(1+zp);
     p.x_e = x_e;
     p.x_e_ave = x_e_ave;
-    p.ion_eff = global_params.Pop2_ion*astro_params_global->F_STAR10*astro_params_global->F_ESC10;
-    p.ion_eff_MINI = global_params.Pop3_ion*astro_params_global->F_STAR7_MINI*astro_params_global->F_ESC7_MINI;
+    p.ion_eff = astro_params_global->POP2_ION*astro_params_global->F_STAR10*astro_params_global->F_ESC10;
+    p.ion_eff_MINI = astro_params_global->POP3_ION*astro_params_global->F_STAR7_MINI*astro_params_global->F_ESC7_MINI;
     p.log10_Mturn_MINI = log10_Mturn_MINI;
     p.Mlim_Fstar = Mlim_Fstar;
     p.Mlim_Fesc = Mlim_Fesc;
@@ -876,7 +873,7 @@ double tauX(double nu, double x_e, double x_e_ave, double zp, double zpp, double
     p.Mlim_Fesc = Mlim_Fesc;
 
     if(flag_options_global->USE_MASS_DEPENDENT_ZETA) {
-        p.ion_eff = global_params.Pop2_ion*astro_params_global->F_STAR10*astro_params_global->F_ESC10;
+        p.ion_eff = astro_params_global->POP2_ION*astro_params_global->F_STAR10*astro_params_global->F_ESC10;
     }
     else {
         //if we don't have an explicit ionising efficiency, we estimate one by using the values at zp
@@ -1180,7 +1177,7 @@ double Energy_Lya_heating(double Tk, double Ts, double tau_gp, int flag)
 
     if (flag == 1) {
         //Read in the Lya heating table
-        sprintf(filename,"%s/%s",global_params.external_table_path,LYA_HEATING_FILENAME);
+        sprintf(filename,"%s/%s",config_settings.external_table_path,LYA_HEATING_FILENAME);
 
         if ( !(F=fopen(filename, "r")) ){
             LOG_ERROR("Energy_Lya_heating: Unable to open file: %s for reading.", filename);

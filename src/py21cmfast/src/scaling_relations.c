@@ -56,22 +56,25 @@ void set_scaling_constants(double redshift, AstroParams *astro_params, FlagOptio
     else if(flag_options->PHOTON_CONS_TYPE == 3)
         consts->fesc_10 = get_fesc_fit(redshift);
 
+    consts->pop2_ion = astro_params->POP2_ION;
+    consts->pop3_ion = astro_params->POP3_ION;
+
     consts->mturn_a_nofb = flag_options->USE_MINI_HALOS ? atomic_cooling_threshold(redshift) : astro_params->M_TURN;
 
     consts->mturn_m_nofb = 0.;
     if(flag_options->USE_MINI_HALOS){
-        consts->vcb_norel = flag_options->FIX_VCB_AVG ? global_params.VAVG : 0;
+        consts->vcb_norel = flag_options->FIX_VCB_AVG ? astro_params->FIXED_VAVG : 0;
         consts->mturn_m_nofb = lyman_werner_threshold(redshift, 0., consts->vcb_norel, astro_params);
     }
 
     if(flag_options->FIXED_HALO_GRIDS || user_params_global->AVG_BELOW_SAMPLER){
-        consts->Mlim_Fstar = Mass_limit_bisection(global_params.M_MIN_INTEGRAL, global_params.M_MAX_INTEGRAL, consts->alpha_star, consts->fstar_10);
-        consts->Mlim_Fesc = Mass_limit_bisection(global_params.M_MIN_INTEGRAL, global_params.M_MAX_INTEGRAL, consts->alpha_esc, consts->fesc_10);
+        consts->Mlim_Fstar = Mass_limit_bisection(M_MIN_INTEGRAL, M_MAX_INTEGRAL, consts->alpha_star, consts->fstar_10);
+        consts->Mlim_Fesc = Mass_limit_bisection(M_MIN_INTEGRAL, M_MAX_INTEGRAL, consts->alpha_esc, consts->fesc_10);
 
         if(flag_options->USE_MINI_HALOS){
-            consts->Mlim_Fstar_mini = Mass_limit_bisection(global_params.M_MIN_INTEGRAL, global_params.M_MAX_INTEGRAL, consts->alpha_star_mini,
+            consts->Mlim_Fstar_mini = Mass_limit_bisection(M_MIN_INTEGRAL, M_MAX_INTEGRAL, consts->alpha_star_mini,
                                                             consts->fstar_7 * pow(1e3,consts->alpha_star_mini));
-            consts->Mlim_Fesc_mini = Mass_limit_bisection(global_params.M_MIN_INTEGRAL, global_params.M_MAX_INTEGRAL, consts->alpha_esc,
+            consts->Mlim_Fesc_mini = Mass_limit_bisection(M_MIN_INTEGRAL, M_MAX_INTEGRAL, consts->alpha_esc,
                                                             consts->fesc_7 * pow(1e3,consts->alpha_esc));
         }
     }

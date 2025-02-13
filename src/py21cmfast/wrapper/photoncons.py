@@ -31,7 +31,7 @@ from scipy.optimize import curve_fit
 
 from ..c_21cmfast import ffi, lib
 from ._utils import _process_exitcode
-from .inputs import AstroParams, CosmoParams, FlagOptions, UserParams, global_params
+from .inputs import AstroParams, CosmoParams, FlagOptions, UserParams
 
 logger = logging.getLogger(__name__)
 
@@ -100,7 +100,7 @@ def _calibrate_photon_conservation_correction(
 
 def _calc_zstart_photon_cons():
     # gets the starting redshift of the z-based photon conservation model
-    #   Set by neutral fraction global_params.PhotonConsStart
+    #   Set by neutral fraction astro_params.PHOTONCONS_ZSTART
     from ._utils import _call_c_simple
 
     return _call_c_simple(lib.ComputeZstart_PhotonCons)
@@ -191,9 +191,6 @@ def setup_photon_cons(
     hooks,
     direc,
     initial_conditions=None,
-    user_params=None,
-    cosmo_params=None,
-    **global_kwargs,
 ):
     r"""
     Set up the photon non-conservation correction.
@@ -220,10 +217,6 @@ def setup_photon_cons(
     initial_conditions : :class:`~InitialConditions`, optional
         If given, the user and cosmo params will be set from this object, and it will not be
         re-calculated.
-    \*\*global_kwargs :
-        Any attributes for :class:`~py21cmfast.inputs.GlobalParams`. This will
-        *temporarily* set global attributes for the duration of the function. Note that
-        arguments will be treated as case-insensitive.
 
     Other Parameters
     ----------------
@@ -233,6 +226,10 @@ def setup_photon_cons(
     from ..drivers.single_field import _get_config_options
 
     direc, regenerate, hooks = _get_config_options(direc, regenerate, None, hooks)
+
+    logger.info(
+        f"Setting up photon conservation correction for {inputs.flag_options.PHOTON_CONS_TYPE}"
+    )
 
     if inputs.flag_options.PHOTON_CONS_TYPE == "no-photoncons":
         return
@@ -246,7 +243,6 @@ def setup_photon_cons(
         hooks=hooks,
         direc=direc,
         initial_conditions=initial_conditions,
-        **global_kwargs,
     )
 
     # The PHOTON_CONS_TYPE == 1 case is handled in C (for now....), but we get the data anyway
@@ -278,7 +274,6 @@ def calibrate_photon_cons(
     hooks,
     direc,
     initial_conditions,
-    **global_kwargs,
 ):
     r"""
     Performs the photon conservation calibration simulation.
@@ -297,10 +292,6 @@ def calibrate_photon_cons(
     initial_conditions : :class:`~InitialConditions`, optional
         If given, the user and cosmo params will be set from this object, and it will not be
         re-calculated.
-    \*\*global_kwargs :
-        Any attributes for :class:`~py21cmfast.inputs.GlobalParams`. This will
-        *temporarily* set global attributes for the duration of the function. Note that
-        arguments will be treated as case-insensitive.
 
     Other Parameters
     ----------------
@@ -310,89 +301,94 @@ def calibrate_photon_cons(
     # avoiding circular imports by importing here
     from ..drivers.single_field import compute_ionization_field, perturb_field
 
-    with global_params.use(**global_kwargs):
-        # Create a new astro_params and flag_options just for the photon_cons correction
-        inputs_calibration = inputs.evolve_input_structs(
-            USE_TS_FLUCT=False,
-            INHOMO_RECO=False,
-            USE_MINI_HALOS=False,
-            USE_HALO_FIELD=False,
-            PHOTON_CONS_TYPE="no-photoncons",
+    # Create a new astro_params and flag_options just for the photon_cons correction
+    # NOTE: Since the calibration cannot do INHOMO_RECO, we set the R_BUBBLE_MAX
+    #   to the default w/o recombinations ONLY when the original box has INHOMO_RECO enabled.
+    # TODO: figure out if it's possible to find a "closest" Rmax, since the correction fails when
+    # the histories are too different.
+    inputs_calibration = inputs.evolve_input_structs(
+        USE_TS_FLUCT=False,
+        INHOMO_RECO=False,
+        USE_MINI_HALOS=False,
+        USE_HALO_FIELD=False,
+        HALO_STOCHASTICITY=False,
+        PHOTON_CONS_TYPE="no-photoncons",
+        R_BUBBLE_MAX=(
+            15 if inputs.flag_options.INHOMO_RECO else inputs.astro_params.R_BUBBLE_MAX
+        ),
+    )
+    ib = None
+    prev_perturb = None
+
+    # Arrays for redshift and neutral fraction for the calibration curve
+    z_for_photon_cons = []
+    neutral_fraction_photon_cons = []
+
+    # Initialise the analytic expression for the reionisation history
+    logger.info("About to start photon conservation correction")
+    _init_photon_conservation_correction(
+        user_params=inputs.user_params,
+        cosmo_params=inputs.cosmo_params,
+        astro_params=inputs.astro_params,
+        flag_options=inputs.flag_options,
+    )
+
+    # Determine the starting redshift to start scrolling through to create the
+    # calibration reionisation history
+    logger.info("Calculating photon conservation zstart")
+    z = _calc_zstart_photon_cons()
+
+    while z > inputs.astro_params.PHOTONCONS_CALIBRATION_END:
+        # Determine the ionisation box with recombinations, spin temperature etc.
+        # turned off.
+        this_perturb = perturb_field(
+            redshift=z,
+            inputs=inputs_calibration,
+            initial_conditions=initial_conditions,
+            regenerate=regenerate,
+            hooks=hooks,
+            direc=direc,
         )
-        ib = None
-        prev_perturb = None
 
-        # Arrays for redshift and neutral fraction for the calibration curve
-        z_for_photon_cons = []
-        neutral_fraction_photon_cons = []
-
-        # Initialise the analytic expression for the reionisation history
-        logger.info("About to start photon conservation correction")
-        _init_photon_conservation_correction(
-            user_params=inputs.user_params,
-            cosmo_params=inputs.cosmo_params,
-            astro_params=inputs.astro_params,
-            flag_options=inputs.flag_options,
+        ib2 = compute_ionization_field(
+            inputs=inputs_calibration,
+            previous_ionized_box=ib,
+            initial_conditions=initial_conditions,
+            perturbed_field=this_perturb,
+            previous_perturbed_field=prev_perturb,
+            regenerate=regenerate,
+            hooks=hooks,
+            direc=direc,
         )
 
-        # Determine the starting redshift to start scrolling through to create the
-        # calibration reionisation history
-        logger.info("Calculating photon conservation zstart")
-        z = _calc_zstart_photon_cons()
+        mean_nf = np.mean(ib2.xH_box)
 
-        while z > global_params.PhotonConsEndCalibz:
-            # Determine the ionisation box with recombinations, spin temperature etc.
-            # turned off.
-            this_perturb = perturb_field(
-                redshift=z,
-                inputs=inputs_calibration,
-                initial_conditions=initial_conditions,
-                regenerate=regenerate,
-                hooks=hooks,
-                direc=direc,
-            )
+        # Save mean/global quantities
+        neutral_fraction_photon_cons.append(mean_nf)
+        z_for_photon_cons.append(z)
 
-            ib2 = compute_ionization_field(
-                redshift=z,
-                inputs=inputs_calibration,
-                previous_ionize_box=ib,
-                initial_conditions=initial_conditions,
-                perturbed_field=this_perturb,
-                previous_perturbed_field=prev_perturb,
-                spin_temp=None,
-                regenerate=regenerate,
-                hooks=hooks,
-                direc=direc,
-            )
+        # Can speed up sampling in regions where the evolution is slower
+        if 0.3 < mean_nf <= 0.9:
+            z -= 0.15
+        elif 0.01 < mean_nf <= 0.3:
+            z -= 0.05
+        else:
+            z -= 0.5
 
-            mean_nf = np.mean(ib2.xH_box)
+        ib = ib2
+        if inputs.flag_options.USE_MINI_HALOS:
+            prev_perturb = this_perturb
 
-            # Save mean/global quantities
-            neutral_fraction_photon_cons.append(mean_nf)
-            z_for_photon_cons.append(z)
+    z_for_photon_cons = np.array(z_for_photon_cons[::-1])
+    neutral_fraction_photon_cons = np.array(neutral_fraction_photon_cons[::-1])
 
-            # Can speed up sampling in regions where the evolution is slower
-            if 0.3 < mean_nf <= 0.9:
-                z -= 0.15
-            elif 0.01 < mean_nf <= 0.3:
-                z -= 0.05
-            else:
-                z -= 0.5
-
-            ib = ib2
-            if inputs.flag_options.USE_MINI_HALOS:
-                prev_perturb = this_perturb
-
-        z_for_photon_cons = np.array(z_for_photon_cons[::-1])
-        neutral_fraction_photon_cons = np.array(neutral_fraction_photon_cons[::-1])
-
-        # Construct the spline for the calibration curve
-        logger.info("Calibrating photon conservation correction")
-        _calibrate_photon_conservation_correction(
-            redshifts_estimate=z_for_photon_cons,
-            nf_estimate=neutral_fraction_photon_cons,
-            NSpline=len(z_for_photon_cons),
-        )
+    # Construct the spline for the calibration curve
+    logger.info("Calibrating photon conservation correction")
+    _calibrate_photon_conservation_correction(
+        redshifts_estimate=z_for_photon_cons,
+        nf_estimate=neutral_fraction_photon_cons,
+        NSpline=len(z_for_photon_cons),
+    )
 
 
 # (Jdavies): I needed a function to access the delta z from the wrapper
@@ -527,7 +523,6 @@ def photoncons_alpha(cosmo_params, user_params, astro_params, flag_options):
             x0 = alpha_arr[alpha_idx]
             x1 = alpha_arr[alpha_idx + 1]
             guesses = -y0 * (x1 - x0) / (y1 - y0) + x0
-            # logger.info(f'roots at alpha={x1} ')
 
             # choose the root which gives the smoothest alpha vs z curve
             # arr_out[i] = guesses[np.argmin(np.fabs(guesses - astro_params.ALPHA_ESC))]
@@ -536,10 +531,12 @@ def photoncons_alpha(cosmo_params, user_params, astro_params, flag_options):
 
     # initialise the output structure before the fits
     results = {
-        "z_cal": ref_pc_data["z_calibration"],
-        "Q_ana": ref_interp,
+        "z_calibration": ref_pc_data["z_calibration"],
+        "z_analytic": ref_pc_data["z_analytic"],
+        "Q_analytic": ref_pc_data["Q_analytic"],
+        "nf_photoncons": 1 - ref_interp,
         "Q_alpha": test_pc_data,
-        "Q_cal": (1 - ref_pc_data["nf_calibration"]),
+        "nf_calibration": ref_pc_data["nf_calibration"],
         "alpha_ratio": alpha_estimate_ratio,
         "alpha_diff": alpha_estimate_diff,
         "alpha_reverse": alpha_estimate_reverse,
@@ -638,11 +635,13 @@ def photoncons_fesc(cosmo_params, user_params, astro_params, flag_options):
 
     # initialise the output structure before the fits
     results = {
-        "z_cal": ref_pc_data["z_calibration"],
-        "Q_ana": ref_interp,
-        "Q_cal": (1 - ref_pc_data["nf_calibration"]),
+        "z_calibration": ref_pc_data["z_calibration"],
+        "z_analytic": ref_pc_data["z_analytic"],
+        "Q_analytic": ref_pc_data["Q_analytic"],
+        "nf_calibration": ref_pc_data["nf_calibration"],
+        "nf_photoncons": 1 - ref_interp,
         "Q_ratio": ratio_ref,
-        "fit_target": fit_fesc,
+        "fesc_target": fit_fesc,
         "fit_yint": popt[0],
         "fit_slope": popt[1],  # start with no correction
     }

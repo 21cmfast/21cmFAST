@@ -94,7 +94,7 @@ jobs:
 
       - name: Archive Integration Test Plots
         if: always()
-        uses: actions/upload-artifact@v3
+        uses: actions/upload-artifact@v4
         with:
           name: integration-test-plots-${{ matrix.os }}-${{ matrix.python-version }}
           path: |

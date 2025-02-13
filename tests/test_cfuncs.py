@@ -44,6 +44,7 @@ def test_run_tau():
         redshifts=[7, 8, 9],
         global_xHI=[0.1, 0.2, 0.3],
         inputs=inputs,
+        z_re_HeII=3.0,
     )
 
     assert tau

@@ -68,7 +68,7 @@ void set_alphacons_params(double norm, double slope);
 int ComputeLF(int nbins,  UserParams *user_params,  CosmoParams *cosmo_params,  AstroParams *astro_params,
                 FlagOptions *flag_options, int component, int NUM_OF_REDSHIFT_FOR_LF, float *z_LF, float *M_TURNs, double *M_uv_z, double *M_h_z, double *log10phi);
 
-float ComputeTau( UserParams *user_params,  CosmoParams *cosmo_params, int Npoints, float *redshifts, float *global_xHI);
+float ComputeTau(UserParams *user_params, CosmoParams *cosmo_params, int NPoints, float *redshifts, float *global_xHI, float z_re_HeII);
 /*-----------------------------*/
 
 

@@ -438,7 +438,7 @@ int ComputeInitialConditions(
     // reference: Scoccimarro R., 1998, MNRAS, 299, 1097-1118 Appendix D
 
     // Parameter set in ANAL_PARAMS.H
-    if(user_params->USE_2LPT){
+    if(user_params->PERTURB_ALGORITHM == 2){
 
         // use six supplementary boxes to store the gradients of phi_1 (eq. D13b)
         // Allocating the boxes

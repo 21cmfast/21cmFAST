@@ -32,6 +32,7 @@
 #include "IonisationBox.h"
 
 #define LOG10_MTURN_MAX ((double)(10)) //maximum mturn limit enforced on grids
+#define HII_ROUND_ERR (1e-5) //do not run excursion-set below this expected HII fraction
 
 int INIT_RECOMBINATIONS = 1;
 
@@ -50,6 +51,7 @@ struct IonBoxConstants{
     //compound/alternate flags
     bool fix_mean;
     bool filter_recombinations;
+    int hii_filter;
 
     //astro parameters
     double fstar_10;
@@ -61,6 +63,7 @@ struct IonBoxConstants{
     double fesc_10;
     double alpha_esc;
     double fesc_7;
+    double T_re;
 
     //astro calculated values
     double vcb_norel;
@@ -173,37 +176,44 @@ void set_ionbox_constants(double redshift, double prev_redshift, CosmoParams *co
     consts->fesc_10= astro_params->F_ESC10;
     consts->fesc_7 = astro_params->F_ESC7_MINI;
 
+    consts->hii_filter = flag_options->HII_FILTER;
+
     if(flag_options->PHOTON_CONS_TYPE == 2)
         consts->alpha_esc = get_fesc_fit(redshift);
     else if(flag_options->PHOTON_CONS_TYPE == 3)
         consts->fesc_10 = get_fesc_fit(redshift);
 
+    consts->T_re = astro_params->T_RE;
+
     consts->mturn_a_nofb = flag_options->USE_MINI_HALOS ? atomic_cooling_threshold(redshift) : astro_params->M_TURN;
 
     consts->mturn_m_nofb = 0.;
     if(flag_options->USE_MINI_HALOS){
-        consts->vcb_norel = flag_options->FIX_VCB_AVG ? global_params.VAVG : 0;
+        consts->vcb_norel = flag_options->FIX_VCB_AVG ? astro_params->FIXED_VAVG : 0;
         consts->mturn_m_nofb = lyman_werner_threshold(redshift, 0., consts->vcb_norel, astro_params);
     }
 
     if(consts->mturn_m_nofb < astro_params->M_TURN)consts->mturn_m_nofb = astro_params->M_TURN;
     if(consts->mturn_a_nofb < astro_params->M_TURN)consts->mturn_a_nofb = astro_params->M_TURN;
 
-    if(flag_options->FIXED_HALO_GRIDS || user_params_global->AVG_BELOW_SAMPLER){
-        consts->Mlim_Fstar = Mass_limit_bisection(global_params.M_MIN_INTEGRAL, global_params.M_MAX_INTEGRAL, consts->alpha_star, consts->fstar_10);
-        consts->Mlim_Fesc = Mass_limit_bisection(global_params.M_MIN_INTEGRAL, global_params.M_MAX_INTEGRAL, consts->alpha_esc, consts->fesc_10);
+    if(!flag_options_global->USE_HALO_FIELD || \
+        flag_options->FIXED_HALO_GRIDS || \
+        user_params_global->AVG_BELOW_SAMPLER)
+    {
+        consts->Mlim_Fstar = Mass_limit_bisection(M_MIN_INTEGRAL, M_MAX_INTEGRAL, consts->alpha_star, consts->fstar_10);
+        consts->Mlim_Fesc = Mass_limit_bisection(M_MIN_INTEGRAL, M_MAX_INTEGRAL, consts->alpha_esc, consts->fesc_10);
 
         if(flag_options->USE_MINI_HALOS){
-            consts->Mlim_Fstar_mini = Mass_limit_bisection(global_params.M_MIN_INTEGRAL, global_params.M_MAX_INTEGRAL, consts->alpha_star_mini,
+            consts->Mlim_Fstar_mini = Mass_limit_bisection(M_MIN_INTEGRAL, M_MAX_INTEGRAL, consts->alpha_star_mini,
                                                             consts->fstar_7 * pow(1e3,consts->alpha_star_mini));
-            consts->Mlim_Fesc_mini = Mass_limit_bisection(global_params.M_MIN_INTEGRAL, global_params.M_MAX_INTEGRAL, consts->alpha_esc,
+            consts->Mlim_Fesc_mini = Mass_limit_bisection(M_MIN_INTEGRAL, M_MAX_INTEGRAL, consts->alpha_esc,
                                                             consts->fesc_7 * pow(1e3,consts->alpha_esc));
         }
     }
 
     if(flag_options->USE_MASS_DEPENDENT_ZETA) {
-        consts->ion_eff_factor_gl = global_params.Pop2_ion * astro_params->F_STAR10 * consts->fesc_10;
-        consts->ion_eff_factor_mini_gl = global_params.Pop3_ion * astro_params->F_STAR7_MINI * astro_params->F_ESC7_MINI;
+        consts->ion_eff_factor_gl = astro_params->POP2_ION * astro_params->F_STAR10 * consts->fesc_10;
+        consts->ion_eff_factor_mini_gl = astro_params->POP3_ION * astro_params->F_STAR7_MINI * astro_params->F_ESC7_MINI;
     }
     else {
         consts->ion_eff_factor_gl = astro_params->HII_EFF_FACTOR;
@@ -235,7 +245,7 @@ void set_ionbox_constants(double redshift, double prev_redshift, CosmoParams *co
     //set the minimum source mass
     consts->M_min = minimum_source_mass(redshift,false,astro_params,flag_options);
     consts->lnMmin = log(consts->M_min);
-    consts->lnMmax_gl = log(global_params.M_MAX_INTEGRAL);
+    consts->lnMmax_gl = log(M_MAX_INTEGRAL);
     consts->sigma_minmass = sigma_z0(consts->M_min);
 
     //global TK and adiabatic terms for temperature without the Ts Calculation
@@ -248,8 +258,8 @@ void set_ionbox_constants(double redshift, double prev_redshift, CosmoParams *co
     consts->pixel_length = user_params_global->BOX_LEN/(double)user_params_global->HII_DIM;
     consts->pixel_mass = cosmo_params_global->OMm * RHOcrit * pow(consts->pixel_length,3);
 
-    consts->gamma_prefactor = pow(1+redshift,2) * CMperMPC * SIGMA_HI * global_params.ALPHA_UVB \
-                                 / (global_params.ALPHA_UVB+2.75) * N_b0 * consts->ion_eff_factor / 1.0e-12;
+    consts->gamma_prefactor = pow(1+redshift,2) * CMperMPC * SIGMA_HI * astro_params_global->ALPHA_UVB \
+                                 / (astro_params_global->ALPHA_UVB+2.75) * N_b0 * consts->ion_eff_factor / 1.0e-12;
     if(flag_options->USE_HALO_FIELD)
         consts->gamma_prefactor /= RHOcrit * cosmo_params->OMb; //TODO: double-check these unit differences, HaloBox.halo_wsfr vs Nion_General units
     else
@@ -561,23 +571,23 @@ void copy_filter_transform(struct FilteredGrids *fg_struct, struct IonBoxConstan
 
     if(rspec.R_index > 0){
         double R = rspec.R;
-        filter_box(fg_struct->deltax_filtered, 1, global_params.HII_FILTER, R, 0.);
+        filter_box(fg_struct->deltax_filtered, 1, consts->hii_filter, R, 0.);
         if (flag_options_global->USE_TS_FLUCT) {
-            filter_box(fg_struct->xe_filtered, 1, global_params.HII_FILTER, R, 0.);
+            filter_box(fg_struct->xe_filtered, 1, consts->hii_filter, R, 0.);
         }
         if (consts->filter_recombinations) {
-            filter_box(fg_struct->N_rec_filtered, 1, global_params.HII_FILTER, R, 0.);
+            filter_box(fg_struct->N_rec_filtered, 1, consts->hii_filter, R, 0.);
         }
         if (flag_options_global->USE_HALO_FIELD) {
-                int filter_hf = flag_options_global->USE_EXP_FILTER ? 3 : global_params.HII_FILTER;
+                int filter_hf = flag_options_global->USE_EXP_FILTER ? 3 : consts->hii_filter;
                 filter_box(fg_struct->stars_filtered, 1, filter_hf, R, consts->mfp_meandens);
                 filter_box(fg_struct->sfr_filtered, 1, filter_hf, R, consts->mfp_meandens);
         }
         else{
             if(flag_options_global->USE_MINI_HALOS){
-                filter_box(fg_struct->prev_deltax_filtered, 1, global_params.HII_FILTER, R, 0.);
-                filter_box(fg_struct->log10_Mturnover_MINI_filtered, 1, global_params.HII_FILTER, R, 0.);
-                filter_box(fg_struct->log10_Mturnover_filtered, 1, global_params.HII_FILTER, R, 0.);
+                filter_box(fg_struct->prev_deltax_filtered, 1, consts->hii_filter, R, 0.);
+                filter_box(fg_struct->log10_Mturnover_MINI_filtered, 1, consts->hii_filter, R, 0.);
+                filter_box(fg_struct->log10_Mturnover_filtered, 1, consts->hii_filter, R, 0.);
             }
         }
     }
@@ -860,13 +870,13 @@ int setup_radii(struct RadiusSpec **rspec_array, struct IonBoxConstants *consts)
 
     double cell_length_factor = L_FACTOR;
     //TODO: figure out why this is used in such a specific case
-    if(flag_options_global->USE_HALO_FIELD && (global_params.FIND_BUBBLE_ALGORITHM == 2) && (consts->pixel_length < 1))
+    if(flag_options_global->USE_HALO_FIELD && !flag_options_global->IONISE_ENTIRE_SPHERE && (consts->pixel_length < 1))
         cell_length_factor = 1.;
 
-    double minimum_radius = fmax(global_params.R_BUBBLE_MIN,cell_length_factor*consts->pixel_length);
+    double minimum_radius = fmax(astro_params_global->R_BUBBLE_MIN,cell_length_factor*consts->pixel_length);
 
     //minimum number such that min_R*delta^N > max_R
-    int n_radii = (int)(log(maximum_radius/minimum_radius)/log(global_params.DELTA_R_HII_FACTOR) + 1);
+    int n_radii = (int)(log(maximum_radius/minimum_radius)/log(astro_params_global->DELTA_R_HII_FACTOR) + 1);
     *rspec_array = malloc(sizeof(**rspec_array)*n_radii);
 
     //We want the following behaviour from our radius Values:
@@ -879,7 +889,7 @@ int setup_radii(struct RadiusSpec **rspec_array, struct IonBoxConstants *consts)
     int i;
     for(i=0;i<n_radii;i++){
         (*rspec_array)[i].R_index = i;
-        (*rspec_array)[i].R = minimum_radius * pow(global_params.DELTA_R_HII_FACTOR,i);
+        (*rspec_array)[i].R = minimum_radius * pow(astro_params_global->DELTA_R_HII_FACTOR,i);
         //TODO: is this necessary? prevents the last step being small, but could hide some
         // unexpected behaviour/bugs if it finishes earlier than n_radii-2
         if((*rspec_array)[i].R > maximum_radius - FRACT_FLOAT_ERR){
@@ -1012,15 +1022,11 @@ void find_ionised_regions(IonizedBox *box, IonizedBox *previous_ionize_box, Pert
                         }
 
                         // FLAG CELL(S) AS IONIZED
-                        if (global_params.FIND_BUBBLE_ALGORITHM == 2) // center method
+                        if (!flag_options_global->IONISE_ENTIRE_SPHERE) // center method
                             box->xH_box[HII_R_INDEX(x,y,z)] = 0;
-                        else if (global_params.FIND_BUBBLE_ALGORITHM == 1) // sphere method
+                        else // sphere method
                             update_in_sphere(box->xH_box, user_params_global->HII_DIM, HII_D_PARA, rspec.R/(user_params_global->BOX_LEN), \
                                                 x/(user_params_global->HII_DIM+0.0), y/(user_params_global->HII_DIM+0.0), z/(HII_D_PARA+0.0));
-                        else{
-                            LOG_ERROR("Invalid global_params.FIND_BUBBLE_ALGORITHM, should be 1(sphere) or 2(centre)");
-                            Throw(ValueError);
-                        }
                     } // end ionized
                         // If not fully ionized, then assign partial ionizations
                     else if (rspec.R_index==0 && (box->xH_box[HII_R_INDEX(x, y, z)] > TINY)) {
@@ -1031,11 +1037,11 @@ void find_ionised_regions(IonizedBox *box, IonizedBox *previous_ionize_box, Pert
                         res_xH = 1. - curr_fcoll * consts->ion_eff_factor - curr_fcoll_mini * consts->ion_eff_factor_mini;
                         // put the partial ionization here because we need to exclude xHII_from_xrays...
                         if (flag_options_global->USE_TS_FLUCT){
-                            box->temp_kinetic_all_gas[HII_R_INDEX(x,y,z)] = ComputePartiallyIoinizedTemperature(spin_temp->Tk_box[HII_R_INDEX(x,y,z)], res_xH);
+                            box->temp_kinetic_all_gas[HII_R_INDEX(x,y,z)] = ComputePartiallyIoinizedTemperature(spin_temp->Tk_box[HII_R_INDEX(x,y,z)], res_xH, consts->T_re);
                         }
                         else{
                             box->temp_kinetic_all_gas[HII_R_INDEX(x,y,z)] = ComputePartiallyIoinizedTemperature(
-                                    consts->TK_nofluct*(1 + consts->adia_TK_term*perturbed_field->density[HII_R_INDEX(x,y,z)]), res_xH);
+                                    consts->TK_nofluct*(1 + consts->adia_TK_term*perturbed_field->density[HII_R_INDEX(x,y,z)]), res_xH, consts->T_re);
                         }
                         res_xH -= xHII_from_xrays;
 
@@ -1066,7 +1072,8 @@ void set_ionized_temperatures(IonizedBox *box, PerturbedField *perturbed_field, 
                     if ((box->z_re_box[HII_R_INDEX(x,y,z)]>0) && (box->xH_box[HII_R_INDEX(x,y,z)] < TINY)){
                         //TODO: do we want to use the photoncons redshift here or the original one?
                         box->temp_kinetic_all_gas[HII_R_INDEX(x,y,z)] = ComputeFullyIoinizedTemperature(box->z_re_box[HII_R_INDEX(x,y,z)], \
-                                                                    consts->stored_redshift, perturbed_field->density[HII_R_INDEX(x,y,z)]);
+                                                                    consts->stored_redshift, perturbed_field->density[HII_R_INDEX(x,y,z)],
+                                                                    consts->T_re);
                         // Below sometimes (very rare though) can happen when the density drops too fast and to below T_HI
                         if (flag_options_global->USE_TS_FLUCT){
                             if (box->temp_kinetic_all_gas[HII_R_INDEX(x,y,z)] < spin_temp->Tk_box[HII_R_INDEX(x,y,z)])
@@ -1296,7 +1303,7 @@ int ComputeIonizedBox(float redshift, float prev_redshift, UserParams *user_para
                             + box->mean_f_coll_MINI * ionbox_constants.ion_eff_factor_mini_gl;
 
     //TODO: change this from an if-else to an early-exit / cleanup call
-    if(exp_global_hii < global_params.HII_ROUND_ERR){ // way too small to ionize anything...
+    if(exp_global_hii < HII_ROUND_ERR){ // way too small to ionize anything...
         LOG_DEBUG("Mean collapsed fraciton %.3e too small to ionize, stopping early",exp_global_hii);
         global_xH = set_fully_neutral_box(box,spin_temp,perturbed_field,&ionbox_constants);
     }

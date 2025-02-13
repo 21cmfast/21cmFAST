@@ -44,13 +44,7 @@ from .wrapper.cfuncs import (
     compute_tau,
     construct_fftw_wisdoms,
 )
-from .wrapper.inputs import (
-    AstroParams,
-    CosmoParams,
-    FlagOptions,
-    UserParams,
-    global_params,
-)
+from .wrapper.inputs import AstroParams, CosmoParams, FlagOptions, UserParams
 from .wrapper.outputs import (
     BrightnessTemp,
     HaloBox,
