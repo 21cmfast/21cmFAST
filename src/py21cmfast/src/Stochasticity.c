@@ -26,6 +26,7 @@
 #include "Stochasticity.cuh"
 #include "interp_tables.cuh"
 #include "HaloField.cuh"
+#include "device_rng.cuh"
 
 #include <time.h>
 //buffer size (per cell of arbitrary size) in the sampling function
@@ -1118,10 +1119,23 @@ int stochastic_halofield(UserParams *user_params, CosmoParams *cosmo_params,
 
     // Fill them
     // NOTE:Halos prev in the first box corresponds to the large DexM halos
-    if (redshift_desc < 0.)
+    if (redshift_desc <= 0.)
     {
         LOG_DEBUG("building first halo field at z=%.1f", redshift);
         sample_halo_grids(rng_stoc,redshift,dens_field,halo_overlap_box,halos_desc,halos,&hs_constants);
+
+        // todo: add use_cuda/cuda_found condition here
+        // initiate rand states on the device
+        unsigned long long int nhalo_first = halos->n_halos;
+        int buffer_scale = HALO_CUDA_THREAD_FACTOR + 1;
+        unsigned long long int n_rstates = nhalo_first * buffer_scale;
+        printf("initializing %llu random states on the device... \n", n_rstates);
+        print_current_time();
+        
+        init_rand_states(seed, n_rstates);
+
+        printf("finish initializing \n");
+        print_current_time();
     }
     else{
         LOG_DEBUG("Calculating halo progenitors from z=%.1f to z=%.1f | %llu", redshift_desc,redshift,halos_desc->n_halos);

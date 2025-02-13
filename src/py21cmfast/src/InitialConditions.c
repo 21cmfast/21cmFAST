@@ -90,10 +90,9 @@ int ComputeInitialConditions(
 //     Date: 9/29/06
 
     int status;
+    
     printf("Start computing initial conditions\n");
     call_cuda();
-    init_rand_states(random_seed, 10000000);
-    printf("finish init rand states \n");
 
     Try{ // This Try wraps the entire function so we don't indent.
 

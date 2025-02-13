@@ -33,6 +33,9 @@ __global__ void initRandStates(unsigned long long int random_seed, int totalStat
 // Function to initialize RNG states.
 void init_rand_states(unsigned long long int seed, int numStates)
 {
+    // ensure previously allocated random states on the device are freed before allocating new ones
+    free_rand_states();
+
     CALL_CUDA(cudaMemcpyToSymbol(d_numStates, &numStates, sizeof(int), 0, cudaMemcpyHostToDevice));
 
     // todo: add the following block to debug
@@ -73,7 +76,7 @@ void free_rand_states()
         CALL_CUDA(cudaMemcpyToSymbol(d_randStates, &h_randStates, sizeof(h_randStates), 0, cudaMemcpyHostToDevice));
     }
 
-    if (h_numStates != 0){
+    if (h_numStates){
         h_numStates = 0;
         CALL_CUDA(cudaMemcpyToSymbol(d_numStates, &h_numStates, sizeof(int), 0, cudaMemcpyHostToDevice));
     }

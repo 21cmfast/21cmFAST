@@ -585,17 +585,10 @@ __device__ void set_prop_rng(curandState *state, bool from_catalog, double *inte
     return;
 }
 
-// kernel function
-__global__ void setup_random_states(curandState *d_states, unsigned long long int random_seed){
-    // get thread idx
-    int ind = blockIdx.x * blockDim.x + threadIdx.x;
-    curand_init(random_seed, ind, 0, &d_states[ind]);
-}
-
 __global__ void update_halo_constants(float *d_halo_masses, float *d_star_rng_in, float *d_sfr_rng_in, float *d_xray_rng_in, 
                                       int *d_halo_coords_in, float *d_y_arr, double x_min, double x_width,
                                       unsigned long long int n_halos, int n_bin, struct HaloSamplingConstants d_hs_constants,
-                                      int HMF, curandState *d_states,
+                                      int HMF,
                                       float *d_halo_masses_out, float *d_star_rng_out,
                                       float *d_sfr_rng_out, float *d_xray_rng_out, int *d_halo_coords_out, int *d_sum_check,
                                       int *d_further_process, int *d_nprog_predict, int sparsity, unsigned long long int write_offset, 
@@ -680,14 +673,8 @@ __global__ void update_halo_constants(float *d_halo_masses, float *d_star_rng_in
         // printf("tmp res4 on gpu: %.17f \n", res4);
         // // tiger tmp: debug (end)
     }
-    // if (ind < 10000){
-    //     curandState ls_tmp = d_rngStates[ind];
-    // }
-
-    // todo: each thread across different blocks has unique random state
-    // curand_init(seed, threadIdx.x, 0, &d_states[threadIdx.x]);
-    // curandState local_state = d_states[threadIdx.x];
-    curandState local_state = d_states[ind];
+    
+    curandState local_state = d_randStates[ind];
     // if (blockIdx.x > 100000){
     //     // printf("check here. \n");
     // }
@@ -795,7 +782,7 @@ __global__ void update_halo_constants(float *d_halo_masses, float *d_star_rng_in
         // double delta = get_delta_crit(HMF, sigma, d_hs_constants.growth_in)\
     //                                 / d_hs_constants.growth_in * d_hs_constants.growth_out;
 
-    d_states[ind] = local_state;
+    d_randStates[ind] = local_state;
     return;
 }
 
@@ -889,21 +876,6 @@ int updateHaloOut(float *halo_masses, float *star_rng, float *sfr_rng, float *xr
     CALL_CUDA(cudaMalloc(&d_halo_coords_out, sizeof(int) * d_n_buffer * 3));
     initializeArray(d_halo_coords_out, d_n_buffer * 3, -1000);
 
-    // setup RNG (todo: set it only once for iteration over different redshift)
-    GridLayout grids_rng = getWorkload(1, d_n_buffer);
-    int total_threads_rng = grids_rng.n_threads * grids_rng.n_blocks;
-    // Allocate memory for RNG states
-    curandState *d_states;
-    CALL_CUDA(cudaMalloc((void **)&d_states, total_threads_rng * sizeof(curandState)));
-
-    // setup random states
-    setup_random_states<<<grids_rng.n_blocks, grids_rng.n_threads>>>(d_states, 1234ULL);
-    // Check kernel launch errors
-    CALL_CUDA(cudaGetLastError());
-    // CALL_CUDA(cudaDeviceSynchronize());
-
-    free_rand_states();
-    
     // initiate n_halo check
     unsigned long long int n_halo_check = n_halos;
 
@@ -942,14 +914,14 @@ int updateHaloOut(float *halo_masses, float *star_rng, float *sfr_rng, float *xr
     int offset_shared = grids.n_threads;
     printf("start launching kernel function.\n");
     update_halo_constants<<<grids.n_blocks, grids.n_threads, shared_size>>>(d_halo_masses, d_star_rng, d_sfr_rng, d_xray_rng, d_halo_coords,
-                                                       d_y_arr, x_min, x_width, n_halos_tbp, n_bin_y, hs_constants, HMF, d_states, d_halo_masses_out, d_star_rng_out,
+                                                       d_y_arr, x_min, x_width, n_halos_tbp, n_bin_y, hs_constants, HMF, d_halo_masses_out, d_star_rng_out,
                                                        d_sfr_rng_out, d_xray_rng_out, d_halo_coords_out, d_sum_check, d_further_process, d_nprog_predict, sparsity, write_offset, d_expected_mass, 
                                                        d_n_prog, offset_shared);
 
     // Check kernel launch errors
     CALL_CUDA(cudaGetLastError());
 
-    // CALL_CUDA(cudaDeviceSynchronize());
+    CALL_CUDA(cudaDeviceSynchronize());
 
     // filter device halo masses in-place
     n_halos_tbp = filterWithMask(d_halo_masses, d_further_process, n_halos_tbp);
@@ -1038,6 +1010,9 @@ int updateHaloOut(float *halo_masses, float *star_rng, float *sfr_rng, float *xr
     
     // float *h_halo_masses_out;
     // CALL_CUDA(cudaHostAlloc((void **)&h_halo_masses_out, out_size, cudaHostAllocDefault));
+    CALL_CUDA(cudaGetLastError());
+    CALL_CUDA(cudaDeviceSynchronize());
+
     CALL_CUDA(cudaMemcpy(halofield_out->halo_masses, d_halo_masses_out, out_size, cudaMemcpyDeviceToHost));
 
     
@@ -1052,7 +1027,6 @@ int updateHaloOut(float *halo_masses, float *star_rng, float *sfr_rng, float *xr
     // Free device memory
     CALL_CUDA(cudaFree(d_halo_masses));
     CALL_CUDA(cudaFree(d_y_arr));
-    CALL_CUDA(cudaFree(d_states));
     CALL_CUDA(cudaFree(d_halo_masses_out));
     CALL_CUDA(cudaFree(d_star_rng_out));
     CALL_CUDA(cudaFree(d_sfr_rng_out));
@@ -1068,7 +1042,8 @@ int updateHaloOut(float *halo_masses, float *star_rng, float *sfr_rng, float *xr
 
     testFilterWithMask();
 
-
+    CALL_CUDA(cudaGetLastError());
+    CALL_CUDA(cudaDeviceSynchronize());
 
     return 0;
 }

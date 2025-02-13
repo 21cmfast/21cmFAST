@@ -1,6 +1,8 @@
 #ifndef _STOCHASTICITY_CUH
 #define _STOCHASTICITY_CUH
 
+#define HALO_CUDA_THREAD_FACTOR (int) (4)
+
 #ifdef __cplusplus
 extern "C"
 {
