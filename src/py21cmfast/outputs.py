@@ -510,27 +510,24 @@ class IonizedBox(_AllParamsBox):
         super().__init__(**kwargs)
 
     def _get_box_structures(self) -> dict[str, dict | tuple[int]]:
-        if self.flag_options.USE_MINI_HALOS:
-            n_filtering = (
-                int(
-                    np.log(
-                        min(
-                            self.astro_params.R_BUBBLE_MAX,
-                            0.620350491 * self.user_params.BOX_LEN,
-                        )
-                        / max(
-                            global_params.R_BUBBLE_MIN,
-                            0.620350491
-                            * self.user_params.BOX_LEN
-                            / self.user_params.HII_DIM,
-                        )
+        n_filtering = (
+            int(
+                np.log(
+                    min(
+                        self.astro_params.R_BUBBLE_MAX,
+                        0.620350491 * self.user_params.BOX_LEN,
                     )
-                    / np.log(global_params.DELTA_R_HII_FACTOR)
+                    / max(
+                        global_params.R_BUBBLE_MIN,
+                        0.620350491
+                        * self.user_params.BOX_LEN
+                        / self.user_params.HII_DIM,
+                    )
                 )
-                + 1
+                / np.log(global_params.DELTA_R_HII_FACTOR)
             )
-        else:
-            n_filtering = 1
+            + 1
+        )
 
         shape = (self.user_params.HII_DIM,) * 2 + (
             int(self.user_params.NON_CUBIC_FACTOR * self.user_params.HII_DIM),
@@ -548,10 +545,12 @@ class IonizedBox(_AllParamsBox):
             "C_box": shape,
             "temp_kinetic_all_gas": shape,
             "Fcoll": filter_shape,
+            "ST_over_PS": (n_filtering,),
         }
 
         if self.flag_options.USE_MINI_HALOS:
             out["Fcoll_MINI"] = filter_shape
+            out["ST_over_PS_MINI"] = (n_filtering,)
 
         return out
 

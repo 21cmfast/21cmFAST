@@ -59,8 +59,8 @@ int ComputeIonizedBox(float redshift, float prev_redshift, struct UserParams *us
 
     float curr_vcb;
 
-    double global_xH, ST_over_PS, f_coll, R, stored_R, f_coll_min;
-    double ST_over_PS_MINI, f_coll_MINI, f_coll_min_MINI;
+    double global_xH, f_coll, R, stored_R, previous_f_coll;
+    double f_coll_MINI, previous_f_coll_MINI;
 
     double t_ast,  Gamma_R_prefactor, rec, dNrec, sigmaMmax;
     double Gamma_R_prefactor_MINI;
@@ -157,8 +157,10 @@ LOG_SUPER_DEBUG("defined parameters");
     LOG_SUPER_DEBUG("z_re_box init: ");
     debugSummarizeBox(box->z_re_box, user_params->HII_DIM, user_params->NON_CUBIC_FACTOR, "  ");
 
-    fabs_dtdz = fabs(dtdz(redshift))/1e15; //reduce to have good precision
-    t_ast = astro_params->t_STAR * t_hubble(redshift);
+    fabs_dtdz = fabs(dtdz(redshift));
+    fabs_dtdz /= 1e15; //reduce to have good precision
+    //t_ast = astro_params->t_STAR * t_hubble(redshift);
+    t_ast = fabs_dtdz * ZSTEP;
     growth_factor_dz = dicke(redshift-dz);
 
     // Modify the current sampled redshift to a redshift which matches the expected filling factor given our astrophysical parameterisation.
@@ -388,6 +390,22 @@ LOG_DEBUG("first redshift, do some initialization");
     }
     else
         R_BUBBLE_MAX = astro_params->R_BUBBLE_MAX;
+
+    // really painful to get the length...
+    counter = 1;
+    R=fmax(global_params.R_BUBBLE_MIN, (cell_length_factor*user_params->BOX_LEN/(float)user_params->HII_DIM));
+    if (flag_options->EVOLVING_R_BUBBLE_MAX)
+        R_BUBBLE_MAX_tmp = R_BUBBLE_MAX_MAX;
+    else
+        R_BUBBLE_MAX_tmp = R_BUBBLE_MAX;
+    while ((R - fmin(R_BUBBLE_MAX_tmp, L_FACTOR*user_params->BOX_LEN)) <= FRACT_FLOAT_ERR ){
+        if(R >= fmin(R_BUBBLE_MAX_tmp, L_FACTOR*user_params->BOX_LEN)) {
+            stored_R = R/(global_params.DELTA_R_HII_FACTOR);
+        }
+        R*= global_params.DELTA_R_HII_FACTOR;
+        counter += 1;
+    }
+
     //set the minimum source mass
     if (flag_options->USE_MASS_DEPENDENT_ZETA) {
         if (flag_options->USE_MINI_HALOS){
@@ -397,25 +415,10 @@ LOG_DEBUG("first redshift, do some initialization");
             // this is the first z, and the previous_ionize_box  are empty
             if (prev_redshift < 1){
                 previous_ionize_box->Gamma12_box = (float *) calloc(HII_TOT_NUM_PIXELS, sizeof(float));
-                // really painful to get the length...
-                counter = 1;
-                R=fmax(global_params.R_BUBBLE_MIN, (cell_length_factor*user_params->BOX_LEN/(float)user_params->HII_DIM));
-                if (flag_options->EVOLVING_R_BUBBLE_MAX)
-                    R_BUBBLE_MAX_tmp = R_BUBBLE_MAX_MAX;
-                else
-                    R_BUBBLE_MAX_tmp = R_BUBBLE_MAX;
-                while ((R - fmin(R_BUBBLE_MAX_tmp, L_FACTOR*user_params->BOX_LEN)) <= FRACT_FLOAT_ERR ){
-                    if(R >= fmin(R_BUBBLE_MAX_tmp, L_FACTOR*user_params->BOX_LEN)) {
-                        stored_R = R/(global_params.DELTA_R_HII_FACTOR);
-                    }
-                    R*= global_params.DELTA_R_HII_FACTOR;
-                    counter += 1;
-                }
-
-                previous_ionize_box->Fcoll       = (float *) calloc(HII_TOT_NUM_PIXELS*counter, sizeof(float));
                 previous_ionize_box->Fcoll_MINI  = (float *) calloc(HII_TOT_NUM_PIXELS*counter, sizeof(float));
-                previous_ionize_box->mean_f_coll = 0.0;
                 previous_ionize_box->mean_f_coll_MINI = 0.0;
+                previous_ionize_box->ST_over_PS_MINI = (float *) calloc(counter, sizeof(float));
+                previous_ionize_box->f_coll_min_MINI = 0.0;
 
 #pragma omp parallel shared(prev_deltax_unfiltered) private(i,j,k) num_threads(user_params->N_THREADS)
                 {
@@ -517,6 +520,12 @@ LOG_SUPER_DEBUG("average turnover masses are %.2f and %.2f for ACGs and MCGs", b
             Mturnover = astro_params->M_TURN;
             box->log10_Mturnover_ave = log10(Mturnover);
             box->log10_Mturnover_MINI_ave = log10(Mturnover);
+            if (prev_redshift < 1){
+                previous_ionize_box->Fcoll       = (float *) calloc(HII_TOT_NUM_PIXELS*counter, sizeof(float));
+                previous_ionize_box->mean_f_coll = 0.0;
+                previous_ionize_box->ST_over_PS = (float *) calloc(counter, sizeof(float));
+                previous_ionize_box->f_coll_min = 0.0;
+            }
         }
         Mlim_Fstar = Mass_limit_bisection(M_MIN, 1e16, astro_params->ALPHA_STAR, astro_params->F_STAR10);
         Mlim_Fesc  = Mass_limit_bisection(M_MIN, 1e16, astro_params->ALPHA_ESC, astro_params->F_ESC10* F_ESC10_zterm);
@@ -623,9 +632,9 @@ LOG_SUPER_DEBUG("sigma table has been initialised");
                                         Nion_General_MINI(prev_redshift,M_MIN,Mturnover_MINI,Mcrit_atom,astro_params->ALPHA_STAR_MINI,
                                                           astro_params->ALPHA_ESC,astro_params->F_STAR7_MINI,astro_params->F_ESC7_MINI,
                                                           Mlim_Fstar_MINI,Mlim_Fesc_MINI);
-            f_coll_min = Nion_General(global_params.Z_HEAT_MAX,M_MIN,Mturnover,astro_params->ALPHA_STAR,
+            box->f_coll_min = Nion_General(global_params.Z_HEAT_MAX,M_MIN,Mturnover,astro_params->ALPHA_STAR,
                                       astro_params->ALPHA_ESC,astro_params->F_STAR10,astro_params->F_ESC10*F_ESC10_zterm,Mlim_Fstar,Mlim_Fesc);
-            f_coll_min_MINI = Nion_General_MINI(global_params.Z_HEAT_MAX,M_MIN,Mturnover_MINI,Mcrit_atom,
+            box->f_coll_min_MINI = Nion_General_MINI(global_params.Z_HEAT_MAX,M_MIN,Mturnover_MINI,Mcrit_atom,
                                                 astro_params->ALPHA_STAR_MINI,astro_params->ALPHA_ESC,astro_params->F_STAR7_MINI,
                                                 astro_params->F_ESC7_MINI,Mlim_Fstar_MINI,Mlim_Fesc_MINI);
         }
@@ -633,7 +642,7 @@ LOG_SUPER_DEBUG("sigma table has been initialised");
             box->mean_f_coll = Nion_General(redshift,M_MIN,Mturnover,astro_params->ALPHA_STAR,astro_params->ALPHA_ESC,
                                             astro_params->F_STAR10,astro_params->F_ESC10*F_ESC10_zterm,Mlim_Fstar,Mlim_Fesc);
             box->mean_f_coll_MINI = 0.;
-            f_coll_min = Nion_General(global_params.Z_HEAT_MAX,M_MIN,Mturnover,astro_params->ALPHA_STAR,astro_params->ALPHA_ESC,
+            box->f_coll_min = Nion_General(global_params.Z_HEAT_MAX,M_MIN,Mturnover,astro_params->ALPHA_STAR,astro_params->ALPHA_ESC,
                                       astro_params->F_STAR10,astro_params->F_ESC10*F_ESC10_zterm,Mlim_Fstar,Mlim_Fesc);
         }
     }
@@ -873,8 +882,6 @@ LOG_ULTRA_DEBUG("while loop for until RtoM(R)=%f reaches M_MIN=%f", RtoM(R), M_M
 
             // Check if this is the last filtering scale.  If so, we don't need deltax_unfiltered anymore.
             // We will re-read it to get the real-space field, which we will use to set the residual neutral fraction
-            ST_over_PS = 0;
-            ST_over_PS_MINI = 0;
             f_coll = 0;
             f_coll_MINI = 0;
             massofscaleR = RtoM(R);
@@ -1277,17 +1284,17 @@ LOG_ULTRA_DEBUG("while loop for until RtoM(R)=%f reaches M_MIN=%f", RtoM(R), M_M
 
             // To avoid ST_over_PS becoming nan when f_coll = 0, I set f_coll = FRACT_FLOAT_ERR.
             if (flag_options->USE_MASS_DEPENDENT_ZETA) {
-                if (f_coll <= f_coll_min) f_coll = f_coll_min;
+                if (f_coll <= box->f_coll_min) f_coll = box->f_coll_min;
                 if (flag_options->USE_MINI_HALOS){
-                    if (f_coll_MINI <= f_coll_min_MINI) f_coll_MINI = f_coll_min_MINI;
+                    if (f_coll_MINI <= box->f_coll_min_MINI) f_coll_MINI = box->f_coll_min_MINI;
                 }
             }
             else {
                 if (f_coll <= FRACT_FLOAT_ERR) f_coll = FRACT_FLOAT_ERR;
             }
 
-            ST_over_PS = box->mean_f_coll/f_coll;
-            ST_over_PS_MINI = box->mean_f_coll_MINI/f_coll_MINI;
+            box->ST_over_PS[counter] = box->mean_f_coll/f_coll;
+            box->ST_over_PS_MINI[counter] = box->mean_f_coll_MINI/f_coll_MINI;
 
             //////////////////////////////  MAIN LOOP THROUGH THE BOX ///////////////////////////////////
             // now lets scroll through the filtered box
@@ -1313,8 +1320,8 @@ LOG_ULTRA_DEBUG("while loop for until RtoM(R)=%f reaches M_MIN=%f", RtoM(R), M_M
             }
 
 
-#pragma omp parallel shared(deltax_filtered,N_rec_filtered,xe_filtered,box,ST_over_PS,pixel_mass,M_MIN,r,f_coll_min,Gamma_R_prefactor,\
-                            ION_EFF_FACTOR,ION_EFF_FACTOR_MINI,LAST_FILTER_STEP,counter,ST_over_PS_MINI,f_coll_min_MINI,Gamma_R_prefactor_MINI,TK,cT_ad,perturbed_field) \
+#pragma omp parallel shared(deltax_filtered,N_rec_filtered,xe_filtered,box,pixel_mass,M_MIN,r,Gamma_R_prefactor,\
+                            ION_EFF_FACTOR,ION_EFF_FACTOR_MINI,LAST_FILTER_STEP,counter,Gamma_R_prefactor_MINI,TK,cT_ad,perturbed_field) \
                     private(x,y,z,curr_dens,Splined_Fcoll,f_coll,ave_M_coll_cell,ave_N_min_cell,N_halos_in_cell,rec,xHII_from_xrays,\
                             Splined_Fcoll_MINI,f_coll_MINI, res_xH) \
                     num_threads(user_params->N_THREADS)
@@ -1328,11 +1335,13 @@ LOG_ULTRA_DEBUG("while loop for until RtoM(R)=%f reaches M_MIN=%f", RtoM(R), M_M
 
                             Splined_Fcoll = box->Fcoll[counter * HII_TOT_NUM_PIXELS + HII_R_INDEX(x,y,z)];
 
-                            f_coll = ST_over_PS * Splined_Fcoll;
+                            f_coll = box->ST_over_PS[counter] * Splined_Fcoll;
+                            previous_f_coll = previous_ionize_box->ST_over_PS[counter] * previous_ionize_box->Fcoll[counter * HII_TOT_NUM_PIXELS + HII_R_INDEX(x,y,z)];
 
                             if (flag_options->USE_MINI_HALOS){
                                 Splined_Fcoll_MINI = box->Fcoll_MINI[counter * HII_TOT_NUM_PIXELS + HII_R_INDEX(x,y,z)];
-                                f_coll_MINI = ST_over_PS_MINI * Splined_Fcoll_MINI;
+                                f_coll_MINI = box->ST_over_PS_MINI[counter] * Splined_Fcoll_MINI;
+                                previous_f_coll_MINI = previous_ionize_box->ST_over_PS_MINI[counter] * previous_ionize_box->Fcoll_MINI[counter * HII_TOT_NUM_PIXELS + HII_R_INDEX(x,y,z)];
                             }
                             else{
                                 f_coll_MINI = 0.;
@@ -1351,9 +1360,11 @@ LOG_ULTRA_DEBUG("while loop for until RtoM(R)=%f reaches M_MIN=%f", RtoM(R), M_M
                             }
 
                             if (flag_options->USE_MASS_DEPENDENT_ZETA) {
-                                if (f_coll <= f_coll_min) f_coll = f_coll_min;
+                                if (f_coll <= box->f_coll_min) f_coll = box->f_coll_min;
+                                if (previous_f_coll <= previous_ionize_box->f_coll_min) previous_f_coll = previous_ionize_box->f_coll_min;
                                 if (flag_options->USE_MINI_HALOS){
-                                    if (f_coll_MINI <= f_coll_min_MINI) f_coll_MINI = f_coll_min_MINI;
+                                    if (f_coll_MINI <= box->f_coll_min_MINI) f_coll_MINI = box->f_coll_min_MINI;
+                                    if (previous_f_coll_MINI <= previous_ionize_box->f_coll_min_MINI) previous_f_coll_MINI = previous_ionize_box->f_coll_min_MINI;
                                 }
                             }
 
@@ -1381,7 +1392,7 @@ LOG_ULTRA_DEBUG("while loop for until RtoM(R)=%f reaches M_MIN=%f", RtoM(R), M_M
                                 // if this is the first crossing of the ionization barrier for this cell (largest R), record the gamma
                                 // this assumes photon-starved growth of HII regions...  breaks down post EoR
                                 if (flag_options->INHOMO_RECO && (box->xH_box[HII_R_INDEX(x,y,z)] > FRACT_FLOAT_ERR) ){
-                                    box->Gamma12_box[HII_R_INDEX(x,y,z)] = Gamma_R_prefactor * f_coll + Gamma_R_prefactor_MINI * f_coll_MINI;
+                                    box->Gamma12_box[HII_R_INDEX(x,y,z)] = Gamma_R_prefactor * ( f_coll - previous_f_coll) + Gamma_R_prefactor_MINI * ( f_coll_MINI - previous_f_coll_MINI );
                                     box->MFP_box[HII_R_INDEX(x,y,z)] = R;
                                     box->Nion_box[HII_R_INDEX(x,y,z)] = f_coll * ION_EFF_FACTOR + f_coll_MINI * ION_EFF_FACTOR_MINI;
                                 }
@@ -1550,8 +1561,8 @@ LOG_ULTRA_DEBUG("while loop for until RtoM(R)=%f reaches M_MIN=%f", RtoM(R), M_M
 
                             dNrec = splined_recombination_rate(z_eff - 1., box->Gamma12_box[HII_R_INDEX(x, y, z)]) *
                                     fabs_dtdz * ZSTEP * (1. - box->xH_box[HII_R_INDEX(x, y, z)]);
-							box->C_box[HII_R_INDEX(x, y, z)] = splined_clumping_factor(z_eff - 1., box->Gamma12_box[HII_R_INDEX(x, y, z)]);
-							box->nHI_box[HII_R_INDEX(x, y, z)] = splined_residual_neutral_hydrogen(z_eff - 1., box->Gamma12_box[HII_R_INDEX(x, y, z)]);
+                            box->C_box[HII_R_INDEX(x, y, z)] = splined_clumping_factor(z_eff - 1., box->Gamma12_box[HII_R_INDEX(x, y, z)]);
+                            box->nHI_box[HII_R_INDEX(x, y, z)] = splined_residual_neutral_hydrogen(z_eff - 1., box->Gamma12_box[HII_R_INDEX(x, y, z)]);
 
                             if (isfinite(dNrec) == 0) {
                                 something_finite_or_infinite = 1;

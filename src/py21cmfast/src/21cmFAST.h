@@ -129,6 +129,8 @@ struct IonizedBox{
 	double redshift_PC;
     double mean_f_coll;
     double mean_f_coll_MINI;
+    double f_coll_min;
+    double f_coll_min_MINI;
     double log10_Mturnover_ave;
     double log10_Mturnover_MINI_ave;
     float *xH_box;
@@ -142,6 +144,8 @@ struct IonizedBox{
     float *temp_kinetic_all_gas;
     float *Fcoll;
     float *Fcoll_MINI;
+	float *ST_over_PS;
+	float *ST_over_PS_MINI;
 };
 
 struct BrightnessTemp{
