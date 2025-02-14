@@ -152,9 +152,6 @@ def test_lc_runs(name, max_redshift, cache):
         resolution=options["inputs"].user_params.cell_size,
     )
 
-    # TODO: can this be removed from the get_all_options_struct function?
-    del options["out_redshifts"]
-
     with p21c.config.use(ignore_R_BUBBLE_MAX_error=True):
         _, _, _, lightcone = p21c.run_lightcone(
             lightconer=lcn,

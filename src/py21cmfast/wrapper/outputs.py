@@ -517,7 +517,7 @@ class InitialConditions(OutputStruct):
             "hires_vz": Array(hires_shape, dtype=np.float32),
         }
 
-        if inputs.user_params.USE_2LPT:
+        if inputs.user_params.PERTURB_ALGORITHM == "2LPT":
             out |= {
                 "lowres_vx_2LPT": Array(shape, dtype=np.float32),
                 "lowres_vy_2LPT": Array(shape, dtype=np.float32),
@@ -731,9 +731,12 @@ class PerturbHaloField(OutputStructZ):
         """
         from .cfuncs import get_halo_list_buffer_size
 
-        buffer_size = get_halo_list_buffer_size(
-            redshift, inputs.user_params, inputs.cosmo_params
-        )
+        if not kw.get("dummy", False):
+            buffer_size = get_halo_list_buffer_size(
+                redshift, inputs.user_params, inputs.cosmo_params
+            )
+        else:
+            buffer_size = 0
 
         return cls(
             inputs=inputs,

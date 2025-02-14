@@ -271,7 +271,7 @@ if len(set(OPTIONS.keys())) != len(list(OPTIONS.keys())):
 
 OPTIONS_PT = {
     "simple": [10, {}],
-    "no2lpt": [10, {"USE_2LPT": False}],
+    "no2lpt": [10, {"PERTURB_ALGORITHM": "ZELDOVICH"}],
     "linear": [10, {"EVOLVE_DENSITY_LINEARLY": 1}],
     "highres": [10, {"PERTURB_ON_HIGH_RES": True}],
 }
