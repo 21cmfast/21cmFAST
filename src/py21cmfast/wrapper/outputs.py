@@ -35,7 +35,6 @@ from .inputs import (
     InputParameters,
     InputStruct,
     UserParams,
-    global_params,
 )
 from .structs import StructWrapper
 
@@ -72,7 +71,6 @@ class OutputStruct(ABC):
 
     _meta = False
     _fields_ = []
-    _global_params = None
     _c_based_pointers = ()
     _c_compute_function = None
     _compat_hash = _HashType.full
@@ -544,7 +542,7 @@ class InitialConditions(OutputStruct):
             keep.append("lowres_vy")
             keep.append("lowres_vz")
 
-            if self.user_params.USE_2LPT:
+            if self.user_params.PERTURB_ALGORITHM == "2LPT":
                 keep.append("lowres_vx_2LPT")
                 keep.append("lowres_vy_2LPT")
                 keep.append("lowres_vz_2LPT")
@@ -554,7 +552,7 @@ class InitialConditions(OutputStruct):
             keep.append("hires_vy")
             keep.append("hires_vz")
 
-            if self.user_params.USE_2LPT:
+            if self.user_params.PERTURB_ALGORITHM == "2LPT":
                 keep.append("hires_vx_2LPT")
                 keep.append("hires_vy_2LPT")
                 keep.append("hires_vz_2LPT")
@@ -663,13 +661,13 @@ class PerturbedField(OutputStructZ):
         if self.user_params.PERTURB_ON_HIGH_RES:
             required += ["hires_vx", "hires_vy", "hires_vz"]
 
-            if self.user_params.USE_2LPT:
+            if self.user_params.PERTURB_ALGORITHM == "2LPT":
                 required += ["hires_vx_2LPT", "hires_vy_2LPT", "hires_vz_2LPT"]
 
         else:
             required += ["lowres_density", "lowres_vx", "lowres_vy", "lowres_vz"]
 
-            if self.user_params.USE_2LPT:
+            if self.user_params.PERTURB_ALGORITHM == "2LPT":
                 required += [
                     "lowres_vx_2LPT",
                     "lowres_vy_2LPT",
@@ -758,8 +756,9 @@ class PerturbHaloField(OutputStructZ):
             else:
                 required += ["lowres_vx", "lowres_vy", "lowres_vz"]
 
-            if self.user_params.USE_2LPT:
+            if self.user_params.PERTURB_ALGORITHM == "2LPT":
                 required += [f"{k}_2LPT" for k in required]
+
         elif isinstance(input_box, HaloField):
             required += [
                 "halo_coords",
@@ -996,7 +995,7 @@ class XraySourceBox(OutputStructZ):
         constructor.
         """
         shape = (
-            (global_params.NUM_FILTER_STEPS_FOR_Ts,)
+            (inputs.astro_params.N_STEP_TS,)
             + (inputs.user_params.HII_DIM,) * 2
             + (int(inputs.user_params.NON_CUBIC_FACTOR * inputs.user_params.HII_DIM),)
         )
@@ -1008,8 +1007,8 @@ class XraySourceBox(OutputStructZ):
             filtered_sfr_mini=Array(shape, dtype=np.float32),
             filtered_xray=Array(shape, dtype=np.float32),
             mean_sfr=Array(shape),
-            mean_sfr_mini=Array((global_params.NUM_FILTER_STEPS_FOR_Ts,)),
-            mean_log10_Mcrit_LW=Array((global_params.NUM_FILTER_STEPS_FOR_Ts,)),
+            mean_sfr_mini=Array((inputs.astro_params.N_STEP_TS,)),
+            mean_log10_Mcrit_LW=Array((inputs.astro_params.N_STEP_TS,)),
             **kw,
         )
 
@@ -1218,13 +1217,13 @@ class IonizedBox(OutputStructZ):
                             0.620350491 * inputs.user_params.BOX_LEN,
                         )
                         / max(
-                            global_params.R_BUBBLE_MIN,
+                            inputs.astro_params.R_BUBBLE_MIN,
                             0.620350491
                             * inputs.user_params.BOX_LEN
                             / inputs.user_params.HII_DIM,
                         )
                     )
-                    / np.log(global_params.DELTA_R_HII_FACTOR)
+                    / np.log(inputs.astro_params.DELTA_R_HII_FACTOR)
                 )
                 + 1
             )

@@ -10,14 +10,7 @@ import numpy as np
 import pickle
 
 from py21cmfast import InitialConditions  # An example of an output struct
-from py21cmfast import (
-    InputParameters,
-    IonizedBox,
-    OutputCache,
-    PerturbedField,
-    TsBox,
-    global_params,
-)
+from py21cmfast import InputParameters, IonizedBox, OutputCache, PerturbedField, TsBox
 from py21cmfast.io import h5
 from py21cmfast.wrapper import outputs as ox
 
@@ -73,10 +66,6 @@ def test_match_seed(cache: OutputCache, default_input_struct: InputParameters):
     # This fails because we've set the seed and it's different to the existing one.
     with pytest.raises(IOError, match="No cache exists for"):
         cache.load(ic2)
-
-
-def test_global_params_keys():
-    assert "HII_FILTER" in global_params.keys()
 
 
 def test_reading_purged(ic: InitialConditions):

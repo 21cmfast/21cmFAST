@@ -55,7 +55,7 @@ double TF_CLASS(double k, int flag_int, int flag_dv)
     FILE *F;
 
     char filename[500];
-    sprintf(filename,"%s/%s",global_params.external_table_path,CLASS_FILENAME);
+    sprintf(filename,"%s/%s",config_settings.external_table_path,CLASS_FILENAME);
 
 
     if (flag_int == 0) {  // Initialize vectors and read file
@@ -161,7 +161,8 @@ double dsigma_dk(double k, void *params){
     if (user_params_global->POWER_SPECTRUM == 0){ // Eisenstein & Hu
         T = TFmdm(k);
         // check if we should cuttoff power spectrum according to Bode et al. 2000 transfer function
-        if (global_params.P_CUTOFF) T *= pow(1 + pow(BODE_e*k*R_CUTOFF, 2*BODE_v), -BODE_n/BODE_v);
+        //TODO: revisit the WDM model perhaps as another power spectrum option (which may also alter Mturn)
+        // if (P_CUTOFF) T *= pow(1 + pow(BODE_e*k*R_CUTOFF, 2*BODE_v), -BODE_n/BODE_v);
         p = pow(k, cosmo_params_global->POWER_INDEX) * T * T;
     }
     else if (user_params_global->POWER_SPECTRUM == 1){ // BBKS
@@ -208,15 +209,15 @@ double dsigma_dk(double k, void *params){
 
     kR = k*Radius;
 
-    if ( (global_params.FILTER == 0) || (sigma_norm < 0) ){ // top hat
+    if ( (user_params_global->FILTER == 0) || (sigma_norm < 0) ){ // top hat
         if ( (kR) < 1.0e-4 ){ w = 1.0;} // w converges to 1 as (kR) -> 0
         else { w = 3.0 * (sin(kR)/pow(kR, 3) - cos(kR)/pow(kR, 2));}
     }
-    else if (global_params.FILTER == 1){ // gaussian of width 1/R
+    else if (user_params_global->FILTER == 2){ // gaussian of width 1/R
         w = pow(E, -kR*kR/2.0);
     }
     else {
-        LOG_ERROR("No such filter: %i. Output is bogus.", global_params.FILTER);
+        LOG_ERROR("No such filter: %i. Output is bogus.", user_params_global->FILTER);
         Throw(ValueError);
     }
     return k*k*p*w*w;
@@ -312,7 +313,7 @@ double power_in_k(double k){
     if (user_params_global->POWER_SPECTRUM == 0){ // Eisenstein & Hu
         T = TFmdm(k);
         // check if we should cuttoff power spectrum according to Bode et al. 2000 transfer function
-        if (global_params.P_CUTOFF) T *= pow(1 + pow(BODE_e*k*R_CUTOFF, 2*BODE_v), -BODE_n/BODE_v);
+        // if (P_CUTOFF) T *= pow(1 + pow(BODE_e*k*R_CUTOFF, 2*BODE_v), -BODE_n/BODE_v);
         p = pow(k, cosmo_params_global->POWER_INDEX) * T * T;
         //p = pow(k, POWER_INDEX - 0.05*log(k/0.05)) * T * T; //running, alpha=0.05
     }
@@ -396,13 +397,13 @@ double init_ps(){
     }
 
     // Set cuttoff scale for WDM (eq. 4 in Barkana et al. 2001) in comoving Mpc
-    R_CUTOFF = 0.201*pow((cosmo_params_global->OMm-cosmo_params_global->OMb)*cosmo_params_global->hlittle*cosmo_params_global->hlittle/0.15, 0.15)*pow(global_params.g_x/1.5, -0.29)*pow(global_params.M_WDM, -1.15);
+    // R_CUTOFF = 0.201*pow((cosmo_params_global->OMm-cosmo_params_global->OMb)*cosmo_params_global->hlittle*cosmo_params_global->hlittle/0.15, 0.15)*pow(.g_x/1.5, -0.29)*pow(.M_WDM, -1.15);
 
     omhh = cosmo_params_global->OMm*cosmo_params_global->hlittle*cosmo_params_global->hlittle;
     theta_cmb = T_cmb / 2.7;
 
     // Translate Parameters into forms GLOBALVARIABLES form
-    f_nu = global_params.OMn/cosmo_params_global->OMm;
+    f_nu = cosmo_params_global->OMn/cosmo_params_global->OMm;
     f_baryon = cosmo_params_global->OMb/cosmo_params_global->OMm;
     if (f_nu < TINY) f_nu = 1e-10;
     if (f_baryon < TINY) f_baryon = 1e-10;
@@ -449,7 +450,7 @@ double init_ps(){
     LOG_DEBUG("Initialized Power Spectrum.");
 
     sigma_norm = cosmo_params_global->SIGMA_8/sqrt(result); //takes care of volume factor
-    return R_CUTOFF;
+    return;
 }
 
 
@@ -479,7 +480,7 @@ double dsigmasq_dm(double k, void *params){
     if (user_params_global->POWER_SPECTRUM == 0){ // Eisenstein & Hu ApJ, 1999, 511, 5
         T = TFmdm(k);
         // check if we should cuttoff power spectrum according to Bode et al. 2000 transfer function
-        if (global_params.P_CUTOFF) T *= pow(1 + pow(BODE_e*k*R_CUTOFF, 2*BODE_v), -BODE_n/BODE_v);
+        // if (.P_CUTOFF) T *= pow(1 + pow(BODE_e*k*R_CUTOFF, 2*BODE_v), -BODE_n/BODE_v);
         p = pow(k, cosmo_params_global->POWER_INDEX) * T * T;
         //p = pow(k, POWER_INDEX - 0.05*log(k/0.05)) * T * T; //running, alpha=0.05
     }
@@ -500,7 +501,7 @@ double dsigmasq_dm(double k, void *params){
     else if (user_params_global->POWER_SPECTRUM == 3){ // Peebles, pg. 626
         gamma = cosmo_params_global->OMm * cosmo_params_global->hlittle * pow(E, -(cosmo_params_global->OMb) - (cosmo_params_global->OMb)/(cosmo_params_global->OMm));
         aa = 8.0 / (cosmo_params_global->hlittle*gamma);
-        bb = 4.7 / (cosmo_params_global->hlittle*gamma);
+        bb = 4.7 / (cosmo_params_global->hlittle*gamma); //NOTE: Different here than the other two functions???
         p = pow(k, cosmo_params_global->POWER_INDEX) / pow(1 + aa*k + bb*k*k, 2);
     }
     else if (user_params_global->POWER_SPECTRUM == 4){ // White, SDM and Frenk, CS, 1991, 379, 52
@@ -508,7 +509,7 @@ double dsigmasq_dm(double k, void *params){
         aa = 1.7/(cosmo_params_global->hlittle*gamma);
         bb = 9.0/pow(cosmo_params_global->hlittle*gamma, 1.5);
         cc = 1.0/pow(cosmo_params_global->hlittle*gamma, 2);
-        p = pow(k, cosmo_params_global->POWER_INDEX) * 19400.0 / pow(1 + aa*k + pow(bb*k, 1.5) + cc*k*k, 2);
+        p = pow(k, cosmo_params_global->POWER_INDEX) * 19400.0 / pow(1 + aa*k + pow(bb*k, 1.5) + cc*k*k, 2); //NOTE: Different here than the other two functions???
     }
     else if (user_params_global->POWER_SPECTRUM == 5){ // JBM: CLASS
       T = TF_CLASS(k, 1, 0); //read from z=0 output of CLASS
@@ -527,7 +528,7 @@ double dsigmasq_dm(double k, void *params){
 
     // now get the value of the window function
     kR = k * Radius;
-    if (global_params.FILTER == 0){ // top hat
+    if (user_params_global->FILTER == 0){ // top hat
         if ( (kR) < 1.0e-4 ){ w = 1.0; }// w converges to 1 as (kR) -> 0
         else { w = 3.0 * (sin(kR)/pow(kR, 3) - cos(kR)/pow(kR, 2));}
 
@@ -538,13 +539,13 @@ double dsigmasq_dm(double k, void *params){
         //     dwdr = -1e8 * k / (R*1e3);
         drdm = 1.0 / (4.0*PI * cosmo_params_global->OMm*RHOcrit * Radius*Radius);
     }
-    else if (global_params.FILTER == 1){ // gaussian of width 1/R
+    else if (user_params_global->FILTER == 2){ // gaussian of width 1/R
         w = pow(E, -kR*kR/2.0);
         dwdr = - k*kR * w;
         drdm = 1.0 / (pow(2*PI, 1.5) * cosmo_params_global->OMm*RHOcrit * 3*Radius*Radius);
     }
     else {
-        LOG_ERROR("No such filter: %i. Output is bogus.", global_params.FILTER);
+        LOG_ERROR("No such filter: %i. Output is bogus.", user_params_global->FILTER);
         Throw(ValueError);
     }
 
@@ -611,11 +612,13 @@ double dsigmasqdm_z0(double M){
 /* returns the "effective Jeans mass" in Msun
  corresponding to the gas analog of WDM ; eq. 10 in Barkana+ 2001 */
 double M_J_WDM(){
+    //these were global params but never really used
+    double g_x = 1.5; //degrees of freedom (1.5 for fermions)
+    double M_WDM = 2.0; // Mass of particle in keV
+
     double z_eq, fudge=60;
-    if (!(global_params.P_CUTOFF))
-        return 0;
     z_eq = 3600*(cosmo_params_global->OMm-cosmo_params_global->OMb)*cosmo_params_global->hlittle*cosmo_params_global->hlittle/0.15;
-    return fudge*3.06e8 * (1.5/global_params.g_x) * sqrt((cosmo_params_global->OMm-cosmo_params_global->OMb)*cosmo_params_global->hlittle*cosmo_params_global->hlittle/0.15) * pow(global_params.M_WDM, -4) * pow(z_eq/3000.0, 1.5);
+    return fudge*3.06e8 * (1.5/g_x) * sqrt((cosmo_params_global->OMm-cosmo_params_global->OMb)*cosmo_params_global->hlittle*cosmo_params_global->hlittle/0.15) * pow(M_WDM, -4) * pow(z_eq/3000.0, 1.5);
 }
 
 /* redshift derivative of the growth function at z */
@@ -630,30 +633,30 @@ double ddicke_dz(double z){
 double MtoR(double M){
 
     // set R according to M<->R conversion defined by the filter type in ../Parameter_files/COSMOLOGY.H
-    if (global_params.FILTER == 0) //top hat M = (4/3) PI <rho> R^3
+    if (user_params_global->FILTER == 0) //top hat M = (4/3) PI <rho> R^3
         return pow(3*M/(4*PI*cosmo_params_global->OMm*RHOcrit), 1.0/3.0);
-    else if (global_params.FILTER == 1) //gaussian: M = (2PI)^1.5 <rho> R^3
+    else if (user_params_global->FILTER == 2) //gaussian: M = (2PI)^1.5 <rho> R^3
         return pow( M/(pow(2*PI, 1.5) * cosmo_params_global->OMm * RHOcrit), 1.0/3.0 );
     else // filter not defined
-        LOG_ERROR("No such filter = %i. Results are bogus.", global_params.FILTER);
+        LOG_ERROR("No such filter = %i. Results are bogus.", user_params_global->FILTER);
     Throw(ValueError);
 }
 
 /* R in Mpc, M in Msun */
 double RtoM(double R){
     // set M according to M<->R conversion defined by the filter type in ../Parameter_files/COSMOLOGY.H
-    if (global_params.FILTER == 0) //top hat M = (4/3) PI <rho> R^3
+    if (user_params_global->FILTER == 0) //top hat M = (4/3) PI <rho> R^3
         return (4.0/3.0)*PI*pow(R,3)*(cosmo_params_global->OMm*RHOcrit);
-    else if (global_params.FILTER == 1) //gaussian: M = (2PI)^1.5 <rho> R^3
+    else if (user_params_global->FILTER == 2) //gaussian: M = (2PI)^1.5 <rho> R^3
         return pow(2*PI, 1.5) * cosmo_params_global->OMm*RHOcrit * pow(R, 3);
     else // filter not defined
-        LOG_ERROR("No such filter = %i. Results are bogus.", global_params.FILTER);
+        LOG_ERROR("No such filter = %i. Results are bogus.", user_params_global->FILTER);
     Throw(ValueError);
 }
 
 /* Omega matter at redshift z */
 double omega_mz(float z){
-    return cosmo_params_global->OMm*pow(1+z,3) / (cosmo_params_global->OMm*pow(1+z,3) + cosmo_params_global->OMl + global_params.OMr*pow(1+z,4) + global_params.OMk*pow(1+z, 2));
+    return cosmo_params_global->OMm*pow(1+z,3) / (cosmo_params_global->OMm*pow(1+z,3) + cosmo_params_global->OMl + cosmo_params_global->OMr*pow(1+z,4) + cosmo_params_global->OMk*pow(1+z, 2));
 }
 
 /* Physical (non-linear) overdensity at virialization (relative to critical density)
@@ -707,22 +710,22 @@ double dicke(double z){
     if (fabs(cosmo_params_global->OMm-1.0) < tiny){ //OMm = 1 (Einstein de-Sitter)
         return 1.0/(1.0+z);
     }
-    else if ( (cosmo_params_global->OMl > (-tiny)) && (fabs(cosmo_params_global->OMl+cosmo_params_global->OMm+global_params.OMr-1.0) < 0.01) && (fabs(global_params.wl+1.0) < tiny) ){
+    else if ( (cosmo_params_global->OMl > (-tiny)) && (fabs(cosmo_params_global->OMl+cosmo_params_global->OMm+cosmo_params_global->OMr-1.0) < 0.01) && (fabs(cosmo_params_global->wl+1.0) < tiny) ){
         //this is a flat, cosmological CONSTANT universe, with only lambda, matter and radiation
         //it is taken from liddle et al.
-        omegaM_z = cosmo_params_global->OMm*pow(1+z,3) / ( cosmo_params_global->OMl + cosmo_params_global->OMm*pow(1+z,3) + global_params.OMr*pow(1+z,4) );
+        omegaM_z = cosmo_params_global->OMm*pow(1+z,3) / ( cosmo_params_global->OMl + cosmo_params_global->OMm*pow(1+z,3) + cosmo_params_global->OMr*pow(1+z,4) );
         dick_z = 2.5*omegaM_z / ( 1.0/70.0 + omegaM_z*(209-omegaM_z)/140.0 + pow(omegaM_z, 4.0/7.0) );
         dick_0 = 2.5*cosmo_params_global->OMm / ( 1.0/70.0 + cosmo_params_global->OMm*(209-cosmo_params_global->OMm)/140.0 + pow(cosmo_params_global->OMm, 4.0/7.0) );
         return dick_z / (dick_0 * (1.0+z));
     }
-    else if ( (global_params.OMtot < (1+tiny)) && (fabs(cosmo_params_global->OMl) < tiny) ){ //open, zero lambda case (peebles, pg. 53)
+    else if ( (cosmo_params_global->OMtot < (1+tiny)) && (fabs(cosmo_params_global->OMl) < tiny) ){ //open, zero lambda case (peebles, pg. 53)
         x_0 = 1.0/(cosmo_params_global->OMm+0.0) - 1.0;
         dick_0 = 1 + 3.0/x_0 + 3*log(sqrt(1+x_0)-sqrt(x_0))*sqrt(1+x_0)/pow(x_0,1.5);
         x = fabs(1.0/(cosmo_params_global->OMm+0.0) - 1.0) / (1+z);
         dick_z = 1 + 3.0/x + 3*log(sqrt(1+x)-sqrt(x))*sqrt(1+x)/pow(x,1.5);
         return dick_z/dick_0;
     }
-    else if ( (cosmo_params_global->OMl > (-tiny)) && (fabs(global_params.OMtot-1.0) < tiny) && (fabs(global_params.wl+1) > tiny) ){
+    else if ( (cosmo_params_global->OMl > (-tiny)) && (fabs(cosmo_params_global->OMtot-1.0) < tiny) && (fabs(cosmo_params_global->wl+1) > tiny) ){
         LOG_WARNING("IN WANG.");
         Throw(ValueError);
     }
@@ -754,11 +757,11 @@ double ddickedt(double z){
     if (fabs(cosmo_params_global->OMm-1.0) < tiny){ //OMm = 1 (Einstein de-Sitter)
         return -pow(1+z,-2)/dtdz(z);
     }
-    else if ( (cosmo_params_global->OMl > (-tiny)) && (fabs(cosmo_params_global->OMl+cosmo_params_global->OMm+global_params.OMr-1.0) < 0.01) && (fabs(global_params.wl+1.0) < tiny) ){
+    else if ( (cosmo_params_global->OMl > (-tiny)) && (fabs(cosmo_params_global->OMl+cosmo_params_global->OMm+cosmo_params_global->OMr-1.0) < 0.01) && (fabs(cosmo_params_global->wl+1.0) < tiny) ){
         //this is a flat, cosmological CONSTANT universe, with only lambda, matter and radiation
         //it is taken from liddle et al.
-        omegaM_z = cosmo_params_global->OMm*pow(1+z,3) / ( cosmo_params_global->OMl + cosmo_params_global->OMm*pow(1+z,3) + global_params.OMr*pow(1+z,4) );
-        domegaMdz = omegaM_z*3/(1+z) - cosmo_params_global->OMm*pow(1+z,3)*pow(cosmo_params_global->OMl + cosmo_params_global->OMm*pow(1+z,3) + global_params.OMr*pow(1+z,4), -2) * (3*cosmo_params_global->OMm*(1+z)*(1+z) + 4*global_params.OMr*pow(1+z,3));
+        omegaM_z = cosmo_params_global->OMm*pow(1+z,3) / ( cosmo_params_global->OMl + cosmo_params_global->OMm*pow(1+z,3) + cosmo_params_global->OMr*pow(1+z,4) );
+        domegaMdz = omegaM_z*3/(1+z) - cosmo_params_global->OMm*pow(1+z,3)*pow(cosmo_params_global->OMl + cosmo_params_global->OMm*pow(1+z,3) + cosmo_params_global->OMr*pow(1+z,4), -2) * (3*cosmo_params_global->OMm*(1+z)*(1+z) + 4*cosmo_params_global->OMr*pow(1+z,3));
         dick_0 = cosmo_params_global->OMm / ( 1.0/70.0 + cosmo_params_global->OMm*(209-cosmo_params_global->OMm)/140.0 + pow(cosmo_params_global->OMm, 4.0/7.0) );
 
         ddickdz = (domegaMdz/(1+z)) * (1.0/70.0*pow(omegaM_z,-2) + 1.0/140.0 + 3.0/7.0*pow(omegaM_z, -10.0/3.0)) * pow(1.0/70.0/omegaM_z + (209.0-omegaM_z)/140.0 + pow(omegaM_z, -3.0/7.0) , -2);
@@ -773,7 +776,7 @@ double ddickedt(double z){
 
 /* returns the hubble "constant" (in 1/sec) at z */
 double hubble(float z){
-    return Ho*sqrt(cosmo_params_global->OMm*pow(1+z,3) + global_params.OMr*pow(1+z,4) + cosmo_params_global->OMl);
+    return Ho*sqrt(cosmo_params_global->OMm*pow(1+z,3) + cosmo_params_global->OMr*pow(1+z,4) + cosmo_params_global->OMl);
 }
 
 

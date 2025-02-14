@@ -99,7 +99,7 @@ def _imshow_slice(
     if not rotate:
         slc = slc.T
 
-    if cmap == "EoR":
+    if cmap == "EoR" and "norm" not in imshow_kw:
         imshow_kw["norm"] = colors.Normalize(vmin=-150, vmax=30)
 
     norm_kw = {k: imshow_kw.pop(k) for k in ["vmin", "vmax"] if k in imshow_kw}

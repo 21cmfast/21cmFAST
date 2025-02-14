@@ -11,7 +11,7 @@ import warnings
 from astropy import units as un
 from astropy.cosmology import z_at_value
 
-from ..wrapper.inputs import InputParameters, global_params
+from ..wrapper.inputs import InputParameters
 from ..wrapper.outputs import (
     BrightnessTemp,
     HaloBox,
@@ -71,10 +71,6 @@ def perturb_field(
         The redshift at which to compute the perturbed field.
     initial_conditions : :class:`~InitialConditions` instance
         The initial conditions.
-    \*\*global_kwargs :
-        Any attributes for :class:`~py21cmfast.inputs.GlobalParams`. This will
-        *temporarily* set global attributes for the duration of the function. Note that
-        arguments will be treated as case-insensitive.
 
     Returns
     -------
@@ -166,10 +162,6 @@ def perturb_halo_list(
         as well as the random seed will be set from this object.
     halo_field: :class: `~HaloField`
         The halo catalogue in Lagrangian space to be perturbed.
-    \*\*global_kwargs :
-        Any attributes for :class:`~py21cmfast.inputs.GlobalParams`. This will
-        *temporarily* set global attributes for the duration of the function. Note that
-        arguments will be treated as case-insensitive.
 
     Returns
     -------
@@ -425,9 +417,9 @@ def compute_xray_source_field(
     # now we need to find the closest halo box to the redshift of the shell
     cosmo_ap = inputs.cosmo_params.cosmo
     cmd_zp = cosmo_ap.comoving_distance(redshift)
-    R_steps = np.arange(0, global_params.NUM_FILTER_STEPS_FOR_Ts)
-    R_factor = (global_params.R_XLy_MAX / R_min) ** (
-        R_steps / global_params.NUM_FILTER_STEPS_FOR_Ts
+    R_steps = np.arange(0, inputs.astro_params.N_STEP_TS)
+    R_factor = (inputs.astro_params.R_MAX_TS / R_min) ** (
+        R_steps / inputs.astro_params.N_STEP_TS
     )
     R_range = un.Mpc * R_min * R_factor
     cmd_edges = cmd_zp + R_range  # comoving distance edges
@@ -442,7 +434,7 @@ def compute_xray_source_field(
 
     # call the box the initialize the memory, since I give some values before computing
     box._init_arrays()
-    for i in range(global_params.NUM_FILTER_STEPS_FOR_Ts):
+    for i in range(inputs.astro_params.N_STEP_TS):
         R_inner = R_range[i - 1].to("Mpc").value if i > 0 else 0
         R_outer = R_range[i].to("Mpc").value
 

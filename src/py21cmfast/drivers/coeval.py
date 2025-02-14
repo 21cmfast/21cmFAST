@@ -16,7 +16,6 @@ from ..c_21cmfast import lib
 from ..io import h5
 from ..io.caching import CacheConfig, OutputCache, RunCache
 from ..wrapper.arrays import Array
-from ..wrapper.globals import global_params
 from ..wrapper.inputs import InputParameters
 from ..wrapper.outputs import (
     BrightnessTemp,
@@ -658,13 +657,13 @@ def _setup_ics_and_pfs_for_scrolling(
 
     if (
         inputs.flag_options.PHOTON_CONS_TYPE == "z-photoncons"
-        and np.amin(all_redshifts) < global_params.PhotonConsEndCalibz
+        and np.amin(all_redshifts) < inputs.astro_params.PHOTONCONS_CALIBRATION_END
     ):
         raise ValueError(
             f"You have passed a redshift (z = {np.amin(all_redshifts)}) that is lower than"
             "the endpoint of the photon non-conservation correction"
-            f"(global_params.PhotonConsEndCalibz = {global_params.PhotonConsEndCalibz})."
-            "If this behaviour is desired then set global_params.PhotonConsEndCalibz"
+            f"(astro_params.PHOTONCONS_CALIBRATION_END = {inputs.astro_params.PHOTONCONS_CALIBRATION_END})."
+            "If this behaviour is desired then set astro_params.PHOTONCONS_CALIBRATION_END"
             f"to a value lower than z = {np.amin(all_redshifts)}."
         )
 

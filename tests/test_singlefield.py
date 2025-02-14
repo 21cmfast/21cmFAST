@@ -176,20 +176,6 @@ def test_ib_from_pf(perturbed_field, ic, cache):
     assert ib.inputs == perturbed_field.inputs
 
 
-# def test_ib_override_global(ic, perturbed_field, default_input_struct):
-#     # save previous z_heat_max
-#     saved_val = p21c.global_params.Pop2_ion
-
-#     p21c.compute_ionization_field(
-#         initial_conditions=ic,
-#         perturbed_field=perturbed_field,
-#         inputs=default_input_struct,
-#         pop2_ion=3500,
-#     )
-
-#     assert p21c.global_params.Pop2_ion == saved_val
-
-
 def test_ib_bad_st(ic, default_input_struct, perturbed_field, redshift, cache):
     with pytest.raises(TypeError, match="spin_temp should be of type TsBox"):
         p21c.compute_ionization_field(

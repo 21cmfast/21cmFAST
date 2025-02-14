@@ -6,6 +6,8 @@
 
 #define MAX_DELTAC_FRAC (float)0.99 //max delta/deltac for the mass function integrals
 #define DELTA_MIN -1 //minimum delta for Lagrangian mass function integrals
+#define M_MIN_INTEGRAL 1e5
+#define M_MAX_INTEGRAL 1e16
 
 /* HMF Integrals */
 void initialise_GL(float lnM_Min, float lnM_Max);

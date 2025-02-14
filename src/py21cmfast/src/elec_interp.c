@@ -78,9 +78,9 @@ void initialize_interp_arrays()
 
     // Construct filename
     if (x_int_XHII[n_ion] < 0.3) {
-      sprintf(input_file_name,"%s/x_int_tables/log_xi_%1.1f.dat",global_params.external_table_path,log10(x_int_XHII[n_ion]));
+      sprintf(input_file_name,"%s/x_int_tables/log_xi_%1.1f.dat",config_settings.external_table_path,log10(x_int_XHII[n_ion]));
     } else {
-      sprintf(input_file_name,"%s/x_int_tables/xi_%1.3f.dat",global_params.external_table_path,x_int_XHII[n_ion]);
+      sprintf(input_file_name,"%s/x_int_tables/xi_%1.3f.dat",config_settings.external_table_path,x_int_XHII[n_ion]);
     }
 
     input_file = fopen(input_file_name, "r");

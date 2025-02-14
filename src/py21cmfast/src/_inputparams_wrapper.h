@@ -5,13 +5,19 @@
 
 
 typedef struct CosmoParams{
-
     float SIGMA_8;
     float hlittle;
     float OMm;
     float OMl;
     float OMb;
     float POWER_INDEX;
+
+    float OMn;
+    float OMk;
+    float OMr;
+    float OMtot;
+    float Y_He;
+    float wl;
 
 } CosmoParams;
 
@@ -31,7 +37,7 @@ typedef struct UserParams{
     bool USE_INTERPOLATION_TABLES;
     int INTEGRATION_METHOD_ATOMIC;
     int INTEGRATION_METHOD_MINI;
-    bool USE_2LPT;
+    int PERTURB_ALGORITHM;
     bool MINIMIZE_MEMORY;
     bool KEEP_3D_VELOCITIES;
     double Z_HEAT_MAX;
@@ -40,7 +46,6 @@ typedef struct UserParams{
     //Halo Sampler Options
     float SAMPLER_MIN_MASS;
     double SAMPLER_BUFFER_FACTOR;
-    float MAXHALO_FACTOR;
     int N_COND_INTERP;
     int N_PROB_INTERP;
     double MIN_LOGPROB;
@@ -50,6 +55,17 @@ typedef struct UserParams{
     double PARKINSON_G0;
     double PARKINSON_y1;
     double PARKINSON_y2;
+
+    int FILTER;
+    int HALO_FILTER;
+    float INITIAL_REDSHIFT;
+    double DELTA_R_FACTOR;
+    bool SMOOTH_EVOLVED_DENSITY_FIELD;
+    double DENSITY_SMOOTH_RADIUS;
+
+    bool DEXM_OPTIMIZE;
+    double DEXM_OPTIMIZE_MINMASS;
+    double DEXM_R_OVERLAP;
 } UserParams;
 
 typedef struct AstroParams{
@@ -83,6 +99,8 @@ typedef struct AstroParams{
     float ALPHA_ESC;
     float F_ESC7_MINI;
 
+    float T_RE;
+
     float M_TURN;
     float R_BUBBLE_MAX;
     float ION_Tvir_MIN;
@@ -96,7 +114,22 @@ typedef struct AstroParams{
     double A_VCB;
     double BETA_VCB;
 
+    double FIXED_VAVG;
+    double POP2_ION;
+    double POP3_ION;
+
     int N_RSD_STEPS;
+    double PHOTONCONS_CALIBRATION_END;
+    double CLUMPING_FACTOR;
+    double ALPHA_UVB;
+
+    float R_MAX_TS;
+    int N_STEP_TS;
+    double DELTA_R_HII_FACTOR;
+    float R_BUBBLE_MIN;
+    double MAX_DVDR;
+    double NU_X_MAX;
+    double NU_X_BAND_MAX;
 } AstroParams;
 
 typedef struct FlagOptions{
@@ -119,80 +152,17 @@ typedef struct FlagOptions{
     int PHOTON_CONS_TYPE;
     bool USE_UPPER_STELLAR_TURNOVER;
     bool HALO_SCALING_RELATIONS_MEDIAN;
+    int HII_FILTER;
+    int HEAT_FILTER;
+    bool IONISE_ENTIRE_SPHERE;
 } FlagOptions;
 
-typedef struct GlobalParams{
-    float ALPHA_UVB;
-    int EVOLVE_DENSITY_LINEARLY;
-    int SMOOTH_EVOLVED_DENSITY_FIELD;
-    float R_smooth_density;
-    float HII_ROUND_ERR;
-    int FIND_BUBBLE_ALGORITHM;
-    int N_POISSON;
-    int T_USE_VELOCITIES;
-    float MAX_DVDR;
-    float DELTA_R_HII_FACTOR;
-    float DELTA_R_FACTOR;
-    int HII_FILTER;
-    float INITIAL_REDSHIFT;
-    float R_OVERLAP_FACTOR;
-    int DELTA_CRIT_MODE;
-    int HALO_FILTER;
-    int OPTIMIZE;
-    float OPTIMIZE_MIN_MASS;
-
-
-    float CRIT_DENS_TRANSITION;
-    float MIN_DENSITY_LOW_LIMIT;
-
-    int RecombPhotonCons;
-    float PhotonConsStart;
-    float PhotonConsEnd;
-    float PhotonConsAsymptoteTo;
-    float PhotonConsEndCalibz;
-    int PhotonConsSmoothing;
-
-    int HEAT_FILTER;
-    double CLUMPING_FACTOR;
-    float R_XLy_MAX;
-    int NUM_FILTER_STEPS_FOR_Ts;
-    double TK_at_Z_HEAT_MAX;
-    double XION_at_Z_HEAT_MAX;
-    int Pop;
-    float Pop2_ion;
-    float Pop3_ion;
-
-    float NU_X_BAND_MAX;
-    float NU_X_MAX;
-
-    int NBINS_LF;
-
-    int P_CUTOFF;
-    float M_WDM;
-    float g_x;
-    float OMn;
-    float OMk;
-    float OMr;
-    float OMtot;
-    float Y_He;
-    float wl;
-    float SHETH_b;
-    float SHETH_c;
-    double Zreion_HeII;
-    int FILTER;
+typedef struct ConfigSettings{
+    double HALO_CATALOG_MEM_FACTOR;
 
     char *external_table_path;
     char *wisdoms_path;
-    float R_BUBBLE_MIN;
-    float M_MIN_INTEGRAL;
-    float M_MAX_INTEGRAL;
-
-    float T_RE;
-
-    float VAVG;
-
-    bool USE_ADIABATIC_FLUCTUATIONS;
-}GlobalParams;
+}ConfigSettings;
 
 
 /* Previously, we had a few structures spread throughout the code e.g user_params_ufunc which
@@ -205,9 +175,10 @@ typedef struct GlobalParams{
    (look at HaloBox.c), and force the broadcast at each _compute() step (or even decorate any library call)
    However this would require us to be very careful about initialising the globals when ANY function from that
    file is called */
+//The structs declared here defined in InputParameters.c
 extern UserParams *user_params_global;
 extern CosmoParams *cosmo_params_global;
 extern AstroParams *astro_params_global;
 extern FlagOptions *flag_options_global;
 
-extern GlobalParams global_params;
+extern ConfigSettings config_settings;

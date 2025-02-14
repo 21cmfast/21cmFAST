@@ -18,7 +18,6 @@ from ..c_21cmfast import lib
 from ..io import h5
 from ..io.caching import CacheConfig, OutputCache, RunCache
 from ..lightcones import Lightconer, RectilinearLightconer
-from ..wrapper.globals import global_params
 from ..wrapper.inputs import InputParameters
 from ..wrapper.outputs import InitialConditions, PerturbedField, PerturbHaloField
 from ..wrapper.photoncons import _get_photon_nonconservation_data, setup_photon_cons
@@ -273,8 +272,8 @@ class AngularLightcone(LightCone):
             # Now, clip dvdx...
             dvdx_on_h = np.clip(
                 dvdx_on_h,
-                -global_params.MAX_DVDR,
-                global_params.MAX_DVDR,
+                -self.astro_params.MAX_DVDR,
+                self.astro_params.MAX_DVDR,
                 out=dvdx_on_h,
             )
 

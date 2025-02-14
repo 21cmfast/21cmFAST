@@ -88,12 +88,6 @@ can be handled by initalising the array as a 1D numpy array, but then setting it
 attribute (after creation) to the appropriate n-dimensional shape (see the
 ``_init_arrays`` method for the ``InitialConditions`` class for examples of this).
 
-Modifying the ``global_params`` struct should be relatively straightforward, and no
-changes in the Python are necessary. However, you may want to consider adding the new
-parameter to relevant ``_filter_params`` lists for the output struct wrapping classes in
-the wrapper. These lists control which global parameters affect which output structs,
-and merely provide for more accurate caching mechanisms.
-
 C Function Standards
 ~~~~~~~~~~~~~~~~~~~~
 The C-level functions are split into two groups -- low-level "private" functions, and
@@ -222,10 +216,10 @@ necessary to write them to disk to relieve memory pressure, and load them back i
 That means that any time, a given array in a C-based class may have one of several different "states":
 
 1. Completely Uninitialized
-1. Allocated an initialized in memory
-1. Computed (i.e. filled with the values defining that array after computation in C)
-1. Stored on disk
-1. Stored *and* in memory.
+2. Allocated an initialized in memory
+3. Computed (i.e. filled with the values defining that array after computation in C)
+4. Stored on disk
+5. Stored *and* in memory.
 
 It's important to keep track of these states, because when passing the struct to the ``compute()``
 function of another struct (as input), we go and check if the array exists in memory, and

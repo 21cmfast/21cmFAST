@@ -5,7 +5,7 @@ import numpy as np
 from astropy import constants as c
 from astropy import units as u
 
-from py21cmfast import AstroParams, CosmoParams, FlagOptions, UserParams, global_params
+from py21cmfast import AstroParams, CosmoParams, FlagOptions, UserParams
 from py21cmfast.c_21cmfast import ffi, lib
 from py21cmfast.wrapper import cfuncs as cf
 
@@ -356,7 +356,7 @@ def test_FgtrM_conditional_tables(R, delta_range, plt):
     ap = opts["astro_params"]
     fo = opts["flag_options"]
 
-    M_min = global_params.M_MIN_INTEGRAL
+    M_min = 1e5
     M_max = 1e20
 
     cond_mass = (
@@ -450,7 +450,7 @@ def test_SFRD_z_tables(name, z_range, log10_mturn_range, plt):
         USE_TS_FLUCT=True,
     )
 
-    M_min = global_params.M_MIN_INTEGRAL
+    M_min = 1e5
     M_max = 1e20
 
     SFRD_tables, SFRD_tables_mini = cf.evaluate_SFRD_z(
@@ -528,7 +528,7 @@ def test_Nion_z_tables(name, z_range, log10_mturn_range, plt):
         USE_TS_FLUCT=True,
     )
 
-    M_min = global_params.M_MIN_INTEGRAL
+    M_min = 1e5
     M_max = 1e20
 
     Nion_tables, Nion_tables_mini = cf.evaluate_Nion_z(
@@ -633,7 +633,7 @@ def test_Nion_conditional_tables(
         USE_TS_FLUCT=True,
     )
 
-    M_min = global_params.M_MIN_INTEGRAL
+    M_min = 1e5
     M_max = 1e20
 
     cond_mass = (
@@ -768,7 +768,7 @@ def test_Xray_conditional_tables(
         USE_TS_FLUCT=True,
     )
 
-    M_min = global_params.M_MIN_INTEGRAL
+    M_min = 1e5
     M_max = 1e20
 
     cond_mass = (
@@ -882,7 +882,7 @@ def test_SFRD_conditional_table(
         USE_TS_FLUCT=True,
     )
 
-    M_min = global_params.M_MIN_INTEGRAL
+    M_min = 1e5
     M_max = 1e20
 
     cond_mass = (
@@ -997,7 +997,7 @@ def test_conditional_integral_methods(
 
     intgrl_func = cf.evaluate_SFRD_cond if "sfr" in integrand else cf.evaluate_Nion_cond
 
-    M_min = global_params.M_MIN_INTEGRAL
+    M_min = 1e5
     M_max = 1e20
     cond_mass = (
         (4.0 / 3.0 * np.pi * (R * u.Mpc) ** 3 * cp.cosmo.critical_density(0) * cp.OMm)

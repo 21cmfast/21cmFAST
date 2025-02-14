@@ -14,7 +14,7 @@ from astropy import units as un
 from os import path, remove
 from pathlib import Path
 
-from . import _cfg, global_params, plotting
+from . import _cfg, cache_tools, plotting
 from .drivers.coeval import run_coeval
 from .drivers.lightcone import run_lightcone
 from .drivers.single_field import (
@@ -111,8 +111,6 @@ def _get_params_from_ctx(ctx, cfg):
     flag_options = FlagOptions.new(params["flag_options"])
     astro_params = AstroParams.new(params["astro_params"])
 
-    # Also update globals, always.
-    _update(global_params, ctx)
     if ctx:
         warnings.warn(f"The following arguments were not able to be set: {ctx}")
 
@@ -463,7 +461,6 @@ def ionize(ctx, redshift, prev_z, config, regen, direc, seed):
         regenerate=regen,
         write=True,
         direc=direc,
-        random_seed=seed,
     )
 
 
@@ -793,7 +790,6 @@ def pr_feature(
         lc_default = run_lightcone(
             redshift=redshift,
             max_redshift=max_redshift,
-            random_seed=random_seed,
             regenerate=regenerate,
             **structs,
         )
@@ -803,7 +799,6 @@ def pr_feature(
         lc_new = run_lightcone(
             redshift=redshift,
             max_redshift=max_redshift,
-            random_seed=random_seed,
             regenerate=regenerate,
             **structs,
         )

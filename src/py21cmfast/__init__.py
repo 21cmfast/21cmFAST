@@ -47,7 +47,6 @@ from .wrapper.inputs import (
     InputParameters,
     UserParams,
     get_logspaced_redshifts,
-    global_params,
 )
 from .wrapper.outputs import (
     BrightnessTemp,

@@ -31,7 +31,6 @@ from py21cmfast import (
     config,
     determine_halo_list,
     get_logspaced_redshifts,
-    global_params,
     perturb_field,
     perturb_halo_list,
     run_coeval,
@@ -305,30 +304,33 @@ def get_all_input_structs(kwargs):
     return user_params, cosmo_params, astro_params, flag_options
 
 
-def get_all_options(redshift, **kwargs):
+def get_all_options(redshift, lc=False, **kwargs):
     user_params, cosmo_params, astro_params, flag_options = get_all_input_structs(
         kwargs
     )
-
     out = {
-        "out_redshifts": redshift,
         "user_params": user_params,
         "cosmo_params": cosmo_params,
         "astro_params": astro_params,
         "flag_options": flag_options,
         "random_seed": SEED,
     }
-
-    for key in kwargs:
-        if key.upper() in (k.upper() for k in global_params.keys()):
-            out[key] = kwargs[key]
+    if lc or flag_options.USE_TS_FLUCT or flag_options.INHOMO_RECO:
+        out["node_redshifts"] = get_logspaced_redshifts(
+            min_redshift=redshift,
+            max_redshift=user_params.Z_HEAT_MAX,
+            z_step_factor=user_params.ZPRIME_STEP_FACTOR,
+        )
+    if not lc:
+        out["out_redshifts"] = redshift
     return out
 
 
-def get_all_options_struct(redshift, **kwargs):
-    options = get_all_options(redshift, **kwargs)
+def get_all_options_struct(redshift, lc=False, **kwargs):
+    options = get_all_options(redshift, lc, **kwargs)
 
     options["inputs"] = InputParameters(
+        node_redshifts=options.pop("node_redshifts", None),
         random_seed=options.pop("random_seed"),
         cosmo_params=options.pop("cosmo_params"),
         astro_params=options.pop("astro_params"),
@@ -338,24 +340,8 @@ def get_all_options_struct(redshift, **kwargs):
     return options
 
 
-def get_all_options_ics(**kwargs):
-    user_params, cosmo_params, astro_params, flag_options = get_all_input_structs(
-        kwargs
-    )
-    out = {
-        "user_params": user_params,
-        "cosmo_params": cosmo_params,
-        "random_seed": SEED,
-    }
-
-    for key in kwargs:
-        if key.upper() in (k.upper() for k in global_params.keys()):
-            out[key] = kwargs[key]
-    return out
-
-
 def produce_coeval_power_spectra(redshift, **kwargs):
-    options = get_all_options_struct(redshift, **kwargs)
+    options = get_all_options_struct(redshift, lc=False, **kwargs)
     print("----- OPTIONS USED -----")
     print(options)
     print("------------------------")
@@ -374,7 +360,7 @@ def produce_coeval_power_spectra(redshift, **kwargs):
 
 
 def produce_lc_power_spectra(redshift, **kwargs):
-    options = get_all_options_struct(redshift, **kwargs)
+    options = get_all_options_struct(redshift, lc=True, **kwargs)
     print("----- OPTIONS USED -----")
     print(options)
     print("------------------------")
@@ -430,19 +416,12 @@ def produce_lc_power_spectra(redshift, **kwargs):
 
 def produce_perturb_field_data(redshift, **kwargs):
     options = get_all_options_struct(redshift, **kwargs)
-    options_ics = get_all_options_ics(**kwargs)
-
-    out = {
-        key: kwargs[key]
-        for key in kwargs
-        if key.upper() in (k.upper() for k in global_params.keys())
-    }
 
     velocity_normalisation = 1e16
 
     with config.use(regenerate=True, write=False):
-        init_box = compute_initial_conditions(**options_ics)
-        pt_box = perturb_field(redshift=redshift, init_boxes=init_box, **out)
+        init_box = compute_initial_conditions(**options)
+        pt_box = perturb_field(redshift=redshift, init_boxes=init_box)
 
     p_dens, k_dens = get_power(
         pt_box.density,
@@ -478,14 +457,13 @@ def produce_perturb_field_data(redshift, **kwargs):
 
 
 def produce_halo_field_data(redshift, **kwargs):
-    options_halo = get_all_options(redshift, **kwargs)
-    options_ics = get_all_options_ics(**kwargs)
+    options = get_all_options_struct(redshift, **kwargs)
 
     with config.use(regenerate=True, write=False):
-        init_box = compute_initial_conditions(**options_ics)
-        halos = determine_halo_list(initial_conditions=init_box, **options_halo)
+        init_box = compute_initial_conditions(**options)
+        halos = determine_halo_list(initial_conditions=init_box, **options)
         pt_halos = perturb_halo_list(
-            initial_conditions=init_box, halo_field=halos, **options_halo
+            initial_conditions=init_box, halo_field=halos, **options
         )
 
     return pt_halos

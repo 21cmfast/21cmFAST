@@ -10,7 +10,6 @@ from py21cmfast import (
     FlagOptions,
     PerturbHaloField,
     UserParams,
-    global_params,
 )
 from py21cmfast.c_21cmfast import ffi, lib
 from py21cmfast.wrapper import cfuncs as cf

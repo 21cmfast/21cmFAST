@@ -6,9 +6,9 @@ from functools import cache
 from scipy.interpolate import interp1d
 from typing import Literal, Sequence
 
+from .._cfg import config
 from ..c_21cmfast import ffi, lib
 from ._utils import _process_exitcode
-from .globals import global_params
 from .inputs import AstroParams, CosmoParams, FlagOptions, InputParameters, UserParams
 from .outputs import InitialConditions, PerturbHaloField
 
@@ -55,7 +55,7 @@ def get_halo_list_buffer_size(
     """
     # find the buffer size from expected halos in the box
     hbuffer_size = get_expected_nhalo(redshift, user_params, cosmo_params)
-    hbuffer_size = int((hbuffer_size + 1) * user_params.MAXHALO_FACTOR)
+    hbuffer_size = int((hbuffer_size + 1) * config["HALO_CATALOG_MEM_FACTOR"])
 
     # set a minimum in case of fluctuation at high z
     return int(max(hbuffer_size, min_size))
@@ -66,6 +66,7 @@ def compute_tau(
     redshifts: Sequence[float],
     global_xHI: Sequence[float],
     inputs: InputParameters,
+    z_re_HeII: float = 3.0,
 ) -> float:
     """Compute the optical depth to reionization under the given model.
 
@@ -75,15 +76,15 @@ def compute_tau(
         Redshifts defining an evolution of the neutral fraction.
     global_xHI : array-like
         The mean neutral fraction at `redshifts`.
-    user_params : :class:`~inputs.UserParams`
-        Parameters defining the simulation run.
-    cosmo_params : :class:`~inputs.CosmoParams`
-        Cosmological parameters.
+    inputs : :class:`~InputParameters`
+        Defines the input parameters of the run
+    z_re_HeII : float, optional
+        The redshift at which helium reionization occurs.
 
     Returns
     -------
     tau : float
-        The optional depth to reionization
+        The optical depth to reionization
 
     Raises
     ------
@@ -106,7 +107,12 @@ def compute_tau(
 
     # Run the C code
     return lib.ComputeTau(
-        inputs.user_params.cstruct, inputs.cosmo_params.cstruct, len(redshifts), z, xHI
+        inputs.user_params.cstruct,
+        inputs.cosmo_params.cstruct,
+        len(redshifts),
+        z,
+        xHI,
+        z_re_HeII,
     )
 
 
@@ -391,9 +397,8 @@ def evaluate_sigma(
 
     lib.init_ps()
     if user_params.USE_INTERPOLATION_TABLES:
-        lib.initialiseSigmaMInterpTable(
-            global_params.M_MIN_INTEGRAL, global_params.M_MAX_INTEGRAL
-        )
+        # hard-coded limits for now
+        lib.initialiseSigmaMInterpTable(1e5, 1e16)
 
     sigma = np.vectorize(lib.EvaluateSigma)(np.log(masses))
     dsigmasq = np.vectorize(lib.EvaluatedSigmasqdm)(np.log(masses))
@@ -428,9 +433,7 @@ def evaluate_massfunc_cond(
 
     lib.init_ps()
     if user_params.USE_INTERPOLATION_TABLES:
-        lib.initialiseSigmaMInterpTable(
-            global_params.M_MIN_INTEGRAL, global_params.M_MAX_INTEGRAL
-        )
+        lib.initialiseSigmaMInterpTable(1e5, 1e16)
 
     growth_out = lib.dicke(redshift)
     if from_catalog:
@@ -515,9 +518,7 @@ def get_cmf_integral(
         flag_options.cstruct,
     )
     lib.init_ps()
-    lib.initialiseSigmaMInterpTable(
-        global_params.M_MIN_INTEGRAL, global_params.M_MAX_INTEGRAL
-    )
+    lib.initialiseSigmaMInterpTable(1e5, 1e16)
 
     sigma = np.vectorize(lib.EvaluateSigma)(np.log(M_cond))
 
@@ -574,9 +575,7 @@ def evaluate_inv_massfunc_cond(
     )
 
     lib.init_ps()
-    lib.initialiseSigmaMInterpTable(
-        global_params.M_MIN_INTEGRAL, global_params.M_MAX_INTEGRAL
-    )
+    lib.initialiseSigmaMInterpTable(1e5, 1e16)
 
     growth_out = lib.dicke(redshift)
 

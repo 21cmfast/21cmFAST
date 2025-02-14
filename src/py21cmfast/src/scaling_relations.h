@@ -32,6 +32,8 @@ struct ScalingConstants{
     double fesc_10;
     double alpha_esc;
     double fesc_7;
+    double pop2_ion;
+    double pop3_ion;
 
     double vcb_norel;
     double mturn_a_nofb;
