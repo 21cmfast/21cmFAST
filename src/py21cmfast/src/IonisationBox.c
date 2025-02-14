@@ -158,9 +158,9 @@ LOG_SUPER_DEBUG("defined parameters");
     debugSummarizeBox(box->z_re_box, user_params->HII_DIM, user_params->NON_CUBIC_FACTOR, "  ");
 
     fabs_dtdz = fabs(dtdz(redshift));
-    fabs_dtdz /= 1e15; //reduce to have good precision
     //t_ast = astro_params->t_STAR * t_hubble(redshift);
     t_ast = fabs_dtdz * ZSTEP;
+    fabs_dtdz /= 1e15; //reduce to have good precision
     growth_factor_dz = dicke(redshift-dz);
 
     // Modify the current sampled redshift to a redshift which matches the expected filling factor given our astrophysical parameterisation.
