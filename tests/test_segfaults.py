@@ -184,7 +184,8 @@ def test_cv_runs(name, cache):
             **options,
         )
 
-    assert isinstance(cv, p21c.Coeval)
+    assert all(isinstance(x, p21c.Coeval) for x in cv)
+    cv = cv[0]
     assert np.all(np.isfinite(cv.brightness_temp))
     assert cv.user_params == options["inputs"].user_params
     assert cv.cosmo_params == options["inputs"].cosmo_params

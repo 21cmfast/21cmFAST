@@ -4,17 +4,15 @@ import attrs
 import builtins
 import click
 import contextlib
-import inspect
 import logging
 import matplotlib.pyplot as plt
 import numpy as np
 import warnings
 import yaml
-from astropy import units as un
-from os import path, remove
+from os import path
 from pathlib import Path
 
-from . import _cfg, cache_tools, plotting
+from . import plotting
 from .drivers.coeval import run_coeval
 from .drivers.lightcone import run_lightcone
 from .drivers.single_field import (
