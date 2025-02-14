@@ -408,6 +408,13 @@ LOG_DEBUG("first redshift, do some initialization");
 
     //set the minimum source mass
     if (flag_options->USE_MASS_DEPENDENT_ZETA) {
+        if (prev_redshift < 1){
+            previous_ionize_box->Fcoll       = (float *) calloc(HII_TOT_NUM_PIXELS*counter, sizeof(float));
+            previous_ionize_box->mean_f_coll = 0.0;
+            previous_ionize_box->ST_over_PS = (float *) calloc(counter, sizeof(float));
+            previous_ionize_box->f_coll_min = 0.0;
+        }
+
         if (flag_options->USE_MINI_HALOS){
             ave_log10_Mturnover = 0.;
             ave_log10_Mturnover_MINI = 0.;
@@ -520,12 +527,6 @@ LOG_SUPER_DEBUG("average turnover masses are %.2f and %.2f for ACGs and MCGs", b
             Mturnover = astro_params->M_TURN;
             box->log10_Mturnover_ave = log10(Mturnover);
             box->log10_Mturnover_MINI_ave = log10(Mturnover);
-            if (prev_redshift < 1){
-                previous_ionize_box->Fcoll       = (float *) calloc(HII_TOT_NUM_PIXELS*counter, sizeof(float));
-                previous_ionize_box->mean_f_coll = 0.0;
-                previous_ionize_box->ST_over_PS = (float *) calloc(counter, sizeof(float));
-                previous_ionize_box->f_coll_min = 0.0;
-            }
         }
         Mlim_Fstar = Mass_limit_bisection(M_MIN, 1e16, astro_params->ALPHA_STAR, astro_params->F_STAR10);
         Mlim_Fesc  = Mass_limit_bisection(M_MIN, 1e16, astro_params->ALPHA_ESC, astro_params->F_ESC10* F_ESC10_zterm);
@@ -1294,7 +1295,8 @@ LOG_ULTRA_DEBUG("while loop for until RtoM(R)=%f reaches M_MIN=%f", RtoM(R), M_M
             }
 
             box->ST_over_PS[counter] = box->mean_f_coll/f_coll;
-            box->ST_over_PS_MINI[counter] = box->mean_f_coll_MINI/f_coll_MINI;
+			if (flag_options->USE_MINI_HALOS)
+              box->ST_over_PS_MINI[counter] = box->mean_f_coll_MINI/f_coll_MINI;
 
             //////////////////////////////  MAIN LOOP THROUGH THE BOX ///////////////////////////////////
             // now lets scroll through the filtered box
@@ -1657,11 +1659,17 @@ LOG_SUPER_DEBUG("freed fftw boxes");
 
     if (prev_redshift < 1){
         free(previous_ionize_box->z_re_box);
-        if (flag_options->USE_MASS_DEPENDENT_ZETA && flag_options->USE_MINI_HALOS){
-            free(previous_ionize_box->Gamma12_box);
+		if (flag_options->INHOMO_RECO)
             free(previous_ionize_box->Nrec_box);
+        if (flag_options->USE_MASS_DEPENDENT_ZETA){
             free(previous_ionize_box->Fcoll);
-            free(previous_ionize_box->Fcoll_MINI);
+			free(previous_ionize_box->ST_over_PS);
+			if (flag_options->USE_MINI_HALOS){
+              free(previous_ionize_box->Gamma12_box);
+              free(previous_ionize_box->Fcoll_MINI);
+			  free(previous_ionize_box->ST_over_PS_MINI);
+			}
+
         }
     }
 
