@@ -10,11 +10,22 @@ source_files = [
   'yaml.py',
 ]
 
-py3.install_sources(
+py.install_sources(
     source_files,
     subdir: 'py21cmfast'
 )
 
+pure_subdirs = [
+  'drivers',
+  'wrapper',
+  '_data',
+]
+
+# Install the Python code
+install_root = py.get_install_dir()
+foreach subdir: pure_subdirs
+  install_subdir(subdir, install_dir: install_root / 'py21cmfast')
+endforeach
+
+# Build C-extension
 subdir('src')
-subdir('drivers')
-subdir('wrapper')

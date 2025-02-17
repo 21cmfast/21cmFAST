@@ -37,4 +37,12 @@ search_paths = [ '/usr/lib', '/usr/local/lib', '/opt/homebrew/lib' ]
 fftw = cc.find_library ('fftw3f', required: true, dirs: search_paths)
 fftw_threads = cc.find_library ('fftw3f_threads', required: true, dirs: search_paths)
 
-library('21cmFAST', source_files, dependencies: [omp,gsl,fftw,fftw_threads])
+deps = [omp,gsl,fftw,fftw_threads]
+target_dir = 'py21cmfast/c_21cmfast'
+py.extension_module(
+  source_files,
+  dependencies: deps,
+  install: true,
+  subdir: target_dir
+)
+# library('21cmFAST', source_files, dependencies: [omp,gsl,fftw,fftw_threads])
