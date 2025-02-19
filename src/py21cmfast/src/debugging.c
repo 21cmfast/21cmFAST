@@ -130,11 +130,14 @@ void debugSummarizeBox(float *box, int size, float ncf, char *indent){
     int s = size-1;
     int s_ncf = size*ncf-1;
 
+    unsigned long long idx;
+
     counter = 0;
     for(i=0;i<size;i=i+s){
         for(j=0;j<size;j=j+s){
             for(k=0;k<(int)(size*ncf);k=k+s_ncf){
-                corners[counter] =  box[k + (long long unsigned int)(size*ncf)*(j + size*i)];
+                idx = k + (long long unsigned)(size*ncf)*(j + size*i);
+                corners[counter] =  box[idx];
                 counter++;
             }
         }
@@ -170,11 +173,13 @@ void debugSummarizeBoxDouble(double *box, int size, float ncf, char *indent){
     int s = size-1;
     int s_ncf = size*ncf-1;
 
+    unsigned long long idx;
     counter = 0;
     for(i=0;i<size;i=i+s){
         for(j=0;j<size;j=j+s){
             for(k=0;k<(int)(size*ncf);k=k+s_ncf){
-                corners[counter] =  box[k + (long long unsigned int)(size*ncf)*(j + size*i)];
+                idx = k + (long long unsigned)(size*ncf)*(j + size*i);
+                corners[counter] =  box[idx];
                 counter++;
             }
         }
@@ -211,12 +216,16 @@ void debugSummarizeBoxComplex(fftwf_complex *box, int size, float ncf, char *ind
     int s = size-1;
     int s_ncf = size*ncf-1;
 
+    unsigned long long idx;
+
     counter = 0;
     for(i=0;i<size;i=i+s){
         for(j=0;j<size;j=j+s){
             for(k=0;k<(int)(size*ncf);k=k+s_ncf){
-                corners_real[counter] =  creal(box[k + (int)(size*ncf)*(j + size*i)]);
-                corners_imag[counter] =  cimag(box[k + (int)(size*ncf)*(j + size*i)]);
+                //currently assumes real-space, will only print correct zero-corner in k-space
+                idx = k + 2llu*(unsigned long long)(size*ncf/2 + 1llu)*(j + size*i);
+                corners_real[counter] =  creal(box[idx]);
+                corners_imag[counter] =  cimag(box[idx]);
 
                 counter++;
             }
