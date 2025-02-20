@@ -102,8 +102,8 @@ int get_box_averages(double M_min, double M_max, double M_turn_a, double M_turn_
     double prefactor_sfr_mini = prefactor_stars_mini / consts->t_star / t_h;
     double prefactor_nion = prefactor_stars * consts->fesc_10 * consts->pop2_ion;
     double prefactor_nion_mini = prefactor_stars_mini * consts->fesc_7 * consts->pop3_ion;
-    double prefactor_wsfr = prefactor_sfr * consts->fesc_10;
-    double prefactor_wsfr_mini = prefactor_sfr_mini * consts->fesc_7;
+    double prefactor_wsfr = prefactor_sfr * consts->fesc_10 * consts->pop2_ion;
+    double prefactor_wsfr_mini = prefactor_sfr_mini * consts->fesc_7 * consts->pop3_ion;
     double prefactor_xray = RHOcrit * cosmo_params_global->OMm;
 
     double mass_intgrl;
@@ -191,8 +191,8 @@ int set_fixed_grids(double M_min, double M_max, InitialConditions *ini_boxes,
     double prefactor_sfr_mini = prefactor_stars_mini / consts->t_star / consts->t_h;
     double prefactor_nion = prefactor_stars * consts->fesc_10 * consts->pop2_ion;
     double prefactor_nion_mini = prefactor_stars_mini * consts->fesc_7 * consts->pop3_ion;
-    double prefactor_wsfr = prefactor_sfr * consts->fesc_10;
-    double prefactor_wsfr_mini = prefactor_sfr_mini * consts->fesc_7;
+    double prefactor_wsfr = prefactor_sfr * consts->fesc_10 * consts->pop2_ion;
+    double prefactor_wsfr_mini = prefactor_sfr_mini * consts->fesc_7 * consts->pop3_ion;
     double prefactor_xray = RHOcrit * cosmo_params_global->OMm;
 
     double hm_sum=0, nion_sum=0, wsfr_sum=0, xray_sum=0;
