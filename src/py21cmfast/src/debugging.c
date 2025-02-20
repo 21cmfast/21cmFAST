@@ -6,6 +6,8 @@
 #include <stdio.h>
 #include <stdbool.h>
 #include <math.h>
+#include <complex.h>
+#include <fftw3.h>
 
 #include "cexcept.h"
 #include "exceptions.h"
@@ -136,7 +138,7 @@ void debugSummarizeBox(float *box, int size, float ncf, char *indent){
     for(i=0;i<size;i=i+s){
         for(j=0;j<size;j=j+s){
             for(k=0;k<(int)(size*ncf);k=k+s_ncf){
-                idx = k + (long long unsigned)(size*ncf)*(j + size*i);
+                idx = k + (unsigned long long)(size*ncf)*(j + size*i);
                 corners[counter] =  box[idx];
                 counter++;
             }
@@ -154,12 +156,12 @@ void debugSummarizeBox(float *box, int size, float ncf, char *indent){
     mn=box[0];
     mx=box[0];
 
-    for (i=0; i<size*size*((int)(size*ncf)); i++){
-        sum+=box[i];
-        mn=fminf(mn, box[i]);
-        mx = fmaxf(mx, box[i]);
+    for (idx=0; idx<size*size*((unsigned long long)(size*ncf)); idx++){
+        sum+=box[idx];
+        mn=fminf(mn, box[idx]);
+        mx = fmaxf(mx, box[idx]);
     }
-    mean=sum/(size*size*((int)(size*ncf)));
+    mean=sum/(size*size*((unsigned long long)(size*ncf)));
 
     LOG_SUPER_DEBUG("%sSum/Mean/Min/Max: %.4e, %.4e, %.4e, %.4e", indent, sum, mean, mn, mx);
 #endif
@@ -196,12 +198,12 @@ void debugSummarizeBoxDouble(double *box, int size, float ncf, char *indent){
     mn=box[0];
     mx=box[0];
 
-    for (i=0; i<size*size*((int)(size*ncf)); i++){
-        sum+=box[i];
-        mn=fmin(mn, box[i]);
-        mx = fmax(mx, box[i]);
+    for (idx=0; idx<size*size*((unsigned long long)(size*ncf)); idx++){
+        sum+=box[idx];
+        mn=fminf(mn, box[idx]);
+        mx = fmaxf(mx, box[idx]);
     }
-    mean=sum/(size*size*((int)(size*ncf)));
+    mean=sum/(size*size*((unsigned long long)(size*ncf)));
 
     LOG_SUPER_DEBUG("%sSum/Mean/Min/Max: %.4e, %.4e, %.4e, %.4e", indent, sum, mean, mn, mx);
 #endif
@@ -222,7 +224,7 @@ void debugSummarizeBoxComplex(fftwf_complex *box, int size, float ncf, char *ind
     for(i=0;i<size;i=i+s){
         for(j=0;j<size;j=j+s){
             for(k=0;k<(int)(size*ncf);k=k+s_ncf){
-                //currently assumes real-space, will only print correct zero-corner in k-space
+                //currently assumes real-space, will only print correct zero-corner in k-space, remove x2 for k
                 idx = k + 2llu*(unsigned long long)(size*ncf/2 + 1llu)*(j + size*i);
                 corners_real[counter] =  creal(box[idx]);
                 corners_imag[counter] =  cimag(box[idx]);
@@ -245,17 +247,17 @@ void debugSummarizeBoxComplex(fftwf_complex *box, int size, float ncf, char *ind
     );
 
 
-    complex sum, mean, mn, mx;
-    sum=0+I;
+    double complex sum, mean, mn, mx;
+    sum=0+0*I;
     mn=box[0];
     mx=box[0];
 
-    for (i=0; i<size*size*((int)(size*ncf)); i++){
-        sum+=box[i];
-        mn=fminf(mn, box[i]);
-        mx = fmaxf(mx, box[i]);
+    for (idx=0; idx<size*size*((unsigned long long)(size*ncf)); idx++){
+        sum+=box[idx];
+        mn=fminf(mn, box[idx]);
+        mx=fmaxf(mx, box[idx]);
     }
-    mean=sum/(size*size*((int)(size*ncf)));
+    mean=sum/(size*size*((unsigned long long)(size*ncf)));
 
     LOG_SUPER_DEBUG(
         "%sSum/Mean/Min/Max: %.4e+%.4ei, %.4e+%.4ei, %.4e+%.4ei, %.4e+%.4ei",
@@ -289,5 +291,4 @@ void debugSummarizePerturbField(PerturbedField *x, int HII_DIM, float NCF){
     debugSummarizeBox(x->velocity_y, HII_DIM, NCF, "    ");
     LOG_SUPER_DEBUG("  velocity_z: ");
     debugSummarizeBox(x->velocity_z, HII_DIM, NCF, "    ");
-
 }
