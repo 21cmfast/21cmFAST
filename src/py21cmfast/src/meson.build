@@ -30,6 +30,7 @@ source_files = [
 
 omp = dependency('openmp')
 gsl = dependency('gsl')
+nanobind = dependency('nanobind', static: true)
 
 # fftw = dependency('fftw3f_threads')
 cc = meson.get_compiler ('c')
@@ -37,7 +38,8 @@ search_paths = [ '/usr/lib', '/usr/local/lib', '/opt/homebrew/lib' ]
 fftw = cc.find_library ('fftw3f', required: true, dirs: search_paths)
 fftw_threads = cc.find_library ('fftw3f_threads', required: true, dirs: search_paths)
 
-deps = [omp,gsl,fftw,fftw_threads]
+
+deps = [omp,gsl,fftw,fftw_threads,nanobind]
 target_dir = 'py21cmfast/c_21cmfast'
 py.extension_module(
   source_files,

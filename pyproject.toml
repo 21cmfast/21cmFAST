@@ -110,4 +110,4 @@ exclude = '''
 
 [build-system]
 build-backend = 'mesonpy'
-requires = ['meson-python']
+requires = ['meson-python','nanobind>=2.4.0']
