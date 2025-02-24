@@ -1414,7 +1414,7 @@ int ComputeIonizedBox(float redshift, float prev_redshift, UserParams *user_para
         if (flag_options->INHOMO_RECO){
             set_recombination_rates(box,previous_ionize_box,perturbed_field,&ionbox_constants);
         }
-        
+
         if(!ionbox_constants.fix_mean){
             //if we don't fix the mean, make the mean_f_coll in the output reflect the box
             //since currently it is the global expected mean from the Unconditional MF
