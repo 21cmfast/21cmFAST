@@ -921,12 +921,6 @@ void find_ionised_regions(IonizedBox *box, IonizedBox *previous_ionize_box, Pert
             mean_fix_term_mcg = box->mean_f_coll_MINI/rspec.f_coll_grid_mean_MINI;
         }
     }
-    else{
-        //if we don't fix the mean, make the mean_f_coll in the output reflect the box
-        //since currently it is the global expected mean from the Unconditional MF
-        box->mean_f_coll = rspec.f_coll_grid_mean;
-        box->mean_f_coll_MINI = rspec.f_coll_grid_mean_MINI;
-    }
 
     #pragma omp parallel num_threads(user_params_global->N_THREADS)
     {
@@ -1419,6 +1413,13 @@ int ComputeIonizedBox(float redshift, float prev_redshift, UserParams *user_para
         // update the N_rec field
         if (flag_options->INHOMO_RECO){
             set_recombination_rates(box,previous_ionize_box,perturbed_field,&ionbox_constants);
+        }
+        
+        if(!ionbox_constants.fix_mean){
+            //if we don't fix the mean, make the mean_f_coll in the output reflect the box
+            //since currently it is the global expected mean from the Unconditional MF
+            box->mean_f_coll = curr_radius.f_coll_grid_mean;
+            box->mean_f_coll_MINI = curr_radius.f_coll_grid_mean_MINI;
         }
 
         fftwf_cleanup_threads();
