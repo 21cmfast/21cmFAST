@@ -1,4 +1,4 @@
-project('21cmFAST', 'c',
+project('21cmFAST', [ 'c', 'cpp' ],
    version : run_command('cat', 'VERSION').stdout().strip(),
    default_options : ['cpp_std=c++17'],
 )

@@ -26,6 +26,7 @@ source_files = [
   'thermochem.c',
   'MapMass_cpu.c',
   'rng.c',
+  '_wrapper.cpp',
 ]
 
 omp = dependency('openmp')
