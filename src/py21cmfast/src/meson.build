@@ -1,3 +1,4 @@
+# Define the source files that contribute to the 21cmFast build
 source_files = [
   'BrightnessTemperatureBox.c',
   'HaloBox.c',
@@ -26,26 +27,31 @@ source_files = [
   'thermochem.c',
   'MapMass_cpu.c',
   'rng.c',
+  '_functionprototypes_wrapper.h',
+  '_inputparams_wrapper.h',
+  '_outputstructs_wrapper.h',
   '_wrapper.cpp',
 ]
 
+# Define the 21cmFast dependencies
 omp = dependency('openmp')
 gsl = dependency('gsl')
 nanobind = dependency('nanobind', static: true)
 
+# If/when fftw gets added to Meson WrapDB, we'll be able to use this:
 # fftw = dependency('fftw3f_threads')
+# ... but until then, we need to jump through some hoops:
 cc = meson.get_compiler ('c')
 search_paths = [ '/usr/lib', '/usr/local/lib', '/opt/homebrew/lib' ]
 fftw = cc.find_library ('fftw3f', required: true, dirs: search_paths)
 fftw_threads = cc.find_library ('fftw3f_threads', required: true, dirs: search_paths)
 
-
+# Define the Python extension module
 deps = [omp,gsl,fftw,fftw_threads,nanobind]
-target_dir = 'py21cmfast/c_21cmfast'
 py.extension_module(
+  'c_21cmfast',
   source_files,
   dependencies: deps,
   install: true,
-  subdir: target_dir
+  subdir:'py21cmfast', 
 )
-# library('21cmFAST', source_files, dependencies: [omp,gsl,fftw,fftw_threads])

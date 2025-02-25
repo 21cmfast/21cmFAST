@@ -10,11 +10,15 @@ extern "C" {
 #include "indexing.h"
 }
 
-NB_MODULE(wrapper_module, m) {
+NB_MODULE(c_21cmfast, m) {
+
+  m.doc() = "This is the docstring for the 21cmFAST Python extension.";
+
   // Bind input parameters
 
   // Bind CosmoParams
   nb::class_<CosmoParams>(m, "CosmoParams")
+      .def(nb::init<>())
       .def_rw("SIGMA_8", &CosmoParams::SIGMA_8)
       .def_rw("hlittle", &CosmoParams::hlittle)
       .def_rw("OMm", &CosmoParams::OMm)
@@ -24,6 +28,7 @@ NB_MODULE(wrapper_module, m) {
 
   // Bind UserParams
   nb::class_<UserParams>(m, "UserParams")
+      .def(nb::init<>())
       .def_rw("HII_DIM", &UserParams::HII_DIM)
       .def_rw("DIM", &UserParams::DIM)
       .def_rw("BOX_LEN", &UserParams::BOX_LEN)
@@ -61,6 +66,7 @@ NB_MODULE(wrapper_module, m) {
 
   // Bind AstroParams
   nb::class_<AstroParams>(m, "AstroParams")
+      .def(nb::init<>())
       .def_rw("HII_EFF_FACTOR", &AstroParams::HII_EFF_FACTOR)
       .def_rw("F_STAR10", &AstroParams::F_STAR10)
       .def_rw("ALPHA_STAR", &AstroParams::ALPHA_STAR)
@@ -89,6 +95,7 @@ NB_MODULE(wrapper_module, m) {
 
   // Bind FlagOptions
   nb::class_<FlagOptions>(m, "FlagOptions")
+      .def(nb::init<>())
       .def_rw("USE_HALO_FIELD", &FlagOptions::USE_HALO_FIELD)
       .def_rw("USE_MINI_HALOS", &FlagOptions::USE_MINI_HALOS)
       .def_rw("USE_CMB_HEATING", &FlagOptions::USE_CMB_HEATING)
@@ -112,6 +119,7 @@ NB_MODULE(wrapper_module, m) {
                      &FlagOptions::HALO_SCALING_RELATIONS_MEDIAN);
 
   nb::class_<GlobalParams>(m, "GlobalParams")
+      .def(nb::init<>())
       .def_rw("ALPHA_UVB", &GlobalParams::ALPHA_UVB)
       .def_rw("EVOLVE_DENSITY_LINEARLY",
                      &GlobalParams::EVOLVE_DENSITY_LINEARLY)
@@ -184,6 +192,7 @@ NB_MODULE(wrapper_module, m) {
 
   // Bind output parameters
   nb::class_<InitialConditions>(m, "InitialConditions")
+      .def(nb::init<>())
       .def_rw("lowres_density", &InitialConditions::lowres_density)
       .def_rw("lowres_vx", &InitialConditions::lowres_vx)
       .def_rw("lowres_vy", &InitialConditions::lowres_vy)
@@ -201,12 +210,14 @@ NB_MODULE(wrapper_module, m) {
       .def_rw("lowres_vcb", &InitialConditions::lowres_vcb);
 
   nb::class_<PerturbedField>(m, "PerturbedField")
+      .def(nb::init<>())
       .def_rw("density", &PerturbedField::density)
       .def_rw("velocity_x", &PerturbedField::velocity_x)
       .def_rw("velocity_y", &PerturbedField::velocity_y)
       .def_rw("velocity_z", &PerturbedField::velocity_z);
 
   nb::class_<HaloField>(m, "HaloField")
+      .def(nb::init<>())
       .def_rw("n_halos", &HaloField::n_halos)
       .def_rw("buffer_size", &HaloField::buffer_size)
       .def_rw("halo_masses", &HaloField::halo_masses)
@@ -216,6 +227,7 @@ NB_MODULE(wrapper_module, m) {
       .def_rw("xray_rng", &HaloField::xray_rng);
 
   nb::class_<PerturbHaloField>(m, "PerturbHaloField")
+      .def(nb::init<>())
       .def_rw("n_halos", &PerturbHaloField::n_halos)
       .def_rw("buffer_size", &PerturbHaloField::buffer_size)
       .def_rw("halo_masses", &PerturbHaloField::halo_masses)
@@ -225,6 +237,7 @@ NB_MODULE(wrapper_module, m) {
       .def_rw("xray_rng", &PerturbHaloField::xray_rng);
 
   nb::class_<HaloBox>(m, "HaloBox")
+      .def(nb::init<>())
       .def_rw("halo_mass", &HaloBox::halo_mass)
       .def_rw("halo_stars", &HaloBox::halo_stars)
       .def_rw("halo_stars_mini", &HaloBox::halo_stars_mini)
@@ -238,6 +251,7 @@ NB_MODULE(wrapper_module, m) {
       .def_rw("log10_Mcrit_MCG_ave", &HaloBox::log10_Mcrit_MCG_ave);
 
   nb::class_<XraySourceBox>(m, "XraySourceBox")
+      .def(nb::init<>())
       .def_rw("filtered_sfr", &XraySourceBox::filtered_sfr)
       .def_rw("filtered_xray", &XraySourceBox::filtered_xray)
       .def_rw("filtered_sfr_mini", &XraySourceBox::filtered_sfr_mini)
@@ -246,12 +260,14 @@ NB_MODULE(wrapper_module, m) {
       .def_rw("mean_sfr_mini", &XraySourceBox::mean_sfr_mini);
 
   nb::class_<TsBox>(m, "TsBox")
+      .def(nb::init<>())
       .def_rw("Ts_box", &TsBox::Ts_box)
       .def_rw("x_e_box", &TsBox::x_e_box)
       .def_rw("Tk_box", &TsBox::Tk_box)
       .def_rw("J_21_LW_box", &TsBox::J_21_LW_box);
 
   nb::class_<IonizedBox>(m, "IonizedBox")
+      .def(nb::init<>())
       .def_rw("mean_f_coll", &IonizedBox::mean_f_coll)
       .def_rw("mean_f_coll_MINI", &IonizedBox::mean_f_coll_MINI)
       .def_rw("log10_Mturnover_ave", &IonizedBox::log10_Mturnover_ave)
@@ -267,6 +283,7 @@ NB_MODULE(wrapper_module, m) {
       .def_rw("Fcoll_MINI", &IonizedBox::Fcoll_MINI);
 
   nb::class_<BrightnessTemp>(m, "BrightnessTemp ")
+      .def(nb::init<>())
       .def_rw("brightness_temp", &BrightnessTemp::brightness_temp);
 
   // Bind functions

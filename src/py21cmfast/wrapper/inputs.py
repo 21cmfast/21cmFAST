@@ -25,7 +25,8 @@ from attrs import validators
 
 from .._cfg import config
 from .._data import DATA_PATH
-from ..c_21cmfast import ffi, lib
+
+# from ..c_21cmfast import ffi, lib
 from .globals import global_params
 from .structs import InputStruct
 

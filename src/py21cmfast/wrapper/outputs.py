@@ -19,7 +19,7 @@ import numpy as np
 from cached_property import cached_property
 
 from .. import __version__
-from ..c_21cmfast import ffi, lib
+from ..c_21cmfast import lib
 from ..drivers.param_config import InputParameters
 from .inputs import AstroParams, CosmoParams, FlagOptions, UserParams, global_params
 from .structs import OutputStruct as _BaseOutputStruct
@@ -263,7 +263,8 @@ class PerturbedField(_OutputStructZ):
                 required += ["hires_vx_2LPT", "hires_vy_2LPT", "hires_vz_2LPT"]
 
         else:
-            required += ["lowres_density", "lowres_vx", "lowres_vy", "lowres_vz"]
+            required += ["lowres_density",
+                         "lowres_vx", "lowres_vy", "lowres_vz"]
 
             if self.user_params.USE_2LPT:
                 required += [
@@ -493,7 +494,8 @@ class HaloBox(_AllParamsBox):
             if self.user_params.USE_RELATIVE_VELOCITIES:
                 required += ["lowres_vcb"]
         else:
-            raise ValueError(f"{type(input_box)} is not an input required for HaloBox!")
+            raise ValueError(
+                f"{type(input_box)} is not an input required for HaloBox!")
 
         return required
 
@@ -558,7 +560,8 @@ class XraySourceBox(_AllParamsBox):
             if self.flag_options.USE_MINI_HALOS:
                 required += ["halo_sfr_mini"]
         else:
-            raise ValueError(f"{type(input_box)} is not an input required for HaloBox!")
+            raise ValueError(
+                f"{type(input_box)} is not an input required for HaloBox!")
 
         return required
 
