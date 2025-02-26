@@ -421,8 +421,8 @@ class UserParams(InputStruct):
         2: Approximate integration, assuming sharp cutoffs and a triple power-law for sigma(M) based on EPS
     PERTURB_ALGORITHM: str, optional
         Whether to use second-order Lagrangian perturbation theory (2LPT), Zel'dovich (ZELDOVICH),
-        or linear evolution (LIENAR).
-        Set this to True if the density field or the halo positions are extrapolated to
+        or linear evolution (LINEAR).
+        Set this to 2LPT if the density field or the halo positions are extrapolated to
         low redshifts. The current implementation is very naive and adds a factor ~6 to
         the memory requirements. Reference: Scoccimarro R., 1998, MNRAS, 299, 1097-1118
         Appendix D.
