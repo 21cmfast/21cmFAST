@@ -15,9 +15,9 @@ void writeAstroParams(FlagOptions *fo, AstroParams *p);
 //output debugging
 void debugSummarizeIC(InitialConditions *x, int HII_DIM, int DIM, float NCF);
 void debugSummarizePerturbField(PerturbedField *x, int HII_DIM, float NCF);
-void debugSummarizeBox(float *box, int size, float ncf, char *indent);
-void debugSummarizeBoxDouble(double *box, int size, float ncf, char *indent);
-void debugSummarizeBoxComplex(fftwf_complex *box, int size, float ncf, char *indent);
+void debugSummarizeBox(float *box, int size_x, int size_y, int size_z, char *indent);
+void debugSummarizeBoxDouble(double *box, int size_x, int size_y, int size_z, char *indent);
+void debugSummarizeBoxComplex(fftwf_complex *box, int size_x, int size_y, int size_z, char *indent);
 
 //error debugging
 int SomethingThatCatches(bool sub_func);

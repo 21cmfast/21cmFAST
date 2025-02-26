@@ -6,12 +6,15 @@
 #include <stdio.h>
 #include <stdbool.h>
 #include <math.h>
+#include <complex.h>
+#include <fftw3.h>
 
 #include "cexcept.h"
 #include "exceptions.h"
 #include "logger.h"
 #include "InputParameters.h"
 #include "OutputStructs.h"
+#include "indexing.h"
 
 #include "debugging.h"
 
@@ -122,22 +125,27 @@ void writeFlagOptions(FlagOptions *p){
            p->FIX_VCB_AVG,p->CELL_RECOMB,p->PHOTON_CONS_TYPE,p->USE_UPPER_STELLAR_TURNOVER);
 }
 
-void debugSummarizeBox(float *box, int size, float ncf, char *indent){
+void get_corner_indices(int size_x, int size_y, int size_z, unsigned long long indices[8]){
+    indices[0] = 0; //(x0,y0,z0)
+    indices[1] = (unsigned long long)(size_z)*(size_y*(size_x-1)); //(x1,y0,z0)
+    indices[2] = (unsigned long long)(size_z)*((size_y-1)); //(x0,y1,z0)
+    indices[3] = (unsigned long long)(size_z)*((size_y-1) + size_y*(size_x-1)); //(x1,y1,z0)
+    indices[4] = (size_z-1); //(x0,y0,z1)
+    indices[5] = (size_z-1) + (unsigned long long)(size_z)*(size_y*(size_x-1)); //(x1,y0,z1)
+    indices[6] = (size_z-1) + (unsigned long long)(size_z)*((size_y-1)); //(x0,y1,z1)
+    indices[7] = (size_z-1) + (unsigned long long)(size_z)*((size_y-1) + size_y*(size_x-1)); //(x1,y1,z1)
+}
+
+void debugSummarizeBox(float *box, int size_x, int size_y, int size_z, char *indent){
 #if LOG_LEVEL >= SUPER_DEBUG_LEVEL
     float corners[8];
+    unsigned long long indices[8];
+    unsigned long long idx;
+    unsigned long long tot_size = (unsigned long long)size_x * size_y * size_z;
 
-    int i,j,k, counter;
-    int s = size-1;
-    int s_ncf = size*ncf-1;
-
-    counter = 0;
-    for(i=0;i<size;i=i+s){
-        for(j=0;j<size;j=j+s){
-            for(k=0;k<(int)(size*ncf);k=k+s_ncf){
-                corners[counter] =  box[k + (long long unsigned int)(size*ncf)*(j + size*i)];
-                counter++;
-            }
-        }
+    get_corner_indices(size_x,size_y,size_z,indices);
+    for(idx=0;idx<8;idx++){
+        corners[idx] = box[indices[idx]];
     }
 
     LOG_SUPER_DEBUG("%sCorners: %.4e %.4e %.4e %.4e %.4e %.4e %.4e %.4e",
@@ -151,33 +159,27 @@ void debugSummarizeBox(float *box, int size, float ncf, char *indent){
     mn=box[0];
     mx=box[0];
 
-    for (i=0; i<size*size*((int)(size*ncf)); i++){
-        sum+=box[i];
-        mn=fminf(mn, box[i]);
-        mx = fmaxf(mx, box[i]);
+    for (idx=0; idx<tot_size; idx++){
+        sum+=box[idx];
+        mn=fminf(mn, box[idx]);
+        mx = fmaxf(mx, box[idx]);
     }
-    mean=sum/(size*size*((int)(size*ncf)));
+    mean=sum/tot_size;
 
     LOG_SUPER_DEBUG("%sSum/Mean/Min/Max: %.4e, %.4e, %.4e, %.4e", indent, sum, mean, mn, mx);
 #endif
 }
 
-void debugSummarizeBoxDouble(double *box, int size, float ncf, char *indent){
+void debugSummarizeBoxDouble(double *box, int size_x, int size_y, int size_z, char *indent){
 #if LOG_LEVEL >= SUPER_DEBUG_LEVEL
     double corners[8];
+    unsigned long long indices[8];
+    unsigned long long idx;
+    unsigned long long tot_size = (unsigned long long)size_x * size_y * size_z;
 
-    int i,j,k, counter;
-    int s = size-1;
-    int s_ncf = size*ncf-1;
-
-    counter = 0;
-    for(i=0;i<size;i=i+s){
-        for(j=0;j<size;j=j+s){
-            for(k=0;k<(int)(size*ncf);k=k+s_ncf){
-                corners[counter] =  box[k + (long long unsigned int)(size*ncf)*(j + size*i)];
-                counter++;
-            }
-        }
+    get_corner_indices(size_x,size_y,size_z,indices);
+    for(idx=0;idx<8;idx++){
+        corners[idx] = box[indices[idx]];
     }
 
     LOG_SUPER_DEBUG("%sCorners: %.4e %.4e %.4e %.4e %.4e %.4e %.4e %.4e",
@@ -191,36 +193,31 @@ void debugSummarizeBoxDouble(double *box, int size, float ncf, char *indent){
     mn=box[0];
     mx=box[0];
 
-    for (i=0; i<size*size*((int)(size*ncf)); i++){
-        sum+=box[i];
-        mn=fmin(mn, box[i]);
-        mx = fmax(mx, box[i]);
+    for (idx=0; idx<tot_size; idx++){
+        sum+=box[idx];
+        mn=fminf(mn, box[idx]);
+        mx = fmaxf(mx, box[idx]);
     }
-    mean=sum/(size*size*((int)(size*ncf)));
+    mean=sum/tot_size;
 
     LOG_SUPER_DEBUG("%sSum/Mean/Min/Max: %.4e, %.4e, %.4e, %.4e", indent, sum, mean, mn, mx);
 #endif
 }
 
-void debugSummarizeBoxComplex(fftwf_complex *box, int size, float ncf, char *indent){
+void debugSummarizeBoxComplex(float complex *box, int size_x, int size_y, int size_z, char *indent){
 #if LOG_LEVEL >= SUPER_DEBUG_LEVEL
     float corners_real[8];
     float corners_imag[8];
+    unsigned long long indices[8];
+    unsigned long long idx;
+    unsigned long long tot_size = (unsigned long long)size_x * size_y * size_z;
+    float complex buf;
 
-    int i,j,k, counter;
-    int s = size-1;
-    int s_ncf = size*ncf-1;
-
-    counter = 0;
-    for(i=0;i<size;i=i+s){
-        for(j=0;j<size;j=j+s){
-            for(k=0;k<(int)(size*ncf);k=k+s_ncf){
-                corners_real[counter] =  creal(box[k + (int)(size*ncf)*(j + size*i)]);
-                corners_imag[counter] =  cimag(box[k + (int)(size*ncf)*(j + size*i)]);
-
-                counter++;
-            }
-        }
+    get_corner_indices(size_x,size_y,size_z,indices);
+    for(idx=0;idx<8;idx++){
+        buf = box[indices[idx]];
+        corners_real[idx] = creal(buf);
+        corners_imag[idx] = cimag(buf);
     }
 
     LOG_SUPER_DEBUG("%sCorners (Real Part): %.4e %.4e %.4e %.4e %.4e %.4e %.4e %.4e",
@@ -236,17 +233,17 @@ void debugSummarizeBoxComplex(fftwf_complex *box, int size, float ncf, char *ind
     );
 
 
-    complex sum, mean, mn, mx;
-    sum=0+I;
+    double complex sum, mean, mn, mx;
+    sum=0+0*I;
     mn=box[0];
     mx=box[0];
 
-    for (i=0; i<size*size*((int)(size*ncf)); i++){
-        sum+=box[i];
-        mn=fminf(mn, box[i]);
-        mx = fmaxf(mx, box[i]);
+    for (idx=0; idx<tot_size; idx++){
+        sum+=box[idx];
+        mn=fminf(mn, box[idx]);
+        mx=fmaxf(mx, box[idx]);
     }
-    mean=sum/(size*size*((int)(size*ncf)));
+    mean=sum/tot_size;
 
     LOG_SUPER_DEBUG(
         "%sSum/Mean/Min/Max: %.4e+%.4ei, %.4e+%.4ei, %.4e+%.4ei, %.4e+%.4ei",
@@ -259,26 +256,25 @@ void debugSummarizeBoxComplex(fftwf_complex *box, int size, float ncf, char *ind
 void debugSummarizeIC(InitialConditions *x, int HII_DIM, int DIM, float NCF){
     LOG_SUPER_DEBUG("Summary of InitialConditions:");
     LOG_SUPER_DEBUG("  lowres_density: ");
-    debugSummarizeBox(x->lowres_density, HII_DIM, NCF, "    ");
+    debugSummarizeBox(x->lowres_density, HII_DIM, HII_DIM, HII_D_PARA, "    ");
     LOG_SUPER_DEBUG("  hires_density: ");
-    debugSummarizeBox(x->hires_density, DIM, NCF, "    ");
+    debugSummarizeBox(x->hires_density, DIM, DIM, D_PARA, "    ");
     LOG_SUPER_DEBUG("  lowres_vx: ");
-    debugSummarizeBox(x->lowres_vx, HII_DIM, NCF, "    ");
+    debugSummarizeBox(x->lowres_vx, HII_DIM, HII_DIM, HII_D_PARA, "    ");
     LOG_SUPER_DEBUG("  lowres_vy: ");
-    debugSummarizeBox(x->lowres_vy, HII_DIM, NCF, "    ");
+    debugSummarizeBox(x->lowres_vy, HII_DIM, HII_DIM, HII_D_PARA, "    ");
     LOG_SUPER_DEBUG("  lowres_vz: ");
-    debugSummarizeBox(x->lowres_vz, HII_DIM, NCF, "    ");
+    debugSummarizeBox(x->lowres_vz, HII_DIM, HII_DIM, HII_D_PARA, "    ");
 }
 
 void debugSummarizePerturbField(PerturbedField *x, int HII_DIM, float NCF){
     LOG_SUPER_DEBUG("Summary of PerturbedField:");
     LOG_SUPER_DEBUG("  density: ");
-    debugSummarizeBox(x->density, HII_DIM, NCF, "    ");
+    debugSummarizeBox(x->density, HII_DIM, HII_DIM, HII_D_PARA, "    ");
     LOG_SUPER_DEBUG("  velocity_x: ");
-    debugSummarizeBox(x->velocity_x, HII_DIM, NCF, "    ");
+    debugSummarizeBox(x->velocity_x, HII_DIM, HII_DIM, HII_D_PARA, "    ");
     LOG_SUPER_DEBUG("  velocity_y: ");
-    debugSummarizeBox(x->velocity_y, HII_DIM, NCF, "    ");
+    debugSummarizeBox(x->velocity_y, HII_DIM, HII_DIM, HII_D_PARA, "    ");
     LOG_SUPER_DEBUG("  velocity_z: ");
-    debugSummarizeBox(x->velocity_z, HII_DIM, NCF, "    ");
-
+    debugSummarizeBox(x->velocity_z, HII_DIM, HII_DIM, HII_D_PARA, "    ");
 }
