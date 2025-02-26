@@ -268,3 +268,45 @@ def test_using_cached_halo_field(ic, test_direc):
     np.testing.assert_allclose(
         pt_halos.halo_coords.value, new_pt_halos.halo_coords.value
     )
+
+
+def test_incompatible_redshifts(default_input_struct, ic):
+    """Test whether bad redshifts are handled correctly."""
+    inputs = default_input_struct.clone(node_redshifts=np.array([16.0, 14.0, 12.0]))
+
+    # generate some PetrurbedFields to use
+    # NOTE: the checks still happen even if the field is not used due to flags
+    ptb_list = [
+        p21c.perturb_field(
+            initial_conditions=ic, redshift=z, inputs=inputs, write=False
+        )
+        for z in inputs.node_redshifts
+    ]
+
+    kw = dict(
+        initial_conditions=ic,
+        inputs=inputs,
+    )
+    # try passing the current redshift == previous
+    with pytest.raises(ValueError, match="Incompatible redshifts with inputs"):
+        p21c.compute_ionization_field(
+            perturbed_field=ptb_list[1],
+            previous_perturbed_field=ptb_list[1],
+            **kw,
+        )
+
+    # try passing the previous redshift < current
+    with pytest.raises(ValueError, match="Incompatible redshifts with inputs"):
+        p21c.compute_ionization_field(
+            perturbed_field=ptb_list[1],
+            previous_ionize_box=ptb_list[2],
+            **kw,
+        )
+
+    # try skipping a step
+    with pytest.raises(ValueError, match="Incompatible redshifts with inputs"):
+        p21c.compute_ionization_field(
+            perturbed_field=ptb_list[2],
+            previous_perturbed_field=ptb_list[0],
+            **kw,
+        )
