@@ -21,7 +21,7 @@ def test_coeval_st(ic, default_input_struct_ts, cache):
 
 def test_run_coeval_bad_inputs(ic, perturbed_field, default_input_struct, cache):
     with pytest.raises(
-        ValueError, match="Either out_redshifts or perturb must be given"
+        ValueError, match="out_redshifts must be given if inputs has no node redshifts"
     ):
         run_coeval(initial_conditions=ic, inputs=default_input_struct, cache=cache)
 

@@ -214,13 +214,14 @@ def test_bt(
 
 
 def test_coeval_against_direct(
+    redshift: float,
     ic: p21c.InitialConditions,
     perturbed_field: p21c.PerturbedField,
     ionize_box: p21c.IonizedBox,
     cache,
 ):
-    coeval = p21c.run_coeval(
-        perturbed_field=perturbed_field, initial_conditions=ic, cache=cache
+    [coeval] = p21c.run_coeval(
+        out_redshifts=redshift, initial_conditions=ic, cache=cache
     )
 
     assert coeval.initial_conditions == ic

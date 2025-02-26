@@ -1306,7 +1306,7 @@ class InputParameters:
     @user_params.validator
     def _user_params_validator(self, att, val):
         # perform a very rudimentary check to see if we are underresolved and not using the linear approx
-        if val.BOX_LEN > val.DIM and not self.user_params.EVOLVE_DENSITY_LINEARLY:
+        if val.BOX_LEN > val.DIM and self.user_params.PERTURB_ALGORITHM != "LINEAR":
             warnings.warn(
                 "Resolution is likely too low for accurate evolved density fields\n It Is recommended"
                 + "that you either increase the resolution (DIM/BOX_LEN) or"

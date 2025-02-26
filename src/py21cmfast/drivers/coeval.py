@@ -382,9 +382,7 @@ def generate_coeval(
         out_redshifts = inputs.node_redshifts
 
     if not out_redshifts and not inputs.node_redshifts:
-        raise ValueError(
-            "Either out_redshifts or perturb must be given if inputs has no node redshifts"
-        )
+        raise ValueError("out_redshifts must be given if inputs has no node redshifts")
 
     iokw = {"regenerate": regenerate, "cache": cache}
 
@@ -436,7 +434,7 @@ def generate_coeval(
 
 
 def run_coeval(**kwargs) -> list[Coeval]:  # noqa: D103
-    return [coeval for coeval, in_nodes in generate_coeval(**kwargs) if in_nodes]
+    return [coeval for coeval, in_outputs in generate_coeval(**kwargs) if in_outputs]
 
 
 run_coeval.__doc__ = generate_coeval.__doc__

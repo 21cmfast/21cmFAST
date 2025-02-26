@@ -324,7 +324,9 @@ def calibrate_photon_cons(
 
     fast_node_redshifts = [z]
 
-    inputs_calibration = inputs_calibration.clone(node_redshifts=fast_node_redshifts)
+    # NOTE: Not checking any redshift consistency for the calibration run
+    #   Since the z-step is Q-dependent, we can't predict the redshifts
+    inputs_calibration = inputs_calibration.clone(node_redshifts=None)
 
     while z > inputs.astro_params.PHOTONCONS_CALIBRATION_END:
         # Determine the ionisation box with recombinations, spin temperature etc.
