@@ -19,7 +19,7 @@ import numpy as np
 from cached_property import cached_property
 
 from .. import __version__
-from ..c_21cmfast import lib
+import py21cmfast.c_21cmfast as lib
 from ..drivers.param_config import InputParameters
 from .inputs import AstroParams, CosmoParams, FlagOptions, UserParams, global_params
 from .structs import OutputStruct as _BaseOutputStruct

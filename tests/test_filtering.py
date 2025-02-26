@@ -13,7 +13,7 @@ from py21cmfast import (
     UserParams,
     global_params,
 )
-from py21cmfast.c_21cmfast import ffi, lib
+import py21cmfast.c_21cmfast as lib
 
 from . import produce_integration_test_data as prd
 from .test_c_interpolation_tables import print_failure_stats
@@ -84,8 +84,10 @@ def get_binned_stats(x_arr, y_arr, bins, stats):
     }
 
     for stat in stats:
-        spstatkey = statistic_dict[stat] if stat in statistic_dict.keys() else stat
-        result[stat], _, _ = binstat(x_in, y_in, bins=bins, statistic=spstatkey)
+        spstatkey = statistic_dict[stat] if stat in statistic_dict.keys(
+        ) else stat
+        result[stat], _, _ = binstat(
+            x_in, y_in, bins=bins, statistic=spstatkey)
 
     return result
 
@@ -128,7 +130,7 @@ def test_filters(filter_flag, R, plt):
     R_cells = R / up.BOX_LEN * up.HII_DIM
     Rp_cells = R_param / up.BOX_LEN * up.HII_DIM
     r_from_centre = np.linalg.norm(
-        np.mgrid[0 : up.HII_DIM, 0 : up.HII_DIM, 0 : up.HII_DIM]
+        np.mgrid[0: up.HII_DIM, 0: up.HII_DIM, 0: up.HII_DIM]
         - np.array([up.HII_DIM // 2, up.HII_DIM // 2, up.HII_DIM // 2])[
             :, None, None, None
         ],
@@ -293,7 +295,8 @@ def filter_plot(
         )
 
         lns.append(
-            axs[idx, 2].plot(r_cen, t, "m:", linewidth=2, label="Expected", zorder=3)[0]
+            axs[idx, 2].plot(r_cen, t, "m:", linewidth=2,
+                             label="Expected", zorder=3)[0]
         )
         axs[idx, 2].grid()
         axs[idx, 2].set_xlabel("dist from centre")

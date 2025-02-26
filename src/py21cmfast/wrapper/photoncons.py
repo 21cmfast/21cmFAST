@@ -29,7 +29,7 @@ import numpy as np
 from copy import deepcopy
 from scipy.optimize import curve_fit
 
-from ..c_21cmfast import ffi, lib
+import py21cmfast.c_21cmfast as lib
 from ._utils import _process_exitcode
 from .inputs import AstroParams, CosmoParams, FlagOptions, UserParams, global_params
 
@@ -233,7 +233,8 @@ def setup_photon_cons(
     """
     from ..drivers.single_field import _get_config_options
 
-    direc, regenerate, hooks = _get_config_options(direc, regenerate, None, hooks)
+    direc, regenerate, hooks = _get_config_options(
+        direc, regenerate, None, hooks)
 
     if flag_options.PHOTON_CONS_TYPE == "no-photoncons":
         return
@@ -394,7 +395,8 @@ def calibrate_photon_cons(
                 prev_perturb = this_perturb
 
         z_for_photon_cons = np.array(z_for_photon_cons[::-1])
-        neutral_fraction_photon_cons = np.array(neutral_fraction_photon_cons[::-1])
+        neutral_fraction_photon_cons = np.array(
+            neutral_fraction_photon_cons[::-1])
 
         # Construct the spline for the calibration curve
         logger.info("Calibrating photon conservation correction")
@@ -452,7 +454,8 @@ def photoncons_alpha(cosmo_params, user_params, astro_params, flag_options):
     alpha_arr = (
         np.linspace(-2.0, 1.0, num=31) + astro_params.ALPHA_ESC
     )  # roughly -0.1 steps for an extended range of alpha
-    test_pc_data = np.zeros((alpha_arr.size, ref_pc_data["z_calibration"].size))
+    test_pc_data = np.zeros(
+        (alpha_arr.size, ref_pc_data["z_calibration"].size))
 
     # fit to the same z-array
     ref_interp = np.interp(
@@ -493,7 +496,8 @@ def photoncons_alpha(cosmo_params, user_params, astro_params, flag_options):
     # ratio of given alpha with calibration
     ratio_ref = (1 - ref_pc_data["nf_calibration"]) / ref_interp
 
-    ratio_diff = ratio_test - 1 / ratio_ref[None, :]  # find N(alpha)/ref == ref/cal
+    # find N(alpha)/ref == ref/cal
+    ratio_diff = ratio_test - 1 / ratio_ref[None, :]
     diff_test = (
         (test_pc_data)
         + (1 - ref_pc_data["nf_calibration"])[None, ...]
@@ -564,7 +568,8 @@ def photoncons_alpha(cosmo_params, user_params, astro_params, flag_options):
     # fit to the curve
     # make sure there's an estimate and Q isn't too high/low
     fit_alpha = alpha_estimate_ratio
-    sel = np.isfinite(fit_alpha) & (ref_interp < max_q_fit) & (ref_interp > min_q_fit)
+    sel = np.isfinite(fit_alpha) & (
+        ref_interp < max_q_fit) & (ref_interp > min_q_fit)
 
     # if there are no alpha roots found, it's likely this is a strange reionisation history
     # but we can't apply the alpha correction so throw an error
@@ -595,7 +600,8 @@ def photoncons_alpha(cosmo_params, user_params, astro_params, flag_options):
         popt, pcov = curve_fit(alpha_func, ref_interp[sel], fit_alpha[sel])
         # pass to C
         logger.info(f"ALPHA_ESC Original = {astro_params.ALPHA_ESC:.3f}")
-        logger.info(f"Running with ALPHA_ESC = {popt[0]:.2f} + {popt[1]:.2f} * Q")
+        logger.info(
+            f"Running with ALPHA_ESC = {popt[0]:.2f} + {popt[1]:.2f} * Q")
 
         results["fit_yint"] = popt[0]
         results["fit_slope"] = popt[1]
@@ -638,7 +644,8 @@ def photoncons_fesc(cosmo_params, user_params, astro_params, flag_options):
     ratio_ref = ref_interp / (1 - ref_pc_data["nf_calibration"])
 
     fit_fesc = ratio_ref * 10**astro_params.F_ESC10
-    sel = np.isfinite(fit_fesc) & (ref_interp < max_q_fit) & (ref_interp > min_q_fit)
+    sel = np.isfinite(fit_fesc) & (
+        ref_interp < max_q_fit) & (ref_interp > min_q_fit)
 
     popt, pcov = curve_fit(alpha_func, ref_interp[sel], fit_fesc[sel])
     # pass to C

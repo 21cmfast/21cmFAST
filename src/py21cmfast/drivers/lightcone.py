@@ -13,7 +13,7 @@ from cosmotile import apply_rsds
 from pathlib import Path
 from typing import Sequence
 
-from ..c_21cmfast import lib
+import py21cmfast.c_21cmfast as lib
 from ..cache_tools import get_boxes_at_redshift
 from ..lightcones import Lightconer, RectilinearLightconer
 from ..wrapper.globals import global_params
@@ -173,14 +173,14 @@ class LightCone(_HighLevelOutput):
             current_index = fl.attrs.get("current_index", 0)
 
             for k, v in self.lightcones.items():
-                fl["lightcones"][k][..., -index : v.shape[-1] - current_index] = v[
-                    ..., -index : v.shape[-1] - current_index
+                fl["lightcones"][k][..., -index: v.shape[-1] - current_index] = v[
+                    ..., -index: v.shape[-1] - current_index
                 ]
 
             global_q = fl["global_quantities"]
             for k, v in self.global_quantities.items():
-                global_q[k][-index : v.shape[-1] - current_index] = v[
-                    -index : v.shape[-1] - current_index
+                global_q[k][-index: v.shape[-1] - current_index] = v[
+                    -index: v.shape[-1] - current_index
                 ]
 
             fl.attrs["current_index"] = index
@@ -284,9 +284,11 @@ class AngularLightcone(LightCone):
             return self.lightcones["brightness_temp_with_rsds"]
 
         H0 = self.cosmo_params.cosmo.H(self.lightcone_redshifts)
-        los_displacement = self.lightcones["los_velocity"] * units.Mpc / units.s / H0
+        los_displacement = self.lightcones["los_velocity"] * \
+            units.Mpc / units.s / H0
         equiv = units.pixel_scale(self.user_params.cell_size / units.pixel)
-        los_displacement = -los_displacement.to(units.pixel, equivalencies=equiv)
+        los_displacement = - \
+            los_displacement.to(units.pixel, equivalencies=equiv)
 
         lcd = self.lightcone_distances.to(units.pixel, equiv)
         dvdx_on_h = np.gradient(los_displacement, lcd, axis=1)
@@ -307,7 +309,8 @@ class AngularLightcone(LightCone):
             Trad = Tcmb * (1 + self.lightcone_redshifts)
             tb_with_rsds = np.where(
                 gradient_component < 1e-7,
-                1000.0 * (self.Ts_box - Trad) / (1.0 + self.lightcone_redshifts),
+                1000.0 * (self.Ts_box - Trad) /
+                (1.0 + self.lightcone_redshifts),
                 (1.0 - np.exp(self.brightness_temp / gradient_component))
                 * 1000.0
                 * (self.Ts_box - Trad)
@@ -633,7 +636,8 @@ def _run_lightcone_from_perturbed_fields(
     for iz, z in enumerate(scrollz):
         if iz < start_idx:
             continue
-        logger.info(f"Computing Redshift {z} ({iz + 1}/{len(scrollz)}) iterations.")
+        logger.info(
+            f"Computing Redshift {z} ({iz + 1}/{len(scrollz)}) iterations.")
 
         # Best to get a perturb for this redshift, to pass to brightness_temperature
         pf2 = perturbed_fields[iz]
@@ -874,7 +878,8 @@ def run_lightcone(
     regenerate, write, direc, random_seed, hooks
         See docs of :func:`initial_conditions` for more information.
     """
-    direc, regenerate, hooks = _get_config_options(direc, regenerate, write, hooks)
+    direc, regenerate, hooks = _get_config_options(
+        direc, regenerate, write, hooks)
 
     pf_given = any(perturbed_fields)
     if pf_given and initial_conditions is None:

@@ -2,13 +2,10 @@
 
 import logging
 import numpy as np
-from cffi import FFI
 
 from .. import __version__
-from ..c_21cmfast import ffi, lib
+import py21cmfast.c_21cmfast as lib
 from .exceptions import _process_exitcode
-
-_ffi = FFI()
 
 logger = logging.getLogger(__name__)
 
@@ -38,7 +35,8 @@ def asarray(ptr, shape):
         )
 
     array = np.frombuffer(
-        _ffi.buffer(ptr, _ffi.sizeof(ctype) * np.prod(shape)), ctype2dtype[ctype]
+        _ffi.buffer(ptr, _ffi.sizeof(ctype) *
+                    np.prod(shape)), ctype2dtype[ctype]
     )
     array.shape = shape
     return array

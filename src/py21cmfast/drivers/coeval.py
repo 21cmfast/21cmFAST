@@ -12,7 +12,7 @@ from typing import Any, Sequence
 
 from .. import __version__
 from .._cfg import config
-from ..c_21cmfast import lib
+from py21cmfast.c_21cmfast import lib
 from ..wrapper._utils import camel_to_snake
 from ..wrapper.globals import global_params
 from ..wrapper.inputs import AstroParams, CosmoParams, FlagOptions, UserParams
@@ -114,7 +114,8 @@ class _HighLevelOutput:
             "brightness_temp",
         ]
 
-        clean = kinds if clean and not hasattr(clean, "__len__") else clean or []
+        clean = kinds if clean and not hasattr(
+            clean, "__len__") else clean or []
         if any(c not in kinds for c in clean):
             raise ValueError(
                 "You are trying to clean cached items that you will not be gathering."
@@ -134,10 +135,12 @@ class _HighLevelOutput:
                 obj = self.get_cached_data(kind, redshift=z, load_data=True)
                 with h5py.File(fname, "a") as fl:
                     cache = (
-                        fl.create_group("cache") if "cache" not in fl else fl["cache"]
+                        fl.create_group(
+                            "cache") if "cache" not in fl else fl["cache"]
                     )
                     kind_group = (
-                        cache.create_group(kind) if kind not in cache else cache[kind]
+                        cache.create_group(
+                            kind) if kind not in cache else cache[kind]
                     )
 
                     zstr = f"z{z:.2f}"
@@ -170,7 +173,8 @@ class _HighLevelOutput:
     def get_unique_filename(self):
         """Generate a unique hash filename for this instance."""
         return self._get_prefix().format(
-            hash=md5((self._input_rep() + self._particular_rep()).encode()).hexdigest()
+            hash=md5((self._input_rep() + self._particular_rep()
+                      ).encode()).hexdigest()
         )
 
     def _write(self, direc=None, fname=None, clobber=False):
@@ -304,7 +308,8 @@ class _HighLevelOutput:
 
             if "photon_nonconservation_data" in fl.keys():
                 d = fl["photon_nonconservation_data"]
-                kwargs["photon_nonconservation_data"] = {k: d[k][...] for k in d.keys()}
+                kwargs["photon_nonconservation_data"] = {
+                    k: d[k][...] for k in d.keys()}
 
         return kwargs, glbls
 
@@ -364,7 +369,6 @@ class Coeval(_HighLevelOutput):
         photon_nonconservation_data=None,
         _globals=None,
     ):
-
         # Check that all the fields have the same input parameters.
         # TODO: use this instead of all the parameter methods
         input_struct = InputParameters.from_output_structs(
@@ -603,7 +607,8 @@ def run_coeval(
     if out_redshifts is None and perturbed_field is None:
         raise ValueError("Either out_redshifts or perturb must be given")
 
-    direc, regenerate, hooks = _get_config_options(direc, regenerate, write, hooks)
+    direc, regenerate, hooks = _get_config_options(
+        direc, regenerate, write, hooks)
 
     singleton = False
     # Ensure perturb is a list of boxes, not just one.
@@ -645,7 +650,8 @@ def run_coeval(
         if out_redshifts is not None and any(
             p.redshift != z for p, z in zip(perturbed_field, out_redshifts)
         ):
-            raise ValueError("Input redshifts do not match perturb field redshifts")
+            raise ValueError(
+                "Input redshifts do not match perturb field redshifts")
         else:
             out_redshifts = [p.redshift for p in perturbed_field]
 
@@ -669,7 +675,8 @@ def run_coeval(
         out_redshifts = out_redshifts.tolist()
 
     # Get the list of redshift we need to scroll through.
-    node_redshifts = _get_required_redshifts_coeval(flag_options, out_redshifts)
+    node_redshifts = _get_required_redshifts_coeval(
+        flag_options, out_redshifts)
 
     # Get all the perturb boxes early. We need to get the perturb at every
     # redshift.
@@ -677,7 +684,8 @@ def run_coeval(
     perturb_ = []
     for z in node_redshifts:
         p = (
-            sf.perturb_field(redshift=z, initial_conditions=initial_conditions, **iokw)
+            sf.perturb_field(
+                redshift=z, initial_conditions=initial_conditions, **iokw)
             if z not in pz
             else perturbed_field[pz.index(z)]
         )
@@ -923,12 +931,14 @@ def _get_coeval_callbacks(
                     "some of the coeval_callback_redshifts refer to the same node_redshift"
                 )
         elif (
-            isinstance(coeval_callback_redshifts, int) and coeval_callback_redshifts > 0
+            isinstance(coeval_callback_redshifts,
+                       int) and coeval_callback_redshifts > 0
         ):
             compute_coeval_callback = [
                 not i % coeval_callback_redshifts for i in range(len(scrollz))
             ]
         else:
-            raise ValueError("coeval_callback_redshifts has to be list or integer > 0.")
+            raise ValueError(
+                "coeval_callback_redshifts has to be list or integer > 0.")
 
     return compute_coeval_callback

@@ -9,7 +9,7 @@ from py21cmfast import (
     initial_conditions,
     perturb_field,
 )
-from py21cmfast.c_21cmfast import ffi, lib
+import py21cmfast.c_21cmfast as lib
 from py21cmfast.wrapper._utils import StructInstanceWrapper
 
 global_params = StructInstanceWrapper(lib.global_params, ffi)

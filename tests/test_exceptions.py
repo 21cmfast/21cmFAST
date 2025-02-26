@@ -2,7 +2,7 @@ import pytest
 
 import numpy as np
 
-from py21cmfast.c_21cmfast import ffi, lib
+import py21cmfast.c_21cmfast as lib
 from py21cmfast.wrapper.exceptions import (
     PHOTONCONSERROR,
     ParameterError,
@@ -32,5 +32,6 @@ def test_simple(subfunc):
 
 def test_pass():
     answer = np.array([0], dtype="f8")
-    lib.FunctionThatCatches(True, True, ffi.cast("double *", ffi.from_buffer(answer)))
+    lib.FunctionThatCatches(True, True, ffi.cast(
+        "double *", ffi.from_buffer(answer)))
     assert answer == 5.0

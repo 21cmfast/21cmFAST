@@ -17,7 +17,7 @@ from typing import Any, Sequence
 
 from .. import __version__
 from .._cfg import config
-from ..c_21cmfast import ffi, lib
+import py21cmfast.c_21cmfast as lib
 from ._utils import (
     asarray,
     float_to_string_precision,
@@ -211,7 +211,8 @@ class InputStruct:
         """Human-readable string representation of the object."""
         d = self.asdict()
         biggest_k = max(len(k) for k in d)
-        params = "\n    ".join(sorted(f"{k:<{biggest_k}}: {v}" for k, v in d.items()))
+        params = "\n    ".join(
+            sorted(f"{k:<{biggest_k}}: {v}" for k, v in d.items()))
         return f"""{self.__class__.__name__}:{params} """
 
     @classmethod
@@ -228,7 +229,8 @@ class InputStruct:
                 for field in attrs.fields(cls)
                 if field.name not in dct.keys() and field.name in fieldnames
             ]
-            extra_items = [(k, v) for k, v in dct.items() if k not in fieldnames]
+            extra_items = [(k, v)
+                           for k, v in dct.items() if k not in fieldnames]
             message = (
                 f"There are extra or missing {cls.__name__} in the file to be read.\n"
                 f"EXTRAS: {extra_items}\n"
@@ -270,7 +272,8 @@ class OutputStruct(metaclass=ABCMeta):
     _c_based_pointers = ()
     _c_compute_function = None
 
-    _TYPEMAP = bidict({"float32": "float *", "float64": "double *", "int32": "int *"})
+    _TYPEMAP = bidict(
+        {"float32": "float *", "float64": "double *", "int32": "int *"})
 
     def __init__(self, *, dummy=False, initial=False, **kwargs):
         """
@@ -321,7 +324,8 @@ class OutputStruct(metaclass=ABCMeta):
         }
         for k in self._array_structure:
             if k not in self.struct.pointer_fields:
-                raise TypeError(f"Key {k} in {self} not a defined pointer field in C.")
+                raise TypeError(
+                    f"Key {k} in {self} not a defined pointer field in C.")
 
     @cached_property
     def struct(self) -> StructWrapper:
@@ -348,7 +352,8 @@ class OutputStruct(metaclass=ABCMeta):
             if pth.exists():
                 return pth
 
-        logger.info(f"All paths that defined {self} have been deleted on disk.")
+        logger.info(
+            f"All paths that defined {self} have been deleted on disk.")
         return None
 
     @abstractmethod
@@ -422,7 +427,8 @@ class OutputStruct(metaclass=ABCMeta):
             # to unnecessarily load things in. We leave it to the user to ensure that all
             # required arrays are loaded into memory before calling this function.
             if state.initialized:
-                setattr(self.struct.cstruct, k, self._ary2buf(getattr(self, k)))
+                setattr(self.struct.cstruct, k,
+                        self._ary2buf(getattr(self, k)))
 
         for k in self.struct.primitive_fields:
             with contextlib.suppress(AttributeError):
@@ -432,7 +438,8 @@ class OutputStruct(metaclass=ABCMeta):
         if not isinstance(ary, np.ndarray):
             raise ValueError("ary must be a numpy array")
         return self.struct._ffi.cast(
-            OutputStruct._TYPEMAP[ary.dtype.name], self.struct._ffi.from_buffer(ary)
+            OutputStruct._TYPEMAP[ary.dtype.name], self.struct._ffi.from_buffer(
+                ary)
         )
 
     def __call__(self):
@@ -500,7 +507,8 @@ class OutputStruct(metaclass=ABCMeta):
         state = self._array_state[k]
 
         if not state.initialized and k in self._array_structure:
-            warnings.warn(f"Trying to remove array that isn't yet created: {k}")
+            warnings.warn(
+                f"Trying to remove array that isn't yet created: {k}")
             return
 
         if state.computed_in_mem and not state.on_disk and not force:
@@ -546,7 +554,8 @@ class OutputStruct(metaclass=ABCMeta):
     def filename(self):
         """The base filename of this object."""
         if self._random_seed is None:
-            raise AttributeError("filename not defined until random_seed has been set")
+            raise AttributeError(
+                "filename not defined until random_seed has been set")
 
         return self._fname_skeleton.format(seed=self.random_seed)
 
@@ -609,7 +618,8 @@ class OutputStruct(metaclass=ABCMeta):
                     and f.attrs[kfile] != q
                 ):
                     if not isinstance(q, (float, np.float32)) or not (
-                        float_to_string_precision(q, config["cache_param_sigfigs"])
+                        float_to_string_precision(
+                            q, config["cache_param_sigfigs"])
                         == float_to_string_precision(
                             f.attrs[kfile], config["cache_param_sigfigs"]
                         )
@@ -724,7 +734,8 @@ class OutputStruct(metaclass=ABCMeta):
                             try:
                                 fl.attrs[kfile] = q
                             except TypeError as e:
-                                logger.info(f"name {k} val {q}, type {type(q)}")
+                                logger.info(
+                                    f"name {k} val {q}, type {type(q)}")
                                 raise e
 
                     # Write 21cmFAST version to the file
@@ -809,7 +820,8 @@ class OutputStruct(metaclass=ABCMeta):
             pth = self.find_existing(direc)
 
             if pth is None:
-                raise OSError(f"No boxes exist for these parameters. {pth} {direc}")
+                raise OSError(
+                    f"No boxes exist for these parameters. {pth} {direc}")
         else:
             direc = Path(direc or config["direc"]).expanduser()
             fname = Path(fname)
@@ -1114,7 +1126,8 @@ class OutputStruct(metaclass=ABCMeta):
 
     @classmethod
     def _log_call_arguments(cls, *args):
-        logger.debug(f"Calling {cls._c_compute_function.__name__} with following args:")
+        logger.debug(
+            f"Calling {cls._c_compute_function.__name__} with following args:")
 
         for arg in args:
             if isinstance(arg, OutputStruct):
@@ -1160,7 +1173,9 @@ class OutputStruct(metaclass=ABCMeta):
             (
                 arg()
                 if isinstance(arg, OutputStruct)
-                else arg.cstruct if isinstance(arg, InputStruct) else arg
+                else arg.cstruct
+                if isinstance(arg, InputStruct)
+                else arg
             )
             for arg in args
         ]
@@ -1208,7 +1223,8 @@ class OutputStruct(metaclass=ABCMeta):
     def __memory_map(self):
         shapes = self._c_shape(self.cstruct)
         for item in self._c_based_pointers:
-            setattr(self, item, asarray(getattr(self.cstruct, item), shapes[item]))
+            setattr(self, item, asarray(
+                getattr(self.cstruct, item), shapes[item]))
             self._array_state[item].c_memory = True
             self._array_state[item].computed_in_mem = True
 

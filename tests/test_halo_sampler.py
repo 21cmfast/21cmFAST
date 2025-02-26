@@ -12,7 +12,7 @@ from py21cmfast import (
     UserParams,
     global_params,
 )
-from py21cmfast.c_21cmfast import ffi, lib
+import py21cmfast.c_21cmfast as lib
 from py21cmfast.wrapper import cfuncs as cf
 
 from . import produce_integration_test_data as prd
@@ -97,7 +97,8 @@ def test_sampler(name, cond, from_cat, plt):
 
     hist, _ = np.histogram(sample_dict["halo_masses"], edges)
 
-    mass_dens = cp.cosmo.Om0 * cp.cosmo.critical_density(0).to("Mpc-3 M_sun").value
+    mass_dens = cp.cosmo.Om0 * \
+        cp.cosmo.critical_density(0).to("Mpc-3 M_sun").value
     volume_total_m = mass * n_cond / mass_dens
     mf_out = hist / volume_total_m / dlnm
     binned_cmf = binned_cmf / dlnm * mass_dens
@@ -191,7 +192,8 @@ def test_halo_scaling_relations(ic, default_input_struct):
     halo_stars_out = out_dict["halo_stars"].reshape(
         (halo_mass_vals.size, n_halo_per_mass)
     )
-    halo_sfr_out = out_dict["halo_sfr"].reshape((halo_mass_vals.size, n_halo_per_mass))
+    halo_sfr_out = out_dict["halo_sfr"].reshape(
+        (halo_mass_vals.size, n_halo_per_mass))
     halo_xray_out = out_dict["halo_xray"].reshape(
         (halo_mass_vals.size, n_halo_per_mass)
     )
@@ -210,14 +212,16 @@ def test_halo_scaling_relations(ic, default_input_struct):
     )
     sim_SHMR = halo_stars_out / halo_mass_out
     sel_stars = exp_SHMR > 1e-10
-    np.testing.assert_allclose(exp_SHMR, sim_SHMR.mean(axis=1), atol=1e-10, rtol=1e-1)
+    np.testing.assert_allclose(
+        exp_SHMR, sim_SHMR.mean(axis=1), atol=1e-10, rtol=1e-1)
     np.testing.assert_allclose(
         ap.SIGMA_STAR, np.log10(sim_SHMR).std(axis=1)[sel_stars], rtol=1e-1
     )
 
     exp_SSFR = ic.cosmo_params.cosmo.H(redshift).to("s-1").value / (ap.t_STAR)
     sim_SSFR = halo_sfr_out / halo_stars_out
-    np.testing.assert_allclose(exp_SSFR, sim_SSFR.mean(axis=1)[sel_stars], rtol=1e-1)
+    np.testing.assert_allclose(exp_SSFR, sim_SSFR.mean(axis=1)[
+                               sel_stars], rtol=1e-1)
     np.testing.assert_allclose(
         ap.SIGMA_SFR_LIM,
         np.log10(sim_SSFR).std(axis=1)[sel_stars],
@@ -259,7 +263,8 @@ def plot_sampler_comparison(
     # log-spaced bins
     dlnm = np.log(bin_edges[1:]) - np.log(bin_edges[:-1])
     bin_centres = (bin_edges[:-1] * np.exp(dlnm / 2)).astype("f4")
-    edges_n = np.linspace(0, max(N_array.max(), 1), min(100, max(N_array.max(), 1) + 1))
+    edges_n = np.linspace(0, max(N_array.max(), 1),
+                          min(100, max(N_array.max(), 1) + 1))
     centres_n = (edges_n[:-1] + edges_n[1:]) / 2
 
     hist_n, _ = np.histogram(N_array, edges_n)

@@ -6,7 +6,7 @@ from astropy import constants as c
 from astropy import units as u
 
 from py21cmfast import AstroParams, CosmoParams, FlagOptions, UserParams, global_params
-from py21cmfast.c_21cmfast import ffi, lib
+import py21cmfast.c_21cmfast as lib
 from py21cmfast.wrapper import cfuncs as cf
 
 from . import produce_integration_test_data as prd
@@ -153,7 +153,8 @@ def test_inverse_cmf_tables(name, from_cat, delta_range, mass_range, plt):
             .to("M_sun")
             .value
         )
-        inputs_cond, inputs_mass = np.meshgrid(delta_range, mmin_range, indexing="ij")
+        inputs_cond, inputs_mass = np.meshgrid(
+            delta_range, mmin_range, indexing="ij")
         z_desc = None
         inputs_delta = inputs_cond
     else:
@@ -230,7 +231,8 @@ def test_inverse_cmf_tables(name, from_cat, delta_range, mass_range, plt):
     # TODO: the bound should be over MAX_DELTAC_FRAC*delta_crit, and we should interpolate
     # instead of setting the integral to its limit at delta crit.
     if not from_cat:
-        delta_crit = float(cf.get_delta_crit(up, cp, np.array([M_cond]), redshift))
+        delta_crit = float(cf.get_delta_crit(
+            up, cp, np.array([M_cond]), redshift))
         sel_delta = delta_range < 0.98 * delta_crit
         delta_range = delta_range[sel_delta]
         cmf_integral = cmf_integral[sel_delta, ...]
@@ -360,7 +362,8 @@ def test_FgtrM_conditional_tables(R, delta_range, plt):
     M_max = 1e20
 
     cond_mass = (
-        (4.0 / 3.0 * np.pi * (R * u.Mpc) ** 3 * cp.cosmo.critical_density(0) * cp.OMm)
+        (4.0 / 3.0 * np.pi * (R * u.Mpc) ** 3 *
+         cp.cosmo.critical_density(0) * cp.OMm)
         .to("M_sun")
         .value
     )
@@ -402,7 +405,8 @@ def test_FgtrM_conditional_tables(R, delta_range, plt):
     # and interpolating across the sharp gap results in errors
     # TODO: the bound should be over MAX_DELTAC_FRAC*delta_crit, and we should interpolate
     # instead of setting the integral to its limit at delta crit.
-    delta_crit = float(cf.get_delta_crit(up, cp, np.array([cond_mass]), redshift))
+    delta_crit = float(cf.get_delta_crit(
+        up, cp, np.array([cond_mass]), redshift))
     sel_delta = np.fabs((delta_range - delta_crit) / delta_crit) > 0.02
     delta_range = delta_range[sel_delta]
     fcoll_integrals = fcoll_integrals[sel_delta, ...]
@@ -637,7 +641,8 @@ def test_Nion_conditional_tables(
     M_max = 1e20
 
     cond_mass = (
-        (4.0 / 3.0 * np.pi * (R * u.Mpc) ** 3 * cp.cosmo.critical_density(0) * cp.OMm)
+        (4.0 / 3.0 * np.pi * (R * u.Mpc) ** 3 *
+         cp.cosmo.critical_density(0) * cp.OMm)
         .to("M_sun")
         .value
     )
@@ -701,7 +706,8 @@ def test_Nion_conditional_tables(
     # and interpolating across the sharp gap results in errors
     # TODO: the bound should be over MAX_DELTAC_FRAC*delta_crit, and we should interpolate
     # instead of setting the integral to its limit at delta crit.
-    delta_crit = float(cf.get_delta_crit(up, cp, np.array([cond_mass]), redshift))
+    delta_crit = float(cf.get_delta_crit(
+        up, cp, np.array([cond_mass]), redshift))
     sel_delta = np.fabs((delta_range - delta_crit) / delta_crit) > 0.02
     delta_range = delta_range[sel_delta]
     Nion_integrals = Nion_integrals[sel_delta, ...]
@@ -747,7 +753,8 @@ def test_SFRD_conditional_table(
         if name != "PS":
             pytest.skip("FAST FFCOLL INTEGRALS WORK ONLY WITH EPS")
         else:
-            pytest.xfail("FFCOLL TABLES drop sharply at high Mturn, causing failure")
+            pytest.xfail(
+                "FFCOLL TABLES drop sharply at high Mturn, causing failure")
 
     redshift, kwargs = OPTIONS_HMF[name]
     opts = prd.get_all_options(redshift, **kwargs)
@@ -767,7 +774,8 @@ def test_SFRD_conditional_table(
     M_max = 1e20
 
     cond_mass = (
-        (4.0 / 3.0 * np.pi * (R * u.Mpc) ** 3 * cp.cosmo.critical_density(0) * cp.OMm)
+        (4.0 / 3.0 * np.pi * (R * u.Mpc) ** 3 *
+         cp.cosmo.critical_density(0) * cp.OMm)
         .to("M_sun")
         .value
     )
@@ -822,7 +830,8 @@ def test_SFRD_conditional_table(
     # and interpolating across the sharp gap results in errors
     # TODO: the bound should be over MAX_DELTAC_FRAC*delta_crit, and we should interpolate
     # instead of setting the integral to its limit at delta crit.
-    delta_crit = float(cf.get_delta_crit(up, cp, np.array([cond_mass]), redshift))
+    delta_crit = float(cf.get_delta_crit(
+        up, cp, np.array([cond_mass]), redshift))
     sel_delta = np.fabs((delta_range - delta_crit) / delta_crit) > 0.02
     delta_range = delta_range[sel_delta]
     SFRD_integrals = SFRD_integrals[sel_delta, ...]
@@ -881,7 +890,8 @@ def test_conditional_integral_methods(
     M_min = global_params.M_MIN_INTEGRAL
     M_max = 1e20
     cond_mass = (
-        (4.0 / 3.0 * np.pi * (R * u.Mpc) ** 3 * cp.cosmo.critical_density(0) * cp.OMm)
+        (4.0 / 3.0 * np.pi * (R * u.Mpc) ** 3 *
+         cp.cosmo.critical_density(0) * cp.OMm)
         .to("M_sun")
         .value
     )
@@ -981,7 +991,8 @@ def make_table_comparison_plot(
             zlab = zlabels[j] + f" = {z[i]:.2e}" if z is not None else ""
             # allow single arrays
             x_plot = x[j][:, i] if len(x[j].shape) > 1 else x[j]
-            i_plot = integrals[j][:, i] if len(integrals[j].shape) > 1 else integrals[j]
+            i_plot = integrals[j][:, i] if len(
+                integrals[j].shape) > 1 else integrals[j]
             t_plot = tables[j][:, i] if len(tables[j].shape) > 1 else tables[j]
             make_comparison_plot(
                 x_plot,
@@ -1022,7 +1033,8 @@ def make_integral_comparison_plot(x1, x2, integral_list, integral_list_second, p
             )
 
         for j in range(i_second.shape[1]):
-            axs[0, 1].semilogy(x1, i_second[:, j], color=f"C{j:d}", linestyle=styles[i])
+            axs[0, 1].semilogy(x1, i_second[:, j],
+                               color=f"C{j:d}", linestyle=styles[i])
             axs[1, 1].semilogy(
                 x1,
                 i_second[:, j] / integral_list_second[0][:, j],
@@ -1113,7 +1125,8 @@ def print_failure_stats(test, truth, inputs, abs_tol, rel_tol, name):
 
         print("----- First 10 -----")
         for j in range(min(10, sel_failed.sum())):
-            input_arr = [f"{failed_inp[i][j]:.2e}" for i, finp in enumerate(failed_inp)]
+            input_arr = [f"{failed_inp[i][j]:.2e}" for i,
+                         finp in enumerate(failed_inp)]
             print(
                 f"CRD {input_arr}"
                 + f"  {truth[sel_failed].flatten()[j]:.4e} {test[sel_failed].flatten()[j]:.4e}"

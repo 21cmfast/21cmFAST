@@ -26,7 +26,6 @@ from attrs import validators
 from .._cfg import config
 from .._data import DATA_PATH
 
-# from ..c_21cmfast import ffi, lib
 from .globals import global_params
 from .structs import InputStruct
 
@@ -113,11 +112,16 @@ class CosmoParams(InputStruct):
     _base_cosmo = field(
         default=Planck18, validator=validators.instance_of(FLRW), eq=False, repr=False
     )
-    SIGMA_8 = field(default=0.8102, converter=float, validator=validators.gt(0))
-    hlittle = field(default=Planck18.h, converter=float, validator=validators.gt(0))
-    OMm = field(default=Planck18.Om0, converter=float, validator=validators.gt(0))
-    OMb = field(default=Planck18.Ob0, converter=float, validator=validators.gt(0))
-    POWER_INDEX = field(default=0.9665, converter=float, validator=validators.gt(0))
+    SIGMA_8 = field(default=0.8102, converter=float,
+                    validator=validators.gt(0))
+    hlittle = field(default=Planck18.h, converter=float,
+                    validator=validators.gt(0))
+    OMm = field(default=Planck18.Om0, converter=float,
+                validator=validators.gt(0))
+    OMb = field(default=Planck18.Ob0, converter=float,
+                validator=validators.gt(0))
+    POWER_INDEX = field(default=0.9665, converter=float,
+                        validator=validators.gt(0))
 
     @property
     def OMl(self):
@@ -274,13 +278,15 @@ class UserParams(InputStruct):
 
     _hmf_models = ["PS", "ST", "WATSON", "WATSON-Z", "DELOS"]
     _power_models = ["EH", "BBKS", "EFSTATHIOU", "PEEBLES", "WHITE", "CLASS"]
-    _sample_methods = ["MASS-LIMITED", "NUMBER-LIMITED", "PARTITION", "BINARY-SPLIT"]
+    _sample_methods = ["MASS-LIMITED",
+                       "NUMBER-LIMITED", "PARTITION", "BINARY-SPLIT"]
     _integral_methods = ["GSL-QAG", "GAUSS-LEGENDRE", "GAMMA-APPROX"]
 
     BOX_LEN = field(default=300.0, converter=float, validator=validators.gt(0))
     HII_DIM = field(default=200, converter=int, validator=validators.gt(0))
     DIM = field(converter=int)
-    NON_CUBIC_FACTOR = field(default=1.0, converter=float, validator=validators.gt(0))
+    NON_CUBIC_FACTOR = field(
+        default=1.0, converter=float, validator=validators.gt(0))
     USE_FFTW_WISDOM = field(default=False, converter=bool)
     HMF = field(
         default="ST",
@@ -313,7 +319,8 @@ class UserParams(InputStruct):
     USE_2LPT = field(default=True, converter=bool)
     MINIMIZE_MEMORY = field(default=False, converter=bool)
     KEEP_3D_VELOCITIES = field(default=False, converter=bool)
-    SAMPLER_MIN_MASS = field(default=1e8, converter=float, validator=validators.gt(0))
+    SAMPLER_MIN_MASS = field(
+        default=1e8, converter=float, validator=validators.gt(0))
     SAMPLER_BUFFER_FACTOR = field(default=2.0, converter=float)
     MAXHALO_FACTOR = field(default=2.0, converter=float)
     N_COND_INTERP = field(default=200, converter=int)
@@ -328,7 +335,8 @@ class UserParams(InputStruct):
     HALOMASS_CORRECTION = field(
         default=0.9, converter=float, validator=validators.gt(0)
     )
-    PARKINSON_G0 = field(default=1.0, converter=float, validator=validators.gt(0))
+    PARKINSON_G0 = field(default=1.0, converter=float,
+                         validator=validators.gt(0))
     PARKINSON_y1 = field(default=0.0, converter=float)
     PARKINSON_y2 = field(default=0.0, converter=float)
 
@@ -550,7 +558,8 @@ class FlagOptions(InputStruct):
     def _HALO_STOCHASTICITY_vld(self, att, val):
         """Raise an error if HALO_STOCHASTICITY is True and USE_HALO_FIELD is False."""
         if val and not self.USE_HALO_FIELD:
-            raise ValueError("HALO_STOCHASTICITY is True but USE_HALO_FIELD is False")
+            raise ValueError(
+                "HALO_STOCHASTICITY is True but USE_HALO_FIELD is False")
 
     @USE_EXP_FILTER.validator
     def _USE_EXP_FILTER_vld(self, att, val):
@@ -697,7 +706,8 @@ class AstroParams(InputStruct):
         repr=False,
     )
 
-    HII_EFF_FACTOR = field(default=30.0, converter=float, validator=validators.gt(0))
+    HII_EFF_FACTOR = field(default=30.0, converter=float,
+                           validator=validators.gt(0))
     F_STAR10 = field(
         default=-1.3,
         converter=float,
@@ -742,7 +752,8 @@ class AstroParams(InputStruct):
     L_X_MINI = field(
         converter=float, validator=validators.gt(0), transformer=logtransformer
     )
-    NU_X_THRESH = field(default=500.0, converter=float, validator=validators.gt(0))
+    NU_X_THRESH = field(default=500.0, converter=float,
+                        validator=validators.gt(0))
     X_RAY_SPEC_INDEX = field(default=1.0, converter=float)
     X_RAY_Tvir_MIN = field(
         converter=float, validator=validators.gt(0), transformer=logtransformer
@@ -758,8 +769,10 @@ class AstroParams(InputStruct):
         default=11.447, converter=float, transformer=logtransformer
     )
     UPPER_STELLAR_TURNOVER_INDEX = field(default=-0.6, converter=float)
-    SIGMA_STAR = field(default=0.25, converter=float, transformer=dex2exp_transformer)
-    SIGMA_LX = field(default=0.5, converter=float, transformer=dex2exp_transformer)
+    SIGMA_STAR = field(default=0.25, converter=float,
+                       transformer=dex2exp_transformer)
+    SIGMA_LX = field(default=0.5, converter=float,
+                     transformer=dex2exp_transformer)
     SIGMA_SFR_LIM = field(
         default=0.19, converter=float, transformer=dex2exp_transformer
     )

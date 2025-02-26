@@ -6,7 +6,7 @@ from pathlib import Path
 
 from .._cfg import config
 from .._data import DATA_PATH
-from ..c_21cmfast import ffi, lib
+import py21cmfast.c_21cmfast as lib
 from .structs import StructInstanceWrapper
 
 

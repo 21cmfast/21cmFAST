@@ -6,7 +6,7 @@ from functools import cache
 from scipy.interpolate import interp1d
 from typing import Literal, Sequence
 
-from ..c_21cmfast import ffi, lib
+import py21cmfast.c_21cmfast as lib
 from ..drivers.param_config import InputParameters
 from ._utils import _process_exitcode
 from .globals import global_params
@@ -110,7 +110,8 @@ def compute_tau(
 
     # Run the C code
     return lib.ComputeTau(
-        inputs.user_params.cstruct, inputs.cosmo_params.cstruct, len(redshifts), z, xHI
+        inputs.user_params.cstruct, inputs.cosmo_params.cstruct, len(
+            redshifts), z, xHI
     )
 
 
@@ -197,7 +198,8 @@ def compute_luminosity_function(
 
     else:
         mturnovers = (
-            np.zeros(len(redshifts), dtype=np.float32) + 10**astro_params.M_TURN
+            np.zeros(len(redshifts), dtype=np.float32) +
+            10**astro_params.M_TURN
         )
         component = "acg"
 
@@ -330,7 +332,6 @@ def compute_luminosity_function(
         lfunc_all[lfunc_all <= -30] = np.nan
         return Muvfunc_all, Mhfunc_all, lfunc_all
     elif component == "acg":
-
         lfunc[lfunc <= -30] = np.nan
         return Muvfunc, Mhfunc, lfunc
     elif component == "mcg":
@@ -394,7 +395,8 @@ def evaluate_sigma(
 
     Uses the 21cmfast backend
     """
-    lib.Broadcast_struct_global_noastro(user_params.cstruct, cosmo_params.cstruct)
+    lib.Broadcast_struct_global_noastro(
+        user_params.cstruct, cosmo_params.cstruct)
 
     lib.init_ps()
     if user_params.USE_INTERPOLATION_TABLES:
@@ -1092,7 +1094,8 @@ def evaluate_Nion_cond(
             cond_mass,
             sigma_cond,
             densities[:, None] if flag_options.USE_MINI_HALOS else densities,
-            10 ** l10mturns[None, :] if flag_options.USE_MINI_HALOS else mcrit_atom,
+            10 ** l10mturns[None,
+                            :] if flag_options.USE_MINI_HALOS else mcrit_atom,
             ap_c["ALPHA_STAR"],
             ap_c["ALPHA_ESC"],
             ap_c["F_STAR10"],
@@ -1203,7 +1206,8 @@ def halo_sample_test(
     if from_cat:
         z_prev = (1 + redshift) / global_params.ZPRIME_STEP_FACTOR - 1
 
-    buffer_size = int(3e7)  # about 500MB total 2e7 * 4 (float) * 4 (mass + 3crd)
+    # about 500MB total 2e7 * 4 (float) * 4 (mass + 3crd)
+    buffer_size = int(3e7)
     nhalo_out = np.zeros(1).astype("i4")
     N_out = np.zeros(n_cond).astype("i4")
     M_out = np.zeros(n_cond).astype("f8")
