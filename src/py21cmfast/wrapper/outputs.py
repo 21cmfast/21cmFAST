@@ -171,11 +171,11 @@ class OutputStruct(ABC):
         """The random seed for this particular instance."""
         return self.inputs.random_seed
 
-    def sync(self):
-        """Sync the current state of the object with the underlying C-struct.
+    def push_to_backend(self):
+        """Push the current state of the object with the underlying C-struct.
 
         This will link any memory initialized by numpy in this object with the underlying
-        C-struct, and also update this object with any values computed from within C.
+        C-struct, and also update the C struct with any values in the python object.
         """
         # Initialize all uninitialized arrays.
         self._init_arrays()
@@ -191,6 +191,13 @@ class OutputStruct(ABC):
             if getattr(self, k) is not None:
                 setattr(self.cstruct, k, getattr(self, k))
 
+    def pull_from_backend(self):
+        """Sync the current state of the object with the underlying C-struct.
+
+        This will pull any primitives calculated in the backend to the python object.
+        Arrays are passed in as pointers, and do not need to be copied back.
+        """
+        for k in self.struct.primitive_fields:
             setattr(self, k, getattr(self.cstruct, k))
 
     def get(self, ary: str | Array):
@@ -441,10 +448,10 @@ class OutputStruct(ABC):
             for arg in args
         ]
         # Sync the python/C memory
-        self.sync()
+        self.push_to_backend()
         for arg in args:
             if isinstance(arg, OutputStruct):
-                arg.sync()
+                arg.push_to_backend()
 
         # Ensure we haven't already tried to compute this instance.
         if self.is_computed and not allow_already_computed:
@@ -466,7 +473,7 @@ class OutputStruct(ABC):
         for name, array in self.arrays.items():
             setattr(self, name, array.with_value(array.value))
 
-        self.sync()
+        self.pull_from_backend()
         return self
 
 
@@ -593,14 +600,16 @@ class OutputStructZ(OutputStruct):
     redshift: float = attrs.field(converter=float)
 
     @classmethod
-    def dummy(cls, inputs: InputParameters = InputParameters(random_seed=1)):
+    def dummy(cls):
         """Create a dummy instance with the given inputs."""
-        return cls.new(inputs=inputs, redshift=-1.0, dummy=True)
+        return cls.new(inputs=InputParameters(random_seed=1), redshift=-1.0, dummy=True)
 
     @classmethod
-    def initial(cls, inputs: InputParameters = InputParameters(random_seed=1)):
+    def initial(cls):
         """Create a dummy instance with the given inputs."""
-        return cls.new(inputs=inputs, redshift=-1.0, initial=True)
+        return cls.new(
+            inputs=InputParameters(random_seed=1), redshift=-1.0, initial=True
+        )
 
 
 @attrs.define(slots=False, kw_only=True)
@@ -713,7 +722,11 @@ class PerturbHaloField(OutputStructZ):
 
     @classmethod
     def new(
-        cls, inputs: InputParameters, redshift: float, buffer_size: int = 0, **kw
+        cls,
+        inputs: InputParameters,
+        redshift: float,
+        buffer_size: float | None = None,
+        **kw,
     ) -> Self:
         """Create a new PerturbedHaloField instance with the given inputs.
 
@@ -731,12 +744,12 @@ class PerturbHaloField(OutputStructZ):
         """
         from .cfuncs import get_halo_list_buffer_size
 
-        if not kw.get("dummy", False):
+        if kw.get("dummy", False):
+            buffer_size = 0
+        elif buffer_size is None:
             buffer_size = get_halo_list_buffer_size(
                 redshift, inputs.user_params, inputs.cosmo_params
             )
-        else:
-            buffer_size = 0
 
         return cls(
             inputs=inputs,

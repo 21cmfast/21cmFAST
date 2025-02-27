@@ -137,13 +137,13 @@ class LightCone:
             ]
         )
 
-    def save(self, path: str | Path):
+    def save(self, path: str | Path, clobber=False):
         """Save the lightcone object to disk."""
         path = Path(path)
         path.parent.mkdir(parents=True, exist_ok=True)
-        h5._write_inputs_to_group(self.inputs, path)
 
-        with h5py.File(path, "a") as fl:
+        file_mode = "w" if clobber else "a"
+        with h5py.File(path, file_mode) as fl:
             fl.attrs["lightcone"] = True  # marker identifying this as a lightcone box
 
             fl.attrs["last_completed_node"] = self._last_completed_node
@@ -165,6 +165,8 @@ class LightCone:
                 global_q[k] = v
 
             fl["lightcone_distances"] = self.lightcone_distances.to_value("Mpc")
+
+        h5._write_inputs_to_group(self.inputs, path)
 
     def make_checkpoint(self, path: str | Path, lcidx: int, node_index: int):
         """Write updated lightcone data to file."""

@@ -42,8 +42,8 @@
 //TODO: define a fraction (90%?) of the barrier rather than a fixed number
 #define CRIT_DENS_TRANSITION (1.2)
 
-static float xi_GL[NGL_INT+1], wi_GL[NGL_INT+1];
-static float GL_limit[2] = {0};
+static double xi_GL[NGL_INT+1], wi_GL[NGL_INT+1];
+static double GL_limit[2] = {0};
 
 
 //Parameters used for gsl integral on the mass function
@@ -514,7 +514,7 @@ double IntegratedNdM_QAG(double lnM_lo, double lnM_hi, struct parameters_gsl_MF_
 }
 
 //calculates the weightings and the positions for any Gauss-Legendre quadrature.
-void gauleg(float x1, float x2, float x[], float w[], int n)
+void gauleg(double x1, double x2, double x[], double w[], int n)
 //Given the lower and upper limits of integration x1 and x2, and given n, this routine returns arrays x[1..n] and w[1..n] of length n,
 //containing the abscissas and weights of the Gauss- Legendre n-point quadrature formula.
 {
@@ -556,7 +556,7 @@ void gauleg(float x1, float x2, float x[], float w[], int n)
 }
 
 //Specific initialistion for the global arrays
-void initialise_GL(float lnM_Min, float lnM_Max){
+void initialise_GL(double lnM_Min, double lnM_Max){
     //don't redo if you don't have to
     if(lnM_Min == GL_limit[0] && lnM_Max == GL_limit[1])
         return;
@@ -571,6 +571,7 @@ void initialise_GL(float lnM_Min, float lnM_Max){
 double IntegratedNdM_GL(double lnM_lo, double lnM_hi, struct parameters_gsl_MF_integrals params, double (*integrand)(double,void*)){
     int i;
     double integral = 0;
+    //compare to lower precision?
     if((float)lnM_lo != (float)GL_limit[0] || (float)lnM_hi != (float)GL_limit[1]){
         LOG_ERROR("Integral limits [%.8e %.8e] do not match Gauss Legendre limits [%.8e %.8e]!",exp(lnM_lo),exp(lnM_hi),GL_limit[0],GL_limit[1]);
         Throw(TableGenerationError);

@@ -10,7 +10,7 @@
 #define M_MAX_INTEGRAL 1e16
 
 /* HMF Integrals */
-void initialise_GL(float lnM_Min, float lnM_Max);
+void initialise_GL(double lnM_Min, double lnM_Max);
 double Nhalo_Conditional(double growthf, double lnM1, double lnM2, double lnM_cond, double sigma, double delta, int method);
 double Mcoll_Conditional(double growthf, double lnM1, double lnM2, double lnM_cond, double sigma, double delta, int method);
 double Nion_ConditionalM(double growthf, double lnM1, double lnM2, double lnM_cond, double sigma2, double delta2, double MassTurnover,

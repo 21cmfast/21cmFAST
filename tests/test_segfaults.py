@@ -22,10 +22,10 @@ DEFAULT_USER_PARAMS_CTEST = {
 }
 
 OPTIONS_CTEST = {
-    "defaults": [20, {"USE_MASS_DEPENDENT_ZETA": True}],
-    "no-mdz": [20, {}],
+    "defaults": [18, {"USE_MASS_DEPENDENT_ZETA": True}],
+    "no-mdz": [18, {}],
     "mini": [
-        20,
+        18,
         {
             "USE_MINI_HALOS": True,
             "INHOMO_RECO": True,
@@ -33,15 +33,15 @@ OPTIONS_CTEST = {
             "USE_MASS_DEPENDENT_ZETA": True,
         },
     ],
-    "ts": [20, {"USE_TS_FLUCT": True, "USE_MASS_DEPENDENT_ZETA": True}],
-    "ts_nomdz": [20, {"USE_TS_FLUCT": True}],
-    "inhomo": [20, {"INHOMO_RECO": True, "USE_MASS_DEPENDENT_ZETA": True}],
+    "ts": [18, {"USE_TS_FLUCT": True, "USE_MASS_DEPENDENT_ZETA": True}],
+    "ts_nomdz": [18, {"USE_TS_FLUCT": True}],
+    "inhomo": [18, {"INHOMO_RECO": True, "USE_MASS_DEPENDENT_ZETA": True}],
     "inhomo_ts": [
-        20,
+        18,
         {"INHOMO_RECO": True, "USE_TS_FLUCT": True, "USE_MASS_DEPENDENT_ZETA": True},
     ],
     "sampler": [
-        20,
+        18,
         {
             "USE_HALO_FIELD": True,
             "HALO_STOCHASTICITY": True,
@@ -49,7 +49,7 @@ OPTIONS_CTEST = {
         },
     ],
     "fixed_halogrids": [
-        20,
+        18,
         {
             "USE_HALO_FIELD": True,
             "FIXED_HALO_GRIDS": True,
@@ -57,7 +57,7 @@ OPTIONS_CTEST = {
         },
     ],
     "sampler_mini": [
-        20,
+        18,
         {
             "USE_HALO_FIELD": True,
             "HALO_STOCHASTICITY": True,
@@ -68,7 +68,7 @@ OPTIONS_CTEST = {
         },
     ],
     "sampler_ts": [
-        20,
+        18,
         {
             "USE_HALO_FIELD": True,
             "HALO_STOCHASTICITY": True,
@@ -77,7 +77,7 @@ OPTIONS_CTEST = {
         },
     ],
     "sampler_ir": [
-        20,
+        18,
         {
             "USE_HALO_FIELD": True,
             "HALO_STOCHASTICITY": True,
@@ -86,7 +86,7 @@ OPTIONS_CTEST = {
         },
     ],
     "sampler_ts_ir": [
-        20,
+        18,
         {
             "USE_HALO_FIELD": True,
             "HALO_STOCHASTICITY": True,
@@ -96,19 +96,19 @@ OPTIONS_CTEST = {
         },
     ],
     "photoncons-z": [
-        20,
+        18,
         {"PHOTON_CONS_TYPE": "z-photoncons", "USE_MASS_DEPENDENT_ZETA": True},
     ],
     "photoncons-a": [
-        20,
+        18,
         {"PHOTON_CONS_TYPE": "alpha-photoncons", "USE_MASS_DEPENDENT_ZETA": True},
     ],
     "photoncons-f": [
-        20,
+        18,
         {"PHOTON_CONS_TYPE": "f-photoncons", "USE_MASS_DEPENDENT_ZETA": True},
     ],
     "minimize_mem": [
-        20,
+        18,
         {
             "USE_TS_FLUCT": True,
             "INHOMO_RECO": True,

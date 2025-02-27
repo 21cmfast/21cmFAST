@@ -170,22 +170,23 @@ class Coeval:
         """Random seed shared by all datasets."""
         return self.inputs.random_seed
 
-    def save(self, path: str | Path):
+    def save(self, path: str | Path, clobber=False):
         """Save the Coeval object to disk."""
         path = Path(path)
         path.parent.mkdir(parents=True, exist_ok=True)
 
-        output_structs = self.output_structs
-        for struct in output_structs.values():
-            h5.write_output_to_hdf5(struct, path, mode="a")
-
-        with h5py.File(path, "a") as fl:
+        file_mode = "w" if clobber else "a"
+        with h5py.File(path, file_mode) as fl:
             fl.attrs["coeval"] = True  # marker identifying this as a coeval box
             fl.attrs["__version__"] = __version__
 
             grp = fl.create_group("photon_nonconservation_data")
             for k, v in self.photon_nonconservation_data.items():
                 grp[k] = v
+
+        output_structs = self.output_structs
+        for struct in output_structs.values():
+            h5.write_output_to_hdf5(struct, path, mode="a")
 
     @classmethod
     def from_file(cls, path: str | Path, safe: bool = True) -> Self:
@@ -455,10 +456,12 @@ def _obtain_starting_point_for_scrolling(
         minimum_node = len(inputs.node_redshifts) - 1
 
     if minimum_node < 0 or inputs.flag_options.USE_HALO_FIELD:
+        # TODO: (low priority) implement a backward loop for finding first halo files
+        #   Noting that we need *all* the perturbed halo fields in the cache to run
         return (
             -1,
             None,
-        )  # something
+        )
 
     logger.info(f"Determining pre-cached boxes for the run in {cache}")
     rc = RunCache.from_inputs(inputs, cache)

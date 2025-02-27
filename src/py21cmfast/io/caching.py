@@ -9,6 +9,7 @@ import attrs
 import numpy as np
 import re
 from pathlib import Path
+from sys import hash_info
 from typing import Self
 
 from .._cfg import config
@@ -36,19 +37,23 @@ class OutputCache:
     )
 
     _path_structures = {
-        "InitialConditions": "{user_cosmo}/{seed}/InitialConditions.h5",
-        "PerturbedField": "{user_cosmo}/{seed}/{zgrid}/{redshift}/PerturbedField.h5",
-        "other": "{user_cosmo}/{seed}/{zgrid}/{redshift}/{astro_flag}/{cls}.h5",
+        "InitialConditions": "{user_cosmo:x}/{seed:d}/InitialConditions.h5",
+        "PerturbedField": "{user_cosmo:x}/{seed:d}/{zgrid:x}/{redshift:.4f}/PerturbedField.h5",
+        "other": "{user_cosmo:x}/{seed:d}/{zgrid:x}/{redshift:.4f}/{astro_flag:x}/{cls}.h5",
     }
 
     @classmethod
     def _get_hashes(cls, inputs: InputParameters) -> dict[str, str]:
         """Return a dict of hashes for different components of the calculation."""
+        # Python builtin hashes can be negative which looks weird in filenames
+        max_hash_value = 2**hash_info.width
         return {
-            "user_cosmo": hash((inputs.cosmo_params, inputs.user_params)),
-            "seed": inputs.random_seed,
-            "zgrid": hash(inputs.node_redshifts),
-            "astro_flag": hash((inputs.astro_params, inputs.user_params)),
+            "user_cosmo": hash((inputs.cosmo_params, inputs.user_params))
+            % max_hash_value,
+            "seed": inputs.random_seed % max_hash_value,
+            "zgrid": hash(inputs.node_redshifts) % max_hash_value,
+            "astro_flag": hash((inputs.astro_params, inputs.user_params))
+            % max_hash_value,
         }
 
     def get_filename(self, obj: OutputStruct) -> str:
@@ -424,29 +429,6 @@ class RunCache:
             for fl in kind.values():
                 if not fl.exists():
                     return False
-
-    # def get_completed_redshift(self) -> tuple[float, int]:
-    #     """Obtain the redshift down to which the cache is complete."""
-    #     if not self.InitialConditions.exists():
-    #         return None, -1
-
-    #     zgrid_files = {
-    #         k: v
-    #         for k, v in attrs.asdict(self, recurse=False).items()
-    #         if isinstance(v, dict)
-    #     }
-
-    #     for i, z in enumerate(self.inputs.node_redshifts):
-    #         for file_dict in zgrid_files.values():
-    #             if z not in file_dict:
-    #                 return self.inputs.node_redshifts[i - 1], i - 1
-
-    #     return self.inputs.node_redshifts[-1], len(self.inputs.node_redshifts) - 1
-
-    # def is_partial(self):
-    #     """Whether the cache is complete down to some redshift, but not the last z."""
-    #     z, idx = self.get_completed_redshift()
-    #     return idx == len(self.inputs.node_redshifts) - 1
 
 
 @attrs.define

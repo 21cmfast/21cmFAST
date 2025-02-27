@@ -367,8 +367,6 @@ def interp_halo_boxes(
         + f" prog ({idx_prog}) {hbox_prog.get(fields[0]).mean()}"
     )
 
-    hbox_out.sync()
-
     return hbox_out
 
 
@@ -474,8 +472,6 @@ def compute_xray_source_field(
     # in which case the array is not marked as computed
     for name, array in box.arrays.items():
         setattr(box, name, array.with_value(array.value))
-
-    box.sync()
 
     return box
 
