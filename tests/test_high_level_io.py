@@ -3,33 +3,35 @@ import pytest
 import attrs
 import h5py
 import numpy as np
+from pathlib import Path
 
 from py21cmfast import (
-    BrightnessTemp,
     Coeval,
     InitialConditions,
     LightCone,
-    TsBox,
+    OutputCache,
     UserParams,
-    exhaust_lightcone,
     run_coeval,
     run_lightcone,
 )
-from py21cmfast.lightcones import AngularLightconer, RectilinearLightconer
+from py21cmfast.drivers.lightcone import AngularLightcone
+from py21cmfast.io import h5
+from py21cmfast.lightcones import AngularLightconer
 
 
 @pytest.fixture(scope="module")
-def coeval(ic, default_input_struct_ts):
+def coeval(ic, default_input_struct_ts, cache) -> Coeval:
     return run_coeval(
         out_redshifts=25.0,
         initial_conditions=ic,
         write=True,
         inputs=default_input_struct_ts,
-    )
+        cache=cache,
+    )[0]
 
 
 @pytest.fixture(scope="module")
-def ang_lightcone(ic, lc, default_input_struct_lc, default_flag_options):
+def ang_lightcone(ic, lc, default_input_struct_lc, default_flag_options, cache):
     lcn = AngularLightconer.like_rectilinear(
         match_at_z=lc.lightcone_redshifts.min(),
         max_redshift=lc.lightcone_redshifts.max(),
@@ -37,7 +39,7 @@ def ang_lightcone(ic, lc, default_input_struct_lc, default_flag_options):
         get_los_velocity=True,
     )
 
-    iz, z, coev, anglc = exhaust_lightcone(
+    iz, z, coev, anglc = run_lightcone(
         lightconer=lcn,
         initial_conditions=ic,
         write=True,
@@ -46,29 +48,33 @@ def ang_lightcone(ic, lc, default_input_struct_lc, default_flag_options):
                 APPLY_RSDS=False,
             )
         ),
+        cache=cache,
     )
     return anglc
 
 
-def test_read_bad_file_lc(test_direc, lc):
+def test_read_bad_file_lc(test_direc: Path, lc: LightCone):
     # create a bad hdf5 file with some good fields,
     #  some bad fields, and some missing fields
     #  in both input parameters and box structures
-    fname = lc.save(direc=test_direc)
+    fname = test_direc / "_lc.h5"
+    lc.save(path=fname)
+
     with h5py.File(fname, "r+") as f:
         # make gluts, these should be ignored on reading
-        f["user_params"].attrs["NotARealParameter"] = "fake_param"
+        f["InputParameters"]["user_params"].attrs["NotARealParameter"] = "fake_param"
+        # f["_globals"].attrs["NotARealGlobal"] = "fake_param"
 
         # make gaps
-        del f["user_params"].attrs["BOX_LEN"]
+        del f["InputParameters"]["user_params"].attrs["BOX_LEN"]
 
     # load without compatibility mode, make sure we throw the right error
     with pytest.raises(ValueError, match="There are extra or missing"):
-        LightCone.read(fname, direc=test_direc, safe=True)
+        LightCone.from_file(fname, safe=True)
 
     # load in compatibility mode, check that we warn correctly
     with pytest.warns(UserWarning, match="There are extra or missing"):
-        lc2 = LightCone.read(fname, direc=test_direc, safe=False)
+        lc2 = LightCone.from_file(fname, safe=False)
 
     # check that the fake fields didn't show up in the struct
     assert not hasattr(lc2.user_params, "NotARealParameter")
@@ -84,24 +90,28 @@ def test_read_bad_file_lc(test_direc, lc):
     )
 
 
-def test_read_bad_file_coev(test_direc, coeval):
+def test_read_bad_file_coev(test_direc: Path, coeval: Coeval):
     # create a bad hdf5 file with some good fields,
     #  some bad fields, and some missing fields
     #  in both input parameters and box structures
-    fname = coeval.save(direc=test_direc)
+    fname = test_direc / "_a_bad_file.h5"
+
+    coeval.save(path=fname)
     with h5py.File(fname, "r+") as f:
         # make gluts, these should be ignored on reading
-        f["user_params"].attrs["NotARealParameter"] = "fake_param"
+        f["BrightnessTemp"]["InputParameters"]["user_params"].attrs[
+            "NotARealParameter"
+        ] = "fake_param"
 
         # make gaps
-        del f["user_params"].attrs["BOX_LEN"]
+        del f["BrightnessTemp"]["InputParameters"]["user_params"].attrs["BOX_LEN"]
 
     # load in the coeval check that we warn correctly
     with pytest.raises(ValueError, match="There are extra or missing"):
-        Coeval.read(fname, direc=test_direc, safe=True)
+        Coeval.from_file(fname, safe=True)
 
     with pytest.warns(UserWarning, match="There are extra or missing"):
-        cv2 = Coeval.read(fname, direc=test_direc, safe=False)
+        cv2 = Coeval.from_file(fname, safe=False)
 
     # check that the fake params didn't show up in the struct
     assert not hasattr(cv2.user_params, "NotARealParameter")
@@ -118,102 +128,33 @@ def test_read_bad_file_coev(test_direc, coeval):
 
 
 def test_lightcone_roundtrip(test_direc, lc):
-    fname = lc.save(direc=test_direc)
-    lc2 = LightCone.read(fname)
+    fname = test_direc / "lc.h5"
+    lc.save(path=fname)
+    lc2 = LightCone.from_file(fname)
 
     assert lc == lc2
-    assert lc.get_unique_filename() == lc2.get_unique_filename()
     assert np.allclose(lc.lightcone_redshifts, lc2.lightcone_redshifts)
-    assert np.all(np.isclose(lc.brightness_temp, lc2.brightness_temp))
-
-
-def test_lightcone_io_abspath(lc, test_direc):
-    lc.save(test_direc / "abs_path_lightcone.h5")
-    assert (test_direc / "abs_path_lightcone.h5").exists()
+    assert np.all(
+        np.isclose(lc.lightcones["brightness_temp"], lc2.lightcones["brightness_temp"])
+    )
 
 
 def test_coeval_roundtrip(test_direc, coeval):
-    fname = coeval.save(direc=test_direc)
-    coeval2 = Coeval.read(fname)
+    fname = test_direc / "a_coeval.h5"
+    coeval.save(fname)
+    coeval2 = Coeval.from_file(fname)
 
     assert coeval == coeval2
-    assert coeval.get_unique_filename() == coeval2.get_unique_filename()
-    assert np.all(
-        np.isclose(
-            coeval.brightness_temp_struct.brightness_temp,
-            coeval2.brightness_temp_struct.brightness_temp,
-        )
-    )
+    assert np.all(np.isclose(coeval.brightness_temp, coeval2.brightness_temp))
 
 
-def test_coeval_cache(coeval):
-    assert coeval.cache_files is not None
-    out = coeval.get_cached_data(kind="brightness_temp", redshift=25.1, load_data=True)
-
-    assert isinstance(out, BrightnessTemp)
-    assert np.all(out.brightness_temp == coeval.brightness_temp)
-
-    out = coeval.get_cached_data(
-        kind="spin_temp", redshift=coeval.user_params.Z_HEAT_MAX * 1.01, load_data=True
-    )
-
-    assert isinstance(out, TsBox)
-    assert not np.all(out.Ts_box == coeval.Ts_box)
-
-    with pytest.raises(ValueError):
-        coeval.get_cached_data(kind="bad", redshift=100.0)
-
-
-def test_gather(coeval, test_direc):
-    fname = coeval.gather(
-        fname="tmpfile_test_gather.h5",
-        kinds=("perturb_field", "init"),
-        direc=str(test_direc),
-    )
-
-    with h5py.File(fname, "r") as fl:
-        assert "cache" in fl
-        assert "perturb_field" in fl["cache"]
-        assert "z25.00" in fl["cache"]["perturb_field"]
-        assert "density" in fl["cache"]["perturb_field"]["z25.00"]
-        assert (
-            fl["cache"]["perturb_field"]["z25.00"]["density"].shape
-            == (coeval.user_params.HII_DIM,) * 3
-        )
-
-        assert "z0.00" in fl["cache"]["init"]
-
-
-def test_lightcone_cache(lc):
-    assert lc.cache_files is not None
-    out = lc.get_cached_data(kind="brightness_temp", redshift=15.1, load_data=True)
-
-    assert isinstance(out, BrightnessTemp)
-
-    out = lc.get_cached_data(
-        kind="brightness_temp",
-        redshift=lc.user_params.Z_HEAT_MAX * 1.01,
-        load_data=True,
-    )
-
-    assert isinstance(out, BrightnessTemp)
-
-    with pytest.raises(ValueError):
-        lc.get_cached_data(kind="bad", redshift=100.0)
-
-    lc.gather(fname="tmp_lc_gather.h5", clean=["brightness_temp"])
-
-    with pytest.raises(IOError):
-        lc.get_cached_data(kind="brightness_temp", redshift=25.1)
-
-
-def test_ang_lightcone(lc, ang_lightcone):
+def test_ang_lightcone(lc, ang_lightcone: AngularLightcone):
     # we test that the fields are "highly correlated",
     # and moreso in the one corner where the lightcones
     # should be almost exactly the same, and less so in the other
     # corners, and also less so at the highest redshifts.
-    rbt = lc.brightness_temp
-    abt = ang_lightcone.brightness_temp.reshape(rbt.shape)
+    rbt = lc.lightcones["brightness_temp"]
+    abt = ang_lightcone.lightcones["brightness_temp"].reshape(rbt.shape)
 
     fullcorr0 = np.corrcoef(rbt[:, :, 0].flatten(), abt[:, :, 0].flatten())
     fullcorrz = np.corrcoef(rbt[:, :, -1].flatten(), abt[:, :, -1].flatten())
@@ -234,14 +175,12 @@ def test_ang_lightcone(lc, ang_lightcone):
     assert topcorner[0, 1] > bottomcorner[0, 1]
 
 
-def test_write_to_group(ic, test_direc):
-    ic.save(test_direc / "a_new_file.h5", h5_group="new_group")
+def test_write_to_group(ic: InitialConditions, cache: OutputCache):
+    h5.write_output_to_hdf5(ic, path=cache.direc / "a_new_file.h5", group="new_group")
 
-    with h5py.File(test_direc / "a_new_file.h5", "r") as fl:
+    with h5py.File(cache.direc / "a_new_file.h5", "r") as fl:
         assert "new_group" in fl
 
-    ic2 = InitialConditions.from_file(
-        test_direc / "a_new_file.h5", h5_group="new_group"
-    )
+    ic2 = h5.read_output_struct(cache.direc / "a_new_file.h5", group="new_group")
 
     assert ic2 == ic

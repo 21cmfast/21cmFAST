@@ -16,8 +16,7 @@ import warnings
 from pathlib import Path
 
 from .wrapper._utils import camel_to_snake
-from .wrapper.inputs import AstroParams, CosmoParams, FlagOptions, UserParams
-from .wrapper.structs import InputStruct
+from .wrapper.inputs import InputStruct
 
 TEMPLATE_PATH = Path(__file__).parent / "templates/"
 
@@ -41,6 +40,13 @@ def _construct_param_objects(template_dict, **kwargs):
         )
 
     return input_dict
+
+
+def list_templates() -> list[dict]:
+    """Return a list of the available templates."""
+    with open(TEMPLATE_PATH / "manifest.toml", "rb") as f:
+        manifest = tomllib.load(f)
+    return manifest["templates"]
 
 
 def create_params_from_template(template_name: str, **kwargs):

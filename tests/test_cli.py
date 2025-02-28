@@ -3,7 +3,8 @@ import pytest
 import yaml
 from click.testing import CliRunner
 
-from py21cmfast import InitialConditions, cli, query_cache
+from py21cmfast import InitialConditions, cli
+from py21cmfast.io.caching import OutputCache
 
 
 @pytest.fixture(scope="module")
@@ -33,49 +34,11 @@ def test_init(module_direc, default_input_struct, runner, cfg):
 
     assert result.exit_code == 0
 
-    ic = InitialConditions(
+    ic = InitialConditions.new(
         inputs=default_input_struct.clone(random_seed=101010),
     )
-    assert ic.exists(direc=str(module_direc))
-
-
-def test_init_param_override(module_direc, runner, cfg):
-    # Run the CLI
-    result = runner.invoke(
-        cli.main,
-        [
-            "init",
-            "--direc",
-            str(module_direc),
-            "--seed",
-            "102030",
-            "--config",
-            cfg,
-            "--",
-            "HII_DIM",
-            "37",
-            "DIM=52",
-            "--OMm",
-            "0.33",
-        ],
-    )
-    assert result.exit_code == 0
-
-    boxes = [
-        res[1]
-        for res in query_cache(
-            direc=str(module_direc), kind="InitialConditions", seed=102030
-        )
-    ]
-
-    assert len(boxes) == 1
-
-    box = boxes[0]
-
-    assert box.user_params.HII_DIM == 37
-    assert box.user_params.DIM == 52
-    assert box.cosmo_params.OMm == 0.33
-    assert box.cosmo_params.cosmo.Om0 == 0.33
+    cache = OutputCache(module_direc)
+    assert cache.find_existing(ic) is not None
 
 
 # TODO: we could generate a single "prev" box in a temp cache directory to make these tests work
@@ -150,7 +113,7 @@ def test_coeval(module_direc, runner, cfg):
         [
             "coeval",
             "35",
-            "--direc",
+            "--cache-dir",
             str(module_direc),
             "--seed",
             "101010",
@@ -179,21 +142,3 @@ def test_lightcone(module_direc, runner, cfg):
         ],
     )
     assert result.exit_code == 0
-
-
-def test_query(test_direc, runner, cfg):
-    # Quickly run the default example once again.
-    # Run the CLI
-    result = runner.invoke(
-        cli.main,
-        ["init", "--direc", str(test_direc), "--seed", "101010", "--config", cfg],
-    )
-    assert result.exit_code == 0
-
-    result = runner.invoke(
-        cli.main, ["query", "--direc", str(test_direc), "--seed", "101010"]
-    )
-
-    assert result.output.startswith("1 Data Sets Found:")
-    assert "random_seed:101010" in result.output
-    assert "InitialConditions(" in result.output

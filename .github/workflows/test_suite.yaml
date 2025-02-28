@@ -46,7 +46,6 @@ jobs:
         uses: conda-incubator/setup-miniconda@v3
         with:
           # auto-update-conda: true
-          mamba-version: "*"
           channels: conda-forge,defaults
           python-version: ${{ matrix.python-version }}
           environment-file: ci/${{ matrix.os }}-env.yml

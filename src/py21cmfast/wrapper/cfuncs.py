@@ -8,9 +8,8 @@ from typing import Literal, Sequence
 
 from .._cfg import config
 from ..c_21cmfast import ffi, lib
-from ..drivers.param_config import InputParameters
 from ._utils import _process_exitcode
-from .inputs import AstroParams, CosmoParams, FlagOptions, UserParams
+from .inputs import AstroParams, CosmoParams, FlagOptions, InputParameters, UserParams
 from .outputs import InitialConditions, PerturbHaloField
 
 logger = logging.getLogger(__name__)

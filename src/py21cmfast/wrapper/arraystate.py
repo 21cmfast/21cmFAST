@@ -1,5 +1,8 @@
 """Classes dealing with the state of arrays."""
 
+import attrs
+from typing import Self
+
 
 class ArrayStateError(ValueError):
     """Errors arising from incorrectly modifying array state."""
@@ -7,70 +10,54 @@ class ArrayStateError(ValueError):
     pass
 
 
+@attrs.define(frozen=True)
 class ArrayState:
     """Define the memory state of a struct array."""
 
-    def __init__(
-        self, initialized=False, c_memory=False, computed_in_mem=False, on_disk=False
-    ):
-        self._initialized = initialized
-        self._c_memory = c_memory
-        self._computed_in_mem = computed_in_mem
-        self._on_disk = on_disk
+    initialized = attrs.field(default=False, converter=bool)
+    c_memory = attrs.field(default=False, converter=bool)
+    computed_in_mem = attrs.field(default=False, converter=bool)
+    on_disk = attrs.field(default=False, converter=bool)
+
+    def deinitialize(self) -> Self:
+        """Return new state that is not initialized."""
+        return attrs.evolve(self, initialized=False, computed_in_mem=False)
+
+    def initialize(self) -> Self:
+        """Return new state that is initialized."""
+        return attrs.evolve(self, initialized=True)
+
+    def computed(self) -> Self:
+        """Return new state indicating the array has been computed."""
+        return attrs.evolve(self, computed_in_mem=True, initialized=True)
+
+    def dropped(self) -> Self:
+        """Return new state indicating the array has been dropped from memory."""
+        return attrs.evolve(self, initialized=False, computed_in_mem=False)
+
+    def written(self) -> Self:
+        """Return new state indicating the array has been written to disk."""
+        return attrs.evolve(self, on_disk=True)
+
+    def purged_to_disk(self) -> Self:
+        """Return new state indicating the array has been written to disk and dropped."""
+        return self.written().dropped()
+
+    def loaded_from_disk(self) -> Self:
+        """Return new state indicating the array has been loaded from disk into memory."""
+        return self.computed().written()
 
     @property
-    def initialized(self):
-        """Whether the array is initialized (i.e. allocated memory)."""
-        return self._initialized
-
-    @initialized.setter
-    def initialized(self, val):
-        if not val:
-            # if its not initialized, can't be computed in memory
-            self.computed_in_mem = False
-        self._initialized = bool(val)
-
-    @property
-    def c_memory(self):
-        """Whether the array's memory (if any) is controlled by C."""
-        return self._c_memory
-
-    @c_memory.setter
-    def c_memory(self, val):
-        self._c_memory = bool(val)
-
-    @property
-    def computed_in_mem(self):
-        """Whether the array is computed and stored in memory."""
-        return self._computed_in_mem
-
-    @computed_in_mem.setter
-    def computed_in_mem(self, val):
-        if val:
-            # any time we pull something into memory, it must be initialized.
-            self.initialized = True
-        self._computed_in_mem = bool(val)
-
-    @property
-    def on_disk(self):
-        """Whether the array is computed and store on disk."""
-        return self._on_disk
-
-    @on_disk.setter
-    def on_disk(self, val):
-        self._on_disk = bool(val)
-
-    @property
-    def computed(self):
+    def is_computed(self) -> bool:
         """Whether the array is computed anywhere."""
         return self.computed_in_mem or self.on_disk
 
     @property
-    def c_has_active_memory(self):
+    def c_has_active_memory(self) -> bool:
         """Whether C currently has initialized memory for this array."""
         return self.c_memory and self.initialized
 
-    def __str__(self):
+    def __str__(self) -> str:
         """Returns a string representation of the ArrayState."""
         if self.computed_in_mem:
             return "computed (in mem)"

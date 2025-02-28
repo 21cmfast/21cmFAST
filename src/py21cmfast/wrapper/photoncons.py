@@ -2,43 +2,30 @@
 Module for the photon conservation models.
 
 The excursion set reionisation model applied in ionize_box does not conserve photons.
-as a result there is an offset between the expected global ionized fraction and the value
+As a result there is an offset between the expected global ionized fraction and the value
 calculated from the ionized bubble maps. These models apply approximate corrections in order
 to bring the bubble maps more in line with the expected global values.
 
-The application of the model is controlled by the flag option PHOTON_CONS_TYPE, which can take 4 values:
+The application of the model is controlled by the flag option PHOTON_CONS_TYPE, which
+can take 4 values:
 
-0: No correction is applied
+0. No correction is applied
+1. We use the ionizing emissivity grids from a different redshift when calculating
+   ionized bubble maps, this mapping from one redshift to another is obtained by
+   performing a calibration simulation and measuring its redshift difference with the
+   expected global evolution.
+2. The power-law slope of the ionizing escape fraction is adjusted, using a fit
+   ALPHA_ESC -> X + Y*Q(z), where Q is the expected global ionized fraction. This
+   relation is fit by performing a calibration simulation as in (1), and comparing it to
+   a range of expected global histories with different power-law slopes.
+3. The normalisation of the ionizing escape fraction is adjusted, using a fit
+   F_ESC10 -> X + Y*Q(z), where Q is the expected global ionized fraction. This relation
+   is fit by performing a calibration simulation as in (1), and taking its ratio with
+   the expected global evolution.
 
-1: We use the ionizing emissivity grids from a different redshift when calculating ionized bubble maps, this
-    mapping from one redshift to another is obtained by performing a calibration simulation and measuring its
-    redshift difference with the expected global evolution.
-
-2: The power-law slope of the ionizing escape fraction is adjusted, using a fit ALPHA_ESC -> X + Y*Q(z), where Q is the
-    expected global ionized fraction. This relation is fit by performing a calibration simulation as in (1), and
-    comparing it to a range of expected global histories with different power-law slopes
-
-3: The normalisation of the ionizing escape fraction is adjusted, using a fit F_ESC10 -> X + Y*Q(z), where Q is the
-    expected global ionized fraction. This relation is fit by performing a calibration simulation as in (1), and
-    taking its ratio with the expected global evolution
-
-"""
-
-import logging
-import numpy as np
-from copy import deepcopy
-from scipy.optimize import curve_fit
-
-from ..c_21cmfast import ffi, lib
-from ._utils import _process_exitcode
-from .inputs import AstroParams, CosmoParams, FlagOptions, UserParams
-
-logger = logging.getLogger(__name__)
-
-
-"""
-NOTES:
-    The function map for the photon conservation model looks like:
+Notes
+-----
+The function map for the photon conservation model looks like::
 
     wrapper.run_lightcone/coeval()
         setup_photon_cons_correction()
@@ -61,6 +48,18 @@ NOTES:
                     get_fesc_fit() --> applies the fit to the current redshift
 
 """
+
+import logging
+import numpy as np
+from scipy.optimize import curve_fit
+
+from ..c_21cmfast import ffi, lib
+from ..drivers._param_config import check_consistency_of_outputs_with_inputs
+from ._utils import _process_exitcode
+from .inputs import AstroParams, CosmoParams, FlagOptions, InputParameters, UserParams
+from .outputs import InitialConditions
+
+logger = logging.getLogger(__name__)
 
 
 def _init_photon_conservation_correction(
@@ -106,7 +105,7 @@ def _calc_zstart_photon_cons():
     return _call_c_simple(lib.ComputeZstart_PhotonCons)
 
 
-def _get_photon_nonconservation_data():
+def _get_photon_nonconservation_data() -> dict:
     """
     Access C global data representing the photon-nonconservation corrections.
 
@@ -128,7 +127,7 @@ def _get_photon_nonconservation_data():
     """
     # Check if photon conservation has been initialised at all
     if not lib.photon_cons_allocated:
-        return None
+        return {}
 
     arbitrary_large_size = 2000
 
@@ -186,11 +185,9 @@ def _get_photon_nonconservation_data():
 
 
 def setup_photon_cons(
-    inputs,
-    regenerate,
-    hooks,
-    direc,
-    initial_conditions=None,
+    inputs: InputParameters | None = None,
+    initial_conditions: InitialConditions | None = None,
+    **kwargs,
 ):
     r"""
     Set up the photon non-conservation correction.
@@ -205,44 +202,34 @@ def setup_photon_cons(
 
     Parameters
     ----------
-    user_params : `~UserParams`, optional
-        Defines the overall options and parameters of the run.
-    astro_params : :class:`~AstroParams`, optional
-        Defines the astrophysical parameters of the run.
-    cosmo_params : :class:`~CosmoParams`, optional
-        Defines the cosmological parameters used to compute initial conditions.
-    flag_options: :class:`~FlagOptions`, optional
-        Options concerning how the reionization process is run, eg. if spin temperature
-        fluctuations are required.
+    inputs
+        An InputParameters instance.
     initial_conditions : :class:`~InitialConditions`, optional
-        If given, the user and cosmo params will be set from this object, and it will not be
+        If given, the `inputs` will be set from this object, and it will not be
         re-calculated.
 
     Other Parameters
     ----------------
-    regenerate, write
-        See docs of :func:`initial_conditions` for more information.
+    Any other parameters able to be passed to :func:`compute_initial_conditions`.
     """
-    from ..drivers.single_field import _get_config_options
-
-    direc, regenerate, hooks = _get_config_options(direc, regenerate, None, hooks)
-
-    logger.info(
-        f"Setting up photon conservation correction for {inputs.flag_options.PHOTON_CONS_TYPE}"
-    )
+    if inputs is None:
+        if initial_conditions is None:
+            raise ValueError(
+                "At least one of 'inputs' or 'initial_conditions' must be provided."
+            )
+        else:
+            inputs = initial_conditions.inputs
 
     if inputs.flag_options.PHOTON_CONS_TYPE == "no-photoncons":
-        return
+        return {}
 
-    inputs.check_output_compatibility([initial_conditions])
+    check_consistency_of_outputs_with_inputs(inputs, [initial_conditions])
 
     # calculate global and calibration simulation xH histories and save them in C
     calibrate_photon_cons(
         inputs=inputs,
-        regenerate=regenerate,
-        hooks=hooks,
-        direc=direc,
         initial_conditions=initial_conditions,
+        **kwargs,
     )
 
     # The PHOTON_CONS_TYPE == 1 case is handled in C (for now....), but we get the data anyway
@@ -269,34 +256,24 @@ def setup_photon_cons(
 
 
 def calibrate_photon_cons(
-    inputs,
-    regenerate,
-    hooks,
-    direc,
-    initial_conditions,
+    inputs: InputParameters,
+    initial_conditions: InitialConditions | None,
+    **kwargs,
 ):
     r"""
-    Performs the photon conservation calibration simulation.
+    Perform a photon conservation calibration simulation.
 
     Parameters
     ----------
-    user_params : `~UserParams`, optional
-        Defines the overall options and parameters of the run.
-    astro_params : :class:`~AstroParams`, optional
-        Defines the astrophysical parameters of the run.
-    cosmo_params : :class:`~CosmoParams`, optional
-        Defines the cosmological parameters used to compute initial conditions.
-    flag_options: :class:`~FlagOptions`, optional
-        Options concerning how the reionization process is run, eg. if spin temperature
-        fluctuations are required.
+    inputs
+        An InputParameters instance.
     initial_conditions : :class:`~InitialConditions`, optional
-        If given, the user and cosmo params will be set from this object, and it will not be
+        If given, the `inputs` will be set from this object, and it will not be
         re-calculated.
 
     Other Parameters
     ----------------
-    regenerate, write
-        See docs of :func:`initial_conditions` for more information.
+    See docs of :func:`compute_initial_conditions` for more information.
     """
     # avoiding circular imports by importing here
     from ..drivers.single_field import compute_ionization_field, perturb_field
@@ -321,9 +298,16 @@ def calibrate_photon_cons(
     prev_perturb = None
 
     # Arrays for redshift and neutral fraction for the calibration curve
-    z_for_photon_cons = []
     neutral_fraction_photon_cons = []
 
+    # Initialise the analytic expression for the reionisation history
+    logger.info("About to start photon conservation correction")
+    _init_photon_conservation_correction(
+        user_params=inputs.user_params,
+        cosmo_params=inputs.cosmo_params,
+        astro_params=inputs.astro_params,
+        flag_options=inputs.flag_options,
+    )
     # Initialise the analytic expression for the reionisation history
     logger.info("About to start photon conservation correction")
     _init_photon_conservation_correction(
@@ -338,6 +322,12 @@ def calibrate_photon_cons(
     logger.info("Calculating photon conservation zstart")
     z = _calc_zstart_photon_cons()
 
+    fast_node_redshifts = [z]
+
+    # NOTE: Not checking any redshift consistency for the calibration run
+    #   Since the z-step is Q-dependent, we can't predict the redshifts
+    inputs_calibration = inputs_calibration.clone(node_redshifts=None)
+
     while z > inputs.astro_params.PHOTONCONS_CALIBRATION_END:
         # Determine the ionisation box with recombinations, spin temperature etc.
         # turned off.
@@ -345,9 +335,7 @@ def calibrate_photon_cons(
             redshift=z,
             inputs=inputs_calibration,
             initial_conditions=initial_conditions,
-            regenerate=regenerate,
-            hooks=hooks,
-            direc=direc,
+            **kwargs,
         )
 
         ib2 = compute_ionization_field(
@@ -356,16 +344,13 @@ def calibrate_photon_cons(
             initial_conditions=initial_conditions,
             perturbed_field=this_perturb,
             previous_perturbed_field=prev_perturb,
-            regenerate=regenerate,
-            hooks=hooks,
-            direc=direc,
+            **kwargs,
         )
 
-        mean_nf = np.mean(ib2.xH_box)
+        mean_nf = np.mean(ib2.get("xH_box"))
 
         # Save mean/global quantities
         neutral_fraction_photon_cons.append(mean_nf)
-        z_for_photon_cons.append(z)
 
         # Can speed up sampling in regions where the evolution is slower
         if 0.3 < mean_nf <= 0.9:
@@ -379,15 +364,17 @@ def calibrate_photon_cons(
         if inputs.flag_options.USE_MINI_HALOS:
             prev_perturb = this_perturb
 
-    z_for_photon_cons = np.array(z_for_photon_cons[::-1])
+        fast_node_redshifts.append(z)
+
+    fast_node_redshifts = np.array(fast_node_redshifts[::-1])
     neutral_fraction_photon_cons = np.array(neutral_fraction_photon_cons[::-1])
 
     # Construct the spline for the calibration curve
     logger.info("Calibrating photon conservation correction")
     _calibrate_photon_conservation_correction(
-        redshifts_estimate=z_for_photon_cons,
+        redshifts_estimate=fast_node_redshifts,
         nf_estimate=neutral_fraction_photon_cons,
-        NSpline=len(z_for_photon_cons),
+        NSpline=len(fast_node_redshifts),
     )
 
 

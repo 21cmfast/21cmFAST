@@ -401,6 +401,7 @@ void setup_first_z_prevbox(IonizedBox *previous_ionize_box, PerturbedField *prev
             }
         }
     }
+
 }
 
 void calculate_mcrit_boxes(IonizedBox *prev_ionbox, TsBox *spin_temp, InitialConditions *ini_boxes, struct IonBoxConstants *consts,

@@ -20,7 +20,7 @@ jobs:
       PYTHON: ${{ matrix.python-version }}
       OS: ${{ matrix.os }}
       CC: gcc
-    name: Testing
+    name: Sans Integration Tests
     runs-on: ${{ matrix.os }}
     strategy:
       fail-fast: false
@@ -45,7 +45,6 @@ jobs:
         uses: conda-incubator/setup-miniconda@v3
         with:
           # auto-update-conda: true
-          mamba-version: "*"
           channels: conda-forge,defaults
           python-version: ${{ matrix.python-version }}
           environment-file: ci/${{ matrix.os }}-env.yml

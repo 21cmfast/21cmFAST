@@ -35,7 +35,7 @@ sys.modules.update((mod_name, Mock()) for mod_name in MOCK_MODULES)
 out = subprocess.run(["python", "setup.py", "--version"], capture_output=True)
 
 try:
-    from py21cmfast import cache_tools
+    from py21cmfast.io import cache_tools
 except ImportError:
     raise 
     

@@ -2,22 +2,23 @@ import pytest
 
 import logging
 import os
-from astropy import units as un
+from pathlib import Path
 
 from py21cmfast import (
     AstroParams,
     CosmoParams,
     FlagOptions,
+    InitialConditions,
     InputParameters,
+    OutputCache,
     UserParams,
     compute_initial_conditions,
     config,
-    exhaust_lightcone,
     get_logspaced_redshifts,
     perturb_field,
     run_lightcone,
 )
-from py21cmfast.cache_tools import clear_cache
+from py21cmfast.io.caching import CacheConfig
 from py21cmfast.lightcones import RectilinearLightconer
 
 
@@ -61,9 +62,6 @@ def module_direc(tmp_path_factory):
 
     printdir(direc)
 
-    # Clear all cached items created.
-    clear_cache(direc=str(direc))
-
     # Set direc back to original.
     config["direc"] = original
 
@@ -78,8 +76,6 @@ def test_direc(tmp_path_factory):
     yield direc
 
     printdir(direc)
-    # Clear all cached items created.
-    clear_cache(direc=str(direc))
 
     # Set direc back to original.
     config["direc"] = original
@@ -94,7 +90,6 @@ def setup_and_teardown_package(tmpdirec, request):
     # ------ #
 
     # Set default config parameters for all tests.
-    config["direc"] = str(tmpdirec)
     config["regenerate"] = True
     config["write"] = False
 
@@ -105,8 +100,6 @@ def setup_and_teardown_package(tmpdirec, request):
     yield
 
     printdir(tmpdirec)
-
-    clear_cache(direc=str(tmpdirec))
 
 
 # ======================================================================================
@@ -175,7 +168,7 @@ def default_input_struct(
         astro_params=default_astro_params,
         user_params=default_user_params,
         flag_options=default_flag_options,
-        node_redshifts=[],
+        node_redshifts=(),
     )
 
 
@@ -192,22 +185,27 @@ def default_input_struct_ts(redshift, default_input_struct, default_flag_options
 
 
 @pytest.fixture(scope="session")
-def default_input_struct_lc(lightcone_min_redshift, max_redshift, default_input_struct):
+def default_input_struct_lc(lightcone_min_redshift, default_input_struct):
     return default_input_struct.clone(
         node_redshifts=get_logspaced_redshifts(
             min_redshift=lightcone_min_redshift,
-            max_redshift=max_redshift,
+            max_redshift=default_input_struct.user_params.Z_HEAT_MAX,
             z_step_factor=default_input_struct.user_params.ZPRIME_STEP_FACTOR,
         )
     )
 
 
 @pytest.fixture(scope="session")
-def ic(default_input_struct, tmpdirec):
+def cache(tmpdirec: Path):
+    return OutputCache(tmpdirec)
+
+
+@pytest.fixture(scope="session")
+def ic(default_input_struct, cache) -> InitialConditions:
     return compute_initial_conditions(
         inputs=default_input_struct,
         write=True,
-        direc=tmpdirec,
+        cache=cache,
     )
 
 
@@ -235,14 +233,30 @@ def low_redshift():
 
 
 @pytest.fixture(scope="session")
-def perturbed_field(ic, default_input_struct, redshift, tmpdirec):
-    """A default perturb_field"""
+def perturbed_field(ic, redshift, cache):
+    """A default PerturbedField"""
     return perturb_field(
         redshift=redshift,
-        inputs=default_input_struct,
         initial_conditions=ic,
         write=True,
-        direc=tmpdirec,
+        cache=cache,
+    )
+
+
+@pytest.fixture(scope="session")
+def perturbed_field_lc(
+    ic: InitialConditions,
+    default_input_struct_lc: InputParameters,
+    redshift: float,
+    cache,
+):
+    """A default PerturbedField for a lightcone (which requires node_redshifts)."""
+    return perturb_field(
+        redshift=redshift,
+        inputs=default_input_struct_lc,
+        initial_conditions=ic,
+        write=True,
+        cache=cache,
     )
 
 
@@ -259,11 +273,12 @@ def rectlcn(
 
 
 @pytest.fixture(scope="session")
-def lc(rectlcn, ic, default_input_struct_lc):
-    iz, z, coev, lc = exhaust_lightcone(
+def lc(rectlcn, ic, cache, default_input_struct_lc):
+    *_, lc = run_lightcone(
         lightconer=rectlcn,
         initial_conditions=ic,
         inputs=default_input_struct_lc,
-        write=True,
+        write=CacheConfig(),
+        cache=cache,
     )
     return lc

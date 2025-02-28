@@ -20,7 +20,7 @@ jobs:
     env:
       PYTHON: ${{ matrix.python-version }}
       CC: gcc
-    name: Testing
+    name: Test MacOS Build
     runs-on: ${{ matrix.os }}
     strategy:
       fail-fast: false
@@ -46,7 +46,6 @@ jobs:
         uses: conda-incubator/setup-miniconda@v3
         with:
           # auto-update-conda: true
-          mamba-version: "*"
           channels: conda-forge,defaults
           python-version: ${{ matrix.python-version }}
           environment-file: ci/macos-latest-env.yml

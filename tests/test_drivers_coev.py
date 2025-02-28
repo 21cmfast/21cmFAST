@@ -10,35 +10,25 @@ import py21cmfast as p21c
 from py21cmfast import run_coeval
 
 
-def test_coeval_st(ic, default_input_struct_ts, perturbed_field):
+def test_coeval_st(ic, default_input_struct_ts, cache):
     coeval = run_coeval(
         initial_conditions=ic,
-        perturbed_field=perturbed_field,
         inputs=default_input_struct_ts,
+        cache=cache,
     )
-    assert isinstance(coeval.spin_temp_struct, p21c.TsBox)
+    assert isinstance(coeval[0].ts_box, p21c.TsBox)
 
 
-def test_run_coeval_bad_inputs(
-    ic, perturbed_field, default_input_struct, default_flag_options
-):
+def test_run_coeval_bad_inputs(ic, perturbed_field, default_input_struct, cache):
     with pytest.raises(
-        ValueError, match="Either out_redshifts or perturb must be given"
+        ValueError, match="out_redshifts must be given if inputs has no node redshifts"
     ):
-        run_coeval(
-            initial_conditions=ic,
-            inputs=default_input_struct,
-        )
-
-    with pytest.raises(ValueError, match="Input redshifts"):
-        run_coeval(
-            out_redshifts=20.0,
-            inputs=default_input_struct,
-            perturbed_field=perturbed_field,
-        )
+        run_coeval(initial_conditions=ic, inputs=default_input_struct, cache=cache)
 
 
-def test_coeval_lowerz_than_photon_cons(ic, default_input_struct, default_flag_options):
+def test_coeval_lowerz_than_photon_cons(
+    ic, default_input_struct, default_flag_options, cache
+):
     with pytest.raises(ValueError, match="You have passed a redshift"):
         run_coeval(
             initial_conditions=ic,
@@ -48,4 +38,5 @@ def test_coeval_lowerz_than_photon_cons(ic, default_input_struct, default_flag_o
                     PHOTON_CONS_TYPE="z-photoncons",
                 )
             ),
+            cache=cache,
         )

@@ -279,9 +279,9 @@ void init_FcollTable(double zmin, double zmax, bool x_ray){
 //NOTE: SFRD tables have fixed Mturn range, Nion tables vary
 //NOTE: it would be slightly less accurate but maybe faster to tabulate in linear delta, linear Fcoll
 //  rather than linear-log, check the profiles
-void initialise_Nion_Conditional_spline(float z, float Mcrit_atom, float min_density, float max_density,
-                                     float Mmin, float Mmax, float Mcond, float log10Mturn_min, float log10Mturn_max,
-                                     float log10Mturn_min_MINI, float log10Mturn_max_MINI, float Alpha_star,
+void initialise_Nion_Conditional_spline(double z, double Mcrit_atom, double min_density, double max_density,
+                                     double Mmin, double Mmax, double Mcond, double log10Mturn_min, double log10Mturn_max,
+                                     double log10Mturn_min_MINI, double log10Mturn_max_MINI, float Alpha_star,
                                      float Alpha_star_mini, float Alpha_esc, float Fstar10, float Fesc10,
                                      float Mlim_Fstar, float Mlim_Fesc, float Fstar7_MINI, float Fesc7_MINI,
                                      float Mlim_Fstar_MINI, float Mlim_Fesc_MINI, int method, int method_mini,

@@ -90,9 +90,7 @@ class Config(dict):
     """Simple over-ride of dict that adds a context manager."""
 
     _defaults = {
-        "direc": Path("~/21cmFAST-cache").expanduser(),
-        "regenerate": False,
-        "write": True,
+        "direc": "~/21cmFAST-cache",
         "cache_param_sigfigs": 6,
         "cache_redshift_sigfigs": 4,
         "ignore_R_BUBBLE_MAX_error": False,

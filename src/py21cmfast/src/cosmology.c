@@ -383,7 +383,7 @@ double power_in_vcb(double k){
 }
 
 
-double init_ps(){
+void init_ps(){
     double result, error, lower_limit, upper_limit;
     gsl_function F;
     double rel_tol  = FRACT_FLOAT_ERR*10; //<- relative tolerance

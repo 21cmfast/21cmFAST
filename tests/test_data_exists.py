@@ -1,6 +1,6 @@
 import pytest
 
-from py21cmfast.wrapper.inputs import DATA_PATH
+from py21cmfast import DATA_PATH
 
 
 @pytest.fixture(scope="module")
