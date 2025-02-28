@@ -89,9 +89,9 @@ void initialise_Nion_Ts_spline(int Nbin, float zmin, float zmax, float Alpha_sta
                                 float Fesc10, float Fstar7_MINI, float Fesc7_MINI, float mturn_a_const, bool minihalos);
 void initialise_FgtrM_delta_table(double min_dens, double max_dens, double zpp, double growth_zpp, double smin_zpp, double smax_zpp);
 void init_FcollTable(double zmin, double zmax, bool x_ray);
-void initialise_Nion_Conditional_spline(float z, float Mcrit_atom, float min_density, float max_density,
-                                     float Mmin, float Mmax, float Mcond, float log10Mturn_min, float log10Mturn_max,
-                                     float log10Mturn_min_MINI, float log10Mturn_max_MINI, float Alpha_star,
+void initialise_Nion_Conditional_spline(double z, double Mcrit_atom, double min_density, double max_density,
+                                     double Mmin, double Mmax, double Mcond, double log10Mturn_min, double log10Mturn_max,
+                                     double log10Mturn_min_MINI, double log10Mturn_max_MINI, float Alpha_star,
                                      float Alpha_star_mini, float Alpha_esc, float Fstar10, float Fesc10,
                                      float Mlim_Fstar, float Mlim_Fesc, float Fstar7_MINI, float Fesc7_MINI,
                                      float Mlim_Fstar_MINI, float Mlim_Fesc_MINI, int method, int method_mini,
@@ -131,7 +131,7 @@ double EvaluatedSigmasqdm(double lnM);
 /*--------------------------------*/
 
 /*HMF Integrals*/
-void initialise_GL(float lnM_Min, float lnM_Max);
+void initialise_GL(double lnM_Min, double lnM_Max);
 double Nhalo_Conditional(double growthf, double lnM1, double lnM2, double M_cond, double sigma, double delta, int method);
 double Mcoll_Conditional(double growthf, double lnM1, double lnM2, double M_cond, double sigma, double delta, int method);
 double Nion_ConditionalM(double growthf, double lnM1, double lnM2, double M_cond, double sigma2, double delta2, double MassTurnover,

@@ -244,7 +244,6 @@ def read_output_struct(
         outputs["redshift"] = redshift
     kls = getattr(ostruct, struct)
     out = kls(inputs=inputs, **outputs)
-    out.sync()  # maybe we shouldn't do this
     return out
 
 
