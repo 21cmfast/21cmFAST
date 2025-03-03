@@ -383,10 +383,8 @@ LOG_DEBUG("first redshift, do some initialization");
             R_BUBBLE_MAX = 25.483241248322766 / cosmo_params->hlittle;
         else
             R_BUBBLE_MAX = 112 / cosmo_params->hlittle * pow( (1.+redshift) / 5. , -4.4);
-        if (flag_options->USE_MINI_HALOS){
-            R_BUBBLE_MAX_MAX = astro_params->R_BUBBLE_MAX;
-            LOG_DEBUG("set max radius at this redshift as  %f vs all %f", R_BUBBLE_MAX,  R_BUBBLE_MAX_MAX);
-        }
+        R_BUBBLE_MAX_MAX = astro_params->R_BUBBLE_MAX;
+        LOG_DEBUG("set max radius at this redshift as  %f vs all %f", R_BUBBLE_MAX,  R_BUBBLE_MAX_MAX);
     }
     else
         R_BUBBLE_MAX = astro_params->R_BUBBLE_MAX;
@@ -789,7 +787,7 @@ LOG_SUPER_DEBUG("excursion set normalisation, mean_f_coll_MINI: %e", box->mean_f
         // loop through the filter radii (in Mpc)
         R=fmax(global_params.R_BUBBLE_MIN, (cell_length_factor*user_params->BOX_LEN/(float)user_params->HII_DIM));
 
-        if ((flag_options->EVOLVING_R_BUBBLE_MAX) && (flag_options->USE_MINI_HALOS))
+        if (flag_options->EVOLVING_R_BUBBLE_MAX)
             R_BUBBLE_MAX_tmp = R_BUBBLE_MAX_MAX;
         else
             R_BUBBLE_MAX_tmp = R_BUBBLE_MAX;
@@ -1295,8 +1293,8 @@ LOG_ULTRA_DEBUG("while loop for until RtoM(R)=%f reaches M_MIN=%f", RtoM(R), M_M
             }
 
             box->ST_over_PS[counter] = box->mean_f_coll/f_coll;
-			if (flag_options->USE_MINI_HALOS)
-              box->ST_over_PS_MINI[counter] = box->mean_f_coll_MINI/f_coll_MINI;
+            if (flag_options->USE_MINI_HALOS)
+                box->ST_over_PS_MINI[counter] = box->mean_f_coll_MINI/f_coll_MINI;
 
             //////////////////////////////  MAIN LOOP THROUGH THE BOX ///////////////////////////////////
             // now lets scroll through the filtered box
@@ -1347,6 +1345,7 @@ LOG_ULTRA_DEBUG("while loop for until RtoM(R)=%f reaches M_MIN=%f", RtoM(R), M_M
                             }
                             else{
                                 f_coll_MINI = 0.;
+                                previous_f_coll_MINI = 0.;
                             }
 
                             if (LAST_FILTER_STEP){
@@ -1390,11 +1389,13 @@ LOG_ULTRA_DEBUG("while loop for until RtoM(R)=%f reaches M_MIN=%f", RtoM(R), M_M
                                 // This is for the evolving Rmax case in minihalo runs
                                 // We need to make sure the filtering radii are consitent across all snapshots
                                 // But we do not need, at higher redshift, to assign reionization for radius larger than the real Rmax
-                                if (~((flag_options->EVOLVING_R_BUBBLE_MAX) && (flag_options->USE_MINI_HALOS) && (R > R_BUBBLE_MAX))){
+                                if (~((flag_options->EVOLVING_R_BUBBLE_MAX) && (R > R_BUBBLE_MAX))){
                                 // if this is the first crossing of the ionization barrier for this cell (largest R), record the gamma
                                 // this assumes photon-starved growth of HII regions...  breaks down post EoR
                                 if (flag_options->INHOMO_RECO && (box->xH_box[HII_R_INDEX(x,y,z)] > FRACT_FLOAT_ERR) ){
                                     box->Gamma12_box[HII_R_INDEX(x,y,z)] = Gamma_R_prefactor * ( f_coll - previous_f_coll) + Gamma_R_prefactor_MINI * ( f_coll_MINI - previous_f_coll_MINI );
+//                                    if (box->Gamma12_box[HII_R_INDEX(x,y,z)] < 0)
+ //                                       box->Gamma12_box[HII_R_INDEX(x,y,z)] = 0.0;
                                     box->MFP_box[HII_R_INDEX(x,y,z)] = R;
                                     box->Nion_box[HII_R_INDEX(x,y,z)] = f_coll * ION_EFF_FACTOR + f_coll_MINI * ION_EFF_FACTOR_MINI;
                                 }
@@ -1659,16 +1660,16 @@ LOG_SUPER_DEBUG("freed fftw boxes");
 
     if (prev_redshift < 1){
         free(previous_ionize_box->z_re_box);
-		if (flag_options->INHOMO_RECO)
+        if (flag_options->INHOMO_RECO)
             free(previous_ionize_box->Nrec_box);
         if (flag_options->USE_MASS_DEPENDENT_ZETA){
             free(previous_ionize_box->Fcoll);
-			free(previous_ionize_box->ST_over_PS);
-			if (flag_options->USE_MINI_HALOS){
+            free(previous_ionize_box->ST_over_PS);
+            if (flag_options->USE_MINI_HALOS){
               free(previous_ionize_box->Gamma12_box);
               free(previous_ionize_box->Fcoll_MINI);
-			  free(previous_ionize_box->ST_over_PS_MINI);
-			}
+              free(previous_ionize_box->ST_over_PS_MINI);
+            }
 
         }
     }
