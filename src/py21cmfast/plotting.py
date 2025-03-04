@@ -494,9 +494,13 @@ def plot_global_history(
     else:
         value = getattr(lightcone, "global_" + kind)
 
-    sel = np.array(lightcone.node_redshifts) < zmax if zmax is not None else Ellipsis
+    sel = (
+        np.array(lightcone.inputs.node_redshifts) < zmax
+        if zmax is not None
+        else Ellipsis
+    )
 
-    ax.plot(np.array(lightcone.node_redshifts)[sel], value[sel], **kwargs)
+    ax.plot(np.array(lightcone.inputs.node_redshifts)[sel], value[sel], **kwargs)
     ax.set_xlabel("Redshift")
     if ylabel is None:
         ylabel = kind
