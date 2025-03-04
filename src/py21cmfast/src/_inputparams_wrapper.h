@@ -1,12 +1,3 @@
-/*We need to explicitly define the types used by the warpper using ffi.cdef()
-    However, that function does not take directives, so we separate the types here
-*/
-//WARNING: DO NOT #include THIS FILE IN THE C CODE EXCEPT FOR IN InputParameters.h
-
-
-// #ifdef __cplusplus
-// extern "C" {
-// #endif
 
 typedef struct CosmoParams{
 
@@ -215,7 +206,3 @@ extern AstroParams *astro_params_global;
 extern FlagOptions *flag_options_global;
 
 extern GlobalParams global_params;
-
-// #ifdef __cplusplus
-// }
-// #endif

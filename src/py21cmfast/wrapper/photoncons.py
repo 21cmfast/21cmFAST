@@ -149,6 +149,8 @@ def _get_photon_nonconservation_data():
     c_int_NC = ffi.cast("int *", ffi.from_buffer(IntVal2))
     c_int_NP = ffi.cast("int *", ffi.from_buffer(IntVal3))
 
+    c_int_NP = IntVal3.ctypes.data_as(c_void_p)
+
     # Run the C code
     errcode = lib.ObtainPhotonConsData(
         c_z_at_Q,

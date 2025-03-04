@@ -2,8 +2,7 @@
 #define _PARAMSTRUCTURES_H
 
 #include <stdbool.h>
-//since ffi.cdef() cannot include directives, we store the types and globals in another file
-//  Since it is unguarded, make sure to ONLY include this file from here
+// Since it is unguarded, make sure to ONLY include this file from here
 #include "_inputparams_wrapper.h"
 
 #ifdef __cplusplus
