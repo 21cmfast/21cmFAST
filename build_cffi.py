@@ -21,8 +21,8 @@ ffi = FFI()
 
 LOCATION = Path(__file__).resolve().parent
 CLOC = LOCATION / "src" / "py21cmfast" / "src"
-include_dirs = [CLOC]
-c_files = [fl.relative_to(LOCATION) for fl in sorted(CLOC.glob("*.c"))]
+include_dirs = [str(CLOC)]
+c_files = [str(fl.relative_to(LOCATION)) for fl in sorted(CLOC.glob("*.c"))]
 
 # Set the C-code logging level.
 # If DEBUG is set, we default to the highest level, but if not,
