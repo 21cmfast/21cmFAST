@@ -3,7 +3,6 @@
 
 import os
 import re
-from os.path import dirname, expanduser, join
 from pathlib import Path
 
 from setuptools import find_packages, setup
