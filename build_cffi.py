@@ -3,6 +3,8 @@
 import os
 import sys
 import sysconfig
+from pathlib import Path
+
 from cffi import FFI
 
 # Get the compiler. We support gcc and clang.
@@ -17,15 +19,11 @@ else:
 
 ffi = FFI()
 
-LOCATION = os.path.dirname(os.path.abspath(__file__))
-CLOC = os.path.join(LOCATION, "src", "py21cmfast", "src")
+LOCATION = Path(__file__).resolve().parent
+CLOC = LOCATION / "src" / "py21cmfast" / "src"
 include_dirs = [CLOC]
 
-c_files = [
-    os.path.join("src", "py21cmfast", "src", f)
-    for f in os.listdir(CLOC)
-    if f.endswith(".c")
-]
+c_files = sorted(CLOC.glob("*.c"))
 
 # Set the C-code logging level.
 # If DEBUG is set, we default to the highest level, but if not,
@@ -47,12 +45,12 @@ if isinstance(log_level, str) and log_level.upper() in available_levels:
 
 try:
     log_level = int(log_level)
-except ValueError:
+except ValueError as e:
     # note: for py35 support, can't use f strings.
     raise ValueError(
         "LOG_LEVEL must be specified as a positive integer, or one "
-        "of {}".format(available_levels)
-    )
+        f"of {available_levels}"
+    ) from e
 
 # ==================================================
 # Set compilation arguments dependent on environment
@@ -113,11 +111,11 @@ ffi.set_source(
 )
 
 # Header files containing types, globals and function prototypes
-with open(os.path.join(CLOC, "_inputparams_wrapper.h")) as f:
+with (CLOC / "_inputparams_wrapper.h").open() as f:
     ffi.cdef(f.read())
-with open(os.path.join(CLOC, "_outputstructs_wrapper.h")) as f:
+with (CLOC / "_outputstructs_wrapper.h").open() as f:
     ffi.cdef(f.read())
-with open(os.path.join(CLOC, "_functionprototypes_wrapper.h")) as f:
+with (CLOC / "_functionprototypes_wrapper.h").open() as f:
     ffi.cdef(f.read())
 
 # CFFI needs to be able to access a free function to make the __del__ method for OutputStruct fields

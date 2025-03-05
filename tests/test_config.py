@@ -1,5 +1,6 @@
-import pytest
+"""Test the universal configuration module."""
 
+import pytest
 import yaml
 
 import py21cmfast as p21
@@ -15,14 +16,14 @@ def test_config_write(cfgdir):
     with p21.config.use(direc=str(cfgdir)):
         p21.config.write(cfgdir / "config.yml")
 
-    with open(cfgdir / "config.yml") as fl:
+    with (cfgdir / "config.yml").open() as fl:
         new_config = yaml.load(fl, Loader=yaml.FullLoader)
 
     # Test adding new kind of string alias
     new_config["boxdir"] = new_config["direc"]
     del new_config["direc"]
 
-    with open(cfgdir / "config.yml", "w") as fl:
+    with (cfgdir / "config.yml").open("w") as fl:
         yaml.dump(new_config, fl)
 
     with pytest.raises(ConfigurationError):

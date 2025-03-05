@@ -1,13 +1,11 @@
-"""
-Unit tests for input structures
-"""
-
-import pytest
+"""Unit tests for input structures."""
 
 import pickle
-import tomllib
 import warnings
 from pathlib import Path
+
+import pytest
+import tomllib
 
 from py21cmfast import (
     AstroParams,
@@ -26,7 +24,7 @@ def c():
 
 
 def test_diff(c):
-    """Ensure that the python dict has all fields"""
+    """Ensure that the python dict has all fields."""
     d = CosmoParams(SIGMA_8=0.9)
 
     assert c is not d
@@ -265,7 +263,7 @@ def test_inputstruct_init(default_seed):
 
 def test_native_template_loading(default_seed):
     template_path = Path(__file__).parent.parent / "src/py21cmfast/templates/"
-    with open(template_path / "manifest.toml", "rb") as f:
+    with (template_path / "manifest.toml").open("rb") as f:
         manifest = tomllib.load(f)
 
     # check all files and all aliases work

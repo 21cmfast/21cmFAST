@@ -1,17 +1,19 @@
 """Module containing a driver function for creating lightcones."""
 
-import attrs
 import contextlib
-import h5py
 import logging
-import numpy as np
 import warnings
+from collections import deque
+from collections.abc import Sequence
+from pathlib import Path
+from typing import Self
+
+import attrs
+import h5py
+import numpy as np
 from astropy import units
 from astropy.cosmology import z_at_value
-from collections import deque
 from cosmotile import apply_rsds
-from pathlib import Path
-from typing import Self, Sequence
 
 from .. import __version__
 from ..c_21cmfast import lib
@@ -32,6 +34,10 @@ from .coeval import (
 )
 
 logger = logging.getLogger(__name__)
+
+
+_cache = CacheConfig()
+_ocache = OutputCache(".")
 
 
 @attrs.define()
@@ -90,7 +96,7 @@ class LightCone:
     @property
     def shape(self) -> tuple[int, int, int]:
         """Shape of the lightcone as a 3-tuple."""
-        return self.lightcones[list(self.lightcones.keys())[0]].shape
+        return self.lightcones[next(iter(self.lightcones.keys()))].shape
 
     @property
     def n_slices(self) -> int:
@@ -206,10 +212,10 @@ class LightCone:
             kwargs["photon_nonconservation_data"] = {k: v[...] for k, v in grp.items()}
 
             boxes = fl["lightcones"]
-            kwargs["lightcones"] = {k: boxes[k][...] for k in boxes.keys()}
+            kwargs["lightcones"] = {k: boxes[k][...] for k in boxes}
 
             glb = fl["global_quantities"]
-            kwargs["global_quantities"] = {k: glb[k][...] for k in glb.keys()}
+            kwargs["global_quantities"] = {k: glb[k][...] for k in glb}
             kwargs["lightcone_distances"] = fl["lightcone_distances"][...] * units.Mpc
 
         return cls(**kwargs)
@@ -258,7 +264,8 @@ class AngularLightcone(LightCone):
             )
         if "brightness_temp_with_rsds" in self.lightcones:
             warnings.warn(
-                "Lightcone already contains brightness_temp_with_rsds, returning"
+                "Lightcone already contains brightness_temp_with_rsds, returning",
+                stacklevel=2,
             )
             return self.lightcones["brightness_temp_with_rsds"]
 
@@ -322,7 +329,7 @@ def setup_lightcone_instance(
     photon_nonconservation_data: dict,
     lightcone_filename: Path | None = None,
 ) -> LightCone:
-    """Returns a LightCone instance given a lightconer as input."""
+    """Return a LightCone instance given a lightconer as input."""
     if lightcone_filename and Path(lightcone_filename).exists():
         lightcone = LightCone.from_file(lightcone_filename)
         idx = lightcone._last_completed_node
@@ -373,11 +380,11 @@ def _run_lightcone_from_perturbed_fields(
     pt_halos: list[PerturbHaloField],
     regenerate: bool | None = None,
     global_quantities: tuple[str] = ("brightness_temp", "xH_box"),
-    cache: OutputCache = OutputCache("."),
+    cache: OutputCache = _ocache,
     cleanup: bool = True,
-    write: CacheConfig = CacheConfig(),
+    write: CacheConfig = _cache,
     always_purge: bool = False,
-    lightcone_filename: str | Path = None,
+    lightcone_filename: str | Path | None = None,
 ):
     lightconer.validate_options(inputs.user_params, inputs.flag_options)
 
@@ -421,7 +428,8 @@ def _run_lightcone_from_perturbed_fields(
         warnings.warn(
             f"The cache at {cache} only contains complete coeval boxes for {idx + 1} redshift nodes, "
             f"instead of {lightcone._last_completed_node + 1}, which is the current checkpointing "
-            f"redshift of the lightcone. Repeating the higher-z calculations..."
+            f"redshift of the lightcone. Repeating the higher-z calculations...",
+            stacklevel=2,
         )
 
     lightcone._last_completed_node = idx
@@ -495,11 +503,11 @@ def generate_lightcone(
     global_quantities=("brightness_temp", "xH_box"),
     initial_conditions: InitialConditions | None = None,
     cleanup: bool = True,
-    write: CacheConfig = CacheConfig(),
-    cache: OutputCache = OutputCache("."),
+    write: CacheConfig = _cache,
+    cache: OutputCache | None = _ocache,
     regenerate: bool = True,
     always_purge: bool = False,
-    lightcone_filename: str | Path = None,
+    lightcone_filename: str | Path | None = None,
 ):
     r"""
     Create a generator function for a lightcone run.

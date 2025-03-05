@@ -1,10 +1,12 @@
 """Low-level python wrappers of C functions."""
 
 import logging
-import numpy as np
+from collections.abc import Sequence
 from functools import cache
+from typing import Literal
+
+import numpy as np
 from scipy.interpolate import interp1d
-from typing import Literal, Sequence
 
 from .._cfg import config
 from ..c_21cmfast import ffi, lib
@@ -329,7 +331,6 @@ def compute_luminosity_function(
         lfunc_all[lfunc_all <= -30] = np.nan
         return Muvfunc_all, Mhfunc_all, lfunc_all
     elif component == "acg":
-
         lfunc[lfunc <= -30] = np.nan
         return Muvfunc, Mhfunc, lfunc
     elif component == "mcg":
@@ -1303,7 +1304,7 @@ def halo_sample_test(
     redshift: float,
     from_cat: bool,
     cond_array,
-    redshift_prev: float = None,
+    redshift_prev: float | None = None,
     seed: int = 12345,
 ):
     """Constructs a halo sample given a descendant catalogue and redshifts."""
@@ -1347,7 +1348,6 @@ def halo_sample_test(
     return {
         "n_halo_total": nhalo_out[0],
         "halo_masses": halomass_out,
-        # 'halo_coords': halocrd_out,
         "n_progenitors": N_out,
         "progenitor_mass": M_out,
         "expected_progenitors": exp_N,

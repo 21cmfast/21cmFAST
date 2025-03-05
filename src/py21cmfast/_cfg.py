@@ -6,6 +6,7 @@ import contextlib
 import copy
 import warnings
 from pathlib import Path
+from typing import ClassVar
 
 from . import yaml
 from ._data import DATA_PATH
@@ -14,8 +15,6 @@ from .c_21cmfast import ffi, lib
 
 class ConfigurationError(Exception):
     """An error with the config file."""
-
-    pass
 
 
 # TODO: This has been moved for the sole purpose of avoiding circular imports, and should be moved back to structs.py
@@ -37,7 +36,7 @@ class StructInstanceWrapper:
         self._cobj = wrapped
         self._ffi = ffi
 
-        for nm, tp in self._ffi.typeof(self._cobj).fields:
+        for nm, _tp in self._ffi.typeof(self._cobj).fields:
             setattr(self, nm, getattr(self._cobj, nm))
 
         # Get the name of the structure
@@ -49,9 +48,12 @@ class StructInstanceWrapper:
             setattr(self._cobj, name, value)
         object.__setattr__(self, name, value)
 
+    def __iter__(self):
+        yield from self.keys()
+
     def items(self):
         """Yield (name, value) pairs for each element of the struct."""
-        for nm, tp in self._ffi.typeof(self._cobj).fields:
+        for nm, _tp in self._ffi.typeof(self._cobj).fields:
             yield nm, getattr(self, nm)
 
     def keys(self):
@@ -61,9 +63,7 @@ class StructInstanceWrapper:
     def __repr__(self):
         """Return a unique representation of the instance."""
         return (
-            self._ctype
-            + "("
-            + ";".join(f"{k}={str(v)}" for k, v in sorted(self.items()))
+            self._ctype + "(" + ";".join(f"{k}={v!s}" for k, v in sorted(self.items()))
         ) + ")"
 
     def filtered_repr(self, filter_params):
@@ -78,9 +78,7 @@ class StructInstanceWrapper:
             self._ctype
             + "("
             + ";".join(
-                f"{k}={str(v)}"
-                for k, v in sorted(self.items())
-                if k not in filter_params
+                f"{k}={v!s}" for k, v in sorted(self.items()) if k not in filter_params
             )
         ) + ")"
 
@@ -89,7 +87,7 @@ class StructInstanceWrapper:
 class Config(dict):
     """Simple over-ride of dict that adds a context manager."""
 
-    _defaults = {
+    _defaults: ClassVar = {
         "direc": "~/21cmFAST-cache",
         "cache_param_sigfigs": 6,
         "cache_redshift_sigfigs": 4,
@@ -108,7 +106,7 @@ class Config(dict):
             if k not in self:
                 self[k] = v
 
-        for k, v in self.items():
+        for k in self.keys():
             if k not in self._defaults:
                 raise ConfigurationError(
                     f"You passed the key '{k}' to config, which is not known to 21cmFAST."
@@ -118,19 +116,19 @@ class Config(dict):
 
         # since the subclass __setitem__ is not called in the super().__init__ call, we re-do the setting here
         # NOTE: This seems messy but I don't know a better way to do it
-        for k in self._c_config_settings.keys():
+        for k in self._c_config_settings:
             self._pass_to_backend(k, self[k])
 
     def __setitem__(self, key, value):
         """Set an item in the config. Also updating the backend if it exists there."""
         super().__setitem__(key, value)
-        if key in self._c_config_settings.keys():
+        if key in self._c_config_settings:
             self._pass_to_backend(key, value)
 
     def _pass_to_backend(self, key, value):
         """Set the value in the backend."""
         # we should possibly do a typemap for the ffi
-        if isinstance(value, (Path, str)):
+        if isinstance(value, Path | str):
             setattr(
                 self._c_config_settings, key, ffi.new("char[]", str(value).encode())
             )
@@ -153,11 +151,11 @@ class Config(dict):
             if not fname.parent.exists():
                 fname.parent.mkdir(parents=True)
 
-            with open(fname, "w") as fl:
+            with fname.open("w") as fl:
                 yaml.dump(self._as_dict(), fl)
 
     def _as_dict(self):
-        """The plain dict defining the instance."""
+        """Return a plain dict defining the instance."""
         return {k: str(Path) if isinstance(v, Path) else v for k, v in self.items()}
 
     @classmethod
@@ -166,7 +164,7 @@ class Config(dict):
         file_name = Path(file_name).expanduser().absolute()
 
         if file_name.exists():
-            with open(file_name) as fl:
+            with file_name.open() as fl:
                 cfg = yaml.load(fl)
             return cls(cfg, file_name=file_name)
         else:

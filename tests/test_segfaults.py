@@ -1,13 +1,12 @@
 """
-This file contains tests which run a lightcone under various flag options
-to test the C backend for segfaults.
-These will not test the outputs of the run past the fact that they are finite,
-just that the run completes without error
+Tests of running lightcones under various flag options.
+
+The aim is to test the C backend for segfaults. These will not test the outputs of the
+run past the fact that they are finite, just that the run completes without error.
 """
 
-import pytest
-
 import numpy as np
+import pytest
 
 import py21cmfast as p21c
 

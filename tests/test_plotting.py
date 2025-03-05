@@ -1,6 +1,4 @@
-"""
-Testing plots is kind of hard, but we just check that it runs through without crashing.
-"""
+"""Testing plots is kind of hard, but we just check that it runs through without crashing."""
 
 import pytest
 
@@ -14,10 +12,14 @@ def test_coeval_sliceplot(ic: p21c.InitialConditions):
     assert ax.xaxis.get_label().get_text() == "x-axis [Mpc]"
     assert ax.yaxis.get_label().get_text() == "y-axis [Mpc]"
 
-    with pytest.raises(ValueError):  # bad slice axis
+    with pytest.raises(
+        ValueError, match="slice_axis should be between -1 and 2"
+    ):  # bad slice axis
         plotting.coeval_sliceplot(ic, slice_axis=-2)
 
-    with pytest.raises(IndexError):  # tring to plot slice that doesn't exist
+    with pytest.raises(
+        IndexError, match="slice_index is too large"
+    ):  # tring to plot slice that doesn't exist
         plotting.coeval_sliceplot(ic, slice_index=50)
 
     fig2, ax2 = plotting.coeval_sliceplot(ic, fig=fig, ax=ax)

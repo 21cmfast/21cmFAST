@@ -1,14 +1,14 @@
 """Test of the Lightconer subclasses."""
 
-import pytest
+import re
+from dataclasses import dataclass
 
 import attr
 import numpy as np
-import re
+import pytest
 from astropy import units as un
 from astropy.cosmology import Planck18, z_at_value
 from astropy_healpix import HEALPix
-from dataclasses import dataclass
 from scipy.spatial.transform import Rotation
 
 from py21cmfast import (
@@ -69,6 +69,8 @@ def freqbased(equal_cdist):
 
 @dataclass
 class MockCoeval:
+    """A mock coeval object for testing."""
+
     redshift: float
     brightness_temp: np.ndarray
     user_params: UserParams

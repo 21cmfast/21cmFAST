@@ -1,16 +1,17 @@
 """Module that contains the command line app."""
 
-import attrs
 import builtins
-import click
 import contextlib
 import logging
-import matplotlib.pyplot as plt
-import numpy as np
 import warnings
-import yaml
 from os import path
 from pathlib import Path
+
+import attrs
+import click
+import matplotlib.pyplot as plt
+import numpy as np
+import yaml
 
 from . import plotting
 from .drivers.coeval import run_coeval
@@ -44,9 +45,9 @@ from .wrapper.outputs import (
 
 def _get_config(config=None):
     if config is None:
-        config = path.expanduser(path.join("~", ".21cmfast", "runconfig_example.yml"))
+        config = Path("~/.21cmfast/runconfig_example.yml").expanduser()
 
-    with open(config) as f:
+    with config.open() as f:
         cfg = yaml.load(f, Loader=yaml.FullLoader)
 
     return cfg
@@ -69,7 +70,7 @@ def _ctx_to_dct(args):
 
 
 def _update(obj, ctx):
-    """Override attributes of an object using the click context"""
+    """Override attributes of an object using the click context."""
     # Try to use the extra arguments as an override of config.
     kk = list(ctx.keys())
     for k in kk:
@@ -110,7 +111,9 @@ def _get_params_from_ctx(ctx, cfg):
     astro_params = AstroParams.new(params["astro_params"])
 
     if ctx:
-        warnings.warn(f"The following arguments were not able to be set: {ctx}")
+        warnings.warn(
+            f"The following arguments were not able to be set: {ctx}", stacklevel=2
+        )
 
     return user_params, cosmo_params, astro_params, flag_options
 
@@ -164,7 +167,6 @@ def init(ctx, config, regen, direc, seed):
     seed : int
         Random seed used to generate data.
     """
-
     cfg = _get_config(config)
     # Set user/cosmo params from config.
     user_params, cosmo_params, astro_params, flag_options = _get_params_from_ctx(
@@ -321,7 +323,6 @@ def spin(ctx, redshift, prev_z, config, regen, direc, seed):
     seed : int
         Random seed used to generate data.
     """
-
     raise NotImplementedError(
         "Spin Temerature requires inputs over specific redshifts. Use the python wrapper or coeval/lightcone"
     )
@@ -526,8 +527,10 @@ def coeval(ctx, redshift, config, out, regen, cache_dir, seed):
 
     try:
         redshift = [float(z.strip()) for z in redshift.split(",")]
-    except TypeError:
-        raise TypeError("redshift argument must be comma-separated list of values.")
+    except TypeError as e:
+        raise TypeError(
+            "redshift argument must be comma-separated list of values."
+        ) from e
 
     cfg = _get_config(config)
 
@@ -553,7 +556,7 @@ def coeval(ctx, redshift, config, out, regen, cache_dir, seed):
     )
 
     if out:
-        for i, (z, c) in enumerate(zip(redshift, coeval)):
+        for _i, (z, c) in enumerate(zip(redshift, coeval, strict=False)):
             if out.is_dir():
                 fname = out / c.get_unique_filename()
             elif len(redshift) == 1:
@@ -906,7 +909,7 @@ def pr_feature(
         ]
 
         for i, (pdef, pnew, kk) in enumerate(
-            zip(p_default[inds], p_new[inds], k[inds])
+            zip(p_default[inds], p_new[inds], k[inds], strict=False)
         ):
             ax[0].plot(z, pdef, ls="--", label=f"k={kk:.2f}", color=f"C{i}")
             ax[0].plot(z, pnew, ls="-", color=f"C{i}")

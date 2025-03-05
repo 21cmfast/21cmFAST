@@ -1,7 +1,8 @@
-import pytest
+"""Test filtering of the density field."""
 
 import matplotlib as mpl
 import numpy as np
+import pytest
 from matplotlib.colors import LogNorm, Normalize
 from scipy.stats import binned_statistic as binstat
 
@@ -83,7 +84,7 @@ def get_binned_stats(x_arr, y_arr, bins, stats):
     }
 
     for stat in stats:
-        spstatkey = statistic_dict[stat] if stat in statistic_dict.keys() else stat
+        spstatkey = statistic_dict.get(stat, stat)
         result[stat], _, _ = binstat(x_in, y_in, bins=bins, statistic=spstatkey)
 
     return result
@@ -147,9 +148,7 @@ def test_filters(filter_flag, R, plt):
     # we take bins of 2 pixels to smooth over sharp edged filters
     r_bins = np.arange(0, int(up.HII_DIM / 2 * np.sqrt(3)), 2)
     r_cen = (r_bins[1:] + r_bins[:-1]) / 2
-    # binned_truth_centre = get_expected_output_centre(
-    #     r_cen, R_cells, Rp_cells, filter_flag
-    # )
+
     binned_truth_centre = get_binned_stats(
         r_from_centre,
         exp_output_centre,
@@ -262,8 +261,8 @@ def filter_plot(
     axs[0, 1].set_title("Expected")
     axs[0, 2].set_title("Radii")
     axs[0, 3].set_title("Pixels")
-    for idx, (i, o, bo, t, tt) in enumerate(
-        zip(inputs, outputs, binned_stats, binned_truths, truths)
+    for idx, (_i, o, bo, t, tt) in enumerate(
+        zip(inputs, outputs, binned_stats, binned_truths, truths, strict=False)
     ):
         axs[idx, 0].pcolormesh(
             o.take(indices=slice_index, axis=slice_axis),
@@ -307,8 +306,6 @@ def filter_plot(
         axs[idx, 3].plot(err_base, err_base, "k--")
 
         axs[idx, 3].scatter(tt, o, s=1, alpha=0.5, rasterized=True)
-        # axs[idx, 3].set_yscale('symlog')
-        # axs[idx, 3].set_xscale('symlog')
         axs[idx, 3].grid()
         axs[idx, 3].set_xlabel("expected cell value")
         axs[idx, 3].set_ylabel("filtered cell value")

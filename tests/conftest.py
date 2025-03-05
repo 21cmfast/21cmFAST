@@ -1,8 +1,10 @@
-import pytest
+"""Test configuration."""
 
 import logging
 import os
 from pathlib import Path
+
+import pytest
 
 from py21cmfast import (
     AstroParams,
@@ -66,7 +68,7 @@ def module_direc(tmp_path_factory):
     config["direc"] = original
 
 
-@pytest.fixture(scope="function")
+@pytest.fixture
 def test_direc(tmp_path_factory):
     original = config["direc"]
     direc = tmp_path_factory.mktemp("testtmp")
@@ -234,7 +236,7 @@ def low_redshift():
 
 @pytest.fixture(scope="session")
 def perturbed_field(ic, redshift, cache):
-    """A default PerturbedField"""
+    """A default PerturbedField."""
     return perturb_field(
         redshift=redshift,
         initial_conditions=ic,

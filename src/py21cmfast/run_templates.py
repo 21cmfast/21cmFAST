@@ -8,12 +8,13 @@ These should make it easier to define a run, choosing the closest template to yo
 desired parameters and altering as few as possible.
 """
 
-import attrs
 import contextlib
 import logging
-import tomllib
 import warnings
 from pathlib import Path
+
+import attrs
+import tomllib
 
 from .wrapper._utils import camel_to_snake
 from .wrapper.inputs import InputStruct
@@ -36,7 +37,8 @@ def _construct_param_objects(template_dict, **kwargs):
 
     if kwargs:
         warnings.warn(
-            f"Excess arguments to `create_params_from_template` will be ignored: {kwargs}"
+            f"Excess arguments to `create_params_from_template` will be ignored: {kwargs}",
+            stacklevel=2,
         )
 
     return input_dict
@@ -44,14 +46,14 @@ def _construct_param_objects(template_dict, **kwargs):
 
 def list_templates() -> list[dict]:
     """Return a list of the available templates."""
-    with open(TEMPLATE_PATH / "manifest.toml", "rb") as f:
+    with (TEMPLATE_PATH / "manifest.toml").open("rb") as f:
         manifest = tomllib.load(f)
     return manifest["templates"]
 
 
-def create_params_from_template(template_name: str, **kwargs):
+def create_params_from_template(template_name: str | Path, **kwargs):
     """
-    Constructs the required InputStruct instances for a run from a given template.
+    Construct the required InputStruct instances for a run from a given template.
 
     Parameters
     ----------
@@ -81,15 +83,15 @@ def create_params_from_template(template_name: str, **kwargs):
     # First check if the provided name is a path to an existsing TOML file
     template = None
     if Path(template_name).is_file():
-        with open(template_name, "rb") as template_file:
+        with Path(template_name).open("rb") as template_file:
             template = tomllib.load(template_file)
 
     # Next, check if the string matches one of our template aliases
-    with open(TEMPLATE_PATH / "manifest.toml", "rb") as f:
+    with (TEMPLATE_PATH / "manifest.toml").open("rb") as f:
         manifest = tomllib.load(f)
     for manf_entry in manifest["templates"]:
         if template_name.casefold() in [x.casefold() for x in manf_entry["aliases"]]:
-            with open(TEMPLATE_PATH / manf_entry["file"], "rb") as f:
+            with (TEMPLATE_PATH / manf_entry["file"]).open("rb") as f:
                 template = tomllib.load(f)
             break
 

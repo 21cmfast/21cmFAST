@@ -1,13 +1,12 @@
 """Classes dealing with the state of arrays."""
 
-import attrs
 from typing import Self
+
+import attrs
 
 
 class ArrayStateError(ValueError):
     """Errors arising from incorrectly modifying array state."""
-
-    pass
 
 
 @attrs.define(frozen=True)
@@ -58,7 +57,7 @@ class ArrayState:
         return self.c_memory and self.initialized
 
     def __str__(self) -> str:
-        """Returns a string representation of the ArrayState."""
+        """Return a string representation of the ArrayState."""
         if self.computed_in_mem:
             return "computed (in mem)"
         elif self.on_disk:

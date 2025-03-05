@@ -30,11 +30,12 @@ structure::
 
 """
 
+import warnings
+from pathlib import Path
+
 import attrs
 import h5py
 import numpy as np
-import warnings
-from pathlib import Path
 
 from .. import __version__
 from ..wrapper import inputs as istruct
@@ -78,10 +79,7 @@ def write_output_to_hdf5(
 
     with h5py.File(path, mode) as fl:
         if group is not None:
-            if group in fl:
-                group = fl[group]
-            else:
-                group = fl.create_group(group)
+            group = fl[group] if group in fl else fl.create_group(group)
         else:
             group = fl
 
@@ -102,7 +100,7 @@ def write_input_struct(struct, fl: h5py.File | h5py.Group) -> None:
     for kk, v in dct.items():
         try:
             fl.attrs[kk] = "none" if v is None else v
-        except TypeError as e:
+        except TypeError as e:  # noqa: PERF203
             raise TypeError(
                 f"key {kk} with value {v} is not able to be written to HDF5 attrs!"
             ) from e
@@ -230,7 +228,7 @@ def read_output_struct(
         elif len(group.keys()) > 1:
             raise ValueError(f"Multiple structs found in {path}:{group}")
         else:
-            struct = list(group.keys())[0]
+            struct = next(iter(group.keys()))
             group = group[struct]
 
         assert "InputParameters" in group
@@ -277,7 +275,8 @@ def read_inputs(
     if file_version > __version__:
         warnings.warn(
             f"File created with a newer version {file_version} of 21cmFAST than this {__version__}. "
-            f"Reading may break. Consider updating 21cmFAST."
+            f"Reading may break. Consider updating 21cmFAST.",
+            stacklevel=2,
         )
 
     if file_version is None:
@@ -293,7 +292,6 @@ def read_inputs(
 
 
 def _read_inputs_pre_v4(group: h5py.Group, safe: bool = True):
-
     input_classes = [
         istruct.UserParams,
         istruct.CosmoParams,
@@ -346,7 +344,8 @@ def _read_outputs(group: h5py.Group):
 
     if file_version > __version__:
         warnings.warn(
-            f"File created with a newer version of 21cmFAST than this. Reading may break. Consider updating 21cmFAST to at least {file_version}"
+            f"File created with a newer version of 21cmFAST than this. Reading may break. Consider updating 21cmFAST to at least {file_version}",
+            stacklevel=2,
         )
     if file_version is None:
         # pre-v4 file

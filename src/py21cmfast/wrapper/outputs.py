@@ -14,18 +14,20 @@ parameter objects necessary to define it.
 
 from __future__ import annotations
 
-import attrs
 import logging
-import numpy as np
 import warnings
 from abc import ABC, abstractmethod
-from bidict import bidict
-from cached_property import cached_property
+from collections.abc import Sequence
 from enum import Enum
-from typing import Any, Literal, Self, Sequence
+from functools import cached_property
+from typing import Any, Literal, Self
+
+import attrs
+import numpy as np
+from bidict import bidict
 
 from .. import __version__
-from ..c_21cmfast import ffi, lib
+from ..c_21cmfast import lib
 from .arrays import Array
 from .exceptions import _process_exitcode
 from .inputs import (
@@ -70,8 +72,6 @@ class OutputStruct(ABC):
     """Base class for any class that wraps a C struct meant to be output from a C function."""
 
     _meta = False
-    _fields_ = []
-    _c_based_pointers = ()
     _c_compute_function = None
     _compat_hash = _HashType.full
 
@@ -225,7 +225,7 @@ class OutputStruct(ABC):
 
         return ary.value
 
-    def set(self, name: str, value: Any):  # noqa: A003
+    def set(self, name: str, value: Any):
         """Set the value of an array."""
         if name not in self.arrays:
             try:
@@ -289,7 +289,9 @@ class OutputStruct(ABC):
         if (
             not state.initialized
         ):  # TODO: how to handle the case where some arrays aren't required at all?
-            warnings.warn(f"Trying to remove array that isn't yet created: {k}")
+            warnings.warn(
+                f"Trying to remove array that isn't yet created: {k}", stacklevel=2
+            )
             return
 
         if state.computed_in_mem and not state.on_disk and not force:
@@ -355,7 +357,6 @@ class OutputStruct(ABC):
     @abstractmethod
     def get_required_input_arrays(self, input_box: Self) -> list[str]:
         """Return all input arrays required to compute this object."""
-        pass
 
     def ensure_input_computed(self, input_box: Self, load: bool = False) -> bool:
         """Ensure all the inputs have been computed."""
@@ -444,7 +445,7 @@ class OutputStruct(ABC):
         # Construct the args. All StructWrapper objects need to actually pass their
         # underlying cstruct, rather than themselves.
         inputs = [
-            arg.cstruct if isinstance(arg, (OutputStruct, InputStruct)) else arg
+            arg.cstruct if isinstance(arg, OutputStruct | InputStruct) else arg
             for arg in args
         ]
         # Sync the python/C memory
@@ -463,9 +464,7 @@ class OutputStruct(ABC):
         try:
             exitcode = self._c_compute_function(*inputs, self.cstruct)
         except TypeError as e:
-            logger.error(
-                f"Arguments to {self._c_compute_function.__name__}: " f"{inputs}"
-            )
+            logger.error(f"Arguments to {self._c_compute_function.__name__}: {inputs}")
             raise e
 
         _process_exitcode(exitcode, self._c_compute_function, args)
@@ -908,17 +907,15 @@ class HaloBox(OutputStructZ):
         return cls(
             inputs=inputs,
             redshift=redshift,
-            **{
-                "halo_mass": Array(shape, dtype=np.float32),
-                "halo_stars": Array(shape, dtype=np.float32),
-                "halo_stars_mini": Array(shape, dtype=np.float32),
-                "count": Array(shape, dtype=np.int32),
-                "halo_sfr": Array(shape, dtype=np.float32),
-                "halo_sfr_mini": Array(shape, dtype=np.float32),
-                "halo_xray": Array(shape, dtype=np.float32),
-                "n_ion": Array(shape, dtype=np.float32),
-                "whalo_sfr": Array(shape, dtype=np.float32),
-            },
+            halo_mass=Array(shape, dtype=np.float32),
+            halo_stars=Array(shape, dtype=np.float32),
+            halo_stars_mini=Array(shape, dtype=np.float32),
+            count=Array(shape, dtype=np.int32),
+            halo_sfr=Array(shape, dtype=np.float32),
+            halo_sfr_mini=Array(shape, dtype=np.float32),
+            halo_xray=Array(shape, dtype=np.float32),
+            n_ion=Array(shape, dtype=np.float32),
+            whalo_sfr=Array(shape, dtype=np.float32),
             **kw,
         )
 
@@ -1249,7 +1246,7 @@ class IonizedBox(OutputStructZ):
         shape = (inputs.user_params.HII_DIM,) * 2 + (
             int(inputs.user_params.NON_CUBIC_FACTOR * inputs.user_params.HII_DIM),
         )
-        filter_shape = (n_filtering,) + shape
+        filter_shape = (n_filtering, *shape)
 
         out = {
             "xH_box": Array(shape, initfunc=np.ones, dtype=np.float32),

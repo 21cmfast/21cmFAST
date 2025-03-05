@@ -2,12 +2,14 @@
 
 from __future__ import annotations
 
-import attrs
 import contextlib
 import inspect
 import logging
+from collections.abc import Sequence
+from typing import Any, get_args
+
+import attrs
 import numpy as np
-from typing import Any, Sequence, get_args
 
 from ..io import h5
 from ..io.caching import OutputCache
@@ -116,8 +118,8 @@ def check_output_consistency(outputs: dict[str, OutputStruct]) -> None:
     if len(outputs) < 2:
         return
 
-    o0 = list(outputs.values())[0]
-    n0 = list(outputs.keys())[0]
+    o0 = next(iter(outputs.values()))
+    n0 = next(iter(outputs.keys()))
 
     for name, output in outputs.items():
         if not output._inputs_compatible_with(o0):
@@ -230,7 +232,6 @@ class _OutputStructComputationInspect:
             check_consistency_of_outputs_with_inputs(given_inputs, outputs.values())
 
     def _make_wisdoms(self, inputs: InputParameters):
-        """Decorator for single-field functions that needs FFTW wisdom."""
         construct_fftw_wisdoms(
             user_params=inputs.user_params, cosmo_params=inputs.cosmo_params
         )
@@ -247,15 +248,20 @@ class _OutputStructComputationInspect:
         for name, param in self._signature.parameters.items():
             val = outputs.get(name)
             tp = param.annotation
-            if np.issubclass_(tp, OutputStruct) and not isinstance(val, tp):
-                raise TypeError(
-                    f"{name} should be of type {param.annotation.__name__}, got {type(val)}"
-                )
-            elif potential_types := get_args(tp):
+            try:
+                if issubclass(tp, OutputStruct) and not isinstance(val, tp):
+                    raise TypeError(
+                        f"{name} should be of type {param.annotation.__name__}, got {type(val)}"
+                    )
+            except TypeError:
+                # The parameter type is not a subclass of OutputStruct, ignore it.
+                continue
+
+            if potential_types := get_args(tp):
                 if type(None) in potential_types and val is None:
                     continue
                 kls = tuple(
-                    kls for kls in potential_types if np.issubclass_(kls, OutputStruct)
+                    kls for kls in potential_types if issubclass(kls, OutputStruct)
                 )
                 if not kls:
                     # This is not an OutputStruct kind of parameter, ignore.
@@ -290,13 +296,14 @@ class _OutputStructComputationInspect:
         that all redshifts are the same.
         """
         redshift = kwargs.get("redshift")
-        if redshift is None:
-            if current_outputs := [
+        if redshift is None and (
+            current_outputs := [
                 v
                 for k, v in outputs.items()
                 if not k.startswith("previous_") and not k.startswith("descendant_")
-            ]:
-                redshift = current_outputs[0].redshift
+            ]
+        ):
+            redshift = current_outputs[0].redshift
 
         return redshift
 
@@ -321,7 +328,7 @@ class _OutputStructComputationInspect:
                 current_redshift, current_outputs, funcname=self._func.__name__
             )
 
-        inputs = list(outputs.values())[0].inputs
+        inputs = next(iter(outputs.values())).inputs
         if inputs.node_redshifts is not None:
             previous_outputs = [
                 v for k, v in outputs.items() if k.startswith("previous_")
@@ -440,8 +447,6 @@ class single_field_func(_OutputStructComputationInspect):  # noqa: N801
 class high_level_func(_OutputStructComputationInspect):  # noqa: N801
     """A decorator for high-level functions like ``run_coeval``."""
 
-    # def __init__(self, _func: callable):
-    #     self._func = _func
     def __init__(self, _func: callable):
         self._func = _func
         self._signature = inspect.signature(_func)

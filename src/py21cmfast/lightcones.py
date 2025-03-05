@@ -2,22 +2,26 @@
 
 from __future__ import annotations
 
+from abc import ABC, abstractmethod
+from collections.abc import Sequence
+from functools import cached_property, partial
+
 import attr
 import numpy as np
-from abc import ABC, abstractmethod
 from astropy.cosmology import FLRW, z_at_value
 from astropy.units import MHz, Mpc, Quantity, pixel, pixel_scale
 from cosmotile import (
     make_lightcone_slice_interpolator,
     make_lightcone_slice_vector_field,
 )
-from functools import cached_property, partial
 from scipy.spatial.transform import Rotation
-from typing import Sequence
 
 from .drivers.coeval import Coeval
-from .wrapper.inputs import Planck18  # Not *quite* the same as astropy's Planck18
-from .wrapper.inputs import FlagOptions, UserParams
+from .wrapper.inputs import (
+    FlagOptions,
+    Planck18,  # Not *quite* the same as astropy's Planck18
+    UserParams,
+)
 
 _LIGHTCONERS = {}
 _LENGTH = "length"
@@ -98,7 +102,7 @@ class Lightconer(ABC):
         return {"z_re_box": "mean_max"}
 
     def get_shape(self, user_params: UserParams) -> tuple[int, int, int]:
-        """The shape of the lightcone slices."""
+        """Get the shape of the lightcone slices."""
         raise NotImplementedError
 
     @classmethod
@@ -116,8 +120,6 @@ class Lightconer(ABC):
         res = resolution.to_value(Mpc)
 
         lc_distances = np.arange(d_at_redshift, dmax + res, res)
-        # if np.isclose(lc_distances.max() + res, dmax):
-        #     lc_distances = np.append(lc_distances, dmax)
 
         return cls(lc_distances=lc_distances * Mpc, cosmo=cosmo, **kw)
 
@@ -198,7 +200,7 @@ class Lightconer(ABC):
 
         lc_distances = pixlcdist[lcidx]
 
-        for idx, lcd in zip(lcidx, lc_distances):
+        for idx, lcd in zip(lcidx, lc_distances, strict=False):
             for q in self.quantities:
                 box1 = self.coeval_subselect(
                     lcd, getattr(c1, q), c1.user_params.cell_size
@@ -239,7 +241,7 @@ class Lightconer(ABC):
                             dc2,
                             kind=self.interp_kinds.get("velocity", "mean"),
                         )
-                        for (box1, box2) in zip(boxes1, boxes2)
+                        for (box1, box2) in zip(boxes1, boxes2, strict=False)
                     ]
                     yield (
                         "los_velocity",
@@ -288,7 +290,6 @@ class Lightconer(ABC):
         boxes: Sequence[np.ndarray],
     ) -> np.ndarray:
         """Abstract method for constructing the lightcone slices."""
-        pass
 
     @abstractmethod
     def construct_los_velocity_lightcone(
@@ -297,11 +298,10 @@ class Lightconer(ABC):
         velocities: tuple[np.ndarray, np.ndarray, np.ndarray],
     ) -> np.ndarray:
         """Abstract method for constructing the LoS velocity lightcone slices."""
-        pass
 
     def validate_options(self, user_params: UserParams, flag_options: FlagOptions):
         """Validate 21cmFAST options."""
-        pass
+        return
 
     def __init_subclass__(cls) -> None:
         """Enabe plugin-style behaviour."""
@@ -492,7 +492,7 @@ class AngularLightconer(Lightconer):
         return result
 
     def get_shape(self, user_params: UserParams) -> tuple[int, int]:
-        """The shape of the lightcone slices."""
+        """Get the shape of the lightcone slices."""
         return (len(self.longitude), len(self.lc_redshifts))
 
     def validate_options(self, user_params: UserParams, flag_options: FlagOptions):

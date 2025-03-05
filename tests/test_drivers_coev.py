@@ -1,7 +1,8 @@
 """
-These are designed to be unit-tests of the lightcone drivers. They do not test for
-correctness of simulations,
-but whether different parameter options work/don't work as intended.
+Unit-tests of the coeval driver.
+
+They do not test for correctness of simulations, but whether different parameter options
+work/don't work as intended.
 """
 
 import pytest

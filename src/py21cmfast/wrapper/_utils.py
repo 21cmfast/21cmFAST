@@ -1,6 +1,7 @@
 """Utilities that help with wrapping various C structures."""
 
 import logging
+
 import numpy as np
 from cffi import FFI
 
@@ -18,8 +19,8 @@ ctype2dtype = {}
 # Integer types
 for prefix in ("int", "uint"):
     for log_bytes in range(4):
-        ctype = "%s%d_t" % (prefix, 8 * (2**log_bytes))
-        dtype = "%s%d" % (prefix[0], 2**log_bytes)
+        ctype = f"{prefix}{8 * 2**log_bytes:d}_t"
+        dtype = f"{prefix[0]}{2**log_bytes:d}"
         ctype2dtype[ctype] = np.dtype(dtype)
 
 # Floating point types
@@ -88,8 +89,8 @@ def get_all_subclasses(cls):
 
 
 def float_to_string_precision(x, n):
-    """Prints out a standard float number at a given number of significant digits.
+    """Print out a standard float number at a given number of significant digits.
 
     Code here: https://stackoverflow.com/a/48812729
     """
-    return f'{float(f"{x:.{int(n)}g}"):g}'
+    return f"{float(f'{x:.{int(n)}g}'):g}"

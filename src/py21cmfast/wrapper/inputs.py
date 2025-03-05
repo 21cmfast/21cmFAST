@@ -11,15 +11,16 @@ listed in the documentation for each class below.
 
 from __future__ import annotations
 
-import attrs
 import logging
 import warnings
+from functools import cached_property
+from typing import ClassVar
+
+import attrs
 from astropy import units as un
 from astropy.cosmology import FLRW, Planck15
-from attrs import asdict, define, evolve
+from attrs import asdict, define, evolve, validators
 from attrs import field as _field
-from attrs import validators
-from functools import cached_property
 
 from .._cfg import config
 from .structs import StructWrapper
@@ -38,17 +39,17 @@ def field(*, transformer=None, **kw):
 
 
 def logtransformer(x):
-    """An attrs field transformer that converts from log to linear space."""
+    """Convert from log to linear space."""
     return 10**x
 
 
 def dex2exp_transformer(x):
-    """An attrs transformer that converts from dex to exponential space."""
+    """Convert from dex to exponential space."""
     return 2.3025851 * x
 
 
 def choice_transformer(choices):
-    """A factory function that produces a transformer that converts a string to int.
+    """Produce a transformer that converts a string to int.
 
     The function must be passed a list of string choices. The resulting int is the
     index of the choice made.
@@ -61,7 +62,7 @@ def choice_transformer(choices):
 
 
 def between(mn, mx):
-    """An attrs validator for validating that a value is between two values."""
+    """Validate that a value is between two values."""
 
     def vld(inst, att, val):
         if val < mn or val > mx:
@@ -107,7 +108,7 @@ class InputStruct:
         The ffi object from any cffi-wrapped library.
     """
 
-    _subclasses = {}
+    _subclasses: ClassVar = {}
     _write_exclude_fields = ()
 
     @classmethod
@@ -242,7 +243,7 @@ class InputStruct:
             missing_items = [
                 (field.name, field.default)
                 for field in attrs.fields(cls)
-                if field.name not in dct.keys() and field.name in fieldnames
+                if field.name not in dct and field.name in fieldnames
             ]
             extra_items = [(k, v) for k, v in dct.items() if k not in fieldnames]
             message = (
@@ -259,7 +260,8 @@ class InputStruct:
                 warnings.warn(
                     message
                     + "\nExtras are ignored and missing are set to default (shown) values."
-                    + "\nUsing these parameter structures in further computation will give inconsistent results."
+                    + "\nUsing these parameter structures in further computation will give inconsistent results.",
+                    stacklevel=2,
                 )
             dct = {k: v for k, v in dct.items() if k in fieldnames}
 
@@ -502,16 +504,16 @@ class UserParams(InputStruct):
         The factor by which to multiply the halo radius to determine the distance within which smaller halos are excluded.
     """
 
-    _hmf_models = ["PS", "ST", "WATSON", "WATSON-Z", "DELOS"]
-    _power_models = ["EH", "BBKS", "EFSTATHIOU", "PEEBLES", "WHITE", "CLASS"]
-    _sample_methods = ["MASS-LIMITED", "NUMBER-LIMITED", "PARTITION", "BINARY-SPLIT"]
-    _integral_methods = ["GSL-QAG", "GAUSS-LEGENDRE", "GAMMA-APPROX"]
-    _filter_options = [
+    _hmf_models = ("PS", "ST", "WATSON", "WATSON-Z", "DELOS")
+    _power_models = ("EH", "BBKS", "EFSTATHIOU", "PEEBLES", "WHITE", "CLASS")
+    _sample_methods = ("MASS-LIMITED", "NUMBER-LIMITED", "PARTITION", "BINARY-SPLIT")
+    _integral_methods = ("GSL-QAG", "GAUSS-LEGENDRE", "GAMMA-APPROX")
+    _filter_options = (
         "spherical-tophat",
         "sharp-k",
         "gaussian",
-    ]
-    _perturb_options = ["LINEAR", "ZELDOVICH", "2LPT"]
+    )
+    _perturb_options = ("LINEAR", "ZELDOVICH", "2LPT")
 
     BOX_LEN = field(default=300.0, converter=float, validator=validators.gt(0))
     HII_DIM = field(default=200, converter=int, validator=validators.gt(0))
@@ -603,12 +605,10 @@ class UserParams(InputStruct):
 
     @DIM.default
     def _dim_default(self):
-        """Number of cells for the high-res box (sampling ICs) along a principal axis."""
         return 3 * self.HII_DIM
 
     @NON_CUBIC_FACTOR.validator
     def _NON_CUBIC_FACTOR_validator(self, att, val):
-        """Factor to shorten/lengthen the line-of-sight dimension (non-cubic boxes)."""
         dcf = self.DIM * val
         hdcf = self.HII_DIM * val
         if dcf % int(dcf) or hdcf % int(hdcf):
@@ -632,11 +632,6 @@ class UserParams(InputStruct):
 
     @POWER_SPECTRUM.validator
     def _POWER_SPECTRUM_vld(self, att, val):
-        """
-        The power spectrum generator to use, as an integer.
-
-        See :func:`power_spectrum_model` for a string representation.
-        """
         if self.USE_RELATIVE_VELOCITIES and self.POWER_SPECTRUM != "CLASS":
             raise ValueError(
                 "Can only use 'CLASS' power spectrum with relative velocities"
@@ -739,13 +734,13 @@ class FlagOptions(InputStruct):
         in the excursion set.
     """
 
-    _photoncons_models = [
+    _photoncons_models = (
         "no-photoncons",
         "z-photoncons",
         "alpha-photoncons",
         "f-photoncons",
-    ]
-    _filter_options = [
+    )
+    _filter_options = (
         "spherical-tophat",
         "sharp-k",
         "gaussian",
@@ -753,7 +748,7 @@ class FlagOptions(InputStruct):
         # "exponential-mfp",
         # "finite-shell",
         # "thin-shell",
-    ]
+    )
 
     USE_MINI_HALOS = field(default=False, converter=bool)
     USE_CMB_HEATING = field(default=True, converter=bool)
@@ -802,7 +797,7 @@ class FlagOptions(InputStruct):
 
     @SUBCELL_RSD.validator
     def _SUBCELL_RSD_vld(self, att, val):
-        """The SUBCELL_RSD flag is only effective if APPLY_RSDS is True."""
+        """Raise an error if doing SUBCELL RSD but not APPLY_RSDS."""
         if val and not self.APPLY_RSDS:
             raise ValueError(
                 "The SUBCELL_RSD flag is only effective if APPLY_RSDS is True."
@@ -1110,34 +1105,18 @@ class AstroParams(InputStruct):
     # set the default of the minihalo scalings to continue the same PL
     @F_STAR7_MINI.default
     def _F_STAR7_MINI_default(self):
-        """
-        The stellar-to-halo mass ratio at 1e7 Solar Masses for Molecularly cooled galaxies.
-
-        If the MCG scaling relations are not provided, we extend the ACG ones
-        """
         return self.F_STAR10 - 3 * self.ALPHA_STAR  # -3*alpha since 1e7/1e10 = 1e-3
 
     @ALPHA_STAR_MINI.default
     def _ALPHA_STAR_MINI_default(self):
-        """
-        The power law index of the SHMR for Molecularly cooled galaxies.
-
-        If the MCG scaling relations are not provided, we extend the ACG ones
-        """
         return self.ALPHA_STAR
 
     @L_X_MINI.default
     def _L_X_MINI_default(self):
-        """
-        The Lx/SFR normalisation for Molecularly cooled galaxies.
-
-        If the MCG scaling relations are not provided, we extend the ACG ones
-        """
         return self.L_X
 
     @X_RAY_Tvir_MIN.default
     def _X_RAY_Tvir_MIN_default(self):
-        """Minimum virial temperature of X-ray emitting sources (unlogged and set dynamically)."""
         return self.ION_Tvir_MIN
 
     @NU_X_THRESH.validator
@@ -1167,17 +1146,14 @@ class AstroParams(InputStruct):
 class InputCrossValidationError(ValueError):
     """Error when two parameters from different structs aren't consistent."""
 
-    pass
-
 
 def input_param_field(kls: InputStruct):
-    """An attrs field that must be an InputStruct.
+    """Create an attrs field that must be an InputStruct.
 
     Parameters
     ----------
     kls : InputStruct subclass
         The parameter structure which should be returned as an attrs field
-
     """
     return _field(
         default=kls.new(),
@@ -1254,7 +1230,8 @@ class InputParameters:
                 and not val.FIX_VCB_AVG
             ):
                 warnings.warn(
-                    "USE_MINI_HALOS needs USE_RELATIVE_VELOCITIES to get the right evolution!"
+                    "USE_MINI_HALOS needs USE_RELATIVE_VELOCITIES to get the right evolution!",
+                    stacklevel=2,
                 )
 
             if val.HALO_STOCHASTICITY and self.user_params.PERTURB_ON_HIGH_RES:
@@ -1266,7 +1243,10 @@ class InputParameters:
                 raise NotImplementedError(msg)
 
         if val.USE_EXP_FILTER and not val.USE_HALO_FIELD:
-            warnings.warn("USE_EXP_FILTER has no effect unless USE_HALO_FIELD is true")
+            warnings.warn(
+                "USE_EXP_FILTER has no effect unless USE_HALO_FIELD is true",
+                stacklevel=2,
+            )
 
     @astro_params.validator
     def _astro_params_validator(self, att, val):
@@ -1279,14 +1259,16 @@ class InputParameters:
             warnings.warn(
                 "You are setting R_BUBBLE_MAX != 50 when INHOMO_RECO=True. "
                 "This is non-standard (but allowed), and usually occurs upon manual "
-                "update of INHOMO_RECO"
+                "update of INHOMO_RECO",
+                stacklevel=2,
             )
 
         if val.M_TURN > 8 and self.flag_options.USE_MINI_HALOS:
             warnings.warn(
                 "You are setting M_TURN > 8 when USE_MINI_HALOS=True. "
                 "This is non-standard (but allowed), and usually occurs upon manual "
-                "update of M_TURN"
+                "update of M_TURN",
+                stacklevel=2,
             )
 
         if (
@@ -1299,7 +1281,7 @@ class InputParameters:
             )
 
             if config["ignore_R_BUBBLE_MAX_error"]:
-                warnings.warn(msg)
+                warnings.warn(msg, stacklevel=2)
             else:
                 raise ValueError(msg)
 
@@ -1310,7 +1292,8 @@ class InputParameters:
             warnings.warn(
                 "Resolution is likely too low for accurate evolved density fields\n It Is recommended"
                 + "that you either increase the resolution (DIM/BOX_LEN) or"
-                + "set the EVOLVE_DENSITY_LINEARLY flag to 1"
+                + "set the EVOLVE_DENSITY_LINEARLY flag to 1",
+                stacklevel=2,
             )
 
     def __getitem__(self, key):
@@ -1370,16 +1353,16 @@ class InputParameters:
 
     def __repr__(self):
         """
-        String representation of the structure.
+        Return a string representation of the structure.
 
         Created by combining repr methods from the InputStructs
         which make up this object
         """
         return (
-            f"cosmo_params: {repr(self.cosmo_params)}\n"
-            + f"user_params: {repr(self.user_params)}\n"
-            + f"astro_params: {repr(self.astro_params)}\n"
-            + f"flag_options: {repr(self.flag_options)}\n"
+            f"cosmo_params: {self.cosmo_params!r}\n"
+            + f"user_params: {self.user_params!r}\n"
+            + f"astro_params: {self.astro_params!r}\n"
+            + f"flag_options: {self.flag_options!r}\n"
         )
 
     @cached_property

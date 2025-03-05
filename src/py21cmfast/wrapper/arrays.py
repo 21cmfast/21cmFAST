@@ -1,12 +1,14 @@
 """Module for dealing with arrays that are input/output to C functions."""
 
+from abc import ABC, abstractmethod
+from collections.abc import Sequence
+from pathlib import Path
+from typing import Self
+
 import attrs
 import h5py
 import numpy as np
-from abc import ABC, abstractmethod
 from attrs.validators import instance_of, optional
-from pathlib import Path
-from typing import Self, Sequence
 
 from .arraystate import ArrayState
 
@@ -21,12 +23,10 @@ class CacheBackend(ABC):
     @abstractmethod
     def read(self) -> np.ndarray:
         """Read an Array from the cache."""
-        pass
 
     @abstractmethod
     def write(self, val: np.ndarray) -> None:
         """Write an Array to the cache."""
-        pass
 
 
 @attrs.define(frozen=True)

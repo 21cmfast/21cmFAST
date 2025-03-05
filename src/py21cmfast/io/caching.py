@@ -5,12 +5,13 @@ and provides methods to handle the caching of output data (i.e. determining the
 filename for a given set of parameters).
 """
 
-import attrs
-import numpy as np
 import re
 from pathlib import Path
 from sys import hash_info
-from typing import Self
+from typing import ClassVar, Self
+
+import attrs
+import numpy as np
 
 from .._cfg import config
 from ..wrapper.inputs import InputParameters
@@ -36,7 +37,7 @@ class OutputCache:
         default=Path(config["direc"]).expanduser(), converter=Path
     )
 
-    _path_structures = {
+    _path_structures: ClassVar = {
         "InitialConditions": "{user_cosmo:x}/{seed:d}/InitialConditions.h5",
         "PerturbedField": "{user_cosmo:x}/{seed:d}/{zgrid:x}/{redshift:.4f}/PerturbedField.h5",
         "other": "{user_cosmo:x}/{seed:d}/{zgrid:x}/{redshift:.4f}/{astro_flag:x}/{cls}.h5",
@@ -238,7 +239,6 @@ class RunCache:
     HaloBox: tuple[Path] = _dict_of_paths_field()
     PerturbHaloField: tuple[Path] = _dict_of_paths_field()
     XraySourceBox: tuple[Path] = _dict_of_paths_field()
-    HaloBox: tuple[Path] = _dict_of_paths_field()
     inputs: InputParameters | None = attrs.field(default=None)
 
     @classmethod

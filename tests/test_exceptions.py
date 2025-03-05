@@ -1,6 +1,7 @@
-import pytest
+"""Test exceptions raised in the C backend."""
 
 import numpy as np
+import pytest
 
 from py21cmfast.c_21cmfast import ffi, lib
 from py21cmfast.wrapper.exceptions import (
@@ -19,10 +20,12 @@ def test_basic(subfunc):
 @pytest.mark.parametrize("subfunc", [True, False])
 def test_simple(subfunc):
     answer = np.array([0], dtype="f8")
+
+    status = lib.FunctionThatCatches(
+        subfunc, False, ffi.cast("double *", ffi.from_buffer(answer))
+    )
+
     with pytest.raises(ParameterError):
-        status = lib.FunctionThatCatches(
-            subfunc, False, ffi.cast("double *", ffi.from_buffer(answer))
-        )
         _process_exitcode(
             status,
             lib.FunctionThatCatches,
