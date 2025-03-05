@@ -13,4 +13,6 @@ py21cmfast
     py21cmfast.outputs
     py21cmfast.wrapper
     py21cmfast.plotting
-    py21cmfast.cache_tools
+    py21cmfast.lightcones
+    py21cmfast.io
+    py21cmfast.drivers
