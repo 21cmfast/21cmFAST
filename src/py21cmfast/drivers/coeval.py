@@ -267,6 +267,12 @@ def evolve_perturb_halos(
     if not inputs.flag_options.USE_HALO_FIELD or inputs.flag_options.FIXED_HALO_GRIDS:
         return []
 
+    if not write.perturbed_halo_field and len(all_redshifts) > 1:
+        warnings.warn(
+            "You have turned off caching for the perturbed halo fields, but are"
+            "evolving them across multiple redshifts. This will result in very high memory usage"
+        )
+
     pt_halos = []
     kw = {
         "initial_conditions": initial_conditions,
