@@ -249,13 +249,14 @@ class _OutputStructComputationInspect:
             val = outputs.get(name)
             tp = param.annotation
             try:
-                if issubclass(tp, OutputStruct) and not isinstance(val, tp):
-                    raise TypeError(
-                        f"{name} should be of type {param.annotation.__name__}, got {type(val)}"
-                    )
+                issub = issubclass(tp, OutputStruct)
             except TypeError:
                 # The parameter type is not a subclass of OutputStruct, ignore it.
-                continue
+                issub = False
+            if issub and not isinstance(val, tp):
+                raise TypeError(
+                    f"{name} should be of type {param.annotation.__name__}, got {type(val)}"
+                )
 
             if potential_types := get_args(tp):
                 if type(None) in potential_types and val is None:
