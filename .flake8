@@ -19,7 +19,7 @@ ignore =
     # Module shadowing a builtin
     A005
 max-line-length = 88
-max-complexity = 70
+max-complexity = 20
 docstring-convention=numpy
 inline-quotes="
 ignore-decorators=click.option
