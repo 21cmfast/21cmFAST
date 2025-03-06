@@ -884,27 +884,29 @@ class AstroParams(InputStruct):
         is then unused). See Eq. 11 of Greig+2018 and Sec 2.1 of Park+2018.
         Given in log10 units.
     F_STAR7_MINI : float, optional
-        The fraction of galactic gas in stars for 10^7 solar mass minihaloes.
-        Only used in the "minihalo" parameterization,
-        i.e. when `USE_MINI_HALOS` is set to True (in :class:`FlagOptions`).
-        If so, this is used along with `F_ESC7_MINI` to determine `HII_EFF_FACTOR_MINI` (which
-        is then unused). See Eq. 8 of Qin+2020.
-        Given in log10 units.
+        The fraction of galactic gas in stars for 10^7 solar mass minihaloes. Only used
+        in the "minihalo" parameterization, i.e. when `USE_MINI_HALOS` is set to True
+        (in :class:`FlagOptions`). If so, this is used along with `F_ESC7_MINI` to
+        determine `HII_EFF_FACTOR_MINI` (which is then unused). See Eq. 8 of Qin+2020.
+        If the MCG scaling relations are not provided explicitly, we extend the ACG
+        ones by default. Given in log10 units.
     ALPHA_STAR : float, optional
         Power-law index of fraction of galactic gas in stars as a function of halo mass.
         See Sec 2.1 of Park+2018.
     ALPHA_STAR_MINI : float, optional
-        Power-law index of fraction of galactic gas in stars as a function of halo mass, for MCGs.
-        See Sec 2 of Muñoz+21 (2110.13919).
+        Power-law index of fraction of galactic gas in stars as a function of halo mass,
+        for MCGs. See Sec 2 of Muñoz+21 (2110.13919). If the MCG scaling relations are
+        not provided explicitly, we extend the ACG ones by default.
     SIGMA_STAR : float, optional
         Lognormal scatter (dex) of the halo mass to stellar mass relation.
         Uniform across all masses and redshifts.
     CORR_STAR : float, optional
-        Self-correlation length used for updating halo properties. To model the correlation in the SHMR
-        between timesteps, we take two samples, one completely correlated (at the exact same percentile in the distribution)
-        and one completely uncorrelated. We interpolate between these two samples where
-        the interpolation point in [0,1] based on this parameter and the redshift difference between timesteps,
-        given by exp(-dz/CORR_STAR)
+        Self-correlation length used for updating halo properties. To model the
+        correlation in the SHMR between timesteps, we take two samples, one completely
+        correlated (at the exact same percentile in the distribution) and one completely
+        uncorrelated. We interpolate between these two samples where the interpolation
+        point in [0,1] based on this parameter and the redshift difference between
+        timesteps, given by exp(-dz/CORR_STAR).
     SIGMA_SFR_LIM : float, optional
         Lognormal scatter (dex) of the stellar mass to SFR relation above a stellar mass of 1e10 solar.
     SIGMA_SFR_INDEX : float, optional
@@ -919,10 +921,11 @@ class AstroParams(InputStruct):
         is then unused). See Eq. 11 of Greig+2018 and Sec 2.1 of Park+2018.
     F_ESC7_MINI: float, optional
         The "escape fraction for minihalos", i.e. the fraction of ionizing photons escaping
-        into the IGM, for 10^7 solar mass minihaloes. Only used in the "minihalo" parameterization,
-        i.e. when `USE_MINI_HALOS` is set to True (in :class:`FlagOptions`).
-        If so, this is used along with `F_ESC7_MINI` to determine `HII_EFF_FACTOR_MINI` (which
-        is then unused). See Eq. 17 of Qin+2020.
+        into the IGM, for 10^7 solar mass minihaloes. Only used in the "minihalo"
+        parameterization, i.e. when `USE_MINI_HALOS` is set to True (in
+        :class:`FlagOptions`). If so, this is used along with `F_ESC7_MINI` to determine
+        `HII_EFF_FACTOR_MINI` (which is then unused). See Eq. 17 of Qin+2020. If the MCG
+        scaling relations are not provided explicitly, we extend the ACG ones by default.
         Given in log10 units.
     ALPHA_ESC : float, optional
         Power-law index of escape fraction as a function of halo mass. See Sec 2.1 of
@@ -944,8 +947,9 @@ class AstroParams(InputStruct):
         This gives the low-z limite.
     L_X_MINI: float, optional
         The specific X-ray luminosity per unit star formation escaping host galaxies for
-        minihalos. Cf. Eq. 23 of Qin+2020. Given in log10 units. For the double power-law used in the Halo Model
-        This gives the low-z limite.
+        minihalos. Cf. Eq. 23 of Qin+2020. Given in log10 units. For the double
+        power-law used in the Halo Model. This gives the low-z limite. If the MCG
+        scaling relations are not provided explicitly, we extend the ACG ones by default.
     NU_X_THRESH : float, optional
         X-ray energy threshold for self-absorption by host galaxies (in eV). Also called
         E_0 (cf. Sec 4.1 of Greig+2018). Typical range is (100, 1500).

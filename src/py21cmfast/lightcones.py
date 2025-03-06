@@ -200,7 +200,7 @@ class Lightconer(ABC):
 
         lc_distances = pixlcdist[lcidx]
 
-        for idx, lcd in zip(lcidx, lc_distances, strict=False):
+        for idx, lcd in zip(lcidx, lc_distances, strict=True):
             for q in self.quantities:
                 box1 = self.coeval_subselect(
                     lcd, getattr(c1, q), c1.user_params.cell_size
@@ -241,7 +241,7 @@ class Lightconer(ABC):
                             dc2,
                             kind=self.interp_kinds.get("velocity", "mean"),
                         )
-                        for (box1, box2) in zip(boxes1, boxes2, strict=False)
+                        for (box1, box2) in zip(boxes1, boxes2, strict=True)
                     ]
                     yield (
                         "los_velocity",

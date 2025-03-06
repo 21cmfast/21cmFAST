@@ -184,7 +184,7 @@ def _get_photon_nonconservation_data() -> dict:
 
     return {
         name: d[:index]
-        for name, d, index in zip(data_list, data, ArrayIndices, strict=False)
+        for name, d, index in zip(data_list, data, ArrayIndices, strict=True)
     }
 
 
@@ -498,7 +498,7 @@ def photoncons_alpha(cosmo_params, user_params, astro_params, flag_options):
         [ratio_diff, diff_test, reverse_test],
         [roots_ratio_idx, roots_diff_idx, roots_reverse_idx],
         [alpha_estimate_ratio, alpha_estimate_diff, alpha_estimate_reverse],
-        strict=False,
+        strict=True,
     ):
         last_alpha = astro_params.ALPHA_ESC
         for i in range(z.size)[::-1]:

@@ -223,14 +223,17 @@ def read_output_struct(
     with h5py.File(path, "r") as fl:
         group = fl[group]
 
-        if struct is not None and struct in group:
-            group = group[struct]
-        elif len(group.keys()) > 1:
-            raise ValueError(f"Multiple structs found in {path}:{group}")
-        else:
-            struct = next(iter(group.keys()))
+        if struct is None:
+            if len(group.keys()) > 1:
+                raise ValueError(f"Multiple structs found in {path}:{group}")
+            else:
+                struct = next(iter(group.keys()))
             group = group[struct]
 
+        elif struct in group:
+            group = group[struct]
+        else:
+            raise KeyError(f"struct {struct} not found in the H5DF group {group}")
         assert "InputParameters" in group
         assert "OutputFields" in group
 

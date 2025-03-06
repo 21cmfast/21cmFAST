@@ -1098,7 +1098,7 @@ def make_integral_comparison_plot(x1, x2, integral_list, integral_list_second, p
 
     styles = ["-", ":", "--"]
     for i, (i_first, i_second) in enumerate(
-        zip(integral_list, integral_list_second, strict=False)
+        zip(integral_list, integral_list_second, strict=True)
     ):
         comparison = integral_list[0]
         if len(i_first.shape) == 1:

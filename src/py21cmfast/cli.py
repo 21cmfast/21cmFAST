@@ -556,7 +556,7 @@ def coeval(ctx, redshift, config, out, regen, cache_dir, seed):
     )
 
     if out:
-        for _i, (z, c) in enumerate(zip(redshift, coeval, strict=False)):
+        for _i, (z, c) in enumerate(zip(redshift, coeval, strict=True)):
             if out.is_dir():
                 fname = out / c.get_unique_filename()
             elif len(redshift) == 1:
@@ -909,7 +909,7 @@ def pr_feature(
         ]
 
         for i, (pdef, pnew, kk) in enumerate(
-            zip(p_default[inds], p_new[inds], k[inds], strict=False)
+            zip(p_default[inds], p_new[inds], k[inds], strict=True)
         ):
             ax[0].plot(z, pdef, ls="--", label=f"k={kk:.2f}", color=f"C{i}")
             ax[0].plot(z, pnew, ls="-", color=f"C{i}")

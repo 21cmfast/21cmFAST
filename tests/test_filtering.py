@@ -262,7 +262,7 @@ def filter_plot(
     axs[0, 2].set_title("Radii")
     axs[0, 3].set_title("Pixels")
     for idx, (_i, o, bo, t, tt) in enumerate(
-        zip(inputs, outputs, binned_stats, binned_truths, truths, strict=False)
+        zip(inputs, outputs, binned_stats, binned_truths, truths, strict=True)
     ):
         axs[idx, 0].pcolormesh(
             o.take(indices=slice_index, axis=slice_axis),

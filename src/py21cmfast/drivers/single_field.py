@@ -343,9 +343,7 @@ def interp_halo_boxes(
     # I set the box redshift to be the stored one so it is read properly into the ionize box
     # for the xray source it doesn't matter, also since it is not _compute()'d, it won't be cached
     check_output_consistency(
-        dict(
-            zip([f"box-{i}" for i in range(len(halo_boxes))], halo_boxes, strict=False)
-        )
+        dict(zip([f"box-{i}" for i in range(len(halo_boxes))], halo_boxes, strict=True))
     )
     hbox_out = HaloBox.new(redshift=redshift, inputs=inputs)
 
