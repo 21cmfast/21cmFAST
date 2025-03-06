@@ -1,8 +1,8 @@
+For the latest changes (after v4), see our release page: https://github.com/21cmfast/21cmfast/releases.
+The historical changelog follows.
+
 Changelog
 =========
-
-dev-version
------------
 
 v3.4.0 [07 Aug 2024]
 ----------------------
