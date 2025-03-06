@@ -189,8 +189,8 @@ def _get_photon_nonconservation_data() -> dict:
 
 
 def setup_photon_cons(
+    initial_conditions: InitialConditions,
     inputs: InputParameters | None = None,
-    initial_conditions: InitialConditions | None = None,
     **kwargs,
 ):
     r"""
@@ -207,7 +207,7 @@ def setup_photon_cons(
     Parameters
     ----------
     inputs
-        An InputParameters instance.
+        An InputParameters instance. If not given will taken from initial_conditions.
     initial_conditions : :class:`~InitialConditions`, optional
         If given, the `inputs` will be set from this object, and it will not be
         re-calculated.
@@ -217,12 +217,7 @@ def setup_photon_cons(
     Any other parameters able to be passed to :func:`compute_initial_conditions`.
     """
     if inputs is None:
-        if initial_conditions is None:
-            raise ValueError(
-                "At least one of 'inputs' or 'initial_conditions' must be provided."
-            )
-        else:
-            inputs = initial_conditions.inputs
+        inputs = initial_conditions.inputs
 
     if inputs.flag_options.PHOTON_CONS_TYPE == "no-photoncons":
         return {}
@@ -261,7 +256,7 @@ def setup_photon_cons(
 
 def calibrate_photon_cons(
     inputs: InputParameters,
-    initial_conditions: InitialConditions | None,
+    initial_conditions: InitialConditions,
     **kwargs,
 ):
     r"""
@@ -269,9 +264,9 @@ def calibrate_photon_cons(
 
     Parameters
     ----------
-    inputs
-        An InputParameters instance.
-    initial_conditions : :class:`~InitialConditions`, optional
+    inputs: :class:`~InputParameters`
+        An InputParameters instance, must be compatible with the initial_conditions.
+    initial_conditions : :class:`~InitialConditions`
         If given, the `inputs` will be set from this object, and it will not be
         re-calculated.
 

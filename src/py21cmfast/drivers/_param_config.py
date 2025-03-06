@@ -364,13 +364,15 @@ class _OutputStructComputationInspect:
         both needed and not initialised.
         In Future, may hold more backend state checks.
         """
+        # we need photon cons to be done before any non-IC box is computed
         if (
             inputs.flag_options.PHOTON_CONS_TYPE != "no-photoncons"
             and not lib.photon_cons_allocated
+            and issubclass(self._kls, OutputStructZ)
         ):
             raise ValueError(
                 "Photon conservation is needed but not initialised"
-                "Call `setup_photon_cons` or use the high-level functions."
+                " Call `setup_photon_cons` or use the high-level functions."
             )
 
     def _handle_read_from_cache(
@@ -389,7 +391,7 @@ class _OutputStructComputationInspect:
             return
 
         # First check whether the boxes already exist.
-        if issubclass(self._, OutputStructZ):
+        if issubclass(self._kls, OutputStructZ):
             obj = self._kls.new(inputs=inputs, redshift=current_redshfit)
         else:
             obj = self._kls.new(inputs=inputs)
