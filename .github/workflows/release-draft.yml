@@ -1,0 +1,21 @@
+name: Update Draft Release
+
+on: push
+
+jobs:
+  draft-release:
+    name: Update Draft Release
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@master
+        with:
+          fetch-depth: 0
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.10"
+
+      - name: Publish the release notes
+        uses: release-drafter/release-drafter@v6.1.0
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
