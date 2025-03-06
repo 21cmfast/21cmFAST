@@ -62,7 +62,7 @@ int ComputeIonizedBox(float redshift, float prev_redshift, struct UserParams *us
     double global_xH, f_coll, R, stored_R, previous_f_coll;
     double f_coll_MINI, previous_f_coll_MINI;
 
-    double t_ast,  Gamma_R_prefactor, rec, dNrec, sigmaMmax;
+    double t_ast,  Gamma_R_prefactor, rec, dNrec, sigmaMmax, prev_Gamma_R_prefactor;
     double Gamma_R_prefactor_MINI;
     float fabs_dtdz, ZSTEP, z_eff;
     const float dz = 0.01;
@@ -169,13 +169,11 @@ LOG_SUPER_DEBUG("defined parameters");
         adjust_redshifts_for_photoncons(astro_params,flag_options,&redshift,&stored_redshift,&absolute_delta_z);
 LOG_DEBUG("PhotonCons data:");
 LOG_DEBUG("original redshift=%f, updated redshift=%f delta-z = %f", stored_redshift, redshift, absolute_delta_z);
-        if (flag_options->USE_MINI_HALOS){
-            if (prev_redshift < 1)
-                adjust_redshifts_for_photoncons(astro_params,flag_options,&prev_redshift,&stored_prev_redshift,&absolute_delta_z);
-            else
-                stored_prev_redshift = prev_redshift;
+        if (prev_redshift > 1)
+            adjust_redshifts_for_photoncons(astro_params,flag_options,&prev_redshift,&stored_prev_redshift,&absolute_delta_z);
+        else
+            stored_prev_redshift = prev_redshift;
 LOG_DEBUG("original prev_redshift=%f, updated prev_redshift=%f delta-z = %f", stored_prev_redshift, prev_redshift, absolute_delta_z);
-        }
         if(isfinite(redshift)==0 || isfinite(absolute_delta_z)==0) {
             LOG_ERROR("Updated photon non-conservation redshift is either infinite or NaN!");
             LOG_ERROR("This can sometimes occur when reionisation stalls (i.e. extremely low"\
@@ -191,7 +189,10 @@ LOG_DEBUG("original prev_redshift=%f, updated prev_redshift=%f delta-z = %f", st
         prev_F_ESC10_zterm = pow((1.+prev_redshift)/8., astro_params->BETA_ESC);
         ION_EFF_FACTOR = global_params.Pop2_ion * astro_params->F_STAR10 * astro_params->F_ESC10 * F_ESC10_zterm;
         prev_ION_EFF_FACTOR = global_params.Pop2_ion * astro_params->F_STAR10 * astro_params->F_ESC10 * prev_F_ESC10_zterm;
-        ION_EFF_FACTOR_MINI = global_params.Pop3_ion * astro_params->F_STAR7_MINI * astro_params->F_ESC7_MINI;
+        if (flag_options->USE_MINI_HALOS)
+            ION_EFF_FACTOR_MINI = global_params.Pop3_ion * astro_params->F_STAR7_MINI * astro_params->F_ESC7_MINI;
+        else
+            ION_EFF_FACTOR_MINI = 0.0;
         if(flag_options->PHOTON_CONS) {
             stored_F_ESC10_zterm = pow((1.+stored_redshift)/8., astro_params->BETA_ESC);
             stored_prev_F_ESC10_zterm = pow((1.+stored_prev_redshift)/8., astro_params->BETA_ESC);
@@ -1299,18 +1300,23 @@ LOG_ULTRA_DEBUG("while loop for until RtoM(R)=%f reaches M_MIN=%f", RtoM(R), M_M
             //////////////////////////////  MAIN LOOP THROUGH THE BOX ///////////////////////////////////
             // now lets scroll through the filtered box
             Gamma_R_prefactor = (R*CMperMPC) * SIGMA_HI * global_params.ALPHA_UVB / (global_params.ALPHA_UVB+2.75) * N_b0 * ION_EFF_FACTOR / 1.0e-12;
+            prev_Gamma_R_prefactor = (R*CMperMPC) * SIGMA_HI * global_params.ALPHA_UVB / (global_params.ALPHA_UVB+2.75) * N_b0 * prev_ION_EFF_FACTOR / 1.0e-12;
             Gamma_R_prefactor_MINI = (R*CMperMPC) * SIGMA_HI * global_params.ALPHA_UVB / (global_params.ALPHA_UVB+2.75) * N_b0 * ION_EFF_FACTOR_MINI / 1.0e-12;
+
             if(flag_options->PHOTON_CONS) {
                 // Used for recombinations, which means we want to use the original redshift not the adjusted redshift
                 Gamma_R_prefactor *= pow(1+stored_redshift, 2);
+                prev_Gamma_R_prefactor *= pow(1+stored_redshift, 2);
                 Gamma_R_prefactor_MINI *= pow(1+stored_redshift, 2);
             }
             else {
                 Gamma_R_prefactor *= pow(1+redshift, 2);
+                prev_Gamma_R_prefactor *= pow(1+redshift, 2);
                 Gamma_R_prefactor_MINI *= pow(1+redshift, 2);
             }
 
             Gamma_R_prefactor /= t_ast;
+            prev_Gamma_R_prefactor /= t_ast;
             Gamma_R_prefactor_MINI /= t_ast;
 
             if (global_params.FIND_BUBBLE_ALGORITHM != 2 && global_params.FIND_BUBBLE_ALGORITHM != 1) { // center method
@@ -1320,10 +1326,10 @@ LOG_ULTRA_DEBUG("while loop for until RtoM(R)=%f reaches M_MIN=%f", RtoM(R), M_M
             }
 
 
-#pragma omp parallel shared(deltax_filtered,N_rec_filtered,xe_filtered,box,pixel_mass,M_MIN,r,Gamma_R_prefactor,\
+#pragma omp parallel shared(deltax_filtered,N_rec_filtered,xe_filtered,box,pixel_mass,M_MIN,r,Gamma_R_prefactor,prev_Gamma_R_prefactor,\
                             ION_EFF_FACTOR,ION_EFF_FACTOR_MINI,LAST_FILTER_STEP,counter,Gamma_R_prefactor_MINI,TK,cT_ad,perturbed_field) \
                     private(x,y,z,curr_dens,Splined_Fcoll,f_coll,ave_M_coll_cell,ave_N_min_cell,N_halos_in_cell,rec,xHII_from_xrays,\
-                            Splined_Fcoll_MINI,f_coll_MINI, res_xH) \
+                            Splined_Fcoll_MINI,f_coll_MINI, res_xH, previous_f_coll, previous_f_coll_MINI) \
                     num_threads(user_params->N_THREADS)
             {
 #pragma omp for
@@ -1393,9 +1399,12 @@ LOG_ULTRA_DEBUG("while loop for until RtoM(R)=%f reaches M_MIN=%f", RtoM(R), M_M
                                 // if this is the first crossing of the ionization barrier for this cell (largest R), record the gamma
                                 // this assumes photon-starved growth of HII regions...  breaks down post EoR
                                 if (flag_options->INHOMO_RECO && (box->xH_box[HII_R_INDEX(x,y,z)] > FRACT_FLOAT_ERR) ){
-                                    box->Gamma12_box[HII_R_INDEX(x,y,z)] = Gamma_R_prefactor * ( f_coll - previous_f_coll) + Gamma_R_prefactor_MINI * ( f_coll_MINI - previous_f_coll_MINI );
-//                                    if (box->Gamma12_box[HII_R_INDEX(x,y,z)] < 0)
- //                                       box->Gamma12_box[HII_R_INDEX(x,y,z)] = 0.0;
+                                    box->Gamma12_box[HII_R_INDEX(x,y,z)] = Gamma_R_prefactor * f_coll - prev_Gamma_R_prefactor * previous_f_coll + Gamma_R_prefactor_MINI * ( f_coll_MINI - previous_f_coll_MINI );
+                                    if (box->Gamma12_box[HII_R_INDEX(x,y,z)] < TINY){
+                                        LOG_ULTRA_DEBUG("counter=%d, z=%f, z(PC)=%f, prev_z=%f, prev_z(PC)=%f, [%d,%d,%d] Gamma_R_prefactor=%f, f_coll = %f, ST_over_PS=%f,  prev_Gamma_R_prefactor=%f, previous_f_coll=%f, prev_ST_over_PS=%f, Gamma_R_prefactor_MINI=%f, f_coll_MINI=%f, previous_f_coll_MINI=%f, Gamma12=%f (%f)",counter, stored_redshift, redshift, stored_prev_redshift, prev_redshift, x,y,z,Gamma_R_prefactor,f_coll,box->ST_over_PS[counter],prev_Gamma_R_prefactor,previous_f_coll,previous_ionize_box->ST_over_PS[counter], Gamma_R_prefactor_MINI,f_coll_MINI,previous_f_coll_MINI,box->Gamma12_box[HII_R_INDEX(x,y,z)], Gamma_R_prefactor * f_coll - prev_Gamma_R_prefactor * previous_f_coll + Gamma_R_prefactor_MINI * ( f_coll_MINI - previous_f_coll_MINI ));
+                                        box->Gamma12_box[HII_R_INDEX(x,y,z)] = 0.0;
+                                    }
+
                                     box->MFP_box[HII_R_INDEX(x,y,z)] = R;
                                     box->Nion_box[HII_R_INDEX(x,y,z)] = f_coll * ION_EFF_FACTOR + f_coll_MINI * ION_EFF_FACTOR_MINI;
                                 }
@@ -1475,8 +1484,7 @@ LOG_ULTRA_DEBUG("while loop for until RtoM(R)=%f reaches M_MIN=%f", RtoM(R), M_M
             } else {
                 R /= (global_params.DELTA_R_HII_FACTOR);
             }
-            if (flag_options->USE_MINI_HALOS)
-                counter += 1;
+            counter += 1;
         }
 
 
