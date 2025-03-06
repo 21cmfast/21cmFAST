@@ -1,7 +1,8 @@
-import pytest
+"""Tests of the halo sampler."""
 
 import matplotlib as mpl
 import numpy as np
+import pytest
 from astropy import units as u
 
 from py21cmfast import (
@@ -171,7 +172,8 @@ def test_halo_prop_sampling(ic, default_input_struct):
     halo_masses = np.broadcast_to(
         halo_mass_vals[:, None], (halo_mass_vals.size, n_halo_per_mass)
     ).flatten()
-    halo_rng = np.random.normal(size=n_halo_per_mass * halo_mass_vals.size)
+    rng = np.random.default_rng()
+    halo_rng = rng.normal(size=n_halo_per_mass * halo_mass_vals.size)
 
     # (n_halo*n_mass*n_prop) --> (n_prop,n_mass,n_halo)
 

@@ -1,7 +1,8 @@
-import pytest
+"""Test the C interpolation tables."""
 
 import matplotlib as mpl
 import numpy as np
+import pytest
 from astropy import constants as c
 from astropy import units as u
 
@@ -33,9 +34,6 @@ OPTIONS_PS = {
 OPTIONS_HMF = {
     "PS": [10, {"HMF": "PS", "USE_MASS_DEPENDENT_ZETA": True}],
     "ST": [10, {"HMF": "ST", "USE_MASS_DEPENDENT_ZETA": True}],
-    # "Watson": [10, {"HMF": "WATSON"}],
-    # "Watsonz": [10, {"HMF": "WATSON-Z"}],
-    # "Delos": [10, {"HMF": "DELOS"}],
 }
 
 OPTIONS_INTMETHOD = {
@@ -54,7 +52,6 @@ options_intmethod = list(OPTIONS_INTMETHOD.keys())
 # the minihalo ffcoll tables have some bins (when Mturn -> M_turn_upper) which go above 10% error compared to their "integrals"
 #    they can pass by doubling the number of M_turn bins and setting relative error to 5% but I think this
 #    is better left for later
-# options_intmethod[2] = pytest.param("FFCOLL", marks=pytest.mark.xfail)
 
 
 # Test delta range for CMF integrals over cells
@@ -1054,29 +1051,6 @@ def test_conditional_integral_methods(
         integrals_mini[1], integrals_mini[0], atol=abs_tol, rtol=RELATIVE_TOLERANCE
     )
 
-    # for the FAST_FFCOLL integrals, only the delta-Mturn behaviour matters (because of the mean fixing), so we divide by
-    # the value at delta=0 (mturn ~ 5e7 for minihalos) and set a wider tolerance
-    # TODO: The FAST_FCOLL integrals need revisiting, for now check the plots and use accordingly
-    # if name == "PS":
-    #     sel_deltazero = np.argmin(np.fabs(delta_range))
-    #     sel_mturn = np.argmin(np.fabs(10**log10_mturn_range - 5e7))
-    #     ffcoll_deltazero = integrals[2][sel_deltazero]
-    #     ffcoll_deltazero_mini = integrals_mini[2][sel_deltazero, sel_mturn]
-    #     qag_deltazero = integrals[0][sel_deltazero]
-    #     qag_deltazero_mini = integrals_mini[0][sel_deltazero, sel_mturn]
-    #     np.testing.assert_allclose(
-    #         integrals[2] / ffcoll_deltazero,
-    #         integrals[0] / qag_deltazero,
-    #         atol=abs_tol,
-    #         rtol=1e-1,
-    #     )
-    #     np.testing.assert_allclose(
-    #         integrals_mini[2] / ffcoll_deltazero_mini[None, :],
-    #         integrals_mini[0] / qag_deltazero_mini[None, :],
-    #         atol=abs_tol,
-    #         rtol=1e-1,
-    #     )
-
 
 def make_table_comparison_plot(
     x,
@@ -1123,7 +1097,9 @@ def make_integral_comparison_plot(x1, x2, integral_list, integral_list_second, p
     fig, axs = plt.subplots(nrows=2, ncols=2, figsize=(16, 8))
 
     styles = ["-", ":", "--"]
-    for i, (i_first, i_second) in enumerate(zip(integral_list, integral_list_second)):
+    for i, (i_first, i_second) in enumerate(
+        zip(integral_list, integral_list_second, strict=True)
+    ):
         comparison = integral_list[0]
         if len(i_first.shape) == 1:
             i_first = i_first[:, None]
@@ -1225,7 +1201,7 @@ def print_failure_stats(test, truth, inputs, abs_tol, rel_tol, name):
             inp[sel_failed if inp.shape == test.shape else failed_idx[i]]
             for i, inp in enumerate(inputs)
         ]
-        for i, inp in enumerate(inputs):
+        for i, _inp in enumerate(inputs):
             print(
                 f"failure range of inputs axis {i} {failed_inp[i].min():.2e} {failed_inp[i].max():.2e}"
             )

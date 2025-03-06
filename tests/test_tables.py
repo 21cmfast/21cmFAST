@@ -1,3 +1,5 @@
+"""Test initializing tables in C."""
+
 from py21cmfast import AstroParams, CosmoParams, FlagOptions, UserParams
 from py21cmfast.c_21cmfast import lib
 

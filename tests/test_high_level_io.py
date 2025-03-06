@@ -1,9 +1,11 @@
-import pytest
+"""Test high-level I/O."""
+
+from pathlib import Path
 
 import attrs
 import h5py
 import numpy as np
-from pathlib import Path
+import pytest
 
 from py21cmfast import (
     Coeval,
@@ -63,7 +65,6 @@ def test_read_bad_file_lc(test_direc: Path, lc: LightCone):
     with h5py.File(fname, "r+") as f:
         # make gluts, these should be ignored on reading
         f["InputParameters"]["user_params"].attrs["NotARealParameter"] = "fake_param"
-        # f["_globals"].attrs["NotARealGlobal"] = "fake_param"
 
         # make gaps
         del f["InputParameters"]["user_params"].attrs["BOX_LEN"]
@@ -122,7 +123,7 @@ def test_read_bad_file_coev(test_direc: Path, coeval: Coeval):
     # check that the fields which are good are read in the struct
     assert all(
         getattr(cv2.user_params, k) == getattr(coeval.user_params, k)
-        for k in coeval.user_params.asdict().keys()
+        for k in coeval.user_params.asdict()
         if k != "BOX_LEN"
     )
 

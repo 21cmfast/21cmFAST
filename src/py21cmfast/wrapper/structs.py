@@ -2,11 +2,12 @@
 
 from __future__ import annotations
 
-import attrs
 import contextlib
 import logging
-from bidict import bidict
 from typing import Any
+
+import attrs
+from bidict import bidict
 
 from .. import __version__
 from ..c_21cmfast import ffi
@@ -38,7 +39,7 @@ class StructWrapper:
         return self.__class__.__name__
 
     def __init__(self, *args):
-        """Custom initializion actions.
+        """Perform custom initializion actions.
 
         This instantiates the memory associated with the C struct, attached to this inst.
         """
@@ -110,7 +111,7 @@ class StructInstanceWrapper:
         self._cobj = wrapped
         self._ffi = ffi
 
-        for nm, tp in self._ffi.typeof(self._cobj).fields:
+        for nm, _tp in self._ffi.typeof(self._cobj).fields:
             setattr(self, nm, getattr(self._cobj, nm))
 
         # Get the name of the structure
@@ -124,7 +125,7 @@ class StructInstanceWrapper:
 
     def items(self):
         """Yield (name, value) pairs for each element of the struct."""
-        for nm, tp in self._ffi.typeof(self._cobj).fields:
+        for nm, _tp in self._ffi.typeof(self._cobj).fields:
             yield nm, getattr(self, nm)
 
     def keys(self):
@@ -134,9 +135,7 @@ class StructInstanceWrapper:
     def __repr__(self):
         """Return a unique representation of the instance."""
         return (
-            self._ctype
-            + "("
-            + ";".join(f"{k}={str(v)}" for k, v in sorted(self.items()))
+            self._ctype + "(" + ";".join(f"{k}={v!s}" for k, v in sorted(self.items()))
         ) + ")"
 
     def filtered_repr(self, filter_params):
@@ -151,8 +150,6 @@ class StructInstanceWrapper:
             self._ctype
             + "("
             + ";".join(
-                f"{k}={str(v)}"
-                for k, v in sorted(self.items())
-                if k not in filter_params
+                f"{k}={v!s}" for k, v in sorted(self.items()) if k not in filter_params
             )
         ) + ")"

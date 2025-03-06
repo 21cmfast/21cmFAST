@@ -1,12 +1,12 @@
 """
-These are designed to be unit-tests of the lightcone drivers. They do not test for
-correctness of simulations,
-but whether different parameter options work/don't work as intended.
+Unit-tests of the lightcone drivers.
+
+They do not test for correctness of simulations, but whether different parameter
+options work/don't work as intended.
 """
 
-import pytest
-
 import numpy as np
+import pytest
 
 import py21cmfast as p21c
 
@@ -171,22 +171,22 @@ def test_lc_partial_eval(rectlcn, ic, default_input_struct_lc, tmpdirec, lc, cac
 def test_lc_lowerz_than_photon_cons(
     ic, default_input_struct_lc, default_flag_options, max_redshift, cache
 ):
-    with pytest.raises(ValueError, match="You have passed a redshift"):
-        inputs = default_input_struct_lc.clone(
-            node_redshifts=p21c.get_logspaced_redshifts(
-                min_redshift=1.9,
-                max_redshift=max(default_input_struct_lc.node_redshifts),
-                z_step_factor=default_input_struct_lc.user_params.ZPRIME_STEP_FACTOR,
-            ),
-            flag_options=default_flag_options.clone(PHOTON_CONS_TYPE="z-photoncons"),
-        )
-        lcn = p21c.RectilinearLightconer.with_equal_cdist_slices(
-            min_redshift=2.0,
-            max_redshift=max_redshift,
-            resolution=ic.user_params.cell_size,
-            cosmo=ic.cosmo_params.cosmo,
-        )
+    inputs = default_input_struct_lc.clone(
+        node_redshifts=p21c.get_logspaced_redshifts(
+            min_redshift=1.9,
+            max_redshift=max(default_input_struct_lc.node_redshifts),
+            z_step_factor=default_input_struct_lc.user_params.ZPRIME_STEP_FACTOR,
+        ),
+        flag_options=default_flag_options.clone(PHOTON_CONS_TYPE="z-photoncons"),
+    )
+    lcn = p21c.RectilinearLightconer.with_equal_cdist_slices(
+        min_redshift=2.0,
+        max_redshift=max_redshift,
+        resolution=ic.user_params.cell_size,
+        cosmo=ic.cosmo_params.cosmo,
+    )
 
+    with pytest.raises(ValueError, match="You have passed a redshift"):
         p21c.run_lightcone(
             lightconer=lcn, initial_conditions=ic, inputs=inputs, cache=cache
         )

@@ -1,17 +1,15 @@
-"""
-Various tests of the compute_initial_conditions() function and InitialConditions class.
-"""
+"""Various tests of the compute_initial_conditions() function and InitialConditions class."""
 
-import pytest
+from multiprocessing import cpu_count
 
 import numpy as np
-from multiprocessing import cpu_count
+import pytest
 
 import py21cmfast as p21c
 
 
 def test_box_shape(ic: p21c.InitialConditions):
-    """Test basic properties of the InitialConditions struct"""
+    """Test basic properties of the InitialConditions struct."""
     shape = (35, 35, 35)
     hires_shape = tuple(2 * s for s in shape)
     assert ic.lowres_density.shape == shape
@@ -38,7 +36,7 @@ def test_box_shape(ic: p21c.InitialConditions):
 def test_modified_cosmo(
     ic: p21c.InitialConditions, default_input_struct: p21c.InputParameters, cache
 ):
-    """Test using a modified cosmology"""
+    """Test using a modified cosmology."""
     inputs = default_input_struct.evolve_input_structs(SIGMA_8=0.9)
     ic2 = p21c.compute_initial_conditions(inputs=inputs, cache=cache)
 
@@ -50,7 +48,7 @@ def test_modified_cosmo(
 def test_transfer_function(
     ic: p21c.InitialConditions, default_input_struct: p21c.InputParameters, cache
 ):
-    """Test using a modified transfer function"""
+    """Test using a modified transfer function."""
     inputs = default_input_struct.evolve_input_structs(POWER_SPECTRUM="CLASS")
     ic2 = p21c.compute_initial_conditions(inputs=inputs, cache=cache)
     hrd2 = ic2.hires_density.value
@@ -64,7 +62,7 @@ def test_transfer_function(
 
 
 def test_relvels():
-    """Test for relative velocity initial conditions"""
+    """Test for relative velocity initial conditions."""
     inputs = p21c.InputParameters(random_seed=1).evolve_input_structs(
         HII_DIM=100,
         DIM=300,

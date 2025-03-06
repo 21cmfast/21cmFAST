@@ -1,10 +1,7 @@
-"""
-Test the wrapper functions which access the C-backend, but not though an OutputStruct compute() method
-"""
-
-import pytest
+"""Test the wrapper functions which access the C-backend, but not though an OutputStruct compute() method."""
 
 import numpy as np
+import pytest
 
 import py21cmfast as p21c
 

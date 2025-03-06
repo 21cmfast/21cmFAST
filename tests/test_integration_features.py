@@ -1,6 +1,5 @@
 """
-A set of large-scale tests which test code updates against previously-run "golden"
-results.
+Large-scale tests which test code updates against previously-run "golden" results.
 
 The idea here is that any new updates (except for major versions) should be non-breaking;
 firstly, they should not break the API, so that the tests should run without crashing without
@@ -23,12 +22,12 @@ a reasonable test: they should be of reduced data such as power spectra or globa
 measurements, and they should be generated with small simulations.
 """
 
-import pytest
+import logging
 
 import h5py
-import logging
 import matplotlib as mpl
 import numpy as np
+import pytest
 
 from py21cmfast import config
 from py21cmfast.lightcones import RectilinearLightconer
@@ -56,7 +55,6 @@ def test_power_spectra_coeval(name, module_direc, plt):
             for key, value in fl["coeval"].items()
             if key.startswith("power_")
         }
-        # true_k = fl["coeval"]["k"][...]
 
     # Now compute the Coeval object
     with config.use(direc=module_direc, regenerate=False, write=True):
@@ -89,7 +87,7 @@ def test_power_spectra_lightcone(name, module_direc, plt):
         true_powers = {}
         true_global = {}
         true_k = fl["lightcone"]["k"][...]
-        for key in fl["lightcone"].keys():
+        for key in fl["lightcone"]:
             if key.startswith("power_"):
                 true_powers["_".join(key.split("_")[1:])] = fl["lightcone"][key][...]
             elif key.startswith("global_"):
@@ -129,8 +127,6 @@ def test_power_spectra_lightcone(name, module_direc, plt):
                 atol=2e-4,
                 rtol=0,
             )
-            # assert np.all(np.abs(value - test_powers[key]) / value[0] < 1e-3)
-            # assert np.sum(~np.isclose(value, test_powers[key], atol=0, rtol=5e-2)) < 10
 
     for key, value in true_global.items():
         print(f"Testing Global {key}")
@@ -150,9 +146,9 @@ def make_lightcone_comparison_plot(
             true_k, k, val, test_powers[key], ax[:, i], xlab="k", ylab=f"{key} Power"
         )
 
-    for i, (key, val) in enumerate(true_global.items(), start=i + 1):
+    for j, (key, val) in enumerate(true_global.items(), start=i + 1):
         make_comparison_plot(
-            z, z, val, getattr(lc, key), ax[:, i], xlab="z", ylab=f"{key}"
+            z, z, val, getattr(lc, key), ax[:, j], xlab="z", ylab=f"{key}"
         )
 
 

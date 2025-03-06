@@ -50,6 +50,7 @@ The function map for the photon conservation model looks like::
 """
 
 import logging
+
 import numpy as np
 from scipy.optimize import curve_fit
 
@@ -181,7 +182,10 @@ def _get_photon_nonconservation_data() -> dict:
         "delta_z_photon_cons",
     ]
 
-    return {name: d[:index] for name, d, index in zip(data_list, data, ArrayIndices)}
+    return {
+        name: d[:index]
+        for name, d, index in zip(data_list, data, ArrayIndices, strict=True)
+    }
 
 
 def setup_photon_cons(
@@ -381,7 +385,7 @@ def calibrate_photon_cons(
 # (Jdavies): I needed a function to access the delta z from the wrapper
 # get_photoncons_data does not have the edge cases that adjust_redshifts_for_photoncons does
 def get_photoncons_dz(user_params, astro_params, flag_options, redshift):
-    """Accesses the delta z arrays from the photon conservation model in C."""
+    """Access the delta z arrays from the photon conservation model in C."""
     deltaz = np.zeros(1).astype("f4")
     redshift_pc_in = np.array([redshift]).astype("f4")
     stored_redshift_pc_in = np.array([redshift]).astype("f4")
@@ -410,7 +414,11 @@ def alpha_func(Q, a_const, a_slope):
 # with the reference analytic as the calibration
 # TODO: don't rely on the photoncons functions since they do a bunch of other stuff in C
 def photoncons_alpha(cosmo_params, user_params, astro_params, flag_options):
-    """The Simpler photons conservation model using ALPHA_ESC, which adjusts the slope of the escape fraction instead of redshifts to match a global evolution."""
+    """Run the Simpler photons conservation model using ALPHA_ESC.
+
+    This adjusts the slope of the escape fraction instead of redshifts to match a global
+    evolution.
+    """
     # HACK: I need to allocate the deltaz arrays so I can return the other ones properly, this isn't a great solution
     # TODO: Move the deltaz interp tables to python
     if not lib.photon_cons_allocated:
@@ -459,7 +467,6 @@ def photoncons_alpha(cosmo_params, user_params, astro_params, flag_options):
 
     # filling factors sometimes go above 1, this causes problems in late-time ratios
     # I want this in the test alphas to get the right photon ratio, but not in the reference analytic
-    # test_pc_data[test_pc_data > 1.] = 1.
     ref_interp[ref_interp > 1] = 1.0
 
     # ratio of each alpha with calibration
@@ -491,9 +498,9 @@ def photoncons_alpha(cosmo_params, user_params, astro_params, flag_options):
         [ratio_diff, diff_test, reverse_test],
         [roots_ratio_idx, roots_diff_idx, roots_reverse_idx],
         [alpha_estimate_ratio, alpha_estimate_diff, alpha_estimate_reverse],
+        strict=True,
     ):
         last_alpha = astro_params.ALPHA_ESC
-        # logger.info('calculating alpha roots')
         for i in range(z.size)[::-1]:
             # get the roots at this redshift
             roots_z = np.where(roots_arr[1] == i)
@@ -512,7 +519,6 @@ def photoncons_alpha(cosmo_params, user_params, astro_params, flag_options):
             guesses = -y0 * (x1 - x0) / (y1 - y0) + x0
 
             # choose the root which gives the smoothest alpha vs z curve
-            # arr_out[i] = guesses[np.argmin(np.fabs(guesses - astro_params.ALPHA_ESC))]
             arr_out[i] = guesses[np.argmin(np.fabs(guesses - last_alpha))]
             last_alpha = arr_out[i]
 
@@ -582,7 +588,7 @@ def photoncons_alpha(cosmo_params, user_params, astro_params, flag_options):
 
 
 def photoncons_fesc(cosmo_params, user_params, astro_params, flag_options):
-    """The Even Simpler photon conservation model using F_ESC10.
+    """Run the Even Simpler photon conservation model using F_ESC10.
 
     Adjusts the normalisation of the escape fraction to match a global evolution.
     """
@@ -606,7 +612,6 @@ def photoncons_fesc(cosmo_params, user_params, astro_params, flag_options):
 
     # filling factors sometimes go above 1, this causes problems in late-time ratios
     # I want this in the test alphas to get the right photon ratio, but not in the reference analytic
-    # test_pc_data[test_pc_data > 1.] = 1.
     ref_interp[ref_interp > 1] = 1.0
 
     # ratio of each alpha with calibration

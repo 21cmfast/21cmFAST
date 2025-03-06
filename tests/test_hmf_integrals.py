@@ -1,4 +1,4 @@
-import py21cmfast as p21c
+"""Test HMF integrals."""
 
 # we should test the HMF values and integrals
 #   at a range of densities vs known quantities

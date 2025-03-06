@@ -6,8 +6,9 @@ example initial conditions, perturbed fields and ionization fields.
 """
 
 import logging
-import numpy as np
 import warnings
+
+import numpy as np
 from astropy import units as un
 from astropy.cosmology import z_at_value
 
@@ -127,6 +128,7 @@ def determine_halo_list(
         warnings.warn(
             "DexM Halofinder sses a fit to the Sheth-Tormen mass function."
             "With HMF!=1 the Halos from DexM will not be from the same mass function",
+            stacklevel=2,
         )
 
     if descendant_halos is None:
@@ -341,7 +343,7 @@ def interp_halo_boxes(
     # I set the box redshift to be the stored one so it is read properly into the ionize box
     # for the xray source it doesn't matter, also since it is not _compute()'d, it won't be cached
     check_output_consistency(
-        dict(zip([f"box-{i}" for i in range(len(halo_boxes))], halo_boxes))
+        dict(zip([f"box-{i}" for i in range(len(halo_boxes))], halo_boxes, strict=True))
     )
     hbox_out = HaloBox.new(redshift=redshift, inputs=inputs)
 

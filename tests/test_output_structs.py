@@ -1,21 +1,25 @@
-"""
-Unit tests for output structures
-"""
+"""Unit tests for output structures."""
 
-import pytest
-
-import attrs
 import copy
-import numpy as np
 import pickle
 
-from py21cmfast import InitialConditions  # An example of an output struct
-from py21cmfast import InputParameters, IonizedBox, OutputCache, PerturbedField, TsBox
+import attrs
+import numpy as np
+import pytest
+
+from py21cmfast import (
+    InitialConditions,  # An example of an output struct
+    InputParameters,
+    IonizedBox,
+    OutputCache,
+    PerturbedField,
+    TsBox,
+)
 from py21cmfast.io import h5
 from py21cmfast.wrapper import outputs as ox
 
 
-@pytest.fixture(scope="function")
+@pytest.fixture
 def init(default_input_struct: InputParameters):
     return InitialConditions.new(inputs=default_input_struct)
 

@@ -1,15 +1,17 @@
 """Compute simulations that evolve over redshift."""
 
-import attrs
 import contextlib
-import h5py
 import logging
-import numpy as np
 import os
 import warnings
+from collections.abc import Sequence
 from hashlib import md5
 from pathlib import Path
-from typing import Any, Self, Sequence, get_args
+from typing import Any, Self, get_args
+
+import attrs
+import h5py
+import numpy as np
 
 from .. import __version__
 from ..c_21cmfast import lib
@@ -62,7 +64,7 @@ class Coeval:
 
     def __getattr__(self, name):
         """
-        Custom attribute getter for the Coeval class.
+        Get underlying Array objects as attributes.
 
         This method allows accessing arrays from OutputStruct objects within the Coeval instance
         as if they were direct attributes of the Coeval object.
@@ -117,13 +119,12 @@ class Coeval:
             if fld.name in ignore_structs:
                 continue
 
-            if np.issubclass_(fld.type, OutputStruct):
+            if issubclass(fld.type, OutputStruct):
                 output_structs.append(fld.type)
             else:
                 args = get_args(fld.type)
                 for k in args:
-
-                    if np.issubclass_(k, OutputStruct):
+                    if issubclass(k, OutputStruct):
                         output_structs.append(k)
                         break
 
@@ -307,8 +308,8 @@ def generate_coeval(
     inputs: InputParameters | None = None,
     out_redshifts: float | tuple[float] = (),
     regenerate: bool | None = None,
-    write: CacheConfig = CacheConfig(),
-    cache: OutputCache = OutputCache("."),
+    write: CacheConfig | bool = True,
+    cache: OutputCache | None = None,
     initial_conditions: InitialConditions | None = None,
     cleanup: bool = True,
     always_purge: bool = False,
@@ -376,6 +377,9 @@ def generate_coeval(
         brightness temperature, and potential data from the conservation of photons. A
         list of such objects, one for each redshift in ``out_redshifts``.
     """
+    if cache is None:
+        cache = OutputCache(".")
+
     if isinstance(write, bool):
         write = CacheConfig() if write else CacheConfig.off()
 
@@ -414,7 +418,7 @@ def generate_coeval(
         cache=cache,
     )
 
-    for coeval in _redshift_loop_generator(
+    for coeval in _redshift_loop_generator(  # noqa: B020
         inputs=inputs,
         all_redshifts=all_redshifts,
         initial_conditions=initial_conditions,
@@ -708,7 +712,8 @@ def _get_required_redshifts_coeval(
     ):
         warnings.warn(
             f"minimum node redshift {inputs.node_redshifts.min()} is above output redshift {min(user_redshifts)},"
-            + "This may result in strange evolution"
+            + "This may result in strange evolution",
+            stacklevel=2,
         )
 
     zmin_user = min(user_redshifts) if user_redshifts else 0

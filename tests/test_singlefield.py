@@ -1,13 +1,14 @@
 """
-These are designed to be unit-tests of the wrapper functionality. They do not test for
-correctness of simulations,
-but whether different parameter options work/don't work as intended.
-"""
+Tests of single-field low-level functions.
 
-import pytest
+These are designed to be unit-tests of the wrapper functionality. They do not test for
+correctness of simulations, but whether different parameter options work/don't work as
+intended.
+"""
 
 import h5py
 import numpy as np
+import pytest
 from astropy import units as un
 
 import py21cmfast as p21c
@@ -23,7 +24,7 @@ def ic_newseed(default_input_struct, cache: p21c.OutputCache):
 
 @pytest.fixture(scope="module")
 def perturb_field_lowz(ic: InitialConditions, low_redshift: float, cache: OutputCache):
-    """A default perturb_field"""
+    """A default perturb_field."""
     return p21c.perturb_field(
         redshift=low_redshift,
         initial_conditions=ic,
@@ -38,7 +39,7 @@ def ionize_box(
     perturbed_field: p21c.PerturbedField,
     cache: OutputCache,
 ):
-    """A default ionize_box"""
+    """A default ionize_box."""
     return p21c.compute_ionization_field(
         initial_conditions=ic,
         perturbed_field=perturbed_field,
@@ -64,7 +65,7 @@ def ionize_box_lowz(
 
 @pytest.fixture(scope="module")
 def spin_temp_evolution(ic: InitialConditions, default_input_struct_ts: TsBox, cache):
-    """An example spin temperature evolution"""
+    """An example spin temperature evolution."""
     scrollz = default_input_struct_ts.node_redshifts
     st_prev = None
     outputs = []
@@ -151,7 +152,10 @@ def test_new_seeds(
     assert not np.all(pf.density.value == perturb_field_lowz.density.value)
 
     # Ionization Box
-    with pytest.raises(ValueError):
+    with pytest.raises(
+        ValueError,
+        match="InputParameters in perturbed_field do not match those in initial_conditions",
+    ):
         p21c.compute_ionization_field(
             initial_conditions=ic_newseed,
             perturbed_field=perturb_field_lowz,
@@ -191,15 +195,13 @@ def test_bt(
     ionize_box, default_input_struct, spin_temp_evolution, perturbed_field, cache
 ):
     curr_st = spin_temp_evolution[-1]["spin_temp"]
-    # with pytest.raises(TypeError):  # have to specify param names
-    #     p21c.brightness_temperature(
-    #         default_input_struct, ionize_box, curr_st, perturbed_field
-    #     )
 
     # this will fail because ionized_box was not created with spin temperature.
-    with pytest.raises(ValueError):
+    with pytest.raises(
+        ValueError,
+        match="InputParameters in spin_temp do not match those in ionized_box",
+    ):
         p21c.brightness_temperature(
-            #            inputs=default_input_struct,
             ionized_box=ionize_box,
             perturbed_field=perturbed_field,
             spin_temp=curr_st,
@@ -283,10 +285,10 @@ def test_incompatible_redshifts(default_input_struct, ic):
         for z in inputs.node_redshifts
     ]
 
-    kw = dict(
-        initial_conditions=ic,
-        inputs=inputs,
-    )
+    kw = {
+        "initial_conditions": ic,
+        "inputs": inputs,
+    }
     # try passing the current redshift == previous
     with pytest.raises(ValueError, match="Incompatible redshifts with inputs"):
         p21c.compute_ionization_field(

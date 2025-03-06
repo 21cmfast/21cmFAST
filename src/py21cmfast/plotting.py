@@ -3,13 +3,14 @@
 from __future__ import annotations
 
 import logging
+from typing import Optional, Union
+
 import matplotlib.pyplot as plt
 import numpy as np
 from astropy import units as un
 from astropy.cosmology import z_at_value
 from matplotlib import colormaps, colors
 from matplotlib.ticker import AutoLocator
-from typing import Optional, Union
 
 from .drivers.coeval import Coeval
 from .drivers.lightcone import LightCone
@@ -91,8 +92,7 @@ def _imshow_slice(
 
     if slice_index >= cube.shape[slice_axis]:
         raise IndexError(
-            "slice_index is too large for that axis (slice_index=%s >= %s"
-            % (slice_index, cube.shape[slice_axis])
+            f"slice_index is too large for that axis (slice_index={slice_index} >= {cube.shape[slice_axis]}"
         )
 
     slc = np.take(cube, slice_index, axis=slice_axis)
@@ -406,13 +406,15 @@ def _set_zaxis_ticks(ax, lightcone, zticks, z_axis, z_range):
         else:
             try:
                 coords = getattr(lightcone.cosmo_params.cosmo, zticks)(lc_z)
-            except AttributeError:
-                raise AttributeError(f"zticks '{zticks}' is not a cosmology function.")
+            except AttributeError as e:
+                raise AttributeError(
+                    f"zticks '{zticks}' is not a cosmology function."
+                ) from e
 
         zlabel = " ".join(z.capitalize() for z in zticks.split("_"))
         units = getattr(coords, "unit", None)
         if units:
-            zlabel += f" [{str(coords.unit)}]"
+            zlabel += f" [{coords.unit!s}]"
             coords = coords.value
 
         ticks = loc.tick_values(coords.min(), coords.max())
@@ -477,7 +479,7 @@ def plot_global_history(
         fig = ax.get_figure()
 
     if kind is None:
-        kind = list(lightcone.global_quantities.keys())[0]
+        kind = next(iter(lightcone.global_quantities.keys()))
 
     assert (
         kind in lightcone.global_quantities

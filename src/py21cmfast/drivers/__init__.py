@@ -7,7 +7,7 @@ such as coeval boxes and lightcones.
 """
 
 from collections import deque
-from typing import Generator
+from collections.abc import Generator
 
 from .coeval import Coeval, run_coeval
 from .single_field import (

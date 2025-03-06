@@ -1,5 +1,7 @@
 """
-Produce integration test data, which is tested by the `test_integration_features.py`
+Produce integration test data.
+
+THis data is tested by the `test_integration_features.py`
 tests. One thing to note here is that all redshifts are reasonably high.
 
 This is necessary, because low redshifts mean that neutral fractions are small,
@@ -7,17 +9,18 @@ and then numerical noise gets relatively more important, and can make the compar
 fail at the tens-of-percent level.
 """
 
-import attrs
-import click
 import glob
-import h5py
 import logging
-import numpy as np
 import os
-import questionary as qs
 import sys
 import tempfile
 from pathlib import Path
+
+import attrs
+import click
+import h5py
+import numpy as np
+import questionary as qs
 from powerbox import get_power
 
 from py21cmfast import (
@@ -548,9 +551,9 @@ def produce_data_for_perturb_field_tests(name, redshift, force, **kwargs):
     fname = get_filename("perturb_field_data", name)
 
     # Need to manually remove it, otherwise h5py tries to add to it
-    if os.path.exists(fname):
+    if fname.exists():
         if force:
-            os.remove(fname)
+            fname.unlink()
         else:
             return fname
 
@@ -584,9 +587,9 @@ def produce_data_for_halo_field_tests(name, redshift, force, **kwargs):
     fname = get_filename("halo_field_data", name)
 
     # Need to manually remove it, otherwise h5py tries to add to it
-    if os.path.exists(fname):
+    if fname.exists():
         if force:
-            os.remove(fname)
+            fname.unlink()
         else:
             return fname
 
@@ -669,7 +672,7 @@ def go(
             if fl not in fnames:
                 if remove:
                     print(f"Removing old file: {fl}")
-                    os.remove(fl)
+                    fl.unlink()
                 else:
                     print(f"File is now redundant and can be removed: {fl}")
 
@@ -725,18 +728,18 @@ def clean():
 
     for fl in all_files:
         if (
-            fl.stem.startswith("power_spectra")
-            and fl.stem.split("power_spectra_")[-1] in OPTIONS
-        ):
-            continue
-        elif (
-            fl.stem.startswith("perturb_field_data")
-            and fl.stem.split("perturb_field_data_")[-1] in OPTIONS_PT
-        ):
-            continue
-        elif (
-            fl.stem.startswith("halo_field_data")
-            and fl.stem.split("halo_field_data_")[-1] in OPTIONS_HALO
+            (
+                fl.stem.startswith("power_spectra")
+                and fl.stem.split("power_spectra_")[-1] in OPTIONS
+            )
+            or (
+                fl.stem.startswith("perturb_field_data")
+                and fl.stem.split("perturb_field_data_")[-1] in OPTIONS_PT
+            )
+            or (
+                fl.stem.startswith("halo_field_data")
+                and fl.stem.split("halo_field_data_")[-1] in OPTIONS_HALO
+            )
         ):
             continue
 
