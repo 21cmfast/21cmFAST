@@ -459,9 +459,18 @@ def _run_lightcone_from_perturbed_fields(
     ):
         # Save mean/global quantities
         for quantity in global_quantities:
-            lightcone.global_quantities[quantity][iz] = np.mean(
-                getattr(coeval, quantity)
-            )
+            if quantity == "log10_mturn_acg":
+                lightcone.global_quantities[quantity][iz] = (
+                    coeval.ionized_box.log10_Mturnover_ave
+                )
+            elif quantity == "log10_mturn_mcg":
+                lightcone.global_quantities[quantity][iz] = (
+                    coeval.ionized_box.log10_Mturnover_MINI_ave
+                )
+            else:
+                lightcone.global_quantities[quantity][iz] = np.mean(
+                    getattr(coeval, quantity)
+                )
 
         # Update photon conservation data in-place
         lightcone.photon_nonconservation_data |= coeval.photon_nonconservation_data
