@@ -1,0 +1,77 @@
+# See https://github.com/marketplace/actions/release-drafter for configuration
+categories:
+  - title: ":boom: Breaking Changes"
+    labels:
+      - "API breaking"
+  - title: ":rocket: Features"
+    labels:
+      - "type: feature: ui"
+      - "type: feature: physical"
+  - title: ":fire: Removals and Deprecations"
+    labels:
+      - "type: maint: removal"
+  - title: ":beetle: Fixes"
+    labels:
+      - "type: bug"
+  - title: ":racehorse: Performance"
+    labels:
+      - "type: performance: memory"
+      - "type: performance: speed"
+      - "type: accuracy"
+  - title: ":rotating_light: Testing"
+    labels:
+      - "type: testing"
+  - title: ":construction_worker: Continuous Integration"
+    labels:
+      - "type: ci"
+  - title: ":books: Documentation"
+    labels:
+      - "type: maint: documentation"
+  - title: ":hammer: Refactoring"
+    labels:
+      - "type: maint: refactoring"
+  - title: ":lipstick: Style"
+    labels:
+      - "type: maint: style"
+  - title: ":package: Dependencies"
+    labels:
+      - "type: maint: dependencies"
+      - "type: maint: build"
+
+name-template: 'v$RESOLVED_VERSION'
+tag-template: 'v$RESOLVED_VERSION'
+
+autolabeler:
+  - label: 'type: maint: documentation'
+    files:
+      - '*.md'
+      - '*.rst'
+      - 'docs/**/*'
+    branch:
+      - '/.*docs{0,1}.*/'
+  - label: 'type: bug'
+    branch:
+      - '/fix.*/'
+    title:
+      - '/fix/i'
+  - label: "type: maint: removal"
+    title:
+      - "/remove .*/i"
+  - label: "type: ci"
+    files:
+      - '.github/*'
+      - '.pre-commit-config.yaml'
+      - '.coveragrc'
+    branch:
+      - '/pre-commit-ci-update-config/'
+  - label: "type: maint: style"
+    files:
+      - '/pre-commit-ci-update-config/'
+  - label: "type: maint: refactoring"
+    title:
+      - "/.* refactor.*/i"
+
+template: |
+  ## Changes
+
+  $CHANGES
