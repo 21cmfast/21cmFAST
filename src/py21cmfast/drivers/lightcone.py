@@ -459,14 +459,14 @@ def _run_lightcone_from_perturbed_fields(
     ):
         # Save mean/global quantities
         for quantity in global_quantities:
-            if "log10_mturn_acg" == quantity:
-                lightcone.global_quantities[quantity][
-                    iz
-                ] = coeval.ionized_box.log10_Mturnover_ave
-            elif "log10_mturn_mcg" == quantity:
-                lightcone.global_quantities[quantity][
-                    iz
-                ] = coeval.ionized_box.log10_Mturnover_MINI_ave
+            if quantity == "log10_mturn_acg":
+                lightcone.global_quantities[quantity][iz] = (
+                    coeval.ionized_box.log10_Mturnover_ave
+                )
+            elif quantity == "log10_mturn_mcg":
+                lightcone.global_quantities[quantity][iz] = (
+                    coeval.ionized_box.log10_Mturnover_MINI_ave
+                )
             else:
                 lightcone.global_quantities[quantity][iz] = np.mean(
                     getattr(coeval, quantity)
