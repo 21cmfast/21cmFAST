@@ -1,0 +1,27 @@
+name: Check Distribution Build
+
+on: push
+
+jobs:
+  check-build:
+    name: Twine Check
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@master
+        with:
+          fetch-depth: 0
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.10"
+
+      - name: Install Build Tools
+        run: pip install build twine
+
+      - name: Build a binary wheel
+        run: |
+          python -m build .
+
+      - name: Check Distribution
+        run: |
+          twine check dist/*
