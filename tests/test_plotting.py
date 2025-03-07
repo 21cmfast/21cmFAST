@@ -81,3 +81,9 @@ def test_lc_sliceplot_sliceax(lc: p21c.LightCone):
 
     assert ax.yaxis.get_label().get_text() == "y-axis [Mpc]"
     assert ax.xaxis.get_label().get_text() == "x-axis [Mpc]"
+
+
+def test_global_plot(lc: p21c.LightCone):
+    fig, ax = plotting.plot_global_history(lc)
+
+    assert ax.xaxis.get_label().get_text() == "Redshift"
