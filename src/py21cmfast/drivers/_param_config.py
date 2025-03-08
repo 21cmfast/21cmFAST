@@ -17,6 +17,7 @@ from ..io.caching import OutputCache
 from ..wrapper.cfuncs import construct_fftw_wisdoms
 from ..wrapper.inputs import InputParameters
 from ..wrapper.outputs import OutputStruct, OutputStructZ, _HashType
+from ..wrapper.photoncons import photoncons_state
 
 logger = logging.getLogger(__name__)
 
@@ -367,12 +368,12 @@ class _OutputStructComputationInspect:
         # we need photon cons to be done before any non-IC box is computed
         if (
             inputs.flag_options.PHOTON_CONS_TYPE != "no-photoncons"
-            and not lib.photon_cons_allocated
+            and photoncons_state.calibration_inputs != inputs
             and issubclass(self._kls, OutputStructZ)
         ):
             raise ValueError(
-                "Photon conservation is needed but not initialised"
-                " Call `setup_photon_cons` or use the high-level functions."
+                "Photon conservation is needed but not initialised with the current InputParameters."
+                " Call `setup_photon_cons` with your current parameters or use the high-level functions."
             )
 
     def _handle_read_from_cache(

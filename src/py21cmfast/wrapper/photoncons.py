@@ -51,16 +51,37 @@ The function map for the photon conservation model looks like::
 
 import logging
 
+import attrs
 import numpy as np
 from scipy.optimize import curve_fit
 
 from ..c_21cmfast import ffi, lib
-from ..drivers._param_config import check_consistency_of_outputs_with_inputs
 from ._utils import _process_exitcode
 from .inputs import AstroParams, CosmoParams, FlagOptions, InputParameters, UserParams
 from .outputs import InitialConditions
 
 logger = logging.getLogger(__name__)
+
+
+# NOTE: if/when we move the photoncons model data to python we should use this
+#   structure to hold z, xHI and parameter delta arrays
+@attrs.define(kw_only=True)
+class PhotonConservationState:
+    """Singleton class which contains the state of the photon-conservation model."""
+
+    calibration_inputs: InputParameters | None = None
+
+    @property
+    def c_memory_allocated(self) -> bool:
+        """Whether the memory for the parameter shifts has been allocated in the backend."""
+        return lib.photon_cons_allocated
+
+    @c_memory_allocated.setter
+    def c_memory_allocated(self, val):
+        lib.photon_cons_allocated = ffi.cast("bool", val)
+
+
+photoncons_state = PhotonConservationState()
 
 
 def _init_photon_conservation_correction(
@@ -127,7 +148,7 @@ def _get_photon_nonconservation_data() -> dict:
       nf_photoncons: the neutral fraction as a function of redshift
     """
     # Check if photon conservation has been initialised at all
-    if not lib.photon_cons_allocated:
+    if not photoncons_state.c_memory_allocated:
         return {}
 
     arbitrary_large_size = 2000
@@ -221,6 +242,8 @@ def setup_photon_cons(
     if inputs.flag_options.PHOTON_CONS_TYPE == "no-photoncons":
         return {}
 
+    from ..drivers._param_config import check_consistency_of_outputs_with_inputs
+
     check_consistency_of_outputs_with_inputs(inputs, [initial_conditions])
 
     # calculate global and calibration simulation xH histories and save them in C
@@ -229,6 +252,7 @@ def setup_photon_cons(
         initial_conditions=initial_conditions,
         **kwargs,
     )
+    photoncons_state.calibration_inputs = inputs
 
     # The PHOTON_CONS_TYPE == 1 case is handled in C (for now....), but we get the data anyway
     if inputs.flag_options.PHOTON_CONS_TYPE == "z-photoncons":
@@ -414,9 +438,9 @@ def photoncons_alpha(cosmo_params, user_params, astro_params, flag_options):
     """
     # HACK: I need to allocate the deltaz arrays so I can return the other ones properly, this isn't a great solution
     # TODO: Move the deltaz interp tables to python
-    if not lib.photon_cons_allocated:
+    if not photoncons_state.c_memory_allocated:
         lib.determine_deltaz_for_photoncons()
-        lib.photon_cons_allocated = ffi.cast("bool", True)
+        photoncons_state.c_memory_allocated = True
 
     # Q(analytic) limits to fit the curve
     max_q_fit = 0.99
@@ -586,9 +610,9 @@ def photoncons_fesc(cosmo_params, user_params, astro_params, flag_options):
     Adjusts the normalisation of the escape fraction to match a global evolution.
     """
     # HACK: I need to allocate the deltaz arrays so I can return the other ones properly, this isn't a great solution
-    if not lib.photon_cons_allocated:
+    if not photoncons_state.c_memory_allocated:
         lib.determine_deltaz_for_photoncons()
-        lib.photon_cons_allocated = ffi.cast("bool", True)
+        photoncons_state.c_memory_allocated = True
 
     # Q(analytic) limits to fit the curve
     max_q_fit = 0.99
