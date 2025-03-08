@@ -312,3 +312,32 @@ def test_incompatible_redshifts(default_input_struct, ic):
             previous_perturbed_field=ptb_list[0],
             **kw,
         )
+
+
+def test_photoncons_backend_error(redshift, default_input_struct, ic):
+    """Test whether the error is raised when you try a photoncons run without proper setup."""
+    inputs = default_input_struct.evolve_input_structs(PHOTON_CONS_TYPE="z-photoncons")
+
+    # first test if the error occurs with no inputs
+    with pytest.raises(
+        ValueError, match="Photon conservation is needed but not initialised."
+    ):
+        p21c.perturb_field(redshift=redshift, initial_conditions=ic, inputs=inputs)
+
+    # test if the error occurs with the wrong inputs
+    p21c.setup_photon_cons(initial_conditions=ic, inputs=inputs)
+    with pytest.raises(
+        ValueError, match="Photon conservation is needed but not initialised."
+    ):
+        p21c.perturb_field(
+            redshift=redshift,
+            initial_conditions=ic,
+            inputs=inputs.evolve_input_structs(PHOTON_CONS_TYPE="f-photoncons"),
+        )
+
+    # finally test if the calibration works when set up correctly
+    p21c.perturb_field(
+        redshift=redshift,
+        initial_conditions=ic,
+        inputs=inputs,
+    )
