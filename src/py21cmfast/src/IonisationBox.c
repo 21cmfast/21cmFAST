@@ -677,26 +677,24 @@ void setup_integration_tables(struct FilteredGrids *fg_struct, struct IonBoxCons
             log10Mturn_max_MINI = log10Mturn_max_MINI * 1.01;
 
             //current redshift tables (automatically handles minihalo case)
-            initialise_Nion_Conditional_spline(consts->redshift,consts->mturn_a_nofb,min_density,max_density,consts->M_min,rspec.M_max_R,rspec.M_max_R,
+            initialise_Nion_Conditional_spline(consts->redshift,min_density,max_density,
+                                    consts->M_min,rspec.M_max_R,rspec.M_max_R,
                                     log10Mturn_min,log10Mturn_max,log10Mturn_min_MINI,log10Mturn_max_MINI,
                                     consts->alpha_star, consts->alpha_star_mini,
                                     consts->alpha_esc,consts->fstar_10,
-                                    consts->fesc_10,consts->Mlim_Fstar,consts->Mlim_Fesc,consts->fstar_7,
-                                    consts->fesc_7,consts->Mlim_Fstar_mini,consts->Mlim_Fesc_mini,
-                                    user_params_global->INTEGRATION_METHOD_ATOMIC, user_params_global->INTEGRATION_METHOD_MINI,
-                                    flag_options_global->USE_MINI_HALOS,false);
+                                    consts->fesc_10,consts->fstar_7,
+                                    consts->fesc_7,false);
 
             //previous redshift tables if needed
             if(need_prev && flag_options_global->USE_MINI_HALOS){
                 //NOTE: we intentionally use the lower turnovers at this redshift, but should we be doing the same for the upper turnover?
-                initialise_Nion_Conditional_spline(consts->prev_redshift,consts->mturn_a_nofb,prev_min_density,prev_max_density,consts->M_min,rspec.M_max_R,rspec.M_max_R,
+                initialise_Nion_Conditional_spline(consts->prev_redshift,prev_min_density,prev_max_density,
+                                        consts->M_min,rspec.M_max_R,rspec.M_max_R,
                                         log10Mturn_min,log10Mturn_max,log10Mturn_min_MINI,log10Mturn_max_MINI,
                                         consts->alpha_star, consts->alpha_star_mini,
                                         consts->alpha_esc,consts->fstar_10,
-                                        consts->fesc_10,consts->Mlim_Fstar,consts->Mlim_Fesc,consts->fstar_7,
-                                        consts->fstar_7,consts->Mlim_Fstar_mini,consts->Mlim_Fesc_mini,
-                                        user_params_global->INTEGRATION_METHOD_ATOMIC, user_params_global->INTEGRATION_METHOD_MINI,
-                                        flag_options_global->USE_MINI_HALOS,true);
+                                        consts->fesc_10,consts->fstar_7,
+                                        consts->fstar_7,true);
             }
         }
     }

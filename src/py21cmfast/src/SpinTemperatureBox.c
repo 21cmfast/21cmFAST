@@ -851,13 +851,11 @@ int global_reion_properties(double zp, double x_e_ave, double *log10_Mcrit_LW_av
             /* initialise interpolation of the mean collapse fraction for global reionization.*/
             initialise_Nion_Ts_spline(zpp_interp_points_SFR, determine_zpp_min, determine_zpp_max,
                                         astro_params_global->ALPHA_STAR, astro_params_global->ALPHA_STAR_MINI, astro_params_global->ALPHA_ESC,
-                                        astro_params_global->F_STAR10, astro_params_global->F_ESC10, astro_params_global->F_STAR7_MINI, astro_params_global->F_ESC7_MINI,
-                                        astro_params_global->M_TURN, flag_options_global->USE_MINI_HALOS);
+                                        astro_params_global->F_STAR10, astro_params_global->F_ESC10, astro_params_global->F_STAR7_MINI, astro_params_global->F_ESC7_MINI);
 
             initialise_SFRD_spline(zpp_interp_points_SFR, determine_zpp_min, determine_zpp_max,
                                     astro_params_global->ALPHA_STAR, astro_params_global->ALPHA_STAR_MINI,
-                                    astro_params_global->F_STAR10, astro_params_global->F_STAR7_MINI,astro_params_global->M_TURN,
-                                    flag_options_global->USE_MINI_HALOS);
+                                    astro_params_global->F_STAR10, astro_params_global->F_STAR7_MINI);
         }
         else{
             init_FcollTable(determine_zpp_min,determine_zpp_max,true);
@@ -906,12 +904,11 @@ void calculate_sfrd_from_grid(int R_ct, float *dens_R_grid, float *Mcrit_R_grid,
 
     if(user_params_global->USE_INTERPOLATION_TABLES){
         if(flag_options_global->USE_MASS_DEPENDENT_ZETA){
-            initialise_SFRD_Conditional_table(min_densities[R_ct]*zpp_growth[R_ct],
-                                                    max_densities[R_ct]*zpp_growth[R_ct]*1.001,zpp_growth[R_ct],Mcrit_atom_interp_table[R_ct],
-                                                    M_min_R[R_ct],M_max_R[R_ct],M_max_R[R_ct],
-                                                    astro_params_global->ALPHA_STAR, astro_params_global->ALPHA_STAR_MINI, astro_params_global->F_STAR10,
-                                                    astro_params_global->F_STAR7_MINI, user_params_global->INTEGRATION_METHOD_ATOMIC, user_params_global->INTEGRATION_METHOD_MINI,
-                                                    flag_options_global->USE_MINI_HALOS);
+            initialise_SFRD_Conditional_table(zpp_for_evolve_list[R_ct],
+                min_densities[R_ct]*zpp_growth[R_ct],max_densities[R_ct]*zpp_growth[R_ct]*1.001,
+                M_min_R[R_ct],M_max_R[R_ct],M_max_R[R_ct],
+                astro_params_global->ALPHA_STAR, astro_params_global->ALPHA_STAR_MINI,
+                astro_params_global->F_STAR10, astro_params_global->F_STAR7_MINI);
         }
         else{
             initialise_FgtrM_delta_table(min_densities[R_ct]*zpp_growth[R_ct], max_densities[R_ct]*zpp_growth[R_ct], zpp_for_evolve_list[R_ct],

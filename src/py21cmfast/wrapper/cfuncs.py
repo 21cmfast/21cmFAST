@@ -698,11 +698,10 @@ def evaluate_SFRD_z(
     sfrd_mini = 0.0
     # Unfortunately we have to do this until we sort out the USE_INTERPOLATION_TABLES flag
     # Since these integrals take forever if the flag is false
-    mcrit_atom = (
-        np.vectorize(lib.atomic_cooling_threshold)(redshifts)
-        if flag_options.USE_MINI_HALOS
-        else ap_c["M_TURN"]
-    )
+    mcrit_atom = ap_c["M_TURN"]
+    if flag_options.USE_MINI_HALOS:
+        acg_thresh = np.vectorize(lib.atomic_cooling_threshold)(redshifts)
+        mcrit_atom = np.maximum(mcrit_atom, acg_thresh)
     if return_integral:
         sfrd = np.vectorize(lib.Nion_General)(
             redshifts,
@@ -722,7 +721,7 @@ def evaluate_SFRD_z(
                 np.log(M_min),
                 np.log(M_max),
                 10 ** log10mturnovers[None, :],
-                mcrit_atom[:, None],
+                acg_thresh[:, None],
                 ap_c["ALPHA_STAR_MINI"],
                 0.0,
                 ap_c["F_STAR7_MINI"],
@@ -741,8 +740,6 @@ def evaluate_SFRD_z(
             ap_c["ALPHA_STAR_MINI"],
             ap_c["F_STAR10"],
             ap_c["F_STAR7_MINI"],
-            ap_c["M_TURN"],
-            flag_options.USE_MINI_HALOS,
         )
 
     sfrd = np.vectorize(lib.EvaluateSFRD)(redshifts, mlim_fstar_acg)
@@ -807,11 +804,10 @@ def evaluate_Nion_z(
     )
 
     sfrd_mini = 0.0
-    mcrit_atom = (
-        np.vectorize(lib.atomic_cooling_threshold)(redshifts)
-        if flag_options.USE_MINI_HALOS
-        else ap_c["M_TURN"]
-    )
+    mcrit_atom = ap_c["M_TURN"]
+    if flag_options.USE_MINI_HALOS:
+        acg_thresh = np.vectorize(lib.atomic_cooling_threshold)(redshifts)
+        mcrit_atom = np.maximum(mcrit_atom, acg_thresh)
     # Unfortunately we have to do this until we sort out the USE_INTERPOLATION_TABLES flag
     # Since these integrals take forever if the flag is false
     if return_integral:
@@ -833,7 +829,7 @@ def evaluate_Nion_z(
                 np.log(M_min),
                 np.log(M_max),
                 10 ** log10mturnovers[None, :],
-                mcrit_atom[:, None],
+                acg_thresh[:, None],
                 ap_c["ALPHA_STAR_MINI"],
                 ap_c["ALPHA_ESC"],
                 ap_c["F_STAR7_MINI"],
@@ -855,8 +851,6 @@ def evaluate_Nion_z(
             ap_c["F_ESC10"],
             ap_c["F_STAR7_MINI"],
             ap_c["F_ESC7_MINI"],
-            ap_c["M_TURN"],
-            flag_options.USE_MINI_HALOS,
         )
 
     nion = np.vectorize(lib.EvaluateNionTs)(
@@ -908,11 +902,10 @@ def evaluate_SFRD_cond(
     ap_c = astro_params.cdict
 
     sigma_cond = lib.EvaluateSigma(np.log(cond_mass))
-    mcrit_atom = (
-        lib.atomic_cooling_threshold(redshift)
-        if flag_options.USE_MINI_HALOS
-        else ap_c["M_TURN"]
-    )
+    mcrit_atom = ap_c["M_TURN"]
+    if flag_options.USE_MINI_HALOS:
+        acg_thresh = lib.atomic_cooling_threshold(redshift)
+        mcrit_atom = max(mcrit_atom, acg_thresh)
 
     mlim_fstar_acg = (
         1e10 * ap_c["F_STAR10"] ** (-1.0 / ap_c["ALPHA_STAR"])
@@ -956,7 +949,7 @@ def evaluate_SFRD_cond(
                 sigma_cond,
                 densities[:, None],
                 10 ** l10mturns[None, :],
-                mcrit_atom,
+                acg_thresh,
                 ap_c["ALPHA_STAR_MINI"],
                 0.0,
                 ap_c["F_STAR7_MINI"],
@@ -969,10 +962,9 @@ def evaluate_SFRD_cond(
 
     if user_params.USE_INTERPOLATION_TABLES:
         lib.initialise_SFRD_Conditional_table(
+            redshift,
             densities.min() - 0.01,
             densities.max() + 0.01,
-            growthf,
-            mcrit_atom,
             M_min,
             M_max,
             cond_mass,
@@ -980,9 +972,6 @@ def evaluate_SFRD_cond(
             ap_c["ALPHA_STAR_MINI"],
             ap_c["F_STAR10"],
             ap_c["F_STAR7_MINI"],
-            user_params.cdict["INTEGRATION_METHOD_ATOMIC"],
-            user_params.cdict["INTEGRATION_METHOD_MINI"],
-            flag_options.USE_MINI_HALOS,
         )
 
     SFRD_acg = np.vectorize(lib.EvaluateSFRD_Conditional)(
@@ -1045,11 +1034,10 @@ def evaluate_Nion_cond(
     ap_c = astro_params.cdict
 
     sigma_cond = lib.EvaluateSigma(np.log(cond_mass))
-    mcrit_atom = (
-        lib.atomic_cooling_threshold(redshift)
-        if flag_options.USE_MINI_HALOS
-        else ap_c["M_TURN"]
-    )
+    mcrit_atom = ap_c["M_TURN"]
+    if flag_options.USE_MINI_HALOS:
+        acg_thresh = lib.atomic_cooling_threshold(redshift)
+        mcrit_atom = max(mcrit_atom, acg_thresh)
 
     mlim_fstar_acg = (
         1e10 * ap_c["F_STAR10"] ** (-1.0 / ap_c["ALPHA_STAR"])
@@ -1103,7 +1091,7 @@ def evaluate_Nion_cond(
                 sigma_cond,
                 densities[:, None],
                 10 ** l10mturns[None, :],
-                mcrit_atom,
+                acg_thresh,
                 ap_c["ALPHA_STAR_MINI"],
                 ap_c["ALPHA_ESC"],
                 ap_c["F_STAR7_MINI"],
@@ -1118,7 +1106,6 @@ def evaluate_Nion_cond(
     if user_params.USE_INTERPOLATION_TABLES:
         lib.initialise_Nion_Conditional_spline(
             redshift,
-            mcrit_atom,
             densities.min() - 0.01,
             densities.max() + 0.01,
             M_min,
@@ -1133,15 +1120,8 @@ def evaluate_Nion_cond(
             ap_c["ALPHA_ESC"],
             ap_c["F_STAR10"],
             ap_c["F_ESC10"],
-            mlim_fstar_acg,
-            mlim_fesc_acg,
             ap_c["F_STAR7_MINI"],
             ap_c["F_ESC7_MINI"],
-            mlim_fstar_mcg,
-            mlim_fesc_mcg,
-            user_params.cdict["INTEGRATION_METHOD_ATOMIC"],
-            user_params.cdict["INTEGRATION_METHOD_MINI"],
-            flag_options.USE_MINI_HALOS,
             False,
         )
 
@@ -1209,11 +1189,10 @@ def evaluate_Xray_cond(
     ap_c = astro_params.cdict
 
     sigma_cond = lib.EvaluateSigma(np.log(cond_mass))
-    mcrit_atom = (
-        lib.atomic_cooling_threshold(redshift)
-        if flag_options.USE_MINI_HALOS
-        else ap_c["M_TURN"]
-    )
+    mcrit_atom = ap_c["M_TURN"]
+    if flag_options.USE_MINI_HALOS:
+        acg_thresh = lib.atomic_cooling_threshold(redshift)
+        mcrit_atom = max(mcrit_atom, acg_thresh)
 
     mlim_fstar_acg = (
         1e10 * ap_c["F_STAR10"] ** (-1.0 / ap_c["ALPHA_STAR"])
@@ -1238,8 +1217,8 @@ def evaluate_Xray_cond(
             np.log(cond_mass),
             sigma_cond,
             densities[:, None] if flag_options.USE_MINI_HALOS else densities,
-            10 ** l10mturns[None, :] if flag_options.USE_MINI_HALOS else 1.0,
             mcrit_atom,
+            10 ** l10mturns[None, :] if flag_options.USE_MINI_HALOS else 1.0,
             ap_c["ALPHA_STAR"],
             ap_c["ALPHA_STAR_MINI"],
             ap_c["F_STAR10"],
@@ -1260,8 +1239,6 @@ def evaluate_Xray_cond(
             densities.min() - 0.01,
             densities.max() + 0.01,
             redshift,
-            growthf,
-            mcrit_atom,
             M_min,
             M_max,
             cond_mass,
@@ -1273,9 +1250,6 @@ def evaluate_Xray_cond(
             ap_c["L_X_MINI"],
             t_h,
             ap_c["t_STAR"],
-            user_params.cdict["INTEGRATION_METHOD_ATOMIC"],
-            user_params.cdict["INTEGRATION_METHOD_MINI"],
-            flag_options.USE_MINI_HALOS,
         )
 
     Xray = np.vectorize(lib.EvaluateXray_Conditional)(

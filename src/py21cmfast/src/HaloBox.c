@@ -126,7 +126,7 @@ int get_box_averages(double M_min, double M_max, double M_turn_a, double M_turn_
                                             1., consts->Mlim_Fstar_mini, 0.);
     }
     if(flag_options_global->USE_TS_FLUCT){
-        integral_xray = Xray_General(consts->redshift, lnMmin, lnMmax, M_turn_m, M_turn_a,
+        integral_xray = Xray_General(consts->redshift, lnMmin, lnMmax, M_turn_a, M_turn_m,
                                             consts->alpha_star, consts->alpha_star_mini, consts->fstar_10,
                                             consts->fstar_7, consts->l_x, consts->l_x_mini, consts->t_h, consts->t_star,
                                             consts->Mlim_Fstar, consts->Mlim_Fstar_mini);
@@ -250,7 +250,7 @@ int set_fixed_grids(double M_min, double M_max, InitialConditions *ini_boxes,
             if(min_log10_mturn_a > mturn_a_grid[i]) min_log10_mturn_a = mturn_a_grid[i];
             if(min_log10_mturn_m > mturn_m_grid[i]) min_log10_mturn_m = mturn_m_grid[i];
             if(max_log10_mturn_a < mturn_a_grid[i]) max_log10_mturn_a = mturn_a_grid[i];
-            if(max_log10_mturn_m < mturn_m_grid[i]) max_log10_mturn_m = mturn_a_grid[i];
+            if(max_log10_mturn_m < mturn_m_grid[i]) max_log10_mturn_m = mturn_m_grid[i];
 
             l10_mlim_a_sum += mturn_a_grid[i];
             l10_mlim_m_sum += mturn_m_grid[i];
@@ -275,34 +275,25 @@ int set_fixed_grids(double M_min, double M_max, InitialConditions *ini_boxes,
         }
 
         //This table assumes no reionisation feedback
-        initialise_SFRD_Conditional_table(min_density,max_density,growth_z,consts->mturn_a_nofb,M_min,M_max,M_cell,
-                                                consts->alpha_star, consts->alpha_star_mini, consts->fstar_10,
-                                                consts->fstar_7, user_params_global->INTEGRATION_METHOD_ATOMIC,
-                                                user_params_global->INTEGRATION_METHOD_MINI,
-                                                flag_options_global->USE_MINI_HALOS);
+        initialise_SFRD_Conditional_table(consts->redshift,min_density,max_density,M_min,M_max,M_cell,
+                                            consts->alpha_star, consts->alpha_star_mini, consts->fstar_10,
+                                            consts->fstar_7);
 
         //This table includes reionisation feedback, but takes the atomic turnover anyway for the upper turnover
-        initialise_Nion_Conditional_spline(consts->redshift,consts->mturn_a_nofb,min_density,max_density,M_min,M_max,M_cell,
+        initialise_Nion_Conditional_spline(consts->redshift,min_density,max_density,M_min,M_max,M_cell,
                                 min_log10_mturn_a,max_log10_mturn_a,min_log10_mturn_m,max_log10_mturn_m,
                                 consts->alpha_star, consts->alpha_star_mini,
                                 consts->alpha_esc, consts->fstar_10,
-                                consts->fesc_10,consts->Mlim_Fstar,consts->Mlim_Fesc,consts->fstar_7,
-                                consts->fesc_7,consts->Mlim_Fstar_mini, consts->Mlim_Fesc_mini,
-                                user_params_global->INTEGRATION_METHOD_ATOMIC,
-                                user_params_global->INTEGRATION_METHOD_MINI,
-                                flag_options_global->USE_MINI_HALOS, false);
+                                consts->fesc_10,consts->fstar_7,
+                                consts->fesc_7, false);
 
         initialise_dNdM_tables(min_density, max_density, lnMmin, lnMmax, growth_z, lnMcell, false);
         if(flag_options_global->USE_TS_FLUCT){
             initialise_Xray_Conditional_table(
-                min_density, max_density, consts->redshift, growth_z, consts->mturn_a_nofb, M_min, M_max, M_cell,
+                min_density, max_density, consts->redshift, M_min, M_max, M_cell,
                 consts->alpha_star, consts->alpha_star_mini,
                 consts->fstar_10, consts->fstar_7, consts->l_x, consts->l_x_mini, consts->t_h,
-                consts->t_star,
-                user_params_global->INTEGRATION_METHOD_ATOMIC,
-                user_params_global->INTEGRATION_METHOD_MINI,
-                flag_options_global->USE_MINI_HALOS
-            );
+                consts->t_star);
         }
     }
 
@@ -334,19 +325,19 @@ int set_fixed_grids(double M_min, double M_max, InitialConditions *ini_boxes,
             intgrl_fesc_weighted = EvaluateNion_Conditional(dens,l10_mturn_a,growth_z,M_min,M_max,M_cell,sigma_cell,
                                             consts->Mlim_Fstar,consts->Mlim_Fesc,false);
             intgrl_stars_only = EvaluateSFRD_Conditional(dens,growth_z,M_min,M_max,M_cell,sigma_cell,
-                                            l10_mturn_a,consts->Mlim_Fstar);
+                                            pow(10.,l10_mturn_a),consts->Mlim_Fstar);
             if(flag_options_global->USE_MINI_HALOS){
                 intgrl_stars_only_mini = EvaluateSFRD_Conditional_MINI(dens,l10_mturn_m,growth_z,M_min,M_max,M_cell,sigma_cell,
-                                                            l10_mturn_a,consts->Mlim_Fstar);
+                                                            pow(10.,l10_mturn_a),consts->Mlim_Fstar);
                 intgrl_fesc_weighted_mini = EvaluateNion_Conditional_MINI(dens,l10_mturn_m,growth_z,M_min,M_max,M_cell,sigma_cell,
-                                                            l10_mturn_a,consts->Mlim_Fstar,consts->Mlim_Fesc,false);
+                                                            pow(10.,l10_mturn_a),consts->Mlim_Fstar,consts->Mlim_Fesc,false);
             }
 
             if(flag_options_global->USE_TS_FLUCT){
                 //MAKE A NEW TABLEdouble delta, double log10Mturn_m, double growthf, double M_min, double M_max, double M_cond, double sigma_max,
                                   //   double Mturn_a, double Mlim_Fstar, double Mlim_Fstar_MINI
                 integral_xray = EvaluateXray_Conditional(dens,l10_mturn_m,consts->redshift,growth_z,M_min,M_max,M_cell,sigma_cell,
-                                                            l10_mturn_a,consts->t_h,consts->Mlim_Fstar,consts->Mlim_Fstar_mini);
+                                                            pow(10.,l10_mturn_a),consts->t_h,consts->Mlim_Fstar,consts->Mlim_Fstar_mini);
             }
 
             grids->count[i] = (int)(h_count * M_cell * dens_fac); //NOTE: truncated
