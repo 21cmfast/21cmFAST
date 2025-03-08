@@ -20,14 +20,14 @@ double Nion_ConditionalM_MINI(double growthf, double lnM1, double lnM2, double l
                             double MassTurnover_upper, double Alpha_star, double Alpha_esc, double Fstar7,
                             double Fesc7, double Mlim_Fstar, double Mlim_Fesc, int method);
 double Xray_ConditionalM(double redshift, double growthf, double lnM1, double lnM2, double lnM_cond, double sigma2, double delta2,
-                         double MassTurnover, double MassTurnover_upper,
+                         double mturn_acg, double mturn_mcg,
                         double Alpha_star, double Alpha_star_mini, double Fstar10, double Fstar7, double Mlim_Fstar,
                         double Mlim_Fstar_mini, double l_x, double l_x_mini, double t_h, double t_star, int method);
 double Nion_General(double z, double lnM_Min, double lnM_Max, double MassTurnover, double Alpha_star, double Alpha_esc, double Fstar10,
                      double Fesc10, double Mlim_Fstar, double Mlim_Fesc);
 double Nion_General_MINI(double z, double lnM_Min, double lnM_Max, double MassTurnover, double MassTurnover_upper, double Alpha_star,
                          double Alpha_esc, double Fstar7_MINI, double Fesc7_MINI, double Mlim_Fstar, double Mlim_Fesc);
-double Xray_General(double z, double lnM_Min, double lnM_Max, double MassTurnover, double MassTurnover_upper, double Alpha_star,
+double Xray_General(double z, double lnM_Min, double lnM_Max, double mturn_acg, double mturn_mcg, double Alpha_star,
                      double Alpha_star_mini, double Fstar10, double Fstar7, double l_x, double l_x_mini, double t_h,
                      double t_star, double Mlim_Fstar, double Mlim_Fstar_mini);
 double Nhalo_General(double z, double lnM_min, double lnM_max);

@@ -6,13 +6,12 @@
 //Functions within interp_tables.c need the parameter structures, but we don't want to pass them all down the chain, so we broadcast them
 //TODO: in future it would be better to use a context struct. See `HaloBox.c`
 
-void initialise_SFRD_spline(int Nbin, float zmin, float zmax, float Alpha_star, float Alpha_star_mini, float Fstar10, float Fstar7_MINI,
-                             float mturn_a_const, bool minihalos);
+void initialise_SFRD_spline(int Nbin, float zmin, float zmax, float Alpha_star, float Alpha_star_mini, float Fstar10, float Fstar7_MINI);
 double EvaluateSFRD(double redshift, double Mlim_Fstar);
 double EvaluateSFRD_MINI(double redshift, double log10_Mturn_LW_ave, double Mlim_Fstar_MINI);
 
 void initialise_Nion_Ts_spline(int Nbin, float zmin, float zmax, float Alpha_star, float Alpha_star_mini, float Alpha_esc, float Fstar10,
-                                float Fesc10, float Fstar7_MINI, float Fesc7_MINI, float mturn_a_const, bool minihalos);
+                                float Fesc10, float Fstar7_MINI, float Fesc7_MINI);
 double EvaluateNionTs(double redshift, double Mlim_Fstar, double Mlim_Fesc);
 double EvaluateNionTs_MINI(double redshift, double log10_Mturn_LW_ave, double Mlim_Fstar_MINI, double Mlim_Fesc_MINI);
 
@@ -21,27 +20,23 @@ double EvaluateFcoll_delta(double delta, double growthf, double sigma_min, doubl
 
 void init_FcollTable(double zmin, double zmax, bool x_ray);
 double EvaluatedFcolldz(double delta, double redshift, double sigma_min, double sigma_max);
-
-void initialise_Nion_Conditional_spline(float z, float Mcrit_atom, float min_density, float max_density,
+void initialise_Nion_Conditional_spline(float z, float min_density, float max_density,
                                      float Mmin, float Mmax, float Mcond, float log10Mturn_min, float log10Mturn_max,
                                      float log10Mturn_min_MINI, float log10Mturn_max_MINI, float Alpha_star,
                                      float Alpha_star_mini, float Alpha_esc, float Fstar10, float Fesc10,
-                                     float Mlim_Fstar, float Mlim_Fesc, float Fstar7_MINI, float Fesc7_MINI,
-                                     float Mlim_Fstar_MINI, float Mlim_Fesc_MINI, int method, int method_mini,
-                                     bool minihalos, bool prev);
+                                     float Fstar7_MINI, float Fesc7_MINI, bool prev);
 double EvaluateNion_Conditional(double delta, double log10Mturn, double growthf, double M_min, double M_max, double M_cond, double sigma_max,
                                 double Mlim_Fstar, double Mlim_Fesc, bool prev);
 double EvaluateNion_Conditional_MINI(double delta, double log10Mturn_m, double growthf, double M_min, double M_max, double M_cond, double sigma_max,
                                     double Mturn_a, double Mlim_Fstar, double Mlim_Fesc, bool prev);
-void initialise_Xray_Conditional_table(double min_density, double max_density, double redshift, double growthf,
-                                    float Mcrit_atom, double Mmin, double Mmax, double Mcond, float Alpha_star, float Alpha_star_mini,
-                                    float Fstar10, float Fstar7_MINI, double l_x, double l_x_mini, double t_h, double t_star,
-                                    int method, int method_mini, bool minihalos);
+void initialise_Xray_Conditional_table(double min_density, double max_density, double redshift,
+                                    double Mmin, double Mmax, double Mcond, float Alpha_star, float Alpha_star_mini,
+                                    float Fstar10, float Fstar7_MINI, double l_x, double l_x_mini, double t_h, double t_star);
 double EvaluateXray_Conditional(double delta, double log10Mturn_m, double redshift, double growthf, double M_min, double M_max, double M_cond, double sigma_max,
                                      double Mturn_a, double t_h, double Mlim_Fstar, double Mlim_Fstar_MINI);
-void initialise_SFRD_Conditional_table(double min_density, double max_density, double growthf,
-                                    float Mcrit_atom, double Mmin, double Mmax, double Mcond, float Alpha_star, float Alpha_star_mini,
-                                    float Fstar10, float Fstar7_MINI, int method, int method_mini, bool minihalos);
+void initialise_SFRD_Conditional_table(double z, double min_density, double max_density,
+                                    double Mmin, double Mmax, double Mcond, float Alpha_star, float Alpha_star_mini,
+                                    float Fstar10, float Fstar7_MINI);
 double EvaluateSFRD_Conditional(double delta, double growthf, double M_min, double M_max, double M_cond, double sigma_max, double Mturn_a, double Mlim_Fstar);
 double EvaluateSFRD_Conditional_MINI(double delta, double log10Mturn_m, double growthf, double M_min, double M_max, double M_cond, double sigma_max, double Mturn_a, double Mlim_Fstar);
 

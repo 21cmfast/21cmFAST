@@ -254,9 +254,9 @@ def test_inverse_cmf_tables(name, from_cat, delta_range, mass_range, plt):
     )
 
 
-# NOTE: This test currently fails (~10% differences in mass in <1% of bins)
-#   I don't want to relax the tolerance yet since it can be improved, but
-#   for now this is acceptable
+# NOTE: This test is currently very slow since USE_INTERPOLATION_TABLES turns on
+#   both the mass function tables and the signa tables, so it does double-integrals.
+#   We could implement a ternary table flag OR implement a return_integral like the N_ion tests
 @pytest.mark.parametrize("name", options_hmf)
 @pytest.mark.parametrize("from_cat", ["cat", "grid"])
 def test_massfunc_conditional_tables(name, from_cat, mass_range, delta_range, plt):
