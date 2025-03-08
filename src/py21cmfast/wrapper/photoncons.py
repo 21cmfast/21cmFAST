@@ -206,11 +206,10 @@ def setup_photon_cons(
 
     Parameters
     ----------
-    inputs
+    initial_conditions : :class:`~InitialConditions`,
+        The InitialConditions instance to use for the photonconservation calculation
+    inputs : :class:`~InputParameters`, optional
         An InputParameters instance. If not given will taken from initial_conditions.
-    initial_conditions : :class:`~InitialConditions`, optional
-        If given, the `inputs` will be set from this object, and it will not be
-        re-calculated.
 
     Other Parameters
     ----------------
@@ -264,11 +263,10 @@ def calibrate_photon_cons(
 
     Parameters
     ----------
-    inputs: :class:`~InputParameters`
-        An InputParameters instance, must be compatible with the initial_conditions.
-    initial_conditions : :class:`~InitialConditions`
-        If given, the `inputs` will be set from this object, and it will not be
-        re-calculated.
+    initial_conditions : :class:`~InitialConditions`,
+        The InitialConditions instance to use for the photonconservation calculation
+    inputs : :class:`~InputParameters`,
+        An InputParameters instance.
 
     Other Parameters
     ----------------
