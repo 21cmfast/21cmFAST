@@ -270,7 +270,8 @@ def evolve_perturb_halos(
     if not write.perturbed_halo_field and len(all_redshifts) > 1:
         warnings.warn(
             "You have turned off caching for the perturbed halo fields, but are"
-            "evolving them across multiple redshifts. This will result in very high memory usage"
+            "evolving them across multiple redshifts. This will result in very high memory usage",
+            stacklevel=2,
         )
 
     pt_halos = []
@@ -717,7 +718,7 @@ def _get_required_redshifts_coeval(
         and min(inputs.node_redshifts) > min(user_redshifts)
     ):
         warnings.warn(
-            f"minimum node redshift {inputs.node_redshifts.min()} is above output redshift {min(user_redshifts)},"
+            f"minimum node redshift {min(inputs.node_redshifts)} is above output redshift {min(user_redshifts)},"
             + "This may result in strange evolution",
             stacklevel=2,
         )
