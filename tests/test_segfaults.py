@@ -138,9 +138,6 @@ def test_lc_runs(name, max_redshift, cache):
             z_step_factor=options["inputs"].user_params.ZPRIME_STEP_FACTOR,
         ),
     )
-    print(
-        options["inputs"].user_params.Z_HEAT_MAX, max(options["inputs"].node_redshifts)
-    )
 
     lcn = p21c.RectilinearLightconer.with_equal_cdist_slices(
         min_redshift=redshift,

@@ -59,5 +59,6 @@ from .wrapper.outputs import (
     TsBox,
     XraySourceBox,
 )
+from .wrapper.photoncons import setup_photon_cons
 
 configure_logging()

@@ -11,11 +11,13 @@ from typing import Any, get_args
 import attrs
 import numpy as np
 
+from ..c_21cmfast import ffi, lib
 from ..io import h5
 from ..io.caching import OutputCache
 from ..wrapper.cfuncs import construct_fftw_wisdoms
 from ..wrapper.inputs import InputParameters
 from ..wrapper.outputs import OutputStruct, OutputStructZ, _HashType
+from ..wrapper.photoncons import _photoncons_state
 
 logger = logging.getLogger(__name__)
 
@@ -356,6 +358,24 @@ class _OutputStructComputationInspect:
                     funcname=f"{self._func.__name__} (descendant z)",
                 )
 
+    def check_backend_state(self, inputs: InputParameters):
+        """Check the backend state of the computation function.
+
+        Currently only holds the check for whether the photon conservation is
+        both needed and not initialised.
+        In Future, may hold more backend state checks.
+        """
+        # we need photon cons to be done before any non-IC box is computed
+        if (
+            inputs.flag_options.PHOTON_CONS_TYPE != "no-photoncons"
+            and _photoncons_state.calibration_inputs != inputs
+            and issubclass(self._kls, OutputStructZ)
+        ):
+            raise ValueError(
+                "Photon conservation is needed but not initialised with the current InputParameters."
+                " Call `setup_photon_cons` with your current parameters or use the high-level functions."
+            )
+
     def _handle_read_from_cache(
         self,
         inputs: InputParameters,
@@ -372,7 +392,7 @@ class _OutputStructComputationInspect:
             return
 
         # First check whether the boxes already exist.
-        if issubclass(self._, OutputStructZ):
+        if issubclass(self._kls, OutputStructZ):
             obj = self._kls.new(inputs=inputs, redshift=current_redshfit)
         else:
             obj = self._kls.new(inputs=inputs)
@@ -422,6 +442,7 @@ class single_field_func(_OutputStructComputationInspect):  # noqa: N801
         self.check_output_struct_types(outputs)
         # The following checks both current and previous redshifts, if applicable
         self.ensure_redshift_consistency(current_redshift, outputsz)
+        self.check_backend_state(inputs)
 
         cache = kwargs.pop("cache", None)
         regen = kwargs.pop("regenerate", True)
