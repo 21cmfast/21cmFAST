@@ -66,7 +66,7 @@ logger = logging.getLogger(__name__)
 # NOTE: if/when we move the photoncons model data to python we should use this
 #   structure to hold z, xHI and parameter delta arrays
 @attrs.define(kw_only=True)
-class PhotonConservationState:
+class _PhotonConservationState:
     """Singleton class which contains the state of the photon-conservation model."""
 
     calibration_inputs: InputParameters | None = None
@@ -81,7 +81,7 @@ class PhotonConservationState:
         lib.photon_cons_allocated = ffi.cast("bool", val)
 
 
-photoncons_state = PhotonConservationState()
+_photoncons_state = _PhotonConservationState()
 
 
 def _init_photon_conservation_correction(
@@ -148,7 +148,7 @@ def _get_photon_nonconservation_data() -> dict:
       nf_photoncons: the neutral fraction as a function of redshift
     """
     # Check if photon conservation has been initialised at all
-    if not photoncons_state.c_memory_allocated:
+    if not _photoncons_state.c_memory_allocated:
         return {}
 
     arbitrary_large_size = 2000
@@ -252,7 +252,7 @@ def setup_photon_cons(
         initial_conditions=initial_conditions,
         **kwargs,
     )
-    photoncons_state.calibration_inputs = inputs
+    _photoncons_state.calibration_inputs = inputs
 
     # The PHOTON_CONS_TYPE == 1 case is handled in C (for now....), but we get the data anyway
     if inputs.flag_options.PHOTON_CONS_TYPE == "z-photoncons":
@@ -438,9 +438,9 @@ def photoncons_alpha(cosmo_params, user_params, astro_params, flag_options):
     """
     # HACK: I need to allocate the deltaz arrays so I can return the other ones properly, this isn't a great solution
     # TODO: Move the deltaz interp tables to python
-    if not photoncons_state.c_memory_allocated:
+    if not _photoncons_state.c_memory_allocated:
         lib.determine_deltaz_for_photoncons()
-        photoncons_state.c_memory_allocated = True
+        _photoncons_state.c_memory_allocated = True
 
     # Q(analytic) limits to fit the curve
     max_q_fit = 0.99
@@ -610,9 +610,9 @@ def photoncons_fesc(cosmo_params, user_params, astro_params, flag_options):
     Adjusts the normalisation of the escape fraction to match a global evolution.
     """
     # HACK: I need to allocate the deltaz arrays so I can return the other ones properly, this isn't a great solution
-    if not photoncons_state.c_memory_allocated:
+    if not _photoncons_state.c_memory_allocated:
         lib.determine_deltaz_for_photoncons()
-        photoncons_state.c_memory_allocated = True
+        _photoncons_state.c_memory_allocated = True
 
     # Q(analytic) limits to fit the curve
     max_q_fit = 0.99
