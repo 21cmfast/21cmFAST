@@ -199,14 +199,8 @@ def compute_luminosity_function(
     ----------
     redshifts : array-like
         The redshifts at which to compute the luminosity function.
-    user_params : :class:`~UserParams`, optional
-        Defines the overall options and parameters of the run.
-    cosmo_params : :class:`~CosmoParams`, optional
-        Defines the cosmological parameters used to compute initial conditions.
-    astro_params : :class:`~AstroParams`, optional
-        The astrophysical parameters defining the course of reionization.
-    flag_options : :class:`~FlagOptions`, optional
-        Some options passed to the reionization routine.
+    inputs: :class:`~InputParameters`
+        The input parameters defining the simulation run.
     nbins : int, optional
         The number of luminosity bins to produce for the luminosity function.
     mturnovers : array-like, optional

@@ -36,6 +36,7 @@ struct ScalingConstants{
     double pop3_ion;
 
     double vcb_norel;
+    double acg_thresh;
     double mturn_a_nofb;
     double mturn_m_nofb;
 
