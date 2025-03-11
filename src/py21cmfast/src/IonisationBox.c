@@ -667,7 +667,7 @@ void setup_integration_tables(struct FilteredGrids *fg_struct, struct IonBoxCons
                         log10Mturn_min_MINI,log10Mturn_max_MINI);
         if(user_params_global->INTEGRATION_METHOD_ATOMIC == 1 || (flag_options_global->USE_MINI_HALOS && user_params_global->INTEGRATION_METHOD_MINI == 1))
             initialise_GL(consts->lnMmin, rspec.ln_M_max_R);
-        if(user_params_global->USE_INTERPOLATION_TABLES){
+        if(user_params_global->USE_INTERPOLATION_TABLES > 1){
             //Buffers to avoid both zero bin widths and max cell segfault in 2D interptables
             prev_min_density -= 0.001;
             prev_max_density += 0.001;
@@ -701,7 +701,7 @@ void setup_integration_tables(struct FilteredGrids *fg_struct, struct IonBoxCons
     else {
         //This was previously one table for all R, which can be done with the EPS mass function (and some others)
         //TODO: I don't expect this to be a bottleneck, but we can look into re-making the 2/3D ERFC tables if needed
-        if(user_params_global->USE_INTERPOLATION_TABLES)
+        if(user_params_global->USE_INTERPOLATION_TABLES > 1)
             initialise_FgtrM_delta_table(min_density, max_density, consts->redshift, consts->growth_factor, consts->sigma_minmass, rspec.sigma_maxmass);
     }
 }
@@ -1279,7 +1279,7 @@ int ComputeIonizedBox(float redshift, float prev_redshift, UserParams *user_para
     global_xH = 0.0;
 
     //HMF integral initialisation
-    if(user_params->USE_INTERPOLATION_TABLES) {
+    if(user_params->USE_INTERPOLATION_TABLES > 0) {
         if(user_params->INTEGRATION_METHOD_ATOMIC == 2 || user_params->INTEGRATION_METHOD_MINI == 2)
             initialiseSigmaMInterpTable(fmin(MMIN_FAST,ionbox_constants.M_min),1e20);
         else
@@ -1431,7 +1431,7 @@ int ComputeIonizedBox(float redshift, float prev_redshift, UserParams *user_para
     LOG_DEBUG("global_xH = %e",global_xH);
     free_fftw_grids(grid_struct);
 
-    if(!flag_options->USE_TS_FLUCT && user_params->USE_INTERPOLATION_TABLES) {
+    if(!flag_options->USE_TS_FLUCT && user_params->USE_INTERPOLATION_TABLES > 0) {
         freeSigmaMInterpTable();
     }
 

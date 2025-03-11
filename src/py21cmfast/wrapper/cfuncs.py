@@ -1,7 +1,7 @@
 """Low-level python wrappers of C functions."""
 
 import logging
-from collections.abc import Sequence
+from collections.abc import Callable, Sequence
 from functools import cache
 from typing import Literal
 
@@ -15,6 +15,72 @@ from .inputs import AstroParams, CosmoParams, FlagOptions, InputParameters, User
 from .outputs import InitialConditions, PerturbHaloField
 
 logger = logging.getLogger(__name__)
+
+
+def broadcast_params(func: Callable) -> Callable:
+    """Decorator to broadcast the parameters to the C library before calling the function."""
+
+    def wrapper(*args, **kwargs):
+        inputs = kwargs.get("inputs")
+        if inputs.astro_params:
+            lib.Broadcast_struct_global_all(
+                inputs.user_params.cstruct,
+                inputs.cosmo_params.cstruct,
+                inputs.astro_params.cstruct,
+                inputs.flag_options.cstruct,
+            )
+        else:
+            lib.Broadcast_struct_global_noastro(
+                inputs.user_params.cstruct,
+                inputs.cosmo_params.cstruct,
+            )
+        return func(*args, **kwargs)
+
+    return wrapper
+
+
+@broadcast_params
+def init_backend_ps(func: Callable) -> Callable:
+    """Decorator to initialise the backend PS before calling the function."""
+
+    def wrapper(*args, **kwargs):
+        lib.init_ps()
+        return func(*args, **kwargs)
+
+    return wrapper
+
+
+@init_backend_ps
+def init_sigma_table(func: Callable) -> Callable:
+    """Decorator to initialise the the sigma interpolation table before calling the function."""
+
+    def wrapper(*args, **kwargs):
+        sigma_min_mass = kwargs.get("M_min", 1e5)
+        sigma_max_mass = kwargs.get("M_max", 1e16)
+        if (
+            kwargs.get("inputs").user_params.USE_INTERPOLATION_TABLES
+            != "no-interpolation"
+        ):
+            lib.initialiseSigmaMInterpTable(sigma_min_mass, sigma_max_mass)
+        return func(*args, **kwargs)
+
+    return wrapper
+
+
+@init_sigma_table
+def init_gl(func: Callable) -> Callable:
+    """Decorator to initialise the Gauss-Legendre if required before calling the function."""
+
+    def wrapper(*args, **kwargs):
+        if "GAUSS-LEGENDRE" in (
+            kwargs.get("inputs").user_params.INTEGRATION_METHOD_ATOMIC,
+            kwargs.get("inputs").user_params.INTEGRATION_METHOD_MINI,
+        ):
+            # no defualt since GL mass limits are strict
+            lib.initialise_GL(np.log(kwargs.get("M_min")), np.log(kwargs.get("M_max")))
+        return func(*args, **kwargs)
+
+    return wrapper
 
 
 def get_expected_nhalo(
@@ -366,16 +432,37 @@ def construct_fftw_wisdoms(
         return 0
 
 
-# Below are evaulations of certain integrals and interpolation tables used at lower levels in the code.
-#  They are mostly used for testing but may be useful in some post-processing applications
+@init_sigma_table
+def evaluate_sigma(
+    inputs,
+    masses: Sequence[float],
+):
+    """
+    Evaluates the variance of a mass scale.
+
+    Uses the 21cmfast backend
+    """
+    sigma = np.vectorize(lib.EvaluateSigma)(np.log(masses))
+    dsigmasq = np.vectorize(lib.EvaluatedSigmasqdm)(np.log(masses))
+
+    return sigma, dsigmasq
 
 
-def get_delta_crit(user_params, cosmo_params, mass, redshift):
+@init_backend_ps
+def get_growth_factor(
+    inputs: InputParameters,
+    redshift: float,
+):
+    """Gets the growth factor at a given redshift."""
+    return lib.dicke(redshift)
+
+
+def get_delta_crit(inputs, mass, redshift):
     """Gets the critical collapse density given a mass, redshift and parameters."""
-    sigma, _ = evaluate_sigma(user_params, cosmo_params, mass)
+    sigma, _ = evaluate_sigma(inputs, mass)
     # evaluate_sigma already broadcasts the paramters so we don't need to repeat
-    growth = lib.dicke(redshift)
-    return get_delta_crit_nu(user_params, sigma, growth)
+    growth = get_growth_factor(inputs, redshift)
+    return get_delta_crit_nu(inputs.user_params, sigma, growth)
 
 
 def get_delta_crit_nu(user_params, sigma, growth):
@@ -384,89 +471,50 @@ def get_delta_crit_nu(user_params, sigma, growth):
     return np.vectorize(lib.get_delta_crit)(user_params.cdict["HMF"], sigma, growth)
 
 
-def evaluate_sigma(
-    user_params: UserParams,
-    cosmo_params: CosmoParams,
-    masses: Sequence[float],
-):
-    """
-    Evaluates the variance of a mass scale.
-
-    Uses the 21cmfast backend
-    """
-    lib.Broadcast_struct_global_noastro(user_params.cstruct, cosmo_params.cstruct)
-
-    lib.init_ps()
-    if user_params.USE_INTERPOLATION_TABLES:
-        # hard-coded limits for now
-        lib.initialiseSigmaMInterpTable(1e5, 1e16)
-
-    sigma = np.vectorize(lib.EvaluateSigma)(np.log(masses))
-    dsigmasq = np.vectorize(lib.EvaluatedSigmasqdm)(np.log(masses))
-
-    return sigma, dsigmasq
-
-
-def evaluate_massfunc_cond(
-    *,
-    user_params: UserParams,
-    cosmo_params: CosmoParams,
-    astro_params: AstroParams,
-    flag_options: FlagOptions,
+@init_sigma_table
+def initialise_dNdM_tables(
+    inputs: InputParameters,
+    cond_min: float,
+    cond_max: float,
     M_min: float,
     M_max: float,
-    redshift: float,
+    growth_out: float,
     cond_param: float,
-    cond_array: Sequence[float],
     from_catalog: bool,
 ):
-    """
-    Evaluates the conditional mass function integral.
+    """Initialises the dNdM tables for the conditional mass function.
 
-    includes halo number and mass, using the 21cmfast backend
+    If from_catalog is True, cond_param is the descendant growth factor and cond_array are halo masses.
+    If from_catalog is False, cond_param is the natural log of the cell mass and cond_array are deltas.
     """
-    lib.Broadcast_struct_global_all(
-        user_params.cstruct,
-        cosmo_params.cstruct,
-        astro_params.cstruct,
-        flag_options.cstruct,
+    lib.initialise_dNdM_tables(
+        cond_min,
+        cond_max,
+        np.log(M_min),
+        np.log(M_max),
+        growth_out,
+        cond_param,
+        from_catalog,
     )
 
-    lib.init_ps()
-    if user_params.USE_INTERPOLATION_TABLES:
-        lib.initialiseSigmaMInterpTable(1e5, 1e16)
 
-    growth_out = lib.dicke(redshift)
-    if from_catalog:
-        # cond_param is descendant redshift, cond_array are halo masses
-        growth_in = lib.dicke(cond_param)
-        sigma_cond = np.vectorize(lib.EvaluateSigma)(cond_array)
-        delta = (
-            np.vectorize(lib.get_delta_crit)(
-                user_params.cdict["HMF"], sigma_cond, growth_in
-            )
-            * growth_out
-            / growth_in
-        )
-        cond_mass = np.exp(cond_array)
-    else:
-        # cond_param is cell mass, cond_array are deltas
-        sigma_cond = lib.EvaluateSigma(np.log(cond_param))
-        delta = cond_array
-        cond_mass = cond_param
+@init_sigma_table
+def get_condition_integrals(
+    cond_array: Sequence[float],
+    growth_out: float,
+    M_min: float,
+    M_max: float,
+    cond_mass: float,
+    sigma_cond: float,
+    delta: float,
+):
+    """Gets the expected number and mass of halos given a condition.
 
-    if user_params.USE_INTERPOLATION_TABLES:
-        lib.initialise_dNdM_tables(
-            cond_array.min(),
-            cond_array.max(),
-            np.log(M_min),
-            np.log(M_max),
-            growth_out,
-            growth_in if from_catalog else np.log(cond_mass),
-            from_catalog,
-        )
-
-    nhalo = (
+    If USE_INTERPOLATION_TABLES is set to 'hmf-interpolation': Will crash if the table
+    has not been initialised, only `cond_array` is used,
+    and the rest of the arguments are taken from when the table was initialised.
+    """
+    n_halo = (
         np.vectorize(lib.EvaluateNhalo)(
             cond_array,
             growth_out,
@@ -478,8 +526,7 @@ def evaluate_massfunc_cond(
         )
         * cond_mass
     )
-
-    mcoll = (
+    m_coll = (
         np.vectorize(lib.EvaluateMcoll)(
             cond_array,
             growth_out,
@@ -492,110 +539,38 @@ def evaluate_massfunc_cond(
         * cond_mass
     )
 
-    return nhalo, mcoll
+    return n_halo, m_coll
 
 
-def get_cmf_integral(
-    user_params: UserParams,
-    cosmo_params: CosmoParams,
-    astro_params: AstroParams,
-    flag_options: FlagOptions,
-    M_min: Sequence[float] | float,
-    M_max: Sequence[float] | float,
-    M_cond: Sequence[float] | float,
-    redshift: float,
-    delta: Sequence[float] | float | None = None,
-    z_desc: float | None = None,
-):
-    """
-    Evaluates the simple halo mass function intgral.
-
-    Can be computed over a range of conditions and mass bounds.
-    """
-    lib.Broadcast_struct_global_all(
-        user_params.cstruct,
-        cosmo_params.cstruct,
-        astro_params.cstruct,
-        flag_options.cstruct,
-    )
-    lib.init_ps()
-    lib.initialiseSigmaMInterpTable(1e5, 1e16)
-
-    sigma = np.vectorize(lib.EvaluateSigma)(np.log(M_cond))
-
-    growth_out = lib.dicke(redshift)
-    if z_desc is not None and delta is None:
-        growth_in = lib.dicke(z_desc)
-        delta = (
-            (
-                np.vectorize(lib.get_delta_crit)(
-                    user_params.cdict["HMF"], sigma, growth_in
-                )
-            )
-            * growth_out
-            / growth_in
-        )
-
-    cmf_integral = np.vectorize(lib.Nhalo_Conditional)(
-        growth_out,
-        np.log(M_min),
-        np.log(M_max),
-        M_cond,
-        sigma,
-        delta,
-        0,  # GSL-QAG
-    )
-
-    # final shape (delta, sigma, M_min)
-    return cmf_integral
-
-
-def evaluate_inv_massfunc_cond(
-    *,
-    user_params: UserParams,
-    cosmo_params: CosmoParams,
-    astro_params: AstroParams,
-    flag_options: FlagOptions,
+@init_sigma_table
+def initialise_dNdM_inverse_table(
+    cond_min: float,
+    cond_max: float,
     M_min: float,
-    redshift: float,
+    growth_out: float,
     cond_param: float,
-    cond_array: Sequence[float],
-    probabilities: Sequence[float],
     from_catalog: bool,
 ):
-    """
-    Evaluates the inverse cumulative halo mass function.
+    """Initialises the inverse dNdM tables for the conditional mass function."""
+    lib.initialise_dNdM_inverse_table(
+        cond_min,
+        cond_max,
+        np.log(M_min),
+        growth_out,
+        cond_param,
+        from_catalog,
+    )
+
+
+def evaluate_inverse_table(
+    cond_array: Sequence[float],
+    probabilities: Sequence[float],
+    cond_mass: float,
+):
+    """Evaluates the inverse cumulative halo mass function.
 
     Used to verify sampling tables.
     """
-    lib.Broadcast_struct_global_all(
-        user_params.cstruct,
-        cosmo_params.cstruct,
-        astro_params.cstruct,
-        flag_options.cstruct,
-    )
-
-    lib.init_ps()
-    lib.initialiseSigmaMInterpTable(1e5, 1e16)
-
-    growth_out = lib.dicke(redshift)
-
-    if from_catalog:
-        # cond_param is descendant redshift, cond_array are halo masses
-        growth_in = lib.dicke(cond_param)
-        cond_mass = np.exp(cond_array)
-    else:
-        # cond_param is cell mass, cond_array are deltas
-        cond_mass = cond_param
-
-    lib.initialise_dNdM_inverse_table(
-        cond_array.min(),
-        cond_array.max() * 1.01,
-        np.log(M_min),
-        growth_out,
-        growth_in if from_catalog else np.log(cond_mass),
-        from_catalog,
-    )
     masses = (
         np.vectorize(lib.EvaluateNhaloInv)(
             cond_array,
@@ -606,135 +581,59 @@ def evaluate_inv_massfunc_cond(
     return masses
 
 
+# TODO: I don't think these needs to be separated into initialisation
+#   and evaluation with a combined function in integrals.py e.g the halos
+#   due to its simplicity, would appreciate some input here
+# Considerations:
+# - limiting these functions to thin wrappers is desired
+# - It would be nice to keep lib calls segregated to this file
+# - keeping the initialisation and evaluation together makes mistakes harder
+# - Avoiding re-initialisation by calling decoratred functions multiple times is a good idea
+@init_sigma_table
 def evaluate_FgtrM_cond(
-    *,
-    user_params: UserParams,
-    cosmo_params: CosmoParams,
-    astro_params: AstroParams,
-    flag_options: FlagOptions,
-    M_min: float,
-    M_max: float,
-    redshift: float,
-    cond_mass: float,
+    inputs: InputParameters,
     densities: Sequence[float],
+    redshift: float,
+    sigma_min: float,
+    sigma_cond: float,
+    growth_out: float,
 ):
-    """Evaluates F(>M) using EPS (erfc) from the 21cmfast backend."""
-    lib.Broadcast_struct_global_all(
-        user_params.cstruct,
-        cosmo_params.cstruct,
-        astro_params.cstruct,
-        flag_options.cstruct,
-    )
-    lib.init_ps()
-
-    if user_params.USE_INTERPOLATION_TABLES:
-        lib.initialiseSigmaMInterpTable(M_min, M_max)
-
-    growth_out = lib.dicke(redshift)
-    sigma_min = lib.sigma_z0(M_min)
-    sigma_cond = lib.sigma_z0(cond_mass)
-
-    lib.initialise_FgtrM_delta_table(
-        densities.min() - 0.01,
-        densities.max() + 0.01,
-        redshift,
-        growth_out,
-        sigma_min,
-        sigma_cond,
-    )
-
+    """Gets the collapsed fraction from the backend, given a density and condition sigma."""
+    if inputs.user_params.USE_INTERPOLATION_TABLES == "hmf-interpolation":
+        lib.initialise_FgtrM_delta_tables(
+            densities.min(),
+            densities.max(),
+            redshift,
+            lib.dicke(redshift),
+            sigma_min,
+            sigma_cond,
+        )
     fcoll = np.vectorize(lib.EvaluateFcoll_delta)(
         densities, growth_out, sigma_min, sigma_cond
     )
     dfcolldz = np.vectorize(lib.EvaluatedFcolldz)(
         densities, redshift, sigma_min, sigma_cond
     )
-
     return fcoll, dfcolldz
 
 
+@init_gl
 def evaluate_SFRD_z(
     *,
-    user_params: UserParams,
-    cosmo_params: CosmoParams,
-    astro_params: AstroParams,
-    flag_options: FlagOptions,
+    inputs: InputParameters,
     M_min: float,
     M_max: float,
     redshifts: Sequence[float],
     log10mturnovers: Sequence[float],
-    return_integral: bool = False,
+    pl_mass_lims: dict[str, float],
+    nbin: int = 400,
 ):
     """Evaluates the global star formation rate density expected at a range of redshifts."""
-    lib.Broadcast_struct_global_all(
-        user_params.cstruct,
-        cosmo_params.cstruct,
-        astro_params.cstruct,
-        flag_options.cstruct,
-    )
-    lib.init_ps()
-
-    if user_params.USE_INTERPOLATION_TABLES:
-        lib.initialiseSigmaMInterpTable(M_min, M_max)
-    if (
-        user_params.INTEGRATION_METHOD_ATOMIC == "GAUSS-LEGENDRE"
-        or user_params.INTEGRATION_METHOD_MINI == "GAUSS-LEGENDRE"
-    ):
-        lib.initialise_GL(np.log(M_min), np.log(M_max))
-
-    ap_c = astro_params.cdict
-
-    mlim_fstar_acg = (
-        1e10 * ap_c["F_STAR10"] ** (-1.0 / ap_c["ALPHA_STAR"])
-        if ap_c["ALPHA_STAR"]
-        else 0.0
-    )
-    mlim_fstar_mcg = (
-        1e7 * ap_c["F_STAR7_MINI"] ** (-1.0 / ap_c["ALPHA_STAR_MINI"])
-        if ap_c["ALPHA_STAR_MINI"]
-        else 0.0
-    )
-
-    sfrd_mini = 0.0
-    # Unfortunately we have to do this until we sort out the USE_INTERPOLATION_TABLES flag
-    # Since these integrals take forever if the flag is false
-    mcrit_atom = ap_c["M_TURN"]
-    if flag_options.USE_MINI_HALOS:
-        acg_thresh = np.vectorize(lib.atomic_cooling_threshold)(redshifts)
-        mcrit_atom = np.maximum(mcrit_atom, acg_thresh)
-    if return_integral:
-        sfrd = np.vectorize(lib.Nion_General)(
-            redshifts,
-            np.log(M_min),
-            np.log(M_max),
-            mcrit_atom,
-            ap_c["ALPHA_STAR"],
-            0.0,
-            ap_c["F_STAR10"],
-            1.0,
-            mlim_fstar_acg,
-            0.0,
-        )
-        if flag_options.USE_MINI_HALOS:
-            sfrd_mini = np.vectorize(lib.Nion_General_MINI)(
-                redshifts[:, None],
-                np.log(M_min),
-                np.log(M_max),
-                10 ** log10mturnovers[None, :],
-                acg_thresh[:, None],
-                ap_c["ALPHA_STAR_MINI"],
-                0.0,
-                ap_c["F_STAR7_MINI"],
-                1.0,
-                mlim_fstar_mcg,
-                0.0,
-            )
-        return sfrd, sfrd_mini
-
-    if user_params.USE_INTERPOLATION_TABLES:
+    ap_c = inputs.astro_params.cdict
+    if inputs.user_params.USE_INTERPOLATION_TABLES == "hmf-interpolation":
         lib.initialise_SFRD_spline(
-            400,
-            redshifts.min() - 1.01,
+            nbin,
+            redshifts.min(),
             redshifts.max() + 1.01,
             ap_c["ALPHA_STAR"],
             ap_c["ALPHA_STAR_MINI"],
@@ -742,107 +641,33 @@ def evaluate_SFRD_z(
             ap_c["F_STAR7_MINI"],
         )
 
-    sfrd = np.vectorize(lib.EvaluateSFRD)(redshifts, mlim_fstar_acg)
-    if flag_options.USE_MINI_HALOS:
+    sfrd = np.vectorize(lib.EvaluateSFRD)(redshifts, pl_mass_lims["fstar_acg"])
+    sfrd_mini = np.zeros((redshifts.size, log10mturnovers.size))
+    if inputs.flag_options.USE_MINI_HALOS:
         sfrd_mini = np.vectorize(lib.EvaluateSFRD_MINI)(
             redshifts[:, None],
             log10mturnovers[None, :],
-            mlim_fstar_mcg,
+            pl_mass_lims["fstar_mcg"],
         )
     return sfrd, sfrd_mini
 
 
+@init_gl
 def evaluate_Nion_z(
-    user_params: UserParams,
-    cosmo_params: CosmoParams,
-    astro_params: AstroParams,
-    flag_options: FlagOptions,
+    inputs: InputParameters,
     M_min: float,
     M_max: float,
     redshifts: Sequence[float],
     log10mturnovers: Sequence[float],
-    return_integral: bool = False,
+    pl_mass_lims: dict[str, float],
+    nbins: int = 400,
 ):
     """Evaluates the global ionising emissivity expected at a range of redshifts."""
-    lib.Broadcast_struct_global_all(
-        user_params.cstruct,
-        cosmo_params.cstruct,
-        astro_params.cstruct,
-        flag_options.cstruct,
-    )
-    lib.init_ps()
-
-    if user_params.USE_INTERPOLATION_TABLES:
-        lib.initialiseSigmaMInterpTable(M_min, M_max)
-    if (
-        user_params.INTEGRATION_METHOD_ATOMIC == "GAUSS-LEGENDRE"
-        or user_params.INTEGRATION_METHOD_MINI == "GAUSS-LEGENDRE"
-    ):
-        lib.initialise_GL(np.log(M_min), np.log(M_max))
-
-    ap_c = astro_params.cdict
-
-    mlim_fstar_acg = (
-        1e10 * ap_c["F_STAR10"] ** (-1.0 / ap_c["ALPHA_STAR"])
-        if ap_c["ALPHA_STAR"]
-        else 0.0
-    )
-    mlim_fstar_mcg = (
-        1e7 * ap_c["F_STAR7_MINI"] ** (-1.0 / ap_c["ALPHA_STAR_MINI"])
-        if ap_c["ALPHA_STAR_MINI"]
-        else 0.0
-    )
-    mlim_fesc_acg = (
-        1e10 * ap_c["F_ESC10"] ** (-1.0 / ap_c["ALPHA_ESC"])
-        if ap_c["ALPHA_ESC"]
-        else 0.0
-    )
-    mlim_fesc_mcg = (
-        1e7 * ap_c["F_ESC7_MINI"] ** (-1.0 / ap_c["ALPHA_ESC"])
-        if ap_c["ALPHA_ESC"]
-        else 0.0
-    )
-
-    sfrd_mini = 0.0
-    mcrit_atom = ap_c["M_TURN"]
-    if flag_options.USE_MINI_HALOS:
-        acg_thresh = np.vectorize(lib.atomic_cooling_threshold)(redshifts)
-        mcrit_atom = np.maximum(mcrit_atom, acg_thresh)
-    # Unfortunately we have to do this until we sort out the USE_INTERPOLATION_TABLES flag
-    # Since these integrals take forever if the flag is false
-    if return_integral:
-        sfrd = np.vectorize(lib.Nion_General)(
-            redshifts,
-            np.log(M_min),
-            np.log(M_max),
-            mcrit_atom,
-            ap_c["ALPHA_STAR"],
-            ap_c["ALPHA_ESC"],
-            ap_c["F_STAR10"],
-            ap_c["F_ESC10"],
-            mlim_fstar_acg,
-            mlim_fesc_acg,
-        )
-        if flag_options.USE_MINI_HALOS:
-            sfrd_mini = np.vectorize(lib.Nion_General_MINI)(
-                redshifts[:, None],
-                np.log(M_min),
-                np.log(M_max),
-                10 ** log10mturnovers[None, :],
-                acg_thresh[:, None],
-                ap_c["ALPHA_STAR_MINI"],
-                ap_c["ALPHA_ESC"],
-                ap_c["F_STAR7_MINI"],
-                ap_c["F_ESC7_MINI"],
-                mlim_fstar_mcg,
-                mlim_fesc_mcg,
-            )
-        return sfrd, sfrd_mini
-
-    if user_params.USE_INTERPOLATION_TABLES:
+    ap_c = inputs.astro_params.cdict
+    if inputs.user_params.USE_INTERPOLATION_TABLES == "hmf-interpolation":
         lib.initialise_Nion_Ts_spline(
-            400,
-            redshifts.min() - 1.01,
+            nbins,
+            redshifts.min(),
             redshifts.max() + 1.01,
             ap_c["ALPHA_STAR"],
             ap_c["ALPHA_STAR_MINI"],
@@ -855,115 +680,45 @@ def evaluate_Nion_z(
 
     nion = np.vectorize(lib.EvaluateNionTs)(
         redshifts,
-        mlim_fstar_acg,
-        mlim_fesc_acg,
+        pl_mass_lims["fstar_acg"],
+        pl_mass_lims["fesc_acg"],
     )
-    nion_mini = np.vectorize(lib.EvaluateNionTs_MINI)(
-        redshifts[:, None],
-        log10mturnovers[None, :],
-        mlim_fstar_mcg,
-        mlim_fesc_mcg,
-    )
+    nion_mini = np.zeros((redshifts.size, log10mturnovers.size))
+    if inputs.flag_options.USE_MINI_HALOS:
+        nion_mini = np.vectorize(lib.EvaluateNionTs_MINI)(
+            redshifts[:, None],
+            log10mturnovers[None, :],
+            pl_mass_lims["fstar_mcg"],
+            pl_mass_lims["fesc_mcg"],
+        )
     return nion, nion_mini
 
 
+@init_gl
 def evaluate_SFRD_cond(
     *,
-    user_params: UserParams,
-    cosmo_params: CosmoParams,
-    astro_params: AstroParams,
-    flag_options: FlagOptions,
+    inputs: InputParameters,
     M_min: float,
     M_max: float,
     redshift: float,
     cond_mass: float,
     densities: Sequence[float],
     l10mturns: Sequence[float],
-    return_integral: bool = False,
+    mturn_acg: float,
+    pl_mass_lims: dict[str, float],
 ):
     """Evaluates the conditional star formation rate density expected at a range of densities."""
-    lib.Broadcast_struct_global_all(
-        user_params.cstruct,
-        cosmo_params.cstruct,
-        astro_params.cstruct,
-        flag_options.cstruct,
-    )
+    ap_c = inputs.astro_params.cdict
 
-    lib.init_ps()
-    if user_params.USE_INTERPOLATION_TABLES:
-        lib.initialiseSigmaMInterpTable(M_min, M_max)
-
-    if (
-        user_params.INTEGRATION_METHOD_ATOMIC == "GAUSS-LEGENDRE"
-        or user_params.INTEGRATION_METHOD_MINI == "GAUSS-LEGENDRE"
-    ):
-        lib.initialise_GL(np.log(M_min), np.log(M_max))
-
-    ap_c = astro_params.cdict
-
+    # NOTE: I'm still using the lib functions to avoid double-initialisation
     sigma_cond = lib.EvaluateSigma(np.log(cond_mass))
-    mcrit_atom = ap_c["M_TURN"]
-    if flag_options.USE_MINI_HALOS:
-        acg_thresh = lib.atomic_cooling_threshold(redshift)
-        mcrit_atom = max(mcrit_atom, acg_thresh)
-
-    mlim_fstar_acg = (
-        1e10 * ap_c["F_STAR10"] ** (-1.0 / ap_c["ALPHA_STAR"])
-        if ap_c["ALPHA_STAR"]
-        else 0.0
-    )
-    mlim_fstar_mcg = (
-        1e7 * ap_c["F_STAR7_MINI"] ** (-1.0 / ap_c["ALPHA_STAR_MINI"])
-        if ap_c["ALPHA_STAR_MINI"]
-        else 0.0
-    )
+    acg_thresh = lib.atomic_cooling_threshold(redshift)
 
     growthf = lib.dicke(redshift)
-    if not flag_options.USE_MINI_HALOS:
-        SFRD_mcg = np.zeros((densities.size, l10mturns.size))
-    # Unfortunately we have to do this until we sort out the USE_INTERPOLATION_TABLES flag
-    # Since these integrals take forever if the flag is false
-    if return_integral:
-        SFRD_acg = np.vectorize(lib.Nion_ConditionalM)(
-            growthf,
-            np.log(M_min),
-            np.log(M_max),
-            np.log(cond_mass),
-            sigma_cond,
-            densities,
-            mcrit_atom,
-            ap_c["ALPHA_STAR"],
-            0.0,
-            ap_c["F_STAR10"],
-            1.0,
-            mlim_fstar_acg,
-            0.0,
-            user_params.cdict["INTEGRATION_METHOD_ATOMIC"],
-        )
-        if flag_options.USE_MINI_HALOS:
-            SFRD_mcg = np.vectorize(lib.Nion_ConditionalM_MINI)(
-                growthf,
-                np.log(M_min),
-                np.log(M_max),
-                np.log(cond_mass),
-                sigma_cond,
-                densities[:, None],
-                10 ** l10mturns[None, :],
-                acg_thresh,
-                ap_c["ALPHA_STAR_MINI"],
-                0.0,
-                ap_c["F_STAR7_MINI"],
-                1.0,
-                mlim_fstar_mcg,
-                0.0,
-                user_params.cdict["INTEGRATION_METHOD_MINI"],
-            )
-        return SFRD_acg, SFRD_mcg
-
-    if user_params.USE_INTERPOLATION_TABLES:
+    if inputs.user_params.USE_INTERPOLATION_TABLES:
         lib.initialise_SFRD_Conditional_table(
             redshift,
-            densities.min() - 0.01,
+            densities.min(),
             densities.max() + 0.01,
             M_min,
             M_max,
@@ -981,10 +736,10 @@ def evaluate_SFRD_cond(
         M_max,
         cond_mass,
         sigma_cond,
-        mcrit_atom,
-        mlim_fstar_acg,
+        mturn_acg,
+        pl_mass_lims["fstar_acg"],
     )
-    if flag_options.USE_MINI_HALOS:
+    if inputs.flag_options.USE_MINI_HALOS:
         SFRD_mcg = np.vectorize(lib.EvaluateSFRD_Conditional_MINI)(
             densities[:, None],
             l10mturns[None, :],
@@ -993,117 +748,32 @@ def evaluate_SFRD_cond(
             M_max,
             cond_mass,
             sigma_cond,
-            mcrit_atom,
-            mlim_fstar_mcg,
+            acg_thresh,
+            pl_mass_lims["fstar_mcg"],
         )
     return SFRD_acg, SFRD_mcg
 
 
+@init_gl
 def evaluate_Nion_cond(
     *,
-    user_params: UserParams,
-    cosmo_params: CosmoParams,
-    astro_params: AstroParams,
-    flag_options: FlagOptions,
+    inputs: InputParameters,
     M_min: float,
     M_max: float,
     redshift: float,
     cond_mass: float,
     densities: Sequence[float],
     l10mturns: Sequence[float],
-    return_integral: bool = False,
+    pl_mass_lims: dict[str, float],
 ):
     """Evaluates the conditional ionising emissivity expected at a range of densities."""
-    lib.Broadcast_struct_global_all(
-        user_params.cstruct,
-        cosmo_params.cstruct,
-        astro_params.cstruct,
-        flag_options.cstruct,
-    )
-
-    lib.init_ps()
-    if user_params.USE_INTERPOLATION_TABLES:
-        lib.initialiseSigmaMInterpTable(M_min, M_max)
-
-    if (
-        user_params.INTEGRATION_METHOD_ATOMIC == "GAUSS-LEGENDRE"
-        or user_params.INTEGRATION_METHOD_MINI == "GAUSS-LEGENDRE"
-    ):
-        lib.initialise_GL(np.log(M_min), np.log(M_max))
-
-    ap_c = astro_params.cdict
+    ap_c = inputs.astro_params.cdict
 
     sigma_cond = lib.EvaluateSigma(np.log(cond_mass))
-    mcrit_atom = ap_c["M_TURN"]
-    if flag_options.USE_MINI_HALOS:
-        acg_thresh = lib.atomic_cooling_threshold(redshift)
-        mcrit_atom = max(mcrit_atom, acg_thresh)
-
-    mlim_fstar_acg = (
-        1e10 * ap_c["F_STAR10"] ** (-1.0 / ap_c["ALPHA_STAR"])
-        if ap_c["ALPHA_STAR"]
-        else 0.0
-    )
-    mlim_fstar_mcg = (
-        1e7 * ap_c["F_STAR7_MINI"] ** (-1.0 / ap_c["ALPHA_STAR_MINI"])
-        if ap_c["ALPHA_STAR_MINI"]
-        else 0.0
-    )
-    mlim_fesc_acg = (
-        1e10 * ap_c["F_ESC10"] ** (-1.0 / ap_c["ALPHA_ESC"])
-        if ap_c["ALPHA_ESC"]
-        else 0.0
-    )
-    mlim_fesc_mcg = (
-        1e7 * ap_c["F_ESC7_MINI"] ** (-1.0 / ap_c["ALPHA_ESC"])
-        if ap_c["ALPHA_ESC"]
-        else 0.0
-    )
-
-    if not flag_options.USE_MINI_HALOS:
-        Nion_mcg = np.zeros((densities.size, l10mturns.size))
+    acg_thresh = lib.atomic_cooling_threshold(redshift)
     growthf = lib.dicke(redshift)
-    # Unfortunately we have to do this until we sort out the USE_INTERPOLATION_TABLES flag
-    # Since these integrals take forever if the flag is false
-    if return_integral:
-        Nion_acg = np.vectorize(lib.Nion_ConditionalM)(
-            growthf,
-            np.log(M_min),
-            np.log(M_max),
-            np.log(cond_mass),
-            sigma_cond,
-            densities[:, None] if flag_options.USE_MINI_HALOS else densities,
-            10 ** l10mturns[None, :] if flag_options.USE_MINI_HALOS else mcrit_atom,
-            ap_c["ALPHA_STAR"],
-            ap_c["ALPHA_ESC"],
-            ap_c["F_STAR10"],
-            ap_c["F_ESC10"],
-            mlim_fstar_acg,
-            mlim_fesc_acg,
-            user_params.cdict["INTEGRATION_METHOD_ATOMIC"],
-        )
-        if flag_options.USE_MINI_HALOS:
-            Nion_mcg = np.vectorize(lib.Nion_ConditionalM_MINI)(
-                growthf,
-                np.log(M_min),
-                np.log(M_max),
-                np.log(cond_mass),
-                sigma_cond,
-                densities[:, None],
-                10 ** l10mturns[None, :],
-                acg_thresh,
-                ap_c["ALPHA_STAR_MINI"],
-                ap_c["ALPHA_ESC"],
-                ap_c["F_STAR7_MINI"],
-                ap_c["F_ESC7_MINI"],
-                mlim_fstar_mcg,
-                mlim_fesc_mcg,
-                user_params.cdict["INTEGRATION_METHOD_MINI"],
-            )
-        return Nion_acg, Nion_mcg
 
-    # TODO: this function needs cleanup
-    if user_params.USE_INTERPOLATION_TABLES:
+    if inputs.user_params.USE_INTERPOLATION_TABLES:
         lib.initialise_Nion_Conditional_spline(
             redshift,
             densities.min() - 0.01,
@@ -1126,18 +796,20 @@ def evaluate_Nion_cond(
         )
 
     Nion_acg = np.vectorize(lib.EvaluateNion_Conditional)(
-        densities[:, None] if flag_options.USE_MINI_HALOS else densities,
-        l10mturns[None, :] if flag_options.USE_MINI_HALOS else mcrit_atom,
+        densities[:, None] if inputs.flag_options.USE_MINI_HALOS else densities,
+        l10mturns[None, :] if inputs.flag_options.USE_MINI_HALOS else ap_c["M_TURN"],
         growthf,
         M_min,
         M_max,
         cond_mass,
         sigma_cond,
-        mlim_fstar_acg,
-        mlim_fesc_acg,
+        pl_mass_lims["fstar_acg"],
+        pl_mass_lims["fesc_acg"],
         False,
     )
-    if flag_options.USE_MINI_HALOS:
+
+    Nion_mcg = np.zeros((densities.size, l10mturns.size))
+    if inputs.flag_options.USE_MINI_HALOS:
         Nion_mcg = np.vectorize(lib.EvaluateNion_Conditional_MINI)(
             densities[:, None],
             l10mturns[None, :],
@@ -1146,95 +818,35 @@ def evaluate_Nion_cond(
             M_max,
             cond_mass,
             sigma_cond,
-            mcrit_atom,
-            mlim_fstar_mcg,
-            mlim_fesc_mcg,
+            acg_thresh,
+            pl_mass_lims["fstar_mcg"],
+            pl_mass_lims["fesc_mcg"],
             False,
         )
     return Nion_acg, Nion_mcg
 
 
+@init_gl
 def evaluate_Xray_cond(
     *,
-    user_params: UserParams,
-    cosmo_params: CosmoParams,
-    astro_params: AstroParams,
-    flag_options: FlagOptions,
+    inputs: InputParameters,
     M_min: float,
     M_max: float,
     redshift: float,
     cond_mass: float,
     densities: Sequence[float],
     l10mturns: Sequence[float],
-    return_integral: bool = False,
+    pl_mass_lims: dict[str, float],
 ):
     """Evaluates the conditional ionising emissivity expected at a range of densities."""
-    lib.Broadcast_struct_global_all(
-        user_params.cstruct,
-        cosmo_params.cstruct,
-        astro_params.cstruct,
-        flag_options.cstruct,
-    )
-
-    lib.init_ps()
-    if user_params.USE_INTERPOLATION_TABLES:
-        lib.initialiseSigmaMInterpTable(M_min, M_max)
-
-    if (
-        user_params.INTEGRATION_METHOD_ATOMIC == "GAUSS-LEGENDRE"
-        or user_params.INTEGRATION_METHOD_MINI == "GAUSS-LEGENDRE"
-    ):
-        lib.initialise_GL(np.log(M_min), np.log(M_max))
-
-    ap_c = astro_params.cdict
+    ap_c = inputs.astro_params.cdict
 
     sigma_cond = lib.EvaluateSigma(np.log(cond_mass))
-    mcrit_atom = ap_c["M_TURN"]
-    if flag_options.USE_MINI_HALOS:
-        acg_thresh = lib.atomic_cooling_threshold(redshift)
-        mcrit_atom = max(mcrit_atom, acg_thresh)
-
-    mlim_fstar_acg = (
-        1e10 * ap_c["F_STAR10"] ** (-1.0 / ap_c["ALPHA_STAR"])
-        if ap_c["ALPHA_STAR"]
-        else 0.0
-    )
-    mlim_fstar_mcg = (
-        1e7 * ap_c["F_STAR7_MINI"] ** (-1.0 / ap_c["ALPHA_STAR_MINI"])
-        if ap_c["ALPHA_STAR_MINI"]
-        else 0.0
-    )
+    acg_thresh = lib.atomic_cooling_threshold(redshift)
     growthf = lib.dicke(redshift)
-    t_h = (1 / cosmo_params.cosmo.H(redshift)).to("s").value
-    # Unfortunately we have to do this until we sort out the USE_INTERPOLATION_TABLES flag
-    # Since these integrals take forever if the flag is false
-    if return_integral:
-        Xray = np.vectorize(lib.Xray_ConditionalM)(
-            redshift,
-            growthf,
-            np.log(M_min),
-            np.log(M_max),
-            np.log(cond_mass),
-            sigma_cond,
-            densities[:, None] if flag_options.USE_MINI_HALOS else densities,
-            mcrit_atom,
-            10 ** l10mturns[None, :] if flag_options.USE_MINI_HALOS else 1.0,
-            ap_c["ALPHA_STAR"],
-            ap_c["ALPHA_STAR_MINI"],
-            ap_c["F_STAR10"],
-            ap_c["F_STAR7_MINI"],
-            mlim_fstar_acg,
-            mlim_fstar_mcg,
-            ap_c["L_X"],
-            ap_c["L_X_MINI"],
-            t_h,
-            ap_c["t_STAR"],
-            user_params.cdict["INTEGRATION_METHOD_ATOMIC"],
-        )
-        return Xray
+    t_h = (1 / inputs.cosmo_params.cosmo.H(redshift)).to("s").value
 
-    # TODO: this function needs cleanup
-    if user_params.USE_INTERPOLATION_TABLES:
+    if inputs.user_params.USE_INTERPOLATION_TABLES:
         lib.initialise_Xray_Conditional_table(
             densities.min() - 0.01,
             densities.max() + 0.01,
@@ -1253,44 +865,41 @@ def evaluate_Xray_cond(
         )
 
     Xray = np.vectorize(lib.EvaluateXray_Conditional)(
-        densities[:, None] if flag_options.USE_MINI_HALOS else densities,
-        l10mturns[None, :] if flag_options.USE_MINI_HALOS else mcrit_atom,
+        densities[:, None] if inputs.flag_options.USE_MINI_HALOS else densities,
+        l10mturns[None, :] if inputs.flag_options.USE_MINI_HALOS else ap_c["M_TURN"],
         redshift,
         growthf,
         M_min,
         M_max,
         cond_mass,
         sigma_cond,
-        mcrit_atom,
+        max(ap_c["M_TURN"], acg_thresh),
         t_h,
-        mlim_fstar_acg,
-        mlim_fstar_mcg,
+        pl_mass_lims["fstar_acg"],
+        pl_mass_lims["fstar_mcg"],
     )
     return Xray
 
 
 def halo_sample_test(
     *,
-    user_params: UserParams,
-    cosmo_params: CosmoParams,
-    astro_params: AstroParams,
-    flag_options: FlagOptions,
+    inputs: InputParameters,
     redshift: float,
     from_cat: bool,
     cond_array,
     redshift_prev: float | None = None,
     seed: int = 12345,
+    buffer_size: int = 3e7,
 ):
     """Constructs a halo sample given a descendant catalogue and redshifts."""
     # fix all zero for coords
     n_cond = cond_array.size
     crd_in = np.zeros(3 * n_cond).astype("i4")
+
     # HALO MASS CONDITIONS WITH FIXED z-step
     cond_array = cond_array.astype("f4")
-
     z_prev = -1 if redshift_prev is None else redshift_prev
 
-    buffer_size = int(3e7)  # about 500MB total 2e7 * 4 (float) * 4 (mass + 3crd)
     nhalo_out = np.zeros(1).astype("i4")
     N_out = np.zeros(n_cond).astype("i4")
     M_out = np.zeros(n_cond).astype("f8")
@@ -1300,11 +909,11 @@ def halo_sample_test(
     halocrd_out = np.zeros(int(3 * buffer_size)).astype("i4")
 
     lib.single_test_sample(
-        user_params.cstruct,
-        cosmo_params.cstruct,
-        astro_params.cstruct,
-        flag_options.cstruct,
-        12345,
+        inputs.user_params.cstruct,
+        inputs.cosmo_params.cstruct,
+        inputs.astro_params.cstruct,
+        inputs.flag_options.cstruct,
+        seed,
         n_cond,
         ffi.cast("float *", cond_array.ctypes.data),
         ffi.cast("int *", crd_in.ctypes.data),
@@ -1334,8 +943,7 @@ def halo_sample_test(
 def convert_halo_properties(
     *,
     redshift: float,
-    astro_params: AstroParams,
-    flag_options: FlagOptions,
+    inputs: InputParameters,
     ics: InitialConditions,
     halo_masses: Sequence[float],
     halo_rng: Sequence[float],
@@ -1359,21 +967,6 @@ def convert_halo_properties(
         Reionization turnover mass
         Metallicity
     """
-    lib.Broadcast_struct_global_all(
-        ics.user_params.cstruct,
-        ics.cosmo_params.cstruct,
-        astro_params.cstruct,
-        flag_options.cstruct,
-    )
-    inputs = InputParameters.from_output_structs(
-        [
-            ics,
-        ],
-        astro_params=astro_params,
-        flag_options=flag_options,
-        redshift=redshift,
-    )
-
     # HACK: Make the fake halo list
     fake_pthalos = PerturbHaloField(
         inputs=inputs,
@@ -1396,10 +989,10 @@ def convert_halo_properties(
     out_buffer = np.zeros(12 * halo_masses.size).astype("f4")
     lib.test_halo_props(
         redshift,
-        ics.user_params.cstruct,
-        ics.cosmo_params.cstruct,
-        astro_params.cstruct,
-        flag_options.cstruct,
+        inputs.user_params.cstruct,
+        inputs.cosmo_params.cstruct,
+        inputs.astro_params.cstruct,
+        inputs.flag_options.cstruct,
         zero_array,  # ICs vcb
         zero_array,  # J_21_LW
         zero_array,  # z_re

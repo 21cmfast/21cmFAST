@@ -892,7 +892,7 @@ void free_global_tables(){
 // WITHOUT computing all the additional arguments if we don't need them
 double EvaluateNionTs(double redshift, double Mlim_Fstar, double Mlim_Fesc){
     //differences in turnover are handled by table setup
-    if(user_params_global->USE_INTERPOLATION_TABLES){
+    if(user_params_global->USE_INTERPOLATION_TABLES > 1){
         if(flag_options_global->USE_MASS_DEPENDENT_ZETA)
             return EvaluateRGTable1D(redshift,&Nion_z_table); //the correct table should be passed
         return EvaluateRGTable1D(redshift,&fcoll_z_table);
@@ -916,7 +916,7 @@ double EvaluateNionTs(double redshift, double Mlim_Fstar, double Mlim_Fesc){
 }
 
 double EvaluateNionTs_MINI(double redshift, double log10_Mturn_LW_ave, double Mlim_Fstar_MINI, double Mlim_Fesc_MINI){
-    if(user_params_global->USE_INTERPOLATION_TABLES){
+    if(user_params_global->USE_INTERPOLATION_TABLES > 1){
         // LOG_SUPER_DEBUG("z %.3f l10M %.3e result %.3e",redshift,log10_Mturn_LW_ave,EvaluateRGTable2D(redshift,log10_Mturn_LW_ave,&Nion_z_table_MINI));
         // LOG_SUPER_DEBUG("Table N (%d,%d) min (%.2e %.2e) width (%.2e %.2e) max (%.2e %.2e)",Nion_z_table.nx_bin,Nion_z_table.ny_bin,
         //                 Nion_z_table.x_min,Nion_z_table.y_min,
@@ -932,7 +932,7 @@ double EvaluateNionTs_MINI(double redshift, double log10_Mturn_LW_ave, double Ml
 }
 
 double EvaluateSFRD(double redshift, double Mlim_Fstar){
-    if(user_params_global->USE_INTERPOLATION_TABLES){
+    if(user_params_global->USE_INTERPOLATION_TABLES > 1){
         if(flag_options_global->USE_MASS_DEPENDENT_ZETA)
             return EvaluateRGTable1D(redshift,&SFRD_z_table);
         return EvaluateRGTable1D(redshift,&fcoll_z_table);
@@ -961,7 +961,7 @@ double EvaluateSFRD(double redshift, double Mlim_Fstar){
 }
 
 double EvaluateSFRD_MINI(double redshift, double log10_Mturn_LW_ave, double Mlim_Fstar_MINI){
-    if(user_params_global->USE_INTERPOLATION_TABLES){
+    if(user_params_global->USE_INTERPOLATION_TABLES > 1){
         return EvaluateRGTable2D(redshift,log10_Mturn_LW_ave,&SFRD_z_table_MINI);
     }
     return Nion_General_MINI(redshift, log(M_MIN_INTEGRAL), log(M_MAX_INTEGRAL), pow(10.,log10_Mturn_LW_ave), atomic_cooling_threshold(redshift),
@@ -970,7 +970,7 @@ double EvaluateSFRD_MINI(double redshift, double log10_Mturn_LW_ave, double Mlim
 }
 
 double EvaluateSFRD_Conditional(double delta, double growthf, double M_min, double M_max, double M_cond, double sigma_max, double Mturn_a, double Mlim_Fstar){
-    if(user_params_global->USE_INTERPOLATION_TABLES){
+    if(user_params_global->USE_INTERPOLATION_TABLES > 1){
         return exp(EvaluateRGTable1D_f(delta,&SFRD_conditional_table));
     }
     return Nion_ConditionalM(growthf,log(M_min),log(M_max),log(M_cond),sigma_max,delta,Mturn_a,
@@ -978,7 +978,7 @@ double EvaluateSFRD_Conditional(double delta, double growthf, double M_min, doub
 }
 
 double EvaluateSFRD_Conditional_MINI(double delta, double log10Mturn_m, double growthf, double M_min, double M_max, double M_cond, double sigma_max, double Mturn_a, double Mlim_Fstar){
-    if(user_params_global->USE_INTERPOLATION_TABLES){
+    if(user_params_global->USE_INTERPOLATION_TABLES > 1){
         return exp(EvaluateRGTable2D_f(delta,log10Mturn_m,&SFRD_conditional_table_MINI));
     }
 
@@ -989,7 +989,7 @@ double EvaluateSFRD_Conditional_MINI(double delta, double log10Mturn_m, double g
 double EvaluateNion_Conditional(double delta, double log10Mturn, double growthf, double M_min, double M_max, double M_cond, double sigma_max,
                                 double Mlim_Fstar, double Mlim_Fesc, bool prev){
     RGTable2D_f *table = prev ? &Nion_conditional_table_prev : &Nion_conditional_table2D;
-    if(user_params_global->USE_INTERPOLATION_TABLES){
+    if(user_params_global->USE_INTERPOLATION_TABLES > 1){
         if(flag_options_global->USE_MINI_HALOS)
             return exp(EvaluateRGTable2D_f(delta, log10Mturn, table));
         return exp(EvaluateRGTable1D_f(delta, &Nion_conditional_table1D));
@@ -1003,7 +1003,7 @@ double EvaluateNion_Conditional(double delta, double log10Mturn, double growthf,
 double EvaluateNion_Conditional_MINI(double delta, double log10Mturn_m, double growthf, double M_min, double M_max, double M_cond, double sigma_max,
                                     double Mturn_a, double Mlim_Fstar, double Mlim_Fesc, bool prev){
     RGTable2D_f *table = prev ? &Nion_conditional_table_MINI_prev : &Nion_conditional_table_MINI;
-    if(user_params_global->USE_INTERPOLATION_TABLES){
+    if(user_params_global->USE_INTERPOLATION_TABLES > 1){
         return exp(EvaluateRGTable2D_f(delta,log10Mturn_m,table));
     }
 
@@ -1014,7 +1014,7 @@ double EvaluateNion_Conditional_MINI(double delta, double log10Mturn_m, double g
 
 double EvaluateXray_Conditional(double delta, double log10Mturn_m, double redshift, double growthf, double M_min, double M_max, double M_cond, double sigma_max,
                                      double Mturn_a, double t_h, double Mlim_Fstar, double Mlim_Fstar_MINI){
-    if(user_params_global->USE_INTERPOLATION_TABLES){
+    if(user_params_global->USE_INTERPOLATION_TABLES > 1){
         if(flag_options_global->USE_MINI_HALOS)
             return exp(EvaluateRGTable2D_f(delta,log10Mturn_m,&Xray_conditional_table_2D));
         return exp(EvaluateRGTable1D_f(delta,&Xray_conditional_table_1D));
@@ -1028,27 +1028,27 @@ double EvaluateXray_Conditional(double delta, double log10Mturn_m, double redshi
 }
 
 double EvaluateFcoll_delta(double delta, double growthf, double sigma_min, double sigma_max){
-    if(user_params_global->USE_INTERPOLATION_TABLES){
+    if(user_params_global->USE_INTERPOLATION_TABLES > 1){
         return EvaluateRGTable1D_f(delta,&fcoll_conditional_table);
     }
 
     return FgtrM_bias_fast(growthf,delta,sigma_min,sigma_max);
 }
 double EvaluatedFcolldz(double delta, double redshift, double sigma_min, double sigma_max){
-    if(user_params_global->USE_INTERPOLATION_TABLES){
+    if(user_params_global->USE_INTERPOLATION_TABLES > 1){
         return EvaluateRGTable1D_f(delta,&dfcoll_conditional_table);
     }
     return dfcoll_dz(redshift,sigma_min,delta,sigma_max);
 }
 
 double EvaluateNhalo(double condition, double growthf, double lnMmin, double lnMmax, double M_cond, double sigma, double delta){
-    if(user_params_global->USE_INTERPOLATION_TABLES)
+    if(user_params_global->USE_INTERPOLATION_TABLES > 1)
         return EvaluateRGTable1D(condition,&Nhalo_table);
     return Nhalo_Conditional(growthf, lnMmin, lnMmax, log(M_cond), sigma, delta, 0);
 }
 
 double EvaluateMcoll(double condition, double growthf, double lnMmin, double lnMmax, double M_cond, double sigma, double delta){
-    if(user_params_global->USE_INTERPOLATION_TABLES)
+    if(user_params_global->USE_INTERPOLATION_TABLES > 1)
         return EvaluateRGTable1D(condition,&Mcoll_table);
     return Mcoll_Conditional(growthf, lnMmin, lnMmax, log(M_cond), sigma, delta, 0);
 }
@@ -1121,7 +1121,7 @@ void InitialiseSigmaInverseTable(){
 }
 
 double EvaluateSigmaInverse(double sigma){
-    if(!user_params_global->USE_INTERPOLATION_TABLES){
+    if(!user_params_global->USE_INTERPOLATION_TABLES > 0){
         LOG_ERROR("Cannot currently do sigma inverse without USE_INTERPOLATION_TABLES");
         Throw(ValueError);
     }
@@ -1167,7 +1167,7 @@ void freeSigmaMInterpTable(){
 
 double EvaluateSigma(double lnM){
     //using log units to make the fast option faster and the slow option slower
-    if(user_params_global->USE_INTERPOLATION_TABLES) {
+    if(user_params_global->USE_INTERPOLATION_TABLES > 0) {
         return EvaluateRGTable1D_f(lnM, &Sigma_InterpTable);
     }
     return sigma_z0(exp(lnM));
@@ -1175,7 +1175,7 @@ double EvaluateSigma(double lnM){
 
 double EvaluatedSigmasqdm(double lnM){
     //this may be slow, figure out why the dsigmadm table is in log10
-    if(user_params_global->USE_INTERPOLATION_TABLES){
+    if(user_params_global->USE_INTERPOLATION_TABLES > 0){
         return -pow(10., EvaluateRGTable1D_f(lnM, &dSigmasqdm_InterpTable));
     }
     return dsigmasqdm_z0(exp(lnM));

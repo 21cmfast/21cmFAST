@@ -77,13 +77,13 @@ double expected_nhalo(double redshift, UserParams *user_params, CosmoParams *cos
     double result;
 
     init_ps();
-    if(user_params->USE_INTERPOLATION_TABLES)
+    if(user_params->USE_INTERPOLATION_TABLES > 0)
         initialiseSigmaMInterpTable(M_min,M_max);
 
     result = Nhalo_General(redshift, log(M_min), log(M_max)) * VOLUME * cosmo_params->OMm * RHOcrit;
     LOG_DEBUG("Expected %.2e Halos in the box from masses %.2e to %.2e at z=%.2f",result,M_min,M_max,redshift);
 
-    if(user_params->USE_INTERPOLATION_TABLES)
+    if(user_params->USE_INTERPOLATION_TABLES > 0)
         freeSigmaMInterpTable();
 
     return result;
@@ -111,7 +111,7 @@ void stoc_set_consts_z(struct HaloSamplingConstants *const_struct, double redshi
     const_struct->lnM_max_tb = log(const_struct->M_max_tables);
 
     init_ps();
-    if(user_params_global->USE_INTERPOLATION_TABLES){
+    if(user_params_global->USE_INTERPOLATION_TABLES > 0){
         if(user_params_global->SAMPLE_METHOD == 3)
             initialiseSigmaMInterpTable(const_struct->M_min/2,const_struct->M_max_tables); //the binary split needs to go below the resolution
         else
@@ -1026,7 +1026,7 @@ int stochastic_halofield(UserParams *user_params, CosmoParams *cosmo_params,
         LOG_DEBUG("First few XRAY RNG:     %11.3e %11.3e %11.3e",halos->xray_rng[0],halos->xray_rng[1],halos->xray_rng[2]);
     }
 
-    if(user_params_global->USE_INTERPOLATION_TABLES){
+    if(user_params_global->USE_INTERPOLATION_TABLES > 0){
         freeSigmaMInterpTable();
     }
     free_dNdM_tables();
@@ -1147,7 +1147,7 @@ int single_test_sample(UserParams *user_params, CosmoParams *cosmo_params, Astro
             }
         }
 
-        if(user_params_global->USE_INTERPOLATION_TABLES){
+        if(user_params_global->USE_INTERPOLATION_TABLES > 0){
             freeSigmaMInterpTable();
         }
         free_dNdM_tables();

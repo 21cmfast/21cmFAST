@@ -269,7 +269,7 @@ int set_fixed_grids(double M_min, double M_max, InitialConditions *ini_boxes,
                 consts->redshift,growth_z);
 
     //These tables are coarser than needed, an initial loop for Mturn to find limits may help
-    if(user_params_global->USE_INTERPOLATION_TABLES){
+    if(user_params_global->USE_INTERPOLATION_TABLES > 1){
         if(user_params_global->INTEGRATION_METHOD_ATOMIC == 1 || (flag_options_global->USE_MINI_HALOS && user_params_global->INTEGRATION_METHOD_MINI == 1)){
             initialise_GL(lnMmin, lnMmax);
         }
@@ -709,7 +709,7 @@ int ComputeHaloBox(double redshift, UserParams *user_params, CosmoParams *cosmo_
         struct HaloProperties averages_box, averages_subsampler;
 
         init_ps();
-        if(user_params->USE_INTERPOLATION_TABLES){
+        if(user_params->USE_INTERPOLATION_TABLES > 0){
             initialiseSigmaMInterpTable(M_min/2, M_MAX_INTEGRAL); //this needs to be initialised above MMax because of Nion_General
         }
         //do the mean HMF box
@@ -760,7 +760,7 @@ int ComputeHaloBox(double redshift, UserParams *user_params, CosmoParams *cosmo_
         LOG_SUPER_DEBUG("log10 Mutrn MCG: log10 cell-weighted %.6e Halo-weighted %.6e",
                     pow(10,grids->log10_Mcrit_MCG_ave),averages_box.m_turn_mcg);
 
-        if(user_params->USE_INTERPOLATION_TABLES){
+        if(user_params->USE_INTERPOLATION_TABLES > 0){
                 freeSigmaMInterpTable();
         }
     }

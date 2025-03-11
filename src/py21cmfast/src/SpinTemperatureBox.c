@@ -837,7 +837,7 @@ int global_reion_properties(double zp, double x_e_ave, double *log10_Mcrit_LW_av
     //I will need to change the Tau function chain.
     double determine_zpp_max, determine_zpp_min;
 
-    if(user_params_global->USE_INTERPOLATION_TABLES){
+    if(user_params_global->USE_INTERPOLATION_TABLES > 1){
         determine_zpp_min = zp*0.999;
         //NOTE: must be called after setup_z_edges for this line
         determine_zpp_max = zpp_for_evolve_list[astro_params_global->N_STEP_TS-1]*1.001;
@@ -902,7 +902,7 @@ void calculate_sfrd_from_grid(int R_ct, float *dens_R_grid, float *Mcrit_R_grid,
     if(user_params_global->INTEGRATION_METHOD_ATOMIC == 1 || (flag_options_global->USE_MINI_HALOS && user_params_global->INTEGRATION_METHOD_MINI == 1))
         initialise_GL(log(M_min_R[R_ct]),log(M_max_R[R_ct]));
 
-    if(user_params_global->USE_INTERPOLATION_TABLES){
+    if(user_params_global->USE_INTERPOLATION_TABLES > 1){
         if(flag_options_global->USE_MASS_DEPENDENT_ZETA){
             initialise_SFRD_Conditional_table(zpp_for_evolve_list[R_ct],
                 min_densities[R_ct]*zpp_growth[R_ct],max_densities[R_ct]*zpp_growth[R_ct]*1.001,
@@ -1227,7 +1227,7 @@ void ts_main(float redshift, float prev_redshift, UserParams *user_params, Cosmo
     if(user_params->INTEGRATION_METHOD_ATOMIC == 2 || user_params->INTEGRATION_METHOD_MINI == 2)
         M_MIN_tb = fmin(MMIN_FAST,M_MIN_tb);
 
-    if(user_params->USE_INTERPOLATION_TABLES)
+    if(user_params->USE_INTERPOLATION_TABLES > 0)
         initialiseSigmaMInterpTable(M_MIN_tb/2,1e20); //we need a larger table here due to the large radii
 
     //now that we have the sigma table we can assign the sigma arrays
