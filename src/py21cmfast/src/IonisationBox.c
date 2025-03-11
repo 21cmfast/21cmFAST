@@ -69,6 +69,7 @@ struct IonBoxConstants{
     double vcb_norel;
     double mturn_a_nofb;
     double mturn_m_nofb;
+    double acg_thresh;
     double ion_eff_factor;
     double ion_eff_factor_mini;
     double ion_eff_factor_gl;
@@ -185,12 +186,14 @@ void set_ionbox_constants(double redshift, double prev_redshift, CosmoParams *co
 
     consts->T_re = astro_params->T_RE;
 
+
     consts->mturn_a_nofb = flag_options->USE_MINI_HALOS ? atomic_cooling_threshold(redshift) : astro_params->M_TURN;
 
     consts->mturn_m_nofb = 0.;
     if(flag_options->USE_MINI_HALOS){
         consts->vcb_norel = flag_options->FIX_VCB_AVG ? astro_params->FIXED_VAVG : 0;
         consts->mturn_m_nofb = lyman_werner_threshold(redshift, 0., consts->vcb_norel, astro_params);
+        consts->acg_thresh = atomic_cooling_threshold(redshift);
     }
 
     if(consts->mturn_m_nofb < astro_params->M_TURN)consts->mturn_m_nofb = astro_params->M_TURN;
@@ -473,17 +476,17 @@ void set_mean_fcoll(struct IonBoxConstants *c, IonizedBox *prev_box, IonizedBox 
                                                 c->fstar_10,c->fesc_10,c->Mlim_Fstar,c->Mlim_Fesc);
                 curr_box->mean_f_coll = prev_box->mean_f_coll + f_coll_curr - f_coll_prev;
             }
-            f_coll_curr_mini = Nion_General_MINI(c->redshift,c->lnMmin,c->lnMmax_gl,mturn_mcg,mturn_acg,c->alpha_star_mini,
+            f_coll_curr_mini = Nion_General_MINI(c->redshift,c->lnMmin,c->lnMmax_gl,mturn_mcg,c->acg_thresh,c->alpha_star_mini,
                                                           c->alpha_esc,c->fstar_7,c->fesc_7,c->Mlim_Fstar_mini,c->Mlim_Fesc_mini);
             if (prev_box->mean_f_coll_MINI * c->ion_eff_factor_gl < 1e-4){
                 curr_box->mean_f_coll_MINI = f_coll_curr_mini;
             }
             else{
-                f_coll_prev_mini = Nion_General_MINI(c->prev_redshift,c->lnMmin,c->lnMmax_gl,mturn_mcg,mturn_acg,c->alpha_star_mini,
+                f_coll_prev_mini = Nion_General_MINI(c->prev_redshift,c->lnMmin,c->lnMmax_gl,mturn_mcg,c->acg_thresh,c->alpha_star_mini,
                                                           c->alpha_esc,c->fstar_7,c->fesc_7,c->Mlim_Fstar_mini,c->Mlim_Fesc_mini);
                 curr_box->mean_f_coll_MINI = prev_box->mean_f_coll_MINI + f_coll_curr_mini - f_coll_prev_mini;
             }
-            *f_limit_mcg = Nion_General_MINI(user_params_global->Z_HEAT_MAX,c->lnMmin,c->lnMmax_gl,mturn_mcg,mturn_acg,c->alpha_star_mini,
+            *f_limit_mcg = Nion_General_MINI(user_params_global->Z_HEAT_MAX,c->lnMmin,c->lnMmax_gl,mturn_mcg,c->acg_thresh,c->alpha_star_mini,
                                                           c->alpha_esc,c->fstar_7,c->fesc_7,
                                                           c->Mlim_Fstar_mini,c->Mlim_Fesc_mini);
         }
@@ -772,7 +775,7 @@ void calculate_fcoll_grid(IonizedBox *box, IonizedBox *previous_ionize_box, stru
                                 log10_Mturnover_MINI = *((float *)fg_struct->log10_Mturnover_MINI_filtered + HII_R_FFT_INDEX(x,y,z));
 
                                 Splined_Fcoll_MINI = EvaluateNion_Conditional_MINI(curr_dens,log10_Mturnover_MINI,consts->growth_factor,consts->M_min,
-                                                                                    rspec->M_max_R,rspec->M_max_R,rspec->sigma_maxmass,consts->mturn_a_nofb,
+                                                                                    rspec->M_max_R,rspec->M_max_R,rspec->sigma_maxmass,consts->acg_thresh,
                                                                                     consts->Mlim_Fstar_mini,consts->Mlim_Fesc,false);
 
 
@@ -783,7 +786,7 @@ void calculate_fcoll_grid(IonizedBox *box, IonizedBox *previous_ionize_box, stru
                                                                                         consts->M_min,rspec->M_max_R,rspec->M_max_R,
                                                                                         rspec->sigma_maxmass,consts->Mlim_Fstar,consts->Mlim_Fesc,true);
                                     prev_Splined_Fcoll_MINI = EvaluateNion_Conditional_MINI(prev_dens,log10_Mturnover_MINI,consts->prev_growth_factor,consts->M_min,
-                                                                                    rspec->M_max_R,rspec->M_max_R,rspec->sigma_maxmass,consts->mturn_a_nofb,
+                                                                                    rspec->M_max_R,rspec->M_max_R,rspec->sigma_maxmass,consts->acg_thresh,
                                                                                     consts->Mlim_Fstar_mini,consts->Mlim_Fesc_mini,true);
                                 }
                                 else{
