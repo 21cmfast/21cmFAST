@@ -932,7 +932,7 @@ void calculate_sfrd_from_grid(int R_ct, float *dens_R_grid, float *Mcrit_R_grid,
 
             if(flag_options_global->USE_MASS_DEPENDENT_ZETA){
                     fcoll = EvaluateSFRD_Conditional(curr_dens,zpp_growth[R_ct],M_min_R[R_ct],M_max_R[R_ct],M_max_R[R_ct],sigma_max[R_ct],
-                                                    Mcrit_atom_interp_table[R_ct],Mlim_Fstar_g);
+                                                    fmax(astro_params_global->M_TURN,Mcrit_atom_interp_table[R_ct]),Mlim_Fstar_g);
                     sfrd_grid[box_ct] = (1.+curr_dens)*fcoll;
 
                     if (flag_options_global->USE_MINI_HALOS){
@@ -1381,6 +1381,7 @@ void ts_main(float redshift, float prev_redshift, UserParams *user_params, Cosmo
     int R_index;
     float *delta_box_input;
     float *Mcrit_box_input = NULL; //may be unused
+    double mturn_a;
 
     //if we have stars, fill in the heating term boxes
     if(!NO_LIGHT) {
@@ -1398,6 +1399,7 @@ void ts_main(float redshift, float prev_redshift, UserParams *user_params, Cosmo
 
             //index for grids
             R_index = user_params->MINIMIZE_MEMORY ? 0 : R_ct;
+            mturn_a = fmax(Mcrit_atom_interp_table[R_ct], astro_params->M_TURN);
 
             if(!flag_options->USE_HALO_FIELD){
                 if(user_params->MINIMIZE_MEMORY) {
@@ -1429,7 +1431,7 @@ void ts_main(float redshift, float prev_redshift, UserParams *user_params, Cosmo
                 LOG_SUPER_DEBUG("z %6.2f ave sfrd val %.3e global %.3e (int %.3e) Mmin %.3e ratio %.4e z_edge %.4e",
                                     zpp_for_evolve_list[R_ct],ave_fcoll,mean_sfr_zpp[R_ct],
                                     Nion_General(zpp_for_evolve_list[R_ct], log(M_min_R[R_ct]), log(M_MAX_INTEGRAL),
-                                                    Mcrit_atom_interp_table[R_ct], astro_params_global->ALPHA_STAR, 0.,
+                                                    mturn_a, astro_params_global->ALPHA_STAR, 0.,
                                                     astro_params_global->F_STAR10, 1., Mlim_Fstar_g, 0.),
                                     M_min_R[R_ct],avg_fix_term,z_edge_factor);
                 if(flag_options_global->USE_MINI_HALOS){
@@ -1506,7 +1508,7 @@ void ts_main(float redshift, float prev_redshift, UserParams *user_params, Cosmo
                         if(flag_options->USE_MASS_DEPENDENT_ZETA){
                             integral_db = Nion_ConditionalM(zpp_growth[R_ct],log(M_min_R[R_ct]),log(M_max_R[R_ct]),M_max_R[R_ct],sigma_max[R_ct],
                                             delNL0[R_index][box_ct]*zpp_growth[R_ct],
-                                            Mcrit_atom_interp_table[R_ct],astro_params->ALPHA_STAR,0.,astro_params->F_STAR10,1.,Mlim_Fstar_g,0.,
+                                            mturn_a,astro_params->ALPHA_STAR,0.,astro_params->F_STAR10,1.,Mlim_Fstar_g,0.,
                                             user_params->INTEGRATION_METHOD_ATOMIC) * z_edge_factor * (1+delNL0[R_index][box_ct]*zpp_growth[R_ct])
                                             * avg_fix_term * astro_params->F_STAR10;
                         }
