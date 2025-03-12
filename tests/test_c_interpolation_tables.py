@@ -81,22 +81,18 @@ def z_range():
 @pytest.mark.parametrize("name", options_ps)
 def test_sigma_table(name, mass_range, plt):
     abs_tol = 0
-
     redshift, kwargs = OPTIONS_PS[name]
-    opts = prd.get_all_options(redshift, **kwargs)
-
-    up = opts["user_params"]
-    cp = opts["cosmo_params"]
+    inputs = prd.get_all_options_struct(redshift, **kwargs)
 
     sigma_tables, dsigma_tables = cf.evaluate_sigma(
-        user_params=up,
-        cosmo_params=cp,
+        inputs=inputs.evolve_input_structs(
+            USE_INTERPOLATION_TABLES="sigma-interpolation"
+        ),
         masses=mass_range,
     )
 
     sigma_integrals, dsigma_integrals = cf.evaluate_sigma(
-        user_params=up.clone(USE_INTERPOLATION_TABLES=False),
-        cosmo_params=cp,
+        inputs=inputs.evolve_input_structs(USE_INTERPOLATION_TABLES="no-interpolation"),
         masses=mass_range,
     )
 
@@ -123,12 +119,7 @@ def test_sigma_table(name, mass_range, plt):
 @pytest.mark.parametrize("from_cat", ["cat", "grid"])
 def test_inverse_cmf_tables(name, from_cat, delta_range, mass_range, plt):
     redshift, kwargs = OPTIONS_HMF[name]
-    opts = prd.get_all_options(redshift, **kwargs)
-
-    up = opts["user_params"]
-    cp = opts["cosmo_params"]
-    ap = opts["astro_params"]
-    fo = opts["flag_options"]
+    inputs = prd.get_all_options_struct(redshift, **kwargs)
 
     from_cat = "cat" in from_cat
 
