@@ -27,7 +27,7 @@ void get_sigma(UserParams *user_params, CosmoParams *cosmo_params, int n_masses,
 }
 
 //integrates at fixed (set by parameters) mass range for many conditions
-void get_chmf_integrals(UserParams *user_params, CosmoParams *cosmo_params, AstroParams *astro_params, FlagOptions *flag_options,
+void get_condition_integrals(UserParams *user_params, CosmoParams *cosmo_params, AstroParams *astro_params, FlagOptions *flag_options,
                         double redshift, double z_prev, int n_conditions, double *cond_values,
                         double *out_n_exp, double *out_m_exp){
 
@@ -46,23 +46,32 @@ void get_chmf_integrals(UserParams *user_params, CosmoParams *cosmo_params, Astr
 }
 
 //integrates a single condition over many mass ranges
+//returns probability a sampled mass is within the range (integral / full integral range determined by parameters)
 void integrate_chmf_masslims(UserParams *user_params, CosmoParams *cosmo_params, AstroParams *astro_params, FlagOptions *flag_options,
-                        double redshift, double z_prev, double cond_value, int n_masslim, double *lnM_lo, double *lnM_hi
-                        double *out_n_exp, double *out_m_exp){
+                        double redshift, double z_prev, double cond_value, int n_masslim, double *lnM_lo, double *lnM_hi,
+                        double *out_n){
 
     Broadcast_struct_global_all(user_params,cosmo_params,astro_params,flag_options);
     struct HaloSamplingConstants hs_const_struct;
 
     //unneccessarily creates tables if flags are set (a few seconds)
     stoc_set_consts_z(&hs_const_struct,redshift,z_prev);
-    stoc_set_consts_cond(&hs_const_struct,cond_values[i]);
+    stoc_set_consts_cond(&hs_const_struct,cond_value);
+
+    double exp_n_total = hs_const_struct.expected_N;
 
     int i;
-    for(i=0;i<n_conditions;i++){
-        out_n_exp[i] = hs_const_struct.expected_N;
-        out_m_exp[i] = hs_const_struct.expected_M;
+    for(i=0;i<n_masslim;i++){
+        out_n[i] = Nhalo_Conditional(
+            hs_const_struct.growth_out,
+            lnM_lo[i],
+            lnM_hi[i],
+            hs_const_struct.lnM_cond,
+            hs_const_struct.sigma_cond,
+            hs_const_struct.delta,
+            0 //QAG
+        ) / exp_n_total;
     }
-
 }
 
 void get_halomass_at_probability(UserParams *user_params, CosmoParams *cosmo_params, AstroParams *astro_params, FlagOptions *flag_options,

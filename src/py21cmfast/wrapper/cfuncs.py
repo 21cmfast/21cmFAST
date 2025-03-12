@@ -479,7 +479,7 @@ def get_delta_crit_nu(user_params, sigma, growth):
     return np.vectorize(lib.get_delta_crit)(user_params.cdict["HMF"], sigma, growth)
 
 
-def get_condition_integrals(
+def evaluate_condition_integrals(
     inputs: InputParameters,
     cond_array: Sequence[float],
     redshift: float,
@@ -510,6 +510,34 @@ def get_condition_integrals(
     )
 
     return np.reshape(n_halo, orig_shape), np.array(m_coll, orig_shape)
+
+
+def integrate_condition_masslims(
+    inputs: InputParameters,
+    cond_value: float,
+    redshift: float,
+    lnM_lower: Sequence[float],
+    lnM_upper: Sequence[float],
+    redshift_prev: float | None = None,
+):
+    """Evaluates conditional mass function integrals at a range of mass intervals."""
+    out_prob = np.zeros_like(lnM_lower).astype("f8")
+
+    lib.get_condition_integrals(
+        inputs.user_params.cstruct,
+        inputs.cosmo_params.cstruct,
+        inputs.astro_params.cstruct,
+        inputs.flag_options.cstruct,
+        redshift,
+        redshift_prev if redshift_prev is not None else -1,
+        cond_value,
+        len(lnM_lower),
+        ffi.cast("double *", ffi.from_buffer(lnM_lower)),
+        ffi.cast("double *", ffi.from_buffer(lnM_upper)),
+        ffi.cast("double *", ffi.from_buffer(out_prob)),
+    )
+
+    return out_prob
 
 
 def evaluate_inverse_table(

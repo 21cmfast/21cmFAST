@@ -83,9 +83,9 @@ void initialiseSigmaMInterpTable(float M_Min, float M_Max);
 
 /* Intergration routines */
 void get_sigma(UserParams *user_params, CosmoParams *cosmo_params, int n_masses, double *mass_values, double *sigma_out, double *dsigmasqdm_out);
-void get_chmf_integrals(UserParams *user_params, CosmoParams *cosmo_params, AstroParams *astro_params, FlagOptions *flag_options,
+void get_condition_integrals(UserParams *user_params, CosmoParams *cosmo_params, AstroParams *astro_params, FlagOptions *flag_options,
                         double redshift, double z_prev, int n_conditions, double *cond_values,
-                        double *out_n_exp, double *out_m_exp);
+                        double *out_n_exp, double *out_m_exp)
 void get_halomass_at_probability(UserParams *user_params, CosmoParams *cosmo_params, AstroParams *astro_params, FlagOptions *flag_options,
                         double redshift, double z_prev, int n_conditions, double *cond_values, double *probabilities,
                         double *out_mass);
