@@ -122,68 +122,33 @@ def test_inverse_cmf_tables(name, from_cat, delta_range, mass_range, plt):
     inputs = prd.get_all_options_struct(redshift, **kwargs)
 
     from_cat = "cat" in from_cat
-
     # we need the buffer for small conditions, but want the full upper range
-    mmin_range = np.logspace(
-        np.log10(mass_range.min() / up.SAMPLER_BUFFER_FACTOR),
-        np.log10(mass_range.max()),
+    lnMmin_range = np.linspace(
+        np.log(mass_range.min() / inputs.user_params.SAMPLER_BUFFER_FACTOR),
+        np.log(mass_range.max()),
         num=mass_range.size,
     )
 
-    if not from_cat:
-        M_cond = (
-            (
-                cp.cosmo.critical_density(0)
-                * cp.OMm
-                * u.Mpc**3
-                * (up.BOX_LEN / up.HII_DIM) ** 3
-            )
-            .to("M_sun")
-            .value
-        )
-        inputs_cond, inputs_mass = np.meshgrid(delta_range, mmin_range, indexing="ij")
-        z_desc = None
-        inputs_delta = inputs_cond
-    else:
-        inputs_cond, inputs_mass = np.meshgrid(
-            np.log(mass_range), mmin_range, indexing="ij"
-        )
-        inputs_delta = None
-        z_desc = (1 + redshift) / up.ZPRIME_STEP_FACTOR - 1
-        M_cond = np.exp(inputs_cond)
+    inputs_cond = np.log(mass_range) if from_cat else delta_range
+    z_desc = (redshift + 1) * 1.02 - 1 if from_cat else None
 
-    # ----CELLS-----
     # Get the Integrals
-    cmf_integral = cf.get_cmf_integral(
-        user_params=up,
-        cosmo_params=cp,
-        astro_params=ap,
-        flag_options=fo,
-        M_min=inputs_mass,
-        M_max=mmin_range.max(),
-        M_cond=M_cond,
+    cmf_integral = cf.calculate_halo_probabilities(
+        inputs=inputs,
+        lnM_lower=lnMmin_range,
+        lnM_upper=np.full_like(lnMmin_range, 1e16),
+        cond_values=inputs_cond,
         redshift=redshift,
-        delta=inputs_delta,
-        z_desc=z_desc,
-    ).squeeze()  # (cond, minmass)
-
-    # Normalize by max value to get CDF
-    max_p_cond = np.copy(cmf_integral[:, :1])
-    max_p_cond[max_p_cond == 0] = 1.0
-    cmf_integral /= max_p_cond
+        redshift_prev=z_desc,
+    )
 
     # Take those probabilites to the inverse table
-    icmf_table = cf.evaluate_inv_massfunc_cond(
-        user_params=up,
-        cosmo_params=cp,
-        astro_params=ap,
-        flag_options=fo,
-        M_min=mmin_range.min(),
-        redshift=redshift,
-        cond_param=z_desc if from_cat else M_cond,
-        cond_array=inputs_cond,
+    icmf_table = cf.evaluate_inverse_table(
+        inputs=inputs,
         probabilities=cmf_integral,
-        from_catalog=from_cat,
+        cond_array=inputs_cond,
+        redshift=redshift,
+        redshift_prev=z_desc,
     )
 
     # for plotting and printing, we use mass instead of logmass
@@ -192,9 +157,9 @@ def test_inverse_cmf_tables(name, from_cat, delta_range, mass_range, plt):
         sel = ((inputs_cond.shape[0] - 1) * np.arange(5) / 4).astype(int)
         make_table_comparison_plot(
             [cmf_integral[sel, :].T],
-            [inputs_cond[sel, 0]],
+            [inputs_cond[sel]],
             [icmf_table[sel, :].T],
-            [inputs_mass[sel, :].T],
+            [np.exp(lnMmin_range)],
             plt,
             zlabels=[r"$\delta =$" if not from_cat else r"$M=$"],
             logx=True,
@@ -202,15 +167,14 @@ def test_inverse_cmf_tables(name, from_cat, delta_range, mass_range, plt):
             label_test=[False, False],
             xlabels=["Probability"],
             ylabels=["Mass"],
-            xlim=[np.exp(up.MIN_LOGPROB) / 10, 1.0],
+            xlim=[np.exp(inputs.user_params.MIN_LOGPROB) / 10, 1.0],
             reltol=RELATIVE_TOLERANCE,
         )
 
     # We only want to compare at reasonable probabilities
     # easiest way to ignore is to fix values to nan
-    sel_lowprob = cmf_integral < np.exp(up.MIN_LOGPROB)
+    sel_lowprob = cmf_integral < np.exp(inputs.user_params.MIN_LOGPROB)
     cmf_integral[sel_lowprob] = np.nan
-    inputs_mass[sel_lowprob] = np.nan
     icmf_table[sel_lowprob] = np.nan
 
     # We don't want to include values close to delta crit, since the integrals struggle there,
@@ -218,17 +182,25 @@ def test_inverse_cmf_tables(name, from_cat, delta_range, mass_range, plt):
     # TODO: the bound should be over MAX_DELTAC_FRAC*delta_crit, and we should interpolate
     # instead of setting the integral to its limit at delta crit.
     if not from_cat:
-        delta_crit = float(cf.get_delta_crit(up, cp, np.array([M_cond]), redshift))
+        M_cond = (
+            (
+                inputs.cosmo_params.cosmo.critical_density(0)
+                * inputs.cosmo_params.OMm
+                * u.Mpc**3
+                * (inputs.user_params.BOX_LEN / inputs.user_params.HII_DIM) ** 3
+            )
+            .to("M_sun")
+            .value
+        )
+        delta_crit = cf.get_delta_crit(inputs, M_cond, redshift)
         sel_delta = delta_range < 0.98 * delta_crit
         delta_range = delta_range[sel_delta]
         cmf_integral = cmf_integral[sel_delta, ...]
-        inputs_mass = inputs_mass[sel_delta, ...]
         icmf_table = icmf_table[sel_delta, ...]
-        inputs_cond = inputs_cond[sel_delta, ...]
 
     print_failure_stats(
         np.log(icmf_table),
-        np.log(inputs_mass),  # TODO: decide whether to compare logmass or mass
+        np.log(lnMmin_range),  # TODO: decide whether to compare logmass or mass
         [inputs_cond, cmf_integral],
         0.0,
         RELATIVE_TOLERANCE,
@@ -236,7 +208,7 @@ def test_inverse_cmf_tables(name, from_cat, delta_range, mass_range, plt):
     )
 
     np.testing.assert_allclose(
-        np.log(inputs_mass),
+        np.log(lnMmin_range),
         np.log(icmf_table),
         rtol=RELATIVE_TOLERANCE,
     )
@@ -249,63 +221,35 @@ def test_inverse_cmf_tables(name, from_cat, delta_range, mass_range, plt):
 @pytest.mark.parametrize("from_cat", ["cat", "grid"])
 def test_massfunc_conditional_tables(name, from_cat, mass_range, delta_range, plt):
     redshift, kwargs = OPTIONS_HMF[name]
-    opts = prd.get_all_options(redshift, **kwargs)
-    up = opts["user_params"]
-    cp = opts["cosmo_params"]
-    ap = opts["astro_params"]
-    fo = opts["flag_options"]
-
-    M_min = mass_range.min()
-    M_max = mass_range.max()
+    inputs = prd.get_all_options_struct(redshift, **kwargs)
     from_cat = "cat" in from_cat
 
-    if from_cat:
-        # condition array is halo mass, parameter is descendant redshift
-        cond_arr = np.log(mass_range)
-        cond_param = (1 + redshift) / up.ZPRIME_STEP_FACTOR - 1
-    else:
-        # condition array is density, parameter is cell mass
-        cond_param = (
-            (
-                cp.cosmo.critical_density(0)
-                * cp.OMm
-                * u.Mpc**3
-                * (up.BOX_LEN / up.HII_DIM) ** 3
-            )
-            .to("M_sun")
-            .value
-        )
-        cond_arr = delta_range
+    inputs_cond = np.log(mass_range) if from_cat else delta_range
+    z_desc = (redshift + 1) * 1.02 - 1 if from_cat else None
 
-    nhalo_tbl, mcoll_tbl = cf.evaluate_massfunc_cond(
-        user_params=up,
-        cosmo_params=cp,
-        astro_params=ap,
-        flag_options=fo,
-        M_min=M_min,
-        M_max=M_max,
+    # get the tables
+    nhalo_tbl, mcoll_tbl = cf.evaluate_condition_integrals(
+        inputs=inputs.evolve_input_structs(
+            USE_INTERPOLATION_TABLES="hmf-interpolation"
+        ),
         redshift=redshift,
-        cond_param=cond_param,
-        cond_array=cond_arr,
-        from_catalog=from_cat,
+        redshift_prev=z_desc,
+        cond_array=inputs_cond,
     )
-    nhalo_exp, mcoll_exp = cf.evaluate_massfunc_cond(
-        user_params=up.clone(USE_INTERPOLATION_TABLES=False),
-        cosmo_params=cp,
-        astro_params=ap,
-        flag_options=fo,
-        M_min=M_min,
-        M_max=M_max,
+    # get the integrals
+    nhalo_exp, mcoll_exp = cf.evaluate_condition_integrals(
+        inputs=inputs.evolve_input_structs(
+            USE_INTERPOLATION_TABLES="sigma-interpolation"
+        ),
         redshift=redshift,
-        cond_param=cond_param,
-        cond_array=cond_arr,
-        from_catalog=from_cat,
+        redshift_prev=z_desc,
+        cond_array=inputs_cond,
     )
 
     if plt == mpl.pyplot:
-        cond_arr = np.exp(cond_arr) if from_cat else cond_arr
+        inputs_cond = np.exp(inputs_cond) if from_cat else inputs_cond
         make_table_comparison_plot(
-            [cond_arr, cond_arr],
+            [inputs_cond, inputs_cond],
             [None, None],
             [nhalo_tbl, mcoll_tbl],
             [nhalo_exp, mcoll_exp],
@@ -317,7 +261,7 @@ def test_massfunc_conditional_tables(name, from_cat, mass_range, delta_range, pl
     print_failure_stats(
         nhalo_tbl,
         nhalo_exp,
-        [cond_arr],
+        [inputs_cond],
         0.0,
         RELATIVE_TOLERANCE,
         "expected N halo",
@@ -325,7 +269,7 @@ def test_massfunc_conditional_tables(name, from_cat, mass_range, delta_range, pl
     print_failure_stats(
         mcoll_tbl,
         mcoll_exp,
-        [cond_arr],
+        [inputs_cond],
         0.0,
         RELATIVE_TOLERANCE,
         "expected M halo",
@@ -338,42 +282,35 @@ def test_massfunc_conditional_tables(name, from_cat, mass_range, delta_range, pl
 @pytest.mark.parametrize("R", R_PARAM_LIST)
 def test_FgtrM_conditional_tables(R, delta_range, plt):
     redshift, kwargs = OPTIONS_HMF["PS"]  # always erfc
-    opts = prd.get_all_options(redshift, **kwargs)
-    up = opts["user_params"]
-    cp = opts["cosmo_params"]
-    ap = opts["astro_params"]
-    fo = opts["flag_options"]
+    inputs = prd.get_all_options_struct(redshift, **kwargs)
 
-    M_min = 1e5
-    M_max = 1e20
-
-    cond_mass = (
-        (4.0 / 3.0 * np.pi * (R * u.Mpc) ** 3 * cp.cosmo.critical_density(0) * cp.OMm)
+    M_cond = (
+        (
+            inputs.cosmo_params.cosmo.critical_density(0)
+            * inputs.cosmo_params.OMm
+            * u.Mpc**3
+            * 4.0
+            / 3.0
+            * np.pi
+            * R**3
+        )
         .to("M_sun")
         .value
     )
 
     fcoll_tables, dfcoll_tables = cf.evaluate_FgtrM_cond(
-        user_params=up,
-        cosmo_params=cp,
-        astro_params=ap,
-        flag_options=fo,
-        M_min=M_min,
-        M_max=M_max,
+        inputs=inputs.evolve_input_struct(USE_INTERPOLATION_TABLES="hmf-interpolation"),
         redshift=redshift,
-        cond_mass=cond_mass,
         densities=delta_range,
+        R=R,
     )
     fcoll_integrals, dfcoll_integrals = cf.evaluate_FgtrM_cond(
-        user_params=up.clone(USE_INTERPOLATION_TABLES=False),
-        cosmo_params=cp,
-        astro_params=ap,
-        flag_options=fo,
-        M_min=M_min,
-        M_max=M_max,
+        inputs=inputs.evolve_input_struct(
+            USE_INTERPOLATION_TABLES="sigma-interpolation"
+        ),
         redshift=redshift,
-        cond_mass=cond_mass,
         densities=delta_range,
+        R=R,
     )
 
     if plt == mpl.pyplot:
@@ -390,7 +327,7 @@ def test_FgtrM_conditional_tables(R, delta_range, plt):
     # and interpolating across the sharp gap results in errors
     # TODO: the bound should be over MAX_DELTAC_FRAC*delta_crit, and we should interpolate
     # instead of setting the integral to its limit at delta crit.
-    delta_crit = float(cf.get_delta_crit(up, cp, np.array([cond_mass]), redshift))
+    delta_crit = cf.get_delta_crit(inputs, np.array([M_cond]), redshift)
     sel_delta = np.fabs((delta_range - delta_crit) / delta_crit) > 0.02
     delta_range = delta_range[sel_delta]
     fcoll_integrals = fcoll_integrals[sel_delta, ...]
@@ -428,36 +365,24 @@ def test_FgtrM_conditional_tables(R, delta_range, plt):
 @pytest.mark.parametrize("name", options_hmf)
 def test_SFRD_z_tables(name, z_range, log10_mturn_range, plt):
     redshift, kwargs = OPTIONS_HMF[name]
-    opts = prd.get_all_options(redshift, **kwargs)
-    up = opts["user_params"]
-    cp = opts["cosmo_params"]
-    ap = opts["astro_params"]
-    fo = opts["flag_options"].clone(
+    inputs = prd.get_all_options_struct(redshift, **kwargs)
+    inputs = inputs.evolve_input_struct(
         USE_MINI_HALOS=True,
         INHOMO_RECO=True,
         USE_TS_FLUCT=True,
     )
 
-    M_min = 1e5
-    M_max = 1e20
-
     SFRD_tables, SFRD_tables_mini = cf.evaluate_SFRD_z(
-        user_params=up,
-        cosmo_params=cp,
-        astro_params=ap,
-        flag_options=fo,
-        M_min=M_min,
-        M_max=M_max,
+        inputs=inputs.evolve_input_structs(
+            USE_INTERPOLATION_TABLES="hmf-interpolation"
+        ),
         redshifts=z_range,
         log10mturnovers=log10_mturn_range,
     )
     SFRD_integrals, SFRD_integrals_mini = cf.evaluate_SFRD_z(
-        user_params=up,
-        cosmo_params=cp,
-        astro_params=ap,
-        flag_options=fo,
-        M_min=M_min,
-        M_max=M_max,
+        inputs=inputs.evolve_input_structs(
+            USE_INTERPOLATION_TABLES="sigma-interpolation"
+        ),
         redshifts=z_range,
         log10mturnovers=log10_mturn_range,
         return_integral=True,
@@ -506,36 +431,24 @@ def test_SFRD_z_tables(name, z_range, log10_mturn_range, plt):
 @pytest.mark.parametrize("name", options_hmf)
 def test_Nion_z_tables(name, z_range, log10_mturn_range, plt):
     redshift, kwargs = OPTIONS_HMF[name]
-    opts = prd.get_all_options(redshift, **kwargs)
-    up = opts["user_params"]
-    cp = opts["cosmo_params"]
-    ap = opts["astro_params"]
-    fo = opts["flag_options"].clone(
+    inputs = prd.get_all_options_struct(redshift, **kwargs)
+    inputs = inputs.evolve_input_struct(
         USE_MINI_HALOS=True,
         INHOMO_RECO=True,
         USE_TS_FLUCT=True,
     )
 
-    M_min = 1e5
-    M_max = 1e20
-
-    Nion_tables, Nion_tables_mini = cf.evaluate_Nion_z(
-        user_params=up,
-        cosmo_params=cp,
-        astro_params=ap,
-        flag_options=fo,
-        M_min=M_min,
-        M_max=M_max,
+    nion_tables, nion_tables_mini = cf.evaluate_Nion_z(
+        inputs=inputs.evolve_input_structs(
+            USE_INTERPOLATION_TABLES="hmf-interpolation"
+        ),
         redshifts=z_range,
         log10mturnovers=log10_mturn_range,
     )
-    Nion_integrals, Nion_integrals_mini = cf.evaluate_Nion_z(
-        user_params=up,
-        cosmo_params=cp,
-        astro_params=ap,
-        flag_options=fo,
-        M_min=M_min,
-        M_max=M_max,
+    nion_integrals, nion_integrals_mini = cf.evaluate_Nion_z(
+        inputs=inputs.evolve_input_structs(
+            USE_INTERPOLATION_TABLES="sigma-interpolation"
+        ),
         redshifts=z_range,
         log10mturnovers=log10_mturn_range,
         return_integral=True,
@@ -546,9 +459,9 @@ def test_Nion_z_tables(name, z_range, log10_mturn_range, plt):
         sel_m = (xl * np.arange(5) / 4).astype(int)
         make_table_comparison_plot(
             [z_range, z_range],
-            [np.array([0]), log10_mturn_range[sel_m]],
-            [Nion_tables[:, None], Nion_tables_mini[..., sel_m]],
-            [Nion_integrals[:, None], Nion_integrals_mini[..., sel_m]],
+            [np.array([0]), 10 ** log10_mturn_range[sel_m]],
+            [nion_tables, nion_tables_mini[..., sel_m]],
+            [nion_integrals, nion_integrals_mini[..., sel_m]],
             plt,
             label_test=[True, False],
             xlabels=["redshift", "redshift"],
@@ -557,27 +470,27 @@ def test_Nion_z_tables(name, z_range, log10_mturn_range, plt):
 
     abs_tol = 2e-6
     print_failure_stats(
-        Nion_tables,
-        Nion_integrals,
+        nion_tables,
+        nion_integrals,
         [z_range],
         abs_tol,
         RELATIVE_TOLERANCE,
-        "Nion_z",
+        "SFRD_z",
     )
     print_failure_stats(
-        Nion_tables_mini,
-        Nion_integrals_mini,
+        nion_tables_mini,
+        nion_integrals_mini,
         [z_range, 10**log10_mturn_range],
         abs_tol,
         RELATIVE_TOLERANCE,
-        "Nion_z_mini",
+        "SFRD_z_mini",
     )
 
     np.testing.assert_allclose(
-        Nion_tables, Nion_integrals, atol=abs_tol, rtol=RELATIVE_TOLERANCE
+        nion_tables, nion_integrals, atol=abs_tol, rtol=RELATIVE_TOLERANCE
     )
     np.testing.assert_allclose(
-        Nion_tables_mini, Nion_integrals_mini, atol=abs_tol, rtol=RELATIVE_TOLERANCE
+        nion_tables_mini, nion_integrals_mini, atol=abs_tol, rtol=RELATIVE_TOLERANCE
     )
 
 
@@ -608,53 +521,46 @@ def test_Nion_conditional_tables(
     mini_flag = mini == "mini"
 
     redshift, kwargs = OPTIONS_HMF[name]
-    opts = prd.get_all_options(redshift, **kwargs)
-    up = opts["user_params"].clone(
+    inputs = prd.get_all_options_struct(redshift, **kwargs)
+    inputs = inputs.evolve_input_structs(
         INTEGRATION_METHOD_ATOMIC=OPTIONS_INTMETHOD[intmethod],
         INTEGRATION_METHOD_MINI=OPTIONS_INTMETHOD[intmethod],
-    )
-    cp = opts["cosmo_params"]
-    ap = opts["astro_params"]
-    fo = opts["flag_options"].clone(
         USE_MINI_HALOS=mini_flag,
         INHOMO_RECO=True,
         USE_TS_FLUCT=True,
     )
-
-    M_min = 1e5
-    M_max = 1e20
-
     cond_mass = (
-        (4.0 / 3.0 * np.pi * (R * u.Mpc) ** 3 * cp.cosmo.critical_density(0) * cp.OMm)
+        (
+            inputs.cosmo_params.cosmo.critical_density(0)
+            * inputs.cosmo_params.OMm
+            * u.Mpc**3
+            * 4.0
+            / 3.0
+            * np.pi
+            * R**3
+        )
         .to("M_sun")
         .value
     )
 
     Nion_tables, Nion_tables_mini = cf.evaluate_Nion_cond(
-        user_params=up,
-        cosmo_params=cp,
-        astro_params=ap,
-        flag_options=fo,
-        M_min=M_min,
-        M_max=M_max,
+        inputs=inputs.evolve_input_struct(USE_INTERPOLATION_TABLES="hmf-interpolation"),
         redshift=redshift,
-        cond_mass=cond_mass,
+        radius=R,
         densities=delta_range,
-        l10mturns=log10_mturn_range,
+        l10mturns_mcg=log10_mturn_range,
+        l10mturns_acg=log10_mturn_range,
     )
 
     Nion_integrals, Nion_integrals_mini = cf.evaluate_Nion_cond(
-        user_params=up,
-        cosmo_params=cp,
-        astro_params=ap,
-        flag_options=fo,
-        M_min=M_min,
-        M_max=M_max,
+        inputs=inputs.evolve_input_struct(
+            USE_INTERPOLATION_TABLES="sigma-interpolation"
+        ),
         redshift=redshift,
-        cond_mass=cond_mass,
+        radius=R,
         densities=delta_range,
-        l10mturns=log10_mturn_range,
-        return_integral=True,
+        l10mturns_mcg=log10_mturn_range,
+        l10mturns_acg=log10_mturn_range,
     )
 
     # The bilinear interpolation we use underperforms at high mturn due to the sharp
@@ -689,7 +595,7 @@ def test_Nion_conditional_tables(
     # and interpolating across the sharp gap results in errors
     # TODO: the bound should be over MAX_DELTAC_FRAC*delta_crit, and we should interpolate
     # instead of setting the integral to its limit at delta crit.
-    delta_crit = float(cf.get_delta_crit(up, cp, np.array([cond_mass]), redshift))
+    delta_crit = cf.get_delta_crit(inputs, np.array([cond_mass]), redshift)
     sel_delta = np.fabs((delta_range - delta_crit) / delta_crit) > 0.02
     delta_range = delta_range[sel_delta]
     Nion_integrals = Nion_integrals[sel_delta, ...]
@@ -743,53 +649,43 @@ def test_Xray_conditional_tables(
     mini_flag = mini == "mini"
 
     redshift, kwargs = OPTIONS_HMF[name]
-    opts = prd.get_all_options(redshift, **kwargs)
-    up = opts["user_params"].clone(
+    inputs = prd.get_all_options_struct(redshift, **kwargs)
+    inputs = inputs.evolve_input_structs(
         INTEGRATION_METHOD_ATOMIC=OPTIONS_INTMETHOD[intmethod],
         INTEGRATION_METHOD_MINI=OPTIONS_INTMETHOD[intmethod],
-    )
-    cp = opts["cosmo_params"]
-    ap = opts["astro_params"]
-    fo = opts["flag_options"].clone(
         USE_MINI_HALOS=mini_flag,
         INHOMO_RECO=True,
         USE_TS_FLUCT=True,
     )
-
-    M_min = 1e5
-    M_max = 1e20
-
     cond_mass = (
-        (4.0 / 3.0 * np.pi * (R * u.Mpc) ** 3 * cp.cosmo.critical_density(0) * cp.OMm)
+        (
+            inputs.cosmo_params.cosmo.critical_density(0)
+            * inputs.cosmo_params.OMm
+            * u.Mpc**3
+            * 4.0
+            / 3.0
+            * np.pi
+            * R**3
+        )
         .to("M_sun")
         .value
     )
-
     Xray_tables = cf.evaluate_Xray_cond(
-        user_params=up,
-        cosmo_params=cp,
-        astro_params=ap,
-        flag_options=fo,
-        M_min=M_min,
-        M_max=M_max,
+        inputs=inputs.evolve_input_struct(USE_INTERPOLATION_TABLES="hmf-interpolation"),
         redshift=redshift,
-        cond_mass=cond_mass,
+        radius=R,
         densities=delta_range,
         l10mturns=log10_mturn_range,
     )
 
     Xray_integrals = cf.evaluate_Xray_cond(
-        user_params=up,
-        cosmo_params=cp,
-        astro_params=ap,
-        flag_options=fo,
-        M_min=M_min,
-        M_max=M_max,
+        inputs=inputs.evolve_input_struct(
+            USE_INTERPOLATION_TABLES="sigma-interpolation"
+        ),
         redshift=redshift,
-        cond_mass=cond_mass,
+        radius=R,
         densities=delta_range,
         l10mturns=log10_mturn_range,
-        return_integral=True,
     )
 
     # The bilinear interpolation we use underperforms at high mturn due to the sharp
@@ -825,7 +721,7 @@ def test_Xray_conditional_tables(
     # and interpolating across the sharp gap results in errors
     # TODO: the bound should be over MAX_DELTAC_FRAC*delta_crit, and we should interpolate
     # instead of setting the integral to its limit at delta crit.
-    delta_crit = float(cf.get_delta_crit(up, cp, np.array([cond_mass]), redshift))
+    delta_crit = float(cf.get_delta_crit(inputs, np.array([cond_mass]), redshift))
     sel_delta = np.fabs((delta_range - delta_crit) / delta_crit) > 0.02
     delta_range = delta_range[sel_delta]
     Xray_integrals = Xray_integrals[sel_delta, ...]
@@ -857,53 +753,42 @@ def test_SFRD_conditional_table(
             pytest.xfail("FFCOLL TABLES drop sharply at high Mturn, causing failure")
 
     redshift, kwargs = OPTIONS_HMF[name]
-    opts = prd.get_all_options(redshift, **kwargs)
-    up = opts["user_params"].clone(
+    inputs = prd.get_all_options_struct(redshift, **kwargs)
+    inputs = inputs.evolve_input_structs(
         INTEGRATION_METHOD_ATOMIC=OPTIONS_INTMETHOD[intmethod],
         INTEGRATION_METHOD_MINI=OPTIONS_INTMETHOD[intmethod],
-    )
-    cp = opts["cosmo_params"]
-    ap = opts["astro_params"]
-    fo = opts["flag_options"].clone(
         USE_MINI_HALOS=True,
         INHOMO_RECO=True,
         USE_TS_FLUCT=True,
     )
-
-    M_min = 1e5
-    M_max = 1e20
-
     cond_mass = (
-        (4.0 / 3.0 * np.pi * (R * u.Mpc) ** 3 * cp.cosmo.critical_density(0) * cp.OMm)
+        (
+            inputs.cosmo_params.cosmo.critical_density(0)
+            * inputs.cosmo_params.OMm
+            * u.Mpc**3
+            * 4.0
+            / 3.0
+            * np.pi
+            * R**3
+        )
         .to("M_sun")
         .value
     )
 
     SFRD_tables, SFRD_tables_mini = cf.evaluate_SFRD_cond(
-        user_params=up,
-        cosmo_params=cp,
-        astro_params=ap,
-        flag_options=fo,
-        M_min=M_min,
-        M_max=M_max,
+        inputs=inputs.evolve_input_struct(USE_INTERPOLATION_TABLES="hmf-interpolation"),
         redshift=redshift,
-        cond_mass=cond_mass,
         densities=delta_range,
         l10mturns=log10_mturn_range,
     )
 
     SFRD_integrals, SFRD_integrals_mini = cf.evaluate_SFRD_cond(
-        user_params=up,
-        cosmo_params=cp,
-        astro_params=ap,
-        flag_options=fo,
-        M_min=M_min,
-        M_max=M_max,
+        inputs=inputs.evolve_input_struct(
+            USE_INTERPOLATION_TABLES="sigma-interpolation"
+        ),
         redshift=redshift,
-        cond_mass=cond_mass,
         densities=delta_range,
         l10mturns=log10_mturn_range,
-        return_integral=True,
     )
 
     # The bilinear interpolation we use underperforms at high mturn due to the sharp
@@ -929,7 +814,7 @@ def test_SFRD_conditional_table(
     # and interpolating across the sharp gap results in errors
     # TODO: the bound should be over MAX_DELTAC_FRAC*delta_crit, and we should interpolate
     # instead of setting the integral to its limit at delta crit.
-    delta_crit = float(cf.get_delta_crit(up, cp, np.array([cond_mass]), redshift))
+    delta_crit = float(cf.get_delta_crit(inputs, np.array([cond_mass]), redshift))
     sel_delta = np.fabs((delta_range - delta_crit) / delta_crit) > 0.02
     delta_range = delta_range[sel_delta]
     SFRD_integrals = SFRD_integrals[sel_delta, ...]
@@ -972,11 +857,8 @@ def test_conditional_integral_methods(
     R, log10_mturn_range, delta_range, name, integrand, plt
 ):
     redshift, kwargs = OPTIONS_HMF[name]
-    opts = prd.get_all_options(redshift, **kwargs)
-    up = opts["user_params"]
-    cp = opts["cosmo_params"]
-    ap = opts["astro_params"]
-    fo = opts["flag_options"].clone(
+    inputs = prd.get_all_options_struct(redshift, **kwargs)
+    inputs = inputs.evolve_input_structs(
         USE_MINI_HALOS=True,
         USE_MASS_DEPENDENT_ZETA=True,
         INHOMO_RECO=True,
@@ -985,10 +867,15 @@ def test_conditional_integral_methods(
 
     intgrl_func = cf.evaluate_SFRD_cond if "sfr" in integrand else cf.evaluate_Nion_cond
 
-    M_min = 1e5
-    M_max = 1e20
     cond_mass = (
-        (4.0 / 3.0 * np.pi * (R * u.Mpc) ** 3 * cp.cosmo.critical_density(0) * cp.OMm)
+        (
+            4.0
+            / 3.0
+            * np.pi
+            * (R * u.Mpc) ** 3
+            * inputs.cosmo_params.cosmo.critical_density(0)
+            * inputs.cosmo_params.OMm
+        )
         .to("M_sun")
         .value
     )
@@ -1000,23 +887,17 @@ def test_conditional_integral_methods(
         if name != "PS" and method == "GAMMA-APPROX":
             continue
 
-        up = up.clone(
+        inputs = inputs.evolve_input_structs(
             INTEGRATION_METHOD_ATOMIC=method,
             INTEGRATION_METHOD_MINI=method,
         )
 
         buf, buf_mini = intgrl_func(
-            user_params=up,
-            cosmo_params=cp,
-            astro_params=ap,
-            flag_options=fo,
-            M_min=M_min,
-            M_max=M_max,
+            inputs=inputs,
             redshift=redshift,
             cond_mass=cond_mass,
             densities=delta_range,
             l10mturns=log10_mturn_range,
-            return_integral=True,
         )
         integrals.append(buf)
         integrals_mini.append(buf_mini)

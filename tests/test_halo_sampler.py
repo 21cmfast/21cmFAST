@@ -158,77 +158,72 @@ def test_sampler(name, cond, from_cat, plt):
 # NOTE: this test is pretty circular. The only way I think I can test the scaling relations are to
 #   calculate them in the backend and re-write them in the test for a few masses. This means that
 #   changes to any scaling relation model will result in a test fail
-@pytest.mark.xfail(reason="robust tests for scaling relations not yet implemented")
-def test_halo_prop_sampling(ic, default_input_struct):
+# @pytest.mark.xfail(reason="robust tests for scaling relations not yet implemented")
+def test_halo_prop_sampling(default_input_struct):
     # specify parameters to use for this test
     redshift = 10.0
-    opts = prd.get_all_options(redshift)
-    ap = opts["astro_params"]
-    fo = opts["flag_options"]
 
     # setup the halo masses to test
     halo_mass_vals = np.array([1e5, 1e6, 1e7, 1e8, 1e9, 1e10, 1e11, 1e12])
-    n_halo_per_mass = 10000
+    halo_rng = np.array([-3, -2, -1, 0, 1, 2, 3])
     halo_masses = np.broadcast_to(
-        halo_mass_vals[:, None], (halo_mass_vals.size, n_halo_per_mass)
+        halo_mass_vals[:, None], (halo_mass_vals.size, halo_rng.size)
     ).flatten()
-    rng = np.random.default_rng()
-    halo_rng = rng.normal(size=n_halo_per_mass * halo_mass_vals.size)
 
-    # (n_halo*n_mass*n_prop) --> (n_prop,n_mass,n_halo)
-
-    # mass,star,sfr,xray,nion,wsfr,starmini,sfrmini,mturna,mturnm,mturnr,Z
+    inputs = default_input_struct.evolve(
+        USE_UPPER_STELLAR_TURNOVER=False,
+    )  # evolve if needed
     out_dict = cf.convert_halo_properties(
-        ics=ic,
         redshift=redshift,
-        astro_params=ap,
-        flag_options=fo,
+        inputs=default_input_struct,
         halo_masses=halo_masses,
-        halo_rng=halo_rng,
+        star_rng=halo_rng,  # testing the diagonal of the RNG
+        sfr_rng=halo_rng,
+        xray_rng=halo_rng,
     )
 
-    halo_mass_out = out_dict["halo_mass"].reshape(
-        (halo_mass_vals.size, n_halo_per_mass)
-    )
+    halo_mass_out = out_dict["halo_mass"].reshape((halo_mass_vals.size, halo_rng.size))
     halo_stars_out = out_dict["halo_stars"].reshape(
-        (halo_mass_vals.size, n_halo_per_mass)
+        (halo_mass_vals.size, halo_rng.size)
     )
-    halo_sfr_out = out_dict["halo_sfr"].reshape((halo_mass_vals.size, n_halo_per_mass))
-    halo_xray_out = out_dict["halo_xray"].reshape(
-        (halo_mass_vals.size, n_halo_per_mass)
-    )
+    halo_sfr_out = out_dict["halo_sfr"].reshape((halo_mass_vals.size, halo_rng.size))
+    halo_xray_out = out_dict["halo_xray"].reshape((halo_mass_vals.size, halo_rng.size))
 
     # assuming same value for all halos
     mturn_acg = out_dict["mturn_a"][0]
+    ap_c = inputs.astro_params.cdict
 
     exp_SHMR = (
         (
-            (10**ap.F_STAR10)
-            * (halo_mass_vals / 1e10) ** ap.ALPHA_STAR
-            * np.exp(-mturn_acg / halo_mass_vals)
+            ap_c.F_STAR10
+            * (halo_mass_vals[:, None] / 1e10) ** ap_c.ALPHA_STAR
+            * np.exp(
+                -mturn_acg / halo_mass_vals
+                + halo_rng[None, :] * ap_c.SIGMA_STAR
+                - ap_c.SIGMA_STAR**2 / 2
+            )
         )
-        * ic.cosmo_params.OMb
-        / ic.cosmo_params.OMm
+        * inputs.cosmo_params.OMb
+        / inputs.cosmo_params.OMm
     )
     sim_SHMR = halo_stars_out / halo_mass_out
-    sel_stars = exp_SHMR > 1e-10
-    np.testing.assert_allclose(exp_SHMR, sim_SHMR.mean(axis=1), atol=1e-10, rtol=1e-1)
-    np.testing.assert_allclose(
-        ap.SIGMA_STAR, np.log10(sim_SHMR).std(axis=1)[sel_stars], rtol=1e-1
+    np.testing.assert_allclose(exp_SHMR, sim_SHMR)
+
+    sigma_SSFR = ap_c.SIGMA_SFR_LIM + ap_c.SIGMA_SFR_INDEX * (
+        exp_SHMR * halo_mass_vals / 1e10
     )
-
-    exp_SSFR = ic.cosmo_params.cosmo.H(redshift).to("s-1").value / (ap.t_STAR)
+    sigma_SSFR = max(sigma_SSFR, ap_c.SIGMA_SFR_LIM)
+    exp_SSFR = (
+        inputs.cosmo_params.cosmo.H(redshift).to("s-1").value
+        / (ap_c.t_STAR)
+        * np.exp(halo_rng[None, :] * sigma_SSFR - sigma_SSFR**2 / 2)
+    )
     sim_SSFR = halo_sfr_out / halo_stars_out
-    np.testing.assert_allclose(exp_SSFR, sim_SSFR.mean(axis=1)[sel_stars], rtol=1e-1)
-    np.testing.assert_allclose(
-        ap.SIGMA_SFR_LIM,
-        np.log10(sim_SSFR).std(axis=1)[sel_stars],
-    )  # WRONG
+    np.testing.assert_allclose(exp_SSFR, sim_SSFR.mean(axis=1))
 
-    exp_LX = 10 ** (ap.L_X)  # low-z approx
+    exp_LX = ap_c.L_X * np.exp(+halo_rng[None, :] * ap_c.SIGMA_LX - ap_c.LX**2 / 2)
     sim_LX = halo_xray_out / halo_sfr_out
-    np.testing.assert_allclose(exp_LX, sim_LX.mean(axis=1), rtol=1e-1)
-    np.testing.assert_allclose(ap.SIGMA_LX, sim_LX.std(axis=1), rtol=1e-1)
+    np.testing.assert_allclose(exp_LX, sim_LX)
 
 
 def plot_sampler_comparison(

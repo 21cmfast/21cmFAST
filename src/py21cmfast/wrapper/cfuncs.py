@@ -476,7 +476,7 @@ def get_delta_crit(inputs, mass, redshift):
 def get_delta_crit_nu(user_params, sigma, growth):
     """Uses the nu paramters (sigma and growth factor) to get critical density."""
     # None of the parameter structs are used in this function so we don't need a broadcast
-    return np.vectorize(lib.get_delta_crit)(user_params.cdict["HMF"], sigma, growth)
+    return lib.get_delta_crit(user_params.cdict["HMF"], sigma, growth)
 
 
 def evaluate_condition_integrals(
@@ -512,32 +512,33 @@ def evaluate_condition_integrals(
     return np.reshape(n_halo, orig_shape), np.array(m_coll, orig_shape)
 
 
-def integrate_condition_masslims(
+def calculate_halo_probabilities(
     inputs: InputParameters,
-    cond_value: float,
     redshift: float,
     lnM_lower: Sequence[float],
     lnM_upper: Sequence[float],
+    cond_values: Sequence[float],
     redshift_prev: float | None = None,
 ):
     """Evaluates conditional mass function integrals at a range of mass intervals."""
-    out_prob = np.zeros_like(lnM_lower).astype("f8")
+    out_prob = np.zeros(len(lnM_lower) * len(cond_values), dtype="f8")
 
-    lib.get_condition_integrals(
+    lib.get_halo_prob_interval(
         inputs.user_params.cstruct,
         inputs.cosmo_params.cstruct,
         inputs.astro_params.cstruct,
         inputs.flag_options.cstruct,
         redshift,
         redshift_prev if redshift_prev is not None else -1,
-        cond_value,
+        len(cond_values),
+        ffi.cast("double *", ffi.from_buffer(cond_values)),
         len(lnM_lower),
         ffi.cast("double *", ffi.from_buffer(lnM_lower)),
         ffi.cast("double *", ffi.from_buffer(lnM_upper)),
         ffi.cast("double *", ffi.from_buffer(out_prob)),
     )
 
-    return out_prob
+    return np.reshape(out_prob, (len(cond_values), len(lnM_lower)))
 
 
 def evaluate_inverse_table(
@@ -691,7 +692,7 @@ def evaluate_SFRD_cond(
     sfrd = np.zeros_like(densities)
     sfrd_mini = np.zeros_like(densities)
 
-    lib.get_global_SFRD_conditional(
+    lib.get_conditional_SFRD(
         inputs.user_params.cstruct,
         inputs.cosmo_params.cstruct,
         inputs.astro_params.cstruct,
@@ -730,7 +731,7 @@ def evaluate_Nion_cond(
     nion = np.zeros_like(densities)
     nion_mini = np.zeros_like(densities)
 
-    lib.get_global_Nion_conditional(
+    lib.get_conditional_Nion(
         inputs.user_params.cstruct,
         inputs.cosmo_params.cstruct,
         inputs.astro_params.cstruct,
@@ -769,7 +770,7 @@ def evaluate_Xray_cond(
     log10mturns = np.array(log10mturns, dtype="f8").flatten()
     xray = np.zeros_like(densities)
 
-    lib.get_global_SFRD_conditional(
+    lib.get_conditional_Xray(
         inputs.user_params.cstruct,
         inputs.cosmo_params.cstruct,
         inputs.astro_params.cstruct,
@@ -849,7 +850,6 @@ def convert_halo_properties(
     *,
     redshift: float,
     inputs: InputParameters,
-    ics: InitialConditions,
     halo_masses: Sequence[float],
     star_rng: Sequence[float],
     sfr_rng: Sequence[float],
