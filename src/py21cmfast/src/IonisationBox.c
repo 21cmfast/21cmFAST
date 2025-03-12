@@ -54,22 +54,11 @@ struct IonBoxConstants{
     int hii_filter;
 
     //astro parameters
-    double fstar_10;
-    double alpha_star;
-    double fstar_7;
-    double alpha_star_mini;
-    double t_h;
-    double t_star_sec;
-    double fesc_10;
-    double alpha_esc;
-    double fesc_7;
+    struct ScalingConstants scale_consts;
     double T_re;
 
     //astro calculated values
     double vcb_norel;
-    double mturn_a_nofb;
-    double mturn_m_nofb;
-    double acg_thresh;
     double ion_eff_factor;
     double ion_eff_factor_mini;
     double ion_eff_factor_gl;
@@ -80,12 +69,6 @@ struct IonBoxConstants{
 
     double TK_nofluct;
     double adia_TK_term;
-
-    //power-law limits
-    double Mlim_Fstar;
-    double Mlim_Fesc;
-    double Mlim_Fstar_mini;
-    double Mlim_Fesc_mini;
 
     //HMF limits
     double M_min;
@@ -154,69 +137,26 @@ void set_ionbox_constants(double redshift, double prev_redshift, CosmoParams *co
     else
         consts->dz = prev_redshift - redshift;
 
+    struct ScalingConstants sc;
+    set_scaling_constants(redshift,astro_params,flag_options,&sc,true);
+    consts->scale_consts = sc;
+
     //TODO: Figure out why we have the 1e15 here
     consts->fabs_dtdz = fabs(dtdz(redshift))/1e15; //reduce to have good precision
-
     consts->growth_factor = dicke(redshift);
     consts->prev_growth_factor = dicke(prev_redshift);
+
     //whether to fix *integrated* (not sampled) galaxy properties to the expected mean
     //  constant for now, to be a flag later
     consts->fix_mean = !flag_options->USE_HALO_FIELD;
     consts->filter_recombinations = flag_options->INHOMO_RECO && !flag_options->CELL_RECOMB;
 
-    consts->fstar_10 = astro_params->F_STAR10;
-    consts->alpha_star = astro_params->ALPHA_STAR;
-
-    consts->fstar_7 = astro_params->F_STAR7_MINI;
-    consts->alpha_star_mini = astro_params->ALPHA_STAR_MINI;
-
-    consts->t_h = t_hubble(redshift);
-    consts->t_star_sec = astro_params->t_STAR * consts->t_h;
-
-    consts->alpha_esc = astro_params->ALPHA_ESC;
-    consts->fesc_10= astro_params->F_ESC10;
-    consts->fesc_7 = astro_params->F_ESC7_MINI;
-
     consts->hii_filter = flag_options->HII_FILTER;
-
-    if(flag_options->PHOTON_CONS_TYPE == 2)
-        consts->alpha_esc = get_fesc_fit(redshift);
-    else if(flag_options->PHOTON_CONS_TYPE == 3)
-        consts->fesc_10 = get_fesc_fit(redshift);
-
     consts->T_re = astro_params->T_RE;
 
-
-    consts->mturn_a_nofb = flag_options->USE_MINI_HALOS ? atomic_cooling_threshold(redshift) : astro_params->M_TURN;
-
-    consts->mturn_m_nofb = 0.;
-    if(flag_options->USE_MINI_HALOS){
-        consts->vcb_norel = flag_options->FIX_VCB_AVG ? astro_params->FIXED_VAVG : 0;
-        consts->mturn_m_nofb = lyman_werner_threshold(redshift, 0., consts->vcb_norel, astro_params);
-        consts->acg_thresh = atomic_cooling_threshold(redshift);
-    }
-
-    if(consts->mturn_m_nofb < astro_params->M_TURN)consts->mturn_m_nofb = astro_params->M_TURN;
-    if(consts->mturn_a_nofb < astro_params->M_TURN)consts->mturn_a_nofb = astro_params->M_TURN;
-
-    if(!flag_options_global->USE_HALO_FIELD || \
-        flag_options->FIXED_HALO_GRIDS || \
-        user_params_global->AVG_BELOW_SAMPLER)
-    {
-        consts->Mlim_Fstar = Mass_limit_bisection(M_MIN_INTEGRAL, M_MAX_INTEGRAL, consts->alpha_star, consts->fstar_10);
-        consts->Mlim_Fesc = Mass_limit_bisection(M_MIN_INTEGRAL, M_MAX_INTEGRAL, consts->alpha_esc, consts->fesc_10);
-
-        if(flag_options->USE_MINI_HALOS){
-            consts->Mlim_Fstar_mini = Mass_limit_bisection(M_MIN_INTEGRAL, M_MAX_INTEGRAL, consts->alpha_star_mini,
-                                                            consts->fstar_7 * pow(1e3,consts->alpha_star_mini));
-            consts->Mlim_Fesc_mini = Mass_limit_bisection(M_MIN_INTEGRAL, M_MAX_INTEGRAL, consts->alpha_esc,
-                                                            consts->fesc_7 * pow(1e3,consts->alpha_esc));
-        }
-    }
-
     if(flag_options->USE_MASS_DEPENDENT_ZETA) {
-        consts->ion_eff_factor_gl = astro_params->POP2_ION * astro_params->F_STAR10 * consts->fesc_10;
-        consts->ion_eff_factor_mini_gl = astro_params->POP3_ION * astro_params->F_STAR7_MINI * astro_params->F_ESC7_MINI;
+        consts->ion_eff_factor_gl = sc.pop2_ion * sc.fstar_10 * sc.fesc_10;
+        consts->ion_eff_factor_mini_gl = sc.pop3_ion * sc.fstar_7 * sc.fesc_7;
     }
     else {
         consts->ion_eff_factor_gl = astro_params->HII_EFF_FACTOR;
@@ -266,7 +206,7 @@ void set_ionbox_constants(double redshift, double prev_redshift, CosmoParams *co
     if(flag_options->USE_HALO_FIELD)
         consts->gamma_prefactor /= RHOcrit * cosmo_params->OMb; //TODO: double-check these unit differences, HaloBox.halo_wsfr vs Nion_General units
     else
-        consts->gamma_prefactor /= consts->t_star_sec;
+        consts->gamma_prefactor /= sc.t_h / sc.t_star;
     consts->gamma_prefactor_mini = consts->gamma_prefactor * consts->ion_eff_factor_mini / consts->ion_eff_factor;
     LOG_SUPER_DEBUG("Gamma Prefactor %.3e ion eff factor %.3e",consts->gamma_prefactor,consts->ion_eff_factor);
     LOG_SUPER_DEBUG("Mini Gamma %.3e Mini ion %.3e",consts->gamma_prefactor_mini,consts->ion_eff_factor_mini);
@@ -435,8 +375,8 @@ void calculate_mcrit_boxes(IonizedBox *prev_ionbox, TsBox *spin_temp, InitialCon
                     }
 
                     //JBM: this only accounts for effect 3 (largest on minihaloes). Effects 1 and 2 affect both minihaloes (MCGs) and regular ACGs, but they're smaller ~10%. See Sec 2 of Muñoz+21 (2110.13919)
-                    curr_Mt              = log10(fmax(Mcrit_RE,consts->mturn_a_nofb));
-                    curr_Mt_MINI         = log10(fmax(Mcrit_RE,fmax(Mcrit_LW,consts->mturn_m_nofb)));
+                    curr_Mt              = log10(fmax(Mcrit_RE,consts->scale_consts.mturn_a_nofb));
+                    curr_Mt_MINI         = log10(fmax(Mcrit_RE,fmax(Mcrit_LW,consts->scale_consts.mturn_m_nofb)));
 
                     //To avoid allocating another box we directly assign turnover masses to the fftw grid
                     *((float *)log10_mcrit_acg      + HII_R_FFT_INDEX(x,y,z)) = curr_Mt;
@@ -460,11 +400,10 @@ void calculate_mcrit_boxes(IonizedBox *prev_ionbox, TsBox *spin_temp, InitialCon
 // lower limit on any grid cell
 void set_mean_fcoll(struct IonBoxConstants *c, IonizedBox *prev_box, IonizedBox *curr_box, double mturn_acg, double mturn_mcg, double *f_limit_acg, double *f_limit_mcg){
     double f_coll_curr, f_coll_prev, f_coll_curr_mini, f_coll_prev_mini;
+    struct ScalingConstants *sc_ptr = &(c->scale_consts);
     if(flag_options_global->USE_MASS_DEPENDENT_ZETA){
-        f_coll_curr = Nion_General(c->redshift,c->lnMmin,c->lnMmax_gl,mturn_acg,c->alpha_star,c->alpha_esc,
-                                    c->fstar_10,c->fesc_10,c->Mlim_Fstar,c->Mlim_Fesc);
-        *f_limit_acg = Nion_General(user_params_global->Z_HEAT_MAX,c->lnMmin,c->lnMmax_gl,mturn_acg,c->alpha_star,c->alpha_esc,
-                                    c->fstar_10,c->fesc_10,c->Mlim_Fstar,c->Mlim_Fesc);
+        f_coll_curr = Nion_General(c->redshift,c->lnMmin,c->lnMmax_gl,mturn_acg,sc_ptr);
+        *f_limit_acg = Nion_General(user_params_global->Z_HEAT_MAX,c->lnMmin,c->lnMmax_gl,mturn_acg,sc_ptr);
 
         if (flag_options_global->USE_MINI_HALOS){
             if (prev_box->mean_f_coll * c->ion_eff_factor_gl < 1e-4){
@@ -472,23 +411,18 @@ void set_mean_fcoll(struct IonBoxConstants *c, IonizedBox *prev_box, IonizedBox 
                 curr_box->mean_f_coll = f_coll_curr;
             }
             else{
-                f_coll_prev = Nion_General(c->prev_redshift,c->lnMmin,c->lnMmax_gl,mturn_acg,c->alpha_star,c->alpha_esc,
-                                                c->fstar_10,c->fesc_10,c->Mlim_Fstar,c->Mlim_Fesc);
+                f_coll_prev = Nion_General(c->prev_redshift,c->lnMmin,c->lnMmax_gl,mturn_acg,sc_ptr);
                 curr_box->mean_f_coll = prev_box->mean_f_coll + f_coll_curr - f_coll_prev;
             }
-            f_coll_curr_mini = Nion_General_MINI(c->redshift,c->lnMmin,c->lnMmax_gl,mturn_mcg,c->acg_thresh,c->alpha_star_mini,
-                                                          c->alpha_esc,c->fstar_7,c->fesc_7,c->Mlim_Fstar_mini,c->Mlim_Fesc_mini);
+            f_coll_curr_mini = Nion_General_MINI(c->redshift,c->lnMmin,c->lnMmax_gl,mturn_mcg,sc_ptr);
             if (prev_box->mean_f_coll_MINI * c->ion_eff_factor_gl < 1e-4){
                 curr_box->mean_f_coll_MINI = f_coll_curr_mini;
             }
             else{
-                f_coll_prev_mini = Nion_General_MINI(c->prev_redshift,c->lnMmin,c->lnMmax_gl,mturn_mcg,c->acg_thresh,c->alpha_star_mini,
-                                                          c->alpha_esc,c->fstar_7,c->fesc_7,c->Mlim_Fstar_mini,c->Mlim_Fesc_mini);
+                f_coll_prev_mini = Nion_General_MINI(c->prev_redshift,c->lnMmin,c->lnMmax_gl,mturn_mcg,sc_ptr);
                 curr_box->mean_f_coll_MINI = prev_box->mean_f_coll_MINI + f_coll_curr_mini - f_coll_prev_mini;
             }
-            *f_limit_mcg = Nion_General_MINI(user_params_global->Z_HEAT_MAX,c->lnMmin,c->lnMmax_gl,mturn_mcg,c->acg_thresh,c->alpha_star_mini,
-                                                          c->alpha_esc,c->fstar_7,c->fesc_7,
-                                                          c->Mlim_Fstar_mini,c->Mlim_Fesc_mini);
+            *f_limit_mcg = Nion_General_MINI(user_params_global->Z_HEAT_MAX,c->lnMmin,c->lnMmax_gl,mturn_mcg,sc_ptr);
         }
         else{
             curr_box->mean_f_coll = f_coll_curr;
@@ -651,6 +585,7 @@ void clip_and_get_extrema(fftwf_complex * grid, double lower_limit, double upper
 void setup_integration_tables(struct FilteredGrids *fg_struct, struct IonBoxConstants *consts, struct RadiusSpec rspec, bool need_prev){
     double min_density, max_density, prev_min_density, prev_max_density;
     double log10Mturn_min, log10Mturn_max, log10Mturn_min_MINI, log10Mturn_max_MINI;
+    struct ScalingConstants *sc_ptr = &(consts->scale_consts);
 
     //TODO: instead of putting a random upper limit, put a proper flag for switching of one/both sides of the clipping
     clip_and_get_extrema(fg_struct->deltax_filtered,-1,1e6,&min_density,&max_density);
@@ -683,10 +618,7 @@ void setup_integration_tables(struct FilteredGrids *fg_struct, struct IonBoxCons
             initialise_Nion_Conditional_spline(consts->redshift,min_density,max_density,
                                     consts->M_min,rspec.M_max_R,rspec.M_max_R,
                                     log10Mturn_min,log10Mturn_max,log10Mturn_min_MINI,log10Mturn_max_MINI,
-                                    consts->alpha_star, consts->alpha_star_mini,
-                                    consts->alpha_esc,consts->fstar_10,
-                                    consts->fesc_10,consts->fstar_7,
-                                    consts->fesc_7,false);
+                                    sc_ptr,false);
 
             //previous redshift tables if needed
             if(need_prev && flag_options_global->USE_MINI_HALOS){
@@ -694,10 +626,7 @@ void setup_integration_tables(struct FilteredGrids *fg_struct, struct IonBoxCons
                 initialise_Nion_Conditional_spline(consts->prev_redshift,prev_min_density,prev_max_density,
                                         consts->M_min,rspec.M_max_R,rspec.M_max_R,
                                         log10Mturn_min,log10Mturn_max,log10Mturn_min_MINI,log10Mturn_max_MINI,
-                                        consts->alpha_star, consts->alpha_star_mini,
-                                        consts->alpha_esc,consts->fstar_10,
-                                        consts->fesc_10,consts->fstar_7,
-                                        consts->fstar_7,true);
+                                        sc_ptr,true);
             }
         }
     }
@@ -717,6 +646,7 @@ void calculate_fcoll_grid(IonizedBox *box, IonizedBox *previous_ionize_box, stru
     double f_coll_total,f_coll_MINI_total;
     //TODO: make proper error tracking through the parallel region
     bool error_flag;
+    struct ScalingConstants *sc_ptr = &(consts->scale_consts);
 
     int fc_r_idx;
     fc_r_idx = flag_options_global->USE_MINI_HALOS ? rspec->R_index : 0;
@@ -727,7 +657,7 @@ void calculate_fcoll_grid(IonizedBox *box, IonizedBox *previous_ionize_box, stru
         double Splined_Fcoll,Splined_Fcoll_MINI;
         double log10_Mturnover,log10_Mturnover_MINI;
         double prev_dens,prev_Splined_Fcoll,prev_Splined_Fcoll_MINI;
-        log10_Mturnover = log10(consts->mturn_a_nofb); //is only overwritten with minihalos
+        log10_Mturnover = log10(consts->scale_consts.mturn_a_nofb); //is only overwritten with minihalos
         #pragma omp for reduction(+:f_coll_total,f_coll_MINI_total)
         for (x = 0; x < user_params_global->HII_DIM; x++) {
             for (y = 0; y < user_params_global->HII_DIM; y++) {
@@ -775,8 +705,7 @@ void calculate_fcoll_grid(IonizedBox *box, IonizedBox *previous_ionize_box, stru
                                 log10_Mturnover_MINI = *((float *)fg_struct->log10_Mturnover_MINI_filtered + HII_R_FFT_INDEX(x,y,z));
 
                                 Splined_Fcoll_MINI = EvaluateNion_Conditional_MINI(curr_dens,log10_Mturnover_MINI,consts->growth_factor,consts->M_min,
-                                                                                    rspec->M_max_R,rspec->M_max_R,rspec->sigma_maxmass,consts->acg_thresh,
-                                                                                    consts->Mlim_Fstar_mini,consts->Mlim_Fesc,false);
+                                                                                    rspec->M_max_R,rspec->M_max_R,rspec->sigma_maxmass,sc_ptr,false);
 
 
                                 if (previous_ionize_box->mean_f_coll_MINI * consts->ion_eff_factor_mini_gl +
@@ -784,10 +713,9 @@ void calculate_fcoll_grid(IonizedBox *box, IonizedBox *previous_ionize_box, stru
                                     prev_dens = *((float *)fg_struct->prev_deltax_filtered + HII_R_FFT_INDEX(x,y,z));
                                     prev_Splined_Fcoll = EvaluateNion_Conditional(prev_dens,log10_Mturnover,consts->prev_growth_factor,
                                                                                         consts->M_min,rspec->M_max_R,rspec->M_max_R,
-                                                                                        rspec->sigma_maxmass,consts->Mlim_Fstar,consts->Mlim_Fesc,true);
+                                                                                        rspec->sigma_maxmass,sc_ptr,true);
                                     prev_Splined_Fcoll_MINI = EvaluateNion_Conditional_MINI(prev_dens,log10_Mturnover_MINI,consts->prev_growth_factor,consts->M_min,
-                                                                                    rspec->M_max_R,rspec->M_max_R,rspec->sigma_maxmass,consts->acg_thresh,
-                                                                                    consts->Mlim_Fstar_mini,consts->Mlim_Fesc_mini,true);
+                                                                                    rspec->M_max_R,rspec->M_max_R,rspec->sigma_maxmass,sc_ptr,true);
                                 }
                                 else{
                                     prev_Splined_Fcoll = 0.;
@@ -796,7 +724,7 @@ void calculate_fcoll_grid(IonizedBox *box, IonizedBox *previous_ionize_box, stru
                             }
                             Splined_Fcoll = EvaluateNion_Conditional(curr_dens,log10_Mturnover,consts->growth_factor,
                                                                     consts->M_min,rspec->M_max_R,rspec->M_max_R,
-                                                                    rspec->sigma_maxmass,consts->Mlim_Fstar,consts->Mlim_Fesc,false);
+                                                                    rspec->sigma_maxmass,sc_ptr,false);
                         }
                         else{
                             Splined_Fcoll = EvaluateFcoll_delta(curr_dens,consts->growth_factor,consts->sigma_minmass,rspec->sigma_maxmass);

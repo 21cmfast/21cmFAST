@@ -806,63 +806,61 @@ double Fcoll_General(double z, double lnM_min, double lnM_max){
     return IntegratedNdM(lnM_min, lnM_max, integral_params, &u_fcoll_integrand, 0);
 }
 
-double Nion_General(double z, double lnM_Min, double lnM_Max, double MassTurnover, double Alpha_star, double Alpha_esc, double Fstar10,
-                     double Fesc10, double Mlim_Fstar, double Mlim_Fesc){
+double Nion_General(double z, double lnM_Min, double lnM_Max, double MassTurnover, struct ScalingConstants *sc){
     struct parameters_gsl_MF_integrals params = {
         .redshift = z,
         .growthf = dicke(z),
         .Mturn_acg = MassTurnover,
-        .alpha_star = Alpha_star,
-        .alpha_esc = Alpha_esc,
-        .f_star_norm = log(Fstar10),
-        .f_esc_norm = log(Fesc10),
-        .Mlim_star = log(Mlim_Fstar),
-        .Mlim_esc = log(Mlim_Fesc),
+        .alpha_star = sc->alpha_star,
+        .alpha_esc = sc->alpha_esc,
+        .f_star_norm = log(sc->fstar_10),
+        .f_esc_norm = log(sc->fesc_10),
+        .Mlim_star = log(sc->Mlim_Fstar),
+        .Mlim_esc = log(sc->Mlim_Fesc),
         .HMF = user_params_global->HMF,
         .gamma_type=3,
     };
     return IntegratedNdM(lnM_Min,lnM_Max,params,&u_nion_integrand,0);
 }
 
-double Nion_General_MINI(double z, double lnM_Min, double lnM_Max, double MassTurnover, double MassTurnover_upper, double Alpha_star,
-                         double Alpha_esc, double Fstar7_MINI, double Fesc7_MINI, double Mlim_Fstar, double Mlim_Fesc){
+double Nion_General_MINI(double z, double lnM_Min, double lnM_Max, double MassTurnover, struct ScalingConstants *sc){
     struct parameters_gsl_MF_integrals params = {
         .redshift = z,
         .growthf = dicke(z),
         .Mturn_mcg = MassTurnover,
-        .Mturn_upper = MassTurnover_upper,
-        .alpha_star = Alpha_star,
-        .alpha_esc = Alpha_esc,
-        .f_star_norm = log(Fstar7_MINI),
-        .f_esc_norm = log(Fesc7_MINI),
-        .Mlim_star = log(Mlim_Fstar),
-        .Mlim_esc = log(Mlim_Fesc),
+        .Mturn_upper = sc->acg_thresh,
+        .alpha_star = sc->alpha_star_mini,
+        .alpha_esc = sc->alpha_esc,
+        .f_star_norm = log(sc->fstar_7),
+        .f_esc_norm = log(sc->fesc_7),
+        .Mlim_star = log(sc->Mlim_Fstar_mini),
+        .Mlim_esc = log(sc->Mlim_Fesc_mini),
         .HMF = user_params_global->HMF,
         .gamma_type=4,
     };
     return IntegratedNdM(lnM_Min,lnM_Max,params,&u_nion_integrand_mini,0);
 }
 
-double Xray_General(double z, double lnM_Min, double lnM_Max, double mturn_acg, double mturn_mcg, double Alpha_star,
-                     double Alpha_star_mini, double Fstar10, double Fstar7, double l_x, double l_x_mini, double t_h,
-                     double t_star, double Mlim_Fstar, double Mlim_Fstar_mini){
+double Xray_General(double z, double lnM_Min, double lnM_Max, double mturn_acg, double mturn_mcg, struct ScalingConstants *sc){
+    //NOTE:in the _General functions, we don't use the scaling relation constants
+    // that are z-dependent so we can evaluate them at multiple redshifts without redoing the constants
     struct parameters_gsl_MF_integrals params = {
         .redshift = z,
         .growthf = dicke(z),
         .Mturn_acg = mturn_acg,
         .Mturn_mcg = mturn_mcg,
-        .Mturn_upper = atomic_cooling_threshold(z),
-        .alpha_star = Alpha_star,
-        .alpha_esc = Alpha_star_mini,
-        .f_star_norm = log(Fstar10),
-        .f_esc_norm = log(Fstar7),
-        .Mlim_star = log(Mlim_Fstar),
-        .Mlim_esc = log(Mlim_Fstar_mini),
+        .Mturn_upper = sc->acg_thresh,
+        .alpha_star = sc->alpha_star,
+        .alpha_esc = sc->alpha_star_mini,//re-using f_esc for minihalos
+        .f_star_norm = log(sc->fstar_10),
+        .f_esc_norm = log(sc->fstar_7),
+        .Mlim_star = log(sc->Mlim_Fstar),
+        .Mlim_esc = log(sc->Mlim_Fstar_mini),
         .HMF = user_params_global->HMF,
-        .l_x_norm = l_x,
-        .l_x_norm_mini = l_x_mini,
-        .t_h = t_h,
-        .t_star = t_star,
+        .l_x_norm = sc->l_x,
+        .l_x_norm_mini = sc->l_x_mini,
+        .t_h = t_hubble(z),
+        .t_star = sc->t_star,
         .gamma_type=5,
     };
     return IntegratedNdM(lnM_Min,lnM_Max,params,&u_xray_integrand,0);
@@ -912,18 +910,17 @@ double Mcoll_Conditional(double growthf, double lnM1, double lnM2, double lnM_co
 }
 
 double Nion_ConditionalM_MINI(double growthf, double lnM1, double lnM2, double lnM_cond, double sigma2, double delta2, double MassTurnover,
-                            double MassTurnover_upper, double Alpha_star, double Alpha_esc, double Fstar7,
-                            double Fesc7, double Mlim_Fstar, double Mlim_Fesc, int method){
+                                 struct ScalingConstants *sc, int method){
     struct parameters_gsl_MF_integrals params = {
         .growthf = growthf,
         .Mturn_mcg = MassTurnover,
-        .Mturn_upper = MassTurnover_upper,
-        .alpha_star = Alpha_star,
-        .alpha_esc = Alpha_esc,
-        .f_star_norm = log(Fstar7),
-        .f_esc_norm = log(Fesc7),
-        .Mlim_star = log(Mlim_Fstar),
-        .Mlim_esc = log(Mlim_Fesc),
+        .Mturn_upper = sc->acg_thresh,
+        .alpha_star = sc->alpha_star_mini,
+        .alpha_esc = sc->alpha_esc,
+        .f_star_norm = log(sc->fstar_7),
+        .f_esc_norm = log(sc->fesc_7),
+        .Mlim_star = log(sc->Mlim_Fstar_mini),
+        .Mlim_esc = log(sc->Mlim_Fesc_mini),
         .HMF = user_params_global->HMF,
         .sigma_cond = sigma2,
         .delta = delta2,
@@ -951,17 +948,16 @@ double Nion_ConditionalM_MINI(double growthf, double lnM1, double lnM2, double l
 }
 
 double Nion_ConditionalM(double growthf, double lnM1, double lnM2, double lnM_cond, double sigma2, double delta2, double MassTurnover,
-                        double Alpha_star, double Alpha_esc, double Fstar10, double Fesc10, double Mlim_Fstar,
-                        double Mlim_Fesc, int method){
+                        struct ScalingConstants * sc, int method){
     struct parameters_gsl_MF_integrals params = {
         .growthf = growthf,
         .Mturn_acg = MassTurnover,
-        .alpha_star = Alpha_star,
-        .alpha_esc = Alpha_esc,
-        .f_star_norm = log(Fstar10),
-        .f_esc_norm = log(Fesc10),
-        .Mlim_star = log(Mlim_Fstar),
-        .Mlim_esc = log(Mlim_Fesc),
+        .alpha_star = sc->alpha_star,
+        .alpha_esc = sc->alpha_esc,
+        .f_star_norm = log(sc->fstar_10),
+        .f_esc_norm = log(sc->fesc_10),
+        .Mlim_star = log(sc->Mlim_Fstar),
+        .Mlim_esc = log(sc->Mlim_Fesc),
         .HMF = user_params_global->HMF,
         .sigma_cond = sigma2,
         .delta = delta2,
@@ -986,27 +982,25 @@ double Nion_ConditionalM(double growthf, double lnM1, double lnM2, double lnM_co
 }
 
 double Xray_ConditionalM(double redshift, double growthf, double lnM1, double lnM2, double lnM_cond, double sigma2, double delta2,
-                         double mturn_acg, double mturn_mcg,
-                        double Alpha_star, double Alpha_star_mini, double Fstar10, double Fstar7, double Mlim_Fstar,
-                        double Mlim_Fstar_mini, double l_x, double l_x_mini, double t_h, double t_star, int method){
+                         double mturn_acg, double mturn_mcg, struct ScalingConstants * sc, int method){
     //re-using escape fraction for minihalo parameters
     struct parameters_gsl_MF_integrals params = {
         .redshift = redshift,
         .growthf = growthf,
         .Mturn_acg = mturn_acg,
         .Mturn_mcg = mturn_mcg,
-        .Mturn_upper = atomic_cooling_threshold(redshift),
-        .alpha_star = Alpha_star,
-        .alpha_esc = Alpha_star_mini,
-        .f_star_norm = log(Fstar10),
-        .f_esc_norm = log(Fstar7),
-        .Mlim_star = log(Mlim_Fstar),
-        .Mlim_esc = log(Mlim_Fstar_mini),
+        .Mturn_upper = sc->acg_thresh,
+        .alpha_star = sc->alpha_star,
+        .alpha_esc = sc->alpha_star_mini,//re-using f_esc for minihalos
+        .f_star_norm = log(sc->fstar_10),
+        .f_esc_norm = log(sc->fstar_7),
+        .Mlim_star = log(sc->Mlim_Fstar),
+        .Mlim_esc = log(sc->Mlim_Fstar_mini),
         .HMF = user_params_global->HMF,
-        .l_x_norm = l_x,
-        .l_x_norm_mini = l_x_mini,
-        .t_h = t_h,
-        .t_star = t_star,
+        .l_x_norm = sc->l_x,
+        .l_x_norm_mini = sc->l_x_mini,
+        .t_h = sc->t_h,
+        .t_star = sc->t_star,
         .sigma_cond = sigma2,
         .delta = delta2,
         .gamma_type=-5,

@@ -23,39 +23,6 @@
 //buffer size (per cell of arbitrary size) in the sampling function
 #define MAX_HALO_CELL (int)1e5
 
-//parameters for the halo mass->stars calculations
-//Note: ideally I would split this into constants set per snapshot and
-//  constants set per condition, however some variables (delta or Mass)
-//  can be set with differing frequencies depending on the condition type
-struct HaloSamplingConstants{
-    //calculated per redshift
-    int from_catalog; //flag for first box or updating halos
-    double corr_sfr;
-    double corr_star;
-    double corr_xray;
-
-    double z_in;
-    double z_out;
-    double growth_in;
-    double growth_out;
-    double M_min;
-    double lnM_min;
-    double M_max_tables;
-    double lnM_max_tb;
-    double sigma_min;
-
-    //per-condition/redshift depending on from_catalog or not
-    double delta;
-    double M_cond;
-    double lnM_cond;
-    double sigma_cond;
-
-    //calculated per condition
-    double cond_val; //This is the table x value (density for grids, log mass for progenitors)
-    double expected_N;
-    double expected_M;
-};
-
 void print_hs_consts(struct HaloSamplingConstants * c){
     LOG_DEBUG("Printing halo sampler constants....");
     LOG_DEBUG("from_catalog %d z_in %.2f z_out %.2f d_in %.2f d_out %.2f",c->from_catalog,c->z_in,c->z_out,c->growth_in,c->growth_out);

@@ -112,24 +112,17 @@ int get_box_averages(double M_min, double M_max, double M_turn_a, double M_turn_
 
     //NOTE: we use the atomic method for all halo mass/count here
     mass_intgrl = Fcoll_General(consts->redshift,lnMmin,lnMmax);
-    intgrl_fesc_weighted = Nion_General(consts->redshift, lnMmin, lnMmax, M_turn_a, consts->alpha_star, consts->alpha_esc, consts->fstar_10,
-                                 consts->fesc_10, consts->Mlim_Fstar, consts->Mlim_Fesc);
-    intgrl_stars_only = Nion_General(consts->redshift, lnMmin, lnMmax, M_turn_a, consts->alpha_star, 0., consts->fstar_10, 1.,
-                                 consts->Mlim_Fstar, 0.);
-    if(flag_options_global->USE_MINI_HALOS){
-        intgrl_fesc_weighted_mini = Nion_General_MINI(consts->redshift, lnMmin, lnMmax, M_turn_m, M_turn_a,
-                                            consts->alpha_star_mini, consts->alpha_esc, consts->fstar_7,
-                                            consts->fesc_7, consts->Mlim_Fstar_mini, consts->Mlim_Fesc_mini);
+    struct ScalingConstants consts_sfrd = scaling_const_sfrd_copy(consts);
 
-        intgrl_stars_only_mini = Nion_General_MINI(consts->redshift, lnMmin, lnMmax, M_turn_m, M_turn_a,
-                                            consts->alpha_star_mini, 0., consts->fstar_7,
-                                            1., consts->Mlim_Fstar_mini, 0.);
+    intgrl_fesc_weighted = Nion_General(consts->redshift, lnMmin, lnMmax, M_turn_a, consts);
+    intgrl_stars_only = Nion_General(consts->redshift, lnMmin, lnMmax, M_turn_a, &consts_sfrd);
+    if(flag_options_global->USE_MINI_HALOS){
+        intgrl_fesc_weighted_mini = Nion_General_MINI(consts->redshift, lnMmin, lnMmax, M_turn_m, consts);
+
+        intgrl_stars_only_mini = Nion_General_MINI(consts->redshift, lnMmin, lnMmax, M_turn_m, &consts_sfrd);
     }
     if(flag_options_global->USE_TS_FLUCT){
-        integral_xray = Xray_General(consts->redshift, lnMmin, lnMmax, M_turn_a, M_turn_m,
-                                            consts->alpha_star, consts->alpha_star_mini, consts->fstar_10,
-                                            consts->fstar_7, consts->l_x, consts->l_x_mini, consts->t_h, consts->t_star,
-                                            consts->Mlim_Fstar, consts->Mlim_Fstar_mini);
+        integral_xray = Xray_General(consts->redshift, lnMmin, lnMmax, M_turn_a, M_turn_m, consts);
     }
 
     averages_out->halo_mass = mass_intgrl * prefactor_mass;
@@ -275,25 +268,16 @@ int set_fixed_grids(double M_min, double M_max, InitialConditions *ini_boxes,
         }
 
         //This table assumes no reionisation feedback
-        initialise_SFRD_Conditional_table(consts->redshift,min_density,max_density,M_min,M_max,M_cell,
-                                            consts->alpha_star, consts->alpha_star_mini, consts->fstar_10,
-                                            consts->fstar_7);
+        initialise_SFRD_Conditional_table(consts->redshift,min_density,max_density,M_min,M_max,M_cell,consts);
 
         //This table includes reionisation feedback, but takes the atomic turnover anyway for the upper turnover
         initialise_Nion_Conditional_spline(consts->redshift,min_density,max_density,M_min,M_max,M_cell,
                                 min_log10_mturn_a,max_log10_mturn_a,min_log10_mturn_m,max_log10_mturn_m,
-                                consts->alpha_star, consts->alpha_star_mini,
-                                consts->alpha_esc, consts->fstar_10,
-                                consts->fesc_10,consts->fstar_7,
-                                consts->fesc_7, false);
+                                consts, false);
 
         initialise_dNdM_tables(min_density, max_density, lnMmin, lnMmax, growth_z, lnMcell, false);
         if(flag_options_global->USE_TS_FLUCT){
-            initialise_Xray_Conditional_table(
-                min_density, max_density, consts->redshift, M_min, M_max, M_cell,
-                consts->alpha_star, consts->alpha_star_mini,
-                consts->fstar_10, consts->fstar_7, consts->l_x, consts->l_x_mini, consts->t_h,
-                consts->t_star);
+            initialise_Xray_Conditional_table(consts->redshift, min_density, max_density, M_min, M_max, M_cell, consts);
         }
     }
 
@@ -322,22 +306,17 @@ int set_fixed_grids(double M_min, double M_max, InitialConditions *ini_boxes,
 
             h_count = EvaluateNhalo(dens, growth_z, lnMmin, lnMmax, M_cell, sigma_cell, dens);
             mass_intgrl = EvaluateMcoll(dens, growth_z, lnMmin, lnMmax, M_cell, sigma_cell, dens);
-            intgrl_fesc_weighted = EvaluateNion_Conditional(dens,l10_mturn_a,growth_z,M_min,M_max,M_cell,sigma_cell,
-                                            consts->Mlim_Fstar,consts->Mlim_Fesc,false);
-            intgrl_stars_only = EvaluateSFRD_Conditional(dens,growth_z,M_min,M_max,M_cell,sigma_cell,
-                                            pow(10.,l10_mturn_a),consts->Mlim_Fstar);
+            intgrl_fesc_weighted = EvaluateNion_Conditional(dens,l10_mturn_a,growth_z,M_min,M_max,M_cell,sigma_cell,consts,false);
+            intgrl_stars_only = EvaluateSFRD_Conditional(dens,growth_z,M_min,M_max,M_cell,sigma_cell,consts);
+            //TODO: SFRD tables still assume no reion feedback, this should be fixed
+            //  although it doesn't affect the histories (only used in Ts) it makes outputs wrong for post-processing
             if(flag_options_global->USE_MINI_HALOS){
-                intgrl_stars_only_mini = EvaluateSFRD_Conditional_MINI(dens,l10_mturn_m,growth_z,M_min,M_max,M_cell,sigma_cell,
-                                                            pow(10.,l10_mturn_a),consts->Mlim_Fstar);
-                intgrl_fesc_weighted_mini = EvaluateNion_Conditional_MINI(dens,l10_mturn_m,growth_z,M_min,M_max,M_cell,sigma_cell,
-                                                            pow(10.,l10_mturn_a),consts->Mlim_Fstar,consts->Mlim_Fesc,false);
+                intgrl_stars_only_mini = EvaluateSFRD_Conditional_MINI(dens,l10_mturn_m,growth_z,M_min,M_max,M_cell,sigma_cell,consts);
+                intgrl_fesc_weighted_mini = EvaluateNion_Conditional_MINI(dens,l10_mturn_m,growth_z,M_min,M_max,M_cell,sigma_cell,consts,false);
             }
 
             if(flag_options_global->USE_TS_FLUCT){
-                //MAKE A NEW TABLEdouble delta, double log10Mturn_m, double growthf, double M_min, double M_max, double M_cond, double sigma_max,
-                                  //   double Mturn_a, double Mlim_Fstar, double Mlim_Fstar_MINI
-                integral_xray = EvaluateXray_Conditional(dens,l10_mturn_m,consts->redshift,growth_z,M_min,M_max,M_cell,sigma_cell,
-                                                            pow(10.,l10_mturn_a),consts->t_h,consts->Mlim_Fstar,consts->Mlim_Fstar_mini);
+                integral_xray = EvaluateXray_Conditional(dens,l10_mturn_m,consts->redshift,growth_z,M_min,M_max,M_cell,sigma_cell,consts);
             }
 
             grids->count[i] = (int)(h_count * M_cell * dens_fac); //NOTE: truncated
@@ -696,7 +675,7 @@ int ComputeHaloBox(double redshift, UserParams *user_params, CosmoParams *cosmo_
 
         struct ScalingConstants hbox_consts;
 
-        set_scaling_constants(redshift,astro_params,flag_options,&hbox_consts);
+        set_scaling_constants(redshift,astro_params,flag_options,&hbox_consts,true);
 
         LOG_DEBUG("Gridding %llu halos...",halos->n_halos);
 
@@ -773,15 +752,15 @@ int ComputeHaloBox(double redshift, UserParams *user_params, CosmoParams *cosmo_
 
 //test function for getting halo properties from the wrapper, can use a lot of memory for large catalogs
 int test_halo_props(double redshift, UserParams *user_params, CosmoParams *cosmo_params, AstroParams *astro_params,
-                    FlagOptions * flag_options, float * vcb_grid, float *J21_LW_grid, float *z_re_grid, float *Gamma12_ion_grid,
-                    PerturbHaloField *halos, float *halo_props_out){
+                    FlagOptions * flag_options, float *vcb_grid, float *J21_LW_grid, float *z_re_grid, float *Gamma12_ion_grid, int n_halos,
+                    float *halo_masses, int *halo_coords, float *star_rng, float *sfr_rng, float *xray_rng, float *halo_props_out){
     int status;
     Try{
         //get parameters
         Broadcast_struct_global_all(user_params,cosmo_params,astro_params,flag_options);
 
         struct ScalingConstants hbox_consts;
-        set_scaling_constants(redshift,astro_params,flag_options,&hbox_consts);
+        set_scaling_constants(redshift,astro_params,flag_options,&hbox_consts,true);
 
         LOG_DEBUG("Getting props for %llu halos at z=%.2f",halos->n_halos,redshift);
 
@@ -801,16 +780,16 @@ int test_halo_props(double redshift, UserParams *user_params, CosmoParams *cosmo
             struct HaloProperties out_props;
 
         #pragma omp for
-            for(i_halo=0; i_halo<halos->n_halos; i_halo++){
-                m = halos->halo_masses[i_halo];
+            for(i_halo=0; i_halo<n_halos; i_halo++){
+                m = halo_masses[i_halo];
                 //It is sometimes useful to make cuts to the halo catalogues before gridding.
                 //  We implement this in a simple way, if the user sets a halo's mass to zero we skip it
                 if(m == 0.){
                     continue;
                 }
-                x = halos->halo_coords[0+3*i_halo];
-                y = halos->halo_coords[1+3*i_halo];
-                z = halos->halo_coords[2+3*i_halo];
+                x = halo_coords[0+3*i_halo];
+                y = halo_coords[1+3*i_halo];
+                z = halo_coords[2+3*i_halo];
                 i_cell = HII_R_INDEX(x,y,z);
 
                 //set values before reionisation feedback
@@ -833,9 +812,9 @@ int test_halo_props(double redshift, UserParams *user_params, CosmoParams *cosmo
                 }
 
                 //these are the halo property RNG sequences
-                in_props[0] = halos->star_rng[i_halo];
-                in_props[1] = halos->sfr_rng[i_halo];
-                in_props[2] = halos->xray_rng[i_halo];
+                in_props[0] = star_rng[i_halo];
+                in_props[1] = sfr_rng[i_halo];
+                in_props[2] = xray_rng[i_halo];
 
                 set_halo_properties(m,M_turn_a,M_turn_m,&hbox_consts,in_props,&out_props);
 

@@ -16,6 +16,11 @@ from .outputs import InitialConditions, PerturbHaloField
 
 logger = logging.getLogger(__name__)
 
+# Ideally, backend functions that we access here should do all the broadcasting/initialisation themselves
+# These decorators are for lower functions which are called directly in one or two lines, like delta_crit
+
+# TODO: a lot of these assume input as numpy arrays via use of .shape, explicitly require this
+
 
 def broadcast_params(func: Callable) -> Callable:
     """Decorator to broadcast the parameters to the C library before calling the function."""
@@ -39,10 +44,10 @@ def broadcast_params(func: Callable) -> Callable:
     return wrapper
 
 
-@broadcast_params
 def init_backend_ps(func: Callable) -> Callable:
     """Decorator to initialise the backend PS before calling the function."""
 
+    @broadcast_params
     def wrapper(*args, **kwargs):
         lib.init_ps()
         return func(*args, **kwargs)
@@ -50,10 +55,10 @@ def init_backend_ps(func: Callable) -> Callable:
     return wrapper
 
 
-@init_backend_ps
 def init_sigma_table(func: Callable) -> Callable:
     """Decorator to initialise the the sigma interpolation table before calling the function."""
 
+    @init_backend_ps
     def wrapper(*args, **kwargs):
         sigma_min_mass = kwargs.get("M_min", 1e5)
         sigma_max_mass = kwargs.get("M_max", 1e16)
@@ -67,10 +72,10 @@ def init_sigma_table(func: Callable) -> Callable:
     return wrapper
 
 
-@init_sigma_table
 def init_gl(func: Callable) -> Callable:
     """Decorator to initialise the Gauss-Legendre if required before calling the function."""
 
+    @init_sigma_table
     def wrapper(*args, **kwargs):
         if "GAUSS-LEGENDRE" in (
             kwargs.get("inputs").user_params.INTEGRATION_METHOD_ATOMIC,
@@ -84,9 +89,8 @@ def init_gl(func: Callable) -> Callable:
 
 
 def get_expected_nhalo(
-    redshift: float,
-    user_params: UserParams,
-    cosmo_params: CosmoParams,
+    *redshift: float,
+    inputs: InputParameters,
 ) -> int:
     """Get the expected number of halos in a given box.
 
@@ -99,13 +103,14 @@ def get_expected_nhalo(
     cosmo_params : :class:`~CosmoParams`
         Cosmological parameters.
     """
-    return lib.expected_nhalo(redshift, user_params.cstruct, cosmo_params.cstruct)
+    return lib.expected_nhalo(
+        redshift, inputs.user_params.cstruct, inputs.cosmo_params.cstruct
+    )
 
 
 def get_halo_list_buffer_size(
-    redshift: float,
-    user_params: UserParams,
-    cosmo_params: CosmoParams,
+    *redshift: float,
+    inputs: InputParameters,
     min_size: int = 1000000,
 ) -> int:
     """Compute the required size of the memory buffer to hold a halo list.
@@ -122,7 +127,7 @@ def get_halo_list_buffer_size(
         A minimum size to be used as the buffer.
     """
     # find the buffer size from expected halos in the box
-    hbuffer_size = get_expected_nhalo(redshift, user_params, cosmo_params)
+    hbuffer_size = get_expected_nhalo(redshift=redshift, inputs=inputs)
     hbuffer_size = int((hbuffer_size + 1) * config["HALO_CATALOG_MEM_FACTOR"])
 
     # set a minimum in case of fluctuation at high z
@@ -426,7 +431,6 @@ def construct_fftw_wisdoms(
         return 0
 
 
-@init_sigma_table
 def evaluate_sigma(
     inputs,
     masses: Sequence[float],
@@ -436,8 +440,18 @@ def evaluate_sigma(
 
     Uses the 21cmfast backend
     """
-    sigma = np.vectorize(lib.EvaluateSigma)(np.log(masses))
-    dsigmasq = np.vectorize(lib.EvaluatedSigmasqdm)(np.log(masses))
+    sigma = np.zeros(len(masses), dtype="f8")
+    dsigmasq = np.zeros(len(masses), dtype="f8")
+    masses = np.array(masses, dtype="f4")
+
+    lib.get_sigma(
+        inputs.user_params.cstruct,
+        inputs.cosmo_params.cstruct,
+        len(masses),
+        ffi.cast("float *", ffi.from_buffer(masses)),
+        ffi.cast("double *", ffi.from_buffer(sigma)),
+        ffi.cast("double *", ffi.from_buffer(dsigmasq)),
+    )
 
     return sigma, dsigmasq
 
@@ -465,42 +479,11 @@ def get_delta_crit_nu(user_params, sigma, growth):
     return np.vectorize(lib.get_delta_crit)(user_params.cdict["HMF"], sigma, growth)
 
 
-@init_sigma_table
-def initialise_dNdM_tables(
-    inputs: InputParameters,
-    cond_min: float,
-    cond_max: float,
-    M_min: float,
-    M_max: float,
-    growth_out: float,
-    cond_param: float,
-    from_catalog: bool,
-):
-    """Initialises the dNdM tables for the conditional mass function.
-
-    If from_catalog is True, cond_param is the descendant growth factor and cond_array are halo masses.
-    If from_catalog is False, cond_param is the natural log of the cell mass and cond_array are deltas.
-    """
-    lib.initialise_dNdM_tables(
-        cond_min,
-        cond_max,
-        np.log(M_min),
-        np.log(M_max),
-        growth_out,
-        cond_param,
-        from_catalog,
-    )
-
-
-@init_sigma_table
 def get_condition_integrals(
+    inputs: InputParameters,
     cond_array: Sequence[float],
-    growth_out: float,
-    M_min: float,
-    M_max: float,
-    cond_mass: float,
-    sigma_cond: float,
-    delta: float,
+    redshift: float,
+    redshift_prev: float | None = None,
 ):
     """Gets the expected number and mass of halos given a condition.
 
@@ -508,371 +491,270 @@ def get_condition_integrals(
     has not been initialised, only `cond_array` is used,
     and the rest of the arguments are taken from when the table was initialised.
     """
-    n_halo = (
-        np.vectorize(lib.EvaluateNhalo)(
-            cond_array,
-            growth_out,
-            np.log(M_min),
-            np.log(M_max),
-            cond_mass,
-            sigma_cond,
-            delta,
-        )
-        * cond_mass
-    )
-    m_coll = (
-        np.vectorize(lib.EvaluateMcoll)(
-            cond_array,
-            growth_out,
-            np.log(M_min),
-            np.log(M_max),
-            cond_mass,
-            sigma_cond,
-            delta,
-        )
-        * cond_mass
+    orig_shape = cond_array.shape
+    cond_array = np.array(cond_array, dtype="f8").flatten()
+    n_halo = np.zeros_like(cond_array)
+    m_coll = np.zeros_like(cond_array)
+
+    lib.get_condition_integrals(
+        inputs.user_params.cstruct,
+        inputs.cosmo_params.cstruct,
+        inputs.astro_params.cstruct,
+        inputs.flag_options.cstruct,
+        redshift,
+        redshift_prev if redshift_prev is not None else -1,
+        len(cond_array),
+        ffi.cast("double *", ffi.from_buffer(cond_array)),
+        ffi.cast("double *", ffi.from_buffer(n_halo)),
+        ffi.cast("double *", ffi.from_buffer(m_coll)),
     )
 
-    return n_halo, m_coll
-
-
-@init_sigma_table
-def initialise_dNdM_inverse_table(
-    cond_min: float,
-    cond_max: float,
-    M_min: float,
-    growth_out: float,
-    cond_param: float,
-    from_catalog: bool,
-):
-    """Initialises the inverse dNdM tables for the conditional mass function."""
-    lib.initialise_dNdM_inverse_table(
-        cond_min,
-        cond_max,
-        np.log(M_min),
-        growth_out,
-        cond_param,
-        from_catalog,
-    )
+    return np.reshape(n_halo, orig_shape), np.array(m_coll, orig_shape)
 
 
 def evaluate_inverse_table(
+    inputs: InputParameters,
     cond_array: Sequence[float],
     probabilities: Sequence[float],
-    cond_mass: float,
+    redshift: float,
+    redshift_prev: float | None = None,
 ):
-    """Evaluates the inverse cumulative halo mass function.
-
-    Used to verify sampling tables.
-    """
-    masses = (
-        np.vectorize(lib.EvaluateNhaloInv)(
-            cond_array,
-            probabilities,
+    """Gets the expected number and mass of halos given a condition."""
+    if cond_array.shape != probabilities.shape:
+        raise ValueError(
+            "the shapes of the input arrays `cond_array` and `probabilities"
+            " must be equal."
         )
-        * cond_mass
+
+    orig_shape = cond_array.shape
+    cond_array = np.array(cond_array, dtype="f8").flatten()
+    probabilities = np.array(probabilities, dtype="f8").flatten()
+    masses = np.zeros_like(cond_array)
+
+    lib.get_halomass_at_probability(
+        inputs.user_params.cstruct,
+        inputs.cosmo_params.cstruct,
+        inputs.astro_params.cstruct,
+        inputs.flag_options.cstruct,
+        redshift,
+        redshift_prev,
+        len(cond_array),
+        ffi.cast("double *", ffi.from_buffer(cond_array)),
+        ffi.cast("double *", ffi.from_buffer(probabilities)),
+        ffi.cast("double *", ffi.from_buffer(masses)),
     )
-    return masses
+
+    return np.reshape(masses, orig_shape)
 
 
-# TODO: I don't think these needs to be separated into initialisation
-#   and evaluation with a combined function in integrals.py e.g the halos
-#   due to its simplicity, would appreciate some input here
-# Considerations:
-# - limiting these functions to thin wrappers is desired
-# - It would be nice to keep lib calls segregated to this file
-# - keeping the initialisation and evaluation together makes mistakes harder
-# - Avoiding re-initialisation by calling decoratred functions multiple times is a good idea
-@init_sigma_table
 def evaluate_FgtrM_cond(
     inputs: InputParameters,
     densities: Sequence[float],
     redshift: float,
-    sigma_min: float,
-    sigma_cond: float,
-    growth_out: float,
+    R: float,
 ):
     """Gets the collapsed fraction from the backend, given a density and condition sigma."""
-    if inputs.user_params.USE_INTERPOLATION_TABLES == "hmf-interpolation":
-        lib.initialise_FgtrM_delta_tables(
-            densities.min(),
-            densities.max(),
-            redshift,
-            lib.dicke(redshift),
-            sigma_min,
-            sigma_cond,
-        )
-    fcoll = np.vectorize(lib.EvaluateFcoll_delta)(
-        densities, growth_out, sigma_min, sigma_cond
+    orig_shape = densities.shape
+    densities = np.array(densities, dtype="f8").flatten()
+    fcoll = np.zeros_like(densities)
+    dfcoll = np.zeros_like(densities)
+
+    lib.get_conditional_FgtrM(
+        inputs.user_params.cstruct,
+        inputs.cosmo_params.cstruct,
+        inputs.astro_params.cstruct,
+        inputs.flag_options.cstruct,
+        redshift,
+        R,
+        len(densities),
+        ffi.cast("double *", ffi.from_buffer(densities)),
+        ffi.cast("double *", ffi.from_buffer(fcoll)),
+        ffi.cast("double *", ffi.from_buffer(dfcoll)),
     )
-    dfcolldz = np.vectorize(lib.EvaluatedFcolldz)(
-        densities, redshift, sigma_min, sigma_cond
-    )
-    return fcoll, dfcolldz
+    return np.reshape(fcoll, orig_shape), np.reshape(dfcoll, orig_shape)
 
 
-@init_gl
 def evaluate_SFRD_z(
     *,
     inputs: InputParameters,
-    M_min: float,
-    M_max: float,
     redshifts: Sequence[float],
-    log10mturnovers: Sequence[float],
-    pl_mass_lims: dict[str, float],
-    nbin: int = 400,
+    log10mturns: Sequence[float],
 ):
     """Evaluates the global star formation rate density expected at a range of redshifts."""
-    ap_c = inputs.astro_params.cdict
-    if inputs.user_params.USE_INTERPOLATION_TABLES == "hmf-interpolation":
-        lib.initialise_SFRD_spline(
-            nbin,
-            redshifts.min(),
-            redshifts.max() + 1.01,
-            ap_c["ALPHA_STAR"],
-            ap_c["ALPHA_STAR_MINI"],
-            ap_c["F_STAR10"],
-            ap_c["F_STAR7_MINI"],
+    if redshifts.shape != log10mturns.shape:
+        raise ValueError(
+            "the shapes of the input arrays `redshifts` and `log10mturns`"
+            " must be equal."
         )
 
-    sfrd = np.vectorize(lib.EvaluateSFRD)(redshifts, pl_mass_lims["fstar_acg"])
-    sfrd_mini = np.zeros((redshifts.size, log10mturnovers.size))
-    if inputs.flag_options.USE_MINI_HALOS:
-        sfrd_mini = np.vectorize(lib.EvaluateSFRD_MINI)(
-            redshifts[:, None],
-            log10mturnovers[None, :],
-            pl_mass_lims["fstar_mcg"],
-        )
-    return sfrd, sfrd_mini
+    orig_shape = redshifts.shape
+    redshifts = np.array(redshifts, dtype="f8").flatten()
+    log10mturns = np.array(log10mturns, dtype="f8").flatten()
+    sfrd = np.zeros_like(redshifts)
+    sfrd_mini = np.zeros_like(redshifts)
+
+    lib.get_global_SFRD_z(
+        inputs.user_params.cstruct,
+        inputs.cosmo_params.cstruct,
+        inputs.astro_params.cstruct,
+        inputs.flag_options.cstruct,
+        len(redshifts),
+        ffi.cast("double *", ffi.from_buffer(redshifts)),
+        ffi.cast("double *", ffi.from_buffer(log10mturns)),
+        ffi.cast("double *", ffi.from_buffer(sfrd)),
+        ffi.cast("double *", ffi.from_buffer(sfrd_mini)),
+    )
+
+    return np.reshape(sfrd, orig_shape), np.reshape(sfrd_mini, orig_shape)
 
 
 @init_gl
 def evaluate_Nion_z(
     inputs: InputParameters,
-    M_min: float,
-    M_max: float,
     redshifts: Sequence[float],
-    log10mturnovers: Sequence[float],
-    pl_mass_lims: dict[str, float],
-    nbins: int = 400,
+    log10mturns: Sequence[float],
 ):
     """Evaluates the global ionising emissivity expected at a range of redshifts."""
-    ap_c = inputs.astro_params.cdict
-    if inputs.user_params.USE_INTERPOLATION_TABLES == "hmf-interpolation":
-        lib.initialise_Nion_Ts_spline(
-            nbins,
-            redshifts.min(),
-            redshifts.max() + 1.01,
-            ap_c["ALPHA_STAR"],
-            ap_c["ALPHA_STAR_MINI"],
-            ap_c["ALPHA_ESC"],
-            ap_c["F_STAR10"],
-            ap_c["F_ESC10"],
-            ap_c["F_STAR7_MINI"],
-            ap_c["F_ESC7_MINI"],
+    if redshifts.shape != log10mturns.shape:
+        raise ValueError(
+            "the shapes of the input arrays `redshifts` and `log10mturns`"
+            " must be equal."
         )
 
-    nion = np.vectorize(lib.EvaluateNionTs)(
-        redshifts,
-        pl_mass_lims["fstar_acg"],
-        pl_mass_lims["fesc_acg"],
+    orig_shape = redshifts.shape
+    redshifts = np.array(redshifts, dtype="f8").flatten()
+    log10mturns = np.array(log10mturns, dtype="f8").flatten()
+    nion = np.zeros_like(redshifts)
+    nion_mini = np.zeros_like(redshifts)
+
+    lib.get_global_Nion_z(
+        inputs.user_params.cstruct,
+        inputs.cosmo_params.cstruct,
+        inputs.astro_params.cstruct,
+        inputs.flag_options.cstruct,
+        len(redshifts),
+        ffi.cast("double *", ffi.from_buffer(redshifts)),
+        ffi.cast("double *", ffi.from_buffer(log10mturns)),
+        ffi.cast("double *", ffi.from_buffer(nion)),
+        ffi.cast("double *", ffi.from_buffer(nion_mini)),
     )
-    nion_mini = np.zeros((redshifts.size, log10mturnovers.size))
-    if inputs.flag_options.USE_MINI_HALOS:
-        nion_mini = np.vectorize(lib.EvaluateNionTs_MINI)(
-            redshifts[:, None],
-            log10mturnovers[None, :],
-            pl_mass_lims["fstar_mcg"],
-            pl_mass_lims["fesc_mcg"],
-        )
-    return nion, nion_mini
+
+    return np.reshape(nion, orig_shape), np.reshape(nion_mini, orig_shape)
 
 
 @init_gl
 def evaluate_SFRD_cond(
     *,
     inputs: InputParameters,
-    M_min: float,
-    M_max: float,
     redshift: float,
-    cond_mass: float,
+    radius: float,
     densities: Sequence[float],
-    l10mturns: Sequence[float],
-    mturn_acg: float,
-    pl_mass_lims: dict[str, float],
+    log10mturns: Sequence[float],
 ):
     """Evaluates the conditional star formation rate density expected at a range of densities."""
-    ap_c = inputs.astro_params.cdict
-
-    # NOTE: I'm still using the lib functions to avoid double-initialisation
-    sigma_cond = lib.EvaluateSigma(np.log(cond_mass))
-    acg_thresh = lib.atomic_cooling_threshold(redshift)
-
-    growthf = lib.dicke(redshift)
-    if inputs.user_params.USE_INTERPOLATION_TABLES:
-        lib.initialise_SFRD_Conditional_table(
-            redshift,
-            densities.min(),
-            densities.max() + 0.01,
-            M_min,
-            M_max,
-            cond_mass,
-            ap_c["ALPHA_STAR"],
-            ap_c["ALPHA_STAR_MINI"],
-            ap_c["F_STAR10"],
-            ap_c["F_STAR7_MINI"],
+    if densities.shape != log10mturns.shape:
+        raise ValueError(
+            "the shapes of the input arrays `densities` and `log10mturns` must be equal"
         )
 
-    SFRD_acg = np.vectorize(lib.EvaluateSFRD_Conditional)(
-        densities,
-        growthf,
-        M_min,
-        M_max,
-        cond_mass,
-        sigma_cond,
-        mturn_acg,
-        pl_mass_lims["fstar_acg"],
+    orig_shape = densities.shape
+    densities = np.array(densities, dtype="f8").flatten()
+    log10mturns = np.array(log10mturns, dtype="f8").flatten()
+    sfrd = np.zeros_like(densities)
+    sfrd_mini = np.zeros_like(densities)
+
+    lib.get_global_SFRD_conditional(
+        inputs.user_params.cstruct,
+        inputs.cosmo_params.cstruct,
+        inputs.astro_params.cstruct,
+        inputs.flag_options.cstruct,
+        redshift,
+        radius,
+        len(densities),
+        ffi.cast("double *", ffi.from_buffer(densities)),
+        ffi.cast("double *", ffi.from_buffer(log10mturns)),
+        ffi.cast("double *", ffi.from_buffer(sfrd)),
+        ffi.cast("double *", ffi.from_buffer(sfrd_mini)),
     )
-    if inputs.flag_options.USE_MINI_HALOS:
-        SFRD_mcg = np.vectorize(lib.EvaluateSFRD_Conditional_MINI)(
-            densities[:, None],
-            l10mturns[None, :],
-            growthf,
-            M_min,
-            M_max,
-            cond_mass,
-            sigma_cond,
-            acg_thresh,
-            pl_mass_lims["fstar_mcg"],
-        )
-    return SFRD_acg, SFRD_mcg
+
+    return np.reshape(sfrd, orig_shape), np.reshape(sfrd_mini, orig_shape)
 
 
-@init_gl
 def evaluate_Nion_cond(
     *,
     inputs: InputParameters,
-    M_min: float,
-    M_max: float,
     redshift: float,
-    cond_mass: float,
+    radius: float,
     densities: Sequence[float],
-    l10mturns: Sequence[float],
-    pl_mass_lims: dict[str, float],
+    l10mturns_acg: Sequence[float],
+    l10mturns_mcg: Sequence[float],
 ):
     """Evaluates the conditional ionising emissivity expected at a range of densities."""
-    ap_c = inputs.astro_params.cdict
-
-    sigma_cond = lib.EvaluateSigma(np.log(cond_mass))
-    acg_thresh = lib.atomic_cooling_threshold(redshift)
-    growthf = lib.dicke(redshift)
-
-    if inputs.user_params.USE_INTERPOLATION_TABLES:
-        lib.initialise_Nion_Conditional_spline(
-            redshift,
-            densities.min() - 0.01,
-            densities.max() + 0.01,
-            M_min,
-            M_max,
-            cond_mass,
-            l10mturns.min() * 0.99,
-            l10mturns.max() * 1.01,
-            l10mturns.min() * 0.99,
-            l10mturns.max() * 1.01,
-            ap_c["ALPHA_STAR"],
-            ap_c["ALPHA_STAR_MINI"],
-            ap_c["ALPHA_ESC"],
-            ap_c["F_STAR10"],
-            ap_c["F_ESC10"],
-            ap_c["F_STAR7_MINI"],
-            ap_c["F_ESC7_MINI"],
-            False,
+    if not (densities.shape == l10mturns_mcg.shape == l10mturns_acg.shape):
+        raise ValueError(
+            "the shapes of the input arrays `densities` and `log10mturns_x` must be equal"
         )
 
-    Nion_acg = np.vectorize(lib.EvaluateNion_Conditional)(
-        densities[:, None] if inputs.flag_options.USE_MINI_HALOS else densities,
-        l10mturns[None, :] if inputs.flag_options.USE_MINI_HALOS else ap_c["M_TURN"],
-        growthf,
-        M_min,
-        M_max,
-        cond_mass,
-        sigma_cond,
-        pl_mass_lims["fstar_acg"],
-        pl_mass_lims["fesc_acg"],
-        False,
+    orig_shape = densities.shape
+    densities = np.array(densities, dtype="f8").flatten()
+    l10mturns_acg = np.array(l10mturns_acg, dtype="f8").flatten()
+    l10mturns_mcg = np.array(l10mturns_mcg, dtype="f8").flatten()
+    nion = np.zeros_like(densities)
+    nion_mini = np.zeros_like(densities)
+
+    lib.get_global_Nion_conditional(
+        inputs.user_params.cstruct,
+        inputs.cosmo_params.cstruct,
+        inputs.astro_params.cstruct,
+        inputs.flag_options.cstruct,
+        redshift,
+        radius,
+        len(densities),
+        ffi.cast("double *", ffi.from_buffer(densities)),
+        ffi.cast("double *", ffi.from_buffer(l10mturns_acg)),
+        ffi.cast("double *", ffi.from_buffer(l10mturns_mcg)),
+        ffi.cast("double *", ffi.from_buffer(nion)),
+        ffi.cast("double *", ffi.from_buffer(nion_mini)),
     )
 
-    Nion_mcg = np.zeros((densities.size, l10mturns.size))
-    if inputs.flag_options.USE_MINI_HALOS:
-        Nion_mcg = np.vectorize(lib.EvaluateNion_Conditional_MINI)(
-            densities[:, None],
-            l10mturns[None, :],
-            growthf,
-            M_min,
-            M_max,
-            cond_mass,
-            sigma_cond,
-            acg_thresh,
-            pl_mass_lims["fstar_mcg"],
-            pl_mass_lims["fesc_mcg"],
-            False,
-        )
-    return Nion_acg, Nion_mcg
+    return np.reshape(nion, orig_shape), np.reshape(nion_mini, orig_shape)
 
 
 @init_gl
 def evaluate_Xray_cond(
     *,
     inputs: InputParameters,
-    M_min: float,
-    M_max: float,
     redshift: float,
-    cond_mass: float,
+    radius: float,
     densities: Sequence[float],
-    l10mturns: Sequence[float],
-    pl_mass_lims: dict[str, float],
+    log10mturns: Sequence[float],
 ):
-    """Evaluates the conditional ionising emissivity expected at a range of densities."""
-    ap_c = inputs.astro_params.cdict
-
-    sigma_cond = lib.EvaluateSigma(np.log(cond_mass))
-    acg_thresh = lib.atomic_cooling_threshold(redshift)
-    growthf = lib.dicke(redshift)
-    t_h = (1 / inputs.cosmo_params.cosmo.H(redshift)).to("s").value
-
-    if inputs.user_params.USE_INTERPOLATION_TABLES:
-        lib.initialise_Xray_Conditional_table(
-            densities.min() - 0.01,
-            densities.max() + 0.01,
-            redshift,
-            M_min,
-            M_max,
-            cond_mass,
-            ap_c["ALPHA_STAR"],
-            ap_c["ALPHA_STAR_MINI"],
-            ap_c["F_STAR10"],
-            ap_c["F_STAR7_MINI"],
-            ap_c["L_X"],
-            ap_c["L_X_MINI"],
-            t_h,
-            ap_c["t_STAR"],
+    """Evaluates the conditional star formation rate density expected at a range of densities."""
+    if densities.shape != log10mturns.shape:
+        raise ValueError(
+            "the shapes of the input arrays `cond_array` and `probabilities"
+            " must be equal."
         )
 
-    Xray = np.vectorize(lib.EvaluateXray_Conditional)(
-        densities[:, None] if inputs.flag_options.USE_MINI_HALOS else densities,
-        l10mturns[None, :] if inputs.flag_options.USE_MINI_HALOS else ap_c["M_TURN"],
+    orig_shape = densities.shape
+    densities = np.array(densities, dtype="f8").flatten()
+    log10mturns = np.array(log10mturns, dtype="f8").flatten()
+    xray = np.zeros_like(densities)
+
+    lib.get_global_SFRD_conditional(
+        inputs.user_params.cstruct,
+        inputs.cosmo_params.cstruct,
+        inputs.astro_params.cstruct,
+        inputs.flag_options.cstruct,
         redshift,
-        growthf,
-        M_min,
-        M_max,
-        cond_mass,
-        sigma_cond,
-        max(ap_c["M_TURN"], acg_thresh),
-        t_h,
-        pl_mass_lims["fstar_acg"],
-        pl_mass_lims["fstar_mcg"],
+        radius,
+        len(densities),
+        ffi.cast("double *", ffi.from_buffer(densities)),
+        ffi.cast("double *", ffi.from_buffer(log10mturns)),
+        ffi.cast("double *", ffi.from_buffer(xray)),
     )
-    return Xray
+
+    return np.reshape(xray, orig_shape)
 
 
 def halo_sample_test(
@@ -886,14 +768,15 @@ def halo_sample_test(
     buffer_size: int = 3e7,
 ):
     """Constructs a halo sample given a descendant catalogue and redshifts."""
-    # fix all zero for coords
+    z_prev = -1 if redshift_prev is None else redshift_prev
+    if buffer_size is None:
+        buffer_size = get_expected_nhalo(inputs=inputs, redshift=redshift)
+
     n_cond = cond_array.size
+    # all coordinates zero
     crd_in = np.zeros(3 * n_cond).astype("i4")
 
-    # HALO MASS CONDITIONS WITH FIXED z-step
     cond_array = cond_array.astype("f4")
-    z_prev = -1 if redshift_prev is None else redshift_prev
-
     nhalo_out = np.zeros(1).astype("i4")
     N_out = np.zeros(n_cond).astype("i4")
     M_out = np.zeros(n_cond).astype("f8")
@@ -940,7 +823,14 @@ def convert_halo_properties(
     inputs: InputParameters,
     ics: InitialConditions,
     halo_masses: Sequence[float],
-    halo_rng: Sequence[float],
+    star_rng: Sequence[float],
+    sfr_rng: Sequence[float],
+    xray_rng: Sequence[float],
+    halo_coords: Sequence[float] | None = None,
+    vcb_grid: Sequence[float] | None = None,
+    J_21_LW_grid: Sequence[float] | None = None,
+    z_re_grid: Sequence[float] | None = None,
+    Gamma12_grid: Sequence[float] | None = None,
 ):
     """
     Converts a halo catalogue's mass and RNG fields to halo properties.
@@ -961,41 +851,56 @@ def convert_halo_properties(
         Reionization turnover mass
         Metallicity
     """
-    # HACK: Make the fake halo list
-    fake_pthalos = PerturbHaloField(
-        inputs=inputs,
-        buffer_size=halo_masses.size,
-    )
-    fake_pthalos()  # initialise memory
-    fake_pthalos.halo_masses = halo_masses.astype("f4")
-    fake_pthalos.halo_corods = np.zeros(halo_masses.size * 3).astype("i4")
-    fake_pthalos.star_rng = halo_rng.astype("f4")
-    fake_pthalos.sfr_rng = halo_rng.astype("f4")
-    fake_pthalos.xray_rng = halo_rng.astype("f4")
-    fake_pthalos.n_halos = halo_masses.size
-
-    # TODO: ask Steven if this is a memory leak
-    fake_pthalos._init_cstruct()
-
     # single element zero array to act as the grids (vcb, J_21_LW, z_reion, Gamma12)
-    zero_array = ffi.cast("float *", np.zeros(1).ctypes.data)
-
     out_buffer = np.zeros(12 * halo_masses.size).astype("f4")
+    lo_dim = (inputs.user_params.HII_DIM,) * 3
+    n_halos = len(halo_masses)
+
+    if halo_coords is None:
+        halo_coords = np.zeros(3 * halo_masses.size, dtype="i4")
+    else:
+        halo_coords = np.array(halo_coords, dtype="i4")
+
+    if vcb_grid is None:
+        vcb_grid = np.zeros(lo_dim, dtype="f4")
+    else:
+        vcb_grid = np.array(vcb_grid, dtype="f4")
+
+    if J_21_LW_grid is None:
+        J_21_LW_grid = np.zeros(lo_dim, dtype="f4")
+    else:
+        J_21_LW_grid = np.array(J_21_LW_grid, dtype="f4")
+
+    if z_re_grid is None:
+        z_re_grid = np.zeros(lo_dim, dtype="f4")
+    else:
+        z_re_grid = np.array(z_re_grid, dtype="f4")
+
+    if Gamma12_grid is None:
+        Gamma12_grid = np.zeros(lo_dim, dtype="f4")
+    else:
+        Gamma12_grid = np.array(Gamma12_grid, dtype="f4")
+
     lib.test_halo_props(
         redshift,
         inputs.user_params.cstruct,
         inputs.cosmo_params.cstruct,
         inputs.astro_params.cstruct,
         inputs.flag_options.cstruct,
-        zero_array,  # ICs vcb
-        zero_array,  # J_21_LW
-        zero_array,  # z_re
-        zero_array,  # Gamma12
-        fake_pthalos(),
+        vcb_grid,
+        J_21_LW_grid,
+        z_re_grid,
+        Gamma12_grid,
+        n_halos,
+        halo_masses,
+        halo_coords,
+        star_rng,
+        sfr_rng,
+        xray_rng,
         ffi.cast("float *", out_buffer.ctypes.data),
     )
 
-    out_buffer = out_buffer.reshape(fake_pthalos.n_halos, 12)
+    out_buffer = out_buffer.reshape(n_halos, 12)
 
     return {
         "halo_mass": out_buffer[:, 0],

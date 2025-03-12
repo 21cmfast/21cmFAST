@@ -1,6 +1,8 @@
 #ifndef _HEATHELPER_H
 #define _HEATHELPER_H
 
+#include "scaling_relations.h"
+
 // * initialization routine * //
 int init_heat();
 
@@ -43,9 +45,9 @@ double Energy_Lya_heating(double Tk, double Ts, double tau_gp, int flag);
 
 //rootfind to get the distance at which GP optical depth tau==1
 double nu_tau_one_MINI(double zp, double zpp, double x_e, double HI_filling_factor_zp, double log10_Mturn_MINI,
-                        double Mlim_Fstar, double Mlim_Fesc, double Mlim_Fstar_MINI, double Mlim_Fesc_MINI);
+                        struct ScalingConstants *sc);
 double nu_tau_one(double zp, double zpp, double x_e, double HI_filling_factor_zp,
-                    double Mlim_Fstar, double Mlim_Fesc);
+                    struct ScalingConstants *sc);
 
 //xray heating integrals over frequency
 double integrate_over_nu(double zp, double local_x_e, double lower_int_limit, int FLAG);

@@ -4,6 +4,39 @@
 #include "InputParameters.h"
 #include "OutputStructs.h"
 
+//parameters for the halo mass->stars calculations
+//Note: ideally I would split this into constants set per snapshot and
+//  constants set per condition, however some variables (delta or Mass)
+//  can be set with differing frequencies depending on the condition type
+struct HaloSamplingConstants{
+    //calculated per redshift
+    int from_catalog; //flag for first box or updating halos
+    double corr_sfr;
+    double corr_star;
+    double corr_xray;
+
+    double z_in;
+    double z_out;
+    double growth_in;
+    double growth_out;
+    double M_min;
+    double lnM_min;
+    double M_max_tables;
+    double lnM_max_tb;
+    double sigma_min;
+
+    //per-condition/redshift depending on from_catalog or not
+    double delta;
+    double M_cond;
+    double lnM_cond;
+    double sigma_cond;
+
+    //calculated per condition
+    double cond_val; //This is the table x value (density for grids, log mass for progenitors)
+    double expected_N;
+    double expected_M;
+};
+
 int stochastic_halofield(UserParams *user_params, CosmoParams *cosmo_params, AstroParams *astro_params, FlagOptions *flag_options
                         , unsigned long long int seed, float redshift_desc, float redshift, float *dens_field, float *halo_overlap_box,
                         HaloField *halos_desc, HaloField *halos);
@@ -18,5 +51,8 @@ double expected_nhalo(double redshift, UserParams *user_params, CosmoParams *cos
 
 //used in HaloField.c to assign rng to DexM halos
 int add_properties_cat(unsigned long long int seed, float redshift, HaloField *halos);
+
+void stoc_set_consts_z(struct HaloSamplingConstants *const_struct, double redshift, double redshift_desc);
+void stoc_set_consts_cond(struct HaloSamplingConstants *const_struct, double cond_val);
 
 #endif

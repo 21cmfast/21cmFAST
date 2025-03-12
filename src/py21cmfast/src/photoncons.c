@@ -88,7 +88,7 @@ int InitialisePhotonCons(UserParams *user_params, CosmoParams *cosmo_params,
     //	    When Q ~ 0.98, the difference is ~25%. To increase accuracy one can reduce the step size 'da', but it will increase computing time.
     //     (2) With the fiducial parameter set,
     //     the difference for the redshift where the reionization end (Q = 1) is ~0.2 % compared with accurate calculation.
-    float ION_EFF_FACTOR,M_MIN,M_MIN_z0,M_MIN_z1,Mlim_Fstar, Mlim_Fesc;
+    float ION_EFF_FACTOR,M_MIN,M_MIN_z0,M_MIN_z1;
     double lnMmin, lnMmax;
     double a_start = 0.03, a_end = 1./(1. + astro_params_global->PHOTONCONS_CALIBRATION_END); // Scale factors of 0.03 and 0.17 correspond to redshifts of ~32 and ~5.0, respectively.
     double C_HII = 3., T_0 = 2e4;
@@ -103,13 +103,13 @@ int InitialisePhotonCons(UserParams *user_params, CosmoParams *cosmo_params,
     z_arr = calloc(Nmax,sizeof(double));
     Q_arr = calloc(Nmax,sizeof(double));
 
+    struct ScalingConstants sc_i,sc_0,sc_1;
+    set_scaling_constants(a_end,astro_params,flag_options,&sc_i,false);
+
     //set the minimum source mass
     if (flag_options->USE_MASS_DEPENDENT_ZETA) {
         ION_EFF_FACTOR = astro_params->POP2_ION * astro_params->F_STAR10 * astro_params->F_ESC10;
-
         M_MIN = astro_params->M_TURN/50.;
-        Mlim_Fstar = Mass_limit_bisection(M_MIN, M_MAX_INTEGRAL, astro_params->ALPHA_STAR, astro_params->F_STAR10);
-        Mlim_Fesc = Mass_limit_bisection(M_MIN, M_MAX_INTEGRAL, astro_params->ALPHA_ESC, astro_params->F_ESC10);
         if(user_params->INTEGRATION_METHOD_ATOMIC == 2 || user_params->INTEGRATION_METHOD_MINI == 2){
           initialiseSigmaMInterpTable(fmin(MMIN_FAST,M_MIN),1e20);
         }
@@ -159,15 +159,15 @@ int InitialisePhotonCons(UserParams *user_params, CosmoParams *cosmo_params,
             z0 = 1./(a+delta_a) - 1.;
             z1 = 1./(a-delta_a) - 1.;
 
+            sc_i = scaling_consts_z_copy(zi,astro_params,flag_options,&sc_i,false);
+            sc_0 = scaling_consts_z_copy(z0,astro_params,flag_options,&sc_i,false);
+            sc_1 = scaling_consts_z_copy(z1,astro_params,flag_options,&sc_i,false);
+
             // Ionizing emissivity (num of photons per baryon)
             //We Force QAG due to the changing limits and messy implementation which I will fix later (hopefully move the whole thing to python)
             if (flag_options->USE_MASS_DEPENDENT_ZETA) {
-                Nion0 = ION_EFF_FACTOR*Nion_General(z0, lnMmin, lnMmax, astro_params->M_TURN, astro_params->ALPHA_STAR,
-                                                astro_params->ALPHA_ESC, astro_params->F_STAR10, astro_params->F_ESC10,
-                                                Mlim_Fstar, Mlim_Fesc);
-                Nion1 = ION_EFF_FACTOR*Nion_General(z1, lnMmin, lnMmax, astro_params->M_TURN, astro_params->ALPHA_STAR,
-                                                astro_params->ALPHA_ESC, astro_params->F_STAR10, astro_params->F_ESC10,
-                                                Mlim_Fstar, Mlim_Fesc);
+                Nion0 = ION_EFF_FACTOR*Nion_General(z0, lnMmin, lnMmax, astro_params->M_TURN, &sc_0);
+                Nion1 = ION_EFF_FACTOR*Nion_General(z1, lnMmin, lnMmax, astro_params->M_TURN, &sc_1);
             }
             else {
                 //set the minimum source mass
