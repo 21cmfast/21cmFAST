@@ -356,7 +356,7 @@ class UserParams(InputStruct):
     )
     AVG_BELOW_SAMPLER = field(default=True, converter=bool)
     HALOMASS_CORRECTION = field(
-        default=0.9, converter=float, validator=validators.gt(0)
+        default=0.88, converter=float, validator=validators.gt(0)
     )
     PARKINSON_G0 = field(default=1.0, converter=float, validator=validators.gt(0))
     PARKINSON_y1 = field(default=0.0, converter=float)

@@ -54,6 +54,9 @@ struct HaloSamplingConstants{
     double cond_val; //This is the table x value (density for grids, log mass for progenitors)
     double expected_N;
     double expected_M;
+
+    //hacky halo mass limit
+    double lnM_onepercent;
 };
 
 void print_hs_consts(struct HaloSamplingConstants * c){
@@ -162,6 +165,19 @@ void stoc_set_consts_z(struct HaloSamplingConstants *const_struct, double redshi
                                 const_struct->growth_out, const_struct->lnM_cond, false);
         initialise_dNdM_inverse_table(DELTA_MIN, MAX_DELTAC_FRAC*delta_crit, const_struct->lnM_min,
                                 const_struct->growth_out, const_struct->lnM_cond, false);
+    }
+
+    //HACKY LIMIT TO DETECT OUTLIER HALOS, find mass which has 0.01 expectation in the entire volume
+    //TODO: maybe a rootfind function?? this seems excessive
+    double lnM_lim, expected_NgtrM;
+    int i;
+    for(i=0;i<200;i++){
+        lnM_lim = const_struct->lnM_min + i*(const_struct->lnM_max_tb - const_struct->lnM_min)/100;
+        expected_NgtrM = Nhalo_General(redshift, lnM_lim, const_struct->lnM_max_tb) * VOLUME * cosmo_params_global->OMm * RHOcrit;
+        if(expected_NgtrM < 0.01){
+            const_struct->lnM_onepercent = lnM_lim;
+            break;
+        }
     }
 
     LOG_DEBUG("Done.");
@@ -413,8 +429,16 @@ int stoc_mass_sample(struct HaloSamplingConstants * hs_constants, gsl_rng * rng,
         M_prog += M_sample;
         M_out[n_halo_sampled++] = M_sample;
     }
+
+    // if(n_halo_sampled == 1){
+    if(n_halo_sampled == 1 && log(M_out[0]) > hs_constants->lnM_onepercent){
+        // M_out[0] = hs_constants->expected_M;
+        M_out[0] = exp_M;
+    }
     //The above sample is above the expected mass, by up to 100%. I wish to make the average mass equal to exp_M
-    fix_mass_sample(rng,exp_M,&n_halo_sampled,&M_prog,M_out);
+    else{
+        fix_mass_sample(rng,exp_M,&n_halo_sampled,&M_prog,M_out);
+    }
 
     *n_halo_out = n_halo_sampled;
     return 0;
