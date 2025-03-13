@@ -70,7 +70,7 @@ setup(
     keywords=["Epoch of Reionization", "Cosmology"],
     install_requires=[
         "click",
-        "numpy<2",
+        "numpy>=2.0",
         "pyyaml",
         "cffi>=1.0",
         "scipy",
