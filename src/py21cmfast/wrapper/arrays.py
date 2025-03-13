@@ -111,6 +111,11 @@ class Array:
         if val.shape != self.shape:
             raise ValueError(f"Shape mismatch: expected {self.shape}, got {val.shape}")
 
+        if val.dtype != self.dtype:
+            raise ValueError(
+                f"Data type mismatch: expected {self.dtype}, got {val.dtype}"
+            )
+
     def initialize(self):
         """Initialize the array to its initial/default allocated state."""
         if self.state.initialized:
@@ -124,7 +129,9 @@ class Array:
 
     def with_value(self, val: np.ndarray) -> Self:
         """Set the array to a given value and return a new Array."""
-        return attrs.evolve(self, value=val, state=self.state.computed())
+        return attrs.evolve(
+            self, value=val.astype(self.dtype), state=self.state.computed()
+        )
 
     def without_value(self) -> Self:
         """Remove the allocated data from the array."""
