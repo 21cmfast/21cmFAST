@@ -442,13 +442,13 @@ def evaluate_sigma(
     """
     sigma = np.zeros(len(masses), dtype="f8")
     dsigmasq = np.zeros(len(masses), dtype="f8")
-    masses = np.array(masses, dtype="f4")
+    masses = np.array(masses, dtype="f8")
 
     lib.get_sigma(
         inputs.user_params.cstruct,
         inputs.cosmo_params.cstruct,
         len(masses),
-        ffi.cast("float *", ffi.from_buffer(masses)),
+        ffi.cast("double *", ffi.from_buffer(masses)),
         ffi.cast("double *", ffi.from_buffer(sigma)),
         ffi.cast("double *", ffi.from_buffer(dsigmasq)),
     )

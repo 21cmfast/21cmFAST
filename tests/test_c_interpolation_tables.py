@@ -82,7 +82,7 @@ def z_range():
 def test_sigma_table(name, mass_range, plt):
     abs_tol = 0
     redshift, kwargs = OPTIONS_PS[name]
-    inputs = prd.get_all_options_struct(redshift, **kwargs)
+    inputs = prd.get_all_options_struct(redshift, **kwargs)["inputs"]
 
     sigma_tables, dsigma_tables = cf.evaluate_sigma(
         inputs=inputs.evolve_input_structs(
@@ -119,7 +119,7 @@ def test_sigma_table(name, mass_range, plt):
 @pytest.mark.parametrize("from_cat", ["cat", "grid"])
 def test_inverse_cmf_tables(name, from_cat, delta_range, mass_range, plt):
     redshift, kwargs = OPTIONS_HMF[name]
-    inputs = prd.get_all_options_struct(redshift, **kwargs)
+    inputs = prd.get_all_options_struct(redshift, **kwargs)["inputs"]
 
     from_cat = "cat" in from_cat
     # we need the buffer for small conditions, but want the full upper range
@@ -142,11 +142,13 @@ def test_inverse_cmf_tables(name, from_cat, delta_range, mass_range, plt):
         redshift_prev=z_desc,
     )
 
+    inputs_cond_bc = np.broadcast_to(inputs_cond[:, None], cmf_integral.shape)
+    inputs_mmin_bc = np.broadcast_to(lnMmin_range[None, :], cmf_integral.shape)
     # Take those probabilites to the inverse table
     icmf_table = cf.evaluate_inverse_table(
         inputs=inputs,
         probabilities=cmf_integral,
-        cond_array=inputs_cond,
+        cond_array=inputs_cond_bc,
         redshift=redshift,
         redshift_prev=z_desc,
     )
@@ -173,34 +175,34 @@ def test_inverse_cmf_tables(name, from_cat, delta_range, mass_range, plt):
 
     # We only want to compare at reasonable probabilities
     # easiest way to ignore is to fix values to nan
-    sel_lowprob = cmf_integral < np.exp(inputs.user_params.MIN_LOGPROB)
-    cmf_integral[sel_lowprob] = np.nan
-    icmf_table[sel_lowprob] = np.nan
+    # sel_lowprob = cmf_integral < np.exp(inputs.user_params.MIN_LOGPROB)
+    # cmf_integral[sel_lowprob] = np.nan
+    # icmf_table[sel_lowprob] = np.nan
 
     # We don't want to include values close to delta crit, since the integrals struggle there,
     # and interpolating across the sharp gap results in errors
     # TODO: the bound should be over MAX_DELTAC_FRAC*delta_crit, and we should interpolate
     # instead of setting the integral to its limit at delta crit.
-    if not from_cat:
-        M_cond = (
-            (
-                inputs.cosmo_params.cosmo.critical_density(0)
-                * inputs.cosmo_params.OMm
-                * u.Mpc**3
-                * (inputs.user_params.BOX_LEN / inputs.user_params.HII_DIM) ** 3
-            )
-            .to("M_sun")
-            .value
-        )
-        delta_crit = cf.get_delta_crit(inputs, M_cond, redshift)
-        sel_delta = delta_range < 0.98 * delta_crit
-        delta_range = delta_range[sel_delta]
-        cmf_integral = cmf_integral[sel_delta, ...]
-        icmf_table = icmf_table[sel_delta, ...]
+    # if not from_cat:
+    #     M_cond = (
+    #         (
+    #             inputs.cosmo_params.cosmo.critical_density(0)
+    #             * inputs.cosmo_params.OMm
+    #             * u.Mpc**3
+    #             * (inputs.user_params.BOX_LEN / inputs.user_params.HII_DIM) ** 3
+    #         )
+    #         .to("M_sun")
+    #         .value
+    #     )
+    #     delta_crit = cf.get_delta_crit(inputs, M_cond, redshift)
+    #     sel_delta = delta_range < 0.98 * delta_crit
+    #     delta_range = delta_range[sel_delta]
+    #     cmf_integral = cmf_integral[sel_delta, ...]
+    #     icmf_table = icmf_table[sel_delta, ...]
 
     print_failure_stats(
         np.log(icmf_table),
-        np.log(lnMmin_range),  # TODO: decide whether to compare logmass or mass
+        np.log(inputs_mmin_bc),
         [inputs_cond, cmf_integral],
         0.0,
         RELATIVE_TOLERANCE,
@@ -208,7 +210,7 @@ def test_inverse_cmf_tables(name, from_cat, delta_range, mass_range, plt):
     )
 
     np.testing.assert_allclose(
-        np.log(lnMmin_range),
+        np.log(inputs_mmin_bc),
         np.log(icmf_table),
         rtol=RELATIVE_TOLERANCE,
     )
@@ -221,7 +223,7 @@ def test_inverse_cmf_tables(name, from_cat, delta_range, mass_range, plt):
 @pytest.mark.parametrize("from_cat", ["cat", "grid"])
 def test_massfunc_conditional_tables(name, from_cat, mass_range, delta_range, plt):
     redshift, kwargs = OPTIONS_HMF[name]
-    inputs = prd.get_all_options_struct(redshift, **kwargs)
+    inputs = prd.get_all_options_struct(redshift, **kwargs)["inputs"]
     from_cat = "cat" in from_cat
 
     inputs_cond = np.log(mass_range) if from_cat else delta_range
@@ -282,7 +284,7 @@ def test_massfunc_conditional_tables(name, from_cat, mass_range, delta_range, pl
 @pytest.mark.parametrize("R", R_PARAM_LIST)
 def test_FgtrM_conditional_tables(R, delta_range, plt):
     redshift, kwargs = OPTIONS_HMF["PS"]  # always erfc
-    inputs = prd.get_all_options_struct(redshift, **kwargs)
+    inputs = prd.get_all_options_struct(redshift, **kwargs)["inputs"]
 
     M_cond = (
         (
@@ -365,7 +367,7 @@ def test_FgtrM_conditional_tables(R, delta_range, plt):
 @pytest.mark.parametrize("name", options_hmf)
 def test_SFRD_z_tables(name, z_range, log10_mturn_range, plt):
     redshift, kwargs = OPTIONS_HMF[name]
-    inputs = prd.get_all_options_struct(redshift, **kwargs)
+    inputs = prd.get_all_options_struct(redshift, **kwargs)["inputs"]
     inputs = inputs.evolve_input_struct(
         USE_MINI_HALOS=True,
         INHOMO_RECO=True,
@@ -431,7 +433,7 @@ def test_SFRD_z_tables(name, z_range, log10_mturn_range, plt):
 @pytest.mark.parametrize("name", options_hmf)
 def test_Nion_z_tables(name, z_range, log10_mturn_range, plt):
     redshift, kwargs = OPTIONS_HMF[name]
-    inputs = prd.get_all_options_struct(redshift, **kwargs)
+    inputs = prd.get_all_options_struct(redshift, **kwargs)["inputs"]
     inputs = inputs.evolve_input_struct(
         USE_MINI_HALOS=True,
         INHOMO_RECO=True,
@@ -521,7 +523,7 @@ def test_Nion_conditional_tables(
     mini_flag = mini == "mini"
 
     redshift, kwargs = OPTIONS_HMF[name]
-    inputs = prd.get_all_options_struct(redshift, **kwargs)
+    inputs = prd.get_all_options_struct(redshift, **kwargs)["inputs"]
     inputs = inputs.evolve_input_structs(
         INTEGRATION_METHOD_ATOMIC=OPTIONS_INTMETHOD[intmethod],
         INTEGRATION_METHOD_MINI=OPTIONS_INTMETHOD[intmethod],
@@ -649,7 +651,7 @@ def test_Xray_conditional_tables(
     mini_flag = mini == "mini"
 
     redshift, kwargs = OPTIONS_HMF[name]
-    inputs = prd.get_all_options_struct(redshift, **kwargs)
+    inputs = prd.get_all_options_struct(redshift, **kwargs)["inputs"]
     inputs = inputs.evolve_input_structs(
         INTEGRATION_METHOD_ATOMIC=OPTIONS_INTMETHOD[intmethod],
         INTEGRATION_METHOD_MINI=OPTIONS_INTMETHOD[intmethod],
@@ -753,7 +755,7 @@ def test_SFRD_conditional_table(
             pytest.xfail("FFCOLL TABLES drop sharply at high Mturn, causing failure")
 
     redshift, kwargs = OPTIONS_HMF[name]
-    inputs = prd.get_all_options_struct(redshift, **kwargs)
+    inputs = prd.get_all_options_struct(redshift, **kwargs)["inputs"]
     inputs = inputs.evolve_input_structs(
         INTEGRATION_METHOD_ATOMIC=OPTIONS_INTMETHOD[intmethod],
         INTEGRATION_METHOD_MINI=OPTIONS_INTMETHOD[intmethod],
@@ -857,7 +859,7 @@ def test_conditional_integral_methods(
     R, log10_mturn_range, delta_range, name, integrand, plt
 ):
     redshift, kwargs = OPTIONS_HMF[name]
-    inputs = prd.get_all_options_struct(redshift, **kwargs)
+    inputs = prd.get_all_options_struct(redshift, **kwargs)["inputs"]
     inputs = inputs.evolve_input_structs(
         USE_MINI_HALOS=True,
         USE_MASS_DEPENDENT_ZETA=True,
