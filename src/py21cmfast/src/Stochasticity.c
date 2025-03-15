@@ -67,6 +67,11 @@ double sample_dndM_inverse(double condition, struct HaloSamplingConstants * hs_c
 
 //Set the constants that are calculated once per snapshot
 void stoc_set_consts_z(struct HaloSamplingConstants *const_struct, double redshift, double redshift_desc){
+    if(redshift_desc > 0 && redshift < redshift_desc){
+        LOG_ERROR("you have passed a descendant redshift above the progenitor redshift");
+        Throw(ValueError);
+    }
+
     LOG_DEBUG("Setting z constants z=%.2f z_desc=%.2f",redshift,redshift_desc);
     const_struct->growth_out = dicke(redshift);
     const_struct->z_out = redshift;

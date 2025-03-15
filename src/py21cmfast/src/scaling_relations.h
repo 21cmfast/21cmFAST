@@ -65,5 +65,6 @@ double scaling_double_PL(double M, double alpha_lo, double pivot_ratio,
                 double alpha_hi, double pivot_hi);
 struct ScalingConstants scaling_const_sfrd_copy(struct ScalingConstants *sc);
 struct ScalingConstants scaling_consts_z_copy(double redshift, AstroParams *astro_params, FlagOptions *flag_options, struct ScalingConstants *sc, bool use_photoncons);
+void print_sc_consts(struct ScalingConstants * c);
 
 #endif

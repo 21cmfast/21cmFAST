@@ -79,6 +79,7 @@ int CreateFFTWWisdoms( UserParams *user_params,  CosmoParams *cosmo_params);
 void Broadcast_struct_global_noastro( UserParams *user_params,  CosmoParams *cosmo_params);
 void Broadcast_struct_global_all( UserParams *user_params,  CosmoParams *cosmo_params,  AstroParams *astro_params,  FlagOptions *flag_options);
 void initialiseSigmaMInterpTable(float M_Min, float M_Max);
+void initialise_GL(double lnM_Min, double lnM_Max);
 /*---------------------------*/
 
 /* Intergration routines */
@@ -102,7 +103,7 @@ void get_conditional_SFRD(UserParams *user_params, CosmoParams *cosmo_params, As
                         double redshift, double R, int n_densities, double *densities, double *log10_mturns,
                         double *out_sfrd, double *out_sfrd_mini);
 void get_conditional_Nion(UserParams *user_params, CosmoParams *cosmo_params, AstroParams *astro_params, FlagOptions *flag_options,
-                        double redshift, double R, int n_densities, double *densities, double log10_mturns_acg, double log10_mturns_mcg,
+                        double redshift, double R, int n_densities, double *densities, double *log10_mturns_acg, double *log10_mturns_mcg,
                         double *out_nion, double *out_nion_mini);
 void get_conditional_Xray(UserParams *user_params, CosmoParams *cosmo_params, AstroParams *astro_params, FlagOptions *flag_options,
                         double redshift, double R, int n_densities, double *densities, double *log10_mturns,

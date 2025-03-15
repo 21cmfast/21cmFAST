@@ -19,7 +19,7 @@ void get_sigma(UserParams *user_params, CosmoParams *cosmo_params, int n_masses,
     init_ps();
 
     if(user_params->USE_INTERPOLATION_TABLES > 0)
-        initialiseSigmaMInterpTable(M_MIN_INTEGRAL, M_MAX_INTEGRAL);
+        initialiseSigmaMInterpTable(M_MIN_INTEGRAL, 1e20);
 
     int i;
     for(i=0;i<n_masses;i++){
@@ -43,14 +43,18 @@ void get_condition_integrals(UserParams *user_params, CosmoParams *cosmo_params,
                         double *out_n_exp, double *out_m_exp){
 
     Broadcast_struct_global_all(user_params,cosmo_params,astro_params,flag_options);
-    struct HaloSamplingConstants hs_const_struct;
 
+    struct HaloSamplingConstants hs_const_struct;
     //unneccessarily creates the inverse table (a few seconds) but much cleaner this way
     stoc_set_consts_z(&hs_const_struct,redshift,z_prev);
 
     int i;
     for(i=0;i<n_conditions;i++){
         stoc_set_consts_cond(&hs_const_struct,cond_values[i]);
+        if(cond_table_out_of_bounds(user_params,&hs_const_struct)){
+            out_n_exp[i] = -1.;
+            continue;
+        }
         out_n_exp[i] = hs_const_struct.expected_N;
         out_m_exp[i] = hs_const_struct.expected_M;
     }
@@ -63,12 +67,14 @@ void get_halo_chmf_interval(UserParams *user_params, CosmoParams *cosmo_params, 
                         double *out_n){
 
     Broadcast_struct_global_all(user_params,cosmo_params,astro_params,flag_options);
-    init_ps();
 
     //unneccessarily creates tables if flags are set (a few seconds)
     struct HaloSamplingConstants hs_const_struct;
     stoc_set_consts_z(&hs_const_struct,redshift,z_prev);
 
+    //we're only using the HS constants here to do mass/sigma calculations
+    //  re-doing the sigma tables here lets us integrate below SAMPLER_MIN_MASS
+    //  if requested by the user.
     if(user_params->USE_INTERPOLATION_TABLES > 0)
         initialiseSigmaMInterpTable(M_MIN_INTEGRAL, M_MAX_INTEGRAL);
 
@@ -95,13 +101,9 @@ void get_halo_chmf_interval(UserParams *user_params, CosmoParams *cosmo_params, 
 void get_halomass_at_probability(UserParams *user_params, CosmoParams *cosmo_params, AstroParams *astro_params, FlagOptions *flag_options,
                         double redshift, double z_prev, int n_conditions, double *cond_values, double *probabilities,
                         double *out_mass){
-
     Broadcast_struct_global_all(user_params,cosmo_params,astro_params,flag_options);
+
     struct HaloSamplingConstants hs_const_struct;
-
-    if(user_params->USE_INTERPOLATION_TABLES > 0)
-        initialiseSigmaMInterpTable(M_MIN_INTEGRAL, M_MAX_INTEGRAL);
-
     stoc_set_consts_z(&hs_const_struct,redshift,z_prev);
 
     int i;
@@ -126,7 +128,7 @@ void get_global_SFRD_z(UserParams *user_params, CosmoParams *cosmo_params, Astro
     //a bit hacky, but we need a lower limit for the tables
     double M_min = minimum_source_mass(redshifts[0],true,astro_params,flag_options);
     if(user_params->USE_INTERPOLATION_TABLES > 0)
-        initialiseSigmaMInterpTable(M_min,M_MAX_INTEGRAL);
+        initialiseSigmaMInterpTable(M_min,1e20);
 
     struct ScalingConstants sc;
     set_scaling_constants(redshifts[0],astro_params,flag_options,&sc,false);
@@ -145,7 +147,7 @@ void get_global_SFRD_z(UserParams *user_params, CosmoParams *cosmo_params, Astro
         initialise_SFRD_spline(
             zpp_interp_points_SFR,
             z_min,
-            z_max,
+            z_max + 0.01,
             &sc
         );
     }
@@ -164,7 +166,7 @@ void get_global_Nion_z(UserParams *user_params, CosmoParams *cosmo_params, Astro
 
     double M_min = minimum_source_mass(redshifts[0],true,astro_params,flag_options);
     if(user_params->USE_INTERPOLATION_TABLES > 0)
-        initialiseSigmaMInterpTable(M_min,M_MAX_INTEGRAL);
+        initialiseSigmaMInterpTable(M_min,1e20);
 
     struct ScalingConstants sc;
     set_scaling_constants(redshifts[0],astro_params,flag_options,&sc,false);
@@ -183,7 +185,7 @@ void get_global_Nion_z(UserParams *user_params, CosmoParams *cosmo_params, Astro
         initialise_Nion_Ts_spline(
             zpp_interp_points_SFR,
             z_min,
-            z_max,
+            z_max + 0.01,
             &sc
         );
     }
@@ -201,10 +203,12 @@ void get_conditional_FgtrM(UserParams *user_params, CosmoParams *cosmo_params, A
 
     double M_min = minimum_source_mass(redshift,true,astro_params,flag_options);
     if(user_params->USE_INTERPOLATION_TABLES > 0)
-        initialiseSigmaMInterpTable(M_min,M_MAX_INTEGRAL);
+        initialiseSigmaMInterpTable(M_min,1e20);
     double sigma_min = EvaluateSigma(log(M_min));
     double sigma_cond = EvaluateSigma(log(RtoM(R)));
     double growthf = dicke(redshift);
+
+    LOG_DEBUG("db F R = %.3e M = %.3e s = %.3e",R,RtoM(R),sigma_cond);
 
     int i;
     double min_dens=10;
@@ -225,6 +229,7 @@ void get_conditional_FgtrM(UserParams *user_params, CosmoParams *cosmo_params, A
             sigma_cond
         );
     }
+    LOG_DEBUG("Done tables");
 
     for(i=0;i<n_densities;i++){
         out_fcoll[i] = EvaluateFcoll_delta(densities[i],growthf,sigma_min,sigma_cond);
@@ -241,10 +246,13 @@ void get_conditional_SFRD(UserParams *user_params, CosmoParams *cosmo_params, As
 
     double M_min = minimum_source_mass(redshift,true,astro_params,flag_options);
     if(user_params->USE_INTERPOLATION_TABLES > 0)
-        initialiseSigmaMInterpTable(M_min,M_MAX_INTEGRAL);
+        initialiseSigmaMInterpTable(M_min,1e20);
     double M_cond = RtoM(R);
     double sigma_cond = EvaluateSigma(log(M_cond));
     double growthf = dicke(redshift);
+
+    if(user_params->INTEGRATION_METHOD_ATOMIC == 1 || (flag_options->USE_MINI_HALOS && user_params->INTEGRATION_METHOD_MINI == 1))
+        initialise_GL(log(M_min),log(M_cond));
 
     struct ScalingConstants sc;
     set_scaling_constants(redshift,astro_params,flag_options,&sc,false);
@@ -288,10 +296,13 @@ void get_conditional_Nion(UserParams *user_params, CosmoParams *cosmo_params, As
 
     double M_min = minimum_source_mass(redshift,true,astro_params,flag_options);
     if(user_params->USE_INTERPOLATION_TABLES > 0)
-        initialiseSigmaMInterpTable(M_min,M_MAX_INTEGRAL);
+        initialiseSigmaMInterpTable(M_min,1e20);
     double M_cond = RtoM(R);
     double sigma_cond = EvaluateSigma(log(M_cond));
     double growthf = dicke(redshift);
+
+    if(user_params->INTEGRATION_METHOD_ATOMIC == 1 || (flag_options->USE_MINI_HALOS && user_params->INTEGRATION_METHOD_MINI == 1))
+        initialise_GL(log(M_min),log(M_cond));
 
     struct ScalingConstants sc;
     set_scaling_constants(redshift,astro_params,flag_options,&sc,false);
@@ -350,10 +361,13 @@ void get_conditional_Xray(UserParams *user_params, CosmoParams *cosmo_params, As
 
     double M_min = minimum_source_mass(redshift,true,astro_params,flag_options);
     if(user_params->USE_INTERPOLATION_TABLES > 0)
-        initialiseSigmaMInterpTable(M_min,M_MAX_INTEGRAL);
+        initialiseSigmaMInterpTable(M_min,1e20);
     double M_cond = RtoM(R);
     double sigma_cond = EvaluateSigma(log(M_cond));
     double growthf = dicke(redshift);
+
+    if(user_params->INTEGRATION_METHOD_ATOMIC == 1 || (flag_options->USE_MINI_HALOS && user_params->INTEGRATION_METHOD_MINI == 1))
+        initialise_GL(log(M_min),log(M_cond));
 
     struct ScalingConstants sc;
     set_scaling_constants(redshift,astro_params,flag_options,&sc,false);

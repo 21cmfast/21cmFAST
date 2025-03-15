@@ -459,18 +459,38 @@ def evaluate_sigma(
 
 @init_backend_ps
 def get_growth_factor(
-    *inputs: InputParameters,
+    *,
+    inputs: InputParameters,
     redshift: float,
 ):
     """Gets the growth factor at a given redshift."""
     return lib.dicke(redshift)
 
 
+def get_condition_mass(inputs, R):
+    """Convenience function for determining condition masses for backend routines."""
+    rhocrit = (
+        inputs.cosmo_params.cosmo.critical_density(0).to("M_sun Mpc-3").value
+        * inputs.cosmo_params.OMm
+    )
+    if R == "cell":
+        volume = (inputs.user_params.BOX_LEN / inputs.user_params.HII_DIM) ** 3
+    else:
+        volume = 4.0 / 3.0 * np.pi * R**3
+
+    return volume * rhocrit
+
+
 def get_delta_crit(inputs, mass, redshift):
     """Gets the critical collapse density given a mass, redshift and parameters."""
-    sigma, _ = evaluate_sigma(inputs, mass)
+    sigma, _ = evaluate_sigma(
+        inputs,
+        [
+            mass,
+        ],
+    )
     # evaluate_sigma already broadcasts the paramters so we don't need to repeat
-    growth = get_growth_factor(inputs, redshift)
+    growth = get_growth_factor(inputs=inputs, redshift=redshift)
     return get_delta_crit_nu(inputs.user_params, sigma, growth)
 
 
@@ -641,9 +661,9 @@ def evaluate_SFRD_z(
     return np.reshape(sfrd, orig_shape), np.reshape(sfrd_mini, orig_shape)
 
 
-@init_gl
 def evaluate_Nion_z(
-    *inputs: InputParameters,
+    *,
+    inputs: InputParameters,
     redshifts: Sequence[float],
     log10mturns: Sequence[float],
 ):
@@ -675,7 +695,6 @@ def evaluate_Nion_z(
     return np.reshape(nion, orig_shape), np.reshape(nion_mini, orig_shape)
 
 
-@init_gl
 def evaluate_SFRD_cond(
     *,
     inputs: InputParameters,
@@ -753,7 +772,6 @@ def evaluate_Nion_cond(
     return np.reshape(nion, orig_shape), np.reshape(nion_mini, orig_shape)
 
 
-@init_gl
 def evaluate_Xray_cond(
     *,
     inputs: InputParameters,

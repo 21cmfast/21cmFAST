@@ -875,7 +875,8 @@ double Nhalo_Conditional(double growthf, double lnM1, double lnM2, double lnM_co
         .gamma_type=-1,
     };
 
-    if(delta <= -1. || lnM1 >= lnM_cond)
+    //NOTE: The delta <=-1 limit has been removed in all hmf integrals as it created a discontinuity
+    if(lnM1 >= lnM_cond)
         return 0.;
     //return 1 halo AT THE CONDITION MASS if delta is exceeded
     if(delta > MAX_DELTAC_FRAC*get_delta_crit(params.HMF,sigma,growthf)){
@@ -897,7 +898,7 @@ double Mcoll_Conditional(double growthf, double lnM1, double lnM2, double lnM_co
         .gamma_type=-2,
     };
 
-    if(delta <= -1. || lnM1 >= lnM_cond)
+    if(lnM1 >= lnM_cond)
         return 0.;
     //return 100% of mass AT THE CONDITION MASS if delta is exceeded
     if(delta > MAX_DELTAC_FRAC*get_delta_crit(params.HMF,sigma,growthf)){
@@ -927,7 +928,7 @@ double Nion_ConditionalM_MINI(double growthf, double lnM1, double lnM2, double l
         .gamma_type=-4,
     };
 
-    if(delta2 <= -1. || lnM1 >= lnM_cond)
+    if(lnM1 >= lnM_cond)
         return 0.;
     //return 1 halo at the condition mass if delta is exceeded
     //NOTE: this will almost always be zero, due to the upper turover,
@@ -964,7 +965,7 @@ double Nion_ConditionalM(double growthf, double lnM1, double lnM2, double lnM_co
         .gamma_type=-3,
     };
 
-    if(delta2 <= -1. || lnM1 >= lnM_cond)
+    if(lnM1 >= lnM_cond)
         return 0.;
     //return 1 halo at the condition mass if delta is exceeded and the condition is within the integral limits
     if(delta2 > MAX_DELTAC_FRAC*get_delta_crit(params.HMF,sigma2,growthf)){
@@ -1006,7 +1007,7 @@ double Xray_ConditionalM(double redshift, double growthf, double lnM1, double ln
         .gamma_type=-5,
     };
 
-    if(delta2 <= -1. || lnM1 >= lnM_cond)
+    if(lnM1 >= lnM_cond)
         return 0.;
     //return 1 halo at the condition mass if delta is exceeded
     if(delta2 > MAX_DELTAC_FRAC*get_delta_crit(params.HMF,sigma2,growthf)){

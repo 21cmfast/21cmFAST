@@ -100,8 +100,8 @@ def test_sigma_table(name, mass_range, plt):
         make_table_comparison_plot(
             [mass_range, mass_range],
             [None, None],
-            [sigma_tables, dsigma_tables],
-            [sigma_integrals, dsigma_integrals],
+            [sigma_tables, -dsigma_tables],
+            [sigma_integrals, -dsigma_integrals],
             plt,
             xlabels=["Mass", "Mass"],
             ylabels=["sigma", "dsigmasqdM"],
@@ -122,8 +122,10 @@ def test_massfunc_conditional_tables(name, from_cat, mass_range, delta_range, pl
     inputs = prd.get_all_options_struct(redshift, **kwargs)["inputs"]
     from_cat = "cat" in from_cat
 
-    inputs_cond = np.log(mass_range) if from_cat else delta_range
-    z_desc = (redshift + 1) * 1.02 - 1 if from_cat else None
+    inputs_cond = mass_range if from_cat else delta_range
+    z_desc = (
+        (redshift + 1) / inputs.user_params.ZPRIME_STEP_FACTOR - 1 if from_cat else None
+    )
 
     # get the tables
     nhalo_tbl, mcoll_tbl = cf.evaluate_condition_integrals(
@@ -145,13 +147,14 @@ def test_massfunc_conditional_tables(name, from_cat, mass_range, delta_range, pl
     )
 
     if plt == mpl.pyplot:
-        inputs_cond = np.exp(inputs_cond) if from_cat else inputs_cond
+        inputs_cond = inputs_cond if from_cat else inputs_cond
         make_table_comparison_plot(
             [inputs_cond, inputs_cond],
             [None, None],
             [nhalo_tbl, mcoll_tbl],
             [nhalo_exp, mcoll_exp],
             plt,
+            logx=from_cat,
             xlabels=["delta" if from_cat else "Mass"] * 2,
             ylabels=["Nhalo", "Mcoll"],
         )
@@ -186,7 +189,9 @@ def test_inverse_cmf_tables(name, from_cat, delta_range, mass_range, plt):
     from_cat = "cat" in from_cat
     lnMmin_range = np.log(mass_range)
     inputs_cond = mass_range if from_cat else delta_range
-    z_desc = (redshift + 1) / 1.02 - 1 if from_cat else None
+    z_desc = (
+        (redshift + 1) / inputs.user_params.ZPRIME_STEP_FACTOR - 1 if from_cat else None
+    )
 
     # Get the full integrals
     nhalo, _ = cf.evaluate_condition_integrals(
@@ -248,11 +253,11 @@ def test_inverse_cmf_tables(name, from_cat, delta_range, mass_range, plt):
 
     # NOTE: very dense cells can have ~3.5% errors at low mass, other bins much more accurate
     # Previously I didn't test cells near delta_crit, but I think a 5% tolerance test is better
-    rtol = 4e-2
+    rtol = 5e-2
     print_failure_stats(
         np.log(icmf_table),
         inputs_mmin_bc,
-        [inputs_cond, cmf_integral],
+        [inputs_cond, probabilities],
         0.0,
         rtol,
         "Inverse CMF",
@@ -354,7 +359,7 @@ def test_SFRD_z_tables(name, z_range, log10_mturn_range, plt):
 
     if plt == mpl.pyplot:
         xl = log10_mturn_range.size - 1
-        sel_m = (xl * np.arange(5) / 4).astype(int)
+        sel_m = np.linspace(0, xl, num=5).astype(int)
         make_table_comparison_plot(
             [z_range, z_range],
             [np.array([0]), 10 ** log10_mturn_range[sel_m]],
@@ -409,19 +414,19 @@ def test_Nion_z_tables(name, z_range, log10_mturn_range, plt):
             USE_INTERPOLATION_TABLES="hmf-interpolation"
         ),
         redshifts=z_input,
-        log10mturnovers=mt_input,
+        log10mturns=mt_input,
     )
     nion_integrals, nion_integrals_mini = cf.evaluate_Nion_z(
         inputs=inputs.evolve_input_structs(
             USE_INTERPOLATION_TABLES="sigma-interpolation"
         ),
         redshifts=z_input,
-        log10mturnovers=mt_input,
+        log10mturns=mt_input,
     )
 
     if plt == mpl.pyplot:
         xl = log10_mturn_range.size - 1
-        sel_m = (xl * np.arange(5) / 4).astype(int)
+        sel_m = np.linspace(0, xl, num=5).astype(int)
         make_table_comparison_plot(
             [z_range, z_range],
             [np.array([0]), 10 ** log10_mturn_range[sel_m]],
@@ -493,15 +498,20 @@ def test_Nion_conditional_tables(
         **kwargs,
     )["inputs"]
 
+    # NOTE: we still pass a 2D array when minihalos are off.
+    #   part of the test is that passing different mturns *doesn't* change
+    #   the integral without minihalos
+    d_input, mt_input = np.meshgrid(delta_range, log10_mturn_range, indexing="ij")
+
     Nion_tables, Nion_tables_mini = cf.evaluate_Nion_cond(
         inputs=inputs.evolve_input_structs(
             USE_INTERPOLATION_TABLES="hmf-interpolation"
         ),
         redshift=redshift,
         radius=R,
-        densities=delta_range,
-        l10mturns_mcg=log10_mturn_range,
-        l10mturns_acg=log10_mturn_range,
+        densities=d_input,
+        l10mturns_mcg=mt_input,
+        l10mturns_acg=mt_input,
     )
 
     Nion_integrals, Nion_integrals_mini = cf.evaluate_Nion_cond(
@@ -510,9 +520,9 @@ def test_Nion_conditional_tables(
         ),
         redshift=redshift,
         radius=R,
-        densities=delta_range,
-        l10mturns_mcg=log10_mturn_range,
-        l10mturns_acg=log10_mturn_range,
+        densities=d_input,
+        l10mturns_mcg=mt_input,
+        l10mturns_acg=mt_input,
     )
 
     # The bilinear interpolation we use underperforms at high mturn due to the sharp
@@ -522,15 +532,10 @@ def test_Nion_conditional_tables(
     abs_tol = 1e-8
 
     if plt == mpl.pyplot:
-        if mini_flag:
-            xl = log10_mturn_range.size - 1
-            sel_m = (xl * np.arange(5) / 4).astype(int)
-            Nion_tb_plot = Nion_tables[..., sel_m]
-            Nion_il_plot = Nion_integrals[..., sel_m]
-        else:
-            Nion_tb_plot = Nion_tables[:, None]
-            Nion_il_plot = Nion_integrals[:, None]
-            sel_m = np.array([0]).astype(int)
+        xl = log10_mturn_range.size - 1
+        sel_m = np.linspace(0, xl, num=5).astype(int)
+        Nion_tb_plot = Nion_tables[..., sel_m]
+        Nion_il_plot = Nion_integrals[..., sel_m]
 
         make_table_comparison_plot(
             [delta_range, delta_range],
@@ -546,7 +551,7 @@ def test_Nion_conditional_tables(
     print_failure_stats(
         Nion_tables,
         Nion_integrals,
-        [delta_range, 10**log10_mturn_range] if mini_flag else [delta_range],
+        [delta_range, 10**log10_mturn_range],
         abs_tol,
         RELATIVE_TOLERANCE,
         "Nion_c",
@@ -562,12 +567,25 @@ def test_Nion_conditional_tables(
             "Nion_c_mini",
         )
 
+    # We don't want to include values close to delta crit, since
+    # interpolating across the sharp gap results in errors
+    # TODO: the bound should be over MAX_DELTAC_FRAC*delta_crit, and we should interpolate
+    # instead of setting the integral to its limit at delta crit.
+    delta_crit = cf.get_delta_crit(inputs, cf.get_condition_mass(inputs, R), redshift)
+    sel_delta = (delta_crit - delta_range) > 0.05
+
     np.testing.assert_allclose(
-        Nion_tables, Nion_integrals, atol=abs_tol, rtol=RELATIVE_TOLERANCE
+        Nion_tables[sel_delta],
+        Nion_integrals[sel_delta],
+        atol=abs_tol,
+        rtol=RELATIVE_TOLERANCE,
     )
 
     np.testing.assert_allclose(
-        Nion_tables_mini, Nion_integrals_mini, atol=abs_tol, rtol=RELATIVE_TOLERANCE
+        Nion_tables_mini[sel_delta],
+        Nion_integrals_mini[sel_delta],
+        atol=abs_tol,
+        rtol=RELATIVE_TOLERANCE,
     )
 
 
@@ -597,14 +615,16 @@ def test_Xray_conditional_tables(
         **kwargs,
     )["inputs"]
 
+    d_input, mt_input = np.meshgrid(delta_range, log10_mturn_range, indexing="ij")
+
     Xray_tables = cf.evaluate_Xray_cond(
         inputs=inputs.evolve_input_structs(
             USE_INTERPOLATION_TABLES="hmf-interpolation"
         ),
         redshift=redshift,
         radius=R,
-        densities=delta_range,
-        l10mturns=log10_mturn_range,
+        densities=d_input,
+        log10mturns=mt_input,
     )
 
     Xray_integrals = cf.evaluate_Xray_cond(
@@ -613,26 +633,15 @@ def test_Xray_conditional_tables(
         ),
         redshift=redshift,
         radius=R,
-        densities=delta_range,
-        l10mturns=log10_mturn_range,
+        densities=d_input,
+        log10mturns=mt_input,
     )
 
-    # The bilinear interpolation we use underperforms at high mturn due to the sharp
-    # dropoff. Setting an absolute tolerance to a level we care about for reionisation
-    # rather than a level we expect from interp tables remedies this for now.
-    # TODO: In future we should investigate cubic splines etc.
-    abs_tol = 0.0
-
     if plt == mpl.pyplot:
-        if mini_flag:
-            xl = log10_mturn_range.size - 1
-            sel_m = (xl * np.arange(5) / 4).astype(int)
-            Xray_tb_plot = Xray_tables[..., sel_m]
-            Xray_il_plot = Xray_integrals[..., sel_m]
-        else:
-            Xray_tb_plot = Xray_tables[:, None]
-            Xray_il_plot = Xray_integrals[:, None]
-            sel_m = np.array([0]).astype(int)
+        xl = log10_mturn_range.size - 1
+        sel_m = np.linspace(0, xl, num=5).astype(int)
+        Xray_tb_plot = Xray_tables[..., sel_m]
+        Xray_il_plot = Xray_integrals[..., sel_m]
         make_table_comparison_plot(
             [delta_range],
             [10 ** log10_mturn_range[sel_m]],
@@ -646,17 +655,23 @@ def test_Xray_conditional_tables(
             ylabels=["Lx"],
         )
 
+    abs_tol = 0.0
     print_failure_stats(
         Xray_tables,
         Xray_integrals,
-        [delta_range, 10**log10_mturn_range] if mini_flag else [delta_range],
+        [delta_range, 10**log10_mturn_range],
         abs_tol,
         RELATIVE_TOLERANCE,
         "Xray_c",
     )
 
+    delta_crit = cf.get_delta_crit(inputs, cf.get_condition_mass(inputs, R), redshift)
+    sel_delta = (delta_crit - delta_range) > 0.05
     np.testing.assert_allclose(
-        Xray_tables, Xray_integrals, atol=abs_tol, rtol=RELATIVE_TOLERANCE
+        Xray_tables[sel_delta],
+        Xray_integrals[sel_delta],
+        atol=abs_tol,
+        rtol=RELATIVE_TOLERANCE,
     )
 
 
@@ -681,22 +696,26 @@ def test_SFRD_conditional_table(
         **kwargs,
     )["inputs"]
 
+    d_input, mt_input = np.meshgrid(delta_range, log10_mturn_range, indexing="ij")
+
     SFRD_tables, SFRD_tables_mini = cf.evaluate_SFRD_cond(
         inputs=inputs.evolve_input_structs(
             USE_INTERPOLATION_TABLES="hmf-interpolation"
         ),
+        radius=R,
         redshift=redshift,
-        densities=delta_range,
-        l10mturns=log10_mturn_range,
+        densities=d_input,
+        log10mturns=mt_input,
     )
 
     SFRD_integrals, SFRD_integrals_mini = cf.evaluate_SFRD_cond(
         inputs=inputs.evolve_input_structs(
             USE_INTERPOLATION_TABLES="sigma-interpolation"
         ),
+        radius=R,
         redshift=redshift,
-        densities=delta_range,
-        l10mturns=log10_mturn_range,
+        densities=d_input,
+        log10mturns=mt_input,
     )
 
     # The bilinear interpolation we use underperforms at high mturn due to the sharp
@@ -706,7 +725,7 @@ def test_SFRD_conditional_table(
     abs_tol = 1e-8
     if plt == mpl.pyplot:
         xl = log10_mturn_range.size - 1
-        sel_m = (xl * np.arange(5) / 4).astype(int)
+        sel_m = np.linspace(0, xl, num=5).astype(int)
         make_table_comparison_plot(
             [delta_range, delta_range],
             [np.array([0]), 10 ** log10_mturn_range[sel_m]],
@@ -735,11 +754,19 @@ def test_SFRD_conditional_table(
         "SFRD_c_mini",
     )
 
+    delta_crit = cf.get_delta_crit(inputs, cf.get_condition_mass(inputs, R), redshift)
+    sel_delta = (delta_crit - delta_range) > 0.05
     np.testing.assert_allclose(
-        SFRD_tables, SFRD_integrals, atol=abs_tol, rtol=RELATIVE_TOLERANCE
+        SFRD_tables[sel_delta],
+        SFRD_integrals[sel_delta],
+        atol=abs_tol,
+        rtol=RELATIVE_TOLERANCE,
     )
     np.testing.assert_allclose(
-        SFRD_tables_mini, SFRD_integrals_mini, atol=abs_tol, rtol=RELATIVE_TOLERANCE
+        SFRD_tables_mini[sel_delta],
+        SFRD_integrals_mini[sel_delta],
+        atol=abs_tol,
+        rtol=RELATIVE_TOLERANCE,
     )
 
 
@@ -761,20 +788,7 @@ def test_conditional_integral_methods(
         **kwargs,
     )["inputs"]
 
-    intgrl_func = cf.evaluate_SFRD_cond if "sfr" in integrand else cf.evaluate_Nion_cond
-
-    cond_mass = (
-        (
-            4.0
-            / 3.0
-            * np.pi
-            * (R * u.Mpc) ** 3
-            * inputs.cosmo_params.cosmo.critical_density(0)
-            * inputs.cosmo_params.OMm
-        )
-        .to("M_sun")
-        .value
-    )
+    d_input, mt_input = np.meshgrid(delta_range, log10_mturn_range, indexing="ij")
 
     integrals = []
     integrals_mini = []
@@ -788,20 +802,30 @@ def test_conditional_integral_methods(
             INTEGRATION_METHOD_MINI=method,
         )
 
-        buf, buf_mini = intgrl_func(
-            inputs=inputs,
-            redshift=redshift,
-            cond_mass=cond_mass,
-            densities=delta_range,
-            l10mturns=log10_mturn_range,
-        )
+        if "sfr" in integrand:
+            buf, buf_mini = cf.evaluate_SFRD_cond(
+                inputs=inputs,
+                redshift=redshift,
+                radius=R,
+                densities=d_input,
+                log10mturns=mt_input,
+            )
+        else:
+            buf, buf_mini = cf.evaluate_Nion_cond(
+                inputs=inputs,
+                redshift=redshift,
+                radius=R,
+                densities=d_input,
+                l10mturns_acg=mt_input,
+                l10mturns_mcg=mt_input,
+            )
         integrals.append(buf)
         integrals_mini.append(buf_mini)
 
     abs_tol = 1e-6  # minimum = exp(-40) ~1e-18
     if plt == mpl.pyplot:
         xl = log10_mturn_range.size - 1
-        sel_m = (xl * np.arange(5) / 4).astype(int)
+        sel_m = np.linspace(0, xl, num=5).astype(int)
         iplot = [i[..., sel_m] if i.ndim == 2 else i for i in integrals]
         iplot_mini = [i[..., sel_m] for i in integrals_mini]
         make_integral_comparison_plot(

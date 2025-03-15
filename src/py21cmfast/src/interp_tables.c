@@ -103,11 +103,10 @@ void initialise_SFRD_spline(int Nbin, float zmin, float zmax, struct ScalingCons
         SFRD_z_table_MINI.y_width = (LOG10_MTURN_MAX-LOG10_MTURN_MIN)/((double)NMTURN-1.);
     }
 
-
     #pragma omp parallel private(i,j) num_threads(user_params_global->N_THREADS)
     {
         struct ScalingConstants sc_sfrd;
-        sc_sfrd = scaling_const_sfrd_copy(&sc_sfrd);
+        sc_sfrd = scaling_const_sfrd_copy(sc);
         double mturn_mcg;
         double lnMmin;
         double z_val;
@@ -160,6 +159,12 @@ void initialise_Nion_Ts_spline(int Nbin, float zmin, float zmax, struct ScalingC
     }
     Nion_z_table.x_min = zmin;
     Nion_z_table.x_width = (zmax - zmin)/((double)Nbin-1.);
+    if(flag_options_global->USE_MINI_HALOS){
+        Nion_z_table_MINI.x_min = zmin;
+        Nion_z_table_MINI.x_width = (zmax - zmin)/((double)Nbin-1.);
+        Nion_z_table_MINI.y_min = LOG10_MTURN_MIN;
+        Nion_z_table_MINI.y_width = (LOG10_MTURN_MAX-LOG10_MTURN_MIN)/((double)NMTURN-1.);
+    }
 
 #pragma omp parallel private(i,j) num_threads(user_params_global->N_THREADS)
     {
@@ -932,7 +937,10 @@ double EvaluateNion_Conditional(double delta, double log10Mturn, double growthf,
         return exp(EvaluateRGTable1D_f(delta, &Nion_conditional_table1D));
     }
 
-    return Nion_ConditionalM(growthf,log(M_min),log(M_max),log(M_cond),sigma_max,delta,pow(10,log10Mturn),
+    //NOTE: turning minihalos off turns off feedback in the model. This may be slightly misleading
+    //  to ignore a passed parameter but until we make the change in the model we force it here
+    double mturn = flag_options_global->USE_MINI_HALOS ? pow(10,log10Mturn) : sc->mturn_a_nofb;
+    return Nion_ConditionalM(growthf,log(M_min),log(M_max),log(M_cond),sigma_max,delta,mturn,
                                 sc,user_params_global->INTEGRATION_METHOD_ATOMIC);
 }
 
