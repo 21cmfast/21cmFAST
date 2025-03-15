@@ -166,7 +166,7 @@ void stoc_set_consts_cond(struct HaloSamplingConstants *const_struct, double con
         const_struct->expected_M = const_struct->M_cond;
         const_struct->expected_N = 1;
     }
-    else if(const_struct->delta <= DELTA_MIN){
+    else if(const_struct->delta <= DELTA_MIN || const_struct->M_cond < const_struct->M_min){
         const_struct->expected_M = 0;
         const_struct->expected_N = 0;
     }

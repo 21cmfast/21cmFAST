@@ -1,6 +1,7 @@
 """Low-level python wrappers of C functions."""
 
 import logging
+import warnings
 from collections.abc import Callable, Sequence
 from functools import cache
 from typing import Literal
@@ -458,7 +459,7 @@ def evaluate_sigma(
 
 @init_backend_ps
 def get_growth_factor(
-    inputs: InputParameters,
+    *inputs: InputParameters,
     redshift: float,
 ):
     """Gets the growth factor at a given redshift."""
@@ -509,10 +510,10 @@ def evaluate_condition_integrals(
         ffi.cast("double *", ffi.from_buffer(m_coll)),
     )
 
-    return np.reshape(n_halo, orig_shape), np.array(m_coll, orig_shape)
+    return np.reshape(n_halo, orig_shape), np.reshape(m_coll, orig_shape)
 
 
-def calculate_halo_probabilities(
+def integrate_chmf_interval(
     inputs: InputParameters,
     redshift: float,
     lnM_lower: Sequence[float],
@@ -523,7 +524,7 @@ def calculate_halo_probabilities(
     """Evaluates conditional mass function integrals at a range of mass intervals."""
     out_prob = np.zeros(len(lnM_lower) * len(cond_values), dtype="f8")
 
-    lib.get_halo_prob_interval(
+    lib.get_halo_chmf_interval(
         inputs.user_params.cstruct,
         inputs.cosmo_params.cstruct,
         inputs.astro_params.cstruct,
@@ -554,6 +555,9 @@ def evaluate_inverse_table(
             "the shapes of the input arrays `cond_array` and `probabilities"
             " must be equal."
         )
+
+    if redshift_prev is None:
+        redshift_prev = -1
 
     orig_shape = cond_array.shape
     cond_array = np.array(cond_array, dtype="f8").flatten()
@@ -612,7 +616,7 @@ def evaluate_SFRD_z(
     """Evaluates the global star formation rate density expected at a range of redshifts."""
     if redshifts.shape != log10mturns.shape:
         raise ValueError(
-            "the shapes of the input arrays `redshifts` and `log10mturns`"
+            f"the shapes of the input arrays `redshifts` {redshifts.shape} and `log10mturns` {log10mturns.shape}"
             " must be equal."
         )
 
@@ -639,7 +643,7 @@ def evaluate_SFRD_z(
 
 @init_gl
 def evaluate_Nion_z(
-    inputs: InputParameters,
+    *inputs: InputParameters,
     redshifts: Sequence[float],
     log10mturns: Sequence[float],
 ):

@@ -684,7 +684,7 @@ void initialise_dNdM_inverse_table(double xmin, double xmax, double lnM_min, dou
             }
             else{
                 delta = x;
-                if(delta >= MAX_DELTAC_FRAC*get_delta_crit(user_params_global->HMF,sigma_cond,growth_out)){
+                if(delta > MAX_DELTAC_FRAC*get_delta_crit(user_params_global->HMF,sigma_cond,growth_out)){
                     for(k=1;k<np;k++)
                         Nhalo_inv_table.z_arr[i][k] = 1.;
                     continue;

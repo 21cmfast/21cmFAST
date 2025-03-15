@@ -86,7 +86,7 @@ void get_sigma(UserParams *user_params, CosmoParams *cosmo_params, int n_masses,
 void get_condition_integrals(UserParams *user_params, CosmoParams *cosmo_params, AstroParams *astro_params, FlagOptions *flag_options,
                         double redshift, double z_prev, int n_conditions, double *cond_values,
                         double *out_n_exp, double *out_m_exp);
-void get_halo_prob_interval(UserParams *user_params, CosmoParams *cosmo_params, AstroParams *astro_params, FlagOptions *flag_options,
+void get_halo_chmf_interval(UserParams *user_params, CosmoParams *cosmo_params, AstroParams *astro_params, FlagOptions *flag_options,
                         double redshift, double z_prev, int n_conditions, double *cond_values, int n_masslim, double *lnM_lo, double *lnM_hi,
                         double *out_n);
 void get_halomass_at_probability(UserParams *user_params, CosmoParams *cosmo_params, AstroParams *astro_params, FlagOptions *flag_options,

@@ -1351,7 +1351,7 @@ void ts_main(float redshift, float prev_redshift, UserParams *user_params, Cosmo
     int R_index;
     float *delta_box_input;
     float *Mcrit_box_input = NULL; //may be unused
-    struct ScalingConstants sc;
+    struct ScalingConstants sc, sc_sfrd;
 
     //if we have stars, fill in the heating term boxes
     if(!NO_LIGHT) {
@@ -1368,6 +1368,7 @@ void ts_main(float redshift, float prev_redshift, UserParams *user_params, Cosmo
             xray_R_factor = pow(1+zpp,-(astro_params->X_RAY_SPEC_INDEX));
 
             set_scaling_constants(zpp,astro_params,flag_options,&sc,false);
+            sc_sfrd = scaling_const_sfrd_copy(&sc);
 
             //index for grids
             R_index = user_params->MINIMIZE_MEMORY ? 0 : R_ct;
@@ -1401,8 +1402,6 @@ void ts_main(float redshift, float prev_redshift, UserParams *user_params, Cosmo
                 if(flag_options->USE_MINI_HALOS) avg_fix_term_MINI = mean_sfr_zpp_mini[R_ct]/ave_fcoll_MINI;
 
 #if LOG_LEVEL > SUPER_DEBUG_LEVEL
-                struct ScalingConstants sc_sfrd;
-                sc_sfrd = scaling_const_sfrd_copy(&sc);
                 LOG_SUPER_DEBUG("z %6.2f ave sfrd val %.3e global %.3e (int %.3e) Mmin %.3e ratio %.4e z_edge %.4e",
                                     zpp_for_evolve_list[R_ct],ave_fcoll,mean_sfr_zpp[R_ct],
                                     Nion_General(zpp_for_evolve_list[R_ct], log(M_min_R[R_ct]), log(M_MAX_INTEGRAL),
@@ -1412,7 +1411,7 @@ void ts_main(float redshift, float prev_redshift, UserParams *user_params, Cosmo
                     LOG_SUPER_DEBUG("MINI sfrd val %.3e global %.3e (int %.3e) ratio %.3e log10McritLW %.3e",
                                     ave_fcoll_MINI,mean_sfr_zpp_mini[R_ct],
                                     Nion_General_MINI(zpp_for_evolve_list[R_ct], log(M_min_R[R_ct]), log(M_MAX_INTEGRAL),
-                                                        pow(10.,ave_log10_MturnLW[R_ct]), sc_sfrd.acg_thresh, &sc_sfrd),
+                                                        pow(10.,ave_log10_MturnLW[R_ct]), &sc_sfrd),
                                     avg_fix_term_MINI,ave_log10_MturnLW[R_ct]);
                 }
 #endif
@@ -1493,8 +1492,8 @@ void ts_main(float redshift, float prev_redshift, UserParams *user_params, Cosmo
                         LOG_SUPER_DEBUG("Cell 0: R=%.1f (%.3f) | SFR %.4e | integral %.4e | delta %.4e",
                                             R_values[R_ct],zpp_for_evolve_list[R_ct],sfr_term,integral_db,delNL0[R_index][box_ct]);
                         if(flag_options->USE_MINI_HALOS)
-                            LOG_SUPER_DEBUG("MINI SFR %.4e | integral %.4e",sfr_term_mini,Nion_ConditionalM_MINI(zpp_growth[R_ct],log(M_min_R[R_ct]),log(M_max_R[R_ct]),M_max_R[R_ct],sigma_max[R_ct],\
-                                            delNL0[R_index][box_ct]*zpp_growth[R_ct],pow(10,log10_Mcrit_LW[R_ct][box_ct]),sc_sfrd.acg_thresh, &sc_sfrd, user_params->INTEGRATION_METHOD_MINI) \
+                            LOG_SUPER_DEBUG("MINI SFR %.4e | integral %.4e",sfr_term_mini,Nion_ConditionalM_MINI(zpp_growth[R_ct],log(M_min_R[R_ct]),log(M_max_R[R_ct]),log(M_max_R[R_ct]),sigma_max[R_ct],\
+                                            delNL0[R_index][box_ct]*zpp_growth[R_ct],pow(10,log10_Mcrit_LW[R_ct][box_ct]), &sc_sfrd, user_params->INTEGRATION_METHOD_MINI) \
                                              * z_edge_factor * (1+delNL0[R_index][box_ct]*zpp_growth[R_ct]) * avg_fix_term_MINI * astro_params->F_STAR7_MINI);
 
                         LOG_SUPER_DEBUG("xh %.2e | xi %.2e | xl %.2e | sl %.2e",dxheat_dt_box[box_ct]/astro_params->L_X,

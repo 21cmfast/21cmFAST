@@ -11,6 +11,7 @@
 #include "logger.h"
 
 #include "Constants.h"
+#include "debugging.h"
 #include "InputParameters.h"
 #include "OutputStructs.h"
 #include "cosmology.h"
@@ -762,7 +763,7 @@ int test_halo_props(double redshift, UserParams *user_params, CosmoParams *cosmo
         struct ScalingConstants hbox_consts;
         set_scaling_constants(redshift,astro_params,flag_options,&hbox_consts,true);
 
-        LOG_DEBUG("Getting props for %llu halos at z=%.2f",halos->n_halos,redshift);
+        LOG_DEBUG("Getting props for %llu halos at z=%.2f",n_halos,redshift);
 
         #pragma omp parallel num_threads(user_params_global->N_THREADS)
         {
