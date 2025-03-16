@@ -645,7 +645,7 @@ int stoc_sample(struct HaloSamplingConstants * hs_constants, gsl_rng * rng, int 
     int err;
     //If the expected mass is below our minimum saved mass, don't bother calculating
     //NOTE: some of these conditions are redundant with set_consts_cond()
-    if(hs_constants->delta <= DELTA_MIN || hs_constants->expected_M < user_params_global->SAMPLER_MIN_MASS){
+    if(hs_constants->delta <= DELTA_MIN){
         *n_halo_out = 0;
         return 0;
     }

@@ -83,6 +83,7 @@ void get_halo_chmf_interval(UserParams *user_params, CosmoParams *cosmo_params, 
     double buf;
     for(i=0;i<n_conditions;i++){
         stoc_set_consts_cond(&hs_const_struct,cond_values[i]);
+        print_hs_consts(&hs_const_struct);
         for(j=0;j<n_masslim;j++){
             buf = Nhalo_Conditional(
                 hs_const_struct.growth_out,

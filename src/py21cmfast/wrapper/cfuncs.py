@@ -542,7 +542,13 @@ def integrate_chmf_interval(
     redshift_prev: float | None = None,
 ):
     """Evaluates conditional mass function integrals at a range of mass intervals."""
+    if lnM_lower.shape != lnM_upper.shape:
+        raise ValueError("the shapes of the two mass-limit arrays must be equal")
+
     out_prob = np.zeros(len(lnM_lower) * len(cond_values), dtype="f8")
+    cond_values = cond_values.astype("f8")
+    lnM_lower = lnM_lower.astype("f8")
+    lnM_upper = lnM_upper.astype("f8")
 
     lib.get_halo_chmf_interval(
         inputs.user_params.cstruct,
@@ -812,11 +818,9 @@ def halo_sample_test(
     *,
     inputs: InputParameters,
     redshift: float,
-    from_cat: bool,
     cond_array,
     redshift_prev: float | None = None,
-    seed: int = 12345,
-    buffer_size: int = 3e7,
+    buffer_size: int | None = None,
 ):
     """Constructs a halo sample given a descendant catalogue and redshifts."""
     z_prev = -1 if redshift_prev is None else redshift_prev
@@ -841,7 +845,7 @@ def halo_sample_test(
         inputs.cosmo_params.cstruct,
         inputs.astro_params.cstruct,
         inputs.flag_options.cstruct,
-        seed,
+        inputs.random_seed,
         n_cond,
         ffi.cast("float *", cond_array.ctypes.data),
         ffi.cast("int *", crd_in.ctypes.data),

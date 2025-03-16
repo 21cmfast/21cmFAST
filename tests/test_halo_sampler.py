@@ -24,90 +24,73 @@ RELATIVE_TOLERANCE = 1e-1
 options_hmf = list(cint.OPTIONS_HMF.keys())
 
 options_delta = [-0.9, -0.5, 0, 1, 1.4]  # cell densities to draw samples from
-options_log10mass = [9, 10, 11, 12, 13]  # halo masses to draw samples from
+options_mass = [1e9, 1e10, 1e11, 1e12, 1e13]  # halo masses to draw samples from
 
 
 @pytest.mark.parametrize("name", options_hmf)
-@pytest.mark.parametrize("from_cat", ["cat", "grid"])
+@pytest.mark.parametrize("cond_type", ["cat", "grid"])
 @pytest.mark.parametrize("cond", range(len(options_delta)))
-def test_sampler(name, cond, from_cat, plt):
+def test_sampler(name, cond, cond_type, plt):
     redshift, kwargs = cint.OPTIONS_HMF[name]
-    redshift = 8
-    opts = prd.get_all_options(redshift, **kwargs)
-    up = opts["user_params"].clone(SAMPLER_MIN_MASS=2e8)
-    cp = opts["cosmo_params"]
-    ap = opts["astro_params"]
-    fo = opts["flag_options"]
+    inputs = prd.get_all_options_struct(redshift, **kwargs)["inputs"]
+    inputs = inputs.evolve_input_structs(
+        SAMPLER_MIN_MASS=min(options_mass) / 2,
+    )
 
-    from_cat = "cat" in from_cat
+    from_cat = "cat" in cond_type
+    z_desc = (
+        (redshift + 1) / inputs.user_params.ZPRIME_STEP_FACTOR - 1 if from_cat else None
+    )
 
     n_cond = 15000
-    if from_cat:
-        mass = 10 ** options_log10mass[cond]
-        cond = mass
-        z_desc = (1 + redshift) / up.ZPRIME_STEP_FACTOR - 1
-        delta = None
-    else:
-        mass = (
-            (
-                cp.cosmo.critical_density(0)
-                * cp.OMm
-                * u.Mpc**3
-                * (up.BOX_LEN / up.HII_DIM) ** 3
-            )
-            .to("M_sun")
-            .value
-        )
-        z_desc = None
-        cond = options_delta[cond]
-        delta = cond
+    # Testing large conditions or dense cells can get quite a lot of halos
+    #   so we have an expanded buffer
+    buffer_size = 500 * n_cond
+    cond_val = options_mass[cond] if from_cat else options_delta[cond]
+    cond_array = np.full(n_cond, cond_val)
 
     sample_dict = cf.halo_sample_test(
-        user_params=up,
-        cosmo_params=cp,
-        astro_params=ap,
-        flag_options=fo,
+        inputs=inputs,
         redshift=redshift,
-        from_cat=from_cat,
         redshift_prev=z_desc,
-        cond_array=np.full(n_cond, cond),
-        seed=987,
+        cond_array=cond_array,
+        buffer_size=buffer_size,
     )
 
     # set up histogram
-    l10min = np.log10(up.SAMPLER_MIN_MASS)
-    l10max = np.log10(mass * 1.01)
-    edges = np.logspace(l10min, l10max, num=int(10 * (l10max - l10min)))
+    l10min = np.log10(inputs.user_params.SAMPLER_MIN_MASS)
+    l10max = np.log10(1e14)
+    edges = np.linspace(l10min, l10max, num=int(10 * (l10max - l10min))) * np.log(10)
     bin_minima = edges[:-1]
     bin_maxima = edges[1:]
-    dlnm = np.log(bin_maxima) - np.log(bin_minima)
+    dlnm = bin_maxima - bin_minima
 
     # get CMF integrals in the same bins
-    binned_cmf = cf.get_cmf_integral(
-        user_params=up,
-        cosmo_params=cp,
-        astro_params=ap,
-        flag_options=fo,
-        M_min=bin_minima,
-        M_max=bin_maxima,
-        M_cond=mass,
+    binned_cmf = cf.integrate_chmf_interval(
+        inputs=inputs,
+        lnM_lower=bin_minima,
+        lnM_upper=bin_maxima,
         redshift=redshift,
-        delta=delta,
-        z_desc=z_desc,
+        cond_values=np.array([cond_val]),
+        redshift_prev=z_desc,
+    ).squeeze()
+
+    hist, _ = np.histogram(np.log(sample_dict["halo_masses"]), edges)
+
+    mass = cond_val if from_cat else cf.get_condition_mass(inputs, "cell")
+    mass_dens = (
+        inputs.cosmo_params.cosmo.Om0
+        * inputs.cosmo_params.cosmo.critical_density(0).to("Mpc-3 M_sun").value
     )
-
-    hist, _ = np.histogram(sample_dict["halo_masses"], edges)
-
-    mass_dens = cp.cosmo.Om0 * cp.cosmo.critical_density(0).to("Mpc-3 M_sun").value
     volume_total_m = mass * n_cond / mass_dens
-    mf_out = hist / volume_total_m / dlnm
-    binned_cmf = binned_cmf / dlnm * mass_dens
-
     one_in_box = 1 / volume_total_m / dlnm
+
+    mf_out = hist / volume_total_m / dlnm
+    binned_cmf = binned_cmf * n_cond / volume_total_m / dlnm
 
     if plt == mpl.pyplot:
         plot_sampler_comparison(
-            edges,
+            np.exp(edges),
             sample_dict["expected_progenitors"],
             sample_dict["expected_progenitor_mass"],
             sample_dict["n_progenitors"],
@@ -115,50 +98,45 @@ def test_sampler(name, cond, from_cat, plt):
             binned_cmf,
             mf_out,
             one_in_box,
-            f"mass = {mass:.2e}" if from_cat else f"delta = {delta:.2e}",
+            f"mass = {cond_val:.2e}" if from_cat else f"delta = {cond_val:.2e}",
             plt,
         )
 
+    # test the number of progenitors per condition
     np.testing.assert_allclose(
         sample_dict["n_progenitors"].mean(),
         sample_dict["expected_progenitors"][0],
         atol=1,
         rtol=RELATIVE_TOLERANCE,
     )
+    # test the total mass of progenitors per condition
     np.testing.assert_allclose(
         sample_dict["progenitor_mass"].mean(),
         sample_dict["expected_progenitor_mass"][0],
-        atol=up.SAMPLER_MIN_MASS,
+        atol=inputs.user_params.SAMPLER_MIN_MASS,
         rtol=RELATIVE_TOLERANCE,
     )
 
-    # The histograms get inaccurate when the volume is too small
-    # so only compare when we expect real halos
-    if sample_dict["expected_progenitor_mass"][0] > up.SAMPLER_MIN_MASS:
-        sel_compare_bins = edges[1:] < (0.9 * mass)
+    print_failure_stats(
+        mf_out,
+        binned_cmf,
+        [edges[:-1]],
+        one_in_box.min(),
+        5e-1,
+        "binned_cmf",
+    )
 
-        print_failure_stats(
-            mf_out[sel_compare_bins],
-            binned_cmf[sel_compare_bins],
-            [edges[:-1][sel_compare_bins]],
-            one_in_box.min(),
-            5e-1,
-            "binned_cmf",
-        )
-        # this is a wide tolerance since running enough
-        # samples to converge is too slow
-        np.testing.assert_allclose(
-            mf_out[sel_compare_bins],
-            binned_cmf[sel_compare_bins],
-            atol=2 * one_in_box.min(),  # 2 halo tolerance
-            rtol=5e-1,  # 50%
-        )
+    np.testing.assert_allclose(
+        mf_out,
+        binned_cmf,
+        atol=2 * one_in_box.min(),  # 2 halo tolerance
+        rtol=5e-1,  # 50% tolerance for stochasticity in low-n bins
+    )
 
 
 # NOTE: this test is pretty circular. The only way I think I can test the scaling relations are to
 #   calculate them in the backend and re-write them in the test for a few masses. This means that
 #   changes to any scaling relation model will result in a test fail
-# @pytest.mark.xfail(reason="robust tests for scaling relations not yet implemented")
 def test_halo_prop_sampling(default_input_struct):
     # specify parameters to use for this test
     redshift = 10.0
@@ -170,7 +148,7 @@ def test_halo_prop_sampling(default_input_struct):
         halo_mass_vals[:, None], (halo_mass_vals.size, halo_rng.size)
     ).flatten()
 
-    inputs = default_input_struct.evolve(
+    inputs = default_input_struct.evolve_input_structs(
         USE_UPPER_STELLAR_TURNOVER=False,
     )  # evolve if needed
     out_dict = cf.convert_halo_properties(
@@ -240,9 +218,10 @@ def plot_sampler_comparison(
 
     # mass function axis
     axs[0].set_title(title)
-    axs[0].set_ylim([1e-6, 1e2])
+    axs[0].set_ylim([one_halo[0] / 2, exp_mf.max()])
     axs[0].set_yscale("log")
     axs[0].set_ylabel("dn/dlnM")
+    axs[0].set_xlabel("M")
 
     # ratio axis
     axst[0].set_ylim([1e-1, 1e1])
@@ -256,7 +235,7 @@ def plot_sampler_comparison(
     # log-spaced bins
     dlnm = np.log(bin_edges[1:]) - np.log(bin_edges[:-1])
     bin_centres = (bin_edges[:-1] * np.exp(dlnm / 2)).astype("f4")
-    edges_n = np.linspace(0, max(N_array.max(), 1), min(100, max(N_array.max(), 1) + 1))
+    edges_n = np.arange(0, max(N_array.max(), 1), 1)
     centres_n = (edges_n[:-1] + edges_n[1:]) / 2
 
     hist_n, _ = np.histogram(N_array, edges_n)
@@ -274,8 +253,9 @@ def plot_sampler_comparison(
         bin_centres, exp_mf, color="k", linestyle=":", linewidth=1, label="Expected"
     )
     axs[0].loglog(
-        bin_centres, one_halo, color="k", linestyle="--", linewidth=2, label="Expected"
+        bin_centres, one_halo, color="k", linestyle="--", linewidth=2, label="One Halo"
     )
+    axs[0].legend()
 
     axs[1].semilogx(bin_centres, p_m / p_m.max(), color="k", linewidth=2)
     axs[1].axvline(exp_M[0], color="k", linestyle=":", linewidth=2)

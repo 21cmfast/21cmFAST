@@ -116,11 +116,11 @@ def test_sigma_table(name, mass_range, plt):
 
 
 @pytest.mark.parametrize("name", options_hmf)
-@pytest.mark.parametrize("from_cat", ["cat", "grid"])
-def test_massfunc_conditional_tables(name, from_cat, mass_range, delta_range, plt):
+@pytest.mark.parametrize("cond_type", ["cat", "grid"])
+def test_massfunc_conditional_tables(name, cond_type, mass_range, delta_range, plt):
     redshift, kwargs = OPTIONS_HMF[name]
     inputs = prd.get_all_options_struct(redshift, **kwargs)["inputs"]
-    from_cat = "cat" in from_cat
+    from_cat = "cat" in cond_type
 
     inputs_cond = mass_range if from_cat else delta_range
     z_desc = (
@@ -181,12 +181,12 @@ def test_massfunc_conditional_tables(name, from_cat, mass_range, delta_range, pl
 
 
 @pytest.mark.parametrize("name", options_hmf)
-@pytest.mark.parametrize("from_cat", ["cat", "grid"])
-def test_inverse_cmf_tables(name, from_cat, delta_range, mass_range, plt):
+@pytest.mark.parametrize("cond_type", ["cat", "grid"])
+def test_inverse_cmf_tables(name, cond_type, delta_range, mass_range, plt):
     redshift, kwargs = OPTIONS_HMF[name]
     inputs = prd.get_all_options_struct(redshift, **kwargs)["inputs"]
 
-    from_cat = "cat" in from_cat
+    from_cat = "cat" in cond_type
     lnMmin_range = np.log(mass_range)
     inputs_cond = mass_range if from_cat else delta_range
     z_desc = (
