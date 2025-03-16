@@ -762,6 +762,7 @@ int test_halo_props(double redshift, UserParams *user_params, CosmoParams *cosmo
 
         struct ScalingConstants hbox_consts;
         set_scaling_constants(redshift,astro_params,flag_options,&hbox_consts,true);
+        print_sc_consts(&hbox_consts);
 
         LOG_DEBUG("Getting props for %llu halos at z=%.2f",n_halos,redshift);
 
@@ -838,7 +839,7 @@ int test_halo_props(double redshift, UserParams *user_params, CosmoParams *cosmo
                 if (i_halo < 10){
                     LOG_ULTRA_DEBUG("HM %.2e SM %.2e SF %.2e NI %.2e LX %.2e",out_props.halo_mass,out_props.stellar_mass,out_props.halo_sfr,out_props.n_ion,out_props.halo_xray);
                     LOG_ULTRA_DEBUG("MINI: SM %.2e SF %.2e WSF %.2e",out_props.stellar_mass_mini,out_props.sfr_mini,out_props.fescweighted_sfr);
-                    LOG_ULTRA_DEBUG("Mturns ACG %.2e MCG %.2e Reion %.2e",out_props.m_turn_acg,out_props.m_turn_mcg,out_props.m_turn_reion);
+                    LOG_ULTRA_DEBUG("Mturns ACG %.2e MCG %.2e Reion %.2e",M_turn_a,M_turn_m,M_turn_r);
                     LOG_ULTRA_DEBUG("RNG: STAR %.2e SFR %.2e XRAY %.2e",in_props[0],in_props[1],in_props[2]);
                 }
             }

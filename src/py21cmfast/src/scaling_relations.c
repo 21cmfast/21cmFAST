@@ -23,7 +23,7 @@ void print_sc_consts(struct ScalingConstants * c){
     LOG_DEBUG("SHMR: f10 %.2e a %.2e f7 %.2e a_mini %.2e sigma %.2e",c->fstar_10,c->alpha_star,c->fstar_7,c->alpha_star_mini,c->sigma_star);
     LOG_DEBUG("Upper: a_upper %.2e pivot %.2e",c->alpha_upper,c->pivot_upper);
     LOG_DEBUG("FESC: f10 %.2e a %.2e f7 %.2e",c->fesc_10,c->alpha_esc,c->fesc_7);
-    LOG_DEBUG("SSFR: t* %.2e th %.2e sigma %.2e idx %.2e",c->t_star,c->t_h,c->sigma_sfr_lim,c->sigma_sfr_idx);
+    LOG_DEBUG("SSFR: t* %.2e th %.8e sigma %.2e idx %.2e",c->t_star,c->t_h,c->sigma_sfr_lim,c->sigma_sfr_idx);
     LOG_DEBUG("Turnovers (nofb) ACG %.2e MCG %.2e Upper %.2e",c->mturn_a_nofb,c->mturn_m_nofb,c->acg_thresh);
     LOG_DEBUG("Limits (ACG,MCG) F* (%.2e %.2e) Fesc (%.2e %.2e)",c->Mlim_Fstar,c->Mlim_Fstar_mini,c->Mlim_Fesc,c->Mlim_Fesc_mini);
     return;

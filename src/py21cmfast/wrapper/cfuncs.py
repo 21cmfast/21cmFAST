@@ -512,8 +512,7 @@ def evaluate_condition_integrals(
     has not been initialised, only `cond_array` is used,
     and the rest of the arguments are taken from when the table was initialised.
     """
-    orig_shape = cond_array.shape
-    cond_array = np.array(cond_array, dtype="f8").flatten()
+    cond_array = cond_array.astype("f8")
     n_halo = np.zeros_like(cond_array)
     m_coll = np.zeros_like(cond_array)
 
@@ -530,7 +529,7 @@ def evaluate_condition_integrals(
         ffi.cast("double *", ffi.from_buffer(m_coll)),
     )
 
-    return np.reshape(n_halo, orig_shape), np.reshape(m_coll, orig_shape)
+    return n_halo, m_coll
 
 
 def integrate_chmf_interval(
@@ -545,7 +544,7 @@ def integrate_chmf_interval(
     if lnM_lower.shape != lnM_upper.shape:
         raise ValueError("the shapes of the two mass-limit arrays must be equal")
 
-    out_prob = np.zeros(len(lnM_lower) * len(cond_values), dtype="f8")
+    out_prob = np.zeros((len(cond_values), len(lnM_lower)), dtype="f8")
     cond_values = cond_values.astype("f8")
     lnM_lower = lnM_lower.astype("f8")
     lnM_upper = lnM_upper.astype("f8")
@@ -565,7 +564,7 @@ def integrate_chmf_interval(
         ffi.cast("double *", ffi.from_buffer(out_prob)),
     )
 
-    return np.reshape(out_prob, (len(cond_values), len(lnM_lower)))
+    return out_prob
 
 
 def evaluate_inverse_table(
@@ -585,9 +584,8 @@ def evaluate_inverse_table(
     if redshift_prev is None:
         redshift_prev = -1
 
-    orig_shape = cond_array.shape
-    cond_array = np.array(cond_array, dtype="f8").flatten()
-    probabilities = np.array(probabilities, dtype="f8").flatten()
+    cond_array = cond_array.astype("f8")
+    probabilities = probabilities.astype("f8")
     masses = np.zeros_like(cond_array)
 
     lib.get_halomass_at_probability(
@@ -597,13 +595,13 @@ def evaluate_inverse_table(
         inputs.flag_options.cstruct,
         redshift,
         redshift_prev,
-        len(cond_array),
+        cond_array.size,
         ffi.cast("double *", ffi.from_buffer(cond_array)),
         ffi.cast("double *", ffi.from_buffer(probabilities)),
         ffi.cast("double *", ffi.from_buffer(masses)),
     )
 
-    return np.reshape(masses, orig_shape)
+    return masses
 
 
 def evaluate_FgtrM_cond(
@@ -613,8 +611,7 @@ def evaluate_FgtrM_cond(
     R: float,
 ):
     """Gets the collapsed fraction from the backend, given a density and condition sigma."""
-    orig_shape = densities.shape
-    densities = np.array(densities, dtype="f8").flatten()
+    densities = densities.astype("f8")
     fcoll = np.zeros_like(densities)
     dfcoll = np.zeros_like(densities)
 
@@ -630,7 +627,7 @@ def evaluate_FgtrM_cond(
         ffi.cast("double *", ffi.from_buffer(fcoll)),
         ffi.cast("double *", ffi.from_buffer(dfcoll)),
     )
-    return np.reshape(fcoll, orig_shape), np.reshape(dfcoll, orig_shape)
+    return fcoll, dfcoll
 
 
 def evaluate_SFRD_z(
@@ -646,9 +643,8 @@ def evaluate_SFRD_z(
             " must be equal."
         )
 
-    orig_shape = redshifts.shape
-    redshifts = np.array(redshifts, dtype="f8").flatten()
-    log10mturns = np.array(log10mturns, dtype="f8").flatten()
+    redshifts = redshifts.astype("f8")
+    log10mturns = log10mturns.astype("f8")
     sfrd = np.zeros_like(redshifts)
     sfrd_mini = np.zeros_like(redshifts)
 
@@ -664,7 +660,7 @@ def evaluate_SFRD_z(
         ffi.cast("double *", ffi.from_buffer(sfrd_mini)),
     )
 
-    return np.reshape(sfrd, orig_shape), np.reshape(sfrd_mini, orig_shape)
+    return sfrd, sfrd_mini
 
 
 def evaluate_Nion_z(
@@ -680,9 +676,8 @@ def evaluate_Nion_z(
             " must be equal."
         )
 
-    orig_shape = redshifts.shape
-    redshifts = np.array(redshifts, dtype="f8").flatten()
-    log10mturns = np.array(log10mturns, dtype="f8").flatten()
+    redshifts = redshifts.astype("f8")
+    log10mturns = log10mturns.astype("f8")
     nion = np.zeros_like(redshifts)
     nion_mini = np.zeros_like(redshifts)
 
@@ -698,7 +693,7 @@ def evaluate_Nion_z(
         ffi.cast("double *", ffi.from_buffer(nion_mini)),
     )
 
-    return np.reshape(nion, orig_shape), np.reshape(nion_mini, orig_shape)
+    return nion, nion_mini
 
 
 def evaluate_SFRD_cond(
@@ -715,9 +710,8 @@ def evaluate_SFRD_cond(
             "the shapes of the input arrays `densities` and `log10mturns` must be equal"
         )
 
-    orig_shape = densities.shape
-    densities = np.array(densities, dtype="f8").flatten()
-    log10mturns = np.array(log10mturns, dtype="f8").flatten()
+    densities = densities.astype("f8")
+    log10mturns = log10mturns.astype("f8")
     sfrd = np.zeros_like(densities)
     sfrd_mini = np.zeros_like(densities)
 
@@ -735,7 +729,7 @@ def evaluate_SFRD_cond(
         ffi.cast("double *", ffi.from_buffer(sfrd_mini)),
     )
 
-    return np.reshape(sfrd, orig_shape), np.reshape(sfrd_mini, orig_shape)
+    return sfrd, sfrd_mini
 
 
 def evaluate_Nion_cond(
@@ -753,10 +747,9 @@ def evaluate_Nion_cond(
             "the shapes of the input arrays `densities` and `log10mturns_x` must be equal"
         )
 
-    orig_shape = densities.shape
-    densities = np.array(densities, dtype="f8").flatten()
-    l10mturns_acg = np.array(l10mturns_acg, dtype="f8").flatten()
-    l10mturns_mcg = np.array(l10mturns_mcg, dtype="f8").flatten()
+    densities = densities.astype("f8")
+    l10mturns_acg = l10mturns_acg.astype("f8")
+    l10mturns_mcg = l10mturns_mcg.astype("f8")
     nion = np.zeros_like(densities)
     nion_mini = np.zeros_like(densities)
 
@@ -775,7 +768,7 @@ def evaluate_Nion_cond(
         ffi.cast("double *", ffi.from_buffer(nion_mini)),
     )
 
-    return np.reshape(nion, orig_shape), np.reshape(nion_mini, orig_shape)
+    return nion, nion_mini
 
 
 def evaluate_Xray_cond(
@@ -793,9 +786,8 @@ def evaluate_Xray_cond(
             " must be equal."
         )
 
-    orig_shape = densities.shape
-    densities = np.array(densities, dtype="f8").flatten()
-    log10mturns = np.array(log10mturns, dtype="f8").flatten()
+    densities = densities.astype("f8")
+    log10mturns = log10mturns.astype("f8")
     xray = np.zeros_like(densities)
 
     lib.get_conditional_Xray(
@@ -811,7 +803,7 @@ def evaluate_Xray_cond(
         ffi.cast("double *", ffi.from_buffer(xray)),
     )
 
-    return np.reshape(xray, orig_shape)
+    return xray
 
 
 def halo_sample_test(
@@ -906,34 +898,34 @@ def convert_halo_properties(
         Metallicity
     """
     # single element zero array to act as the grids (vcb, J_21_LW, z_reion, Gamma12)
-    out_buffer = np.zeros(12 * halo_masses.size).astype("f4")
+    if not (halo_masses.shape == star_rng.shape == sfr_rng.shape == xray_rng.shape):
+        raise ValueError("Halo masses and rng shapes must be identical.")
+
+    n_halos = halo_masses.size
+    out_buffer = np.zeros((n_halos, 12), dtype="f4")
     lo_dim = (inputs.user_params.HII_DIM,) * 3
-    n_halos = len(halo_masses)
 
     if halo_coords is None:
-        halo_coords = np.zeros(3 * halo_masses.size, dtype="i4")
-    else:
-        halo_coords = np.array(halo_coords, dtype="i4")
-
+        halo_coords = np.zeros(3 * n_halos)
     if vcb_grid is None:
-        vcb_grid = np.zeros(lo_dim, dtype="f4")
-    else:
-        vcb_grid = np.array(vcb_grid, dtype="f4")
-
+        vcb_grid = np.zeros(lo_dim)
     if J_21_LW_grid is None:
-        J_21_LW_grid = np.zeros(lo_dim, dtype="f4")
-    else:
-        J_21_LW_grid = np.array(J_21_LW_grid, dtype="f4")
-
+        J_21_LW_grid = np.zeros(lo_dim)
     if z_re_grid is None:
-        z_re_grid = np.zeros(lo_dim, dtype="f4")
-    else:
-        z_re_grid = np.array(z_re_grid, dtype="f4")
-
+        z_re_grid = np.zeros(lo_dim)
     if Gamma12_grid is None:
-        Gamma12_grid = np.zeros(lo_dim, dtype="f4")
-    else:
-        Gamma12_grid = np.array(Gamma12_grid, dtype="f4")
+        Gamma12_grid = np.zeros(lo_dim)
+
+    vcb_grid = vcb_grid.astype("f4")
+    J_21_LW_grid = J_21_LW_grid.astype("f4")
+    z_re_grid = z_re_grid.astype("f4")
+    Gamma12_grid = Gamma12_grid.astype("f4")
+
+    halo_masses = halo_masses.astype("f4")
+    halo_coords = halo_coords.astype("f4")
+    star_rng = star_rng.astype("f4")
+    sfr_rng = sfr_rng.astype("f4")
+    xray_rng = xray_rng.astype("f4")
 
     lib.test_halo_props(
         redshift,
@@ -941,32 +933,32 @@ def convert_halo_properties(
         inputs.cosmo_params.cstruct,
         inputs.astro_params.cstruct,
         inputs.flag_options.cstruct,
-        vcb_grid,
-        J_21_LW_grid,
-        z_re_grid,
-        Gamma12_grid,
+        ffi.cast("float *", vcb_grid.ctypes.data),
+        ffi.cast("float *", J_21_LW_grid.ctypes.data),
+        ffi.cast("float *", z_re_grid.ctypes.data),
+        ffi.cast("float *", Gamma12_grid.ctypes.data),
         n_halos,
-        halo_masses,
-        halo_coords,
-        star_rng,
-        sfr_rng,
-        xray_rng,
+        ffi.cast("float *", halo_masses.ctypes.data),
+        ffi.cast("int *", halo_coords.ctypes.data),
+        ffi.cast("float *", star_rng.ctypes.data),
+        ffi.cast("float *", sfr_rng.ctypes.data),
+        ffi.cast("float *", xray_rng.ctypes.data),
         ffi.cast("float *", out_buffer.ctypes.data),
     )
 
     out_buffer = out_buffer.reshape(n_halos, 12)
 
     return {
-        "halo_mass": out_buffer[:, 0],
-        "halo_stars": out_buffer[:, 1],
-        "halo_sfr": out_buffer[:, 2],
-        "halo_xray": out_buffer[:, 3],
-        "n_ion": out_buffer[:, 4],
-        "halo_wsfr": out_buffer[:, 5],
-        "halo_stars_mini": out_buffer[:, 6],
-        "halo_sfr_mini": out_buffer[:, 7],
-        "mturn_a": out_buffer[:, 8],
-        "mturn_m": out_buffer[:, 9],
-        "mturn_r": out_buffer[:, 10],
-        "metallicity": out_buffer[:, 11],
+        "halo_mass": out_buffer[:, 0].reshape(halo_masses.shape),
+        "halo_stars": out_buffer[:, 1].reshape(halo_masses.shape),
+        "halo_sfr": out_buffer[:, 2].reshape(halo_masses.shape),
+        "halo_xray": out_buffer[:, 3].reshape(halo_masses.shape),
+        "n_ion": out_buffer[:, 4].reshape(halo_masses.shape),
+        "halo_wsfr": out_buffer[:, 5].reshape(halo_masses.shape),
+        "halo_stars_mini": out_buffer[:, 6].reshape(halo_masses.shape),
+        "halo_sfr_mini": out_buffer[:, 7].reshape(halo_masses.shape),
+        "mturn_a": out_buffer[:, 8].reshape(halo_masses.shape),
+        "mturn_m": out_buffer[:, 9].reshape(halo_masses.shape),
+        "mturn_r": out_buffer[:, 10].reshape(halo_masses.shape),
+        "metallicity": out_buffer[:, 11].reshape(halo_masses.shape),
     }
