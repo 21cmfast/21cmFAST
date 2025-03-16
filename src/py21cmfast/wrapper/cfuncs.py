@@ -90,7 +90,8 @@ def init_gl(func: Callable) -> Callable:
 
 
 def get_expected_nhalo(
-    *redshift: float,
+    *,
+    redshift: float,
     inputs: InputParameters,
 ) -> int:
     """Get the expected number of halos in a given box.
@@ -110,7 +111,8 @@ def get_expected_nhalo(
 
 
 def get_halo_list_buffer_size(
-    *redshift: float,
+    *,
+    redshift: float,
     inputs: InputParameters,
     min_size: int = 1000000,
 ) -> int:
@@ -441,14 +443,14 @@ def evaluate_sigma(
 
     Uses the 21cmfast backend
     """
-    sigma = np.zeros(len(masses), dtype="f8")
-    dsigmasq = np.zeros(len(masses), dtype="f8")
-    masses = np.array(masses, dtype="f8")
+    masses = masses.astype("f8")
+    sigma = np.zeros_like(masses)
+    dsigmasq = np.zeros_like(masses)
 
     lib.get_sigma(
         inputs.user_params.cstruct,
         inputs.cosmo_params.cstruct,
-        len(masses),
+        masses.size,
         ffi.cast("double *", ffi.from_buffer(masses)),
         ffi.cast("double *", ffi.from_buffer(sigma)),
         ffi.cast("double *", ffi.from_buffer(dsigmasq)),
@@ -483,12 +485,7 @@ def get_condition_mass(inputs, R):
 
 def get_delta_crit(inputs, mass, redshift):
     """Gets the critical collapse density given a mass, redshift and parameters."""
-    sigma, _ = evaluate_sigma(
-        inputs,
-        [
-            mass,
-        ],
-    )
+    sigma, _ = evaluate_sigma(inputs, np.array([mass]))
     # evaluate_sigma already broadcasts the paramters so we don't need to repeat
     growth = get_growth_factor(inputs=inputs, redshift=redshift)
     return get_delta_crit_nu(inputs.user_params, sigma, growth)
@@ -523,7 +520,7 @@ def evaluate_condition_integrals(
         inputs.flag_options.cstruct,
         redshift,
         redshift_prev if redshift_prev is not None else -1,
-        len(cond_array),
+        cond_array.size,
         ffi.cast("double *", ffi.from_buffer(cond_array)),
         ffi.cast("double *", ffi.from_buffer(n_halo)),
         ffi.cast("double *", ffi.from_buffer(m_coll)),
@@ -622,7 +619,7 @@ def evaluate_FgtrM_cond(
         inputs.flag_options.cstruct,
         redshift,
         R,
-        len(densities),
+        densities.size,
         ffi.cast("double *", ffi.from_buffer(densities)),
         ffi.cast("double *", ffi.from_buffer(fcoll)),
         ffi.cast("double *", ffi.from_buffer(dfcoll)),
@@ -653,7 +650,7 @@ def evaluate_SFRD_z(
         inputs.cosmo_params.cstruct,
         inputs.astro_params.cstruct,
         inputs.flag_options.cstruct,
-        len(redshifts),
+        redshifts.size,
         ffi.cast("double *", ffi.from_buffer(redshifts)),
         ffi.cast("double *", ffi.from_buffer(log10mturns)),
         ffi.cast("double *", ffi.from_buffer(sfrd)),
@@ -686,7 +683,7 @@ def evaluate_Nion_z(
         inputs.cosmo_params.cstruct,
         inputs.astro_params.cstruct,
         inputs.flag_options.cstruct,
-        len(redshifts),
+        redshifts.size,
         ffi.cast("double *", ffi.from_buffer(redshifts)),
         ffi.cast("double *", ffi.from_buffer(log10mturns)),
         ffi.cast("double *", ffi.from_buffer(nion)),
@@ -722,7 +719,7 @@ def evaluate_SFRD_cond(
         inputs.flag_options.cstruct,
         redshift,
         radius,
-        len(densities),
+        densities.size,
         ffi.cast("double *", ffi.from_buffer(densities)),
         ffi.cast("double *", ffi.from_buffer(log10mturns)),
         ffi.cast("double *", ffi.from_buffer(sfrd)),
@@ -760,7 +757,7 @@ def evaluate_Nion_cond(
         inputs.flag_options.cstruct,
         redshift,
         radius,
-        len(densities),
+        densities.size,
         ffi.cast("double *", ffi.from_buffer(densities)),
         ffi.cast("double *", ffi.from_buffer(l10mturns_acg)),
         ffi.cast("double *", ffi.from_buffer(l10mturns_mcg)),
@@ -797,7 +794,7 @@ def evaluate_Xray_cond(
         inputs.flag_options.cstruct,
         redshift,
         radius,
-        len(densities),
+        densities.size,
         ffi.cast("double *", ffi.from_buffer(densities)),
         ffi.cast("double *", ffi.from_buffer(log10mturns)),
         ffi.cast("double *", ffi.from_buffer(xray)),

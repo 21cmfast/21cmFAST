@@ -155,7 +155,7 @@ def test_massfunc_conditional_tables(name, cond_type, mass_range, delta_range, p
             [nhalo_exp, mcoll_exp],
             plt,
             logx=from_cat,
-            xlabels=["delta" if from_cat else "Mass"] * 2,
+            xlabels=["Mass" if from_cat else "delta"] * 2,
             ylabels=["Nhalo", "Mcoll"],
         )
 
@@ -363,8 +363,8 @@ def test_SFRD_z_tables(name, z_range, log10_mturn_range, plt):
         make_table_comparison_plot(
             [z_range, z_range],
             [np.array([0]), 10 ** log10_mturn_range[sel_m]],
-            [SFRD_tables, SFRD_tables_mini[..., sel_m]],
-            [SFRD_integrals, SFRD_integrals_mini[..., sel_m]],
+            [SFRD_tables[..., 0], SFRD_tables_mini[..., sel_m]],
+            [SFRD_integrals[..., 0], SFRD_integrals_mini[..., sel_m]],
             plt,
             label_test=[True, False],
             xlabels=["redshift", "redshift"],
@@ -430,8 +430,8 @@ def test_Nion_z_tables(name, z_range, log10_mturn_range, plt):
         make_table_comparison_plot(
             [z_range, z_range],
             [np.array([0]), 10 ** log10_mturn_range[sel_m]],
-            [nion_tables, nion_tables_mini[..., sel_m]],
-            [nion_integrals, nion_integrals_mini[..., sel_m]],
+            [nion_tables[..., 0], nion_tables_mini[..., sel_m]],
+            [nion_integrals[..., 0], nion_integrals_mini[..., sel_m]],
             plt,
             label_test=[True, False],
             xlabels=["redshift", "redshift"],
@@ -539,9 +539,9 @@ def test_Nion_conditional_tables(
 
         make_table_comparison_plot(
             [delta_range, delta_range],
-            [10 ** log10_mturn_range[sel_m], 10 ** log10_mturn_range[sel_m]],
-            [Nion_tb_plot, Nion_tables_mini[..., sel_m]],
-            [Nion_il_plot, Nion_integrals_mini[..., sel_m]],
+            [np.array([0]), 10 ** log10_mturn_range[sel_m]],
+            [Nion_tb_plot[..., 0], Nion_tables_mini[..., sel_m]],
+            [Nion_il_plot[..., 0], Nion_integrals_mini[..., sel_m]],
             plt,
             label_test=[True, False],
             xlabels=["delta", "delta"],
@@ -729,8 +729,8 @@ def test_SFRD_conditional_table(
         make_table_comparison_plot(
             [delta_range, delta_range],
             [np.array([0]), 10 ** log10_mturn_range[sel_m]],
-            [SFRD_tables[:, None], SFRD_tables_mini[..., sel_m]],
-            [SFRD_integrals[:, None], SFRD_integrals_mini[..., sel_m]],
+            [SFRD_tables[:, 0], SFRD_tables_mini[..., sel_m]],
+            [SFRD_integrals[:, 0], SFRD_integrals_mini[..., sel_m]],
             plt,
             label_test=[True, False],
             xlabels=["delta", "delta"],

@@ -11,6 +11,9 @@ from py21cmfast import (
     FlagOptions,
     PerturbHaloField,
     UserParams,
+    compute_halo_grid,
+    compute_initial_conditions,
+    perturb_field,
 )
 from py21cmfast.c_21cmfast import ffi, lib
 from py21cmfast.wrapper import cfuncs as cf
@@ -138,7 +141,7 @@ def test_sampler(name, cond, cond_type, plt):
 #   calculate them in the backend and re-write them in the test for a few masses. This means that
 #   changes to any scaling relation model will result in a test fail
 # TODO add minihalo tests, upper turnovers. All 12 properties
-def test_halo_prop_sampling(default_input_struct_ts):
+def test_halo_prop_sampling(default_input_struct_ts, plt):
     # specify parameters to use for this test
     redshift = 10.0
 
@@ -204,7 +207,15 @@ def test_halo_prop_sampling(default_input_struct_ts):
     )
     sim_LX = halo_xray_out / (halo_sfr_out * 31556925.9747)
 
-    print(1 / inputs.cosmo_params.cosmo.H(redshift).to("s-1").value, flush=True)
+    if plt == mpl.pyplot:
+        plot_scatter_comparison(
+            [exp_SHMR, exp_SSFR, exp_LX],
+            [sim_SHMR, sim_SSFR, sim_LX],
+            [halo_masses, halo_masses, halo_masses],
+            ["SHMR", "SSFR", "LX/SFR"],
+            log_inp=True,
+            plt=plt,
+        )
 
     print_failure_stats(
         sim_SHMR, exp_SHMR, [halo_mass_vals, halo_rng], 0.0, 1e-4, "SHMR"
@@ -214,7 +225,7 @@ def test_halo_prop_sampling(default_input_struct_ts):
         exp_SSFR,
         [halo_mass_vals, halo_rng],
         0.0,
-        1e-4,  # TODO: fix the difference in t_h between the front and backend
+        3e-3,  # TODO: fix the difference in t_h between the front and backend
         "SSFR",
     )
     print_failure_stats(sim_LX, exp_LX, [halo_mass_vals, halo_rng], 0.0, 1e-4, "LX")
@@ -222,6 +233,140 @@ def test_halo_prop_sampling(default_input_struct_ts):
     np.testing.assert_allclose(exp_SHMR, sim_SHMR, rtol=1e-4)
     np.testing.assert_allclose(exp_SSFR, sim_SSFR, rtol=3e-3)
     np.testing.assert_allclose(exp_LX, sim_LX, rtol=1e-4)
+
+
+# testing that the integrals in HaloBox.c are done correctly by
+#   using the fixed grids
+# TODO: extend test to minihalos w/o feedback
+# TODO: maybe let this run with the default ics and perturbed field,
+#   even though they have different flag options?
+def test_fixed_grids(default_input_struct_ts, plt):
+    inputs = default_input_struct_ts.evolve_input_structs(
+        USE_HALO_FIELD=True,
+        FIXED_HALO_GRIDS=True,
+        USE_UPPER_STELLAR_TURNOVER=False,
+    )
+
+    ic = compute_initial_conditions(
+        inputs=inputs,
+    )
+    perturbed_field = perturb_field(initial_conditions=ic, redshift=10.0, inputs=inputs)
+    dens = perturbed_field.get("density")
+
+    hbox = compute_halo_grid(
+        initial_conditions=ic,
+        inputs=inputs,
+        perturbed_field=perturbed_field,
+    )
+
+    cell_radius = 0.620350491 * (
+        inputs.user_params.BOX_LEN / inputs.user_params.HII_DIM
+    )
+    mt_grid = np.full_like(dens, inputs.astro_params.M_TURN)
+
+    integral_sfrd, _ = cf.evaluate_SFRD_cond(
+        inputs=inputs,
+        redshift=perturbed_field.redshift,
+        radius=cell_radius,
+        densities=dens,
+        log10mturns=mt_grid,
+    )
+    integral_sfrd *= 1 + dens
+
+    integral_nion, _ = cf.evaluate_Nion_cond(
+        inputs=inputs,
+        redshift=perturbed_field.redshift,
+        radius=cell_radius,
+        densities=dens,
+        l10mturns_acg=mt_grid,
+        l10mturns_mcg=mt_grid,
+    )
+    integral_nion *= 1 + dens
+
+    integral_xray = cf.evaluate_Xray_cond(
+        inputs=inputs,
+        redshift=perturbed_field.redshift,
+        radius=cell_radius,
+        densities=perturbed_field.density.value,
+        log10mturns=mt_grid,
+    )
+    integral_xray *= 1 + dens
+
+    # mean-fixing and prefactor numerics results in 1-to-1 comparisons being more difficult
+    #   for now we just test the relative values
+    integral_sfrd *= hbox.get("halo_sfr").mean() / integral_sfrd.mean()
+    integral_nion *= hbox.get("n_ion").mean() / integral_nion.mean()
+    integral_xray *= hbox.get("halo_xray").mean() / integral_xray.mean()
+
+    if plt == mpl.pyplot:
+        plot_scatter_comparison(
+            [integral_sfrd, integral_nion, integral_xray],
+            [hbox.get("halo_sfr"), hbox.get("n_ion"), hbox.get("halo_xray")],
+            [dens, dens, dens],
+            ["SFRD", "Nion", "LX"],
+            plt=plt,
+        )
+
+    # TODO: a 5% tolerance isn't fantastic here since they should be the same to a constant factor.
+    #   this happens near the GL integration transition (<1%) and delta_crit (~4%), examine plots
+    rtol = 5e-2
+    print(f"{hbox.get('halo_sfr').shape} {integral_sfrd.shape}", flush=True)
+    print_failure_stats(
+        hbox.get("halo_sfr"),
+        integral_sfrd,
+        [dens],
+        0.0,
+        rtol,
+        "sfr",
+    )
+    print_failure_stats(
+        hbox.get("n_ion"),
+        integral_nion,
+        [dens],
+        0.0,
+        rtol,
+        "nion",
+    )
+    print_failure_stats(
+        hbox.get("halo_xray"),
+        integral_xray,
+        [dens],
+        0.0,
+        rtol,
+        "LX",
+    )
+
+    np.testing.assert_allclose(hbox.get("halo_sfr"), integral_sfrd, rtol=rtol)
+    np.testing.assert_allclose(hbox.get("n_ion"), integral_nion, rtol=rtol)
+    np.testing.assert_allclose(hbox.get("halo_xray"), integral_xray, rtol=rtol)
+
+
+# very basic scatter comparison
+def plot_scatter_comparison(
+    truths, tests, inputs, names, log_vals=True, log_inp=False, plt=None
+):
+    nplots = len(truths)
+    fig, axs = plt.subplots(nrows=2, ncols=nplots, figsize=(4 * nplots, 6))
+
+    for i, (true, test, inp, name) in enumerate(
+        zip(truths, tests, inputs, names, strict=False)
+    ):
+        axs[0, i].scatter(true, test, s=2, rasterized=True)
+        axs[0, i].set_xlabel(f"True {name}")
+        axs[0, i].set_ylabel(f"Test {name}")
+        axs[0, i].grid()
+
+        axs[1, i].scatter(inp, test / true, s=5, rasterized=True)
+        axs[1, i].set_xlabel("input value")
+        axs[1, i].set_ylabel(f"Test/True {name}")
+        axs[1, i].grid()
+
+        if log_inp:
+            axs[1, i].set_xscale("log")
+        if log_vals:
+            axs[1, i].set_yscale("log")
+            axs[0, i].set_xscale("log")
+            axs[0, i].set_yscale("log")
 
 
 def plot_sampler_comparison(
@@ -255,7 +400,7 @@ def plot_sampler_comparison(
     # log-spaced bins
     dlnm = np.log(bin_edges[1:]) - np.log(bin_edges[:-1])
     bin_centres = (bin_edges[:-1] * np.exp(dlnm / 2)).astype("f4")
-    edges_n = np.arange(0, max(N_array.max(), 1), 1)
+    edges_n = np.arange(0, max(N_array.max(), 2), 1)
     centres_n = (edges_n[:-1] + edges_n[1:]) / 2
 
     hist_n, _ = np.histogram(N_array, edges_n)

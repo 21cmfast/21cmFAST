@@ -747,7 +747,8 @@ class PerturbHaloField(OutputStructZ):
             buffer_size = 0
         elif buffer_size is None:
             buffer_size = get_halo_list_buffer_size(
-                redshift, inputs.user_params, inputs.cosmo_params
+                redshift=redshift,
+                inputs=inputs,
             )
 
         return cls(
