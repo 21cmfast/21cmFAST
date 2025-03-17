@@ -174,7 +174,7 @@ void stoc_set_consts_z(struct HaloSamplingConstants *const_struct, double redshi
     for(i=0;i<200;i++){
         lnM_lim = const_struct->lnM_min + i*(const_struct->lnM_max_tb - const_struct->lnM_min)/100;
         expected_NgtrM = Nhalo_General(redshift, lnM_lim, const_struct->lnM_max_tb) * VOLUME * cosmo_params_global->OMm * RHOcrit;
-        if(expected_NgtrM < 0.005){
+        if(expected_NgtrM < 0.01){
             const_struct->lnM_onepercent = lnM_lim;
             break;
         }
