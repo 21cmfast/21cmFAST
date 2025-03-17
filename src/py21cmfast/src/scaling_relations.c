@@ -301,7 +301,7 @@ void get_halo_stellarmass(double halo_mass, double mturn_acg, double mturn_mcg, 
     }
 
     f_sample_mini = scaling_single_PL(halo_mass,f_a_mini,1e7)*f_7;
-    f_sample_mini *= exp(-mturn_mcg/halo_mass - halo_mass/mturn_acg + star_rng*sigma_star - stoc_adjustment_term);
+    f_sample_mini *= exp(-mturn_mcg/halo_mass - halo_mass/consts->acg_thresh + star_rng*sigma_star - stoc_adjustment_term);
     if(f_sample_mini > 1.) f_sample_mini = 1.;
 
     sm_sample_mini = f_sample_mini * halo_mass * baryon_ratio;
