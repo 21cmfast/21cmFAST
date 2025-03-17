@@ -52,7 +52,7 @@ def test_sampler(name, cond, cond_type, plt):
     cond_val = options_mass[cond] if from_cat else options_delta[cond]
     cond_array = np.full(n_cond, cond_val)
 
-    sample_dict = cf.halo_sample_test(
+    sample_dict = cf.sample_halos_from_conditions(
         inputs=inputs,
         redshift=redshift,
         redshift_prev=z_desc,

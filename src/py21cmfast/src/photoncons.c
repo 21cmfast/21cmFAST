@@ -159,9 +159,9 @@ int InitialisePhotonCons(UserParams *user_params, CosmoParams *cosmo_params,
             z0 = 1./(a+delta_a) - 1.;
             z1 = 1./(a-delta_a) - 1.;
 
-            sc_i = scaling_consts_z_copy(zi,astro_params,flag_options,&sc_i,false);
-            sc_0 = scaling_consts_z_copy(z0,astro_params,flag_options,&sc_i,false);
-            sc_1 = scaling_consts_z_copy(z1,astro_params,flag_options,&sc_i,false);
+            sc_i = evolve_scaling_constants_to_redshift(zi,astro_params,flag_options,&sc_i,false);
+            sc_0 = evolve_scaling_constants_to_redshift(z0,astro_params,flag_options,&sc_i,false);
+            sc_1 = evolve_scaling_constants_to_redshift(z1,astro_params,flag_options,&sc_i,false);
 
             // Ionizing emissivity (num of photons per baryon)
             //We Force QAG due to the changing limits and messy implementation which I will fix later (hopefully move the whole thing to python)

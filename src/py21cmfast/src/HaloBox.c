@@ -113,7 +113,7 @@ int get_box_averages(double M_min, double M_max, double M_turn_a, double M_turn_
 
     //NOTE: we use the atomic method for all halo mass/count here
     mass_intgrl = Fcoll_General(consts->redshift,lnMmin,lnMmax);
-    struct ScalingConstants consts_sfrd = scaling_const_sfrd_copy(consts);
+    struct ScalingConstants consts_sfrd = evolve_scaling_constants_sfr(consts);
 
     intgrl_fesc_weighted = Nion_General(consts->redshift, lnMmin, lnMmax, M_turn_a, consts);
     intgrl_stars_only = Nion_General(consts->redshift, lnMmin, lnMmax, M_turn_a, &consts_sfrd);

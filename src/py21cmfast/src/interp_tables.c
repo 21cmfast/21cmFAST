@@ -106,14 +106,14 @@ void initialise_SFRD_spline(int Nbin, float zmin, float zmax, struct ScalingCons
     #pragma omp parallel private(i,j) num_threads(user_params_global->N_THREADS)
     {
         struct ScalingConstants sc_sfrd;
-        sc_sfrd = scaling_const_sfrd_copy(sc);
+        sc_sfrd = evolve_scaling_constants_sfr(sc);
         double mturn_mcg;
         double lnMmin;
         double z_val;
         #pragma omp for
         for (i=0; i<Nbin; i++){
             z_val = SFRD_z_table.x_min + i*SFRD_z_table.x_width; //both tables will have the same values here
-            sc_sfrd = scaling_consts_z_copy(z_val,astro_params_global,flag_options_global,&sc_sfrd,false);
+            sc_sfrd = evolve_scaling_constants_to_redshift(z_val,astro_params_global,flag_options_global,&sc_sfrd,false);
             lnMmin = log(minimum_source_mass(z_val,true,astro_params_global,flag_options_global));
 
             if(flag_options_global->USE_MINI_HALOS){
@@ -175,7 +175,7 @@ void initialise_Nion_Ts_spline(int Nbin, float zmin, float zmax, struct ScalingC
 #pragma omp for
         for (i=0; i<Nbin; i++){
             z_val = Nion_z_table.x_min + i*Nion_z_table.x_width; //both tables will have the same values here
-            sc_z = scaling_consts_z_copy(z_val,astro_params_global,flag_options_global,sc,false);
+            sc_z = evolve_scaling_constants_to_redshift(z_val,astro_params_global,flag_options_global,sc,false);
             //Minor note: while this is called in xray, we use it to estimate ionised fraction, do we use ION_Tvir_MIN if applicable?
             lnMmin = log(minimum_source_mass(z_val,true,astro_params_global,flag_options_global));
             if(flag_options_global->USE_MINI_HALOS){
@@ -419,7 +419,7 @@ void initialise_SFRD_Conditional_table(double z, double min_density, double max_
         SFRD_conditional_table_MINI.y_width = (LOG10_MTURN_MAX - LOG10_MTURN_MIN)/(NMTURN-1.);
     }
 
-    struct ScalingConstants sc_sfrd = scaling_const_sfrd_copy(sc);
+    struct ScalingConstants sc_sfrd = evolve_scaling_constants_sfr(sc);
 
 #pragma omp parallel private(i,k) num_threads(user_params_global->N_THREADS)
     {
@@ -851,7 +851,7 @@ double EvaluateNionTs(double redshift, struct ScalingConstants *sc){
     double lnMmin = log(minimum_source_mass(redshift,true,astro_params_global,flag_options_global));
     double lnMmax = log(M_MAX_INTEGRAL);
 
-    struct ScalingConstants sc_z = scaling_consts_z_copy(redshift,astro_params_global,flag_options_global,sc,false);
+    struct ScalingConstants sc_z = evolve_scaling_constants_to_redshift(redshift,astro_params_global,flag_options_global,sc,false);
 
     //minihalos uses a different turnover mass
     if(flag_options_global->USE_MASS_DEPENDENT_ZETA)
@@ -866,7 +866,7 @@ double EvaluateNionTs_MINI(double redshift, double log10_Mturn_LW_ave, struct Sc
     }
     double lnMmin = log(minimum_source_mass(redshift,true,astro_params_global,flag_options_global));
     double lnMmax = log(M_MAX_INTEGRAL);
-    struct ScalingConstants sc_z = scaling_consts_z_copy(redshift,astro_params_global,flag_options_global,sc,false);
+    struct ScalingConstants sc_z = evolve_scaling_constants_to_redshift(redshift,astro_params_global,flag_options_global,sc,false);
 
     return Nion_General_MINI(redshift, lnMmin, lnMmax, pow(10.,log10_Mturn_LW_ave), &sc_z);
 }
@@ -885,8 +885,8 @@ double EvaluateSFRD(double redshift, struct ScalingConstants * sc){
 
     //The SFRD calls the same function as N_ion but sets escape fractions to unity
     //NOTE: since this only occurs on integration, the struct copy shouldn't be a bottleneck
-    struct ScalingConstants sc_sfrd = scaling_const_sfrd_copy(sc);
-    sc_sfrd = scaling_consts_z_copy(redshift,astro_params_global,flag_options_global,&sc_sfrd,false);
+    struct ScalingConstants sc_sfrd = evolve_scaling_constants_sfr(sc);
+    sc_sfrd = evolve_scaling_constants_to_redshift(redshift,astro_params_global,flag_options_global,&sc_sfrd,false);
 
     if(flag_options_global->USE_MASS_DEPENDENT_ZETA)
         return Nion_General(redshift, lnMmin, lnMmax, sc_sfrd.mturn_a_nofb, &sc_sfrd);
@@ -901,8 +901,8 @@ double EvaluateSFRD_MINI(double redshift, double log10_Mturn_LW_ave, struct Scal
     double lnMmin = log(minimum_source_mass(redshift,true,astro_params_global,flag_options_global));
     double lnMmax = log(M_MAX_INTEGRAL);
 
-    struct ScalingConstants sc_sfrd = scaling_const_sfrd_copy(sc);
-    sc_sfrd = scaling_consts_z_copy(redshift,astro_params_global,flag_options_global,&sc_sfrd,false);
+    struct ScalingConstants sc_sfrd = evolve_scaling_constants_sfr(sc);
+    sc_sfrd = evolve_scaling_constants_to_redshift(redshift,astro_params_global,flag_options_global,&sc_sfrd,false);
 
     return Nion_General_MINI(redshift, lnMmin, lnMmax, pow(10.,log10_Mturn_LW_ave), &sc_sfrd);
 }
@@ -912,7 +912,7 @@ double EvaluateSFRD_Conditional(double delta, double growthf, double M_min, doub
         return exp(EvaluateRGTable1D_f(delta,&SFRD_conditional_table));
     }
 
-    struct ScalingConstants sc_sfrd = scaling_const_sfrd_copy(sc);
+    struct ScalingConstants sc_sfrd = evolve_scaling_constants_sfr(sc);
     //SFRD in Ts assumes no (reion) feedback on ACG
     return Nion_ConditionalM(growthf,log(M_min),log(M_max),log(M_cond),sigma_max,delta,sc_sfrd.mturn_a_nofb,
                             &sc_sfrd,user_params_global->INTEGRATION_METHOD_ATOMIC);
@@ -923,7 +923,7 @@ double EvaluateSFRD_Conditional_MINI(double delta, double log10Mturn_m, double g
         return exp(EvaluateRGTable2D_f(delta,log10Mturn_m,&SFRD_conditional_table_MINI));
     }
 
-    struct ScalingConstants sc_sfrd = scaling_const_sfrd_copy(sc);
+    struct ScalingConstants sc_sfrd = evolve_scaling_constants_sfr(sc);
     return Nion_ConditionalM_MINI(growthf,log(M_min),log(M_max),log(M_cond),sigma_max,delta,pow(10,log10Mturn_m),
                                     &sc_sfrd,user_params_global->INTEGRATION_METHOD_MINI);
 }

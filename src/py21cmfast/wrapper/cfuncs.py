@@ -24,29 +24,31 @@ logger = logging.getLogger(__name__)
 
 
 def broadcast_params(func: Callable) -> Callable:
-    """Decorator to broadcast the parameters to the C library before calling the function."""
+    """Broadcast the parameters to the C library before calling the function.
+
+    This should be added as a decorator to any function which accesses the
+    21cmFAST backend without passing through our regular functions.
+    """
 
     def wrapper(*args, **kwargs):
         inputs = kwargs.get("inputs")
-        if inputs.astro_params:
-            lib.Broadcast_struct_global_all(
-                inputs.user_params.cstruct,
-                inputs.cosmo_params.cstruct,
-                inputs.astro_params.cstruct,
-                inputs.flag_options.cstruct,
-            )
-        else:
-            lib.Broadcast_struct_global_noastro(
-                inputs.user_params.cstruct,
-                inputs.cosmo_params.cstruct,
-            )
+        lib.Broadcast_struct_global_all(
+            inputs.user_params.cstruct,
+            inputs.cosmo_params.cstruct,
+            inputs.astro_params.cstruct,
+            inputs.flag_options.cstruct,
+        )
         return func(*args, **kwargs)
 
     return wrapper
 
 
 def init_backend_ps(func: Callable) -> Callable:
-    """Decorator to initialise the backend PS before calling the function."""
+    """Initialise the backend power-spectrum before calling the function.
+
+    This should be added as a decorator to any function which uses the cosmology
+    from the 21cmFAST backend without passing through our regular functions.
+    """
 
     @broadcast_params
     def wrapper(*args, **kwargs):
@@ -57,10 +59,14 @@ def init_backend_ps(func: Callable) -> Callable:
 
 
 def init_sigma_table(func: Callable) -> Callable:
-    """Decorator to initialise the the sigma interpolation table before calling the function."""
+    """Initialise the the sigma interpolation table before calling the function.
+
+    This should be added as a decorator to any function which calls lib.EvaluateSigma
+    or the sigma tables directly.
+    """
 
     @init_backend_ps
-    def wrapper(*args, **kwargs):
+    def wrapper(*args, inputs: InputParameters, **kwargs):
         sigma_min_mass = kwargs.get("M_min", 1e5)
         sigma_max_mass = kwargs.get("M_max", 1e16)
         if (
@@ -74,13 +80,18 @@ def init_sigma_table(func: Callable) -> Callable:
 
 
 def init_gl(func: Callable) -> Callable:
-    """Decorator to initialise the Gauss-Legendre if required before calling the function."""
+    """Initialise the Gauss-Legendre integration if required before calling the function.
+
+    Calculates the abcissae weights and stores them as arrays in the backend when either of the
+    HMF integrals is set to use Gauss-Legendre integration. This should be added as a decorator to
+    any function which calls backend integrals directly.
+    """
 
     @init_sigma_table
-    def wrapper(*args, **kwargs):
+    def wrapper(*args, inputs: InputParameters, **kwargs):
         if "GAUSS-LEGENDRE" in (
-            kwargs.get("inputs").user_params.INTEGRATION_METHOD_ATOMIC,
-            kwargs.get("inputs").user_params.INTEGRATION_METHOD_MINI,
+            inputs.user_params.INTEGRATION_METHOD_ATOMIC,
+            inputs.user_params.INTEGRATION_METHOD_MINI,
         ):
             # no defualt since GL mass limits are strict
             lib.initialise_GL(np.log(kwargs.get("M_min")), np.log(kwargs.get("M_max")))
@@ -435,11 +446,11 @@ def construct_fftw_wisdoms(
 
 
 def evaluate_sigma(
-    inputs,
+    inputs: InputParameters,
     masses: Sequence[float],
 ):
     """
-    Evaluates the variance of a mass scale.
+    Evaluate the variance of a mass scale.
 
     Uses the 21cmfast backend
     """
@@ -465,12 +476,16 @@ def get_growth_factor(
     inputs: InputParameters,
     redshift: float,
 ):
-    """Gets the growth factor at a given redshift."""
+    """Get the growth factor at a given redshift."""
     return lib.dicke(redshift)
 
 
-def get_condition_mass(inputs, R):
-    """Convenience function for determining condition masses for backend routines."""
+def get_condition_mass(inputs: InputParameters, R: float):
+    """Determine condition masses for backend routines.
+
+    Returns either mass contained within a radius,
+    or mass of the Lagrangian cell on HII_DIM
+    """
     rhocrit = (
         inputs.cosmo_params.cosmo.critical_density(0).to("M_sun Mpc-3").value
         * inputs.cosmo_params.OMm
@@ -483,16 +498,16 @@ def get_condition_mass(inputs, R):
     return volume * rhocrit
 
 
-def get_delta_crit(inputs, mass, redshift):
-    """Gets the critical collapse density given a mass, redshift and parameters."""
+def get_delta_crit(inputs: InputParameters, mass: float, redshift: float):
+    """Get the critical collapse density given a mass, redshift and parameters."""
     sigma, _ = evaluate_sigma(inputs, np.array([mass]))
     # evaluate_sigma already broadcasts the paramters so we don't need to repeat
     growth = get_growth_factor(inputs=inputs, redshift=redshift)
     return get_delta_crit_nu(inputs.user_params, sigma, growth)
 
 
-def get_delta_crit_nu(user_params, sigma, growth):
-    """Uses the nu paramters (sigma and growth factor) to get critical density."""
+def get_delta_crit_nu(user_params: UserParams, sigma: float, growth: float):
+    """Get the critical density from sigma and growth factor."""
     # None of the parameter structs are used in this function so we don't need a broadcast
     return lib.get_delta_crit(user_params.cdict["HMF"], sigma, growth)
 
@@ -503,7 +518,7 @@ def evaluate_condition_integrals(
     redshift: float,
     redshift_prev: float | None = None,
 ):
-    """Gets the expected number and mass of halos given a condition.
+    """Get the expected number and mass of halos given a condition.
 
     If USE_INTERPOLATION_TABLES is set to 'hmf-interpolation': Will crash if the table
     has not been initialised, only `cond_array` is used,
@@ -532,19 +547,20 @@ def evaluate_condition_integrals(
 def integrate_chmf_interval(
     inputs: InputParameters,
     redshift: float,
-    lnM_lower: Sequence[float],
-    lnM_upper: Sequence[float],
+    lnm_lower: Sequence[float],
+    lnm_upper: Sequence[float],
     cond_values: Sequence[float],
     redshift_prev: float | None = None,
 ):
-    """Evaluates conditional mass function integrals at a range of mass intervals."""
-    if lnM_lower.shape != lnM_upper.shape:
+    """Evaluate conditional mass function integrals at a range of mass intervals."""
+    if lnm_lower.shape != lnm_upper.shape:
         raise ValueError("the shapes of the two mass-limit arrays must be equal")
+    assert np.all(lnm_lower < lnm_upper)
 
-    out_prob = np.zeros((len(cond_values), len(lnM_lower)), dtype="f8")
+    out_prob = np.zeros((len(cond_values), len(lnm_lower)), dtype="f8")
     cond_values = cond_values.astype("f8")
-    lnM_lower = lnM_lower.astype("f8")
-    lnM_upper = lnM_upper.astype("f8")
+    lnm_lower = lnm_lower.astype("f8")
+    lnm_upper = lnm_upper.astype("f8")
 
     lib.get_halo_chmf_interval(
         inputs.user_params.cstruct,
@@ -555,9 +571,9 @@ def integrate_chmf_interval(
         redshift_prev if redshift_prev is not None else -1,
         len(cond_values),
         ffi.cast("double *", ffi.from_buffer(cond_values)),
-        len(lnM_lower),
-        ffi.cast("double *", ffi.from_buffer(lnM_lower)),
-        ffi.cast("double *", ffi.from_buffer(lnM_upper)),
+        len(lnm_lower),
+        ffi.cast("double *", ffi.from_buffer(lnm_lower)),
+        ffi.cast("double *", ffi.from_buffer(lnm_upper)),
         ffi.cast("double *", ffi.from_buffer(out_prob)),
     )
 
@@ -571,7 +587,7 @@ def evaluate_inverse_table(
     redshift: float,
     redshift_prev: float | None = None,
 ):
-    """Gets the expected number and mass of halos given a condition."""
+    """Get the expected number and mass of halos given a condition."""
     if cond_array.shape != probabilities.shape:
         raise ValueError(
             "the shapes of the input arrays `cond_array` and `probabilities"
@@ -607,7 +623,7 @@ def evaluate_FgtrM_cond(
     redshift: float,
     R: float,
 ):
-    """Gets the collapsed fraction from the backend, given a density and condition sigma."""
+    """Get the collapsed fraction from the backend, given a density and condition sigma."""
     densities = densities.astype("f8")
     fcoll = np.zeros_like(densities)
     dfcoll = np.zeros_like(densities)
@@ -633,7 +649,7 @@ def evaluate_SFRD_z(
     redshifts: Sequence[float],
     log10mturns: Sequence[float],
 ):
-    """Evaluates the global star formation rate density expected at a range of redshifts."""
+    """Evaluate the global star formation rate density expected at a range of redshifts."""
     if redshifts.shape != log10mturns.shape:
         raise ValueError(
             f"the shapes of the input arrays `redshifts` {redshifts.shape} and `log10mturns` {log10mturns.shape}"
@@ -666,7 +682,7 @@ def evaluate_Nion_z(
     redshifts: Sequence[float],
     log10mturns: Sequence[float],
 ):
-    """Evaluates the global ionising emissivity expected at a range of redshifts."""
+    """Evaluate the global ionising emissivity expected at a range of redshifts."""
     if redshifts.shape != log10mturns.shape:
         raise ValueError(
             "the shapes of the input arrays `redshifts` and `log10mturns`"
@@ -701,7 +717,7 @@ def evaluate_SFRD_cond(
     densities: Sequence[float],
     log10mturns: Sequence[float],
 ):
-    """Evaluates the conditional star formation rate density expected at a range of densities."""
+    """Evaluate the conditional star formation rate density expected at a range of densities."""
     if densities.shape != log10mturns.shape:
         raise ValueError(
             "the shapes of the input arrays `densities` and `log10mturns` must be equal"
@@ -738,7 +754,7 @@ def evaluate_Nion_cond(
     l10mturns_acg: Sequence[float],
     l10mturns_mcg: Sequence[float],
 ):
-    """Evaluates the conditional ionising emissivity expected at a range of densities."""
+    """Evaluate the conditional ionising emissivity expected at a range of densities."""
     if not (densities.shape == l10mturns_mcg.shape == l10mturns_acg.shape):
         raise ValueError(
             "the shapes of the input arrays `densities` and `log10mturns_x` must be equal"
@@ -776,7 +792,7 @@ def evaluate_Xray_cond(
     densities: Sequence[float],
     log10mturns: Sequence[float],
 ):
-    """Evaluates the conditional star formation rate density expected at a range of densities."""
+    """Evaluate the conditional star formation rate density expected at a range of densities."""
     if densities.shape != log10mturns.shape:
         raise ValueError(
             "the shapes of the input arrays `cond_array` and `probabilities"
@@ -803,7 +819,7 @@ def evaluate_Xray_cond(
     return xray
 
 
-def halo_sample_test(
+def sample_halos_from_conditions(
     *,
     inputs: InputParameters,
     redshift: float,
@@ -811,7 +827,7 @@ def halo_sample_test(
     redshift_prev: float | None = None,
     buffer_size: int | None = None,
 ):
-    """Constructs a halo sample given a descendant catalogue and redshifts."""
+    """Construct a halo sample given a descendant catalogue and redshifts."""
     z_prev = -1 if redshift_prev is None else redshift_prev
     if buffer_size is None:
         buffer_size = get_expected_nhalo(inputs=inputs, redshift=redshift)
@@ -876,7 +892,7 @@ def convert_halo_properties(
     Gamma12_grid: Sequence[float] | None = None,
 ):
     """
-    Converts a halo catalogue's mass and RNG fields to halo properties.
+    Convert a halo catalogue's mass and RNG fields to halo properties.
 
     Assumes no feedback (Lyman-Werner, reionization).
 

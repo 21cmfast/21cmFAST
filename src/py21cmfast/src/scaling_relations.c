@@ -97,7 +97,7 @@ void set_scaling_constants(double redshift, AstroParams *astro_params, FlagOptio
 }
 
 //It's often useful to create a copy of scaling constants without F_ESC
-struct ScalingConstants scaling_const_sfrd_copy(struct ScalingConstants *sc){
+struct ScalingConstants evolve_scaling_constants_sfr(struct ScalingConstants *sc){
     struct ScalingConstants sc_sfrd = *sc;
     sc_sfrd.fesc_10 = 1.;
     sc_sfrd.fesc_7 = 1.;
@@ -109,7 +109,7 @@ struct ScalingConstants scaling_const_sfrd_copy(struct ScalingConstants *sc){
 }
 
 //It's often useful to create a copy of scaling relations at a different z
-struct ScalingConstants scaling_consts_z_copy(double redshift, AstroParams *astro_params, FlagOptions *flag_options, struct ScalingConstants *sc, bool use_photoncons){
+struct ScalingConstants evolve_scaling_constants_to_redshift(double redshift, AstroParams *astro_params, FlagOptions *flag_options, struct ScalingConstants *sc, bool use_photoncons){
     struct ScalingConstants sc_z = *sc;
     sc_z.redshift = redshift;
     sc_z.t_h = t_hubble(redshift);

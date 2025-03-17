@@ -1368,7 +1368,7 @@ void ts_main(float redshift, float prev_redshift, UserParams *user_params, Cosmo
             xray_R_factor = pow(1+zpp,-(astro_params->X_RAY_SPEC_INDEX));
 
             set_scaling_constants(zpp,astro_params,flag_options,&sc,false);
-            sc_sfrd = scaling_const_sfrd_copy(&sc);
+            sc_sfrd = evolve_scaling_constants_sfr(&sc);
 
             //index for grids
             R_index = user_params->MINIMIZE_MEMORY ? 0 : R_ct;
