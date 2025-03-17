@@ -132,6 +132,10 @@ class StructInstanceWrapper:
         """Return a list of names of elements in the struct."""
         return [nm for nm, tp in self.items()]
 
+    def __iter__(self):
+        """Iterate over the object like a dict."""
+        yield from self.keys()
+
     def __repr__(self):
         """Return a unique representation of the instance."""
         return (
