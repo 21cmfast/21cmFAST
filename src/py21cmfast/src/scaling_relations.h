@@ -38,6 +38,7 @@ struct ScalingConstants{
     double vcb_norel;
     double mturn_a_nofb;
     double mturn_m_nofb;
+    double acg_thresh;
 
     double Mlim_Fstar;
     double Mlim_Fesc;

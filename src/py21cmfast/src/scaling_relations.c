@@ -59,7 +59,9 @@ void set_scaling_constants(double redshift, AstroParams *astro_params, FlagOptio
     consts->pop2_ion = astro_params->POP2_ION;
     consts->pop3_ion = astro_params->POP3_ION;
 
-    consts->mturn_a_nofb = flag_options->USE_MINI_HALOS ? atomic_cooling_threshold(redshift) : astro_params->M_TURN;
+    consts->acg_thresh = atomic_cooling_threshold(redshift);
+    consts->mturn_a_nofb = astro_params->M_TURN;
+    if(flag_options->USE_MINI_HALOS) consts->mturn_a_nofb = fmax(consts->acg_thresh,consts->mturn_a_nofb);
 
     consts->mturn_m_nofb = 0.;
     if(flag_options->USE_MINI_HALOS){
@@ -247,7 +249,7 @@ void get_halo_stellarmass(double halo_mass, double mturn_acg, double mturn_mcg, 
     }
 
     f_sample_mini = scaling_single_PL(halo_mass,f_a_mini,1e7)*f_7;
-    f_sample_mini *= exp(-mturn_mcg/halo_mass - halo_mass/mturn_acg + star_rng*sigma_star - stoc_adjustment_term);
+    f_sample_mini *= exp(-mturn_mcg/halo_mass - halo_mass/consts->acg_thresh + star_rng*sigma_star - stoc_adjustment_term);
     if(f_sample_mini > 1.) f_sample_mini = 1.;
 
     sm_sample_mini = f_sample_mini * halo_mass * baryon_ratio;
