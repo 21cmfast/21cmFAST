@@ -174,7 +174,7 @@ void stoc_set_consts_z(struct HaloSamplingConstants *const_struct, double redshi
     for(i=0;i<200;i++){
         lnM_lim = const_struct->lnM_min + i*(const_struct->lnM_max_tb - const_struct->lnM_min)/100;
         expected_NgtrM = Nhalo_General(redshift, lnM_lim, const_struct->lnM_max_tb) * VOLUME * cosmo_params_global->OMm * RHOcrit;
-        if(expected_NgtrM < 0.01){
+        if(expected_NgtrM < 0.005){
             const_struct->lnM_onepercent = lnM_lim;
             break;
         }
@@ -431,9 +431,10 @@ int stoc_mass_sample(struct HaloSamplingConstants * hs_constants, gsl_rng * rng,
     }
 
     // if(n_halo_sampled == 1){
-    if(n_halo_sampled == 1 && log(M_out[0]) > hs_constants->lnM_onepercent){
+    if(hs_constants->lnM_cond > hs_constants->lnM_onepercent){
         // M_out[0] = hs_constants->expected_M;
         M_out[0] = exp_M;
+        n_halo_sampled = 1;
     }
     //The above sample is above the expected mass, by up to 100%. I wish to make the average mass equal to exp_M
     else{
