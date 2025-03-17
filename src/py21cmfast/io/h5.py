@@ -185,7 +185,10 @@ def write_outputs_to_group(
         setattr(output, k, new)
 
     for k in output.struct.primitive_fields:
-        group.attrs[k] = getattr(output, k)
+        try:
+            group.attrs[k] = getattr(output, k)
+        except TypeError as e:  # noqa: PERF203
+            raise TypeError(f"Error writing attribute {k} to HDF5") from e
 
     group.attrs["21cmFAST-version"] = __version__
 
@@ -269,7 +272,15 @@ def read_inputs(
     close_after = False
     if isinstance(group, Path):
         file = h5py.File(group, "r")
-        group = file["InputParameters"]
+        if "InputParameters" in file:
+            group = file["InputParameters"]
+        elif len(file.keys()) > 1:
+            raise ValueError(
+                f"Multiple sub-groups found in {group}, none of them 'InputParameters'"
+            )
+        else:
+            groupname = next(iter(file.keys()))
+            group = file[groupname]["InputParameters"]
         close_after = True
     elif isinstance(group, h5py.File):
         group = group["InputParameters"]

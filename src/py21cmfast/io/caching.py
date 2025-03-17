@@ -14,6 +14,7 @@ import attrs
 import numpy as np
 
 from .._cfg import config
+from ..wrapper import outputs as op
 from ..wrapper.inputs import InputParameters
 from ..wrapper.outputs import OutputStruct
 from .h5 import read_inputs, read_output_struct, write_output_to_hdf5
@@ -232,13 +233,13 @@ class RunCache:
     """
 
     InitialConditions: Path = _pathfield()
-    PerturbedField: tuple[Path] = _dict_of_paths_field()
-    TsBox: tuple[Path] = _dict_of_paths_field()
-    IonizedBox: tuple[Path] = _dict_of_paths_field()
-    BrightnessTemp: tuple[Path] = _dict_of_paths_field()
-    HaloBox: tuple[Path] = _dict_of_paths_field()
-    PerturbHaloField: tuple[Path] = _dict_of_paths_field()
-    XraySourceBox: tuple[Path] = _dict_of_paths_field()
+    PerturbedField: dict[float, Path] = _dict_of_paths_field()
+    TsBox: dict[float, Path] = _dict_of_paths_field()
+    IonizedBox: dict[float, Path] = _dict_of_paths_field()
+    BrightnessTemp: dict[float, Path] = _dict_of_paths_field()
+    HaloBox: dict[float, Path] | None = _dict_of_paths_field()
+    PerturbHaloField: dict[float, Path] | None = _dict_of_paths_field()
+    XraySourceBox: dict[float, Path] | None = _dict_of_paths_field()
     inputs: InputParameters | None = attrs.field(default=None)
 
     @classmethod
@@ -313,11 +314,14 @@ class RunCache:
         hashes = OutputCache._get_hashes(inputs)
         hashes["redshift"] = ".+?"
         hashes["cls"] = ".+?"
+
         for template in OutputCache._path_structures.values():
+            # We have to replace the redshift formatter because it's not a float here
+            template = template.replace("{redshift:.4f}", "{redshift}")
             template = template.format(**hashes)
             match = re.search(template, str(path))
             if match is not None:
-                parent = Path(str(path)[: match.start])
+                parent = Path(str(path)[: match.start()])
                 break
         else:
             raise ValueError(
@@ -341,6 +345,7 @@ class RunCache:
 
             if not kind[z].exists():
                 return False
+        return True
 
     def get_output_struct_at_z(
         self,
@@ -367,14 +372,14 @@ class RunCache:
         """
         if not isinstance(kind, str):
             kind = kind.__name__
-        if kind not in attrs.fields_dict(kind):
+        if kind not in attrs.fields_dict(self.__class__):
             raise ValueError(f"Unknown output kind: {kind}")
         if index is not None:
             if z is not None:
                 raise ValueError("Cannot specify both z and index")
             z = self.inputs.node_redshifts[index]
 
-        zs_of_kind = list(getattr(self, kind).keys())
+        zs_of_kind = np.array(list(getattr(self, kind).keys()))
         if z not in zs_of_kind:
             closest = np.argmin(np.abs(zs_of_kind - z))
             if abs(closest - z) > match_z_within:
@@ -386,11 +391,16 @@ class RunCache:
         fl = getattr(self, kind)[z]
         return read_output_struct(fl)
 
+    def get_ics(self) -> op.InitialConditions:
+        """Return the initial conditions."""
+        return read_output_struct(self.InitialConditions)
+
     def get_all_boxes_at_z(
         self,
-        z: float | None,
-        index: int | None,
+        z: float | None = None,
+        index: int | None = None,
         match_z_within: float = 0.01,
+        return_ics: bool = False,
     ) -> dict[str, OutputStruct]:
         """Return all boxes at or close to a given redshift.
 
@@ -400,8 +410,8 @@ class RunCache:
             The redshift at which to return the boxes.
         index : int
             The node-redshift index at which to return the boxes.
-        allow_closest : bool
-            Whether to allow the closest redshift available in the cache to be returned.
+        match_z_within : float
+            The maximum difference between the requested and closest available redshift.
 
         Returns
         -------
@@ -413,9 +423,47 @@ class RunCache:
             for k, v in attrs.asdict(self, recurse=False).items()
             if isinstance(v, dict)
         ]
-        return {
+
+        out = {
             k: self.get_output_struct_at_z(k, z, index, match_z_within) for k in kinds
         }
+        if return_ics:
+            out["InitialConditions"] = self.get_ics()
+        return out
+
+    def get_coeval_at_z(
+        self,
+        z: float | None = None,
+        index: int | None = None,
+        match_z_within: float = 0.01,
+    ):
+        """Return a Coeval object at or close to a given redshift.
+
+        Parameters
+        ----------
+        z : float
+            The redshift at which to return the Coeval object.
+        index : int
+            The node-redshift index at which to return the Coeval object.
+        match_z_within : float
+            The maximum difference between the requested and closest available redshift.
+
+        Returns
+        -------
+        Coeval
+            The Coeval object at the given redshift.
+        """
+        from py21cmfast.drivers.coeval import Coeval
+
+        boxes = self.get_all_boxes_at_z(z, index, match_z_within, return_ics=True)
+        return Coeval(
+            initial_conditions=boxes["InitialConditions"],
+            perturbed_field=boxes["PerturbedField"],
+            ionized_box=boxes["IonizedBox"],
+            brightness_temperature=boxes["BrightnessTemp"],
+            ts_box=boxes.get("TsBox"),
+            halobox=boxes.get("HaloBox"),
+        )
 
     def is_complete(self) -> bool:
         """Whether the cache for the full simulation is complete."""
@@ -429,6 +477,7 @@ class RunCache:
             for fl in kind.values():
                 if not fl.exists():
                     return False
+        return True
 
 
 @attrs.define
