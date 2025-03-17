@@ -875,8 +875,6 @@ def sample_halos_from_conditions(
     }
 
 
-# TODO: make this able to take a proper HaloField/PerturbHaloField
-#    with corresponding Ts/ion/Ic fields for feedback
 def convert_halo_properties(
     *,
     redshift: float,

@@ -866,8 +866,6 @@ void find_ionised_regions(IonizedBox *box, IonizedBox *previous_ionize_box, Pert
                 for(z = 0; z < HII_D_PARA; z++) {
                     //Use unfiltered density for CELL_RECOMB case, since the "Fcoll" represents photons
                     //  reaching the central cell rather than photons in the entire sphere
-                    //TODO: test using the filtered density here with CELL_RECOMB, since it's what Davies+22 does,
-                    //  It's not clear how the MFP filter should count recombinations/local density.
                     //If we don't filter on the last step, might as well use the original field to prevent aliasing?
                     if(rspec.R_index==0)
                         curr_dens = perturbed_field->density[HII_R_INDEX(x,y,z)]*consts->photoncons_adjustment_factor;
@@ -994,7 +992,6 @@ void set_ionized_temperatures(IonizedBox *box, PerturbedField *perturbed_field, 
             for (y=0; y<user_params_global->HII_DIM; y++){
                 for (z=0; z<HII_D_PARA; z++){
                     if ((box->z_re_box[HII_R_INDEX(x,y,z)]>0) && (box->xH_box[HII_R_INDEX(x,y,z)] < TINY)){
-                        //TODO: do we want to use the photoncons redshift here or the original one?
                         box->temp_kinetic_all_gas[HII_R_INDEX(x,y,z)] = ComputeFullyIoinizedTemperature(box->z_re_box[HII_R_INDEX(x,y,z)], \
                                                                     consts->stored_redshift, perturbed_field->density[HII_R_INDEX(x,y,z)],
                                                                     consts->T_re);

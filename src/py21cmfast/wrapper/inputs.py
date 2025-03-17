@@ -588,7 +588,7 @@ class UserParams(InputStruct):
         validator=[
             validators.in_(_filter_options),
             validators.not_(validators.in_("sharp-k")),
-        ],  # TODO: seems bad
+        ],
         transformer=choice_transformer(_filter_options),
     )
     HALO_FILTER = field(
