@@ -7,6 +7,7 @@ from functools import cache
 from typing import Literal
 
 import numpy as np
+from numpy.typing import NDArray
 from scipy.interpolate import interp1d
 
 from .._cfg import config
@@ -453,7 +454,7 @@ def get_matter_power_values(
 
 def evaluate_sigma(
     inputs: InputParameters,
-    masses: Sequence[float],
+    masses: NDArray[float],
 ):
     """
     Evaluate the variance of a mass scale.
@@ -520,7 +521,7 @@ def get_delta_crit_nu(user_params: UserParams, sigma: float, growth: float):
 
 def evaluate_condition_integrals(
     inputs: InputParameters,
-    cond_array: Sequence[float],
+    cond_array: NDArray[float],
     redshift: float,
     redshift_prev: float | None = None,
 ):
@@ -553,9 +554,9 @@ def evaluate_condition_integrals(
 def integrate_chmf_interval(
     inputs: InputParameters,
     redshift: float,
-    lnm_lower: Sequence[float],
-    lnm_upper: Sequence[float],
-    cond_values: Sequence[float],
+    lnm_lower: NDArray[float],
+    lnm_upper: NDArray[float],
+    cond_values: NDArray[float],
     redshift_prev: float | None = None,
 ):
     """Evaluate conditional mass function integrals at a range of mass intervals."""
@@ -588,8 +589,8 @@ def integrate_chmf_interval(
 
 def evaluate_inverse_table(
     inputs: InputParameters,
-    cond_array: Sequence[float],
-    probabilities: Sequence[float],
+    cond_array: NDArray[float],
+    probabilities: NDArray[float],
     redshift: float,
     redshift_prev: float | None = None,
 ):
@@ -625,7 +626,7 @@ def evaluate_inverse_table(
 
 def evaluate_FgtrM_cond(
     inputs: InputParameters,
-    densities: Sequence[float],
+    densities: NDArray[float],
     redshift: float,
     R: float,
 ):
@@ -652,8 +653,8 @@ def evaluate_FgtrM_cond(
 def evaluate_SFRD_z(
     *,
     inputs: InputParameters,
-    redshifts: Sequence[float],
-    log10mturns: Sequence[float],
+    redshifts: NDArray[float],
+    log10mturns: NDArray[float],
 ):
     """Evaluate the global star formation rate density expected at a range of redshifts."""
     if redshifts.shape != log10mturns.shape:
@@ -685,8 +686,8 @@ def evaluate_SFRD_z(
 def evaluate_Nion_z(
     *,
     inputs: InputParameters,
-    redshifts: Sequence[float],
-    log10mturns: Sequence[float],
+    redshifts: NDArray[float],
+    log10mturns: NDArray[float],
 ):
     """Evaluate the global ionising emissivity expected at a range of redshifts."""
     if redshifts.shape != log10mturns.shape:
@@ -720,8 +721,8 @@ def evaluate_SFRD_cond(
     inputs: InputParameters,
     redshift: float,
     radius: float,
-    densities: Sequence[float],
-    log10mturns: Sequence[float],
+    densities: NDArray[float],
+    log10mturns: NDArray[float],
 ):
     """Evaluate the conditional star formation rate density expected at a range of densities."""
     if densities.shape != log10mturns.shape:
@@ -756,9 +757,9 @@ def evaluate_Nion_cond(
     inputs: InputParameters,
     redshift: float,
     radius: float,
-    densities: Sequence[float],
-    l10mturns_acg: Sequence[float],
-    l10mturns_mcg: Sequence[float],
+    densities: NDArray[float],
+    l10mturns_acg: NDArray[float],
+    l10mturns_mcg: NDArray[float],
 ):
     """Evaluate the conditional ionising emissivity expected at a range of densities."""
     if not (densities.shape == l10mturns_mcg.shape == l10mturns_acg.shape):
@@ -795,8 +796,8 @@ def evaluate_Xray_cond(
     inputs: InputParameters,
     redshift: float,
     radius: float,
-    densities: Sequence[float],
-    log10mturns: Sequence[float],
+    densities: NDArray[float],
+    log10mturns: NDArray[float],
 ):
     """Evaluate the conditional star formation rate density expected at a range of densities."""
     if densities.shape != log10mturns.shape:
@@ -885,15 +886,15 @@ def convert_halo_properties(
     *,
     redshift: float,
     inputs: InputParameters,
-    halo_masses: Sequence[float],
-    star_rng: Sequence[float],
-    sfr_rng: Sequence[float],
-    xray_rng: Sequence[float],
-    halo_coords: Sequence[float] | None = None,
-    vcb_grid: Sequence[float] | None = None,
-    J_21_LW_grid: Sequence[float] | None = None,
-    z_re_grid: Sequence[float] | None = None,
-    Gamma12_grid: Sequence[float] | None = None,
+    halo_masses: NDArray[float],
+    star_rng: NDArray[float],
+    sfr_rng: NDArray[float],
+    xray_rng: NDArray[float],
+    halo_coords: NDArray[float] | None = None,
+    vcb_grid: NDArray[float] | None = None,
+    J_21_LW_grid: NDArray[float] | None = None,
+    z_re_grid: NDArray[float] | None = None,
+    Gamma12_grid: NDArray[float] | None = None,
 ):
     """
     Convert a halo catalogue's mass and RNG fields to halo properties.
