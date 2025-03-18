@@ -22,6 +22,7 @@ if "TOXENV" in os.environ and "SETUPPY_CFLAGS" in os.environ:
     os.environ["CFLAGS"] = os.environ["SETUPPY_CFLAGS"]
 
 test_req = [
+    "hmf",
     "pre-commit",
     "pytest>=5.0",
     "pytest-cov",
