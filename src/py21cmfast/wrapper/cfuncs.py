@@ -30,15 +30,14 @@ def broadcast_params(func: Callable) -> Callable:
     21cmFAST backend without passing through our regular functions.
     """
 
-    def wrapper(*args, **kwargs):
-        inputs = kwargs.get("inputs")
+    def wrapper(*args, inputs: InputParameters, **kwargs):
         lib.Broadcast_struct_global_all(
             inputs.user_params.cstruct,
             inputs.cosmo_params.cstruct,
             inputs.astro_params.cstruct,
             inputs.flag_options.cstruct,
         )
-        return func(*args, **kwargs)
+        return func(*args, inputs=inputs, **kwargs)
 
     return wrapper
 
@@ -69,12 +68,9 @@ def init_sigma_table(func: Callable) -> Callable:
     def wrapper(*args, inputs: InputParameters, **kwargs):
         sigma_min_mass = kwargs.get("M_min", 1e5)
         sigma_max_mass = kwargs.get("M_max", 1e16)
-        if (
-            kwargs.get("inputs").user_params.USE_INTERPOLATION_TABLES
-            != "no-interpolation"
-        ):
+        if inputs.user_params.USE_INTERPOLATION_TABLES != "no-interpolation":
             lib.initialiseSigmaMInterpTable(sigma_min_mass, sigma_max_mass)
-        return func(*args, **kwargs)
+        return func(*args, inputs=inputs, **kwargs)
 
     return wrapper
 
@@ -95,7 +91,7 @@ def init_gl(func: Callable) -> Callable:
         ):
             # no defualt since GL mass limits are strict
             lib.initialise_GL(np.log(kwargs.get("M_min")), np.log(kwargs.get("M_max")))
-        return func(*args, **kwargs)
+        return func(*args, inputs=inputs, **kwargs)
 
     return wrapper
 
@@ -443,6 +439,16 @@ def construct_fftw_wisdoms(
         return lib.CreateFFTWWisdoms(user_params.cstruct, cosmo_params.cstruct)
     else:
         return 0
+
+
+@init_backend_ps
+def get_matter_power_values(
+    *,
+    inputs: InputParameters,
+    k_values: Sequence[float],
+):
+    """Evaluate the power at a certain scale from the 21cmFAST backend."""
+    return np.vectorize(lib.power_in_k)(k_values)
 
 
 def evaluate_sigma(
@@ -973,3 +979,63 @@ def convert_halo_properties(
         "mturn_r": out_buffer[:, 10].reshape(halo_masses.shape),
         "metallicity": out_buffer[:, 11].reshape(halo_masses.shape),
     }
+
+
+@init_sigma_table
+def return_uhmf_value(
+    *,
+    inputs: InputParameters,
+    redshift: float,
+    mass_values: Sequence[float],
+):
+    """Return the value of the unconditional halo mass function at given parameters.
+
+    Parameters
+    ----------
+    inputs : InputParameters
+        The input parameters defining the simulation run.
+    redshift : float
+        The redshift at which to evaluate the halo mass function.
+    mass_values : float
+        The mass values at which to evaluate the halo mass function.
+    """
+    growthf = lib.dicke(redshift)
+    return np.vectorize(lib.unconditional_mf)(
+        growthf, np.log(mass_values), redshift, inputs.user_params.cdict["HMF"]
+    )
+
+
+@init_sigma_table
+def return_chmf_value(
+    *,
+    inputs: InputParameters,
+    redshift: float,
+    mass_values: Sequence[float],
+    delta_values: Sequence[float],
+    condmass_values: Sequence[float],
+):
+    """Return the value of the conditional halo mass function at given parameters.
+
+    Parameters
+    ----------
+    inputs : InputParameters
+        The input parameters defining the simulation run.
+    redshift : float
+        The redshift at which to evaluate the halo mass function.
+    mass_values : float
+        The mass values at which to evaluate the halo mass function.
+    delta : float
+        The overdensity at which to evaluate the halo mass function.
+    cond_mass : float
+        The condition mass at which to evaluate the halo mass function.
+    """
+    growthf = lib.dicke(redshift)
+    sigma = np.vectorize(lib.sigma_z0)(condmass_values)
+
+    return np.vectorize(lib.conditional_mf)(
+        growthf,
+        np.log(mass_values[None, None, :]),
+        delta_values[:, None, None],
+        sigma[None, :, None],
+        inputs.user_params.cdict["HMF"],
+    )

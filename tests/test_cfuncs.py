@@ -1,7 +1,9 @@
 """Test the wrapper functions which access the C-backend, but not though an OutputStruct compute() method."""
 
+import matplotlib as mpl
 import numpy as np
 import pytest
+from hmf import MassFunction
 
 import py21cmfast as p21c
 from py21cmfast.wrapper import cfuncs as cf
@@ -124,3 +126,178 @@ def test_bad_integral_inputs(default_input_struct):
             sfr_rng=np.zeros(10),
             xray_rng=np.zeros(11),
         )
+
+
+@pytest.mark.parametrize("hmf_model", ["PS", "ST"])
+@pytest.mark.parametrize("ps_model", ["EH", "BBKS", "EFSTATHIOU"])
+@pytest.mark.xfail(reason="pending proper comparison between 21cmFAST and hmf")
+def test_hmf_values(default_input_struct, hmf_model, ps_model, plt):
+    redshift = 8.0
+    hmf_map = {
+        "PS": "PS",
+        "ST": "Jenkins",
+    }
+    transfer_map = {
+        "EH": "EH",
+        "BBKS": "BBKS",
+        "EFSTATHIOU": "BondEfs",
+    }
+
+    comparison_mf = MassFunction(
+        z=redshift,
+        Mmin=7,
+        Mmax=13,
+        hmf_model=hmf_map[hmf_model],
+        transfer_model=transfer_map[ps_model],
+    )
+
+    inputs = default_input_struct.clone(
+        cosmo_params=p21c.CosmoParams.from_astropy(
+            comparison_mf.cosmo,
+            SIGMA_8=comparison_mf.sigma_8,
+            POWER_INDEX=comparison_mf.n,
+        ),
+    ).evolve_input_structs(
+        POWER_SPECTRUM=ps_model,
+        HMF=hmf_model,
+    )
+    h = inputs.cosmo_params.cosmo.h
+
+    hmf_vals = cf.return_uhmf_value(
+        inputs=inputs,
+        redshift=redshift,
+        mass_values=comparison_mf.m / h,
+    )
+
+    sigma_vals, _ = cf.evaluate_sigma(
+        inputs=default_input_struct,
+        masses=comparison_mf.m / h,
+    )
+
+    power_vals = cf.get_matter_power_values(
+        inputs=default_input_struct,
+        k_values=comparison_mf.k * h,
+    )
+
+    mass_dens = (
+        inputs.cosmo_params.cosmo.critical_density(0).to("M_sun Mpc^-3").value
+        * inputs.cosmo_params.cosmo.Om0
+    )
+
+    if plt == mpl.pyplot:
+        make_matterfield_comparison_plot(
+            comparison_mf.m / h,
+            comparison_mf.k * h,
+            [
+                comparison_mf.dndlnm * (h**3),
+                comparison_mf._sigma_0,
+                comparison_mf._power0 / (h**3),
+            ],
+            [hmf_vals * mass_dens, sigma_vals, power_vals],
+            plt,
+        )
+
+    np.testing.assert_allclose(
+        mass_dens * hmf_vals, comparison_mf.dndlnm * (h**3), rtol=1e-3
+    )
+    np.testing.assert_allclose(sigma_vals, comparison_mf.sigma, rtol=1e-3)
+    np.testing.assert_allclose(power_vals, comparison_mf.power / (h**3), rtol=1e-3)
+
+
+@pytest.mark.parametrize("hmf_model", ["PS", "ST"])
+@pytest.mark.parametrize("ps_model", ["EH", "BBKS", "EFSTATHIOU"])
+def test_hmf_runs(default_input_struct, hmf_model, ps_model):
+    mass_range = np.logspace(7, 12, num=64)
+    redshift = 8.0
+
+    inputs = default_input_struct.evolve_input_structs(
+        POWER_SPECTRUM=ps_model,
+        HMF=hmf_model,
+    )
+
+    hmf_vals = cf.return_uhmf_value(
+        inputs=inputs,
+        redshift=redshift,
+        mass_values=mass_range,
+    )
+
+    assert hmf_vals.shape == (len(mass_range),)
+    assert np.all(~np.isnan(hmf_vals))
+
+
+@pytest.mark.parametrize("hmf_model", ["PS", "ST"])
+@pytest.mark.parametrize("ps_model", ["EH", "BBKS", "EFSTATHIOU"])
+def test_chmf_runs(default_input_struct, hmf_model, ps_model):
+    delta_range = np.linspace(-1.0, 1.7, num=32)
+    condmass_range = np.logspace(8, 13, num=16)
+    mass_range = np.logspace(7, 12, num=64)
+    redshift = 8.0
+
+    inputs = default_input_struct.evolve_input_structs(
+        POWER_SPECTRUM=ps_model,
+        HMF=hmf_model,
+    )
+
+    hmf_vals = cf.return_chmf_value(
+        inputs=inputs,
+        redshift=redshift,
+        mass_values=mass_range,
+        delta_values=delta_range,
+        condmass_values=condmass_range,
+    )
+
+    assert hmf_vals.shape == (len(delta_range), len(condmass_range), len(mass_range))
+    assert np.all(~np.isnan(hmf_vals))
+
+
+def test_ps_runs(default_input_struct):
+    k_values = np.logspace(-3, 1, num=64)
+
+    ps = cf.get_matter_power_values(
+        inputs=default_input_struct,
+        k_values=k_values,
+    )
+
+    assert ps.shape == (len(k_values),)
+    assert np.all(ps >= 0.0)
+
+
+def make_matterfield_comparison_plot(
+    x,
+    k,
+    true,
+    test,
+    plt,
+    **kwargs,
+):
+    fig, axs = plt.subplots(nrows=2, ncols=3, figsize=(16, 8))
+
+    for i, row in enumerate(axs):
+        for j, ax in enumerate(row):
+            ax.set_xscale("log")
+            if i == 1:
+                ax.set_xlabel("Mass") if j < 2 else ax.set_xlabel("k")
+                ax.set_ylim(-1, 1)
+                ax.axhline(0, color="k", linestyle="--")
+            else:
+                ax.set_yscale("log")
+
+            if j == 0:
+                ax.set_ylabel("dndlnM")
+            elif j == 1:
+                ax.set_ylabel("Sigma")
+            else:
+                ax.set_ylabel("Power Spectrum")
+
+    axs[0, 0].loglog(x, true[0], linestyle="-", label="Truth", **kwargs)
+    axs[0, 0].loglog(x, test[0], linestyle=":", linewidth=3, label="Test", **kwargs)
+    axs[1, 0].semilogx(x, (test[0] - true[0]) / true[0], **kwargs)
+    axs[0, 0].legend()
+
+    axs[0, 1].loglog(x, true[1], linestyle="-", label="Truth", **kwargs)
+    axs[0, 1].loglog(x, test[1], linestyle=":", linewidth=3, label="Test", **kwargs)
+    axs[1, 1].semilogx(x, (test[1] - true[1]) / true[1], **kwargs)
+
+    axs[0, 2].loglog(k, true[2], linestyle="-", label="Truth", **kwargs)
+    axs[0, 2].loglog(k, test[2], linestyle=":", linewidth=3, label="Test", **kwargs)
+    axs[1, 2].semilogx(k, (test[2] - true[2]) / true[2], **kwargs)
