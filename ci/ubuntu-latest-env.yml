@@ -15,6 +15,7 @@ dependencies:
   - h5py>=2.8.0
   - matplotlib
   - pip
+  - hmf
   - pip:
     - powerbox<0.8.1
     - cached_property

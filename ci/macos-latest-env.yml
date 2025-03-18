@@ -17,6 +17,7 @@ dependencies:
   - pip
   - gsl
   - fftw
+  - hmf
   - pip:
     - powerbox<0.8.1
     - cached_property
