@@ -203,8 +203,8 @@ def test_inverse_cmf_tables(name, cond_type, delta_range, mass_range, plt):
     # Get the Integrals on mass limits
     cmf_integral = cf.integrate_chmf_interval(
         inputs=inputs,
-        lnM_lower=lnMmin_range,
-        lnM_upper=np.full_like(lnMmin_range, 16 * np.log(10)),
+        lnm_lower=lnMmin_range,
+        lnm_upper=np.full_like(lnMmin_range, 16 * np.log(10)),
         cond_values=inputs_cond,
         redshift=redshift,
         redshift_prev=z_desc,

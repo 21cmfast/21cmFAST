@@ -71,8 +71,8 @@ def test_sampler(name, cond, cond_type, plt):
     # get CMF integrals in the same bins
     binned_cmf = cf.integrate_chmf_interval(
         inputs=inputs,
-        lnM_lower=bin_minima,
-        lnM_upper=bin_maxima,
+        lnm_lower=bin_minima,
+        lnm_upper=bin_maxima,
         redshift=redshift,
         cond_values=np.array([cond_val]),
         redshift_prev=z_desc,
