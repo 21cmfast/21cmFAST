@@ -197,11 +197,11 @@ def test_matterfield_statistics(default_input_struct, hmf_model, ps_model, plt):
             plt,
         )
 
+    np.testing.assert_allclose(power_vals, comparison_mf.power / (h**3), rtol=1e-3)
+    np.testing.assert_allclose(sigma_vals, comparison_mf.sigma, rtol=1e-3)
     np.testing.assert_allclose(
         mass_dens * hmf_vals, comparison_mf.dndlnm * (h**3), rtol=1e-3
     )
-    np.testing.assert_allclose(sigma_vals, comparison_mf.sigma, rtol=1e-3)
-    np.testing.assert_allclose(power_vals, comparison_mf.power / (h**3), rtol=1e-3)
 
 
 @pytest.mark.parametrize("hmf_model", ["PS", "ST"])
