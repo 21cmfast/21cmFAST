@@ -131,7 +131,7 @@ def test_bad_integral_inputs(default_input_struct):
 @pytest.mark.parametrize("hmf_model", ["PS", "ST"])
 @pytest.mark.parametrize("ps_model", ["EH", "BBKS", "EFSTATHIOU"])
 @pytest.mark.xfail(reason="pending proper comparison between 21cmFAST and hmf")
-def test_hmf_values(default_input_struct, hmf_model, ps_model, plt):
+def test_matterfield_statistics(default_input_struct, hmf_model, ps_model, plt):
     redshift = 8.0
     hmf_map = {
         "PS": "PS",
@@ -170,12 +170,12 @@ def test_hmf_values(default_input_struct, hmf_model, ps_model, plt):
     )
 
     sigma_vals, _ = cf.evaluate_sigma(
-        inputs=default_input_struct,
+        inputs=inputs,
         masses=comparison_mf.m / h,
     )
 
     power_vals = cf.get_matter_power_values(
-        inputs=default_input_struct,
+        inputs=inputs,
         k_values=comparison_mf.k * h,
     )
 
