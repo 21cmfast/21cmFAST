@@ -27,3 +27,11 @@ repos:
 
     # Run the formatter.
     - id: ruff-format
+
+repos:
+- repo: https://github.com/pre-commit/mirrors-clang-format
+  rev: v20.1.0
+  hooks:
+  - id: clang-format
+    args: [--style=Google]
+    types_or: [c, c++, cuda]

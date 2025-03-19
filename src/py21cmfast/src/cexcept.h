@@ -186,19 +186,19 @@ is subject to change.
 
 ===*/
 
-
 #ifndef CEXCEPT_H
 #define CEXCEPT_H
-
 
 #include <setjmp.h>
 
 #define define_exception_type(etype) \
-struct exception_context { \
-  jmp_buf *penv; \
-  int caught; \
-  volatile struct { etype etmp; } v; \
-}
+  struct exception_context {         \
+    jmp_buf *penv;                   \
+    int caught;                      \
+    volatile struct {                \
+      etype etmp;                    \
+    } v;                             \
+  }
 
 /* etmp must be volatile because the application might use automatic */
 /* storage for the_exception_context, and etmp is modified between   */
@@ -208,25 +208,24 @@ struct exception_context { \
 
 #define init_exception_context(ec) ((void)((ec)->penv = 0))
 
-#define Try \
-  { \
-    jmp_buf *exception__prev, exception__env; \
+#define Try                                        \
+  {                                                \
+    jmp_buf *exception__prev, exception__env;      \
     exception__prev = the_exception_context->penv; \
     the_exception_context->penv = &exception__env; \
-    if (setjmp(exception__env) == 0) { \
+    if (setjmp(exception__env) == 0) {             \
       do
 
-#define exception__catch(action) \
-      while (the_exception_context->caught = 0, \
-             the_exception_context->caught); \
-    } \
-    else { \
-      the_exception_context->caught = 1; \
-    } \
-    the_exception_context->penv = exception__prev; \
-  } \
-  if (!the_exception_context->caught || action) { } \
-  else
+#define exception__catch(action)                                            \
+  while (the_exception_context->caught = 0, the_exception_context->caught); \
+  }                                                                         \
+  else {                                                                    \
+    the_exception_context->caught = 1;                                      \
+  }                                                                         \
+  the_exception_context->penv = exception__prev;                            \
+  }                                                                         \
+  if (!the_exception_context->caught || action) {                           \
+  } else
 
 #define Catch(e) exception__catch(((e) = the_exception_context->v.etmp, 0))
 #define Catch_anonymous exception__catch(0)
@@ -240,9 +239,8 @@ struct exception_context { \
 /* Most compilers should still recognize that the condition is always */
 /* false and avoid generating code for it.                            */
 
-#define Throw \
+#define Throw                                       \
   for (;; longjmp(*the_exception_context->penv, 1)) \
-    the_exception_context->v.etmp =
-
+  the_exception_context->v.etmp =
 
 #endif /* CEXCEPT_H */
