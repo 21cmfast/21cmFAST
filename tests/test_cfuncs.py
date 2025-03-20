@@ -143,12 +143,20 @@ def test_matterfield_statistics(default_input_struct, hmf_model, ps_model, plt):
         "EFSTATHIOU": "BondEfs",
     }
 
+    if ps_model == "BBKS":
+        t_params = {"use_sugiyama_baryons": True, "use_liddle_baryons": False}
+    elif ps_model == "EFSTATHIOU":
+        t_params = {"nu": 1.13}
+    else:
+        t_params = {}
+
     comparison_mf = MassFunction(
         z=redshift,
         Mmin=7,
-        Mmax=13,
+        Mmax=16,
         hmf_model=hmf_map[hmf_model],
         transfer_model=transfer_map[ps_model],
+        transfer_params=t_params,
     )
 
     inputs = default_input_struct.clone(

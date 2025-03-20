@@ -134,7 +134,7 @@ double dsigmasqdm_z0(double M);
 double power_in_k(double k);
 double get_delta_crit(int HMF, double sigma, double growthf);
 double atomic_cooling_threshold(float z);
-double unconditional_mf(double growthf, double lnM, double z, int HMF);
-double conditional_mf(double growthf, double lnM, double delta, double sigma, int HMF);
+double unconditional_hmf(double growthf, double lnM, double z, int HMF);
+double conditional_hmf(double growthf, double lnM, double delta, double sigma, int HMF);
 double expected_nhalo(double redshift,  UserParams *user_params,  CosmoParams *cosmo_params);
 /*-----------------------*/

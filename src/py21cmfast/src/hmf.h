@@ -28,8 +28,8 @@ double Nion_ConditionalM(double growthf, double lnM1, double lnM2, double lnM_co
 double Xray_ConditionalM(double redshift, double growthf, double lnM1, double lnM2, double lnM_cond, double sigma2, double delta2,
                          double mturn_acg, double mturn_mcg, struct ScalingConstants * sc, int method);
 
-double unconditional_mf(double growthf, double lnM, double z, int HMF);
-double conditional_mf(double growthf, double lnM, double delta_cond, double sigma_cond, int HMF);
+double unconditional_hmf(double growthf, double lnM, double z, int HMF);
+double conditional_hmf(double growthf, double lnM, double delta_cond, double sigma_cond, int HMF);
 
 /* erfc-based HMF integrals (!USE_MASS_DEPENDENT_ZETA and EPS) */
 double FgtrM(double z, double M);

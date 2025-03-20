@@ -1001,7 +1001,7 @@ def return_uhmf_value(
         The mass values at which to evaluate the halo mass function.
     """
     growthf = lib.dicke(redshift)
-    return np.vectorize(lib.unconditional_mf)(
+    return np.vectorize(lib.unconditional_hmf)(
         growthf, np.log(mass_values), redshift, inputs.user_params.cdict["HMF"]
     )
 
@@ -1033,7 +1033,7 @@ def return_chmf_value(
     growthf = lib.dicke(redshift)
     sigma = np.vectorize(lib.sigma_z0)(condmass_values)
 
-    return np.vectorize(lib.conditional_mf)(
+    return np.vectorize(lib.conditional_hmf)(
         growthf,
         np.log(mass_values[None, None, :]),
         delta_values[:, None, None],

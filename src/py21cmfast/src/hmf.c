@@ -381,7 +381,7 @@ double xray_fraction_doublePL(double lnM, void *param_struct){
     return SperYR*(sfr*l_x + sfr_mini*l_x_mini);
 }
 
-double conditional_mf(double growthf, double lnM, double delta, double sigma, int HMF){
+double conditional_hmf(double growthf, double lnM, double delta, double sigma, int HMF){
     //dNdlnM = dfcoll/dM * M / M * constants
     if(HMF==0) {
         return dNdM_conditional_EPS(growthf,lnM,delta,sigma);
@@ -405,7 +405,7 @@ double c_mf_integrand(double lnM, void *param_struct){
     double sigma2 = params.sigma_cond;
     int HMF = params.HMF;
 
-    return conditional_mf(growthf,lnM,delta,sigma2,HMF);
+    return conditional_hmf(growthf,lnM,delta,sigma2,HMF);
 }
 
 double c_fcoll_integrand(double lnM, void *param_struct){
@@ -424,7 +424,7 @@ double c_xray_integrand(double lnM, void *param_struct){
     return xray_fraction_doublePL(lnM,param_struct) * c_mf_integrand(lnM,param_struct);
 }
 
-double unconditional_mf(double growthf, double lnM, double z, int HMF){
+double unconditional_hmf(double growthf, double lnM, double z, int HMF){
     //most of the UMFs are defined with M, but we integrate over lnM
     //NOTE: HMF > 4 or < 0 gets caught earlier, so unless some strange change is made this is fine
     if(HMF==0) {
@@ -454,7 +454,7 @@ double u_mf_integrand(double lnM, void *param_struct){
     double z = params.redshift;
     int HMF = params.HMF;
 
-    return unconditional_mf(growthf,lnM,z,HMF);
+    return unconditional_hmf(growthf,lnM,z,HMF);
 }
 
 double u_fcoll_integrand(double lnM, void *param_struct){
