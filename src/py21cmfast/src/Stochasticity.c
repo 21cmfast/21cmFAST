@@ -23,39 +23,6 @@
 //buffer size (per cell of arbitrary size) in the sampling function
 #define MAX_HALO_CELL (int)1e5
 
-//parameters for the halo mass->stars calculations
-//Note: ideally I would split this into constants set per snapshot and
-//  constants set per condition, however some variables (delta or Mass)
-//  can be set with differing frequencies depending on the condition type
-struct HaloSamplingConstants{
-    //calculated per redshift
-    int from_catalog; //flag for first box or updating halos
-    double corr_sfr;
-    double corr_star;
-    double corr_xray;
-
-    double z_in;
-    double z_out;
-    double growth_in;
-    double growth_out;
-    double M_min;
-    double lnM_min;
-    double M_max_tables;
-    double lnM_max_tb;
-    double sigma_min;
-
-    //per-condition/redshift depending on from_catalog or not
-    double delta;
-    double M_cond;
-    double lnM_cond;
-    double sigma_cond;
-
-    //calculated per condition
-    double cond_val; //This is the table x value (density for grids, log mass for progenitors)
-    double expected_N;
-    double expected_M;
-};
-
 void print_hs_consts(struct HaloSamplingConstants * c){
     LOG_DEBUG("Printing halo sampler constants....");
     LOG_DEBUG("from_catalog %d z_in %.2f z_out %.2f d_in %.2f d_out %.2f",c->from_catalog,c->z_in,c->z_out,c->growth_in,c->growth_out);
@@ -77,13 +44,13 @@ double expected_nhalo(double redshift, UserParams *user_params, CosmoParams *cos
     double result;
 
     init_ps();
-    if(user_params->USE_INTERPOLATION_TABLES)
+    if(user_params->USE_INTERPOLATION_TABLES > 0)
         initialiseSigmaMInterpTable(M_min,M_max);
 
     result = Nhalo_General(redshift, log(M_min), log(M_max)) * VOLUME * cosmo_params->OMm * RHOcrit;
     LOG_DEBUG("Expected %.2e Halos in the box from masses %.2e to %.2e at z=%.2f",result,M_min,M_max,redshift);
 
-    if(user_params->USE_INTERPOLATION_TABLES)
+    if(user_params->USE_INTERPOLATION_TABLES > 0)
         freeSigmaMInterpTable();
 
     return result;
@@ -100,6 +67,11 @@ double sample_dndM_inverse(double condition, struct HaloSamplingConstants * hs_c
 
 //Set the constants that are calculated once per snapshot
 void stoc_set_consts_z(struct HaloSamplingConstants *const_struct, double redshift, double redshift_desc){
+    if(redshift_desc > 0 && redshift < redshift_desc){
+        LOG_ERROR("you have passed a descendant redshift above the progenitor redshift");
+        Throw(ValueError);
+    }
+
     LOG_DEBUG("Setting z constants z=%.2f z_desc=%.2f",redshift,redshift_desc);
     const_struct->growth_out = dicke(redshift);
     const_struct->z_out = redshift;
@@ -111,7 +83,7 @@ void stoc_set_consts_z(struct HaloSamplingConstants *const_struct, double redshi
     const_struct->lnM_max_tb = log(const_struct->M_max_tables);
 
     init_ps();
-    if(user_params_global->USE_INTERPOLATION_TABLES){
+    if(user_params_global->USE_INTERPOLATION_TABLES > 0){
         if(user_params_global->SAMPLE_METHOD == 3)
             initialiseSigmaMInterpTable(const_struct->M_min/2,const_struct->M_max_tables); //the binary split needs to go below the resolution
         else
@@ -199,7 +171,7 @@ void stoc_set_consts_cond(struct HaloSamplingConstants *const_struct, double con
         const_struct->expected_M = const_struct->M_cond;
         const_struct->expected_N = 1;
     }
-    else if(const_struct->delta <= DELTA_MIN){
+    else if(const_struct->delta <= DELTA_MIN || const_struct->M_cond < const_struct->M_min){
         const_struct->expected_M = 0;
         const_struct->expected_N = 0;
     }
@@ -673,7 +645,7 @@ int stoc_sample(struct HaloSamplingConstants * hs_constants, gsl_rng * rng, int 
     int err;
     //If the expected mass is below our minimum saved mass, don't bother calculating
     //NOTE: some of these conditions are redundant with set_consts_cond()
-    if(hs_constants->delta <= DELTA_MIN || hs_constants->expected_M < user_params_global->SAMPLER_MIN_MASS){
+    if(hs_constants->delta <= DELTA_MIN){
         *n_halo_out = 0;
         return 0;
     }
@@ -1026,7 +998,7 @@ int stochastic_halofield(UserParams *user_params, CosmoParams *cosmo_params,
         LOG_DEBUG("First few XRAY RNG:     %11.3e %11.3e %11.3e",halos->xray_rng[0],halos->xray_rng[1],halos->xray_rng[2]);
     }
 
-    if(user_params_global->USE_INTERPOLATION_TABLES){
+    if(user_params_global->USE_INTERPOLATION_TABLES > 0){
         freeSigmaMInterpTable();
     }
     free_dNdM_tables();
@@ -1147,7 +1119,7 @@ int single_test_sample(UserParams *user_params, CosmoParams *cosmo_params, Astro
             }
         }
 
-        if(user_params_global->USE_INTERPOLATION_TABLES){
+        if(user_params_global->USE_INTERPOLATION_TABLES > 0){
             freeSigmaMInterpTable();
         }
         free_dNdM_tables();

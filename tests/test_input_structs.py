@@ -124,7 +124,10 @@ def test_mmin():
 def test_validation():
     c = CosmoParams()
     f = FlagOptions(
-        USE_EXP_FILTER=False, HII_FILTER="gaussian"
+        USE_EXP_FILTER=False,
+        HII_FILTER="gaussian",
+        USE_HALO_FIELD=False,
+        HALO_STOCHASTICITY=False,
     )  # needed for HII_FILTER checks
     a = AstroParams(R_BUBBLE_MAX=100)
     u = UserParams(BOX_LEN=50)
@@ -138,26 +141,60 @@ def test_validation():
             random_seed=1,
         )
 
-    f = f.clone(HII_FILTER="sharp-k")
-    a = a.clone(R_BUBBLE_MAX=20)
+    f2 = f.clone(HII_FILTER="sharp-k")
+    a2 = a.clone(R_BUBBLE_MAX=20)
     with pytest.raises(ValueError, match="Your R_BUBBLE_MAX is > BOX_LEN/3"):
         InputParameters(
             cosmo_params=c,
-            astro_params=a,
+            astro_params=a2,
             user_params=u,
-            flag_options=f,
+            flag_options=f2,
             random_seed=1,
         )
 
-    f = f.clone(INHOMO_RECO=True)
-    a = a.clone(R_BUBBLE_MAX=10)
+    f2 = f.clone(INHOMO_RECO=True)
+    a2 = a.clone(R_BUBBLE_MAX=10)
     msg = r"This is non\-standard \(but allowed\), and usually occurs upon manual update of INHOMO_RECO"
     with pytest.warns(UserWarning, match=msg):
         InputParameters(
             cosmo_params=c,
-            astro_params=a,
+            astro_params=a2,
             user_params=u,
-            flag_options=f,
+            flag_options=f2,
+            random_seed=1,
+        )
+
+    f2 = f.clone(USE_HALO_FIELD=True, HALO_STOCHASTICITY=True)
+    u2 = u.clone(PERTURB_ON_HIGH_RES=True)
+    msg = r"Since the lowres density fields are required for the halo sampler"
+    with pytest.raises(NotImplementedError, match=msg):
+        InputParameters(
+            cosmo_params=c,
+            astro_params=a2,
+            user_params=u2,
+            flag_options=f2,
+            random_seed=1,
+        )
+
+    u2 = u.clone(USE_INTERPOLATION_TABLES="sigma-interpolation")
+    msg = r"The halo sampler enabled with HALO_STOCHASTICITY requires the use of HMF interpolation tables."
+    with pytest.raises(ValueError, match=msg):
+        InputParameters(
+            cosmo_params=c,
+            astro_params=a2,
+            user_params=u2,
+            flag_options=f2,
+            random_seed=1,
+        )
+
+    f2 = f.clone(USE_EXP_FILTER=True, HII_FILTER="spherical-tophat")
+    msg = r"USE_EXP_FILTER has no effect unless USE_HALO_FIELD is true"
+    with pytest.warns(UserWarning, match=msg):
+        InputParameters(
+            cosmo_params=c,
+            astro_params=a2,
+            user_params=u,
+            flag_options=f2,
             random_seed=1,
         )
 

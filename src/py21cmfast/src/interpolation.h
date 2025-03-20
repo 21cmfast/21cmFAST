@@ -58,4 +58,9 @@ double EvaluateRGTable2D(double x, double y, RGTable2D *table);
 double EvaluateRGTable1D_f(double x, RGTable1D_f *table);
 double EvaluateRGTable2D_f(double x, double y, RGTable2D_f *table);
 
+bool RGTable2D_out_of_bounds(RGTable2D *table, double x_val, double y_val);
+bool RGTable2Df_out_of_bounds(RGTable2D_f *table, double x_val, double y_val);
+bool RGTable1D_out_of_bounds(RGTable1D *table, double x_val);
+bool RGTable1Df_out_of_bounds(RGTable1D_f *table, double x_val);
+
 #endif

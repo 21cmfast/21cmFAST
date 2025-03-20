@@ -407,9 +407,12 @@ class UserParams(InputStruct):
         useful for debugging and adding in new features
     USE_FFTW_WISDOM : bool, optional
         Whether or not to use stored FFTW_WISDOMs for improving performance of FFTs
-    USE_INTERPOLATION_TABLES: bool, optional
-        If True, calculates and evaluates quantites using interpolation tables, which
-        is considerably faster than when performing integrals explicitly.
+    USE_INTERPOLATION_TABLES: str, optional
+        Defines the interpolation tables used in the code. Default is 'hmf-interpolation'.
+        There are three levels available:
+        'no-interpolation': No interpolation tables are used.
+        'sigma-interpolation': Interpolation tables are used for sigma(M) only.
+        'hmf-interpolation': Interpolation tables are used for sigma(M) the halo mass function.
     INTEGRATION_METHOD_ATOMIC: int, optional
         The integration method to use for conditional MF integrals of atomic halos in the grids:
         NOTE: global integrals will use GSL QAG adaptive integration
@@ -514,6 +517,11 @@ class UserParams(InputStruct):
         "gaussian",
     )
     _perturb_options = ("LINEAR", "ZELDOVICH", "2LPT")
+    _interpolation_options = (
+        "no-interpolation",
+        "sigma-interpolation",
+        "hmf-interpolation",
+    )
 
     BOX_LEN = field(default=300.0, converter=float, validator=validators.gt(0))
     HII_DIM = field(default=200, converter=int, validator=validators.gt(0))
@@ -535,7 +543,12 @@ class UserParams(InputStruct):
     N_THREADS = field(default=1, converter=int, validator=validators.gt(0))
     PERTURB_ON_HIGH_RES = field(default=False, converter=bool)
     NO_RNG = field(default=False, converter=bool)
-    USE_INTERPOLATION_TABLES = field(default=True, converter=bool)
+    USE_INTERPOLATION_TABLES = field(
+        default="hmf-interpolation",
+        converter=str,
+        validator=validators.in_(_interpolation_options),
+        transformer=choice_transformer(_interpolation_options),
+    )
     INTEGRATION_METHOD_ATOMIC = field(
         default="GAUSS-LEGENDRE",
         converter=str,
@@ -575,7 +588,7 @@ class UserParams(InputStruct):
         validator=[
             validators.in_(_filter_options),
             validators.not_(validators.in_("sharp-k")),
-        ],  # TODO: seems bad
+        ],
         transformer=choice_transformer(_filter_options),
     )
     HALO_FILTER = field(
@@ -1238,13 +1251,21 @@ class InputParameters:
                     stacklevel=2,
                 )
 
-            if val.HALO_STOCHASTICITY and self.user_params.PERTURB_ON_HIGH_RES:
-                msg = (
-                    "Since the lowres density fields are required for the halo sampler"
-                    "We are currently unable to use PERTURB_ON_HIGH_RES and HALO_STOCHASTICITY"
-                    "Simultaneously."
-                )
-                raise NotImplementedError(msg)
+            if val.HALO_STOCHASTICITY:
+                if self.user_params.PERTURB_ON_HIGH_RES:
+                    msg = (
+                        "Since the lowres density fields are required for the halo sampler"
+                        "We are currently unable to use PERTURB_ON_HIGH_RES and HALO_STOCHASTICITY"
+                        "Simultaneously."
+                    )
+                    raise NotImplementedError(msg)
+
+                if self.user_params.USE_INTERPOLATION_TABLES != "hmf-interpolation":
+                    msg = (
+                        "The halo sampler enabled with HALO_STOCHASTICITY requires the use of HMF interpolation tables."
+                        "Switch USE_INTERPOLATION_TABLES to 'hmf-interpolation' to use the halo sampler."
+                    )
+                    raise ValueError(msg)
 
         if val.USE_EXP_FILTER and not val.USE_HALO_FIELD:
             warnings.warn(

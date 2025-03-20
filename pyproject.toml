@@ -80,9 +80,6 @@ ignore = [
     "D103",  # ignore missing docstrings
     "T",     # print statements
 ]
-"src/py21cmfast/wrapper/cfuncs.py" = [
-  "D401",  # imperative mood (we should remove this!!)
-]
 
 
 [tool.ruff.lint.pydocstyle]

@@ -18,7 +18,19 @@
 
 #include "scaling_relations.h"
 
-void set_scaling_constants(double redshift, AstroParams *astro_params, FlagOptions *flag_options, struct ScalingConstants *consts){
+void print_sc_consts(struct ScalingConstants * c){
+    LOG_DEBUG("Printing scaling relation constants z = %.3f....",c->redshift);
+    LOG_DEBUG("SHMR: f10 %.2e a %.2e f7 %.2e a_mini %.2e sigma %.2e",c->fstar_10,c->alpha_star,c->fstar_7,c->alpha_star_mini,c->sigma_star);
+    LOG_DEBUG("Upper: a_upper %.2e pivot %.2e",c->alpha_upper,c->pivot_upper);
+    LOG_DEBUG("FESC: f10 %.2e a %.2e f7 %.2e",c->fesc_10,c->alpha_esc,c->fesc_7);
+    LOG_DEBUG("SSFR: t* %.2e th %.8e sigma %.2e idx %.2e",c->t_star,c->t_h,c->sigma_sfr_lim,c->sigma_sfr_idx);
+    LOG_DEBUG("Turnovers (nofb) ACG %.2e MCG %.2e Upper %.2e",c->mturn_a_nofb,c->mturn_m_nofb,c->acg_thresh);
+    LOG_DEBUG("Limits (ACG,MCG) F* (%.2e %.2e) Fesc (%.2e %.2e)",c->Mlim_Fstar,c->Mlim_Fstar_mini,c->Mlim_Fesc,c->Mlim_Fesc_mini);
+    return;
+}
+
+void set_scaling_constants(double redshift, AstroParams *astro_params, FlagOptions *flag_options,
+                         struct ScalingConstants *consts, bool use_photoncons){
     consts->redshift = redshift;
 
     //Set on for the fixed grid case since we are missing halos above the cell mass
@@ -51,15 +63,19 @@ void set_scaling_constants(double redshift, AstroParams *astro_params, FlagOptio
     consts->fesc_10= astro_params->F_ESC10;
     consts->fesc_7 = astro_params->F_ESC7_MINI;
 
-    if(flag_options->PHOTON_CONS_TYPE == 2)
-        consts->alpha_esc = get_fesc_fit(redshift);
-    else if(flag_options->PHOTON_CONS_TYPE == 3)
-        consts->fesc_10 = get_fesc_fit(redshift);
+    if(use_photoncons){
+        if(flag_options->PHOTON_CONS_TYPE == 2)
+            consts->alpha_esc = get_fesc_fit(redshift);
+        else if(flag_options->PHOTON_CONS_TYPE == 3)
+            consts->fesc_10 = get_fesc_fit(redshift);
+    }
 
     consts->pop2_ion = astro_params->POP2_ION;
     consts->pop3_ion = astro_params->POP3_ION;
 
-    consts->mturn_a_nofb = flag_options->USE_MINI_HALOS ? atomic_cooling_threshold(redshift) : astro_params->M_TURN;
+    consts->acg_thresh = atomic_cooling_threshold(redshift);
+    consts->mturn_a_nofb = astro_params->M_TURN;
+    if(flag_options->USE_MINI_HALOS) consts->mturn_a_nofb = fmax(consts->acg_thresh,consts->mturn_a_nofb);
 
     consts->mturn_m_nofb = 0.;
     if(flag_options->USE_MINI_HALOS){
@@ -78,6 +94,44 @@ void set_scaling_constants(double redshift, AstroParams *astro_params, FlagOptio
                                                             consts->fesc_7 * pow(1e3,consts->alpha_esc));
         }
     }
+}
+
+//It's often useful to create a copy of scaling constants without F_ESC
+struct ScalingConstants evolve_scaling_constants_sfr(struct ScalingConstants *sc){
+    struct ScalingConstants sc_sfrd = *sc;
+    sc_sfrd.fesc_10 = 1.;
+    sc_sfrd.fesc_7 = 1.;
+    sc_sfrd.alpha_esc = 0.;
+    sc_sfrd.Mlim_Fesc = 0.;
+    sc_sfrd.Mlim_Fesc_mini = 0.;
+
+    return sc_sfrd;
+}
+
+//It's often useful to create a copy of scaling relations at a different z
+struct ScalingConstants evolve_scaling_constants_to_redshift(double redshift, AstroParams *astro_params, FlagOptions *flag_options, struct ScalingConstants *sc, bool use_photoncons){
+    struct ScalingConstants sc_z = *sc;
+    sc_z.redshift = redshift;
+    sc_z.t_h = t_hubble(redshift);
+
+    if(use_photoncons){
+        if(flag_options->PHOTON_CONS_TYPE == 2)
+            sc_z.alpha_esc = get_fesc_fit(redshift);
+        else if(flag_options->PHOTON_CONS_TYPE == 3)
+            sc_z.fesc_10 = get_fesc_fit(redshift);
+    }
+
+    sc_z.acg_thresh = atomic_cooling_threshold(redshift);
+    sc_z.mturn_a_nofb = astro_params->M_TURN;
+    if(flag_options->USE_MINI_HALOS) sc_z.mturn_a_nofb = fmax(sc_z.acg_thresh,sc_z.mturn_a_nofb);
+
+    sc_z.mturn_m_nofb = 0.;
+    if(flag_options->USE_MINI_HALOS){
+        sc_z.vcb_norel = flag_options->FIX_VCB_AVG ? astro_params->FIXED_VAVG : 0;
+        sc_z.mturn_m_nofb = lyman_werner_threshold(redshift, 0., sc_z.vcb_norel, astro_params);
+    }
+
+    return sc_z;
 }
 
 
@@ -247,7 +301,7 @@ void get_halo_stellarmass(double halo_mass, double mturn_acg, double mturn_mcg, 
     }
 
     f_sample_mini = scaling_single_PL(halo_mass,f_a_mini,1e7)*f_7;
-    f_sample_mini *= exp(-mturn_mcg/halo_mass - halo_mass/mturn_acg + star_rng*sigma_star - stoc_adjustment_term);
+    f_sample_mini *= exp(-mturn_mcg/halo_mass - halo_mass/consts->acg_thresh + star_rng*sigma_star - stoc_adjustment_term);
     if(f_sample_mini > 1.) f_sample_mini = 1.;
 
     sm_sample_mini = f_sample_mini * halo_mass * baryon_ratio;

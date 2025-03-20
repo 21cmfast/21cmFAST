@@ -1,6 +1,8 @@
 #ifndef _SCALING_H
 #define _SCALING_H
 
+#include <stdbool.h>
+
 //Parameters for the scaling relations
 //  These are just the values which come from the InputStruct objects and don't change within the snapshot
 //  using this reduces the use of the global parameter structs and allows fewer exp/log unit changes
@@ -36,6 +38,7 @@ struct ScalingConstants{
     double pop3_ion;
 
     double vcb_norel;
+    double acg_thresh;
     double mturn_a_nofb;
     double mturn_m_nofb;
 
@@ -45,7 +48,8 @@ struct ScalingConstants{
     double Mlim_Fesc_mini;
 };
 
-void set_scaling_constants(double redshift, AstroParams *astro_params, FlagOptions *flag_options, struct ScalingConstants *consts);
+void set_scaling_constants(double redshift, AstroParams *astro_params, FlagOptions *flag_options,
+                             struct ScalingConstants *consts, bool use_photoncons);
 
 double get_lx_on_sfr(double sfr, double metallicity, double lx_constant);
 void get_halo_stellarmass(double halo_mass, double mturn_acg, double mturn_mcg, double star_rng,
@@ -59,4 +63,8 @@ double scaling_PL_limit(double M, double norm, double alpha, double pivot, doubl
 double log_scaling_PL_limit(double lnM, double ln_norm, double alpha, double ln_pivot, double ln_limit);
 double scaling_double_PL(double M, double alpha_lo, double pivot_ratio,
                 double alpha_hi, double pivot_hi);
+struct ScalingConstants evolve_scaling_constants_sfr(struct ScalingConstants *sc);
+struct ScalingConstants evolve_scaling_constants_to_redshift(double redshift, AstroParams *astro_params, FlagOptions *flag_options, struct ScalingConstants *sc, bool use_photoncons);
+void print_sc_consts(struct ScalingConstants * c);
+
 #endif

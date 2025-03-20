@@ -55,9 +55,6 @@ float *inverse_val_box;
 int *m_xHII_low_box;
 float *inverse_diff;
 
-// Grids/arrays that are re-evaluated for each zp
-float *Mcrit_atom_interp_table;
-
 // interpolation tables for the heating/ionisation integrals
 double **freq_int_heat_tbl, **freq_int_ion_tbl, **freq_int_lya_tbl, **freq_int_heat_tbl_diff;
 double **freq_int_ion_tbl_diff, **freq_int_lya_tbl_diff;
@@ -66,9 +63,6 @@ double **freq_int_ion_tbl_diff, **freq_int_lya_tbl_diff;
 double *R_values, *dzpp_list, *dtdz_list, *zpp_growth, *zpp_for_evolve_list, *zpp_edge;
 double *sigma_min, *sigma_max, *M_max_R, *M_min_R;
 double *min_densities, *max_densities;
-
-//lazy globals (things I should put elsewhere but are only set once based on parameters)
-double Mlim_Fstar_g, Mlim_Fesc_g, Mlim_Fstar_MINI_g, Mlim_Fesc_MINI_g;
 
 //Arrays which specify the Radii, distances, redshifts of each shell
 //  They will have a global instance since they are reused a lot
@@ -209,7 +203,6 @@ void alloc_global_arrays(){
     //NOTE: The frequency integrals are tables regardless of the flag
     m_xHII_low_box = (int *)calloc(HII_TOT_NUM_PIXELS,sizeof(int));
     inverse_val_box = (float *)calloc(HII_TOT_NUM_PIXELS,sizeof(float));
-    Mcrit_atom_interp_table = (float *)calloc(astro_params_global->N_STEP_TS,sizeof(float));
 
     TsInterpArraysInitialised = true;
 }
@@ -278,8 +271,6 @@ void free_ts_global_arrays(){
     //interpolation helpers
     free(m_xHII_low_box);
     free(inverse_val_box);
-
-    free(Mcrit_atom_interp_table);
 
     //interp tables
     int num_R_boxes = user_params_global->MINIMIZE_MEMORY ? 1 : astro_params_global->N_STEP_TS;
@@ -728,7 +719,8 @@ int UpdateXraySourceBox(UserParams *user_params, CosmoParams *cosmo_params,
 //NOTE: these have always been interpolation tables in x_e, regardless of flags
 //NOTE: Frequency integrals are based on PREVIOUS x_e_ave
 //  The x_e tables are not regular, hence the precomputation of indices/interp points
-void fill_freqint_tables(double zp, double x_e_ave, double filling_factor_of_HI_zp, double *log10_Mcrit_LW_ave, int R_mm){
+void fill_freqint_tables(double zp, double x_e_ave, double filling_factor_of_HI_zp,
+                        double *log10_Mcrit_LW_ave, int R_mm, struct ScalingConstants *sc){
     double lower_int_limit;
     int x_e_ct,R_ct;
     int R_start, R_end;
@@ -751,11 +743,11 @@ void fill_freqint_tables(double zp, double x_e_ave, double filling_factor_of_HI_
         for (R_ct=R_start; R_ct<R_end; R_ct++){
             if(flag_options_global->USE_MINI_HALOS){
                 lower_int_limit = fmax(nu_tau_one_MINI(zp, zpp_for_evolve_list[R_ct], x_e_ave, filling_factor_of_HI_zp,
-                                                        log10_Mcrit_LW_ave[R_ct], Mlim_Fstar_g, Mlim_Fesc_g, Mlim_Fstar_MINI_g,
-                                                        Mlim_Fesc_MINI_g), (astro_params_global->NU_X_THRESH)*NU_over_EV);
+                                                        log10_Mcrit_LW_ave[R_ct], sc),
+                                                        (astro_params_global->NU_X_THRESH)*NU_over_EV);
             }
             else{
-                lower_int_limit = fmax(nu_tau_one(zp, zpp_for_evolve_list[R_ct], x_e_ave, filling_factor_of_HI_zp, Mlim_Fstar_g, Mlim_Fesc_g),
+                lower_int_limit = fmax(nu_tau_one(zp, zpp_for_evolve_list[R_ct], x_e_ave, filling_factor_of_HI_zp, sc),
                                              (astro_params_global->NU_X_THRESH)*NU_over_EV);
             }
             // set up frequency integral table for later interpolation for the cell's x_e value
@@ -837,7 +829,11 @@ int global_reion_properties(double zp, double x_e_ave, double *log10_Mcrit_LW_av
     //I will need to change the Tau function chain.
     double determine_zpp_max, determine_zpp_min;
 
-    if(user_params_global->USE_INTERPOLATION_TABLES){
+    //at z', we need a differenc constant struct
+    struct ScalingConstants sc;
+    set_scaling_constants(zp,astro_params_global,flag_options_global,&sc,false);
+
+    if(user_params_global->USE_INTERPOLATION_TABLES > 1){
         determine_zpp_min = zp*0.999;
         //NOTE: must be called after setup_z_edges for this line
         determine_zpp_max = zpp_for_evolve_list[astro_params_global->N_STEP_TS-1]*1.001;
@@ -849,13 +845,9 @@ int global_reion_properties(double zp, double x_e_ave, double *log10_Mcrit_LW_av
         //  The Nion table is used in nu_tau_one a lot but I think there's a better way to do that
         if(flag_options_global->USE_MASS_DEPENDENT_ZETA){
             /* initialise interpolation of the mean collapse fraction for global reionization.*/
-            initialise_Nion_Ts_spline(zpp_interp_points_SFR, determine_zpp_min, determine_zpp_max,
-                                        astro_params_global->ALPHA_STAR, astro_params_global->ALPHA_STAR_MINI, astro_params_global->ALPHA_ESC,
-                                        astro_params_global->F_STAR10, astro_params_global->F_ESC10, astro_params_global->F_STAR7_MINI, astro_params_global->F_ESC7_MINI);
+            initialise_Nion_Ts_spline(zpp_interp_points_SFR, determine_zpp_min, determine_zpp_max, &sc);
 
-            initialise_SFRD_spline(zpp_interp_points_SFR, determine_zpp_min, determine_zpp_max,
-                                    astro_params_global->ALPHA_STAR, astro_params_global->ALPHA_STAR_MINI,
-                                    astro_params_global->F_STAR10, astro_params_global->F_STAR7_MINI);
+            initialise_SFRD_spline(zpp_interp_points_SFR, determine_zpp_min, determine_zpp_max, &sc);
         }
         else{
             init_FcollTable(determine_zpp_min,determine_zpp_max,true);
@@ -865,9 +857,9 @@ int global_reion_properties(double zp, double x_e_ave, double *log10_Mcrit_LW_av
     //For consistency between halo and non-halo based, the NO_LIGHT and filling_factor_zp
     //  are based on the expected global Nion. as mentioned above it would be nice to
     //  change this to a saved reionisation/sfrd history from previous snapshots
-    sum_nion = EvaluateNionTs(zp,Mlim_Fstar_g,Mlim_Fesc_g);
+    sum_nion = EvaluateNionTs(zp, &sc);
     if(flag_options_global->USE_MINI_HALOS){
-        sum_nion_mini = EvaluateNionTs_MINI(zp,log10_Mcrit_LW_ave[0],Mlim_Fstar_MINI_g,Mlim_Fesc_MINI_g);
+        sum_nion_mini = EvaluateNionTs_MINI(zp,log10_Mcrit_LW_ave[0], &sc);
     }
 
     LOG_DEBUG("nion zp = %.3e (%.3e MINI)",sum_nion,sum_nion_mini);
@@ -884,31 +876,30 @@ int global_reion_properties(double zp, double x_e_ave, double *log10_Mcrit_LW_av
         //Now global SFRD at (R_ct) for the mean fixing
         for(R_ct=0;R_ct<astro_params_global->N_STEP_TS;R_ct++){
             zpp = zpp_for_evolve_list[R_ct];
-            mean_sfr_zpp[R_ct] = EvaluateSFRD(zpp,Mlim_Fstar_g);
+            mean_sfr_zpp[R_ct] = EvaluateSFRD(zpp, &sc);
             if(flag_options_global->USE_MINI_HALOS){
-                mean_sfr_zpp_mini[R_ct] = EvaluateSFRD_MINI(zpp,log10_Mcrit_LW_ave[R_ct],Mlim_Fstar_MINI_g);
+                mean_sfr_zpp_mini[R_ct] = EvaluateSFRD_MINI(zpp,log10_Mcrit_LW_ave[R_ct], &sc);
             }
         }
-        fill_freqint_tables(zp,x_e_ave,*Q_HI,log10_Mcrit_LW_ave,0);
+        fill_freqint_tables(zp,x_e_ave,*Q_HI,log10_Mcrit_LW_ave,0, &sc);
     }
 
     return sum_nion + sum_nion_mini > 1e-15 ? 0 : 1; //NO_LIGHT returned
 }
 
 void calculate_sfrd_from_grid(int R_ct, float *dens_R_grid, float *Mcrit_R_grid, float *sfrd_grid,
-                             float *sfrd_grid_mini, double *ave_sfrd, double *ave_sfrd_mini){
+                             float *sfrd_grid_mini, double *ave_sfrd, double *ave_sfrd_mini,
+                             struct ScalingConstants *sc){
     double ave_sfrd_buf=0;
     double ave_sfrd_buf_mini=0;
     if(user_params_global->INTEGRATION_METHOD_ATOMIC == 1 || (flag_options_global->USE_MINI_HALOS && user_params_global->INTEGRATION_METHOD_MINI == 1))
         initialise_GL(log(M_min_R[R_ct]),log(M_max_R[R_ct]));
 
-    if(user_params_global->USE_INTERPOLATION_TABLES){
+    if(user_params_global->USE_INTERPOLATION_TABLES > 1){
         if(flag_options_global->USE_MASS_DEPENDENT_ZETA){
             initialise_SFRD_Conditional_table(zpp_for_evolve_list[R_ct],
                 min_densities[R_ct]*zpp_growth[R_ct],max_densities[R_ct]*zpp_growth[R_ct]*1.001,
-                M_min_R[R_ct],M_max_R[R_ct],M_max_R[R_ct],
-                astro_params_global->ALPHA_STAR, astro_params_global->ALPHA_STAR_MINI,
-                astro_params_global->F_STAR10, astro_params_global->F_STAR7_MINI);
+                M_min_R[R_ct],M_max_R[R_ct],M_max_R[R_ct],sc);
         }
         else{
             initialise_FgtrM_delta_table(min_densities[R_ct]*zpp_growth[R_ct], max_densities[R_ct]*zpp_growth[R_ct], zpp_for_evolve_list[R_ct],
@@ -931,13 +922,13 @@ void calculate_sfrd_from_grid(int R_ct, float *dens_R_grid, float *Mcrit_R_grid,
                 curr_mcrit = Mcrit_R_grid[box_ct];
 
             if(flag_options_global->USE_MASS_DEPENDENT_ZETA){
-                    fcoll = EvaluateSFRD_Conditional(curr_dens,zpp_growth[R_ct],M_min_R[R_ct],M_max_R[R_ct],M_max_R[R_ct],sigma_max[R_ct],
-                                                    Mcrit_atom_interp_table[R_ct],Mlim_Fstar_g);
+                    fcoll = EvaluateSFRD_Conditional(curr_dens,zpp_growth[R_ct],M_min_R[R_ct],M_max_R[R_ct],
+                                            M_max_R[R_ct],sigma_max[R_ct],sc);
                     sfrd_grid[box_ct] = (1.+curr_dens)*fcoll;
 
                     if (flag_options_global->USE_MINI_HALOS){
-                        fcoll_MINI = EvaluateSFRD_Conditional_MINI(curr_dens,curr_mcrit,zpp_growth[R_ct],M_min_R[R_ct],M_max_R[R_ct],M_max_R[R_ct],
-                                                                    sigma_max[R_ct],Mcrit_atom_interp_table[R_ct],Mlim_Fstar_MINI_g);
+                        fcoll_MINI = EvaluateSFRD_Conditional_MINI(curr_dens,curr_mcrit,zpp_growth[R_ct],
+                                            M_min_R[R_ct],M_max_R[R_ct],M_max_R[R_ct],sigma_max[R_ct],sc);
                         sfrd_grid_mini[box_ct] = (1.+curr_dens)*fcoll_MINI;
                     }
             }
@@ -1227,7 +1218,7 @@ void ts_main(float redshift, float prev_redshift, UserParams *user_params, Cosmo
     if(user_params->INTEGRATION_METHOD_ATOMIC == 2 || user_params->INTEGRATION_METHOD_MINI == 2)
         M_MIN_tb = fmin(MMIN_FAST,M_MIN_tb);
 
-    if(user_params->USE_INTERPOLATION_TABLES)
+    if(user_params->USE_INTERPOLATION_TABLES > 0)
         initialiseSigmaMInterpTable(M_MIN_tb/2,1e20); //we need a larger table here due to the large radii
 
     //now that we have the sigma table we can assign the sigma arrays
@@ -1284,27 +1275,6 @@ void ts_main(float redshift, float prev_redshift, UserParams *user_params, Cosmo
             }
         }
         LOG_DEBUG("Constructed filtered boxes.");
-
-        //set limits for the table
-        //NOTE: these are only used for interp tables but I adjust here to avoid these values
-        //  containing different numbers depending on the flags
-        for(R_ct=0;R_ct<astro_params->N_STEP_TS;R_ct++){
-            if (flag_options->USE_MINI_HALOS)
-                Mcrit_atom_interp_table[R_ct] = atomic_cooling_threshold(zpp_for_evolve_list[R_ct]);
-            else
-                Mcrit_atom_interp_table[R_ct] = astro_params->M_TURN;
-        }
-
-        //These are still re-calculated internally in each table initialisation
-        //TODO: combine into a struct and remove globals
-        Mlim_Fstar_g = Mass_limit_bisection(M_MIN_INTEGRAL, M_MAX_INTEGRAL, astro_params->ALPHA_STAR, astro_params->F_STAR10);
-        Mlim_Fesc_g = Mass_limit_bisection(M_MIN_INTEGRAL, M_MAX_INTEGRAL, astro_params->ALPHA_ESC, astro_params->F_ESC10);
-        if(flag_options->USE_MINI_HALOS){
-            Mlim_Fstar_MINI_g = Mass_limit_bisection(M_MIN_INTEGRAL, M_MAX_INTEGRAL, astro_params->ALPHA_STAR_MINI,
-                                                    astro_params->F_STAR7_MINI * pow(1e3, astro_params->ALPHA_STAR_MINI));
-            Mlim_Fesc_MINI_g = Mass_limit_bisection(M_MIN_INTEGRAL, M_MAX_INTEGRAL, astro_params->ALPHA_ESC,
-                                                astro_params->F_ESC7_MINI * pow(1e3, astro_params->ALPHA_ESC));
-        }
     }
     else{
         for(R_ct=0;R_ct<astro_params->N_STEP_TS;R_ct++){
@@ -1381,6 +1351,7 @@ void ts_main(float redshift, float prev_redshift, UserParams *user_params, Cosmo
     int R_index;
     float *delta_box_input;
     float *Mcrit_box_input = NULL; //may be unused
+    struct ScalingConstants sc, sc_sfrd;
 
     //if we have stars, fill in the heating term boxes
     if(!NO_LIGHT) {
@@ -1396,6 +1367,9 @@ void ts_main(float redshift, float prev_redshift, UserParams *user_params, Cosmo
 
             xray_R_factor = pow(1+zpp,-(astro_params->X_RAY_SPEC_INDEX));
 
+            set_scaling_constants(zpp,astro_params,flag_options,&sc,false);
+            sc_sfrd = evolve_scaling_constants_sfr(&sc);
+
             //index for grids
             R_index = user_params->MINIMIZE_MEMORY ? 0 : R_ct;
 
@@ -1410,37 +1384,37 @@ void ts_main(float redshift, float prev_redshift, UserParams *user_params, Cosmo
                                         &min_log10_MturnLW[R_ct],&ave_log10_MturnLW[R_ct],&max_log10_MturnLW[R_ct]);
                     }
                     //get the global things we missed before
-                    mean_sfr_zpp[R_ct] = EvaluateSFRD(zpp_for_evolve_list[R_ct],Mlim_Fstar_g);
+                    mean_sfr_zpp[R_ct] = EvaluateSFRD(zpp_for_evolve_list[R_ct],&sc);
                     if(flag_options_global->USE_MINI_HALOS){
-                        mean_sfr_zpp_mini[R_ct] = EvaluateSFRD_MINI(zpp_for_evolve_list[R_ct],ave_log10_MturnLW[R_ct],Mlim_Fstar_MINI_g);
+                        mean_sfr_zpp_mini[R_ct] = EvaluateSFRD_MINI(zpp_for_evolve_list[R_ct],ave_log10_MturnLW[R_ct],&sc);
                     }
                     //fill one row of the interp tables
-                    fill_freqint_tables(redshift,x_e_ave,Q_HI_zp,ave_log10_MturnLW,R_ct);
+                    fill_freqint_tables(redshift,x_e_ave,Q_HI_zp,ave_log10_MturnLW,R_ct, &sc);
                 }
                 //set input pointers (doing things this way helps with flag flexibility)
                 delta_box_input = delNL0[R_index];
                 if(flag_options->USE_MINI_HALOS){
                     Mcrit_box_input = log10_Mcrit_LW[R_index];
                 }
-                calculate_sfrd_from_grid(R_ct,delta_box_input,Mcrit_box_input,del_fcoll_Rct,del_fcoll_Rct_MINI,&ave_fcoll,&ave_fcoll_MINI);
+                calculate_sfrd_from_grid(R_ct,delta_box_input,Mcrit_box_input,del_fcoll_Rct,
+                                        del_fcoll_Rct_MINI,&ave_fcoll,&ave_fcoll_MINI,&sc);
                 avg_fix_term = mean_sfr_zpp[R_ct]/ave_fcoll;
                 if(flag_options->USE_MINI_HALOS) avg_fix_term_MINI = mean_sfr_zpp_mini[R_ct]/ave_fcoll_MINI;
 
+#if LOG_LEVEL > SUPER_DEBUG_LEVEL
                 LOG_SUPER_DEBUG("z %6.2f ave sfrd val %.3e global %.3e (int %.3e) Mmin %.3e ratio %.4e z_edge %.4e",
                                     zpp_for_evolve_list[R_ct],ave_fcoll,mean_sfr_zpp[R_ct],
                                     Nion_General(zpp_for_evolve_list[R_ct], log(M_min_R[R_ct]), log(M_MAX_INTEGRAL),
-                                                    Mcrit_atom_interp_table[R_ct], astro_params_global->ALPHA_STAR, 0.,
-                                                    astro_params_global->F_STAR10, 1., Mlim_Fstar_g, 0.),
+                                                    sc_sfrd.mturn_a_nofb, &sc_sfrd),
                                     M_min_R[R_ct],avg_fix_term,z_edge_factor);
                 if(flag_options_global->USE_MINI_HALOS){
-                    LOG_SUPER_DEBUG("MINI sfrd val %.3e global %.3e (int %.3e) ratio %.3e log10McritLW %.3e Mlim %.3e",
+                    LOG_SUPER_DEBUG("MINI sfrd val %.3e global %.3e (int %.3e) ratio %.3e log10McritLW %.3e",
                                     ave_fcoll_MINI,mean_sfr_zpp_mini[R_ct],
                                     Nion_General_MINI(zpp_for_evolve_list[R_ct], log(M_min_R[R_ct]), log(M_MAX_INTEGRAL),
-                                                        pow(10.,ave_log10_MturnLW[R_ct]), Mcrit_atom_interp_table[R_ct],
-                                                        astro_params_global->ALPHA_STAR_MINI, 0., astro_params_global->F_STAR7_MINI,
-                                                        1., Mlim_Fstar_MINI_g, 0.),
-                                    avg_fix_term_MINI,ave_log10_MturnLW[R_ct],Mlim_Fstar_MINI_g);
+                                                        pow(10.,ave_log10_MturnLW[R_ct]), &sc_sfrd),
+                                    avg_fix_term_MINI,ave_log10_MturnLW[R_ct]);
                 }
+#endif
             }
 
             //minihalo factors should be separated since they may not be allocated
@@ -1505,9 +1479,8 @@ void ts_main(float redshift, float prev_redshift, UserParams *user_params, Cosmo
                         double integral_db;
                         if(flag_options->USE_MASS_DEPENDENT_ZETA){
                             integral_db = Nion_ConditionalM(zpp_growth[R_ct],log(M_min_R[R_ct]),log(M_max_R[R_ct]),M_max_R[R_ct],sigma_max[R_ct],
-                                            delNL0[R_index][box_ct]*zpp_growth[R_ct],
-                                            Mcrit_atom_interp_table[R_ct],astro_params->ALPHA_STAR,0.,astro_params->F_STAR10,1.,Mlim_Fstar_g,0.,
-                                            user_params->INTEGRATION_METHOD_ATOMIC) * z_edge_factor * (1+delNL0[R_index][box_ct]*zpp_growth[R_ct])
+                                            delNL0[R_index][box_ct]*zpp_growth[R_ct],sc_sfrd.mturn_a_nofb,&sc_sfrd,user_params->INTEGRATION_METHOD_ATOMIC)
+                                            * z_edge_factor * (1+delNL0[R_index][box_ct]*zpp_growth[R_ct])
                                             * avg_fix_term * astro_params->F_STAR10;
                         }
                         else{
@@ -1519,9 +1492,8 @@ void ts_main(float redshift, float prev_redshift, UserParams *user_params, Cosmo
                         LOG_SUPER_DEBUG("Cell 0: R=%.1f (%.3f) | SFR %.4e | integral %.4e | delta %.4e",
                                             R_values[R_ct],zpp_for_evolve_list[R_ct],sfr_term,integral_db,delNL0[R_index][box_ct]);
                         if(flag_options->USE_MINI_HALOS)
-                            LOG_SUPER_DEBUG("MINI SFR %.4e | integral %.4e",sfr_term_mini,Nion_ConditionalM_MINI(zpp_growth[R_ct],log(M_min_R[R_ct]),log(M_max_R[R_ct]),M_max_R[R_ct],sigma_max[R_ct],\
-                                            delNL0[R_index][box_ct]*zpp_growth[R_ct],pow(10,log10_Mcrit_LW[R_ct][box_ct]),Mcrit_atom_interp_table[R_ct],\
-                                            astro_params->ALPHA_STAR_MINI,0.,astro_params->F_STAR7_MINI,1.,Mlim_Fstar_MINI_g, 0., user_params->INTEGRATION_METHOD_MINI) \
+                            LOG_SUPER_DEBUG("MINI SFR %.4e | integral %.4e",sfr_term_mini,Nion_ConditionalM_MINI(zpp_growth[R_ct],log(M_min_R[R_ct]),log(M_max_R[R_ct]),log(M_max_R[R_ct]),sigma_max[R_ct],\
+                                            delNL0[R_index][box_ct]*zpp_growth[R_ct],pow(10,log10_Mcrit_LW[R_ct][box_ct]), &sc_sfrd, user_params->INTEGRATION_METHOD_MINI) \
                                              * z_edge_factor * (1+delNL0[R_index][box_ct]*zpp_growth[R_ct]) * avg_fix_term_MINI * astro_params->F_STAR7_MINI);
 
                         LOG_SUPER_DEBUG("xh %.2e | xi %.2e | xl %.2e | sl %.2e",dxheat_dt_box[box_ct]/astro_params->L_X,

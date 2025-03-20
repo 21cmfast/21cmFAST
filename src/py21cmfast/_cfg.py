@@ -11,76 +11,11 @@ from typing import ClassVar
 from . import yaml
 from ._data import DATA_PATH
 from .c_21cmfast import ffi, lib
+from .wrapper.structs import StructInstanceWrapper
 
 
 class ConfigurationError(Exception):
     """An error with the config file."""
-
-
-# TODO: This has been moved for the sole purpose of avoiding circular imports, and should be moved back to structs.py
-# if possible after the output struct overhaul
-class StructInstanceWrapper:
-    """A wrapper for *instances* of C structs.
-
-    This is as opposed to :class:`StructWrapper`, which is for the un-instantiated structs.
-
-    Parameters
-    ----------
-    wrapped :
-        The reference to the C object to wrap (contained in the ``cffi.lib`` object).
-    ffi :
-        The ``cffi.ffi`` object.
-    """
-
-    def __init__(self, wrapped, ffi):
-        self._cobj = wrapped
-        self._ffi = ffi
-
-        for nm, _tp in self._ffi.typeof(self._cobj).fields:
-            setattr(self, nm, getattr(self._cobj, nm))
-
-        # Get the name of the structure
-        self._ctype = self._ffi.typeof(self._cobj).cname.split()[-1]
-
-    def __setattr__(self, name, value):
-        """Set an attribute of the instance, attempting to change it in the C struct as well."""
-        with contextlib.suppress(AttributeError):
-            setattr(self._cobj, name, value)
-        object.__setattr__(self, name, value)
-
-    def __iter__(self):
-        yield from self.keys()
-
-    def items(self):
-        """Yield (name, value) pairs for each element of the struct."""
-        for nm, _tp in self._ffi.typeof(self._cobj).fields:
-            yield nm, getattr(self, nm)
-
-    def keys(self):
-        """Return a list of names of elements in the struct."""
-        return [nm for nm, tp in self.items()]
-
-    def __repr__(self):
-        """Return a unique representation of the instance."""
-        return (
-            self._ctype + "(" + ";".join(f"{k}={v!s}" for k, v in sorted(self.items()))
-        ) + ")"
-
-    def filtered_repr(self, filter_params):
-        """Get a fully unique representation of the instance that filters out some parameters.
-
-        Parameters
-        ----------
-        filter_params : list of str
-            The parameter names which should not appear in the representation.
-        """
-        return (
-            self._ctype
-            + "("
-            + ";".join(
-                f"{k}={v!s}" for k, v in sorted(self.items()) if k not in filter_params
-            )
-        ) + ")"
 
 
 # TODO: force config to be a singleton

@@ -18,6 +18,7 @@
 #include "cosmology.h"
 #include "thermochem.h"
 #include "interp_tables.h"
+#include "scaling_relations.h"
 
 #include "heating_helper_progs.h"
 
@@ -766,10 +767,16 @@ double species_weighted_x_ray_cross_section(double nu, double x_e){
 // table in the new version of 21CMMC (including spin-temperature fluctuations).
 
 typedef struct{
-    double nu_0, x_e, x_e_ave, ion_eff, ion_eff_MINI, log10_Mturn_MINI, Mlim_Fstar, Mlim_Fesc, Mlim_Fstar_MINI, Mlim_Fesc_MINI;
+    double nu_0;
+    double x_e;
+    double x_e_ave;
+    double ion_eff;
+    double ion_eff_MINI;
+    double log10_Mturn_MINI;
+    struct ScalingConstants *scale_consts;
 } tauX_params;
-double tauX_integrand_MINI(double zhat, void *params){
 
+double tauX_integrand_MINI(double zhat, void *params){
     double n, drpropdz, nuhat, sigma_tilde, fcoll, HI_filling_factor_zhat;
     double log10_Mturn_MINI;
     double fcoll_MINI;
@@ -780,8 +787,9 @@ double tauX_integrand_MINI(double zhat, void *params){
     n = N_b0 * pow(1+zhat, 3);
     nuhat = p->nu_0 * (1+zhat);
     log10_Mturn_MINI = p->log10_Mturn_MINI;
-    fcoll = EvaluateNionTs(zhat,p->Mlim_Fstar,p->Mlim_Fesc);
-    fcoll_MINI = EvaluateNionTs_MINI(zhat,log10_Mturn_MINI,p->Mlim_Fstar_MINI,p->Mlim_Fesc_MINI);
+
+    fcoll = EvaluateNionTs(zhat,p->scale_consts);
+    fcoll_MINI = EvaluateNionTs_MINI(zhat,log10_Mturn_MINI,p->scale_consts);
 
     if ((fcoll < 1e-20) && (fcoll_MINI < 1e-20)){
         HI_filling_factor_zhat = 1;
@@ -804,7 +812,7 @@ double tauX_integrand(double zhat, void *params){
     n = N_b0 * pow(1+zhat, 3);
     nuhat = p->nu_0 * (1+zhat);
 
-    fcoll = EvaluateNionTs(zhat,p->Mlim_Fstar,p->Mlim_Fesc);
+    fcoll = EvaluateNionTs(zhat,p->scale_consts);
 
     if (fcoll < 1e-20)
         HI_filling_factor_zhat = 1;
@@ -817,7 +825,7 @@ double tauX_integrand(double zhat, void *params){
     return drpropdz * n * HI_filling_factor_zhat * sigma_tilde;
 }
 double tauX_MINI(double nu, double x_e, double x_e_ave, double zp, double zpp, double HI_filling_factor_zp, double log10_Mturn_MINI,
-                double Mlim_Fstar, double Mlim_Fesc, double Mlim_Fstar_MINI, double Mlim_Fesc_MINI){
+                struct ScalingConstants *sc){
     double result, error;
     gsl_function F;
 
@@ -832,10 +840,7 @@ double tauX_MINI(double nu, double x_e, double x_e_ave, double zp, double zpp, d
     p.ion_eff = astro_params_global->POP2_ION*astro_params_global->F_STAR10*astro_params_global->F_ESC10;
     p.ion_eff_MINI = astro_params_global->POP3_ION*astro_params_global->F_STAR7_MINI*astro_params_global->F_ESC7_MINI;
     p.log10_Mturn_MINI = log10_Mturn_MINI;
-    p.Mlim_Fstar = Mlim_Fstar;
-    p.Mlim_Fesc = Mlim_Fesc;
-    p.Mlim_Fstar_MINI = Mlim_Fstar_MINI;
-    p.Mlim_Fesc_MINI = Mlim_Fesc_MINI;
+    p.scale_consts = sc;
 
     F.params = &p;
 
@@ -858,7 +863,7 @@ double tauX_MINI(double nu, double x_e, double x_e_ave, double zp, double zpp, d
 }
 
 double tauX(double nu, double x_e, double x_e_ave, double zp, double zpp, double HI_filling_factor_zp,
-            double Mlim_Fstar, double Mlim_Fesc){
+            struct ScalingConstants *sc){
     double result, error, fcoll;
     gsl_function F;
     double rel_tol  = 0.005; //<- relative tolerance
@@ -869,16 +874,16 @@ double tauX(double nu, double x_e, double x_e_ave, double zp, double zpp, double
     p.nu_0 = nu/(1+zp);
     p.x_e = x_e;
     p.x_e_ave = x_e_ave;
-    p.Mlim_Fstar = Mlim_Fstar;
-    p.Mlim_Fesc = Mlim_Fesc;
+    p.scale_consts = sc;
 
     if(flag_options_global->USE_MASS_DEPENDENT_ZETA) {
-        p.ion_eff = astro_params_global->POP2_ION*astro_params_global->F_STAR10*astro_params_global->F_ESC10;
+        p.ion_eff = sc->pop2_ion*sc->fstar_10*sc->fesc_10;
     }
     else {
+        //TODO: figure out why this isn't just HII_EFF_FACTOR
         //if we don't have an explicit ionising efficiency, we estimate one by using the values at zp
         if (HI_filling_factor_zp > FRACT_FLOAT_ERR){
-            fcoll = EvaluateNionTs(zp,Mlim_Fstar,Mlim_Fesc); //since !USE_MASS_DEPENDENT_ZETA, Mlim doesn't matter
+            fcoll = EvaluateNionTs(zp,sc); //since !USE_MASS_DEPENDENT_ZETA, Mlim doesn't matter
             p.ion_eff = (1.0 - HI_filling_factor_zp) / fcoll * (1.0 - x_e_ave);
             PS_ION_EFF = p.ion_eff;
         }
@@ -913,21 +918,25 @@ double tauX(double nu, double x_e, double x_e_ave, double zp, double zpp, double
 // Used to speed up Ts.c and remove parameter dependence reducing the dimensionality of the required interpolation
 // table in the new version of 21CMMC (including spin-temperature fluctuations).
 
-//NOTE: the mass limits are only needed when we don't use interptables and are constant, I could move to a const struct
 typedef struct{
-    double x_e, zp, zpp, HI_filling_factor_zp, log10_Mturn_MINI, Mlim_Fstar, Mlim_Fesc, Mlim_Fstar_MINI, Mlim_Fesc_MINI;
+    double x_e;
+    double zp;
+    double zpp;
+    double HI_filling_factor_zp;
+    double log10_Mturn_MINI;
+    struct ScalingConstants * scale_consts;
 } nu_tau_one_params;
 double nu_tau_one_helper_MINI(double nu, void * params){
     nu_tau_one_params *p = (nu_tau_one_params *) params;
-    return tauX_MINI(nu, p->x_e, p->x_e, p->zp, p->zpp, p->HI_filling_factor_zp,
-                    p->log10_Mturn_MINI,p->Mlim_Fstar,p->Mlim_Fesc,p->Mlim_Fstar_MINI,p->Mlim_Fesc_MINI) - 1;
+    return tauX_MINI(nu, p->x_e, p->x_e, p->zp, p->zpp, p->HI_filling_factor_zp, p->log10_Mturn_MINI,
+                    p->scale_consts) - 1;
 }
 double nu_tau_one_helper(double nu, void * params){
     nu_tau_one_params *p = (nu_tau_one_params *) params;
-    return tauX(nu, p->x_e, p->x_e, p->zp, p->zpp, p->HI_filling_factor_zp,p->Mlim_Fstar,p->Mlim_Fesc) - 1;
+    return tauX(nu, p->x_e, p->x_e, p->zp, p->zpp, p->HI_filling_factor_zp,p->scale_consts) - 1;
 }
 double nu_tau_one_MINI(double zp, double zpp, double x_e, double HI_filling_factor_zp, double log10_Mturn_MINI,
-                        double Mlim_Fstar, double Mlim_Fesc, double Mlim_Fstar_MINI, double Mlim_Fesc_MINI){
+                        struct ScalingConstants *sc){
 
     int status, iter, max_iter;
     const gsl_root_fsolver_type * T;
@@ -953,7 +962,7 @@ double nu_tau_one_MINI(double zp, double zpp, double x_e, double HI_filling_fact
 
     //check if lower bound has null
     if (tauX_MINI(HeI_NUIONIZATION, x_e, x_e, zp, zpp, HI_filling_factor_zp, log10_Mturn_MINI,
-                 Mlim_Fstar, Mlim_Fesc, Mlim_Fstar_MINI, Mlim_Fesc_MINI) < 1)
+                 sc) < 1)
         return HeI_NUIONIZATION;
 
     // set frequency boundary values
@@ -966,10 +975,7 @@ double nu_tau_one_MINI(double zp, double zpp, double x_e, double HI_filling_fact
     p.zpp = zpp;
     p.HI_filling_factor_zp = HI_filling_factor_zp;
     p.log10_Mturn_MINI = log10_Mturn_MINI;
-    p.Mlim_Fstar = Mlim_Fstar;
-    p.Mlim_Fesc = Mlim_Fesc;
-    p.Mlim_Fstar_MINI = Mlim_Fstar_MINI;
-    p.Mlim_Fesc_MINI = Mlim_Fesc_MINI;
+    p.scale_consts = sc;
 
     F.function = &nu_tau_one_helper_MINI;
     F.params = &p;
@@ -1000,7 +1006,7 @@ double nu_tau_one_MINI(double zp, double zpp, double x_e, double HI_filling_fact
 }
 
 double nu_tau_one(double zp, double zpp, double x_e, double HI_filling_factor_zp,
-                    double Mlim_Fstar, double Mlim_Fesc){
+                    struct ScalingConstants *sc){
 
     int status, iter, max_iter;
     const gsl_root_fsolver_type * T;
@@ -1025,7 +1031,7 @@ double nu_tau_one(double zp, double zpp, double x_e, double HI_filling_factor_zp
     }
 
     //check if lower bound has null
-    if (tauX(HeI_NUIONIZATION, x_e, x_e, zp, zpp, HI_filling_factor_zp, Mlim_Fstar, Mlim_Fesc) < 1)
+    if (tauX(HeI_NUIONIZATION, x_e, x_e, zp, zpp, HI_filling_factor_zp, sc) < 1)
         return HeI_NUIONIZATION;
 
     // set frequency boundary values
@@ -1037,8 +1043,7 @@ double nu_tau_one(double zp, double zpp, double x_e, double HI_filling_factor_zp
     p.zp = zp;
     p.zpp = zpp;
     p.HI_filling_factor_zp = HI_filling_factor_zp;
-    p.Mlim_Fstar = Mlim_Fstar;
-    p.Mlim_Fesc = Mlim_Fesc;
+    p.scale_consts = sc;
 
     F.function = &nu_tau_one_helper;
     F.params = &p;

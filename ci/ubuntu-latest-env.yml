@@ -16,6 +16,7 @@ dependencies:
   - matplotlib
   - pip
   - pip:
+    - hmf
     - powerbox<0.8.1
     - cached_property
     - pre-commit

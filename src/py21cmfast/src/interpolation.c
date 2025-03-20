@@ -5,6 +5,7 @@
 #include <stdlib.h>
 #include <stdio.h>
 #include <math.h>
+#include <stdbool.h>
 #include "interpolation.h"
 #include "logger.h"
 
@@ -148,4 +149,48 @@ double EvaluateRGTable2D_f(double x, double y, RGTable2D_f *table){
     result = left_edge*(1-interp_point_x) + right_edge*(interp_point_x);
 
     return result;
+}
+
+bool RGTable2D_out_of_bounds(RGTable2D *table, double x_val, double y_val){
+    if(
+        x_val < table->x_min ||
+        x_val > table->x_min + table->nx_bin*table->x_width ||
+        y_val < table->y_min ||
+        y_val > table->y_min + table->ny_bin*table->y_width
+    )
+        return true;
+
+    return false;
+}
+
+bool RGTable2Df_out_of_bounds(RGTable2D_f *table, double x_val, double y_val){
+    if(
+        x_val < table->x_min ||
+        x_val > table->x_min + table->nx_bin*table->x_width ||
+        y_val < table->y_min ||
+        y_val > table->y_min + table->ny_bin*table->y_width
+    )
+        return true;
+
+    return false;
+}
+
+bool RGTable1D_out_of_bounds(RGTable1D *table, double x_val){
+    if(
+        x_val < table->x_min ||
+        x_val > table->x_min + table->n_bin*table->x_width
+    )
+        return true;
+
+    return false;
+}
+
+bool RGTable1Df_out_of_bounds(RGTable1D_f *table, double x_val){
+    if(
+        x_val < table->x_min ||
+        x_val > table->x_min + table->n_bin*table->x_width
+    )
+        return true;
+
+    return false;
 }

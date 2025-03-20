@@ -2,6 +2,7 @@
 #define _HMF_H
 
 #include "InputParameters.h"
+#include "scaling_relations.h"
 //integrals
 
 #define MAX_DELTAC_FRAC (float)0.99 //max delta/deltac for the mass function integrals
@@ -11,29 +12,24 @@
 
 /* HMF Integrals */
 void initialise_GL(double lnM_Min, double lnM_Max);
+
+double Nion_General(double z, double lnM_Min, double lnM_Max, double MassTurnover, struct ScalingConstants *sc);
+double Nion_General_MINI(double z, double lnM_Min, double lnM_Max, double MassTurnover, struct ScalingConstants *sc);
+double Xray_General(double z, double lnM_Min, double lnM_Max, double mturn_acg, double mturn_mcg, struct ScalingConstants *sc);
+double Fcoll_General(double z, double lnM_min, double lnM_max);
+double Nhalo_General(double z, double lnM_min, double lnM_max);
+
 double Nhalo_Conditional(double growthf, double lnM1, double lnM2, double lnM_cond, double sigma, double delta, int method);
 double Mcoll_Conditional(double growthf, double lnM1, double lnM2, double lnM_cond, double sigma, double delta, int method);
-double Nion_ConditionalM(double growthf, double lnM1, double lnM2, double lnM_cond, double sigma2, double delta2, double MassTurnover,
-                        double Alpha_star, double Alpha_esc, double Fstar10, double Fesc10, double Mlim_Fstar,
-                        double Mlim_Fesc, int method);
 double Nion_ConditionalM_MINI(double growthf, double lnM1, double lnM2, double lnM_cond, double sigma2, double delta2, double MassTurnover,
-                            double MassTurnover_upper, double Alpha_star, double Alpha_esc, double Fstar7,
-                            double Fesc7, double Mlim_Fstar, double Mlim_Fesc, int method);
+                                 struct ScalingConstants *sc, int method);
+double Nion_ConditionalM(double growthf, double lnM1, double lnM2, double lnM_cond, double sigma2, double delta2, double MassTurnover,
+                        struct ScalingConstants * sc, int method);
 double Xray_ConditionalM(double redshift, double growthf, double lnM1, double lnM2, double lnM_cond, double sigma2, double delta2,
-                         double mturn_acg, double mturn_mcg,
-                        double Alpha_star, double Alpha_star_mini, double Fstar10, double Fstar7, double Mlim_Fstar,
-                        double Mlim_Fstar_mini, double l_x, double l_x_mini, double t_h, double t_star, int method);
-double Nion_General(double z, double lnM_Min, double lnM_Max, double MassTurnover, double Alpha_star, double Alpha_esc, double Fstar10,
-                     double Fesc10, double Mlim_Fstar, double Mlim_Fesc);
-double Nion_General_MINI(double z, double lnM_Min, double lnM_Max, double MassTurnover, double MassTurnover_upper, double Alpha_star,
-                         double Alpha_esc, double Fstar7_MINI, double Fesc7_MINI, double Mlim_Fstar, double Mlim_Fesc);
-double Xray_General(double z, double lnM_Min, double lnM_Max, double mturn_acg, double mturn_mcg, double Alpha_star,
-                     double Alpha_star_mini, double Fstar10, double Fstar7, double l_x, double l_x_mini, double t_h,
-                     double t_star, double Mlim_Fstar, double Mlim_Fstar_mini);
-double Nhalo_General(double z, double lnM_min, double lnM_max);
-double Fcoll_General(double z, double lnM_min, double lnM_max);
-double unconditional_mf(double growthf, double lnM, double z, int HMF);
-double conditional_mf(double growthf, double lnM, double delta_cond, double sigma_cond, int HMF);
+                         double mturn_acg, double mturn_mcg, struct ScalingConstants * sc, int method);
+
+double unconditional_hmf(double growthf, double lnM, double z, int HMF);
+double conditional_hmf(double growthf, double lnM, double delta_cond, double sigma_cond, int HMF);
 
 /* erfc-based HMF integrals (!USE_MASS_DEPENDENT_ZETA and EPS) */
 double FgtrM(double z, double M);

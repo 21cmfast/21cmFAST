@@ -34,7 +34,7 @@ typedef struct UserParams{
     int N_THREADS;
     bool PERTURB_ON_HIGH_RES;
     bool NO_RNG;
-    bool USE_INTERPOLATION_TABLES;
+    int USE_INTERPOLATION_TABLES;
     int INTEGRATION_METHOD_ATOMIC;
     int INTEGRATION_METHOD_MINI;
     int PERTURB_ALGORITHM;

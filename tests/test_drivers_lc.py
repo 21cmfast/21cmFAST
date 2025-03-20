@@ -32,7 +32,12 @@ def test_lightcone_quantities(
         lightconer=lcn,
         initial_conditions=ic,
         inputs=default_input_struct_lc,
-        global_quantities=("density", "Gamma12_box"),
+        global_quantities=(
+            "density",
+            "Gamma12_box",
+            "log10_mturn_acg",
+            "log10_mturn_mcg",
+        ),
         cache=cache,
     )
 
@@ -42,6 +47,8 @@ def test_lightcone_quantities(
     assert "Gamma12_box" in lc.lightcones
     assert "Gamma12_box" in lc.global_quantities
     assert "density" in lc.global_quantities
+    assert "log10_mturn_acg" in lc.global_quantities
+    assert "log10_mturn_mcg" in lc.global_quantities
 
     # dNrec is not filled because we're not doing INHOMO_RECO
     assert lc.lightcones["dNrec_box"].max() == lc.lightcones["dNrec_box"].min() == 0
