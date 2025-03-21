@@ -119,11 +119,15 @@ def test_filters(filter_flag, R, plt):
         cp.cstruct,
         ap.cstruct,
         fo.cstruct,
-        ffi.cast("float *", input_box_centre.ctypes.data),
+        # WIP: CFFI Refactor
+        # ffi.cast("float *", input_box_centre.ctypes.data),
+        input_box_centre.ctypes.data,
         R,
         R_param,
         filter_flag,
-        ffi.cast("double *", output_box_centre.ctypes.data),
+        # WIP: CFFI Refactor
+        # ffi.cast("double *", output_box_centre.ctypes.data),
+        output_box_centre.ctypes.data,
     )
 
     # expected outputs given in cell units

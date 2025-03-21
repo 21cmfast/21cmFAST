@@ -7,9 +7,12 @@ from pathlib import Path
 from .._cfg import config
 from .._data import DATA_PATH
 import py21cmfast.c_21cmfast as lib
+
+# WIP: CFFI Refactor
 from .structs import StructInstanceWrapper
 
 
+# WIP: CFFI Refactor
 class GlobalParams(StructInstanceWrapper):
     """
     Global parameters for 21cmFAST.
@@ -262,12 +265,19 @@ class GlobalParams(StructInstanceWrapper):
         Avg value of the DM-b relative velocity [im km/s], ~0.9*SIGMAVCB (=25.86 km/s) normally.
     """
 
-    def __init__(self, wrapped, ffi):
-        super().__init__(wrapped, ffi)
+    # def __init__(self, wrapped, ffi):
+    #     super().__init__(wrapped, ffi)
+    #
+    #     self.external_table_path = ffi.new("char[]", str(DATA_PATH).encode())
+    #     self._wisdoms_path = Path(config["direc"]) / "wisdoms"
+    #     self.wisdoms_path = ffi.new("char[]", str(self._wisdoms_path).encode())
+    def __init__(self, wrapped):
+        super().__init__(wrapped)
 
-        self.external_table_path = ffi.new("char[]", str(DATA_PATH).encode())
-        self._wisdoms_path = Path(config["direc"]) / "wisdoms"
-        self.wisdoms_path = ffi.new("char[]", str(self._wisdoms_path).encode())
+        self._cobj.set_external_table_path(str(DATA_PATH))
+        _wisdoms_path = Path(config["direc"]) / "wisdoms"
+        self._cobj.set_wisdoms_path(str(_wisdoms_path))
+        self.wisdoms_path = str(_wisdoms_path).encode()
 
     @property
     def external_table_path(self):
@@ -281,10 +291,11 @@ class GlobalParams(StructInstanceWrapper):
     @property
     def wisdoms_path(self):
         """An ffi char pointer to the path to which external tables are kept."""
-        if not self._wisdoms_path.exists():
-            self._wisdoms_path.mkdir(parents=True)
+        wisdoms_path = Path(self._cobj.get_wisdoms_path())
+        if not wisdoms_path.exists():
+            wisdoms_path.mkdir(parents=True)
 
-        return self._wisdom_path
+        return wisdoms_path
 
     @wisdoms_path.setter
     def wisdoms_path(self, val):
@@ -332,4 +343,6 @@ class GlobalParams(StructInstanceWrapper):
             )
 
 
-global_params = GlobalParams(lib.global_params, ffi)
+# WIP: CFFI Refactor
+global_params = GlobalParams(lib.get_global_params())
+# global_params = lib.GlobalParams()

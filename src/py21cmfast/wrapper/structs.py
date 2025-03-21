@@ -44,7 +44,8 @@ class StructWrapper:
 
     _name: str = attrs.field(converter=str)
     cstruct = attrs.field(default=None)
-    _ffi = attrs.field(default=ffi)
+    # WIP: CFFI Refactor
+    # _ffi = attrs.field(default=ffi)
 
     @_name.default
     def _name_default(self):
@@ -60,12 +61,16 @@ class StructWrapper:
 
     def _new(self):
         """Return a new empty C structure corresponding to this class."""
-        return self._ffi.new(f"struct {self._name}*")
+        # WIP: CFFI Refactor
+        # return self._ffi.new(f"struct {self._name}*")
+        raise NotImplementedError
 
     @property
     def fields(self) -> dict[str, Any]:
         """A list of fields of the underlying C struct (a list of tuples of "name, type")."""
-        return dict(self._ffi.typeof(self.cstruct[0]).fields)
+        # WIP: CFFI Refactor
+        # return dict(self._ffi.typeof(self.cstruct[0]).fields)
+        raise NotImplementedError
 
     @property
     def fieldnames(self) -> list[str]:
@@ -87,7 +92,9 @@ class StructWrapper:
         return {
             k: v
             for k, v in self.__dict__.items()
-            if k not in ["_strings", "cstruct", "_ffi"]
+            # WIP: CFFI Refactor
+            # if k not in ["_strings", "cstruct", "_ffi"]
+            if k not in ["_strings", "cstruct"]
         }
 
 
@@ -156,7 +163,9 @@ class InputStruct:
 
             if isinstance(val, str):
                 # If it is a string, need to convert it to C string ourselves.
-                val = self.ffi.new("char[]", val.encode())
+                # WIP: CFFI Refactor
+                # val = self.ffi.new("char[]", val.encode())
+                raise NotImplementedError
 
             setattr(self.struct.cstruct, k, val)
 
@@ -437,10 +446,12 @@ class OutputStruct(metaclass=ABCMeta):
     def _ary2buf(self, ary):
         if not isinstance(ary, np.ndarray):
             raise ValueError("ary must be a numpy array")
-        return self.struct._ffi.cast(
-            OutputStruct._TYPEMAP[ary.dtype.name], self.struct._ffi.from_buffer(
-                ary)
-        )
+        # WIP: CFFI Refactor
+        # return self.struct._ffi.cast(
+        #     OutputStruct._TYPEMAP[ary.dtype.name], self.struct._ffi.from_buffer(
+        #         ary)
+        # )
+        raise NotImplementedError
 
     def __call__(self):
         """Return the C structure, will initialise if not already initialised."""
@@ -1250,15 +1261,29 @@ class StructInstanceWrapper:
         The ``cffi.ffi`` object.
     """
 
-    def __init__(self, wrapped, ffi):
+    # WIP: CFFI Refactor
+    # def __init__(self, wrapped, ffi):
+    def __init__(self, wrapped):
         self._cobj = wrapped
-        self._ffi = ffi
+        # WIP: CFFI Refactor
+        # self._ffi = ffi
 
-        for nm, tp in self._ffi.typeof(self._cobj).fields:
-            setattr(self, nm, getattr(self._cobj, nm))
+        # WIP: CFFI Refactor
+        # for nm, tp in self._ffi.typeof(self._cobj).fields:
+        #     setattr(self, nm, getattr(self._cobj, nm))
+        # nanobind does not supply a list of fileds like CFFI does, so we do
+        #   this instead to return a list of members
+        for attr in dir(self._cobj):
+            if not attr.startswith("__") and not callable(getattr(self._cobj, attr)):
+                print("CCC:", attr, getattr(self._cobj, attr))
+                setattr(self, attr, getattr(self._cobj, attr))
 
         # Get the name of the structure
-        self._ctype = self._ffi.typeof(self._cobj).cname.split()[-1]
+        # WIP: CFFI Refactor
+        # self._ctype = self._ffi.typeof(self._cobj).cname.split()[-1]
+        self._ctype = type(self._cobj).__name__
+
+        print("WWWWWWWWWWW:", self)
 
     def __setattr__(self, name, value):
         """Set an attribute of the instance, attempting to change it in the C struct as well."""
@@ -1268,8 +1293,14 @@ class StructInstanceWrapper:
 
     def items(self):
         """Yield (name, value) pairs for each element of the struct."""
-        for nm, tp in self._ffi.typeof(self._cobj).fields:
-            yield nm, getattr(self, nm)
+        # WIP: CFFI Refactor
+        # for nm, tp in self._ffi.typeof(self._cobj).fields:
+        #     yield nm, getattr(self, nm)
+        # nanobind does not supply a list of fileds like CFFI does, so we do
+        #   this instead to return a list of members
+        for attr in dir(self._cobj):
+            if not attr.startswith("__") and not callable(getattr(self._cobj, attr)):
+                yield attr, getattr(self, attr)
 
     def keys(self):
         """Return a list of names of elements in the struct."""

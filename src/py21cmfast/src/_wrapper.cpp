@@ -1,3 +1,4 @@
+#include "InputParameters.h"
 #include <nanobind/nanobind.h>
 #include <nanobind/ndarray.h>
 // #include <nanobind/stl.h>
@@ -188,7 +189,15 @@ NB_MODULE(c_21cmfast, m) {
       .def_rw("T_RE", &GlobalParams::T_RE)
       .def_rw("VAVG", &GlobalParams::VAVG)
       .def_rw("USE_ADIABATIC_FLUCTUATIONS",
-                     &GlobalParams::USE_ADIABATIC_FLUCTUATIONS);
+                     &GlobalParams::USE_ADIABATIC_FLUCTUATIONS)
+      .def("set_external_table_path", &set_external_table_path)
+      .def("get_external_table_path", &get_external_table_path)
+      .def("set_wisdoms_path", &set_wisdoms_path)
+      .def("get_wisdoms_path", &get_wisdoms_path);
+
+  m.def("get_global_params", []() -> GlobalParams& {
+        return global_params;
+  }, nb::rv_policy::reference);
 
   // Bind output parameters
   nb::class_<InitialConditions>(m, "InitialConditions")

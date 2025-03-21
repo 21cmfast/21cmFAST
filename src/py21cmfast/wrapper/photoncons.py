@@ -91,8 +91,11 @@ def _calibrate_photon_conservation_correction(
     redshifts_estimate = np.array(redshifts_estimate, dtype="float64")
     nf_estimate = np.array(nf_estimate, dtype="float64")
 
-    z = ffi.cast("double *", ffi.from_buffer(redshifts_estimate))
-    xHI = ffi.cast("double *", ffi.from_buffer(nf_estimate))
+    # WIP: CFFI Refactor
+    # z = ffi.cast("double *", ffi.from_buffer(redshifts_estimate))
+    # xHI = ffi.cast("double *", ffi.from_buffer(nf_estimate))
+    z = redshifts_estimate
+    xHI = nf_estimate
 
     logger.debug(f"PhotonCons nf estimates: {nf_estimate}")
     return lib.PhotonCons_Calibration(z, xHI, NSpline)
@@ -138,18 +141,28 @@ def _get_photon_nonconservation_data():
     IntVal2 = np.array(np.zeros(1), dtype="int32")
     IntVal3 = np.array(np.zeros(1), dtype="int32")
 
-    c_z_at_Q = ffi.cast("double *", ffi.from_buffer(data[0]))
-    c_Qval = ffi.cast("double *", ffi.from_buffer(data[1]))
-    c_z_cal = ffi.cast("double *", ffi.from_buffer(data[2]))
-    c_nf_cal = ffi.cast("double *", ffi.from_buffer(data[3]))
-    c_PC_nf = ffi.cast("double *", ffi.from_buffer(data[4]))
-    c_PC_deltaz = ffi.cast("double *", ffi.from_buffer(data[5]))
+    # WIP: CFFI Refactor
+    # c_z_at_Q = ffi.cast("double *", ffi.from_buffer(data[0]))
+    # c_Qval = ffi.cast("double *", ffi.from_buffer(data[1]))
+    # c_z_cal = ffi.cast("double *", ffi.from_buffer(data[2]))
+    # c_nf_cal = ffi.cast("double *", ffi.from_buffer(data[3]))
+    # c_PC_nf = ffi.cast("double *", ffi.from_buffer(data[4]))
+    # c_PC_deltaz = ffi.cast("double *", ffi.from_buffer(data[5]))
+    #
+    # c_int_NQ = ffi.cast("int *", ffi.from_buffer(IntVal1))
+    # c_int_NC = ffi.cast("int *", ffi.from_buffer(IntVal2))
+    # c_int_NP = ffi.cast("int *", ffi.from_buffer(IntVal3))
 
-    c_int_NQ = ffi.cast("int *", ffi.from_buffer(IntVal1))
-    c_int_NC = ffi.cast("int *", ffi.from_buffer(IntVal2))
-    c_int_NP = ffi.cast("int *", ffi.from_buffer(IntVal3))
+    c_z_at_Q = data[0]
+    c_Qval = data[1]
+    c_z_cal = data[2]
+    c_nf_cal = data[3]
+    c_PC_nf = data[4]
+    c_PC_deltaz = data[5]
 
-    c_int_NP = IntVal3.ctypes.data_as(c_void_p)
+    c_int_NQ = IntVal1
+    c_int_NC = IntVal2
+    c_int_NP = IntVal3
 
     # Run the C code
     errcode = lib.ObtainPhotonConsData(
@@ -419,9 +432,13 @@ def get_photoncons_dz(astro_params, flag_options, redshift):
     lib.adjust_redshifts_for_photoncons(
         astro_params.cstruct,
         flag_options.cstruct,
-        ffi.cast("float *", redshift_pc_in.ctypes.data),
-        ffi.cast("float *", stored_redshift_pc_in.ctypes.data),
-        ffi.cast("float *", deltaz.ctypes.data),
+        # WIP: CFFI Refactor
+        # ffi.cast("float *", redshift_pc_in.ctypes.data),
+        # ffi.cast("float *", stored_redshift_pc_in.ctypes.data),
+        # ffi.cast("float *", deltaz.ctypes.data),
+        redshift_pc_in,
+        stored_redshift_pc_in,
+        deltaz,
     )
 
     return redshift_pc_in[0], stored_redshift_pc_in[0], deltaz[0]
@@ -445,7 +462,9 @@ def photoncons_alpha(cosmo_params, user_params, astro_params, flag_options):
     # TODO: Move the deltaz interp tables to python
     if not lib.photon_cons_allocated:
         lib.determine_deltaz_for_photoncons()
-        lib.photon_cons_allocated = ffi.cast("bool", True)
+        # WIP: CFFI Refactor
+        # lib.photon_cons_allocated = ffi.cast("bool", True)
+        lib.photon_cons_allocated = True
 
     # Q(analytic) limits to fit the curve
     max_q_fit = 0.99
@@ -622,7 +641,9 @@ def photoncons_fesc(cosmo_params, user_params, astro_params, flag_options):
     # HACK: I need to allocate the deltaz arrays so I can return the other ones properly, this isn't a great solution
     if not lib.photon_cons_allocated:
         lib.determine_deltaz_for_photoncons()
-        lib.photon_cons_allocated = ffi.cast("bool", True)
+        # WIP: CFFI Refactor
+        # lib.photon_cons_allocated = ffi.cast("bool", True)
+        lib.photon_cons_allocated = True
 
     # Q(analytic) limits to fit the curve
     max_q_fit = 0.99

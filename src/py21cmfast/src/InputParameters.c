@@ -1,3 +1,5 @@
+#include <stdlib.h>
+#include <string.h>
 #include "InputParameters.h"
 
 void Broadcast_struct_global_all(UserParams *user_params, CosmoParams *cosmo_params, AstroParams *astro_params, FlagOptions *flag_options){
@@ -89,3 +91,24 @@ GlobalParams global_params = {
 
     .USE_ADIABATIC_FLUCTUATIONS = 1,
 };
+
+void set_external_table_path(GlobalParams *params, const char *value) {
+  if (params->external_table_path != 0) {
+      free(params->external_table_path);
+  }
+  params->external_table_path = (char *)malloc(strlen(value) + 1);
+  strcpy(params->external_table_path, value);
+}
+char* get_external_table_path(GlobalParams *params) {
+  return params->external_table_path ? params->external_table_path : "";
+}
+void set_wisdoms_path(GlobalParams *params, const char *value) {
+  if (params->wisdoms_path != 0) {
+      free(params->wisdoms_path);
+  }
+  params->wisdoms_path = (char *)malloc(strlen(value) + 1);
+  strcpy(params->wisdoms_path, value);
+}
+char* get_wisdoms_path(GlobalParams *params) {
+  return params->wisdoms_path ? params->wisdoms_path : "";
+}

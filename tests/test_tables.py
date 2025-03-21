@@ -1,4 +1,4 @@
-from py21cmfast.c_21cmfast import lib
+import py21cmfast.c_21cmfast as lib
 
 
 def test_init_heat():

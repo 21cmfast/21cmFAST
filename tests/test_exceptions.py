@@ -21,17 +21,24 @@ def test_simple(subfunc):
     answer = np.array([0], dtype="f8")
     with pytest.raises(ParameterError):
         status = lib.FunctionThatCatches(
-            subfunc, False, ffi.cast("double *", ffi.from_buffer(answer))
+            # WIP: CFFI Refactor
+            # subfunc, False, ffi.cast("double *", ffi.from_buffer(answer))
+            subfunc,
+            False,
+            answer,
         )
         _process_exitcode(
             status,
             lib.FunctionThatCatches,
-            (False, ffi.cast("double *", ffi.from_buffer(answer))),
+            # WIP: CFFI Refactor
+            # (False, ffi.cast("double *", ffi.from_buffer(answer))),
+            (False, answer),
         )
 
 
 def test_pass():
     answer = np.array([0], dtype="f8")
-    lib.FunctionThatCatches(True, True, ffi.cast(
-        "double *", ffi.from_buffer(answer)))
+    # WIP: CFFI Refactor
+    # lib.FunctionThatCatches(True, True, ffi.cast( "double *", ffi.from_buffer(answer)))
+    lib.FunctionThatCatches(True, True, answer)
     assert answer == 5.0

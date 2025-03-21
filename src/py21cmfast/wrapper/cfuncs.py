@@ -105,8 +105,11 @@ def compute_tau(
     redshifts = np.array(redshifts, dtype="float32")
     global_xHI = np.array(global_xHI, dtype="float32")
 
-    z = ffi.cast("float *", ffi.from_buffer(redshifts))
-    xHI = ffi.cast("float *", ffi.from_buffer(global_xHI))
+    # WIP: CFFI Refactor
+    # z = ffi.cast("float *", ffi.from_buffer(redshifts))
+    # xHI = ffi.cast("float *", ffi.from_buffer(global_xHI))
+    z = redshifts
+    xHI = global_xHI
 
     # Run the C code
     return lib.ComputeTau(
@@ -211,9 +214,13 @@ def compute_luminosity_function(
     Muvfunc.shape = (len(redshifts), nbins)
     Mhfunc.shape = (len(redshifts), nbins)
 
-    c_Muvfunc = ffi.cast("double *", ffi.from_buffer(Muvfunc))
-    c_Mhfunc = ffi.cast("double *", ffi.from_buffer(Mhfunc))
-    c_lfunc = ffi.cast("double *", ffi.from_buffer(lfunc))
+    # WIP: CFFI Refactor
+    # c_Muvfunc = ffi.cast("double *", ffi.from_buffer(Muvfunc))
+    # c_Mhfunc = ffi.cast("double *", ffi.from_buffer(Mhfunc))
+    # c_lfunc = ffi.cast("double *", ffi.from_buffer(lfunc))
+    c_Muvfunc = Muvfunc
+    c_Mhfunc = Mhfunc
+    c_lfunc = lfunc
 
     lfunc_MINI = np.zeros(len(redshifts) * nbins)
     Muvfunc_MINI = np.zeros(len(redshifts) * nbins)
@@ -223,9 +230,13 @@ def compute_luminosity_function(
     Muvfunc_MINI.shape = (len(redshifts), nbins)
     Mhfunc_MINI.shape = (len(redshifts), nbins)
 
-    c_Muvfunc_MINI = ffi.cast("double *", ffi.from_buffer(Muvfunc_MINI))
-    c_Mhfunc_MINI = ffi.cast("double *", ffi.from_buffer(Mhfunc_MINI))
-    c_lfunc_MINI = ffi.cast("double *", ffi.from_buffer(lfunc_MINI))
+    # WIP: CFFI Refactor
+    # c_Muvfunc_MINI = ffi.cast("double *", ffi.from_buffer(Muvfunc_MINI))
+    # c_Mhfunc_MINI = ffi.cast("double *", ffi.from_buffer(Mhfunc_MINI))
+    # c_lfunc_MINI = ffi.cast("double *", ffi.from_buffer(lfunc_MINI))
+    c_Muvfunc_MINI = Muvfunc_MINI
+    c_Mhfunc_MINI = Mhfunc_MINI
+    c_lfunc_MINI = lfunc_MINI
 
     if component in ("both", "acg"):
         # Run the C code
@@ -237,8 +248,11 @@ def compute_luminosity_function(
             flag_options.cstruct,
             1,
             len(redshifts),
-            ffi.cast("float *", ffi.from_buffer(redshifts)),
-            ffi.cast("float *", ffi.from_buffer(mturnovers)),
+            # WIP: CFFI Refactor
+            # ffi.cast("float *", ffi.from_buffer(redshifts)),
+            # ffi.cast("float *", ffi.from_buffer(mturnovers)),
+            redshifts,
+            mturnovers,
             c_Muvfunc,
             c_Mhfunc,
             c_lfunc,
@@ -268,8 +282,11 @@ def compute_luminosity_function(
             flag_options.cstruct,
             2,
             len(redshifts),
-            ffi.cast("float *", ffi.from_buffer(redshifts)),
-            ffi.cast("float *", ffi.from_buffer(mturnovers_mini)),
+            # WIP: CFFI Refactor
+            # ffi.cast("float *", ffi.from_buffer(redshifts)),
+            # ffi.cast("float *", ffi.from_buffer(mturnovers_mini)),
+            redshifts,
+            mturnovers_mini,
             c_Muvfunc_MINI,
             c_Mhfunc_MINI,
             c_lfunc_MINI,
@@ -1223,17 +1240,28 @@ def halo_sample_test(
         flag_options.cstruct,
         12345,
         n_cond,
-        ffi.cast("float *", cond_array.ctypes.data),
-        ffi.cast("int *", crd_in.ctypes.data),
+        # WIP: CFFI Refactor
+        # ffi.cast("float *", cond_array.ctypes.data),
+        # ffi.cast("int *", crd_in.ctypes.data),
+        cond_array.ctypes.data,
+        crd_in.ctypes.data,
         redshift,
         z_prev,
-        ffi.cast("int *", nhalo_out.ctypes.data),
-        ffi.cast("int *", N_out.ctypes.data),
-        ffi.cast("double *", exp_N.ctypes.data),
-        ffi.cast("double *", M_out.ctypes.data),
-        ffi.cast("double *", exp_M.ctypes.data),
-        ffi.cast("float *", halomass_out.ctypes.data),
-        ffi.cast("int *", halocrd_out.ctypes.data),
+        # WIP: CFFI Refactor
+        # ffi.cast("int *", nhalo_out.ctypes.data),
+        # ffi.cast("int *", N_out.ctypes.data),
+        # ffi.cast("double *", exp_N.ctypes.data),
+        # ffi.cast("double *", M_out.ctypes.data),
+        # ffi.cast("double *", exp_M.ctypes.data),
+        # ffi.cast("float *", halomass_out.ctypes.data),
+        # ffi.cast("int *", halocrd_out.ctypes.data),
+        nhalo_out,
+        N_out,
+        exp_N,
+        M_out,
+        exp_M,
+        halomass_out,
+        halocrd_out,
     )
 
     return {
@@ -1309,7 +1337,9 @@ def convert_halo_properties(
     fake_pthalos._init_cstruct()
 
     # single element zero array to act as the grids (vcb, J_21_LW, z_reion, Gamma12)
-    zero_array = ffi.cast("float *", np.zeros(1).ctypes.data)
+    # WIP: CFFI Refactor
+    # zero_array = ffi.cast("float *", np.zeros(1).ctypes.data)
+    zero_array = np.zeros(1)
 
     out_buffer = np.zeros(12 * halo_masses.size).astype("f4")
     lib.test_halo_props(
@@ -1323,7 +1353,9 @@ def convert_halo_properties(
         zero_array,  # z_re
         zero_array,  # Gamma12
         fake_pthalos(),
-        ffi.cast("float *", out_buffer.ctypes.data),
+        # WIP: CFFI Refactor
+        # ffi.cast("float *", out_buffer.ctypes.data),
+        out_buffer,
     )
 
     out_buffer = out_buffer.reshape(fake_pthalos.n_halos, 12)

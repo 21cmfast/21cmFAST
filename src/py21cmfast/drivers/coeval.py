@@ -12,7 +12,7 @@ from typing import Any, Sequence
 
 from .. import __version__
 from .._cfg import config
-from py21cmfast.c_21cmfast import lib
+import py21cmfast.c_21cmfast as lib
 from ..wrapper._utils import camel_to_snake
 from ..wrapper.globals import global_params
 from ..wrapper.inputs import AstroParams, CosmoParams, FlagOptions, UserParams

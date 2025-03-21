@@ -294,9 +294,11 @@ def get_input_struct(kwargs, cls):
 
 
 def get_all_input_structs(kwargs):
-    flag_options = get_input_struct({**DEFAULT_FLAG_OPTIONS, **kwargs}, FlagOptions)
+    flag_options = get_input_struct(
+        {**DEFAULT_FLAG_OPTIONS, **kwargs}, FlagOptions)
     cosmo_params = get_input_struct(kwargs, CosmoParams)
-    user_params = get_input_struct({**DEFAULT_USER_PARAMS, **kwargs}, UserParams)
+    user_params = get_input_struct(
+        {**DEFAULT_USER_PARAMS, **kwargs}, UserParams)
 
     kwargs_a = kwargs.copy()
     kwargs_a.update({"flag_options": flag_options})
@@ -663,19 +665,22 @@ def go(
             kwargs = OPTIONS[name][1]
 
             fnames.append(
-                produce_power_spectra_for_tests(name, redshift, force, direc, **kwargs)
+                produce_power_spectra_for_tests(
+                    name, redshift, force, direc, **kwargs)
             )
 
     if not no_pt:
         for name, (redshift, kwargs) in OPTIONS_PT.items():
             fnames.append(
-                produce_data_for_perturb_field_tests(name, redshift, force, **kwargs)
+                produce_data_for_perturb_field_tests(
+                    name, redshift, force, **kwargs)
             )
 
     if not no_halo:
         for name, (redshift, kwargs) in OPTIONS_HALO.items():
             fnames.append(
-                produce_data_for_halo_field_tests(name, redshift, force, **kwargs)
+                produce_data_for_halo_field_tests(
+                    name, redshift, force, **kwargs)
             )
 
     # Remove extra files that
