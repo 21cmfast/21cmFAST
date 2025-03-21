@@ -135,7 +135,7 @@ def test_matterfield_statistics(default_input_struct, hmf_model, ps_model, plt):
     redshift = 8.0
     hmf_map = {
         "PS": "PS",
-        "ST": "Jenkins",
+        "ST": "SMT",
     }
     transfer_map = {
         "EH": "EH_NoBAO",
@@ -150,11 +150,17 @@ def test_matterfield_statistics(default_input_struct, hmf_model, ps_model, plt):
     else:
         t_params = {}
 
+    if hmf_model == "PS":
+        hmf_params = {}
+    elif hmf_model == "ST":
+        hmf_params = {"a": 0.73, "p": 0.175, "A": 0.353}
+
     comparison_mf = MassFunction(
         z=redshift,
         Mmin=7,
         Mmax=16,
         hmf_model=hmf_map[hmf_model],
+        hmf_params=hmf_params,
         transfer_model=transfer_map[ps_model],
         transfer_params=t_params,
         delta_c=1.68,
