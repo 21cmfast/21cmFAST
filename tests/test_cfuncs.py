@@ -138,7 +138,7 @@ def test_matterfield_statistics(default_input_struct, hmf_model, ps_model, plt):
         "ST": "Jenkins",
     }
     transfer_map = {
-        "EH": "EH",
+        "EH": "EH_NoBAO",
         "BBKS": "BBKS",
         "EFSTATHIOU": "BondEfs",
     }
@@ -157,6 +157,7 @@ def test_matterfield_statistics(default_input_struct, hmf_model, ps_model, plt):
         hmf_model=hmf_map[hmf_model],
         transfer_model=transfer_map[ps_model],
         transfer_params=t_params,
+        delta_c=1.68,
     )
 
     inputs = default_input_struct.clone(
@@ -168,6 +169,7 @@ def test_matterfield_statistics(default_input_struct, hmf_model, ps_model, plt):
     ).evolve_input_structs(
         POWER_SPECTRUM=ps_model,
         HMF=hmf_model,
+        USE_INTERPOLATION_TABLES="no-interpolation",
     )
     h = inputs.cosmo_params.cosmo.h
 
@@ -177,7 +179,7 @@ def test_matterfield_statistics(default_input_struct, hmf_model, ps_model, plt):
         mass_values=comparison_mf.m / h,
     )
 
-    sigma_vals, _ = cf.evaluate_sigma(
+    sigma_vals, dsigmasq_vals = cf.evaluate_sigma(
         inputs=inputs,
         masses=comparison_mf.m / h,
     )
@@ -199,14 +201,29 @@ def test_matterfield_statistics(default_input_struct, hmf_model, ps_model, plt):
             [
                 comparison_mf.dndlnm * (h**3),
                 comparison_mf._sigma_0,
+                -comparison_mf._dlnsdlnm * comparison_mf._sigma_0 / comparison_mf.m * h,
                 comparison_mf._power0 / (h**3),
             ],
-            [hmf_vals * mass_dens, sigma_vals, power_vals],
+            [
+                hmf_vals * mass_dens,
+                sigma_vals,
+                -dsigmasq_vals / (2 * sigma_vals),
+                power_vals,
+            ],
             plt,
         )
 
+    # check matter power spectrum
     np.testing.assert_allclose(power_vals, comparison_mf.power / (h**3), rtol=1e-3)
+    # check sigma(M)
     np.testing.assert_allclose(sigma_vals, comparison_mf.sigma, rtol=1e-3)
+    # check dSigma/dM
+    np.testing.assert_allclose(
+        dsigmasq_vals / 2 * sigma_vals,
+        comparison_mf._dlnsdlnm * comparison_mf._sigma_0 / comparison_mf.m * h,
+        rtol=1e-3,
+    )
+    # check mass function
     np.testing.assert_allclose(
         mass_dens * hmf_vals, comparison_mf.dndlnm * (h**3), rtol=1e-3
     )
@@ -278,11 +295,12 @@ def make_matterfield_comparison_plot(
     plt,
     **kwargs,
 ):
-    fig, axs = plt.subplots(nrows=2, ncols=3, figsize=(16, 8))
+    fig, axs = plt.subplots(nrows=2, ncols=4, figsize=(16, 8))
 
     for i, row in enumerate(axs):
         for j, ax in enumerate(row):
             ax.set_xscale("log")
+            ax.grid()
             if i == 1:
                 ax.set_xlabel("Mass") if j < 2 else ax.set_xlabel("k")
                 ax.set_ylim(-1, 1)
@@ -294,6 +312,8 @@ def make_matterfield_comparison_plot(
                 ax.set_ylabel("dndlnM")
             elif j == 1:
                 ax.set_ylabel("Sigma")
+            elif j == 2:
+                ax.set_ylabel("dSigmadM")
             else:
                 ax.set_ylabel("Power Spectrum")
 
@@ -307,6 +327,10 @@ def make_matterfield_comparison_plot(
     axs[0, 1].loglog(x, test[1], linestyle=":", linewidth=3, label="Test", **kwargs)
     axs[1, 1].semilogx(x, (test[1] - true[1]) / true[1], **kwargs)
 
-    axs[0, 2].loglog(k, true[2], linestyle="-", label="Truth", **kwargs)
-    axs[0, 2].loglog(k, test[2], linestyle=":", linewidth=3, label="Test", **kwargs)
-    axs[1, 2].semilogx(k, (test[2] - true[2]) / true[2], **kwargs)
+    axs[0, 2].loglog(x, true[2], linestyle="-", label="Truth", **kwargs)
+    axs[0, 2].loglog(x, test[2], linestyle=":", linewidth=3, label="Test", **kwargs)
+    axs[1, 2].semilogx(x, (test[2] - true[2]) / true[2], **kwargs)
+
+    axs[0, 3].loglog(k, true[3], linestyle="-", label="Truth", **kwargs)
+    axs[0, 3].loglog(k, test[3], linestyle=":", linewidth=3, label="Test", **kwargs)
+    axs[1, 3].semilogx(k, (test[3] - true[3]) / true[3], **kwargs)
