@@ -12,13 +12,100 @@
 #include "Constants.h"
 #include "cexcept.h"
 #include "exceptions.h"
+#include "filtering.h"
 #include "logger.h"
 #include "InputParameters.h"
 
 #include "cosmology.h"
 
-//These globals hold values initialised in init_ps() and used throughout the rest of the file
-static double sigma_norm, theta_cmb, omhh, z_equality, y_d, sound_horizon, alpha_nu, f_nu, f_baryon, beta_c, d2fact, R_CUTOFF;
+struct CosmoConstants {
+    //calculated constants in TFset_parameters() for the EH transfer function
+    double sound_horizon;
+    double alpha_nu;
+    double beta_c;
+
+    //convenience constants set in init_ps()
+    double omhh;
+    double f_nu;
+    double f_baryon;
+    double theta_cmb;
+
+    //Normalisation of the power-spectrum integral for sigma_8
+    double sigma_norm;
+
+    //TODO remove old (?) parameters after verifying their non-use
+    //double R_CUTOFF;
+    //double d2fact;
+};
+//TODO: decide to keep this static global struct or pass through all the functions
+static struct CosmoConstants cosmo_consts;
+
+//NOTE: All Transfer functions take k in Mpc^-1, and convert to hMpc^-1 internally
+// FUNCTION TFmdm is the power spectrum transfer function from Eisenstein & Hu ApJ, 1999, 511, 5
+double transfer_function_EH(double k){
+    double q, gamma_eff, q_eff, TF_m, q_nu;
+    double sound_horizon = cosmo_consts.sound_horizon;
+    double alpha_nu = cosmo_consts.alpha_nu;
+    double f_nu = cosmo_consts.f_nu;
+
+    q = k*pow(cosmo_consts.theta_cmb,2)/cosmo_consts.omhh;
+    gamma_eff=sqrt(alpha_nu) + (1.0-sqrt(alpha_nu))/(1.0+pow(0.43*k*sound_horizon, 4));
+    q_eff = q/gamma_eff;
+    TF_m= log(E+1.84*cosmo_consts.beta_c*sqrt(alpha_nu)*q_eff);
+    TF_m /= TF_m + pow(q_eff,2) * (14.4 + 325.0/(1.0+60.5*pow(q_eff,1.11)));
+    q_nu = 3.92*q/sqrt(f_nu/N_nu);
+    TF_m *= 1.0 + (1.2*pow(f_nu,0.64)*pow(N_nu,0.3+0.6*f_nu)) / \
+        (pow(q_nu,-1.6)+pow(q_nu,0.8));
+
+    //WDM Model previously only included with EH
+    //if (P_CUTOFF) T *= pow(1 + pow(BODE_e*k*R_CUTOFF, 2*BODE_v), -BODE_n/BODE_v);
+
+    return TF_m;
+}
+
+//Bardeen et al 1986 ApJ, 304, 15
+double transfer_function_BBKS(double k){
+    double gamma,q;
+    gamma = cosmo_params_global->OMm * cosmo_params_global->hlittle * \
+        exp( -(cosmo_params_global->OMb) - (cosmo_params_global->OMb/cosmo_params_global->OMm));
+    q = k / (cosmo_params_global->hlittle*gamma);
+    return (log(1.0+2.34*q)/(2.34*q)) * pow( 1.0+3.89*q + pow(16.1*q, 2) + \
+        pow( 5.46*q, 3) + pow(6.71*q, 4), -0.25);
+}
+
+//Efstathiou et al 1992 MNRAS 258, 1
+double transfer_function_Efstathiou(double k){
+    double gamma,aa,bb,cc,nu;
+    gamma = 0.25; //NOTE: should be Omega_m*h?
+    aa = 6.4/(cosmo_params_global->hlittle*gamma);
+    bb = 3.0/(cosmo_params_global->hlittle*gamma);
+    cc = 1.7/(cosmo_params_global->hlittle*gamma);
+    nu = 1.13;
+    return pow(1 + pow( aa*k + pow(bb*k, 1.5) + pow(cc*k,2), nu), -1./nu );
+}
+
+//Peebles 1980 p.626
+double transfer_function_Peebles(double k){
+    //TODO: Check this as it was different between sigma/power and dsigmasqdm
+    double gamma,aa,bb;
+    gamma = cosmo_params_global->OMm * cosmo_params_global->hlittle * \
+        exp(-(cosmo_params_global->OMb) - (cosmo_params_global->OMb/cosmo_params_global->OMm));
+    aa = 8.0 / (cosmo_params_global->hlittle*gamma);
+    bb = 4.7 / pow(cosmo_params_global->hlittle*gamma, 2); //no ^2 in dsigmasq, but that makes no sense
+    return 1 + aa*k + bb*k*k;
+}
+
+// White, SDM and Frenk, CS, 1991, 379, 52
+double transfer_function_White(double k){
+    double gamma,aa,bb,cc;
+    gamma = cosmo_params_global->OMm * cosmo_params_global->hlittle * \
+        exp(-(cosmo_params_global->OMb) - (cosmo_params_global->OMb/cosmo_params_global->OMm));
+    aa = 1.7/(cosmo_params_global->hlittle*gamma);
+    bb = 9.0/pow(cosmo_params_global->hlittle*gamma, 1.5);
+    cc = 1.0/pow(cosmo_params_global->hlittle*gamma, 2);
+    //TODO:check, replaced sqrt(19400) --> 139.284, also bb was inside pow() in dsigmasq which makes no sense
+    return 139.284 / (1 + aa*k + bb*pow(k, 1.5) + cc*k*k);
+}
 
 /*
   this function reads the z=0 matter (CDM+baryons)  and relative velocity transfer functions from CLASS (from a file)
@@ -26,24 +113,7 @@ static double sigma_norm, theta_cmb, omhh, z_equality, y_d, sound_horizon, alpha
   flag_dv = 0 to output density, flag_dv = 1 to output velocity.
   similar to built-in function "double T_RECFAST(float z, int flag)"
 */
-
-// FUNCTION TFmdm is the power spectrum transfer function from Eisenstein & Hu ApJ, 1999, 511, 5
-double TFmdm(double k){
-    double q, gamma_eff, q_eff, TF_m, q_nu;
-
-    q = k*pow(theta_cmb,2)/omhh;
-    gamma_eff=sqrt(alpha_nu) + (1.0-sqrt(alpha_nu))/(1.0+pow(0.43*k*sound_horizon, 4));
-    q_eff = q/gamma_eff;
-    TF_m= log(E+1.84*beta_c*sqrt(alpha_nu)*q_eff);
-    TF_m /= TF_m + pow(q_eff,2) * (14.4 + 325.0/(1.0+60.5*pow(q_eff,1.11)));
-    q_nu = 3.92*q/sqrt(f_nu/N_nu);
-    TF_m *= 1.0 + (1.2*pow(f_nu,0.64)*pow(N_nu,0.3+0.6*f_nu)) /
-    (pow(q_nu,-1.6)+pow(q_nu,0.8));
-
-    return TF_m;
-}
-
-double TF_CLASS(double k, int flag_int, int flag_dv)
+double transfer_function_CLASS(double k, int flag_int, int flag_dv)
 {
     static double kclass[CLASS_LENGTH], Tmclass[CLASS_LENGTH], Tvclass_vcb[CLASS_LENGTH];
     static gsl_interp_accel *acc_density, *acc_vcb;
@@ -56,7 +126,6 @@ double TF_CLASS(double k, int flag_int, int flag_dv)
 
     char filename[500];
     sprintf(filename,"%s/%s",config_settings.external_table_path,CLASS_FILENAME);
-
 
     if (flag_int == 0) {  // Initialize vectors and read file
         if (!(F = fopen(filename, "r"))) {
@@ -112,7 +181,7 @@ double TF_CLASS(double k, int flag_int, int flag_dv)
 
 
     if (k > kclass[CLASS_LENGTH-1]) { // k>kmax
-        LOG_WARNING("Called TF_CLASS with k=%f, larger than kmax! Returning value at kmax.", k);
+        LOG_WARNING("Called transfer_function_CLASS with k=%f, larger than kmax! Returning value at kmax.", k);
         if(flag_dv == 0){ // output is density
             return (Tmclass[CLASS_LENGTH-1]/kclass[CLASS_LENGTH-1]/kclass[CLASS_LENGTH-1]);
         }
@@ -120,7 +189,7 @@ double TF_CLASS(double k, int flag_int, int flag_dv)
             return (Tvclass_vcb[CLASS_LENGTH-1]/kclass[CLASS_LENGTH-1]/kclass[CLASS_LENGTH-1]);
         }    //we just set it to the last value, since sometimes it wants large k for R<<cell_size, which does not matter much.
         else{
-            LOG_ERROR("Invalid flag_dv %d passed to TF_CLASS",flag_dv);
+            LOG_ERROR("Invalid flag_dv %d passed to transfer_function_CLASS",flag_dv);
             Throw(ValueError);
         }
     }
@@ -141,100 +210,109 @@ double TF_CLASS(double k, int flag_int, int flag_dv)
 
 }
 
+double transfer_function(double k){
+    switch(user_params_global->POWER_SPECTRUM){
+        case 0:
+            return transfer_function_EH(k);
+        case 1:
+            return transfer_function_BBKS(k);
+        case 2:
+            return transfer_function_Efstathiou(k);
+        case 3:
+            return transfer_function_Peebles(k);
+        case 4:
+            return transfer_function_White(k);
+        case 5:
+            return transfer_function_CLASS(k, 1, 0);
+        default:
+            LOG_ERROR("No such power spectrum defined: %i", user_params_global->POWER_SPECTRUM);
+            Throw(ValueError);
+    }
+}
+
+
+double power_in_k_integrand(double k){
+    double T, p;
+    T = transfer_function(k);
+    p = T * T * pow(k, cosmo_params_global->POWER_INDEX);
+
+    //TODO: figure this out, it was always a comment?
+    //if(user_params_global->POWER_SPECTRUM == 0)
+    //  p = pow(k, POWER_INDEX - 0.05*log(k/0.05)) * T * T; //running, alpha=0.05
+
+    //TODO: is this *only* applicable to CLASS?
+    if(user_params_global->POWER_SPECTRUM == 5 && \
+        user_params_global->USE_RELATIVE_VELOCITIES){
+        //jbm:Add average relvel suppression
+        p *= 1.0 - A_VCB_PM*exp( -pow(log(k/KP_VCB_PM),2.0)/ \
+            (2.0*SIGMAK_VCB_PM*SIGMAK_VCB_PM));
+    }
+
+    return p;
+}
+
+//we need a version with the prefactors for output
+double power_in_k(double k){
+    return TWOPI*PI*cosmo_consts.sigma_norm*cosmo_consts.sigma_norm*power_in_k_integrand(k);
+}
+
+/*
+  Returns the value of the linear power spectrum of the DM-b relative velocity
+  at kinematic decoupling (which we set at zkin=1010)
+*/
+double power_in_vcb(double k){
+    double p, T;
+
+    //only works if using CLASS
+    if (user_params_global->POWER_SPECTRUM == 5){ // CLASS
+        T = transfer_function_CLASS(k, 1, 1); //read from CLASS file. flag_int=1 since we have initialized before, flag_vcb=1 for velocity
+        p = pow(k, cosmo_params_global->POWER_INDEX) * T * T;
+    }
+    else{
+        LOG_ERROR("Cannot get P_cb unless using CLASS: %i\n Set USE_RELATIVE_VELOCITIES 0 or use CLASS.\n", user_params_global->POWER_SPECTRUM);
+        Throw(ValueError);
+    }
+
+    return p*TWOPI*PI*cosmo_consts.sigma_norm*cosmo_consts.sigma_norm;
+}
+
 // FUNCTION sigma_z0(M)
 // Returns the standard deviation of the normalized, density excess (delta(x)) field,
 // smoothed on the comoving scale of M (see filter definitions for M<->R conversion).
 // The sigma is evaluated at z=0, with the time evolution contained in the dicke(z) factor,
 // i.e. sigma(M,z) = sigma_z0(m) * dicke(z)
-
 // normalized so that sigma_z0(M->8/h Mpc) = SIGMA8 in ../Parameter_files/COSMOLOGY.H
 
 // NOTE: volume is normalized to = 1, so this is equvalent to the mass standard deviation
 
 // M is in solar masses
+struct SigmaIntegralParams {
+    double radius;
+    int filter_type;
+};
 
 // References: Padmanabhan, pg. 210, eq. 5.107
 double dsigma_dk(double k, void *params){
-    double p, w, T, gamma, q, aa, bb, cc, kR;
+    double p, w, kR;
 
-    // get the power spectrum.. choice of 5:
-    if (user_params_global->POWER_SPECTRUM == 0){ // Eisenstein & Hu
-        T = TFmdm(k);
-        // check if we should cuttoff power spectrum according to Bode et al. 2000 transfer function
-        //TODO: revisit the WDM model perhaps as another power spectrum option (which may also alter Mturn)
-        // if (P_CUTOFF) T *= pow(1 + pow(BODE_e*k*R_CUTOFF, 2*BODE_v), -BODE_n/BODE_v);
-        p = pow(k, cosmo_params_global->POWER_INDEX) * T * T;
-    }
-    else if (user_params_global->POWER_SPECTRUM == 1){ // BBKS
-        gamma = cosmo_params_global->OMm * cosmo_params_global->hlittle * pow(E, -(cosmo_params_global->OMb) - (cosmo_params_global->OMb/cosmo_params_global->OMm));
-        q = k / (cosmo_params_global->hlittle*gamma);
-        T = (log(1.0+2.34*q)/(2.34*q)) *
-        pow( 1.0+3.89*q + pow(16.1*q, 2) + pow( 5.46*q, 3) + pow(6.71*q, 4), -0.25);
-        p = pow(k, cosmo_params_global->POWER_INDEX) * T * T;
-    }
-    else if (user_params_global->POWER_SPECTRUM == 2){ // Efstathiou,G., Bond,J.R., and White,S.D.M., MNRAS,258,1P (1992)
-        gamma = 0.25;
-        aa = 6.4/(cosmo_params_global->hlittle*gamma);
-        bb = 3.0/(cosmo_params_global->hlittle*gamma);
-        cc = 1.7/(cosmo_params_global->hlittle*gamma);
-        p = pow(k, cosmo_params_global->POWER_INDEX) / pow( 1+pow( aa*k + pow(bb*k, 1.5) + pow(cc*k,2), 1.13), 2.0/1.13 );
-    }
-    else if (user_params_global->POWER_SPECTRUM == 3){ // Peebles, pg. 626
-        gamma = cosmo_params_global->OMm * cosmo_params_global->hlittle * pow(E, -(cosmo_params_global->OMb) - (cosmo_params_global->OMb/cosmo_params_global->OMm));
-        aa = 8.0 / (cosmo_params_global->hlittle*gamma);
-        bb = 4.7 / pow(cosmo_params_global->hlittle*gamma, 2);
-        p = pow(k, cosmo_params_global->POWER_INDEX) / pow(1 + aa*k + bb*k*k, 2);
-    }
-    else if (user_params_global->POWER_SPECTRUM == 4){ // White, SDM and Frenk, CS, 1991, 379, 52
-        gamma = cosmo_params_global->OMm * cosmo_params_global->hlittle * pow(E, -(cosmo_params_global->OMb) - (cosmo_params_global->OMb/cosmo_params_global->OMm));
-        aa = 1.7/(cosmo_params_global->hlittle*gamma);
-        bb = 9.0/pow(cosmo_params_global->hlittle*gamma, 1.5);
-        cc = 1.0/pow(cosmo_params_global->hlittle*gamma, 2);
-        p = pow(k, cosmo_params_global->POWER_INDEX) * 19400.0 / pow(1 + aa*k + bb*pow(k, 1.5) + cc*k*k, 2);
-    }
-    else if (user_params_global->POWER_SPECTRUM == 5){ // output of CLASS
-        T = TF_CLASS(k, 1, 0); //read from z=0 output of CLASS. Note, flag_int = 1 here always, since now we have to have initialized the interpolator for CLASS
-  	    p = pow(k, cosmo_params_global->POWER_INDEX) * T * T;
-        if(user_params_global->USE_RELATIVE_VELOCITIES) { //jbm:Add average relvel suppression
-          p *= 1.0 - A_VCB_PM*exp( -pow(log(k/KP_VCB_PM),2.0)/(2.0*SIGMAK_VCB_PM*SIGMAK_VCB_PM)); //for v=vrms
-        }
-    }
-    else{
-        LOG_ERROR("No such power spectrum defined: %i. Output is bogus.", user_params_global->POWER_SPECTRUM);
-        Throw(ValueError);
-    }
-    double Radius;
-
-    Radius = *(double *)params;
+    struct SigmaIntegralParams *pars = (struct SigmaIntegralParams *)params;
+    double Radius = pars->radius;
+    int filter = pars->filter_type;
+    p = power_in_k_integrand(k);
 
     kR = k*Radius;
-
-    if ( (user_params_global->FILTER == 0) || (sigma_norm < 0) ){ // top hat
-        if ( (kR) < 1.0e-4 ){ w = 1.0;} // w converges to 1 as (kR) -> 0
-        else { w = 3.0 * (sin(kR)/pow(kR, 3) - cos(kR)/pow(kR, 2));}
-    }
-    else if (user_params_global->FILTER == 2){ // gaussian of width 1/R
-        w = pow(E, -kR*kR/2.0);
-    }
-    else {
-        LOG_ERROR("No such filter: %i. Output is bogus.", user_params_global->FILTER);
-        Throw(ValueError);
-    }
+    w = filter_function(kR,filter);
     return k*k*p*w*w;
 }
 double sigma_z0(double M){
-
     double result, error, lower_limit, upper_limit;
     gsl_function F;
     double rel_tol  = FRACT_FLOAT_ERR*10; //<- relative tolerance
     gsl_integration_workspace * w = gsl_integration_workspace_alloc (1000);
     double kstart, kend;
 
-    double Radius;
-//    R = MtoR(M);
-
-    Radius = MtoR(M);
-    // now lets do the integral for sigma and scale it with sigma_norm
+    double Radius = MtoR(M);
+    // now lets do the integral for sigma and scale it with cosmo_consts.sigma_norm
 
     if(user_params_global->POWER_SPECTRUM == 5){
       kstart = fmax(1.0e-99/Radius, KBOT_CLASS);
@@ -248,8 +326,12 @@ double sigma_z0(double M){
     lower_limit = kstart;//log(kstart);
     upper_limit = kend;//log(kend);
 
+    struct SigmaIntegralParams sigma_params = {
+        .radius=Radius,
+        .filter_type=user_params_global->FILTER
+    };
     F.function = &dsigma_dk;
-    F.params = &Radius;
+    F.params = &sigma_params;
 
     int status;
 
@@ -266,11 +348,98 @@ double sigma_z0(double M){
 
     gsl_integration_workspace_free (w);
 
-    return sigma_norm * sqrt(result);
+    return cosmo_consts.sigma_norm * sqrt(result);
 }
 
+
+/*
+ FUNCTION dsigmasqdm_z0(M)
+ returns  d/dm (sigma^2) (see function sigma), in units of Msun^-1
+ */
+double dsigmasq_dm(double k, void *params){
+    struct SigmaIntegralParams *pars = (struct SigmaIntegralParams *)params;
+    double Radius = pars->radius;
+    int filter = pars->filter_type;
+    double p = power_in_k_integrand(k);
+
+    // now get the value of the window function
+    double dw2dm = dwdm_filter(k, Radius, filter);
+
+    //TODO: figure out d2fact and it's purpose, it was always commented
+    // It's a static global *SET* in the integral but only (no longer) used here?
+    // It is a constant multiplied in the integrand and then divided out in the final result
+    // Could it have been an old float precision hack?
+    //    return k*k*p*2*w*dwdr*drdm * d2fact;
+    return k*k*p*dw2dm;
+}
+double dsigmasqdm_z0(double M){
+    double result, error, lower_limit, upper_limit;
+    gsl_function F;
+    double rel_tol  = FRACT_FLOAT_ERR*10; //<- relative tolerance
+    gsl_integration_workspace * w
+    = gsl_integration_workspace_alloc (1000);
+    double kstart, kend;
+
+    double Radius = MtoR(M);
+
+    // now lets do the integral for sigma and scale it with cosmo_consts.sigma_norm
+    if(user_params_global->POWER_SPECTRUM == 5){
+      kstart = fmax(1.0e-99/Radius, KBOT_CLASS);
+      kend = fmin(350.0/Radius, KTOP_CLASS);
+    }//we establish a maximum k of KTOP_CLASS~1e3 Mpc-1 and a minimum at KBOT_CLASS,~1e-5 Mpc-1 since the CLASS transfer function has a max!
+    else{
+      kstart = 1.0e-99/Radius;
+      kend = 350.0/Radius;
+    }
+
+    lower_limit = kstart;//log(kstart);
+    upper_limit = kend;//log(kend);
+
+    //TODO: see comment above, d2fact is a constant that is multiplied in the integrand and then divided out in the final result
+    // if (user_params_global->POWER_SPECTRUM == 5){ // for CLASS we do not need to renormalize the sigma integral.
+    //   d2fact=1.0;
+    // }
+    // else {
+    //   d2fact = M*10000/sigma_z0(M);
+    // }
+    struct SigmaIntegralParams sigma_params = {
+        .radius=Radius,
+        .filter_type=user_params_global->FILTER
+    };
+    F.function = &dsigmasq_dm;
+    F.params = &sigma_params;
+
+    int status;
+
+    gsl_set_error_handler_off();
+
+    status = gsl_integration_qag (&F, lower_limit, upper_limit, 0, rel_tol,1000, GSL_INTEG_GAUSS61, w, &result, &error);
+
+    if(status!=0) {
+        LOG_ERROR("gsl integration error occured!");
+        LOG_ERROR("(function argument): lower_limit=%e upper_limit=%e rel_tol=%e result=%e error=%e",lower_limit,upper_limit,rel_tol,result,error);
+        LOG_ERROR("data: M=%e",M);
+        CATCH_GSL_ERROR(status);
+    }
+
+    gsl_integration_workspace_free (w);
+
+//    return cosmo_consts.sigma_norm * cosmo_consts.sigma_norm * result /d2fact;
+    return cosmo_consts.sigma_norm * cosmo_consts.sigma_norm * result;
+}
+
+//Sets constants used in the EH transfer function
 void TFset_parameters(){
-    double z_drag, R_drag, R_equality, p_c, p_cb, f_c, f_cb, f_nub, k_equality;
+    //intermediates for setting the transfer function parameters
+    double z_drag, z_equality, R_drag, R_equality, p_c, p_cb, f_c, f_cb, f_nub, k_equality, y_d;
+
+    double f_nu = cosmo_consts.f_nu;
+    double f_b = cosmo_consts.f_baryon;
+    double omhh = cosmo_consts.omhh;
+    double obhh = cosmo_params_global->OMb*cosmo_params_global->hlittle*cosmo_params_global->hlittle;
+    double theta_cmb = cosmo_consts.theta_cmb;
+    //GLOBALS SET BY THIS FUNCTION: sound_horizon, alpha_nu, beta_c
+    double alpha_nu;
 
     LOG_DEBUG("Setting Transfer Function parameters.");
 
@@ -278,110 +447,31 @@ void TFset_parameters(){
     k_equality = 0.0746*omhh/(theta_cmb*theta_cmb);
 
     z_drag = 0.313*pow(omhh,-0.419) * (1 + 0.607*pow(omhh, 0.674));
-    z_drag = 1 + z_drag*pow(cosmo_params_global->OMb*cosmo_params_global->hlittle*cosmo_params_global->hlittle, 0.238*pow(omhh, 0.223));
+    z_drag = 1 + z_drag*pow(obhh, 0.238*pow(omhh, 0.223));
     z_drag *= 1291 * pow(omhh, 0.251) / (1 + 0.659*pow(omhh, 0.828));
 
     y_d = (1 + z_equality) / (1.0 + z_drag);
 
-    R_drag = 31.5 * cosmo_params_global->OMb*cosmo_params_global->hlittle*cosmo_params_global->hlittle * pow(theta_cmb, -4) * 1000 / (1.0 + z_drag);
-    R_equality = 31.5 * cosmo_params_global->OMb*cosmo_params_global->hlittle*cosmo_params_global->hlittle * pow(theta_cmb, -4) * 1000 / (1.0 + z_equality);
+    R_drag = 31.5 * obhh * pow(theta_cmb, -4) * 1000 / (1.0 + z_drag);
+    R_equality = 31.5 * obhh * pow(theta_cmb, -4) * 1000 / (1.0 + z_equality);
 
-    sound_horizon = 2.0/3.0/k_equality * sqrt(6.0/R_equality) *
+    cosmo_consts.sound_horizon = 2.0/3.0/k_equality * sqrt(6.0/R_equality) *
     log( (sqrt(1+R_drag) + sqrt(R_drag+R_equality)) / (1.0 + sqrt(R_equality)) );
 
-    p_c = -(5 - sqrt(1 + 24*(1 - f_nu-f_baryon)))/4.0;
+    p_c = -(5 - sqrt(1 + 24*(1 - f_nu-f_b)))/4.0;
     p_cb = -(5 - sqrt(1 + 24*(1 - f_nu)))/4.0;
-    f_c = 1 - f_nu - f_baryon;
+    f_c = 1 - f_nu - f_b;
     f_cb = 1 - f_nu;
-    f_nub = f_nu+f_baryon;
+    f_nub = f_nu+f_b;
 
     alpha_nu = (f_c/f_cb) * (2*(p_c+p_cb)+5)/(4*p_cb+5.0);
     alpha_nu *= 1 - 0.553*f_nub+0.126*pow(f_nub,3);
     alpha_nu /= 1-0.193*sqrt(f_nu)+0.169*f_nu;
     alpha_nu *= pow(1+y_d, p_c-p_cb);
     alpha_nu *= 1+ (p_cb-p_c)/2.0 * (1.0+1.0/(4.0*p_c+3.0)/(4.0*p_cb+7.0))/(1.0+y_d);
-    beta_c = 1.0/(1.0-0.949*f_nub);
+    cosmo_consts.alpha_nu = alpha_nu;
+    cosmo_consts.beta_c = 1.0/(1.0-0.949*f_nub);
 }
-
-
-// Returns the value of the linear power spectrum DENSITY (i.e. <|delta_k|^2>/V)
-// at a given k mode linearly extrapolated to z=0
-double power_in_k(double k){
-    double p, T, gamma, q, aa, bb, cc;
-
-    // get the power spectrum.. choice of 5:
-    if (user_params_global->POWER_SPECTRUM == 0){ // Eisenstein & Hu
-        T = TFmdm(k);
-        // check if we should cuttoff power spectrum according to Bode et al. 2000 transfer function
-        // if (P_CUTOFF) T *= pow(1 + pow(BODE_e*k*R_CUTOFF, 2*BODE_v), -BODE_n/BODE_v);
-        p = pow(k, cosmo_params_global->POWER_INDEX) * T * T;
-        //p = pow(k, POWER_INDEX - 0.05*log(k/0.05)) * T * T; //running, alpha=0.05
-    }
-    else if (user_params_global->POWER_SPECTRUM == 1){ // BBKS
-        gamma = cosmo_params_global->OMm * cosmo_params_global->hlittle * pow(E, -(cosmo_params_global->OMb) - (cosmo_params_global->OMb/cosmo_params_global->OMm));
-        q = k / (cosmo_params_global->hlittle*gamma);
-        T = (log(1.0+2.34*q)/(2.34*q)) *
-        pow( 1.0+3.89*q + pow(16.1*q, 2) + pow( 5.46*q, 3) + pow(6.71*q, 4), -0.25);
-        p = pow(k, cosmo_params_global->POWER_INDEX) * T * T;
-    }
-    else if (user_params_global->POWER_SPECTRUM == 2){ // Efstathiou,G., Bond,J.R., and White,S.D.M., MNRAS,258,1P (1992)
-        gamma = 0.25;
-        aa = 6.4/(cosmo_params_global->hlittle*gamma);
-        bb = 3.0/(cosmo_params_global->hlittle*gamma);
-        cc = 1.7/(cosmo_params_global->hlittle*gamma);
-        p = pow(k, cosmo_params_global->POWER_INDEX) / pow( 1+pow( aa*k + pow(bb*k, 1.5) + pow(cc*k,2), 1.13), 2.0/1.13 );
-    }
-    else if (user_params_global->POWER_SPECTRUM == 3){ // Peebles, pg. 626
-        gamma = cosmo_params_global->OMm * cosmo_params_global->hlittle * pow(E, -(cosmo_params_global->OMb) - (cosmo_params_global->OMb)/(cosmo_params_global->OMm));
-        aa = 8.0 / (cosmo_params_global->hlittle*gamma);
-        bb = 4.7 / pow(cosmo_params_global->hlittle*gamma, 2);
-        p = pow(k, cosmo_params_global->POWER_INDEX) / pow(1 + aa*k + bb*k*k, 2);
-    }
-    else if (user_params_global->POWER_SPECTRUM == 4){ // White, SDM and Frenk, CS, 1991, 379, 52
-        gamma = cosmo_params_global->OMm * cosmo_params_global->hlittle * pow(E, -(cosmo_params_global->OMb) - (cosmo_params_global->OMb/cosmo_params_global->OMm));
-        aa = 1.7/(cosmo_params_global->hlittle*gamma);
-        bb = 9.0/pow(cosmo_params_global->hlittle*gamma, 1.5);
-        cc = 1.0/pow(cosmo_params_global->hlittle*gamma, 2);
-        p = pow(k, cosmo_params_global->POWER_INDEX) * 19400.0 / pow(1 + aa*k + bb*pow(k, 1.5) + cc*k*k, 2);
-    }
-    else if (user_params_global->POWER_SPECTRUM == 5){ // output of CLASS
-        T = TF_CLASS(k, 1, 0); //read from z=0 output of CLASS. Note, flag_int = 1 here always, since now we have to have initialized the interpolator for CLASS
-  	    p = pow(k, cosmo_params_global->POWER_INDEX) * T * T;
-        if(user_params_global->USE_RELATIVE_VELOCITIES) { //jbm:Add average relvel suppression
-          p *= 1.0 - A_VCB_PM*exp( -pow(log(k/KP_VCB_PM),2.0)/(2.0*SIGMAK_VCB_PM*SIGMAK_VCB_PM)); //for v=vrms
-        }
-    }
-    else{
-        LOG_ERROR("No such power spectrum defined: %i. Output is bogus.", user_params_global->POWER_SPECTRUM);
-        Throw(ValueError);
-    }
-
-
-    return p*TWOPI*PI*sigma_norm*sigma_norm;
-}
-
-
-/*
-  Returns the value of the linear power spectrum of the DM-b relative velocity
-  at kinematic decoupling (which we set at zkin=1010)
-*/
-double power_in_vcb(double k){
-
-    double p, T;
-
-    //only works if using CLASS
-    if (user_params_global->POWER_SPECTRUM == 5){ // CLASS
-        T = TF_CLASS(k, 1, 1); //read from CLASS file. flag_int=1 since we have initialized before, flag_vcb=1 for velocity
-        p = pow(k, cosmo_params_global->POWER_INDEX) * T * T;
-    }
-    else{
-        LOG_ERROR("Cannot get P_cb unless using CLASS: %i\n Set USE_RELATIVE_VELOCITIES 0 or use CLASS.\n", user_params_global->POWER_SPECTRUM);
-        Throw(ValueError);
-    }
-
-    return p*TWOPI*PI*sigma_norm*sigma_norm;
-}
-
 
 void init_ps(){
     double result, error, lower_limit, upper_limit;
@@ -393,24 +483,21 @@ void init_ps(){
     //we start the interpolator if using CLASS:
     if (user_params_global->POWER_SPECTRUM == 5){
         LOG_DEBUG("Setting CLASS Transfer Function inits.");
-        TF_CLASS(1.0, 0, 0);
+        transfer_function_CLASS(1.0, 0, 0);
     }
 
     // Set cuttoff scale for WDM (eq. 4 in Barkana et al. 2001) in comoving Mpc
     // R_CUTOFF = 0.201*pow((cosmo_params_global->OMm-cosmo_params_global->OMb)*cosmo_params_global->hlittle*cosmo_params_global->hlittle/0.15, 0.15)*pow(.g_x/1.5, -0.29)*pow(.M_WDM, -1.15);
 
-    omhh = cosmo_params_global->OMm*cosmo_params_global->hlittle*cosmo_params_global->hlittle;
-    theta_cmb = T_cmb / 2.7;
+    cosmo_consts.omhh = cosmo_params_global->OMm*cosmo_params_global->hlittle*cosmo_params_global->hlittle;
+    cosmo_consts.theta_cmb = T_cmb / 2.7;
 
-    // Translate Parameters into forms GLOBALVARIABLES form
-    f_nu = cosmo_params_global->OMn/cosmo_params_global->OMm;
-    f_baryon = cosmo_params_global->OMb/cosmo_params_global->OMm;
-    if (f_nu < TINY) f_nu = 1e-10;
-    if (f_baryon < TINY) f_baryon = 1e-10;
+    cosmo_consts.f_nu = fmax(cosmo_params_global->OMn/cosmo_params_global->OMm,1e-10);
+    cosmo_consts.f_baryon = fmax(cosmo_params_global->OMb/cosmo_params_global->OMm,1e-10);
 
     TFset_parameters();
 
-    sigma_norm = -1;
+    cosmo_consts.sigma_norm = -1;
 
     double Radius_8;
     Radius_8 = 8.0/cosmo_params_global->hlittle;
@@ -427,11 +514,15 @@ void init_ps(){
     lower_limit = kstart;
     upper_limit = kend;
 
-    LOG_DEBUG("Initializing Power Spectrum with lower_limit=%e, upper_limit=%e, rel_tol=%e, radius_8=%g", lower_limit,upper_limit, rel_tol, Radius_8);
 
+    struct SigmaIntegralParams sigma_params = {
+        .radius=Radius_8,
+        .filter_type=user_params_global->FILTER
+    };
     F.function = &dsigma_dk;
-    F.params = &Radius_8;
+    F.params = &sigma_params;
 
+    LOG_DEBUG("Initializing Power Spectrum with lower_limit=%e, upper_limit=%e, rel_tol=%e, radius_8=%g", lower_limit,upper_limit, rel_tol, Radius_8);
     int status;
 
     gsl_set_error_handler_off();
@@ -449,11 +540,9 @@ void init_ps(){
 
     LOG_DEBUG("Initialized Power Spectrum.");
 
-    sigma_norm = cosmo_params_global->SIGMA_8/sqrt(result); //takes care of volume factor
+    cosmo_consts.sigma_norm = cosmo_params_global->SIGMA_8/sqrt(result); //takes care of volume factor
     return;
 }
-
-
 
 
 //function to free arrays related to the power spectrum
@@ -461,153 +550,11 @@ void free_ps(){
 
 	//we free the PS interpolator if using CLASS:
 	if (user_params_global->POWER_SPECTRUM == 5){
-		TF_CLASS(1.0, -1, 0);
+		transfer_function_CLASS(1.0, -1, 0);
 	}
 
   return;
 }
-
-
-
-/*
- FUNCTION dsigmasqdm_z0(M)
- returns  d/dm (sigma^2) (see function sigma), in units of Msun^-1
- */
-double dsigmasq_dm(double k, void *params){
-    double p, w, T, gamma, q, aa, bb, cc, dwdr, drdm, kR;
-
-    // get the power spectrum.. choice of 5:
-    if (user_params_global->POWER_SPECTRUM == 0){ // Eisenstein & Hu ApJ, 1999, 511, 5
-        T = TFmdm(k);
-        // check if we should cuttoff power spectrum according to Bode et al. 2000 transfer function
-        // if (.P_CUTOFF) T *= pow(1 + pow(BODE_e*k*R_CUTOFF, 2*BODE_v), -BODE_n/BODE_v);
-        p = pow(k, cosmo_params_global->POWER_INDEX) * T * T;
-        //p = pow(k, POWER_INDEX - 0.05*log(k/0.05)) * T * T; //running, alpha=0.05
-    }
-    else if (user_params_global->POWER_SPECTRUM == 1){ // BBKS
-        gamma = cosmo_params_global->OMm * cosmo_params_global->hlittle * pow(E, -(cosmo_params_global->OMb) - (cosmo_params_global->OMb)/(cosmo_params_global->OMm));
-        q = k / (cosmo_params_global->hlittle*gamma);
-        T = (log(1.0+2.34*q)/(2.34*q)) *
-        pow( 1.0+3.89*q + pow(16.1*q, 2) + pow( 5.46*q, 3) + pow(6.71*q, 4), -0.25);
-        p = pow(k, cosmo_params_global->POWER_INDEX) * T * T;
-    }
-    else if (user_params_global->POWER_SPECTRUM == 2){ // Efstathiou,G., Bond,J.R., and White,S.D.M., MNRAS,258,1P (1992)
-        gamma = 0.25;
-        aa = 6.4/(cosmo_params_global->hlittle*gamma);
-        bb = 3.0/(cosmo_params_global->hlittle*gamma);
-        cc = 1.7/(cosmo_params_global->hlittle*gamma);
-        p = pow(k, cosmo_params_global->POWER_INDEX) / pow( 1+pow( aa*k + pow(bb*k, 1.5) + pow(cc*k,2), 1.13), 2.0/1.13 );
-    }
-    else if (user_params_global->POWER_SPECTRUM == 3){ // Peebles, pg. 626
-        gamma = cosmo_params_global->OMm * cosmo_params_global->hlittle * pow(E, -(cosmo_params_global->OMb) - (cosmo_params_global->OMb)/(cosmo_params_global->OMm));
-        aa = 8.0 / (cosmo_params_global->hlittle*gamma);
-        bb = 4.7 / (cosmo_params_global->hlittle*gamma); //NOTE: Different here than the other two functions???
-        p = pow(k, cosmo_params_global->POWER_INDEX) / pow(1 + aa*k + bb*k*k, 2);
-    }
-    else if (user_params_global->POWER_SPECTRUM == 4){ // White, SDM and Frenk, CS, 1991, 379, 52
-        gamma = cosmo_params_global->OMm * cosmo_params_global->hlittle * pow(E, -(cosmo_params_global->OMb) - (cosmo_params_global->OMb)/(cosmo_params_global->OMm));
-        aa = 1.7/(cosmo_params_global->hlittle*gamma);
-        bb = 9.0/pow(cosmo_params_global->hlittle*gamma, 1.5);
-        cc = 1.0/pow(cosmo_params_global->hlittle*gamma, 2);
-        p = pow(k, cosmo_params_global->POWER_INDEX) * 19400.0 / pow(1 + aa*k + pow(bb*k, 1.5) + cc*k*k, 2); //NOTE: Different here than the other two functions???
-    }
-    else if (user_params_global->POWER_SPECTRUM == 5){ // JBM: CLASS
-      T = TF_CLASS(k, 1, 0); //read from z=0 output of CLASS
-        p = pow(k, cosmo_params_global->POWER_INDEX) * T * T;
-        if(user_params_global->USE_RELATIVE_VELOCITIES) { //jbm:Add average relvel suppression
-          p *= 1.0 - A_VCB_PM*exp( -pow(log(k/KP_VCB_PM),2.0)/(2.0*SIGMAK_VCB_PM*SIGMAK_VCB_PM)); //for v=vrms
-        }
-      }
-    else{
-        LOG_ERROR("No such power spectrum defined: %i. Output is bogus.", user_params_global->POWER_SPECTRUM);
-        Throw(ValueError);
-    }
-
-    double Radius;
-    Radius = *(double *)params;
-
-    // now get the value of the window function
-    kR = k * Radius;
-    if (user_params_global->FILTER == 0){ // top hat
-        if ( (kR) < 1.0e-4 ){ w = 1.0; }// w converges to 1 as (kR) -> 0
-        else { w = 3.0 * (sin(kR)/pow(kR, 3) - cos(kR)/pow(kR, 2));}
-
-        // now do d(w^2)/dm = 2 w dw/dr dr/dm
-        if ( (kR) < 1.0e-10 ){  dwdr = 0;}
-        else{ dwdr = 9*cos(kR)*k/pow(kR,3) + 3*sin(kR)*(1 - 3/(kR*kR))/(kR*Radius);}
-        //3*k*( 3*cos(kR)/pow(kR,3) + sin(kR)*(-3*pow(kR, -4) + 1/(kR*kR)) );}
-        //     dwdr = -1e8 * k / (R*1e3);
-        drdm = 1.0 / (4.0*PI * cosmo_params_global->OMm*RHOcrit * Radius*Radius);
-    }
-    else if (user_params_global->FILTER == 2){ // gaussian of width 1/R
-        w = pow(E, -kR*kR/2.0);
-        dwdr = - k*kR * w;
-        drdm = 1.0 / (pow(2*PI, 1.5) * cosmo_params_global->OMm*RHOcrit * 3*Radius*Radius);
-    }
-    else {
-        LOG_ERROR("No such filter: %i. Output is bogus.", user_params_global->FILTER);
-        Throw(ValueError);
-    }
-
-//    return k*k*p*2*w*dwdr*drdm * d2fact;
-    return k*k*p*2*w*dwdr*drdm;
-}
-double dsigmasqdm_z0(double M){
-    double result, error, lower_limit, upper_limit;
-    gsl_function F;
-    double rel_tol  = FRACT_FLOAT_ERR*10; //<- relative tolerance
-    gsl_integration_workspace * w
-    = gsl_integration_workspace_alloc (1000);
-    double kstart, kend;
-
-    double Radius;
-//    R = MtoR(M);
-    Radius = MtoR(M);
-
-    // now lets do the integral for sigma and scale it with sigma_norm
-    if(user_params_global->POWER_SPECTRUM == 5){
-      kstart = fmax(1.0e-99/Radius, KBOT_CLASS);
-      kend = fmin(350.0/Radius, KTOP_CLASS);
-    }//we establish a maximum k of KTOP_CLASS~1e3 Mpc-1 and a minimum at KBOT_CLASS,~1e-5 Mpc-1 since the CLASS transfer function has a max!
-    else{
-      kstart = 1.0e-99/Radius;
-      kend = 350.0/Radius;
-    }
-
-    lower_limit = kstart;//log(kstart);
-    upper_limit = kend;//log(kend);
-
-
-    if (user_params_global->POWER_SPECTRUM == 5){ // for CLASS we do not need to renormalize the sigma integral.
-      d2fact=1.0;
-    }
-    else {
-      d2fact = M*10000/sigma_z0(M);
-    }
-
-
-    F.function = &dsigmasq_dm;
-    F.params = &Radius;
-
-    int status;
-
-    gsl_set_error_handler_off();
-
-    status = gsl_integration_qag (&F, lower_limit, upper_limit, 0, rel_tol,1000, GSL_INTEG_GAUSS61, w, &result, &error);
-
-    if(status!=0) {
-        LOG_ERROR("gsl integration error occured!");
-        LOG_ERROR("(function argument): lower_limit=%e upper_limit=%e rel_tol=%e result=%e error=%e",lower_limit,upper_limit,rel_tol,result,error);
-        LOG_ERROR("data: M=%e",M);
-        CATCH_GSL_ERROR(status);
-    }
-
-    gsl_integration_workspace_free (w);
-
-//    return sigma_norm * sigma_norm * result /d2fact;
-    return sigma_norm * sigma_norm * result;
-}
-
 
 /* returns the "effective Jeans mass" in Msun
  corresponding to the gas analog of WDM ; eq. 10 in Barkana+ 2001 */
@@ -752,6 +699,7 @@ double ddickedt(double z){
     double omegaM_z, ddickdz, dick_0, domegaMdz;
     double tiny = 1e-4;
 
+    //TODO: called once per snapshot in PerturbedField, find out why we don't use analytic
     return (dicke(z+dz)-dicke(z))/dz/dtdz(z); // lazy non-analytic form getting
 
     if (fabs(cosmo_params_global->OMm-1.0) < tiny){ //OMm = 1 (Einstein de-Sitter)

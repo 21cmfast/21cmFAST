@@ -301,6 +301,7 @@ def make_matterfield_comparison_plot(
     axs[0, 0].loglog(x, test[0], linestyle=":", linewidth=3, label="Test", **kwargs)
     axs[1, 0].semilogx(x, (test[0] - true[0]) / true[0], **kwargs)
     axs[0, 0].legend()
+    axs[0, 0].set_ylim(1e-12, 1e2)
 
     axs[0, 1].loglog(x, true[1], linestyle="-", label="Truth", **kwargs)
     axs[0, 1].loglog(x, test[1], linestyle=":", linewidth=3, label="Test", **kwargs)
