@@ -129,7 +129,7 @@ def test_bad_integral_inputs(default_input_struct):
 
 
 @pytest.mark.parametrize("hmf_model", ["PS", "ST"])
-@pytest.mark.parametrize("ps_model", ["EH", "BBKS", "EFSTATHIOU"])
+@pytest.mark.parametrize("ps_model", ["EH", "BBKS"])
 @pytest.mark.xfail(reason="pending proper comparison between 21cmFAST and hmf")
 def test_matterfield_statistics(default_input_struct, hmf_model, ps_model, plt):
     redshift = 8.0
@@ -140,13 +140,10 @@ def test_matterfield_statistics(default_input_struct, hmf_model, ps_model, plt):
     transfer_map = {
         "EH": "EH_NoBAO",
         "BBKS": "BBKS",
-        "EFSTATHIOU": "BondEfs",
     }
 
     if ps_model == "BBKS":
         t_params = {"use_sugiyama_baryons": True, "use_liddle_baryons": False}
-    elif ps_model == "EFSTATHIOU":
-        t_params = {"nu": 1.13}
     else:
         t_params = {}
 
@@ -163,7 +160,7 @@ def test_matterfield_statistics(default_input_struct, hmf_model, ps_model, plt):
         hmf_params=hmf_params,
         transfer_model=transfer_map[ps_model],
         transfer_params=t_params,
-        delta_c=1.68,
+        delta_c=1.68,  # hmf default is 1.686
     )
 
     inputs = default_input_struct.clone(

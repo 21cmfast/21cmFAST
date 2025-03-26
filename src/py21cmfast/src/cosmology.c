@@ -33,11 +33,8 @@ struct CosmoConstants {
     //Normalisation of the power-spectrum integral for sigma_8
     double sigma_norm;
 
-    //TODO remove old (?) parameters after verifying their non-use
-    //double R_CUTOFF;
-    //double d2fact;
 };
-//TODO: decide to keep this static global struct or pass through all the functions
+
 static struct CosmoConstants cosmo_consts;
 
 //NOTE: All Transfer functions take k in Mpc^-1, and convert to hMpc^-1 internally
@@ -64,6 +61,7 @@ double transfer_function_EH(double k){
 }
 
 //Bardeen et al 1986 ApJ, 304, 15
+// with baryon correction from Sugiyama 1995 ApJS 100, 281
 double transfer_function_BBKS(double k){
     double gamma,q;
     gamma = cosmo_params_global->OMm * cosmo_params_global->hlittle * \
@@ -74,19 +72,21 @@ double transfer_function_BBKS(double k){
 }
 
 //Efstathiou et al 1992 MNRAS 258, 1
+//NOTE: different from Bond & Efstathiou 1984
+// no baryon correction
 double transfer_function_Efstathiou(double k){
     double gamma,aa,bb,cc,nu;
-    gamma = 0.25; //NOTE: should be Omega_m*h?
-    aa = 6.4/(cosmo_params_global->hlittle*gamma);
-    bb = 3.0/(cosmo_params_global->hlittle*gamma);
-    cc = 1.7/(cosmo_params_global->hlittle*gamma);
+    gamma = cosmo_params_global->OMm*cosmo_params_global->hlittle*cosmo_params_global->hlittle;
+    aa = 6.4/gamma;
+    bb = 3.0/gamma;
+    cc = 1.7/gamma;
     nu = 1.13;
     return pow(1 + pow( aa*k + pow(bb*k, 1.5) + pow(cc*k,2), nu), -1./nu );
 }
 
 //Peebles 1980 p.626
+// with baryon correction from Sugiyama 1995 ApJS 100, 281
 double transfer_function_Peebles(double k){
-    //TODO: Check this as it was different between sigma/power and dsigmasqdm
     double gamma,aa,bb;
     gamma = cosmo_params_global->OMm * cosmo_params_global->hlittle * \
         exp(-(cosmo_params_global->OMb) - (cosmo_params_global->OMb/cosmo_params_global->OMm));
@@ -95,15 +95,15 @@ double transfer_function_Peebles(double k){
     return 1 + aa*k + bb*k*k;
 }
 
-// White, SDM and Frenk, CS, 1991, 379, 52
+//Actually from Davies, Efstathiou, Frenk & White 1985 ApJ 292, 371
+// with baryon correction from Sugiyama 1995 ApJS 100, 281
 double transfer_function_White(double k){
     double gamma,aa,bb,cc;
-    gamma = cosmo_params_global->OMm * cosmo_params_global->hlittle * \
+    gamma = cosmo_params_global->OMm * cosmo_params_global->hlittle * cosmo_params_global->hlittle \
         exp(-(cosmo_params_global->OMb) - (cosmo_params_global->OMb/cosmo_params_global->OMm));
-    aa = 1.7/(cosmo_params_global->hlittle*gamma);
-    bb = 9.0/pow(cosmo_params_global->hlittle*gamma, 1.5);
-    cc = 1.0/pow(cosmo_params_global->hlittle*gamma, 2);
-    //TODO:check, replaced sqrt(19400) --> 139.284, also bb was inside pow() in dsigmasq which makes no sense
+    aa = 1.7/(gamma);
+    bb = 9.0/pow(gamma, 1.5);
+    cc = 1.0/pow(gamma, 2);
     return 139.284 / (1 + aa*k + bb*pow(k, 1.5) + cc*k*k);
 }
 
@@ -281,7 +281,7 @@ double power_in_vcb(double k){
 // smoothed on the comoving scale of M (see filter definitions for M<->R conversion).
 // The sigma is evaluated at z=0, with the time evolution contained in the dicke(z) factor,
 // i.e. sigma(M,z) = sigma_z0(m) * dicke(z)
-// normalized so that sigma_z0(M->8/h Mpc) = SIGMA8 in ../Parameter_files/COSMOLOGY.H
+// normalized so that sigma_z0(M->8/h Mpc) = SIGMA_8 in the UserParams
 
 // NOTE: volume is normalized to = 1, so this is equvalent to the mass standard deviation
 
@@ -365,11 +365,6 @@ double dsigmasq_dm(double k, void *params){
     // now get the value of the window function
     double dw2dm = dwdm_filter(k, Radius, filter);
 
-    //TODO: figure out d2fact and it's purpose, it was always commented
-    // It's a static global *SET* in the integral but only (no longer) used here?
-    // It is a constant multiplied in the integrand and then divided out in the final result
-    // Could it have been an old float precision hack?
-    //    return k*k*p*2*w*dwdr*drdm * d2fact;
     return k*k*p*dw2dm;
 }
 double dsigmasqdm_z0(double M){
@@ -395,13 +390,6 @@ double dsigmasqdm_z0(double M){
     lower_limit = kstart;//log(kstart);
     upper_limit = kend;//log(kend);
 
-    //TODO: see comment above, d2fact is a constant that is multiplied in the integrand and then divided out in the final result
-    // if (user_params_global->POWER_SPECTRUM == 5){ // for CLASS we do not need to renormalize the sigma integral.
-    //   d2fact=1.0;
-    // }
-    // else {
-    //   d2fact = M*10000/sigma_z0(M);
-    // }
     struct SigmaIntegralParams sigma_params = {
         .radius=Radius,
         .filter_type=user_params_global->FILTER
@@ -424,7 +412,6 @@ double dsigmasqdm_z0(double M){
 
     gsl_integration_workspace_free (w);
 
-//    return cosmo_consts.sigma_norm * cosmo_consts.sigma_norm * result /d2fact;
     return cosmo_consts.sigma_norm * cosmo_consts.sigma_norm * result;
 }
 
