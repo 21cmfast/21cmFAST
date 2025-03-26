@@ -130,7 +130,7 @@ def test_bad_integral_inputs(default_input_struct):
 
 @pytest.mark.parametrize("hmf_model", ["PS", "ST"])
 @pytest.mark.parametrize("ps_model", ["EH", "BBKS"])
-# @pytest.mark.xfail(reason="pending proper comparison between 21cmFAST and hmf")
+@pytest.mark.xfail(reason="pending proper comparison between 21cmFAST and hmf")
 def test_matterfield_statistics(default_input_struct, hmf_model, ps_model, plt):
     redshift = 8.0
     hmf_map = {
@@ -233,7 +233,9 @@ def test_matterfield_statistics(default_input_struct, hmf_model, ps_model, plt):
 
 
 @pytest.mark.parametrize("hmf_model", ["PS", "ST"])
-@pytest.mark.parametrize("ps_model", ["EH", "BBKS", "EFSTATHIOU"])
+@pytest.mark.parametrize(
+    "ps_model", ["EH", "BBKS", "EFSTATHIOU", "PEEBLES", "WHITE", "CLASS"]
+)
 def test_hmf_runs(default_input_struct, hmf_model, ps_model):
     mass_range = np.logspace(7, 12, num=64)
     redshift = 8.0
@@ -254,7 +256,9 @@ def test_hmf_runs(default_input_struct, hmf_model, ps_model):
 
 
 @pytest.mark.parametrize("hmf_model", ["PS", "ST"])
-@pytest.mark.parametrize("ps_model", ["EH", "BBKS", "EFSTATHIOU"])
+@pytest.mark.parametrize(
+    "ps_model", ["EH", "BBKS", "EFSTATHIOU", "PEEBLES", "WHITE", "CLASS"]
+)
 def test_chmf_runs(default_input_struct, hmf_model, ps_model):
     delta_range = np.linspace(-1.0, 1.7, num=32)
     condmass_range = np.logspace(8, 13, num=16)

@@ -125,6 +125,7 @@ double transfer_function_CLASS(double k, int flag_int, int flag_dv)
     FILE *F;
 
     static bool warning_printed;
+    static double eh_ratio_at_kmax;
 
     char filename[500];
     sprintf(filename,"%s/%s",config_settings.external_table_path,CLASS_FILENAME);
@@ -172,6 +173,8 @@ double transfer_function_CLASS(double k, int flag_int, int flag_dv)
         CATCH_GSL_ERROR(gsl_status);
 
         LOG_SUPER_DEBUG("Generated CLASS velocity Spline.");
+
+        eh_ratio_at_kmax = Tmclass[CLASS_LENGTH-1]/kclass[CLASS_LENGTH-1]/kclass[CLASS_LENGTH-1] / transfer_function_EH(kclass[CLASS_LENGTH-1]);
         return 0;
     }
     else if (flag_int == -1) {
@@ -184,14 +187,14 @@ double transfer_function_CLASS(double k, int flag_int, int flag_dv)
 
 
     if (k > kclass[CLASS_LENGTH-1]) { // k>kmax
-        if(!warning_printed)
-            LOG_WARNING("Called transfer_function_CLASS with k=%f, larger than kmax! performing linear extrapolation in log(k),log(T)", k);
-        if(flag_dv == 0){ // output is density
-            return exp(log(Tmclass[CLASS_LENGTH-1]) + (log(Tmclass[CLASS_LENGTH-1]) - log(Tmclass[CLASS_LENGTH-2])) \
-                / (log(kclass[CLASS_LENGTH-1]) - log(kclass[CLASS_LENGTH-2])) * (log(k) - log(kclass[CLASS_LENGTH-1]))) \
-                / k / k;
+        if(!warning_printed){
+            LOG_WARNING("Called transfer_function_CLASS with k=%f, larger than kmax! performing linear extrapolation with Eisenstein & Hu", k);
+            warning_printed = true;
         }
-        else if(flag_dv == 1){ // output is rel velocity
+        if(flag_dv == 0){ // output is density
+            return eh_ratio_at_kmax * transfer_function_EH(k);
+        }
+        else if(flag_dv == 1){ // output is rel velocity, do a log-log linear extrapolation
             return exp(log(Tvclass_vcb[CLASS_LENGTH-1]) + (log(Tvclass_vcb[CLASS_LENGTH-1]) - log(Tvclass_vcb[CLASS_LENGTH-2])) \
                 / (log(kclass[CLASS_LENGTH-1]) - log(kclass[CLASS_LENGTH-2])) * (log(k) - log(kclass[CLASS_LENGTH-1]))) \
                 / k / k;
@@ -411,7 +414,6 @@ void TFset_parameters(){
     double omhh = cosmo_consts.omhh;
     double obhh = cosmo_params_global->OMb*cosmo_params_global->hlittle*cosmo_params_global->hlittle;
     double theta_cmb = cosmo_consts.theta_cmb;
-    //GLOBALS SET BY THIS FUNCTION: sound_horizon, alpha_nu, beta_c
     double alpha_nu;
 
     LOG_DEBUG("Setting Transfer Function parameters.");
@@ -452,12 +454,6 @@ void init_ps(){
     double rel_tol  = FRACT_FLOAT_ERR*10; //<- relative tolerance
     gsl_integration_workspace * w = gsl_integration_workspace_alloc (1000);
 
-    //we start the interpolator if using CLASS:
-    if (user_params_global->POWER_SPECTRUM == 5){
-        LOG_DEBUG("Setting CLASS Transfer Function inits.");
-        transfer_function_CLASS(1.0, 0, 0);
-    }
-
     // Set cuttoff scale for WDM (eq. 4 in Barkana et al. 2001) in comoving Mpc
     // R_CUTOFF = 0.201*pow((cosmo_params_global->OMm-cosmo_params_global->OMb)*cosmo_params_global->hlittle*cosmo_params_global->hlittle/0.15, 0.15)*pow(.g_x/1.5, -0.29)*pow(.M_WDM, -1.15);
 
@@ -470,6 +466,12 @@ void init_ps(){
     TFset_parameters();
 
     cosmo_consts.sigma_norm = -1;
+
+    //we start the interpolator if using CLASS:
+    if (user_params_global->POWER_SPECTRUM == 5){
+        LOG_DEBUG("Setting CLASS Transfer Function inits.");
+        transfer_function_CLASS(1.0, 0, 0);
+    }
 
     double Radius_8;
     Radius_8 = 8.0/cosmo_params_global->hlittle;
