@@ -100,7 +100,7 @@ double transfer_function_Peebles(double k){
 double transfer_function_White(double k){
     double gamma,aa,bb,cc;
     gamma = cosmo_params_global->OMm * cosmo_params_global->hlittle * cosmo_params_global->hlittle \
-        exp(-(cosmo_params_global->OMb) - (cosmo_params_global->OMb/cosmo_params_global->OMm));
+        * exp(-(cosmo_params_global->OMb) - (cosmo_params_global->OMb/cosmo_params_global->OMm));
     aa = 1.7/(gamma);
     bb = 9.0/pow(gamma, 1.5);
     cc = 1.0/pow(gamma, 2);
@@ -123,6 +123,8 @@ double transfer_function_CLASS(double k, int flag_int, int flag_dv)
     int i;
     int gsl_status;
     FILE *F;
+
+    static bool warning_printed = false;
 
     char filename[500];
     sprintf(filename,"%s/%s",config_settings.external_table_path,CLASS_FILENAME);
@@ -181,12 +183,17 @@ double transfer_function_CLASS(double k, int flag_int, int flag_dv)
 
 
     if (k > kclass[CLASS_LENGTH-1]) { // k>kmax
-        LOG_WARNING("Called transfer_function_CLASS with k=%f, larger than kmax! Returning value at kmax.", k);
+        if(!warning_printed)
+            LOG_WARNING("Called transfer_function_CLASS with k=%f, larger than kmax! performing linear extrapolation in log(k),log(T)", k);
         if(flag_dv == 0){ // output is density
-            return (Tmclass[CLASS_LENGTH-1]/kclass[CLASS_LENGTH-1]/kclass[CLASS_LENGTH-1]);
+            return exp(log(Tmclass[CLASS_LENGTH-1]) + (log(Tmclass[CLASS_LENGTH-1]) - log(Tmclass[CLASS_LENGTH-2])) \
+                / (log(kclass[CLASS_LENGTH-1]) - log(kclass[CLASS_LENGTH-2])) * (log(k) - log(kclass[CLASS_LENGTH-1]))) \
+                / k / k;
         }
         else if(flag_dv == 1){ // output is rel velocity
-            return (Tvclass_vcb[CLASS_LENGTH-1]/kclass[CLASS_LENGTH-1]/kclass[CLASS_LENGTH-1]);
+            return exp(log(Tvclass_vcb[CLASS_LENGTH-1]) + (log(Tvclass_vcb[CLASS_LENGTH-1]) - log(Tvclass_vcb[CLASS_LENGTH-2])) \
+                / (log(kclass[CLASS_LENGTH-1]) - log(kclass[CLASS_LENGTH-2])) * (log(k) - log(kclass[CLASS_LENGTH-1]))) \
+                / k / k;
         }    //we just set it to the last value, since sometimes it wants large k for R<<cell_size, which does not matter much.
         else{
             LOG_ERROR("Invalid flag_dv %d passed to transfer_function_CLASS",flag_dv);
@@ -240,7 +247,7 @@ double power_in_k_integrand(double k){
     //if(user_params_global->POWER_SPECTRUM == 0)
     //  p = pow(k, POWER_INDEX - 0.05*log(k/0.05)) * T * T; //running, alpha=0.05
 
-    //TODO: is this *only* applicable to CLASS?
+    //NOTE: USE_RELATIVE_VELOCITIES is only allowed if using CLASS
     if(user_params_global->POWER_SPECTRUM == 5 && \
         user_params_global->USE_RELATIVE_VELOCITIES){
         //jbm:Add average relvel suppression
@@ -309,22 +316,11 @@ double sigma_z0(double M){
     gsl_function F;
     double rel_tol  = FRACT_FLOAT_ERR*10; //<- relative tolerance
     gsl_integration_workspace * w = gsl_integration_workspace_alloc (1000);
-    double kstart, kend;
 
     double Radius = MtoR(M);
-    // now lets do the integral for sigma and scale it with cosmo_consts.sigma_norm
 
-    if(user_params_global->POWER_SPECTRUM == 5){
-      kstart = fmax(1.0e-99/Radius, KBOT_CLASS);
-      kend = fmin(350.0/Radius, KTOP_CLASS);
-    }//we establish a maximum k of KTOP_CLASS~1e3 Mpc-1 and a minimum at KBOT_CLASS,~1e-5 Mpc-1 since the CLASS transfer function has a max!
-    else{
-      kstart = 1.0e-99/Radius;
-      kend = 350.0/Radius;
-    }
-
-    lower_limit = kstart;//log(kstart);
-    upper_limit = kend;//log(kend);
+    lower_limit = 1.0e-99/Radius; //kstart
+    upper_limit = 350.0/Radius;// kend;
 
     struct SigmaIntegralParams sigma_params = {
         .radius=Radius,
@@ -373,22 +369,11 @@ double dsigmasqdm_z0(double M){
     double rel_tol  = FRACT_FLOAT_ERR*10; //<- relative tolerance
     gsl_integration_workspace * w
     = gsl_integration_workspace_alloc (1000);
-    double kstart, kend;
 
     double Radius = MtoR(M);
 
-    // now lets do the integral for sigma and scale it with cosmo_consts.sigma_norm
-    if(user_params_global->POWER_SPECTRUM == 5){
-      kstart = fmax(1.0e-99/Radius, KBOT_CLASS);
-      kend = fmin(350.0/Radius, KTOP_CLASS);
-    }//we establish a maximum k of KTOP_CLASS~1e3 Mpc-1 and a minimum at KBOT_CLASS,~1e-5 Mpc-1 since the CLASS transfer function has a max!
-    else{
-      kstart = 1.0e-99/Radius;
-      kend = 350.0/Radius;
-    }
-
-    lower_limit = kstart;//log(kstart);
-    upper_limit = kend;//log(kend);
+    lower_limit = 1.0e-99/Radius; //kstart
+    upper_limit = 350.0/Radius; //kend
 
     struct SigmaIntegralParams sigma_params = {
         .radius=Radius,
@@ -465,7 +450,6 @@ void init_ps(){
     gsl_function F;
     double rel_tol  = FRACT_FLOAT_ERR*10; //<- relative tolerance
     gsl_integration_workspace * w = gsl_integration_workspace_alloc (1000);
-    double kstart, kend;
 
     //we start the interpolator if using CLASS:
     if (user_params_global->POWER_SPECTRUM == 5){
@@ -489,18 +473,8 @@ void init_ps(){
     double Radius_8;
     Radius_8 = 8.0/cosmo_params_global->hlittle;
 
-    if(user_params_global->POWER_SPECTRUM == 5){
-      kstart = fmax(1.0e-99/Radius_8, KBOT_CLASS);
-      kend = fmin(350.0/Radius_8, KTOP_CLASS);
-    }//we establish a maximum k of KTOP_CLASS~1e3 Mpc-1 and a minimum at KBOT_CLASS,~1e-5 Mpc-1 since the CLASS transfer function has a max!
-    else{
-      kstart = 1.0e-99/Radius_8;
-      kend = 350.0/Radius_8;
-    }
-
-    lower_limit = kstart;
-    upper_limit = kend;
-
+    lower_limit = 1.0e-99/Radius_8; //kstart
+    upper_limit = 350.0/Radius_8; //kend
 
     struct SigmaIntegralParams sigma_params = {
         .radius=Radius_8,
