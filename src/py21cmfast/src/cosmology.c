@@ -124,7 +124,7 @@ double transfer_function_CLASS(double k, int flag_int, int flag_dv)
     int gsl_status;
     FILE *F;
 
-    static bool warning_printed = false;
+    static bool warning_printed;
 
     char filename[500];
     sprintf(filename,"%s/%s",config_settings.external_table_path,CLASS_FILENAME);
@@ -134,6 +134,7 @@ double transfer_function_CLASS(double k, int flag_int, int flag_dv)
             LOG_ERROR("Unable to open file: %s for reading.", filename);
             Throw(IOError);
         }
+        warning_printed = false;
 
         int nscans;
         for (i = 0; i < CLASS_LENGTH; i++) {

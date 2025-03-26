@@ -130,7 +130,7 @@ def test_bad_integral_inputs(default_input_struct):
 
 @pytest.mark.parametrize("hmf_model", ["PS", "ST"])
 @pytest.mark.parametrize("ps_model", ["EH", "BBKS"])
-@pytest.mark.xfail(reason="pending proper comparison between 21cmFAST and hmf")
+# @pytest.mark.xfail(reason="pending proper comparison between 21cmFAST and hmf")
 def test_matterfield_statistics(default_input_struct, hmf_model, ps_model, plt):
     redshift = 8.0
     hmf_map = {
@@ -217,12 +217,12 @@ def test_matterfield_statistics(default_input_struct, hmf_model, ps_model, plt):
         )
 
     # check matter power spectrum
-    np.testing.assert_allclose(power_vals, comparison_mf.power / (h**3), rtol=1e-3)
+    np.testing.assert_allclose(power_vals, comparison_mf._power0 / (h**3), rtol=1e-3)
     # check sigma(M)
-    np.testing.assert_allclose(sigma_vals, comparison_mf.sigma, rtol=1e-3)
+    np.testing.assert_allclose(sigma_vals, comparison_mf._sigma_0, rtol=1e-3)
     # check dSigma/dM
     np.testing.assert_allclose(
-        dsigmasq_vals / 2 * sigma_vals,
+        dsigmasq_vals / (2 * sigma_vals),
         comparison_mf._dlnsdlnm * comparison_mf._sigma_0 / comparison_mf.m * h,
         rtol=1e-3,
     )
