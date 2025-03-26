@@ -34,6 +34,47 @@ double gaussian_filter(double kR_squared){
     return exp(-0.643*0.643*kR_squared/2.);
 }
 
+double filter_function(double kR, int filter_type){
+    switch(filter_type){
+        case 0:
+            return real_tophat_filter(kR);
+        case 1:
+            return sharp_k_filter(kR);
+        case 2:
+            return gaussian_filter(kR*kR);
+        default:
+            LOG_ERROR("No such filter: %i.", filter_type);
+            Throw(ValueError);
+    }
+}
+
+//NOTE: Only used in dsigmasqdm, so I didn't bother making functions for each filter
+double dwdm_filter(double k, double R, int filter_type){
+    double kR = k * R;
+    double w, dwdr, drdm;
+    if (filter_type == 0){ // top hat
+        if ( (kR) < 1.0e-4 ){ w = 1.0; }// w converges to 1 as (kR) -> 0
+        else { w = 3.0 * (sin(kR)/pow(kR, 3) - cos(kR)/pow(kR, 2));}
+        if ( (kR) < 1.0e-10 ){  dwdr = 0;}
+        else{ dwdr = 9*cos(kR)*k/pow(kR,3) + 3*sin(kR)*(1 - 3/(kR*kR))/(kR*R);}
+        //TODO: figure out what this is/was
+        //3*k*( 3*cos(kR)/pow(kR,3) + sin(kR)*(-3*pow(kR, -4) + 1/(kR*kR)) );}
+        //     dwdr = -1e8 * k / (R*1e3);
+        drdm = 1.0 / (4.0*PI * cosmo_params_global->OMm*RHOcrit * R*R);
+    }
+    else if (filter_type == 2){ // gaussian of width 1/R
+        w = exp(-kR*kR/2.0);
+        dwdr = - k*kR * w;
+        drdm = 1.0 / (pow(2*PI, 1.5) * cosmo_params_global->OMm*RHOcrit * 3*R*R);
+    }
+    else {
+        LOG_ERROR("No such filter for dWdM: %i", user_params_global->FILTER);
+        Throw(ValueError);
+    }
+    // now do d(w^2)/dm = 2 w dw/dr dr/dm
+    return 2*w*dwdr*drdm;
+}
+
 double exp_mfp_filter(double k, double R, double mfp, double exp_term){
     double f;
 
@@ -117,6 +158,8 @@ void filter_box(fftwf_complex *box, int RES, int filter_type, float R, float R_p
 
                     grid_index = RES==1 ? HII_C_INDEX(n_x, n_y, n_z) : C_INDEX(n_x, n_y, n_z);
 
+                    //TODO: it would be nice to combine these into the filter_function call, *but* since
+                    // each can take different arguments more thought is needed
                     if (filter_type == 0){ // real space top-hat
                         kR = sqrt(k_mag_sq)*R;
                         box[grid_index] *= real_tophat_filter(kR);

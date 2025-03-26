@@ -1368,7 +1368,6 @@ void ts_main(float redshift, float prev_redshift, UserParams *user_params, Cosmo
             xray_R_factor = pow(1+zpp,-(astro_params->X_RAY_SPEC_INDEX));
 
             set_scaling_constants(zpp,astro_params,flag_options,&sc,false);
-            sc_sfrd = evolve_scaling_constants_sfr(&sc);
 
             //index for grids
             R_index = user_params->MINIMIZE_MEMORY ? 0 : R_ct;
@@ -1402,6 +1401,7 @@ void ts_main(float redshift, float prev_redshift, UserParams *user_params, Cosmo
                 if(flag_options->USE_MINI_HALOS) avg_fix_term_MINI = mean_sfr_zpp_mini[R_ct]/ave_fcoll_MINI;
 
 #if LOG_LEVEL > SUPER_DEBUG_LEVEL
+                sc_sfrd = evolve_scaling_constants_sfr(&sc);
                 LOG_SUPER_DEBUG("z %6.2f ave sfrd val %.3e global %.3e (int %.3e) Mmin %.3e ratio %.4e z_edge %.4e",
                                     zpp_for_evolve_list[R_ct],ave_fcoll,mean_sfr_zpp[R_ct],
                                     Nion_General(zpp_for_evolve_list[R_ct], log(M_min_R[R_ct]), log(M_MAX_INTEGRAL),
