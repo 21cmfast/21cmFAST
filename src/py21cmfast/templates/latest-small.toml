@@ -8,7 +8,6 @@ BOX_LEN=64
 
 [AstroParams]
 R_BUBBLE_MAX = 50.0
-HII_FILTER = 'sharp-k'
 
 [FlagOptions]
 USE_HALO_FIELD = false
@@ -19,3 +18,4 @@ USE_UPPER_STELLAR_TURNOVER = false
 USE_MINI_HALOS = false
 USE_TS_FLUCT = true
 INHOMO_RECO = true
+HII_FILTER = 'sharp-k'

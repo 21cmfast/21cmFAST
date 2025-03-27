@@ -5,7 +5,6 @@
 [UserParams]
 
 [AstroParams]
-HII_FILTER = 'sharp-k'
 
 [FlagOptions]
 USE_HALO_FIELD = false
@@ -16,3 +15,4 @@ USE_UPPER_STELLAR_TURNOVER = false
 USE_MINI_HALOS = false
 USE_TS_FLUCT = false
 INHOMO_RECO = false
+HII_FILTER = 'sharp-k'
