@@ -34,7 +34,8 @@ options_mass = [1e9, 1e10, 1e11, 1e12, 1e13]  # halo masses to draw samples from
 @pytest.mark.parametrize("cond_type", ["cat", "grid"])
 @pytest.mark.parametrize("cond", range(len(options_delta)))
 def test_sampler(name, cond, cond_type, plt):
-    redshift, kwargs = cint.OPTIONS_HMF[name]
+    _, kwargs = cint.OPTIONS_HMF[name]
+    redshift = 7.0  # we need the largest condition mass to not be >7 sigma
     inputs = prd.get_all_options_struct(redshift, **kwargs)["inputs"]
     inputs = inputs.evolve_input_structs(
         SAMPLER_MIN_MASS=min(options_mass) / 2,

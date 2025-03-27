@@ -145,7 +145,10 @@ def test_validation():
 
     f2 = f.clone(HII_FILTER="sharp-k")
     a2 = a.clone(R_BUBBLE_MAX=20)
-    with pytest.raises(ValueError, match="Your R_BUBBLE_MAX is > BOX_LEN/3"):
+    with (
+        config.use(ignore_R_BUBBLE_MAX_error=False),
+        pytest.raises(ValueError, match="Your R_BUBBLE_MAX is > BOX_LEN/3"),
+    ):
         InputParameters(
             cosmo_params=c,
             astro_params=a2,
@@ -310,8 +313,6 @@ def test_native_template_loading(default_seed):
     with (template_path / "manifest.toml").open("rb") as f:
         manifest = tomllib.load(f)
 
-    # Small boxes with INHOMO_RECO i.e 'latest-small' will trip this error, we already tested that in test_validation
-    with config.use(ignore_R_BUBBLE_MAX_error=True):
         # check all files and all aliases work
         for manf_entry in manifest["templates"]:
             for alias in manf_entry["aliases"]:
