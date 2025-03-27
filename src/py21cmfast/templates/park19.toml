@@ -4,6 +4,7 @@
 
 [UserParams]
 USE_RELATIVE_VELOCITIES = false
+HII_FILTER = 1
 
 [AstroParams]
 F_STAR10 = -1.3

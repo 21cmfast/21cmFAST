@@ -3,6 +3,7 @@
 [CosmoParams]
 
 [UserParams]
+HII_FILTER = 1
 
 [AstroParams]
 

@@ -4,6 +4,7 @@
 
 [UserParams]
 USE_RELATIVE_VELOCITIES = true
+HII_FILTER = 1
 
 [AstroParams]
 R_BUBBLE_MAX = 50.0

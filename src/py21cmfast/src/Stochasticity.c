@@ -377,7 +377,8 @@ int stoc_mass_sample(struct HaloSamplingConstants * hs_constants, gsl_rng * rng,
     //  this factor reduces the total expected mass to bring it into line with the CMF
     exp_M *= user_params_global->HALOMASS_CORRECTION;
 
-    rare halo truncation
+    //rare halo truncation using the same criteria as DexM, but catches halos which sample near
+    // their condition mass many times (never split)
     if(hs_constants->sigma_cond*7.*hs_constants->growth_out < hs_constants->delta_crit){
         *n_halo_out = 1;
         M_out[0] = exp_M;
