@@ -3,9 +3,9 @@
 [CosmoParams]
 
 [UserParams]
-HII_FILTER = 'sharp-k'
 
 [AstroParams]
+HII_FILTER = 'sharp-k'
 
 [FlagOptions]
 USE_HALO_FIELD = false

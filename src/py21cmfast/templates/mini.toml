@@ -4,11 +4,11 @@
 
 [UserParams]
 USE_RELATIVE_VELOCITIES = true
-HII_FILTER = 'sharp-k'
 
 [AstroParams]
 R_BUBBLE_MAX = 50.0
 M_TURN = 5.0
+HII_FILTER = 'sharp-k'
 
 [FlagOptions]
 USE_HALO_FIELD = false

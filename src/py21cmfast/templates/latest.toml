@@ -3,10 +3,10 @@
 [CosmoParams]
 
 [UserParams]
-HII_FILTER = 1
 
 [AstroParams]
 R_BUBBLE_MAX = 50.0
+HII_FILTER = 1
 
 [FlagOptions]
 USE_HALO_FIELD = false

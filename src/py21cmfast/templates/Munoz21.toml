@@ -5,7 +5,6 @@
 [UserParams]
 INTEGRATION_METHOD_MINI='GAMMA-APPROX'
 USE_RELATIVE_VELOCITIES = true
-HII_FILTER = 'sharp-k'
 
 [AstroParams]
 F_STAR10 = -1.25
@@ -21,6 +20,7 @@ L_X = 40.5
 X_RAY_SPEC_INDEX = 1.0
 NU_X_THRESH = 500
 R_BUBBLE_MAX = 50.0
+HII_FILTER = 'sharp-k'
 
 [FlagOptions]
 USE_HALO_FIELD = false
