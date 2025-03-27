@@ -5,7 +5,7 @@
 [UserParams]
 HII_DIM=48
 BOX_LEN=64
-HII_FILTER = 1
+HII_FILTER = 'sharp-k'
 
 [AstroParams]
 R_BUBBLE_MAX = 50.0

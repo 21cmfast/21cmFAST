@@ -3,7 +3,7 @@
 [CosmoParams]
 
 [UserParams]
-HII_FILTER = 1
+HII_FILTER = 'sharp-k'
 
 [AstroParams]
 
