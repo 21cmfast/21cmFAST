@@ -837,7 +837,7 @@ def sample_halos_from_conditions(
     """Construct a halo sample given a descendant catalogue and redshifts."""
     z_prev = -1 if redshift_prev is None else redshift_prev
     if buffer_size is None:
-        buffer_size = get_expected_nhalo(inputs=inputs, redshift=redshift)
+        buffer_size = get_halo_list_buffer_size(inputs=inputs, redshift=redshift)
 
     n_cond = cond_array.size
     # all coordinates zero
