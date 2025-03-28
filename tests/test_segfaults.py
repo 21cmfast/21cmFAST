@@ -163,13 +163,12 @@ def test_lc_runs(name, max_redshift, cache):
     )
 
     start = timer()
-    with p21c.config.use(ignore_R_BUBBLE_MAX_error=True):
-        _, _, _, lightcone = p21c.run_lightcone(
-            lightconer=lcn,
-            write=False,
-            cache=cache,
-            **options,
-        )
+    _, _, _, lightcone = p21c.run_lightcone(
+        lightconer=lcn,
+        write=False,
+        cache=cache,
+        **options,
+    )
     end = timer()
 
     assert isinstance(lightcone, p21c.LightCone)
@@ -192,12 +191,11 @@ def test_cv_runs(name, cache):
     )
 
     start = timer()
-    with p21c.config.use(ignore_R_BUBBLE_MAX_error=True):
-        cv = p21c.run_coeval(
-            write=False,
-            cache=cache,
-            **options,
-        )
+    cv = p21c.run_coeval(
+        write=False,
+        cache=cache,
+        **options,
+    )
     end = timer()
 
     assert all(isinstance(x, p21c.Coeval) for x in cv)

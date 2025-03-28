@@ -1019,11 +1019,11 @@ double extrapolate_dNdM_inverse(double condition, double lnp){
 
 //This one is always a table
 double EvaluateNhaloInv(double condition, double prob){
-    if(prob == 0.)
-        return 1.; //q == 1 -> condition mass
     double lnp = log(prob);
-    if(lnp < user_params_global->MIN_LOGPROB)
-        return extrapolate_dNdM_inverse(condition,lnp);
+    if(prob == 0 || lnp < user_params_global->MIN_LOGPROB)
+        lnp = user_params_global->MIN_LOGPROB;
+    // if(prob < user_params_global->MIN_LOGPROB)
+        // return extrapolate_dNdM_inverse(condition,lnp);
     return EvaluateRGTable2D(condition,lnp,&Nhalo_inv_table);
 }
 

@@ -349,8 +349,7 @@ def produce_coeval_power_spectra(redshift, **kwargs):
     print(options)
     print("------------------------")
 
-    with config.use(ignore_R_BUBBLE_MAX_error=True):
-        coeval = run_coeval(write=write_ics_only_hook, **options)
+    coeval = run_coeval(write=write_ics_only_hook, **options)
     p = {}
 
     for field in COEVAL_FIELDS:
@@ -399,12 +398,11 @@ def produce_lc_power_spectra(redshift, **kwargs):
         resolution=options["inputs"].user_params.cell_size,
     )
 
-    with config.use(ignore_R_BUBBLE_MAX_error=True):
-        _, _, _, lightcone = run_lightcone(
-            lightconer=lcn,
-            write=write_ics_only_hook,
-            **options,
-        )
+    _, _, _, lightcone = run_lightcone(
+        lightconer=lcn,
+        write=write_ics_only_hook,
+        **options,
+    )
 
     p = {}
     for field in LIGHTCONE_FIELDS:

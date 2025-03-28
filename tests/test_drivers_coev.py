@@ -43,7 +43,7 @@ def test_coeval_lowerz_than_photon_cons(
         )
 
 
-def test_coeval_warnings(default_input_struct_lc):
+def test_coeval_warnings(default_input_struct_lc, cache):
     # test for no caching with halo fields
     with pytest.warns(UserWarning, match="You have turned off caching"):
         inputs = default_input_struct_lc.evolve_input_structs(
@@ -53,6 +53,7 @@ def test_coeval_warnings(default_input_struct_lc):
             out_redshifts=8.0,
             inputs=inputs,
             write=False,
+            cache=cache,
         )
 
     # test for minimum node redshift > out_redshifts
@@ -61,6 +62,8 @@ def test_coeval_warnings(default_input_struct_lc):
             USE_TS_FLUCT=True,
         )
         run_coeval(
-            inputs=inputs,
             out_redshifts=8.0,
+            inputs=inputs,
+            write=False,
+            cache=cache,
         )
