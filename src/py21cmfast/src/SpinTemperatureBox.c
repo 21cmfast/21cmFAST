@@ -914,7 +914,7 @@ void calculate_sfrd_from_grid(int R_ct, float *dens_R_grid, float *Mcrit_R_grid,
         double curr_mcrit = 0.;
         double fcoll, dfcoll;
         double fcoll_MINI=0;
-        
+
         #pragma omp for reduction(+:ave_sfrd_buf,ave_sfrd_buf_mini)
         for (box_ct=0; box_ct<HII_TOT_NUM_PIXELS; box_ct++){
             curr_dens = dens_R_grid[box_ct]*zpp_growth[R_ct];
@@ -943,7 +943,7 @@ void calculate_sfrd_from_grid(int R_ct, float *dens_R_grid, float *Mcrit_R_grid,
     }
     *ave_sfrd = ave_sfrd_buf/HII_TOT_NUM_PIXELS;
     *ave_sfrd_mini = ave_sfrd_buf_mini/HII_TOT_NUM_PIXELS;
-        
+
     //These functions check for allocation
     free_conditional_tables();
 }
