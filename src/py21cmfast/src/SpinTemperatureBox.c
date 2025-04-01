@@ -1420,10 +1420,11 @@ void ts_main(float redshift, float prev_redshift, UserParams *user_params, Cosmo
             //minihalo factors should be separated since they may not be allocated
             if(flag_options->USE_MINI_HALOS){
                 starlya_factor_mini = dstarlya_dt_prefactor_MINI[R_ct];
-                lyacont_factor_mini = dstarlya_cont_dt_prefactor_MINI[R_ct];
-                lyainj_factor_mini = dstarlya_inj_dt_prefactor_MINI[R_ct];
+                if (flag_options->USE_LYA_HEATING){
+                    lyacont_factor_mini = dstarlya_cont_dt_prefactor_MINI[R_ct];
+                    lyainj_factor_mini = dstarlya_inj_dt_prefactor_MINI[R_ct];
+                }
             }
-
 
             //NOTE: The ionisation box has a final delta dependence of (1+delta_source)/(1+delta_absorber)
             //  But here it's just (1+delta_source). This is for photon conservation.
