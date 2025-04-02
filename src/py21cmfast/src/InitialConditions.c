@@ -78,7 +78,7 @@ void adj_complex_conj(fftwf_complex *HIRES_box, UserParams *user_params, CosmoPa
 
 int ComputeInitialConditions(
     unsigned long long random_seed, UserParams *user_params,
-    CosmoParams *cosmo_params, InitialConditions *boxes
+    CosmoParams *cosmo_params, FlagOptions *flag_options, InitialConditions *boxes
 ){
 
 //     Generates the initial conditions: gaussian random density field (user_params->DIM^3) as well as the equal or lower resolution velocity fields, and smoothed density field (user_params->HII_DIM^3).
@@ -237,7 +237,7 @@ int ComputeInitialConditions(
 
 
     // ******* Relative Velocity part ******* //
-    if(user_params->USE_RELATIVE_VELOCITIES){
+    if(user_params->USE_RELATIVE_VELOCITIES && flag_options->USE_MINI_HALOS && !flag_options->FIX_VCB_AVG){
     //JBM: We use the memory allocated to HIRES_box as it's free.
         for(ii=0;ii<3;ii++) {
             memcpy(HIRES_box, HIRES_box_saved, sizeof(fftwf_complex)*KSPACE_NUM_PIXELS);

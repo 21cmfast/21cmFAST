@@ -8,7 +8,7 @@
 
 int ComputeInitialConditions(
     unsigned long long random_seed, UserParams *user_params,
-    CosmoParams *cosmo_params, InitialConditions *boxes
+    CosmoParams *cosmo_params, FlagOptions *flag_options, InitialConditions *boxes
 );
 
 #endif

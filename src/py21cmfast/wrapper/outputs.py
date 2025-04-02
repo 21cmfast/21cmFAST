@@ -533,7 +533,7 @@ class InitialConditions(OutputStruct):
                 "hires_vz_2LPT": Array(hires_shape, dtype=np.float32),
             }
 
-        if inputs.user_params.USE_RELATIVE_VELOCITIES:
+        if inputs.user_params.USE_RELATIVE_VELOCITIES and inputs.flag_options.USE_MINI_HALOS and not inputs.flag_options.FIX_VCB_AVG:
             out["lowres_vcb"] = Array(shape, dtype=np.float32)
 
         return cls(inputs=inputs, **out, **kw)
@@ -563,7 +563,7 @@ class InitialConditions(OutputStruct):
                 keep.append("hires_vy_2LPT")
                 keep.append("hires_vz_2LPT")
 
-        if self.user_params.USE_RELATIVE_VELOCITIES:
+        if self.user_params.USE_RELATIVE_VELOCITIES and self.flag_options.USE_MINI_HALOS and not self.flag_options.FIX_VCB_AVG:
             keep.append("lowres_vcb")
 
         self.prepare(keep=keep, force=force)
@@ -573,7 +573,7 @@ class InitialConditions(OutputStruct):
         keep = []
         if flag_options.USE_HALO_FIELD and self.user_params.AVG_BELOW_SAMPLER:
             keep.append("lowres_density")  # for the cmfs
-        if self.user_params.USE_RELATIVE_VELOCITIES:
+        if self.user_params.USE_RELATIVE_VELOCITIES and self.flag_options.USE_MINI_HALOS and not self.flag_options.FIX_VCB_AVG:
             keep.append("lowres_vcb")
         self.prepare(keep=keep, force=force)
 
@@ -588,6 +588,7 @@ class InitialConditions(OutputStruct):
             self.inputs.random_seed,
             self.inputs.user_params,
             self.inputs.cosmo_params,
+            self.inputs.flag_options,
         )
 
 
@@ -682,7 +683,7 @@ class PerturbedField(OutputStructZ):
                     "lowres_vz_2LPT",
                 ]
 
-        if self.user_params.USE_RELATIVE_VELOCITIES:
+        if self.user_params.USE_RELATIVE_VELOCITIES and self.flag_options.USE_MINI_HALOS and not self.flag_options.FIX_VCB_AVG:
             required.append("lowres_vcb")
 
         return required
@@ -945,7 +946,7 @@ class HaloBox(OutputStructZ):
                 and self.user_params.AVG_BELOW_SAMPLER
             ):
                 required += ["lowres_density"]
-            if self.user_params.USE_RELATIVE_VELOCITIES:
+            if self.user_params.USE_RELATIVE_VELOCITIES and self.flag_options.USE_MINI_HALOS and not self.flag_options.FIX_VCB_AVG:
                 required += ["lowres_vcb"]
         else:
             raise ValueError(f"{type(input_box)} is not an input required for HaloBox!")
@@ -1137,7 +1138,7 @@ class TsBox(OutputStructZ):
         if isinstance(input_box, InitialConditions):
             if (
                 self.user_params.USE_RELATIVE_VELOCITIES
-                and self.flag_options.USE_MINI_HALOS
+                and self.flag_options.USE_MINI_HALOS and not self.flag_options.FIX_VCB_AVG
             ):
                 required += ["lowres_vcb"]
         elif isinstance(input_box, PerturbedField):
@@ -1280,7 +1281,7 @@ class IonizedBox(OutputStructZ):
         if isinstance(input_box, InitialConditions):
             if (
                 self.user_params.USE_RELATIVE_VELOCITIES
-                and self.flag_options.USE_MASS_DEPENDENT_ZETA
+                and self.flag_options.USE_MINI_HALOS and not self.flag_options.FIX_VCB_AVG
             ):
                 required += ["lowres_vcb"]
         elif isinstance(input_box, PerturbedField):
