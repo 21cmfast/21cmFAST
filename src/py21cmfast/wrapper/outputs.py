@@ -1222,7 +1222,10 @@ class IonizedBox(OutputStructZ):
         All other parameters are passed through to the :class:`IonizedBox`
         constructor.
         """
-        if inputs.flag_options.USE_MINI_HALOS:
+        if (
+            inputs.flag_options.USE_MINI_HALOS
+            and not inputs.flag_options.USE_HALO_FIELD
+        ):
             n_filtering = (
                 int(
                     np.log(
@@ -1259,7 +1262,10 @@ class IonizedBox(OutputStructZ):
             "Fcoll": Array(filter_shape, dtype=np.float32),
         }
 
-        if inputs.flag_options.USE_MINI_HALOS:
+        if (
+            inputs.flag_options.USE_MINI_HALOS
+            and not inputs.flag_options.USE_HALO_FIELD
+        ):
             out["Fcoll_MINI"] = Array(filter_shape, dtype=np.float32)
 
         return cls(inputs=inputs, redshift=redshift, **out, **kw)
@@ -1299,7 +1305,13 @@ class IonizedBox(OutputStructZ):
                 self.inputs.flag_options.USE_MASS_DEPENDENT_ZETA
                 and self.inputs.flag_options.USE_MINI_HALOS
             ):
-                required += ["Fcoll", "Fcoll_MINI"]
+                required += [
+                    "Fcoll",
+                ]
+                if not self.inputs.flag_options.USE_HALO_FIELD:
+                    required += [
+                        "Fcoll_MINI",
+                    ]
         elif isinstance(input_box, HaloBox):
             required += ["n_ion", "whalo_sfr"]
         else:
