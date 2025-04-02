@@ -6,7 +6,13 @@ import sysconfig
 from cffi import FFI
 
 # Get the compiler. We support gcc and clang.
-_compiler = sysconfig.get_config_var("CC")
+_compiler = os.environ.get("CC", None)
+if _compiler is None:
+    # If CC is not set, use the default compiler from sysconfig - the one used to build Python
+    _compiler = sysconfig.get_config_var("CC")
+    print(f"No environment variable CC set, trying to use compiler from sysconfig: {_compiler}")
+else:
+    print(f"Compiler specified as environment variable CC: {_compiler}")
 
 if "gcc" in _compiler:
     compiler = "gcc"
