@@ -130,7 +130,7 @@ class Array:
     def with_value(self, val: np.ndarray) -> Self:
         """Set the array to a given value and return a new Array."""
         return attrs.evolve(
-            self, value=val.astype(self.dtype), state=self.state.computed()
+            self, value=val.astype(self.dtype, copy=False), state=self.state.computed()
         )
 
     def as_computed(self) -> Self:
