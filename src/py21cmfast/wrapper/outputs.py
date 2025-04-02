@@ -1093,9 +1093,9 @@ class TsBox(OutputStructZ):
             int(inputs.user_params.NON_CUBIC_FACTOR * inputs.user_params.HII_DIM),
         )
         out = {
-            "Ts_box" : Array(shape, dtype=np.float32),
-            "x_e_box" : Array(shape, dtype=np.float32),
-            "Tk_box" : Array(shape, dtype=np.float32),
+            "Ts_box": Array(shape, dtype=np.float32),
+            "x_e_box": Array(shape, dtype=np.float32),
+            "Tk_box": Array(shape, dtype=np.float32),
         }
         if inputs.flag_options.USE_MINI_HALOS:
             out["J_21_LW_box"] = Array(shape, dtype=np.float32)
