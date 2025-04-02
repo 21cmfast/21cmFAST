@@ -1197,7 +1197,7 @@ class IonizedBox(OutputStructZ):
     Gamma12_box = _arrayfield()
     MFP_box = _arrayfield()
     z_re_box = _arrayfield()
-    dNrec_box = _arrayfield()
+    dNrec_box = _arrayfield(optional=True)
     temp_kinetic_all_gas = _arrayfield()
     Fcoll = _arrayfield()
     Fcoll_MINI = _arrayfield(optional=True)
@@ -1254,10 +1254,12 @@ class IonizedBox(OutputStructZ):
             "Gamma12_box": Array(shape, dtype=np.float32),
             "MFP_box": Array(shape, dtype=np.float32),
             "z_re_box": Array(shape, dtype=np.float32),
-            "dNrec_box": Array(shape, dtype=np.float32),
             "temp_kinetic_all_gas": Array(shape, dtype=np.float32),
             "Fcoll": Array(filter_shape, dtype=np.float32),
         }
+
+        if inputs.flag_options.INHOMO_RECO:
+            out["dNrec_box"] = Array(shape, dtype=np.float32)
 
         if inputs.flag_options.USE_MINI_HALOS:
             out["Fcoll_MINI"] = Array(filter_shape, dtype=np.float32)
