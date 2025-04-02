@@ -470,7 +470,7 @@ class OutputStruct(ABC):
         _process_exitcode(exitcode, self._c_compute_function, args)
 
         for name, array in self.arrays.items():
-            setattr(self, name, array.with_value(array.value))
+            setattr(self, name, array.as_computed())
 
         self.pull_from_backend()
         return self

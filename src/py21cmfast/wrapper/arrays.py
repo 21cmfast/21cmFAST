@@ -133,6 +133,10 @@ class Array:
             self, value=val.astype(self.dtype), state=self.state.computed()
         )
 
+    def as_computed(self) -> Self:
+        """Set the array to a given value and return a new Array."""
+        return attrs.evolve(self, state=self.state.computed())
+
     def without_value(self) -> Self:
         """Remove the allocated data from the array."""
         return attrs.evolve(self, value=None, state=self.state.dropped())
