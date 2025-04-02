@@ -320,9 +320,10 @@ class AngularLightcone(LightCone):
 
         return tb_with_rsds
 
+
 def check_run_lightcone_inputs(**kwargs):
     inputs = kwargs["inputs"]
-    lightcone_quantities = kwargs["lightconer"].quantities 
+    lightcone_quantities = kwargs["lightconer"].quantities
     if "J_21_LW_box" in lightcone_quantities and not inputs.flag_options.USE_MINI_HALOS:
         raise ValueError(
             "You asked for J_21_LW_box in lightcone quantities but USE_MINI_HALOS is False!"
@@ -337,7 +338,10 @@ def check_run_lightcone_inputs(**kwargs):
         )
     if "global_quantities" in kwargs:
         global_quantities = kwargs["global_quantities"]
-        if "J_21_LW_box" in global_quantities and not inputs.flag_options.USE_MINI_HALOS:
+        if (
+            "J_21_LW_box" in global_quantities
+            and not inputs.flag_options.USE_MINI_HALOS
+        ):
             raise ValueError(
                 "You asked for J_21_LW_box in 'global_quantities' but USE_MINI_HALOS is False!"
             )
@@ -349,6 +353,7 @@ def check_run_lightcone_inputs(**kwargs):
             raise ValueError(
                 "You asked for Fcoll_MINI in 'global_quantities' but USE_HALO_FIELD is True!"
             )
+
 
 def setup_lightcone_instance(
     lightconer: Lightconer,
