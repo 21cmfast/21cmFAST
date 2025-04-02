@@ -354,9 +354,8 @@ def interp_halo_boxes(
     hbox_prog = halo_boxes[idx_prog]
     hbox_desc = halo_boxes[idx_desc]
 
-    # assumes all boxes are the same type (will get caught if not true)
-    interp_field = np.zeros_like(hbox_desc.get(fields[0]))
     for field in fields:
+        interp_field = np.zeros_like(hbox_desc.get(field))
         interp_field[...] = (1 - interp_param) * hbox_desc.get(
             field
         ) + interp_param * hbox_prog.get(field)
@@ -471,11 +470,12 @@ def compute_xray_source_field(
             allow_already_computed=True,
         )
 
-    # Sometimes we don't compute on the last step
+    # Sometimes we don't compute at all
     # (if the first zpp > z_max or there are no halos at max R)
     # in which case the array is not marked as computed
-    for name, array in box.arrays.items():
-        setattr(box, name, array.as_computed())
+    if not box.is_computed:
+        for name, array in box.arrays.items():
+            setattr(box, name, array.computed())
 
     return box
 

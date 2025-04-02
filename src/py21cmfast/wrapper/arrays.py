@@ -133,7 +133,7 @@ class Array:
             self, value=val.astype(self.dtype, copy=False), state=self.state.computed()
         )
 
-    def as_computed(self) -> Self:
+    def computed(self) -> Self:
         """Set the array to a given value and return a new Array."""
         return attrs.evolve(self, state=self.state.computed())
 

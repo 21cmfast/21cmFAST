@@ -122,7 +122,7 @@ OPTIONS_CTEST = {
 
 @pytest.mark.parametrize("name", list(OPTIONS_CTEST.keys()))
 def test_lc_runs(name, max_redshift, cache, benchmark):
-    redshift, kwargs, expected_time_s = OPTIONS_CTEST[name]
+    redshift, kwargs = OPTIONS_CTEST[name]
     options = prd.get_all_options_struct(redshift, lc=True, **kwargs)
 
     node_maxz = max_redshift
@@ -173,7 +173,7 @@ def test_lc_runs(name, max_redshift, cache, benchmark):
 
 @pytest.mark.parametrize("name", list(OPTIONS_CTEST.keys()))
 def test_cv_runs(name, cache, benchmark):
-    redshift, kwargs, expected_time_s = OPTIONS_CTEST[name]
+    redshift, kwargs = OPTIONS_CTEST[name]
     options = prd.get_all_options_struct(redshift, lc=False, **kwargs)
 
     options["inputs"] = options["inputs"].clone(
