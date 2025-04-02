@@ -936,7 +936,8 @@ class HaloBox(OutputStructZ):
             if self.flag_options.FIXED_HALO_GRIDS:
                 required += ["density"]
         elif isinstance(input_box, TsBox):
-            required += ["J_21_LW_box"]
+            if self.flag_options.USE_MINI_HALOS:
+                required += ["J_21_LW_box"]
         elif isinstance(input_box, IonizedBox):
             required += ["Gamma12_box", "z_re_box"]
         elif isinstance(input_box, InitialConditions):
@@ -1070,7 +1071,7 @@ class TsBox(OutputStructZ):
     Ts_box = _arrayfield()
     x_e_box = _arrayfield()
     Tk_box = _arrayfield()
-    J_21_LW_box = _arrayfield()
+    J_21_LW_box = _arrayfield(optional=True)
 
     @classmethod
     def new(cls, inputs: InputParameters, redshift: float, **kw) -> Self:
@@ -1091,15 +1092,14 @@ class TsBox(OutputStructZ):
         shape = (inputs.user_params.HII_DIM,) * 2 + (
             int(inputs.user_params.NON_CUBIC_FACTOR * inputs.user_params.HII_DIM),
         )
-        return cls(
-            inputs=inputs,
-            redshift=redshift,
-            Ts_box=Array(shape, dtype=np.float32),
-            x_e_box=Array(shape, dtype=np.float32),
-            Tk_box=Array(shape, dtype=np.float32),
-            J_21_LW_box=Array(shape, dtype=np.float32),
-            **kw,
-        )
+        out = {
+            "Ts_box": Array(shape, dtype=np.float32),
+            "x_e_box": Array(shape, dtype=np.float32),
+            "Tk_box": Array(shape, dtype=np.float32),
+        }
+        if inputs.flag_options.USE_MINI_HALOS:
+            out["J_21_LW_box"] = Array(shape, dtype=np.float32)
+        return cls(inputs=inputs, redshift=redshift, **out, **kw)
 
     @cached_property
     def global_Ts(self):
@@ -1286,7 +1286,9 @@ class IonizedBox(OutputStructZ):
         elif isinstance(input_box, PerturbedField):
             required += ["density"]
         elif isinstance(input_box, TsBox):
-            required += ["J_21_LW_box", "x_e_box", "Tk_box"]
+            required += ["Tk_box", "x_e_box"]
+            if self.flag_options.USE_MINI_HALOS:
+                required += ["J_21_LW_box"]
         elif isinstance(input_box, IonizedBox):
             required += ["z_re_box", "Gamma12_box"]
             if self.inputs.flag_options.INHOMO_RECO:
