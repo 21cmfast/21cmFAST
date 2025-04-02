@@ -871,6 +871,17 @@ class FlagOptions(InputStruct):
         if val and not self.CELL_RECOMB:
             raise ValueError("USE_EXP_FILTER is True but CELL_RECOMB is False")
 
+        if val and not self.USE_HALO_FIELD:
+            raise ValueError("USE_EXP_FILTER can only be used with USE_HALO_FIELD")
+
+    @USE_UPPER_STELLAR_TURNOVER.validator
+    def _USE_UPPER_STELLAR_TURNOVER_vld(self, att, val):
+        """Give a warning if USE_UPPER_STELLAR_TURNOVER is True and USE_HALO_FIELD is False."""
+        if val and not self.USE_HALO_FIELD:
+            raise NotImplementedError(
+                "USE_UPPER_STELLAR_TURNOVER is not yet implemented for when USE_HALO_FIELD is False"
+            )
+
 
 @define(frozen=True, kw_only=True)
 class AstroParams(InputStruct):
@@ -1266,12 +1277,12 @@ class InputParameters:
                         "Switch USE_INTERPOLATION_TABLES to 'hmf-interpolation' to use the halo sampler."
                     )
                     raise ValueError(msg)
-
-        if val.USE_EXP_FILTER and not val.USE_HALO_FIELD:
-            warnings.warn(
-                "USE_EXP_FILTER has no effect unless USE_HALO_FIELD is true",
-                stacklevel=2,
-            )
+            if val.USE_HALO_FIELD and self.user_params.HMF not in ["ST", "PS"]:
+                msg = (
+                    "The conditional mass functions requied for the halo field are only currently"
+                    "available for the Sheth-Tormen and Press-Schechter mass functions., use HMF='ST' or 'PS'"
+                )
+                raise NotImplementedError(msg)
 
     @astro_params.validator
     def _astro_params_validator(self, att, val):

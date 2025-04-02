@@ -15,6 +15,7 @@ from py21cmfast import (
     IonizedBox,
     UserParams,
     __version__,
+    config,
 )
 
 
@@ -128,6 +129,7 @@ def test_validation():
         HII_FILTER="gaussian",
         USE_HALO_FIELD=False,
         HALO_STOCHASTICITY=False,
+        USE_UPPER_STELLAR_TURNOVER=False,
     )  # needed for HII_FILTER checks
     a = AstroParams(R_BUBBLE_MAX=100)
     u = UserParams(BOX_LEN=50)
@@ -143,7 +145,10 @@ def test_validation():
 
     f2 = f.clone(HII_FILTER="sharp-k")
     a2 = a.clone(R_BUBBLE_MAX=20)
-    with pytest.raises(ValueError, match="Your R_BUBBLE_MAX is > BOX_LEN/3"):
+    with (
+        config.use(ignore_R_BUBBLE_MAX_error=False),
+        pytest.raises(ValueError, match="Your R_BUBBLE_MAX is > BOX_LEN/3"),
+    ):
         InputParameters(
             cosmo_params=c,
             astro_params=a2,
@@ -183,17 +188,6 @@ def test_validation():
             cosmo_params=c,
             astro_params=a2,
             user_params=u2,
-            flag_options=f2,
-            random_seed=1,
-        )
-
-    f2 = f.clone(USE_EXP_FILTER=True, HII_FILTER="spherical-tophat")
-    msg = r"USE_EXP_FILTER has no effect unless USE_HALO_FIELD is true"
-    with pytest.warns(UserWarning, match=msg):
-        InputParameters(
-            cosmo_params=c,
-            astro_params=a2,
-            user_params=u,
             flag_options=f2,
             random_seed=1,
         )
@@ -286,6 +280,22 @@ def test_flag_options():
     ):
         FlagOptions(USE_EXP_FILTER=True, HII_FILTER="sharp-k")
 
+    with pytest.raises(
+        ValueError, match="USE_EXP_FILTER can only be used with USE_HALO_FIELD"
+    ):
+        FlagOptions(USE_EXP_FILTER=True, USE_HALO_FIELD=False, HALO_STOCHASTICITY=False)
+
+    with pytest.raises(
+        NotImplementedError,
+        match="USE_UPPER_STELLAR_TURNOVER is not yet implemented for when USE_HALO_FIELD is False",
+    ):
+        FlagOptions(
+            USE_UPPER_STELLAR_TURNOVER=True,
+            USE_HALO_FIELD=False,
+            HALO_STOCHASTICITY=False,
+            USE_EXP_FILTER=False,
+        )
+
 
 def test_inputstruct_init(default_seed):
     default_struct = InputParameters(random_seed=default_seed)
@@ -303,10 +313,10 @@ def test_native_template_loading(default_seed):
     with (template_path / "manifest.toml").open("rb") as f:
         manifest = tomllib.load(f)
 
-    # check all files and all aliases work
-    for manf_entry in manifest["templates"]:
-        for alias in manf_entry["aliases"]:
-            assert isinstance(
-                InputParameters.from_template(alias, random_seed=default_seed),
-                InputParameters,
-            )
+        # check all files and all aliases work
+        for manf_entry in manifest["templates"]:
+            for alias in manf_entry["aliases"]:
+                assert isinstance(
+                    InputParameters.from_template(alias, random_seed=default_seed),
+                    InputParameters,
+                )

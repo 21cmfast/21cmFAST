@@ -94,6 +94,8 @@ def setup_and_teardown_package(tmpdirec, request):
     # Set default config parameters for all tests.
     config["regenerate"] = True
     config["write"] = False
+    # we run small boxes often here, and R_max is often large, so we ignore this error
+    config["ignore_R_BUBBLE_MAX_error"] = True
 
     log_level = request.config.getoption("--log-level-21") or logging.INFO
     logging.getLogger("py21cmfast").setLevel(log_level)
@@ -137,6 +139,7 @@ def default_flag_options():
         USE_EXP_FILTER=False,
         CELL_RECOMB=False,
         HALO_STOCHASTICITY=False,
+        USE_UPPER_STELLAR_TURNOVER=False,
     )
 
 
@@ -148,6 +151,7 @@ def default_flag_options_ts():
         CELL_RECOMB=False,
         HALO_STOCHASTICITY=False,
         USE_TS_FLUCT=True,
+        USE_UPPER_STELLAR_TURNOVER=False,
     )
 
 

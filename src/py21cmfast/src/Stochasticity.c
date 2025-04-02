@@ -60,7 +60,9 @@ double sample_dndM_inverse(double condition, struct HaloSamplingConstants * hs_c
     double p_in, result;
     p_in = gsl_rng_uniform(rng);
     result = EvaluateNhaloInv(condition,p_in);
-    result = fmin(1,fmax(0,result)); //clip in case of extrapolation
+
+    //convert ratio --> M
+    result = fmin(1,fmax(0,result)); //clip in case of strange behaviour
     result = result * hs_constants->M_cond;
     return result;
 }
@@ -163,11 +165,13 @@ void stoc_set_consts_cond(struct HaloSamplingConstants *const_struct, double con
         const_struct->cond_val = cond_val;
     }
 
+    const_struct->delta_crit = get_delta_crit(user_params_global->HMF,const_struct->sigma_cond,const_struct->growth_out);
+
     //Get expected N and M from interptables
     //the splines don't work well for cells above Deltac, but there CAN be cells above deltac, since this calculation happens
     //before the overlap, and since the smallest dexm mass is M_cell*(1.01^3) there *could* be a cell above Deltac not in a halo
     //NOTE: all this does is prevent integration errors below since these cases are also dealt with in stoc_sample
-    if(const_struct->delta > MAX_DELTAC_FRAC*get_delta_crit(user_params_global->HMF,const_struct->sigma_cond,const_struct->growth_out)){
+    if(const_struct->delta > MAX_DELTAC_FRAC*const_struct->delta_crit){
         const_struct->expected_M = const_struct->M_cond;
         const_struct->expected_N = 1;
     }
@@ -372,6 +376,16 @@ int stoc_mass_sample(struct HaloSamplingConstants * hs_constants, gsl_rng * rng,
     //  which is independent of density or halo mass,
     //  this factor reduces the total expected mass to bring it into line with the CMF
     exp_M *= user_params_global->HALOMASS_CORRECTION;
+
+    //rare halo truncation using the same criteria as DexM
+    //Our model sometimes refuses to split large halos over multiple snapshots, resulting in
+    //too many extreme halos, this criteria keeps things sensible by not allowing these objects to
+    //sample too close to their condition mass, simply taking away the expected amount of mass
+    if(hs_constants->sigma_cond*7.*hs_constants->growth_out < hs_constants->delta_crit){
+        *n_halo_out = 1;
+        M_out[0] = exp_M;
+        return 0;
+    }
 
     int n_halo_sampled=0;
     double M_prog=0;
