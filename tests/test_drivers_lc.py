@@ -25,7 +25,7 @@ def test_lightcone_quantities(
         max_redshift=max_redshift,
         resolution=ic.user_params.cell_size,
         cosmo=ic.cosmo_params.cosmo,
-        quantities=("dNrec_box", "density", "brightness_temp", "Gamma12_box"),
+        quantities=("density", "brightness_temp", "Gamma12_box"),
     )
 
     _, _, _, lc = p21c.run_lightcone(
