@@ -34,30 +34,14 @@ jobs:
     steps:
       - uses: actions/checkout@master
         with:
-          ref: ${{ github.event.pull_request.head.sha }}
           fetch-depth: 0
-
-      - name: Print head git commit message
-        id: get_head_commit_message
-        run: echo "commit_message=$(git show -s --format=%s)" >> "$GITHUB_ENV"
 
       - name: Setup Miniconda
         uses: conda-incubator/setup-miniconda@v3
         with:
-          # auto-update-conda: true
           channels: conda-forge,defaults
           python-version: ${{ matrix.python-version }}
-          environment-file: ci/${{ matrix.os }}-env.yml
-          activate-environment: tests
           channel-priority: true
-
-      - name: Conda Info
-        run: |
-          conda info -a
-          conda list
-          conda config --show-sources
-          conda config --show
-          printenv | sort
 
       - name: Make it a Debug Run
         if: "contains(env.commit_message, 'ci debug')"
@@ -71,21 +55,13 @@ jobs:
           echo "log_level=INFO" >> $GITHUB_ENV
           echo "extra_pytest_args=" >> $GITHUB_ENV
 
-      - name: Get C Libraries Linux
-        if: matrix.os == 'ubuntu-latest'
+      - name: Install Non-Python Dependencies
         run: |
-          sudo apt-get install libfftw3-dev
-          sudo apt-get install libgsl0-dev
+          conda install fftw gsl
 
-      - name: Install 21cmFAST Linux
-        if: matrix.os == 'ubuntu-latest'
+      - name: Install 21cmFAST
         run: |
           LOG_LEVEL=${{ env.log_level }} pip install ".[dev]"
-
-      - name: Install 21cmFAST MacOS
-        if: matrix.os == 'macos-latest'
-        run: |
-          LOG_LEVEL=${{ env.log_level }} CFLAGS="-isysroot /Library/Developer/CommandLineTools/SDKs/MacOSX.sdk" pip install ".[dev]"
 
       - name: Run Tests
         run: |
