@@ -30,6 +30,7 @@ test_req = [
     "pytest-remotedata>=0.3.2",
     "powerbox",
     "pytest-plt",
+    "pytest-benchmark",
     "questionary",
     "pytest-xdist",
 ]

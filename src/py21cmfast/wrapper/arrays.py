@@ -130,8 +130,12 @@ class Array:
     def with_value(self, val: np.ndarray) -> Self:
         """Set the array to a given value and return a new Array."""
         return attrs.evolve(
-            self, value=val.astype(self.dtype), state=self.state.computed()
+            self, value=val.astype(self.dtype, copy=False), state=self.state.computed()
         )
+
+    def computed(self) -> Self:
+        """Set the array to a given value and return a new Array."""
+        return attrs.evolve(self, state=self.state.computed())
 
     def without_value(self) -> Self:
         """Remove the allocated data from the array."""
