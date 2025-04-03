@@ -285,11 +285,15 @@ def evolve_perturb_halos(
         "regenerate": regenerate,
     }
     halos_desc = None
-    for i, z in enumerate(tqdm.tqdm(all_redshifts[::-1],
-                                    desc="Halos",
-                                    unit="redshift",
-                                    disable=not progressbar,
-                                    total=len(all_redshifts[::-1]))):
+    for i, z in enumerate(
+        tqdm.tqdm(
+            all_redshifts[::-1],
+            desc="Halos",
+            unit="redshift",
+            disable=not progressbar,
+            total=len(all_redshifts[::-1]),
+        )
+    ):
         halos = sf.determine_halo_list(
             redshift=z,
             inputs=inputs,
@@ -546,11 +550,15 @@ def _redshift_loop_generator(
         "initial_conditions": initial_conditions,
     }
 
-    for iz, z in enumerate(tqdm.tqdm(all_redshifts,
-                                    desc="Brightness Temperature",
-                                    unit="redshift",
-                                    disable=not progressbar,
-                                    total=len(all_redshifts))):
+    for iz, z in enumerate(
+        tqdm.tqdm(
+            all_redshifts,
+            desc="Brightness Temperature",
+            unit="redshift",
+            disable=not progressbar,
+            total=len(all_redshifts),
+        )
+    ):
         if iz < start_idx:
             continue
 
@@ -701,11 +709,13 @@ def _setup_ics_and_pfs_for_scrolling(
     # Get all the perturb boxes early. We need to get the perturb at every
     # redshift.
     perturbed_field = []
-    for z in tqdm.tqdm(all_redshifts,
-                       desc="Perturbed Fields",
-                       unit="redshift",
-                       disable=not progressbar,
-                       total=len(all_redshifts)):
+    for z in tqdm.tqdm(
+        all_redshifts,
+        desc="Perturbed Fields",
+        unit="redshift",
+        disable=not progressbar,
+        total=len(all_redshifts),
+    ):
         p = sf.perturb_field(redshift=z, write=write.perturbed_field, **kw)
 
         if inputs.user_params.MINIMIZE_MEMORY:
