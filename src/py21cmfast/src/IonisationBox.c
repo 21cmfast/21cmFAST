@@ -649,7 +649,7 @@ void calculate_fcoll_grid(IonizedBox *box, IonizedBox *previous_ionize_box, stru
     struct ScalingConstants *sc_ptr = &(consts->scale_consts);
 
     int fc_r_idx;
-    fc_r_idx = flag_options_global->USE_MINI_HALOS ? rspec->R_index : 0;
+    fc_r_idx = (flag_options_global->USE_MINI_HALOS && !flag_options_global->USE_HALO_FIELD) ? rspec->R_index : 0;
     #pragma omp parallel num_threads(user_params_global->N_THREADS)
     {
         int x,y,z;
@@ -839,7 +839,7 @@ void find_ionised_regions(IonizedBox *box, IonizedBox *previous_ionize_box, Pert
     double mean_fix_term_acg = 1.;
     double mean_fix_term_mcg = 1.;
     int fc_r_idx;
-    fc_r_idx = flag_options_global->USE_MINI_HALOS ? rspec.R_index : 0;
+    fc_r_idx = (flag_options_global->USE_MINI_HALOS && !flag_options_global->USE_HALO_FIELD) ? rspec.R_index : 0;
 
     LOG_SUPER_DEBUG("global mean fcoll (mini) %.3e (%.3e) box mean fcoll %.3e (%.3e) ratio %.3e (%.3e)",
                     box->mean_f_coll,box->mean_f_coll_MINI,

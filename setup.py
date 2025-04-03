@@ -30,8 +30,10 @@ test_req = [
     "pytest-remotedata>=0.3.2",
     "powerbox",
     "pytest-plt",
+    "pytest-benchmark",
     "questionary",
-    "tqdm"
+    "tqdm",
+    "pytest-xdist",
 ]
 
 doc_req = ["nbsphinx", "numpydoc", "sphinx >= 1.3", "sphinx-rtd-theme"]
