@@ -81,7 +81,7 @@ jobs:
       - name: Install 21cmFAST Linux
         if: matrix.os == 'ubuntu-latest'
         run: |
-          LOG_LEVEL=${{ env.log_level }} pip install .
+          LOG_LEVEL=${{ env.log_level }} pip install ".[dev]"
 
       - name: Install 21cmFAST MacOS
         if: matrix.os == 'macos-latest'
