@@ -21,7 +21,7 @@ from ..io import h5
 from ..io.caching import CacheConfig, OutputCache, RunCache
 from ..lightcones import Lightconer, RectilinearLightconer
 from ..wrapper.inputs import InputParameters
-from ..wrapper.outputs import InitialConditions, PerturbedField, PerturbHaloField
+from ..wrapper.outputs import InitialConditions, PerturbedField, PerturbHaloField, HaloBox, TsBox, IonizedBox, BrightnessTemp
 from ..wrapper.photoncons import _get_photon_nonconservation_data, setup_photon_cons
 from . import exhaust
 from . import single_field as sf
@@ -320,35 +320,23 @@ class AngularLightcone(LightCone):
 
         return tb_with_rsds
 
-def check_run_lightcone_inputs(**kwargs):
-    inputs = kwargs["inputs"]
-    lightcone_quantities = kwargs["lightconer"].quantities 
-    if "J_21_LW_box" in lightcone_quantities and not inputs.flag_options.USE_MINI_HALOS:
-        raise ValueError(
-            "You asked for J_21_LW_box in lightcone quantities but USE_MINI_HALOS is False!"
-        )
-    if "dNrec_box" in lightcone_quantities and not inputs.flag_options.INHOMO_RECO:
-        raise ValueError(
-            "You asked for dNrec_box in lightcone quantities but INHOMO_RECO is False!"
-        )
-    if "Fcoll_MINI" in lightcone_quantities and inputs.flag_options.USE_HALO_FIELD:
-        raise ValueError(
-            "You asked for Fcoll_MINI in lightcone quantities but USE_HALO_FIELD is True!"
-        )
-    if "global_quantities" in kwargs:
-        global_quantities = kwargs["global_quantities"]
-        if "J_21_LW_box" in global_quantities and not inputs.flag_options.USE_MINI_HALOS:
-            raise ValueError(
-                "You asked for J_21_LW_box in 'global_quantities' but USE_MINI_HALOS is False!"
-            )
-        if "dNrec_box" in global_quantities and not inputs.flag_options.INHOMO_RECO:
-            raise ValueError(
-                "You asked for dNrec_box in 'global_quantities' but INHOMO_RECO is False!"
-            )
-        if "Fcoll_MINI" in global_quantities and inputs.flag_options.USE_HALO_FIELD:
-            raise ValueError(
-                "You asked for Fcoll_MINI in 'global_quantities' but USE_HALO_FIELD is True!"
-            )
+def _check_desired_arrays_exist(desired_arrays: list[str], inputs: InputParameters):
+    possible_outputs = [
+        InitialConditions.new(inputs),
+        PerturbedField.new(inputs, redshift=0), 
+        TsBox.new(inputs, redshift=0),
+        HaloBox.new(inputs, redshift=0),
+        IonizedBox.new(inputs, redshift=0),
+        BrightnessTemp.new(inputs, redshift=0)
+    ]
+    for name in desired_arrays:
+        exists = False
+        for output in possible_outputs:
+            if name in output.arrays:
+                exists = True
+                break
+        if not exists:
+            raise ValueError(f"You asked for {name} but it is not computed for the inputs: {inputs}")
 
 def setup_lightcone_instance(
     lightconer: Lightconer,
@@ -599,6 +587,9 @@ def generate_lightcone(
             "Please set node_redshifts on the `inputs` parameter."
         )
 
+    _check_desired_arrays_exist(global_quantities,inputs)
+    _check_desired_arrays_exist(lightconer.quantities,inputs)
+
     # while we still use the full list for caching etc, we don't need to run below the lightconer instance
     #   So stop one after the lightconer
     scrollz = np.copy(inputs.node_redshifts)
@@ -652,7 +643,6 @@ def generate_lightcone(
 
 
 def run_lightcone(**kwargs):  # noqa: D103
-    check_run_lightcone_inputs(**kwargs)
     return exhaust(generate_lightcone(**kwargs))
 
 
