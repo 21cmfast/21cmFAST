@@ -25,8 +25,8 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        os: [macos-14, macos-13]  # macos-14 is arm64, macos-13 is not.
-        python-version: ["3.11"]
+        os: [macos-latest, macos-14, macos-13]  # macos-14 is arm64, macos-13 is not.
+        python-version: ["3.12"]
         compiler: ["gcc", "clang"]
     defaults:
      run:
