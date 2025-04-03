@@ -41,7 +41,7 @@ def test_lightcone_quantities(
         cache=cache,
     )
 
-    #assert "dNrec_box" in lc.lightcones
+    # assert "dNrec_box" in lc.lightcones
     assert "density" in lc.lightcones
     assert "brightness_temp" in lc.lightcones
     assert "Gamma12_box" in lc.lightcones
@@ -51,7 +51,7 @@ def test_lightcone_quantities(
     assert "log10_mturn_mcg" in lc.global_quantities
 
     # dNrec is not filled because we're not doing INHOMO_RECO
-    #assert lc.lightcones["dNrec_box"].max() == lc.lightcones["dNrec_box"].min() == 0
+    # assert lc.lightcones["dNrec_box"].max() == lc.lightcones["dNrec_box"].min() == 0
 
     # density should be filled with not zeros.
     assert lc.lightcones["density"].min() != lc.lightcones["density"].max() != 0
