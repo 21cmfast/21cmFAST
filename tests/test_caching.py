@@ -6,7 +6,14 @@ import attrs
 import numpy as np
 import pytest
 
-from py21cmfast import Coeval, InputParameters
+from py21cmfast import (
+    Coeval,
+    InitialConditions,
+    InputParameters,
+    IonizedBox,
+    PerturbedField,
+    compute_ionization_field,
+)
 from py21cmfast.io import caching, h5
 from py21cmfast.wrapper import outputs
 
@@ -160,3 +167,84 @@ class TestRunCache:
         assert full_run_cache.is_complete()
 
         assert not partial_run_cache.is_complete()
+
+
+class TestOutputCache:
+    """Tests of the OutputCache class."""
+
+    def test_readability(
+        self,
+        ic: InitialConditions,
+        cache: caching.OutputCache,
+        default_input_struct: InputParameters,
+        ionize_box: IonizedBox,
+        perturbed_field: PerturbedField,
+    ):
+        """Test that each type of field can be read from cache."""
+        for field in (ic, perturbed_field, ionize_box):
+            kwargs = {"inputs": default_input_struct}
+            if field.__class__ != InitialConditions:
+                kwargs["redshift"] = field.redshift
+            field2 = field.__class__.new(**kwargs)
+            existing = cache.find_existing(field2)
+
+            assert existing is not None
+            assert existing.exists()
+
+            field2 = cache.load(field2)
+
+            assert field is not field2
+            assert field == field2
+
+    def test_read_from_filename(
+        self, default_input_struct, perturbed_field, ionize_box, ic, cache
+    ):
+        """Test that each type of field can be read using a filename."""
+        for field in (ic, perturbed_field, ionize_box):
+            kwargs = {
+                "inputs": default_input_struct,
+                "kind": field.__class__.__name__,
+            }
+            if field.__class__ != InitialConditions:
+                kwargs["redshift"] = field.redshift
+            dlist = cache.list_datasets(**kwargs)
+
+            assert len(dlist) == 1
+            field2 = h5.read_output_struct(dlist[0])
+            assert field == field2
+            assert field is not field2
+
+    def test_match_seed(
+        self, cache: caching.OutputCache, default_input_struct: InputParameters
+    ):
+        """Test that changing the random seed results in a different cache location."""
+        ic2 = InitialConditions.new(inputs=default_input_struct.clone(random_seed=3))
+
+        # This fails because we've set the seed and it's different to the existing one.
+        with pytest.raises(IOError, match="No cache exists for"):
+            cache.load(ic2)
+
+    def test_astro_param_change(
+        self, default_input_struct, ic, perturbed_field, ionize_box, cache
+    ):
+        """Test that changing parameters affects IonizedBox but not ICs or PerturbedField."""
+        input_change = default_input_struct.evolve_input_structs(
+            F_ESC10=-1.5,
+        )
+
+        ic2 = InitialConditions.new(inputs=input_change)
+        pf2 = PerturbedField.new(inputs=input_change, redshift=perturbed_field.redshift)
+        ib2 = IonizedBox.new(inputs=input_change, redshift=ionize_box.redshift)
+
+        for f2, f in zip((ic2, pf2), (ic, perturbed_field), strict=False):
+            existing = cache.find_existing(f2)
+
+            assert existing is not None
+            assert existing.exists()
+
+            f2 = cache.load(f2)
+
+            assert f == f2
+            assert f is not f2
+
+        assert not cache.find_existing(ib2)

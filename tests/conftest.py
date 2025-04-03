@@ -13,8 +13,10 @@ from py21cmfast import (
     InitialConditions,
     InputParameters,
     OutputCache,
+    PerturbedField,
     UserParams,
     compute_initial_conditions,
+    compute_ionization_field,
     config,
     get_logspaced_redshifts,
     perturb_field,
@@ -261,6 +263,21 @@ def perturbed_field_lc(
         redshift=redshift,
         inputs=default_input_struct_lc,
         initial_conditions=ic,
+        write=True,
+        cache=cache,
+    )
+
+
+@pytest.fixture(scope="session")
+def ionize_box(
+    ic: InitialConditions,
+    perturbed_field: PerturbedField,
+    cache: OutputCache,
+):
+    """A default ionize_box."""
+    return compute_ionization_field(
+        initial_conditions=ic,
+        perturbed_field=perturbed_field,
         write=True,
         cache=cache,
     )
