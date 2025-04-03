@@ -384,6 +384,7 @@ def _run_lightcone_from_perturbed_fields(
     cleanup: bool = True,
     write: CacheConfig = _cache,
     always_purge: bool = False,
+    progressbar: bool = False,
     lightcone_filename: str | Path | None = None,
 ):
     lightconer.validate_options(inputs.user_params, inputs.flag_options)
@@ -451,6 +452,7 @@ def _run_lightcone_from_perturbed_fields(
             write=write,
             cleanup=cleanup,
             always_purge=always_purge,
+            progressbar=progressbar,
             photon_nonconservation_data=photon_nonconservation_data,
             start_idx=lightcone._last_completed_node + 1,
             init_coeval=prev_coeval,
@@ -516,6 +518,7 @@ def generate_lightcone(
     cache: OutputCache | None = _ocache,
     regenerate: bool = True,
     always_purge: bool = False,
+    progressbar: bool = False,
     lightcone_filename: str | Path | None = None,
 ):
     r"""
@@ -544,6 +547,8 @@ def generate_lightcone(
         true, as if the next box to be calculate has different shape, errors will occur
         if memory is not cleaned. Note that internally, this is set to False until the
         last iteration.
+    progressbar: bool, optional
+        If True, a progress bar will be displayed throughout the simulation. Defaults to False.
     lightcone_filename
         The filename to which to save the lightcone. The lightcone is returned in
         memory, and can be saved manually later, but including this filename will
@@ -602,6 +607,7 @@ def generate_lightcone(
         inputs=inputs,
         write=write,
         always_purge=always_purge,
+        progressbar=progressbar,
         **iokw,
     )
 
@@ -618,6 +624,7 @@ def generate_lightcone(
         write=write,
         cleanup=cleanup,
         always_purge=always_purge,
+        progressbar=progressbar,
         lightcone_filename=lightcone_filename,
     )
 
