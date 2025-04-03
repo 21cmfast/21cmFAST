@@ -31,6 +31,7 @@ test_req = [
     "powerbox",
     "pytest-plt",
     "questionary",
+    "pytest-xdist",
 ]
 
 doc_req = ["nbsphinx", "numpydoc", "sphinx >= 1.3", "sphinx-rtd-theme"]
