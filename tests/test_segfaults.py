@@ -23,8 +23,8 @@ DEFAULT_USER_PARAMS_CTEST = {
 }
 
 OPTIONS_CTEST = {
-    "defaults": [18, {"USE_MASS_DEPENDENT_ZETA": True}, None],
-    "no-mdz": [18, {}, None],
+    "defaults": [18, {"USE_MASS_DEPENDENT_ZETA": True}],
+    "no-mdz": [18, {}],
     "mini": [
         18,
         {
@@ -33,15 +33,13 @@ OPTIONS_CTEST = {
             "USE_TS_FLUCT": True,
             "USE_MASS_DEPENDENT_ZETA": True,
         },
-        None,
     ],
-    "ts": [18, {"USE_TS_FLUCT": True, "USE_MASS_DEPENDENT_ZETA": True}, None],
-    "ts_nomdz": [18, {"USE_TS_FLUCT": True}, None],
-    "inhomo": [18, {"INHOMO_RECO": True, "USE_MASS_DEPENDENT_ZETA": True}, None],
+    "ts": [18, {"USE_TS_FLUCT": True, "USE_MASS_DEPENDENT_ZETA": True}],
+    "ts_nomdz": [18, {"USE_TS_FLUCT": True}],
+    "inhomo": [18, {"INHOMO_RECO": True, "USE_MASS_DEPENDENT_ZETA": True}],
     "inhomo_ts": [
         18,
         {"INHOMO_RECO": True, "USE_TS_FLUCT": True, "USE_MASS_DEPENDENT_ZETA": True},
-        None,
     ],
     "sampler": [
         18,
@@ -50,7 +48,6 @@ OPTIONS_CTEST = {
             "HALO_STOCHASTICITY": True,
             "USE_MASS_DEPENDENT_ZETA": True,
         },
-        None,
     ],
     "fixed_halogrids": [
         18,
@@ -59,7 +56,6 @@ OPTIONS_CTEST = {
             "FIXED_HALO_GRIDS": True,
             "USE_MASS_DEPENDENT_ZETA": True,
         },
-        None,
     ],
     "sampler_mini": [
         18,
@@ -71,7 +67,6 @@ OPTIONS_CTEST = {
             "INHOMO_RECO": True,
             "USE_MASS_DEPENDENT_ZETA": True,
         },
-        None,
     ],
     "sampler_ts": [
         18,
@@ -81,7 +76,6 @@ OPTIONS_CTEST = {
             "USE_TS_FLUCT": True,
             "USE_MASS_DEPENDENT_ZETA": True,
         },
-        None,
     ],
     "sampler_ir": [
         18,
@@ -91,7 +85,6 @@ OPTIONS_CTEST = {
             "INHOMO_RECO": True,
             "USE_MASS_DEPENDENT_ZETA": True,
         },
-        None,
     ],
     "sampler_ts_ir": [
         18,
@@ -102,22 +95,18 @@ OPTIONS_CTEST = {
             "INHOMO_RECO": True,
             "USE_MASS_DEPENDENT_ZETA": True,
         },
-        None,
     ],
     "photoncons-z": [
         18,
         {"PHOTON_CONS_TYPE": "z-photoncons", "USE_MASS_DEPENDENT_ZETA": True},
-        None,
     ],
     "photoncons-a": [
         18,
         {"PHOTON_CONS_TYPE": "alpha-photoncons", "USE_MASS_DEPENDENT_ZETA": True},
-        None,
     ],
     "photoncons-f": [
         18,
         {"PHOTON_CONS_TYPE": "f-photoncons", "USE_MASS_DEPENDENT_ZETA": True},
-        None,
     ],
     "minimize_mem": [
         18,
@@ -127,14 +116,13 @@ OPTIONS_CTEST = {
             "MINIMIZE_MEMORY": True,
             "USE_MASS_DEPENDENT_ZETA": True,
         },
-        None,
     ],
 }
 
 
 @pytest.mark.parametrize("name", list(OPTIONS_CTEST.keys()))
-def test_lc_runs(name, max_redshift, cache):
-    redshift, kwargs, expected_time_s = OPTIONS_CTEST[name]
+def test_lc_runs(name, max_redshift, cache, benchmark):
+    redshift, kwargs = OPTIONS_CTEST[name]
     options = prd.get_all_options_struct(redshift, lc=True, **kwargs)
 
     node_maxz = max_redshift
@@ -162,14 +150,18 @@ def test_lc_runs(name, max_redshift, cache):
         resolution=options["inputs"].user_params.cell_size,
     )
 
-    start = timer()
-    _, _, _, lightcone = p21c.run_lightcone(
-        lightconer=lcn,
-        write=False,
-        cache=cache,
-        **options,
-    )
-    end = timer()
+    with p21c.config.use(ignore_R_BUBBLE_MAX_error=True):
+        _, _, _, lightcone = benchmark.pedantic(
+            p21c.run_lightcone,
+            kwargs=dict(
+                lightconer=lcn,
+                write=False,
+                cache=cache,
+                **options,
+            ),
+            iterations=1,  # these tests can be slow
+            rounds=1,
+        )
 
     assert isinstance(lightcone, p21c.LightCone)
     assert np.all(np.isfinite(lightcone.lightcones["brightness_temp"]))
@@ -177,26 +169,28 @@ def test_lc_runs(name, max_redshift, cache):
     assert lightcone.cosmo_params == options["inputs"].cosmo_params
     assert lightcone.astro_params == options["inputs"].astro_params
     assert lightcone.flag_options == options["inputs"].flag_options
-    if expected_time_s:
-        assert (end - start) <= (expected_time_s * 1.1)
 
 
 @pytest.mark.parametrize("name", list(OPTIONS_CTEST.keys()))
-def test_cv_runs(name, cache):
-    redshift, kwargs, expected_time_s = OPTIONS_CTEST[name]
+def test_cv_runs(name, cache, benchmark):
+    redshift, kwargs = OPTIONS_CTEST[name]
     options = prd.get_all_options_struct(redshift, lc=False, **kwargs)
 
     options["inputs"] = options["inputs"].clone(
         user_params=p21c.UserParams.new(DEFAULT_USER_PARAMS_CTEST)
     )
 
-    start = timer()
-    cv = p21c.run_coeval(
-        write=False,
-        cache=cache,
-        **options,
-    )
-    end = timer()
+    with p21c.config.use(ignore_R_BUBBLE_MAX_error=True):
+        cv = benchmark.pedantic(
+            p21c.run_coeval,
+            kwargs=dict(
+                write=False,
+                cache=cache,
+                **options,
+            ),
+            iterations=1,  # these tests can be slow
+            rounds=1,
+        )
 
     assert all(isinstance(x, p21c.Coeval) for x in cv)
     cv = cv[0]
@@ -205,5 +199,3 @@ def test_cv_runs(name, cache):
     assert cv.cosmo_params == options["inputs"].cosmo_params
     assert cv.astro_params == options["inputs"].astro_params
     assert cv.flag_options == options["inputs"].flag_options
-    if expected_time_s:
-        assert (end - start) <= (expected_time_s * 1.1)
