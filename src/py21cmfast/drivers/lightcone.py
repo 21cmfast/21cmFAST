@@ -338,6 +338,7 @@ def _check_desired_arrays_exist(desired_arrays: list[str], inputs: InputParamete
         if not exists:
             raise ValueError(f"You asked for {name} but it is not computed for the inputs: {inputs}")
 
+
 def setup_lightcone_instance(
     lightconer: Lightconer,
     scrollz: Sequence[float],
