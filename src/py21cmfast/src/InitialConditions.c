@@ -206,30 +206,30 @@ int ComputeInitialConditions(
     LOG_SUPER_DEBUG("Saved HIRES_box to struct.");
 
     // *** If required, let's also create a lower-resolution version of the density field  *** //
+    // TODO: for now, we always compute lowres_density (regardless the value of PERTURB_ON_HIGH_RES)
+    //       as there are some flag configurations that require this field when USE_HALO_FIELD = True.
+    //       This could be better implemented in the future.
     memcpy(HIRES_box, HIRES_box_saved, sizeof(fftwf_complex)*KSPACE_NUM_PIXELS);
 
-
     // Only filter if we are perturbing on the low-resolution grid
-    if(!user_params->PERTURB_ON_HIGH_RES) {
-        if (user_params->DIM != user_params->HII_DIM) {
-            filter_box(HIRES_box, 0, 0, L_FACTOR*user_params->BOX_LEN/(user_params->HII_DIM+0.0), 0.);
-        }
+    if (user_params->DIM != user_params->HII_DIM) {
+        filter_box(HIRES_box, 0, 0, L_FACTOR*user_params->BOX_LEN/(user_params->HII_DIM+0.0), 0.);
+    }
 
-        // FFT back to real space
-        dft_c2r_cube(user_params->USE_FFTW_WISDOM, user_params->DIM, D_PARA, user_params->N_THREADS, HIRES_box);
+    // FFT back to real space
+    dft_c2r_cube(user_params->USE_FFTW_WISDOM, user_params->DIM, D_PARA, user_params->N_THREADS, HIRES_box);
 
-        // Renormalise the FFT'd box (sample the high-res box if we are perturbing on the low-res grid)
+    // Renormalise the FFT'd box (sample the high-res box if we are perturbing on the low-res grid)
 #pragma omp parallel shared(boxes,HIRES_box,f_pixel_factor) private(i,j,k) num_threads(user_params->N_THREADS)
-        {
+    {
 #pragma omp for
-            for (i=0; i<user_params->HII_DIM; i++){
-                for (j=0; j<user_params->HII_DIM; j++){
-                    for (k=0; k<HII_D_PARA; k++){
-                        boxes->lowres_density[HII_R_INDEX(i,j,k)] =
-                        *((float *)HIRES_box + R_FFT_INDEX((unsigned long long)(i*f_pixel_factor+0.5),
-                                                           (unsigned long long)(j*f_pixel_factor+0.5),
-                                                           (unsigned long long)(k*f_pixel_factor+0.5)))/VOLUME;
-                    }
+        for (i=0; i<user_params->HII_DIM; i++){
+            for (j=0; j<user_params->HII_DIM; j++){
+                for (k=0; k<HII_D_PARA; k++){
+                    boxes->lowres_density[HII_R_INDEX(i,j,k)] =
+                    *((float *)HIRES_box + R_FFT_INDEX((unsigned long long)(i*f_pixel_factor+0.5),
+                                                        (unsigned long long)(j*f_pixel_factor+0.5),
+                                                        (unsigned long long)(k*f_pixel_factor+0.5)))/VOLUME;
                 }
             }
         }
