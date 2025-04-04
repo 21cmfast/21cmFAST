@@ -1,5 +1,6 @@
 [build-system]
-requires = ["setuptools>=42", "wheel", "setuptools_scm[toml]>=3.4"]
+# unpin wheel when https://github.com/pypa/wheel/issues/659 is resolved
+requires = ["setuptools>=64", "wheel<0.46", "setuptools_scm>=8"]
 build-backend = "setuptools.build_meta"
 
 [tool.setuptools_scm]
