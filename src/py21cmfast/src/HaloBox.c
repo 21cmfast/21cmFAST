@@ -681,7 +681,7 @@ int ComputeHaloBox(double redshift, UserParams *user_params, CosmoParams *cosmo_
         LOG_DEBUG("Gridding %llu halos...",halos->n_halos);
 
         double M_min = minimum_source_mass(redshift,false,astro_params,flag_options);
-        double M_max;
+        double M_max_integral;
         double cell_volume = VOLUME/HII_TOT_NUM_PIXELS;
 
         double turnovers[3];
@@ -699,35 +699,37 @@ int ComputeHaloBox(double redshift, UserParams *user_params, CosmoParams *cosmo_
         //Since we need the average turnover masses before we can calculate the global means, we do the CMF integrals first
         //Then we calculate the expected UMF integrals before doing the adjustment
         if(flag_options->FIXED_HALO_GRIDS){
-            M_max = M_MAX_INTEGRAL;
-            set_fixed_grids(M_min, M_max, ini_boxes, perturbed_field, previous_spin_temp, previous_ionize_box, &hbox_consts, grids, &averages_box, true);
+            M_max_integral = M_MAX_INTEGRAL;
+            set_fixed_grids(M_min, M_max_integral, ini_boxes, perturbed_field, previous_spin_temp, previous_ionize_box, &hbox_consts, grids, &averages_box, true);
         }
         else{
             //set below-resolution properties
-            if(user_params->AVG_BELOW_SAMPLER && M_min < user_params->SAMPLER_MIN_MASS){
+            if(user_params->AVG_BELOW_SAMPLER){
                 if (flag_options->HALO_STOCHASTICITY){
-                    M_max = user_params->SAMPLER_MIN_MASS;
+                    M_max_integral = user_params->SAMPLER_MIN_MASS;
                 }
                 else {
-                    M_max = RtoM(L_FACTOR*user_params->BOX_LEN/user_params->DIM);
+                    M_max_integral = RtoM(L_FACTOR*user_params->BOX_LEN/user_params->DIM);
                 }
-                set_fixed_grids(M_min, M_max, ini_boxes,
-                                perturbed_field, previous_spin_temp, previous_ionize_box,
-                                &hbox_consts, grids, &averages_subsampler, false);
-                //This is pretty redundant, but since the fixed grids have density units (X Mpc-3) I have to re-multiply before adding the halos.
-                //      I should instead have a flag to output the summed values in cell. (2*N_pixel > N_halo so generally i don't want to do it in the halo loop)
-                #pragma omp parallel for num_threads(user_params->N_THREADS) private(idx)
-                for (idx=0; idx<HII_TOT_NUM_PIXELS; idx++) {
-                    grids->halo_mass[idx] *= cell_volume;
-                    grids->halo_stars[idx] *= cell_volume;
-                    grids->halo_stars_mini[idx] *= cell_volume;
-                    grids->halo_xray[idx] *= cell_volume;
-                    grids->n_ion[idx] *= cell_volume;
-                    grids->halo_sfr[idx] *= cell_volume;
-                    grids->halo_sfr_mini[idx] *= cell_volume;
-                    grids->whalo_sfr[idx] *= cell_volume;
+                if(M_min < M_max_integral){
+                    set_fixed_grids(M_min, M_max_integral, ini_boxes,
+                                    perturbed_field, previous_spin_temp, previous_ionize_box,
+                                    &hbox_consts, grids, &averages_subsampler, false);
+                    //This is pretty redundant, but since the fixed grids have density units (X Mpc-3) I have to re-multiply before adding the halos.
+                    //      I should instead have a flag to output the summed values in cell. (2*N_pixel > N_halo so generally i don't want to do it in the halo loop)
+                    #pragma omp parallel for num_threads(user_params->N_THREADS) private(idx)
+                    for (idx=0; idx<HII_TOT_NUM_PIXELS; idx++) {
+                        grids->halo_mass[idx] *= cell_volume;
+                        grids->halo_stars[idx] *= cell_volume;
+                        grids->halo_stars_mini[idx] *= cell_volume;
+                        grids->halo_xray[idx] *= cell_volume;
+                        grids->n_ion[idx] *= cell_volume;
+                        grids->halo_sfr[idx] *= cell_volume;
+                        grids->halo_sfr_mini[idx] *= cell_volume;
+                        grids->whalo_sfr[idx] *= cell_volume;
+                    }
+                    LOG_DEBUG("finished subsampler M[%.2e %.2e]",M_min,M_max_integral);
                 }
-                LOG_DEBUG("finished subsampler M[%.2e %.2e]",M_min,user_params->SAMPLER_MIN_MASS);
             }
             else{
                 //we still need the average turnovers for global values in spintemp, so get them here
@@ -738,7 +740,7 @@ int ComputeHaloBox(double redshift, UserParams *user_params, CosmoParams *cosmo_
             sum_halos_onto_grid(ini_boxes, previous_spin_temp, previous_ionize_box,
                                 halos, &hbox_consts, grids, &averages_box);
         }
-        halobox_debug_print_avg(&averages_box,&averages_subsampler,&hbox_consts,M_min,M_max);
+        halobox_debug_print_avg(&averages_box,&averages_subsampler,&hbox_consts,M_min,M_max_integral);
 
         //NOTE: the density-grid based calculations (!USE_HALO_FIELD)
         // use the cell-weighted average of the log10(Mturn) (see issue #369)
