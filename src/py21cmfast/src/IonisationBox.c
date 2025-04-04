@@ -454,7 +454,7 @@ void set_mean_fcoll(struct IonBoxConstants *c, IonizedBox *prev_box, IonizedBox 
 }
 
 double set_fully_neutral_box(IonizedBox *box, TsBox *spin_temp, PerturbedField *perturbed_field, struct IonBoxConstants *consts){
-    double global_xH;
+    double global_xH=0.;
     unsigned long long int ct;
     if(flag_options_global->USE_TS_FLUCT) {
         #pragma omp parallel private(ct) num_threads(user_params_global->N_THREADS)
