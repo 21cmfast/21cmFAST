@@ -96,6 +96,16 @@ class TestRunCache:
                     cache2 = caching.RunCache.from_example_file(fname)
                     assert full_run_cache == cache2
 
+    def test_bad_example_file(self, perturbed_field: PerturbedField, tmpdirec):
+        """Test that the RunCache fails to construct when given a non-cache file."""
+        badpath = tmpdirec / Path("testpf.h5")
+        h5.write_output_to_hdf5(perturbed_field, badpath)
+
+        with pytest.raises(
+            ValueError, match="does not seem to be within a cache structure."
+        ):
+            caching.RunCache.from_example_file(badpath)
+
     def test_is_complete_at(self, full_run_cache, partial_run_cache):
         """Test that is_complete_at works as expected."""
         assert full_run_cache.is_complete_at(z=full_run_cache.inputs.node_redshifts[-1])
@@ -213,6 +223,15 @@ class TestOutputCache:
             field2 = h5.read_output_struct(dlist[0])
             assert field == field2
             assert field is not field2
+
+    def test_read_wildcards(self, perturbed_field, ionize_box, ic, cache):
+        """Test that we can read files without specific inputs."""
+        dlist = cache.list_datasets()
+
+        assert len(dlist) >= 3
+        for field in (ic, perturbed_field, ionize_box):
+            filename = cache.get_path(field)
+            assert filename in dlist
 
     def test_match_seed(
         self, cache: caching.OutputCache, default_input_struct: InputParameters

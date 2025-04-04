@@ -63,7 +63,7 @@ class OutputCache:
         }
 
     @classmethod
-    def fill_path_template(
+    def _fill_path_template(
         cls,
         *,
         kind: str | None = None,
@@ -121,7 +121,7 @@ class OutputCache:
         str
             The generated filename for the given OutputStruct object.
         """
-        return self.fill_path_template(
+        return self._fill_path_template(
             kind=obj.__class__.__name__,
             redshift=getattr(obj, "redshift", None),
             inputs=obj.inputs,
@@ -211,7 +211,7 @@ class OutputCache:
             ["InitialConditions", "PerturbedField", "other"] if kind is None else [kind]
         )
         templates = [
-            self.fill_path_template(
+            self._fill_path_template(
                 kind=k,
                 inputs=inputs,
                 all_seeds=all_seeds,
@@ -304,7 +304,7 @@ class RunCache:
         RunCache
             A new RunCache instance with file paths for various output structures.
         """
-        ics = cache.direc / cache.fill_path_template(
+        ics = cache.direc / cache._fill_path_template(
             kind="InitialConditions",
             inputs=inputs,
         )
@@ -320,13 +320,13 @@ class RunCache:
             others |= {"PerturbHaloField": {}, "XraySourceBox": {}, "HaloBox": {}}
 
         for z in inputs.node_redshifts:
-            pfs[z] = cache.direc / cache.fill_path_template(
+            pfs[z] = cache.direc / cache._fill_path_template(
                 kind="PerturbedField",
                 redshift=z,
                 inputs=inputs,
             )
             for name, val in others.items():
-                val[z] = cache.direc / cache.fill_path_template(
+                val[z] = cache.direc / cache._fill_path_template(
                     kind=name,
                     redshift=z,
                     inputs=inputs,
@@ -360,7 +360,7 @@ class RunCache:
         inputs = read_inputs(Path(path))
 
         for template in OutputCache._path_structures:
-            template = OutputCache.fill_path_template(
+            template = OutputCache._fill_path_template(
                 kind=template,
                 redshift=None,
                 inputs=inputs,
