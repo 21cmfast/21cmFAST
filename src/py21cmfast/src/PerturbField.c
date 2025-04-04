@@ -607,8 +607,9 @@ int ComputePerturbField(
                         *((float *)HIRES_density_perturb + R_FFT_INDEX((unsigned long long)(i*f_pixel_factor+0.5),
                                                            (unsigned long long)(j*f_pixel_factor+0.5),
                                                            (unsigned long long)(k*f_pixel_factor+0.5)))/(float)TOT_NUM_PIXELS;
-
-                        *((float *)LOWRES_density_perturb + HII_R_FFT_INDEX(i,j,k)) -= 1.;
+                        if(user_params->PERTURB_ALGORITHM > 0){
+                            *((float *)LOWRES_density_perturb + HII_R_FFT_INDEX(i,j,k)) -= 1.;
+                        }
 
                         if (*((float *)LOWRES_density_perturb + HII_R_FFT_INDEX(i,j,k)) < -1) {
                             *((float *)LOWRES_density_perturb + HII_R_FFT_INDEX(i,j,k)) = -1.+FRACT_FLOAT_ERR;
