@@ -93,10 +93,9 @@ void stoc_set_consts_z(struct HaloSamplingConstants *const_struct, double redshi
 
     init_ps();
     if (user_params_global->USE_INTERPOLATION_TABLES > 0) {
+        // the binary split needs to go below the resolution
         if (user_params_global->SAMPLE_METHOD == 3)
-            initialiseSigmaMInterpTable(
-                const_struct->M_min / 2,
-                const_struct->M_max_tables);  // the binary split needs to go below the resolution
+            initialiseSigmaMInterpTable(const_struct->M_min / 2,const_struct->M_max_tables);
         else
             initialiseSigmaMInterpTable(const_struct->M_min, const_struct->M_max_tables);
 
@@ -488,8 +487,8 @@ int stoc_partition_sample(struct HaloSamplingConstants *hs_constants, gsl_rng *r
                         (M_remaining / M_cond);
         del_term = delta_current * delta_current / growthf / growthf;
 
-        nu_min = sqrt(del_term /
-                      (sigma_min * sigma_min - sigma_r * sigma_r));  // nu at minimum progenitor
+        // nu at minimum progenitor
+        nu_min = sqrt(del_term / (sigma_min * sigma_min - sigma_r * sigma_r));
 
         // we use the gaussian tail distribution to enforce our Mmin limit from the sigma tables
         do {
@@ -608,11 +607,10 @@ int stoc_split_sample(struct HaloSamplingConstants *hs_constants, gsl_rng *rng, 
             eta = beta - 1 - gamma1 * mu;
             pow_diff = pow(.5, eta) - pow(q_res, eta);
             G2 = G1 * pow(sigma_half / sigma_start, gamma1) * pow(0.5, mu * gamma1);
-            dN_dd =
-                sqrt(2. / PI) * B * pow_diff / eta * alpha_half *
-                G2;  // this is the number of progenitors expected per unit increase in the barrier
-            dd2 = eps2 /
-                  dN_dd;  // barrier change which results in average of at most eps2 progenitors
+            // this is the number of progenitors expected per unit increase in the barrier
+            dN_dd = sqrt(2. / PI) * B * pow_diff / eta * alpha_half * G2;
+            // barrier change which results in average of at most eps2 progenitors
+            dd2 = eps2 / dN_dd;
 
             // Choose the minimum of the two timestep limits
             dd = fmin(dd1, dd2);

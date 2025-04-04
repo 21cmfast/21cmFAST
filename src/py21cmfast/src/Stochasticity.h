@@ -33,7 +33,8 @@ struct HaloSamplingConstants {
     double delta_crit;
 
     // calculated per condition
-    double cond_val;  // This is the table x value (density for grids, log mass for progenitors)
+    // This is the table x value (density for grids, log mass for progenitors)
+    double cond_val;
     double expected_N;
     double expected_M;
 };

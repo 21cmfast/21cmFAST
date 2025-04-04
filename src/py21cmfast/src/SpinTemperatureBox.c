@@ -321,10 +321,10 @@ void setup_z_edges(double zp) {
             prev_R = R_values[R_ct - 1];
         }
 
-        zpp_edge[R_ct] =
-            prev_zpp - (R_values[R_ct] - prev_R) * CMperMPC / drdz(prev_zpp);  // cell size
-        zpp =
-            (zpp_edge[R_ct] + prev_zpp) * 0.5;  // average redshift value of shell: z'' + 0.5 * dz''
+        // cell size
+        zpp_edge[R_ct] = prev_zpp - (R_values[R_ct] - prev_R) * CMperMPC / drdz(prev_zpp);
+        // average redshift value of shell: z'' + 0.5 * dz''
+        zpp = (zpp_edge[R_ct] + prev_zpp) * 0.5;
 
         zpp_for_evolve_list[R_ct] = zpp;
         if (R_ct == 0) {
@@ -504,8 +504,7 @@ void prepare_filter_boxes(double redshift, float *input_dens, float *input_vcb, 
             }
         }
     }
-    ////////////////// Transform unfiltered box to k-space to prepare for filtering
-    ////////////////////
+    //Transform unfiltered box to k-space to prepare for filtering
     dft_r2c_cube(user_params_global->USE_FFTW_WISDOM, user_params_global->HII_DIM, HII_D_PARA,
                  user_params_global->N_THREADS, output_dens);
 #pragma omp parallel for num_threads(user_params_global->N_THREADS)
@@ -534,8 +533,7 @@ void prepare_filter_boxes(double redshift, float *input_dens, float *input_vcb, 
                 }
             }
         }
-        ////////////////// Transform unfiltered box to k-space to prepare for filtering
-        ////////////////////
+        //Transform unfiltered box to k-space to prepare for filtering
         dft_r2c_cube(user_params_global->USE_FFTW_WISDOM, user_params_global->HII_DIM, HII_D_PARA,
                      user_params_global->N_THREADS, output_LW);
 #pragma omp parallel for num_threads(user_params_global->N_THREADS)
@@ -640,8 +638,7 @@ void one_annular_filter(float *input_box, float *output_box, double R_inner, dou
         }
     }
 
-    ////////////////// Transform unfiltered box to k-space to prepare for filtering
-    ////////////////////
+    // Transform unfiltered box to k-space to prepare for filtering
     // this would normally only be done once but we're using a different redshift for each R now
     dft_r2c_cube(user_params_global->USE_FFTW_WISDOM, user_params_global->HII_DIM, HII_D_PARA,
                  user_params_global->N_THREADS, unfiltered_box);
@@ -1048,11 +1045,11 @@ void set_zp_consts(double zp, struct spintemp_from_sfr_prefactors *consts) {
 
     // for halos, we just want the SFR -> X-ray part
     // NOTE: compared to Mesinger+11: (1+zpp)^2 (1+zp) -> (1+zp)^3
+    //(1+z)^3 is here because we don't want it in the
+    //star lya (already in zpp integrand)
     consts->xray_prefactor = luminosity_converstion_factor /
                              ((astro_params_global->NU_X_THRESH) * NU_over_EV) * C *
-                             pow(1 + zp, astro_params_global->X_RAY_SPEC_INDEX +
-                                             3);  //(1+z)^3 is here because we don't want it in the
-                                                  //star lya (already in zpp integrand)
+                             pow(1 + zp, astro_params_global->X_RAY_SPEC_INDEX + 3);
 
     // Required quantities for calculating the IGM spin temperature
     // Note: These used to be determined in evolveInt (and other functions). But I moved them all
@@ -1062,16 +1059,14 @@ void set_zp_consts(double zp, struct spintemp_from_sfr_prefactors *consts) {
     consts->Ts_prefactor =
         pow(1.0e-7 * (1.342881e-7 / consts->hubble_zp) * No * pow(1 + zp, 3), 1. / 3.);
 
-    gamma_alpha =
-        f_alpha *
-        pow(Ly_alpha_HZ * e_charge / (C / 10.),
-            2.);  // division of C/10. is converstion of electric charge from esu to coulomb
-    gamma_alpha /= 6. * (m_e / 1000.) * pow(C / 100., 3.) *
-                   vac_perm;  // division by 1000. to convert gram to kg and division by 100. to
-                              // convert cm to m
+    // division of C/10. is converstion of electric charge from esu to coulomb
+    gamma_alpha = f_alpha * pow(Ly_alpha_HZ * e_charge / (C / 10.), 2.);
+    // division by 1000. to convert gram to kg and division by 100. to convert cm to m
+    gamma_alpha /= 6. * (m_e / 1000.) * pow(C / 100., 3.) * vac_perm;
 
+    // 1e-8 converts angstrom to cm.
     consts->xa_tilde_prefactor = 8. * PI * pow(Ly_alpha_ANG * 1.e-8, 2.) * gamma_alpha *
-                                 T21;  // 1e-8 converts angstrom to cm.
+                                 T21;
     consts->xa_tilde_prefactor /= 9. * A10_HYPERFINE * consts->Trad;
     // consts->xa_tilde_prefactor = 1.66e11/(1.0+zp);
 
@@ -1081,18 +1076,17 @@ void set_zp_consts(double zp, struct spintemp_from_sfr_prefactors *consts) {
                                   (cosmo_params_global->hlittle) * pow(consts->Trad, 4.0) /
                                   (1.0 + zp);
 
-    consts->Nb_zp = N_b0 * (1 + zp) * (1 + zp) *
-                    (1 + zp);  // used for lya_X and sinks NOTE: the 2 density factors are from
-                               // source & absorber since its downscattered x-ray
+    // used for lya_X and sinks NOTE: the 2 density factors are from
+    // source & absorber since its downscattered x-ray
+    consts->Nb_zp = N_b0 * (1 + zp) * (1 + zp) * (1 + zp);
     consts->N_zp = No * (1 + zp) * (1 + zp) * (1 + zp);  // used for CMB
-    consts->lya_star_prefactor =
-        C / FOURPI * Msun / m_p *
-        (1 - 0.75 * cosmo_params_global
-                        ->Y_He);  // converts SFR density -> stellar baryon density + prefactors
+    // converts SFR density -> stellar baryon density + prefactors
+    consts->lya_star_prefactor = C / FOURPI * Msun / m_p *
+        (1 - 0.75 * cosmo_params_global->Y_He);
 
     // converts the grid emissivity unit to per cm-3
     if (flag_options_global->USE_HALO_FIELD) {
-        consts->volunit_inv = pow(CMperMPC, -3);  // changes to emissivity per cm-3
+        consts->volunit_inv = pow(CMperMPC, -3);
     } else {
         consts->volunit_inv = cosmo_params_global->OMb * RHOcrit * pow(CMperMPC, -3);
     }
@@ -1201,7 +1195,8 @@ struct Ts_cell get_Ts_fast(float zp, float dzp, struct spintemp_from_sfr_prefact
     // Update the cell quantities based on the above terms
     double x_e, Tk;
     x_e = rad->prev_xe + (dxe_dzp * dzp);  // remember dzp is negative
-    if (x_e > 1)                           // can do this late in evolution if dzp is too large
+    // can do this late in evolution if dzp is too large
+    if (x_e > 1)
         x_e = 1 - FRACT_FLOAT_ERR;
     else if (x_e < 0)
         x_e = 0;
@@ -1299,16 +1294,16 @@ void ts_main(float redshift, float prev_redshift, UserParams *user_params,
     double inverse_growth_factor_z;
     double dzp;
 
-    init_ps();  // Must be always initialised due to the strange way Ionisationbox.c expects some
-                // initialisation
+    // Must be always initialised due to the strange way Ionisationbox.c expects some initialisation
+    init_ps();
 
     // allocate the global arrays we always use
     if (!TsInterpArraysInitialised) {
         alloc_global_arrays();
     }
 
-    // NOTE: For the code to work, previous_spin_temp MUST be allocated & calculated if redshift <
-    // Z_HEAT_MAX
+    // NOTE: For the code to work, previous_spin_temp MUST be allocated &
+    //calculated if redshift < Z_HEAT_MAX
     growth_factor_z = dicke(perturbed_field_redshift);
     inverse_growth_factor_z = 1. / growth_factor_z;
 
@@ -1325,9 +1320,9 @@ void ts_main(float redshift, float prev_redshift, UserParams *user_params,
     if (user_params->INTEGRATION_METHOD_ATOMIC == 2 || user_params->INTEGRATION_METHOD_MINI == 2)
         M_MIN_tb = fmin(MMIN_FAST, M_MIN_tb);
 
+    // we need a larger table here due to the large radii
     if (user_params->USE_INTERPOLATION_TABLES > 0)
-        initialiseSigmaMInterpTable(M_MIN_tb / 2,
-                                    1e20);  // we need a larger table here due to the large radii
+        initialiseSigmaMInterpTable(M_MIN_tb / 2, 1e20);
 
     // now that we have the sigma table we can assign the sigma arrays
     for (R_ct = 0; R_ct < astro_params->N_STEP_TS; R_ct++) {
@@ -1475,16 +1470,14 @@ void ts_main(float redshift, float prev_redshift, UserParams *user_params,
         for (R_ct = astro_params->N_STEP_TS; R_ct--;) {
             dzpp_for_evolve = dzpp_list[R_ct];
             zpp = zpp_for_evolve_list[R_ct];
+            // dtdz'' dz'' -> dR for the radius sum (c included in constants)
             if (flag_options->USE_HALO_FIELD)
-                z_edge_factor =
-                    fabs(dzpp_for_evolve * dtdz_list[R_ct]);  // dtdz'' dz'' -> dR for the radius
-                                                              // sum (C included in constants)
+                z_edge_factor = fabs(dzpp_for_evolve * dtdz_list[R_ct]);
             else if (flag_options->USE_MASS_DEPENDENT_ZETA)
                 z_edge_factor =
                     fabs(dzpp_for_evolve * dtdz_list[R_ct]) * hubble(zpp) / astro_params->t_STAR;
             else
-                z_edge_factor =
-                    dzpp_for_evolve;  // in this case we use dfcoll/dz'' so we do not need dtdz
+                z_edge_factor = dzpp_for_evolve; //uses dfcoll/dz
 
             xray_R_factor = pow(1 + zpp, -(astro_params->X_RAY_SPEC_INDEX));
 
@@ -1587,9 +1580,7 @@ void ts_main(float redshift, float prev_redshift, UserParams *user_params,
                         // stellar fraction
                         sfr_term = del_fcoll_Rct[box_ct] * z_edge_factor * avg_fix_term *
                                    astro_params->F_STAR10;
-                        xray_sfr = sfr_term * astro_params->L_X * xray_R_factor *
-                                   SperYR;  // SperYR previously (3.1556226e7) (31556925.9747 in
-                                            // constants???)
+                        xray_sfr = sfr_term * astro_params->L_X * xray_R_factor * SperYR;
                     }
                     if (flag_options->USE_MINI_HALOS) {
                         if (flag_options->USE_HALO_FIELD) {
@@ -1610,15 +1601,12 @@ void ts_main(float redshift, float prev_redshift, UserParams *user_params,
                     ival = inverse_val_box[box_ct];
                     dxheat_dt_box[box_ct] += xray_sfr * (freq_int_heat_tbl_diff[xidx][R_ct] * ival +
                                                          freq_int_heat_tbl[xidx][R_ct]);
-                    dxion_source_dt_box[box_ct] +=
-                        xray_sfr *
+                    dxion_source_dt_box[box_ct] += xray_sfr *
                         (freq_int_ion_tbl_diff[xidx][R_ct] * ival + freq_int_ion_tbl[xidx][R_ct]);
                     dxlya_dt_box[box_ct] += xray_sfr * (freq_int_lya_tbl_diff[xidx][R_ct] * ival +
                                                         freq_int_lya_tbl[xidx][R_ct]);
-                    dstarlya_dt_box[box_ct] +=
-                        sfr_term * dstarlya_dt_prefactor[R_ct] +
-                        sfr_term_mini *
-                            starlya_factor_mini;  // the MINI factors might not be allocated
+                    dstarlya_dt_box[box_ct] += sfr_term * dstarlya_dt_prefactor[R_ct] +
+                        sfr_term_mini * starlya_factor_mini;
                     if (flag_options->USE_LYA_HEATING) {
                         dstarlya_cont_dt_box[box_ct] +=
                             sfr_term * dstarlya_cont_dt_prefactor[R_ct] +
@@ -1712,9 +1700,9 @@ void ts_main(float redshift, float prev_redshift, UserParams *user_params,
                 dxheat_dt_box[box_ct] * zp_consts.xray_prefactor * zp_consts.volunit_inv;
             rad.dxion_dt =
                 dxion_source_dt_box[box_ct] * zp_consts.xray_prefactor * zp_consts.volunit_inv;
+            // 2 density terms from downscattering absorbers
             rad.dxlya_dt = dxlya_dt_box[box_ct] * zp_consts.xray_prefactor * zp_consts.volunit_inv *
-                           zp_consts.Nb_zp *
-                           (1 + curr_delta);  // 2 density terms from downscattering absorbers
+                           zp_consts.Nb_zp * (1 + curr_delta);
             rad.dstarlya_dt =
                 dstarlya_dt_box[box_ct] * zp_consts.lya_star_prefactor * zp_consts.volunit_inv;
             rad.delta = curr_delta;

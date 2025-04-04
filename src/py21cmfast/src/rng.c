@@ -28,8 +28,8 @@
 //   In order to keep consistency with master I'm leaving it as is for now, but I really want to
 //   understand why it was done this way.
 void seed_rng_threads(gsl_rng *rng_arr[], unsigned long long int seed) {
-    gsl_rng *rseed =
-        gsl_rng_alloc(gsl_rng_mt19937);  // An RNG for generating seeds for multithreading
+    // An RNG for generating seeds for multithreading
+    gsl_rng *rseed = gsl_rng_alloc(gsl_rng_mt19937);
 
     gsl_rng_set(rseed, seed);
 
@@ -39,17 +39,19 @@ void seed_rng_threads(gsl_rng *rng_arr[], unsigned long long int seed) {
     // random_seed) and then shuffled (Author: Fred Davies)
     int num_int = INT_MAX / 16;
     int i, thread_num;
-    unsigned int *many_ints = (unsigned int *)malloc(
-        (size_t)(num_int * sizeof(unsigned int)));  // Some large number of possible integers
+    // Some large number of possible integers
+    unsigned int *many_ints = (unsigned int *)malloc((size_t)(num_int * sizeof(unsigned int)));
     for (i = 0; i < num_int; i++) {
         many_ints[i] = i;
     }
 
+    // Populate the seeds array from the large list of integers
     gsl_ran_choose(
         rseed, seeds, user_params_global->N_THREADS, many_ints, num_int,
-        sizeof(unsigned int));  // Populate the seeds array from the large list of integers
+        sizeof(unsigned int));
+    // Shuffle the randomly selected integers
     gsl_ran_shuffle(rseed, seeds, user_params_global->N_THREADS,
-                    sizeof(unsigned int));  // Shuffle the randomly selected integers
+                    sizeof(unsigned int));
 
     int checker = 0;
     // seed the random number generators
@@ -101,8 +103,8 @@ bool array_unique(unsigned int array[], int array_size) {
 
 // Samples a number of integers, repeating the samples if any repeat
 void sample_n_unique_integers(unsigned int n, unsigned long long int seed, unsigned int array[]) {
-    gsl_rng *rseed =
-        gsl_rng_alloc(gsl_rng_mt19937);  // An RNG for generating seeds for multithreading
+    // An RNG for generating seeds for multithreading
+    gsl_rng *rseed = gsl_rng_alloc(gsl_rng_mt19937);
     gsl_rng_set(rseed, seed);
 
     int idx;

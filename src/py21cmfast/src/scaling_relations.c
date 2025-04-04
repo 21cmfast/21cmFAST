@@ -58,9 +58,8 @@ void set_scaling_constants(double redshift, AstroParams *astro_params, FlagOptio
     consts->t_star = astro_params->t_STAR;
     consts->sigma_sfr_lim = astro_params->SIGMA_SFR_LIM;
     consts->sigma_sfr_idx = astro_params->SIGMA_SFR_INDEX;
-
-    consts->l_x =
-        astro_params->L_X * 1e-38;  // setting units to 1e38 erg s -1 so we can store in float
+    // setting units to 1e38 erg s -1 so we can store in float
+    consts->l_x = astro_params->L_X * 1e-38;
     consts->l_x_mini = astro_params->L_X_MINI * 1e-38;
     consts->sigma_xray = astro_params->SIGMA_LX;
 
@@ -301,9 +300,10 @@ void get_halo_stellarmass(double halo_mass, double mturn_acg, double mturn_mcg, 
     } else {
         fstar_mean = scaling_single_PL(halo_mass, consts->alpha_star, 1e10);  // PL term
     }
+    // 1e10 normalisation of stellar mass
     f_sample = f_10 * fstar_mean *
                exp(-mturn_acg / halo_mass + star_rng * sigma_star -
-                   stoc_adjustment_term);  // 1e10 normalisation of stellar mass
+                   stoc_adjustment_term);
     if (f_sample > 1.) f_sample = 1.;
 
     sm_sample = f_sample * halo_mass * baryon_ratio;
@@ -391,9 +391,10 @@ void get_halo_xray(double sfr, double sfr_mini, double metallicity, double xray_
     double xray = lx_over_sfr * (sfr * SperYR) * rng_factor;
 
     if (flag_options_global->USE_MINI_HALOS) {
+        // Since there *are* some SFR-dependent
+        // models, this is done separately
         lx_over_sfr = get_lx_on_sfr(sfr_mini, metallicity,
-                                    consts->l_x_mini);  // Since there *are* some SFR-dependent
-                                                        // models, this is done separately
+                                    consts->l_x_mini);
         xray += lx_over_sfr * (sfr_mini * SperYR) * rng_factor;
     }
 

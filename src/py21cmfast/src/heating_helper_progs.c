@@ -831,7 +831,6 @@ double integrate_over_nu(double zp, double local_x_e, double lower_int_limit, in
 //  The total weighted HI + HeI + HeII  cross-section in pcm^-2
 //  technically, the x_e should be local, line of sight (not global) here,
 //  but that would be very slow...
-
 double species_weighted_x_ray_cross_section(double nu, double x_e) {
     double HI_factor, HeI_factor, HeII_factor;
 
@@ -852,7 +851,6 @@ double species_weighted_x_ray_cross_section(double nu, double x_e) {
 //
 // Used to speed up Ts.c and remove parameter dependence reducing the dimensionality of the required
 // interpolation table in the new version of 21CMMC (including spin-temperature fluctuations).
-
 typedef struct {
     double nu_0;
     double x_e;
@@ -878,15 +876,16 @@ double tauX_integrand_MINI(double zhat, void *params) {
     fcoll = EvaluateNionTs(zhat, p->scale_consts);
     fcoll_MINI = EvaluateNionTs_MINI(zhat, log10_Mturn_MINI, p->scale_consts);
 
+    // simplification to use the <x_e> value at zp and not
+    // zhat.  should'nt matter much since the evolution in
+    // x_e_ave is slower than fcoll.  in principle should make
+    // an array to store past values of x_e_ave..
     if ((fcoll < 1e-20) && (fcoll_MINI < 1e-20)) {
         HI_filling_factor_zhat = 1;
     } else {
         HI_filling_factor_zhat =
             1 - (p->ion_eff * fcoll + p->ion_eff_MINI * fcoll_MINI) /
-                    (1.0 - p->x_e_ave);  // simplification to use the <x_e> value at zp and not
-                                         // zhat.  should'nt matter much since the evolution in
-                                         // x_e_ave is slower than fcoll.  in principle should make
-                                         // an array to store past values of x_e_ave..
+                    (1.0 - p->x_e_ave);
     }
     if (HI_filling_factor_zhat < 1e-4)
         HI_filling_factor_zhat = 1e-4;  // set a floor for post-reionization stability
@@ -906,15 +905,16 @@ double tauX_integrand(double zhat, void *params) {
 
     fcoll = EvaluateNionTs(zhat, p->scale_consts);
 
+    // simplification to use the <x_e> value at zp and not
+    // zhat.  should'nt matter much since the evolution in
+    // x_e_ave is slower than fcoll.  in principle should make
+    // an array to store past values of x_e_ave..
     if (fcoll < 1e-20)
         HI_filling_factor_zhat = 1;
     else
         HI_filling_factor_zhat =
             1 - p->ion_eff * fcoll /
-                    (1.0 - p->x_e_ave);  // simplification to use the <x_e> value at zp and not
-                                         // zhat.  should'nt matter much since the evolution in
-                                         // x_e_ave is slower than fcoll.  in principle should make
-                                         // an array to store past values of x_e_ave..
+                    (1.0 - p->x_e_ave);
     if (HI_filling_factor_zhat < 1e-4)
         HI_filling_factor_zhat = 1e-4;  // set a floor for post-reionization stability
 
@@ -1244,8 +1244,9 @@ double interpolate_heating_efficiencies(double tk, double ts, double taugp, doub
     double c000, c100, c001, c101, c010, c110, c011, c111;
     double c00, c01, c10, c11, c0, c1, c;
 
+    // Making these (nT-1) ensures we reach the correct edge value
     x0 = Tk_min + itk * (Tk_max - Tk_min) /
-                      (nT - 1);  // Making these (nT-1) ensures we reach the correct edge value
+                      (nT - 1);
     x1 = Tk_min + (itk + 1) * (Tk_max - Tk_min) / (nT - 1);
 
     y0 = Ts_min + its * (Ts_max - Ts_min) / (nT - 1);
@@ -1254,7 +1255,8 @@ double interpolate_heating_efficiencies(double tk, double ts, double taugp, doub
     z0 = taugp_min + itaugp * (taugp_max - taugp_min) / (ngp - 1);
     z1 = taugp_min + (itaugp + 1) * (taugp_max - taugp_min) / (ngp - 1);
 
-    xd = (tk - x0) / (x1 - x0);  // Above corrections ensure this remains in [0,1]
+    // Above corrections ensure this remains in [0,1]
+    xd = (tk - x0) / (x1 - x0);
     yd = (ts - y0) / (y1 - y0);
     zd = (taugp - z0) / (z1 - z0);
 

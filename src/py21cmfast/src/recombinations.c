@@ -172,9 +172,8 @@ double MHR_rr(double lnD, void *params) {
         alpha = alpha_B(p.T4 * 1e4);
     else
         alpha = alpha_A(p.T4 * 1e4);
-
-    return 1e15 * n_H * PDelta * alpha * x_e * x_e * del *
-           del;  // note extra D since we are integrating over lnD
+    // note extra D since we are integrating over lnD
+    return 1e15 * n_H * PDelta * alpha * x_e * x_e * del * del;
 }
 
 // returns the recombination rate per baryon (1/1e15s), integrated over the MHR density PDF,

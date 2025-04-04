@@ -462,7 +462,8 @@ void init_ps() {
 
     // Set cuttoff scale for WDM (eq. 4 in Barkana et al. 2001) in comoving Mpc
     // R_CUTOFF =
-    // 0.201*pow((cosmo_params_global->OMm-cosmo_params_global->OMb)*cosmo_params_global->hlittle*cosmo_params_global->hlittle/0.15,
+    // 0.201*pow((cosmo_params_global->OMm-cosmo_params_global->OMb)
+    // *cosmo_params_global->hlittle*cosmo_params_global->hlittle/0.15,
     // 0.15)*pow(.g_x/1.5, -0.29)*pow(.M_WDM, -1.15);
 
     cosmo_consts.omhh =

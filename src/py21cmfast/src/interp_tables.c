@@ -289,8 +289,7 @@ void init_FcollTable(double zmin, double zmax, bool x_ray) {
 //   is Rx1D unlike the Mini table, which is Rx2D
 // NOTE: SFRD tables have fixed Mturn range, Nion tables vary
 // NOTE: it would be slightly less accurate but maybe faster to tabulate in linear delta, linear
-// Fcoll
-//   rather than linear-log, check the profiles
+// Fcoll rather than linear-log, check the profiles
 void initialise_Nion_Conditional_spline(double z, double min_density, double max_density,
                                         double Mmin, double Mmax, double Mcond,
                                         double log10Mturn_min, double log10Mturn_max,
@@ -509,8 +508,8 @@ void initialise_Xray_Conditional_table(double redshift, double min_density, doub
     double growthf = dicke(redshift);
     double lnMmin = log(Mmin);
     double lnMmax = log(Mmax);
-    double sigma2 = EvaluateSigma(
-        lnM_condition);  // sigma is always the condition, whereas lnMmax is just the integral limit
+    // sigma is always the condition, whereas lnMmax is just the integral limit
+    double sigma2 = EvaluateSigma(lnM_condition);
 
     float MassTurnover[NMTURN];
     for (i = 0; i < NMTURN; i++) {
@@ -552,11 +551,11 @@ void initialise_Xray_Conditional_table(double redshift, double min_density, doub
             }
 
             for (k = 0; k < NMTURN; k++) {
+                // Using mini integration method for both
                 Xray_conditional_table_2D.z_arr[i][k] = log(Xray_ConditionalM(
                     redshift, growthf, lnMmin, lnMmax, lnM_condition, sigma2, curr_dens,
                     sc->mturn_a_nofb, MassTurnover[k], sc,
-                    user_params_global
-                        ->INTEGRATION_METHOD_MINI));  // Using mini integration method for both
+                    user_params_global->INTEGRATION_METHOD_MINI));
 
                 if (Xray_conditional_table_2D.z_arr[i][k] < -50.)
                     Xray_conditional_table_2D.z_arr[i][k] = -50.;
@@ -690,8 +689,8 @@ void initialise_dNdM_inverse_table(double xmin, double xmax, double lnM_min, dou
     int i, k;
     // set up coordinate grids
     for (i = 0; i < nx; i++) xa[i] = xmin + (xmax - xmin) * ((double)i) / ((double)nx - 1);
-    xa[nx - 1] =
-        xmax;  // avoiding floating point errors in final bin due to the hard boundary at Deltac
+    // avoiding floating point errors in final bin due to the hard boundary at Deltac
+    xa[nx - 1] = xmax;
     for (k = 0; k < np; k++) {
         pa[k] = min_lp * (1 - (double)k / (double)(np - 1));
     }
@@ -894,15 +893,13 @@ double EvaluateNionTs(double redshift, struct ScalingConstants *sc) {
     // differences in turnover are handled by table setup
     if (user_params_global->USE_INTERPOLATION_TABLES > 1) {
         if (flag_options_global->USE_MASS_DEPENDENT_ZETA)
-            return EvaluateRGTable1D(redshift, &Nion_z_table);  // the correct table should be
-                                                                // passed
+            return EvaluateRGTable1D(redshift, &Nion_z_table);
         return EvaluateRGTable1D(redshift, &fcoll_z_table);
     }
 
     // Currently assuming this is only called in the X-ray/spintemp calculation, this will only
-    // affect !USE_MASS_DEPENDENT_ZETA and !M_MIN_in_mass
-    //       and only if the minimum virial temperatures ION_Tvir_min and X_RAY_Tvir_min are
-    //       different
+    // affect !USE_MASS_DEPENDENT_ZETA and !M_MIN_in_mass and only if the minimum virial
+    // temperatures ION_Tvir_min and X_RAY_Tvir_min are different
     double lnMmin =
         log(minimum_source_mass(redshift, true, astro_params_global, flag_options_global));
     double lnMmax = log(M_MAX_INTEGRAL);
@@ -939,9 +936,8 @@ double EvaluateSFRD(double redshift, struct ScalingConstants *sc) {
     }
 
     // Currently assuming this is only called in the X-ray/spintemp calculation, this will only
-    // affect !USE_MASS_DEPENDENT_ZETA and !M_MIN_in_mass
-    //       and only if the minimum virial temperatures ION_Tvir_min and X_RAY_Tvir_min are
-    //       different
+    // affect !USE_MASS_DEPENDENT_ZETA and !M_MIN_in_mass and only if the minimum virial
+    // temperatures ION_Tvir_min and X_RAY_Tvir_min are different
     double lnMmin =
         log(minimum_source_mass(redshift, true, astro_params_global, flag_options_global));
     double lnMmax = log(M_MAX_INTEGRAL);

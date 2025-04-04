@@ -19,8 +19,8 @@
 
 // ----------------------------------------------------------------------------------------- //
 
-#define L_FACTOR \
-    (float)(0.620350491)  // factor relating cube length to filter radius = (4PI/3)^(-1/3)
+// factor relating cube length to filter radius = (4PI/3)^(-1/3)
+#define L_FACTOR (float)(0.620350491)
 
 /*
  Filenames of the appropriate output from RECFAST to be used as boundary conditions in Ts.c
@@ -69,15 +69,15 @@
 #define Watson_A_z_1 (0.990)  // Watson FOF HMF, normalisation of A_z parameter (Watson et al. 2013)
 #define Watson_A_z_2 (-3.216)  // Watson FOF HMF, power law of A_z parameter (Watson et al. 2013)
 #define Watson_A_z_3 (0.074)   // Watson FOF HMF, offset of A_z parameter (Watson et al. 2013)
-#define Watson_alpha_z_1 \
-    (5.907)  // Watson FOF HMF, normalisation of alpha_z parameter (Watson et al. 2013)
-#define Watson_alpha_z_2 \
-    (-3.058)  // Watson FOF HMF, power law of alpha_z parameter (Watson et al. 2013)
+// Watson FOF HMF, normalisation of alpha_z parameter (Watson et al. 2013)
+#define Watson_alpha_z_1 (5.907)
+// Watson FOF HMF, power law of alpha_z parameter (Watson et al. 2013)
+#define Watson_alpha_z_2 (-3.058)
 #define Watson_alpha_z_3 (2.349)  // Watson FOF HMF, offset of beta_z parameter (Watson et al. 2013)
-#define Watson_beta_z_1 \
-    (3.136)  // Watson FOF HMF, normalisation of beta_z parameter (Watson et al. 2013)
-#define Watson_beta_z_2 \
-    (-3.599)  // Watson FOF HMF, power law of beta_z parameter (Watson et al. 2013)
+// Watson FOF HMF, normalisation of beta_z parameter (Watson et al. 2013)
+#define Watson_beta_z_1 (3.136)
+// Watson FOF HMF, power law of beta_z parameter (Watson et al. 2013)
+#define Watson_beta_z_2 (-3.599)
 #define Watson_beta_z_3 (2.344)  // Watson FOF HMF, offset of beta_z parameter (Watson et al. 2013)
 #define Watson_gamma_z (1.318)   // Watson FOF HMF, gamma parameter (Watson et al. 2013)
 
@@ -145,11 +145,11 @@
 #define KAPPA_10_elec_NPTS_Spline (int)30
 #define KAPPA_10_pH_NPTS_Spline (int)30
 
-#define zpp_interp_points_SFR \
-    (int)(400) /* Number of interpolation points for the interpolation table for z'' */
-#define dens_Ninterp                                                                              \
-    (int)(400) /* Number of interpolation points for the interpolation table for the value of the \
-                  density field */
+/* Number of interpolation points for the interpolation table for z'' */
+#define zpp_interp_points_SFR (int)(400)
+
+/* Number of interpolation points for the interpolation table for the value of the density field */
+#define dens_Ninterp (int)(400)
 
 // Variables needed to read the Lyman-Alpha heating table
 #define Tk_max (double)3.0   // log10 (Tk_max)
@@ -175,8 +175,8 @@
 
 #define CLASS_FILENAME (const char *)"Transfers_z0.dat"
 #define CLASS_LENGTH 150  // length of the CLASS transfer function
-#define KBOT_CLASS \
-    (float)(1e-5)  // max and min k in  CLASS transfer function, temporary until interfaced properly
+// max and min k in  CLASS transfer function, temporary until interfaced properly
+#define KBOT_CLASS (float)(1e-5)
 #define KTOP_CLASS (float)(1e3)
 
 // parameters for the M(sigma) power-law relation for FAST_FCOLL_TABLES
@@ -185,9 +185,9 @@
 #define AINDEX1 (double)(9.0)   // power-law index of nu(M) between MPIVOT1 and infinite
 #define AINDEX2 (double)(13.6)  // power-law index of nu(M) between MPIVOT2 and MPIVOT1
 #define AINDEX3 (double)(21.0)  // power-law index of nu(M) between 0 and MPIVOT2
-#define MMIN_FAST \
-    (double)(1e5)  // min mass at which the sigma table is computed if FAST_FCOLL_TABLES is turned
-                   // on. Has to be below MPIVOT2
+// min mass at which the sigma table is computed if FAST_FCOLL_TABLES is turned
+// on. Has to be below MPIVOT2
+#define MMIN_FAST (double)(1e5)
 
 // parameters for DM-baryon relative velocity effect on the power spectrum
 #define KP_VCB_PM (300.0)  // Mpc-1
@@ -214,16 +214,16 @@
 // Taken from COSMOLOGY.H
 // -------------------------------------------------------------------------------------
 #define Ho (double)(cosmo_params_global->hlittle * 3.2407e-18)  // s^-1 at z=0
-#define RHOcrit                                                                    \
-    (double)((3.0 * Ho * Ho / (8.0 * PI * G)) * (CMperMPC * CMperMPC * CMperMPC) / \
-             Msun)                                            // Msun Mpc^-3 ---- at z=0
+// Msun Mpc^-3 ---- at z=0
+#define RHOcrit (double)((3.0 * Ho * Ho / (8.0 * PI * G)) * \
+             (CMperMPC * CMperMPC * CMperMPC) / Msun)
 #define RHOcrit_cgs (double)(3.0 * Ho * Ho / (8.0 * PI * G))  // g pcm^-3 ---- at z=0
-#define No                                                                              \
-    (double)(RHOcrit_cgs * cosmo_params_global->OMb * (1 - cosmo_params_global->Y_He) / \
-             m_p)  //  current hydrogen number density estimate  (#/cm^3)  ~1.92e-7
-#define He_No                                                                     \
-    (double)(RHOcrit_cgs * cosmo_params_global->OMb * cosmo_params_global->Y_He / \
-             (4.0 * m_p))                    //  current helium number density estimate
+//  current hydrogen number density estimate  (#/cm^3)  ~1.92e-7
+#define No (double)(RHOcrit_cgs * cosmo_params_global->OMb * (1 - cosmo_params_global->Y_He) / \
+             m_p)
+//  current helium number density estimate
+#define He_No (double)(RHOcrit_cgs * cosmo_params_global->OMb * cosmo_params_global->Y_He / \
+             (4.0 * m_p))
 #define N_b0 (double)(No + He_No)            // present-day baryon num density, H + He
 #define f_H (double)(No / (No + He_No))      // hydrogen number fraction
 #define f_He (double)(He_No / (No + He_No))  // helium number fraction

@@ -712,7 +712,6 @@ void adjust_redshifts_for_photoncons(UserParams *user_params, AstroParams *astro
             "set astro_params->PHOTONCONS_CALIBRATION_END "
             "to a value lower than z = %f.",
             *redshift, astro_params_global->PHOTONCONS_CALIBRATION_END, *redshift);
-        //        Throw(ParameterError);
         Throw(PhotonConsError);
     }
 

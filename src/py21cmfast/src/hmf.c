@@ -543,10 +543,10 @@ double IntegratedNdM_QAG(double lnM_lo, double lnM_hi, struct parameters_gsl_MF_
 }
 
 // calculates the weightings and the positions for any Gauss-Legendre quadrature.
-void gauleg(double x1, double x2, double x[], double w[], int n)
 // Given the lower and upper limits of integration x1 and x2, and given n, this routine returns
 // arrays x[1..n] and w[1..n] of length n, containing the abscissas and weights of the Gauss-
 // Legendre n-point quadrature formula.
+void gauleg(double x1, double x2, double x[], double w[], int n)
 {
     int m, j, i;
     double z1, z, xm, xl, pp, p3, p2, p1;
@@ -927,9 +927,8 @@ double Nhalo_Conditional(double growthf, double lnM1, double lnM2, double lnM_co
     if (lnM1 >= lnM_cond) return 0.;
     // return 1 halo AT THE CONDITION MASS if delta is exceeded
     if (delta > MAX_DELTAC_FRAC * get_delta_crit(params.HMF, sigma, growthf)) {
-        if (lnM_cond * (1 - FRACT_FLOAT_ERR) <=
-            lnM2)  // this limit is not ideal, but covers floating point errors when we set lnM2 ==
-                   // log(M_cond)
+        // this limit is not ideal, but covers floating point errors when we set lnM2==log(M_cond)
+        if (lnM_cond * (1 - FRACT_FLOAT_ERR) <= lnM2)
             return 1. / exp(lnM_cond);
         else
             return 0.;
@@ -951,9 +950,8 @@ double Mcoll_Conditional(double growthf, double lnM1, double lnM2, double lnM_co
     if (lnM1 >= lnM_cond) return 0.;
     // return 100% of mass AT THE CONDITION MASS if delta is exceeded
     if (delta > MAX_DELTAC_FRAC * get_delta_crit(params.HMF, sigma, growthf)) {
-        if (lnM_cond * (1 - FRACT_FLOAT_ERR) <=
-            lnM2)  // this limit is not ideal, but covers floating point errors when we set lnM2 ==
-                   // log(M_cond)
+        // this limit is not ideal, but covers floating point errors when we set lnM2==log(M_cond)
+        if (lnM_cond * (1 - FRACT_FLOAT_ERR) <= lnM2)
             return 1.;
         else
             return 0.;
@@ -985,12 +983,10 @@ double Nion_ConditionalM_MINI(double growthf, double lnM1, double lnM2, double l
     // NOTE: this will almost always be zero, due to the upper turover,
     //  however this replaces an integral so it won't be slow
     if (delta2 > MAX_DELTAC_FRAC * get_delta_crit(params.HMF, sigma2, growthf)) {
-        if (lnM_cond * (1 - FRACT_FLOAT_ERR) <=
-            lnM2)  // this limit is not ideal, but covers floating point errors when we set lnM2 ==
-                   // log(M_cond)
-            return nion_fraction_mini(lnM_cond, &params) /
-                   exp(lnM_cond);  // NOTE: condition mass is used as if it were Lagrangian (no
-                                   // 1+delta)
+        // this limit is not ideal, but covers floating point errors when we set lnM2==log(M_cond)
+        // NOTE: condition mass is used as if it were Lagrangian (no 1+delta)
+        if (lnM_cond * (1 - FRACT_FLOAT_ERR) <= lnM2)
+            return nion_fraction_mini(lnM_cond, &params) / exp(lnM_cond);
         else
             return 0.;
     }
@@ -1024,11 +1020,11 @@ double Nion_ConditionalM(double growthf, double lnM1, double lnM2, double lnM_co
     // return 1 halo at the condition mass if delta is exceeded and the condition is within the
     // integral limits
     if (delta2 > MAX_DELTAC_FRAC * get_delta_crit(params.HMF, sigma2, growthf)) {
+        // this limit is not ideal, but covers floating point errors when we set lnM2==log(M_cond)
+        // NOTE: condition mass is used as if it were Lagrangian (no 1+delta)
         if (lnM_cond * (1 - FRACT_FLOAT_ERR) <= lnM2)
-            return nion_fraction(lnM_cond, &params) /
-                   exp(lnM_cond);  // NOTE: condition mass is used as if it were Lagrangian (no
-                                   // 1+delta)
-        else
+            return nion_fraction(lnM_cond, &params) / exp(lnM_cond);
+
             return 0.;
     }
 
@@ -1067,10 +1063,10 @@ double Xray_ConditionalM(double redshift, double growthf, double lnM1, double ln
     if (lnM1 >= lnM_cond) return 0.;
     // return 1 halo at the condition mass if delta is exceeded
     if (delta2 > MAX_DELTAC_FRAC * get_delta_crit(params.HMF, sigma2, growthf)) {
+        // this limit is not ideal, but covers floating point errors when we set lnM2==log(M_cond)
+        // NOTE: condition mass is used as if it were Lagrangian (no 1+delta)
         if (lnM_cond * (1 - FRACT_FLOAT_ERR) <= lnM2)
-            return xray_fraction_doublePL(lnM_cond, &params) /
-                   exp(lnM_cond);  // NOTE: condition mass is used as if it were Lagrangian (no
-                                   // 1+delta)
+            return xray_fraction_doublePL(lnM_cond, &params) / exp(lnM_cond);
         else
             return 0.;
     }
