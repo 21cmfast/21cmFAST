@@ -208,7 +208,7 @@ int ComputeInitialConditions(
     // *** If required, let's also create a lower-resolution version of the density field  *** //
     // TODO: for now, we always compute lowres_density (regardless the value of PERTURB_ON_HIGH_RES)
     //       as there are some flag configurations that require this field when USE_HALO_FIELD = True.
-    //       This could be better implemented in the future.  
+    //       This could be better implemented in the future.
     memcpy(HIRES_box, HIRES_box_saved, sizeof(fftwf_complex)*KSPACE_NUM_PIXELS);
 
     // Only filter if we are perturbing on the low-resolution grid
