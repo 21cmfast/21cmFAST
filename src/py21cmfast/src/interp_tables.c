@@ -552,10 +552,10 @@ void initialise_Xray_Conditional_table(double redshift, double min_density, doub
 
             for (k = 0; k < NMTURN; k++) {
                 // Using mini integration method for both
-                Xray_conditional_table_2D.z_arr[i][k] = log(Xray_ConditionalM(
-                    redshift, growthf, lnMmin, lnMmax, lnM_condition, sigma2, curr_dens,
-                    sc->mturn_a_nofb, MassTurnover[k], sc,
-                    user_params_global->INTEGRATION_METHOD_MINI));
+                Xray_conditional_table_2D.z_arr[i][k] =
+                    log(Xray_ConditionalM(redshift, growthf, lnMmin, lnMmax, lnM_condition, sigma2,
+                                          curr_dens, sc->mturn_a_nofb, MassTurnover[k], sc,
+                                          user_params_global->INTEGRATION_METHOD_MINI));
 
                 if (Xray_conditional_table_2D.z_arr[i][k] < -50.)
                     Xray_conditional_table_2D.z_arr[i][k] = -50.;

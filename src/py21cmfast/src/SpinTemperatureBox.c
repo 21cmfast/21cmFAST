@@ -504,7 +504,7 @@ void prepare_filter_boxes(double redshift, float *input_dens, float *input_vcb, 
             }
         }
     }
-    //Transform unfiltered box to k-space to prepare for filtering
+    // Transform unfiltered box to k-space to prepare for filtering
     dft_r2c_cube(user_params_global->USE_FFTW_WISDOM, user_params_global->HII_DIM, HII_D_PARA,
                  user_params_global->N_THREADS, output_dens);
 #pragma omp parallel for num_threads(user_params_global->N_THREADS)
@@ -533,7 +533,7 @@ void prepare_filter_boxes(double redshift, float *input_dens, float *input_vcb, 
                 }
             }
         }
-        //Transform unfiltered box to k-space to prepare for filtering
+        // Transform unfiltered box to k-space to prepare for filtering
         dft_r2c_cube(user_params_global->USE_FFTW_WISDOM, user_params_global->HII_DIM, HII_D_PARA,
                      user_params_global->N_THREADS, output_LW);
 #pragma omp parallel for num_threads(user_params_global->N_THREADS)
@@ -1046,7 +1046,7 @@ void set_zp_consts(double zp, struct spintemp_from_sfr_prefactors *consts) {
     // for halos, we just want the SFR -> X-ray part
     // NOTE: compared to Mesinger+11: (1+zpp)^2 (1+zp) -> (1+zp)^3
     //(1+z)^3 is here because we don't want it in the
-    //star lya (already in zpp integrand)
+    // star lya (already in zpp integrand)
     consts->xray_prefactor = luminosity_converstion_factor /
                              ((astro_params_global->NU_X_THRESH) * NU_over_EV) * C *
                              pow(1 + zp, astro_params_global->X_RAY_SPEC_INDEX + 3);
@@ -1065,8 +1065,7 @@ void set_zp_consts(double zp, struct spintemp_from_sfr_prefactors *consts) {
     gamma_alpha /= 6. * (m_e / 1000.) * pow(C / 100., 3.) * vac_perm;
 
     // 1e-8 converts angstrom to cm.
-    consts->xa_tilde_prefactor = 8. * PI * pow(Ly_alpha_ANG * 1.e-8, 2.) * gamma_alpha *
-                                 T21;
+    consts->xa_tilde_prefactor = 8. * PI * pow(Ly_alpha_ANG * 1.e-8, 2.) * gamma_alpha * T21;
     consts->xa_tilde_prefactor /= 9. * A10_HYPERFINE * consts->Trad;
     // consts->xa_tilde_prefactor = 1.66e11/(1.0+zp);
 
@@ -1081,8 +1080,7 @@ void set_zp_consts(double zp, struct spintemp_from_sfr_prefactors *consts) {
     consts->Nb_zp = N_b0 * (1 + zp) * (1 + zp) * (1 + zp);
     consts->N_zp = No * (1 + zp) * (1 + zp) * (1 + zp);  // used for CMB
     // converts SFR density -> stellar baryon density + prefactors
-    consts->lya_star_prefactor = C / FOURPI * Msun / m_p *
-        (1 - 0.75 * cosmo_params_global->Y_He);
+    consts->lya_star_prefactor = C / FOURPI * Msun / m_p * (1 - 0.75 * cosmo_params_global->Y_He);
 
     // converts the grid emissivity unit to per cm-3
     if (flag_options_global->USE_HALO_FIELD) {
@@ -1303,7 +1301,7 @@ void ts_main(float redshift, float prev_redshift, UserParams *user_params,
     }
 
     // NOTE: For the code to work, previous_spin_temp MUST be allocated &
-    //calculated if redshift < Z_HEAT_MAX
+    // calculated if redshift < Z_HEAT_MAX
     growth_factor_z = dicke(perturbed_field_redshift);
     inverse_growth_factor_z = 1. / growth_factor_z;
 
@@ -1321,8 +1319,7 @@ void ts_main(float redshift, float prev_redshift, UserParams *user_params,
         M_MIN_tb = fmin(MMIN_FAST, M_MIN_tb);
 
     // we need a larger table here due to the large radii
-    if (user_params->USE_INTERPOLATION_TABLES > 0)
-        initialiseSigmaMInterpTable(M_MIN_tb / 2, 1e20);
+    if (user_params->USE_INTERPOLATION_TABLES > 0) initialiseSigmaMInterpTable(M_MIN_tb / 2, 1e20);
 
     // now that we have the sigma table we can assign the sigma arrays
     for (R_ct = 0; R_ct < astro_params->N_STEP_TS; R_ct++) {
@@ -1477,7 +1474,7 @@ void ts_main(float redshift, float prev_redshift, UserParams *user_params,
                 z_edge_factor =
                     fabs(dzpp_for_evolve * dtdz_list[R_ct]) * hubble(zpp) / astro_params->t_STAR;
             else
-                z_edge_factor = dzpp_for_evolve; //uses dfcoll/dz
+                z_edge_factor = dzpp_for_evolve;  // uses dfcoll/dz
 
             xray_R_factor = pow(1 + zpp, -(astro_params->X_RAY_SPEC_INDEX));
 
@@ -1601,12 +1598,13 @@ void ts_main(float redshift, float prev_redshift, UserParams *user_params,
                     ival = inverse_val_box[box_ct];
                     dxheat_dt_box[box_ct] += xray_sfr * (freq_int_heat_tbl_diff[xidx][R_ct] * ival +
                                                          freq_int_heat_tbl[xidx][R_ct]);
-                    dxion_source_dt_box[box_ct] += xray_sfr *
+                    dxion_source_dt_box[box_ct] +=
+                        xray_sfr *
                         (freq_int_ion_tbl_diff[xidx][R_ct] * ival + freq_int_ion_tbl[xidx][R_ct]);
                     dxlya_dt_box[box_ct] += xray_sfr * (freq_int_lya_tbl_diff[xidx][R_ct] * ival +
                                                         freq_int_lya_tbl[xidx][R_ct]);
                     dstarlya_dt_box[box_ct] += sfr_term * dstarlya_dt_prefactor[R_ct] +
-                        sfr_term_mini * starlya_factor_mini;
+                                               sfr_term_mini * starlya_factor_mini;
                     if (flag_options->USE_LYA_HEATING) {
                         dstarlya_cont_dt_box[box_ct] +=
                             sfr_term * dstarlya_cont_dt_prefactor[R_ct] +

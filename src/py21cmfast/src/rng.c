@@ -46,12 +46,10 @@ void seed_rng_threads(gsl_rng *rng_arr[], unsigned long long int seed) {
     }
 
     // Populate the seeds array from the large list of integers
-    gsl_ran_choose(
-        rseed, seeds, user_params_global->N_THREADS, many_ints, num_int,
-        sizeof(unsigned int));
+    gsl_ran_choose(rseed, seeds, user_params_global->N_THREADS, many_ints, num_int,
+                   sizeof(unsigned int));
     // Shuffle the randomly selected integers
-    gsl_ran_shuffle(rseed, seeds, user_params_global->N_THREADS,
-                    sizeof(unsigned int));
+    gsl_ran_shuffle(rseed, seeds, user_params_global->N_THREADS, sizeof(unsigned int));
 
     int checker = 0;
     // seed the random number generators

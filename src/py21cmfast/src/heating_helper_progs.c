@@ -884,8 +884,7 @@ double tauX_integrand_MINI(double zhat, void *params) {
         HI_filling_factor_zhat = 1;
     } else {
         HI_filling_factor_zhat =
-            1 - (p->ion_eff * fcoll + p->ion_eff_MINI * fcoll_MINI) /
-                    (1.0 - p->x_e_ave);
+            1 - (p->ion_eff * fcoll + p->ion_eff_MINI * fcoll_MINI) / (1.0 - p->x_e_ave);
     }
     if (HI_filling_factor_zhat < 1e-4)
         HI_filling_factor_zhat = 1e-4;  // set a floor for post-reionization stability
@@ -912,9 +911,7 @@ double tauX_integrand(double zhat, void *params) {
     if (fcoll < 1e-20)
         HI_filling_factor_zhat = 1;
     else
-        HI_filling_factor_zhat =
-            1 - p->ion_eff * fcoll /
-                    (1.0 - p->x_e_ave);
+        HI_filling_factor_zhat = 1 - p->ion_eff * fcoll / (1.0 - p->x_e_ave);
     if (HI_filling_factor_zhat < 1e-4)
         HI_filling_factor_zhat = 1e-4;  // set a floor for post-reionization stability
 
@@ -1245,8 +1242,7 @@ double interpolate_heating_efficiencies(double tk, double ts, double taugp, doub
     double c00, c01, c10, c11, c0, c1, c;
 
     // Making these (nT-1) ensures we reach the correct edge value
-    x0 = Tk_min + itk * (Tk_max - Tk_min) /
-                      (nT - 1);
+    x0 = Tk_min + itk * (Tk_max - Tk_min) / (nT - 1);
     x1 = Tk_min + (itk + 1) * (Tk_max - Tk_min) / (nT - 1);
 
     y0 = Ts_min + its * (Ts_max - Ts_min) / (nT - 1);

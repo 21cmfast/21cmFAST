@@ -95,7 +95,7 @@ void stoc_set_consts_z(struct HaloSamplingConstants *const_struct, double redshi
     if (user_params_global->USE_INTERPOLATION_TABLES > 0) {
         // the binary split needs to go below the resolution
         if (user_params_global->SAMPLE_METHOD == 3)
-            initialiseSigmaMInterpTable(const_struct->M_min / 2,const_struct->M_max_tables);
+            initialiseSigmaMInterpTable(const_struct->M_min / 2, const_struct->M_max_tables);
         else
             initialiseSigmaMInterpTable(const_struct->M_min, const_struct->M_max_tables);
 

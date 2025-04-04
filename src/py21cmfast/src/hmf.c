@@ -40,7 +40,7 @@
 #define NGL_INT 100  // 100
 // These arrays hold the points and weights for the Gauss-Legendre integration routine
 //(JD) Since these were always malloc'd one at a time with fixed length ~100, I've changed them to
-//fixed-length arrays
+// fixed-length arrays
 
 // Gauss-Legendre does poorly at high delta, switch to GSL-QAG here
 // TODO: define a fraction (90%?) of the barrier rather than a fixed number
@@ -546,8 +546,7 @@ double IntegratedNdM_QAG(double lnM_lo, double lnM_hi, struct parameters_gsl_MF_
 // Given the lower and upper limits of integration x1 and x2, and given n, this routine returns
 // arrays x[1..n] and w[1..n] of length n, containing the abscissas and weights of the Gauss-
 // Legendre n-point quadrature formula.
-void gauleg(double x1, double x2, double x[], double w[], int n)
-{
+void gauleg(double x1, double x2, double x[], double w[], int n) {
     int m, j, i;
     double z1, z, xm, xl, pp, p3, p2, p1;
 
@@ -1025,7 +1024,7 @@ double Nion_ConditionalM(double growthf, double lnM1, double lnM2, double lnM_co
         if (lnM_cond * (1 - FRACT_FLOAT_ERR) <= lnM2)
             return nion_fraction(lnM_cond, &params) / exp(lnM_cond);
 
-            return 0.;
+        return 0.;
     }
 
     // If we don't have a corresponding CMF, use EPS and normalise

@@ -85,8 +85,8 @@ int InitialisePhotonCons(UserParams *user_params, CosmoParams *cosmo_params,
         //     NOTE:
         //     (1) With the fiducial parameter set,
         //	    when the Q value is < 0.9, the difference is less than 5% compared with accurate
-        //calculation. 	    When Q ~ 0.98, the difference is ~25%. To increase accuracy one can reduce
-        //the step size 'da', but it will increase computing time.
+        // calculation. 	    When Q ~ 0.98, the difference is ~25%. To increase accuracy one
+        // can reduce the step size 'da', but it will increase computing time.
         //     (2) With the fiducial parameter set,
         //     the difference for the redshift where the reionization end (Q = 1) is ~0.2 % compared
         //     with accurate calculation.

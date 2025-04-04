@@ -1,6 +1,7 @@
 #ifndef _SCALING_H
 #define _SCALING_H
 
+#include <InputParameters.h>
 #include <stdbool.h>
 
 // Parameters for the scaling relations

@@ -328,7 +328,7 @@ void prepare_box_for_filtering(float *input_box, fftwf_complex *output_c_box, do
             }
         }
     }
-    //Transform unfiltered box to k-space to prepare for filtering
+    // Transform unfiltered box to k-space to prepare for filtering
     dft_r2c_cube(user_params_global->USE_FFTW_WISDOM, user_params_global->HII_DIM, HII_D_PARA,
                  user_params_global->N_THREADS, output_c_box);
 
@@ -526,7 +526,8 @@ double set_fully_neutral_box(IonizedBox *box, TsBox *spin_temp, PerturbedField *
 #pragma omp for
             for (ct = 0; ct < HII_TOT_NUM_PIXELS; ct++) {
                 box->xH_box[ct] = global_xH;
-                box->temp_kinetic_all_gas[ct] = consts->TK_nofluct *
+                box->temp_kinetic_all_gas[ct] =
+                    consts->TK_nofluct *
                     (1.0 + consts->adia_TK_term * perturbed_field->density[ct]);
             }
         }
@@ -1044,13 +1045,13 @@ void find_ionised_regions(IonizedBox *box, IonizedBox *previous_ionize_box,
                         }
                     }
 
-
                     if (flag_options_global->INHOMO_RECO) {
                         // number of recombinations per mean baryon
                         if (flag_options_global->CELL_RECOMB)
                             rec = previous_ionize_box->dNrec_box[HII_R_INDEX(x, y, z)];
                         else
-                            rec = (*((float *)fg_struct->N_rec_filtered + HII_R_FFT_INDEX(x, y, z)));
+                            rec =
+                                (*((float *)fg_struct->N_rec_filtered + HII_R_FFT_INDEX(x, y, z)));
 
                         // number of recombinations per baryon inside cell/filter
                         rec /= (1. + curr_dens);

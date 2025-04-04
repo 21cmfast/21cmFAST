@@ -275,7 +275,7 @@ double lyman_werner_threshold(float z, float J_21_LW, float vcb, AstroParams *as
 
     // this follows Visbal+15, which is taken as the optimal fit from Fialkov+12
     // which was calibrated with the simulations of Stacy+11 and Greif+11;
-    double mcrit_noLW = 3.314e7 * pow(1. + z,-1.5);
+    double mcrit_noLW = 3.314e7 * pow(1. + z, -1.5);
     double f_LW = 1.0 + astro_params->A_LW * pow(J_21_LW, astro_params->BETA_LW);
 
     double f_vcb = pow(1.0 + astro_params->A_VCB * vcb / SIGMAVCB, astro_params->BETA_VCB);

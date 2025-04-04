@@ -302,8 +302,7 @@ void get_halo_stellarmass(double halo_mass, double mturn_acg, double mturn_mcg, 
     }
     // 1e10 normalisation of stellar mass
     f_sample = f_10 * fstar_mean *
-               exp(-mturn_acg / halo_mass + star_rng * sigma_star -
-                   stoc_adjustment_term);
+               exp(-mturn_acg / halo_mass + star_rng * sigma_star - stoc_adjustment_term);
     if (f_sample > 1.) f_sample = 1.;
 
     sm_sample = f_sample * halo_mass * baryon_ratio;
@@ -393,8 +392,7 @@ void get_halo_xray(double sfr, double sfr_mini, double metallicity, double xray_
     if (flag_options_global->USE_MINI_HALOS) {
         // Since there *are* some SFR-dependent
         // models, this is done separately
-        lx_over_sfr = get_lx_on_sfr(sfr_mini, metallicity,
-                                    consts->l_x_mini);
+        lx_over_sfr = get_lx_on_sfr(sfr_mini, metallicity, consts->l_x_mini);
         xray += lx_over_sfr * (sfr_mini * SperYR) * rng_factor;
     }
 
