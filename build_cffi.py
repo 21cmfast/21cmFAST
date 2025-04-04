@@ -6,7 +6,7 @@ import sysconfig
 from cffi import FFI
 
 # Get the compiler. We support gcc and clang.
-_compiler = sysconfig.get_config_var("CC")
+_compiler = os.environ.get("CC", sysconfig.get_config_var("CC"))
 
 if "gcc" in _compiler:
     compiler = "gcc"
