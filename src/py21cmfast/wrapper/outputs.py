@@ -485,13 +485,13 @@ class InitialConditions(OutputStruct):
     _compat_hash = _HashType.user_cosmo
 
     lowres_density = _arrayfield()
-    lowres_vx = _arrayfield()
-    lowres_vy = _arrayfield()
-    lowres_vz = _arrayfield()
+    lowres_vx = _arrayfield(optional=True)
+    lowres_vy = _arrayfield(optional=True)
+    lowres_vz = _arrayfield(optional=True)
     hires_density = _arrayfield()
-    hires_vx = _arrayfield()
-    hires_vy = _arrayfield()
-    hires_vz = _arrayfield()
+    hires_vx = _arrayfield(optional=True)
+    hires_vy = _arrayfield(optional=True)
+    hires_vz = _arrayfield(optional=True)
 
     lowres_vx_2LPT = _arrayfield(optional=True)
     lowres_vy_2LPT = _arrayfield(optional=True)
@@ -514,24 +514,33 @@ class InitialConditions(OutputStruct):
 
         out = {
             "lowres_density": Array(shape, dtype=np.float32),
-            "lowres_vx": Array(shape, dtype=np.float32),
-            "lowres_vy": Array(shape, dtype=np.float32),
-            "lowres_vz": Array(shape, dtype=np.float32),
             "hires_density": Array(hires_shape, dtype=np.float32),
-            "hires_vx": Array(hires_shape, dtype=np.float32),
-            "hires_vy": Array(hires_shape, dtype=np.float32),
-            "hires_vz": Array(hires_shape, dtype=np.float32),
         }
+        if inputs.user_params.PERTURB_ON_HIGH_RES:
+            out |= {
+                "hires_vx": Array(hires_shape, dtype=np.float32),
+                "hires_vy": Array(hires_shape, dtype=np.float32),
+                "hires_vz": Array(hires_shape, dtype=np.float32),
+            }
+        else:
+            out |= {
+                "lowres_vx": Array(shape, dtype=np.float32),
+                "lowres_vy": Array(shape, dtype=np.float32),
+                "lowres_vz": Array(shape, dtype=np.float32),
+            }
 
         if inputs.user_params.PERTURB_ALGORITHM == "2LPT":
             out |= {
-                "lowres_vx_2LPT": Array(shape, dtype=np.float32),
-                "lowres_vy_2LPT": Array(shape, dtype=np.float32),
-                "lowres_vz_2LPT": Array(shape, dtype=np.float32),
                 "hires_vx_2LPT": Array(hires_shape, dtype=np.float32),
                 "hires_vy_2LPT": Array(hires_shape, dtype=np.float32),
                 "hires_vz_2LPT": Array(hires_shape, dtype=np.float32),
             }
+            if not inputs.user_params.PERTURB_ON_HIGH_RES:
+                out |= {
+                    "lowres_vx_2LPT": Array(shape, dtype=np.float32),
+                    "lowres_vy_2LPT": Array(shape, dtype=np.float32),
+                    "lowres_vz_2LPT": Array(shape, dtype=np.float32),
+                }
 
         if inputs.user_params.USE_RELATIVE_VELOCITIES:
             out["lowres_vcb"] = Array(shape, dtype=np.float32)
