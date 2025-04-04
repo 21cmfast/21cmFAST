@@ -22,6 +22,8 @@ if "TOXENV" in os.environ and "SETUPPY_CFLAGS" in os.environ:
     os.environ["CFLAGS"] = os.environ["SETUPPY_CFLAGS"]
 
 test_req = [
+    "clang-format",
+    "clang-tidy",
     "hmf",
     "pre-commit",
     "pytest>=5.0",
