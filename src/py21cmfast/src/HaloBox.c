@@ -681,7 +681,7 @@ int ComputeHaloBox(double redshift, UserParams *user_params, CosmoParams *cosmo_
         LOG_DEBUG("Gridding %llu halos...",halos->n_halos);
 
         double M_min = minimum_source_mass(redshift,false,astro_params,flag_options);
-        double M_max = M_MAX_INTEGRAL;
+        double M_max;
         double cell_volume = VOLUME/HII_TOT_NUM_PIXELS;
 
         double turnovers[3];
@@ -699,12 +699,19 @@ int ComputeHaloBox(double redshift, UserParams *user_params, CosmoParams *cosmo_
         //Since we need the average turnover masses before we can calculate the global means, we do the CMF integrals first
         //Then we calculate the expected UMF integrals before doing the adjustment
         if(flag_options->FIXED_HALO_GRIDS){
+            M_max = M_MAX_INTEGRAL;
             set_fixed_grids(M_min, M_max, ini_boxes, perturbed_field, previous_spin_temp, previous_ionize_box, &hbox_consts, grids, &averages_box, true);
         }
         else{
             //set below-resolution properties
             if(user_params->AVG_BELOW_SAMPLER && M_min < user_params->SAMPLER_MIN_MASS){
-                set_fixed_grids(M_min, user_params->SAMPLER_MIN_MASS, ini_boxes,
+                if (flag_options->HALO_STOCHASTICITY){
+                    M_max = user_params->SAMPLER_MIN_MASS;
+                }
+                else {
+                    M_max = RtoM(L_FACTOR*user_params->BOX_LEN/user_params->DIM);
+                }
+                set_fixed_grids(M_min, M_max, ini_boxes,
                                 perturbed_field, previous_spin_temp, previous_ionize_box,
                                 &hbox_consts, grids, &averages_subsampler, false);
                 //This is pretty redundant, but since the fixed grids have density units (X Mpc-3) I have to re-multiply before adding the halos.
