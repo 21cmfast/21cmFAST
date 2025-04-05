@@ -352,6 +352,12 @@ array, v and the Hubble factor: v/H.
             }
         }
     }
+    free(x_pos);
+    free(x_pos_offset);
+    for (i = 0; i < user_params->N_THREADS; i++) {
+        free(delta_T_RSD_LOS[i]);
+    }
+    free(delta_T_RSD_LOS);
 
     ave /= (float)HII_TOT_NUM_PIXELS;
     return (ave);

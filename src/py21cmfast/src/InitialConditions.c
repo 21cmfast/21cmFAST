@@ -115,14 +115,7 @@ int ComputeInitialConditions(unsigned long long random_seed, UserParams *user_pa
 
         omp_set_num_threads(user_params->N_THREADS);
 
-        switch (user_params->PERTURB_ON_HIGH_RES) {
-            case 0:
-                dimension = user_params->HII_DIM;
-                break;
-            case 1:
-                dimension = user_params->DIM;
-                break;
-        }
+        dimension = user_params->PERTURB_ON_HIGH_RES ? user_params->DIM : user_params->HII_DIM;
 
         // ************  INITIALIZATION ********************** //
         // allocate array for the k-space and real-space boxes

@@ -462,7 +462,6 @@ bool partition_rejection(double sigma_m, double sigma_min, double sigma_cond, do
 int stoc_partition_sample(struct HaloSamplingConstants *hs_constants, gsl_rng *rng, int *n_halo_out,
                           float *M_out) {
     // lnMmin only used for sampling, apply factor here
-    double exp_M = hs_constants->expected_M;
     double M_cond = hs_constants->M_cond;
     double d_cond = hs_constants->delta;
     double growthf = hs_constants->growth_out;

@@ -85,7 +85,6 @@ int ComputeHaloField(float redshift_desc, float redshift, UserParams *user_param
         init_ps();
 
         growth_factor = dicke(redshift);  // normalized to 1 at z=0
-        delta_crit = Deltac;  // for now set to spherical; check if we want elipsoidal later
 
         // store highly used parameters
         int grid_dim = user_params->DIM;
@@ -112,7 +111,7 @@ int ComputeHaloField(float redshift_desc, float redshift, UserParams *user_param
         memset(in_halo, 0, sizeof(char) * TOT_NUM_PIXELS);
 
         if (user_params->DEXM_OPTIMIZE) {
-            forbidden = (char *)malloc(sizeof(char) * TOT_NUM_PIXELS);
+            forbidden = (char *)calloc(TOT_NUM_PIXELS, sizeof(char));
         }
 
         // Unused variables, for future threading
@@ -519,12 +518,13 @@ int check_halo(char *in_halo, UserParams *user_params, float R, int x, int y, in
 void init_halo_coords(HaloField *halos, long long unsigned int n_halos) {
     // Minimise memory usage by only storing the halo mass and positions
     halos->n_halos = n_halos;
-    halos->halo_masses = (float *)calloc(n_halos, sizeof(float));
-    halos->halo_coords = (int *)calloc(3 * n_halos, sizeof(int));
+    unsigned long long int alloc_size = fmax(1, n_halos);
+    halos->halo_masses = (float *)calloc(alloc_size, sizeof(float));
+    halos->halo_coords = (int *)calloc(3 * alloc_size, sizeof(int));
 
-    halos->star_rng = (float *)calloc(n_halos, sizeof(float));
-    halos->sfr_rng = (float *)calloc(n_halos, sizeof(float));
-    halos->xray_rng = (float *)calloc(n_halos, sizeof(float));
+    halos->star_rng = (float *)calloc(alloc_size, sizeof(float));
+    halos->sfr_rng = (float *)calloc(alloc_size, sizeof(float));
+    halos->xray_rng = (float *)calloc(alloc_size, sizeof(float));
 }
 
 void free_halo_field(HaloField *halos) {

@@ -91,7 +91,8 @@ int InitialisePhotonCons(UserParams *user_params, CosmoParams *cosmo_params,
         //     the difference for the redshift where the reionization end (Q = 1) is ~0.2 % compared
         //     with accurate calculation.
         float ION_EFF_FACTOR, M_MIN, M_MIN_z0, M_MIN_z1;
-        double lnMmin, lnMmax;
+        double lnMmin;
+        double lnMmax = log(M_MAX_INTEGRAL);
         double a_start = 0.03,
                a_end =
                    1. / (1. + astro_params_global
@@ -100,7 +101,7 @@ int InitialisePhotonCons(UserParams *user_params, CosmoParams *cosmo_params,
                                                                   // and ~5.0, respectively.
         double C_HII = 3., T_0 = 2e4;
         double reduce_ratio = 1.003;
-        double Q0, Q1, Nion0, Nion1, Trec, da, a, z0, z1, zi, dadt, delta_a, zi_prev, Q1_prev;
+        double Q0, Q1, Nion0, Nion1, Trec, da, a, z0, z1, zi, dadt, delta_a, Q1_prev;
         double *z_arr, *Q_arr;
         int Nmax = 2000;  // This is the number of step, enough with 'da = 2e-3'. If 'da' is
                           // reduced, this number should be checked.
@@ -126,7 +127,6 @@ int InitialisePhotonCons(UserParams *user_params, CosmoParams *cosmo_params,
                 initialiseSigmaMInterpTable(M_MIN, 1e20);
             }
             lnMmin = log(M_MIN);
-            lnMmax = log(M_MAX_INTEGRAL);
         } else {
             ION_EFF_FACTOR = astro_params->HII_EFF_FACTOR;
         }
@@ -147,7 +147,7 @@ int InitialisePhotonCons(UserParams *user_params, CosmoParams *cosmo_params,
             }
             delta_a = 1e-7;
 
-            zi_prev = Q1_prev = 0.;
+            Q1_prev = 0.;
             not_mono_increasing = 0;
 
             if (num_fails > 0) {
@@ -229,7 +229,6 @@ int InitialisePhotonCons(UserParams *user_params, CosmoParams *cosmo_params,
                     break;
                 }
 
-                zi_prev = zi;
                 Q1_prev = Q1;
 
                 z_arr[cnt] = zi;

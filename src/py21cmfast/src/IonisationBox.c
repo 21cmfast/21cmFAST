@@ -58,7 +58,6 @@ struct IonBoxConstants {
     double T_re;
 
     // astro calculated values
-    double vcb_norel;
     double ion_eff_factor;
     double ion_eff_factor_mini;
     double ion_eff_factor_gl;
@@ -390,7 +389,7 @@ void calculate_mcrit_boxes(IonizedBox *prev_ionbox, TsBox *spin_temp, InitialCon
         int x, y, z;
         double Mcrit_RE, Mcrit_LW;
         double curr_Mt, curr_Mt_MINI;
-        double curr_vcb = consts->vcb_norel;
+        double curr_vcb = consts->scale_consts.vcb_norel;
 #pragma omp for reduction(+ : ave_log10_Mturnover, ave_log10_Mturnover_MINI)
         for (x = 0; x < user_params_global->HII_DIM; x++) {
             for (y = 0; y < user_params_global->HII_DIM; y++) {
@@ -443,7 +442,7 @@ void calculate_mcrit_boxes(IonizedBox *prev_ionbox, TsBox *spin_temp, InitialCon
 // these form a lower limit on any grid cell
 void set_mean_fcoll(struct IonBoxConstants *c, IonizedBox *prev_box, IonizedBox *curr_box,
                     double mturn_acg, double mturn_mcg, double *f_limit_acg, double *f_limit_mcg) {
-    double f_coll_curr, f_coll_prev, f_coll_curr_mini, f_coll_prev_mini;
+    double f_coll_curr = 0., f_coll_prev = 0., f_coll_curr_mini = 0., f_coll_prev_mini = 0.;
     struct ScalingConstants *sc_ptr = &(c->scale_consts);
     if (flag_options_global->USE_MASS_DEPENDENT_ZETA) {
         f_coll_curr = Nion_General(c->redshift, c->lnMmin, c->lnMmax_gl, mturn_acg, sc_ptr);
@@ -656,8 +655,9 @@ void clip_and_get_extrema(fftwf_complex *grid, double lower_limit, double upper_
 // TODO: maybe put the grid clipping outside this function
 void setup_integration_tables(struct FilteredGrids *fg_struct, struct IonBoxConstants *consts,
                               struct RadiusSpec rspec, bool need_prev) {
-    double min_density, max_density, prev_min_density, prev_max_density;
-    double log10Mturn_min, log10Mturn_max, log10Mturn_min_MINI, log10Mturn_max_MINI;
+    double min_density, max_density, prev_min_density = 0., prev_max_density = 0.;
+    double log10Mturn_min = 0., log10Mturn_max = 0., log10Mturn_min_MINI = 0.,
+           log10Mturn_max_MINI = 0.;
     struct ScalingConstants *sc_ptr = &(consts->scale_consts);
 
     // TODO: instead of putting a random upper limit, put a proper flag for switching of one/both
@@ -727,7 +727,7 @@ void setup_integration_tables(struct FilteredGrids *fg_struct, struct IonBoxCons
 void calculate_fcoll_grid(IonizedBox *box, IonizedBox *previous_ionize_box,
                           struct FilteredGrids *fg_struct, struct IonBoxConstants *consts,
                           struct RadiusSpec *rspec) {
-    double f_coll_total, f_coll_MINI_total;
+    double f_coll_total = 0., f_coll_MINI_total = 0.;
     // TODO: make proper error tracking through the parallel region
     bool error_flag;
     struct ScalingConstants *sc_ptr = &(consts->scale_consts);
@@ -742,9 +742,9 @@ void calculate_fcoll_grid(IonizedBox *box, IonizedBox *previous_ionize_box,
         double curr_dens;
         double Splined_Fcoll, Splined_Fcoll_MINI;
         double log10_Mturnover, log10_Mturnover_MINI;
-        double prev_dens, prev_Splined_Fcoll, prev_Splined_Fcoll_MINI;
-        log10_Mturnover =
-            log10(consts->scale_consts.mturn_a_nofb);  // is only overwritten with minihalos
+        double prev_dens = 0, prev_Splined_Fcoll = 0., prev_Splined_Fcoll_MINI = 0.;
+        // is only overwritten with minihalos
+        log10_Mturnover = log10(consts->scale_consts.mturn_a_nofb);
 #pragma omp for reduction(+ : f_coll_total, f_coll_MINI_total)
         for (x = 0; x < user_params_global->HII_DIM; x++) {
             for (y = 0; y < user_params_global->HII_DIM; y++) {
@@ -849,14 +849,6 @@ void calculate_fcoll_grid(IonizedBox *box, IonizedBox *previous_ionize_box,
 
                         if (box->Fcoll[fc_r_idx * HII_TOT_NUM_PIXELS + HII_R_INDEX(x, y, z)] > 1.)
                             box->Fcoll[fc_r_idx * HII_TOT_NUM_PIXELS + HII_R_INDEX(x, y, z)] = 1.;
-                        // if (box->Fcoll[counter * HII_TOT_NUM_PIXELS + HII_R_INDEX(x,y,z)] <0.)
-                        // box->Fcoll[counter * HII_TOT_NUM_PIXELS + HII_R_INDEX(x,y,z)] = 1e-40; if
-                        // (box->Fcoll[counter * HII_TOT_NUM_PIXELS + HII_R_INDEX(x,y,z)] <
-                        // previous_ionize_box->Fcoll[counter * HII_TOT_NUM_PIXELS +
-                        // HII_R_INDEX(x,y,z)])
-                        //     box->Fcoll[counter * HII_TOT_NUM_PIXELS + HII_R_INDEX(x,y,z)] =
-                        //     previous_ionize_box->Fcoll[counter * HII_TOT_NUM_PIXELS +
-                        //     HII_R_INDEX(x,y,z)];
                         f_coll_total +=
                             box->Fcoll[fc_r_idx * HII_TOT_NUM_PIXELS + HII_R_INDEX(x, y, z)];
                         if (isfinite(f_coll_total) == 0) {
@@ -1370,7 +1362,7 @@ int ComputeIonizedBox(float redshift, float prev_redshift, UserParams *user_para
         allocate_fftw_grids(&grid_struct);
 
         // Find the mass limits and average turnovers
-        double Mturnover_global_avg, Mturnover_global_avg_MINI;
+        double Mturnover_global_avg = 0., Mturnover_global_avg_MINI = 0.;
         if (flag_options->USE_MASS_DEPENDENT_ZETA) {
             if (flag_options->USE_HALO_FIELD) {
                 // Here these are only used for the global calculations
@@ -1535,7 +1527,6 @@ int ComputeIonizedBox(float redshift, float prev_redshift, UserParams *user_para
             set_ionized_temperatures(box, perturbed_field, spin_temp, &ionbox_constants);
 
             // find the neutral fraction
-#if LOG_LEVEL >= DEBUG_LEVEL
             global_xH = 0;
 
 #pragma omp parallel shared(box) private(ct) num_threads(user_params -> N_THREADS)
@@ -1546,7 +1537,6 @@ int ComputeIonizedBox(float redshift, float prev_redshift, UserParams *user_para
                 }
             }
             global_xH /= (float)HII_TOT_NUM_PIXELS;
-#endif
 
             if (isfinite(global_xH) == 0) {
                 LOG_ERROR(

@@ -769,7 +769,6 @@ void initialise_dNdM_inverse_table(double xmin, double xmax, double lnM_min, dou
             lnM_init = lnM_min;
             for (k = np - 2; k >= 0; k--) {
                 iter = 0;
-                lnM_hi = lnM_cond;
                 params_rf.rf_target = pa[k];
                 // LOG_ULTRA_DEBUG("Target %.6e",pa[k]);
                 gsl_root_fsolver_set(solver, &F, lnM_init, lnM_cond);

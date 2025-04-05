@@ -488,7 +488,7 @@ void get_mean_log10_turnovers(InitialConditions *ini_boxes, TsBox *previous_spin
         unsigned long long int i;
         double J21_val, Gamma12_val, zre_val;
         double curr_vcb = consts->vcb_norel;
-        double M_turn_m = consts->mturn_m_nofb;
+        double M_turn_m;
         double M_turn_a = consts->mturn_a_nofb;
         double M_turn_r;
 
@@ -503,7 +503,6 @@ void get_mean_log10_turnovers(InitialConditions *ini_boxes, TsBox *previous_spin
                 Gamma12_val = previous_ionize_box->Gamma12_box[i];
                 zre_val = previous_ionize_box->z_re_box[i];
             }
-            M_turn_a = consts->mturn_a_nofb;
             M_turn_m =
                 lyman_werner_threshold(consts->redshift, J21_val, curr_vcb, astro_params_global);
             M_turn_r = reionization_feedback(consts->redshift, Gamma12_val, zre_val);
@@ -820,7 +819,7 @@ int ComputeHaloBox(double redshift, UserParams *user_params, CosmoParams *cosmo_
                                 &hbox_consts, grids, &averages_box);
         }
         halobox_debug_print_avg(&averages_box, &averages_subsampler, &hbox_consts, M_min,
-                                M_max_integral);
+                                M_MAX_INTEGRAL);
 
         // NOTE: the density-grid based calculations (!USE_HALO_FIELD)
         //  use the cell-weighted average of the log10(Mturn) (see issue #369)

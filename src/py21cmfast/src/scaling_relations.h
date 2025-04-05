@@ -1,8 +1,9 @@
 #ifndef _SCALING_H
 #define _SCALING_H
 
-#include <InputParameters.h>
 #include <stdbool.h>
+
+#include "InputParameters.h"
 
 // Parameters for the scaling relations
 //   These are just the values which come from the InputStruct objects and don't change within the

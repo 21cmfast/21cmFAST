@@ -170,7 +170,7 @@ int ComputePerturbField(float redshift, UserParams *user_params, CosmoParams *co
 
         omp_set_num_threads(user_params->N_THREADS);
 
-        fftwf_complex *HIRES_density_perturb, *HIRES_density_perturb_saved;
+        fftwf_complex *HIRES_density_perturb = NULL, *HIRES_density_perturb_saved;
         fftwf_complex *LOWRES_density_perturb, *LOWRES_density_perturb_saved;
 
         float growth_factor, displacement_factor_2LPT, init_growth_factor,
@@ -187,17 +187,14 @@ int ComputePerturbField(float redshift, UserParams *user_params, CosmoParams *co
 
         // Function for deciding the dimensions of loops when we could
         // use either the low or high resolution grids.
-        switch (user_params->PERTURB_ON_HIGH_RES) {
-            case 0:
-                dimension = user_params->HII_DIM;
-                dimension_z = user_params->HII_DIM * user_params->NON_CUBIC_FACTOR;
-                switch_mid = HII_MIDDLE;
-                break;
-            case 1:
-                dimension = user_params->DIM;
-                dimension_z = user_params->DIM * user_params->NON_CUBIC_FACTOR;
-                switch_mid = MIDDLE;
-                break;
+        if (user_params->PERTURB_ON_HIGH_RES) {
+            dimension = user_params->DIM;
+            dimension_z = user_params->DIM * user_params->NON_CUBIC_FACTOR;
+            switch_mid = MIDDLE;
+        } else {
+            dimension = user_params->HII_DIM;
+            dimension_z = user_params->HII_DIM * user_params->NON_CUBIC_FACTOR;
+            switch_mid = HII_MIDDLE;
         }
 
         // ***************   BEGIN INITIALIZATION   ************************** //

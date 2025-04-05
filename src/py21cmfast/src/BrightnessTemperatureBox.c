@@ -40,8 +40,8 @@ void get_velocity_gradient(UserParams *user_params, float *v, float *vel_gradien
 #pragma omp for
         for (n_x = 0; n_x < user_params->HII_DIM; n_x++) {
             for (n_y = 0; n_y < user_params->HII_DIM; n_y++) {
-                for (n_z = 0; n_z <= HII_MIDDLE_PARA; n_z++) {
-                    k_z = n_z * DELTA_K_PARA;
+                for (n_z = 0; n_z <= HII_MID_PARA; n_z++) {
+                    k_z = (float)(n_z * DELTA_K_PARA);
 
                     // take partial deriavative along the line of sight
                     *((fftwf_complex *)vel_gradient + HII_C_INDEX(n_x, n_y, n_z)) *=
@@ -98,8 +98,8 @@ int ComputeBrightnessTemp(float redshift, UserParams *user_params, CosmoParams *
 
         float gradient_component;
 
-        double dvdx, max_v_deriv;
-        float const_factor, T_rad, pixel_Ts_factor, pixel_x_HI, pixel_deltax, H;
+        double dvdx, max_v_deriv, H;
+        double const_factor, T_rad, pixel_Ts_factor, pixel_x_HI, pixel_deltax;
 
         init_ps();
 

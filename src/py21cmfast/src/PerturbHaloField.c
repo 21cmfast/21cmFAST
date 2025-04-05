@@ -54,14 +54,7 @@ int ComputePerturbHaloField(float redshift, UserParams *user_params, CosmoParams
 
         // Function for deciding the dimensions of loops when we could
         // use either the low or high resolution grids.
-        switch (user_params->PERTURB_ON_HIGH_RES) {
-            case 0:
-                dimension = user_params->HII_DIM;
-                break;
-            case 1:
-                dimension = user_params->DIM;
-                break;
-        }
+        dimension = user_params->PERTURB_ON_HIGH_RES ? user_params->DIM : user_params->HII_DIM;
 
         // ***************** END INITIALIZATION ***************** //
         init_ps();

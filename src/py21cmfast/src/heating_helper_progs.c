@@ -694,7 +694,6 @@ float get_Ts(float z, float delta, float TK, float xe, float Jalpha, float *curr
     xc = xcoll(z, TK, delta, xe);
     if (Jalpha > 1.0e-20) {  // * Must use WF effect * //
         TS = Trad;
-        TSold = 0.0;
         // TODO: changed to do-while so we never use uninitialised variables
         //       Make sure it didn't effect anything
         do {

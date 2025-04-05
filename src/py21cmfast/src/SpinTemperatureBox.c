@@ -368,8 +368,6 @@ void calculate_spectral_factors(double zp) {
     for (R_ct = 0; R_ct < astro_params_global->N_STEP_TS; R_ct++) {
         zpp = zpp_for_evolve_list[R_ct];
         // We need to set up prefactors for how much of Lyman-N radiation is recycled to Lyman-alpha
-        sum_lyn_val = 0.;
-        sum_lyn_val_MINI = 0.;
         sum_lyLW_val = 0.;
         sum_lyLW_val_MINI = 0.;
         sum_lynto2_val = 0.;
@@ -709,7 +707,7 @@ int UpdateXraySourceBox(UserParams *user_params, CosmoParams *cosmo_params,
         // only print once, since this is called for every R
         if (R_ct == 0) LOG_DEBUG("starting XraySourceBox");
 
-        double sfr_avg, fsfr_avg, sfr_avg_mini, fsfr_avg_mini;
+        double sfr_avg, fsfr_avg, sfr_avg_mini = 0., fsfr_avg_mini = 0.;
         double xray_avg, fxray_avg;
         one_annular_filter(halobox->halo_sfr,
                            &(source_box->filtered_sfr[R_ct * HII_TOT_NUM_PIXELS]), R_inner, R_outer,
@@ -1227,8 +1225,9 @@ struct Ts_cell get_Ts_fast(float zp, float dzp, struct spintemp_from_sfr_prefact
     // know the fastest way to invert a number
     //  T_inv = expf((-1.)*logf(Tk));
     //  T_inv_sq = expf((-2.)*logf(Tk));
-    double T_inv, T_inv_sq, xc_fast, xi_power, xa_tilde_fast_arg;
-    double xa_tilde_fast, TS_fast, TSold_fast;
+    double T_inv, T_inv_sq;
+    double xc_fast, xi_power, xa_tilde_fast_arg, xa_tilde_fast = 0.;
+    double TS_fast, TSold_fast;
     T_inv = 1 / Tk;
     T_inv_sq = T_inv * T_inv;
 
@@ -1263,13 +1262,14 @@ struct Ts_cell get_Ts_fast(float zp, float dzp, struct spintemp_from_sfr_prefact
         }
     } else {  // Collisions only
         TS_fast = (xCMB + xc_fast) / (xCMB * consts->Trad_inv + xc_fast * T_inv);
-        xa_tilde_fast = 0.0;
     }
+#if LOG_LEVEL >= SUPER_DEBUG_LEVEL
     if (debug_printed == 0 && omp_get_thread_num() == 0) {
         LOG_SUPER_DEBUG("Spin terms xc %.5e xa %.5e xC %.5e Ti %.5e T2 %.5e --> T %.4e", xc_fast,
-                        xa_tilde_fast_arg, xCMB, T_inv, T_inv_sq, TS_fast);
+                        xa_tilde_fast, xCMB, T_inv, T_inv_sq, TS_fast);
         debug_printed = 1;
     }
+#endif
     // It can very rarely result in a negative spin temperature. If negative, it is a very small
     // number. Take the absolute value, the optical depth can deal with very large numbers, so ok to
     // be small
@@ -1498,12 +1498,12 @@ void ts_main(float redshift, float prev_redshift, UserParams *user_params,
                     }
                     // get the global things we missed before
                     mean_sfr_zpp[R_ct] = EvaluateSFRD(zpp_for_evolve_list[R_ct], &sc);
-                    if (flag_options_global->USE_MINI_HALOS) {
+                    if (flag_options->USE_MINI_HALOS) {
                         mean_sfr_zpp_mini[R_ct] = EvaluateSFRD_MINI(zpp_for_evolve_list[R_ct],
                                                                     ave_log10_MturnLW[R_ct], &sc);
                     }
                     // fill one row of the interp tables
-                    fill_freqint_tables(redshift, x_e_ave, Q_HI_zp, ave_log10_MturnLW, R_ct, &sc);
+                    fill_freqint_tables(redshift, x_e_ave_p, Q_HI_zp, ave_log10_MturnLW, R_ct, &sc);
                 }
                 // set input pointers (doing things this way helps with flag flexibility)
                 delta_box_input = delNL0[R_index];
@@ -1516,7 +1516,7 @@ void ts_main(float redshift, float prev_redshift, UserParams *user_params,
                 if (flag_options->USE_MINI_HALOS)
                     avg_fix_term_MINI = mean_sfr_zpp_mini[R_ct] / ave_fcoll_MINI;
 
-#if LOG_LEVEL > SUPER_DEBUG_LEVEL
+#if LOG_LEVEL >= SUPER_DEBUG_LEVEL
                 sc_sfrd = evolve_scaling_constants_sfr(&sc);
                 LOG_SUPER_DEBUG(
                     "z %6.2f ave sfrd val %.3e global %.3e (int %.3e) Mmin %.3e ratio %.4e z_edge "
@@ -1525,7 +1525,7 @@ void ts_main(float redshift, float prev_redshift, UserParams *user_params,
                     Nion_General(zpp_for_evolve_list[R_ct], log(M_min_R[R_ct]), log(M_MAX_INTEGRAL),
                                  sc_sfrd.mturn_a_nofb, &sc_sfrd),
                     M_min_R[R_ct], avg_fix_term, z_edge_factor);
-                if (flag_options_global->USE_MINI_HALOS) {
+                if (flag_options->USE_MINI_HALOS) {
                     LOG_SUPER_DEBUG(
                         "MINI sfrd val %.3e global %.3e (int %.3e) ratio %.3e log10McritLW %.3e",
                         ave_fcoll_MINI, mean_sfr_zpp_mini[R_ct],
@@ -1722,7 +1722,7 @@ void ts_main(float redshift, float prev_redshift, UserParams *user_params,
             this_spin_temp->Ts_box[box_ct] = ts_cell.Ts;
             this_spin_temp->Tk_box[box_ct] = ts_cell.Tk;
             this_spin_temp->x_e_box[box_ct] = ts_cell.x_e;
-            if (flag_options_global->USE_MINI_HALOS) {
+            if (flag_options->USE_MINI_HALOS) {
                 this_spin_temp->J_21_LW_box[box_ct] = ts_cell.J_21_LW;
             }
 
@@ -1742,41 +1742,40 @@ void ts_main(float redshift, float prev_redshift, UserParams *user_params,
                                 ts_cell.x_e, ts_cell.J_21_LW);
             }
 
-            if (LOG_LEVEL >= DEBUG_LEVEL) {
-                J_alpha_ave += rad.dxlya_dt + rad.dstarlya_dt;
-                xheat_ave += rad.dxheat_dt;
-                xion_ave += rad.dxion_dt;
-                Ts_ave += ts_cell.Ts;
-                Tk_ave += ts_cell.Tk;
-                J_LW_ave += ts_cell.J_21_LW;
-                eps_lya_inj_ave += rad.dstarlya_cont_dt;
-                eps_lya_cont_ave += rad.dstarlya_inj_dt;
-            }
+#if LOG_LEVEL >= DEBUG_LEVEL
+            J_alpha_ave += rad.dxlya_dt + rad.dstarlya_dt;
+            xheat_ave += rad.dxheat_dt;
+            xion_ave += rad.dxion_dt;
+            Ts_ave += ts_cell.Ts;
+            Tk_ave += ts_cell.Tk;
+            J_LW_ave += ts_cell.J_21_LW;
+            eps_lya_inj_ave += rad.dstarlya_cont_dt;
+            eps_lya_cont_ave += rad.dstarlya_inj_dt;
             x_e_ave += ts_cell.x_e;
+#endif
         }
     }
 
-    if (LOG_LEVEL >= DEBUG_LEVEL) {
-        x_e_ave /= (double)HII_TOT_NUM_PIXELS;
-        Ts_ave /= (double)HII_TOT_NUM_PIXELS;
-        Tk_ave /= (double)HII_TOT_NUM_PIXELS;
-        J_alpha_ave /= (double)HII_TOT_NUM_PIXELS;
-        xheat_ave /= (double)HII_TOT_NUM_PIXELS;
-        xion_ave /= (double)HII_TOT_NUM_PIXELS;
+#if LOG_LEVEL >= DEBUG_LEVEL
+    x_e_ave /= (double)HII_TOT_NUM_PIXELS;
+    Ts_ave /= (double)HII_TOT_NUM_PIXELS;
+    Tk_ave /= (double)HII_TOT_NUM_PIXELS;
+    J_alpha_ave /= (double)HII_TOT_NUM_PIXELS;
+    xheat_ave /= (double)HII_TOT_NUM_PIXELS;
+    xion_ave /= (double)HII_TOT_NUM_PIXELS;
 
-        LOG_DEBUG("AVERAGES zp = %.2e Ts = %.2e x_e = %.2e Tk %.2e", redshift, Ts_ave, x_e_ave,
-                  Tk_ave);
-        LOG_DEBUG("J_alpha = %.2e xheat = %.2e xion = %.2e", J_alpha_ave, xheat_ave, xion_ave);
-        if (flag_options->USE_MINI_HALOS) {
-            J_LW_ave /= (double)HII_TOT_NUM_PIXELS;
-            LOG_DEBUG("J_LW %.2e", J_LW_ave / 1e21);
-        }
-        if (flag_options->USE_LYA_HEATING) {
-            eps_lya_cont_ave /= (double)HII_TOT_NUM_PIXELS;
-            eps_lya_inj_ave /= (double)HII_TOT_NUM_PIXELS;
-            LOG_DEBUG("eps_cont %.2e eps_inj %.2e", eps_lya_cont_ave, eps_lya_inj_ave);
-        }
+    LOG_DEBUG("AVERAGES zp = %.2e Ts = %.2e x_e = %.2e Tk %.2e", redshift, Ts_ave, x_e_ave, Tk_ave);
+    LOG_DEBUG("J_alpha = %.2e xheat = %.2e xion = %.2e", J_alpha_ave, xheat_ave, xion_ave);
+    if (flag_options->USE_MINI_HALOS) {
+        J_LW_ave /= (double)HII_TOT_NUM_PIXELS;
+        LOG_DEBUG("J_LW %.2e", J_LW_ave / 1e21);
     }
+    if (flag_options->USE_LYA_HEATING) {
+        eps_lya_cont_ave /= (double)HII_TOT_NUM_PIXELS;
+        eps_lya_inj_ave /= (double)HII_TOT_NUM_PIXELS;
+        LOG_DEBUG("eps_cont %.2e eps_inj %.2e", eps_lya_cont_ave, eps_lya_inj_ave);
+    }
+#endif
 
     for (box_ct = 0; box_ct < HII_TOT_NUM_PIXELS; box_ct++) {
         if (isfinite(this_spin_temp->Ts_box[box_ct]) == 0) {
