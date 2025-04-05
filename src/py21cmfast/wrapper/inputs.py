@@ -81,9 +81,7 @@ Planck18 = Planck15.clone(
 )
 
 
-define(frozen=True, kw_only=True)
-
-
+@define(frozen=True, kw_only=True)
 class InputStruct:
     """
     A convenient interface to create a C structure with defaults specified.
