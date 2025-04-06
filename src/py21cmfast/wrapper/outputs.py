@@ -36,6 +36,7 @@ from .inputs import (
     CosmoParams,
     InputParameters,
     InputStruct,
+    MatterFlags,
     MatterParams,
 )
 from .structs import StructWrapper
@@ -99,6 +100,11 @@ class OutputStruct(ABC):
     def matter_params(self) -> MatterParams:
         """The MatterParams object for this output struct."""
         return self.inputs.matter_params
+
+    @property
+    def matter_flags(self) -> MatterFlags:
+        """The MatterParams object for this output struct."""
+        return self.inputs.matter_flags
 
     @property
     def cosmo_params(self) -> CosmoParams:
@@ -542,13 +548,13 @@ class InitialConditions(OutputStruct):
         """Ensure the ICs have all the boxes loaded for perturb, but no extra."""
         keep = ["hires_density"]
 
-        if not self.matter_params.PERTURB_ON_HIGH_RES:
+        if not self.matter_flags.PERTURB_ON_HIGH_RES:
             keep.append("lowres_density")
             keep.append("lowres_vx")
             keep.append("lowres_vy")
             keep.append("lowres_vz")
 
-            if self.matter_params.PERTURB_ALGORITHM == "2LPT":
+            if self.matter_flags.PERTURB_ALGORITHM == "2LPT":
                 keep.append("lowres_vx_2LPT")
                 keep.append("lowres_vy_2LPT")
                 keep.append("lowres_vz_2LPT")
@@ -558,12 +564,12 @@ class InitialConditions(OutputStruct):
             keep.append("hires_vy")
             keep.append("hires_vz")
 
-            if self.matter_params.PERTURB_ALGORITHM == "2LPT":
+            if self.matter_flags.PERTURB_ALGORITHM == "2LPT":
                 keep.append("hires_vx_2LPT")
                 keep.append("hires_vy_2LPT")
                 keep.append("hires_vz_2LPT")
 
-        if self.matter_params.USE_RELATIVE_VELOCITIES:
+        if self.matter_flags.USE_RELATIVE_VELOCITIES:
             keep.append("lowres_vcb")
 
         self.prepare(keep=keep, force=force)
@@ -571,9 +577,11 @@ class InitialConditions(OutputStruct):
     def prepare_for_spin_temp(self, astro_flags: AstroFlags, force: bool = False):
         """Ensure ICs have all boxes required for spin_temp, and no more."""
         keep = []
-        if astro_flags.USE_HALO_FIELD and self.matter_params.AVG_BELOW_SAMPLER:
+        # NOTE: the astro flags doesn't change the computation, just the storage
+        # TODO: find out if this is okay
+        if self.matter_flags.USE_HALO_FIELD and self.astro_flags.AVG_BELOW_SAMPLER:
             keep.append("lowres_density")  # for the cmfs
-        if self.matter_params.USE_RELATIVE_VELOCITIES:
+        if self.matter_flags.USE_RELATIVE_VELOCITIES:
             keep.append("lowres_vcb")
         self.prepare(keep=keep, force=force)
 
@@ -585,9 +593,10 @@ class InitialConditions(OutputStruct):
         """Compute the function."""
         return self._compute(
             allow_already_computed,
-            self.inputs.random_seed,
-            self.inputs.matter_params,
-            self.inputs.cosmo_params,
+            self.random_seed,
+            self.matter_params,
+            self.matter_flags,
+            self.cosmo_params,
         )
 
 
@@ -648,7 +657,7 @@ class PerturbedField(OutputStructZ):
             "density": Array(shape, dtype=np.float32),
             "velocity_z": Array(shape, dtype=np.float32),
         }
-        if inputs.matter_params.KEEP_3D_VELOCITIES:
+        if inputs.matter_flags.KEEP_3D_VELOCITIES:
             out["velocity_x"] = Array(shape, dtype=np.float32)
             out["velocity_y"] = Array(shape, dtype=np.float32)
 
@@ -666,23 +675,23 @@ class PerturbedField(OutputStructZ):
         # Always require hires_density
         required += ["hires_density"]
 
-        if self.matter_params.PERTURB_ON_HIGH_RES:
+        if self.matter_flags.PERTURB_ON_HIGH_RES:
             required += ["hires_vx", "hires_vy", "hires_vz"]
 
-            if self.matter_params.PERTURB_ALGORITHM == "2LPT":
+            if self.matter_flags.PERTURB_ALGORITHM == "2LPT":
                 required += ["hires_vx_2LPT", "hires_vy_2LPT", "hires_vz_2LPT"]
 
         else:
             required += ["lowres_density", "lowres_vx", "lowres_vy", "lowres_vz"]
 
-            if self.matter_params.PERTURB_ALGORITHM == "2LPT":
+            if self.matter_flags.PERTURB_ALGORITHM == "2LPT":
                 required += [
                     "lowres_vx_2LPT",
                     "lowres_vy_2LPT",
                     "lowres_vz_2LPT",
                 ]
 
-        if self.matter_params.USE_RELATIVE_VELOCITIES:
+        if self.matter_flags.USE_RELATIVE_VELOCITIES:
             required.append("lowres_vcb")
 
         return required
@@ -693,6 +702,7 @@ class PerturbedField(OutputStructZ):
             allow_already_computed,
             self.redshift,
             self.matter_params,
+            self.matter_flags,
             self.cosmo_params,
             ics,
         )
@@ -767,12 +777,12 @@ class PerturbHaloField(OutputStructZ):
         """Return all input arrays required to compute this object."""
         required = []
         if isinstance(input_box, InitialConditions):
-            if self.matter_params.PERTURB_ON_HIGH_RES:
+            if self.matter_flags.PERTURB_ON_HIGH_RES:
                 required += ["hires_vx", "hires_vy", "hires_vz"]
             else:
                 required += ["lowres_vx", "lowres_vy", "lowres_vz"]
 
-            if self.matter_params.PERTURB_ALGORITHM == "2LPT":
+            if self.matter_flags.PERTURB_ALGORITHM == "2LPT":
                 required += [f"{k}_2LPT" for k in required]
 
         elif isinstance(input_box, HaloField):
@@ -802,9 +812,8 @@ class PerturbHaloField(OutputStructZ):
             allow_already_computed,
             self.redshift,
             self.matter_params,
+            self.matter_flags,
             self.cosmo_params,
-            self.astro_params,
-            self.astro_flags,
             ics,
             halo_field,
         )
@@ -857,9 +866,8 @@ class HaloField(PerturbHaloField):
             self.desc_redshift,
             self.redshift,
             self.matter_params,
+            self.matter_flags,
             self.cosmo_params,
-            self.astro_params,
-            self.astro_flags,
             ics,
             ics.random_seed,
             descendant_halos,
@@ -943,10 +951,10 @@ class HaloBox(OutputStructZ):
         elif isinstance(input_box, InitialConditions):
             if (
                 self.astro_flags.HALO_STOCHASTICITY
-                and self.matter_params.AVG_BELOW_SAMPLER
+                and self.matter_flags.AVG_BELOW_SAMPLER
             ):
                 required += ["lowres_density"]
-            if self.matter_params.USE_RELATIVE_VELOCITIES:
+            if self.matter_flags.USE_RELATIVE_VELOCITIES:
                 required += ["lowres_vcb"]
         else:
             raise ValueError(f"{type(input_box)} is not an input required for HaloBox!")
@@ -968,6 +976,7 @@ class HaloBox(OutputStructZ):
             allow_already_computed,
             self.redshift,
             self.matter_params,
+            self.matter_flags,
             self.cosmo_params,
             self.astro_params,
             self.astro_flags,
@@ -1055,6 +1064,7 @@ class XraySourceBox(OutputStructZ):
         return self._compute(
             allow_already_computed,
             self.matter_params,
+            self.matter_flags,
             self.cosmo_params,
             self.astro_params,
             self.astro_flags,
@@ -1140,7 +1150,7 @@ class TsBox(OutputStructZ):
         required = []
         if isinstance(input_box, InitialConditions):
             if (
-                self.matter_params.USE_RELATIVE_VELOCITIES
+                self.matter_flags.USE_RELATIVE_VELOCITIES
                 and self.astro_flags.USE_MINI_HALOS
             ):
                 required += ["lowres_vcb"]
@@ -1178,6 +1188,7 @@ class TsBox(OutputStructZ):
             self.redshift,
             prev_spin_temp.redshift,
             self.matter_params,
+            self.matter_flags,
             self.cosmo_params,
             self.astro_params,
             self.astro_flags,
@@ -1283,7 +1294,7 @@ class IonizedBox(OutputStructZ):
         required = []
         if isinstance(input_box, InitialConditions):
             if (
-                self.matter_params.USE_RELATIVE_VELOCITIES
+                self.matter_flags.USE_RELATIVE_VELOCITIES
                 and self.astro_flags.USE_MASS_DEPENDENT_ZETA
             ):
                 required += ["lowres_vcb"]
@@ -1295,18 +1306,18 @@ class IonizedBox(OutputStructZ):
                 required += ["J_21_LW_box"]
         elif isinstance(input_box, IonizedBox):
             required += ["z_re_box", "Gamma12_box"]
-            if self.inputs.astro_flags.INHOMO_RECO:
+            if self.astro_flags.INHOMO_RECO:
                 required += [
                     "dNrec_box",
                 ]
             if (
-                self.inputs.astro_flags.USE_MASS_DEPENDENT_ZETA
-                and self.inputs.astro_flags.USE_MINI_HALOS
+                self.astro_flags.USE_MASS_DEPENDENT_ZETA
+                and self.astro_flags.USE_MINI_HALOS
             ):
                 required += [
                     "Fcoll",
                 ]
-                if not self.inputs.astro_flags.USE_HALO_FIELD:
+                if not self.astro_flags.USE_HALO_FIELD:
                     required += [
                         "Fcoll_MINI",
                     ]
@@ -1335,10 +1346,11 @@ class IonizedBox(OutputStructZ):
             allow_already_computed,
             self.redshift,
             prev_perturbed_field.redshift,
-            self.inputs.matter_params,
-            self.inputs.cosmo_params,
-            self.inputs.astro_params,
-            self.inputs.astro_flags,
+            self.matter_params,
+            self.matter_flags,
+            self.cosmo_params,
+            self.astro_params,
+            self.astro_flags,
             perturbed_field,
             prev_perturbed_field,
             prev_ionize_box,
@@ -1399,7 +1411,7 @@ class BrightnessTemp(OutputStructZ):
         required = []
         if isinstance(input_box, PerturbedField):
             required += ["density"]
-            if self.inputs.astro_flags.APPLY_RSDS:
+            if self.astro_flags.APPLY_RSDS:
                 required += ["velocity_z"]
         elif isinstance(input_box, TsBox):
             required += ["Ts_box"]
@@ -1424,10 +1436,10 @@ class BrightnessTemp(OutputStructZ):
         return self._compute(
             allow_already_computed,
             self.redshift,
-            self.inputs.matter_params,
-            self.inputs.cosmo_params,
-            self.inputs.astro_params,
-            self.inputs.astro_flags,
+            self.matter_params,
+            self.cosmo_params,
+            self.astro_params,
+            self.astro_flags,
             spin_temp,
             ionized_box,
             perturbed_field,
