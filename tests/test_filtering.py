@@ -7,11 +7,11 @@ from matplotlib.colors import LogNorm, Normalize
 from scipy.stats import binned_statistic as binstat
 
 from py21cmfast import (
+    AstroFlags,
     AstroParams,
     CosmoParams,
-    FlagOptions,
+    MatterParams,
     PerturbHaloField,
-    UserParams,
 )
 from py21cmfast.c_21cmfast import ffi, lib
 
@@ -95,10 +95,10 @@ def get_binned_stats(x_arr, y_arr, bins, stats):
 def test_filters(filter_flag, R, plt):
     opts = prd.get_all_options(redshift=10.0)
 
-    up = opts["user_params"]
+    up = opts["matter_params"]
     cp = opts["cosmo_params"]
     ap = opts["astro_params"]
-    fo = opts["flag_options"]
+    fo = opts["astro_flags"]
 
     # testing a single pixel source
     input_box_centre = np.zeros((up.HII_DIM,) * 3, dtype="f4")

@@ -2,11 +2,11 @@
 
 [CosmoParams]
 
-[UserParams]
+[MatterParams]
 
 [AstroParams]
 
-[FlagOptions]
+[AstroFlags]
 USE_MASS_DEPENDENT_ZETA = false
 USE_HALO_FIELD = false
 HALO_STOCHASTICITY = false

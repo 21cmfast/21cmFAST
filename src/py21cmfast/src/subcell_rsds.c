@@ -10,8 +10,8 @@
 #include "OutputStructs.h"
 #include "indexing.h"
 
-double apply_subcell_rsds(UserParams *user_params, CosmoParams *cosmo_params,
-                          FlagOptions *flag_options, AstroParams *astro_params,
+double apply_subcell_rsds(MatterParams *matter_params, CosmoParams *cosmo_params,
+                          AstroFlags *astro_flags, AstroParams *astro_params,
                           IonizedBox *ionized_box, BrightnessTemp *box, float redshift,
                           TsBox *spin_temp, float T_rad, float *v, float H) {
     int i, ii, j, k;
@@ -19,13 +19,13 @@ double apply_subcell_rsds(UserParams *user_params, CosmoParams *cosmo_params,
 
     ave = 0.;
 
-    omp_set_num_threads(user_params->N_THREADS);
+    omp_set_num_threads(matter_params->N_THREADS);
 
     float *x_pos = calloc(astro_params->N_RSD_STEPS, sizeof(float));
     float *x_pos_offset = calloc(astro_params->N_RSD_STEPS, sizeof(float));
-    float **delta_T_RSD_LOS = (float **)calloc(user_params->N_THREADS, sizeof(float *));
-    for (i = 0; i < user_params->N_THREADS; i++) {
-        delta_T_RSD_LOS[i] = (float *)calloc(user_params->HII_DIM, sizeof(float));
+    float **delta_T_RSD_LOS = (float **)calloc(matter_params->N_THREADS, sizeof(float *));
+    for (i = 0; i < matter_params->N_THREADS; i++) {
+        delta_T_RSD_LOS[i] = (float *)calloc(matter_params->HII_DIM, sizeof(float));
     }
 
     float d1_low, d1_high, d2_low, d2_high;
@@ -33,7 +33,7 @@ double apply_subcell_rsds(UserParams *user_params, CosmoParams *cosmo_params,
     float RSD_pos_new, RSD_pos_new_boundary_low, RSD_pos_new_boundary_high;
     float fraction_within, fraction_outside, cell_distance;
 
-    float cellsize = user_params->BOX_LEN / (float)user_params->HII_DIM;
+    float cellsize = matter_params->BOX_LEN / (float)matter_params->HII_DIM;
     float subcell_width = cellsize / (float)(astro_params->N_RSD_STEPS);
 
     // normalised units of cell length. 0 equals beginning of cell, 1 equals end of cell
@@ -63,11 +63,11 @@ array, v and the Hubble factor: v/H.
                                        subcell_displacement, RSD_pos_new,                   \
                                        RSD_pos_new_boundary_low, RSD_pos_new_boundary_high, \
                                        cell_distance, fraction_outside, fraction_within)    \
-    num_threads(user_params -> N_THREADS)
+    num_threads(matter_params -> N_THREADS)
     {
 #pragma omp for reduction(+ : ave)
-        for (i = 0; i < user_params->HII_DIM; i++) {
-            for (j = 0; j < user_params->HII_DIM; j++) {
+        for (i = 0; i < matter_params->HII_DIM; i++) {
+            for (j = 0; j < matter_params->HII_DIM; j++) {
                 // Generate the optical-depth for the specific line-of-sight with R.S.D
                 for (k = 0; k < HII_D_PARA; k++) {
                     delta_T_RSD_LOS[omp_get_thread_num()][k] = 0.0;
@@ -112,19 +112,20 @@ array, v and the Hubble factor: v/H.
 
                             // The new centre of the sub-cell post R.S.D displacement.
                             // Normalised to units of cell width for determining it's displacement
-                            RSD_pos_new = (x_pos_offset[ii] + subcell_displacement) /
-                                          (user_params->BOX_LEN / ((float)user_params->HII_DIM));
+                            RSD_pos_new =
+                                (x_pos_offset[ii] + subcell_displacement) /
+                                (matter_params->BOX_LEN / ((float)matter_params->HII_DIM));
                             // The sub-cell boundaries of the sub-cell, for determining the
                             // fractional contribution of the sub-cell to neighbouring cells when
                             // the sub-cell straddles two cell positions
                             RSD_pos_new_boundary_low =
                                 RSD_pos_new -
                                 (subcell_width / 2.) /
-                                    (user_params->BOX_LEN / ((float)user_params->HII_DIM));
+                                    (matter_params->BOX_LEN / ((float)matter_params->HII_DIM));
                             RSD_pos_new_boundary_high =
                                 RSD_pos_new +
                                 (subcell_width / 2.) /
-                                    (user_params->BOX_LEN / ((float)user_params->HII_DIM));
+                                    (matter_params->BOX_LEN / ((float)matter_params->HII_DIM));
 
                             if (RSD_pos_new_boundary_low >= 0.0 &&
                                 RSD_pos_new_boundary_high < 1.0) {
@@ -170,8 +171,8 @@ array, v and the Hubble factor: v/H.
                                     // the two original cells
                                     fraction_outside =
                                         (fabs(RSD_pos_new_boundary_low) - cell_distance) /
-                                        (subcell_width /
-                                         (user_params->BOX_LEN / ((float)user_params->HII_DIM)));
+                                        (subcell_width / (matter_params->BOX_LEN /
+                                                          ((float)matter_params->HII_DIM)));
                                     fraction_within = 1. - fraction_outside;
 
                                     // Check if the first part of the sub-cell is at the box edge
@@ -212,9 +213,10 @@ array, v and the Hubble factor: v/H.
 
                                 // Determine the fraction of the sub-cell which is in either of the
                                 // two original cells
-                                fraction_within = RSD_pos_new_boundary_high /
-                                                  (subcell_width / (user_params->BOX_LEN /
-                                                                    ((float)user_params->HII_DIM)));
+                                fraction_within =
+                                    RSD_pos_new_boundary_high /
+                                    (subcell_width /
+                                     (matter_params->BOX_LEN / ((float)matter_params->HII_DIM)));
                                 fraction_outside = 1. - fraction_within;
 
                                 // Check the periodic boundaries conditions and move the fraction of
@@ -249,7 +251,7 @@ array, v and the Hubble factor: v/H.
                                 fraction_outside =
                                     (RSD_pos_new_boundary_high - 1.) /
                                     (subcell_width /
-                                     (user_params->BOX_LEN / ((float)user_params->HII_DIM)));
+                                     (matter_params->BOX_LEN / ((float)matter_params->HII_DIM)));
                                 fraction_within = 1. - fraction_outside;
 
                                 // Check the periodic boundaries conditions and move the fraction of
@@ -305,8 +307,8 @@ array, v and the Hubble factor: v/H.
                                     // the two original cells
                                     fraction_outside =
                                         (RSD_pos_new_boundary_high - cell_distance) /
-                                        (subcell_width /
-                                         (user_params->BOX_LEN / ((float)user_params->HII_DIM)));
+                                        (subcell_width / (matter_params->BOX_LEN /
+                                                          ((float)matter_params->HII_DIM)));
                                     fraction_within = 1. - fraction_outside;
 
                                     // Check if the first part of the sub-cell is at the box edge
@@ -354,7 +356,7 @@ array, v and the Hubble factor: v/H.
     }
     free(x_pos);
     free(x_pos_offset);
-    for (i = 0; i < user_params->N_THREADS; i++) {
+    for (i = 0; i < matter_params->N_THREADS; i++) {
         free(delta_T_RSD_LOS[i]);
     }
     free(delta_T_RSD_LOS);

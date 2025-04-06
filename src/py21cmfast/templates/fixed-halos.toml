@@ -2,12 +2,12 @@
 
 [CosmoParams]
 
-[UserParams]
+[MatterParams]
 
 [AstroParams]
 R_BUBBLE_MAX = 50.0
 
-[FlagOptions]
+[AstroFlags]
 USE_HALO_FIELD = true
 USE_EXP_FILTER = true
 CELL_RECOMB = true

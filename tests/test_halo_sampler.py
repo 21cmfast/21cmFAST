@@ -6,11 +6,11 @@ import pytest
 from astropy import units as u
 
 from py21cmfast import (
+    AstroFlags,
     AstroParams,
     CosmoParams,
-    FlagOptions,
+    MatterParams,
     PerturbHaloField,
-    UserParams,
     compute_halo_grid,
     compute_initial_conditions,
     perturb_field,
@@ -45,7 +45,9 @@ def test_sampler(name, cond, cond_type, plt):
 
     from_cat = "cat" in cond_type
     z_desc = (
-        (redshift + 1) / inputs.user_params.ZPRIME_STEP_FACTOR - 1 if from_cat else None
+        (redshift + 1) / inputs.matter_params.ZPRIME_STEP_FACTOR - 1
+        if from_cat
+        else None
     )
 
     n_cond = 15000
@@ -64,7 +66,7 @@ def test_sampler(name, cond, cond_type, plt):
     )
 
     # set up histogram
-    l10min = np.log10(inputs.user_params.SAMPLER_MIN_MASS)
+    l10min = np.log10(inputs.matter_params.SAMPLER_MIN_MASS)
     l10max = np.log10(1e14)
     edges = np.linspace(l10min, l10max, num=int(10 * (l10max - l10min))) * np.log(10)
     bin_minima = edges[:-1]
@@ -119,7 +121,7 @@ def test_sampler(name, cond, cond_type, plt):
     np.testing.assert_allclose(
         sample_dict["progenitor_mass"].mean(),
         sample_dict["expected_progenitor_mass"][0],
-        atol=inputs.user_params.SAMPLER_MIN_MASS,
+        atol=inputs.matter_params.SAMPLER_MIN_MASS,
         rtol=RELATIVE_TOLERANCE,
     )
 
@@ -263,7 +265,7 @@ def test_fixed_grids(default_input_struct_ts, plt):
     )
 
     cell_radius = 0.620350491 * (
-        inputs.user_params.BOX_LEN / inputs.user_params.HII_DIM
+        inputs.matter_params.BOX_LEN / inputs.matter_params.HII_DIM
     )
     mt_grid = np.full_like(dens, inputs.astro_params.M_TURN)
 

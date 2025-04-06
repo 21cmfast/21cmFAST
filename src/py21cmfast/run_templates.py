@@ -60,7 +60,7 @@ def create_params_from_template(template_name: str | Path, **kwargs):
     template_name: str,
         defines the name/alias of the native template (see templates/manifest.toml for a list)
         alternatively, is the path to a TOML file containing tables titled [CosmoParams],
-        [UserParams], [AstroParams] and [FlagOptions] with parameter settings
+        [MatterParams], [AstroParams] and [AstroFlags] with parameter settings
 
     Other Parameters
     ----------------
@@ -73,11 +73,11 @@ def create_params_from_template(template_name: str | Path, **kwargs):
     input_dict : dict containing:
         cosmo_params : CosmoParams
             Instance containing cosmological parameters
-        user_params : UserParams
+        matter_params : MatterParams
             Instance containing general run parameters
         astro_params : AstroParams
             Instance containing astrophysical parameters
-        flag_options : FlagOptions
+        astro_flags : AstroFlags
             Instance containing flags which enable optional modules
     """
     # First check if the provided name is a path to an existsing TOML file

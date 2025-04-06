@@ -50,11 +50,11 @@ class OutputCache:
         # Python builtin hashes can be negative which looks weird in filenames
         max_hash_value = 2**hash_info.width
         return {
-            "user_cosmo": hash((inputs.cosmo_params, inputs.user_params))
+            "user_cosmo": hash((inputs.cosmo_params, inputs.matter_params))
             % max_hash_value,
             "seed": inputs.random_seed % max_hash_value,
             "zgrid": hash(inputs.node_redshifts) % max_hash_value,
-            "astro_flag": hash((inputs.astro_params, inputs.user_params))
+            "astro_flag": hash((inputs.astro_params, inputs.matter_params))
             % max_hash_value,
         }
 
@@ -270,9 +270,9 @@ class RunCache:
             "IonizedBox": {},
             "BrightnessTemp": {},
         }
-        if inputs.flag_options.USE_TS_FLUCT:
+        if inputs.astro_flags.USE_TS_FLUCT:
             others |= {"TsBox": {}}
-        if inputs.flag_options.USE_HALO_FIELD:
+        if inputs.astro_flags.USE_HALO_FIELD:
             others |= {"PerturbHaloField": {}, "XraySourceBox": {}, "HaloBox": {}}
 
         for z in inputs.node_redshifts:
@@ -301,7 +301,7 @@ class RunCache:
         ambiguous when the input file is "high up" in the simulation heirarchy (e.g.
         InitialConditions or PerturbedField) because the input parameters to these
         objects may differ from those of the full simulation, in their astro_params
-        and flag_options. For this reason, it is better to supply a cache object like
+        and astro_flags. For this reason, it is better to supply a cache object like
         IonizedBox or BrightnessTemp.
 
         Parameters

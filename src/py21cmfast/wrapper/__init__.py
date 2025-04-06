@@ -66,7 +66,7 @@ recombinations:
 >>> coeval = p21.run_coeval(
 >>>     redshift=[7,8,9],
 >>>     cosmo_params=p21.CosmoParams(hlittle=0.7),
->>>     user_params=p21.UserParams(HII_DIM=100)
+>>>     matter_params=p21.MatterParams(HII_DIM=100)
 >>> )
 
 Get coeval cubes at the same redshift, with both spin temperature and inhomogeneous
@@ -74,8 +74,8 @@ recombinations, pulled from the natural evolution of the fields:
 
 >>> all_boxes = p21.run_coeval(
 >>>                 redshift=[7,8,9],
->>>                 user_params=p21.UserParams(HII_DIM=100),
->>>                 flag_options=p21.FlagOptions(INHOMO_RECO=True),
+>>>                 matter_params=p21.MatterParams(HII_DIM=100),
+>>>                 astro_flags=p21.AstroFlags(INHOMO_RECO=True),
 >>>                 do_spin_temp=True
 >>>             )
 

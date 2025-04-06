@@ -257,9 +257,9 @@ double tau_e(float zstart, float zend, float *zarry, float *xHarry, int len, flo
     return SIGMAT * ((N_b0 + He_No) * prehelium + N_b0 * posthelium);
 }
 
-float ComputeTau(UserParams *user_params, CosmoParams *cosmo_params, int NPoints, float *redshifts,
-                 float *global_xHI, float z_re_HeII) {
-    Broadcast_struct_global_noastro(user_params, cosmo_params);
+float ComputeTau(MatterParams *matter_params, MatterFlags *matter_flags, CosmoParams *cosmo_params,
+                 int NPoints, float *redshifts, float *global_xHI, float z_re_HeII) {
+    Broadcast_struct_global_noastro(matter_params, matter_flags, cosmo_params);
 
     return tau_e(0, redshifts[NPoints - 1], redshifts, global_xHI, NPoints, z_re_HeII);
 }

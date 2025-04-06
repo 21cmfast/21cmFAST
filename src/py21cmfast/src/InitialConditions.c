@@ -23,7 +23,7 @@
 #include "logger.h"
 #include "rng.h"
 
-void adj_complex_conj(fftwf_complex *HIRES_box, UserParams *user_params,
+void adj_complex_conj(fftwf_complex *HIRES_box, MatterParams *matter_params,
                       CosmoParams *cosmo_params) {
     /*****  Adjust the complex conjugate relations for a real array  *****/
 
@@ -41,7 +41,7 @@ void adj_complex_conj(fftwf_complex *HIRES_box, UserParams *user_params,
         crealf(HIRES_box[C_INDEX(MIDDLE, MIDDLE, MIDDLE_PARA)]);
 
     // do entire i except corners
-#pragma omp parallel shared(HIRES_box) private(i, j, k) num_threads(user_params -> N_THREADS)
+#pragma omp parallel shared(HIRES_box) private(i, j, k) num_threads(matter_params -> N_THREADS)
     {
 #pragma omp for
         for (i = 1; i < MIDDLE; i++) {
@@ -49,7 +49,7 @@ void adj_complex_conj(fftwf_complex *HIRES_box, UserParams *user_params,
             for (j = 0; j <= MIDDLE; j += MIDDLE) {
                 for (k = 0; k <= MIDDLE_PARA; k += MIDDLE_PARA) {
                     HIRES_box[C_INDEX(i, j, k)] =
-                        conjf(HIRES_box[C_INDEX((user_params->DIM) - i, j, k)]);
+                        conjf(HIRES_box[C_INDEX((matter_params->DIM) - i, j, k)]);
                 }
             }
 
@@ -57,23 +57,23 @@ void adj_complex_conj(fftwf_complex *HIRES_box, UserParams *user_params,
             for (j = 1; j < MIDDLE; j++) {
                 for (k = 0; k <= MIDDLE_PARA; k += MIDDLE_PARA) {
                     HIRES_box[C_INDEX(i, j, k)] = conjf(
-                        HIRES_box[C_INDEX((user_params->DIM) - i, (user_params->DIM) - j, k)]);
-                    HIRES_box[C_INDEX(i, (user_params->DIM) - j, k)] =
-                        conjf(HIRES_box[C_INDEX((user_params->DIM) - i, j, k)]);
+                        HIRES_box[C_INDEX((matter_params->DIM) - i, (matter_params->DIM) - j, k)]);
+                    HIRES_box[C_INDEX(i, (matter_params->DIM) - j, k)] =
+                        conjf(HIRES_box[C_INDEX((matter_params->DIM) - i, j, k)]);
                 }
             }
         }  // end loop over i
     }
 
     // now the i corners
-#pragma omp parallel shared(HIRES_box) private(i, j, k) num_threads(user_params -> N_THREADS)
+#pragma omp parallel shared(HIRES_box) private(i, j, k) num_threads(matter_params -> N_THREADS)
     {
 #pragma omp for
         for (i = 0; i <= MIDDLE; i += MIDDLE) {
             for (j = 1; j < MIDDLE; j++) {
                 for (k = 0; k <= MIDDLE_PARA; k += MIDDLE_PARA) {
                     HIRES_box[C_INDEX(i, j, k)] =
-                        conjf(HIRES_box[C_INDEX(i, (user_params->DIM) - j, k)]);
+                        conjf(HIRES_box[C_INDEX(i, (matter_params->DIM) - j, k)]);
                 }
             }
         }  // end loop over remaining j
@@ -82,11 +82,12 @@ void adj_complex_conj(fftwf_complex *HIRES_box, UserParams *user_params,
 
 // Re-write of init.c for original 21cmFAST
 
-int ComputeInitialConditions(unsigned long long random_seed, UserParams *user_params,
-                             CosmoParams *cosmo_params, InitialConditions *boxes) {
-    //     Generates the initial conditions: gaussian random density field (user_params->DIM^3) as
+int ComputeInitialConditions(unsigned long long random_seed, MatterParams *matter_params,
+                             MatterFlags *matter_flags, CosmoParams *cosmo_params,
+                             InitialConditions *boxes) {
+    //     Generates the initial conditions: gaussian random density field (matter_params->DIM^3) as
     //     well as the equal or lower resolution velocity fields, and smoothed density field
-    //     (user_params->HII_DIM^3).
+    //     (matter_params->HII_DIM^3).
     //
     //     Author: Andrei Mesinger
     //     Date: 9/29/06
@@ -97,10 +98,11 @@ int ComputeInitialConditions(unsigned long long random_seed, UserParams *user_pa
 
         // Makes the parameter structs visible to a variety of functions/macros
         // Do each time to avoid Python garbage collection issues
-        Broadcast_struct_global_noastro(user_params, cosmo_params);
+        Broadcast_struct_global_noastro(matter_params, matter_flags, cosmo_params);
 
 #if LOG_LEVEL >= DEBUG_LEVEL
-        writeUserParams(user_params);
+        writeMatterParams(matter_params);
+        writeMatterParams(matter_flags);
         writeCosmoParams(cosmo_params);
 #endif
 
@@ -110,12 +112,12 @@ int ComputeInitialConditions(unsigned long long random_seed, UserParams *user_pa
 
         float f_pixel_factor;
 
-        gsl_rng *r[user_params->N_THREADS];
+        gsl_rng *r[matter_params->N_THREADS];
         seed_rng_threads(r, random_seed);
 
-        omp_set_num_threads(user_params->N_THREADS);
+        omp_set_num_threads(matter_params->N_THREADS);
 
-        dimension = user_params->PERTURB_ON_HIGH_RES ? user_params->DIM : user_params->HII_DIM;
+        dimension = matter_flags->PERTURB_ON_HIGH_RES ? matter_params->DIM : matter_params->HII_DIM;
 
         // ************  INITIALIZATION ********************** //
         // allocate array for the k-space and real-space boxes
@@ -125,7 +127,7 @@ int ComputeInitialConditions(unsigned long long random_seed, UserParams *user_pa
             (fftwf_complex *)fftwf_malloc(sizeof(fftwf_complex) * KSPACE_NUM_PIXELS);
 
         // find factor of HII pixel size / deltax pixel size
-        f_pixel_factor = user_params->DIM / (float)user_params->HII_DIM;
+        f_pixel_factor = matter_params->DIM / (float)matter_params->HII_DIM;
 
         // ************  END INITIALIZATION ****************** //
         LOG_SUPER_DEBUG("Finished initialization.");
@@ -134,23 +136,24 @@ int ComputeInitialConditions(unsigned long long random_seed, UserParams *user_pa
         init_ps();
 
 #pragma omp parallel shared(HIRES_box, r) private(n_x, n_y, n_z, k_x, k_y, k_z, k_mag, p, a, b, \
-                                                      p_vcb) num_threads(user_params -> N_THREADS)
+                                                      p_vcb)                                    \
+    num_threads(matter_params -> N_THREADS)
         {
             int thread_num = omp_get_thread_num();
 #pragma omp for
-            for (n_x = 0; n_x < user_params->DIM; n_x++) {
+            for (n_x = 0; n_x < matter_params->DIM; n_x++) {
                 // convert index to numerical value for this component of the k-mode: k = (2*pi/L) *
                 // n
                 if (n_x > MIDDLE)
-                    k_x = (n_x - user_params->DIM) * DELTA_K;  // wrap around for FFT convention
+                    k_x = (n_x - matter_params->DIM) * DELTA_K;  // wrap around for FFT convention
                 else
                     k_x = n_x * DELTA_K;
 
-                for (n_y = 0; n_y < user_params->DIM; n_y++) {
+                for (n_y = 0; n_y < matter_params->DIM; n_y++) {
                     // convert index to numerical value for this component of the k-mode: k =
                     // (2*pi/L) * n
                     if (n_y > MIDDLE)
-                        k_y = (n_y - user_params->DIM) * DELTA_K;
+                        k_y = (n_y - matter_params->DIM) * DELTA_K;
                     else
                         k_y = n_y * DELTA_K;
 
@@ -167,7 +170,7 @@ int ComputeInitialConditions(unsigned long long random_seed, UserParams *user_pa
 
                         // ok, now we can draw the values of the real and imaginary part
                         // of our k entry from a Gaussian distribution
-                        if (user_params->NO_RNG) {
+                        if (matter_flags->NO_RNG) {
                             a = 1.0;
                             b = -1.0;
                         } else {
@@ -183,21 +186,22 @@ int ComputeInitialConditions(unsigned long long random_seed, UserParams *user_pa
         LOG_SUPER_DEBUG("Drawn random fields.");
 
         // *****  Adjust the complex conjugate relations for a real array  ***** //
-        adj_complex_conj(HIRES_box, user_params, cosmo_params);
+        adj_complex_conj(HIRES_box, matter_params, cosmo_params);
 
         memcpy(HIRES_box_saved, HIRES_box, sizeof(fftwf_complex) * KSPACE_NUM_PIXELS);
 
         // FFT back to real space
-        int stat = dft_c2r_cube(user_params->USE_FFTW_WISDOM, user_params->DIM, D_PARA,
-                                user_params->N_THREADS, HIRES_box);
+        int stat = dft_c2r_cube(matter_flags->USE_FFTW_WISDOM, matter_params->DIM, D_PARA,
+                                matter_params->N_THREADS, HIRES_box);
         if (stat > 0) Throw(stat);
         LOG_SUPER_DEBUG("FFT'd hires boxes.");
 
-#pragma omp parallel shared(boxes, HIRES_box) private(i, j, k) num_threads(user_params -> N_THREADS)
+#pragma omp parallel shared(boxes, HIRES_box) private(i, j, k) \
+    num_threads(matter_params -> N_THREADS)
         {
 #pragma omp for
-            for (i = 0; i < user_params->DIM; i++) {
-                for (j = 0; j < user_params->DIM; j++) {
+            for (i = 0; i < matter_params->DIM; i++) {
+                for (j = 0; j < matter_params->DIM; j++) {
                     for (k = 0; k < D_PARA; k++) {
                         *((float *)boxes->hires_density + R_INDEX(i, j, k)) =
                             *((float *)HIRES_box + R_FFT_INDEX(i, j, k)) / VOLUME;
@@ -213,24 +217,24 @@ int ComputeInitialConditions(unsigned long long random_seed, UserParams *user_pa
         memcpy(HIRES_box, HIRES_box_saved, sizeof(fftwf_complex) * KSPACE_NUM_PIXELS);
 
         // Only filter if we are perturbing on the low-resolution grid
-        if (!user_params->PERTURB_ON_HIGH_RES) {
-            if (user_params->DIM != user_params->HII_DIM) {
+        if (!matter_flags->PERTURB_ON_HIGH_RES) {
+            if (matter_params->DIM != matter_params->HII_DIM) {
                 filter_box(HIRES_box, 0, 0,
-                           L_FACTOR * user_params->BOX_LEN / (user_params->HII_DIM + 0.0), 0.);
+                           L_FACTOR * matter_params->BOX_LEN / (matter_params->HII_DIM + 0.0), 0.);
             }
 
             // FFT back to real space
-            dft_c2r_cube(user_params->USE_FFTW_WISDOM, user_params->DIM, D_PARA,
-                         user_params->N_THREADS, HIRES_box);
+            dft_c2r_cube(matter_flags->USE_FFTW_WISDOM, matter_params->DIM, D_PARA,
+                         matter_params->N_THREADS, HIRES_box);
 
             // Renormalise the FFT'd box (sample the high-res box if we are perturbing on the
             // low-res grid)
 #pragma omp parallel shared(boxes, HIRES_box, f_pixel_factor) private(i, j, k) \
-    num_threads(user_params -> N_THREADS)
+    num_threads(matter_params -> N_THREADS)
             {
 #pragma omp for
-                for (i = 0; i < user_params->HII_DIM; i++) {
-                    for (j = 0; j < user_params->HII_DIM; j++) {
+                for (i = 0; i < matter_params->HII_DIM; i++) {
+                    for (j = 0; j < matter_params->HII_DIM; j++) {
                         for (k = 0; k < HII_D_PARA; k++) {
                             boxes->lowres_density[HII_R_INDEX(i, j, k)] =
                                 *((float *)HIRES_box +
@@ -245,24 +249,24 @@ int ComputeInitialConditions(unsigned long long random_seed, UserParams *user_pa
         }
 
         // ******* Relative Velocity part ******* //
-        if (user_params->USE_RELATIVE_VELOCITIES) {
+        if (matter_flags->USE_RELATIVE_VELOCITIES) {
             // JBM: We use the memory allocated to HIRES_box as it's free.
             for (ii = 0; ii < 3; ii++) {
                 memcpy(HIRES_box, HIRES_box_saved, sizeof(fftwf_complex) * KSPACE_NUM_PIXELS);
 #pragma omp parallel shared(HIRES_box, ii) private(n_x, n_y, n_z, k_x, k_y, k_z, k_mag, p, p_vcb) \
-    num_threads(user_params -> N_THREADS)
+    num_threads(matter_params -> N_THREADS)
                 {
 #pragma omp for
-                    for (n_x = 0; n_x < user_params->DIM; n_x++) {
+                    for (n_x = 0; n_x < matter_params->DIM; n_x++) {
                         if (n_x > MIDDLE)
-                            k_x = (n_x - user_params->DIM) *
+                            k_x = (n_x - matter_params->DIM) *
                                   DELTA_K;  // wrap around for FFT convention
                         else
                             k_x = n_x * DELTA_K;
 
-                        for (n_y = 0; n_y < user_params->DIM; n_y++) {
+                        for (n_y = 0; n_y < matter_params->DIM; n_y++) {
                             if (n_y > MIDDLE)
-                                k_y = (n_y - user_params->DIM) * DELTA_K;
+                                k_y = (n_y - matter_params->DIM) * DELTA_K;
                             else
                                 k_y = n_y * DELTA_K;
 
@@ -296,21 +300,22 @@ int ComputeInitialConditions(unsigned long long random_seed, UserParams *user_pa
                 }
 
                 // we only care about the lowres vcb box, so we filter it directly.
-                if (user_params->DIM != user_params->HII_DIM) {
+                if (matter_params->DIM != matter_params->HII_DIM) {
                     filter_box(HIRES_box, 0, 0,
-                               L_FACTOR * user_params->BOX_LEN / (user_params->HII_DIM + 0.0), 0.);
+                               L_FACTOR * matter_params->BOX_LEN / (matter_params->HII_DIM + 0.0),
+                               0.);
                 }
 
                 // fft each velocity component back to real space
-                dft_c2r_cube(user_params->USE_FFTW_WISDOM, user_params->DIM, D_PARA,
-                             user_params->N_THREADS, HIRES_box);
+                dft_c2r_cube(matter_flags->USE_FFTW_WISDOM, matter_params->DIM, D_PARA,
+                             matter_params->N_THREADS, HIRES_box);
 
 #pragma omp parallel shared(boxes, HIRES_box, f_pixel_factor, ii) private(i, j, k, vcb_i) \
-    num_threads(user_params -> N_THREADS)
+    num_threads(matter_params -> N_THREADS)
                 {
 #pragma omp for
-                    for (i = 0; i < user_params->HII_DIM; i++) {
-                        for (j = 0; j < user_params->HII_DIM; j++) {
+                    for (i = 0; i < matter_params->HII_DIM; i++) {
+                        for (j = 0; j < matter_params->HII_DIM; j++) {
                             for (k = 0; k < HII_D_PARA; k++) {
                                 vcb_i =
                                     *((float *)HIRES_box +
@@ -324,8 +329,8 @@ int ComputeInitialConditions(unsigned long long random_seed, UserParams *user_pa
                 }
             }
             // now we take the sqrt of that and normalize the FFT
-            for (i = 0; i < user_params->HII_DIM; i++) {
-                for (j = 0; j < user_params->HII_DIM; j++) {
+            for (i = 0; i < matter_params->HII_DIM; i++) {
+                for (j = 0; j < matter_params->HII_DIM; j++) {
                     for (k = 0; k < HII_D_PARA; k++) {
                         boxes->lowres_vcb[HII_R_INDEX(i, j, k)] =
                             sqrt(boxes->lowres_vcb[HII_R_INDEX(i, j, k)]) / VOLUME;
@@ -343,18 +348,19 @@ int ComputeInitialConditions(unsigned long long random_seed, UserParams *user_pa
             // Now let's set the velocity field/dD/dt (in comoving Mpc)
 
 #pragma omp parallel shared(HIRES_box, ii) private(n_x, n_y, n_z, k_x, k_y, k_z, k_sq) \
-    num_threads(user_params -> N_THREADS)
+    num_threads(matter_params -> N_THREADS)
             {
 #pragma omp for
-                for (n_x = 0; n_x < user_params->DIM; n_x++) {
+                for (n_x = 0; n_x < matter_params->DIM; n_x++) {
                     if (n_x > MIDDLE)
-                        k_x = (n_x - user_params->DIM) * DELTA_K;  // wrap around for FFT convention
+                        k_x =
+                            (n_x - matter_params->DIM) * DELTA_K;  // wrap around for FFT convention
                     else
                         k_x = n_x * DELTA_K;
 
-                    for (n_y = 0; n_y < user_params->DIM; n_y++) {
+                    for (n_y = 0; n_y < matter_params->DIM; n_y++) {
                         if (n_y > MIDDLE)
-                            k_y = (n_y - user_params->DIM) * DELTA_K;
+                            k_y = (n_y - matter_params->DIM) * DELTA_K;
                         else
                             k_y = n_y * DELTA_K;
 
@@ -383,28 +389,29 @@ int ComputeInitialConditions(unsigned long long random_seed, UserParams *user_pa
             }
 
             // Filter only if we require perturbing on the low-res grid
-            if (!user_params->PERTURB_ON_HIGH_RES) {
-                if (user_params->DIM != user_params->HII_DIM) {
+            if (!matter_flags->PERTURB_ON_HIGH_RES) {
+                if (matter_params->DIM != matter_params->HII_DIM) {
                     filter_box(HIRES_box, 0, 0,
-                               L_FACTOR * user_params->BOX_LEN / (user_params->HII_DIM + 0.0), 0.);
+                               L_FACTOR * matter_params->BOX_LEN / (matter_params->HII_DIM + 0.0),
+                               0.);
                 }
             }
 
-            dft_c2r_cube(user_params->USE_FFTW_WISDOM, user_params->DIM, D_PARA,
-                         user_params->N_THREADS, HIRES_box);
+            dft_c2r_cube(matter_flags->USE_FFTW_WISDOM, matter_params->DIM, D_PARA,
+                         matter_params->N_THREADS, HIRES_box);
 
             // now sample to lower res
             // now sample the filtered box
 #pragma omp parallel shared(boxes, HIRES_box, f_pixel_factor, ii, dimension) private(i, j, k) \
-    num_threads(user_params -> N_THREADS)
+    num_threads(matter_params -> N_THREADS)
             {
 #pragma omp for
                 for (i = 0; i < dimension; i++) {
                     for (j = 0; j < dimension; j++) {
                         for (k = 0;
-                             k < (unsigned long long)(user_params->NON_CUBIC_FACTOR * dimension);
+                             k < (unsigned long long)(matter_params->NON_CUBIC_FACTOR * dimension);
                              k++) {
-                            if (user_params->PERTURB_ON_HIGH_RES) {
+                            if (matter_flags->PERTURB_ON_HIGH_RES) {
                                 if (ii == 0) {
                                     boxes->hires_vx[R_INDEX(i, j, k)] = *(
                                         (float *)HIRES_box + R_FFT_INDEX((unsigned long long)(i),
@@ -465,7 +472,7 @@ int ComputeInitialConditions(unsigned long long random_seed, UserParams *user_pa
         // ZA reference: Scoccimarro R., 1998, MNRAS, 299, 1097-1118 Appendix D
 
         // Parameter set in ANAL_PARAMS.H
-        if (user_params->PERTURB_ALGORITHM == 2) {
+        if (matter_flags->PERTURB_ALGORITHM == 2) {
             // use six supplementary boxes to store the gradients of phi_1 (eq. D13b)
             // Allocating the boxes
 #define PHI_INDEX(i, j) ((int)((i) - (j)) + 3 * ((j)) - ((int)(j)) / 2)
@@ -489,11 +496,12 @@ int ComputeInitialConditions(unsigned long long random_seed, UserParams *user_pa
             // Indexing for the various phy components
             int phi_directions[3][2] = {{0, 1}, {0, 2}, {1, 2}};
 
-#pragma omp parallel shared(HIRES_box, phi_1) private(i, j, k) num_threads(user_params -> N_THREADS)
+#pragma omp parallel shared(HIRES_box, phi_1) private(i, j, k) \
+    num_threads(matter_params -> N_THREADS)
             {
 #pragma omp for
-                for (i = 0; i < user_params->DIM; i++) {
-                    for (j = 0; j < user_params->DIM; j++) {
+                for (i = 0; i < matter_params->DIM; i++) {
+                    for (j = 0; j < matter_params->DIM; j++) {
                         for (k = 0; k < D_PARA; k++) {
                             *((float *)HIRES_box + R_FFT_INDEX((unsigned long long)(i),
                                                                (unsigned long long)(j),
@@ -511,19 +519,19 @@ int ComputeInitialConditions(unsigned long long random_seed, UserParams *user_pa
 
                 // generate the phi_1 boxes in Fourier transform
 #pragma omp parallel shared(HIRES_box, phi_1, i, j) private(n_x, n_y, n_z, k_x, k_y, k_z, k_sq, k) \
-    num_threads(user_params -> N_THREADS)
+    num_threads(matter_params -> N_THREADS)
                 {
 #pragma omp for
-                    for (n_x = 0; n_x < user_params->DIM; n_x++) {
+                    for (n_x = 0; n_x < matter_params->DIM; n_x++) {
                         if (n_x > MIDDLE)
-                            k_x = (n_x - user_params->DIM) *
+                            k_x = (n_x - matter_params->DIM) *
                                   DELTA_K;  // wrap around for FFT convention
                         else
                             k_x = n_x * DELTA_K;
 
-                        for (n_y = 0; n_y < user_params->DIM; n_y++) {
+                        for (n_y = 0; n_y < matter_params->DIM; n_y++) {
                             if (n_y > MIDDLE)
-                                k_y = (n_y - user_params->DIM) * DELTA_K;
+                                k_y = (n_y - matter_params->DIM) * DELTA_K;
                             else
                                 k_y = n_y * DELTA_K;
 
@@ -548,16 +556,16 @@ int ComputeInitialConditions(unsigned long long random_seed, UserParams *user_pa
                     }
                 }
 
-                dft_c2r_cube(user_params->USE_FFTW_WISDOM, user_params->DIM, D_PARA,
-                             user_params->N_THREADS, phi_1);
+                dft_c2r_cube(matter_flags->USE_FFTW_WISDOM, matter_params->DIM, D_PARA,
+                             matter_params->N_THREADS, phi_1);
 
                 // Temporarily store in the allocated hires_vi_2LPT boxes
 #pragma omp parallel shared(boxes, phi_1, phi_component) private(i, j, k) \
-    num_threads(user_params -> N_THREADS)
+    num_threads(matter_params -> N_THREADS)
                 {
 #pragma omp for
-                    for (i = 0; i < user_params->DIM; i++) {
-                        for (j = 0; j < user_params->DIM; j++) {
+                    for (i = 0; i < matter_params->DIM; i++) {
+                        for (j = 0; j < matter_params->DIM; j++) {
                             for (k = 0; k < D_PARA; k++) {
                                 if (phi_component == 0) {
                                     boxes->hires_vx_2LPT[R_INDEX(i, j, k)] =
@@ -590,19 +598,19 @@ int ComputeInitialConditions(unsigned long long random_seed, UserParams *user_pa
 
                 // generate the phi_1 boxes in Fourier transform
 #pragma omp parallel shared(HIRES_box, phi_1) private(n_x, n_y, n_z, k_x, k_y, k_z, k_sq, k) \
-    num_threads(user_params -> N_THREADS)
+    num_threads(matter_params -> N_THREADS)
                 {
 #pragma omp for
-                    for (n_x = 0; n_x < user_params->DIM; n_x++) {
+                    for (n_x = 0; n_x < matter_params->DIM; n_x++) {
                         if (n_x > MIDDLE)
-                            k_x = (n_x - user_params->DIM) *
+                            k_x = (n_x - matter_params->DIM) *
                                   DELTA_K;  // wrap around for FFT convention
                         else
                             k_x = n_x * DELTA_K;
 
-                        for (n_y = 0; n_y < user_params->DIM; n_y++) {
+                        for (n_y = 0; n_y < matter_params->DIM; n_y++) {
                             if (n_y > MIDDLE)
-                                k_y = (n_y - user_params->DIM) * DELTA_K;
+                                k_y = (n_y - matter_params->DIM) * DELTA_K;
                             else
                                 k_y = n_y * DELTA_K;
 
@@ -627,18 +635,18 @@ int ComputeInitialConditions(unsigned long long random_seed, UserParams *user_pa
                     }
                 }
 
-                dft_c2r_cube(user_params->USE_FFTW_WISDOM, user_params->DIM, D_PARA,
-                             user_params->N_THREADS, phi_1);
+                dft_c2r_cube(matter_flags->USE_FFTW_WISDOM, matter_params->DIM, D_PARA,
+                             matter_params->N_THREADS, phi_1);
 
                 // Then we will have the laplacian of phi_2 (eq. D13b)
                 // After that we have to return in Fourier space and generate the Fourier transform
                 // of phi_2
 #pragma omp parallel shared(HIRES_box, phi_1, phi_component) private( \
-        i, j, k, component_ii, component_jj, component_ij) num_threads(user_params -> N_THREADS)
+        i, j, k, component_ii, component_jj, component_ij) num_threads(matter_params -> N_THREADS)
                 {
 #pragma omp for
-                    for (i = 0; i < user_params->DIM; i++) {
-                        for (j = 0; j < user_params->DIM; j++) {
+                    for (i = 0; i < matter_params->DIM; i++) {
+                        for (j = 0; j < matter_params->DIM; j++) {
                             for (k = 0; k < D_PARA; k++) {
                                 // Note, I have temporarily stored the components into other arrays
                                 // to minimise memory usage phi - {0, 1, 2} -> {hires_vx_2LPT,
@@ -686,11 +694,12 @@ int ComputeInitialConditions(unsigned long long random_seed, UserParams *user_pa
                 }
             }
 
-#pragma omp parallel shared(HIRES_box, phi_1) private(i, j, k) num_threads(user_params -> N_THREADS)
+#pragma omp parallel shared(HIRES_box, phi_1) private(i, j, k) \
+    num_threads(matter_params -> N_THREADS)
             {
 #pragma omp for
-                for (i = 0; i < user_params->DIM; i++) {
-                    for (j = 0; j < user_params->DIM; j++) {
+                for (i = 0; i < matter_params->DIM; i++) {
+                    for (j = 0; j < matter_params->DIM; j++) {
                         for (k = 0; k < D_PARA; k++) {
                             *((float *)HIRES_box +
                               R_FFT_INDEX((unsigned long long)(i), (unsigned long long)(j),
@@ -701,8 +710,8 @@ int ComputeInitialConditions(unsigned long long random_seed, UserParams *user_pa
             }
 
             // Perform FFTs
-            dft_r2c_cube(user_params->USE_FFTW_WISDOM, user_params->DIM, D_PARA,
-                         user_params->N_THREADS, HIRES_box);
+            dft_r2c_cube(matter_flags->USE_FFTW_WISDOM, matter_params->DIM, D_PARA,
+                         matter_params->N_THREADS, HIRES_box);
 
             memcpy(HIRES_box_saved, HIRES_box, sizeof(fftwf_complex) * KSPACE_NUM_PIXELS);
 
@@ -724,20 +733,20 @@ int ComputeInitialConditions(unsigned long long random_seed, UserParams *user_pa
                 }
 
 #pragma omp parallel shared(HIRES_box, ii) private(n_x, n_y, n_z, k_x, k_y, k_z, k_sq) \
-    num_threads(user_params -> N_THREADS)
+    num_threads(matter_params -> N_THREADS)
                 {
 #pragma omp for
                     // set velocities/dD/dt
-                    for (n_x = 0; n_x < user_params->DIM; n_x++) {
+                    for (n_x = 0; n_x < matter_params->DIM; n_x++) {
                         if (n_x > MIDDLE)
-                            k_x = (n_x - user_params->DIM) *
+                            k_x = (n_x - matter_params->DIM) *
                                   DELTA_K;  // wrap around for FFT convention
                         else
                             k_x = n_x * DELTA_K;
 
-                        for (n_y = 0; n_y < user_params->DIM; n_y++) {
+                        for (n_y = 0; n_y < matter_params->DIM; n_y++) {
                             if (n_y > MIDDLE)
-                                k_y = (n_y - user_params->DIM) * DELTA_K;
+                                k_y = (n_y - matter_params->DIM) * DELTA_K;
                             else
                                 k_y = n_y * DELTA_K;
 
@@ -768,29 +777,29 @@ int ComputeInitialConditions(unsigned long long random_seed, UserParams *user_pa
                 }
 
                 // Filter only if we require perturbing on the low-res grid
-                if (!user_params->PERTURB_ON_HIGH_RES) {
-                    if (user_params->DIM != user_params->HII_DIM) {
-                        filter_box(HIRES_box, 0, 0,
-                                   L_FACTOR * user_params->BOX_LEN / (user_params->HII_DIM + 0.0),
-                                   0.);
+                if (!matter_flags->PERTURB_ON_HIGH_RES) {
+                    if (matter_params->DIM != matter_params->HII_DIM) {
+                        filter_box(
+                            HIRES_box, 0, 0,
+                            L_FACTOR * matter_params->BOX_LEN / (matter_params->HII_DIM + 0.0), 0.);
                     }
                 }
 
-                dft_c2r_cube(user_params->USE_FFTW_WISDOM, user_params->DIM, D_PARA,
-                             user_params->N_THREADS, HIRES_box);
+                dft_c2r_cube(matter_flags->USE_FFTW_WISDOM, matter_params->DIM, D_PARA,
+                             matter_params->N_THREADS, HIRES_box);
 
                 // now sample to lower res
                 // now sample the filtered box
 #pragma omp parallel shared(boxes, HIRES_box, f_pixel_factor, ii, dimension) private(i, j, k) \
-    num_threads(user_params -> N_THREADS)
+    num_threads(matter_params -> N_THREADS)
                 {
 #pragma omp for
                     for (i = 0; i < dimension; i++) {
                         for (j = 0; j < dimension; j++) {
-                            for (k = 0; k < (unsigned long long)(user_params->NON_CUBIC_FACTOR *
+                            for (k = 0; k < (unsigned long long)(matter_params->NON_CUBIC_FACTOR *
                                                                  dimension);
                                  k++) {
-                                if (user_params->PERTURB_ON_HIGH_RES) {
+                                if (matter_flags->PERTURB_ON_HIGH_RES) {
                                     if (ii == 0) {
                                         boxes->hires_vx_2LPT[R_INDEX(i, j, k)] =
                                             *((float *)HIRES_box +

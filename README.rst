@@ -81,7 +81,7 @@ and plotting an image of a slice through it::
     >>> import py21cmfast as p21c
     >>> coeval = p21c.run_coeval(
     >>>     redshift=8.0,
-    >>>     user_params={'HII_DIM': 50, "USE_INTERPOLATION_TABLES": False}
+    >>>     matter_params={'HII_DIM': 50, "USE_INTERPOLATION_TABLES": False}
     >>> )
     >>> p21c.plotting.coeval_sliceplot(coeval, kind='brightness_temp')
 

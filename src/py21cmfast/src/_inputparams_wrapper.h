@@ -20,25 +20,13 @@ typedef struct CosmoParams {
 
 } CosmoParams;
 
-typedef struct UserParams {
+typedef struct MatterParams {
     // Parameters taken from INIT_PARAMS.H
     int HII_DIM;
     int DIM;
     float BOX_LEN;
     float NON_CUBIC_FACTOR;
-    bool USE_FFTW_WISDOM;
-    int HMF;
-    int USE_RELATIVE_VELOCITIES;
-    int POWER_SPECTRUM;
     int N_THREADS;
-    bool PERTURB_ON_HIGH_RES;
-    bool NO_RNG;
-    int USE_INTERPOLATION_TABLES;
-    int INTEGRATION_METHOD_ATOMIC;
-    int INTEGRATION_METHOD_MINI;
-    int PERTURB_ALGORITHM;
-    bool MINIMIZE_MEMORY;
-    bool KEEP_3D_VELOCITIES;
     double Z_HEAT_MAX;
     double ZPRIME_STEP_FACTOR;
 
@@ -48,27 +36,48 @@ typedef struct UserParams {
     int N_COND_INTERP;
     int N_PROB_INTERP;
     double MIN_LOGPROB;
-    int SAMPLE_METHOD;
-    bool AVG_BELOW_SAMPLER;
     double HALOMASS_CORRECTION;
     double PARKINSON_G0;
     double PARKINSON_y1;
     double PARKINSON_y2;
 
-    int FILTER;
-    int HALO_FILTER;
     float INITIAL_REDSHIFT;
     double DELTA_R_FACTOR;
-    bool SMOOTH_EVOLVED_DENSITY_FIELD;
     double DENSITY_SMOOTH_RADIUS;
 
-    bool DEXM_OPTIMIZE;
     double DEXM_OPTIMIZE_MINMASS;
     double DEXM_R_OVERLAP;
-} UserParams;
+
+    double CORR_STAR;
+    double CORR_SFR;
+    double CORR_LX;
+} MatterParams;
+
+typedef struct MatterFlags {
+    bool USE_FFTW_WISDOM;
+    int HMF;
+    int USE_RELATIVE_VELOCITIES;
+    int POWER_SPECTRUM;
+    int USE_INTERPOLATION_TABLES;
+    int INTEGRATION_METHOD_ATOMIC;
+    int INTEGRATION_METHOD_MINI;
+    bool NO_RNG;
+    bool PERTURB_ON_HIGH_RES;
+    int PERTURB_ALGORITHM;
+    bool MINIMIZE_MEMORY;
+    bool KEEP_3D_VELOCITIES;
+    bool DEXM_OPTIMIZE;
+    int FILTER;
+    int HALO_FILTER;
+    bool SMOOTH_EVOLVED_DENSITY_FIELD;
+
+    bool USE_HALO_FIELD;
+    bool HALO_STOCHASTICITY;
+    bool FIXED_HALO_GRIDS;
+    int SAMPLE_METHOD;
+} MatterFlags;
 
 typedef struct AstroParams {
-    // Parameters taken from INIT_PARAMS.H
     float HII_EFF_FACTOR;
 
     // SHMR
@@ -76,14 +85,12 @@ typedef struct AstroParams {
     float ALPHA_STAR;
     float ALPHA_STAR_MINI;
     float SIGMA_STAR;
-    float CORR_STAR;
     double UPPER_STELLAR_TURNOVER_MASS;
     double UPPER_STELLAR_TURNOVER_INDEX;
     float F_STAR7_MINI;
 
     // SFMS
     float t_STAR;
-    float CORR_SFR;
     double SIGMA_SFR_INDEX;
     double SIGMA_SFR_LIM;
 
@@ -91,7 +98,6 @@ typedef struct AstroParams {
     double L_X;
     double L_X_MINI;
     double SIGMA_LX;
-    double CORR_LX;
 
     // Escape Fraction
     float F_ESC10;
@@ -131,9 +137,7 @@ typedef struct AstroParams {
     double NU_X_BAND_MAX;
 } AstroParams;
 
-typedef struct FlagOptions {
-    // Parameters taken from INIT_PARAMS.H
-    bool USE_HALO_FIELD;
+typedef struct AstroFlags {
     bool USE_MINI_HALOS;
     bool USE_CMB_HEATING;  // CMB Heating Flag
     bool USE_LYA_HEATING;  // Lya Heating Flag
@@ -144,9 +148,7 @@ typedef struct FlagOptions {
     bool USE_TS_FLUCT;
     bool M_MIN_in_Mass;
     bool FIX_VCB_AVG;
-    bool HALO_STOCHASTICITY;
     bool USE_EXP_FILTER;
-    bool FIXED_HALO_GRIDS;
     bool CELL_RECOMB;
     int PHOTON_CONS_TYPE;
     bool USE_UPPER_STELLAR_TURNOVER;
@@ -154,7 +156,8 @@ typedef struct FlagOptions {
     int HII_FILTER;
     int HEAT_FILTER;
     bool IONISE_ENTIRE_SPHERE;
-} FlagOptions;
+    bool AVG_BELOW_SAMPLER;
+} AstroFlags;
 
 typedef struct ConfigSettings {
     double HALO_CATALOG_MEM_FACTOR;
@@ -163,7 +166,7 @@ typedef struct ConfigSettings {
     char *wisdoms_path;
 } ConfigSettings;
 
-/* Previously, we had a few structures spread throughout the code e.g user_params_ufunc which
+/* Previously, we had a few structures spread throughout the code e.g matter_params_ufunc which
    were all globally defined and separately broadcast at different times. Several of these were used
    across different files and some inside #defines (e.g indexing.h), so for now I've combined
    the parameter structures to avoid confusion (we shouldn't have the possibility of two files using
@@ -174,9 +177,10 @@ typedef struct ConfigSettings {
    decorate any library call) However this would require us to be very careful about initialising
    the globals when ANY function from that file is called */
 // The structs declared here defined in InputParameters.c
-extern UserParams *user_params_global;
+extern MatterParams *matter_params_global;
+extern MatterFlags *matter_flags_global;
 extern CosmoParams *cosmo_params_global;
 extern AstroParams *astro_params_global;
-extern FlagOptions *flag_options_global;
+extern AstroFlags *astro_flags_global;
 
 extern ConfigSettings config_settings;

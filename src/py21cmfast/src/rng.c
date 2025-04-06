@@ -33,7 +33,7 @@ void seed_rng_threads(gsl_rng *rng_arr[], unsigned long long int seed) {
 
     gsl_rng_set(rseed, seed);
 
-    unsigned int seeds[user_params_global->N_THREADS];
+    unsigned int seeds[matter_params_global->N_THREADS];
 
     // For multithreading, seeds for the RNGs are generated from an initial RNG (based on the input
     // random_seed) and then shuffled (Author: Fred Davies)
@@ -46,14 +46,14 @@ void seed_rng_threads(gsl_rng *rng_arr[], unsigned long long int seed) {
     }
 
     // Populate the seeds array from the large list of integers
-    gsl_ran_choose(rseed, seeds, user_params_global->N_THREADS, many_ints, num_int,
+    gsl_ran_choose(rseed, seeds, matter_params_global->N_THREADS, many_ints, num_int,
                    sizeof(unsigned int));
     // Shuffle the randomly selected integers
-    gsl_ran_shuffle(rseed, seeds, user_params_global->N_THREADS, sizeof(unsigned int));
+    gsl_ran_shuffle(rseed, seeds, matter_params_global->N_THREADS, sizeof(unsigned int));
 
     int checker = 0;
     // seed the random number generators
-    for (thread_num = 0; thread_num < user_params_global->N_THREADS; thread_num++) {
+    for (thread_num = 0; thread_num < matter_params_global->N_THREADS; thread_num++) {
         switch (checker) {
             case 0:
                 rng_arr[thread_num] = gsl_rng_alloc(gsl_rng_mt19937);
@@ -130,9 +130,9 @@ void seed_rng_threads_fast(gsl_rng *rng_arr[], unsigned long long int seed) {
 
     checker = 0;
     // seed the random number generators
-    sample_n_unique_integers(user_params_global->N_THREADS, seed, st_arr);
+    sample_n_unique_integers(matter_params_global->N_THREADS, seed, st_arr);
 
-    for (thread_num = 0; thread_num < user_params_global->N_THREADS; thread_num++) {
+    for (thread_num = 0; thread_num < matter_params_global->N_THREADS; thread_num++) {
         seed_thread = st_arr[thread_num];
         switch (checker) {
             case 0:
@@ -165,7 +165,7 @@ void seed_rng_threads_fast(gsl_rng *rng_arr[], unsigned long long int seed) {
 
 void free_rng_threads(gsl_rng *rng_arr[]) {
     int ii;
-    for (ii = 0; ii < user_params_global->N_THREADS; ii++) {
+    for (ii = 0; ii < matter_params_global->N_THREADS; ii++) {
         gsl_rng_free(rng_arr[ii]);
     }
 }

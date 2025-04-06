@@ -235,7 +235,7 @@ class _OutputStructComputationInspect:
 
     def _make_wisdoms(self, inputs: InputParameters):
         construct_fftw_wisdoms(
-            user_params=inputs.user_params, cosmo_params=inputs.cosmo_params
+            matter_params=inputs.matter_params, cosmo_params=inputs.cosmo_params
         )
 
     def check_output_struct_types(self, outputs: dict[str, OutputStruct]):
@@ -367,7 +367,7 @@ class _OutputStructComputationInspect:
         """
         # we need photon cons to be done before any non-IC box is computed
         if (
-            inputs.flag_options.PHOTON_CONS_TYPE != "no-photoncons"
+            inputs.astro_flags.PHOTON_CONS_TYPE != "no-photoncons"
             and _photoncons_state.calibration_inputs != inputs
             and issubclass(self._kls, OutputStructZ)
         ):

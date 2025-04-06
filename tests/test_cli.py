@@ -14,10 +14,10 @@ def runner():
 
 
 @pytest.fixture(scope="module")
-def cfg(default_user_params, default_flag_options, tmpdirec):
+def cfg(default_matter_params, default_astro_flags, tmpdirec):
     with (tmpdirec / "cfg.yml").open("w") as f:
-        yaml.dump({"user_params": default_user_params.asdict()}, f)
-        yaml.dump({"flag_options": default_flag_options.asdict()}, f)
+        yaml.dump({"matter_params": default_matter_params.asdict()}, f)
+        yaml.dump({"astro_flags": default_astro_flags.asdict()}, f)
     return tmpdirec / "cfg.yml"
 
 

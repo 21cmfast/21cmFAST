@@ -24,12 +24,12 @@ import questionary as qs
 from powerbox import get_power
 
 from py21cmfast import (
+    AstroFlags,
     AstroParams,
     CosmoParams,
-    FlagOptions,
     InitialConditions,
     InputParameters,
-    UserParams,
+    MatterParams,
     compute_initial_conditions,
     config,
     determine_halo_list,
@@ -48,7 +48,7 @@ SEED = 12345
 DATA_PATH = Path(__file__).parent / "test_data"
 
 # These defaults are overwritten by the OPTIONS kwargs
-DEFAULT_USER_PARAMS = {
+DEFAULT_matter_params = {
     "HII_DIM": 50,
     "DIM": 150,
     "BOX_LEN": 100,
@@ -57,7 +57,7 @@ DEFAULT_USER_PARAMS = {
     "ZPRIME_STEP_FACTOR": 1.04,
 }
 
-DEFAULT_FLAG_OPTIONS = {
+DEFAULT_astro_flags = {
     "USE_HALO_FIELD": False,
     "USE_EXP_FILTER": False,
     "CELL_RECOMB": False,
@@ -297,32 +297,32 @@ def get_input_struct(kwargs, cls):
 
 
 def get_all_input_structs(kwargs):
-    flag_options = get_input_struct({**DEFAULT_FLAG_OPTIONS, **kwargs}, FlagOptions)
+    astro_flags = get_input_struct({**DEFAULT_astro_flags, **kwargs}, AstroFlags)
     cosmo_params = get_input_struct(kwargs, CosmoParams)
-    user_params = get_input_struct({**DEFAULT_USER_PARAMS, **kwargs}, UserParams)
+    matter_params = get_input_struct({**DEFAULT_matter_params, **kwargs}, MatterParams)
 
     kwargs_a = kwargs.copy()
-    kwargs_a.update({"flag_options": flag_options})
+    kwargs_a.update({"astro_flags": astro_flags})
     astro_params = get_input_struct(kwargs_a, AstroParams)
-    return user_params, cosmo_params, astro_params, flag_options
+    return matter_params, cosmo_params, astro_params, astro_flags
 
 
 def get_all_options(redshift, lc=False, **kwargs):
-    user_params, cosmo_params, astro_params, flag_options = get_all_input_structs(
+    matter_params, cosmo_params, astro_params, astro_flags = get_all_input_structs(
         kwargs
     )
     out = {
-        "user_params": user_params,
+        "matter_params": matter_params,
         "cosmo_params": cosmo_params,
         "astro_params": astro_params,
-        "flag_options": flag_options,
+        "astro_flags": astro_flags,
         "random_seed": SEED,
     }
-    if lc or flag_options.USE_TS_FLUCT or flag_options.INHOMO_RECO:
+    if lc or astro_flags.USE_TS_FLUCT or astro_flags.INHOMO_RECO:
         out["node_redshifts"] = get_logspaced_redshifts(
             min_redshift=redshift,
-            max_redshift=user_params.Z_HEAT_MAX,
-            z_step_factor=user_params.ZPRIME_STEP_FACTOR,
+            max_redshift=matter_params.Z_HEAT_MAX,
+            z_step_factor=matter_params.ZPRIME_STEP_FACTOR,
         )
     if not lc:
         out["out_redshifts"] = redshift
@@ -337,8 +337,8 @@ def get_all_options_struct(redshift, lc=False, **kwargs):
         random_seed=options.pop("random_seed"),
         cosmo_params=options.pop("cosmo_params"),
         astro_params=options.pop("astro_params"),
-        user_params=options.pop("user_params"),
-        flag_options=options.pop("flag_options"),
+        matter_params=options.pop("matter_params"),
+        astro_flags=options.pop("astro_flags"),
     )
     return options
 
@@ -355,7 +355,7 @@ def produce_coeval_power_spectra(redshift, **kwargs):
     for field in COEVAL_FIELDS:
         if hasattr(coeval, field):
             p[field], k = get_power(
-                getattr(coeval, field), boxlength=coeval.user_params.BOX_LEN
+                getattr(coeval, field), boxlength=coeval.matter_params.BOX_LEN
             )
 
     return k, p, coeval
@@ -369,9 +369,9 @@ def produce_lc_power_spectra(redshift, **kwargs):
 
     # NOTE: this is here only so that we get the same answer as previous versions,
     #       which have a bug where the max_redshift gets set higher than it needs to be.
-    flag_options = options["inputs"].flag_options
-    if flag_options.INHOMO_RECO or flag_options.USE_TS_FLUCT:
-        max_redshift = options["inputs"].user_params.Z_HEAT_MAX
+    astro_flags = options["inputs"].astro_flags
+    if astro_flags.INHOMO_RECO or astro_flags.USE_TS_FLUCT:
+        max_redshift = options["inputs"].matter_params.Z_HEAT_MAX
     else:
         max_redshift = options["out_redshifts"] + 2
 
@@ -380,7 +380,7 @@ def produce_lc_power_spectra(redshift, **kwargs):
         node_redshifts=get_logspaced_redshifts(
             min_redshift=options.pop("out_redshifts"),
             max_redshift=max_redshift,
-            z_step_factor=options["inputs"].user_params.ZPRIME_STEP_FACTOR,
+            z_step_factor=options["inputs"].matter_params.ZPRIME_STEP_FACTOR,
         )
     )
 
@@ -391,11 +391,11 @@ def produce_lc_power_spectra(redshift, **kwargs):
             k
             for k in LIGHTCONE_FIELDS
             if (
-                flag_options.USE_TS_FLUCT
+                astro_flags.USE_TS_FLUCT
                 or k not in ("Ts_box", "x_e_box", "Tk_box", "J_21_LW_box")
             )
         ],
-        resolution=options["inputs"].user_params.cell_size,
+        resolution=options["inputs"].matter_params.cell_size,
     )
 
     _, _, _, lightcone = run_lightcone(
@@ -426,11 +426,11 @@ def produce_perturb_field_data(redshift, **kwargs):
 
     p_dens, k_dens = get_power(
         pt_box.density,
-        boxlength=options["user_params"]["BOX_LEN"],
+        boxlength=options["matter_params"]["BOX_LEN"],
     )
     p_vel, k_vel = get_power(
         pt_box.velocity * velocity_normalisation,
-        boxlength=options["user_params"]["BOX_LEN"],
+        boxlength=options["matter_params"]["BOX_LEN"],
     )
 
     def hist(kind, xmin, xmax, nbins):
@@ -512,9 +512,9 @@ def produce_power_spectra_for_tests(name, redshift, force, direc, **kwargs):
         for key, v in kwargs.items():
             fl.attrs[key] = v
 
-        fl.attrs["HII_DIM"] = coeval.user_params.HII_DIM
-        fl.attrs["DIM"] = coeval.user_params.DIM
-        fl.attrs["BOX_LEN"] = coeval.user_params.BOX_LEN
+        fl.attrs["HII_DIM"] = coeval.matter_params.HII_DIM
+        fl.attrs["DIM"] = coeval.matter_params.DIM
+        fl.attrs["BOX_LEN"] = coeval.matter_params.BOX_LEN
 
         coeval_grp = fl.create_group("coeval")
         coeval_grp["k"] = k
@@ -559,9 +559,9 @@ def produce_data_for_perturb_field_tests(name, redshift, force, **kwargs):
         for k, v in kwargs.items():
             fl.attrs[k] = v
 
-        fl.attrs["HII_DIM"] = init_box.user_params.HII_DIM
-        fl.attrs["DIM"] = init_box.user_params.DIM
-        fl.attrs["BOX_LEN"] = init_box.user_params.BOX_LEN
+        fl.attrs["HII_DIM"] = init_box.matter_params.HII_DIM
+        fl.attrs["DIM"] = init_box.matter_params.DIM
+        fl.attrs["BOX_LEN"] = init_box.matter_params.BOX_LEN
 
         fl["power_dens"] = p_dens
         fl["k_dens"] = k_dens

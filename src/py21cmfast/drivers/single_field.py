@@ -124,7 +124,7 @@ def determine_halo_list(
     -------
     :class:`~HaloField`
     """
-    if inputs.user_params.HMF != "ST":
+    if inputs.matter_params.HMF != "ST":
         warnings.warn(
             "DexM Halofinder sses a fit to the Sheth-Tormen mass function."
             "With HMF!=1 the Halos from DexM will not be from the same mass function",
@@ -242,7 +242,10 @@ def compute_halo_grid(
     box = HaloBox.new(redshift=redshift, inputs=inputs)
 
     if perturbed_field is None:
-        if inputs.flag_options.FIXED_HALO_GRIDS or inputs.user_params.AVG_BELOW_SAMPLER:
+        if (
+            inputs.astro_flags.FIXED_HALO_GRIDS
+            or inputs.matter_params.AVG_BELOW_SAMPLER
+        ):
             raise ValueError(
                 "You must provide the perturbed field if FIXED_HALO_GRIDS is True or AVG_BELOW_SAMPLER is True"
             )
@@ -250,7 +253,7 @@ def compute_halo_grid(
             perturbed_field = PerturbedField.dummy()
 
     elif perturbed_halo_list is None:
-        if not inputs.flag_options.FIXED_HALO_GRIDS:
+        if not inputs.astro_flags.FIXED_HALO_GRIDS:
             raise ValueError(
                 "You must provide the perturbed halo list if FIXED_HALO_GRIDS is False"
             )
@@ -263,8 +266,8 @@ def compute_halo_grid(
     # NOTE: if USE_MINI_HALOS is TRUE, so is USE_TS_FLUCT and INHOMO_RECO
     if previous_spin_temp is None:
         if (
-            redshift >= inputs.user_params.Z_HEAT_MAX
-            or not inputs.flag_options.USE_MINI_HALOS
+            redshift >= inputs.matter_params.Z_HEAT_MAX
+            or not inputs.astro_flags.USE_MINI_HALOS
         ):
             # Dummy spin temp is OK since we're above Z_HEAT_MAX
             previous_spin_temp = TsBox.dummy()
@@ -273,8 +276,8 @@ def compute_halo_grid(
 
     if previous_ionize_box is None:
         if (
-            redshift >= inputs.user_params.Z_HEAT_MAX
-            or not inputs.flag_options.USE_MINI_HALOS
+            redshift >= inputs.matter_params.Z_HEAT_MAX
+            or not inputs.astro_flags.USE_MINI_HALOS
         ):
             # Dummy ionize box is OK since we're above Z_HEAT_MAX
             previous_ionize_box = IonizedBox.dummy()
@@ -412,8 +415,8 @@ def compute_xray_source_field(
 
     # set minimum R at cell size
     l_factor = (4 * np.pi / 3.0) ** (-1 / 3)
-    R_min = inputs.user_params.BOX_LEN / inputs.user_params.HII_DIM * l_factor
-    z_max = min(max(z_halos), inputs.user_params.Z_HEAT_MAX)
+    R_min = inputs.matter_params.BOX_LEN / inputs.matter_params.HII_DIM * l_factor
+    z_max = min(max(z_halos), inputs.matter_params.Z_HEAT_MAX)
 
     # now we need to find the closest halo box to the redshift of the shell
     cosmo_ap = inputs.cosmo_params.cosmo
@@ -501,7 +504,7 @@ def compute_spin_temperature(
         The initial conditions
     perturbed_field : :class:`~PerturbField`, optional
         If given, this field will be used, otherwise it will be generated. To be generated,
-        either `initial_conditions` and `redshift` must be given, or `user_params`, `cosmo_params` and
+        either `initial_conditions` and `redshift` must be given, or `matter_params`, `cosmo_params` and
         `redshift`. By default, this will be generated at the same redshift as the spin temperature
         box. The redshift of perturb field is allowed to be different than `redshift`. If so, it
         will be interpolated to the correct redshift, which can provide a speedup compared to
@@ -519,11 +522,11 @@ def compute_spin_temperature(
     """
     redshift = perturbed_field.redshift
 
-    if redshift >= inputs.user_params.Z_HEAT_MAX:
+    if redshift >= inputs.matter_params.Z_HEAT_MAX:
         previous_spin_temp = TsBox.new(inputs=inputs, redshift=0.0, dummy=True)
 
     if xray_source_box is None:
-        if inputs.flag_options.USE_HALO_FIELD:
+        if inputs.astro_flags.USE_HALO_FIELD:
             raise ValueError("xray_source_box is required when USE_HALO_FIELD is True")
         else:
             xray_source_box = XraySourceBox.dummy()
@@ -596,7 +599,7 @@ def compute_ionization_field(
     """
     redshift = perturbed_field.redshift
 
-    if redshift >= inputs.user_params.Z_HEAT_MAX:
+    if redshift >= inputs.matter_params.Z_HEAT_MAX:
         # Previous boxes must be "initial"
         previous_ionized_box = IonizedBox.initial()
         previous_perturbed_field = PerturbedField.initial()
@@ -618,14 +621,14 @@ def compute_ionization_field(
 
     box = IonizedBox.new(inputs=inputs, redshift=redshift)
 
-    if not inputs.flag_options.USE_HALO_FIELD:
+    if not inputs.astro_flags.USE_HALO_FIELD:
         # Construct an empty halo field to pass in to the function.
         halobox = HaloBox.dummy()
     elif halobox is None:
         raise ValueError("No halo box given but USE_HALO_FIELD=True")
 
     # Set empty spin temp box if necessary.
-    if not inputs.flag_options.USE_TS_FLUCT:
+    if not inputs.astro_flags.USE_TS_FLUCT:
         spin_temp = TsBox.dummy()
     elif spin_temp is None:
         raise ValueError("No spin temperature box given but USE_TS_FLUCT=True")
@@ -668,7 +671,7 @@ def brightness_temperature(
     inputs = ionized_box.inputs
 
     if spin_temp is None:
-        if inputs.flag_options.USE_TS_FLUCT:
+        if inputs.astro_flags.USE_TS_FLUCT:
             raise ValueError(
                 "You have USE_TS_FLUCT=True, but have not provided a spin_temp!"
             )

@@ -11,10 +11,10 @@ import pytest
 import py21cmfast as p21c
 
 
-def test_lightcone(lc, default_user_params, lightcone_min_redshift, max_redshift):
+def test_lightcone(lc, default_matter_params, lightcone_min_redshift, max_redshift):
     assert lc.lightcone_redshifts[-1] >= max_redshift
     assert np.isclose(lc.lightcone_redshifts[0], lightcone_min_redshift, atol=1e-4)
-    assert lc.cell_size == default_user_params.BOX_LEN / default_user_params.HII_DIM
+    assert lc.cell_size == default_matter_params.BOX_LEN / default_matter_params.HII_DIM
 
 
 def test_lightcone_quantities(
@@ -23,7 +23,7 @@ def test_lightcone_quantities(
     lcn = p21c.RectilinearLightconer.with_equal_cdist_slices(
         min_redshift=lightcone_min_redshift,
         max_redshift=max_redshift,
-        resolution=ic.user_params.cell_size,
+        resolution=ic.matter_params.cell_size,
         cosmo=ic.cosmo_params.cosmo,
         quantities=("dNrec_box", "density", "brightness_temp", "Gamma12_box"),
     )
@@ -66,7 +66,7 @@ def test_lightcone_quantities(
     lcn_ts = p21c.RectilinearLightconer.with_equal_cdist_slices(
         min_redshift=lightcone_min_redshift,
         max_redshift=max_redshift,
-        resolution=ic.user_params.cell_size,
+        resolution=ic.matter_params.cell_size,
         cosmo=ic.cosmo_params.cosmo,
         quantities=("Ts_box", "density"),
     )
@@ -96,7 +96,7 @@ def test_lightcone_coords(lc):
     assert lc.lightcone_coords[0] == 0.0
     np.testing.assert_allclose(
         np.diff(lc.lightcone_coords.to_value("Mpc")),
-        lc.user_params.BOX_LEN / lc.user_params.HII_DIM,
+        lc.matter_params.BOX_LEN / lc.matter_params.HII_DIM,
     )
 
 
@@ -176,20 +176,20 @@ def test_lc_partial_eval(rectlcn, ic, default_input_struct_lc, tmpdirec, lc, cac
 
 
 def test_lc_lowerz_than_photon_cons(
-    ic, default_input_struct_lc, default_flag_options, max_redshift, cache
+    ic, default_input_struct_lc, default_astro_flags, max_redshift, cache
 ):
     inputs = default_input_struct_lc.clone(
         node_redshifts=p21c.get_logspaced_redshifts(
             min_redshift=1.9,
             max_redshift=max(default_input_struct_lc.node_redshifts),
-            z_step_factor=default_input_struct_lc.user_params.ZPRIME_STEP_FACTOR,
+            z_step_factor=default_input_struct_lc.matter_params.ZPRIME_STEP_FACTOR,
         ),
-        flag_options=default_flag_options.clone(PHOTON_CONS_TYPE="z-photoncons"),
+        astro_flags=default_astro_flags.clone(PHOTON_CONS_TYPE="z-photoncons"),
     )
     lcn = p21c.RectilinearLightconer.with_equal_cdist_slices(
         min_redshift=2.0,
         max_redshift=max_redshift,
-        resolution=ic.user_params.cell_size,
+        resolution=ic.matter_params.cell_size,
         cosmo=ic.cosmo_params.cosmo,
     )
 

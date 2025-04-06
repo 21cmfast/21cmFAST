@@ -8,10 +8,11 @@
 #include "OutputStructs.h"
 
 // Input debugging
-void writeFlagOptions(FlagOptions *p);
-void writeUserParams(UserParams *p);
+void writeAstroFlags(AstroFlags *p);
+void writeMatterParams(MatterParams *p);
+void writeMatterFlags(MatterFlags *p);
 void writeCosmoParams(CosmoParams *p);
-void writeAstroParams(FlagOptions *fo, AstroParams *p);
+void writeAstroParams(AstroFlags *fo, AstroParams *p);
 
 // output debugging
 void debugSummarizeIC(InitialConditions *x, int HII_DIM, int DIM, float NCF);

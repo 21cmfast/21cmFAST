@@ -3,11 +3,11 @@
 # Note that not all options are specified here. A full list of parameters for each of
 # the dictionaries can be found here: https://21cmfast.readthedocs.io/en/latest/reference/_autosummary/py21cmfast.inputs.html
 
-user_params:
+matter_params:
   BOX_LEN: 150.0
   HII_DIM: 50
 
-flag_options:
+astro_flags:
   INHOMO_RECO: false
 
 cosmo_params:

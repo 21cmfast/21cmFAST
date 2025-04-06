@@ -5,9 +5,8 @@
 #include "InputParameters.h"
 #include "OutputStructs.h"
 
-int ComputeHaloField(float redshift_desc, float redshift, UserParams *user_params,
-                     CosmoParams *cosmo_params, AstroParams *astro_params,
-                     FlagOptions *flag_options, InitialConditions *boxes,
+int ComputeHaloField(float redshift_desc, float redshift, MatterParams *matter_params,
+                     MatterFlags *matter_flags, CosmoParams *cosmo_params, InitialConditions *boxes,
                      unsigned long long int random_seed, HaloField *halos_desc, HaloField *halos);
 
 #endif

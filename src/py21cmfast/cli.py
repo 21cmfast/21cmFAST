@@ -26,11 +26,11 @@ from .io.caching import OutputCache
 from .lightcones import RectilinearLightconer
 from .wrapper._utils import camel_to_snake
 from .wrapper.inputs import (
+    AstroFlags,
     AstroParams,
     CosmoParams,
-    FlagOptions,
     InputParameters,
-    UserParams,
+    MatterParams,
     get_logspaced_redshifts,
 )
 from .wrapper.outputs import (
@@ -93,7 +93,7 @@ def _get_params_from_ctx(ctx, cfg):
     ctx = _ctx_to_dct(ctx.args)
     params = {}
 
-    for kls in (UserParams, CosmoParams, AstroParams, FlagOptions):
+    for kls in (MatterParams, CosmoParams, AstroParams, AstroFlags):
         fieldnames = [field.name for field in attrs.fields(kls)]
         klsname = camel_to_snake(kls.__name__)
 
@@ -105,9 +105,9 @@ def _get_params_from_ctx(ctx, cfg):
         # assign to a parameter dict, prioritising arguments > config > defaults
         params[klsname] = {**cfg.get(klsname, {}), **ctx_params}
 
-    user_params = UserParams.new(params["user_params"])
+    matter_params = MatterParams.new(params["matter_params"])
     cosmo_params = CosmoParams.new(params["cosmo_params"])
-    flag_options = FlagOptions.new(params["flag_options"])
+    astro_flags = AstroFlags.new(params["astro_flags"])
     astro_params = AstroParams.new(params["astro_params"])
 
     if ctx:
@@ -115,7 +115,7 @@ def _get_params_from_ctx(ctx, cfg):
             f"The following arguments were not able to be set: {ctx}", stacklevel=2
         )
 
-    return user_params, cosmo_params, astro_params, flag_options
+    return matter_params, cosmo_params, astro_params, astro_flags
 
 
 main = click.Group()
@@ -169,16 +169,16 @@ def init(ctx, config, regen, direc, seed):
     """
     cfg = _get_config(config)
     # Set user/cosmo params from config.
-    user_params, cosmo_params, astro_params, flag_options = _get_params_from_ctx(
+    matter_params, cosmo_params, astro_params, astro_flags = _get_params_from_ctx(
         ctx, cfg
     )
 
     inputs = InputParameters(
         random_seed=seed,
-        user_params=user_params,
+        matter_params=matter_params,
         cosmo_params=cosmo_params,
         astro_params=astro_params,
-        flag_options=flag_options,
+        astro_flags=astro_flags,
         node_redshifts=[],
     )
 
@@ -241,16 +241,16 @@ def perturb(ctx, redshift, config, regen, direc, seed):
     """
     cfg = _get_config(config)
     # Set user/cosmo params from config.
-    user_params, cosmo_params, astro_params, flag_options = _get_params_from_ctx(
+    matter_params, cosmo_params, astro_params, astro_flags = _get_params_from_ctx(
         ctx, cfg
     )
 
     inputs = InputParameters(
         random_seed=seed,
-        user_params=user_params,
+        matter_params=matter_params,
         cosmo_params=cosmo_params,
         astro_params=astro_params,
-        flag_options=flag_options,
+        astro_flags=astro_flags,
         node_redshifts=[],
     )
     ics = InitialConditions(inputs=inputs)
@@ -329,15 +329,15 @@ def spin(ctx, redshift, prev_z, config, regen, direc, seed):
     cfg = _get_config(config)
 
     # Set params from config
-    user_params, cosmo_params, astro_params, flag_options = _get_params_from_ctx(
+    matter_params, cosmo_params, astro_params, astro_flags = _get_params_from_ctx(
         ctx, cfg
     )
     inputs = InputParameters(
         random_seed=seed,
-        user_params=user_params,
+        matter_params=matter_params,
         cosmo_params=cosmo_params,
         astro_params=astro_params,
-        flag_options=flag_options,
+        astro_flags=astro_flags,
         node_redshifts=[],
     )
     ics = InitialConditions(inputs=inputs)
@@ -419,13 +419,13 @@ def ionize(ctx, redshift, prev_z, config, regen, direc, seed):
     cfg = _get_config(config)
 
     # Set params from config
-    user_params, cosmo_params, astro_params, flag_options = _get_params_from_ctx(
+    matter_params, cosmo_params, astro_params, astro_flags = _get_params_from_ctx(
         ctx, cfg
     )
     if (
-        flag_options.USE_TS_FLUCT
-        or flag_options.INHOMO_RECO
-        or flag_options.HALO_STOCHASTICITY
+        astro_flags.USE_TS_FLUCT
+        or astro_flags.INHOMO_RECO
+        or astro_flags.HALO_STOCHASTICITY
     ):
         raise NotImplementedError(
             "Ionized box with any of (USE_TS_FLUCT,INHOMO_RECO,HALO_STOCHASTICITY)"
@@ -435,10 +435,10 @@ def ionize(ctx, redshift, prev_z, config, regen, direc, seed):
 
     inputs = InputParameters(
         random_seed=seed,
-        user_params=user_params,
+        matter_params=matter_params,
         cosmo_params=cosmo_params,
         astro_params=astro_params,
-        flag_options=flag_options,
+        astro_flags=astro_flags,
         node_redshifts=[],
     )
 
@@ -535,15 +535,15 @@ def coeval(ctx, redshift, config, out, regen, cache_dir, seed):
     cfg = _get_config(config)
 
     # Set params from config
-    user_params, cosmo_params, astro_params, flag_options = _get_params_from_ctx(
+    matter_params, cosmo_params, astro_params, astro_flags = _get_params_from_ctx(
         ctx, cfg
     )
 
     inputs = InputParameters(
         cosmo_params=cosmo_params,
-        user_params=user_params,
+        matter_params=matter_params,
         astro_params=astro_params,
-        flag_options=flag_options,
+        astro_flags=astro_flags,
         random_seed=seed,
     )
 
@@ -649,20 +649,20 @@ def lightcone(ctx, redshift, config, out, regen, direc, max_z, seed, lq):
             out.parent.mkdir()
 
     # Set params from config
-    user_params, cosmo_params, astro_params, flag_options = _get_params_from_ctx(
+    matter_params, cosmo_params, astro_params, astro_flags = _get_params_from_ctx(
         ctx, cfg
     )
 
     inputs = InputParameters(
         cosmo_params=cosmo_params,
-        user_params=user_params,
+        matter_params=matter_params,
         astro_params=astro_params,
-        flag_options=flag_options,
+        astro_flags=astro_flags,
         random_seed=seed,
         node_redshifts=get_logspaced_redshifts(
             min_redshift=redshift,
             max_redshift=max_z,
-            z_step_factor=user_params.ZPRIME_STEP_FACTOR,
+            z_step_factor=matter_params.ZPRIME_STEP_FACTOR,
         ),
     )
 
@@ -670,7 +670,7 @@ def lightcone(ctx, redshift, config, out, regen, direc, max_z, seed, lq):
     lcn = RectilinearLightconer.with_equal_cdist_slices(
         min_redshift=redshift,
         max_redshift=max_z,
-        resolution=user_params.cell_size,
+        resolution=matter_params.cell_size,
         cosmo=cosmo_params.cosmo,
         quantities=lq,
     )
@@ -696,8 +696,8 @@ def lightcone(ctx, redshift, config, out, regen, direc, max_z, seed, lq):
 @click.option(
     "-s",
     "--struct",
-    type=click.Choice(["flag_options", "cosmo_params", "user_params", "astro_params"]),
-    default="flag_options",
+    type=click.Choice(["astro_flags", "cosmo_params", "matter_params", "astro_params"]),
+    default="astro_flags",
     help="struct in which the new feature exists",
 )
 @click.option(
@@ -780,8 +780,8 @@ def pr_feature(
     value = getattr(builtins, vtype)(value)
 
     structs = {
-        "user_params": {"HII_DIM": 128, "BOX_LEN": 250},
-        "flag_options": {"USE_TS_FLUCT": True},
+        "matter_params": {"HII_DIM": 128, "BOX_LEN": 250},
+        "astro_flags": {"USE_TS_FLUCT": True},
         "cosmo_params": {},
         "astro_params": {},
     }

@@ -4,7 +4,8 @@
 #include "InputParameters.h"
 #include "OutputStructs.h"
 
-int ComputePerturbField(float redshift, UserParams *user_params, CosmoParams *cosmo_params,
-                        InitialConditions *boxes, PerturbedField *perturbed_field);
+int ComputePerturbField(float redshift, MatterParams *matter_params, MatterFlags *matter_flags,
+                        CosmoParams *cosmo_params, InitialConditions *boxes,
+                        PerturbedField *perturbed_field);
 
 #endif

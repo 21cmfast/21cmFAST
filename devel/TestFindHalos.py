@@ -1,10 +1,10 @@
 """Quick test of finding halos."""
 
 from py21cmfast import (
+    AstroFlags,
     AstroParams,
     CosmoParams,
-    FlagOptions,
-    UserParams,
+    MatterParams,
     determine_halo_list,
     initial_conditions,
     perturb_field,
@@ -12,7 +12,7 @@ from py21cmfast import (
 from py21cmfast.c_21cmfast import ffi, lib
 from py21cmfast.wrapper._utils import StructInstanceWrapper
 
-user_params = UserParams(
+matter_params = MatterParams(
     DIM=150,
     HII_DIM=50,
     BOX_LEN=150.0,
@@ -23,7 +23,7 @@ user_params = UserParams(
     PERTURB_ON_HIGH_RES=True,
 )
 
-flag_options = FlagOptions(
+astro_flags = AstroFlags(
     USE_MASS_DEPENDENT_ZETA=True,
     USE_TS_FLUCT=False,
     INHOMO_RECO=False,
@@ -53,7 +53,7 @@ if __name__ == "__main__":
     )
 
     init_box = initial_conditions(
-        user_params=user_params,
+        matter_params=matter_params,
         cosmo_params=cosmo_params,
         random_seed=random_seed,
         regenerate=True,
@@ -65,17 +65,17 @@ if __name__ == "__main__":
     pt_box = perturb_field(
         redshift=redshift,
         init_boxes=init_box,
-        user_params=user_params,
+        matter_params=matter_params,
         cosmo_params=cosmo_params,
     )
 
     halos = determine_halo_list(
         redshift=redshift,
         init_boxes=init_box,
-        user_params=user_params,
+        matter_params=matter_params,
         cosmo_params=cosmo_params,
         astro_params=astro_params,
-        flag_options=flag_options,
+        astro_flags=astro_flags,
         regenerate=True,
         write=False,
         OPTIMIZE=False,

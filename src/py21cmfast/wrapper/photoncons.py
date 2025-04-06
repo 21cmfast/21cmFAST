@@ -57,7 +57,7 @@ from scipy.optimize import curve_fit
 
 from ..c_21cmfast import ffi, lib
 from ._utils import _process_exitcode
-from .inputs import AstroParams, CosmoParams, FlagOptions, InputParameters, UserParams
+from .inputs import AstroFlags, AstroParams, CosmoParams, InputParameters, MatterParams
 from .outputs import InitialConditions
 
 logger = logging.getLogger(__name__)
@@ -85,21 +85,21 @@ _photoncons_state = _PhotonConservationState()
 
 
 def _init_photon_conservation_correction(
-    *, user_params=None, cosmo_params=None, astro_params=None, flag_options=None
+    *, matter_params=None, cosmo_params=None, astro_params=None, astro_flags=None
 ):
     # This function calculates the global expected evolution of reionisation and saves
     #   it to C global arrays z_Q and Q_value (as well as other non-global confusingly named arrays),
     #   and constructs a GSL interpolator z_at_Q_spline
-    user_params = UserParams.new(user_params)
+    matter_params = MatterParams.new(matter_params)
     cosmo_params = CosmoParams.new(cosmo_params)
-    flag_options = FlagOptions.new(flag_options)
+    astro_flags = AstroFlags.new(astro_flags)
     astro_params = AstroParams.new(astro_params)
 
     return lib.InitialisePhotonCons(
-        user_params.cstruct,
+        matter_params.cstruct,
         cosmo_params.cstruct,
         astro_params.cstruct,
-        flag_options.cstruct,
+        astro_flags.cstruct,
     )
 
 
@@ -131,7 +131,7 @@ def _get_photon_nonconservation_data() -> dict:
     """
     Access C global data representing the photon-nonconservation corrections.
 
-    .. note::  if not using ``PHOTON_CONS`` (in :class:`~FlagOptions`), *or* if the
+    .. note::  if not using ``PHOTON_CONS`` (in :class:`~AstroFlags`), *or* if the
                initialisation for photon conservation has not been performed yet, this
                will return None.
 
@@ -239,7 +239,7 @@ def setup_photon_cons(
     if inputs is None:
         inputs = initial_conditions.inputs
 
-    if inputs.flag_options.PHOTON_CONS_TYPE == "no-photoncons":
+    if inputs.astro_flags.PHOTON_CONS_TYPE == "no-photoncons":
         return {}
 
     from ..drivers._param_config import check_consistency_of_outputs_with_inputs
@@ -255,23 +255,23 @@ def setup_photon_cons(
     _photoncons_state.calibration_inputs = inputs
 
     # The PHOTON_CONS_TYPE == 1 case is handled in C (for now....), but we get the data anyway
-    if inputs.flag_options.PHOTON_CONS_TYPE == "z-photoncons":
+    if inputs.astro_flags.PHOTON_CONS_TYPE == "z-photoncons":
         photoncons_data = _get_photon_nonconservation_data()
 
-    if inputs.flag_options.PHOTON_CONS_TYPE == "alpha-photoncons":
+    if inputs.astro_flags.PHOTON_CONS_TYPE == "alpha-photoncons":
         photoncons_data = photoncons_alpha(
             inputs.cosmo_params,
-            inputs.user_params,
+            inputs.matter_params,
             inputs.astro_params,
-            inputs.flag_options,
+            inputs.astro_flags,
         )
 
-    if inputs.flag_options.PHOTON_CONS_TYPE == "f-photoncons":
+    if inputs.astro_flags.PHOTON_CONS_TYPE == "f-photoncons":
         photoncons_data = photoncons_fesc(
             inputs.cosmo_params,
-            inputs.user_params,
+            inputs.matter_params,
             inputs.astro_params,
-            inputs.flag_options,
+            inputs.astro_flags,
         )
 
     return photoncons_data
@@ -299,7 +299,7 @@ def calibrate_photon_cons(
     # avoiding circular imports by importing here
     from ..drivers.single_field import compute_ionization_field, perturb_field
 
-    # Create a new astro_params and flag_options just for the photon_cons correction
+    # Create a new astro_params and astro_flags just for the photon_cons correction
     # NOTE: Since the calibration cannot do INHOMO_RECO, we set the R_BUBBLE_MAX
     #   to the default w/o recombinations ONLY when the original box has INHOMO_RECO enabled.
     # TODO: figure out if it's possible to find a "closest" Rmax, since the correction fails when
@@ -312,7 +312,7 @@ def calibrate_photon_cons(
         HALO_STOCHASTICITY=False,
         PHOTON_CONS_TYPE="no-photoncons",
         R_BUBBLE_MAX=(
-            15 if inputs.flag_options.INHOMO_RECO else inputs.astro_params.R_BUBBLE_MAX
+            15 if inputs.astro_flags.INHOMO_RECO else inputs.astro_params.R_BUBBLE_MAX
         ),
     )
     ib = None
@@ -324,18 +324,18 @@ def calibrate_photon_cons(
     # Initialise the analytic expression for the reionisation history
     logger.info("About to start photon conservation correction")
     _init_photon_conservation_correction(
-        user_params=inputs.user_params,
+        matter_params=inputs.matter_params,
         cosmo_params=inputs.cosmo_params,
         astro_params=inputs.astro_params,
-        flag_options=inputs.flag_options,
+        astro_flags=inputs.astro_flags,
     )
     # Initialise the analytic expression for the reionisation history
     logger.info("About to start photon conservation correction")
     _init_photon_conservation_correction(
-        user_params=inputs.user_params,
+        matter_params=inputs.matter_params,
         cosmo_params=inputs.cosmo_params,
         astro_params=inputs.astro_params,
-        flag_options=inputs.flag_options,
+        astro_flags=inputs.astro_flags,
     )
 
     # Determine the starting redshift to start scrolling through to create the
@@ -382,7 +382,7 @@ def calibrate_photon_cons(
             z -= 0.5
 
         ib = ib2
-        if inputs.flag_options.USE_MINI_HALOS:
+        if inputs.astro_flags.USE_MINI_HALOS:
             prev_perturb = this_perturb
 
         fast_node_redshifts.append(z)
@@ -401,15 +401,15 @@ def calibrate_photon_cons(
 
 # (Jdavies): I needed a function to access the delta z from the wrapper
 # get_photoncons_data does not have the edge cases that adjust_redshifts_for_photoncons does
-def get_photoncons_dz(user_params, astro_params, flag_options, redshift):
+def get_photoncons_dz(matter_params, astro_params, astro_flags, redshift):
     """Access the delta z arrays from the photon conservation model in C."""
     deltaz = np.zeros(1).astype("f4")
     redshift_pc_in = np.array([redshift]).astype("f4")
     stored_redshift_pc_in = np.array([redshift]).astype("f4")
     lib.adjust_redshifts_for_photoncons(
-        user_params.cstruct,
+        matter_params.cstruct,
         astro_params.cstruct,
-        flag_options.cstruct,
+        astro_flags.cstruct,
         ffi.cast("float *", redshift_pc_in.ctypes.data),
         ffi.cast("float *", stored_redshift_pc_in.ctypes.data),
         ffi.cast("float *", deltaz.ctypes.data),
@@ -430,7 +430,7 @@ def alpha_func(Q, a_const, a_slope):
 # Q vs z curves for different ALPHA_STAR, and then finding the aloha star which has the inverse ratio
 # with the reference analytic as the calibration
 # TODO: don't rely on the photoncons functions since they do a bunch of other stuff in C
-def photoncons_alpha(cosmo_params, user_params, astro_params, flag_options):
+def photoncons_alpha(cosmo_params, matter_params, astro_params, astro_flags):
     """Run the Simpler photons conservation model using ALPHA_ESC.
 
     This adjusts the slope of the escape fraction instead of redshifts to match a global
@@ -468,10 +468,10 @@ def photoncons_alpha(cosmo_params, user_params, astro_params, flag_options):
         # TODO: use ffi to free them?
         #       This will be fixed by moving the photoncons to python
         _init_photon_conservation_correction(
-            user_params=user_params,
+            matter_params=matter_params,
             cosmo_params=cosmo_params,
             astro_params=astro_params_photoncons,
-            flag_options=flag_options,
+            astro_flags=astro_flags,
         )
 
         # save it
@@ -604,7 +604,7 @@ def photoncons_alpha(cosmo_params, user_params, astro_params, flag_options):
     return results
 
 
-def photoncons_fesc(cosmo_params, user_params, astro_params, flag_options):
+def photoncons_fesc(cosmo_params, matter_params, astro_params, astro_flags):
     """Run the Even Simpler photon conservation model using F_ESC10.
 
     Adjusts the normalisation of the escape fraction to match a global evolution.

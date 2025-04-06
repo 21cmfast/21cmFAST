@@ -39,9 +39,11 @@ double *lnMhalo_param, *Muv_param, *Mhalo_param;
 double *log10phi, *M_uv_z, *M_h_z;
 double *deriv, *lnM_temp, *deriv_temp;
 
-int initialise_ComputeLF(int nbins, UserParams *user_params, CosmoParams *cosmo_params,
-                         AstroParams *astro_params, FlagOptions *flag_options) {
-    Broadcast_struct_global_all(user_params, cosmo_params, astro_params, flag_options);
+int initialise_ComputeLF(int nbins, MatterParams *matter_params, MatterFlags *matter_flags,
+                         CosmoParams *cosmo_params, AstroParams *astro_params,
+                         AstroFlags *astro_flags) {
+    Broadcast_struct_global_all(matter_params, matter_flags, cosmo_params, astro_params,
+                                astro_flags);
 
     lnMhalo_param = calloc(nbins, sizeof(double));
     Muv_param = calloc(nbins, sizeof(double));
@@ -73,18 +75,19 @@ void cleanup_ComputeLF() {
     initialised_ComputeLF = 0;
 }
 
-int ComputeLF(int nbins, UserParams *user_params, CosmoParams *cosmo_params,
-              AstroParams *astro_params, FlagOptions *flag_options, int component,
-              int NUM_OF_REDSHIFT_FOR_LF, float *z_LF, float *M_TURNs, double *M_uv_z,
-              double *M_h_z, double *log10phi) {
+int ComputeLF(int nbins, MatterParams *matter_params, MatterFlags *matter_flags,
+              CosmoParams *cosmo_params, AstroParams *astro_params, AstroFlags *astro_flags,
+              int component, int NUM_OF_REDSHIFT_FOR_LF, float *z_LF, float *M_TURNs,
+              double *M_uv_z, double *M_h_z, double *log10phi) {
     /*
         This is an API-level function and thus returns an int status.
     */
     int status;
     Try {  // This try block covers the whole function.
         // This NEEDS to be done every time, because the actual object passed in as
-        // user_params, cosmo_params etc. can change on each call, freeing up the memory.
-        initialise_ComputeLF(nbins, user_params, cosmo_params, astro_params, flag_options);
+        // matter_params, cosmo_params etc. can change on each call, freeing up the memory.
+        initialise_ComputeLF(nbins, matter_params, matter_flags, cosmo_params, astro_params,
+                             astro_flags);
 
         int i, i_z;
         int i_unity, i_smth, mf, nbins_smth = 7;
@@ -103,7 +106,7 @@ int ComputeLF(int nbins, UserParams *user_params, CosmoParams *cosmo_params,
                 "ALPHA_STAR > -0.5.",
                 astro_params->ALPHA_STAR);
 
-        mf = user_params->HMF;
+        mf = matter_flags->HMF;
 
         lnMhalo_min = log(Mhalo_min * 0.999);
         lnMhalo_max = log(Mhalo_max * 1.001);

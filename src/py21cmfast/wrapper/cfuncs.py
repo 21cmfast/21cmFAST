@@ -13,7 +13,7 @@ from scipy.interpolate import interp1d
 from .._cfg import config
 from ..c_21cmfast import ffi, lib
 from ._utils import _process_exitcode
-from .inputs import AstroParams, CosmoParams, FlagOptions, InputParameters, UserParams
+from .inputs import AstroFlags, AstroParams, CosmoParams, InputParameters, MatterParams
 from .outputs import InitialConditions, PerturbHaloField
 
 logger = logging.getLogger(__name__)
@@ -33,10 +33,10 @@ def broadcast_params(func: Callable) -> Callable:
 
     def wrapper(*args, inputs: InputParameters, **kwargs):
         lib.Broadcast_struct_global_all(
-            inputs.user_params.cstruct,
+            inputs.matter_params.cstruct,
             inputs.cosmo_params.cstruct,
             inputs.astro_params.cstruct,
-            inputs.flag_options.cstruct,
+            inputs.astro_flags.cstruct,
         )
         return func(*args, inputs=inputs, **kwargs)
 
@@ -69,7 +69,7 @@ def init_sigma_table(func: Callable) -> Callable:
     def wrapper(*args, inputs: InputParameters, **kwargs):
         sigma_min_mass = kwargs.get("M_min", 1e5)
         sigma_max_mass = kwargs.get("M_max", 1e16)
-        if inputs.user_params.USE_INTERPOLATION_TABLES != "no-interpolation":
+        if inputs.matter_params.USE_INTERPOLATION_TABLES != "no-interpolation":
             lib.initialiseSigmaMInterpTable(sigma_min_mass, sigma_max_mass)
         return func(*args, inputs=inputs, **kwargs)
 
@@ -87,8 +87,8 @@ def init_gl(func: Callable) -> Callable:
     @init_sigma_table
     def wrapper(*args, inputs: InputParameters, **kwargs):
         if "GAUSS-LEGENDRE" in (
-            inputs.user_params.INTEGRATION_METHOD_ATOMIC,
-            inputs.user_params.INTEGRATION_METHOD_MINI,
+            inputs.matter_params.INTEGRATION_METHOD_ATOMIC,
+            inputs.matter_params.INTEGRATION_METHOD_MINI,
         ):
             # no defualt since GL mass limits are strict
             lib.initialise_GL(np.log(kwargs.get("M_min")), np.log(kwargs.get("M_max")))
@@ -108,13 +108,13 @@ def get_expected_nhalo(
     ----------
     redshift : float
         The redshift at which to calculate the halo list.
-    user_params : :class:`~UserParams`
+    matter_params : :class:`~MatterParams`
         User params defining the box size and resolution.
     cosmo_params : :class:`~CosmoParams`
         Cosmological parameters.
     """
     return lib.expected_nhalo(
-        redshift, inputs.user_params.cstruct, inputs.cosmo_params.cstruct
+        redshift, inputs.matter_params.cstruct, inputs.cosmo_params.cstruct
     )
 
 
@@ -130,7 +130,7 @@ def get_halo_list_buffer_size(
     ----------
     redshift : float
         The redshift at which to calculate the halo list.
-    user_params : :class:`~UserParams`
+    matter_params : :class:`~MatterParams`
         User params defining the box size and resolution.
     cosmo_params : :class:`~CosmoParams`
         Cosmological parameters.
@@ -191,7 +191,7 @@ def compute_tau(
 
     # Run the C code
     return lib.ComputeTau(
-        inputs.user_params.cstruct,
+        inputs.matter_params.cstruct,
         inputs.cosmo_params.cstruct,
         len(redshifts),
         z,
@@ -238,13 +238,13 @@ def compute_luminosity_function(
         Number density of haloes corresponding to each bin defined by `Muvfunc`.
         Shape [nredshifts, nbins].
     """
-    user_params = inputs.user_params
+    matter_params = inputs.matter_params
     cosmo_params = inputs.cosmo_params
-    flag_options = inputs.flag_options
+    astro_flags = inputs.astro_flags
     astro_params = inputs.astro_params
 
     redshifts = np.array(redshifts, dtype="float32")
-    if flag_options.USE_MINI_HALOS:
+    if astro_flags.USE_MINI_HALOS:
         if component in ["both", "acg"]:
             if mturnovers is None:
                 raise ValueError(
@@ -306,10 +306,10 @@ def compute_luminosity_function(
         # Run the C code
         errcode = lib.ComputeLF(
             nbins,
-            user_params.cstruct,
+            matter_params.cstruct,
             cosmo_params.cstruct,
             astro_params.cstruct,
-            flag_options.cstruct,
+            astro_flags.cstruct,
             1,
             len(redshifts),
             ffi.cast("float *", ffi.from_buffer(redshifts)),
@@ -324,10 +324,10 @@ def compute_luminosity_function(
             lib.ComputeLF,
             (
                 nbins,
-                user_params.cstruct,
+                matter_params.cstruct,
                 cosmo_params.cstruct,
                 astro_params.cstruct,
-                flag_options.cstruct,
+                astro_flags.cstruct,
                 1,
                 len(redshifts),
             ),
@@ -337,10 +337,10 @@ def compute_luminosity_function(
         # Run the C code
         errcode = lib.ComputeLF(
             nbins,
-            user_params.cstruct,
+            matter_params.cstruct,
             cosmo_params.cstruct,
             astro_params.cstruct,
-            flag_options.cstruct,
+            astro_flags.cstruct,
             2,
             len(redshifts),
             ffi.cast("float *", ffi.from_buffer(redshifts)),
@@ -355,10 +355,10 @@ def compute_luminosity_function(
             lib.ComputeLF,
             (
                 nbins,
-                user_params.cstruct,
+                matter_params.cstruct,
                 cosmo_params.cstruct,
                 astro_params.cstruct,
-                flag_options.cstruct,
+                astro_flags.cstruct,
                 2,
                 len(redshifts),
             ),
@@ -421,23 +421,23 @@ def compute_luminosity_function(
 @cache
 def construct_fftw_wisdoms(
     *,
-    user_params: UserParams | dict | None = None,
+    matter_params: MatterParams | dict | None = None,
     cosmo_params: CosmoParams | dict | None = None,
 ) -> int:
     """Construct all necessary FFTW wisdoms.
 
     Parameters
     ----------
-    user_params : :class:`~inputs.UserParams`
+    matter_params : :class:`~inputs.MatterParams`
         Parameters defining the simulation run.
 
     """
-    user_params = UserParams.new(user_params)
+    matter_params = MatterParams.new(matter_params)
     cosmo_params = CosmoParams.new(cosmo_params)
 
     # Run the C code
-    if user_params.USE_FFTW_WISDOM:
-        return lib.CreateFFTWWisdoms(user_params.cstruct, cosmo_params.cstruct)
+    if matter_params.USE_FFTW_WISDOM:
+        return lib.CreateFFTWWisdoms(matter_params.cstruct, cosmo_params.cstruct)
     else:
         return 0
 
@@ -466,7 +466,7 @@ def evaluate_sigma(
     dsigmasq = np.zeros_like(masses)
 
     lib.get_sigma(
-        inputs.user_params.cstruct,
+        inputs.matter_params.cstruct,
         inputs.cosmo_params.cstruct,
         masses.size,
         ffi.cast("double *", ffi.from_buffer(masses)),
@@ -498,7 +498,7 @@ def get_condition_mass(inputs: InputParameters, R: float):
         * inputs.cosmo_params.OMm
     )
     if R == "cell":
-        volume = (inputs.user_params.BOX_LEN / inputs.user_params.HII_DIM) ** 3
+        volume = (inputs.matter_params.BOX_LEN / inputs.matter_params.HII_DIM) ** 3
     else:
         volume = 4.0 / 3.0 * np.pi * R**3
 
@@ -510,13 +510,13 @@ def get_delta_crit(inputs: InputParameters, mass: float, redshift: float):
     sigma, _ = evaluate_sigma(inputs, np.array([mass]))
     # evaluate_sigma already broadcasts the paramters so we don't need to repeat
     growth = get_growth_factor(inputs=inputs, redshift=redshift)
-    return get_delta_crit_nu(inputs.user_params, sigma, growth)
+    return get_delta_crit_nu(inputs.matter_params, sigma, growth)
 
 
-def get_delta_crit_nu(user_params: UserParams, sigma: float, growth: float):
+def get_delta_crit_nu(matter_params: MatterParams, sigma: float, growth: float):
     """Get the critical density from sigma and growth factor."""
     # None of the parameter structs are used in this function so we don't need a broadcast
-    return lib.get_delta_crit(user_params.cdict["HMF"], sigma, growth)
+    return lib.get_delta_crit(matter_params.cdict["HMF"], sigma, growth)
 
 
 def evaluate_condition_integrals(
@@ -536,10 +536,10 @@ def evaluate_condition_integrals(
     m_coll = np.zeros_like(cond_array)
 
     lib.get_condition_integrals(
-        inputs.user_params.cstruct,
+        inputs.matter_params.cstruct,
         inputs.cosmo_params.cstruct,
         inputs.astro_params.cstruct,
-        inputs.flag_options.cstruct,
+        inputs.astro_flags.cstruct,
         redshift,
         redshift_prev if redshift_prev is not None else -1,
         cond_array.size,
@@ -570,10 +570,10 @@ def integrate_chmf_interval(
     lnm_upper = lnm_upper.astype("f8")
 
     lib.get_halo_chmf_interval(
-        inputs.user_params.cstruct,
+        inputs.matter_params.cstruct,
         inputs.cosmo_params.cstruct,
         inputs.astro_params.cstruct,
-        inputs.flag_options.cstruct,
+        inputs.astro_flags.cstruct,
         redshift,
         redshift_prev if redshift_prev is not None else -1,
         len(cond_values),
@@ -609,10 +609,10 @@ def evaluate_inverse_table(
     masses = np.zeros_like(cond_array)
 
     lib.get_halomass_at_probability(
-        inputs.user_params.cstruct,
+        inputs.matter_params.cstruct,
         inputs.cosmo_params.cstruct,
         inputs.astro_params.cstruct,
-        inputs.flag_options.cstruct,
+        inputs.astro_flags.cstruct,
         redshift,
         redshift_prev,
         cond_array.size,
@@ -636,10 +636,10 @@ def evaluate_FgtrM_cond(
     dfcoll = np.zeros_like(densities)
 
     lib.get_conditional_FgtrM(
-        inputs.user_params.cstruct,
+        inputs.matter_params.cstruct,
         inputs.cosmo_params.cstruct,
         inputs.astro_params.cstruct,
-        inputs.flag_options.cstruct,
+        inputs.astro_flags.cstruct,
         redshift,
         R,
         densities.size,
@@ -669,10 +669,10 @@ def evaluate_SFRD_z(
     sfrd_mini = np.zeros_like(redshifts)
 
     lib.get_global_SFRD_z(
-        inputs.user_params.cstruct,
+        inputs.matter_params.cstruct,
         inputs.cosmo_params.cstruct,
         inputs.astro_params.cstruct,
-        inputs.flag_options.cstruct,
+        inputs.astro_flags.cstruct,
         redshifts.size,
         ffi.cast("double *", ffi.from_buffer(redshifts)),
         ffi.cast("double *", ffi.from_buffer(log10mturns)),
@@ -702,10 +702,10 @@ def evaluate_Nion_z(
     nion_mini = np.zeros_like(redshifts)
 
     lib.get_global_Nion_z(
-        inputs.user_params.cstruct,
+        inputs.matter_params.cstruct,
         inputs.cosmo_params.cstruct,
         inputs.astro_params.cstruct,
-        inputs.flag_options.cstruct,
+        inputs.astro_flags.cstruct,
         redshifts.size,
         ffi.cast("double *", ffi.from_buffer(redshifts)),
         ffi.cast("double *", ffi.from_buffer(log10mturns)),
@@ -736,10 +736,10 @@ def evaluate_SFRD_cond(
     sfrd_mini = np.zeros_like(densities)
 
     lib.get_conditional_SFRD(
-        inputs.user_params.cstruct,
+        inputs.matter_params.cstruct,
         inputs.cosmo_params.cstruct,
         inputs.astro_params.cstruct,
-        inputs.flag_options.cstruct,
+        inputs.astro_flags.cstruct,
         redshift,
         radius,
         densities.size,
@@ -774,10 +774,10 @@ def evaluate_Nion_cond(
     nion_mini = np.zeros_like(densities)
 
     lib.get_conditional_Nion(
-        inputs.user_params.cstruct,
+        inputs.matter_params.cstruct,
         inputs.cosmo_params.cstruct,
         inputs.astro_params.cstruct,
-        inputs.flag_options.cstruct,
+        inputs.astro_flags.cstruct,
         redshift,
         radius,
         densities.size,
@@ -811,10 +811,10 @@ def evaluate_Xray_cond(
     xray = np.zeros_like(densities)
 
     lib.get_conditional_Xray(
-        inputs.user_params.cstruct,
+        inputs.matter_params.cstruct,
         inputs.cosmo_params.cstruct,
         inputs.astro_params.cstruct,
-        inputs.flag_options.cstruct,
+        inputs.astro_flags.cstruct,
         redshift,
         radius,
         densities.size,
@@ -853,10 +853,10 @@ def sample_halos_from_conditions(
     halocrd_out = np.zeros(int(3 * buffer_size)).astype("i4")
 
     lib.single_test_sample(
-        inputs.user_params.cstruct,
+        inputs.matter_params.cstruct,
         inputs.cosmo_params.cstruct,
         inputs.astro_params.cstruct,
-        inputs.flag_options.cstruct,
+        inputs.astro_flags.cstruct,
         inputs.random_seed,
         n_cond,
         ffi.cast("float *", cond_array.ctypes.data),
@@ -921,7 +921,7 @@ def convert_halo_properties(
 
     n_halos = halo_masses.size
     out_buffer = np.zeros((n_halos, 12), dtype="f4")
-    lo_dim = (inputs.user_params.HII_DIM,) * 3
+    lo_dim = (inputs.matter_params.HII_DIM,) * 3
 
     if halo_coords is None:
         halo_coords = np.zeros(3 * n_halos)
@@ -947,10 +947,10 @@ def convert_halo_properties(
 
     lib.test_halo_props(
         redshift,
-        inputs.user_params.cstruct,
+        inputs.matter_params.cstruct,
         inputs.cosmo_params.cstruct,
         inputs.astro_params.cstruct,
-        inputs.flag_options.cstruct,
+        inputs.astro_flags.cstruct,
         ffi.cast("float *", vcb_grid.ctypes.data),
         ffi.cast("float *", J_21_LW_grid.ctypes.data),
         ffi.cast("float *", z_re_grid.ctypes.data),
@@ -1002,7 +1002,7 @@ def return_uhmf_value(
     """
     growthf = lib.dicke(redshift)
     return np.vectorize(lib.unconditional_hmf)(
-        growthf, np.log(mass_values), redshift, inputs.user_params.cdict["HMF"]
+        growthf, np.log(mass_values), redshift, inputs.matter_params.cdict["HMF"]
     )
 
 
@@ -1038,5 +1038,5 @@ def return_chmf_value(
         np.log(mass_values[None, None, :]),
         delta_values[:, None, None],
         sigma[None, :, None],
-        inputs.user_params.cdict["HMF"],
+        inputs.matter_params.cdict["HMF"],
     )

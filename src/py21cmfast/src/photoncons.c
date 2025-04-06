@@ -71,15 +71,17 @@ static double PhotonConsAsymptoteTo = 0.01;  // Final HI fraction for the photon
 
 //   Set up interpolation table for the volume filling factor, Q, at a given redshift z and redshift
 //   at a given Q.
-int InitialisePhotonCons(UserParams *user_params, CosmoParams *cosmo_params,
-                         AstroParams *astro_params, FlagOptions *flag_options) {
+int InitialisePhotonCons(MatterParams *matter_params, MatterFlags *matter_flags,
+                         CosmoParams *cosmo_params, AstroParams *astro_params,
+                         AstroFlags *astro_flags) {
     /*
         This is an API-level function for initialising the photon conservation.
     */
 
     int status;
     Try {  // this try wraps the whole function.
-        Broadcast_struct_global_all(user_params, cosmo_params, astro_params, flag_options);
+        Broadcast_struct_global_all(matter_params, matter_flags, cosmo_params, astro_params,
+                                    astro_flags);
         init_ps();
         //     To solve differentail equation, uses Euler's method.
         //     NOTE:
@@ -113,15 +115,15 @@ int InitialisePhotonCons(UserParams *user_params, CosmoParams *cosmo_params,
         Q_arr = calloc(Nmax, sizeof(double));
 
         struct ScalingConstants sc_i, sc_0, sc_1;
-        set_scaling_constants(a_end, astro_params, flag_options, &sc_i, false);
+        set_scaling_constants(a_end, matter_flags, astro_params, astro_flags, &sc_i, false);
 
         // set the minimum source mass
-        if (flag_options->USE_MASS_DEPENDENT_ZETA) {
+        if (astro_flags->USE_MASS_DEPENDENT_ZETA) {
             ION_EFF_FACTOR =
                 astro_params->POP2_ION * astro_params->F_STAR10 * astro_params->F_ESC10;
             M_MIN = astro_params->M_TURN / 50.;
-            if (user_params->INTEGRATION_METHOD_ATOMIC == 2 ||
-                user_params->INTEGRATION_METHOD_MINI == 2) {
+            if (matter_flags->INTEGRATION_METHOD_ATOMIC == 2 ||
+                matter_flags->INTEGRATION_METHOD_MINI == 2) {
                 initialiseSigmaMInterpTable(fmin(MMIN_FAST, M_MIN), 1e20);
             } else {
                 initialiseSigmaMInterpTable(M_MIN, 1e20);
@@ -165,17 +167,17 @@ int InitialisePhotonCons(UserParams *user_params, CosmoParams *cosmo_params,
                 z0 = 1. / (a + delta_a) - 1.;
                 z1 = 1. / (a - delta_a) - 1.;
 
-                sc_i = evolve_scaling_constants_to_redshift(zi, astro_params, flag_options, &sc_i,
+                sc_i = evolve_scaling_constants_to_redshift(zi, astro_params, astro_flags, &sc_i,
                                                             false);
-                sc_0 = evolve_scaling_constants_to_redshift(z0, astro_params, flag_options, &sc_i,
+                sc_0 = evolve_scaling_constants_to_redshift(z0, astro_params, astro_flags, &sc_i,
                                                             false);
-                sc_1 = evolve_scaling_constants_to_redshift(z1, astro_params, flag_options, &sc_i,
+                sc_1 = evolve_scaling_constants_to_redshift(z1, astro_params, astro_flags, &sc_i,
                                                             false);
 
                 // Ionizing emissivity (num of photons per baryon)
                 // We Force QAG due to the changing limits and messy implementation which I will fix
                 // later (hopefully move the whole thing to python)
-                if (flag_options->USE_MASS_DEPENDENT_ZETA) {
+                if (astro_flags->USE_MASS_DEPENDENT_ZETA) {
                     Nion0 = ION_EFF_FACTOR *
                             Nion_General(z0, lnMmin, lnMmax, astro_params->M_TURN, &sc_0);
                     Nion1 = ION_EFF_FACTOR *
@@ -191,13 +193,13 @@ int InitialisePhotonCons(UserParams *user_params, CosmoParams *cosmo_params,
                     }
 
                     if (M_MIN_z0 < M_MIN_z1) {
-                        if (user_params->INTEGRATION_METHOD_ATOMIC == 2) {
+                        if (matter_flags->INTEGRATION_METHOD_ATOMIC == 2) {
                             initialiseSigmaMInterpTable(fmin(MMIN_FAST, M_MIN_z0), 1e20);
                         } else {
                             initialiseSigmaMInterpTable(M_MIN_z0, 1e20);
                         }
                     } else {
-                        if (user_params->INTEGRATION_METHOD_ATOMIC == 2) {
+                        if (matter_flags->INTEGRATION_METHOD_ATOMIC == 2) {
                             initialiseSigmaMInterpTable(fmin(MMIN_FAST, M_MIN_z1), 1e20);
                         } else {
                             initialiseSigmaMInterpTable(M_MIN_z1, 1e20);
@@ -309,7 +311,7 @@ int InitialisePhotonCons(UserParams *user_params, CosmoParams *cosmo_params,
         free(Q_z);
         free(z_value);
 
-        if (flag_options->USE_MASS_DEPENDENT_ZETA) {
+        if (astro_flags->USE_MASS_DEPENDENT_ZETA) {
             freeSigmaMInterpTable();
         }
 
@@ -694,9 +696,8 @@ void determine_deltaz_for_photoncons() {
     CATCH_GSL_ERROR(gsl_status);
 }
 
-void adjust_redshifts_for_photoncons(UserParams *user_params, AstroParams *astro_params,
-                                     FlagOptions *flag_options, float *redshift,
-                                     float *stored_redshift, float *absolute_delta_z) {
+void adjust_redshifts_for_photoncons(double z_step_factor, float *redshift, float *stored_redshift,
+                                     float *absolute_delta_z) {
     int new_counter;
     double temp;
     float required_NF, adjusted_redshift, temp_redshift, check_required_NF;
@@ -757,10 +758,10 @@ void adjust_redshifts_for_photoncons(UserParams *user_params, AstroParams *astro
                 check_required_NF = required_NF;
 
                 // Ok, find when in the past we exceeded the asymptote threshold value using the
-                // user_params->ZPRIME_STEP_FACTOR In doing it this way, co-eval boxes will be the
+                // z step factor In doing it this way, co-eval boxes will be the
                 // same as lightcone boxes with regard to redshift sampling
                 while (check_required_NF < PhotonConsAsymptoteTo) {
-                    temp_redshift = ((1. + temp_redshift) * user_params->ZPRIME_STEP_FACTOR - 1.);
+                    temp_redshift = ((1. + temp_redshift) * z_step_factor - 1.);
 
                     Q_at_z(temp_redshift, &(temp));
                     check_required_NF = 1.0 - (float)temp;
@@ -804,10 +805,10 @@ void adjust_redshifts_for_photoncons(UserParams *user_params, AstroParams *astro
             check_required_NF = required_NF;
 
             // Ok, find when in the past we exceeded the asymptote threshold value using the
-            // user_params->ZPRIME_STEP_FACTOR In doing it this way, co-eval boxes will be the same
+            // In doing it this way, co-eval boxes will be the same
             // as lightcone boxes with regard to redshift sampling
             while (check_required_NF < NeutralFractions[0]) {
-                temp_redshift = ((1. + temp_redshift) * user_params->ZPRIME_STEP_FACTOR - 1.);
+                temp_redshift = ((1. + temp_redshift) * z_step_factor - 1.);
 
                 Q_at_z(temp_redshift, &(temp));
                 check_required_NF = 1.0 - (float)temp;
@@ -818,10 +819,7 @@ void adjust_redshifts_for_photoncons(UserParams *user_params, AstroParams *astro
                 LOG_WARNING(
                     "The photon non-conservation correction has employed an extrapolation for\n"
                     "more than 5 consecutive snapshots. This can be unstable, thus please check "
-                    "resultant history. Parameters are:\n");
-#if LOG_LEVEL >= LOG_WARNING
-                writeAstroParams(flag_options, astro_params);
-#endif
+                    "resultant history");
             }
 
             // Now adjust the final delta_z by some amount to smooth if over successive steps

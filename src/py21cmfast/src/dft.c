@@ -71,20 +71,22 @@ int dft_r2c_cube(bool use_wisdom, int dim, int dim_los, int n_threads, fftwf_com
     return (0);
 }
 
-int CreateFFTWWisdoms(UserParams *user_params, CosmoParams *cosmo_params) {
+int CreateFFTWWisdoms(MatterParams *matter_params, MatterFlags *matter_flags,
+                      CosmoParams *cosmo_params) {
     int status;
 
     Try {  // This Try wraps the entire function so we don't indent.
 
-        Broadcast_struct_global_noastro(user_params, cosmo_params);
+        // TODO: why is this called?
+        Broadcast_struct_global_noastro(matter_params, matter_flags, cosmo_params);
 
         fftwf_plan plan;
 
         char wisdom_filename[500];
 
-        omp_set_num_threads(user_params->N_THREADS);
+        omp_set_num_threads(matter_params->N_THREADS);
         fftwf_init_threads();
-        fftwf_plan_with_nthreads(user_params->N_THREADS);
+        fftwf_plan_with_nthreads(matter_params->N_THREADS);
         fftwf_cleanup_threads();
 
         // allocate array for the k-space and real-space boxes
@@ -94,29 +96,29 @@ int CreateFFTWWisdoms(UserParams *user_params, CosmoParams *cosmo_params) {
             (fftwf_complex *)fftwf_malloc(sizeof(fftwf_complex) * HII_KSPACE_NUM_PIXELS);
 
         sprintf(wisdom_filename, "%s/r2c_DIM%d_DIM%d_NTHREADS%d", config_settings.wisdoms_path,
-                user_params->DIM, (int)D_PARA, user_params->N_THREADS);
+                matter_params->DIM, (int)D_PARA, matter_params->N_THREADS);
         if (fftwf_import_wisdom_from_filename(wisdom_filename) == 0) {
             plan =
-                fftwf_plan_dft_r2c_3d(user_params->DIM, user_params->DIM, D_PARA,
+                fftwf_plan_dft_r2c_3d(matter_params->DIM, matter_params->DIM, D_PARA,
                                       (float *)HIRES_box, (fftwf_complex *)HIRES_box, FFTW_PATIENT);
             fftwf_export_wisdom_to_filename(wisdom_filename);
             fftwf_destroy_plan(plan);
         }
 
         sprintf(wisdom_filename, "%s/c2r_DIM%d_DIM%d_NTHREADS%d", config_settings.wisdoms_path,
-                user_params->DIM, (int)D_PARA, user_params->N_THREADS);
+                matter_params->DIM, (int)D_PARA, matter_params->N_THREADS);
         if (fftwf_import_wisdom_from_filename(wisdom_filename) == 0) {
             plan =
-                fftwf_plan_dft_c2r_3d(user_params->DIM, user_params->DIM, D_PARA,
+                fftwf_plan_dft_c2r_3d(matter_params->DIM, matter_params->DIM, D_PARA,
                                       (fftwf_complex *)HIRES_box, (float *)HIRES_box, FFTW_PATIENT);
             fftwf_export_wisdom_to_filename(wisdom_filename);
             fftwf_destroy_plan(plan);
         }
 
         sprintf(wisdom_filename, "%s/r2c_DIM%d_DIM%d_NTHREADS%d", config_settings.wisdoms_path,
-                user_params->HII_DIM, (int)HII_D_PARA, user_params->N_THREADS);
+                matter_params->HII_DIM, (int)HII_D_PARA, matter_params->N_THREADS);
         if (fftwf_import_wisdom_from_filename(wisdom_filename) == 0) {
-            plan = fftwf_plan_dft_r2c_3d(user_params->HII_DIM, user_params->HII_DIM, HII_D_PARA,
+            plan = fftwf_plan_dft_r2c_3d(matter_params->HII_DIM, matter_params->HII_DIM, HII_D_PARA,
                                          (float *)LOWRES_box, (fftwf_complex *)LOWRES_box,
                                          FFTW_PATIENT);
             fftwf_export_wisdom_to_filename(wisdom_filename);
@@ -124,9 +126,9 @@ int CreateFFTWWisdoms(UserParams *user_params, CosmoParams *cosmo_params) {
         }
 
         sprintf(wisdom_filename, "%s/c2r_DIM%d_DIM%d_NTHREADS%d", config_settings.wisdoms_path,
-                user_params->HII_DIM, (int)HII_D_PARA, user_params->N_THREADS);
+                matter_params->HII_DIM, (int)HII_D_PARA, matter_params->N_THREADS);
         if (fftwf_import_wisdom_from_filename(wisdom_filename) == 0) {
-            plan = fftwf_plan_dft_c2r_3d(user_params->HII_DIM, user_params->HII_DIM, HII_D_PARA,
+            plan = fftwf_plan_dft_c2r_3d(matter_params->HII_DIM, matter_params->HII_DIM, HII_D_PARA,
                                          (fftwf_complex *)LOWRES_box, (float *)LOWRES_box,
                                          FFTW_PATIENT);
             fftwf_export_wisdom_to_filename(wisdom_filename);

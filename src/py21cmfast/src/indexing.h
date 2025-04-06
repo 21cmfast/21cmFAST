@@ -4,7 +4,7 @@
     How this works:
 
         The box size and dimensionalities (eg. D and HII_D) expressed here rely on
-        ``user_params_global`` being initialized. This is initialized by
+        ``matter_params_global`` being initialized. This is initialized by
         ``Broadcast_struct_global_[all/noastro]`` in ``InputParameters.c``. Thus, that function
         must be called any time the user/cosmo params change.
 
@@ -25,21 +25,22 @@
 // -------------------------------------------------------------------------------------
 // Convenience Constants
 // -------------------------------------------------------------------------------------
-#define VOLUME                                                   \
-    (user_params_global->BOX_LEN * user_params_global->BOX_LEN * \
-     user_params_global->NON_CUBIC_FACTOR * user_params_global->BOX_LEN)  // in Mpc^3
-#define DELTA_K (TWOPI / user_params_global->BOX_LEN)
-#define DELTA_K_PARA (TWOPI / (user_params_global->NON_CUBIC_FACTOR * user_params_global->BOX_LEN))
+#define VOLUME                                                       \
+    (matter_params_global->BOX_LEN * matter_params_global->BOX_LEN * \
+     matter_params_global->NON_CUBIC_FACTOR * matter_params_global->BOX_LEN)  // in Mpc^3
+#define DELTA_K (TWOPI / matter_params_global->BOX_LEN)
+#define DELTA_K_PARA \
+    (TWOPI / (matter_params_global->NON_CUBIC_FACTOR * matter_params_global->BOX_LEN))
 
 // -------------------------------------------------------------------------------------
 // Convenience Macros for hi-resolution boxes
 // -------------------------------------------------------------------------------------
-#define D (long long)user_params_global->DIM  // the long long dimension
-#define D_PARA                                         \
-    (long long)(user_params_global->NON_CUBIC_FACTOR * \
-                user_params_global->DIM)  // the long long dimension
-#define MIDDLE (user_params_global->DIM / 2)
-#define MIDDLE_PARA (user_params_global->NON_CUBIC_FACTOR * user_params_global->DIM / 2)
+#define D (long long)matter_params_global->DIM  // the long long dimension
+#define D_PARA                                           \
+    (long long)(matter_params_global->NON_CUBIC_FACTOR * \
+                matter_params_global->DIM)  // the long long dimension
+#define MIDDLE (matter_params_global->DIM / 2)
+#define MIDDLE_PARA (matter_params_global->NON_CUBIC_FACTOR * matter_params_global->DIM / 2)
 #define MID ((long long)MIDDLE)
 #define MID_PARA ((long long)MIDDLE_PARA)
 #define TOT_NUM_PIXELS ((unsigned long long)(D * D * D_PARA))  // no padding
@@ -60,10 +61,11 @@
 // -------------------------------------------------------------------------------------
 // Convenience Macros for low-resolution boxes
 // -------------------------------------------------------------------------------------
-#define HII_D (long long)(user_params_global->HII_DIM)
-#define HII_D_PARA (long long)(user_params_global->NON_CUBIC_FACTOR * user_params_global->HII_DIM)
-#define HII_MIDDLE (user_params_global->HII_DIM / 2)
-#define HII_MIDDLE_PARA (user_params_global->NON_CUBIC_FACTOR * user_params_global->HII_DIM / 2)
+#define HII_D (long long)(matter_params_global->HII_DIM)
+#define HII_D_PARA \
+    (long long)(matter_params_global->NON_CUBIC_FACTOR * matter_params_global->HII_DIM)
+#define HII_MIDDLE (matter_params_global->HII_DIM / 2)
+#define HII_MIDDLE_PARA (matter_params_global->NON_CUBIC_FACTOR * matter_params_global->HII_DIM / 2)
 #define HII_MID ((long long)HII_MIDDLE)
 #define HII_MID_PARA ((long long)HII_MIDDLE_PARA)
 #define HII_TOT_NUM_PIXELS (unsigned long long)(HII_D * HII_D * HII_D_PARA)

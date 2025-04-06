@@ -1,23 +1,28 @@
 #include "InputParameters.h"
 
-void Broadcast_struct_global_all(UserParams *user_params, CosmoParams *cosmo_params,
-                                 AstroParams *astro_params, FlagOptions *flag_options) {
-    user_params_global = user_params;
+void Broadcast_struct_global_all(MatterParams *matter_params, MatterFlags *matter_flags,
+                                 CosmoParams *cosmo_params, AstroParams *astro_params,
+                                 AstroFlags *astro_flags) {
+    matter_params_global = matter_params;
+    matter_flags_global = matter_flags;
     cosmo_params_global = cosmo_params;
     astro_params_global = astro_params;
-    flag_options_global = flag_options;
+    astro_flags_global = astro_flags;
 }
 
-void Broadcast_struct_global_noastro(UserParams *user_params, CosmoParams *cosmo_params) {
-    user_params_global = user_params;
+void Broadcast_struct_global_noastro(MatterParams *matter_params, MatterFlags *matter_flags,
+                                     CosmoParams *cosmo_params) {
+    matter_params_global = matter_params;
+    matter_flags_global = matter_flags;
     cosmo_params_global = cosmo_params;
 }
 
 /*GLOBAL INPUT STRUCT DEFINITION*/
-UserParams *user_params_global;
+MatterParams *matter_params_global;
+MatterFlags *matter_flags_global;
 CosmoParams *cosmo_params_global;
 AstroParams *astro_params_global;
-FlagOptions *flag_options_global;
+AstroFlags *astro_flags_global;
 
 // data paths, wisdoms, etc
 ConfigSettings config_settings;

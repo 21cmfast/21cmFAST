@@ -3,8 +3,8 @@
 
 #include "InputParameters.h"
 
-float ComputeTau(UserParams *user_params, CosmoParams *cosmo_params, int Npoints, float *redshifts,
-                 float *global_xHI, float z_re_HeII);
+float ComputeTau(MatterParams *matter_params, MatterFlags *matter_flags, CosmoParams *cosmo_params,
+                 int Npoints, float *redshifts, float *global_xHI, float z_re_HeII);
 double molecular_cooling_threshold(float z);
 double atomic_cooling_threshold(float z);
 double lyman_werner_threshold(float z, float J_21_LW, float vcb, AstroParams *astro_params);

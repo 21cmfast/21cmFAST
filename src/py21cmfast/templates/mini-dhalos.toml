@@ -2,14 +2,14 @@
 
 [CosmoParams]
 
-[UserParams]
+[MatterParams]
 USE_RELATIVE_VELOCITIES = true
 
 [AstroParams]
 R_BUBBLE_MAX = 50.0
 M_TURN = 5.0
 
-[FlagOptions]
+[AstroFlags]
 USE_HALO_FIELD = true
 HALO_STOCHASTICITY = true
 USE_EXP_FILTER = true

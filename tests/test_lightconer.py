@@ -12,14 +12,14 @@ from astropy_healpix import HEALPix
 from scipy.spatial.transform import Rotation
 
 from py21cmfast import (
+    AstroFlags,
     BrightnessTemp,
     Coeval,
     CosmoParams,
-    FlagOptions,
     InitialConditions,
     IonizedBox,
+    MatterParams,
     PerturbedField,
-    UserParams,
 )
 from py21cmfast import lightcones as lcn
 
@@ -73,17 +73,17 @@ class MockCoeval:
 
     redshift: float
     brightness_temp: np.ndarray
-    user_params: UserParams
+    matter_params: MatterParams
     cosmo_params: CosmoParams
 
 
 def get_uniform_coeval(redshift, fill=1.0, BOX_LEN=100, HII_DIM=50):
-    up = UserParams(BOX_LEN=BOX_LEN, HII_DIM=HII_DIM)
+    up = MatterParams(BOX_LEN=BOX_LEN, HII_DIM=HII_DIM)
 
     return MockCoeval(
         redshift=redshift,
         brightness_temp=fill * np.ones((up.HII_DIM, up.HII_DIM, up.HII_DIM)),
-        user_params=up,
+        matter_params=up,
         cosmo_params=CosmoParams(),
     )
 
@@ -121,8 +121,8 @@ def test_incompatible_coevals(equal_cdist):
 
     z7.cosmo_params = z7.cosmo_params.clone(SIGMA_8=orig)
 
-    orig = z7.user_params.BOX_LEN
-    z7.user_params = z7.user_params.clone(BOX_LEN=2 * z7.user_params.BOX_LEN)
+    orig = z7.matter_params.BOX_LEN
+    z7.matter_params = z7.matter_params.clone(BOX_LEN=2 * z7.matter_params.BOX_LEN)
 
     with pytest.raises(
         ValueError, match="c1 and c2 must have the same user parameters"
@@ -276,11 +276,11 @@ def test_rotation_equality():
 def test_validation_options_angular(equal_z_angle):
     with pytest.raises(ValueError, match="APPLY_RSDs must be False"):
         equal_z_angle.validate_options(
-            flag_options=FlagOptions(APPLY_RSDS=True), user_params=UserParams()
+            astro_flags=AstroFlags(APPLY_RSDS=True), matter_params=MatterParams()
         )
 
     with pytest.raises(ValueError, match="To get the LoS velocity, you need to set"):
         equal_z_angle.validate_options(
-            user_params=UserParams(KEEP_3D_VELOCITIES=False),
-            flag_options=FlagOptions(APPLY_RSDS=False),
+            matter_params=MatterParams(KEEP_3D_VELOCITIES=False),
+            astro_flags=AstroFlags(APPLY_RSDS=False),
         )

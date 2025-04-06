@@ -11,8 +11,8 @@ from py21cmfast import (
     Coeval,
     InitialConditions,
     LightCone,
+    MatterParams,
     OutputCache,
-    UserParams,
     run_coeval,
     run_lightcone,
 )
@@ -33,11 +33,11 @@ def coeval(ic, default_input_struct_ts, cache) -> Coeval:
 
 
 @pytest.fixture(scope="module")
-def ang_lightcone(ic, lc, default_input_struct_lc, default_flag_options, cache):
+def ang_lightcone(ic, lc, default_input_struct_lc, default_astro_flags, cache):
     lcn = AngularLightconer.like_rectilinear(
         match_at_z=lc.lightcone_redshifts.min(),
         max_redshift=lc.lightcone_redshifts.max(),
-        user_params=ic.user_params,
+        matter_params=ic.matter_params,
         get_los_velocity=True,
     )
 
@@ -46,7 +46,7 @@ def ang_lightcone(ic, lc, default_input_struct_lc, default_flag_options, cache):
         initial_conditions=ic,
         write=True,
         inputs=default_input_struct_lc.clone(
-            flag_options=default_flag_options.clone(
+            astro_flags=default_astro_flags.clone(
                 APPLY_RSDS=False,
             )
         ),
@@ -64,10 +64,10 @@ def test_read_bad_file_lc(test_direc: Path, lc: LightCone):
 
     with h5py.File(fname, "r+") as f:
         # make gluts, these should be ignored on reading
-        f["InputParameters"]["user_params"].attrs["NotARealParameter"] = "fake_param"
+        f["InputParameters"]["matter_params"].attrs["NotARealParameter"] = "fake_param"
 
         # make gaps
-        del f["InputParameters"]["user_params"].attrs["BOX_LEN"]
+        del f["InputParameters"]["matter_params"].attrs["BOX_LEN"]
 
     # load without compatibility mode, make sure we throw the right error
     with pytest.raises(ValueError, match="There are extra or missing"):
@@ -78,15 +78,15 @@ def test_read_bad_file_lc(test_direc: Path, lc: LightCone):
         lc2 = LightCone.from_file(fname, safe=False)
 
     # check that the fake fields didn't show up in the struct
-    assert not hasattr(lc2.user_params, "NotARealParameter")
+    assert not hasattr(lc2.matter_params, "NotARealParameter")
 
     # check that missing fields are set to default
-    assert lc2.user_params.BOX_LEN == UserParams().BOX_LEN
+    assert lc2.matter_params.BOX_LEN == MatterParams().BOX_LEN
 
     # check that the fields which are good are read in the struct
     assert all(
-        getattr(lc2.user_params, field.name) == getattr(lc.user_params, field.name)
-        for field in attrs.fields(UserParams)
+        getattr(lc2.matter_params, field.name) == getattr(lc.matter_params, field.name)
+        for field in attrs.fields(MatterParams)
         if field.name != "BOX_LEN"
     )
 
@@ -100,12 +100,12 @@ def test_read_bad_file_coev(test_direc: Path, coeval: Coeval):
     coeval.save(path=fname)
     with h5py.File(fname, "r+") as f:
         # make gluts, these should be ignored on reading
-        f["BrightnessTemp"]["InputParameters"]["user_params"].attrs[
+        f["BrightnessTemp"]["InputParameters"]["matter_params"].attrs[
             "NotARealParameter"
         ] = "fake_param"
 
         # make gaps
-        del f["BrightnessTemp"]["InputParameters"]["user_params"].attrs["BOX_LEN"]
+        del f["BrightnessTemp"]["InputParameters"]["matter_params"].attrs["BOX_LEN"]
 
     # load in the coeval check that we warn correctly
     with pytest.raises(ValueError, match="There are extra or missing"):
@@ -115,15 +115,15 @@ def test_read_bad_file_coev(test_direc: Path, coeval: Coeval):
         cv2 = Coeval.from_file(fname, safe=False)
 
     # check that the fake params didn't show up in the struct
-    assert not hasattr(cv2.user_params, "NotARealParameter")
+    assert not hasattr(cv2.matter_params, "NotARealParameter")
 
     # check that missing fields are set to default
-    assert cv2.user_params.BOX_LEN == UserParams().BOX_LEN
+    assert cv2.matter_params.BOX_LEN == MatterParams().BOX_LEN
 
     # check that the fields which are good are read in the struct
     assert all(
-        getattr(cv2.user_params, k) == getattr(coeval.user_params, k)
-        for k in coeval.user_params.asdict()
+        getattr(cv2.matter_params, k) == getattr(coeval.matter_params, k)
+        for k in coeval.matter_params.asdict()
         if k != "BOX_LEN"
     )
 
