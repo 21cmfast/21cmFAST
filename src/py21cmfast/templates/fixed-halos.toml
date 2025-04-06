@@ -4,14 +4,17 @@
 
 [MatterParams]
 
+[MatterFlags]
+USE_HALO_FIELD = true
+FIXED_HALO_GRIDS = true
+HALO_STOCHASTICITY = false
+
 [AstroParams]
 R_BUBBLE_MAX = 50.0
 
 [AstroFlags]
-USE_HALO_FIELD = true
 USE_EXP_FILTER = true
 CELL_RECOMB = true
 USE_MINI_HALOS = false
 USE_TS_FLUCT = true
 INHOMO_RECO = true
-FIXED_HALO_GRIDS = true

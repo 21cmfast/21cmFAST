@@ -5,6 +5,10 @@
 [MatterParams]
 USE_RELATIVE_VELOCITIES = false
 
+[MatterFlags]
+USE_HALO_FIELD = false
+HALO_STOCHASTICITY = false
+
 [AstroParams]
 F_STAR10 = -1.3
 F_ESC10 = -1.0
@@ -17,8 +21,6 @@ NU_X_THRESH = 500
 R_BUBBLE_MAX = 50.0
 
 [AstroFlags]
-USE_HALO_FIELD = false
-HALO_STOCHASTICITY = false
 USE_EXP_FILTER = false
 CELL_RECOMB = false
 USE_UPPER_STELLAR_TURNOVER = false
