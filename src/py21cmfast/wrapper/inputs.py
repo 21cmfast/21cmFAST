@@ -428,11 +428,6 @@ class MatterFlags(InputStruct):
         3: Parkinsson et al 2008 Binary split model as in DarkForest (Qiu et al 2021) where the EPS merger rate
         is sampled on small internal timesteps such that only binary splits can occur.
         NOTE: Sampling from the density grid will ALWAYS use number-limited sampling (method 1)
-    AVG_BELOW_SAMPLER: bool, optional
-        When switched on, an integral is performed in each cell between the minimum source mass and SAMPLER_MIN_MASS,
-        effectively placing the average halo population in each HaloBox cell below the sampler resolution.
-        When switched off, all halos below SAMPLER_MIN_MASS are ignored. This flag saves memory for larger boxes,
-        while still including the effects of smaller sources, albeit without stochasticity.
     FILTER : string, optional
         Filter to use for sigma (matter field variance) and radius to mass conversions.
         available options are: `spherical-tophat` and `gaussian`
@@ -516,7 +511,6 @@ class MatterFlags(InputStruct):
         validator=validators.in_(_sample_methods),
         transformer=choice_transformer(_sample_methods),
     )
-    AVG_BELOW_SAMPLER = field(default=True, converter=bool)
     FILTER = field(
         default="spherical-tophat",
         converter=str,
@@ -792,6 +786,11 @@ class AstroFlags(InputStruct):
     IONISE_ENTIRE_SPHERE: bool, optional
         If True, ionises the entire sphere on the filter scale when an ionised region is found
         in the excursion set.
+    AVG_BELOW_SAMPLER: bool, optional
+        When switched on, an integral is performed in each cell between the minimum source mass and SAMPLER_MIN_MASS,
+        effectively placing the average halo population in each HaloBox cell below the sampler resolution.
+        When switched off, all halos below SAMPLER_MIN_MASS are ignored. This flag saves memory for larger boxes,
+        while still including the effects of smaller sources, albeit without stochasticity.
     """
 
     _photoncons_models = (
@@ -843,6 +842,7 @@ class AstroFlags(InputStruct):
         transformer=choice_transformer(_filter_options),
     )
     IONISE_ENTIRE_SPHERE = field(default=False, converter=bool)
+    AVG_BELOW_SAMPLER = field(default=True, converter=bool)
 
     @M_MIN_in_Mass.validator
     def _M_MIN_in_Mass_vld(self, att, val):

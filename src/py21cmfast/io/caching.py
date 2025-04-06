@@ -41,10 +41,22 @@ class OutputCache:
         default=Path(config["direc"]).expanduser(), converter=Path
     )
 
+    _output_to_cache_map: ClassVar = {
+        "InitialConditions": "ics",
+        "PerturbedField": "matter",
+        "HaloField": "matter",
+        "PerturbHaloField": "matter",
+        "HaloBox": "astro",
+        "XraySourceBox": "astro",
+        "TsBox": "astro",
+        "IonizedBox": "astro",
+        "BrightnessTemp": "astro",
+    }
+
     _path_structures: ClassVar = {
-        "InitialConditions": "{user_cosmo}/{seed}/InitialConditions.h5",
-        "PerturbedField": "{user_cosmo}/{seed}/{zgrid}/{redshift}/PerturbedField.h5",
-        "other": "{user_cosmo}/{seed}/{zgrid}/{redshift}/{astro_flag}/{cls}.h5",
+        "ics": "{matter_cosmo}/{seed}/InitialConditions.h5",
+        "matter": "{matter_cosmo}/{seed}/{zgrid}/{redshift}/{cls}.h5",
+        "astro": "{matter_cosmo}/{seed}/{zgrid}/{redshift}/{astro_flag}/{cls}.h5",
     }
 
     @classmethod
@@ -52,13 +64,17 @@ class OutputCache:
         """Return a dict of hashes for different components of the calculation."""
         # Python builtin hashes can be negative which looks weird in filenames
         return {
-            "user_cosmo": md5(
-                (repr(inputs.cosmo_params) + repr(inputs.user_params)).encode()
+            "matter_cosmo": md5(
+                (
+                    repr(inputs.cosmo_params)
+                    + repr(inputs.matter_params)
+                    + repr(inputs.matter_flags)
+                ).encode()
             ).hexdigest(),
             "seed": inputs.random_seed,
             "zgrid": md5(repr(inputs.node_redshifts).encode()).hexdigest(),
             "astro_flag": md5(
-                (repr(inputs.astro_params) + repr(inputs.user_params)).encode()
+                (repr(inputs.astro_params) + repr(inputs.matter_params)).encode()
             ).hexdigest(),
         }
 
@@ -84,12 +100,12 @@ class OutputCache:
             hashes = cls._get_hashes(inputs)
             # format required hashes to string
             hashes["seed"] = r"\d+" if all_seeds else f"{hashes['seed']:d}"
-            hashes["user_cosmo"] = f"{hashes['user_cosmo']}"
+            hashes["matter_cosmo"] = f"{hashes['matter_cosmo']}"
             hashes["zgrid"] = f"{hashes['zgrid']}"
             hashes["astro_flag"] = f"{hashes['astro_flag']}"
         else:
             hashes = {
-                "user_cosmo": ".+?",
+                "matter_cosmo": ".+?",
                 "seed": r"\d+",
                 "zgrid": ".+?",
                 "astro_flag": ".+?",
@@ -99,7 +115,9 @@ class OutputCache:
         hashes["redshift"] = f"{redshift:.4f}" if redshift is not None else ".+?"
         hashes["cls"] = kind if kind not in (None, "other") else ".+?"
 
-        template = cls._path_structures.get(kind, cls._path_structures["other"])
+        template = cls._path_structures.get(
+            cls._output_to_cache_map.get(kind, None), "astro"
+        )
         template = template.format(**hashes)
         return template
 
@@ -208,7 +226,9 @@ class OutputCache:
             list of paths pointing to files matching the filters.
         """
         kinds_list = (
-            ["InitialConditions", "PerturbedField", "other"] if kind is None else [kind]
+            self._path_structures.keys()
+            if kind is None
+            else [self._output_to_cache_map[kind]]
         )
         templates = [
             self._fill_path_template(
