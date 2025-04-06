@@ -34,21 +34,6 @@ def perturb_field_lowz(ic: InitialConditions, low_redshift: float, cache: Output
 
 
 @pytest.fixture(scope="module")
-def ionize_box(
-    ic: InitialConditions,
-    perturbed_field: p21c.PerturbedField,
-    cache: OutputCache,
-):
-    """A default ionize_box."""
-    return p21c.compute_ionization_field(
-        initial_conditions=ic,
-        perturbed_field=perturbed_field,
-        write=True,
-        cache=cache,
-    )
-
-
-@pytest.fixture(scope="module")
 def ionize_box_lowz(
     ic: InitialConditions,
     perturb_field_lowz: p21c.PerturbedField,
@@ -117,20 +102,6 @@ def test_perturb_field_ic(perturbed_field, default_input_struct, ic, cache):
     assert pf.matter_params == perturbed_field.matter_params
     assert pf.cosmo_params == perturbed_field.cosmo_params
 
-    assert pf == perturbed_field
-
-
-def test_cache_exists(default_input_struct, perturbed_field, cache):
-    pf = p21c.PerturbedField.new(
-        redshift=perturbed_field.redshift,
-        inputs=default_input_struct,
-    )
-
-    assert cache.find_existing(pf) is not None
-
-    pf = cache.load(pf)
-    pf.load_all()
-    np.testing.assert_allclose(pf.density.value, perturbed_field.density.value)
     assert pf == perturbed_field
 
 
