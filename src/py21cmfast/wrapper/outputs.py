@@ -594,9 +594,6 @@ class InitialConditions(OutputStruct):
         return self._compute(
             allow_already_computed,
             self.random_seed,
-            self.matter_params,
-            self.matter_flags,
-            self.cosmo_params,
         )
 
 
@@ -701,9 +698,6 @@ class PerturbedField(OutputStructZ):
         return self._compute(
             allow_already_computed,
             self.redshift,
-            self.matter_params,
-            self.matter_flags,
-            self.cosmo_params,
             ics,
         )
 
@@ -811,9 +805,6 @@ class PerturbHaloField(OutputStructZ):
         return self._compute(
             allow_already_computed,
             self.redshift,
-            self.matter_params,
-            self.matter_flags,
-            self.cosmo_params,
             ics,
             halo_field,
         )
@@ -865,9 +856,6 @@ class HaloField(PerturbHaloField):
             allow_already_computed,
             self.desc_redshift,
             self.redshift,
-            self.matter_params,
-            self.matter_flags,
-            self.cosmo_params,
             ics,
             ics.random_seed,
             descendant_halos,
@@ -975,11 +963,6 @@ class HaloBox(OutputStructZ):
         return self._compute(
             allow_already_computed,
             self.redshift,
-            self.matter_params,
-            self.matter_flags,
-            self.cosmo_params,
-            self.astro_params,
-            self.astro_flags,
             initial_conditions,
             perturbed_field,
             pt_halos,
@@ -1063,11 +1046,6 @@ class XraySourceBox(OutputStructZ):
         """Compute the function."""
         return self._compute(
             allow_already_computed,
-            self.matter_params,
-            self.matter_flags,
-            self.cosmo_params,
-            self.astro_params,
-            self.astro_flags,
             halobox,
             R_inner,
             R_outer,
@@ -1187,11 +1165,6 @@ class TsBox(OutputStructZ):
             allow_already_computed,
             self.redshift,
             prev_spin_temp.redshift,
-            self.matter_params,
-            self.matter_flags,
-            self.cosmo_params,
-            self.astro_params,
-            self.astro_flags,
             perturbed_field.redshift,
             cleanup,
             perturbed_field,
@@ -1346,11 +1319,6 @@ class IonizedBox(OutputStructZ):
             allow_already_computed,
             self.redshift,
             prev_perturbed_field.redshift,
-            self.matter_params,
-            self.matter_flags,
-            self.cosmo_params,
-            self.astro_params,
-            self.astro_flags,
             perturbed_field,
             prev_perturbed_field,
             prev_ionize_box,
@@ -1436,10 +1404,6 @@ class BrightnessTemp(OutputStructZ):
         return self._compute(
             allow_already_computed,
             self.redshift,
-            self.matter_params,
-            self.cosmo_params,
-            self.astro_params,
-            self.astro_flags,
             spin_temp,
             ionized_box,
             perturbed_field,

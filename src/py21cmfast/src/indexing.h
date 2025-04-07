@@ -6,7 +6,8 @@
         The box size and dimensionalities (eg. D and HII_D) expressed here rely on
         ``matter_params_global`` being initialized. This is initialized by
         ``Broadcast_struct_global_[all/noastro]`` in ``InputParameters.c``. Thus, that function
-        must be called any time the user/cosmo params change.
+        must be called any time the user/cosmo params change. This is usually handled by the
+   frontend
 
     A note on the Fourier Transform number of pixels and indexing:
 

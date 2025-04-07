@@ -40,23 +40,24 @@ void print_hs_consts(struct HaloSamplingConstants *c) {
 
 // This function, designed to be used in the wrapper to estimate Halo catalogue size, takes the
 // parameters and returns average number of halos within the entire box
-double expected_nhalo(double redshift, MatterParams *matter_params, MatterFlags *matter_flags,
-                      CosmoParams *cosmo_params) {
+double expected_nhalo(double redshift) {
     // minimum sampled mass
-    Broadcast_struct_global_noastro(matter_params, matter_flags, cosmo_params);
-    double M_min = matter_params->SAMPLER_MIN_MASS;
+
+    double M_min = matter_params_global->SAMPLER_MIN_MASS;
     // maximum sampled mass
-    double M_max = RHOcrit * cosmo_params->OMm * VOLUME / HII_TOT_NUM_PIXELS;
+    double M_max = RHOcrit * cosmo_params_global->OMm * VOLUME / HII_TOT_NUM_PIXELS;
     double result;
 
     init_ps();
-    if (matter_flags->USE_INTERPOLATION_TABLES > 0) initialiseSigmaMInterpTable(M_min, M_max);
+    if (matter_flags_global->USE_INTERPOLATION_TABLES > 0)
+        initialiseSigmaMInterpTable(M_min, M_max);
 
-    result = Nhalo_General(redshift, log(M_min), log(M_max)) * VOLUME * cosmo_params->OMm * RHOcrit;
+    result = Nhalo_General(redshift, log(M_min), log(M_max)) * VOLUME * cosmo_params_global->OMm *
+             RHOcrit;
     LOG_DEBUG("Expected %.2e Halos in the box from masses %.2e to %.2e at z=%.2f", result, M_min,
               M_max, redshift);
 
-    if (matter_flags->USE_INTERPOLATION_TABLES > 0) freeSigmaMInterpTable();
+    if (matter_flags_global->USE_INTERPOLATION_TABLES > 0) freeSigmaMInterpTable();
 
     return result;
 }
@@ -234,13 +235,13 @@ void set_prop_rng(gsl_rng *rng, bool from_catalog, double *interp, double *input
     double rng_star, rng_sfr, rng_xray;
 
     // Correlate properties by interpolating between the sampled and descendant gaussians
-    rng_star = astro_params_global->SIGMA_STAR > 0. ? gsl_ran_ugaussian(rng) : 0.;
-    rng_sfr = astro_params_global->SIGMA_SFR_LIM > 0. ? gsl_ran_ugaussian(rng) : 0.;
-    rng_xray = astro_params_global->SIGMA_LX > 0. ? gsl_ran_ugaussian(rng) : 0.;
+    rng_star = gsl_ran_ugaussian(rng);
+    rng_sfr = gsl_ran_ugaussian(rng);
+    rng_xray = gsl_ran_ugaussian(rng);
 
     if (from_catalog) {
-        // this transforms the sample to one from the multivariate Gaussian, conditioned on the
-        // first sample
+        // this transforms the sample to one from the multivariate Gaussian,
+        //   conditioned on the first sample
         rng_star = sqrt(1 - interp[0] * interp[0]) * rng_star + interp[0] * input[0];
         rng_sfr = sqrt(1 - interp[1] * interp[1]) * rng_sfr + interp[1] * input[1];
         rng_xray = sqrt(1 - interp[2] * interp[2]) * rng_xray + interp[2] * input[2];
@@ -1065,11 +1066,9 @@ int sample_halo_progenitors(gsl_rng **rng_arr, double z_in, double z_out, HaloFi
 }
 
 // function that talks between the structures (Python objects) and the sampling functions
-int stochastic_halofield(MatterParams *matter_params, MatterFlags *matter_flags,
-                         CosmoParams *cosmo_params, unsigned long long int seed,
-                         float redshift_desc, float redshift, float *dens_field,
-                         float *halo_overlap_box, HaloField *halos_desc, HaloField *halos) {
-    Broadcast_struct_global_noastro(matter_params, matter_flags, cosmo_params);
+int stochastic_halofield(unsigned long long int seed, float redshift_desc, float redshift,
+                         float *dens_field, float *halo_overlap_box, HaloField *halos_desc,
+                         HaloField *halos) {
     if (redshift_desc > 0 && halos_desc->n_halos == 0) {
         LOG_DEBUG("No halos to sample from redshifts %.2f to %.2f, continuing...", redshift_desc,
                   redshift);
@@ -1077,7 +1076,7 @@ int stochastic_halofield(MatterParams *matter_params, MatterFlags *matter_flags,
     }
 
     // set up the rng
-    gsl_rng *rng_stoc[matter_params->N_THREADS];
+    gsl_rng *rng_stoc[matter_params_global->N_THREADS];
     seed_rng_threads_fast(rng_stoc, seed);
 
     struct HaloSamplingConstants hs_constants;
@@ -1122,21 +1121,17 @@ int stochastic_halofield(MatterParams *matter_params, MatterFlags *matter_flags,
 // This is a test function which takes a list of conditions (cells or halos) and samples them to
 // produce a descendant list
 //       as well as per-condition number and mass counts
-int single_test_sample(MatterParams *matter_params, MatterFlags *matter_flags,
-                       CosmoParams *cosmo_params, AstroParams *astro_params,
-                       AstroFlags *astro_flags, unsigned long long int seed, int n_condition,
-                       float *conditions, int *cond_crd, double z_out, double z_in, int *out_n_tot,
-                       int *out_n_cell, double *out_n_exp, double *out_m_cell, double *out_m_exp,
+int single_test_sample(unsigned long long int seed, int n_condition, float *conditions,
+                       int *cond_crd, double z_out, double z_in, int *out_n_tot, int *out_n_cell,
+                       double *out_n_exp, double *out_m_cell, double *out_m_exp,
                        float *out_halo_masses, int *out_halo_coords) {
     int status;
     Try {
         // make the global structs
-        Broadcast_struct_global_all_noastro(matter_params, matter_flags, cosmo_params);
-
-        omp_set_num_threads(matter_params->N_THREADS);
+        omp_set_num_threads(matter_params_global->N_THREADS);
 
         // set up the rng
-        gsl_rng *rng_stoc[matter_params->N_THREADS];
+        gsl_rng *rng_stoc[matter_params_global->N_THREADS];
         seed_rng_threads_fast(rng_stoc, seed);
 
         if (z_in > 0 && z_out <= z_in) {
@@ -1159,7 +1154,7 @@ int single_test_sample(MatterParams *matter_params, MatterFlags *matter_flags,
         // halos/cells the result mapping is n_halo_total (1) (exp_n,exp_m,n_prog,m_prog) (n_desc)
         // M_cat (n_prog_total)
         int n_halo_tot = 0;
-#pragma omp parallel num_threads(matter_params->N_THREADS) private(i, j)
+#pragma omp parallel num_threads(matter_params_global->N_THREADS) private(i, j)
         {
             float out_hm[MAX_HALO_CELL];
             double M_prog;
@@ -1179,7 +1174,7 @@ int single_test_sample(MatterParams *matter_params, MatterFlags *matter_flags,
                 n_halo_cond = 0;
                 M_prog = 0;
                 for (i = 0; i < n_halo; i++) {
-                    if (out_hm[i] < matter_params->SAMPLER_MIN_MASS) continue;
+                    if (out_hm[i] < matter_params_global->SAMPLER_MIN_MASS) continue;
                     M_prog += out_hm[i];
                     n_halo_cond++;
 
@@ -1213,15 +1208,17 @@ int single_test_sample(MatterParams *matter_params, MatterFlags *matter_flags,
 
         // get expected values from the saved mass range
         if (hs_constants->from_catalog) {
-            initialise_dNdM_tables(log(matter_params->SAMPLER_MIN_MASS), hs_constants->lnM_max_tb,
-                                   log(matter_params->SAMPLER_MIN_MASS), hs_constants->lnM_max_tb,
-                                   hs_constants->growth_out, hs_constants->growth_in, true);
+            initialise_dNdM_tables(
+                log(matter_params_global->SAMPLER_MIN_MASS), hs_constants->lnM_max_tb,
+                log(matter_params_global->SAMPLER_MIN_MASS), hs_constants->lnM_max_tb,
+                hs_constants->growth_out, hs_constants->growth_in, true);
         } else {
             double delta_crit = get_delta_crit(matter_flags_global->HMF, hs_constants->sigma_cond,
                                                hs_constants->growth_out);
             initialise_dNdM_tables(DELTA_MIN, MAX_DELTAC_FRAC * delta_crit,
-                                   log(matter_params->SAMPLER_MIN_MASS), hs_constants->lnM_max_tb,
-                                   hs_constants->growth_out, hs_constants->lnM_cond, false);
+                                   log(matter_params_global->SAMPLER_MIN_MASS),
+                                   hs_constants->lnM_max_tb, hs_constants->growth_out,
+                                   hs_constants->lnM_cond, false);
         }
 #pragma omp parallel
         {

@@ -126,9 +126,8 @@ void initialise_SFRD_spline(int Nbin, float zmin, float zmax, struct ScalingCons
         for (i = 0; i < Nbin; i++) {
             z_val = SFRD_z_table.x_min +
                     i * SFRD_z_table.x_width;  // both tables will have the same values here
-            sc_sfrd = evolve_scaling_constants_to_redshift(z_val, astro_params_global,
-                                                           astro_flags_global, &sc_sfrd, false);
-            lnMmin = log(minimum_source_mass(z_val, true, astro_params_global, astro_flags_global));
+            sc_sfrd = evolve_scaling_constants_to_redshift(z_val, &sc_sfrd, false);
+            lnMmin = log(minimum_source_mass(z_val, true));
 
             if (astro_flags_global->USE_MINI_HALOS) {
                 for (j = 0; j < NMTURN; j++) {
@@ -192,11 +191,10 @@ void initialise_Nion_Ts_spline(int Nbin, float zmin, float zmax, struct ScalingC
         for (i = 0; i < Nbin; i++) {
             z_val = Nion_z_table.x_min +
                     i * Nion_z_table.x_width;  // both tables will have the same values here
-            sc_z = evolve_scaling_constants_to_redshift(z_val, astro_params_global,
-                                                        astro_flags_global, sc, false);
+            sc_z = evolve_scaling_constants_to_redshift(z_val, sc, false);
             // Minor note: while this is called in xray, we use it to estimate ionised fraction, do
             // we use ION_Tvir_MIN if applicable?
-            lnMmin = log(minimum_source_mass(z_val, true, astro_params_global, astro_flags_global));
+            lnMmin = log(minimum_source_mass(z_val, true));
             if (astro_flags_global->USE_MINI_HALOS) {
                 for (j = 0; j < NMTURN; j++) {
                     mturn_mcg = pow(10, Nion_z_table_MINI.y_min + j * Nion_z_table_MINI.y_width);
@@ -266,7 +264,7 @@ void init_FcollTable(double zmin, double zmax, bool x_ray) {
 
     for (i = 0; i < n_z; i++) {
         z_val = fcoll_z_table.x_min + i * fcoll_z_table.x_width;
-        M_min = minimum_source_mass(z_val, x_ray, astro_params_global, astro_flags_global);
+        M_min = minimum_source_mass(z_val, x_ray);
         lnMmin = log(M_min);
         lnMmax = log(fmax(M_MAX_INTEGRAL, M_min * 100));
 
@@ -897,12 +895,10 @@ double EvaluateNionTs(double redshift, struct ScalingConstants *sc) {
     // Currently assuming this is only called in the X-ray/spintemp calculation, this will only
     // affect !USE_MASS_DEPENDENT_ZETA and !M_MIN_in_mass and only if the minimum virial
     // temperatures ION_Tvir_min and X_RAY_Tvir_min are different
-    double lnMmin =
-        log(minimum_source_mass(redshift, true, astro_params_global, astro_flags_global));
+    double lnMmin = log(minimum_source_mass(redshift, true));
     double lnMmax = log(M_MAX_INTEGRAL);
 
-    struct ScalingConstants sc_z = evolve_scaling_constants_to_redshift(
-        redshift, astro_params_global, astro_flags_global, sc, false);
+    struct ScalingConstants sc_z = evolve_scaling_constants_to_redshift(redshift, sc, false);
 
     // minihalos uses a different turnover mass
     if (astro_flags_global->USE_MASS_DEPENDENT_ZETA)
@@ -916,11 +912,9 @@ double EvaluateNionTs_MINI(double redshift, double log10_Mturn_LW_ave,
     if (matter_flags_global->USE_INTERPOLATION_TABLES > 1) {
         return EvaluateRGTable2D(redshift, log10_Mturn_LW_ave, &Nion_z_table_MINI);
     }
-    double lnMmin =
-        log(minimum_source_mass(redshift, true, astro_params_global, astro_flags_global));
+    double lnMmin = log(minimum_source_mass(redshift, true));
     double lnMmax = log(M_MAX_INTEGRAL);
-    struct ScalingConstants sc_z = evolve_scaling_constants_to_redshift(
-        redshift, astro_params_global, astro_flags_global, sc, false);
+    struct ScalingConstants sc_z = evolve_scaling_constants_to_redshift(redshift, sc, false);
 
     return Nion_General_MINI(redshift, lnMmin, lnMmax, pow(10., log10_Mturn_LW_ave), &sc_z);
 }
@@ -935,15 +929,13 @@ double EvaluateSFRD(double redshift, struct ScalingConstants *sc) {
     // Currently assuming this is only called in the X-ray/spintemp calculation, this will only
     // affect !USE_MASS_DEPENDENT_ZETA and !M_MIN_in_mass and only if the minimum virial
     // temperatures ION_Tvir_min and X_RAY_Tvir_min are different
-    double lnMmin =
-        log(minimum_source_mass(redshift, true, astro_params_global, astro_flags_global));
+    double lnMmin = log(minimum_source_mass(redshift, true));
     double lnMmax = log(M_MAX_INTEGRAL);
 
     // The SFRD calls the same function as N_ion but sets escape fractions to unity
     // NOTE: since this only occurs on integration, the struct copy shouldn't be a bottleneck
     struct ScalingConstants sc_sfrd = evolve_scaling_constants_sfr(sc);
-    sc_sfrd = evolve_scaling_constants_to_redshift(redshift, astro_params_global,
-                                                   astro_flags_global, &sc_sfrd, false);
+    sc_sfrd = evolve_scaling_constants_to_redshift(redshift, &sc_sfrd, false);
 
     if (astro_flags_global->USE_MASS_DEPENDENT_ZETA)
         return Nion_General(redshift, lnMmin, lnMmax, sc_sfrd.mturn_a_nofb, &sc_sfrd);
@@ -955,13 +947,11 @@ double EvaluateSFRD_MINI(double redshift, double log10_Mturn_LW_ave, struct Scal
         return EvaluateRGTable2D(redshift, log10_Mturn_LW_ave, &SFRD_z_table_MINI);
     }
 
-    double lnMmin =
-        log(minimum_source_mass(redshift, true, astro_params_global, astro_flags_global));
+    double lnMmin = log(minimum_source_mass(redshift, true));
     double lnMmax = log(M_MAX_INTEGRAL);
 
     struct ScalingConstants sc_sfrd = evolve_scaling_constants_sfr(sc);
-    sc_sfrd = evolve_scaling_constants_to_redshift(redshift, astro_params_global,
-                                                   astro_flags_global, &sc_sfrd, false);
+    sc_sfrd = evolve_scaling_constants_to_redshift(redshift, &sc_sfrd, false);
 
     return Nion_General_MINI(redshift, lnMmin, lnMmax, pow(10., log10_Mturn_LW_ave), &sc_sfrd);
 }

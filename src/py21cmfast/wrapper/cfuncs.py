@@ -24,20 +24,26 @@ logger = logging.getLogger(__name__)
 # TODO: a lot of these assume input as numpy arrays via use of .shape, explicitly require this
 
 
+def broadcast_input_struct(inputs: InputParameters):
+    """Broadcast the parameters to the C library."""
+    lib.Broadcast_struct_global_all(
+        inputs.matter_params.cstruct,
+        inputs.matter_flags.cstruct,
+        inputs.cosmo_params.cstruct,
+        inputs.astro_params.cstruct,
+        inputs.astro_flags.cstruct,
+    )
+
+
 def broadcast_params(func: Callable) -> Callable:
     """Broadcast the parameters to the C library before calling the function.
 
     This should be added as a decorator to any function which accesses the
-    21cmFAST backend without passing through our regular functions.
+    21cmFAST if it does not directly call `broadcast_input_struct`.
     """
 
     def wrapper(*args, inputs: InputParameters, **kwargs):
-        lib.Broadcast_struct_global_all(
-            inputs.matter_params.cstruct,
-            inputs.cosmo_params.cstruct,
-            inputs.astro_params.cstruct,
-            inputs.astro_flags.cstruct,
-        )
+        broadcast_input_struct(inputs)
         return func(*args, inputs=inputs, **kwargs)
 
     return wrapper

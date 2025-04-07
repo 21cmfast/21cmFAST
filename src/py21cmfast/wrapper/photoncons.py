@@ -57,6 +57,7 @@ from scipy.optimize import curve_fit
 
 from ..c_21cmfast import ffi, lib
 from ._utils import _process_exitcode
+from .cfuncs import broadcast_params
 from .inputs import AstroFlags, AstroParams, CosmoParams, InputParameters, MatterParams
 from .outputs import InitialConditions
 
@@ -84,23 +85,12 @@ class _PhotonConservationState:
 _photoncons_state = _PhotonConservationState()
 
 
-def _init_photon_conservation_correction(
-    *, matter_params=None, cosmo_params=None, astro_params=None, astro_flags=None
-):
+@broadcast_params
+def _init_photon_conservation_correction(inputs):
     # This function calculates the global expected evolution of reionisation and saves
     #   it to C global arrays z_Q and Q_value (as well as other non-global confusingly named arrays),
     #   and constructs a GSL interpolator z_at_Q_spline
-    matter_params = MatterParams.new(matter_params)
-    cosmo_params = CosmoParams.new(cosmo_params)
-    astro_flags = AstroFlags.new(astro_flags)
-    astro_params = AstroParams.new(astro_params)
-
-    return lib.InitialisePhotonCons(
-        matter_params.cstruct,
-        cosmo_params.cstruct,
-        astro_params.cstruct,
-        astro_flags.cstruct,
-    )
+    return lib.InitialisePhotonCons()
 
 
 def _calibrate_photon_conservation_correction(
@@ -401,15 +391,13 @@ def calibrate_photon_cons(
 
 # (Jdavies): I needed a function to access the delta z from the wrapper
 # get_photoncons_data does not have the edge cases that adjust_redshifts_for_photoncons does
-def get_photoncons_dz(matter_params, astro_params, astro_flags, redshift):
+@broadcast_params
+def get_photoncons_dz(inputs, redshift):
     """Access the delta z arrays from the photon conservation model in C."""
     deltaz = np.zeros(1).astype("f4")
     redshift_pc_in = np.array([redshift]).astype("f4")
     stored_redshift_pc_in = np.array([redshift]).astype("f4")
     lib.adjust_redshifts_for_photoncons(
-        matter_params.cstruct,
-        astro_params.cstruct,
-        astro_flags.cstruct,
         ffi.cast("float *", redshift_pc_in.ctypes.data),
         ffi.cast("float *", stored_redshift_pc_in.ctypes.data),
         ffi.cast("float *", deltaz.ctypes.data),

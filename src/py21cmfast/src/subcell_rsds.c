@@ -10,22 +10,20 @@
 #include "OutputStructs.h"
 #include "indexing.h"
 
-double apply_subcell_rsds(MatterParams *matter_params, CosmoParams *cosmo_params,
-                          AstroFlags *astro_flags, AstroParams *astro_params,
-                          IonizedBox *ionized_box, BrightnessTemp *box, float redshift,
+double apply_subcell_rsds(IonizedBox *ionized_box, BrightnessTemp *box, float redshift,
                           TsBox *spin_temp, float T_rad, float *v, float H) {
     int i, ii, j, k;
     double ave;
 
     ave = 0.;
 
-    omp_set_num_threads(matter_params->N_THREADS);
+    omp_set_num_threads(matter_params_global->N_THREADS);
 
-    float *x_pos = calloc(astro_params->N_RSD_STEPS, sizeof(float));
-    float *x_pos_offset = calloc(astro_params->N_RSD_STEPS, sizeof(float));
-    float **delta_T_RSD_LOS = (float **)calloc(matter_params->N_THREADS, sizeof(float *));
-    for (i = 0; i < matter_params->N_THREADS; i++) {
-        delta_T_RSD_LOS[i] = (float *)calloc(matter_params->HII_DIM, sizeof(float));
+    float *x_pos = calloc(astro_params_global->N_RSD_STEPS, sizeof(float));
+    float *x_pos_offset = calloc(astro_params_global->N_RSD_STEPS, sizeof(float));
+    float **delta_T_RSD_LOS = (float **)calloc(matter_params_global->N_THREADS, sizeof(float *));
+    for (i = 0; i < matter_params_global->N_THREADS; i++) {
+        delta_T_RSD_LOS[i] = (float *)calloc(matter_params_global->HII_DIM, sizeof(float));
     }
 
     float d1_low, d1_high, d2_low, d2_high;
@@ -33,13 +31,13 @@ double apply_subcell_rsds(MatterParams *matter_params, CosmoParams *cosmo_params
     float RSD_pos_new, RSD_pos_new_boundary_low, RSD_pos_new_boundary_high;
     float fraction_within, fraction_outside, cell_distance;
 
-    float cellsize = matter_params->BOX_LEN / (float)matter_params->HII_DIM;
-    float subcell_width = cellsize / (float)(astro_params->N_RSD_STEPS);
+    float cellsize = matter_params_global->BOX_LEN / (float)matter_params_global->HII_DIM;
+    float subcell_width = cellsize / (float)(astro_params_global->N_RSD_STEPS);
 
     // normalised units of cell length. 0 equals beginning of cell, 1 equals end of cell
     // These are the sub-cell central positions (x_pos_offset), and the corresponding normalised
     // value (x_pos) between 0 and 1
-    for (ii = 0; ii < astro_params->N_RSD_STEPS; ii++) {
+    for (ii = 0; ii < astro_params_global->N_RSD_STEPS; ii++) {
         x_pos_offset[ii] = subcell_width * (float)ii + subcell_width / 2.;
         x_pos[ii] = x_pos_offset[ii] / cellsize;
     }
@@ -63,11 +61,11 @@ array, v and the Hubble factor: v/H.
                                        subcell_displacement, RSD_pos_new,                   \
                                        RSD_pos_new_boundary_low, RSD_pos_new_boundary_high, \
                                        cell_distance, fraction_outside, fraction_within)    \
-    num_threads(matter_params -> N_THREADS)
+    num_threads(matter_params_global -> N_THREADS)
     {
 #pragma omp for reduction(+ : ave)
-        for (i = 0; i < matter_params->HII_DIM; i++) {
-            for (j = 0; j < matter_params->HII_DIM; j++) {
+        for (i = 0; i < matter_params_global->HII_DIM; i++) {
+            for (j = 0; j < matter_params_global->HII_DIM; j++) {
                 // Generate the optical-depth for the specific line-of-sight with R.S.D
                 for (k = 0; k < HII_D_PARA; k++) {
                     delta_T_RSD_LOS[omp_get_thread_num()][k] = 0.0;
@@ -94,7 +92,7 @@ array, v and the Hubble factor: v/H.
                             d2_high = v[HII_R_FFT_INDEX(i, j, k + 1)] / H;
                         }
 
-                        for (ii = 0; ii < astro_params->N_RSD_STEPS; ii++) {
+                        for (ii = 0; ii < astro_params_global->N_RSD_STEPS; ii++) {
                             // linearly interpolate the displacements to determine the corresponding
                             // displacements of the sub-cells Checking of 0.5 is for determining if
                             // we are left or right of the mid-point of the original cell (for the
@@ -112,20 +110,20 @@ array, v and the Hubble factor: v/H.
 
                             // The new centre of the sub-cell post R.S.D displacement.
                             // Normalised to units of cell width for determining it's displacement
-                            RSD_pos_new =
-                                (x_pos_offset[ii] + subcell_displacement) /
-                                (matter_params->BOX_LEN / ((float)matter_params->HII_DIM));
+                            RSD_pos_new = (x_pos_offset[ii] + subcell_displacement) /
+                                          (matter_params_global->BOX_LEN /
+                                           ((float)matter_params_global->HII_DIM));
                             // The sub-cell boundaries of the sub-cell, for determining the
                             // fractional contribution of the sub-cell to neighbouring cells when
                             // the sub-cell straddles two cell positions
                             RSD_pos_new_boundary_low =
                                 RSD_pos_new -
-                                (subcell_width / 2.) /
-                                    (matter_params->BOX_LEN / ((float)matter_params->HII_DIM));
+                                (subcell_width / 2.) / (matter_params_global->BOX_LEN /
+                                                        ((float)matter_params_global->HII_DIM));
                             RSD_pos_new_boundary_high =
                                 RSD_pos_new +
-                                (subcell_width / 2.) /
-                                    (matter_params->BOX_LEN / ((float)matter_params->HII_DIM));
+                                (subcell_width / 2.) / (matter_params_global->BOX_LEN /
+                                                        ((float)matter_params_global->HII_DIM));
 
                             if (RSD_pos_new_boundary_low >= 0.0 &&
                                 RSD_pos_new_boundary_high < 1.0) {
@@ -134,7 +132,7 @@ array, v and the Hubble factor: v/H.
 
                                 delta_T_RSD_LOS[omp_get_thread_num()][k] +=
                                     box->brightness_temp[HII_R_INDEX(i, j, k)] /
-                                    ((float)astro_params->N_RSD_STEPS);
+                                    ((float)astro_params_global->N_RSD_STEPS);
                             } else if (RSD_pos_new_boundary_low < 0.0 &&
                                        RSD_pos_new_boundary_high < 0.0) {
                                 // sub-cell has moved completely into a new cell (toward the
@@ -157,12 +155,12 @@ array, v and the Hubble factor: v/H.
                                                        [k - ((int)cell_distance + 1) +
                                                         HII_D_PARA] +=
                                             box->brightness_temp[HII_R_INDEX(i, j, k)] /
-                                            ((float)astro_params->N_RSD_STEPS);
+                                            ((float)astro_params_global->N_RSD_STEPS);
                                     } else {
                                         delta_T_RSD_LOS[omp_get_thread_num()]
                                                        [k - ((int)cell_distance + 1)] +=
                                             box->brightness_temp[HII_R_INDEX(i, j, k)] /
-                                            ((float)astro_params->N_RSD_STEPS);
+                                            ((float)astro_params_global->N_RSD_STEPS);
                                     }
                                 } else {
                                     // sub-cell is partially contained within the cell
@@ -171,8 +169,8 @@ array, v and the Hubble factor: v/H.
                                     // the two original cells
                                     fraction_outside =
                                         (fabs(RSD_pos_new_boundary_low) - cell_distance) /
-                                        (subcell_width / (matter_params->BOX_LEN /
-                                                          ((float)matter_params->HII_DIM)));
+                                        (subcell_width / (matter_params_global->BOX_LEN /
+                                                          ((float)matter_params_global->HII_DIM)));
                                     fraction_within = 1. - fraction_outside;
 
                                     // Check if the first part of the sub-cell is at the box edge
@@ -181,13 +179,13 @@ array, v and the Hubble factor: v/H.
                                                        [k - ((int)cell_distance) + HII_D_PARA] +=
                                             fraction_within *
                                             box->brightness_temp[HII_R_INDEX(i, j, k)] /
-                                            ((float)astro_params->N_RSD_STEPS);
+                                            ((float)astro_params_global->N_RSD_STEPS);
                                     } else {
                                         delta_T_RSD_LOS[omp_get_thread_num()]
                                                        [k - ((int)cell_distance)] +=
                                             fraction_within *
                                             box->brightness_temp[HII_R_INDEX(i, j, k)] /
-                                            ((float)astro_params->N_RSD_STEPS);
+                                            ((float)astro_params_global->N_RSD_STEPS);
                                     }
                                     // Check if the second part of the sub-cell is at the box edge
                                     if (k < (((int)cell_distance + 1))) {
@@ -196,13 +194,13 @@ array, v and the Hubble factor: v/H.
                                                         HII_D_PARA] +=
                                             fraction_outside *
                                             box->brightness_temp[HII_R_INDEX(i, j, k)] /
-                                            ((float)astro_params->N_RSD_STEPS);
+                                            ((float)astro_params_global->N_RSD_STEPS);
                                     } else {
                                         delta_T_RSD_LOS[omp_get_thread_num()]
                                                        [k - ((int)cell_distance + 1)] +=
                                             fraction_outside *
                                             box->brightness_temp[HII_R_INDEX(i, j, k)] /
-                                            ((float)astro_params->N_RSD_STEPS);
+                                            ((float)astro_params_global->N_RSD_STEPS);
                                     }
                                 }
                             } else if (RSD_pos_new_boundary_low < 0.0 &&
@@ -215,8 +213,8 @@ array, v and the Hubble factor: v/H.
                                 // two original cells
                                 fraction_within =
                                     RSD_pos_new_boundary_high /
-                                    (subcell_width /
-                                     (matter_params->BOX_LEN / ((float)matter_params->HII_DIM)));
+                                    (subcell_width / (matter_params_global->BOX_LEN /
+                                                      ((float)matter_params_global->HII_DIM)));
                                 fraction_outside = 1. - fraction_within;
 
                                 // Check the periodic boundaries conditions and move the fraction of
@@ -225,20 +223,20 @@ array, v and the Hubble factor: v/H.
                                     delta_T_RSD_LOS[omp_get_thread_num()][HII_D_PARA - 1] +=
                                         fraction_outside *
                                         box->brightness_temp[HII_R_INDEX(i, j, k)] /
-                                        ((float)astro_params->N_RSD_STEPS);
+                                        ((float)astro_params_global->N_RSD_STEPS);
                                     delta_T_RSD_LOS[omp_get_thread_num()][k] +=
                                         fraction_within *
                                         box->brightness_temp[HII_R_INDEX(i, j, k)] /
-                                        ((float)astro_params->N_RSD_STEPS);
+                                        ((float)astro_params_global->N_RSD_STEPS);
                                 } else {
                                     delta_T_RSD_LOS[omp_get_thread_num()][k - 1] +=
                                         fraction_outside *
                                         box->brightness_temp[HII_R_INDEX(i, j, k)] /
-                                        ((float)astro_params->N_RSD_STEPS);
+                                        ((float)astro_params_global->N_RSD_STEPS);
                                     delta_T_RSD_LOS[omp_get_thread_num()][k] +=
                                         fraction_within *
                                         box->brightness_temp[HII_R_INDEX(i, j, k)] /
-                                        ((float)astro_params->N_RSD_STEPS);
+                                        ((float)astro_params_global->N_RSD_STEPS);
                                 }
                             } else if ((RSD_pos_new_boundary_low >= 0.0 &&
                                         RSD_pos_new_boundary_low < 1.0) &&
@@ -250,8 +248,8 @@ array, v and the Hubble factor: v/H.
                                 // two original cells
                                 fraction_outside =
                                     (RSD_pos_new_boundary_high - 1.) /
-                                    (subcell_width /
-                                     (matter_params->BOX_LEN / ((float)matter_params->HII_DIM)));
+                                    (subcell_width / (matter_params_global->BOX_LEN /
+                                                      ((float)matter_params_global->HII_DIM)));
                                 fraction_within = 1. - fraction_outside;
 
                                 // Check the periodic boundaries conditions and move the fraction of
@@ -260,20 +258,20 @@ array, v and the Hubble factor: v/H.
                                     delta_T_RSD_LOS[omp_get_thread_num()][k] +=
                                         fraction_within *
                                         box->brightness_temp[HII_R_INDEX(i, j, k)] /
-                                        ((float)astro_params->N_RSD_STEPS);
+                                        ((float)astro_params_global->N_RSD_STEPS);
                                     delta_T_RSD_LOS[omp_get_thread_num()][0] +=
                                         fraction_outside *
                                         box->brightness_temp[HII_R_INDEX(i, j, k)] /
-                                        ((float)astro_params->N_RSD_STEPS);
+                                        ((float)astro_params_global->N_RSD_STEPS);
                                 } else {
                                     delta_T_RSD_LOS[omp_get_thread_num()][k] +=
                                         fraction_within *
                                         box->brightness_temp[HII_R_INDEX(i, j, k)] /
-                                        ((float)astro_params->N_RSD_STEPS);
+                                        ((float)astro_params_global->N_RSD_STEPS);
                                     delta_T_RSD_LOS[omp_get_thread_num()][k + 1] +=
                                         fraction_outside *
                                         box->brightness_temp[HII_R_INDEX(i, j, k)] /
-                                        ((float)astro_params->N_RSD_STEPS);
+                                        ((float)astro_params_global->N_RSD_STEPS);
                                 }
                             } else {
                                 // sub-cell has moved completely into a new cell (away from the
@@ -293,12 +291,12 @@ array, v and the Hubble factor: v/H.
                                         delta_T_RSD_LOS[omp_get_thread_num()]
                                                        [k + (int)cell_distance - HII_D_PARA] +=
                                             box->brightness_temp[HII_R_INDEX(i, j, k)] /
-                                            ((float)astro_params->N_RSD_STEPS);
+                                            ((float)astro_params_global->N_RSD_STEPS);
                                     } else {
                                         delta_T_RSD_LOS[omp_get_thread_num()]
                                                        [k + (int)cell_distance] +=
                                             box->brightness_temp[HII_R_INDEX(i, j, k)] /
-                                            ((float)astro_params->N_RSD_STEPS);
+                                            ((float)astro_params_global->N_RSD_STEPS);
                                     }
                                 } else {
                                     // sub-cell is partially contained within the cell
@@ -307,8 +305,8 @@ array, v and the Hubble factor: v/H.
                                     // the two original cells
                                     fraction_outside =
                                         (RSD_pos_new_boundary_high - cell_distance) /
-                                        (subcell_width / (matter_params->BOX_LEN /
-                                                          ((float)matter_params->HII_DIM)));
+                                        (subcell_width / (matter_params_global->BOX_LEN /
+                                                          ((float)matter_params_global->HII_DIM)));
                                     fraction_within = 1. - fraction_outside;
 
                                     // Check if the first part of the sub-cell is at the box edge
@@ -317,13 +315,13 @@ array, v and the Hubble factor: v/H.
                                                        [k + (int)cell_distance - 1 - HII_D_PARA] +=
                                             fraction_within *
                                             box->brightness_temp[HII_R_INDEX(i, j, k)] /
-                                            ((float)astro_params->N_RSD_STEPS);
+                                            ((float)astro_params_global->N_RSD_STEPS);
                                     } else {
                                         delta_T_RSD_LOS[omp_get_thread_num()]
                                                        [k + (int)cell_distance - 1] +=
                                             fraction_within *
                                             box->brightness_temp[HII_R_INDEX(i, j, k)] /
-                                            ((float)astro_params->N_RSD_STEPS);
+                                            ((float)astro_params_global->N_RSD_STEPS);
                                     }
                                     // Check if the second part of the sub-cell is at the box edge
                                     if (k > (HII_D_PARA - 1 - ((int)cell_distance))) {
@@ -331,13 +329,13 @@ array, v and the Hubble factor: v/H.
                                                        [k + (int)cell_distance - HII_D_PARA] +=
                                             fraction_outside *
                                             box->brightness_temp[HII_R_INDEX(i, j, k)] /
-                                            ((float)astro_params->N_RSD_STEPS);
+                                            ((float)astro_params_global->N_RSD_STEPS);
                                     } else {
                                         delta_T_RSD_LOS[omp_get_thread_num()]
                                                        [k + (int)cell_distance] +=
                                             fraction_outside *
                                             box->brightness_temp[HII_R_INDEX(i, j, k)] /
-                                            ((float)astro_params->N_RSD_STEPS);
+                                            ((float)astro_params_global->N_RSD_STEPS);
                                     }
                                 }
                             }
@@ -356,7 +354,7 @@ array, v and the Hubble factor: v/H.
     }
     free(x_pos);
     free(x_pos_offset);
-    for (i = 0; i < matter_params->N_THREADS; i++) {
+    for (i = 0; i < matter_params_global->N_THREADS; i++) {
         free(delta_T_RSD_LOS[i]);
     }
     free(delta_T_RSD_LOS);

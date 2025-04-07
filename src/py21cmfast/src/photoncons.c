@@ -71,17 +71,14 @@ static double PhotonConsAsymptoteTo = 0.01;  // Final HI fraction for the photon
 
 //   Set up interpolation table for the volume filling factor, Q, at a given redshift z and redshift
 //   at a given Q.
-int InitialisePhotonCons(MatterParams *matter_params, MatterFlags *matter_flags,
-                         CosmoParams *cosmo_params, AstroParams *astro_params,
-                         AstroFlags *astro_flags) {
+int InitialisePhotonCons() {
     /*
         This is an API-level function for initialising the photon conservation.
     */
 
     int status;
     Try {  // this try wraps the whole function.
-        Broadcast_struct_global_all(matter_params, matter_flags, cosmo_params, astro_params,
-                                    astro_flags);
+
         init_ps();
         //     To solve differentail equation, uses Euler's method.
         //     NOTE:
@@ -115,22 +112,22 @@ int InitialisePhotonCons(MatterParams *matter_params, MatterFlags *matter_flags,
         Q_arr = calloc(Nmax, sizeof(double));
 
         struct ScalingConstants sc_i, sc_0, sc_1;
-        set_scaling_constants(a_end, matter_flags, astro_params, astro_flags, &sc_i, false);
+        set_scaling_constants(a_end, &sc_i, false);
 
         // set the minimum source mass
-        if (astro_flags->USE_MASS_DEPENDENT_ZETA) {
-            ION_EFF_FACTOR =
-                astro_params->POP2_ION * astro_params->F_STAR10 * astro_params->F_ESC10;
-            M_MIN = astro_params->M_TURN / 50.;
-            if (matter_flags->INTEGRATION_METHOD_ATOMIC == 2 ||
-                matter_flags->INTEGRATION_METHOD_MINI == 2) {
+        if (astro_flags_global->USE_MASS_DEPENDENT_ZETA) {
+            ION_EFF_FACTOR = astro_params_global->POP2_ION * astro_params_global->F_STAR10 *
+                             astro_params_global->F_ESC10;
+            M_MIN = astro_params_global->M_TURN / 50.;
+            if (matter_flags_global->INTEGRATION_METHOD_ATOMIC == 2 ||
+                matter_flags_global->INTEGRATION_METHOD_MINI == 2) {
                 initialiseSigmaMInterpTable(fmin(MMIN_FAST, M_MIN), 1e20);
             } else {
                 initialiseSigmaMInterpTable(M_MIN, 1e20);
             }
             lnMmin = log(M_MIN);
         } else {
-            ION_EFF_FACTOR = astro_params->HII_EFF_FACTOR;
+            ION_EFF_FACTOR = astro_params_global->HII_EFF_FACTOR;
         }
 
         fail_condition = 1;
@@ -167,39 +164,35 @@ int InitialisePhotonCons(MatterParams *matter_params, MatterFlags *matter_flags,
                 z0 = 1. / (a + delta_a) - 1.;
                 z1 = 1. / (a - delta_a) - 1.;
 
-                sc_i = evolve_scaling_constants_to_redshift(zi, astro_params, astro_flags, &sc_i,
-                                                            false);
-                sc_0 = evolve_scaling_constants_to_redshift(z0, astro_params, astro_flags, &sc_i,
-                                                            false);
-                sc_1 = evolve_scaling_constants_to_redshift(z1, astro_params, astro_flags, &sc_i,
-                                                            false);
-
+                sc_i = evolve_scaling_constants_to_redshift(zi, &sc_i, false);
+                sc_0 = evolve_scaling_constants_to_redshift(z0, &sc_i, false);
+                sc_1 = evolve_scaling_constants_to_redshift(z1, &sc_i, false);
                 // Ionizing emissivity (num of photons per baryon)
                 // We Force QAG due to the changing limits and messy implementation which I will fix
                 // later (hopefully move the whole thing to python)
-                if (astro_flags->USE_MASS_DEPENDENT_ZETA) {
+                if (astro_flags_global->USE_MASS_DEPENDENT_ZETA) {
                     Nion0 = ION_EFF_FACTOR *
-                            Nion_General(z0, lnMmin, lnMmax, astro_params->M_TURN, &sc_0);
+                            Nion_General(z0, lnMmin, lnMmax, astro_params_global->M_TURN, &sc_0);
                     Nion1 = ION_EFF_FACTOR *
-                            Nion_General(z1, lnMmin, lnMmax, astro_params->M_TURN, &sc_1);
+                            Nion_General(z1, lnMmin, lnMmax, astro_params_global->M_TURN, &sc_1);
                 } else {
                     // set the minimum source mass
-                    if (astro_params->ION_Tvir_MIN < 9.99999e3) {  // neutral IGM
-                        M_MIN_z0 = (float)TtoM(z0, astro_params->ION_Tvir_MIN, 1.22);
-                        M_MIN_z1 = (float)TtoM(z1, astro_params->ION_Tvir_MIN, 1.22);
+                    if (astro_params_global->ION_Tvir_MIN < 9.99999e3) {  // neutral IGM
+                        M_MIN_z0 = (float)TtoM(z0, astro_params_global->ION_Tvir_MIN, 1.22);
+                        M_MIN_z1 = (float)TtoM(z1, astro_params_global->ION_Tvir_MIN, 1.22);
                     } else {  // ionized IGM
-                        M_MIN_z0 = (float)TtoM(z0, astro_params->ION_Tvir_MIN, 0.6);
-                        M_MIN_z1 = (float)TtoM(z1, astro_params->ION_Tvir_MIN, 0.6);
+                        M_MIN_z0 = (float)TtoM(z0, astro_params_global->ION_Tvir_MIN, 0.6);
+                        M_MIN_z1 = (float)TtoM(z1, astro_params_global->ION_Tvir_MIN, 0.6);
                     }
 
                     if (M_MIN_z0 < M_MIN_z1) {
-                        if (matter_flags->INTEGRATION_METHOD_ATOMIC == 2) {
+                        if (matter_flags_global->INTEGRATION_METHOD_ATOMIC == 2) {
                             initialiseSigmaMInterpTable(fmin(MMIN_FAST, M_MIN_z0), 1e20);
                         } else {
                             initialiseSigmaMInterpTable(M_MIN_z0, 1e20);
                         }
                     } else {
-                        if (matter_flags->INTEGRATION_METHOD_ATOMIC == 2) {
+                        if (matter_flags_global->INTEGRATION_METHOD_ATOMIC == 2) {
                             initialiseSigmaMInterpTable(fmin(MMIN_FAST, M_MIN_z1), 1e20);
                         } else {
                             initialiseSigmaMInterpTable(M_MIN_z1, 1e20);
@@ -216,9 +209,10 @@ int InitialisePhotonCons(MatterParams *matter_params, MatterFlags *matter_flags,
                 if (!RecombPhotonCons) {
                     Q1 = Q0 + ((Nion0 - Nion1) / 2 / delta_a) * da;  // No Recombination
                 } else {
-                    dadt = Ho * sqrt(cosmo_params->OMm / a + cosmo_params_global->OMr / a / a +
-                                     cosmo_params->OMl * a *
-                                         a);  // da/dt = Ho*a*sqrt(OMm/a^3 + OMr/a^4 + OMl)
+                    dadt =
+                        Ho * sqrt(cosmo_params_global->OMm / a + cosmo_params_global->OMr / a / a +
+                                  cosmo_params_global->OMl * a *
+                                      a);  // da/dt = Ho*a*sqrt(OMm/a^3 + OMr/a^4 + OMl)
                     Trec = 0.93 * 1e9 * SperYR * pow(C_HII / 3., -1) * pow(T_0 / 2e4, 0.7) *
                            pow((1. + zi) / 7., -3);
                     Q1 = Q0 + ((Nion0 - Nion1) / 2. / delta_a - Q0 / Trec / dadt) * da;
@@ -311,7 +305,7 @@ int InitialisePhotonCons(MatterParams *matter_params, MatterFlags *matter_flags,
         free(Q_z);
         free(z_value);
 
-        if (astro_flags->USE_MASS_DEPENDENT_ZETA) {
+        if (astro_flags_global->USE_MASS_DEPENDENT_ZETA) {
             freeSigmaMInterpTable();
         }
 
@@ -708,8 +702,9 @@ void adjust_redshifts_for_photoncons(double z_step_factor, float *redshift, floa
         LOG_ERROR(
             "You have passed a redshift (z = %f) that is lower than the enpoint of the photon "
             "non-conservation correction "
-            "(astro_params->PHOTONCONS_CALIBRATION_END = %f). If this behaviour is desired then "
-            "set astro_params->PHOTONCONS_CALIBRATION_END "
+            "(astro_params_global->PHOTONCONS_CALIBRATION_END = %f). If this behaviour is desired "
+            "then "
+            "set astro_params_global->PHOTONCONS_CALIBRATION_END "
             "to a value lower than z = %f.",
             *redshift, astro_params_global->PHOTONCONS_CALIBRATION_END, *redshift);
         Throw(PhotonConsError);
@@ -874,9 +869,9 @@ void z_at_Q(double Q, double *splined_value) {
     } else if (Q > Qmax) {
         LOG_ERROR("The maximum value of Q is %.4e. Reionization ends at ~%.4f.", Qmax, Zmin);
         LOG_ERROR(
-            "This error can occur if astro_params->PHOTONCONS_CALIBRATION_END is close to "
+            "This error can occur if astro_params_global->PHOTONCONS_CALIBRATION_END is close to "
             "the final sampled redshift. One can consider a lower value for "
-            "astro_params->PHOTONCONS_CALIBRATION_END to mitigate this");
+            "astro_params_global->PHOTONCONS_CALIBRATION_END to mitigate this");
         //        Throw(ParameterError);
         Throw(PhotonConsError);
     } else {

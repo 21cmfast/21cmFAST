@@ -121,10 +121,7 @@ struct FilteredGrids {
     fftwf_complex *sfr_unfiltered, *sfr_filtered;
 };
 
-void set_ionbox_constants(double redshift, double prev_redshift, CosmoParams *cosmo_params,
-                          MatterParams *matter_params, MatterFlags *matter_flags,
-                          AstroParams *astro_params, AstroFlags *astro_flags,
-                          struct IonBoxConstants *consts) {
+void set_ionbox_constants(double redshift, double prev_redshift, struct IonBoxConstants *consts) {
     consts->redshift = redshift;
     consts->prev_redshift = prev_redshift;
     // defaults for no photoncons
@@ -134,12 +131,12 @@ void set_ionbox_constants(double redshift, double prev_redshift, CosmoParams *co
     // dz is only used if inhomo_reco
     // On the first step we assume a dz determined by ZPRIME_STEP_FACTOR
     if (prev_redshift < 1)
-        consts->dz = (1. + redshift) * (matter_params->ZPRIME_STEP_FACTOR - 1.);
+        consts->dz = (1. + redshift) * (matter_params_global->ZPRIME_STEP_FACTOR - 1.);
     else
         consts->dz = prev_redshift - redshift;
 
     struct ScalingConstants sc;
-    set_scaling_constants(redshift, matter_flags, astro_params, astro_flags, &sc, true);
+    set_scaling_constants(redshift, &sc, true);
     consts->scale_consts = sc;
 
     // TODO: Figure out why we have the 1e15 here
@@ -149,23 +146,24 @@ void set_ionbox_constants(double redshift, double prev_redshift, CosmoParams *co
 
     // whether to fix *integrated* (not sampled) galaxy properties to the expected mean
     //   constant for now, to be a flag later
-    consts->fix_mean = !matter_flags->USE_HALO_FIELD;
-    consts->filter_recombinations = astro_flags->INHOMO_RECO && !astro_flags->CELL_RECOMB;
+    consts->fix_mean = !matter_flags_global->USE_HALO_FIELD;
+    consts->filter_recombinations =
+        astro_flags_global->INHOMO_RECO && !astro_flags_global->CELL_RECOMB;
 
-    consts->hii_filter = astro_flags->HII_FILTER;
-    consts->T_re = astro_params->T_RE;
+    consts->hii_filter = astro_flags_global->HII_FILTER;
+    consts->T_re = astro_params_global->T_RE;
 
-    if (astro_flags->USE_MASS_DEPENDENT_ZETA) {
+    if (astro_flags_global->USE_MASS_DEPENDENT_ZETA) {
         consts->ion_eff_factor_gl = sc.pop2_ion * sc.fstar_10 * sc.fesc_10;
         consts->ion_eff_factor_mini_gl = sc.pop3_ion * sc.fstar_7 * sc.fesc_7;
     } else {
-        consts->ion_eff_factor_gl = astro_params->HII_EFF_FACTOR;
+        consts->ion_eff_factor_gl = astro_params_global->HII_EFF_FACTOR;
         consts->ion_eff_factor_mini_gl = 0.;
     }
 
     // The halo fields already have Fstar,Fesc,nion taken into account, so their global factor
     // differs from the local one
-    if (matter_flags->USE_HALO_FIELD) {
+    if (matter_flags_global->USE_HALO_FIELD) {
         consts->ion_eff_factor = 1.;
         consts->ion_eff_factor_mini = 1.;
     } else {
@@ -175,26 +173,26 @@ void set_ionbox_constants(double redshift, double prev_redshift, CosmoParams *co
 
     // MFP USED FOR THE EXPNENTIAL FILTER
     // Yuxiang's evolving Rmax for MFP in ionised regions fit from Songaila+2010
-    //  if(astro_flags->USE_EXP_FILTER){
+    //  if(astro_flags_global->USE_EXP_FILTER){
     //      if (redshift > 6)
-    //          consts->mfp_meandens = 25.483241248322766 / cosmo_params->hlittle;
+    //          consts->mfp_meandens = 25.483241248322766 / cosmo_params_global->hlittle;
     //      else
-    //          consts->mfp_meandens = 112 / cosmo_params->hlittle * pow( (1.+redshift) / 5. ,
-    //          -4.4);
+    //          consts->mfp_meandens = 112 / cosmo_params_global->hlittle * pow( (1.+redshift) / 5.
+    //          , -4.4);
     //      LOG_DEBUG("Set mfp = %.4e",consts->mfp_meandens);
     //  }
     // Constant MFP
-    consts->mfp_meandens = 25.483241248322766 / cosmo_params->hlittle;
+    consts->mfp_meandens = 25.483241248322766 / cosmo_params_global->hlittle;
 
     // set the minimum source mass
-    consts->M_min = minimum_source_mass(redshift, false, astro_params, astro_flags);
+    consts->M_min = minimum_source_mass(redshift, false);
     consts->lnMmin = log(consts->M_min);
     consts->lnMmax_gl = log(M_MAX_INTEGRAL);
     consts->sigma_minmass = sigma_z0(consts->M_min);
 
     // global TK and adiabatic terms for temperature without the Ts Calculation
     // final temperature = TK * (1+cT_ad*delta)
-    if (!astro_flags->USE_TS_FLUCT) {
+    if (!astro_flags_global->USE_TS_FLUCT) {
         consts->TK_nofluct = T_RECFAST(redshift, 0);
         // finding the adiabatic index at the initial redshift from 2302.08506 to fix adiabatic
         // fluctuations.
@@ -206,10 +204,10 @@ void set_ionbox_constants(double redshift, double prev_redshift, CosmoParams *co
     consts->gamma_prefactor =
         pow(1 + redshift, 2) * CMperMPC * SIGMA_HI * astro_params_global->ALPHA_UVB /
         (astro_params_global->ALPHA_UVB + 2.75) * N_b0 * consts->ion_eff_factor / 1.0e-12;
-    if (matter_flags->USE_HALO_FIELD)
+    if (matter_flags_global->USE_HALO_FIELD)
         consts->gamma_prefactor /=
-            RHOcrit * cosmo_params->OMb;  // TODO: double-check these unit differences,
-                                          // HaloBox.halo_wsfr vs Nion_General units
+            RHOcrit * cosmo_params_global->OMb;  // TODO: double-check these unit differences,
+                                                 // HaloBox.halo_wsfr vs Nion_General units
     else
         consts->gamma_prefactor /= sc.t_h / sc.t_star;
     consts->gamma_prefactor_mini =
@@ -403,9 +401,8 @@ void calculate_mcrit_boxes(IonizedBox *prev_ionbox, TsBox *spin_temp, InitialCon
                         !astro_flags_global->FIX_VCB_AVG)
                         curr_vcb = ini_boxes->lowres_vcb[HII_R_INDEX(x, y, z)];
 
-                    Mcrit_LW = lyman_werner_threshold(consts->redshift,
-                                                      spin_temp->J_21_LW_box[HII_R_INDEX(x, y, z)],
-                                                      curr_vcb, astro_params_global);
+                    Mcrit_LW = lyman_werner_threshold(
+                        consts->redshift, spin_temp->J_21_LW_box[HII_R_INDEX(x, y, z)], curr_vcb);
                     if (Mcrit_LW != Mcrit_LW || Mcrit_LW == 0) {
                         LOG_ERROR("Mcrit error %d %d %d: M %.2e z %.2f J %.2e v %.2e", x, y, z,
                                   Mcrit_LW, consts->redshift,
@@ -1267,30 +1264,26 @@ void set_recombination_rates(IonizedBox *box, IonizedBox *previous_ionize_box,
     }
 }
 
-int ComputeIonizedBox(float redshift, float prev_redshift, MatterParams *matter_params,
-                      MatterFlags *matter_flags, CosmoParams *cosmo_params,
-                      AstroParams *astro_params, AstroFlags *astro_flags,
-                      PerturbedField *perturbed_field, PerturbedField *previous_perturbed_field,
-                      IonizedBox *previous_ionize_box, TsBox *spin_temp, HaloBox *halos,
-                      InitialConditions *ini_boxes, IonizedBox *box) {
+int ComputeIonizedBox(float redshift, float prev_redshift, PerturbedField *perturbed_field,
+                      PerturbedField *previous_perturbed_field, IonizedBox *previous_ionize_box,
+                      TsBox *spin_temp, HaloBox *halos, InitialConditions *ini_boxes,
+                      IonizedBox *box) {
     int status;
 
     Try {  // This Try brackets the whole function, so we don't indent.
         LOG_DEBUG("input values:");
         LOG_DEBUG("redshift=%f, prev_redshift=%f", redshift, prev_redshift);
 #if LOG_LEVEL >= DEBUG_LEVEL
-        writeMatterParams(matter_params);
-        writeCosmoParams(cosmo_params);
-        writeAstroParams(astro_flags, astro_params);
-        writeAstroFlags(astro_flags);
+        writeMatterParams(matter_params_global);
+        writeMatterFlags(matter_flags_global);
+        writeCosmoParams(cosmo_params_global);
+        writeAstroParams(astro_flags_global, astro_params_global);
+        writeAstroFlags(astro_flags_global);
 #endif
 
         // Makes the parameter structs visible to a variety of functions/macros
         // Do each time to avoid Python garbage collection issues
-        Broadcast_struct_global_all(matter_params, matter_flags, cosmo_params, astro_params,
-                                    astro_flags);
-
-        omp_set_num_threads(matter_params->N_THREADS);
+        omp_set_num_threads(matter_params_global->N_THREADS);
 
         unsigned long long ct;
 
@@ -1301,18 +1294,17 @@ int ComputeIonizedBox(float redshift, float prev_redshift, MatterParams *matter_
         init_ps();
 
         struct IonBoxConstants ionbox_constants;
-        set_ionbox_constants(redshift, prev_redshift, cosmo_params, matter_params, matter_flags,
-                             astro_params, astro_flags, &ionbox_constants);
+        set_ionbox_constants(redshift, prev_redshift, &ionbox_constants);
 
         // boxes which aren't guaranteed to have every element assigned to need to be initialised
-        if (astro_flags->INHOMO_RECO) {
+        if (astro_flags_global->INHOMO_RECO) {
             if (INIT_RECOMBINATIONS) {
                 init_MHR();
                 INIT_RECOMBINATIONS = 0;
             }
         }
 
-#pragma omp parallel shared(box) private(ct) num_threads(matter_params -> N_THREADS)
+#pragma omp parallel shared(box) private(ct) num_threads(matter_params_global -> N_THREADS)
         {
 #pragma omp for
             for (ct = 0; ct < HII_TOT_NUM_PIXELS; ct++) {
@@ -1321,17 +1313,17 @@ int ComputeIonizedBox(float redshift, float prev_redshift, MatterParams *matter_
         }
 
         LOG_SUPER_DEBUG("z_re_box init: ");
-        debugSummarizeBox(box->z_re_box, matter_params->HII_DIM, matter_params->HII_DIM, HII_D_PARA,
-                          "  ");
+        debugSummarizeBox(box->z_re_box, matter_params_global->HII_DIM,
+                          matter_params_global->HII_DIM, HII_D_PARA, "  ");
 
         // Modify the current sampled redshift to a redshift which matches the expected filling
         // factor given our astrophysical parameterisation. This is the photon non-conservation
         // correction
         float absolute_delta_z = 0.;
         float redshift_pc, stored_redshift_pc;
-        if (astro_flags->PHOTON_CONS_TYPE == 1) {
+        if (astro_flags_global->PHOTON_CONS_TYPE == 1) {
             redshift_pc = redshift;
-            adjust_redshifts_for_photoncons(matter_params->ZPRIME_STEP_FACTOR, &redshift_pc,
+            adjust_redshifts_for_photoncons(matter_params_global->ZPRIME_STEP_FACTOR, &redshift_pc,
                                             &stored_redshift_pc, &absolute_delta_z);
             ionbox_constants.redshift = redshift_pc;
             ionbox_constants.stored_redshift = stored_redshift_pc;
@@ -1365,14 +1357,14 @@ int ComputeIonizedBox(float redshift, float prev_redshift, MatterParams *matter_
 
         // Find the mass limits and average turnovers
         double Mturnover_global_avg = 0., Mturnover_global_avg_MINI = 0.;
-        if (astro_flags->USE_MASS_DEPENDENT_ZETA) {
-            if (matter_flags->USE_HALO_FIELD) {
+        if (astro_flags_global->USE_MASS_DEPENDENT_ZETA) {
+            if (matter_flags_global->USE_HALO_FIELD) {
                 // Here these are only used for the global calculations
                 box->log10_Mturnover_ave = halos->log10_Mcrit_ACG_ave;
                 box->log10_Mturnover_MINI_ave = halos->log10_Mcrit_MCG_ave;
                 Mturnover_global_avg = pow(10., halos->log10_Mcrit_ACG_ave);
                 Mturnover_global_avg_MINI = pow(10., halos->log10_Mcrit_MCG_ave);
-            } else if (astro_flags->USE_MINI_HALOS) {
+            } else if (astro_flags_global->USE_MINI_HALOS) {
                 LOG_SUPER_DEBUG(
                     "Calculating and outputting Mcrit boxes for atomic and molecular halos...");
                 calculate_mcrit_boxes(previous_ionize_box, spin_temp, ini_boxes, &ionbox_constants,
@@ -1386,7 +1378,7 @@ int ComputeIonizedBox(float redshift, float prev_redshift, MatterParams *matter_
                 LOG_DEBUG("average log10 turnover masses are %.2f and %.2f for ACGs and MCGs",
                           box->log10_Mturnover_ave, box->log10_Mturnover_MINI_ave);
             } else {
-                Mturnover_global_avg = astro_params->M_TURN;
+                Mturnover_global_avg = astro_params_global->M_TURN;
                 box->log10_Mturnover_ave = log10(Mturnover_global_avg);
                 box->log10_Mturnover_MINI_ave = log10(Mturnover_global_avg);
             }
@@ -1395,16 +1387,17 @@ int ComputeIonizedBox(float redshift, float prev_redshift, MatterParams *matter_
         global_xH = 0.0;
 
         // HMF integral initialisation
-        if (matter_flags->USE_INTERPOLATION_TABLES > 0) {
-            if (matter_flags->INTEGRATION_METHOD_ATOMIC == 2 ||
-                matter_flags->INTEGRATION_METHOD_MINI == 2)
+        if (matter_flags_global->USE_INTERPOLATION_TABLES > 0) {
+            if (matter_flags_global->INTEGRATION_METHOD_ATOMIC == 2 ||
+                matter_flags_global->INTEGRATION_METHOD_MINI == 2)
                 initialiseSigmaMInterpTable(fmin(MMIN_FAST, ionbox_constants.M_min), 1e20);
             else
                 initialiseSigmaMInterpTable(ionbox_constants.M_min, 1e20);
         }
 
-        if (matter_flags->INTEGRATION_METHOD_ATOMIC == 1 ||
-            (astro_flags->USE_MINI_HALOS && matter_flags->INTEGRATION_METHOD_MINI == 1))
+        if (matter_flags_global->INTEGRATION_METHOD_ATOMIC == 1 ||
+            (astro_flags_global->USE_MINI_HALOS &&
+             matter_flags_global->INTEGRATION_METHOD_MINI == 1))
             initialise_GL(ionbox_constants.lnMmin, ionbox_constants.lnMmax_gl);
 
         double f_limit_acg;
@@ -1425,22 +1418,25 @@ int ComputeIonizedBox(float redshift, float prev_redshift, MatterParams *matter_
             // TODO: put a flag for to turn off clipping instead of putting the wide limits
             prepare_box_for_filtering(perturbed_field->density, grid_struct->deltax_unfiltered,
                                       ionbox_constants.photoncons_adjustment_factor, -1., 1e6);
-            if (matter_flags->USE_HALO_FIELD) {
+            if (matter_flags_global->USE_HALO_FIELD) {
                 prepare_box_for_filtering(halos->n_ion, grid_struct->stars_unfiltered, 1., 0.,
                                           1e20);
                 prepare_box_for_filtering(halos->whalo_sfr, grid_struct->sfr_unfiltered, 1., 0.,
                                           1e20);
             } else {
-                if (astro_flags->USE_MINI_HALOS) {
+                if (astro_flags_global->USE_MINI_HALOS) {
                     prepare_box_for_filtering(previous_perturbed_field->density,
                                               grid_struct->prev_deltax_unfiltered, 1., -1, 1e6);
                     // since the turnover mass boxes were assigned separately (they needed more
                     // complex functions)...
-                    dft_r2c_cube(matter_flags->USE_FFTW_WISDOM, matter_params->HII_DIM, HII_D_PARA,
-                                 matter_params->N_THREADS,
+                    dft_r2c_cube(matter_flags_global->USE_FFTW_WISDOM,
+                                 matter_params_global->HII_DIM, HII_D_PARA,
+                                 matter_params_global->N_THREADS,
                                  grid_struct->log10_Mturnover_MINI_unfiltered);
-                    dft_r2c_cube(matter_flags->USE_FFTW_WISDOM, matter_params->HII_DIM, HII_D_PARA,
-                                 matter_params->N_THREADS, grid_struct->log10_Mturnover_unfiltered);
+                    dft_r2c_cube(matter_flags_global->USE_FFTW_WISDOM,
+                                 matter_params_global->HII_DIM, HII_D_PARA,
+                                 matter_params_global->N_THREADS,
+                                 grid_struct->log10_Mturnover_unfiltered);
                     for (ct = 0; ct < HII_KSPACE_NUM_PIXELS; ct++) {
                         grid_struct->log10_Mturnover_unfiltered[ct] /= (float)HII_TOT_NUM_PIXELS;
                         grid_struct->log10_Mturnover_MINI_unfiltered[ct] /=
@@ -1448,7 +1444,7 @@ int ComputeIonizedBox(float redshift, float prev_redshift, MatterParams *matter_
                     }
                 }
             }
-            if (astro_flags->USE_TS_FLUCT) {
+            if (astro_flags_global->USE_TS_FLUCT) {
                 prepare_box_for_filtering(spin_temp->x_e_box, grid_struct->xe_unfiltered, 1., 0,
                                           1.);
             }
@@ -1487,13 +1483,13 @@ int ComputeIonizedBox(float redshift, float prev_redshift, MatterParams *matter_
                 copy_filter_transform(grid_struct, &ionbox_constants, curr_radius);
 
                 bool need_prev_ion =
-                    astro_flags->USE_MINI_HALOS &&
+                    astro_flags_global->USE_MINI_HALOS &&
                     (previous_ionize_box->mean_f_coll_MINI *
                              ionbox_constants.ion_eff_factor_mini_gl +
                          previous_ionize_box->mean_f_coll * ionbox_constants.ion_eff_factor_gl >
                      1e-4);
 
-                if (!matter_flags->USE_HALO_FIELD) {
+                if (!matter_flags_global->USE_HALO_FIELD) {
                     setup_integration_tables(grid_struct, &ionbox_constants, curr_radius,
                                              need_prev_ion);
                 }
@@ -1507,7 +1503,7 @@ int ComputeIonizedBox(float redshift, float prev_redshift, MatterParams *matter_
                 if (astro_flags_global->USE_MASS_DEPENDENT_ZETA) {
                     if (curr_radius.f_coll_grid_mean <= f_limit_acg)
                         curr_radius.f_coll_grid_mean = f_limit_acg;
-                    if (astro_flags->USE_MINI_HALOS) {
+                    if (astro_flags_global->USE_MINI_HALOS) {
                         if (curr_radius.f_coll_grid_mean_MINI <= f_limit_mcg)
                             curr_radius.f_coll_grid_mean_MINI = f_limit_mcg;
                     }
@@ -1522,8 +1518,8 @@ int ComputeIonizedBox(float redshift, float prev_redshift, MatterParams *matter_
 
 #if LOG_LEVEL >= ULTRA_DEBUG_LEVEL
                 LOG_ULTRA_DEBUG("z_re_box after R=%f: ", curr_radius.R);
-                debugSummarizeBox(box->z_re_box, matter_params->HII_DIM, matter_params->HII_DIM,
-                                  HII_D_PARA, "  ");
+                debugSummarizeBox(box->z_re_box, matter_params_global->HII_DIM,
+                                  matter_params_global->HII_DIM, HII_D_PARA, "  ");
 #endif
             }
             set_ionized_temperatures(box, perturbed_field, spin_temp, &ionbox_constants);
@@ -1531,7 +1527,7 @@ int ComputeIonizedBox(float redshift, float prev_redshift, MatterParams *matter_
             // find the neutral fraction
             global_xH = 0;
 
-#pragma omp parallel shared(box) private(ct) num_threads(matter_params -> N_THREADS)
+#pragma omp parallel shared(box) private(ct) num_threads(matter_params_global -> N_THREADS)
             {
 #pragma omp for reduction(+ : global_xH)
                 for (ct = 0; ct < HII_TOT_NUM_PIXELS; ct++) {
@@ -1548,7 +1544,7 @@ int ComputeIonizedBox(float redshift, float prev_redshift, MatterParams *matter_
             }
 
             // update the N_rec field
-            if (astro_flags->INHOMO_RECO) {
+            if (astro_flags_global->INHOMO_RECO) {
                 set_recombination_rates(box, previous_ionize_box, perturbed_field,
                                         &ionbox_constants);
             }
@@ -1570,7 +1566,8 @@ int ComputeIonizedBox(float redshift, float prev_redshift, MatterParams *matter_
         LOG_DEBUG("global_xH = %e", global_xH);
         free_fftw_grids(grid_struct);
 
-        if (!astro_flags->USE_TS_FLUCT && matter_flags->USE_INTERPOLATION_TABLES > 0) {
+        if (!astro_flags_global->USE_TS_FLUCT &&
+            matter_flags_global->USE_INTERPOLATION_TABLES > 0) {
             freeSigmaMInterpTable();
         }
 

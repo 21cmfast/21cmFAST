@@ -1209,26 +1209,25 @@ float Mass_limit_bisection(float Mmin, float Mmax, float PL, float FRAC) {
 // chosen mass by a factor of 50 NOTE: previously, with USE_MINI_HALOS, the sigma table was
 // initialised with M_MIN_INTEGRAL/50, but then all integrals perofmed
 //       from M_MIN_INTEGRAL
-double minimum_source_mass(double redshift, bool xray, AstroParams *astro_params,
-                           AstroFlags *astro_flags) {
+double minimum_source_mass(double redshift, bool xray) {
     double Mmin, min_factor, mu_factor, t_vir_min;
-    if (astro_flags->USE_MASS_DEPENDENT_ZETA && !astro_flags->USE_MINI_HALOS)
+    if (astro_flags_global->USE_MASS_DEPENDENT_ZETA && !astro_flags_global->USE_MINI_HALOS)
         min_factor = 50.;  // small lower bound to cover far below the turnover
     else
         min_factor = 1.;  // sharp cutoff
 
     // automatically false if !USE_MASS_DEPENDENT_ZETA
-    if (astro_flags->USE_MINI_HALOS) {
+    if (astro_flags_global->USE_MINI_HALOS) {
         Mmin = M_MIN_INTEGRAL;
     }
     // automatically true if USE_MASS_DEPENDENT_ZETA
-    else if (astro_flags->M_MIN_in_Mass) {
+    else if (astro_flags_global->M_MIN_in_Mass) {
         // NOTE: previously this divided Mturn by 50 in spin temperature, but not in the ionised box
         //      which I think is a bug with M_MIN_in_Mass, since there is a sharp cutoff
-        Mmin = astro_params->M_TURN;
+        Mmin = astro_params_global->M_TURN;
     } else {
         // if the virial temp minimum is set below ionisation we need to set mu accordingly
-        t_vir_min = xray ? astro_params->X_RAY_Tvir_MIN : astro_params->ION_Tvir_MIN;
+        t_vir_min = xray ? astro_params_global->X_RAY_Tvir_MIN : astro_params_global->ION_Tvir_MIN;
         mu_factor = t_vir_min < 9.99999e3 ? 1.22 : 0.6;
         Mmin = TtoM(redshift, t_vir_min, mu_factor);
     }

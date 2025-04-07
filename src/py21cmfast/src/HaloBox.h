@@ -10,9 +10,7 @@
 #include "SpinTemperatureBox.h"
 
 // Compute the HaloBox Object
-int ComputeHaloBox(double redshift, MatterParams *matter_params, MatterFlags *matter_flags,
-                   CosmoParams *cosmo_params, AstroParams *astro_params, AstroFlags *astro_flags,
-                   InitialConditions *ini_boxes, PerturbedField *perturbed_field,
+int ComputeHaloBox(double redshift, InitialConditions *ini_boxes, PerturbedField *perturbed_field,
                    PerturbHaloField *halos, TsBox *previous_spin_temp,
                    IonizedBox *previous_ionize_box, HaloBox *grids);
 

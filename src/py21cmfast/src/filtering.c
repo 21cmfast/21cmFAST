@@ -207,14 +207,9 @@ void filter_box(fftwf_complex *box, int RES, int filter_type, float R, float R_p
 }
 
 // Test function to filter a box without computing a whole output box
-int test_filter(MatterParams *matter_params, MatterFlags *matter_flags, CosmoParams *cosmo_params,
-                AstroParams *astro_params, AstroFlags *astro_flags, float *input_box, double R,
-                double R_param, int filter_flag, double *result) {
+int test_filter(float *input_box, double R, double R_param, int filter_flag, double *result) {
     int i, j, k;
     unsigned long long int ii;
-
-    Broadcast_struct_global_all(matter_params, matter_flags, cosmo_params, astro_params,
-                                astro_flags);
 
     // setup the box
     fftwf_complex *box_unfiltered =
@@ -222,14 +217,14 @@ int test_filter(MatterParams *matter_params, MatterFlags *matter_flags, CosmoPar
     fftwf_complex *box_filtered =
         (fftwf_complex *)fftwf_malloc(sizeof(fftwf_complex) * HII_KSPACE_NUM_PIXELS);
 
-    for (i = 0; i < matter_params->HII_DIM; i++)
-        for (j = 0; j < matter_params->HII_DIM; j++)
+    for (i = 0; i < matter_params_global->HII_DIM; i++)
+        for (j = 0; j < matter_params_global->HII_DIM; j++)
             for (k = 0; k < HII_D_PARA; k++)
                 *((float *)box_unfiltered + HII_R_FFT_INDEX(i, j, k)) =
                     input_box[HII_R_INDEX(i, j, k)];
 
-    dft_r2c_cube(matter_flags->USE_FFTW_WISDOM, matter_params->HII_DIM, HII_D_PARA,
-                 matter_params->N_THREADS, box_unfiltered);
+    dft_r2c_cube(matter_flags_global->USE_FFTW_WISDOM, matter_params_global->HII_DIM, HII_D_PARA,
+                 matter_params_global->N_THREADS, box_unfiltered);
 
     for (ii = 0; ii < HII_KSPACE_NUM_PIXELS; ii++) {
         box_unfiltered[ii] /= (double)HII_TOT_NUM_PIXELS;
@@ -239,11 +234,11 @@ int test_filter(MatterParams *matter_params, MatterFlags *matter_flags, CosmoPar
 
     filter_box(box_filtered, 1, filter_flag, R, R_param);
 
-    dft_c2r_cube(matter_flags->USE_FFTW_WISDOM, matter_params->HII_DIM, HII_D_PARA,
-                 matter_params->N_THREADS, box_filtered);
+    dft_c2r_cube(matter_flags_global->USE_FFTW_WISDOM, matter_params_global->HII_DIM, HII_D_PARA,
+                 matter_params_global->N_THREADS, box_filtered);
 
-    for (i = 0; i < matter_params->HII_DIM; i++)
-        for (j = 0; j < matter_params->HII_DIM; j++)
+    for (i = 0; i < matter_params_global->HII_DIM; i++)
+        for (j = 0; j < matter_params_global->HII_DIM; j++)
             for (k = 0; k < HII_D_PARA; k++)
                 result[HII_R_INDEX(i, j, k)] = *((float *)box_filtered + HII_R_FFT_INDEX(i, j, k));
 

@@ -49,8 +49,7 @@ double splined_erfc(double x);
 double get_delta_crit(int HMF, double sigma, double growthf);
 double st_taylor_factor(double sig, double sig_cond, double growthf, double *zeroth_order);
 double atomic_cooling_threshold(float z);
-double minimum_source_mass(double redshift, bool xray, AstroParams *astro_params,
-                           AstroFlags *astro_flags);
+double minimum_source_mass(double redshift, bool xray);
 double sheth_delc_dexm(double del, double sig);
 float Mass_limit_bisection(float Mmin, float Mmax, float PL, float FRAC);
 double euler_to_lagrangian_delta(double delta);

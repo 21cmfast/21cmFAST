@@ -253,8 +253,7 @@ int set_fixed_grids(double M_min, double M_max, InitialConditions *ini_boxes,
                     zre_val = previous_ionize_box->z_re_box[i];
                 }
                 M_turn_a = consts->mturn_a_nofb;
-                M_turn_m = lyman_werner_threshold(consts->redshift, J21_val, curr_vcb,
-                                                  astro_params_global);
+                M_turn_m = lyman_werner_threshold(consts->redshift, J21_val, curr_vcb);
                 M_turn_r = reionization_feedback(consts->redshift, Gamma12_val, zre_val);
                 M_turn_a = fmax(M_turn_a, fmax(M_turn_r, astro_params_global->M_TURN));
                 M_turn_m = fmax(M_turn_m, fmax(M_turn_r, astro_params_global->M_TURN));
@@ -505,8 +504,7 @@ void get_mean_log10_turnovers(InitialConditions *ini_boxes, TsBox *previous_spin
                 Gamma12_val = previous_ionize_box->Gamma12_box[i];
                 zre_val = previous_ionize_box->z_re_box[i];
             }
-            M_turn_m =
-                lyman_werner_threshold(consts->redshift, J21_val, curr_vcb, astro_params_global);
+            M_turn_m = lyman_werner_threshold(consts->redshift, J21_val, curr_vcb);
             M_turn_r = reionization_feedback(consts->redshift, Gamma12_val, zre_val);
             M_turn_a = fmax(M_turn_a, fmax(M_turn_r, astro_params_global->M_TURN));
             M_turn_m = fmax(M_turn_m, fmax(M_turn_r, astro_params_global->M_TURN));
@@ -588,7 +586,7 @@ void sum_halos_onto_grid(InitialConditions *ini_boxes, TsBox *previous_spin_temp
                 }
 
                 M_turn_a = consts->mturn_a_nofb;
-                M_turn_m = lyman_werner_threshold(redshift, J21_val, curr_vcb, astro_params_global);
+                M_turn_m = lyman_werner_threshold(redshift, J21_val, curr_vcb);
                 M_turn_r = reionization_feedback(redshift, Gamma12_val, zre_val);
                 M_turn_a = fmax(M_turn_a, fmax(M_turn_r, astro_params_global->M_TURN));
                 M_turn_m = fmax(M_turn_m, fmax(M_turn_r, astro_params_global->M_TURN));
@@ -720,26 +718,22 @@ void sum_halos_onto_grid(InitialConditions *ini_boxes, TsBox *previous_spin_temp
 }
 
 // We grid a PERTURBED halofield into the necessary quantities for calculating radiative backgrounds
-int ComputeHaloBox(double redshift, MatterParams *matter_params, MatterFlags *matter_flags,
-                   CosmoParams *cosmo_params, AstroParams *astro_params, AstroFlags *astro_flags,
-                   InitialConditions *ini_boxes, PerturbedField *perturbed_field,
+int ComputeHaloBox(double redshift, InitialConditions *ini_boxes, PerturbedField *perturbed_field,
                    PerturbHaloField *halos, TsBox *previous_spin_temp,
                    IonizedBox *previous_ionize_box, HaloBox *grids) {
     int status;
     Try {
         // get parameters
-        Broadcast_struct_global_all(matter_params, matter_flags, cosmo_params, astro_params,
-                                    astro_flags);
 
 #if LOG_LEVEL >= SUPER_DEBUG_LEVEL
-        writeMatterParams(matter_params);
-        writeCosmoParams(cosmo_params);
-        writeAstroParams(astro_flags, astro_params);
-        writeAstroFlags(astro_flags);
+        writeMatterParams(matter_params_global);
+        writeCosmoParams(cosmo_params_global);
+        writeAstroParams(astro_flags_global, astro_params_global);
+        writeAstroFlags(astro_flags_global);
 #endif
 
         unsigned long long int idx;
-#pragma omp parallel for num_threads(matter_params->N_THREADS) private(idx)
+#pragma omp parallel for num_threads(matter_params_global->N_THREADS) private(idx)
         for (idx = 0; idx < HII_TOT_NUM_PIXELS; idx++) {
             grids->halo_mass[idx] = 0.0;
             grids->n_ion[idx] = 0.0;
@@ -753,12 +747,11 @@ int ComputeHaloBox(double redshift, MatterParams *matter_params, MatterFlags *ma
 
         struct ScalingConstants hbox_consts;
 
-        set_scaling_constants(redshift, matter_flags, astro_params, astro_flags, &hbox_consts,
-                              true);
+        set_scaling_constants(redshift, &hbox_consts, true);
 
         LOG_DEBUG("Gridding %llu halos...", halos->n_halos);
 
-        double M_min = minimum_source_mass(redshift, false, astro_params, astro_flags);
+        double M_min = minimum_source_mass(redshift, false);
         double M_max_integral;
         double cell_volume = VOLUME / HII_TOT_NUM_PIXELS;
 
@@ -767,7 +760,7 @@ int ComputeHaloBox(double redshift, MatterParams *matter_params, MatterFlags *ma
         struct HaloProperties averages_box, averages_subsampler;
 
         init_ps();
-        if (matter_flags->USE_INTERPOLATION_TABLES > 0) {
+        if (matter_flags_global->USE_INTERPOLATION_TABLES > 0) {
             initialiseSigmaMInterpTable(
                 M_min / 2,
                 M_MAX_INTEGRAL);  // this needs to be initialised above MMax because of Nion_General
@@ -778,17 +771,18 @@ int ComputeHaloBox(double redshift, MatterParams *matter_params, MatterFlags *ma
         // delta This part mimics that behaviour Since we need the average turnover masses before we
         // can calculate the global means, we do the CMF integrals first Then we calculate the
         // expected UMF integrals before doing the adjustment
-        if (matter_flags->FIXED_HALO_GRIDS) {
+        if (matter_flags_global->FIXED_HALO_GRIDS) {
             M_max_integral = M_MAX_INTEGRAL;
             set_fixed_grids(M_min, M_max_integral, ini_boxes, perturbed_field, previous_spin_temp,
                             previous_ionize_box, &hbox_consts, grids, &averages_box, true);
         } else {
             // set below-resolution properties
-            if (astro_flags->AVG_BELOW_SAMPLER) {
-                if (matter_flags->HALO_STOCHASTICITY) {
-                    M_max_integral = matter_params->SAMPLER_MIN_MASS;
+            if (astro_flags_global->AVG_BELOW_SAMPLER) {
+                if (matter_flags_global->HALO_STOCHASTICITY) {
+                    M_max_integral = matter_params_global->SAMPLER_MIN_MASS;
                 } else {
-                    M_max_integral = RtoM(L_FACTOR * matter_params->BOX_LEN / matter_params->DIM);
+                    M_max_integral =
+                        RtoM(L_FACTOR * matter_params_global->BOX_LEN / matter_params_global->DIM);
                 }
                 if (M_min < M_max_integral) {
                     set_fixed_grids(M_min, M_max_integral, ini_boxes, perturbed_field,
@@ -798,7 +792,7 @@ int ComputeHaloBox(double redshift, MatterParams *matter_params, MatterFlags *ma
 // re-multiply before adding the halos.
 //       I should instead have a flag to output the summed values in cell. (2*N_pixel > N_halo so
 //       generally i don't want to do it in the halo loop)
-#pragma omp parallel for num_threads(matter_params->N_THREADS) private(idx)
+#pragma omp parallel for num_threads(matter_params_global->N_THREADS) private(idx)
                     for (idx = 0; idx < HII_TOT_NUM_PIXELS; idx++) {
                         grids->halo_mass[idx] *= cell_volume;
                         grids->halo_stars[idx] *= cell_volume;
@@ -832,7 +826,7 @@ int ComputeHaloBox(double redshift, MatterParams *matter_params, MatterFlags *ma
         LOG_SUPER_DEBUG("log10 Mutrn MCG: log10 cell-weighted %.6e Halo-weighted %.6e",
                         pow(10, grids->log10_Mcrit_MCG_ave), averages_box.m_turn_mcg);
 
-        if (matter_flags->USE_INTERPOLATION_TABLES > 0) {
+        if (matter_flags_global->USE_INTERPOLATION_TABLES > 0) {
             freeSigmaMInterpTable();
         }
     }
@@ -843,20 +837,15 @@ int ComputeHaloBox(double redshift, MatterParams *matter_params, MatterFlags *ma
 
 // test function for getting halo properties from the wrapper, can use a lot of memory for large
 // catalogs
-int test_halo_props(double redshift, MatterParams *matter_params, MatterFlags *matter_flags,
-                    CosmoParams *cosmo_params, AstroParams *astro_params, AstroFlags *astro_flags,
-                    float *vcb_grid, float *J21_LW_grid, float *z_re_grid, float *Gamma12_ion_grid,
-                    int n_halos, float *halo_masses, int *halo_coords, float *star_rng,
-                    float *sfr_rng, float *xray_rng, float *halo_props_out) {
+int test_halo_props(double redshift, float *vcb_grid, float *J21_LW_grid, float *z_re_grid,
+                    float *Gamma12_ion_grid, int n_halos, float *halo_masses, int *halo_coords,
+                    float *star_rng, float *sfr_rng, float *xray_rng, float *halo_props_out) {
     int status;
     Try {
         // get parameters
-        Broadcast_struct_global_all(matter_params, matter_flags, cosmo_params, astro_params,
-                                    astro_flags);
 
         struct ScalingConstants hbox_consts;
-        set_scaling_constants(redshift, matter_flags, astro_params, astro_flags, &hbox_consts,
-                              true);
+        set_scaling_constants(redshift, &hbox_consts, true);
         print_sc_consts(&hbox_consts);
 
         LOG_DEBUG("Getting props for %llu halos at z=%.2f", n_halos, redshift);
@@ -905,8 +894,7 @@ int test_halo_props(double redshift, MatterParams *matter_params, MatterFlags *m
                         zre_val = z_re_grid[i_cell];
                     }
                     M_turn_a = hbox_consts.mturn_a_nofb;
-                    M_turn_m =
-                        lyman_werner_threshold(redshift, J21_val, curr_vcb, astro_params_global);
+                    M_turn_m = lyman_werner_threshold(redshift, J21_val, curr_vcb);
                     M_turn_r = reionization_feedback(redshift, Gamma12_val, zre_val);
                     M_turn_a = fmax(M_turn_a, fmax(M_turn_r, astro_params_global->M_TURN));
                     M_turn_m = fmax(M_turn_m, fmax(M_turn_r, astro_params_global->M_TURN));

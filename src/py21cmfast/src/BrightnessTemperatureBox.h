@@ -5,9 +5,7 @@
 #include "InputParameters.h"
 #include "OutputStructs.h"
 
-int ComputeBrightnessTemp(float redshift, MatterParams *matter_params, MatterFlags *matter_flags,
-                          CosmoParams *cosmo_params, AstroParams *astro_params,
-                          AstroFlags *astro_flags, TsBox *spin_temp, IonizedBox *ionized_box,
+int ComputeBrightnessTemp(float redshift, TsBox *spin_temp, IonizedBox *ionized_box,
                           PerturbedField *perturb_field, BrightnessTemp *box);
 
 #endif

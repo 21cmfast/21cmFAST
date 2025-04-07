@@ -6,9 +6,7 @@
 #include "InputParameters.h"
 
 void filter_box(fftwf_complex *box, int RES, int filter_type, float R, float R_param);
-int test_filter(MatterParams *matter_params, MatterFlags *matter_flags, CosmoParams *cosmo_params,
-                AstroParams *astro_params, AstroFlags *astro_flags, float *input_box, double R,
-                double R_param, int filter_flag, double *result);
+int test_filter(float *input_box, double R, double R_param, int filter_flag, double *result);
 double filter_function(double k, int filter_type);
 double dwdm_filter(double k, double R, int filter_type);
 

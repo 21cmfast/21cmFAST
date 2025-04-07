@@ -14,7 +14,7 @@ import numpy as np
 from ..c_21cmfast import ffi, lib
 from ..io import h5
 from ..io.caching import OutputCache
-from ..wrapper.cfuncs import construct_fftw_wisdoms
+from ..wrapper.cfuncs import broadcast_input_struct, construct_fftw_wisdoms
 from ..wrapper.inputs import InputParameters
 from ..wrapper.outputs import OutputStruct, OutputStructZ, _HashType
 from ..wrapper.photoncons import _photoncons_state
@@ -234,9 +234,10 @@ class _OutputStructComputationInspect:
             check_consistency_of_outputs_with_inputs(given_inputs, outputs.values())
 
     def _make_wisdoms(self, inputs: InputParameters):
-        construct_fftw_wisdoms(
-            matter_params=inputs.matter_params, cosmo_params=inputs.cosmo_params
-        )
+        construct_fftw_wisdoms(inputs=inputs)
+
+    def _broadcast_inputs(self, inputs: InputParameters):
+        broadcast_input_struct(inputs=InputParameters)
 
     def check_output_struct_types(self, outputs: dict[str, OutputStruct]):
         """Check given OutputStruct parameters.
@@ -459,6 +460,7 @@ class single_field_func(_OutputStructComputationInspect):  # noqa: N801
             kwargs["inputs"] = inputs
 
         if out is None:
+            self._broadcast_inputs(inputs)
             self._make_wisdoms(inputs)
             out = self._func(**kwargs)
             self._handle_write_to_cache(cache, write, out)

@@ -124,7 +124,7 @@ def determine_halo_list(
     -------
     :class:`~HaloField`
     """
-    if inputs.matter_params.HMF != "ST":
+    if inputs.matter_flags.HMF != "ST":
         warnings.warn(
             "DexM Halofinder sses a fit to the Sheth-Tormen mass function."
             "With HMF!=1 the Halos from DexM will not be from the same mass function",
@@ -242,10 +242,7 @@ def compute_halo_grid(
     box = HaloBox.new(redshift=redshift, inputs=inputs)
 
     if perturbed_field is None:
-        if (
-            inputs.astro_flags.FIXED_HALO_GRIDS
-            or inputs.matter_params.AVG_BELOW_SAMPLER
-        ):
+        if inputs.astro_flags.FIXED_HALO_GRIDS or inputs.matter_flags.AVG_BELOW_SAMPLER:
             raise ValueError(
                 "You must provide the perturbed field if FIXED_HALO_GRIDS is True or AVG_BELOW_SAMPLER is True"
             )

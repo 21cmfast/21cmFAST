@@ -9,9 +9,7 @@
 // TODO: remove this global declaration and make an internal checking function
 extern bool photon_cons_allocated;
 
-int InitialisePhotonCons(MatterParams *matter_params, MatterFlags *matter_flags,
-                         CosmoParams *cosmo_params, AstroParams *astro_params,
-                         AstroFlags *astro_flags);
+int InitialisePhotonCons();
 
 int PhotonCons_Calibration(double *z_estimate, double *xH_estimate, int NSpline);
 int ComputeZstart_PhotonCons(double *zstart);
