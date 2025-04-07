@@ -100,7 +100,7 @@ int ComputeInitialConditions(unsigned long long random_seed, InitialConditions *
 
 #if LOG_LEVEL >= DEBUG_LEVEL
         writeMatterParams(matter_params_global);
-        writeMatterParams(matter_flags_global);
+        writeMatterFlags(matter_flags_global);
         writeCosmoParams(cosmo_params_global);
 #endif
 

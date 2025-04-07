@@ -272,9 +272,9 @@ void init_FcollTable(double zmin, double zmax, bool x_ray) {
         if (matter_flags_global->HMF == 0)
             fcoll_z_table.y_arr[i] = FgtrM(z_val, M_min);
         else {
-            if (matter_flags_global->INTEGRATION_METHOD_ATOMIC == 1 ||
+            if (astro_flags_global->INTEGRATION_METHOD_ATOMIC == 1 ||
                 (astro_flags_global->USE_MINI_HALOS &&
-                 matter_flags_global->INTEGRATION_METHOD_MINI == 1))
+                 astro_flags_global->INTEGRATION_METHOD_MINI == 1))
                 initialise_GL(lnMmin, lnMmax);
             fcoll_z_table.y_arr[i] = Fcoll_General(z_val, lnMmin, lnMmax);
         }
@@ -361,7 +361,7 @@ void initialise_Nion_Conditional_spline(double z, double min_density, double max
                 // pass constant M_turn as minimum
                 Nion_conditional_table1D.y_arr[i] = log(Nion_ConditionalM(
                     growthf, lnMmin, lnMmax, log(Mcond), sigma2, overdense_table[i],
-                    sc->mturn_a_nofb, sc, matter_flags_global->INTEGRATION_METHOD_ATOMIC));
+                    sc->mturn_a_nofb, sc, astro_flags_global->INTEGRATION_METHOD_ATOMIC));
                 if (Nion_conditional_table1D.y_arr[i] < -40.)
                     Nion_conditional_table1D.y_arr[i] = -40.;
 
@@ -370,13 +370,13 @@ void initialise_Nion_Conditional_spline(double z, double min_density, double max
             for (j = 0; j < NMTURN; j++) {
                 table_2d->z_arr[i][j] = log(Nion_ConditionalM(
                     growthf, lnMmin, lnMmax, log(Mcond), sigma2, overdense_table[i], mturns[j], sc,
-                    matter_flags_global->INTEGRATION_METHOD_ATOMIC));
+                    astro_flags_global->INTEGRATION_METHOD_ATOMIC));
 
                 if (table_2d->z_arr[i][j] < -40.) table_2d->z_arr[i][j] = -40.;
 
                 table_mini->z_arr[i][j] = log(Nion_ConditionalM_MINI(
                     growthf, lnMmin, lnMmax, log(Mcond), sigma2, overdense_table[i], mturns_MINI[j],
-                    sc, matter_flags_global->INTEGRATION_METHOD_MINI));
+                    sc, astro_flags_global->INTEGRATION_METHOD_MINI));
 
                 if (table_mini->z_arr[i][j] < -40.) table_mini->z_arr[i][j] = -40.;
             }
@@ -459,7 +459,7 @@ void initialise_SFRD_Conditional_table(double z, double min_density, double max_
             curr_dens = min_density + (float)i / ((float)NDELTA - 1.) * (max_density - min_density);
             SFRD_conditional_table.y_arr[i] = log(Nion_ConditionalM(
                 growthf, lnMmin, lnMmax, lnM_condition, sigma2, curr_dens, sc_sfrd.mturn_a_nofb,
-                &sc_sfrd, matter_flags_global->INTEGRATION_METHOD_ATOMIC));
+                &sc_sfrd, astro_flags_global->INTEGRATION_METHOD_ATOMIC));
 
             if (SFRD_conditional_table.y_arr[i] < -50.) SFRD_conditional_table.y_arr[i] = -50.;
 
@@ -468,7 +468,7 @@ void initialise_SFRD_Conditional_table(double z, double min_density, double max_
             for (k = 0; k < NMTURN; k++) {
                 SFRD_conditional_table_MINI.z_arr[i][k] = log(Nion_ConditionalM_MINI(
                     growthf, lnMmin, lnMmax, lnM_condition, sigma2, curr_dens, MassTurnover[k],
-                    &sc_sfrd, matter_flags_global->INTEGRATION_METHOD_MINI));
+                    &sc_sfrd, astro_flags_global->INTEGRATION_METHOD_MINI));
 
                 if (SFRD_conditional_table_MINI.z_arr[i][k] < -50.)
                     SFRD_conditional_table_MINI.z_arr[i][k] = -50.;
@@ -539,7 +539,7 @@ void initialise_Xray_Conditional_table(double redshift, double min_density, doub
             if (!astro_flags_global->USE_MINI_HALOS) {
                 Xray_conditional_table_1D.y_arr[i] = log(Xray_ConditionalM(
                     redshift, growthf, lnMmin, lnMmax, lnM_condition, sigma2, curr_dens,
-                    sc->mturn_a_nofb, 0., sc, matter_flags_global->INTEGRATION_METHOD_ATOMIC));
+                    sc->mturn_a_nofb, 0., sc, astro_flags_global->INTEGRATION_METHOD_ATOMIC));
 
                 if (Xray_conditional_table_1D.y_arr[i] < -50.)
                     Xray_conditional_table_1D.y_arr[i] = -50.;
@@ -551,7 +551,7 @@ void initialise_Xray_Conditional_table(double redshift, double min_density, doub
                 Xray_conditional_table_2D.z_arr[i][k] =
                     log(Xray_ConditionalM(redshift, growthf, lnMmin, lnMmax, lnM_condition, sigma2,
                                           curr_dens, sc->mturn_a_nofb, MassTurnover[k], sc,
-                                          matter_flags_global->INTEGRATION_METHOD_MINI));
+                                          astro_flags_global->INTEGRATION_METHOD_MINI));
 
                 if (Xray_conditional_table_2D.z_arr[i][k] < -50.)
                     Xray_conditional_table_2D.z_arr[i][k] = -50.;
@@ -966,7 +966,7 @@ double EvaluateSFRD_Conditional(double delta, double growthf, double M_min, doub
     // SFRD in Ts assumes no (reion) feedback on ACG
     return Nion_ConditionalM(growthf, log(M_min), log(M_max), log(M_cond), sigma_max, delta,
                              sc_sfrd.mturn_a_nofb, &sc_sfrd,
-                             matter_flags_global->INTEGRATION_METHOD_ATOMIC);
+                             astro_flags_global->INTEGRATION_METHOD_ATOMIC);
 }
 
 double EvaluateSFRD_Conditional_MINI(double delta, double log10Mturn_m, double growthf,
@@ -979,7 +979,7 @@ double EvaluateSFRD_Conditional_MINI(double delta, double log10Mturn_m, double g
     struct ScalingConstants sc_sfrd = evolve_scaling_constants_sfr(sc);
     return Nion_ConditionalM_MINI(growthf, log(M_min), log(M_max), log(M_cond), sigma_max, delta,
                                   pow(10, log10Mturn_m), &sc_sfrd,
-                                  matter_flags_global->INTEGRATION_METHOD_MINI);
+                                  astro_flags_global->INTEGRATION_METHOD_MINI);
 }
 
 double EvaluateNion_Conditional(double delta, double log10Mturn, double growthf, double M_min,
@@ -996,7 +996,7 @@ double EvaluateNion_Conditional(double delta, double log10Mturn, double growthf,
     //   to ignore a passed parameter but until we make the change in the model we force it here
     double mturn = astro_flags_global->USE_MINI_HALOS ? pow(10, log10Mturn) : sc->mturn_a_nofb;
     return Nion_ConditionalM(growthf, log(M_min), log(M_max), log(M_cond), sigma_max, delta, mturn,
-                             sc, matter_flags_global->INTEGRATION_METHOD_ATOMIC);
+                             sc, astro_flags_global->INTEGRATION_METHOD_ATOMIC);
 }
 
 double EvaluateNion_Conditional_MINI(double delta, double log10Mturn_m, double growthf,
@@ -1009,7 +1009,7 @@ double EvaluateNion_Conditional_MINI(double delta, double log10Mturn_m, double g
 
     return Nion_ConditionalM_MINI(growthf, log(M_min), log(M_max), log(M_cond), sigma_max, delta,
                                   pow(10, log10Mturn_m), sc,
-                                  matter_flags_global->INTEGRATION_METHOD_MINI);
+                                  astro_flags_global->INTEGRATION_METHOD_MINI);
 }
 
 double EvaluateXray_Conditional(double delta, double log10Mturn_m, double redshift, double growthf,
@@ -1025,7 +1025,7 @@ double EvaluateXray_Conditional(double delta, double log10Mturn_m, double redshi
     // NOTE: same as SFRD, we assume no feedback on ACGs
     return Xray_ConditionalM(redshift, growthf, log(M_min), log(M_max), log(M_cond), sigma_max,
                              delta, sc->mturn_a_nofb, pow(10, log10Mturn_m), sc,
-                             matter_flags_global->INTEGRATION_METHOD_MINI);
+                             astro_flags_global->INTEGRATION_METHOD_MINI);
 }
 
 double EvaluateFcoll_delta(double delta, double growthf, double sigma_min, double sigma_max) {

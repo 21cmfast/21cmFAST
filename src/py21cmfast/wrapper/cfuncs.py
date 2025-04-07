@@ -13,7 +13,14 @@ from scipy.interpolate import interp1d
 from .._cfg import config
 from ..c_21cmfast import ffi, lib
 from ._utils import _process_exitcode
-from .inputs import AstroFlags, AstroParams, CosmoParams, InputParameters, MatterParams
+from .inputs import (
+    AstroFlags,
+    AstroParams,
+    CosmoParams,
+    InputParameters,
+    MatterFlags,
+    MatterParams,
+)
 from .outputs import InitialConditions, PerturbHaloField
 
 logger = logging.getLogger(__name__)
@@ -75,7 +82,7 @@ def init_sigma_table(func: Callable) -> Callable:
     def wrapper(*args, inputs: InputParameters, **kwargs):
         sigma_min_mass = kwargs.get("M_min", 1e5)
         sigma_max_mass = kwargs.get("M_max", 1e16)
-        if inputs.matter_params.USE_INTERPOLATION_TABLES != "no-interpolation":
+        if inputs.matter_flags.USE_INTERPOLATION_TABLES != "no-interpolation":
             lib.initialiseSigmaMInterpTable(sigma_min_mass, sigma_max_mass)
         return func(*args, inputs=inputs, **kwargs)
 
@@ -93,8 +100,8 @@ def init_gl(func: Callable) -> Callable:
     @init_sigma_table
     def wrapper(*args, inputs: InputParameters, **kwargs):
         if "GAUSS-LEGENDRE" in (
-            inputs.matter_params.INTEGRATION_METHOD_ATOMIC,
-            inputs.matter_params.INTEGRATION_METHOD_MINI,
+            inputs.astro_flags.INTEGRATION_METHOD_ATOMIC,
+            inputs.astro_flags.INTEGRATION_METHOD_MINI,
         ):
             # no defualt since GL mass limits are strict
             lib.initialise_GL(np.log(kwargs.get("M_min")), np.log(kwargs.get("M_max")))
@@ -441,6 +448,7 @@ def get_matter_power_values(
 
 @broadcast_params
 def evaluate_sigma(
+    *,
     inputs: InputParameters,
     masses: NDArray[float],
 ):
@@ -493,16 +501,16 @@ def get_condition_mass(inputs: InputParameters, R: float):
 
 def get_delta_crit(inputs: InputParameters, mass: float, redshift: float):
     """Get the critical collapse density given a mass, redshift and parameters."""
-    sigma, _ = evaluate_sigma(inputs, np.array([mass]))
+    sigma, _ = evaluate_sigma(inputs=inputs, masses=np.array([mass]))
     # evaluate_sigma already broadcasts the paramters so we don't need to repeat
     growth = get_growth_factor(inputs=inputs, redshift=redshift)
-    return get_delta_crit_nu(inputs.matter_params, sigma, growth)
+    return get_delta_crit_nu(inputs.matter_flags, sigma, growth)
 
 
-def get_delta_crit_nu(matter_params: MatterParams, sigma: float, growth: float):
+def get_delta_crit_nu(matter_flags: MatterFlags, sigma: float, growth: float):
     """Get the critical density from sigma and growth factor."""
     # None of the parameter structs are used in this function so we don't need a broadcast
-    return lib.get_delta_crit(matter_params.cdict["HMF"], sigma, growth)
+    return lib.get_delta_crit(matter_flags.cdict["HMF"], sigma, growth)
 
 
 @broadcast_params
@@ -955,7 +963,7 @@ def return_uhmf_value(
     """
     growthf = lib.dicke(redshift)
     return np.vectorize(lib.unconditional_hmf)(
-        growthf, np.log(mass_values), redshift, inputs.matter_params.cdict["HMF"]
+        growthf, np.log(mass_values), redshift, inputs.matter_flags.cdict["HMF"]
     )
 
 
@@ -991,5 +999,5 @@ def return_chmf_value(
         np.log(mass_values[None, None, :]),
         delta_values[:, None, None],
         sigma[None, :, None],
-        inputs.matter_params.cdict["HMF"],
+        inputs.matter_flags.cdict["HMF"],
     )

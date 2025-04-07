@@ -45,6 +45,7 @@ from .wrapper.inputs import (
     AstroParams,
     CosmoParams,
     InputParameters,
+    MatterFlags,
     MatterParams,
     get_logspaced_redshifts,
 )

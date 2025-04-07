@@ -15,6 +15,7 @@ structure::
           |-- 21cmFAST-version
           |-- random_seed
         /matter_params/
+        /matter_flags/
         /cosmo_params/
         /astro_flags/
         /astro_params/
@@ -135,6 +136,7 @@ def _write_inputs_to_group(
     grp.attrs["21cmFAST-version"] = __version__
 
     write_input_struct(inputs.matter_params, grp.create_group("matter_params"))
+    write_input_struct(inputs.matter_flags, grp.create_group("matter_flags"))
     write_input_struct(inputs.cosmo_params, grp.create_group("cosmo_params"))
     write_input_struct(inputs.astro_params, grp.create_group("astro_params"))
     write_input_struct(inputs.astro_flags, grp.create_group("astro_flags"))
@@ -308,26 +310,34 @@ def read_inputs(
 def _read_inputs_pre_v4(group: h5py.Group, safe: bool = True):
     input_classes = [
         istruct.MatterParams,
+        istruct.MatterFlags,
         istruct.CosmoParams,
         istruct.AstroParams,
         istruct.AstroFlags,
     ]
-    input_class_names = [cls.__name__ for cls in input_classes]
+
+    old_names = [
+        "user_params",
+        "cosmo_params",
+        "astro_params",
+        "flag_options",
+        "global_params",
+    ]
 
     # Read the input parameter dictionaries from file.
-    kwargs = {}
-    for k in attrs.fields_dict(InputParameters):
-        kfile = k.lstrip("_")
-        input_class_name = snake_to_camel(kfile)
-
-        if input_class_name in input_class_names:
-            kls = input_classes[input_class_names.index(input_class_name)]
-
-            subgrp = group[kfile]
-            dct = dict(subgrp.attrs)
-            kwargs[k] = kls.from_subdict(dct, safe=safe)
-        else:
-            kwargs[k] = group.attrs[kfile]
+    # Since the parameter structures have been reorganised it will likely fail
+    # if safe==True. We will simply look for matching keywords in *ALL* of our
+    # parameter fields.
+    kwargs = {"random_seed": group.attrs["random_seed"]}
+    param_dict = {}
+    # make a big dict of all the keywords
+    for kfile in old_names:
+        subgrp = group[kfile]
+        dct = dict(subgrp.attrs)
+        param_dict = {**param_dict, **dct}
+    # look for keywords in each input class
+    for kls in input_classes:
+        kwargs[kfile] = kls.from_subdict(param_dict, safe=safe)
     return InputParameters(**kwargs)
 
 

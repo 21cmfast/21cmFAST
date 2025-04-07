@@ -14,9 +14,19 @@ def runner():
 
 
 @pytest.fixture(scope="module")
-def cfg(default_matter_params, default_astro_flags, tmpdirec):
+def cfg(
+    default_cosmo_params,
+    default_matter_params,
+    default_matter_flags,
+    default_astro_params,
+    default_astro_flags,
+    tmpdirec,
+):
     with (tmpdirec / "cfg.yml").open("w") as f:
         yaml.dump({"matter_params": default_matter_params.asdict()}, f)
+        yaml.dump({"matter_flags": default_matter_flags.asdict()}, f)
+        yaml.dump({"cosmo_params": default_cosmo_params.asdict()}, f)
+        yaml.dump({"astro_params": default_astro_params.asdict()}, f)
         yaml.dump({"astro_flags": default_astro_flags.asdict()}, f)
     return tmpdirec / "cfg.yml"
 
@@ -27,7 +37,16 @@ def test_init(module_direc, default_input_struct, runner, cfg):
     # directory and check that it exists. It gets auto-deleted after.
     result = runner.invoke(
         cli.main,
-        ["init", "--direc", str(module_direc), "--seed", "101010", "--config", cfg],
+        [
+            "init",
+            "--direc",
+            str(module_direc),
+            "--seed",
+            "101010",
+            "--config",
+            cfg,
+            "--regen",
+        ],
     )
 
     if result.exception:

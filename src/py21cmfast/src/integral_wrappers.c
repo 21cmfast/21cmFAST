@@ -208,8 +208,8 @@ void get_conditional_SFRD(double redshift, double R, int n_densities, double *de
     double sigma_cond = EvaluateSigma(log(M_cond));
     double growthf = dicke(redshift);
 
-    if (matter_flags_global->INTEGRATION_METHOD_ATOMIC == 1 ||
-        (astro_flags_global->USE_MINI_HALOS && matter_flags_global->INTEGRATION_METHOD_MINI == 1))
+    if (astro_flags_global->INTEGRATION_METHOD_ATOMIC == 1 ||
+        (astro_flags_global->USE_MINI_HALOS && astro_flags_global->INTEGRATION_METHOD_MINI == 1))
         initialise_GL(log(M_min), log(M_cond));
 
     struct ScalingConstants sc;
@@ -249,8 +249,8 @@ void get_conditional_Nion(double redshift, double R, int n_densities, double *de
     double sigma_cond = EvaluateSigma(log(M_cond));
     double growthf = dicke(redshift);
 
-    if (matter_flags_global->INTEGRATION_METHOD_ATOMIC == 1 ||
-        (astro_flags_global->USE_MINI_HALOS && matter_flags_global->INTEGRATION_METHOD_MINI == 1))
+    if (astro_flags_global->INTEGRATION_METHOD_ATOMIC == 1 ||
+        (astro_flags_global->USE_MINI_HALOS && astro_flags_global->INTEGRATION_METHOD_MINI == 1))
         initialise_GL(log(M_min), log(M_cond));
 
     struct ScalingConstants sc;
@@ -302,8 +302,8 @@ void get_conditional_Xray(double redshift, double R, int n_densities, double *de
     double sigma_cond = EvaluateSigma(log(M_cond));
     double growthf = dicke(redshift);
 
-    if (matter_flags_global->INTEGRATION_METHOD_ATOMIC == 1 ||
-        (astro_flags_global->USE_MINI_HALOS && matter_flags_global->INTEGRATION_METHOD_MINI == 1))
+    if (astro_flags_global->INTEGRATION_METHOD_ATOMIC == 1 ||
+        (astro_flags_global->USE_MINI_HALOS && astro_flags_global->INTEGRATION_METHOD_MINI == 1))
         initialise_GL(log(M_min), log(M_cond));
 
     struct ScalingConstants sc;

@@ -30,6 +30,7 @@ from .wrapper.inputs import (
     AstroParams,
     CosmoParams,
     InputParameters,
+    MatterFlags,
     MatterParams,
     get_logspaced_redshifts,
 )
@@ -87,13 +88,15 @@ def _update(obj, ctx):
                     ctx.pop(k)
 
 
+# TODO: since this is called with general keywords we should
+# directly make the InputParameters using evolve_input_structs
 def _get_params_from_ctx(ctx, cfg):
     """Construct InputStruct objects from the click context and config."""
     # Try to use the extra arguments as an override of config.
     ctx = _ctx_to_dct(ctx.args)
     params = {}
 
-    for kls in (MatterParams, CosmoParams, AstroParams, AstroFlags):
+    for kls in (MatterParams, MatterFlags, CosmoParams, AstroParams, AstroFlags):
         fieldnames = [field.name for field in attrs.fields(kls)]
         klsname = camel_to_snake(kls.__name__)
 
@@ -106,6 +109,7 @@ def _get_params_from_ctx(ctx, cfg):
         params[klsname] = {**cfg.get(klsname, {}), **ctx_params}
 
     matter_params = MatterParams.new(params["matter_params"])
+    matter_flags = MatterFlags.new(params["matter_flags"])
     cosmo_params = CosmoParams.new(params["cosmo_params"])
     astro_flags = AstroFlags.new(params["astro_flags"])
     astro_params = AstroParams.new(params["astro_params"])
@@ -115,7 +119,7 @@ def _get_params_from_ctx(ctx, cfg):
             f"The following arguments were not able to be set: {ctx}", stacklevel=2
         )
 
-    return matter_params, cosmo_params, astro_params, astro_flags
+    return matter_params, matter_flags, cosmo_params, astro_params, astro_flags
 
 
 main = click.Group()
@@ -169,13 +173,14 @@ def init(ctx, config, regen, direc, seed):
     """
     cfg = _get_config(config)
     # Set user/cosmo params from config.
-    matter_params, cosmo_params, astro_params, astro_flags = _get_params_from_ctx(
-        ctx, cfg
+    matter_params, matter_flags, cosmo_params, astro_params, astro_flags = (
+        _get_params_from_ctx(ctx, cfg)
     )
 
     inputs = InputParameters(
         random_seed=seed,
         matter_params=matter_params,
+        matter_flags=matter_flags,
         cosmo_params=cosmo_params,
         astro_params=astro_params,
         astro_flags=astro_flags,
@@ -241,13 +246,14 @@ def perturb(ctx, redshift, config, regen, direc, seed):
     """
     cfg = _get_config(config)
     # Set user/cosmo params from config.
-    matter_params, cosmo_params, astro_params, astro_flags = _get_params_from_ctx(
-        ctx, cfg
+    matter_params, matter_flags, cosmo_params, astro_params, astro_flags = (
+        _get_params_from_ctx(ctx, cfg)
     )
 
     inputs = InputParameters(
         random_seed=seed,
         matter_params=matter_params,
+        matter_flags=matter_flags,
         cosmo_params=cosmo_params,
         astro_params=astro_params,
         astro_flags=astro_flags,
@@ -329,12 +335,13 @@ def spin(ctx, redshift, prev_z, config, regen, direc, seed):
     cfg = _get_config(config)
 
     # Set params from config
-    matter_params, cosmo_params, astro_params, astro_flags = _get_params_from_ctx(
-        ctx, cfg
+    matter_params, matter_flags, cosmo_params, astro_params, astro_flags = (
+        _get_params_from_ctx(ctx, cfg)
     )
     inputs = InputParameters(
         random_seed=seed,
         matter_params=matter_params,
+        matter_flags=matter_flags,
         cosmo_params=cosmo_params,
         astro_params=astro_params,
         astro_flags=astro_flags,
@@ -419,13 +426,13 @@ def ionize(ctx, redshift, prev_z, config, regen, direc, seed):
     cfg = _get_config(config)
 
     # Set params from config
-    matter_params, cosmo_params, astro_params, astro_flags = _get_params_from_ctx(
-        ctx, cfg
+    matter_params, matter_flags, cosmo_params, astro_params, astro_flags = (
+        _get_params_from_ctx(ctx, cfg)
     )
     if (
         astro_flags.USE_TS_FLUCT
         or astro_flags.INHOMO_RECO
-        or astro_flags.HALO_STOCHASTICITY
+        or matter_flags.HALO_STOCHASTICITY
     ):
         raise NotImplementedError(
             "Ionized box with any of (USE_TS_FLUCT,INHOMO_RECO,HALO_STOCHASTICITY)"
@@ -436,6 +443,7 @@ def ionize(ctx, redshift, prev_z, config, regen, direc, seed):
     inputs = InputParameters(
         random_seed=seed,
         matter_params=matter_params,
+        matter_flags=matter_flags,
         cosmo_params=cosmo_params,
         astro_params=astro_params,
         astro_flags=astro_flags,
@@ -535,13 +543,14 @@ def coeval(ctx, redshift, config, out, regen, cache_dir, seed):
     cfg = _get_config(config)
 
     # Set params from config
-    matter_params, cosmo_params, astro_params, astro_flags = _get_params_from_ctx(
-        ctx, cfg
+    matter_params, matter_flags, cosmo_params, astro_params, astro_flags = (
+        _get_params_from_ctx(ctx, cfg)
     )
 
     inputs = InputParameters(
         cosmo_params=cosmo_params,
         matter_params=matter_params,
+        matter_flags=matter_flags,
         astro_params=astro_params,
         astro_flags=astro_flags,
         random_seed=seed,
@@ -649,13 +658,14 @@ def lightcone(ctx, redshift, config, out, regen, direc, max_z, seed, lq):
             out.parent.mkdir()
 
     # Set params from config
-    matter_params, cosmo_params, astro_params, astro_flags = _get_params_from_ctx(
-        ctx, cfg
+    matter_params, matter_flags, cosmo_params, astro_params, astro_flags = (
+        _get_params_from_ctx(ctx, cfg)
     )
 
     inputs = InputParameters(
         cosmo_params=cosmo_params,
         matter_params=matter_params,
+        matter_flags=matter_flags,
         astro_params=astro_params,
         astro_flags=astro_flags,
         random_seed=seed,

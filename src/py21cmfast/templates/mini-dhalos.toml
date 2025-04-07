@@ -3,12 +3,11 @@
 [CosmoParams]
 
 [MatterParams]
-USE_RELATIVE_VELOCITIES = true
-
 
 [MatterFlags]
 USE_HALO_FIELD = true
 HALO_STOCHASTICITY = true
+USE_RELATIVE_VELOCITIES = true
 
 [AstroParams]
 R_BUBBLE_MAX = 50.0

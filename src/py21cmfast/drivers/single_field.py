@@ -242,7 +242,10 @@ def compute_halo_grid(
     box = HaloBox.new(redshift=redshift, inputs=inputs)
 
     if perturbed_field is None:
-        if inputs.astro_flags.FIXED_HALO_GRIDS or inputs.matter_flags.AVG_BELOW_SAMPLER:
+        if (
+            inputs.matter_flags.FIXED_HALO_GRIDS
+            or inputs.matter_flags.AVG_BELOW_SAMPLER
+        ):
             raise ValueError(
                 "You must provide the perturbed field if FIXED_HALO_GRIDS is True or AVG_BELOW_SAMPLER is True"
             )
@@ -250,7 +253,7 @@ def compute_halo_grid(
             perturbed_field = PerturbedField.dummy()
 
     elif perturbed_halo_list is None:
-        if not inputs.astro_flags.FIXED_HALO_GRIDS:
+        if not inputs.matter_flags.FIXED_HALO_GRIDS:
             raise ValueError(
                 "You must provide the perturbed halo list if FIXED_HALO_GRIDS is False"
             )
@@ -523,7 +526,7 @@ def compute_spin_temperature(
         previous_spin_temp = TsBox.new(inputs=inputs, redshift=0.0, dummy=True)
 
     if xray_source_box is None:
-        if inputs.astro_flags.USE_HALO_FIELD:
+        if inputs.matter_flags.USE_HALO_FIELD:
             raise ValueError("xray_source_box is required when USE_HALO_FIELD is True")
         else:
             xray_source_box = XraySourceBox.dummy()
@@ -618,7 +621,7 @@ def compute_ionization_field(
 
     box = IonizedBox.new(inputs=inputs, redshift=redshift)
 
-    if not inputs.astro_flags.USE_HALO_FIELD:
+    if not inputs.matter_flags.USE_HALO_FIELD:
         # Construct an empty halo field to pass in to the function.
         halobox = HaloBox.dummy()
     elif halobox is None:

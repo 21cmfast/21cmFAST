@@ -529,7 +529,7 @@ class InitialConditions(OutputStruct):
             "hires_vz": Array(hires_shape, dtype=np.float32),
         }
 
-        if inputs.matter_params.PERTURB_ALGORITHM == "2LPT":
+        if inputs.matter_flags.PERTURB_ALGORITHM == "2LPT":
             out |= {
                 "lowres_vx_2LPT": Array(shape, dtype=np.float32),
                 "lowres_vy_2LPT": Array(shape, dtype=np.float32),
@@ -539,7 +539,7 @@ class InitialConditions(OutputStruct):
                 "hires_vz_2LPT": Array(hires_shape, dtype=np.float32),
             }
 
-        if inputs.matter_params.USE_RELATIVE_VELOCITIES:
+        if inputs.matter_flags.USE_RELATIVE_VELOCITIES:
             out["lowres_vcb"] = Array(shape, dtype=np.float32)
 
         return cls(inputs=inputs, **out, **kw)
@@ -821,7 +821,7 @@ class HaloField(PerturbHaloField):
         """Return all input arrays required to compute this object."""
         required = []
         if isinstance(input_box, InitialConditions):
-            if self.astro_flags.HALO_STOCHASTICITY:
+            if self.matter_flags.HALO_STOCHASTICITY:
                 # when the sampler is on, the grids are only needed for the first sample
                 if self.desc_redshift <= 0:
                     required += ["hires_density"]
@@ -830,7 +830,7 @@ class HaloField(PerturbHaloField):
             else:
                 required += ["hires_density"]
         elif isinstance(input_box, HaloField):
-            if self.astro_flags.HALO_STOCHASTICITY:
+            if self.matter_flags.HALO_STOCHASTICITY:
                 required += [
                     "halo_masses",
                     "halo_coords",
@@ -920,7 +920,7 @@ class HaloBox(OutputStructZ):
         """Return all input arrays required to compute this object."""
         required = []
         if isinstance(input_box, PerturbHaloField):
-            if not self.astro_flags.FIXED_HALO_GRIDS:
+            if not self.matter_flags.FIXED_HALO_GRIDS:
                 required += [
                     "halo_coords",
                     "halo_masses",
@@ -929,7 +929,7 @@ class HaloBox(OutputStructZ):
                     "xray_rng",
                 ]
         elif isinstance(input_box, PerturbedField):
-            if self.astro_flags.FIXED_HALO_GRIDS:
+            if self.matter_flags.FIXED_HALO_GRIDS:
                 required += ["density"]
         elif isinstance(input_box, TsBox):
             if self.astro_flags.USE_MINI_HALOS:
@@ -938,7 +938,7 @@ class HaloBox(OutputStructZ):
             required += ["Gamma12_box", "z_re_box"]
         elif isinstance(input_box, InitialConditions):
             if (
-                self.astro_flags.HALO_STOCHASTICITY
+                self.matter_flags.HALO_STOCHASTICITY
                 and self.matter_flags.AVG_BELOW_SAMPLER
             ):
                 required += ["lowres_density"]
@@ -1139,7 +1139,7 @@ class TsBox(OutputStructZ):
             if self.astro_flags.USE_MINI_HALOS:
                 required += ["J_21_LW_box"]
         elif isinstance(input_box, XraySourceBox):
-            if self.astro_flags.USE_HALO_FIELD:
+            if self.matter_flags.USE_HALO_FIELD:
                 required += ["filtered_sfr", "filtered_xray"]
                 if self.astro_flags.USE_MINI_HALOS:
                     required += ["filtered_sfr_mini"]
@@ -1210,7 +1210,7 @@ class IonizedBox(OutputStructZ):
         All other parameters are passed through to the :class:`IonizedBox`
         constructor.
         """
-        if inputs.astro_flags.USE_MINI_HALOS and not inputs.astro_flags.USE_HALO_FIELD:
+        if inputs.astro_flags.USE_MINI_HALOS and not inputs.matter_flags.USE_HALO_FIELD:
             n_filtering = (
                 int(
                     np.log(
@@ -1247,7 +1247,7 @@ class IonizedBox(OutputStructZ):
             "Fcoll": Array(filter_shape, dtype=np.float32),
         }
 
-        if inputs.astro_flags.USE_MINI_HALOS and not inputs.astro_flags.USE_HALO_FIELD:
+        if inputs.astro_flags.USE_MINI_HALOS and not inputs.matter_flags.USE_HALO_FIELD:
             out["Fcoll_MINI"] = Array(filter_shape, dtype=np.float32)
 
         return cls(inputs=inputs, redshift=redshift, **out, **kw)
@@ -1290,7 +1290,7 @@ class IonizedBox(OutputStructZ):
                 required += [
                     "Fcoll",
                 ]
-                if not self.astro_flags.USE_HALO_FIELD:
+                if not self.matter_flags.USE_HALO_FIELD:
                     required += [
                         "Fcoll_MINI",
                     ]

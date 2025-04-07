@@ -678,9 +678,9 @@ void setup_integration_tables(struct FilteredGrids *fg_struct, struct IonBoxCons
         LOG_SUPER_DEBUG("Tb limits d (%.2e,%.2e), m (%.2e,%.2e) t (%.2e,%.2e) tm (%.2e,%.2e)",
                         min_density, max_density, consts->M_min, rspec.M_max_R, log10Mturn_min,
                         log10Mturn_max, log10Mturn_min_MINI, log10Mturn_max_MINI);
-        if (matter_flags_global->INTEGRATION_METHOD_ATOMIC == 1 ||
+        if (astro_flags_global->INTEGRATION_METHOD_ATOMIC == 1 ||
             (astro_flags_global->USE_MINI_HALOS &&
-             matter_flags_global->INTEGRATION_METHOD_MINI == 1))
+             astro_flags_global->INTEGRATION_METHOD_MINI == 1))
             initialise_GL(consts->lnMmin, rspec.ln_M_max_R);
         if (matter_flags_global->USE_INTERPOLATION_TABLES > 1) {
             // Buffers to avoid both zero bin widths and max cell segfault in 2D interptables
@@ -1388,16 +1388,16 @@ int ComputeIonizedBox(float redshift, float prev_redshift, PerturbedField *pertu
 
         // HMF integral initialisation
         if (matter_flags_global->USE_INTERPOLATION_TABLES > 0) {
-            if (matter_flags_global->INTEGRATION_METHOD_ATOMIC == 2 ||
-                matter_flags_global->INTEGRATION_METHOD_MINI == 2)
+            if (astro_flags_global->INTEGRATION_METHOD_ATOMIC == 2 ||
+                astro_flags_global->INTEGRATION_METHOD_MINI == 2)
                 initialiseSigmaMInterpTable(fmin(MMIN_FAST, ionbox_constants.M_min), 1e20);
             else
                 initialiseSigmaMInterpTable(ionbox_constants.M_min, 1e20);
         }
 
-        if (matter_flags_global->INTEGRATION_METHOD_ATOMIC == 1 ||
+        if (astro_flags_global->INTEGRATION_METHOD_ATOMIC == 1 ||
             (astro_flags_global->USE_MINI_HALOS &&
-             matter_flags_global->INTEGRATION_METHOD_MINI == 1))
+             astro_flags_global->INTEGRATION_METHOD_MINI == 1))
             initialise_GL(ionbox_constants.lnMmin, ionbox_constants.lnMmax_gl);
 
         double f_limit_acg;

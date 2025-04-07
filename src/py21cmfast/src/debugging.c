@@ -59,9 +59,8 @@ void writeMatterParams(MatterParams *p) {
         "       HII_DIM=%4d, DIM=%4d, BOX_LEN=%8.3f, NON_CUBIC_FACTOR=%8.3f,\n"
         "       N_THREADS=%2d,\n"
         "       SAMPLER_MIN_MASS=%10.3e, SAMPLER_BUFFER_FACTOR=%8.3f, \n"
-        "       N_COND_INTERP=%4d, N_PROB_INTERP=%4d, MIN_LOGPROB=%8.3f HALOMASS_CORRECTION=%8.3f" p
-            ->HII_DIM,
-        p->DIM, p->BOX_LEN, p->NON_CUBIC_FACTOR, p->N_THREADS, p->SAMPLER_MIN_MASS,
+        "       N_COND_INTERP=%4d, N_PROB_INTERP=%4d, MIN_LOGPROB=%8.3f HALOMASS_CORRECTION=%8.3f",
+        p->HII_DIM, p->DIM, p->BOX_LEN, p->NON_CUBIC_FACTOR, p->N_THREADS, p->SAMPLER_MIN_MASS,
         p->SAMPLER_BUFFER_FACTOR, p->N_COND_INTERP, p->N_PROB_INTERP, p->MIN_LOGPROB,
         p->HALOMASS_CORRECTION);
 }
@@ -69,16 +68,15 @@ void writeMatterParams(MatterParams *p) {
 void writeMatterFlags(MatterFlags *p) {
     LOG_INFO(
         "\n        MatterFlags:\n"
-        "       HMF=%2d, POWER_SPECTRUM=%2d, USE_RELATIVE_VELOCITIES=%1d, N_THREADS=%2d,\n"
+        "       HMF=%2d, POWER_SPECTRUM=%2d, USE_RELATIVE_VELOCITIES=%1d\n"
         "       PERTURB_ON_HIGH_RES=%1d, NO_RNG=%1d, USE_FFTW_WISDOM=%1d, "
         "USE_INTERPOLATION_TABLES=%1d,\n"
-        "       INTEGRATION_METHOD_ATOMIC=%2d, INTEGRATION_METHOD_MINI=%2d, PERTURB_ALGORITHM=%1d, "
+        "       PERTURB_ALGORITHM=%1d, "
         "MINIMIZE_MEMORY=%1d,\n"
-        "       KEEP_3D_VELOCITIES=%1d, SAMPLE_METHOD=%2d, AVG_BELOW_SAMPLER=%1d" p->HMF,
-        p->POWER_SPECTRUM, p->USE_RELATIVE_VELOCITIES, p->PERTURB_ON_HIGH_RES, p->NO_RNG,
-        p->USE_FFTW_WISDOM, p->USE_INTERPOLATION_TABLES, p->INTEGRATION_METHOD_ATOMIC,
-        p->INTEGRATION_METHOD_MINI, p->PERTURB_ALGORITHM, p->MINIMIZE_MEMORY, p->KEEP_3D_VELOCITIES,
-        p->SAMPLE_METHOD, p->AVG_BELOW_SAMPLER);
+        "       KEEP_3D_VELOCITIES=%1d, SAMPLE_METHOD=%2d",
+        p->HMF, p->POWER_SPECTRUM, p->USE_RELATIVE_VELOCITIES, p->PERTURB_ON_HIGH_RES, p->NO_RNG,
+        p->USE_FFTW_WISDOM, p->USE_INTERPOLATION_TABLES, p->PERTURB_ALGORITHM, p->MINIMIZE_MEMORY,
+        p->KEEP_3D_VELOCITIES, p->SAMPLE_METHOD);
 }
 
 void writeCosmoParams(CosmoParams *p) {
@@ -103,7 +101,7 @@ void writeAstroParams(AstroFlags *fo, AstroParams *p) {
             "\n        HaloField AstroParams:\n"
             "       SIGMA_STAR=%8.3f, \n"
             "       SIGMA_SFR_LIM=%8.3f (SIGMA_SFR_INDEX=%8.3f)\n"
-            "       SIGMA_LX=%8.3f, CORR_LX=%8.3f",
+            "       SIGMA_LX=%8.3f",
             p->SIGMA_STAR, p->SIGMA_SFR_LIM, p->SIGMA_SFR_INDEX, p->SIGMA_LX);
         if (fo->USE_MINI_HALOS) {
             LOG_INFO(
@@ -131,13 +129,12 @@ void writeAstroFlags(AstroFlags *p) {
         "       USE_MINI_HALOS=%1d, USE_MASS_DEPENDENT_ZETA=%1d, "
         "SUBCELL_RSD=%1d,\n"
         "       INHOMO_RECO=%1d, USE_TS_FLUCT=%1d, M_MIN_in_Mass=%1d, PHOTON_CONS=%1d,\n"
-        "       HALO_STOCHASTICITY=%1d, USE_EXP_FILTER=%1d\n"
+        "       USE_EXP_FILTER=%1d\n"
         "       USE_CMB_HEATING=%1d, USE_LYA_HEATING=%1d, APPLY_RSDS=%1d, FIX_VCB_AVG=%1d\n"
         "       CELL_RECOMB=%1d, PHOTON_CONS_TYPE=%2d, USE_UPPER_STELLAR_TURNOVER=%1d",
-        p->USE_HALO_FIELD, p->USE_MINI_HALOS, p->USE_MASS_DEPENDENT_ZETA, p->SUBCELL_RSD,
-        p->INHOMO_RECO, p->USE_TS_FLUCT, p->M_MIN_in_Mass, p->PHOTON_CONS_TYPE,
-        p->HALO_STOCHASTICITY, p->USE_EXP_FILTER, p->USE_CMB_HEATING, p->USE_LYA_HEATING,
-        p->APPLY_RSDS, p->FIX_VCB_AVG, p->CELL_RECOMB, p->PHOTON_CONS_TYPE,
+        p->USE_MINI_HALOS, p->USE_MASS_DEPENDENT_ZETA, p->SUBCELL_RSD, p->INHOMO_RECO,
+        p->USE_TS_FLUCT, p->M_MIN_in_Mass, p->USE_EXP_FILTER, p->USE_EXP_FILTER, p->USE_CMB_HEATING,
+        p->USE_LYA_HEATING, p->APPLY_RSDS, p->FIX_VCB_AVG, p->CELL_RECOMB, p->PHOTON_CONS_TYPE,
         p->USE_UPPER_STELLAR_TURNOVER);
 }
 

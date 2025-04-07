@@ -113,10 +113,12 @@ class OutputCache:
 
         # do the conditional formatting
         hashes["redshift"] = f"{redshift:.4f}" if redshift is not None else ".+?"
-        hashes["cls"] = kind if kind not in (None, "other") else ".+?"
+        hashes["cls"] = kind if kind in cls._output_to_cache_map else ".+?"
 
+        # precedence: outputclass mapped (class name -> template) > template provided (template directly) > full astro path
+        path_template = cls._output_to_cache_map.get(kind, kind)
         template = cls._path_structures.get(
-            cls._output_to_cache_map.get(kind, None), "astro"
+            path_template, cls._path_structures["astro"]
         )
         template = template.format(**hashes)
         return template
@@ -225,11 +227,7 @@ class OutputCache:
         files
             list of paths pointing to files matching the filters.
         """
-        kinds_list = (
-            self._path_structures.keys()
-            if kind is None
-            else [self._output_to_cache_map[kind]]
-        )
+        kinds_list = self._output_to_cache_map.keys() if kind is None else [kind]
         templates = [
             self._fill_path_template(
                 kind=k,
@@ -328,23 +326,18 @@ class RunCache:
             kind="InitialConditions",
             inputs=inputs,
         )
-        pfs = {}
 
         others = {
+            "PerturbedField": {},
             "IonizedBox": {},
             "BrightnessTemp": {},
         }
         if inputs.astro_flags.USE_TS_FLUCT:
             others |= {"TsBox": {}}
-        if inputs.astro_flags.USE_HALO_FIELD:
+        if inputs.matter_flags.USE_HALO_FIELD:
             others |= {"PerturbHaloField": {}, "XraySourceBox": {}, "HaloBox": {}}
 
         for z in inputs.node_redshifts:
-            pfs[z] = cache.direc / cache._fill_path_template(
-                kind="PerturbedField",
-                redshift=z,
-                inputs=inputs,
-            )
             for name, val in others.items():
                 val[z] = cache.direc / cache._fill_path_template(
                     kind=name,
@@ -354,7 +347,6 @@ class RunCache:
 
         return cls(
             InitialConditions=ics,
-            PerturbedField=pfs,
             **others,
             inputs=inputs,
         )
@@ -379,9 +371,9 @@ class RunCache:
         """
         inputs = read_inputs(Path(path))
 
-        for template in OutputCache._path_structures:
+        for kind in OutputCache._output_to_cache_map:
             template = OutputCache._fill_path_template(
-                kind=template,
+                kind=kind,
                 redshift=None,
                 inputs=inputs,
                 all_seeds=False,
@@ -409,7 +401,6 @@ class RunCache:
         for kind in attrs.asdict(self, recurse=False).values():
             if not isinstance(kind, dict):
                 continue
-
             if not kind[z].exists():
                 return False
         return True

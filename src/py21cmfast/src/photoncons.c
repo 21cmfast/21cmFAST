@@ -119,8 +119,8 @@ int InitialisePhotonCons() {
             ION_EFF_FACTOR = astro_params_global->POP2_ION * astro_params_global->F_STAR10 *
                              astro_params_global->F_ESC10;
             M_MIN = astro_params_global->M_TURN / 50.;
-            if (matter_flags_global->INTEGRATION_METHOD_ATOMIC == 2 ||
-                matter_flags_global->INTEGRATION_METHOD_MINI == 2) {
+            if (astro_flags_global->INTEGRATION_METHOD_ATOMIC == 2 ||
+                astro_flags_global->INTEGRATION_METHOD_MINI == 2) {
                 initialiseSigmaMInterpTable(fmin(MMIN_FAST, M_MIN), 1e20);
             } else {
                 initialiseSigmaMInterpTable(M_MIN, 1e20);
@@ -186,13 +186,13 @@ int InitialisePhotonCons() {
                     }
 
                     if (M_MIN_z0 < M_MIN_z1) {
-                        if (matter_flags_global->INTEGRATION_METHOD_ATOMIC == 2) {
+                        if (astro_flags_global->INTEGRATION_METHOD_ATOMIC == 2) {
                             initialiseSigmaMInterpTable(fmin(MMIN_FAST, M_MIN_z0), 1e20);
                         } else {
                             initialiseSigmaMInterpTable(M_MIN_z0, 1e20);
                         }
                     } else {
-                        if (matter_flags_global->INTEGRATION_METHOD_ATOMIC == 2) {
+                        if (astro_flags_global->INTEGRATION_METHOD_ATOMIC == 2) {
                             initialiseSigmaMInterpTable(fmin(MMIN_FAST, M_MIN_z1), 1e20);
                         } else {
                             initialiseSigmaMInterpTable(M_MIN_z1, 1e20);

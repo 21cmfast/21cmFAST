@@ -399,17 +399,6 @@ class MatterFlags(InputStruct):
         'no-interpolation': No interpolation tables are used.
         'sigma-interpolation': Interpolation tables are used for sigma(M) only.
         'hmf-interpolation': Interpolation tables are used for sigma(M) the halo mass function.
-    INTEGRATION_METHOD_ATOMIC: int, optional
-        The integration method to use for conditional MF integrals of atomic halos in the grids:
-        NOTE: global integrals will use GSL QAG adaptive integration
-        0: GSL QAG adaptive integration,
-        1: Gauss-Legendre integration, previously forced in the interpolation tables,
-        2: Approximate integration, assuming sharp cutoffs and a triple power-law for sigma(M) based on EPS
-    INTEGRATION_METHOD_MINI: int, optional
-        The integration method to use for conditional MF integrals of minihalos in the grids:
-        0: GSL QAG adaptive integration,
-        1: Gauss-Legendre integration, previously forced in the interpolation tables,
-        2: Approximate integration, assuming sharp cutoffs and a triple power-law for sigma(M) based on EPS
     PERTURB_ALGORITHM: str, optional
         Whether to use second-order Lagrangian perturbation theory (2LPT), Zel'dovich (ZELDOVICH),
         or linear evolution (LINEAR).
@@ -461,7 +450,6 @@ class MatterFlags(InputStruct):
     _hmf_models = ("PS", "ST", "WATSON", "WATSON-Z", "DELOS")
     _power_models = ("EH", "BBKS", "EFSTATHIOU", "PEEBLES", "WHITE", "CLASS")
     _sample_methods = ("MASS-LIMITED", "NUMBER-LIMITED", "PARTITION", "BINARY-SPLIT")
-    _integral_methods = ("GSL-QAG", "GAUSS-LEGENDRE", "GAMMA-APPROX")
     _filter_options = (
         "spherical-tophat",
         "sharp-k",
@@ -494,18 +482,6 @@ class MatterFlags(InputStruct):
         validator=validators.in_(_interpolation_options),
         transformer=choice_transformer(_interpolation_options),
     )
-    INTEGRATION_METHOD_ATOMIC = field(
-        default="GAUSS-LEGENDRE",
-        converter=str,
-        validator=validators.in_(_integral_methods),
-        transformer=choice_transformer(_integral_methods),
-    )
-    INTEGRATION_METHOD_MINI = field(
-        default="GAUSS-LEGENDRE",
-        converter=str,
-        validator=validators.in_(_integral_methods),
-        transformer=choice_transformer(_integral_methods),
-    )
     MINIMIZE_MEMORY = field(default=False, converter=bool)
     KEEP_3D_VELOCITIES = field(default=False, converter=bool)
     SAMPLE_METHOD = field(
@@ -536,6 +512,7 @@ class MatterFlags(InputStruct):
         validator=validators.in_(_perturb_options),
         transformer=choice_transformer(_perturb_options),
     )
+    USE_FFTW_WISDOM = field(default=False, converter=bool)
 
     # NOTE: These do not affect the ICs & PerturbFields,
     #  but we moved the halos to the matter side for now
@@ -667,7 +644,6 @@ class MatterParams(InputStruct):
     HII_DIM = field(default=200, converter=int, validator=validators.gt(0))
     DIM = field(converter=int)
     NON_CUBIC_FACTOR = field(default=1.0, converter=float, validator=validators.gt(0))
-    USE_FFTW_WISDOM = field(default=False, converter=bool)
     N_THREADS = field(default=1, converter=int, validator=validators.gt(0))
     SAMPLER_MIN_MASS = field(default=1e8, converter=float, validator=validators.gt(0))
     SAMPLER_BUFFER_FACTOR = field(default=2.0, converter=float)
@@ -809,6 +785,17 @@ class AstroFlags(InputStruct):
         effectively placing the average halo population in each HaloBox cell below the sampler resolution.
         When switched off, all halos below SAMPLER_MIN_MASS are ignored. This flag saves memory for larger boxes,
         while still including the effects of smaller sources, albeit without stochasticity.
+    INTEGRATION_METHOD_ATOMIC: int, optional
+        The integration method to use for conditional MF integrals of atomic halos in the grids:
+        NOTE: global integrals will use GSL QAG adaptive integration
+        0: GSL QAG adaptive integration,
+        1: Gauss-Legendre integration, previously forced in the interpolation tables,
+        2: Approximate integration, assuming sharp cutoffs and a triple power-law for sigma(M) based on EPS
+    INTEGRATION_METHOD_MINI: int, optional
+        The integration method to use for conditional MF integrals of minihalos in the grids:
+        0: GSL QAG adaptive integration,
+        1: Gauss-Legendre integration, previously forced in the interpolation tables,
+        2: Approximate integration, assuming sharp cutoffs and a triple power-law for sigma(M) based on EPS
     """
 
     _photoncons_models = (
@@ -826,6 +813,7 @@ class AstroFlags(InputStruct):
         # "finite-shell",
         # "thin-shell",
     )
+    _integral_methods = ("GSL-QAG", "GAUSS-LEGENDRE", "GAMMA-APPROX")
 
     USE_MINI_HALOS = field(default=False, converter=bool)
     USE_CMB_HEATING = field(default=True, converter=bool)
@@ -861,6 +849,19 @@ class AstroFlags(InputStruct):
     )
     IONISE_ENTIRE_SPHERE = field(default=False, converter=bool)
     AVG_BELOW_SAMPLER = field(default=True, converter=bool)
+
+    INTEGRATION_METHOD_ATOMIC = field(
+        default="GAUSS-LEGENDRE",
+        converter=str,
+        validator=validators.in_(_integral_methods),
+        transformer=choice_transformer(_integral_methods),
+    )
+    INTEGRATION_METHOD_MINI = field(
+        default="GAUSS-LEGENDRE",
+        converter=str,
+        validator=validators.in_(_integral_methods),
+        transformer=choice_transformer(_integral_methods),
+    )
 
     @M_MIN_in_Mass.validator
     def _M_MIN_in_Mass_vld(self, att, val):
@@ -1263,12 +1264,12 @@ class InputParameters:
 
     @node_redshifts.validator
     def _node_redshifts_validator(self, att, val):
-        if (self.astro_flags.INHOMO_RECO or self.astro_flags.USE_TS_FLUCT) and max(
-            val
-        ) < self.matter_params.Z_HEAT_MAX:
+        if (self.astro_flags.INHOMO_RECO or self.astro_flags.USE_TS_FLUCT) and (
+            (max(val) if val else 0.0) < self.matter_params.Z_HEAT_MAX
+        ):
             raise ValueError(
                 "For runs with inhomogeneous recombinations or spin temperature fluctuations,\n"
-                + f"your maximum passed node_redshifts {max(val)} must be above Z_HEAT_MAX {self.matter_params.Z_HEAT_MAX}"
+                + f"your maximum passed node_redshifts {max(val) if hasattr(val, '__len__') else val} must be above Z_HEAT_MAX {self.matter_params.Z_HEAT_MAX}"
             )
 
     @astro_flags.validator
@@ -1430,6 +1431,7 @@ class InputParameters:
         return (
             f"cosmo_params: {self.cosmo_params!r}\n"
             + f"matter_params: {self.matter_params!r}\n"
+            + f"matter_flags: {self.matter_flags!r}\n"
             + f"astro_params: {self.astro_params!r}\n"
             + f"astro_flags: {self.astro_flags!r}\n"
         )
@@ -1437,7 +1439,9 @@ class InputParameters:
     @cached_property
     def _user_cosmo_hash(self):
         """A hash generated from the user and cosmo params as well random seed."""
-        return hash((self.random_seed, self.matter_params, self.cosmo_params))
+        return hash(
+            (self.random_seed, self.matter_params, self.matter_flags, self.cosmo_params)
+        )
 
     @cached_property
     def _zgrid_hash(self):

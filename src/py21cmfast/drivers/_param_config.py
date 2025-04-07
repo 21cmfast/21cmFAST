@@ -237,7 +237,7 @@ class _OutputStructComputationInspect:
         construct_fftw_wisdoms(inputs=inputs)
 
     def _broadcast_inputs(self, inputs: InputParameters):
-        broadcast_input_struct(inputs=InputParameters)
+        broadcast_input_struct(inputs=inputs)
 
     def check_output_struct_types(self, outputs: dict[str, OutputStruct]):
         """Check given OutputStruct parameters.

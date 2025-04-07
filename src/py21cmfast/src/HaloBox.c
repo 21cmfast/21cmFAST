@@ -284,9 +284,9 @@ int set_fixed_grids(double M_min, double M_max, InitialConditions *ini_boxes,
 
     // These tables are coarser than needed, an initial loop for Mturn to find limits may help
     if (matter_flags_global->USE_INTERPOLATION_TABLES > 1) {
-        if (matter_flags_global->INTEGRATION_METHOD_ATOMIC == 1 ||
+        if (astro_flags_global->INTEGRATION_METHOD_ATOMIC == 1 ||
             (astro_flags_global->USE_MINI_HALOS &&
-             matter_flags_global->INTEGRATION_METHOD_MINI == 1)) {
+             astro_flags_global->INTEGRATION_METHOD_MINI == 1)) {
             initialise_GL(lnMmin, lnMmax);
         }
 

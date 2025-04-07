@@ -12,6 +12,7 @@ from py21cmfast import (
     CosmoParams,
     InitialConditions,
     InputParameters,
+    MatterFlags,
     MatterParams,
     OutputCache,
     PerturbedField,
@@ -124,8 +125,16 @@ def default_matter_params():
         HII_DIM=35,
         DIM=70,
         BOX_LEN=50,
-        KEEP_3D_VELOCITIES=True,
         ZPRIME_STEP_FACTOR=1.2,
+    )
+
+
+@pytest.fixture(scope="session")
+def default_matter_flags():
+    return MatterFlags(
+        KEEP_3D_VELOCITIES=True,
+        USE_HALO_FIELD=False,
+        HALO_STOCHASTICITY=False,
     )
 
 
@@ -137,10 +146,8 @@ def default_cosmo_params():
 @pytest.fixture(scope="session")
 def default_astro_flags():
     return AstroFlags(
-        USE_HALO_FIELD=False,
         USE_EXP_FILTER=False,
         CELL_RECOMB=False,
-        HALO_STOCHASTICITY=False,
         USE_UPPER_STELLAR_TURNOVER=False,
     )
 
@@ -148,10 +155,8 @@ def default_astro_flags():
 @pytest.fixture(scope="session")
 def default_astro_flags_ts():
     return AstroFlags(
-        USE_HALO_FIELD=False,
         USE_EXP_FILTER=False,
         CELL_RECOMB=False,
-        HALO_STOCHASTICITY=False,
         USE_TS_FLUCT=True,
         USE_UPPER_STELLAR_TURNOVER=False,
     )
@@ -165,6 +170,7 @@ def default_astro_params():
 @pytest.fixture(scope="session")
 def default_input_struct(
     default_matter_params,
+    default_matter_flags,
     default_cosmo_params,
     default_astro_params,
     default_astro_flags,
@@ -175,6 +181,7 @@ def default_input_struct(
         cosmo_params=default_cosmo_params,
         astro_params=default_astro_params,
         matter_params=default_matter_params,
+        matter_flags=default_matter_flags,
         astro_flags=default_astro_flags,
         node_redshifts=(),
     )

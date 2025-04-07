@@ -13,6 +13,7 @@ from py21cmfast import (
     CosmoParams,
     InputParameters,
     IonizedBox,
+    MatterFlags,
     MatterParams,
     __version__,
     config,
@@ -303,6 +304,7 @@ def test_inputstruct_init(default_seed):
 
     assert default_struct.cosmo_params == CosmoParams.new()
     assert default_struct.matter_params == MatterParams.new()
+    assert default_struct.matter_flags == MatterFlags.new()
     assert default_struct.astro_params == AstroParams.new()
     assert default_struct.astro_flags == AstroFlags.new()
     assert altered_struct.matter_params.BOX_LEN == 30

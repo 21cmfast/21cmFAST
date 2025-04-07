@@ -930,8 +930,8 @@ void calculate_sfrd_from_grid(int R_ct, float *dens_R_grid, float *Mcrit_R_grid,
                               struct ScalingConstants *sc) {
     double ave_sfrd_buf = 0;
     double ave_sfrd_buf_mini = 0;
-    if (matter_flags_global->INTEGRATION_METHOD_ATOMIC == 1 ||
-        (astro_flags_global->USE_MINI_HALOS && matter_flags_global->INTEGRATION_METHOD_MINI == 1))
+    if (astro_flags_global->INTEGRATION_METHOD_ATOMIC == 1 ||
+        (astro_flags_global->USE_MINI_HALOS && astro_flags_global->INTEGRATION_METHOD_MINI == 1))
         initialise_GL(log(M_min_R[R_ct]), log(M_max_R[R_ct]));
 
     if (matter_flags_global->USE_INTERPOLATION_TABLES > 1) {
@@ -1307,8 +1307,8 @@ void ts_main(float redshift, float prev_redshift, float perturbed_field_redshift
     double M_MIN_tb = M_min_R[astro_params_global->N_STEP_TS - 1];
     // This M_MIN just sets the sigma table range, the minimum mass for the integrals is set per
     // radius in setup_z_edges
-    if (matter_flags_global->INTEGRATION_METHOD_ATOMIC == 2 ||
-        matter_flags_global->INTEGRATION_METHOD_MINI == 2)
+    if (astro_flags_global->INTEGRATION_METHOD_ATOMIC == 2 ||
+        astro_flags_global->INTEGRATION_METHOD_MINI == 2)
         M_MIN_tb = fmin(MMIN_FAST, M_MIN_tb);
 
     // we need a larger table here due to the large radii
@@ -1619,7 +1619,7 @@ void ts_main(float redshift, float prev_redshift, float perturbed_field_redshift
                                                   sigma_max[R_ct],
                                                   delNL0[R_index][box_ct] * zpp_growth[R_ct],
                                                   sc_sfrd.mturn_a_nofb, &sc_sfrd,
-                                                  matter_flags_global->INTEGRATION_METHOD_ATOMIC) *
+                                                  astro_flags_global->INTEGRATION_METHOD_ATOMIC) *
                                 z_edge_factor * (1 + delNL0[R_index][box_ct] * zpp_growth[R_ct]) *
                                 avg_fix_term * astro_params_global->F_STAR10;
                         } else {
@@ -1643,7 +1643,7 @@ void ts_main(float redshift, float prev_redshift, float perturbed_field_redshift
                                     log(M_max_R[R_ct]), sigma_max[R_ct],
                                     delNL0[R_index][box_ct] * zpp_growth[R_ct],
                                     pow(10, log10_Mcrit_LW[R_ct][box_ct]), &sc_sfrd,
-                                    matter_flags_global->INTEGRATION_METHOD_MINI) *
+                                    astro_flags_global->INTEGRATION_METHOD_MINI) *
                                     z_edge_factor *
                                     (1 + delNL0[R_index][box_ct] * zpp_growth[R_ct]) *
                                     avg_fix_term_MINI * astro_params_global->F_STAR7_MINI);

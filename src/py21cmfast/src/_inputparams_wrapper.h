@@ -59,8 +59,6 @@ typedef struct MatterFlags {
     int USE_RELATIVE_VELOCITIES;
     int POWER_SPECTRUM;
     int USE_INTERPOLATION_TABLES;
-    int INTEGRATION_METHOD_ATOMIC;
-    int INTEGRATION_METHOD_MINI;
     bool NO_RNG;
     bool PERTURB_ON_HIGH_RES;
     int PERTURB_ALGORITHM;
@@ -157,6 +155,8 @@ typedef struct AstroFlags {
     int HEAT_FILTER;
     bool IONISE_ENTIRE_SPHERE;
     bool AVG_BELOW_SAMPLER;
+    int INTEGRATION_METHOD_ATOMIC;
+    int INTEGRATION_METHOD_MINI;
 } AstroFlags;
 
 typedef struct ConfigSettings {

@@ -48,20 +48,23 @@ SEED = 12345
 DATA_PATH = Path(__file__).parent / "test_data"
 
 # These defaults are overwritten by the OPTIONS kwargs
-DEFAULT_matter_params = {
+DEFAULT_MATTER_PARAMS = {
     "HII_DIM": 50,
     "DIM": 150,
     "BOX_LEN": 100,
-    "NO_RNG": True,
     "SAMPLER_MIN_MASS": 1e9,
     "ZPRIME_STEP_FACTOR": 1.04,
 }
 
-DEFAULT_astro_flags = {
+DEFAULT_MATTER_FLAGS = {
     "USE_HALO_FIELD": False,
+    "NO_RNG": True,
+    "HALO_STOCHASTICITY": False,
+}
+
+DEFAULT_ASTRO_FLAGS = {
     "USE_EXP_FILTER": False,
     "CELL_RECOMB": False,
-    "HALO_STOCHASTICITY": False,
     "USE_TS_FLUCT": False,
     "USE_UPPER_STELLAR_TURNOVER": False,
     "USE_MASS_DEPENDENT_ZETA": False,
@@ -290,56 +293,47 @@ if len(set(OPTIONS_HALO.keys())) != len(list(OPTIONS_HALO.keys())):
     raise ValueError("There is a non-unique option_halo name!")
 
 
-def get_input_struct(kwargs, cls):
-    fieldnames = [field.name.lstrip("_") for field in attrs.fields(cls)]
-    subdict = {k: v for (k, v) in kwargs.items() if k in fieldnames}
-    return cls.new(subdict)
+def get_node_z(redshift, lc=False, **kwargs):
+    """Get the node redshifts we want to use for test runs.
 
-
-def get_all_input_structs(kwargs):
-    astro_flags = get_input_struct({**DEFAULT_astro_flags, **kwargs}, AstroFlags)
-    cosmo_params = get_input_struct(kwargs, CosmoParams)
-    matter_params = get_input_struct({**DEFAULT_matter_params, **kwargs}, MatterParams)
-
-    kwargs_a = kwargs.copy()
-    kwargs_a.update({"astro_flags": astro_flags})
-    astro_params = get_input_struct(kwargs_a, AstroParams)
-    return matter_params, cosmo_params, astro_params, astro_flags
-
-
-def get_all_options(redshift, lc=False, **kwargs):
-    matter_params, cosmo_params, astro_params, astro_flags = get_all_input_structs(
-        kwargs
-    )
-    out = {
-        "matter_params": matter_params,
-        "cosmo_params": cosmo_params,
-        "astro_params": astro_params,
-        "astro_flags": astro_flags,
-        "random_seed": SEED,
-    }
-    if lc or astro_flags.USE_TS_FLUCT or astro_flags.INHOMO_RECO:
-        out["node_redshifts"] = get_logspaced_redshifts(
+    Values for the spacing and maximum go kwargs --> test defaults --> struct defaults
+    """
+    node_redshifts = None
+    if lc or kwargs.get("USE_TS_FLUCT", False) or kwargs.get("INHOMO_RECO", False):
+        node_redshifts = get_logspaced_redshifts(
             min_redshift=redshift,
-            max_redshift=matter_params.Z_HEAT_MAX,
-            z_step_factor=matter_params.ZPRIME_STEP_FACTOR,
+            max_redshift=kwargs.get(
+                "Z_HEAT_MAX",
+                DEFAULT_MATTER_PARAMS.get("Z_HEAT_MAX", MatterParams.new().Z_HEAT_MAX),
+            ),
+            z_step_factor=kwargs.get(
+                "ZPRIME_STEP_FACTOR",
+                DEFAULT_MATTER_PARAMS.get(
+                    "ZPRIME_STEP_FACTOR", MatterParams.new().ZPRIME_STEP_FACTOR
+                ),
+            ),
         )
-    if not lc:
-        out["out_redshifts"] = redshift
-    return out
+    return node_redshifts
 
 
 def get_all_options_struct(redshift, lc=False, **kwargs):
-    options = get_all_options(redshift, lc, **kwargs)
+    node_redshifts = get_node_z(redshift, lc=lc, **kwargs)
 
-    options["inputs"] = InputParameters(
-        node_redshifts=options.pop("node_redshifts", None),
-        random_seed=options.pop("random_seed"),
-        cosmo_params=options.pop("cosmo_params"),
-        astro_params=options.pop("astro_params"),
-        matter_params=options.pop("matter_params"),
-        astro_flags=options.pop("astro_flags"),
+    inputs = InputParameters(
+        node_redshifts=node_redshifts,
+        random_seed=SEED,
+    ).evolve_input_structs(
+        **{
+            **DEFAULT_MATTER_FLAGS,
+            **DEFAULT_MATTER_PARAMS,
+            **DEFAULT_ASTRO_FLAGS,
+            **kwargs,
+        }
     )
+
+    options = {"inputs": inputs}
+    if not lc:
+        options["out_redshifts"] = redshift
     return options
 
 
