@@ -34,6 +34,7 @@ test_req = [
     "pytest-plt",
     "pytest-benchmark",
     "questionary",
+    "tqdm",
     "pytest-xdist",
 ]
 
