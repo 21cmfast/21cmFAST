@@ -147,7 +147,6 @@ def test_massfunc_conditional_tables(name, cond_type, mass_range, delta_range, p
     )
 
     if plt == mpl.pyplot:
-        inputs_cond = inputs_cond if from_cat else inputs_cond
         make_table_comparison_plot(
             [inputs_cond, inputs_cond],
             [None, None],
