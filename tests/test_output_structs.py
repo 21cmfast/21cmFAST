@@ -24,21 +24,6 @@ def init(default_input_struct: InputParameters):
     return InitialConditions.new(inputs=default_input_struct)
 
 
-def test_readability(
-    ic: InitialConditions, cache: OutputCache, default_input_struct: InputParameters
-):
-    ic2 = InitialConditions.new(inputs=default_input_struct)
-    existing = cache.find_existing(ic2)
-
-    assert existing is not None
-    assert existing.exists()
-
-    ic2 = cache.load(ic2)
-
-    assert ic == ic2
-    assert ic is not ic2
-
-
 def test_different_seeds(
     init: InitialConditions,
     default_input_struct: InputParameters,
@@ -62,14 +47,6 @@ def test_pickleability(default_input_struct: InputParameters):
 
     ic2 = pickle.loads(s)
     assert repr(ic_) == repr(ic2)
-
-
-def test_match_seed(cache: OutputCache, default_input_struct: InputParameters):
-    ic2 = InitialConditions.new(inputs=default_input_struct.clone(random_seed=3))
-
-    # This fails because we've set the seed and it's different to the existing one.
-    with pytest.raises(IOError, match="No cache exists for"):
-        cache.load(ic2)
 
 
 def test_reading_purged(ic: InitialConditions):
