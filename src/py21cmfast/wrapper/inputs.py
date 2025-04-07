@@ -9,6 +9,8 @@ the ``_defaults_`` class attribute of each class. The available parameters for e
 listed in the documentation for each class below.
 """
 
+# we use a few nested if statments in the validators here
+# ruff: noqa: SIM102
 from __future__ import annotations
 
 import logging
@@ -552,19 +554,35 @@ class MatterFlags(InputStruct):
                 "Can only use 'CLASS' power spectrum with relative velocities"
             )
 
-    @USE_HALO_FIELD.validator
-    def _USE_HALO_FIELD_vld(self, att, val):
-        """Raise an error if USE_HALO_FIELD is True and USE_MASS_DEPENDENT_ZETA is False."""
-        if val and not self.USE_MASS_DEPENDENT_ZETA:
-            raise ValueError(
-                "You have set USE_MASS_DEPENDENT_ZETA to False but USE_HALO_FIELD is True! "
-            )
-
     @HALO_STOCHASTICITY.validator
     def _HALO_STOCHASTICITY_vld(self, att, val):
         """Raise an error if HALO_STOCHASTICITY is True and USE_HALO_FIELD is False."""
         if val and not self.USE_HALO_FIELD:
             raise ValueError("HALO_STOCHASTICITY is True but USE_HALO_FIELD is False")
+
+        if val and self.PERTURB_ON_HIGH_RES:
+            msg = (
+                "Since the lowres density fields are required for the halo sampler"
+                "We are currently unable to use PERTURB_ON_HIGH_RES and HALO_STOCHASTICITY"
+                "Simultaneously."
+            )
+            raise NotImplementedError(msg)
+
+        if val and self.USE_INTERPOLATION_TABLES != "hmf-interpolation":
+            msg = (
+                "The halo sampler enabled with HALO_STOCHASTICITY requires the use of HMF interpolation tables."
+                "Switch USE_INTERPOLATION_TABLES to 'hmf-interpolation' to use the halo sampler."
+            )
+            raise ValueError(msg)
+
+    @USE_HALO_FIELD.validator
+    def _USE_HALO_FIELD_vld(self, att, val):
+        if val and self.HMF not in ["ST", "PS"]:
+            msg = (
+                "The conditional mass functions requied for the halo field are only currently"
+                "available for the Sheth-Tormen and Press-Schechter mass functions., use HMF='ST' or 'PS'"
+            )
+            raise NotImplementedError(msg)
 
 
 @define(frozen=True, kw_only=True)
@@ -884,9 +902,9 @@ class AstroFlags(InputStruct):
     @PHOTON_CONS_TYPE.validator
     def _PHOTON_CONS_TYPE_vld(self, att, val):
         """Raise an error if using PHOTON_CONS_TYPE='z_photoncons' and USE_MINI_HALOS is True."""
-        if (self.USE_MINI_HALOS or self.USE_HALO_FIELD) and val == "z-photoncons":
+        if (self.USE_MINI_HALOS) and val == "z-photoncons":
             raise ValueError(
-                "USE_MINI_HALOS and USE_HALO_FIELD are not compatible with the redshift-based"
+                "USE_MINI_HALOS is not compatible with the redshift-based"
                 " photon conservation corrections (PHOTON_CONS_TYPE=='z_photoncons')! "
             )
 
@@ -900,17 +918,6 @@ class AstroFlags(InputStruct):
 
         if val and not self.CELL_RECOMB:
             raise ValueError("USE_EXP_FILTER is True but CELL_RECOMB is False")
-
-        if val and not self.USE_HALO_FIELD:
-            raise ValueError("USE_EXP_FILTER can only be used with USE_HALO_FIELD")
-
-    @USE_UPPER_STELLAR_TURNOVER.validator
-    def _USE_UPPER_STELLAR_TURNOVER_vld(self, att, val):
-        """Give a warning if USE_UPPER_STELLAR_TURNOVER is True and USE_HALO_FIELD is False."""
-        if val and not self.USE_HALO_FIELD:
-            raise NotImplementedError(
-                "USE_UPPER_STELLAR_TURNOVER is not yet implemented for when USE_HALO_FIELD is False"
-            )
 
 
 @define(frozen=True, kw_only=True)
@@ -1277,75 +1284,80 @@ class InputParameters:
                     stacklevel=2,
                 )
 
-            if val.HALO_STOCHASTICITY:
-                if self.matter_flags.PERTURB_ON_HIGH_RES:
-                    msg = (
-                        "Since the lowres density fields are required for the halo sampler"
-                        "We are currently unable to use PERTURB_ON_HIGH_RES and HALO_STOCHASTICITY"
-                        "Simultaneously."
+    @matter_flags.validator
+    def _matter_flags_validator(self, att, val):
+        if self.astro_flags is not None:
+            if val.USE_HALO_FIELD:
+                if self.astro_flags.PHOTON_CONS_TYPE == "z-photoncons":
+                    raise ValueError(
+                        "USE_Halo_field is not compatible with the redshift-based"
+                        " photon conservation corrections (PHOTON_CONS_TYPE=='z_photoncons')! "
                     )
-                    raise NotImplementedError(msg)
-
-                if self.matter_flags.USE_INTERPOLATION_TABLES != "hmf-interpolation":
-                    msg = (
-                        "The halo sampler enabled with HALO_STOCHASTICITY requires the use of HMF interpolation tables."
-                        "Switch USE_INTERPOLATION_TABLES to 'hmf-interpolation' to use the halo sampler."
+                """Raise an error if USE_HALO_FIELD is True and USE_MASS_DEPENDENT_ZETA is False."""
+                if not self.astro_flags.USE_MASS_DEPENDENT_ZETA:
+                    raise ValueError(
+                        "You have set USE_MASS_DEPENDENT_ZETA to False but USE_HALO_FIELD is True! "
                     )
-                    raise ValueError(msg)
-            if val.USE_HALO_FIELD and self.matter_flags.HMF not in ["ST", "PS"]:
-                msg = (
-                    "The conditional mass functions requied for the halo field are only currently"
-                    "available for the Sheth-Tormen and Press-Schechter mass functions., use HMF='ST' or 'PS'"
-                )
-                raise NotImplementedError(msg)
+            else:
+                if self.astro_flags.USE_UPPER_STELLAR_TURNOVER:
+                    raise NotImplementedError(
+                        "USE_UPPER_STELLAR_TURNOVER is not yet implemented for when USE_HALO_FIELD is False"
+                    )
 
     @astro_params.validator
     def _astro_params_validator(self, att, val):
-        if val.R_BUBBLE_MAX > self.matter_params.BOX_LEN:
-            raise InputCrossValidationError(
-                f"R_BUBBLE_MAX is larger than BOX_LEN ({val.R_BUBBLE_MAX} > {self.matter_params.BOX_LEN}). This is not allowed."
-            )
+        if self.matter_params is not None:
+            if val.R_BUBBLE_MAX > self.matter_params.BOX_LEN:
+                raise InputCrossValidationError(
+                    f"R_BUBBLE_MAX is larger than BOX_LEN ({val.R_BUBBLE_MAX} > {self.matter_params.BOX_LEN}). This is not allowed."
+                )
 
-        if val.R_BUBBLE_MAX != 50 and self.astro_flags.INHOMO_RECO:
-            warnings.warn(
-                "You are setting R_BUBBLE_MAX != 50 when INHOMO_RECO=True. "
-                "This is non-standard (but allowed), and usually occurs upon manual "
-                "update of INHOMO_RECO",
-                stacklevel=2,
-            )
+        if self.astro_flags is not None:
+            if val.R_BUBBLE_MAX != 50 and self.astro_flags.INHOMO_RECO:
+                warnings.warn(
+                    "You are setting R_BUBBLE_MAX != 50 when INHOMO_RECO=True. "
+                    "This is non-standard (but allowed), and usually occurs upon manual "
+                    "update of INHOMO_RECO",
+                    stacklevel=2,
+                )
 
-        if val.M_TURN > 8 and self.astro_flags.USE_MINI_HALOS:
-            warnings.warn(
-                "You are setting M_TURN > 8 when USE_MINI_HALOS=True. "
-                "This is non-standard (but allowed), and usually occurs upon manual "
-                "update of M_TURN",
-                stacklevel=2,
-            )
+            if val.M_TURN > 8 and self.astro_flags.USE_MINI_HALOS:
+                warnings.warn(
+                    "You are setting M_TURN > 8 when USE_MINI_HALOS=True. "
+                    "This is non-standard (but allowed), and usually occurs upon manual "
+                    "update of M_TURN",
+                    stacklevel=2,
+                )
 
-        if (
-            self.astro_flags.HII_FILTER == "sharp-k"
-            and val.R_BUBBLE_MAX > self.matter_params.BOX_LEN / 3
-        ):
-            msg = (
-                "Your R_BUBBLE_MAX is > BOX_LEN/3 "
-                f"({val.R_BUBBLE_MAX} > {self.matter_params.BOX_LEN / 3})."
-            )
+        if self.matter_params is not None:
+            if (
+                self.astro_flags.HII_FILTER == "sharp-k"
+                and val.R_BUBBLE_MAX > self.matter_params.BOX_LEN / 3
+            ):
+                msg = (
+                    "Your R_BUBBLE_MAX is > BOX_LEN/3 "
+                    f"({val.R_BUBBLE_MAX} > {self.matter_params.BOX_LEN / 3})."
+                )
 
-            if config["ignore_R_BUBBLE_MAX_error"]:
-                warnings.warn(msg, stacklevel=2)
-            else:
-                raise ValueError(msg)
+                if config["ignore_R_BUBBLE_MAX_error"]:
+                    warnings.warn(msg, stacklevel=2)
+                else:
+                    raise ValueError(msg)
 
     @matter_params.validator
     def _matter_params_validator(self, att, val):
         # perform a very rudimentary check to see if we are underresolved and not using the linear approx
-        if val.BOX_LEN > val.DIM and self.matter_flags.PERTURB_ALGORITHM != "LINEAR":
-            warnings.warn(
-                "Resolution is likely too low for accurate evolved density fields\n It Is recommended"
-                + "that you either increase the resolution (DIM/BOX_LEN) or"
-                + "set the EVOLVE_DENSITY_LINEARLY flag to 1",
-                stacklevel=2,
-            )
+        if self.matter_flags is not None:
+            if (
+                val.BOX_LEN > val.DIM
+                and self.matter_flags.PERTURB_ALGORITHM != "LINEAR"
+            ):
+                warnings.warn(
+                    "Resolution is likely too low for accurate evolved density fields\n It Is recommended"
+                    + "that you either increase the resolution (DIM/BOX_LEN) or"
+                    + "set the EVOLVE_DENSITY_LINEARLY flag to 1",
+                    stacklevel=2,
+                )
 
     def __getitem__(self, key):
         """Get an item from the instance in a dict-like manner."""

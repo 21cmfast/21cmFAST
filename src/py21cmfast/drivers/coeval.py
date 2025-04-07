@@ -148,8 +148,13 @@ class Coeval:
 
     @property
     def matter_params(self):
-        """User params shared by all datasets."""
+        """Matter Params shared by all datasets."""
         return self.inputs.matter_params
+
+    @property
+    def matter_flags(self):
+        """Matter Flags shared by all datasets."""
+        return self.inputs.matter_flags
 
     @property
     def cosmo_params(self):

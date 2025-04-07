@@ -110,8 +110,13 @@ class LightCone:
 
     @property
     def matter_params(self):
-        """User params shared by all datasets."""
+        """Matter params shared by all datasets."""
         return self.inputs.matter_params
+
+    @property
+    def matter_flags(self):
+        """Matter flags shared by all datasets."""
+        return self.inputs.matter_flags
 
     @property
     def cosmo_params(self):
