@@ -14,11 +14,10 @@ import py21cmfast as p21c
 
 from . import produce_integration_test_data as prd
 
-DEFAULT_matter_params_CTEST = {
+DEFAULT_MATTER_PARAMS_CTEST = {
     "HII_DIM": 32,
     "DIM": 128,
     "BOX_LEN": 64,
-    "NO_RNG": True,
     "SAMPLER_MIN_MASS": 1e9,
 }
 
@@ -133,7 +132,7 @@ def test_lc_runs(name, max_redshift, cache, benchmark):
         node_maxz = options["inputs"].matter_params.Z_HEAT_MAX
 
     options["inputs"] = options["inputs"].clone(
-        matter_params=p21c.MatterParams.new(DEFAULT_matter_params_CTEST),
+        matter_params=p21c.MatterParams.new(DEFAULT_MATTER_PARAMS_CTEST),
         node_redshifts=p21c.get_logspaced_redshifts(
             min_redshift=redshift,
             max_redshift=node_maxz,
@@ -177,7 +176,7 @@ def test_cv_runs(name, cache, benchmark):
     options = prd.get_all_options_struct(redshift, lc=False, **kwargs)
 
     options["inputs"] = options["inputs"].clone(
-        matter_params=p21c.MatterParams.new(DEFAULT_matter_params_CTEST)
+        matter_params=p21c.MatterParams.new(DEFAULT_MATTER_PARAMS_CTEST)
     )
 
     with p21c.config.use(ignore_R_BUBBLE_MAX_error=True):

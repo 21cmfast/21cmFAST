@@ -19,6 +19,7 @@ from scipy.spatial.transform import Rotation
 from .drivers.coeval import Coeval
 from .wrapper.inputs import (
     AstroFlags,
+    MatterFlags,
     MatterParams,
     Planck18,  # Not *quite* the same as astropy's Planck18
 )
@@ -303,7 +304,7 @@ class Lightconer(ABC):
     ) -> np.ndarray:
         """Abstract method for constructing the LoS velocity lightcone slices."""
 
-    def validate_options(self, matter_params: MatterParams, astro_flags: AstroFlags):
+    def validate_options(self, matter_flags: MatterFlags, astro_flags: AstroFlags):
         """Validate 21cmFAST options."""
         return
 
@@ -503,7 +504,7 @@ class AngularLightconer(Lightconer):
         """Get the shape of the lightcone slices."""
         return (len(self.longitude), len(self.lc_redshifts))
 
-    def validate_options(self, matter_params: MatterParams, astro_flags: AstroFlags):
+    def validate_options(self, matter_flags: MatterFlags, astro_flags: AstroFlags):
         """Validate 21cmFAST options.
 
         Raises
@@ -516,7 +517,7 @@ class AngularLightconer(Lightconer):
                 "APPLY_RSDs must be False for angular lightcones, as the RSDs are "
                 "applied in the lightcone construction."
             )
-        if self.get_los_velocity and not matter_params.KEEP_3D_VELOCITIES:
+        if self.get_los_velocity and not matter_flags.KEEP_3D_VELOCITIES:
             raise ValueError(
                 "To get the LoS velocity, you need to set "
                 "matter_params.KEEP_3D_VELOCITIES=True"

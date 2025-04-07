@@ -124,72 +124,130 @@ def test_mmin():
 
 
 def test_validation():
-    c = CosmoParams()
-    f = AstroFlags(
-        USE_EXP_FILTER=False,
-        HII_FILTER="gaussian",
-        USE_HALO_FIELD=False,
-        HALO_STOCHASTICITY=False,
-        USE_UPPER_STELLAR_TURNOVER=False,
-    )  # needed for HII_FILTER checks
-    a = AstroParams(R_BUBBLE_MAX=100)
-    u = MatterParams(BOX_LEN=50)
-
     with pytest.raises(ValueError, match="R_BUBBLE_MAX is larger than BOX_LEN"):
         InputParameters(
-            cosmo_params=c,
-            astro_params=a,
-            matter_params=u,
-            astro_flags=f,
+            cosmo_params=CosmoParams(),
+            astro_params=AstroParams(R_BUBBLE_MAX=100),
+            matter_params=MatterParams(BOX_LEN=50),
+            matter_flags=MatterFlags(),
+            astro_flags=AstroFlags(),
             random_seed=1,
         )
 
-    f2 = f.clone(HII_FILTER="sharp-k")
-    a2 = a.clone(R_BUBBLE_MAX=20)
     with (
         config.use(ignore_R_BUBBLE_MAX_error=False),
         pytest.raises(ValueError, match="Your R_BUBBLE_MAX is > BOX_LEN/3"),
     ):
         InputParameters(
-            cosmo_params=c,
-            astro_params=a2,
-            matter_params=u,
-            astro_flags=f2,
+            cosmo_params=CosmoParams(),
+            astro_params=AstroParams(R_BUBBLE_MAX=20),
+            matter_params=MatterParams(BOX_LEN=50),
+            matter_flags=MatterFlags(),
+            astro_flags=AstroFlags(USE_EXP_FILTER=False, HII_FILTER="sharp-k"),
             random_seed=1,
         )
 
-    f2 = f.clone(INHOMO_RECO=True)
-    a2 = a.clone(R_BUBBLE_MAX=10)
     msg = r"This is non\-standard \(but allowed\), and usually occurs upon manual update of INHOMO_RECO"
     with pytest.warns(UserWarning, match=msg):
         InputParameters(
-            cosmo_params=c,
-            astro_params=a2,
-            matter_params=u,
-            astro_flags=f2,
+            cosmo_params=CosmoParams(),
+            astro_params=AstroParams(R_BUBBLE_MAX=10),
+            matter_params=MatterParams(BOX_LEN=50),
+            matter_flags=MatterFlags(),
+            astro_flags=AstroFlags(INHOMO_RECO=True),
             random_seed=1,
         )
 
-    f2 = f.clone(USE_HALO_FIELD=True, HALO_STOCHASTICITY=True)
-    u2 = u.clone(PERTURB_ON_HIGH_RES=True)
-    msg = r"Since the lowres density fields are required for the halo sampler"
-    with pytest.raises(NotImplementedError, match=msg):
+    with pytest.warns(
+        UserWarning, match="USE_MINI_HALOS needs USE_RELATIVE_VELOCITIES"
+    ):
         InputParameters(
-            cosmo_params=c,
-            astro_params=a2,
-            matter_params=u2,
-            astro_flags=f2,
+            cosmo_params=CosmoParams(),
+            astro_params=AstroParams(),
+            matter_params=MatterParams(),
+            matter_flags=MatterFlags(USE_RELATIVE_VELOCITIES=False),
+            astro_flags=AstroFlags(
+                USE_MINI_HALOS=True, INHOMO_RECO=True, USE_TS_FLUCT=True
+            ),
+            random_seed=1,
+        )
+    with pytest.raises(
+        ValueError,
+        match="You have set USE_MASS_DEPENDENT_ZETA to False but USE_HALO_FIELD is True!",
+    ):
+        InputParameters(
+            cosmo_params=CosmoParams(),
+            astro_params=AstroParams(),
+            matter_params=MatterParams(),
+            matter_flags=MatterFlags(USE_HALO_FIELD=True),
+            astro_flags=AstroFlags(USE_MASS_DEPENDENT_ZETA=False),
+            random_seed=1,
+        )
+    with pytest.raises(
+        ValueError, match="USE_HALO_FIELD is not compatible with the redshift-based"
+    ):
+        InputParameters(
+            cosmo_params=CosmoParams(),
+            astro_params=AstroParams(),
+            matter_params=MatterParams(),
+            matter_flags=MatterFlags(USE_HALO_FIELD=True),
+            astro_flags=AstroFlags(PHOTON_CONS_TYPE="z-photoncons"),
+            random_seed=1,
+        )
+    with pytest.raises(
+        ValueError,
+        match="USE_EXP_FILTER is not compatible with USE_HALO_FIELD == False",
+    ):
+        InputParameters(
+            cosmo_params=CosmoParams(),
+            astro_params=AstroParams(),
+            matter_params=MatterParams(),
+            matter_flags=MatterFlags(USE_HALO_FIELD=False, HALO_STOCHASTICITY=False),
+            astro_flags=AstroFlags(
+                USE_EXP_FILTER=True, USE_UPPER_STELLAR_TURNOVER=False
+            ),
             random_seed=1,
         )
 
-    u2 = u.clone(USE_INTERPOLATION_TABLES="sigma-interpolation")
-    msg = r"The halo sampler enabled with HALO_STOCHASTICITY requires the use of HMF interpolation tables."
-    with pytest.raises(ValueError, match=msg):
+    with pytest.raises(
+        NotImplementedError,
+        match="USE_UPPER_STELLAR_TURNOVER is not yet implemented for when USE_HALO_FIELD is False",
+    ):
         InputParameters(
-            cosmo_params=c,
-            astro_params=a2,
-            matter_params=u2,
-            astro_flags=f2,
+            cosmo_params=CosmoParams(),
+            astro_params=AstroParams(),
+            matter_params=MatterParams(),
+            matter_flags=MatterFlags(USE_HALO_FIELD=False, HALO_STOCHASTICITY=False),
+            astro_flags=AstroFlags(
+                USE_UPPER_STELLAR_TURNOVER=True, USE_EXP_FILTER=False
+            ),
+            random_seed=1,
+        )
+
+    with pytest.warns(
+        UserWarning, match="You are setting M_TURN > 8 when USE_MINI_HALOS=True."
+    ):
+        InputParameters(
+            cosmo_params=CosmoParams(),
+            astro_params=AstroParams(M_TURN=10),
+            matter_params=MatterParams(),
+            matter_flags=MatterFlags(),
+            astro_flags=AstroFlags(
+                USE_MINI_HALOS=True, USE_TS_FLUCT=True, INHOMO_RECO=True
+            ),
+            random_seed=1,
+        )
+
+    with pytest.warns(
+        UserWarning,
+        match="Resolution is likely too low for accurate evolved density fields",
+    ):
+        InputParameters(
+            cosmo_params=CosmoParams(),
+            astro_params=AstroParams(),
+            matter_params=MatterParams(BOX_LEN=50, DIM=20),
+            matter_flags=MatterFlags(),
+            astro_flags=AstroFlags(),
             random_seed=1,
         )
 
@@ -210,6 +268,34 @@ def test_matter_params():
     assert up.cell_size / up.cell_size_hires == up.DIM / up.HII_DIM
 
 
+def test_matter_flags():
+    msg = r"Since the lowres density fields are required for the halo sampler"
+    with pytest.raises(NotImplementedError, match=msg):
+        MatterFlags(
+            PERTURB_ON_HIGH_RES=True, USE_HALO_FIELD=True, HALO_STOCHASTICITY=True
+        )
+
+    msg = r"The halo sampler enabled with HALO_STOCHASTICITY requires the use of HMF interpolation tables."
+    with pytest.raises(ValueError, match=msg):
+        MatterFlags(
+            USE_HALO_FIELD=True,
+            HALO_STOCHASTICITY=True,
+            USE_INTERPOLATION_TABLES="sigma-interpolation",
+        )
+
+    msg = r"HALO_STOCHASTICITY is True but USE_HALO_FIELD is False"
+    with pytest.raises(ValueError, match=msg):
+        MatterFlags(USE_HALO_FIELD=False, HALO_STOCHASTICITY=True)
+
+    msg = r"Can only use 'CLASS' power spectrum with relative velocities"
+    with pytest.raises(ValueError, match=msg):
+        MatterFlags(USE_RELATIVE_VELOCITIES=True, POWER_SPECTRUM="EH")
+
+    msg = r"The conditional mass functions requied for the halo field"
+    with pytest.raises(NotImplementedError, match=msg):
+        MatterFlags(USE_HALO_FIELD=True, HMF="WATSON")
+
+
 # Testing all the AstroFlags dependencies, including emitted warnings
 def test_astro_flags():
     with pytest.raises(
@@ -220,16 +306,10 @@ def test_astro_flags():
 
     with pytest.raises(
         ValueError,
-        match="You have set USE_MASS_DEPENDENT_ZETA to False but USE_HALO_FIELD is True!",
-    ):
-        AstroFlags(USE_MASS_DEPENDENT_ZETA=False, USE_HALO_FIELD=True)
-    with pytest.raises(
-        ValueError,
         match="You have set USE_MINI_HALOS to True but USE_MASS_DEPENDENT_ZETA is False!",
     ):
         AstroFlags(
             USE_MASS_DEPENDENT_ZETA=False,
-            USE_HALO_FIELD=False,
             USE_MINI_HALOS=True,
             INHOMO_RECO=True,
             USE_TS_FLUCT=True,
@@ -245,30 +325,21 @@ def test_astro_flags():
         match="You have set USE_MINI_HALOS to True but INHOMO_RECO is False!",
     ):
         AstroFlags(USE_MINI_HALOS=True, USE_TS_FLUCT=True, INHOMO_RECO=False)
+
     with pytest.raises(
         ValueError,
         match="You have set USE_MINI_HALOS to True but USE_TS_FLUCT is False!",
     ):
         AstroFlags(USE_MINI_HALOS=True, INHOMO_RECO=True, USE_TS_FLUCT=False)
 
-    with pytest.raises(
-        ValueError, match="USE_MINI_HALOS and USE_HALO_FIELD are not compatible"
-    ):
+    msg = r"USE_MINI_HALOS is not compatible with the redshift-based"
+    with pytest.raises(ValueError, match=msg):
         AstroFlags(
             PHOTON_CONS_TYPE="z-photoncons",
             USE_MINI_HALOS=True,
             INHOMO_RECO=True,
             USE_TS_FLUCT=True,
         )
-    with pytest.raises(
-        ValueError, match="USE_MINI_HALOS and USE_HALO_FIELD are not compatible"
-    ):
-        AstroFlags(PHOTON_CONS_TYPE="z-photoncons", USE_HALO_FIELD=True)
-
-    with pytest.raises(
-        ValueError, match="HALO_STOCHASTICITY is True but USE_HALO_FIELD is False"
-    ):
-        AstroFlags(USE_HALO_FIELD=False, HALO_STOCHASTICITY=True)
 
     with pytest.raises(
         ValueError, match="USE_EXP_FILTER is True but CELL_RECOMB is False"
@@ -280,22 +351,6 @@ def test_astro_flags():
         match="USE_EXP_FILTER can only be used with a real-space tophat HII_FILTER==0",
     ):
         AstroFlags(USE_EXP_FILTER=True, HII_FILTER="sharp-k")
-
-    with pytest.raises(
-        ValueError, match="USE_EXP_FILTER can only be used with USE_HALO_FIELD"
-    ):
-        AstroFlags(USE_EXP_FILTER=True, USE_HALO_FIELD=False, HALO_STOCHASTICITY=False)
-
-    with pytest.raises(
-        NotImplementedError,
-        match="USE_UPPER_STELLAR_TURNOVER is not yet implemented for when USE_HALO_FIELD is False",
-    ):
-        AstroFlags(
-            USE_UPPER_STELLAR_TURNOVER=True,
-            USE_HALO_FIELD=False,
-            HALO_STOCHASTICITY=False,
-            USE_EXP_FILTER=False,
-        )
 
 
 def test_inputstruct_init(default_seed):

@@ -903,7 +903,7 @@ class AstroFlags(InputStruct):
     @PHOTON_CONS_TYPE.validator
     def _PHOTON_CONS_TYPE_vld(self, att, val):
         """Raise an error if using PHOTON_CONS_TYPE='z_photoncons' and USE_MINI_HALOS is True."""
-        if (self.USE_MINI_HALOS) and val == "z-photoncons":
+        if self.USE_MINI_HALOS and val == "z-photoncons":
             raise ValueError(
                 "USE_MINI_HALOS is not compatible with the redshift-based"
                 " photon conservation corrections (PHOTON_CONS_TYPE=='z_photoncons')! "
@@ -1244,8 +1244,8 @@ class InputParameters:
 
     random_seed = _field(converter=int)
     cosmo_params: CosmoParams = input_param_field(CosmoParams)
-    matter_params: MatterParams = input_param_field(MatterParams)
     matter_flags: MatterFlags = input_param_field(MatterFlags)
+    matter_params: MatterParams = input_param_field(MatterParams)
     astro_flags: AstroFlags = input_param_field(AstroFlags)
     astro_params: AstroParams = input_param_field(AstroParams)
     node_redshifts = _field(converter=_node_redshifts_converter)
@@ -1284,25 +1284,25 @@ class InputParameters:
                     "USE_MINI_HALOS needs USE_RELATIVE_VELOCITIES to get the right evolution!",
                     stacklevel=2,
                 )
-
-    @matter_flags.validator
-    def _matter_flags_validator(self, att, val):
-        if self.astro_flags is not None:
-            if val.USE_HALO_FIELD:
-                if self.astro_flags.PHOTON_CONS_TYPE == "z-photoncons":
+            if self.matter_flags.USE_HALO_FIELD:
+                if val.PHOTON_CONS_TYPE == "z-photoncons":
                     raise ValueError(
-                        "USE_Halo_field is not compatible with the redshift-based"
+                        "USE_HALO_FIELD is not compatible with the redshift-based"
                         " photon conservation corrections (PHOTON_CONS_TYPE=='z_photoncons')! "
                     )
                 """Raise an error if USE_HALO_FIELD is True and USE_MASS_DEPENDENT_ZETA is False."""
-                if not self.astro_flags.USE_MASS_DEPENDENT_ZETA:
+                if not val.USE_MASS_DEPENDENT_ZETA:
                     raise ValueError(
                         "You have set USE_MASS_DEPENDENT_ZETA to False but USE_HALO_FIELD is True! "
                     )
             else:
-                if self.astro_flags.USE_UPPER_STELLAR_TURNOVER:
+                if val.USE_UPPER_STELLAR_TURNOVER:
                     raise NotImplementedError(
                         "USE_UPPER_STELLAR_TURNOVER is not yet implemented for when USE_HALO_FIELD is False"
+                    )
+                if val.USE_EXP_FILTER:
+                    raise ValueError(
+                        "USE_EXP_FILTER is not compatible with USE_HALO_FIELD == False"
                     )
 
     @astro_params.validator

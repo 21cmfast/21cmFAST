@@ -391,7 +391,7 @@ def _run_lightcone_from_perturbed_fields(
     always_purge: bool = False,
     lightcone_filename: str | Path | None = None,
 ):
-    lightconer.validate_options(inputs.matter_params, inputs.astro_flags)
+    lightconer.validate_options(inputs.matter_flags, inputs.astro_flags)
 
     # Get the redshift through which we scroll and evaluate the ionization field.
     scrollz = np.array([pf.redshift for pf in perturbed_fields])

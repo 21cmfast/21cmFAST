@@ -86,7 +86,7 @@ _photoncons_state = _PhotonConservationState()
 
 
 @broadcast_params
-def _init_photon_conservation_correction(inputs):
+def _init_photon_conservation_correction(*, inputs):
     # This function calculates the global expected evolution of reionisation and saves
     #   it to C global arrays z_Q and Q_value (as well as other non-global confusingly named arrays),
     #   and constructs a GSL interpolator z_at_Q_spline
@@ -249,20 +249,10 @@ def setup_photon_cons(
         photoncons_data = _get_photon_nonconservation_data()
 
     if inputs.astro_flags.PHOTON_CONS_TYPE == "alpha-photoncons":
-        photoncons_data = photoncons_alpha(
-            inputs.cosmo_params,
-            inputs.matter_params,
-            inputs.astro_params,
-            inputs.astro_flags,
-        )
+        photoncons_data = photoncons_alpha(inputs)
 
     if inputs.astro_flags.PHOTON_CONS_TYPE == "f-photoncons":
-        photoncons_data = photoncons_fesc(
-            inputs.cosmo_params,
-            inputs.matter_params,
-            inputs.astro_params,
-            inputs.astro_flags,
-        )
+        photoncons_data = photoncons_fesc(inputs)
 
     return photoncons_data
 
@@ -313,21 +303,10 @@ def calibrate_photon_cons(
 
     # Initialise the analytic expression for the reionisation history
     logger.info("About to start photon conservation correction")
-    _init_photon_conservation_correction(
-        matter_params=inputs.matter_params,
-        cosmo_params=inputs.cosmo_params,
-        astro_params=inputs.astro_params,
-        astro_flags=inputs.astro_flags,
-    )
+    _init_photon_conservation_correction(inputs=inputs)
     # Initialise the analytic expression for the reionisation history
     logger.info("About to start photon conservation correction")
-    _init_photon_conservation_correction(
-        matter_params=inputs.matter_params,
-        cosmo_params=inputs.cosmo_params,
-        astro_params=inputs.astro_params,
-        astro_flags=inputs.astro_flags,
-    )
-
+    _init_photon_conservation_correction(inputs=inputs)
     # Determine the starting redshift to start scrolling through to create the
     # calibration reionisation history
     logger.info("Calculating photon conservation zstart")
@@ -418,7 +397,7 @@ def alpha_func(Q, a_const, a_slope):
 # Q vs z curves for different ALPHA_STAR, and then finding the aloha star which has the inverse ratio
 # with the reference analytic as the calibration
 # TODO: don't rely on the photoncons functions since they do a bunch of other stuff in C
-def photoncons_alpha(cosmo_params, matter_params, astro_params, astro_flags):
+def photoncons_alpha(inputs):
     """Run the Simpler photons conservation model using ALPHA_ESC.
 
     This adjusts the slope of the escape fraction instead of redshifts to match a global
@@ -434,10 +413,12 @@ def photoncons_alpha(cosmo_params, matter_params, astro_params, astro_flags):
     max_q_fit = 0.99
     min_q_fit = 0.2
 
+    ap_c = inputs.astro_params.cdict
+
     ref_pc_data = _get_photon_nonconservation_data()
     z = ref_pc_data["z_calibration"]
     alpha_arr = (
-        np.linspace(-2.0, 1.0, num=31) + astro_params.ALPHA_ESC
+        np.linspace(-2.0, 1.0, num=31) + ap_c["ALPHA_ESC"]
     )  # roughly -0.1 steps for an extended range of alpha
     test_pc_data = np.zeros((alpha_arr.size, ref_pc_data["z_calibration"].size))
 
@@ -449,18 +430,13 @@ def photoncons_alpha(cosmo_params, matter_params, astro_params, astro_flags):
     )
     for i, a in enumerate(alpha_arr):
         # alter astro params with new alpha
-        astro_params_photoncons = astro_params.clone(ALPHA_ESC=a)
+        inputs_photoncons = inputs.evolve_input_structs(ALPHA_ESC=a)
 
         # find the analytic curve wth that alpha
         # TODO: Theres a small memory leak here since global arrays are allocated (for some reason)
         # TODO: use ffi to free them?
         #       This will be fixed by moving the photoncons to python
-        _init_photon_conservation_correction(
-            matter_params=matter_params,
-            cosmo_params=cosmo_params,
-            astro_params=astro_params_photoncons,
-            astro_flags=astro_flags,
-        )
+        _init_photon_conservation_correction(inputs=inputs_photoncons)
 
         # save it
         pcd_buf = _get_photon_nonconservation_data()
@@ -505,7 +481,7 @@ def photoncons_alpha(cosmo_params, matter_params, astro_params, astro_flags):
         [alpha_estimate_ratio, alpha_estimate_diff, alpha_estimate_reverse],
         strict=True,
     ):
-        last_alpha = astro_params.ALPHA_ESC
+        last_alpha = ap_c["ALPHA_ESC"]
         for i in range(z.size)[::-1]:
             # get the roots at this redshift
             roots_z = np.where(roots_arr[1] == i)
@@ -539,13 +515,13 @@ def photoncons_alpha(cosmo_params, matter_params, astro_params, astro_flags):
         "alpha_diff": alpha_estimate_diff,
         "alpha_reverse": alpha_estimate_reverse,
         "alpha_arr": alpha_arr,
-        "fit_yint": astro_params.ALPHA_ESC,
+        "fit_yint": ap_c["ALPHA_ESC"],
         "fit_slope": 0,  # start with no correction
         "found_alpha": False,
     }
 
     # adjust the reverse one (we found the alpha which is close to the calibration sim, undo it)
-    alpha_estimate_reverse = 2 * astro_params.ALPHA_ESC - alpha_estimate_reverse
+    alpha_estimate_reverse = 2 * ap_c["ALPHA_ESC"] - alpha_estimate_reverse
 
     # fit to the curve
     # make sure there's an estimate and Q isn't too high/low
@@ -580,7 +556,7 @@ def photoncons_alpha(cosmo_params, matter_params, astro_params, astro_flags):
     else:
         popt, pcov = curve_fit(alpha_func, ref_interp[sel], fit_alpha[sel])
         # pass to C
-        logger.info(f"ALPHA_ESC Original = {astro_params.ALPHA_ESC:.3f}")
+        logger.info(f"ALPHA_ESC Original = {ap_c['ALPHA_ESC']:.3f}")
         logger.info(f"Running with ALPHA_ESC = {popt[0]:.2f} + {popt[1]:.2f} * Q")
 
         results["fit_yint"] = popt[0]
@@ -592,7 +568,7 @@ def photoncons_alpha(cosmo_params, matter_params, astro_params, astro_flags):
     return results
 
 
-def photoncons_fesc(cosmo_params, matter_params, astro_params, astro_flags):
+def photoncons_fesc(inputs):
     """Run the Even Simpler photon conservation model using F_ESC10.
 
     Adjusts the normalisation of the escape fraction to match a global evolution.
@@ -615,6 +591,7 @@ def photoncons_fesc(cosmo_params, matter_params, astro_params, astro_flags):
         ref_pc_data["Q_analytic"],
     )
 
+    ap_c = inputs.astro_params.cdict
     # filling factors sometimes go above 1, this causes problems in late-time ratios
     # I want this in the test alphas to get the right photon ratio, but not in the reference analytic
     ref_interp[ref_interp > 1] = 1.0
@@ -622,12 +599,12 @@ def photoncons_fesc(cosmo_params, matter_params, astro_params, astro_flags):
     # ratio of each alpha with calibration
     ratio_ref = ref_interp / (1 - ref_pc_data["nf_calibration"])
 
-    fit_fesc = ratio_ref * 10**astro_params.F_ESC10
+    fit_fesc = ratio_ref * ap_c["F_ESC10"]
     sel = np.isfinite(fit_fesc) & (ref_interp < max_q_fit) & (ref_interp > min_q_fit)
 
     popt, pcov = curve_fit(alpha_func, ref_interp[sel], fit_fesc[sel])
     # pass to C
-    logger.info(f"F_ESC10 Original = {10**astro_params.F_ESC10:.3f}")
+    logger.info(f"F_ESC10 Original = {ap_c['F_ESC10']:.3f}")
     logger.info(f"Running with F_ESC10 = {popt[0]:.2f} + {popt[1]:.2f} * Q")
 
     # initialise the output structure before the fits

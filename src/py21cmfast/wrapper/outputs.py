@@ -939,7 +939,7 @@ class HaloBox(OutputStructZ):
         elif isinstance(input_box, InitialConditions):
             if (
                 self.matter_flags.HALO_STOCHASTICITY
-                and self.matter_flags.AVG_BELOW_SAMPLER
+                and self.astro_flags.AVG_BELOW_SAMPLER
             ):
                 required += ["lowres_density"]
             if self.matter_flags.USE_RELATIVE_VELOCITIES:

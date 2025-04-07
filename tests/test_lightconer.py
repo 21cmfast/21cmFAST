@@ -18,6 +18,7 @@ from py21cmfast import (
     CosmoParams,
     InitialConditions,
     IonizedBox,
+    MatterFlags,
     MatterParams,
     PerturbedField,
 )
@@ -276,11 +277,11 @@ def test_rotation_equality():
 def test_validation_options_angular(equal_z_angle):
     with pytest.raises(ValueError, match="APPLY_RSDs must be False"):
         equal_z_angle.validate_options(
-            astro_flags=AstroFlags(APPLY_RSDS=True), matter_params=MatterParams()
+            astro_flags=AstroFlags(APPLY_RSDS=True), matter_flags=MatterFlags()
         )
 
     with pytest.raises(ValueError, match="To get the LoS velocity, you need to set"):
         equal_z_angle.validate_options(
-            matter_params=MatterParams(KEEP_3D_VELOCITIES=False),
+            matter_flags=MatterFlags(KEEP_3D_VELOCITIES=False),
             astro_flags=AstroFlags(APPLY_RSDS=False),
         )
