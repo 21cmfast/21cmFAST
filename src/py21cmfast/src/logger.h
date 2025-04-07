@@ -25,96 +25,107 @@
  * https://github.com/dmcrodrigues/macro-logger/blob/master/macrologger.h
  */
 
-//James Davies: To keep some rough consistency with future debug logging, here's how I've broadly chosen use the log levels in 21cmFAST:
-//      LOG_DEBUG: useful outputs called once per outer function e.g: global quantities, parameters, initialisation
-//          For finding global parameter bugs
-//      LOG_SUPER_DEBUG: things assigned in smaller loops within functions e.g: Filter radius quantities, single cell outputs, thread loops
-//          For finding bugs which occur only with certain conditions or if you need to check quantities for a single cell
-//      LOG_ULTRA_DEBUG: For where you need to print quantities in multiple individual cells.
-//          For when you're at your wits end finding very tricky bugs which only occur in some cells
-//          This should really only be done with very small test runs (small box or short duration) or calling C functions directly from the library
+// James Davies: To keep some rough consistency with future debug logging, here's how I've broadly
+// chosen use the log levels in 21cmFAST:
+//       LOG_DEBUG: useful outputs called once per outer function e.g: global quantities,
+//       parameters, initialisation
+//           For finding global parameter bugs
+//       LOG_SUPER_DEBUG: things assigned in smaller loops within functions e.g: Filter radius
+//       quantities, single cell outputs, thread loops
+//           For finding bugs which occur only with certain conditions or if you need to check
+//           quantities for a single cell
+//       LOG_ULTRA_DEBUG: For where you need to print quantities in multiple individual cells.
+//           For when you're at your wits end finding very tricky bugs which only occur in some
+//           cells This should really only be done with very small test runs (small box or short
+//           duration) or calling C functions directly from the library
 
 #ifndef __MACROLOGGER_H__
 #define __MACROLOGGER_H__
 
-#include <time.h>
-#include <string.h>
-#include <unistd.h>
 #include <omp.h>
+#include <stdio.h>
+#include <string.h>
+#include <time.h>
+#include <unistd.h>
 
 // === auxiliary functions
 static inline char *timenow();
 
 #define _FILE strrchr(__FILE__, '/') ? strrchr(__FILE__, '/') + 1 : __FILE__
 
-#define NO_LOG          0x00
-#define ERROR_LEVEL     0x01
-#define WARNING_LEVEL   0x02
-#define INFO_LEVEL      0x03
-#define DEBUG_LEVEL     0x04
-#define SUPER_DEBUG_LEVEL  0x05
-#define ULTRA_DEBUG_LEVEL  0x06
-
+#define NO_LOG 0x00
+#define ERROR_LEVEL 0x01
+#define WARNING_LEVEL 0x02
+#define INFO_LEVEL 0x03
+#define DEBUG_LEVEL 0x04
+#define SUPER_DEBUG_LEVEL 0x05
+#define ULTRA_DEBUG_LEVEL 0x06
 
 #ifndef LOG_LEVEL
-#define LOG_LEVEL   WARNING_LEVEL
+#define LOG_LEVEL WARNING_LEVEL
 #endif
 
-#define PRINTFUNCTION(format, ...)      fprintf(stderr, format, __VA_ARGS__)
-#define PRINTOUTFUNCTION(format, ...)   fprintf(stdout, format, __VA_ARGS__)
+#define PRINTFUNCTION(format, ...) fprintf(stderr, format, __VA_ARGS__)
+#define PRINTOUTFUNCTION(format, ...) fprintf(stdout, format, __VA_ARGS__)
 
+#define LOG_FMT "%s | %-7s | %-15s | %s:%d [pid=%d/thr=%d] | "
+#define LOG_ARGS(LOG_TAG) \
+    timenow(), LOG_TAG, _FILE, __FUNCTION__, __LINE__, getpid(), omp_get_thread_num()
 
-#define LOG_FMT             "%s | %-7s | %-15s | %s:%d [pid=%d/thr=%d] | "
-#define LOG_ARGS(LOG_TAG)   timenow(), LOG_TAG, _FILE, __FUNCTION__, __LINE__, getpid(), omp_get_thread_num()
+#define NEWLINE "\n"
 
-
-#define NEWLINE     "\n"
-
-#define ERROR_TAG   "ERROR"
+#define ERROR_TAG "ERROR"
 #define WARNING_TAG "WARNING"
-#define INFO_TAG    "INFO"
-#define DEBUG_TAG   "DEBUG"
-#define SUPER_DEBUG_TAG   "SUPER-DEBUG"
-#define ULTRA_DEBUG_TAG   "ULTRA-DEBUG"
+#define INFO_TAG "INFO"
+#define DEBUG_TAG "DEBUG"
+#define SUPER_DEBUG_TAG "SUPER-DEBUG"
+#define ULTRA_DEBUG_TAG "ULTRA-DEBUG"
 
 #if LOG_LEVEL >= ULTRA_DEBUG_LEVEL
-#define LOG_ULTRA_DEBUG(message, args...)     PRINTFUNCTION(LOG_FMT message NEWLINE, LOG_ARGS(ULTRA_DEBUG_TAG), ## args)
+#define LOG_ULTRA_DEBUG(message, args...) \
+    PRINTFUNCTION(LOG_FMT message NEWLINE, LOG_ARGS(ULTRA_DEBUG_TAG), ##args)
 #else
 #define LOG_ULTRA_DEBUG(message, args...)
 #endif
 
 #if LOG_LEVEL >= SUPER_DEBUG_LEVEL
-#define LOG_SUPER_DEBUG(message, args...)     PRINTFUNCTION(LOG_FMT message NEWLINE, LOG_ARGS(SUPER_DEBUG_TAG), ## args)
+#define LOG_SUPER_DEBUG(message, args...) \
+    PRINTFUNCTION(LOG_FMT message NEWLINE, LOG_ARGS(SUPER_DEBUG_TAG), ##args)
 #else
 #define LOG_SUPER_DEBUG(message, args...)
 #endif
 
 #if LOG_LEVEL >= DEBUG_LEVEL
-#define LOG_DEBUG(message, args...)     PRINTFUNCTION(LOG_FMT message NEWLINE, LOG_ARGS(DEBUG_TAG), ## args)
+#define LOG_DEBUG(message, args...) \
+    PRINTFUNCTION(LOG_FMT message NEWLINE, LOG_ARGS(DEBUG_TAG), ##args)
 #else
 #define LOG_DEBUG(message, args...)
 #endif
 
 #if LOG_LEVEL >= INFO_LEVEL
-#define LOG_INFO(message, args...)      PRINTFUNCTION(LOG_FMT message NEWLINE, LOG_ARGS(INFO_TAG), ## args)
+#define LOG_INFO(message, args...) \
+    PRINTFUNCTION(LOG_FMT message NEWLINE, LOG_ARGS(INFO_TAG), ##args)
 #else
 #define LOG_INFO(message, args...)
 #endif
 
 #if LOG_LEVEL >= WARNING_LEVEL
-#define LOG_WARNING(message, args...)     PRINTFUNCTION(LOG_FMT message NEWLINE, LOG_ARGS(WARNING_TAG), ## args)
+#define LOG_WARNING(message, args...) \
+    PRINTFUNCTION(LOG_FMT message NEWLINE, LOG_ARGS(WARNING_TAG), ##args)
 #else
 #define LOG_WARNING(message, args...)
 #endif
 
 #if LOG_LEVEL >= ERROR_LEVEL
-#define LOG_ERROR(message, args...)     PRINTFUNCTION(LOG_FMT message NEWLINE, LOG_ARGS(ERROR_TAG), ## args)
+#define LOG_ERROR(message, args...) \
+    PRINTFUNCTION(LOG_FMT message NEWLINE, LOG_ARGS(ERROR_TAG), ##args)
 #else
 #define LOG_ERROR(message, args...)
 #endif
 
 #if LOG_LEVEL >= NO_LOGS
-#define LOG_IF_ERROR(condition, message, args...) if (condition) PRINTFUNCTION(LOG_FMT message NEWLINE, LOG_ARGS(ERROR_TAG), ## args)
+#define LOG_IF_ERROR(condition, message, args...) \
+    if (condition) PRINTFUNCTION(LOG_FMT message NEWLINE, LOG_ARGS(ERROR_TAG), ##args)
 #else
 #define LOG_IF_ERROR(condition, message, args...)
 #endif

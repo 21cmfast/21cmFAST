@@ -1,10 +1,9 @@
 /*We need to explicitly define the types used by the warpper using ffi.cdef()
     However, that function does not take directives, so we separate the types here
 */
-//WARNING: DO NOT #include THIS FILE IN THE C CODE EXCEPT FOR IN InputParameters.h
+// WARNING: DO NOT #include THIS FILE IN THE C CODE EXCEPT FOR IN InputParameters.h
 
-
-typedef struct CosmoParams{
+typedef struct CosmoParams {
     float SIGMA_8;
     float hlittle;
     float OMm;
@@ -21,7 +20,7 @@ typedef struct CosmoParams{
 
 } CosmoParams;
 
-typedef struct UserParams{
+typedef struct UserParams {
     // Parameters taken from INIT_PARAMS.H
     int HII_DIM;
     int DIM;
@@ -43,7 +42,7 @@ typedef struct UserParams{
     double Z_HEAT_MAX;
     double ZPRIME_STEP_FACTOR;
 
-    //Halo Sampler Options
+    // Halo Sampler Options
     float SAMPLER_MIN_MASS;
     double SAMPLER_BUFFER_FACTOR;
     int N_COND_INTERP;
@@ -68,11 +67,11 @@ typedef struct UserParams{
     double DEXM_R_OVERLAP;
 } UserParams;
 
-typedef struct AstroParams{
+typedef struct AstroParams {
     // Parameters taken from INIT_PARAMS.H
     float HII_EFF_FACTOR;
 
-    //SHMR
+    // SHMR
     float F_STAR10;
     float ALPHA_STAR;
     float ALPHA_STAR_MINI;
@@ -82,19 +81,19 @@ typedef struct AstroParams{
     double UPPER_STELLAR_TURNOVER_INDEX;
     float F_STAR7_MINI;
 
-    //SFMS
+    // SFMS
     float t_STAR;
     float CORR_SFR;
     double SIGMA_SFR_INDEX;
     double SIGMA_SFR_LIM;
 
-    //L_X/SFR
+    // L_X/SFR
     double L_X;
     double L_X_MINI;
     double SIGMA_LX;
     double CORR_LX;
 
-    //Escape Fraction
+    // Escape Fraction
     float F_ESC10;
     float ALPHA_ESC;
     float F_ESC7_MINI;
@@ -132,12 +131,12 @@ typedef struct AstroParams{
     double NU_X_BAND_MAX;
 } AstroParams;
 
-typedef struct FlagOptions{
+typedef struct FlagOptions {
     // Parameters taken from INIT_PARAMS.H
     bool USE_HALO_FIELD;
     bool USE_MINI_HALOS;
-    bool USE_CMB_HEATING; //CMB Heating Flag
-    bool USE_LYA_HEATING; //Lya Heating Flag
+    bool USE_CMB_HEATING;  // CMB Heating Flag
+    bool USE_LYA_HEATING;  // Lya Heating Flag
     bool USE_MASS_DEPENDENT_ZETA;
     bool SUBCELL_RSD;
     bool APPLY_RSDS;
@@ -157,13 +156,12 @@ typedef struct FlagOptions{
     bool IONISE_ENTIRE_SPHERE;
 } FlagOptions;
 
-typedef struct ConfigSettings{
+typedef struct ConfigSettings {
     double HALO_CATALOG_MEM_FACTOR;
 
     char *external_table_path;
     char *wisdoms_path;
-}ConfigSettings;
-
+} ConfigSettings;
 
 /* Previously, we had a few structures spread throughout the code e.g user_params_ufunc which
    were all globally defined and separately broadcast at different times. Several of these were used
@@ -171,11 +169,11 @@ typedef struct ConfigSettings{
    the parameter structures to avoid confusion (we shouldn't have the possibility of two files using
    different parameters).
 
-   In future we should have a parameter structure in each .c file containing ONLY parameters relevant to it
-   (look at HaloBox.c), and force the broadcast at each _compute() step (or even decorate any library call)
-   However this would require us to be very careful about initialising the globals when ANY function from that
-   file is called */
-//The structs declared here defined in InputParameters.c
+   In future we should have a parameter structure in each .c file containing ONLY parameters
+   relevant to it (look at HaloBox.c), and force the broadcast at each _compute() step (or even
+   decorate any library call) However this would require us to be very careful about initialising
+   the globals when ANY function from that file is called */
+// The structs declared here defined in InputParameters.c
 extern UserParams *user_params_global;
 extern CosmoParams *cosmo_params_global;
 extern AstroParams *astro_params_global;

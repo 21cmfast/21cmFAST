@@ -83,10 +83,10 @@ class OutputCache:
         if inputs is not None:
             hashes = cls._get_hashes(inputs)
             # format required hashes to string
-            hashes["seed"] = r"\d+" if all_seeds else f'{hashes["seed"]:d}'
-            hashes["user_cosmo"] = f'{hashes["user_cosmo"]}'
-            hashes["zgrid"] = f'{hashes["zgrid"]}'
-            hashes["astro_flag"] = f'{hashes["astro_flag"]}'
+            hashes["seed"] = r"\d+" if all_seeds else f"{hashes['seed']:d}"
+            hashes["user_cosmo"] = f"{hashes['user_cosmo']}"
+            hashes["zgrid"] = f"{hashes['zgrid']}"
+            hashes["astro_flag"] = f"{hashes['astro_flag']}"
         else:
             hashes = {
                 "user_cosmo": ".+?",
