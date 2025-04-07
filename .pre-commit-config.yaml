@@ -33,5 +33,11 @@ repos:
   hooks:
     - id: clang-format
       args: [--style=file, -i, --fallback-style=none]
+      additional_dependencies:
+        - clang-format
+        # - clang-tidy
+    #TODO: we really want to use clang-tidy in CI eventually
+    # but there are a lot of warnings we should fix before
+    # including it here
     # - id: clang-tidy
     #   args: [--fix]
