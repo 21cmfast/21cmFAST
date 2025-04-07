@@ -5,9 +5,10 @@ and provides methods to handle the caching of output data (i.e. determining the
 filename for a given set of parameters).
 """
 
+import logging
 import re
+from hashlib import md5
 from pathlib import Path
-from sys import hash_info
 from typing import ClassVar, Self
 
 import attrs
@@ -18,6 +19,8 @@ from ..wrapper import outputs as op
 from ..wrapper.inputs import InputParameters
 from ..wrapper.outputs import OutputStruct
 from .h5 import read_inputs, read_output_struct, write_output_to_hdf5
+
+logger = logging.getLogger(__name__)
 
 
 @attrs.define(frozen=True)
@@ -39,24 +42,66 @@ class OutputCache:
     )
 
     _path_structures: ClassVar = {
-        "InitialConditions": "{user_cosmo:x}/{seed:d}/InitialConditions.h5",
-        "PerturbedField": "{user_cosmo:x}/{seed:d}/{zgrid:x}/{redshift:.4f}/PerturbedField.h5",
-        "other": "{user_cosmo:x}/{seed:d}/{zgrid:x}/{redshift:.4f}/{astro_flag:x}/{cls}.h5",
+        "InitialConditions": "{user_cosmo}/{seed}/InitialConditions.h5",
+        "PerturbedField": "{user_cosmo}/{seed}/{zgrid}/{redshift}/PerturbedField.h5",
+        "other": "{user_cosmo}/{seed}/{zgrid}/{redshift}/{astro_flag}/{cls}.h5",
     }
 
     @classmethod
     def _get_hashes(cls, inputs: InputParameters) -> dict[str, str]:
         """Return a dict of hashes for different components of the calculation."""
         # Python builtin hashes can be negative which looks weird in filenames
-        max_hash_value = 2**hash_info.width
         return {
-            "user_cosmo": hash((inputs.cosmo_params, inputs.user_params))
-            % max_hash_value,
-            "seed": inputs.random_seed % max_hash_value,
-            "zgrid": hash(inputs.node_redshifts) % max_hash_value,
-            "astro_flag": hash((inputs.astro_params, inputs.user_params))
-            % max_hash_value,
+            "user_cosmo": md5(
+                (repr(inputs.cosmo_params) + repr(inputs.user_params)).encode()
+            ).hexdigest(),
+            "seed": inputs.random_seed,
+            "zgrid": md5(repr(inputs.node_redshifts).encode()).hexdigest(),
+            "astro_flag": md5(
+                (repr(inputs.astro_params) + repr(inputs.user_params)).encode()
+            ).hexdigest(),
         }
+
+    @classmethod
+    def _fill_path_template(
+        cls,
+        *,
+        kind: str | None = None,
+        inputs: InputParameters | None = None,
+        all_seeds: bool = False,
+        redshift: float | None = None,
+    ) -> str:
+        """Fill the path templates with given values.
+
+        Does the conditional formatting required for each field,
+        since we don't do number formatting for the wildcards.
+
+        Returns the filled template path with optional wildcards for
+        searching.
+        """
+        # get the hashes
+        if inputs is not None:
+            hashes = cls._get_hashes(inputs)
+            # format required hashes to string
+            hashes["seed"] = r"\d+" if all_seeds else f'{hashes["seed"]:d}'
+            hashes["user_cosmo"] = f'{hashes["user_cosmo"]}'
+            hashes["zgrid"] = f'{hashes["zgrid"]}'
+            hashes["astro_flag"] = f'{hashes["astro_flag"]}'
+        else:
+            hashes = {
+                "user_cosmo": ".+?",
+                "seed": r"\d+",
+                "zgrid": ".+?",
+                "astro_flag": ".+?",
+            }
+
+        # do the conditional formatting
+        hashes["redshift"] = f"{redshift:.4f}" if redshift is not None else ".+?"
+        hashes["cls"] = kind if kind not in (None, "other") else ".+?"
+
+        template = cls._path_structures.get(kind, cls._path_structures["other"])
+        template = template.format(**hashes)
+        return template
 
     def get_filename(self, obj: OutputStruct) -> str:
         """
@@ -76,12 +121,12 @@ class OutputCache:
         str
             The generated filename for the given OutputStruct object.
         """
-        hashes = self._get_hashes(obj.inputs)
-        redshift = getattr(obj, "redshift", None)
-        kls = obj.__class__.__name__
-
-        pth = self._path_structures.get(kls, self._path_structures["other"])
-        return pth.format(redshift=redshift, cls=kls, **hashes)
+        return self._fill_path_template(
+            kind=obj.__class__.__name__,
+            redshift=getattr(obj, "redshift", None),
+            inputs=obj.inputs,
+            all_seeds=False,
+        )
 
     def get_path(self, obj: OutputStruct) -> Path:
         """
@@ -162,29 +207,26 @@ class OutputCache:
         files
             list of paths pointing to files matching the filters.
         """
-        if inputs is not None:
-            hashes = self._get_hashes(inputs)
-        else:
-            hashes = {
-                "user_cosmo": ".+?",
-                "seed": r"\d+",
-                "zgrid": ".+?",
-                "astro_flag": ".+?",
-            }
-
-        if all_seeds:
-            hashes["seed"] = r"\d+"
-
-        hashes["redshift"] = str(redshift) if redshift is not None else ".+?"
+        kinds_list = (
+            ["InitialConditions", "PerturbedField", "other"] if kind is None else [kind]
+        )
+        templates = [
+            self._fill_path_template(
+                kind=k,
+                inputs=inputs,
+                all_seeds=all_seeds,
+                redshift=redshift,
+            )
+            for k in kinds_list
+        ]
 
         allfiles = self.direc.glob("**/*")
-        template = self._path_structures.get(kind, self._path_structures["other"])
-        template = template.format(**hashes)
         matches = []
         for fl in allfiles:
-            match = re.search(template, fl.name)
-            if match is not None:
-                matches.append(match)
+            for template in templates:
+                match = re.search(template, str(fl))
+                if match is not None:
+                    matches.append(Path(match.string))
 
         return matches
 
@@ -262,8 +304,10 @@ class RunCache:
         RunCache
             A new RunCache instance with file paths for various output structures.
         """
-        hashes = cache._get_hashes(inputs)
-        ics = cache.direc / cache._path_structures["InitialConditions"].format(**hashes)
+        ics = cache.direc / cache._fill_path_template(
+            kind="InitialConditions",
+            inputs=inputs,
+        )
         pfs = {}
 
         others = {
@@ -276,13 +320,16 @@ class RunCache:
             others |= {"PerturbHaloField": {}, "XraySourceBox": {}, "HaloBox": {}}
 
         for z in inputs.node_redshifts:
-            pfs[z] = cache.direc / cache._path_structures["PerturbedField"].format(
-                redshift=z, **hashes
+            pfs[z] = cache.direc / cache._fill_path_template(
+                kind="PerturbedField",
+                redshift=z,
+                inputs=inputs,
             )
-
             for name, val in others.items():
-                val[z] = cache.direc / cache._path_structures["other"].format(
-                    redshift=z, cls=name, **hashes
+                val[z] = cache.direc / cache._fill_path_template(
+                    kind=name,
+                    redshift=z,
+                    inputs=inputs,
                 )
 
         return cls(
@@ -311,14 +358,14 @@ class RunCache:
             will include this file.
         """
         inputs = read_inputs(Path(path))
-        hashes = OutputCache._get_hashes(inputs)
-        hashes["redshift"] = ".+?"
-        hashes["cls"] = ".+?"
 
-        for template in OutputCache._path_structures.values():
-            # We have to replace the redshift formatter because it's not a float here
-            template = template.replace("{redshift:.4f}", "{redshift}")
-            template = template.format(**hashes)
+        for template in OutputCache._path_structures:
+            template = OutputCache._fill_path_template(
+                kind=template,
+                redshift=None,
+                inputs=inputs,
+                all_seeds=False,
+            )
             match = re.search(template, str(path))
             if match is not None:
                 parent = Path(str(path)[: match.start()])
