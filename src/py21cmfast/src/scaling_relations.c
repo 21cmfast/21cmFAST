@@ -87,20 +87,18 @@ void set_scaling_constants(double redshift, struct ScalingConstants *consts, boo
         consts->mturn_m_nofb = lyman_werner_threshold(redshift, 0., consts->vcb_norel);
     }
 
-    if (matter_flags_global->FIXED_HALO_GRIDS || astro_flags_global->AVG_BELOW_SAMPLER) {
-        consts->Mlim_Fstar = Mass_limit_bisection(M_MIN_INTEGRAL, M_MAX_INTEGRAL,
-                                                  consts->alpha_star, consts->fstar_10);
-        consts->Mlim_Fesc = Mass_limit_bisection(M_MIN_INTEGRAL, M_MAX_INTEGRAL, consts->alpha_esc,
-                                                 consts->fesc_10);
+    consts->Mlim_Fstar =
+        Mass_limit_bisection(M_MIN_INTEGRAL, M_MAX_INTEGRAL, consts->alpha_star, consts->fstar_10);
+    consts->Mlim_Fesc =
+        Mass_limit_bisection(M_MIN_INTEGRAL, M_MAX_INTEGRAL, consts->alpha_esc, consts->fesc_10);
 
-        if (astro_flags_global->USE_MINI_HALOS) {
-            consts->Mlim_Fstar_mini =
-                Mass_limit_bisection(M_MIN_INTEGRAL, M_MAX_INTEGRAL, consts->alpha_star_mini,
-                                     consts->fstar_7 * pow(1e3, consts->alpha_star_mini));
-            consts->Mlim_Fesc_mini =
-                Mass_limit_bisection(M_MIN_INTEGRAL, M_MAX_INTEGRAL, consts->alpha_esc,
-                                     consts->fesc_7 * pow(1e3, consts->alpha_esc));
-        }
+    if (astro_flags_global->USE_MINI_HALOS) {
+        consts->Mlim_Fstar_mini =
+            Mass_limit_bisection(M_MIN_INTEGRAL, M_MAX_INTEGRAL, consts->alpha_star_mini,
+                                 consts->fstar_7 * pow(1e3, consts->alpha_star_mini));
+        consts->Mlim_Fesc_mini =
+            Mass_limit_bisection(M_MIN_INTEGRAL, M_MAX_INTEGRAL, consts->alpha_esc,
+                                 consts->fesc_7 * pow(1e3, consts->alpha_esc));
     }
 }
 
