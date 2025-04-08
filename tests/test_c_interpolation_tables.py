@@ -574,7 +574,11 @@ def test_Nion_conditional_tables(
     # interpolating across the sharp gap results in errors
     # TODO: the bound should be over MAX_DELTAC_FRAC*delta_crit, and we should interpolate
     # instead of setting the integral to its limit at delta crit.
-    delta_crit = cf.get_delta_crit(inputs, cf.get_condition_mass(inputs, R), redshift)
+    delta_crit = cf.get_delta_crit(
+        inputs=inputs,
+        mass=cf.get_condition_mass(inputs, R),
+        redshift=redshift,
+    )
     sel_delta = (delta_crit - delta_range) > 0.05
 
     np.testing.assert_allclose(
@@ -668,7 +672,11 @@ def test_Xray_conditional_tables(
         "Xray_c",
     )
 
-    delta_crit = cf.get_delta_crit(inputs, cf.get_condition_mass(inputs, R), redshift)
+    delta_crit = cf.get_delta_crit(
+        inputs=inputs,
+        mass=cf.get_condition_mass(inputs, R),
+        redshift=redshift,
+    )
     sel_delta = (delta_crit - delta_range) > 0.05
     np.testing.assert_allclose(
         Xray_tables[sel_delta],
@@ -757,7 +765,11 @@ def test_SFRD_conditional_table(
         "SFRD_c_mini",
     )
 
-    delta_crit = cf.get_delta_crit(inputs, cf.get_condition_mass(inputs, R), redshift)
+    delta_crit = cf.get_delta_crit(
+        inputs=inputs,
+        mass=cf.get_condition_mass(inputs, R),
+        redshift=redshift,
+    )
     sel_delta = (delta_crit - delta_range) > 0.05
     np.testing.assert_allclose(
         SFRD_tables[sel_delta],

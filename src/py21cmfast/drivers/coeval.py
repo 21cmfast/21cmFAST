@@ -494,7 +494,7 @@ def _obtain_starting_point_for_scrolling(
     if outputs is not None:
         return idx, Coeval(
             initial_conditions=initial_conditions,
-            perturbed_field=outputs["PerturbField"],
+            perturbed_field=outputs["PerturbedField"],
             ionized_box=outputs["IonizedBox"],
             brightness_temperature=outputs["BrightnessTemp"],
             ts_box=outputs.get("TsBox", None),

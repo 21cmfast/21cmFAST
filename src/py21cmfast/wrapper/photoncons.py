@@ -58,7 +58,7 @@ from scipy.optimize import curve_fit
 from ..c_21cmfast import ffi, lib
 from ._utils import _process_exitcode
 from .cfuncs import broadcast_params
-from .inputs import AstroFlags, AstroParams, CosmoParams, InputParameters, MatterParams
+from .inputs import InputParameters
 from .outputs import InitialConditions
 
 logger = logging.getLogger(__name__)
@@ -121,7 +121,7 @@ def _get_photon_nonconservation_data() -> dict:
     """
     Access C global data representing the photon-nonconservation corrections.
 
-    .. note::  if not using ``PHOTON_CONS`` (in :class:`~AstroFlags`), *or* if the
+    .. note::  If photon conservation is switched off via PHOTON_CONS_TYPE='no-photoncons' or the
                initialisation for photon conservation has not been performed yet, this
                will return None.
 

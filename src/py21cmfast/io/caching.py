@@ -17,7 +17,7 @@ import numpy as np
 from .._cfg import config
 from ..wrapper import outputs as op
 from ..wrapper.inputs import InputParameters
-from ..wrapper.outputs import OutputStruct
+from ..wrapper.outputs import OutputStruct, OutputStructZ, _HashType
 from .h5 import read_inputs, read_output_struct, write_output_to_hdf5
 
 logger = logging.getLogger(__name__)
@@ -42,21 +42,14 @@ class OutputCache:
     )
 
     _output_to_cache_map: ClassVar = {
-        "InitialConditions": "ics",
-        "PerturbedField": "matter",
-        "HaloField": "matter",
-        "PerturbHaloField": "matter",
-        "HaloBox": "astro",
-        "XraySourceBox": "astro",
-        "TsBox": "astro",
-        "IonizedBox": "astro",
-        "BrightnessTemp": "astro",
+        kls.__name__: kls._compat_hash
+        for kls in OutputStruct.__subclasses__() + OutputStructZ.__subclasses__()
+        if not kls._meta
     }
-
     _path_structures: ClassVar = {
-        "ics": "{matter_cosmo}/{seed}/InitialConditions.h5",
-        "matter": "{matter_cosmo}/{seed}/{zgrid}/{redshift}/{cls}.h5",
-        "astro": "{matter_cosmo}/{seed}/{zgrid}/{redshift}/{astro_flag}/{cls}.h5",
+        _HashType.user_cosmo: "{matter_cosmo}/{seed}/InitialConditions.h5",
+        _HashType.zgrid: "{matter_cosmo}/{seed}/{zgrid}/{redshift}/{cls}.h5",
+        _HashType.full: "{matter_cosmo}/{seed}/{zgrid}/{redshift}/{astro_flag}/{cls}.h5",
     }
 
     @classmethod
@@ -115,10 +108,10 @@ class OutputCache:
         hashes["redshift"] = f"{redshift:.4f}" if redshift is not None else ".+?"
         hashes["cls"] = kind if kind in cls._output_to_cache_map else ".+?"
 
-        # precedence: outputclass mapped (class name -> template) > template provided (template directly) > full astro path
+        # precedence: outputclass mapped (class name -> template) > template provided as _HashType (template directly) > full astro path
         path_template = cls._output_to_cache_map.get(kind, kind)
         template = cls._path_structures.get(
-            path_template, cls._path_structures["astro"]
+            path_template, cls._path_structures[_HashType.full]
         )
         template = template.format(**hashes)
         return template
@@ -583,6 +576,21 @@ class CacheConfig:
             brightness_temp=False,
             halobox=False,
             perturbed_halo_field=False,
+            halo_field=False,
+            xray_source_box=False,
+        )
+
+    @classmethod
+    def last_step_only(cls):
+        """Generate a CacheConfig where only boxes needed from more than one step away are cached."""
+        return cls(
+            initial_conditions=False,
+            perturbed_field=True,
+            spin_temp=False,
+            ionized_box=False,
+            brightness_temp=False,
+            halobox=True,
+            perturbed_halo_field=True,
             halo_field=False,
             xray_source_box=False,
         )

@@ -1436,6 +1436,8 @@ class InputParameters:
             + f"astro_flags: {self.astro_flags!r}\n"
         )
 
+    # NOTE: These hashes are used to compare structs within a run, and so don't need to stay
+    #   constant between sessions
     @cached_property
     def _user_cosmo_hash(self):
         """A hash generated from the user and cosmo params as well random seed."""

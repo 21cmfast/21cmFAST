@@ -578,7 +578,6 @@ class InitialConditions(OutputStruct):
         """Ensure ICs have all boxes required for spin_temp, and no more."""
         keep = []
         # NOTE: the astro flags doesn't change the computation, just the storage
-        # TODO: find out if this is okay
         if self.matter_flags.USE_HALO_FIELD and self.astro_flags.AVG_BELOW_SAMPLER:
             keep.append("lowres_density")  # for the cmfs
         if self.matter_flags.USE_RELATIVE_VELOCITIES:
@@ -816,6 +815,7 @@ class HaloField(PerturbHaloField):
 
     _c_compute_function = lib.ComputeHaloField
     desc_redshift: float | None = attrs.field(default=None)
+    _compat_hash = _HashType.zgrid
 
     def get_required_input_arrays(self, input_box: OutputStruct) -> list[str]:
         """Return all input arrays required to compute this object."""

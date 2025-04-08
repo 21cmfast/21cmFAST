@@ -14,12 +14,7 @@ from .._cfg import config
 from ..c_21cmfast import ffi, lib
 from ._utils import _process_exitcode
 from .inputs import (
-    AstroFlags,
-    AstroParams,
-    CosmoParams,
     InputParameters,
-    MatterFlags,
-    MatterParams,
 )
 from .outputs import InitialConditions, PerturbHaloField
 
@@ -122,10 +117,8 @@ def get_expected_nhalo(
     ----------
     redshift : float
         The redshift at which to calculate the halo list.
-    matter_params : :class:`~MatterParams`
-        User params defining the box size and resolution.
-    cosmo_params : :class:`~CosmoParams`
-        Cosmological parameters.
+    inputs: :class:`~InputParameters`
+        The input parameters of the run
     """
     return lib.expected_nhalo(
         redshift,
@@ -145,10 +138,8 @@ def get_halo_list_buffer_size(
     ----------
     redshift : float
         The redshift at which to calculate the halo list.
-    matter_params : :class:`~MatterParams`
-        User params defining the box size and resolution.
-    cosmo_params : :class:`~CosmoParams`
-        Cosmological parameters.
+    inputs: :class:`~InputParameters`
+        The input parameters of the run
     min_size : int, optional
         A minimum size to be used as the buffer.
     """
@@ -499,18 +490,18 @@ def get_condition_mass(inputs: InputParameters, R: float):
     return volume * rhocrit
 
 
-def get_delta_crit(inputs: InputParameters, mass: float, redshift: float):
+@broadcast_params
+def get_delta_crit(*, inputs: InputParameters, mass: float, redshift: float):
     """Get the critical collapse density given a mass, redshift and parameters."""
     sigma, _ = evaluate_sigma(inputs=inputs, masses=np.array([mass]))
-    # evaluate_sigma already broadcasts the paramters so we don't need to repeat
     growth = get_growth_factor(inputs=inputs, redshift=redshift)
-    return get_delta_crit_nu(inputs.matter_flags, sigma, growth)
+    return get_delta_crit_nu(inputs.matter_flags.cdict["HMF"], sigma, growth)
 
 
-def get_delta_crit_nu(matter_flags: MatterFlags, sigma: float, growth: float):
+def get_delta_crit_nu(hmf_int_flag: int, sigma: float, growth: float):
     """Get the critical density from sigma and growth factor."""
     # None of the parameter structs are used in this function so we don't need a broadcast
-    return lib.get_delta_crit(matter_flags.cdict["HMF"], sigma, growth)
+    return lib.get_delta_crit(hmf_int_flag, sigma, growth)
 
 
 @broadcast_params

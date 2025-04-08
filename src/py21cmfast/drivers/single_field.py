@@ -46,6 +46,8 @@ def compute_initial_conditions(*, inputs: InputParameters) -> InitialConditions:
         Whether to force regeneration of data, even if matching cached data is found.
     cache
         An OutputCache object defining how to read cached boxes.
+    write
+        A boolean specifying whether we need to cache the box.
 
     Returns
     -------
@@ -79,7 +81,7 @@ def perturb_field(
 
     Other Parameters
     ----------------
-    regenerate, write, direc, random_seed:
+    regenerate, write, cache:
         See docs of :func:`initial_conditions` for more information.
 
     Examples
@@ -123,6 +125,11 @@ def determine_halo_list(
     Returns
     -------
     :class:`~HaloField`
+
+    Other Parameters
+    ----------------
+    regenerate, write, cache:
+        See docs of :func:`initial_conditions` for more information.
     """
     if inputs.matter_flags.HMF != "ST":
         warnings.warn(
@@ -171,7 +178,7 @@ def perturb_halo_list(
 
     Other Parameters
     ----------------
-    regenerate, write, direc, random_seed:
+    regenerate, write, direc:
         See docs of :func:`initial_conditions` for more information.
 
     Examples
@@ -198,7 +205,7 @@ def perturb_halo_list(
 def compute_halo_grid(
     *,
     initial_conditions: InitialConditions,
-    inputs: InputParameters | None = None,
+    inputs: InputParameters,
     perturbed_halo_list: PerturbHaloField | None = None,
     perturbed_field: PerturbedField | None = None,
     previous_spin_temp: TsBox | None = None,
@@ -215,10 +222,13 @@ def compute_halo_grid(
     ----------
     initial_conditions : :class:`~InitialConditions`
         The initial conditions of the run.
-    perturbed_halo_list: :class:`~PerturbHaloField` or None, optional
+    inputs : :class:`~InputParameters`
+        The input parameters specifying the run. Since this will be the first box
+        to use the astro params/flags, if it is computed this is always needed.
+    perturbed_halo_list: :class:`~PerturbHaloField`, optional
         This contains all the dark matter haloes obtained if using the USE_HALO_FIELD.
         This is a list of halo masses and coords for the dark matter haloes.
-    perturbed_field : :class:`~PerturbField`, optional
+    perturbed_field : :class:`~PerturbedField`, optional
         The perturbed density field. Used when calculating fixed source grids from CMF integrals
     previous_spin_temp : :class:`TsBox`, optional
         The previous spin temperature box. Used for feedback when USE_MINI_HALOS==True
@@ -229,6 +239,11 @@ def compute_halo_grid(
     -------
     :class:`~HaloBox` :
         An object containing the halo box data.
+
+    Other Parameters
+    ----------------
+    regenerate, write, cache:
+        See docs of :func:`initial_conditions` for more information.
     """
     if perturbed_halo_list:
         redshift = perturbed_halo_list.redshift
@@ -242,10 +257,7 @@ def compute_halo_grid(
     box = HaloBox.new(redshift=redshift, inputs=inputs)
 
     if perturbed_field is None:
-        if (
-            inputs.matter_flags.FIXED_HALO_GRIDS
-            or inputs.matter_flags.AVG_BELOW_SAMPLER
-        ):
+        if inputs.matter_flags.FIXED_HALO_GRIDS or inputs.astro_flags.AVG_BELOW_SAMPLER:
             raise ValueError(
                 "You must provide the perturbed field if FIXED_HALO_GRIDS is True or AVG_BELOW_SAMPLER is True"
             )
@@ -405,6 +417,11 @@ def compute_xray_source_field(
     -------
     :class:`~XraySourceBox` :
         An object containing x ray heating, ionisation, and lyman alpha rates.
+
+    Other Parameters
+    ----------------
+    regenerate, write, cache:
+        See docs of :func:`initial_conditions` for more information.
     """
     z_halos = [hb.redshift for hb in hboxes]
     inputs = hboxes[0].inputs
@@ -502,7 +519,10 @@ def compute_spin_temperature(
     ----------
     initial_conditions : :class:`~InitialConditions`
         The initial conditions
-    perturbed_field : :class:`~PerturbField`, optional
+    inputs : :class:`~InputParameters`
+        The input parameters specifying the run. Since this may be the first box
+        to use the astro params/flags, it is needed when USE_HALO_FIELD=False.
+    perturbed_field : :class:`~PerturbedField`, optional
         If given, this field will be used, otherwise it will be generated. To be generated,
         either `initial_conditions` and `redshift` must be given, or `matter_params`, `cosmo_params` and
         `redshift`. By default, this will be generated at the same redshift as the spin temperature
@@ -519,6 +539,11 @@ def compute_spin_temperature(
     -------
     :class:`~TsBox`
         An object containing the spin temperature box data.
+
+    Other Parameters
+    ----------------
+    regenerate, write, cache:
+        See docs of :func:`initial_conditions` for more information.
     """
     redshift = perturbed_field.redshift
 
@@ -566,9 +591,14 @@ def compute_ionization_field(
 
     Parameters
     ----------
-    perturbed_field : :class:`~PerturbField`
+    initial_conditions : :class:`~InitialConditions` instance
+        The initial conditions.
+    inputs : :class:`~InputParameters`
+        The input parameters specifying the run. Since this may be the first box
+        to use the astro params/flags, it is needed when USE_HALO_FIELD=False and USE_TS_FLUCT=False.
+    perturbed_field : :class:`~PerturbedField`
         The perturbed density field.
-    previous_perturbed_field : :class:`~PerturbField`, optional
+    previous_perturbed_field : :class:`~PerturbedField`, optional
         An perturbed field at higher redshift. This is only used if USE_MINI_HALOS is included.
     previous_ionize_box: :class:`IonizedBox` or None
         An ionized box at higher redshift. This is only used if `INHOMO_RECO` and/or `USE_TS_FLUCT`
