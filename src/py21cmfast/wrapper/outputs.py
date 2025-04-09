@@ -1358,6 +1358,7 @@ class BrightnessTemp(OutputStructZ):
 
     _meta = False
     brightness_temp = _arrayfield()
+    tau_21 = _arrayfield(optional=True)
 
     @classmethod
     def new(cls, inputs: InputParameters, redshift: float, **kw) -> Self:
@@ -1379,10 +1380,14 @@ class BrightnessTemp(OutputStructZ):
             int(inputs.user_params.NON_CUBIC_FACTOR * inputs.user_params.HII_DIM),
         )
 
+        out = {"brightness_temp": Array(shape, dtype=np.float32)}
+        if (inputs.flag_options.USE_TS_FLUCT and inputs.flag_options.APPLY_RSDS):
+            out["tau_21"] = Array(shape, dtype=np.float32)
+
         return cls(
             inputs=inputs,
             redshift=redshift,
-            brightness_temp=Array(shape, dtype=np.float32),
+            **out,
             **kw,
         )
 

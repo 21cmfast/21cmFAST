@@ -61,7 +61,6 @@ class Lightconer(ABC):
         converter=tuple,
         validator=attr.validators.deep_iterable(attr.validators.instance_of(str)),
     )
-    get_los_velocity: bool = attr.field(default=False, converter=bool)
     interp_kinds: dict[str, str] = attr.field()
 
     @lc_distances.default
@@ -202,6 +201,8 @@ class Lightconer(ABC):
 
         for idx, lcd in zip(lcidx, lc_distances, strict=True):
             for q in self.quantities:
+                if q == "los_velocity":
+                    continue
                 box1 = self.coeval_subselect(
                     lcd, getattr(c1, q), c1.user_params.cell_size
                 )
@@ -214,35 +215,46 @@ class Lightconer(ABC):
 
                 yield q, idx, self.construct_lightcone(lcd, box)
 
-                if self.get_los_velocity and q == self.quantities[0]:
+                if "los_velocity" in self.quantities and q == self.quantities[0]:
                     # While doing the first quantity, also add in the los velocity, if desired.
                     # Doing it now means we can keep whatever cached interpolation setup
                     # is used to do construct_lightcone().
+                    if isinstance(self,AngularLightconer):
+                        boxes1 = [
+                            self.coeval_subselect(
+                                lcd, getattr(c1, f"velocity_{q}"), c1.user_params.cell_size
+                            )
+                            for q in "xyz"
+                        ]
+                        boxes2 = [
+                            self.coeval_subselect(
+                                lcd, getattr(c2, f"velocity_{q}"), c2.user_params.cell_size
+                            )
+                            for q in "xyz"
+                        ]
 
-                    boxes1 = [
-                        self.coeval_subselect(
-                            lcd, getattr(c1, f"velocity_{q}"), c1.user_params.cell_size
+                        interpolated_boxes = [
+                            self.redshift_interpolation(
+                                lcd,
+                                box1,
+                                box2,
+                                dc1,
+                                dc2,
+                                kind=self.interp_kinds.get("velocity", "mean"),
+                            )
+                            for (box1, box2) in zip(boxes1, boxes2, strict=True)
+                        ]
+                    else:
+                        # TODO: get the correct component according to self.line_of_sight_axis
+                        box1 = self.coeval_subselect(
+                            lcd, getattr(c1, "velocity_z"), c1.user_params.cell_size
                         )
-                        for q in "xyz"
-                    ]
-                    boxes2 = [
-                        self.coeval_subselect(
-                            lcd, getattr(c2, f"velocity_{q}"), c2.user_params.cell_size
+                        box2 = self.coeval_subselect(
+                            lcd, getattr(c2, "velocity_z"), c2.user_params.cell_size
                         )
-                        for q in "xyz"
-                    ]
-
-                    interpolated_boxes = [
-                        self.redshift_interpolation(
-                            lcd,
-                            box1,
-                            box2,
-                            dc1,
-                            dc2,
-                            kind=self.interp_kinds.get("velocity", "mean"),
+                        interpolated_boxes = self.redshift_interpolation(
+                            lcd, box1, box2, dc1, dc2, kind=self.interp_kinds.get("velocity_z", "mean")
                         )
-                        for (box1, box2) in zip(boxes1, boxes2, strict=True)
-                    ]
                     yield (
                         "los_velocity",
                         idx,
@@ -301,7 +313,11 @@ class Lightconer(ABC):
 
     def validate_options(self, user_params: UserParams, flag_options: FlagOptions):
         """Validate 21cmFAST options."""
-        return
+        if flag_options.APPLY_RSDS:
+            if not "los_velocity" in self.quantities:
+                self.quantities += ("los_velocity",)
+            if flag_options.USE_TS_FLUCT and not "tau_21" in self.quantities:
+                self.quantities += ("tau_21",)
 
     def __init_subclass__(cls) -> None:
         """Enabe plugin-style behaviour."""
@@ -345,10 +361,10 @@ class RectilinearLightconer(Lightconer):
     def construct_los_velocity_lightcone(
         self,
         lcd: np.ndarray,
-        velocities: np.ndarray,
+        velocity: np.ndarray,
     ) -> np.ndarray:
         """Construct slices of the lightcone between two coevals."""
-        return velocities[self.line_of_sight_axis]
+        return velocity
 
     def get_shape(self, user_params: UserParams) -> tuple[int, int, int]:
         """Get the shape of the lightcone."""
@@ -496,20 +512,15 @@ class AngularLightconer(Lightconer):
         return (len(self.longitude), len(self.lc_redshifts))
 
     def validate_options(self, user_params: UserParams, flag_options: FlagOptions):
-        """Validate 21cmFAST options.
-
-        Raises
-        ------
-        ValueError
-            If APPLY_RSDs is True.
-        """
+        """Validate 21cmFAST options."""
+        
         if flag_options.APPLY_RSDS:
-            raise ValueError(
-                "APPLY_RSDs must be False for angular lightcones, as the RSDs are "
-                "applied in the lightcone construction."
-            )
-        if self.get_los_velocity and not user_params.KEEP_3D_VELOCITIES:
-            raise ValueError(
-                "To get the LoS velocity, you need to set "
-                "user_params.KEEP_3D_VELOCITIES=True"
-            )
+            if not user_params.KEEP_3D_VELOCITIES:
+                raise ValueError(
+                    "To account for RSDs in an angular lightcone, you need to set "
+                    "user_params.KEEP_3D_VELOCITIES=True"
+                )
+            if not "los_velocity" in self.quantities:
+                self.quantities += ("los_velocity",)
+            if flag_options.USE_TS_FLUCT and not "tau_21" in self.quantities:
+                self.quantities += ("tau_21",)

@@ -233,21 +233,7 @@ class LightCone:
             and self.global_quantities.keys() == other.global_quantities.keys()
             and self.lightcones.keys() == other.lightcones.keys()
         )
-
-
-class AngularLightcone(LightCone):
-    """An angular lightcone."""
-
-    @property
-    def cell_size(self):
-        """Cell size [Mpc] of the lightcone voxels."""
-        raise AttributeError("This is not an attribute of an AngularLightcone")
-
-    @property
-    def lightcone_dimensions(self):
-        """Lightcone size over each dimension -- tuple of (x,y,z) in Mpc."""
-        raise AttributeError("This is not an attribute of an AngularLightcone")
-
+    
     def compute_rsds(self, n_subcells: int = 4, fname: str | Path | None = None):
         """Compute redshift-space distortions from the los_velocity lightcone.
 
@@ -275,39 +261,45 @@ class AngularLightcone(LightCone):
         los_displacement = -los_displacement.to(units.pixel, equivalencies=equiv)
 
         lcd = self.lightcone_distances.to(units.pixel, equiv)
-        dvdx_on_h = np.gradient(los_displacement, lcd, axis=1)
+        dvdx_on_h = np.gradient(los_displacement, lcd, axis=-1)
+        # Now, clip dvdx...
+        dvdx_on_h = np.clip(
+                            dvdx_on_h,
+                            -self.astro_params.MAX_DVDR,
+                            self.astro_params.MAX_DVDR,
+                            out=dvdx_on_h,
+                        )
 
-        if not (self.flag_options.USE_TS_FLUCT and self.flag_options.SUBCELL_RSD):
-            # Now, clip dvdx...
-            dvdx_on_h = np.clip(
-                dvdx_on_h,
-                -self.astro_params.MAX_DVDR,
-                self.astro_params.MAX_DVDR,
-                out=dvdx_on_h,
-            )
-
+        if not self.flag_options.USE_TS_FLUCT:
             tb_with_rsds = self.lightcones["brightness_temp"] / (1 + dvdx_on_h)
         else:
-            gradient_component = 1 + dvdx_on_h  # not clipped!
-            Tcmb = 2.728
-            Trad = Tcmb * (1 + self.lightcone_redshifts)
-            tb_with_rsds = np.where(
-                gradient_component < 1e-7,
-                1000.0 * (self.Ts_box - Trad) / (1.0 + self.lightcone_redshifts),
-                (1.0 - np.exp(self.lightcones["brightness_temp"] / gradient_component))
-                * 1000.0
-                * (self.Ts_box - Trad)
-                / (1.0 + self.lightcone_redshifts),
-            )
+            tb_no_rsds = self.lightcones["brightness_temp"]
+            tau_21 = np.float64(self.lightcones["tau_21"])
+            gradient_component = np.float64(1 + dvdx_on_h)
+            with np.errstate(divide="ignore", invalid="ignore"): # Don't show division by 0 warnings
+                rsd_factor = (1.0 - np.exp(-tau_21/gradient_component))/(1.0 - (np.exp(-tau_21)))
+            # It doesn't really matter what the rsd_factor is when tau_21=0 because the brightness temperature is zero by definition
+            rsd_factor = np.float32(np.where(tau_21 < 1e-10, 1., rsd_factor))
+            tb_with_rsds = tb_no_rsds*rsd_factor
 
         # Compute the local RSDs
-        if n_subcells > 0:
+        if self.flag_options.SUBCELL_RSD and n_subcells > 0:
+            # We transform rectilinear lightcone to be an angular-like lightcone
+            if not isinstance(self, AngularLightcone):
+                tb_with_rsds = tb_with_rsds.reshape((tb_with_rsds.shape[0]*tb_with_rsds.shape[1], -1))
+                los_displacement = los_displacement.reshape((los_displacement.shape[0]*los_displacement.shape[1], -1))
+
+            # Here we move the cells along the line of sight, regardless the geometry (rectilinear or angular)
             tb_with_rsds = apply_rsds(
                 field=tb_with_rsds.T,
                 los_displacement=los_displacement.T,
                 distance=self.lightcone_distances.to(units.pixel, equiv),
                 n_subcells=n_subcells,
             ).T
+            
+            # And now we transform back to a rectilinear-like lightcone
+            if not isinstance(self, AngularLightcone):
+                tb_with_rsds = tb_with_rsds.reshape((int(np.sqrt(tb_with_rsds.shape[0])), int(np.sqrt(tb_with_rsds.shape[0])), -1))
 
         self.lightcones["brightness_temp_with_rsds"] = tb_with_rsds
 
@@ -319,6 +311,19 @@ class AngularLightcone(LightCone):
                 self.save(fname)
 
         return tb_with_rsds
+
+class AngularLightcone(LightCone):
+    """An angular lightcone."""
+
+    @property
+    def cell_size(self):
+        """Cell size [Mpc] of the lightcone voxels."""
+        raise AttributeError("This is not an attribute of an AngularLightcone")
+
+    @property
+    def lightcone_dimensions(self):
+        """Lightcone size over each dimension -- tuple of (x,y,z) in Mpc."""
+        raise AttributeError("This is not an attribute of an AngularLightcone")
 
 
 def setup_lightcone_instance(
@@ -352,12 +357,6 @@ def setup_lightcone_instance(
             for quantity in lightconer.quantities
         }
 
-        # Special case: AngularLightconer can also save los_velocity
-        if getattr(lightconer, "get_los_velocity", False):
-            lc["los_velocity"] = np.zeros(
-                lightconer.get_shape(inputs.user_params), dtype=np.float32
-            )
-
         lightcone = lcn_cls(
             lightcone_distances=lightconer.lc_distances,
             inputs=inputs,
@@ -386,6 +385,8 @@ def _run_lightcone_from_perturbed_fields(
     always_purge: bool = False,
     lightcone_filename: str | Path | None = None,
 ):
+    original_lcs_list = list(lightconer.quantities)
+
     lightconer.validate_options(inputs.user_params, inputs.flag_options)
 
     # Get the redshift through which we scroll and evaluate the ionization field.
@@ -496,10 +497,23 @@ def _run_lightcone_from_perturbed_fields(
             if lib.photon_cons_allocated:
                 lib.FreePhotonConsMemory()
 
-            if isinstance(lightcone, AngularLightcone) and lightconer.get_los_velocity:
+            if inputs.flag_options.APPLY_RSDS:
                 lightcone.compute_rsds(
                     fname=lightcone_filename, n_subcells=inputs.astro_params.N_RSD_STEPS
                 )
+                for q in ["los_velocity", "tau_21"]:
+                    if not q in original_lcs_list and q in lightcone.lightcones.keys():
+                        lightcone.lightcones.pop(q)
+
+            
+            # Include attenuation by tau_reio
+            # For now, we use a fixed value for tau_reio (should enter cosmo_params in the future)
+            # TODO: in the future, tau_reio will be evaluated from the mass weighted lightcone of x_HI,
+            #       and will be different for each cell in the lightcone box (e.g. tau_reio is smaller during reionization).
+            tau_reio = 0.0544
+            lightcone.lightcones["brightness_temp"] *= np.exp(-tau_reio)
+            if inputs.flag_options.APPLY_RSDS:
+                lightcone.lightcones["brightness_temp_with_rsds"] *= np.exp(-tau_reio)
 
         yield iz, coeval.redshift, coeval, lightcone
 

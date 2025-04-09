@@ -90,4 +90,5 @@ typedef struct IonizedBox{
 
 typedef struct BrightnessTemp{
     float *brightness_temp;
+    float *tau_21;
 } BrightnessTemp;
