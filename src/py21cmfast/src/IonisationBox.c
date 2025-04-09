@@ -370,8 +370,7 @@ void setup_first_z_prevbox(IonizedBox *previous_ionize_box, PerturbedField *prev
         {
 #pragma omp for
             for (ct = 0; ct < HII_TOT_NUM_PIXELS; ct++) {
-                previous_perturb->density[ct] =
-                    -1.5;  // TODO: figure out why 1.5, ensures no sources?
+                previous_perturb->density[ct] = -1.5;  // Makes Fcoll == 0.
             }
         }
     }

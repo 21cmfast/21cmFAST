@@ -615,11 +615,9 @@ class OutputStructZ(OutputStruct):
         return cls.new(inputs=InputParameters(random_seed=1), redshift=-1.0, dummy=True)
 
     @classmethod
-    def initial(cls):
+    def initial(cls, inputs):
         """Create a dummy instance with the given inputs."""
-        return cls.new(
-            inputs=InputParameters(random_seed=1), redshift=-1.0, initial=True
-        )
+        return cls.new(inputs=inputs, redshift=-1.0, initial=True)
 
 
 @attrs.define(slots=False, kw_only=True)

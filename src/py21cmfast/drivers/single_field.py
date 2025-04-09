@@ -635,8 +635,8 @@ def compute_ionization_field(
 
     if redshift >= inputs.simulation_options.Z_HEAT_MAX:
         # Previous boxes must be "initial"
-        previous_ionized_box = IonizedBox.initial()
-        previous_perturbed_field = PerturbedField.initial()
+        previous_ionized_box = IonizedBox.initial(inputs=inputs)
+        previous_perturbed_field = PerturbedField.initial(inputs=inputs)
 
     if inputs.evolution_required:
         if previous_ionized_box is None:
@@ -649,9 +649,9 @@ def compute_ionization_field(
             )
     else:
         if previous_ionized_box is None:
-            previous_ionized_box = IonizedBox.initial()
+            previous_ionized_box = IonizedBox.initial(inputs=inputs)
         if previous_perturbed_field is None:
-            previous_perturbed_field = PerturbedField.initial()
+            previous_perturbed_field = PerturbedField.initial(inputs=inputs)
 
     box = IonizedBox.new(inputs=inputs, redshift=redshift)
 
