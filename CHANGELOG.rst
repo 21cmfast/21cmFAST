@@ -98,7 +98,7 @@ Added
   scenarios in line with current observations (#305)
 * Add in an initialisation check for the photon conservation to address some issues
   arising for early EOR histories (#311)
-* Added ``NON_CUBIC_FACTOR`` to ``MatterParams`` to allow for non-cubic coeval boxes (#289)
+* Added ``NON_CUBIC_FACTOR`` to ``UserParams`` to allow for non-cubic coeval boxes (#289)
 
 v3.2.1 [13 Sep 2022]
 ----------------------
@@ -182,7 +182,7 @@ Added
   class, or the Lightcone.
 * Ability to gather all evolutionary antecedents from a Coeval/Lightcone into the one
   file.
-* ``FAST_FCOLL_TABLES`` in ``MatterParams`` which improves speeds quite significantly for
+* ``FAST_FCOLL_TABLES`` in ``UserParams`` which improves speeds quite significantly for
   ~<10% accuracy decrease.
 * Fast and low-memory generation of relative-velocity (vcb) initial conditions. Eliminated hi-res vcb boxes, as they are never needed.
 * Also output the mean free path (i.e. MFP_box in IonizedBox).
@@ -264,7 +264,7 @@ Added
   namely atomic-cooling (ACGs) and minihalo-hosted molecular-cooling galaxies (MCGs);
   (ii) the turn-over masses of ACGs and MCGs are estimated with cooling efficiency and
   feedback from reionization and lyman werner suppression (Qin et al. 2020). This can
-  be switched on using new ``astro_flags`` ``USE_MINI_HALOS``.
+  be switched on using new ``flag_options`` ``USE_MINI_HALOS``.
 * Updated kinetic temperature of the IGM with fully ionized cells following equation 6
   of McQuinn (2015) and partially ionized cells having the volume-weightied temperature
   between the ionized (volume: 1-xHI; temperature T_RE ) and neutral components (volume:
@@ -281,7 +281,7 @@ Added
   are set to the Planck2018 best-fit values for now (until CLASS is added):
   (omegab=0.02237, omegac= 0.120, hubble=0.6736 (the rest are irrelevant for the
   transfer functions, but in case:  A_s=2.100e-9, n_s=0.9649, z_reio = 11.357)
-* New ``matter_params`` option ``USE_RELATIVE_VELOCITIES``, which produces initial relative
+* New ``user_params`` option ``USE_RELATIVE_VELOCITIES``, which produces initial relative
   velocity cubes (option implemented, but not the actual computation yet).
 * Configuration management.
 * global params now has a context manager for changing parameters temporarily.
@@ -292,7 +292,7 @@ Added
 
 Changed
 ~~~~~~~
-* ``POWER_SPECTRUM`` option moved from ``global_params`` to ``matter_params``.
+* ``POWER_SPECTRUM`` option moved from ``global_params`` to ``user_params``.
 * Default cosmology updated to Planck18.
 
 v2.0.0

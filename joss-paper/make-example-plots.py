@@ -4,17 +4,19 @@ import matplotlib.pyplot as plt
 
 import py21cmfast as p21c
 
+# NOTE: This script will reproduce the JOSS paper example plots using 21cmFASTv3
+
 lightcone = p21c.run_lightcone(
     redshift=6.0,  # Minimum redshift of the lightcone
     max_redshift=30.0,
-    matter_params={
+    user_params={
         "HII_DIM": 150,  # Number of cells along a side in the output cube
         "DIM": 450,  # Original high-resolution cell number
         "BOX_LEN": 300,  # Size of the simulation in Mpc
         "N_THREADS": 16,
         "USE_INTERPOLATION_TABLES": True,
     },
-    astro_flags={
+    flag_options={
         "USE_TS_FLUCT": True,  # Do not assume saturated spin temperature
         "INHOMO_RECO": True,  # Use inhomogeneous recominations
     },

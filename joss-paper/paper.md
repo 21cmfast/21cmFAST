@@ -178,12 +178,12 @@ import py21cmfast as p21c
 lightcone = p21c.run_lightcone(
     redshift=6.0,              # Minimum redshift of lightcone
     max_redshift=30.0,
-    matter_params={
+    user_params={
         "HII_DIM": 150,        # N cells along side in output cube
         "DIM": 400,            # Original high-res cell number
         "BOX_LEN": 300,        # Size of the simulation in Mpc
     },
-    astro_flags={
+    flag_options={
         "USE_TS_FLUCT": True,  # Don't assume saturated spin temp
         "INHOMO_RECO": True,   # Use inhomogeneous recombinations
     },
