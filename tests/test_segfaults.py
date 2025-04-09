@@ -14,7 +14,7 @@ import py21cmfast as p21c
 
 from . import produce_integration_test_data as prd
 
-DEFAULT_simulation_options_CTEST = {
+DEFAULT_SIMULATION_OPTIONS_CTEST = {
     "HII_DIM": 32,
     "DIM": 128,
     "BOX_LEN": 64,
@@ -132,7 +132,7 @@ def test_lc_runs(name, max_redshift, cache, benchmark):
         node_maxz = options["inputs"].simulation_options.Z_HEAT_MAX
 
     options["inputs"] = options["inputs"].clone(
-        simulation_options=p21c.SimulationOptions.new(DEFAULT_simulation_options_CTEST),
+        simulation_options=p21c.SimulationOptions.new(DEFAULT_SIMULATION_OPTIONS_CTEST),
         node_redshifts=p21c.get_logspaced_redshifts(
             min_redshift=redshift,
             max_redshift=node_maxz,
@@ -176,7 +176,7 @@ def test_cv_runs(name, cache, benchmark):
     options = prd.get_all_options_struct(redshift, lc=False, **kwargs)
 
     options["inputs"] = options["inputs"].clone(
-        simulation_options=p21c.SimulationOptions.new(DEFAULT_simulation_options_CTEST)
+        simulation_options=p21c.SimulationOptions.new(DEFAULT_SIMULATION_OPTIONS_CTEST)
     )
 
     with p21c.config.use(ignore_R_BUBBLE_MAX_error=True):
