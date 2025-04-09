@@ -1,7 +1,7 @@
 """Test CLI functionality."""
 
 import pytest
-import yaml
+import tomllib
 from click.testing import CliRunner
 
 from py21cmfast import InitialConditions, cli
@@ -22,13 +22,46 @@ def cfg(
     default_astro_flags,
     tmpdirec,
 ):
-    with (tmpdirec / "cfg.yml").open("w") as f:
-        yaml.dump({"matter_params": default_matter_params.asdict()}, f)
-        yaml.dump({"matter_flags": default_matter_flags.asdict()}, f)
-        yaml.dump({"cosmo_params": default_cosmo_params.asdict()}, f)
-        yaml.dump({"astro_params": default_astro_params.asdict()}, f)
-        yaml.dump({"astro_flags": default_astro_flags.asdict()}, f)
-    return tmpdirec / "cfg.yml"
+    # NOTE:tomllib doesn't have dump?
+    def toml_print(val):
+        if isinstance(val, str):
+            return f'"{val}"'
+        elif isinstance(val, bool):
+            return str(val).casefold()
+        return val
+
+    with (tmpdirec / "cfg.toml").open("w") as f:
+        f.write("[CosmoParams]\n")
+        [
+            f.write(f"{k} = {toml_print(v)}\n")
+            for k, v in default_cosmo_params.asdict().items()
+        ]
+        f.write("\n")
+        f.write("[MatterParams]\n")
+        [
+            f.write(f"{k} = {toml_print(v)}\n")
+            for k, v in default_matter_params.asdict().items()
+        ]
+        f.write("\n")
+        f.write("[MatterFlags]\n")
+        [
+            f.write(f"{k} = {toml_print(v)}\n")
+            for k, v in default_matter_flags.asdict().items()
+        ]
+        f.write("\n")
+        f.write("[AstroParams]\n")
+        [
+            f.write(f"{k} = {toml_print(v)}\n")
+            for k, v in default_astro_params.asdict().items()
+        ]
+        f.write("\n")
+        f.write("[AstroFlags]\n")
+        [
+            f.write(f"{k} = {toml_print(v)}\n")
+            for k, v in default_astro_flags.asdict().items()
+        ]
+        f.write("\n")
+    return tmpdirec / "cfg.toml"
 
 
 def test_init(module_direc, default_input_struct, runner, cfg):

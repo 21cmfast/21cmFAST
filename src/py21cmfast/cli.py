@@ -11,7 +11,7 @@ import attrs
 import click
 import matplotlib.pyplot as plt
 import numpy as np
-import yaml
+import tomllib
 
 from . import plotting
 from .drivers.coeval import run_coeval
@@ -24,14 +24,10 @@ from .drivers.single_field import (
 )
 from .io.caching import OutputCache
 from .lightcones import RectilinearLightconer
+from .run_templates import create_params_from_template, load_template_file
 from .wrapper._utils import camel_to_snake
 from .wrapper.inputs import (
-    AstroFlags,
-    AstroParams,
-    CosmoParams,
     InputParameters,
-    MatterFlags,
-    MatterParams,
     get_logspaced_redshifts,
 )
 from .wrapper.outputs import (
@@ -42,16 +38,6 @@ from .wrapper.outputs import (
     TsBox,
     XraySourceBox,
 )
-
-
-def _get_config(config=None):
-    if config is None:
-        config = Path("~/.21cmfast/runconfig_example.yml").expanduser()
-
-    with config.open() as f:
-        cfg = yaml.load(f, Loader=yaml.FullLoader)
-
-    return cfg
 
 
 def _ctx_to_dct(args):
@@ -88,38 +74,15 @@ def _update(obj, ctx):
                     ctx.pop(k)
 
 
-# TODO: since this is called with general keywords we should
-# directly make the InputParameters using evolve_input_structs
-def _get_params_from_ctx(ctx, cfg):
+def _get_inputs_from_ctx(ctx, seed, config="simple", **kwargs):
     """Construct InputStruct objects from the click context and config."""
-    # Try to use the extra arguments as an override of config.
+    # these functions use ctx and kwargs to override params set in config,
+    # where config is either a native template string or path to TOML file
     ctx = _ctx_to_dct(ctx.args)
-    params = {}
+    param_structs = create_params_from_template(config, **ctx)
+    inputs = InputParameters(random_seed=seed, **{**param_structs, **kwargs})
 
-    for kls in (MatterParams, MatterFlags, CosmoParams, AstroParams, AstroFlags):
-        fieldnames = [field.name for field in attrs.fields(kls)]
-        klsname = camel_to_snake(kls.__name__)
-
-        # get paramters from context
-        ctx_params = {k: v for k, v in ctx.items() if k in fieldnames}
-        # remove used params from context
-        [ctx.pop(k) for k in ctx_params]
-
-        # assign to a parameter dict, prioritising arguments > config > defaults
-        params[klsname] = {**cfg.get(klsname, {}), **ctx_params}
-
-    matter_params = MatterParams.new(params["matter_params"])
-    matter_flags = MatterFlags.new(params["matter_flags"])
-    cosmo_params = CosmoParams.new(params["cosmo_params"])
-    astro_flags = AstroFlags.new(params["astro_flags"])
-    astro_params = AstroParams.new(params["astro_params"])
-
-    if ctx:
-        warnings.warn(
-            f"The following arguments were not able to be set: {ctx}", stacklevel=2
-        )
-
-    return matter_params, matter_flags, cosmo_params, astro_params, astro_flags
+    return inputs
 
 
 main = click.Group()
@@ -171,21 +134,8 @@ def init(ctx, config, regen, direc, seed):
     seed : int
         Random seed used to generate data.
     """
-    cfg = _get_config(config)
     # Set user/cosmo params from config.
-    matter_params, matter_flags, cosmo_params, astro_params, astro_flags = (
-        _get_params_from_ctx(ctx, cfg)
-    )
-
-    inputs = InputParameters(
-        random_seed=seed,
-        matter_params=matter_params,
-        matter_flags=matter_flags,
-        cosmo_params=cosmo_params,
-        astro_params=astro_params,
-        astro_flags=astro_flags,
-        node_redshifts=[],
-    )
+    inputs = _get_inputs_from_ctx(ctx, seed, config=config)
 
     compute_initial_conditions(
         inputs=inputs,
@@ -244,21 +194,7 @@ def perturb(ctx, redshift, config, regen, direc, seed):
     seed : int
         Random seed used to generate data.
     """
-    cfg = _get_config(config)
-    # Set user/cosmo params from config.
-    matter_params, matter_flags, cosmo_params, astro_params, astro_flags = (
-        _get_params_from_ctx(ctx, cfg)
-    )
-
-    inputs = InputParameters(
-        random_seed=seed,
-        matter_params=matter_params,
-        matter_flags=matter_flags,
-        cosmo_params=cosmo_params,
-        astro_params=astro_params,
-        astro_flags=astro_flags,
-        node_redshifts=[],
-    )
+    inputs = _get_inputs_from_ctx(ctx, seed, config=config)
     ics = InitialConditions(inputs=inputs)
 
     perturb_field(
@@ -332,21 +268,8 @@ def spin(ctx, redshift, prev_z, config, regen, direc, seed):
     raise NotImplementedError(
         "Spin Temerature requires inputs over specific redshifts. Use the python wrapper or coeval/lightcone"
     )
-    cfg = _get_config(config)
+    inputs = _get_inputs_from_ctx(ctx, seed, config=config)
 
-    # Set params from config
-    matter_params, matter_flags, cosmo_params, astro_params, astro_flags = (
-        _get_params_from_ctx(ctx, cfg)
-    )
-    inputs = InputParameters(
-        random_seed=seed,
-        matter_params=matter_params,
-        matter_flags=matter_flags,
-        cosmo_params=cosmo_params,
-        astro_params=astro_params,
-        astro_flags=astro_flags,
-        node_redshifts=[],
-    )
     ics = InitialConditions(inputs=inputs)
     pt = PerturbedField(inputs=inputs)
     xrs = XraySourceBox(inputs=inputs)
@@ -423,32 +346,17 @@ def ionize(ctx, redshift, prev_z, config, regen, direc, seed):
     seed : int
         Random seed used to generate data.
     """
-    cfg = _get_config(config)
-
-    # Set params from config
-    matter_params, matter_flags, cosmo_params, astro_params, astro_flags = (
-        _get_params_from_ctx(ctx, cfg)
-    )
+    inputs = _get_inputs_from_ctx(ctx, seed, config=config)
     if (
-        astro_flags.USE_TS_FLUCT
-        or astro_flags.INHOMO_RECO
-        or matter_flags.HALO_STOCHASTICITY
+        inputs.astro_flags.USE_TS_FLUCT
+        or inputs.astro_flags.INHOMO_RECO
+        or inputs.matter_flags.HALO_STOCHASTICITY
     ):
         raise NotImplementedError(
             "Ionized box with any of (USE_TS_FLUCT,INHOMO_RECO,HALO_STOCHASTICITY)"
             "requires inputs over specific redshifts."
             "Use the python wrapper or coeval/lightcone"
         )
-
-    inputs = InputParameters(
-        random_seed=seed,
-        matter_params=matter_params,
-        matter_flags=matter_flags,
-        cosmo_params=cosmo_params,
-        astro_params=astro_params,
-        astro_flags=astro_flags,
-        node_redshifts=[],
-    )
 
     ics = InitialConditions(inputs=inputs)
     pt = PerturbedField(inputs=inputs)
@@ -540,21 +448,7 @@ def coeval(ctx, redshift, config, out, regen, cache_dir, seed):
             "redshift argument must be comma-separated list of values."
         ) from e
 
-    cfg = _get_config(config)
-
-    # Set params from config
-    matter_params, matter_flags, cosmo_params, astro_params, astro_flags = (
-        _get_params_from_ctx(ctx, cfg)
-    )
-
-    inputs = InputParameters(
-        cosmo_params=cosmo_params,
-        matter_params=matter_params,
-        matter_flags=matter_flags,
-        astro_params=astro_params,
-        astro_flags=astro_flags,
-        random_seed=seed,
-    )
+    inputs = _get_inputs_from_ctx(ctx, seed, config=config)
 
     coeval = run_coeval(
         out_redshifts=redshift,
@@ -615,6 +509,12 @@ def coeval(ctx, redshift, config, out, regen, cache_dir, seed):
     help="maximum redshift of the stored lightcone data",
 )
 @click.option(
+    "--z-step",
+    type=float,
+    default=1.02,
+    help="maximum redshift of the stored lightcone data",
+)
+@click.option(
     "--seed",
     type=int,
     default=None,
@@ -628,7 +528,7 @@ def coeval(ctx, redshift, config, out, regen, cache_dir, seed):
     help="quantities to make lightcones out of",
 )
 @click.pass_context
-def lightcone(ctx, redshift, config, out, regen, direc, max_z, seed, lq):
+def lightcone(ctx, redshift, config, out, regen, direc, max_z, z_step, seed, lq):
     """Efficiently generate coeval cubes at a given redshift.
 
     Parameters
@@ -648,8 +548,6 @@ def lightcone(ctx, redshift, config, out, regen, direc, max_z, seed, lq):
     seed : int
         Random seed used to generate data.
     """
-    cfg = _get_config(config)
-
     if out is not None:
         out = Path(out).absolute()
         if len(out.suffix) not in (2, 3) and not out.exists():
@@ -657,22 +555,14 @@ def lightcone(ctx, redshift, config, out, regen, direc, max_z, seed, lq):
         elif not out.parent.exists():
             out.parent.mkdir()
 
-    # Set params from config
-    matter_params, matter_flags, cosmo_params, astro_params, astro_flags = (
-        _get_params_from_ctx(ctx, cfg)
-    )
-
-    inputs = InputParameters(
-        cosmo_params=cosmo_params,
-        matter_params=matter_params,
-        matter_flags=matter_flags,
-        astro_params=astro_params,
-        astro_flags=astro_flags,
-        random_seed=seed,
+    inputs = _get_inputs_from_ctx(
+        ctx,
+        seed,
+        config=config,
         node_redshifts=get_logspaced_redshifts(
             min_redshift=redshift,
             max_redshift=max_z,
-            z_step_factor=matter_params.ZPRIME_STEP_FACTOR,
+            z_step_factor=z_step,
         ),
     )
 
@@ -680,8 +570,8 @@ def lightcone(ctx, redshift, config, out, regen, direc, max_z, seed, lq):
     lcn = RectilinearLightconer.with_equal_cdist_slices(
         min_redshift=redshift,
         max_redshift=max_z,
-        resolution=matter_params.cell_size,
-        cosmo=cosmo_params.cosmo,
+        resolution=inputs.matter_params.cell_size,
+        cosmo=inputs.cosmo_params.cosmo,
         quantities=lq,
     )
 

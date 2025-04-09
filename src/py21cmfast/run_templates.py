@@ -51,6 +51,36 @@ def list_templates() -> list[dict]:
     return manifest["templates"]
 
 
+def load_template_file(template_name: str | Path):
+    """
+    Handle the loading of template TOML files.
+
+    First it checks for a file with the name given,
+    then it checks for a native template with that name,
+    throwing an error if neither are found.
+    """
+    if Path(template_name).is_file():
+        with Path(template_name).open("rb") as template_file:
+            return tomllib.load(template_file)
+
+    with (TEMPLATE_PATH / "manifest.toml").open("rb") as f:
+        manifest = tomllib.load(f)
+    for manf_entry in manifest["templates"]:
+        if template_name.casefold() in [x.casefold() for x in manf_entry["aliases"]]:
+            with (TEMPLATE_PATH / manf_entry["file"]).open("rb") as f:
+                return tomllib.load(f)
+
+    message = (
+        f"Template {template_name} not found on-disk or in native template aliases\n"
+        + "Available native templates are:\n"
+    )
+    for manf_entry in manifest["templates"]:
+        message += f"{manf_entry['name']}: {manf_entry['aliases']}\n"
+        message += f"     {manf_entry['description']}:\n\n"
+
+    raise ValueError(message)
+
+
 def create_params_from_template(template_name: str | Path, **kwargs):
     """
     Construct the required InputStruct instances for a run from a given template.
@@ -75,36 +105,13 @@ def create_params_from_template(template_name: str | Path, **kwargs):
             Instance containing cosmological parameters
         matter_params : MatterParams
             Instance containing general run parameters
+        matter_params : MatterFlags
+            Instance containing general run flags and enums
         astro_params : AstroParams
             Instance containing astrophysical parameters
         astro_flags : AstroFlags
-            Instance containing flags which enable optional modules
+            Instance containing astrophysical flags and enums
     """
-    # First check if the provided name is a path to an existsing TOML file
-    template = None
-    if Path(template_name).is_file():
-        with Path(template_name).open("rb") as template_file:
-            template = tomllib.load(template_file)
+    template = load_template_file(template_name)
 
-    # Next, check if the string matches one of our template aliases
-    with (TEMPLATE_PATH / "manifest.toml").open("rb") as f:
-        manifest = tomllib.load(f)
-    for manf_entry in manifest["templates"]:
-        if template_name.casefold() in [x.casefold() for x in manf_entry["aliases"]]:
-            with (TEMPLATE_PATH / manf_entry["file"]).open("rb") as f:
-                template = tomllib.load(f)
-            break
-
-    if template is not None:
-        return _construct_param_objects(template, **kwargs)
-
-    # We have not found a template in our templates or on file, raise an error
-    message = (
-        f"Template {template_name} not found on-disk or in native template aliases\n"
-        + "Available native templates are:\n"
-    )
-    for manf_entry in manifest["templates"]:
-        message += f"{manf_entry['name']}: {manf_entry['aliases']}\n"
-        message += f"     {manf_entry['description']}:\n\n"
-
-    raise ValueError(message)
+    return _construct_param_objects(template, **kwargs)
