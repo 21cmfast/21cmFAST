@@ -310,6 +310,12 @@ def read_inputs(
 
 
 def _read_inputs_pre_v4(group: h5py.Group, safe: bool = True):
+    warnings.warn(
+        "You are loading a file from a previous iteration of 21cmFAST"
+        "With different parameter structures, If using this for further"
+        "computation, carefully check the input parameter structure beforehand",
+        stacklevel=2,
+    )
     input_classes = [
         istruct.SimulationOptions,
         istruct.MatterOptions,

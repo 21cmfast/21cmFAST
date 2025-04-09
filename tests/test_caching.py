@@ -12,7 +12,6 @@ from py21cmfast import (
     InputParameters,
     IonizedBox,
     PerturbedField,
-    compute_ionization_field,
 )
 from py21cmfast.io import caching, h5
 from py21cmfast.wrapper import outputs
