@@ -205,7 +205,7 @@ def perturb_halo_list(
 def compute_halo_grid(
     *,
     initial_conditions: InitialConditions,
-    inputs: InputParameters,
+    inputs: InputParameters | None = None,
     perturbed_halo_list: PerturbHaloField | None = None,
     perturbed_field: PerturbedField | None = None,
     previous_spin_temp: TsBox | None = None,
@@ -222,9 +222,8 @@ def compute_halo_grid(
     ----------
     initial_conditions : :class:`~InitialConditions`
         The initial conditions of the run.
-    inputs : :class:`~InputParameters`
-        The input parameters specifying the run. Since this will be the first box
-        to use the astro params/flags, if it is computed this is always needed.
+    inputs : :class:`~InputParameters`, optional
+        The input parameters specifying the run.
     perturbed_halo_list: :class:`~PerturbHaloField`, optional
         This contains all the dark matter haloes obtained if using the USE_HALO_FIELD.
         This is a list of halo masses and coords for the dark matter haloes.

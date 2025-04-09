@@ -670,7 +670,9 @@ class SimulationOptions(InputStruct):
     )
     DEXM_R_OVERLAP = field(default=2, converter=float, validator=validators.gt(0))
 
-    # NOTE: Since we moved the halos to the matter side
+    # NOTE: Thematically these should be in AstroParams, However they affect the HaloField
+    #   Objects and so need to be in the matter_cosmo hash, they seem a little strange here
+    #   but will remain until someone comes up with a better organisation down the line
     CORR_STAR = field(default=0.5, converter=float)
     CORR_SFR = field(default=0.2, converter=float)
     # NOTE (Jdavies): I do not currently have great priors for this value

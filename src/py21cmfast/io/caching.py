@@ -582,7 +582,13 @@ class CacheConfig:
 
     @classmethod
     def last_step_only(cls):
-        """Generate a CacheConfig where only boxes needed from more than one step away are cached."""
+        """Generate a CacheConfig where only boxes needed from more than one step away are cached.
+
+        This represents the minimum caching setup which will *never* store every redshift in memory.
+        PerturbedField and PerturbHaloFields are all calculated at the start of the run, and HaloBox
+        is required at multiple redshifts for the XraySourceBox. So this caching setup allows free
+        purging of these objects without losing data.
+        """
         return cls(
             initial_conditions=False,
             perturbed_field=True,

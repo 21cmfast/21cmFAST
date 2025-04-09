@@ -204,9 +204,6 @@ class _OutputStructComputationInspect:
         example) and this is fine. So, here we return the inputs of the "most advanced"
         OutputStruct that is given.
         """
-        # TODO: Figure out what happens when the first astro box (HaloBox, IonizedBox or SpinTemp)
-        #   is passed inputs=None, does it pull the astro params from the matter boxes, if so that's bad
-        #   We probably shouldn't ever store/save the astro params in the matter boxes
         inputs = kwargs.get("inputs")
         if inputs is not None:
             return inputs
