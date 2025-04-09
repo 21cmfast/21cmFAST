@@ -16,10 +16,10 @@ def runner():
 @pytest.fixture(scope="module")
 def cfg(
     default_cosmo_params,
-    default_matter_params,
-    default_matter_flags,
+    default_simulation_options,
+    default_matter_options,
     default_astro_params,
-    default_astro_flags,
+    default_astro_options,
     tmpdirec,
 ):
     # NOTE:tomllib doesn't have dump?
@@ -37,16 +37,16 @@ def cfg(
             for k, v in default_cosmo_params.asdict().items()
         ]
         f.write("\n")
-        f.write("[MatterParams]\n")
+        f.write("[SimulationOptions]\n")
         [
             f.write(f"{k} = {toml_print(v)}\n")
-            for k, v in default_matter_params.asdict().items()
+            for k, v in default_simulation_options.asdict().items()
         ]
         f.write("\n")
-        f.write("[MatterFlags]\n")
+        f.write("[MatterOptions]\n")
         [
             f.write(f"{k} = {toml_print(v)}\n")
-            for k, v in default_matter_flags.asdict().items()
+            for k, v in default_matter_options.asdict().items()
         ]
         f.write("\n")
         f.write("[AstroParams]\n")
@@ -55,10 +55,10 @@ def cfg(
             for k, v in default_astro_params.asdict().items()
         ]
         f.write("\n")
-        f.write("[AstroFlags]\n")
+        f.write("[AstroOptions]\n")
         [
             f.write(f"{k} = {toml_print(v)}\n")
-            for k, v in default_astro_flags.asdict().items()
+            for k, v in default_astro_options.asdict().items()
         ]
         f.write("\n")
     return tmpdirec / "cfg.toml"

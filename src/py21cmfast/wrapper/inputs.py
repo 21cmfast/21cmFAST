@@ -2,8 +2,8 @@
 Input parameter classes.
 
 There are four input parameter/option classes, not all of which are required for any
-given function. They are :class:`MatterParams`, :class:`CosmoParams`, :class:`AstroParams`
-and :class:`AstroFlags`. Each of them defines a number of variables, and all of these
+given function. They are :class:`SimulationOptions`, :class:`CosmoParams`, :class:`AstroParams`
+and :class:`AstroOptions`. Each of them defines a number of variables, and all of these
 have default values, to minimize the burden on the user. These defaults are accessed via
 the ``_defaults_`` class attribute of each class. The available parameters for each are
 listed in the documentation for each class below.
@@ -131,16 +131,16 @@ class InputStruct:
 
         Examples
         --------
-        >>> up = MatterParams({'HII_DIM': 250})
+        >>> up = SimulationOptions({'HII_DIM': 250})
         >>> up.HII_DIM
         250
-        >>> up = MatterParams(up)
+        >>> up = SimulationOptions(up)
         >>> up.HII_DIM
         250
-        >>> up = MatterParams()
+        >>> up = SimulationOptions()
         >>> up.HII_DIM
         200
-        >>> up = MatterParams(HII_DIM=256)
+        >>> up = SimulationOptions(HII_DIM=256)
         >>> up.HII_DIM
         256
         """
@@ -358,9 +358,9 @@ class CosmoParams(InputStruct):
 
 
 @define(frozen=True, kw_only=True)
-class MatterFlags(InputStruct):
+class MatterOptions(InputStruct):
     """
-    Structure containing flags (booleans / enums) affecting the matter field (ICs, perturbedfield, halos).
+    Structure containing options which affect the matter field (ICs, perturbedfield, halos).
 
     Parameters
     ----------
@@ -563,9 +563,9 @@ class MatterFlags(InputStruct):
 
 
 @define(frozen=True, kw_only=True)
-class MatterParams(InputStruct):
+class SimulationOptions(InputStruct):
     """
-    Structure containing parameters (numerical values) affecting the matter field (ICs, perturbedfield, halos).
+    Structure containing broad simulation options.
 
     Parameters
     ----------
@@ -632,7 +632,7 @@ class MatterParams(InputStruct):
     CORR_STAR : float, optional
         Self-correlation length used for updating halo properties. To model the
         correlation in the SHMR between timesteps, we sample from a conditional bivariate gaussian
-        with correlation factor given by exp(-dz/CORR_STAR). This value is placed in MatterParams
+        with correlation factor given by exp(-dz/CORR_STAR). This value is placed in SimulationOptions
         since it is used in the halo sampler, and not in the ionization routines.
     CORR_SFR : float, optional
         Self-correlation length used for updating star formation rate, see "CORR_STAR" for details.
@@ -711,12 +711,9 @@ class MatterParams(InputStruct):
 
 
 @define(frozen=True, kw_only=True)
-class AstroFlags(InputStruct):
+class AstroOptions(InputStruct):
     """
-    Flag-style options for the ionization routines.
-
-    Note that all flags are set to False by default, giving the simplest "vanilla"
-    version of 21cmFAST.
+    Options for the ionization routines which enable/disable certain modules.
 
     Parameters
     ----------
@@ -941,14 +938,14 @@ class AstroParams(InputStruct):
     F_STAR10 : float, optional
         The fraction of galactic gas in stars for 10^10 solar mass haloes.
         Only used in the "new" parameterization,
-        i.e. when `USE_MASS_DEPENDENT_ZETA` is set to True (in :class:`AstroFlags`).
+        i.e. when `USE_MASS_DEPENDENT_ZETA` is set to True (in :class:`AstroOptions`).
         If so, this is used along with `F_ESC10` to determine `HII_EFF_FACTOR` (which
         is then unused). See Eq. 11 of Greig+2018 and Sec 2.1 of Park+2018.
         Given in log10 units.
     F_STAR7_MINI : float, optional
         The fraction of galactic gas in stars for 10^7 solar mass minihaloes. Only used
         in the "minihalo" parameterization, i.e. when `USE_MINI_HALOS` is set to True
-        (in :class:`AstroFlags`). If so, this is used along with `F_ESC7_MINI` to
+        (in :class:`AstroOptions`). If so, this is used along with `F_ESC7_MINI` to
         determine `HII_EFF_FACTOR_MINI` (which is then unused). See Eq. 8 of Qin+2020.
         If the MCG scaling relations are not provided explicitly, we extend the ACG
         ones by default. Given in log10 units.
@@ -969,14 +966,14 @@ class AstroParams(InputStruct):
     F_ESC10 : float, optional
         The "escape fraction", i.e. the fraction of ionizing photons escaping into the
         IGM, for 10^10 solar mass haloes. Only used in the "new" parameterization,
-        i.e. when `USE_MASS_DEPENDENT_ZETA` is set to True (in :class:`AstroFlags`).
+        i.e. when `USE_MASS_DEPENDENT_ZETA` is set to True (in :class:`AstroOptions`).
         If so, this is used along with `F_STAR10` to determine `HII_EFF_FACTOR` (which
         is then unused). See Eq. 11 of Greig+2018 and Sec 2.1 of Park+2018.
     F_ESC7_MINI: float, optional
         The "escape fraction for minihalos", i.e. the fraction of ionizing photons escaping
         into the IGM, for 10^7 solar mass minihaloes. Only used in the "minihalo"
         parameterization, i.e. when `USE_MINI_HALOS` is set to True (in
-        :class:`AstroFlags`). If so, this is used along with `F_ESC7_MINI` to determine
+        :class:`AstroOptions`). If so, this is used along with `F_ESC7_MINI` to determine
         `HII_EFF_FACTOR_MINI` (which is then unused). See Eq. 17 of Qin+2020. If the MCG
         scaling relations are not provided explicitly, we extend the ACG ones by default.
         Given in log10 units.
@@ -986,7 +983,7 @@ class AstroParams(InputStruct):
     M_TURN : float, optional
         Turnover mass (in log10 solar mass units) for quenching of star formation in
         halos, due to SNe or photo-heating feedback, or inefficient gas accretion. Only
-        used if `USE_MASS_DEPENDENT_ZETA` is set to True in :class:`AstroFlags`.
+        used if `USE_MASS_DEPENDENT_ZETA` is set to True in :class:`AstroOptions`.
         See Sec 2.1 of Park+2018.
     R_BUBBLE_MAX : float, optional
         Mean free path in Mpc of ionizing photons within ionizing regions (Sec. 2.1.2 of
@@ -1019,7 +1016,7 @@ class AstroParams(InputStruct):
     t_STAR : float, optional
         Fractional characteristic time-scale (fraction of hubble time) defining the
         star-formation rate of galaxies. Only used if `USE_MASS_DEPENDENT_ZETA` is set
-        to True in :class:`AstroFlags`. See Sec 2.1, Eq. 3 of Park+2018.
+        to True in :class:`AstroOptions`. See Sec 2.1, Eq. 3 of Park+2018.
     N_RSD_STEPS : int, optional
         Number of steps used in redshift-space-distortion algorithm. NOT A PHYSICAL
         PARAMETER.
@@ -1029,15 +1026,15 @@ class AstroParams(InputStruct):
         Impact of the DM-baryon relative velocities on Mturn for minihaloes. Default is 1.0 and 1.8, and agrees between different sims. See Sec 2 of Muñoz+21 (2110.13919).
     UPPER_STELLAR_TURNOVER_MASS:
         The pivot mass associated with the optional upper mass power-law of the stellar-halo mass relation
-        (see AstroFlags.USE_UPPER_STELLAR_TURNOVER)
+        (see AstroOptions.USE_UPPER_STELLAR_TURNOVER)
     UPPER_STELLAR_TURNOVER_INDEX:
         The power-law index associated with the optional upper mass power-law of the stellar-halo mass relation
-        (see AstroFlags.USE_UPPER_STELLAR_TURNOVER)
+        (see AstroOptions.USE_UPPER_STELLAR_TURNOVER)
     SIGMA_LX: float, optional
         Lognormal scatter (dex) of the Xray luminosity relation (a function of stellar mass, star formation rate and redshift).
         This scatter is uniform across all halo properties and redshifts.
     FIXED_VAVG : float, optional
-        The fixed value of the average velocity used when AstroFlags.FIX_VCB_AVG is set to True.
+        The fixed value of the average velocity used when AstroOptions.FIX_VCB_AVG is set to True.
     POP2_ION: float, optional
         Number of ionizing photons per baryon produced by Pop II stars.
     POP3_ION: float, optional
@@ -1244,9 +1241,9 @@ class InputParameters:
 
     random_seed = _field(converter=int)
     cosmo_params: CosmoParams = input_param_field(CosmoParams)
-    matter_flags: MatterFlags = input_param_field(MatterFlags)
-    matter_params: MatterParams = input_param_field(MatterParams)
-    astro_flags: AstroFlags = input_param_field(AstroFlags)
+    matter_options: MatterOptions = input_param_field(MatterOptions)
+    simulation_options: SimulationOptions = input_param_field(SimulationOptions)
+    astro_options: AstroOptions = input_param_field(AstroOptions)
     astro_params: AstroParams = input_param_field(AstroParams)
     node_redshifts = _field(converter=_node_redshifts_converter)
 
@@ -1255,36 +1252,36 @@ class InputParameters:
         return (
             get_logspaced_redshifts(
                 min_redshift=5.5,
-                max_redshift=self.matter_params.Z_HEAT_MAX,
-                z_step_factor=self.matter_params.ZPRIME_STEP_FACTOR,
+                max_redshift=self.simulation_options.Z_HEAT_MAX,
+                z_step_factor=self.simulation_options.ZPRIME_STEP_FACTOR,
             )
-            if (self.astro_flags.INHOMO_RECO or self.astro_flags.USE_TS_FLUCT)
+            if (self.astro_options.INHOMO_RECO or self.astro_options.USE_TS_FLUCT)
             else None
         )
 
     @node_redshifts.validator
     def _node_redshifts_validator(self, att, val):
-        if (self.astro_flags.INHOMO_RECO or self.astro_flags.USE_TS_FLUCT) and (
-            (max(val) if val else 0.0) < self.matter_params.Z_HEAT_MAX
+        if (self.astro_options.INHOMO_RECO or self.astro_options.USE_TS_FLUCT) and (
+            (max(val) if val else 0.0) < self.simulation_options.Z_HEAT_MAX
         ):
             raise ValueError(
                 "For runs with inhomogeneous recombinations or spin temperature fluctuations,\n"
-                + f"your maximum passed node_redshifts {max(val) if hasattr(val, '__len__') else val} must be above Z_HEAT_MAX {self.matter_params.Z_HEAT_MAX}"
+                + f"your maximum passed node_redshifts {max(val) if hasattr(val, '__len__') else val} must be above Z_HEAT_MAX {self.simulation_options.Z_HEAT_MAX}"
             )
 
-    @astro_flags.validator
-    def _astro_flags_validator(self, att, val):
-        if self.matter_flags is not None:
+    @astro_options.validator
+    def _astro_options_validator(self, att, val):
+        if self.matter_options is not None:
             if (
                 val.USE_MINI_HALOS
-                and not self.matter_flags.USE_RELATIVE_VELOCITIES
+                and not self.matter_options.USE_RELATIVE_VELOCITIES
                 and not val.FIX_VCB_AVG
             ):
                 warnings.warn(
                     "USE_MINI_HALOS needs USE_RELATIVE_VELOCITIES to get the right evolution!",
                     stacklevel=2,
                 )
-            if self.matter_flags.USE_HALO_FIELD:
+            if self.matter_options.USE_HALO_FIELD:
                 if val.PHOTON_CONS_TYPE == "z-photoncons":
                     raise ValueError(
                         "USE_HALO_FIELD is not compatible with the redshift-based"
@@ -1307,14 +1304,14 @@ class InputParameters:
 
     @astro_params.validator
     def _astro_params_validator(self, att, val):
-        if self.matter_params is not None:
-            if val.R_BUBBLE_MAX > self.matter_params.BOX_LEN:
+        if self.simulation_options is not None:
+            if val.R_BUBBLE_MAX > self.simulation_options.BOX_LEN:
                 raise InputCrossValidationError(
-                    f"R_BUBBLE_MAX is larger than BOX_LEN ({val.R_BUBBLE_MAX} > {self.matter_params.BOX_LEN}). This is not allowed."
+                    f"R_BUBBLE_MAX is larger than BOX_LEN ({val.R_BUBBLE_MAX} > {self.simulation_options.BOX_LEN}). This is not allowed."
                 )
 
-        if self.astro_flags is not None:
-            if val.R_BUBBLE_MAX != 50 and self.astro_flags.INHOMO_RECO:
+        if self.astro_options is not None:
+            if val.R_BUBBLE_MAX != 50 and self.astro_options.INHOMO_RECO:
                 warnings.warn(
                     "You are setting R_BUBBLE_MAX != 50 when INHOMO_RECO=True. "
                     "This is non-standard (but allowed), and usually occurs upon manual "
@@ -1322,7 +1319,7 @@ class InputParameters:
                     stacklevel=2,
                 )
 
-            if val.M_TURN > 8 and self.astro_flags.USE_MINI_HALOS:
+            if val.M_TURN > 8 and self.astro_options.USE_MINI_HALOS:
                 warnings.warn(
                     "You are setting M_TURN > 8 when USE_MINI_HALOS=True. "
                     "This is non-standard (but allowed), and usually occurs upon manual "
@@ -1330,14 +1327,14 @@ class InputParameters:
                     stacklevel=2,
                 )
 
-        if self.matter_params is not None:
+        if self.simulation_options is not None:
             if (
-                self.astro_flags.HII_FILTER == "sharp-k"
-                and val.R_BUBBLE_MAX > self.matter_params.BOX_LEN / 3
+                self.astro_options.HII_FILTER == "sharp-k"
+                and val.R_BUBBLE_MAX > self.simulation_options.BOX_LEN / 3
             ):
                 msg = (
                     "Your R_BUBBLE_MAX is > BOX_LEN/3 "
-                    f"({val.R_BUBBLE_MAX} > {self.matter_params.BOX_LEN / 3})."
+                    f"({val.R_BUBBLE_MAX} > {self.simulation_options.BOX_LEN / 3})."
                 )
 
                 if config["ignore_R_BUBBLE_MAX_error"]:
@@ -1345,13 +1342,13 @@ class InputParameters:
                 else:
                     raise ValueError(msg)
 
-    @matter_params.validator
-    def _matter_params_validator(self, att, val):
+    @simulation_options.validator
+    def _simulation_options_validator(self, att, val):
         # perform a very rudimentary check to see if we are underresolved and not using the linear approx
-        if self.matter_flags is not None:
+        if self.matter_options is not None:
             if (
                 val.BOX_LEN > val.DIM
-                and self.matter_flags.PERTURB_ALGORITHM != "LINEAR"
+                and self.matter_options.PERTURB_ALGORITHM != "LINEAR"
             ):
                 warnings.warn(
                     "Resolution is likely too low for accurate evolved density fields\n It Is recommended"
@@ -1392,10 +1389,10 @@ class InputParameters:
         struct_args = {}
         for inp_type in (
             "cosmo_params",
-            "matter_params",
-            "matter_flags",
+            "simulation_options",
+            "matter_options",
             "astro_params",
-            "astro_flags",
+            "astro_options",
         ):
             obj = getattr(self, inp_type)
             struct_args[inp_type] = obj.clone(
@@ -1430,10 +1427,10 @@ class InputParameters:
         """
         return (
             f"cosmo_params: {self.cosmo_params!r}\n"
-            + f"matter_params: {self.matter_params!r}\n"
-            + f"matter_flags: {self.matter_flags!r}\n"
+            + f"simulation_options: {self.simulation_options!r}\n"
+            + f"matter_options: {self.matter_options!r}\n"
             + f"astro_params: {self.astro_params!r}\n"
-            + f"astro_flags: {self.astro_flags!r}\n"
+            + f"astro_options: {self.astro_options!r}\n"
         )
 
     # NOTE: These hashes are used to compare structs within a run, and so don't need to stay
@@ -1442,7 +1439,12 @@ class InputParameters:
     def _user_cosmo_hash(self):
         """A hash generated from the user and cosmo params as well random seed."""
         return hash(
-            (self.random_seed, self.matter_params, self.matter_flags, self.cosmo_params)
+            (
+                self.random_seed,
+                self.simulation_options,
+                self.matter_options,
+                self.cosmo_params,
+            )
         )
 
     @cached_property
@@ -1457,7 +1459,7 @@ class InputParameters:
     def evolution_required(self) -> bool:
         """Whether evolution is required for these parameters."""
         return (
-            self.astro_flags.USE_TS_FLUCT
-            or self.astro_flags.INHOMO_RECO
-            or self.astro_flags.USE_MINI_HALOS
+            self.astro_options.USE_TS_FLUCT
+            or self.astro_options.INHOMO_RECO
+            or self.astro_options.USE_MINI_HALOS
         )

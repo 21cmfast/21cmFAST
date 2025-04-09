@@ -6,7 +6,7 @@ import pytest
 from astropy import constants as c
 from astropy import units as u
 
-from py21cmfast import AstroFlags, AstroParams, CosmoParams, MatterParams
+from py21cmfast import AstroOptions, AstroParams, CosmoParams, SimulationOptions
 from py21cmfast.c_21cmfast import ffi, lib
 from py21cmfast.wrapper import cfuncs as cf
 
@@ -124,7 +124,7 @@ def test_massfunc_conditional_tables(name, cond_type, mass_range, delta_range, p
 
     inputs_cond = mass_range if from_cat else delta_range
     z_desc = (
-        (redshift + 1) / inputs.matter_params.ZPRIME_STEP_FACTOR - 1
+        (redshift + 1) / inputs.simulation_options.ZPRIME_STEP_FACTOR - 1
         if from_cat
         else None
     )
@@ -191,7 +191,7 @@ def test_inverse_cmf_tables(name, cond_type, delta_range, mass_range, plt):
     lnMmin_range = np.log(mass_range)
     inputs_cond = mass_range if from_cat else delta_range
     z_desc = (
-        (redshift + 1) / inputs.matter_params.ZPRIME_STEP_FACTOR - 1
+        (redshift + 1) / inputs.simulation_options.ZPRIME_STEP_FACTOR - 1
         if from_cat
         else None
     )
@@ -229,7 +229,7 @@ def test_inverse_cmf_tables(name, cond_type, delta_range, mass_range, plt):
     # ignore condition out-of-bounds (returned as -1 by evaluate_inverse_table)
     sel_oob = icmf_table < 0.0
     # ignore probability out-of-bounds (extrapolated by the backend)
-    sel_lowprob = cmf_integral < np.exp(inputs.matter_params.MIN_LOGPROB)
+    sel_lowprob = cmf_integral < np.exp(inputs.simulation_options.MIN_LOGPROB)
     if plt == mpl.pyplot:
         last_cond = np.amax(np.where(np.any(~sel_oob, axis=-1)))
         first_cond = np.amin(np.where(np.any(~sel_oob, axis=-1)))
@@ -246,7 +246,7 @@ def test_inverse_cmf_tables(name, cond_type, delta_range, mass_range, plt):
             label_test=[False, False],
             xlabels=["Probability"],
             ylabels=["Mass"],
-            xlim=[np.exp(inputs.matter_params.MIN_LOGPROB) / 10, 1.0],
+            xlim=[np.exp(inputs.simulation_options.MIN_LOGPROB) / 10, 1.0],
             reltol=RELATIVE_TOLERANCE,
         )
 
@@ -474,7 +474,7 @@ def test_Nion_z_tables(name, z_range, log10_mturn_range, plt):
 #       Hence this is a worst case scenario
 #   While the EvaluateX() functions are useful in the main code to be agnostic to USE_INTERPOLATION_TABLES
 #       I do not use them here fully, instead calling the integrals directly to avoid parameter changes
-#       Mostly since if we set matter_params.USE_INTERPOLATION_TABLES=False then the sigma tables aren't used
+#       Mostly since if we set simulation_options.USE_INTERPOLATION_TABLES=False then the sigma tables aren't used
 #       and it takes forever
 @pytest.mark.parametrize("mini", ["mini", "acg"])
 @pytest.mark.parametrize("R", R_PARAM_LIST)

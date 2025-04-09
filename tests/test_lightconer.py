@@ -12,15 +12,15 @@ from astropy_healpix import HEALPix
 from scipy.spatial.transform import Rotation
 
 from py21cmfast import (
-    AstroFlags,
+    AstroOptions,
     BrightnessTemp,
     Coeval,
     CosmoParams,
     InitialConditions,
     IonizedBox,
-    MatterFlags,
-    MatterParams,
+    MatterOptions,
     PerturbedField,
+    SimulationOptions,
 )
 from py21cmfast import lightcones as lcn
 
@@ -74,17 +74,17 @@ class MockCoeval:
 
     redshift: float
     brightness_temp: np.ndarray
-    matter_params: MatterParams
+    simulation_options: SimulationOptions
     cosmo_params: CosmoParams
 
 
 def get_uniform_coeval(redshift, fill=1.0, BOX_LEN=100, HII_DIM=50):
-    up = MatterParams(BOX_LEN=BOX_LEN, HII_DIM=HII_DIM)
+    up = SimulationOptions(BOX_LEN=BOX_LEN, HII_DIM=HII_DIM)
 
     return MockCoeval(
         redshift=redshift,
         brightness_temp=fill * np.ones((up.HII_DIM, up.HII_DIM, up.HII_DIM)),
-        matter_params=up,
+        simulation_options=up,
         cosmo_params=CosmoParams(),
     )
 
@@ -122,8 +122,10 @@ def test_incompatible_coevals(equal_cdist):
 
     z7.cosmo_params = z7.cosmo_params.clone(SIGMA_8=orig)
 
-    orig = z7.matter_params.BOX_LEN
-    z7.matter_params = z7.matter_params.clone(BOX_LEN=2 * z7.matter_params.BOX_LEN)
+    orig = z7.simulation_options.BOX_LEN
+    z7.simulation_options = z7.simulation_options.clone(
+        BOX_LEN=2 * z7.simulation_options.BOX_LEN
+    )
 
     with pytest.raises(
         ValueError, match="c1 and c2 must have the same user parameters"
@@ -277,11 +279,11 @@ def test_rotation_equality():
 def test_validation_options_angular(equal_z_angle):
     with pytest.raises(ValueError, match="APPLY_RSDs must be False"):
         equal_z_angle.validate_options(
-            astro_flags=AstroFlags(APPLY_RSDS=True), matter_flags=MatterFlags()
+            astro_options=AstroOptions(APPLY_RSDS=True), matter_options=MatterOptions()
         )
 
     with pytest.raises(ValueError, match="To get the LoS velocity, you need to set"):
         equal_z_angle.validate_options(
-            matter_flags=MatterFlags(KEEP_3D_VELOCITIES=False),
-            astro_flags=AstroFlags(APPLY_RSDS=False),
+            matter_options=MatterOptions(KEEP_3D_VELOCITIES=False),
+            astro_options=AstroOptions(APPLY_RSDS=False),
         )

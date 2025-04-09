@@ -69,7 +69,7 @@ double dwdm_filter(double k, double R, int filter_type) {
         dwdr = -k * kR * w;
         drdm = 1.0 / (pow(2 * PI, 1.5) * cosmo_params_global->OMm * RHOcrit * 3 * R * R);
     } else {
-        LOG_ERROR("No such filter for dWdM: %i", matter_flags_global->FILTER);
+        LOG_ERROR("No such filter for dWdM: %i", matter_options_global->FILTER);
         Throw(ValueError);
     }
     // now do d(w^2)/dm = 2 w dw/dr dr/dm
@@ -119,11 +119,11 @@ void filter_box(fftwf_complex *box, int RES, int filter_type, float R, float R_p
     int dimension, midpoint;  // TODO: figure out why defining as ULL breaks this
     switch (RES) {
         case 0:
-            dimension = matter_params_global->DIM;
+            dimension = simulation_options_global->DIM;
             midpoint = MIDDLE;
             break;
         case 1:
-            dimension = matter_params_global->HII_DIM;
+            dimension = simulation_options_global->HII_DIM;
             midpoint = HII_MIDDLE;
             break;
         default:
@@ -139,7 +139,7 @@ void filter_box(fftwf_complex *box, int RES, int filter_type, float R, float R_p
     }
 
 // loop through k-box
-#pragma omp parallel num_threads(matter_params_global->N_THREADS)
+#pragma omp parallel num_threads(simulation_options_global->N_THREADS)
     {
         int n_x, n_z, n_y;
         float k_x, k_y, k_z, k_mag_sq, kR;
@@ -159,7 +159,7 @@ void filter_box(fftwf_complex *box, int RES, int filter_type, float R, float R_p
                     k_y = n_y * DELTA_K;
                 }
 
-                for (n_z = 0; n_z <= (int)(matter_params_global->NON_CUBIC_FACTOR * midpoint);
+                for (n_z = 0; n_z <= (int)(simulation_options_global->NON_CUBIC_FACTOR * midpoint);
                      n_z++) {
                     k_z = n_z * DELTA_K_PARA;
                     k_mag_sq = k_x * k_x + k_y * k_y + k_z * k_z;
@@ -217,14 +217,14 @@ int test_filter(float *input_box, double R, double R_param, int filter_flag, dou
     fftwf_complex *box_filtered =
         (fftwf_complex *)fftwf_malloc(sizeof(fftwf_complex) * HII_KSPACE_NUM_PIXELS);
 
-    for (i = 0; i < matter_params_global->HII_DIM; i++)
-        for (j = 0; j < matter_params_global->HII_DIM; j++)
+    for (i = 0; i < simulation_options_global->HII_DIM; i++)
+        for (j = 0; j < simulation_options_global->HII_DIM; j++)
             for (k = 0; k < HII_D_PARA; k++)
                 *((float *)box_unfiltered + HII_R_FFT_INDEX(i, j, k)) =
                     input_box[HII_R_INDEX(i, j, k)];
 
-    dft_r2c_cube(matter_flags_global->USE_FFTW_WISDOM, matter_params_global->HII_DIM, HII_D_PARA,
-                 matter_params_global->N_THREADS, box_unfiltered);
+    dft_r2c_cube(matter_options_global->USE_FFTW_WISDOM, simulation_options_global->HII_DIM,
+                 HII_D_PARA, simulation_options_global->N_THREADS, box_unfiltered);
 
     for (ii = 0; ii < HII_KSPACE_NUM_PIXELS; ii++) {
         box_unfiltered[ii] /= (double)HII_TOT_NUM_PIXELS;
@@ -234,11 +234,11 @@ int test_filter(float *input_box, double R, double R_param, int filter_flag, dou
 
     filter_box(box_filtered, 1, filter_flag, R, R_param);
 
-    dft_c2r_cube(matter_flags_global->USE_FFTW_WISDOM, matter_params_global->HII_DIM, HII_D_PARA,
-                 matter_params_global->N_THREADS, box_filtered);
+    dft_c2r_cube(matter_options_global->USE_FFTW_WISDOM, simulation_options_global->HII_DIM,
+                 HII_D_PARA, simulation_options_global->N_THREADS, box_filtered);
 
-    for (i = 0; i < matter_params_global->HII_DIM; i++)
-        for (j = 0; j < matter_params_global->HII_DIM; j++)
+    for (i = 0; i < simulation_options_global->HII_DIM; i++)
+        for (j = 0; j < simulation_options_global->HII_DIM; j++)
             for (k = 0; k < HII_D_PARA; k++)
                 result[HII_R_INDEX(i, j, k)] = *((float *)box_filtered + HII_R_FFT_INDEX(i, j, k));
 

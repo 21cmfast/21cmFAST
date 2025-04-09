@@ -82,14 +82,14 @@ class LightCone:
     @property
     def cell_size(self) -> float:
         """Cell size [Mpc] of the lightcone voxels."""
-        return self.matter_params.BOX_LEN / self.matter_params.HII_DIM
+        return self.simulation_options.BOX_LEN / self.simulation_options.HII_DIM
 
     @property
     def lightcone_dimensions(self) -> tuple[float, float, float]:
         """Lightcone size over each dimension -- tuple of (x,y,z) in Mpc."""
         return (
-            self.matter_params.BOX_LEN,
-            self.matter_params.BOX_LEN,
+            self.simulation_options.BOX_LEN,
+            self.simulation_options.BOX_LEN,
             self.n_slices * self.cell_size,
         )
 
@@ -109,14 +109,14 @@ class LightCone:
         return self.lightcone_distances - self.lightcone_distances[0]
 
     @property
-    def matter_params(self):
+    def simulation_options(self):
         """Matter params shared by all datasets."""
-        return self.inputs.matter_params
+        return self.inputs.simulation_options
 
     @property
-    def matter_flags(self):
+    def matter_options(self):
         """Matter flags shared by all datasets."""
-        return self.inputs.matter_flags
+        return self.inputs.matter_options
 
     @property
     def cosmo_params(self):
@@ -124,9 +124,9 @@ class LightCone:
         return self.inputs.cosmo_params
 
     @property
-    def astro_flags(self):
+    def astro_options(self):
         """Flag Options shared by all datasets."""
-        return self.inputs.astro_flags
+        return self.inputs.astro_options
 
     @property
     def astro_params(self):
@@ -276,13 +276,13 @@ class AngularLightcone(LightCone):
 
         H0 = self.cosmo_params.cosmo.H(self.lightcone_redshifts)
         los_displacement = self.lightcones["los_velocity"] * units.Mpc / units.s / H0
-        equiv = units.pixel_scale(self.matter_params.cell_size / units.pixel)
+        equiv = units.pixel_scale(self.simulation_options.cell_size / units.pixel)
         los_displacement = -los_displacement.to(units.pixel, equivalencies=equiv)
 
         lcd = self.lightcone_distances.to(units.pixel, equiv)
         dvdx_on_h = np.gradient(los_displacement, lcd, axis=1)
 
-        if not (self.astro_flags.USE_TS_FLUCT and self.astro_flags.SUBCELL_RSD):
+        if not (self.astro_options.USE_TS_FLUCT and self.astro_options.SUBCELL_RSD):
             # Now, clip dvdx...
             dvdx_on_h = np.clip(
                 dvdx_on_h,
@@ -351,7 +351,7 @@ def setup_lightcone_instance(
         )
         lc = {
             quantity: np.zeros(
-                lightconer.get_shape(inputs.matter_params),
+                lightconer.get_shape(inputs.simulation_options),
                 dtype=np.float32,
             )
             for quantity in lightconer.quantities
@@ -360,7 +360,7 @@ def setup_lightcone_instance(
         # Special case: AngularLightconer can also save los_velocity
         if getattr(lightconer, "get_los_velocity", False):
             lc["los_velocity"] = np.zeros(
-                lightconer.get_shape(inputs.matter_params), dtype=np.float32
+                lightconer.get_shape(inputs.simulation_options), dtype=np.float32
             )
 
         lightcone = lcn_cls(
@@ -391,7 +391,7 @@ def _run_lightcone_from_perturbed_fields(
     always_purge: bool = False,
     lightcone_filename: str | Path | None = None,
 ):
-    lightconer.validate_options(inputs.matter_flags, inputs.astro_flags)
+    lightconer.validate_options(inputs.matter_options, inputs.astro_options)
 
     # Get the redshift through which we scroll and evaluate the ionization field.
     scrollz = np.array([pf.redshift for pf in perturbed_fields])

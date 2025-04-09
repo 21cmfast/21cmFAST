@@ -29,11 +29,11 @@ logger = logging.getLogger(__name__)
 def broadcast_input_struct(inputs: InputParameters):
     """Broadcast the parameters to the C library."""
     lib.Broadcast_struct_global_all(
-        inputs.matter_params.cstruct,
-        inputs.matter_flags.cstruct,
+        inputs.simulation_options.cstruct,
+        inputs.matter_options.cstruct,
         inputs.cosmo_params.cstruct,
         inputs.astro_params.cstruct,
-        inputs.astro_flags.cstruct,
+        inputs.astro_options.cstruct,
     )
 
 
@@ -77,7 +77,7 @@ def init_sigma_table(func: Callable) -> Callable:
     def wrapper(*args, inputs: InputParameters, **kwargs):
         sigma_min_mass = kwargs.get("M_min", 1e5)
         sigma_max_mass = kwargs.get("M_max", 1e16)
-        if inputs.matter_flags.USE_INTERPOLATION_TABLES != "no-interpolation":
+        if inputs.matter_options.USE_INTERPOLATION_TABLES != "no-interpolation":
             lib.initialiseSigmaMInterpTable(sigma_min_mass, sigma_max_mass)
         return func(*args, inputs=inputs, **kwargs)
 
@@ -95,8 +95,8 @@ def init_gl(func: Callable) -> Callable:
     @init_sigma_table
     def wrapper(*args, inputs: InputParameters, **kwargs):
         if "GAUSS-LEGENDRE" in (
-            inputs.astro_flags.INTEGRATION_METHOD_ATOMIC,
-            inputs.astro_flags.INTEGRATION_METHOD_MINI,
+            inputs.astro_options.INTEGRATION_METHOD_ATOMIC,
+            inputs.astro_options.INTEGRATION_METHOD_MINI,
         ):
             # no defualt since GL mass limits are strict
             lib.initialise_GL(np.log(kwargs.get("M_min")), np.log(kwargs.get("M_max")))
@@ -244,11 +244,11 @@ def compute_luminosity_function(
         Number density of haloes corresponding to each bin defined by `Muvfunc`.
         Shape [nredshifts, nbins].
     """
-    astro_flags = inputs.astro_flags
+    astro_options = inputs.astro_options
     astro_params = inputs.astro_params
 
     redshifts = np.array(redshifts, dtype="float32")
-    if astro_flags.USE_MINI_HALOS:
+    if astro_options.USE_MINI_HALOS:
         if component in ["both", "acg"]:
             if mturnovers is None:
                 raise ValueError(
@@ -421,7 +421,7 @@ def construct_fftw_wisdoms(
 
     """
     # Run the C code
-    if inputs.matter_flags.USE_FFTW_WISDOM:
+    if inputs.matter_options.USE_FFTW_WISDOM:
         return lib.CreateFFTWWisdoms()
     else:
         return 0
@@ -483,7 +483,9 @@ def get_condition_mass(inputs: InputParameters, R: float):
         * inputs.cosmo_params.OMm
     )
     if R == "cell":
-        volume = (inputs.matter_params.BOX_LEN / inputs.matter_params.HII_DIM) ** 3
+        volume = (
+            inputs.simulation_options.BOX_LEN / inputs.simulation_options.HII_DIM
+        ) ** 3
     else:
         volume = 4.0 / 3.0 * np.pi * R**3
 
@@ -495,7 +497,7 @@ def get_delta_crit(*, inputs: InputParameters, mass: float, redshift: float):
     """Get the critical collapse density given a mass, redshift and parameters."""
     sigma, _ = evaluate_sigma(inputs=inputs, masses=np.array([mass]))
     growth = get_growth_factor(inputs=inputs, redshift=redshift)
-    return get_delta_crit_nu(inputs.matter_flags.cdict["HMF"], sigma, growth)
+    return get_delta_crit_nu(inputs.matter_options.cdict["HMF"], sigma, growth)
 
 
 def get_delta_crit_nu(hmf_int_flag: int, sigma: float, growth: float):
@@ -877,7 +879,7 @@ def convert_halo_properties(
 
     n_halos = halo_masses.size
     out_buffer = np.zeros((n_halos, 12), dtype="f4")
-    lo_dim = (inputs.matter_params.HII_DIM,) * 3
+    lo_dim = (inputs.simulation_options.HII_DIM,) * 3
 
     if halo_coords is None:
         halo_coords = np.zeros(3 * n_halos)
@@ -954,7 +956,7 @@ def return_uhmf_value(
     """
     growthf = lib.dicke(redshift)
     return np.vectorize(lib.unconditional_hmf)(
-        growthf, np.log(mass_values), redshift, inputs.matter_flags.cdict["HMF"]
+        growthf, np.log(mass_values), redshift, inputs.matter_options.cdict["HMF"]
     )
 
 
@@ -990,5 +992,5 @@ def return_chmf_value(
         np.log(mass_values[None, None, :]),
         delta_values[:, None, None],
         sigma[None, :, None],
-        inputs.matter_flags.cdict["HMF"],
+        inputs.matter_options.cdict["HMF"],
     )

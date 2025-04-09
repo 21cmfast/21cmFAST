@@ -60,14 +60,14 @@ class OutputCache:
             "matter_cosmo": md5(
                 (
                     repr(inputs.cosmo_params)
-                    + repr(inputs.matter_params)
-                    + repr(inputs.matter_flags)
+                    + repr(inputs.simulation_options)
+                    + repr(inputs.matter_options)
                 ).encode()
             ).hexdigest(),
             "seed": inputs.random_seed,
             "zgrid": md5(repr(inputs.node_redshifts).encode()).hexdigest(),
             "astro_flag": md5(
-                (repr(inputs.astro_params) + repr(inputs.matter_params)).encode()
+                (repr(inputs.astro_params) + repr(inputs.simulation_options)).encode()
             ).hexdigest(),
         }
 
@@ -325,9 +325,9 @@ class RunCache:
             "IonizedBox": {},
             "BrightnessTemp": {},
         }
-        if inputs.astro_flags.USE_TS_FLUCT:
+        if inputs.astro_options.USE_TS_FLUCT:
             others |= {"TsBox": {}}
-        if inputs.matter_flags.USE_HALO_FIELD:
+        if inputs.matter_options.USE_HALO_FIELD:
             others |= {"PerturbHaloField": {}, "XraySourceBox": {}, "HaloBox": {}}
 
         for z in inputs.node_redshifts:
@@ -353,7 +353,7 @@ class RunCache:
         ambiguous when the input file is "high up" in the simulation heirarchy (e.g.
         InitialConditions or PerturbedField) because the input parameters to these
         objects may differ from those of the full simulation, in their astro_params
-        and astro_flags. For this reason, it is better to supply a cache object like
+        and astro_options. For this reason, it is better to supply a cache object like
         IonizedBox or BrightnessTemp.
 
         Parameters

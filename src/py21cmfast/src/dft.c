@@ -79,9 +79,9 @@ int CreateFFTWWisdoms() {
 
         char wisdom_filename[500];
 
-        omp_set_num_threads(matter_params_global->N_THREADS);
+        omp_set_num_threads(simulation_options_global->N_THREADS);
         fftwf_init_threads();
-        fftwf_plan_with_nthreads(matter_params_global->N_THREADS);
+        fftwf_plan_with_nthreads(simulation_options_global->N_THREADS);
         fftwf_cleanup_threads();
 
         // allocate array for the k-space and real-space boxes
@@ -91,40 +91,42 @@ int CreateFFTWWisdoms() {
             (fftwf_complex *)fftwf_malloc(sizeof(fftwf_complex) * HII_KSPACE_NUM_PIXELS);
 
         sprintf(wisdom_filename, "%s/r2c_DIM%d_DIM%d_NTHREADS%d", config_settings.wisdoms_path,
-                matter_params_global->DIM, (int)D_PARA, matter_params_global->N_THREADS);
+                simulation_options_global->DIM, (int)D_PARA, simulation_options_global->N_THREADS);
         if (fftwf_import_wisdom_from_filename(wisdom_filename) == 0) {
-            plan =
-                fftwf_plan_dft_r2c_3d(matter_params_global->DIM, matter_params_global->DIM, D_PARA,
-                                      (float *)HIRES_box, (fftwf_complex *)HIRES_box, FFTW_PATIENT);
+            plan = fftwf_plan_dft_r2c_3d(simulation_options_global->DIM,
+                                         simulation_options_global->DIM, D_PARA, (float *)HIRES_box,
+                                         (fftwf_complex *)HIRES_box, FFTW_PATIENT);
             fftwf_export_wisdom_to_filename(wisdom_filename);
             fftwf_destroy_plan(plan);
         }
 
         sprintf(wisdom_filename, "%s/c2r_DIM%d_DIM%d_NTHREADS%d", config_settings.wisdoms_path,
-                matter_params_global->DIM, (int)D_PARA, matter_params_global->N_THREADS);
+                simulation_options_global->DIM, (int)D_PARA, simulation_options_global->N_THREADS);
         if (fftwf_import_wisdom_from_filename(wisdom_filename) == 0) {
-            plan =
-                fftwf_plan_dft_c2r_3d(matter_params_global->DIM, matter_params_global->DIM, D_PARA,
-                                      (fftwf_complex *)HIRES_box, (float *)HIRES_box, FFTW_PATIENT);
+            plan = fftwf_plan_dft_c2r_3d(
+                simulation_options_global->DIM, simulation_options_global->DIM, D_PARA,
+                (fftwf_complex *)HIRES_box, (float *)HIRES_box, FFTW_PATIENT);
             fftwf_export_wisdom_to_filename(wisdom_filename);
             fftwf_destroy_plan(plan);
         }
 
         sprintf(wisdom_filename, "%s/r2c_DIM%d_DIM%d_NTHREADS%d", config_settings.wisdoms_path,
-                matter_params_global->HII_DIM, (int)HII_D_PARA, matter_params_global->N_THREADS);
+                simulation_options_global->HII_DIM, (int)HII_D_PARA,
+                simulation_options_global->N_THREADS);
         if (fftwf_import_wisdom_from_filename(wisdom_filename) == 0) {
             plan = fftwf_plan_dft_r2c_3d(
-                matter_params_global->HII_DIM, matter_params_global->HII_DIM, HII_D_PARA,
+                simulation_options_global->HII_DIM, simulation_options_global->HII_DIM, HII_D_PARA,
                 (float *)LOWRES_box, (fftwf_complex *)LOWRES_box, FFTW_PATIENT);
             fftwf_export_wisdom_to_filename(wisdom_filename);
             fftwf_destroy_plan(plan);
         }
 
         sprintf(wisdom_filename, "%s/c2r_DIM%d_DIM%d_NTHREADS%d", config_settings.wisdoms_path,
-                matter_params_global->HII_DIM, (int)HII_D_PARA, matter_params_global->N_THREADS);
+                simulation_options_global->HII_DIM, (int)HII_D_PARA,
+                simulation_options_global->N_THREADS);
         if (fftwf_import_wisdom_from_filename(wisdom_filename) == 0) {
             plan = fftwf_plan_dft_c2r_3d(
-                matter_params_global->HII_DIM, matter_params_global->HII_DIM, HII_D_PARA,
+                simulation_options_global->HII_DIM, simulation_options_global->HII_DIM, HII_D_PARA,
                 (fftwf_complex *)LOWRES_box, (float *)LOWRES_box, FFTW_PATIENT);
             fftwf_export_wisdom_to_filename(wisdom_filename);
             fftwf_destroy_plan(plan);

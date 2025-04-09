@@ -18,7 +18,7 @@
 void get_sigma(int n_masses, double *mass_values, double *sigma_out, double *dsigmasqdm_out) {
     init_ps();
 
-    if (matter_flags_global->USE_INTERPOLATION_TABLES > 0)
+    if (matter_options_global->USE_INTERPOLATION_TABLES > 0)
         initialiseSigmaMInterpTable(M_MIN_INTEGRAL, 1e20);
 
     int i;
@@ -31,9 +31,9 @@ void get_sigma(int n_masses, double *mass_values, double *sigma_out, double *dsi
 // we normally don't bounds-check the tables since they're hidden in the backend
 //  but these functions are exposed to the user pretty directly so we do it here
 bool cond_table_out_of_bounds(struct HaloSamplingConstants *consts) {
-    return consts->M_cond < matter_params_global->SAMPLER_MIN_MASS ||
+    return consts->M_cond < simulation_options_global->SAMPLER_MIN_MASS ||
            consts->M_cond > consts->M_max_tables || consts->delta < -1 ||
-           consts->delta > MAX_DELTAC_FRAC * get_delta_crit(matter_flags_global->HMF,
+           consts->delta > MAX_DELTAC_FRAC * get_delta_crit(matter_options_global->HMF,
                                                             consts->sigma_cond, consts->growth_out);
 }
 
@@ -68,7 +68,7 @@ void get_halo_chmf_interval(double redshift, double z_prev, int n_conditions, do
     // we're only using the HS constants here to do mass/sigma calculations
     //   re-doing the sigma tables here lets us integrate below SAMPLER_MIN_MASS
     //   if requested by the user.
-    if (matter_flags_global->USE_INTERPOLATION_TABLES > 0)
+    if (matter_options_global->USE_INTERPOLATION_TABLES > 0)
         initialiseSigmaMInterpTable(M_MIN_INTEGRAL, M_MAX_INTEGRAL);
 
     int i, j;
@@ -113,26 +113,27 @@ void get_global_SFRD_z(int n_redshift, double *redshifts, double *log10_turnover
 
     // a bit hacky, but we need a lower limit for the tables
     double M_min = minimum_source_mass(redshifts[0], true);
-    if (matter_flags_global->USE_INTERPOLATION_TABLES > 0) initialiseSigmaMInterpTable(M_min, 1e20);
+    if (matter_options_global->USE_INTERPOLATION_TABLES > 0)
+        initialiseSigmaMInterpTable(M_min, 1e20);
 
     struct ScalingConstants sc;
     set_scaling_constants(redshifts[0], &sc, false);
 
     int i;
-    double z_min = matter_params_global->Z_HEAT_MAX;
+    double z_min = simulation_options_global->Z_HEAT_MAX;
     double z_max = 0.;
     for (i = 0; i < n_redshift; i++) {
         if (redshifts[i] < z_min) z_min = redshifts[i];
         if (redshifts[i] > z_max) z_max = redshifts[i];
     }
 
-    if (matter_flags_global->USE_INTERPOLATION_TABLES > 1) {
+    if (matter_options_global->USE_INTERPOLATION_TABLES > 1) {
         initialise_SFRD_spline(zpp_interp_points_SFR, z_min, z_max + 0.01, &sc);
     }
 
     for (i = 0; i < n_redshift; i++) {
         out_sfrd[i] = EvaluateSFRD(redshifts[i], &sc);
-        if (astro_flags_global->USE_MINI_HALOS)
+        if (astro_options_global->USE_MINI_HALOS)
             out_sfrd_mini[i] = EvaluateSFRD_MINI(redshifts[i], log10_turnovers_mcg[i], &sc);
     }
 }
@@ -142,25 +143,26 @@ void get_global_Nion_z(int n_redshift, double *redshifts, double *log10_turnover
     init_ps();
 
     double M_min = minimum_source_mass(redshifts[0], true);
-    if (matter_flags_global->USE_INTERPOLATION_TABLES > 0) initialiseSigmaMInterpTable(M_min, 1e20);
+    if (matter_options_global->USE_INTERPOLATION_TABLES > 0)
+        initialiseSigmaMInterpTable(M_min, 1e20);
 
     struct ScalingConstants sc;
     set_scaling_constants(redshifts[0], &sc, false);
 
     int i;
-    double z_min = matter_params_global->Z_HEAT_MAX;
+    double z_min = simulation_options_global->Z_HEAT_MAX;
     double z_max = 0.;
     for (i = 0; i < n_redshift; i++) {
         if (redshifts[i] < z_min) z_min = redshifts[i];
         if (redshifts[i] > z_max) z_max = redshifts[i];
     }
 
-    if (matter_flags_global->USE_INTERPOLATION_TABLES > 1) {
+    if (matter_options_global->USE_INTERPOLATION_TABLES > 1) {
         initialise_Nion_Ts_spline(zpp_interp_points_SFR, z_min, z_max + 0.01, &sc);
     }
     for (i = 0; i < n_redshift; i++) {
         out_nion[i] = EvaluateNionTs(redshifts[i], &sc);
-        if (astro_flags_global->USE_MINI_HALOS)
+        if (astro_options_global->USE_MINI_HALOS)
             out_nion_mini[i] = EvaluateNionTs_MINI(redshifts[i], log10_turnovers_mcg[i], &sc);
     }
 }
@@ -170,7 +172,8 @@ void get_conditional_FgtrM(double redshift, double R, int n_densities, double *d
     init_ps();
 
     double M_min = minimum_source_mass(redshift, true);
-    if (matter_flags_global->USE_INTERPOLATION_TABLES > 0) initialiseSigmaMInterpTable(M_min, 1e20);
+    if (matter_options_global->USE_INTERPOLATION_TABLES > 0)
+        initialiseSigmaMInterpTable(M_min, 1e20);
     double sigma_min = EvaluateSigma(log(M_min));
     double sigma_cond = EvaluateSigma(log(RtoM(R)));
     double growthf = dicke(redshift);
@@ -186,7 +189,7 @@ void get_conditional_FgtrM(double redshift, double R, int n_densities, double *d
         if (dens < min_dens) min_dens = dens;
         if (dens > max_dens) max_dens = dens;
     }
-    if (matter_flags_global->USE_INTERPOLATION_TABLES > 1) {
+    if (matter_options_global->USE_INTERPOLATION_TABLES > 1) {
         initialise_FgtrM_delta_table(min_dens, max_dens + 0.01, redshift, growthf, sigma_min,
                                      sigma_cond);
     }
@@ -203,13 +206,15 @@ void get_conditional_SFRD(double redshift, double R, int n_densities, double *de
     init_ps();
 
     double M_min = minimum_source_mass(redshift, true);
-    if (matter_flags_global->USE_INTERPOLATION_TABLES > 0) initialiseSigmaMInterpTable(M_min, 1e20);
+    if (matter_options_global->USE_INTERPOLATION_TABLES > 0)
+        initialiseSigmaMInterpTable(M_min, 1e20);
     double M_cond = RtoM(R);
     double sigma_cond = EvaluateSigma(log(M_cond));
     double growthf = dicke(redshift);
 
-    if (astro_flags_global->INTEGRATION_METHOD_ATOMIC == 1 ||
-        (astro_flags_global->USE_MINI_HALOS && astro_flags_global->INTEGRATION_METHOD_MINI == 1))
+    if (astro_options_global->INTEGRATION_METHOD_ATOMIC == 1 ||
+        (astro_options_global->USE_MINI_HALOS &&
+         astro_options_global->INTEGRATION_METHOD_MINI == 1))
         initialise_GL(log(M_min), log(M_cond));
 
     struct ScalingConstants sc;
@@ -225,13 +230,13 @@ void get_conditional_SFRD(double redshift, double R, int n_densities, double *de
         if (dens > max_dens) max_dens = dens;
     }
 
-    if (matter_flags_global->USE_INTERPOLATION_TABLES > 1) {
+    if (matter_options_global->USE_INTERPOLATION_TABLES > 1) {
         initialise_SFRD_Conditional_table(redshift, min_dens, max_dens, M_min, M_cond, M_cond, &sc);
     }
     for (i = 0; i < n_densities; i++)
         out_sfrd[i] =
             EvaluateSFRD_Conditional(densities[i], growthf, M_min, M_cond, M_cond, sigma_cond, &sc);
-    if (astro_flags_global->USE_MINI_HALOS) {
+    if (astro_options_global->USE_MINI_HALOS) {
         for (i = 0; i < n_densities; i++)
             out_sfrd_mini[i] = EvaluateSFRD_Conditional_MINI(
                 densities[i], log10_mturns[i], growthf, M_min, M_cond, M_cond, sigma_cond, &sc);
@@ -244,13 +249,15 @@ void get_conditional_Nion(double redshift, double R, int n_densities, double *de
     init_ps();
 
     double M_min = minimum_source_mass(redshift, true);
-    if (matter_flags_global->USE_INTERPOLATION_TABLES > 0) initialiseSigmaMInterpTable(M_min, 1e20);
+    if (matter_options_global->USE_INTERPOLATION_TABLES > 0)
+        initialiseSigmaMInterpTable(M_min, 1e20);
     double M_cond = RtoM(R);
     double sigma_cond = EvaluateSigma(log(M_cond));
     double growthf = dicke(redshift);
 
-    if (astro_flags_global->INTEGRATION_METHOD_ATOMIC == 1 ||
-        (astro_flags_global->USE_MINI_HALOS && astro_flags_global->INTEGRATION_METHOD_MINI == 1))
+    if (astro_options_global->INTEGRATION_METHOD_ATOMIC == 1 ||
+        (astro_options_global->USE_MINI_HALOS &&
+         astro_options_global->INTEGRATION_METHOD_MINI == 1))
         initialise_GL(log(M_min), log(M_cond));
 
     struct ScalingConstants sc;
@@ -276,7 +283,7 @@ void get_conditional_Nion(double redshift, double R, int n_densities, double *de
         if (l10mturn_m > max_l10mturn_mcg) max_l10mturn_mcg = l10mturn_m;
     }
 
-    if (matter_flags_global->USE_INTERPOLATION_TABLES > 1) {
+    if (matter_options_global->USE_INTERPOLATION_TABLES > 1) {
         initialise_Nion_Conditional_spline(redshift, min_dens, max_dens, M_min, M_cond, M_cond,
                                            min_l10mturn_acg, max_l10mturn_acg, min_l10mturn_mcg,
                                            max_l10mturn_mcg, &sc, false);
@@ -284,7 +291,7 @@ void get_conditional_Nion(double redshift, double R, int n_densities, double *de
     for (i = 0; i < n_densities; i++)
         out_nion[i] = EvaluateNion_Conditional(densities[i], log10_mturns_acg[i], growthf, M_min,
                                                M_cond, M_cond, sigma_cond, &sc, false);
-    if (astro_flags_global->USE_MINI_HALOS) {
+    if (astro_options_global->USE_MINI_HALOS) {
         for (i = 0; i < n_densities; i++)
             out_nion_mini[i] =
                 EvaluateNion_Conditional_MINI(densities[i], log10_mturns_mcg[i], growthf, M_min,
@@ -297,13 +304,15 @@ void get_conditional_Xray(double redshift, double R, int n_densities, double *de
     init_ps();
 
     double M_min = minimum_source_mass(redshift, true);
-    if (matter_flags_global->USE_INTERPOLATION_TABLES > 0) initialiseSigmaMInterpTable(M_min, 1e20);
+    if (matter_options_global->USE_INTERPOLATION_TABLES > 0)
+        initialiseSigmaMInterpTable(M_min, 1e20);
     double M_cond = RtoM(R);
     double sigma_cond = EvaluateSigma(log(M_cond));
     double growthf = dicke(redshift);
 
-    if (astro_flags_global->INTEGRATION_METHOD_ATOMIC == 1 ||
-        (astro_flags_global->USE_MINI_HALOS && astro_flags_global->INTEGRATION_METHOD_MINI == 1))
+    if (astro_options_global->INTEGRATION_METHOD_ATOMIC == 1 ||
+        (astro_options_global->USE_MINI_HALOS &&
+         astro_options_global->INTEGRATION_METHOD_MINI == 1))
         initialise_GL(log(M_min), log(M_cond));
 
     struct ScalingConstants sc;
@@ -319,7 +328,7 @@ void get_conditional_Xray(double redshift, double R, int n_densities, double *de
         if (dens > max_dens) max_dens = dens;
     }
 
-    if (matter_flags_global->USE_INTERPOLATION_TABLES > 1) {
+    if (matter_options_global->USE_INTERPOLATION_TABLES > 1) {
         initialise_Xray_Conditional_table(redshift, min_dens, max_dens, M_min, M_cond, M_cond, &sc);
     }
     for (i = 0; i < n_densities; i++)

@@ -8,13 +8,13 @@ import pytest
 import tomllib
 
 from py21cmfast import (
-    AstroFlags,
+    AstroOptions,
     AstroParams,
     CosmoParams,
     InputParameters,
     IonizedBox,
-    MatterFlags,
-    MatterParams,
+    MatterOptions,
+    SimulationOptions,
     __version__,
     config,
 )
@@ -47,7 +47,7 @@ def test_bad_construction(c):
         CosmoParams(c, c)
 
     with pytest.raises(TypeError):
-        CosmoParams(MatterParams())
+        CosmoParams(SimulationOptions())
 
     with pytest.raises(TypeError):
         CosmoParams(1)
@@ -71,7 +71,7 @@ def test_altered_construction(c):
 
 
 def test_dynamic_variables():
-    u = MatterParams()
+    u = SimulationOptions()
     assert u.DIM == 3 * u.HII_DIM
 
     u = u.clone(DIM=200)
@@ -80,7 +80,7 @@ def test_dynamic_variables():
 
 
 def test_clone():
-    u = MatterParams()
+    u = SimulationOptions()
     v = u.clone()
     assert u == v
     assert u is not v
@@ -119,7 +119,7 @@ def test_c_structures(c):
 
 
 def test_mmin():
-    fo = AstroFlags(USE_MASS_DEPENDENT_ZETA=True)
+    fo = AstroOptions(USE_MASS_DEPENDENT_ZETA=True)
     assert fo.M_MIN_in_Mass
 
 
@@ -128,9 +128,9 @@ def test_validation():
         InputParameters(
             cosmo_params=CosmoParams(),
             astro_params=AstroParams(R_BUBBLE_MAX=100),
-            matter_params=MatterParams(BOX_LEN=50),
-            matter_flags=MatterFlags(),
-            astro_flags=AstroFlags(),
+            simulation_options=SimulationOptions(BOX_LEN=50),
+            matter_options=MatterOptions(),
+            astro_options=AstroOptions(),
             random_seed=1,
         )
 
@@ -141,9 +141,9 @@ def test_validation():
         InputParameters(
             cosmo_params=CosmoParams(),
             astro_params=AstroParams(R_BUBBLE_MAX=20),
-            matter_params=MatterParams(BOX_LEN=50),
-            matter_flags=MatterFlags(),
-            astro_flags=AstroFlags(USE_EXP_FILTER=False, HII_FILTER="sharp-k"),
+            simulation_options=SimulationOptions(BOX_LEN=50),
+            matter_options=MatterOptions(),
+            astro_options=AstroOptions(USE_EXP_FILTER=False, HII_FILTER="sharp-k"),
             random_seed=1,
         )
 
@@ -152,9 +152,9 @@ def test_validation():
         InputParameters(
             cosmo_params=CosmoParams(),
             astro_params=AstroParams(R_BUBBLE_MAX=10),
-            matter_params=MatterParams(BOX_LEN=50),
-            matter_flags=MatterFlags(),
-            astro_flags=AstroFlags(INHOMO_RECO=True),
+            simulation_options=SimulationOptions(BOX_LEN=50),
+            matter_options=MatterOptions(),
+            astro_options=AstroOptions(INHOMO_RECO=True),
             random_seed=1,
         )
 
@@ -164,9 +164,9 @@ def test_validation():
         InputParameters(
             cosmo_params=CosmoParams(),
             astro_params=AstroParams(),
-            matter_params=MatterParams(),
-            matter_flags=MatterFlags(USE_RELATIVE_VELOCITIES=False),
-            astro_flags=AstroFlags(
+            simulation_options=SimulationOptions(),
+            matter_options=MatterOptions(USE_RELATIVE_VELOCITIES=False),
+            astro_options=AstroOptions(
                 USE_MINI_HALOS=True, INHOMO_RECO=True, USE_TS_FLUCT=True
             ),
             random_seed=1,
@@ -178,9 +178,9 @@ def test_validation():
         InputParameters(
             cosmo_params=CosmoParams(),
             astro_params=AstroParams(),
-            matter_params=MatterParams(),
-            matter_flags=MatterFlags(USE_HALO_FIELD=True),
-            astro_flags=AstroFlags(USE_MASS_DEPENDENT_ZETA=False),
+            simulation_options=SimulationOptions(),
+            matter_options=MatterOptions(USE_HALO_FIELD=True),
+            astro_options=AstroOptions(USE_MASS_DEPENDENT_ZETA=False),
             random_seed=1,
         )
     with pytest.raises(
@@ -189,9 +189,9 @@ def test_validation():
         InputParameters(
             cosmo_params=CosmoParams(),
             astro_params=AstroParams(),
-            matter_params=MatterParams(),
-            matter_flags=MatterFlags(USE_HALO_FIELD=True),
-            astro_flags=AstroFlags(PHOTON_CONS_TYPE="z-photoncons"),
+            simulation_options=SimulationOptions(),
+            matter_options=MatterOptions(USE_HALO_FIELD=True),
+            astro_options=AstroOptions(PHOTON_CONS_TYPE="z-photoncons"),
             random_seed=1,
         )
     with pytest.raises(
@@ -201,9 +201,11 @@ def test_validation():
         InputParameters(
             cosmo_params=CosmoParams(),
             astro_params=AstroParams(),
-            matter_params=MatterParams(),
-            matter_flags=MatterFlags(USE_HALO_FIELD=False, HALO_STOCHASTICITY=False),
-            astro_flags=AstroFlags(
+            simulation_options=SimulationOptions(),
+            matter_options=MatterOptions(
+                USE_HALO_FIELD=False, HALO_STOCHASTICITY=False
+            ),
+            astro_options=AstroOptions(
                 USE_EXP_FILTER=True, USE_UPPER_STELLAR_TURNOVER=False
             ),
             random_seed=1,
@@ -216,9 +218,11 @@ def test_validation():
         InputParameters(
             cosmo_params=CosmoParams(),
             astro_params=AstroParams(),
-            matter_params=MatterParams(),
-            matter_flags=MatterFlags(USE_HALO_FIELD=False, HALO_STOCHASTICITY=False),
-            astro_flags=AstroFlags(
+            simulation_options=SimulationOptions(),
+            matter_options=MatterOptions(
+                USE_HALO_FIELD=False, HALO_STOCHASTICITY=False
+            ),
+            astro_options=AstroOptions(
                 USE_UPPER_STELLAR_TURNOVER=True, USE_EXP_FILTER=False
             ),
             random_seed=1,
@@ -230,9 +234,9 @@ def test_validation():
         InputParameters(
             cosmo_params=CosmoParams(),
             astro_params=AstroParams(M_TURN=10),
-            matter_params=MatterParams(),
-            matter_flags=MatterFlags(),
-            astro_flags=AstroFlags(
+            simulation_options=SimulationOptions(),
+            matter_options=MatterOptions(),
+            astro_options=AstroOptions(
                 USE_MINI_HALOS=True, USE_TS_FLUCT=True, INHOMO_RECO=True
             ),
             random_seed=1,
@@ -245,16 +249,16 @@ def test_validation():
         InputParameters(
             cosmo_params=CosmoParams(),
             astro_params=AstroParams(),
-            matter_params=MatterParams(BOX_LEN=50, DIM=20),
-            matter_flags=MatterFlags(),
-            astro_flags=AstroFlags(),
+            simulation_options=SimulationOptions(BOX_LEN=50, DIM=20),
+            matter_options=MatterOptions(),
+            astro_options=AstroOptions(),
             random_seed=1,
         )
 
 
-def test_matter_params():
-    up = MatterParams()
-    up_non_cubic = MatterParams(NON_CUBIC_FACTOR=1.5)
+def test_simulation_options():
+    up = SimulationOptions()
+    up_non_cubic = SimulationOptions(NON_CUBIC_FACTOR=1.5)
 
     assert up_non_cubic.tot_fft_num_pixels == 1.5 * up.tot_fft_num_pixels
     assert up_non_cubic.HII_tot_num_pixels == up.HII_tot_num_pixels * 1.5
@@ -263,21 +267,21 @@ def test_matter_params():
         ValueError,
         match="NON_CUBIC_FACTOR \\* DIM and NON_CUBIC_FACTOR \\* HII_DIM must be integers",
     ):
-        up = MatterParams(NON_CUBIC_FACTOR=1.1047642)
+        up = SimulationOptions(NON_CUBIC_FACTOR=1.1047642)
 
     assert up.cell_size / up.cell_size_hires == up.DIM / up.HII_DIM
 
 
-def test_matter_flags():
+def test_matter_options():
     msg = r"Since the lowres density fields are required for the halo sampler"
     with pytest.raises(NotImplementedError, match=msg):
-        MatterFlags(
+        MatterOptions(
             PERTURB_ON_HIGH_RES=True, USE_HALO_FIELD=True, HALO_STOCHASTICITY=True
         )
 
     msg = r"The halo sampler enabled with HALO_STOCHASTICITY requires the use of HMF interpolation tables."
     with pytest.raises(ValueError, match=msg):
-        MatterFlags(
+        MatterOptions(
             USE_HALO_FIELD=True,
             HALO_STOCHASTICITY=True,
             USE_INTERPOLATION_TABLES="sigma-interpolation",
@@ -285,30 +289,30 @@ def test_matter_flags():
 
     msg = r"HALO_STOCHASTICITY is True but USE_HALO_FIELD is False"
     with pytest.raises(ValueError, match=msg):
-        MatterFlags(USE_HALO_FIELD=False, HALO_STOCHASTICITY=True)
+        MatterOptions(USE_HALO_FIELD=False, HALO_STOCHASTICITY=True)
 
     msg = r"Can only use 'CLASS' power spectrum with relative velocities"
     with pytest.raises(ValueError, match=msg):
-        MatterFlags(USE_RELATIVE_VELOCITIES=True, POWER_SPECTRUM="EH")
+        MatterOptions(USE_RELATIVE_VELOCITIES=True, POWER_SPECTRUM="EH")
 
     msg = r"The conditional mass functions requied for the halo field"
     with pytest.raises(NotImplementedError, match=msg):
-        MatterFlags(USE_HALO_FIELD=True, HMF="WATSON")
+        MatterOptions(USE_HALO_FIELD=True, HMF="WATSON")
 
 
-# Testing all the AstroFlags dependencies, including emitted warnings
-def test_astro_flags():
+# Testing all the AstroOptions dependencies, including emitted warnings
+def test_astro_options():
     with pytest.raises(
         ValueError,
         match="The SUBCELL_RSD flag is only effective if APPLY_RSDS is True.",
     ):
-        AstroFlags(SUBCELL_RSD=True, APPLY_RSDS=False)
+        AstroOptions(SUBCELL_RSD=True, APPLY_RSDS=False)
 
     with pytest.raises(
         ValueError,
         match="You have set USE_MINI_HALOS to True but USE_MASS_DEPENDENT_ZETA is False!",
     ):
-        AstroFlags(
+        AstroOptions(
             USE_MASS_DEPENDENT_ZETA=False,
             USE_MINI_HALOS=True,
             INHOMO_RECO=True,
@@ -318,23 +322,23 @@ def test_astro_flags():
         ValueError,
         match="M_MIN_in_Mass must be true if USE_MASS_DEPENDENT_ZETA is true.",
     ):
-        AstroFlags(USE_MASS_DEPENDENT_ZETA=True, M_MIN_in_Mass=False)
+        AstroOptions(USE_MASS_DEPENDENT_ZETA=True, M_MIN_in_Mass=False)
 
     with pytest.raises(
         ValueError,
         match="You have set USE_MINI_HALOS to True but INHOMO_RECO is False!",
     ):
-        AstroFlags(USE_MINI_HALOS=True, USE_TS_FLUCT=True, INHOMO_RECO=False)
+        AstroOptions(USE_MINI_HALOS=True, USE_TS_FLUCT=True, INHOMO_RECO=False)
 
     with pytest.raises(
         ValueError,
         match="You have set USE_MINI_HALOS to True but USE_TS_FLUCT is False!",
     ):
-        AstroFlags(USE_MINI_HALOS=True, INHOMO_RECO=True, USE_TS_FLUCT=False)
+        AstroOptions(USE_MINI_HALOS=True, INHOMO_RECO=True, USE_TS_FLUCT=False)
 
     msg = r"USE_MINI_HALOS is not compatible with the redshift-based"
     with pytest.raises(ValueError, match=msg):
-        AstroFlags(
+        AstroOptions(
             PHOTON_CONS_TYPE="z-photoncons",
             USE_MINI_HALOS=True,
             INHOMO_RECO=True,
@@ -344,13 +348,13 @@ def test_astro_flags():
     with pytest.raises(
         ValueError, match="USE_EXP_FILTER is True but CELL_RECOMB is False"
     ):
-        AstroFlags(USE_EXP_FILTER=True, CELL_RECOMB=False)
+        AstroOptions(USE_EXP_FILTER=True, CELL_RECOMB=False)
 
     with pytest.raises(
         ValueError,
         match="USE_EXP_FILTER can only be used with a real-space tophat HII_FILTER==0",
     ):
-        AstroFlags(USE_EXP_FILTER=True, HII_FILTER="sharp-k")
+        AstroOptions(USE_EXP_FILTER=True, HII_FILTER="sharp-k")
 
 
 def test_inputstruct_init(default_seed):
@@ -358,11 +362,11 @@ def test_inputstruct_init(default_seed):
     altered_struct = default_struct.evolve_input_structs(BOX_LEN=30)
 
     assert default_struct.cosmo_params == CosmoParams.new()
-    assert default_struct.matter_params == MatterParams.new()
-    assert default_struct.matter_flags == MatterFlags.new()
+    assert default_struct.simulation_options == SimulationOptions.new()
+    assert default_struct.matter_options == MatterOptions.new()
     assert default_struct.astro_params == AstroParams.new()
-    assert default_struct.astro_flags == AstroFlags.new()
-    assert altered_struct.matter_params.BOX_LEN == 30
+    assert default_struct.astro_options == AstroOptions.new()
+    assert altered_struct.simulation_options.BOX_LEN == 30
 
 
 def test_native_template_loading(default_seed):

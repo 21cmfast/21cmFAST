@@ -348,9 +348,9 @@ def ionize(ctx, redshift, prev_z, config, regen, direc, seed):
     """
     inputs = _get_inputs_from_ctx(ctx, seed, config=config)
     if (
-        inputs.astro_flags.USE_TS_FLUCT
-        or inputs.astro_flags.INHOMO_RECO
-        or inputs.matter_flags.HALO_STOCHASTICITY
+        inputs.astro_options.USE_TS_FLUCT
+        or inputs.astro_options.INHOMO_RECO
+        or inputs.matter_options.HALO_STOCHASTICITY
     ):
         raise NotImplementedError(
             "Ionized box with any of (USE_TS_FLUCT,INHOMO_RECO,HALO_STOCHASTICITY)"
@@ -570,7 +570,7 @@ def lightcone(ctx, redshift, config, out, regen, direc, max_z, z_step, seed, lq)
     lcn = RectilinearLightconer.with_equal_cdist_slices(
         min_redshift=redshift,
         max_redshift=max_z,
-        resolution=inputs.matter_params.cell_size,
+        resolution=inputs.simulation_options.cell_size,
         cosmo=inputs.cosmo_params.cosmo,
         quantities=lq,
     )
@@ -596,8 +596,10 @@ def lightcone(ctx, redshift, config, out, regen, direc, max_z, z_step, seed, lq)
 @click.option(
     "-s",
     "--struct",
-    type=click.Choice(["astro_flags", "cosmo_params", "matter_params", "astro_params"]),
-    default="astro_flags",
+    type=click.Choice(
+        ["astro_options", "cosmo_params", "simulation_options", "astro_params"]
+    ),
+    default="astro_options",
     help="struct in which the new feature exists",
 )
 @click.option(
@@ -680,8 +682,8 @@ def pr_feature(
     value = getattr(builtins, vtype)(value)
 
     structs = {
-        "matter_params": {"HII_DIM": 128, "BOX_LEN": 250},
-        "astro_flags": {"USE_TS_FLUCT": True},
+        "simulation_options": {"HII_DIM": 128, "BOX_LEN": 250},
+        "astro_options": {"USE_TS_FLUCT": True},
         "cosmo_params": {},
         "astro_params": {},
     }

@@ -7,11 +7,11 @@ from matplotlib.colors import LogNorm, Normalize
 from scipy.stats import binned_statistic as binstat
 
 from py21cmfast import (
-    AstroFlags,
+    AstroOptions,
     AstroParams,
     CosmoParams,
-    MatterParams,
     PerturbHaloField,
+    SimulationOptions,
 )
 from py21cmfast.c_21cmfast import ffi, lib
 from py21cmfast.wrapper.cfuncs import broadcast_input_struct
@@ -97,7 +97,7 @@ def test_filters(filter_flag, R, plt):
     opts = prd.get_all_options_struct(redshift=10.0)
 
     inputs = opts["inputs"]
-    up = inputs.matter_params
+    up = inputs.simulation_options
 
     # testing a single pixel source
     input_box_centre = np.zeros((up.HII_DIM,) * 3, dtype="f4")

@@ -41,12 +41,12 @@ from .wrapper.cfuncs import (
     construct_fftw_wisdoms,
 )
 from .wrapper.inputs import (
-    AstroFlags,
+    AstroOptions,
     AstroParams,
     CosmoParams,
     InputParameters,
-    MatterFlags,
-    MatterParams,
+    MatterOptions,
+    SimulationOptions,
     get_logspaced_redshifts,
 )
 from .wrapper.outputs import (

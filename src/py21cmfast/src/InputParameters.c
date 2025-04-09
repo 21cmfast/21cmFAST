@@ -1,28 +1,28 @@
 #include "InputParameters.h"
 
-void Broadcast_struct_global_all(MatterParams *matter_params, MatterFlags *matter_flags,
-                                 CosmoParams *cosmo_params, AstroParams *astro_params,
-                                 AstroFlags *astro_flags) {
-    matter_params_global = matter_params;
-    matter_flags_global = matter_flags;
+void Broadcast_struct_global_all(SimulationOptions *simulation_options,
+                                 MatterOptions *matter_options, CosmoParams *cosmo_params,
+                                 AstroParams *astro_params, AstroOptions *astro_options) {
+    simulation_options_global = simulation_options;
+    matter_options_global = matter_options;
     cosmo_params_global = cosmo_params;
     astro_params_global = astro_params;
-    astro_flags_global = astro_flags;
+    astro_options_global = astro_options;
 }
 
-void Broadcast_struct_global_noastro(MatterParams *matter_params, MatterFlags *matter_flags,
-                                     CosmoParams *cosmo_params) {
-    matter_params_global = matter_params;
-    matter_flags_global = matter_flags;
+void Broadcast_struct_global_noastro(SimulationOptions *simulation_options,
+                                     MatterOptions *matter_options, CosmoParams *cosmo_params) {
+    simulation_options_global = simulation_options;
+    matter_options_global = matter_options;
     cosmo_params_global = cosmo_params;
 }
 
 /*GLOBAL INPUT STRUCT DEFINITION*/
-MatterParams *matter_params_global;
-MatterFlags *matter_flags_global;
+SimulationOptions *simulation_options_global;
+MatterOptions *matter_options_global;
 CosmoParams *cosmo_params_global;
 AstroParams *astro_params_global;
-AstroFlags *astro_flags_global;
+AstroOptions *astro_options_global;
 
 // data paths, wisdoms, etc
 ConfigSettings config_settings;

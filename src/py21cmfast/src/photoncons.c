@@ -115,12 +115,12 @@ int InitialisePhotonCons() {
         set_scaling_constants(a_end, &sc_i, false);
 
         // set the minimum source mass
-        if (astro_flags_global->USE_MASS_DEPENDENT_ZETA) {
+        if (astro_options_global->USE_MASS_DEPENDENT_ZETA) {
             ION_EFF_FACTOR = astro_params_global->POP2_ION * astro_params_global->F_STAR10 *
                              astro_params_global->F_ESC10;
             M_MIN = astro_params_global->M_TURN / 50.;
-            if (astro_flags_global->INTEGRATION_METHOD_ATOMIC == 2 ||
-                astro_flags_global->INTEGRATION_METHOD_MINI == 2) {
+            if (astro_options_global->INTEGRATION_METHOD_ATOMIC == 2 ||
+                astro_options_global->INTEGRATION_METHOD_MINI == 2) {
                 initialiseSigmaMInterpTable(fmin(MMIN_FAST, M_MIN), 1e20);
             } else {
                 initialiseSigmaMInterpTable(M_MIN, 1e20);
@@ -170,7 +170,7 @@ int InitialisePhotonCons() {
                 // Ionizing emissivity (num of photons per baryon)
                 // We Force QAG due to the changing limits and messy implementation which I will fix
                 // later (hopefully move the whole thing to python)
-                if (astro_flags_global->USE_MASS_DEPENDENT_ZETA) {
+                if (astro_options_global->USE_MASS_DEPENDENT_ZETA) {
                     Nion0 = ION_EFF_FACTOR *
                             Nion_General(z0, lnMmin, lnMmax, astro_params_global->M_TURN, &sc_0);
                     Nion1 = ION_EFF_FACTOR *
@@ -186,13 +186,13 @@ int InitialisePhotonCons() {
                     }
 
                     if (M_MIN_z0 < M_MIN_z1) {
-                        if (astro_flags_global->INTEGRATION_METHOD_ATOMIC == 2) {
+                        if (astro_options_global->INTEGRATION_METHOD_ATOMIC == 2) {
                             initialiseSigmaMInterpTable(fmin(MMIN_FAST, M_MIN_z0), 1e20);
                         } else {
                             initialiseSigmaMInterpTable(M_MIN_z0, 1e20);
                         }
                     } else {
-                        if (astro_flags_global->INTEGRATION_METHOD_ATOMIC == 2) {
+                        if (astro_options_global->INTEGRATION_METHOD_ATOMIC == 2) {
                             initialiseSigmaMInterpTable(fmin(MMIN_FAST, M_MIN_z1), 1e20);
                         } else {
                             initialiseSigmaMInterpTable(M_MIN_z1, 1e20);
@@ -305,7 +305,7 @@ int InitialisePhotonCons() {
         free(Q_z);
         free(z_value);
 
-        if (astro_flags_global->USE_MASS_DEPENDENT_ZETA) {
+        if (astro_options_global->USE_MASS_DEPENDENT_ZETA) {
             freeSigmaMInterpTable();
         }
 

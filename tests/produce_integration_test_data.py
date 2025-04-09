@@ -24,12 +24,12 @@ import questionary as qs
 from powerbox import get_power
 
 from py21cmfast import (
-    AstroFlags,
+    AstroOptions,
     AstroParams,
     CosmoParams,
     InitialConditions,
     InputParameters,
-    MatterParams,
+    SimulationOptions,
     compute_initial_conditions,
     config,
     determine_halo_list,
@@ -48,7 +48,7 @@ SEED = 12345
 DATA_PATH = Path(__file__).parent / "test_data"
 
 # These defaults are overwritten by the OPTIONS kwargs
-DEFAULT_MATTER_PARAMS = {
+DEFAULT_simulation_options = {
     "HII_DIM": 50,
     "DIM": 150,
     "BOX_LEN": 100,
@@ -56,13 +56,13 @@ DEFAULT_MATTER_PARAMS = {
     "ZPRIME_STEP_FACTOR": 1.04,
 }
 
-DEFAULT_MATTER_FLAGS = {
+DEFAULT_matter_options = {
     "USE_HALO_FIELD": False,
     "NO_RNG": True,
     "HALO_STOCHASTICITY": False,
 }
 
-DEFAULT_ASTRO_FLAGS = {
+DEFAULT_astro_options = {
     "USE_EXP_FILTER": False,
     "CELL_RECOMB": False,
     "USE_TS_FLUCT": False,
@@ -304,12 +304,14 @@ def get_node_z(redshift, lc=False, **kwargs):
             min_redshift=redshift,
             max_redshift=kwargs.get(
                 "Z_HEAT_MAX",
-                DEFAULT_MATTER_PARAMS.get("Z_HEAT_MAX", MatterParams.new().Z_HEAT_MAX),
+                DEFAULT_simulation_options.get(
+                    "Z_HEAT_MAX", SimulationOptions.new().Z_HEAT_MAX
+                ),
             ),
             z_step_factor=kwargs.get(
                 "ZPRIME_STEP_FACTOR",
-                DEFAULT_MATTER_PARAMS.get(
-                    "ZPRIME_STEP_FACTOR", MatterParams.new().ZPRIME_STEP_FACTOR
+                DEFAULT_simulation_options.get(
+                    "ZPRIME_STEP_FACTOR", SimulationOptions.new().ZPRIME_STEP_FACTOR
                 ),
             ),
         )
@@ -324,9 +326,9 @@ def get_all_options_struct(redshift, lc=False, **kwargs):
         random_seed=SEED,
     ).evolve_input_structs(
         **{
-            **DEFAULT_MATTER_FLAGS,
-            **DEFAULT_MATTER_PARAMS,
-            **DEFAULT_ASTRO_FLAGS,
+            **DEFAULT_matter_options,
+            **DEFAULT_simulation_options,
+            **DEFAULT_astro_options,
             **kwargs,
         }
     )
@@ -349,7 +351,7 @@ def produce_coeval_power_spectra(redshift, **kwargs):
     for field in COEVAL_FIELDS:
         if hasattr(coeval, field):
             p[field], k = get_power(
-                getattr(coeval, field), boxlength=coeval.matter_params.BOX_LEN
+                getattr(coeval, field), boxlength=coeval.simulation_options.BOX_LEN
             )
 
     return k, p, coeval
@@ -363,9 +365,9 @@ def produce_lc_power_spectra(redshift, **kwargs):
 
     # NOTE: this is here only so that we get the same answer as previous versions,
     #       which have a bug where the max_redshift gets set higher than it needs to be.
-    astro_flags = options["inputs"].astro_flags
-    if astro_flags.INHOMO_RECO or astro_flags.USE_TS_FLUCT:
-        max_redshift = options["inputs"].matter_params.Z_HEAT_MAX
+    astro_options = options["inputs"].astro_options
+    if astro_options.INHOMO_RECO or astro_options.USE_TS_FLUCT:
+        max_redshift = options["inputs"].simulation_options.Z_HEAT_MAX
     else:
         max_redshift = options["out_redshifts"] + 2
 
@@ -374,7 +376,7 @@ def produce_lc_power_spectra(redshift, **kwargs):
         node_redshifts=get_logspaced_redshifts(
             min_redshift=options.pop("out_redshifts"),
             max_redshift=max_redshift,
-            z_step_factor=options["inputs"].matter_params.ZPRIME_STEP_FACTOR,
+            z_step_factor=options["inputs"].simulation_options.ZPRIME_STEP_FACTOR,
         )
     )
 
@@ -385,11 +387,11 @@ def produce_lc_power_spectra(redshift, **kwargs):
             k
             for k in LIGHTCONE_FIELDS
             if (
-                astro_flags.USE_TS_FLUCT
+                astro_options.USE_TS_FLUCT
                 or k not in ("Ts_box", "x_e_box", "Tk_box", "J_21_LW_box")
             )
         ],
-        resolution=options["inputs"].matter_params.cell_size,
+        resolution=options["inputs"].simulation_options.cell_size,
     )
 
     _, _, _, lightcone = run_lightcone(
@@ -420,11 +422,11 @@ def produce_perturb_field_data(redshift, **kwargs):
 
     p_dens, k_dens = get_power(
         pt_box.density,
-        boxlength=options["matter_params"]["BOX_LEN"],
+        boxlength=options["simulation_options"]["BOX_LEN"],
     )
     p_vel, k_vel = get_power(
         pt_box.velocity * velocity_normalisation,
-        boxlength=options["matter_params"]["BOX_LEN"],
+        boxlength=options["simulation_options"]["BOX_LEN"],
     )
 
     def hist(kind, xmin, xmax, nbins):
@@ -506,9 +508,9 @@ def produce_power_spectra_for_tests(name, redshift, force, direc, **kwargs):
         for key, v in kwargs.items():
             fl.attrs[key] = v
 
-        fl.attrs["HII_DIM"] = coeval.matter_params.HII_DIM
-        fl.attrs["DIM"] = coeval.matter_params.DIM
-        fl.attrs["BOX_LEN"] = coeval.matter_params.BOX_LEN
+        fl.attrs["HII_DIM"] = coeval.simulation_options.HII_DIM
+        fl.attrs["DIM"] = coeval.simulation_options.DIM
+        fl.attrs["BOX_LEN"] = coeval.simulation_options.BOX_LEN
 
         coeval_grp = fl.create_group("coeval")
         coeval_grp["k"] = k
@@ -553,9 +555,9 @@ def produce_data_for_perturb_field_tests(name, redshift, force, **kwargs):
         for k, v in kwargs.items():
             fl.attrs[k] = v
 
-        fl.attrs["HII_DIM"] = init_box.matter_params.HII_DIM
-        fl.attrs["DIM"] = init_box.matter_params.DIM
-        fl.attrs["BOX_LEN"] = init_box.matter_params.BOX_LEN
+        fl.attrs["HII_DIM"] = init_box.simulation_options.HII_DIM
+        fl.attrs["DIM"] = init_box.simulation_options.DIM
+        fl.attrs["BOX_LEN"] = init_box.simulation_options.BOX_LEN
 
         fl["power_dens"] = p_dens
         fl["k_dens"] = k_dens

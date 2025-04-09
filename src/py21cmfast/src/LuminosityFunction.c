@@ -78,7 +78,7 @@ int ComputeLF(int nbins, int component, int NUM_OF_REDSHIFT_FOR_LF, float *z_LF,
     int status;
     Try {  // This try block covers the whole function.
         // This NEEDS to be done every time, because the actual object passed in as
-        // matter_params, cosmo_params etc. can change on each call, freeing up the memory.
+        // simulation_options, cosmo_params etc. can change on each call, freeing up the memory.
         initialise_ComputeLF(nbins);
 
         int i, i_z;
@@ -98,7 +98,7 @@ int ComputeLF(int nbins, int component, int NUM_OF_REDSHIFT_FOR_LF, float *z_LF,
                 "ALPHA_STAR > -0.5.",
                 astro_params_global->ALPHA_STAR);
 
-        mf = matter_flags_global->HMF;
+        mf = matter_options_global->HMF;
 
         lnMhalo_min = log(Mhalo_min * 0.999);
         lnMhalo_max = log(Mhalo_max * 1.001);

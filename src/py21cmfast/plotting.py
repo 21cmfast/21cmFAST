@@ -182,7 +182,7 @@ def coeval_sliceplot(
         kwargs["cmap"] = "viridis"
 
     fig, ax = _imshow_slice(
-        cube, extent=(0, struct.matter_params.BOX_LEN) * 2, **kwargs
+        cube, extent=(0, struct.simulation_options.BOX_LEN) * 2, **kwargs
     )
 
     slice_axis = kwargs.get("slice_axis", -1)

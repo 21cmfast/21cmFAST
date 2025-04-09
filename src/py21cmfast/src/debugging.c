@@ -53,9 +53,9 @@ int FunctionThatCatches(bool sub_func, bool pass, double *result) {
     *result = 5.0;
     return 0;
 }
-void writeMatterParams(MatterParams *p) {
+void writeSimulationOptions(SimulationOptions *p) {
     LOG_INFO(
-        "\n        MatterParams:\n"
+        "\n        SimulationOptions:\n"
         "       HII_DIM=%4d, DIM=%4d, BOX_LEN=%8.3f, NON_CUBIC_FACTOR=%8.3f,\n"
         "       N_THREADS=%2d,\n"
         "       SAMPLER_MIN_MASS=%10.3e, SAMPLER_BUFFER_FACTOR=%8.3f, \n"
@@ -65,9 +65,9 @@ void writeMatterParams(MatterParams *p) {
         p->HALOMASS_CORRECTION);
 }
 
-void writeMatterFlags(MatterFlags *p) {
+void writeMatterOptions(MatterOptions *p) {
     LOG_INFO(
-        "\n        MatterFlags:\n"
+        "\n        MatterOptions:\n"
         "       HMF=%2d, POWER_SPECTRUM=%2d, USE_RELATIVE_VELOCITIES=%1d\n"
         "       PERTURB_ON_HIGH_RES=%1d, NO_RNG=%1d, USE_FFTW_WISDOM=%1d, "
         "USE_INTERPOLATION_TABLES=%1d,\n"
@@ -86,7 +86,7 @@ void writeCosmoParams(CosmoParams *p) {
         p->SIGMA_8, p->hlittle, p->OMm, p->OMl, p->OMb, p->POWER_INDEX);
 }
 
-void writeAstroParams(AstroFlags *fo, AstroParams *p) {
+void writeAstroParams(AstroOptions *fo, AstroParams *p) {
     if (fo->USE_MASS_DEPENDENT_ZETA) {
         LOG_INFO(
             "\n        AstroParams:\n"
@@ -123,9 +123,9 @@ void writeAstroParams(AstroFlags *fo, AstroParams *p) {
     }
 }
 
-void writeAstroFlags(AstroFlags *p) {
+void writeAstroOptions(AstroOptions *p) {
     LOG_INFO(
-        "\n        AstroFlags:\n"
+        "\n        AstroOptions:\n"
         "       USE_MINI_HALOS=%1d, USE_MASS_DEPENDENT_ZETA=%1d, "
         "SUBCELL_RSD=%1d,\n"
         "       INHOMO_RECO=%1d, USE_TS_FLUCT=%1d, M_MIN_in_Mass=%1d, PHOTON_CONS=%1d,\n"

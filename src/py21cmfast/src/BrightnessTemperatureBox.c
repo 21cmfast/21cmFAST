@@ -29,17 +29,17 @@ float clip(float x, float min, float max) {
 void get_velocity_gradient(float *v, float *vel_gradient) {
     memcpy(vel_gradient, v, sizeof(fftwf_complex) * HII_KSPACE_NUM_PIXELS);
 
-    dft_r2c_cube(matter_flags_global->USE_FFTW_WISDOM, matter_params_global->HII_DIM, HII_D_PARA,
-                 matter_params_global->N_THREADS, (fftwf_complex *)vel_gradient);
+    dft_r2c_cube(matter_options_global->USE_FFTW_WISDOM, simulation_options_global->HII_DIM,
+                 HII_D_PARA, simulation_options_global->N_THREADS, (fftwf_complex *)vel_gradient);
 
     float k_z;
     int n_x, n_y, n_z;
 #pragma omp parallel shared(vel_gradient) private(n_x, n_y, n_z, k_z) \
-    num_threads(matter_params_global -> N_THREADS)
+    num_threads(simulation_options_global -> N_THREADS)
     {
 #pragma omp for
-        for (n_x = 0; n_x < matter_params_global->HII_DIM; n_x++) {
-            for (n_y = 0; n_y < matter_params_global->HII_DIM; n_y++) {
+        for (n_x = 0; n_x < simulation_options_global->HII_DIM; n_x++) {
+            for (n_y = 0; n_y < simulation_options_global->HII_DIM; n_y++) {
                 for (n_z = 0; n_z <= HII_MID_PARA; n_z++) {
                     k_z = (float)(n_z * DELTA_K_PARA);
 
@@ -51,8 +51,8 @@ void get_velocity_gradient(float *v, float *vel_gradient) {
         }
     }
 
-    dft_c2r_cube(matter_flags_global->USE_FFTW_WISDOM, matter_params_global->HII_DIM, HII_D_PARA,
-                 matter_params_global->N_THREADS, (fftwf_complex *)vel_gradient);
+    dft_c2r_cube(matter_options_global->USE_FFTW_WISDOM, simulation_options_global->HII_DIM,
+                 HII_D_PARA, simulation_options_global->N_THREADS, (fftwf_complex *)vel_gradient);
 }
 
 int ComputeBrightnessTemp(float redshift, TsBox *spin_temp, IonizedBox *ionized_box,
@@ -68,7 +68,7 @@ int ComputeBrightnessTemp(float redshift, TsBox *spin_temp, IonizedBox *ionized_
 
         ave = 0.;
 
-        omp_set_num_threads(matter_params_global->N_THREADS);
+        omp_set_num_threads(simulation_options_global->N_THREADS);
 
         float *v = (float *)calloc(HII_TOT_FFT_NUM_PIXELS, sizeof(float));
         float *vel_gradient = (float *)calloc(HII_TOT_FFT_NUM_PIXELS, sizeof(float));
@@ -76,17 +76,17 @@ int ComputeBrightnessTemp(float redshift, TsBox *spin_temp, IonizedBox *ionized_
         float *x_pos = calloc(astro_params_global->N_RSD_STEPS, sizeof(float));
         float *x_pos_offset = calloc(astro_params_global->N_RSD_STEPS, sizeof(float));
         float **delta_T_RSD_LOS =
-            (float **)calloc(matter_params_global->N_THREADS, sizeof(float *));
-        for (i = 0; i < matter_params_global->N_THREADS; i++) {
+            (float **)calloc(simulation_options_global->N_THREADS, sizeof(float *));
+        for (i = 0; i < simulation_options_global->N_THREADS; i++) {
             delta_T_RSD_LOS[i] = (float *)calloc(HII_D_PARA, sizeof(float));
         }
 
 #pragma omp parallel shared(v, perturb_field) private(i, j, k) \
-    num_threads(matter_params_global -> N_THREADS)
+    num_threads(simulation_options_global -> N_THREADS)
         {
 #pragma omp for
-            for (i = 0; i < matter_params_global->HII_DIM; i++) {
-                for (j = 0; j < matter_params_global->HII_DIM; j++) {
+            for (i = 0; i < simulation_options_global->HII_DIM; i++) {
+                for (j = 0; j < simulation_options_global->HII_DIM; j++) {
                     for (k = 0; k < HII_D_PARA; k++) {
                         *((float *)v + HII_R_FFT_INDEX(i, j, k)) =
                             perturb_field->velocity_z[HII_R_INDEX(i, j, k)];
@@ -118,11 +118,11 @@ int ComputeBrightnessTemp(float redshift, TsBox *spin_temp, IonizedBox *ionized_
         // ok, lets fill the delta_T box; which will be the same size as the bubble box
 #pragma omp parallel shared(const_factor, perturb_field, ionized_box, box, redshift, spin_temp,    \
                                 T_rad) private(i, j, k, pixel_deltax, pixel_x_HI, pixel_Ts_factor) \
-    num_threads(matter_params_global -> N_THREADS)
+    num_threads(simulation_options_global -> N_THREADS)
         {
 #pragma omp for reduction(+ : ave)
-            for (i = 0; i < matter_params_global->HII_DIM; i++) {
-                for (j = 0; j < matter_params_global->HII_DIM; j++) {
+            for (i = 0; i < simulation_options_global->HII_DIM; i++) {
+                for (j = 0; j < simulation_options_global->HII_DIM; j++) {
                     for (k = 0; k < HII_D_PARA; k++) {
                         pixel_deltax = perturb_field->density[HII_R_INDEX(i, j, k)];
                         pixel_x_HI = ionized_box->xH_box[HII_R_INDEX(i, j, k)];
@@ -130,8 +130,8 @@ int ComputeBrightnessTemp(float redshift, TsBox *spin_temp, IonizedBox *ionized_
                         box->brightness_temp[HII_R_INDEX(i, j, k)] =
                             const_factor * pixel_x_HI * (1 + pixel_deltax);
 
-                        if (astro_flags_global->USE_TS_FLUCT) {
-                            if (astro_flags_global->SUBCELL_RSD) {
+                        if (astro_options_global->USE_TS_FLUCT) {
+                            if (astro_options_global->SUBCELL_RSD) {
                                 // Converting the prefactors into the optical depth, tau. Factor of
                                 // 1000 is the conversion of spin temperature from K to mK
                                 box->brightness_temp[HII_R_INDEX(i, j, k)] *=
@@ -160,7 +160,7 @@ int ComputeBrightnessTemp(float redshift, TsBox *spin_temp, IonizedBox *ionized_
         ave /= (float)HII_TOT_NUM_PIXELS;
 
         // Get RSDs
-        if (astro_flags_global->APPLY_RSDS) {
+        if (astro_options_global->APPLY_RSDS) {
             ave = 0.;
             get_velocity_gradient(v, vel_gradient);
 
@@ -168,14 +168,14 @@ int ComputeBrightnessTemp(float redshift, TsBox *spin_temp, IonizedBox *ionized_
             // case).
             max_v_deriv = fabs(astro_params_global->MAX_DVDR * H);
 
-            if (!(astro_flags_global->USE_TS_FLUCT && astro_flags_global->SUBCELL_RSD)) {
+            if (!(astro_options_global->USE_TS_FLUCT && astro_options_global->SUBCELL_RSD)) {
 // Do this unless we are doing BOTH Ts fluctuations and subcell RSDs
 #pragma omp parallel shared(vel_gradient, T_rad, redshift, spin_temp, box, max_v_deriv) private( \
-        i, j, k, gradient_component, dvdx) num_threads(matter_params_global -> N_THREADS)
+        i, j, k, gradient_component, dvdx) num_threads(simulation_options_global -> N_THREADS)
                 {
 #pragma omp for
-                    for (i = 0; i < matter_params_global->HII_DIM; i++) {
-                        for (j = 0; j < matter_params_global->HII_DIM; j++) {
+                    for (i = 0; i < simulation_options_global->HII_DIM; i++) {
+                        for (j = 0; j < simulation_options_global->HII_DIM; j++) {
                             for (k = 0; k < HII_D_PARA; k++) {
                                 dvdx = clip(vel_gradient[HII_R_FFT_INDEX(i, j, k)], -max_v_deriv,
                                             max_v_deriv);
@@ -189,11 +189,11 @@ int ComputeBrightnessTemp(float redshift, TsBox *spin_temp, IonizedBox *ionized_
             } else {
 // This is if we're doing both TS_FLUCT and SUBCELL_RSD
 #pragma omp parallel shared(vel_gradient, T_rad, redshift, spin_temp, box, max_v_deriv) private( \
-        i, j, k, gradient_component, dvdx) num_threads(matter_params_global -> N_THREADS)
+        i, j, k, gradient_component, dvdx) num_threads(simulation_options_global -> N_THREADS)
                 {
 #pragma omp for
-                    for (i = 0; i < matter_params_global->HII_DIM; i++) {
-                        for (j = 0; j < matter_params_global->HII_DIM; j++) {
+                    for (i = 0; i < simulation_options_global->HII_DIM; i++) {
+                        for (j = 0; j < simulation_options_global->HII_DIM; j++) {
                             for (k = 0; k < HII_D_PARA; k++) {
                                 gradient_component =
                                     fabs(vel_gradient[HII_R_FFT_INDEX(i, j, k)] / H + 1.0);
@@ -220,7 +220,7 @@ int ComputeBrightnessTemp(float redshift, TsBox *spin_temp, IonizedBox *ionized_
                 }
             }
 
-            if (astro_flags_global->SUBCELL_RSD) {
+            if (astro_options_global->SUBCELL_RSD) {
                 ave = apply_subcell_rsds(ionized_box, box, redshift, spin_temp, T_rad, v, H);
             }
         }
@@ -241,7 +241,7 @@ int ComputeBrightnessTemp(float redshift, TsBox *spin_temp, IonizedBox *ionized_
 
         free(x_pos);
         free(x_pos_offset);
-        for (i = 0; i < matter_params_global->N_THREADS; i++) {
+        for (i = 0; i < simulation_options_global->N_THREADS; i++) {
             free(delta_T_RSD_LOS[i]);
         }
         free(delta_T_RSD_LOS);

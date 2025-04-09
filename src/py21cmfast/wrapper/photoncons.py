@@ -229,7 +229,7 @@ def setup_photon_cons(
     if inputs is None:
         inputs = initial_conditions.inputs
 
-    if inputs.astro_flags.PHOTON_CONS_TYPE == "no-photoncons":
+    if inputs.astro_options.PHOTON_CONS_TYPE == "no-photoncons":
         return {}
 
     from ..drivers._param_config import check_consistency_of_outputs_with_inputs
@@ -245,13 +245,13 @@ def setup_photon_cons(
     _photoncons_state.calibration_inputs = inputs
 
     # The PHOTON_CONS_TYPE == 1 case is handled in C (for now....), but we get the data anyway
-    if inputs.astro_flags.PHOTON_CONS_TYPE == "z-photoncons":
+    if inputs.astro_options.PHOTON_CONS_TYPE == "z-photoncons":
         photoncons_data = _get_photon_nonconservation_data()
 
-    if inputs.astro_flags.PHOTON_CONS_TYPE == "alpha-photoncons":
+    if inputs.astro_options.PHOTON_CONS_TYPE == "alpha-photoncons":
         photoncons_data = photoncons_alpha(inputs)
 
-    if inputs.astro_flags.PHOTON_CONS_TYPE == "f-photoncons":
+    if inputs.astro_options.PHOTON_CONS_TYPE == "f-photoncons":
         photoncons_data = photoncons_fesc(inputs)
 
     return photoncons_data
@@ -279,7 +279,7 @@ def calibrate_photon_cons(
     # avoiding circular imports by importing here
     from ..drivers.single_field import compute_ionization_field, perturb_field
 
-    # Create a new astro_params and astro_flags just for the photon_cons correction
+    # Create a new astro_params and astro_options just for the photon_cons correction
     # NOTE: Since the calibration cannot do INHOMO_RECO, we set the R_BUBBLE_MAX
     #   to the default w/o recombinations ONLY when the original box has INHOMO_RECO enabled.
     # TODO: figure out if it's possible to find a "closest" Rmax, since the correction fails when
@@ -292,7 +292,7 @@ def calibrate_photon_cons(
         HALO_STOCHASTICITY=False,
         PHOTON_CONS_TYPE="no-photoncons",
         R_BUBBLE_MAX=(
-            15 if inputs.astro_flags.INHOMO_RECO else inputs.astro_params.R_BUBBLE_MAX
+            15 if inputs.astro_options.INHOMO_RECO else inputs.astro_params.R_BUBBLE_MAX
         ),
     )
     ib = None
@@ -351,7 +351,7 @@ def calibrate_photon_cons(
             z -= 0.5
 
         ib = ib2
-        if inputs.astro_flags.USE_MINI_HALOS:
+        if inputs.astro_options.USE_MINI_HALOS:
             prev_perturb = this_perturb
 
         fast_node_redshifts.append(z)

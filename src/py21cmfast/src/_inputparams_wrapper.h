@@ -20,7 +20,7 @@ typedef struct CosmoParams {
 
 } CosmoParams;
 
-typedef struct MatterParams {
+typedef struct SimulationOptions {
     // Parameters taken from INIT_PARAMS.H
     int HII_DIM;
     int DIM;
@@ -51,9 +51,9 @@ typedef struct MatterParams {
     double CORR_STAR;
     double CORR_SFR;
     double CORR_LX;
-} MatterParams;
+} SimulationOptions;
 
-typedef struct MatterFlags {
+typedef struct MatterOptions {
     bool USE_FFTW_WISDOM;
     int HMF;
     int USE_RELATIVE_VELOCITIES;
@@ -73,7 +73,7 @@ typedef struct MatterFlags {
     bool HALO_STOCHASTICITY;
     bool FIXED_HALO_GRIDS;
     int SAMPLE_METHOD;
-} MatterFlags;
+} MatterOptions;
 
 typedef struct AstroParams {
     float HII_EFF_FACTOR;
@@ -135,7 +135,7 @@ typedef struct AstroParams {
     double NU_X_BAND_MAX;
 } AstroParams;
 
-typedef struct AstroFlags {
+typedef struct AstroOptions {
     bool USE_MINI_HALOS;
     bool USE_CMB_HEATING;  // CMB Heating Flag
     bool USE_LYA_HEATING;  // Lya Heating Flag
@@ -157,7 +157,7 @@ typedef struct AstroFlags {
     bool AVG_BELOW_SAMPLER;
     int INTEGRATION_METHOD_ATOMIC;
     int INTEGRATION_METHOD_MINI;
-} AstroFlags;
+} AstroOptions;
 
 typedef struct ConfigSettings {
     double HALO_CATALOG_MEM_FACTOR;
@@ -166,7 +166,7 @@ typedef struct ConfigSettings {
     char *wisdoms_path;
 } ConfigSettings;
 
-/* Previously, we had a few structures spread throughout the code e.g matter_params_ufunc which
+/* Previously, we had a few structures spread throughout the code e.g simulation_options_ufunc which
    were all globally defined and separately broadcast at different times. Several of these were used
    across different files and some inside #defines (e.g indexing.h), so for now I've combined
    the parameter structures to avoid confusion (we shouldn't have the possibility of two files using
@@ -177,10 +177,10 @@ typedef struct ConfigSettings {
    decorate any library call) However this would require us to be very careful about initialising
    the globals when ANY function from that file is called */
 // The structs declared here defined in InputParameters.c
-extern MatterParams *matter_params_global;
-extern MatterFlags *matter_flags_global;
+extern SimulationOptions *simulation_options_global;
+extern MatterOptions *matter_options_global;
 extern CosmoParams *cosmo_params_global;
 extern AstroParams *astro_params_global;
-extern AstroFlags *astro_flags_global;
+extern AstroOptions *astro_options_global;
 
 extern ConfigSettings config_settings;

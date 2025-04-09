@@ -96,10 +96,10 @@ def test_perturb_field_ic(perturbed_field, default_input_struct, ic, cache):
 
     assert pf.density.shape == ic.lowres_density.shape
     assert pf.cosmo_params == ic.cosmo_params
-    assert pf.matter_params == ic.matter_params
+    assert pf.simulation_options == ic.simulation_options
     assert not np.all(pf.density == 0)
 
-    assert pf.matter_params == perturbed_field.matter_params
+    assert pf.simulation_options == perturbed_field.simulation_options
     assert pf.cosmo_params == perturbed_field.cosmo_params
 
     assert pf == perturbed_field

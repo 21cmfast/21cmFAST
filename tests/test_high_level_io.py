@@ -11,8 +11,8 @@ from py21cmfast import (
     Coeval,
     InitialConditions,
     LightCone,
-    MatterParams,
     OutputCache,
+    SimulationOptions,
     run_coeval,
     run_lightcone,
 )
@@ -33,11 +33,11 @@ def coeval(ic, default_input_struct_ts, cache) -> Coeval:
 
 
 @pytest.fixture(scope="module")
-def ang_lightcone(ic, lc, default_input_struct_lc, default_astro_flags, cache):
+def ang_lightcone(ic, lc, default_input_struct_lc, default_astro_options, cache):
     lcn = AngularLightconer.like_rectilinear(
         match_at_z=lc.lightcone_redshifts.min(),
         max_redshift=lc.lightcone_redshifts.max(),
-        matter_params=ic.matter_params,
+        simulation_options=ic.simulation_options,
         get_los_velocity=True,
     )
 
@@ -46,7 +46,7 @@ def ang_lightcone(ic, lc, default_input_struct_lc, default_astro_flags, cache):
         initial_conditions=ic,
         write=True,
         inputs=default_input_struct_lc.clone(
-            astro_flags=default_astro_flags.clone(
+            astro_options=default_astro_options.clone(
                 APPLY_RSDS=False,
             )
         ),
@@ -64,10 +64,12 @@ def test_read_bad_file_lc(test_direc: Path, lc: LightCone):
 
     with h5py.File(fname, "r+") as f:
         # make gluts, these should be ignored on reading
-        f["InputParameters"]["matter_params"].attrs["NotARealParameter"] = "fake_param"
+        f["InputParameters"]["simulation_options"].attrs["NotARealParameter"] = (
+            "fake_param"
+        )
 
         # make gaps
-        del f["InputParameters"]["matter_params"].attrs["BOX_LEN"]
+        del f["InputParameters"]["simulation_options"].attrs["BOX_LEN"]
 
     # load without compatibility mode, make sure we throw the right error
     with pytest.raises(ValueError, match="There are extra or missing"):
@@ -78,15 +80,16 @@ def test_read_bad_file_lc(test_direc: Path, lc: LightCone):
         lc2 = LightCone.from_file(fname, safe=False)
 
     # check that the fake fields didn't show up in the struct
-    assert not hasattr(lc2.matter_params, "NotARealParameter")
+    assert not hasattr(lc2.simulation_options, "NotARealParameter")
 
     # check that missing fields are set to default
-    assert lc2.matter_params.BOX_LEN == MatterParams().BOX_LEN
+    assert lc2.simulation_options.BOX_LEN == SimulationOptions().BOX_LEN
 
     # check that the fields which are good are read in the struct
     assert all(
-        getattr(lc2.matter_params, field.name) == getattr(lc.matter_params, field.name)
-        for field in attrs.fields(MatterParams)
+        getattr(lc2.simulation_options, field.name)
+        == getattr(lc.simulation_options, field.name)
+        for field in attrs.fields(SimulationOptions)
         if field.name != "BOX_LEN"
     )
 
@@ -100,12 +103,14 @@ def test_read_bad_file_coev(test_direc: Path, coeval: Coeval):
     coeval.save(path=fname)
     with h5py.File(fname, "r+") as f:
         # make gluts, these should be ignored on reading
-        f["BrightnessTemp"]["InputParameters"]["matter_params"].attrs[
+        f["BrightnessTemp"]["InputParameters"]["simulation_options"].attrs[
             "NotARealParameter"
         ] = "fake_param"
 
         # make gaps
-        del f["BrightnessTemp"]["InputParameters"]["matter_params"].attrs["BOX_LEN"]
+        del f["BrightnessTemp"]["InputParameters"]["simulation_options"].attrs[
+            "BOX_LEN"
+        ]
 
     # load in the coeval check that we warn correctly
     with pytest.raises(ValueError, match="There are extra or missing"):
@@ -115,15 +120,15 @@ def test_read_bad_file_coev(test_direc: Path, coeval: Coeval):
         cv2 = Coeval.from_file(fname, safe=False)
 
     # check that the fake params didn't show up in the struct
-    assert not hasattr(cv2.matter_params, "NotARealParameter")
+    assert not hasattr(cv2.simulation_options, "NotARealParameter")
 
     # check that missing fields are set to default
-    assert cv2.matter_params.BOX_LEN == MatterParams().BOX_LEN
+    assert cv2.simulation_options.BOX_LEN == SimulationOptions().BOX_LEN
 
     # check that the fields which are good are read in the struct
     assert all(
-        getattr(cv2.matter_params, k) == getattr(coeval.matter_params, k)
-        for k in coeval.matter_params.asdict()
+        getattr(cv2.simulation_options, k) == getattr(coeval.simulation_options, k)
+        for k in coeval.simulation_options.asdict()
         if k != "BOX_LEN"
     )
 

@@ -66,11 +66,11 @@ float ComputeTau(int NPoints, float *redshifts, float *global_xHI, float z_re_He
 double init_ps();
 int init_heat();
 int CreateFFTWWisdoms();
-void Broadcast_struct_global_noastro(MatterParams *matter_params, MatterFlags *matter_flags,
-                                     CosmoParams *cosmo_params);
-void Broadcast_struct_global_all(MatterParams *matter_params, MatterFlags *matter_flags,
-                                 CosmoParams *cosmo_params, AstroParams *astro_params,
-                                 AstroFlags *astro_flags);
+void Broadcast_struct_global_noastro(SimulationOptions *simulation_options,
+                                     MatterOptions *matter_options, CosmoParams *cosmo_params);
+void Broadcast_struct_global_all(SimulationOptions *simulation_options,
+                                 MatterOptions *matter_options, CosmoParams *cosmo_params,
+                                 AstroParams *astro_params, AstroOptions *astro_options);
 void initialiseSigmaMInterpTable(float M_Min, float M_Max);
 void initialise_GL(double lnM_Min, double lnM_Max);
 /*---------------------------*/

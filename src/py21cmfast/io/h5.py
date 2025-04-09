@@ -14,10 +14,10 @@ structure::
         /attrs/
           |-- 21cmFAST-version
           |-- random_seed
-        /matter_params/
-        /matter_flags/
+        /simulation_options/
+        /matter_options/
         /cosmo_params/
-        /astro_flags/
+        /astro_options/
         /astro_params/
         /node_redshifts/
       /OutputFields/
@@ -95,7 +95,7 @@ def write_output_to_hdf5(
 
 
 def write_input_struct(struct, fl: h5py.File | h5py.Group) -> None:
-    """Write a particular input struct (e.g. MatterParams) to an HDF5 file."""
+    """Write a particular input struct (e.g. SimulationOptions) to an HDF5 file."""
     dct = struct.asdict()
 
     for kk, v in dct.items():
@@ -135,11 +135,13 @@ def _write_inputs_to_group(
     # Write 21cmFAST version to the file
     grp.attrs["21cmFAST-version"] = __version__
 
-    write_input_struct(inputs.matter_params, grp.create_group("matter_params"))
-    write_input_struct(inputs.matter_flags, grp.create_group("matter_flags"))
+    write_input_struct(
+        inputs.simulation_options, grp.create_group("simulation_options")
+    )
+    write_input_struct(inputs.matter_options, grp.create_group("matter_options"))
     write_input_struct(inputs.cosmo_params, grp.create_group("cosmo_params"))
     write_input_struct(inputs.astro_params, grp.create_group("astro_params"))
-    write_input_struct(inputs.astro_flags, grp.create_group("astro_flags"))
+    write_input_struct(inputs.astro_options, grp.create_group("astro_options"))
 
     grp.attrs["random_seed"] = inputs.random_seed
     grp["node_redshifts"] = (
@@ -309,11 +311,11 @@ def read_inputs(
 
 def _read_inputs_pre_v4(group: h5py.Group, safe: bool = True):
     input_classes = [
-        istruct.MatterParams,
-        istruct.MatterFlags,
+        istruct.SimulationOptions,
+        istruct.MatterOptions,
         istruct.CosmoParams,
         istruct.AstroParams,
-        istruct.AstroFlags,
+        istruct.AstroOptions,
     ]
 
     old_names = [

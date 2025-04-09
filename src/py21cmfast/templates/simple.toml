@@ -2,15 +2,15 @@
 
 [CosmoParams]
 
-[MatterParams]
+[SimulationOptions]
 
-[MatterFlags]
+[MatterOptions]
 USE_HALO_FIELD = false
 HALO_STOCHASTICITY = false
 
 [AstroParams]
 
-[AstroFlags]
+[AstroOptions]
 USE_EXP_FILTER = false
 CELL_RECOMB = false
 USE_UPPER_STELLAR_TURNOVER = false
