@@ -12,7 +12,7 @@ void writeAstroOptions(AstroOptions *p);
 void writeSimulationOptions(SimulationOptions *p);
 void writeMatterOptions(MatterOptions *p);
 void writeCosmoParams(CosmoParams *p);
-void writeAstroParams(AstroOptions *fo, AstroParams *p);
+void writeAstroParams(AstroParams *p);
 
 // output debugging
 void debugSummarizeIC(InitialConditions *x, int HII_DIM, int DIM, float NCF);

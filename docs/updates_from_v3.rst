@@ -70,7 +70,7 @@ and the ``write`` keyword argument to specify a ``CacheConfig``, or simple boole
 or off caching entirely. For examples on using the cache, see :ref:`tutorials/caching`.
 
 Single Field Function Names
-==============
+===========================
 Functions dealing with the generation of single fields have changed somewhat, a full list is provided below
 in the order which they are called in ``run_lightcone``:
 - :func:`py21cmfast.compute_initial_conditions`
@@ -82,3 +82,18 @@ in the order which they are called in ``run_lightcone``:
 - :func:`py21cmfast.compute_spin_temperature`
 - :func:`py21cmfast.compute_ionization_field`
 - :func:`py21cmfast.brightness_temperature`
+
+Stochastic Halo Sampling
+========================
+The main addition the ``21cmFAST`` in version 4 is the stochastic halo sampler. This samples conditional halo mass
+functions instead of integrating over them, producing a discrete source field which is then used in the spin
+temperature and ionization field calculations. This not only includes the effects of stochasticity in the IGM
+observables, but also creates several new outputs which can be further used in forecasting galaxy survey,
+line intensity mapping, and cosmic background statistics. The sampler is activated with the flag ``HALO_STOCHASTICITY``
+and serves as a faster replacement to the previous excursion-set halo finder, with greatly increased functionality.
+Halos are sampled in a backward time-loop in each run before the main IGM calculations start.
+Halo catlogues can be found in the :class:`HaloField` (Initial Lagrangian) and :class:`PerturbHaloField`
+(Final Eulerian) classes. Each catalogue contains the coordinates and masses of each halo, as well as the
+correlated RNG used to determine their galaxy properties. Converting from the RNG to the properties can be done with
+:func:`py21cmfast.wrapper.cfuncs.convert_halo_properties`. Galaxy properties are not directly stored in these objects
+for efficiency and so we can correctly account for feedback in the forward time-loop.

@@ -24,10 +24,7 @@ import questionary as qs
 from powerbox import get_power
 
 from py21cmfast import (
-    AstroOptions,
-    AstroParams,
-    CosmoParams,
-    InitialConditions,
+    CacheConfig,
     InputParameters,
     SimulationOptions,
     compute_initial_conditions,
@@ -48,7 +45,7 @@ SEED = 12345
 DATA_PATH = Path(__file__).parent / "test_data"
 
 # These defaults are overwritten by the OPTIONS kwargs
-DEFAULT_simulation_options = {
+DEFAULT_SIMULATION_OPTIONS = {
     "HII_DIM": 50,
     "DIM": 150,
     "BOX_LEN": 100,
@@ -56,23 +53,24 @@ DEFAULT_simulation_options = {
     "ZPRIME_STEP_FACTOR": 1.04,
 }
 
-DEFAULT_matter_options = {
+DEFAULT_MATTER_OPTIONS = {
     "USE_HALO_FIELD": False,
     "NO_RNG": True,
     "HALO_STOCHASTICITY": False,
 }
 
-DEFAULT_astro_options = {
+DEFAULT_ASTRO_OPTIONS = {
     "USE_EXP_FILTER": False,
     "CELL_RECOMB": False,
     "USE_TS_FLUCT": False,
+    "INHOMO_RECO": False,
     "USE_UPPER_STELLAR_TURNOVER": False,
     "USE_MASS_DEPENDENT_ZETA": False,
 }
 
 LIGHTCONE_FIELDS = [
     "density",
-    "velocity",
+    "velocity_z",
     "Ts_box",
     "Gamma12_box",
     "dNrec_box",
@@ -127,7 +125,7 @@ OPTIONS = {
             "USE_MASS_DEPENDENT_ZETA": True,
             "PHOTON_CONS_TYPE": "z-photoncons",
             "Z_HEAT_MAX": 25,
-            "zprime_step_factor": "z-photoncons",
+            "zprime_step_factor": 1.1,
         },
     ],
     "mdz_and_ts_fluct": [
@@ -198,7 +196,7 @@ OPTIONS = {
             "Z_HEAT_MAX": 25,
             "zprime_step_factor": 1.2,
             "NUM_FILTER_STEPS_FOR_Ts": 4,
-            "USE_INTERPOLATION_TABLES": False,
+            "USE_INTERPOLATION_TABLES": "no-interpolation",
         },
     ],
     "ts_fluct_no_tables": [
@@ -209,7 +207,7 @@ OPTIONS = {
             "Z_HEAT_MAX": 25,
             "zprime_step_factor": 1.2,
             "NUM_FILTER_STEPS_FOR_Ts": 4,
-            "USE_INTERPOLATION_TABLES": False,
+            "USE_INTERPOLATION_TABLES": "no-interpolation",
         },
     ],
     "minihalos_no_tables": [
@@ -222,7 +220,7 @@ OPTIONS = {
             "Z_HEAT_MAX": 25,
             "zprime_step_factor": 1.1,
             "NUM_FILTER_STEPS_FOR_Ts": 4,
-            "USE_INTERPOLATION_TABLES": False,
+            "USE_INTERPOLATION_TABLES": "no-interpolation",
         },
     ],
     "fast_fcoll_hiz": [
@@ -230,7 +228,7 @@ OPTIONS = {
         {
             "N_THREADS": 4,
             "INTEGRATION_METHOD_MINI": "GAMMA-APPROX",
-            "USE_INTERPOLATION_TABLES": True,
+            "USE_INTERPOLATION_TABLES": "hmf-interpolation",
         },
     ],
     "fast_fcoll_lowz": [
@@ -238,7 +236,7 @@ OPTIONS = {
         {
             "N_THREADS": 4,
             "INTEGRATION_METHOD_MINI": "GAMMA-APPROX",
-            "USE_INTERPOLATION_TABLES": True,
+            "USE_INTERPOLATION_TABLES": "hmf-interpolation",
         },
     ],
     "relvel": [
@@ -249,7 +247,7 @@ OPTIONS = {
             "zprime_step_factor": 1.1,
             "N_THREADS": 4,
             "NUM_FILTER_STEPS_FOR_Ts": 8,
-            "USE_INTERPOLATION_TABLES": True,
+            "USE_INTERPOLATION_TABLES": "hmf-interpolation",
             "INTEGRATION_METHOD_MINI": "GAMMA-APPROX",
             "USE_RELATIVE_VELOCITIES": True,
         },
@@ -304,13 +302,13 @@ def get_node_z(redshift, lc=False, **kwargs):
             min_redshift=redshift,
             max_redshift=kwargs.get(
                 "Z_HEAT_MAX",
-                DEFAULT_simulation_options.get(
+                DEFAULT_SIMULATION_OPTIONS.get(
                     "Z_HEAT_MAX", SimulationOptions.new().Z_HEAT_MAX
                 ),
             ),
             z_step_factor=kwargs.get(
                 "ZPRIME_STEP_FACTOR",
-                DEFAULT_simulation_options.get(
+                DEFAULT_SIMULATION_OPTIONS.get(
                     "ZPRIME_STEP_FACTOR", SimulationOptions.new().ZPRIME_STEP_FACTOR
                 ),
             ),
@@ -326,9 +324,9 @@ def get_all_options_struct(redshift, lc=False, **kwargs):
         random_seed=SEED,
     ).evolve_input_structs(
         **{
-            **DEFAULT_matter_options,
-            **DEFAULT_simulation_options,
-            **DEFAULT_astro_options,
+            **DEFAULT_MATTER_OPTIONS,
+            **DEFAULT_SIMULATION_OPTIONS,
+            **DEFAULT_ASTRO_OPTIONS,
             **kwargs,
         }
     )
@@ -345,7 +343,7 @@ def produce_coeval_power_spectra(redshift, **kwargs):
     print(options)
     print("------------------------")
 
-    coeval = run_coeval(write=write_ics_only_hook, **options)
+    [coeval] = run_coeval(write=False, **options)
     p = {}
 
     for field in COEVAL_FIELDS:
@@ -358,7 +356,7 @@ def produce_coeval_power_spectra(redshift, **kwargs):
 
 
 def produce_lc_power_spectra(redshift, **kwargs):
-    options = get_all_options_struct(redshift, lc=True, **kwargs)
+    options = get_all_options_struct(redshift, lc=False, **kwargs)
     print("----- OPTIONS USED -----")
     print(options)
     print("------------------------")
@@ -380,31 +378,30 @@ def produce_lc_power_spectra(redshift, **kwargs):
         )
     )
 
+    quantities = LIGHTCONE_FIELDS[:]
+    if not astro_options.USE_TS_FLUCT:
+        [quantities.remove(k) for k in {"Ts_box", "x_e_box", "Tk_box"}]
+    if not astro_options.USE_MINI_HALOS:
+        quantities.remove("J_21_LW_box")
+
     lcn = RectilinearLightconer.with_equal_cdist_slices(
         min_redshift=redshift,
         max_redshift=max_redshift,
-        quantities=[
-            k
-            for k in LIGHTCONE_FIELDS
-            if (
-                astro_options.USE_TS_FLUCT
-                or k not in ("Ts_box", "x_e_box", "Tk_box", "J_21_LW_box")
-            )
-        ],
+        quantities=quantities,
         resolution=options["inputs"].simulation_options.cell_size,
     )
 
     _, _, _, lightcone = run_lightcone(
         lightconer=lcn,
-        write=write_ics_only_hook,
+        write=False,
         **options,
     )
 
     p = {}
     for field in LIGHTCONE_FIELDS:
-        if hasattr(lightcone, field):
+        if field in lightcone.lightcones:
             p[field], k = get_power(
-                getattr(lightcone, field),
+                lightcone.lightcones[field],
                 boxlength=lightcone.lightcone_dimensions,
             )
 
@@ -413,24 +410,25 @@ def produce_lc_power_spectra(redshift, **kwargs):
 
 def produce_perturb_field_data(redshift, **kwargs):
     options = get_all_options_struct(redshift, **kwargs)
+    del options["out_redshifts"]
 
     velocity_normalisation = 1e16
 
     with config.use(regenerate=True, write=False):
         init_box = compute_initial_conditions(**options)
-        pt_box = perturb_field(redshift=redshift, init_boxes=init_box)
+        pt_box = perturb_field(redshift=redshift, initial_conditions=init_box)
 
     p_dens, k_dens = get_power(
-        pt_box.density,
-        boxlength=options["simulation_options"]["BOX_LEN"],
+        pt_box.get("density"),
+        boxlength=options["inputs"].simulation_options.BOX_LEN,
     )
     p_vel, k_vel = get_power(
-        pt_box.velocity * velocity_normalisation,
-        boxlength=options["simulation_options"]["BOX_LEN"],
+        pt_box.get("velocity_z") * velocity_normalisation,
+        boxlength=options["inputs"].simulation_options.BOX_LEN,
     )
 
     def hist(kind, xmin, xmax, nbins):
-        data = getattr(pt_box, kind)
+        data = pt_box.get(kind)
         if kind == "velocity":
             data = velocity_normalisation * data
 
@@ -448,7 +446,7 @@ def produce_perturb_field_data(redshift, **kwargs):
         return X, Y
 
     X_dens, Y_dens = hist("density", -0.8, 2.0, 50)
-    X_vel, Y_vel = hist("velocity", -2, 2, 50)
+    X_vel, Y_vel = hist("velocity_z", -2, 2, 50)
 
     return k_dens, p_dens, k_vel, p_vel, X_dens, Y_dens, X_vel, Y_vel, init_box
 
@@ -479,11 +477,6 @@ def get_old_filename(redshift, kind, **kwargs):
     fname = f"{kind}_z{redshift:.2f}_{string}.h5"
 
     return DATA_PATH / fname
-
-
-def write_ics_only_hook(obj, **params):
-    if isinstance(obj, InitialConditions):
-        obj.write(**params)
 
 
 def produce_power_spectra_for_tests(name, redshift, force, direc, **kwargs):
