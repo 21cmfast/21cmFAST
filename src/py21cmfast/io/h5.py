@@ -297,56 +297,12 @@ def read_inputs(
             stacklevel=2,
         )
 
-    if file_version is None:
-        # pre-v4 file
-        out = _read_inputs_pre_v4(group, safe=safe)
-    else:
-        out = _read_inputs_v4(group, safe=safe)
+    out = _read_inputs_v4(group, safe=safe)
 
     if close_after:
         file.close()
 
     return out
-
-
-def _read_inputs_pre_v4(group: h5py.Group, safe: bool = True):
-    warnings.warn(
-        "You are loading a file from a previous iteration of 21cmFAST"
-        "With different parameter structures, If using this for further"
-        "computation, carefully check the input parameter structure beforehand",
-        stacklevel=2,
-    )
-    input_classes = [
-        istruct.SimulationOptions,
-        istruct.MatterOptions,
-        istruct.CosmoParams,
-        istruct.AstroParams,
-        istruct.AstroOptions,
-    ]
-
-    old_names = [
-        "user_params",
-        "cosmo_params",
-        "astro_params",
-        "flag_options",
-        "global_params",
-    ]
-
-    # Read the input parameter dictionaries from file.
-    # Since the parameter structures have been reorganised it will likely fail
-    # if safe==True. We will simply look for matching keywords in *ALL* of our
-    # parameter fields.
-    kwargs = {"random_seed": group.attrs["random_seed"]}
-    param_dict = {}
-    # make a big dict of all the keywords
-    for kfile in old_names:
-        subgrp = group[kfile]
-        dct = dict(subgrp.attrs)
-        param_dict = {**param_dict, **dct}
-    # look for keywords in each input class
-    for kls in input_classes:
-        kwargs[kfile] = kls.from_subdict(param_dict, safe=safe)
-    return InputParameters(**kwargs)
 
 
 def _read_inputs_v4(group: h5py.Group, safe: bool = True):
@@ -379,14 +335,11 @@ def _read_outputs(group: h5py.Group):
             f"File created with a newer version of 21cmFAST than this. Reading may break. Consider updating 21cmFAST to at least {file_version}",
             stacklevel=2,
         )
-    if file_version is None:
-        # pre-v4 file
-        return _read_outputs_pre_v4(group)
     else:
         return _read_outputs_v4(group)
 
 
-def _read_outputs_pre_v4(group: h5py.Group):
+def _read_outputs_v4(group: h5py.Group):
     arrays = {
         name: Array(
             dtype=box.dtype,
@@ -403,8 +356,3 @@ def _read_outputs_pre_v4(group: h5py.Group):
         arrays[k] = val
 
     return arrays
-
-
-def _read_outputs_v4(group: h5py.Group):
-    # I actually think the reader is the same in v4.
-    return _read_outputs_pre_v4(group)

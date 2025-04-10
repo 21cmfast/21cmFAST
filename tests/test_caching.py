@@ -265,20 +265,3 @@ class TestOutputCache:
             assert f is not f2
 
         assert not cache.find_existing(ib2)
-
-    def test_read_pre_v4(self):
-        """Test old-style parameter loading."""
-        with pytest.warns(
-            UserWarning,
-            match="You are loading a file from a previous iteration of 21cmFAST",
-        ):
-            v3_field = h5.read_output_struct(
-                Path(__file__).parent / "test_data" / "test_v3_box.h5"
-            )
-
-        # make sure it read in an object
-        assert isinstance(v3_field, IonizedBox)
-        # make sure it read data into the arrays
-        assert not np.all(v3_field.get("xH_box") == 0)
-        # make sure that it got *some* inputs correct
-        assert v3_field.inputs.simulation_options.BOX_LEN == 64

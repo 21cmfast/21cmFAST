@@ -69,6 +69,42 @@ and ``RunCache`` for specifying all the outputs needed to complete a run with gi
 and the ``write`` keyword argument to specify a ``CacheConfig``, or simple boolean if one wants to turn on
 or off caching entirely. For examples on using the cache, see :ref:`tutorials/caching`.
 
+Backwards compatibility
+-----------------------
+Unfortunately, we do not currently provide functions for loading output files from v3 into our structures.
+Since the parameter structures have changed too much. If a user wishes to access their old data, they may
+still do so using ``h5py`` or any HDF5 reader. We do not recommend using these in further computation using
+``21cmFASTv4``.
+
+The File structure for a coeval in v3 resembled the following:
+- File
+  - OutputStruct_1
+    - Array Fields...
+  - OutputStruct_2
+    - Array Fields
+  -...
+  - cosmo_params
+    - attrs
+      - Param fields...
+  - user_params
+    - ...
+  - astro_params
+  - flag_options
+  - _globals
+
+In v4 we use the following:
+- File
+  - OutputStruct_1
+    - OutputFields
+      - Array Fields...
+    - InputParameters
+      - cosmo_params
+      - simulation_options
+      - matter_options
+      - astro_params
+      - astro_options
+  - ...
+
 Single Field Function Names
 ===========================
 Functions dealing with the generation of single fields have changed somewhat, a full list is provided below
