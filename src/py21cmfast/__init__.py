@@ -21,6 +21,7 @@ from os import path
 from . import cache_tools, inputs, lightcones, outputs, plotting, wrapper
 from ._cfg import config
 from ._logging import configure_logging
+from ._memory import print_memory_estimate
 from .cache_tools import query_cache
 from .lightcones import AngularLightconer, RectilinearLightconer
 from .outputs import (
