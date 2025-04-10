@@ -151,14 +151,14 @@ def make_lightcone_comparison_plot(
         2, n, figsize=(3 * n, 5), constrained_layout=True, sharex="col"
     )
 
-    for i, (key, val) in enumerate(true_powers.items()):
+    for i, (key, val) in enumerate(test_powers.items()):
         make_comparison_plot(
-            true_k, k, val, test_powers[key], ax[:, i], xlab="k", ylab=f"{key} Power"
+            true_k, k, true_powers[key], val, ax[:, i], xlab="k", ylab=f"{key} Power"
         )
 
-    for j, (key, val) in enumerate(true_global.items(), start=i + 1):
+    for j, (key, val) in enumerate(test_global.items(), start=i + 1):
         make_comparison_plot(
-            z, z, val, test_global[key], ax[:, j], xlab="z", ylab=f"{key}"
+            z, z, true_global[key], val, ax[:, j], xlab="z", ylab=f"{key}"
         )
 
 
@@ -171,9 +171,9 @@ def make_coeval_comparison_plot(true_k, k, true_powers, test_powers, plt):
         constrained_layout=True,
     )
 
-    for i, (key, val) in enumerate(true_powers.items()):
+    for i, (key, val) in enumerate(test_powers.items()):
         make_comparison_plot(
-            true_k, k, val, test_powers[key], ax[:, i], xlab="k", ylab=f"{key} Power"
+            true_k, k, true_powers[key], val, ax[:, i], xlab="k", ylab=f"{key} Power"
         )
 
 

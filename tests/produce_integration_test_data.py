@@ -125,7 +125,7 @@ OPTIONS = {
             "USE_MASS_DEPENDENT_ZETA": True,
             "PHOTON_CONS_TYPE": "z-photoncons",
             "Z_HEAT_MAX": 25,
-            "zprime_step_factor": "z-photoncons",
+            "zprime_step_factor": 1.1,
         },
     ],
     "mdz_and_ts_fluct": [
@@ -378,17 +378,16 @@ def produce_lc_power_spectra(redshift, **kwargs):
         )
     )
 
+    quantities = LIGHTCONE_FIELDS[:]
+    if not astro_options.USE_TS_FLUCT:
+        [quantities.remove(k) for k in {"Ts_box", "x_e_box", "Tk_box"}]
+    if not astro_options.USE_MINI_HALOS:
+        quantities.remove("J_21_LW_box")
+
     lcn = RectilinearLightconer.with_equal_cdist_slices(
         min_redshift=redshift,
         max_redshift=max_redshift,
-        quantities=[
-            k
-            for k in LIGHTCONE_FIELDS
-            if (
-                astro_options.USE_TS_FLUCT
-                or k not in ("Ts_box", "x_e_box", "Tk_box", "J_21_LW_box")
-            )
-        ],
+        quantities=quantities,
         resolution=options["inputs"].simulation_options.cell_size,
     )
 

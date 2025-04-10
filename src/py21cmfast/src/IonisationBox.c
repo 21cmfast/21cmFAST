@@ -139,8 +139,8 @@ void set_ionbox_constants(double redshift, double prev_redshift, struct IonBoxCo
     set_scaling_constants(redshift, &sc, true);
     consts->scale_consts = sc;
 
-    // TODO: Figure out why we have the 1e15 here
-    consts->fabs_dtdz = fabs(dtdz(redshift)) / 1e15;  // reduce to have good precision
+    // recombination_rate returns in units (1e15s)^-1
+    consts->fabs_dtdz = fabs(dtdz(redshift)) / 1e15;
     consts->growth_factor = dicke(redshift);
     consts->prev_growth_factor = dicke(prev_redshift);
 
@@ -210,9 +210,11 @@ void set_ionbox_constants(double redshift, double prev_redshift, struct IonBoxCo
             RHOcrit * cosmo_params_global->OMb;  // TODO: double-check these unit differences,
                                                  // HaloBox.halo_wsfr vs Nion_General units
     else
-        consts->gamma_prefactor /= sc.t_h / sc.t_star;
+        consts->gamma_prefactor = consts->gamma_prefactor / (sc.t_h * sc.t_star);
+
     consts->gamma_prefactor_mini =
         consts->gamma_prefactor * consts->ion_eff_factor_mini / consts->ion_eff_factor;
+
     LOG_SUPER_DEBUG("Gamma Prefactor %.3e ion eff factor %.3e", consts->gamma_prefactor,
                     consts->ion_eff_factor);
     LOG_SUPER_DEBUG("Mini Gamma %.3e Mini ion %.3e", consts->gamma_prefactor_mini,
