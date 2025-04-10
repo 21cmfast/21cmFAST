@@ -14,6 +14,7 @@ import h5py
 import numpy as np
 
 from .. import __version__
+from .._cfg import config
 from ..c_21cmfast import lib
 from ..io import h5
 from ..io.caching import CacheConfig, OutputCache, RunCache
@@ -393,7 +394,7 @@ def generate_coeval(
         list of such objects, one for each redshift in ``out_redshifts``.
     """
     if cache is None:
-        cache = OutputCache(".")
+        cache = OutputCache(config["direc"])
 
     if isinstance(write, bool):
         write = CacheConfig() if write else CacheConfig.off()

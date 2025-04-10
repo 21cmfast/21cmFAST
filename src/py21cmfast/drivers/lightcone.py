@@ -16,6 +16,7 @@ from astropy.cosmology import z_at_value
 from cosmotile import apply_rsds
 
 from .. import __version__
+from .._cfg import config
 from ..c_21cmfast import lib
 from ..io import h5
 from ..io.caching import CacheConfig, OutputCache, RunCache
@@ -37,7 +38,7 @@ logger = logging.getLogger(__name__)
 
 
 _cache = CacheConfig()
-_ocache = OutputCache(".")
+_ocache = OutputCache(config["direc"])
 
 
 @attrs.define()
