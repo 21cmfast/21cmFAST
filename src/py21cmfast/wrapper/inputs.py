@@ -1303,6 +1303,22 @@ class InputParameters:
                     raise ValueError(
                         "USE_EXP_FILTER is not compatible with USE_HALO_FIELD == False"
                     )
+            if self.matter_options.HMF not in ["PS", "ST"]:
+                warnings.warn(
+                    "A selection of a mass function other than Press-Schechter or Sheth-Tormen will"
+                    "Result in the use of the EPS conditional mass function, normalised the unconditional"
+                    "mass function provided by the user as matter_options.HMF",
+                    stacklevel=2,
+                )
+            elif (
+                val.INTEGRATION_METHOD_ATOMIC == "GAMMA-APPROX"
+                or val.INTEGRATION_METHOD_ATOMIC == "GAMMA-APPROX"
+            ) and self.matter_options.HMF != 0:
+                warnings.warn(
+                    "The 'GAMMA-APPROX' integration method uses the EPS conditional mass function"
+                    "normalised to the unconditional mass function provided by the user as matter_options.HMF",
+                    stacklevel=2,
+                )
 
     @astro_params.validator
     def _astro_params_validator(self, att, val):
