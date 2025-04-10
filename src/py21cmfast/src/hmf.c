@@ -644,9 +644,8 @@ double MFIntegral_Approx(double lnM_lo, double lnM_hi, struct parameters_gsl_MF_
     double index_base;
 
     if (params.HMF != 0) {
-        LOG_ERROR("Approximate Fcoll is currently only implemented for EPS");
-        LOG_ERROR("Ensure parameter input specifically to this function has HMF==0");
-        Throw(TableGenerationError);
+        LOG_WARNING("Approximate Fcoll is currently only implemented for EPS");
+        LOG_WARNING("Ensure parameter input specifically to this function has HMF==0");
     }
     if (abs(params.gamma_type) > 4) {
         LOG_ERROR("Approximate Fcoll only works for single power-law scaling relations");
