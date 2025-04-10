@@ -1280,7 +1280,7 @@ int ComputeIonizedBox(float redshift, float prev_redshift, PerturbedField *pertu
         writeSimulationOptions(simulation_options_global);
         writeMatterOptions(matter_options_global);
         writeCosmoParams(cosmo_params_global);
-        writeAstroParams(astro_options_global, astro_params_global);
+        writeAstroParams(astro_params_global);
         writeAstroOptions(astro_options_global);
 #endif
 

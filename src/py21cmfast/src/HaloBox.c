@@ -730,7 +730,7 @@ int ComputeHaloBox(double redshift, InitialConditions *ini_boxes, PerturbedField
 #if LOG_LEVEL >= SUPER_DEBUG_LEVEL
         writeSimulationOptions(simulation_options_global);
         writeCosmoParams(cosmo_params_global);
-        writeAstroParams(astro_options_global, astro_params_global);
+        writeAstroParams(astro_params_global);
         writeAstroOptions(astro_options_global);
 #endif
 

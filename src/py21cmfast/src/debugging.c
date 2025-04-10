@@ -148,9 +148,9 @@ void writeAstroParams(AstroParams *p) {
         "\n     Const-z  AstroParams:\n"
         "       HII_EFF_FACTOR=%10.3e\n"
         "       ION_Tvir_MIN=%10.3e\n"
-        "       X_RAY_Tvir_MIN=%10.3e\n" p->HII_EFF_FACTOR,
-        p->ION_Tvir_MIN, p->X_RAY_Tvir_MIN, p->R_BUBBLE_MAX, p->L_X, p->NU_X_THRESH,
-        p->X_RAY_SPEC_INDEX, p->F_STAR10, p->t_STAR, p->N_RSD_STEPS);
+        "       X_RAY_Tvir_MIN=%10.3e\n",
+        p->HII_EFF_FACTOR, p->ION_Tvir_MIN, p->X_RAY_Tvir_MIN, p->R_BUBBLE_MAX, p->L_X,
+        p->NU_X_THRESH, p->X_RAY_SPEC_INDEX, p->F_STAR10, p->t_STAR, p->N_RSD_STEPS);
 }
 
 void writeAstroOptions(AstroOptions *p) {
@@ -172,7 +172,7 @@ void writeAstroOptions(AstroOptions *p) {
         "       PHOTON_CONS_TYPE=%2d\n"
         "       USE_UPPER_STELLAR_TURNOVER=%1d\n",
         p->USE_MINI_HALOS, p->USE_MASS_DEPENDENT_ZETA, p->SUBCELL_RSD, p->INHOMO_RECO,
-        p->USE_TS_FLUCT, p->M_MIN_in_Mass, p->USE_EXP_FILTER, p->USE_EXP_FILTER, p->USE_CMB_HEATING,
+        p->USE_TS_FLUCT, p->M_MIN_in_Mass, p->USE_EXP_FILTER, p->USE_CMB_HEATING,
         p->USE_LYA_HEATING, p->APPLY_RSDS, p->FIX_VCB_AVG, p->CELL_RECOMB, p->PHOTON_CONS_TYPE,
         p->USE_UPPER_STELLAR_TURNOVER);
 }

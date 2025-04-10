@@ -93,7 +93,7 @@ int ComputeTsBox(float redshift, float prev_redshift, float perturbed_field_reds
 #if LOG_LEVEL >= SUPER_DEBUG_LEVEL
         writeSimulationOptions(simulation_options_global);
         writeCosmoParams(cosmo_params_global);
-        writeAstroParams(astro_options_global, astro_params_global);
+        writeAstroParams(astro_params_global);
         writeAstroOptions(astro_options_global);
 #endif
 
