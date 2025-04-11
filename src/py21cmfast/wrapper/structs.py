@@ -57,20 +57,30 @@ class StructWrapper:
         This instantiates the memory associated with the C struct, attached to this inst.
         """
         self.__attrs_init__(*args)
+        if args[0] == "InitialConditions":
+            self._cobj = lib.InitialConditions
+        else:
+            raise NotImplementedError(
+                "Wrapped class {args[0]} not listed as an option in StructWrapper."
+            )
         self.cstruct = self._new()
 
     def _new(self):
         """Return a new empty C structure corresponding to this class."""
         # WIP: CFFI Refactor
         # return self._ffi.new(f"struct {self._name}*")
-        raise NotImplementedError
+        return self._cobj()
 
     @property
     def fields(self) -> dict[str, Any]:
         """A list of fields of the underlying C struct (a list of tuples of "name, type")."""
         # WIP: CFFI Refactor
         # return dict(self._ffi.typeof(self.cstruct[0]).fields)
-        raise NotImplementedError
+        result = {}
+        for attr in dir(self._cobj):
+            if not attr.startswith("__") and not callable(getattr(self._cobj, attr)):
+                result[attr] = type(getattr(self._cobj, attr))
+        return result
 
     @property
     def fieldnames(self) -> list[str]:
@@ -80,12 +90,16 @@ class StructWrapper:
     @property
     def pointer_fields(self) -> list[str]:
         """A list of names of fields which have pointer type in the C struct."""
-        return [f for f, t in self.fields.items() if t.type.kind == "pointer"]
+        # WIP: CFFI Refactor
+        # return [f for f, t in self.fields.items() if t.type.kind == "pointer"]
+        raise NotImplementedError
 
     @property
     def primitive_fields(self) -> list[str]:
         """The list of names of fields which have primitive type in the C struct."""
-        return [f for f, t in self.fields.items() if t.type.kind == "primitive"]
+        # WIP: CFFI Refactor
+        # return [f for f, t in self.fields.items() if t.type.kind == "primitive"]
+        raise NotImplementedError
 
     def __getstate__(self):
         """Return the current state of the class without pointers."""
@@ -1275,15 +1289,12 @@ class StructInstanceWrapper:
         #   this instead to return a list of members
         for attr in dir(self._cobj):
             if not attr.startswith("__") and not callable(getattr(self._cobj, attr)):
-                print("CCC:", attr, getattr(self._cobj, attr))
                 setattr(self, attr, getattr(self._cobj, attr))
 
         # Get the name of the structure
         # WIP: CFFI Refactor
         # self._ctype = self._ffi.typeof(self._cobj).cname.split()[-1]
         self._ctype = type(self._cobj).__name__
-
-        print("WWWWWWWWWWW:", self)
 
     def __setattr__(self, name, value):
         """Set an attribute of the instance, attempting to change it in the C struct as well."""
