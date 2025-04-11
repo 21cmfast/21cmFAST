@@ -51,6 +51,7 @@ DEFAULT_SIMULATION_OPTIONS = {
     "BOX_LEN": 100,
     "SAMPLER_MIN_MASS": 1e9,
     "ZPRIME_STEP_FACTOR": 1.04,
+    "M_MIN_in_mass": False,
 }
 
 DEFAULT_MATTER_OPTIONS = {
@@ -66,6 +67,12 @@ DEFAULT_ASTRO_OPTIONS = {
     "INHOMO_RECO": False,
     "USE_UPPER_STELLAR_TURNOVER": False,
     "USE_MASS_DEPENDENT_ZETA": False,
+}
+
+DEFAULT_ASTRO_PARAMS = {
+    "L_X": 40.0,
+    "L_X_MINI": 40.0,
+    "F_STAR7_MINI": -2.0,
 }
 
 LIGHTCONE_FIELDS = [
@@ -97,9 +104,9 @@ OPTIONS = {
         {"ZPRIME_STEP_FACTOR": 1.05, "Z_HEAT_MAX": 25, "HMF": "PS"},
     ],
     "interp_perturb_field": [16, {"interp_perturb_field": True}],
-    "mdzeta": [14, {"USE_MASS_DEPENDENT_ZETA": True}],
+    "mdzeta": [14, {"USE_MASS_DEPENDENT_ZETA": True, "M_MIN_in_mass": True}],
     "rsd": [9, {"SUBCELL_RSD": True}],
-    "inhomo": [10, {"INHOMO_RECO": True}],
+    "inhomo": [10, {"INHOMO_RECO": True, "R_BUBBLE_MAX": 50.0}],
     "tsfluct": [16, {"HMF": "WATSON-Z", "USE_TS_FLUCT": True}],
     "mmin_in_mass": [20, {"Z_HEAT_MAX": 45, "M_MIN_in_Mass": True, "HMF": "WATSON"}],
     "fftw_wisdom": [35, {"USE_FFTW_WISDOM": True}],
@@ -109,12 +116,15 @@ OPTIONS = {
             "Z_HEAT_MAX": 25,
             "USE_MINI_HALOS": True,
             "USE_MASS_DEPENDENT_ZETA": True,
+            "M_MIN_in_mass": True,
             "INHOMO_RECO": True,
             "USE_TS_FLUCT": True,
             "ZPRIME_STEP_FACTOR": 1.1,
             "N_THREADS": 4,
             "USE_FFTW_WISDOM": True,
             "NUM_FILTER_STEPS_FOR_Ts": 8,
+            "M_TURN": 5.0,
+            "R_BUBBLE_MAX": 50.0,
         },
     ],
     "nthreads": [8, {"N_THREADS": 2}],
@@ -123,6 +133,7 @@ OPTIONS = {
         8.5,
         {
             "USE_MASS_DEPENDENT_ZETA": True,
+            "M_MIN_in_mass": True,
             "PHOTON_CONS_TYPE": "z-photoncons",
             "Z_HEAT_MAX": 25,
             "ZPRIME_STEP_FACTOR": 1.1,
@@ -132,23 +143,27 @@ OPTIONS = {
         9,
         {
             "USE_MASS_DEPENDENT_ZETA": True,
+            "M_MIN_in_mass": True,
             "USE_TS_FLUCT": True,
             "INHOMO_RECO": True,
             "PHOTON_CONS_TYPE": "z-photoncons",
             "Z_HEAT_MAX": 25,
             "ZPRIME_STEP_FACTOR": 1.1,
+            "R_BUBBLE_MAX": 50.0,
         },
     ],
     "minimize_mem": [
         9,
         {
             "USE_MASS_DEPENDENT_ZETA": True,
+            "M_MIN_in_mass": True,
             "USE_TS_FLUCT": True,
             "INHOMO_RECO": True,
             "PHOTON_CONS_TYPE": "z-photoncons",
             "Z_HEAT_MAX": 25,
             "ZPRIME_STEP_FACTOR": 1.1,
             "MINIMIZE_MEMORY": True,
+            "R_BUBBLE_MAX": 50.0,
         },
     ],
     "mdz_and_tsfluct_nthreads": [
@@ -157,11 +172,13 @@ OPTIONS = {
             "N_THREADS": 2,
             "USE_FFTW_WISDOM": True,
             "USE_MASS_DEPENDENT_ZETA": True,
+            "M_MIN_in_mass": True,
             "INHOMO_RECO": True,
             "USE_TS_FLUCT": True,
             "PHOTON_CONS_TYPE": "z-photoncons",
             "Z_HEAT_MAX": 25,
             "ZPRIME_STEP_FACTOR": 1.1,
+            "R_BUBBLE_MAX": 50.0,
         },
     ],
     "halo_field": [9, {"USE_HALO_FIELD": True}],
@@ -169,6 +186,7 @@ OPTIONS = {
         8.5,
         {
             "USE_MASS_DEPENDENT_ZETA": True,
+            "M_MIN_in_mass": True,
             "USE_HALO_FIELD": True,
             "USE_TS_FLUCT": True,
             "Z_HEAT_MAX": 25,
@@ -179,6 +197,7 @@ OPTIONS = {
         8.5,
         {
             "USE_MASS_DEPENDENT_ZETA": True,
+            "M_MIN_in_mass": True,
             "USE_HALO_FIELD": True,
             "PERTURB_ON_HIGH_RES": True,
             "N_THREADS": 4,
@@ -190,6 +209,7 @@ OPTIONS = {
         12.0,
         {
             "USE_MASS_DEPENDENT_ZETA": True,
+            "M_MIN_in_mass": True,
             "USE_TS_FLUCT": True,
             "PERTURB_ON_HIGH_RES": False,
             "N_THREADS": 4,
@@ -215,12 +235,15 @@ OPTIONS = {
         {
             "USE_MINI_HALOS": True,
             "USE_MASS_DEPENDENT_ZETA": True,
+            "M_MIN_in_mass": True,
             "USE_TS_FLUCT": True,
+            "INHOMO_RECO": True,
             "N_THREADS": 4,
             "Z_HEAT_MAX": 25,
             "ZPRIME_STEP_FACTOR": 1.1,
             "NUM_FILTER_STEPS_FOR_Ts": 4,
             "USE_INTERPOLATION_TABLES": "no-interpolation",
+            "M_TURN": 5.0,
         },
     ],
     "fast_fcoll_hiz": [
@@ -244,12 +267,17 @@ OPTIONS = {
         {
             "Z_HEAT_MAX": 25,
             "USE_MINI_HALOS": True,
+            "USE_MASS_DEPENDENT_ZETA": True,
+            "M_MIN_in_mass": True,
+            "INHOMO_RECO": True,
+            "USE_TS_FLUCT": True,
             "ZPRIME_STEP_FACTOR": 1.1,
             "N_THREADS": 4,
             "NUM_FILTER_STEPS_FOR_Ts": 8,
             "USE_INTERPOLATION_TABLES": "hmf-interpolation",
             "INTEGRATION_METHOD_MINI": "GAMMA-APPROX",
             "USE_RELATIVE_VELOCITIES": True,
+            "M_TURN": 5.0,
         },
     ],
     "lyman_alpha_heating": [
@@ -266,6 +294,7 @@ OPTIONS = {
             "USE_HALO_FIELD": True,
             "HALO_STOCHASTICITY": True,
             "USE_MASS_DEPENDENT_ZETA": True,
+            "M_MIN_in_mass": True,
         },
     ],
 }
@@ -327,6 +356,7 @@ def get_all_options_struct(redshift, lc=False, **kwargs):
             **DEFAULT_MATTER_OPTIONS,
             **DEFAULT_SIMULATION_OPTIONS,
             **DEFAULT_ASTRO_OPTIONS,
+            **DEFAULT_ASTRO_PARAMS,
             **kwargs,
         }
     )
