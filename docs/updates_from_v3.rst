@@ -133,3 +133,7 @@ Halo catlogues can be found in the :class:`HaloField` (Initial Lagrangian) and :
 correlated RNG used to determine their galaxy properties. Converting from the RNG to the properties can be done with
 :func:`py21cmfast.wrapper.cfuncs.convert_halo_properties`. Galaxy properties are not directly stored in these objects
 for efficiency and so we can correctly account for feedback in the forward time-loop.
+
+The conditional mass functions used to perform integrals have been extended with the Sheth-Tormen CHMF (Sheth+2002)
+which has been applied to ``21cmFAST`` in both halo and grid based source models, when the user sets ``HMF=='ST'``.
+All other mass functions rescale the Extended Press-Schechter (EPS) conditional mass function.
