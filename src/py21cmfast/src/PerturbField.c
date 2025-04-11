@@ -27,8 +27,8 @@ void compute_perturbed_velocities(unsigned short axis, fftwf_complex *HIRES_dens
                                   int dimension, int switch_mid, float f_pixel_factor,
                                   float *velocity) {
     float k_x, k_y, k_z, k_sq;
-    unsigned long long int n_x, n_y, n_z;
-    unsigned long long int i, j, k;
+    int n_x, n_y, n_z;
+    int i, j, k;
 
     float kvec[3];
 
