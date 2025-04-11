@@ -46,7 +46,7 @@ def trace_print():
 NITER = 50
 
 init = initial_conditions(
-    user_params={"HII_DIM": 50, "BOX_LEN": 125.0}, regenerate=True
+    matter_params={"HII_DIM": 50, "BOX_LEN": 125.0}, regenerate=True
 )
 perturb = (
     perturb_field(redshift=7, init_boxes=init),

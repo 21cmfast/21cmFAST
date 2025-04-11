@@ -33,76 +33,72 @@ void print_sc_consts(struct ScalingConstants *c) {
     return;
 }
 
-void set_scaling_constants(double redshift, AstroParams *astro_params, FlagOptions *flag_options,
-                           struct ScalingConstants *consts, bool use_photoncons) {
+void set_scaling_constants(double redshift, struct ScalingConstants *consts, bool use_photoncons) {
     consts->redshift = redshift;
 
     // Set on for the fixed grid case since we are missing halos above the cell mass
-    consts->fix_mean = flag_options->FIXED_HALO_GRIDS;
+    consts->fix_mean = matter_options_global->FIXED_HALO_GRIDS;
     // whether to fix *integrated* (not sampled) galaxy properties to the expected mean
-    consts->scaling_median = flag_options->HALO_SCALING_RELATIONS_MEDIAN;
+    consts->scaling_median = astro_options_global->HALO_SCALING_RELATIONS_MEDIAN;
 
-    consts->fstar_10 = astro_params->F_STAR10;
-    consts->alpha_star = astro_params->ALPHA_STAR;
-    consts->sigma_star = astro_params->SIGMA_STAR;
+    consts->fstar_10 = astro_params_global->F_STAR10;
+    consts->alpha_star = astro_params_global->ALPHA_STAR;
+    consts->sigma_star = astro_params_global->SIGMA_STAR;
 
-    consts->alpha_upper = astro_params->UPPER_STELLAR_TURNOVER_INDEX;
-    consts->pivot_upper = astro_params->UPPER_STELLAR_TURNOVER_MASS;
+    consts->alpha_upper = astro_params_global->UPPER_STELLAR_TURNOVER_INDEX;
+    consts->pivot_upper = astro_params_global->UPPER_STELLAR_TURNOVER_MASS;
     consts->upper_pivot_ratio = pow(consts->pivot_upper / 1e10, consts->alpha_star) +
                                 pow(consts->pivot_upper / 1e10, consts->alpha_upper);
 
-    consts->fstar_7 = astro_params->F_STAR7_MINI;
-    consts->alpha_star_mini = astro_params->ALPHA_STAR_MINI;
+    consts->fstar_7 = astro_params_global->F_STAR7_MINI;
+    consts->alpha_star_mini = astro_params_global->ALPHA_STAR_MINI;
 
     consts->t_h = t_hubble(redshift);
-    consts->t_star = astro_params->t_STAR;
-    consts->sigma_sfr_lim = astro_params->SIGMA_SFR_LIM;
-    consts->sigma_sfr_idx = astro_params->SIGMA_SFR_INDEX;
+    consts->t_star = astro_params_global->t_STAR;
+    consts->sigma_sfr_lim = astro_params_global->SIGMA_SFR_LIM;
+    consts->sigma_sfr_idx = astro_params_global->SIGMA_SFR_INDEX;
     // setting units to 1e38 erg s -1 so we can store in float
-    consts->l_x = astro_params->L_X * 1e-38;
-    consts->l_x_mini = astro_params->L_X_MINI * 1e-38;
-    consts->sigma_xray = astro_params->SIGMA_LX;
+    consts->l_x = astro_params_global->L_X * 1e-38;
+    consts->l_x_mini = astro_params_global->L_X_MINI * 1e-38;
+    consts->sigma_xray = astro_params_global->SIGMA_LX;
 
-    consts->alpha_esc = astro_params->ALPHA_ESC;
-    consts->fesc_10 = astro_params->F_ESC10;
-    consts->fesc_7 = astro_params->F_ESC7_MINI;
+    consts->alpha_esc = astro_params_global->ALPHA_ESC;
+    consts->fesc_10 = astro_params_global->F_ESC10;
+    consts->fesc_7 = astro_params_global->F_ESC7_MINI;
 
     if (use_photoncons) {
-        if (flag_options->PHOTON_CONS_TYPE == 2)
+        if (astro_options_global->PHOTON_CONS_TYPE == 2)
             consts->alpha_esc = get_fesc_fit(redshift);
-        else if (flag_options->PHOTON_CONS_TYPE == 3)
+        else if (astro_options_global->PHOTON_CONS_TYPE == 3)
             consts->fesc_10 = get_fesc_fit(redshift);
     }
 
-    consts->pop2_ion = astro_params->POP2_ION;
-    consts->pop3_ion = astro_params->POP3_ION;
+    consts->pop2_ion = astro_params_global->POP2_ION;
+    consts->pop3_ion = astro_params_global->POP3_ION;
 
     consts->acg_thresh = atomic_cooling_threshold(redshift);
-    consts->mturn_a_nofb = astro_params->M_TURN;
-    if (flag_options->USE_MINI_HALOS)
+    consts->mturn_a_nofb = astro_params_global->M_TURN;
+    if (astro_options_global->USE_MINI_HALOS)
         consts->mturn_a_nofb = fmax(consts->acg_thresh, consts->mturn_a_nofb);
 
     consts->mturn_m_nofb = 0.;
-    if (flag_options->USE_MINI_HALOS) {
-        consts->vcb_norel = flag_options->FIX_VCB_AVG ? astro_params->FIXED_VAVG : 0;
-        consts->mturn_m_nofb =
-            lyman_werner_threshold(redshift, 0., consts->vcb_norel, astro_params);
+    if (astro_options_global->USE_MINI_HALOS) {
+        consts->vcb_norel = astro_options_global->FIX_VCB_AVG ? astro_params_global->FIXED_VAVG : 0;
+        consts->mturn_m_nofb = lyman_werner_threshold(redshift, 0., consts->vcb_norel);
     }
 
-    if (flag_options->FIXED_HALO_GRIDS || user_params_global->AVG_BELOW_SAMPLER) {
-        consts->Mlim_Fstar = Mass_limit_bisection(M_MIN_INTEGRAL, M_MAX_INTEGRAL,
-                                                  consts->alpha_star, consts->fstar_10);
-        consts->Mlim_Fesc = Mass_limit_bisection(M_MIN_INTEGRAL, M_MAX_INTEGRAL, consts->alpha_esc,
-                                                 consts->fesc_10);
+    consts->Mlim_Fstar =
+        Mass_limit_bisection(M_MIN_INTEGRAL, M_MAX_INTEGRAL, consts->alpha_star, consts->fstar_10);
+    consts->Mlim_Fesc =
+        Mass_limit_bisection(M_MIN_INTEGRAL, M_MAX_INTEGRAL, consts->alpha_esc, consts->fesc_10);
 
-        if (flag_options->USE_MINI_HALOS) {
-            consts->Mlim_Fstar_mini =
-                Mass_limit_bisection(M_MIN_INTEGRAL, M_MAX_INTEGRAL, consts->alpha_star_mini,
-                                     consts->fstar_7 * pow(1e3, consts->alpha_star_mini));
-            consts->Mlim_Fesc_mini =
-                Mass_limit_bisection(M_MIN_INTEGRAL, M_MAX_INTEGRAL, consts->alpha_esc,
-                                     consts->fesc_7 * pow(1e3, consts->alpha_esc));
-        }
+    if (astro_options_global->USE_MINI_HALOS) {
+        consts->Mlim_Fstar_mini =
+            Mass_limit_bisection(M_MIN_INTEGRAL, M_MAX_INTEGRAL, consts->alpha_star_mini,
+                                 consts->fstar_7 * pow(1e3, consts->alpha_star_mini));
+        consts->Mlim_Fesc_mini =
+            Mass_limit_bisection(M_MIN_INTEGRAL, M_MAX_INTEGRAL, consts->alpha_esc,
+                                 consts->fesc_7 * pow(1e3, consts->alpha_esc));
     }
 }
 
@@ -120,8 +116,6 @@ struct ScalingConstants evolve_scaling_constants_sfr(struct ScalingConstants *sc
 
 // It's often useful to create a copy of scaling relations at a different z
 struct ScalingConstants evolve_scaling_constants_to_redshift(double redshift,
-                                                             AstroParams *astro_params,
-                                                             FlagOptions *flag_options,
                                                              struct ScalingConstants *sc,
                                                              bool use_photoncons) {
     struct ScalingConstants sc_z = *sc;
@@ -129,20 +123,21 @@ struct ScalingConstants evolve_scaling_constants_to_redshift(double redshift,
     sc_z.t_h = t_hubble(redshift);
 
     if (use_photoncons) {
-        if (flag_options->PHOTON_CONS_TYPE == 2)
+        if (astro_options_global->PHOTON_CONS_TYPE == 2)
             sc_z.alpha_esc = get_fesc_fit(redshift);
-        else if (flag_options->PHOTON_CONS_TYPE == 3)
+        else if (astro_options_global->PHOTON_CONS_TYPE == 3)
             sc_z.fesc_10 = get_fesc_fit(redshift);
     }
 
     sc_z.acg_thresh = atomic_cooling_threshold(redshift);
-    sc_z.mturn_a_nofb = astro_params->M_TURN;
-    if (flag_options->USE_MINI_HALOS) sc_z.mturn_a_nofb = fmax(sc_z.acg_thresh, sc_z.mturn_a_nofb);
+    sc_z.mturn_a_nofb = astro_params_global->M_TURN;
+    if (astro_options_global->USE_MINI_HALOS)
+        sc_z.mturn_a_nofb = fmax(sc_z.acg_thresh, sc_z.mturn_a_nofb);
 
     sc_z.mturn_m_nofb = 0.;
-    if (flag_options->USE_MINI_HALOS) {
-        sc_z.vcb_norel = flag_options->FIX_VCB_AVG ? astro_params->FIXED_VAVG : 0;
-        sc_z.mturn_m_nofb = lyman_werner_threshold(redshift, 0., sc_z.vcb_norel, astro_params);
+    if (astro_options_global->USE_MINI_HALOS) {
+        sc_z.vcb_norel = astro_options_global->FIX_VCB_AVG ? astro_params_global->FIXED_VAVG : 0;
+        sc_z.mturn_m_nofb = lyman_werner_threshold(redshift, 0., sc_z.vcb_norel);
     }
 
     return sc_z;
@@ -236,7 +231,8 @@ double lx_on_sfr_doublePL(double metallicity, double lx_constant) {
 // here the constant defines the value at 1 Zsun and 1 Msun yr-1
 double lx_on_sfr_PL_Kaur(double sfr, double metallicity, double lx_constant) {
     // Hardcoded for now (except the lx normalisation and the scatter): 3 extra fit parameters in
-    // the equation taking values from Kaur+22, constant factors controlled by astro_params->L_X
+    // the equation taking values from Kaur+22, constant factors controlled by
+    // astro_params_global->L_X
     double sfr_index = 0.03;
     double z_index = -0.64;
     double cross_index = 0.0;
@@ -250,7 +246,8 @@ double lx_on_sfr_PL_Kaur(double sfr, double metallicity, double lx_constant) {
 // Here the constant defines the value minus 1 at the turnover Z
 double lx_on_sfr_Schechter(double metallicity, double lx_constant) {
     // Hardcoded for now (except the lx normalisation and the scatter): 3 extra fit parameters in
-    // the equation taking values from Kaur+22, constant factors controlled by astro_params->L_X
+    // the equation taking values from Kaur+22, constant factors controlled by
+    // astro_params_global->L_X
     double z_turn = 8e-3 / 0.02;  // convert to solar
     double logz_index = 0.3;
     double l10z = log10(metallicity / z_turn);
@@ -265,7 +262,7 @@ double get_lx_on_sfr(double sfr, double metallicity, double lx_constant) {
     //  return lx_on_sfr_Schechter(metallicity, lx_constant);
     //  return lx_on_sfr_PL_Kaur(sfr,metallicity, lx_constant);
     // HACK: new/old model switch with upperstellar flag
-    if (flag_options_global->USE_UPPER_STELLAR_TURNOVER)
+    if (astro_options_global->USE_UPPER_STELLAR_TURNOVER)
         return lx_on_sfr_doublePL(metallicity, lx_constant);
     return lx_constant;
 }
@@ -295,7 +292,7 @@ void get_halo_stellarmass(double halo_mass, double mturn_acg, double mturn_mcg, 
     double stoc_adjustment_term = consts->scaling_median ? 0 : sigma_star * sigma_star / 2.;
 
     // We don't want an upturn even with a negative ALPHA_STAR
-    if (flag_options_global->USE_UPPER_STELLAR_TURNOVER && (f_a > fu_a)) {
+    if (astro_options_global->USE_UPPER_STELLAR_TURNOVER && (f_a > fu_a)) {
         fstar_mean = scaling_double_PL(halo_mass, f_a, consts->upper_pivot_ratio, fu_a, fu_p);
     } else {
         fstar_mean = scaling_single_PL(halo_mass, consts->alpha_star, 1e10);  // PL term
@@ -308,7 +305,7 @@ void get_halo_stellarmass(double halo_mass, double mturn_acg, double mturn_mcg, 
     sm_sample = f_sample * halo_mass * baryon_ratio;
     *star_acg = sm_sample;
 
-    if (!flag_options_global->USE_MINI_HALOS) {
+    if (!astro_options_global->USE_MINI_HALOS) {
         *star_mcg = 0.;
         return;
     }
@@ -346,7 +343,7 @@ void get_halo_sfr(double stellar_mass, double stellar_mass_mini, double sfr_rng,
     sfr_sample = sfr_mean * exp(sfr_rng * sigma_sfr - stoc_adjustment_term);
     *sfr = sfr_sample;
 
-    if (!flag_options_global->USE_MINI_HALOS) {
+    if (!astro_options_global->USE_MINI_HALOS) {
         *sfr_mini = 0.;
         return;
     }
@@ -389,7 +386,7 @@ void get_halo_xray(double sfr, double sfr_mini, double metallicity, double xray_
     double lx_over_sfr = get_lx_on_sfr(sfr, metallicity, consts->l_x);
     double xray = lx_over_sfr * (sfr * SperYR) * rng_factor;
 
-    if (flag_options_global->USE_MINI_HALOS) {
+    if (astro_options_global->USE_MINI_HALOS) {
         // Since there *are* some SFR-dependent
         // models, this is done separately
         lx_over_sfr = get_lx_on_sfr(sfr_mini, metallicity, consts->l_x_mini);

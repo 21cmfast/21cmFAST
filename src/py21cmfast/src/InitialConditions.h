@@ -7,7 +7,6 @@
 #include "InputParameters.h"
 #include "OutputStructs.h"
 
-int ComputeInitialConditions(unsigned long long random_seed, UserParams *user_params,
-                             CosmoParams *cosmo_params, InitialConditions *boxes);
+int ComputeInitialConditions(unsigned long long random_seed, InitialConditions *boxes);
 
 #endif

@@ -24,8 +24,6 @@ class Config(dict):
 
     _defaults: ClassVar = {
         "direc": "~/21cmFAST-cache",
-        "cache_param_sigfigs": 6,
-        "cache_redshift_sigfigs": 4,
         "ignore_R_BUBBLE_MAX_error": False,
         "external_table_path": DATA_PATH,
         "HALO_CATALOG_MEM_FACTOR": 1.2,

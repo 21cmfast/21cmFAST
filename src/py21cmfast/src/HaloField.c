@@ -29,47 +29,42 @@
 #include "interp_tables.h"
 #include "logger.h"
 
-int check_halo(char *in_halo, UserParams *user_params, float R, int x, int y, int z,
-               int check_type);
+int check_halo(char *in_halo, float R, int x, int y, int z, int check_type);
 void init_halo_coords(HaloField *halos, long long unsigned int n_halos);
 int pixel_in_halo(int grid_dim, int z_dim, int x, int x_index, int y, int y_index, int z,
                   int z_index, float Rsq_curr_index);
 void free_halo_field(HaloField *halos);
 
-int ComputeHaloField(float redshift_desc, float redshift, UserParams *user_params,
-                     CosmoParams *cosmo_params, AstroParams *astro_params,
-                     FlagOptions *flag_options, InitialConditions *boxes,
+int ComputeHaloField(float redshift_desc, float redshift, InitialConditions *boxes,
                      unsigned long long int random_seed, HaloField *halos_desc, HaloField *halos) {
     int status;
 
     Try {  // This Try brackets the whole function, so we don't indent.
 
         // This happens if we are updating a halo field (no need to redo big halos)
-        if (flag_options->HALO_STOCHASTICITY && redshift_desc > 0) {
+        if (matter_options_global->HALO_STOCHASTICITY && redshift_desc > 0) {
             LOG_DEBUG("Halo sampling switched on, bypassing halo finder to update %llu halos...",
                       halos_desc->n_halos);
             // this would hold the two boxes used in the halo sampler, but here we are taking the
             // sample from a catalogue so we define a dummy here
             float *dummy_box = NULL;
-            stochastic_halofield(user_params, cosmo_params, astro_params, flag_options, random_seed,
-                                 redshift_desc, redshift, dummy_box, dummy_box, halos_desc, halos);
+            stochastic_halofield(random_seed, redshift_desc, redshift, dummy_box, dummy_box,
+                                 halos_desc, halos);
             return 0;
         }
 
         LOG_DEBUG("input value:");
         LOG_DEBUG("redshift=%f", redshift);
 #if LOG_LEVEL >= SUPER_DEBUG_LEVEL
-        writeUserParams(user_params);
-        writeCosmoParams(cosmo_params);
-        writeAstroParams(flag_options, astro_params);
-        writeFlagOptions(flag_options);
+        writeSimulationOptions(simulation_options_global);
+        writeMatterOptions(matter_options_global);
+        writeCosmoParams(cosmo_params_global);
 #endif
 
         // Makes the parameter structs visible to a variety of functions/macros
         // Do each time to avoid Python garbage collection issues
-        Broadcast_struct_global_all(user_params, cosmo_params, astro_params, flag_options);
 
-        omp_set_num_threads(user_params->N_THREADS);
+        omp_set_num_threads(simulation_options_global->N_THREADS);
 
         fftwf_complex *density_field, *density_field_saved;
 
@@ -87,17 +82,17 @@ int ComputeHaloField(float redshift_desc, float redshift, UserParams *user_param
         growth_factor = dicke(redshift);  // normalized to 1 at z=0
 
         // store highly used parameters
-        int grid_dim = user_params->DIM;
+        int grid_dim = simulation_options_global->DIM;
         int z_dim = D_PARA;
 
         // set minimum source mass
-        M_MIN = minimum_source_mass(redshift, false, astro_params, flag_options);
         // if we use the sampler we want to stop at the HII cell mass
-        if (flag_options->HALO_STOCHASTICITY)
-            M_MIN = fmax(M_MIN, RtoM(L_FACTOR * user_params->BOX_LEN / user_params->HII_DIM));
+        if (matter_options_global->HALO_STOCHASTICITY)
+            M_MIN = fmax(M_MIN, RtoM(L_FACTOR * simulation_options_global->BOX_LEN /
+                                     simulation_options_global->HII_DIM));
         // otherwise we stop at the cell mass
         else
-            M_MIN = fmax(M_MIN, RtoM(L_FACTOR * user_params->BOX_LEN / grid_dim));
+            M_MIN = fmax(M_MIN, RtoM(L_FACTOR * simulation_options_global->BOX_LEN / grid_dim));
 
         // allocate array for the k-space box
         density_field = (fftwf_complex *)fftwf_malloc(sizeof(fftwf_complex) * KSPACE_NUM_PIXELS);
@@ -110,29 +105,30 @@ int ComputeHaloField(float redshift_desc, float redshift, UserParams *user_param
         // initialize
         memset(in_halo, 0, sizeof(char) * TOT_NUM_PIXELS);
 
-        if (user_params->DEXM_OPTIMIZE) {
+        if (matter_options_global->DEXM_OPTIMIZE) {
             forbidden = (char *)calloc(TOT_NUM_PIXELS, sizeof(char));
         }
 
         // Unused variables, for future threading
-        //  unsigned long long int nhalo_threads[user_params->N_THREADS];
-        //  unsigned long long int istart_threads[user_params->N_THREADS];
+        //  unsigned long long int nhalo_threads[simulation_options_global->N_THREADS];
+        //  unsigned long long int istart_threads[simulation_options_global->N_THREADS];
         //  //expected TOTAL halos in box from minimum source mass
 
         // unsigned long long int arraysize_total = halos->buffer_size;
-        // unsigned long long int arraysize_local = arraysize_total / user_params->N_THREADS;
+        // unsigned long long int arraysize_local = arraysize_total /
+        // simulation_options_global->N_THREADS;
 
 #if LOG_LEVEL >= DEBUG_LEVEL
         initialiseSigmaMInterpTable(M_MIN, M_MAX_INTEGRAL);
         double nhalo_debug = Nhalo_General(redshift, log(M_MIN), log(M_MAX_INTEGRAL)) * VOLUME *
-                             cosmo_params->OMm * RHOcrit;
+                             cosmo_params_global->OMm * RHOcrit;
         // expected halos above minimum filter mass
         LOG_DEBUG("DexM: We expect %.2f Halos between Masses [%.2e,%.2e] D %.3e", nhalo_debug,
                   M_MIN, M_MAX_INTEGRAL, growth_factor);
 #endif
 
 #pragma omp parallel shared(boxes, density_field) private(i, j, k) \
-    num_threads(user_params -> N_THREADS)
+    num_threads(simulation_options_global -> N_THREADS)
         {
 #pragma omp for
             for (i = 0; i < grid_dim; i++) {
@@ -145,8 +141,8 @@ int ComputeHaloField(float redshift_desc, float redshift, UserParams *user_param
             }
         }
 
-        dft_r2c_cube(user_params->USE_FFTW_WISDOM, grid_dim, z_dim, user_params->N_THREADS,
-                     density_field);
+        dft_r2c_cube(matter_options_global->USE_FFTW_WISDOM, grid_dim, z_dim,
+                     simulation_options_global->N_THREADS, density_field);
 
         // save a copy of the k-space density field
         memcpy(density_field_saved, density_field, sizeof(fftwf_complex) * KSPACE_NUM_PIXELS);
@@ -157,17 +153,18 @@ int ComputeHaloField(float redshift_desc, float redshift, UserParams *user_param
 
         // lets filter it now
         // set initial R value
-        Delta_R = L_FACTOR * 2. * user_params->BOX_LEN / (grid_dim + 0.0);
+        Delta_R = L_FACTOR * 2. * simulation_options_global->BOX_LEN / (grid_dim + 0.0);
 
         total_halo_num = 0;
         R = MtoR(M_MIN * 1.01);  // one percent higher for rounding
 
         LOG_DEBUG("Prepare to filter to find halos");
 
-        while (R < L_FACTOR * user_params->BOX_LEN) R *= user_params->DELTA_R_FACTOR;
+        while (R < L_FACTOR * simulation_options_global->BOX_LEN)
+            R *= simulation_options_global->DELTA_R_FACTOR;
 
         HaloField *halos_dexm;
-        if (flag_options->HALO_STOCHASTICITY) {
+        if (matter_options_global->HALO_STOCHASTICITY) {
             // To save memory, we allocate the smaller (large mass) halofield here instead of using
             // halos_desc
             halos_dexm = malloc(sizeof(HaloField));
@@ -196,7 +193,7 @@ int ComputeHaloField(float redshift_desc, float redshift, UserParams *user_param
             // al 05)
             if ((sigma_z0(M) * growth_factor * 7.) < delta_crit) {
                 LOG_SUPER_DEBUG("Haloes too rare for M = %e! Skipping...", M);
-                R /= user_params->DELTA_R_FACTOR;
+                R /= simulation_options_global->DELTA_R_FACTOR;
                 continue;
             }
 
@@ -204,23 +201,23 @@ int ComputeHaloField(float redshift_desc, float redshift, UserParams *user_param
 
             // now filter the box on scale R
             // 0 = top hat in real space, 1 = top hat in k space
-            filter_box(density_field, 0, user_params->HALO_FILTER, R, 0.);
+            filter_box(density_field, 0, matter_options_global->HALO_FILTER, R, 0.);
 
             // do the FFT to get delta_m box
-            dft_c2r_cube(user_params->USE_FFTW_WISDOM, grid_dim, z_dim, user_params->N_THREADS,
-                         density_field);
+            dft_c2r_cube(matter_options_global->USE_FFTW_WISDOM, grid_dim, z_dim,
+                         simulation_options_global->N_THREADS, density_field);
 
             // *****************  BEGIN OPTIMIZATION ***************** //
             // to optimize speed, if the filter size is large (switch to collapse fraction criteria
             // later)
-            if (user_params->DEXM_OPTIMIZE) {
-                if (M > user_params->DEXM_OPTIMIZE_MINMASS) {
+            if (matter_options_global->DEXM_OPTIMIZE) {
+                if (M > simulation_options_global->DEXM_OPTIMIZE_MINMASS) {
                     memset(forbidden, 0, sizeof(char) * TOT_NUM_PIXELS);
                     // now go through the list of existing halos and paint on the no-go region onto
                     // <forbidden>
 
 #pragma omp parallel shared(forbidden, R) private(x, y, z, R_temp) \
-    num_threads(user_params -> N_THREADS)
+    num_threads(simulation_options_global -> N_THREADS)
                     {
                         float halo_buf;
 #pragma omp for
@@ -230,9 +227,10 @@ int ComputeHaloField(float redshift_desc, float redshift, UserParams *user_param
                                     halo_buf = halo_field[R_INDEX(x, y, z)];
                                     if (halo_buf > 0.) {
                                         R_temp = MtoR(halo_buf);
-                                        check_halo(forbidden, user_params,
-                                                   R_temp + user_params->DEXM_R_OVERLAP * R, x, y,
-                                                   z, 2);
+                                        check_halo(
+                                            forbidden,
+                                            R_temp + simulation_options_global->DEXM_R_OVERLAP * R,
+                                            x, y, z, 2);
                                     }
                                 }
                             }
@@ -257,13 +255,14 @@ int ComputeHaloField(float redshift_desc, float redshift, UserParams *user_param
                                   TOT_NUM_PIXELS;
                         // if not within a larger halo, and radii don't overlap, update in_halo box
                         // *****************  BEGIN OPTIMIZATION ***************** //
-                        if (user_params->DEXM_OPTIMIZE &&
-                            (M > user_params->DEXM_OPTIMIZE_MINMASS)) {
+                        if (matter_options_global->DEXM_OPTIMIZE &&
+                            (M > simulation_options_global->DEXM_OPTIMIZE_MINMASS)) {
                             if ((delta_m > delta_crit) && !forbidden[R_INDEX(x, y, z)]) {
-                                check_halo(in_halo, user_params, R, x, y, z,
+                                check_halo(in_halo, R, x, y, z,
                                            2);  // flag the pixels contained within this halo
-                                check_halo(forbidden, user_params,
-                                           (1. + user_params->DEXM_R_OVERLAP) * R, x, y, z,
+                                check_halo(forbidden,
+                                           (1. + simulation_options_global->DEXM_R_OVERLAP) * R, x,
+                                           y, z,
                                            2);  // flag the pixels contained within this halo
 
                                 halo_field[R_INDEX(x, y, z)] = M;
@@ -275,10 +274,10 @@ int ComputeHaloField(float redshift_desc, float redshift, UserParams *user_param
                         else {
                             if ((delta_m > delta_crit)) {
                                 if (!in_halo[R_INDEX(x, y, z)]) {
-                                    if (!check_halo(in_halo, user_params, R, x, y, z,
+                                    if (!check_halo(in_halo, R, x, y, z,
                                                     1)) {  // we found us a "new" halo!
                                         check_halo(
-                                            in_halo, user_params, R, x, y, z,
+                                            in_halo, R, x, y, z,
                                             2);  // flag the pixels contained within this halo
 
                                         halo_field[R_INDEX(x, y, z)] = M;
@@ -295,14 +294,14 @@ int ComputeHaloField(float redshift_desc, float redshift, UserParams *user_param
             LOG_SUPER_DEBUG("n_halo = %llu, total = %llu , D = %.3f, delcrit = %.3f", r_halo_num,
                             total_halo_num, growth_factor, delta_crit);
 
-            R /= user_params->DELTA_R_FACTOR;
+            R /= simulation_options_global->DELTA_R_FACTOR;
         }
 
         LOG_DEBUG("Obtained %llu halo masses and positions, now saving to HaloField struct.",
                   total_halo_num);
 
         // Allocate the Halo Mass and Coordinate Fields (non-wrapper structure)
-        if (flag_options->HALO_STOCHASTICITY)
+        if (matter_options_global->HALO_STOCHASTICITY)
             init_halo_coords(halos_dexm, total_halo_num);
         else
             halos_dexm->n_halos = total_halo_num;
@@ -332,13 +331,13 @@ int ComputeHaloField(float redshift_desc, float redshift, UserParams *user_param
         add_properties_cat(random_seed, redshift, halos_dexm);
         LOG_DEBUG("Found %llu DexM halos", halos_dexm->n_halos);
 
-        if (flag_options->HALO_STOCHASTICITY) {
+        if (matter_options_global->HALO_STOCHASTICITY) {
             LOG_DEBUG("Finding halos below grid resolution %.3e", M_MIN);
             // First we construct a grid which corresponds to how much of a HII_DIM cell is covered
             // by halos
             //   This is used in the sampler
             // we don't need the density field anymore so we reuse it
-#pragma omp parallel private(i, j, k) num_threads(user_params->N_THREADS)
+#pragma omp parallel private(i, j, k) num_threads(simulation_options_global->N_THREADS)
             {
 #pragma omp for
                 for (i = 0; i < grid_dim; i++) {
@@ -351,24 +350,27 @@ int ComputeHaloField(float redshift_desc, float redshift, UserParams *user_param
                 }
             }
 
-            dft_r2c_cube(user_params->USE_FFTW_WISDOM, grid_dim, z_dim, user_params->N_THREADS,
-                         density_field);
-            if (user_params->DIM != user_params->HII_DIM) {
+            dft_r2c_cube(matter_options_global->USE_FFTW_WISDOM, grid_dim, z_dim,
+                         simulation_options_global->N_THREADS, density_field);
+            if (simulation_options_global->DIM != simulation_options_global->HII_DIM) {
                 // the tophat filter here will smoothe the grid to HII_DIM
                 filter_box(density_field, 0, 0,
-                           L_FACTOR * user_params->BOX_LEN / (user_params->HII_DIM + 0.0), 0.);
+                           L_FACTOR * simulation_options_global->BOX_LEN /
+                               (simulation_options_global->HII_DIM + 0.0),
+                           0.);
             }
-            dft_c2r_cube(user_params->USE_FFTW_WISDOM, user_params->DIM, D_PARA,
-                         user_params->N_THREADS, density_field);
+            dft_c2r_cube(matter_options_global->USE_FFTW_WISDOM, simulation_options_global->DIM,
+                         D_PARA, simulation_options_global->N_THREADS, density_field);
 
             float *halo_overlap_box = calloc(HII_TOT_NUM_PIXELS, sizeof(float));
-            float f_pixel_factor = user_params->DIM / (float)user_params->HII_DIM;
+            float f_pixel_factor =
+                simulation_options_global->DIM / (float)simulation_options_global->HII_DIM;
             // Now downsample the highres grid to get the lowres version
-#pragma omp parallel private(i, j, k) num_threads(user_params->N_THREADS)
+#pragma omp parallel private(i, j, k) num_threads(simulation_options_global->N_THREADS)
             {
 #pragma omp for
-                for (i = 0; i < user_params->HII_DIM; i++) {
-                    for (j = 0; j < user_params->HII_DIM; j++) {
+                for (i = 0; i < simulation_options_global->HII_DIM; i++) {
+                    for (j = 0; j < simulation_options_global->HII_DIM; j++) {
                         for (k = 0; k < HII_D_PARA; k++) {
                             halo_overlap_box[HII_R_INDEX(i, j, k)] =
                                 *((float *)density_field +
@@ -384,9 +386,8 @@ int ComputeHaloField(float redshift_desc, float redshift, UserParams *user_param
                 }
             }
 
-            stochastic_halofield(user_params, cosmo_params, astro_params, flag_options, random_seed,
-                                 redshift_desc, redshift, boxes->lowres_density, halo_overlap_box,
-                                 halos_dexm, halos);
+            stochastic_halofield(random_seed, redshift_desc, redshift, boxes->lowres_density,
+                                 halo_overlap_box, halos_dexm, halos);
 
             // Here, halos_dexm is allocated in the C, so free it
             free_halo_field(halos_dexm);
@@ -399,7 +400,7 @@ int ComputeHaloField(float redshift_desc, float redshift, UserParams *user_param
         free(in_halo);
         free(halo_field);
 
-        if (user_params->DEXM_OPTIMIZE) {
+        if (matter_options_global->DEXM_OPTIMIZE) {
             free(forbidden);
         }
 
@@ -423,8 +424,7 @@ int ComputeHaloField(float redshift_desc, float redshift, UserParams *user_param
 
 // Function check_halo combines the original two functions overlap_halo and update_in_halo
 // from the original 21cmFAST. Lots of redundant code, hence reduced into a single function
-int check_halo(char *in_halo, UserParams *user_params, float R, int x, int y, int z,
-               int check_type) {
+int check_halo(char *in_halo, float R, int x, int y, int z, int check_type) {
     // if check_type == 1 (perform original overlap halo)
     //          Funtion OVERLAP_HALO checks if the would be halo with radius R
     //          and centered on (x,y,z) overlaps with a pre-existing halo
@@ -439,15 +439,15 @@ int check_halo(char *in_halo, UserParams *user_params, float R, int x, int y, in
 
     if (check_type == 1) {
         // scale R to a effective overlap size, using R_OVERLAP_FACTOR
-        R *= user_params_global->DEXM_R_OVERLAP;
+        R *= simulation_options_global->DEXM_R_OVERLAP;
     }
 
-    int grid_dim = user_params->DIM;
+    int grid_dim = simulation_options_global->DIM;
     int z_dim = D_PARA;
 
     // convert R to index units
-    R_index = ceil(R / user_params->BOX_LEN * grid_dim);
-    Rsq_curr_index = pow(R / user_params->BOX_LEN * grid_dim, 2);  // convert to index
+    R_index = ceil(R / simulation_options_global->BOX_LEN * grid_dim);
+    Rsq_curr_index = pow(R / simulation_options_global->BOX_LEN * grid_dim, 2);  // convert to index
 
     // set parameter range
     x_min = x - R_index;

@@ -2,16 +2,18 @@
 
 [CosmoParams]
 
-[UserParams]
+[SimulationOptions]
 HII_DIM=48
 BOX_LEN=64
+
+[MatterOptions]
+USE_HALO_FIELD = false
+HALO_STOCHASTICITY = false
 
 [AstroParams]
 R_BUBBLE_MAX = 50.0
 
-[FlagOptions]
-USE_HALO_FIELD = false
-HALO_STOCHASTICITY = false
+[AstroOptions]
 USE_EXP_FILTER = false
 CELL_RECOMB = false
 USE_UPPER_STELLAR_TURNOVER = false

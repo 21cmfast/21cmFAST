@@ -4,6 +4,8 @@ import matplotlib.pyplot as plt
 
 import py21cmfast as p21c
 
+# NOTE: This script will reproduce the JOSS paper example plots using 21cmFASTv3
+
 lightcone = p21c.run_lightcone(
     redshift=6.0,  # Minimum redshift of the lightcone
     max_redshift=30.0,

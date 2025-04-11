@@ -9,15 +9,13 @@
 // TODO: remove this global declaration and make an internal checking function
 extern bool photon_cons_allocated;
 
-int InitialisePhotonCons(UserParams *user_params, CosmoParams *cosmo_params,
-                         AstroParams *astro_params, FlagOptions *flag_options);
+int InitialisePhotonCons();
 
 int PhotonCons_Calibration(double *z_estimate, double *xH_estimate, int NSpline);
 int ComputeZstart_PhotonCons(double *zstart);
 
-void adjust_redshifts_for_photoncons(UserParams *user_params, AstroParams *astro_params,
-                                     FlagOptions *flag_options, float *redshift,
-                                     float *stored_redshift, float *absolute_delta_z);
+void adjust_redshifts_for_photoncons(double z_step_factor, float *redshift, float *stored_redshift,
+                                     float *absolute_delta_z);
 
 void determine_deltaz_for_photoncons();
 void FreePhotonConsMemory();

@@ -7,13 +7,14 @@ from matplotlib.colors import LogNorm, Normalize
 from scipy.stats import binned_statistic as binstat
 
 from py21cmfast import (
+    AstroOptions,
     AstroParams,
     CosmoParams,
-    FlagOptions,
     PerturbHaloField,
-    UserParams,
+    SimulationOptions,
 )
 from py21cmfast.c_21cmfast import ffi, lib
+from py21cmfast.wrapper.cfuncs import broadcast_input_struct
 
 from . import produce_integration_test_data as prd
 from .test_c_interpolation_tables import print_failure_stats
@@ -93,12 +94,10 @@ def get_binned_stats(x_arr, y_arr, bins, stats):
 @pytest.mark.parametrize("R", R_PARAM_LIST)
 @pytest.mark.parametrize("filter_flag", options_filter)
 def test_filters(filter_flag, R, plt):
-    opts = prd.get_all_options(redshift=10.0)
+    opts = prd.get_all_options_struct(redshift=10.0)
 
-    up = opts["user_params"]
-    cp = opts["cosmo_params"]
-    ap = opts["astro_params"]
-    fo = opts["flag_options"]
+    inputs = opts["inputs"]
+    up = inputs.simulation_options
 
     # testing a single pixel source
     input_box_centre = np.zeros((up.HII_DIM,) * 3, dtype="f4")
@@ -112,11 +111,8 @@ def test_filters(filter_flag, R, plt):
     else:
         R_param = 0
 
+    broadcast_input_struct(inputs)
     lib.test_filter(
-        up.cstruct,
-        cp.cstruct,
-        ap.cstruct,
-        fo.cstruct,
         ffi.cast("float *", input_box_centre.ctypes.data),
         R,
         R_param,

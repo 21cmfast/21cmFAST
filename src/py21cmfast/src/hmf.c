@@ -383,7 +383,7 @@ double xray_fraction_doublePL(double lnM, void *param_struct) {
 
     // using the escape fraction variables for minihalos
     double Fstar_mini = 0.;
-    if (flag_options_global->USE_MINI_HALOS)
+    if (astro_options_global->USE_MINI_HALOS)
         Fstar_mini =
             exp(log_scaling_PL_limit(lnM, p.f_esc_norm, p.alpha_esc, 7 * LN10, p.Mlim_esc) -
                 p.Mturn_mcg / M - M / p.Mturn_upper + p.f_esc_norm);
@@ -397,7 +397,7 @@ double xray_fraction_doublePL(double lnM, void *param_struct) {
     get_halo_metallicity(sfr + sfr_mini, stars + stars_mini, p.redshift, &metallicity);
     double l_x = get_lx_on_sfr(sfr, metallicity, p.l_x_norm);
     double l_x_mini = 0.;
-    if (flag_options_global->USE_MINI_HALOS)
+    if (astro_options_global->USE_MINI_HALOS)
         l_x_mini = get_lx_on_sfr(sfr_mini, metallicity, p.l_x_norm_mini);
 
     return SperYR * (sfr * l_x + sfr_mini * l_x_mini);
@@ -642,12 +642,6 @@ double MFIntegral_Approx(double lnM_lo, double lnM_hi, struct parameters_gsl_MF_
     // variables used in the calculation
     double delta, sigma_c;
     double index_base;
-
-    if (params.HMF != 0) {
-        LOG_ERROR("Approximate Fcoll is currently only implemented for EPS");
-        LOG_ERROR("Ensure parameter input specifically to this function has HMF==0");
-        Throw(TableGenerationError);
-    }
     if (abs(params.gamma_type) > 4) {
         LOG_ERROR("Approximate Fcoll only works for single power-law scaling relations");
         LOG_ERROR("These include the following General/Conditional integration functions");
@@ -831,7 +825,7 @@ double Nhalo_General(double z, double lnM_min, double lnM_max) {
     struct parameters_gsl_MF_integrals integral_params = {
         .redshift = z,
         .growthf = dicke(z),
-        .HMF = user_params_global->HMF,
+        .HMF = matter_options_global->HMF,
         .gamma_type = 1,
     };
     return IntegratedNdM(lnM_min, lnM_max, integral_params, &u_mf_integrand, 0);
@@ -841,7 +835,7 @@ double Fcoll_General(double z, double lnM_min, double lnM_max) {
     struct parameters_gsl_MF_integrals integral_params = {
         .redshift = z,
         .growthf = dicke(z),
-        .HMF = user_params_global->HMF,
+        .HMF = matter_options_global->HMF,
         .gamma_type = 2,
     };
     return IntegratedNdM(lnM_min, lnM_max, integral_params, &u_fcoll_integrand, 0);
@@ -859,7 +853,7 @@ double Nion_General(double z, double lnM_Min, double lnM_Max, double MassTurnove
         .f_esc_norm = log(sc->fesc_10),
         .Mlim_star = log(sc->Mlim_Fstar),
         .Mlim_esc = log(sc->Mlim_Fesc),
-        .HMF = user_params_global->HMF,
+        .HMF = matter_options_global->HMF,
         .gamma_type = 3,
     };
     return IntegratedNdM(lnM_Min, lnM_Max, params, &u_nion_integrand, 0);
@@ -878,7 +872,7 @@ double Nion_General_MINI(double z, double lnM_Min, double lnM_Max, double MassTu
         .f_esc_norm = log(sc->fesc_7),
         .Mlim_star = log(sc->Mlim_Fstar_mini),
         .Mlim_esc = log(sc->Mlim_Fesc_mini),
-        .HMF = user_params_global->HMF,
+        .HMF = matter_options_global->HMF,
         .gamma_type = 4,
     };
     return IntegratedNdM(lnM_Min, lnM_Max, params, &u_nion_integrand_mini, 0);
@@ -901,7 +895,7 @@ double Xray_General(double z, double lnM_Min, double lnM_Max, double mturn_acg, 
         .f_esc_norm = log(sc->fstar_7),
         .Mlim_star = log(sc->Mlim_Fstar),
         .Mlim_esc = log(sc->Mlim_Fstar_mini),
-        .HMF = user_params_global->HMF,
+        .HMF = matter_options_global->HMF,
         .l_x_norm = sc->l_x,
         .l_x_norm_mini = sc->l_x_mini,
         .t_h = t_hubble(z),
@@ -915,7 +909,7 @@ double Nhalo_Conditional(double growthf, double lnM1, double lnM2, double lnM_co
                          double delta, int method) {
     struct parameters_gsl_MF_integrals params = {
         .growthf = growthf,
-        .HMF = user_params_global->HMF,
+        .HMF = matter_options_global->HMF,
         .sigma_cond = sigma,
         .delta = delta,
         .gamma_type = -1,
@@ -940,7 +934,7 @@ double Mcoll_Conditional(double growthf, double lnM1, double lnM2, double lnM_co
                          double delta, int method) {
     struct parameters_gsl_MF_integrals params = {
         .growthf = growthf,
-        .HMF = user_params_global->HMF,
+        .HMF = matter_options_global->HMF,
         .sigma_cond = sigma,
         .delta = delta,
         .gamma_type = -2,
@@ -971,7 +965,7 @@ double Nion_ConditionalM_MINI(double growthf, double lnM1, double lnM2, double l
         .f_esc_norm = log(sc->fesc_7),
         .Mlim_star = log(sc->Mlim_Fstar_mini),
         .Mlim_esc = log(sc->Mlim_Fesc_mini),
-        .HMF = user_params_global->HMF,
+        .HMF = matter_options_global->HMF,
         .sigma_cond = sigma2,
         .delta = delta2,
         .gamma_type = -4,
@@ -1009,7 +1003,7 @@ double Nion_ConditionalM(double growthf, double lnM1, double lnM2, double lnM_co
         .f_esc_norm = log(sc->fesc_10),
         .Mlim_star = log(sc->Mlim_Fstar),
         .Mlim_esc = log(sc->Mlim_Fesc),
-        .HMF = user_params_global->HMF,
+        .HMF = matter_options_global->HMF,
         .sigma_cond = sigma2,
         .delta = delta2,
         .gamma_type = -3,
@@ -1049,7 +1043,7 @@ double Xray_ConditionalM(double redshift, double growthf, double lnM1, double ln
         .f_esc_norm = log(sc->fstar_7),
         .Mlim_star = log(sc->Mlim_Fstar),
         .Mlim_esc = log(sc->Mlim_Fstar_mini),
-        .HMF = user_params_global->HMF,
+        .HMF = matter_options_global->HMF,
         .l_x_norm = sc->l_x,
         .l_x_norm_mini = sc->l_x_mini,
         .t_h = sc->t_h,
@@ -1209,26 +1203,25 @@ float Mass_limit_bisection(float Mmin, float Mmax, float PL, float FRAC) {
 // chosen mass by a factor of 50 NOTE: previously, with USE_MINI_HALOS, the sigma table was
 // initialised with M_MIN_INTEGRAL/50, but then all integrals perofmed
 //       from M_MIN_INTEGRAL
-double minimum_source_mass(double redshift, bool xray, AstroParams *astro_params,
-                           FlagOptions *flag_options) {
+double minimum_source_mass(double redshift, bool xray) {
     double Mmin, min_factor, mu_factor, t_vir_min;
-    if (flag_options->USE_MASS_DEPENDENT_ZETA && !flag_options->USE_MINI_HALOS)
+    if (astro_options_global->USE_MASS_DEPENDENT_ZETA && !astro_options_global->USE_MINI_HALOS)
         min_factor = 50.;  // small lower bound to cover far below the turnover
     else
         min_factor = 1.;  // sharp cutoff
 
     // automatically false if !USE_MASS_DEPENDENT_ZETA
-    if (flag_options->USE_MINI_HALOS) {
+    if (astro_options_global->USE_MINI_HALOS) {
         Mmin = M_MIN_INTEGRAL;
     }
     // automatically true if USE_MASS_DEPENDENT_ZETA
-    else if (flag_options->M_MIN_in_Mass) {
+    else if (astro_options_global->M_MIN_in_Mass) {
         // NOTE: previously this divided Mturn by 50 in spin temperature, but not in the ionised box
         //      which I think is a bug with M_MIN_in_Mass, since there is a sharp cutoff
-        Mmin = astro_params->M_TURN;
+        Mmin = astro_params_global->M_TURN;
     } else {
         // if the virial temp minimum is set below ionisation we need to set mu accordingly
-        t_vir_min = xray ? astro_params->X_RAY_Tvir_MIN : astro_params->ION_Tvir_MIN;
+        t_vir_min = xray ? astro_params_global->X_RAY_Tvir_MIN : astro_params_global->ION_Tvir_MIN;
         mu_factor = t_vir_min < 9.99999e3 ? 1.22 : 0.6;
         Mmin = TtoM(redshift, t_vir_min, mu_factor);
     }

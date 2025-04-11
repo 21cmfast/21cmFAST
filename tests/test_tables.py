@@ -1,16 +1,12 @@
 """Test initializing tables in C."""
 
-from py21cmfast import AstroParams, CosmoParams, FlagOptions, UserParams
+from py21cmfast import AstroOptions, AstroParams, CosmoParams, SimulationOptions
 from py21cmfast.c_21cmfast import lib
+from py21cmfast.wrapper.cfuncs import broadcast_input_struct
 
 
-def test_init_heat():
+def test_init_heat(default_input_struct):
     # NOTE: this is not ideal, but the tables depend on POPX_NION which is no longer global
-    lib.Broadcast_struct_global_all(
-        UserParams().cstruct,
-        CosmoParams().cstruct,
-        AstroParams().cstruct,
-        FlagOptions().cstruct,
-    )
+    broadcast_input_struct(inputs=default_input_struct)
     out = lib.init_heat()
     assert out == 0

@@ -181,7 +181,9 @@ def coeval_sliceplot(
     if kind != "brightness_temp" and "cmap" not in kwargs:
         kwargs["cmap"] = "viridis"
 
-    fig, ax = _imshow_slice(cube, extent=(0, struct.user_params.BOX_LEN) * 2, **kwargs)
+    fig, ax = _imshow_slice(
+        cube, extent=(0, struct.simulation_options.BOX_LEN) * 2, **kwargs
+    )
 
     slice_axis = kwargs.get("slice_axis", -1)
 

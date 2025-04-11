@@ -31,7 +31,7 @@ from .drivers.single_field import (
     perturb_field,
     perturb_halo_list,
 )
-from .io.caching import CacheConfig, OutputCache
+from .io.caching import CacheConfig, OutputCache, RunCache
 from .lightcones import AngularLightconer, RectilinearLightconer
 from .run_templates import create_params_from_template
 from .utils import get_all_fieldnames
@@ -41,11 +41,12 @@ from .wrapper.cfuncs import (
     construct_fftw_wisdoms,
 )
 from .wrapper.inputs import (
+    AstroOptions,
     AstroParams,
     CosmoParams,
-    FlagOptions,
     InputParameters,
-    UserParams,
+    MatterOptions,
+    SimulationOptions,
     get_logspaced_redshifts,
 )
 from .wrapper.outputs import (

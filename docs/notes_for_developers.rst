@@ -59,13 +59,13 @@ more work has to be done if the modifications add/remove input parameters or the
 structure. If any of the input structures are modified (i.e. an extra parameter
 added to it), then the corresponding class in ``py21cmfast.wrapper`` must be modified,
 usually simply to add the new parameter to the ``_defaults_`` dict with a default value.
-For instance, if a new variable ``some_param`` was added to the ``user_params`` struct
-in the ``ComputeInitialConditions`` C function, then the ``UserParams`` class in
+For instance, if a new variable ``some_param`` was added to the ``matter_params`` struct
+in the ``ComputeInitialConditions`` C function, then the ``MatterParams`` class in
 the wrapper would be modified, adding ``some_param=<default_value>`` to its ``_default_``
 dict. If the default value of the parameter is dependent on another parameter, its
 default value in this dict can be set to ``None``, and you can give it a dynamic
 definition as a Python ``@property``. For example, the ``DIM`` parameter of
-``UserParams`` is defined as::
+``MatterParams`` is defined as::
 
     @property
     def DIM(self):

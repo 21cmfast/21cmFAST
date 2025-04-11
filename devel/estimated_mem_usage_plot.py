@@ -3,10 +3,10 @@
 import matplotlib.pyplot as plt
 import numpy as np
 
-from py21cmfast import AstroParams, CosmoParams, FlagOptions, UserParams
+from py21cmfast import AstroFlags, AstroParams, CosmoParams, MatterParams
 from py21cmfast._memory import estimate_memory_lightcone
 
-user_params = UserParams(
+matter_params = MatterParams(
     {
         "HII_DIM": 250,
         "BOX_LEN": 2000.0,
@@ -20,7 +20,7 @@ user_params = UserParams(
         "FAST_FCOLL_TABLES": True,
     }
 )
-flag_options = FlagOptions(
+astro_flags = AstroFlags(
     {
         "INHOMO_RECO": True,
         "USE_MASS_DEPENDENT_ZETA": True,
@@ -36,12 +36,12 @@ h2dim = np.array(list(range(200, 1500, 100)))
 
 mems4 = []
 for h2 in range(200, 1500, 100):
-    user_params.update(HII_DIM=h2, DIM=4 * h2)
+    matter_params.update(HII_DIM=h2, DIM=4 * h2)
     mem = estimate_memory_lightcone(
         max_redshift=1420 / 50 - 1,
         redshift=1420 / 200 - 1,
-        user_params=user_params,
-        flag_options=flag_options,
+        matter_params=matter_params,
+        astro_flags=astro_flags,
         cosmo_params=CosmoParams(),
         astro_params=AstroParams(),
     )
@@ -50,12 +50,12 @@ peaks4 = np.array([m["peak_memory"] / (1024**3) for m in mems4])
 
 mems3 = []
 for h2 in range(200, 1500, 100):
-    user_params.update(HII_DIM=h2, DIM=3 * h2)
+    matter_params.update(HII_DIM=h2, DIM=3 * h2)
     mem = estimate_memory_lightcone(
         max_redshift=1420 / 50 - 1,
         redshift=1420 / 200 - 1,
-        user_params=user_params,
-        flag_options=flag_options,
+        matter_params=matter_params,
+        astro_flags=astro_flags,
         cosmo_params=CosmoParams(),
         astro_params=AstroParams(),
     )
@@ -64,12 +64,12 @@ peaks3 = np.array([m["peak_memory"] / (1024**3) for m in mems3])
 
 mems2 = []
 for h2 in range(200, 1500, 100):
-    user_params.update(HII_DIM=h2, DIM=2 * h2)
+    matter_params.update(HII_DIM=h2, DIM=2 * h2)
     mem = estimate_memory_lightcone(
         max_redshift=1420 / 50 - 1,
         redshift=1420 / 200 - 1,
-        user_params=user_params,
-        flag_options=flag_options,
+        matter_params=matter_params,
+        astro_flags=astro_flags,
         cosmo_params=CosmoParams(),
         astro_params=AstroParams(),
     )
@@ -77,12 +77,12 @@ for h2 in range(200, 1500, 100):
 peaks2 = np.array([m["peak_memory"] / (1024**3) for m in mems2])
 
 
-user_params.update(HII_DIM=1300, DIM=2600)  # what we actually did.
+matter_params.update(HII_DIM=1300, DIM=2600)  # what we actually did.
 mem = estimate_memory_lightcone(
     max_redshift=1420 / 50 - 1,
     redshift=1420 / 200 - 1,
-    user_params=user_params,
-    flag_options=flag_options,
+    matter_params=matter_params,
+    astro_flags=astro_flags,
     cosmo_params=CosmoParams(),
     astro_params=AstroParams(),
 )

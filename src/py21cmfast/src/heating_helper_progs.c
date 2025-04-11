@@ -976,7 +976,7 @@ double tauX(double nu, double x_e, double x_e_ave, double zp, double zpp,
     p.x_e_ave = x_e_ave;
     p.scale_consts = sc;
 
-    if (flag_options_global->USE_MASS_DEPENDENT_ZETA) {
+    if (astro_options_global->USE_MASS_DEPENDENT_ZETA) {
         p.ion_eff = sc->pop2_ion * sc->fstar_10 * sc->fesc_10;
     } else {
         // TODO: figure out why this isn't just HII_EFF_FACTOR
