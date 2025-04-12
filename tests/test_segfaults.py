@@ -22,7 +22,7 @@ DEFAULT_SIMULATION_OPTIONS_CTEST = {
 }
 
 OPTIONS_CTEST = {
-    "defaults": [18, {"USE_MASS_DEPENDENT_ZETA": True}],
+    "defaults": [18, {"USE_MASS_DEPENDENT_ZETA": True, "M_MIN_in_Mass": True}],
     "no-mdz": [18, {}],
     "mini": [
         18,
@@ -31,14 +31,26 @@ OPTIONS_CTEST = {
             "INHOMO_RECO": True,
             "USE_TS_FLUCT": True,
             "USE_MASS_DEPENDENT_ZETA": True,
+            "M_MIN_in_Mass": True,
         },
     ],
-    "ts": [18, {"USE_TS_FLUCT": True, "USE_MASS_DEPENDENT_ZETA": True}],
+    "ts": [
+        18,
+        {"USE_TS_FLUCT": True, "USE_MASS_DEPENDENT_ZETA": True, "M_MIN_in_Mass": True},
+    ],
     "ts_nomdz": [18, {"USE_TS_FLUCT": True}],
-    "inhomo": [18, {"INHOMO_RECO": True, "USE_MASS_DEPENDENT_ZETA": True}],
+    "inhomo": [
+        18,
+        {"INHOMO_RECO": True, "USE_MASS_DEPENDENT_ZETA": True, "M_MIN_in_Mass": True},
+    ],
     "inhomo_ts": [
         18,
-        {"INHOMO_RECO": True, "USE_TS_FLUCT": True, "USE_MASS_DEPENDENT_ZETA": True},
+        {
+            "INHOMO_RECO": True,
+            "USE_TS_FLUCT": True,
+            "USE_MASS_DEPENDENT_ZETA": True,
+            "M_MIN_in_Mass": True,
+        },
     ],
     "sampler": [
         18,
@@ -46,6 +58,7 @@ OPTIONS_CTEST = {
             "USE_HALO_FIELD": True,
             "HALO_STOCHASTICITY": True,
             "USE_MASS_DEPENDENT_ZETA": True,
+            "M_MIN_in_Mass": True,
         },
     ],
     "fixed_halogrids": [
