@@ -54,6 +54,7 @@ OPTIONS_CTEST = {
             "USE_HALO_FIELD": True,
             "FIXED_HALO_GRIDS": True,
             "USE_MASS_DEPENDENT_ZETA": True,
+            "M_MIN_in_Mass": True,
         },
     ],
     "sampler_mini": [
@@ -65,6 +66,7 @@ OPTIONS_CTEST = {
             "USE_TS_FLUCT": True,
             "INHOMO_RECO": True,
             "USE_MASS_DEPENDENT_ZETA": True,
+            "M_MIN_in_Mass": True,
         },
     ],
     "sampler_ts": [
@@ -74,6 +76,7 @@ OPTIONS_CTEST = {
             "HALO_STOCHASTICITY": True,
             "USE_TS_FLUCT": True,
             "USE_MASS_DEPENDENT_ZETA": True,
+            "M_MIN_in_Mass": True,
         },
     ],
     "sampler_ir": [
@@ -83,6 +86,7 @@ OPTIONS_CTEST = {
             "HALO_STOCHASTICITY": True,
             "INHOMO_RECO": True,
             "USE_MASS_DEPENDENT_ZETA": True,
+            "M_MIN_in_Mass": True,
         },
     ],
     "sampler_ts_ir": [
@@ -93,19 +97,32 @@ OPTIONS_CTEST = {
             "USE_TS_FLUCT": True,
             "INHOMO_RECO": True,
             "USE_MASS_DEPENDENT_ZETA": True,
+            "M_MIN_in_Mass": True,
         },
     ],
     "photoncons-z": [
         18,
-        {"PHOTON_CONS_TYPE": "z-photoncons", "USE_MASS_DEPENDENT_ZETA": True},
+        {
+            "PHOTON_CONS_TYPE": "z-photoncons",
+            "USE_MASS_DEPENDENT_ZETA": True,
+            "M_MIN_in_Mass": True,
+        },
     ],
     "photoncons-a": [
         18,
-        {"PHOTON_CONS_TYPE": "alpha-photoncons", "USE_MASS_DEPENDENT_ZETA": True},
+        {
+            "PHOTON_CONS_TYPE": "alpha-photoncons",
+            "USE_MASS_DEPENDENT_ZETA": True,
+            "M_MIN_in_Mass": True,
+        },
     ],
     "photoncons-f": [
         18,
-        {"PHOTON_CONS_TYPE": "f-photoncons", "USE_MASS_DEPENDENT_ZETA": True},
+        {
+            "PHOTON_CONS_TYPE": "f-photoncons",
+            "USE_MASS_DEPENDENT_ZETA": True,
+            "M_MIN_in_Mass": True,
+        },
     ],
     "minimize_mem": [
         18,
@@ -114,6 +131,7 @@ OPTIONS_CTEST = {
             "INHOMO_RECO": True,
             "MINIMIZE_MEMORY": True,
             "USE_MASS_DEPENDENT_ZETA": True,
+            "M_MIN_in_Mass": True,
         },
     ],
 }

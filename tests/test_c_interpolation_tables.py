@@ -32,8 +32,8 @@ OPTIONS_PS = {
 }
 
 OPTIONS_HMF = {
-    "PS": [10, {"HMF": "PS", "USE_MASS_DEPENDENT_ZETA": True}],
-    "ST": [10, {"HMF": "ST", "USE_MASS_DEPENDENT_ZETA": True}],
+    "PS": [10, {"HMF": "PS", "USE_MASS_DEPENDENT_ZETA": True, "M_MIN_in_Mass": True}],
+    "ST": [10, {"HMF": "ST", "USE_MASS_DEPENDENT_ZETA": True, "M_MIN_in_Mass": True}],
 }
 
 OPTIONS_INTMETHOD = {
