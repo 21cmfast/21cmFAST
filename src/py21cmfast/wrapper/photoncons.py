@@ -337,7 +337,7 @@ def calibrate_photon_cons(
             **kwargs,
         )
 
-        mean_nf = np.mean(ib2.get("xH_box"))
+        mean_nf = np.mean(ib2.get("neutral_fraction"))
 
         # Save mean/global quantities
         neutral_fraction_photon_cons.append(mean_nf)

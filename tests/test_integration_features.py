@@ -100,7 +100,7 @@ def test_power_spectra_lightcone(name, module_direc, plt):
     del true_powers["velocity"]
     conversion = {
         "global_brightness_temp": "brightness_temp",
-        "global_xH": "xH_box",
+        "global_xH": "neutral_fraction",
     }
     # Now compute the lightcone
     with config.use(direc=module_direc, regenerate=False, write=True):

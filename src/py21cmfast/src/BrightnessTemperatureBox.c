@@ -125,7 +125,7 @@ int ComputeBrightnessTemp(float redshift, TsBox *spin_temp, IonizedBox *ionized_
                 for (j = 0; j < simulation_options_global->HII_DIM; j++) {
                     for (k = 0; k < HII_D_PARA; k++) {
                         pixel_deltax = perturb_field->density[HII_R_INDEX(i, j, k)];
-                        pixel_x_HI = ionized_box->xH_box[HII_R_INDEX(i, j, k)];
+                        pixel_x_HI = ionized_box->neutral_fraction[HII_R_INDEX(i, j, k)];
 
                         box->brightness_temp[HII_R_INDEX(i, j, k)] =
                             const_factor * pixel_x_HI * (1 + pixel_deltax);

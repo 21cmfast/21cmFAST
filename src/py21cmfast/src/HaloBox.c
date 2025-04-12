@@ -248,9 +248,9 @@ int set_fixed_grids(double M_min, double M_max, InitialConditions *ini_boxes,
                 }
                 J21_val = Gamma12_val = zre_val = 0.;
                 if (consts->redshift < simulation_options_global->Z_HEAT_MAX) {
-                    J21_val = previous_spin_temp->J_21_LW_box[i];
-                    Gamma12_val = previous_ionize_box->Gamma12_box[i];
-                    zre_val = previous_ionize_box->z_re_box[i];
+                    J21_val = previous_spin_temp->J_21_LW[i];
+                    Gamma12_val = previous_ionize_box->ionisation_rate_G12[i];
+                    zre_val = previous_ionize_box->z_reion[i];
                 }
                 M_turn_a = consts->mturn_a_nofb;
                 M_turn_m = lyman_werner_threshold(consts->redshift, J21_val, curr_vcb);
@@ -502,9 +502,9 @@ void get_mean_log10_turnovers(InitialConditions *ini_boxes, TsBox *previous_spin
             }
             J21_val = Gamma12_val = zre_val = 0.;
             if (consts->redshift < simulation_options_global->Z_HEAT_MAX) {
-                J21_val = previous_spin_temp->J_21_LW_box[i];
-                Gamma12_val = previous_ionize_box->Gamma12_box[i];
-                zre_val = previous_ionize_box->z_re_box[i];
+                J21_val = previous_spin_temp->J_21_LW[i];
+                Gamma12_val = previous_ionize_box->ionisation_rate_G12[i];
+                zre_val = previous_ionize_box->z_reion[i];
             }
             M_turn_m = lyman_werner_threshold(consts->redshift, J21_val, curr_vcb);
             M_turn_r = reionization_feedback(consts->redshift, Gamma12_val, zre_val);
@@ -582,9 +582,9 @@ void sum_halos_onto_grid(InitialConditions *ini_boxes, TsBox *previous_spin_temp
 
                 J21_val = Gamma12_val = zre_val = 0.;
                 if (consts->redshift < simulation_options_global->Z_HEAT_MAX) {
-                    J21_val = previous_spin_temp->J_21_LW_box[i_cell];
-                    Gamma12_val = previous_ionize_box->Gamma12_box[i_cell];
-                    zre_val = previous_ionize_box->z_re_box[i_cell];
+                    J21_val = previous_spin_temp->J_21_LW[i_cell];
+                    Gamma12_val = previous_ionize_box->ionisation_rate_G12[i_cell];
+                    zre_val = previous_ionize_box->z_reion[i_cell];
                 }
 
                 M_turn_a = consts->mturn_a_nofb;

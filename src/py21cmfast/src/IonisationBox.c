@@ -349,7 +349,7 @@ void setup_first_z_prevbox(IonizedBox *previous_ionize_box, PerturbedField *prev
     int i, j, k;
     unsigned long long int ct;
 
-// z_re_box is used in all cases
+// z_reion is used in all cases
 #pragma omp parallel shared(previous_ionize_box) private(i, j, k) \
     num_threads(simulation_options_global -> N_THREADS)
     {
@@ -357,7 +357,7 @@ void setup_first_z_prevbox(IonizedBox *previous_ionize_box, PerturbedField *prev
         for (i = 0; i < simulation_options_global->HII_DIM; i++) {
             for (j = 0; j < simulation_options_global->HII_DIM; j++) {
                 for (k = 0; k < HII_D_PARA; k++) {
-                    previous_ionize_box->z_re_box[HII_R_INDEX(i, j, k)] = -1.0;
+                    previous_ionize_box->z_reion[HII_R_INDEX(i, j, k)] = -1.0;
                 }
             }
         }
@@ -395,20 +395,20 @@ void calculate_mcrit_boxes(IonizedBox *prev_ionbox, TsBox *spin_temp, InitialCon
         for (x = 0; x < simulation_options_global->HII_DIM; x++) {
             for (y = 0; y < simulation_options_global->HII_DIM; y++) {
                 for (z = 0; z < HII_D_PARA; z++) {
-                    Mcrit_RE = reionization_feedback(consts->redshift,
-                                                     prev_ionbox->Gamma12_box[HII_R_INDEX(x, y, z)],
-                                                     prev_ionbox->z_re_box[HII_R_INDEX(x, y, z)]);
+                    Mcrit_RE = reionization_feedback(
+                        consts->redshift, prev_ionbox->ionisation_rate_G12[HII_R_INDEX(x, y, z)],
+                        prev_ionbox->z_reion[HII_R_INDEX(x, y, z)]);
 
                     if (matter_options_global->USE_RELATIVE_VELOCITIES &&
                         !astro_options_global->FIX_VCB_AVG)
                         curr_vcb = ini_boxes->lowres_vcb[HII_R_INDEX(x, y, z)];
 
                     Mcrit_LW = lyman_werner_threshold(
-                        consts->redshift, spin_temp->J_21_LW_box[HII_R_INDEX(x, y, z)], curr_vcb);
+                        consts->redshift, spin_temp->J_21_LW[HII_R_INDEX(x, y, z)], curr_vcb);
                     if (Mcrit_LW != Mcrit_LW || Mcrit_LW == 0) {
                         LOG_ERROR("Mcrit error %d %d %d: M %.2e z %.2f J %.2e v %.2e", x, y, z,
                                   Mcrit_LW, consts->redshift,
-                                  spin_temp->J_21_LW_box[HII_R_INDEX(x, y, z)], curr_vcb);
+                                  spin_temp->J_21_LW[HII_R_INDEX(x, y, z)], curr_vcb);
                         Throw(ValueError);
                     }
 
@@ -512,9 +512,10 @@ double set_fully_neutral_box(IonizedBox *box, TsBox *spin_temp, PerturbedField *
         {
 #pragma omp for reduction(+ : global_xH)
             for (ct = 0; ct < HII_TOT_NUM_PIXELS; ct++) {
-                box->xH_box[ct] = 1. - spin_temp->x_e_box[ct];  // convert from x_e to xH
-                global_xH += box->xH_box[ct];
-                box->temp_kinetic_all_gas[ct] = spin_temp->Tk_box[ct];
+                box->neutral_fraction[ct] =
+                    1. - spin_temp->xray_ionised_fraction[ct];  // convert from x_e to xH
+                global_xH += box->neutral_fraction[ct];
+                box->kinetic_temperature[ct] = spin_temp->kinetic_temp_neutral[ct];
             }
         }
         global_xH /= (double)HII_TOT_NUM_PIXELS;
@@ -524,8 +525,8 @@ double set_fully_neutral_box(IonizedBox *box, TsBox *spin_temp, PerturbedField *
         {
 #pragma omp for
             for (ct = 0; ct < HII_TOT_NUM_PIXELS; ct++) {
-                box->xH_box[ct] = global_xH;
-                box->temp_kinetic_all_gas[ct] =
+                box->neutral_fraction[ct] = global_xH;
+                box->kinetic_temperature[ct] =
                     consts->TK_nofluct *
                     (1.0 + consts->adia_TK_term * perturbed_field->density[ct]);
             }
@@ -842,74 +843,83 @@ void calculate_fcoll_grid(IonizedBox *box, IonizedBox *previous_ionize_box,
                         if (Splined_Fcoll < 0.) Splined_Fcoll = 1e-40;
                         if (prev_Splined_Fcoll > 1.) prev_Splined_Fcoll = 1.;
                         if (prev_Splined_Fcoll < 0.) prev_Splined_Fcoll = 1e-40;
-                        box->Fcoll[fc_r_idx * HII_TOT_NUM_PIXELS + HII_R_INDEX(x, y, z)] =
-                            previous_ionize_box
-                                ->Fcoll[fc_r_idx * HII_TOT_NUM_PIXELS + HII_R_INDEX(x, y, z)] +
+                        box->unnormalised_nion[fc_r_idx * HII_TOT_NUM_PIXELS +
+                                               HII_R_INDEX(x, y, z)] =
+                            previous_ionize_box->unnormalised_nion[fc_r_idx * HII_TOT_NUM_PIXELS +
+                                                                   HII_R_INDEX(x, y, z)] +
                             Splined_Fcoll - prev_Splined_Fcoll;
 
-                        if (box->Fcoll[fc_r_idx * HII_TOT_NUM_PIXELS + HII_R_INDEX(x, y, z)] > 1.)
-                            box->Fcoll[fc_r_idx * HII_TOT_NUM_PIXELS + HII_R_INDEX(x, y, z)] = 1.;
-                        f_coll_total +=
-                            box->Fcoll[fc_r_idx * HII_TOT_NUM_PIXELS + HII_R_INDEX(x, y, z)];
+                        if (box->unnormalised_nion[fc_r_idx * HII_TOT_NUM_PIXELS +
+                                                   HII_R_INDEX(x, y, z)] > 1.)
+                            box->unnormalised_nion[fc_r_idx * HII_TOT_NUM_PIXELS +
+                                                   HII_R_INDEX(x, y, z)] = 1.;
+                        f_coll_total += box->unnormalised_nion[fc_r_idx * HII_TOT_NUM_PIXELS +
+                                                               HII_R_INDEX(x, y, z)];
                         if (isfinite(f_coll_total) == 0) {
                             LOG_ERROR(
                                 "f_coll is either infinite or NaN! %d %g (%d,%d,%d)?: dens %g, "
                                 "prev %g",
                                 rspec->R_index, rspec->R, x, y, z, curr_dens, prev_dens);
-                            LOG_ERROR(
-                                "prev box %g intgrl %g curr %g --> %g l10mturn %g (%g)",
-                                previous_ionize_box
-                                    ->Fcoll[fc_r_idx * HII_TOT_NUM_PIXELS + HII_R_INDEX(x, y, z)],
-                                prev_Splined_Fcoll, Splined_Fcoll,
-                                box->Fcoll[fc_r_idx * HII_TOT_NUM_PIXELS + HII_R_INDEX(x, y, z)],
-                                log10_Mturnover,
-                                *((float *)fg_struct->log10_Mturnover_filtered +
-                                  HII_R_FFT_INDEX(x, y, z)));
+                            LOG_ERROR("prev box %g intgrl %g curr %g --> %g l10mturn %g (%g)",
+                                      previous_ionize_box
+                                          ->unnormalised_nion[fc_r_idx * HII_TOT_NUM_PIXELS +
+                                                              HII_R_INDEX(x, y, z)],
+                                      prev_Splined_Fcoll, Splined_Fcoll,
+                                      box->unnormalised_nion[fc_r_idx * HII_TOT_NUM_PIXELS +
+                                                             HII_R_INDEX(x, y, z)],
+                                      log10_Mturnover,
+                                      *((float *)fg_struct->log10_Mturnover_filtered +
+                                        HII_R_FFT_INDEX(x, y, z)));
                         }
 
                         if (Splined_Fcoll_MINI > 1.) Splined_Fcoll_MINI = 1.;
                         if (Splined_Fcoll_MINI < 0.) Splined_Fcoll_MINI = 1e-40;
                         if (prev_Splined_Fcoll_MINI > 1.) prev_Splined_Fcoll_MINI = 1.;
                         if (prev_Splined_Fcoll_MINI < 0.) prev_Splined_Fcoll_MINI = 1e-40;
-                        box->Fcoll_MINI[fc_r_idx * HII_TOT_NUM_PIXELS + HII_R_INDEX(x, y, z)] =
+                        box->unnormalised_nion_mini[fc_r_idx * HII_TOT_NUM_PIXELS +
+                                                    HII_R_INDEX(x, y, z)] =
                             previous_ionize_box
-                                ->Fcoll_MINI[fc_r_idx * HII_TOT_NUM_PIXELS + HII_R_INDEX(x, y, z)] +
+                                ->unnormalised_nion_mini[fc_r_idx * HII_TOT_NUM_PIXELS +
+                                                         HII_R_INDEX(x, y, z)] +
                             Splined_Fcoll_MINI - prev_Splined_Fcoll_MINI;
 
-                        if (box->Fcoll_MINI[fc_r_idx * HII_TOT_NUM_PIXELS + HII_R_INDEX(x, y, z)] >
-                            1.)
-                            box->Fcoll_MINI[fc_r_idx * HII_TOT_NUM_PIXELS + HII_R_INDEX(x, y, z)] =
-                                1.;
-                        // if (box->Fcoll_MINI[counter * HII_TOT_NUM_PIXELS + HII_R_INDEX(x,y,z)]
-                        // <0.) box->Fcoll_MINI[counter * HII_TOT_NUM_PIXELS + HII_R_INDEX(x,y,z)] =
-                        // 1e-40; if (box->Fcoll_MINI[counter * HII_TOT_NUM_PIXELS +
-                        // HII_R_INDEX(x,y,z)] < previous_ionize_box->Fcoll_MINI[counter *
-                        // HII_TOT_NUM_PIXELS + HII_R_INDEX(x,y,z)])
-                        //     box->Fcoll_MINI[counter * HII_TOT_NUM_PIXELS + HII_R_INDEX(x,y,z)] =
-                        //     previous_ionize_box->Fcoll_MINI[counter * HII_TOT_NUM_PIXELS +
-                        //     HII_R_INDEX(x,y,z)];
+                        if (box->unnormalised_nion_mini[fc_r_idx * HII_TOT_NUM_PIXELS +
+                                                        HII_R_INDEX(x, y, z)] > 1.)
+                            box->unnormalised_nion_mini[fc_r_idx * HII_TOT_NUM_PIXELS +
+                                                        HII_R_INDEX(x, y, z)] = 1.;
+                        // if (box->unnormalised_nion_mini[counter * HII_TOT_NUM_PIXELS +
+                        // HII_R_INDEX(x,y,z)] <0.) box->unnormalised_nion_mini[counter *
+                        // HII_TOT_NUM_PIXELS + HII_R_INDEX(x,y,z)] = 1e-40; if
+                        // (box->unnormalised_nion_mini[counter * HII_TOT_NUM_PIXELS +
+                        // HII_R_INDEX(x,y,z)] < previous_ionize_box->unnormalised_nion_mini[counter
+                        // * HII_TOT_NUM_PIXELS + HII_R_INDEX(x,y,z)])
+                        //     box->unnormalised_nion_mini[counter * HII_TOT_NUM_PIXELS +
+                        //     HII_R_INDEX(x,y,z)] =
+                        //     previous_ionize_box->unnormalised_nion_mini[counter *
+                        //     HII_TOT_NUM_PIXELS + HII_R_INDEX(x,y,z)];
                         f_coll_MINI_total +=
-                            box->Fcoll_MINI[fc_r_idx * HII_TOT_NUM_PIXELS + HII_R_INDEX(x, y, z)];
+                            box->unnormalised_nion_mini[fc_r_idx * HII_TOT_NUM_PIXELS +
+                                                        HII_R_INDEX(x, y, z)];
                         if (isfinite(f_coll_MINI_total) == 0) {
                             LOG_ERROR(
                                 "f_coll_MINI is either infinite or NaN %d R=%g (%d,%d,%d)?: dens "
                                 "%g, prev %g",
                                 rspec->R_index, rspec->R, x, y, z, curr_dens, prev_dens);
-                            LOG_ERROR(
-                                "prev box %g intgrl %g curr int %g --> %g  l10mturn %g (%g)",
-                                previous_ionize_box->Fcoll_MINI[fc_r_idx * HII_TOT_NUM_PIXELS +
-                                                                HII_R_INDEX(x, y, z)],
-                                prev_Splined_Fcoll_MINI, Splined_Fcoll_MINI,
-                                box->Fcoll_MINI[fc_r_idx * HII_TOT_NUM_PIXELS +
-                                                HII_R_INDEX(x, y, z)],
-                                log10_Mturnover_MINI,
-                                *((float *)fg_struct->log10_Mturnover_MINI_filtered +
-                                  HII_R_FFT_INDEX(x, y, z)));
+                            LOG_ERROR("prev box %g intgrl %g curr int %g --> %g  l10mturn %g (%g)",
+                                      previous_ionize_box
+                                          ->unnormalised_nion_mini[fc_r_idx * HII_TOT_NUM_PIXELS +
+                                                                   HII_R_INDEX(x, y, z)],
+                                      prev_Splined_Fcoll_MINI, Splined_Fcoll_MINI,
+                                      box->unnormalised_nion_mini[fc_r_idx * HII_TOT_NUM_PIXELS +
+                                                                  HII_R_INDEX(x, y, z)],
+                                      log10_Mturnover_MINI,
+                                      *((float *)fg_struct->log10_Mturnover_MINI_filtered +
+                                        HII_R_FFT_INDEX(x, y, z)));
                             Throw(InfinityorNaNError);
                         }
                     } else {
-                        box->Fcoll[fc_r_idx * HII_TOT_NUM_PIXELS + HII_R_INDEX(x, y, z)] =
-                            Splined_Fcoll;
+                        box->unnormalised_nion[fc_r_idx * HII_TOT_NUM_PIXELS +
+                                               HII_R_INDEX(x, y, z)] = Splined_Fcoll;
                         f_coll_total += Splined_Fcoll;
                     }
                 }
@@ -1011,7 +1021,8 @@ void find_ionised_regions(IonizedBox *box, IonizedBox *previous_ionize_box,
                         curr_dens =
                             *((float *)fg_struct->deltax_filtered + HII_R_FFT_INDEX(x, y, z));
 
-                    curr_fcoll = box->Fcoll[fc_r_idx * HII_TOT_NUM_PIXELS + HII_R_INDEX(x, y, z)];
+                    curr_fcoll = box->unnormalised_nion[fc_r_idx * HII_TOT_NUM_PIXELS +
+                                                        HII_R_INDEX(x, y, z)];
                     curr_fcoll = mean_fix_term_acg * curr_fcoll;
 
                     // Since the halo boxes give ionising photon output, this term accounts for the
@@ -1026,7 +1037,8 @@ void find_ionised_regions(IonizedBox *box, IonizedBox *previous_ionize_box,
                     if (astro_options_global->USE_MINI_HALOS &&
                         !matter_options_global->USE_HALO_FIELD) {
                         curr_fcoll_mini =
-                            box->Fcoll_MINI[fc_r_idx * HII_TOT_NUM_PIXELS + HII_R_INDEX(x, y, z)];
+                            box->unnormalised_nion_mini[fc_r_idx * HII_TOT_NUM_PIXELS +
+                                                        HII_R_INDEX(x, y, z)];
                         curr_fcoll_mini = mean_fix_term_mcg * curr_fcoll_mini;
                     }
 
@@ -1040,7 +1052,8 @@ void find_ionised_regions(IonizedBox *box, IonizedBox *previous_ionize_box,
                     if (astro_options_global->INHOMO_RECO) {
                         // number of recombinations per mean baryon
                         if (astro_options_global->CELL_RECOMB)
-                            rec = previous_ionize_box->dNrec_box[HII_R_INDEX(x, y, z)];
+                            rec = previous_ionize_box
+                                      ->cumulative_recombinations[HII_R_INDEX(x, y, z)];
                         else
                             rec =
                                 (*((float *)fg_struct->N_rec_filtered + HII_R_FFT_INDEX(x, y, z)));
@@ -1076,44 +1089,45 @@ void find_ionised_regions(IonizedBox *box, IonizedBox *previous_ionize_box,
                         // (largest R), record the gamma this assumes photon-starved growth of HII
                         // regions...  breaks down post EoR
                         if (astro_options_global->INHOMO_RECO &&
-                            (box->xH_box[HII_R_INDEX(x, y, z)] > FRACT_FLOAT_ERR)) {
+                            (box->neutral_fraction[HII_R_INDEX(x, y, z)] > FRACT_FLOAT_ERR)) {
                             if (matter_options_global->USE_HALO_FIELD) {
                                 // since ION_EFF_FACTOR==1 here, gamma_prefactor is the same for ACG
                                 // and MCG
-                                box->Gamma12_box[HII_R_INDEX(x, y, z)] =
+                                box->ionisation_rate_G12[HII_R_INDEX(x, y, z)] =
                                     rspec.R * consts->gamma_prefactor / (1 + curr_dens) *
                                     (*((float *)fg_struct->sfr_filtered +
                                        HII_R_FFT_INDEX(x, y, z)));
                             } else {
-                                box->Gamma12_box[HII_R_INDEX(x, y, z)] =
+                                box->ionisation_rate_G12[HII_R_INDEX(x, y, z)] =
                                     rspec.R * (consts->gamma_prefactor * curr_fcoll +
                                                consts->gamma_prefactor_mini * curr_fcoll_mini);
                             }
-                            box->MFP_box[HII_R_INDEX(x, y, z)] = rspec.R;
+                            box->mean_free_path[HII_R_INDEX(x, y, z)] = rspec.R;
                         }
 
                         // keep track of the first time this cell is ionized (earliest time)
-                        if (previous_ionize_box->z_re_box[HII_R_INDEX(x, y, z)] < 0) {
-                            box->z_re_box[HII_R_INDEX(x, y, z)] =
+                        if (previous_ionize_box->z_reion[HII_R_INDEX(x, y, z)] < 0) {
+                            box->z_reion[HII_R_INDEX(x, y, z)] =
                                 consts->redshift;  // TODO: stored_redshift???
                         } else {
-                            box->z_re_box[HII_R_INDEX(x, y, z)] =
-                                previous_ionize_box->z_re_box[HII_R_INDEX(x, y, z)];
+                            box->z_reion[HII_R_INDEX(x, y, z)] =
+                                previous_ionize_box->z_reion[HII_R_INDEX(x, y, z)];
                         }
 
                         // FLAG CELL(S) AS IONIZED
                         if (!astro_options_global->IONISE_ENTIRE_SPHERE)  // center method
-                            box->xH_box[HII_R_INDEX(x, y, z)] = 0;
+                            box->neutral_fraction[HII_R_INDEX(x, y, z)] = 0;
                         else  // sphere method
-                            update_in_sphere(box->xH_box, simulation_options_global->HII_DIM,
-                                             HII_D_PARA,
+                            update_in_sphere(box->neutral_fraction,
+                                             simulation_options_global->HII_DIM, HII_D_PARA,
                                              rspec.R / (simulation_options_global->BOX_LEN),
                                              x / (simulation_options_global->HII_DIM + 0.0),
                                              y / (simulation_options_global->HII_DIM + 0.0),
                                              z / (HII_D_PARA + 0.0));
                     }  // end ionized
                        // If not fully ionized, then assign partial ionizations
-                    else if (rspec.R_index == 0 && (box->xH_box[HII_R_INDEX(x, y, z)] > TINY)) {
+                    else if (rspec.R_index == 0 &&
+                             (box->neutral_fraction[HII_R_INDEX(x, y, z)] > TINY)) {
                         // NOTE: Previously there was an RNG model here which multiplied Fcoll by a
                         // sampled
                         //   Poisson/<Poisson> term if 1/5 < M_coll / M_min < 5. This only ever
@@ -1124,11 +1138,12 @@ void find_ionised_regions(IonizedBox *box, IonizedBox *previous_ionize_box,
                         // put the partial ionization here because we need to exclude
                         // xHII_from_xrays...
                         if (astro_options_global->USE_TS_FLUCT) {
-                            box->temp_kinetic_all_gas[HII_R_INDEX(x, y, z)] =
+                            box->kinetic_temperature[HII_R_INDEX(x, y, z)] =
                                 ComputePartiallyIoinizedTemperature(
-                                    spin_temp->Tk_box[HII_R_INDEX(x, y, z)], res_xH, consts->T_re);
+                                    spin_temp->kinetic_temp_neutral[HII_R_INDEX(x, y, z)], res_xH,
+                                    consts->T_re);
                         } else {
-                            box->temp_kinetic_all_gas[HII_R_INDEX(x, y, z)] =
+                            box->kinetic_temperature[HII_R_INDEX(x, y, z)] =
                                 ComputePartiallyIoinizedTemperature(
                                     consts->TK_nofluct *
                                         (1 + consts->adia_TK_term *
@@ -1143,7 +1158,7 @@ void find_ionised_regions(IonizedBox *box, IonizedBox *previous_ionize_box,
                         else if (res_xH > 1)
                             res_xH = 1;
 
-                        box->xH_box[HII_R_INDEX(x, y, z)] = res_xH;
+                        box->neutral_fraction[HII_R_INDEX(x, y, z)] = res_xH;
 
                     }  // end partial ionizations at last filtering step
                 }  // k
@@ -1162,25 +1177,25 @@ void set_ionized_temperatures(IonizedBox *box, PerturbedField *perturbed_field, 
         for (x = 0; x < simulation_options_global->HII_DIM; x++) {
             for (y = 0; y < simulation_options_global->HII_DIM; y++) {
                 for (z = 0; z < HII_D_PARA; z++) {
-                    if ((box->z_re_box[HII_R_INDEX(x, y, z)] > 0) &&
-                        (box->xH_box[HII_R_INDEX(x, y, z)] < TINY)) {
-                        box->temp_kinetic_all_gas[HII_R_INDEX(x, y, z)] =
+                    if ((box->z_reion[HII_R_INDEX(x, y, z)] > 0) &&
+                        (box->neutral_fraction[HII_R_INDEX(x, y, z)] < TINY)) {
+                        box->kinetic_temperature[HII_R_INDEX(x, y, z)] =
                             ComputeFullyIoinizedTemperature(
-                                box->z_re_box[HII_R_INDEX(x, y, z)], consts->stored_redshift,
+                                box->z_reion[HII_R_INDEX(x, y, z)], consts->stored_redshift,
                                 perturbed_field->density[HII_R_INDEX(x, y, z)], consts->T_re);
                         // Below sometimes (very rare though) can happen when the density drops too
                         // fast and to below T_HI
                         if (astro_options_global->USE_TS_FLUCT) {
-                            if (box->temp_kinetic_all_gas[HII_R_INDEX(x, y, z)] <
-                                spin_temp->Tk_box[HII_R_INDEX(x, y, z)])
-                                box->temp_kinetic_all_gas[HII_R_INDEX(x, y, z)] =
-                                    spin_temp->Tk_box[HII_R_INDEX(x, y, z)];
+                            if (box->kinetic_temperature[HII_R_INDEX(x, y, z)] <
+                                spin_temp->kinetic_temp_neutral[HII_R_INDEX(x, y, z)])
+                                box->kinetic_temperature[HII_R_INDEX(x, y, z)] =
+                                    spin_temp->kinetic_temp_neutral[HII_R_INDEX(x, y, z)];
                         } else {
                             thistk = consts->TK_nofluct *
                                      (1 + consts->adia_TK_term *
                                               perturbed_field->density[HII_R_INDEX(x, y, z)]);
-                            if (box->temp_kinetic_all_gas[HII_R_INDEX(x, y, z)] < thistk)
-                                box->temp_kinetic_all_gas[HII_R_INDEX(x, y, z)] = thistk;
+                            if (box->kinetic_temperature[HII_R_INDEX(x, y, z)] < thistk)
+                                box->kinetic_temperature[HII_R_INDEX(x, y, z)] = thistk;
                         }
                     }
                 }
@@ -1191,12 +1206,12 @@ void set_ionized_temperatures(IonizedBox *box, PerturbedField *perturbed_field, 
     for (x = 0; x < simulation_options_global->HII_DIM; x++) {
         for (y = 0; y < simulation_options_global->HII_DIM; y++) {
             for (z = 0; z < HII_D_PARA; z++) {
-                if (isfinite(box->temp_kinetic_all_gas[HII_R_INDEX(x, y, z)]) == 0) {
+                if (isfinite(box->kinetic_temperature[HII_R_INDEX(x, y, z)]) == 0) {
                     LOG_ERROR(
                         "Tk after fully ioinzation is either infinite or a Nan. Something has gone "
                         "wrong "
                         "in the temperature calculation: z_re=%.4f, redshift=%.4f, curr_dens=%.4e",
-                        box->z_re_box[HII_R_INDEX(x, y, z)], consts->stored_redshift,
+                        box->z_reion[HII_R_INDEX(x, y, z)], consts->stored_redshift,
                         perturbed_field->density[HII_R_INDEX(x, y, z)]);
                     Throw(InfinityorNaNError);
                 }
@@ -1226,34 +1241,35 @@ void set_recombination_rates(IonizedBox *box, IonizedBox *previous_ionize_box,
                     z_eff = pow(curr_dens, 1.0 / 3.0);
                     z_eff *= (1 + consts->stored_redshift);
 
-                    dNrec = splined_recombination_rate(z_eff - 1.,
-                                                       box->Gamma12_box[HII_R_INDEX(x, y, z)]) *
+                    dNrec = splined_recombination_rate(
+                                z_eff - 1., box->ionisation_rate_G12[HII_R_INDEX(x, y, z)]) *
                             consts->fabs_dtdz * consts->dz *
-                            (1. - box->xH_box[HII_R_INDEX(x, y, z)]);
+                            (1. - box->neutral_fraction[HII_R_INDEX(x, y, z)]);
 
                     if (isfinite(dNrec) == 0) {
                         finite_error = true;
                         LOG_ERROR(
                             "RECOMB: non-finite cell (%d,%d,%d): d %.4e | G12 %.4e | xH %.4e ==> "
                             "dNrec %.4e Nrec_last (%.4e --> %.4e)",
-                            x, y, z, curr_dens, box->Gamma12_box[HII_R_INDEX(x, y, z)],
-                            box->xH_box[HII_R_INDEX(x, y, z)], dNrec,
-                            previous_ionize_box->dNrec_box[HII_R_INDEX(x, y, z)],
-                            box->dNrec_box[HII_R_INDEX(x, y, z)]);
+                            x, y, z, curr_dens, box->ionisation_rate_G12[HII_R_INDEX(x, y, z)],
+                            box->neutral_fraction[HII_R_INDEX(x, y, z)], dNrec,
+                            previous_ionize_box->cumulative_recombinations[HII_R_INDEX(x, y, z)],
+                            box->cumulative_recombinations[HII_R_INDEX(x, y, z)]);
                     }
 
-                    box->dNrec_box[HII_R_INDEX(x, y, z)] =
-                        previous_ionize_box->dNrec_box[HII_R_INDEX(x, y, z)] + dNrec;
+                    box->cumulative_recombinations[HII_R_INDEX(x, y, z)] =
+                        previous_ionize_box->cumulative_recombinations[HII_R_INDEX(x, y, z)] +
+                        dNrec;
 
 #if LOG_LEVEL >= SUPER_DEBUG_LEVEL
                     if (x + y + z == 0) {
                         LOG_SUPER_DEBUG(
                             "Cell 0: d %.4e | G12 %.4e | xH %.4e ==> dNrec %.4e Nrec (%.4e --> "
                             "%.4e)",
-                            curr_dens, box->Gamma12_box[HII_R_INDEX(x, y, z)],
-                            box->xH_box[HII_R_INDEX(x, y, z)], dNrec,
-                            previous_ionize_box->dNrec_box[HII_R_INDEX(x, y, z)],
-                            box->dNrec_box[HII_R_INDEX(x, y, z)]);
+                            curr_dens, box->ionisation_rate_G12[HII_R_INDEX(x, y, z)],
+                            box->neutral_fraction[HII_R_INDEX(x, y, z)], dNrec,
+                            previous_ionize_box->cumulative_recombinations[HII_R_INDEX(x, y, z)],
+                            box->cumulative_recombinations[HII_R_INDEX(x, y, z)]);
                     }
 #endif
                 }
@@ -1311,12 +1327,12 @@ int ComputeIonizedBox(float redshift, float prev_redshift, PerturbedField *pertu
         {
 #pragma omp for
             for (ct = 0; ct < HII_TOT_NUM_PIXELS; ct++) {
-                box->z_re_box[ct] = -1.0;
+                box->z_reion[ct] = -1.0;
             }
         }
 
-        LOG_SUPER_DEBUG("z_re_box init: ");
-        debugSummarizeBox(box->z_re_box, simulation_options_global->HII_DIM,
+        LOG_SUPER_DEBUG("z_reion init: ");
+        debugSummarizeBox(box->z_reion, simulation_options_global->HII_DIM,
                           simulation_options_global->HII_DIM, HII_D_PARA, "  ");
 
         // Modify the current sampled redshift to a redshift which matches the expected filling
@@ -1448,12 +1464,12 @@ int ComputeIonizedBox(float redshift, float prev_redshift, PerturbedField *pertu
                 }
             }
             if (astro_options_global->USE_TS_FLUCT) {
-                prepare_box_for_filtering(spin_temp->x_e_box, grid_struct->xe_unfiltered, 1., 0,
-                                          1.);
+                prepare_box_for_filtering(spin_temp->xray_ionised_fraction,
+                                          grid_struct->xe_unfiltered, 1., 0, 1.);
             }
 
             if (ionbox_constants.filter_recombinations) {
-                prepare_box_for_filtering(previous_ionize_box->dNrec_box,
+                prepare_box_for_filtering(previous_ionize_box->cumulative_recombinations,
                                           grid_struct->N_rec_unfiltered, 1., 0, 1e20);
             }
             LOG_SUPER_DEBUG("FFTs performed");
@@ -1520,8 +1536,8 @@ int ComputeIonizedBox(float redshift, float prev_redshift, PerturbedField *pertu
                                      f_limit_mcg);
 
 #if LOG_LEVEL >= ULTRA_DEBUG_LEVEL
-                LOG_ULTRA_DEBUG("z_re_box after R=%f: ", curr_radius.R);
-                debugSummarizeBox(box->z_re_box, simulation_options_global->HII_DIM,
+                LOG_ULTRA_DEBUG("z_reion after R=%f: ", curr_radius.R);
+                debugSummarizeBox(box->z_reion, simulation_options_global->HII_DIM,
                                   simulation_options_global->HII_DIM, HII_D_PARA, "  ");
 #endif
             }
@@ -1534,7 +1550,7 @@ int ComputeIonizedBox(float redshift, float prev_redshift, PerturbedField *pertu
             {
 #pragma omp for reduction(+ : global_xH)
                 for (ct = 0; ct < HII_TOT_NUM_PIXELS; ct++) {
-                    global_xH += box->xH_box[ct];
+                    global_xH += box->neutral_fraction[ct];
                 }
             }
             global_xH /= (float)HII_TOT_NUM_PIXELS;

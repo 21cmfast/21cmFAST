@@ -79,13 +79,13 @@ LIGHTCONE_FIELDS = [
     "density",
     "velocity_z",
     "Ts_box",
-    "Gamma12_box",
-    "dNrec_box",
-    "x_e_box",
-    "Tk_box",
-    "J_21_LW_box",
-    "xH_box",
-    "z_re_box",
+    "ionisation_rate_G12",
+    "cumulative_recombinations",
+    "xray_ionised_fraction",
+    "kinetic_temp_neutral",
+    "J_21_LW",
+    "neutral_fraction",
+    "z_reion",
     "brightness_temp",
 ]
 
@@ -410,9 +410,12 @@ def produce_lc_power_spectra(redshift, **kwargs):
 
     quantities = LIGHTCONE_FIELDS[:]
     if not astro_options.USE_TS_FLUCT:
-        [quantities.remove(k) for k in {"Ts_box", "x_e_box", "Tk_box"}]
+        [
+            quantities.remove(k)
+            for k in {"Ts_box", "xray_ionised_fraction", "kinetic_temp_neutral"}
+        ]
     if not astro_options.USE_MINI_HALOS:
-        quantities.remove("J_21_LW_box")
+        quantities.remove("J_21_LW")
 
     lcn = RectilinearLightconer.with_equal_cdist_slices(
         min_redshift=redshift,

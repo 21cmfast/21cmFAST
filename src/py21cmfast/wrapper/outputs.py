@@ -937,9 +937,9 @@ class HaloBox(OutputStructZ):
                 required += ["density"]
         elif isinstance(input_box, TsBox):
             if self.astro_options.USE_MINI_HALOS:
-                required += ["J_21_LW_box"]
+                required += ["J_21_LW"]
         elif isinstance(input_box, IonizedBox):
-            required += ["Gamma12_box", "z_re_box"]
+            required += ["ionisation_rate_G12", "z_reion"]
         elif isinstance(input_box, InitialConditions):
             if (
                 self.matter_options.HALO_STOCHASTICITY
@@ -1066,9 +1066,9 @@ class TsBox(OutputStructZ):
     _meta = False
 
     Ts_box = _arrayfield()
-    x_e_box = _arrayfield()
-    Tk_box = _arrayfield()
-    J_21_LW_box = _arrayfield(optional=True)
+    xray_ionised_fraction = _arrayfield()
+    kinetic_temp_neutral = _arrayfield()
+    J_21_LW = _arrayfield(optional=True)
 
     @classmethod
     def new(cls, inputs: InputParameters, redshift: float, **kw) -> Self:
@@ -1094,11 +1094,11 @@ class TsBox(OutputStructZ):
         )
         out = {
             "Ts_box": Array(shape, dtype=np.float32),
-            "x_e_box": Array(shape, dtype=np.float32),
-            "Tk_box": Array(shape, dtype=np.float32),
+            "xray_ionised_fraction": Array(shape, dtype=np.float32),
+            "kinetic_temp_neutral": Array(shape, dtype=np.float32),
         }
         if inputs.astro_options.USE_MINI_HALOS:
-            out["J_21_LW_box"] = Array(shape, dtype=np.float32)
+            out["J_21_LW"] = Array(shape, dtype=np.float32)
         return cls(inputs=inputs, redshift=redshift, **out, **kw)
 
     @cached_property
@@ -1114,22 +1114,22 @@ class TsBox(OutputStructZ):
     @cached_property
     def global_Tk(self):
         """Global (mean) Tk."""
-        if "Tk_box" not in self._computed_arrays:
+        if "kinetic_temp_neutral" not in self._computed_arrays:
             raise AttributeError(
                 "global_Tk is not defined until the ionization calculation has been performed"
             )
         else:
-            return np.mean(self.Tk_box)
+            return np.mean(self.kinetic_temp_neutral)
 
     @cached_property
     def global_x_e(self):
         """Global (mean) x_e."""
-        if "x_e_box" not in self._computed_arrays:
+        if "xray_ionised_fraction" not in self._computed_arrays:
             raise AttributeError(
                 "global_x_e is not defined until the ionization calculation has been performed"
             )
         else:
-            return np.mean(self.x_e_box)
+            return np.mean(self.xray_ionised_fraction)
 
     def get_required_input_arrays(self, input_box: OutputStruct) -> list[str]:
         """Return all input arrays required to compute this object."""
@@ -1143,9 +1143,9 @@ class TsBox(OutputStructZ):
         elif isinstance(input_box, PerturbedField):
             required += ["density"]
         elif isinstance(input_box, TsBox):
-            required += ["Tk_box", "x_e_box", "Ts_box"]
+            required += ["kinetic_temp_neutral", "xray_ionised_fraction", "Ts_box"]
             if self.astro_options.USE_MINI_HALOS:
-                required += ["J_21_LW_box"]
+                required += ["J_21_LW"]
         elif isinstance(input_box, XraySourceBox):
             if self.matter_options.USE_HALO_FIELD:
                 required += ["filtered_sfr", "filtered_xray"]
@@ -1189,14 +1189,14 @@ class IonizedBox(OutputStructZ):
     _meta = False
     _c_compute_function = lib.ComputeIonizedBox
 
-    xH_box = _arrayfield()
-    Gamma12_box = _arrayfield()
-    MFP_box = _arrayfield()
-    z_re_box = _arrayfield()
-    dNrec_box = _arrayfield()
-    temp_kinetic_all_gas = _arrayfield()
-    Fcoll = _arrayfield()
-    Fcoll_MINI = _arrayfield(optional=True)
+    neutral_fraction = _arrayfield()
+    ionisation_rate_G12 = _arrayfield()
+    mean_free_path = _arrayfield()
+    z_reion = _arrayfield()
+    cumulative_recombinations = _arrayfield()
+    kinetic_temperature = _arrayfield()
+    unnormalised_nion = _arrayfield()
+    unnormalised_nion_mini = _arrayfield(optional=True)
     log10_Mturnover_ave: float = attrs.field(default=None)
     log10_Mturnover_MINI_ave: float = attrs.field(default=None)
     mean_f_coll: float = attrs.field(default=None)
@@ -1252,20 +1252,20 @@ class IonizedBox(OutputStructZ):
         filter_shape = (n_filtering, *shape)
 
         out = {
-            "xH_box": Array(shape, initfunc=np.ones, dtype=np.float32),
-            "Gamma12_box": Array(shape, dtype=np.float32),
-            "MFP_box": Array(shape, dtype=np.float32),
-            "z_re_box": Array(shape, dtype=np.float32),
-            "dNrec_box": Array(shape, dtype=np.float32),
-            "temp_kinetic_all_gas": Array(shape, dtype=np.float32),
-            "Fcoll": Array(filter_shape, dtype=np.float32),
+            "neutral_fraction": Array(shape, initfunc=np.ones, dtype=np.float32),
+            "ionisation_rate_G12": Array(shape, dtype=np.float32),
+            "mean_free_path": Array(shape, dtype=np.float32),
+            "z_reion": Array(shape, dtype=np.float32),
+            "cumulative_recombinations": Array(shape, dtype=np.float32),
+            "kinetic_temperature": Array(shape, dtype=np.float32),
+            "unnormalised_nion": Array(filter_shape, dtype=np.float32),
         }
 
         if (
             inputs.astro_options.USE_MINI_HALOS
             and not inputs.matter_options.USE_HALO_FIELD
         ):
-            out["Fcoll_MINI"] = Array(filter_shape, dtype=np.float32)
+            out["unnormalised_nion_mini"] = Array(filter_shape, dtype=np.float32)
 
         return cls(inputs=inputs, redshift=redshift, **out, **kw)
 
@@ -1277,7 +1277,7 @@ class IonizedBox(OutputStructZ):
                 "global_xH is not defined until the ionization calculation has been performed"
             )
         else:
-            return np.mean(self.xH_box)
+            return np.mean(self.neutral_fraction)
 
     def get_required_input_arrays(self, input_box: OutputStruct) -> list[str]:
         """Return all input arrays required to compute this object."""
@@ -1291,25 +1291,25 @@ class IonizedBox(OutputStructZ):
         elif isinstance(input_box, PerturbedField):
             required += ["density"]
         elif isinstance(input_box, TsBox):
-            required += ["Tk_box", "x_e_box"]
+            required += ["kinetic_temp_neutral", "xray_ionised_fraction"]
             if self.astro_options.USE_MINI_HALOS:
-                required += ["J_21_LW_box"]
+                required += ["J_21_LW"]
         elif isinstance(input_box, IonizedBox):
-            required += ["z_re_box", "Gamma12_box"]
+            required += ["z_reion", "ionisation_rate_G12"]
             if self.astro_options.INHOMO_RECO:
                 required += [
-                    "dNrec_box",
+                    "cumulative_recombinations",
                 ]
             if (
                 self.astro_options.USE_MASS_DEPENDENT_ZETA
                 and self.astro_options.USE_MINI_HALOS
             ):
                 required += [
-                    "Fcoll",
+                    "unnormalised_nion",
                 ]
                 if not self.matter_options.USE_HALO_FIELD:
                     required += [
-                        "Fcoll_MINI",
+                        "unnormalised_nion_mini",
                     ]
         elif isinstance(input_box, HaloBox):
             required += ["n_ion", "whalo_sfr"]
@@ -1404,7 +1404,7 @@ class BrightnessTemp(OutputStructZ):
         elif isinstance(input_box, TsBox):
             required += ["Ts_box"]
         elif isinstance(input_box, IonizedBox):
-            required += ["xH_box"]
+            required += ["neutral_fraction"]
         else:
             raise ValueError(
                 f"{type(input_box)} is not an input required for BrightnessTemp!"

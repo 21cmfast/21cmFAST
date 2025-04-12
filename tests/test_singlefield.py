@@ -140,7 +140,9 @@ def test_new_seeds(
     # we didn't write it, and this has a different seed
     assert cache.find_existing(ib) is None
     assert ib.random_seed != ionize_box_lowz.random_seed
-    assert not np.all(ib.xH_box.value == ionize_box_lowz.xH_box.value)
+    assert not np.all(
+        ib.neutral_fraction.value == ionize_box_lowz.neutral_fraction.value
+    )
 
 
 def test_ib_from_pf(perturbed_field, ic, cache):
