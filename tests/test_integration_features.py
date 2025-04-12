@@ -56,6 +56,9 @@ def test_power_spectra_coeval(name, module_direc, plt):
             if key.startswith("power_")
         }
 
+    # HACK: the velocity keywords have changed
+    true_powers["velocity_z"] = true_powers["velocity"]
+    del true_powers["velocity"]
     # Now compute the Coeval object
     with config.use(direc=module_direc, regenerate=False, write=True):
         test_k, test_powers, _ = prd.produce_coeval_power_spectra(redshift, **kwargs)
@@ -93,21 +96,28 @@ def test_power_spectra_lightcone(name, module_direc, plt):
             elif key.startswith("global_"):
                 true_global[key] = fl["lightcone"][key][...]
 
+    true_powers["velocity_z"] = true_powers["velocity"]
+    del true_powers["velocity"]
+    conversion = {
+        "global_brightness_temp": "brightness_temp",
+        "global_xH": "xH_box",
+    }
     # Now compute the lightcone
     with config.use(direc=module_direc, regenerate=False, write=True):
         test_k, test_powers, lc = prd.produce_lc_power_spectra(redshift, **kwargs)
 
+    test_global = {k: lc.global_quantities[conversion[k]] for k in true_global}
     assert np.allclose(true_k, test_k)
 
     if plt == mpl.pyplot:
         make_lightcone_comparison_plot(
             true_k,
             test_k,
-            lc.node_redshifts,
+            lc.inputs.node_redshifts,
             true_powers,
             true_global,
             test_powers,
-            lc,
+            test_global,
             plt,
         )
 
@@ -134,21 +144,21 @@ def test_power_spectra_lightcone(name, module_direc, plt):
 
 
 def make_lightcone_comparison_plot(
-    true_k, k, z, true_powers, true_global, test_powers, lc, plt
+    true_k, k, z, true_powers, true_global, test_powers, test_global, plt
 ):
     n = len(true_global) + len(true_powers)
     fig, ax = plt.subplots(
         2, n, figsize=(3 * n, 5), constrained_layout=True, sharex="col"
     )
 
-    for i, (key, val) in enumerate(true_powers.items()):
+    for i, (key, val) in enumerate(test_powers.items()):
         make_comparison_plot(
-            true_k, k, val, test_powers[key], ax[:, i], xlab="k", ylab=f"{key} Power"
+            true_k, k, true_powers[key], val, ax[:, i], xlab="k", ylab=f"{key} Power"
         )
 
-    for j, (key, val) in enumerate(true_global.items(), start=i + 1):
+    for j, (key, val) in enumerate(test_global.items(), start=i + 1):
         make_comparison_plot(
-            z, z, val, getattr(lc, key), ax[:, j], xlab="z", ylab=f"{key}"
+            z, z, true_global[key], val, ax[:, j], xlab="z", ylab=f"{key}"
         )
 
 
@@ -161,9 +171,9 @@ def make_coeval_comparison_plot(true_k, k, true_powers, test_powers, plt):
         constrained_layout=True,
     )
 
-    for i, (key, val) in enumerate(true_powers.items()):
+    for i, (key, val) in enumerate(test_powers.items()):
         make_comparison_plot(
-            true_k, k, val, test_powers[key], ax[:, i], xlab="k", ylab=f"{key} Power"
+            true_k, k, true_powers[key], val, ax[:, i], xlab="k", ylab=f"{key} Power"
         )
 
 

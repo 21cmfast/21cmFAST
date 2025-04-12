@@ -17,7 +17,7 @@ import numpy as np
 from .._cfg import config
 from ..wrapper import outputs as op
 from ..wrapper.inputs import InputParameters
-from ..wrapper.outputs import OutputStruct
+from ..wrapper.outputs import OutputStruct, OutputStructZ, _HashType
 from .h5 import read_inputs, read_output_struct, write_output_to_hdf5
 
 logger = logging.getLogger(__name__)
@@ -41,10 +41,15 @@ class OutputCache:
         default=Path(config["direc"]).expanduser(), converter=Path
     )
 
+    _output_to_cache_map: ClassVar = {
+        kls.__name__: kls._compat_hash
+        for kls in OutputStruct.__subclasses__() + OutputStructZ.__subclasses__()
+        if not kls._meta
+    }
     _path_structures: ClassVar = {
-        "InitialConditions": "{user_cosmo}/{seed}/InitialConditions.h5",
-        "PerturbedField": "{user_cosmo}/{seed}/{zgrid}/{redshift}/PerturbedField.h5",
-        "other": "{user_cosmo}/{seed}/{zgrid}/{redshift}/{astro_flag}/{cls}.h5",
+        _HashType.user_cosmo: "{matter_cosmo}/{seed}/InitialConditions.h5",
+        _HashType.zgrid: "{matter_cosmo}/{seed}/{zgrid}/{redshift}/{cls}.h5",
+        _HashType.full: "{matter_cosmo}/{seed}/{zgrid}/{redshift}/{astro_flag}/{cls}.h5",
     }
 
     @classmethod
@@ -52,13 +57,17 @@ class OutputCache:
         """Return a dict of hashes for different components of the calculation."""
         # Python builtin hashes can be negative which looks weird in filenames
         return {
-            "user_cosmo": md5(
-                (repr(inputs.cosmo_params) + repr(inputs.user_params)).encode()
+            "matter_cosmo": md5(
+                (
+                    repr(inputs.cosmo_params)
+                    + repr(inputs.simulation_options)
+                    + repr(inputs.matter_options)
+                ).encode()
             ).hexdigest(),
             "seed": inputs.random_seed,
             "zgrid": md5(repr(inputs.node_redshifts).encode()).hexdigest(),
             "astro_flag": md5(
-                (repr(inputs.astro_params) + repr(inputs.user_params)).encode()
+                (repr(inputs.astro_params) + repr(inputs.simulation_options)).encode()
             ).hexdigest(),
         }
 
@@ -84,12 +93,12 @@ class OutputCache:
             hashes = cls._get_hashes(inputs)
             # format required hashes to string
             hashes["seed"] = r"\d+" if all_seeds else f"{hashes['seed']:d}"
-            hashes["user_cosmo"] = f"{hashes['user_cosmo']}"
+            hashes["matter_cosmo"] = f"{hashes['matter_cosmo']}"
             hashes["zgrid"] = f"{hashes['zgrid']}"
             hashes["astro_flag"] = f"{hashes['astro_flag']}"
         else:
             hashes = {
-                "user_cosmo": ".+?",
+                "matter_cosmo": ".+?",
                 "seed": r"\d+",
                 "zgrid": ".+?",
                 "astro_flag": ".+?",
@@ -97,9 +106,13 @@ class OutputCache:
 
         # do the conditional formatting
         hashes["redshift"] = f"{redshift:.4f}" if redshift is not None else ".+?"
-        hashes["cls"] = kind if kind not in (None, "other") else ".+?"
+        hashes["cls"] = kind if kind in cls._output_to_cache_map else ".+?"
 
-        template = cls._path_structures.get(kind, cls._path_structures["other"])
+        # precedence: outputclass mapped (class name -> template) > template provided as _HashType (template directly) > full astro path
+        path_template = cls._output_to_cache_map.get(kind, kind)
+        template = cls._path_structures.get(
+            path_template, cls._path_structures[_HashType.full]
+        )
         template = template.format(**hashes)
         return template
 
@@ -207,9 +220,7 @@ class OutputCache:
         files
             list of paths pointing to files matching the filters.
         """
-        kinds_list = (
-            ["InitialConditions", "PerturbedField", "other"] if kind is None else [kind]
-        )
+        kinds_list = self._output_to_cache_map.keys() if kind is None else [kind]
         templates = [
             self._fill_path_template(
                 kind=k,
@@ -308,23 +319,18 @@ class RunCache:
             kind="InitialConditions",
             inputs=inputs,
         )
-        pfs = {}
 
         others = {
+            "PerturbedField": {},
             "IonizedBox": {},
             "BrightnessTemp": {},
         }
-        if inputs.flag_options.USE_TS_FLUCT:
+        if inputs.astro_options.USE_TS_FLUCT:
             others |= {"TsBox": {}}
-        if inputs.flag_options.USE_HALO_FIELD:
+        if inputs.matter_options.USE_HALO_FIELD:
             others |= {"PerturbHaloField": {}, "XraySourceBox": {}, "HaloBox": {}}
 
         for z in inputs.node_redshifts:
-            pfs[z] = cache.direc / cache._fill_path_template(
-                kind="PerturbedField",
-                redshift=z,
-                inputs=inputs,
-            )
             for name, val in others.items():
                 val[z] = cache.direc / cache._fill_path_template(
                     kind=name,
@@ -334,7 +340,6 @@ class RunCache:
 
         return cls(
             InitialConditions=ics,
-            PerturbedField=pfs,
             **others,
             inputs=inputs,
         )
@@ -348,7 +353,7 @@ class RunCache:
         ambiguous when the input file is "high up" in the simulation heirarchy (e.g.
         InitialConditions or PerturbedField) because the input parameters to these
         objects may differ from those of the full simulation, in their astro_params
-        and flag_options. For this reason, it is better to supply a cache object like
+        and astro_options. For this reason, it is better to supply a cache object like
         IonizedBox or BrightnessTemp.
 
         Parameters
@@ -359,9 +364,9 @@ class RunCache:
         """
         inputs = read_inputs(Path(path))
 
-        for template in OutputCache._path_structures:
+        for kind in OutputCache._output_to_cache_map:
             template = OutputCache._fill_path_template(
-                kind=template,
+                kind=kind,
                 redshift=None,
                 inputs=inputs,
                 all_seeds=False,
@@ -389,7 +394,6 @@ class RunCache:
         for kind in attrs.asdict(self, recurse=False).values():
             if not isinstance(kind, dict):
                 continue
-
             if not kind[z].exists():
                 return False
         return True
@@ -572,6 +576,27 @@ class CacheConfig:
             brightness_temp=False,
             halobox=False,
             perturbed_halo_field=False,
+            halo_field=False,
+            xray_source_box=False,
+        )
+
+    @classmethod
+    def last_step_only(cls):
+        """Generate a CacheConfig where only boxes needed from more than one step away are cached.
+
+        This represents the minimum caching setup which will *never* store every redshift in memory.
+        PerturbedField and PerturbHaloFields are all calculated at the start of the run, and HaloBox
+        is required at multiple redshifts for the XraySourceBox. So this caching setup allows free
+        purging of these objects without losing data.
+        """
+        return cls(
+            initial_conditions=False,
+            perturbed_field=True,
+            spin_temp=False,
+            ionized_box=False,
+            brightness_temp=False,
+            halobox=True,
+            perturbed_halo_field=True,
             halo_field=False,
             xray_source_box=False,
         )

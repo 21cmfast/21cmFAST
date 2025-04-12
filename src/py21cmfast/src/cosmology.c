@@ -224,7 +224,7 @@ double transfer_function_CLASS(double k, int flag_int, int flag_dv) {
 }
 
 double transfer_function(double k) {
-    switch (user_params_global->POWER_SPECTRUM) {
+    switch (matter_options_global->POWER_SPECTRUM) {
         case 0:
             return transfer_function_EH(k);
         case 1:
@@ -238,7 +238,7 @@ double transfer_function(double k) {
         case 5:
             return transfer_function_CLASS(k, 1, 0);
         default:
-            LOG_ERROR("No such power spectrum defined: %i", user_params_global->POWER_SPECTRUM);
+            LOG_ERROR("No such power spectrum defined: %i", matter_options_global->POWER_SPECTRUM);
             Throw(ValueError);
     }
 }
@@ -249,11 +249,12 @@ double power_in_k_integrand(double k) {
     p = T * T * pow(k, cosmo_params_global->POWER_INDEX);
 
     // TODO: figure this out, it was always a comment?
-    // if(user_params_global->POWER_SPECTRUM == 0)
+    // if(matter_options_global->POWER_SPECTRUM == 0)
     //   p = pow(k, POWER_INDEX - 0.05*log(k/0.05)) * T * T; //running, alpha=0.05
 
     // NOTE: USE_RELATIVE_VELOCITIES is only allowed if using CLASS
-    if (user_params_global->POWER_SPECTRUM == 5 && user_params_global->USE_RELATIVE_VELOCITIES) {
+    if (matter_options_global->POWER_SPECTRUM == 5 &&
+        matter_options_global->USE_RELATIVE_VELOCITIES) {
         // jbm:Add average relvel suppression
         p *= 1.0 -
              A_VCB_PM * exp(-pow(log(k / KP_VCB_PM), 2.0) / (2.0 * SIGMAK_VCB_PM * SIGMAK_VCB_PM));
@@ -275,7 +276,7 @@ double power_in_vcb(double k) {
     double p, T;
 
     // only works if using CLASS
-    if (user_params_global->POWER_SPECTRUM == 5) {  // CLASS
+    if (matter_options_global->POWER_SPECTRUM == 5) {  // CLASS
         T = transfer_function_CLASS(k, 1, 1);  // read from CLASS file. flag_int=1 since we have
                                                // initialized before, flag_vcb=1 for velocity
         p = pow(k, cosmo_params_global->POWER_INDEX) * T * T;
@@ -283,7 +284,7 @@ double power_in_vcb(double k) {
         LOG_ERROR(
             "Cannot get P_cb unless using CLASS: %i\n Set USE_RELATIVE_VELOCITIES 0 or use "
             "CLASS.\n",
-            user_params_global->POWER_SPECTRUM);
+            matter_options_global->POWER_SPECTRUM);
         Throw(ValueError);
     }
 
@@ -295,7 +296,7 @@ double power_in_vcb(double k) {
 // smoothed on the comoving scale of M (see filter definitions for M<->R conversion).
 // The sigma is evaluated at z=0, with the time evolution contained in the dicke(z) factor,
 // i.e. sigma(M,z) = sigma_z0(m) * dicke(z)
-// normalized so that sigma_z0(M->8/h Mpc) = SIGMA_8 in the UserParams
+// normalized so that sigma_z0(M->8/h Mpc) = SIGMA_8 in the SimulationOptions
 
 // NOTE: volume is normalized to = 1, so this is equvalent to the mass standard deviation
 
@@ -330,7 +331,7 @@ double sigma_z0(double M) {
     upper_limit = 350.0 / Radius;    // kend;
 
     struct SigmaIntegralParams sigma_params = {.radius = Radius,
-                                               .filter_type = user_params_global->FILTER};
+                                               .filter_type = matter_options_global->FILTER};
     F.function = &dsigma_dk;
     F.params = &sigma_params;
 
@@ -382,7 +383,7 @@ double dsigmasqdm_z0(double M) {
     upper_limit = 350.0 / Radius;    // kend
 
     struct SigmaIntegralParams sigma_params = {.radius = Radius,
-                                               .filter_type = user_params_global->FILTER};
+                                               .filter_type = matter_options_global->FILTER};
     F.function = &dsigmasq_dm;
     F.params = &sigma_params;
 
@@ -478,7 +479,7 @@ void init_ps() {
     cosmo_consts.sigma_norm = -1;
 
     // we start the interpolator if using CLASS:
-    if (user_params_global->POWER_SPECTRUM == 5) {
+    if (matter_options_global->POWER_SPECTRUM == 5) {
         LOG_DEBUG("Setting CLASS Transfer Function inits.");
         transfer_function_CLASS(1.0, 0, 0);
     }
@@ -490,7 +491,7 @@ void init_ps() {
     upper_limit = 350.0 / Radius_8;    // kend
 
     struct SigmaIntegralParams sigma_params = {.radius = Radius_8,
-                                               .filter_type = user_params_global->FILTER};
+                                               .filter_type = matter_options_global->FILTER};
     F.function = &dsigma_dk;
     F.params = &sigma_params;
 
@@ -524,7 +525,7 @@ void init_ps() {
 // function to free arrays related to the power spectrum
 void free_ps() {
     // we free the PS interpolator if using CLASS:
-    if (user_params_global->POWER_SPECTRUM == 5) {
+    if (matter_options_global->POWER_SPECTRUM == 5) {
         transfer_function_CLASS(1.0, -1, 0);
     }
 
@@ -558,12 +559,12 @@ double ddicke_dz(double z) {
 double MtoR(double M) {
     // set R according to M<->R conversion defined by the filter type in
     // ../Parameter_files/COSMOLOGY.H
-    if (user_params_global->FILTER == 0)  // top hat M = (4/3) PI <rho> R^3
+    if (matter_options_global->FILTER == 0)  // top hat M = (4/3) PI <rho> R^3
         return pow(3 * M / (4 * PI * cosmo_params_global->OMm * RHOcrit), 1.0 / 3.0);
-    else if (user_params_global->FILTER == 2)  // gaussian: M = (2PI)^1.5 <rho> R^3
+    else if (matter_options_global->FILTER == 2)  // gaussian: M = (2PI)^1.5 <rho> R^3
         return pow(M / (pow(2 * PI, 1.5) * cosmo_params_global->OMm * RHOcrit), 1.0 / 3.0);
     else  // filter not defined
-        LOG_ERROR("No such filter = %i. Results are bogus.", user_params_global->FILTER);
+        LOG_ERROR("No such filter = %i. Results are bogus.", matter_options_global->FILTER);
     Throw(ValueError);
 }
 
@@ -571,12 +572,12 @@ double MtoR(double M) {
 double RtoM(double R) {
     // set M according to M<->R conversion defined by the filter type in
     // ../Parameter_files/COSMOLOGY.H
-    if (user_params_global->FILTER == 0)  // top hat M = (4/3) PI <rho> R^3
+    if (matter_options_global->FILTER == 0)  // top hat M = (4/3) PI <rho> R^3
         return (4.0 / 3.0) * PI * pow(R, 3) * (cosmo_params_global->OMm * RHOcrit);
-    else if (user_params_global->FILTER == 2)  // gaussian: M = (2PI)^1.5 <rho> R^3
+    else if (matter_options_global->FILTER == 2)  // gaussian: M = (2PI)^1.5 <rho> R^3
         return pow(2 * PI, 1.5) * cosmo_params_global->OMm * RHOcrit * pow(R, 3);
     else  // filter not defined
-        LOG_ERROR("No such filter = %i. Results are bogus.", user_params_global->FILTER);
+        LOG_ERROR("No such filter = %i. Results are bogus.", matter_options_global->FILTER);
     Throw(ValueError);
 }
 

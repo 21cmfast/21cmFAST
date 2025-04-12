@@ -25,11 +25,9 @@
 #include "logger.h"
 #include "thermochem.h"
 
-void ts_main(float redshift, float prev_redshift, UserParams *user_params,
-             CosmoParams *cosmo_params, AstroParams *astro_params, FlagOptions *flag_options,
-             float perturbed_field_redshift, short cleanup, PerturbedField *perturbed_field,
-             XraySourceBox *source_box, TsBox *previous_spin_temp, InitialConditions *ini_boxes,
-             TsBox *this_spin_temp);
+void ts_main(float redshift, float prev_redshift, float perturbed_field_redshift, short cleanup,
+             PerturbedField *perturbed_field, XraySourceBox *source_box, TsBox *previous_spin_temp,
+             InitialConditions *ini_boxes, TsBox *this_spin_temp);
 
 // Global arrays which have yet to be moved to structs
 // R x box arrays
@@ -83,11 +81,9 @@ bool TsInterpArraysInitialised = false;
 // a debug flag for printing results from a single cell without passing cell number to the functions
 static int debug_printed;
 
-int ComputeTsBox(float redshift, float prev_redshift, UserParams *user_params,
-                 CosmoParams *cosmo_params, AstroParams *astro_params, FlagOptions *flag_options,
-                 float perturbed_field_redshift, short cleanup, PerturbedField *perturbed_field,
-                 XraySourceBox *source_box, TsBox *previous_spin_temp, InitialConditions *ini_boxes,
-                 TsBox *this_spin_temp) {
+int ComputeTsBox(float redshift, float prev_redshift, float perturbed_field_redshift, short cleanup,
+                 PerturbedField *perturbed_field, XraySourceBox *source_box,
+                 TsBox *previous_spin_temp, InitialConditions *ini_boxes, TsBox *this_spin_temp) {
     int status;
     Try {  // This Try{} wraps the whole function.
         LOG_DEBUG("Spintemp input values:");
@@ -95,18 +91,20 @@ int ComputeTsBox(float redshift, float prev_redshift, UserParams *user_params,
                   prev_redshift, perturbed_field_redshift);
 
 #if LOG_LEVEL >= SUPER_DEBUG_LEVEL
-        writeAstroParams(flag_options, astro_params);
+        writeSimulationOptions(simulation_options_global);
+        writeCosmoParams(cosmo_params_global);
+        writeAstroParams(astro_params_global);
+        writeAstroOptions(astro_options_global);
 #endif
 
         // Makes the parameter structs visible to a variety of functions/macros
         // Do each time to avoid Python garbage collection issues
-        Broadcast_struct_global_all(user_params, cosmo_params, astro_params, flag_options);
-        omp_set_num_threads(user_params->N_THREADS);
+
+        omp_set_num_threads(simulation_options_global->N_THREADS);
         debug_printed = 0;
 
-        ts_main(redshift, prev_redshift, user_params, cosmo_params, astro_params, flag_options,
-                perturbed_field_redshift, cleanup, perturbed_field, source_box, previous_spin_temp,
-                ini_boxes, this_spin_temp);
+        ts_main(redshift, prev_redshift, perturbed_field_redshift, cleanup, perturbed_field,
+                source_box, previous_spin_temp, ini_boxes, this_spin_temp);
 
         destruct_heat();
 
@@ -152,26 +150,26 @@ void alloc_global_arrays() {
     dxion_source_dt_box = (double *)calloc(HII_TOT_NUM_PIXELS, sizeof(double));
     dxlya_dt_box = (double *)calloc(HII_TOT_NUM_PIXELS, sizeof(double));
     dstarlya_dt_box = (double *)calloc(HII_TOT_NUM_PIXELS, sizeof(double));
-    if (flag_options_global->USE_LYA_HEATING) {
+    if (astro_options_global->USE_LYA_HEATING) {
         dstarlya_cont_dt_box = (double *)calloc(HII_TOT_NUM_PIXELS, sizeof(double));
         dstarlya_inj_dt_box = (double *)calloc(HII_TOT_NUM_PIXELS, sizeof(double));
     }
-    if (flag_options_global->USE_MINI_HALOS) {
+    if (astro_options_global->USE_MINI_HALOS) {
         dstarlyLW_dt_box = (double *)calloc(HII_TOT_NUM_PIXELS, sizeof(double));
     }
 
     // spectral stuff
     dstarlya_dt_prefactor = calloc(astro_params_global->N_STEP_TS, sizeof(double));
-    if (flag_options_global->USE_LYA_HEATING) {
+    if (astro_options_global->USE_LYA_HEATING) {
         dstarlya_cont_dt_prefactor = calloc(astro_params_global->N_STEP_TS, sizeof(double));
         dstarlya_inj_dt_prefactor = calloc(astro_params_global->N_STEP_TS, sizeof(double));
     }
 
-    if (flag_options_global->USE_MINI_HALOS) {
+    if (astro_options_global->USE_MINI_HALOS) {
         dstarlya_dt_prefactor_MINI = calloc(astro_params_global->N_STEP_TS, sizeof(double));
         dstarlyLW_dt_prefactor = calloc(astro_params_global->N_STEP_TS, sizeof(double));
         dstarlyLW_dt_prefactor_MINI = calloc(astro_params_global->N_STEP_TS, sizeof(double));
-        if (flag_options_global->USE_LYA_HEATING) {
+        if (astro_options_global->USE_LYA_HEATING) {
             dstarlya_cont_dt_prefactor_MINI =
                 calloc(astro_params_global->N_STEP_TS, sizeof(double));
             dstarlya_inj_dt_prefactor_MINI = calloc(astro_params_global->N_STEP_TS, sizeof(double));
@@ -179,13 +177,13 @@ void alloc_global_arrays() {
     }
 
     // Nonhalo stuff
-    int num_R_boxes = user_params_global->MINIMIZE_MEMORY ? 1 : astro_params_global->N_STEP_TS;
-    if (!flag_options_global->USE_HALO_FIELD) {
+    int num_R_boxes = matter_options_global->MINIMIZE_MEMORY ? 1 : astro_params_global->N_STEP_TS;
+    if (!matter_options_global->USE_HALO_FIELD) {
         delNL0 = (float **)calloc(num_R_boxes, sizeof(float *));
         for (i = 0; i < num_R_boxes; i++) {
             delNL0[i] = (float *)calloc((float)HII_TOT_NUM_PIXELS, sizeof(float));
         }
-        if (flag_options_global->USE_MINI_HALOS) {
+        if (astro_options_global->USE_MINI_HALOS) {
             log10_Mcrit_LW = (float **)calloc(num_R_boxes, sizeof(float *));
             for (i = 0; i < num_R_boxes; i++) {
                 log10_Mcrit_LW[i] = (float *)calloc(HII_TOT_NUM_PIXELS, sizeof(float));
@@ -193,7 +191,7 @@ void alloc_global_arrays() {
         }
 
         del_fcoll_Rct = calloc(HII_TOT_NUM_PIXELS, sizeof(float));
-        if (flag_options_global->USE_MINI_HALOS) {
+        if (astro_options_global->USE_MINI_HALOS) {
             del_fcoll_Rct_MINI = calloc(HII_TOT_NUM_PIXELS, sizeof(float));
         }
 
@@ -243,15 +241,15 @@ void free_ts_global_arrays() {
 
     // spectral
     free(dstarlya_dt_prefactor);
-    if (flag_options_global->USE_LYA_HEATING) {
+    if (astro_options_global->USE_LYA_HEATING) {
         free(dstarlya_cont_dt_prefactor);
         free(dstarlya_inj_dt_prefactor);
     }
-    if (flag_options_global->USE_MINI_HALOS) {
+    if (astro_options_global->USE_MINI_HALOS) {
         free(dstarlya_dt_prefactor_MINI);
         free(dstarlyLW_dt_prefactor);
         free(dstarlyLW_dt_prefactor_MINI);
-        if (flag_options_global->USE_LYA_HEATING) {
+        if (astro_options_global->USE_LYA_HEATING) {
             free(dstarlya_inj_dt_prefactor_MINI);
             free(dstarlya_cont_dt_prefactor_MINI);
         }
@@ -262,10 +260,10 @@ void free_ts_global_arrays() {
     free(dxion_source_dt_box);
     free(dxlya_dt_box);
     free(dstarlya_dt_box);
-    if (flag_options_global->USE_MINI_HALOS) {
+    if (astro_options_global->USE_MINI_HALOS) {
         free(dstarlyLW_dt_box);
     }
-    if (flag_options_global->USE_LYA_HEATING) {
+    if (astro_options_global->USE_LYA_HEATING) {
         free(dstarlya_cont_dt_box);
         free(dstarlya_inj_dt_box);
     }
@@ -275,14 +273,14 @@ void free_ts_global_arrays() {
     free(inverse_val_box);
 
     // interp tables
-    int num_R_boxes = user_params_global->MINIMIZE_MEMORY ? 1 : astro_params_global->N_STEP_TS;
-    if (!flag_options_global->USE_HALO_FIELD) {
+    int num_R_boxes = matter_options_global->MINIMIZE_MEMORY ? 1 : astro_params_global->N_STEP_TS;
+    if (!matter_options_global->USE_HALO_FIELD) {
         for (i = 0; i < num_R_boxes; i++) {
             free(delNL0[i]);
         }
         free(delNL0);
 
-        if (flag_options_global->USE_MINI_HALOS) {
+        if (astro_options_global->USE_MINI_HALOS) {
             for (i = 0; i < num_R_boxes; i++) {
                 free(log10_Mcrit_LW[i]);
             }
@@ -290,7 +288,7 @@ void free_ts_global_arrays() {
         }
 
         free(del_fcoll_Rct);
-        if (flag_options_global->USE_MINI_HALOS) {
+        if (astro_options_global->USE_MINI_HALOS) {
             free(del_fcoll_Rct_MINI);
         }
 
@@ -308,7 +306,7 @@ void setup_z_edges(double zp) {
     double dzpp_for_evolve;
     int R_ct;
 
-    R = L_FACTOR * user_params_global->BOX_LEN / (float)user_params_global->HII_DIM;
+    R = L_FACTOR * simulation_options_global->BOX_LEN / (float)simulation_options_global->HII_DIM;
     R_factor = pow(astro_params_global->R_MAX_TS / R, 1 / ((float)astro_params_global->N_STEP_TS));
 
     for (R_ct = 0; R_ct < astro_params_global->N_STEP_TS; R_ct++) {
@@ -336,8 +334,7 @@ void setup_z_edges(double zp) {
         dzpp_list[R_ct] = dzpp_for_evolve;  // z bin width
         dtdz_list[R_ct] = dtdz(zpp);        // dt/dz''
 
-        M_min_R[R_ct] = minimum_source_mass(zpp_for_evolve_list[R_ct], true, astro_params_global,
-                                            flag_options_global);
+        M_min_R[R_ct] = minimum_source_mass(zpp_for_evolve_list[R_ct], true);
         M_max_R[R_ct] = RtoM(R_values[R_ct]);
 
         R *= R_factor;
@@ -379,7 +376,7 @@ void calculate_spectral_factors(double zp) {
         nuprime = nu_n(2) * (1. + zpp) / (1. + zp);
         if (zpp < zmax(zp, 2)) {
             sum_ly2_val = frecycle(2) * spectral_emissivity(nuprime, 0, 2);
-            if (flag_options_global->USE_MINI_HALOS) {
+            if (astro_options_global->USE_MINI_HALOS) {
                 sum_ly2_val_MINI = frecycle(2) * spectral_emissivity(nuprime, 0, 3);
 
                 if (nuprime < NU_LW_THRESH / NUIONIZATION) nuprime = NU_LW_THRESH / NUIONIZATION;
@@ -399,7 +396,7 @@ void calculate_spectral_factors(double zp) {
 
             nuprime = nu_n(n_ct) * (1 + zpp) / (1.0 + zp);
             sum_lynto2_val += frecycle(n_ct) * spectral_emissivity(nuprime, 0, 2);
-            if (flag_options_global->USE_MINI_HALOS) {
+            if (astro_options_global->USE_MINI_HALOS) {
                 sum_lynto2_val_MINI += frecycle(n_ct) * spectral_emissivity(nuprime, 0, 3);
 
                 if (nuprime < NU_LW_THRESH / NUIONIZATION) nuprime = NU_LW_THRESH / NUIONIZATION;
@@ -437,7 +434,7 @@ void calculate_spectral_factors(double zp) {
             sum_lyn_val = weight * sum_lyn_prev;
             sum_ly2_val = weight * sum_ly2_prev;
             sum_lynto2_val = weight * sum_lynto2_prev;
-            if (flag_options_global->USE_MINI_HALOS) {
+            if (astro_options_global->USE_MINI_HALOS) {
                 sum_lyn_val_MINI = weight * sum_lyn_prev_MINI;
                 sum_ly2_val_MINI = weight * sum_ly2_prev_MINI;
                 sum_lynto2_val_MINI = weight * sum_lynto2_prev_MINI;
@@ -449,17 +446,17 @@ void calculate_spectral_factors(double zp) {
         LOG_ULTRA_DEBUG("z: %.2e R: %.2e int %.2e starlya: %.4e", zpp, R_values[R_ct],
                         zpp_integrand, dstarlya_dt_prefactor[R_ct]);
 
-        if (flag_options_global->USE_LYA_HEATING) {
+        if (astro_options_global->USE_LYA_HEATING) {
             dstarlya_cont_dt_prefactor[R_ct] = zpp_integrand * sum_ly2_val;
             dstarlya_inj_dt_prefactor[R_ct] = zpp_integrand * sum_lynto2_val;
             LOG_ULTRA_DEBUG("cont %.2e inj %.2e", dstarlya_cont_dt_prefactor[R_ct],
                             dstarlya_inj_dt_prefactor[R_ct]);
         }
-        if (flag_options_global->USE_MINI_HALOS) {
+        if (astro_options_global->USE_MINI_HALOS) {
             dstarlya_dt_prefactor_MINI[R_ct] = zpp_integrand * sum_lyn_val_MINI;
             dstarlyLW_dt_prefactor[R_ct] = zpp_integrand * sum_lyLW_val;
             dstarlyLW_dt_prefactor_MINI[R_ct] = zpp_integrand * sum_lyLW_val_MINI;
-            if (flag_options_global->USE_LYA_HEATING) {
+            if (astro_options_global->USE_LYA_HEATING) {
                 dstarlya_cont_dt_prefactor_MINI[R_ct] = zpp_integrand * sum_ly2_val_MINI;
                 dstarlya_inj_dt_prefactor_MINI[R_ct] = zpp_integrand * sum_lynto2_val_MINI;
             }
@@ -493,9 +490,10 @@ void prepare_filter_boxes(double redshift, float *input_dens, float *input_vcb, 
 //       They pad the input by a factor of 2 to cover the complex part, but from the type I thought
 //       it would be stored [(r,c),(r,c)...] Not [(r,r,r,r....),(c,c,c....)] so the alignment should
 //       be wrong, right?
-#pragma omp parallel for private(i, j, k) num_threads(user_params_global->N_THREADS) collapse(3)
-    for (i = 0; i < user_params_global->HII_DIM; i++) {
-        for (j = 0; j < user_params_global->HII_DIM; j++) {
+#pragma omp parallel for private(i, j, k) num_threads(simulation_options_global->N_THREADS) \
+    collapse(3)
+    for (i = 0; i < simulation_options_global->HII_DIM; i++) {
+        for (j = 0; j < simulation_options_global->HII_DIM; j++) {
             for (k = 0; k < HII_D_PARA; k++) {
                 *((float *)output_dens + HII_R_FFT_INDEX(i, j, k)) =
                     input_dens[HII_R_INDEX(i, j, k)];
@@ -503,38 +501,37 @@ void prepare_filter_boxes(double redshift, float *input_dens, float *input_vcb, 
         }
     }
     // Transform unfiltered box to k-space to prepare for filtering
-    dft_r2c_cube(user_params_global->USE_FFTW_WISDOM, user_params_global->HII_DIM, HII_D_PARA,
-                 user_params_global->N_THREADS, output_dens);
-#pragma omp parallel for num_threads(user_params_global->N_THREADS)
+    dft_r2c_cube(matter_options_global->USE_FFTW_WISDOM, simulation_options_global->HII_DIM,
+                 HII_D_PARA, simulation_options_global->N_THREADS, output_dens);
+#pragma omp parallel for num_threads(simulation_options_global->N_THREADS)
     for (ct = 0; ct < HII_KSPACE_NUM_PIXELS; ct++) {
         output_dens[ct] /= (float)HII_TOT_NUM_PIXELS;
     }
 
-    if (flag_options_global->USE_MINI_HALOS) {
-        curr_vcb = flag_options_global->FIX_VCB_AVG ? astro_params_global->FIXED_VAVG : 0;
+    if (astro_options_global->USE_MINI_HALOS) {
+        curr_vcb = astro_options_global->FIX_VCB_AVG ? astro_params_global->FIXED_VAVG : 0;
 #pragma omp parallel for firstprivate(curr_vcb) private(i, j, k, curr_j21, M_buf) \
-    num_threads(user_params_global->N_THREADS) collapse(3)
-        for (i = 0; i < user_params_global->HII_DIM; i++) {
-            for (j = 0; j < user_params_global->HII_DIM; j++) {
+    num_threads(simulation_options_global->N_THREADS) collapse(3)
+        for (i = 0; i < simulation_options_global->HII_DIM; i++) {
+            for (j = 0; j < simulation_options_global->HII_DIM; j++) {
                 for (k = 0; k < HII_D_PARA; k++) {
-                    if (!flag_options_global->FIX_VCB_AVG &&
-                        user_params_global->USE_RELATIVE_VELOCITIES) {
+                    if (!astro_options_global->FIX_VCB_AVG &&
+                        matter_options_global->USE_RELATIVE_VELOCITIES) {
                         curr_vcb = input_vcb[HII_R_INDEX(i, j, k)];
                     }
                     curr_j21 = input_j21[HII_R_INDEX(i, j, k)];
                     // NOTE: we don't use reionization_feedback here, I assume it wouldn't do much
                     // but it's inconsistent
-                    M_buf =
-                        lyman_werner_threshold(redshift, curr_j21, curr_vcb, astro_params_global);
+                    M_buf = lyman_werner_threshold(redshift, curr_j21, curr_vcb);
                     M_buf = fmax(M_buf, astro_params_global->M_TURN);
                     *((float *)output_LW + HII_R_FFT_INDEX(i, j, k)) = log10(M_buf);
                 }
             }
         }
         // Transform unfiltered box to k-space to prepare for filtering
-        dft_r2c_cube(user_params_global->USE_FFTW_WISDOM, user_params_global->HII_DIM, HII_D_PARA,
-                     user_params_global->N_THREADS, output_LW);
-#pragma omp parallel for num_threads(user_params_global->N_THREADS)
+        dft_r2c_cube(matter_options_global->USE_FFTW_WISDOM, simulation_options_global->HII_DIM,
+                     HII_D_PARA, simulation_options_global->N_THREADS, output_LW);
+#pragma omp parallel for num_threads(simulation_options_global->N_THREADS)
         for (ct = 0; ct < HII_KSPACE_NUM_PIXELS; ct++) {
             output_LW[ct] /= (float)HII_TOT_NUM_PIXELS;
         }
@@ -563,20 +560,21 @@ void fill_Rbox_table(float **result, fftwf_complex *unfiltered_box, double *R_ar
         memcpy(box, unfiltered_box, sizeof(fftwf_complex) * HII_KSPACE_NUM_PIXELS);
 
         // don't filter on cell size
-        if (R > L_FACTOR * (user_params_global->BOX_LEN / user_params_global->HII_DIM)) {
-            filter_box(box, 1, flag_options_global->HEAT_FILTER, R, 0.);
+        if (R >
+            L_FACTOR * (simulation_options_global->BOX_LEN / simulation_options_global->HII_DIM)) {
+            filter_box(box, 1, astro_options_global->HEAT_FILTER, R, 0.);
         }
 
         // now fft back to real space
-        dft_c2r_cube(user_params_global->USE_FFTW_WISDOM, user_params_global->HII_DIM, HII_D_PARA,
-                     user_params_global->N_THREADS, box);
+        dft_c2r_cube(matter_options_global->USE_FFTW_WISDOM, simulation_options_global->HII_DIM,
+                     HII_D_PARA, simulation_options_global->N_THREADS, box);
         // copy over the values
-#pragma omp parallel private(i, j, k) num_threads(user_params_global->N_THREADS)
+#pragma omp parallel private(i, j, k) num_threads(simulation_options_global->N_THREADS)
         {
             float curr;
 #pragma omp for reduction(+ : ave_buffer) reduction(max : max_out_R) reduction(min : min_out_R)
-            for (i = 0; i < user_params_global->HII_DIM; i++) {
-                for (j = 0; j < user_params_global->HII_DIM; j++) {
+            for (i = 0; i < simulation_options_global->HII_DIM; i++) {
+                for (j = 0; j < simulation_options_global->HII_DIM; j++) {
                     for (k = 0; k < HII_D_PARA; k++) {
                         curr = *((float *)box + HII_R_FFT_INDEX(i, j, k));
 
@@ -620,13 +618,13 @@ void one_annular_filter(float *input_box, float *output_box, double R_inner, dou
     fftwf_complex *filtered_box =
         (fftwf_complex *)fftwf_malloc(sizeof(fftwf_complex) * HII_KSPACE_NUM_PIXELS);
 
-#pragma omp parallel private(i, j, k) num_threads(user_params_global->N_THREADS) \
+#pragma omp parallel private(i, j, k) num_threads(simulation_options_global->N_THREADS) \
     reduction(+ : unfiltered_avg)
     {
         float curr_val;
 #pragma omp for
-        for (i = 0; i < user_params_global->HII_DIM; i++) {
-            for (j = 0; j < user_params_global->HII_DIM; j++) {
+        for (i = 0; i < simulation_options_global->HII_DIM; i++) {
+            for (j = 0; j < simulation_options_global->HII_DIM; j++) {
                 for (k = 0; k < HII_D_PARA; k++) {
                     curr_val = input_box[HII_R_INDEX(i, j, k)];
                     *((float *)unfiltered_box + HII_R_FFT_INDEX(i, j, k)) = curr_val;
@@ -638,12 +636,12 @@ void one_annular_filter(float *input_box, float *output_box, double R_inner, dou
 
     // Transform unfiltered box to k-space to prepare for filtering
     // this would normally only be done once but we're using a different redshift for each R now
-    dft_r2c_cube(user_params_global->USE_FFTW_WISDOM, user_params_global->HII_DIM, HII_D_PARA,
-                 user_params_global->N_THREADS, unfiltered_box);
+    dft_r2c_cube(matter_options_global->USE_FFTW_WISDOM, simulation_options_global->HII_DIM,
+                 HII_D_PARA, simulation_options_global->N_THREADS, unfiltered_box);
 
 // remember to add the factor of VOLUME/TOT_NUM_PIXELS when converting from real space to k-space
 // Note: we will leave off factor of VOLUME, in anticipation of the inverse FFT below
-#pragma omp parallel num_threads(user_params_global->N_THREADS)
+#pragma omp parallel num_threads(simulation_options_global->N_THREADS)
     {
 #pragma omp for
         for (ct = 0; ct < HII_KSPACE_NUM_PIXELS; ct++) {
@@ -661,17 +659,17 @@ void one_annular_filter(float *input_box, float *output_box, double R_inner, dou
     }
 
     // now fft back to real space
-    dft_c2r_cube(user_params_global->USE_FFTW_WISDOM, user_params_global->HII_DIM, HII_D_PARA,
-                 user_params_global->N_THREADS, filtered_box);
+    dft_c2r_cube(matter_options_global->USE_FFTW_WISDOM, simulation_options_global->HII_DIM,
+                 HII_D_PARA, simulation_options_global->N_THREADS, filtered_box);
 
 // copy over the values
-#pragma omp parallel private(i, j, k) num_threads(user_params_global->N_THREADS) \
+#pragma omp parallel private(i, j, k) num_threads(simulation_options_global->N_THREADS) \
     reduction(+ : filtered_avg)
     {
         float curr_val;
 #pragma omp for
-        for (i = 0; i < user_params_global->HII_DIM; i++) {
-            for (j = 0; j < user_params_global->HII_DIM; j++) {
+        for (i = 0; i < simulation_options_global->HII_DIM; i++) {
+            for (j = 0; j < simulation_options_global->HII_DIM; j++) {
                 for (k = 0; k < HII_D_PARA; k++) {
                     curr_val = *((float *)filtered_box + HII_R_FFT_INDEX(i, j, k));
                     // correct for aliasing in the filtering step
@@ -696,13 +694,11 @@ void one_annular_filter(float *input_box, float *output_box, double R_inner, dou
 
 // fill a box[R_ct][box_ct] array for use in TS by filtering on different scales and storing results
 // Similar to fill_Rbox_table but called using different redshifts for each scale
-int UpdateXraySourceBox(UserParams *user_params, CosmoParams *cosmo_params,
-                        AstroParams *astro_params, FlagOptions *flag_options, HaloBox *halobox,
-                        double R_inner, double R_outer, int R_ct, XraySourceBox *source_box) {
+int UpdateXraySourceBox(HaloBox *halobox, double R_inner, double R_outer, int R_ct,
+                        XraySourceBox *source_box) {
     int status;
     Try {
         // the indexing needs these
-        Broadcast_struct_global_all(user_params, cosmo_params, astro_params, flag_options);
 
         // only print once, since this is called for every R
         if (R_ct == 0) LOG_DEBUG("starting XraySourceBox");
@@ -715,7 +711,7 @@ int UpdateXraySourceBox(UserParams *user_params, CosmoParams *cosmo_params,
         one_annular_filter(halobox->halo_xray,
                            &(source_box->filtered_xray[R_ct * HII_TOT_NUM_PIXELS]), R_inner,
                            R_outer, &xray_avg, &fxray_avg);
-        if (flag_options->USE_MINI_HALOS) {
+        if (astro_options_global->USE_MINI_HALOS) {
             one_annular_filter(halobox->halo_sfr_mini,
                                &(source_box->filtered_sfr_mini[R_ct * HII_TOT_NUM_PIXELS]), R_inner,
                                R_outer, &sfr_avg_mini, &fsfr_avg_mini);
@@ -725,7 +721,7 @@ int UpdateXraySourceBox(UserParams *user_params, CosmoParams *cosmo_params,
         source_box->mean_sfr_mini[R_ct] = fsfr_avg_mini;
         source_box->mean_log10_Mcrit_LW[R_ct] = halobox->log10_Mcrit_MCG_ave;
 
-        if (R_ct == astro_params->N_STEP_TS - 1) LOG_DEBUG("finished XraySourceBox");
+        if (R_ct == astro_params_global->N_STEP_TS - 1) LOG_DEBUG("finished XraySourceBox");
 
         LOG_SUPER_DEBUG(
             "R_inner = %8.3f | mean filtered sfr  = %10.3e (%10.3e MINI) unfiltered %10.3e (%10.3e "
@@ -753,7 +749,7 @@ void fill_freqint_tables(double zp, double x_e_ave, double filling_factor_of_HI_
     int x_e_ct, R_ct;
     int R_start, R_end;
     // if we minimize mem these arrays are filled one by one
-    if (user_params_global->MINIMIZE_MEMORY) {
+    if (matter_options_global->MINIMIZE_MEMORY) {
         R_start = R_mm;
         R_end = R_mm + 1;
     } else {
@@ -761,7 +757,7 @@ void fill_freqint_tables(double zp, double x_e_ave, double filling_factor_of_HI_
         R_end = astro_params_global->N_STEP_TS;
     }
 #pragma omp parallel private(R_ct, x_e_ct, lower_int_limit) \
-    num_threads(user_params_global->N_THREADS)
+    num_threads(simulation_options_global->N_THREADS)
     {
 #pragma omp for
         // In TauX we integrate Nion from zpp to zp using the LW turnover mass at zp (predending its
@@ -771,7 +767,7 @@ void fill_freqint_tables(double zp, double x_e_ave, double filling_factor_of_HI_
         // weighting of the average
         //   density -> volume weighted cell average || halo -> halo weighted average
         for (R_ct = R_start; R_ct < R_end; R_ct++) {
-            if (flag_options_global->USE_MINI_HALOS) {
+            if (astro_options_global->USE_MINI_HALOS) {
                 lower_int_limit =
                     fmax(nu_tau_one_MINI(zp, zpp_for_evolve_list[R_ct], x_e_ave,
                                          filling_factor_of_HI_zp, log10_Mcrit_LW_ave[R_ct], sc),
@@ -840,7 +836,7 @@ void init_first_Ts(TsBox *box, float *dens, float z, float zp, double *x_e_ave, 
     *x_e_ave = xe;
     *Tk_ave = TK;
 
-#pragma omp parallel private(box_ct) num_threads(user_params_global->N_THREADS)
+#pragma omp parallel private(box_ct) num_threads(simulation_options_global->N_THREADS)
     {
         double gdens;
         float curr_xalpha;
@@ -871,9 +867,9 @@ int global_reion_properties(double zp, double x_e_ave, double *log10_Mcrit_LW_av
 
     // at z', we need a differenc constant struct
     struct ScalingConstants sc;
-    set_scaling_constants(zp, astro_params_global, flag_options_global, &sc, false);
+    set_scaling_constants(zp, &sc, false);
 
-    if (user_params_global->USE_INTERPOLATION_TABLES > 1) {
+    if (matter_options_global->USE_INTERPOLATION_TABLES > 1) {
         determine_zpp_min = zp * 0.999;
         // NOTE: must be called after setup_z_edges for this line
         determine_zpp_max = zpp_for_evolve_list[astro_params_global->N_STEP_TS - 1] * 1.001;
@@ -884,7 +880,7 @@ int global_reion_properties(double zp, double x_e_ave, double *log10_Mcrit_LW_av
         //   ~100 redshifts. The benefit of interpolating here would only matter if we keep the same
         //   table over subsequent snapshots, which we don't seem to do. The Nion table is used in
         //   nu_tau_one a lot but I think there's a better way to do that
-        if (flag_options_global->USE_MASS_DEPENDENT_ZETA) {
+        if (astro_options_global->USE_MASS_DEPENDENT_ZETA) {
             /* initialise interpolation of the mean collapse fraction for global reionization.*/
             initialise_Nion_Ts_spline(zpp_interp_points_SFR, determine_zpp_min, determine_zpp_max,
                                       &sc);
@@ -900,7 +896,7 @@ int global_reion_properties(double zp, double x_e_ave, double *log10_Mcrit_LW_av
     //   are based on the expected global Nion. as mentioned above it would be nice to
     //   change this to a saved reionisation/sfrd history from previous snapshots
     sum_nion = EvaluateNionTs(zp, &sc);
-    if (flag_options_global->USE_MINI_HALOS) {
+    if (astro_options_global->USE_MINI_HALOS) {
         sum_nion_mini = EvaluateNionTs_MINI(zp, log10_Mcrit_LW_ave[0], &sc);
     }
 
@@ -916,12 +912,12 @@ int global_reion_properties(double zp, double x_e_ave, double *log10_Mcrit_LW_av
     *Q_HI = 1 - (ION_EFF_FACTOR * sum_nion + ION_EFF_FACTOR_MINI * sum_nion_mini) / (1.0 - x_e_ave);
 
     // Initialise freq tables & prefactors (x_e by R tables)
-    if (!user_params_global->MINIMIZE_MEMORY) {
+    if (!matter_options_global->MINIMIZE_MEMORY) {
         // Now global SFRD at (R_ct) for the mean fixing
         for (R_ct = 0; R_ct < astro_params_global->N_STEP_TS; R_ct++) {
             zpp = zpp_for_evolve_list[R_ct];
             mean_sfr_zpp[R_ct] = EvaluateSFRD(zpp, &sc);
-            if (flag_options_global->USE_MINI_HALOS) {
+            if (astro_options_global->USE_MINI_HALOS) {
                 mean_sfr_zpp_mini[R_ct] = EvaluateSFRD_MINI(zpp, log10_Mcrit_LW_ave[R_ct], &sc);
             }
         }
@@ -936,12 +932,13 @@ void calculate_sfrd_from_grid(int R_ct, float *dens_R_grid, float *Mcrit_R_grid,
                               struct ScalingConstants *sc) {
     double ave_sfrd_buf = 0;
     double ave_sfrd_buf_mini = 0;
-    if (user_params_global->INTEGRATION_METHOD_ATOMIC == 1 ||
-        (flag_options_global->USE_MINI_HALOS && user_params_global->INTEGRATION_METHOD_MINI == 1))
+    if (astro_options_global->INTEGRATION_METHOD_ATOMIC == 1 ||
+        (astro_options_global->USE_MINI_HALOS &&
+         astro_options_global->INTEGRATION_METHOD_MINI == 1))
         initialise_GL(log(M_min_R[R_ct]), log(M_max_R[R_ct]));
 
-    if (user_params_global->USE_INTERPOLATION_TABLES > 1) {
-        if (flag_options_global->USE_MASS_DEPENDENT_ZETA) {
+    if (matter_options_global->USE_INTERPOLATION_TABLES > 1) {
+        if (astro_options_global->USE_MASS_DEPENDENT_ZETA) {
             initialise_SFRD_Conditional_table(zpp_for_evolve_list[R_ct],
                                               min_densities[R_ct] * zpp_growth[R_ct],
                                               max_densities[R_ct] * zpp_growth[R_ct] * 1.001,
@@ -953,7 +950,7 @@ void calculate_sfrd_from_grid(int R_ct, float *dens_R_grid, float *Mcrit_R_grid,
         }
     }
 
-#pragma omp parallel num_threads(user_params_global->N_THREADS)
+#pragma omp parallel num_threads(simulation_options_global->N_THREADS)
     {
         unsigned long long int box_ct;
         double curr_dens;
@@ -964,14 +961,14 @@ void calculate_sfrd_from_grid(int R_ct, float *dens_R_grid, float *Mcrit_R_grid,
 #pragma omp for reduction(+ : ave_sfrd_buf, ave_sfrd_buf_mini)
         for (box_ct = 0; box_ct < HII_TOT_NUM_PIXELS; box_ct++) {
             curr_dens = dens_R_grid[box_ct] * zpp_growth[R_ct];
-            if (flag_options_global->USE_MINI_HALOS) curr_mcrit = Mcrit_R_grid[box_ct];
+            if (astro_options_global->USE_MINI_HALOS) curr_mcrit = Mcrit_R_grid[box_ct];
 
-            if (flag_options_global->USE_MASS_DEPENDENT_ZETA) {
+            if (astro_options_global->USE_MASS_DEPENDENT_ZETA) {
                 fcoll = EvaluateSFRD_Conditional(curr_dens, zpp_growth[R_ct], M_min_R[R_ct],
                                                  M_max_R[R_ct], M_max_R[R_ct], sigma_max[R_ct], sc);
                 sfrd_grid[box_ct] = (1. + curr_dens) * fcoll;
 
-                if (flag_options_global->USE_MINI_HALOS) {
+                if (astro_options_global->USE_MINI_HALOS) {
                     fcoll_MINI = EvaluateSFRD_Conditional_MINI(
                         curr_dens, curr_mcrit, zpp_growth[R_ct], M_min_R[R_ct], M_max_R[R_ct],
                         M_max_R[R_ct], sigma_max[R_ct], sc);
@@ -1081,7 +1078,7 @@ void set_zp_consts(double zp, struct spintemp_from_sfr_prefactors *consts) {
     consts->lya_star_prefactor = C / FOURPI * Msun / m_p * (1 - 0.75 * cosmo_params_global->Y_He);
 
     // converts the grid emissivity unit to per cm-3
-    if (flag_options_global->USE_HALO_FIELD) {
+    if (matter_options_global->USE_HALO_FIELD) {
         consts->volunit_inv = pow(CMperMPC, -3);
     } else {
         consts->volunit_inv = cosmo_params_global->OMb * RHOcrit * pow(CMperMPC, -3);
@@ -1158,7 +1155,7 @@ struct Ts_cell get_Ts_fast(float zp, float dzp, struct spintemp_from_sfr_prefact
     dxheat_dzp = rad->dxheat_dt * consts->dt_dzp * 2.0 / 3.0 / k_B / (1.0 + rad->prev_xe);
     // CMB heating rate
     dCMBheat_dzp = 0.;
-    if (flag_options_global->USE_CMB_HEATING) {
+    if (astro_options_global->USE_CMB_HEATING) {
         // Meiksin et al. 2021
         eps_CMB = (3. / 4.) * (consts->Trad / T21) * A10_HYPERFINE * f_H *
                   (hplank * hplank / Lambda_21 / Lambda_21 / m_p) * (1. + 2. * rad->prev_Tk / T21);
@@ -1169,7 +1166,7 @@ struct Ts_cell get_Ts_fast(float zp, float dzp, struct spintemp_from_sfr_prefact
     // Ly-alpha heating rate
     eps_Lya_cont = 0.;
     eps_Lya_inj = 0.;
-    if (flag_options_global->USE_LYA_HEATING) {
+    if (astro_options_global->USE_LYA_HEATING) {
         E_continuum =
             Energy_Lya_heating(rad->prev_Tk, rad->prev_Ts, taugp(zp, rad->delta, rad->prev_xe), 2);
         E_injected =
@@ -1217,7 +1214,7 @@ struct Ts_cell get_Ts_fast(float zp, float dzp, struct spintemp_from_sfr_prefact
 
     output.x_e = x_e;
     output.Tk = Tk;
-    output.J_21_LW = flag_options_global->USE_MINI_HALOS ? rad->dstarLW_dt : 0.;
+    output.J_21_LW = astro_options_global->USE_MINI_HALOS ? rad->dstarLW_dt : 0.;
 
     double J_alpha_tot = rad->dstarlya_dt + rad->dxlya_dt;  // not really d/dz, but the lya flux
 
@@ -1280,11 +1277,9 @@ struct Ts_cell get_Ts_fast(float zp, float dzp, struct spintemp_from_sfr_prefact
 }
 
 // outer-level function for calculating Ts based on the Halo boxes
-void ts_main(float redshift, float prev_redshift, UserParams *user_params,
-             CosmoParams *cosmo_params, AstroParams *astro_params, FlagOptions *flag_options,
-             float perturbed_field_redshift, short cleanup, PerturbedField *perturbed_field,
-             XraySourceBox *source_box, TsBox *previous_spin_temp, InitialConditions *ini_boxes,
-             TsBox *this_spin_temp) {
+void ts_main(float redshift, float prev_redshift, float perturbed_field_redshift, short cleanup,
+             PerturbedField *perturbed_field, XraySourceBox *source_box, TsBox *previous_spin_temp,
+             InitialConditions *ini_boxes, TsBox *this_spin_temp) {
     int R_ct;
     unsigned long long int box_ct;
     double x_e_ave_p, Tk_ave_p;
@@ -1312,24 +1307,26 @@ void ts_main(float redshift, float prev_redshift, UserParams *user_params,
     setup_z_edges(redshift);
 
     // with the TtoM limit, we use the largest redshift, to cover the whole range
-    double M_MIN_tb = M_min_R[astro_params->N_STEP_TS - 1];
+    double M_MIN_tb = M_min_R[astro_params_global->N_STEP_TS - 1];
     // This M_MIN just sets the sigma table range, the minimum mass for the integrals is set per
     // radius in setup_z_edges
-    if (user_params->INTEGRATION_METHOD_ATOMIC == 2 || user_params->INTEGRATION_METHOD_MINI == 2)
+    if (astro_options_global->INTEGRATION_METHOD_ATOMIC == 2 ||
+        astro_options_global->INTEGRATION_METHOD_MINI == 2)
         M_MIN_tb = fmin(MMIN_FAST, M_MIN_tb);
 
     // we need a larger table here due to the large radii
-    if (user_params->USE_INTERPOLATION_TABLES > 0) initialiseSigmaMInterpTable(M_MIN_tb / 2, 1e20);
+    if (matter_options_global->USE_INTERPOLATION_TABLES > 0)
+        initialiseSigmaMInterpTable(M_MIN_tb / 2, 1e20);
 
     // now that we have the sigma table we can assign the sigma arrays
-    for (R_ct = 0; R_ct < astro_params->N_STEP_TS; R_ct++) {
+    for (R_ct = 0; R_ct < astro_params_global->N_STEP_TS; R_ct++) {
         sigma_min[R_ct] = EvaluateSigma(log(M_min_R[R_ct]));
         sigma_max[R_ct] = EvaluateSigma(log(M_max_R[R_ct]));
     }
 
     // Initialize heating interpolation arrays
     init_heat();
-    if (redshift >= user_params->Z_HEAT_MAX) {
+    if (redshift >= simulation_options_global->Z_HEAT_MAX) {
         LOG_DEBUG("redshift greater than Z_HEAT_MAX");
         init_first_Ts(this_spin_temp, perturbed_field->density, perturbed_field_redshift, redshift,
                       &x_e_ave_p, &Tk_ave_p);
@@ -1342,19 +1339,19 @@ void ts_main(float redshift, float prev_redshift, UserParams *user_params,
     // Since we use the average Mturn for the global tables this must be done first
     // NOTE: The filtered Mturn for the previous snapshot is used for Fcoll at ALL zpp
     //   regardless of distance from current reshift, this also goes for the averages
-    double ave_log10_MturnLW[astro_params->N_STEP_TS];
-    double min_log10_MturnLW[astro_params->N_STEP_TS];
-    double max_log10_MturnLW[astro_params->N_STEP_TS];
-    double ave_dens[astro_params->N_STEP_TS];
+    double ave_log10_MturnLW[astro_params_global->N_STEP_TS];
+    double min_log10_MturnLW[astro_params_global->N_STEP_TS];
+    double max_log10_MturnLW[astro_params_global->N_STEP_TS];
+    double ave_dens[astro_params_global->N_STEP_TS];
     fftwf_complex *log10_Mcrit_LW_unfiltered = NULL;
     fftwf_complex *delta_unfiltered = NULL;
     double log10_Mcrit_limit;
 
-    if (!flag_options->USE_HALO_FIELD) {
+    if (!matter_options_global->USE_HALO_FIELD) {
         // copy over to FFTW, do the forward FFTs and apply constants
         delta_unfiltered =
             (fftwf_complex *)fftwf_malloc(sizeof(fftwf_complex) * HII_KSPACE_NUM_PIXELS);
-        if (flag_options->USE_MINI_HALOS)
+        if (astro_options_global->USE_MINI_HALOS)
             log10_Mcrit_LW_unfiltered =
                 (fftwf_complex *)fftwf_malloc(sizeof(fftwf_complex) * HII_KSPACE_NUM_PIXELS);
 
@@ -1362,22 +1359,22 @@ void ts_main(float redshift, float prev_redshift, UserParams *user_params,
                              previous_spin_temp->J_21_LW_box, delta_unfiltered,
                              log10_Mcrit_LW_unfiltered);
         // fill the filtered boxes if we are storing them all
-        if (!user_params->MINIMIZE_MEMORY) {
-            fill_Rbox_table(delNL0, delta_unfiltered, R_values, astro_params->N_STEP_TS, -1,
+        if (!matter_options_global->MINIMIZE_MEMORY) {
+            fill_Rbox_table(delNL0, delta_unfiltered, R_values, astro_params_global->N_STEP_TS, -1,
                             inverse_growth_factor_z, min_densities, ave_dens, max_densities);
-            if (flag_options->USE_MINI_HALOS) {
+            if (astro_options_global->USE_MINI_HALOS) {
                 // NOTE: we are using previous_zp LW threshold for all zpp, inconsistent with the
                 // halo model
-                log10_Mcrit_limit = log10(lyman_werner_threshold(
-                    redshift, 0., 0., astro_params));  // minimum turnover NOTE: should be zpp_max?
+                // minimum turnover NOTE: should be zpp_max?
+                log10_Mcrit_limit = log10(lyman_werner_threshold(redshift, 0., 0.));
                 fill_Rbox_table(log10_Mcrit_LW, log10_Mcrit_LW_unfiltered, R_values,
-                                astro_params->N_STEP_TS, log10_Mcrit_limit, 1, min_log10_MturnLW,
-                                ave_log10_MturnLW, max_log10_MturnLW);
+                                astro_params_global->N_STEP_TS, log10_Mcrit_limit, 1,
+                                min_log10_MturnLW, ave_log10_MturnLW, max_log10_MturnLW);
             }
         } else {
             // we still need the average Mturn at R_ct==0 for NO_LIGHT
             // TODO: Remove this and come up with a better way to get NO_LIGHT
-            if (flag_options->USE_MINI_HALOS) {
+            if (astro_options_global->USE_MINI_HALOS) {
                 fill_Rbox_table(log10_Mcrit_LW, log10_Mcrit_LW_unfiltered, &(R_values[0]), 1, 0, 1,
                                 &min_log10_MturnLW[0], &ave_log10_MturnLW[0],
                                 &max_log10_MturnLW[0]);
@@ -1385,7 +1382,7 @@ void ts_main(float redshift, float prev_redshift, UserParams *user_params,
         }
         LOG_DEBUG("Constructed filtered boxes.");
     } else {
-        for (R_ct = 0; R_ct < astro_params->N_STEP_TS; R_ct++) {
+        for (R_ct = 0; R_ct < astro_params_global->N_STEP_TS; R_ct++) {
             ave_log10_MturnLW[R_ct] = source_box->mean_log10_Mcrit_LW[R_ct];
         }
     }
@@ -1394,7 +1391,7 @@ void ts_main(float redshift, float prev_redshift, UserParams *user_params,
     set_zp_consts(redshift, &zp_consts);
 
     x_e_ave_p = Tk_ave_p = 0.0;
-#pragma omp parallel num_threads(user_params->N_THREADS)
+#pragma omp parallel num_threads(simulation_options_global->N_THREADS)
     {
 #pragma omp for reduction(+ : x_e_ave_p, Tk_ave_p)
         for (box_ct = 0; box_ct < HII_TOT_NUM_PIXELS; box_ct++) {
@@ -1407,8 +1404,8 @@ void ts_main(float redshift, float prev_redshift, UserParams *user_params,
     LOG_DEBUG("Prev Box: x_e_ave %.3e | TK_ave %.3e", x_e_ave_p, Tk_ave_p);
 
     int NO_LIGHT;
-    double mean_sfr_zpp[astro_params->N_STEP_TS];
-    double mean_sfr_zpp_mini[astro_params->N_STEP_TS];
+    double mean_sfr_zpp[astro_params_global->N_STEP_TS];
+    double mean_sfr_zpp_mini[astro_params_global->N_STEP_TS];
 
     // this should initialise and use the global tables (given box average turnovers)
     //   and use them to give: Filling factor at zp (only used for !MASS_DEPENDENT_ZETA to get
@@ -1417,7 +1414,7 @@ void ts_main(float redshift, float prev_redshift, UserParams *user_params,
     NO_LIGHT = global_reion_properties(redshift, x_e_ave_p, ave_log10_MturnLW, mean_sfr_zpp,
                                        mean_sfr_zpp_mini, &Q_HI_zp);
 
-#pragma omp parallel private(box_ct) num_threads(user_params->N_THREADS)
+#pragma omp parallel private(box_ct) num_threads(simulation_options_global->N_THREADS)
     {
         float xHII_call;
 #pragma omp for
@@ -1440,8 +1437,8 @@ void ts_main(float redshift, float prev_redshift, UserParams *user_params,
             dxion_source_dt_box[box_ct] = 0.;
             dxlya_dt_box[box_ct] = 0.;
             dstarlya_dt_box[box_ct] = 0.;
-            if (flag_options->USE_MINI_HALOS) dstarlyLW_dt_box[box_ct] = 0.;
-            if (flag_options->USE_LYA_HEATING) {
+            if (astro_options_global->USE_MINI_HALOS) dstarlyLW_dt_box[box_ct] = 0.;
+            if (astro_options_global->USE_LYA_HEATING) {
                 dstarlya_cont_dt_box[box_ct] = 0.;
                 dstarlya_inj_dt_box[box_ct] = 0.;
             }
@@ -1464,41 +1461,41 @@ void ts_main(float redshift, float prev_redshift, UserParams *user_params,
 
     // if we have stars, fill in the heating term boxes
     if (!NO_LIGHT) {
-        for (R_ct = astro_params->N_STEP_TS; R_ct--;) {
+        for (R_ct = astro_params_global->N_STEP_TS; R_ct--;) {
             dzpp_for_evolve = dzpp_list[R_ct];
             zpp = zpp_for_evolve_list[R_ct];
             // dtdz'' dz'' -> dR for the radius sum (c included in constants)
-            if (flag_options->USE_HALO_FIELD)
+            if (matter_options_global->USE_HALO_FIELD)
                 z_edge_factor = fabs(dzpp_for_evolve * dtdz_list[R_ct]);
-            else if (flag_options->USE_MASS_DEPENDENT_ZETA)
-                z_edge_factor =
-                    fabs(dzpp_for_evolve * dtdz_list[R_ct]) * hubble(zpp) / astro_params->t_STAR;
+            else if (astro_options_global->USE_MASS_DEPENDENT_ZETA)
+                z_edge_factor = fabs(dzpp_for_evolve * dtdz_list[R_ct]) * hubble(zpp) /
+                                astro_params_global->t_STAR;
             else
                 z_edge_factor = dzpp_for_evolve;  // uses dfcoll/dz
 
-            xray_R_factor = pow(1 + zpp, -(astro_params->X_RAY_SPEC_INDEX));
+            xray_R_factor = pow(1 + zpp, -(astro_params_global->X_RAY_SPEC_INDEX));
 
-            set_scaling_constants(zpp, astro_params, flag_options, &sc, false);
+            set_scaling_constants(zpp, &sc, false);
 
             // index for grids
-            R_index = user_params->MINIMIZE_MEMORY ? 0 : R_ct;
+            R_index = matter_options_global->MINIMIZE_MEMORY ? 0 : R_ct;
 
-            if (!flag_options->USE_HALO_FIELD) {
-                if (user_params->MINIMIZE_MEMORY) {
+            if (!matter_options_global->USE_HALO_FIELD) {
+                if (matter_options_global->MINIMIZE_MEMORY) {
                     // we call the filtering functions once here per R
                     // This unnecessarily allocates and frees a fftwf box every time but surely
                     // that's not a bottleneck
                     fill_Rbox_table(delNL0, delta_unfiltered, &(R_values[R_ct]), 1, -1,
                                     inverse_growth_factor_z, &min_densities[R_ct], &ave_dens[R_ct],
                                     &max_densities[R_ct]);
-                    if (flag_options->USE_MINI_HALOS) {
+                    if (astro_options_global->USE_MINI_HALOS) {
                         fill_Rbox_table(log10_Mcrit_LW, log10_Mcrit_LW_unfiltered,
                                         &(R_values[R_ct]), 1, 0, 1, &min_log10_MturnLW[R_ct],
                                         &ave_log10_MturnLW[R_ct], &max_log10_MturnLW[R_ct]);
                     }
                     // get the global things we missed before
                     mean_sfr_zpp[R_ct] = EvaluateSFRD(zpp_for_evolve_list[R_ct], &sc);
-                    if (flag_options->USE_MINI_HALOS) {
+                    if (astro_options_global->USE_MINI_HALOS) {
                         mean_sfr_zpp_mini[R_ct] = EvaluateSFRD_MINI(zpp_for_evolve_list[R_ct],
                                                                     ave_log10_MturnLW[R_ct], &sc);
                     }
@@ -1507,13 +1504,13 @@ void ts_main(float redshift, float prev_redshift, UserParams *user_params,
                 }
                 // set input pointers (doing things this way helps with flag flexibility)
                 delta_box_input = delNL0[R_index];
-                if (flag_options->USE_MINI_HALOS) {
+                if (astro_options_global->USE_MINI_HALOS) {
                     Mcrit_box_input = log10_Mcrit_LW[R_index];
                 }
                 calculate_sfrd_from_grid(R_ct, delta_box_input, Mcrit_box_input, del_fcoll_Rct,
                                          del_fcoll_Rct_MINI, &ave_fcoll, &ave_fcoll_MINI, &sc);
                 avg_fix_term = mean_sfr_zpp[R_ct] / ave_fcoll;
-                if (flag_options->USE_MINI_HALOS)
+                if (astro_options_global->USE_MINI_HALOS)
                     avg_fix_term_MINI = mean_sfr_zpp_mini[R_ct] / ave_fcoll_MINI;
 
 #if LOG_LEVEL >= SUPER_DEBUG_LEVEL
@@ -1525,7 +1522,7 @@ void ts_main(float redshift, float prev_redshift, UserParams *user_params,
                     Nion_General(zpp_for_evolve_list[R_ct], log(M_min_R[R_ct]), log(M_MAX_INTEGRAL),
                                  sc_sfrd.mturn_a_nofb, &sc_sfrd),
                     M_min_R[R_ct], avg_fix_term, z_edge_factor);
-                if (flag_options->USE_MINI_HALOS) {
+                if (astro_options_global->USE_MINI_HALOS) {
                     LOG_SUPER_DEBUG(
                         "MINI sfrd val %.3e global %.3e (int %.3e) ratio %.3e log10McritLW %.3e",
                         ave_fcoll_MINI, mean_sfr_zpp_mini[R_ct],
@@ -1538,9 +1535,9 @@ void ts_main(float redshift, float prev_redshift, UserParams *user_params,
             }
 
             // minihalo factors should be separated since they may not be allocated
-            if (flag_options->USE_MINI_HALOS) {
+            if (astro_options_global->USE_MINI_HALOS) {
                 starlya_factor_mini = dstarlya_dt_prefactor_MINI[R_ct];
-                if (flag_options->USE_LYA_HEATING) {
+                if (astro_options_global->USE_LYA_HEATING) {
                     lyacont_factor_mini = dstarlya_cont_dt_prefactor_MINI[R_ct];
                     lyainj_factor_mini = dstarlya_inj_dt_prefactor_MINI[R_ct];
                 }
@@ -1550,7 +1547,7 @@ void ts_main(float redshift, float prev_redshift, UserParams *user_params,
 //   But here it's just (1+delta_source). This is for photon conservation.
 //   If we assume attenuation at mean density as we do in nu_tau_one(), we HAVE to assume mean
 //   density absorption otherwise we do not conserve photons
-#pragma omp parallel private(box_ct) num_threads(user_params->N_THREADS)
+#pragma omp parallel private(box_ct) num_threads(simulation_options_global->N_THREADS)
             {
                 // private variables
                 int xidx;
@@ -1565,7 +1562,7 @@ void ts_main(float redshift, float prev_redshift, UserParams *user_params,
                     // Secondly, it is *likely* faster to fill these boxes, and sum with a outer R
                     // loop than an inner one.
 
-                    if (flag_options->USE_HALO_FIELD) {
+                    if (matter_options_global->USE_HALO_FIELD) {
                         sfr_term = source_box->filtered_sfr[R_index * HII_TOT_NUM_PIXELS + box_ct] *
                                    z_edge_factor;
                         // Minihalos and s->yr conversion are already included here
@@ -1576,19 +1573,19 @@ void ts_main(float redshift, float prev_redshift, UserParams *user_params,
                         // NOTE: for !USE_MASS_DEPENDENT_ZETA, F_STAR10 is still used for constant
                         // stellar fraction
                         sfr_term = del_fcoll_Rct[box_ct] * z_edge_factor * avg_fix_term *
-                                   astro_params->F_STAR10;
-                        xray_sfr = sfr_term * astro_params->L_X * xray_R_factor * SperYR;
+                                   astro_params_global->F_STAR10;
+                        xray_sfr = sfr_term * astro_params_global->L_X * xray_R_factor * SperYR;
                     }
-                    if (flag_options->USE_MINI_HALOS) {
-                        if (flag_options->USE_HALO_FIELD) {
+                    if (astro_options_global->USE_MINI_HALOS) {
+                        if (matter_options_global->USE_HALO_FIELD) {
                             sfr_term_mini =
                                 source_box->filtered_sfr_mini[R_ct * HII_TOT_NUM_PIXELS + box_ct] *
                                 z_edge_factor;
                         } else {
                             sfr_term_mini = del_fcoll_Rct_MINI[box_ct] * z_edge_factor *
-                                            avg_fix_term_MINI * astro_params->F_STAR7_MINI;
-                            xray_sfr +=
-                                sfr_term_mini * astro_params->L_X_MINI * xray_R_factor * SperYR;
+                                            avg_fix_term_MINI * astro_params_global->F_STAR7_MINI;
+                            xray_sfr += sfr_term_mini * astro_params_global->L_X_MINI *
+                                        xray_R_factor * SperYR;
                         }
                         dstarlyLW_dt_box[box_ct] +=
                             sfr_term * dstarlyLW_dt_prefactor[R_ct] +
@@ -1605,7 +1602,7 @@ void ts_main(float redshift, float prev_redshift, UserParams *user_params,
                                                         freq_int_lya_tbl[xidx][R_ct]);
                     dstarlya_dt_box[box_ct] += sfr_term * dstarlya_dt_prefactor[R_ct] +
                                                sfr_term_mini * starlya_factor_mini;
-                    if (flag_options->USE_LYA_HEATING) {
+                    if (astro_options_global->USE_LYA_HEATING) {
                         dstarlya_cont_dt_box[box_ct] +=
                             sfr_term * dstarlya_cont_dt_prefactor[R_ct] +
                             sfr_term_mini * lyacont_factor_mini;
@@ -1616,32 +1613,32 @@ void ts_main(float redshift, float prev_redshift, UserParams *user_params,
                     // I cannot check the integral if we are using the halo field since delNL0
                     // (filtered density) is not calculated
 #if LOG_LEVEL >= SUPER_DEBUG_LEVEL
-                    if (box_ct == 0 && !flag_options->USE_HALO_FIELD) {
+                    if (box_ct == 0 && !matter_options_global->USE_HALO_FIELD) {
                         double integral_db;
-                        if (flag_options->USE_MASS_DEPENDENT_ZETA) {
+                        if (astro_options_global->USE_MASS_DEPENDENT_ZETA) {
                             integral_db =
                                 Nion_ConditionalM(zpp_growth[R_ct], log(M_min_R[R_ct]),
                                                   log(M_max_R[R_ct]), M_max_R[R_ct],
                                                   sigma_max[R_ct],
                                                   delNL0[R_index][box_ct] * zpp_growth[R_ct],
                                                   sc_sfrd.mturn_a_nofb, &sc_sfrd,
-                                                  user_params->INTEGRATION_METHOD_ATOMIC) *
+                                                  astro_options_global->INTEGRATION_METHOD_ATOMIC) *
                                 z_edge_factor * (1 + delNL0[R_index][box_ct] * zpp_growth[R_ct]) *
-                                avg_fix_term * astro_params->F_STAR10;
+                                avg_fix_term * astro_params_global->F_STAR10;
                         } else {
                             integral_db = dfcoll_dz(zpp_for_evolve_list[R_ct], sigma_min[R_ct],
                                                     delNL0[R_index][box_ct] * zpp_growth[R_ct],
                                                     sigma_max[R_ct]) *
                                           z_edge_factor *
                                           (1 + delNL0[R_index][box_ct] * zpp_growth[R_ct]) *
-                                          avg_fix_term * astro_params->F_STAR10;
+                                          avg_fix_term * astro_params_global->F_STAR10;
                         }
 
                         LOG_SUPER_DEBUG(
                             "Cell 0: R=%.1f (%.3f) | SFR %.4e | integral %.4e | delta %.4e",
                             R_values[R_ct], zpp_for_evolve_list[R_ct], sfr_term, integral_db,
                             delNL0[R_index][box_ct]);
-                        if (flag_options->USE_MINI_HALOS)
+                        if (astro_options_global->USE_MINI_HALOS)
                             LOG_SUPER_DEBUG(
                                 "MINI SFR %.4e | integral %.4e", sfr_term_mini,
                                 Nion_ConditionalM_MINI(
@@ -1649,17 +1646,17 @@ void ts_main(float redshift, float prev_redshift, UserParams *user_params,
                                     log(M_max_R[R_ct]), sigma_max[R_ct],
                                     delNL0[R_index][box_ct] * zpp_growth[R_ct],
                                     pow(10, log10_Mcrit_LW[R_ct][box_ct]), &sc_sfrd,
-                                    user_params->INTEGRATION_METHOD_MINI) *
+                                    astro_options_global->INTEGRATION_METHOD_MINI) *
                                     z_edge_factor *
                                     (1 + delNL0[R_index][box_ct] * zpp_growth[R_ct]) *
-                                    avg_fix_term_MINI * astro_params->F_STAR7_MINI);
+                                    avg_fix_term_MINI * astro_params_global->F_STAR7_MINI);
 
                         LOG_SUPER_DEBUG("xh %.2e | xi %.2e | xl %.2e | sl %.2e",
-                                        dxheat_dt_box[box_ct] / astro_params->L_X,
-                                        dxion_source_dt_box[box_ct] / astro_params->L_X,
-                                        dxlya_dt_box[box_ct] / astro_params->L_X,
+                                        dxheat_dt_box[box_ct] / astro_params_global->L_X,
+                                        dxion_source_dt_box[box_ct] / astro_params_global->L_X,
+                                        dxlya_dt_box[box_ct] / astro_params_global->L_X,
                                         dstarlya_dt_box[box_ct]);
-                        if (flag_options->USE_LYA_HEATING)
+                        if (astro_options_global->USE_LYA_HEATING)
                             LOG_SUPER_DEBUG("ct %.2e | ij %.2e", dstarlya_cont_dt_box[box_ct],
                                             dstarlya_inj_dt_box[box_ct]);
                     }
@@ -1704,11 +1701,11 @@ void ts_main(float redshift, float prev_redshift, UserParams *user_params,
             rad.dstarlya_dt =
                 dstarlya_dt_box[box_ct] * zp_consts.lya_star_prefactor * zp_consts.volunit_inv;
             rad.delta = curr_delta;
-            if (flag_options->USE_MINI_HALOS) {
+            if (astro_options_global->USE_MINI_HALOS) {
                 rad.dstarLW_dt = dstarlyLW_dt_box[box_ct] * zp_consts.lya_star_prefactor *
                                  zp_consts.volunit_inv * hplank * 1e21;
             }
-            if (flag_options->USE_LYA_HEATING) {
+            if (astro_options_global->USE_LYA_HEATING) {
                 rad.dstarlya_cont_dt = dstarlya_cont_dt_box[box_ct] * zp_consts.lya_star_prefactor *
                                        zp_consts.volunit_inv;
                 rad.dstarlya_inj_dt = dstarlya_inj_dt_box[box_ct] * zp_consts.lya_star_prefactor *
@@ -1722,7 +1719,7 @@ void ts_main(float redshift, float prev_redshift, UserParams *user_params,
             this_spin_temp->Ts_box[box_ct] = ts_cell.Ts;
             this_spin_temp->Tk_box[box_ct] = ts_cell.Tk;
             this_spin_temp->x_e_box[box_ct] = ts_cell.x_e;
-            if (flag_options->USE_MINI_HALOS) {
+            if (astro_options_global->USE_MINI_HALOS) {
                 this_spin_temp->J_21_LW_box[box_ct] = ts_cell.J_21_LW;
             }
 
@@ -1731,11 +1728,11 @@ void ts_main(float redshift, float prev_redshift, UserParams *user_params,
                 LOG_SUPER_DEBUG(
                     "Cell0: delta: %.3e | xheat: %.3e | dxion: %.3e | dxlya: %.3e | dstarlya: %.3e",
                     curr_delta, rad.dxheat_dt, rad.dxion_dt, rad.dxlya_dt, rad.dstarlya_dt);
-                if (flag_options->USE_LYA_HEATING) {
+                if (astro_options_global->USE_LYA_HEATING) {
                     LOG_SUPER_DEBUG("Lya inj %.3e | Lya cont %.3e", rad.dstarlya_inj_dt,
                                     rad.dstarlya_cont_dt);
                 }
-                if (flag_options->USE_MINI_HALOS) {
+                if (astro_options_global->USE_MINI_HALOS) {
                     LOG_SUPER_DEBUG("LyW %.3e", rad.dstarLW_dt);
                 }
                 LOG_SUPER_DEBUG("Ts %.5e Tk %.5e x_e %.5e J_21_LW %.5e", ts_cell.Ts, ts_cell.Tk,
@@ -1766,11 +1763,11 @@ void ts_main(float redshift, float prev_redshift, UserParams *user_params,
 
     LOG_DEBUG("AVERAGES zp = %.2e Ts = %.2e x_e = %.2e Tk %.2e", redshift, Ts_ave, x_e_ave, Tk_ave);
     LOG_DEBUG("J_alpha = %.2e xheat = %.2e xion = %.2e", J_alpha_ave, xheat_ave, xion_ave);
-    if (flag_options->USE_MINI_HALOS) {
+    if (astro_options_global->USE_MINI_HALOS) {
         J_LW_ave /= (double)HII_TOT_NUM_PIXELS;
         LOG_DEBUG("J_LW %.2e", J_LW_ave / 1e21);
     }
-    if (flag_options->USE_LYA_HEATING) {
+    if (astro_options_global->USE_LYA_HEATING) {
         eps_lya_cont_ave /= (double)HII_TOT_NUM_PIXELS;
         eps_lya_inj_ave /= (double)HII_TOT_NUM_PIXELS;
         LOG_DEBUG("eps_cont %.2e eps_inj %.2e", eps_lya_cont_ave, eps_lya_inj_ave);
@@ -1789,9 +1786,9 @@ void ts_main(float redshift, float prev_redshift, UserParams *user_params,
         }
     }
 
-    if (!flag_options->USE_HALO_FIELD) {
+    if (!matter_options_global->USE_HALO_FIELD) {
         fftwf_free(delta_unfiltered);
-        if (flag_options->USE_MINI_HALOS) {
+        if (astro_options_global->USE_MINI_HALOS) {
             fftwf_free(log10_Mcrit_LW_unfiltered);
         }
         fftwf_forget_wisdom();

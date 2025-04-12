@@ -14,11 +14,10 @@ import py21cmfast as p21c
 
 from . import produce_integration_test_data as prd
 
-DEFAULT_USER_PARAMS_CTEST = {
+DEFAULT_SIMULATION_OPTIONS_CTEST = {
     "HII_DIM": 32,
     "DIM": 128,
     "BOX_LEN": 64,
-    "NO_RNG": True,
     "SAMPLER_MIN_MASS": 1e9,
 }
 
@@ -127,17 +126,17 @@ def test_lc_runs(name, max_redshift, cache, benchmark):
 
     node_maxz = max_redshift
     if (
-        options["inputs"].flag_options.USE_TS_FLUCT
-        or options["inputs"].flag_options.INHOMO_RECO
+        options["inputs"].astro_options.USE_TS_FLUCT
+        or options["inputs"].astro_options.INHOMO_RECO
     ):
-        node_maxz = options["inputs"].user_params.Z_HEAT_MAX
+        node_maxz = options["inputs"].simulation_options.Z_HEAT_MAX
 
     options["inputs"] = options["inputs"].clone(
-        user_params=p21c.UserParams.new(DEFAULT_USER_PARAMS_CTEST),
+        simulation_options=p21c.SimulationOptions.new(DEFAULT_SIMULATION_OPTIONS_CTEST),
         node_redshifts=p21c.get_logspaced_redshifts(
             min_redshift=redshift,
             max_redshift=node_maxz,
-            z_step_factor=options["inputs"].user_params.ZPRIME_STEP_FACTOR,
+            z_step_factor=options["inputs"].simulation_options.ZPRIME_STEP_FACTOR,
         ),
     )
 
@@ -147,7 +146,7 @@ def test_lc_runs(name, max_redshift, cache, benchmark):
         quantities=[
             "brightness_temp",
         ],
-        resolution=options["inputs"].user_params.cell_size,
+        resolution=options["inputs"].simulation_options.cell_size,
     )
 
     with p21c.config.use(ignore_R_BUBBLE_MAX_error=True):
@@ -165,10 +164,10 @@ def test_lc_runs(name, max_redshift, cache, benchmark):
 
     assert isinstance(lightcone, p21c.LightCone)
     assert np.all(np.isfinite(lightcone.lightcones["brightness_temp"]))
-    assert lightcone.user_params == options["inputs"].user_params
+    assert lightcone.simulation_options == options["inputs"].simulation_options
     assert lightcone.cosmo_params == options["inputs"].cosmo_params
     assert lightcone.astro_params == options["inputs"].astro_params
-    assert lightcone.flag_options == options["inputs"].flag_options
+    assert lightcone.astro_options == options["inputs"].astro_options
 
 
 @pytest.mark.parametrize("name", list(OPTIONS_CTEST.keys()))
@@ -177,7 +176,7 @@ def test_cv_runs(name, cache, benchmark):
     options = prd.get_all_options_struct(redshift, lc=False, **kwargs)
 
     options["inputs"] = options["inputs"].clone(
-        user_params=p21c.UserParams.new(DEFAULT_USER_PARAMS_CTEST)
+        simulation_options=p21c.SimulationOptions.new(DEFAULT_SIMULATION_OPTIONS_CTEST)
     )
 
     with p21c.config.use(ignore_R_BUBBLE_MAX_error=True):
@@ -195,7 +194,7 @@ def test_cv_runs(name, cache, benchmark):
     assert all(isinstance(x, p21c.Coeval) for x in cv)
     cv = cv[0]
     assert np.all(np.isfinite(cv.brightness_temp))
-    assert cv.user_params == options["inputs"].user_params
+    assert cv.simulation_options == options["inputs"].simulation_options
     assert cv.cosmo_params == options["inputs"].cosmo_params
     assert cv.astro_params == options["inputs"].astro_params
-    assert cv.flag_options == options["inputs"].flag_options
+    assert cv.astro_options == options["inputs"].astro_options

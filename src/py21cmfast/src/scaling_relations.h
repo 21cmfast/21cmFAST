@@ -51,8 +51,7 @@ struct ScalingConstants {
     double Mlim_Fesc_mini;
 };
 
-void set_scaling_constants(double redshift, AstroParams *astro_params, FlagOptions *flag_options,
-                           struct ScalingConstants *consts, bool use_photoncons);
+void set_scaling_constants(double redshift, struct ScalingConstants *consts, bool use_photoncons);
 
 double get_lx_on_sfr(double sfr, double metallicity, double lx_constant);
 void get_halo_stellarmass(double halo_mass, double mturn_acg, double mturn_mcg, double star_rng,
@@ -70,8 +69,6 @@ double scaling_double_PL(double M, double alpha_lo, double pivot_ratio, double a
                          double pivot_hi);
 struct ScalingConstants evolve_scaling_constants_sfr(struct ScalingConstants *sc);
 struct ScalingConstants evolve_scaling_constants_to_redshift(double redshift,
-                                                             AstroParams *astro_params,
-                                                             FlagOptions *flag_options,
                                                              struct ScalingConstants *sc,
                                                              bool use_photoncons);
 void print_sc_consts(struct ScalingConstants *c);

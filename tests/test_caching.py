@@ -12,7 +12,6 @@ from py21cmfast import (
     InputParameters,
     IonizedBox,
     PerturbedField,
-    compute_ionization_field,
 )
 from py21cmfast.io import caching, h5
 from py21cmfast.wrapper import outputs
@@ -92,7 +91,6 @@ class TestRunCache:
         for fld in attrs.asdict(full_run_cache, recurse=False).values():
             if isinstance(fld, dict):
                 for fname in fld.values():
-                    print(fname)
                     cache2 = caching.RunCache.from_example_file(fname)
                     assert full_run_cache == cache2
 

@@ -59,9 +59,9 @@ structure of the file yourself interactively. But here is an example using h5py:
 
     fl = h5py.File("my_coeval.h5", "r")
 
-    # print a dict of all the UserParams
-    # the CosmoParams, FlagOptions and AstroParams are accessed the same way.
-    print(dict(fl['user_params'].attrs))
+    # print a dict of all the MatterParams
+    # the CosmoParams, AstroFlags and AstroParams are accessed the same way.
+    print(dict(fl['matter_params'].attrs))
 
     # Get the redshift and random seed of the coeval box
     redshift = fl.attrs['redshift']

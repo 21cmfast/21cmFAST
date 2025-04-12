@@ -7,14 +7,15 @@ from pathlib import Path
 import pytest
 
 from py21cmfast import (
+    AstroOptions,
     AstroParams,
     CosmoParams,
-    FlagOptions,
     InitialConditions,
     InputParameters,
+    MatterOptions,
     OutputCache,
     PerturbedField,
-    UserParams,
+    SimulationOptions,
     compute_initial_conditions,
     compute_ionization_field,
     config,
@@ -119,13 +120,21 @@ def default_seed():
 
 
 @pytest.fixture(scope="session")
-def default_user_params():
-    return UserParams(
+def default_simulation_options():
+    return SimulationOptions(
         HII_DIM=35,
         DIM=70,
         BOX_LEN=50,
-        KEEP_3D_VELOCITIES=True,
         ZPRIME_STEP_FACTOR=1.2,
+    )
+
+
+@pytest.fixture(scope="session")
+def default_matter_options():
+    return MatterOptions(
+        KEEP_3D_VELOCITIES=True,
+        USE_HALO_FIELD=False,
+        HALO_STOCHASTICITY=False,
     )
 
 
@@ -135,23 +144,19 @@ def default_cosmo_params():
 
 
 @pytest.fixture(scope="session")
-def default_flag_options():
-    return FlagOptions(
-        USE_HALO_FIELD=False,
+def default_astro_options():
+    return AstroOptions(
         USE_EXP_FILTER=False,
         CELL_RECOMB=False,
-        HALO_STOCHASTICITY=False,
         USE_UPPER_STELLAR_TURNOVER=False,
     )
 
 
 @pytest.fixture(scope="session")
-def default_flag_options_ts():
-    return FlagOptions(
-        USE_HALO_FIELD=False,
+def default_astro_options_ts():
+    return AstroOptions(
         USE_EXP_FILTER=False,
         CELL_RECOMB=False,
-        HALO_STOCHASTICITY=False,
         USE_TS_FLUCT=True,
         USE_UPPER_STELLAR_TURNOVER=False,
     )
@@ -164,30 +169,32 @@ def default_astro_params():
 
 @pytest.fixture(scope="session")
 def default_input_struct(
-    default_user_params,
+    default_simulation_options,
+    default_matter_options,
     default_cosmo_params,
     default_astro_params,
-    default_flag_options,
+    default_astro_options,
     default_seed,
 ):
     return InputParameters(
         random_seed=default_seed,
         cosmo_params=default_cosmo_params,
         astro_params=default_astro_params,
-        user_params=default_user_params,
-        flag_options=default_flag_options,
+        simulation_options=default_simulation_options,
+        matter_options=default_matter_options,
+        astro_options=default_astro_options,
         node_redshifts=(),
     )
 
 
 @pytest.fixture(scope="session")
-def default_input_struct_ts(redshift, default_input_struct, default_flag_options_ts):
+def default_input_struct_ts(redshift, default_input_struct, default_astro_options_ts):
     return default_input_struct.clone(
-        flag_options=default_flag_options_ts,
+        astro_options=default_astro_options_ts,
         node_redshifts=get_logspaced_redshifts(
             min_redshift=redshift,
-            max_redshift=default_input_struct.user_params.Z_HEAT_MAX,
-            z_step_factor=default_input_struct.user_params.ZPRIME_STEP_FACTOR,
+            max_redshift=default_input_struct.simulation_options.Z_HEAT_MAX,
+            z_step_factor=default_input_struct.simulation_options.ZPRIME_STEP_FACTOR,
         ),
     )
 
@@ -197,8 +204,8 @@ def default_input_struct_lc(lightcone_min_redshift, default_input_struct):
     return default_input_struct.clone(
         node_redshifts=get_logspaced_redshifts(
             min_redshift=lightcone_min_redshift,
-            max_redshift=default_input_struct.user_params.Z_HEAT_MAX,
-            z_step_factor=default_input_struct.user_params.ZPRIME_STEP_FACTOR,
+            max_redshift=default_input_struct.simulation_options.Z_HEAT_MAX,
+            z_step_factor=default_input_struct.simulation_options.ZPRIME_STEP_FACTOR,
         )
     )
 
@@ -285,12 +292,15 @@ def ionize_box(
 
 @pytest.fixture(scope="session")
 def rectlcn(
-    lightcone_min_redshift, max_redshift, default_user_params, default_cosmo_params
+    lightcone_min_redshift,
+    max_redshift,
+    default_simulation_options,
+    default_cosmo_params,
 ) -> RectilinearLightconer:
     return RectilinearLightconer.with_equal_cdist_slices(
         min_redshift=lightcone_min_redshift,
         max_redshift=max_redshift,
-        resolution=default_user_params.cell_size,
+        resolution=default_simulation_options.cell_size,
         cosmo=default_cosmo_params.cosmo,
     )
 

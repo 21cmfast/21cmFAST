@@ -15,7 +15,7 @@ very thorough :doc:`API Reference <reference/index>`.
 
 Design Philosophy
 =================
-The goal of v3 of ``21cmFAST`` is to provide the same computational efficiency and
+The goal of v3+ of ``21cmFAST`` is to provide the same computational efficiency and
 scientific features of the previous generations, but packaged in a form that adopts the
 best modern programming standards, including:
 

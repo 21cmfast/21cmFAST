@@ -121,9 +121,7 @@ struct FilteredGrids {
     fftwf_complex *sfr_unfiltered, *sfr_filtered;
 };
 
-void set_ionbox_constants(double redshift, double prev_redshift, CosmoParams *cosmo_params,
-                          UserParams *user_params, AstroParams *astro_params,
-                          FlagOptions *flag_options, struct IonBoxConstants *consts) {
+void set_ionbox_constants(double redshift, double prev_redshift, struct IonBoxConstants *consts) {
     consts->redshift = redshift;
     consts->prev_redshift = prev_redshift;
     // defaults for no photoncons
@@ -133,38 +131,39 @@ void set_ionbox_constants(double redshift, double prev_redshift, CosmoParams *co
     // dz is only used if inhomo_reco
     // On the first step we assume a dz determined by ZPRIME_STEP_FACTOR
     if (prev_redshift < 1)
-        consts->dz = (1. + redshift) * (user_params->ZPRIME_STEP_FACTOR - 1.);
+        consts->dz = (1. + redshift) * (simulation_options_global->ZPRIME_STEP_FACTOR - 1.);
     else
         consts->dz = prev_redshift - redshift;
 
     struct ScalingConstants sc;
-    set_scaling_constants(redshift, astro_params, flag_options, &sc, true);
+    set_scaling_constants(redshift, &sc, true);
     consts->scale_consts = sc;
 
-    // TODO: Figure out why we have the 1e15 here
-    consts->fabs_dtdz = fabs(dtdz(redshift)) / 1e15;  // reduce to have good precision
+    // recombination_rate returns in units (1e15s)^-1
+    consts->fabs_dtdz = fabs(dtdz(redshift)) / 1e15;
     consts->growth_factor = dicke(redshift);
     consts->prev_growth_factor = dicke(prev_redshift);
 
     // whether to fix *integrated* (not sampled) galaxy properties to the expected mean
     //   constant for now, to be a flag later
-    consts->fix_mean = !flag_options->USE_HALO_FIELD;
-    consts->filter_recombinations = flag_options->INHOMO_RECO && !flag_options->CELL_RECOMB;
+    consts->fix_mean = !matter_options_global->USE_HALO_FIELD;
+    consts->filter_recombinations =
+        astro_options_global->INHOMO_RECO && !astro_options_global->CELL_RECOMB;
 
-    consts->hii_filter = flag_options->HII_FILTER;
-    consts->T_re = astro_params->T_RE;
+    consts->hii_filter = astro_options_global->HII_FILTER;
+    consts->T_re = astro_params_global->T_RE;
 
-    if (flag_options->USE_MASS_DEPENDENT_ZETA) {
+    if (astro_options_global->USE_MASS_DEPENDENT_ZETA) {
         consts->ion_eff_factor_gl = sc.pop2_ion * sc.fstar_10 * sc.fesc_10;
         consts->ion_eff_factor_mini_gl = sc.pop3_ion * sc.fstar_7 * sc.fesc_7;
     } else {
-        consts->ion_eff_factor_gl = astro_params->HII_EFF_FACTOR;
+        consts->ion_eff_factor_gl = astro_params_global->HII_EFF_FACTOR;
         consts->ion_eff_factor_mini_gl = 0.;
     }
 
     // The halo fields already have Fstar,Fesc,nion taken into account, so their global factor
     // differs from the local one
-    if (flag_options->USE_HALO_FIELD) {
+    if (matter_options_global->USE_HALO_FIELD) {
         consts->ion_eff_factor = 1.;
         consts->ion_eff_factor_mini = 1.;
     } else {
@@ -174,45 +173,48 @@ void set_ionbox_constants(double redshift, double prev_redshift, CosmoParams *co
 
     // MFP USED FOR THE EXPNENTIAL FILTER
     // Yuxiang's evolving Rmax for MFP in ionised regions fit from Songaila+2010
-    //  if(flag_options->USE_EXP_FILTER){
+    //  if(astro_options_global->USE_EXP_FILTER){
     //      if (redshift > 6)
-    //          consts->mfp_meandens = 25.483241248322766 / cosmo_params->hlittle;
+    //          consts->mfp_meandens = 25.483241248322766 / cosmo_params_global->hlittle;
     //      else
-    //          consts->mfp_meandens = 112 / cosmo_params->hlittle * pow( (1.+redshift) / 5. ,
-    //          -4.4);
+    //          consts->mfp_meandens = 112 / cosmo_params_global->hlittle * pow( (1.+redshift) / 5.
+    //          , -4.4);
     //      LOG_DEBUG("Set mfp = %.4e",consts->mfp_meandens);
     //  }
     // Constant MFP
-    consts->mfp_meandens = 25.483241248322766 / cosmo_params->hlittle;
+    consts->mfp_meandens = 25.483241248322766 / cosmo_params_global->hlittle;
 
     // set the minimum source mass
-    consts->M_min = minimum_source_mass(redshift, false, astro_params, flag_options);
+    consts->M_min = minimum_source_mass(redshift, false);
     consts->lnMmin = log(consts->M_min);
     consts->lnMmax_gl = log(M_MAX_INTEGRAL);
     consts->sigma_minmass = sigma_z0(consts->M_min);
 
     // global TK and adiabatic terms for temperature without the Ts Calculation
     // final temperature = TK * (1+cT_ad*delta)
-    if (!flag_options->USE_TS_FLUCT) {
+    if (!astro_options_global->USE_TS_FLUCT) {
         consts->TK_nofluct = T_RECFAST(redshift, 0);
         // finding the adiabatic index at the initial redshift from 2302.08506 to fix adiabatic
         // fluctuations.
         consts->adia_TK_term = cT_approx(redshift);
     }
-    consts->pixel_length = user_params_global->BOX_LEN / (double)user_params_global->HII_DIM;
+    consts->pixel_length =
+        simulation_options_global->BOX_LEN / (double)simulation_options_global->HII_DIM;
     consts->pixel_mass = cosmo_params_global->OMm * RHOcrit * pow(consts->pixel_length, 3);
 
     consts->gamma_prefactor =
         pow(1 + redshift, 2) * CMperMPC * SIGMA_HI * astro_params_global->ALPHA_UVB /
         (astro_params_global->ALPHA_UVB + 2.75) * N_b0 * consts->ion_eff_factor / 1.0e-12;
-    if (flag_options->USE_HALO_FIELD)
+    if (matter_options_global->USE_HALO_FIELD)
         consts->gamma_prefactor /=
-            RHOcrit * cosmo_params->OMb;  // TODO: double-check these unit differences,
-                                          // HaloBox.halo_wsfr vs Nion_General units
+            RHOcrit * cosmo_params_global->OMb;  // TODO: double-check these unit differences,
+                                                 // HaloBox.halo_wsfr vs Nion_General units
     else
-        consts->gamma_prefactor /= sc.t_h / sc.t_star;
+        consts->gamma_prefactor = consts->gamma_prefactor / (sc.t_h * sc.t_star);
+
     consts->gamma_prefactor_mini =
         consts->gamma_prefactor * consts->ion_eff_factor_mini / consts->ion_eff_factor;
+
     LOG_SUPER_DEBUG("Gamma Prefactor %.3e ion eff factor %.3e", consts->gamma_prefactor,
                     consts->ion_eff_factor);
     LOG_SUPER_DEBUG("Mini Gamma %.3e Mini ion %.3e", consts->gamma_prefactor_mini,
@@ -227,7 +229,7 @@ void allocate_fftw_grids(struct FilteredGrids **fg_struct) {
     (*fg_struct)->deltax_filtered =
         (fftwf_complex *)fftwf_malloc(sizeof(fftwf_complex) * HII_KSPACE_NUM_PIXELS);
 
-    if (flag_options_global->USE_MINI_HALOS && !flag_options_global->USE_HALO_FIELD) {
+    if (astro_options_global->USE_MINI_HALOS && !matter_options_global->USE_HALO_FIELD) {
         (*fg_struct)->prev_deltax_unfiltered =
             (fftwf_complex *)fftwf_malloc(sizeof(fftwf_complex) * HII_KSPACE_NUM_PIXELS);
         (*fg_struct)->prev_deltax_filtered =
@@ -243,21 +245,21 @@ void allocate_fftw_grids(struct FilteredGrids **fg_struct) {
             (fftwf_complex *)fftwf_malloc(sizeof(fftwf_complex) * HII_KSPACE_NUM_PIXELS);
     }
 
-    if (flag_options_global->USE_TS_FLUCT) {
+    if (astro_options_global->USE_TS_FLUCT) {
         (*fg_struct)->xe_unfiltered =
             (fftwf_complex *)fftwf_malloc(sizeof(fftwf_complex) * HII_KSPACE_NUM_PIXELS);
         (*fg_struct)->xe_filtered =
             (fftwf_complex *)fftwf_malloc(sizeof(fftwf_complex) * HII_KSPACE_NUM_PIXELS);
     }
 
-    if (flag_options_global->INHOMO_RECO && !flag_options_global->CELL_RECOMB) {
+    if (astro_options_global->INHOMO_RECO && !astro_options_global->CELL_RECOMB) {
         (*fg_struct)->N_rec_unfiltered = (fftwf_complex *)fftwf_malloc(
             sizeof(fftwf_complex) * HII_KSPACE_NUM_PIXELS);  // cumulative number of recombinations
         (*fg_struct)->N_rec_filtered =
             (fftwf_complex *)fftwf_malloc(sizeof(fftwf_complex) * HII_KSPACE_NUM_PIXELS);
     }
 
-    if (flag_options_global->USE_HALO_FIELD) {
+    if (matter_options_global->USE_HALO_FIELD) {
         (*fg_struct)->stars_unfiltered =
             (fftwf_complex *)fftwf_malloc(sizeof(fftwf_complex) * HII_KSPACE_NUM_PIXELS);
         (*fg_struct)->stars_filtered =
@@ -275,7 +277,7 @@ void free_fftw_grids(struct FilteredGrids *fg_struct) {
     fftwf_free(fg_struct->deltax_unfiltered);
     fftwf_free(fg_struct->deltax_filtered);
 
-    if (flag_options_global->USE_MINI_HALOS && !flag_options_global->USE_HALO_FIELD) {
+    if (astro_options_global->USE_MINI_HALOS && !matter_options_global->USE_HALO_FIELD) {
         fftwf_free(fg_struct->prev_deltax_unfiltered);
         fftwf_free(fg_struct->prev_deltax_filtered);
 
@@ -284,16 +286,16 @@ void free_fftw_grids(struct FilteredGrids *fg_struct) {
         fftwf_free(fg_struct->log10_Mturnover_MINI_unfiltered);
         fftwf_free(fg_struct->log10_Mturnover_MINI_filtered);
     }
-    if (flag_options_global->USE_TS_FLUCT) {
+    if (astro_options_global->USE_TS_FLUCT) {
         fftwf_free(fg_struct->xe_unfiltered);
         fftwf_free(fg_struct->xe_filtered);
     }
-    if (flag_options_global->INHOMO_RECO && !flag_options_global->CELL_RECOMB) {
+    if (astro_options_global->INHOMO_RECO && !astro_options_global->CELL_RECOMB) {
         fftwf_free(fg_struct->N_rec_unfiltered);
         fftwf_free(fg_struct->N_rec_filtered);
     }
 
-    if (flag_options_global->USE_HALO_FIELD) {
+    if (matter_options_global->USE_HALO_FIELD) {
         fftwf_free(fg_struct->stars_unfiltered);
         fftwf_free(fg_struct->stars_filtered);
         fftwf_free(fg_struct->sfr_unfiltered);
@@ -315,10 +317,10 @@ void prepare_box_for_filtering(float *input_box, fftwf_complex *output_c_box, do
 //       They pad the input by a factor of 2 to cover the complex part, but from the type I thought
 //       it would be stored [(r,c),(r,c)...] Not [(r,r,r,r....),(c,c,c....)] so the alignment should
 //       be wrong, right?
-#pragma omp parallel for private(i, j, k, curr_cell) num_threads(user_params_global->N_THREADS) \
-    collapse(3)
-    for (i = 0; i < user_params_global->HII_DIM; i++) {
-        for (j = 0; j < user_params_global->HII_DIM; j++) {
+#pragma omp parallel for private(i, j, k, curr_cell) \
+    num_threads(simulation_options_global->N_THREADS) collapse(3)
+    for (i = 0; i < simulation_options_global->HII_DIM; i++) {
+        for (j = 0; j < simulation_options_global->HII_DIM; j++) {
             for (k = 0; k < HII_D_PARA; k++) {
                 curr_cell = input_box[HII_R_INDEX(i, j, k)] * const_factor;
                 // clipping
@@ -328,11 +330,11 @@ void prepare_box_for_filtering(float *input_box, fftwf_complex *output_c_box, do
         }
     }
     // Transform unfiltered box to k-space to prepare for filtering
-    dft_r2c_cube(user_params_global->USE_FFTW_WISDOM, user_params_global->HII_DIM, HII_D_PARA,
-                 user_params_global->N_THREADS, output_c_box);
+    dft_r2c_cube(matter_options_global->USE_FFTW_WISDOM, simulation_options_global->HII_DIM,
+                 HII_D_PARA, simulation_options_global->N_THREADS, output_c_box);
 
 // divide by pixel number in preparation for later inverse transform
-#pragma omp parallel for private(ct) num_threads(user_params_global->N_THREADS)
+#pragma omp parallel for private(ct) num_threads(simulation_options_global->N_THREADS)
     for (ct = 0; ct < HII_KSPACE_NUM_PIXELS; ct++) {
         output_c_box[ct] /= (float)HII_TOT_NUM_PIXELS;
     }
@@ -349,11 +351,11 @@ void setup_first_z_prevbox(IonizedBox *previous_ionize_box, PerturbedField *prev
 
 // z_re_box is used in all cases
 #pragma omp parallel shared(previous_ionize_box) private(i, j, k) \
-    num_threads(user_params_global -> N_THREADS)
+    num_threads(simulation_options_global -> N_THREADS)
     {
 #pragma omp for
-        for (i = 0; i < user_params_global->HII_DIM; i++) {
-            for (j = 0; j < user_params_global->HII_DIM; j++) {
+        for (i = 0; i < simulation_options_global->HII_DIM; i++) {
+            for (j = 0; j < simulation_options_global->HII_DIM; j++) {
                 for (k = 0; k < HII_D_PARA; k++) {
                     previous_ionize_box->z_re_box[HII_R_INDEX(i, j, k)] = -1.0;
                 }
@@ -363,15 +365,14 @@ void setup_first_z_prevbox(IonizedBox *previous_ionize_box, PerturbedField *prev
 
     // previous Gamma12 is used for reionisation feedback when USE_MINI_HALOS
     // previous delta and Fcoll are used for the trapezoidal integral when USE_MINI_HALOS
-    if (flag_options_global->USE_MINI_HALOS) {
+    if (astro_options_global->USE_MINI_HALOS) {
         previous_ionize_box->mean_f_coll = 0.0;
         previous_ionize_box->mean_f_coll_MINI = 0.0;
-#pragma omp parallel private(ct) num_threads(user_params_global->N_THREADS)
+#pragma omp parallel private(ct) num_threads(simulation_options_global->N_THREADS)
         {
 #pragma omp for
             for (ct = 0; ct < HII_TOT_NUM_PIXELS; ct++) {
-                previous_perturb->density[ct] =
-                    -1.5;  // TODO: figure out why 1.5, ensures no sources?
+                previous_perturb->density[ct] = -1.5;  // Makes Fcoll == 0.
             }
         }
     }
@@ -384,27 +385,26 @@ void calculate_mcrit_boxes(IonizedBox *prev_ionbox, TsBox *spin_temp, InitialCon
     double ave_log10_Mturnover = 0.;
     double ave_log10_Mturnover_MINI = 0.;
 
-#pragma omp parallel num_threads(user_params_global->N_THREADS)
+#pragma omp parallel num_threads(simulation_options_global->N_THREADS)
     {
         int x, y, z;
         double Mcrit_RE, Mcrit_LW;
         double curr_Mt, curr_Mt_MINI;
         double curr_vcb = consts->scale_consts.vcb_norel;
 #pragma omp for reduction(+ : ave_log10_Mturnover, ave_log10_Mturnover_MINI)
-        for (x = 0; x < user_params_global->HII_DIM; x++) {
-            for (y = 0; y < user_params_global->HII_DIM; y++) {
+        for (x = 0; x < simulation_options_global->HII_DIM; x++) {
+            for (y = 0; y < simulation_options_global->HII_DIM; y++) {
                 for (z = 0; z < HII_D_PARA; z++) {
                     Mcrit_RE = reionization_feedback(consts->redshift,
                                                      prev_ionbox->Gamma12_box[HII_R_INDEX(x, y, z)],
                                                      prev_ionbox->z_re_box[HII_R_INDEX(x, y, z)]);
 
-                    if (user_params_global->USE_RELATIVE_VELOCITIES &&
-                        !flag_options_global->FIX_VCB_AVG)
+                    if (matter_options_global->USE_RELATIVE_VELOCITIES &&
+                        !astro_options_global->FIX_VCB_AVG)
                         curr_vcb = ini_boxes->lowres_vcb[HII_R_INDEX(x, y, z)];
 
-                    Mcrit_LW = lyman_werner_threshold(consts->redshift,
-                                                      spin_temp->J_21_LW_box[HII_R_INDEX(x, y, z)],
-                                                      curr_vcb, astro_params_global);
+                    Mcrit_LW = lyman_werner_threshold(
+                        consts->redshift, spin_temp->J_21_LW_box[HII_R_INDEX(x, y, z)], curr_vcb);
                     if (Mcrit_LW != Mcrit_LW || Mcrit_LW == 0) {
                         LOG_ERROR("Mcrit error %d %d %d: M %.2e z %.2f J %.2e v %.2e", x, y, z,
                                   Mcrit_LW, consts->redshift,
@@ -444,12 +444,12 @@ void set_mean_fcoll(struct IonBoxConstants *c, IonizedBox *prev_box, IonizedBox 
                     double mturn_acg, double mturn_mcg, double *f_limit_acg, double *f_limit_mcg) {
     double f_coll_curr = 0., f_coll_prev = 0., f_coll_curr_mini = 0., f_coll_prev_mini = 0.;
     struct ScalingConstants *sc_ptr = &(c->scale_consts);
-    if (flag_options_global->USE_MASS_DEPENDENT_ZETA) {
+    if (astro_options_global->USE_MASS_DEPENDENT_ZETA) {
         f_coll_curr = Nion_General(c->redshift, c->lnMmin, c->lnMmax_gl, mturn_acg, sc_ptr);
-        *f_limit_acg = Nion_General(user_params_global->Z_HEAT_MAX, c->lnMmin, c->lnMmax_gl,
+        *f_limit_acg = Nion_General(simulation_options_global->Z_HEAT_MAX, c->lnMmin, c->lnMmax_gl,
                                     mturn_acg, sc_ptr);
 
-        if (flag_options_global->USE_MINI_HALOS) {
+        if (astro_options_global->USE_MINI_HALOS) {
             if (prev_box->mean_f_coll * c->ion_eff_factor_gl < 1e-4) {
                 // we don't have enough ionising radiation in the previous snapshot, just take the
                 // current value
@@ -469,7 +469,7 @@ void set_mean_fcoll(struct IonBoxConstants *c, IonizedBox *prev_box, IonizedBox 
                 curr_box->mean_f_coll_MINI =
                     prev_box->mean_f_coll_MINI + f_coll_curr_mini - f_coll_prev_mini;
             }
-            *f_limit_mcg = Nion_General_MINI(user_params_global->Z_HEAT_MAX, c->lnMmin,
+            *f_limit_mcg = Nion_General_MINI(simulation_options_global->Z_HEAT_MAX, c->lnMmin,
                                              c->lnMmax_gl, mturn_mcg, sc_ptr);
         } else {
             curr_box->mean_f_coll = f_coll_curr;
@@ -478,7 +478,7 @@ void set_mean_fcoll(struct IonBoxConstants *c, IonizedBox *prev_box, IonizedBox 
     } else {
         curr_box->mean_f_coll = Fcoll_General(c->redshift, c->lnMmin, c->lnMmax_gl);
         *f_limit_acg = Fcoll_General(
-            user_params_global->Z_HEAT_MAX, c->lnMmin,
+            simulation_options_global->Z_HEAT_MAX, c->lnMmin,
             c->lnMmax_gl);  // JD: the old parametrisation didn't have this limit before
     }
 
@@ -490,7 +490,7 @@ void set_mean_fcoll(struct IonBoxConstants *c, IonizedBox *prev_box, IonizedBox 
     }
     LOG_SUPER_DEBUG("excursion set normalisation, mean_f_coll: %e", curr_box->mean_f_coll);
 
-    if (flag_options_global->USE_MINI_HALOS) {
+    if (astro_options_global->USE_MINI_HALOS) {
         if (isfinite(curr_box->mean_f_coll_MINI) == 0 || curr_box->mean_f_coll_MINI < 0) {
             LOG_ERROR("Mean collapse fraction is invalid");
             LOG_ERROR("prev box %g prev intgrl %g curr intrgl %g --> %g",
@@ -507,8 +507,8 @@ double set_fully_neutral_box(IonizedBox *box, TsBox *spin_temp, PerturbedField *
                              struct IonBoxConstants *consts) {
     double global_xH = 0.;
     unsigned long long int ct;
-    if (flag_options_global->USE_TS_FLUCT) {
-#pragma omp parallel private(ct) num_threads(user_params_global->N_THREADS)
+    if (astro_options_global->USE_TS_FLUCT) {
+#pragma omp parallel private(ct) num_threads(simulation_options_global->N_THREADS)
         {
 #pragma omp for reduction(+ : global_xH)
             for (ct = 0; ct < HII_TOT_NUM_PIXELS; ct++) {
@@ -520,7 +520,7 @@ double set_fully_neutral_box(IonizedBox *box, TsBox *spin_temp, PerturbedField *
         global_xH /= (double)HII_TOT_NUM_PIXELS;
     } else {
         global_xH = 1. - xion_RECFAST(consts->redshift, 0);
-#pragma omp parallel private(ct) num_threads(user_params_global->N_THREADS)
+#pragma omp parallel private(ct) num_threads(simulation_options_global->N_THREADS)
         {
 #pragma omp for
             for (ct = 0; ct < HII_TOT_NUM_PIXELS; ct++) {
@@ -543,7 +543,7 @@ void copy_filter_transform(struct FilteredGrids *fg_struct, struct IonBoxConstan
                            struct RadiusSpec rspec) {
     memcpy(fg_struct->deltax_filtered, fg_struct->deltax_unfiltered,
            sizeof(fftwf_complex) * HII_KSPACE_NUM_PIXELS);
-    if (flag_options_global->USE_TS_FLUCT) {
+    if (astro_options_global->USE_TS_FLUCT) {
         memcpy(fg_struct->xe_filtered, fg_struct->xe_unfiltered,
                sizeof(fftwf_complex) * HII_KSPACE_NUM_PIXELS);
     }
@@ -551,13 +551,13 @@ void copy_filter_transform(struct FilteredGrids *fg_struct, struct IonBoxConstan
         memcpy(fg_struct->N_rec_filtered, fg_struct->N_rec_unfiltered,
                sizeof(fftwf_complex) * HII_KSPACE_NUM_PIXELS);
     }
-    if (flag_options_global->USE_HALO_FIELD) {
+    if (matter_options_global->USE_HALO_FIELD) {
         memcpy(fg_struct->stars_filtered, fg_struct->stars_unfiltered,
                sizeof(fftwf_complex) * HII_KSPACE_NUM_PIXELS);
         memcpy(fg_struct->sfr_filtered, fg_struct->sfr_unfiltered,
                sizeof(fftwf_complex) * HII_KSPACE_NUM_PIXELS);
     } else {
-        if (flag_options_global->USE_MINI_HALOS) {
+        if (astro_options_global->USE_MINI_HALOS) {
             memcpy(fg_struct->prev_deltax_filtered, fg_struct->prev_deltax_unfiltered,
                    sizeof(fftwf_complex) * HII_KSPACE_NUM_PIXELS);
             memcpy(fg_struct->log10_Mturnover_MINI_filtered,
@@ -571,18 +571,18 @@ void copy_filter_transform(struct FilteredGrids *fg_struct, struct IonBoxConstan
     if (rspec.R_index > 0) {
         double R = rspec.R;
         filter_box(fg_struct->deltax_filtered, 1, consts->hii_filter, R, 0.);
-        if (flag_options_global->USE_TS_FLUCT) {
+        if (astro_options_global->USE_TS_FLUCT) {
             filter_box(fg_struct->xe_filtered, 1, consts->hii_filter, R, 0.);
         }
         if (consts->filter_recombinations) {
             filter_box(fg_struct->N_rec_filtered, 1, consts->hii_filter, R, 0.);
         }
-        if (flag_options_global->USE_HALO_FIELD) {
-            int filter_hf = flag_options_global->USE_EXP_FILTER ? 3 : consts->hii_filter;
+        if (matter_options_global->USE_HALO_FIELD) {
+            int filter_hf = astro_options_global->USE_EXP_FILTER ? 3 : consts->hii_filter;
             filter_box(fg_struct->stars_filtered, 1, filter_hf, R, consts->mfp_meandens);
             filter_box(fg_struct->sfr_filtered, 1, filter_hf, R, consts->mfp_meandens);
         } else {
-            if (flag_options_global->USE_MINI_HALOS) {
+            if (astro_options_global->USE_MINI_HALOS) {
                 filter_box(fg_struct->prev_deltax_filtered, 1, consts->hii_filter, R, 0.);
                 filter_box(fg_struct->log10_Mturnover_MINI_filtered, 1, consts->hii_filter, R, 0.);
                 filter_box(fg_struct->log10_Mturnover_filtered, 1, consts->hii_filter, R, 0.);
@@ -591,33 +591,33 @@ void copy_filter_transform(struct FilteredGrids *fg_struct, struct IonBoxConstan
     }
 
     // Perform FFTs
-    dft_c2r_cube(user_params_global->USE_FFTW_WISDOM, user_params_global->HII_DIM, HII_D_PARA,
-                 user_params_global->N_THREADS, fg_struct->deltax_filtered);
-    if (flag_options_global->USE_HALO_FIELD) {
-        dft_c2r_cube(user_params_global->USE_FFTW_WISDOM, user_params_global->HII_DIM, HII_D_PARA,
-                     user_params_global->N_THREADS, fg_struct->stars_filtered);
-        dft_c2r_cube(user_params_global->USE_FFTW_WISDOM, user_params_global->HII_DIM, HII_D_PARA,
-                     user_params_global->N_THREADS, fg_struct->sfr_filtered);
+    dft_c2r_cube(matter_options_global->USE_FFTW_WISDOM, simulation_options_global->HII_DIM,
+                 HII_D_PARA, simulation_options_global->N_THREADS, fg_struct->deltax_filtered);
+    if (matter_options_global->USE_HALO_FIELD) {
+        dft_c2r_cube(matter_options_global->USE_FFTW_WISDOM, simulation_options_global->HII_DIM,
+                     HII_D_PARA, simulation_options_global->N_THREADS, fg_struct->stars_filtered);
+        dft_c2r_cube(matter_options_global->USE_FFTW_WISDOM, simulation_options_global->HII_DIM,
+                     HII_D_PARA, simulation_options_global->N_THREADS, fg_struct->sfr_filtered);
     } else {
-        if (flag_options_global->USE_MINI_HALOS) {
-            dft_c2r_cube(user_params_global->USE_FFTW_WISDOM, user_params_global->HII_DIM,
-                         HII_D_PARA, user_params_global->N_THREADS,
+        if (astro_options_global->USE_MINI_HALOS) {
+            dft_c2r_cube(matter_options_global->USE_FFTW_WISDOM, simulation_options_global->HII_DIM,
+                         HII_D_PARA, simulation_options_global->N_THREADS,
                          fg_struct->prev_deltax_filtered);
-            dft_c2r_cube(user_params_global->USE_FFTW_WISDOM, user_params_global->HII_DIM,
-                         HII_D_PARA, user_params_global->N_THREADS,
+            dft_c2r_cube(matter_options_global->USE_FFTW_WISDOM, simulation_options_global->HII_DIM,
+                         HII_D_PARA, simulation_options_global->N_THREADS,
                          fg_struct->log10_Mturnover_MINI_filtered);
-            dft_c2r_cube(user_params_global->USE_FFTW_WISDOM, user_params_global->HII_DIM,
-                         HII_D_PARA, user_params_global->N_THREADS,
+            dft_c2r_cube(matter_options_global->USE_FFTW_WISDOM, simulation_options_global->HII_DIM,
+                         HII_D_PARA, simulation_options_global->N_THREADS,
                          fg_struct->log10_Mturnover_filtered);
         }
     }
-    if (flag_options_global->USE_TS_FLUCT) {
-        dft_c2r_cube(user_params_global->USE_FFTW_WISDOM, user_params_global->HII_DIM, HII_D_PARA,
-                     user_params_global->N_THREADS, fg_struct->xe_filtered);
+    if (astro_options_global->USE_TS_FLUCT) {
+        dft_c2r_cube(matter_options_global->USE_FFTW_WISDOM, simulation_options_global->HII_DIM,
+                     HII_D_PARA, simulation_options_global->N_THREADS, fg_struct->xe_filtered);
     }
     if (consts->filter_recombinations) {
-        dft_c2r_cube(user_params_global->USE_FFTW_WISDOM, user_params_global->HII_DIM, HII_D_PARA,
-                     user_params_global->N_THREADS, fg_struct->N_rec_filtered);
+        dft_c2r_cube(matter_options_global->USE_FFTW_WISDOM, simulation_options_global->HII_DIM,
+                     HII_D_PARA, simulation_options_global->N_THREADS, fg_struct->N_rec_filtered);
     }
 }
 
@@ -629,13 +629,13 @@ void clip_and_get_extrema(fftwf_complex *grid, double lower_limit, double upper_
     // setting the extrema to the first cell to guarantee it's in the range
     min_buf = *((float *)grid + HII_R_FFT_INDEX(0, 0, 0));
     max_buf = *((float *)grid + HII_R_FFT_INDEX(0, 0, 0));
-#pragma omp parallel num_threads(user_params_global->N_THREADS)
+#pragma omp parallel num_threads(simulation_options_global->N_THREADS)
     {
         int x, y, z;
         float curr;
 #pragma omp for reduction(max : max_buf) reduction(min : min_buf)
-        for (x = 0; x < user_params_global->HII_DIM; x++) {
-            for (y = 0; y < user_params_global->HII_DIM; y++) {
+        for (x = 0; x < simulation_options_global->HII_DIM; x++) {
+            for (y = 0; y < simulation_options_global->HII_DIM; y++) {
                 for (z = 0; z < HII_D_PARA; z++) {
                     // delta cannot be less than -1
                     curr = *((float *)grid + HII_R_FFT_INDEX(x, y, z));
@@ -666,8 +666,8 @@ void setup_integration_tables(struct FilteredGrids *fg_struct, struct IonBoxCons
     min_density -= 0.001;
     max_density += 0.001;
 
-    if (flag_options_global->USE_MASS_DEPENDENT_ZETA) {
-        if (flag_options_global->USE_MINI_HALOS) {
+    if (astro_options_global->USE_MASS_DEPENDENT_ZETA) {
+        if (astro_options_global->USE_MINI_HALOS) {
             // do the same for prev
             clip_and_get_extrema(fg_struct->prev_deltax_filtered, -1, 1e6, &prev_min_density,
                                  &prev_max_density);
@@ -680,11 +680,11 @@ void setup_integration_tables(struct FilteredGrids *fg_struct, struct IonBoxCons
         LOG_SUPER_DEBUG("Tb limits d (%.2e,%.2e), m (%.2e,%.2e) t (%.2e,%.2e) tm (%.2e,%.2e)",
                         min_density, max_density, consts->M_min, rspec.M_max_R, log10Mturn_min,
                         log10Mturn_max, log10Mturn_min_MINI, log10Mturn_max_MINI);
-        if (user_params_global->INTEGRATION_METHOD_ATOMIC == 1 ||
-            (flag_options_global->USE_MINI_HALOS &&
-             user_params_global->INTEGRATION_METHOD_MINI == 1))
+        if (astro_options_global->INTEGRATION_METHOD_ATOMIC == 1 ||
+            (astro_options_global->USE_MINI_HALOS &&
+             astro_options_global->INTEGRATION_METHOD_MINI == 1))
             initialise_GL(consts->lnMmin, rspec.ln_M_max_R);
-        if (user_params_global->USE_INTERPOLATION_TABLES > 1) {
+        if (matter_options_global->USE_INTERPOLATION_TABLES > 1) {
             // Buffers to avoid both zero bin widths and max cell segfault in 2D interptables
             prev_min_density -= 0.001;
             prev_max_density += 0.001;
@@ -700,7 +700,7 @@ void setup_integration_tables(struct FilteredGrids *fg_struct, struct IonBoxCons
                                                log10Mturn_max_MINI, sc_ptr, false);
 
             // previous redshift tables if needed
-            if (need_prev && flag_options_global->USE_MINI_HALOS) {
+            if (need_prev && astro_options_global->USE_MINI_HALOS) {
                 // NOTE: we intentionally use the lower turnovers at this redshift, but should we be
                 // doing the same for the upper turnover?
                 initialise_Nion_Conditional_spline(
@@ -714,7 +714,7 @@ void setup_integration_tables(struct FilteredGrids *fg_struct, struct IonBoxCons
         // (and some others)
         // TODO: I don't expect this to be a bottleneck, but we can look into re-making the 2/3D
         // ERFC tables if needed
-        if (user_params_global->USE_INTERPOLATION_TABLES > 1)
+        if (matter_options_global->USE_INTERPOLATION_TABLES > 1)
             initialise_FgtrM_delta_table(min_density, max_density, consts->redshift,
                                          consts->growth_factor, consts->sigma_minmass,
                                          rspec.sigma_maxmass);
@@ -733,10 +733,10 @@ void calculate_fcoll_grid(IonizedBox *box, IonizedBox *previous_ionize_box,
     struct ScalingConstants *sc_ptr = &(consts->scale_consts);
 
     int fc_r_idx;
-    fc_r_idx = (flag_options_global->USE_MINI_HALOS && !flag_options_global->USE_HALO_FIELD)
+    fc_r_idx = (astro_options_global->USE_MINI_HALOS && !matter_options_global->USE_HALO_FIELD)
                    ? rspec->R_index
                    : 0;
-#pragma omp parallel num_threads(user_params_global->N_THREADS)
+#pragma omp parallel num_threads(simulation_options_global->N_THREADS)
     {
         int x, y, z;
         double curr_dens;
@@ -746,8 +746,8 @@ void calculate_fcoll_grid(IonizedBox *box, IonizedBox *previous_ionize_box,
         // is only overwritten with minihalos
         log10_Mturnover = log10(consts->scale_consts.mturn_a_nofb);
 #pragma omp for reduction(+ : f_coll_total, f_coll_MINI_total)
-        for (x = 0; x < user_params_global->HII_DIM; x++) {
-            for (y = 0; y < user_params_global->HII_DIM; y++) {
+        for (x = 0; x < simulation_options_global->HII_DIM; x++) {
+            for (y = 0; y < simulation_options_global->HII_DIM; y++) {
                 for (z = 0; z < HII_D_PARA; z++) {
                     // clip the filtered grids to physical values
                     //  delta cannot be less than -1
@@ -762,7 +762,7 @@ void calculate_fcoll_grid(IonizedBox *box, IonizedBox *previous_ionize_box,
                     }
 
                     // x_e has to be between zero and unity
-                    if (flag_options_global->USE_TS_FLUCT) {
+                    if (astro_options_global->USE_TS_FLUCT) {
                         *((float *)fg_struct->xe_filtered + HII_R_FFT_INDEX(x, y, z)) = fmaxf(
                             *((float *)fg_struct->xe_filtered + HII_R_FFT_INDEX(x, y, z)), 0.);
                         *((float *)fg_struct->xe_filtered + HII_R_FFT_INDEX(x, y, z)) = fminf(
@@ -770,7 +770,7 @@ void calculate_fcoll_grid(IonizedBox *box, IonizedBox *previous_ionize_box,
                     }
 
                     // stellar mass & sfr cannot be less than zero
-                    if (flag_options_global->USE_HALO_FIELD) {
+                    if (matter_options_global->USE_HALO_FIELD) {
                         *((float *)fg_struct->stars_filtered + HII_R_FFT_INDEX(x, y, z)) = fmaxf(
                             *((float *)fg_struct->stars_filtered + HII_R_FFT_INDEX(x, y, z)), 0.0);
                         *((float *)fg_struct->sfr_filtered + HII_R_FFT_INDEX(x, y, z)) = fmaxf(
@@ -789,8 +789,8 @@ void calculate_fcoll_grid(IonizedBox *box, IonizedBox *previous_ionize_box,
                     } else {
                         curr_dens =
                             *((float *)fg_struct->deltax_filtered + HII_R_FFT_INDEX(x, y, z));
-                        if (flag_options_global->USE_MASS_DEPENDENT_ZETA) {
-                            if (flag_options_global->USE_MINI_HALOS) {
+                        if (astro_options_global->USE_MASS_DEPENDENT_ZETA) {
+                            if (astro_options_global->USE_MINI_HALOS) {
                                 log10_Mturnover = *((float *)fg_struct->log10_Mturnover_filtered +
                                                     HII_R_FFT_INDEX(x, y, z));
                                 log10_Mturnover_MINI =
@@ -836,8 +836,8 @@ void calculate_fcoll_grid(IonizedBox *box, IonizedBox *previous_ionize_box,
                     // TODO: each of these grids are clipped before filtering, after filtering,
                     //  after the Fcoll integration, and after trapezoidal integration here
                     //  we should figure which of these clips are necessary/useful
-                    if (flag_options_global->USE_MINI_HALOS &&
-                        !flag_options_global->USE_HALO_FIELD) {
+                    if (astro_options_global->USE_MINI_HALOS &&
+                        !matter_options_global->USE_HALO_FIELD) {
                         if (Splined_Fcoll > 1.) Splined_Fcoll = 1.;
                         if (Splined_Fcoll < 0.) Splined_Fcoll = 1e-40;
                         if (prev_Splined_Fcoll > 1.) prev_Splined_Fcoll = 1.;
@@ -922,11 +922,11 @@ void calculate_fcoll_grid(IonizedBox *box, IonizedBox *previous_ionize_box,
 
 int setup_radii(struct RadiusSpec **rspec_array, struct IonBoxConstants *consts) {
     double maximum_radius =
-        fmin(astro_params_global->R_BUBBLE_MAX, L_FACTOR * user_params_global->BOX_LEN);
+        fmin(astro_params_global->R_BUBBLE_MAX, L_FACTOR * simulation_options_global->BOX_LEN);
 
     double cell_length_factor = L_FACTOR;
     // TODO: figure out why this is used in such a specific case
-    if (flag_options_global->USE_HALO_FIELD && !flag_options_global->IONISE_ENTIRE_SPHERE &&
+    if (matter_options_global->USE_HALO_FIELD && !astro_options_global->IONISE_ENTIRE_SPHERE &&
         (consts->pixel_length < 1))
         cell_length_factor = 1.;
 
@@ -971,7 +971,7 @@ void find_ionised_regions(IonizedBox *box, IonizedBox *previous_ionize_box,
     double mean_fix_term_acg = 1.;
     double mean_fix_term_mcg = 1.;
     int fc_r_idx;
-    fc_r_idx = (flag_options_global->USE_MINI_HALOS && !flag_options_global->USE_HALO_FIELD)
+    fc_r_idx = (astro_options_global->USE_MINI_HALOS && !matter_options_global->USE_HALO_FIELD)
                    ? rspec.R_index
                    : 0;
 
@@ -982,12 +982,12 @@ void find_ionised_regions(IonizedBox *box, IonizedBox *previous_ionize_box,
         box->mean_f_coll / rspec.f_coll_grid_mean);
     if (consts->fix_mean) {
         mean_fix_term_acg = box->mean_f_coll / rspec.f_coll_grid_mean;
-        if (flag_options_global->USE_MINI_HALOS) {
+        if (astro_options_global->USE_MINI_HALOS) {
             mean_fix_term_mcg = box->mean_f_coll_MINI / rspec.f_coll_grid_mean_MINI;
         }
     }
 
-#pragma omp parallel num_threads(user_params_global->N_THREADS)
+#pragma omp parallel num_threads(simulation_options_global->N_THREADS)
     {
         int x, y, z;
         double curr_dens;
@@ -996,8 +996,8 @@ void find_ionised_regions(IonizedBox *box, IonizedBox *previous_ionize_box,
         double rec, xHII_from_xrays;
         double res_xH;
 #pragma omp for
-        for (x = 0; x < user_params_global->HII_DIM; x++) {
-            for (y = 0; y < user_params_global->HII_DIM; y++) {
+        for (x = 0; x < simulation_options_global->HII_DIM; x++) {
+            for (y = 0; y < simulation_options_global->HII_DIM; y++) {
                 for (z = 0; z < HII_D_PARA; z++) {
                     // Use unfiltered density for CELL_RECOMB case, since the "Fcoll" represents
                     // photons
@@ -1018,28 +1018,28 @@ void find_ionised_regions(IonizedBox *box, IonizedBox *previous_ionize_box,
                     // local density of absorbers
                     //   We have separated the source/absorber filtering in the halo model so this
                     //   is necessary
-                    if (flag_options_global->USE_HALO_FIELD)
+                    if (matter_options_global->USE_HALO_FIELD)
                         curr_fcoll *= 1 / (RHOcrit * cosmo_params_global->OMb * (1 + curr_dens));
 
                     // MINIHALOS are already included in the halo model
                     curr_fcoll_mini = 0.;
-                    if (flag_options_global->USE_MINI_HALOS &&
-                        !flag_options_global->USE_HALO_FIELD) {
+                    if (astro_options_global->USE_MINI_HALOS &&
+                        !matter_options_global->USE_HALO_FIELD) {
                         curr_fcoll_mini =
                             box->Fcoll_MINI[fc_r_idx * HII_TOT_NUM_PIXELS + HII_R_INDEX(x, y, z)];
                         curr_fcoll_mini = mean_fix_term_mcg * curr_fcoll_mini;
                     }
 
-                    if (flag_options_global->USE_MASS_DEPENDENT_ZETA) {
+                    if (astro_options_global->USE_MASS_DEPENDENT_ZETA) {
                         if (curr_fcoll < f_limit_acg) curr_fcoll = f_limit_acg;
-                        if (flag_options_global->USE_MINI_HALOS) {
+                        if (astro_options_global->USE_MINI_HALOS) {
                             if (curr_fcoll_mini < f_limit_mcg) curr_fcoll_mini = f_limit_mcg;
                         }
                     }
 
-                    if (flag_options_global->INHOMO_RECO) {
+                    if (astro_options_global->INHOMO_RECO) {
                         // number of recombinations per mean baryon
-                        if (flag_options_global->CELL_RECOMB)
+                        if (astro_options_global->CELL_RECOMB)
                             rec = previous_ionize_box->dNrec_box[HII_R_INDEX(x, y, z)];
                         else
                             rec =
@@ -1053,7 +1053,7 @@ void find_ionised_regions(IonizedBox *box, IonizedBox *previous_ionize_box,
 
                     // adjust the denominator of the collapse fraction for the residual electron
                     // fraction in the neutral medium
-                    if (flag_options_global->USE_TS_FLUCT) {
+                    if (astro_options_global->USE_TS_FLUCT) {
                         xHII_from_xrays =
                             *((float *)fg_struct->xe_filtered + HII_R_FFT_INDEX(x, y, z));
                     } else {
@@ -1075,9 +1075,9 @@ void find_ionised_regions(IonizedBox *box, IonizedBox *previous_ionize_box,
                         // if this is the first crossing of the ionization barrier for this cell
                         // (largest R), record the gamma this assumes photon-starved growth of HII
                         // regions...  breaks down post EoR
-                        if (flag_options_global->INHOMO_RECO &&
+                        if (astro_options_global->INHOMO_RECO &&
                             (box->xH_box[HII_R_INDEX(x, y, z)] > FRACT_FLOAT_ERR)) {
-                            if (flag_options_global->USE_HALO_FIELD) {
+                            if (matter_options_global->USE_HALO_FIELD) {
                                 // since ION_EFF_FACTOR==1 here, gamma_prefactor is the same for ACG
                                 // and MCG
                                 box->Gamma12_box[HII_R_INDEX(x, y, z)] =
@@ -1102,13 +1102,14 @@ void find_ionised_regions(IonizedBox *box, IonizedBox *previous_ionize_box,
                         }
 
                         // FLAG CELL(S) AS IONIZED
-                        if (!flag_options_global->IONISE_ENTIRE_SPHERE)  // center method
+                        if (!astro_options_global->IONISE_ENTIRE_SPHERE)  // center method
                             box->xH_box[HII_R_INDEX(x, y, z)] = 0;
                         else  // sphere method
-                            update_in_sphere(box->xH_box, user_params_global->HII_DIM, HII_D_PARA,
-                                             rspec.R / (user_params_global->BOX_LEN),
-                                             x / (user_params_global->HII_DIM + 0.0),
-                                             y / (user_params_global->HII_DIM + 0.0),
+                            update_in_sphere(box->xH_box, simulation_options_global->HII_DIM,
+                                             HII_D_PARA,
+                                             rspec.R / (simulation_options_global->BOX_LEN),
+                                             x / (simulation_options_global->HII_DIM + 0.0),
+                                             y / (simulation_options_global->HII_DIM + 0.0),
                                              z / (HII_D_PARA + 0.0));
                     }  // end ionized
                        // If not fully ionized, then assign partial ionizations
@@ -1122,7 +1123,7 @@ void find_ionised_regions(IonizedBox *box, IonizedBox *previous_ionize_box,
                                  curr_fcoll_mini * consts->ion_eff_factor_mini;
                         // put the partial ionization here because we need to exclude
                         // xHII_from_xrays...
-                        if (flag_options_global->USE_TS_FLUCT) {
+                        if (astro_options_global->USE_TS_FLUCT) {
                             box->temp_kinetic_all_gas[HII_R_INDEX(x, y, z)] =
                                 ComputePartiallyIoinizedTemperature(
                                     spin_temp->Tk_box[HII_R_INDEX(x, y, z)], res_xH, consts->T_re);
@@ -1154,12 +1155,12 @@ void find_ionised_regions(IonizedBox *box, IonizedBox *previous_ionize_box,
 void set_ionized_temperatures(IonizedBox *box, PerturbedField *perturbed_field, TsBox *spin_temp,
                               struct IonBoxConstants *consts) {
     int x, y, z;
-#pragma omp parallel private(x, y, z) num_threads(user_params_global->N_THREADS)
+#pragma omp parallel private(x, y, z) num_threads(simulation_options_global->N_THREADS)
     {
         float thistk;
 #pragma omp for
-        for (x = 0; x < user_params_global->HII_DIM; x++) {
-            for (y = 0; y < user_params_global->HII_DIM; y++) {
+        for (x = 0; x < simulation_options_global->HII_DIM; x++) {
+            for (y = 0; y < simulation_options_global->HII_DIM; y++) {
                 for (z = 0; z < HII_D_PARA; z++) {
                     if ((box->z_re_box[HII_R_INDEX(x, y, z)] > 0) &&
                         (box->xH_box[HII_R_INDEX(x, y, z)] < TINY)) {
@@ -1169,7 +1170,7 @@ void set_ionized_temperatures(IonizedBox *box, PerturbedField *perturbed_field, 
                                 perturbed_field->density[HII_R_INDEX(x, y, z)], consts->T_re);
                         // Below sometimes (very rare though) can happen when the density drops too
                         // fast and to below T_HI
-                        if (flag_options_global->USE_TS_FLUCT) {
+                        if (astro_options_global->USE_TS_FLUCT) {
                             if (box->temp_kinetic_all_gas[HII_R_INDEX(x, y, z)] <
                                 spin_temp->Tk_box[HII_R_INDEX(x, y, z)])
                                 box->temp_kinetic_all_gas[HII_R_INDEX(x, y, z)] =
@@ -1187,8 +1188,8 @@ void set_ionized_temperatures(IonizedBox *box, PerturbedField *perturbed_field, 
         }
     }
 
-    for (x = 0; x < user_params_global->HII_DIM; x++) {
-        for (y = 0; y < user_params_global->HII_DIM; y++) {
+    for (x = 0; x < simulation_options_global->HII_DIM; x++) {
+        for (y = 0; y < simulation_options_global->HII_DIM; y++) {
             for (z = 0; z < HII_D_PARA; z++) {
                 if (isfinite(box->temp_kinetic_all_gas[HII_R_INDEX(x, y, z)]) == 0) {
                     LOG_ERROR(
@@ -1207,14 +1208,14 @@ void set_ionized_temperatures(IonizedBox *box, PerturbedField *perturbed_field, 
 void set_recombination_rates(IonizedBox *box, IonizedBox *previous_ionize_box,
                              PerturbedField *perturbed_field, struct IonBoxConstants *consts) {
     bool finite_error = false;
-#pragma omp parallel num_threads(user_params_global->N_THREADS)
+#pragma omp parallel num_threads(simulation_options_global->N_THREADS)
     {
         int x, y, z;
         double curr_dens, dNrec;
         double z_eff;
 #pragma omp for
-        for (x = 0; x < user_params_global->HII_DIM; x++) {
-            for (y = 0; y < user_params_global->HII_DIM; y++) {
+        for (x = 0; x < simulation_options_global->HII_DIM; x++) {
+            for (y = 0; y < simulation_options_global->HII_DIM; y++) {
                 for (z = 0; z < HII_D_PARA; z++) {
                     // use the original density and redshift for the snapshot (not the adjusted
                     // redshift) Only want to use the adjusted redshift for the ionisation field
@@ -1266,9 +1267,7 @@ void set_recombination_rates(IonizedBox *box, IonizedBox *previous_ionize_box,
     }
 }
 
-int ComputeIonizedBox(float redshift, float prev_redshift, UserParams *user_params,
-                      CosmoParams *cosmo_params, AstroParams *astro_params,
-                      FlagOptions *flag_options, PerturbedField *perturbed_field,
+int ComputeIonizedBox(float redshift, float prev_redshift, PerturbedField *perturbed_field,
                       PerturbedField *previous_perturbed_field, IonizedBox *previous_ionize_box,
                       TsBox *spin_temp, HaloBox *halos, InitialConditions *ini_boxes,
                       IonizedBox *box) {
@@ -1278,17 +1277,16 @@ int ComputeIonizedBox(float redshift, float prev_redshift, UserParams *user_para
         LOG_DEBUG("input values:");
         LOG_DEBUG("redshift=%f, prev_redshift=%f", redshift, prev_redshift);
 #if LOG_LEVEL >= DEBUG_LEVEL
-        writeUserParams(user_params);
-        writeCosmoParams(cosmo_params);
-        writeAstroParams(flag_options, astro_params);
-        writeFlagOptions(flag_options);
+        writeSimulationOptions(simulation_options_global);
+        writeMatterOptions(matter_options_global);
+        writeCosmoParams(cosmo_params_global);
+        writeAstroParams(astro_params_global);
+        writeAstroOptions(astro_options_global);
 #endif
 
         // Makes the parameter structs visible to a variety of functions/macros
         // Do each time to avoid Python garbage collection issues
-        Broadcast_struct_global_all(user_params, cosmo_params, astro_params, flag_options);
-
-        omp_set_num_threads(user_params->N_THREADS);
+        omp_set_num_threads(simulation_options_global->N_THREADS);
 
         unsigned long long ct;
 
@@ -1299,18 +1297,17 @@ int ComputeIonizedBox(float redshift, float prev_redshift, UserParams *user_para
         init_ps();
 
         struct IonBoxConstants ionbox_constants;
-        set_ionbox_constants(redshift, prev_redshift, cosmo_params, user_params, astro_params,
-                             flag_options, &ionbox_constants);
+        set_ionbox_constants(redshift, prev_redshift, &ionbox_constants);
 
         // boxes which aren't guaranteed to have every element assigned to need to be initialised
-        if (flag_options->INHOMO_RECO) {
+        if (astro_options_global->INHOMO_RECO) {
             if (INIT_RECOMBINATIONS) {
                 init_MHR();
                 INIT_RECOMBINATIONS = 0;
             }
         }
 
-#pragma omp parallel shared(box) private(ct) num_threads(user_params -> N_THREADS)
+#pragma omp parallel shared(box) private(ct) num_threads(simulation_options_global -> N_THREADS)
         {
 #pragma omp for
             for (ct = 0; ct < HII_TOT_NUM_PIXELS; ct++) {
@@ -1319,18 +1316,18 @@ int ComputeIonizedBox(float redshift, float prev_redshift, UserParams *user_para
         }
 
         LOG_SUPER_DEBUG("z_re_box init: ");
-        debugSummarizeBox(box->z_re_box, user_params->HII_DIM, user_params->HII_DIM, HII_D_PARA,
-                          "  ");
+        debugSummarizeBox(box->z_re_box, simulation_options_global->HII_DIM,
+                          simulation_options_global->HII_DIM, HII_D_PARA, "  ");
 
         // Modify the current sampled redshift to a redshift which matches the expected filling
         // factor given our astrophysical parameterisation. This is the photon non-conservation
         // correction
         float absolute_delta_z = 0.;
         float redshift_pc, stored_redshift_pc;
-        if (flag_options->PHOTON_CONS_TYPE == 1) {
+        if (astro_options_global->PHOTON_CONS_TYPE == 1) {
             redshift_pc = redshift;
-            adjust_redshifts_for_photoncons(user_params, astro_params, flag_options, &redshift_pc,
-                                            &stored_redshift_pc, &absolute_delta_z);
+            adjust_redshifts_for_photoncons(simulation_options_global->ZPRIME_STEP_FACTOR,
+                                            &redshift_pc, &stored_redshift_pc, &absolute_delta_z);
             ionbox_constants.redshift = redshift_pc;
             ionbox_constants.stored_redshift = stored_redshift_pc;
             ionbox_constants.photoncons_adjustment_factor =
@@ -1363,14 +1360,14 @@ int ComputeIonizedBox(float redshift, float prev_redshift, UserParams *user_para
 
         // Find the mass limits and average turnovers
         double Mturnover_global_avg = 0., Mturnover_global_avg_MINI = 0.;
-        if (flag_options->USE_MASS_DEPENDENT_ZETA) {
-            if (flag_options->USE_HALO_FIELD) {
+        if (astro_options_global->USE_MASS_DEPENDENT_ZETA) {
+            if (matter_options_global->USE_HALO_FIELD) {
                 // Here these are only used for the global calculations
                 box->log10_Mturnover_ave = halos->log10_Mcrit_ACG_ave;
                 box->log10_Mturnover_MINI_ave = halos->log10_Mcrit_MCG_ave;
                 Mturnover_global_avg = pow(10., halos->log10_Mcrit_ACG_ave);
                 Mturnover_global_avg_MINI = pow(10., halos->log10_Mcrit_MCG_ave);
-            } else if (flag_options->USE_MINI_HALOS) {
+            } else if (astro_options_global->USE_MINI_HALOS) {
                 LOG_SUPER_DEBUG(
                     "Calculating and outputting Mcrit boxes for atomic and molecular halos...");
                 calculate_mcrit_boxes(previous_ionize_box, spin_temp, ini_boxes, &ionbox_constants,
@@ -1384,7 +1381,7 @@ int ComputeIonizedBox(float redshift, float prev_redshift, UserParams *user_para
                 LOG_DEBUG("average log10 turnover masses are %.2f and %.2f for ACGs and MCGs",
                           box->log10_Mturnover_ave, box->log10_Mturnover_MINI_ave);
             } else {
-                Mturnover_global_avg = astro_params->M_TURN;
+                Mturnover_global_avg = astro_params_global->M_TURN;
                 box->log10_Mturnover_ave = log10(Mturnover_global_avg);
                 box->log10_Mturnover_MINI_ave = log10(Mturnover_global_avg);
             }
@@ -1393,16 +1390,17 @@ int ComputeIonizedBox(float redshift, float prev_redshift, UserParams *user_para
         global_xH = 0.0;
 
         // HMF integral initialisation
-        if (user_params->USE_INTERPOLATION_TABLES > 0) {
-            if (user_params->INTEGRATION_METHOD_ATOMIC == 2 ||
-                user_params->INTEGRATION_METHOD_MINI == 2)
+        if (matter_options_global->USE_INTERPOLATION_TABLES > 0) {
+            if (astro_options_global->INTEGRATION_METHOD_ATOMIC == 2 ||
+                astro_options_global->INTEGRATION_METHOD_MINI == 2)
                 initialiseSigmaMInterpTable(fmin(MMIN_FAST, ionbox_constants.M_min), 1e20);
             else
                 initialiseSigmaMInterpTable(ionbox_constants.M_min, 1e20);
         }
 
-        if (user_params->INTEGRATION_METHOD_ATOMIC == 1 ||
-            (flag_options->USE_MINI_HALOS && user_params->INTEGRATION_METHOD_MINI == 1))
+        if (astro_options_global->INTEGRATION_METHOD_ATOMIC == 1 ||
+            (astro_options_global->USE_MINI_HALOS &&
+             astro_options_global->INTEGRATION_METHOD_MINI == 1))
             initialise_GL(ionbox_constants.lnMmin, ionbox_constants.lnMmax_gl);
 
         double f_limit_acg;
@@ -1423,22 +1421,25 @@ int ComputeIonizedBox(float redshift, float prev_redshift, UserParams *user_para
             // TODO: put a flag for to turn off clipping instead of putting the wide limits
             prepare_box_for_filtering(perturbed_field->density, grid_struct->deltax_unfiltered,
                                       ionbox_constants.photoncons_adjustment_factor, -1., 1e6);
-            if (flag_options->USE_HALO_FIELD) {
+            if (matter_options_global->USE_HALO_FIELD) {
                 prepare_box_for_filtering(halos->n_ion, grid_struct->stars_unfiltered, 1., 0.,
                                           1e20);
                 prepare_box_for_filtering(halos->whalo_sfr, grid_struct->sfr_unfiltered, 1., 0.,
                                           1e20);
             } else {
-                if (flag_options->USE_MINI_HALOS) {
+                if (astro_options_global->USE_MINI_HALOS) {
                     prepare_box_for_filtering(previous_perturbed_field->density,
                                               grid_struct->prev_deltax_unfiltered, 1., -1, 1e6);
                     // since the turnover mass boxes were assigned separately (they needed more
                     // complex functions)...
-                    dft_r2c_cube(user_params->USE_FFTW_WISDOM, user_params->HII_DIM, HII_D_PARA,
-                                 user_params->N_THREADS,
+                    dft_r2c_cube(matter_options_global->USE_FFTW_WISDOM,
+                                 simulation_options_global->HII_DIM, HII_D_PARA,
+                                 simulation_options_global->N_THREADS,
                                  grid_struct->log10_Mturnover_MINI_unfiltered);
-                    dft_r2c_cube(user_params->USE_FFTW_WISDOM, user_params->HII_DIM, HII_D_PARA,
-                                 user_params->N_THREADS, grid_struct->log10_Mturnover_unfiltered);
+                    dft_r2c_cube(matter_options_global->USE_FFTW_WISDOM,
+                                 simulation_options_global->HII_DIM, HII_D_PARA,
+                                 simulation_options_global->N_THREADS,
+                                 grid_struct->log10_Mturnover_unfiltered);
                     for (ct = 0; ct < HII_KSPACE_NUM_PIXELS; ct++) {
                         grid_struct->log10_Mturnover_unfiltered[ct] /= (float)HII_TOT_NUM_PIXELS;
                         grid_struct->log10_Mturnover_MINI_unfiltered[ct] /=
@@ -1446,7 +1447,7 @@ int ComputeIonizedBox(float redshift, float prev_redshift, UserParams *user_para
                     }
                 }
             }
-            if (flag_options->USE_TS_FLUCT) {
+            if (astro_options_global->USE_TS_FLUCT) {
                 prepare_box_for_filtering(spin_temp->x_e_box, grid_struct->xe_unfiltered, 1., 0,
                                           1.);
             }
@@ -1485,13 +1486,13 @@ int ComputeIonizedBox(float redshift, float prev_redshift, UserParams *user_para
                 copy_filter_transform(grid_struct, &ionbox_constants, curr_radius);
 
                 bool need_prev_ion =
-                    flag_options->USE_MINI_HALOS &&
+                    astro_options_global->USE_MINI_HALOS &&
                     (previous_ionize_box->mean_f_coll_MINI *
                              ionbox_constants.ion_eff_factor_mini_gl +
                          previous_ionize_box->mean_f_coll * ionbox_constants.ion_eff_factor_gl >
                      1e-4);
 
-                if (!flag_options->USE_HALO_FIELD) {
+                if (!matter_options_global->USE_HALO_FIELD) {
                     setup_integration_tables(grid_struct, &ionbox_constants, curr_radius,
                                              need_prev_ion);
                 }
@@ -1502,10 +1503,10 @@ int ComputeIonizedBox(float redshift, float prev_redshift, UserParams *user_para
                 // TODO: This was the previous behaviour, but is this right?
                 // setting the *total* to the minimum for the adjustment factor,
                 // then clipping the grid in the loop below?
-                if (flag_options_global->USE_MASS_DEPENDENT_ZETA) {
+                if (astro_options_global->USE_MASS_DEPENDENT_ZETA) {
                     if (curr_radius.f_coll_grid_mean <= f_limit_acg)
                         curr_radius.f_coll_grid_mean = f_limit_acg;
-                    if (flag_options->USE_MINI_HALOS) {
+                    if (astro_options_global->USE_MINI_HALOS) {
                         if (curr_radius.f_coll_grid_mean_MINI <= f_limit_mcg)
                             curr_radius.f_coll_grid_mean_MINI = f_limit_mcg;
                     }
@@ -1520,8 +1521,8 @@ int ComputeIonizedBox(float redshift, float prev_redshift, UserParams *user_para
 
 #if LOG_LEVEL >= ULTRA_DEBUG_LEVEL
                 LOG_ULTRA_DEBUG("z_re_box after R=%f: ", curr_radius.R);
-                debugSummarizeBox(box->z_re_box, user_params->HII_DIM, user_params->HII_DIM,
-                                  HII_D_PARA, "  ");
+                debugSummarizeBox(box->z_re_box, simulation_options_global->HII_DIM,
+                                  simulation_options_global->HII_DIM, HII_D_PARA, "  ");
 #endif
             }
             set_ionized_temperatures(box, perturbed_field, spin_temp, &ionbox_constants);
@@ -1529,7 +1530,7 @@ int ComputeIonizedBox(float redshift, float prev_redshift, UserParams *user_para
             // find the neutral fraction
             global_xH = 0;
 
-#pragma omp parallel shared(box) private(ct) num_threads(user_params -> N_THREADS)
+#pragma omp parallel shared(box) private(ct) num_threads(simulation_options_global -> N_THREADS)
             {
 #pragma omp for reduction(+ : global_xH)
                 for (ct = 0; ct < HII_TOT_NUM_PIXELS; ct++) {
@@ -1546,7 +1547,7 @@ int ComputeIonizedBox(float redshift, float prev_redshift, UserParams *user_para
             }
 
             // update the N_rec field
-            if (flag_options->INHOMO_RECO) {
+            if (astro_options_global->INHOMO_RECO) {
                 set_recombination_rates(box, previous_ionize_box, perturbed_field,
                                         &ionbox_constants);
             }
@@ -1568,7 +1569,8 @@ int ComputeIonizedBox(float redshift, float prev_redshift, UserParams *user_para
         LOG_DEBUG("global_xH = %e", global_xH);
         free_fftw_grids(grid_struct);
 
-        if (!flag_options->USE_TS_FLUCT && user_params->USE_INTERPOLATION_TABLES > 0) {
+        if (!astro_options_global->USE_TS_FLUCT &&
+            matter_options_global->USE_INTERPOLATION_TABLES > 0) {
             freeSigmaMInterpTable();
         }
 

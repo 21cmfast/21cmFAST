@@ -257,10 +257,7 @@ double tau_e(float zstart, float zend, float *zarry, float *xHarry, int len, flo
     return SIGMAT * ((N_b0 + He_No) * prehelium + N_b0 * posthelium);
 }
 
-float ComputeTau(UserParams *user_params, CosmoParams *cosmo_params, int NPoints, float *redshifts,
-                 float *global_xHI, float z_re_HeII) {
-    Broadcast_struct_global_noastro(user_params, cosmo_params);
-
+float ComputeTau(int NPoints, float *redshifts, float *global_xHI, float z_re_HeII) {
     return tau_e(0, redshifts[NPoints - 1], redshifts, global_xHI, NPoints, z_re_HeII);
 }
 
@@ -268,7 +265,7 @@ double atomic_cooling_threshold(float z) { return TtoM(z, 1e4, 0.59); }
 
 double molecular_cooling_threshold(float z) { return TtoM(z, 600, 1.22); }
 
-double lyman_werner_threshold(float z, float J_21_LW, float vcb, AstroParams *astro_params) {
+double lyman_werner_threshold(float z, float J_21_LW, float vcb) {
     // correction follows Schauer+20, fit jointly to LW feedback and relative velocities. They find
     // weaker effect of LW feedback than before (Stacy+11, Greif+11, etc.) due to HII self
     // shielding.
@@ -276,9 +273,10 @@ double lyman_werner_threshold(float z, float J_21_LW, float vcb, AstroParams *as
     // this follows Visbal+15, which is taken as the optimal fit from Fialkov+12
     // which was calibrated with the simulations of Stacy+11 and Greif+11;
     double mcrit_noLW = 3.314e7 * pow(1. + z, -1.5);
-    double f_LW = 1.0 + astro_params->A_LW * pow(J_21_LW, astro_params->BETA_LW);
+    double f_LW = 1.0 + astro_params_global->A_LW * pow(J_21_LW, astro_params_global->BETA_LW);
 
-    double f_vcb = pow(1.0 + astro_params->A_VCB * vcb / SIGMAVCB, astro_params->BETA_VCB);
+    double f_vcb =
+        pow(1.0 + astro_params_global->A_VCB * vcb / SIGMAVCB, astro_params_global->BETA_VCB);
 
     // double mcrit_LW = mcrit_noLW * (1.0 + 10. * sqrt(J_21_LW)); //Eq. (12) in Schauer+20
     // return pow(10.0, log10(mcrit_LW) + 0.416 * vcb/SIGMAVCB ); //vcb and sigmacb in km/s, from
