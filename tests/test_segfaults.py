@@ -5,8 +5,6 @@ The aim is to test the C backend for segfaults. These will not test the outputs 
 run past the fact that they are finite, just that the run completes without error.
 """
 
-from timeit import default_timer as timer
-
 import numpy as np
 import pytest
 

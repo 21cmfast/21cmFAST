@@ -51,7 +51,6 @@ DEFAULT_SIMULATION_OPTIONS = {
     "BOX_LEN": 100,
     "SAMPLER_MIN_MASS": 1e9,
     "ZPRIME_STEP_FACTOR": 1.04,
-    "M_MIN_in_Mass": False,
 }
 
 DEFAULT_MATTER_OPTIONS = {
@@ -68,6 +67,7 @@ DEFAULT_ASTRO_OPTIONS = {
     "USE_UPPER_STELLAR_TURNOVER": False,
     "USE_MASS_DEPENDENT_ZETA": False,
     "HII_FILTER": "sharp-k",
+    "M_MIN_in_Mass": False,
 }
 
 DEFAULT_ASTRO_PARAMS = {
