@@ -125,6 +125,7 @@ OPTIONS_CTEST = {
             "PHOTON_CONS_TYPE": "alpha-photoncons",
             "USE_MASS_DEPENDENT_ZETA": True,
             "M_MIN_in_Mass": True,
+            "HII_FILTER": "spherical-tophat",
         },
     ],
     "photoncons-f": [
@@ -133,6 +134,7 @@ OPTIONS_CTEST = {
             "PHOTON_CONS_TYPE": "f-photoncons",
             "USE_MASS_DEPENDENT_ZETA": True,
             "M_MIN_in_Mass": True,
+            "HII_FILTER": "spherical-tophat",
         },
     ],
     "minimize_mem": [

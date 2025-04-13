@@ -82,12 +82,12 @@ jobs:
       - name: Install 21cmFAST Linux
         if: matrix.os == 'ubuntu-latest'
         run: |
-          LOG_LEVEL=DEBUG pip install ".[dev]"
+          LOG_LEVEL=${{ env.log_level }} pip install ".[dev]"
 
       - name: Install 21cmFAST MacOS
         if: matrix.os == 'macos-latest'
         run: |
-          LOG_LEVEL=DEBUG CFLAGS="-isysroot /Library/Developer/CommandLineTools/SDKs/MacOSX.sdk" pip install .
+          LOG_LEVEL=${{ env.log_level }} CFLAGS="-isysroot /Library/Developer/CommandLineTools/SDKs/MacOSX.sdk" pip install .
 
       - name: Run Tests
         run: |
