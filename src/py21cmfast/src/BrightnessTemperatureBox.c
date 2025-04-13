@@ -136,10 +136,10 @@ int ComputeBrightnessTemp(float redshift, TsBox *spin_temp, IonizedBox *ionized_
                                 // 1000 is the conversion of spin temperature from K to mK
                                 box->brightness_temp[HII_R_INDEX(i, j, k)] *=
                                     (1. + redshift) /
-                                    (1000. * spin_temp->Ts_box[HII_R_INDEX(i, j, k)]);
+                                    (1000. * spin_temp->spin_temperature[HII_R_INDEX(i, j, k)]);
                             } else {
                                 pixel_Ts_factor =
-                                    (1 - T_rad / spin_temp->Ts_box[HII_R_INDEX(i, j, k)]);
+                                    (1 - T_rad / spin_temp->spin_temperature[HII_R_INDEX(i, j, k)]);
                                 box->brightness_temp[HII_R_INDEX(i, j, k)] *= pixel_Ts_factor;
                             }
                         }
@@ -205,13 +205,17 @@ int ComputeBrightnessTemp(float redshift, TsBox *spin_temp, IonizedBox *ionized_
                                     // exp(-tau)) goes to unity. Again, factors of 1000. are
                                     // conversions from K to mK
                                     box->brightness_temp[HII_R_INDEX(i, j, k)] =
-                                        1000. * (spin_temp->Ts_box[HII_R_INDEX(i, j, k)] - T_rad) /
+                                        1000. *
+                                        (spin_temp->spin_temperature[HII_R_INDEX(i, j, k)] -
+                                         T_rad) /
                                         (1. + redshift);
                                 } else {
                                     box->brightness_temp[HII_R_INDEX(i, j, k)] =
                                         (1. - exp(-box->brightness_temp[HII_R_INDEX(i, j, k)] /
                                                   gradient_component)) *
-                                        1000. * (spin_temp->Ts_box[HII_R_INDEX(i, j, k)] - T_rad) /
+                                        1000. *
+                                        (spin_temp->spin_temperature[HII_R_INDEX(i, j, k)] -
+                                         T_rad) /
                                         (1. + redshift);
                                 }
                             }

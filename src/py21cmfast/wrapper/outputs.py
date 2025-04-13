@@ -1065,7 +1065,7 @@ class TsBox(OutputStructZ):
     _c_compute_function = lib.ComputeTsBox
     _meta = False
 
-    Ts_box = _arrayfield()
+    spin_temperature = _arrayfield()
     xray_ionised_fraction = _arrayfield()
     kinetic_temp_neutral = _arrayfield()
     J_21_LW = _arrayfield(optional=True)
@@ -1093,7 +1093,7 @@ class TsBox(OutputStructZ):
             ),
         )
         out = {
-            "Ts_box": Array(shape, dtype=np.float32),
+            "spin_temperature": Array(shape, dtype=np.float32),
             "xray_ionised_fraction": Array(shape, dtype=np.float32),
             "kinetic_temp_neutral": Array(shape, dtype=np.float32),
         }
@@ -1104,12 +1104,12 @@ class TsBox(OutputStructZ):
     @cached_property
     def global_Ts(self):
         """Global (mean) spin temperature."""
-        if "Ts_box" not in self._computed_arrays:
+        if "spin_temperature" not in self._computed_arrays:
             raise AttributeError(
                 "global_Ts is not defined until the ionization calculation has been performed"
             )
         else:
-            return np.mean(self.Ts_box)
+            return np.mean(self.spin_temperature)
 
     @cached_property
     def global_Tk(self):
@@ -1143,7 +1143,11 @@ class TsBox(OutputStructZ):
         elif isinstance(input_box, PerturbedField):
             required += ["density"]
         elif isinstance(input_box, TsBox):
-            required += ["kinetic_temp_neutral", "xray_ionised_fraction", "Ts_box"]
+            required += [
+                "kinetic_temp_neutral",
+                "xray_ionised_fraction",
+                "spin_temperature",
+            ]
             if self.astro_options.USE_MINI_HALOS:
                 required += ["J_21_LW"]
         elif isinstance(input_box, XraySourceBox):
@@ -1402,7 +1406,7 @@ class BrightnessTemp(OutputStructZ):
             if self.astro_options.APPLY_RSDS:
                 required += ["velocity_z"]
         elif isinstance(input_box, TsBox):
-            required += ["Ts_box"]
+            required += ["spin_temperature"]
         elif isinstance(input_box, IonizedBox):
             required += ["neutral_fraction"]
         else:

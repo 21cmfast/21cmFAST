@@ -82,7 +82,7 @@ def test_lightcone_quantities(
         max_redshift=max_redshift,
         resolution=ic.simulation_options.cell_size,
         cosmo=ic.cosmo_params.cosmo,
-        quantities=("Ts_box", "density"),
+        quantities=("spin_temperature", "density"),
     )
 
     # Raise an error since we're not doing spin temp.
@@ -100,7 +100,7 @@ def test_lightcone_quantities(
             lightconer=lcn_ts,
             initial_conditions=ic,
             inputs=default_input_struct_lc,
-            global_quantities=("Ts_box",),
+            global_quantities=("spin_temperature",),
             cache=cache,
         )
 

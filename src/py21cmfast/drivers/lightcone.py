@@ -298,10 +298,12 @@ class AngularLightcone(LightCone):
             Trad = Tcmb * (1 + self.lightcone_redshifts)
             tb_with_rsds = np.where(
                 gradient_component < 1e-7,
-                1000.0 * (self.Ts_box - Trad) / (1.0 + self.lightcone_redshifts),
+                1000.0
+                * (self.lightcones["spin_temperature"] - Trad)
+                / (1.0 + self.lightcone_redshifts),
                 (1.0 - np.exp(self.lightcones["brightness_temp"] / gradient_component))
                 * 1000.0
-                * (self.Ts_box - Trad)
+                * (self.lightcones["spin_temperature"] - Trad)
                 / (1.0 + self.lightcone_redshifts),
             )
 

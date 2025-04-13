@@ -70,7 +70,7 @@ typedef struct XraySourceBox {
 } XraySourceBox;
 
 typedef struct TsBox {
-    float *Ts_box;
+    float *spin_temperature;
     float *xray_ionised_fraction;
     float *kinetic_temp_neutral;
     float *J_21_LW;

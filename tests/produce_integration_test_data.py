@@ -79,7 +79,7 @@ DEFAULT_ASTRO_PARAMS = {
 LIGHTCONE_FIELDS = [
     "density",
     "velocity_z",
-    "Ts_box",
+    "spin_temperature",
     "ionisation_rate_G12",
     "cumulative_recombinations",
     "xray_ionised_fraction",
@@ -91,9 +91,9 @@ LIGHTCONE_FIELDS = [
 ]
 
 COEVAL_FIELDS = LIGHTCONE_FIELDS.copy()
-COEVAL_FIELDS.insert(COEVAL_FIELDS.index("Ts_box"), "lowres_density")
-COEVAL_FIELDS.insert(COEVAL_FIELDS.index("Ts_box"), "lowres_vx_2LPT")
-COEVAL_FIELDS.insert(COEVAL_FIELDS.index("Ts_box"), "lowres_vx")
+COEVAL_FIELDS.insert(COEVAL_FIELDS.index("spin_temperature"), "lowres_density")
+COEVAL_FIELDS.insert(COEVAL_FIELDS.index("spin_temperature"), "lowres_vx_2LPT")
+COEVAL_FIELDS.insert(COEVAL_FIELDS.index("spin_temperature"), "lowres_vx")
 
 OPTIONS = {
     "simple": [12, {}],
@@ -346,7 +346,11 @@ def produce_lc_power_spectra(redshift, **kwargs):
     if not astro_options.USE_TS_FLUCT:
         [
             quantities.remove(k)
-            for k in {"Ts_box", "xray_ionised_fraction", "kinetic_temp_neutral"}
+            for k in {
+                "spin_temperature",
+                "xray_ionised_fraction",
+                "kinetic_temp_neutral",
+            }
         ]
     if not astro_options.USE_MINI_HALOS:
         quantities.remove("J_21_LW")

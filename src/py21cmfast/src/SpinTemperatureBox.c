@@ -846,7 +846,7 @@ void init_first_Ts(TsBox *box, float *dens, float z, float zp, double *x_e_ave, 
             box->kinetic_temp_neutral[box_ct] = TK * (1.0 + cT_ad * gdens);
             box->xray_ionised_fraction[box_ct] = xe;
             // compute the spin temperature
-            box->Ts_box[box_ct] = get_Ts(z, gdens, TK, xe, 0, &curr_xalpha);
+            box->spin_temperature[box_ct] = get_Ts(z, gdens, TK, xe, 0, &curr_xalpha);
         }
     }
 }
@@ -1711,12 +1711,12 @@ void ts_main(float redshift, float prev_redshift, float perturbed_field_redshift
                 rad.dstarlya_inj_dt = dstarlya_inj_dt_box[box_ct] * zp_consts.lya_star_prefactor *
                                       zp_consts.volunit_inv;
             }
-            rad.prev_Ts = previous_spin_temp->Ts_box[box_ct];
+            rad.prev_Ts = previous_spin_temp->spin_temperature[box_ct];
             rad.prev_Tk = previous_spin_temp->kinetic_temp_neutral[box_ct];
             rad.prev_xe = previous_spin_temp->xray_ionised_fraction[box_ct];
 
             ts_cell = get_Ts_fast(redshift, dzp, &zp_consts, &rad);
-            this_spin_temp->Ts_box[box_ct] = ts_cell.Ts;
+            this_spin_temp->spin_temperature[box_ct] = ts_cell.Ts;
             this_spin_temp->kinetic_temp_neutral[box_ct] = ts_cell.Tk;
             this_spin_temp->xray_ionised_fraction[box_ct] = ts_cell.x_e;
             if (astro_options_global->USE_MINI_HALOS) {
@@ -1775,7 +1775,7 @@ void ts_main(float redshift, float prev_redshift, float perturbed_field_redshift
 #endif
 
     for (box_ct = 0; box_ct < HII_TOT_NUM_PIXELS; box_ct++) {
-        if (isfinite(this_spin_temp->Ts_box[box_ct]) == 0) {
+        if (isfinite(this_spin_temp->spin_temperature[box_ct]) == 0) {
             LOG_ERROR(
                 "Estimated spin temperature is either infinite of NaN!"
                 "idx %llu delta %.3e dxheat %.3e dxion %.3e dxlya %.3e dstarlya %.3e",
