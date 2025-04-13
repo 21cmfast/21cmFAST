@@ -405,10 +405,10 @@ void determine_deltaz_for_photoncons() {
     } else {
         // No extrapolation required, neutral fraction never reaches zero
         NF_sample_min = calibrated_NF_min;
-
         N_extrapolated = 0;
     }
 
+    LOG_DEBUG("db0");
     // Determine the bin width for the sampling of the neutral fraction for the correction
     bin_width = (PhotonConsStart - NF_sample_min) / ((float)N_NFsamples - 1.);
 
@@ -436,6 +436,7 @@ void determine_deltaz_for_photoncons() {
         NeutralFractions[i + 1 + N_extrapolated] = NF_sample;
     }
 
+    LOG_DEBUG("db1");
     // Determining the end-point (lowest neutral fraction) for the photon non-conservation
     // correction
     if (!PhotonConsSmoothing) {
@@ -466,6 +467,7 @@ void determine_deltaz_for_photoncons() {
         return;
     }
 
+    LOG_DEBUG("db2");
     // SMOOTHING STUFF HERE
     if (calibrated_NF_min >= PhotonConsEnd) {
         increasing_val = 0;
@@ -549,7 +551,7 @@ void determine_deltaz_for_photoncons() {
                                             ((float)N_extrapolated + 1.);
         }
     }
-
+    LOG_DEBUG("db3");
     // We have added the extrapolated values, now check if they are all increasing or not (again, to
     // determine whether or not to try and smooth the corrected curve
     increasing_val = 0;
@@ -603,7 +605,7 @@ void determine_deltaz_for_photoncons() {
             }
         }
     }
-
+    LOG_DEBUG("db4");
     // Store the data in its intermediate state before averaging
     for (i = 0; i < (N_NFsamples + N_extrapolated + 1); i++) {
         deltaz_smoothed[i] = deltaz[i];
@@ -634,7 +636,7 @@ void determine_deltaz_for_photoncons() {
             }
         }
     }
-
+    LOG_DEBUG("db5");
     // Here we effectively filter over the delta z as a function of neutral fraction to try and
     // minimise any possible kinks etc. in the functional curve.
     for (i = 0; i < (N_NFsamples + N_extrapolated + 1); i++) {
@@ -674,6 +676,7 @@ void determine_deltaz_for_photoncons() {
             deltaz[i] /= (float)counter;
         }
     }
+    LOG_DEBUG("db5");
 
     N_deltaz = N_NFsamples + N_extrapolated + 1;
 
@@ -688,6 +691,7 @@ void determine_deltaz_for_photoncons() {
     gsl_status = gsl_spline_init(deltaz_spline_for_photoncons, NeutralFractions, deltaz,
                                  N_NFsamples + N_extrapolated + 1);
     CATCH_GSL_ERROR(gsl_status);
+    LOG_DEBUG("done");
 }
 
 void adjust_redshifts_for_photoncons(double z_step_factor, float *redshift, float *stored_redshift,

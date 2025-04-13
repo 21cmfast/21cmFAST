@@ -304,9 +304,6 @@ def calibrate_photon_cons(
     # Initialise the analytic expression for the reionisation history
     logger.info("About to start photon conservation correction")
     _init_photon_conservation_correction(inputs=inputs)
-    # Initialise the analytic expression for the reionisation history
-    logger.info("About to start photon conservation correction")
-    _init_photon_conservation_correction(inputs=inputs)
     # Determine the starting redshift to start scrolling through to create the
     # calibration reionisation history
     logger.info("Calculating photon conservation zstart")
