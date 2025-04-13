@@ -112,7 +112,7 @@ OPTIONS_CTEST = {
         },
     ],
     "photoncons-z": [
-        18,
+        10,
         {
             "PHOTON_CONS_TYPE": "z-photoncons",
             "USE_MASS_DEPENDENT_ZETA": True,
@@ -120,21 +120,19 @@ OPTIONS_CTEST = {
         },
     ],
     "photoncons-a": [
-        18,
+        10,
         {
             "PHOTON_CONS_TYPE": "alpha-photoncons",
             "USE_MASS_DEPENDENT_ZETA": True,
             "M_MIN_in_Mass": True,
-            "HII_FILTER": "spherical-tophat",
         },
     ],
     "photoncons-f": [
-        18,
+        10,
         {
             "PHOTON_CONS_TYPE": "f-photoncons",
             "USE_MASS_DEPENDENT_ZETA": True,
             "M_MIN_in_Mass": True,
-            "HII_FILTER": "spherical-tophat",
         },
     ],
     "minimize_mem": [
