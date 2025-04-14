@@ -12,42 +12,48 @@ import py21cmfast as p21c
 
 from . import produce_integration_test_data as prd
 
-DEFAULT_SIMULATION_OPTIONS_CTEST = {
+COMMON_INPUTS_CTEST = {
     "HII_DIM": 32,
     "DIM": 128,
     "BOX_LEN": 64,
     "SAMPLER_MIN_MASS": 1e9,
+    "USE_MASS_DEPENDENT_ZETA": True,
+    "M_MIN_in_Mass": True,
+    "HII_FILTER": "spherical-tophat",
+    "NO_RNG": False,
 }
 
 OPTIONS_CTEST = {
-    "defaults": [18, {"USE_MASS_DEPENDENT_ZETA": True, "M_MIN_in_Mass": True}],
-    "no-mdz": [18, {}],
+    "defaults": [18, {}],
+    "no-mdz": [
+        18,
+        {
+            "USE_MASS_DEPENDENT_ZETA": False,
+        },
+    ],
     "mini": [
         18,
         {
             "USE_MINI_HALOS": True,
             "INHOMO_RECO": True,
             "USE_TS_FLUCT": True,
-            "USE_MASS_DEPENDENT_ZETA": True,
-            "M_MIN_in_Mass": True,
+            "M_TURN": 5.0,
         },
     ],
     "ts": [
         18,
-        {"USE_TS_FLUCT": True, "USE_MASS_DEPENDENT_ZETA": True, "M_MIN_in_Mass": True},
+        {"USE_TS_FLUCT": True},
     ],
     "ts_nomdz": [18, {"USE_TS_FLUCT": True}],
     "inhomo": [
         18,
-        {"INHOMO_RECO": True, "USE_MASS_DEPENDENT_ZETA": True, "M_MIN_in_Mass": True},
+        {"INHOMO_RECO": True},
     ],
     "inhomo_ts": [
         18,
         {
             "INHOMO_RECO": True,
             "USE_TS_FLUCT": True,
-            "USE_MASS_DEPENDENT_ZETA": True,
-            "M_MIN_in_Mass": True,
         },
     ],
     "sampler": [
@@ -55,8 +61,6 @@ OPTIONS_CTEST = {
         {
             "USE_HALO_FIELD": True,
             "HALO_STOCHASTICITY": True,
-            "USE_MASS_DEPENDENT_ZETA": True,
-            "M_MIN_in_Mass": True,
         },
     ],
     "fixed_halogrids": [
@@ -64,8 +68,6 @@ OPTIONS_CTEST = {
         {
             "USE_HALO_FIELD": True,
             "FIXED_HALO_GRIDS": True,
-            "USE_MASS_DEPENDENT_ZETA": True,
-            "M_MIN_in_Mass": True,
         },
     ],
     "sampler_mini": [
@@ -76,8 +78,7 @@ OPTIONS_CTEST = {
             "USE_MINI_HALOS": True,
             "USE_TS_FLUCT": True,
             "INHOMO_RECO": True,
-            "USE_MASS_DEPENDENT_ZETA": True,
-            "M_MIN_in_Mass": True,
+            "M_TURN": 5.0,
         },
     ],
     "sampler_ts": [
@@ -86,8 +87,6 @@ OPTIONS_CTEST = {
             "USE_HALO_FIELD": True,
             "HALO_STOCHASTICITY": True,
             "USE_TS_FLUCT": True,
-            "USE_MASS_DEPENDENT_ZETA": True,
-            "M_MIN_in_Mass": True,
         },
     ],
     "sampler_ir": [
@@ -96,8 +95,6 @@ OPTIONS_CTEST = {
             "USE_HALO_FIELD": True,
             "HALO_STOCHASTICITY": True,
             "INHOMO_RECO": True,
-            "USE_MASS_DEPENDENT_ZETA": True,
-            "M_MIN_in_Mass": True,
         },
     ],
     "sampler_ts_ir": [
@@ -107,32 +104,24 @@ OPTIONS_CTEST = {
             "HALO_STOCHASTICITY": True,
             "USE_TS_FLUCT": True,
             "INHOMO_RECO": True,
-            "USE_MASS_DEPENDENT_ZETA": True,
-            "M_MIN_in_Mass": True,
         },
     ],
     "photoncons-z": [
-        10,
+        18,
         {
             "PHOTON_CONS_TYPE": "z-photoncons",
-            "USE_MASS_DEPENDENT_ZETA": True,
-            "M_MIN_in_Mass": True,
         },
     ],
     "photoncons-a": [
-        10,
+        18,
         {
             "PHOTON_CONS_TYPE": "alpha-photoncons",
-            "USE_MASS_DEPENDENT_ZETA": True,
-            "M_MIN_in_Mass": True,
         },
     ],
     "photoncons-f": [
-        10,
+        18,
         {
             "PHOTON_CONS_TYPE": "f-photoncons",
-            "USE_MASS_DEPENDENT_ZETA": True,
-            "M_MIN_in_Mass": True,
         },
     ],
     "minimize_mem": [
@@ -141,8 +130,6 @@ OPTIONS_CTEST = {
             "USE_TS_FLUCT": True,
             "INHOMO_RECO": True,
             "MINIMIZE_MEMORY": True,
-            "USE_MASS_DEPENDENT_ZETA": True,
-            "M_MIN_in_Mass": True,
         },
     ],
 }
@@ -151,7 +138,9 @@ OPTIONS_CTEST = {
 @pytest.mark.parametrize("name", list(OPTIONS_CTEST.keys()))
 def test_lc_runs(name, max_redshift, cache, benchmark):
     redshift, kwargs = OPTIONS_CTEST[name]
-    options = prd.get_all_options_struct(redshift, lc=True, **kwargs)
+    options = prd.get_all_options_struct(
+        redshift, lc=True, **{**COMMON_INPUTS_CTEST, **kwargs}
+    )
 
     node_maxz = max_redshift
     if (
@@ -161,7 +150,6 @@ def test_lc_runs(name, max_redshift, cache, benchmark):
         node_maxz = options["inputs"].simulation_options.Z_HEAT_MAX
 
     options["inputs"] = options["inputs"].clone(
-        simulation_options=p21c.SimulationOptions.new(DEFAULT_SIMULATION_OPTIONS_CTEST),
         node_redshifts=p21c.get_logspaced_redshifts(
             min_redshift=redshift,
             max_redshift=node_maxz,
@@ -202,10 +190,8 @@ def test_lc_runs(name, max_redshift, cache, benchmark):
 @pytest.mark.parametrize("name", list(OPTIONS_CTEST.keys()))
 def test_cv_runs(name, cache, benchmark):
     redshift, kwargs = OPTIONS_CTEST[name]
-    options = prd.get_all_options_struct(redshift, lc=False, **kwargs)
-
-    options["inputs"] = options["inputs"].clone(
-        simulation_options=p21c.SimulationOptions.new(DEFAULT_SIMULATION_OPTIONS_CTEST)
+    options = prd.get_all_options_struct(
+        redshift, lc=False, **{**COMMON_INPUTS_CTEST, **kwargs}
     )
 
     with p21c.config.use(ignore_R_BUBBLE_MAX_error=True):

@@ -254,21 +254,26 @@ if len(set(OPTIONS_HALO.keys())) != len(list(OPTIONS_HALO.keys())):
     raise ValueError("There is a non-unique option_halo name!")
 
 
-def get_node_z(redshift, lc=False, **kwargs):
+def get_node_z(redshift, max_redshift, lc=False, **kwargs):
     """Get the node redshifts we want to use for test runs.
 
     Values for the spacing and maximum go kwargs --> test defaults --> struct defaults
     """
     node_redshifts = None
+
+    node_maxz = max_redshift
+    if lc or kwargs.get("USE_TS_FLUCT", False) or kwargs.get("INHOMO_RECO", False):
+        node_maxz = kwargs.get(
+            "Z_HEAT_MAX",
+            DEFAULT_SIMULATION_OPTIONS.get(
+                "Z_HEAT_MAX", SimulationOptions.new().Z_HEAT_MAX
+            ),
+        )
+
     if lc or kwargs.get("USE_TS_FLUCT", False) or kwargs.get("INHOMO_RECO", False):
         node_redshifts = get_logspaced_redshifts(
             min_redshift=redshift,
-            max_redshift=kwargs.get(
-                "Z_HEAT_MAX",
-                DEFAULT_SIMULATION_OPTIONS.get(
-                    "Z_HEAT_MAX", SimulationOptions.new().Z_HEAT_MAX
-                ),
-            ),
+            max_redshift=node_maxz,
             z_step_factor=kwargs.get(
                 "ZPRIME_STEP_FACTOR",
                 DEFAULT_SIMULATION_OPTIONS.get(
@@ -280,7 +285,7 @@ def get_node_z(redshift, lc=False, **kwargs):
 
 
 def get_all_options_struct(redshift, lc=False, **kwargs):
-    node_redshifts = get_node_z(redshift, lc=lc, **kwargs)
+    node_redshifts = get_node_z(redshift, max_redshift=redshift + 2, lc=lc, **kwargs)
 
     inputs = InputParameters(
         node_redshifts=node_redshifts,

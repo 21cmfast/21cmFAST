@@ -126,6 +126,7 @@ Similar to the function names, some output fields have also been renamed for cla
   - x_e_box -- xray_ionised_fraction
   - Tk_box -- kinetic_temp_neutral
   - J_21_LW_box -- J_21_LW
+  - Ts_box -- spin_temperature
 - Fields in IonizedBox
   - xH_box -- neutral_fraction
   - Gamma12_box -- ionisation_rate_G12
