@@ -46,52 +46,29 @@ jobs:
       - name: Setup Miniconda
         uses: conda-incubator/setup-miniconda@v3
         with:
-          # auto-update-conda: true
-          mamba-version: "*"
           channels: conda-forge,defaults
           python-version: ${{ matrix.python-version }}
-          environment-file: ci/${{ matrix.os }}-env.yml
-          activate-environment: tests
           channel-priority: true
-
-      - name: Conda Info
-        run: |
-          conda info -a
-          conda list
-          conda config --show-sources
-          conda config --show
-          printenv | sort
 
       - name: Make it a Debug Run
         if: "contains(env.commit_message, 'ci debug')"
         run: |
           echo "log_level=ULTRA_DEBUG" >> $GITHUB_ENV
+          echo "extra_pytest_args=-s --log-level-21=DEBUG" >> $GITHUB_ENV
 
       - name: Make it a Normal Run
         if: "!contains(env.commit_message, 'ci debug')"
         run: |
           echo "log_level=INFO" >> $GITHUB_ENV
+          echo "extra_pytest_args=" >> $GITHUB_ENV
 
-      - name: Get C Libraries Linux
-        if: matrix.os == 'ubuntu-latest'
+      - name: Install Non-Python Dependencies
         run: |
-          sudo apt-get install libfftw3-dev
-          sudo apt-get install libgsl0-dev
+          conda install fftw gsl
 
-      - name: Setup GCC
-        uses: Dup4/actions-setup-gcc@v1
-        with:
-          version: latest
-
-      - name: Install 21cmFAST Linux
-        if: matrix.os == 'ubuntu-latest'
+      - name: Install 21cmFAST
         run: |
-          LOG_LEVEL=${{ env.log_level }} pip install .
-
-      - name: Install 21cmFAST MacOS
-        if: matrix.os == 'macos-latest'
-        run: |
-          LOG_LEVEL=${{ env.log_level }} CFLAGS="-isysroot /Library/Developer/CommandLineTools/SDKs/MacOSX.sdk" pip install .
+          LOG_LEVEL=${{ env.log_level }} pip install ".[dev]"
 
       - name: Setup papermill
         run: |
