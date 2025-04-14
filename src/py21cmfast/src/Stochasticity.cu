@@ -863,6 +863,7 @@ int updateHaloOut(float *halo_masses, float *star_rng, float *sfr_rng, float *xr
     float *d_star_rng_out;
     CALL_CUDA(cudaMalloc(&d_star_rng_out, buffer_size));
     CALL_CUDA(cudaMemset(d_star_rng_out, 0, buffer_size));
+    // initializeArray(d_halo_masses_out, d_n_buffer, -1.2f);
 
     float *d_sfr_rng_out;
     CALL_CUDA(cudaMalloc(&d_sfr_rng_out, buffer_size));
@@ -948,17 +949,17 @@ int updateHaloOut(float *halo_masses, float *star_rng, float *sfr_rng, float *xr
     printf("The number of progenitors written in out halo field so far: %d \n", n_processed_prog);
     
     // condense other halo field arrays on the device
-    // unsigned long long int n_processed_star_rng = condenseDeviceArray(d_star_rng_out, d_n_buffer, 0.0f);
-    // printf("The number of star prop rng written in out halo field so far: %d \n", n_processed_star_rng);
+    unsigned long long int n_processed_star_rng = condenseDeviceArray(d_star_rng_out, d_n_buffer, 0.0f);
+    printf("The number of star prop rng written in out halo field so far: %d \n", n_processed_star_rng);
 
-    // unsigned long long int n_processed_sfr_rng = condenseDeviceArray(d_sfr_rng_out, d_n_buffer, 0.0f);
-    // printf("The number of sfr prop rng written in out halo field so far: %d \n", n_processed_sfr_rng);
+    unsigned long long int n_processed_sfr_rng = condenseDeviceArray(d_sfr_rng_out, d_n_buffer, 0.0f);
+    printf("The number of sfr prop rng written in out halo field so far: %d \n", n_processed_sfr_rng);
 
-    // unsigned long long int n_processed_xray_rng = condenseDeviceArray(d_xray_rng_out, d_n_buffer, 0.0f);
-    // printf("The number of xray prop rng written in out halo field so far: %d \n", n_processed_xray_rng);
+    unsigned long long int n_processed_xray_rng = condenseDeviceArray(d_xray_rng_out, d_n_buffer, 0.0f);
+    printf("The number of xray prop rng written in out halo field so far: %d \n", n_processed_xray_rng);
 
-    // unsigned long long int n_processed_coords = condenseDeviceArray(d_halo_coords_out, d_n_buffer*3, -1000);
-    // printf("The number of halo coords written in out halo field so far: %d \n", n_processed_coords);
+    unsigned long long int n_processed_coords = condenseDeviceArray(d_halo_coords_out, d_n_buffer*3, -1000);
+    printf("The number of halo coords written in out halo field so far: %d \n", n_processed_coords);
 
     // tmp: the following is just needed for debugging purpose
     // float *h_filter_halos;
@@ -1044,6 +1045,6 @@ int updateHaloOut(float *halo_masses, float *star_rng, float *sfr_rng, float *xr
 
     CALL_CUDA(cudaGetLastError());
     CALL_CUDA(cudaDeviceSynchronize());
-
+    printf("After synchronization. \n");
     return 0;
 }
