@@ -795,6 +795,8 @@ class AstroOptions(InputStruct):
         0: GSL QAG adaptive integration,
         1: Gauss-Legendre integration, previously forced in the interpolation tables,
         2: Approximate integration, assuming sharp cutoffs and a triple power-law for sigma(M) based on EPS
+    N_RSD_STEPS : int, optional
+        Number of subcells used in subcell redshift-space-distortion algorithm.
     """
 
     _photoncons_models = (
@@ -861,6 +863,7 @@ class AstroOptions(InputStruct):
         validator=validators.in_(_integral_methods),
         transformer=choice_transformer(_integral_methods),
     )
+    N_RSD_STEPS = field(default=20, converter=int, validator=validators.ge(0))
 
     @M_MIN_in_Mass.validator
     def _M_MIN_in_Mass_vld(self, att, val):
@@ -1019,9 +1022,6 @@ class AstroParams(InputStruct):
         Fractional characteristic time-scale (fraction of hubble time) defining the
         star-formation rate of galaxies. Only used if `USE_MASS_DEPENDENT_ZETA` is set
         to True in :class:`AstroOptions`. See Sec 2.1, Eq. 3 of Park+2018.
-    N_RSD_STEPS : int, optional
-        Number of steps used in redshift-space-distortion algorithm. NOT A PHYSICAL
-        PARAMETER.
     A_LW, BETA_LW: float, optional
         Impact of the LW feedback on Mturn for minihaloes. Default is 22.8685 and 0.47 following Machacek+01, respectively. Latest simulations suggest 2.0 and 0.6. See Sec 2 of Muñoz+21 (2110.13919).
     A_VCB, BETA_VCB: float, optional
@@ -1116,7 +1116,6 @@ class AstroParams(InputStruct):
     )
     F_H2_SHIELD = field(default=0.0, converter=float)
     t_STAR = field(default=0.5, converter=float, validator=between(0, 1))
-    N_RSD_STEPS = field(default=20, converter=int, validator=validators.gt(0))
     A_LW = field(default=2.0, converter=float, validator=validators.gt(0))
     BETA_LW = field(default=0.6, converter=float)
     A_VCB = field(default=1.0, converter=float)

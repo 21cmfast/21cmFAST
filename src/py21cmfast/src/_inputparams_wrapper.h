@@ -121,7 +121,6 @@ typedef struct AstroParams {
     double POP2_ION;
     double POP3_ION;
 
-    int N_RSD_STEPS;
     double PHOTONCONS_CALIBRATION_END;
     double CLUMPING_FACTOR;
     double ALPHA_UVB;
@@ -157,6 +156,8 @@ typedef struct AstroOptions {
     bool AVG_BELOW_SAMPLER;
     int INTEGRATION_METHOD_ATOMIC;
     int INTEGRATION_METHOD_MINI;
+
+    int N_RSD_STEPS;
 } AstroOptions;
 
 typedef struct ConfigSettings {

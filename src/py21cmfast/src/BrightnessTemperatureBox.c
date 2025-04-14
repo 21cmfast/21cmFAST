@@ -73,8 +73,8 @@ int ComputeBrightnessTemp(float redshift, TsBox *spin_temp, IonizedBox *ionized_
         float *v = (float *)calloc(HII_TOT_FFT_NUM_PIXELS, sizeof(float));
         float *vel_gradient = (float *)calloc(HII_TOT_FFT_NUM_PIXELS, sizeof(float));
 
-        float *x_pos = calloc(astro_params_global->N_RSD_STEPS, sizeof(float));
-        float *x_pos_offset = calloc(astro_params_global->N_RSD_STEPS, sizeof(float));
+        float *x_pos = calloc(astro_options_global->N_RSD_STEPS, sizeof(float));
+        float *x_pos_offset = calloc(astro_options_global->N_RSD_STEPS, sizeof(float));
         float **delta_T_RSD_LOS =
             (float **)calloc(simulation_options_global->N_THREADS, sizeof(float *));
         for (i = 0; i < simulation_options_global->N_THREADS; i++) {

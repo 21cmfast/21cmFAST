@@ -505,7 +505,8 @@ def _run_lightcone_from_perturbed_fields(
 
             if isinstance(lightcone, AngularLightcone) and lightconer.get_los_velocity:
                 lightcone.compute_rsds(
-                    fname=lightcone_filename, n_subcells=inputs.astro_params.N_RSD_STEPS
+                    fname=lightcone_filename,
+                    n_subcells=inputs.astro_options.N_RSD_STEPS,
                 )
 
         yield iz, coeval.redshift, coeval, lightcone
