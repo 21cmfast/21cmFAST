@@ -130,7 +130,7 @@ OPTIONS_CTEST = {
 
 
 @pytest.mark.parametrize("name", list(OPTIONS_CTEST.keys()))
-def test_lc_runs(name, max_redshift, cache, benchmark):
+def test_lc_runs(name, max_redshift, cache):
     redshift, kwargs = OPTIONS_CTEST[name]
     options = prd.get_all_options_struct(
         redshift, lc=True, **{**COMMON_INPUTS_CTEST, **kwargs}
@@ -161,16 +161,11 @@ def test_lc_runs(name, max_redshift, cache, benchmark):
     )
 
     with p21c.config.use(ignore_R_BUBBLE_MAX_error=True):
-        _, _, _, lightcone = benchmark.pedantic(
-            p21c.run_lightcone,
-            kwargs=dict(
-                lightconer=lcn,
-                write=False,
-                cache=cache,
-                **options,
-            ),
-            iterations=1,  # these tests can be slow
-            rounds=1,
+        _, _, _, lightcone = p21c.run_lightcone(
+            lightconer=lcn,
+            write=False,
+            cache=cache,
+            **options,
         )
 
     assert isinstance(lightcone, p21c.LightCone)
@@ -182,22 +177,17 @@ def test_lc_runs(name, max_redshift, cache, benchmark):
 
 
 @pytest.mark.parametrize("name", list(OPTIONS_CTEST.keys()))
-def test_cv_runs(name, cache, benchmark):
+def test_cv_runs(name, cache):
     redshift, kwargs = OPTIONS_CTEST[name]
     options = prd.get_all_options_struct(
         redshift, lc=False, **{**COMMON_INPUTS_CTEST, **kwargs}
     )
 
     with p21c.config.use(ignore_R_BUBBLE_MAX_error=True):
-        cv = benchmark.pedantic(
-            p21c.run_coeval,
-            kwargs=dict(
-                write=False,
-                cache=cache,
-                **options,
-            ),
-            iterations=1,  # these tests can be slow
-            rounds=1,
+        cv = p21c.run_coeval(
+            write=False,
+            cache=cache,
+            **options,
         )
 
     assert all(isinstance(x, p21c.Coeval) for x in cv)
