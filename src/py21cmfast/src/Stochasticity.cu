@@ -20,7 +20,6 @@
 #include "interpolation_types.h"
 #include "Stochasticity.h"
 
-// #include "tiger_checks.h"
 #include "cuda_utils.cuh"
 #include "Stochasticity.cuh"
 #include "DeviceConstants.cuh"
@@ -274,22 +273,6 @@ void initializeArray(int *d_array, int n_elements, int value){
     thrust::device_ptr<int> d_array_ptr(d_array);
     thrust::fill(d_array_ptr, d_array_ptr + n_elements, value);
 }
-// more members of deviceprop can be found in cura_runtime_api documentation
-void getDeviceProperties(){
-    int device;
-    CALL_CUDA(cudaGetDevice(&device));
-    cudaDeviceProp deviceProp;
-    CALL_CUDA(cudaGetDeviceProperties(&deviceProp, device));
-    printf("name: %s\n", deviceProp.name);
-    // printf("uuid: %s\n", deviceProp.uuid);
-    printf("total global memory: %zu bytes \n", deviceProp.totalGlobalMem);
-    printf("Shared memory per block: %zu bytes\n", deviceProp.sharedMemPerBlock);
-    printf("registers per block: %d\n", deviceProp.regsPerBlock);
-    printf("warp size: %d \n", deviceProp.warpSize);
-    printf("memory pitch: %zu bytes \n", deviceProp.memPitch);
-    printf("max threads per block: %d \n", deviceProp.maxThreadsPerBlock);
-    printf("total constant memory: %zu bytes \n", deviceProp.totalConstMem);
-}   
 
 // void getKernelAttr(){
 //     cudaFuncAttributes attr;
@@ -888,8 +871,6 @@ int updateHaloOut(float *halo_masses, float *star_rng, float *sfr_rng, float *xr
 
     // initialize number of progenitors processed
     unsigned long long int n_processed_prog;
-
-    getDeviceProperties();
 
     cudaFuncAttributes attr;
     cudaFuncGetAttributes(&attr, update_halo_constants);
