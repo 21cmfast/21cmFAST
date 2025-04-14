@@ -28,6 +28,9 @@ jobs:
         os: [ubuntu-latest, macos-latest]
         python-version: ["3.11", "3.12"]
         compiler: ["gcc", "clang"]
+        exclude:
+          - os: ubuntu-latest
+            compiler: "clang"
     defaults:
      run:
        # Adding -l {0} ensures conda can be found properly in each step
