@@ -28,7 +28,7 @@ jobs:
       matrix:
         os: [ubuntu-latest]
         python-version: ["3.11"]
-        tutorial: ["coeval_cubes", "gather_data", "lightcones"]
+        tutorial: ["coeval_cubes", "caching", "lightcones"]
     defaults:
      run:
        # Adding -l {0} ensures conda can be found properly in each step
