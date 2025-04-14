@@ -74,7 +74,7 @@ array, v and the Hubble factor: v/H.
 
                 for (k = 0; k < HII_D_PARA; k++) {
                     if ((fabs(box->brightness_temp[HII_R_INDEX(i, j, k)]) >= FRACT_FLOAT_ERR) &&
-                        (ionized_box->xH_box[HII_R_INDEX(i, j, k)] >= FRACT_FLOAT_ERR)) {
+                        (ionized_box->neutral_fraction[HII_R_INDEX(i, j, k)] >= FRACT_FLOAT_ERR)) {
                         if (k == 0) {
                             d1_low = v[HII_R_FFT_INDEX(i, j, HII_D_PARA - 1)] / H;
                             d2_low = v[HII_R_FFT_INDEX(i, j, k)] / H;

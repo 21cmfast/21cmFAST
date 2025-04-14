@@ -298,10 +298,12 @@ class AngularLightcone(LightCone):
             Trad = Tcmb * (1 + self.lightcone_redshifts)
             tb_with_rsds = np.where(
                 gradient_component < 1e-7,
-                1000.0 * (self.Ts_box - Trad) / (1.0 + self.lightcone_redshifts),
+                1000.0
+                * (self.lightcones["spin_temperature"] - Trad)
+                / (1.0 + self.lightcone_redshifts),
                 (1.0 - np.exp(self.lightcones["brightness_temp"] / gradient_component))
                 * 1000.0
-                * (self.Ts_box - Trad)
+                * (self.lightcones["spin_temperature"] - Trad)
                 / (1.0 + self.lightcone_redshifts),
             )
 
@@ -384,7 +386,7 @@ def _run_lightcone_from_perturbed_fields(
     photon_nonconservation_data: dict,
     pt_halos: list[PerturbHaloField],
     regenerate: bool | None = None,
-    global_quantities: tuple[str] = ("brightness_temp", "xH_box"),
+    global_quantities: tuple[str] = ("brightness_temp", "neutral_fraction"),
     cache: OutputCache = _ocache,
     cleanup: bool = True,
     write: CacheConfig = _cache,
@@ -514,7 +516,7 @@ def generate_lightcone(
     *,
     lightconer: Lightconer,
     inputs: InputParameters,
-    global_quantities=("brightness_temp", "xH_box"),
+    global_quantities=("brightness_temp", "neutral_fraction"),
     initial_conditions: InitialConditions | None = None,
     cleanup: bool = True,
     write: CacheConfig = _cache,

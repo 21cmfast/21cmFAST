@@ -55,6 +55,16 @@ New Features in 3.0.0+
 * Comprehensive test suite.
 * Strict `semantic versioning <https://semver.org>`_.
 
+New Features in 4.0.0
+=====================
+
+* A discrete halo sampler allowing for the creation of lightcones of galaxy properties and the
+  inclusion of stochasticity. These discrete sources are self-consistently used in the IGM calculations
+* The Inclusion of the Sheth-Tormen conditional halo mass function.
+* Re-designed input/output structures which prioritise transparency.
+* Refactoring of several of the C backend files for much easier development.
+* A lower-level testing framework for calculations done in the backend.
+
 Installation
 ============
 We support Linux and MacOS (please let us know if you are successful in installing on

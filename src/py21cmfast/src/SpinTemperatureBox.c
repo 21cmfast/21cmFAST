@@ -843,10 +843,10 @@ void init_first_Ts(TsBox *box, float *dens, float z, float zp, double *x_e_ave, 
 #pragma omp for
         for (box_ct = 0; box_ct < HII_TOT_NUM_PIXELS; box_ct++) {
             gdens = dens[box_ct] * inverse_growth_factor_z * growth_factor_zp;
-            box->Tk_box[box_ct] = TK * (1.0 + cT_ad * gdens);
-            box->x_e_box[box_ct] = xe;
+            box->kinetic_temp_neutral[box_ct] = TK * (1.0 + cT_ad * gdens);
+            box->xray_ionised_fraction[box_ct] = xe;
             // compute the spin temperature
-            box->Ts_box[box_ct] = get_Ts(z, gdens, TK, xe, 0, &curr_xalpha);
+            box->spin_temperature[box_ct] = get_Ts(z, gdens, TK, xe, 0, &curr_xalpha);
         }
     }
 }
@@ -1356,7 +1356,7 @@ void ts_main(float redshift, float prev_redshift, float perturbed_field_redshift
                 (fftwf_complex *)fftwf_malloc(sizeof(fftwf_complex) * HII_KSPACE_NUM_PIXELS);
 
         prepare_filter_boxes(redshift, perturbed_field->density, ini_boxes->lowres_vcb,
-                             previous_spin_temp->J_21_LW_box, delta_unfiltered,
+                             previous_spin_temp->J_21_LW, delta_unfiltered,
                              log10_Mcrit_LW_unfiltered);
         // fill the filtered boxes if we are storing them all
         if (!matter_options_global->MINIMIZE_MEMORY) {
@@ -1395,8 +1395,8 @@ void ts_main(float redshift, float prev_redshift, float perturbed_field_redshift
     {
 #pragma omp for reduction(+ : x_e_ave_p, Tk_ave_p)
         for (box_ct = 0; box_ct < HII_TOT_NUM_PIXELS; box_ct++) {
-            x_e_ave_p += previous_spin_temp->x_e_box[box_ct];
-            Tk_ave_p += previous_spin_temp->Tk_box[box_ct];
+            x_e_ave_p += previous_spin_temp->xray_ionised_fraction[box_ct];
+            Tk_ave_p += previous_spin_temp->kinetic_temp_neutral[box_ct];
         }
     }
     x_e_ave_p /= (float)HII_TOT_NUM_PIXELS;
@@ -1419,7 +1419,7 @@ void ts_main(float redshift, float prev_redshift, float perturbed_field_redshift
         float xHII_call;
 #pragma omp for
         for (box_ct = 0; box_ct < HII_TOT_NUM_PIXELS; box_ct++) {
-            xHII_call = previous_spin_temp->x_e_box[box_ct];
+            xHII_call = previous_spin_temp->xray_ionised_fraction[box_ct];
             // Check if ionized fraction is within boundaries; if not, adjust to be within
             if (xHII_call > x_int_XHII[x_int_NXHII - 1] * 0.999) {
                 xHII_call = x_int_XHII[x_int_NXHII - 1] * 0.999;
@@ -1711,16 +1711,16 @@ void ts_main(float redshift, float prev_redshift, float perturbed_field_redshift
                 rad.dstarlya_inj_dt = dstarlya_inj_dt_box[box_ct] * zp_consts.lya_star_prefactor *
                                       zp_consts.volunit_inv;
             }
-            rad.prev_Ts = previous_spin_temp->Ts_box[box_ct];
-            rad.prev_Tk = previous_spin_temp->Tk_box[box_ct];
-            rad.prev_xe = previous_spin_temp->x_e_box[box_ct];
+            rad.prev_Ts = previous_spin_temp->spin_temperature[box_ct];
+            rad.prev_Tk = previous_spin_temp->kinetic_temp_neutral[box_ct];
+            rad.prev_xe = previous_spin_temp->xray_ionised_fraction[box_ct];
 
             ts_cell = get_Ts_fast(redshift, dzp, &zp_consts, &rad);
-            this_spin_temp->Ts_box[box_ct] = ts_cell.Ts;
-            this_spin_temp->Tk_box[box_ct] = ts_cell.Tk;
-            this_spin_temp->x_e_box[box_ct] = ts_cell.x_e;
+            this_spin_temp->spin_temperature[box_ct] = ts_cell.Ts;
+            this_spin_temp->kinetic_temp_neutral[box_ct] = ts_cell.Tk;
+            this_spin_temp->xray_ionised_fraction[box_ct] = ts_cell.x_e;
             if (astro_options_global->USE_MINI_HALOS) {
-                this_spin_temp->J_21_LW_box[box_ct] = ts_cell.J_21_LW;
+                this_spin_temp->J_21_LW[box_ct] = ts_cell.J_21_LW;
             }
 
             // Single cell debug
@@ -1775,7 +1775,7 @@ void ts_main(float redshift, float prev_redshift, float perturbed_field_redshift
 #endif
 
     for (box_ct = 0; box_ct < HII_TOT_NUM_PIXELS; box_ct++) {
-        if (isfinite(this_spin_temp->Ts_box[box_ct]) == 0) {
+        if (isfinite(this_spin_temp->spin_temperature[box_ct]) == 0) {
             LOG_ERROR(
                 "Estimated spin temperature is either infinite of NaN!"
                 "idx %llu delta %.3e dxheat %.3e dxion %.3e dxlya %.3e dstarlya %.3e",

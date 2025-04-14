@@ -70,10 +70,10 @@ typedef struct XraySourceBox {
 } XraySourceBox;
 
 typedef struct TsBox {
-    float *Ts_box;
-    float *x_e_box;
-    float *Tk_box;
-    float *J_21_LW_box;
+    float *spin_temperature;
+    float *xray_ionised_fraction;
+    float *kinetic_temp_neutral;
+    float *J_21_LW;
 } TsBox;
 
 typedef struct IonizedBox {
@@ -81,14 +81,14 @@ typedef struct IonizedBox {
     double mean_f_coll_MINI;
     double log10_Mturnover_ave;
     double log10_Mturnover_MINI_ave;
-    float *xH_box;
-    float *Gamma12_box;
-    float *MFP_box;
-    float *z_re_box;
-    float *dNrec_box;
-    float *temp_kinetic_all_gas;
-    float *Fcoll;
-    float *Fcoll_MINI;
+    float *neutral_fraction;
+    float *ionisation_rate_G12;
+    float *mean_free_path;
+    float *z_reion;
+    float *cumulative_recombinations;
+    float *kinetic_temperature;
+    float *unnormalised_nion;
+    float *unnormalised_nion_mini;
 } IonizedBox;
 
 typedef struct BrightnessTemp {

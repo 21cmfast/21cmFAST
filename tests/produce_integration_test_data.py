@@ -51,7 +51,6 @@ DEFAULT_SIMULATION_OPTIONS = {
     "BOX_LEN": 100,
     "SAMPLER_MIN_MASS": 1e9,
     "ZPRIME_STEP_FACTOR": 1.04,
-    "M_MIN_in_mass": False,
 }
 
 DEFAULT_MATTER_OPTIONS = {
@@ -67,6 +66,8 @@ DEFAULT_ASTRO_OPTIONS = {
     "INHOMO_RECO": False,
     "USE_UPPER_STELLAR_TURNOVER": False,
     "USE_MASS_DEPENDENT_ZETA": False,
+    "HII_FILTER": "sharp-k",
+    "M_MIN_in_Mass": False,
 }
 
 DEFAULT_ASTRO_PARAMS = {
@@ -78,21 +79,21 @@ DEFAULT_ASTRO_PARAMS = {
 LIGHTCONE_FIELDS = [
     "density",
     "velocity_z",
-    "Ts_box",
-    "Gamma12_box",
-    "dNrec_box",
-    "x_e_box",
-    "Tk_box",
-    "J_21_LW_box",
-    "xH_box",
-    "z_re_box",
+    "spin_temperature",
+    "ionisation_rate_G12",
+    "cumulative_recombinations",
+    "xray_ionised_fraction",
+    "kinetic_temp_neutral",
+    "J_21_LW",
+    "neutral_fraction",
+    "z_reion",
     "brightness_temp",
 ]
 
 COEVAL_FIELDS = LIGHTCONE_FIELDS.copy()
-COEVAL_FIELDS.insert(COEVAL_FIELDS.index("Ts_box"), "lowres_density")
-COEVAL_FIELDS.insert(COEVAL_FIELDS.index("Ts_box"), "lowres_vx_2LPT")
-COEVAL_FIELDS.insert(COEVAL_FIELDS.index("Ts_box"), "lowres_vx")
+COEVAL_FIELDS.insert(COEVAL_FIELDS.index("spin_temperature"), "lowres_density")
+COEVAL_FIELDS.insert(COEVAL_FIELDS.index("spin_temperature"), "lowres_vx_2LPT")
+COEVAL_FIELDS.insert(COEVAL_FIELDS.index("spin_temperature"), "lowres_vx")
 
 OPTIONS = {
     "simple": [12, {}],
@@ -103,8 +104,7 @@ OPTIONS = {
         13,
         {"ZPRIME_STEP_FACTOR": 1.05, "Z_HEAT_MAX": 25, "HMF": "PS"},
     ],
-    "interp_perturb_field": [16, {"interp_perturb_field": True}],
-    "mdzeta": [14, {"USE_MASS_DEPENDENT_ZETA": True, "M_MIN_in_mass": True}],
+    "mdzeta": [14, {"USE_MASS_DEPENDENT_ZETA": True, "M_MIN_in_Mass": True}],
     "rsd": [9, {"SUBCELL_RSD": True}],
     "inhomo": [10, {"INHOMO_RECO": True, "R_BUBBLE_MAX": 50.0}],
     "tsfluct": [16, {"HMF": "WATSON-Z", "USE_TS_FLUCT": True}],
@@ -116,7 +116,7 @@ OPTIONS = {
             "Z_HEAT_MAX": 25,
             "USE_MINI_HALOS": True,
             "USE_MASS_DEPENDENT_ZETA": True,
-            "M_MIN_in_mass": True,
+            "M_MIN_in_Mass": True,
             "INHOMO_RECO": True,
             "USE_TS_FLUCT": True,
             "ZPRIME_STEP_FACTOR": 1.1,
@@ -133,7 +133,7 @@ OPTIONS = {
         8.5,
         {
             "USE_MASS_DEPENDENT_ZETA": True,
-            "M_MIN_in_mass": True,
+            "M_MIN_in_Mass": True,
             "PHOTON_CONS_TYPE": "z-photoncons",
             "Z_HEAT_MAX": 25,
             "ZPRIME_STEP_FACTOR": 1.1,
@@ -143,7 +143,7 @@ OPTIONS = {
         9,
         {
             "USE_MASS_DEPENDENT_ZETA": True,
-            "M_MIN_in_mass": True,
+            "M_MIN_in_Mass": True,
             "USE_TS_FLUCT": True,
             "INHOMO_RECO": True,
             "PHOTON_CONS_TYPE": "z-photoncons",
@@ -156,7 +156,7 @@ OPTIONS = {
         9,
         {
             "USE_MASS_DEPENDENT_ZETA": True,
-            "M_MIN_in_mass": True,
+            "M_MIN_in_Mass": True,
             "USE_TS_FLUCT": True,
             "INHOMO_RECO": True,
             "PHOTON_CONS_TYPE": "z-photoncons",
@@ -172,78 +172,13 @@ OPTIONS = {
             "N_THREADS": 2,
             "USE_FFTW_WISDOM": True,
             "USE_MASS_DEPENDENT_ZETA": True,
-            "M_MIN_in_mass": True,
+            "M_MIN_in_Mass": True,
             "INHOMO_RECO": True,
             "USE_TS_FLUCT": True,
             "PHOTON_CONS_TYPE": "z-photoncons",
             "Z_HEAT_MAX": 25,
             "ZPRIME_STEP_FACTOR": 1.1,
             "R_BUBBLE_MAX": 50.0,
-        },
-    ],
-    "halo_field": [9, {"USE_HALO_FIELD": True}],
-    "halo_field_mdz": [
-        8.5,
-        {
-            "USE_MASS_DEPENDENT_ZETA": True,
-            "M_MIN_in_mass": True,
-            "USE_HALO_FIELD": True,
-            "USE_TS_FLUCT": True,
-            "Z_HEAT_MAX": 25,
-            "ZPRIME_STEP_FACTOR": 1.1,
-        },
-    ],
-    "halo_field_mdz_highres": [
-        8.5,
-        {
-            "USE_MASS_DEPENDENT_ZETA": True,
-            "M_MIN_in_mass": True,
-            "USE_HALO_FIELD": True,
-            "PERTURB_ON_HIGH_RES": True,
-            "N_THREADS": 4,
-            "Z_HEAT_MAX": 25,
-            "ZPRIME_STEP_FACTOR": 1.1,
-        },
-    ],
-    "mdz_tsfluct_nthreads": [
-        12.0,
-        {
-            "USE_MASS_DEPENDENT_ZETA": True,
-            "M_MIN_in_mass": True,
-            "USE_TS_FLUCT": True,
-            "PERTURB_ON_HIGH_RES": False,
-            "N_THREADS": 4,
-            "Z_HEAT_MAX": 25,
-            "ZPRIME_STEP_FACTOR": 1.2,
-            "NUM_FILTER_STEPS_FOR_Ts": 4,
-            "USE_INTERPOLATION_TABLES": "no-interpolation",
-        },
-    ],
-    "ts_fluct_no_tables": [
-        12.0,
-        {
-            "USE_TS_FLUCT": True,
-            "N_THREADS": 4,
-            "Z_HEAT_MAX": 25,
-            "ZPRIME_STEP_FACTOR": 1.2,
-            "NUM_FILTER_STEPS_FOR_Ts": 4,
-            "USE_INTERPOLATION_TABLES": "no-interpolation",
-        },
-    ],
-    "minihalos_no_tables": [
-        12.0,
-        {
-            "USE_MINI_HALOS": True,
-            "USE_MASS_DEPENDENT_ZETA": True,
-            "M_MIN_in_mass": True,
-            "USE_TS_FLUCT": True,
-            "INHOMO_RECO": True,
-            "N_THREADS": 4,
-            "Z_HEAT_MAX": 25,
-            "ZPRIME_STEP_FACTOR": 1.1,
-            "NUM_FILTER_STEPS_FOR_Ts": 4,
-            "USE_INTERPOLATION_TABLES": "no-interpolation",
-            "M_TURN": 5.0,
         },
     ],
     "fast_fcoll_hiz": [
@@ -268,11 +203,12 @@ OPTIONS = {
             "Z_HEAT_MAX": 25,
             "USE_MINI_HALOS": True,
             "USE_MASS_DEPENDENT_ZETA": True,
-            "M_MIN_in_mass": True,
+            "M_MIN_in_Mass": True,
             "INHOMO_RECO": True,
             "USE_TS_FLUCT": True,
             "ZPRIME_STEP_FACTOR": 1.1,
             "N_THREADS": 4,
+            "POWER_SPECTRUM": "CLASS",
             "NUM_FILTER_STEPS_FOR_Ts": 8,
             "USE_INTERPOLATION_TABLES": "hmf-interpolation",
             "INTEGRATION_METHOD_MINI": "GAMMA-APPROX",
@@ -288,15 +224,6 @@ OPTIONS = {
         8,
         {"N_THREADS": 4, "USE_LYA_HEATING": False},
     ],
-    "halo_sampling": [
-        12,
-        {
-            "USE_HALO_FIELD": True,
-            "HALO_STOCHASTICITY": True,
-            "USE_MASS_DEPENDENT_ZETA": True,
-            "M_MIN_in_mass": True,
-        },
-    ],
 }
 
 if len(set(OPTIONS.keys())) != len(list(OPTIONS.keys())):
@@ -305,7 +232,7 @@ if len(set(OPTIONS.keys())) != len(list(OPTIONS.keys())):
 OPTIONS_PT = {
     "simple": [10, {}],
     "no2lpt": [10, {"PERTURB_ALGORITHM": "ZELDOVICH"}],
-    "linear": [10, {"EVOLVE_DENSITY_LINEARLY": 1}],
+    "linear": [10, {"PERTURB_ALGORITHM": "LINEAR"}],
     "highres": [10, {"PERTURB_ON_HIGH_RES": True}],
 }
 
@@ -313,28 +240,40 @@ if len(set(OPTIONS_PT.keys())) != len(list(OPTIONS_PT.keys())):
     raise ValueError("There is a non-unique option_pt name!")
 
 OPTIONS_HALO = {
-    "halo_field": [9, {"USE_HALO_FIELD": True, "USE_MASS_DEPENDENT_ZETA": True}]
+    "halo_field": [
+        9,
+        {
+            "USE_HALO_FIELD": True,
+            "USE_MASS_DEPENDENT_ZETA": True,
+            "M_MIN_in_Mass": True,
+        },
+    ]
 }
 
 if len(set(OPTIONS_HALO.keys())) != len(list(OPTIONS_HALO.keys())):
     raise ValueError("There is a non-unique option_halo name!")
 
 
-def get_node_z(redshift, lc=False, **kwargs):
+def get_node_z(redshift, max_redshift, lc=False, **kwargs):
     """Get the node redshifts we want to use for test runs.
 
     Values for the spacing and maximum go kwargs --> test defaults --> struct defaults
     """
     node_redshifts = None
+
+    node_maxz = max_redshift
+    if lc or kwargs.get("USE_TS_FLUCT", False) or kwargs.get("INHOMO_RECO", False):
+        node_maxz = kwargs.get(
+            "Z_HEAT_MAX",
+            DEFAULT_SIMULATION_OPTIONS.get(
+                "Z_HEAT_MAX", SimulationOptions.new().Z_HEAT_MAX
+            ),
+        )
+
     if lc or kwargs.get("USE_TS_FLUCT", False) or kwargs.get("INHOMO_RECO", False):
         node_redshifts = get_logspaced_redshifts(
             min_redshift=redshift,
-            max_redshift=kwargs.get(
-                "Z_HEAT_MAX",
-                DEFAULT_SIMULATION_OPTIONS.get(
-                    "Z_HEAT_MAX", SimulationOptions.new().Z_HEAT_MAX
-                ),
-            ),
+            max_redshift=node_maxz,
             z_step_factor=kwargs.get(
                 "ZPRIME_STEP_FACTOR",
                 DEFAULT_SIMULATION_OPTIONS.get(
@@ -346,7 +285,7 @@ def get_node_z(redshift, lc=False, **kwargs):
 
 
 def get_all_options_struct(redshift, lc=False, **kwargs):
-    node_redshifts = get_node_z(redshift, lc=lc, **kwargs)
+    node_redshifts = get_node_z(redshift, max_redshift=redshift + 2, lc=lc, **kwargs)
 
     inputs = InputParameters(
         node_redshifts=node_redshifts,
@@ -410,9 +349,16 @@ def produce_lc_power_spectra(redshift, **kwargs):
 
     quantities = LIGHTCONE_FIELDS[:]
     if not astro_options.USE_TS_FLUCT:
-        [quantities.remove(k) for k in {"Ts_box", "x_e_box", "Tk_box"}]
+        [
+            quantities.remove(k)
+            for k in {
+                "spin_temperature",
+                "xray_ionised_fraction",
+                "kinetic_temp_neutral",
+            }
+        ]
     if not astro_options.USE_MINI_HALOS:
-        quantities.remove("J_21_LW_box")
+        quantities.remove("J_21_LW")
 
     lcn = RectilinearLightconer.with_equal_cdist_slices(
         min_redshift=redshift,
@@ -439,7 +385,7 @@ def produce_lc_power_spectra(redshift, **kwargs):
 
 
 def produce_perturb_field_data(redshift, **kwargs):
-    options = get_all_options_struct(redshift, **kwargs)
+    options = get_all_options_struct(redshift, lc=True, **kwargs)
     del options["out_redshifts"]
 
     velocity_normalisation = 1e16
@@ -459,7 +405,7 @@ def produce_perturb_field_data(redshift, **kwargs):
 
     def hist(kind, xmin, xmax, nbins):
         data = pt_box.get(kind)
-        if kind == "velocity":
+        if kind == "velocity_z":
             data = velocity_normalisation * data
 
         bins, edges = np.histogram(
@@ -482,13 +428,16 @@ def produce_perturb_field_data(redshift, **kwargs):
 
 
 def produce_halo_field_data(redshift, **kwargs):
-    options = get_all_options_struct(redshift, **kwargs)
+    options = get_all_options_struct(redshift, lc=True, **kwargs)
 
     with config.use(regenerate=True, write=False):
         init_box = compute_initial_conditions(**options)
-        halos = determine_halo_list(initial_conditions=init_box, **options)
+        halos = determine_halo_list(
+            initial_conditions=init_box, redshift=redshift, **options
+        )
         pt_halos = perturb_halo_list(
-            initial_conditions=init_box, halo_field=halos, **options
+            initial_conditions=init_box,
+            halo_field=halos,
         )
 
     return pt_halos

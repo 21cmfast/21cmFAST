@@ -405,7 +405,6 @@ void determine_deltaz_for_photoncons() {
     } else {
         // No extrapolation required, neutral fraction never reaches zero
         NF_sample_min = calibrated_NF_min;
-
         N_extrapolated = 0;
     }
 
@@ -549,7 +548,6 @@ void determine_deltaz_for_photoncons() {
                                             ((float)N_extrapolated + 1.);
         }
     }
-
     // We have added the extrapolated values, now check if they are all increasing or not (again, to
     // determine whether or not to try and smooth the corrected curve
     increasing_val = 0;
@@ -603,7 +601,6 @@ void determine_deltaz_for_photoncons() {
             }
         }
     }
-
     // Store the data in its intermediate state before averaging
     for (i = 0; i < (N_NFsamples + N_extrapolated + 1); i++) {
         deltaz_smoothed[i] = deltaz[i];
@@ -634,7 +631,6 @@ void determine_deltaz_for_photoncons() {
             }
         }
     }
-
     // Here we effectively filter over the delta z as a function of neutral fraction to try and
     // minimise any possible kinks etc. in the functional curve.
     for (i = 0; i < (N_NFsamples + N_extrapolated + 1); i++) {
@@ -688,6 +684,7 @@ void determine_deltaz_for_photoncons() {
     gsl_status = gsl_spline_init(deltaz_spline_for_photoncons, NeutralFractions, deltaz,
                                  N_NFsamples + N_extrapolated + 1);
     CATCH_GSL_ERROR(gsl_status);
+    LOG_DEBUG("done");
 }
 
 void adjust_redshifts_for_photoncons(double z_step_factor, float *redshift, float *stored_redshift,

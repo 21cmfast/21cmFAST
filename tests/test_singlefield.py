@@ -12,7 +12,7 @@ import pytest
 from astropy import units as un
 
 import py21cmfast as p21c
-from py21cmfast import InitialConditions, OutputCache, TsBox
+from py21cmfast import BrightnessTemp, InitialConditions, IonizedBox, OutputCache, TsBox
 
 
 @pytest.fixture(scope="module")
@@ -140,7 +140,9 @@ def test_new_seeds(
     # we didn't write it, and this has a different seed
     assert cache.find_existing(ib) is None
     assert ib.random_seed != ionize_box_lowz.random_seed
-    assert not np.all(ib.xH_box.value == ionize_box_lowz.xH_box.value)
+    assert not np.all(
+        ib.neutral_fraction.value == ionize_box_lowz.neutral_fraction.value
+    )
 
 
 def test_ib_from_pf(perturbed_field, ic, cache):
@@ -312,3 +314,38 @@ def test_photoncons_backend_error(redshift, default_input_struct, ic):
         initial_conditions=ic,
         inputs=inputs,
     )
+
+
+def test_global_properties(
+    default_input_struct, ionize_box, spin_temp_evolution, perturbed_field
+):
+    """Test the global properties which exist in some OutputStruct subclasses."""
+    st_new = TsBox.new(inputs=default_input_struct, redshift=10.0)
+    with pytest.raises(AttributeError, match="global_Ts is not defined"):
+        _ = st_new.global_Ts
+
+    with pytest.raises(AttributeError, match="global_Tk is not defined"):
+        _ = st_new.global_Tk
+
+    with pytest.raises(AttributeError, match="global_x_e is not defined"):
+        _ = st_new.global_x_e
+
+    ion_new = IonizedBox.new(inputs=default_input_struct, redshift=10.0)
+    with pytest.raises(AttributeError, match="global_xH is not defined"):
+        _ = ion_new.global_xH
+
+    bt_new = BrightnessTemp.new(inputs=default_input_struct, redshift=10.0)
+    with pytest.raises(AttributeError, match="global_Tb is not defined"):
+        _ = bt_new.global_Tb
+
+    curr_st = spin_temp_evolution[-1]["spin_temp"]
+    assert curr_st.global_Ts == np.mean(curr_st.get("spin_temperature"))
+    assert curr_st.global_Tk == np.mean(curr_st.get("kinetic_temp_neutral"))
+    assert curr_st.global_x_e == np.mean(curr_st.get("xray_ionised_fraction"))
+
+    assert ionize_box.global_xH == np.mean(ionize_box.get("neutral_fraction"))
+
+    bt = p21c.brightness_temperature(
+        ionized_box=ionize_box, perturbed_field=perturbed_field
+    )
+    assert bt.global_Tb == np.mean(bt.get("brightness_temp"))

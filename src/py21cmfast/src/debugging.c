@@ -58,9 +58,9 @@ void writeSimulationOptions(SimulationOptions *p) {
         "\n        SimulationOptions:\n"
         "       HII_DIM = %4d\n"
         "       DIM = %4d\n"
-        "       BOX_LEN=%8.3f\n",
+        "       BOX_LEN=%8.3f\n"
         "       NON_CUBIC_FACTOR=%8.3f,\n"
-        "       N_THREADS=%2d\n",
+        "       N_THREADS=%2d\n"
         "       Z_HEAT_MAX=%8.3f\n"
         "       ZPRIME_STEP_FACTOR=%8.3f\n"
         "       SAMPLER_MIN_MASS=%10.3e\n"
@@ -162,7 +162,6 @@ void writeAstroOptions(AstroOptions *p) {
         "       INHOMO_RECO=%1d\n"
         "       USE_TS_FLUCT=%1d\n"
         "       M_MIN_in_Mass=%1d\n"
-        "       PHOTON_CONS=%1d,\n"
         "       USE_EXP_FILTER=%1d\n"
         "       USE_CMB_HEATING=%1d\n"
         "       USE_LYA_HEATING=%1d\n"

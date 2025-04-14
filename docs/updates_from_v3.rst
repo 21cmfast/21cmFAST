@@ -119,6 +119,24 @@ in the order which they are called in ``run_lightcone``:
 - :func:`py21cmfast.compute_ionization_field`
 - :func:`py21cmfast.brightness_temperature`
 
+Output Field Names
+==================
+Similar to the function names, some output fields have also been renamed for clarity:
+- Fields in TsBox
+  - x_e_box -- xray_ionised_fraction
+  - Tk_box -- kinetic_temp_neutral
+  - J_21_LW_box -- J_21_LW
+  - Ts_box -- spin_temperature
+- Fields in IonizedBox
+  - xH_box -- neutral_fraction
+  - Gamma12_box -- ionisation_rate_G12
+  - MFP_box -- mean_free_path
+  - z_re_box -- z_reion
+  - dNrec_box -- cumulative_recombinations
+  - temp_kinetic_all_gas -- kinetic_temperature
+  - Fcoll -- unnormalised_nion
+  - Fcoll_MINI -- unnormalised_nion_mini
+
 Stochastic Halo Sampling
 ========================
 The main addition the ``21cmFAST`` in version 4 is the stochastic halo sampler. This samples conditional halo mass

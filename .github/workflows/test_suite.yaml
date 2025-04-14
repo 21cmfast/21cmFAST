@@ -20,7 +20,7 @@ jobs:
       ENV_NAME: tests
       PYTHON: ${{ matrix.python-version }}
       OS: ${{ matrix.os }}
-      CC: gcc
+      CC: ${{ matrix.compiler }}
     name: Testing
     runs-on: ${{ matrix.os }}
     strategy:
@@ -28,6 +28,10 @@ jobs:
       matrix:
         os: [ubuntu-latest, macos-latest]
         python-version: ["3.11", "3.12"]
+        compiler: ["gcc", "clang"]
+        exclude:
+          - os: ubuntu-latest
+            compiler: "clang"
     defaults:
      run:
        # Adding -l {0} ensures conda can be found properly in each step
@@ -96,7 +100,7 @@ jobs:
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: integration-test-plots-${{ matrix.os }}-${{ matrix.python-version }}
+          name: integration-test-plots-${{ matrix.os }}-${{ matrix.python-version }}-${{ matrix.compiler }}
           path: |
             testplots/*.pdf
 

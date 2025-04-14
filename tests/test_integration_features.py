@@ -42,6 +42,22 @@ options = list(prd.OPTIONS.keys())
 options_pt = list(prd.OPTIONS_PT.keys())
 options_halo = list(prd.OPTIONS_HALO.keys())
 
+v3_to_v4_field_map = {
+    "x_e_box": "xray_ionised_fraction",
+    "Tk_box": "kinetic_temp_neutral",
+    "J_21_LW_box": "J_21_LW",
+    "xH_box": "neutral_fraction",
+    "xH": "neutral_fraction",
+    "Gamma12_box": "ionisation_rate_G12",
+    "MFP_box": "MFP",
+    "z_re_box": "z_reion",
+    "dNrec_box": "cumulative_recombinations",
+    "temp_kinetic_all_gas": "kinetic_temperature",
+    "Fcoll": "unnormalised_nion",
+    "Fcoll_MINI": "unnormalised_nion_mini",
+    "velocity": "velocity_z",
+}
+
 
 @pytest.mark.parametrize("name", options)
 def test_power_spectra_coeval(name, module_direc, plt):
@@ -49,16 +65,15 @@ def test_power_spectra_coeval(name, module_direc, plt):
     print(f"Options used for the test {name} at z={redshift}: ", kwargs)
 
     # First get pre-made data
+    true_powers = {}
     with h5py.File(prd.get_filename("power_spectra", name), "r") as fl:
-        true_powers = {
-            "_".join(key.split("_")[1:]): value[...]
-            for key, value in fl["coeval"].items()
-            if key.startswith("power_")
-        }
+        for key, value in fl["coeval"].items():
+            if key.startswith("power_"):
+                key_base = "_".join(key.split("_")[1:])
+                keyv4 = v3_to_v4_field_map.get(key_base, key_base)
+                true_powers[keyv4] = value[...]
+                print(f"{key} --> {keyv4} loaded")
 
-    # HACK: the velocity keywords have changed
-    true_powers["velocity_z"] = true_powers["velocity"]
-    del true_powers["velocity"]
     # Now compute the Coeval object
     with config.use(direc=module_direc, regenerate=False, write=True):
         test_k, test_powers, _ = prd.produce_coeval_power_spectra(redshift, **kwargs)
@@ -91,22 +106,18 @@ def test_power_spectra_lightcone(name, module_direc, plt):
         true_global = {}
         true_k = fl["lightcone"]["k"][...]
         for key in fl["lightcone"]:
+            key_base = "_".join(key.split("_")[1:])
+            key_v4 = v3_to_v4_field_map.get(key_base, key_base)
             if key.startswith("power_"):
-                true_powers["_".join(key.split("_")[1:])] = fl["lightcone"][key][...]
+                true_powers[key_v4] = fl["lightcone"][key][...]
             elif key.startswith("global_"):
-                true_global[key] = fl["lightcone"][key][...]
+                true_global[key_v4] = fl["lightcone"][key][...]
 
-    true_powers["velocity_z"] = true_powers["velocity"]
-    del true_powers["velocity"]
-    conversion = {
-        "global_brightness_temp": "brightness_temp",
-        "global_xH": "xH_box",
-    }
     # Now compute the lightcone
     with config.use(direc=module_direc, regenerate=False, write=True):
         test_k, test_powers, lc = prd.produce_lc_power_spectra(redshift, **kwargs)
 
-    test_global = {k: lc.global_quantities[conversion[k]] for k in true_global}
+    test_global = {k: lc.global_quantities[k] for k in true_global}
     assert np.allclose(true_k, test_k)
 
     if plt == mpl.pyplot:
@@ -221,10 +232,10 @@ def test_perturb_field_data(name):
         ic,
     ) = prd.produce_perturb_field_data(redshift, **kwargs)
 
-    assert np.allclose(power_dens, p_dens, atol=5e-3, rtol=1e-3)
-    assert np.allclose(power_vel, p_vel, atol=5e-3, rtol=1e-3)
-    assert np.allclose(pdf_dens, y_dens, atol=5e-3, rtol=1e-3)
-    assert np.allclose(pdf_vel, y_vel, atol=5e-3, rtol=1e-3)
+    np.testing.assert_allclose(p_dens, power_dens, atol=5e-3, rtol=1e-3)
+    np.testing.assert_allclose(p_vel, power_vel, atol=5e-3, rtol=1e-3)
+    np.testing.assert_allclose(y_dens, pdf_dens, atol=5e-3, rtol=1e-3)
+    np.testing.assert_allclose(y_vel, pdf_vel, atol=5e-3, rtol=1e-3)
 
 
 @pytest.mark.parametrize("name", options_halo)

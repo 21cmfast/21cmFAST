@@ -100,7 +100,7 @@ class Lightconer(ABC):
 
     @interp_kinds.default
     def _interp_kinds_def(self):
-        return {"z_re_box": "mean_max"}
+        return {"z_reion": "mean_max"}
 
     def get_shape(self, simulation_options: SimulationOptions) -> tuple[int, int, int]:
         """Get the shape of the lightcone slices."""
