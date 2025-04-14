@@ -36,6 +36,7 @@ OPTIONS_CTEST = {
         {
             "USE_MINI_HALOS": True,
             "INHOMO_RECO": True,
+            "R_BUBBLE_MAX": 50.0,
             "USE_TS_FLUCT": True,
             "M_TURN": 5.0,
         },
@@ -47,13 +48,14 @@ OPTIONS_CTEST = {
     "ts_nomdz": [18, {"USE_TS_FLUCT": True}],
     "inhomo": [
         18,
-        {"INHOMO_RECO": True},
+        {"INHOMO_RECO": True, "R_BUBBLE_MAX": 50.0},
     ],
     "inhomo_ts": [
         18,
         {
             "INHOMO_RECO": True,
             "USE_TS_FLUCT": True,
+            "R_BUBBLE_MAX": 50.0,
         },
     ],
     "sampler": [
@@ -78,6 +80,7 @@ OPTIONS_CTEST = {
             "USE_MINI_HALOS": True,
             "USE_TS_FLUCT": True,
             "INHOMO_RECO": True,
+            "R_BUBBLE_MAX": 50.0,
             "M_TURN": 5.0,
         },
     ],
@@ -95,6 +98,7 @@ OPTIONS_CTEST = {
             "USE_HALO_FIELD": True,
             "HALO_STOCHASTICITY": True,
             "INHOMO_RECO": True,
+            "R_BUBBLE_MAX": 50.0,
         },
     ],
     "sampler_ts_ir": [
@@ -104,6 +108,7 @@ OPTIONS_CTEST = {
             "HALO_STOCHASTICITY": True,
             "USE_TS_FLUCT": True,
             "INHOMO_RECO": True,
+            "R_BUBBLE_MAX": 50.0,
         },
     ],
     "photoncons-z": [
@@ -112,23 +117,12 @@ OPTIONS_CTEST = {
             "PHOTON_CONS_TYPE": "z-photoncons",
         },
     ],
-    "photoncons-a": [
-        18,
-        {
-            "PHOTON_CONS_TYPE": "alpha-photoncons",
-        },
-    ],
-    "photoncons-f": [
-        18,
-        {
-            "PHOTON_CONS_TYPE": "f-photoncons",
-        },
-    ],
     "minimize_mem": [
         18,
         {
             "USE_TS_FLUCT": True,
             "INHOMO_RECO": True,
+            "R_BUBBLE_MAX": 50.0,
             "MINIMIZE_MEMORY": True,
         },
     ],
