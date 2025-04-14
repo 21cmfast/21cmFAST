@@ -35,8 +35,8 @@ void compute_perturbed_velocities(
 ){
 
     float k_x, k_y, k_z, k_sq;
-    unsigned long long int n_x, n_y, n_z;
-    unsigned long long int i,j,k;
+    int n_x, n_y, n_z;
+    int i,j,k;
 
     float kvec[3];
 
