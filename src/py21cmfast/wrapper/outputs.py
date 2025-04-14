@@ -1104,32 +1104,32 @@ class TsBox(OutputStructZ):
     @cached_property
     def global_Ts(self):
         """Global (mean) spin temperature."""
-        if "spin_temperature" not in self._computed_arrays:
+        if not self.is_computed:
             raise AttributeError(
                 "global_Ts is not defined until the ionization calculation has been performed"
             )
         else:
-            return np.mean(self.spin_temperature)
+            return np.mean(self.get("spin_temperature"))
 
     @cached_property
     def global_Tk(self):
         """Global (mean) Tk."""
-        if "kinetic_temp_neutral" not in self._computed_arrays:
+        if not self.is_computed:
             raise AttributeError(
                 "global_Tk is not defined until the ionization calculation has been performed"
             )
         else:
-            return np.mean(self.kinetic_temp_neutral)
+            return np.mean(self.get("kinetic_temp_neutral"))
 
     @cached_property
     def global_x_e(self):
         """Global (mean) x_e."""
-        if "xray_ionised_fraction" not in self._computed_arrays:
+        if not self.is_computed:
             raise AttributeError(
                 "global_x_e is not defined until the ionization calculation has been performed"
             )
         else:
-            return np.mean(self.xray_ionised_fraction)
+            return np.mean(self.get("xray_ionised_fraction"))
 
     def get_required_input_arrays(self, input_box: OutputStruct) -> list[str]:
         """Return all input arrays required to compute this object."""
@@ -1276,12 +1276,12 @@ class IonizedBox(OutputStructZ):
     @cached_property
     def global_xH(self):
         """Global (mean) neutral fraction."""
-        if not self.filled:
+        if not self.is_computed:
             raise AttributeError(
                 "global_xH is not defined until the ionization calculation has been performed"
             )
         else:
-            return np.mean(self.neutral_fraction)
+            return np.mean(self.get("neutral_fraction"))
 
     def get_required_input_arrays(self, input_box: OutputStruct) -> list[str]:
         """Return all input arrays required to compute this object."""
@@ -1396,7 +1396,7 @@ class BrightnessTemp(OutputStructZ):
                 "global_Tb is not defined until the ionization calculation has been performed"
             )
         else:
-            return np.mean(self.brightness_temp)
+            return np.mean(self.get("brightness_temp"))
 
     def get_required_input_arrays(self, input_box: OutputStruct) -> list[str]:
         """Return all input arrays required to compute this object."""
