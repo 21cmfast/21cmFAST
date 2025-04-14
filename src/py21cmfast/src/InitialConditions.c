@@ -24,7 +24,6 @@
 #include "InitialConditions.h"
 
 #include "hello_world.h"
-#include "device_rng.cuh"
 
 void adj_complex_conj(fftwf_complex *HIRES_box, UserParams *user_params, CosmoParams *cosmo_params){
     /*****  Adjust the complex conjugate relations for a real array  *****/
@@ -91,8 +90,11 @@ int ComputeInitialConditions(
 
     int status;
     
-    printf("Start computing initial conditions\n");
-    call_cuda();
+    // tmp: ensure hello_world works on GPU 
+    bool use_cuda=true;
+    if (use_cuda){
+        printf("Start computing initial conditions\n");
+        call_cuda();}
 
     Try{ // This Try wraps the entire function so we don't indent.
 
