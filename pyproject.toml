@@ -81,6 +81,9 @@ ignore = [
     "D103",  # ignore missing docstrings
     "T",     # print statements
 ]
+"build_cffi.py" = [
+    "T",     # print statements
+]
 
 
 [tool.ruff.lint.pydocstyle]
