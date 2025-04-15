@@ -383,6 +383,7 @@ def setup_lightcone_instance(
             },
             photon_nonconservation_data=photon_nonconservation_data,
         )
+        print(f'lc has last {lightcone._last_completed_lcidx} {lightcone._last_completed_node}')
     return lightcone
 
 
@@ -447,12 +448,9 @@ def _run_lightcone_from_perturbed_fields(
             f"redshift of the lightcone. Repeating the higher-z calculations...",
             stacklevel=2,
         )
-
-    lightcone._last_completed_node = idx
-    lightcone._last_completed_lcidx = (
-        np.sum(lightcone.lightcone_redshifts >= scrollz[lightcone._last_completed_node])
-        - 1
-    )
+    
+    print(f'after start lc has last {lightcone._last_completed_lcidx} {lightcone._last_completed_node}')
+    print(f'prev is None: {prev_coeval is None}')
 
     if lightcone_filename and not Path(lightcone_filename).exists():
         lightcone.save(lightcone_filename)
@@ -502,7 +500,8 @@ def _run_lightcone_from_perturbed_fields(
 
             # only checkpoint if we have slices
             if lightcone_filename and lc_index is not None:
-                lightcone.make_checkpoint(lightcone_filename, lcidx=idx, node_index=iz)
+                print(f"making checkpoint to {lc_index}")
+                lightcone.make_checkpoint(lightcone_filename, lcidx=lc_index, node_index=iz)
 
         prev_coeval = coeval
 
