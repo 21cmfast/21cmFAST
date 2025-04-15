@@ -895,12 +895,6 @@ int sample_halo_grids(gsl_rng **rng_arr, double redshift, float *dens_field, flo
     return 0;
 }
 
-void print_current_time()
-{
-    time_t now = time(NULL);
-    printf("Current time: %s \n", ctime(&now));
-}
-
 //NOTE: there's a lot of repeated code here and in build_halo_cats, find a way to merge
 int sample_halo_progenitors(gsl_rng **rng_arr, double z_in, double z_out, HaloField *halofield_in,
                             HaloField *halofield_out, struct HaloSamplingConstants *hs_constants, RGTable1D_f *sigma_table)
@@ -952,13 +946,13 @@ int sample_halo_progenitors(gsl_rng **rng_arr, double z_in, double z_out, HaloFi
         int *halo_c = halofield_in->halo_coords;
 
         printf("Start cuda calculation for progenitors. ");
-        print_current_time();
+
         updateHaloOut(halo_m, halo_star_rng, halo_sfr_rng, 
                     halo_xray_rng,halo_c,nhalo_in, sigma_y_arr, 
                     sigma_bin, x_min, x_width, d_hs_constants, 
                     arraysize_total, halofield_out);
         printf("End cuda calculation for progenitors. ");
-        print_current_time();
+        
     }else{ // CPU fallback
 #pragma omp parallel num_threads(user_params_global->N_THREADS)
         {
@@ -1107,11 +1101,13 @@ int stochastic_halofield(UserParams *user_params, CosmoParams *cosmo_params,
             int buffer_scale = HALO_CUDA_THREAD_FACTOR + 1;
             unsigned long long int n_rstates = nhalo_first * buffer_scale;
             printf("initializing %llu random states on the device... \n", n_rstates);
-            print_current_time();
+           
             
             init_rand_states(seed, n_rstates);
 
             printf("finish initializing \n");}
+
+            // todo: add a signal to free rand states once all iterations are done
        
     }
     else{
@@ -1119,7 +1115,7 @@ int stochastic_halofield(UserParams *user_params, CosmoParams *cosmo_params,
         sample_halo_progenitors(rng_stoc,redshift_desc,redshift,halos_desc,halos,&hs_constants, sigma_table);
     }
     printf("Found %llu Halos \n", halos->n_halos);
-    print_current_time();
+   
     LOG_DEBUG("Found %llu Halos", halos->n_halos);
 
     if(halos->n_halos >= 3){
