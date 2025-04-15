@@ -1,15 +1,23 @@
-"""
-Unit tests for input structures
-"""
+"""Unit tests for input structures."""
+
+import pickle
+import tomllib
+import warnings
+from pathlib import Path
 
 import pytest
 
-import pickle
-import warnings
-
-from py21cmfast import AstroParams  # An example of a struct with defaults
-from py21cmfast import CosmoParams, FlagOptions, UserParams, __version__, global_params
-from py21cmfast.inputs import validate_all_inputs
+from py21cmfast import (
+    AstroOptions,
+    AstroParams,
+    CosmoParams,
+    InputParameters,
+    IonizedBox,
+    MatterOptions,
+    SimulationOptions,
+    __version__,
+    config,
+)
 
 
 @pytest.fixture(scope="module")
@@ -18,7 +26,7 @@ def c():
 
 
 def test_diff(c):
-    """Ensure that the python dict has all fields"""
+    """Ensure that the python dict has all fields."""
     d = CosmoParams(SIGMA_8=0.9)
 
     assert c is not d
@@ -39,43 +47,47 @@ def test_bad_construction(c):
         CosmoParams(c, c)
 
     with pytest.raises(TypeError):
-        CosmoParams(UserParams())
+        CosmoParams(SimulationOptions())
 
     with pytest.raises(TypeError):
         CosmoParams(1)
 
-
-def test_warning_bad_params():
-    with pytest.warns(
-        UserWarning, match="The following parameters to CosmoParams are not supported"
-    ):
-        CosmoParams(SIGMA_8=0.8, bad_param=1)
+    with pytest.raises(TypeError):
+        CosmoParams.new(None, SIGMA_8=0.8, bad_param=1)
 
 
 def test_constructed_from_itself(c):
-    c3 = CosmoParams(c)
+    c3 = CosmoParams.new(c)
 
     assert c == c3
     assert c is not c3
 
 
+def test_altered_construction(c):
+    c3 = CosmoParams.new(c, SIGMA_8=0.7)
+
+    assert c != c3
+    assert c3.SIGMA_8 == 0.7
+
+
 def test_dynamic_variables():
-    u = UserParams()
+    u = SimulationOptions()
     assert u.DIM == 3 * u.HII_DIM
 
-    u.update(DIM=200)
+    u = u.clone(DIM=200)
 
     assert u.DIM == 200
 
 
 def test_clone():
-    u = UserParams()
+    u = SimulationOptions()
     v = u.clone()
     assert u == v
+    assert u is not v
 
 
 def test_repr(c):
-    assert "SIGMA_8:0.8" in repr(c)
+    assert "SIGMA_8=0.8" in repr(c)
 
 
 def test_pickle(c):
@@ -85,124 +97,168 @@ def test_pickle(c):
     assert c == c4
 
     # Make sure the c data gets loaded fine.
-    assert c4._cstruct.SIGMA_8 == c._cstruct.SIGMA_8
+    assert c4.cstruct.SIGMA_8 == c.cstruct.SIGMA_8
 
 
 def test_self(c):
-    c5 = CosmoParams(c.self)
+    c5 = CosmoParams.new(c)
     assert c5 == c
-    assert c5.pystruct == c.pystruct
-    assert c5.defining_dict == c.defining_dict
+    assert c5.asdict() == c.asdict()
+    assert c5.cdict == c.cdict
     assert (
-        c5.defining_dict != c5.pystruct
+        c5.cdict != c5.asdict()
     )  # not the same because the former doesn't include dynamic parameters.
-    assert c5.self == c.self
-
-
-def test_update():
-    c = CosmoParams()
-    c_pystruct = c.pystruct
-
-    c.update(
-        SIGMA_8=0.9
-    )  # update c parameters. since pystruct as dynamically created, it is a new object each call.
-    assert c_pystruct != c.pystruct
+    assert c5 == c
 
 
 def test_c_structures(c):
     # See if the C structures are behaving correctly
     c2 = CosmoParams(SIGMA_8=0.8)
 
-    assert c() != c2()
-    assert (
-        c() is c()
-    )  # Re-calling should not re-make the object (object should have persistence)
-
-
-def test_c_struct_update():
-    c = CosmoParams()
-    _c = c()
-    c.update(SIGMA_8=0.8)
-    assert _c != c()
-
-
-def test_update_inhomo_reco(caplog):
-    ap = AstroParams(R_BUBBLE_MAX=25)
-
-    ap.update(INHOMO_RECO=True)
-
-    msg = (
-        "You are setting R_BUBBLE_MAX != 50 when INHOMO_RECO=True. "
-        + "This is non-standard (but allowed), and usually occurs upon manual update of INHOMO_RECO"
-    )
-
-    ap.R_BUBBLE_MAX
-
-    assert msg in caplog.text
+    assert c is not c2
 
 
 def test_mmin():
-    fo = FlagOptions(USE_MASS_DEPENDENT_ZETA=True)
+    fo = AstroOptions(USE_MASS_DEPENDENT_ZETA=True)
     assert fo.M_MIN_in_Mass
 
 
-def test_globals():
-    orig = global_params.Z_HEAT_MAX
-
-    with global_params.use(Z_HEAT_MAX=10.0):
-        assert global_params.Z_HEAT_MAX == 10.0
-        assert global_params._cobj.Z_HEAT_MAX == 10.0
-
-    assert global_params.Z_HEAT_MAX == orig
-
-
-def test_fcoll_on(caplog):
-    f = UserParams(FAST_FCOLL_TABLES=True, USE_INTERPOLATION_TABLES=False)
-    assert not f.FAST_FCOLL_TABLES
-    assert (
-        "You cannot turn on FAST_FCOLL_TABLES without USE_INTERPOLATION_TABLES"
-        in caplog.text
-    )
-
-
-@pytest.mark.xfail(
-    __version__ >= "4.0.0", reason="the warning can be removed in v4", strict=True
-)
-def test_interpolation_table_warning():
-    with pytest.warns(UserWarning, match="setting has changed in v3.1.2"):
-        UserParams().USE_INTERPOLATION_TABLES
-
-    with warnings.catch_warnings():
-        warnings.simplefilter("error")
-        UserParams(USE_INTERPOLATION_TABLES=True).USE_INTERPOLATION_TABLES
-
-
 def test_validation():
-    c = CosmoParams()
-    a = AstroParams(R_BUBBLE_MAX=100)
-    f = FlagOptions()
-    u = UserParams(BOX_LEN=50)
+    with pytest.raises(ValueError, match="R_BUBBLE_MAX is larger than BOX_LEN"):
+        InputParameters(
+            cosmo_params=CosmoParams(),
+            astro_params=AstroParams(R_BUBBLE_MAX=100),
+            simulation_options=SimulationOptions(BOX_LEN=50),
+            matter_options=MatterOptions(),
+            astro_options=AstroOptions(),
+            random_seed=1,
+        )
 
-    with global_params.use(HII_FILTER=2):
-        with pytest.warns(UserWarning, match="Setting R_BUBBLE_MAX to BOX_LEN"):
-            validate_all_inputs(
-                cosmo_params=c, astro_params=a, flag_options=f, user_params=u
-            )
+    with (
+        config.use(ignore_R_BUBBLE_MAX_error=False),
+        pytest.raises(ValueError, match="Your R_BUBBLE_MAX is > BOX_LEN/3"),
+    ):
+        InputParameters(
+            cosmo_params=CosmoParams(),
+            astro_params=AstroParams(R_BUBBLE_MAX=20),
+            simulation_options=SimulationOptions(BOX_LEN=50),
+            matter_options=MatterOptions(),
+            astro_options=AstroOptions(USE_EXP_FILTER=False, HII_FILTER="sharp-k"),
+            random_seed=1,
+        )
 
-        assert a.R_BUBBLE_MAX == u.BOX_LEN
+    msg = r"This is non\-standard \(but allowed\), and usually occurs upon manual update of INHOMO_RECO"
+    with pytest.warns(UserWarning, match=msg):
+        InputParameters(
+            cosmo_params=CosmoParams(),
+            astro_params=AstroParams(R_BUBBLE_MAX=10),
+            simulation_options=SimulationOptions(BOX_LEN=50),
+            matter_options=MatterOptions(),
+            astro_options=AstroOptions(INHOMO_RECO=True),
+            random_seed=1,
+        )
 
-    a.update(R_BUBBLE_MAX=20)
+    with pytest.warns(
+        UserWarning, match="USE_MINI_HALOS needs USE_RELATIVE_VELOCITIES"
+    ):
+        InputParameters(
+            cosmo_params=CosmoParams(),
+            astro_params=AstroParams(),
+            simulation_options=SimulationOptions(),
+            matter_options=MatterOptions(USE_RELATIVE_VELOCITIES=False),
+            astro_options=AstroOptions(
+                USE_MINI_HALOS=True, INHOMO_RECO=True, USE_TS_FLUCT=True
+            ),
+            random_seed=1,
+        )
+    with pytest.raises(
+        ValueError,
+        match="You have set USE_MASS_DEPENDENT_ZETA to False but USE_HALO_FIELD is True!",
+    ):
+        InputParameters(
+            cosmo_params=CosmoParams(),
+            astro_params=AstroParams(),
+            simulation_options=SimulationOptions(),
+            matter_options=MatterOptions(USE_HALO_FIELD=True),
+            astro_options=AstroOptions(USE_MASS_DEPENDENT_ZETA=False),
+            random_seed=1,
+        )
+    with pytest.raises(
+        ValueError, match="USE_HALO_FIELD is not compatible with the redshift-based"
+    ):
+        InputParameters(
+            cosmo_params=CosmoParams(),
+            astro_params=AstroParams(),
+            simulation_options=SimulationOptions(),
+            matter_options=MatterOptions(USE_HALO_FIELD=True),
+            astro_options=AstroOptions(PHOTON_CONS_TYPE="z-photoncons"),
+            random_seed=1,
+        )
+    with pytest.raises(
+        ValueError,
+        match="USE_EXP_FILTER is not compatible with USE_HALO_FIELD == False",
+    ):
+        InputParameters(
+            cosmo_params=CosmoParams(),
+            astro_params=AstroParams(),
+            simulation_options=SimulationOptions(),
+            matter_options=MatterOptions(
+                USE_HALO_FIELD=False, HALO_STOCHASTICITY=False
+            ),
+            astro_options=AstroOptions(
+                USE_EXP_FILTER=True, USE_UPPER_STELLAR_TURNOVER=False
+            ),
+            random_seed=1,
+        )
 
-    with global_params.use(HII_FILTER=1):
-        with pytest.raises(ValueError, match="Your R_BUBBLE_MAX is > BOX_LEN/3"):
-            validate_all_inputs(
-                cosmo_params=c, astro_params=a, flag_options=f, user_params=u
-            )
+    with pytest.raises(
+        NotImplementedError,
+        match="USE_UPPER_STELLAR_TURNOVER is not yet implemented for when USE_HALO_FIELD is False",
+    ):
+        InputParameters(
+            cosmo_params=CosmoParams(),
+            astro_params=AstroParams(),
+            simulation_options=SimulationOptions(),
+            matter_options=MatterOptions(
+                USE_HALO_FIELD=False, HALO_STOCHASTICITY=False
+            ),
+            astro_options=AstroOptions(
+                USE_UPPER_STELLAR_TURNOVER=True, USE_EXP_FILTER=False
+            ),
+            random_seed=1,
+        )
+
+    with pytest.warns(
+        UserWarning, match="You are setting M_TURN > 8 when USE_MINI_HALOS=True."
+    ):
+        InputParameters(
+            cosmo_params=CosmoParams(),
+            astro_params=AstroParams(M_TURN=10),
+            simulation_options=SimulationOptions(),
+            matter_options=MatterOptions(),
+            astro_options=AstroOptions(
+                USE_MINI_HALOS=True, USE_TS_FLUCT=True, INHOMO_RECO=True
+            ),
+            random_seed=1,
+        )
+
+    with pytest.warns(
+        UserWarning,
+        match="Resolution is likely too low for accurate evolved density fields",
+    ):
+        InputParameters(
+            cosmo_params=CosmoParams(),
+            astro_params=AstroParams(),
+            simulation_options=SimulationOptions(BOX_LEN=50, DIM=20),
+            matter_options=MatterOptions(),
+            astro_options=AstroOptions(),
+            random_seed=1,
+        )
 
 
-def test_user_params():
-    up = UserParams()
-    up_non_cubic = UserParams(NON_CUBIC_FACTOR=1.5)
+def test_simulation_options():
+    up = SimulationOptions()
+    up_non_cubic = SimulationOptions(NON_CUBIC_FACTOR=1.5)
 
     assert up_non_cubic.tot_fft_num_pixels == 1.5 * up.tot_fft_num_pixels
     assert up_non_cubic.HII_tot_num_pixels == up.HII_tot_num_pixels * 1.5
@@ -211,20 +267,117 @@ def test_user_params():
         ValueError,
         match="NON_CUBIC_FACTOR \\* DIM and NON_CUBIC_FACTOR \\* HII_DIM must be integers",
     ):
-        up = UserParams(NON_CUBIC_FACTOR=1.1047642)
-        up.NON_CUBIC_FACTOR
+        up = SimulationOptions(NON_CUBIC_FACTOR=1.1047642)
 
     assert up.cell_size / up.cell_size_hires == up.DIM / up.HII_DIM
 
 
-def test_flag_options(caplog):
-    flg = FlagOptions(USE_HALO_FIELD=True, USE_MINI_HALOS=True)
-    assert not flg.USE_HALO_FIELD
-    assert (
-        "You have set USE_MINI_HALOS to True but USE_HALO_FIELD is also True"
-        in caplog.text
-    )
+def test_matter_options():
+    msg = r"Since the lowres density fields are required for the halo sampler"
+    with pytest.raises(NotImplementedError, match=msg):
+        MatterOptions(
+            PERTURB_ON_HIGH_RES=True, USE_HALO_FIELD=True, HALO_STOCHASTICITY=True
+        )
 
-    flg = FlagOptions(PHOTON_CONS=True, USE_MINI_HALOS=True)
-    assert not flg.PHOTON_CONS
-    assert "USE_MINI_HALOS is not compatible with PHOTON_CONS" in caplog.text
+    msg = r"The halo sampler enabled with HALO_STOCHASTICITY requires the use of HMF interpolation tables."
+    with pytest.raises(ValueError, match=msg):
+        MatterOptions(
+            USE_HALO_FIELD=True,
+            HALO_STOCHASTICITY=True,
+            USE_INTERPOLATION_TABLES="sigma-interpolation",
+        )
+
+    msg = r"HALO_STOCHASTICITY is True but USE_HALO_FIELD is False"
+    with pytest.raises(ValueError, match=msg):
+        MatterOptions(USE_HALO_FIELD=False, HALO_STOCHASTICITY=True)
+
+    msg = r"Can only use 'CLASS' power spectrum with relative velocities"
+    with pytest.raises(ValueError, match=msg):
+        MatterOptions(USE_RELATIVE_VELOCITIES=True, POWER_SPECTRUM="EH")
+
+    msg = r"The conditional mass functions requied for the halo field"
+    with pytest.raises(NotImplementedError, match=msg):
+        MatterOptions(USE_HALO_FIELD=True, HMF="WATSON")
+
+
+# Testing all the AstroOptions dependencies, including emitted warnings
+def test_astro_options():
+    with pytest.raises(
+        ValueError,
+        match="The SUBCELL_RSD flag is only effective if APPLY_RSDS is True.",
+    ):
+        AstroOptions(SUBCELL_RSD=True, APPLY_RSDS=False)
+
+    with pytest.raises(
+        ValueError,
+        match="You have set USE_MINI_HALOS to True but USE_MASS_DEPENDENT_ZETA is False!",
+    ):
+        AstroOptions(
+            USE_MASS_DEPENDENT_ZETA=False,
+            USE_MINI_HALOS=True,
+            INHOMO_RECO=True,
+            USE_TS_FLUCT=True,
+        )
+    with pytest.raises(
+        ValueError,
+        match="M_MIN_in_Mass must be true if USE_MASS_DEPENDENT_ZETA is true.",
+    ):
+        AstroOptions(USE_MASS_DEPENDENT_ZETA=True, M_MIN_in_Mass=False)
+
+    with pytest.raises(
+        ValueError,
+        match="You have set USE_MINI_HALOS to True but INHOMO_RECO is False!",
+    ):
+        AstroOptions(USE_MINI_HALOS=True, USE_TS_FLUCT=True, INHOMO_RECO=False)
+
+    with pytest.raises(
+        ValueError,
+        match="You have set USE_MINI_HALOS to True but USE_TS_FLUCT is False!",
+    ):
+        AstroOptions(USE_MINI_HALOS=True, INHOMO_RECO=True, USE_TS_FLUCT=False)
+
+    msg = r"USE_MINI_HALOS is not compatible with the redshift-based"
+    with pytest.raises(ValueError, match=msg):
+        AstroOptions(
+            PHOTON_CONS_TYPE="z-photoncons",
+            USE_MINI_HALOS=True,
+            INHOMO_RECO=True,
+            USE_TS_FLUCT=True,
+        )
+
+    with pytest.raises(
+        ValueError, match="USE_EXP_FILTER is True but CELL_RECOMB is False"
+    ):
+        AstroOptions(USE_EXP_FILTER=True, CELL_RECOMB=False)
+
+    with pytest.raises(
+        ValueError,
+        match="USE_EXP_FILTER can only be used with a real-space tophat HII_FILTER==0",
+    ):
+        AstroOptions(USE_EXP_FILTER=True, HII_FILTER="sharp-k")
+
+
+def test_inputstruct_init(default_seed):
+    default_struct = InputParameters(random_seed=default_seed)
+    altered_struct = default_struct.evolve_input_structs(BOX_LEN=30)
+
+    assert default_struct.cosmo_params == CosmoParams.new()
+    assert default_struct.simulation_options == SimulationOptions.new()
+    assert default_struct.matter_options == MatterOptions.new()
+    assert default_struct.astro_params == AstroParams.new()
+    assert default_struct.astro_options == AstroOptions.new()
+    assert altered_struct.simulation_options.BOX_LEN == 30
+
+
+def test_native_template_loading(default_seed):
+    template_path = Path(__file__).parent.parent / "src/py21cmfast/templates/"
+    with (template_path / "manifest.toml").open("rb") as f:
+        manifest = tomllib.load(f)
+
+        # check all files and all aliases work
+        for manf_entry in manifest["templates"]:
+            for alias in manf_entry["aliases"]:
+                assert isinstance(
+                    InputParameters.from_template(alias, random_seed=default_seed),
+                    InputParameters,
+                )

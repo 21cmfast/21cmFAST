@@ -2,16 +2,19 @@
 
 from __future__ import annotations
 
+import logging
+from typing import Optional, Union
+
 import matplotlib.pyplot as plt
 import numpy as np
 from astropy import units as un
 from astropy.cosmology import z_at_value
 from matplotlib import colormaps, colors
 from matplotlib.ticker import AutoLocator
-from typing import Optional, Union
 
-from . import outputs
-from .outputs import Coeval, LightCone
+from .drivers.coeval import Coeval
+from .drivers.lightcone import LightCone
+from .wrapper import outputs
 
 eor_colour = colors.LinearSegmentedColormap.from_list(
     "EoR",
@@ -25,6 +28,7 @@ eor_colour = colors.LinearSegmentedColormap.from_list(
         (1, "cyan"),
     ],
 )
+logger = logging.getLogger(__name__)
 colormaps.register(cmap=eor_colour)
 
 
@@ -88,27 +92,41 @@ def _imshow_slice(
 
     if slice_index >= cube.shape[slice_axis]:
         raise IndexError(
-            "slice_index is too large for that axis (slice_index=%s >= %s"
-            % (slice_index, cube.shape[slice_axis])
+            f"slice_index is too large for that axis (slice_index={slice_index} >= {cube.shape[slice_axis]}"
         )
 
     slc = np.take(cube, slice_index, axis=slice_axis)
     if not rotate:
         slc = slc.T
 
-    if cmap == "EoR":
-        imshow_kw["vmin"] = -150
-        imshow_kw["vmax"] = 30
+    if cmap == "EoR" and "norm" not in imshow_kw:
+        imshow_kw["norm"] = colors.Normalize(vmin=-150, vmax=30)
 
     norm_kw = {k: imshow_kw.pop(k) for k in ["vmin", "vmax"] if k in imshow_kw}
-    norm = imshow_kw.get(
+    norm = imshow_kw.pop(
         "norm", colors.LogNorm(**norm_kw) if log else colors.Normalize(**norm_kw)
     )
     plt.imshow(slc, origin="lower", cmap=cmap, norm=norm, **imshow_kw)
 
     if cbar:
+        ax_long = np.amax(slc.shape)
+        ax_short = np.amin(slc.shape)
+        asp = 40 if cbar_horizontal == rotate else 10
+        if cbar_horizontal == rotate:
+            # long edge colorbar
+            frac = ax_long / (asp * ax_short + ax_long)
+            pad = 0.10
+        else:
+            # short edge colorbar
+            frac = ax_short / (asp * ax_long + ax_short)
+            pad = 0.02
+
         cb = plt.colorbar(
-            orientation="horizontal" if cbar_horizontal else "vertical", aspect=40
+            orientation="horizontal" if cbar_horizontal else "vertical",
+            aspect=asp,
+            ax=ax,
+            fraction=frac,
+            pad=pad,
         )
         cb.outline.set_edgecolor(None)
 
@@ -150,22 +168,22 @@ def coeval_sliceplot(
     and the `imshow_kw` argument, which allows arbitrary styling of the plot.
     """
     if kind is None:
-        if isinstance(struct, outputs._OutputStruct):
-            kind = struct.fieldnames[0]
+        if isinstance(struct, outputs.OutputStruct):
+            kind = struct.struct.fieldnames[0]
         elif isinstance(struct, Coeval):
             kind = "brightness_temp"
 
-    try:
+    if isinstance(struct, outputs.OutputStruct):
+        cube = struct.get(kind)
+    elif isinstance(struct, Coeval):
         cube = getattr(struct, kind)
-    except AttributeError:
-        raise AttributeError(
-            f"The given OutputStruct does not have the quantity {kind}"
-        )
 
     if kind != "brightness_temp" and "cmap" not in kwargs:
         kwargs["cmap"] = "viridis"
 
-    fig, ax = _imshow_slice(cube, extent=(0, struct.user_params.BOX_LEN) * 2, **kwargs)
+    fig, ax = _imshow_slice(
+        cube, extent=(0, struct.simulation_options.BOX_LEN) * 2, **kwargs
+    )
 
     slice_axis = kwargs.get("slice_axis", -1)
 
@@ -192,7 +210,7 @@ def coeval_sliceplot(
         if cbar_label is None:
             if kind == "brightness_temp":
                 cbar_label = r"Brightness Temperature, $\delta T_B$ [mK]"
-            elif kind == "xH_box":
+            elif kind == "neutral_fraction":
                 cbar_label = r"Neutral fraction"
 
         cbar.ax.set_ylabel(cbar_label)
@@ -211,6 +229,7 @@ def lightcone_sliceplot(
     zticks: str = "redshift",
     fig: plt.Figure | None = None,
     ax: plt.Axes | None = None,
+    z_range=None,
     **kwargs,
 ):
     """Create a 2D plot of a slice through a lightcone.
@@ -256,14 +275,30 @@ def lightcone_sliceplot(
         "y": 2 if z_axis == "y" else [1, 0, 1][slice_axis],
     }
 
+    plot_shape = [lightcone.shape[axis_dct["x"]], lightcone.shape[axis_dct["y"]]]
+    plot_crd = [
+        [0, lightcone.lightcone_dimensions[axis_dct["x"]]],
+        [0, lightcone.lightcone_dimensions[axis_dct["y"]]],
+    ]
+
+    plot_sel = Ellipsis
+    if z_range is not None and slice_axis in (0, 1):
+        zmax_idx = np.argmin(np.fabs(z_range[1] - lightcone.lightcone_redshifts))
+        zmin_idx = np.argmin(np.fabs(z_range[0] - lightcone.lightcone_redshifts))
+        ax_idx = 1 if vertical else 0
+        plot_shape[ax_idx] = zmax_idx - zmin_idx
+
+        plot_crd[ax_idx][1] = lightcone.lightcone_coords[zmax_idx].to("Mpc").value
+        plot_crd[ax_idx][0] = lightcone.lightcone_coords[zmin_idx].to("Mpc").value
+        plot_sel = slice(zmin_idx, zmax_idx, 1)
+
     if fig is None and ax is None:
         fig, ax = plt.subplots(
             1,
             1,
             figsize=(
-                lightcone.shape[axis_dct["x"]] * 0.015 + 0.5,
-                lightcone.shape[axis_dct["y"]] * 0.015
-                + (2.5 if kwargs.get("cbar", True) else 0.05),
+                plot_shape[0] * 0.015 + 0.5,
+                plot_shape[1] * 0.015 + (2.5 if kwargs.get("cbar", True) else 0.05),
             ),
         )
     elif fig is None:
@@ -282,42 +317,44 @@ def lightcone_sliceplot(
         )
 
     extent = (
-        0,
-        lightcone.lightcone_dimensions[axis_dct["x"]],
-        0,
-        lightcone.lightcone_dimensions[axis_dct["y"]],
+        plot_crd[0][0],
+        plot_crd[0][1],
+        plot_crd[1][0],
+        plot_crd[1][1],
     )
 
+    cmap = kwargs.pop("cmap", "EoR" if kind == "brightness_temp" else "viridis")
+    cbar_horizontal = kwargs.pop("cbar_horizontal", not vertical)
     if lightcone2 is None:
         fig, ax = _imshow_slice(
-            getattr(lightcone, kind),
+            lightcone.lightcones[kind][:, :, plot_sel],
             extent=extent,
             slice_axis=slice_axis,
             rotate=not vertical,
-            cbar_horizontal=not vertical,
-            cmap=kwargs.get("cmap", "EoR" if kind == "brightness_temp" else "viridis"),
+            cbar_horizontal=cbar_horizontal,
+            cmap=cmap,
             fig=fig,
             ax=ax,
             **kwargs,
         )
     else:
-        d = getattr(lightcone, kind) - getattr(lightcone2, kind)
+        d = (lightcone.lightcones[kind][:, :, plot_sel] - getattr(lightcone2, kind))[
+            :, :, plot_sel
+        ]
         fig, ax = _imshow_slice(
             d,
             extent=extent,
             slice_axis=slice_axis,
             rotate=not vertical,
-            cbar_horizontal=not vertical,
+            cbar_horizontal=cbar_horizontal,
             cmap=kwargs.pop("cmap", "bwr"),
-            vmin=-np.abs(d.max()),
-            vmax=np.abs(d.max()),
             fig=fig,
             ax=ax,
             **kwargs,
         )
 
     if z_axis:
-        zlabel = _set_zaxis_ticks(ax, lightcone, zticks, z_axis)
+        zlabel = _set_zaxis_ticks(ax, lightcone, zticks, z_axis, z_range)
 
     if ylabel != "":
         ax.set_ylabel(ylabel or zlabel)
@@ -329,22 +366,40 @@ def lightcone_sliceplot(
     if cbar_label is None:
         if kind == "brightness_temp":
             cbar_label = r"Brightness Temperature, $\delta T_B$ [mK]"
-        elif kind == "xH":
+        elif kind == "neutral_fraction":
             cbar_label = r"Neutral fraction"
+        else:
+            cbar_label = kind
 
-    if vertical:
-        cbar.ax.set_ylabel(cbar_label)
-    else:
-        cbar.ax.set_xlabel(cbar_label)
+    if cbar is not None:
+        if cbar_horizontal:
+            cbar.ax.set_xlabel(cbar_label)
+        else:
+            cbar.ax.set_ylabel(cbar_label)
 
     return fig, ax
 
 
-def _set_zaxis_ticks(ax, lightcone, zticks, z_axis):
+def _set_zaxis_ticks(ax, lightcone, zticks, z_axis, z_range):
+    if zticks == "none":
+        getattr(ax, f"set_{z_axis}ticks")([])
+        getattr(ax, f"set_{z_axis}ticklabels")([])
+        return ""
+
     if zticks != "distance":
+        if z_range is None:
+            z_max = lightcone.lightcone_redshifts.max()
+            z_min = lightcone.lightcone_redshifts.min()
+        else:
+            z_min, z_max = z_range
+
         loc = AutoLocator()
         # Get redshift ticks.
-        lc_z = lightcone.lightcone_redshifts
+
+        lc_z = lightcone.lightcone_redshifts[
+            (lightcone.lightcone_redshifts < z_max)
+            & (lightcone.lightcone_redshifts > z_min)
+        ]
 
         if zticks == "redshift":
             coords = lc_z
@@ -353,13 +408,15 @@ def _set_zaxis_ticks(ax, lightcone, zticks, z_axis):
         else:
             try:
                 coords = getattr(lightcone.cosmo_params.cosmo, zticks)(lc_z)
-            except AttributeError:
-                raise AttributeError(f"zticks '{zticks}' is not a cosmology function.")
+            except AttributeError as e:
+                raise AttributeError(
+                    f"zticks '{zticks}' is not a cosmology function."
+                ) from e
 
         zlabel = " ".join(z.capitalize() for z in zticks.split("_"))
         units = getattr(coords, "unit", None)
         if units:
-            zlabel += f" [{str(coords.unit)}]"
+            zlabel += f" [{coords.unit!s}]"
             coords = coords.value
 
         ticks = loc.tick_values(coords.min(), coords.max())
@@ -400,6 +457,8 @@ def plot_global_history(
     ylabel: str | None = None,
     ylog: bool = False,
     ax: plt.Axes | None = None,
+    zmax: float | None = None,
+    **kwargs,
 ):
     """
     Plot the global history of a given quantity from a lightcone.
@@ -419,10 +478,10 @@ def plot_global_history(
     if ax is None:
         fig, ax = plt.subplots(1, 1, figsize=(7, 4))
     else:
-        fig = ax._gci().figure
+        fig = ax.get_figure()
 
     if kind is None:
-        kind = list(lightcone.global_quantities.keys())[0]
+        kind = next(iter(lightcone.global_quantities.keys()))
 
     assert (
         kind in lightcone.global_quantities
@@ -437,7 +496,13 @@ def plot_global_history(
     else:
         value = getattr(lightcone, "global_" + kind)
 
-    ax.plot(lightcone.node_redshifts, value)
+    sel = (
+        np.array(lightcone.inputs.node_redshifts) < zmax
+        if zmax is not None
+        else Ellipsis
+    )
+
+    ax.plot(np.array(lightcone.inputs.node_redshifts)[sel], value[sel], **kwargs)
     ax.set_xlabel("Redshift")
     if ylabel is None:
         ylabel = kind

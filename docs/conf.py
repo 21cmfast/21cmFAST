@@ -1,12 +1,10 @@
-# -*- coding: utf-8 -*-
 """Configuration options for the docs."""
-from __future__ import unicode_literals
 
 import os
 import subprocess
 import sys
-from unittest.mock import MagicMock
 from pathlib import Path
+from unittest.mock import MagicMock
 
 sys.path.insert(0, str(Path(__file__).absolute().parent.parent / "src"))
 
@@ -34,11 +32,6 @@ sys.modules.update((mod_name, Mock()) for mod_name in MOCK_MODULES)
 # requiring it to be installed.
 out = subprocess.run(["python", "setup.py", "--version"], capture_output=True)
 
-try:
-    from py21cmfast import cache_tools
-except ImportError:
-    raise 
-    
 extensions = [
     "sphinx.ext.autodoc",
     "sphinx.ext.autosummary",
@@ -70,10 +63,10 @@ master_doc = "index"
 project = "21cmFAST"
 year = "2020"
 author = "The 21cmFAST collaboration"
-copyright = "{0}, {1}".format(year, author)
-version = (
-    release
-) = out.stdout.decode().rstrip()  # Get it from `python setup.py --version`
+copyright = f"{year}, {author}"
+version = release = (
+    out.stdout.decode().rstrip()
+)  # Get it from `python setup.py --version`
 templates_path = ["templates"]
 
 pygments_style = "trac"
@@ -91,7 +84,7 @@ html_use_smartypants = True
 html_last_updated_fmt = "%b %d, %Y"
 html_split_index = False
 html_sidebars = {"**": ["searchbox.html", "globaltoc.html", "sourcelink.html"]}
-html_short_title = "%s-%s" % (project, version)
+html_short_title = f"{project}-{version}"
 
 napoleon_use_ivar = True
 napoleon_use_rtype = False

@@ -1,20 +1,96 @@
 [build-system]
-requires = ["setuptools>=42", "wheel", "setuptools_scm[toml]>=3.4"]
+requires = ["setuptools>=78.1.0", "setuptools_scm>=8"]
 build-backend = "setuptools.build_meta"
 
 [tool.setuptools_scm]
 
-[tool.black]
-include = '\.pyi?$'
-target-version = ['py39', 'py310', 'py311']
-exclude = '''
-/(
-    \.git
-  | \.hg
-  | \.tox
-  | \.venv
-  | _build
-  | build
-  | dist
-)/
-'''
+[tool.ruff]
+line-length = 88
+target-version = "py311"
+exclude = [
+  "*.ipynb",  # include these later
+  "devel/filter_valgrind.py",
+]
+
+[tool.ruff.lint]
+extend-select = [
+  "UP",   # pyupgrade
+  "E",    # pycodestyle
+  "W",    # pycodestyle warning
+  "F",    # pyflakes
+  "C90",  # mccabe complexity
+  "I",    # isort
+  "N",    # pep8-naming
+  "D",    # docstyle
+  # "ANN"   # type annotations
+  "B",    # bugbear
+  "A",    # builtins
+  "C4",   # comprehensions
+  "DTZ",  # datetime
+  "FA",   # future annotations
+  "PIE",  # flake8-pie
+  "T",    # print statements
+  "PT",   # pytest-style
+  "Q",    # quotes
+  "SIM",  # simplify
+  "PTH",  # use Pathlib
+  "ERA",  # kill commented code
+  "NPY",  # numpy-specific rules
+  "PERF", # performance
+  # "FURB", # refurb
+  "RUF",  # ruff-specific rules
+]
+ignore = [
+    "DTZ007",   # use %z in strptime
+    "E203",
+    "E266",
+    "E501",
+    "F403",
+    "F401",
+    "E231",
+    # Naming upper/lowercase -- too hard right now.
+    "N803",
+    # Naming upper/lowercase -- too hard right now.
+    "N806",
+    # Naming upper/lowercase -- too hard right now.
+    "N802",
+    # Naming mixed case
+    "N815",
+    # Docstring in imperative mood. This should *not* be the case for @property's, but can't ignore them atm.
+#    "D401",
+    # Module shadowing a builtin
+    "A005",
+    "RUF009",
+]
+
+[tool.ruff.lint.per-file-ignores]
+"tests/*.py" = [
+    "D103",  # ignore missing docstring in tests
+    "DTZ",   # ignore datetime in tests
+    "T",     # print statements
+]
+"devel/*.py" = [
+  "T",
+]
+"docs/conf.py" = [
+    "A",  # conf.py can shadow builtins
+    "ERA",
+]
+"src/py21cmfast/cli.py" = [
+    "D103",  # ignore missing docstrings
+    "T",     # print statements
+]
+"build_cffi.py" = [
+    "T",     # print statements
+]
+
+
+[tool.ruff.lint.pydocstyle]
+convention = 'numpy'
+property-decorators = [
+    "property",
+    "functools.cached_property",
+    "pytest.fixture"
+]
+[tool.ruff.lint.mccabe]
+max-complexity = 20

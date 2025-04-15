@@ -1,24 +1,18 @@
 #!/usr/bin/env python
 """Setup the package."""
 
+import os
+import re
+from pathlib import Path
 
 from setuptools import find_packages, setup
 
-import glob
-import io
-import os
-import re
-import shutil
-from os.path import dirname, expanduser, join
+THISDIR = Path(__file__).parent.resolve()
 
 
-def _read(*names, **kwargs):
-    return open(
-        join(dirname(__file__), *names), encoding=kwargs.get("encoding", "utf8")
-    ).read()
-
-
-pkgdir = os.path.dirname(os.path.abspath(__file__))
+def _read(name: str):
+    with (THISDIR / name).open(encoding="utf8") as fl:
+        return fl.read()
 
 
 # Enable code coverage for C code: we can't use CFLAGS=-coverage in tox.ini, since that
@@ -28,6 +22,9 @@ if "TOXENV" in os.environ and "SETUPPY_CFLAGS" in os.environ:
     os.environ["CFLAGS"] = os.environ["SETUPPY_CFLAGS"]
 
 test_req = [
+    "clang-format",
+    "clang-tidy",
+    "hmf",
     "pre-commit",
     "pytest>=5.0",
     "pytest-cov",
@@ -35,7 +32,9 @@ test_req = [
     "pytest-remotedata>=0.3.2",
     "powerbox",
     "pytest-plt",
+    "pytest-benchmark",
     "questionary",
+    "pytest-xdist",
 ]
 
 doc_req = ["nbsphinx", "numpydoc", "sphinx >= 1.3", "sphinx-rtd-theme"]
@@ -44,8 +43,7 @@ setup(
     name="21cmFAST",
     license="MIT license",
     description="A semi-numerical cosmological simulation code for the 21cm signal",
-    long_description="%s\n%s"
-    % (
+    long_description="{}\n{}".format(
         re.compile("^.. start-badges.*^.. end-badges", re.M | re.S).sub(
             "", _read("README.rst")
         ),
@@ -58,6 +56,7 @@ setup(
     packages=find_packages("src"),
     package_dir={"": "src"},
     include_package_data=True,
+    python_requires=">=3.11",
     zip_safe=False,
     classifiers=[
         # complete classifier list: http://pypi.python.org/pypi?%3Aaction=list_classifiers
@@ -76,13 +75,12 @@ setup(
     keywords=["Epoch of Reionization", "Cosmology"],
     install_requires=[
         "click",
-        "numpy<2",
+        "numpy>=2.0",
         "pyyaml",
         "cffi>=1.0",
         "scipy",
         "astropy>=2.0",
         "h5py>=2.8.0",
-        "cached_property",
         "matplotlib",
         "bidict",
         "cosmotile>=0.2.0",
@@ -91,7 +89,7 @@ setup(
     extras_require={"tests": test_req, "docs": doc_req, "dev": test_req + doc_req},
     setup_requires=["cffi>=1.0", "setuptools_scm"],
     entry_points={"console_scripts": ["21cmfast = py21cmfast.cli:main"]},
-    cffi_modules=[f"{pkgdir}/build_cffi.py:ffi"],
+    cffi_modules=[f"{THISDIR}/build_cffi.py:ffi"],
     use_scm_version={
         "write_to": "src/py21cmfast/_version.py",
         "parentdir_prefix_version": "21cmFAST-",

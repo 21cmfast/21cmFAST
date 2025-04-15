@@ -1,8 +1,9 @@
 name: 21cmfast
 channels:
+  - conda-forge
   - defaults
 dependencies:
-  - python=3.9
+  - python>=3.11
   - sphinxcontrib-htmlhelp
   - zlib
   - pip
@@ -113,5 +114,7 @@ dependencies:
   - h5py
   - jupyter
   - nb_conda
+  - pytest-plt
+  - questionary
   - pip:
       - pre-commit

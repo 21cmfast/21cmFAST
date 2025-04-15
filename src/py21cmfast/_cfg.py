@@ -6,78 +6,67 @@ import contextlib
 import copy
 import warnings
 from pathlib import Path
+from typing import ClassVar
 
 from . import yaml
+from ._data import DATA_PATH
+from .c_21cmfast import ffi, lib
+from .wrapper.structs import StructInstanceWrapper
 
 
 class ConfigurationError(Exception):
     """An error with the config file."""
 
-    pass
 
-
+# TODO: force config to be a singleton
 class Config(dict):
     """Simple over-ride of dict that adds a context manager."""
 
-    _defaults = {
+    _defaults: ClassVar = {
         "direc": "~/21cmFAST-cache",
-        "regenerate": False,
-        "write": True,
-        "cache_param_sigfigs": 6,
-        "cache_redshift_sigfigs": 4,
         "ignore_R_BUBBLE_MAX_error": False,
+        "external_table_path": DATA_PATH,
+        "HALO_CATALOG_MEM_FACTOR": 1.2,
     }
+    _defaults["wisdoms_path"] = Path(_defaults["direc"]) / "wisdoms"
 
-    _aliases = {"direc": ("boxdir",)}
-
-    def __init__(self, *args, write=True, file_name=None, **kwargs):
+    def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
-        self.file_name = file_name
+        # keep the config settings from the C library here
+        self._c_config_settings = StructInstanceWrapper(lib.config_settings, ffi)
 
-        # Ensure the keys that got read in are the right keys for the current version
-        do_write = False
         for k, v in self._defaults.items():
             if k not in self:
-                if k not in self._aliases:
-                    if self.file_name:
-                        warnings.warn(
-                            "Your configuration file is out of date. Updating..."
-                        )
-                    do_write = True
-                    self[k] = v
+                self[k] = v
 
-                else:
-                    for alias in self._aliases[k]:
-                        if alias in self:
-                            do_write = True
-                            warnings.warn(
-                                f"Your configuration file has old key '{alias}' which "
-                                f"has been re-named '{k}'. Updating..."
-                            )
-                            self[k] = self[alias]
-                            del self[alias]
-                            break
-                    else:
-                        if self.file_name:
-                            warnings.warn(
-                                "Your configuration file is out of date. Updating..."
-                            )
-                        do_write = True
-                        self[k] = v
-
-        for k, v in self.items():
+        for k in self.keys():
             if k not in self._defaults:
                 raise ConfigurationError(
-                    f"The configuration file has key '{k}' which is not known to 21cmFAST."
+                    f"You passed the key '{k}' to config, which is not known to 21cmFAST."
                 )
 
         self["direc"] = Path(self["direc"]).expanduser().absolute()
 
-        if do_write and write and self.file_name:
-            try:
-                self.write()
-            except Exception:
-                pass
+        # since the subclass __setitem__ is not called in the super().__init__ call, we re-do the setting here
+        # NOTE: This seems messy but I don't know a better way to do it
+        for k in self._c_config_settings:
+            self._pass_to_backend(k, self[k])
+
+    def __setitem__(self, key, value):
+        """Set an item in the config. Also updating the backend if it exists there."""
+        super().__setitem__(key, value)
+        if key in self._c_config_settings:
+            self._pass_to_backend(key, value)
+
+    def _pass_to_backend(self, key, value):
+        """Set the value in the backend."""
+        # we should possibly do a typemap for the ffi
+        if isinstance(value, Path | str):
+            setattr(
+                self._c_config_settings, key, ffi.new("char[]", str(value).encode())
+            )
+        else:
+            setattr(self._c_config_settings, key, value)
 
     @contextlib.contextmanager
     def use(self, **kwargs):
@@ -95,11 +84,11 @@ class Config(dict):
             if not fname.parent.exists():
                 fname.parent.mkdir(parents=True)
 
-            with open(fname, "w") as fl:
+            with fname.open("w") as fl:
                 yaml.dump(self._as_dict(), fl)
 
     def _as_dict(self):
-        """The plain dict defining the instance."""
+        """Return a plain dict defining the instance."""
         return {k: str(Path) if isinstance(v, Path) else v for k, v in self.items()}
 
     @classmethod
@@ -108,14 +97,12 @@ class Config(dict):
         file_name = Path(file_name).expanduser().absolute()
 
         if file_name.exists():
-            with open(file_name) as fl:
+            with file_name.open() as fl:
                 cfg = yaml.load(fl)
             return cls(cfg, file_name=file_name)
         else:
             return cls(write=True)
 
 
-config = Config.load(Path("~/.21cmfast/config.yml"))
-
-# Keep an original copy around
-default_config = copy.deepcopy(config)
+# On import, load the default config
+config = Config()

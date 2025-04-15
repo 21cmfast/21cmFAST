@@ -9,8 +9,9 @@ The following introductory tutorials will help you get started with ``21cmFAST``
    tutorials/coeval_cubes
    tutorials/lightcones
    tutorials/mini-halos
-   tutorials/gather_data
+   tutorials/caching
    tutorials/relative_velocities
+   tutorials/halosampler
 
 If you've covered the tutorials and still have questions about "how to do stuff" in
 ``21cmFAST``, consult the FAQs:

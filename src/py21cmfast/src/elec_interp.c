@@ -1,26 +1,4 @@
 /* Written by Steven Furlanetto */
-//#include "stdio.h"
-//#include "stdlib.h"
-//#include "math.h"
-// Below gives grid sizes for the interpolation arrays
-
-// Initialization; must be called once to
-void initialize_interp_arrays();
-
-// Primary functions to compute heating fractions and number of Lya photons or ionization produced,
-// Note that En is the energy of the *primary* photon, so the energy in the initial ionization is
-// included in all these.
-// All energies are in eV.
-// xHII_call is the desired ionized fraction.
-float interp_fheat(float En, float xHII_call);
-float interp_n_Lya(float En, float xHII_call);
-float interp_nion_HI(float En, float xHII_call);
-float interp_nion_HeI(float En, float xHII_call);
-float interp_nion_HeII(float En, float xHII_call);
-
-int locate_energy_index(float En);
-int locate_xHII_index(float xHII_call);
-
 
 // Functions to interpolate the energy deposition fractions of high-energy secondary electrons
 // in the IGM.
@@ -36,17 +14,29 @@ int locate_xHII_index(float xHII_call);
 
 // The interpolation arrays.  Note all are defined in global scope, but x_int_ prefix should
 // ensure no conflicts with other code
-float x_int_Energy[x_int_NENERGY];
-float x_int_XHII[x_int_NXHII];
-float x_int_fheat[x_int_NXHII][x_int_NENERGY];
-float x_int_n_Lya[x_int_NXHII][x_int_NENERGY];
-float x_int_nion_HI[x_int_NXHII][x_int_NENERGY];
-float x_int_nion_HeI[x_int_NXHII][x_int_NENERGY];
-float x_int_nion_HeII[x_int_NXHII][x_int_NENERGY];
 
-void skipline(FILE *fl, int n){
+#include "elec_interp.h"
+
+#include <math.h>
+#include <stdio.h>
+#include <stdlib.h>
+
+#include "InputParameters.h"
+#include "cexcept.h"
+#include "exceptions.h"
+#include "logger.h"
+
+float x_int_XHII[x_int_NXHII];
+static float x_int_Energy[x_int_NENERGY];
+static float x_int_fheat[x_int_NXHII][x_int_NENERGY];
+static float x_int_n_Lya[x_int_NXHII][x_int_NENERGY];
+static float x_int_nion_HI[x_int_NXHII][x_int_NENERGY];
+static float x_int_nion_HeI[x_int_NXHII][x_int_NENERGY];
+static float x_int_nion_HeII[x_int_NXHII][x_int_NENERGY];
+
+void skipline(FILE *fl, int n) {
     int i;
-    for(i=0;i<n;i++) {
+    for (i = 0; i < n; i++) {
         char c;
         do {
             c = fgetc(fl);
@@ -57,84 +47,73 @@ void skipline(FILE *fl, int n){
 // Call once to read in data files and set up arrays for interpolation.
 // All data files should be in a local subdirectory "x_int_tables/"; if moved, change input_base
 // below to new location.
-void initialize_interp_arrays()
-{
-  FILE *input_file;
-  char input_file_name[256]; // needs to be longer than 100.
+void initialize_interp_arrays() {
+    FILE *input_file;
+    char input_file_name[256];  // needs to be longer than 100.
 
-  float xHI,xHeI,xHeII,z,T;
-  float trash;
-  char label[] = " ";
+    float xHI, xHeI, xHeII, z, T;
+    float trash;
 
-  int i;
-  int n_ion;
+    int i;
+    int n_ion;
 
-  // Initialize array of ionized fractions
-  x_int_XHII[0] = 1.0e-4;
-  x_int_XHII[1] = 2.318e-4;
-  x_int_XHII[2] = 4.677e-4;
-  x_int_XHII[3] = 1.0e-3;
-  x_int_XHII[4] = 2.318e-3;
-  x_int_XHII[5] = 4.677e-3;
-  x_int_XHII[6] = 1.0e-2;
-  x_int_XHII[7] = 2.318e-2;
-  x_int_XHII[8] = 4.677e-2;
-  x_int_XHII[9] = 1.0e-1;
-  x_int_XHII[10] = 0.5;
-  x_int_XHII[11] = 0.9;
-  x_int_XHII[12] = 0.99;
-  x_int_XHII[13] = 0.999;
+    // Initialize array of ionized fractions
+    x_int_XHII[0] = 1.0e-4;
+    x_int_XHII[1] = 2.318e-4;
+    x_int_XHII[2] = 4.677e-4;
+    x_int_XHII[3] = 1.0e-3;
+    x_int_XHII[4] = 2.318e-3;
+    x_int_XHII[5] = 4.677e-3;
+    x_int_XHII[6] = 1.0e-2;
+    x_int_XHII[7] = 2.318e-2;
+    x_int_XHII[8] = 4.677e-2;
+    x_int_XHII[9] = 1.0e-1;
+    x_int_XHII[10] = 0.5;
+    x_int_XHII[11] = 0.9;
+    x_int_XHII[12] = 0.99;
+    x_int_XHII[13] = 0.999;
 
-  for (n_ion=0;n_ion<x_int_NXHII;n_ion++) {
+    for (n_ion = 0; n_ion < x_int_NXHII; n_ion++) {
+        // Construct filename
+        if (x_int_XHII[n_ion] < 0.3) {
+            sprintf(input_file_name, "%s/x_int_tables/log_xi_%1.1f.dat",
+                    config_settings.external_table_path, log10(x_int_XHII[n_ion]));
+        } else {
+            sprintf(input_file_name, "%s/x_int_tables/xi_%1.3f.dat",
+                    config_settings.external_table_path, x_int_XHII[n_ion]);
+        }
 
-    // Construct filename
-    if (x_int_XHII[n_ion] < 0.3) {
-      sprintf(input_file_name,"%s/x_int_tables/log_xi_%1.1f.dat",global_params.external_table_path,log10(x_int_XHII[n_ion]));
-    } else {
-      sprintf(input_file_name,"%s/x_int_tables/xi_%1.3f.dat",global_params.external_table_path,x_int_XHII[n_ion]);
+        input_file = fopen(input_file_name, "r");
+
+        if (input_file == NULL) {
+            LOG_ERROR("Can't open input file %s!", input_file_name);
+            Throw(IOError);
+        }
+
+        // Skip first line
+        skipline(input_file, 1);
+
+        // Read in second line (ionized fractions info)
+        fscanf(input_file, "%g %g %g %g %g", &xHI, &xHeI, &xHeII, &z, &T);
+
+        // Skip third line -- first have to get past the second line ending.
+        skipline(input_file, 2);
+
+        LOG_ULTRA_DEBUG("Reading %s", input_file_name);
+
+        for (i = 0; i < x_int_NENERGY; i++) {
+            fscanf(input_file, "%g %g %g %g %g %g %g %g %g", &x_int_Energy[i], &trash,
+                   &x_int_fheat[n_ion][i], &trash, &x_int_n_Lya[n_ion][i], &x_int_nion_HI[n_ion][i],
+                   &x_int_nion_HeI[n_ion][i], &x_int_nion_HeII[n_ion][i], &trash);
+        }
+
+        LOG_ULTRA_DEBUG("Done reading %s", input_file_name);
+
+        fclose(input_file);
     }
+    LOG_SUPER_DEBUG("Done reading x_int_tables.");
 
-    input_file = fopen(input_file_name, "r");
-
-    if (input_file == NULL) {
-      LOG_ERROR("Can't open input file %s!",input_file_name);
-      Throw(IOError);
-    }
-
-    // Skip first line
-    skipline(input_file, 1);
-
-    // Read in second line (ionized fractions info)
-    fscanf(input_file,"%g %g %g %g %g", &xHI, &xHeI, &xHeII, &z, &T);
-
-    // Skip third line -- first have to get past the second line ending.
-    skipline(input_file, 2);
-
-    LOG_SUPER_DEBUG("Reading %s", input_file_name);
-
-    for (i=0;i<x_int_NENERGY;i++) {
-
-      fscanf(input_file,"%g %g %g %g %g %g %g %g %g",
-	     &x_int_Energy[i],
-	     &trash,
-	     &x_int_fheat[n_ion][i],
-	     &trash,
-	     &x_int_n_Lya[n_ion][i],
-	     &x_int_nion_HI[n_ion][i],
-	     &x_int_nion_HeI[n_ion][i],
-	     &x_int_nion_HeII[n_ion][i],
-	     &trash);
-
-    }
-
-    LOG_SUPER_DEBUG("Done reading %s", input_file_name);
-
-    fclose(input_file);
-
-  }
-  LOG_SUPER_DEBUG("Done reading x_int_tables.");
-
-  return;
+    return;
 }
 
 // Function to compute fheat for an interacting electron, given energy En and IGM ionized fraction
@@ -145,53 +124,53 @@ void initialize_interp_arrays()
 // Note that if En>highest element of array, it just uses that highest value.  Similarly, if
 // xHII_call is less than or smaller than the limits of the ionized fraction array (10^-4 and
 // 0.999), it just uses those values.
-float interp_fheat(float En, float xHII_call)
-{
-  int n_low,n_high;
-  int m_xHII_low,m_xHII_high;
+float interp_fheat(float En, float xHII_call) {
+    int n_low, n_high;
+    int m_xHII_low, m_xHII_high;
 
-  float elow_result,ehigh_result,final_result;
+    float elow_result, ehigh_result, final_result;
 
-  // Check if En is inside interpolation boundaries
-  if (En > 0.999*x_int_Energy[x_int_NENERGY-1]) {
-    // If it is above the upper limit, we just assume that it is near the upper limit, which
-    // has anyway reached the asymptotic limit
-    En = x_int_Energy[x_int_NENERGY-1]*0.999;
-  } else if (En < x_int_Energy[0]) {
-    return 1.0;
-  }
+    // Check if En is inside interpolation boundaries
+    if (En > 0.999 * x_int_Energy[x_int_NENERGY - 1]) {
+        // If it is above the upper limit, we just assume that it is near the upper limit, which
+        // has anyway reached the asymptotic limit
+        En = x_int_Energy[x_int_NENERGY - 1] * 0.999;
+    } else if (En < x_int_Energy[0]) {
+        return 1.0;
+    }
 
-  // Check if ionized fraction is within boundaries; if not, adjust to be within
-  if (xHII_call > x_int_XHII[x_int_NXHII-1]*0.999) {
-    xHII_call = x_int_XHII[x_int_NXHII-1]*0.999;
-  } else if (xHII_call < x_int_XHII[0]) {
-    xHII_call = 1.001*x_int_XHII[0];
-  }
+    // Check if ionized fraction is within boundaries; if not, adjust to be within
+    if (xHII_call > x_int_XHII[x_int_NXHII - 1] * 0.999) {
+        xHII_call = x_int_XHII[x_int_NXHII - 1] * 0.999;
+    } else if (xHII_call < x_int_XHII[0]) {
+        xHII_call = 1.001 * x_int_XHII[0];
+    }
 
-  n_low = locate_energy_index(En);
-  n_high = n_low + 1;
+    n_low = locate_energy_index(En);
+    n_high = n_low + 1;
 
-  m_xHII_low = locate_xHII_index(xHII_call);
-  m_xHII_high = m_xHII_low + 1;
+    m_xHII_low = locate_xHII_index(xHII_call);
+    m_xHII_high = m_xHII_low + 1;
 
-  // First linear interpolation in energy
-  elow_result = ((x_int_fheat[m_xHII_low][n_high]-x_int_fheat[m_xHII_low][n_low])/
-		 (x_int_Energy[n_high]-x_int_Energy[n_low]));
-  elow_result *= (En - x_int_Energy[n_low]);
-  elow_result += x_int_fheat[m_xHII_low][n_low];
+    // First linear interpolation in energy
+    elow_result = ((x_int_fheat[m_xHII_low][n_high] - x_int_fheat[m_xHII_low][n_low]) /
+                   (x_int_Energy[n_high] - x_int_Energy[n_low]));
+    elow_result *= (En - x_int_Energy[n_low]);
+    elow_result += x_int_fheat[m_xHII_low][n_low];
 
-  // Second linear interpolation in energy
-  ehigh_result = ((x_int_fheat[m_xHII_high][n_high]-x_int_fheat[m_xHII_high][n_low])/
-		  (x_int_Energy[n_high]-x_int_Energy[n_low]));
-  ehigh_result *= (En - x_int_Energy[n_low]);
-  ehigh_result += x_int_fheat[m_xHII_high][n_low];
+    // Second linear interpolation in energy
+    ehigh_result = ((x_int_fheat[m_xHII_high][n_high] - x_int_fheat[m_xHII_high][n_low]) /
+                    (x_int_Energy[n_high] - x_int_Energy[n_low]));
+    ehigh_result *= (En - x_int_Energy[n_low]);
+    ehigh_result += x_int_fheat[m_xHII_high][n_low];
 
-  // Final interpolation over the ionized fraction
-  final_result = (ehigh_result - elow_result)/(x_int_XHII[m_xHII_high] - x_int_XHII[m_xHII_low]);
-  final_result *= (xHII_call - x_int_XHII[m_xHII_low]);
-  final_result += elow_result;
+    // Final interpolation over the ionized fraction
+    final_result =
+        (ehigh_result - elow_result) / (x_int_XHII[m_xHII_high] - x_int_XHII[m_xHII_low]);
+    final_result *= (xHII_call - x_int_XHII[m_xHII_low]);
+    final_result += elow_result;
 
-  return final_result;
+    return final_result;
 }
 
 // Function to compute nLya for an interacting electron, given energy En and IGM ionized fraction
@@ -202,53 +181,53 @@ float interp_fheat(float En, float xHII_call)
 // Note that if En>highest element of array, it just uses that high value.  Similarly, if xHII_call
 // is less than or smaller than the limits of the ionized fraction array (10^-4 and 0.999),
 // it just uses those values.
-float interp_n_Lya(float En, float xHII_call)
-{
-  int n_low,n_high;
-  int m_xHII_low,m_xHII_high;
+float interp_n_Lya(float En, float xHII_call) {
+    int n_low, n_high;
+    int m_xHII_low, m_xHII_high;
 
-  float elow_result,ehigh_result,final_result;
+    float elow_result, ehigh_result, final_result;
 
-  // Check if En is inside interpolation boundaries
-  if (En > 0.999*x_int_Energy[x_int_NENERGY-1]) {
-    // If it is above the upper limit, we just assume that it is near the upper limit, which
-    // has anyway reached the asymptotic limit
-    En = x_int_Energy[x_int_NENERGY-1]*0.999;
-  } else if (En < x_int_Energy[0]) {
-    return 0.0;
-  }
+    // Check if En is inside interpolation boundaries
+    if (En > 0.999 * x_int_Energy[x_int_NENERGY - 1]) {
+        // If it is above the upper limit, we just assume that it is near the upper limit, which
+        // has anyway reached the asymptotic limit
+        En = x_int_Energy[x_int_NENERGY - 1] * 0.999;
+    } else if (En < x_int_Energy[0]) {
+        return 0.0;
+    }
 
-  // Check if ionized fraction is within boundaries; if not, adjust to be within
-  if (xHII_call > x_int_XHII[x_int_NXHII-1]*0.999) {
-    xHII_call = x_int_XHII[x_int_NXHII-1]*0.999;
-  } else if (xHII_call < x_int_XHII[0]) {
-    xHII_call = 1.001*x_int_XHII[0];
-  }
+    // Check if ionized fraction is within boundaries; if not, adjust to be within
+    if (xHII_call > x_int_XHII[x_int_NXHII - 1] * 0.999) {
+        xHII_call = x_int_XHII[x_int_NXHII - 1] * 0.999;
+    } else if (xHII_call < x_int_XHII[0]) {
+        xHII_call = 1.001 * x_int_XHII[0];
+    }
 
-  n_low = locate_energy_index(En);
-  n_high = n_low + 1;
+    n_low = locate_energy_index(En);
+    n_high = n_low + 1;
 
-  m_xHII_low = locate_xHII_index(xHII_call);
-  m_xHII_high = m_xHII_low + 1;
+    m_xHII_low = locate_xHII_index(xHII_call);
+    m_xHII_high = m_xHII_low + 1;
 
-  // First linear interpolation in energy
-  elow_result = ((x_int_n_Lya[m_xHII_low][n_high]-x_int_n_Lya[m_xHII_low][n_low])/
-		 (x_int_Energy[n_high]-x_int_Energy[n_low]));
-  elow_result *= (En - x_int_Energy[n_low]);
-  elow_result += x_int_n_Lya[m_xHII_low][n_low];
+    // First linear interpolation in energy
+    elow_result = ((x_int_n_Lya[m_xHII_low][n_high] - x_int_n_Lya[m_xHII_low][n_low]) /
+                   (x_int_Energy[n_high] - x_int_Energy[n_low]));
+    elow_result *= (En - x_int_Energy[n_low]);
+    elow_result += x_int_n_Lya[m_xHII_low][n_low];
 
-  // Second linear interpolation in energy
-  ehigh_result = ((x_int_n_Lya[m_xHII_high][n_high]-x_int_n_Lya[m_xHII_high][n_low])/
-		  (x_int_Energy[n_high]-x_int_Energy[n_low]));
-  ehigh_result *= (En - x_int_Energy[n_low]);
-  ehigh_result += x_int_n_Lya[m_xHII_high][n_low];
+    // Second linear interpolation in energy
+    ehigh_result = ((x_int_n_Lya[m_xHII_high][n_high] - x_int_n_Lya[m_xHII_high][n_low]) /
+                    (x_int_Energy[n_high] - x_int_Energy[n_low]));
+    ehigh_result *= (En - x_int_Energy[n_low]);
+    ehigh_result += x_int_n_Lya[m_xHII_high][n_low];
 
-  // Final interpolation over the ionized fraction
-  final_result = (ehigh_result - elow_result)/(x_int_XHII[m_xHII_high] - x_int_XHII[m_xHII_low]);
-  final_result *= (xHII_call - x_int_XHII[m_xHII_low]);
-  final_result += elow_result;
+    // Final interpolation over the ionized fraction
+    final_result =
+        (ehigh_result - elow_result) / (x_int_XHII[m_xHII_high] - x_int_XHII[m_xHII_low]);
+    final_result *= (xHII_call - x_int_XHII[m_xHII_low]);
+    final_result += elow_result;
 
-  return final_result;
+    return final_result;
 }
 
 // Function to compute nHI for an interacting electron, given energy En and IGM ionized fraction
@@ -259,53 +238,53 @@ float interp_n_Lya(float En, float xHII_call)
 // Note that if En>highest element of array, it just uses that high value.  Similarly, if xHII_call
 // is less than or smaller than the limits of the ionized fraction array (10^-4 and 0.999),
 // it just uses those values.
-float interp_nion_HI(float En, float xHII_call)
-{
-  int n_low,n_high;
-  int m_xHII_low,m_xHII_high;
+float interp_nion_HI(float En, float xHII_call) {
+    int n_low, n_high;
+    int m_xHII_low, m_xHII_high;
 
-  float elow_result,ehigh_result,final_result;
+    float elow_result, ehigh_result, final_result;
 
-  // Check if En is inside interpolation boundaries
-  if (En > 0.999*x_int_Energy[x_int_NENERGY-1]) {
-    // If it is above the upper limit, we just assume that it is near the upper limit, which
-    // has anyway reached the asymptotic limit
-    En = x_int_Energy[x_int_NENERGY-1]*0.999;
-  } else if (En < x_int_Energy[0]) {
-    return 0.0;
-  }
+    // Check if En is inside interpolation boundaries
+    if (En > 0.999 * x_int_Energy[x_int_NENERGY - 1]) {
+        // If it is above the upper limit, we just assume that it is near the upper limit, which
+        // has anyway reached the asymptotic limit
+        En = x_int_Energy[x_int_NENERGY - 1] * 0.999;
+    } else if (En < x_int_Energy[0]) {
+        return 0.0;
+    }
 
-  // Check if ionized fraction is within boundaries; if not, adjust to be within
-  if (xHII_call > x_int_XHII[x_int_NXHII-1]*0.999) {
-    xHII_call = x_int_XHII[x_int_NXHII-1]*0.999;
-  } else if (xHII_call < x_int_XHII[0]) {
-    xHII_call = 1.001*x_int_XHII[0];
-  }
+    // Check if ionized fraction is within boundaries; if not, adjust to be within
+    if (xHII_call > x_int_XHII[x_int_NXHII - 1] * 0.999) {
+        xHII_call = x_int_XHII[x_int_NXHII - 1] * 0.999;
+    } else if (xHII_call < x_int_XHII[0]) {
+        xHII_call = 1.001 * x_int_XHII[0];
+    }
 
-  n_low = locate_energy_index(En);
-  n_high = n_low + 1;
+    n_low = locate_energy_index(En);
+    n_high = n_low + 1;
 
-  m_xHII_low = locate_xHII_index(xHII_call);
-  m_xHII_high = m_xHII_low + 1;
+    m_xHII_low = locate_xHII_index(xHII_call);
+    m_xHII_high = m_xHII_low + 1;
 
-  // First linear interpolation in energy
-  elow_result = ((x_int_nion_HI[m_xHII_low][n_high]-x_int_nion_HI[m_xHII_low][n_low])/
-		 (x_int_Energy[n_high]-x_int_Energy[n_low]));
-  elow_result *= (En - x_int_Energy[n_low]);
-  elow_result += x_int_nion_HI[m_xHII_low][n_low];
+    // First linear interpolation in energy
+    elow_result = ((x_int_nion_HI[m_xHII_low][n_high] - x_int_nion_HI[m_xHII_low][n_low]) /
+                   (x_int_Energy[n_high] - x_int_Energy[n_low]));
+    elow_result *= (En - x_int_Energy[n_low]);
+    elow_result += x_int_nion_HI[m_xHII_low][n_low];
 
-  // Second linear interpolation in energy
-  ehigh_result = ((x_int_nion_HI[m_xHII_high][n_high]-x_int_nion_HI[m_xHII_high][n_low])/
-		  (x_int_Energy[n_high]-x_int_Energy[n_low]));
-  ehigh_result *= (En - x_int_Energy[n_low]);
-  ehigh_result += x_int_nion_HI[m_xHII_high][n_low];
+    // Second linear interpolation in energy
+    ehigh_result = ((x_int_nion_HI[m_xHII_high][n_high] - x_int_nion_HI[m_xHII_high][n_low]) /
+                    (x_int_Energy[n_high] - x_int_Energy[n_low]));
+    ehigh_result *= (En - x_int_Energy[n_low]);
+    ehigh_result += x_int_nion_HI[m_xHII_high][n_low];
 
-  // Final interpolation over the ionized fraction
-  final_result = (ehigh_result - elow_result)/(x_int_XHII[m_xHII_high] - x_int_XHII[m_xHII_low]);
-  final_result *= (xHII_call - x_int_XHII[m_xHII_low]);
-  final_result += elow_result;
+    // Final interpolation over the ionized fraction
+    final_result =
+        (ehigh_result - elow_result) / (x_int_XHII[m_xHII_high] - x_int_XHII[m_xHII_low]);
+    final_result *= (xHII_call - x_int_XHII[m_xHII_low]);
+    final_result += elow_result;
 
-  return final_result;
+    return final_result;
 }
 
 // Function to compute nHeI for an interacting electron, given energy En and IGM ionized fraction
@@ -316,53 +295,53 @@ float interp_nion_HI(float En, float xHII_call)
 // Note that if En>highest element of array, it just uses that high value.  Similarly, if xHII_call
 // is less than or smaller than the limits of the ionized fraction array (10^-4 and 0.999),
 // it just uses those values.
-float interp_nion_HeI(float En, float xHII_call)
-{
-  int n_low,n_high;
-  int m_xHII_low,m_xHII_high;
+float interp_nion_HeI(float En, float xHII_call) {
+    int n_low, n_high;
+    int m_xHII_low, m_xHII_high;
 
-  float elow_result,ehigh_result,final_result;
+    float elow_result, ehigh_result, final_result;
 
-  // Check if En is inside interpolation boundaries
-  if (En > 0.999*x_int_Energy[x_int_NENERGY-1]) {
-    // If it is above the upper limit, we just assume that it is near the upper limit, which
-    // has anyway reached the asymptotic limit
-    En = x_int_Energy[x_int_NENERGY-1]*0.999;
-  } else if (En < x_int_Energy[0]) {
-    return 0.0;
-  }
+    // Check if En is inside interpolation boundaries
+    if (En > 0.999 * x_int_Energy[x_int_NENERGY - 1]) {
+        // If it is above the upper limit, we just assume that it is near the upper limit, which
+        // has anyway reached the asymptotic limit
+        En = x_int_Energy[x_int_NENERGY - 1] * 0.999;
+    } else if (En < x_int_Energy[0]) {
+        return 0.0;
+    }
 
-  // Check if ionized fraction is within boundaries; if not, adjust to be within
-  if (xHII_call > x_int_XHII[x_int_NXHII-1]*0.999) {
-    xHII_call = x_int_XHII[x_int_NXHII-1]*0.999;
-  } else if (xHII_call < x_int_XHII[0]) {
-    xHII_call = 1.001*x_int_XHII[0];
-  }
+    // Check if ionized fraction is within boundaries; if not, adjust to be within
+    if (xHII_call > x_int_XHII[x_int_NXHII - 1] * 0.999) {
+        xHII_call = x_int_XHII[x_int_NXHII - 1] * 0.999;
+    } else if (xHII_call < x_int_XHII[0]) {
+        xHII_call = 1.001 * x_int_XHII[0];
+    }
 
-  n_low = locate_energy_index(En);
-  n_high = n_low + 1;
+    n_low = locate_energy_index(En);
+    n_high = n_low + 1;
 
-  m_xHII_low = locate_xHII_index(xHII_call);
-  m_xHII_high = m_xHII_low + 1;
+    m_xHII_low = locate_xHII_index(xHII_call);
+    m_xHII_high = m_xHII_low + 1;
 
-  // First linear interpolation in energy
-  elow_result = ((x_int_nion_HeI[m_xHII_low][n_high]-x_int_nion_HeI[m_xHII_low][n_low])/
-		 (x_int_Energy[n_high]-x_int_Energy[n_low]));
-  elow_result *= (En - x_int_Energy[n_low]);
-  elow_result += x_int_nion_HeI[m_xHII_low][n_low];
+    // First linear interpolation in energy
+    elow_result = ((x_int_nion_HeI[m_xHII_low][n_high] - x_int_nion_HeI[m_xHII_low][n_low]) /
+                   (x_int_Energy[n_high] - x_int_Energy[n_low]));
+    elow_result *= (En - x_int_Energy[n_low]);
+    elow_result += x_int_nion_HeI[m_xHII_low][n_low];
 
-  // Second linear interpolation in energy
-  ehigh_result = ((x_int_nion_HeI[m_xHII_high][n_high]-x_int_nion_HeI[m_xHII_high][n_low])/
-		  (x_int_Energy[n_high]-x_int_Energy[n_low]));
-  ehigh_result *= (En - x_int_Energy[n_low]);
-  ehigh_result += x_int_nion_HeI[m_xHII_high][n_low];
+    // Second linear interpolation in energy
+    ehigh_result = ((x_int_nion_HeI[m_xHII_high][n_high] - x_int_nion_HeI[m_xHII_high][n_low]) /
+                    (x_int_Energy[n_high] - x_int_Energy[n_low]));
+    ehigh_result *= (En - x_int_Energy[n_low]);
+    ehigh_result += x_int_nion_HeI[m_xHII_high][n_low];
 
-  // Final interpolation over the ionized fraction
-  final_result = (ehigh_result - elow_result)/(x_int_XHII[m_xHII_high] - x_int_XHII[m_xHII_low]);
-  final_result *= (xHII_call - x_int_XHII[m_xHII_low]);
-  final_result += elow_result;
+    // Final interpolation over the ionized fraction
+    final_result =
+        (ehigh_result - elow_result) / (x_int_XHII[m_xHII_high] - x_int_XHII[m_xHII_low]);
+    final_result *= (xHII_call - x_int_XHII[m_xHII_low]);
+    final_result += elow_result;
 
-  return final_result;
+    return final_result;
 }
 
 // Function to compute nHeII for an interacting electron, given energy En and IGM ionized fraction
@@ -373,81 +352,79 @@ float interp_nion_HeI(float En, float xHII_call)
 // Note that if En>highest element of array, it just uses that high value.  Similarly, if xHII_call
 // is less than or smaller than the limits of the ionized fraction array (10^-4 and 0.999),
 // it just uses those values.
-float interp_nion_HeII(float En, float xHII_call)
-{
-  int n_low,n_high;
-  int m_xHII_low,m_xHII_high;
+float interp_nion_HeII(float En, float xHII_call) {
+    int n_low, n_high;
+    int m_xHII_low, m_xHII_high;
 
-  float elow_result,ehigh_result,final_result;
+    float elow_result, ehigh_result, final_result;
 
-  // Check if En is inside interpolation boundaries
-  if (En > 0.999*x_int_Energy[x_int_NENERGY-1]) {
-    // If it is above the upper limit, we just assume that it is near the upper limit, which
-    // has anyway reached the asymptotic limit
-    En = x_int_Energy[x_int_NENERGY-1]*0.999;
-  } else if (En < x_int_Energy[0]) {
-    return 0.0;
-  }
+    // Check if En is inside interpolation boundaries
+    if (En > 0.999 * x_int_Energy[x_int_NENERGY - 1]) {
+        // If it is above the upper limit, we just assume that it is near the upper limit, which
+        // has anyway reached the asymptotic limit
+        En = x_int_Energy[x_int_NENERGY - 1] * 0.999;
+    } else if (En < x_int_Energy[0]) {
+        return 0.0;
+    }
 
-  // Check if ionized fraction is within boundaries; if not, adjust to be within
-  if (xHII_call > x_int_XHII[x_int_NXHII-1]*0.999) {
-    xHII_call = x_int_XHII[x_int_NXHII-1]*0.999;
-  } else if (xHII_call < x_int_XHII[0]) {
-    xHII_call = 1.001*x_int_XHII[0];
-  }
+    // Check if ionized fraction is within boundaries; if not, adjust to be within
+    if (xHII_call > x_int_XHII[x_int_NXHII - 1] * 0.999) {
+        xHII_call = x_int_XHII[x_int_NXHII - 1] * 0.999;
+    } else if (xHII_call < x_int_XHII[0]) {
+        xHII_call = 1.001 * x_int_XHII[0];
+    }
 
-  n_low = locate_energy_index(En);
-  n_high = n_low + 1;
+    n_low = locate_energy_index(En);
+    n_high = n_low + 1;
 
-  m_xHII_low = locate_xHII_index(xHII_call);
-  m_xHII_high = m_xHII_low + 1;
+    m_xHII_low = locate_xHII_index(xHII_call);
+    m_xHII_high = m_xHII_low + 1;
 
-  // First linear interpolation in energy
-  elow_result = ((x_int_nion_HeII[m_xHII_low][n_high]-x_int_nion_HeII[m_xHII_low][n_low])/
-		 (x_int_Energy[n_high]-x_int_Energy[n_low]));
-  elow_result *= (En - x_int_Energy[n_low]);
-  elow_result += x_int_nion_HeII[m_xHII_low][n_low];
+    // First linear interpolation in energy
+    elow_result = ((x_int_nion_HeII[m_xHII_low][n_high] - x_int_nion_HeII[m_xHII_low][n_low]) /
+                   (x_int_Energy[n_high] - x_int_Energy[n_low]));
+    elow_result *= (En - x_int_Energy[n_low]);
+    elow_result += x_int_nion_HeII[m_xHII_low][n_low];
 
-  // Second linear interpolation in energy
-  ehigh_result = ((x_int_nion_HeII[m_xHII_high][n_high]-x_int_nion_HeII[m_xHII_high][n_low])/
-		  (x_int_Energy[n_high]-x_int_Energy[n_low]));
-  ehigh_result *= (En - x_int_Energy[n_low]);
-  ehigh_result += x_int_nion_HeII[m_xHII_high][n_low];
+    // Second linear interpolation in energy
+    ehigh_result = ((x_int_nion_HeII[m_xHII_high][n_high] - x_int_nion_HeII[m_xHII_high][n_low]) /
+                    (x_int_Energy[n_high] - x_int_Energy[n_low]));
+    ehigh_result *= (En - x_int_Energy[n_low]);
+    ehigh_result += x_int_nion_HeII[m_xHII_high][n_low];
 
-  // Final interpolation over the ionized fraction
-  final_result = (ehigh_result - elow_result)/(x_int_XHII[m_xHII_high] - x_int_XHII[m_xHII_low]);
-  final_result *= (xHII_call - x_int_XHII[m_xHII_low]);
-  final_result += elow_result;
+    // Final interpolation over the ionized fraction
+    final_result =
+        (ehigh_result - elow_result) / (x_int_XHII[m_xHII_high] - x_int_XHII[m_xHII_low]);
+    final_result *= (xHII_call - x_int_XHII[m_xHII_low]);
+    final_result += elow_result;
 
-  return final_result;
+    return final_result;
 }
 
 // Function to find bounding indices on the energy array, for an input energy En.
 // Note it is done exactly for speed, since all the energy arrays have the same structure.
-int locate_energy_index(float En)
-{
-  int n_low;
+int locate_energy_index(float En) {
+    int n_low;
 
-  // Find energy table location analytically!
-  if (En < 1008.88) {
-    n_low = (int)(log(En/10.0)/1.98026273e-2);
-  } else {
-    n_low = 232 + (int)(log(En/1008.88)/9.53101798e-2);
-  }
+    // Find energy table location analytically!
+    if (En < 1008.88) {
+        n_low = (int)(log(En / 10.0) / 1.98026273e-2);
+    } else {
+        n_low = 232 + (int)(log(En / 1008.88) / 9.53101798e-2);
+    }
 
-  return n_low;
+    return n_low;
 }
 
 // Function to find bounding indices on the ionized fraction array, for an input fraction
 // xHII_call.  This is done by comparing to each element, since there are only 14 elements.
-int locate_xHII_index(float xHII_call)
-{
-  int m_xHII_low;
+int locate_xHII_index(float xHII_call) {
+    int m_xHII_low;
 
-  // Determine relevant ionized fractions to interpolate; do iteratively because few elements
-  m_xHII_low = x_int_NXHII - 1;
-  while (xHII_call < x_int_XHII[m_xHII_low]) {
-    m_xHII_low--;
-  }
-  return m_xHII_low;
+    // Determine relevant ionized fractions to interpolate; do iteratively because few elements
+    m_xHII_low = x_int_NXHII - 1;
+    while (xHII_call < x_int_XHII[m_xHII_low]) {
+        m_xHII_low--;
+    }
+    return m_xHII_low;
 }

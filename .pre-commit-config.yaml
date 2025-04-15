@@ -1,57 +1,43 @@
 exclude: '(^docs/conf.py|^src/py21cmfast/_data/|changethelog.py)'
 
 repos:
-    - repo: https://github.com/pre-commit/pre-commit-hooks
-      rev: v5.0.0
-      hooks:
-          - id: trailing-whitespace
-          - id: check-added-large-files
-          - id: check-ast
-          - id: check-json
-          - id: check-merge-conflict
-          - id: check-xml
-          - id: check-yaml
-          - id: debug-statements
-          - id: end-of-file-fixer
-          - id: requirements-txt-fixer
-          - id: mixed-line-ending
-            args: ['--fix=no']
-    - repo: https://github.com/pycqa/flake8
-      rev: 7.2.0  # pick a git hash / tag to point to
-      hooks:
-        - id: flake8
-          additional_dependencies:
-            - flake8-quotes
-#            - flake8-comprehensions  # no support for flake8 v6
-            - flake8-builtins
-            # - flake8-eradicate  # no support for flake8 v6
-            - pep8-naming
-            - flake8-pytest
-            - flake8-docstrings
-            - flake8-rst-docstrings
-            - flake8-rst
-            # - flake8-copyright  # no support flor flake8 v6
-            - flake8-print
+- repo: https://github.com/pre-commit/pre-commit-hooks
+  rev: v5.0.0
+  hooks:
+      - id: trailing-whitespace
+      - id: check-added-large-files
+      - id: check-ast
+      - id: check-json
+      - id: check-merge-conflict
+      - id: check-xml
+      - id: check-yaml
+      - id: debug-statements
+      - id: end-of-file-fixer
+      - id: requirements-txt-fixer
+      - id: mixed-line-ending
+        args: ['--fix=no']
 
-    - repo: https://github.com/psf/black-pre-commit-mirror
-      rev: 25.1.0
-      hooks:
-          - id: black
+- repo: https://github.com/astral-sh/ruff-pre-commit
+  # Ruff version.
+  rev: v0.11.4
+  hooks:
+    # Run the linter.
+    - id: ruff
+      args: [--fix]
 
-    - repo: https://github.com/PyCQA/isort
-      rev: 6.0.1
-      hooks:
-      - id: isort
+    # Run the formatter.
+    - id: ruff-format
 
-    - repo: https://github.com/pre-commit/pygrep-hooks
-      rev: v1.10.0
-      hooks:
-      - id: rst-backticks
-      - id: rst-directive-colons
-      - id: rst-inline-touching-normal
-
-    - repo: https://github.com/asottile/pyupgrade
-      rev: v3.19.1
-      hooks:
-      - id: pyupgrade
-        args: [--py36-plus]
+- repo: https://github.com/pocc/pre-commit-hooks
+  rev: v1.3.5
+  hooks:
+    - id: clang-format
+      args: [--style=file, -i, --fallback-style=none]
+      additional_dependencies:
+        - clang-format
+        # - clang-tidy
+    #TODO: we really want to use clang-tidy in CI eventually
+    # but there are a lot of warnings we should fix before
+    # including it here (even in the most basic calls)
+    # - id: clang-tidy
+    #   args: [--fix]

@@ -59,13 +59,13 @@ more work has to be done if the modifications add/remove input parameters or the
 structure. If any of the input structures are modified (i.e. an extra parameter
 added to it), then the corresponding class in ``py21cmfast.wrapper`` must be modified,
 usually simply to add the new parameter to the ``_defaults_`` dict with a default value.
-For instance, if a new variable ``some_param`` was added to the ``user_params`` struct
-in the ``ComputeInitialConditions`` C function, then the ``UserParams`` class in
+For instance, if a new variable ``some_param`` was added to the ``matter_params`` struct
+in the ``ComputeInitialConditions`` C function, then the ``MatterParams`` class in
 the wrapper would be modified, adding ``some_param=<default_value>`` to its ``_default_``
 dict. If the default value of the parameter is dependent on another parameter, its
 default value in this dict can be set to ``None``, and you can give it a dynamic
 definition as a Python ``@property``. For example, the ``DIM`` parameter of
-``UserParams`` is defined as::
+``MatterParams`` is defined as::
 
     @property
     def DIM(self):
@@ -87,12 +87,6 @@ dtype. All arrays should be single-pointers, even for multi-dimensional data. Th
 can be handled by initalising the array as a 1D numpy array, but then setting its shape
 attribute (after creation) to the appropriate n-dimensional shape (see the
 ``_init_arrays`` method for the ``InitialConditions`` class for examples of this).
-
-Modifying the ``global_params`` struct should be relatively straightforward, and no
-changes in the Python are necessary. However, you may want to consider adding the new
-parameter to relevant ``_filter_params`` lists for the output struct wrapping classes in
-the wrapper. These lists control which global parameters affect which output structs,
-and merely provide for more accurate caching mechanisms.
 
 C Function Standards
 ~~~~~~~~~~~~~~~~~~~~
@@ -222,10 +216,10 @@ necessary to write them to disk to relieve memory pressure, and load them back i
 That means that any time, a given array in a C-based class may have one of several different "states":
 
 1. Completely Uninitialized
-1. Allocated an initialized in memory
-1. Computed (i.e. filled with the values defining that array after computation in C)
-1. Stored on disk
-1. Stored *and* in memory.
+2. Allocated an initialized in memory
+3. Computed (i.e. filled with the values defining that array after computation in C)
+4. Stored on disk
+5. Stored *and* in memory.
 
 It's important to keep track of these states, because when passing the struct to the ``compute()``
 function of another struct (as input), we go and check if the array exists in memory, and

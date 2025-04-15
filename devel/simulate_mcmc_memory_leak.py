@@ -1,9 +1,10 @@
 """Simple script to simulate an MCMC-like routine to check for memory leaks."""
 
-import numpy as np
 import os
-import psutil
 import tracemalloc
+
+import numpy as np
+import psutil
 
 from py21cmfast import initial_conditions, perturb_field, run_coeval
 
@@ -31,9 +32,7 @@ def trace_print():
         thismem = PROCESS.memory_info().rss / 1024**2
         diff = thismem - oldmem
         print(
-            "===================== Begin Trace (TOTAL MEM={:1.4e} MB... [{:+1.4e} MB]):".format(
-                thismem, diff
-            )
+            f"===================== Begin Trace (TOTAL MEM={thismem:1.4e} MB... [{diff:+1.4e} MB]):"
         )
         top_stats = snapshot2.compare_to(snapshot, "lineno", cumulative=True)
         for stat in top_stats[:4]:
@@ -47,7 +46,7 @@ def trace_print():
 NITER = 50
 
 init = initial_conditions(
-    user_params={"HII_DIM": 50, "BOX_LEN": 125.0}, regenerate=True
+    matter_params={"HII_DIM": 50, "BOX_LEN": 125.0}, regenerate=True
 )
 perturb = (
     perturb_field(redshift=7, init_boxes=init),
@@ -55,9 +54,10 @@ perturb = (
     perturb_field(redshift=9, init_boxes=init),
 )
 
-astro_params = {"HII_EFF_FACTOR": np.random.normal(30, 0.1)}
+rng = np.random.default_rng()
+astro_params = {"HII_EFF_FACTOR": rng.normal(30, 0.1)}
 
-for i in range(NITER):
+for _i in range(NITER):
     trace_print()
 
     coeval = run_coeval(

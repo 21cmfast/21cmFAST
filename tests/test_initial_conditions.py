@@ -1,17 +1,15 @@
-"""
-Various tests of the initial_conditions() function and InitialConditions class.
-"""
+"""Various tests of the compute_initial_conditions() function and InitialConditions class."""
 
-import pytest
-
-import numpy as np
 from multiprocessing import cpu_count
 
-from py21cmfast import wrapper
+import numpy as np
+import pytest
+
+import py21cmfast as p21c
 
 
-def test_box_shape(ic):
-    """Test basic properties of the InitialConditions struct"""
+def test_box_shape(ic: p21c.InitialConditions):
+    """Test basic properties of the InitialConditions struct."""
     shape = (35, 35, 35)
     hires_shape = tuple(2 * s for s in shape)
     assert ic.lowres_density.shape == shape
@@ -30,55 +28,53 @@ def test_box_shape(ic):
     assert ic.hires_vy_2LPT.shape == hires_shape
     assert ic.hires_vz_2LPT.shape == hires_shape
 
-    assert not hasattr(ic, "lowres_vcb")
+    assert ic.lowres_vcb is None
 
-    assert ic.cosmo_params == wrapper.CosmoParams()
+    assert ic.cosmo_params == p21c.CosmoParams()
 
 
-def test_modified_cosmo(ic):
-    """Test using a modified cosmology"""
-    cosmo = wrapper.CosmoParams(SIGMA_8=0.9)
-    ic2 = wrapper.initial_conditions(
-        cosmo_params=cosmo,
-        user_params=ic.user_params,
-    )
+def test_modified_cosmo(
+    ic: p21c.InitialConditions, default_input_struct: p21c.InputParameters, cache
+):
+    """Test using a modified cosmology."""
+    inputs = default_input_struct.evolve_input_structs(SIGMA_8=0.9)
+    ic2 = p21c.compute_initial_conditions(inputs=inputs, cache=cache)
 
     assert ic2.cosmo_params != ic.cosmo_params
-    assert ic2.cosmo_params == cosmo
-    assert ic2.cosmo_params.SIGMA_8 == cosmo.SIGMA_8
+    assert ic2.cosmo_params == inputs.cosmo_params
+    assert ic2.cosmo_params.SIGMA_8 == inputs.cosmo_params.SIGMA_8
 
 
-def test_transfer_function(ic, default_user_params):
-    """Test using a modified transfer function"""
-    user_params = default_user_params.clone(POWER_SPECTRUM=5)
-    ic2 = wrapper.initial_conditions(
-        random_seed=ic.random_seed,
-        user_params=user_params,
-    )
+def test_transfer_function(
+    ic: p21c.InitialConditions, default_input_struct: p21c.InputParameters, cache
+):
+    """Test using a modified transfer function."""
+    inputs = default_input_struct.evolve_input_structs(POWER_SPECTRUM="CLASS")
+    ic2 = p21c.compute_initial_conditions(inputs=inputs, cache=cache)
+    hrd2 = ic2.hires_density.value
+    hrd = ic.hires_density.value
 
-    rmsnew = np.sqrt(np.mean(ic2.hires_density**2))
-    rmsdelta = np.sqrt(np.mean((ic2.hires_density - ic.hires_density) ** 2))
+    rmsnew = np.sqrt(np.mean(hrd2**2))
+    rmsdelta = np.sqrt(np.mean((hrd2 - hrd) ** 2))
     assert rmsdelta < rmsnew
     assert rmsnew > 0.0
-    assert not np.allclose(ic2.hires_density, ic.hires_density)
+    assert not np.allclose(hrd2, hrd)
 
 
 def test_relvels():
-    """Test for relative velocity initial conditions"""
-    ic = wrapper.initial_conditions(
-        random_seed=1,
-        user_params=wrapper.UserParams(
-            HII_DIM=100,
-            DIM=300,
-            BOX_LEN=300,
-            POWER_SPECTRUM=5,
-            USE_RELATIVE_VELOCITIES=True,
-            N_THREADS=cpu_count(),  # To make this one a bit faster.
-        ),
+    """Test for relative velocity initial conditions."""
+    inputs = p21c.InputParameters(random_seed=1).evolve_input_structs(
+        HII_DIM=100,
+        DIM=300,
+        BOX_LEN=300,
+        POWER_SPECTRUM="CLASS",
+        USE_RELATIVE_VELOCITIES=True,
+        N_THREADS=cpu_count(),  # To make this one a bit faster.
     )
+    ic = p21c.compute_initial_conditions(inputs=inputs)
 
-    vcbrms_lowres = np.sqrt(np.mean(ic.lowres_vcb**2))
-    vcbavg_lowres = np.mean(ic.lowres_vcb)
+    vcbrms_lowres = np.sqrt(np.mean(ic.lowres_vcb.value**2))
+    vcbavg_lowres = np.mean(ic.lowres_vcb.value)
 
     # we test the lowres box
     # rms should be about 30 km/s for LCDM, so we check it is finite and not far off
