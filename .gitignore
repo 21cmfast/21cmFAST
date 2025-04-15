@@ -54,4 +54,4 @@ plots/
 .vscode/
 src/21cmfast/_version.py
 src/py21cmfast/_version.py
-.qodo
+.qodo/
