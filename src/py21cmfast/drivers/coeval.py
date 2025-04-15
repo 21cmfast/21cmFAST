@@ -31,7 +31,7 @@ from ..wrapper.outputs import (
 )
 from ..wrapper.photoncons import _get_photon_nonconservation_data, setup_photon_cons
 from . import single_field as sf
-from ._param_config import high_level_func
+from ._param_config import check_consistency_of_outputs_with_inputs, high_level_func
 
 logger = logging.getLogger(__name__)
 
@@ -292,7 +292,6 @@ def evolve_perturb_halos(
     for i, z in enumerate(all_redshifts[::-1]):
         halos = sf.determine_halo_list(
             redshift=z,
-            inputs=inputs,
             descendant_halos=halos_desc,
             write=write.halo_field,
             **kw,
@@ -426,14 +425,25 @@ def generate_coeval(
         )
     )
 
+    # get the first node redshift that is above all output redshifts
+    first_out_node = None
+    if (
+        out_redshifts
+        and inputs.node_redshifts
+        and (max(inputs.node_redshifts) > max(out_redshifts))
+    ):
+        first_out_node = (
+            np.argmax(np.array(inputs.node_redshifts) < max(out_redshifts)) - 1
+        )
     idx, coeval = _obtain_starting_point_for_scrolling(
         inputs=inputs,
         initial_conditions=initial_conditions,
         photon_nonconservation_data=photon_nonconservation_data,
-        cache=cache,
+        minimum_node=first_out_node,
+        **iokw,
     )
 
-    for coeval in _redshift_loop_generator(  # noqa: B020
+    for _, coeval in _redshift_loop_generator(  # noqa: B020
         inputs=inputs,
         all_redshifts=all_redshifts,
         initial_conditions=initial_conditions,
@@ -465,6 +475,7 @@ def _obtain_starting_point_for_scrolling(
     initial_conditions: InitialConditions,
     photon_nonconservation_data: dict,
     cache: OutputCache,
+    regenerate: bool,
     minimum_node: int | None = None,
 ):
     outputs = None
@@ -474,7 +485,7 @@ def _obtain_starting_point_for_scrolling(
         # the last one.
         minimum_node = len(inputs.node_redshifts) - 1
 
-    if minimum_node < 0 or inputs.matter_options.USE_HALO_FIELD:
+    if minimum_node < 0 or inputs.matter_options.USE_HALO_FIELD or regenerate:
         # TODO: (low priority) implement a backward loop for finding first halo files
         #   Noting that we need *all* the perturbed halo fields in the cache to run
         return (
@@ -485,6 +496,7 @@ def _obtain_starting_point_for_scrolling(
     logger.info(f"Determining pre-cached boxes for the run in {cache}")
     rc = RunCache.from_inputs(inputs, cache)
 
+    print(f"datasets in cache {cache.list_datasets()}", flush=True)
     for idx in range(minimum_node, -1, -1):
         if not rc.is_complete_at(index=idx):
             continue
@@ -492,6 +504,7 @@ def _obtain_starting_point_for_scrolling(
         _z = inputs.node_redshifts[idx]
         outputs = rc.get_all_boxes_at_z(z=_z)
         break
+    print(f"using {outputs.keys()} at {idx}")
 
     # Create a Coeval from the outputs
     if outputs is not None:
@@ -644,7 +657,7 @@ def _redshift_loop_generator(
             # Only evolve on the node_redshifts, not any redshifts in-between
             # that the user might care about.
             prev_coeval = this_coeval
-        yield this_coeval
+        yield iz, this_coeval
 
 
 def _setup_ics_and_pfs_for_scrolling(
@@ -659,6 +672,13 @@ def _setup_ics_and_pfs_for_scrolling(
         initial_conditions = sf.compute_initial_conditions(
             inputs=inputs, write=write.initial_conditions, **iokw
         )
+
+    # We want to be able to pass in initial conditions with
+    # compatible, but not identical inputs. In which case we take
+    # all the zgrid/astro parameters from the input structure
+    if inputs is not None:
+        check_consistency_of_outputs_with_inputs(inputs, [initial_conditions])
+        initial_conditions.inputs = inputs
 
     # We can go ahead and purge some of the stuff in the initial_conditions, but only if
     # it is cached -- otherwise we could be losing information.

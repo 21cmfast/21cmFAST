@@ -394,7 +394,9 @@ class RunCache:
         for kind in attrs.asdict(self, recurse=False).values():
             if not isinstance(kind, dict):
                 continue
+            print(f"looking for {kind[z]}", flush=True)
             if not kind[z].exists():
+                print("not found")
                 return False
         return True
 

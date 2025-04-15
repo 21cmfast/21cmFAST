@@ -181,19 +181,24 @@ class LightCone:
 
     def make_checkpoint(self, path: str | Path, lcidx: int, node_index: int):
         """Write updated lightcone data to file."""
+        print(Path(path).exists(), flush=True)
         with h5py.File(path, "a") as fl:
+            print(f"file attrs {fl.attrs.keys()}")
             last_completed_lcidx = fl.attrs["last_completed_lcidx"]
+            print(
+                f"saving {lcidx}:{last_completed_lcidx} {node_index} to {path}",
+                flush=True,
+            )
 
             for k, v in self.lightcones.items():
-                fl["lightcones"][k][
-                    ..., -lcidx : v.shape[-1] - last_completed_lcidx
-                ] = v[..., -lcidx : v.shape[-1] - last_completed_lcidx]
+                save_idx = (
+                    v.shape[-1] if last_completed_lcidx < 0 else last_completed_lcidx
+                )
+                fl["lightcones"][k][..., lcidx:save_idx] = v[..., lcidx:save_idx]
 
             global_q = fl["global_quantities"]
             for k, v in self.global_quantities.items():
-                global_q[k][-lcidx : v.shape[-1] - last_completed_lcidx] = v[
-                    -lcidx : v.shape[-1] - last_completed_lcidx
-                ]
+                global_q[k][0 : node_index + 1] = v[0 : node_index + 1]
 
             fl.attrs["last_completed_lcidx"] = lcidx
             fl.attrs["last_completed_node"] = node_index
@@ -212,6 +217,10 @@ class LightCone:
             kwargs["inputs"] = h5.read_inputs(fl, safe=safe)
             kwargs["last_completed_node"] = fl.attrs["last_completed_node"]
             kwargs["last_completed_lcidx"] = fl.attrs["last_completed_lcidx"]
+            print(
+                f"loading {kwargs['last_completed_lcidx']} {kwargs['last_completed_node']}",
+                flush=True,
+            )
 
             grp = fl["photon_nonconservation_data"]
             kwargs["photon_nonconservation_data"] = {k: v[...] for k, v in grp.items()}
@@ -425,10 +434,10 @@ def _run_lightcone_from_perturbed_fields(
 
     idx, prev_coeval = _obtain_starting_point_for_scrolling(
         inputs=inputs,
-        cache=cache,
         initial_conditions=initial_conditions,
         photon_nonconservation_data=photon_nonconservation_data,
         minimum_node=lightcone._last_completed_node,
+        **iokw,
     )
 
     if idx < lightcone._last_completed_node:
@@ -448,21 +457,19 @@ def _run_lightcone_from_perturbed_fields(
     if lightcone_filename and not Path(lightcone_filename).exists():
         lightcone.save(lightcone_filename)
 
-    for iz, coeval in enumerate(
-        _redshift_loop_generator(
-            inputs=inputs,
-            initial_conditions=initial_conditions,
-            all_redshifts=scrollz,
-            perturbed_field=perturbed_fields,
-            pt_halos=pt_halos,
-            write=write,
-            cleanup=cleanup,
-            always_purge=always_purge,
-            photon_nonconservation_data=photon_nonconservation_data,
-            start_idx=lightcone._last_completed_node + 1,
-            init_coeval=prev_coeval,
-            iokw=iokw,
-        )
+    for iz, coeval in _redshift_loop_generator(
+        inputs=inputs,
+        initial_conditions=initial_conditions,
+        all_redshifts=scrollz,
+        perturbed_field=perturbed_fields,
+        pt_halos=pt_halos,
+        write=write,
+        cleanup=cleanup,
+        always_purge=always_purge,
+        photon_nonconservation_data=photon_nonconservation_data,
+        start_idx=lightcone._last_completed_node + 1,
+        init_coeval=prev_coeval,
+        iokw=iokw,
     ):
         # Save mean/global quantities
         for quantity in global_quantities:
@@ -491,6 +498,7 @@ def _run_lightcone_from_perturbed_fields(
                 if this_lc is not None:
                     lightcone.lightcones[quantity][..., idx] = this_lc
                     lc_index = idx
+                    print(f"made slice at {idx}")
 
             # only checkpoint if we have slices
             if lightcone_filename and lc_index is not None:
