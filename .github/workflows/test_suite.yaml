@@ -78,7 +78,7 @@ jobs:
           path: |
             testplots/*.pdf
 
-      - uses: codecov/codecov-action@v3
+      - uses: codecov/codecov-action@v5
         if: matrix.os == 'ubuntu-latest' && success() && !contains(github.event.pull_request.labels.*.name, 'auto-pr')
         with:
           fail_ci_if_error: true
