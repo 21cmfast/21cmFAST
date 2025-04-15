@@ -101,7 +101,7 @@ def write_input_struct(struct, fl: h5py.File | h5py.Group) -> None:
     for kk, v in dct.items():
         try:
             fl.attrs[kk] = "none" if v is None else v
-        except TypeError as e:  # noqa: PERF203
+        except TypeError as e:
             raise TypeError(
                 f"key {kk} with value {v} is not able to be written to HDF5 attrs!"
             ) from e
@@ -191,7 +191,7 @@ def write_outputs_to_group(
     for k in output.struct.primitive_fields:
         try:
             group.attrs[k] = getattr(output, k)
-        except TypeError as e:  # noqa: PERF203
+        except TypeError as e:
             raise TypeError(f"Error writing attribute {k} to HDF5") from e
 
     group.attrs["21cmFAST-version"] = __version__

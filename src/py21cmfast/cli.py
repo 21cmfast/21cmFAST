@@ -3,6 +3,7 @@
 import builtins
 import contextlib
 import logging
+import tomllib
 import warnings
 from os import path
 from pathlib import Path
@@ -11,7 +12,6 @@ import attrs
 import click
 import matplotlib.pyplot as plt
 import numpy as np
-import tomllib
 
 from . import plotting
 from .drivers.coeval import run_coeval

@@ -1,7 +1,8 @@
 """Test CLI functionality."""
 
-import pytest
 import tomllib
+
+import pytest
 from click.testing import CliRunner
 
 from py21cmfast import InitialConditions, cli

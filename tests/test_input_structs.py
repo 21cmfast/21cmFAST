@@ -1,11 +1,11 @@
 """Unit tests for input structures."""
 
 import pickle
+import tomllib
 import warnings
 from pathlib import Path
 
 import pytest
-import tomllib
 
 from py21cmfast import (
     AstroOptions,

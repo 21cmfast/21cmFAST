@@ -10,11 +10,11 @@ desired parameters and altering as few as possible.
 
 import contextlib
 import logging
+import tomllib
 import warnings
 from pathlib import Path
 
 import attrs
-import tomllib
 
 from .wrapper._utils import camel_to_snake
 from .wrapper.inputs import InputStruct
