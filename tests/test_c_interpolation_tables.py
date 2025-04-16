@@ -6,7 +6,7 @@ import pytest
 from astropy import constants as c
 from astropy import units as u
 
-from py21cmfast import AstroParams, CosmoParams, FlagOptions, UserParams
+from py21cmfast import AstroOptions, AstroParams, CosmoParams, SimulationOptions
 from py21cmfast.c_21cmfast import ffi, lib
 from py21cmfast.wrapper import cfuncs as cf
 
@@ -32,8 +32,8 @@ OPTIONS_PS = {
 }
 
 OPTIONS_HMF = {
-    "PS": [10, {"HMF": "PS", "USE_MASS_DEPENDENT_ZETA": True}],
-    "ST": [10, {"HMF": "ST", "USE_MASS_DEPENDENT_ZETA": True}],
+    "PS": [10, {"HMF": "PS", "USE_MASS_DEPENDENT_ZETA": True, "M_MIN_in_Mass": True}],
+    "ST": [10, {"HMF": "ST", "USE_MASS_DEPENDENT_ZETA": True, "M_MIN_in_Mass": True}],
 }
 
 OPTIONS_INTMETHOD = {
@@ -124,7 +124,9 @@ def test_massfunc_conditional_tables(name, cond_type, mass_range, delta_range, p
 
     inputs_cond = mass_range if from_cat else delta_range
     z_desc = (
-        (redshift + 1) / inputs.user_params.ZPRIME_STEP_FACTOR - 1 if from_cat else None
+        (redshift + 1) / inputs.simulation_options.ZPRIME_STEP_FACTOR - 1
+        if from_cat
+        else None
     )
 
     # get the tables
@@ -147,7 +149,6 @@ def test_massfunc_conditional_tables(name, cond_type, mass_range, delta_range, p
     )
 
     if plt == mpl.pyplot:
-        inputs_cond = inputs_cond if from_cat else inputs_cond
         make_table_comparison_plot(
             [inputs_cond, inputs_cond],
             [None, None],
@@ -190,7 +191,9 @@ def test_inverse_cmf_tables(name, cond_type, delta_range, mass_range, plt):
     lnMmin_range = np.log(mass_range)
     inputs_cond = mass_range if from_cat else delta_range
     z_desc = (
-        (redshift + 1) / inputs.user_params.ZPRIME_STEP_FACTOR - 1 if from_cat else None
+        (redshift + 1) / inputs.simulation_options.ZPRIME_STEP_FACTOR - 1
+        if from_cat
+        else None
     )
 
     # Get the full integrals
@@ -226,7 +229,7 @@ def test_inverse_cmf_tables(name, cond_type, delta_range, mass_range, plt):
     # ignore condition out-of-bounds (returned as -1 by evaluate_inverse_table)
     sel_oob = icmf_table < 0.0
     # ignore probability out-of-bounds (extrapolated by the backend)
-    sel_lowprob = cmf_integral < np.exp(inputs.user_params.MIN_LOGPROB)
+    sel_lowprob = cmf_integral < np.exp(inputs.simulation_options.MIN_LOGPROB)
     if plt == mpl.pyplot:
         last_cond = np.amax(np.where(np.any(~sel_oob, axis=-1)))
         first_cond = np.amin(np.where(np.any(~sel_oob, axis=-1)))
@@ -243,7 +246,7 @@ def test_inverse_cmf_tables(name, cond_type, delta_range, mass_range, plt):
             label_test=[False, False],
             xlabels=["Probability"],
             ylabels=["Mass"],
-            xlim=[np.exp(inputs.user_params.MIN_LOGPROB) / 10, 1.0],
+            xlim=[np.exp(inputs.simulation_options.MIN_LOGPROB) / 10, 1.0],
             reltol=RELATIVE_TOLERANCE,
         )
 
@@ -471,7 +474,7 @@ def test_Nion_z_tables(name, z_range, log10_mturn_range, plt):
 #       Hence this is a worst case scenario
 #   While the EvaluateX() functions are useful in the main code to be agnostic to USE_INTERPOLATION_TABLES
 #       I do not use them here fully, instead calling the integrals directly to avoid parameter changes
-#       Mostly since if we set user_params.USE_INTERPOLATION_TABLES=False then the sigma tables aren't used
+#       Mostly since if we set simulation_options.USE_INTERPOLATION_TABLES=False then the sigma tables aren't used
 #       and it takes forever
 @pytest.mark.parametrize("mini", ["mini", "acg"])
 @pytest.mark.parametrize("R", R_PARAM_LIST)
@@ -571,7 +574,11 @@ def test_Nion_conditional_tables(
     # interpolating across the sharp gap results in errors
     # TODO: the bound should be over MAX_DELTAC_FRAC*delta_crit, and we should interpolate
     # instead of setting the integral to its limit at delta crit.
-    delta_crit = cf.get_delta_crit(inputs, cf.get_condition_mass(inputs, R), redshift)
+    delta_crit = cf.get_delta_crit(
+        inputs=inputs,
+        mass=cf.get_condition_mass(inputs, R),
+        redshift=redshift,
+    )
     sel_delta = (delta_crit - delta_range) > 0.05
 
     np.testing.assert_allclose(
@@ -665,7 +672,11 @@ def test_Xray_conditional_tables(
         "Xray_c",
     )
 
-    delta_crit = cf.get_delta_crit(inputs, cf.get_condition_mass(inputs, R), redshift)
+    delta_crit = cf.get_delta_crit(
+        inputs=inputs,
+        mass=cf.get_condition_mass(inputs, R),
+        redshift=redshift,
+    )
     sel_delta = (delta_crit - delta_range) > 0.05
     np.testing.assert_allclose(
         Xray_tables[sel_delta],
@@ -754,7 +765,11 @@ def test_SFRD_conditional_table(
         "SFRD_c_mini",
     )
 
-    delta_crit = cf.get_delta_crit(inputs, cf.get_condition_mass(inputs, R), redshift)
+    delta_crit = cf.get_delta_crit(
+        inputs=inputs,
+        mass=cf.get_condition_mass(inputs, R),
+        redshift=redshift,
+    )
     sel_delta = (delta_crit - delta_range) > 0.05
     np.testing.assert_allclose(
         SFRD_tables[sel_delta],

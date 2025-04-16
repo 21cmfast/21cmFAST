@@ -181,7 +181,9 @@ def coeval_sliceplot(
     if kind != "brightness_temp" and "cmap" not in kwargs:
         kwargs["cmap"] = "viridis"
 
-    fig, ax = _imshow_slice(cube, extent=(0, struct.user_params.BOX_LEN) * 2, **kwargs)
+    fig, ax = _imshow_slice(
+        cube, extent=(0, struct.simulation_options.BOX_LEN) * 2, **kwargs
+    )
 
     slice_axis = kwargs.get("slice_axis", -1)
 
@@ -208,7 +210,7 @@ def coeval_sliceplot(
         if cbar_label is None:
             if kind == "brightness_temp":
                 cbar_label = r"Brightness Temperature, $\delta T_B$ [mK]"
-            elif kind == "xH_box":
+            elif kind == "neutral_fraction":
                 cbar_label = r"Neutral fraction"
 
         cbar.ax.set_ylabel(cbar_label)
@@ -364,7 +366,7 @@ def lightcone_sliceplot(
     if cbar_label is None:
         if kind == "brightness_temp":
             cbar_label = r"Brightness Temperature, $\delta T_B$ [mK]"
-        elif kind == "xH_box":
+        elif kind == "neutral_fraction":
             cbar_label = r"Neutral fraction"
         else:
             cbar_label = kind

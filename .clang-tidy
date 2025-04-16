@@ -1,0 +1,18 @@
+---
+#we ignore the fprintf and memcpy insecurities since
+#   we aren't running 21cmFAST on secure servers
+#I am also currently ignoring implicit multilevel
+#   conversion for now since it complains about free(void**)
+Checks: >
+    clang-analyser*,
+    -clang-analyzer-security.insecureAPI.DeprecatedOrUnsafeBufferHandling,
+    clang-diagnostic*,
+# bugprone*,
+# modernise*,
+# -bugprone-multi-level-implicit-pointer-conversion
+
+WarningsAsErrors: true
+
+ExcludeHeaderFilterRegex: >
+    _*.h,
+    cexcept.h
