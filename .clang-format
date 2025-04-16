@@ -1,0 +1,7 @@
+---
+# Basic clang-format specification
+# uses Google with 4-space indents and a little extra width
+BasedOnStyle: Google
+IndentWidth: 4
+ColumnLimit: 100
+...

@@ -42,6 +42,22 @@ options = list(prd.OPTIONS.keys())
 options_pt = list(prd.OPTIONS_PT.keys())
 options_halo = list(prd.OPTIONS_HALO.keys())
 
+v3_to_v4_field_map = {
+    "x_e_box": "xray_ionised_fraction",
+    "Tk_box": "kinetic_temp_neutral",
+    "J_21_LW_box": "J_21_LW",
+    "xH_box": "neutral_fraction",
+    "xH": "neutral_fraction",
+    "Gamma12_box": "ionisation_rate_G12",
+    "MFP_box": "MFP",
+    "z_re_box": "z_reion",
+    "dNrec_box": "cumulative_recombinations",
+    "temp_kinetic_all_gas": "kinetic_temperature",
+    "Fcoll": "unnormalised_nion",
+    "Fcoll_MINI": "unnormalised_nion_mini",
+    "velocity": "velocity_z",
+}
+
 
 @pytest.mark.parametrize("name", options)
 def test_power_spectra_coeval(name, module_direc, plt):
@@ -49,12 +65,14 @@ def test_power_spectra_coeval(name, module_direc, plt):
     print(f"Options used for the test {name} at z={redshift}: ", kwargs)
 
     # First get pre-made data
+    true_powers = {}
     with h5py.File(prd.get_filename("power_spectra", name), "r") as fl:
-        true_powers = {
-            "_".join(key.split("_")[1:]): value[...]
-            for key, value in fl["coeval"].items()
-            if key.startswith("power_")
-        }
+        for key, value in fl["coeval"].items():
+            if key.startswith("power_"):
+                key_base = "_".join(key.split("_")[1:])
+                keyv4 = v3_to_v4_field_map.get(key_base, key_base)
+                true_powers[keyv4] = value[...]
+                print(f"{key} --> {keyv4} loaded")
 
     # Now compute the Coeval object
     with config.use(direc=module_direc, regenerate=False, write=True):
@@ -88,26 +106,29 @@ def test_power_spectra_lightcone(name, module_direc, plt):
         true_global = {}
         true_k = fl["lightcone"]["k"][...]
         for key in fl["lightcone"]:
+            key_base = "_".join(key.split("_")[1:])
+            key_v4 = v3_to_v4_field_map.get(key_base, key_base)
             if key.startswith("power_"):
-                true_powers["_".join(key.split("_")[1:])] = fl["lightcone"][key][...]
+                true_powers[key_v4] = fl["lightcone"][key][...]
             elif key.startswith("global_"):
-                true_global[key] = fl["lightcone"][key][...]
+                true_global[key_v4] = fl["lightcone"][key][...]
 
     # Now compute the lightcone
     with config.use(direc=module_direc, regenerate=False, write=True):
         test_k, test_powers, lc = prd.produce_lc_power_spectra(redshift, **kwargs)
 
+    test_global = {k: lc.global_quantities[k] for k in true_global}
     assert np.allclose(true_k, test_k)
 
     if plt == mpl.pyplot:
         make_lightcone_comparison_plot(
             true_k,
             test_k,
-            lc.node_redshifts,
+            lc.inputs.node_redshifts,
             true_powers,
             true_global,
             test_powers,
-            lc,
+            test_global,
             plt,
         )
 
@@ -134,21 +155,21 @@ def test_power_spectra_lightcone(name, module_direc, plt):
 
 
 def make_lightcone_comparison_plot(
-    true_k, k, z, true_powers, true_global, test_powers, lc, plt
+    true_k, k, z, true_powers, true_global, test_powers, test_global, plt
 ):
     n = len(true_global) + len(true_powers)
     fig, ax = plt.subplots(
         2, n, figsize=(3 * n, 5), constrained_layout=True, sharex="col"
     )
 
-    for i, (key, val) in enumerate(true_powers.items()):
+    for i, (key, val) in enumerate(test_powers.items()):
         make_comparison_plot(
-            true_k, k, val, test_powers[key], ax[:, i], xlab="k", ylab=f"{key} Power"
+            true_k, k, true_powers[key], val, ax[:, i], xlab="k", ylab=f"{key} Power"
         )
 
-    for j, (key, val) in enumerate(true_global.items(), start=i + 1):
+    for j, (key, val) in enumerate(test_global.items(), start=i + 1):
         make_comparison_plot(
-            z, z, val, getattr(lc, key), ax[:, j], xlab="z", ylab=f"{key}"
+            z, z, true_global[key], val, ax[:, j], xlab="z", ylab=f"{key}"
         )
 
 
@@ -161,9 +182,9 @@ def make_coeval_comparison_plot(true_k, k, true_powers, test_powers, plt):
         constrained_layout=True,
     )
 
-    for i, (key, val) in enumerate(true_powers.items()):
+    for i, (key, val) in enumerate(test_powers.items()):
         make_comparison_plot(
-            true_k, k, val, test_powers[key], ax[:, i], xlab="k", ylab=f"{key} Power"
+            true_k, k, true_powers[key], val, ax[:, i], xlab="k", ylab=f"{key} Power"
         )
 
 
@@ -211,10 +232,10 @@ def test_perturb_field_data(name):
         ic,
     ) = prd.produce_perturb_field_data(redshift, **kwargs)
 
-    assert np.allclose(power_dens, p_dens, atol=5e-3, rtol=1e-3)
-    assert np.allclose(power_vel, p_vel, atol=5e-3, rtol=1e-3)
-    assert np.allclose(pdf_dens, y_dens, atol=5e-3, rtol=1e-3)
-    assert np.allclose(pdf_vel, y_vel, atol=5e-3, rtol=1e-3)
+    np.testing.assert_allclose(p_dens, power_dens, atol=5e-3, rtol=1e-3)
+    np.testing.assert_allclose(p_vel, power_vel, atol=5e-3, rtol=1e-3)
+    np.testing.assert_allclose(y_dens, pdf_dens, atol=5e-3, rtol=1e-3)
+    np.testing.assert_allclose(y_vel, pdf_vel, atol=5e-3, rtol=1e-3)
 
 
 @pytest.mark.parametrize("name", options_halo)

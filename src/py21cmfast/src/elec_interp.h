@@ -2,8 +2,8 @@
 #ifndef _ELEC_INT_H
 #define _ELEC_INT_H
 
-#define x_int_NXHII  14
-#define x_int_NENERGY  258
+#define x_int_NXHII 14
+#define x_int_NENERGY 258
 
 void initialize_interp_arrays();
 
@@ -21,7 +21,8 @@ float interp_nion_HeII(float En, float xHII_call);
 int locate_energy_index(float En);
 int locate_xHII_index(float xHII_call);
 
-// this array is currently used in SpinTemperatureBox.c and passed into heating_helper_progs.c functions
+// this array is currently used in SpinTemperatureBox.c and passed into heating_helper_progs.c
+// functions
 // TODO: remove it and make it static in elec_interp.c
 extern float x_int_XHII[x_int_NXHII];
 
