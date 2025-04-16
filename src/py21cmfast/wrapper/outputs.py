@@ -528,7 +528,7 @@ class InitialConditions(OutputStruct):
             "lowres_density": Array(shape, dtype=np.float32),
             "hires_density": Array(hires_shape, dtype=np.float32),
         }
-        if inputs.user_params.PERTURB_ON_HIGH_RES:
+        if inputs.matter_options.PERTURB_ON_HIGH_RES:
             out |= {
                 "hires_vx": Array(hires_shape, dtype=np.float32),
                 "hires_vy": Array(hires_shape, dtype=np.float32),
@@ -547,7 +547,7 @@ class InitialConditions(OutputStruct):
                 "hires_vy_2LPT": Array(hires_shape, dtype=np.float32),
                 "hires_vz_2LPT": Array(hires_shape, dtype=np.float32),
             }
-            if not inputs.user_params.PERTURB_ON_HIGH_RES:
+            if not inputs.matter_options.PERTURB_ON_HIGH_RES:
                 out |= {
                     "lowres_vx_2LPT": Array(shape, dtype=np.float32),
                     "lowres_vy_2LPT": Array(shape, dtype=np.float32),
