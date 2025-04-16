@@ -22,6 +22,8 @@ if "TOXENV" in os.environ and "SETUPPY_CFLAGS" in os.environ:
     os.environ["CFLAGS"] = os.environ["SETUPPY_CFLAGS"]
 
 test_req = [
+    "clang-format",
+    "clang-tidy",
     "hmf",
     "pre-commit",
     "pytest>=5.0",
@@ -30,7 +32,9 @@ test_req = [
     "pytest-remotedata>=0.3.2",
     "powerbox",
     "pytest-plt",
+    "pytest-benchmark",
     "questionary",
+    "pytest-xdist",
 ]
 
 doc_req = ["nbsphinx", "numpydoc", "sphinx >= 1.3", "sphinx-rtd-theme"]

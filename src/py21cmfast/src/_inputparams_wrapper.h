@@ -1,10 +1,9 @@
 /*We need to explicitly define the types used by the warpper using ffi.cdef()
     However, that function does not take directives, so we separate the types here
 */
-//WARNING: DO NOT #include THIS FILE IN THE C CODE EXCEPT FOR IN InputParameters.h
+// WARNING: DO NOT #include THIS FILE IN THE C CODE EXCEPT FOR IN InputParameters.h
 
-
-typedef struct CosmoParams{
+typedef struct CosmoParams {
     float SIGMA_8;
     float hlittle;
     float OMm;
@@ -21,80 +20,84 @@ typedef struct CosmoParams{
 
 } CosmoParams;
 
-typedef struct UserParams{
+typedef struct SimulationOptions {
     // Parameters taken from INIT_PARAMS.H
     int HII_DIM;
     int DIM;
     float BOX_LEN;
     float NON_CUBIC_FACTOR;
-    bool USE_FFTW_WISDOM;
-    int HMF;
-    int USE_RELATIVE_VELOCITIES;
-    int POWER_SPECTRUM;
     int N_THREADS;
-    bool PERTURB_ON_HIGH_RES;
-    bool NO_RNG;
-    int USE_INTERPOLATION_TABLES;
-    int INTEGRATION_METHOD_ATOMIC;
-    int INTEGRATION_METHOD_MINI;
-    int PERTURB_ALGORITHM;
-    bool MINIMIZE_MEMORY;
-    bool KEEP_3D_VELOCITIES;
     double Z_HEAT_MAX;
     double ZPRIME_STEP_FACTOR;
 
-    //Halo Sampler Options
+    // Halo Sampler Options
     float SAMPLER_MIN_MASS;
     double SAMPLER_BUFFER_FACTOR;
     int N_COND_INTERP;
     int N_PROB_INTERP;
     double MIN_LOGPROB;
-    int SAMPLE_METHOD;
-    bool AVG_BELOW_SAMPLER;
     double HALOMASS_CORRECTION;
     double PARKINSON_G0;
     double PARKINSON_y1;
     double PARKINSON_y2;
 
-    int FILTER;
-    int HALO_FILTER;
     float INITIAL_REDSHIFT;
     double DELTA_R_FACTOR;
-    bool SMOOTH_EVOLVED_DENSITY_FIELD;
     double DENSITY_SMOOTH_RADIUS;
 
-    bool DEXM_OPTIMIZE;
     double DEXM_OPTIMIZE_MINMASS;
     double DEXM_R_OVERLAP;
-} UserParams;
 
-typedef struct AstroParams{
-    // Parameters taken from INIT_PARAMS.H
+    double CORR_STAR;
+    double CORR_SFR;
+    double CORR_LX;
+} SimulationOptions;
+
+typedef struct MatterOptions {
+    bool USE_FFTW_WISDOM;
+    int HMF;
+    int USE_RELATIVE_VELOCITIES;
+    int POWER_SPECTRUM;
+    int USE_INTERPOLATION_TABLES;
+    bool NO_RNG;
+    bool PERTURB_ON_HIGH_RES;
+    int PERTURB_ALGORITHM;
+    bool MINIMIZE_MEMORY;
+    bool KEEP_3D_VELOCITIES;
+    bool DEXM_OPTIMIZE;
+    int FILTER;
+    int HALO_FILTER;
+    bool SMOOTH_EVOLVED_DENSITY_FIELD;
+
+    bool USE_HALO_FIELD;
+    bool HALO_STOCHASTICITY;
+    bool FIXED_HALO_GRIDS;
+    int SAMPLE_METHOD;
+} MatterOptions;
+
+typedef struct AstroParams {
     float HII_EFF_FACTOR;
 
-    //SHMR
+    // SHMR
     float F_STAR10;
     float ALPHA_STAR;
     float ALPHA_STAR_MINI;
     float SIGMA_STAR;
-    float CORR_STAR;
     double UPPER_STELLAR_TURNOVER_MASS;
     double UPPER_STELLAR_TURNOVER_INDEX;
     float F_STAR7_MINI;
 
-    //SFMS
+    // SFMS
     float t_STAR;
-    float CORR_SFR;
     double SIGMA_SFR_INDEX;
     double SIGMA_SFR_LIM;
 
-    //L_X/SFR
+    // L_X/SFR
     double L_X;
     double L_X_MINI;
     double SIGMA_LX;
-    double CORR_LX;
 
-    //Escape Fraction
+    // Escape Fraction
     float F_ESC10;
     float ALPHA_ESC;
     float F_ESC7_MINI;
@@ -132,12 +135,10 @@ typedef struct AstroParams{
     double NU_X_BAND_MAX;
 } AstroParams;
 
-typedef struct FlagOptions{
-    // Parameters taken from INIT_PARAMS.H
-    bool USE_HALO_FIELD;
+typedef struct AstroOptions {
     bool USE_MINI_HALOS;
-    bool USE_CMB_HEATING; //CMB Heating Flag
-    bool USE_LYA_HEATING; //Lya Heating Flag
+    bool USE_CMB_HEATING;  // CMB Heating Flag
+    bool USE_LYA_HEATING;  // Lya Heating Flag
     bool USE_MASS_DEPENDENT_ZETA;
     bool SUBCELL_RSD;
     bool APPLY_RSDS;
@@ -145,9 +146,7 @@ typedef struct FlagOptions{
     bool USE_TS_FLUCT;
     bool M_MIN_in_Mass;
     bool FIX_VCB_AVG;
-    bool HALO_STOCHASTICITY;
     bool USE_EXP_FILTER;
-    bool FIXED_HALO_GRIDS;
     bool CELL_RECOMB;
     int PHOTON_CONS_TYPE;
     bool USE_UPPER_STELLAR_TURNOVER;
@@ -155,30 +154,33 @@ typedef struct FlagOptions{
     int HII_FILTER;
     int HEAT_FILTER;
     bool IONISE_ENTIRE_SPHERE;
-} FlagOptions;
+    bool AVG_BELOW_SAMPLER;
+    int INTEGRATION_METHOD_ATOMIC;
+    int INTEGRATION_METHOD_MINI;
+} AstroOptions;
 
-typedef struct ConfigSettings{
+typedef struct ConfigSettings {
     double HALO_CATALOG_MEM_FACTOR;
 
     char *external_table_path;
     char *wisdoms_path;
-}ConfigSettings;
+} ConfigSettings;
 
-
-/* Previously, we had a few structures spread throughout the code e.g user_params_ufunc which
+/* Previously, we had a few structures spread throughout the code e.g simulation_options_ufunc which
    were all globally defined and separately broadcast at different times. Several of these were used
    across different files and some inside #defines (e.g indexing.h), so for now I've combined
    the parameter structures to avoid confusion (we shouldn't have the possibility of two files using
    different parameters).
 
-   In future we should have a parameter structure in each .c file containing ONLY parameters relevant to it
-   (look at HaloBox.c), and force the broadcast at each _compute() step (or even decorate any library call)
-   However this would require us to be very careful about initialising the globals when ANY function from that
-   file is called */
-//The structs declared here defined in InputParameters.c
-extern UserParams *user_params_global;
+   In future we should have a parameter structure in each .c file containing ONLY parameters
+   relevant to it (look at HaloBox.c), and force the broadcast at each _compute() step (or even
+   decorate any library call) However this would require us to be very careful about initialising
+   the globals when ANY function from that file is called */
+// The structs declared here defined in InputParameters.c
+extern SimulationOptions *simulation_options_global;
+extern MatterOptions *matter_options_global;
 extern CosmoParams *cosmo_params_global;
 extern AstroParams *astro_params_global;
-extern FlagOptions *flag_options_global;
+extern AstroOptions *astro_options_global;
 
 extern ConfigSettings config_settings;

@@ -2,14 +2,16 @@
 
 [CosmoParams]
 
-[UserParams]
+[SimulationOptions]
+
+[MatterOptions]
+USE_HALO_FIELD = true
+HALO_STOCHASTICITY = true
 
 [AstroParams]
 R_BUBBLE_MAX = 50.0
 
-[FlagOptions]
-USE_HALO_FIELD = true
-HALO_STOCHASTICITY = true
+[AstroOptions]
 USE_EXP_FILTER = true
 CELL_RECOMB = true
 USE_MINI_HALOS = false

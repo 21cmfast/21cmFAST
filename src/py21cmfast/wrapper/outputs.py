@@ -31,12 +31,13 @@ from ..c_21cmfast import lib
 from .arrays import Array
 from .exceptions import _process_exitcode
 from .inputs import (
+    AstroOptions,
     AstroParams,
     CosmoParams,
-    FlagOptions,
     InputParameters,
     InputStruct,
-    UserParams,
+    MatterOptions,
+    SimulationOptions,
 )
 from .structs import StructWrapper
 
@@ -96,9 +97,14 @@ class OutputStruct(ABC):
         return super().__init_subclass__()
 
     @property
-    def user_params(self) -> UserParams:
-        """The UserParams object for this output struct."""
-        return self.inputs.user_params
+    def simulation_options(self) -> SimulationOptions:
+        """The SimulationOptions object for this output struct."""
+        return self.inputs.simulation_options
+
+    @property
+    def matter_options(self) -> MatterOptions:
+        """The SimulationOptions object for this output struct."""
+        return self.inputs.matter_options
 
     @property
     def cosmo_params(self) -> CosmoParams:
@@ -111,9 +117,9 @@ class OutputStruct(ABC):
         return self.inputs.astro_params
 
     @property
-    def flag_options(self) -> FlagOptions:
-        """The FlagOptions object for this output struct."""
-        return self.inputs.flag_options
+    def astro_options(self) -> AstroOptions:
+        """The AstroOptions object for this output struct."""
+        return self.inputs.astro_options
 
     def _inputs_compatible_with(self, other: OutputStruct | InputParameters) -> bool:
         """Check whether this objects' inputs are compatible with another object's.
@@ -470,7 +476,7 @@ class OutputStruct(ABC):
         _process_exitcode(exitcode, self._c_compute_function, args)
 
         for name, array in self.arrays.items():
-            setattr(self, name, array.with_value(array.value))
+            setattr(self, name, array.computed())
 
         self.pull_from_backend()
         return self
@@ -505,11 +511,17 @@ class InitialConditions(OutputStruct):
     @classmethod
     def new(cls, inputs: InputParameters, **kw) -> Self:
         """Create a new instance, given a set of input parameters."""
-        shape = (inputs.user_params.HII_DIM,) * 2 + (
-            int(inputs.user_params.NON_CUBIC_FACTOR * inputs.user_params.HII_DIM),
+        shape = (inputs.simulation_options.HII_DIM,) * 2 + (
+            int(
+                inputs.simulation_options.NON_CUBIC_FACTOR
+                * inputs.simulation_options.HII_DIM
+            ),
         )
-        hires_shape = (inputs.user_params.DIM,) * 2 + (
-            int(inputs.user_params.NON_CUBIC_FACTOR * inputs.user_params.DIM),
+        hires_shape = (inputs.simulation_options.DIM,) * 2 + (
+            int(
+                inputs.simulation_options.NON_CUBIC_FACTOR
+                * inputs.simulation_options.DIM
+            ),
         )
 
         out = {
@@ -523,7 +535,7 @@ class InitialConditions(OutputStruct):
             "hires_vz": Array(hires_shape, dtype=np.float32),
         }
 
-        if inputs.user_params.PERTURB_ALGORITHM == "2LPT":
+        if inputs.matter_options.PERTURB_ALGORITHM == "2LPT":
             out |= {
                 "lowres_vx_2LPT": Array(shape, dtype=np.float32),
                 "lowres_vy_2LPT": Array(shape, dtype=np.float32),
@@ -533,22 +545,22 @@ class InitialConditions(OutputStruct):
                 "hires_vz_2LPT": Array(hires_shape, dtype=np.float32),
             }
 
-        if inputs.user_params.USE_RELATIVE_VELOCITIES:
+        if inputs.matter_options.USE_RELATIVE_VELOCITIES:
             out["lowres_vcb"] = Array(shape, dtype=np.float32)
 
         return cls(inputs=inputs, **out, **kw)
 
-    def prepare_for_perturb(self, flag_options: FlagOptions, force: bool = False):
+    def prepare_for_perturb(self, astro_options: AstroOptions, force: bool = False):
         """Ensure the ICs have all the boxes loaded for perturb, but no extra."""
         keep = ["hires_density"]
 
-        if not self.user_params.PERTURB_ON_HIGH_RES:
+        if not self.matter_options.PERTURB_ON_HIGH_RES:
             keep.append("lowres_density")
             keep.append("lowres_vx")
             keep.append("lowres_vy")
             keep.append("lowres_vz")
 
-            if self.user_params.PERTURB_ALGORITHM == "2LPT":
+            if self.matter_options.PERTURB_ALGORITHM == "2LPT":
                 keep.append("lowres_vx_2LPT")
                 keep.append("lowres_vy_2LPT")
                 keep.append("lowres_vz_2LPT")
@@ -558,22 +570,23 @@ class InitialConditions(OutputStruct):
             keep.append("hires_vy")
             keep.append("hires_vz")
 
-            if self.user_params.PERTURB_ALGORITHM == "2LPT":
+            if self.matter_options.PERTURB_ALGORITHM == "2LPT":
                 keep.append("hires_vx_2LPT")
                 keep.append("hires_vy_2LPT")
                 keep.append("hires_vz_2LPT")
 
-        if self.user_params.USE_RELATIVE_VELOCITIES:
+        if self.matter_options.USE_RELATIVE_VELOCITIES:
             keep.append("lowres_vcb")
 
         self.prepare(keep=keep, force=force)
 
-    def prepare_for_spin_temp(self, flag_options: FlagOptions, force: bool = False):
+    def prepare_for_spin_temp(self, astro_options: AstroOptions, force: bool = False):
         """Ensure ICs have all boxes required for spin_temp, and no more."""
         keep = []
-        if flag_options.USE_HALO_FIELD and self.user_params.AVG_BELOW_SAMPLER:
+        # NOTE: the astro flags doesn't change the computation, just the storage
+        if self.matter_options.USE_HALO_FIELD and self.astro_options.AVG_BELOW_SAMPLER:
             keep.append("lowres_density")  # for the cmfs
-        if self.user_params.USE_RELATIVE_VELOCITIES:
+        if self.matter_options.USE_RELATIVE_VELOCITIES:
             keep.append("lowres_vcb")
         self.prepare(keep=keep, force=force)
 
@@ -585,9 +598,7 @@ class InitialConditions(OutputStruct):
         """Compute the function."""
         return self._compute(
             allow_already_computed,
-            self.inputs.random_seed,
-            self.inputs.user_params,
-            self.inputs.cosmo_params,
+            self.random_seed,
         )
 
 
@@ -604,11 +615,9 @@ class OutputStructZ(OutputStruct):
         return cls.new(inputs=InputParameters(random_seed=1), redshift=-1.0, dummy=True)
 
     @classmethod
-    def initial(cls):
+    def initial(cls, inputs):
         """Create a dummy instance with the given inputs."""
-        return cls.new(
-            inputs=InputParameters(random_seed=1), redshift=-1.0, initial=True
-        )
+        return cls.new(inputs=inputs, redshift=-1.0, initial=True)
 
 
 @attrs.define(slots=False, kw_only=True)
@@ -640,15 +649,15 @@ class PerturbedField(OutputStructZ):
         All other parameters are passed through to the :class:`PerturbedField`
         constructor.
         """
-        dim = inputs.user_params.HII_DIM
+        dim = inputs.simulation_options.HII_DIM
 
-        shape = (dim, dim, int(inputs.user_params.NON_CUBIC_FACTOR * dim))
+        shape = (dim, dim, int(inputs.simulation_options.NON_CUBIC_FACTOR * dim))
 
         out = {
             "density": Array(shape, dtype=np.float32),
             "velocity_z": Array(shape, dtype=np.float32),
         }
-        if inputs.user_params.KEEP_3D_VELOCITIES:
+        if inputs.matter_options.KEEP_3D_VELOCITIES:
             out["velocity_x"] = Array(shape, dtype=np.float32)
             out["velocity_y"] = Array(shape, dtype=np.float32)
 
@@ -666,23 +675,23 @@ class PerturbedField(OutputStructZ):
         # Always require hires_density
         required += ["hires_density"]
 
-        if self.user_params.PERTURB_ON_HIGH_RES:
+        if self.matter_options.PERTURB_ON_HIGH_RES:
             required += ["hires_vx", "hires_vy", "hires_vz"]
 
-            if self.user_params.PERTURB_ALGORITHM == "2LPT":
+            if self.matter_options.PERTURB_ALGORITHM == "2LPT":
                 required += ["hires_vx_2LPT", "hires_vy_2LPT", "hires_vz_2LPT"]
 
         else:
             required += ["lowres_density", "lowres_vx", "lowres_vy", "lowres_vz"]
 
-            if self.user_params.PERTURB_ALGORITHM == "2LPT":
+            if self.matter_options.PERTURB_ALGORITHM == "2LPT":
                 required += [
                     "lowres_vx_2LPT",
                     "lowres_vy_2LPT",
                     "lowres_vz_2LPT",
                 ]
 
-        if self.user_params.USE_RELATIVE_VELOCITIES:
+        if self.matter_options.USE_RELATIVE_VELOCITIES:
             required.append("lowres_vcb")
 
         return required
@@ -692,8 +701,6 @@ class PerturbedField(OutputStructZ):
         return self._compute(
             allow_already_computed,
             self.redshift,
-            self.user_params,
-            self.cosmo_params,
             ics,
         )
 
@@ -767,12 +774,12 @@ class PerturbHaloField(OutputStructZ):
         """Return all input arrays required to compute this object."""
         required = []
         if isinstance(input_box, InitialConditions):
-            if self.user_params.PERTURB_ON_HIGH_RES:
+            if self.matter_options.PERTURB_ON_HIGH_RES:
                 required += ["hires_vx", "hires_vy", "hires_vz"]
             else:
                 required += ["lowres_vx", "lowres_vy", "lowres_vz"]
 
-            if self.user_params.PERTURB_ALGORITHM == "2LPT":
+            if self.matter_options.PERTURB_ALGORITHM == "2LPT":
                 required += [f"{k}_2LPT" for k in required]
 
         elif isinstance(input_box, HaloField):
@@ -801,10 +808,6 @@ class PerturbHaloField(OutputStructZ):
         return self._compute(
             allow_already_computed,
             self.redshift,
-            self.user_params,
-            self.cosmo_params,
-            self.astro_params,
-            self.flag_options,
             ics,
             halo_field,
         )
@@ -816,12 +819,13 @@ class HaloField(PerturbHaloField):
 
     _c_compute_function = lib.ComputeHaloField
     desc_redshift: float | None = attrs.field(default=None)
+    _compat_hash = _HashType.zgrid
 
     def get_required_input_arrays(self, input_box: OutputStruct) -> list[str]:
         """Return all input arrays required to compute this object."""
         required = []
         if isinstance(input_box, InitialConditions):
-            if self.flag_options.HALO_STOCHASTICITY:
+            if self.matter_options.HALO_STOCHASTICITY:
                 # when the sampler is on, the grids are only needed for the first sample
                 if self.desc_redshift <= 0:
                     required += ["hires_density"]
@@ -830,7 +834,7 @@ class HaloField(PerturbHaloField):
             else:
                 required += ["hires_density"]
         elif isinstance(input_box, HaloField):
-            if self.flag_options.HALO_STOCHASTICITY:
+            if self.matter_options.HALO_STOCHASTICITY:
                 required += [
                     "halo_masses",
                     "halo_coords",
@@ -856,10 +860,6 @@ class HaloField(PerturbHaloField):
             allow_already_computed,
             self.desc_redshift,
             self.redshift,
-            self.user_params,
-            self.cosmo_params,
-            self.astro_params,
-            self.flag_options,
             ics,
             ics.random_seed,
             descendant_halos,
@@ -902,8 +902,8 @@ class HaloBox(OutputStructZ):
         All other parameters are passed through to the :class:`HaloBox`
         constructor.
         """
-        dim = inputs.user_params.HII_DIM
-        shape = (dim, dim, int(inputs.user_params.NON_CUBIC_FACTOR * dim))
+        dim = inputs.simulation_options.HII_DIM
+        shape = (dim, dim, int(inputs.simulation_options.NON_CUBIC_FACTOR * dim))
 
         return cls(
             inputs=inputs,
@@ -924,7 +924,7 @@ class HaloBox(OutputStructZ):
         """Return all input arrays required to compute this object."""
         required = []
         if isinstance(input_box, PerturbHaloField):
-            if not self.flag_options.FIXED_HALO_GRIDS:
+            if not self.matter_options.FIXED_HALO_GRIDS:
                 required += [
                     "halo_coords",
                     "halo_masses",
@@ -933,19 +933,20 @@ class HaloBox(OutputStructZ):
                     "xray_rng",
                 ]
         elif isinstance(input_box, PerturbedField):
-            if self.flag_options.FIXED_HALO_GRIDS:
+            if self.matter_options.FIXED_HALO_GRIDS:
                 required += ["density"]
         elif isinstance(input_box, TsBox):
-            required += ["J_21_LW_box"]
+            if self.astro_options.USE_MINI_HALOS:
+                required += ["J_21_LW"]
         elif isinstance(input_box, IonizedBox):
-            required += ["Gamma12_box", "z_re_box"]
+            required += ["ionisation_rate_G12", "z_reion"]
         elif isinstance(input_box, InitialConditions):
             if (
-                self.flag_options.HALO_STOCHASTICITY
-                and self.user_params.AVG_BELOW_SAMPLER
+                self.matter_options.HALO_STOCHASTICITY
+                and self.astro_options.AVG_BELOW_SAMPLER
             ):
                 required += ["lowres_density"]
-            if self.user_params.USE_RELATIVE_VELOCITIES:
+            if self.matter_options.USE_RELATIVE_VELOCITIES:
                 required += ["lowres_vcb"]
         else:
             raise ValueError(f"{type(input_box)} is not an input required for HaloBox!")
@@ -966,10 +967,6 @@ class HaloBox(OutputStructZ):
         return self._compute(
             allow_already_computed,
             self.redshift,
-            self.user_params,
-            self.cosmo_params,
-            self.astro_params,
-            self.flag_options,
             initial_conditions,
             perturbed_field,
             pt_halos,
@@ -1010,8 +1007,13 @@ class XraySourceBox(OutputStructZ):
         """
         shape = (
             (inputs.astro_params.N_STEP_TS,)
-            + (inputs.user_params.HII_DIM,) * 2
-            + (int(inputs.user_params.NON_CUBIC_FACTOR * inputs.user_params.HII_DIM),)
+            + (inputs.simulation_options.HII_DIM,) * 2
+            + (
+                int(
+                    inputs.simulation_options.NON_CUBIC_FACTOR
+                    * inputs.simulation_options.HII_DIM
+                ),
+            )
         )
 
         return cls(
@@ -1033,7 +1035,7 @@ class XraySourceBox(OutputStructZ):
             raise ValueError(f"{type(input_box)} is not an input required for HaloBox!")
 
         required += ["halo_sfr", "halo_xray"]
-        if self.flag_options.USE_MINI_HALOS:
+        if self.astro_options.USE_MINI_HALOS:
             required += ["halo_sfr_mini"]
         return required
 
@@ -1049,10 +1051,6 @@ class XraySourceBox(OutputStructZ):
         """Compute the function."""
         return self._compute(
             allow_already_computed,
-            self.user_params,
-            self.cosmo_params,
-            self.astro_params,
-            self.flag_options,
             halobox,
             R_inner,
             R_outer,
@@ -1067,10 +1065,10 @@ class TsBox(OutputStructZ):
     _c_compute_function = lib.ComputeTsBox
     _meta = False
 
-    Ts_box = _arrayfield()
-    x_e_box = _arrayfield()
-    Tk_box = _arrayfield()
-    J_21_LW_box = _arrayfield()
+    spin_temperature = _arrayfield()
+    xray_ionised_fraction = _arrayfield()
+    kinetic_temp_neutral = _arrayfield()
+    J_21_LW = _arrayfield(optional=True)
 
     @classmethod
     def new(cls, inputs: InputParameters, redshift: float, **kw) -> Self:
@@ -1088,68 +1086,74 @@ class TsBox(OutputStructZ):
         All other parameters are passed through to the :class:`TsBox`
         constructor.
         """
-        shape = (inputs.user_params.HII_DIM,) * 2 + (
-            int(inputs.user_params.NON_CUBIC_FACTOR * inputs.user_params.HII_DIM),
+        shape = (inputs.simulation_options.HII_DIM,) * 2 + (
+            int(
+                inputs.simulation_options.NON_CUBIC_FACTOR
+                * inputs.simulation_options.HII_DIM
+            ),
         )
-        return cls(
-            inputs=inputs,
-            redshift=redshift,
-            Ts_box=Array(shape, dtype=np.float32),
-            x_e_box=Array(shape, dtype=np.float32),
-            Tk_box=Array(shape, dtype=np.float32),
-            J_21_LW_box=Array(shape, dtype=np.float32),
-            **kw,
-        )
+        out = {
+            "spin_temperature": Array(shape, dtype=np.float32),
+            "xray_ionised_fraction": Array(shape, dtype=np.float32),
+            "kinetic_temp_neutral": Array(shape, dtype=np.float32),
+        }
+        if inputs.astro_options.USE_MINI_HALOS:
+            out["J_21_LW"] = Array(shape, dtype=np.float32)
+        return cls(inputs=inputs, redshift=redshift, **out, **kw)
 
     @cached_property
     def global_Ts(self):
         """Global (mean) spin temperature."""
-        if "Ts_box" not in self._computed_arrays:
+        if not self.is_computed:
             raise AttributeError(
                 "global_Ts is not defined until the ionization calculation has been performed"
             )
         else:
-            return np.mean(self.Ts_box)
+            return np.mean(self.get("spin_temperature"))
 
     @cached_property
     def global_Tk(self):
         """Global (mean) Tk."""
-        if "Tk_box" not in self._computed_arrays:
+        if not self.is_computed:
             raise AttributeError(
                 "global_Tk is not defined until the ionization calculation has been performed"
             )
         else:
-            return np.mean(self.Tk_box)
+            return np.mean(self.get("kinetic_temp_neutral"))
 
     @cached_property
     def global_x_e(self):
         """Global (mean) x_e."""
-        if "x_e_box" not in self._computed_arrays:
+        if not self.is_computed:
             raise AttributeError(
                 "global_x_e is not defined until the ionization calculation has been performed"
             )
         else:
-            return np.mean(self.x_e_box)
+            return np.mean(self.get("xray_ionised_fraction"))
 
     def get_required_input_arrays(self, input_box: OutputStruct) -> list[str]:
         """Return all input arrays required to compute this object."""
         required = []
         if isinstance(input_box, InitialConditions):
             if (
-                self.user_params.USE_RELATIVE_VELOCITIES
-                and self.flag_options.USE_MINI_HALOS
+                self.matter_options.USE_RELATIVE_VELOCITIES
+                and self.astro_options.USE_MINI_HALOS
             ):
                 required += ["lowres_vcb"]
         elif isinstance(input_box, PerturbedField):
             required += ["density"]
         elif isinstance(input_box, TsBox):
-            required += ["Tk_box", "x_e_box", "Ts_box"]
-            if self.flag_options.USE_MINI_HALOS:
-                required += ["J_21_LW_box"]
+            required += [
+                "kinetic_temp_neutral",
+                "xray_ionised_fraction",
+                "spin_temperature",
+            ]
+            if self.astro_options.USE_MINI_HALOS:
+                required += ["J_21_LW"]
         elif isinstance(input_box, XraySourceBox):
-            if self.flag_options.USE_HALO_FIELD:
+            if self.matter_options.USE_HALO_FIELD:
                 required += ["filtered_sfr", "filtered_xray"]
-                if self.flag_options.USE_MINI_HALOS:
+                if self.astro_options.USE_MINI_HALOS:
                     required += ["filtered_sfr_mini"]
         else:
             raise ValueError(
@@ -1173,10 +1177,6 @@ class TsBox(OutputStructZ):
             allow_already_computed,
             self.redshift,
             prev_spin_temp.redshift,
-            self.user_params,
-            self.cosmo_params,
-            self.astro_params,
-            self.flag_options,
             perturbed_field.redshift,
             cleanup,
             perturbed_field,
@@ -1193,14 +1193,14 @@ class IonizedBox(OutputStructZ):
     _meta = False
     _c_compute_function = lib.ComputeIonizedBox
 
-    xH_box = _arrayfield()
-    Gamma12_box = _arrayfield()
-    MFP_box = _arrayfield()
-    z_re_box = _arrayfield()
-    dNrec_box = _arrayfield()
-    temp_kinetic_all_gas = _arrayfield()
-    Fcoll = _arrayfield()
-    Fcoll_MINI = _arrayfield(optional=True)
+    neutral_fraction = _arrayfield()
+    ionisation_rate_G12 = _arrayfield()
+    mean_free_path = _arrayfield()
+    z_reion = _arrayfield()
+    cumulative_recombinations = _arrayfield()
+    kinetic_temperature = _arrayfield()
+    unnormalised_nion = _arrayfield()
+    unnormalised_nion_mini = _arrayfield(optional=True)
     log10_Mturnover_ave: float = attrs.field(default=None)
     log10_Mturnover_MINI_ave: float = attrs.field(default=None)
     mean_f_coll: float = attrs.field(default=None)
@@ -1222,19 +1222,22 @@ class IonizedBox(OutputStructZ):
         All other parameters are passed through to the :class:`IonizedBox`
         constructor.
         """
-        if inputs.flag_options.USE_MINI_HALOS:
+        if (
+            inputs.astro_options.USE_MINI_HALOS
+            and not inputs.matter_options.USE_HALO_FIELD
+        ):
             n_filtering = (
                 int(
                     np.log(
                         min(
                             inputs.astro_params.R_BUBBLE_MAX,
-                            0.620350491 * inputs.user_params.BOX_LEN,
+                            0.620350491 * inputs.simulation_options.BOX_LEN,
                         )
                         / max(
                             inputs.astro_params.R_BUBBLE_MIN,
                             0.620350491
-                            * inputs.user_params.BOX_LEN
-                            / inputs.user_params.HII_DIM,
+                            * inputs.simulation_options.BOX_LEN
+                            / inputs.simulation_options.HII_DIM,
                         )
                     )
                     / np.log(inputs.astro_params.DELTA_R_HII_FACTOR)
@@ -1244,60 +1247,74 @@ class IonizedBox(OutputStructZ):
         else:
             n_filtering = 1
 
-        shape = (inputs.user_params.HII_DIM,) * 2 + (
-            int(inputs.user_params.NON_CUBIC_FACTOR * inputs.user_params.HII_DIM),
+        shape = (inputs.simulation_options.HII_DIM,) * 2 + (
+            int(
+                inputs.simulation_options.NON_CUBIC_FACTOR
+                * inputs.simulation_options.HII_DIM
+            ),
         )
         filter_shape = (n_filtering, *shape)
 
         out = {
-            "xH_box": Array(shape, initfunc=np.ones, dtype=np.float32),
-            "Gamma12_box": Array(shape, dtype=np.float32),
-            "MFP_box": Array(shape, dtype=np.float32),
-            "z_re_box": Array(shape, dtype=np.float32),
-            "dNrec_box": Array(shape, dtype=np.float32),
-            "temp_kinetic_all_gas": Array(shape, dtype=np.float32),
-            "Fcoll": Array(filter_shape, dtype=np.float32),
+            "neutral_fraction": Array(shape, initfunc=np.ones, dtype=np.float32),
+            "ionisation_rate_G12": Array(shape, dtype=np.float32),
+            "mean_free_path": Array(shape, dtype=np.float32),
+            "z_reion": Array(shape, dtype=np.float32),
+            "cumulative_recombinations": Array(shape, dtype=np.float32),
+            "kinetic_temperature": Array(shape, dtype=np.float32),
+            "unnormalised_nion": Array(filter_shape, dtype=np.float32),
         }
 
-        if inputs.flag_options.USE_MINI_HALOS:
-            out["Fcoll_MINI"] = Array(filter_shape, dtype=np.float32)
+        if (
+            inputs.astro_options.USE_MINI_HALOS
+            and not inputs.matter_options.USE_HALO_FIELD
+        ):
+            out["unnormalised_nion_mini"] = Array(filter_shape, dtype=np.float32)
 
         return cls(inputs=inputs, redshift=redshift, **out, **kw)
 
     @cached_property
     def global_xH(self):
         """Global (mean) neutral fraction."""
-        if not self.filled:
+        if not self.is_computed:
             raise AttributeError(
                 "global_xH is not defined until the ionization calculation has been performed"
             )
         else:
-            return np.mean(self.xH_box)
+            return np.mean(self.get("neutral_fraction"))
 
     def get_required_input_arrays(self, input_box: OutputStruct) -> list[str]:
         """Return all input arrays required to compute this object."""
         required = []
         if isinstance(input_box, InitialConditions):
             if (
-                self.user_params.USE_RELATIVE_VELOCITIES
-                and self.flag_options.USE_MASS_DEPENDENT_ZETA
+                self.matter_options.USE_RELATIVE_VELOCITIES
+                and self.astro_options.USE_MASS_DEPENDENT_ZETA
             ):
                 required += ["lowres_vcb"]
         elif isinstance(input_box, PerturbedField):
             required += ["density"]
         elif isinstance(input_box, TsBox):
-            required += ["J_21_LW_box", "x_e_box", "Tk_box"]
+            required += ["kinetic_temp_neutral", "xray_ionised_fraction"]
+            if self.astro_options.USE_MINI_HALOS:
+                required += ["J_21_LW"]
         elif isinstance(input_box, IonizedBox):
-            required += ["z_re_box", "Gamma12_box"]
-            if self.inputs.flag_options.INHOMO_RECO:
+            required += ["z_reion", "ionisation_rate_G12"]
+            if self.astro_options.INHOMO_RECO:
                 required += [
-                    "dNrec_box",
+                    "cumulative_recombinations",
                 ]
             if (
-                self.inputs.flag_options.USE_MASS_DEPENDENT_ZETA
-                and self.inputs.flag_options.USE_MINI_HALOS
+                self.astro_options.USE_MASS_DEPENDENT_ZETA
+                and self.astro_options.USE_MINI_HALOS
             ):
-                required += ["Fcoll", "Fcoll_MINI"]
+                required += [
+                    "unnormalised_nion",
+                ]
+                if not self.matter_options.USE_HALO_FIELD:
+                    required += [
+                        "unnormalised_nion_mini",
+                    ]
         elif isinstance(input_box, HaloBox):
             required += ["n_ion", "whalo_sfr"]
         else:
@@ -1323,10 +1340,6 @@ class IonizedBox(OutputStructZ):
             allow_already_computed,
             self.redshift,
             prev_perturbed_field.redshift,
-            self.inputs.user_params,
-            self.inputs.cosmo_params,
-            self.inputs.astro_params,
-            self.inputs.flag_options,
             perturbed_field,
             prev_perturbed_field,
             prev_ionize_box,
@@ -1361,8 +1374,11 @@ class BrightnessTemp(OutputStructZ):
         All other parameters are passed through to the :class:`BrightnessTemp`
         constructor.
         """
-        shape = (inputs.user_params.HII_DIM,) * 2 + (
-            int(inputs.user_params.NON_CUBIC_FACTOR * inputs.user_params.HII_DIM),
+        shape = (inputs.simulation_options.HII_DIM,) * 2 + (
+            int(
+                inputs.simulation_options.NON_CUBIC_FACTOR
+                * inputs.simulation_options.HII_DIM
+            ),
         )
 
         return cls(
@@ -1380,19 +1396,19 @@ class BrightnessTemp(OutputStructZ):
                 "global_Tb is not defined until the ionization calculation has been performed"
             )
         else:
-            return np.mean(self.brightness_temp)
+            return np.mean(self.get("brightness_temp"))
 
     def get_required_input_arrays(self, input_box: OutputStruct) -> list[str]:
         """Return all input arrays required to compute this object."""
         required = []
         if isinstance(input_box, PerturbedField):
             required += ["density"]
-            if self.inputs.flag_options.APPLY_RSDS:
+            if self.astro_options.APPLY_RSDS:
                 required += ["velocity_z"]
         elif isinstance(input_box, TsBox):
-            required += ["Ts_box"]
+            required += ["spin_temperature"]
         elif isinstance(input_box, IonizedBox):
-            required += ["xH_box"]
+            required += ["neutral_fraction"]
         else:
             raise ValueError(
                 f"{type(input_box)} is not an input required for BrightnessTemp!"
@@ -1412,10 +1428,6 @@ class BrightnessTemp(OutputStructZ):
         return self._compute(
             allow_already_computed,
             self.redshift,
-            self.inputs.user_params,
-            self.inputs.cosmo_params,
-            self.inputs.astro_params,
-            self.inputs.flag_options,
             spin_temp,
             ionized_box,
             perturbed_field,

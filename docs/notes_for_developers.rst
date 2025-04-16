@@ -42,68 +42,74 @@ possible to write your own C code to do whatever you want with the output data, 
 don't provide any wrapping structure for you to do this, you will need to write your
 own. Internally, 21cmFAST uses the ``cffi`` library to aid the wrapping of the C code into
 Python. You don't need to do the same, though we recommend it. If your desired
-"extension" is something that needs to operate in-between steps of 21cmFAST, we also
-provide no support for this, but it is possible, so long as the next step in the
-chain maintains its API. You would be required to re-write the low-level wrapping
-function _preceding_ your inserted step as well. For instance, if you had written a
-self-contained piece of code that modified the initial conditions box, adding some
-physical effect which is not already covered, then you would need to write a low-level
-wrapper _and_ re-write the ``initial_conditions`` function to modify the box before
-returning it. We provide no easy "plugin" system for doing this currently. If your
-external code is meant to be inserted _within_ a basic step of 21cmFAST, this is
-currently not possible. You will instead have to modify the source code itself.
+"extension" is something that needs to operate in-between steps of 21cmFAST, you can use
+the generators or single-field fucntions (see :ref:`tutorials/coeval_cubes`) to stop your
+calculation at the desired point, making any modifications to the structures before continuing
+the run.
 
 Modifying the C-code of 21cmFAST should be relatively simple. If your changes are
 entirely internal to a given function, then nothing extra needs to be done. A little
 more work has to be done if the modifications add/remove input parameters or the output
 structure. If any of the input structures are modified (i.e. an extra parameter
 added to it), then the corresponding class in ``py21cmfast.wrapper`` must be modified,
-usually simply to add the new parameter to the ``_defaults_`` dict with a default value.
-For instance, if a new variable ``some_param`` was added to the ``user_params`` struct
-in the ``ComputeInitialConditions`` C function, then the ``UserParams`` class in
-the wrapper would be modified, adding ``some_param=<default_value>`` to its ``_default_``
-dict. If the default value of the parameter is dependent on another parameter, its
-default value in this dict can be set to ``None``, and you can give it a dynamic
-definition as a Python ``@property``. For example, the ``DIM`` parameter of
-``UserParams`` is defined as::
+usually simply to add the new parameter to the existing attributes using any desired
+functionality provided in the ``attrs`` package.
+For instance, if a new variable ``some_param`` was added to the ``matter_params`` struct
+in the ``ComputeInitialConditions`` C function, then the ``MatterParams`` class in
+the wrapper would be modified, adding``some_param=attrs.field(default=<your_value_here>)``
+to the class. If the default value of the parameter is dependent on another parameter, it
+should be placed after it's depenencies in the structure, and be given a default function
+vit the attrs default decorator e.g:
 
-    @property
-    def DIM(self):
-        if self._some_param is None:
-            return self._DIM or 4 * self.HII_DIM
+    @DIM.default
+    def _dim_default(self):
+        return 3 * self.HII_DIM
 
-Note the underscore in ``_DIM`` here: by default, if a dynamic property is defined for
-a given parameter, the ``_default_`` value is saved with a prefixed underscore. Here we
-return either the explicitly set ``DIM``, or 4 by the ``HII_DIM``. In addition, if the
-new parameter is not settable -- if it is completely determined by other parameters --
-then don't put it in ``_defaults_`` at all, and just give it a dynamic definition.
+Here we return either the explicitly set ``DIM``, or 4 by the ``HII_DIM``. In addition, if the
+new parameter is not settable -- if it is completely determined by other parameters -- mark it as
+private with a leading underscore or make it a ``@property`` of the class.
 
 If you modify an output struct, which usually house a number of array quantities
 (often float pointers, but not necessarily), then you'll again need to modify the
 corresponding class in the wrapper. In particular, you'll need to add an entry for that
-particular array in the ``_init_arrays`` method for the class. The entry consists of
-initialising that array (usually to zeros, but not necessarily), and setting its proper
-dtype. All arrays should be single-pointers, even for multi-dimensional data. The latter
-can be handled by initalising the array as a 1D numpy array, but then setting its shape
-attribute (after creation) to the appropriate n-dimensional shape (see the
-``_init_arrays`` method for the ``InitialConditions`` class for examples of this).
+particular array as an ``_arrayfield()`` to the attributes the class and set its shape in the ``new()``
+method. Any output which depends on the new array must also have it added to its
+``get_required_input_arrays()`` method.
+
+If the C backend uses new input or output fields, they must be added to the structs
+in the header files ``_inputparams_wrapper.h`` or ``_outputstructs_wrapper.h``.
 
 C Function Standards
 ~~~~~~~~~~~~~~~~~~~~
 The C-level functions are split into two groups -- low-level "private" functions, and
 higher-level "public" or "API" functions. All API-level functions are callable from
 python (but may also be called from other C functions). All API-level functions are
-currently prototyped in ``21cmFAST.h``.
+currently prototyped in ``_functionprototypes_wrapper.h``.
 
 To enable consistency of error-checking in Python (and a reasonable standard for any
-kind of code), we enforce that any API-level function must return an integer status.
-Any "return" objects must be modified in-place (i.e. passed as pointers). This enables
+kind of code), we enforce that any API-level function which computes an output structure must return an integer status.
+In addition, any "return" objects must be modified in-place (i.e. passed as pointers). This enables
 Python to control the memory access of these variables, and also to receive proper
 error statuses (see below for how we do exception handling). We also adhere to the
 convention that "output" variables should be passed to the function as its last
 argument(s). In the case that _only_ the last argument is meant to be "output", there
-exists a simple wrapper ``_call_c_simple`` in ``wrapper.py`` that will neatly handle the
+exists a simple wrapper ``_call_c_simple`` in ``wrapper/_utils.py`` that will neatly handle the
 calling of the function in an intuitive pythonic way.
+
+Running with gperftools
+~~~~~~~~~~~~~~~~~~~~~~~
+profiling can be achieved using gperftools by compiling 21cmfast with the ``PROFILE`` flag
+
+    PROFILE=TRUE pip install .
+
+Then calling whichever script you use to run ``21cmFAST`` with the ``CPUPROFILE`` environment variabled
+
+    env CPUPROFILE=[PATH-TO-PROFILE] python some_script.py
+
+Profiles may then be viewed using ``pprof``, and the shared library file (located in the build directory
+after compiling), see https://gperftools.github.io/gperftools/cpuprofile.html for more information on pprof.
+Profile graphs may have unnamed functions at the top-level, representing the wrapper. However the lower-level
+functions will be mapped correctly.
 
 Running with Valgrind
 ~~~~~~~~~~~~~~~~~~~~~
@@ -168,6 +174,10 @@ can be printed to screen correctly. The levels are defined in ``logging.h``, and
 levels such as ``INFO``, ``WARNING`` and ``DEBUG``. Each level has a corresponding macro
 that starts with ``LOG_``. Thus to log run-time information to stdout, you would use
 ``LOG_INFO("message");``. Note that the message does not require a final newline character.
+While there are several exceptions, a rule-of-thumb is to use ``DEBUG`` for output structure
+level information (printed once per compute functino), ``SUPER_DEBUG`` for smaller loop
+information (such as things once per filter radius), and ``ULTRA_DEBUG`` for individual cells
+(hopefully not *every* cell).
 
 Exception handling in C
 ~~~~~~~~~~~~~~~~~~~~~~~
@@ -180,9 +190,9 @@ throughout ``21cmFAST``. Any time an error arises that can be understood, the de
 should add a ``Throw <ErrorKind>;`` line. The ``ErrorKind`` can be any of the kinds
 defined in ``exceptions.h`` (eg. ``GSLError`` or ``ValueError``). These are just integers.
 
-Any C function that has a header in ``21cmFAST.h`` -- i.e. any function that is callable
-directly from Python -- *must* be globally wrapped in a ``Try {} Catch(error_code) {}`` block. See
-``GenerateICs.c`` for an example. Most of the code should be in the ``Try`` block.
+Any C function that computes an output struct -- *must* be globally wrapped in
+a ``Try {} Catch(error_code) {}`` block. See ``GenerateICs.c`` for an example.
+Most of the code should be in the ``Try`` block.
 Anything that does a ``Throw`` at any level of the call stack within that ``Try`` will
 trigger a jump to the ``Catch``. The ``error_code`` is the integer that was thrown.
 Typically, one will perhaps want to do some cleanup here, and then finally *return* the
@@ -225,12 +235,11 @@ It's important to keep track of these states, because when passing the struct to
 function of another struct (as input), we go and check if the array exists in memory, and
 initialize it. Of course, we shouldn't initialize it with zeros if in fact it has been computed already
 and is sitting on disk ready to be loaded. Thus, the ``OutputStruct`` tries to keep track of these
-states for every array in the structure, using the ``_array_state`` dictionary. Every write/read/compute/purge
+states for every array in the structure, using the ``Array`` and ``ArrayState`` classes. Every write/read/compute/purge
 operation self-consistently modifies the status of the array.
 
-However, one needs to be careful -- you *can* modify the actual state without modifying the ``_array_state``
-(eg. simply by doing a ``del object.array``). In the future, we may be able to protect this to some extent,
-but for now we rely on the good intent of the user.
+It has been made difficult to unintnetionally modify the data in an array without properly changing the state.
+Arrays are frozen structures, so one must use the methods provided to alter their values or states.
 
 Purging/Loading C-arrays to/from Disk
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -280,7 +289,7 @@ To actually bump the version, we use ``bump2version``. The reason for this is th
 CHANGELOG requires manual intervention -- we need to change the "dev-version" section
 at the top of the file to the current version. Since this has to be manual, it requires
 a specific commit to make it happen, which thus requires a PR (since commits can't be
-pushed to master). To get all this to happen as smoothly as possible, we have a little
+pushed to main). To get all this to happen as smoothly as possible, we have a little
 bash script ``bump`` that should be used to bump the version, which wraps ``bump2version``.
 What it does is:
 
@@ -296,26 +305,20 @@ What it does is:
 
 The VERSION file might seem a bit redundant, and it is NOT recognized as the "official"
 version (that is given by the git tag). Notice we didn't make a git tag in the above
-script. That's because the tag should be made directly on the merge commit into master.
-We do this using a Github Action (``tag-release.yaml``) which runs on every push to master,
+script. That's because the tag should be made directly on the merge commit into main.
+We do this using a Github Action (``tag-release.yaml``) which runs on every push to main,
 reads the VERSION file, and makes a tag based on that version.
 
 
 Branching
 ~~~~~~~~~
 For branching, we use a very similar model to `git-flow <https://nvie.com/posts/a-successful-git-branching-model/>`_.
-That is, we have a ``master`` branch which acts as the current truth against which to develop,
+That is, we have a ``main`` branch which acts as the current truth against which to develop,
 and ``production`` essentially as a deployment branch.
-I.e., the ``master`` branch is where all features are merged (and some
-non-urgent bugfixes). ``production`` is always production-ready, and corresponds
-to a particular version on PyPI. Features should be branched from ``master``,
-and merged back to ``production``. Hotfixes can be branched directly from ``production``,
-and merged back there directly, *as well as* back into ``master``.
-*Breaking changes* must only be merged to ``master`` when it has been decided that the next
-version will be a major version. We do not do any long-term support of releases
+I.e., the ``main`` branch is where all features are merged (and some
+non-urgent bugfixes). We do not do any long-term support of releases
 (so can't make hotfixes to ``v2.x`` when the latest version is ``2.(x+1)``, or make a
-new minor version in 2.x when the latest version is 3.x). We have set the default
-branch to ``dev`` so that by default, branches are merged there. This is deemed best
+new minor version in 2.x when the latest version is 3.x). This is deemed best
 for other developers (not maintainers/admins) to get involved, so the default thing is
 usually right.
 
@@ -327,7 +330,7 @@ usually right.
 
 .. note:: OK then, why not just use ``production`` to accrue features and fixes until such
           time we're ready to release? The problem here is that if you've merged a few
-          features into master, but then realize a patch fix is required, there's no
+          features into main, but then realize a patch fix is required, there's no
           easy way to release that patch without releasing all the merged features, thus
           updating the minor version of the code (which may not be desirable). You could
           then just keep all features in their own branches until you're ready to release,
@@ -339,7 +342,7 @@ Releases
 ~~~~~~~~
 To make a **patch** release, follow these steps:
 
-1. Branch off of ``production``.
+1. Branch off of ``main``.
 2. Write the fix.
 3. Write a test that would have broken without the fix.
 4. Update the changelog with your changes, under the ``**Bugfixes**`` heading.
@@ -350,28 +353,28 @@ To make a **patch** release, follow these steps:
 9. Merge the PR
 
 Note that in the background, Github Actions *should* take care of then tagging ``production``
-with the new version, deploying that to PyPI, creating a new PR from master back into
-``master``, and accepting that PR. If it fails for one of these steps, they can all be done
+with the new version, deploying that to PyPI, creating a new PR from main back into
+``main``, and accepting that PR. If it fails for one of these steps, they can all be done
 manually.
 
 Note that you don't have to merge fixes in this way. You can instead just branch off
-``master``, but then the fix won't be included until the next ``minor`` version.
+``main``, but then the fix won't be included until the next ``minor`` version.
 This is easier (the admins do the adminy work) and useful for non-urgent fixes.
 
-Any other fix/feature should be branched from ``master``. Every PR that does anything
+Any other fix/feature should be branched from ``main``. Every PR that does anything
 noteworthy should have an accompanying edit to the changelog. However, you do not have
 to update the version in the changelog -- that is left up to the admin(s). To make a
 minor release, they should:
 
 1. Locally, ``git checkout release``
-2. ``git merge master``
-3. No new features should be merged into ``master`` after that branching occurs.
+2. ``git merge main``
+3. No new features should be merged into ``main`` after that branching occurs.
 4. Run ``./bump minor``
 5. Make sure everything looks right.
 6. ``git push``
 7. Ensure all tests pass and get a CI review.
 8. Merge into ``production``
 
-The above also works for ``MAJOR`` versions, however getting them *in* to ``master`` is a little
+The above also works for ``MAJOR`` versions, however getting them *in* to ``main`` is a little
 different, in that they should wait for merging until we're sure that the next version
 will be a major version.
