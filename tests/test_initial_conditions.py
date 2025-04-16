@@ -7,30 +7,55 @@ import pytest
 
 import py21cmfast as p21c
 
+@pytest.fixture(scope="module")
+def ic_hires(default_input_struct) -> p21c.InitialConditions:
+    return p21c.compute_initial_conditions(
+        inputs=default_input_struct.evolve_input_structs(
+            PERTURB_ON_HIGH_RES=True
+        ),
+    )
 
-def test_box_shape(ic: p21c.InitialConditions):
+def test_box_shape(ic_hires: p21c.InitialConditions, ic: p21c.InitialConditions):
     """Test basic properties of the InitialConditions struct."""
     shape = (35, 35, 35)
     hires_shape = tuple(2 * s for s in shape)
-    assert ic.lowres_density.shape == shape
+    #test common fields
+    for box in (ic,ic_hires):
+        assert box.lowres_density.shape == shape
+        assert box.hires_density.shape == hires_shape
+        assert box.hires_vx_2LPT.shape == hires_shape
+        assert box.hires_vy_2LPT.shape == hires_shape
+        assert box.hires_vz_2LPT.shape == hires_shape
+        assert box.lowres_vcb is None
+        assert box.cosmo_params == p21c.CosmoParams()
+
+    #test hires only fields
+
+    assert ic_hires.hires_vx.shape == hires_shape
+    assert ic_hires.hires_vy.shape == hires_shape
+    assert ic_hires.hires_vz.shape == hires_shape
+
+    assert ic_hires.lowres_vx is None
+    assert ic_hires.lowres_vy is None
+    assert ic_hires.lowres_vz is None
+
+    assert ic_hires.lowres_vx_2LPT is None
+    assert ic_hires.lowres_vy_2LPT is None
+    assert ic_hires.lowres_vz_2LPT is None
+
+    #test lowres only fields
+    
     assert ic.lowres_vx.shape == shape
     assert ic.lowres_vy.shape == shape
     assert ic.lowres_vz.shape == shape
+
     assert ic.lowres_vx_2LPT.shape == shape
     assert ic.lowres_vy_2LPT.shape == shape
     assert ic.lowres_vz_2LPT.shape == shape
-    assert ic.hires_density.shape == hires_shape
 
-    assert ic.hires_vx.shape == hires_shape
-    assert ic.hires_vy.shape == hires_shape
-    assert ic.hires_vz.shape == hires_shape
-    assert ic.hires_vx_2LPT.shape == hires_shape
-    assert ic.hires_vy_2LPT.shape == hires_shape
-    assert ic.hires_vz_2LPT.shape == hires_shape
-
-    assert ic.lowres_vcb is None
-
-    assert ic.cosmo_params == p21c.CosmoParams()
+    assert ic.hires_vx is None
+    assert ic.hires_vy is None
+    assert ic.hires_vz is None
 
 
 def test_modified_cosmo(
