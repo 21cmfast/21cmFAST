@@ -348,7 +348,7 @@ def _check_desired_arrays_exist(desired_arrays: list[str], inputs: InputParamete
     for name in desired_arrays:
         exists = False
         for output in possible_outputs:
-            if name in output.arrays:
+            if name in output.arrays or name in ["log10_mturn_acg", "log10_mturn_mcg"]:
                 exists = True
                 break
         if not exists:
