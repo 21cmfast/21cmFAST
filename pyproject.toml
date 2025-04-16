@@ -1,12 +1,12 @@
 [build-system]
-requires = ["setuptools>=42", "wheel", "setuptools_scm[toml]>=3.4"]
+requires = ["setuptools>=78.1.0", "setuptools_scm>=8"]
 build-backend = "setuptools.build_meta"
 
 [tool.setuptools_scm]
 
 [tool.ruff]
 line-length = 88
-target-version = "py310"
+target-version = "py311"
 exclude = [
   "*.ipynb",  # include these later
   "devel/filter_valgrind.py",
@@ -78,6 +78,9 @@ ignore = [
 ]
 "src/py21cmfast/cli.py" = [
     "D103",  # ignore missing docstrings
+    "T",     # print statements
+]
+"build_cffi.py" = [
     "T",     # print statements
 ]
 

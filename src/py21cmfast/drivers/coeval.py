@@ -148,9 +148,14 @@ class Coeval:
         return self.brightness_temperature.inputs
 
     @property
-    def user_params(self):
-        """User params shared by all datasets."""
-        return self.inputs.user_params
+    def simulation_options(self):
+        """Matter Params shared by all datasets."""
+        return self.inputs.simulation_options
+
+    @property
+    def matter_options(self):
+        """Matter Flags shared by all datasets."""
+        return self.inputs.matter_options
 
     @property
     def cosmo_params(self):
@@ -158,9 +163,9 @@ class Coeval:
         return self.inputs.cosmo_params
 
     @property
-    def flag_options(self):
+    def astro_options(self):
         """Flag Options shared by all datasets."""
-        return self.inputs.flag_options
+        return self.inputs.astro_options
 
     @property
     def astro_params(self):
@@ -268,7 +273,10 @@ def evolve_perturb_halos(
         Returns an empty list if halo fields are not used or fixed grids are enabled.
     """
     # get the halos (reverse redshift order)
-    if not inputs.flag_options.USE_HALO_FIELD or inputs.flag_options.FIXED_HALO_GRIDS:
+    if (
+        not inputs.matter_options.USE_HALO_FIELD
+        or inputs.matter_options.FIXED_HALO_GRIDS
+    ):
         return []
 
     if not write.perturbed_halo_field and len(all_redshifts) > 1:
@@ -479,7 +487,7 @@ def _obtain_starting_point_for_scrolling(
         # the last one.
         minimum_node = len(inputs.node_redshifts) - 1
 
-    if minimum_node < 0 or inputs.flag_options.USE_HALO_FIELD:
+    if minimum_node < 0 or inputs.matter_options.USE_HALO_FIELD:
         # TODO: (low priority) implement a backward loop for finding first halo files
         #   Noting that we need *all* the perturbed halo fields in the cache to run
         return (
@@ -502,7 +510,7 @@ def _obtain_starting_point_for_scrolling(
     if outputs is not None:
         return idx, Coeval(
             initial_conditions=initial_conditions,
-            perturbed_field=outputs["PerturbField"],
+            perturbed_field=outputs["PerturbedField"],
             ionized_box=outputs["IonizedBox"],
             brightness_temperature=outputs["BrightnessTemp"],
             ts_box=outputs.get("TsBox", None),
@@ -560,8 +568,8 @@ def _redshift_loop_generator(
         this_perturbed_field = perturbed_field[iz]
         this_perturbed_field.load_all()
 
-        if inputs.flag_options.USE_HALO_FIELD:
-            if not inputs.flag_options.FIXED_HALO_GRIDS:
+        if inputs.matter_options.USE_HALO_FIELD:
+            if not inputs.matter_options.FIXED_HALO_GRIDS:
                 this_pthalo = pt_halos[iz]
 
             this_halobox = sf.compute_halo_grid(
@@ -573,10 +581,10 @@ def _redshift_loop_generator(
                 **kw,
             )
 
-        if inputs.flag_options.USE_TS_FLUCT:
+        if inputs.astro_options.USE_TS_FLUCT:
             # append the halo redshift array so we have all halo boxes [z,zmax]
             hbox_arr += [this_halobox]
-            if inputs.flag_options.USE_HALO_FIELD:
+            if inputs.matter_options.USE_HALO_FIELD:
                 xrs = sf.compute_xray_source_field(
                     hboxes=hbox_arr,
                     write=write.xray_source_box,
@@ -636,7 +644,7 @@ def _redshift_loop_generator(
             **iokw,
         )
 
-        if inputs.flag_options.PHOTON_CONS_TYPE == "z-photoncons":
+        if inputs.astro_options.PHOTON_CONS_TYPE == "z-photoncons":
             # Updated info at each z.
             photon_nonconservation_data = _get_photon_nonconservation_data()
 
@@ -675,7 +683,7 @@ def _setup_ics_and_pfs_for_scrolling(
     # it is cached -- otherwise we could be losing information.
     with contextlib.suppress(OSError):
         initial_conditions.prepare_for_perturb(
-            flag_options=inputs.flag_options, force=always_purge
+            astro_options=inputs.astro_options, force=always_purge
         )
 
     kw = {
@@ -683,11 +691,11 @@ def _setup_ics_and_pfs_for_scrolling(
         **iokw,
     }
     photon_nonconservation_data = {}
-    if inputs.flag_options.PHOTON_CONS_TYPE != "no-photoncons":
+    if inputs.astro_options.PHOTON_CONS_TYPE != "no-photoncons":
         photon_nonconservation_data = setup_photon_cons(**kw)
 
     if (
-        inputs.flag_options.PHOTON_CONS_TYPE == "z-photoncons"
+        inputs.astro_options.PHOTON_CONS_TYPE == "z-photoncons"
         and np.amin(all_redshifts) < inputs.astro_params.PHOTONCONS_CALIBRATION_END
     ):
         raise ValueError(
@@ -708,7 +716,7 @@ def _setup_ics_and_pfs_for_scrolling(
                        total=len(all_redshifts)):
         p = sf.perturb_field(redshift=z, write=write.perturbed_field, **kw)
 
-        if inputs.user_params.MINIMIZE_MEMORY:
+        if inputs.matter_options.MINIMIZE_MEMORY:
             with contextlib.suppress(OSError):
                 p.purge(force=always_purge)
         perturbed_field.append(p)
@@ -724,7 +732,7 @@ def _setup_ics_and_pfs_for_scrolling(
     # Now we can purge initial_conditions further.
     with contextlib.suppress(OSError):
         initial_conditions.prepare_for_spin_temp(
-            flag_options=inputs.flag_options, force=always_purge
+            astro_options=inputs.astro_options, force=always_purge
         )
 
     return initial_conditions, perturbed_field, pt_halos, photon_nonconservation_data
@@ -737,7 +745,7 @@ def _get_required_redshifts_coeval(
     # Turn into a set so that exact matching user-set redshift
     # don't double-up with scrolling ones.
     if (
-        (inputs.flag_options.USE_TS_FLUCT or inputs.flag_options.INHOMO_RECO)
+        (inputs.astro_options.USE_TS_FLUCT or inputs.astro_options.INHOMO_RECO)
         and user_redshifts
         and min(inputs.node_redshifts) > min(user_redshifts)
     ):

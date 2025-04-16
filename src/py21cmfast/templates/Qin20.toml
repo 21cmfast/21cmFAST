@@ -2,7 +2,11 @@
 
 [CosmoParams]
 
-[UserParams]
+[SimulationOptions]
+
+[MatterOptions]
+USE_HALO_FIELD = false
+HALO_STOCHASTICITY = false
 USE_RELATIVE_VELOCITIES = false
 
 [AstroParams]
@@ -19,9 +23,7 @@ X_RAY_SPEC_INDEX = 1.0
 NU_X_THRESH = 500
 R_BUBBLE_MAX = 50.0
 
-[FlagOptions]
-USE_HALO_FIELD = false
-HALO_STOCHASTICITY = false
+[AstroOptions]
 USE_EXP_FILTER = false
 CELL_RECOMB = false
 USE_UPPER_STELLAR_TURNOVER = false
