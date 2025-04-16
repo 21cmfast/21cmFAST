@@ -38,14 +38,12 @@ def test_lightcone_quantities(
         ),
     )
 
-    with pytest.raises(ValueError,match="You asked for"):
-        _,_,_,lc = p21c.run_lightcone(
-            lightconer=lcn, 
+    with pytest.raises(ValueError, match="You asked for"):
+        _, _, _, lc = p21c.run_lightcone(
+            lightconer=lcn,
             initial_conditions=ic,
             inputs=default_input_struct_lc,
-            global_quantities=(
-                'cumulative_recombinations'
-            ),
+            global_quantities=("cumulative_recombinations"),
             cache=cache,
         )
     _, _, _, lc = p21c.run_lightcone(
