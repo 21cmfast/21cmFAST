@@ -547,7 +547,7 @@ def _redshift_loop_generator(
     }
 
     for iz, z in enumerate(tqdm.tqdm(all_redshifts,
-                                    desc="Brightness Temperature",
+                                    desc="Evolving Astrophysics",
                                     unit="redshift",
                                     disable=not progressbar,
                                     total=len(all_redshifts))):
