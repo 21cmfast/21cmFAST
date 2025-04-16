@@ -537,14 +537,6 @@ class MatterOptions(InputStruct):
         if val and not self.USE_HALO_FIELD:
             raise ValueError("HALO_STOCHASTICITY is True but USE_HALO_FIELD is False")
 
-        if val and self.PERTURB_ON_HIGH_RES:
-            msg = (
-                "Since the lowres density fields are required for the halo sampler"
-                "We are currently unable to use PERTURB_ON_HIGH_RES and HALO_STOCHASTICITY"
-                "Simultaneously."
-            )
-            raise NotImplementedError(msg)
-
         if val and self.USE_INTERPOLATION_TABLES != "hmf-interpolation":
             msg = (
                 "The halo sampler enabled with HALO_STOCHASTICITY requires the use of HMF interpolation tables."

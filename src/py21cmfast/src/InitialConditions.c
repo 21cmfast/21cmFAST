@@ -219,34 +219,32 @@ int ComputeInitialConditions(unsigned long long random_seed, InitialConditions *
         memcpy(HIRES_box, HIRES_box_saved, sizeof(fftwf_complex) * KSPACE_NUM_PIXELS);
 
         // Only filter if we are perturbing on the low-resolution grid
-        if (!matter_options_global->PERTURB_ON_HIGH_RES) {
-            if (simulation_options_global->DIM != simulation_options_global->HII_DIM) {
-                filter_box(HIRES_box, 0, 0,
-                           L_FACTOR * simulation_options_global->BOX_LEN /
-                               (simulation_options_global->HII_DIM + 0.0),
-                           0.);
-            }
+        if (simulation_options_global->DIM != simulation_options_global->HII_DIM) {
+            filter_box(HIRES_box, 0, 0,
+                       L_FACTOR * simulation_options_global->BOX_LEN /
+                           (simulation_options_global->HII_DIM + 0.0),
+                       0.);
+        }
 
-            // FFT back to real space
-            dft_c2r_cube(matter_options_global->USE_FFTW_WISDOM, simulation_options_global->DIM,
-                         D_PARA, simulation_options_global->N_THREADS, HIRES_box);
+        // FFT back to real space
+        dft_c2r_cube(matter_options_global->USE_FFTW_WISDOM, simulation_options_global->DIM, D_PARA,
+                     simulation_options_global->N_THREADS, HIRES_box);
 
-            // Renormalise the FFT'd box (sample the high-res box if we are perturbing on the
-            // low-res grid)
+        // Renormalise the FFT'd box (sample the high-res box if we are perturbing on the
+        // low-res grid)
 #pragma omp parallel shared(boxes, HIRES_box, f_pixel_factor) private(i, j, k) \
     num_threads(simulation_options_global -> N_THREADS)
-            {
+        {
 #pragma omp for
-                for (i = 0; i < simulation_options_global->HII_DIM; i++) {
-                    for (j = 0; j < simulation_options_global->HII_DIM; j++) {
-                        for (k = 0; k < HII_D_PARA; k++) {
-                            boxes->lowres_density[HII_R_INDEX(i, j, k)] =
-                                *((float *)HIRES_box +
-                                  R_FFT_INDEX((unsigned long long)(i * f_pixel_factor + 0.5),
-                                              (unsigned long long)(j * f_pixel_factor + 0.5),
-                                              (unsigned long long)(k * f_pixel_factor + 0.5))) /
-                                VOLUME;
-                        }
+            for (i = 0; i < simulation_options_global->HII_DIM; i++) {
+                for (j = 0; j < simulation_options_global->HII_DIM; j++) {
+                    for (k = 0; k < HII_D_PARA; k++) {
+                        boxes->lowres_density[HII_R_INDEX(i, j, k)] =
+                            *((float *)HIRES_box +
+                              R_FFT_INDEX((unsigned long long)(i * f_pixel_factor + 0.5),
+                                          (unsigned long long)(j * f_pixel_factor + 0.5),
+                                          (unsigned long long)(k * f_pixel_factor + 0.5))) /
+                            VOLUME;
                     }
                 }
             }
