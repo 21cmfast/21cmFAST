@@ -7,20 +7,20 @@ import pytest
 
 import py21cmfast as p21c
 
+
 @pytest.fixture(scope="module")
 def ic_hires(default_input_struct) -> p21c.InitialConditions:
     return p21c.compute_initial_conditions(
-        inputs=default_input_struct.evolve_input_structs(
-            PERTURB_ON_HIGH_RES=True
-        ),
+        inputs=default_input_struct.evolve_input_structs(PERTURB_ON_HIGH_RES=True),
     )
+
 
 def test_box_shape(ic_hires: p21c.InitialConditions, ic: p21c.InitialConditions):
     """Test basic properties of the InitialConditions struct."""
     shape = (35, 35, 35)
     hires_shape = tuple(2 * s for s in shape)
-    #test common fields
-    for box in (ic,ic_hires):
+    # test common fields
+    for box in (ic, ic_hires):
         assert box.lowres_density.shape == shape
         assert box.hires_density.shape == hires_shape
         assert box.hires_vx_2LPT.shape == hires_shape
@@ -29,7 +29,7 @@ def test_box_shape(ic_hires: p21c.InitialConditions, ic: p21c.InitialConditions)
         assert box.lowres_vcb is None
         assert box.cosmo_params == p21c.CosmoParams()
 
-    #test hires only fields
+    # test hires only fields
 
     assert ic_hires.hires_vx.shape == hires_shape
     assert ic_hires.hires_vy.shape == hires_shape
@@ -43,8 +43,8 @@ def test_box_shape(ic_hires: p21c.InitialConditions, ic: p21c.InitialConditions)
     assert ic_hires.lowres_vy_2LPT is None
     assert ic_hires.lowres_vz_2LPT is None
 
-    #test lowres only fields
-    
+    # test lowres only fields
+
     assert ic.lowres_vx.shape == shape
     assert ic.lowres_vy.shape == shape
     assert ic.lowres_vz.shape == shape
