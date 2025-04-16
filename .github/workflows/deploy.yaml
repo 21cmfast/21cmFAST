@@ -2,7 +2,7 @@ name: Publish Python distributions to PyPI
 
 on:
   release:
-    types: [published]
+    types: [published, edited]
 
 jobs:
   build-n-publish:
@@ -19,6 +19,11 @@ jobs:
 
       - name: Install Build Tools
         run: pip install build
+
+      - name: Get C Libraries Linux
+        run: |
+          sudo apt-get install libfftw3-dev
+          sudo apt-get install libgsl0-dev
 
       - name: Build a binary wheel
         run: |
