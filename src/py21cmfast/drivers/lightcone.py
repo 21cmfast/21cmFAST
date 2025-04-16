@@ -21,7 +21,15 @@ from ..io import h5
 from ..io.caching import CacheConfig, OutputCache, RunCache
 from ..lightcones import Lightconer, RectilinearLightconer
 from ..wrapper.inputs import InputParameters
-from ..wrapper.outputs import InitialConditions, PerturbedField, PerturbHaloField
+from ..wrapper.outputs import (
+    BrightnessTemp,
+    HaloBox,
+    InitialConditions,
+    IonizedBox,
+    PerturbedField,
+    PerturbHaloField,
+    TsBox,
+)
 from ..wrapper.photoncons import _get_photon_nonconservation_data, setup_photon_cons
 from . import exhaust
 from . import single_field as sf
@@ -328,6 +336,27 @@ class AngularLightcone(LightCone):
         return tb_with_rsds
 
 
+def _check_desired_arrays_exist(desired_arrays: list[str], inputs: InputParameters):
+    possible_outputs = [
+        InitialConditions.new(inputs),
+        PerturbedField.new(inputs, redshift=0),
+        TsBox.new(inputs, redshift=0),
+        HaloBox.new(inputs, redshift=0),
+        IonizedBox.new(inputs, redshift=0),
+        BrightnessTemp.new(inputs, redshift=0),
+    ]
+    for name in desired_arrays:
+        exists = False
+        for output in possible_outputs:
+            if name in output.arrays or name in ["log10_mturn_acg", "log10_mturn_mcg"]:
+                exists = True
+                break
+        if not exists:
+            raise ValueError(
+                f"You asked for {name} but it is not computed for the inputs: {inputs}"
+            )
+
+
 def setup_lightcone_instance(
     lightconer: Lightconer,
     scrollz: Sequence[float],
@@ -581,6 +610,9 @@ def generate_lightcone(
             "You are attempting to run a lightcone with no node_redshifts."
             "Please set node_redshifts on the `inputs` parameter."
         )
+
+    _check_desired_arrays_exist(global_quantities, inputs)
+    _check_desired_arrays_exist(lightconer.quantities, inputs)
 
     # while we still use the full list for caching etc, we don't need to run below the lightconer instance
     #   So stop one after the lightconer
