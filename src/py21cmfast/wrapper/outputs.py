@@ -1206,7 +1206,7 @@ class IonizedBox(OutputStructZ):
     ionisation_rate_G12 = _arrayfield()
     mean_free_path = _arrayfield()
     z_reion = _arrayfield()
-    cumulative_recombinations = _arrayfield()
+    cumulative_recombinations = _arrayfield(optional=True)
     kinetic_temperature = _arrayfield()
     unnormalised_nion = _arrayfield()
     unnormalised_nion_mini = _arrayfield(optional=True)
@@ -1269,10 +1269,12 @@ class IonizedBox(OutputStructZ):
             "ionisation_rate_G12": Array(shape, dtype=np.float32),
             "mean_free_path": Array(shape, dtype=np.float32),
             "z_reion": Array(shape, dtype=np.float32),
-            "cumulative_recombinations": Array(shape, dtype=np.float32),
             "kinetic_temperature": Array(shape, dtype=np.float32),
             "unnormalised_nion": Array(filter_shape, dtype=np.float32),
         }
+
+        if inputs.astro_options.INHOMO_RECO:
+            out["cumulative_recombinations"] = Array(shape, dtype=np.float32)
 
         if (
             inputs.astro_options.USE_MINI_HALOS
