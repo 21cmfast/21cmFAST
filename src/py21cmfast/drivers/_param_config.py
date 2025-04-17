@@ -389,7 +389,6 @@ class _OutputStructComputationInspect:
         Checks the given input parameters for cache-related keywords and manages reading
         an OutputStruct from cache if possible and desired.
         """
-
         if cache is None or regen:
             return
 
