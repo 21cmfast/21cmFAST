@@ -12,6 +12,8 @@ from py21cmfast import (
     InputParameters,
     IonizedBox,
     PerturbedField,
+    compute_initial_conditions,
+    perturb_field,
 )
 from py21cmfast.io import caching, h5
 from py21cmfast.wrapper import outputs
@@ -265,3 +267,28 @@ class TestOutputCache:
             assert f is not f2
 
         assert not cache.find_existing(ib2)
+
+    def test_regeneration(
+        self,
+        default_input_struct,
+        ic,
+        cache,
+        mocker,
+    ):
+        """Test that the rengerate keyword works as intended, skipping calculation and loading from cache."""
+        reader_spy = mocker.spy(h5, "read_output_struct")
+        compute_spy = mocker.spy(InitialConditions, "compute")
+
+        ics_noregen = compute_initial_conditions(
+            inputs=default_input_struct, regenerate=False, cache=cache
+        )
+        assert reader_spy.call_count == 1
+        assert compute_spy.call_count == 0
+        assert ics_noregen == ic
+
+        ics_regen = compute_initial_conditions(
+            inputs=default_input_struct, regenerate=True, cache=cache
+        )
+        assert reader_spy.call_count == 1
+        assert compute_spy.call_count == 1
+        assert ics_regen == ic
