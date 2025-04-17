@@ -380,21 +380,21 @@ class _OutputStructComputationInspect:
     def _handle_read_from_cache(
         self,
         inputs: InputParameters,
-        current_redshfit: float | None,
+        current_redshift: float | None,
         cache: OutputCache | None,
-        kwargs: dict[str, Any],
+        regen: bool = True,
     ) -> OutputStruct | None:
         """Handle potential reading from cache.
 
         Checks the given input parameters for cache-related keywords and manages reading
         an OutputStruct from cache if possible and desired.
         """
-        if kwargs.pop("regenerate", True):
-            return
+        if cache is None or regen:
+            return None
 
         # First check whether the boxes already exist.
         if issubclass(self._kls, OutputStructZ):
-            obj = self._kls.new(inputs=inputs, redshift=current_redshfit)
+            obj = self._kls.new(inputs=inputs, redshift=current_redshift)
         else:
             obj = self._kls.new(inputs=inputs)
 
@@ -404,11 +404,11 @@ class _OutputStructComputationInspect:
                 this = h5.read_output_struct(path)
                 if hasattr(this, "redshift"):
                     logger.info(
-                        f"Existing {obj.__name__} found at z={this.redshift} and read in (seed={this.random_seed})."
+                        f"Existing {obj._name} found at z={this.redshift} and read in (seed={this.random_seed})."
                     )
                 else:
                     logger.info(
-                        f"Existing {obj.__name__} found and read in (seed={this.random_seed})."
+                        f"Existing {obj._name} found and read in (seed={this.random_seed})."
                     )
                 return this
 
@@ -448,9 +448,8 @@ class single_field_func(_OutputStructComputationInspect):  # noqa: N801
         cache = kwargs.pop("cache", None)
         regen = kwargs.pop("regenerate", True)
         write = kwargs.pop("write", False)
-        out = None
-        if cache is not None and not regen:
-            out = self._handle_read_from_cache(inputs, current_redshift, cache, kwargs)
+
+        out = self._handle_read_from_cache(inputs, current_redshift, cache, regen)
 
         if "inputs" in self._signature.parameters:
             # Here we set the inputs (if accepted by the function signature)

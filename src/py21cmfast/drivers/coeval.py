@@ -594,6 +594,7 @@ def _redshift_loop_generator(
             hbox_arr += [this_halobox]
             if inputs.matter_options.USE_HALO_FIELD:
                 xrs = sf.compute_xray_source_field(
+                    redshift=z,
                     hboxes=hbox_arr,
                     write=write.xray_source_box,
                     **kw,
