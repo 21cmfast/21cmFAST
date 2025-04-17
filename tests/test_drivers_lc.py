@@ -184,7 +184,7 @@ def test_lc_partial_eval(rectlcn, default_input_struct_lc, tmpdirec, lc, cache):
         write=False,
         regenerate=False,
     )
-    for iz_2, z, _, finished in lc_gen_cont:
+    for iz_2, z, _, finished in lc_gen_cont:  # noqa: B007
         assert z <= 20.0
         assert iz_2 > iz_1
 

@@ -189,18 +189,15 @@ class LightCone:
 
     def make_checkpoint(self, path: str | Path, lcidx: int, node_index: int):
         """Write updated lightcone data to file."""
-        print(Path(path).exists(), flush=True)
         with h5py.File(path, "a") as fl:
-            print(f"file attrs {fl.attrs.keys()}")
             last_completed_lcidx = fl.attrs["last_completed_lcidx"]
-            print(
-                f"saving {lcidx}:{last_completed_lcidx} {node_index} to {path}",
-                flush=True,
-            )
-
             for k, v in self.lightcones.items():
+                # This overwrites the last entry, like the non-checkpointed runs do
+                # TODO: this actually slightly affects values and we need to look into it
                 save_idx = (
-                    v.shape[-1] if last_completed_lcidx < 0 else last_completed_lcidx
+                    v.shape[-1]
+                    if last_completed_lcidx < 0
+                    else last_completed_lcidx + 1
                 )
                 fl["lightcones"][k][..., lcidx:save_idx] = v[..., lcidx:save_idx]
 
@@ -225,10 +222,6 @@ class LightCone:
             kwargs["inputs"] = h5.read_inputs(fl, safe=safe)
             kwargs["last_completed_node"] = fl.attrs["last_completed_node"]
             kwargs["last_completed_lcidx"] = fl.attrs["last_completed_lcidx"]
-            print(
-                f"loading {kwargs['last_completed_lcidx']} {kwargs['last_completed_node']}",
-                flush=True,
-            )
 
             grp = fl["photon_nonconservation_data"]
             kwargs["photon_nonconservation_data"] = {k: v[...] for k, v in grp.items()}
@@ -412,7 +405,6 @@ def setup_lightcone_instance(
             },
             photon_nonconservation_data=photon_nonconservation_data,
         )
-        print(f'lc has last {lightcone._last_completed_lcidx} {lightcone._last_completed_node}')
     return lightcone
 
 
@@ -478,9 +470,6 @@ def _run_lightcone_from_perturbed_fields(
             f"redshift of the lightcone. Repeating the higher-z calculations...",
             stacklevel=2,
         )
-    
-    print(f'after start lc has last {lightcone._last_completed_lcidx} {lightcone._last_completed_node}')
-    print(f'prev is None: {prev_coeval is None}')
 
     if lightcone_filename and not Path(lightcone_filename).exists():
         lightcone.save(lightcone_filename)
@@ -526,13 +515,15 @@ def _run_lightcone_from_perturbed_fields(
             ):
                 if this_lc is not None:
                     lightcone.lightcones[quantity][..., idx] = this_lc
-                    lc_index = idx
-                    print(f"made slice at {idx}")
+                    # save the lowest index
+                    if not lc_index:
+                        lc_index = idx
 
             # only checkpoint if we have slices
             if lightcone_filename and lc_index is not None:
-                print(f"making checkpoint to {lc_index}")
-                lightcone.make_checkpoint(lightcone_filename, lcidx=lc_index, node_index=iz)
+                lightcone.make_checkpoint(
+                    lightcone_filename, lcidx=lc_index, node_index=iz
+                )
 
         prev_coeval = coeval
 

@@ -513,7 +513,6 @@ def _obtain_starting_point_for_scrolling(
     logger.info(f"Determining pre-cached boxes for the run in {cache}")
     rc = RunCache.from_inputs(inputs, cache)
 
-    print(f"datasets in cache {cache.list_datasets()}", flush=True)
     for idx in range(minimum_node, -1, -1):
         if not rc.is_complete_at(index=idx):
             continue
@@ -521,7 +520,6 @@ def _obtain_starting_point_for_scrolling(
         _z = inputs.node_redshifts[idx]
         outputs = rc.get_all_boxes_at_z(z=_z)
         break
-    print(f"using {outputs.keys()} at {idx}")
 
     # Create a Coeval from the outputs
     if outputs is not None:
