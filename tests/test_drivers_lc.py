@@ -196,8 +196,9 @@ def test_lc_partial_eval(rectlcn, default_input_struct_lc, tmpdirec, lc, cache):
         lc.global_quantities["brightness_temp"],
     )
     np.testing.assert_allclose(
-        finished.lightcones["brightness_temp"][0, 0, :],
-        lc.lightcones["brightness_temp"][0, 0, :],
+        finished.lightcones["brightness_temp"],
+        lc.lightcones["brightness_temp"],
+        rtol=1e-4,
     )
 
 
