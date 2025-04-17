@@ -195,11 +195,6 @@ def test_lc_partial_eval(rectlcn, default_input_struct_lc, tmpdirec, lc, cache):
         finished.global_quantities["brightness_temp"],
         lc.global_quantities["brightness_temp"],
     )
-    for i in range(finished.lightcones["brightness_temp"].shape[2]):
-        print(
-            f"{i} | {finished.lightcones['brightness_temp'][0, 0, i]} || {lc.lightcones['brightness_temp'][0, 0, i]}",
-            flush=True,
-        )
     np.testing.assert_allclose(
         finished.lightcones["brightness_temp"][0, 0, :],
         lc.lightcones["brightness_temp"][0, 0, :],
