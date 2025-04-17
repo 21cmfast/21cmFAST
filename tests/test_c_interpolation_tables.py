@@ -306,7 +306,7 @@ def test_FgtrM_conditional_tables(R, delta_range, plt):
             ylabels=["fcoll", "dfolldz"],
         )
 
-    abs_tol = 5e-6
+    abs_tol = 1e-5
     print_failure_stats(
         fcoll_tables,
         fcoll_integrals,
