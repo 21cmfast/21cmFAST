@@ -286,9 +286,12 @@ class TestOutputCache:
         assert compute_spy.call_count == 0
         assert ics_noregen == ic
 
+        reader_spy.reset_mock()
+        compute_spy.reset_mock()
+
         ics_regen = compute_initial_conditions(
             inputs=default_input_struct, regenerate=True, cache=cache
         )
-        assert reader_spy.call_count == 1
+        assert reader_spy.call_count == 0
         assert compute_spy.call_count == 1
         assert ics_regen == ic
