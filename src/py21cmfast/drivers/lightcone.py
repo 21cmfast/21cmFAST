@@ -21,7 +21,15 @@ from ..io import h5
 from ..io.caching import CacheConfig, OutputCache, RunCache
 from ..lightcones import Lightconer, RectilinearLightconer
 from ..wrapper.inputs import InputParameters
-from ..wrapper.outputs import InitialConditions, PerturbedField, PerturbHaloField
+from ..wrapper.outputs import (
+    BrightnessTemp,
+    HaloBox,
+    InitialConditions,
+    IonizedBox,
+    PerturbedField,
+    PerturbHaloField,
+    TsBox,
+)
 from ..wrapper.photoncons import _get_photon_nonconservation_data, setup_photon_cons
 from . import exhaust
 from . import single_field as sf
@@ -331,6 +339,27 @@ class AngularLightcone(LightCone):
         raise AttributeError("This is not an attribute of an AngularLightcone")
 
 
+def _check_desired_arrays_exist(desired_arrays: list[str], inputs: InputParameters):
+    possible_outputs = [
+        InitialConditions.new(inputs),
+        PerturbedField.new(inputs, redshift=0),
+        TsBox.new(inputs, redshift=0),
+        HaloBox.new(inputs, redshift=0),
+        IonizedBox.new(inputs, redshift=0),
+        BrightnessTemp.new(inputs, redshift=0),
+    ]
+    for name in desired_arrays:
+        exists = False
+        for output in possible_outputs:
+            if name in output.arrays or name in ["log10_mturn_acg", "log10_mturn_mcg"]:
+                exists = True
+                break
+        if not exists:
+            raise ValueError(
+                f"You asked for {name} but it is not computed for the inputs: {inputs}"
+            )
+
+
 def setup_lightcone_instance(
     lightconer: Lightconer,
     scrollz: Sequence[float],
@@ -388,6 +417,7 @@ def _run_lightcone_from_perturbed_fields(
     cleanup: bool = True,
     write: CacheConfig = _cache,
     always_purge: bool = False,
+    progressbar: bool = False,
     lightcone_filename: str | Path | None = None,
 ):
     original_lcs_list = list(lightconer.quantities)
@@ -457,6 +487,7 @@ def _run_lightcone_from_perturbed_fields(
             write=write,
             cleanup=cleanup,
             always_purge=always_purge,
+            progressbar=progressbar,
             photon_nonconservation_data=photon_nonconservation_data,
             start_idx=lightcone._last_completed_node + 1,
             init_coeval=prev_coeval,
@@ -535,6 +566,7 @@ def generate_lightcone(
     cache: OutputCache | None = _ocache,
     regenerate: bool = True,
     always_purge: bool = False,
+    progressbar: bool = False,
     lightcone_filename: str | Path | None = None,
 ):
     r"""
@@ -563,6 +595,8 @@ def generate_lightcone(
         true, as if the next box to be calculate has different shape, errors will occur
         if memory is not cleaned. Note that internally, this is set to False until the
         last iteration.
+    progressbar: bool, optional
+        If True, a progress bar will be displayed throughout the simulation. Defaults to False.
     lightcone_filename
         The filename to which to save the lightcone. The lightcone is returned in
         memory, and can be saved manually later, but including this filename will
@@ -588,6 +622,9 @@ def generate_lightcone(
             "You are attempting to run a lightcone with no node_redshifts."
             "Please set node_redshifts on the `inputs` parameter."
         )
+
+    _check_desired_arrays_exist(global_quantities, inputs)
+    _check_desired_arrays_exist(lightconer.quantities, inputs)
 
     # while we still use the full list for caching etc, we don't need to run below the lightconer instance
     #   So stop one after the lightconer
@@ -621,6 +658,7 @@ def generate_lightcone(
         inputs=inputs,
         write=write,
         always_purge=always_purge,
+        progressbar=progressbar,
         **iokw,
     )
 
@@ -637,6 +675,7 @@ def generate_lightcone(
         write=write,
         cleanup=cleanup,
         always_purge=always_purge,
+        progressbar=progressbar,
         lightcone_filename=lightcone_filename,
     )
 

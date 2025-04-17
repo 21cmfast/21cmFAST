@@ -85,6 +85,7 @@ setup(
         "bidict",
         "cosmotile>=0.2.0",
         "attrs",
+        "tqdm",
     ],
     extras_require={"tests": test_req, "docs": doc_req, "dev": test_req + doc_req},
     setup_requires=["cffi>=1.0", "setuptools_scm"],
