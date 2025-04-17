@@ -390,7 +390,7 @@ class _OutputStructComputationInspect:
         an OutputStruct from cache if possible and desired.
         """
         if cache is None or regen:
-            return
+            return None
 
         # First check whether the boxes already exist.
         if issubclass(self._kls, OutputStructZ):
@@ -448,9 +448,8 @@ class single_field_func(_OutputStructComputationInspect):  # noqa: N801
         cache = kwargs.pop("cache", None)
         regen = kwargs.pop("regenerate", True)
         write = kwargs.pop("write", False)
-        out = None
-        if cache is not None and not regen:
-            out = self._handle_read_from_cache(inputs, current_redshift, cache, regen)
+
+        out = self._handle_read_from_cache(inputs, current_redshift, cache, regen)
 
         if "inputs" in self._signature.parameters:
             # Here we set the inputs (if accepted by the function signature)
