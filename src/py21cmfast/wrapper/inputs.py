@@ -2,13 +2,15 @@
 Input parameter classes.
 
 There are four input parameter/option classes, not all of which are required for any
-given function. They are :class:`UserParams`, :class:`CosmoParams`, :class:`AstroParams`
-and :class:`FlagOptions`. Each of them defines a number of variables, and all of these
+given function. They are :class:`SimulationOptions`, :class:`CosmoParams`, :class:`AstroParams`
+and :class:`AstroOptions`. Each of them defines a number of variables, and all of these
 have default values, to minimize the burden on the user. These defaults are accessed via
 the ``_defaults_`` class attribute of each class. The available parameters for each are
 listed in the documentation for each class below.
 """
 
+# we use a few nested if statments in the validators here
+# ruff: noqa: SIM102
 from __future__ import annotations
 
 import logging
@@ -81,9 +83,7 @@ Planck18 = Planck15.clone(
 )
 
 
-define(frozen=True, kw_only=True)
-
-
+@define(frozen=True, kw_only=True)
 class InputStruct:
     """
     A convenient interface to create a C structure with defaults specified.
@@ -131,16 +131,16 @@ class InputStruct:
 
         Examples
         --------
-        >>> up = UserParams({'HII_DIM': 250})
+        >>> up = SimulationOptions({'HII_DIM': 250})
         >>> up.HII_DIM
         250
-        >>> up = UserParams(up)
+        >>> up = SimulationOptions(up)
         >>> up.HII_DIM
         250
-        >>> up = UserParams()
+        >>> up = SimulationOptions()
         >>> up.HII_DIM
         200
-        >>> up = UserParams(HII_DIM=256)
+        >>> up = SimulationOptions(HII_DIM=256)
         >>> up.HII_DIM
         256
         """
@@ -358,23 +358,12 @@ class CosmoParams(InputStruct):
 
 
 @define(frozen=True, kw_only=True)
-class UserParams(InputStruct):
+class MatterOptions(InputStruct):
     """
-    Structure containing user parameters (with defaults).
+    Structure containing options which affect the matter field (ICs, perturbedfield, halos).
 
     Parameters
     ----------
-    HII_DIM : int, optional
-        Number of cells for the low-res box. Default 200.
-    DIM : int,optional
-        Number of cells for the high-res box (sampling ICs) along a principal axis. To avoid
-        sampling issues, DIM should be at least 3 or 4 times HII_DIM, and an integer multiple.
-        By default, it is set to 3*HII_DIM.
-    NON_CUBIC_FACTOR : float, optional
-        Factor which allows the creation of non-cubic boxes. It will shorten/lengthen the line
-        of sight dimension of all boxes. NON_CUBIC_FACTOR * DIM/HII_DIM must result in an integer
-    BOX_LEN : float, optional
-        Length of the box, in Mpc. Default 300 Mpc.
     HMF: int or str, optional
         Determines which halo mass function to be used for the normalisation of the
         collapsed fraction (default Sheth-Tormen). If string should be one of the
@@ -396,9 +385,6 @@ class UserParams(InputStruct):
         3: PEEBLES
         4: WHITE
         5: CLASS (single cosmology)
-    N_THREADS : int, optional
-        Sets the number of processors (threads) to be used for performing 21cmFAST.
-        Default 1.
     PERTURB_ON_HIGH_RES : bool, optional
         Whether to perform the Zel'Dovich or 2LPT perturbation on the low or high
         resolution grid.
@@ -413,17 +399,6 @@ class UserParams(InputStruct):
         'no-interpolation': No interpolation tables are used.
         'sigma-interpolation': Interpolation tables are used for sigma(M) only.
         'hmf-interpolation': Interpolation tables are used for sigma(M) the halo mass function.
-    INTEGRATION_METHOD_ATOMIC: int, optional
-        The integration method to use for conditional MF integrals of atomic halos in the grids:
-        NOTE: global integrals will use GSL QAG adaptive integration
-        0: GSL QAG adaptive integration,
-        1: Gauss-Legendre integration, previously forced in the interpolation tables,
-        2: Approximate integration, assuming sharp cutoffs and a triple power-law for sigma(M) based on EPS
-    INTEGRATION_METHOD_MINI: int, optional
-        The integration method to use for conditional MF integrals of minihalos in the grids:
-        0: GSL QAG adaptive integration,
-        1: Gauss-Legendre integration, previously forced in the interpolation tables,
-        2: Approximate integration, assuming sharp cutoffs and a triple power-law for sigma(M) based on EPS
     PERTURB_ALGORITHM: str, optional
         Whether to use second-order Lagrangian perturbation theory (2LPT), Zel'dovich (ZELDOVICH),
         or linear evolution (LINEAR).
@@ -434,6 +409,180 @@ class UserParams(InputStruct):
     MINIMIZE_MEMORY: bool, optional
         If set, the code will run in a mode that minimizes memory usage, at the expense
         of some CPU/disk-IO. Good for large boxes / small computers.
+    SAMPLE_METHOD: int, optional
+        The sampling method to use in the halo sampler when calculating progenitor populations:
+        0: Mass-limited CMF sampling, where samples are drawn until the expected mass is reached
+        1: Number-limited CMF sampling, where we select a number of halos from the Poisson distribution
+        and then sample the CMF that many times
+        2: Sheth et al 1999 Partition sampling, where the EPS collapsed fraction is sampled (gaussian tail)
+        and then the condition is updated using the conservation of mass.
+        3: Parkinsson et al 2008 Binary split model as in DarkForest (Qiu et al 2021) where the EPS merger rate
+        is sampled on small internal timesteps such that only binary splits can occur.
+        NOTE: Sampling from the density grid will ALWAYS use number-limited sampling (method 1)
+    FILTER : string, optional
+        Filter to use for sigma (matter field variance) and radius to mass conversions.
+        available options are: `spherical-tophat` and `gaussian`
+    HALO_FILTER : string, optional
+        Filter to use for the DexM halo finder.
+        available options are: `spherical-tophat`, `sharp-k` and `gaussian`
+    SMOOTH_EVOLVED_DENSITY_FIELD: bool, optional
+        Smooth the evolved density field after perturbation.
+    DEXM_OPTMIZE: bool, optional
+        Use a faster version of the DexM halo finder which excludes halos from forming within a certain distance of larger halos.
+    KEEP_3D_VELOCITIES: bool, optional
+        Whether to keep the 3D velocities in the ICs.
+        If False, only the z velocity is kept.
+    USE_HALO_FIELD : bool, optional
+        Set to True if intending to find and use the halo field. If False, uses
+        the mean collapse fraction (which is considerably faster).
+    FIXED_HALO_GRIDS: bool, optional
+        When USE_HALO_FIELD is True, this flag bypasses the sampler, and calculates fixed grids of halo mass, stellar mass etc
+        analagous to FFRT-P (Davies & Furlanetto 2021) or ESF-E (Trac et al 2021), This flag has no effect is USE_HALO_FIELD is False
+        With USE_HALO_FIELD: (FIXED_HALO_GRIDS,HALO_STOCHASTICITY):
+
+        (0,0): DexM only,
+        (0,1): Halo Sampler,
+        (1,?): FFRT-P fixed halo grids
+    HALO_STOCHASTICITY: bool, optional
+        Actitvates the faster CHMF sampling to get halos below the HII_DIM cell mass.
+    """
+
+    _hmf_models = ("PS", "ST", "WATSON", "WATSON-Z", "DELOS")
+    _power_models = ("EH", "BBKS", "EFSTATHIOU", "PEEBLES", "WHITE", "CLASS")
+    _sample_methods = ("MASS-LIMITED", "NUMBER-LIMITED", "PARTITION", "BINARY-SPLIT")
+    _filter_options = (
+        "spherical-tophat",
+        "sharp-k",
+        "gaussian",
+    )
+    _perturb_options = ("LINEAR", "ZELDOVICH", "2LPT")
+    _interpolation_options = (
+        "no-interpolation",
+        "sigma-interpolation",
+        "hmf-interpolation",
+    )
+
+    HMF = field(
+        default="ST",
+        converter=str,
+        validator=validators.in_(_hmf_models),
+        transformer=choice_transformer(_hmf_models),
+    )
+    USE_RELATIVE_VELOCITIES = field(default=False, converter=bool)
+    POWER_SPECTRUM = field(
+        converter=str,
+        validator=validators.in_(_power_models),
+        transformer=choice_transformer(_power_models),
+    )
+    PERTURB_ON_HIGH_RES = field(default=False, converter=bool)
+    NO_RNG = field(default=False, converter=bool)
+    USE_INTERPOLATION_TABLES = field(
+        default="hmf-interpolation",
+        converter=str,
+        validator=validators.in_(_interpolation_options),
+        transformer=choice_transformer(_interpolation_options),
+    )
+    MINIMIZE_MEMORY = field(default=False, converter=bool)
+    KEEP_3D_VELOCITIES = field(default=False, converter=bool)
+    SAMPLE_METHOD = field(
+        default="MASS-LIMITED",
+        validator=validators.in_(_sample_methods),
+        transformer=choice_transformer(_sample_methods),
+    )
+    FILTER = field(
+        default="spherical-tophat",
+        converter=str,
+        validator=[
+            validators.in_(_filter_options),
+            validators.not_(validators.in_("sharp-k")),
+        ],
+        transformer=choice_transformer(_filter_options),
+    )
+    HALO_FILTER = field(
+        default="spherical-tophat",
+        converter=str,
+        validator=validators.in_(_filter_options),
+        transformer=choice_transformer(_filter_options),
+    )
+    SMOOTH_EVOLVED_DENSITY_FIELD = field(default=False, converter=bool)
+    DEXM_OPTIMIZE = field(default=False, converter=bool)
+    PERTURB_ALGORITHM = field(
+        default="2LPT",
+        converter=str,
+        validator=validators.in_(_perturb_options),
+        transformer=choice_transformer(_perturb_options),
+    )
+    USE_FFTW_WISDOM = field(default=False, converter=bool)
+
+    # NOTE: These do not affect the ICs & PerturbFields,
+    #  but we moved the halos to the matter side for now
+    USE_HALO_FIELD = field(default=True, converter=bool)
+    FIXED_HALO_GRIDS = field(default=False, converter=bool)
+    HALO_STOCHASTICITY = field(default=True, converter=bool)
+
+    @POWER_SPECTRUM.default
+    def _ps_default(self):
+        return "CLASS" if self.USE_RELATIVE_VELOCITIES else "EH"
+
+    @POWER_SPECTRUM.validator
+    def _POWER_SPECTRUM_vld(self, att, val):
+        if self.USE_RELATIVE_VELOCITIES and val != "CLASS":
+            raise ValueError(
+                "Can only use 'CLASS' power spectrum with relative velocities"
+            )
+
+    @HALO_STOCHASTICITY.validator
+    def _HALO_STOCHASTICITY_vld(self, att, val):
+        """Raise an error if HALO_STOCHASTICITY is True and USE_HALO_FIELD is False."""
+        if val and not self.USE_HALO_FIELD:
+            raise ValueError("HALO_STOCHASTICITY is True but USE_HALO_FIELD is False")
+
+        if val and self.PERTURB_ON_HIGH_RES:
+            msg = (
+                "Since the lowres density fields are required for the halo sampler"
+                "We are currently unable to use PERTURB_ON_HIGH_RES and HALO_STOCHASTICITY"
+                "Simultaneously."
+            )
+            raise NotImplementedError(msg)
+
+        if val and self.USE_INTERPOLATION_TABLES != "hmf-interpolation":
+            msg = (
+                "The halo sampler enabled with HALO_STOCHASTICITY requires the use of HMF interpolation tables."
+                "Switch USE_INTERPOLATION_TABLES to 'hmf-interpolation' to use the halo sampler."
+            )
+            raise ValueError(msg)
+
+    @USE_HALO_FIELD.validator
+    def _USE_HALO_FIELD_vld(self, att, val):
+        if val and self.HMF not in ["ST", "PS"]:
+            msg = (
+                "The conditional mass functions requied for the halo field are only currently"
+                "available for the Sheth-Tormen and Press-Schechter mass functions., use HMF='ST' or 'PS'"
+            )
+            raise NotImplementedError(msg)
+
+
+@define(frozen=True, kw_only=True)
+class SimulationOptions(InputStruct):
+    """
+    Structure containing broad simulation options.
+
+    Parameters
+    ----------
+    HII_DIM : int, optional
+        Number of cells for the low-res box. Default 200.
+    DIM : int,optional
+        Number of cells for the high-res box (sampling ICs) along a principal axis. To avoid
+        sampling issues, DIM should be at least 3 or 4 times HII_DIM, and an integer multiple.
+        By default, it is set to 3*HII_DIM.
+    NON_CUBIC_FACTOR : float, optional
+        Factor which allows the creation of non-cubic boxes. It will shorten/lengthen the line
+        of sight dimension of all boxes. NON_CUBIC_FACTOR * DIM/HII_DIM must result in an integer
+    BOX_LEN : float, optional
+        Length of the box, in Mpc. Default 300 Mpc.
+    N_THREADS : int, optional
+        Sets the number of processors (threads) to be used for performing 21cmFAST.
+        Default 1.
     SAMPLER_MIN_MASS: float, optional
         The minimum mass to sample in the halo sampler when USE_HALO_FIELD and HALO_STOCHASTICITY are true,
         decreasing this can drastically increase both compute time and memory usage.
@@ -447,21 +596,6 @@ class UserParams(InputStruct):
         The number of probability bins in the inverse CMF tables.
     MIN_LOGPROB: float, optional
         The minimum log-probability of the inverse CMF tables.
-    SAMPLE_METHOD: int, optional
-        The sampling method to use in the halo sampler when calculating progenitor populations:
-        0: Mass-limited CMF sampling, where samples are drawn until the expected mass is reached
-        1: Number-limited CMF sampling, where we select a number of halos from the Poisson distribution
-        and then sample the CMF that many times
-        2: Sheth et al 1999 Partition sampling, where the EPS collapsed fraction is sampled (gaussian tail)
-        and then the condition is updated using the conservation of mass.
-        3: Parkinsson et al 2008 Binary split model as in DarkForest (Qiu et al 2021) where the EPS merger rate
-        is sampled on small internal timesteps such that only binary splits can occur.
-        NOTE: Sampling from the density grid will ALWAYS use number-limited sampling (method 1)
-    AVG_BELOW_SAMPLER: bool, optional
-        When switched on, an integral is performed in each cell between the minimum source mass and SAMPLER_MIN_MASS,
-        effectively placing the average halo population in each HaloBox cell below the sampler resolution.
-        When switched off, all halos below SAMPLER_MIN_MASS are ignored. This flag saves memory for larger boxes,
-        while still including the effects of smaller sources, albeit without stochasticity.
     HALOMASS_CORRECTION: float, optional
         This provides a corrective factor to the mass-limited (SAMPLE_METHOD==0) sampling, which multiplies the
         expected mass from a condition by this number. The default value of 0.9 is calibrated to the mass-limited
@@ -485,95 +619,37 @@ class UserParams(InputStruct):
         Logarithmic redshift step-size used in the z' integral.  Logarithmic dz.
         Decreasing (closer to unity) increases total simulation time for lightcones,
         and for Ts calculations.
-    FILTER : string, optional
-        Filter to use for sigma (matter field variance) and radius to mass conversions.
-        available options are: `spherical-tophat` and `gaussian`
-    HALO_FILTER : string, optional
-        Filter to use for the DexM halo finder.
-        available options are: `spherical-tophat`, `sharp-k` and `gaussian`
     INITIAL_REDSHIFT : float, optional
         Initial redshift used to perturb field from
     DELTA_R_FACTOR: float, optional
         The factor by which to decrease the size of the filter in DexM when creating halo catalogues.
-    SMOOTH_EVOLVED_DENSITY_FIELD: bool, optional
-        Smooth the evolved density field after perturbation.
     DENSITY_SMOOTH_RADIUS: float, optional
         The radius of the smoothing kernel in Mpc.
-    DEXM_OPTMIZE: bool, optional
-        Use a faster version of the DexM halo finder which excludes halos from forming within a certain distance of larger halos.
     DEXM_OPTIMIZE_MINMASS: float, optional
         The minimum mass of a halo for which to use the DexM optimization if DEXM_OPTIMIZE is True.
     DEXM_R_OVERLAP: float, optional
         The factor by which to multiply the halo radius to determine the distance within which smaller halos are excluded.
+    CORR_STAR : float, optional
+        Self-correlation length used for updating halo properties. To model the
+        correlation in the SHMR between timesteps, we sample from a conditional bivariate gaussian
+        with correlation factor given by exp(-dz/CORR_STAR). This value is placed in SimulationOptions
+        since it is used in the halo sampler, and not in the ionization routines.
+    CORR_SFR : float, optional
+        Self-correlation length used for updating star formation rate, see "CORR_STAR" for details.
+    CORR_LX : float, optional
+        Self-correlation length used for updating xray luminosity, see "CORR_STAR" for details.
     """
-
-    _hmf_models = ("PS", "ST", "WATSON", "WATSON-Z", "DELOS")
-    _power_models = ("EH", "BBKS", "EFSTATHIOU", "PEEBLES", "WHITE", "CLASS")
-    _sample_methods = ("MASS-LIMITED", "NUMBER-LIMITED", "PARTITION", "BINARY-SPLIT")
-    _integral_methods = ("GSL-QAG", "GAUSS-LEGENDRE", "GAMMA-APPROX")
-    _filter_options = (
-        "spherical-tophat",
-        "sharp-k",
-        "gaussian",
-    )
-    _perturb_options = ("LINEAR", "ZELDOVICH", "2LPT")
-    _interpolation_options = (
-        "no-interpolation",
-        "sigma-interpolation",
-        "hmf-interpolation",
-    )
 
     BOX_LEN = field(default=300.0, converter=float, validator=validators.gt(0))
     HII_DIM = field(default=200, converter=int, validator=validators.gt(0))
     DIM = field(converter=int)
     NON_CUBIC_FACTOR = field(default=1.0, converter=float, validator=validators.gt(0))
-    USE_FFTW_WISDOM = field(default=False, converter=bool)
-    HMF = field(
-        default="ST",
-        converter=str,
-        validator=validators.in_(_hmf_models),
-        transformer=choice_transformer(_hmf_models),
-    )
-    USE_RELATIVE_VELOCITIES = field(default=False, converter=bool)
-    POWER_SPECTRUM = field(
-        converter=str,
-        validator=validators.in_(_power_models),
-        transformer=choice_transformer(_power_models),
-    )
     N_THREADS = field(default=1, converter=int, validator=validators.gt(0))
-    PERTURB_ON_HIGH_RES = field(default=False, converter=bool)
-    NO_RNG = field(default=False, converter=bool)
-    USE_INTERPOLATION_TABLES = field(
-        default="hmf-interpolation",
-        converter=str,
-        validator=validators.in_(_interpolation_options),
-        transformer=choice_transformer(_interpolation_options),
-    )
-    INTEGRATION_METHOD_ATOMIC = field(
-        default="GAUSS-LEGENDRE",
-        converter=str,
-        validator=validators.in_(_integral_methods),
-        transformer=choice_transformer(_integral_methods),
-    )
-    INTEGRATION_METHOD_MINI = field(
-        default="GAUSS-LEGENDRE",
-        converter=str,
-        validator=validators.in_(_integral_methods),
-        transformer=choice_transformer(_integral_methods),
-    )
-    MINIMIZE_MEMORY = field(default=False, converter=bool)
-    KEEP_3D_VELOCITIES = field(default=False, converter=bool)
     SAMPLER_MIN_MASS = field(default=1e8, converter=float, validator=validators.gt(0))
     SAMPLER_BUFFER_FACTOR = field(default=2.0, converter=float)
     N_COND_INTERP = field(default=200, converter=int)
     N_PROB_INTERP = field(default=400, converter=int)
     MIN_LOGPROB = field(default=-12, converter=float)
-    SAMPLE_METHOD = field(
-        default="MASS-LIMITED",
-        validator=validators.in_(_sample_methods),
-        transformer=choice_transformer(_sample_methods),
-    )
-    AVG_BELOW_SAMPLER = field(default=True, converter=bool)
     HALOMASS_CORRECTION = field(
         default=0.89, converter=float, validator=validators.gt(0)
     )
@@ -582,39 +658,25 @@ class UserParams(InputStruct):
     PARKINSON_y2 = field(default=0.0, converter=float)
     Z_HEAT_MAX = field(default=35.0, converter=float)
     ZPRIME_STEP_FACTOR = field(default=1.02, converter=float)
-    FILTER = field(
-        default="spherical-tophat",
-        converter=str,
-        validator=[
-            validators.in_(_filter_options),
-            validators.not_(validators.in_("sharp-k")),
-        ],
-        transformer=choice_transformer(_filter_options),
-    )
-    HALO_FILTER = field(
-        default="spherical-tophat",
-        converter=str,
-        validator=validators.in_(_filter_options),
-        transformer=choice_transformer(_filter_options),
-    )
+
     INITIAL_REDSHIFT = field(default=300.0, converter=float)
-    PERTURB_ALGORITHM = field(
-        default="2LPT",
-        converter=str,
-        validator=validators.in_(_perturb_options),
-        transformer=choice_transformer(_perturb_options),
-    )
     DELTA_R_FACTOR = field(default=1.1, converter=float, validator=validators.gt(1.0))
 
-    SMOOTH_EVOLVED_DENSITY_FIELD = field(default=False, converter=bool)
     DENSITY_SMOOTH_RADIUS = field(
         default=0.2, converter=float, validator=validators.gt(0)
     )
-    DEXM_OPTIMIZE = field(default=False, converter=bool)
     DEXM_OPTIMIZE_MINMASS = field(
         default=1e11, converter=float, validator=validators.gt(0)
     )
     DEXM_R_OVERLAP = field(default=2, converter=float, validator=validators.gt(0))
+
+    # NOTE: Thematically these should be in AstroParams, However they affect the HaloField
+    #   Objects and so need to be in the matter_cosmo hash, they seem a little strange here
+    #   but will remain until someone comes up with a better organisation down the line
+    CORR_STAR = field(default=0.5, converter=float)
+    CORR_SFR = field(default=0.2, converter=float)
+    # NOTE (Jdavies): I do not currently have great priors for this value
+    CORR_LX = field(default=0.2, converter=float)
 
     @DIM.default
     def _dim_default(self):
@@ -639,17 +701,6 @@ class UserParams(InputStruct):
         """Total number of pixels in the low-res box."""
         return int(self.NON_CUBIC_FACTOR * self.HII_DIM**3)
 
-    @POWER_SPECTRUM.default
-    def _ps_default(self):
-        return "CLASS" if self.USE_RELATIVE_VELOCITIES else "EH"
-
-    @POWER_SPECTRUM.validator
-    def _POWER_SPECTRUM_vld(self, att, val):
-        if self.USE_RELATIVE_VELOCITIES and self.POWER_SPECTRUM != "CLASS":
-            raise ValueError(
-                "Can only use 'CLASS' power spectrum with relative velocities"
-            )
-
     @property
     def cell_size(self) -> un.Quantity[un.Mpc]:
         """The resolution of a low-res cell."""
@@ -662,18 +713,12 @@ class UserParams(InputStruct):
 
 
 @define(frozen=True, kw_only=True)
-class FlagOptions(InputStruct):
+class AstroOptions(InputStruct):
     """
-    Flag-style options for the ionization routines.
-
-    Note that all flags are set to False by default, giving the simplest "vanilla"
-    version of 21cmFAST.
+    Options for the ionization routines which enable/disable certain modules.
 
     Parameters
     ----------
-    USE_HALO_FIELD : bool, optional
-        Set to True if intending to find and use the halo field. If False, uses
-        the mean collapse fraction (which is considerably faster).
     USE_MINI_HALOS : bool, optional
         Set to True if using mini-halos parameterization.
         If True, USE_MASS_DEPENDENT_ZETA and INHOMO_RECO must be True.
@@ -709,20 +754,9 @@ class FlagOptions(InputStruct):
         adjustment as a function of xH where f'/f = xH_global/xH_calibration
     FIX_VCB_AVG: bool, optional
         Determines whether to use a fixed vcb=VAVG (*regardless* of USE_RELATIVE_VELOCITIES). It includes the average effect of velocities but not its fluctuations. See Muñoz+21 (2110.13919).
-    HALO_STOCHASTICITY: bool, optional
-        Sample the Conditional Halo Mass Function and sum over the sample instead of integrating it.
-        This allows us to include stochasticity in other properties
     USE_EXP_FILTER: bool, optional
         Use the exponential filter (MFP-epsilon(r) from Davies & Furlanetto 2021) when calculating ionising emissivity fields
         NOTE: this does not affect other field filters, and should probably be used with HII_FILTER==0 (real-space top-hat)
-    FIXED_HALO_GRIDS: bool, optional
-        When USE_HALO_FIELD is True, this flag bypasses the sampler, and calculates fixed grids of halo mass, stellar mass etc
-        analagous to FFRT-P (Davies & Furlanetto 2021) or ESF-E (Trac et al 2021), This flag has no effect is USE_HALO_FIELD is False
-        With USE_HALO_FIELD: (FIXED_HALO_GRIDS,HALO_STOCHASTICITY):
-
-        (0,0): DexM only,
-        (0,1): Halo Sampler,
-        (1,?): FFRT-P fixed halo grids
     CELL_RECOMB: bool, optional
         An alternate way of counting recombinations based on the local cell rather than the filter region.
         This is part of the perspective shift (see Davies & Furlanetto 2021) from counting photons/atoms in a sphere and flagging a central
@@ -745,6 +779,22 @@ class FlagOptions(InputStruct):
     IONISE_ENTIRE_SPHERE: bool, optional
         If True, ionises the entire sphere on the filter scale when an ionised region is found
         in the excursion set.
+    AVG_BELOW_SAMPLER: bool, optional
+        When switched on, an integral is performed in each cell between the minimum source mass and SAMPLER_MIN_MASS,
+        effectively placing the average halo population in each HaloBox cell below the sampler resolution.
+        When switched off, all halos below SAMPLER_MIN_MASS are ignored. This flag saves memory for larger boxes,
+        while still including the effects of smaller sources, albeit without stochasticity.
+    INTEGRATION_METHOD_ATOMIC: int, optional
+        The integration method to use for conditional MF integrals of atomic halos in the grids:
+        NOTE: global integrals will use GSL QAG adaptive integration
+        0: GSL QAG adaptive integration,
+        1: Gauss-Legendre integration, previously forced in the interpolation tables,
+        2: Approximate integration, assuming sharp cutoffs and a triple power-law for sigma(M) based on EPS
+    INTEGRATION_METHOD_MINI: int, optional
+        The integration method to use for conditional MF integrals of minihalos in the grids:
+        0: GSL QAG adaptive integration,
+        1: Gauss-Legendre integration, previously forced in the interpolation tables,
+        2: Approximate integration, assuming sharp cutoffs and a triple power-law for sigma(M) based on EPS
     """
 
     _photoncons_models = (
@@ -762,20 +812,18 @@ class FlagOptions(InputStruct):
         # "finite-shell",
         # "thin-shell",
     )
+    _integral_methods = ("GSL-QAG", "GAUSS-LEGENDRE", "GAMMA-APPROX")
 
     USE_MINI_HALOS = field(default=False, converter=bool)
     USE_CMB_HEATING = field(default=True, converter=bool)
     USE_LYA_HEATING = field(default=True, converter=bool)
     USE_MASS_DEPENDENT_ZETA = field(default=True, converter=bool)
-    USE_HALO_FIELD = field(default=True, converter=bool)
     APPLY_RSDS = field(default=True, converter=bool)
     SUBCELL_RSD = field(default=False, converter=bool)
     INHOMO_RECO = field(default=False, converter=bool)
     USE_TS_FLUCT = field(default=False, converter=bool)
     FIX_VCB_AVG = field(default=False, converter=bool)
-    HALO_STOCHASTICITY = field(default=True, converter=bool)
     USE_EXP_FILTER = field(default=True, converter=bool)
-    FIXED_HALO_GRIDS = field(default=False, converter=bool)
     CELL_RECOMB = field(default=True, converter=bool)
     PHOTON_CONS_TYPE = field(
         default="no-photoncons",
@@ -799,6 +847,20 @@ class FlagOptions(InputStruct):
         transformer=choice_transformer(_filter_options),
     )
     IONISE_ENTIRE_SPHERE = field(default=False, converter=bool)
+    AVG_BELOW_SAMPLER = field(default=True, converter=bool)
+
+    INTEGRATION_METHOD_ATOMIC = field(
+        default="GAUSS-LEGENDRE",
+        converter=str,
+        validator=validators.in_(_integral_methods),
+        transformer=choice_transformer(_integral_methods),
+    )
+    INTEGRATION_METHOD_MINI = field(
+        default="GAUSS-LEGENDRE",
+        converter=str,
+        validator=validators.in_(_integral_methods),
+        transformer=choice_transformer(_integral_methods),
+    )
 
     @M_MIN_in_Mass.validator
     def _M_MIN_in_Mass_vld(self, att, val):
@@ -814,14 +876,6 @@ class FlagOptions(InputStruct):
         if val and not self.APPLY_RSDS:
             raise ValueError(
                 "The SUBCELL_RSD flag is only effective if APPLY_RSDS is True."
-            )
-
-    @USE_HALO_FIELD.validator
-    def _USE_HALO_FIELD_vld(self, att, val):
-        """Raise an error if USE_HALO_FIELD is True and USE_MASS_DEPENDENT_ZETA is False."""
-        if val and not self.USE_MASS_DEPENDENT_ZETA:
-            raise ValueError(
-                "You have set USE_MASS_DEPENDENT_ZETA to False but USE_HALO_FIELD is True! "
             )
 
     @USE_MINI_HALOS.validator
@@ -848,17 +902,11 @@ class FlagOptions(InputStruct):
     @PHOTON_CONS_TYPE.validator
     def _PHOTON_CONS_TYPE_vld(self, att, val):
         """Raise an error if using PHOTON_CONS_TYPE='z_photoncons' and USE_MINI_HALOS is True."""
-        if (self.USE_MINI_HALOS or self.USE_HALO_FIELD) and val == "z-photoncons":
+        if self.USE_MINI_HALOS and val == "z-photoncons":
             raise ValueError(
-                "USE_MINI_HALOS and USE_HALO_FIELD are not compatible with the redshift-based"
+                "USE_MINI_HALOS is not compatible with the redshift-based"
                 " photon conservation corrections (PHOTON_CONS_TYPE=='z_photoncons')! "
             )
-
-    @HALO_STOCHASTICITY.validator
-    def _HALO_STOCHASTICITY_vld(self, att, val):
-        """Raise an error if HALO_STOCHASTICITY is True and USE_HALO_FIELD is False."""
-        if val and not self.USE_HALO_FIELD:
-            raise ValueError("HALO_STOCHASTICITY is True but USE_HALO_FIELD is False")
 
     @USE_EXP_FILTER.validator
     def _USE_EXP_FILTER_vld(self, att, val):
@@ -870,17 +918,6 @@ class FlagOptions(InputStruct):
 
         if val and not self.CELL_RECOMB:
             raise ValueError("USE_EXP_FILTER is True but CELL_RECOMB is False")
-
-        if val and not self.USE_HALO_FIELD:
-            raise ValueError("USE_EXP_FILTER can only be used with USE_HALO_FIELD")
-
-    @USE_UPPER_STELLAR_TURNOVER.validator
-    def _USE_UPPER_STELLAR_TURNOVER_vld(self, att, val):
-        """Give a warning if USE_UPPER_STELLAR_TURNOVER is True and USE_HALO_FIELD is False."""
-        if val and not self.USE_HALO_FIELD:
-            raise NotImplementedError(
-                "USE_UPPER_STELLAR_TURNOVER is not yet implemented for when USE_HALO_FIELD is False"
-            )
 
 
 @define(frozen=True, kw_only=True)
@@ -903,14 +940,14 @@ class AstroParams(InputStruct):
     F_STAR10 : float, optional
         The fraction of galactic gas in stars for 10^10 solar mass haloes.
         Only used in the "new" parameterization,
-        i.e. when `USE_MASS_DEPENDENT_ZETA` is set to True (in :class:`FlagOptions`).
+        i.e. when `USE_MASS_DEPENDENT_ZETA` is set to True (in :class:`AstroOptions`).
         If so, this is used along with `F_ESC10` to determine `HII_EFF_FACTOR` (which
         is then unused). See Eq. 11 of Greig+2018 and Sec 2.1 of Park+2018.
         Given in log10 units.
     F_STAR7_MINI : float, optional
         The fraction of galactic gas in stars for 10^7 solar mass minihaloes. Only used
         in the "minihalo" parameterization, i.e. when `USE_MINI_HALOS` is set to True
-        (in :class:`FlagOptions`). If so, this is used along with `F_ESC7_MINI` to
+        (in :class:`AstroOptions`). If so, this is used along with `F_ESC7_MINI` to
         determine `HII_EFF_FACTOR_MINI` (which is then unused). See Eq. 8 of Qin+2020.
         If the MCG scaling relations are not provided explicitly, we extend the ACG
         ones by default. Given in log10 units.
@@ -924,30 +961,21 @@ class AstroParams(InputStruct):
     SIGMA_STAR : float, optional
         Lognormal scatter (dex) of the halo mass to stellar mass relation.
         Uniform across all masses and redshifts.
-    CORR_STAR : float, optional
-        Self-correlation length used for updating halo properties. To model the
-        correlation in the SHMR between timesteps, we take two samples, one completely
-        correlated (at the exact same percentile in the distribution) and one completely
-        uncorrelated. We interpolate between these two samples where the interpolation
-        point in [0,1] based on this parameter and the redshift difference between
-        timesteps, given by exp(-dz/CORR_STAR).
     SIGMA_SFR_LIM : float, optional
         Lognormal scatter (dex) of the stellar mass to SFR relation above a stellar mass of 1e10 solar.
     SIGMA_SFR_INDEX : float, optional
         index of the power-law between SFMS scatter and stellar mass below 1e10 solar.
-    CORR_SFR : float, optional
-        Self-correlation length used for updating xray luminosity, see "CORR_STAR" for details.
     F_ESC10 : float, optional
         The "escape fraction", i.e. the fraction of ionizing photons escaping into the
         IGM, for 10^10 solar mass haloes. Only used in the "new" parameterization,
-        i.e. when `USE_MASS_DEPENDENT_ZETA` is set to True (in :class:`FlagOptions`).
+        i.e. when `USE_MASS_DEPENDENT_ZETA` is set to True (in :class:`AstroOptions`).
         If so, this is used along with `F_STAR10` to determine `HII_EFF_FACTOR` (which
         is then unused). See Eq. 11 of Greig+2018 and Sec 2.1 of Park+2018.
     F_ESC7_MINI: float, optional
         The "escape fraction for minihalos", i.e. the fraction of ionizing photons escaping
         into the IGM, for 10^7 solar mass minihaloes. Only used in the "minihalo"
         parameterization, i.e. when `USE_MINI_HALOS` is set to True (in
-        :class:`FlagOptions`). If so, this is used along with `F_ESC7_MINI` to determine
+        :class:`AstroOptions`). If so, this is used along with `F_ESC7_MINI` to determine
         `HII_EFF_FACTOR_MINI` (which is then unused). See Eq. 17 of Qin+2020. If the MCG
         scaling relations are not provided explicitly, we extend the ACG ones by default.
         Given in log10 units.
@@ -957,7 +985,7 @@ class AstroParams(InputStruct):
     M_TURN : float, optional
         Turnover mass (in log10 solar mass units) for quenching of star formation in
         halos, due to SNe or photo-heating feedback, or inefficient gas accretion. Only
-        used if `USE_MASS_DEPENDENT_ZETA` is set to True in :class:`FlagOptions`.
+        used if `USE_MASS_DEPENDENT_ZETA` is set to True in :class:`AstroOptions`.
         See Sec 2.1 of Park+2018.
     R_BUBBLE_MAX : float, optional
         Mean free path in Mpc of ionizing photons within ionizing regions (Sec. 2.1.2 of
@@ -990,7 +1018,7 @@ class AstroParams(InputStruct):
     t_STAR : float, optional
         Fractional characteristic time-scale (fraction of hubble time) defining the
         star-formation rate of galaxies. Only used if `USE_MASS_DEPENDENT_ZETA` is set
-        to True in :class:`FlagOptions`. See Sec 2.1, Eq. 3 of Park+2018.
+        to True in :class:`AstroOptions`. See Sec 2.1, Eq. 3 of Park+2018.
     N_RSD_STEPS : int, optional
         Number of steps used in redshift-space-distortion algorithm. NOT A PHYSICAL
         PARAMETER.
@@ -1000,17 +1028,15 @@ class AstroParams(InputStruct):
         Impact of the DM-baryon relative velocities on Mturn for minihaloes. Default is 1.0 and 1.8, and agrees between different sims. See Sec 2 of Muñoz+21 (2110.13919).
     UPPER_STELLAR_TURNOVER_MASS:
         The pivot mass associated with the optional upper mass power-law of the stellar-halo mass relation
-        (see FlagOptions.USE_UPPER_STELLAR_TURNOVER)
+        (see AstroOptions.USE_UPPER_STELLAR_TURNOVER)
     UPPER_STELLAR_TURNOVER_INDEX:
         The power-law index associated with the optional upper mass power-law of the stellar-halo mass relation
-        (see FlagOptions.USE_UPPER_STELLAR_TURNOVER)
+        (see AstroOptions.USE_UPPER_STELLAR_TURNOVER)
     SIGMA_LX: float, optional
         Lognormal scatter (dex) of the Xray luminosity relation (a function of stellar mass, star formation rate and redshift).
         This scatter is uniform across all halo properties and redshifts.
-    CORR_LX : float, optional
-        Self-correlation length used for updating xray luminosity, see "CORR_STAR" for details.
     FIXED_VAVG : float, optional
-        The fixed value of the average velocity used when FlagOptions.FIX_VCB_AVG is set to True.
+        The fixed value of the average velocity used when AstroOptions.FIX_VCB_AVG is set to True.
     POP2_ION: float, optional
         Number of ionizing photons per baryon produced by Pop II stars.
     POP3_ION: float, optional
@@ -1105,11 +1131,6 @@ class AstroParams(InputStruct):
         default=0.19, converter=float, transformer=dex2exp_transformer
     )
     SIGMA_SFR_INDEX = field(default=-0.12, converter=float)
-    CORR_STAR = field(default=0.5, converter=float)
-    CORR_SFR = field(default=0.2, converter=float)
-    # NOTE (Jdavies): It's difficult to know what this should be, ASTRID doesn't have
-    # the xrays and I don't know which hydros do
-    CORR_LX = field(default=0.2, converter=float)
 
     T_RE = field(default=2e4, converter=float)
     FIXED_VAVG = field(default=25.86, converter=float, validator=validators.gt(0))
@@ -1221,9 +1242,10 @@ class InputParameters:
     """
 
     random_seed = _field(converter=int)
-    user_params: UserParams = input_param_field(UserParams)
     cosmo_params: CosmoParams = input_param_field(CosmoParams)
-    flag_options: FlagOptions = input_param_field(FlagOptions)
+    matter_options: MatterOptions = input_param_field(MatterOptions)
+    simulation_options: SimulationOptions = input_param_field(SimulationOptions)
+    astro_options: AstroOptions = input_param_field(AstroOptions)
     astro_params: AstroParams = input_param_field(AstroParams)
     node_redshifts = _field(converter=_node_redshifts_converter)
 
@@ -1232,105 +1254,126 @@ class InputParameters:
         return (
             get_logspaced_redshifts(
                 min_redshift=5.5,
-                max_redshift=self.user_params.Z_HEAT_MAX,
-                z_step_factor=self.user_params.ZPRIME_STEP_FACTOR,
+                max_redshift=self.simulation_options.Z_HEAT_MAX,
+                z_step_factor=self.simulation_options.ZPRIME_STEP_FACTOR,
             )
-            if (self.flag_options.INHOMO_RECO or self.flag_options.USE_TS_FLUCT)
+            if (self.astro_options.INHOMO_RECO or self.astro_options.USE_TS_FLUCT)
             else None
         )
 
     @node_redshifts.validator
     def _node_redshifts_validator(self, att, val):
-        if (self.flag_options.INHOMO_RECO or self.flag_options.USE_TS_FLUCT) and max(
-            val
-        ) < self.user_params.Z_HEAT_MAX:
+        if (self.astro_options.INHOMO_RECO or self.astro_options.USE_TS_FLUCT) and (
+            (max(val) if val else 0.0) < self.simulation_options.Z_HEAT_MAX
+        ):
             raise ValueError(
                 "For runs with inhomogeneous recombinations or spin temperature fluctuations,\n"
-                + f"your maximum passed node_redshifts {max(val)} must be above Z_HEAT_MAX {self.user_params.Z_HEAT_MAX}"
+                + f"your maximum passed node_redshifts {max(val) if hasattr(val, '__len__') else val} must be above Z_HEAT_MAX {self.simulation_options.Z_HEAT_MAX}"
             )
 
-    @flag_options.validator
-    def _flag_options_validator(self, att, val):
-        if self.user_params is not None:
+    @astro_options.validator
+    def _astro_options_validator(self, att, val):
+        if self.matter_options is not None:
             if (
                 val.USE_MINI_HALOS
-                and not self.user_params.USE_RELATIVE_VELOCITIES
+                and not self.matter_options.USE_RELATIVE_VELOCITIES
                 and not val.FIX_VCB_AVG
             ):
                 warnings.warn(
                     "USE_MINI_HALOS needs USE_RELATIVE_VELOCITIES to get the right evolution!",
                     stacklevel=2,
                 )
-
-            if val.HALO_STOCHASTICITY:
-                if self.user_params.PERTURB_ON_HIGH_RES:
-                    msg = (
-                        "Since the lowres density fields are required for the halo sampler"
-                        "We are currently unable to use PERTURB_ON_HIGH_RES and HALO_STOCHASTICITY"
-                        "Simultaneously."
+            if self.matter_options.USE_HALO_FIELD:
+                if val.PHOTON_CONS_TYPE == "z-photoncons":
+                    raise ValueError(
+                        "USE_HALO_FIELD is not compatible with the redshift-based"
+                        " photon conservation corrections (PHOTON_CONS_TYPE=='z_photoncons')! "
                     )
-                    raise NotImplementedError(msg)
-
-                if self.user_params.USE_INTERPOLATION_TABLES != "hmf-interpolation":
-                    msg = (
-                        "The halo sampler enabled with HALO_STOCHASTICITY requires the use of HMF interpolation tables."
-                        "Switch USE_INTERPOLATION_TABLES to 'hmf-interpolation' to use the halo sampler."
+                """Raise an error if USE_HALO_FIELD is True and USE_MASS_DEPENDENT_ZETA is False."""
+                if not val.USE_MASS_DEPENDENT_ZETA:
+                    raise ValueError(
+                        "You have set USE_MASS_DEPENDENT_ZETA to False but USE_HALO_FIELD is True! "
                     )
-                    raise ValueError(msg)
-            if val.USE_HALO_FIELD and self.user_params.HMF not in ["ST", "PS"]:
-                msg = (
-                    "The conditional mass functions requied for the halo field are only currently"
-                    "available for the Sheth-Tormen and Press-Schechter mass functions., use HMF='ST' or 'PS'"
+            else:
+                if val.USE_UPPER_STELLAR_TURNOVER:
+                    raise NotImplementedError(
+                        "USE_UPPER_STELLAR_TURNOVER is not yet implemented for when USE_HALO_FIELD is False"
+                    )
+                if val.USE_EXP_FILTER:
+                    raise ValueError(
+                        "USE_EXP_FILTER is not compatible with USE_HALO_FIELD == False"
+                    )
+            if self.matter_options.HMF not in ["PS", "ST"]:
+                warnings.warn(
+                    "A selection of a mass function other than Press-Schechter or Sheth-Tormen will"
+                    "Result in the use of the EPS conditional mass function, normalised the unconditional"
+                    "mass function provided by the user as matter_options.HMF",
+                    stacklevel=2,
                 )
-                raise NotImplementedError(msg)
+            elif (
+                val.INTEGRATION_METHOD_ATOMIC == "GAMMA-APPROX"
+                or val.INTEGRATION_METHOD_ATOMIC == "GAMMA-APPROX"
+            ) and self.matter_options.HMF != 0:
+                warnings.warn(
+                    "The 'GAMMA-APPROX' integration method uses the EPS conditional mass function"
+                    "normalised to the unconditional mass function provided by the user as matter_options.HMF",
+                    stacklevel=2,
+                )
 
     @astro_params.validator
     def _astro_params_validator(self, att, val):
-        if val.R_BUBBLE_MAX > self.user_params.BOX_LEN:
-            raise InputCrossValidationError(
-                f"R_BUBBLE_MAX is larger than BOX_LEN ({val.R_BUBBLE_MAX} > {self.user_params.BOX_LEN}). This is not allowed."
-            )
+        if self.simulation_options is not None:
+            if val.R_BUBBLE_MAX > self.simulation_options.BOX_LEN:
+                raise InputCrossValidationError(
+                    f"R_BUBBLE_MAX is larger than BOX_LEN ({val.R_BUBBLE_MAX} > {self.simulation_options.BOX_LEN}). This is not allowed."
+                )
 
-        if val.R_BUBBLE_MAX != 50 and self.flag_options.INHOMO_RECO:
-            warnings.warn(
-                "You are setting R_BUBBLE_MAX != 50 when INHOMO_RECO=True. "
-                "This is non-standard (but allowed), and usually occurs upon manual "
-                "update of INHOMO_RECO",
-                stacklevel=2,
-            )
+        if self.astro_options is not None:
+            if val.R_BUBBLE_MAX != 50 and self.astro_options.INHOMO_RECO:
+                warnings.warn(
+                    "You are setting R_BUBBLE_MAX != 50 when INHOMO_RECO=True. "
+                    "This is non-standard (but allowed), and usually occurs upon manual "
+                    "update of INHOMO_RECO",
+                    stacklevel=2,
+                )
 
-        if val.M_TURN > 8 and self.flag_options.USE_MINI_HALOS:
-            warnings.warn(
-                "You are setting M_TURN > 8 when USE_MINI_HALOS=True. "
-                "This is non-standard (but allowed), and usually occurs upon manual "
-                "update of M_TURN",
-                stacklevel=2,
-            )
+            if val.M_TURN > 8 and self.astro_options.USE_MINI_HALOS:
+                warnings.warn(
+                    "You are setting M_TURN > 8 when USE_MINI_HALOS=True. "
+                    "This is non-standard (but allowed), and usually occurs upon manual "
+                    "update of M_TURN",
+                    stacklevel=2,
+                )
 
-        if (
-            self.flag_options.HII_FILTER == "sharp-k"
-            and val.R_BUBBLE_MAX > self.user_params.BOX_LEN / 3
-        ):
-            msg = (
-                "Your R_BUBBLE_MAX is > BOX_LEN/3 "
-                f"({val.R_BUBBLE_MAX} > {self.user_params.BOX_LEN / 3})."
-            )
+        if self.simulation_options is not None:
+            if (
+                self.astro_options.HII_FILTER == "sharp-k"
+                and val.R_BUBBLE_MAX > self.simulation_options.BOX_LEN / 3
+            ):
+                msg = (
+                    "Your R_BUBBLE_MAX is > BOX_LEN/3 "
+                    f"({val.R_BUBBLE_MAX} > {self.simulation_options.BOX_LEN / 3})."
+                )
 
-            if config["ignore_R_BUBBLE_MAX_error"]:
-                warnings.warn(msg, stacklevel=2)
-            else:
-                raise ValueError(msg)
+                if config["ignore_R_BUBBLE_MAX_error"]:
+                    warnings.warn(msg, stacklevel=2)
+                else:
+                    raise ValueError(msg)
 
-    @user_params.validator
-    def _user_params_validator(self, att, val):
+    @simulation_options.validator
+    def _simulation_options_validator(self, att, val):
         # perform a very rudimentary check to see if we are underresolved and not using the linear approx
-        if val.BOX_LEN > val.DIM and self.user_params.PERTURB_ALGORITHM != "LINEAR":
-            warnings.warn(
-                "Resolution is likely too low for accurate evolved density fields\n It Is recommended"
-                + "that you either increase the resolution (DIM/BOX_LEN) or"
-                + "set the EVOLVE_DENSITY_LINEARLY flag to 1",
-                stacklevel=2,
-            )
+        if self.matter_options is not None:
+            if (
+                val.BOX_LEN > val.DIM
+                and self.matter_options.PERTURB_ALGORITHM != "LINEAR"
+            ):
+                warnings.warn(
+                    "Resolution is likely too low for accurate evolved density fields\n It Is recommended"
+                    + "that you either increase the resolution (DIM/BOX_LEN) or"
+                    + "set the EVOLVE_DENSITY_LINEARLY flag to 1",
+                    stacklevel=2,
+                )
 
     def __getitem__(self, key):
         """Get an item from the instance in a dict-like manner."""
@@ -1362,7 +1405,13 @@ class InputParameters:
         and only overwrites those sub-fields instead of the entire field
         """
         struct_args = {}
-        for inp_type in ("cosmo_params", "user_params", "astro_params", "flag_options"):
+        for inp_type in (
+            "cosmo_params",
+            "simulation_options",
+            "matter_options",
+            "astro_params",
+            "astro_options",
+        ):
             obj = getattr(self, inp_type)
             struct_args[inp_type] = obj.clone(
                 **{k: v for k, v in kwargs.items() if hasattr(obj, k)}
@@ -1396,15 +1445,25 @@ class InputParameters:
         """
         return (
             f"cosmo_params: {self.cosmo_params!r}\n"
-            + f"user_params: {self.user_params!r}\n"
+            + f"simulation_options: {self.simulation_options!r}\n"
+            + f"matter_options: {self.matter_options!r}\n"
             + f"astro_params: {self.astro_params!r}\n"
-            + f"flag_options: {self.flag_options!r}\n"
+            + f"astro_options: {self.astro_options!r}\n"
         )
 
+    # NOTE: These hashes are used to compare structs within a run, and so don't need to stay
+    #   constant between sessions
     @cached_property
     def _user_cosmo_hash(self):
         """A hash generated from the user and cosmo params as well random seed."""
-        return hash((self.random_seed, self.user_params, self.cosmo_params))
+        return hash(
+            (
+                self.random_seed,
+                self.simulation_options,
+                self.matter_options,
+                self.cosmo_params,
+            )
+        )
 
     @cached_property
     def _zgrid_hash(self):
@@ -1418,7 +1477,7 @@ class InputParameters:
     def evolution_required(self) -> bool:
         """Whether evolution is required for these parameters."""
         return (
-            self.flag_options.USE_TS_FLUCT
-            or self.flag_options.INHOMO_RECO
-            or self.flag_options.USE_MINI_HALOS
+            self.astro_options.USE_TS_FLUCT
+            or self.astro_options.INHOMO_RECO
+            or self.astro_options.USE_MINI_HALOS
         )

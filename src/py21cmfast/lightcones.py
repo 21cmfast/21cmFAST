@@ -18,9 +18,10 @@ from scipy.spatial.transform import Rotation
 
 from .drivers.coeval import Coeval
 from .wrapper.inputs import (
-    FlagOptions,
+    AstroOptions,
+    MatterOptions,
     Planck18,  # Not *quite* the same as astropy's Planck18
-    UserParams,
+    SimulationOptions,
 )
 
 _LIGHTCONERS = {}
@@ -98,9 +99,9 @@ class Lightconer(ABC):
 
     @interp_kinds.default
     def _interp_kinds_def(self):
-        return {"z_re_box": "mean_max"}
+        return {"z_reion": "mean_max"}
 
-    def get_shape(self, user_params: UserParams) -> tuple[int, int, int]:
+    def get_shape(self, simulation_options: SimulationOptions) -> tuple[int, int, int]:
         """Get the shape of the lightcone slices."""
         raise NotImplementedError
 
@@ -171,13 +172,13 @@ class Lightconer(ABC):
             The scalar fields evaluated on the "lightcone" slices that exist within
             the redshift range spanned by ``c1`` and ``c2``.
         """
-        if c1.user_params != c2.user_params:
+        if c1.simulation_options != c2.simulation_options:
             raise ValueError("c1 and c2 must have the same user parameters")
         if c1.cosmo_params != c2.cosmo_params:
             raise ValueError("c1 and c2 must have the same cosmological parameters")
 
         cosmo = c1.cosmo_params.cosmo
-        pixeleq = pixel_scale(c1.user_params.cell_size / pixel)
+        pixeleq = pixel_scale(c1.simulation_options.cell_size / pixel)
 
         dc1 = cosmo.comoving_distance(c1.redshift).to(pixel, equivalencies=pixeleq)
         dc2 = cosmo.comoving_distance(c2.redshift).to(pixel, equivalencies=pixeleq)
@@ -185,7 +186,7 @@ class Lightconer(ABC):
         dcmin = min(dc1, dc2)
         dcmax = max(dc1, dc2)
 
-        pixlcdist = self.get_lc_distances_in_pixels(c1.user_params.cell_size)
+        pixlcdist = self.get_lc_distances_in_pixels(c1.simulation_options.cell_size)
 
         # At the lower redshift, we include some tolerance. This is because the very
         # last slice (lowest redshift) may correspond *exactly* to the lowest coeval
@@ -204,10 +205,10 @@ class Lightconer(ABC):
                 if q == "los_velocity":
                     continue
                 box1 = self.coeval_subselect(
-                    lcd, getattr(c1, q), c1.user_params.cell_size
+                    lcd, getattr(c1, q), c1.simulation_options.cell_size
                 )
                 box2 = self.coeval_subselect(
-                    lcd, getattr(c2, q), c2.user_params.cell_size
+                    lcd, getattr(c2, q), c2.simulation_options.cell_size
                 )
                 box = self.redshift_interpolation(
                     lcd, box1, box2, dc1, dc2, kind=self.interp_kinds.get(q, "mean")
@@ -222,13 +223,13 @@ class Lightconer(ABC):
                     if isinstance(self,AngularLightconer):
                         boxes1 = [
                             self.coeval_subselect(
-                                lcd, getattr(c1, f"velocity_{q}"), c1.user_params.cell_size
+                                lcd, getattr(c1, f"velocity_{q}"), c1.simulation_options.cell_size
                             )
                             for q in "xyz"
                         ]
                         boxes2 = [
                             self.coeval_subselect(
-                                lcd, getattr(c2, f"velocity_{q}"), c2.user_params.cell_size
+                                lcd, getattr(c2, f"velocity_{q}"), c2.simulation_options.cell_size
                             )
                             for q in "xyz"
                         ]
@@ -247,10 +248,10 @@ class Lightconer(ABC):
                     else:
                         # TODO: get the correct component according to self.line_of_sight_axis
                         box1 = self.coeval_subselect(
-                            lcd, getattr(c1, "velocity_z"), c1.user_params.cell_size
+                            lcd, getattr(c1, "velocity_z"), c1.simulation_options.cell_size
                         )
                         box2 = self.coeval_subselect(
-                            lcd, getattr(c2, "velocity_z"), c2.user_params.cell_size
+                            lcd, getattr(c2, "velocity_z"), c2.simulation_options.cell_size
                         )
                         interpolated_boxes = self.redshift_interpolation(
                             lcd, box1, box2, dc1, dc2, kind=self.interp_kinds.get("velocity_z", "mean")
@@ -311,12 +312,14 @@ class Lightconer(ABC):
     ) -> np.ndarray:
         """Abstract method for constructing the LoS velocity lightcone slices."""
 
-    def validate_options(self, user_params: UserParams, flag_options: FlagOptions):
+    def validate_options(
+        self, matter_options: MatterOptions, astro_options: AstroOptions
+    ):
         """Validate 21cmFAST options."""
-        if flag_options.APPLY_RSDS:
+        if astro_options.APPLY_RSDS:
             if not "los_velocity" in self.quantities:
                 self.quantities += ("los_velocity",)
-            if flag_options.USE_TS_FLUCT and not "tau_21" in self.quantities:
+            if astro_options.USE_TS_FLUCT and not "tau_21" in self.quantities:
                 self.quantities += ("tau_21",)
 
     def __init_subclass__(cls) -> None:
@@ -366,9 +369,13 @@ class RectilinearLightconer(Lightconer):
         """Construct slices of the lightcone between two coevals."""
         return velocity
 
-    def get_shape(self, user_params: UserParams) -> tuple[int, int, int]:
+    def get_shape(self, simulation_options: SimulationOptions) -> tuple[int, int, int]:
         """Get the shape of the lightcone."""
-        return (user_params.HII_DIM, user_params.HII_DIM, len(self.lc_distances))
+        return (
+            simulation_options.HII_DIM,
+            simulation_options.HII_DIM,
+            len(self.lc_distances),
+        )
 
 
 def _rotation_eq(x, y):
@@ -417,7 +424,11 @@ class AngularLightconer(Lightconer):
 
     @classmethod
     def like_rectilinear(
-        cls, user_params: UserParams, match_at_z: float, cosmo: FLRW = Planck18, **kw
+        cls,
+        simulation_options: SimulationOptions,
+        match_at_z: float,
+        cosmo: FLRW = Planck18,
+        **kw,
     ):
         """Create an angular lightconer with the same pixel size as a rectilinear one.
 
@@ -425,7 +436,7 @@ class AngularLightconer(Lightconer):
 
         Parameters
         ----------
-        user_params
+        simulation_options
             The user parameters.
         match_at_z
             The redshift at which the angular lightconer should match the rectilinear
@@ -443,26 +454,26 @@ class AngularLightconer(Lightconer):
             The angular lightconer.
         """
         box_size_radians = (
-            user_params.BOX_LEN / cosmo.comoving_distance(match_at_z).value
+            simulation_options.BOX_LEN / cosmo.comoving_distance(match_at_z).value
         )
 
-        lon = np.linspace(0, box_size_radians, user_params.HII_DIM)
+        lon = np.linspace(0, box_size_radians, simulation_options.HII_DIM)
         # This makes the X-values increasing from 0.
-        lat = np.linspace(0, box_size_radians, user_params.HII_DIM)[::-1]
+        lat = np.linspace(0, box_size_radians, simulation_options.HII_DIM)[::-1]
 
         LON, LAT = np.meshgrid(lon, lat)
         LON = LON.flatten()
         LAT = LAT.flatten()
 
         origin_offset = -cosmo.comoving_distance(match_at_z).to(
-            pixel, pixel_scale(user_params.cell_size / pixel)
+            pixel, pixel_scale(simulation_options.cell_size / pixel)
         )
         origin = np.array([0, 0, origin_offset.value]) * origin_offset.unit
         rot = Rotation.from_euler("Y", -np.pi / 2)
 
         return cls.with_equal_cdist_slices(
             min_redshift=match_at_z,
-            resolution=user_params.cell_size,
+            resolution=simulation_options.cell_size,
             latitude=LAT,
             longitude=LON,
             origin=origin,
@@ -507,20 +518,20 @@ class AngularLightconer(Lightconer):
         self._cache["interpolator"] = result
         return result
 
-    def get_shape(self, user_params: UserParams) -> tuple[int, int]:
+    def get_shape(self, simulation_options: SimulationOptions) -> tuple[int, int]:
         """Get the shape of the lightcone slices."""
         return (len(self.longitude), len(self.lc_redshifts))
 
-    def validate_options(self, user_params: UserParams, flag_options: FlagOptions):
+    def validate_options(self, matter_options: MatterOptions, astro_options: AstroOptions):
         """Validate 21cmFAST options."""
         
-        if flag_options.APPLY_RSDS:
-            if not user_params.KEEP_3D_VELOCITIES:
+        if astro_options.APPLY_RSDS:
+            if not matter_options.KEEP_3D_VELOCITIES:
                 raise ValueError(
                     "To account for RSDs in an angular lightcone, you need to set "
-                    "user_params.KEEP_3D_VELOCITIES=True"
+                    "matter_options.KEEP_3D_VELOCITIES=True"
                 )
             if not "los_velocity" in self.quantities:
                 self.quantities += ("los_velocity",)
-            if flag_options.USE_TS_FLUCT and not "tau_21" in self.quantities:
+            if astro_options.USE_TS_FLUCT and not "tau_21" in self.quantities:
                 self.quantities += ("tau_21",)

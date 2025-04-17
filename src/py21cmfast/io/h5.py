@@ -14,9 +14,10 @@ structure::
         /attrs/
           |-- 21cmFAST-version
           |-- random_seed
-        /user_params/
+        /simulation_options/
+        /matter_options/
         /cosmo_params/
-        /flag_options/
+        /astro_options/
         /astro_params/
         /node_redshifts/
       /OutputFields/
@@ -94,13 +95,13 @@ def write_output_to_hdf5(
 
 
 def write_input_struct(struct, fl: h5py.File | h5py.Group) -> None:
-    """Write a particular input struct (e.g. UserParams) to an HDF5 file."""
+    """Write a particular input struct (e.g. SimulationOptions) to an HDF5 file."""
     dct = struct.asdict()
 
     for kk, v in dct.items():
         try:
             fl.attrs[kk] = "none" if v is None else v
-        except TypeError as e:  # noqa: PERF203
+        except TypeError as e:
             raise TypeError(
                 f"key {kk} with value {v} is not able to be written to HDF5 attrs!"
             ) from e
@@ -134,10 +135,13 @@ def _write_inputs_to_group(
     # Write 21cmFAST version to the file
     grp.attrs["21cmFAST-version"] = __version__
 
-    write_input_struct(inputs.user_params, grp.create_group("user_params"))
+    write_input_struct(
+        inputs.simulation_options, grp.create_group("simulation_options")
+    )
+    write_input_struct(inputs.matter_options, grp.create_group("matter_options"))
     write_input_struct(inputs.cosmo_params, grp.create_group("cosmo_params"))
     write_input_struct(inputs.astro_params, grp.create_group("astro_params"))
-    write_input_struct(inputs.flag_options, grp.create_group("flag_options"))
+    write_input_struct(inputs.astro_options, grp.create_group("astro_options"))
 
     grp.attrs["random_seed"] = inputs.random_seed
     grp["node_redshifts"] = (
@@ -187,7 +191,7 @@ def write_outputs_to_group(
     for k in output.struct.primitive_fields:
         try:
             group.attrs[k] = getattr(output, k)
-        except TypeError as e:  # noqa: PERF203
+        except TypeError as e:
             raise TypeError(f"Error writing attribute {k} to HDF5") from e
 
     group.attrs["21cmFAST-version"] = __version__
@@ -293,42 +297,12 @@ def read_inputs(
             stacklevel=2,
         )
 
-    if file_version is None:
-        # pre-v4 file
-        out = _read_inputs_pre_v4(group, safe=safe)
-    else:
-        out = _read_inputs_v4(group, safe=safe)
+    out = _read_inputs_v4(group, safe=safe)
 
     if close_after:
         file.close()
 
     return out
-
-
-def _read_inputs_pre_v4(group: h5py.Group, safe: bool = True):
-    input_classes = [
-        istruct.UserParams,
-        istruct.CosmoParams,
-        istruct.AstroParams,
-        istruct.FlagOptions,
-    ]
-    input_class_names = [cls.__name__ for cls in input_classes]
-
-    # Read the input parameter dictionaries from file.
-    kwargs = {}
-    for k in attrs.fields_dict(InputParameters):
-        kfile = k.lstrip("_")
-        input_class_name = snake_to_camel(kfile)
-
-        if input_class_name in input_class_names:
-            kls = input_classes[input_class_names.index(input_class_name)]
-
-            subgrp = group[kfile]
-            dct = dict(subgrp.attrs)
-            kwargs[k] = kls.from_subdict(dct, safe=safe)
-        else:
-            kwargs[k] = group.attrs[kfile]
-    return InputParameters(**kwargs)
 
 
 def _read_inputs_v4(group: h5py.Group, safe: bool = True):
@@ -361,14 +335,11 @@ def _read_outputs(group: h5py.Group):
             f"File created with a newer version of 21cmFAST than this. Reading may break. Consider updating 21cmFAST to at least {file_version}",
             stacklevel=2,
         )
-    if file_version is None:
-        # pre-v4 file
-        return _read_outputs_pre_v4(group)
     else:
         return _read_outputs_v4(group)
 
 
-def _read_outputs_pre_v4(group: h5py.Group):
+def _read_outputs_v4(group: h5py.Group):
     arrays = {
         name: Array(
             dtype=box.dtype,
@@ -385,8 +356,3 @@ def _read_outputs_pre_v4(group: h5py.Group):
         arrays[k] = val
 
     return arrays
-
-
-def _read_outputs_v4(group: h5py.Group):
-    # I actually think the reader is the same in v4.
-    return _read_outputs_pre_v4(group)

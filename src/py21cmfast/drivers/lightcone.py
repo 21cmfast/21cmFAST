@@ -82,14 +82,14 @@ class LightCone:
     @property
     def cell_size(self) -> float:
         """Cell size [Mpc] of the lightcone voxels."""
-        return self.user_params.BOX_LEN / self.user_params.HII_DIM
+        return self.simulation_options.BOX_LEN / self.simulation_options.HII_DIM
 
     @property
     def lightcone_dimensions(self) -> tuple[float, float, float]:
         """Lightcone size over each dimension -- tuple of (x,y,z) in Mpc."""
         return (
-            self.user_params.BOX_LEN,
-            self.user_params.BOX_LEN,
+            self.simulation_options.BOX_LEN,
+            self.simulation_options.BOX_LEN,
             self.n_slices * self.cell_size,
         )
 
@@ -109,9 +109,14 @@ class LightCone:
         return self.lightcone_distances - self.lightcone_distances[0]
 
     @property
-    def user_params(self):
-        """User params shared by all datasets."""
-        return self.inputs.user_params
+    def simulation_options(self):
+        """Matter params shared by all datasets."""
+        return self.inputs.simulation_options
+
+    @property
+    def matter_options(self):
+        """Matter flags shared by all datasets."""
+        return self.inputs.matter_options
 
     @property
     def cosmo_params(self):
@@ -119,9 +124,9 @@ class LightCone:
         return self.inputs.cosmo_params
 
     @property
-    def flag_options(self):
+    def astro_options(self):
         """Flag Options shared by all datasets."""
-        return self.inputs.flag_options
+        return self.inputs.astro_options
 
     @property
     def astro_params(self):
@@ -257,7 +262,7 @@ class LightCone:
 
         H0 = self.cosmo_params.cosmo.H(self.lightcone_redshifts)
         los_displacement = self.lightcones["los_velocity"] * units.Mpc / units.s / H0
-        equiv = units.pixel_scale(self.user_params.cell_size / units.pixel)
+        equiv = units.pixel_scale(self.simulation_options.cell_size / units.pixel)
         los_displacement = -los_displacement.to(units.pixel, equivalencies=equiv)
 
         lcd = self.lightcone_distances.to(units.pixel, equiv)
@@ -270,7 +275,7 @@ class LightCone:
                             out=dvdx_on_h,
                         )
 
-        if not self.flag_options.USE_TS_FLUCT:
+        if not self.astro_options.USE_TS_FLUCT:
             tb_with_rsds = self.lightcones["brightness_temp"] / (1 + dvdx_on_h)
         else:
             tb_no_rsds = self.lightcones["brightness_temp"]
@@ -283,7 +288,7 @@ class LightCone:
             tb_with_rsds = tb_no_rsds*rsd_factor
 
         # Compute the local RSDs
-        if self.flag_options.SUBCELL_RSD and n_subcells > 0:
+        if self.astro_options.SUBCELL_RSD and n_subcells > 0:
             # We transform rectilinear lightcone to be an angular-like lightcone
             if not isinstance(self, AngularLightcone):
                 tb_with_rsds = tb_with_rsds.reshape((tb_with_rsds.shape[0]*tb_with_rsds.shape[1], -1))
@@ -351,7 +356,7 @@ def setup_lightcone_instance(
         )
         lc = {
             quantity: np.zeros(
-                lightconer.get_shape(inputs.user_params),
+                lightconer.get_shape(inputs.simulation_options),
                 dtype=np.float32,
             )
             for quantity in lightconer.quantities
@@ -378,7 +383,7 @@ def _run_lightcone_from_perturbed_fields(
     photon_nonconservation_data: dict,
     pt_halos: list[PerturbHaloField],
     regenerate: bool | None = None,
-    global_quantities: tuple[str] = ("brightness_temp", "xH_box"),
+    global_quantities: tuple[str] = ("brightness_temp", "neutral_fraction"),
     cache: OutputCache = _ocache,
     cleanup: bool = True,
     write: CacheConfig = _cache,
@@ -387,7 +392,7 @@ def _run_lightcone_from_perturbed_fields(
 ):
     original_lcs_list = list(lightconer.quantities)
 
-    lightconer.validate_options(inputs.user_params, inputs.flag_options)
+    lightconer.validate_options(inputs.user_params, inputs.astro_options)
 
     # Get the redshift through which we scroll and evaluate the ionization field.
     scrollz = np.array([pf.redshift for pf in perturbed_fields])
@@ -497,7 +502,7 @@ def _run_lightcone_from_perturbed_fields(
             if lib.photon_cons_allocated:
                 lib.FreePhotonConsMemory()
 
-            if inputs.flag_options.APPLY_RSDS:
+            if inputs.astro_options.APPLY_RSDS:
                 lightcone.compute_rsds(
                     fname=lightcone_filename, n_subcells=inputs.astro_params.N_RSD_STEPS
                 )
@@ -512,7 +517,7 @@ def _run_lightcone_from_perturbed_fields(
             #       and will be different for each cell in the lightcone box (e.g. tau_reio is smaller during reionization).
             tau_reio = 0.0544
             lightcone.lightcones["brightness_temp"] *= np.exp(-tau_reio)
-            if inputs.flag_options.APPLY_RSDS:
+            if inputs.astro_options.APPLY_RSDS:
                 lightcone.lightcones["brightness_temp_with_rsds"] *= np.exp(-tau_reio)
 
         yield iz, coeval.redshift, coeval, lightcone
@@ -523,7 +528,7 @@ def generate_lightcone(
     *,
     lightconer: Lightconer,
     inputs: InputParameters,
-    global_quantities=("brightness_temp", "xH_box"),
+    global_quantities=("brightness_temp", "neutral_fraction"),
     initial_conditions: InitialConditions | None = None,
     cleanup: bool = True,
     write: CacheConfig = _cache,

@@ -1,7 +1,8 @@
 """Test CLI functionality."""
 
+import tomllib
+
 import pytest
-import yaml
 from click.testing import CliRunner
 
 from py21cmfast import InitialConditions, cli
@@ -14,11 +15,54 @@ def runner():
 
 
 @pytest.fixture(scope="module")
-def cfg(default_user_params, default_flag_options, tmpdirec):
-    with (tmpdirec / "cfg.yml").open("w") as f:
-        yaml.dump({"user_params": default_user_params.asdict()}, f)
-        yaml.dump({"flag_options": default_flag_options.asdict()}, f)
-    return tmpdirec / "cfg.yml"
+def cfg(
+    default_cosmo_params,
+    default_simulation_options,
+    default_matter_options,
+    default_astro_params,
+    default_astro_options,
+    tmpdirec,
+):
+    # NOTE:tomllib doesn't have dump?
+    def toml_print(val):
+        if isinstance(val, str):
+            return f'"{val}"'
+        elif isinstance(val, bool):
+            return str(val).casefold()
+        return val
+
+    with (tmpdirec / "cfg.toml").open("w") as f:
+        f.write("[CosmoParams]\n")
+        [
+            f.write(f"{k} = {toml_print(v)}\n")
+            for k, v in default_cosmo_params.asdict().items()
+        ]
+        f.write("\n")
+        f.write("[SimulationOptions]\n")
+        [
+            f.write(f"{k} = {toml_print(v)}\n")
+            for k, v in default_simulation_options.asdict().items()
+        ]
+        f.write("\n")
+        f.write("[MatterOptions]\n")
+        [
+            f.write(f"{k} = {toml_print(v)}\n")
+            for k, v in default_matter_options.asdict().items()
+        ]
+        f.write("\n")
+        f.write("[AstroParams]\n")
+        [
+            f.write(f"{k} = {toml_print(v)}\n")
+            for k, v in default_astro_params.asdict().items()
+        ]
+        f.write("\n")
+        f.write("[AstroOptions]\n")
+        [
+            f.write(f"{k} = {toml_print(v)}\n")
+            for k, v in default_astro_options.asdict().items()
+        ]
+        f.write("\n")
+    return tmpdirec / "cfg.toml"
 
 
 def test_init(module_direc, default_input_struct, runner, cfg):
@@ -27,7 +71,16 @@ def test_init(module_direc, default_input_struct, runner, cfg):
     # directory and check that it exists. It gets auto-deleted after.
     result = runner.invoke(
         cli.main,
-        ["init", "--direc", str(module_direc), "--seed", "101010", "--config", cfg],
+        [
+            "init",
+            "--direc",
+            str(module_direc),
+            "--seed",
+            "101010",
+            "--config",
+            cfg,
+            "--regen",
+        ],
     )
 
     if result.exception:
