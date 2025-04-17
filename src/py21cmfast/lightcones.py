@@ -216,7 +216,7 @@ class Lightconer(ABC):
 
                 yield q, idx, self.construct_lightcone(lcd, box)
 
-                if "los_velocity" in self.quantities and q == self.quantities[0]:
+                if c1.astro_options.APPLY_RSDS and q == self.quantities[0]:
                     # While doing the first quantity, also add in the los velocity, if desired.
                     # Doing it now means we can keep whatever cached interpolation setup
                     # is used to do construct_lightcone().
@@ -316,11 +316,6 @@ class Lightconer(ABC):
         self, matter_options: MatterOptions, astro_options: AstroOptions
     ):
         """Validate 21cmFAST options."""
-        if astro_options.APPLY_RSDS:
-            if not "los_velocity" in self.quantities:
-                self.quantities += ("los_velocity",)
-            if astro_options.USE_TS_FLUCT and not "tau_21" in self.quantities:
-                self.quantities += ("tau_21",)
 
     def __init_subclass__(cls) -> None:
         """Enabe plugin-style behaviour."""
@@ -531,7 +526,3 @@ class AngularLightconer(Lightconer):
                     "To account for RSDs in an angular lightcone, you need to set "
                     "matter_options.KEEP_3D_VELOCITIES=True"
                 )
-            if not "los_velocity" in self.quantities:
-                self.quantities += ("los_velocity",)
-            if astro_options.USE_TS_FLUCT and not "tau_21" in self.quantities:
-                self.quantities += ("tau_21",)

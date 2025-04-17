@@ -56,7 +56,6 @@ def equal_z_angle():
         max_redshift=7.0,
         resolution=2 * un.Mpc,
         quantities=("brightness_temp",),
-        get_los_velocity=True,
     )
 
 
@@ -277,13 +276,8 @@ def test_rotation_equality():
 
 
 def test_validation_options_angular(equal_z_angle):
-    with pytest.raises(ValueError, match="APPLY_RSDs must be False"):
-        equal_z_angle.validate_options(
-            astro_options=AstroOptions(APPLY_RSDS=True), matter_options=MatterOptions()
-        )
-
-    with pytest.raises(ValueError, match="To get the LoS velocity, you need to set"):
+    with pytest.raises(ValueError, match="To account for RSDs in an angular lightcone, you need to set"):
         equal_z_angle.validate_options(
             matter_options=MatterOptions(KEEP_3D_VELOCITIES=False),
-            astro_options=AstroOptions(APPLY_RSDS=False),
+            astro_options=AstroOptions(APPLY_RSDS=True),
         )

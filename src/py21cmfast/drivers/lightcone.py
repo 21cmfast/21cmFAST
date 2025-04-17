@@ -390,6 +390,16 @@ def setup_lightcone_instance(
             )
             for quantity in lightconer.quantities
         }
+        
+        if inputs.astro_options.APPLY_RSDS:
+            lc["los_velocity"] = np.zeros(
+                lightconer.get_shape(inputs.simulation_options), dtype=np.float32
+            )
+            if inputs.astro_options.USE_TS_FLUCT:
+                lc["tau_21"] = np.zeros(
+                lightconer.get_shape(inputs.simulation_options), dtype=np.float32
+            )
+            
 
         lightcone = lcn_cls(
             lightcone_distances=lightconer.lc_distances,
@@ -420,9 +430,7 @@ def _run_lightcone_from_perturbed_fields(
     progressbar: bool = False,
     lightcone_filename: str | Path | None = None,
 ):
-    original_lcs_list = list(lightconer.quantities)
-
-    lightconer.validate_options(inputs.user_params, inputs.astro_options)
+    lightconer.validate_options(inputs.matter_options, inputs.astro_options)
 
     # Get the redshift through which we scroll and evaluate the ionization field.
     scrollz = np.array([pf.redshift for pf in perturbed_fields])
@@ -537,10 +545,6 @@ def _run_lightcone_from_perturbed_fields(
                 lightcone.compute_rsds(
                     fname=lightcone_filename, n_subcells=inputs.astro_params.N_RSD_STEPS
                 )
-                for q in ["los_velocity", "tau_21"]:
-                    if not q in original_lcs_list and q in lightcone.lightcones.keys():
-                        lightcone.lightcones.pop(q)
-
             
             # Include attenuation by tau_reio
             # For now, we use a fixed value for tau_reio (should enter cosmo_params in the future)
