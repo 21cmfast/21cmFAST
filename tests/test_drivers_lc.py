@@ -31,13 +31,20 @@ def test_lightcone_quantities(
         resolution=ic.simulation_options.cell_size,
         cosmo=ic.cosmo_params.cosmo,
         quantities=(
-            "cumulative_recombinations",
             "density",
             "brightness_temp",
             "ionisation_rate_G12",
         ),
     )
 
+    with pytest.raises(ValueError, match="You asked for"):
+        _, _, _, lc = p21c.run_lightcone(
+            lightconer=lcn,
+            initial_conditions=ic,
+            inputs=default_input_struct_lc,
+            global_quantities=("cumulative_recombinations"),
+            cache=cache,
+        )
     _, _, _, lc = p21c.run_lightcone(
         lightconer=lcn,
         initial_conditions=ic,
@@ -51,7 +58,6 @@ def test_lightcone_quantities(
         cache=cache,
     )
 
-    assert "cumulative_recombinations" in lc.lightcones
     assert "density" in lc.lightcones
     assert "brightness_temp" in lc.lightcones
     assert "ionisation_rate_G12" in lc.lightcones
@@ -59,13 +65,6 @@ def test_lightcone_quantities(
     assert "density" in lc.global_quantities
     assert "log10_mturn_acg" in lc.global_quantities
     assert "log10_mturn_mcg" in lc.global_quantities
-
-    # dNrec is not filled because we're not doing INHOMO_RECO
-    assert (
-        lc.lightcones["cumulative_recombinations"].max()
-        == lc.lightcones["cumulative_recombinations"].min()
-        == 0
-    )
 
     # density should be filled with not zeros.
     assert lc.lightcones["density"].min() != lc.lightcones["density"].max() != 0

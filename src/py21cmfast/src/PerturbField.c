@@ -763,7 +763,9 @@ int ComputePerturbField(float redshift, InitialConditions *boxes, PerturbedField
                                               (unsigned long long)(k * f_pixel_factor + 0.5))) /
                                 (float)TOT_NUM_PIXELS;
 
-                            *((float *)LOWRES_density_perturb + HII_R_FFT_INDEX(i, j, k)) -= 1.;
+                            if (matter_options_global->PERTURB_ALGORITHM > 0) {
+                                *((float *)LOWRES_density_perturb + HII_R_FFT_INDEX(i, j, k)) -= 1.;
+                            }
 
                             if (*((float *)LOWRES_density_perturb + HII_R_FFT_INDEX(i, j, k)) <
                                 -1) {

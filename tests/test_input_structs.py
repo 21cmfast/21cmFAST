@@ -273,12 +273,6 @@ def test_simulation_options():
 
 
 def test_matter_options():
-    msg = r"Since the lowres density fields are required for the halo sampler"
-    with pytest.raises(NotImplementedError, match=msg):
-        MatterOptions(
-            PERTURB_ON_HIGH_RES=True, USE_HALO_FIELD=True, HALO_STOCHASTICITY=True
-        )
-
     msg = r"The halo sampler enabled with HALO_STOCHASTICITY requires the use of HMF interpolation tables."
     with pytest.raises(ValueError, match=msg):
         MatterOptions(

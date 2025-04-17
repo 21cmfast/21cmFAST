@@ -12,6 +12,7 @@ from typing import Any, Self, get_args
 import attrs
 import h5py
 import numpy as np
+import tqdm
 
 from .. import __version__
 from ..c_21cmfast import lib
@@ -237,6 +238,7 @@ def evolve_perturb_halos(
     cache: OutputCache,
     regenerate: bool,
     always_purge: bool = False,
+    progressbar: bool = False,
 ):
     """
     Evolve and perturb halo fields across multiple redshifts.
@@ -261,6 +263,8 @@ def evolve_perturb_halos(
         Flag to indicate whether to regenerate results or use cached values.
     always_purge : bool, optional
         If True, always purge temporary data. Defaults to False.
+    progressbar: bool, optional
+        If True, a progress bar will be displayed throughout the simulation. Defaults to False.
 
     Returns
     -------
@@ -278,7 +282,7 @@ def evolve_perturb_halos(
     if not write.perturbed_halo_field and len(all_redshifts) > 1:
         warnings.warn(
             "You have turned off caching for the perturbed halo fields, but are"
-            "evolving them across multiple redshifts. This will result in very high memory usage",
+            " evolving them across multiple redshifts. This will result in very high memory usage",
             stacklevel=2,
         )
 
@@ -289,7 +293,15 @@ def evolve_perturb_halos(
         "regenerate": regenerate,
     }
     halos_desc = None
-    for i, z in enumerate(all_redshifts[::-1]):
+    for i, z in enumerate(
+        tqdm.tqdm(
+            all_redshifts[::-1],
+            desc="Halos",
+            unit="redshift",
+            disable=not progressbar,
+            total=len(all_redshifts[::-1]),
+        )
+    ):
         halos = sf.determine_halo_list(
             redshift=z,
             descendant_halos=halos_desc,
@@ -327,6 +339,7 @@ def generate_coeval(
     initial_conditions: InitialConditions | None = None,
     cleanup: bool = True,
     always_purge: bool = False,
+    progressbar: bool = False,
 ):
     r"""
     Perform a full coeval simulation of all fields at given redshifts.
@@ -383,6 +396,8 @@ def generate_coeval(
     always_purge : bool, optional
         If True, always purge temporary data from memory, even if the boxes are not
         being cached. Defaults to False.
+    progressbar: bool, optional
+        If True, a progress bar will be displayed throughout the simulation. Defaults to False.
 
     Returns
     -------
@@ -421,6 +436,7 @@ def generate_coeval(
             initial_conditions=initial_conditions,
             write=write,
             always_purge=always_purge,
+            progressbar=progressbar,
             **iokw,
         )
     )
@@ -453,6 +469,7 @@ def generate_coeval(
         write=write,
         cleanup=cleanup,
         always_purge=always_purge,
+        progressbar=progressbar,
         iokw=iokw,
         init_coeval=coeval,
         start_idx=idx + 1,
@@ -531,6 +548,7 @@ def _redshift_loop_generator(
     iokw: dict,
     cleanup: bool,
     always_purge: bool,
+    progressbar: bool,
     photon_nonconservation_data: dict,
     start_idx: int = 0,
     init_coeval: Coeval | None = None,
@@ -553,7 +571,15 @@ def _redshift_loop_generator(
         "initial_conditions": initial_conditions,
     }
 
-    for iz, z in enumerate(all_redshifts):
+    for iz, z in enumerate(
+        tqdm.tqdm(
+            all_redshifts,
+            desc="Evolving Astrophysics",
+            unit="redshift",
+            disable=not progressbar,
+            total=len(all_redshifts),
+        )
+    ):
         if iz < start_idx:
             continue
 
@@ -581,6 +607,7 @@ def _redshift_loop_generator(
             hbox_arr += [this_halobox]
             if inputs.matter_options.USE_HALO_FIELD:
                 xrs = sf.compute_xray_source_field(
+                    redshift=z,
                     hboxes=hbox_arr,
                     write=write.xray_source_box,
                     **kw,
@@ -666,6 +693,7 @@ def _setup_ics_and_pfs_for_scrolling(
     inputs: InputParameters,
     write: CacheConfig,
     always_purge: bool,
+    progressbar: bool,
     **iokw,
 ) -> tuple[InitialConditions, PerturbedField, PerturbHaloField, dict]:
     if initial_conditions is None:
@@ -710,7 +738,13 @@ def _setup_ics_and_pfs_for_scrolling(
     # Get all the perturb boxes early. We need to get the perturb at every
     # redshift.
     perturbed_field = []
-    for z in all_redshifts:
+    for z in tqdm.tqdm(
+        all_redshifts,
+        desc="Perturbed Fields",
+        unit="redshift",
+        disable=not progressbar,
+        total=len(all_redshifts),
+    ):
         p = sf.perturb_field(redshift=z, write=write.perturbed_field, **kw)
 
         if inputs.matter_options.MINIMIZE_MEMORY:
@@ -723,6 +757,7 @@ def _setup_ics_and_pfs_for_scrolling(
         all_redshifts=all_redshifts,
         write=write,
         always_purge=always_purge,
+        progressbar=progressbar,
         **kw,
     )
     # Now we can purge initial_conditions further.
