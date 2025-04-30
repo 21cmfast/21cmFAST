@@ -20,6 +20,7 @@ from ..c_21cmfast import lib
 from ..io import h5
 from ..io.caching import CacheConfig, OutputCache, RunCache
 from ..lightcones import Lightconer, RectilinearLightconer
+from ..wrapper.rsd import compute_rsds
 from ..wrapper.inputs import InputParameters
 from ..wrapper.outputs import (
     BrightnessTemp,
@@ -246,84 +247,6 @@ class LightCone:
             and self.global_quantities.keys() == other.global_quantities.keys()
             and self.lightcones.keys() == other.lightcones.keys()
         )
-    
-    def compute_rsds(self, n_subcells: int = 4, fname: str | Path | None = None):
-        """Compute redshift-space distortions from the los_velocity lightcone.
-
-        Parameters
-        ----------
-        n_subcells
-            The number of sub-cells to interpolate onto, to make the RSDs more accurate.
-        fname
-            An output path to write the new RSD-corrected brightness temperature to.
-        """
-        if "los_velocity" not in self.lightcones:
-            raise ValueError(
-                "Lightcone does not contain los velocity field, cannot compute_rsds"
-            )
-        if "brightness_temp_with_rsds" in self.lightcones:
-            warnings.warn(
-                "Lightcone already contains brightness_temp_with_rsds, returning",
-                stacklevel=2,
-            )
-            return self.lightcones["brightness_temp_with_rsds"]
-
-        H0 = self.cosmo_params.cosmo.H(self.lightcone_redshifts)
-        los_displacement = self.lightcones["los_velocity"] * units.Mpc / units.s / H0
-        equiv = units.pixel_scale(self.simulation_options.cell_size / units.pixel)
-        los_displacement = -los_displacement.to(units.pixel, equivalencies=equiv)
-
-        lcd = self.lightcone_distances.to(units.pixel, equiv)
-        dvdx_on_h = np.gradient(los_displacement, lcd, axis=-1)
-        # Now, clip dvdx...
-        dvdx_on_h = np.clip(
-                            dvdx_on_h,
-                            -self.astro_params.MAX_DVDR,
-                            self.astro_params.MAX_DVDR,
-                            out=dvdx_on_h,
-                        )
-
-        if not self.astro_options.USE_TS_FLUCT:
-            tb_with_rsds = self.lightcones["brightness_temp"] / (1 + dvdx_on_h)
-        else:
-            tb_no_rsds = self.lightcones["brightness_temp"]
-            tau_21 = np.float64(self.lightcones["tau_21"])
-            gradient_component = np.float64(1 + dvdx_on_h)
-            with np.errstate(divide="ignore", invalid="ignore"): # Don't show division by 0 warnings
-                rsd_factor = (1.0 - np.exp(-tau_21/gradient_component))/(1.0 - (np.exp(-tau_21)))
-            # It doesn't really matter what the rsd_factor is when tau_21=0 because the brightness temperature is zero by definition
-            rsd_factor = np.float32(np.where(tau_21 < 1e-10, 1., rsd_factor))
-            tb_with_rsds = tb_no_rsds*rsd_factor
-
-        # Compute the local RSDs
-        if self.astro_options.SUBCELL_RSD and n_subcells > 0:
-            # We transform rectilinear lightcone to be an angular-like lightcone
-            if not isinstance(self, AngularLightcone):
-                tb_with_rsds = tb_with_rsds.reshape((tb_with_rsds.shape[0]*tb_with_rsds.shape[1], -1))
-                los_displacement = los_displacement.reshape((los_displacement.shape[0]*los_displacement.shape[1], -1))
-
-            # Here we move the cells along the line of sight, regardless the geometry (rectilinear or angular)
-            tb_with_rsds = apply_rsds(
-                field=tb_with_rsds.T,
-                los_displacement=los_displacement.T,
-                distance=self.lightcone_distances.to(units.pixel, equiv),
-                n_subcells=n_subcells,
-            ).T
-            
-            # And now we transform back to a rectilinear-like lightcone
-            if not isinstance(self, AngularLightcone):
-                tb_with_rsds = tb_with_rsds.reshape((int(np.sqrt(tb_with_rsds.shape[0])), int(np.sqrt(tb_with_rsds.shape[0])), -1))
-
-        self.lightcones["brightness_temp_with_rsds"] = tb_with_rsds
-
-        if fname:
-            if Path(fname).exists():
-                with h5py.File(fname, "a") as fl:
-                    fl["lightcones"]["brightness_temp_with_rsds"] = tb_with_rsds
-            else:
-                self.save(fname)
-
-        return tb_with_rsds
 
 class AngularLightcone(LightCone):
     """An angular lightcone."""
@@ -542,10 +465,34 @@ def _run_lightcone_from_perturbed_fields(
                 lib.FreePhotonConsMemory()
 
             if inputs.astro_options.APPLY_RSDS:
-                lightcone.compute_rsds(
-                    fname=lightcone_filename, n_subcells=inputs.astro_params.N_RSD_STEPS
-                )
-            
+                if "los_velocity" not in lightcone.lightcones:
+                    raise ValueError(
+                        "Lightcone does not contain los velocity field, cannot compute_rsds"
+                    )
+                if "brightness_temp_with_rsds" in lightcone.lightcones:
+                    warnings.warn(
+                        "Lightcone already contains brightness_temp_with_rsds",
+                        stacklevel=2,
+                    )
+                else:
+                    tb_with_rsds = compute_rsds(brightness_temp=lightcone.lightcones["brightness_temp"],
+                                               los_velocity=lightcone.lightcones["los_velocity"],
+                                               redshifts=lightcone.lightcone_redshifts,
+                                               distances=lightcone.lightcone_distances,
+                                               inputs=inputs,
+                                               tau_21=lightcone.lightcones["tau_21"] if inputs.astro_options.USE_TS_FLUCT else None,
+                                               periodic=False,
+                                               n_subcells=inputs.astro_params.N_RSD_STEPS if inputs.astro_options.SUBCELL_RSD else 0
+                                             )
+                    lightcone.lightcones["brightness_temp_with_rsds"] = tb_with_rsds
+                    
+                    if lightcone_filename:
+                        if Path(lightcone_filename).exists():
+                            with h5py.File(lightcone_filename, "a") as fl:
+                                fl["lightcones"]["brightness_temp_with_rsds"] = tb_with_rsds
+                        else:
+                            lightcone.save(lightcone_filename)
+            '''
             # Include attenuation by tau_reio
             # For now, we use a fixed value for tau_reio (should enter cosmo_params in the future)
             # TODO: in the future, tau_reio will be evaluated from the mass weighted lightcone of x_HI,
@@ -554,6 +501,7 @@ def _run_lightcone_from_perturbed_fields(
             lightcone.lightcones["brightness_temp"] *= np.exp(-tau_reio)
             if inputs.astro_options.APPLY_RSDS:
                 lightcone.lightcones["brightness_temp_with_rsds"] *= np.exp(-tau_reio)
+            '''
 
         yield iz, coeval.redshift, coeval, lightcone
 

@@ -19,6 +19,7 @@ from ..c_21cmfast import lib
 from ..io import h5
 from ..io.caching import CacheConfig, OutputCache, RunCache
 from ..wrapper.arrays import Array
+from ..wrapper.rsd import compute_rsds
 from ..wrapper.inputs import InputParameters
 from ..wrapper.outputs import (
     BrightnessTemp,
@@ -194,6 +195,37 @@ class Coeval:
         output_structs = self.output_structs
         for struct in output_structs.values():
             h5.write_output_to_hdf5(struct, path, mode="a")
+    
+    def compute_rsds(self, periodic: bool = True, n_subcells: int = None):
+        """Compute redshift-space distortions from the los_velocity.
+
+        Parameters
+        ----------
+        periodic: bool, optioanl
+            Whether to assume periodic boundary conditions along the line-of-sight.
+        n_subcells: int, optional
+            The number of sub-cells to interpolate onto, to make the RSDs more accurate. Default is N_RSD_STEPS.
+    
+        Returns
+        -------
+        tb_with_rsds : nd-array
+            A box of the brightness temperature, with redshift space distortions.
+        """
+        if n_subcells is None:
+            if self.inputs.astro_options.SUBCELL_RSD:
+                n_subcells = self.inputs.astro_params.N_RSD_STEPS
+            else:
+                n_subcells = 0
+
+        return compute_rsds(brightness_temp=self.brightness_temp,
+                            los_velocity=self.velocity_z, # TODO: generalize to an arbitrary los axis
+                            redshifts=self.redshift, # TODO: do we want to use a single redshift? Or a redshift array that is determined from the coeval los?
+                            distances=self.inputs.simulation_options.cell_size*np.arange(self.inputs.simulation_options.HII_DIM),
+                            inputs=self.inputs,
+                            tau_21=self.tau_21 if self.inputs.astro_options.USE_TS_FLUCT else None,
+                            periodic=periodic,
+                            n_subcells=n_subcells,
+                            )
 
     @classmethod
     def from_file(cls, path: str | Path, safe: bool = True) -> Self:
