@@ -87,11 +87,14 @@ def test_pf_unnamed_param():
 
 
 def test_perturb_field_ic(perturbed_field, default_input_struct, ic, cache):
-    # this will run perturb_field again, since by default regenerate=True for tests.
-    # BUT it should produce exactly the same as the default perturb_field since it has
+    # this will run perturb_field again,
+    # it should produce exactly the same as the default perturb_field since it has
     # the same seed.
     pf = p21c.perturb_field(
-        redshift=perturbed_field.redshift, initial_conditions=ic, cache=cache
+        redshift=perturbed_field.redshift,
+        initial_conditions=ic,
+        cache=cache,
+        regenerate=True,
     )
 
     assert pf.density.shape == ic.lowres_density.shape
