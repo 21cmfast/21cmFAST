@@ -740,7 +740,12 @@ def _setup_ics_and_pfs_for_scrolling(
         disable=not progressbar,
         total=len(all_redshifts),
     ):
-        p = sf.perturb_field(redshift=z, write=write.perturbed_field, **kw)
+        p = sf.perturb_field(
+            redshift=z,
+            inputs=inputs,
+            write=write.perturbed_field,
+            **kw,
+        )
 
         if inputs.matter_options.MINIMIZE_MEMORY:
             with contextlib.suppress(OSError):
