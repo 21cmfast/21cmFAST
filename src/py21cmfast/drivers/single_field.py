@@ -186,7 +186,7 @@ def perturb_halo_list(
     Fill this in once finalised
 
     """
-    inputs = initial_conditions.inputs
+    inputs = halo_field.inputs
     hbuffer_size = halo_field.n_halos
     redshift = halo_field.redshift
 

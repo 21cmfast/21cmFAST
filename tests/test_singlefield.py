@@ -86,14 +86,13 @@ def test_pf_unnamed_param():
         p21c.perturb_field(7)
 
 
-def test_perturb_field_ic(perturbed_field, default_input_struct, ic, cache):
+def test_perturb_field_ic(perturbed_field, ic):
     # this will run perturb_field again,
     # it should produce exactly the same as the default perturb_field since it has
     # the same seed.
     pf = p21c.perturb_field(
         redshift=perturbed_field.redshift,
         initial_conditions=ic,
-        cache=cache,
         regenerate=True,
     )
 
@@ -205,6 +204,70 @@ def test_coeval_against_direct(
     assert coeval.initial_conditions == ic
     assert coeval.perturbed_field == perturbed_field
     assert coeval.ionized_box == ionize_box
+
+
+def test_parameter_override(
+    ic: p21c.InitialConditions,
+    default_input_struct: p21c.InputParameters,
+    ionize_box: p21c.IonizedBox,
+    perturbed_field: p21c.PerturbedField,
+):
+    """Ensure that we use the correct parameters for all calculations.
+
+    Tests compatible but unequal parameter sets
+    """
+    inputs_changenodes = default_input_struct.clone(node_redshifts=(12, 10, 8))
+
+    pf = p21c.perturb_field(
+        redshift=12.0, initial_conditions=ic, inputs=inputs_changenodes
+    )
+
+    assert isinstance(pf, p21c.PerturbedField)
+    assert pf.inputs == inputs_changenodes
+    assert pf.inputs != ic.inputs
+    assert pf != perturbed_field
+
+    inputs_changeastro = inputs_changenodes.evolve_input_structs(F_STAR10=-3.0)
+
+    ib = p21c.compute_ionization_field(
+        initial_conditions=ic,
+        perturbed_field=pf,
+        inputs=inputs_changeastro,
+        write=False,
+    )
+
+    assert isinstance(ib, p21c.IonizedBox)
+    assert ib.inputs == inputs_changeastro
+    assert ib.inputs != pf.inputs
+    assert ib != ionize_box
+
+
+def test_incompatible_parameters(
+    ic: p21c.InitialConditions,
+    default_input_struct: p21c.InputParameters,
+    ionize_box: p21c.IonizedBox,
+    perturbed_field: p21c.PerturbedField,
+):
+    """Ensure that we throw errors when incompatible parameters are given."""
+    df_dim = default_input_struct.simulation_options.DIM
+    inputs_changedim = default_input_struct.evolve_input_structs(DIM=df_dim + 1)
+    with pytest.raises(
+        ValueError, match="InputParameters in InitialConditions do not match those in"
+    ):
+        p21c.perturb_field(
+            redshift=10.0, initial_conditions=ic, inputs=inputs_changedim
+        )
+
+    inputs_changenodes = default_input_struct.clone(node_redshifts=(12, 10, 8))
+    with pytest.raises(
+        ValueError, match="InputParameters in PerturbedField do not match those in"
+    ):
+        p21c.compute_ionization_field(
+            initial_conditions=ic,
+            perturbed_field=perturbed_field,
+            inputs=inputs_changenodes,
+            write=False,
+        )
 
 
 def test_using_cached_halo_field(ic, test_direc):
