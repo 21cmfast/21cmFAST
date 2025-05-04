@@ -3,29 +3,20 @@
 import matplotlib as mpl
 import numpy as np
 import pytest
-from astropy import units as u
 
 from py21cmfast import (
-    AstroOptions,
-    AstroParams,
-    CosmoParams,
-    PerturbHaloField,
-    SimulationOptions,
     compute_halo_grid,
     compute_initial_conditions,
     perturb_field,
 )
-from py21cmfast.c_21cmfast import ffi, lib
 from py21cmfast.wrapper import cfuncs as cf
 
-from . import produce_integration_test_data as prd
 from . import test_c_interpolation_tables as cint
-from .test_c_interpolation_tables import print_failure_stats
+from .produce_integration_test_data import get_all_options_struct, print_failure_stats
 
 RELATIVE_TOLERANCE = 1e-1
 
 options_hmf = list(cint.OPTIONS_HMF.keys())
-
 options_delta = [-0.9, -0.5, 0, 1, 1.4]  # cell densities to draw samples from
 options_mass = [1e9, 1e10, 1e11, 1e12, 1e13]  # halo masses to draw samples from
 
@@ -38,7 +29,7 @@ def test_sampler(name, cond, cond_type, plt):
     # we need the largest condition mass to not trip the extreme halo check
     # at the test redshift, since that test would not be very useful
     redshift = 7.0
-    inputs = prd.get_all_options_struct(redshift, **kwargs)["inputs"]
+    inputs = get_all_options_struct(redshift, **kwargs)["inputs"]
     inputs = inputs.evolve_input_structs(
         SAMPLER_MIN_MASS=min(options_mass) / 2,
     )
