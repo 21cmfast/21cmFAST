@@ -53,7 +53,7 @@ def test_coeval_warnings(default_input_struct_lc, cache):
             USE_HALO_FIELD=True,
         )
         run_coeval(
-            out_redshifts=8.0,
+            out_redshifts=16.0,
             inputs=inputs,
             write=False,
             cache=cache,

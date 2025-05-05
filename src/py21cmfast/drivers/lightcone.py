@@ -191,19 +191,21 @@ class LightCone:
         """Write updated lightcone data to file."""
         with h5py.File(path, "a") as fl:
             last_completed_lcidx = fl.attrs["last_completed_lcidx"]
+            last_completed_node = fl.attrs["last_completed_node"]
+
+            save_idx = (
+                len(self.lightcone_distances)
+                if last_completed_lcidx < 0
+                else last_completed_lcidx
+            )
             for k, v in self.lightcones.items():
-                # This overwrites the last entry, like the non-checkpointed runs do
-                # TODO: this actually slightly affects values and we need to look into it
-                save_idx = (
-                    v.shape[-1]
-                    if last_completed_lcidx < 0
-                    else last_completed_lcidx + 1
-                )
                 fl["lightcones"][k][..., lcidx:save_idx] = v[..., lcidx:save_idx]
 
             global_q = fl["global_quantities"]
             for k, v in self.global_quantities.items():
-                global_q[k][0 : node_index + 1] = v[0 : node_index + 1]
+                global_q[k][last_completed_node + 1 : node_index + 1] = v[
+                    last_completed_node + 1 : node_index + 1
+                ]
 
             fl.attrs["last_completed_lcidx"] = lcidx
             fl.attrs["last_completed_node"] = node_index
@@ -516,7 +518,7 @@ def _run_lightcone_from_perturbed_fields(
                 if this_lc is not None:
                     lightcone.lightcones[quantity][..., idx] = this_lc
                     # save the lowest index
-                    if not lc_index:
+                    if lc_index is None:
                         lc_index = idx
 
             # only checkpoint if we have slices
@@ -615,10 +617,10 @@ def generate_lightcone(
     # while we still use the full list for caching etc, we don't need to run below the lightconer instance
     #   So stop one after the lightconer
     scrollz = np.copy(inputs.node_redshifts)
-    below_lc_z = inputs.node_redshifts <= min(lightconer.lc_redshifts)
+    below_lc_z = scrollz <= min(lightconer.lc_redshifts)
     if np.any(below_lc_z):
-        final_node = np.argmax(below_lc_z)
-        scrollz = scrollz[: final_node + 1]  # inclusive
+        final_node = np.where(below_lc_z)[0][0]  # first node below the lightcone
+        scrollz = scrollz[: final_node + 1]  # inclusive to get the last few entries
 
     lcz = lightconer.lc_redshifts
 

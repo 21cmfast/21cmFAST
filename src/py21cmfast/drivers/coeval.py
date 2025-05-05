@@ -444,14 +444,14 @@ def generate_coeval(
 
     # get the first node redshift that is above all output redshifts
     first_out_node = None
-    if (
-        out_redshifts
-        and inputs.node_redshifts
-        and (max(inputs.node_redshifts) > max(out_redshifts))
-    ):
-        first_out_node = (
-            np.argmax(np.array(inputs.node_redshifts) < max(out_redshifts)) - 1
-        )
+    if inputs.node_redshifts:
+        # if any output redshift is above all nodes, start from the start
+        if max(out_redshifts) > max(inputs.node_redshifts):
+            first_out_node = -1
+        # otherwise, find the first node above all user redshifts and start there
+        elif max(out_redshifts) >= min(inputs.node_redshifts):
+            nodes_in_outputs = np.array(inputs.node_redshifts) <= max(out_redshifts)
+            first_out_node = np.where(nodes_in_outputs)[0][0] - 1
     idx, coeval = _obtain_starting_point_for_scrolling(
         inputs=inputs,
         initial_conditions=initial_conditions,
@@ -459,6 +459,9 @@ def generate_coeval(
         minimum_node=first_out_node,
         **iokw,
     )
+    # convert node_redshift index to all_redshift index
+    if idx > 0:
+        idx = np.argmin(np.fabs(np.array(all_redshifts) - inputs.node_redshifts[idx]))
 
     for _, coeval in _redshift_loop_generator(  # noqa: B020
         inputs=inputs,

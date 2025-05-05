@@ -176,6 +176,19 @@ def test_lc_partial_eval(rectlcn, default_input_struct_lc, tmpdirec, lc, cache):
 
     assert 0 < partial._last_completed_node < len(rectlcn.lc_redshifts) - 1
 
+    np.testing.assert_allclose(
+        partial.global_quantities["brightness_temp"][
+            : partial._last_completed_node + 1
+        ],
+        lc.global_quantities["brightness_temp"][: partial._last_completed_node + 1],
+        rtol=1e-6,
+    )
+    np.testing.assert_allclose(
+        partial.lightcones["brightness_temp"][partial._last_completed_lcidx :],
+        lc.lightcones["brightness_temp"][partial._last_completed_lcidx :],
+        rtol=1e-4,
+    )
+
     lc_gen_cont = p21c.generate_lightcone(
         lightconer=rectlcn,
         inputs=default_input_struct_lc,
