@@ -93,7 +93,7 @@ def test_power_spectra_coeval(name, module_direc, plt):
 
 
 @pytest.mark.parametrize("name", options)
-def test_power_spectra_lightcone(name, module_direc, plt):
+def test_power_spectra_lightcone(name, module_direc, plt, benchmark):
     redshift, kwargs = prd.OPTIONS_TESTRUNS[name]
     print(f"Options used for the test {name} at z={redshift}: ", kwargs)
 
@@ -112,7 +112,12 @@ def test_power_spectra_lightcone(name, module_direc, plt):
 
     # Now compute the lightcone
     with config.use(direc=module_direc, regenerate=False, write=True):
-        test_k, test_powers, lc = prd.produce_lc_power_spectra(redshift, **kwargs)
+        test_k, test_powers, lc = benchmark.pedantic(
+            prd.produce_lc_power_spectra,
+            kwargs=dict(redshift=redshift, **kwargs),
+            iterations=1,  # these tests can be slow
+            rounds=1,
+        )
 
     assert isinstance(lc, LightCone)
     assert np.all(np.isfinite(lc.lightcones["brightness_temp"]))

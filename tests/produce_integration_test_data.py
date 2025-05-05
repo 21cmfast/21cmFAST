@@ -121,10 +121,16 @@ OPTIONS_TESTRUNS = {
         18,
         {"USE_TS_FLUCT": True},
     ],
-    "ts_nomdz": [18, {"USE_TS_FLUCT": True}],
+    "ts_nomdz": [
+        18,
+        {"USE_TS_FLUCT": True, "USE_MASS_DEPENDENT_ZETA": False},
+    ],
     "inhomo": [
         18,
-        {"INHOMO_RECO": True, "R_BUBBLE_MAX": 50.0},
+        {
+            "INHOMO_RECO": True,
+            "R_BUBBLE_MAX": 50.0,
+        },
     ],
     "inhomo_ts": [
         18,
@@ -185,6 +191,12 @@ OPTIONS_TESTRUNS = {
             "USE_TS_FLUCT": True,
             "INHOMO_RECO": True,
             "R_BUBBLE_MAX": 50.0,
+        },
+    ],
+    "dexm": [
+        18,
+        {
+            "USE_HALO_FIELD": True,
         },
     ],
     "photoncons-z": [
@@ -299,6 +311,8 @@ def get_lc_fields(inputs):
         ]
     if not inputs.astro_options.USE_MINI_HALOS:
         quantities.remove("J_21_LW")
+    if not inputs.astro_options.INHOMO_RECO:
+        quantities.remove("cumulative_recombinations")
 
     return quantities
 
@@ -339,14 +353,13 @@ def produce_lc_power_spectra(redshift, **kwargs):
 
 
 def produce_perturb_field_data(redshift, **kwargs):
-    options = get_all_options_struct(redshift, lc=True, **kwargs)
+    options = get_all_options_struct(redshift, lc=False, **kwargs)
     del options["out_redshifts"]
 
     velocity_normalisation = 1e16
 
-    with config.use(regenerate=True, write=False):
-        init_box = compute_initial_conditions(**options)
-        pt_box = perturb_field(redshift=redshift, initial_conditions=init_box)
+    init_box = compute_initial_conditions(**options)
+    pt_box = perturb_field(redshift=redshift, initial_conditions=init_box)
 
     p_dens, k_dens = get_power(
         pt_box.get("density"),
@@ -379,22 +392,6 @@ def produce_perturb_field_data(redshift, **kwargs):
     X_vel, Y_vel = hist("velocity_z", -2, 2, 50)
 
     return k_dens, p_dens, k_vel, p_vel, X_dens, Y_dens, X_vel, Y_vel, init_box
-
-
-def produce_halo_field_data(redshift, **kwargs):
-    options = get_all_options_struct(redshift, lc=True, **kwargs)
-
-    with config.use(regenerate=True, write=False):
-        init_box = compute_initial_conditions(**options)
-        halos = determine_halo_list(
-            initial_conditions=init_box, redshift=redshift, **options
-        )
-        pt_halos = perturb_halo_list(
-            initial_conditions=init_box,
-            halo_field=halos,
-        )
-
-    return pt_halos
 
 
 def get_filename(kind, name):
@@ -439,8 +436,8 @@ def produce_power_spectra_for_tests(name, redshift, force, direc, **kwargs):
         for key, val in p_l.items():
             lc_grp[f"power_{key}"] = val
 
-        lc_grp["global_xH"] = lc.global_xH
-        lc_grp["global_brightness_temp"] = lc.global_brightness_temp
+        lc_grp["global_xH"] = lc.global_quantities["neutral_fraction"]
+        lc_grp["global_brightness_temp"] = lc.global_quantities["brightness_temp"]
 
     print(f"Produced {fname} with {kwargs}")
     return fname
