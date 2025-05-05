@@ -88,7 +88,12 @@ def test_power_spectra_coeval(name, module_direc, plt):
         if key not in true_powers:
             continue
         prd.print_failure_stats(
-            test_powers[key], true_powers[key], cv.inputs, rel_tol=1e-4, name=key
+            test_powers[key],
+            true_powers[key],
+            test_k,
+            abs_tol=0,
+            rel_tol=1e-4,
+            name=key,
         )
 
 
@@ -142,7 +147,12 @@ def test_power_spectra_lightcone(name, module_direc, plt, benchmark):
         if key not in true_powers:
             continue
         prd.print_failure_stats(
-            test_powers[key], true_powers[key], lc.inputs, rel_tol=1e-4, name=key
+            test_powers[key],
+            true_powers[key],
+            test_k,
+            abs_tol=0,
+            rel_tol=1e-4,
+            name=key,
         )
 
     # For globals, we should assert that they are close

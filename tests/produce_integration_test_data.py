@@ -100,6 +100,8 @@ OPTIONS_TESTRUNS = {
             "Z_HEAT_MAX": 25,
             "ZPRIME_STEP_FACTOR": 1.1,
             "N_THREADS": 4,
+            "USE_RELATIVE_VELOCITIES": True,
+            "POWER_SPECTRUM": "CLASS",
         },
     ],
     "mini_ff": [
@@ -115,6 +117,7 @@ OPTIONS_TESTRUNS = {
             "N_THREADS": 4,
             "INTEGRATION_METHOD_MINI": "GAMMA-APPROX",
             "INTEGRATION_METHOD_ATOMIC": "GAMMA-APPROX",
+            "POWER_SPECTRUM": "CLASS",
         },
     ],
     "ts": [
@@ -543,7 +546,7 @@ def go(
             )
 
     # Remove extra files that
-    if not (names or pt_only or no_pt):
+    if not ((names != list(OPTIONS_TESTRUNS.keys())) or pt_only or no_pt):
         all_files = DATA_PATH.glob("*")
         for fl in all_files:
             if fl not in fnames:
