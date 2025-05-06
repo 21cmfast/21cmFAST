@@ -90,7 +90,7 @@ def test_power_spectra_coeval(name, module_direc, plt):
         prd.print_failure_stats(
             test_powers[key],
             true_powers[key],
-            test_k,
+            [test_k],
             abs_tol=0,
             rel_tol=1e-4,
             name=key,
@@ -149,7 +149,7 @@ def test_power_spectra_lightcone(name, module_direc, plt, benchmark):
         prd.print_failure_stats(
             test_powers[key],
             true_powers[key],
-            test_k,
+            [test_k],
             abs_tol=0,
             rel_tol=1e-4,
             name=key,
