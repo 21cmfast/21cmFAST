@@ -1,4 +1,4 @@
-name: Tests (No Integration Tests)
+name: Tests
 
 # Test on all pushes, except when the push is literally just a tag (because we
 # tag automatically via CI, and therefore there's no extra code in that push).
@@ -19,7 +19,7 @@ jobs:
       PYTHON: ${{ matrix.python-version }}
       OS: ${{ matrix.os }}
       CC: ${{ matrix.compiler }}
-    name: Sans Integration Tests
+    name: Test Suite
     runs-on: ${{ matrix.os }}
     strategy:
       fail-fast: false
