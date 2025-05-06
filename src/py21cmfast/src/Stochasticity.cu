@@ -20,7 +20,6 @@
 #include "interpolation_types.h"
 #include "Stochasticity.h"
 
-// #include "tiger_checks.h"
 #include "cuda_utils.cuh"
 #include "Stochasticity.cuh"
 #include "DeviceConstants.cuh"
@@ -134,6 +133,7 @@ int condenseDeviceArray(T *d_array, int original_size, T mask_value)
     return valid_size;
 }
 
+// todo: maybe add python wrapper for test functions 
 void testCondenseDeviceArray()
 {
     // Input data
@@ -170,6 +170,7 @@ void testCondenseDeviceArray()
     cudaFree(d_array);
 }
 
+// todo: add more tests to check with large number of input; fix the type mismatch (int, ull)
 int filterWithMask(float *d_data, int *d_mask, int original_size)
 {
     // Wrap the raw pointers into thrust device pointers
@@ -266,6 +267,9 @@ int getSparsity(int n_buffer, int n_halo){
         int sparsity = 1 << power;
         return sparsity;
     }
+    else{
+        return -1;
+    }
 
 }
 
@@ -274,22 +278,6 @@ void initializeArray(int *d_array, int n_elements, int value){
     thrust::device_ptr<int> d_array_ptr(d_array);
     thrust::fill(d_array_ptr, d_array_ptr + n_elements, value);
 }
-// more members of deviceprop can be found in cura_runtime_api documentation
-void getDeviceProperties(){
-    int device;
-    CALL_CUDA(cudaGetDevice(&device));
-    cudaDeviceProp deviceProp;
-    CALL_CUDA(cudaGetDeviceProperties(&deviceProp, device));
-    printf("name: %s\n", deviceProp.name);
-    // printf("uuid: %s\n", deviceProp.uuid);
-    printf("total global memory: %zu bytes \n", deviceProp.totalGlobalMem);
-    printf("Shared memory per block: %zu bytes\n", deviceProp.sharedMemPerBlock);
-    printf("registers per block: %d\n", deviceProp.regsPerBlock);
-    printf("warp size: %d \n", deviceProp.warpSize);
-    printf("memory pitch: %zu bytes \n", deviceProp.memPitch);
-    printf("max threads per block: %d \n", deviceProp.maxThreadsPerBlock);
-    printf("total constant memory: %zu bytes \n", deviceProp.totalConstMem);
-}   
 
 // void getKernelAttr(){
 //     cudaFuncAttributes attr;
@@ -651,15 +639,15 @@ __global__ void update_halo_constants(float *d_halo_masses, float *d_star_rng_in
     // }
 
     // tmp: just to verify the tables have been copied correctly
-    if (ind == 0)
-    {
-        printf("The first element of Nhalo y_arr: %e (%e) \n", d_Nhalo_yarr[0], d_Nhalo_table.y_arr[0]);
-        printf("The nhalo table n_bin: %d\n", d_Nhalo_table.n_bin);
-        printf("The nhalo_inv table nx_bin: %d\n", d_Nhalo_inv_table.nx_bin);
-        printf("HII_DIM: %d \n", d_user_params.HII_DIM);
-        printf("test params: %f \n", d_test_params);
-        printf("A_VCB: %f \n", d_astro_params.A_VCB);
-        printf("SIGMA_8: %f \n", d_cosmo_params.SIGMA_8);
+    // if (ind == 0)
+    // {
+    //     printf("The first element of Nhalo y_arr: %e (%e) \n", d_Nhalo_yarr[0], d_Nhalo_table.y_arr[0]);
+    //     printf("The nhalo table n_bin: %d\n", d_Nhalo_table.n_bin);
+    //     printf("The nhalo_inv table nx_bin: %d\n", d_Nhalo_inv_table.nx_bin);
+    //     printf("HII_DIM: %d \n", d_user_params.HII_DIM);
+    //     printf("test params: %f \n", d_test_params);
+    //     printf("A_VCB: %f \n", d_astro_params.A_VCB);
+    //     printf("SIGMA_8: %f \n", d_cosmo_params.SIGMA_8);
         // printf("number of rng states: %d\n", g_numRNGStates);
         // // tiger tmp: debug (start)
         // double res1, res2, res3, res4;
@@ -672,7 +660,7 @@ __global__ void update_halo_constants(float *d_halo_masses, float *d_star_rng_in
         // res4 = EvaluateNhaloInv(19.00053596496582, 0.83130413049947305);
         // printf("tmp res4 on gpu: %.17f \n", res4);
         // // tiger tmp: debug (end)
-    }
+    // }
     
     curandState local_state = d_randStates[ind];
     // if (blockIdx.x > 100000){
@@ -863,6 +851,7 @@ int updateHaloOut(float *halo_masses, float *star_rng, float *sfr_rng, float *xr
     float *d_star_rng_out;
     CALL_CUDA(cudaMalloc(&d_star_rng_out, buffer_size));
     CALL_CUDA(cudaMemset(d_star_rng_out, 0, buffer_size));
+    // initializeArray(d_halo_masses_out, d_n_buffer, -1.2f);
 
     float *d_sfr_rng_out;
     CALL_CUDA(cudaMalloc(&d_sfr_rng_out, buffer_size));
@@ -877,7 +866,7 @@ int updateHaloOut(float *halo_masses, float *star_rng, float *sfr_rng, float *xr
     initializeArray(d_halo_coords_out, d_n_buffer * 3, -1000);
 
     // initiate n_halo check
-    unsigned long long int n_halo_check = n_halos;
+    // unsigned long long int n_halo_check = n_halos;
 
     // initiate offset for writing output data
     unsigned long long int write_offset = 0;
@@ -888,13 +877,12 @@ int updateHaloOut(float *halo_masses, float *star_rng, float *sfr_rng, float *xr
     // initialize number of progenitors processed
     unsigned long long int n_processed_prog;
 
-    getDeviceProperties();
-
+    // todo: add the following to debug
     cudaFuncAttributes attr;
     cudaFuncGetAttributes(&attr, update_halo_constants);
-    printf("Kernel Shared Memory per Block: %zu bytes\n", attr.sharedSizeBytes);
-    printf("Kernel Registers per Thread: %d\n", attr.numRegs);
-    printf("Kernel Max Threads per Block: %d\n", attr.maxThreadsPerBlock);
+    // printf("Kernel Shared Memory per Block: %zu bytes\n", attr.sharedSizeBytes);
+    // printf("Kernel Registers per Thread: %d\n", attr.numRegs);
+    // printf("Kernel Max Threads per Block: %d\n", attr.maxThreadsPerBlock);
 
     // start with 4 threads work with one halo
     int sparsity = 4;
@@ -937,28 +925,29 @@ int updateHaloOut(float *halo_masses, float *star_rng, float *sfr_rng, float *xr
     CALL_CUDA(cudaHostAlloc((void **)&h_n_prog, sizeof(int)*n_halos, cudaHostAllocDefault));
     CALL_CUDA(cudaMemcpy(h_n_prog, d_n_prog, sizeof(int)*n_halos, cudaMemcpyDeviceToHost));
 
-    // Values to count
-    std::vector<int> values_to_count = {0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 100,32};
+    // debug only
+    // // Values to count
+    // std::vector<int> values_to_count = {0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 100,32};
 
-    // Count and display occurrences
-    countElements(h_n_prog, n_halos, values_to_count);
+    // // Count and display occurrences
+    // countElements(h_n_prog, n_halos, values_to_count);
 
     // condense halo mass array on the device
     n_processed_prog = condenseDeviceArray(d_halo_masses_out, d_n_buffer, 0.0f);
     printf("The number of progenitors written in out halo field so far: %d \n", n_processed_prog);
     
     // condense other halo field arrays on the device
-    // unsigned long long int n_processed_star_rng = condenseDeviceArray(d_star_rng_out, d_n_buffer, 0.0f);
-    // printf("The number of star prop rng written in out halo field so far: %d \n", n_processed_star_rng);
+    unsigned long long int n_processed_star_rng = condenseDeviceArray(d_star_rng_out, d_n_buffer, 0.0f);
+    printf("The number of star prop rng written in out halo field so far: %d \n", n_processed_star_rng);
 
-    // unsigned long long int n_processed_sfr_rng = condenseDeviceArray(d_sfr_rng_out, d_n_buffer, 0.0f);
-    // printf("The number of sfr prop rng written in out halo field so far: %d \n", n_processed_sfr_rng);
+    unsigned long long int n_processed_sfr_rng = condenseDeviceArray(d_sfr_rng_out, d_n_buffer, 0.0f);
+    printf("The number of sfr prop rng written in out halo field so far: %d \n", n_processed_sfr_rng);
 
-    // unsigned long long int n_processed_xray_rng = condenseDeviceArray(d_xray_rng_out, d_n_buffer, 0.0f);
-    // printf("The number of xray prop rng written in out halo field so far: %d \n", n_processed_xray_rng);
+    unsigned long long int n_processed_xray_rng = condenseDeviceArray(d_xray_rng_out, d_n_buffer, 0.0f);
+    printf("The number of xray prop rng written in out halo field so far: %d \n", n_processed_xray_rng);
 
-    // unsigned long long int n_processed_coords = condenseDeviceArray(d_halo_coords_out, d_n_buffer*3, -1000);
-    // printf("The number of halo coords written in out halo field so far: %d \n", n_processed_coords);
+    unsigned long long int n_processed_coords = condenseDeviceArray(d_halo_coords_out, d_n_buffer*3, -1000);
+    printf("The number of halo coords written in out halo field so far: %d \n", n_processed_coords);
 
     // tmp: the following is just needed for debugging purpose
     // float *h_filter_halos;
@@ -974,12 +963,6 @@ int updateHaloOut(float *halo_masses, float *star_rng, float *sfr_rng, float *xr
         unsigned long long int available_n_buffer = d_n_buffer - n_processed_prog;
         sparsity = getSparsity(available_n_buffer, n_halos_tbp);
 
-        // check max threadblock size
-        int device;
-        CALL_CUDA(cudaGetDevice(&device));
-        cudaDeviceProp deviceProp;
-        CALL_CUDA(cudaGetDeviceProperties(&deviceProp, device));
-        int max_threads_pb = deviceProp.maxThreadsPerBlock;
 
         // sparsity should not exceed the max threads per block
         // sparsity = 256;
@@ -1044,6 +1027,5 @@ int updateHaloOut(float *halo_masses, float *star_rng, float *sfr_rng, float *xr
 
     CALL_CUDA(cudaGetLastError());
     CALL_CUDA(cudaDeviceSynchronize());
-
     return 0;
 }
