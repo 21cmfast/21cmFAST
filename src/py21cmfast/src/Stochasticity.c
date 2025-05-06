@@ -926,7 +926,7 @@ int sample_halo_progenitors(gsl_rng **rng_arr, double z_in, double z_out, HaloFi
     double corr_arr[3] = {hs_constants->corr_star,hs_constants->corr_sfr,hs_constants->corr_xray};
 
     // use cuda function if use_cuda is true
-    bool use_cuda = true; // pass this as a parameter later
+    bool use_cuda = false; // pass this as a parameter later
     if (use_cuda){
         // get parameters needed for sigma calculation
         double x_min = sigma_table->x_min;
@@ -947,13 +947,18 @@ int sample_halo_progenitors(gsl_rng **rng_arr, double z_in, double z_out, HaloFi
 
         printf("Start cuda calculation for progenitors. ");
 
+#if CUDA_FOUND
         updateHaloOut(halo_m, halo_star_rng, halo_sfr_rng, 
                     halo_xray_rng,halo_c,nhalo_in, sigma_y_arr, 
                     sigma_bin, x_min, x_width, d_hs_constants, 
                     arraysize_total, halofield_out);
         printf("End cuda calculation for progenitors. ");
-        
-    }else{ // CPU fallback
+    
+#else
+        LOG_ERROR("CUDA function updateHaloOut() called but code was not compiled for CUDA.");
+#endif
+        }
+    else{ // CPU fallback
 #pragma omp parallel num_threads(user_params_global->N_THREADS)
         {
             float prog_buf[MAX_HALO_CELL];
@@ -1078,14 +1083,19 @@ int stochastic_halofield(UserParams *user_params, CosmoParams *cosmo_params,
     RGTable2D *nhalo_inv_table = GetNhaloInvTable();
     RGTable1D_f *sigma_table = GetSigmaInterpTable();
 
-    bool use_cuda=true;
+    bool use_cuda=false;
     if (use_cuda){
+#if CUDA_FOUND
         // copy the tables to the device
         copyTablesToDevice(*nhalo_table, *mcoll_table, *nhalo_inv_table);
 
         // copy global variables to the device
         // todo: move the following operation to InitialConditions.c
-        updateGlobalParams(user_params_global, cosmo_params_global, astro_params_global);}
+        updateGlobalParams(user_params_global, cosmo_params_global, astro_params_global);
+#else
+        LOG_ERROR("CUDA function copyTablesToDevice called but code was not compiled for CUDA.");
+#endif
+    }
     
     // Fill them
     // NOTE:Halos prev in the first box corresponds to the large DexM halos
@@ -1102,13 +1112,17 @@ int stochastic_halofield(UserParams *user_params, CosmoParams *cosmo_params,
             unsigned long long int n_rstates = nhalo_first * buffer_scale;
             printf("initializing %llu random states on the device... \n", n_rstates);
            
-            
+#if CUDA_FOUND
             init_rand_states(seed, n_rstates);
 
-            printf("finish initializing \n");}
+            printf("finish initializing \n");
 
             // todo: add a signal to free rand states once all iterations are done
-       
+#else
+            LOG_ERROR("CUDA function init_rand_states() called but code was not compiled for CUDA.");
+#endif
+        }
+
     }
     else{
         LOG_DEBUG("Calculating halo progenitors from z=%.1f to z=%.1f | %llu", redshift_desc,redshift,halos_desc->n_halos);
