@@ -25,7 +25,7 @@ def test_ref_printing():
     assert "10.1093/mnras/stac185" in ref_str
     assert "10.48550/arXiv.2504.17254" in ref_str
 
-    inputs = InputParameters.from_template("simple", random_seed=1234)
+    inputs = InputParameters.from_template("const-zeta", random_seed=1234)
     ref_str = show_references(inputs, print_to_stdout=True)
 
     assert "2011MNRAS.411..955M" in ref_str
