@@ -76,8 +76,9 @@ def show_references(inputs: InputParameters, print_to_stdout=True):
             "With improvements and DM-baryon relative velocity model in:\n"
             "===========================================================\n"
             "Muñoz, J.B., Qin, Y., Mesinger, A., Murray, S., Greig, B., and Mason, C.,\n"
-            '"The Impact of the First Galaxies on Cosmic Dawn and Reionization"\n'
-            "vol. 511, no. 3, pp 3657-3681, 2022 https://doi.org/10.1093/mnras/stac185\n\n"
+            '"The Impact of the First Galaxies on Cosmic Dawn and Reionization",\n'
+            "Monthly Notices of the Royal Astronomical Society, vol. 511, no. 3,\n"
+            "pp 3657-3681, 2022 https://doi.org/10.1093/mnras/stac185\n"
         )
 
     if inputs.matter_options.USE_HALO_FIELD:
