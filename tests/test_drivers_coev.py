@@ -5,10 +5,13 @@ They do not test for correctness of simulations, but whether different parameter
 work/don't work as intended.
 """
 
+import attrs
 import pytest
 
 import py21cmfast as p21c
-from py21cmfast import run_coeval
+from py21cmfast import Coeval, run_coeval
+from py21cmfast.wrapper.arrays import Array
+from py21cmfast.wrapper.outputs import OutputStruct
 
 
 def test_coeval_st(ic, default_input_struct_ts, cache):
@@ -50,7 +53,7 @@ def test_coeval_warnings(default_input_struct_lc, cache):
             USE_HALO_FIELD=True,
         )
         run_coeval(
-            out_redshifts=8.0,
+            out_redshifts=16.0,
             inputs=inputs,
             write=False,
             cache=cache,
@@ -67,3 +70,12 @@ def test_coeval_warnings(default_input_struct_lc, cache):
             write=False,
             cache=cache,
         )
+
+
+def test_coeval_fields():
+    """Test that every array ends up in the coeval object."""
+    fields = Coeval.get_fields()
+    for kls in OutputStruct.__subclasses__():
+        for field in attrs.fields(kls):
+            if isinstance(field, Array):
+                assert field.name in fields

@@ -193,7 +193,7 @@ class Lightconer(ABC):
         # last slice (lowest redshift) may correspond *exactly* to the lowest coeval
         # box, and due to rounding error in the `z_at_value` call, they might be
         # slightly off.
-        lcidx = np.nonzero((pixlcdist >= dcmin * 0.9999) & (pixlcdist < dcmax))[0]
+        lcidx = np.nonzero((pixlcdist >= dcmin * (1 - 1e-6)) & (pixlcdist < dcmax))[0]
 
         # Return early if no lightcone indices are between the coeval distances.
         if len(lcidx) == 0:
