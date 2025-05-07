@@ -39,22 +39,6 @@ logger.setLevel(logging.INFO)
 options = list(prd.OPTIONS_TESTRUNS.keys())
 options_pt = list(prd.OPTIONS_PT.keys())
 
-v3_to_v4_field_map = {
-    "x_e_box": "xray_ionised_fraction",
-    "Tk_box": "kinetic_temp_neutral",
-    "J_21_LW_box": "J_21_LW",
-    "xH_box": "neutral_fraction",
-    "xH": "neutral_fraction",
-    "Gamma12_box": "ionisation_rate_G12",
-    "MFP_box": "MFP",
-    "z_re_box": "z_reion",
-    "dNrec_box": "cumulative_recombinations",
-    "temp_kinetic_all_gas": "kinetic_temperature",
-    "Fcoll": "unnormalised_nion",
-    "Fcoll_MINI": "unnormalised_nion_mini",
-    "velocity": "velocity_z",
-}
-
 
 @pytest.mark.parametrize("name", options)
 def test_power_spectra_coeval(name, module_direc, plt):
@@ -67,10 +51,9 @@ def test_power_spectra_coeval(name, module_direc, plt):
         true_k = fl["coeval"]["k"][...]
         for key, value in fl["coeval"].items():
             if key.startswith("power_"):
-                key_base = "_".join(key.split("_")[1:])
-                keyv4 = v3_to_v4_field_map.get(key_base, key_base)
-                true_powers[keyv4] = value[...]
-                print(f"{key} --> {keyv4} loaded")
+                fieldname = "_".join(key.split("_")[1:])
+                true_powers[fieldname] = value[...]
+                print(f"{key} --> {fieldname} loaded")
 
     # Now compute the Coeval object
     with config.use(direc=module_direc, regenerate=False, write=True):
@@ -95,6 +78,7 @@ def test_power_spectra_coeval(name, module_direc, plt):
             name=key,
         )
 
+    any_failed = True  # TODO:remove this testing line
     if plt == mpl.pyplot and any_failed:
         make_coeval_comparison_plot(true_k, test_k, true_powers, test_powers, plt)
 
@@ -110,12 +94,11 @@ def test_power_spectra_lightcone(name, module_direc, plt, benchmark):
         true_global = {}
         true_k = fl["lightcone"]["k"][...]
         for key in fl["lightcone"]:
-            key_base = "_".join(key.split("_")[1:])
-            key_v4 = v3_to_v4_field_map.get(key_base, key_base)
+            fieldname = "_".join(key.split("_")[1:])
             if key.startswith("power_"):
-                true_powers[key_v4] = fl["lightcone"][key][...]
+                true_powers[fieldname] = fl["lightcone"][key][...]
             elif key.startswith("global_"):
-                true_global[key_v4] = fl["lightcone"][key][...]
+                true_global[fieldname] = fl["lightcone"][key][...]
 
     # Now compute the lightcone
     with config.use(direc=module_direc, regenerate=False, write=True):
@@ -146,6 +129,7 @@ def test_power_spectra_lightcone(name, module_direc, plt, benchmark):
             name=key,
         )
 
+    any_failed = True  # TODO:remove this testing line
     if plt == mpl.pyplot and any_failed:
         make_lightcone_comparison_plot(
             true_k,
@@ -164,22 +148,46 @@ def test_power_spectra_lightcone(name, module_direc, plt, benchmark):
         assert np.allclose(value, lc.global_quantities[key], atol=0, rtol=1e-3)
 
 
+plot_ylab = {
+    "density": r"$\delta$",
+    "lowres_density": r"$\delta_{IC}$",
+    "lowres_vx_2LPT": r"$v_x$ IC 2LPT",
+    "lowres_vx": r"$v_x$ IC",
+    "velocity_z": r"$v_z$",
+    "spin_temperature": r"$T_S$",
+    "xray_ionised_fraction": r"$x_{e}$",
+    "J_21_LW": r"$J_{21,LW}$",
+    "kinetic_temp_neutral": r"$T_{K,HI}$",
+    "ionisation_rate_G12": r"$\Gamma_{12}$",
+    "cumulative_recombinations": r"$N_{rec}$",
+    "neutral_fraction": r"$x_{HI}$",
+    "z_reion": r"$z_{re}$",
+    "brightness_temp": r"$dT_b$",
+}
+
+
 def make_lightcone_comparison_plot(
     true_k, k, z, true_powers, true_global, test_powers, test_global, plt
 ):
     n = len(true_global) + len(true_powers)
     fig, ax = plt.subplots(
-        2, n, figsize=(3 * n, 5), constrained_layout=True, sharex="col"
+        2, n, figsize=(4 * n, 6), constrained_layout=True, sharex="col"
     )
 
     for i, (key, val) in enumerate(test_powers.items()):
         make_comparison_plot(
-            true_k, k, true_powers[key], val, ax[:, i], xlab="k", ylab=f"{key} Power"
+            true_k,
+            k,
+            true_powers[key],
+            val,
+            ax[:, i],
+            xlab="k",
+            ylab=f"{plot_ylab[key]} Power",
         )
 
     for j, (key, val) in enumerate(test_global.items(), start=i + 1):
         make_comparison_plot(
-            z, z, true_global[key], val, ax[:, j], xlab="z", ylab=f"{key}"
+            z, z, true_global[key], val, ax[:, j], xlab="z", ylab=f"{plot_ylab[key]}"
         )
 
 
@@ -187,14 +195,20 @@ def make_coeval_comparison_plot(true_k, k, true_powers, test_powers, plt):
     fig, ax = plt.subplots(
         2,
         len(true_powers),
-        figsize=(3 * len(true_powers), 6),
+        figsize=(4 * len(true_powers), 6),
         sharex=True,
         constrained_layout=True,
     )
 
     for i, (key, val) in enumerate(test_powers.items()):
         make_comparison_plot(
-            true_k, k, true_powers[key], val, ax[:, i], xlab="k", ylab=f"{key} Power"
+            true_k,
+            k,
+            true_powers[key],
+            val,
+            ax[:, i],
+            xlab="k",
+            ylab=f"{plot_ylab[key]} Power",
         )
 
 
@@ -214,7 +228,7 @@ def make_comparison_plot(
 
     ax[0].legend()
 
-    ax[1].plot(x, (test - true) / true[0])
+    ax[1].plot(x, (test - true) / true)
     ax[1].set_ylabel("Fractional Difference")
 
 

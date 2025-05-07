@@ -61,29 +61,30 @@ DEFAULT_INPUTS_TESTRUNS = {
     "CELL_RECOMB": False,
     "USE_TS_FLUCT": False,
     "USE_UPPER_STELLAR_TURNOVER": False,
+    "N_THREADS": 2,
 }
 
 LIGHTCONE_FIELDS = [
     "density",
     "velocity_z",
     "spin_temperature",
+    "xray_ionised_fraction",
+    "J_21_LW",
+    "kinetic_temp_neutral",
     "ionisation_rate_G12",
     "cumulative_recombinations",
-    "xray_ionised_fraction",
-    "kinetic_temp_neutral",
-    "J_21_LW",
     "neutral_fraction",
     "z_reion",
     "brightness_temp",
 ]
 
 COEVAL_FIELDS = LIGHTCONE_FIELDS.copy()
-COEVAL_FIELDS.insert(COEVAL_FIELDS.index("spin_temperature"), "lowres_density")
 COEVAL_FIELDS.insert(COEVAL_FIELDS.index("spin_temperature"), "lowres_vx_2LPT")
 COEVAL_FIELDS.insert(COEVAL_FIELDS.index("spin_temperature"), "lowres_vx")
+COEVAL_FIELDS.insert(COEVAL_FIELDS.index("spin_temperature"), "lowres_density")
 
 OPTIONS_TESTRUNS = {
-    "defaults": [18, {}],
+    "simple": [18, {}],
     "no-mdz": [
         18,
         {
@@ -195,6 +196,17 @@ OPTIONS_TESTRUNS = {
             "USE_TS_FLUCT": True,
             "INHOMO_RECO": True,
             "R_BUBBLE_MAX": 50.0,
+        },
+    ],
+    "sampler_ts_ir_onethread": [
+        18,
+        {
+            "USE_HALO_FIELD": True,
+            "HALO_STOCHASTICITY": True,
+            "USE_TS_FLUCT": True,
+            "INHOMO_RECO": True,
+            "R_BUBBLE_MAX": 50.0,
+            "N_THREADS": 1,
         },
     ],
     "dexm": [
@@ -437,7 +449,7 @@ def produce_power_spectra_for_tests(name, redshift, force, direc, **kwargs):
         for key, val in p_l.items():
             lc_grp[f"power_{key}"] = val
 
-        lc_grp["global_xH"] = lc.global_quantities["neutral_fraction"]
+        lc_grp["global_neutral_fraction"] = lc.global_quantities["neutral_fraction"]
         lc_grp["global_brightness_temp"] = lc.global_quantities["brightness_temp"]
 
     print(f"Produced {fname} with {kwargs}")
