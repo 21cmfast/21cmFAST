@@ -80,14 +80,13 @@ def test_power_spectra_coeval(name, module_direc, plt):
     assert np.all(np.isfinite(cv.brightness_temp))
 
     assert np.allclose(true_k, test_k)
-    if plt == mpl.pyplot:
-        make_coeval_comparison_plot(true_k, test_k, true_powers, test_powers, plt)
 
+    any_failed = False
     # We don't assert that all the fields are identical, but print the differences
     for key in prd.COEVAL_FIELDS:
         if key not in true_powers:
             continue
-        prd.print_failure_stats(
+        any_failed |= prd.print_failure_stats(
             test_powers[key],
             true_powers[key],
             [test_k],
@@ -95,6 +94,9 @@ def test_power_spectra_coeval(name, module_direc, plt):
             rel_tol=1e-4,
             name=key,
         )
+
+    if plt == mpl.pyplot and any_failed:
+        make_coeval_comparison_plot(true_k, test_k, true_powers, test_powers, plt)
 
 
 @pytest.mark.parametrize("name", options)
@@ -130,7 +132,21 @@ def test_power_spectra_lightcone(name, module_direc, plt, benchmark):
     test_global = {k: lc.global_quantities[k] for k in true_global}
     assert np.allclose(true_k, test_k)
 
-    if plt == mpl.pyplot:
+    # We don't assert that all the fields are identical, but print the differences
+    any_failed = False
+    for key in prd.LIGHTCONE_FIELDS:
+        if key not in true_powers:
+            continue
+        any_failed |= prd.print_failure_stats(
+            test_powers[key],
+            true_powers[key],
+            [test_k],
+            abs_tol=0,
+            rel_tol=1e-4,
+            name=key,
+        )
+
+    if plt == mpl.pyplot and any_failed:
         make_lightcone_comparison_plot(
             true_k,
             test_k,
@@ -140,19 +156,6 @@ def test_power_spectra_lightcone(name, module_direc, plt, benchmark):
             test_powers,
             test_global,
             plt,
-        )
-
-    # We don't assert that all the fields are identical, but print the differences
-    for key in prd.LIGHTCONE_FIELDS:
-        if key not in true_powers:
-            continue
-        prd.print_failure_stats(
-            test_powers[key],
-            true_powers[key],
-            [test_k],
-            abs_tol=0,
-            rel_tol=1e-4,
-            name=key,
         )
 
     # For globals, we should assert that they are close

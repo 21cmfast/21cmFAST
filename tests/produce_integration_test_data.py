@@ -14,6 +14,7 @@ import logging
 import os
 import sys
 import tempfile
+import warnings
 from pathlib import Path
 
 import attrs
@@ -556,37 +557,48 @@ def go(
 
 def print_failure_stats(test, truth, inputs, abs_tol, rel_tol, name):
     sel_failed = np.fabs(truth - test) > (abs_tol + np.fabs(truth) * rel_tol)
-    if np.any(sel_failed):
-        failed_idx = np.where(sel_failed)
-        print(
-            f"{name}: atol {abs_tol} rtol {rel_tol} failed {sel_failed.sum()} of {sel_failed.size} {sel_failed.sum() / sel_failed.size * 100:.4f}%"
-        )
-        print(
-            f"subcube of failures [min] [max] {[f.min() for f in failed_idx]} {[f.max() for f in failed_idx]}"
-        )
-        print(
-            f"failure range truth ({truth[sel_failed].min():.3e},{truth[sel_failed].max():.3e}) test ({test[sel_failed].min():.3e},{test[sel_failed].max():.3e})"
-        )
-        print(
-            f"max abs diff of failures {np.fabs(truth - test)[sel_failed].max():.4e} relative {(np.fabs(truth - test) / truth)[sel_failed].max():.4e}"
+
+    if not np.any(sel_failed):
+        return False
+
+    failed_idx = np.where(sel_failed)
+    warnings.warn(
+        f"{name}: atol {abs_tol} rtol {rel_tol} failed {sel_failed.sum()} of {sel_failed.size} {sel_failed.sum() / sel_failed.size * 100:.4f}%",
+        stacklevel=2,
+    )
+    warnings.warn(
+        f"subcube of failures [min] [max] {[f.min() for f in failed_idx]} {[f.max() for f in failed_idx]}",
+        stacklevel=2,
+    )
+    warnings.warn(
+        f"failure range truth ({truth[sel_failed].min():.3e},{truth[sel_failed].max():.3e}) test ({test[sel_failed].min():.3e},{test[sel_failed].max():.3e})",
+        stacklevel=2,
+    )
+    warnings.warn(
+        f"max abs diff of failures {np.fabs(truth - test)[sel_failed].max():.4e} relative {(np.fabs(truth - test) / truth)[sel_failed].max():.4e}",
+        stacklevel=2,
+    )
+
+    failed_inp = [
+        inp[sel_failed if inp.shape == test.shape else failed_idx[i]]
+        for i, inp in enumerate(inputs)
+    ]
+    for i, _inp in enumerate(inputs):
+        warnings.warn(
+            f"failure range of inputs axis {i} {failed_inp[i].min():.2e} {failed_inp[i].max():.2e}",
+            stacklevel=2,
         )
 
-        failed_inp = [
-            inp[sel_failed if inp.shape == test.shape else failed_idx[i]]
-            for i, inp in enumerate(inputs)
-        ]
-        for i, _inp in enumerate(inputs):
-            print(
-                f"failure range of inputs axis {i} {failed_inp[i].min():.2e} {failed_inp[i].max():.2e}"
-            )
+    warnings.warn("----- First 10 -----", stacklevel=2)
+    for j in range(min(10, sel_failed.sum())):
+        input_arr = [f"{failed_inp[i][j]:.2e}" for i, finp in enumerate(failed_inp)]
+        warnings.warn(
+            f"CRD {input_arr}"
+            + f"  {truth[sel_failed].flatten()[j]:.4e} {test[sel_failed].flatten()[j]:.4e}",
+            stacklevel=2,
+        )
 
-        print("----- First 10 -----")
-        for j in range(min(10, sel_failed.sum())):
-            input_arr = [f"{failed_inp[i][j]:.2e}" for i, finp in enumerate(failed_inp)]
-            print(
-                f"CRD {input_arr}"
-                + f"  {truth[sel_failed].flatten()[j]:.4e} {test[sel_failed].flatten()[j]:.4e}"
-            )
+    return True
 
 
 if __name__ == "__main__":
