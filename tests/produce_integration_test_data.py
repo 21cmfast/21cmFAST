@@ -104,7 +104,7 @@ OPTIONS_TESTRUNS = {
             "POWER_SPECTRUM": "CLASS",
         },
     ],
-    "mini_ff": [
+    "mini_gamma_approx": [
         18,
         {
             "USE_MINI_HALOS": True,
@@ -325,9 +325,6 @@ def produce_lc_power_spectra(redshift, **kwargs):
     print("----- OPTIONS USED -----")
     print(options)
     print("------------------------")
-
-    # NOTE: this is here only so that we get the same answer as previous versions,
-    #       which have a bug where the max_redshift gets set higher than it needs to be.
     node_z = options["inputs"].node_redshifts
 
     quantities = get_lc_fields(options["inputs"])
