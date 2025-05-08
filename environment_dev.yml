@@ -7,7 +7,6 @@ dependencies:
   - zlib
   - pip
   - libxml2
-  - libffi
   - zipp
   - click
   - scipy
@@ -46,7 +45,6 @@ dependencies:
   - qt
   - packaging
   - ipython_genutils
-  - cffi
   - pytest-remotedata
   - nomkl
   - chardet
