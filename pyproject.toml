@@ -1,7 +1,7 @@
 [project]
 name="21cmFAST"
 dynamic = ["version"]
-license="MIT license"
+license="MIT"
 license-files = ["LICENSE"]
 description="A semi-numerical cosmological simulation code for the 21cm signal"
 # long_description="%s\n%s"
@@ -65,7 +65,7 @@ docs = [
     "sphinx>=1.3",
     "sphinx-rtd-theme",
 ]
-# When the min python version supports PEP 735, this can be simplified 
+# When the min python version supports PEP 735, this can be simplified
 # as dev = test_req + doc_req again (as it was implemented in setup.py)
 dev = [
     "pre-commit",
