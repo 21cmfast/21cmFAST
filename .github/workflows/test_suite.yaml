@@ -1,4 +1,4 @@
-name: Tests (No Integration Tests)
+name: Tests
 
 # Test on all pushes, except when the push is literally just a tag (because we
 # tag automatically via CI, and therefore there's no extra code in that push).
@@ -19,7 +19,7 @@ jobs:
       PYTHON: ${{ matrix.python-version }}
       OS: ${{ matrix.os }}
       CC: ${{ matrix.compiler }}
-    name: Sans Integration Tests
+    name: Test Suite
     runs-on: ${{ matrix.os }}
     strategy:
       fail-fast: false
@@ -66,9 +66,13 @@ jobs:
         run: |
           LOG_LEVEL=${{ env.log_level }} pip install ".[dev]"
 
-      - name: Run Tests
+      - name: Run Unit Tests
         run: |
-          python -m pytest -n 2 -l ${{ env.extra_pytest_args }} --ignore tests/test_integration_features.py --cov=py21cmfast --cov-config=.coveragerc -vv --cov-report xml:./coverage.xml --durations=25 --plots=testplots
+          python -m pytest -n 2 -l ${{ env.extra_pytest_args }} --ignore tests/test_integration_features.py --cov=py21cmfast --cov-config=.coveragerc -vv --cov-report xml:./coverage.xml --durations=25
+
+      - name: Run Integration Tests
+        run: |
+          python -m pytest -n 2 -l ${{ env.extra_pytest_args }} tests/test_integration_features.py --cov=py21cmfast --cov-config=.coveragerc -vv  --cov-append --cov-report xml:./coverage.xml --durations=25 --plots=testplots
 
       - name: Archive Integration Test Plots
         if: always()
