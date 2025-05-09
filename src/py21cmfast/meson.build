@@ -17,6 +17,7 @@ py.install_sources(
 
 pure_subdirs = [
   'drivers',
+  'io',
   'wrapper',
   '_data',
 ]

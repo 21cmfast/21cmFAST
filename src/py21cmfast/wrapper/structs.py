@@ -12,7 +12,6 @@ from bidict import bidict
 import py21cmfast.c_21cmfast as lib
 
 from .. import __version__
-from .._cfg import config
 from ._utils import (
     asarray,
     float_to_string_precision,
@@ -53,12 +52,7 @@ class StructWrapper:
         This instantiates the memory associated with the C struct, attached to this inst.
         """
         self.__attrs_init__(*args)
-        if args[0] == "InitialConditions":
-            self._cobj = lib.InitialConditions
-        else:
-            raise NotImplementedError(
-                f"Wrapped class {args[0]} not listed as an option in StructWrapper."
-            )
+        self._cobj = getattr(lib, self._name)
         self.cstruct = self._new()
 
     def _new(self):

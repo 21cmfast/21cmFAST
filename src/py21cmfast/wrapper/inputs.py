@@ -101,11 +101,6 @@ class InputStruct:
     .. warning:: This class will *not* deal well with parameters of the struct which are
                  pointers. All parameters should be primitive types, except for strings,
                  which are dealt with specially.
-
-    Parameters
-    ----------
-    ffi : cffi object
-        The ffi object from any cffi-wrapped library.
     """
 
     _subclasses: ClassVar = {}
@@ -170,11 +165,6 @@ class InputStruct:
         cdict = self.cdict
         for k in self.struct.fieldnames:
             val = cdict[k]
-
-            if isinstance(val, str):
-                # If it is a string, need to convert it to C string ourselves.
-                val = self.ffi.new("char[]", val.encode())
-
             setattr(self.struct.cstruct, k, val)
 
         return self.struct.cstruct

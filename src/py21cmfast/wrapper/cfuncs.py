@@ -442,9 +442,9 @@ def evaluate_sigma(
 
     lib.get_sigma(
         masses.size,
-        masses,
-        sigma,
-        dsigmasq,
+        masses.ctypes.data,
+        sigma.ctypes.data,
+        dsigmasq.ctypes.data,
     )
 
     return sigma, dsigmasq

@@ -8,9 +8,10 @@ import warnings
 from pathlib import Path
 from typing import ClassVar
 
+import py21cmfast.c_21cmfast as lib
+
 from . import yaml
 from ._data import DATA_PATH
-from .c_21cmfast import ffi, lib
 from .wrapper.structs import StructInstanceWrapper
 
 
@@ -33,7 +34,7 @@ class Config(dict):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
         # keep the config settings from the C library here
-        self._c_config_settings = StructInstanceWrapper(lib.config_settings, ffi)
+        self._c_config_settings = StructInstanceWrapper(lib.get_config_settings)
 
         for k, v in self._defaults.items():
             if k not in self:
@@ -60,13 +61,7 @@ class Config(dict):
 
     def _pass_to_backend(self, key, value):
         """Set the value in the backend."""
-        # we should possibly do a typemap for the ffi
-        if isinstance(value, Path | str):
-            setattr(
-                self._c_config_settings, key, ffi.new("char[]", str(value).encode())
-            )
-        else:
-            setattr(self._c_config_settings, key, value)
+        setattr(self._c_config_settings, key, value)
 
     @contextlib.contextmanager
     def use(self, **kwargs):

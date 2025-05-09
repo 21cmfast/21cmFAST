@@ -80,6 +80,7 @@ NB_MODULE(c_21cmfast, m) {
 
     // Bind AstroParams
     nb::class_<AstroParams>(m, "AstroParams")
+        .def(nb::init<>())
         .def_rw("HII_EFF_FACTOR", &AstroParams::HII_EFF_FACTOR)
         .def_rw("F_STAR10", &AstroParams::F_STAR10)
         .def_rw("ALPHA_STAR", &AstroParams::ALPHA_STAR)
@@ -127,6 +128,7 @@ NB_MODULE(c_21cmfast, m) {
     // TODO: the getter/setter workaround is clunky, we can go via a C++ std:string
     //   or try something else.
     nb::class_<ConfigSettings>(m, "ConfigSettings")
+        .def(nb::init<>())
         .def_rw("HALO_CATALOG_MEM_FACTOR", &ConfigSettings::HALO_CATALOG_MEM_FACTOR)
         .def_ro("external_table_path", &ConfigSettings::external_table_path)
         .def_ro("wisdoms_path", &ConfigSettings::wisdoms_path)
@@ -136,6 +138,7 @@ NB_MODULE(c_21cmfast, m) {
         .def("get_wisdoms_path", &get_wisdoms_path);
 
     nb::class_<AstroOptions>(m, "AstroOptions")
+        .def(nb::init<>())
         .def_rw("USE_MINI_HALOS", &AstroOptions::USE_MINI_HALOS)
         .def_rw("USE_CMB_HEATING", &AstroOptions::USE_CMB_HEATING)
         .def_rw("USE_LYA_HEATING", &AstroOptions::USE_LYA_HEATING)
@@ -328,4 +331,8 @@ NB_MODULE(c_21cmfast, m) {
     m.def("unconditional_hmf", &unconditional_hmf);
     m.def("conditional_hmf", &conditional_hmf);
     m.def("expected_nhalo", &expected_nhalo);
+
+    m.def(
+        "get_config_settings", []() -> ConfigSettings& { return config_settings; },
+        nb::rv_policy::reference);
 }
