@@ -13,7 +13,6 @@ import h5py
 import numpy as np
 from astropy import units
 from astropy.cosmology import z_at_value
-from cosmotile import apply_rsds
 
 from .. import __version__
 from ..c_21cmfast import lib
