@@ -1,6 +1,7 @@
 #ifndef _IONBOX_H
 #define _IONBOX_H
 
+#include <complex.h>
 #include <fftw3.h>
 
 #include "InputParameters.h"

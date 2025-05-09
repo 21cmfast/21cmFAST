@@ -957,8 +957,8 @@ void calculate_sfrd_from_grid(int R_ct, float *dens_R_grid, float *Mcrit_R_grid,
     bool use_cuda = false;  // pass this as a parameter later
     if (use_cuda && astro_options_global->USE_MASS_DEPENDENT_ZETA &&
         matter_options_global->USE_INTERPOLATION_TABLES && !astro_options_global->USE_MINI_HALOS) {
-        RGTable1D_f *SFRD_conditional_table = get_SFRD_conditional_table();
 #if CUDA_FOUND
+        RGTable1D_f *SFRD_conditional_table = get_SFRD_conditional_table();
         ave_sfrd_buf =
             calculate_sfrd_from_grid_gpu(SFRD_conditional_table, dens_R_grid, zpp_growth, R_ct,
                                          sfrd_grid, HII_TOT_NUM_PIXELS, threadsPerBlock,

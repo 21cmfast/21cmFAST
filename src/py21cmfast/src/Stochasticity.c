@@ -956,8 +956,7 @@ int sample_halo_grids(gsl_rng **rng_arr, double redshift, float *dens_field,
 
 // NOTE: there's a lot of repeated code here and in build_halo_cats, find a way to merge
 int sample_halo_progenitors(gsl_rng **rng_arr, double z_in, double z_out, HaloField *halofield_in,
-                            HaloField *halofield_out, struct HaloSamplingConstants *hs_constants,
-                            RGTable1D_f *sigma_table) {
+                            HaloField *halofield_out, struct HaloSamplingConstants *hs_constants) {
     if (z_in >= z_out) {
         LOG_ERROR("halo progenitors must go backwards in time!!! z_in = %.1f, z_out = %.1f", z_in,
                   z_out);
@@ -985,16 +984,17 @@ int sample_halo_progenitors(gsl_rng **rng_arr, double z_in, double z_out, HaloFi
     // use cuda function if use_cuda is true
     bool use_cuda = false;  // pass this as a parameter later
     if (use_cuda) {
+#if CUDA_FOUND
         // get parameters needed for sigma calculation
+
+        RGTable1D_f *sigma_table = GetSigmaInterpTable();
         double x_min = sigma_table->x_min;
         double x_width = sigma_table->x_width;
         int sigma_bin = sigma_table->n_bin;
         float *sigma_y_arr = sigma_table->y_arr;
-
         // Create a copy of hs_constants for passing to cuda
         struct HaloSamplingConstants d_hs_constants;
         d_hs_constants = *hs_constants;
-
         // get in halo data
         float *halo_m = halofield_in->halo_masses;
         float *halo_star_rng = halofield_in->star_rng;
@@ -1003,8 +1003,6 @@ int sample_halo_progenitors(gsl_rng **rng_arr, double z_in, double z_out, HaloFi
         int *halo_c = halofield_in->halo_coords;
 
         printf("Start cuda calculation for progenitors. ");
-
-#if CUDA_FOUND
         updateHaloOut(halo_m, halo_star_rng, halo_sfr_rng, halo_xray_rng, halo_c, nhalo_in,
                       sigma_y_arr, sigma_bin, x_min, x_width, d_hs_constants, arraysize_total,
                       halofield_out);
@@ -1012,9 +1010,10 @@ int sample_halo_progenitors(gsl_rng **rng_arr, double z_in, double z_out, HaloFi
 
 #else
         LOG_ERROR("CUDA function updateHaloOut() called but code was not compiled for CUDA.");
+        Throw(ValueError);
 #endif
     } else {  // CPU fallback
-#pragma omp parallel num_threads(user_params_global->N_THREADS)
+#pragma omp parallel num_threads(simulation_options_global->N_THREADS)
         {
             float prog_buf[MAX_HALO_CELL];
             int n_prog;
@@ -1070,7 +1069,7 @@ int sample_halo_progenitors(gsl_rng **rng_arr, double z_in, double z_out, HaloFi
                             config_settings.HALO_CATALOG_MEM_FACTOR);
                         LOG_ERROR(
                             "If you expected to have an above average halo number try raising "
-                            "user_params_global->MAXHALO_FACTOR");
+                            "config_settings.HALO_CATALOG_MEM_FACTOR");
                         Throw(ValueError);
                     }
 
@@ -1102,12 +1101,12 @@ int sample_halo_progenitors(gsl_rng **rng_arr, double z_in, double z_out, HaloFi
                 if (ii == 0) {
                     LOG_ULTRA_DEBUG(
                         " HMF %d delta %.3f delta_coll %.3f delta_desc %.3f adjusted %.3f",
-                        user_params_global->HMF, hs_constants_priv.delta,
-                        get_delta_crit(user_params_global->HMF, hs_constants_priv.sigma_cond,
+                        simulation_options_global->HMF, hs_constants_priv.delta,
+                        get_delta_crit(simulation_options_global->HMF, hs_constants_priv.sigma_cond,
                                        hs_constants->growth_out),
-                        get_delta_crit(user_params_global->HMF, hs_constants_priv.sigma_cond,
+                        get_delta_crit(simulation_options_global->HMF, hs_constants_priv.sigma_cond,
                                        hs_constants->growth_in),
-                        get_delta_crit(user_params_global->HMF, hs_constants_priv.sigma_cond,
+                        get_delta_crit(simulation_options_global->HMF, hs_constants_priv.sigma_cond,
                                        hs_constants->growth_in) *
                             hs_constants->growth_out / hs_constants->growth_in);
                     print_hs_consts(&hs_constants_priv);
@@ -1143,21 +1142,19 @@ int stochastic_halofield(unsigned long long int seed, float redshift_desc, float
     struct HaloSamplingConstants hs_constants;
     stoc_set_consts_z(&hs_constants, redshift, redshift_desc);
 
-    // get interp tables needed for sampling progenitors
-    RGTable1D *nhalo_table = GetNhaloTable();
-    RGTable1D *mcoll_table = GetMcollTable();
-    RGTable2D *nhalo_inv_table = GetNhaloInvTable();
-    RGTable1D_f *sigma_table = GetSigmaInterpTable();
-
     bool use_cuda = false;
     if (use_cuda) {
 #if CUDA_FOUND
+        // get interp tables needed for sampling progenitors
+        RGTable1D *nhalo_table = GetNhaloTable();
+        RGTable1D *mcoll_table = GetMcollTable();
+        RGTable2D *nhalo_inv_table = GetNhaloInvTable();
         // copy the tables to the device
         copyTablesToDevice(*nhalo_table, *mcoll_table, *nhalo_inv_table);
 
         // copy global variables to the device
         // todo: move the following operation to InitialConditions.c
-        updateGlobalParams(user_params_global, cosmo_params_global, astro_params_global);
+        updateGlobalParams(simulation_options_global, cosmo_params_global, astro_params_global);
 #else
         LOG_ERROR("CUDA function copyTablesToDevice called but code was not compiled for CUDA.");
 #endif
@@ -1172,12 +1169,11 @@ int stochastic_halofield(unsigned long long int seed, float redshift_desc, float
 
         if (use_cuda) {
             // initiate rand states on the device
+#if CUDA_FOUND
             unsigned long long int nhalo_first = halos->n_halos;
             int buffer_scale = HALO_CUDA_THREAD_FACTOR + 1;
             unsigned long long int n_rstates = nhalo_first * buffer_scale;
             printf("initializing %llu random states on the device... \n", n_rstates);
-
-#if CUDA_FOUND
             init_rand_states(seed, n_rstates);
 
             printf("finish initializing \n");
@@ -1186,14 +1182,15 @@ int stochastic_halofield(unsigned long long int seed, float redshift_desc, float
 #else
             LOG_ERROR(
                 "CUDA function init_rand_states() called but code was not compiled for CUDA.");
+            Throw(ValueError);
 #endif
         }
 
     } else {
         LOG_DEBUG("Calculating halo progenitors from z=%.1f to z=%.1f | %llu", redshift_desc,
                   redshift, halos_desc->n_halos);
-        sample_halo_progenitors(rng_stoc, redshift_desc, redshift, halos_desc, halos, &hs_constants,
-                                sigma_table);
+        sample_halo_progenitors(rng_stoc, redshift_desc, redshift, halos_desc, halos,
+                                &hs_constants);
     }
     LOG_DEBUG("Found %llu Halos", halos->n_halos);
 

@@ -1,5 +1,5 @@
 # Define the source files that contribute to the 21cmFast build
-source_files = [
+source_files = files([
   'BrightnessTemperatureBox.c',
   'HaloBox.c',
   'HaloField.c',
@@ -19,19 +19,18 @@ source_files = [
   'filtering.c',
   'heating_helper_progs.c',
   'hmf.c',
+  'integral_wrappers.c',
   'interp_tables.c',
   'interpolation.c',
   'photoncons.c',
   'recombinations.c',
+  'rng.c',
+  'scaling_relations.c',
   'subcell_rsds.c',
   'thermochem.c',
   'MapMass_cpu.c',
-  'rng.c',
-  '_functionprototypes_wrapper.h',
-  '_inputparams_wrapper.h',
-  '_outputstructs_wrapper.h',
   '_wrapper.cpp',
-]
+])
 
 # Define the 21cmFast dependencies
 omp = dependency('openmp')
@@ -53,5 +52,5 @@ py.extension_module(
   source_files,
   dependencies: deps,
   install: true,
-  subdir:'py21cmfast', 
+  subdir:'py21cmfast',
 )

@@ -179,7 +179,7 @@ int ComputePerturbField(float redshift, InitialConditions *boxes, PerturbedField
             init_displacement_factor_2LPT;
         float mass_factor, dDdt, f_pixel_factor, velocity_displacement_factor,
             velocity_displacement_factor_2LPT;
-        int i, j, k, xi, yi, zi, dimension, dimension_z, switch_mid;
+        int i, j, k, dimension, dimension_z, switch_mid;
 
         // Function for deciding the dimensions of loops when we could
         // use either the low or high resolution grids.

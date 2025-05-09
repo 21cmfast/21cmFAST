@@ -2,10 +2,10 @@ source_files = [
   '__init__.py',
   '_cfg.py',
   '_logging.py',
-  'cache_tools.py',
   'cli.py',
   'lightcones.py',
   'plotting.py',
+  'run_templates.py',
   'utils.py',
   'yaml.py',
 ]

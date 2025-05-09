@@ -27,7 +27,6 @@ CosmoParams *cosmo_params_global;
 AstroParams *astro_params_global;
 AstroOptions *astro_options_global;
 
-// TODO: check if we need these for ConfigParams
 void set_external_table_path(ConfigSettings *params, const char *value) {
     if (params->external_table_path != 0) {
         free(params->external_table_path);

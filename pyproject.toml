@@ -31,18 +31,19 @@ classifiers=[
 ]
 keywords=["Epoch of Reionization", "Cosmology"]
 dependencies=[
-    "click",
-    "numpy<2",
-    "pyyaml",
-    "scipy",
-    "astropy>=2.0",
-    "h5py>=2.8.0",
-    "cached_property",
-    "matplotlib",
-    "bidict",
-    "cosmotile>=0.2.0",
-    "attrs",
-    "ninja",
+        "click",
+        "numpy>=2.0",
+        "pyyaml",
+        "cffi>=1.0",
+        "scipy",
+        "astropy>=2.0",
+        "h5py>=2.8.0",
+        "matplotlib",
+        "bidict",
+        "cosmotile>=0.2.0",
+        "attrs",
+        "tqdm",
+        "ninja",
 ]
 
 # [tool.setuptools.packages.find]
@@ -50,6 +51,9 @@ dependencies=[
 
 [project.optional-dependencies]
 tests = [
+    "clang-format",
+    "clang-tidy",
+    "hmf",
     "pre-commit",
     "pytest>=5.0",
     "pytest-cov",
@@ -57,7 +61,10 @@ tests = [
     "pytest-remotedata>=0.3.2",
     "powerbox",
     "pytest-plt",
+    "pytest-benchmark",
     "questionary",
+    "pytest-xdist",
+    "pytest-mock",
 ]
 docs = [
     "nbsphinx",
@@ -68,6 +75,9 @@ docs = [
 # When the min python version supports PEP 735, this can be simplified
 # as dev = test_req + doc_req again (as it was implemented in setup.py)
 dev = [
+    "clang-format",
+    "clang-tidy",
+    "hmf",
     "pre-commit",
     "pytest>=5.0",
     "pytest-cov",
@@ -75,7 +85,10 @@ dev = [
     "pytest-remotedata>=0.3.2",
     "powerbox",
     "pytest-plt",
+    "pytest-benchmark",
     "questionary",
+    "pytest-xdist",
+    "pytest-mock",
     "nbsphinx",
     "numpydoc",
     "sphinx>=1.3",

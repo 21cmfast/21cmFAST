@@ -6,6 +6,7 @@
 #include "InputParameters.h"
 #include "OutputStructs.h"
 #include "interpolation.h"
+#include "scaling_relations.h"
 
 #ifdef __cplusplus
 extern "C" {

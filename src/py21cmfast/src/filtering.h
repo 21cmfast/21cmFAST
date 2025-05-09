@@ -1,6 +1,7 @@
 #ifndef _FILTERING_H
 #define _FILTERING_H
 
+#include <complex.h>
 #include <fftw3.h>
 
 #ifdef __cplusplus
