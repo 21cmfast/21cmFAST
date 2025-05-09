@@ -1,0 +1,104 @@
+---
+# Labels names are important as they are used by Release Drafter to decide
+# regarding where to record them in changelog or if to skip them.
+#
+# The repository labels will be automatically configured using this file and
+# the GitHub Action https://github.com/marketplace/actions/github-labeler.
+- name: API Breaking
+  description: Breaking Changes
+  color: e305fc
+- name: good first issue
+  description: Good for newcomers
+  color: 7057ff
+- name: Science Project
+  description: Something that we can write a paper on
+  color: "#5319e7"
+
+- name: "status: duplicate"
+  description: This issue or pull request already exists
+  color: d93f0b
+- name: "status: invalid"
+  description: Invalid issue or pull request
+  color: d93f0b
+- name: "status: requires discussion"
+  description: Issue requires further discussion before implementation
+  color: f71bd2
+- name: "status: requires research"
+  description: Issue requires further research before implementation
+  color: "d93f0b"
+- name: "status: wontfix"
+  description: Valid issue, but out of scope for future fixes
+  color: "d93f0b"
+
+- name: "type: maint: dependencies"
+  description: Pull requests that update a dependency file
+  color: "0366d6"
+- name: "type: maint: documentation"
+  description: Improvements or additions to documentation
+  color: "0075ca"
+- name: "type: maint: refactoring"
+  description: Refactoring
+  color: ef67c4
+- name: "type: maint: removal"
+  description: Removals and Deprecations
+  color: 9ae7ea
+- name: "type: maint: style"
+  description: Style
+  color: c120e5
+- name: "type: maint: build"
+  description: Build System and Dependencies
+  color: bfdadc
+
+- name: "type: accuracy"
+  description: "Enhancement that improves accuracy"
+  color: "bfd4f2"
+- name: "type: bug"
+  description: Something isn't working
+  color: d73a4a
+- name: "type: feature: ui"
+  description: New feature that adds functionality for the user
+  color: "0e8a16"
+- name: "type: feature: physical"
+  description: New feature that adds new analysis/physical model
+  color: "0e8a16"
+- name: "type: testing"
+  description: Testing improvements
+  color: b1fc6f
+- name: "type: performance: memory"
+  description: Performance improvements that reduce memory usage
+  color: "016175"
+- name: "type: performance: speed"
+  description: Performance improvements that reduce walltime
+  color: "016175"
+- name: "type: ci"
+  description: Updates to CI (GH actions, RTD, etc.)
+  color: "000000"
+- name: "type: question"
+  description: A question about the code or documentation
+  color: d876e3
+
+- name: "priority: low"
+  description: Low priority
+  color: "BFD4F2"
+- name: "priority: medium"
+  description: Medium priority
+  color: "E99695"
+- name: "priority: high"
+  description: High priority
+  color: "B60205"
+
+- name: "context: C backend"
+  description: Changes occur predominantly in the C code
+  color: "#1d76db"
+- name: "context: cache/io"
+  description: Changes predominantly affect caching or I/O
+  color: "#1d76db"
+- name: "context: error-handling"
+  description: Changes predominantly affect error handling
+  color: "#1d76db"
+- name: "context: installation"
+  description: Changes/questions regarding installation/packaging
+  color: "#1d76db"
+- name: "context: python wrapper"
+  description: Changes predominantly concerning the python wrapper
+  color: "#1d76db"

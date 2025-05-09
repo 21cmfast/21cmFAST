@@ -14,7 +14,7 @@ class PIDFormatter(logging.Formatter):
 
     _mylogger = logging.getLogger(__name__)  # really bad hack
 
-    def format(self, record):  # noqa
+    def format(self, record):
         """Set the format of the log."""
         fmt = "{asctime} | {levelname} |"
 

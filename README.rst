@@ -55,6 +55,16 @@ New Features in 3.0.0+
 * Comprehensive test suite.
 * Strict `semantic versioning <https://semver.org>`_.
 
+New Features in 4.0.0
+=====================
+
+* A discrete halo sampler allowing for the creation of lightcones of galaxy properties and the
+  inclusion of stochasticity. These discrete sources are self-consistently used in the IGM calculations
+* The Inclusion of the Sheth-Tormen conditional halo mass function.
+* Re-designed input/output structures which prioritise transparency.
+* Refactoring of several of the C backend files for much easier development.
+* A lower-level testing framework for calculations done in the backend.
+
 Installation
 ============
 We support Linux and MacOS (please let us know if you are successful in installing on
@@ -79,20 +89,23 @@ The most basic example of running a (very small) coeval simulation at a given re
 and plotting an image of a slice through it::
 
     >>> import py21cmfast as p21c
-    >>> coeval = p21c.run_coeval(
-    >>>     redshift=8.0,
-    >>>     user_params={'HII_DIM': 50, "USE_INTERPOLATION_TABLES": False}
-    >>> )
+    >>> inputs = p21c.InputParameters.from_template('latest-small')
+    >>> coeval = p21c.run_coeval(inputs=inputs,out_redshifts=8.0)
     >>> p21c.plotting.coeval_sliceplot(coeval, kind='brightness_temp')
 
 The coeval object here has much more than just the ``brightness_temp`` field in it. You
 can plot the ``density`` field, ``velocity`` field or a number of other fields.
 To simulate a full lightcone::
 
+    >>> lcn = p21c.RectilinearLightconer.with_equal_cdist_slices(
+    >>>     min_redshift=min(inputs.node_redshifts),
+    >>>     max_redshift=max(inputs.node_redshifts),
+    >>>     resolution=inputs.matter_params.cell_size,
+    >>>     quantities=['brightness_temp'],
+    >>> )
     >>> lc = p21c.run_lightcone(
-    >>>     redshift=8.0,
-    >>>     max_redshift=15.0,
-    >>>     init_box = coeval.init_struct,
+    >>>     lightconer=lcn
+    >>>     inputs=inputs,
     >>> )
     >>> p21c.plotting.lightcone_sliceplot(lc)
 
@@ -110,10 +123,9 @@ command-line parameters. You can run specific steps of the simulation independen
 or an entire simulation at once. For example, to run just the initial density field,
 you can do::
 
-    $ 21cmfast init --HII_DIM=100
+    $ 21cmfast init --HII_DIM=100 --direc ./21cmFAST-cache
 
-The (quite small) simulation box produced is automatically saved into the cache
-(by default, at ``~/21cmFAST-cache``).
+The (quite small) simulation box produced is automatically saved into the cache.
 You can list all the files in your cache (and the parameters used in each of the simulations)
 with::
 
@@ -129,9 +141,9 @@ the coeval box itself is not written, but don't worry -- all of its parts are ca
 so it can be rebuilt extremely quickly. Every input parameter to any of the
 `input classes <https://21cmfast.readthedocs.io/en/latest/reference/_autosummary/py21cmfast.inputs.html>`_
 (there are a lot of parameters) can be specified at the end of the call with prefixes of
-``--`` (like ``HII_DIM`` here). Alternatively, you can point to a config YAML file, eg.::
+``--`` (like ``HII_DIM`` here). Alternatively, you can point to a config TOML file, eg.::
 
-    $ 21cmfast lightcone 8.0 --max-z=15.0 --out=. --config=~/.21cmfast/runconfig_example.yml
+    $ 21cmfast lightcone 8.0 --max-z=15.0 --out=. --config=~/.21cmfast/src/py21cmfast/templates/simple.toml
 
 There is an example configuration file `here <user_data/runconfig_example.yml>`_ that you
 can build from. All input parameters are

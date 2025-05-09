@@ -2,16 +2,14 @@ name: Test MacOS Build
 
 # Test on all pushes, except when the push is literally just a tag (because we
 # tag automatically via CI, and therefore there's no extra code in that push).
-# Also, only test on pull requests into master/production.
+# Also, only test on pull requests into main.
 on:
   push:
     tags-ignore:
       - 'v*'
   pull_request:
     branches:
-      - 'master'
-      - 'production'
-      - 'v4-prep'
+      - 'main'
 
 
 jobs:
@@ -20,13 +18,13 @@ jobs:
     env:
       PYTHON: ${{ matrix.python-version }}
       CC: gcc
-    name: Testing
+    name: Test MacOS Build
     runs-on: ${{ matrix.os }}
     strategy:
       fail-fast: false
       matrix:
-        os: [macos-14, macos-13]  # macos-14 is arm64, macos-13 is not.
-        python-version: ["3.11"]
+        os: [macos-latest, macos-14, macos-13]  # macos-14 is arm64, macos-13 is not.
+        python-version: ["3.12"]
         compiler: ["gcc", "clang"]
     defaults:
      run:
@@ -35,35 +33,22 @@ jobs:
     steps:
       - uses: actions/checkout@master
         with:
-          ref: ${{ github.event.pull_request.head.sha }}
           fetch-depth: 0
-
-      - name: Print head git commit message
-        id: get_head_commit_message
-        run: echo "commit_message=$(git show -s --format=%s)" >> "$GITHUB_ENV"
 
       - name: Setup Miniconda
         uses: conda-incubator/setup-miniconda@v3
         with:
-          # auto-update-conda: true
-          mamba-version: "*"
           channels: conda-forge,defaults
           python-version: ${{ matrix.python-version }}
-          environment-file: ci/macos-latest-env.yml
-          activate-environment: tests
           channel-priority: true
 
-      - name: Conda Info
+      - name: Install Non-Python Dependencies
         run: |
-          conda info -a
-          conda list
-          conda config --show-sources
-          conda config --show
-          printenv | sort
+          conda install fftw gsl
 
       - name: Install 21cmFAST
         run: |
-          CC=${{ matrix.compiler }} CFLAGS="-isysroot /Library/Developer/CommandLineTools/SDKs/MacOSX.sdk" pip install .
+          CC=${{ matrix.compiler }} pip install .
 
       - name: Test Import
         run: |

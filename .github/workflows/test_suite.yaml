@@ -1,16 +1,14 @@
-name: Tests
+name: Tests (No Integration Tests)
 
 # Test on all pushes, except when the push is literally just a tag (because we
 # tag automatically via CI, and therefore there's no extra code in that push).
-# Also, only test on pull requests into master/production.
 on:
   push:
     tags-ignore:
       - 'v*'
   pull_request:
     branches:
-      - 'master'
-      - 'production'
+      - '*'
 
 
 jobs:
@@ -20,14 +18,18 @@ jobs:
       ENV_NAME: tests
       PYTHON: ${{ matrix.python-version }}
       OS: ${{ matrix.os }}
-      CC: gcc
-    name: Testing
+      CC: ${{ matrix.compiler }}
+    name: Sans Integration Tests
     runs-on: ${{ matrix.os }}
     strategy:
       fail-fast: false
       matrix:
         os: [ubuntu-latest, macos-latest]
-        python-version: ["3.10", "3.11", "3.12"]
+        python-version: ["3.11", "3.12"]
+        compiler: ["gcc", "clang"]
+        exclude:
+          - os: ubuntu-latest
+            compiler: "clang"
     defaults:
      run:
        # Adding -l {0} ensures conda can be found properly in each step
@@ -35,31 +37,14 @@ jobs:
     steps:
       - uses: actions/checkout@master
         with:
-          ref: ${{ github.event.pull_request.head.sha }}
           fetch-depth: 0
-
-      - name: Print head git commit message
-        id: get_head_commit_message
-        run: echo "commit_message=$(git show -s --format=%s)" >> "$GITHUB_ENV"
 
       - name: Setup Miniconda
         uses: conda-incubator/setup-miniconda@v3
         with:
-          # auto-update-conda: true
-          mamba-version: "*"
           channels: conda-forge,defaults
           python-version: ${{ matrix.python-version }}
-          environment-file: ci/${{ matrix.os }}-env.yml
-          activate-environment: tests
           channel-priority: true
-
-      - name: Conda Info
-        run: |
-          conda info -a
-          conda list
-          conda config --show-sources
-          conda config --show
-          printenv | sort
 
       - name: Make it a Debug Run
         if: "contains(env.commit_message, 'ci debug')"
@@ -73,35 +58,27 @@ jobs:
           echo "log_level=INFO" >> $GITHUB_ENV
           echo "extra_pytest_args=" >> $GITHUB_ENV
 
-      - name: Get C Libraries Linux
-        if: matrix.os == 'ubuntu-latest'
+      - name: Install Non-Python Dependencies
         run: |
-          sudo apt-get install libfftw3-dev
-          sudo apt-get install libgsl0-dev
+          conda install fftw gsl
 
-      - name: Install 21cmFAST Linux
-        if: matrix.os == 'ubuntu-latest'
+      - name: Install 21cmFAST
         run: |
-          LOG_LEVEL=${{ env.log_level }} pip install .
-
-      - name: Install 21cmFAST MacOS
-        if: matrix.os == 'macos-latest'
-        run: |
-          LOG_LEVEL=${{ env.log_level }} CFLAGS="-isysroot /Library/Developer/CommandLineTools/SDKs/MacOSX.sdk" pip install .
+          LOG_LEVEL=${{ env.log_level }} pip install ".[dev]"
 
       - name: Run Tests
         run: |
-          python -m pytest -n 2 -l ${{ env.extra_pytest_args }} --cov=py21cmfast --cov-config=.coveragerc -vv --cov-report xml:./coverage.xml --durations=25 --plots=testplots
+          python -m pytest -n 2 -l ${{ env.extra_pytest_args }} --ignore tests/test_integration_features.py --cov=py21cmfast --cov-config=.coveragerc -vv --cov-report xml:./coverage.xml --durations=25 --plots=testplots
 
       - name: Archive Integration Test Plots
         if: always()
-        uses: actions/upload-artifact@v3
+        uses: actions/upload-artifact@v4
         with:
-          name: integration-test-plots-${{ matrix.os }}-${{ matrix.python-version }}
+          name: integration-test-plots-${{ matrix.os }}-${{ matrix.python-version }}-${{ matrix.compiler }}
           path: |
             testplots/*.pdf
 
-      - uses: codecov/codecov-action@v3
+      - uses: codecov/codecov-action@v5
         if: matrix.os == 'ubuntu-latest' && success() && !contains(github.event.pull_request.labels.*.name, 'auto-pr')
         with:
           fail_ci_if_error: true

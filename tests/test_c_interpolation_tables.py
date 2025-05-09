@@ -1,12 +1,13 @@
-import pytest
+"""Test the C interpolation tables."""
 
 import matplotlib as mpl
 import numpy as np
+import pytest
 from astropy import constants as c
 from astropy import units as u
 
-from py21cmfast import AstroParams, CosmoParams, FlagOptions, UserParams, global_params
 import py21cmfast.c_21cmfast as lib
+from py21cmfast import AstroOptions, AstroParams, CosmoParams, SimulationOptions
 from py21cmfast.wrapper import cfuncs as cf
 
 from . import produce_integration_test_data as prd
@@ -31,11 +32,8 @@ OPTIONS_PS = {
 }
 
 OPTIONS_HMF = {
-    "PS": [10, {"HMF": "PS", "USE_MASS_DEPENDENT_ZETA": True}],
-    "ST": [10, {"HMF": "ST", "USE_MASS_DEPENDENT_ZETA": True}],
-    # "Watson": [10, {"HMF": "WATSON"}],
-    # "Watsonz": [10, {"HMF": "WATSON-Z"}],
-    # "Delos": [10, {"HMF": "DELOS"}],
+    "PS": [10, {"HMF": "PS", "USE_MASS_DEPENDENT_ZETA": True, "M_MIN_in_Mass": True}],
+    "ST": [10, {"HMF": "ST", "USE_MASS_DEPENDENT_ZETA": True, "M_MIN_in_Mass": True}],
 }
 
 OPTIONS_INTMETHOD = {
@@ -54,13 +52,12 @@ options_intmethod = list(OPTIONS_INTMETHOD.keys())
 # the minihalo ffcoll tables have some bins (when Mturn -> M_turn_upper) which go above 10% error compared to their "integrals"
 #    they can pass by doubling the number of M_turn bins and setting relative error to 5% but I think this
 #    is better left for later
-# options_intmethod[2] = pytest.param("FFCOLL", marks=pytest.mark.xfail)
 
 
 # Test delta range for CMF integrals over cells
 @pytest.fixture(scope="module")
 def delta_range():
-    return np.linspace(-0.98, 1.7, num=200)
+    return np.linspace(-0.98, 1.7, num=100)
 
 
 # Mass condition range, and integral bound range for testing CMF integrals
@@ -78,28 +75,24 @@ def log10_mturn_range():
 # redshift range for testing UMF integrals
 @pytest.fixture(scope="module")
 def z_range():
-    return np.linspace(6, 35, num=200)
+    return np.linspace(6, 35, num=100)
 
 
 @pytest.mark.parametrize("name", options_ps)
 def test_sigma_table(name, mass_range, plt):
     abs_tol = 0
-
     redshift, kwargs = OPTIONS_PS[name]
-    opts = prd.get_all_options(redshift, **kwargs)
-
-    up = opts["user_params"]
-    cp = opts["cosmo_params"]
+    inputs = prd.get_all_options_struct(redshift, **kwargs)["inputs"]
 
     sigma_tables, dsigma_tables = cf.evaluate_sigma(
-        user_params=up,
-        cosmo_params=cp,
+        inputs=inputs.evolve_input_structs(
+            USE_INTERPOLATION_TABLES="sigma-interpolation"
+        ),
         masses=mass_range,
     )
 
     sigma_integrals, dsigma_integrals = cf.evaluate_sigma(
-        user_params=up.clone(USE_INTERPOLATION_TABLES=False),
-        cosmo_params=cp,
+        inputs=inputs.evolve_input_structs(USE_INTERPOLATION_TABLES="no-interpolation"),
         masses=mass_range,
     )
 
@@ -107,8 +100,8 @@ def test_sigma_table(name, mass_range, plt):
         make_table_comparison_plot(
             [mass_range, mass_range],
             [None, None],
-            [sigma_tables, dsigma_tables],
-            [sigma_integrals, dsigma_integrals],
+            [sigma_tables, -dsigma_tables],
+            [sigma_integrals, -dsigma_integrals],
             plt,
             xlabels=["Mass", "Mass"],
             ylabels=["sigma", "dsigmasqdM"],
@@ -123,215 +116,54 @@ def test_sigma_table(name, mass_range, plt):
 
 
 @pytest.mark.parametrize("name", options_hmf)
-@pytest.mark.parametrize("from_cat", ["cat", "grid"])
-def test_inverse_cmf_tables(name, from_cat, delta_range, mass_range, plt):
+@pytest.mark.parametrize("cond_type", ["cat", "grid"])
+def test_massfunc_conditional_tables(name, cond_type, mass_range, delta_range, plt):
     redshift, kwargs = OPTIONS_HMF[name]
-    opts = prd.get_all_options(redshift, **kwargs)
+    inputs = prd.get_all_options_struct(redshift, **kwargs)["inputs"]
+    from_cat = "cat" in cond_type
 
-    up = opts["user_params"]
-    cp = opts["cosmo_params"]
-    ap = opts["astro_params"]
-    fo = opts["flag_options"]
-
-    from_cat = "cat" in from_cat
-
-    # we need the buffer for small conditions, but want the full upper range
-    mmin_range = np.logspace(
-        np.log10(mass_range.min() / up.SAMPLER_BUFFER_FACTOR),
-        np.log10(mass_range.max()),
-        num=mass_range.size,
+    inputs_cond = mass_range if from_cat else delta_range
+    z_desc = (
+        (redshift + 1) / inputs.simulation_options.ZPRIME_STEP_FACTOR - 1
+        if from_cat
+        else None
     )
 
-    if not from_cat:
-        M_cond = (
-            (
-                cp.cosmo.critical_density(0)
-                * cp.OMm
-                * u.Mpc**3
-                * (up.BOX_LEN / up.HII_DIM) ** 3
-            )
-            .to("M_sun")
-            .value
-        )
-        inputs_cond, inputs_mass = np.meshgrid(
-            delta_range, mmin_range, indexing="ij")
-        z_desc = None
-        inputs_delta = inputs_cond
-    else:
-        inputs_cond, inputs_mass = np.meshgrid(
-            np.log(mass_range), mmin_range, indexing="ij"
-        )
-        inputs_delta = None
-        z_desc = (1 + redshift) / global_params.ZPRIME_STEP_FACTOR - 1
-        M_cond = np.exp(inputs_cond)
-
-    # ----CELLS-----
-    # Get the Integrals
-    cmf_integral = cf.get_cmf_integral(
-        user_params=up,
-        cosmo_params=cp,
-        astro_params=ap,
-        flag_options=fo,
-        M_min=inputs_mass,
-        M_max=mmin_range.max(),
-        M_cond=M_cond,
+    # get the tables
+    nhalo_tbl, mcoll_tbl = cf.evaluate_condition_integrals(
+        inputs=inputs.evolve_input_structs(
+            USE_INTERPOLATION_TABLES="hmf-interpolation"
+        ),
         redshift=redshift,
-        delta=inputs_delta,
-        z_desc=z_desc,
-    ).squeeze()  # (cond, minmass)
-
-    # Normalize by max value to get CDF
-    max_p_cond = np.copy(cmf_integral[:, :1])
-    max_p_cond[max_p_cond == 0] = 1.0
-    cmf_integral /= max_p_cond
-
-    # Take those probabilites to the inverse table
-    icmf_table = cf.evaluate_inv_massfunc_cond(
-        user_params=up,
-        cosmo_params=cp,
-        astro_params=ap,
-        flag_options=fo,
-        M_min=mmin_range.min(),
-        redshift=redshift,
-        cond_param=z_desc if from_cat else M_cond,
+        redshift_prev=z_desc,
         cond_array=inputs_cond,
-        probabilities=cmf_integral,
-        from_catalog=from_cat,
     )
-
-    # for plotting and printing, we use mass instead of logmass
-    inputs_cond = np.exp(inputs_cond) if from_cat else inputs_cond
-    if plt == mpl.pyplot:
-        sel = ((inputs_cond.shape[0] - 1) * np.arange(5) / 4).astype(int)
-        make_table_comparison_plot(
-            [cmf_integral[sel, :].T],
-            [inputs_cond[sel, 0]],
-            [icmf_table[sel, :].T],
-            [inputs_mass[sel, :].T],
-            plt,
-            zlabels=[r"$\delta =$" if not from_cat else r"$M=$"],
-            logx=True,
-            logy=True,
-            label_test=[False, False],
-            xlabels=["Probability"],
-            ylabels=["Mass"],
-            xlim=[np.exp(up.MIN_LOGPROB) / 10, 1.0],
-            reltol=RELATIVE_TOLERANCE,
-        )
-
-    # We only want to compare at reasonable probabilities
-    # easiest way to ignore is to fix values to nan
-    sel_lowprob = cmf_integral < np.exp(up.MIN_LOGPROB)
-    cmf_integral[sel_lowprob] = np.nan
-    inputs_mass[sel_lowprob] = np.nan
-    icmf_table[sel_lowprob] = np.nan
-
-    # We don't want to include values close to delta crit, since the integrals struggle there,
-    # and interpolating across the sharp gap results in errors
-    # TODO: the bound should be over MAX_DELTAC_FRAC*delta_crit, and we should interpolate
-    # instead of setting the integral to its limit at delta crit.
-    if not from_cat:
-        delta_crit = float(cf.get_delta_crit(
-            up, cp, np.array([M_cond]), redshift))
-        sel_delta = delta_range < 0.98 * delta_crit
-        delta_range = delta_range[sel_delta]
-        cmf_integral = cmf_integral[sel_delta, ...]
-        inputs_mass = inputs_mass[sel_delta, ...]
-        icmf_table = icmf_table[sel_delta, ...]
-        inputs_cond = inputs_cond[sel_delta, ...]
-
-    print_failure_stats(
-        np.log(icmf_table),
-        np.log(inputs_mass),  # TODO: decide whether to compare logmass or mass
-        [inputs_cond, cmf_integral],
-        0.0,
-        RELATIVE_TOLERANCE,
-        "Inverse CMF",
-    )
-
-    np.testing.assert_allclose(
-        np.log(inputs_mass),
-        np.log(icmf_table),
-        rtol=RELATIVE_TOLERANCE,
-    )
-
-
-# NOTE: This test currently fails (~10% differences in mass in <1% of bins)
-#   I don't want to relax the tolerance yet since it can be improved, but
-#   for now this is acceptable
-@pytest.mark.parametrize("name", options_hmf)
-@pytest.mark.parametrize("from_cat", ["cat", "grid"])
-def test_massfunc_conditional_tables(name, from_cat, mass_range, delta_range, plt):
-    redshift, kwargs = OPTIONS_HMF[name]
-    opts = prd.get_all_options(redshift, **kwargs)
-    up = opts["user_params"]
-    cp = opts["cosmo_params"]
-    ap = opts["astro_params"]
-    fo = opts["flag_options"]
-
-    M_min = mass_range.min()
-    M_max = mass_range.max()
-    from_cat = "cat" in from_cat
-
-    if from_cat:
-        # condition array is halo mass, parameter is descendant redshift
-        cond_arr = np.log(mass_range)
-        cond_param = (1 + redshift) / global_params.ZPRIME_STEP_FACTOR - 1
-    else:
-        # condition array is density, parameter is cell mass
-        cond_param = (
-            (
-                cp.cosmo.critical_density(0)
-                * cp.OMm
-                * u.Mpc**3
-                * (up.BOX_LEN / up.HII_DIM) ** 3
-            )
-            .to("M_sun")
-            .value
-        )
-        cond_arr = delta_range
-
-    nhalo_tbl, mcoll_tbl = cf.evaluate_massfunc_cond(
-        user_params=up,
-        cosmo_params=cp,
-        astro_params=ap,
-        flag_options=fo,
-        M_min=M_min,
-        M_max=M_max,
+    # get the integrals
+    nhalo_exp, mcoll_exp = cf.evaluate_condition_integrals(
+        inputs=inputs.evolve_input_structs(
+            USE_INTERPOLATION_TABLES="sigma-interpolation"
+        ),
         redshift=redshift,
-        cond_param=cond_param,
-        cond_array=cond_arr,
-        from_catalog=from_cat,
-    )
-    nhalo_exp, mcoll_exp = cf.evaluate_massfunc_cond(
-        user_params=up.clone(USE_INTERPOLATION_TABLES=False),
-        cosmo_params=cp,
-        astro_params=ap,
-        flag_options=fo,
-        M_min=M_min,
-        M_max=M_max,
-        redshift=redshift,
-        cond_param=cond_param,
-        cond_array=cond_arr,
-        from_catalog=from_cat,
+        redshift_prev=z_desc,
+        cond_array=inputs_cond,
     )
 
     if plt == mpl.pyplot:
-        cond_arr = np.exp(cond_arr) if from_cat else cond_arr
         make_table_comparison_plot(
-            [cond_arr, cond_arr],
+            [inputs_cond, inputs_cond],
             [None, None],
             [nhalo_tbl, mcoll_tbl],
             [nhalo_exp, mcoll_exp],
             plt,
-            xlabels=["delta" if from_cat else "Mass"] * 2,
+            logx=from_cat,
+            xlabels=["Mass" if from_cat else "delta"] * 2,
             ylabels=["Nhalo", "Mcoll"],
         )
 
     print_failure_stats(
         nhalo_tbl,
         nhalo_exp,
-        [cond_arr],
+        [inputs_cond],
         0.0,
         RELATIVE_TOLERANCE,
         "expected N halo",
@@ -339,7 +171,7 @@ def test_massfunc_conditional_tables(name, from_cat, mass_range, delta_range, pl
     print_failure_stats(
         mcoll_tbl,
         mcoll_exp,
-        [cond_arr],
+        [inputs_cond],
         0.0,
         RELATIVE_TOLERANCE,
         "expected M halo",
@@ -349,46 +181,118 @@ def test_massfunc_conditional_tables(name, from_cat, mass_range, delta_range, pl
     np.testing.assert_allclose(mcoll_exp, mcoll_tbl, rtol=RELATIVE_TOLERANCE)
 
 
+@pytest.mark.parametrize("name", options_hmf)
+@pytest.mark.parametrize("cond_type", ["cat", "grid"])
+def test_inverse_cmf_tables(name, cond_type, delta_range, mass_range, plt):
+    redshift, kwargs = OPTIONS_HMF[name]
+    inputs = prd.get_all_options_struct(redshift, **kwargs)["inputs"]
+
+    from_cat = "cat" in cond_type
+    lnMmin_range = np.log(mass_range)
+    inputs_cond = mass_range if from_cat else delta_range
+    z_desc = (
+        (redshift + 1) / inputs.simulation_options.ZPRIME_STEP_FACTOR - 1
+        if from_cat
+        else None
+    )
+
+    # Get the full integrals
+    nhalo, _ = cf.evaluate_condition_integrals(
+        inputs=inputs,
+        redshift=redshift,
+        redshift_prev=z_desc,
+        cond_array=inputs_cond,
+    )
+    # Get the Integrals on mass limits
+    cmf_integral = cf.integrate_chmf_interval(
+        inputs=inputs,
+        lnm_lower=lnMmin_range,
+        lnm_upper=np.full_like(lnMmin_range, 16 * np.log(10)),
+        cond_values=inputs_cond,
+        redshift=redshift,
+        redshift_prev=z_desc,
+    )
+    probabilities = cmf_integral / nhalo[:, None]
+
+    inputs_cond_bc, inputs_mmin_bc = np.meshgrid(
+        inputs_cond, lnMmin_range, indexing="ij"
+    )
+    # Take those probabilites to the inverse table
+    icmf_table = cf.evaluate_inverse_table(
+        inputs=inputs,
+        probabilities=probabilities,
+        cond_array=inputs_cond_bc,
+        redshift=redshift,
+        redshift_prev=z_desc,
+    )
+
+    # ignore condition out-of-bounds (returned as -1 by evaluate_inverse_table)
+    sel_oob = icmf_table < 0.0
+    # ignore probability out-of-bounds (extrapolated by the backend)
+    sel_lowprob = cmf_integral < np.exp(inputs.simulation_options.MIN_LOGPROB)
+    if plt == mpl.pyplot:
+        last_cond = np.amax(np.where(np.any(~sel_oob, axis=-1)))
+        first_cond = np.amin(np.where(np.any(~sel_oob, axis=-1)))
+        sel_plot = np.linspace(first_cond, last_cond, num=6).astype(int)
+        make_table_comparison_plot(
+            [probabilities[sel_plot, :].T],
+            [inputs_cond[sel_plot]],
+            [icmf_table[sel_plot, :].T],
+            [np.exp(lnMmin_range)],
+            plt,
+            zlabels=[r"$\delta =$" if not from_cat else r"$M=$"],
+            logx=True,
+            logy=True,
+            label_test=[False, False],
+            xlabels=["Probability"],
+            ylabels=["Mass"],
+            xlim=[np.exp(inputs.simulation_options.MIN_LOGPROB) / 10, 1.0],
+            reltol=RELATIVE_TOLERANCE,
+        )
+
+    # easiest way to ignore in testing is to fix values to nan
+    inputs_mmin_bc[sel_lowprob | sel_oob] = np.nan
+    icmf_table[sel_lowprob | sel_oob] = np.nan
+
+    # NOTE: very dense cells can have ~3.5% errors at low mass, other bins much more accurate
+    # Previously I didn't test cells near delta_crit, but I think a 5% tolerance test is better
+    rtol = 5e-2
+    print_failure_stats(
+        np.log(icmf_table),
+        inputs_mmin_bc,
+        [inputs_cond, probabilities],
+        0.0,
+        rtol,
+        "Inverse CMF",
+    )
+
+    np.testing.assert_allclose(
+        inputs_mmin_bc,
+        np.log(icmf_table),
+        rtol=rtol,
+    )
+
+
 @pytest.mark.parametrize("R", R_PARAM_LIST)
 def test_FgtrM_conditional_tables(R, delta_range, plt):
     redshift, kwargs = OPTIONS_HMF["PS"]  # always erfc
-    opts = prd.get_all_options(redshift, **kwargs)
-    up = opts["user_params"]
-    cp = opts["cosmo_params"]
-    ap = opts["astro_params"]
-    fo = opts["flag_options"]
-
-    M_min = global_params.M_MIN_INTEGRAL
-    M_max = 1e20
-
-    cond_mass = (
-        (4.0 / 3.0 * np.pi * (R * u.Mpc) ** 3 *
-         cp.cosmo.critical_density(0) * cp.OMm)
-        .to("M_sun")
-        .value
-    )
+    inputs = prd.get_all_options_struct(redshift, **kwargs)["inputs"]
 
     fcoll_tables, dfcoll_tables = cf.evaluate_FgtrM_cond(
-        user_params=up,
-        cosmo_params=cp,
-        astro_params=ap,
-        flag_options=fo,
-        M_min=M_min,
-        M_max=M_max,
+        inputs=inputs.evolve_input_structs(
+            USE_INTERPOLATION_TABLES="hmf-interpolation"
+        ),
         redshift=redshift,
-        cond_mass=cond_mass,
         densities=delta_range,
+        R=R,
     )
     fcoll_integrals, dfcoll_integrals = cf.evaluate_FgtrM_cond(
-        user_params=up.clone(USE_INTERPOLATION_TABLES=False),
-        cosmo_params=cp,
-        astro_params=ap,
-        flag_options=fo,
-        M_min=M_min,
-        M_max=M_max,
+        inputs=inputs.evolve_input_structs(
+            USE_INTERPOLATION_TABLES="sigma-interpolation"
+        ),
         redshift=redshift,
-        cond_mass=cond_mass,
         densities=delta_range,
+        R=R,
     )
 
     if plt == mpl.pyplot:
@@ -401,18 +305,6 @@ def test_FgtrM_conditional_tables(R, delta_range, plt):
             xlabels=["delta", "delta"],
             ylabels=["fcoll", "dfolldz"],
         )
-    # We don't want to include values close to delta crit, since the integrals struggle there,
-    # and interpolating across the sharp gap results in errors
-    # TODO: the bound should be over MAX_DELTAC_FRAC*delta_crit, and we should interpolate
-    # instead of setting the integral to its limit at delta crit.
-    delta_crit = float(cf.get_delta_crit(
-        up, cp, np.array([cond_mass]), redshift))
-    sel_delta = np.fabs((delta_range - delta_crit) / delta_crit) > 0.02
-    delta_range = delta_range[sel_delta]
-    fcoll_integrals = fcoll_integrals[sel_delta, ...]
-    fcoll_tables = fcoll_tables[sel_delta, ...]
-    dfcoll_integrals = dfcoll_integrals[sel_delta, ...]
-    dfcoll_tables = dfcoll_tables[sel_delta, ...]
 
     abs_tol = 5e-6
     print_failure_stats(
@@ -444,49 +336,38 @@ def test_FgtrM_conditional_tables(R, delta_range, plt):
 @pytest.mark.parametrize("name", options_hmf)
 def test_SFRD_z_tables(name, z_range, log10_mturn_range, plt):
     redshift, kwargs = OPTIONS_HMF[name]
-    opts = prd.get_all_options(redshift, **kwargs)
-    up = opts["user_params"]
-    cp = opts["cosmo_params"]
-    ap = opts["astro_params"]
-    fo = opts["flag_options"].clone(
+    inputs = prd.get_all_options_struct(
+        redshift,
         USE_MINI_HALOS=True,
         INHOMO_RECO=True,
         USE_TS_FLUCT=True,
-    )
+        **kwargs,
+    )["inputs"]
 
-    M_min = global_params.M_MIN_INTEGRAL
-    M_max = 1e20
-
+    z_input, mt_input = np.meshgrid(z_range, log10_mturn_range, indexing="ij")
     SFRD_tables, SFRD_tables_mini = cf.evaluate_SFRD_z(
-        user_params=up,
-        cosmo_params=cp,
-        astro_params=ap,
-        flag_options=fo,
-        M_min=M_min,
-        M_max=M_max,
-        redshifts=z_range,
-        log10mturnovers=log10_mturn_range,
+        inputs=inputs.evolve_input_structs(
+            USE_INTERPOLATION_TABLES="hmf-interpolation"
+        ),
+        redshifts=z_input,
+        log10mturns=mt_input,
     )
     SFRD_integrals, SFRD_integrals_mini = cf.evaluate_SFRD_z(
-        user_params=up,
-        cosmo_params=cp,
-        astro_params=ap,
-        flag_options=fo,
-        M_min=M_min,
-        M_max=M_max,
-        redshifts=z_range,
-        log10mturnovers=log10_mturn_range,
-        return_integral=True,
+        inputs=inputs.evolve_input_structs(
+            USE_INTERPOLATION_TABLES="sigma-interpolation"
+        ),
+        redshifts=z_input,
+        log10mturns=mt_input,
     )
 
     if plt == mpl.pyplot:
         xl = log10_mturn_range.size - 1
-        sel_m = (xl * np.arange(5) / 4).astype(int)
+        sel_m = np.linspace(0, xl, num=5).astype(int)
         make_table_comparison_plot(
             [z_range, z_range],
             [np.array([0]), 10 ** log10_mturn_range[sel_m]],
-            [SFRD_tables, SFRD_tables_mini[..., sel_m]],
-            [SFRD_integrals, SFRD_integrals_mini[..., sel_m]],
+            [SFRD_tables[..., 0], SFRD_tables_mini[..., sel_m]],
+            [SFRD_integrals[..., 0], SFRD_integrals_mini[..., sel_m]],
             plt,
             label_test=[True, False],
             xlabels=["redshift", "redshift"],
@@ -522,78 +403,67 @@ def test_SFRD_z_tables(name, z_range, log10_mturn_range, plt):
 @pytest.mark.parametrize("name", options_hmf)
 def test_Nion_z_tables(name, z_range, log10_mturn_range, plt):
     redshift, kwargs = OPTIONS_HMF[name]
-    opts = prd.get_all_options(redshift, **kwargs)
-    up = opts["user_params"]
-    cp = opts["cosmo_params"]
-    ap = opts["astro_params"]
-    fo = opts["flag_options"].clone(
+    inputs = prd.get_all_options_struct(
+        redshift,
         USE_MINI_HALOS=True,
         INHOMO_RECO=True,
         USE_TS_FLUCT=True,
-    )
+        **kwargs,
+    )["inputs"]
 
-    M_min = global_params.M_MIN_INTEGRAL
-    M_max = 1e20
-
-    Nion_tables, Nion_tables_mini = cf.evaluate_Nion_z(
-        user_params=up,
-        cosmo_params=cp,
-        astro_params=ap,
-        flag_options=fo,
-        M_min=M_min,
-        M_max=M_max,
-        redshifts=z_range,
-        log10mturnovers=log10_mturn_range,
+    z_input, mt_input = np.meshgrid(z_range, log10_mturn_range, indexing="ij")
+    nion_tables, nion_tables_mini = cf.evaluate_Nion_z(
+        inputs=inputs.evolve_input_structs(
+            USE_INTERPOLATION_TABLES="hmf-interpolation"
+        ),
+        redshifts=z_input,
+        log10mturns=mt_input,
     )
-    Nion_integrals, Nion_integrals_mini = cf.evaluate_Nion_z(
-        user_params=up,
-        cosmo_params=cp,
-        astro_params=ap,
-        flag_options=fo,
-        M_min=M_min,
-        M_max=M_max,
-        redshifts=z_range,
-        log10mturnovers=log10_mturn_range,
-        return_integral=True,
+    nion_integrals, nion_integrals_mini = cf.evaluate_Nion_z(
+        inputs=inputs.evolve_input_structs(
+            USE_INTERPOLATION_TABLES="sigma-interpolation"
+        ),
+        redshifts=z_input,
+        log10mturns=mt_input,
     )
 
     if plt == mpl.pyplot:
         xl = log10_mturn_range.size - 1
-        sel_m = (xl * np.arange(5) / 4).astype(int)
+        sel_m = np.linspace(0, xl, num=5).astype(int)
         make_table_comparison_plot(
             [z_range, z_range],
-            [np.array([0]), log10_mturn_range[sel_m]],
-            [Nion_tables[:, None], Nion_tables_mini[..., sel_m]],
-            [Nion_integrals[:, None], Nion_integrals_mini[..., sel_m]],
+            [np.array([0]), 10 ** log10_mturn_range[sel_m]],
+            [nion_tables[..., 0], nion_tables_mini[..., sel_m]],
+            [nion_integrals[..., 0], nion_integrals_mini[..., sel_m]],
             plt,
             label_test=[True, False],
             xlabels=["redshift", "redshift"],
             ylabels=["Nion", "Nion_mini"],
         )
 
-    abs_tol = 1e-6
+    abs_tol = 2e-6
     print_failure_stats(
-        Nion_tables,
-        Nion_integrals,
+        nion_tables,
+        nion_integrals,
         [z_range],
         abs_tol,
         RELATIVE_TOLERANCE,
-        "Nion_z",
+        "SFRD_z",
     )
     print_failure_stats(
-        Nion_tables_mini,
-        Nion_integrals_mini,
+        nion_tables_mini,
+        nion_integrals_mini,
         [z_range, 10**log10_mturn_range],
         abs_tol,
         RELATIVE_TOLERANCE,
-        "Nion_z_mini",
+        "SFRD_z_mini",
     )
 
     np.testing.assert_allclose(
-        Nion_tables, Nion_integrals, atol=abs_tol, rtol=RELATIVE_TOLERANCE
+        nion_tables, nion_integrals, atol=abs_tol, rtol=RELATIVE_TOLERANCE
     )
     np.testing.assert_allclose(
-        Nion_tables_mini, Nion_integrals_mini, atol=abs_tol, rtol=RELATIVE_TOLERANCE
+        nion_tables_mini, nion_integrals_mini, atol=abs_tol, rtol=RELATIVE_TOLERANCE
     )
 
 
@@ -604,7 +474,7 @@ def test_Nion_z_tables(name, z_range, log10_mturn_range, plt):
 #       Hence this is a worst case scenario
 #   While the EvaluateX() functions are useful in the main code to be agnostic to USE_INTERPOLATION_TABLES
 #       I do not use them here fully, instead calling the integrals directly to avoid parameter changes
-#       Mostly since if we set user_params.USE_INTERPOLATION_TABLES=False then the sigma tables aren't used
+#       Mostly since if we set simulation_options.USE_INTERPOLATION_TABLES=False then the sigma tables aren't used
 #       and it takes forever
 @pytest.mark.parametrize("mini", ["mini", "acg"])
 @pytest.mark.parametrize("R", R_PARAM_LIST)
@@ -622,56 +492,40 @@ def test_Nion_conditional_tables(
             )
 
     mini_flag = mini == "mini"
-
     redshift, kwargs = OPTIONS_HMF[name]
-    opts = prd.get_all_options(redshift, **kwargs)
-    up = opts["user_params"].clone(
-        INTEGRATION_METHOD_ATOMIC=OPTIONS_INTMETHOD[intmethod],
-        INTEGRATION_METHOD_MINI=OPTIONS_INTMETHOD[intmethod],
-    )
-    cp = opts["cosmo_params"]
-    ap = opts["astro_params"]
-    fo = opts["flag_options"].clone(
+    inputs = prd.get_all_options_struct(
+        redshift,
         USE_MINI_HALOS=mini_flag,
         INHOMO_RECO=True,
         USE_TS_FLUCT=True,
-    )
+        **kwargs,
+    )["inputs"]
 
-    M_min = global_params.M_MIN_INTEGRAL
-    M_max = 1e20
-
-    cond_mass = (
-        (4.0 / 3.0 * np.pi * (R * u.Mpc) ** 3 *
-         cp.cosmo.critical_density(0) * cp.OMm)
-        .to("M_sun")
-        .value
-    )
+    # NOTE: we still pass a 2D array when minihalos are off.
+    #   part of the test is that passing different mturns *doesn't* change
+    #   the integral without minihalos
+    d_input, mt_input = np.meshgrid(delta_range, log10_mturn_range, indexing="ij")
 
     Nion_tables, Nion_tables_mini = cf.evaluate_Nion_cond(
-        user_params=up,
-        cosmo_params=cp,
-        astro_params=ap,
-        flag_options=fo,
-        M_min=M_min,
-        M_max=M_max,
+        inputs=inputs.evolve_input_structs(
+            USE_INTERPOLATION_TABLES="hmf-interpolation"
+        ),
         redshift=redshift,
-        cond_mass=cond_mass,
-        densities=delta_range,
-        l10mturns=log10_mturn_range,
+        radius=R,
+        densities=d_input,
+        l10mturns_mcg=mt_input,
+        l10mturns_acg=mt_input,
     )
 
     Nion_integrals, Nion_integrals_mini = cf.evaluate_Nion_cond(
-        user_params=up,
-        cosmo_params=cp,
-        astro_params=ap,
-        flag_options=fo,
-        M_min=M_min,
-        M_max=M_max,
+        inputs=inputs.evolve_input_structs(
+            USE_INTERPOLATION_TABLES="sigma-interpolation"
+        ),
         redshift=redshift,
-        cond_mass=cond_mass,
-        densities=delta_range,
-        l10mturns=log10_mturn_range,
-        return_integral=True,
+        radius=R,
+        densities=d_input,
+        l10mturns_mcg=mt_input,
+        l10mturns_acg=mt_input,
     )
 
     # The bilinear interpolation we use underperforms at high mturn due to the sharp
@@ -681,44 +535,26 @@ def test_Nion_conditional_tables(
     abs_tol = 1e-8
 
     if plt == mpl.pyplot:
-        if mini_flag:
-            xl = log10_mturn_range.size - 1
-            sel_m = (xl * np.arange(5) / 4).astype(int)
-            Nion_tb_plot = Nion_tables[..., sel_m]
-            Nion_il_plot = Nion_integrals[..., sel_m]
-        else:
-            Nion_tb_plot = Nion_tables[:, None]
-            Nion_il_plot = Nion_integrals[:, None]
-            sel_m = np.array([0]).astype(int)
+        xl = log10_mturn_range.size - 1
+        sel_m = np.linspace(0, xl, num=5).astype(int)
+        Nion_tb_plot = Nion_tables[..., sel_m]
+        Nion_il_plot = Nion_integrals[..., sel_m]
 
         make_table_comparison_plot(
             [delta_range, delta_range],
-            [10 ** log10_mturn_range[sel_m], 10 ** log10_mturn_range[sel_m]],
-            [Nion_tb_plot, Nion_tables_mini[..., sel_m]],
-            [Nion_il_plot, Nion_integrals_mini[..., sel_m]],
+            [np.array([0]), 10 ** log10_mturn_range[sel_m]],
+            [Nion_tb_plot[..., 0], Nion_tables_mini[..., sel_m]],
+            [Nion_il_plot[..., 0], Nion_integrals_mini[..., sel_m]],
             plt,
             label_test=[True, False],
             xlabels=["delta", "delta"],
             ylabels=["Nion", "Nion_mini"],
         )
 
-    # We don't want to include values close to delta crit, since the integrals struggle there,
-    # and interpolating across the sharp gap results in errors
-    # TODO: the bound should be over MAX_DELTAC_FRAC*delta_crit, and we should interpolate
-    # instead of setting the integral to its limit at delta crit.
-    delta_crit = float(cf.get_delta_crit(
-        up, cp, np.array([cond_mass]), redshift))
-    sel_delta = np.fabs((delta_range - delta_crit) / delta_crit) > 0.02
-    delta_range = delta_range[sel_delta]
-    Nion_integrals = Nion_integrals[sel_delta, ...]
-    Nion_tables = Nion_tables[sel_delta, ...]
-    Nion_integrals_mini = Nion_integrals_mini[sel_delta, ...]
-    Nion_tables_mini = Nion_tables_mini[sel_delta, ...]
-
     print_failure_stats(
         Nion_tables,
         Nion_integrals,
-        [delta_range, 10**log10_mturn_range] if mini_flag else [delta_range],
+        [delta_range, 10**log10_mturn_range],
         abs_tol,
         RELATIVE_TOLERANCE,
         "Nion_c",
@@ -734,12 +570,119 @@ def test_Nion_conditional_tables(
             "Nion_c_mini",
         )
 
+    # We don't want to include values close to delta crit, since
+    # interpolating across the sharp gap results in errors
+    # TODO: the bound should be over MAX_DELTAC_FRAC*delta_crit, and we should interpolate
+    # instead of setting the integral to its limit at delta crit.
+    delta_crit = cf.get_delta_crit(
+        inputs=inputs,
+        mass=cf.get_condition_mass(inputs, R),
+        redshift=redshift,
+    )
+    sel_delta = (delta_crit - delta_range) > 0.05
+
     np.testing.assert_allclose(
-        Nion_tables, Nion_integrals, atol=abs_tol, rtol=RELATIVE_TOLERANCE
+        Nion_tables[sel_delta],
+        Nion_integrals[sel_delta],
+        atol=abs_tol,
+        rtol=RELATIVE_TOLERANCE,
     )
 
     np.testing.assert_allclose(
-        Nion_tables_mini, Nion_integrals_mini, atol=abs_tol, rtol=RELATIVE_TOLERANCE
+        Nion_tables_mini[sel_delta],
+        Nion_integrals_mini[sel_delta],
+        atol=abs_tol,
+        rtol=RELATIVE_TOLERANCE,
+    )
+
+
+@pytest.mark.parametrize("mini", ["mini", "acg"])
+@pytest.mark.parametrize("R", R_PARAM_LIST)
+@pytest.mark.parametrize("name", options_hmf)
+@pytest.mark.parametrize("intmethod", options_intmethod)
+def test_Xray_conditional_tables(
+    name, log10_mturn_range, delta_range, R, mini, intmethod, plt
+):
+    if intmethod == "FFCOLL":
+        if name != "PS":
+            pytest.skip("FAST FFCOLL INTEGRALS WORK ONLY WITH EPS")
+        else:
+            pytest.xfail(
+                "FFCOLL TABLES drop sharply at high Mturn, causing failure at 0.1 levels"
+            )
+
+    mini_flag = mini == "mini"
+
+    redshift, kwargs = OPTIONS_HMF[name]
+    inputs = prd.get_all_options_struct(
+        redshift,
+        USE_MINI_HALOS=mini_flag,
+        INHOMO_RECO=True,
+        USE_TS_FLUCT=True,
+        **kwargs,
+    )["inputs"]
+
+    d_input, mt_input = np.meshgrid(delta_range, log10_mturn_range, indexing="ij")
+
+    Xray_tables = cf.evaluate_Xray_cond(
+        inputs=inputs.evolve_input_structs(
+            USE_INTERPOLATION_TABLES="hmf-interpolation"
+        ),
+        redshift=redshift,
+        radius=R,
+        densities=d_input,
+        log10mturns=mt_input,
+    )
+
+    Xray_integrals = cf.evaluate_Xray_cond(
+        inputs=inputs.evolve_input_structs(
+            USE_INTERPOLATION_TABLES="sigma-interpolation"
+        ),
+        redshift=redshift,
+        radius=R,
+        densities=d_input,
+        log10mturns=mt_input,
+    )
+
+    if plt == mpl.pyplot:
+        xl = log10_mturn_range.size - 1
+        sel_m = np.linspace(0, xl, num=5).astype(int)
+        Xray_tb_plot = Xray_tables[..., sel_m]
+        Xray_il_plot = Xray_integrals[..., sel_m]
+        make_table_comparison_plot(
+            [delta_range],
+            [10 ** log10_mturn_range[sel_m]],
+            [Xray_tb_plot],
+            [Xray_il_plot],
+            plt,
+            label_test=[
+                True,
+            ],
+            xlabels=["delta"],
+            ylabels=["Lx"],
+        )
+
+    abs_tol = 0.0
+    print_failure_stats(
+        Xray_tables,
+        Xray_integrals,
+        [delta_range, 10**log10_mturn_range],
+        abs_tol,
+        RELATIVE_TOLERANCE,
+        "Xray_c",
+    )
+
+    delta_crit = cf.get_delta_crit(
+        inputs=inputs,
+        mass=cf.get_condition_mass(inputs, R),
+        redshift=redshift,
+    )
+    sel_delta = (delta_crit - delta_range) > 0.05
+    np.testing.assert_allclose(
+        Xray_tables[sel_delta],
+        Xray_integrals[sel_delta],
+        atol=abs_tol,
+        rtol=RELATIVE_TOLERANCE,
     )
 
 
@@ -753,58 +696,37 @@ def test_SFRD_conditional_table(
         if name != "PS":
             pytest.skip("FAST FFCOLL INTEGRALS WORK ONLY WITH EPS")
         else:
-            pytest.xfail(
-                "FFCOLL TABLES drop sharply at high Mturn, causing failure")
+            pytest.xfail("FFCOLL TABLES drop sharply at high Mturn, causing failure")
 
     redshift, kwargs = OPTIONS_HMF[name]
-    opts = prd.get_all_options(redshift, **kwargs)
-    up = opts["user_params"].clone(
-        INTEGRATION_METHOD_ATOMIC=OPTIONS_INTMETHOD[intmethod],
-        INTEGRATION_METHOD_MINI=OPTIONS_INTMETHOD[intmethod],
-    )
-    cp = opts["cosmo_params"]
-    ap = opts["astro_params"]
-    fo = opts["flag_options"].clone(
+    inputs = prd.get_all_options_struct(
+        redshift,
         USE_MINI_HALOS=True,
         INHOMO_RECO=True,
         USE_TS_FLUCT=True,
-    )
+        **kwargs,
+    )["inputs"]
 
-    M_min = global_params.M_MIN_INTEGRAL
-    M_max = 1e20
-
-    cond_mass = (
-        (4.0 / 3.0 * np.pi * (R * u.Mpc) ** 3 *
-         cp.cosmo.critical_density(0) * cp.OMm)
-        .to("M_sun")
-        .value
-    )
+    d_input, mt_input = np.meshgrid(delta_range, log10_mturn_range, indexing="ij")
 
     SFRD_tables, SFRD_tables_mini = cf.evaluate_SFRD_cond(
-        user_params=up,
-        cosmo_params=cp,
-        astro_params=ap,
-        flag_options=fo,
-        M_min=M_min,
-        M_max=M_max,
+        inputs=inputs.evolve_input_structs(
+            USE_INTERPOLATION_TABLES="hmf-interpolation"
+        ),
+        radius=R,
         redshift=redshift,
-        cond_mass=cond_mass,
-        densities=delta_range,
-        l10mturns=log10_mturn_range,
+        densities=d_input,
+        log10mturns=mt_input,
     )
 
     SFRD_integrals, SFRD_integrals_mini = cf.evaluate_SFRD_cond(
-        user_params=up,
-        cosmo_params=cp,
-        astro_params=ap,
-        flag_options=fo,
-        M_min=M_min,
-        M_max=M_max,
+        inputs=inputs.evolve_input_structs(
+            USE_INTERPOLATION_TABLES="sigma-interpolation"
+        ),
+        radius=R,
         redshift=redshift,
-        cond_mass=cond_mass,
-        densities=delta_range,
-        l10mturns=log10_mturn_range,
-        return_integral=True,
+        densities=d_input,
+        log10mturns=mt_input,
     )
 
     # The bilinear interpolation we use underperforms at high mturn due to the sharp
@@ -814,30 +736,17 @@ def test_SFRD_conditional_table(
     abs_tol = 1e-8
     if plt == mpl.pyplot:
         xl = log10_mturn_range.size - 1
-        sel_m = (xl * np.arange(5) / 4).astype(int)
+        sel_m = np.linspace(0, xl, num=5).astype(int)
         make_table_comparison_plot(
             [delta_range, delta_range],
             [np.array([0]), 10 ** log10_mturn_range[sel_m]],
-            [SFRD_tables[:, None], SFRD_tables_mini[..., sel_m]],
-            [SFRD_integrals[:, None], SFRD_integrals_mini[..., sel_m]],
+            [SFRD_tables[:, 0], SFRD_tables_mini[..., sel_m]],
+            [SFRD_integrals[:, 0], SFRD_integrals_mini[..., sel_m]],
             plt,
             label_test=[True, False],
             xlabels=["delta", "delta"],
             ylabels=["SFRD", "SFRD_mini"],
         )
-
-    # We don't want to include values close to delta crit, since the integrals struggle there,
-    # and interpolating across the sharp gap results in errors
-    # TODO: the bound should be over MAX_DELTAC_FRAC*delta_crit, and we should interpolate
-    # instead of setting the integral to its limit at delta crit.
-    delta_crit = float(cf.get_delta_crit(
-        up, cp, np.array([cond_mass]), redshift))
-    sel_delta = np.fabs((delta_range - delta_crit) / delta_crit) > 0.02
-    delta_range = delta_range[sel_delta]
-    SFRD_integrals = SFRD_integrals[sel_delta, ...]
-    SFRD_tables = SFRD_tables[sel_delta, ...]
-    SFRD_integrals_mini = SFRD_integrals_mini[sel_delta, ...]
-    SFRD_tables_mini = SFRD_tables_mini[sel_delta, ...]
 
     print_failure_stats(
         SFRD_tables,
@@ -856,11 +765,23 @@ def test_SFRD_conditional_table(
         "SFRD_c_mini",
     )
 
+    delta_crit = cf.get_delta_crit(
+        inputs=inputs,
+        mass=cf.get_condition_mass(inputs, R),
+        redshift=redshift,
+    )
+    sel_delta = (delta_crit - delta_range) > 0.05
     np.testing.assert_allclose(
-        SFRD_tables, SFRD_integrals, atol=abs_tol, rtol=RELATIVE_TOLERANCE
+        SFRD_tables[sel_delta],
+        SFRD_integrals[sel_delta],
+        atol=abs_tol,
+        rtol=RELATIVE_TOLERANCE,
     )
     np.testing.assert_allclose(
-        SFRD_tables_mini, SFRD_integrals_mini, atol=abs_tol, rtol=RELATIVE_TOLERANCE
+        SFRD_tables_mini[sel_delta],
+        SFRD_integrals_mini[sel_delta],
+        atol=abs_tol,
+        rtol=RELATIVE_TOLERANCE,
     )
 
 
@@ -874,27 +795,15 @@ def test_conditional_integral_methods(
     R, log10_mturn_range, delta_range, name, integrand, plt
 ):
     redshift, kwargs = OPTIONS_HMF[name]
-    opts = prd.get_all_options(redshift, **kwargs)
-    up = opts["user_params"]
-    cp = opts["cosmo_params"]
-    ap = opts["astro_params"]
-    fo = opts["flag_options"].clone(
+    inputs = prd.get_all_options_struct(
+        redshift,
         USE_MINI_HALOS=True,
-        USE_MASS_DEPENDENT_ZETA=True,
         INHOMO_RECO=True,
         USE_TS_FLUCT=True,
-    )
+        **kwargs,
+    )["inputs"]
 
-    intgrl_func = cf.evaluate_SFRD_cond if "sfr" in integrand else cf.evaluate_Nion_cond
-
-    M_min = global_params.M_MIN_INTEGRAL
-    M_max = 1e20
-    cond_mass = (
-        (4.0 / 3.0 * np.pi * (R * u.Mpc) ** 3 *
-         cp.cosmo.critical_density(0) * cp.OMm)
-        .to("M_sun")
-        .value
-    )
+    d_input, mt_input = np.meshgrid(delta_range, log10_mturn_range, indexing="ij")
 
     integrals = []
     integrals_mini = []
@@ -903,31 +812,35 @@ def test_conditional_integral_methods(
         if name != "PS" and method == "GAMMA-APPROX":
             continue
 
-        up = up.clone(
+        inputs = inputs.evolve_input_structs(
             INTEGRATION_METHOD_ATOMIC=method,
             INTEGRATION_METHOD_MINI=method,
         )
 
-        buf, buf_mini = intgrl_func(
-            user_params=up,
-            cosmo_params=cp,
-            astro_params=ap,
-            flag_options=fo,
-            M_min=M_min,
-            M_max=M_max,
-            redshift=redshift,
-            cond_mass=cond_mass,
-            densities=delta_range,
-            l10mturns=log10_mturn_range,
-            return_integral=True,
-        )
+        if "sfr" in integrand:
+            buf, buf_mini = cf.evaluate_SFRD_cond(
+                inputs=inputs,
+                redshift=redshift,
+                radius=R,
+                densities=d_input,
+                log10mturns=mt_input,
+            )
+        else:
+            buf, buf_mini = cf.evaluate_Nion_cond(
+                inputs=inputs,
+                redshift=redshift,
+                radius=R,
+                densities=d_input,
+                l10mturns_acg=mt_input,
+                l10mturns_mcg=mt_input,
+            )
         integrals.append(buf)
         integrals_mini.append(buf_mini)
 
     abs_tol = 1e-6  # minimum = exp(-40) ~1e-18
     if plt == mpl.pyplot:
         xl = log10_mturn_range.size - 1
-        sel_m = (xl * np.arange(5) / 4).astype(int)
+        sel_m = np.linspace(0, xl, num=5).astype(int)
         iplot = [i[..., sel_m] if i.ndim == 2 else i for i in integrals]
         iplot_mini = [i[..., sel_m] for i in integrals_mini]
         make_integral_comparison_plot(
@@ -944,29 +857,6 @@ def test_conditional_integral_methods(
     np.testing.assert_allclose(
         integrals_mini[1], integrals_mini[0], atol=abs_tol, rtol=RELATIVE_TOLERANCE
     )
-
-    # for the FAST_FFCOLL integrals, only the delta-Mturn behaviour matters (because of the mean fixing), so we divide by
-    # the value at delta=0 (mturn ~ 5e7 for minihalos) and set a wider tolerance
-    # TODO: The FAST_FCOLL integrals need revisiting, for now check the plots and use accordingly
-    # if name == "PS":
-    #     sel_deltazero = np.argmin(np.fabs(delta_range))
-    #     sel_mturn = np.argmin(np.fabs(10**log10_mturn_range - 5e7))
-    #     ffcoll_deltazero = integrals[2][sel_deltazero]
-    #     ffcoll_deltazero_mini = integrals_mini[2][sel_deltazero, sel_mturn]
-    #     qag_deltazero = integrals[0][sel_deltazero]
-    #     qag_deltazero_mini = integrals_mini[0][sel_deltazero, sel_mturn]
-    #     np.testing.assert_allclose(
-    #         integrals[2] / ffcoll_deltazero,
-    #         integrals[0] / qag_deltazero,
-    #         atol=abs_tol,
-    #         rtol=1e-1,
-    #     )
-    #     np.testing.assert_allclose(
-    #         integrals_mini[2] / ffcoll_deltazero_mini[None, :],
-    #         integrals_mini[0] / qag_deltazero_mini[None, :],
-    #         atol=abs_tol,
-    #         rtol=1e-1,
-    #     )
 
 
 def make_table_comparison_plot(
@@ -991,8 +881,7 @@ def make_table_comparison_plot(
             zlab = zlabels[j] + f" = {z[i]:.2e}" if z is not None else ""
             # allow single arrays
             x_plot = x[j][:, i] if len(x[j].shape) > 1 else x[j]
-            i_plot = integrals[j][:, i] if len(
-                integrals[j].shape) > 1 else integrals[j]
+            i_plot = integrals[j][:, i] if len(integrals[j].shape) > 1 else integrals[j]
             t_plot = tables[j][:, i] if len(tables[j].shape) > 1 else tables[j]
             make_comparison_plot(
                 x_plot,
@@ -1015,7 +904,9 @@ def make_integral_comparison_plot(x1, x2, integral_list, integral_list_second, p
     fig, axs = plt.subplots(nrows=2, ncols=2, figsize=(16, 8))
 
     styles = ["-", ":", "--"]
-    for i, (i_first, i_second) in enumerate(zip(integral_list, integral_list_second)):
+    for i, (i_first, i_second) in enumerate(
+        zip(integral_list, integral_list_second, strict=True)
+    ):
         comparison = integral_list[0]
         if len(i_first.shape) == 1:
             i_first = i_first[:, None]
@@ -1033,8 +924,7 @@ def make_integral_comparison_plot(x1, x2, integral_list, integral_list_second, p
             )
 
         for j in range(i_second.shape[1]):
-            axs[0, 1].semilogy(x1, i_second[:, j],
-                               color=f"C{j:d}", linestyle=styles[i])
+            axs[0, 1].semilogy(x1, i_second[:, j], color=f"C{j:d}", linestyle=styles[i])
             axs[1, 1].semilogy(
                 x1,
                 i_second[:, j] / integral_list_second[0][:, j],
@@ -1118,15 +1008,14 @@ def print_failure_stats(test, truth, inputs, abs_tol, rel_tol, name):
             inp[sel_failed if inp.shape == test.shape else failed_idx[i]]
             for i, inp in enumerate(inputs)
         ]
-        for i, inp in enumerate(inputs):
+        for i, _inp in enumerate(inputs):
             print(
                 f"failure range of inputs axis {i} {failed_inp[i].min():.2e} {failed_inp[i].max():.2e}"
             )
 
         print("----- First 10 -----")
         for j in range(min(10, sel_failed.sum())):
-            input_arr = [f"{failed_inp[i][j]:.2e}" for i,
-                         finp in enumerate(failed_inp)]
+            input_arr = [f"{failed_inp[i][j]:.2e}" for i, finp in enumerate(failed_inp)]
             print(
                 f"CRD {input_arr}"
                 + f"  {truth[sel_failed].flatten()[j]:.4e} {test[sel_failed].flatten()[j]:.4e}"

@@ -1,0 +1,51 @@
+on:
+  push:
+    branches: v4-prep
+
+jobs:
+  benchmark_base_branch:
+    name: Continuous Benchmarking with Bencher
+    permissions:
+      checks: write
+    runs-on: ubuntu-latest
+    defaults:
+        run:
+          # Adding -l {0} ensures conda can be found properly in each step
+          shell: bash -l {0}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: bencherdev/bencher@main
+
+
+      - name: Setup Miniconda
+        uses: conda-incubator/setup-miniconda@v3
+        with:
+            channels: conda-forge,defaults
+            python-version: 3.11
+            channel-priority: true
+
+      - name: Install Non-Python Dependencies
+        run: |
+          conda install fftw gsl
+
+      - name: Install 21cmFAST
+        run: |
+          pip install ".[dev]"
+
+      - name: Track base branch benchmarks with Bencher
+        run: |
+          bencher run \
+          --project 21cmfast \
+          --token '${{ secrets.BENCHER_API_TOKEN }}' \
+          --branch main \
+          --testbed ubuntu-latest \
+          --threshold-measure latency \
+          --threshold-test percentage \
+          --threshold-max-sample-size 64 \
+          --threshold-upper-boundary 0.1 \
+          --thresholds-reset \
+          --err \
+          --adapter python_pytest \
+          --file results.json \
+          --github-actions '${{ secrets.GITHUB_TOKEN }}' \
+          "pytest --benchmark-json results.json tests/test_segfaults.py"

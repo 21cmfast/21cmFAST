@@ -1,8 +1,9 @@
 """Run over output of logging to prepare for diffing."""
 
 import sys
+from pathlib import Path
 
-fname = sys.argv[1]
+fname = Path(sys.argv[1])
 
 if len(sys.argv) > 2:
     REMOVE_LINE_NUMBERS = True
@@ -11,7 +12,7 @@ else:
     REMOVE_LINE_NUMBERS = False
 
 
-with open(fname) as fl:
+with fname.open() as fl:
     lines = fl.readlines()
     out_lines = []
     for line in lines:
@@ -32,5 +33,5 @@ with open(fname) as fl:
 
         out_lines.append(line)
 
-with open(fname + ".out", "w") as fl:
+with fname.with_suffix(fname.suffix + ".out").open("w") as fl:
     fl.writelines(out_lines)

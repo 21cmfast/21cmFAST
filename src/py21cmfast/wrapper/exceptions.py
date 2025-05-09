@@ -119,7 +119,7 @@ def _process_exitcode(exitcode, fnc, args):
                     MEMORYALLOCERROR: MemoryAllocError,
                     CUDAERROR: CUDAError,
                 }[exitcode]
-            except KeyError:  # pragma: no cover
+            except KeyError as e:  # pragma: no cover
                 raise FatalCError(
                     "Unknown error in C. Please report this error!"
-                )  # Unknown C code
+                ) from e  # Unknown C code

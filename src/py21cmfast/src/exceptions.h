@@ -8,7 +8,7 @@ extern "C" {
 #endif
 define_exception_type(int);
 
-//NOTE: declaration here, definition in debugging.c
+// NOTE: declaration here, definition in debugging.c
 extern struct exception_context the_exception_context[1];
 
 // Our own error codes
@@ -24,9 +24,16 @@ extern struct exception_context the_exception_context[1];
 #define MemoryAllocError 9
 #define CUDAError 10
 
-#define CATCH_GSL_ERROR(status) if(status>0) {LOG_ERROR("GSL Error Encountered (Code = %d): %s", status, gsl_strerror(status)); Throw(GSLError);}
-#define CATCH_CUDA_ERROR(err) if(err != cudaSuccess) {LOG_ERROR("CUDA Error Encountered: %s", cudaGetErrorString(err)); Throw(CUDAError);}
-
+#define CATCH_GSL_ERROR(status)                                                           \
+    if (status > 0) {                                                                     \
+        LOG_ERROR("GSL Error Encountered (Code = %d): %s", status, gsl_strerror(status)); \
+        Throw(GSLError);                                                                  \
+    }
+#define CATCH_CUDA_ERROR(err)                                             \
+    if (err != cudaSuccess) {                                             \
+        LOG_ERROR("CUDA Error Encountered: %s", cudaGetErrorString(err)); \
+        Throw(CUDAError);                                                 \
+    }
 
 #ifdef __cplusplus
 }

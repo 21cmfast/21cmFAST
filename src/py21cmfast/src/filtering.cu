@@ -213,12 +213,10 @@ void filter_box_gpu(fftwf_complex *box, int RES, int filter_type, float R, float
 }
 
 // Test function to filter a box without computing a whole output box
-int test_filter_gpu(UserParams *user_params, CosmoParams *cosmo_params, AstroParams *astro_params, FlagOptions *flag_options
-                    , float *input_box, double R, double R_param, int filter_flag, double *result) {
+//TODO: set device constants here
+int test_filter_gpu(float *input_box, double R, double R_param, int filter_flag, double *result) {
     int i,j,k;
     unsigned long long int ii;
-
-    Broadcast_struct_global_all(user_params, cosmo_params, astro_params, flag_options);
 
     //setup the box
     fftwf_complex *box_unfiltered = (fftwf_complex *) fftwf_malloc(sizeof(fftwf_complex)*HII_KSPACE_NUM_PIXELS);

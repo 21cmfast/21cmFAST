@@ -1,10 +1,12 @@
 """Utilities that help with wrapping various C structures."""
 
 import logging
+
 import numpy as np
 
-from .. import __version__
 import py21cmfast.c_21cmfast as lib
+
+from .. import __version__
 from .exceptions import _process_exitcode
 
 logger = logging.getLogger(__name__)
@@ -15,8 +17,8 @@ ctype2dtype = {}
 # Integer types
 for prefix in ("int", "uint"):
     for log_bytes in range(4):
-        ctype = "%s%d_t" % (prefix, 8 * (2**log_bytes))
-        dtype = "%s%d" % (prefix[0], 2**log_bytes)
+        ctype = f"{prefix}{8 * 2**log_bytes:d}_t"
+        dtype = f"{prefix[0]}{2**log_bytes:d}"
         ctype2dtype[ctype] = np.dtype(dtype)
 
 # Floating point types
@@ -27,17 +29,14 @@ ctype2dtype["int"] = np.dtype("i4")
 
 def asarray(ptr, shape):
     """Get the canonical C type of the elements of ptr as a string."""
-    ctype = _ffi.getctype(_ffi.typeof(ptr).item).split("*")[0].strip()
+    ctype = type(ptr).__name__  # TODO: check
 
     if ctype not in ctype2dtype:
         raise RuntimeError(
             f"Cannot create an array for element type: {ctype}. Can do {list(ctype2dtype.values())}."
         )
 
-    array = np.frombuffer(
-        _ffi.buffer(ptr, _ffi.sizeof(ctype) *
-                    np.prod(shape)), ctype2dtype[ctype]
-    )
+    array = np.frombuffer(ptr, ctype2dtype[ctype])  # TODO: check
     array.shape = shape
     return array
 
@@ -49,9 +48,9 @@ def _call_c_simple(fnc, *args):
     the status.
     """
     # Parse the function to get the type of the last argument
-    cdata = str(ffi.addressof(lib, fnc.__name__))
+    cdata = getattr(lib, fnc.__name__)  # TODO: finish
     kind = cdata.split("(")[-1].split(")")[0].split(",")[-1]
-    result = ffi.new(kind)
+    result = getattr(lib, kind)()  # TODO:finish
     status = fnc(*args, result)
     _process_exitcode(status, fnc, args)
     return result[0]
@@ -86,8 +85,8 @@ def get_all_subclasses(cls):
 
 
 def float_to_string_precision(x, n):
-    """Prints out a standard float number at a given number of significant digits.
+    """Print out a standard float number at a given number of significant digits.
 
     Code here: https://stackoverflow.com/a/48812729
     """
-    return f'{float(f"{x:.{int(n)}g}"):g}'
+    return f"{float(f'{x:.{int(n)}g}'):g}"

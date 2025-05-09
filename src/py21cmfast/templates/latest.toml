@@ -1,0 +1,21 @@
+# Run template for latest fiducial grid-based 21cmfast runs
+
+[CosmoParams]
+
+[SimulationOptions]
+
+[MatterOptions]
+USE_HALO_FIELD = false
+HALO_STOCHASTICITY = false
+
+[AstroParams]
+R_BUBBLE_MAX = 50.0
+
+[AstroOptions]
+USE_EXP_FILTER = false
+CELL_RECOMB = false
+USE_UPPER_STELLAR_TURNOVER = false
+USE_MINI_HALOS = false
+USE_TS_FLUCT = true
+INHOMO_RECO = true
+HII_FILTER = 'sharp-k'

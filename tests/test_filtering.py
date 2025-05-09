@@ -1,19 +1,20 @@
-import pytest
+"""Test filtering of the density field."""
 
 import matplotlib as mpl
 import numpy as np
+import pytest
 from matplotlib.colors import LogNorm, Normalize
 from scipy.stats import binned_statistic as binstat
 
+import py21cmfast.c_21cmfast as lib
 from py21cmfast import (
+    AstroOptions,
     AstroParams,
     CosmoParams,
-    FlagOptions,
     PerturbHaloField,
-    UserParams,
-    global_params,
+    SimulationOptions,
 )
-import py21cmfast.c_21cmfast as lib
+from py21cmfast.wrapper.cfuncs import broadcast_input_struct
 
 from . import produce_integration_test_data as prd
 from .test_c_interpolation_tables import print_failure_stats
@@ -84,10 +85,8 @@ def get_binned_stats(x_arr, y_arr, bins, stats):
     }
 
     for stat in stats:
-        spstatkey = statistic_dict[stat] if stat in statistic_dict.keys(
-        ) else stat
-        result[stat], _, _ = binstat(
-            x_in, y_in, bins=bins, statistic=spstatkey)
+        spstatkey = statistic_dict.get(stat, stat)
+        result[stat], _, _ = binstat(x_in, y_in, bins=bins, statistic=spstatkey)
 
     return result
 
@@ -95,12 +94,10 @@ def get_binned_stats(x_arr, y_arr, bins, stats):
 @pytest.mark.parametrize("R", R_PARAM_LIST)
 @pytest.mark.parametrize("filter_flag", options_filter)
 def test_filters(filter_flag, R, plt):
-    opts = prd.get_all_options(redshift=10.0)
+    opts = prd.get_all_options_struct(redshift=10.0)
 
-    up = opts["user_params"]
-    cp = opts["cosmo_params"]
-    ap = opts["astro_params"]
-    fo = opts["flag_options"]
+    inputs = opts["inputs"]
+    up = inputs.simulation_options
 
     # testing a single pixel source
     input_box_centre = np.zeros((up.HII_DIM,) * 3, dtype="f4")
@@ -114,19 +111,12 @@ def test_filters(filter_flag, R, plt):
     else:
         R_param = 0
 
+    broadcast_input_struct(inputs)
     lib.test_filter(
-        up.cstruct,
-        cp.cstruct,
-        ap.cstruct,
-        fo.cstruct,
-        # WIP: CFFI Refactor
-        # ffi.cast("float *", input_box_centre.ctypes.data),
         input_box_centre.ctypes.data,
         R,
         R_param,
         filter_flag,
-        # WIP: CFFI Refactor
-        # ffi.cast("double *", output_box_centre.ctypes.data),
         output_box_centre.ctypes.data,
     )
 
@@ -134,7 +124,7 @@ def test_filters(filter_flag, R, plt):
     R_cells = R / up.BOX_LEN * up.HII_DIM
     Rp_cells = R_param / up.BOX_LEN * up.HII_DIM
     r_from_centre = np.linalg.norm(
-        np.mgrid[0: up.HII_DIM, 0: up.HII_DIM, 0: up.HII_DIM]
+        np.mgrid[0 : up.HII_DIM, 0 : up.HII_DIM, 0 : up.HII_DIM]
         - np.array([up.HII_DIM // 2, up.HII_DIM // 2, up.HII_DIM // 2])[
             :, None, None, None
         ],
@@ -154,9 +144,7 @@ def test_filters(filter_flag, R, plt):
     # we take bins of 2 pixels to smooth over sharp edged filters
     r_bins = np.arange(0, int(up.HII_DIM / 2 * np.sqrt(3)), 2)
     r_cen = (r_bins[1:] + r_bins[:-1]) / 2
-    # binned_truth_centre = get_expected_output_centre(
-    #     r_cen, R_cells, Rp_cells, filter_flag
-    # )
+
     binned_truth_centre = get_binned_stats(
         r_from_centre,
         exp_output_centre,
@@ -269,8 +257,8 @@ def filter_plot(
     axs[0, 1].set_title("Expected")
     axs[0, 2].set_title("Radii")
     axs[0, 3].set_title("Pixels")
-    for idx, (i, o, bo, t, tt) in enumerate(
-        zip(inputs, outputs, binned_stats, binned_truths, truths)
+    for idx, (_i, o, bo, t, tt) in enumerate(
+        zip(inputs, outputs, binned_stats, binned_truths, truths, strict=True)
     ):
         axs[idx, 0].pcolormesh(
             o.take(indices=slice_index, axis=slice_axis),
@@ -299,8 +287,7 @@ def filter_plot(
         )
 
         lns.append(
-            axs[idx, 2].plot(r_cen, t, "m:", linewidth=2,
-                             label="Expected", zorder=3)[0]
+            axs[idx, 2].plot(r_cen, t, "m:", linewidth=2, label="Expected", zorder=3)[0]
         )
         axs[idx, 2].grid()
         axs[idx, 2].set_xlabel("dist from centre")
@@ -315,8 +302,6 @@ def filter_plot(
         axs[idx, 3].plot(err_base, err_base, "k--")
 
         axs[idx, 3].scatter(tt, o, s=1, alpha=0.5, rasterized=True)
-        # axs[idx, 3].set_yscale('symlog')
-        # axs[idx, 3].set_xscale('symlog')
         axs[idx, 3].grid()
         axs[idx, 3].set_xlabel("expected cell value")
         axs[idx, 3].set_ylabel("filtered cell value")

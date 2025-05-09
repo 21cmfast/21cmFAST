@@ -4,23 +4,22 @@ Useful for preparing it to be diff'ed against another log to check where things 
 """
 
 import sys
+from pathlib import Path
 
-fname = sys.argv[1]
+fname = Path(sys.argv[1])
 
-if len(sys.argv) > 2:
-    ignores = sys.argv[2:]
-else:
-    ignores = []
+ignores = sys.argv[2:] if len(sys.argv) > 2 else []
 
 pids = set()
 threads = set()
 
-pid_map = {}
-with open(fname) as fl:
+with fname.open() as fl:
     lines = fl.readlines()
 
     # Get to the start of the testing
-    for i, line in enumerate(lines):
+    i = 0
+    for line in lines:
+        i += 1
         if "==== test session starts ====" in line:
             break
 
@@ -30,8 +29,7 @@ with open(fname) as fl:
         pids.add(line.split("pid=")[1].split("/")[0] if "pid=" in line else "other")
         threads.add(line.split("thr=")[1].split("]")[0] if "thr=" in line else "other")
 
-    for ii, pid in enumerate(sorted(pids)):
-        pid_map[pid] = ii
+    pid_map = {pid: ii for ii, pid in enumerate(sorted(pids))}
 
     out = {p: {t: [] for t in threads} for p in pid_map}
 
@@ -51,7 +49,7 @@ with open(fname) as fl:
         out[pid][thread].append(ln)
 
 
-with open(fname + ".processed", "w") as fl:
+with fname.with_suffix(f"{fname.suffix}.processed").open("w") as fl:
     for key in sorted(pids):
         for t in sorted(threads):
             fl.writelines(out[key][t])

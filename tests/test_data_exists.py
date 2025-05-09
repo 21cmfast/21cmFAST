@@ -1,6 +1,8 @@
+"""Test that the package data exists in the correct places."""
+
 import pytest
 
-from py21cmfast.wrapper.inputs import DATA_PATH
+from py21cmfast import DATA_PATH
 
 
 @pytest.fixture(scope="module")
@@ -18,5 +20,5 @@ def test_exists(datafiles):
 
 def test_readable(datafiles):
     for fname in datafiles:
-        with open(fname) as fl:
+        with fname.open() as fl:
             assert len(fl.read()) > 0
