@@ -165,8 +165,8 @@ typedef struct AstroOptions {
 
 typedef struct ConfigSettings {
     double HALO_CATALOG_MEM_FACTOR;
-    char *external_table_path;
-    char *wisdoms_path;
+    char external_table_path[200];
+    char wisdoms_path[200];
 } ConfigSettings;
 
 void Broadcast_struct_global_all(SimulationOptions *simulation_options,

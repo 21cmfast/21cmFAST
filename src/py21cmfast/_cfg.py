@@ -34,7 +34,7 @@ class Config(dict):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
         # keep the config settings from the C library here
-        self._c_config_settings = StructInstanceWrapper(lib.get_config_settings)
+        self._c_config_settings = StructInstanceWrapper(lib.get_config_settings())
 
         for k, v in self._defaults.items():
             if k not in self:
@@ -61,6 +61,8 @@ class Config(dict):
 
     def _pass_to_backend(self, key, value):
         """Set the value in the backend."""
+        if isinstance(value, Path):
+            value = str(value)
         setattr(self._c_config_settings, key, value)
 
     @contextlib.contextmanager

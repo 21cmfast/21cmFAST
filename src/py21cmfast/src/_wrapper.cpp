@@ -57,6 +57,7 @@ NB_MODULE(c_21cmfast, m) {
         .def_rw("CORR_SFR", &SimulationOptions::CORR_SFR)
         .def_rw("CORR_LX", &SimulationOptions::CORR_LX);
 
+    // Bind MatterOptions
     nb::class_<MatterOptions>(m, "MatterOptions")
         .def(nb::init<>())
         .def_rw("USE_FFTW_WISDOM", &MatterOptions::USE_FFTW_WISDOM)
@@ -125,18 +126,7 @@ NB_MODULE(c_21cmfast, m) {
         .def_rw("NU_X_MAX", &AstroParams::NU_X_MAX)
         .def_rw("NU_X_BAND_MAX", &AstroParams::NU_X_BAND_MAX);
 
-    // TODO: the getter/setter workaround is clunky, we can go via a C++ std:string
-    //   or try something else.
-    nb::class_<ConfigSettings>(m, "ConfigSettings")
-        .def(nb::init<>())
-        .def_rw("HALO_CATALOG_MEM_FACTOR", &ConfigSettings::HALO_CATALOG_MEM_FACTOR)
-        .def_ro("external_table_path", &ConfigSettings::external_table_path)
-        .def_ro("wisdoms_path", &ConfigSettings::wisdoms_path)
-        .def("set_external_table_path", &set_external_table_path)
-        .def("get_external_table_path", &get_external_table_path)
-        .def("set_wisdoms_path", &set_wisdoms_path)
-        .def("get_wisdoms_path", &get_wisdoms_path);
-
+    // Bind AstroOptions
     nb::class_<AstroOptions>(m, "AstroOptions")
         .def(nb::init<>())
         .def_rw("USE_MINI_HALOS", &AstroOptions::USE_MINI_HALOS)
@@ -161,88 +151,181 @@ NB_MODULE(c_21cmfast, m) {
         .def_rw("INTEGRATION_METHOD_ATOMIC", &AstroOptions::INTEGRATION_METHOD_ATOMIC)
         .def_rw("INTEGRATION_METHOD_MINI", &AstroOptions::INTEGRATION_METHOD_MINI);
 
+    // Bind ConfigSettings
+    nb::class_<ConfigSettings>(m, "ConfigSettings")
+        .def(nb::init<>())
+        .def_rw("HALO_CATALOG_MEM_FACTOR", &ConfigSettings::HALO_CATALOG_MEM_FACTOR)
+        .def("set_external_table_path",
+             [](ConfigSettings& self, const std::string& path) {
+                 strcpy(self.external_table_path, path.c_str());
+             })
+        .def("get_external_table_path",
+             [](ConfigSettings& self) { return std::string(self.external_table_path); })
+        .def("set_wisdoms_path",
+             [](ConfigSettings& self, const std::string& path) {
+                 strcpy(self.wisdoms_path, path.c_str());
+             })
+        .def("get_wisdoms_path",
+             [](ConfigSettings& self) { return std::string(self.wisdoms_path); });
+
     // Output Struct Bindings
     // Bind InitialConditions
     nb::class_<InitialConditions>(m, "InitialConditions")
         .def(nb::init<>())
-        .def_rw("lowres_density", &InitialConditions::lowres_density)
-        .def_rw("lowres_vx", &InitialConditions::lowres_vx)
-        .def_rw("lowres_vy", &InitialConditions::lowres_vy)
-        .def_rw("lowres_vz", &InitialConditions::lowres_vz)
-        .def_rw("lowres_vx_2LPT", &InitialConditions::lowres_vx_2LPT)
-        .def_rw("lowres_vy_2LPT", &InitialConditions::lowres_vy_2LPT)
-        .def_rw("lowres_vz_2LPT", &InitialConditions::lowres_vz_2LPT)
-        .def_rw("hires_density", &InitialConditions::hires_density)
-        .def_rw("hires_vx", &InitialConditions::hires_vx)
-        .def_rw("hires_vy", &InitialConditions::hires_vy)
-        .def_rw("hires_vz", &InitialConditions::hires_vz)
-        .def_rw("hires_vx_2LPT", &InitialConditions::hires_vx_2LPT)
-        .def_rw("hires_vy_2LPT", &InitialConditions::hires_vy_2LPT)
-        .def_rw("hires_vz_2LPT", &InitialConditions::hires_vz_2LPT)
-        .def_rw("lowres_vcb", &InitialConditions::lowres_vcb);
+        .def("set_lowres_density",
+             [](InitialConditions& self, nb::ndarray<float> array) {
+                 self.lowres_density = array.data();
+             })
+        .def("set_lowres_vx", [](InitialConditions& self,
+                                 nb::ndarray<float> array) { self.lowres_vx = array.data(); })
+        .def("set_lowres_vy", [](InitialConditions& self,
+                                 nb::ndarray<float> array) { self.lowres_vy = array.data(); })
+        .def("set_lowres_vz", [](InitialConditions& self,
+                                 nb::ndarray<float> array) { self.lowres_vz = array.data(); })
+        .def("set_lowres_vx_2LPT",
+             [](InitialConditions& self, nb::ndarray<float> array) {
+                 self.lowres_vx_2LPT = array.data();
+             })
+        .def("set_lowres_vy_2LPT",
+             [](InitialConditions& self, nb::ndarray<float> array) {
+                 self.lowres_vy_2LPT = array.data();
+             })
+        .def("set_lowres_vz_2LPT",
+             [](InitialConditions& self, nb::ndarray<float> array) {
+                 self.lowres_vz_2LPT = array.data();
+             })
+        .def("set_hires_density",
+             [](InitialConditions& self, nb::ndarray<float> array) {
+                 self.hires_density = array.data();
+             })
+        .def("set_hires_vx", [](InitialConditions& self,
+                                nb::ndarray<float> array) { self.hires_vx = array.data(); })
+        .def("set_hires_vy", [](InitialConditions& self,
+                                nb::ndarray<float> array) { self.hires_vy = array.data(); })
+        .def("set_hires_vz", [](InitialConditions& self,
+                                nb::ndarray<float> array) { self.hires_vz = array.data(); })
+        .def("set_hires_vx_2LPT",
+             [](InitialConditions& self, nb::ndarray<float> array) {
+                 self.hires_vx_2LPT = array.data();
+             })
+        .def("set_hires_vy_2LPT",
+             [](InitialConditions& self, nb::ndarray<float> array) {
+                 self.hires_vy_2LPT = array.data();
+             })
+        .def("set_hires_vz_2LPT",
+             [](InitialConditions& self, nb::ndarray<float> array) {
+                 self.hires_vz_2LPT = array.data();
+             })
+        .def("set_lowres_vcb", [](InitialConditions& self, nb::ndarray<float> array) {
+            self.lowres_vcb = array.data();
+        });
 
     // Bind PerturbedField
     nb::class_<PerturbedField>(m, "PerturbedField")
         .def(nb::init<>())
-        .def_rw("density", &PerturbedField::density)
-        .def_rw("velocity_x", &PerturbedField::velocity_x)
-        .def_rw("velocity_y", &PerturbedField::velocity_y)
-        .def_rw("velocity_z", &PerturbedField::velocity_z);
+        .def("set_density",
+             [](PerturbedField& self, nb::ndarray<float> array) { self.density = array.data(); })
+        .def("set_velocity_x",
+             [](PerturbedField& self, nb::ndarray<float> array) { self.velocity_x = array.data(); })
+        .def("set_velocity_y",
+             [](PerturbedField& self, nb::ndarray<float> array) { self.velocity_y = array.data(); })
+        .def("set_velocity_z", [](PerturbedField& self, nb::ndarray<float> array) {
+            self.velocity_z = array.data();
+        });
 
     // Bind HaloField
     nb::class_<HaloField>(m, "HaloField")
         .def(nb::init<>())
         .def_rw("n_halos", &HaloField::n_halos)
         .def_rw("buffer_size", &HaloField::buffer_size)
-        .def_rw("halo_masses", &HaloField::halo_masses)
-        .def_rw("halo_coords", &HaloField::halo_coords)
-        .def_rw("star_rng", &HaloField::star_rng)
-        .def_rw("sfr_rng", &HaloField::sfr_rng)
-        .def_rw("xray_rng", &HaloField::xray_rng);
+        .def("set_halo_masses",
+             [](HaloField& self, nb::ndarray<float> array) { self.halo_masses = array.data(); })
+        .def("set_halo_coords",
+             [](HaloField& self, nb::ndarray<int> array) { self.halo_coords = array.data(); })
+        .def("set_star_rng",
+             [](HaloField& self, nb::ndarray<float> array) { self.star_rng = array.data(); })
+        .def("set_sfr_rng",
+             [](HaloField& self, nb::ndarray<float> array) { self.sfr_rng = array.data(); })
+        .def("set_xray_rng",
+             [](HaloField& self, nb::ndarray<float> array) { self.xray_rng = array.data(); });
 
     // Bind PerturbHaloField
     nb::class_<PerturbHaloField>(m, "PerturbHaloField")
         .def(nb::init<>())
         .def_rw("n_halos", &PerturbHaloField::n_halos)
         .def_rw("buffer_size", &PerturbHaloField::buffer_size)
-        .def_rw("halo_masses", &PerturbHaloField::halo_masses)
-        .def_rw("halo_coords", &PerturbHaloField::halo_coords)
-        .def_rw("star_rng", &PerturbHaloField::star_rng)
-        .def_rw("sfr_rng", &PerturbHaloField::sfr_rng)
-        .def_rw("xray_rng", &PerturbHaloField::xray_rng);
+        .def("set_halo_masses", [](PerturbHaloField& self,
+                                   nb::ndarray<float> array) { self.halo_masses = array.data(); })
+        .def("set_halo_coords", [](PerturbHaloField& self,
+                                   nb::ndarray<int> array) { self.halo_coords = array.data(); })
+        .def("set_star_rng",
+             [](PerturbHaloField& self, nb::ndarray<float> array) { self.star_rng = array.data(); })
+        .def("set_sfr_rng",
+             [](PerturbHaloField& self, nb::ndarray<float> array) { self.sfr_rng = array.data(); })
+        .def("set_xray_rng", [](PerturbHaloField& self, nb::ndarray<float> array) {
+            self.xray_rng = array.data();
+        });
 
     // Bind HaloBox
     nb::class_<HaloBox>(m, "HaloBox")
         .def(nb::init<>())
-        .def_rw("halo_mass", &HaloBox::halo_mass)
-        .def_rw("halo_stars", &HaloBox::halo_stars)
-        .def_rw("halo_stars_mini", &HaloBox::halo_stars_mini)
-        .def_rw("count", &HaloBox::count)
-        .def_rw("n_ion", &HaloBox::n_ion)
-        .def_rw("halo_sfr", &HaloBox::halo_sfr)
-        .def_rw("halo_xray", &HaloBox::halo_xray)
-        .def_rw("halo_sfr_mini", &HaloBox::halo_sfr_mini)
-        .def_rw("whalo_sfr", &HaloBox::whalo_sfr)
+        .def("set_halo_mass",
+             [](HaloBox& self, nb::ndarray<float> array) { self.halo_mass = array.data(); })
+        .def("set_halo_stars",
+             [](HaloBox& self, nb::ndarray<float> array) { self.halo_stars = array.data(); })
+        .def("set_halo_stars_mini",
+             [](HaloBox& self, nb::ndarray<float> array) { self.halo_stars_mini = array.data(); })
+        .def("set_count", [](HaloBox& self, nb::ndarray<int> array) { self.count = array.data(); })
+        .def("set_n_ion",
+             [](HaloBox& self, nb::ndarray<float> array) { self.n_ion = array.data(); })
+        .def("set_halo_sfr",
+             [](HaloBox& self, nb::ndarray<float> array) { self.halo_sfr = array.data(); })
+        .def("set_halo_xray",
+             [](HaloBox& self, nb::ndarray<float> array) { self.halo_xray = array.data(); })
+        .def("set_halo_sfr_mini",
+             [](HaloBox& self, nb::ndarray<float> array) { self.halo_sfr_mini = array.data(); })
+        .def("set_whalo_sfr",
+             [](HaloBox& self, nb::ndarray<float> array) { self.whalo_sfr = array.data(); })
         .def_rw("log10_Mcrit_ACG_ave", &HaloBox::log10_Mcrit_ACG_ave)
         .def_rw("log10_Mcrit_MCG_ave", &HaloBox::log10_Mcrit_MCG_ave);
 
     // Bind XraySourceBox
     nb::class_<XraySourceBox>(m, "XraySourceBox")
         .def(nb::init<>())
-        .def_rw("filtered_sfr", &XraySourceBox::filtered_sfr)
-        .def_rw("filtered_xray", &XraySourceBox::filtered_xray)
-        .def_rw("filtered_sfr_mini", &XraySourceBox::filtered_sfr_mini)
-        .def_rw("mean_log10_Mcrit_LW", &XraySourceBox::mean_log10_Mcrit_LW)
-        .def_rw("mean_sfr", &XraySourceBox::mean_sfr)
-        .def_rw("mean_sfr_mini", &XraySourceBox::mean_sfr_mini);
+        .def("set_filtered_sfr", [](XraySourceBox& self,
+                                    nb::ndarray<float> array) { self.filtered_sfr = array.data(); })
+        .def("set_filtered_xray",
+             [](XraySourceBox& self, nb::ndarray<float> array) {
+                 self.filtered_xray = array.data();
+             })
+        .def("set_filtered_sfr_mini",
+             [](XraySourceBox& self, nb::ndarray<float> array) {
+                 self.filtered_sfr_mini = array.data();
+             })
+        .def("set_mean_log10_Mcrit_LW",
+             [](XraySourceBox& self, nb::ndarray<double> array) {
+                 self.mean_log10_Mcrit_LW = array.data();
+             })
+        .def("set_mean_sfr",
+             [](XraySourceBox& self, nb::ndarray<double> array) { self.mean_sfr = array.data(); })
+        .def("set_mean_sfr_mini", [](XraySourceBox& self, nb::ndarray<double> array) {
+            self.mean_sfr_mini = array.data();
+        });
 
     // Bind TsBox
     nb::class_<TsBox>(m, "TsBox")
         .def(nb::init<>())
-        .def_rw("spin_temperature", &TsBox::spin_temperature)
-        .def_rw("xray_ionised_fraction", &TsBox::xray_ionised_fraction)
-        .def_rw("kinetic_temp_neutral", &TsBox::kinetic_temp_neutral)
-        .def_rw("J_21_LW", &TsBox::J_21_LW);
+        .def("set_spin_temperature",
+             [](TsBox& self, nb::ndarray<float> array) { self.spin_temperature = array.data(); })
+        .def("set_xray_ionised_fraction",
+             [](TsBox& self, nb::ndarray<float> array) {
+                 self.xray_ionised_fraction = array.data();
+             })
+        .def(
+            "set_kinetic_temp_neutral",
+            [](TsBox& self, nb::ndarray<float> array) { self.kinetic_temp_neutral = array.data(); })
+        .def("set_J_21_LW",
+             [](TsBox& self, nb::ndarray<float> array) { self.J_21_LW = array.data(); });
 
     // Bind IonizedBox
     nb::class_<IonizedBox>(m, "IonizedBox")
@@ -251,20 +334,42 @@ NB_MODULE(c_21cmfast, m) {
         .def_rw("mean_f_coll_MINI", &IonizedBox::mean_f_coll_MINI)
         .def_rw("log10_Mturnover_ave", &IonizedBox::log10_Mturnover_ave)
         .def_rw("log10_Mturnover_MINI_ave", &IonizedBox::log10_Mturnover_MINI_ave)
-        .def_rw("neutral_fraction", &IonizedBox::neutral_fraction)
-        .def_rw("ionisation_rate_G12", &IonizedBox::ionisation_rate_G12)
-        .def_rw("mean_free_path", &IonizedBox::mean_free_path)
-        .def_rw("z_reion", &IonizedBox::z_reion)
-        .def_rw("cumulative_recombinations", &IonizedBox::cumulative_recombinations)
-        .def_rw("kinetic_temperature", &IonizedBox::kinetic_temperature)
-        .def_rw("unnormalised_nion", &IonizedBox::unnormalised_nion)
-        .def_rw("unnormalised_nion_mini", &IonizedBox::unnormalised_nion_mini);
+        .def("set_neutral_fraction",
+             [](IonizedBox& self, nb::ndarray<float> array) {
+                 self.neutral_fraction = array.data();
+             })
+        .def("set_ionisation_rate_G12",
+             [](IonizedBox& self, nb::ndarray<float> array) {
+                 self.ionisation_rate_G12 = array.data();
+             })
+        .def("set_mean_free_path",
+             [](IonizedBox& self, nb::ndarray<float> array) { self.mean_free_path = array.data(); })
+        .def("set_z_reion",
+             [](IonizedBox& self, nb::ndarray<float> array) { self.z_reion = array.data(); })
+        .def("set_cumulative_recombinations",
+             [](IonizedBox& self, nb::ndarray<float> array) {
+                 self.cumulative_recombinations = array.data();
+             })
+        .def("set_kinetic_temperature",
+             [](IonizedBox& self, nb::ndarray<float> array) {
+                 self.kinetic_temperature = array.data();
+             })
+        .def("set_unnormalised_nion",
+             [](IonizedBox& self, nb::ndarray<float> array) {
+                 self.unnormalised_nion = array.data();
+             })
+        .def("set_unnormalised_nion_mini", [](IonizedBox& self, nb::ndarray<float> array) {
+            self.unnormalised_nion_mini = array.data();
+        });
 
     // Bind BrightnessTemp
     nb::class_<BrightnessTemp>(m, "BrightnessTemp")
         .def(nb::init<>())
-        .def_rw("brightness_temp", &BrightnessTemp::brightness_temp);
+        .def("set_brightness_temp", [](BrightnessTemp& self, nb::ndarray<float> array) {
+            self.brightness_temp = array.data();
+        });
 
+    // Function Bindings
     // OutputStruct COMPUTE FUNCTIONS
     m.def("ComputeInitialConditions", &ComputeInitialConditions);
     m.def("ComputePerturbField", &ComputePerturbField);
@@ -300,7 +405,10 @@ NB_MODULE(c_21cmfast, m) {
     m.def("initialise_GL", &initialise_GL);
 
     // Integration routines
-    m.def("get_sigma", &get_sigma);
+    m.def("get_sigma", [](int size, nb::ndarray<double> masses, nb::ndarray<double> sigma,
+                          nb::ndarray<double> dsigmasq) {
+        return get_sigma(size, masses.data(), sigma.data(), dsigmasq.data());
+    });
     m.def("get_condition_integrals", &get_condition_integrals);
     m.def("get_halo_chmf_interval", &get_halo_chmf_interval);
     m.def("get_halomass_at_probability", &get_halomass_at_probability);

@@ -1,7 +1,6 @@
 """Low-level python wrappers of C functions."""
 
 import logging
-import warnings
 from collections.abc import Callable, Sequence
 from functools import cache
 from typing import Literal
@@ -17,14 +16,22 @@ from ._utils import _process_exitcode
 from .inputs import (
     InputParameters,
 )
-from .outputs import InitialConditions, PerturbHaloField
 
 logger = logging.getLogger(__name__)
 
 # Ideally, backend functions that we access here should do all the broadcasting/initialisation themselves
 # These decorators are for lower functions which are called directly in one or two lines, like delta_crit
 
-# TODO: a lot of these assume input as numpy arrays via use of .shape, explicitly require this
+# NOTE: On casting to C pointers:
+# -------------------------------
+# Currently our wrapper functions directly take C type pointers, which
+# requires us to cast the data to the correct type before passing it to the C.
+# This is made annoying by the fact that CAMB (which is indirectly imported somewhere)
+# appears to have overwritten the ctypes library pointer types which cause errors.
+# We will use the nanobind ndarray casters, which allow us to pass
+# numpy arrays directly to C++ functions, with size and type information.
+# We will have to translate the `integral_wrapper.c` functions to C++ and (maybe?) define
+# some wrapper layer functions in C++ for the output struct functions to parse the array data.
 
 
 def broadcast_input_struct(inputs: InputParameters):
@@ -437,14 +444,14 @@ def evaluate_sigma(
     Uses the 21cmfast backend
     """
     masses = masses.astype("f8")
-    sigma = np.zeros_like(masses)
-    dsigmasq = np.zeros_like(masses)
+    sigma = np.zeros_like(masses, dtype="f8")
+    dsigmasq = np.zeros_like(masses, dtype="f8")
 
     lib.get_sigma(
         masses.size,
-        masses.ctypes.data,
-        sigma.ctypes.data,
-        dsigmasq.ctypes.data,
+        masses,
+        sigma,
+        dsigmasq,
     )
 
     return sigma, dsigmasq
