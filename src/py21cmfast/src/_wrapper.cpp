@@ -405,29 +405,186 @@ NB_MODULE(c_21cmfast, m) {
     m.def("initialise_GL", &initialise_GL);
 
     // Integration routines
-    m.def("get_sigma", [](int size, nb::ndarray<double> masses, nb::ndarray<double> sigma,
-                          nb::ndarray<double> dsigmasq) {
-        return get_sigma(size, masses.data(), sigma.data(), dsigmasq.data());
+    // TODO: it may be a better choice to rewrite integral_wrappers in C++ directly
+    m.def("get_sigma", [](nb::ndarray<double> mass_values, nb::ndarray<double> sigma_out,
+                          nb::ndarray<double> dsigmasqdm_out) {
+        size_t n_masses = mass_values.shape(0);
+        if (sigma_out.shape(0) != n_masses || dsigmasqdm_out.shape(0) != n_masses) {
+            throw std::runtime_error("Array sizes do not match the number of masses.");
+        }
+        get_sigma(n_masses, mass_values.data(), sigma_out.data(), dsigmasqdm_out.data());
     });
-    m.def("get_condition_integrals", &get_condition_integrals);
-    m.def("get_halo_chmf_interval", &get_halo_chmf_interval);
-    m.def("get_halomass_at_probability", &get_halomass_at_probability);
-    m.def("get_global_SFRD_z", &get_global_SFRD_z);
-    m.def("get_global_Nion_z", &get_global_Nion_z);
-    m.def("get_conditional_FgtrM", &get_conditional_FgtrM);
-    m.def("get_conditional_SFRD", &get_conditional_SFRD);
-    m.def("get_conditional_Nion", &get_conditional_Nion);
-    m.def("get_conditional_Xray", &get_conditional_Xray);
+
+    m.def("get_condition_integrals",
+          [](double redshift, double z_prev, nb::ndarray<double> cond_values,
+             nb::ndarray<double> out_n_exp, nb::ndarray<double> out_m_exp) {
+              size_t n_conditions = cond_values.shape(0);
+              if (out_n_exp.shape(0) != n_conditions || out_m_exp.shape(0) != n_conditions) {
+                  throw std::runtime_error("Array sizes do not match the number of conditions.");
+              }
+              get_condition_integrals(redshift, z_prev, n_conditions, cond_values.data(),
+                                      out_n_exp.data(), out_m_exp.data());
+          });
+
+    m.def("get_halo_chmf_interval",
+          [](double redshift, double z_prev, nb::ndarray<double> cond_values,
+             nb::ndarray<double> lnM_lo, nb::ndarray<double> lnM_hi, nb::ndarray<double> out_n) {
+              size_t n_conditions = cond_values.shape(0);
+              size_t n_masslim = lnM_lo.shape(0);
+              if (lnM_hi.shape(0) != n_masslim || out_n.shape(0) != n_conditions ||
+                  out_n.shape(1) != n_masslim) {
+                  throw std::runtime_error("Array sizes do not match the specified dimensions.");
+              }
+              get_halo_chmf_interval(redshift, z_prev, n_conditions, cond_values.data(), n_masslim,
+                                     lnM_lo.data(), lnM_hi.data(), out_n.data());
+          });
+
+    m.def("get_halomass_at_probability",
+          [](double redshift, double z_prev, nb::ndarray<double> cond_values,
+             nb::ndarray<double> probabilities, nb::ndarray<double> out_mass) {
+              size_t n_conditions = cond_values.shape(0);
+              if (probabilities.shape(0) != n_conditions || out_mass.shape(0) != n_conditions) {
+                  throw std::runtime_error("Array sizes do not match the number of conditions.");
+              }
+              get_halomass_at_probability(redshift, z_prev, n_conditions, cond_values.data(),
+                                          probabilities.data(), out_mass.data());
+          });
+
+    m.def("get_global_SFRD_z",
+          [](nb::ndarray<double> redshifts, nb::ndarray<double> log10_turnovers_mcg,
+             nb::ndarray<double> out_sfrd, nb::ndarray<double> out_sfrd_mini) {
+              size_t n_redshift = redshifts.shape(0);
+              if (log10_turnovers_mcg.shape(0) != n_redshift || out_sfrd.shape(0) != n_redshift ||
+                  out_sfrd_mini.shape(0) != n_redshift) {
+                  throw std::runtime_error("Array sizes do not match the number of redshifts.");
+              }
+              get_global_SFRD_z(n_redshift, redshifts.data(), log10_turnovers_mcg.data(),
+                                out_sfrd.data(), out_sfrd_mini.data());
+          });
+
+    m.def("get_global_Nion_z",
+          [](nb::ndarray<double> redshifts, nb::ndarray<double> log10_turnovers_mcg,
+             nb::ndarray<double> out_nion, nb::ndarray<double> out_nion_mini) {
+              size_t n_redshift = redshifts.shape(0);
+              if (log10_turnovers_mcg.shape(0) != n_redshift || out_nion.shape(0) != n_redshift ||
+                  out_nion_mini.shape(0) != n_redshift) {
+                  throw std::runtime_error("Array sizes do not match the number of redshifts.");
+              }
+              get_global_Nion_z(n_redshift, redshifts.data(), log10_turnovers_mcg.data(),
+                                out_nion.data(), out_nion_mini.data());
+          });
+
+    m.def("get_conditional_FgtrM",
+          [](double redshift, double R, nb::ndarray<double> densities,
+             nb::ndarray<double> out_fcoll, nb::ndarray<double> out_dfcoll) {
+              size_t n_densities = densities.shape(0);
+              if (out_fcoll.shape(0) != n_densities || out_dfcoll.shape(0) != n_densities) {
+                  throw std::runtime_error("Array sizes do not match the number of densities.");
+              }
+              get_conditional_FgtrM(redshift, R, n_densities, densities.data(), out_fcoll.data(),
+                                    out_dfcoll.data());
+          });
+
+    m.def("get_conditional_SFRD", [](double redshift, double R, nb::ndarray<double> densities,
+                                     nb::ndarray<double> log10_mturns, nb::ndarray<double> out_sfrd,
+                                     nb::ndarray<double> out_sfrd_mini) {
+        size_t n_densities = densities.shape(0);
+        if (log10_mturns.shape(0) != n_densities || out_sfrd.shape(0) != n_densities ||
+            out_sfrd_mini.shape(0) != n_densities) {
+            throw std::runtime_error("Array sizes do not match the number of densities.");
+        }
+        get_conditional_SFRD(redshift, R, n_densities, densities.data(), log10_mturns.data(),
+                             out_sfrd.data(), out_sfrd_mini.data());
+    });
+
+    m.def("get_conditional_Nion", [](double redshift, double R, nb::ndarray<double> densities,
+                                     nb::ndarray<double> log10_mturns_acg,
+                                     nb::ndarray<double> log10_mturns_mcg,
+                                     nb::ndarray<double> out_nion,
+                                     nb::ndarray<double> out_nion_mini) {
+        size_t n_densities = densities.shape(0);
+        if (log10_mturns_acg.shape(0) != n_densities || log10_mturns_mcg.shape(0) != n_densities ||
+            out_nion.shape(0) != n_densities || out_nion_mini.shape(0) != n_densities) {
+            throw std::runtime_error("Array sizes do not match the number of densities.");
+        }
+        get_conditional_Nion(redshift, R, n_densities, densities.data(), log10_mturns_acg.data(),
+                             log10_mturns_mcg.data(), out_nion.data(), out_nion_mini.data());
+    });
+
+    m.def("get_conditional_Xray",
+          [](double redshift, double R, nb::ndarray<double> densities,
+             nb::ndarray<double> log10_mturns, nb::ndarray<double> out_xray) {
+              size_t n_densities = densities.shape(0);
+              if (log10_mturns.shape(0) != n_densities || out_xray.shape(0) != n_densities) {
+                  throw std::runtime_error("Array sizes do not match the number of densities.");
+              }
+              get_conditional_Xray(redshift, R, n_densities, densities.data(), log10_mturns.data(),
+                                   out_xray.data());
+          });
 
     // Error framework testing
     m.def("SomethingThatCatches", &SomethingThatCatches);
     m.def("FunctionThatCatches", &FunctionThatCatches);
     m.def("FunctionThatThrows", &FunctionThatThrows);
 
-    // Test Outputs For Specific Models
-    m.def("single_test_sample", &single_test_sample);
-    m.def("test_halo_props", &test_halo_props);
-    m.def("test_filter", &test_filter);
+    m.def("single_test_sample",
+          [](unsigned long long int seed, nb::ndarray<float> conditions, nb::ndarray<int> cond_crd,
+             double z_out, double z_in, nb::ndarray<int> out_n_tot, nb::ndarray<int> out_n_cell,
+             nb::ndarray<double> out_n_exp, nb::ndarray<double> out_m_cell,
+             nb::ndarray<double> out_m_exp, nb::ndarray<float> out_halo_masses,
+             nb::ndarray<int> out_halo_coords) {
+              size_t n_condition = conditions.shape(0);
+              if (cond_crd.shape(0) != n_condition || cond_crd.shape(1) != 3) {
+                  throw std::runtime_error("cond_crd must have shape (n_condition, 3).");
+              }
+              if (out_n_cell.shape(0) != n_condition || out_n_exp.shape(0) != n_condition ||
+                  out_m_cell.shape(0) != n_condition || out_m_exp.shape(0) != n_condition) {
+                  throw std::runtime_error("Output arrays must match the number of conditions.");
+              }
+              int status = single_test_sample(seed, n_condition, conditions.data(), cond_crd.data(),
+                                              z_out, z_in, out_n_tot.data(), out_n_cell.data(),
+                                              out_n_exp.data(), out_m_cell.data(), out_m_exp.data(),
+                                              out_halo_masses.data(), out_halo_coords.data());
+              if (status != 0) {
+                  throw std::runtime_error("single_test_sample failed with status: " +
+                                           std::to_string(status));
+              }
+          });
+
+    m.def("test_halo_props",
+          [](double redshift, nb::ndarray<float> vcb_grid, nb::ndarray<float> J21_LW_grid,
+             nb::ndarray<float> z_re_grid, nb::ndarray<float> Gamma12_ion_grid,
+             nb::ndarray<float> halo_masses, nb::ndarray<int> halo_coords,
+             nb::ndarray<float> star_rng, nb::ndarray<float> sfr_rng, nb::ndarray<float> xray_rng,
+             nb::ndarray<float> halo_props_out) {
+              size_t n_halos = halo_masses.shape(0);
+              if (halo_coords.shape(0) != n_halos || halo_coords.shape(1) != 3 ||
+                  star_rng.shape(0) != n_halos || sfr_rng.shape(0) != n_halos ||
+                  xray_rng.shape(0) != n_halos || halo_props_out.shape(0) != n_halos ||
+                  halo_props_out.shape(1) != 12) {
+                  throw std::runtime_error("Input/output arrays must match the number of halos.");
+              }
+              int status = test_halo_props(redshift, vcb_grid.data(), J21_LW_grid.data(),
+                                           z_re_grid.data(), Gamma12_ion_grid.data(), n_halos,
+                                           halo_masses.data(), halo_coords.data(), star_rng.data(),
+                                           sfr_rng.data(), xray_rng.data(), halo_props_out.data());
+              if (status != 0) {
+                  throw std::runtime_error("test_halo_props failed with status: " +
+                                           std::to_string(status));
+              }
+          });
+
+    m.def("test_filter", [](nb::ndarray<float> input_box, double R, double R_param, int filter_flag,
+                            nb::ndarray<double> result) {
+        size_t n_elements = input_box.size();
+        if (result.size() != n_elements) {
+            throw std::runtime_error("result array must have the same size as input_box.");
+        }
+        int status = test_filter(input_box.data(), R, R_param, filter_flag, result.data());
+        if (status != 0) {
+            throw std::runtime_error("test_filter failed with status: " + std::to_string(status));
+        }
+    });
 
     // Functions required to access cosmology & mass functions directly
     m.def("dicke", &dicke);

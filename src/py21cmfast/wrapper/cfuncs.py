@@ -448,7 +448,6 @@ def evaluate_sigma(
     dsigmasq = np.zeros_like(masses, dtype="f8")
 
     lib.get_sigma(
-        masses.size,
         masses,
         sigma,
         dsigmasq,
@@ -521,7 +520,6 @@ def evaluate_condition_integrals(
     lib.get_condition_integrals(
         redshift,
         redshift_prev if redshift_prev is not None else -1,
-        cond_array.size,
         cond_array,
         n_halo,
         m_coll,
@@ -552,9 +550,7 @@ def integrate_chmf_interval(
     lib.get_halo_chmf_interval(
         redshift,
         redshift_prev if redshift_prev is not None else -1,
-        len(cond_values),
         cond_values,
-        len(lnm_lower),
         lnm_lower,
         lnm_upper,
         out_prob,
@@ -588,7 +584,6 @@ def evaluate_inverse_table(
     lib.get_halomass_at_probability(
         redshift,
         redshift_prev,
-        cond_array.size,
         cond_array,
         probabilities,
         masses,
@@ -612,7 +607,6 @@ def evaluate_FgtrM_cond(
     lib.get_conditional_FgtrM(
         redshift,
         R,
-        densities.size,
         densities,
         fcoll,
         dfcoll,
@@ -640,7 +634,6 @@ def evaluate_SFRD_z(
     sfrd_mini = np.zeros_like(redshifts)
 
     lib.get_global_SFRD_z(
-        redshifts.size,
         redshifts,
         log10mturns,
         sfrd,
@@ -670,7 +663,6 @@ def evaluate_Nion_z(
     nion_mini = np.zeros_like(redshifts)
 
     lib.get_global_Nion_z(
-        redshifts.size,
         redshifts,
         log10mturns,
         nion,
@@ -703,7 +695,6 @@ def evaluate_SFRD_cond(
     lib.get_conditional_SFRD(
         redshift,
         radius,
-        densities.size,
         densities,
         log10mturns,
         sfrd,
@@ -738,7 +729,6 @@ def evaluate_Nion_cond(
     lib.get_conditional_Nion(
         redshift,
         radius,
-        densities.size,
         densities,
         l10mturns_acg,
         l10mturns_mcg,
@@ -772,7 +762,6 @@ def evaluate_Xray_cond(
     lib.get_conditional_Xray(
         redshift,
         radius,
-        densities.size,
         densities,
         log10mturns,
         xray,
@@ -810,7 +799,6 @@ def sample_halos_from_conditions(
 
     lib.single_test_sample(
         inputs.random_seed,
-        n_cond,
         cond_array,
         crd_in,
         redshift,
@@ -904,7 +892,6 @@ def convert_halo_properties(
         J_21_LW_grid,
         z_re_grid,
         Gamma12_grid,
-        n_halos,
         halo_masses,
         halo_coords,
         star_rng,
