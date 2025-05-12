@@ -591,7 +591,7 @@ def print_failure_stats(test, truth, inputs, abs_tol, rel_tol, name):
         input_arr = [f"{failed_inp[i][j]:.2e}" for i, finp in enumerate(failed_inp)]
         message += (
             f"CRD {input_arr}"
-            + f"  {truth[sel_failed].flatten()[j]:.4e} {test[sel_failed].flatten()[j]:.4e}\n",
+            + f"  {truth[sel_failed].flatten()[j]:.4e} {test[sel_failed].flatten()[j]:.4e}\n"
         )
 
     warnings.warn(message, stacklevel=2)

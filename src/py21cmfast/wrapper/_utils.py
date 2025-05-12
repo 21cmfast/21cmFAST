@@ -41,19 +41,49 @@ def asarray(ptr, shape):
     return array
 
 
+def _nb_initialise_return_value(arg_string):
+    """Return a zero-initialised object of the correct type given a nanobind signature."""
+    # If it's a wrapped class, return the class
+    if "py21cmfast.c_21cmfast" in arg_string:
+        return getattr(lib, arg_string.split("py21cmfast.c_21cmfast")[-1])()
+
+    # Mapping of nanobind types to Python types
+    nb_to_py_types = {
+        "float": float,
+        "double": float,
+        "int": int,
+        "bool": bool,
+        "str": str,
+        "void": type(None),
+    }
+
+    if "*" in arg_string or "ndarray" in arg_string:
+        base_type = arg_string.split("dtype=")[1].split("]")[0]
+        # TODO: pass a size argument?
+        return np.zeros(1, dtype=nb_to_py_types[base_type])
+
+    raise ValueError(
+        f"Cannot create a zero-initialised object of type {arg_string}."
+        "As it is not a pointer, array or class. Please check the function signature."
+    )
+
+
 def _call_c_simple(fnc, *args):
     """Call a simple C function that just returns an object.
 
-    Any such function should be defined such that the last argument is an int pointer generating
-    the status.
+    Assumes that the last argument is a pointer to an object that will be filled in by the C function.
+    This argument is initialised here and returned.
     """
     # Parse the function to get the type of the last argument
-    cdata = getattr(lib, fnc.__name__)  # TODO: finish
-    kind = cdata.split("(")[-1].split(")")[0].split(",")[-1]
-    result = getattr(lib, kind)()  # TODO:finish
+    cdata = fnc.__nb_signature__[0][0]
+    # Nanobind signature is 'def fnc.__name__(arg0: type0, arg1: type1, ..., argN: typeN, /) -> returntype'
+    signature_string = (
+        cdata.split("(")[-1].split(")")[0].split(",")[-2].replace("arg: ", "").strip()
+    )
+    result = _nb_initialise_return_value(signature_string)
     status = fnc(*args, result)
     _process_exitcode(status, fnc, args)
-    return result[0]
+    return result
 
 
 def camel_to_snake(word: str, depublicize: bool = False):

@@ -94,9 +94,7 @@ def _init_photon_conservation_correction(*, inputs):
     return lib.InitialisePhotonCons()
 
 
-def _calibrate_photon_conservation_correction(
-    *, redshifts_estimate, nf_estimate, NSpline
-):
+def _calibrate_photon_conservation_correction(*, redshifts_estimate, nf_estimate):
     # This function passes the calibration simulation results to C,
     #       Storing a clipped version in global arrays nf_vals and z_vals,
     #       and constructing the GSL interpolator z_NFHistory_spline
@@ -107,7 +105,7 @@ def _calibrate_photon_conservation_correction(
     xHI = nf_estimate
 
     logger.debug(f"PhotonCons nf estimates: {nf_estimate}")
-    return lib.PhotonCons_Calibration(z, xHI, NSpline)
+    return lib.PhotonCons_Calibration(z, xHI)
 
 
 def _calc_zstart_photon_cons():
@@ -115,7 +113,7 @@ def _calc_zstart_photon_cons():
     #   Set by neutral fraction astro_params.PHOTONCONS_ZSTART
     from ._utils import _call_c_simple
 
-    return _call_c_simple(lib.ComputeZstart_PhotonCons)
+    return _call_c_simple(lib.ComputeZstart_PhotonCons)[0]
 
 
 def _get_photon_nonconservation_data() -> dict:
@@ -300,7 +298,8 @@ def calibrate_photon_cons(
     prev_perturb = None
 
     # Arrays for redshift and neutral fraction for the calibration curve
-    neutral_fraction_photon_cons = []
+    # TODO: double check, this was empty before, was that a bug?
+    neutral_fraction_photon_cons = [1.0]
 
     # Initialise the analytic expression for the reionisation history
     logger.info("About to start photon conservation correction")
@@ -362,7 +361,6 @@ def calibrate_photon_cons(
     _calibrate_photon_conservation_correction(
         redshifts_estimate=fast_node_redshifts,
         nf_estimate=neutral_fraction_photon_cons,
-        NSpline=len(fast_node_redshifts),
     )
 
 

@@ -383,11 +383,55 @@ NB_MODULE(c_21cmfast, m) {
 
     // PHOTON CONSERVATION MODEL FUNCTIONS
     m.def("InitialisePhotonCons", &InitialisePhotonCons);
-    m.def("PhotonCons_Calibration", &PhotonCons_Calibration);
-    m.def("ComputeZstart_PhotonCons", &ComputeZstart_PhotonCons);
-    m.def("adjust_redshifts_for_photoncons", &adjust_redshifts_for_photoncons);
+    m.def("PhotonCons_Calibration",
+          [](nb::ndarray<double> z_estimate, nb::ndarray<double> xH_estimate) {
+              int n_spline = z_estimate.size();
+              if (xH_estimate.size() != n_spline) {
+                  throw std::runtime_error("Array sizes do not match the specified NSpline.");
+              }
+              int status = PhotonCons_Calibration(z_estimate.data(), xH_estimate.data(), n_spline);
+              if (status != 0) {
+                  throw std::runtime_error("PhotonCons_Calibration failed with status: " +
+                                           std::to_string(status));
+              }
+          });
+    m.def("ComputeZstart_PhotonCons", [](nb::ndarray<double> zstart) {
+        if (zstart.size() != 1) {
+            throw std::runtime_error("zstart array must have size 1.");
+        }
+        int status = ComputeZstart_PhotonCons(zstart.data());
+        if (status != 0) {
+            throw std::runtime_error("ComputeZstart_PhotonCons failed with status: " +
+                                     std::to_string(status));
+        }
+    });
+    m.def("adjust_redshifts_for_photoncons",
+          [](double z_step_factor, nb::ndarray<float> redshift, nb::ndarray<float> stored_redshift,
+             nb::ndarray<float> absolute_delta_z) {
+              adjust_redshifts_for_photoncons(z_step_factor, redshift.data(),
+                                              stored_redshift.data(), absolute_delta_z.data());
+          });
     m.def("determine_deltaz_for_photoncons", &determine_deltaz_for_photoncons);
-    m.def("ObtainPhotonConsData", &ObtainPhotonConsData);
+    m.def("ObtainPhotonConsData",
+          [](nb::ndarray<double> z_at_Q_data, nb::ndarray<double> Q_data,
+             nb::ndarray<int> Ndata_analytic, nb::ndarray<double> z_cal_data,
+             nb::ndarray<double> nf_cal_data, nb::ndarray<int> Ndata_calibration,
+             nb::ndarray<double> PhotonCons_NFdata, nb::ndarray<double> PhotonCons_deltaz,
+             nb::ndarray<int> Ndata_PhotonCons) {
+              if (Ndata_analytic.size() != 1 || Ndata_calibration.size() != 1 ||
+                  Ndata_PhotonCons.size() != 1) {
+                  throw std::runtime_error(
+                      "Ndata_analytic, Ndata_calibration, and Ndata_PhotonCons must have size 1.");
+              }
+              int status = ObtainPhotonConsData(
+                  z_at_Q_data.data(), Q_data.data(), Ndata_analytic.data(), z_cal_data.data(),
+                  nf_cal_data.data(), Ndata_calibration.data(), PhotonCons_NFdata.data(),
+                  PhotonCons_deltaz.data(), Ndata_PhotonCons.data());
+              if (status != 0) {
+                  throw std::runtime_error("ObtainPhotonConsData failed with status: " +
+                                           std::to_string(status));
+              }
+          });
     m.def("FreePhotonConsMemory", &FreePhotonConsMemory);
     m.def("set_alphacons_params", &set_alphacons_params);
 
