@@ -48,4 +48,4 @@ jobs:
           --adapter python_pytest \
           --file results.json \
           --github-actions '${{ secrets.GITHUB_TOKEN }}' \
-          "pytest --benchmark-json results.json tests/test_segfaults.py"
+          "pytest --benchmark-json results.json tests/test_integration_features.py"

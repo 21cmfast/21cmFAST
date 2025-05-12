@@ -14,6 +14,7 @@ import logging
 import os
 import sys
 import tempfile
+import warnings
 from pathlib import Path
 
 import attrs
@@ -44,189 +45,196 @@ logging.basicConfig()
 SEED = 12345
 DATA_PATH = Path(__file__).parent / "test_data"
 
-# These defaults are overwritten by the OPTIONS kwargs
-DEFAULT_SIMULATION_OPTIONS = {
+DEFAULT_INPUTS_TESTRUNS = {
+    # SimulationOptions
     "HII_DIM": 50,
     "DIM": 150,
     "BOX_LEN": 100,
     "SAMPLER_MIN_MASS": 1e9,
     "ZPRIME_STEP_FACTOR": 1.04,
-}
-
-DEFAULT_MATTER_OPTIONS = {
+    # MatterOptions
     "USE_HALO_FIELD": False,
     "NO_RNG": True,
     "HALO_STOCHASTICITY": False,
-}
-
-DEFAULT_ASTRO_OPTIONS = {
+    # AstroOptions
     "USE_EXP_FILTER": False,
     "CELL_RECOMB": False,
     "USE_TS_FLUCT": False,
-    "INHOMO_RECO": False,
     "USE_UPPER_STELLAR_TURNOVER": False,
-    "USE_MASS_DEPENDENT_ZETA": False,
-    "HII_FILTER": "sharp-k",
-    "M_MIN_in_Mass": False,
-}
-
-DEFAULT_ASTRO_PARAMS = {
-    "L_X": 40.0,
-    "L_X_MINI": 40.0,
-    "F_STAR7_MINI": -2.0,
+    "N_THREADS": 2,
 }
 
 LIGHTCONE_FIELDS = [
     "density",
     "velocity_z",
     "spin_temperature",
+    "xray_ionised_fraction",
+    "J_21_LW",
+    "kinetic_temp_neutral",
     "ionisation_rate_G12",
     "cumulative_recombinations",
-    "xray_ionised_fraction",
-    "kinetic_temp_neutral",
-    "J_21_LW",
     "neutral_fraction",
     "z_reion",
     "brightness_temp",
 ]
 
 COEVAL_FIELDS = LIGHTCONE_FIELDS.copy()
-COEVAL_FIELDS.insert(COEVAL_FIELDS.index("spin_temperature"), "lowres_density")
 COEVAL_FIELDS.insert(COEVAL_FIELDS.index("spin_temperature"), "lowres_vx_2LPT")
 COEVAL_FIELDS.insert(COEVAL_FIELDS.index("spin_temperature"), "lowres_vx")
+COEVAL_FIELDS.insert(COEVAL_FIELDS.index("spin_temperature"), "lowres_density")
 
-OPTIONS = {
-    "simple": [12, {}],
-    "perturb_high_res": [12, {"PERTURB_ON_HIGH_RES": True}],
-    "change_step_factor": [11, {"ZPRIME_STEP_FACTOR": 1.02}],
-    "change_z_heat_max": [30, {"Z_HEAT_MAX": 40}],
-    "larger_step_factor": [
-        13,
-        {"ZPRIME_STEP_FACTOR": 1.05, "Z_HEAT_MAX": 25, "HMF": "PS"},
-    ],
-    "mdzeta": [14, {"USE_MASS_DEPENDENT_ZETA": True, "M_MIN_in_Mass": True}],
-    "rsd": [9, {"SUBCELL_RSD": True}],
-    "inhomo": [10, {"INHOMO_RECO": True, "R_BUBBLE_MAX": 50.0}],
-    "tsfluct": [16, {"HMF": "WATSON-Z", "USE_TS_FLUCT": True}],
-    "mmin_in_mass": [20, {"Z_HEAT_MAX": 45, "M_MIN_in_Mass": True, "HMF": "WATSON"}],
-    "fftw_wisdom": [35, {"USE_FFTW_WISDOM": True}],
-    "mini_halos": [
+OPTIONS_TESTRUNS = {
+    "simple": [18, {}],
+    "no-mdz": [
         18,
         {
-            "Z_HEAT_MAX": 25,
+            "USE_MASS_DEPENDENT_ZETA": False,
+        },
+    ],
+    "mini": [
+        18,
+        {
             "USE_MINI_HALOS": True,
-            "USE_MASS_DEPENDENT_ZETA": True,
-            "M_MIN_in_Mass": True,
             "INHOMO_RECO": True,
+            "R_BUBBLE_MAX": 50.0,
             "USE_TS_FLUCT": True,
+            "M_TURN": 5.0,
+            "Z_HEAT_MAX": 25,
             "ZPRIME_STEP_FACTOR": 1.1,
             "N_THREADS": 4,
-            "USE_FFTW_WISDOM": True,
-            "NUM_FILTER_STEPS_FOR_Ts": 8,
+            "USE_RELATIVE_VELOCITIES": True,
+            "POWER_SPECTRUM": "CLASS",
+        },
+    ],
+    "mini_gamma_approx": [
+        18,
+        {
+            "USE_MINI_HALOS": True,
+            "INHOMO_RECO": True,
+            "R_BUBBLE_MAX": 50.0,
+            "USE_TS_FLUCT": True,
             "M_TURN": 5.0,
+            "Z_HEAT_MAX": 25,
+            "ZPRIME_STEP_FACTOR": 1.1,
+            "N_THREADS": 4,
+            "INTEGRATION_METHOD_MINI": "GAMMA-APPROX",
+            "INTEGRATION_METHOD_ATOMIC": "GAMMA-APPROX",
+            "POWER_SPECTRUM": "CLASS",
+        },
+    ],
+    "ts": [
+        18,
+        {"USE_TS_FLUCT": True},
+    ],
+    "ts_nomdz": [
+        18,
+        {"USE_TS_FLUCT": True, "USE_MASS_DEPENDENT_ZETA": False},
+    ],
+    "inhomo": [
+        18,
+        {
+            "INHOMO_RECO": True,
             "R_BUBBLE_MAX": 50.0,
         },
     ],
-    "nthreads": [8, {"N_THREADS": 2}],
-    "photoncons": [10, {"PHOTON_CONS_TYPE": "z-photoncons"}],
-    "mdz_and_photoncons": [
-        8.5,
+    "inhomo_ts": [
+        18,
         {
-            "USE_MASS_DEPENDENT_ZETA": True,
-            "M_MIN_in_Mass": True,
-            "PHOTON_CONS_TYPE": "z-photoncons",
-            "Z_HEAT_MAX": 25,
-            "ZPRIME_STEP_FACTOR": 1.1,
+            "INHOMO_RECO": True,
+            "USE_TS_FLUCT": True,
+            "R_BUBBLE_MAX": 50.0,
         },
     ],
-    "mdz_and_ts_fluct": [
-        9,
+    "sampler": [
+        18,
         {
-            "USE_MASS_DEPENDENT_ZETA": True,
-            "M_MIN_in_Mass": True,
+            "USE_HALO_FIELD": True,
+            "HALO_STOCHASTICITY": True,
+        },
+    ],
+    "fixed_halogrids": [
+        18,
+        {
+            "USE_HALO_FIELD": True,
+            "FIXED_HALO_GRIDS": True,
+        },
+    ],
+    "sampler_mini": [
+        18,
+        {
+            "USE_HALO_FIELD": True,
+            "HALO_STOCHASTICITY": True,
+            "USE_MINI_HALOS": True,
             "USE_TS_FLUCT": True,
             "INHOMO_RECO": True,
-            "PHOTON_CONS_TYPE": "z-photoncons",
-            "Z_HEAT_MAX": 25,
-            "ZPRIME_STEP_FACTOR": 1.1,
             "R_BUBBLE_MAX": 50.0,
+            "M_TURN": 5.0,
+        },
+    ],
+    "sampler_ts": [
+        18,
+        {
+            "USE_HALO_FIELD": True,
+            "HALO_STOCHASTICITY": True,
+            "USE_TS_FLUCT": True,
+        },
+    ],
+    "sampler_ir": [
+        18,
+        {
+            "USE_HALO_FIELD": True,
+            "HALO_STOCHASTICITY": True,
+            "INHOMO_RECO": True,
+            "R_BUBBLE_MAX": 50.0,
+        },
+    ],
+    "sampler_ts_ir": [
+        18,
+        {
+            "USE_HALO_FIELD": True,
+            "HALO_STOCHASTICITY": True,
+            "USE_TS_FLUCT": True,
+            "INHOMO_RECO": True,
+            "R_BUBBLE_MAX": 50.0,
+        },
+    ],
+    "sampler_ts_ir_onethread": [
+        18,
+        {
+            "USE_HALO_FIELD": True,
+            "HALO_STOCHASTICITY": True,
+            "USE_TS_FLUCT": True,
+            "INHOMO_RECO": True,
+            "R_BUBBLE_MAX": 50.0,
+            "N_THREADS": 1,
+        },
+    ],
+    "dexm": [
+        18,
+        {
+            "USE_HALO_FIELD": True,
+        },
+    ],
+    "photoncons-z": [
+        18,
+        {
+            "PHOTON_CONS_TYPE": "z-photoncons",
         },
     ],
     "minimize_mem": [
-        9,
+        18,
         {
-            "USE_MASS_DEPENDENT_ZETA": True,
-            "M_MIN_in_Mass": True,
             "USE_TS_FLUCT": True,
             "INHOMO_RECO": True,
-            "PHOTON_CONS_TYPE": "z-photoncons",
-            "Z_HEAT_MAX": 25,
-            "ZPRIME_STEP_FACTOR": 1.1,
+            "R_BUBBLE_MAX": 50.0,
             "MINIMIZE_MEMORY": True,
-            "R_BUBBLE_MAX": 50.0,
         },
     ],
-    "mdz_and_tsfluct_nthreads": [
-        8.5,
-        {
-            "N_THREADS": 2,
-            "USE_FFTW_WISDOM": True,
-            "USE_MASS_DEPENDENT_ZETA": True,
-            "M_MIN_in_Mass": True,
-            "INHOMO_RECO": True,
-            "USE_TS_FLUCT": True,
-            "PHOTON_CONS_TYPE": "z-photoncons",
-            "Z_HEAT_MAX": 25,
-            "ZPRIME_STEP_FACTOR": 1.1,
-            "R_BUBBLE_MAX": 50.0,
-        },
-    ],
-    "fast_fcoll_hiz": [
-        18,
-        {
-            "N_THREADS": 4,
-            "INTEGRATION_METHOD_MINI": "GAMMA-APPROX",
-            "USE_INTERPOLATION_TABLES": "hmf-interpolation",
-        },
-    ],
-    "fast_fcoll_lowz": [
-        8,
-        {
-            "N_THREADS": 4,
-            "INTEGRATION_METHOD_MINI": "GAMMA-APPROX",
-            "USE_INTERPOLATION_TABLES": "hmf-interpolation",
-        },
-    ],
-    "relvel": [
-        18,
-        {
-            "Z_HEAT_MAX": 25,
-            "USE_MINI_HALOS": True,
-            "USE_MASS_DEPENDENT_ZETA": True,
-            "M_MIN_in_Mass": True,
-            "INHOMO_RECO": True,
-            "USE_TS_FLUCT": True,
-            "ZPRIME_STEP_FACTOR": 1.1,
-            "N_THREADS": 4,
-            "POWER_SPECTRUM": "CLASS",
-            "NUM_FILTER_STEPS_FOR_Ts": 8,
-            "USE_INTERPOLATION_TABLES": "hmf-interpolation",
-            "INTEGRATION_METHOD_MINI": "GAMMA-APPROX",
-            "USE_RELATIVE_VELOCITIES": True,
-            "M_TURN": 5.0,
-        },
-    ],
-    "lyman_alpha_heating": [
-        8,
-        {"N_THREADS": 4, "USE_CMB_HEATING": False},
-    ],
-    "cmb_heating": [
-        8,
-        {"N_THREADS": 4, "USE_LYA_HEATING": False},
-    ],
+    "rsd": [18, {"SUBCELL_RSD": True}],
+    "fftw_wisdom": [18, {"USE_FFTW_WISDOM": True}],
 }
 
-if len(set(OPTIONS.keys())) != len(list(OPTIONS.keys())):
+if len(set(OPTIONS_TESTRUNS.keys())) != len(list(OPTIONS_TESTRUNS.keys())):
     raise ValueError("There is a non-unique option name!")
 
 OPTIONS_PT = {
@@ -239,33 +247,18 @@ OPTIONS_PT = {
 if len(set(OPTIONS_PT.keys())) != len(list(OPTIONS_PT.keys())):
     raise ValueError("There is a non-unique option_pt name!")
 
-OPTIONS_HALO = {
-    "halo_field": [
-        9,
-        {
-            "USE_HALO_FIELD": True,
-            "USE_MASS_DEPENDENT_ZETA": True,
-            "M_MIN_in_Mass": True,
-        },
-    ]
-}
 
-if len(set(OPTIONS_HALO.keys())) != len(list(OPTIONS_HALO.keys())):
-    raise ValueError("There is a non-unique option_halo name!")
-
-
-def get_node_z(redshift, max_redshift, lc=False, **kwargs):
+def get_node_z(redshift, lc=False, **kwargs):
     """Get the node redshifts we want to use for test runs.
 
     Values for the spacing and maximum go kwargs --> test defaults --> struct defaults
     """
     node_redshifts = None
-
-    node_maxz = max_redshift
-    if lc or kwargs.get("USE_TS_FLUCT", False) or kwargs.get("INHOMO_RECO", False):
-        node_maxz = kwargs.get(
+    max_redshift = redshift + 2
+    if kwargs.get("USE_TS_FLUCT", False) or kwargs.get("INHOMO_RECO", False):
+        max_redshift = kwargs.get(
             "Z_HEAT_MAX",
-            DEFAULT_SIMULATION_OPTIONS.get(
+            DEFAULT_INPUTS_TESTRUNS.get(
                 "Z_HEAT_MAX", SimulationOptions.new().Z_HEAT_MAX
             ),
         )
@@ -273,10 +266,10 @@ def get_node_z(redshift, max_redshift, lc=False, **kwargs):
     if lc or kwargs.get("USE_TS_FLUCT", False) or kwargs.get("INHOMO_RECO", False):
         node_redshifts = get_logspaced_redshifts(
             min_redshift=redshift,
-            max_redshift=node_maxz,
+            max_redshift=max_redshift,
             z_step_factor=kwargs.get(
                 "ZPRIME_STEP_FACTOR",
-                DEFAULT_SIMULATION_OPTIONS.get(
+                DEFAULT_INPUTS_TESTRUNS.get(
                     "ZPRIME_STEP_FACTOR", SimulationOptions.new().ZPRIME_STEP_FACTOR
                 ),
             ),
@@ -285,17 +278,14 @@ def get_node_z(redshift, max_redshift, lc=False, **kwargs):
 
 
 def get_all_options_struct(redshift, lc=False, **kwargs):
-    node_redshifts = get_node_z(redshift, max_redshift=redshift + 2, lc=lc, **kwargs)
+    node_redshifts = get_node_z(redshift, lc=lc, **kwargs)
 
     inputs = InputParameters(
         node_redshifts=node_redshifts,
         random_seed=SEED,
     ).evolve_input_structs(
         **{
-            **DEFAULT_MATTER_OPTIONS,
-            **DEFAULT_SIMULATION_OPTIONS,
-            **DEFAULT_ASTRO_OPTIONS,
-            **DEFAULT_ASTRO_PARAMS,
+            **DEFAULT_INPUTS_TESTRUNS,
             **kwargs,
         }
     )
@@ -324,31 +314,9 @@ def produce_coeval_power_spectra(redshift, **kwargs):
     return k, p, coeval
 
 
-def produce_lc_power_spectra(redshift, **kwargs):
-    options = get_all_options_struct(redshift, lc=False, **kwargs)
-    print("----- OPTIONS USED -----")
-    print(options)
-    print("------------------------")
-
-    # NOTE: this is here only so that we get the same answer as previous versions,
-    #       which have a bug where the max_redshift gets set higher than it needs to be.
-    astro_options = options["inputs"].astro_options
-    if astro_options.INHOMO_RECO or astro_options.USE_TS_FLUCT:
-        max_redshift = options["inputs"].simulation_options.Z_HEAT_MAX
-    else:
-        max_redshift = options["out_redshifts"] + 2
-
-    # convert options to lightcone version
-    options["inputs"] = options["inputs"].clone(
-        node_redshifts=get_logspaced_redshifts(
-            min_redshift=options.pop("out_redshifts"),
-            max_redshift=max_redshift,
-            z_step_factor=options["inputs"].simulation_options.ZPRIME_STEP_FACTOR,
-        )
-    )
-
+def get_lc_fields(inputs):
     quantities = LIGHTCONE_FIELDS[:]
-    if not astro_options.USE_TS_FLUCT:
+    if not inputs.astro_options.USE_TS_FLUCT:
         [
             quantities.remove(k)
             for k in {
@@ -357,12 +325,25 @@ def produce_lc_power_spectra(redshift, **kwargs):
                 "kinetic_temp_neutral",
             }
         ]
-    if not astro_options.USE_MINI_HALOS:
+    if not inputs.astro_options.USE_MINI_HALOS:
         quantities.remove("J_21_LW")
+    if not inputs.astro_options.INHOMO_RECO:
+        quantities.remove("cumulative_recombinations")
 
+    return quantities
+
+
+def produce_lc_power_spectra(redshift, **kwargs):
+    options = get_all_options_struct(redshift, lc=True, **kwargs)
+    print("----- OPTIONS USED -----")
+    print(options)
+    print("------------------------")
+    node_z = options["inputs"].node_redshifts
+
+    quantities = get_lc_fields(options["inputs"])
     lcn = RectilinearLightconer.with_equal_cdist_slices(
-        min_redshift=redshift,
-        max_redshift=max_redshift,
+        min_redshift=node_z[-1],
+        max_redshift=node_z[0],
         quantities=quantities,
         resolution=options["inputs"].simulation_options.cell_size,
     )
@@ -385,14 +366,13 @@ def produce_lc_power_spectra(redshift, **kwargs):
 
 
 def produce_perturb_field_data(redshift, **kwargs):
-    options = get_all_options_struct(redshift, lc=True, **kwargs)
+    options = get_all_options_struct(redshift, lc=False, **kwargs)
     del options["out_redshifts"]
 
     velocity_normalisation = 1e16
 
-    with config.use(regenerate=True, write=False):
-        init_box = compute_initial_conditions(**options)
-        pt_box = perturb_field(redshift=redshift, initial_conditions=init_box)
+    init_box = compute_initial_conditions(**options)
+    pt_box = perturb_field(redshift=redshift, initial_conditions=init_box)
 
     p_dens, k_dens = get_power(
         pt_box.get("density"),
@@ -427,34 +407,9 @@ def produce_perturb_field_data(redshift, **kwargs):
     return k_dens, p_dens, k_vel, p_vel, X_dens, Y_dens, X_vel, Y_vel, init_box
 
 
-def produce_halo_field_data(redshift, **kwargs):
-    options = get_all_options_struct(redshift, lc=True, **kwargs)
-
-    with config.use(regenerate=True, write=False):
-        init_box = compute_initial_conditions(**options)
-        halos = determine_halo_list(
-            initial_conditions=init_box, redshift=redshift, **options
-        )
-        pt_halos = perturb_halo_list(
-            initial_conditions=init_box,
-            halo_field=halos,
-        )
-
-    return pt_halos
-
-
-def get_filename(kind, name, **kwargs):
+def get_filename(kind, name):
     # get sorted keys
     fname = f"{kind}_{name}.h5"
-    return DATA_PATH / fname
-
-
-def get_old_filename(redshift, kind, **kwargs):
-    # get sorted keys
-    kwargs = {k: kwargs[k] for k in sorted(kwargs)}
-    string = "_".join(f"{k}={v}" for k, v in kwargs.items())
-    fname = f"{kind}_z{redshift:.2f}_{string}.h5"
-
     return DATA_PATH / fname
 
 
@@ -494,8 +449,8 @@ def produce_power_spectra_for_tests(name, redshift, force, direc, **kwargs):
         for key, val in p_l.items():
             lc_grp[f"power_{key}"] = val
 
-        lc_grp["global_xH"] = lc.global_xH
-        lc_grp["global_brightness_temp"] = lc.global_brightness_temp
+        lc_grp["global_neutral_fraction"] = lc.global_quantities["neutral_fraction"]
+        lc_grp["global_brightness_temp"] = lc.global_quantities["brightness_temp"]
 
     print(f"Produced {fname} with {kwargs}")
     return fname
@@ -547,29 +502,6 @@ def produce_data_for_perturb_field_tests(name, redshift, force, **kwargs):
     return fname
 
 
-def produce_data_for_halo_field_tests(name, redshift, force, **kwargs):
-    pt_halos = produce_halo_field_data(redshift, **kwargs)
-
-    fname = get_filename("halo_field_data", name)
-
-    # Need to manually remove it, otherwise h5py tries to add to it
-    if fname.exists():
-        if force:
-            fname.unlink()
-        else:
-            return fname
-
-    with h5py.File(fname, "w") as fl:
-        for k, v in kwargs.items():
-            fl.attrs[k] = v
-
-        fl["n_pt_halos"] = pt_halos.n_halos
-        fl["pt_halo_masses"] = pt_halos.halo_masses
-
-    print(f"Produced {fname} with {kwargs}")
-    return fname
-
-
 main = click.Group()
 
 
@@ -579,12 +511,11 @@ main = click.Group()
 @click.option("--remove/--no-remove", default=True)
 @click.option("--pt-only/--not-pt-only", default=False)
 @click.option("--no-pt/--pt", default=False)
-@click.option("--no-halo/--do-halo", default=False)
 @click.option(
     "--names",
     multiple=True,
-    type=click.Choice(list(OPTIONS.keys())),
-    default=list(OPTIONS.keys()),
+    type=click.Choice(list(OPTIONS_TESTRUNS.keys())),
+    default=list(OPTIONS_TESTRUNS.keys()),
 )
 def go(
     log_level: str,
@@ -592,16 +523,15 @@ def go(
     remove: bool,
     pt_only: bool,
     no_pt: bool,
-    no_halo,
     names,
 ):
     logger.setLevel(log_level.upper())
 
-    if names != list(OPTIONS.keys()):
+    if names != list(OPTIONS_TESTRUNS.keys()):
         remove = False
         force = True
 
-    if pt_only or no_pt or no_halo:
+    if pt_only or no_pt:
         remove = False
 
     # For tests, we *don't* want to use cached boxes, but we also want to use the
@@ -612,8 +542,8 @@ def go(
 
     if not pt_only:
         for name in names:
-            redshift = OPTIONS[name][0]
-            kwargs = OPTIONS[name][1]
+            redshift = OPTIONS_TESTRUNS[name][0]
+            kwargs = OPTIONS_TESTRUNS[name][1]
 
             fnames.append(
                 produce_power_spectra_for_tests(name, redshift, force, direc, **kwargs)
@@ -625,14 +555,8 @@ def go(
                 produce_data_for_perturb_field_tests(name, redshift, force, **kwargs)
             )
 
-    if not no_halo:
-        for name, (redshift, kwargs) in OPTIONS_HALO.items():
-            fnames.append(
-                produce_data_for_halo_field_tests(name, redshift, force, **kwargs)
-            )
-
     # Remove extra files that
-    if not (names or pt_only or no_pt or no_halo):
+    if not ((names != list(OPTIONS_TESTRUNS.keys())) or pt_only or no_pt):
         all_files = DATA_PATH.glob("*")
         for fl in all_files:
             if fl not in fnames:
@@ -643,74 +567,50 @@ def go(
                     print(f"File is now redundant and can be removed: {fl}")
 
 
-@main.command()
-def convert():
-    """Convert old-style data file names to new ones."""
-    all_files = DATA_PATH.glob("*")
+def print_failure_stats(test, truth, inputs, abs_tol, rel_tol, name):
+    sel_failed = np.fabs(truth - test) > (abs_tol + np.fabs(truth) * rel_tol)
 
-    old_names = {
-        get_old_filename(v[0], "power_spectra", **v[1]): k for k, v in OPTIONS.items()
-    }
-    old_names_pt = {
-        get_old_filename(v[0], "perturb_field_data", **v[1]): k
-        for k, v in OPTIONS_PT.items()
-    }
-    old_names_hf = {
-        get_old_filename(v[0], "halo_field_data", **v[1]): k
-        for k, v in OPTIONS_HALO.items()
-    }
+    if not np.any(sel_failed):
+        return False
 
-    for fl in all_files:
-        if fl.name.startswith("power_spectra"):
-            if fl.stem.split("power_spectra_")[-1] in OPTIONS:
-                continue
-            elif fl in old_names:
-                new_file = get_filename("power_spectra", old_names[fl])
-                fl.rename(new_file)
-                continue
-        elif fl.name.startswith("perturb_field_data"):
-            if fl.stem.split("perturb_field_data_")[-1] in OPTIONS_PT:
-                continue
-            elif fl in old_names_pt:
-                new_file = get_filename("perturb_field_data", old_names_pt[fl])
-                fl.rename(new_file)
-                continue
-        elif fl.name.startswith("halo_field_data"):
-            if fl.stem.split("halo_field_data_")[-1] in OPTIONS_HALO:
-                continue
-            elif fl in old_names_hf:
-                new_file = get_filename("halo_field_data", old_names_hf[fl])
-                fl.rename(new_file)
-                continue
+    failed_idx = np.where(sel_failed)
+    warnings.warn(
+        f"{name}: atol {abs_tol} rtol {rel_tol} failed {sel_failed.sum()} of {sel_failed.size} {sel_failed.sum() / sel_failed.size * 100:.4f}%",
+        stacklevel=2,
+    )
+    warnings.warn(
+        f"subcube of failures [min] [max] {[f.min() for f in failed_idx]} {[f.max() for f in failed_idx]}",
+        stacklevel=2,
+    )
+    warnings.warn(
+        f"failure range truth ({truth[sel_failed].min():.3e},{truth[sel_failed].max():.3e}) test ({test[sel_failed].min():.3e},{test[sel_failed].max():.3e})",
+        stacklevel=2,
+    )
+    warnings.warn(
+        f"max abs diff of failures {np.fabs(truth - test)[sel_failed].max():.4e} relative {(np.fabs(truth - test) / truth)[sel_failed].max():.4e}",
+        stacklevel=2,
+    )
 
-        if qs.confirm(f"Remove {fl}?").ask():
-            fl.unlink()
+    failed_inp = [
+        inp[sel_failed if inp.shape == test.shape else failed_idx[i]]
+        for i, inp in enumerate(inputs)
+    ]
+    for i, _inp in enumerate(inputs):
+        warnings.warn(
+            f"failure range of inputs axis {i} {failed_inp[i].min():.2e} {failed_inp[i].max():.2e}",
+            stacklevel=2,
+        )
 
+    warnings.warn("----- First 10 -----", stacklevel=2)
+    for j in range(min(10, sel_failed.sum())):
+        input_arr = [f"{failed_inp[i][j]:.2e}" for i, finp in enumerate(failed_inp)]
+        warnings.warn(
+            f"CRD {input_arr}"
+            + f"  {truth[sel_failed].flatten()[j]:.4e} {test[sel_failed].flatten()[j]:.4e}",
+            stacklevel=2,
+        )
 
-@main.command()
-def clean():
-    """Convert old-style data file names to new ones."""
-    all_files = DATA_PATH.glob("*")
-
-    for fl in all_files:
-        if (
-            (
-                fl.stem.startswith("power_spectra")
-                and fl.stem.split("power_spectra_")[-1] in OPTIONS
-            )
-            or (
-                fl.stem.startswith("perturb_field_data")
-                and fl.stem.split("perturb_field_data_")[-1] in OPTIONS_PT
-            )
-            or (
-                fl.stem.startswith("halo_field_data")
-                and fl.stem.split("halo_field_data_")[-1] in OPTIONS_HALO
-            )
-        ):
-            continue
-
-        if qs.confirm(f"Remove {fl}?").ask():
-            fl.unlink()
+    return True
 
 
 if __name__ == "__main__":
