@@ -6,7 +6,7 @@ import pytest
 import py21cmfast.c_21cmfast as lib
 from py21cmfast.wrapper.exceptions import (
     PHOTONCONSERROR,
-    ParameterError,
+    PhotonConsError,
     _process_exitcode,
 )
 
@@ -21,12 +21,12 @@ def test_basic(subfunc):
 def test_simple(subfunc):
     answer = np.array([0], dtype="f8")
 
-    status = lib.FunctionThatCatches(subfunc, False)
-    with pytest.raises(ParameterError):
+    status = lib.FunctionThatCatches(subfunc, False, answer)
+    with pytest.raises(PhotonConsError):
         _process_exitcode(
             status,
             lib.FunctionThatCatches,
-            (False, answer),
+            (subfunc, False, answer),
         )
 
 

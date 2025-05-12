@@ -31,7 +31,11 @@ from ..wrapper.outputs import (
     PerturbHaloField,
     TsBox,
 )
-from ..wrapper.photoncons import _get_photon_nonconservation_data, setup_photon_cons
+from ..wrapper.photoncons import (
+    _get_photon_nonconservation_data,
+    _photoncons_state,
+    setup_photon_cons,
+)
 from . import exhaust
 from . import single_field as sf
 from ._param_config import high_level_func
@@ -532,7 +536,7 @@ def _run_lightcone_from_perturbed_fields(
 
         # last redshift things
         if iz == len(scrollz) - 1:
-            if lib.photon_cons_allocated:
+            if _photoncons_state.c_memory_allocated:
                 lib.FreePhotonConsMemory()
 
             if isinstance(lightcone, AngularLightcone) and lightconer.get_los_velocity:

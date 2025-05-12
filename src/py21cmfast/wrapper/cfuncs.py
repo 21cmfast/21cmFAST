@@ -201,14 +201,10 @@ def compute_tau(
     redshifts = np.array(redshifts, dtype="float32")
     global_xHI = np.array(global_xHI, dtype="float32")
 
-    z = redshifts
-    xHI = global_xHI
-
     # Run the C code
     return lib.ComputeTau(
-        len(redshifts),
-        z,
-        xHI,
+        redshifts,
+        global_xHI,
         z_re_HeII,
     )
 
@@ -290,23 +286,19 @@ def compute_luminosity_function(
         )
         component = "acg"
 
-    # NOTE from v4 GPU build update: There was a multi-step process here
-    # which I'm sure was there for a reason, so when it breaks re-do:
-    # lfunc = np.zeros(x*y); lfunc.shape = (x,y), c_lfunc = lfunc....
-    lfunc = np.zeros(len(redshifts), nbins)
-    Muvfunc = np.zeros(len(redshifts), nbins)
-    Mhfunc = np.zeros(len(redshifts), nbins)
+    lfunc = np.zeros((len(redshifts), nbins))
+    Muvfunc = np.zeros((len(redshifts), nbins))
+    Mhfunc = np.zeros((len(redshifts), nbins))
 
-    lfunc_MINI = np.zeros(len(redshifts), nbins)
-    Muvfunc_MINI = np.zeros(len(redshifts), nbins)
-    Mhfunc_MINI = np.zeros(len(redshifts), nbins)
+    lfunc_MINI = np.zeros((len(redshifts), nbins))
+    Muvfunc_MINI = np.zeros((len(redshifts), nbins))
+    Mhfunc_MINI = np.zeros((len(redshifts), nbins))
 
     if component in ("both", "acg"):
         # Run the C code
         errcode = lib.ComputeLF(
-            nbins,
             1,
-            len(redshifts),
+            nbins,
             redshifts,
             mturnovers,
             Muvfunc,
@@ -318,18 +310,16 @@ def compute_luminosity_function(
             errcode,
             lib.ComputeLF,
             (
-                nbins,
                 1,
-                len(redshifts),
+                nbins,
             ),
         )
 
     if component in ("both", "mcg"):
         # Run the C code
         errcode = lib.ComputeLF(
-            nbins,
             2,
-            len(redshifts),
+            nbins,
             redshifts,
             mturnovers_mini,
             Muvfunc_MINI,
@@ -341,21 +331,16 @@ def compute_luminosity_function(
             errcode,
             lib.ComputeLF,
             (
-                nbins,
                 2,
-                len(redshifts),
+                nbins,
             ),
         )
 
     if component == "both":
         # redo the Muv range using the faintest (most likely MINI) and the brightest (most likely massive)
-        lfunc_all = np.zeros(len(redshifts) * nbins)
-        Muvfunc_all = np.zeros(len(redshifts) * nbins)
-        Mhfunc_all = np.zeros(len(redshifts) * nbins * 2)
-
-        lfunc_all.shape = (len(redshifts), nbins)
-        Muvfunc_all.shape = (len(redshifts), nbins)
-        Mhfunc_all.shape = (len(redshifts), nbins, 2)
+        lfunc_all = np.zeros((len(redshifts), nbins))
+        Muvfunc_all = np.zeros((len(redshifts), nbins))
+        Mhfunc_all = np.zeros((len(redshifts), nbins, 2))
 
         for iz in range(len(redshifts)):
             Muvfunc_all[iz] = np.linspace(
@@ -786,7 +771,7 @@ def sample_halos_from_conditions(
 
     n_cond = cond_array.size
     # all coordinates zero
-    crd_in = np.zeros(3 * n_cond).astype("i4")
+    crd_in = np.zeros((n_cond, 3)).astype("i4")
 
     cond_array = cond_array.astype("f4")
     nhalo_out = np.zeros(1).astype("i4")
@@ -795,7 +780,7 @@ def sample_halos_from_conditions(
     exp_M = np.zeros(n_cond).astype("f8")
     exp_N = np.zeros(n_cond).astype("f8")
     halomass_out = np.zeros(buffer_size).astype("f4")
-    halocrd_out = np.zeros(int(3 * buffer_size)).astype("i4")
+    halocrd_out = np.zeros((buffer_size, 3)).astype("i4")
 
     lib.single_test_sample(
         inputs.random_seed,
@@ -861,11 +846,12 @@ def convert_halo_properties(
         raise ValueError("Halo masses and rng shapes must be identical.")
 
     n_halos = halo_masses.size
+    orig_shape = halo_masses.shape
     out_buffer = np.zeros((n_halos, 12), dtype="f4")
     lo_dim = (inputs.simulation_options.HII_DIM,) * 3
 
     if halo_coords is None:
-        halo_coords = np.zeros(3 * n_halos)
+        halo_coords = np.zeros((n_halos, 3))
     if vcb_grid is None:
         vcb_grid = np.zeros(lo_dim)
     if J_21_LW_grid is None:
@@ -880,11 +866,11 @@ def convert_halo_properties(
     z_re_grid = z_re_grid.astype("f4")
     Gamma12_grid = Gamma12_grid.astype("f4")
 
-    halo_masses = halo_masses.astype("f4")
-    halo_coords = halo_coords.astype("f4")
-    star_rng = star_rng.astype("f4")
-    sfr_rng = sfr_rng.astype("f4")
-    xray_rng = xray_rng.astype("f4")
+    halo_masses = halo_masses.reshape(n_halos).astype("f4")
+    halo_coords = halo_coords.reshape(n_halos, 3).astype("f4")
+    star_rng = star_rng.reshape(n_halos).astype("f4")
+    sfr_rng = sfr_rng.reshape(n_halos).astype("f4")
+    xray_rng = xray_rng.reshape(n_halos).astype("f4")
 
     lib.test_halo_props(
         redshift,
@@ -903,18 +889,18 @@ def convert_halo_properties(
     out_buffer = out_buffer.reshape(n_halos, 12)
 
     return {
-        "halo_mass": out_buffer[:, 0].reshape(halo_masses.shape),
-        "halo_stars": out_buffer[:, 1].reshape(halo_masses.shape),
-        "halo_sfr": out_buffer[:, 2].reshape(halo_masses.shape),
-        "halo_xray": out_buffer[:, 3].reshape(halo_masses.shape),
-        "n_ion": out_buffer[:, 4].reshape(halo_masses.shape),
-        "halo_wsfr": out_buffer[:, 5].reshape(halo_masses.shape),
-        "halo_stars_mini": out_buffer[:, 6].reshape(halo_masses.shape),
-        "halo_sfr_mini": out_buffer[:, 7].reshape(halo_masses.shape),
-        "mturn_a": out_buffer[:, 8].reshape(halo_masses.shape),
-        "mturn_m": out_buffer[:, 9].reshape(halo_masses.shape),
-        "mturn_r": out_buffer[:, 10].reshape(halo_masses.shape),
-        "metallicity": out_buffer[:, 11].reshape(halo_masses.shape),
+        "halo_mass": out_buffer[:, 0].reshape(orig_shape),
+        "halo_stars": out_buffer[:, 1].reshape(orig_shape),
+        "halo_sfr": out_buffer[:, 2].reshape(orig_shape),
+        "halo_xray": out_buffer[:, 3].reshape(orig_shape),
+        "n_ion": out_buffer[:, 4].reshape(orig_shape),
+        "halo_wsfr": out_buffer[:, 5].reshape(orig_shape),
+        "halo_stars_mini": out_buffer[:, 6].reshape(orig_shape),
+        "halo_sfr_mini": out_buffer[:, 7].reshape(orig_shape),
+        "mturn_a": out_buffer[:, 8].reshape(orig_shape),
+        "mturn_m": out_buffer[:, 9].reshape(orig_shape),
+        "mturn_r": out_buffer[:, 10].reshape(orig_shape),
+        "metallicity": out_buffer[:, 11].reshape(orig_shape),
     }
 
 

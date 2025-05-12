@@ -31,7 +31,11 @@ from ..wrapper.outputs import (
     PerturbHaloField,
     TsBox,
 )
-from ..wrapper.photoncons import _get_photon_nonconservation_data, setup_photon_cons
+from ..wrapper.photoncons import (
+    _get_photon_nonconservation_data,
+    _photoncons_state,
+    setup_photon_cons,
+)
 from . import single_field as sf
 from ._param_config import high_level_func
 
@@ -481,7 +485,7 @@ def generate_coeval(
     ):
         yield coeval, coeval.redshift in out_redshifts
 
-    if lib.photon_cons_allocated:
+    if _photoncons_state.c_memory_allocated:
         lib.FreePhotonConsMemory()
 
 

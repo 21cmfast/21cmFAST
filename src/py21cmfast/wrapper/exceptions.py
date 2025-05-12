@@ -103,7 +103,9 @@ CUDAERROR = 10
 def _process_exitcode(exitcode, fnc, args):
     """Determine what happens for different values of the (integer) exit code from a C function."""
     if exitcode != SUCCESS:
-        logger.error(f"In function: {fnc.__name__}.  Arguments: {args}")
+        logger.error(
+            f"Error code {exitcode} in function: {fnc.__name__}.  Arguments: {args}"
+        )
 
         if exitcode:
             try:
