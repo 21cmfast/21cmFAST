@@ -41,29 +41,18 @@ def asarray(ptr, shape):
     return array
 
 
-def _nb_initialise_return_value(arg_string):
+def _nb_initialise_return_value(arg_string, out_shape=(1,)):
     """Return a zero-initialised object of the correct type given a nanobind signature.
 
-    Currently only works with wrapped structures or numpy arrays of size 1.
+    Currently only works with wrapped structures or numpy arrays.
     """
     # If it's a wrapped class, return the class
     if "py21cmfast.c_21cmfast" in arg_string:
         return getattr(lib, arg_string.split("py21cmfast.c_21cmfast")[-1])()
 
-    # Mapping of nanobind types to Python types
-    nb_to_py_types = {
-        "float": float,
-        "double": float,
-        "int": int,
-        "bool": bool,
-        "str": str,
-        "void": type(None),
-    }
-
     if "*" in arg_string or "ndarray" in arg_string:
         base_type = arg_string.split("dtype=")[1].split("]")[0]
-        # TODO: pass a size argument?
-        return np.zeros(1, dtype=nb_to_py_types[base_type])
+        return np.zeros(out_shape, dtype=getattr(np, base_type))
 
     raise ValueError(
         f"Cannot create a zero-initialised object of type {arg_string}."
@@ -84,6 +73,7 @@ def _call_c_simple(fnc, *args):
     signature_string = (
         cdata.split("(")[-1].split(")")[0].split(",")[-2].replace("arg: ", "").strip()
     )
+    # NOTE: This uses the default return size == 1 for arrays
     result = _nb_initialise_return_value(signature_string)
     status = fnc(*args, result)
     _process_exitcode(status, fnc, args)
