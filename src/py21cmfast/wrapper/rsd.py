@@ -14,6 +14,21 @@ except ImportError:
 
 from .inputs import InputParameters
 
+from ..c_21cmfast import ffi, lib
+
+def test_rsds_C(*,box_in, los_displacement, n_subcells=20, n_threads=6):
+    box_in = np.array(box_in, dtype="float32")
+    los_displacement = np.array(los_displacement, dtype="float32")
+    box_out = np.zeros_like(box_in, dtype="float32")
+    shape = box_in.shape
+
+    box_in_ffi = ffi.cast("float *", ffi.from_buffer(box_in))
+    los_displacement_ffi = ffi.cast("float *", ffi.from_buffer(los_displacement))
+    box_out_ffi = ffi.cast("float *", ffi.from_buffer(box_out))
+
+    lib.compute_rsds(box_in_ffi, los_displacement_ffi, shape[0], shape[1], shape[2], n_subcells, n_threads, box_out_ffi)
+    return box_out
+
 def compute_rsds(
         brightness_temp: np.ndarray,
         los_velocity: np.ndarray,
@@ -173,11 +188,22 @@ def apply_rsds(
     rsd_dx = smallest_slice / n_subcells
 
     if periodic:
+        # We need to extend the grid once as we would like to interpret the displacement values
+        # to be associated with the cell's *center*.
+        # We extend it twice more to account for periodic boundary conditions
         distance_plus = np.append(distance,2*distance[-1]-distance[-2])
+        distance_plus_plus = np.append(distance_plus,2*distance_plus[-1]-distance_plus[-2])
+        distance_plus_minus = np.append(2*distance_plus[0]-distance_plus[1],distance_plus_plus)
+        distance_grid = (distance_plus_minus[1:]+distance_plus_minus[:-1])/2
+        # This where we shall evaluate the subcells
         distance_fine = np.linspace(distance_plus.min(),distance_plus.max(),1+n_subcells*(len(distance_plus)-1))
         fine_grid = (distance_fine[1:]+distance_fine[:-1])/2
-        distance = (distance_plus[1:]+distance_plus[:-1])/2
+        # We extend the displacement array to have periodic boundary conditions
+        first_chunk = los_displacement[-1,:].reshape(1,len(ang_coords))
+        last_chunk = los_displacement[0,:].reshape(1,len(ang_coords))
+        los_displacement = np.concatenate((first_chunk, los_displacement, last_chunk), axis=0)
     else:
+        distance_grid = distance
         # TODO: convert these to distances...
         vmax_towards_observer = max(np.max(los_displacement[0]), 0)
         vmax_away_from_observer = min(0, np.min(los_displacement[-1]))
@@ -200,12 +226,19 @@ def apply_rsds(
             fine_field = np.repeat(field, n_subcells, axis=0) / n_subcells
 
         fine_rsd = interpolator(
-            (distance, ang_coords),
+            (distance_grid, ang_coords),
             los_displacement / rsd_dx,
             bounds_error=False,
             fill_value=None,
             method="linear",
         )(grid).reshape(x.shape)
+        '''
+        print("Python code:")
+        for k in range(len(distance)):
+            print(f"\tFor cell {k}:")
+            for ii in range(n_subcells):
+                print(f"\t\tFor ii={ii}, subcell_displacement={(rsd_dx*fine_rsd[ii+k*n_subcells,0]).value}")
+        '''
     else:
         fine_field = interpolator(distance, ang_coords, field)(fine_grid, ang_coords)
         fine_rsd = interpolator(distance, ang_coords, los_displacement / rsd_dx)(
