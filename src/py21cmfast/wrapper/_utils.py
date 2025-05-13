@@ -42,7 +42,10 @@ def asarray(ptr, shape):
 
 
 def _nb_initialise_return_value(arg_string):
-    """Return a zero-initialised object of the correct type given a nanobind signature."""
+    """Return a zero-initialised object of the correct type given a nanobind signature.
+
+    Currently only works with wrapped structures or numpy arrays of size 1.
+    """
     # If it's a wrapped class, return the class
     if "py21cmfast.c_21cmfast" in arg_string:
         return getattr(lib, arg_string.split("py21cmfast.c_21cmfast")[-1])()
@@ -77,6 +80,7 @@ def _call_c_simple(fnc, *args):
     # Parse the function to get the type of the last argument
     cdata = fnc.__nb_signature__[0][0]
     # Nanobind signature is 'def fnc.__name__(arg0: type0, arg1: type1, ..., argN: typeN, /) -> returntype'
+    # We wish to extract the type of the last argument only.
     signature_string = (
         cdata.split("(")[-1].split(")")[0].split(",")[-2].replace("arg: ", "").strip()
     )
