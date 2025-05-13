@@ -64,7 +64,7 @@ class StructWrapper:
         """A list of fields of the underlying C struct (a list of tuples of "name, type")."""
         result = {}
         for attr in dir(self.cstruct):
-            if not attr.startswith("__") and not callable(getattr(self.cstruct, attr)):
+            if not attr.startswith("__"):
                 result[attr] = type(getattr(self.cstruct, attr))
         return result
 
@@ -76,7 +76,7 @@ class StructWrapper:
     @property
     def pointer_fields(self) -> list[str]:
         """A list of names of fields which have pointer type in the C struct."""
-        return [f.split("set_")[0] for f in self.fields if f.startswith("set_")]
+        return [f.split("set_")[1] for f in self.fields if f.startswith("set_")]
 
     @property
     def primitive_fields(self) -> list[str]:
@@ -128,8 +128,8 @@ class StructInstanceWrapper:
             # ignore dunders
             if not attr.startswith("__"):
                 if attr.startswith("get_"):
-                    # If the attribute is a setter, we need to set the value
-                    #   to the value of the attribute without the "set_" prefix
+                    # If the attribute is a getter, we need to set the value in python
+                    #   to the value of the C++ attribute without the "get_" prefix
                     setattr(self, attr[4:], getattr(self._cobj, attr)())
                 elif not callable(getattr(self._cobj, attr)):
                     # Otherwise, we just set the attribute to the value
