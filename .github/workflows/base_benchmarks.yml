@@ -1,6 +1,6 @@
 on:
   push:
-    branches: v4-prep
+    branches: main
 
 jobs:
   benchmark_base_branch:
