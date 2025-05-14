@@ -62,6 +62,4 @@ from .wrapper.outputs import (
 )
 from .wrapper.photoncons import setup_photon_cons
 
-from.wrapper.rsd import (test_rsds_C, apply_rsds)
-
 configure_logging()

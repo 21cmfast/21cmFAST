@@ -14,21 +14,6 @@ except ImportError:
 
 from .inputs import InputParameters
 
-from ..c_21cmfast import ffi, lib
-
-def test_rsds_C(*,box_in, los_displacement, n_subcells=20, n_threads=6):
-    box_in = np.array(box_in, dtype="float32")
-    los_displacement = np.array(los_displacement, dtype="float32")
-    box_out = np.zeros_like(box_in, dtype="float32")
-    shape = box_in.shape
-
-    box_in_ffi = ffi.cast("float *", ffi.from_buffer(box_in))
-    los_displacement_ffi = ffi.cast("float *", ffi.from_buffer(los_displacement))
-    box_out_ffi = ffi.cast("float *", ffi.from_buffer(box_out))
-
-    lib.compute_rsds(box_in_ffi, los_displacement_ffi, shape[0], shape[1], shape[2], n_subcells, n_threads, box_out_ffi)
-    return box_out
-
 def compute_rsds(
         brightness_temp: np.ndarray,
         los_velocity: np.ndarray,
@@ -127,8 +112,6 @@ def compute_rsds(
             los_displacement=los_displacement.T,
             distance=distances.to(units.pixel, equiv),
             n_subcells=n_subcells,
-            interpolate_to_subcells=False,
-            interpolate_to_supercells=False,
             periodic=periodic,
         ).T
         
@@ -144,8 +127,6 @@ def apply_rsds(
     los_displacement: np.ndarray,
     distance: np.ndarray,
     n_subcells: int = 4,
-    interpolate_to_subcells: bool = True,
-    interpolate_to_supercells: bool = True,
     periodic: bool = False,
 ) -> np.ndarray:
     """Apply redshift-space distortions to a field.
@@ -218,7 +199,7 @@ def apply_rsds(
     if is_regular:
         x, y = np.meshgrid(fine_grid, ang_coords, indexing="ij")
         grid = (x.flatten(), y.flatten())
-        if interpolate_to_subcells:
+        if not periodic:
             fine_field = interpolator(
                 (distance, ang_coords), field, bounds_error=False, fill_value=None, method="linear",
             )(grid).reshape(x.shape)
@@ -232,13 +213,6 @@ def apply_rsds(
             fill_value=None,
             method="linear",
         )(grid).reshape(x.shape)
-        '''
-        print("Python code:")
-        for k in range(len(distance)):
-            print(f"\tFor cell {k}:")
-            for ii in range(n_subcells):
-                print(f"\t\tFor ii={ii}, subcell_displacement={(rsd_dx*fine_rsd[ii+k*n_subcells,0]).value}")
-        '''
     else:
         fine_field = interpolator(distance, ang_coords, field)(fine_grid, ang_coords)
         fine_rsd = interpolator(distance, ang_coords, los_displacement / rsd_dx)(
@@ -247,7 +221,7 @@ def apply_rsds(
 
     fine_field = cloud_in_cell_los(fine_field, fine_rsd,periodic=periodic)
     
-    if interpolate_to_supercells:
+    if not periodic:
         x, y = np.meshgrid(distance, ang_coords, indexing="ij")
         return RegularGridInterpolator((fine_grid, ang_coords), fine_field)(
             (
