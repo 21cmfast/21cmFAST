@@ -116,8 +116,6 @@ int test_halo_props(double redshift, float *vcb_grid, float *J21_LW_grid, float 
                     float *star_rng, float *sfr_rnd, float *xray_rng, float *halo_props_out);
 int test_filter(float *input_box, double R, double R_param, int filter_flag, double *result);
 
-double compute_rsds(float *box_in, float *los_displacement, int I1, int J1, int K1, int n_subcells, int n_threads, float *box_out);
-
 /* Functions required to access cosmology & mass functions directly */
 double dicke(double z);
 double sigma_z0(double M);
