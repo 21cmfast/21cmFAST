@@ -1,9 +1,4 @@
 on:
-  push:
-    branches:
-      - main
-    tags-ignore:
-      - 'v*'
   pull_request:
     branches:
       - main
@@ -42,7 +37,7 @@ jobs:
       - name: Track base branch benchmarks with Bencher
         run: |
           bencher run \
-          --project 21cmfast \
+          --project 21cmFAST \
           --token '${{ secrets.BENCHER_API_TOKEN }}' \
           --branch "$GITHUB_HEAD_REF" \
           --start-point "$GITHUB_BASE_REF" \
