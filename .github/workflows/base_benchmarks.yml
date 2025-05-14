@@ -4,11 +4,10 @@ on:
       - main
 
 jobs:
-  benchmark_base_branch:
+  benchmark_pr_branch:
     name: Continuous Benchmarking with Bencher
     if: github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name == github.repository
     permissions:
-      checks: write
       pull-requests: write
     runs-on: ubuntu-latest
     defaults:
