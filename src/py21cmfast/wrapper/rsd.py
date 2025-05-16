@@ -76,12 +76,12 @@ def compute_rsds(
     if not inputs.astro_options.USE_TS_FLUCT:
         max_v_deriv = inputs.astro_params.MAX_DVDR * H
         dvdx = np.clip(vel_gradient,-max_v_deriv,max_v_deriv)
-        gradient_component = 1. + dvdx/H
+        gradient_component = np.abs(1. + dvdx/H)
         tb_with_rsds = brightness_temp / gradient_component
     else:
         tb_no_rsds = brightness_temp
         tau_21 = np.float64(tau_21)
-        gradient_component = 1. + vel_gradient/H
+        gradient_component = np.abs(1. + vel_gradient/H)
         gradient_component = np.float64(gradient_component)
         with np.errstate(divide="ignore", invalid="ignore"): # Don't show division by 0 warnings
             rsd_factor = (1.0 - np.exp(-tau_21/gradient_component))/(1.0 - (np.exp(-tau_21)))
