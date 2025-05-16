@@ -110,6 +110,9 @@ Changelog="https://github.com/21cmFAST/21cmFAST"
 build-backend = 'mesonpy'
 requires = ['meson-python','nanobind>=2.4.0']
 
+[tool.meson-python.args]
+setup = ["-Dbuildtype=release"]
+
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 

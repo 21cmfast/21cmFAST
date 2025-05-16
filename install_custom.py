@@ -53,6 +53,8 @@ parser.add_argument(
 )
 
 args = parser.parse_args()
+if args.optimization not in ["0", "g", "1", "2", "3", "s"]:
+    raise ValueError("Invalid optimization level. Choose from 0, g, 1, 2, 3 or s")
 
 # Get the LOG_LEVEL environment variable (default to 'WARNING' if not set)
 log_level_str = args.log_level
@@ -60,9 +62,9 @@ setup_args = [
     f"--config-setting=setup-args=-Dlog_level={log_level_str}",
 ]
 
-if args.debug:
-    setup_args += ["--config-setting=setup-args=-Dbuildtype=debugoptimized"]  # -O2
+debug = str(args.debug).lower()
 
+setup_args += [f"--config-setting=setup-args=-Ddebug={args.debug}"]
 setup_args += [f"--config-setting=setup-args=-Doptimization={args.optimization}"]
 
 
