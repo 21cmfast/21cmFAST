@@ -1,12 +1,14 @@
 on:
-  push:
-    branches: v4-prep
+  pull_request:
+    branches:
+      - main
 
 jobs:
-  benchmark_base_branch:
+  benchmark_pr_branch:
     name: Continuous Benchmarking with Bencher
+    if: github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name == github.repository
     permissions:
-      checks: write
+      pull-requests: write
     runs-on: ubuntu-latest
     defaults:
         run:
@@ -15,7 +17,6 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - uses: bencherdev/bencher@main
-
 
       - name: Setup Miniconda
         uses: conda-incubator/setup-miniconda@v3
@@ -37,7 +38,11 @@ jobs:
           bencher run \
           --project 21cmfast \
           --token '${{ secrets.BENCHER_API_TOKEN }}' \
-          --branch main \
+          --branch "$GITHUB_HEAD_REF" \
+          --start-point "$GITHUB_BASE_REF" \
+          --start-point-hash '${{ github.event.pull_request.base.sha }}' \
+          --start-point-clone-thresholds \
+          --start-point-reset \
           --testbed ubuntu-latest \
           --threshold-measure latency \
           --threshold-test percentage \
