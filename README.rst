@@ -39,6 +39,16 @@ large-scale cosmological 21-cm signal. In particular, the speed of ``21cmFAST`` 
 to produce simulations that are large enough (several Gpc across) to represent modern
 low-frequency observations.
 
+New Features in 4.0.0
+=====================
+
+* A discrete halo sampler allowing for the creation of lightcones of galaxy properties and the
+  inclusion of stochasticity. These discrete sources are self-consistently used in the IGM calculations
+* The Inclusion of the Sheth-Tormen conditional halo mass function.
+* Re-designed input/output structures which prioritise transparency.
+* Refactoring of several of the C backend files for much easier development.
+* A lower-level testing framework for calculations done in the backend.
+
 As of ``v3.0.0``, ``21cmFAST`` is conveniently wrapped in Python to enable more dynamic code.
 
 
@@ -55,15 +65,6 @@ New Features in 3.0.0+
 * Comprehensive test suite.
 * Strict `semantic versioning <https://semver.org>`_.
 
-New Features in 4.0.0
-=====================
-
-* A discrete halo sampler allowing for the creation of lightcones of galaxy properties and the
-  inclusion of stochasticity. These discrete sources are self-consistently used in the IGM calculations
-* The Inclusion of the Sheth-Tormen conditional halo mass function.
-* Re-designed input/output structures which prioritise transparency.
-* Refactoring of several of the C backend files for much easier development.
-* A lower-level testing framework for calculations done in the backend.
 
 Installation
 ============
