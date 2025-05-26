@@ -170,8 +170,8 @@ int ComputeBrightnessTemp(float redshift, TsBox *spin_temp, IonizedBox *ionized_
 
             if (!(astro_options_global->USE_TS_FLUCT && astro_options_global->SUBCELL_RSD)) {
 // Do this unless we are doing BOTH Ts fluctuations and subcell RSDs
-#pragma omp parallel shared(vel_gradient, T_rad, redshift, spin_temp, box, max_v_deriv) private( \
-        i, j, k, gradient_component, dvdx) num_threads(simulation_options_global -> N_THREADS)
+#pragma omp parallel shared(vel_gradient, T_rad, redshift, spin_temp, box, max_v_deriv) \
+    private(i, j, k, gradient_component, dvdx) num_threads(simulation_options_global -> N_THREADS)
                 {
 #pragma omp for
                     for (i = 0; i < simulation_options_global->HII_DIM; i++) {
@@ -188,8 +188,8 @@ int ComputeBrightnessTemp(float redshift, TsBox *spin_temp, IonizedBox *ionized_
                 ave /= (float)HII_TOT_NUM_PIXELS;
             } else {
 // This is if we're doing both TS_FLUCT and SUBCELL_RSD
-#pragma omp parallel shared(vel_gradient, T_rad, redshift, spin_temp, box, max_v_deriv) private( \
-        i, j, k, gradient_component, dvdx) num_threads(simulation_options_global -> N_THREADS)
+#pragma omp parallel shared(vel_gradient, T_rad, redshift, spin_temp, box, max_v_deriv) \
+    private(i, j, k, gradient_component, dvdx) num_threads(simulation_options_global -> N_THREADS)
                 {
 #pragma omp for
                     for (i = 0; i < simulation_options_global->HII_DIM; i++) {
