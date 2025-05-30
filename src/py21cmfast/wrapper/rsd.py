@@ -1,10 +1,13 @@
 """Module for accounting redshift space distortions."""
 
 import numpy as np
-from astropy import units
+from classy import Class
+from astropy import cosmology, units
 from scipy import fft
-from scipy.interpolate import RectBivariateSpline, RegularGridInterpolator
+from scipy.interpolate import RegularGridInterpolator
+from collections.abc import Sequence
 import warnings
+from .CLASS import compute_RMS
 try:
     from numba import njit
 
@@ -18,7 +21,7 @@ def compute_rsds(
         brightness_temp: np.ndarray,
         los_velocity: np.ndarray,
         redshifts: np.ndarray,
-        distances: units.Quantity,
+        distances: Sequence[units.Quantity],
         inputs: InputParameters,
         tau_21: np.ndarray = None,
         periodic: bool = None,
@@ -74,11 +77,14 @@ def compute_rsds(
     H = inputs.cosmo_params.cosmo.H(redshifts)
     
     if not inputs.astro_options.USE_TS_FLUCT:
+        # If we don't have spin temperature, we also assume tau_21 << 1 and make the Taylor approximation.
+        # Clipping is required so the brightness temperature won't diverge when the gradient term goes to small values
         max_v_deriv = inputs.astro_params.MAX_DVDR * H
         dvdx = np.clip(vel_gradient,-max_v_deriv,max_v_deriv)
         gradient_component = np.abs(1. + dvdx/H)
         tb_with_rsds = brightness_temp / gradient_component
     else:
+        # We have the spin temperature, and we do *not* make the Taylor approximation
         tb_no_rsds = brightness_temp
         tau_21 = np.float64(tau_21)
         gradient_component = np.abs(1. + vel_gradient/H)
@@ -153,6 +159,10 @@ def apply_rsds(
     distance
         The comoving distance to each slice in the field, in units of the cell size.
         shape (nslices,).
+    periodic: bool, optioanl
+        Whether to assume periodic boundary conditions along the line-of-sight.
+    n_subcells: int, optional
+        The number of sub-cells to interpolate onto, to make the RSDs more accurate. Default is inputs.astro_options.N_RSD_STEPS.
     """
     if field.shape != los_displacement.shape:
         raise ValueError("field and los_displacement must have the same shape")
@@ -161,78 +171,45 @@ def apply_rsds(
     if field.shape[0] != distance.size:
         raise ValueError("field and distance must have the same number of slices")
 
-    is_regular = np.allclose(np.diff(np.diff(distance)), 0.0)
-    interpolator = RegularGridInterpolator if is_regular else RectBivariateSpline
-
     ang_coords = np.arange(field.shape[1])
 
     smallest_slice = np.min(np.diff(distance))
     rsd_dx = smallest_slice / n_subcells
 
+    # We need to extend the grid once as we would like to interpret the displacement values
+    # to be associated with the *centers* of the cells, as was previously done in the C code
+    distance_plus = np.append(distance,2*distance[-1]-distance[-2])
     if periodic:
-        # We need to extend the grid once as we would like to interpret the displacement values
-        # to be associated with the cell's *center*.
-        # We extend it twice more to account for periodic boundary conditions
-        distance_plus = np.append(distance,2*distance[-1]-distance[-2])
+        # We extend the grid twice more to account for periodic boundary conditions
         distance_plus_plus = np.append(distance_plus,2*distance_plus[-1]-distance_plus[-2])
         distance_plus_minus = np.append(2*distance_plus[0]-distance_plus[1],distance_plus_plus)
         distance_grid = (distance_plus_minus[1:]+distance_plus_minus[:-1])/2
-        # This where we shall evaluate the subcells
-        distance_fine = np.linspace(distance_plus.min(),distance_plus.max(),1+n_subcells*(len(distance_plus)-1))
-        fine_grid = (distance_fine[1:]+distance_fine[:-1])/2
-        # We extend the displacement array to have periodic boundary conditions
-        first_chunk = los_displacement[-1,:].reshape(1,len(ang_coords))
-        last_chunk = los_displacement[0,:].reshape(1,len(ang_coords))
-        los_displacement = np.concatenate((first_chunk, los_displacement, last_chunk), axis=0)
+        # We also extend the displacement array to have periodic boundary conditions
+        first_slice = los_displacement[-1,:].reshape(1,len(ang_coords))
+        last_slice = los_displacement[0,:].reshape(1,len(ang_coords))
+        los_displacement = np.concatenate((first_slice, los_displacement, last_slice), axis=0)
     else:
-        distance_grid = distance
-        # TODO: convert these to distances...
-        vmax_towards_observer = max(np.max(los_displacement[0]), 0)
-        vmax_away_from_observer = min(0, np.min(los_displacement[-1]))
-        fine_grid = np.arange(
-            (distance.min() - vmax_towards_observer).to_value(rsd_dx.unit),
-            (distance.max() - vmax_away_from_observer).to_value(rsd_dx.unit),
-            rsd_dx.value,
-        )
-        if fine_grid.max() < distance.max().to_value(rsd_dx.unit):
-            fine_grid = np.append(fine_grid, distance.max().to_value(rsd_dx.unit))
+        distance_grid = (distance_plus[1:]+distance_plus[:-1])/2
 
-    if is_regular:
-        x, y = np.meshgrid(fine_grid, ang_coords, indexing="ij")
-        grid = (x.flatten(), y.flatten())
-        if not periodic:
-            fine_field = interpolator(
-                (distance, ang_coords), field, bounds_error=False, fill_value=None, method="linear",
-            )(grid).reshape(x.shape)
-        else:
-            fine_field = np.repeat(field, n_subcells, axis=0) / n_subcells
-
-        fine_rsd = interpolator(
-            (distance_grid, ang_coords),
-            los_displacement / rsd_dx,
-            bounds_error=False,
-            fill_value=None,
-            method="linear",
-        )(grid).reshape(x.shape)
-    else:
-        fine_field = interpolator(distance, ang_coords, field)(fine_grid, ang_coords)
-        fine_rsd = interpolator(distance, ang_coords, los_displacement / rsd_dx)(
-            fine_grid, ang_coords
-        )
+    fine_field = np.repeat(field, n_subcells, axis=0) / n_subcells
+    
+    # This is where we shall evaluate the subcells
+    distance_fine = np.linspace(distance_plus.min(),distance_plus.max(),1+n_subcells*(len(distance_plus)-1))
+    fine_grid = (distance_fine[1:]+distance_fine[:-1])/2
+    x, y = np.meshgrid(fine_grid, ang_coords, indexing="ij")
+    grid = (x.flatten(), y.flatten())
+    fine_rsd = RegularGridInterpolator(
+        (distance_grid, ang_coords),
+        los_displacement / rsd_dx,
+        bounds_error=False,
+        fill_value=None,
+        method="linear",
+    )(grid).reshape(x.shape)
 
     fine_field = cloud_in_cell_los(fine_field, fine_rsd,periodic=periodic)
     
-    if not periodic:
-        x, y = np.meshgrid(distance, ang_coords, indexing="ij")
-        return RegularGridInterpolator((fine_grid, ang_coords), fine_field)(
-            (
-                x.flatten(),
-                y.flatten(),
-            )
-        ).reshape(x.shape)
-    else:
-        # Average the subcells back to the original grid
-        return np.sum(fine_field.T.reshape(len(ang_coords),len(distance),n_subcells),axis=-1).T
+    # Average the subcells back to the original grid
+    return np.sum(fine_field.T.reshape(len(ang_coords),len(distance),n_subcells),axis=-1).T
     
 def cloud_in_cell_los(
     field: np.ndarray,
@@ -295,6 +272,36 @@ def cloud_in_cell_los(
                 out[i[jj]%nslice, jj] += tx[jj] * weight[jj]
                 out[ip[jj]%nslice, jj] += ddx[jj] * weight[jj]
     return out
+
+def estimate_rsd_displacements(
+    CLASS_output: Class,
+    cosmo: cosmology,
+    redshifts: Sequence[float],
+    factor: float = 1.,
+) -> Sequence[units.Quantity]:
+    """Estimate the rms of the redshift space distortions displacement field at given redshifts.
+
+    Parameters
+    ----------
+    CLASS_output : classy.Class
+        An object containing all the information from the CLASS calculation.
+    cosmo: astropy.cosmology
+        The assumed cosmology
+    redshifts: list
+        List of the redshifts at which the rms of the displacement field is computed.
+    factor: float, optional
+        Factor to multiply the rms velocity from CLASS. Default is 1.
+    
+    Returns
+    -------
+    displacements : np.array
+        The rms of the RSD displacement field.
+    """
+    v_rms = compute_RMS(CLASS_output=CLASS_output,kind="v_b",redshifts=redshifts) * factor
+    # The multiplication by (1+z)=1/a is because CLASS returns the *proper* velocity field,
+    # while we work in *comoving* coordinates
+    displacements = v_rms / cosmo.H(redshifts) * (1. + redshifts)
+    return displacements
 
 if NUMBA:
     cloud_in_cell_los = njit(cloud_in_cell_los)

@@ -62,4 +62,6 @@ from .wrapper.outputs import (
 )
 from .wrapper.photoncons import setup_photon_cons
 
+from .wrapper.CLASS import run_CLASS, compute_RMS
+
 configure_logging()

@@ -35,6 +35,7 @@ test_req = [
     "pytest-benchmark",
     "questionary",
     "pytest-xdist",
+    "classy",
 ]
 
 doc_req = ["nbsphinx", "numpydoc", "sphinx >= 1.3", "sphinx-rtd-theme"]
@@ -86,6 +87,7 @@ setup(
         "cosmotile>=0.2.0",
         "attrs",
         "tqdm",
+        "classy",
     ],
     extras_require={"tests": test_req, "docs": doc_req, "dev": test_req + doc_req},
     setup_requires=["cffi>=1.0", "setuptools_scm"],

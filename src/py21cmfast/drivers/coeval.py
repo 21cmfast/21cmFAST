@@ -217,15 +217,16 @@ class Coeval:
             else:
                 n_subcells = 0
 
-        return compute_rsds(brightness_temp=self.brightness_temp,
-                            los_velocity=self.velocity_z, # TODO: generalize to an arbitrary los axis
-                            redshifts=self.redshift, # TODO: do we want to use a single redshift? Or a redshift array that is determined from the coeval los?
-                            distances=self.inputs.simulation_options.cell_size*np.arange(self.inputs.simulation_options.HII_DIM),
-                            inputs=self.inputs,
-                            tau_21=self.tau_21 if self.inputs.astro_options.USE_TS_FLUCT else None,
-                            periodic=periodic,
-                            n_subcells=n_subcells,
-                            )
+        return compute_rsds(
+            brightness_temp=self.brightness_temp,
+            los_velocity=self.velocity_z, # TODO: generalize to an arbitrary los axis
+            redshifts=self.redshift, # TODO: do we want to use a single redshift? Or a redshift array that is determined from the coeval los?
+            distances=self.inputs.simulation_options.cell_size*np.arange(self.inputs.simulation_options.HII_DIM),
+            inputs=self.inputs,
+            tau_21=self.tau_21 if self.inputs.astro_options.USE_TS_FLUCT else None,
+            periodic=periodic,
+            n_subcells=n_subcells,
+        )
 
     @classmethod
     def from_file(cls, path: str | Path, safe: bool = True) -> Self:

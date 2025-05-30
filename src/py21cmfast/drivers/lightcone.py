@@ -352,20 +352,8 @@ def _run_lightcone_from_perturbed_fields(
     progressbar: bool = False,
     lightcone_filename: str | Path | None = None,
 ):
-    lightconer.validate_options(inputs.matter_options, inputs.astro_options)
-
     # Get the redshift through which we scroll and evaluate the ionization field.
     scrollz = np.array([pf.redshift for pf in perturbed_fields])
-
-    lcz = lightconer.lc_redshifts
-    if not np.all(scrollz.min() * 0.99 < lcz) and np.all(lcz < scrollz.max() * 1.01):
-        # We have a 1% tolerance on the redshifts, because the lightcone redshifts are
-        # computed via inverse fitting the comoving_distance.
-        raise ValueError(
-            "The lightcone redshifts are not compatible with the given redshift."
-            f"The range of computed redshifts is {scrollz.min()} to {scrollz.max()}, "
-            f"while the lightcone redshift range is {lcz.min()} to {lcz.max()}."
-        )
 
     iokw = {"regenerate": regenerate, "cache": cache}
 
@@ -474,15 +462,16 @@ def _run_lightcone_from_perturbed_fields(
                         stacklevel=2,
                     )
                 else:
-                    tb_with_rsds = compute_rsds(brightness_temp=lightcone.lightcones["brightness_temp"],
-                                               los_velocity=lightcone.lightcones["los_velocity"],
-                                               redshifts=lightcone.lightcone_redshifts,
-                                               distances=lightcone.lightcone_distances,
-                                               inputs=inputs,
-                                               tau_21=lightcone.lightcones["tau_21"] if inputs.astro_options.USE_TS_FLUCT else None,
-                                               periodic=False,
-                                               n_subcells=inputs.astro_params.N_RSD_STEPS if inputs.astro_options.SUBCELL_RSD else 0
-                                             )
+                    tb_with_rsds = compute_rsds(
+                        brightness_temp=lightcone.lightcones["brightness_temp"],
+                        los_velocity=lightcone.lightcones["los_velocity"],
+                        redshifts=lightcone.lightcone_redshifts,
+                        distances=lightcone.lightcone_distances,
+                        inputs=inputs,
+                        tau_21=lightcone.lightcones["tau_21"] if inputs.astro_options.USE_TS_FLUCT else None,
+                        periodic=False,
+                        n_subcells=inputs.astro_params.N_RSD_STEPS if inputs.astro_options.SUBCELL_RSD else 0
+                    )
                     lightcone.lightcones["brightness_temp_with_rsds"] = tb_with_rsds
                     
                     if lightcone_filename:
@@ -565,36 +554,13 @@ def generate_lightcone(
     regenerate, write, direc, hooks
         See docs of :func:`initial_conditions` for more information.
     """
+    lightconer = lightconer.validate_options(inputs)
+    
     if isinstance(write, bool):
         write = CacheConfig() if write else CacheConfig.off()
 
-    if len(inputs.node_redshifts) == 0:
-        raise ValueError(
-            "You are attempting to run a lightcone with no node_redshifts."
-            "Please set node_redshifts on the `inputs` parameter."
-        )
-
     _check_desired_arrays_exist(global_quantities, inputs)
     _check_desired_arrays_exist(lightconer.quantities, inputs)
-
-    # while we still use the full list for caching etc, we don't need to run below the lightconer instance
-    #   So stop one after the lightconer
-    scrollz = np.copy(inputs.node_redshifts)
-    below_lc_z = inputs.node_redshifts <= min(lightconer.lc_redshifts)
-    if np.any(below_lc_z):
-        final_node = np.argmax(below_lc_z)
-        scrollz = scrollz[: final_node + 1]  # inclusive
-
-    lcz = lightconer.lc_redshifts
-
-    if not np.all(min(scrollz) * 0.99 < lcz) and np.all(lcz < max(scrollz) * 1.01):
-        # We have a 1% tolerance on the redshifts, because the lightcone redshifts are
-        # computed via inverse fitting the comoving_distance.
-        raise ValueError(
-            "The lightcone redshifts are not compatible with the given redshift."
-            f"The range of computed redshifts is {min(scrollz)} to {max(scrollz)}, "
-            f"while the lightcone redshift range is {lcz.min()} to {lcz.max()}."
-        )
 
     iokw = {"cache": cache, "regenerate": regenerate}
 
@@ -604,7 +570,7 @@ def generate_lightcone(
         pt_halos,
         photon_nonconservation_data,
     ) = _setup_ics_and_pfs_for_scrolling(
-        all_redshifts=scrollz,
+        all_redshifts=inputs.node_redshifts,
         initial_conditions=initial_conditions,
         inputs=inputs,
         write=write,
