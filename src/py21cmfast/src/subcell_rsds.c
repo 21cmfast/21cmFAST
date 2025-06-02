@@ -56,12 +56,11 @@ and redshift space also picks up a scale factor, therefore the scale factors dro
 out and therefore the displacement of the sub-cells is purely determined from the
 array, v and the Hubble factor: v/H.
 */
-#pragma omp parallel shared(                                                                \
-        delta_T_RSD_LOS, box, ionized_box, v, x_val1, x_val2, x_pos, x_pos_offset,          \
-            subcell_width) private(i, j, k, ii, d1_low, d2_low, d1_high, d2_high,           \
-                                       subcell_displacement, RSD_pos_new,                   \
-                                       RSD_pos_new_boundary_low, RSD_pos_new_boundary_high, \
-                                       cell_distance, fraction_outside, fraction_within)    \
+#pragma omp parallel shared(delta_T_RSD_LOS, box, ionized_box, v, x_val1, x_val2, x_pos,      \
+                                x_pos_offset, subcell_width)                                  \
+    private(i, j, k, ii, d1_low, d2_low, d1_high, d2_high, subcell_displacement, RSD_pos_new, \
+                RSD_pos_new_boundary_low, RSD_pos_new_boundary_high, cell_distance,           \
+                fraction_outside, fraction_within)                                            \
     num_threads(simulation_options_global -> N_THREADS)
     {
 #pragma omp for reduction(+ : ave)
