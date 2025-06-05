@@ -19,7 +19,6 @@ from ..c_21cmfast import lib
 from ..io import h5
 from ..io.caching import CacheConfig, OutputCache, RunCache
 from ..lightcones import Lightconer, RectilinearLightconer
-from ..wrapper.rsd import compute_rsds
 from ..wrapper.inputs import InputParameters
 from ..wrapper.outputs import (
     BrightnessTemp,
@@ -31,6 +30,7 @@ from ..wrapper.outputs import (
     TsBox,
 )
 from ..wrapper.photoncons import _get_photon_nonconservation_data, setup_photon_cons
+from ..wrapper.rsd import compute_rsds
 from . import exhaust
 from . import single_field as sf
 from ._param_config import high_level_func
@@ -191,16 +191,20 @@ class LightCone:
         """Write updated lightcone data to file."""
         with h5py.File(path, "a") as fl:
             last_completed_lcidx = fl.attrs["last_completed_lcidx"]
+            last_completed_node = fl.attrs["last_completed_node"]
 
+            save_idx = (
+                len(self.lightcone_distances)
+                if last_completed_lcidx < 0
+                else last_completed_lcidx
+            )
             for k, v in self.lightcones.items():
-                fl["lightcones"][k][
-                    ..., -lcidx : v.shape[-1] - last_completed_lcidx
-                ] = v[..., -lcidx : v.shape[-1] - last_completed_lcidx]
+                fl["lightcones"][k][..., lcidx:save_idx] = v[..., lcidx:save_idx]
 
             global_q = fl["global_quantities"]
             for k, v in self.global_quantities.items():
-                global_q[k][-lcidx : v.shape[-1] - last_completed_lcidx] = v[
-                    -lcidx : v.shape[-1] - last_completed_lcidx
+                global_q[k][last_completed_node + 1 : node_index + 1] = v[
+                    last_completed_node + 1 : node_index + 1
                 ]
 
             fl.attrs["last_completed_lcidx"] = lcidx
@@ -246,6 +250,7 @@ class LightCone:
             and self.global_quantities.keys() == other.global_quantities.keys()
             and self.lightcones.keys() == other.lightcones.keys()
         )
+
 
 class AngularLightcone(LightCone):
     """An angular lightcone."""
@@ -312,16 +317,15 @@ def setup_lightcone_instance(
             )
             for quantity in lightconer.quantities
         }
-        
+
         if inputs.astro_options.APPLY_RSDS:
             lc["los_velocity"] = np.zeros(
                 lightconer.get_shape(inputs.simulation_options), dtype=np.float32
             )
             if inputs.astro_options.USE_TS_FLUCT:
                 lc["tau_21"] = np.zeros(
-                lightconer.get_shape(inputs.simulation_options), dtype=np.float32
-            )
-            
+                    lightconer.get_shape(inputs.simulation_options), dtype=np.float32
+                )
 
         lightcone = lcn_cls(
             lightcone_distances=lightconer.lc_distances,
@@ -372,10 +376,10 @@ def _run_lightcone_from_perturbed_fields(
 
     idx, prev_coeval = _obtain_starting_point_for_scrolling(
         inputs=inputs,
-        cache=cache,
         initial_conditions=initial_conditions,
         photon_nonconservation_data=photon_nonconservation_data,
         minimum_node=lightcone._last_completed_node,
+        **iokw,
     )
 
     if idx < lightcone._last_completed_node:
@@ -386,31 +390,23 @@ def _run_lightcone_from_perturbed_fields(
             stacklevel=2,
         )
 
-    lightcone._last_completed_node = idx
-    lightcone._last_completed_lcidx = (
-        np.sum(lightcone.lightcone_redshifts >= scrollz[lightcone._last_completed_node])
-        - 1
-    )
-
     if lightcone_filename and not Path(lightcone_filename).exists():
         lightcone.save(lightcone_filename)
 
-    for iz, coeval in enumerate(
-        _redshift_loop_generator(
-            inputs=inputs,
-            initial_conditions=initial_conditions,
-            all_redshifts=scrollz,
-            perturbed_field=perturbed_fields,
-            pt_halos=pt_halos,
-            write=write,
-            cleanup=cleanup,
-            always_purge=always_purge,
-            progressbar=progressbar,
-            photon_nonconservation_data=photon_nonconservation_data,
-            start_idx=lightcone._last_completed_node + 1,
-            init_coeval=prev_coeval,
-            iokw=iokw,
-        )
+    for iz, coeval in _redshift_loop_generator(
+        inputs=inputs,
+        initial_conditions=initial_conditions,
+        all_redshifts=scrollz,
+        perturbed_field=perturbed_fields,
+        pt_halos=pt_halos,
+        write=write,
+        cleanup=cleanup,
+        always_purge=always_purge,
+        progressbar=progressbar,
+        photon_nonconservation_data=photon_nonconservation_data,
+        start_idx=lightcone._last_completed_node + 1,
+        init_coeval=prev_coeval,
+        iokw=iokw,
     ):
         # Save mean/global quantities
         for quantity in global_quantities:
@@ -438,11 +434,15 @@ def _run_lightcone_from_perturbed_fields(
             ):
                 if this_lc is not None:
                     lightcone.lightcones[quantity][..., idx] = this_lc
-                    lc_index = idx
+                    # save the lowest index
+                    if lc_index is None:
+                        lc_index = idx
 
             # only checkpoint if we have slices
             if lightcone_filename and lc_index is not None:
-                lightcone.make_checkpoint(lightcone_filename, lcidx=idx, node_index=iz)
+                lightcone.make_checkpoint(
+                    lightcone_filename, lcidx=lc_index, node_index=iz
+                )
 
         prev_coeval = coeval
 
@@ -468,19 +468,25 @@ def _run_lightcone_from_perturbed_fields(
                         redshifts=lightcone.lightcone_redshifts,
                         distances=lightcone.lightcone_distances,
                         inputs=inputs,
-                        tau_21=lightcone.lightcones["tau_21"] if inputs.astro_options.USE_TS_FLUCT else None,
+                        tau_21=lightcone.lightcones["tau_21"]
+                        if inputs.astro_options.USE_TS_FLUCT
+                        else None,
                         periodic=False,
-                        n_subcells=inputs.astro_params.N_RSD_STEPS if inputs.astro_options.SUBCELL_RSD else 0
+                        n_subcells=inputs.astro_params.N_RSD_STEPS
+                        if inputs.astro_options.SUBCELL_RSD
+                        else 0,
                     )
                     lightcone.lightcones["brightness_temp_with_rsds"] = tb_with_rsds
-                    
+
                     if lightcone_filename:
                         if Path(lightcone_filename).exists():
                             with h5py.File(lightcone_filename, "a") as fl:
-                                fl["lightcones"]["brightness_temp_with_rsds"] = tb_with_rsds
+                                fl["lightcones"]["brightness_temp_with_rsds"] = (
+                                    tb_with_rsds
+                                )
                         else:
                             lightcone.save(lightcone_filename)
-            '''
+            """
             # Include attenuation by tau_reio
             # For now, we use a fixed value for tau_reio (should enter cosmo_params in the future)
             # TODO: in the future, tau_reio will be evaluated from the mass weighted lightcone of x_HI,
@@ -489,7 +495,7 @@ def _run_lightcone_from_perturbed_fields(
             lightcone.lightcones["brightness_temp"] *= np.exp(-tau_reio)
             if inputs.astro_options.APPLY_RSDS:
                 lightcone.lightcones["brightness_temp_with_rsds"] *= np.exp(-tau_reio)
-            '''
+            """
 
         yield iz, coeval.redshift, coeval, lightcone
 
@@ -555,12 +561,31 @@ def generate_lightcone(
         See docs of :func:`initial_conditions` for more information.
     """
     lightconer = lightconer.validate_options(inputs)
-    
+
     if isinstance(write, bool):
         write = CacheConfig() if write else CacheConfig.off()
 
     _check_desired_arrays_exist(global_quantities, inputs)
     _check_desired_arrays_exist(lightconer.quantities, inputs)
+
+    # while we still use the full list for caching etc, we don't need to run below the lightconer instance
+    #   So stop one after the lightconer
+    scrollz = np.copy(inputs.node_redshifts)
+    below_lc_z = scrollz <= min(lightconer.lc_redshifts)
+    if np.any(below_lc_z):
+        final_node = np.where(below_lc_z)[0][0]  # first node below the lightcone
+        scrollz = scrollz[: final_node + 1]  # inclusive to get the last few entries
+
+    lcz = lightconer.lc_redshifts
+
+    if not np.all(min(scrollz) * 0.99 < lcz) and np.all(lcz < max(scrollz) * 1.01):
+        # We have a 1% tolerance on the redshifts, because the lightcone redshifts are
+        # computed via inverse fitting the comoving_distance.
+        raise ValueError(
+            "The lightcone redshifts are not compatible with the given redshift."
+            f"The range of computed redshifts is {min(scrollz)} to {max(scrollz)}, "
+            f"while the lightcone redshift range is {lcz.min()} to {lcz.max()}."
+        )
 
     iokw = {"cache": cache, "regenerate": regenerate}
 

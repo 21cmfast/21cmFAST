@@ -186,7 +186,7 @@ def perturb_halo_list(
     Fill this in once finalised
 
     """
-    inputs = initial_conditions.inputs
+    inputs = halo_field.inputs
     hbuffer_size = halo_field.n_halos
     redshift = halo_field.redshift
 
@@ -398,6 +398,7 @@ def compute_xray_source_field(
     *,
     initial_conditions: InitialConditions,
     hboxes: list[HaloBox],
+    redshift: float,
 ) -> XraySourceBox:
     r"""
     Compute filtered grid of SFR for use in spin temperature calculation.
@@ -427,7 +428,6 @@ def compute_xray_source_field(
     """
     z_halos = [hb.redshift for hb in hboxes]
     inputs = hboxes[0].inputs
-    redshift = z_halos[-1]
 
     # Initialize halo list boxes.
     box = XraySourceBox.new(redshift=redshift, inputs=inputs)

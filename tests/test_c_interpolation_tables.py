@@ -3,14 +3,10 @@
 import matplotlib as mpl
 import numpy as np
 import pytest
-from astropy import constants as c
-from astropy import units as u
 
-from py21cmfast import AstroOptions, AstroParams, CosmoParams, SimulationOptions
-from py21cmfast.c_21cmfast import ffi, lib
 from py21cmfast.wrapper import cfuncs as cf
 
-from . import produce_integration_test_data as prd
+from .produce_integration_test_data import get_all_options_struct, print_failure_stats
 
 # NOTE: The relative tolerance is set to cover the inaccuracy in interpolaton
 #       Whereas absolute tolerances are set to avoid issues with minima
@@ -82,7 +78,7 @@ def z_range():
 def test_sigma_table(name, mass_range, plt):
     abs_tol = 0
     redshift, kwargs = OPTIONS_PS[name]
-    inputs = prd.get_all_options_struct(redshift, **kwargs)["inputs"]
+    inputs = get_all_options_struct(redshift, **kwargs)["inputs"]
 
     sigma_tables, dsigma_tables = cf.evaluate_sigma(
         inputs=inputs.evolve_input_structs(
@@ -119,7 +115,7 @@ def test_sigma_table(name, mass_range, plt):
 @pytest.mark.parametrize("cond_type", ["cat", "grid"])
 def test_massfunc_conditional_tables(name, cond_type, mass_range, delta_range, plt):
     redshift, kwargs = OPTIONS_HMF[name]
-    inputs = prd.get_all_options_struct(redshift, **kwargs)["inputs"]
+    inputs = get_all_options_struct(redshift, **kwargs)["inputs"]
     from_cat = "cat" in cond_type
 
     inputs_cond = mass_range if from_cat else delta_range
@@ -185,7 +181,7 @@ def test_massfunc_conditional_tables(name, cond_type, mass_range, delta_range, p
 @pytest.mark.parametrize("cond_type", ["cat", "grid"])
 def test_inverse_cmf_tables(name, cond_type, delta_range, mass_range, plt):
     redshift, kwargs = OPTIONS_HMF[name]
-    inputs = prd.get_all_options_struct(redshift, **kwargs)["inputs"]
+    inputs = get_all_options_struct(redshift, **kwargs)["inputs"]
 
     from_cat = "cat" in cond_type
     lnMmin_range = np.log(mass_range)
@@ -276,7 +272,7 @@ def test_inverse_cmf_tables(name, cond_type, delta_range, mass_range, plt):
 @pytest.mark.parametrize("R", R_PARAM_LIST)
 def test_FgtrM_conditional_tables(R, delta_range, plt):
     redshift, kwargs = OPTIONS_HMF["PS"]  # always erfc
-    inputs = prd.get_all_options_struct(redshift, **kwargs)["inputs"]
+    inputs = get_all_options_struct(redshift, **kwargs)["inputs"]
 
     fcoll_tables, dfcoll_tables = cf.evaluate_FgtrM_cond(
         inputs=inputs.evolve_input_structs(
@@ -336,7 +332,7 @@ def test_FgtrM_conditional_tables(R, delta_range, plt):
 @pytest.mark.parametrize("name", options_hmf)
 def test_SFRD_z_tables(name, z_range, log10_mturn_range, plt):
     redshift, kwargs = OPTIONS_HMF[name]
-    inputs = prd.get_all_options_struct(
+    inputs = get_all_options_struct(
         redshift,
         USE_MINI_HALOS=True,
         INHOMO_RECO=True,
@@ -403,7 +399,7 @@ def test_SFRD_z_tables(name, z_range, log10_mturn_range, plt):
 @pytest.mark.parametrize("name", options_hmf)
 def test_Nion_z_tables(name, z_range, log10_mturn_range, plt):
     redshift, kwargs = OPTIONS_HMF[name]
-    inputs = prd.get_all_options_struct(
+    inputs = get_all_options_struct(
         redshift,
         USE_MINI_HALOS=True,
         INHOMO_RECO=True,
@@ -493,7 +489,7 @@ def test_Nion_conditional_tables(
 
     mini_flag = mini == "mini"
     redshift, kwargs = OPTIONS_HMF[name]
-    inputs = prd.get_all_options_struct(
+    inputs = get_all_options_struct(
         redshift,
         USE_MINI_HALOS=mini_flag,
         INHOMO_RECO=True,
@@ -614,7 +610,7 @@ def test_Xray_conditional_tables(
     mini_flag = mini == "mini"
 
     redshift, kwargs = OPTIONS_HMF[name]
-    inputs = prd.get_all_options_struct(
+    inputs = get_all_options_struct(
         redshift,
         USE_MINI_HALOS=mini_flag,
         INHOMO_RECO=True,
@@ -699,7 +695,7 @@ def test_SFRD_conditional_table(
             pytest.xfail("FFCOLL TABLES drop sharply at high Mturn, causing failure")
 
     redshift, kwargs = OPTIONS_HMF[name]
-    inputs = prd.get_all_options_struct(
+    inputs = get_all_options_struct(
         redshift,
         USE_MINI_HALOS=True,
         INHOMO_RECO=True,
@@ -795,7 +791,7 @@ def test_conditional_integral_methods(
     R, log10_mturn_range, delta_range, name, integrand, plt
 ):
     redshift, kwargs = OPTIONS_HMF[name]
-    inputs = prd.get_all_options_struct(
+    inputs = get_all_options_struct(
         redshift,
         USE_MINI_HALOS=True,
         INHOMO_RECO=True,
@@ -985,38 +981,3 @@ def make_comparison_plot(
     ax[1].set_ylabel("Fractional Difference")
     if reltol:
         ax[1].set_ylim([-2 * reltol, 2 * reltol])
-
-
-def print_failure_stats(test, truth, inputs, abs_tol, rel_tol, name):
-    sel_failed = np.fabs(truth - test) > (abs_tol + np.fabs(truth) * rel_tol)
-    if np.any(sel_failed):
-        failed_idx = np.where(sel_failed)
-        print(
-            f"{name}: atol {abs_tol} rtol {rel_tol} failed {sel_failed.sum()} of {sel_failed.size} {sel_failed.sum() / sel_failed.size * 100:.4f}%"
-        )
-        print(
-            f"subcube of failures [min] [max] {[f.min() for f in failed_idx]} {[f.max() for f in failed_idx]}"
-        )
-        print(
-            f"failure range truth ({truth[sel_failed].min():.3e},{truth[sel_failed].max():.3e}) test ({test[sel_failed].min():.3e},{test[sel_failed].max():.3e})"
-        )
-        print(
-            f"max abs diff of failures {np.fabs(truth - test)[sel_failed].max():.4e} relative {(np.fabs(truth - test) / truth)[sel_failed].max():.4e}"
-        )
-
-        failed_inp = [
-            inp[sel_failed if inp.shape == test.shape else failed_idx[i]]
-            for i, inp in enumerate(inputs)
-        ]
-        for i, _inp in enumerate(inputs):
-            print(
-                f"failure range of inputs axis {i} {failed_inp[i].min():.2e} {failed_inp[i].max():.2e}"
-            )
-
-        print("----- First 10 -----")
-        for j in range(min(10, sel_failed.sum())):
-            input_arr = [f"{failed_inp[i][j]:.2e}" for i, finp in enumerate(failed_inp)]
-            print(
-                f"CRD {input_arr}"
-                + f"  {truth[sel_failed].flatten()[j]:.4e} {test[sel_failed].flatten()[j]:.4e}"
-            )

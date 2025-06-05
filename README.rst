@@ -39,6 +39,16 @@ large-scale cosmological 21-cm signal. In particular, the speed of ``21cmFAST`` 
 to produce simulations that are large enough (several Gpc across) to represent modern
 low-frequency observations.
 
+New Features in 4.0.0
+=====================
+
+* A discrete halo sampler allowing for the creation of lightcones of galaxy properties and the
+  inclusion of stochasticity. These discrete sources are self-consistently used in the IGM calculations
+* The Inclusion of the Sheth-Tormen conditional halo mass function.
+* Re-designed input/output structures which prioritise transparency.
+* Refactoring of several of the C backend files for much easier development.
+* A lower-level testing framework for calculations done in the backend.
+
 As of ``v3.0.0``, ``21cmFAST`` is conveniently wrapped in Python to enable more dynamic code.
 
 
@@ -55,15 +65,6 @@ New Features in 3.0.0+
 * Comprehensive test suite.
 * Strict `semantic versioning <https://semver.org>`_.
 
-New Features in 4.0.0
-=====================
-
-* A discrete halo sampler allowing for the creation of lightcones of galaxy properties and the
-  inclusion of stochasticity. These discrete sources are self-consistently used in the IGM calculations
-* The Inclusion of the Sheth-Tormen conditional halo mass function.
-* Re-designed input/output structures which prioritise transparency.
-* Refactoring of several of the C backend files for much easier development.
-* A lower-level testing framework for calculations done in the backend.
 
 Installation
 ============
@@ -170,11 +171,18 @@ If you use ``21cmFAST v3+`` in your research please cite both of:
 In addition, the following papers introduce various features into ``21cmFAST``. If you use
 these features, please cite the relevant papers.
 
+Discrete Halo Sampler / version 4:
+
+    Davies, J. E., Mesinger, A., Murray, S. G.,
+    "Efficient simulation of discrete galaxy populations and associated radiation fields during the first billion years",
+    eprint arXiv:2504.17254, 2025. https://doi.org/10.48550/arXiv.2504.17254
+
 Mini-halos:
 
     Muñoz, J.B., Qin, Y., Mesinger, A., Murray, S., Greig, B., and Mason, C.,
-    "The Impact of the First Galaxies on Cosmic Dawn and Reionization"
-    https://arxiv.org/abs/2110.13919
+    "The Impact of the First Galaxies on Cosmic Dawn and Reionization",
+    Monthly Notices of the Royal Astronomical Society, vol. 511, no. 3,
+    pp 3657-3681, 2022 https://doi.org/10.1093/mnras/stac185
     (for DM-baryon relative velocities)
 
     Qin, Y., Mesinger, A., Park, J., Greig, B., and Muñoz, J. B.,
@@ -189,3 +197,7 @@ Mass-dependent ionizing efficiency:
     “Inferring the astrophysics of reionization and cosmic dawn from galaxy luminosity
     functions and the 21-cm signal”, Monthly Notices of the Royal Astronomical Society,
     vol. 484, no. 1, pp. 933–949, 2019. https://doi.org/10.1093/mnras/stz032.
+
+If you are unsure which modules are used within your simulations, we provide a handy function
+to print out which works to refer ``py21cmfast.utils.show_references``, which accepts a single instance of
+the ``InputParameters`` class and shows which papers are relevant for your simulation.

@@ -276,7 +276,9 @@ def test_rotation_equality():
 
 
 def test_validation_options_angular(equal_z_angle):
-    with pytest.raises(ValueError, match="To account for RSDs in an angular lightcone, you need to set"):
+    with pytest.raises(
+        ValueError, match="To account for RSDs in an angular lightcone, you need to set"
+    ):
         equal_z_angle.validate_options(
             matter_options=MatterOptions(KEEP_3D_VELOCITIES=False),
             astro_options=AstroOptions(APPLY_RSDS=True),

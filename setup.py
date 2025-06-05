@@ -36,6 +36,7 @@ test_req = [
     "questionary",
     "pytest-xdist",
     "classy",
+    "pytest-mock",
 ]
 
 doc_req = ["nbsphinx", "numpydoc", "sphinx >= 1.3", "sphinx-rtd-theme"]

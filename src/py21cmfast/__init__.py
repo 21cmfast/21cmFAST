@@ -40,6 +40,7 @@ from .wrapper.cfuncs import (
     compute_tau,
     construct_fftw_wisdoms,
 )
+from .wrapper.class_interface import compute_RMS, run_CLASS
 from .wrapper.inputs import (
     AstroOptions,
     AstroParams,
@@ -61,7 +62,5 @@ from .wrapper.outputs import (
     XraySourceBox,
 )
 from .wrapper.photoncons import setup_photon_cons
-
-from .wrapper.CLASS import run_CLASS, compute_RMS
 
 configure_logging()

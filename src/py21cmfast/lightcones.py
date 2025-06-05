@@ -2,16 +2,17 @@
 
 from __future__ import annotations
 
+import warnings
 from abc import ABC, abstractmethod
 from collections.abc import Sequence
 from functools import cached_property, partial
 
 import attrs
 import numpy as np
-import warnings
 from astropy import units
 from astropy.cosmology import FLRW, z_at_value
 from astropy.units import MHz, Mpc, Quantity, pixel, pixel_scale
+from classy import Class
 from cosmotile import (
     make_lightcone_slice_interpolator,
     make_lightcone_slice_vector_field,
@@ -19,15 +20,13 @@ from cosmotile import (
 from scipy.spatial.transform import Rotation
 
 from .drivers.coeval import Coeval
+from .wrapper.class_interface import run_CLASS
 from .wrapper.inputs import (
+    InputParameters,
     Planck18,  # Not *quite* the same as astropy's Planck18
     SimulationOptions,
-    InputParameters,
 )
-from .wrapper.CLASS import run_CLASS
 from .wrapper.rsd import estimate_rsd_displacements
-from classy import Class
-
 
 _LIGHTCONERS = {}
 _LENGTH = "length"
@@ -127,7 +126,7 @@ class Lightconer(ABC):
         lc_distances = np.arange(d_at_redshift, dmax + res, res)
 
         return cls(lc_distances=lc_distances * Mpc, cosmo=cosmo, **kw)
-    
+
     @classmethod
     def with_equal_cdist_slices(
         cls,
@@ -137,6 +136,13 @@ class Lightconer(ABC):
         cosmo=Planck18,
         **kw,
     ):
+        """
+        Create a lightconer with equally spaced slices in comoving distance.
+
+        This method is deprecated and will be removed in future versions.
+        Instead, use `create_rect_lightconer` to create a lightconer with equally spaced
+        slices in comoving distance.
+        """
         warnings.warn(
             "with_equal_cdist_slices is deprecated and will be removed in future versions. "
             "Call create_rect_lightconer instead to silence this warning.",
@@ -191,7 +197,7 @@ class Lightconer(ABC):
         # last slice (lowest redshift) may correspond *exactly* to the lowest coeval
         # box, and due to rounding error in the `z_at_value` call, they might be
         # slightly off.
-        lcidx = np.nonzero((pixlcdist >= dcmin * 0.9999) & (pixlcdist < dcmax))[0]
+        lcidx = np.nonzero((pixlcdist >= dcmin * (1 - 1e-6)) & (pixlcdist < dcmax))[0]
 
         # Return early if no lightcone indices are between the coeval distances.
         if len(lcidx) == 0:
@@ -219,16 +225,20 @@ class Lightconer(ABC):
                     # While doing the first quantity, also add in the los velocity, if desired.
                     # Doing it now means we can keep whatever cached interpolation setup
                     # is used to do construct_lightcone().
-                    if isinstance(self,AngularLightconer):
+                    if isinstance(self, AngularLightconer):
                         boxes1 = [
                             self.coeval_subselect(
-                                lcd, getattr(c1, f"velocity_{q}"), c1.simulation_options.cell_size
+                                lcd,
+                                getattr(c1, f"velocity_{q}"),
+                                c1.simulation_options.cell_size,
                             )
                             for q in "xyz"
                         ]
                         boxes2 = [
                             self.coeval_subselect(
-                                lcd, getattr(c2, f"velocity_{q}"), c2.simulation_options.cell_size
+                                lcd,
+                                getattr(c2, f"velocity_{q}"),
+                                c2.simulation_options.cell_size,
                             )
                             for q in "xyz"
                         ]
@@ -247,13 +257,18 @@ class Lightconer(ABC):
                     else:
                         # TODO: get the correct component according to self.line_of_sight_axis
                         box1 = self.coeval_subselect(
-                            lcd, getattr(c1, "velocity_z"), c1.simulation_options.cell_size
+                            lcd, c1.velocity_z, c1.simulation_options.cell_size
                         )
                         box2 = self.coeval_subselect(
-                            lcd, getattr(c2, "velocity_z"), c2.simulation_options.cell_size
+                            lcd, c2.velocity_z, c2.simulation_options.cell_size
                         )
                         interpolated_boxes = self.redshift_interpolation(
-                            lcd, box1, box2, dc1, dc2, kind=self.interp_kinds.get("velocity_z", "mean")
+                            lcd,
+                            box1,
+                            box2,
+                            dc1,
+                            dc2,
+                            kind=self.interp_kinds.get("velocity_z", "mean"),
                         )
                     yield (
                         "los_velocity",
@@ -312,8 +327,10 @@ class Lightconer(ABC):
         """Abstract method for constructing the LoS velocity lightcone slices."""
 
     def validate_options(
-        self, inputs: InputParameters, CLASS_output: Class | None = None,
-    )->Lightconer:
+        self,
+        inputs: InputParameters,
+        CLASS_output: Class | None = None,
+    ) -> Lightconer:
         """Validate 21cmFAST options."""
         if len(inputs.node_redshifts) == 0:
             raise ValueError(
@@ -333,37 +350,35 @@ class Lightconer(ABC):
             )
         if inputs.astro_options.SUBCELL_RSD:
             if CLASS_output is None:
-                CLASS_output = run_CLASS(inputs=inputs,output="vTk")
+                CLASS_output = run_CLASS(inputs=inputs, output="vTk")
             lcd_limits_rsd = self.find_required_lightcone_limits(
-                CLASS_output = CLASS_output,
-                inputs = inputs
+                CLASS_output=CLASS_output, inputs=inputs
             )
-            lcd_rsd = np.arange(
-                lcd_limits_rsd[0].value,
-                lcd_limits_rsd[1].value + inputs.simulation_options.cell_size.value,
-                inputs.simulation_options.cell_size.value 
-            ) * self.lc_distances.unit
+            lcd_rsd = (
+                np.arange(
+                    lcd_limits_rsd[0].value,
+                    lcd_limits_rsd[1].value + inputs.simulation_options.cell_size.value,
+                    inputs.simulation_options.cell_size.value,
+                )
+                * self.lc_distances.unit
+            )
             # Make a new lightconer which is identical to self, but extends to further boundaries!
-            lightconer_rsd = attrs.evolve(
-                self,
-                lc_redshifts=None,
-                lc_distances=lcd_rsd
-            )
+            lightconer_rsd = attrs.evolve(self, lc_redshifts=None, lc_distances=lcd_rsd)
             return lightconer_rsd
         else:
             return self
-    
+
     def find_required_lightcone_limits(
-        self,
-        CLASS_output: Class,
-        inputs: InputParameters
-    )->list[units.Quantity]:
-        """
-        This is a *crude* estimation of the maximum/minimum lightcone limits that are required in order to simulate 
-        all the "mass" that enters the requested ligthcone (due to RSD shift).
-        We use the rms of the velocity field from linear perturbation theory in order to determine the
-        required lightcone limits.
-        If no limit is found, it means that the limits of node_redshifts are not sufficient and an error is raised.
+        self, CLASS_output: Class, inputs: InputParameters
+    ) -> list[units.Quantity]:
+        """Obtain the redshift limits required for the lightcone to include RSDs.
+
+        This is a *crude* estimation of the maximum/minimum lightcone limits that are
+        required in order to simulate all the "mass" that enters the requested
+        ligthcone (due to RSD shift). We use the rms of the velocity field from linear
+        perturbation theory in order to determine the required lightcone limits.
+        If no limit is found, it means that the limits of node_redshifts are not
+        sufficient and an error is raised.
 
         Parameters
         ----------
@@ -371,34 +386,33 @@ class Lightconer(ABC):
             An object containing all the information from the CLASS calculation.
         inputs: InputParameters
             The input parameters corresponding to the box.
-        
+
         Returns
         -------
         lcd_limits_rsd : list
             List that contains the limits of the required lightcone distances.
         """
-    
-        if isinstance(self,AngularLightconer):
-            factor = 1.
-        else:
-            # There is a multiplication of the rms by 1/sqrt(3) since compute_RMS returs the rms of the magnitude of the velocity vector,
-            # but for rectilinear ones we need the rms of only one of the components
-            factor = 1./np.sqrt(3.)
-        z_node_limits = [min(inputs.node_redshifts) , max(inputs.node_redshifts)]
-        lcd_limits = [self.lc_distances.min() , self.lc_distances.max()]
+        factor = 1.0 if isinstance(self, AngularLightconer) else 1.0 / np.sqrt(3.0)
+        z_node_limits = [min(inputs.node_redshifts), max(inputs.node_redshifts)]
+        lcd_limits = [self.lc_distances.min(), self.lc_distances.max()]
         signs = [-1, 1]
         lcd_limits_rsd = []
-        for (sign,z_node_limit,lcd_limit) in zip(signs,z_node_limits,lcd_limits):
-            distances_out = np.arange(
-                lcd_limit.value,
-                self.cosmo.comoving_distance(z_node_limit).value,
-                inputs.simulation_options.cell_size.value * sign
-            ) * lcd_limit.unit
+        for sign, z_node_limit, lcd_limit in zip(
+            signs, z_node_limits, lcd_limits, strict=False
+        ):
+            distances_out = (
+                np.arange(
+                    lcd_limit.value,
+                    self.cosmo.comoving_distance(z_node_limit).value,
+                    inputs.simulation_options.cell_size.value * sign,
+                )
+                * lcd_limit.unit
+            )
             displacements = estimate_rsd_displacements(
                 CLASS_output=CLASS_output,
                 cosmo=self.cosmo,
                 redshifts=z_at_value(self.cosmo.comoving_distance, distances_out),
-                factor=factor
+                factor=factor,
             )
             if sign < 0:
                 out_indices = distances_out + displacements < lcd_limit
@@ -416,7 +430,6 @@ class Lightconer(ABC):
                     "Extend the limits of node redshifts to avoid this error."
                 )
         return lcd_limits_rsd
-
 
     def __init_subclass__(cls) -> None:
         """Enabe plugin-style behaviour."""
@@ -491,7 +504,9 @@ class AngularLightconer(Lightconer):
     interpolation_order: int = attrs.field(
         default=1, converter=int, validator=attrs.validators.in_([0, 1, 3, 5])
     )
-    origin: Quantity[pixel, (3,), float] = attrs.field(eq=attrs.cmp_using(eq=np.allclose))
+    origin: Quantity[pixel, (3,), float] = attrs.field(
+        eq=attrs.cmp_using(eq=np.allclose)
+    )
     rotation: Rotation = attrs.field(
         default=None,
         eq=attrs.cmp_using(eq=_rotation_eq),
@@ -618,15 +633,20 @@ class AngularLightconer(Lightconer):
         """Get the shape of the lightcone slices."""
         return (len(self.longitude), len(self.lc_redshifts))
 
-    def validate_options(self, inputs: InputParameters, CLASS_output: Class | None = None,
-    )->Lightconer:
+    def validate_options(
+        self,
+        inputs: InputParameters,
+        CLASS_output: Class | None = None,
+    ) -> Lightconer:
         """Validate 21cmFAST options."""
-        lightconer = super().validate_options(inputs=inputs,CLASS_output=CLASS_output)
-        
-        if inputs.astro_options.APPLY_RSDS:
-            if not inputs.matter_options.KEEP_3D_VELOCITIES:
-                raise ValueError(
-                    "To account for RSDs in an angular lightcone, you need to set "
-                    "matter_options.KEEP_3D_VELOCITIES=True"
-                )
+        lightconer = super().validate_options(inputs=inputs, CLASS_output=CLASS_output)
+
+        if (
+            inputs.astro_options.APPLY_RSDS
+            and not inputs.matter_options.KEEP_3D_VELOCITIES
+        ):
+            raise ValueError(
+                "To account for RSDs in an angular lightcone, you need to set "
+                "matter_options.KEEP_3D_VELOCITIES=True"
+            )
         return lightconer

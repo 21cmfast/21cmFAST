@@ -160,32 +160,60 @@ def test_lc_with_lightcone_filename(
     fname.unlink()
 
 
-def test_lc_partial_eval(rectlcn, ic, default_input_struct_lc, tmpdirec, lc, cache):
+def test_lc_partial_eval(rectlcn, default_input_struct_lc, tmpdirec, lc, cache):
     fname = tmpdirec / "lightcone_partial.h5"
 
     z = rectlcn.lc_redshifts.max()
     lc_gen = p21c.generate_lightcone(
         lightconer=rectlcn,
-        initial_conditions=ic,
         inputs=default_input_struct_lc,
         lightcone_filename=fname,
         write=True,
         cache=cache,
     )
     while z > 20.0:
-        iz, z, _, partial = next(lc_gen)
+        iz_1, z, _, partial = next(lc_gen)
 
     assert 0 < partial._last_completed_node < len(rectlcn.lc_redshifts) - 1
 
-    _, _, _, finished = p21c.run_lightcone(
+    np.testing.assert_allclose(
+        partial.global_quantities["brightness_temp"][
+            : partial._last_completed_node + 1
+        ],
+        lc.global_quantities["brightness_temp"][: partial._last_completed_node + 1],
+        rtol=1e-6,
+    )
+    np.testing.assert_allclose(
+        partial.lightcones["brightness_temp"][partial._last_completed_lcidx :],
+        lc.lightcones["brightness_temp"][partial._last_completed_lcidx :],
+        rtol=1e-4,
+    )
+
+    lc_gen_cont = p21c.generate_lightcone(
         lightconer=rectlcn,
-        initial_conditions=ic,
         inputs=default_input_struct_lc,
         lightcone_filename=fname,
         cache=cache,
+        write=False,
+        regenerate=False,
     )
+    for iz_2, z, _, finished in lc_gen_cont:  # noqa: B007
+        assert z <= 20.0
+        assert iz_2 > iz_1
 
+    # this only checks the lightcone object, not the array fields
     assert finished == lc
+    # make sure we wrote to the correct indices
+    np.testing.assert_allclose(
+        finished.global_quantities["brightness_temp"],
+        lc.global_quantities["brightness_temp"],
+        rtol=1e-6,
+    )
+    np.testing.assert_allclose(
+        finished.lightcones["brightness_temp"],
+        lc.lightcones["brightness_temp"],
+        rtol=1e-4,
+    )
 
 
 def test_lc_lowerz_than_photon_cons(

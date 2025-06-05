@@ -151,7 +151,7 @@ def coeval_sliceplot(
         If str: The quantity within the structure to be shown. A full list of available options
                 can be obtained by running ``Coeval.get_fields()``.
         If nd-array: A 3D box to be shown. This could be useful for plotting the coeval brightness temperature box
-                     after redshift space distortions have been applied. 
+                     after redshift space distortions have been applied.
     cbar_label : str, optional
         A label for the colorbar. Some values of `kind` will have automatically chosen
         labels, but these can be turned off by setting ``cbar_label=''``.
@@ -174,8 +174,8 @@ def coeval_sliceplot(
             kind = struct.struct.fieldnames[0]
         elif isinstance(struct, Coeval):
             kind = "brightness_temp"
-    
-    if isinstance(kind,str):
+
+    if isinstance(kind, str):
         if isinstance(struct, outputs.OutputStruct):
             cube = struct.get(kind)
         elif isinstance(struct, Coeval):
@@ -183,7 +183,7 @@ def coeval_sliceplot(
     else:
         cube = kind
 
-    if isinstance(kind,str) and kind != "brightness_temp" and "cmap" not in kwargs:
+    if isinstance(kind, str) and kind != "brightness_temp" and "cmap" not in kwargs:
         kwargs["cmap"] = "viridis"
 
     fig, ax = _imshow_slice(
@@ -213,9 +213,9 @@ def coeval_sliceplot(
 
     if cbar is not None:
         if cbar_label is None:
-            if isinstance(kind,str) and kind == "brightness_temp":
+            if isinstance(kind, str) and kind == "brightness_temp":
                 cbar_label = r"Brightness Temperature, $\delta T_B$ [mK]"
-            elif isinstance(kind,str) and kind == "neutral_fraction":
+            elif isinstance(kind, str) and kind == "neutral_fraction":
                 cbar_label = r"Neutral fraction"
 
         cbar.ax.set_ylabel(cbar_label)
@@ -328,7 +328,9 @@ def lightcone_sliceplot(
         plot_crd[1][1],
     )
 
-    cmap = kwargs.pop("cmap", "EoR" if kind.startswith("brightness_temp") else "viridis")
+    cmap = kwargs.pop(
+        "cmap", "EoR" if kind.startswith("brightness_temp") else "viridis"
+    )
     cbar_horizontal = kwargs.pop("cbar_horizontal", not vertical)
     if lightcone2 is None:
         fig, ax = _imshow_slice(

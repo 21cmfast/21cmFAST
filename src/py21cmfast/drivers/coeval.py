@@ -19,7 +19,6 @@ from ..c_21cmfast import lib
 from ..io import h5
 from ..io.caching import CacheConfig, OutputCache, RunCache
 from ..wrapper.arrays import Array
-from ..wrapper.rsd import compute_rsds
 from ..wrapper.inputs import InputParameters
 from ..wrapper.outputs import (
     BrightnessTemp,
@@ -32,6 +31,7 @@ from ..wrapper.outputs import (
     TsBox,
 )
 from ..wrapper.photoncons import _get_photon_nonconservation_data, setup_photon_cons
+from ..wrapper.rsd import compute_rsds
 from . import single_field as sf
 from ._param_config import high_level_func
 
@@ -195,8 +195,8 @@ class Coeval:
         output_structs = self.output_structs
         for struct in output_structs.values():
             h5.write_output_to_hdf5(struct, path, mode="a")
-    
-    def compute_rsds(self, periodic: bool = True, n_subcells: int = None):
+
+    def compute_rsds(self, periodic: bool = True, n_subcells: int | None = None):
         """Compute redshift-space distortions from the los_velocity.
 
         Parameters
@@ -205,7 +205,7 @@ class Coeval:
             Whether to assume periodic boundary conditions along the line-of-sight.
         n_subcells: int, optional
             The number of sub-cells to interpolate onto, to make the RSDs more accurate. Default is N_RSD_STEPS.
-    
+
         Returns
         -------
         tb_with_rsds : nd-array
@@ -219,9 +219,10 @@ class Coeval:
 
         return compute_rsds(
             brightness_temp=self.brightness_temp,
-            los_velocity=self.velocity_z, # TODO: generalize to an arbitrary los axis
-            redshifts=self.redshift, # TODO: do we want to use a single redshift? Or a redshift array that is determined from the coeval los?
-            distances=self.inputs.simulation_options.cell_size*np.arange(self.inputs.simulation_options.HII_DIM),
+            los_velocity=self.velocity_z,  # TODO: generalize to an arbitrary los axis
+            redshifts=self.redshift,  # TODO: do we want to use a single redshift? Or a redshift array that is determined from the coeval los?
+            distances=self.inputs.simulation_options.cell_size
+            * np.arange(self.inputs.simulation_options.HII_DIM),
             inputs=self.inputs,
             tau_21=self.tau_21 if self.inputs.astro_options.USE_TS_FLUCT else None,
             periodic=periodic,
@@ -475,14 +476,28 @@ def generate_coeval(
         )
     )
 
+    # get the first node redshift that is above all output redshifts
+    first_out_node = None
+    if inputs.node_redshifts:
+        # if any output redshift is above all nodes, start from the start
+        if max(out_redshifts) > max(inputs.node_redshifts):
+            first_out_node = -1
+        # otherwise, find the first node above all user redshifts and start there
+        elif max(out_redshifts) >= min(inputs.node_redshifts):
+            nodes_in_outputs = np.array(inputs.node_redshifts) <= max(out_redshifts)
+            first_out_node = np.where(nodes_in_outputs)[0][0] - 1
     idx, coeval = _obtain_starting_point_for_scrolling(
         inputs=inputs,
         initial_conditions=initial_conditions,
         photon_nonconservation_data=photon_nonconservation_data,
-        cache=cache,
+        minimum_node=first_out_node,
+        **iokw,
     )
+    # convert node_redshift index to all_redshift index
+    if idx > 0:
+        idx = np.argmin(np.fabs(np.array(all_redshifts) - inputs.node_redshifts[idx]))
 
-    for coeval in _redshift_loop_generator(  # noqa: B020
+    for _, coeval in _redshift_loop_generator(  # noqa: B020
         inputs=inputs,
         all_redshifts=all_redshifts,
         initial_conditions=initial_conditions,
@@ -515,6 +530,7 @@ def _obtain_starting_point_for_scrolling(
     initial_conditions: InitialConditions,
     photon_nonconservation_data: dict,
     cache: OutputCache,
+    regenerate: bool,
     minimum_node: int | None = None,
 ):
     outputs = None
@@ -524,7 +540,7 @@ def _obtain_starting_point_for_scrolling(
         # the last one.
         minimum_node = len(inputs.node_redshifts) - 1
 
-    if minimum_node < 0 or inputs.matter_options.USE_HALO_FIELD:
+    if minimum_node < 0 or inputs.matter_options.USE_HALO_FIELD or regenerate:
         # TODO: (low priority) implement a backward loop for finding first halo files
         #   Noting that we need *all* the perturbed halo fields in the cache to run
         return (
@@ -614,6 +630,7 @@ def _redshift_loop_generator(
                 this_pthalo = pt_halos[iz]
 
             this_halobox = sf.compute_halo_grid(
+                inputs=inputs,
                 perturbed_halo_list=this_pthalo,
                 perturbed_field=this_perturbed_field,
                 previous_ionize_box=getattr(prev_coeval, "ionized_box", None),
@@ -627,6 +644,7 @@ def _redshift_loop_generator(
             hbox_arr += [this_halobox]
             if inputs.matter_options.USE_HALO_FIELD:
                 xrs = sf.compute_xray_source_field(
+                    redshift=z,
                     hboxes=hbox_arr,
                     write=write.xray_source_box,
                     **kw,
@@ -635,6 +653,7 @@ def _redshift_loop_generator(
                 xrs = None
 
             this_spin_temp = sf.compute_spin_temperature(
+                inputs=inputs,
                 previous_spin_temp=getattr(prev_coeval, "ts_box", None),
                 perturbed_field=this_perturbed_field,
                 xray_source_box=xrs,
@@ -644,6 +663,7 @@ def _redshift_loop_generator(
             )
 
         this_ionized_box = sf.compute_ionization_field(
+            inputs=inputs,
             previous_ionized_box=getattr(prev_coeval, "ionized_box", None),
             perturbed_field=this_perturbed_field,
             # perturb field *not* interpolated here.
@@ -703,7 +723,7 @@ def _redshift_loop_generator(
             # Only evolve on the node_redshifts, not any redshifts in-between
             # that the user might care about.
             prev_coeval = this_coeval
-        yield this_coeval
+        yield iz, this_coeval
 
 
 def _setup_ics_and_pfs_for_scrolling(
@@ -757,7 +777,12 @@ def _setup_ics_and_pfs_for_scrolling(
         disable=not progressbar,
         total=len(all_redshifts),
     ):
-        p = sf.perturb_field(redshift=z, write=write.perturbed_field, **kw)
+        p = sf.perturb_field(
+            redshift=z,
+            inputs=inputs,
+            write=write.perturbed_field,
+            **kw,
+        )
 
         if inputs.matter_options.MINIMIZE_MEMORY:
             with contextlib.suppress(OSError):
