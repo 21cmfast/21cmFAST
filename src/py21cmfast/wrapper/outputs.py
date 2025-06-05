@@ -1368,6 +1368,7 @@ class BrightnessTemp(OutputStructZ):
 
     _meta = False
     brightness_temp = _arrayfield()
+    tau_21 = _arrayfield(optional=True)
 
     @classmethod
     def new(cls, inputs: InputParameters, redshift: float, **kw) -> Self:
@@ -1392,10 +1393,14 @@ class BrightnessTemp(OutputStructZ):
             ),
         )
 
+        out = {"brightness_temp": Array(shape, dtype=np.float32)}
+        if inputs.astro_options.USE_TS_FLUCT and inputs.astro_options.APPLY_RSDS:
+            out["tau_21"] = Array(shape, dtype=np.float32)
+
         return cls(
             inputs=inputs,
             redshift=redshift,
-            brightness_temp=Array(shape, dtype=np.float32),
+            **out,
             **kw,
         )
 

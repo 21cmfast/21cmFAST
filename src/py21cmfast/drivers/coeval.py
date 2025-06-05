@@ -31,6 +31,7 @@ from ..wrapper.outputs import (
     TsBox,
 )
 from ..wrapper.photoncons import _get_photon_nonconservation_data, setup_photon_cons
+from ..wrapper.rsd import compute_rsds
 from . import single_field as sf
 from ._param_config import high_level_func
 
@@ -194,6 +195,39 @@ class Coeval:
         output_structs = self.output_structs
         for struct in output_structs.values():
             h5.write_output_to_hdf5(struct, path, mode="a")
+
+    def compute_rsds(self, periodic: bool = True, n_subcells: int | None = None):
+        """Compute redshift-space distortions from the los_velocity.
+
+        Parameters
+        ----------
+        periodic: bool, optioanl
+            Whether to assume periodic boundary conditions along the line-of-sight.
+        n_subcells: int, optional
+            The number of sub-cells to interpolate onto, to make the RSDs more accurate. Default is N_RSD_STEPS.
+
+        Returns
+        -------
+        tb_with_rsds : nd-array
+            A box of the brightness temperature, with redshift space distortions.
+        """
+        if n_subcells is None:
+            if self.inputs.astro_options.SUBCELL_RSD:
+                n_subcells = self.inputs.astro_params.N_RSD_STEPS
+            else:
+                n_subcells = 0
+
+        return compute_rsds(
+            brightness_temp=self.brightness_temp,
+            los_velocity=self.velocity_z,  # TODO: generalize to an arbitrary los axis
+            redshifts=self.redshift,  # TODO: do we want to use a single redshift? Or a redshift array that is determined from the coeval los?
+            distances=self.inputs.simulation_options.cell_size
+            * np.arange(self.inputs.simulation_options.HII_DIM),
+            inputs=self.inputs,
+            tau_21=self.tau_21 if self.inputs.astro_options.USE_TS_FLUCT else None,
+            periodic=periodic,
+            n_subcells=n_subcells,
+        )
 
     @classmethod
     def from_file(cls, path: str | Path, safe: bool = True) -> Self:
