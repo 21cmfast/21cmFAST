@@ -212,13 +212,16 @@ class LightCone:
 
             self._last_completed_lcidx = lcidx
             self._last_completed_node = node_index
-    
-    def chop(self,distances):
+
+    def chop(self, distances):
         """Chop lightcone boxes to contain only the desired distances range."""
-        inds = np.logical_and(self.lightcone_distances >= distances.min(), self.lightcone_distances <= distances.max())
+        inds = np.logical_and(
+            self.lightcone_distances >= distances.min(),
+            self.lightcone_distances <= distances.max(),
+        )
         self.lightcone_distances = distances
         for k, v in self.lightcones.items():
-            self.lightcones[k] = v[:,:,inds]
+            self.lightcones[k] = v[:, :, inds]
 
     @classmethod
     def from_file(cls, path: str | Path, safe: bool = True) -> Self:
