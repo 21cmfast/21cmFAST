@@ -212,6 +212,13 @@ class LightCone:
 
             self._last_completed_lcidx = lcidx
             self._last_completed_node = node_index
+    
+    def chop(self,distances):
+        """Chop lightcone boxes to contain only the desired distances range."""
+        inds = np.logical_and(self.lightcone_distances >= distances.min(), self.lightcone_distances <= distances.max())
+        self.lightcone_distances = distances
+        for k, v in self.lightcones.items():
+            self.lightcones[k] = v[:,:,inds]
 
     @classmethod
     def from_file(cls, path: str | Path, safe: bool = True) -> Self:
@@ -345,6 +352,7 @@ def _run_lightcone_from_perturbed_fields(
     perturbed_fields: Sequence[PerturbedField],
     lightconer: Lightconer,
     inputs: InputParameters,
+    lc_distances: np.array,
     photon_nonconservation_data: dict,
     pt_halos: list[PerturbHaloField],
     regenerate: bool | None = None,
@@ -486,6 +494,8 @@ def _run_lightcone_from_perturbed_fields(
                                 )
                         else:
                             lightcone.save(lightcone_filename)
+                if inputs.astro_options.SUBCELL_RSD:
+                    lightcone.chop(lc_distances)
             """
             # Include attenuation by tau_reio
             # For now, we use a fixed value for tau_reio (should enter cosmo_params in the future)
@@ -560,6 +570,7 @@ def generate_lightcone(
     regenerate, write, direc, hooks
         See docs of :func:`initial_conditions` for more information.
     """
+    lc_distances = lightconer.lc_distances
     lightconer = lightconer.validate_options(inputs)
 
     if isinstance(write, bool):
@@ -609,6 +620,7 @@ def generate_lightcone(
         perturbed_fields=perturbed_fields,
         lightconer=lightconer,
         inputs=inputs,
+        lc_distances=lc_distances,
         regenerate=regenerate,
         pt_halos=pt_halos,
         photon_nonconservation_data=photon_nonconservation_data,
