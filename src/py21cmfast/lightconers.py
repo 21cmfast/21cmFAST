@@ -323,7 +323,7 @@ class Lightconer(ABC):
         self,
         lc_distances: np.ndarray,
         velocities: tuple[np.ndarray, np.ndarray, np.ndarray],
-    ) -> np.array:
+    ) -> np.ndarray:
         """Abstract method for constructing the LoS velocity lightcone slices."""
 
     def validate_options(
@@ -392,6 +392,10 @@ class Lightconer(ABC):
         lcd_limits_rsd : list
             List that contains the limits of the required lightcone distances.
         """
+        # The velocity rms that CLASS returns corresponds to the magnitude of the velocity vector.
+        # In case of rectilinear lightcones, since we shift the cells only along one axis (e.g. z-axis),
+        # we need the rms of the correponding component of the velocity vector, which is smaller by sqrt(3)
+        # due to isotropy 
         factor = 1.0 if isinstance(self, AngularLightconer) else 1.0 / np.sqrt(3.0)
         z_node_limits = [min(inputs.node_redshifts), max(inputs.node_redshifts)]
         lcd_limits = [self.lc_distances.min(), self.lc_distances.max()]

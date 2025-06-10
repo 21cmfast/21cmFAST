@@ -18,7 +18,7 @@ from py21cmfast import (
 )
 from py21cmfast.drivers.lightcone import AngularLightcone
 from py21cmfast.io import h5
-from py21cmfast.lightcones import AngularLightconer
+from py21cmfast.lightconers import AngularLightconer
 
 
 @pytest.fixture(scope="module")

@@ -18,7 +18,7 @@ from py21cmfast import (
     MatterOptions,
     SimulationOptions,
 )
-from py21cmfast import lightcones as lcn
+from py21cmfast import lightconers as lcn
 
 
 @pytest.fixture(scope="module")

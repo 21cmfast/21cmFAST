@@ -24,7 +24,7 @@ from py21cmfast import (
     run_lightcone,
 )
 from py21cmfast.io.caching import CacheConfig
-from py21cmfast.lightcones import RectilinearLightconer
+from py21cmfast.lightconers import RectilinearLightconer
 
 
 def pytest_addoption(parser):

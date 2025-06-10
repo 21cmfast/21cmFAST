@@ -66,6 +66,7 @@ def compute_rsds(
         )
 
     if periodic is None:
+        # assume it's periodic if it looks like a coeval box
         periodic = brightness_temp.shape[0] == brightness_temp.shape[-1]
 
     # TODO: currently the gradient is applied w.r.t to the z-axis, even if the user specified a different los-axis. Needs to make it more flexible in the future

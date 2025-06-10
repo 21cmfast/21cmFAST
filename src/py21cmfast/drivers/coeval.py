@@ -204,11 +204,11 @@ class Coeval:
         periodic: bool, optioanl
             Whether to assume periodic boundary conditions along the line-of-sight.
         n_subcells: int, optional
-            The number of sub-cells to interpolate onto, to make the RSDs more accurate. Default is N_RSD_STEPS.
+            The number of sub-cells to interpolate onto, to make the RSDs more accurate. Default is astro_params.N_RSD_STEPS.
 
         Returns
         -------
-        tb_with_rsds : nd-array
+        tb_with_rsds : np.ndarray
             A box of the brightness temperature, with redshift space distortions.
         """
         if n_subcells is None:
