@@ -9,7 +9,7 @@ from classy import Class
 from scipy import fft
 from scipy.interpolate import RegularGridInterpolator
 
-from .class_interface import compute_RMS
+from .classy_interface import compute_RMS
 
 try:
     from numba import njit

@@ -20,7 +20,7 @@ from cosmotile import (
 from scipy.spatial.transform import Rotation
 
 from .drivers.coeval import Coeval
-from .wrapper.class_interface import run_CLASS
+from .wrapper.classy_interface import run_CLASS
 from .wrapper.inputs import (
     InputParameters,
     Planck18,  # Not *quite* the same as astropy's Planck18
