@@ -110,7 +110,7 @@ class Lightconer(ABC):
         raise NotImplementedError
 
     @classmethod
-    def create_rect_lightconer(
+    def between_redshifts(
         cls,
         min_redshift: float,
         max_redshift: float,
@@ -118,7 +118,7 @@ class Lightconer(ABC):
         cosmo=Planck18,
         **kw,
     ):
-        """Construct a Lightconer with equally spaced slices in comoving distance."""
+        """Construct a Lightconer with regular comoving dist. slices between two z's."""
         d_at_redshift = cosmo.comoving_distance(min_redshift).to_value(Mpc)
         dmax = cosmo.comoving_distance(max_redshift).to_value(Mpc)
         res = resolution.to_value(Mpc)
@@ -140,15 +140,15 @@ class Lightconer(ABC):
         Create a lightconer with equally spaced slices in comoving distance.
 
         This method is deprecated and will be removed in future versions.
-        Instead, use `create_rect_lightconer` to create a lightconer with equally spaced
+        Instead, use `between_redshifts` to create a lightconer with equally spaced
         slices in comoving distance.
         """
         warnings.warn(
             "with_equal_cdist_slices is deprecated and will be removed in future versions. "
-            "Call create_rect_lightconer instead to silence this warning.",
+            "Call between_redshifts instead to silence this warning.",
             stacklevel=2,
         )
-        return cls.create_rect_lightconer(
+        return cls.between_redshifts(
             min_redshift=min_redshift,
             max_redshift=max_redshift,
             resolution=resolution,
@@ -582,7 +582,7 @@ class AngularLightconer(Lightconer):
         origin = np.array([0, 0, origin_offset.value]) * origin_offset.unit
         rot = Rotation.from_euler("Y", -np.pi / 2)
 
-        return cls.create_rect_lightconer(
+        return cls.between_redshifts(
             min_redshift=match_at_z,
             resolution=simulation_options.cell_size,
             latitude=LAT,
