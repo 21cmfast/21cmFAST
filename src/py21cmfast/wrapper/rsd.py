@@ -9,7 +9,7 @@ from classy import Class
 from scipy import fft
 from scipy.interpolate import RegularGridInterpolator
 
-from .classy_interface import compute_RMS
+from .classy_interface import compute_rms
 
 try:
     from numba import njit
@@ -310,7 +310,7 @@ def cloud_in_cell_los(
 
 
 def estimate_rsd_displacements(
-    CLASS_output: Class,
+    classy_output: Class,
     cosmo: cosmology,
     redshifts: Sequence[float],
     factor: float = 1.0,
@@ -319,7 +319,7 @@ def estimate_rsd_displacements(
 
     Parameters
     ----------
-    CLASS_output : classy.Class
+    classy_output : classy.Class
         An object containing all the information from the CLASS calculation.
     cosmo: astropy.cosmology
         The assumed cosmology
@@ -334,12 +334,12 @@ def estimate_rsd_displacements(
         The rms of the RSD displacement field.
     """
     v_rms = (
-        compute_RMS(CLASS_output=CLASS_output, kind="v_b", redshifts=redshifts) * factor
+        compute_rms(classy_output=classy_output, kind="v_b", redshifts=redshifts)
+        * factor
     )
     # The multiplication by (1+z)=1/a is because CLASS returns the *proper* velocity field,
     # while we work in *comoving* coordinates
-    displacements = v_rms / cosmo.H(redshifts) * (1.0 + redshifts)
-    return displacements
+    return v_rms / cosmo.H(redshifts) * (1.0 + redshifts)
 
 
 if NUMBA:

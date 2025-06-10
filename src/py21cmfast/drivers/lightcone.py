@@ -499,11 +499,6 @@ def _run_lightcone_from_perturbed_fields(
                 lib.FreePhotonConsMemory()
 
             if inputs.astro_options.APPLY_RSDS:
-                if "los_velocity" not in lightcone.lightcones:
-                    raise ValueError(
-                        "Lightcone does not contain los velocity field, cannot compute_rsds"
-                    )
-
                 tb_with_rsds = compute_rsds(
                     brightness_temp=lightcone.lightcones["brightness_temp"],
                     los_velocity=lightcone.lightcones["los_velocity"],

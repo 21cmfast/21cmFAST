@@ -20,7 +20,7 @@ from cosmotile import (
 from scipy.spatial.transform import Rotation
 
 from .drivers.coeval import Coeval
-from .wrapper.classy_interface import run_CLASS
+from .wrapper.classy_interface import run_classy
 from .wrapper.inputs import (
     InputParameters,
     Planck18,  # Not *quite* the same as astropy's Planck18
@@ -329,7 +329,7 @@ class Lightconer(ABC):
     def validate_options(
         self,
         inputs: InputParameters,
-        CLASS_output: Class | None = None,
+        classy_output: Class | None = None,
     ) -> Lightconer:
         """Validate 21cmFAST options."""
         if len(inputs.node_redshifts) == 0:
@@ -349,10 +349,10 @@ class Lightconer(ABC):
                 "Extend the limits of node redshifts to avoid this error."
             )
         if inputs.astro_options.SUBCELL_RSD:
-            if CLASS_output is None:
-                CLASS_output = run_CLASS(inputs=inputs, output="vTk")
+            if classy_output is None:
+                classy_output = run_classy(inputs=inputs, output="vTk")
             lcd_limits_rsd = self.find_required_lightcone_limits(
-                CLASS_output=CLASS_output, inputs=inputs
+                classy_output=classy_output, inputs=inputs
             )
             lcd_rsd = (
                 np.arange(
@@ -369,7 +369,7 @@ class Lightconer(ABC):
             return self
 
     def find_required_lightcone_limits(
-        self, CLASS_output: Class, inputs: InputParameters
+        self, classy_output: Class, inputs: InputParameters
     ) -> list[units.Quantity]:
         """Obtain the redshift limits required for the lightcone to include RSDs.
 
@@ -382,7 +382,7 @@ class Lightconer(ABC):
 
         Parameters
         ----------
-        CLASS_output : classy.Class
+        classy_output : classy.Class
             An object containing all the information from the CLASS calculation.
         inputs: InputParameters
             The input parameters corresponding to the box.
@@ -409,7 +409,7 @@ class Lightconer(ABC):
                 * lcd_limit.unit
             )
             displacements = estimate_rsd_displacements(
-                CLASS_output=CLASS_output,
+                classy_output=classy_output,
                 cosmo=self.cosmo,
                 redshifts=z_at_value(self.cosmo.comoving_distance, distances_out),
                 factor=factor,
@@ -636,10 +636,12 @@ class AngularLightconer(Lightconer):
     def validate_options(
         self,
         inputs: InputParameters,
-        CLASS_output: Class | None = None,
+        classy_output: Class | None = None,
     ) -> Lightconer:
         """Validate 21cmFAST options."""
-        lightconer = super().validate_options(inputs=inputs, CLASS_output=CLASS_output)
+        lightconer = super().validate_options(
+            inputs=inputs, classy_output=classy_output
+        )
 
         if (
             inputs.astro_options.APPLY_RSDS

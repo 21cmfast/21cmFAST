@@ -40,7 +40,7 @@ from .wrapper.cfuncs import (
     compute_tau,
     construct_fftw_wisdoms,
 )
-from .wrapper.classy_interface import compute_RMS, run_CLASS
+from .wrapper.classy_interface import compute_rms, run_classy
 from .wrapper.inputs import (
     AstroOptions,
     AstroParams,

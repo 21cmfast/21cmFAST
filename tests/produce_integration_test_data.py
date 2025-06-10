@@ -342,8 +342,8 @@ def produce_lc_power_spectra(redshift, **kwargs):
 
     quantities = get_lc_fields(options["inputs"])
     lcn = RectilinearLightconer.with_equal_cdist_slices(
-        min_redshift=node_z[-1],
-        max_redshift=node_z[0],
+        min_redshift=node_z[-1] + 0.2,
+        max_redshift=node_z[0] - 0.2,
         quantities=quantities,
         resolution=options["inputs"].simulation_options.cell_size,
     )

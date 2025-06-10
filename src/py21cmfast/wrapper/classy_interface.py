@@ -27,21 +27,22 @@ k_output = (
     / units.Mpc
 )
 
-CLASS_params_default = {}
-CLASS_params_default["output"] = "tCl,pCl,lCl,mTk,vTk,mPk"
-CLASS_params_default["tau_reio"] = 0.0554
-CLASS_params_default["T_cmb"] = 2.7255 * units.K
-CLASS_params_default["N_ncdm"] = 1
-CLASS_params_default["m_ncdm"] = "0.06" * units.eV
-CLASS_params_default["N_ur"] = 2.0308
-CLASS_params_default["lensing"] = "yes"
-CLASS_params_default["z_pk"] = 1087.0
-CLASS_params_default["l_max_scalars"] = 3000
-CLASS_params_default["gauge"] = "Newtonian"
-CLASS_params_default["P_k_max_1/Mpc"] = 10.0 / units.Mpc
+classy_params_default = {
+    "output": "tCl,pCl,lCl,mTk,vTk,mPk",
+    "tau_reio": 0.0554,
+    "T_cmb": 2.7255 * units.K,
+    "N_ncdm": 1,
+    "m_ncdm": "0.06" * units.eV,
+    "N_ur": 2.0308,
+    "lensing": "yes",
+    "z_pk": 1087.0,
+    "l_max_scalars": 3000,
+    "gauge": "Newtonian",
+    "P_k_max_1/Mpc": 10.0 / units.Mpc,
+}
 
 
-def run_CLASS(inputs: InputParameters, **kwargs) -> Class:
+def run_classy(inputs: InputParameters, **kwargs) -> Class:
     """Run CLASS with specified input parameters.
 
     Parameters
@@ -53,74 +54,79 @@ def run_CLASS(inputs: InputParameters, **kwargs) -> Class:
 
     Returns
     -------
-    CLASS_output : classy.Class
+    output : :class:`classy.Class`
         An object containing all the information from the CLASS calculation.
     """
     # Set CLASS parameters
-    CLASS_params = {}
-    CLASS_params["h"] = inputs.cosmo_params.hlittle
-    CLASS_params["Omega_cdm"] = inputs.cosmo_params.OMm - inputs.cosmo_params.OMb
-    CLASS_params["Omega_b"] = inputs.cosmo_params.OMb
-    CLASS_params["sigma8"] = inputs.cosmo_params.SIGMA_8
-    CLASS_params["n_s"] = inputs.cosmo_params.POWER_INDEX
-    for k in CLASS_params_default:
+    params = {
+        "h": inputs.cosmo_params.hlittle,
+        "Omega_cdm": inputs.cosmo_params.OMm - inputs.cosmo_params.OMb,
+        "Omega_b": inputs.cosmo_params.OMb,
+        "sigma8": inputs.cosmo_params.SIGMA_8,
+        "n_s": inputs.cosmo_params.POWER_INDEX,
+    }
+    for k in classy_params_default:
         if k in kwargs:
-            if k == "m_ncdm" and CLASS_params["N_ncdm"] == 0:
+            if k == "m_ncdm" and params["N_ncdm"] == 0:
                 continue
             else:
-                CLASS_params[k] = kwargs[k]
+                params[k] = kwargs[k]
         elif k == "P_k_max_1/Mpc":
             if "P_k_max" in kwargs:
-                CLASS_params["P_k_max_1/Mpc"] = kwargs["P_k_max"]
+                params["P_k_max_1/Mpc"] = kwargs["P_k_max"]
             else:
-                CLASS_params[k] = CLASS_params_default[k]
+                params[k] = classy_params_default[k]
         else:
-            if k == "m_ncdm" and CLASS_params["N_ncdm"] == 0:
+            if k == "m_ncdm" and params["N_ncdm"] == 0:
                 continue
-            if k == "N_ur" and CLASS_params["N_ncdm"] == 0:
-                CLASS_params[k] = 3.044
+            if k == "N_ur" and params["N_ncdm"] == 0:
+                params[k] = 3.044
             elif k in ["lensing", "l_max_scalars"]:
                 if (
-                    CLASS_params["output"].find("tCl") >= 0
-                    or CLASS_params["output"].find("pCl") >= 0
-                    or CLASS_params["output"].find("lCl") >= 0
+                    params["output"].find("tCl") >= 0
+                    or params["output"].find("pCl") >= 0
+                    or params["output"].find("lCl") >= 0
                 ):
-                    CLASS_params[k] = CLASS_params_default[k]
+                    params[k] = classy_params_default[k]
             else:
-                CLASS_params[k] = CLASS_params_default[k]
+                params[k] = classy_params_default[k]
 
     if "level" not in kwargs:
         kwargs["level"] = "distortions"
+
     # Run CLASS!
-    CLASS_output = Class()
-    CLASS_output.set(CLASS_params)
-    CLASS_output.compute(level=kwargs["level"])
+    output = Class()
+    output.set(params)
+    output.compute(level=kwargs["level"])
 
-    return CLASS_output
+    return output
 
 
-def compute_RMS(
-    CLASS_output: Class,
+def compute_rms(
+    classy_output: Class,
     kind: str = "d_m",
     redshifts: Sequence[float] = 0,
-    R_smooth: float = 0,
+    smoothing_radius: float = 0,
 ) -> Sequence[float]:
     """Compute the root-mean-square of a field at given redshifts.
 
     Parameters
     ----------
-    CLASS_output : classy.Class
+    classy_output : :class:`classy.Class`
         An object containing all the information from the CLASS calculation.
     kind: str, optioanl
         The type of field for which the rms shall be computed.
         Options are:
-            - "d_b", "d_cdm", "d_m": density field of baryons, cold dark matter, or all matter (including massive neutrinos).
-            - "v_b", "v_cdm": magnitude of the velocity vector field of baryons or CDM (this is gauge dependent).
-            - "v_cb": magnitude of the relative velocity vector field between baryons and CDM (this is gauge independent).
+            - "d_b", "d_cdm", "d_m": density field of baryons, cold dark matter, or all
+              matter (including massive neutrinos).
+            - "v_b", "v_cdm": magnitude of the velocity vector field of baryons or CDM
+              (this is gauge dependent).
+            - "v_cb": magnitude of the relative velocity vector field between baryons
+              and CDM (this is gauge independent).
         Default is "d_m".
     redshifts: np.array or a float, optional
         The redshifts at which the rms shall be computed. Default is 0.
-    R_smooth: float, optional
+    smoothing_radius: float, optional
         If non-zero, the field will be smoothed with a top hat filter (in real space) with comoving radius that is set to R_smooth.
         Can also be passed as type 'astropy.units.quantity.Quantity' with length unit.
         Default is 0.
@@ -130,26 +136,26 @@ def compute_RMS(
     rms : np.array
         Array of the rms of the desired field at the given redshifts.
     """
-    if hasattr(R_smooth, "unit"):
-        if not R_smooth.unit.physical_type == "length":
+    if hasattr(smoothing_radius, "unit"):
+        if smoothing_radius.unit.physical_type != "length":
             raise ValueError("The units of R_smooth are not of type length!")
     else:
-        R_smooth *= units.Mpc
+        smoothing_radius *= units.Mpc
 
     if isinstance(redshifts, int | float):
         redshifts = [redshifts]
 
-    A_s = CLASS_output.get_current_derived_parameters(["A_s"])["A_s"]
-    priomordial_PS = A_s * pow(k_output / k_pivot, CLASS_output.n_s() - 1.0)
+    A_s = classy_output.get_current_derived_parameters(["A_s"])["A_s"]
+    priomordial_PS = A_s * pow(k_output / k_pivot, classy_output.n_s() - 1.0)
     rms_list = []
     for z in redshifts:
-        transfers = CLASS_output.get_transfer(z=z)
-        k_CLASS = transfers["k (h/Mpc)"] * CLASS_output.h() / units.Mpc
-        if kind in ["d_b", "d_cdm", "d_m"]:
+        transfers = classy_output.get_transfer(z=z)
+        k_CLASS = transfers["k (h/Mpc)"] * classy_output.h() / units.Mpc
+        if kind in {"d_b", "d_cdm", "d_m"}:
             transfer = transfers[kind] * units.dimensionless_unscaled
-        elif kind in ["v_b", "v_cdm"]:
+        elif kind in {"v_b", "v_cdm"}:
             try:
-                kind_v = "t" + kind[1:]
+                kind_v = f"t{kind[1:]}"
                 transfer = transfers[kind_v] / units.Mpc * constants.c / k_CLASS
             except KeyError:  # We might get a KeyError if we are in synchronous gauge, in this case, the CDM peculiar velocity is zero
                 return 0.0 * units.Mpc / units.s
@@ -179,7 +185,7 @@ def compute_RMS(
             )
             * transfer.unit
         )
-        kr = k_output * R_smooth
+        kr = k_output * smoothing_radius
         with np.errstate(
             divide="ignore", invalid="ignore"
         ):  # Don't show division by 0 warnings
