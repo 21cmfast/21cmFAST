@@ -9,7 +9,7 @@ from classy import Class
 from scipy import fft
 from scipy.interpolate import RegularGridInterpolator
 
-from .classy_interface import compute_rms
+from .wrapper.classy_interface import compute_rms
 
 try:
     from numba import njit
@@ -18,7 +18,7 @@ try:
 except ImportError:
     NUMBA = False
 
-from .inputs import InputParameters
+from .wrapper.inputs import InputParameters
 
 
 def compute_rsds(

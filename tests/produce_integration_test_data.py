@@ -37,7 +37,7 @@ from py21cmfast import (
     run_coeval,
     run_lightcone,
 )
-from py21cmfast.lightcones import RectilinearLightconer
+from py21cmfast.lightconers import RectilinearLightconer
 
 logger = logging.getLogger("py21cmfast")
 logging.basicConfig()
@@ -341,7 +341,7 @@ def produce_lc_power_spectra(redshift, **kwargs):
     node_z = options["inputs"].node_redshifts
 
     quantities = get_lc_fields(options["inputs"])
-    lcn = RectilinearLightconer.with_equal_cdist_slices(
+    lcn = RectilinearLightconer.between_redshifts(
         min_redshift=node_z[-1] + 0.2,
         max_redshift=node_z[0] - 0.2,
         quantities=quantities,

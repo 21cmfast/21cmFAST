@@ -20,13 +20,13 @@ from cosmotile import (
 from scipy.spatial.transform import Rotation
 
 from .drivers.coeval import Coeval
+from .rsds import estimate_rsd_displacements
 from .wrapper.classy_interface import run_classy
 from .wrapper.inputs import (
     InputParameters,
     Planck18,  # Not *quite* the same as astropy's Planck18
     SimulationOptions,
 )
-from .wrapper.rsd import estimate_rsd_displacements
 
 _LIGHTCONERS = {}
 _LENGTH = "length"

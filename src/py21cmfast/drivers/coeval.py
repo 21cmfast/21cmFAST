@@ -18,6 +18,7 @@ from .. import __version__
 from ..c_21cmfast import lib
 from ..io import h5
 from ..io.caching import CacheConfig, OutputCache, RunCache
+from ..rsds import compute_rsds
 from ..wrapper.arrays import Array
 from ..wrapper.inputs import InputParameters
 from ..wrapper.outputs import (
@@ -31,7 +32,6 @@ from ..wrapper.outputs import (
     TsBox,
 )
 from ..wrapper.photoncons import _get_photon_nonconservation_data, setup_photon_cons
-from ..wrapper.rsd import compute_rsds
 from . import single_field as sf
 from ._param_config import high_level_func
 
