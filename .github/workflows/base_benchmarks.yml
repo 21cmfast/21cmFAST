@@ -1,14 +1,12 @@
 name: Continuous Benchmarking
 
 on:
-  pull_request:
-    branches:
-      - main
+  push:
+    branches: main
 
 jobs:
-  benchmark_pr_branch:
-    name: Continuous Benchmarking with Bencher
-    if: github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name == github.repository
+  benchmark_base_branch:
+    name: Continuous Benchmarking
     permissions:
       checks: write
     runs-on: ubuntu-latest
