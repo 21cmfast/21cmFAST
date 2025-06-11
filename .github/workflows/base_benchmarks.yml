@@ -1,10 +1,12 @@
+name: Continuous Benchmarking
+
 on:
   push:
-    branches: v4-prep
+    branches: main
 
 jobs:
   benchmark_base_branch:
-    name: Continuous Benchmarking with Bencher
+    name: Continuous Benchmarking
     permissions:
       checks: write
     runs-on: ubuntu-latest
@@ -15,7 +17,6 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - uses: bencherdev/bencher@main
-
 
       - name: Setup Miniconda
         uses: conda-incubator/setup-miniconda@v3
