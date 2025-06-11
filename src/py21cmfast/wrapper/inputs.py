@@ -1345,6 +1345,8 @@ class InputParameters:
                 msg = (
                     "Your R_BUBBLE_MAX is > BOX_LEN/3 "
                     f"({val.R_BUBBLE_MAX} > {self.simulation_options.BOX_LEN / 3})."
+                    f" This can produce strange reionisation topologies"
+                    f" To ignore this error, set `py21cmfast.config['ignore_R_BUBBLE_MAX_error'] = True`"
                 )
 
                 if config["ignore_R_BUBBLE_MAX_error"]:
