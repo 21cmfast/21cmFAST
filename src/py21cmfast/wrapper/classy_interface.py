@@ -92,7 +92,7 @@ def run_classy(inputs: InputParameters, **kwargs) -> Class:
                 params[k] = classy_params_default[k]
 
     if "level" not in kwargs:
-        kwargs["level"] = "distortions"
+        kwargs["level"] = ["distortions"]
 
     # Run CLASS!
     output = Class()
