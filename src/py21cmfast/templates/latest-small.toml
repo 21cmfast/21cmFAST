@@ -1,4 +1,6 @@
-# Run template for a small run
+# Run template for a small test run
+#NOTE: To use this one should disable the default R_BUBBLE_MAX errors
+#   by setting py21cmfast.config["ignore_R_BUBBLE_MAX_error"] = True
 
 [CosmoParams]
 
