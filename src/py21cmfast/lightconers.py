@@ -412,16 +412,19 @@ class Lightconer(ABC):
                 )
                 * lcd_limit.unit
             )
-            displacements = estimate_rsd_displacements(
-                classy_output=classy_output,
-                cosmo=self.cosmo,
-                redshifts=z_at_value(self.cosmo.comoving_distance, distances_out),
-                factor=factor,
-            )
-            if sign < 0:
-                out_indices = distances_out + displacements < lcd_limit
+            if len(distances_out) > 0:
+                displacements = estimate_rsd_displacements(
+                    classy_output=classy_output,
+                    cosmo=self.cosmo,
+                    redshifts=z_at_value(self.cosmo.comoving_distance, distances_out),
+                    factor=factor,
+                )
+                if sign < 0:
+                    out_indices = distances_out + displacements < lcd_limit
+                else:
+                    out_indices = distances_out - displacements > lcd_limit
             else:
-                out_indices = distances_out - displacements > lcd_limit
+                out_indices = False
             if np.any(out_indices):
                 # If there are displaced coordinates outside the lightcone box, we return the
                 # corresponding distance that is closest to the original lightcone boundaries
@@ -429,7 +432,7 @@ class Lightconer(ABC):
             else:
                 raise ValueError(
                     f"You have set SUBCELL_RSD to True with node redshifts between {min(inputs.node_redshifts)} and {max(inputs.node_redshifts)} "
-                    f"and lightcone redshifts between {self.lc_distances.min()} and {self.lc_distances.max()}. "
+                    f"and lightcone redshifts between {self.lc_redshifts.min()} and {self.lc_redshifts.max()}. "
                     "However, RSDs are expected to contribute the lightcone from higer/lower rdshifts. "
                     "Extend the limits of node redshifts to avoid this error."
                 )
