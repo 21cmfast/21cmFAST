@@ -6,7 +6,7 @@ import pytest
 
 
 def test_classy_runs(default_input_struct_ts):
-    """Test classy runs in non trivial configurations"""
+    """Test classy runs in non trivial configurations."""
     classy_output = run_classy(
         inputs=default_input_struct_ts,
         N_ncdm = 0,
@@ -24,7 +24,7 @@ def test_classy_runs(default_input_struct_ts):
 
 
 def test_compute_rms(default_input_struct_ts):
-    """Test the rms function of classy"""
+    """Test the rms function of classy."""
     
     # Check that CLASS returns sigma8, and that rms of v_cb at recombination is between 25 to 30 km/s
     classy_output = run_classy(
@@ -48,7 +48,7 @@ def test_compute_rms(default_input_struct_ts):
     assert rms_vcb > 25. * units.km / units.s
 
 def test_compute_rms_bad_inputs(default_input_struct_ts):
-    """Test the rms function of classy with bad inputs"""
+    """Test the rms function of classy with bad inputs."""
 
     classy_output = run_classy(
         inputs=default_input_struct_ts,

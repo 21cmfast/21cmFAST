@@ -45,7 +45,7 @@ class TestFindRequiredLightconeLimits:
 
 
 def test_coeval_rsds(ic, default_input_struct_ts, cache):
-    """Test rsds on coeval boxes"""
+    """Test rsds on coeval boxes."""
     coeval = run_coeval(
         initial_conditions=ic,
         inputs=default_input_struct_ts,
