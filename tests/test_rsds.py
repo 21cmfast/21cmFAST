@@ -1,12 +1,12 @@
 """Tests of the RSDS module."""
 
+import pytest
 from astropy import units
 
 import py21cmfast as p21c
+from py21cmfast import run_coeval
 from py21cmfast.lightconers import RectilinearLightconer
 from py21cmfast.wrapper.classy_interface import run_classy
-from py21cmfast import run_coeval
-import pytest
 
 
 class TestFindRequiredLightconeLimits:
@@ -43,7 +43,6 @@ class TestFindRequiredLightconeLimits:
         assert limits[1] < self.lcner.lc_distances.max() + 2 * units.Mpc
 
 
-
 def test_coeval_rsds(ic, default_input_struct_ts, cache):
     """Test rsds on coeval boxes."""
     coeval = run_coeval(
@@ -63,21 +62,30 @@ def test_coeval_rsds(ic, default_input_struct_ts, cache):
     box_rsd = coeval[0].compute_rsds()
     assert box_rsd.shape == coeval[0].brightness_temperature.brightness_temp.shape
 
+
 def test_bad_lightconer_inputs(default_input_struct_ts):
     lcner = RectilinearLightconer.between_redshifts(
-            min_redshift=default_input_struct_ts.node_redshifts[-1],
-            max_redshift=default_input_struct_ts.node_redshifts[0],
-            resolution=default_input_struct_ts.simulation_options.cell_size,
-            quantities=("brightness_temp",),
+        min_redshift=default_input_struct_ts.node_redshifts[-1],
+        max_redshift=default_input_struct_ts.node_redshifts[0],
+        resolution=default_input_struct_ts.simulation_options.cell_size,
+        quantities=("brightness_temp",),
     )
-    with pytest.raises(ValueError, match="The lightcone redshifts are not compatible with the given redshift."):
+    with pytest.raises(
+        ValueError,
+        match="The lightcone redshifts are not compatible with the given redshift.",
+    ):
         p21c.run_lightcone(lightconer=lcner, inputs=default_input_struct_ts)
 
     lcner = RectilinearLightconer.between_redshifts(
-            min_redshift=default_input_struct_ts.node_redshifts[-1],
-            max_redshift=default_input_struct_ts.simulation_options.Z_HEAT_MAX,
-            resolution=default_input_struct_ts.simulation_options.cell_size,
-            quantities=("brightness_temp",),
+        min_redshift=default_input_struct_ts.node_redshifts[-1],
+        max_redshift=default_input_struct_ts.simulation_options.Z_HEAT_MAX,
+        resolution=default_input_struct_ts.simulation_options.cell_size,
+        quantities=("brightness_temp",),
     )
-    with pytest.raises(ValueError, match="You have set SUBCELL_RSD to True with node redshifts between"):
-        p21c.run_lightcone(lightconer=lcner, inputs=default_input_struct_ts.evolve_input_structs(SUBCELL_RSD=True))
+    with pytest.raises(
+        ValueError, match="You have set SUBCELL_RSD to True with node redshifts between"
+    ):
+        p21c.run_lightcone(
+            lightconer=lcner,
+            inputs=default_input_struct_ts.evolve_input_structs(SUBCELL_RSD=True),
+        )
