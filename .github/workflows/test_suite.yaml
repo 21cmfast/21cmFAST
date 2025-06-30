@@ -48,7 +48,7 @@ jobs:
           conda install fftw gsl
       - name: Install 21cmFAST
         run: |
-          LOG_LEVEL=${{ env.log_level }} pip install ".[dev]"
+          LOG_LEVEL=INFO pip install ".[dev]"
       - name: Run Integration Tests
         run: |
           python -m pytest -k "[sampler"  tests/test_integration_features.py::test_power_spectra_lightcone --plots=testplots
