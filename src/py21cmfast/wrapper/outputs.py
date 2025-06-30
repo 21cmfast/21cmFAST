@@ -395,7 +395,7 @@ class OutputStruct(ABC):
             elif not state.computed_in_mem:
                 out += f"{indent}    {fieldname:>25}:  computed on disk\n"
             else:
-                x = getattr(self, fieldname).flatten()
+                x = self.get(fieldname).flatten()
                 if len(x) > 0:
                     out += f"{indent}    {fieldname:>25}: {x[0]:11.4e}, {x[-1]:11.4e}, {x.min():11.4e}, {x.max():11.4e}, {np.mean(x):11.4e}\n"
                 else:
