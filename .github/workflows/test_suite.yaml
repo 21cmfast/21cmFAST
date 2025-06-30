@@ -43,10 +43,6 @@ jobs:
           python-version: ${{ matrix.python-version }}
           channel-priority: true
 
-      - name: Make it a Debug Run
-        run: |
-          echo "log_level=ULTRA_DEBUG" >> $GITHUB_ENV
-          echo "extra_pytest_args=-s --log-level-21=DEBUG" >> $GITHUB_ENV
       - name: Install Non-Python Dependencies
         run: |
           conda install fftw gsl
@@ -55,7 +51,7 @@ jobs:
           LOG_LEVEL=${{ env.log_level }} pip install ".[dev]"
       - name: Run Integration Tests
         run: |
-          python -m pytest -k "[sampler_" -l ${{ env.extra_pytest_args }} tests/test_integration_features.py::test_power_spectra_lightcone --plots=testplots
+          python -m pytest -k "[sampler"  tests/test_integration_features.py::test_power_spectra_lightcone --plots=testplots
 
       - name: Archive Integration Test Plots
         if: always()
