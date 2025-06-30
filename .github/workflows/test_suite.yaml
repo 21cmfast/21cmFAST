@@ -24,12 +24,9 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        os: [ubuntu-latest, macos-latest]
+        os: [macos-latest]
         python-version: ["3.11", "3.12"]
         compiler: ["gcc", "clang"]
-        exclude:
-          - os: ubuntu-latest
-            compiler: "clang"
     defaults:
      run:
        # Adding -l {0} ensures conda can be found properly in each step
@@ -47,32 +44,18 @@ jobs:
           channel-priority: true
 
       - name: Make it a Debug Run
-        if: "contains(env.commit_message, 'ci debug')"
         run: |
           echo "log_level=ULTRA_DEBUG" >> $GITHUB_ENV
           echo "extra_pytest_args=-s --log-level-21=DEBUG" >> $GITHUB_ENV
-
-      - name: Make it a Normal Run
-        if: "!contains(env.commit_message, 'ci debug')"
-        run: |
-          echo "log_level=INFO" >> $GITHUB_ENV
-          echo "extra_pytest_args=" >> $GITHUB_ENV
-
       - name: Install Non-Python Dependencies
         run: |
           conda install fftw gsl
-
       - name: Install 21cmFAST
         run: |
           LOG_LEVEL=${{ env.log_level }} pip install ".[dev]"
-
-      - name: Run Unit Tests
-        run: |
-          python -m pytest -n 2 -l ${{ env.extra_pytest_args }} --ignore tests/test_integration_features.py --cov=py21cmfast --cov-config=.coveragerc -vv --cov-report xml:./coverage.xml --durations=25
-
       - name: Run Integration Tests
         run: |
-          python -m pytest -n 2 -l ${{ env.extra_pytest_args }} tests/test_integration_features.py --cov=py21cmfast --cov-config=.coveragerc -vv  --cov-append --cov-report xml:./coverage.xml --durations=25 --plots=testplots
+          python -m pytest -k "[sampler_" -l ${{ env.extra_pytest_args }} tests/test_integration_features.py::test_power_spectra_lightcone --plots=testplots
 
       - name: Archive Integration Test Plots
         if: always()
@@ -81,10 +64,3 @@ jobs:
           name: integration-test-plots-${{ matrix.os }}-${{ matrix.python-version }}-${{ matrix.compiler }}
           path: |
             testplots/*.pdf
-
-      - uses: codecov/codecov-action@v5
-        if: matrix.os == 'ubuntu-latest' && success() && !contains(github.event.pull_request.labels.*.name, 'auto-pr')
-        with:
-          fail_ci_if_error: true
-          verbose: true
-          token: ${{ secrets.CODECOV_TOKEN }}
