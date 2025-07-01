@@ -920,7 +920,7 @@ int sample_halo_grids(gsl_rng **rng_arr, double redshift, float *dens_field,
                     delta = dens_field[HII_R_INDEX(x, y, z)] * growthf;
                     stoc_set_consts_cond(&hs_constants_priv, delta);
 
-                    if (MAKE_THE_PRINTS) {
+                    if (x == 49 && y == 2 && z == 2) {
                         print_hs_consts(&hs_constants_priv);
                     }
 
