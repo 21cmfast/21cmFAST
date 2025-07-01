@@ -627,6 +627,13 @@ void initialise_dNdM_tables(double xmin, double xmax, double ymin, double ymax, 
                 delta = x;
             }
 
+            if (i == nx - 1) {
+                LOG_INFO(
+                    "Last bin in NhaloConditional: growth %.6g ymin %.6g ymax %.6g "
+                    "lnM_cond %.6g sigma_cond %.6g delta %.6g result %.6g",
+                    growth_out, ymin, ymax, lnM_cond, sigma_cond, delta,
+                    Nhalo_Conditional(growth_out, ymin, ymax, lnM_cond, sigma_cond, delta, 0));
+            }
             Nhalo_table.y_arr[i] =
                 Nhalo_Conditional(growth_out, ymin, ymax, lnM_cond, sigma_cond, delta, 0);
             Mcoll_table.y_arr[i] =
@@ -1044,6 +1051,22 @@ double EvaluatedFcolldz(double delta, double redshift, double sigma_min, double 
 
 double EvaluateNhalo(double condition, double growthf, double lnMmin, double lnMmax, double M_cond,
                      double sigma, double delta) {
+    if (matter_options_global->USE_INTERPOLATION_TABLES > 1 &&
+        (1.427450 < condition && condition < 1.427455)) {
+        int idx = (int)floor((condition - Nhalo_table.x_min) / Nhalo_table.x_width);
+        double table_val = Nhalo_table.x_min + Nhalo_table.x_width * (double)idx;
+        double interp_point = (condition - table_val) / Nhalo_table.x_width;
+        // a + f(a-b) is one fewer operation but less precise
+        double result = Nhalo_table.y_arr[idx] * (1 - interp_point) +
+                        Nhalo_table.y_arr[idx + 1] * (interp_point);
+        LOG_INFO(
+            "Extrap for Nhalo at condition %.6e, result %.6e, idx %d, table_val %.6g interppoint "
+            "%.6g lower %.6e upper %.6e upperer %.6e anl %.6e ntable %d",
+            condition, result, idx, table_val, interp_point, Nhalo_table.y_arr[idx],
+            Nhalo_table.y_arr[idx + 1], Nhalo_table.y_arr[idx + 2],
+            Nhalo_Conditional(growthf, lnMmin, lnMmax, log(M_cond), sigma, delta, 0),
+            Nhalo_table.n_bin);
+    }
     if (matter_options_global->USE_INTERPOLATION_TABLES > 1)
         return EvaluateRGTable1D(condition, &Nhalo_table);
     return Nhalo_Conditional(growthf, lnMmin, lnMmax, log(M_cond), sigma, delta, 0);

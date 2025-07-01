@@ -24,17 +24,19 @@
 // buffer size (per cell of arbitrary size) in the sampling function
 #define MAX_HALO_CELL (int)1e5
 
+int MAKE_THE_PRINTS = 0;  // set to 1 to print the constants
+
 void print_hs_consts(struct HaloSamplingConstants *c) {
-    LOG_DEBUG("Printing halo sampler constants....");
-    LOG_DEBUG("from_catalog %d z_in %.2f z_out %.2f d_in %.2f d_out %.2f", c->from_catalog, c->z_in,
-              c->z_out, c->growth_in, c->growth_out);
-    LOG_DEBUG("M_min %.2e (%.2e) (%.2f) M_max %.2e (%.2e)", c->M_min, c->lnM_min, c->sigma_min,
-              c->M_max_tables, c->lnM_max_tb);
-    LOG_DEBUG("Corr Star %.2e SFR %.2e XRAY %.2e", c->corr_star, c->corr_sfr, c->corr_xray);
-    LOG_DEBUG("CONDITION DEPENDENT STUFF (may not be set)");
-    LOG_DEBUG("delta %.2e M_c %.2e (%.2e) (%.2e) cond %.2e", c->delta, c->M_cond, c->lnM_cond,
-              c->sigma_cond, c->cond_val);
-    LOG_DEBUG("exp N %.2f exp M %.2e", c->expected_N, c->expected_M);
+    LOG_INFO("Printing halo sampler constants....");
+    LOG_INFO("from_catalog %d z_in %.2f z_out %.2f d_in %.2f d_out %.2f", c->from_catalog, c->z_in,
+             c->z_out, c->growth_in, c->growth_out);
+    LOG_INFO("M_min %.2e (%.2e) (%.2f) M_max %.2e (%.2e)", c->M_min, c->lnM_min, c->sigma_min,
+             c->M_max_tables, c->lnM_max_tb);
+    LOG_INFO("Corr Star %.2e SFR %.2e XRAY %.2e", c->corr_star, c->corr_sfr, c->corr_xray);
+    LOG_INFO("CONDITION DEPENDENT STUFF (may not be set)");
+    LOG_INFO("delta %.6e M_c %.6e (%.6e) (%.6e) cond %.6e", c->delta, c->M_cond, c->lnM_cond,
+             c->sigma_cond, c->cond_val);
+    LOG_INFO("exp N %.6f exp M %.6e", c->expected_N, c->expected_M);
     return;
 }
 
@@ -195,12 +197,23 @@ void stoc_set_consts_cond(struct HaloSamplingConstants *const_struct, double con
     // M_cell*(1.01^3) there *could* be a cell above Deltac not in a halo NOTE: all this does is
     // prevent integration errors below since these cases are also dealt with in stoc_sample
     if (const_struct->delta > MAX_DELTAC_FRAC * const_struct->delta_crit) {
+        if (MAKE_THE_PRINTS) LOG_INFO("In case 0");
         const_struct->expected_M = const_struct->M_cond;
         const_struct->expected_N = 1;
     } else if (const_struct->delta <= DELTA_MIN || const_struct->M_cond < const_struct->M_min) {
+        if (MAKE_THE_PRINTS) LOG_INFO("In case 1");
         const_struct->expected_M = 0;
         const_struct->expected_N = 0;
     } else {
+        if (MAKE_THE_PRINTS == 1) {
+            LOG_INFO("In case 2");
+            LOG_INFO(
+                "delta %.6e M_cond %.6e  sigma_cond %.6e cond_val %.6e growth %.6e lnM_min %.6e "
+                "lnM_max %.6e ",
+                const_struct->delta, const_struct->M_cond, const_struct->sigma_cond,
+                const_struct->cond_val, const_struct->growth_out, const_struct->lnM_min,
+                const_struct->lnM_max_tb);
+        }
         n_exp = EvaluateNhalo(const_struct->cond_val, const_struct->growth_out,
                               const_struct->lnM_min, const_struct->lnM_max_tb, const_struct->M_cond,
                               const_struct->sigma_cond, const_struct->delta);
@@ -260,7 +273,7 @@ int add_properties_cat(unsigned long long int seed, float redshift, HaloField *h
     gsl_rng *rng_stoc[simulation_options_global->N_THREADS];
     seed_rng_threads_fast(rng_stoc, seed);
 
-    LOG_DEBUG("computing rng for %llu halos", halos->n_halos);
+    LOG_INFO("computing rng for %llu halos", halos->n_halos);
 
     // loop through the halos and assign properties
     unsigned long long int i;
@@ -276,6 +289,45 @@ int add_properties_cat(unsigned long long int seed, float redshift, HaloField *h
         halos->sfr_rng[i] = buf[1];
         halos->xray_rng[i] = buf[2];
     }
+
+    // Check the halo properties
+    float min_star = 1e20;
+    float min_sfr = 1e20;
+    float min_xray = 1e20;
+    float max_star = -1e20;
+    float max_sfr = -1e20;
+    float max_xray = -1e20;
+    float sum_star = 0.;
+    float sum_sfr = 0.;
+    float sum_xray = 0.;
+    for (i = 0; i < halos->n_halos; i++) {
+        if (halos->star_rng[i] < min_star) {
+            min_star = halos->star_rng[i];
+        }
+        if (halos->sfr_rng[i] < min_sfr) {
+            min_sfr = halos->sfr_rng[i];
+        }
+        if (halos->xray_rng[i] < min_xray) {
+            min_xray = halos->xray_rng[i];
+        }
+        if (halos->star_rng[i] > max_star) {
+            max_star = halos->star_rng[i];
+        }
+        if (halos->sfr_rng[i] > max_sfr) {
+            max_sfr = halos->sfr_rng[i];
+        }
+        if (halos->xray_rng[i] > max_xray) {
+            max_xray = halos->xray_rng[i];
+        }
+        sum_star += halos->star_rng[i];
+        sum_sfr += halos->sfr_rng[i];
+        sum_xray += halos->xray_rng[i];
+    }
+
+    printf("Halo properties for z=%.2f:\n", redshift);
+    printf("  Stars: min=%.4e, max=%.4e, sum=%.4e\n", min_star, max_star, sum_star);
+    printf("  SFR: min=%.4e, max=%.4e, sum=%.4e\n", min_sfr, max_sfr, sum_sfr);
+    printf("  X-ray: min=%.4e, max=%.4e, sum=%.4e\n", min_xray, max_xray, sum_xray);
 
     free_rng_threads(rng_stoc);
 
@@ -296,7 +348,6 @@ int stoc_halo_sample(struct HaloSamplingConstants *hs_constants, gsl_rng *rng, i
     nh = gsl_ran_poisson(rng, exp_N);
     for (ii = 0; ii < nh; ii++) {
         M_out[halo_count++] = sample_dndM_inverse(tbl_arg, hs_constants, rng);
-        ;
     }
 
     *n_halo_out = halo_count;
@@ -432,8 +483,9 @@ int stoc_mass_sample(struct HaloSamplingConstants *hs_constants, gsl_rng *rng, i
     }
     // The above sample is above the expected mass, by up to 100%. I wish to make the average mass
     // equal to exp_M
+    // printf("BEFORE FIX: n_halo %d\n", n_halo_sampled);
     fix_mass_sample(rng, exp_M, &n_halo_sampled, &M_prog, M_out);
-
+    // printf("AFTER FIX: n_halo %d\n", n_halo_sampled);
     *n_halo_out = n_halo_sampled;
     return 0;
 }
@@ -800,15 +852,17 @@ int sample_halo_grids(gsl_rng **rng_arr, double redshift, float *dens_field,
     unsigned long long int arraysize_total = halofield_out->buffer_size;
     unsigned long long int arraysize_local = arraysize_total / simulation_options_global->N_THREADS;
 
-    LOG_DEBUG("Beginning stochastic halo sampling on %d ^3 grid", lo_dim);
-    LOG_DEBUG("z = %f, Mmin = %e, Mmax = %e,volume = %.3e, D = %.3e", redshift, Mmin, Mcell,
-              Mcell / RHOcrit / cosmo_params_global->OMm, growthf);
-    LOG_DEBUG("Total Array Size %llu, array size per thread %llu (~%.3e GB total)", arraysize_total,
-              arraysize_local, 6. * arraysize_total * sizeof(int) / 1e9);
+    LOG_INFO("Beginning stochastic halo sampling on %d ^3 grid", lo_dim);
+    LOG_INFO("z = %f, Mmin = %e, Mmax = %e,volume = %.3e, D = %.3e", redshift, Mmin, Mcell,
+             Mcell / RHOcrit / cosmo_params_global->OMm, growthf);
+    LOG_INFO("Total Array Size %llu, array size per thread %llu (~%.3e GB total)", arraysize_total,
+             arraysize_local, 6. * arraysize_total * sizeof(int) / 1e9);
 
     double total_volume_excluded = 0.;
     double total_volume_dexm = 0.;
     double cell_volume = VOLUME / pow((double)simulation_options_global->HII_DIM, 3);
+
+    printf("MATTER OPTIONS GLOBAL >>>>> %d\n", matter_options_global->SAMPLE_METHOD);
 
 #pragma omp parallel num_threads(simulation_options_global->N_THREADS)
     {
@@ -859,19 +913,36 @@ int sample_halo_grids(gsl_rng **rng_arr, double redshift, float *dens_field,
         for (x = 0; x < lo_dim; x++) {
             for (y = 0; y < lo_dim; y++) {
                 for (z = 0; z < HII_D_PARA; z++) {
+                    if (x == 49 && y == 2 && z == 2) {
+                        MAKE_THE_PRINTS = 1;
+                    } else {
+                        MAKE_THE_PRINTS = 0;
+                    }
+
                     delta = dens_field[HII_R_INDEX(x, y, z)] * growthf;
                     stoc_set_consts_cond(&hs_constants_priv, delta);
-                    if ((x + y + z) == 0) {
+
+                    if (x == 49 && y == 2 && z == 2) {
                         print_hs_consts(&hs_constants_priv);
                     }
 
                     mass_defc = halo_overlap_box[HII_R_INDEX(x, y, z)];
+
                     total_volume_excluded += mass_defc;
 
                     hs_constants_priv.expected_M *= (1. - mass_defc);
                     hs_constants_priv.expected_N *= (1. - mass_defc);
 
+                    // if (x>=48 && y > 48) MAKE_THE_PRINTS = 1;
+
                     stoc_sample(&hs_constants_priv, rng_arr[threadnum], &nh_buf, hm_buf);
+
+                    if (nh_buf > 0) {
+                        LOG_INFO(
+                            "x %d y %d z %d: delta %1.6e, N %d (exp %.6lf) "
+                            "mass_defc %.2f",
+                            x, y, z, delta, nh_buf, hs_constants_priv.expected_N, mass_defc);
+                    }
                     // output total halo number, catalogues of masses and positions
                     M_tot_cell = 0;
                     for (i = 0; i < nh_buf; i++) {
@@ -920,14 +991,14 @@ int sample_halo_grids(gsl_rng **rng_arr, double redshift, float *dens_field,
                 }
             }
         }
-        LOG_SUPER_DEBUG("Thread %d found %llu halos", threadnum, count);
+        LOG_INFO("Thread %d found %llu halos", threadnum, count);
 
         istart_threads[threadnum] = istart;
         nhalo_threads[threadnum] = count;
     }
 
-    LOG_SUPER_DEBUG("Total dexm volume %.6e Total volume excluded %.6e (In units of HII_DIM cells)",
-                    total_volume_dexm, total_volume_excluded);
+    LOG_INFO("Total dexm volume %.6e Total volume excluded %.6e (In units of HII_DIM cells)",
+             total_volume_dexm, total_volume_excluded);
     condense_sparse_halolist(halofield_out, istart_threads, nhalo_threads);
     return 0;
 }
@@ -1071,8 +1142,8 @@ int stochastic_halofield(unsigned long long int seed, float redshift_desc, float
                          float *dens_field, float *halo_overlap_box, HaloField *halos_desc,
                          HaloField *halos) {
     if (redshift_desc > 0 && halos_desc->n_halos == 0) {
-        LOG_DEBUG("No halos to sample from redshifts %.2f to %.2f, continuing...", redshift_desc,
-                  redshift);
+        LOG_INFO("No halos to sample from redshifts %.2f to %.2f, continuing...", redshift_desc,
+                 redshift);
         return 0;
     }
 
@@ -1086,27 +1157,27 @@ int stochastic_halofield(unsigned long long int seed, float redshift_desc, float
     // Fill them
     // NOTE:Halos prev in the first box corresponds to the large DexM halos
     if (redshift_desc <= 0.) {
-        LOG_DEBUG("building first halo field at z=%.1f", redshift);
+        LOG_INFO("building first halo field at z=%.1f", redshift);
         sample_halo_grids(rng_stoc, redshift, dens_field, halo_overlap_box, halos_desc, halos,
                           &hs_constants);
     } else {
-        LOG_DEBUG("Calculating halo progenitors from z=%.1f to z=%.1f | %llu", redshift_desc,
-                  redshift, halos_desc->n_halos);
+        LOG_INFO("Calculating halo progenitors from z=%.1f to z=%.1f | %llu", redshift_desc,
+                 redshift, halos_desc->n_halos);
         sample_halo_progenitors(rng_stoc, redshift_desc, redshift, halos_desc, halos,
                                 &hs_constants);
     }
 
-    LOG_DEBUG("Found %llu Halos", halos->n_halos);
+    LOG_INFO("Found %llu Halos", halos->n_halos);
 
     if (halos->n_halos >= 3) {
-        LOG_DEBUG("First few Masses:  %11.3e %11.3e %11.3e", halos->halo_masses[0],
-                  halos->halo_masses[1], halos->halo_masses[2]);
-        LOG_DEBUG("First few Stellar RNG: %11.3e %11.3e %11.3e", halos->star_rng[0],
-                  halos->star_rng[1], halos->star_rng[2]);
-        LOG_DEBUG("First few SFR RNG:     %11.3e %11.3e %11.3e", halos->sfr_rng[0],
-                  halos->sfr_rng[1], halos->sfr_rng[2]);
-        LOG_DEBUG("First few XRAY RNG:     %11.3e %11.3e %11.3e", halos->xray_rng[0],
-                  halos->xray_rng[1], halos->xray_rng[2]);
+        LOG_INFO("First few Masses:  %11.3e %11.3e %11.3e", halos->halo_masses[0],
+                 halos->halo_masses[1], halos->halo_masses[2]);
+        LOG_INFO("First few Stellar RNG: %11.3e %11.3e %11.3e", halos->star_rng[0],
+                 halos->star_rng[1], halos->star_rng[2]);
+        LOG_INFO("First few SFR RNG:     %11.3e %11.3e %11.3e", halos->sfr_rng[0],
+                 halos->sfr_rng[1], halos->sfr_rng[2]);
+        LOG_INFO("First few XRAY RNG:     %11.3e %11.3e %11.3e", halos->xray_rng[0],
+                 halos->xray_rng[1], halos->xray_rng[2]);
     }
 
     if (matter_options_global->USE_INTERPOLATION_TABLES > 0) {

@@ -177,6 +177,7 @@ OPTIONS_TESTRUNS = {
             "USE_HALO_FIELD": True,
             "HALO_STOCHASTICITY": True,
             "USE_TS_FLUCT": True,
+            "NTHREADS": 1,
         },
     ],
     "sampler_ir": [
@@ -274,6 +275,7 @@ def get_node_z(redshift, lc=False, **kwargs):
                 ),
             ),
         )
+    print("NODE REDSHIFTS: ", node_redshifts)
     return node_redshifts
 
 
