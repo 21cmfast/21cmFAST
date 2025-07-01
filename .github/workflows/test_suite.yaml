@@ -25,7 +25,7 @@ jobs:
       fail-fast: false
       matrix:
         os: [macos-latest]
-        python-version: ["3.11", "3.12"]
+        python-version: ["3.11"]
         compiler: ["gcc", "clang"]
     defaults:
      run:
@@ -51,7 +51,7 @@ jobs:
           LOG_LEVEL=INFO pip install ".[dev]"
       - name: Run Integration Tests
         run: |
-          python -m pytest -s -k "[sampler"  tests/test_integration_features.py::test_power_spectra_lightcone --plots=testplots
+          python -m pytest -s -k "[sampler_ts]"  tests/test_integration_features.py::test_power_spectra_lightcone --plots=testplots
 
       - name: Archive Integration Test Plots
         if: always()

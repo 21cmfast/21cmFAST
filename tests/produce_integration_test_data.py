@@ -150,7 +150,6 @@ OPTIONS_TESTRUNS = {
         {
             "USE_HALO_FIELD": True,
             "HALO_STOCHASTICITY": True,
-            "N_THREADS": 1,
         },
     ],
     "fixed_halogrids": [
@@ -170,7 +169,6 @@ OPTIONS_TESTRUNS = {
             "INHOMO_RECO": True,
             "R_BUBBLE_MAX": 50.0,
             "M_TURN": 5.0,
-            "N_THREADS": 1,
         },
     ],
     "sampler_ts": [
@@ -179,7 +177,6 @@ OPTIONS_TESTRUNS = {
             "USE_HALO_FIELD": True,
             "HALO_STOCHASTICITY": True,
             "USE_TS_FLUCT": True,
-            "N_THREADS": 1,
         },
     ],
     "sampler_ir": [
@@ -189,7 +186,6 @@ OPTIONS_TESTRUNS = {
             "HALO_STOCHASTICITY": True,
             "INHOMO_RECO": True,
             "R_BUBBLE_MAX": 50.0,
-            "N_THREADS": 1,
         },
     ],
     "sampler_ts_ir": [
@@ -200,7 +196,6 @@ OPTIONS_TESTRUNS = {
             "USE_TS_FLUCT": True,
             "INHOMO_RECO": True,
             "R_BUBBLE_MAX": 50.0,
-            "N_THREADS": 1,
         },
     ],
     "sampler_ts_ir_onethread": [
