@@ -205,7 +205,7 @@ void stoc_set_consts_cond(struct HaloSamplingConstants *const_struct, double con
         const_struct->expected_M = 0;
         const_struct->expected_N = 0;
     } else {
-        if (MAKE_THE_PRINTS) {
+        if (MAKE_THE_PRINTS == 1) {
             LOG_INFO("In case 2");
             LOG_INFO(
                 "delta %.6e M_cond %.6e  sigma_cond %.6e cond_val %.6e growth %.6e lnM_min %.6e "
