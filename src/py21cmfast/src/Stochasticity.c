@@ -34,9 +34,9 @@ void print_hs_consts(struct HaloSamplingConstants *c) {
              c->M_max_tables, c->lnM_max_tb);
     LOG_INFO("Corr Star %.2e SFR %.2e XRAY %.2e", c->corr_star, c->corr_sfr, c->corr_xray);
     LOG_INFO("CONDITION DEPENDENT STUFF (may not be set)");
-    LOG_INFO("delta %.2e M_c %.2e (%.2e) (%.2e) cond %.2e", c->delta, c->M_cond, c->lnM_cond,
+    LOG_INFO("delta %.6e M_c %.6e (%.6e) (%.6e) cond %.6e", c->delta, c->M_cond, c->lnM_cond,
              c->sigma_cond, c->cond_val);
-    LOG_INFO("exp N %.2f exp M %.2e", c->expected_N, c->expected_M);
+    LOG_INFO("exp N %.6f exp M %.6e", c->expected_N, c->expected_M);
     return;
 }
 
@@ -205,7 +205,15 @@ void stoc_set_consts_cond(struct HaloSamplingConstants *const_struct, double con
         const_struct->expected_M = 0;
         const_struct->expected_N = 0;
     } else {
-        if (MAKE_THE_PRINTS) LOG_INFO("In case 2");
+        if (MAKE_THE_PRINTS) {
+            LOG_INFO("In case 2");
+            LOG_INFO(
+                "delta %.6e M_cond %.6e  sigma_cond %.6e cond_val %.6e growth %.6e lnM_min %.6e "
+                "lnM_max %.6e ",
+                const_struct->delta, const_struct->M_cond, const_struct->sigma_cond,
+                const_struct->cond_val, const_struct->growth_out, const_struct->lnM_min,
+                const_struct->lnM_max_tb);
+        }
         n_exp = EvaluateNhalo(const_struct->cond_val, const_struct->growth_out,
                               const_struct->lnM_min, const_struct->lnM_max_tb, const_struct->M_cond,
                               const_struct->sigma_cond, const_struct->delta);
@@ -338,14 +346,8 @@ int stoc_halo_sample(struct HaloSamplingConstants *hs_constants, gsl_rng *rng, i
     double tbl_arg = hs_constants->cond_val;
 
     nh = gsl_ran_poisson(rng, exp_N);
-    if (MAKE_THE_PRINTS && nh > 0) {
-        void *state = gsl_rng_state(rng);
-        size_t n = gsl_rng_size(rng);
-        LOG_INFO("Nhalo: %d (%.2f) %d", nh, exp_N, n);
-    }
     for (ii = 0; ii < nh; ii++) {
         M_out[halo_count++] = sample_dndM_inverse(tbl_arg, hs_constants, rng);
-        ;
     }
 
     *n_halo_out = halo_count;
