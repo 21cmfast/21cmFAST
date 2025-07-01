@@ -1054,8 +1054,10 @@ double EvaluateNhalo(double condition, double growthf, double lnMmin, double lnM
                         Nhalo_table.y_arr[idx + 1] * (interp_point);
         LOG_INFO(
             "Extrap for Nhalo at condition %.6e, result %.6e, idx %d, table_val %.6g interppoint "
-            "%.6g",
-            condition, result, idx, table_val, interp_point);
+            "%.6g lower %.6e upper %.6e anl %.6e",
+            condition, result, idx, table_val, interp_point, Nhalo_table.y_arr[idx],
+            Nhalo_table.y_arr[idx + 1],
+            Nhalo_Conditional(growthf, lnMmin, lnMmax, log(M_cond), sigma, delta, 0));
     }
     if (matter_options_global->USE_INTERPOLATION_TABLES > 1)
         return EvaluateRGTable1D(condition, &Nhalo_table);
