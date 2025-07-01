@@ -115,7 +115,7 @@ void initialise_SFRD_spline(int Nbin, float zmin, float zmax, struct ScalingCons
         SFRD_z_table_MINI.y_width = (LOG10_MTURN_MAX - LOG10_MTURN_MIN) / ((double)NMTURN - 1.);
     }
 
-#pragma omp parallel private(i, j) num_threads(simulation_options_global -> N_THREADS)
+#pragma omp parallel private(i, j) num_threads(simulation_options_global->N_THREADS)
     {
         struct ScalingConstants sc_sfrd;
         sc_sfrd = evolve_scaling_constants_sfr(sc);
@@ -181,7 +181,7 @@ void initialise_Nion_Ts_spline(int Nbin, float zmin, float zmax, struct ScalingC
         Nion_z_table_MINI.y_width = (LOG10_MTURN_MAX - LOG10_MTURN_MIN) / ((double)NMTURN - 1.);
     }
 
-#pragma omp parallel private(i, j) num_threads(simulation_options_global -> N_THREADS)
+#pragma omp parallel private(i, j) num_threads(simulation_options_global->N_THREADS)
     {
         struct ScalingConstants sc_z;
         double mturn_mcg;
@@ -353,7 +353,7 @@ void initialise_Nion_Conditional_spline(double z, double min_density, double max
         }
     }
 
-#pragma omp parallel private(i, j) num_threads(simulation_options_global -> N_THREADS)
+#pragma omp parallel private(i, j) num_threads(simulation_options_global->N_THREADS)
     {
 #pragma omp for
         for (i = 0; i < NDELTA; i++) {
@@ -451,7 +451,7 @@ void initialise_SFRD_Conditional_table(double z, double min_density, double max_
 
     struct ScalingConstants sc_sfrd = evolve_scaling_constants_sfr(sc);
 
-#pragma omp parallel private(i, k) num_threads(simulation_options_global -> N_THREADS)
+#pragma omp parallel private(i, k) num_threads(simulation_options_global->N_THREADS)
     {
         double curr_dens;
 #pragma omp for
@@ -530,7 +530,7 @@ void initialise_Xray_Conditional_table(double redshift, double min_density, doub
         Xray_conditional_table_1D.x_width = (max_density - min_density) / (NDELTA - 1.);
     }
 
-#pragma omp parallel private(i, k) num_threads(simulation_options_global -> N_THREADS)
+#pragma omp parallel private(i, k) num_threads(simulation_options_global->N_THREADS)
     {
         double curr_dens;
 #pragma omp for
@@ -1044,6 +1044,19 @@ double EvaluatedFcolldz(double delta, double redshift, double sigma_min, double 
 
 double EvaluateNhalo(double condition, double growthf, double lnMmin, double lnMmax, double M_cond,
                      double sigma, double delta) {
+    if (matter_options_global->USE_INTERPOLATION_TABLES > 1 &&
+        (1.427450 < condition && condition < 1.427455)) {
+        int idx = (int)floor((condition - Nhalo_table.x_min) / Nhalo_table.x_width);
+        double table_val = Nhalo_table.x_min + Nhalo_table.x_width * (double)idx;
+        double interp_point = (condition - table_val) / Nhalo_table.x_width;
+        // a + f(a-b) is one fewer operation but less precise
+        double result = Nhalo_table.y_arr[idx] * (1 - interp_point) +
+                        Nhalo_table.y_arr[idx + 1] * (interp_point);
+        LOG_INFO(
+            "Extrap for Nhalo at condition %.6e, result %.6e, idx %d, table_val %.6g interppoint "
+            "%.6g",
+            condition, result, idx, table_val, interp_point);
+    }
     if (matter_options_global->USE_INTERPOLATION_TABLES > 1)
         return EvaluateRGTable1D(condition, &Nhalo_table);
     return Nhalo_Conditional(growthf, lnMmin, lnMmax, log(M_cond), sigma, delta, 0);
@@ -1143,7 +1156,7 @@ void initialiseSigmaMInterpTable(float M_min, float M_max) {
     dSigmasqdm_InterpTable.x_min = log(M_min);
     dSigmasqdm_InterpTable.x_width = (log(M_max) - log(M_min)) / (N_MASS_INTERP - 1.);
 
-#pragma omp parallel private(i) num_threads(simulation_options_global -> N_THREADS)
+#pragma omp parallel private(i) num_threads(simulation_options_global->N_THREADS)
     {
         float Mass;
 #pragma omp for
