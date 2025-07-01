@@ -905,18 +905,19 @@ int sample_halo_grids(gsl_rng **rng_arr, double redshift, float *dens_field,
                     }
 
                     mass_defc = halo_overlap_box[HII_R_INDEX(x, y, z)];
+
                     total_volume_excluded += mass_defc;
 
                     hs_constants_priv.expected_M *= (1. - mass_defc);
                     hs_constants_priv.expected_N *= (1. - mass_defc);
 
                     stoc_sample(&hs_constants_priv, rng_arr[threadnum], &nh_buf, hm_buf);
+
                     if (nh_buf > 0) {
                         printf(
-                            "x %d y %d z %d: delta %.3f, N %d (exp %.1e), M %.2e (exp %.2e) "
+                            "x %d y %d z %d: delta %.3f, N %d (exp %.2lf) "
                             "mass_defc %.2f\n",
-                            x, y, z, delta, nh_buf, hs_constants_priv.expected_N,
-                            hs_constants_priv.expected_M, mass_defc);
+                            x, y, z, delta, nh_buf, hs_constants_priv.expected_N, mass_defc);
                     }
                     // output total halo number, catalogues of masses and positions
                     M_tot_cell = 0;
