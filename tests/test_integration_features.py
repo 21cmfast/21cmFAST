@@ -171,7 +171,12 @@ def make_lightcone_comparison_plot(
 ):
     n = len(true_global) + len(true_powers)
     fig, ax = plt.subplots(
-        2, n, figsize=(4 * n, 6), constrained_layout=True, sharex="col"
+        2,
+        n,
+        figsize=(4 * n, 6),
+        constrained_layout=True,
+        sharex="col",
+        gridspec_kw={"hspace": 0, "wspace": 0},
     )
 
     for i, (key, val) in enumerate(test_powers.items()):
@@ -183,11 +188,21 @@ def make_lightcone_comparison_plot(
             ax[:, i],
             xlab="k",
             ylab=f"{plot_ylab[key]} Power",
+            make_lower_ylab=i == 0,
         )
 
-    for j, (key, val) in enumerate(test_global.items(), start=i + 1):
+    for j, (key, val) in enumerate(test_global.items(), start=len(test_powers)):
         make_comparison_plot(
-            z, z, true_global[key], val, ax[:, j], xlab="z", ylab=f"{plot_ylab[key]}"
+            z,
+            z,
+            true_global[key],
+            val,
+            ax[:, j],
+            xlab="z",
+            ylab=f"{plot_ylab[key]}",
+            logx=False,
+            logy=False,
+            make_lower_ylab=False,
         )
 
 
@@ -213,7 +228,16 @@ def make_coeval_comparison_plot(true_k, k, true_powers, test_powers, plt):
 
 
 def make_comparison_plot(
-    xtrue, x, true, test, ax, logx=True, logy=True, xlab=None, ylab=None
+    xtrue,
+    x,
+    true,
+    test,
+    ax,
+    logx=True,
+    logy=True,
+    xlab=None,
+    ylab=None,
+    make_lower_ylab: bool = True,
 ):
     ax[0].plot(xtrue, true, label="True")
     ax[0].plot(x, test, label="Test")
@@ -222,9 +246,9 @@ def make_comparison_plot(
     if logy:
         ax[0].set_yscale("log")
     if xlab:
-        ax[0].set_xlabel(xlab)
+        ax[1].set_xlabel(xlab)
     if ylab:
-        ax[0].set_ylabel(ylab)
+        ax[0].set_title(ylab)
 
     ax[0].legend()
 

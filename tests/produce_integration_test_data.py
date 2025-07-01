@@ -279,6 +279,7 @@ def get_node_z(redshift, lc=False, **kwargs):
                 ),
             ),
         )
+    print("NODE REDSHIFTS: ", node_redshifts)
     return node_redshifts
 
 
