@@ -839,11 +839,11 @@ int sample_halo_grids(gsl_rng **rng_arr, double redshift, float *dens_field,
     unsigned long long int arraysize_total = halofield_out->buffer_size;
     unsigned long long int arraysize_local = arraysize_total / simulation_options_global->N_THREADS;
 
-    LOG_DEBUG("Beginning stochastic halo sampling on %d ^3 grid", lo_dim);
-    LOG_DEBUG("z = %f, Mmin = %e, Mmax = %e,volume = %.3e, D = %.3e", redshift, Mmin, Mcell,
-              Mcell / RHOcrit / cosmo_params_global->OMm, growthf);
-    LOG_DEBUG("Total Array Size %llu, array size per thread %llu (~%.3e GB total)", arraysize_total,
-              arraysize_local, 6. * arraysize_total * sizeof(int) / 1e9);
+    LOG_INFO("Beginning stochastic halo sampling on %d ^3 grid", lo_dim);
+    LOG_INFO("z = %f, Mmin = %e, Mmax = %e,volume = %.3e, D = %.3e", redshift, Mmin, Mcell,
+             Mcell / RHOcrit / cosmo_params_global->OMm, growthf);
+    LOG_INFO("Total Array Size %llu, array size per thread %llu (~%.3e GB total)", arraysize_total,
+             arraysize_local, 6. * arraysize_total * sizeof(int) / 1e9);
 
     double total_volume_excluded = 0.;
     double total_volume_dexm = 0.;
@@ -959,14 +959,14 @@ int sample_halo_grids(gsl_rng **rng_arr, double redshift, float *dens_field,
                 }
             }
         }
-        LOG_SUPER_DEBUG("Thread %d found %llu halos", threadnum, count);
+        LOG_INFO("Thread %d found %llu halos", threadnum, count);
 
         istart_threads[threadnum] = istart;
         nhalo_threads[threadnum] = count;
     }
 
-    LOG_SUPER_DEBUG("Total dexm volume %.6e Total volume excluded %.6e (In units of HII_DIM cells)",
-                    total_volume_dexm, total_volume_excluded);
+    LOG_INFO("Total dexm volume %.6e Total volume excluded %.6e (In units of HII_DIM cells)",
+             total_volume_dexm, total_volume_excluded);
     condense_sparse_halolist(halofield_out, istart_threads, nhalo_threads);
     return 0;
 }
