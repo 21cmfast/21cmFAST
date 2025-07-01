@@ -25,16 +25,16 @@
 #define MAX_HALO_CELL (int)1e5
 
 void print_hs_consts(struct HaloSamplingConstants *c) {
-    LOG_DEBUG("Printing halo sampler constants....");
-    LOG_DEBUG("from_catalog %d z_in %.2f z_out %.2f d_in %.2f d_out %.2f", c->from_catalog, c->z_in,
-              c->z_out, c->growth_in, c->growth_out);
-    LOG_DEBUG("M_min %.2e (%.2e) (%.2f) M_max %.2e (%.2e)", c->M_min, c->lnM_min, c->sigma_min,
-              c->M_max_tables, c->lnM_max_tb);
-    LOG_DEBUG("Corr Star %.2e SFR %.2e XRAY %.2e", c->corr_star, c->corr_sfr, c->corr_xray);
-    LOG_DEBUG("CONDITION DEPENDENT STUFF (may not be set)");
-    LOG_DEBUG("delta %.2e M_c %.2e (%.2e) (%.2e) cond %.2e", c->delta, c->M_cond, c->lnM_cond,
-              c->sigma_cond, c->cond_val);
-    LOG_DEBUG("exp N %.2f exp M %.2e", c->expected_N, c->expected_M);
+    LOG_INFO("Printing halo sampler constants....");
+    LOG_INFO("from_catalog %d z_in %.2f z_out %.2f d_in %.2f d_out %.2f", c->from_catalog, c->z_in,
+             c->z_out, c->growth_in, c->growth_out);
+    LOG_INFO("M_min %.2e (%.2e) (%.2f) M_max %.2e (%.2e)", c->M_min, c->lnM_min, c->sigma_min,
+             c->M_max_tables, c->lnM_max_tb);
+    LOG_INFO("Corr Star %.2e SFR %.2e XRAY %.2e", c->corr_star, c->corr_sfr, c->corr_xray);
+    LOG_INFO("CONDITION DEPENDENT STUFF (may not be set)");
+    LOG_INFO("delta %.2e M_c %.2e (%.2e) (%.2e) cond %.2e", c->delta, c->M_cond, c->lnM_cond,
+             c->sigma_cond, c->cond_val);
+    LOG_INFO("exp N %.2f exp M %.2e", c->expected_N, c->expected_M);
     return;
 }
 
