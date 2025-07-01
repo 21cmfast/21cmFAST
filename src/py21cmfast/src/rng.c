@@ -161,6 +161,10 @@ void seed_rng_threads_fast(gsl_rng *rng_arr[], unsigned long long int seed) {
             checker = 0;
         }
     }
+    printf("RNG threads seeded with seed %llu\n", seed);
+    for (thread_num = 0; thread_num < simulation_options_global->N_THREADS; thread_num++) {
+        printf("Thread %d seed: %u\n", thread_num, st_arr[thread_num]);
+    }
 }
 
 void free_rng_threads(gsl_rng *rng_arr[]) {
