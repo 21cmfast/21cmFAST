@@ -197,15 +197,15 @@ void stoc_set_consts_cond(struct HaloSamplingConstants *const_struct, double con
     // M_cell*(1.01^3) there *could* be a cell above Deltac not in a halo NOTE: all this does is
     // prevent integration errors below since these cases are also dealt with in stoc_sample
     if (const_struct->delta > MAX_DELTAC_FRAC * const_struct->delta_crit) {
-        if (MAKE_THE_PRINTS) printf("In case 0\n");
+        if (MAKE_THE_PRINTS) LOG_INFO("In case 0");
         const_struct->expected_M = const_struct->M_cond;
         const_struct->expected_N = 1;
     } else if (const_struct->delta <= DELTA_MIN || const_struct->M_cond < const_struct->M_min) {
-        if (MAKE_THE_PRINTS) printf("In case 1\n");
+        if (MAKE_THE_PRINTS) LOG_INFO("In case 1");
         const_struct->expected_M = 0;
         const_struct->expected_N = 0;
     } else {
-        if (MAKE_THE_PRINTS) printf("In case 2\n");
+        if (MAKE_THE_PRINTS) LOG_INFO("In case 2");
         n_exp = EvaluateNhalo(const_struct->cond_val, const_struct->growth_out,
                               const_struct->lnM_min, const_struct->lnM_max_tb, const_struct->M_cond,
                               const_struct->sigma_cond, const_struct->delta);
@@ -341,7 +341,7 @@ int stoc_halo_sample(struct HaloSamplingConstants *hs_constants, gsl_rng *rng, i
     if (MAKE_THE_PRINTS && nh > 0) {
         void *state = gsl_rng_state(rng);
         size_t n = gsl_rng_size(rng);
-        printf("Nhalo: %d (%.2f) %d\n", nh, exp_N, n);
+        LOG_INFO("Nhalo: %d (%.2f) %d", nh, exp_N, n);
     }
     for (ii = 0; ii < nh; ii++) {
         M_out[halo_count++] = sample_dndM_inverse(tbl_arg, hs_constants, rng);
@@ -936,9 +936,9 @@ int sample_halo_grids(gsl_rng **rng_arr, double redshift, float *dens_field,
                     stoc_sample(&hs_constants_priv, rng_arr[threadnum], &nh_buf, hm_buf);
 
                     if (nh_buf > 0) {
-                        printf(
+                        LOG_INFO(
                             "x %d y %d z %d: delta %1.6e, N %d (exp %.6lf) "
-                            "mass_defc %.2f\n",
+                            "mass_defc %.2f",
                             x, y, z, delta, nh_buf, hs_constants_priv.expected_N, mass_defc);
                     }
                     // output total halo number, catalogues of masses and positions
