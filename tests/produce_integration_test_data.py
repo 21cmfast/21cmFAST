@@ -9,36 +9,37 @@ and then numerical noise gets relatively more important, and can make the compar
 fail at the tens-of-percent level.
 """
 
-import glob
 import logging
-import os
-import sys
 import tempfile
 import warnings
 from pathlib import Path
+from typing import Literal
 
-import attrs
-import click
 import h5py
+import matplotlib.pyplot as plt
 import numpy as np
-import questionary as qs
+import tyro
 from powerbox import get_power
+from rich.console import Console
+from rich.rule import Rule
 
 from py21cmfast import (
-    CacheConfig,
+    Coeval,
     InputParameters,
+    LightCone,
+    OutputCache,
     SimulationOptions,
     compute_initial_conditions,
     config,
-    determine_halo_list,
     get_logspaced_redshifts,
     perturb_field,
-    perturb_halo_list,
+    plotting,
     run_coeval,
     run_lightcone,
 )
 from py21cmfast.lightconers import RectilinearLightconer
 
+cns = Console()
 logger = logging.getLogger("py21cmfast")
 logging.basicConfig()
 
@@ -54,7 +55,6 @@ DEFAULT_INPUTS_TESTRUNS = {
     "ZPRIME_STEP_FACTOR": 1.04,
     # MatterOptions
     "USE_HALO_FIELD": False,
-    "NO_RNG": True,
     "HALO_STOCHASTICITY": False,
     # AstroOptions
     "USE_EXP_FILTER": False,
@@ -296,19 +296,23 @@ def get_all_options_struct(redshift, lc=False, **kwargs):
     return options
 
 
-def produce_coeval_power_spectra(redshift, **kwargs):
+def produce_coeval_power_spectra(redshift: float, cache: OutputCache, **kwargs):
     options = get_all_options_struct(redshift, lc=False, **kwargs)
-    print("----- OPTIONS USED -----")
-    print(options)
-    print("------------------------")
-
-    [coeval] = run_coeval(write=False, **options)
+    cns.print("\tRunning Coeval")
+    [coeval] = run_coeval(
+        write=True,  # write so that perturbed fields and halos can be cached.
+        regenerate=True,
+        cache=cache,
+        **options,
+    )
     p = {}
 
     for field in COEVAL_FIELDS:
         if hasattr(coeval, field):
             p[field], k = get_power(
-                getattr(coeval, field), boxlength=coeval.simulation_options.BOX_LEN
+                getattr(coeval, field),
+                boxlength=coeval.simulation_options.BOX_LEN,
+                bins_upto_boxlen=True,
             )
 
     return k, p, coeval
@@ -333,11 +337,10 @@ def get_lc_fields(inputs):
     return quantities
 
 
-def produce_lc_power_spectra(redshift, **kwargs):
+def produce_lc_power_spectra(redshift: float, cache: OutputCache, **kwargs):
     options = get_all_options_struct(redshift, lc=True, **kwargs)
-    print("----- OPTIONS USED -----")
-    print(options)
-    print("------------------------")
+
+    cns.print("\tRunning Lightcone")
     node_z = options["inputs"].node_redshifts
 
     quantities = get_lc_fields(options["inputs"])
@@ -350,7 +353,9 @@ def produce_lc_power_spectra(redshift, **kwargs):
 
     _, _, _, lightcone = run_lightcone(
         lightconer=lcn,
-        write=False,
+        write=True,  # write so that perturbed fields and halos can be cached.
+        regenerate=True,
+        cache=cache,
         **options,
     )
 
@@ -360,6 +365,7 @@ def produce_lc_power_spectra(redshift, **kwargs):
             p[field], k = get_power(
                 lightcone.lightcones[field],
                 boxlength=lightcone.lightcone_dimensions,
+                bins_upto_boxlen=True,
             )
 
     return k, p, lightcone
@@ -377,10 +383,12 @@ def produce_perturb_field_data(redshift, **kwargs):
     p_dens, k_dens = get_power(
         pt_box.get("density"),
         boxlength=options["inputs"].simulation_options.BOX_LEN,
+        bins_upto_boxlen=True,
     )
     p_vel, k_vel = get_power(
         pt_box.get("velocity_z") * velocity_normalisation,
         boxlength=options["inputs"].simulation_options.BOX_LEN,
+        bins_upto_boxlen=True,
     )
 
     def hist(kind, xmin, xmax, nbins):
@@ -413,7 +421,9 @@ def get_filename(kind, name):
     return DATA_PATH / fname
 
 
-def produce_power_spectra_for_tests(name, redshift, force, direc, **kwargs):
+def produce_power_spectra_for_tests(
+    name, redshift, force, direc, **kwargs
+) -> tuple[Path, Coeval | None, LightCone | None]:
     fname = get_filename("power_spectra", name)
 
     # Need to manually remove it, otherwise h5py tries to add to it
@@ -421,15 +431,21 @@ def produce_power_spectra_for_tests(name, redshift, force, direc, **kwargs):
         if force:
             fname.unlink()
         else:
-            print(f"Skipping {fname} because it already exists.")
-            return fname
+            cns.print(
+                f"\t[orange]:warning: Skipping {fname} because it already exists."
+            )
+            return fname, None, None
 
     # For tests, we *don't* want to use cached boxes, but we also want to use the
     # cache between the power spectra and lightcone. So we create a temporary
     # directory in which to cache results.
-    with config.use(direc=direc):
-        k, p, coeval = produce_coeval_power_spectra(redshift, **kwargs)
-        k_l, p_l, lc = produce_lc_power_spectra(redshift, **kwargs)
+    cns.print(f"\tOptions: {kwargs}")
+    k, p, coeval = produce_coeval_power_spectra(
+        redshift, cache=OutputCache(direc), **kwargs
+    )
+    k_l, p_l, lc = produce_lc_power_spectra(
+        redshift, cache=OutputCache(direc), **kwargs
+    )
 
     with h5py.File(fname, "w") as fl:
         for key, v in kwargs.items():
@@ -452,8 +468,8 @@ def produce_power_spectra_for_tests(name, redshift, force, direc, **kwargs):
         lc_grp["global_neutral_fraction"] = lc.global_quantities["neutral_fraction"]
         lc_grp["global_brightness_temp"] = lc.global_quantities["brightness_temp"]
 
-    print(f"Produced {fname} with {kwargs}")
-    return fname
+    cns.print(f"\tProduced {fname}")
+    return fname, coeval, lc
 
 
 def produce_data_for_perturb_field_tests(name, redshift, force, **kwargs):
@@ -498,73 +514,8 @@ def produce_data_for_perturb_field_tests(name, redshift, force, **kwargs):
         fl["pdf_vel"] = Y_vel
         fl["x_vel"] = X_vel
 
-    print(f"Produced {fname} with {kwargs}")
+    cns.print(f"\tProduced {fname}")
     return fname
-
-
-main = click.Group()
-
-
-@main.command()
-@click.option("--log-level", default="WARNING")
-@click.option("--force/--no-force", default=False)
-@click.option("--remove/--no-remove", default=True)
-@click.option("--pt-only/--not-pt-only", default=False)
-@click.option("--no-pt/--pt", default=False)
-@click.option(
-    "--names",
-    multiple=True,
-    type=click.Choice(list(OPTIONS_TESTRUNS.keys())),
-    default=list(OPTIONS_TESTRUNS.keys()),
-)
-def go(
-    log_level: str,
-    force: bool,
-    remove: bool,
-    pt_only: bool,
-    no_pt: bool,
-    names,
-):
-    logger.setLevel(log_level.upper())
-
-    if names != list(OPTIONS_TESTRUNS.keys()):
-        remove = False
-        force = True
-
-    if pt_only or no_pt:
-        remove = False
-
-    # For tests, we *don't* want to use cached boxes, but we also want to use the
-    # cache between the power spectra and lightcone. So we create a temporary
-    # directory in which to cache results.
-    direc = tempfile.mkdtemp()
-    fnames = []
-
-    if not pt_only:
-        for name in names:
-            redshift = OPTIONS_TESTRUNS[name][0]
-            kwargs = OPTIONS_TESTRUNS[name][1]
-
-            fnames.append(
-                produce_power_spectra_for_tests(name, redshift, force, direc, **kwargs)
-            )
-
-    if not no_pt:
-        for name, (redshift, kwargs) in OPTIONS_PT.items():
-            fnames.append(
-                produce_data_for_perturb_field_tests(name, redshift, force, **kwargs)
-            )
-
-    # Remove extra files that
-    if not ((names != list(OPTIONS_TESTRUNS.keys())) or pt_only or no_pt):
-        all_files = DATA_PATH.glob("*")
-        for fl in all_files:
-            if fl not in fnames:
-                if remove:
-                    print(f"Removing old file: {fl}")
-                    fl.unlink()
-                else:
-                    print(f"File is now redundant and can be removed: {fl}")
 
 
 def print_failure_stats(test, truth, inputs, abs_tol, rel_tol, name):
@@ -613,5 +564,161 @@ def print_failure_stats(test, truth, inputs, abs_tol, rel_tol, name):
     return True
 
 
+CASE_CHOICES = Literal[tuple(OPTIONS_TESTRUNS.keys())]
+
+
+def go(
+    log_level: Literal["WARNING", "DEBUG", "INFO", "ERROR", "CRITICAL"] = "WARNING",
+    force: bool = False,
+    remove: bool = True,
+    pt_only: bool = False,
+    no_pt: bool = False,
+    names: tuple[CASE_CHOICES, ...] = tuple(OPTIONS_TESTRUNS.keys()),
+):
+    cns.print(Rule("[bold][purple]Reproducing Integration Test Data!"))
+
+    logger.setLevel(log_level.upper())
+
+    if names != list(OPTIONS_TESTRUNS.keys()):
+        remove = False
+        force = True
+
+    if pt_only or no_pt:
+        remove = False
+
+    # For tests, we *don't* want to use cached boxes, but we also want to use the
+    # cache between the power spectra and lightcone. So we create a temporary
+    # directory in which to cache results.
+    direc = tempfile.mkdtemp()
+    fnames = []
+
+    if not pt_only:
+        # While we're making the lightcones / coevals, take the opportunity to make some
+        # nice plots of the fields.
+        bt_coeval_fig, bt_coeval_ax = plt.subplots(
+            int(np.ceil(np.sqrt(len(names)))),
+            int(np.ceil(np.sqrt(len(names)))),
+            figsize=(12, 12),
+            sharex=True,
+            sharey=True,
+            gridspec_kw={"hspace": 0.1, "wspace": 0.1},
+            layout="constrained",
+        )
+
+        bt_lc_fig, bt_lc_ax = plt.subplots(
+            len(names),
+            1,
+            figsize=(12, 3 * len(names)),
+            sharex=True,
+            sharey=True,
+            gridspec_kw={"hspace": 0.1, "wspace": 0.1},
+            layout="constrained",
+        )
+
+        for i, name in enumerate(names):
+            cns.print(f"Running case '{name}'... [{i + 1}/{len(names)}]")
+            redshift = OPTIONS_TESTRUNS[name][0]
+            kwargs = OPTIONS_TESTRUNS[name][1]
+
+            fname, coeval, lc = produce_power_spectra_for_tests(
+                name, redshift, force, direc, **kwargs
+            )
+            fnames.append(fname)
+
+            # Make a coeval plot for _this_ case with all the fields...
+            if coeval is not None:
+                fig, ax = plt.subplots(
+                    1,
+                    len(COEVAL_FIELDS),
+                    figsize=(3 * len(COEVAL_FIELDS), 4),
+                    gridspec_kw={"hspace": 0, "wspace": 0},
+                    sharex=True,
+                    sharey=True,
+                    layout="constrained",
+                )
+                for j, field in enumerate(COEVAL_FIELDS):
+                    if hasattr(coeval, field):
+                        plotting.coeval_sliceplot(coeval, kind=field, fig=fig, ax=ax[j])
+                        ax[j].set_title(field)
+                    else:
+                        ax[j].off()
+
+                fig.savefig(f"integration-test-plots/coeval-sliceplots-{name}.pdf")
+                plt.close(fig)
+
+                # Now plot the brightness temperature coeval with other cases.
+                plotting.coeval_sliceplot(
+                    coeval,
+                    kind="brightness_temp",
+                    ax=bt_coeval_ax.flatten()[i],
+                    fig=bt_coeval_fig,
+                )
+                bt_coeval_ax.flatten()[i].text(
+                    0.1,
+                    0.9,
+                    name,
+                    transform=bt_coeval_ax.flatten()[i].transAxes,
+                    color="white",
+                )
+
+            # Make a lightcone plot for _this_ case with all the fields...
+            if lc is not None:
+                fig, ax = plt.subplots(
+                    len(LIGHTCONE_FIELDS),
+                    1,
+                    figsize=(8, 3 * len(LIGHTCONE_FIELDS)),
+                    sharex=True,
+                    sharey=True,
+                    gridspec_kw={"wspace": 0, "hspace": 0},
+                    layout="constrained",
+                )
+                for j, field in enumerate(LIGHTCONE_FIELDS):
+                    if field in lc.lightcones:
+                        plotting.lightcone_sliceplot(lc, kind=field, fig=fig, ax=ax[j])
+                        ax[j].set_title(field)
+                    else:
+                        ax[j].off()
+
+                fig.savefig(f"integration-test-plots/lightcone-sliceplots-{name}.pdf")
+                plt.close(fig)
+
+                plotting.lightcone_sliceplot(
+                    lc, kind="brightness_temp", ax=bt_lc_ax.flatten()[i], fig=bt_lc_fig
+                )
+                bt_lc_ax.flatten()[i].text(
+                    0.1,
+                    0.9,
+                    name,
+                    transform=bt_lc_ax.flatten()[i].transAxes,
+                    color="white",
+                )
+
+        bt_coeval_fig.savefig(
+            "integration-test-plots/coeval-brightness-temp-allcases.pdf"
+        )
+        bt_lc_fig.savefig("integration-test-plots/lc-brightness-temp-allcases.pdf")
+
+    cns.print("[green]:tick: Finished producing Coeval and Lightcone power spectra.")
+
+    if not no_pt:
+        cns.print("Running perturb_field test data...")
+        fnames.extend(
+            produce_data_for_perturb_field_tests(name, redshift, force, **kwargs)
+            for name, (redshift, kwargs) in OPTIONS_PT.items()
+        )
+    # Remove extra files
+    if not ((names != list(OPTIONS_TESTRUNS.keys())) or pt_only or no_pt):
+        all_files = DATA_PATH.glob("*")
+        for fl in all_files:
+            if fl not in fnames:
+                if remove:
+                    cns.print(f"[orange]Removing old file: {fl}")
+                    fl.unlink()
+                else:
+                    cns.print(
+                        f":warning: File is now redundant and can be removed: {fl}"
+                    )
+
+
 if __name__ == "__main__":
-    main()
+    tyro.cli(go)
