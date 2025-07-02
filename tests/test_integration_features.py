@@ -29,7 +29,7 @@ import matplotlib as mpl
 import numpy as np
 import pytest
 
-from py21cmfast import Coeval, LightCone, config
+from py21cmfast import Coeval, LightCone, OutputCache, config
 
 from . import produce_integration_test_data as prd
 
@@ -57,7 +57,9 @@ def test_power_spectra_coeval(name, module_direc, plt):
 
     # Now compute the Coeval object
     with config.use(direc=module_direc, regenerate=False, write=True):
-        test_k, test_powers, cv = prd.produce_coeval_power_spectra(redshift, **kwargs)
+        test_k, test_powers, cv = prd.produce_coeval_power_spectra(
+            redshift, cache=OutputCache(module_direc), **kwargs
+        )
 
     assert isinstance(cv, Coeval)
     assert np.all(np.isfinite(cv.brightness_temp))
@@ -104,7 +106,7 @@ def test_power_spectra_lightcone(name, module_direc, plt, benchmark):
     with config.use(direc=module_direc, regenerate=False, write=True):
         test_k, test_powers, lc = benchmark.pedantic(
             prd.produce_lc_power_spectra,
-            kwargs=dict(redshift=redshift, **kwargs),
+            kwargs=dict(redshift=redshift, cache=OutputCache(module_direc), **kwargs),
             iterations=1,  # these tests can be slow
             rounds=1,
         )
