@@ -135,8 +135,8 @@ int ComputeInitialConditions(unsigned long long random_seed, InitialConditions *
 
         init_ps();
 
-#pragma omp parallel shared(HIRES_box, r)                        \
-    private(n_x, n_y, n_z, k_x, k_y, k_z, k_mag, p, a, b, p_vcb) \
+#pragma omp parallel shared(HIRES_box, r) private(n_x, n_y, n_z, k_x, k_y, k_z, k_mag, p, a, b, \
+                                                      p_vcb)                                    \
     num_threads(simulation_options_global -> N_THREADS)
         {
             int thread_num = omp_get_thread_num();
@@ -171,13 +171,8 @@ int ComputeInitialConditions(unsigned long long random_seed, InitialConditions *
 
                         // ok, now we can draw the values of the real and imaginary part
                         // of our k entry from a Gaussian distribution
-                        if (matter_options_global->NO_RNG) {
-                            a = 1.0;
-                            b = -1.0;
-                        } else {
-                            a = gsl_ran_ugaussian(r[thread_num]);
-                            b = gsl_ran_ugaussian(r[thread_num]);
-                        }
+                        a = gsl_ran_ugaussian(r[thread_num]);
+                        b = gsl_ran_ugaussian(r[thread_num]);
 
                         HIRES_box[C_INDEX(n_x, n_y, n_z)] = sqrt(VOLUME * p / 2.0) * (a + b * I);
                     }
@@ -646,8 +641,8 @@ int ComputeInitialConditions(unsigned long long random_seed, InitialConditions *
                 // Then we will have the laplacian of phi_2 (eq. D13b)
                 // After that we have to return in Fourier space and generate the Fourier transform
                 // of phi_2
-#pragma omp parallel shared(HIRES_box, phi_1, phi_component)   \
-    private(i, j, k, component_ii, component_jj, component_ij) \
+#pragma omp parallel shared(HIRES_box, phi_1, phi_component) private( \
+        i, j, k, component_ii, component_jj, component_ij)            \
     num_threads(simulation_options_global -> N_THREADS)
                 {
 #pragma omp for

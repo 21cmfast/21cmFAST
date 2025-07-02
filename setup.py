@@ -33,7 +33,8 @@ test_req = [
     "powerbox",
     "pytest-plt",
     "pytest-benchmark",
-    "questionary",
+    "tyro",
+    "rich",
     "pytest-xdist",
     "classy<3.3",  # classy 3.3 not installing (some cython error)
     "pytest-mock",

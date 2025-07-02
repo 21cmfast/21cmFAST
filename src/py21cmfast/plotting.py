@@ -332,6 +332,7 @@ def lightcone_sliceplot(
         "cmap", "EoR" if kind.startswith("brightness_temp") else "viridis"
     )
     cbar_horizontal = kwargs.pop("cbar_horizontal", not vertical)
+
     if lightcone2 is None:
         fig, ax = _imshow_slice(
             lightcone.lightcones[kind][:, :, plot_sel],
