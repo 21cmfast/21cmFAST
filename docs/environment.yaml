@@ -22,4 +22,3 @@ dependencies:
     - nbsphinx
     - nbconvert>=6.4.5
     - cffi
-    - .
