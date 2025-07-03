@@ -30,7 +30,7 @@
 #include "logger.h"
 
 int check_halo(char *in_halo, float R, int x, int y, int z, int check_type);
-void init_halo_coords(HaloField *halos, long long unsigned int n_halos);
+void init_halo_pos(HaloField *halos, long long unsigned int n_halos);
 int pixel_in_halo(int grid_dim, int z_dim, int x, int x_index, int y, int y_index, int z,
                   int z_index, float Rsq_curr_index);
 void free_halo_field(HaloField *halos);
@@ -84,7 +84,7 @@ int ComputeHaloField(float redshift_desc, float redshift, InitialConditions *box
         // store highly used parameters
         int grid_dim = simulation_options_global->DIM;
         int z_dim = D_PARA;
-
+        double cell_length = simulation_options_global->BOX_LEN / grid_dim;
         // set minimum source mass
         // if we use the sampler we want to stop at the HII cell mass
         if (matter_options_global->HALO_STOCHASTICITY)
@@ -302,7 +302,7 @@ int ComputeHaloField(float redshift_desc, float redshift, InitialConditions *box
 
         // Allocate the Halo Mass and Coordinate Fields (non-wrapper structure)
         if (matter_options_global->HALO_STOCHASTICITY)
-            init_halo_coords(halos_dexm, total_halo_num);
+            init_halo_pos(halos_dexm, total_halo_num);
         else
             halos_dexm->n_halos = total_halo_num;
 
@@ -319,9 +319,10 @@ int ComputeHaloField(float redshift_desc, float redshift, InitialConditions *box
                     halo_buf = halo_field[R_INDEX(x, y, z)];
                     if (halo_buf > 0.) {
                         halos_dexm->halo_masses[count] = halo_buf;
-                        halos_dexm->halo_coords[3 * count + 0] = x;
-                        halos_dexm->halo_coords[3 * count + 1] = y;
-                        halos_dexm->halo_coords[3 * count + 2] = z;
+                        // place DexM halos at the centre of the cell
+                        halos_dexm->halo_pos[3 * count + 0] = x * cell_length + 0.5;
+                        halos_dexm->halo_pos[3 * count + 1] = y * cell_length + 0.5;
+                        halos_dexm->halo_pos[3 * count + 2] = z * cell_length + 0.5;
                         count++;
                     }
                 }
@@ -337,7 +338,7 @@ int ComputeHaloField(float redshift_desc, float redshift, InitialConditions *box
             // by halos
             //   This is used in the sampler
             // we don't need the density field anymore so we reuse it
-#pragma omp parallel private(i, j, k) num_threads(simulation_options_global -> N_THREADS)
+#pragma omp parallel private(i, j, k) num_threads(simulation_options_global->N_THREADS)
             {
 #pragma omp for
                 for (i = 0; i < grid_dim; i++) {
@@ -366,7 +367,7 @@ int ComputeHaloField(float redshift_desc, float redshift, InitialConditions *box
             float f_pixel_factor =
                 simulation_options_global->DIM / (float)simulation_options_global->HII_DIM;
             // Now downsample the highres grid to get the lowres version
-#pragma omp parallel private(i, j, k) num_threads(simulation_options_global -> N_THREADS)
+#pragma omp parallel private(i, j, k) num_threads(simulation_options_global->N_THREADS)
             {
 #pragma omp for
                 for (i = 0; i < simulation_options_global->HII_DIM; i++) {
@@ -515,12 +516,12 @@ int check_halo(char *in_halo, float R, int x, int y, int z, int check_type) {
     return 0;
 }
 
-void init_halo_coords(HaloField *halos, long long unsigned int n_halos) {
+void init_halo_pos(HaloField *halos, long long unsigned int n_halos) {
     // Minimise memory usage by only storing the halo mass and positions
     halos->n_halos = n_halos;
     unsigned long long int alloc_size = fmax(1, n_halos);
     halos->halo_masses = (float *)calloc(alloc_size, sizeof(float));
-    halos->halo_coords = (int *)calloc(3 * alloc_size, sizeof(int));
+    halos->halo_pos = (float *)calloc(3 * alloc_size, sizeof(float));
 
     halos->star_rng = (float *)calloc(alloc_size, sizeof(float));
     halos->sfr_rng = (float *)calloc(alloc_size, sizeof(float));
@@ -530,7 +531,7 @@ void init_halo_coords(HaloField *halos, long long unsigned int n_halos) {
 void free_halo_field(HaloField *halos) {
     LOG_DEBUG("Freeing HaloField instance.");
     free(halos->halo_masses);
-    free(halos->halo_coords);
+    free(halos->halo_pos);
     free(halos->star_rng);
     free(halos->sfr_rng);
     free(halos->xray_rng);
