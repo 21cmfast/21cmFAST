@@ -40,7 +40,7 @@ test_req = [
     "pytest-mock",
 ]
 
-doc_req = ["nbsphinx", "numpydoc", "sphinx >= 1.3", "sphinx-rtd-theme"]
+doc_req = ["nbsphinx", "numpydoc", "sphinx >= 1.3", "furo"]
 
 setup(
     name="21cmFAST",

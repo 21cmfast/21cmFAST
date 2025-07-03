@@ -1,6 +1,6 @@
 channels:
-  - defaults
   - conda-forge
+  - defaults
 
 dependencies:
   - pip
@@ -13,7 +13,7 @@ dependencies:
   - nbconvert>=6.4.5
   - ipykernel
   - pip:
-    - sphinx-rtd-theme
+    - furo
     - setuptools_scm
     - bidict
     - cosmotile

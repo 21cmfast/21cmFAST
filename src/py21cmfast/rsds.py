@@ -27,10 +27,10 @@ def compute_rsds(
     redshifts: np.ndarray,
     distances: Sequence[units.Quantity],
     inputs: InputParameters,
-    tau_21: np.ndarray = None,
+    tau_21: np.ndarray | None = None,
     periodic: bool | None = None,
     n_subcells: int | None = None,
-):
+) -> np.ndarray:
     """Compute redshift-space distortions from the los_velocity lightcone.
 
     This includes both modification to the optical depth due to a velocity gradient
@@ -38,26 +38,26 @@ def compute_rsds(
 
     Parameters
     ----------
-    brightness_temp: nd-array
+    brightness_temp
         A box of the brightness temperature, without redshift space distortions.
-    los_velocity: nd-array
+    los_velocity
         A box of the los velocity.
-    redshifts: nd-array
+    redshifts
         An array of the redshifts along the los. Can also be a float (could be useful for coeval boxes)
-    distances: nd-array
+    distances
         An array of the comoving distances along the los.
-    inputs: InputParameters
+    inputs
         The input parameters corresponding to the box.
-    tau_21: nd-array, optioanl
+    tau_21
         A box of the 21cm optical depth. Not required if inputs.astro_options.USE_TS_FLUCT = False.
-    periodic: bool, optioanl
+    periodic
         Whether to assume periodic boundary conditions along the line-of-sight.
-    n_subcells: int, optional
+    n_subcells
         The number of sub-cells to interpolate onto, to make the RSDs more accurate. Default is inputs.astro_options.N_RSD_STEPS.
 
     Returns
     -------
-    tb_with_rsds : nd-array
+    tb_with_rsds
         A box of the brightness temperature, with redshift space distortions.
     """
     if tau_21 is None and inputs.astro_options.USE_TS_FLUCT:
