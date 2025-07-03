@@ -56,10 +56,9 @@ def test_power_spectra_coeval(name, module_direc, plt):
                 print(f"{key} --> {fieldname} loaded")
 
     # Now compute the Coeval object
-    with config.use(direc=module_direc, regenerate=False, write=True):
-        test_k, test_powers, cv = prd.produce_coeval_power_spectra(
-            redshift, cache=OutputCache(module_direc), **kwargs
-        )
+    test_k, test_powers, cv = prd.produce_coeval_power_spectra(
+        redshift, cache=OutputCache(module_direc), **kwargs
+    )
 
     assert isinstance(cv, Coeval)
     assert np.all(np.isfinite(cv.brightness_temp))
@@ -103,13 +102,12 @@ def test_power_spectra_lightcone(name, module_direc, plt, benchmark):
                 true_global[fieldname] = fl["lightcone"][key][...]
 
     # Now compute the lightcone
-    with config.use(direc=module_direc, regenerate=False, write=True):
-        test_k, test_powers, lc = benchmark.pedantic(
-            prd.produce_lc_power_spectra,
-            kwargs=dict(redshift=redshift, cache=OutputCache(module_direc), **kwargs),
-            iterations=1,  # these tests can be slow
-            rounds=1,
-        )
+    test_k, test_powers, lc = benchmark.pedantic(
+        prd.produce_lc_power_spectra,
+        kwargs=dict(redshift=redshift, cache=OutputCache(module_direc), **kwargs),
+        iterations=1,  # these tests can be slow
+        rounds=1,
+    )
 
     assert isinstance(lc, LightCone)
     assert np.all(np.isfinite(lc.lightcones["brightness_temp"]))
