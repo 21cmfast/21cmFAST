@@ -12,6 +12,8 @@ dependencies:
   - matplotlib
   - nbconvert>=6.4.5
   - ipykernel
+  - gsl
+  - fftw
   - pip:
     - furo
     - setuptools_scm
@@ -20,3 +22,4 @@ dependencies:
     - nbsphinx
     - nbconvert>=6.4.5
     - cffi
+    - .
