@@ -29,7 +29,7 @@ import matplotlib as mpl
 import numpy as np
 import pytest
 
-from py21cmfast import Coeval, LightCone, config
+from py21cmfast import Coeval, LightCone, OutputCache, config
 
 from . import produce_integration_test_data as prd
 
@@ -56,8 +56,9 @@ def test_power_spectra_coeval(name, module_direc, plt):
                 print(f"{key} --> {fieldname} loaded")
 
     # Now compute the Coeval object
-    with config.use(direc=module_direc, regenerate=False, write=True):
-        test_k, test_powers, cv = prd.produce_coeval_power_spectra(redshift, **kwargs)
+    test_k, test_powers, cv = prd.produce_coeval_power_spectra(
+        redshift, cache=OutputCache(module_direc), **kwargs
+    )
 
     assert isinstance(cv, Coeval)
     assert np.all(np.isfinite(cv.brightness_temp))
@@ -101,13 +102,12 @@ def test_power_spectra_lightcone(name, module_direc, plt, benchmark):
                 true_global[fieldname] = fl["lightcone"][key][...]
 
     # Now compute the lightcone
-    with config.use(direc=module_direc, regenerate=False, write=True):
-        test_k, test_powers, lc = benchmark.pedantic(
-            prd.produce_lc_power_spectra,
-            kwargs=dict(redshift=redshift, **kwargs),
-            iterations=1,  # these tests can be slow
-            rounds=1,
-        )
+    test_k, test_powers, lc = benchmark.pedantic(
+        prd.produce_lc_power_spectra,
+        kwargs=dict(redshift=redshift, cache=OutputCache(module_direc), **kwargs),
+        iterations=1,  # these tests can be slow
+        rounds=1,
+    )
 
     assert isinstance(lc, LightCone)
     assert np.all(np.isfinite(lc.lightcones["brightness_temp"]))
@@ -171,7 +171,12 @@ def make_lightcone_comparison_plot(
 ):
     n = len(true_global) + len(true_powers)
     fig, ax = plt.subplots(
-        2, n, figsize=(4 * n, 6), constrained_layout=True, sharex="col"
+        2,
+        n,
+        figsize=(4 * n, 6),
+        constrained_layout=True,
+        sharex="col",
+        gridspec_kw={"hspace": 0.1, "wspace": 0.1},
     )
 
     for i, (key, val) in enumerate(test_powers.items()):
@@ -183,11 +188,21 @@ def make_lightcone_comparison_plot(
             ax[:, i],
             xlab="k",
             ylab=f"{plot_ylab[key]} Power",
+            make_lower_ylab=i == 0,
         )
 
     for j, (key, val) in enumerate(test_global.items(), start=i + 1):
         make_comparison_plot(
-            z, z, true_global[key], val, ax[:, j], xlab="z", ylab=f"{plot_ylab[key]}"
+            z,
+            z,
+            true_global[key],
+            val,
+            ax[:, j],
+            xlab="z",
+            ylab=f"{plot_ylab[key]}",
+            logx=False,
+            logy=False,
+            make_lower_ylab=False,
         )
 
 
@@ -209,11 +224,21 @@ def make_coeval_comparison_plot(true_k, k, true_powers, test_powers, plt):
             ax[:, i],
             xlab="k",
             ylab=f"{plot_ylab[key]} Power",
+            make_lower_ylab=i == 0,
         )
 
 
 def make_comparison_plot(
-    xtrue, x, true, test, ax, logx=True, logy=True, xlab=None, ylab=None
+    xtrue,
+    x,
+    true,
+    test,
+    ax,
+    logx=True,
+    logy=True,
+    xlab=None,
+    ylab=None,
+    make_lower_ylab=True,
 ):
     ax[0].plot(xtrue, true, label="True")
     ax[0].plot(x, test, label="Test")
@@ -222,14 +247,16 @@ def make_comparison_plot(
     if logy:
         ax[0].set_yscale("log")
     if xlab:
-        ax[0].set_xlabel(xlab)
+        ax[1].set_xlabel(xlab)
     if ylab:
-        ax[0].set_ylabel(ylab)
+        ax[0].set_title(ylab)
 
     ax[0].legend()
 
     ax[1].plot(x, (test - true) / true)
-    ax[1].set_ylabel("Fractional Difference")
+
+    if make_lower_ylab:
+        ax[1].set_ylabel("Fractional Difference")
 
 
 @pytest.mark.parametrize("name", options_pt)

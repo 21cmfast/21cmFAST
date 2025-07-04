@@ -20,14 +20,16 @@ In version 3, the user specified four input parameter structures (``CosmoParams`
 :class:`InputParameters`, while many of the underlying parameters are unchanged, there are now simpler ways to
 construct parameter sets, and consistency between your inputs is more explicily enforced.
 Key differences include:
+
 - We allow for the creation of TOML templates to easily save parameter sets, and provide several native templates
-  for common modes. Call :func:`py21cmfast.run_templates.list_templates` for a full list
+for common modes. Call :func:`py21cmfast.run_templates.list_templates` for a full list
 - We no longer fix parameter sets behind the scenes to make them consistent, it is now up to the user to ensure
-  their parameters pass our consistency checks.
+their parameters pass our consistency checks.
 - While the parameters are still separated by type in the backend (mostly for caching purposes), all parameters
-  are passed as one object to each of our functions.
+are passed as one object to each of our functions.
 
 The most common operating mode will simply load from a template: ::
+
     inputs = py21cmfast.InputParameters.from_template(
         'latest',
         random_seed=1234,
@@ -77,6 +79,8 @@ still do so using ``h5py`` or any HDF5 reader. We do not recommend using these i
 ``21cmFASTv4``.
 
 The File structure for a coeval in v3 resembled the following:
+
+```
 - File
   - OutputStruct_1
     - Array Fields...
@@ -91,8 +95,10 @@ The File structure for a coeval in v3 resembled the following:
   - astro_params
   - flag_options
   - _globals
+```
 
 In v4 we use the following:
+```
 - File
   - OutputStruct_1
     - OutputFields
@@ -104,6 +110,7 @@ In v4 we use the following:
       - astro_params
       - astro_options
   - ...
+```
 
 Single Field Function Names
 ===========================
@@ -122,6 +129,7 @@ in the order which they are called in ``run_lightcone``:
 Output Field Names
 ==================
 Similar to the function names, some output fields have also been renamed for clarity:
+
 - Fields in TsBox
   - x_e_box -- xray_ionised_fraction
   - Tk_box -- kinetic_temp_neutral

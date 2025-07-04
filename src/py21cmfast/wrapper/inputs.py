@@ -79,6 +79,7 @@ Planck18 = Planck15.clone(
     Om0=(0.02242 + 0.11933) / 0.6766**2,
     Ob0=0.02242 / 0.6766**2,
     H0=67.66,
+    Neff=3.044,
     name="Planck18",
 )
 
@@ -388,9 +389,6 @@ class MatterOptions(InputStruct):
     PERTURB_ON_HIGH_RES : bool, optional
         Whether to perform the Zel'Dovich or 2LPT perturbation on the low or high
         resolution grid.
-    NO_RNG : bool, optional
-        Ability to turn off random number generation for initial conditions. Can be
-        useful for debugging and adding in new features
     USE_FFTW_WISDOM : bool, optional
         Whether or not to use stored FFTW_WISDOMs for improving performance of FFTs
     USE_INTERPOLATION_TABLES: str, optional
@@ -475,7 +473,6 @@ class MatterOptions(InputStruct):
         transformer=choice_transformer(_power_models),
     )
     PERTURB_ON_HIGH_RES = field(default=False, converter=bool)
-    NO_RNG = field(default=False, converter=bool)
     USE_INTERPOLATION_TABLES = field(
         default="hmf-interpolation",
         converter=str,

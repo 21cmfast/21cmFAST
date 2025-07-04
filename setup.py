@@ -33,12 +33,14 @@ test_req = [
     "powerbox",
     "pytest-plt",
     "pytest-benchmark",
-    "questionary",
+    "tyro",
+    "rich",
     "pytest-xdist",
+    "classy<3.3",  # classy 3.3 not installing (some cython error)
     "pytest-mock",
 ]
 
-doc_req = ["nbsphinx", "numpydoc", "sphinx >= 1.3", "sphinx-rtd-theme"]
+doc_req = ["nbsphinx", "numpydoc", "sphinx >= 1.3", "furo"]
 
 setup(
     name="21cmFAST",
@@ -87,6 +89,7 @@ setup(
         "cosmotile>=0.2.0",
         "attrs",
         "tqdm",
+        "classy<3.3",
     ],
     extras_require={"tests": test_req, "docs": doc_req, "dev": test_req + doc_req},
     setup_requires=["cffi>=1.0", "setuptools_scm"],

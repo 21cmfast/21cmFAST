@@ -14,7 +14,7 @@ except ModuleNotFoundError:  # pragma: no cover
         # package is not installed
         __version__ = "unknown"
 
-from . import lightcones, plotting, wrapper
+from . import lightconers, plotting, wrapper
 from ._cfg import config
 from ._data import DATA_PATH
 from ._logging import configure_logging
@@ -32,7 +32,7 @@ from .drivers.single_field import (
     perturb_halo_list,
 )
 from .io.caching import CacheConfig, OutputCache, RunCache
-from .lightcones import AngularLightconer, RectilinearLightconer
+from .lightconers import AngularLightconer, RectilinearLightconer
 from .run_templates import create_params_from_template
 from .utils import get_all_fieldnames
 from .wrapper.cfuncs import (
@@ -40,6 +40,7 @@ from .wrapper.cfuncs import (
     compute_tau,
     construct_fftw_wisdoms,
 )
+from .wrapper.classy_interface import compute_rms, run_classy
 from .wrapper.inputs import (
     AstroOptions,
     AstroParams,

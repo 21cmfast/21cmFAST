@@ -100,7 +100,7 @@ while the globally averaged quantities are in the ``global_quantities`` group::
     plt.plot(redshifts, global_Tb)
 
 Can I instantiate my own OutputStruct objects?
--------------------------------------------
+----------------------------------------------
 Usually, you create instances of an :class:`py21cmfast.wrapper.outputs.OutputStruct`
 object by running either :func:`py21cmfast.run_coeval` or some lower-level function,
 like :func:`py21cmfast.compute_initial_conditions`. However, it's possible you want to

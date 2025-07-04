@@ -59,7 +59,6 @@ typedef struct MatterOptions {
     int USE_RELATIVE_VELOCITIES;
     int POWER_SPECTRUM;
     int USE_INTERPOLATION_TABLES;
-    bool NO_RNG;
     bool PERTURB_ON_HIGH_RES;
     int PERTURB_ALGORITHM;
     bool MINIMIZE_MEMORY;
