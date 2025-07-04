@@ -1,8 +1,8 @@
 """Tests of the RSDS module."""
 
+import numpy as np
 import pytest
 from astropy import units
-import numpy as np
 
 import py21cmfast as p21c
 from py21cmfast import run_coeval
