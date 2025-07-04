@@ -7,8 +7,8 @@ from astropy import units
 import py21cmfast as p21c
 from py21cmfast import run_coeval
 from py21cmfast.lightconers import RectilinearLightconer
-from py21cmfast.wrapper.classy_interface import run_classy
 from py21cmfast.rsds import apply_rsds, cloud_in_cell_los
+from py21cmfast.wrapper.classy_interface import run_classy
 
 
 class TestFindRequiredLightconeLimits:
@@ -92,13 +92,14 @@ def test_bad_lightconer_inputs(default_input_struct_ts):
             inputs=default_input_struct_ts.evolve_input_structs(SUBCELL_RSD=True),
         )
 
+
 def test_apply_rsds_sum():
-    "Test that sum along LOS is perserved in cloud in cell for a periodic box."
+    """Test that sum along LOS is perserved in cloud in cell for a periodic box."""
     nslices = 10
     nangles = 5
     rng = np.random.default_rng(12345)
-    box_in = rng.random((nangles ,nslices))
-    los_displacement = rng.random((nangles ,nslices)) * units.pixel
+    box_in = rng.random((nangles, nslices))
+    los_displacement = rng.random((nangles, nslices)) * units.pixel
     distance = np.arange(nslices) * units.pixel
     box_out1 = apply_rsds(
         field=box_in.T,
@@ -113,22 +114,23 @@ def test_apply_rsds_sum():
         distance=distance,
         n_subcells=2,
         periodic=True,
-    ).T    
-    
-    sum_in = np.sum(box_in,axis=-1)
-    sum1 = np.sum(box_out1,axis=-1)
-    sum2 = np.sum(box_out2,axis=-1)
-    
-    assert np.max(np.abs(1. - sum1/sum_in)) < 1e-3
-    assert np.max(np.abs(1. - sum2/sum_in)) < 1e-3
+    ).T
+
+    sum_in = np.sum(box_in, axis=-1)
+    sum1 = np.sum(box_out1, axis=-1)
+    sum2 = np.sum(box_out2, axis=-1)
+
+    assert np.max(np.abs(1.0 - sum1 / sum_in)) < 1e-3
+    assert np.max(np.abs(1.0 - sum2 / sum_in)) < 1e-3
+
 
 def test_apply_rsds_shift():
-    "Test that cloud in cell results in a shifted box, for an integer velocity and a periodic box."
+    """Test that cloud in cell results in a shifted box, for an integer velocity and a periodic box."""
     nslices = 10
     nangles = 5
     rng = np.random.default_rng(12345)
     v = int(rng.random())
-    box_in = rng.random((nangles ,nslices))
+    box_in = rng.random((nangles, nslices))
     los_displacement = v * np.ones_like(box_in) * units.pixel
     distance = np.arange(nslices) * units.pixel
     box_out1 = apply_rsds(
@@ -144,29 +146,28 @@ def test_apply_rsds_shift():
         distance=distance,
         n_subcells=2,
         periodic=True,
-    ).T    
-    
-    box_in_shifted = np.roll(box_in,v,axis=-1)
-    
-    assert np.max(np.abs(1. - box_out1/box_in_shifted)) < 1e-3
-    assert np.max(np.abs(1. - box_out2/box_in_shifted)) < 1e-3
+    ).T
+
+    box_in_shifted = np.roll(box_in, v, axis=-1)
+
+    assert np.max(np.abs(1.0 - box_out1 / box_in_shifted)) < 1e-3
+    assert np.max(np.abs(1.0 - box_out2 / box_in_shifted)) < 1e-3
+
 
 def test_cloud_in_cell():
-
-    "Similar to above, but directly on cloud_in_cell, without numba."
+    """Similar to above, but directly on cloud_in_cell, without numba."""
     nslices = 10
     nangles = 5
     rng = np.random.default_rng(12345)
     v = int(rng.random())
-    box_in = rng.random((nangles ,nslices))
+    box_in = rng.random((nangles, nslices))
     delta_los = v * np.ones_like(box_in) * units.pixel
     box_out = cloud_in_cell_los(
         field=box_in,
         delta_los=delta_los,
         periodic=True,
     )
-    
-    box_in_shifted = np.roll(box_in,v,axis=-1)
-    
-    assert np.max(np.abs(1. - box_out/box_in_shifted)) < 1e-3
-    
+
+    box_in_shifted = np.roll(box_in, v, axis=-1)
+
+    assert np.max(np.abs(1.0 - box_out / box_in_shifted)) < 1e-3
