@@ -652,10 +652,17 @@ void one_annular_filter(float *input_box, float *output_box, double R_inner, dou
     // Smooth the density field, at the same time store the minimum and maximum densities for their
     // usage in the interpolation tables copy over unfiltered box
     memcpy(filtered_box, unfiltered_box, sizeof(fftwf_complex) * HII_KSPACE_NUM_PIXELS);
-
-    // Don't filter on the cell scale
-    if (R_inner > 0) {
-        filter_box(filtered_box, 1, 4, R_inner, R_outer);
+    if (astro_options_global->THIN_SHELL_APPROX) {
+        // Don't filter on the cell scale
+        if (R_inner > 0) {
+            filter_box(filtered_box, 1, 5, R_inner, R_outer);
+        }
+    }
+    else {
+        // Don't filter on the cell scale
+        if (R_inner > 0) {
+            filter_box(filtered_box, 1, 4, R_inner, R_outer);
+        }
     }
 
     // now fft back to real space

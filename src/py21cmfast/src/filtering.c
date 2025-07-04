@@ -5,6 +5,8 @@
 #include <omp.h>
 #include <stdio.h>
 #include <stdlib.h>
+#include <gsl/gsl_integration.h>
+#include <gsl/gsl_sf_gamma.h>
 
 #include "Constants.h"
 #include "InputParameters.h"
@@ -115,6 +117,52 @@ double spherical_shell_filter(double k, double R_outer, double R_inner) {
            (sin(kR_outer) - cos(kR_outer) * kR_outer - sin(kR_inner) + cos(kR_inner) * kR_inner);
 }
 
+typedef struct {
+    double kR;
+    double alpha;
+    double beta;
+} integrand_params_multiple_scattering;
+
+// The integrand: f(x) = (x^2 * sin(yx)/(yx)) * (1 - I_x(a,b))
+double M_function_integrand(double x, void *params) {
+    integrand_params_multiple_scattering *p = (integrand_params_multiple_scattering *) params;
+    double kR = p->kR;
+    double alpha = p->alpha;
+    double beta = p->beta;
+
+    double beta_inc = gsl_sf_beta_inc(alpha, beta, x); // I_x(a,b)
+    double sin_term = (kR * x != 0.0) ? sin(kR * x) / (kR * x) : 1.0; // Handle kR*x = 0
+    double result = x * x * sin_term * (1.0 - beta_inc);
+
+    return result;
+}
+
+double M_function(double kR, double alpha, double beta) {
+    gsl_integration_workspace *w = gsl_integration_workspace_alloc(250);
+
+    gsl_function F;
+    integrand_params_multiple_scattering params = {kR, alpha, beta};
+    F.function = &M_function_integrand;
+    F.params = &params;
+
+    double result, error;
+    gsl_integration_qag(&F, 0, 1, 1e-4, 1e-4, 250, GSL_INTEG_GAUSS61, w, &result, &error);
+
+    gsl_integration_workspace_free(w);
+
+    return result;
+}
+
+double multiple_scattering_filter(double k, double R_outer, double R_inner, float alpha, float beta) {
+    double kR_inner = k * R_inner;
+    double kR_outer = k * R_outer;
+    double W;
+
+    W = pow(R_outer,3.)*M_function(kR_outer, alpha, beta) - pow(R_inner,3.)*M_function(kR_inner, alpha, beta);
+    W /= pow(R_outer,3.)*M_function(0., alpha, beta) - pow(R_inner,3.)*M_function(0., alpha, beta);
+    return W;
+}
+
 void filter_box(fftwf_complex *box, int RES, int filter_type, float R, float R_param) {
     int dimension, midpoint;  // TODO: figure out why defining as ULL breaks this
     switch (RES) {
@@ -193,6 +241,8 @@ void filter_box(fftwf_complex *box, int RES, int filter_type, float R, float R_p
                         box[grid_index] *= exp_mfp_filter(sqrt(k_mag_sq), R, R_param, R_const);
                     } else if (filter_type == 4) {  // spherical shell, R_param == inner radius
                         box[grid_index] *= spherical_shell_filter(sqrt(k_mag_sq), R, R_param);
+                    } else if (filter_type == 5) {  // spherical ring
+                        box[grid_index] *= multiple_scattering_filter(sqrt(k_mag_sq), R, R_param, 1000., 1.);
                     } else {
                         if ((n_x == 0) && (n_y == 0) && (n_z == 0))
                             LOG_WARNING("Filter type %i is undefined. Box is unfiltered.",
