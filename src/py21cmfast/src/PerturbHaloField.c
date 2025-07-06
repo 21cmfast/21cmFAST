@@ -1,5 +1,5 @@
 
-// Re-write of update_halo_pos from the original 21cmFAST
+// Re-write of update_halo_coords from the original 21cmFAST
 
 // ComputePerturbHaloField reads in the linear velocity field, and uses
 // it to update halo locations with a corresponding displacement field
@@ -146,9 +146,9 @@ int ComputePerturbHaloField(float redshift, InitialConditions *boxes, HaloField 
 #pragma omp for
             for (i_halo = 0; i_halo < halos->n_halos; i_halo++) {
                 // convert location to fractional value
-                xf = halos->halo_pos[i_halo * 3 + 0] / simulation_options_global->BOX_LEN;
-                yf = halos->halo_pos[i_halo * 3 + 1] / simulation_options_global->BOX_LEN;
-                zf = halos->halo_pos[i_halo * 3 + 2] / simulation_options_global->BOX_LEN /
+                xf = halos->halo_coords[i_halo * 3 + 0] / simulation_options_global->BOX_LEN;
+                yf = halos->halo_coords[i_halo * 3 + 1] / simulation_options_global->BOX_LEN;
+                zf = halos->halo_coords[i_halo * 3 + 2] / simulation_options_global->BOX_LEN /
                      simulation_options_global->NON_CUBIC_FACTOR;
 
                 // determine halo position (downsampled if required)
@@ -211,9 +211,9 @@ int ComputePerturbHaloField(float redshift, InitialConditions *boxes, HaloField 
                 zf *= simulation_options_global->BOX_LEN *
                       simulation_options_global->NON_CUBIC_FACTOR;
 
-                halos_perturbed->halo_pos[i_halo * 3 + 0] = xf;
-                halos_perturbed->halo_pos[i_halo * 3 + 1] = yf;
-                halos_perturbed->halo_pos[i_halo * 3 + 2] = zf;
+                halos_perturbed->halo_coords[i_halo * 3 + 0] = xf;
+                halos_perturbed->halo_coords[i_halo * 3 + 1] = yf;
+                halos_perturbed->halo_coords[i_halo * 3 + 2] = zf;
 
                 halos_perturbed->halo_masses[i_halo] = halos->halo_masses[i_halo];
                 halos_perturbed->star_rng[i_halo] = halos->star_rng[i_halo];
@@ -285,7 +285,7 @@ int ComputePerturbHaloField(float redshift, InitialConditions *boxes, HaloField 
 void free_phf(PerturbHaloField *halos) {
     LOG_DEBUG("Freeing PerturbHaloField");
     free(halos->halo_masses);
-    free(halos->halo_pos);
+    free(halos->halo_coords);
     free(halos->star_rng);
     free(halos->sfr_rng);
     free(halos->xray_rng);

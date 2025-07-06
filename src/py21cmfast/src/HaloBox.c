@@ -567,11 +567,11 @@ void sum_halos_onto_grid(InitialConditions *ini_boxes, TsBox *previous_spin_temp
             }
             // NOTE:Unlike HaloField, PerturbHaloField is on HII_DIM so we don't need to correct
             // here
-            x = halos->halo_pos[0 + 3 * i_halo] * simulation_options_global->HII_DIM /
+            x = halos->halo_coords[0 + 3 * i_halo] * simulation_options_global->HII_DIM /
                 simulation_options_global->BOX_LEN;
-            y = halos->halo_pos[1 + 3 * i_halo] * simulation_options_global->HII_DIM /
+            y = halos->halo_coords[1 + 3 * i_halo] * simulation_options_global->HII_DIM /
                 simulation_options_global->BOX_LEN;
-            z = halos->halo_pos[2 + 3 * i_halo] * simulation_options_global->HII_DIM /
+            z = halos->halo_coords[2 + 3 * i_halo] * simulation_options_global->HII_DIM /
                 simulation_options_global->BOX_LEN;
             i_cell = HII_R_INDEX(x, y, z);
 
@@ -843,7 +843,7 @@ int ComputeHaloBox(double redshift, InitialConditions *ini_boxes, PerturbedField
 // test function for getting halo properties from the wrapper, can use a lot of memory for large
 // catalogs
 int test_halo_props(double redshift, float *vcb_grid, float *J21_LW_grid, float *z_re_grid,
-                    float *Gamma12_ion_grid, int n_halos, float *halo_masses, float *halo_pos,
+                    float *Gamma12_ion_grid, int n_halos, float *halo_masses, float *halo_coords,
                     float *star_rng, float *sfr_rng, float *xray_rng, float *halo_props_out) {
     int status;
     Try {
@@ -879,11 +879,11 @@ int test_halo_props(double redshift, float *vcb_grid, float *J21_LW_grid, float 
                 if (m == 0.) {
                     continue;
                 }
-                x = halo_pos[0 + 3 * i_halo] * simulation_options_global->HII_DIM /
+                x = halo_coords[0 + 3 * i_halo] * simulation_options_global->HII_DIM /
                     simulation_options_global->BOX_LEN;
-                y = halo_pos[1 + 3 * i_halo] * simulation_options_global->HII_DIM /
+                y = halo_coords[1 + 3 * i_halo] * simulation_options_global->HII_DIM /
                     simulation_options_global->BOX_LEN;
-                z = halo_pos[2 + 3 * i_halo] * simulation_options_global->HII_DIM /
+                z = halo_coords[2 + 3 * i_halo] * simulation_options_global->HII_DIM /
                     simulation_options_global->BOX_LEN;
                 i_cell = HII_R_INDEX(x, y, z);
 

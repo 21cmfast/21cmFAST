@@ -30,7 +30,7 @@
 #include "logger.h"
 
 int check_halo(char *in_halo, float R, int x, int y, int z, int check_type);
-void init_halo_pos(HaloField *halos, long long unsigned int n_halos);
+void init_halo_coords(HaloField *halos, long long unsigned int n_halos);
 int pixel_in_halo(int grid_dim, int z_dim, int x, int x_index, int y, int y_index, int z,
                   int z_index, float Rsq_curr_index);
 void free_halo_field(HaloField *halos);
@@ -302,7 +302,7 @@ int ComputeHaloField(float redshift_desc, float redshift, InitialConditions *box
 
         // Allocate the Halo Mass and Coordinate Fields (non-wrapper structure)
         if (matter_options_global->HALO_STOCHASTICITY)
-            init_halo_pos(halos_dexm, total_halo_num);
+            init_halo_coords(halos_dexm, total_halo_num);
         else
             halos_dexm->n_halos = total_halo_num;
 
@@ -320,9 +320,9 @@ int ComputeHaloField(float redshift_desc, float redshift, InitialConditions *box
                     if (halo_buf > 0.) {
                         halos_dexm->halo_masses[count] = halo_buf;
                         // place DexM halos at the centre of the cell
-                        halos_dexm->halo_pos[3 * count + 0] = x * cell_length + 0.5;
-                        halos_dexm->halo_pos[3 * count + 1] = y * cell_length + 0.5;
-                        halos_dexm->halo_pos[3 * count + 2] = z * cell_length + 0.5;
+                        halos_dexm->halo_coords[3 * count + 0] = x * cell_length + 0.5;
+                        halos_dexm->halo_coords[3 * count + 1] = y * cell_length + 0.5;
+                        halos_dexm->halo_coords[3 * count + 2] = z * cell_length + 0.5;
                         count++;
                     }
                 }
@@ -516,12 +516,12 @@ int check_halo(char *in_halo, float R, int x, int y, int z, int check_type) {
     return 0;
 }
 
-void init_halo_pos(HaloField *halos, long long unsigned int n_halos) {
+void init_halo_coords(HaloField *halos, long long unsigned int n_halos) {
     // Minimise memory usage by only storing the halo mass and positions
     halos->n_halos = n_halos;
     unsigned long long int alloc_size = fmax(1, n_halos);
     halos->halo_masses = (float *)calloc(alloc_size, sizeof(float));
-    halos->halo_pos = (float *)calloc(3 * alloc_size, sizeof(float));
+    halos->halo_coords = (float *)calloc(3 * alloc_size, sizeof(float));
 
     halos->star_rng = (float *)calloc(alloc_size, sizeof(float));
     halos->sfr_rng = (float *)calloc(alloc_size, sizeof(float));
@@ -531,7 +531,7 @@ void init_halo_pos(HaloField *halos, long long unsigned int n_halos) {
 void free_halo_field(HaloField *halos) {
     LOG_DEBUG("Freeing HaloField instance.");
     free(halos->halo_masses);
-    free(halos->halo_pos);
+    free(halos->halo_coords);
     free(halos->star_rng);
     free(halos->sfr_rng);
     free(halos->xray_rng);

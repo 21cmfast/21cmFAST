@@ -108,11 +108,11 @@ void FunctionThatThrows();
 int single_test_sample(unsigned long long int seed, int n_condition, float *conditions,
                        float *cond_crd, double z_out, double z_in, int *out_n_tot, int *out_n_cell,
                        double *out_n_exp, double *out_m_cell, double *out_m_exp,
-                       float *out_halo_masses, float *out_halo_pos);
+                       float *out_halo_masses, float *out_halo_coords);
 // test function for getting halo properties from the wrapper, can use a lot of memory for large
 // catalogs
 int test_halo_props(double redshift, float *vcb_grid, float *J21_LW_grid, float *z_re_grid,
-                    float *Gamma12_ion_grid, int n_halos, float *halo_masses, float *halo_pos,
+                    float *Gamma12_ion_grid, int n_halos, float *halo_masses, float *halo_coords,
                     float *star_rng, float *sfr_rnd, float *xray_rng, float *halo_props_out);
 int test_filter(float *input_box, double R, double R_param, int filter_flag, double *result);
 

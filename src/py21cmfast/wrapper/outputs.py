@@ -731,7 +731,7 @@ class PerturbHaloField(OutputStructZ):
     star_rng = _arrayfield()
     sfr_rng = _arrayfield()
     xray_rng = _arrayfield()
-    halo_pos = _arrayfield()
+    halo_coords = _arrayfield()
     n_halos: int = attrs.field(default=None)
     buffer_size: int = attrs.field(default=None)
 
@@ -773,7 +773,7 @@ class PerturbHaloField(OutputStructZ):
             star_rng=Array((buffer_size,), dtype=np.float32),
             sfr_rng=Array((buffer_size,), dtype=np.float32),
             xray_rng=Array((buffer_size,), dtype=np.float32),
-            halo_pos=Array((buffer_size, 3), dtype=np.float32),
+            halo_coords=Array((buffer_size, 3), dtype=np.float32),
             redshift=redshift,
             buffer_size=buffer_size,
             **kw,
@@ -793,7 +793,7 @@ class PerturbHaloField(OutputStructZ):
 
         elif isinstance(input_box, HaloField):
             required += [
-                "halo_pos",
+                "halo_coords",
                 "halo_masses",
                 "star_rng",
                 "sfr_rng",
@@ -846,7 +846,7 @@ class HaloField(PerturbHaloField):
             if self.matter_options.HALO_STOCHASTICITY:
                 required += [
                     "halo_masses",
-                    "halo_pos",
+                    "halo_coords",
                     "star_rng",
                     "sfr_rng",
                     "xray_rng",
@@ -935,7 +935,7 @@ class HaloBox(OutputStructZ):
         if isinstance(input_box, PerturbHaloField):
             if not self.matter_options.FIXED_HALO_GRIDS:
                 required += [
-                    "halo_pos",
+                    "halo_coords",
                     "halo_masses",
                     "star_rng",
                     "sfr_rng",

@@ -848,7 +848,7 @@ def convert_halo_properties(
     star_rng: NDArray[float],
     sfr_rng: NDArray[float],
     xray_rng: NDArray[float],
-    halo_pos: NDArray[float] | None = None,
+    halo_coords: NDArray[float] | None = None,
     vcb_grid: NDArray[float] | None = None,
     J_21_LW_grid: NDArray[float] | None = None,
     z_re_grid: NDArray[float] | None = None,
@@ -881,8 +881,8 @@ def convert_halo_properties(
     out_buffer = np.zeros((n_halos, 12), dtype="f4")
     lo_dim = (inputs.simulation_options.HII_DIM,) * 3
 
-    if halo_pos is None:
-        halo_pos = np.zeros(3 * n_halos)
+    if halo_coords is None:
+        halo_coords = np.zeros(3 * n_halos)
     if vcb_grid is None:
         vcb_grid = np.zeros(lo_dim)
     if J_21_LW_grid is None:
@@ -898,7 +898,7 @@ def convert_halo_properties(
     Gamma12_grid = Gamma12_grid.astype("f4")
 
     halo_masses = halo_masses.astype("f4")
-    halo_pos = halo_pos.astype("f4")
+    halo_coords = halo_coords.astype("f4")
     star_rng = star_rng.astype("f4")
     sfr_rng = sfr_rng.astype("f4")
     xray_rng = xray_rng.astype("f4")
@@ -911,7 +911,7 @@ def convert_halo_properties(
         ffi.cast("float *", Gamma12_grid.ctypes.data),
         n_halos,
         ffi.cast("float *", halo_masses.ctypes.data),
-        ffi.cast("float *", halo_pos.ctypes.data),
+        ffi.cast("float *", halo_coords.ctypes.data),
         ffi.cast("float *", star_rng.ctypes.data),
         ffi.cast("float *", sfr_rng.ctypes.data),
         ffi.cast("float *", xray_rng.ctypes.data),

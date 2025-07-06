@@ -209,6 +209,14 @@ OPTIONS_TESTRUNS = {
             "N_THREADS": 1,
         },
     ],
+    "sampler_noncubic": [
+        18,
+        {
+            "USE_HALO_FIELD": True,
+            "HALO_STOCHASTICITY": True,
+            "NON_CUBIC_FACTOR": 1.2,
+        },
+    ],
     "dexm": [
         18,
         {
