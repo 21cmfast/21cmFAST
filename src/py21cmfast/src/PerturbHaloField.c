@@ -100,8 +100,8 @@ int ComputePerturbHaloField(float redshift, InitialConditions *boxes, HaloField 
         // reference: reference: Scoccimarro R., 1998, MNRAS, 299, 1097-1118 Appendix D
         if (matter_options_global->PERTURB_ALGORITHM == 2) {
             // now add the missing factor in eq. D9
-#pragma omp parallel shared(boxes, displacement_factor_2LPT_over_BOX_LEN, dimension) private( \
-        i, j, k) num_threads(simulation_options_global -> N_THREADS)
+#pragma omp parallel shared(boxes, displacement_factor_2LPT_over_BOX_LEN, dimension) \
+    private(i, j, k) num_threads(simulation_options_global -> N_THREADS)
             {
 #pragma omp for
                 for (i = 0; i < dimension; i++) {

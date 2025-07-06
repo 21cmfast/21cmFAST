@@ -338,7 +338,7 @@ int ComputeHaloField(float redshift_desc, float redshift, InitialConditions *box
             // by halos
             //   This is used in the sampler
             // we don't need the density field anymore so we reuse it
-#pragma omp parallel private(i, j, k) num_threads(simulation_options_global->N_THREADS)
+#pragma omp parallel private(i, j, k) num_threads(simulation_options_global -> N_THREADS)
             {
 #pragma omp for
                 for (i = 0; i < grid_dim; i++) {
@@ -367,7 +367,7 @@ int ComputeHaloField(float redshift_desc, float redshift, InitialConditions *box
             float f_pixel_factor =
                 simulation_options_global->DIM / (float)simulation_options_global->HII_DIM;
             // Now downsample the highres grid to get the lowres version
-#pragma omp parallel private(i, j, k) num_threads(simulation_options_global->N_THREADS)
+#pragma omp parallel private(i, j, k) num_threads(simulation_options_global -> N_THREADS)
             {
 #pragma omp for
                 for (i = 0; i < simulation_options_global->HII_DIM; i++) {
