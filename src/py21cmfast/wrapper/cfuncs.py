@@ -802,7 +802,7 @@ def sample_halos_from_conditions(
 
     n_cond = cond_array.size
     # all coordinates zero
-    crd_in = np.zeros(3 * n_cond).astype("i4")
+    crd_in = np.zeros(3 * n_cond).astype("f4")
 
     cond_array = cond_array.astype("f4")
     nhalo_out = np.zeros(1).astype("i4")
@@ -817,7 +817,7 @@ def sample_halos_from_conditions(
         inputs.random_seed,
         n_cond,
         ffi.cast("float *", cond_array.ctypes.data),
-        ffi.cast("int *", crd_in.ctypes.data),
+        ffi.cast("float *", crd_in.ctypes.data),
         redshift,
         z_prev,
         ffi.cast("int *", nhalo_out.ctypes.data),
@@ -826,7 +826,7 @@ def sample_halos_from_conditions(
         ffi.cast("double *", M_out.ctypes.data),
         ffi.cast("double *", exp_M.ctypes.data),
         ffi.cast("float *", halomass_out.ctypes.data),
-        ffi.cast("int *", halocrd_out.ctypes.data),
+        ffi.cast("float *", halocrd_out.ctypes.data),
     )
 
     return {

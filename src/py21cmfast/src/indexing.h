@@ -30,6 +30,8 @@
     (simulation_options_global->BOX_LEN * simulation_options_global->BOX_LEN * \
      simulation_options_global->NON_CUBIC_FACTOR *                             \
      simulation_options_global->BOX_LEN)  // in Mpc^3
+#define BOXLEN_PARA \
+    (simulation_options_global->NON_CUBIC_FACTOR * simulation_options_global->BOX_LEN)  // in Mpc
 #define DELTA_K (TWOPI / simulation_options_global->BOX_LEN)
 #define DELTA_K_PARA \
     (TWOPI / (simulation_options_global->NON_CUBIC_FACTOR * simulation_options_global->BOX_LEN))
