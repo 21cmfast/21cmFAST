@@ -306,9 +306,7 @@ def test_using_cached_halo_field(ic, test_direc):
     np.testing.assert_allclose(
         new_halo_field.halo_masses.value, halo_field.halo_masses.value
     )
-    np.testing.assert_allclose(
-        pt_halos.halo_coords.value, new_pt_halos.halo_coords.value
-    )
+    np.testing.assert_allclose(pt_halos.halo_pos.value, new_pt_halos.halo_pos.value)
 
 
 def test_incompatible_redshifts(default_input_struct, ic):
