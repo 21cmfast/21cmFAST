@@ -498,15 +498,18 @@ def _run_lightcone_from_perturbed_fields(
                     brightness_temp=lightcone.lightcones["brightness_temp"],
                     los_velocity=lightcone.lightcones["los_velocity"],
                     redshifts=lightcone.lightcone_redshifts,
-                    distances=lightcone.lightcone_distances,
                     inputs=inputs,
-                    tau_21=lightcone.lightcones["tau_21"]
-                    if inputs.astro_options.USE_TS_FLUCT
-                    else None,
+                    tau_21=(
+                        lightcone.lightcones["tau_21"]
+                        if inputs.astro_options.USE_TS_FLUCT
+                        else None
+                    ),
                     periodic=False,
-                    n_subcells=inputs.astro_params.N_RSD_STEPS
-                    if inputs.astro_options.SUBCELL_RSD
-                    else 0,
+                    n_subcells=(
+                        inputs.astro_params.N_RSD_STEPS
+                        if inputs.astro_options.SUBCELL_RSD
+                        else 0
+                    ),
                 )
                 lightcone.lightcones["brightness_temp_with_rsds"] = tb_with_rsds
 
