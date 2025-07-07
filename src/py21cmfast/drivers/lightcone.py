@@ -221,11 +221,11 @@ class LightCone:
             self._last_completed_lcidx = lcidx
             self._last_completed_node = node_index
 
-    def trim(self, distances: np.ndarray) -> Self:
+    def trim(self, mind: units.Quantity, maxd: units.Quantity) -> Self:
         """Create a new lightcone box containing only the desired distances range."""
         inds = np.logical_and(
-            self.lightcone_distances >= distances.min(),
-            self.lightcone_distances <= distances.max(),
+            self.lightcone_distances >= mind,
+            self.lightcone_distances <= maxd,
         )
         return attrs.evolve(
             self,
@@ -290,11 +290,6 @@ class LightCone:
 
 class AngularLightcone(LightCone):
     """An angular lightcone."""
-
-    @property
-    def cell_size(self):
-        """Cell size [Mpc] of the lightcone voxels."""
-        raise AttributeError("This is not an attribute of an AngularLightcone")
 
     @property
     def lightcone_dimensions(self):
@@ -527,7 +522,7 @@ def _run_lightcone_from_perturbed_fields(
                         )
 
                 if inputs.astro_options.SUBCELL_RSD:
-                    lightcone = lightcone.trim(lc_distances)
+                    lightcone = lightcone.trim(lc_distances.min(), lc_distances.max())
 
         yield iz, coeval.redshift, coeval, lightcone
 

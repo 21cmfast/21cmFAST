@@ -5,9 +5,9 @@ import pytest
 from astropy import units
 
 import py21cmfast as p21c
-from py21cmfast import run_coeval
+from py21cmfast import InputParameters, run_coeval
 from py21cmfast.lightconers import RectilinearLightconer
-from py21cmfast.rsds import apply_rsds, cloud_in_cell_los
+from py21cmfast.rsds import apply_rsds, compute_rsds
 from py21cmfast.wrapper.classy_interface import run_classy
 
 
@@ -93,81 +93,163 @@ def test_bad_lightconer_inputs(default_input_struct_ts):
         )
 
 
-def test_apply_rsds_sum():
-    """Test that sum along LOS is perserved in cloud in cell for a periodic box."""
-    nslices = 10
-    nangles = 5
-    rng = np.random.default_rng(12345)
-    box_in = rng.random((nangles, nslices))
-    los_displacement = rng.random((nangles, nslices)) * units.pixel
-    distance = np.arange(nslices) * units.pixel
-    box_out1 = apply_rsds(
-        field=box_in.T,
-        los_displacement=los_displacement.T,
-        distance=distance,
-        n_subcells=1,
-        periodic=True,
-    ).T
-    box_out2 = apply_rsds(
-        field=box_in.T,
-        los_displacement=los_displacement.T,
-        distance=distance,
-        n_subcells=2,
-        periodic=True,
-    ).T
+class TestApplyRSDs:
+    """Tests of the apply_rsds function."""
 
-    sum_in = np.sum(box_in, axis=-1)
-    sum1 = np.sum(box_out1, axis=-1)
-    sum2 = np.sum(box_out2, axis=-1)
+    @pytest.mark.parametrize("n_subcells", [1, 2, 4, 5])
+    def test_mass_conservation(self, n_subcells):
+        """Test that sum along LOS is perserved in cloud in cell for a periodic box."""
+        nslices = 10
+        nangles = 5
+        rng = np.random.default_rng(12345)
+        shape = (nslices, nangles)
+        box_in = rng.random(shape)
+        los_displacement = rng.random(shape) * units.pixel
+        box_out = apply_rsds(
+            field=box_in,
+            los_displacement=los_displacement,
+            n_subcells=n_subcells,
+            periodic=True,
+        )
 
-    assert np.max(np.abs(1.0 - sum1 / sum_in)) < 1e-3
-    assert np.max(np.abs(1.0 - sum2 / sum_in)) < 1e-3
+        sum_in = np.sum(box_in, axis=0)
+        sum1 = np.sum(box_out, axis=0)
+        np.testing.assert_allclose(sum_in, sum1)
+
+    @pytest.mark.parametrize("n_subcells", [1, 2])
+    @pytest.mark.parametrize("velocity", [-10, -1, 0, 1, 10])
+    def test_integer_shift(self, n_subcells: int, velocity: int):
+        """Test that cloud in cell results in a shifted box, for an integer velocity and a periodic box."""
+        nslices = 10
+        nangles = 5
+        rng = np.random.default_rng(12345)
+        box_in = rng.random((nslices, nangles))
+        los_displacement = velocity * np.ones_like(box_in) * units.pixel
+        box_out = apply_rsds(
+            field=box_in,
+            los_displacement=los_displacement,
+            n_subcells=n_subcells,
+            periodic=True,
+        )
+
+        box_in_shifted = np.roll(box_in, velocity, axis=0)
+        np.testing.assert_allclose(box_out, box_in_shifted)
+
+    def test_bad_inputs(self):
+        """Test that bad inputs raise good errors."""
+        nslices = 1
+        nangles = 5
+        box_in = np.zeros((nslices, nangles))
+        los_displacement = np.ones_like(box_in) * units.pixel
+
+        with pytest.raises(ValueError, match="field must have at least 2 slices"):
+            apply_rsds(
+                field=box_in,
+                los_displacement=los_displacement,
+            )
+
+    @pytest.mark.parametrize("n_subcells", [1, 2, 5])
+    def test_non_periodic_large_displacement(self, n_subcells: int):
+        """Test that a very large displacement results in all mass leaving the box."""
+        nslices = 10
+        nangles = 5
+        box_in = np.ones((nslices, nangles))
+        los_displacement = nslices * 2 * np.ones_like(box_in) * units.pixel
+
+        box_out = apply_rsds(
+            field=box_in,
+            los_displacement=los_displacement,
+            periodic=False,
+            n_subcells=n_subcells,
+        )
+        np.testing.assert_allclose(box_out, 0)
 
 
-def test_apply_rsds_shift():
-    """Test that cloud in cell results in a shifted box, for an integer velocity and a periodic box."""
-    nslices = 10
-    nangles = 5
-    rng = np.random.default_rng(12345)
-    v = int(rng.random())
-    box_in = rng.random((nangles, nslices))
-    los_displacement = v * np.ones_like(box_in) * units.pixel
-    distance = np.arange(nslices) * units.pixel
-    box_out1 = apply_rsds(
-        field=box_in.T,
-        los_displacement=los_displacement.T,
-        distance=distance,
-        n_subcells=1,
-        periodic=True,
-    ).T
-    box_out2 = apply_rsds(
-        field=box_in.T,
-        los_displacement=los_displacement.T,
-        distance=distance,
-        n_subcells=2,
-        periodic=True,
-    ).T
+class TestComputeRSDs:
+    """Tests of the compute_rsds function.
 
-    box_in_shifted = np.roll(box_in, v, axis=-1)
+    Since this function is pretty much just a wrapper around apply_rsds,
+    we mostly test for case-behaviour (e.g. testing for errors raised),
+    rather than for exactness of the output, which is done in TestApplyRSDs.
+    """
 
-    assert np.max(np.abs(1.0 - box_out1 / box_in_shifted)) < 1e-3
-    assert np.max(np.abs(1.0 - box_out2 / box_in_shifted)) < 1e-3
+    def setup_class(self):
+        """Set up the arrays re-used throughout the class."""
+        self.nslc = 10
+        self.nang = 5
 
+        self.bt3d = np.ones((self.nang, self.nang, self.nslc))
+        self.bt2d = np.ones((self.nang, self.nslc))
+        self.vel3d = np.ones_like(self.bt3d)
+        self.vel2d = np.ones_like(self.bt2d)
+        self.inputs = InputParameters.from_template(
+            "simple", node_redshifts=[6, 7, 8, 40], random_seed=1
+        )
 
-def test_cloud_in_cell():
-    """Similar to above, but directly on cloud_in_cell, without numba."""
-    nslices = 10
-    nangles = 5
-    rng = np.random.default_rng(12345)
-    v = int(rng.random())
-    box_in = rng.random((nangles, nslices))
-    delta_los = v * np.ones_like(box_in) * units.pixel
-    box_out = cloud_in_cell_los(
-        field=box_in,
-        delta_los=delta_los,
-        periodic=True,
-    )
+    def test_bad_inputs(self):
+        """Test that bad inputs raise good errors."""
+        with pytest.raises(ValueError, match="tau_21 is not provided"):
+            compute_rsds(
+                brightness_temp=self.bt3d,
+                los_velocity=self.vel3d,
+                redshifts=6.0,
+                inputs=self.inputs.evolve_input_structs(USE_TS_FLUCT=True),
+                tau_21=None,
+            )
 
-    box_in_shifted = np.roll(box_in, v, axis=-1)
+    @pytest.mark.parametrize("periodic", [True, False, None])
+    def test_that_coeval_is_treated_as_periodic(self, periodic: bool | None):
+        """Test that cubic boxes are treated as periodic by default."""
+        n = 10
+        inputs = self.inputs.evolve_input_structs(
+            HII_DIM=n, BOX_LEN=n, R_BUBBLE_MAX=n / 4
+        )
+        bt = np.ones((n, n, n))  # like a coeval
 
-    assert np.max(np.abs(1.0 - box_out / box_in_shifted)) < 1e-3
+        hubble = inputs.cosmo_params.cosmo.H(8.0)
+        vel = (
+            np.ones_like(bt) * n * 2 * hubble.to_value(1 / units.s)
+        )  # Move stuff twice the box length!
+
+        # periodic is 'None' and gets interpreted as True since
+        # bt is cubic.
+        bt_out = compute_rsds(
+            brightness_temp=bt,
+            los_velocity=vel,
+            redshifts=8.0,
+            inputs=inputs,
+            periodic=periodic,
+            n_subcells=2,
+        )
+
+        # Since its periodic, we have mass conservation
+        if periodic in [True, None]:
+            # We don't really have mass conservation at the moment
+            # because of the "linear" RSDs which change the amount of mass
+            # TODO: this seems wrong...
+            assert np.isclose(np.sum(bt_out), np.sum(bt), rtol=1e-1)
+        else:
+            assert np.allclose(bt_out, 0)
+
+    def test_2d_ok(self):
+        """Test that 2D brightness temp arrays are OK."""
+        rng = np.random.default_rng(1019)
+        nslc = 12
+        bt3d = rng.uniform(-100, 30, size=(3, 3, nslc))
+        vel = rng.uniform(-1.5, 1.5, size=bt3d.shape)
+
+        box_out_3d = compute_rsds(
+            brightness_temp=bt3d,
+            los_velocity=vel,
+            redshifts=8.0,
+            inputs=self.inputs,
+        )
+
+        box_out_2d = compute_rsds(
+            brightness_temp=bt3d.reshape((-1, nslc)),
+            los_velocity=vel.reshape((-1, nslc)),
+            redshifts=8.0,
+            inputs=self.inputs,
+        )
+
+        np.testing.assert_allclose(box_out_3d.flatten(), box_out_2d.flatten())

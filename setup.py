@@ -86,7 +86,7 @@ setup(
         "h5py>=2.8.0",
         "matplotlib",
         "bidict",
-        "cosmotile>=0.2.0",
+        "cosmotile>=0.2.5",
         "attrs",
         "tqdm",
         "classy<3.3",
