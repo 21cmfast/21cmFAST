@@ -12,7 +12,10 @@ def mock_lightcone():
     ).evolve_input_structs(HII_DIM=300, BOX_LEN=300)
     rng = np.random.default_rng(123)
 
-    dist = np.arange(6000, 10000, inputs.simulation_options.cell_size) * units.Mpc
+    dist = (
+        np.arange(6000, 10000, inputs.simulation_options.cell_size.to_value("Mpc"))
+        * units.Mpc
+    )
 
     return LightCone(
         lightcone_distances=dist,
