@@ -55,7 +55,7 @@ jobs:
       - name: Make it a Normal Run
         if: "!contains(env.commit_message, 'ci debug')"
         run: |
-          echo "log_level=INFO" >> $GITHUB_ENV
+          echo "log_level=WARNING" >> $GITHUB_ENV
           echo "extra_pytest_args=" >> $GITHUB_ENV
 
       - name: Install Non-Python Dependencies
