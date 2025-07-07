@@ -265,9 +265,9 @@ void wrap_coord(int idx[3], int size[3]) {
 void random_point_in_sphere(double centre[3], double radius, gsl_rng *rng, double *point) {
     // generate a random point in a sphere of given radius and centre
     double x1, y1, z1, d1, r1;
-    x1 = gsl_rng_uniform(rng);
-    y1 = gsl_rng_uniform(rng);
-    z1 = gsl_rng_uniform(rng);
+    x1 = 2 * gsl_rng_uniform(rng) - 1;
+    y1 = 2 * gsl_rng_uniform(rng) - 1;
+    z1 = 2 * gsl_rng_uniform(rng) - 1;
     d1 = sqrt(x1 * x1 + y1 * y1 + z1 * z1);
     r1 = gsl_rng_uniform(rng);
     point[0] = centre[0] + (radius * r1 * x1 / d1);
