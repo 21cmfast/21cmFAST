@@ -1335,12 +1335,16 @@ class InputParameters:
                 msg = (
                     "Your R_BUBBLE_MAX is > BOX_LEN/3 "
                     f"({val.R_BUBBLE_MAX} > {self.simulation_options.BOX_LEN / 3})."
+                    f" This can produce strange reionisation topologies"
                 )
 
                 if config["ignore_R_BUBBLE_MAX_error"]:
                     warnings.warn(msg, stacklevel=2)
                 else:
-                    raise ValueError(msg)
+                    raise ValueError(
+                        msg
+                        + " To ignore this error, set `py21cmfast.config['ignore_R_BUBBLE_MAX_error'] = True`"
+                    )
 
     @simulation_options.validator
     def _simulation_options_validator(self, att, val):

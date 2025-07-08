@@ -784,13 +784,13 @@ def pr_feature(
         while start + ncells <= lc_new.shape[-1]:
             pd, k = powerbox.get_power(
                 lc_default.brightness_temp[:, :, start : start + ncells],
-                lc_default.lightcone_dimensions[:2] + (chunk_size,),
+                (*lc_default.lightcone_dimensions[:2], chunk_size),
             )
             p_default.append(pd)
 
             pn, k = powerbox.get_power(
                 lc_new.brightness_temp[:, :, start : start + ncells],
-                lc_new.lightcone_dimensions[:2] + (chunk_size,),
+                (*lc_new.lightcone_dimensions[:2], chunk_size),
             )
             p_new.append(pn)
             z.append(lc_new.lightcone_redshifts[start])
