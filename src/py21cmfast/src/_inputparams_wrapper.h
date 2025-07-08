@@ -148,7 +148,8 @@ typedef struct AstroOptions {
     bool FIX_VCB_AVG;
     bool USE_EXP_FILTER;
     bool CELL_RECOMB;
-    bool THIN_SHELL_APPROX;
+    bool LYA_MULTIPLE_SCATTERING;
+    bool TEST_SL_WITH_MS_FILTER;
     int PHOTON_CONS_TYPE;
     bool USE_UPPER_STELLAR_TURNOVER;
     bool HALO_SCALING_RELATIONS_MEDIAN;

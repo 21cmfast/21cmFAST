@@ -1055,6 +1055,7 @@ class XraySourceBox(OutputStructZ):
         R_inner,
         R_outer,
         R_ct,
+        r_star,
         allow_already_computed: bool = False,
     ):
         """Compute the function."""
@@ -1064,6 +1065,7 @@ class XraySourceBox(OutputStructZ):
             R_inner,
             R_outer,
             R_ct,
+            r_star,
         )
 
 

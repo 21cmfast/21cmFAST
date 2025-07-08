@@ -571,22 +571,22 @@ void copy_filter_transform(struct FilteredGrids *fg_struct, struct IonBoxConstan
 
     if (rspec.R_index > 0) {
         double R = rspec.R;
-        filter_box(fg_struct->deltax_filtered, 1, consts->hii_filter, R, 0.);
+        filter_box(fg_struct->deltax_filtered, 1, consts->hii_filter, R, 0., 0.);
         if (astro_options_global->USE_TS_FLUCT) {
-            filter_box(fg_struct->xe_filtered, 1, consts->hii_filter, R, 0.);
+            filter_box(fg_struct->xe_filtered, 1, consts->hii_filter, R, 0., 0.);
         }
         if (consts->filter_recombinations) {
-            filter_box(fg_struct->N_rec_filtered, 1, consts->hii_filter, R, 0.);
+            filter_box(fg_struct->N_rec_filtered, 1, consts->hii_filter, R, 0., 0.);
         }
         if (matter_options_global->USE_HALO_FIELD) {
             int filter_hf = astro_options_global->USE_EXP_FILTER ? 3 : consts->hii_filter;
-            filter_box(fg_struct->stars_filtered, 1, filter_hf, R, consts->mfp_meandens);
-            filter_box(fg_struct->sfr_filtered, 1, filter_hf, R, consts->mfp_meandens);
+            filter_box(fg_struct->stars_filtered, 1, filter_hf, R, consts->mfp_meandens, 0.);
+            filter_box(fg_struct->sfr_filtered, 1, filter_hf, R, consts->mfp_meandens, 0.);
         } else {
             if (astro_options_global->USE_MINI_HALOS) {
-                filter_box(fg_struct->prev_deltax_filtered, 1, consts->hii_filter, R, 0.);
-                filter_box(fg_struct->log10_Mturnover_MINI_filtered, 1, consts->hii_filter, R, 0.);
-                filter_box(fg_struct->log10_Mturnover_filtered, 1, consts->hii_filter, R, 0.);
+                filter_box(fg_struct->prev_deltax_filtered, 1, consts->hii_filter, R, 0., 0.);
+                filter_box(fg_struct->log10_Mturnover_MINI_filtered, 1, consts->hii_filter, R, 0., 0.);
+                filter_box(fg_struct->log10_Mturnover_filtered, 1, consts->hii_filter, R, 0., 0.);
             }
         }
     }

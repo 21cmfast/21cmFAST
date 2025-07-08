@@ -5,7 +5,6 @@
 #include <omp.h>
 #include <stdio.h>
 #include <stdlib.h>
-#include <gsl/gsl_integration.h>
 #include <gsl/gsl_sf_gamma.h>
 
 #include "Constants.h"
@@ -104,7 +103,7 @@ double exp_mfp_filter(double k, double R, double mfp, double exp_term) {
     return f;
 }
 
-double spherical_shell_filter(double k, double R_outer, double R_inner) {
+double spherical_shell_filter(double k, double R_inner, double R_outer) {
     double kR_inner = k * R_inner;
     double kR_outer = k * R_outer;
 
@@ -117,54 +116,161 @@ double spherical_shell_filter(double k, double R_outer, double R_inner) {
            (sin(kR_outer) - cos(kR_outer) * kR_outer - sin(kR_inner) + cos(kR_inner) * kR_inner);
 }
 
-typedef struct {
-    double kR;
-    double alpha;
-    double beta;
-} integrand_params_multiple_scattering;
+struct multiple_scattering_params {
+    double alpha_outer;
+    double beta_outer;
+    double alpha_inner;
+    double beta_inner;
+};
 
-// The integrand: f(x) = (x^2 * sin(yx)/(yx)) * (1 - I_x(a,b))
-double M_function_integrand(double x, void *params) {
-    integrand_params_multiple_scattering *p = (integrand_params_multiple_scattering *) params;
-    double kR = p->kR;
-    double alpha = p->alpha;
-    double beta = p->beta;
-
-    double beta_inc = gsl_sf_beta_inc(alpha, beta, x); // I_x(a,b)
-    double sin_term = (kR * x != 0.0) ? sin(kR * x) / (kR * x) : 1.0; // Handle kR*x = 0
-    double result = x * x * sin_term * (1.0 - beta_inc);
-
-    return result;
+void compute_alpha_and_beta_for_multiple_scattering(double R_SL, double r_star, struct multiple_scattering_params *consts) {
+    double x_em = R_SL/r_star;
+    double zeta_em = log10(x_em);
+    double mu , eta;
+    if (x_em < 10.) {
+        mu = (0.36*zeta_em + 0.54)*(1. + 0.015*exp(-0.5*pow((zeta_em-0.422)/0.217,2)));
+    }
+    else if (x_em < 23.) {
+        mu = -0.338*zeta_em*zeta_em + 0.94*zeta_em + 0.298;
+    }
+    else {
+        mu = 0.96 - 0.00713*exp(-0.051*(x_em-23.));
+    }
+    if (x_em < 1.3) {
+        eta = 0.278*pow(x_em,0.898);
+    }
+    else if (x_em < 8.) {
+        eta = (0.662*zeta_em + 0.262)*(1. - 0.0296*exp(-0.5*pow((zeta_em-0.481)/0.146,2)));
+    }
+    else if (x_em < 20.) {
+        eta = -2.62*pow(zeta_em,4) + 12.81*pow(zeta_em,3) - 23.815*zeta_em*zeta_em + 19.94*zeta_em - 5.42;
+    }
+    else {
+        eta = -0.0786*zeta_em + 1.023;
+    }
+    // mu = alpha/(alpha+beta), eta = alpha/(alpha+beta^2)
+    consts->alpha_outer = (1./eta - 1.)/pow(1./mu - 1.,2);
+    consts->beta_outer = (1./eta - 1.)/(1./mu - 1.);
 }
 
-double M_function(double kR, double alpha, double beta) {
-    gsl_integration_workspace *w = gsl_integration_workspace_alloc(250);
-
-    gsl_function F;
-    integrand_params_multiple_scattering params = {kR, alpha, beta};
-    F.function = &M_function_integrand;
-    F.params = &params;
-
-    double result, error;
-    gsl_integration_qag(&F, 0, 1, 1e-4, 1e-4, 250, GSL_INTEG_GAUSS61, w, &result, &error);
-
-    gsl_integration_workspace_free(w);
-
-    return result;
+void initialize_alphas_and_betas_for_multiple_scattering(double R_inner, double R_outer, double r_star, struct multiple_scattering_params *consts) {
+    struct multiple_scattering_params consts_outer, consts_inner;
+    compute_alpha_and_beta_for_multiple_scattering(R_inner, r_star, &consts_inner);
+    compute_alpha_and_beta_for_multiple_scattering(R_outer, r_star, &consts_outer);
+    consts->alpha_outer = consts_outer.alpha_outer;
+    consts->beta_outer = consts_outer.beta_outer;
+    // Note that we use the "outer" alpha and beta here.
+    // This is because the above function only fills the values of the outer parameters. 
+    consts->alpha_inner = consts_inner.alpha_outer;
+    consts->beta_inner = consts_inner.beta_outer;
 }
 
-double multiple_scattering_filter(double k, double R_outer, double R_inner, float alpha, float beta) {
+double asymptotic_2F3(double kR,double alpha,double beta) {
+    // Approximation to the hypergeometric function 2F3(a1,a2;b1,b2,b3;-z) for z >> 1,
+    // as given in https://functions.wolfram.com/HypergeometricFunctions/Hypergeometric2F3/06/02/03/01/0003/.
+    // In our case, z=-kR^2/4 and the parameters of the hypergeometric function are given below
+    double a1 = (2.+alpha)/2.;
+    double a2 = (3.+alpha)/2.;
+    double b1 = 5./2.;
+    double b2 = (2.+alpha+beta)/2.;
+    double b3 = (3.+alpha+beta)/2.;
+
+    double gamma_a1 = tgamma(a1);
+    double gamma_a2 = tgamma(a2);
+    double gamma_b1 = 3./4.; // Actually Gamma(5/2) is 3/4*sqrt(pi), but we absorbed the sqrt(pi) in the other terms below
+    double gamma_b2 = tgamma(b2);
+    double gamma_b3 = tgamma(b3);
+
+    double gamma_b2_over_a1, gamma_b3_over_a2, decay_term1, decay_term2, F_asymp;
+    // If alpha >> beta, the gamma function becomes very large and overflow can happen if they are naively computed.
+    // In this limit, we use the following asymptotic approximation, which is based on Stirling's formula
+    if (a1 < 20.) {
+        gamma_b2_over_a1 = gamma_b2/gamma_a1;
+        gamma_b3_over_a2 = gamma_b3/gamma_a2;
+    }
+    else {
+        double y = beta/2; // b2-a1 = b3-a2
+        gamma_b2_over_a1 = pow(a1,y)*exp((a1+y-0.5)*(y/a1-y*y/(2.*a1*a1)+y*y*y/(3.*a1*a1*a1))-y);
+        gamma_b3_over_a2 = pow(a2,y)*exp((a2+y-0.5)*(y/a2-y*y/(2.*a2*a1)+y*y*y/(3.*a2*a2*a2))-y);
+    }
+    // If alpha is very big the following decaying terms can be completely neglected
+    if (alpha < 10.) {
+        // There are some Gamma function whose argument could be close to a pole (non-positive integers), but they are at the denominator,
+        // so they behave nicely and we actually need the reciprocal gamma function
+        double gamma_b1_minus_a1_inv = gsl_sf_gammainv(b1-a1); // 1/Gamma((3-alpha)/2)
+        double gamma_b1_minus_a2_inv = gsl_sf_gammainv(b1-a2); // 1/Gamma((2-alpha)/2)
+        double gamma_b2_minus_a2_inv = gsl_sf_gammainv(b2-a2); // 1/Gamma((beta-1)/2)
+        decay_term1 = PI*gamma_a1*gamma_b1_minus_a1_inv/tgamma(b2-a1)/tgamma(b3-a1)/pow(kR/2.,alpha+2.); // gamma(a2-a1) = sqrt(pi)
+        decay_term2 = -2.*PI*gamma_a2*gamma_b1_minus_a2_inv*gamma_b2_minus_a2_inv/tgamma(b3-a2)/pow(kR/2.,alpha+3.); // gamma(a1-a2) = -2*sqrt(pi)
+    }
+    else {
+        decay_term1 = 0.;
+        decay_term2 = 0.;
+    }
+    
+    F_asymp = ( cos(kR - PI*(2.+beta)/2.) - (1.+(alpha-1.)*beta)/kR*sin(kR - PI*(2.+beta)/2.) ) / pow(kR/2,beta+2);
+    F_asymp += decay_term1 + decay_term2;
+    F_asymp *= gamma_b1*gamma_b2_over_a1*gamma_b3_over_a2;
+    
+    return F_asymp;
+}
+
+// Implementation of 2F3((alpha+2)/2, (alpha+3)/2 ; (alpha+beta+2)/2, (alpha+beta+3)/2 ; -kR^2 /4))
+double  hyper_2F3(double kR,double alpha, double beta) {
+    
+    if (astro_options_global->TEST_SL_WITH_MS_FILTER) {
+        alpha = 1.e5; 
+        beta = 1.;
+    }
+    
+    // For a small argument, we compute the hypergeometric function through power-law expansion
+    if (kR < 30.) {
+        int n;
+        int max_terms = 1000;
+        double sum = 0.;
+        double term = 1.;
+        for (n = 1; n < max_terms; n++) {
+            sum += term;
+            term *= - 1./ (1. + beta/(alpha + 2.*n)) / (1. + beta/(alpha + 1 + 2.*n)) * kR*kR / (2.*n) / (2.*n + 3.);
+            if (fabs(term) < fabs(sum) * 1e-4) {
+                break;
+            }
+        }
+        return sum;
+    }
+    // For large arguments, the above sum becomes numerically unstable, and we use instead asymptotic approximation
+    else {
+        double F_ms, F_sl;
+        F_ms = asymptotic_2F3(kR,alpha,beta);
+        F_sl = 3.0 / (pow(kR, 3)) * (sin(kR) - cos(kR) * kR);
+        /* At large arguments, the hypergeometric function (multiple scattering window function) should be below 
+           the straight-line window function. However, for large alpha values the asymptotic approximation is 
+           not adequate at 30 < kR < 100 and the asymptotic formula diverges at this range. We could of course 
+           increase the threshold for "big" argument, but then the above power-law expansion diverges.
+           I therefore use this rule of thumb, which is necessary only for large alpha values (where the hypergeometric
+           function approaches the straight-line window function) and intermediate kR values. */
+        if (fabs(F_ms) < fabs(F_sl)) {
+            return F_ms;
+        }
+        else {
+            return F_sl;
+        }
+    }
+}
+
+double multiple_scattering_filter(double k, double R_inner, double R_outer, struct multiple_scattering_params *consts) {
     double kR_inner = k * R_inner;
     double kR_outer = k * R_outer;
     double W;
 
-    W = pow(R_outer,3.)*M_function(kR_outer, alpha, beta) - pow(R_inner,3.)*M_function(kR_inner, alpha, beta);
-    W /= pow(R_outer,3.)*M_function(0., alpha, beta) - pow(R_inner,3.)*M_function(0., alpha, beta);
+    W = pow(R_outer,3.)*hyper_2F3(kR_outer, consts->alpha_outer, consts->beta_outer) - pow(R_inner,3.)*hyper_2F3(kR_inner, consts->alpha_inner, consts->beta_inner);
+    W /= pow(R_outer,3.) - pow(R_inner,3.);
     return W;
 }
 
-void filter_box(fftwf_complex *box, int RES, int filter_type, float R, float R_param) {
+void filter_box(fftwf_complex *box, int RES, int filter_type, float R, float R_param, float r_star) {
     int dimension, midpoint;  // TODO: figure out why defining as ULL breaks this
+    struct multiple_scattering_params consts_for_ms;
     switch (RES) {
         case 0:
             dimension = simulation_options_global->DIM;
@@ -184,6 +290,9 @@ void filter_box(fftwf_complex *box, int RES, int filter_type, float R, float R_p
     double R_const;
     if (filter_type == 3) {
         R_const = exp(-R / R_param);
+    }   
+    if (filter_type == 5) {
+        initialize_alphas_and_betas_for_multiple_scattering(R, R_param, r_star, &consts_for_ms);
     }
 
 // loop through k-box
@@ -242,7 +351,7 @@ void filter_box(fftwf_complex *box, int RES, int filter_type, float R, float R_p
                     } else if (filter_type == 4) {  // spherical shell, R_param == inner radius
                         box[grid_index] *= spherical_shell_filter(sqrt(k_mag_sq), R, R_param);
                     } else if (filter_type == 5) {  // spherical ring
-                        box[grid_index] *= multiple_scattering_filter(sqrt(k_mag_sq), R, R_param, 1000., 1.);
+                        box[grid_index] *= multiple_scattering_filter(sqrt(k_mag_sq), R, R_param, &consts_for_ms);
                     } else {
                         if ((n_x == 0) && (n_y == 0) && (n_z == 0))
                             LOG_WARNING("Filter type %i is undefined. Box is unfiltered.",
@@ -257,7 +366,7 @@ void filter_box(fftwf_complex *box, int RES, int filter_type, float R, float R_p
 }
 
 // Test function to filter a box without computing a whole output box
-int test_filter(float *input_box, double R, double R_param, int filter_flag, double *result) {
+int test_filter(float *input_box, double R, double R_param, double r_star, int filter_flag, double *result) {
     int i, j, k;
     unsigned long long int ii;
 
@@ -282,7 +391,7 @@ int test_filter(float *input_box, double R, double R_param, int filter_flag, dou
 
     memcpy(box_filtered, box_unfiltered, sizeof(fftwf_complex) * HII_KSPACE_NUM_PIXELS);
 
-    filter_box(box_filtered, 1, filter_flag, R, R_param);
+    filter_box(box_filtered, 1, filter_flag, R, R_param, r_star);
 
     dft_c2r_cube(matter_options_global->USE_FFTW_WISDOM, simulation_options_global->HII_DIM,
                  HII_D_PARA, simulation_options_global->N_THREADS, box_filtered);

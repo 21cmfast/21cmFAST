@@ -612,6 +612,7 @@ def _redshift_loop_generator(
                 xrs = sf.compute_xray_source_field(
                     redshift=z,
                     hboxes=hbox_arr,
+                    previous_ionize_box=getattr(prev_coeval, "ionized_box", None),
                     write=write.xray_source_box,
                     **kw,
                 )

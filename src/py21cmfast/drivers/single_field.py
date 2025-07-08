@@ -10,6 +10,7 @@ import warnings
 
 import numpy as np
 from astropy import units as un
+from astropy import constants
 from astropy.cosmology import z_at_value
 
 from ..wrapper.inputs import InputParameters
@@ -399,6 +400,7 @@ def compute_xray_source_field(
     initial_conditions: InitialConditions,
     hboxes: list[HaloBox],
     redshift: float,
+    previous_ionize_box: IonizedBox | None = None,
 ) -> XraySourceBox:
     r"""
     Compute filtered grid of SFR for use in spin temperature calculation.
@@ -415,6 +417,9 @@ def compute_xray_source_field(
         The initial conditions of the run. The user and cosmo params
     hboxes: Sequence of :class:`~HaloBox` instances
         This contains the list of Halobox instances which are used to create this source field
+    previous_ionize_box: :class:`IonizedBox` or None
+        An ionized box at higher redshift. This is only used if `LYA_MULTIPLE_SCATTERING` is true.
+    
 
     Returns
     -------
@@ -457,6 +462,26 @@ def compute_xray_source_field(
     # inner and outer redshifts (following the C code)
     zpp_avg = zpp_edges - np.diff(np.insert(zpp_edges, 0, redshift)) / 2
 
+    # Compute the comoving diffusion scale in the case of Lyman alpha multiple scattering
+    if inputs.astro_options.LYA_MULTIPLE_SCATTERING:
+        # TODO: In principle, the diffusion scale varies locally as it depends on the ionization field at the cell and its surrounding.
+        # For simplicty, we consider the global ionization value, which is a good approximation before reionization begins.
+        # This approximation breaks when reionization begins, but under strong X-ray heating the value of the spin temperature (and 
+        # Lyman alpha flux) becomes irrelevant. This should be examined in the future in the case of weak X-ray heating during the 
+        # epoch of reionization (this would complicate things dramtically because a spatially varying filter implies 
+        # that the box cannot be filtered in Fourier space via the convolution theorem!) 
+        if previous_ionize_box is None:
+            x_HI = 1.
+        else:
+            x_HI = previous_ionize_box.neutral_fraction.value.mean()
+        A_alpha = 6.25e8 * un.Hz
+        nu_Lya = 2.46606727e15 * un.Hz
+        n_H_z0 = (1. - inputs.cosmo_params.Y_He) * inputs.cosmo_params.cosmo.critical_density(0) * inputs.cosmo_params.OMb / constants.m_p
+        r_star = 3. * constants.c**4 * A_alpha**2 * n_H_z0 * x_HI *(1.+redshift)
+        r_star /= 32. * np.pi**3 * nu_Lya**4 * inputs.cosmo_params.cosmo.H0**2 * inputs.cosmo_params.OMm
+    else:
+        r_star = 0. * un.Mpc
+
     # call the box the initialize the memory, since I give some values before computing
     box._init_arrays()
     for i in range(inputs.astro_params.N_STEP_TS):
@@ -491,6 +516,7 @@ def compute_xray_source_field(
             R_inner=R_inner,
             R_outer=R_outer,
             R_ct=i,
+            r_star=r_star.to("Mpc").value,
             allow_already_computed=True,
         )
 

@@ -223,7 +223,7 @@ int ComputeInitialConditions(unsigned long long random_seed, InitialConditions *
             filter_box(HIRES_box, 0, 0,
                        L_FACTOR * simulation_options_global->BOX_LEN /
                            (simulation_options_global->HII_DIM + 0.0),
-                       0.);
+                       0., 0.);
         }
 
         // FFT back to real space
@@ -306,7 +306,7 @@ int ComputeInitialConditions(unsigned long long random_seed, InitialConditions *
                     filter_box(HIRES_box, 0, 0,
                                L_FACTOR * simulation_options_global->BOX_LEN /
                                    (simulation_options_global->HII_DIM + 0.0),
-                               0.);
+                               0., 0.);
                 }
 
                 // fft each velocity component back to real space
@@ -397,7 +397,7 @@ int ComputeInitialConditions(unsigned long long random_seed, InitialConditions *
                     filter_box(HIRES_box, 0, 0,
                                L_FACTOR * simulation_options_global->BOX_LEN /
                                    (simulation_options_global->HII_DIM + 0.0),
-                               0.);
+                               0., 0.);
                 }
             }
 
@@ -788,7 +788,7 @@ int ComputeInitialConditions(unsigned long long random_seed, InitialConditions *
                         filter_box(HIRES_box, 0, 0,
                                    L_FACTOR * simulation_options_global->BOX_LEN /
                                        (simulation_options_global->HII_DIM + 0.0),
-                                   0.);
+                                   0., 0.);
                     }
                 }
 
