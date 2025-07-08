@@ -565,8 +565,7 @@ void sum_halos_onto_grid(InitialConditions *ini_boxes, TsBox *previous_spin_temp
                 n_halos_cut++;
                 continue;
             }
-            // NOTE:Unlike HaloField, PerturbHaloField is on HII_DIM so we don't need to correct
-            // here
+
             x = halos->halo_coords[0 + 3 * i_halo] * simulation_options_global->HII_DIM /
                 simulation_options_global->BOX_LEN;
             y = halos->halo_coords[1 + 3 * i_halo] * simulation_options_global->HII_DIM /
