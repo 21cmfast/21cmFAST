@@ -193,17 +193,12 @@ def apply_rsds(
 
     # We need to extend the grid once as we would like to interpret the displacement values
     # to be associated with the *centers* of the cells, as was previously done in the C code
-    distance_plus = np.append(distance, 2 * distance[-1] - distance[-2])
+    distance_plus = np.arange(field.shape[0]+1)
 
     if periodic:
         # We extend the grid twice more to account for periodic boundary conditions
-        distance_plus_plus = np.append(
-            distance_plus, 2 * distance_plus[-1] - distance_plus[-2]
-        )
-        distance_plus_minus = np.append(
-            2 * distance_plus[0] - distance_plus[1], distance_plus_plus
-        )
-        distance_grid = (distance_plus_minus[1:] + distance_plus_minus[:-1]) / 2
+        distance_plus_periodic = np.arange(-1,field.shape[0]+2)
+        distance_grid = (distance_plus_periodic[1:] + distance_plus_periodic[:-1]) / 2
         # We also extend the displacement array to have periodic boundary conditions
         first_slice = los_displacement[-1, :].reshape(1, len(ang_coords))
         last_slice = los_displacement[0, :].reshape(1, len(ang_coords))
