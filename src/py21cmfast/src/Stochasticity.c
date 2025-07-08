@@ -213,92 +213,6 @@ void stoc_set_consts_cond(struct HaloSamplingConstants *const_struct, double con
     return;
 }
 
-// TODO: perhaps some of these functions should be moved to an indexing.c file
-// Minutia: I'm guessing that since particles will rarely be wrapped, the branching
-//  will be faster than a modulus, either way this is not likely to be a bottleneck
-void wrap_position(double pos[3], double size[3]) {
-    // wrap the coordinates to the box size
-    while (pos[0] >= size[0]) {
-        pos[0] -= size[0];
-    }
-    while (pos[0] < 0) {
-        pos[0] += size[0];
-    }
-    while (pos[1] >= size[1]) {
-        pos[1] -= size[1];
-    }
-    while (pos[1] < 0) {
-        pos[1] += size[1];
-    }
-    while (pos[2] >= size[2]) {
-        pos[2] -= size[2];
-    }
-    while (pos[2] < 0) {
-        pos[2] += size[2];
-    }
-    return;
-}
-
-void wrap_coord(int idx[3], int size[3]) {
-    // wrap the coordinates to the box size
-    while (idx[0] >= size[0]) {
-        idx[0] -= size[0];
-    }
-    while (idx[0] < 0) {
-        idx[0] += size[0];
-    }
-    while (idx[1] >= size[1]) {
-        idx[1] -= size[1];
-    }
-    while (idx[1] < 0) {
-        idx[1] += size[1];
-    }
-    while (idx[2] >= size[2]) {
-        idx[2] -= size[2];
-    }
-    while (idx[2] < 0) {
-        idx[2] += size[2];
-    }
-    return;
-}
-
-void random_point_in_sphere(double centre[3], double radius, gsl_rng *rng, double *point) {
-    // generate a random point in a sphere of given radius and centre
-    double x1, y1, z1, d1, r1;
-    x1 = 2 * gsl_rng_uniform(rng) - 1;
-    y1 = 2 * gsl_rng_uniform(rng) - 1;
-    z1 = 2 * gsl_rng_uniform(rng) - 1;
-    d1 = sqrt(x1 * x1 + y1 * y1 + z1 * z1);
-    r1 = gsl_rng_uniform(rng);
-    point[0] = centre[0] + (radius * r1 * x1 / d1);
-    point[1] = centre[1] + (radius * r1 * y1 / d1);
-    point[2] = centre[2] + (radius * r1 * z1 / d1);
-}
-
-void random_point_in_cell(int idx[3], double cell_len, gsl_rng *rng, double *point) {
-    // generate a random point in a cell given the coordinates and length the cell
-    double randbuf;
-    randbuf = gsl_rng_uniform(rng);
-    point[0] = (idx[0] + randbuf) * cell_len;
-
-    randbuf = gsl_rng_uniform(rng);
-    point[1] = (idx[1] + randbuf) * cell_len;
-
-    randbuf = gsl_rng_uniform(rng);
-    point[2] = (idx[2] + randbuf) * cell_len;
-    return;
-}
-
-void place_on_hires_grid(int x, int y, int z, int *crd_hi, gsl_rng *rng) {
-    // Map a low-res coordinate to a high-res coordinate with a random offset
-    double pos_hi[3];
-    double res_fac = simulation_options_global->DIM / (double)simulation_options_global->HII_DIM;
-    random_point_in_cell((double[3]){x, y, z}, res_fac, rng, pos_hi);
-    crd_hi[0] = (int)pos_hi[0];
-    crd_hi[1] = (int)pos_hi[1];
-    crd_hi[2] = (int)pos_hi[2];
-}
-
 // This function adds stochastic halo properties to an existing halo
 void set_prop_rng(gsl_rng *rng, bool from_catalog, double *interp, double *input, double *output) {
     double rng_star, rng_sfr, rng_xray;
@@ -1037,7 +951,7 @@ int sample_halo_progenitors(gsl_rng **rng_arr, double z_in, double z_out, HaloFi
         double propbuf_out[3];
 
         int threadnum = omp_get_thread_num();
-        double M2, R2;
+        double M2, R2, R1;
         int jj;
         unsigned long long int ii;
         unsigned long long int count = 0;
@@ -1098,9 +1012,10 @@ int sample_halo_progenitors(gsl_rng **rng_arr, double z_in, double z_out, HaloFi
                 halofield_out->halo_masses[istart + count] = prog_buf[jj];
 
                 // Place the progenitor in a random position within the condition
-                // which is a sphere with radius equal to the Lagrangian
-                // scale of the descendant
-                random_point_in_sphere(pos_desc, R2, rng_arr[threadnum], pos_prog);
+                // Such that a sphere of the progenitor's Lagrangian radius is placed
+                // entirely within the descendant's Lagrangian radius,
+                R1 = MtoR(prog_buf[jj]);
+                random_point_in_sphere(pos_desc, R2 - R1, rng_arr[threadnum], pos_prog);
                 wrap_position(pos_prog, boxlen);
 
                 halofield_out->halo_coords[3 * (istart + count) + 0] = pos_prog[0];
