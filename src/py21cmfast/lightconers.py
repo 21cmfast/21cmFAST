@@ -93,9 +93,13 @@ class Lightconer(ABC):
         if self._lc_redshifts is not None:
             return self._lc_redshifts
 
-        return np.array(
-            [z_at_value(self.cosmo.comoving_distance, d) for d in self.lc_distances]
-        )
+        d = self.lc_distances
+        zmin = z_at_value(self.cosmo.comoving_distance, d.min()).value
+        zmax = z_at_value(self.cosmo.comoving_distance, d.max()).value
+
+        zgrid = np.logspace(np.log10(zmin), np.log10(zmax), 100)
+        dgrid = self.cosmo.comoving_distance(zgrid)
+        return np.interp(d.value, dgrid.value, zgrid)
 
     def get_lc_distances_in_pixels(self, resolution: Quantity[_LENGTH]):
         """Get the lightcone distances in pixels, given a resolution."""
