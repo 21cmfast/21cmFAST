@@ -5,6 +5,7 @@ import logging
 import warnings
 from collections import deque
 from collections.abc import Sequence
+from functools import cached_property
 from pathlib import Path
 from typing import Self
 
@@ -146,15 +147,16 @@ class LightCone:
         """Random seed shared by all datasets."""
         return self.inputs.random_seed
 
-    @property
+    @cached_property
     def lightcone_redshifts(self) -> np.ndarray:
         """Redshift of each cell along the redshift axis."""
-        return np.array(
-            [
-                z_at_value(self.cosmo_params.cosmo.comoving_distance, d)
-                for d in self.lightcone_distances
-            ]
-        )
+        d = self.lightcone_distances
+        zmin = z_at_value(self.cosmo_params.cosmo.comoving_distance, d.min()).value
+        zmax = z_at_value(self.cosmo_params.cosmo.comoving_distance, d.max()).value
+
+        zgrid = np.logspace(np.log10(zmin), np.log10(zmax), 100)
+        dgrid = self.cosmo_params.cosmo.comoving_distance(zgrid)
+        return np.interp(d.value, dgrid.value, zgrid)
 
     def save(
         self,
@@ -601,25 +603,6 @@ def generate_lightcone(
 
     _check_desired_arrays_exist(global_quantities, inputs)
     _check_desired_arrays_exist(lightconer.quantities, inputs)
-
-    # while we still use the full list for caching etc, we don't need to run below the lightconer instance
-    #   So stop one after the lightconer
-    scrollz = np.copy(inputs.node_redshifts)
-    below_lc_z = scrollz <= min(lightconer.lc_redshifts)
-    if np.any(below_lc_z):
-        final_node = np.where(below_lc_z)[0][0]  # first node below the lightcone
-        scrollz = scrollz[: final_node + 1]  # inclusive to get the last few entries
-
-    lcz = lightconer.lc_redshifts
-
-    if not np.all(min(scrollz) * 0.99 < lcz) and np.all(lcz < max(scrollz) * 1.01):
-        # We have a 1% tolerance on the redshifts, because the lightcone redshifts are
-        # computed via inverse fitting the comoving_distance.
-        raise ValueError(
-            "The lightcone redshifts are not compatible with the given redshift."
-            f"The range of computed redshifts is {min(scrollz)} to {max(scrollz)}, "
-            f"while the lightcone redshift range is {lcz.min()} to {lcz.max()}."
-        )
 
     iokw = {"cache": cache, "regenerate": regenerate}
 
