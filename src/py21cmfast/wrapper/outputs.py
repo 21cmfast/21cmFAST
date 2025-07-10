@@ -395,7 +395,7 @@ class OutputStruct(ABC):
             elif not state.computed_in_mem:
                 out += f"{indent}    {fieldname:>25}:  computed on disk\n"
             else:
-                x = getattr(self, fieldname).flatten()
+                x = self.get(fieldname).flatten()
                 if len(x) > 0:
                     out += f"{indent}    {fieldname:>25}: {x[0]:11.4e}, {x[-1]:11.4e}, {x.min():11.4e}, {x.max():11.4e}, {np.mean(x):11.4e}\n"
                 else:
@@ -1394,6 +1394,7 @@ class BrightnessTemp(OutputStructZ):
 
     _meta = False
     brightness_temp = _arrayfield()
+    tau_21 = _arrayfield(optional=True)
 
     @classmethod
     def new(cls, inputs: InputParameters, redshift: float, **kw) -> Self:
@@ -1418,10 +1419,14 @@ class BrightnessTemp(OutputStructZ):
             ),
         )
 
+        out = {"brightness_temp": Array(shape, dtype=np.float32)}
+        if inputs.astro_options.USE_TS_FLUCT and inputs.astro_options.APPLY_RSDS:
+            out["tau_21"] = Array(shape, dtype=np.float32)
+
         return cls(
             inputs=inputs,
             redshift=redshift,
-            brightness_temp=Array(shape, dtype=np.float32),
+            **out,
             **kw,
         )
 

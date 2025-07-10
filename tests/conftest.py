@@ -24,7 +24,7 @@ from py21cmfast import (
     run_lightcone,
 )
 from py21cmfast.io.caching import CacheConfig
-from py21cmfast.lightcones import RectilinearLightconer
+from py21cmfast.lightconers import RectilinearLightconer
 
 
 def pytest_addoption(parser):
@@ -94,9 +94,6 @@ def setup_and_teardown_package(tmpdirec, request):
     # Set default global parameters for all tests
     # ------ #
 
-    # Set default config parameters for all tests.
-    config["regenerate"] = True
-    config["write"] = False
     # we run small boxes often here, and R_max is often large, so we ignore this error
     config["ignore_R_BUBBLE_MAX_error"] = True
 
