@@ -23,7 +23,7 @@ from .drivers.single_field import (
     perturb_field,
 )
 from .io.caching import OutputCache
-from .lightcones import RectilinearLightconer
+from .lightconers import RectilinearLightconer
 from .run_templates import create_params_from_template, load_template_file
 from .wrapper._utils import camel_to_snake
 from .wrapper.inputs import (

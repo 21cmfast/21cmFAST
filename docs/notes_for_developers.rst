@@ -59,7 +59,7 @@ in the ``ComputeInitialConditions`` C function, then the ``MatterParams`` class 
 the wrapper would be modified, adding``some_param=attrs.field(default=<your_value_here>)``
 to the class. If the default value of the parameter is dependent on another parameter, it
 should be placed after it's depenencies in the structure, and be given a default function
-vit the attrs default decorator e.g:
+vit the attrs default decorator e.g::
 
     @DIM.default
     def _dim_default(self):
