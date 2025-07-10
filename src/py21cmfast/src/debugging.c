@@ -81,14 +81,13 @@ void writeMatterOptions(MatterOptions *p) {
         "       POWER_SPECTRUM=%2d\n"
         "       USE_RELATIVE_VELOCITIES=%1d\n"
         "       PERTURB_ON_HIGH_RES=%1d\n"
-        "       NO_RNG=%1d\n"
         "       USE_FFTW_WISDOM=%1d\n"
         "       USE_INTERPOLATION_TABLES=%1d\n"
         "       PERTURB_ALGORITHM=%1d\n"
         "       MINIMIZE_MEMORY=%1d,\n"
         "       KEEP_3D_VELOCITIES=%1d\n"
         "       SAMPLE_METHOD=%2d\n",
-        p->HMF, p->POWER_SPECTRUM, p->USE_RELATIVE_VELOCITIES, p->PERTURB_ON_HIGH_RES, p->NO_RNG,
+        p->HMF, p->POWER_SPECTRUM, p->USE_RELATIVE_VELOCITIES, p->PERTURB_ON_HIGH_RES,
         p->USE_FFTW_WISDOM, p->USE_INTERPOLATION_TABLES, p->PERTURB_ALGORITHM, p->MINIMIZE_MEMORY,
         p->KEEP_3D_VELOCITIES, p->SAMPLE_METHOD);
 }

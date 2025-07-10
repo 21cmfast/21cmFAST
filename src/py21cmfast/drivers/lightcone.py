@@ -5,6 +5,7 @@ import logging
 import warnings
 from collections import deque
 from collections.abc import Sequence
+from functools import cached_property
 from pathlib import Path
 from typing import Self
 
@@ -13,13 +14,13 @@ import h5py
 import numpy as np
 from astropy import units
 from astropy.cosmology import z_at_value
-from cosmotile import apply_rsds
 
 from .. import __version__
 from ..c_21cmfast import lib
 from ..io import h5
 from ..io.caching import CacheConfig, OutputCache, RunCache
-from ..lightcones import Lightconer, RectilinearLightconer
+from ..lightconers import Lightconer, RectilinearLightconer
+from ..rsds import compute_rsds
 from ..wrapper.inputs import InputParameters
 from ..wrapper.outputs import (
     BrightnessTemp,
@@ -146,17 +147,24 @@ class LightCone:
         """Random seed shared by all datasets."""
         return self.inputs.random_seed
 
-    @property
+    @cached_property
     def lightcone_redshifts(self) -> np.ndarray:
         """Redshift of each cell along the redshift axis."""
-        return np.array(
-            [
-                z_at_value(self.cosmo_params.cosmo.comoving_distance, d)
-                for d in self.lightcone_distances
-            ]
-        )
+        d = self.lightcone_distances
+        zmin = z_at_value(self.cosmo_params.cosmo.comoving_distance, d.min()).value
+        zmax = z_at_value(self.cosmo_params.cosmo.comoving_distance, d.max()).value
 
-    def save(self, path: str | Path, clobber=False):
+        zgrid = np.logspace(np.log10(zmin), np.log10(zmax), 100)
+        dgrid = self.cosmo_params.cosmo.comoving_distance(zgrid)
+        return np.interp(d.value, dgrid.value, zgrid)
+
+    def save(
+        self,
+        path: str | Path,
+        clobber=False,
+        lowz_buffer_pixels: int = 0,
+        highz_buffer_pixels: int = 0,
+    ):
         """Save the lightcone object to disk."""
         path = Path(path)
         path.parent.mkdir(parents=True, exist_ok=True)
@@ -167,6 +175,8 @@ class LightCone:
 
             fl.attrs["last_completed_node"] = self._last_completed_node
             fl.attrs["last_completed_lcidx"] = self._last_completed_lcidx
+            fl.attrs["lowz_buffer_pixels"] = lowz_buffer_pixels
+            fl.attrs["highz_buffer_pixels"] = highz_buffer_pixels
 
             fl.attrs["__version__"] = __version__
 
@@ -213,8 +223,22 @@ class LightCone:
             self._last_completed_lcidx = lcidx
             self._last_completed_node = node_index
 
+    def trim(self, mind: units.Quantity, maxd: units.Quantity) -> Self:
+        """Create a new lightcone box containing only the desired distances range."""
+        inds = np.logical_and(
+            self.lightcone_distances >= mind,
+            self.lightcone_distances <= maxd,
+        )
+        return attrs.evolve(
+            self,
+            lightcone_distances=self.lightcone_distances[inds],
+            lightcones={k: v[..., inds] for k, v in self.lightcones.items()},
+        )
+
     @classmethod
-    def from_file(cls, path: str | Path, safe: bool = True) -> Self:
+    def from_file(
+        cls, path: str | Path, safe: bool = True, remove_buffer: bool = True
+    ) -> Self:
         """Create a new instance from a saved lightcone on disk."""
         kwargs = {}
         with h5py.File(path, "r") as fl:
@@ -225,15 +249,29 @@ class LightCone:
             kwargs["last_completed_node"] = fl.attrs["last_completed_node"]
             kwargs["last_completed_lcidx"] = fl.attrs["last_completed_lcidx"]
 
+            if remove_buffer:
+                lowz_buffer_pixels = fl.attrs.get("lowz_buffer_pixels", 0)
+                highz_buffer_pixels = fl.attrs.get("highz_buffer_pixels", 0)
+            else:
+                lowz_buffer_pixels = 0
+                highz_buffer_pixels = 0
+
+            highz_buffer_pixels = len(fl["lightcone_distances"]) - highz_buffer_pixels
+
             grp = fl["photon_nonconservation_data"]
             kwargs["photon_nonconservation_data"] = {k: v[...] for k, v in grp.items()}
 
             boxes = fl["lightcones"]
-            kwargs["lightcones"] = {k: boxes[k][...] for k in boxes}
+            kwargs["lightcones"] = {
+                k: boxes[k][..., lowz_buffer_pixels:highz_buffer_pixels] for k in boxes
+            }
 
             glb = fl["global_quantities"]
             kwargs["global_quantities"] = {k: glb[k][...] for k in glb}
-            kwargs["lightcone_distances"] = fl["lightcone_distances"][...] * units.Mpc
+            kwargs["lightcone_distances"] = (
+                fl["lightcone_distances"][..., lowz_buffer_pixels:highz_buffer_pixels]
+                * units.Mpc
+            )
 
         return cls(**kwargs)
 
@@ -256,88 +294,9 @@ class AngularLightcone(LightCone):
     """An angular lightcone."""
 
     @property
-    def cell_size(self):
-        """Cell size [Mpc] of the lightcone voxels."""
-        raise AttributeError("This is not an attribute of an AngularLightcone")
-
-    @property
     def lightcone_dimensions(self):
         """Lightcone size over each dimension -- tuple of (x,y,z) in Mpc."""
         raise AttributeError("This is not an attribute of an AngularLightcone")
-
-    def compute_rsds(self, n_subcells: int = 4, fname: str | Path | None = None):
-        """Compute redshift-space distortions from the los_velocity lightcone.
-
-        Parameters
-        ----------
-        n_subcells
-            The number of sub-cells to interpolate onto, to make the RSDs more accurate.
-        fname
-            An output path to write the new RSD-corrected brightness temperature to.
-        """
-        if "los_velocity" not in self.lightcones:
-            raise ValueError(
-                "Lightcone does not contain los velocity field, cannot compute_rsds"
-            )
-        if "brightness_temp_with_rsds" in self.lightcones:
-            warnings.warn(
-                "Lightcone already contains brightness_temp_with_rsds, returning",
-                stacklevel=2,
-            )
-            return self.lightcones["brightness_temp_with_rsds"]
-
-        H0 = self.cosmo_params.cosmo.H(self.lightcone_redshifts)
-        los_displacement = self.lightcones["los_velocity"] * units.Mpc / units.s / H0
-        equiv = units.pixel_scale(self.simulation_options.cell_size / units.pixel)
-        los_displacement = -los_displacement.to(units.pixel, equivalencies=equiv)
-
-        lcd = self.lightcone_distances.to(units.pixel, equiv)
-        dvdx_on_h = np.gradient(los_displacement, lcd, axis=1)
-
-        if not (self.astro_options.USE_TS_FLUCT and self.astro_options.SUBCELL_RSD):
-            # Now, clip dvdx...
-            dvdx_on_h = np.clip(
-                dvdx_on_h,
-                -self.astro_params.MAX_DVDR,
-                self.astro_params.MAX_DVDR,
-                out=dvdx_on_h,
-            )
-
-            tb_with_rsds = self.lightcones["brightness_temp"] / (1 + dvdx_on_h)
-        else:
-            gradient_component = 1 + dvdx_on_h  # not clipped!
-            Tcmb = 2.728
-            Trad = Tcmb * (1 + self.lightcone_redshifts)
-            tb_with_rsds = np.where(
-                gradient_component < 1e-7,
-                1000.0
-                * (self.lightcones["spin_temperature"] - Trad)
-                / (1.0 + self.lightcone_redshifts),
-                (1.0 - np.exp(self.lightcones["brightness_temp"] / gradient_component))
-                * 1000.0
-                * (self.lightcones["spin_temperature"] - Trad)
-                / (1.0 + self.lightcone_redshifts),
-            )
-
-        # Compute the local RSDs
-        if n_subcells > 0:
-            tb_with_rsds = apply_rsds(
-                field=tb_with_rsds.T,
-                los_displacement=los_displacement.T,
-                distance=self.lightcone_distances.to(units.pixel, equiv),
-                n_subcells=n_subcells,
-            ).T
-
-        self.lightcones["brightness_temp_with_rsds"] = tb_with_rsds
-
-        if fname:
-            if Path(fname).exists():
-                with h5py.File(fname, "a") as fl:
-                    fl["lightcones"]["brightness_temp_with_rsds"] = tb_with_rsds
-            else:
-                self.save(fname)
-
-        return tb_with_rsds
 
 
 def _check_desired_arrays_exist(desired_arrays: list[str], inputs: InputParameters):
@@ -371,7 +330,7 @@ def setup_lightcone_instance(
 ) -> LightCone:
     """Return a LightCone instance given a lightconer as input."""
     if lightcone_filename and Path(lightcone_filename).exists():
-        lightcone = LightCone.from_file(lightcone_filename)
+        lightcone = LightCone.from_file(lightcone_filename, remove_buffer=False)
         idx = lightcone._last_completed_node
         logger.info("Read in LC file")
         if idx < len(scrollz) - 1:
@@ -392,11 +351,14 @@ def setup_lightcone_instance(
             for quantity in lightconer.quantities
         }
 
-        # Special case: AngularLightconer can also save los_velocity
-        if getattr(lightconer, "get_los_velocity", False):
+        if inputs.astro_options.APPLY_RSDS:
             lc["los_velocity"] = np.zeros(
                 lightconer.get_shape(inputs.simulation_options), dtype=np.float32
             )
+            if inputs.astro_options.USE_TS_FLUCT:
+                lc["tau_21"] = np.zeros(
+                    lightconer.get_shape(inputs.simulation_options), dtype=np.float32
+                )
 
         lightcone = lcn_cls(
             lightcone_distances=lightconer.lc_distances,
@@ -416,6 +378,7 @@ def _run_lightcone_from_perturbed_fields(
     perturbed_fields: Sequence[PerturbedField],
     lightconer: Lightconer,
     inputs: InputParameters,
+    lc_distances: np.array,
     photon_nonconservation_data: dict,
     pt_halos: list[PerturbHaloField],
     regenerate: bool | None = None,
@@ -427,20 +390,8 @@ def _run_lightcone_from_perturbed_fields(
     progressbar: bool = False,
     lightcone_filename: str | Path | None = None,
 ):
-    lightconer.validate_options(inputs.matter_options, inputs.astro_options)
-
     # Get the redshift through which we scroll and evaluate the ionization field.
     scrollz = np.array([pf.redshift for pf in perturbed_fields])
-
-    lcz = lightconer.lc_redshifts
-    if not np.all(scrollz.min() * 0.99 < lcz) and np.all(lcz < scrollz.max() * 1.01):
-        # We have a 1% tolerance on the redshifts, because the lightcone redshifts are
-        # computed via inverse fitting the comoving_distance.
-        raise ValueError(
-            "The lightcone redshifts are not compatible with the given redshift."
-            f"The range of computed redshifts is {scrollz.min()} to {scrollz.max()}, "
-            f"while the lightcone redshift range is {lcz.min()} to {lcz.max()}."
-        )
 
     iokw = {"regenerate": regenerate, "cache": cache}
 
@@ -473,8 +424,18 @@ def _run_lightcone_from_perturbed_fields(
             stacklevel=2,
         )
 
+    # Find how many pixels on either end of the lightcone are in the "buffer" region.
+    # These are used to generate RSDs, but are then removed from the lightcone before
+    # returning.
+    lowz_buffer_pixels = np.sum(lc_distances.min() > lightcone.lightcone_distances)
+    highz_buffer_pixels = np.sum(lc_distances.max() < lightcone.lightcone_distances)
+
     if lightcone_filename and not Path(lightcone_filename).exists():
-        lightcone.save(lightcone_filename)
+        lightcone.save(
+            lightcone_filename,
+            lowz_buffer_pixels=lowz_buffer_pixels,
+            highz_buffer_pixels=highz_buffer_pixels,
+        )
 
     for iz, coeval in _redshift_loop_generator(
         inputs=inputs,
@@ -534,10 +495,39 @@ def _run_lightcone_from_perturbed_fields(
             if lib.photon_cons_allocated:
                 lib.FreePhotonConsMemory()
 
-            if isinstance(lightcone, AngularLightcone) and lightconer.get_los_velocity:
-                lightcone.compute_rsds(
-                    fname=lightcone_filename, n_subcells=inputs.astro_params.N_RSD_STEPS
+            if inputs.astro_options.APPLY_RSDS:
+                tb_with_rsds = compute_rsds(
+                    brightness_temp=lightcone.lightcones["brightness_temp"],
+                    los_velocity=lightcone.lightcones["los_velocity"],
+                    redshifts=lightcone.lightcone_redshifts,
+                    inputs=inputs,
+                    tau_21=(
+                        lightcone.lightcones["tau_21"]
+                        if inputs.astro_options.USE_TS_FLUCT
+                        else None
+                    ),
+                    periodic=False,
+                    n_subcells=(
+                        inputs.astro_params.N_RSD_STEPS
+                        if inputs.astro_options.SUBCELL_RSD
+                        else 0
+                    ),
                 )
+                lightcone.lightcones["brightness_temp_with_rsds"] = tb_with_rsds
+
+                if lightcone_filename:
+                    if Path(lightcone_filename).exists():
+                        with h5py.File(lightcone_filename, "a") as fl:
+                            fl["lightcones"]["brightness_temp_with_rsds"] = tb_with_rsds
+                    else:
+                        lightcone.save(
+                            lightcone_filename,
+                            lowz_buffer_pixels=lowz_buffer_pixels,
+                            highz_buffer_pixels=highz_buffer_pixels,
+                        )
+
+                if inputs.astro_options.SUBCELL_RSD:
+                    lightcone = lightcone.trim(lc_distances.min(), lc_distances.max())
 
         yield iz, coeval.redshift, coeval, lightcone
 
@@ -602,36 +592,17 @@ def generate_lightcone(
     regenerate, write, direc, hooks
         See docs of :func:`initial_conditions` for more information.
     """
+    lc_distances = lightconer.lc_distances.copy()
+
+    # Validate the lightconer options and return a "ghost" lightconer if we require
+    # some extra buffer pixels (e.g. for RSDs).
+    lightconer = lightconer.validate_options(inputs)
+
     if isinstance(write, bool):
         write = CacheConfig() if write else CacheConfig.off()
 
-    if len(inputs.node_redshifts) == 0:
-        raise ValueError(
-            "You are attempting to run a lightcone with no node_redshifts."
-            "Please set node_redshifts on the `inputs` parameter."
-        )
-
     _check_desired_arrays_exist(global_quantities, inputs)
     _check_desired_arrays_exist(lightconer.quantities, inputs)
-
-    # while we still use the full list for caching etc, we don't need to run below the lightconer instance
-    #   So stop one after the lightconer
-    scrollz = np.copy(inputs.node_redshifts)
-    below_lc_z = scrollz <= min(lightconer.lc_redshifts)
-    if np.any(below_lc_z):
-        final_node = np.where(below_lc_z)[0][0]  # first node below the lightcone
-        scrollz = scrollz[: final_node + 1]  # inclusive to get the last few entries
-
-    lcz = lightconer.lc_redshifts
-
-    if not np.all(min(scrollz) * 0.99 < lcz) and np.all(lcz < max(scrollz) * 1.01):
-        # We have a 1% tolerance on the redshifts, because the lightcone redshifts are
-        # computed via inverse fitting the comoving_distance.
-        raise ValueError(
-            "The lightcone redshifts are not compatible with the given redshift."
-            f"The range of computed redshifts is {min(scrollz)} to {max(scrollz)}, "
-            f"while the lightcone redshift range is {lcz.min()} to {lcz.max()}."
-        )
 
     iokw = {"cache": cache, "regenerate": regenerate}
 
@@ -641,7 +612,7 @@ def generate_lightcone(
         pt_halos,
         photon_nonconservation_data,
     ) = _setup_ics_and_pfs_for_scrolling(
-        all_redshifts=scrollz,
+        all_redshifts=inputs.node_redshifts,
         initial_conditions=initial_conditions,
         inputs=inputs,
         write=write,
@@ -655,6 +626,7 @@ def generate_lightcone(
         perturbed_fields=perturbed_fields,
         lightconer=lightconer,
         inputs=inputs,
+        lc_distances=lc_distances,
         regenerate=regenerate,
         pt_halos=pt_halos,
         photon_nonconservation_data=photon_nonconservation_data,

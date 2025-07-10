@@ -109,7 +109,7 @@
 #define Msun (double)1.989e33                        // g
 #define Rsun (double)6.9598e10                       // cm
 #define Lsun (double)3.90e33                         // erg/s
-#define T_cmb (double)2.728                          // K
+#define T_cmb (double)2.7255                         // K
 #define k_B (double)1.380658e-16                     // erg / K
 #define m_p (double)1.6726231e-24                    // proton mass (g)
 #define m_e (double)9.10938188e-28                   // electron mass (g)
