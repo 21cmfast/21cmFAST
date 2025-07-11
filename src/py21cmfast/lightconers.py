@@ -19,7 +19,6 @@ from cosmotile import (
 )
 from scipy.spatial.transform import Rotation
 
-from .drivers.coeval import Coeval
 from .rsds import estimate_rsd_displacements
 from .wrapper.classy_interface import run_classy
 from .wrapper.inputs import (
@@ -161,7 +160,9 @@ class Lightconer(ABC):
         )
 
     def make_lightcone_slices(
-        self, c1: Coeval, c2: Coeval
+        self,
+        c1: Coeval,  # noqa: F821
+        c2: Coeval,  # noqa: F821
     ) -> tuple[dict[str, np.ndarray], np.ndarray]:
         """
         Make lightcone slices out of two coeval objects.

@@ -6,12 +6,8 @@ initial conditions, perturb fields, spin temperature, etc.) and for high-level o
 such as coeval boxes and lightcones.
 """
 
-from collections import deque
-from collections.abc import Generator
-
-from lightcone import LightCone, generate_lightcone, run_lightcone
-
 from .coeval import Coeval, generate_coeval, run_coeval
+from .lightcone import LightCone, generate_lightcone, run_lightcone
 from .single_field import (
     compute_halo_grid,
     compute_initial_conditions,
@@ -22,12 +18,6 @@ from .single_field import (
     perturb_halo_list,
 )
 
-
-def exhaust(generator: Generator):
-    """Exhaust a generator without keeping more than one return value in memory."""
-    return deque(generator, maxlen=1)[0]
-
-
 __all__ = [
     "Coeval",
     "LightCone",
@@ -36,7 +26,6 @@ __all__ = [
     "compute_ionization_field",
     "compute_spin_temperature",
     "compute_xray_source_field",
-    "exhaust",
     "generate_coeval",
     "generate_lightcone",
     "perturb_field",

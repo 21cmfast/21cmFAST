@@ -8,7 +8,7 @@ from typing import Annotated, Literal
 import attrs
 import matplotlib.pyplot as plt
 import numpy as np
-from cyclopts import App, Parameter
+from cyclopts import App, ArgumentCollection, Group, Parameter
 from cyclopts import types as cyctp
 from cyclopts import validators as vld
 from rich.console import Console
@@ -43,6 +43,8 @@ logging.basicConfig(
 )
 logger = logging.getLogger("21cmFAST")
 
+AVAILABLE_TEMPLATES: list[str] = [str(tmpl["name"]) for tmpl in list_templates()]
+
 app = App()
 app.command(
     cfg := App(name="template", help="Manage 21cmFAST configuration files/templates.")
@@ -61,25 +63,34 @@ def print_banner():
     cns.print(panel)
 
 
-@cfg.command(name="avail")
-def show_configs():
-    templates = list_templates()
-    for template in templates:
-        name = template["name"]
-
-        cns.print(f"[bold purple]{name}[/bold purple]", end=" ")
-        aliases = template["aliases"]
-        aliases.remove(name)  # Remove the name from aliases if present
-
-        if aliases:
-            cns.print(f"[purple] | {' | '.join(aliases)}")
-        else:
-            cns.print()
-
-        cns.print(f"\t{template['description']}")
+def _at_least_one_validator(argument_collection: ArgumentCollection):
+    if not any(argument.has_tokens for argument in argument_collection):
+        raise ValueError(
+            f"Must specify one of: {{{(', ').join(arg.name for arg in argument_collection)}}}"
+        )
 
 
-AVAILABLE_TEMPLATES: list[str] = [tmpl["name"] for tmpl in list_templates()]
+_paramgroup = Group(
+    "Simulation Parameters (set one)",
+    validator=(vld.MutuallyExclusive(), _at_least_one_validator),
+)
+
+
+@Parameter(name="*")
+@dataclass(frozen=True, kw_only=True)
+class ParameterSelection:
+    """Common options for choosing simulation parameters.
+
+    You can either specify a TOML file, or a template name.
+    """
+
+    param_file: Annotated[cyctp.ExistingTomlPath, Parameter(group=_paramgroup)] = None
+    "Path to a TOML configuration file (can be generated with `21cmfast template create`)."
+
+    template: Annotated[Literal[*AVAILABLE_TEMPLATES], Parameter(group=_paramgroup)] = (
+        None
+    )
+    "The name of a valid builtin template (see available with `21cmfast template avail`)."
 
 
 @Parameter(name="*")
@@ -87,8 +98,7 @@ AVAILABLE_TEMPLATES: list[str] = [tmpl["name"] for tmpl in list_templates()]
 class RunParams:
     """Common parameters for run functions."""
 
-    template: cyctp.TomlPath | Literal[*AVAILABLE_TEMPLATES]
-    "Path to the configuration file."
+    param_selection: ParameterSelection = ParameterSelection()
 
     seed: int = 42
     "Random seed used to generate data."
@@ -148,17 +158,13 @@ class Parameters:
     ] = _MatterOptions()
 
 
-def _run_setup(
-    options: RunParams, params: Parameters, zmin: float | None = None
+def _get_inputs(
+    options: RunParams | ParameterSelection, params: Parameters
 ) -> InputParameters:
-    print_banner()
-
-    logger.setLevel(options.verbosity)
-
     # Set user/cosmo params from config.
     inputs = InputParameters.from_template(
-        options.template,
-        random_seed=options.seed,
+        options.template or options.param_file,
+        random_seed=getattr(options, "seed", 42),
     )
 
     # kwargs from params:
@@ -169,14 +175,59 @@ def _run_setup(
             name: val for name, val in attrs.asdict(this).items() if val is not None
         }
 
-    inputs = inputs.evolve_input_structs(**kwargs)
+    return inputs.evolve_input_structs(**kwargs)
+
+
+@cfg.command(name="avail")
+def show_configs():
+    templates = list_templates()
+    for template in templates:
+        name = template["name"]
+
+        cns.print(f"[bold purple]{name}[/bold purple]", end=" ")
+        aliases = template["aliases"]
+        aliases.remove(name)  # Remove the name from aliases if present
+
+        if aliases:
+            cns.print(f"[purple] | {' | '.join(aliases)}")
+        else:
+            cns.print()
+
+        cns.print(f"\t{template['description']}")
+
+
+@cfg.command(name="create")
+def template_create(
+    out: Annotated[cyctp.TomlPath, Parameter(validator=(vld.Path(exists=False)))],
+    param_selection: ParameterSelection = ParameterSelection(),
+    user_params: Parameters = Parameters(),
+):
+    inputs = _get_inputs(param_selection, user_params)
+    if not out.parent.exists():
+        out.parent.mkdir(exist_ok=True, parents=True)
+    write_template(inputs, out)
+    cns.print(f":duck:[green] Wrote new template file at [purple]{out}")
+
+
+def _run_setup(
+    options: RunParams, params: Parameters, zmin: float | None = None
+) -> InputParameters:
+    print_banner()
+
+    logger.setLevel(options.verbosity)
+
+    inputs = _get_inputs(options, params)
 
     if zmin is not None:
         inputs = inputs.with_logspaced_redshifts(zmin=zmin)
 
     config_file = options.cachedir / "config.toml"
     write_template(inputs, config_file)
-    cns.print(f"Wrote full configuration to {config_file}")
+    if (
+        options.param_file is not None
+        and options.param_file.resolve() != config_file.resolve()
+    ):
+        cns.print(f":duck: [green]Wrote full configuration to [purple]{config_file}")
     return inputs
 
 

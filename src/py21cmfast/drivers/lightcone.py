@@ -2,6 +2,7 @@
 
 import logging
 import warnings
+from collections import deque
 from collections.abc import Sequence
 from functools import cached_property
 from pathlib import Path
@@ -29,7 +30,6 @@ from ..wrapper.outputs import (
     PerturbHaloField,
     TsBox,
 )
-from . import exhaust
 from ._param_config import high_level_func
 from .coeval import (
     _obtain_starting_point_for_scrolling,
@@ -636,7 +636,7 @@ def generate_lightcone(
 
 
 def run_lightcone(**kwargs):  # noqa: D103
-    return exhaust(generate_lightcone(**kwargs))
+    return deque(generate_lightcone(**kwargs), maxlen=1)[0]
 
 
 run_lightcone.__doc__ = generate_lightcone.__doc__
