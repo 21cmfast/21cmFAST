@@ -1,7 +1,5 @@
 """Test CLI functionality."""
 
-import tomllib
-
 import pytest
 from click.testing import CliRunner
 

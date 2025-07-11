@@ -29,7 +29,7 @@ import matplotlib as mpl
 import numpy as np
 import pytest
 
-from py21cmfast import Coeval, LightCone, OutputCache, config
+from py21cmfast import Coeval, LightCone, OutputCache
 
 from . import produce_integration_test_data as prd
 

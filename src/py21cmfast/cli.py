@@ -1,8 +1,6 @@
 """Module that contains the command line app."""
 
-import copy
 import logging
-from collections.abc import Sequence
 from dataclasses import dataclass, fields
 from pathlib import Path
 from typing import Annotated, Literal
@@ -10,26 +8,24 @@ from typing import Annotated, Literal
 import attrs
 import matplotlib.pyplot as plt
 import numpy as np
-from cyclopts import App, Group, Parameter, Token
+from cyclopts import App, Parameter
 from cyclopts import types as cyctp
 from cyclopts import validators as vld
 from rich.console import Console
+from rich.logging import RichHandler
 from rich.panel import Panel
 from rich.text import Text
 
 from . import __version__, plotting
-from .drivers.coeval import generate_coeval, run_coeval
+from .drivers.coeval import generate_coeval
 from .drivers.lightcone import run_lightcone
 from .drivers.single_field import compute_initial_conditions
 from .io.caching import OutputCache, RunCache
 from .lightconers import RectilinearLightconer
 from .run_templates import (
-    create_params_from_template,
     list_templates,
-    load_template_file,
     write_template,
 )
-from .wrapper._utils import camel_to_snake
 from .wrapper.inputs import (
     AstroOptions,
     AstroParams,
@@ -37,12 +33,15 @@ from .wrapper.inputs import (
     InputParameters,
     MatterOptions,
     SimulationOptions,
-    get_logspaced_redshifts,
 )
 
 cns = Console()
 
-logging.basicConfig(level=logging.INFO)
+FORMAT = "%(message)s"
+logging.basicConfig(
+    level="NOTSET", format=FORMAT, datefmt="[%X]", handlers=[RichHandler()]
+)
+logger = logging.getLogger("21cmFAST")
 
 app = App()
 app.command(
@@ -100,6 +99,11 @@ class RunParams:
     cachedir: cyctp.ExistingDirectory = Path()
     "Where to write and search for cached items."
 
+    verbosity: Annotated[
+        Literal["CRITICAL", "ERROR", "WARNING", "INFO", "DEBUG"],
+        Parameter(alias=("-v", "--v")),
+    ] = "WARNING"
+
 
 def _param_cls_factory(cls):
     out = attrs.make_class(
@@ -148,6 +152,8 @@ def _run_setup(
     options: RunParams, params: Parameters, zmin: float | None = None
 ) -> InputParameters:
     print_banner()
+
+    logger.setLevel(options.verbosity)
 
     # Set user/cosmo params from config.
     inputs = InputParameters.from_template(

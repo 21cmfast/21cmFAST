@@ -8,7 +8,6 @@ These should make it easier to define a run, choosing the closest template to yo
 desired parameters and altering as few as possible.
 """
 
-import contextlib
 import datetime
 import logging
 import warnings

@@ -11,7 +11,7 @@ import attrs
 import numpy as np
 from astropy import units
 from astropy.cosmology import FLRW, z_at_value
-from astropy.units import MHz, Mpc, Quantity, pixel, pixel_scale
+from astropy.units import Mpc, Quantity, pixel, pixel_scale
 from classy import Class
 from cosmotile import (
     make_lightcone_slice_interpolator,

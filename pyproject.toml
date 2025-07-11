@@ -47,7 +47,7 @@ ignore = [
     "E266",
     "E501",
     "F403",
-    "F401",
+    #"F401",
     "E231",
     # Naming upper/lowercase -- too hard right now.
     "N803",

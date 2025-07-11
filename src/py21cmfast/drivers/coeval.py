@@ -5,9 +5,8 @@ import logging
 import os
 import warnings
 from collections.abc import Sequence
-from hashlib import md5
 from pathlib import Path
-from typing import Any, Self, get_args
+from typing import Self, get_args
 
 import attrs
 import h5py

@@ -30,7 +30,6 @@ from py21cmfast import (
     OutputCache,
     SimulationOptions,
     compute_initial_conditions,
-    config,
     get_logspaced_redshifts,
     perturb_field,
     plotting,

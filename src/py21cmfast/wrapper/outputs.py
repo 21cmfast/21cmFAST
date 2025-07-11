@@ -20,13 +20,12 @@ from abc import ABC, abstractmethod
 from collections.abc import Sequence
 from enum import Enum
 from functools import cached_property
-from typing import Any, Literal, Self
+from typing import Any, Self
 
 import attrs
 import numpy as np
 from bidict import bidict
 
-from .. import __version__
 from ..c_21cmfast import lib
 from .arrays import Array
 from .exceptions import _process_exitcode

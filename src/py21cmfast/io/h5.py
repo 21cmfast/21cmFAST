@@ -41,7 +41,6 @@ import numpy as np
 from .. import __version__
 from ..wrapper import inputs as istruct
 from ..wrapper import outputs as ostruct
-from ..wrapper._utils import snake_to_camel
 from ..wrapper.arrays import Array, H5Backend
 from ..wrapper.arraystate import ArrayState
 from ..wrapper.inputs import InputParameters

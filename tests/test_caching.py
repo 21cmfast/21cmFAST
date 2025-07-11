@@ -13,7 +13,6 @@ from py21cmfast import (
     IonizedBox,
     PerturbedField,
     compute_initial_conditions,
-    perturb_field,
 )
 from py21cmfast.io import caching, h5
 from py21cmfast.wrapper import outputs
