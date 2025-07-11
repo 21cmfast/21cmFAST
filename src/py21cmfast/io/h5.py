@@ -309,21 +309,22 @@ def _read_inputs_v4(group: h5py.Group, safe: bool = True):
     # Read the input parameter dictionaries from file.
     kwargs = {}
     for k, fld in attrs.fields_dict(InputParameters).items():
-        if fld.type in istruct.InputStruct._subclasses:
-            kls = istruct.InputStruct._subclasses[fld.type]
+        try:
+            if fld.type in istruct.InputStruct._subclasses.values():
+                kls = fld.type
 
-            subgrp = group[k]
-            dct = dict(subgrp.attrs)
-            kwargs[k] = kls.from_subdict(dct, safe=safe)
-        elif k in group.attrs:
-            kwargs[k] = group.attrs[k]
-        else:
-            d = group[k][()]
-            if d is h5py.Empty(None):
-                kwargs[k] = None
+                subgrp = group[k]
+                dct = dict(subgrp.attrs)
+                kwargs[k] = kls.from_subdict(dct, safe=safe)
+            elif k in group.attrs:
+                kwargs[k] = group.attrs[k]
             else:
-                kwargs[k] = d
-
+                d = group[k][()]
+                kwargs[k] = None if d is h5py.Empty(None) else d
+        except Exception as e:
+            raise ValueError(
+                f"Error reading input parameter {k} with type {fld.type} from group {group.name} in file {group.file.filename}"
+            ) from e
     return InputParameters(**kwargs)
 
 

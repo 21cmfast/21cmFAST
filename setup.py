@@ -90,10 +90,11 @@ setup(
         "attrs",
         "tqdm",
         "classy<3.3",
+        "cyclopts",
     ],
     extras_require={"tests": test_req, "docs": doc_req, "dev": test_req + doc_req},
     setup_requires=["cffi>=1.0", "setuptools_scm"],
-    entry_points={"console_scripts": ["21cmfast = py21cmfast.cli:main"]},
+    entry_points={"console_scripts": ["21cmfast = py21cmfast.cli:app"]},
     cffi_modules=[f"{THISDIR}/build_cffi.py:ffi"],
     use_scm_version={
         "write_to": "src/py21cmfast/_version.py",

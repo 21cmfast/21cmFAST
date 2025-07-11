@@ -11,18 +11,18 @@ listed in the documentation for each class below.
 
 # we use a few nested if statments in the validators here
 # ruff: noqa: SIM102
-from __future__ import annotations
 
 import logging
 import warnings
 from functools import cached_property
-from typing import ClassVar
+from typing import Annotated, ClassVar, Literal, Self, get_args
 
 import attrs
 from astropy import units as un
 from astropy.cosmology import FLRW, Planck15
 from attrs import asdict, define, evolve, validators
 from attrs import field as _field
+from cyclopts import Parameter
 
 from .._cfg import config
 from .structs import StructWrapper
@@ -40,27 +40,39 @@ def field(*, transformer=None, **kw):
     return _field(metadata={"transformer": transformer}, **kw)
 
 
-def logtransformer(x):
+def choice_field(*, validator=None, **kwargs):
+    """Create an attrs.field that is a choice."""
+    vld = (choice_validator,)
+    if validator is not None:
+        vld = (choice_validator, validator)
+    return field(validator=vld, transformer=choice_transformer, converter=str, **kwargs)
+
+
+def logtransformer(x, att: attrs.Attribute):
     """Convert from log to linear space."""
     return 10**x
 
 
-def dex2exp_transformer(x):
+def dex2exp_transformer(x, att: attrs.Attribute):
     """Convert from dex to exponential space."""
     return 2.3025851 * x
 
 
-def choice_transformer(choices):
+def choice_transformer(choice: str, att: attrs.Attribute) -> int:
     """Produce a transformer that converts a string to int.
 
     The function must be passed a list of string choices. The resulting int is the
     index of the choice made.
     """
+    choices = get_args(att.type)
+    return choices.index(choice)
 
-    def transformer(choice) -> int:
-        return choices.index(choice)
 
-    return transformer
+def choice_validator(inst, att: attrs.Attribute, val):
+    """Validate that a value is one of the choices."""
+    choices = get_args(att.type)
+    if val not in choices:
+        raise ValueError(f"{att.name} must be one of {choices}, got {val} instead.")
 
 
 def between(mn, mx):
@@ -72,6 +84,9 @@ def between(mn, mx):
 
     return vld
 
+
+FilterOptions = Literal["spherical-tophat", "sharp-k", "gaussian"]
+IntegralMethods = Literal["GSL-QAG", "GAUSS-LEGENDRE", "GAMMA-APPROX"]
 
 # Cosmology is from https://arxiv.org/pdf/1807.06209.pdf
 # Table 2, last column. [TT,TE,EE+lowE+lensing+BAO]
@@ -113,7 +128,7 @@ class InputStruct:
     _write_exclude_fields = ()
 
     @classmethod
-    def new(cls, x: dict | InputStruct | None = None, **kwargs):
+    def new(cls, x: dict | Self | None = None, **kwargs):
         """
         Create a new instance of the struct.
 
@@ -220,9 +235,10 @@ class InputStruct:
         out = {}
         for k in self.struct.fieldnames:
             val = getattr(self, k)
+            att = attrs.fields_dict(self.__class__).get(k, None)
             # we assume properties (as opposed to attributes) are already converted
             trns = transformers.get(k)
-            out[k] = val if trns is None else trns(val)
+            out[k] = val if trns is None else trns(val, att)
         return out
 
     def __str__(self) -> str:
@@ -295,23 +311,31 @@ class CosmoParams(InputStruct):
         Spectral index of the power spectrum.
     """
 
-    _base_cosmo = field(
+    _base_cosmo: Annotated[FLRW, Parameter(show=False, parse=False)] = field(
         default=Planck18, validator=validators.instance_of(FLRW), eq=False, repr=False
     )
-    SIGMA_8 = field(default=0.8102, converter=float, validator=validators.gt(0))
-    hlittle = field(default=Planck18.h, converter=float, validator=validators.gt(0))
-    OMm = field(default=Planck18.Om0, converter=float, validator=validators.gt(0))
-    OMb = field(default=Planck18.Ob0, converter=float, validator=validators.gt(0))
-    POWER_INDEX = field(default=0.9665, converter=float, validator=validators.gt(0))
+    SIGMA_8: float = field(default=0.8102, converter=float, validator=validators.gt(0))
+    hlittle: float = field(
+        default=Planck18.h, converter=float, validator=validators.gt(0)
+    )
+    OMm: float = field(
+        default=Planck18.Om0, converter=float, validator=validators.gt(0)
+    )
+    OMb: float = field(
+        default=Planck18.Ob0, converter=float, validator=validators.gt(0)
+    )
+    POWER_INDEX: float = field(
+        default=0.9665, converter=float, validator=validators.gt(0)
+    )
 
-    OMn = field(default=0.0, converter=float, validator=validators.ge(0))
-    OMk = field(default=0.0, converter=float, validator=validators.ge(0))
-    OMr = field(default=8.6e-5, converter=float, validator=validators.ge(0))
-    OMtot = field(
+    OMn: float = field(default=0.0, converter=float, validator=validators.ge(0))
+    OMk: float = field(default=0.0, converter=float, validator=validators.ge(0))
+    OMr: float = field(default=8.6e-5, converter=float, validator=validators.ge(0))
+    OMtot: float = field(
         default=1.0, converter=float, validator=validators.ge(0)
     )  # TODO: force this to be the sum of the others
-    Y_He = field(default=0.24, converter=float, validator=validators.ge(0))
-    wl = field(default=-1.0, converter=float)
+    Y_He: float = field(default=0.24, converter=float, validator=validators.ge(0))
+    wl: float = field(default=-1.0, converter=float)
 
     # TODO: Combined validation via Astropy?
 
@@ -460,54 +484,31 @@ class MatterOptions(InputStruct):
         "hmf-interpolation",
     )
 
-    HMF = field(
-        default="ST",
-        converter=str,
-        validator=validators.in_(_hmf_models),
-        transformer=choice_transformer(_hmf_models),
-    )
+    HMF: Literal["PS", "ST", "WATSON", "WATSON-Z", "DELOS"] = choice_field(default="ST")
     USE_RELATIVE_VELOCITIES = field(default=False, converter=bool)
-    POWER_SPECTRUM = field(
-        converter=str,
-        validator=validators.in_(_power_models),
-        transformer=choice_transformer(_power_models),
+    POWER_SPECTRUM: Literal["EH", "BBKS", "EFSTATHIOU", "PEEBLES", "WHITE", "CLASS"] = (
+        choice_field()
     )
     PERTURB_ON_HIGH_RES = field(default=False, converter=bool)
-    USE_INTERPOLATION_TABLES = field(
-        default="hmf-interpolation",
-        converter=str,
-        validator=validators.in_(_interpolation_options),
-        transformer=choice_transformer(_interpolation_options),
-    )
+    USE_INTERPOLATION_TABLES: Literal[
+        "no-interpolation", "sigma-interpolation", "hmf-interpolation"
+    ] = choice_field(default="hmf-interpolation")
     MINIMIZE_MEMORY = field(default=False, converter=bool)
     KEEP_3D_VELOCITIES = field(default=False, converter=bool)
-    SAMPLE_METHOD = field(
+    SAMPLE_METHOD: Literal[
+        "MASS-LIMITED", "NUMBER-LIMITED", "PARTITION", "BINARY-SPLIT"
+    ] = choice_field(
         default="MASS-LIMITED",
-        validator=validators.in_(_sample_methods),
-        transformer=choice_transformer(_sample_methods),
     )
-    FILTER = field(
+    FILTER: FilterOptions = choice_field(
         default="spherical-tophat",
-        converter=str,
-        validator=[
-            validators.in_(_filter_options),
-            validators.not_(validators.in_("sharp-k")),
-        ],
-        transformer=choice_transformer(_filter_options),
+        validator=validators.not_(validators.in_(["sharp-k"])),
     )
-    HALO_FILTER = field(
-        default="spherical-tophat",
-        converter=str,
-        validator=validators.in_(_filter_options),
-        transformer=choice_transformer(_filter_options),
-    )
+    HALO_FILTER: FilterOptions = choice_field(default="spherical-tophat")
     SMOOTH_EVOLVED_DENSITY_FIELD = field(default=False, converter=bool)
     DEXM_OPTIMIZE = field(default=False, converter=bool)
-    PERTURB_ALGORITHM = field(
+    PERTURB_ALGORITHM: Literal["LINEAR", "ZELDOVICH", "2LPT"] = choice_field(
         default="2LPT",
-        converter=str,
-        validator=validators.in_(_perturb_options),
-        transformer=choice_transformer(_perturb_options),
     )
     USE_FFTW_WISDOM = field(default=False, converter=bool)
 
@@ -814,42 +815,21 @@ class AstroOptions(InputStruct):
     FIX_VCB_AVG = field(default=False, converter=bool)
     USE_EXP_FILTER = field(default=True, converter=bool)
     CELL_RECOMB = field(default=True, converter=bool)
-    PHOTON_CONS_TYPE = field(
+    PHOTON_CONS_TYPE: Literal[
+        "no-photoncons", "z-photoncons", "alpha-photoncons", "f-photoncons"
+    ] = choice_field(
         default="no-photoncons",
-        converter=str,
-        validator=validators.in_(_photoncons_models),
-        transformer=choice_transformer(_photoncons_models),
     )
     USE_UPPER_STELLAR_TURNOVER = field(default=True, converter=bool)
     M_MIN_in_Mass = field(default=True, converter=bool)
     HALO_SCALING_RELATIONS_MEDIAN = field(default=False, converter=bool)
-    HII_FILTER = field(
-        default="spherical-tophat",
-        converter=str,
-        validator=validators.in_(_filter_options),
-        transformer=choice_transformer(_filter_options),
-    )
-    HEAT_FILTER = field(
-        default="spherical-tophat",
-        converter=str,
-        validator=validators.in_(_filter_options),
-        transformer=choice_transformer(_filter_options),
-    )
+    HII_FILTER: FilterOptions = choice_field(default="spherical-tophat")
+    HEAT_FILTER: FilterOptions = choice_field(default="spherical-tophat")
     IONISE_ENTIRE_SPHERE = field(default=False, converter=bool)
     AVG_BELOW_SAMPLER = field(default=True, converter=bool)
 
-    INTEGRATION_METHOD_ATOMIC = field(
-        default="GAUSS-LEGENDRE",
-        converter=str,
-        validator=validators.in_(_integral_methods),
-        transformer=choice_transformer(_integral_methods),
-    )
-    INTEGRATION_METHOD_MINI = field(
-        default="GAUSS-LEGENDRE",
-        converter=str,
-        validator=validators.in_(_integral_methods),
-        transformer=choice_transformer(_integral_methods),
-    )
+    INTEGRATION_METHOD_ATOMIC: IntegralMethods = choice_field(default="GAUSS-LEGENDRE")
+    INTEGRATION_METHOD_MINI: IntegralMethods = choice_field(default="GAUSS-LEGENDRE")
 
     @M_MIN_in_Mass.validator
     def _M_MIN_in_Mass_vld(self, att, val):
@@ -1246,7 +1226,7 @@ class InputParameters:
                 max_redshift=self.simulation_options.Z_HEAT_MAX,
                 z_step_factor=self.simulation_options.ZPRIME_STEP_FACTOR,
             )
-            if (self.astro_options.INHOMO_RECO or self.astro_options.USE_TS_FLUCT)
+            if self.evolution_required
             else None
         )
 
@@ -1373,7 +1353,7 @@ class InputParameters:
         # Also allow using **input_parameters
         return getattr(self, key)
 
-    def is_compatible_with(self, other: InputParameters) -> bool:
+    def is_compatible_with(self, other: Self) -> bool:
         """Check if this object is compatible with another parameter struct.
 
         Compatibility is slightly different from strict equality. Compatibility requires
@@ -1473,4 +1453,28 @@ class InputParameters:
             self.astro_options.USE_TS_FLUCT
             or self.astro_options.INHOMO_RECO
             or self.astro_options.USE_MINI_HALOS
+        )
+
+    def with_logspaced_redshifts(
+        self,
+        zmin: float = 5.5,
+        zmax: float | None = None,
+        zstep_factor: float | None = None,
+    ) -> Self:
+        """Create a new InputParameters instance with logspaced redshifts."""
+        if not self.evolution_required:
+            return self
+
+        if zmax is None:
+            zmax = self.simulation_options.Z_HEAT_MAX
+
+        if zstep_factor is None:
+            zstep_factor = self.simulation_options.ZPRIME_STEP_FACTOR
+
+        return self.clone(
+            node_redshifts=get_logspaced_redshifts(
+                min_redshift=zmin,
+                z_step_factor=zstep_factor,
+                max_redshift=zmax,
+            )
         )

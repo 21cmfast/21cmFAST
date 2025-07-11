@@ -42,6 +42,7 @@ extend-select = [
 ]
 ignore = [
     "DTZ007",   # use %z in strptime
+    "DTZ005",
     "E203",
     "E266",
     "E501",
@@ -61,6 +62,7 @@ ignore = [
     # Module shadowing a builtin
     "A005",
     "RUF009",
+    "B008",
 ]
 
 [tool.ruff.lint.per-file-ignores]
