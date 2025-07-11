@@ -1,6 +1,8 @@
 """Module that contains the command line app."""
 
 import logging
+import uuid
+import warnings
 from dataclasses import dataclass, fields
 from pathlib import Path
 from typing import Annotated, Literal
@@ -39,9 +41,12 @@ cns = Console()
 
 FORMAT = "%(message)s"
 logging.basicConfig(
-    level="NOTSET", format=FORMAT, datefmt="[%X]", handlers=[RichHandler()]
+    level="WARNING",
+    format=FORMAT,
+    datefmt="[%X]",
+    handlers=[RichHandler(rich_tracebacks=True)],
 )
-logger = logging.getLogger("21cmFAST")
+logger = logging.getLogger("py21cmfast")
 
 AVAILABLE_TEMPLATES: list[str] = [str(tmpl["name"]) for tmpl in list_templates()]
 
@@ -87,9 +92,10 @@ class ParameterSelection:
     param_file: Annotated[cyctp.ExistingTomlPath, Parameter(group=_paramgroup)] = None
     "Path to a TOML configuration file (can be generated with `21cmfast template create`)."
 
-    template: Annotated[Literal[*AVAILABLE_TEMPLATES], Parameter(group=_paramgroup)] = (
-        None
-    )
+    template: Annotated[
+        Literal[*AVAILABLE_TEMPLATES],
+        Parameter(group=_paramgroup, alias=("--base-template")),
+    ] = None
     "The name of a valid builtin template (see available with `21cmfast template avail`)."
 
 
@@ -107,7 +113,16 @@ class RunParams:
     "Whether to regenerate all data, even if found in cache."
 
     cachedir: cyctp.ExistingDirectory = Path()
-    "Where to write and search for cached items."
+    (
+        "Where to write and search for cached items and output fullspec configuration "
+        "files. Note that caches will be in hash-style folders inside this folder."
+    )
+
+    outcfg: Annotated[
+        Path,
+        Parameter(validator=(vld.Path(file_okay=False, dir_okay=False, ext=("toml",)))),
+    ] = None
+    "A filepath where the full configuration TOML of the run can be written. Random hash if not specified."
 
     verbosity: Annotated[
         Literal["CRITICAL", "ERROR", "WARNING", "INFO", "DEBUG"],
@@ -160,10 +175,12 @@ class Parameters:
 
 def _get_inputs(
     options: RunParams | ParameterSelection, params: Parameters
-) -> InputParameters:
+) -> tuple[InputParameters, bool]:
+    pselect = options.param_selection if isinstance(options, RunParams) else options
+
     # Set user/cosmo params from config.
     inputs = InputParameters.from_template(
-        options.template or options.param_file,
+        pselect.template or pselect.param_file,
         random_seed=getattr(options, "seed", 42),
     )
 
@@ -175,11 +192,14 @@ def _get_inputs(
             name: val for name, val in attrs.asdict(this).items() if val is not None
         }
 
-    return inputs.evolve_input_structs(**kwargs)
+    new = inputs.evolve_input_structs(**kwargs)
+    modified = new != inputs
+    return new, modified
 
 
 @cfg.command(name="avail")
 def show_configs():
+    """Print all available builtin templates."""
     templates = list_templates()
     for template in templates:
         name = template["name"]
@@ -198,36 +218,59 @@ def show_configs():
 
 @cfg.command(name="create")
 def template_create(
-    out: Annotated[cyctp.TomlPath, Parameter(validator=(vld.Path(exists=False)))],
+    out: Annotated[
+        cyctp.TomlPath,
+        Parameter(validator=(vld.Path(file_okay=False, dir_okay=False, ext=("toml",)))),
+    ],
     param_selection: ParameterSelection = ParameterSelection(),
     user_params: Parameters = Parameters(),
 ):
-    inputs = _get_inputs(param_selection, user_params)
+    """Create a new full simulation parameter template.
+
+    The created template file (TOML file) contains *all* of the available parameters.
+    To create it, use a base template (either via --param-file or --template) and
+    optionally override any particular simulation parameters. To see the available
+    simulation parameters and how to specify them, use `21cmfast run params --help`.
+    """
+    inputs, _ = _get_inputs(param_selection, user_params)
     if not out.parent.exists():
         out.parent.mkdir(exist_ok=True, parents=True)
+
     write_template(inputs, out)
-    cns.print(f":duck:[green] Wrote new template file at [purple]{out}")
+    cns.print(f":duck:[spring_green3] Wrote new template file at [purple]{out}")
 
 
 def _run_setup(
-    options: RunParams, params: Parameters, zmin: float | None = None
+    options: RunParams,
+    params: Parameters,
+    zmin: float | None = None,
+    force_nodez: bool = False,
 ) -> InputParameters:
     print_banner()
 
+    def custom_rich_warning(message: str, *args, **kwargs):
+        cns.print(f"[orange1]:warning: {message}")
+
+    warnings.showwarning = custom_rich_warning
     logger.setLevel(options.verbosity)
 
-    inputs = _get_inputs(options, params)
+    inputs, modified = _get_inputs(options, params)
 
-    if zmin is not None:
+    if zmin is not None and (inputs.evolution_required or force_nodez):
         inputs = inputs.with_logspaced_redshifts(zmin=zmin)
 
-    config_file = options.cachedir / "config.toml"
-    write_template(inputs, config_file)
-    if (
-        options.param_file is not None
-        and options.param_file.resolve() != config_file.resolve()
-    ):
-        cns.print(f":duck: [green]Wrote full configuration to [purple]{config_file}")
+    if modified or options.param_selection.param_file is None:
+        if not modified:
+            config_file = options.cachedir / f"{options.param_selection.template}.toml"
+        elif options.outcfg is not None:
+            config_file = options.outcfg
+        else:
+            config_file = options.cachedir / f"config-{uuid.uuid4().hex[:6]}.toml"
+
+        write_template(inputs, config_file)
+        cns.print(
+            f":duck: [spring_green3]Wrote full configuration to [purple]{config_file}"
+        )
     return inputs
 
 
@@ -244,8 +287,10 @@ def ics(
 ):
     """Run a single iteration of 21cmFAST init, saving results to file.
 
-    To see the full list of simulation parameter options, run
-    `21cmfast run params --help`
+    To specify simulation parameters, use a base template (either via --param-file or
+    --template) and optionally override any particular simulation parameters. To see the
+    available simulation parameters and how to specify them, use
+    `21cmfast run params --help`.
     """
     inputs = _run_setup(options, params)
     cache = OutputCache(options.cachedir)
@@ -258,7 +303,7 @@ def ics(
             )
         else:
             cns.print(
-                f"[green]:duck: Initial conditions already exist at [purple]'{rc.InitialConditions}'[/purple], skipping computation."
+                f"[spring_green3]:duck: Initial conditions already exist at [purple]'{rc.InitialConditions}'[/purple], skipping computation."
             )
             return
 
@@ -269,14 +314,16 @@ def ics(
         cache=OutputCache(options.cachedir),
     )
 
-    cns.print(f"[green]:duck: Saved initial conditions to {rc.InitialConditions}.")
+    cns.print(
+        f"[spring_green3]:duck: Saved initial conditions to {rc.InitialConditions}"
+    )
 
 
 @run.command()
 def coeval(
     redshifts: list[float],
     options: RunParams,
-    params: Annotated[Parameters, Parameter(show=False)],
+    params: Annotated[Parameters, Parameter(show=False, name="*")] = Parameters(),
     out: Annotated[cyctp.ExistingDirectory, Parameter(name=("--out", "-o"))] = Path(),
     save_all_redshifts: Annotated[
         bool, Parameter(name=("--save-all-redshifts", "-a", "--all"))
@@ -286,6 +333,11 @@ def coeval(
     ] = 5.5,
 ):
     """Generate coeval cubes at given redshifts.
+
+    To specify simulation parameters, use a base template (either via --param-file or
+    --template) and optionally override any particular simulation parameters. To see the
+    available simulation parameters and how to specify them, use
+    `21cmfast run params --help`.
 
     Parameters
     ----------
@@ -303,7 +355,7 @@ def coeval(
         the evolution.
     """
     inputs = _run_setup(options, params, zmin=min_evolved_redshift)
-
+    print(inputs.node_redshifts)
     for coeval, in_outputs in generate_coeval(
         out_redshifts=redshifts,
         inputs=inputs,
@@ -312,37 +364,44 @@ def coeval(
         cache=OutputCache(options.cachedir),
         progressbar=True,
     ):
+        print(coeval.redshift, save_all_redshifts)
         if not in_outputs and not save_all_redshifts:
             continue
 
         outfile = out / f"coeval_z{coeval.redshift:.2f}.h5"
-
+        print(outfile)
         coeval.save(outfile)
         cns.print(
-            f"[green]:duck:[/green] Saved z={coeval.redshift:.2f} coeval box to {outfile}."
+            f"[spring_green3]:duck:[/spring_green3] Saved z={coeval.redshift:.2f} coeval box to {outfile}."
         )
 
 
 @run.command()
 def lightcone(
     options: RunParams,
-    params: Annotated[Parameters, Parameter(show=False)],
+    params: Annotated[Parameters, Parameter(show=False, name="*")],
     redshift_range: tuple[float, float] = (6.0, 30.0),
     out: Annotated[
-        Path, Parameter(validator=(vld.Path(exists=False, ext=("h5",)),))
+        Path,
+        Parameter(validator=(vld.Path(dir_okay=False, file_okay=False, ext=("h5",)),)),
     ] = Path("lightcone.h5"),
     lightcone_quantities: Annotated[tuple[str], Parameter(name=("--lq",))] = (
         "brightness_temp",
     ),
     global_quantities: Annotated[tuple[str], Parameter(name=("--gq",))] = (
-        "global_xHI",
-        "global_brightness_temp",
+        "neutral_fraction",
+        "brightness_temp",
     ),
     min_evolved_redshift: Annotated[
         float, Parameter(name=("--zmin-evolution", "--zmin"))
     ] = 5.5,
 ):
     """Generate a lightcone between given redshifts.
+
+    To specify simulation parameters, use a base template (either via --param-file or
+    --template) and optionally override any particular simulation parameters. To see the
+    available simulation parameters and how to specify them, use
+    `21cmfast run params --help`.
 
     Parameters
     ----------
@@ -362,7 +421,7 @@ def lightcone(
     if not out.parent.exists():
         out.parent.mkdir(parents=True, exist_ok=True)
 
-    inputs = _run_setup(options, params, min_evolved_redshift)
+    inputs = _run_setup(options, params, min_evolved_redshift, force_nodez=True)
 
     # For now, always use the old default lightconing algorithm
     lcn = RectilinearLightconer.between_redshifts(
@@ -371,7 +430,6 @@ def lightcone(
         resolution=inputs.simulation_options.cell_size,
         cosmo=inputs.cosmo_params.cosmo,
         quantities=lightcone_quantities,
-        global_quantities=global_quantities,
     )
 
     lc = run_lightcone(
@@ -381,11 +439,12 @@ def lightcone(
         write=True,
         cache=OutputCache(options.cachedir),
         progressbar=True,
+        global_quantities=global_quantities,
     )
 
     lc.save(out)
 
-    cns.print(f"[green]:duck: Saved Lightcone to {out}.")
+    cns.print(f"[spring_green3]:duck: Saved Lightcone to {out}.")
 
 
 @dev.command(name="feature")
@@ -393,40 +452,31 @@ def pr_feature(
     params: Parameters,
     options: RunParams,
     redshift_range: tuple[float, float] = (6.0, 30.0),
+    outdir: cyctp.ExistingDirectory = Path(),
 ):
     """
     Create standard plots comparing a default simulation against a simulation with a new feature.
 
-    The new feature is switched on by setting PARAM to VALUE.
+    The base of the comparison is set by either --param-file or --template.
+    The "new feature" which is to be compared is set by overriding specific parameters
+    at the command line (e.g --use-ts-fluct).
+
     Plots are saved in the current directory, with the prefix "pr_feature".
 
     Parameters
     ----------
-    param : str
-        Name of the parameter to modify to "switch on" the feature.
-    value : float
-        Value to which to set it.
-    struct : str
-        The input parameter struct to which `param` belongs.
-    vtype : str
-        Type of the new parameter.
-    lightcone : bool
-        Whether the comparison should be done on a lightcone.
-    redshift : float
-        Redshift of comparison.
-    max_redshift : float
-        If using a lightcone, the maximum redshift in the lightcone to compare.
-    random_seed : int
-        Random seed at which to compare.
-    verbose : int
-        How verbose the output should be.
-    regenerate : bool
-        Whether to regenerate all data, even if it is in cache.
+    redshift_range
+        The redshifts between which to compute the lightcones for comparison.
     """
     import powerbox
 
-    inputs_default = _run_setup(options, Parameters())
-    inputs_new = _run_setup(options, params)
+    inputs_default, _ = _get_inputs(options, Parameters())
+    inputs_new, _ = _get_inputs(options, params)
+
+    inputs_default = inputs_default.with_logspaced_redshifts(
+        zmin=redshift_range[0] - 0.1
+    )
+    inputs_new = inputs_new.with_logspaced_redshifts(zmin=redshift_range[0] - 0.1)
 
     # For now, always use the old default lightconing algorithm
     lcn = RectilinearLightconer.between_redshifts(
@@ -435,7 +485,6 @@ def pr_feature(
         resolution=inputs_default.simulation_options.cell_size,
         cosmo=inputs_default.cosmo_params.cosmo,
         quantities=("brightness_temp",),
-        global_quantities=("global_xHI", "global_brightness_temp"),
     )
 
     cns.print("Running default lightcone...")
@@ -447,6 +496,7 @@ def pr_feature(
         write=True,
         cache=OutputCache(options.cachedir),
         progressbar=True,
+        global_quantities=("neutral_fraction", "brightness_temp"),
     )
 
     cns.print("Running lightcone with new feature...")
@@ -457,6 +507,7 @@ def pr_feature(
         write=True,
         cache=OutputCache(options.cachedir),
         progressbar=True,
+        global_quantities=("neutral_fraction", "brightness_temp"),
     )
 
     cns.print("Plotting lightcone slices...")
@@ -481,49 +532,66 @@ def pr_feature(
         )
         ax[2].set_title("Difference")
 
-        plt.savefig(f"pr_feature_lighcone_2d_{field}.pdf")
+        plt.savefig(f"{outdir}/pr_feature_lightcone_2d_{field}.pdf")
 
     def rms(x, axis=None):
         return np.sqrt(np.mean(x**2, axis=axis))
 
     cns.print("Plotting lightcone history...")
     fig, ax = plt.subplots(4, 1, sharex=True, gridspec_kw={"hspace": 0.05})
-    ax[0].plot(lc_default.node_redshifts, lc_default.global_xHI, label="Default")
-    ax[0].plot(lc_new.node_redshifts, lc_new.global_xHI, label="New")
+    ax[0].plot(
+        lc_default.inputs.node_redshifts,
+        lc_default.global_quantities["neutral_fraction"],
+        label="Default",
+    )
+    ax[0].plot(
+        lc_new.inputs.node_redshifts,
+        lc_new.global_quantities["neutral_fraction"],
+        label="New",
+    )
     ax[0].set_ylabel(r"$x_{\rm HI}$")
     ax[0].legend()
 
     ax[1].plot(
-        lc_default.node_redshifts,
-        lc_default.global_brightness_temp,
+        lc_default.inputs.node_redshifts,
+        lc_default.global_quantities["brightness_temp"],
         label="Default",
     )
-    ax[1].plot(lc_new.node_redshifts, lc_new.global_brightness_temp, label="New")
+    ax[1].plot(
+        lc_new.inputs.node_redshifts,
+        lc_new.global_quantities["brightness_temp"],
+        label="New",
+    )
     ax[1].set_ylabel("$T_b$ [K]")
     ax[3].set_xlabel("z")
 
-    rms_diff = rms(lc_default.brightness_temp, axis=(0, 1)) - rms(
-        lc_new.brightness_temp, axis=(0, 1)
+    rms_diff = rms(lc_default.lightcones["brightness_temp"], axis=(0, 1)) - rms(
+        lc_new.lightcones["brightness_temp"], axis=(0, 1)
     )
     ax[2].plot(lc_default.lightcone_redshifts, rms_diff, label="RMS")
     ax[2].plot(
-        lc_new.node_redshifts,
-        lc_default.global_xHI - lc_new.global_xHI,
+        lc_new.inputs.node_redshifts,
+        lc_default.global_quantities["neutral_fraction"]
+        - lc_new.global_quantities["neutral_fraction"],
         label="$x_{HI}$",
     )
     ax[2].plot(
-        lc_new.node_redshifts,
-        lc_default.global_brightness_temp - lc_new.global_brightness_temp,
+        lc_new.inputs.node_redshifts,
+        lc_default.global_quantities["brightness_temp"]
+        - lc_new.global_quantities["brightness_temp"],
         label="$T_b$",
     )
     ax[2].legend()
     ax[2].set_ylabel("Differences")
 
-    diff_rms = rms(lc_default.brightness_temp - lc_new.brightness_temp, axis=(0, 1))
+    diff_rms = rms(
+        lc_default.lightcones["brightness_temp"] - lc_new.lightcones["brightness_temp"],
+        axis=(0, 1),
+    )
     ax[3].plot(lc_default.lightcone_redshifts, diff_rms)
     ax[3].set_ylabel("RMS of Diff.")
 
-    plt.savefig("pr_feature_history.pdf")
+    plt.savefig(f"{outdir}/pr_feature_history.pdf")
 
     cns.print("Plotting power spectra history...")
     p_default = []
@@ -536,14 +604,16 @@ def pr_feature(
     cns.print(ncells)
     while start + ncells <= lc_new.shape[-1]:
         pd, k = powerbox.get_power(
-            lc_default.brightness_temp[:, :, start : start + ncells],
+            lc_default.lightcones["brightness_temp"][:, :, start : start + ncells],
             (*lc_default.lightcone_dimensions[:2], chunk_size),
+            bins_upto_boxlen=True,
         )
         p_default.append(pd)
 
         pn, k = powerbox.get_power(
-            lc_new.brightness_temp[:, :, start : start + ncells],
+            lc_new.lightcones["brightness_temp"][:, :, start : start + ncells],
             (*lc_new.lightcone_dimensions[:2], chunk_size),
+            bins_upto_boxlen=True,
         )
         p_new.append(pn)
         z.append(lc_new.lightcone_redshifts[start])
@@ -574,7 +644,7 @@ def pr_feature(
     ax[1].set_ylabel(r"log ratio of $\Delta^2 [{\rm mK}^2]$")
     ax[0].legend()
 
-    plt.savefig("pr_feature_power_history.pdf")
+    plt.savefig(f"{outdir}/pr_feature_power_history.pdf")
 
 
 if __name__ == "__main__":

@@ -1,196 +1,290 @@
 """Test CLI functionality."""
 
+import tempfile
+from pathlib import Path
+
 import pytest
-from click.testing import CliRunner
+from rich.console import Console
 
-from py21cmfast import InitialConditions, cli
-from py21cmfast.io.caching import OutputCache
-
-
-@pytest.fixture(scope="module")
-def runner():
-    return CliRunner()
+from py21cmfast import Coeval, LightCone, cli
+from py21cmfast.cli import Parameters, ParameterSelection, RunParams, _run_setup, app
+from py21cmfast.io.h5 import read_output_struct
+from py21cmfast.run_templates import create_params_from_template
 
 
-@pytest.fixture(scope="module")
-def cfg(
-    default_cosmo_params,
-    default_simulation_options,
-    default_matter_options,
-    default_astro_params,
-    default_astro_options,
-    tmpdirec,
-):
-    # NOTE:tomllib doesn't have dump?
-    def toml_print(val):
-        if isinstance(val, str):
-            return f'"{val}"'
-        elif isinstance(val, bool):
-            return str(val).casefold()
-        return val
+class TestTemplateAvail:
+    """Tests of the template avail command."""
 
-    with (tmpdirec / "cfg.toml").open("w") as f:
-        f.write("[CosmoParams]\n")
-        [
-            f.write(f"{k} = {toml_print(v)}\n")
-            for k, v in default_cosmo_params.asdict().items()
-        ]
-        f.write("\n")
-        f.write("[SimulationOptions]\n")
-        [
-            f.write(f"{k} = {toml_print(v)}\n")
-            for k, v in default_simulation_options.asdict().items()
-        ]
-        f.write("\n")
-        f.write("[MatterOptions]\n")
-        [
-            f.write(f"{k} = {toml_print(v)}\n")
-            for k, v in default_matter_options.asdict().items()
-        ]
-        f.write("\n")
-        f.write("[AstroParams]\n")
-        [
-            f.write(f"{k} = {toml_print(v)}\n")
-            for k, v in default_astro_params.asdict().items()
-        ]
-        f.write("\n")
-        f.write("[AstroOptions]\n")
-        [
-            f.write(f"{k} = {toml_print(v)}\n")
-            for k, v in default_astro_options.asdict().items()
-        ]
-        f.write("\n")
-    return tmpdirec / "cfg.toml"
+    def test_that_it_prints(self, capsys):
+        """Test that it prints out and contains known template names."""
+        app("template avail")
+        output = capsys.readouterr().out
+        assert "simple" in output
+        assert "Munoz21" in output
 
 
-def test_init(module_direc, default_input_struct, runner, cfg):
-    # Run the CLI. There's no way to turn off writing from the CLI (since that
-    # would be useless). We produce a *new* initial conditions box in a new
-    # directory and check that it exists. It gets auto-deleted after.
-    result = runner.invoke(
-        cli.main,
-        [
-            "init",
-            "--direc",
-            str(module_direc),
-            "--seed",
-            "101010",
-            "--config",
-            cfg,
-            "--regen",
-        ],
-    )
+class TestTemplateCreate:
+    """Test the `template create` command."""
 
-    if result.exception:
-        print(result.output)
+    def test_create_without_explicit_params(self, tmp_path: Path):
+        """Test creating from a template without overriding doesn't change anything."""
+        app(f"template create --template simple --out {tmp_path / 'simple.toml'}")
+        assert (tmp_path / "simple.toml").exists()
 
-    assert result.exit_code == 0
+        p1 = create_params_from_template(tmp_path / "simple.toml")
+        p2 = create_params_from_template("simple")
 
-    ic = InitialConditions.new(
-        inputs=default_input_struct.clone(random_seed=101010),
-    )
-    cache = OutputCache(module_direc)
-    assert cache.find_existing(ic) is not None
+        assert all(v == p2[k] for k, v in p1.items())
+
+    def test_create_with_explicit_params(self, tmp_path: Path):
+        """Test that overriding params does change the inputs."""
+        out = tmp_path / "simple_plus.toml"
+        app(f"template create --template simple --hii-dim 37 --out {out}")
+        assert out.exists()
+
+        p1 = create_params_from_template(out)
+        p2 = create_params_from_template("simple")
+
+        assert p1["simulation_options"].HII_DIM == 37
+        assert p2["simulation_options"].HII_DIM != 37
+
+    def test_failure_with_both_template_and_file(self, tmp_path):
+        """Test that providing both --template and --param-file errors."""
+        new = tmp_path / "new.toml"
+        app(f"template create --template simple --out {new}")
+
+        # This should fail
+        with pytest.raises(SystemExit):
+            app(f"template create --param-file {new} --template simple --out here.toml")
+
+    def test_failure_with_neither_template_nor_file(self, tmp_path: Path):
+        """Test that providing neither --template not --param-file errors."""
+        with pytest.raises(SystemExit):
+            app("template create --out here.toml")
+
+    def test_non_existent_directory(self, tmp_path: Path):
+        """Test that providing a non-existing directory to write to is OK."""
+        out = tmp_path / "parent" / "config.toml"
+        app(f"template create --template simple --out {out}")
+        assert out.exists()
 
 
-# TODO: we could generate a single "prev" box in a temp cache directory to make these tests work
-@pytest.mark.skip(
-    reason="We have not replaced the recursive behaviour in the CLI tests"
+class TestRunSetup:
+    """Tests of the _run_setup function."""
+
+    def setup_class(self):
+        """Make a default temp dir, and store a simple config TOML."""
+        self.tmpdir = Path(tempfile.mkdtemp())
+
+        self.simple = self.tmpdir / "simple.toml"
+
+        # Create a full template in tmpdir
+        app(f"template create --template simple --out {self.simple}")
+
+    def test_unmodified_paramfile(self, capsys):
+        """Test that running with an unmodified --param-file doesn't write the fullspec."""
+        runp = RunParams(
+            param_selection=ParameterSelection(param_file=self.simple),
+            cachedir=self.tmpdir,
+        )
+        params = Parameters()  # don't modify the input
+        _run_setup(runp, params)
+        out = capsys.readouterr().out
+        assert "Wrote full configuration" not in out
+
+    def test_unmodified_template(self, capsys):
+        """Test that an unmodified --template does write a simple fullspec TOML."""
+        runp = RunParams(
+            param_selection=ParameterSelection(template="simple"), cachedir=self.tmpdir
+        )
+        params = Parameters()  # don't modify the input
+        _run_setup(runp, params)
+        out = capsys.readouterr().out
+        assert "Wrote full configuration" in out
+        assert "simple.toml" in out
+
+    def test_explicit_outcfg(self, capsys):
+        """Test that directly modifying params and passing an explicit file works."""
+        outcfg = self.tmpdir / "custom-name.toml"
+        runp = RunParams(
+            param_selection=ParameterSelection(template="simple"),
+            outcfg=outcfg,
+            cachedir=self.tmpdir,
+        )
+        params = Parameters(simulation_options=cli._SimulationOptions(HII_DIM=37))
+
+        _run_setup(runp, params)
+        out = capsys.readouterr().out
+        assert "Wrote full configuration" in out
+        assert f"{outcfg}" in out
+
+        _run_setup(runp, Parameters())
+        out = capsys.readouterr().out
+        assert "Wrote full configuration" in out
+        assert f"{outcfg}" not in out
+        assert "simple.toml" in out
+
+    def test_unknown_name(self, capsys):
+        """Test that modifying params without an explicit file creates a random file."""
+        runp = RunParams(
+            param_selection=ParameterSelection(template="simple"), cachedir=self.tmpdir
+        )
+        params = Parameters(simulation_options=cli._SimulationOptions(HII_DIM=37))
+
+        _run_setup(runp, params)
+        out = capsys.readouterr().out
+        assert "Wrote full configuration" in out
+        assert "simple.toml" not in out  # got a random uuid
+
+
+_small_box = (
+    "--hii-dim 25 --dim 50 --box-len 50 --zprime-step-factor 1.2 --z-heat-max 20"
 )
-def test_perturb(module_direc, runner, cfg):
-    # Run the CLI
-    result = runner.invoke(
-        cli.main,
-        [
-            "perturb",
-            "35",
-            "--direc",
-            str(module_direc),
-            "--seed",
-            "101010",
-            "--config",
-            cfg,
-        ],
-    )
-    assert result.exit_code == 0
 
 
-@pytest.mark.skip(
-    reason="We have not replaced the recursive behaviour in the CLI tests"
-)
-def test_spin(module_direc, runner, cfg):
-    # Run the CLI
-    result = runner.invoke(
-        cli.main,
-        [
-            "spin",
-            "34.9",
-            "--direc",
-            str(module_direc),
-            "--seed",
-            "101010",
-            "--config",
-            cfg,
-        ],
-    )
-    print(result.output)
-    assert result.exit_code == 0
+class TestRunICS:
+    """Tests of the `run ics` command."""
+
+    def test_basic_run(self, capsys, tmp_path: Path):
+        """Test that a simple run creates an InitialConditions.h5 file."""
+        app(
+            f"run ics --template simple {_small_box} --cachedir {tmp_path}",
+            console=Console(width=100),
+        )
+        output = capsys.readouterr().out
+        assert "Saved initial conditions" in output
+
+        outfile = Path(output.split("conditions to ")[-1].replace("\n", ""))
+        assert outfile.exists()
+        ics = read_output_struct(outfile)
+        assert ics.simulation_options.HII_DIM == 25
+
+    def test_warn_formatting(self, tmp_path, capsys):
+        """Test that warnings are printed properly."""
+        app(
+            f"run ics --template simple --hii-dim 25 --dim 50 --box-len 400 "
+            f"--cachedir {tmp_path}"
+        )
+        out = capsys.readouterr().out
+        assert "Resolution is likely too low" in out
+
+    def test_regen(self, capsys, tmp_path):
+        """Test that re-running the same box with --regen does actually re-run things."""
+        app(
+            f"run ics --template simple {_small_box} --cachedir {tmp_path}",
+        )
+
+        # Now run it again right away with regen
+        app(
+            f"run ics --template simple {_small_box} --cachedir {tmp_path} --regenerate",
+        )
+        out = capsys.readouterr().out
+        assert "regeneration is requested. Overriding." in out
+
+        # Run it without regen
+        app(
+            f"run ics --template simple {_small_box} --cachedir {tmp_path}",
+        )
+        out = capsys.readouterr().out
+        assert "skipping computation" in out
 
 
-@pytest.mark.skip(
-    reason="We have not replaced the recursive behaviour in the CLI tests"
-)
-def test_ionize(module_direc, runner, cfg):
-    # Run the CLI
-    result = runner.invoke(
-        cli.main,
-        [
-            "ionize",
-            "35",
-            "--direc",
-            str(module_direc),
-            "--seed",
-            "101010",
-            "--config",
-            cfg,
-        ],
-    )
-    assert result.exit_code == 0
+class TestRunCoeval:
+    """Tests of the `run coeval` command."""
+
+    def test_basic_run(self, capsys, tmp_path: Path):
+        """Test that a basic run through produces a coeval*.h5 file."""
+        cfile = tmp_path / "coeval_z6.00.h5"
+        app(
+            f"run coeval --template simple {_small_box} --cachedir {tmp_path} "
+            f"--redshifts 6.0 --out {cfile.parent}"
+        )
+
+        output = capsys.readouterr().out
+        assert "Saved z=6.00 coeval box" in output
+
+        assert cfile.exists()
+        cv = Coeval.from_file(cfile)
+        assert cv.redshift == 6.0
+
+    def test_node_redshifts(self, capsys, tmp_path):
+        """Test that having nodez in addition to --redshifts works."""
+        # We have other node redshifts, but we don't do anything with them.
+        app(
+            f"run coeval --template Park19 {_small_box} --cachedir {tmp_path} "
+            f"--no-save-all-redshifts "
+            f"--redshifts 6.0 --out {tmp_path}"
+        )
+        cfile = tmp_path / "coeval_z6.00.h5"
+        assert cfile.exists()
+
+        # This time save everything....
+        new = tmp_path / "new"
+        new.mkdir()
+        app(
+            f"run coeval --template Park19 {_small_box} --cachedir {new} "
+            f"--save-all-redshifts "
+            f"--redshifts 6.0 --out {new}"
+        )
+        assert len(list(new.glob("coeval*.h5"))) > 1
 
 
-def test_coeval(module_direc, runner, cfg):
-    # Run the CLI
-    result = runner.invoke(
-        cli.main,
-        [
-            "coeval",
-            "35",
-            "--cache-dir",
-            str(module_direc),
-            "--seed",
-            "101010",
-            "--config",
-            cfg,
-        ],
-    )
-    assert result.exit_code == 0
+class TestRunLightcone:
+    """Test the `run lightcone` command."""
+
+    def test_basic_run(self, capsys, tmp_path: Path):
+        """Test that a basic run produces a lightcone.h5 file."""
+        lcfile = tmp_path / "lightcone.h5"
+        app(
+            f"run lightcone --template simple {_small_box} --cachedir {tmp_path} "
+            f"--redshift-range 6.0 12.0 --out {lcfile}"
+        )
+
+        output = capsys.readouterr().out
+        assert "Saved Lightcone" in output
+
+        assert lcfile.exists()
+        LightCone.from_file(lcfile)
+
+    def test_non_existent_path(self, tmp_path):
+        """Test that a non-existent output path is OK."""
+        lcfile = tmp_path / "new" / "lightcone.h5"
+        app(
+            f"run lightcone --template simple {_small_box} --cachedir {tmp_path} "
+            f"--redshift-range 6.0 12.0 --out {lcfile}"
+        )
+
+        assert lcfile.exists()
 
 
-def test_lightcone(module_direc, runner, cfg):
-    # Run the CLI
-    result = runner.invoke(
-        cli.main,
-        [
-            "lightcone",
-            "30",
-            "--direc",
-            str(module_direc),
-            "--seed",
-            "101010",
-            "--config",
-            cfg,
-            "-X",
-            "35",
-        ],
-    )
-    assert result.exit_code == 0
+class TestParamHelp:
+    """Test the `run params` command."""
+
+    def test_printing(self, capsys):
+        """Test that the (stub) command prints a short useful message."""
+        app("run params")
+        assert "Usage: 21cmfast run params --help" in capsys.readouterr().out
+
+    def test_full_help(self, capsys):
+        """Test that the --help command prints out all the param help."""
+        app("run params --help")
+        out = capsys.readouterr().out
+
+        assert "--hii-dim" in out
+        assert "SimulationOptions" in out
+        assert "--use-ts-fluct" in out
+
+
+class TestPRFeature:
+    """Test the `dev feature` command."""
+
+    def test_simple_run_through(self, tmp_path: Path):
+        """Test that a simple run-through produces the expected plots."""
+        template = tmp_path / "small-simple.toml"
+        app(f"template create --template simple {_small_box} --out {template}")
+        app(
+            f"dev feature --param-file {template} --redshift-range 6 12 --hmf PS --cachedir {tmp_path} --outdir {tmp_path}"
+        )
+        assert (tmp_path / "pr_feature_history.pdf").exists()
+        assert (tmp_path / "pr_feature_power_history.pdf").exists()
+        assert (tmp_path / "pr_feature_lightcone_2d_brightness_temp.pdf").exists()

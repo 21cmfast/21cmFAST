@@ -51,7 +51,7 @@ description = "Exact fiducial parameters from Qin et al 2020. Disables modules i
 [[templates]]
 name = "Munoz21"
 file = "Munoz21.toml"
-aliases = ["Munoz21"]
+aliases = ["Munoz21", "EOS21"]
 description = "Exact fiducial parameters from Munoz et al 2021. Disables modules implemented afterwards"
 
 [[templates]]

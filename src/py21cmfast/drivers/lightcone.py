@@ -635,8 +635,8 @@ def generate_lightcone(
     )
 
 
-def run_lightcone(**kwargs):  # noqa: D103
-    return deque(generate_lightcone(**kwargs), maxlen=1)[0]
+def run_lightcone(**kwargs) -> LightCone:  # noqa: D103
+    return deque(generate_lightcone(**kwargs), maxlen=1)[0][-1]
 
 
 run_lightcone.__doc__ = generate_lightcone.__doc__

@@ -1342,9 +1342,9 @@ class InputParameters:
                 and self.matter_options.PERTURB_ALGORITHM != "LINEAR"
             ):
                 warnings.warn(
-                    "Resolution is likely too low for accurate evolved density fields\n It Is recommended"
-                    + "that you either increase the resolution (DIM/BOX_LEN) or"
-                    + "set the EVOLVE_DENSITY_LINEARLY flag to 1",
+                    "Resolution is likely too low for accurate evolved density fields. "
+                    "It Is recommended that you either increase the resolution "
+                    "(DIM/BOX_LEN) or set the EVOLVE_DENSITY_LINEARLY flag to 1",
                     stacklevel=2,
                 )
 
@@ -1462,9 +1462,6 @@ class InputParameters:
         zstep_factor: float | None = None,
     ) -> Self:
         """Create a new InputParameters instance with logspaced redshifts."""
-        if not self.evolution_required:
-            return self
-
         if zmax is None:
             zmax = self.simulation_options.Z_HEAT_MAX
 

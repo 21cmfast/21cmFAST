@@ -294,7 +294,7 @@ def rectlcn(
     default_simulation_options,
     default_cosmo_params,
 ) -> RectilinearLightconer:
-    return RectilinearLightconer.with_equal_cdist_slices(
+    return RectilinearLightconer.between_redshifts(
         min_redshift=lightcone_min_redshift,
         max_redshift=max_redshift,
         resolution=default_simulation_options.cell_size,

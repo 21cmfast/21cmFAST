@@ -321,9 +321,12 @@ def _read_inputs_v4(group: h5py.Group, safe: bool = True):
                 d = group[k][()]
                 kwargs[k] = None if d is h5py.Empty(None) else d
         except Exception as e:
-            raise ValueError(
-                f"Error reading input parameter {k} with type {fld.type} from group {group.name} in file {group.file.filename}"
-            ) from e
+            e.add_note(
+                f"InputStruct that failed: {k}\n"
+                f"In group: {group.name}\n"
+                f"In file: {group.file.filename}"
+            )
+            raise
     return InputParameters(**kwargs)
 
 
