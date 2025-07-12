@@ -345,6 +345,11 @@ def interp_halo_boxes(
     if redshift > z_halos[-1] or redshift < z_halos[0]:
         raise ValueError(f"Invalid z_target {redshift} for redshift array {z_halos}")
 
+    arr_fields = [f for f in fields if f in halo_boxes[0].arrays]
+    computed = [box.ensure_arrays_computed(*arr_fields) for box in halo_boxes]
+    if not all(computed):
+        raise ValueError("Some of the HaloBox fields required are not computed")
+
     idx_prog = np.searchsorted(z_halos, redshift, side="left")
 
     if idx_prog == 0 or idx_prog == len(z_halos):
@@ -372,20 +377,24 @@ def interp_halo_boxes(
     hbox_desc = halo_boxes[idx_desc]
 
     for field in fields:
-        interp_field = np.zeros_like(hbox_desc.get(field))
+        field_desc = hbox_desc.get(field)
+        field_prog = hbox_prog.get(field)
+        interp_field = np.zeros_like(field_desc)
         interp_field[...] = (1 - interp_param) * hbox_desc.get(
             field
-        ) + interp_param * hbox_prog.get(field)
+        ) + interp_param * field_prog
         hbox_out.set(field, interp_field)
-
-    logger.debug(
-        f"interpolated to z={redshift} between [{z_desc},{z_prog}] ({interp_param})"
-    )
-    logger.debug(
-        f"{fields[0]} averages desc ({idx_desc}): {hbox_desc.get(fields[0]).mean()}"
-        + f" interp {hbox_out.get(fields[0]).mean()}"
-        + f" prog ({idx_prog}) {hbox_prog.get(fields[0]).mean()}"
-    )
+        if field in arr_fields:
+            logger.debug(f"field {field}")
+            logger.debug(
+                f"desc z={hbox_desc.redshift}, min/max/mean = ({field_desc.min()},{field_desc.max()},{field_desc.mean()})"
+            )
+            logger.debug(
+                f"prog z={hbox_prog.redshift}, min/max/mean = ({field_prog.min()},{field_prog.max()},{field_prog.mean()})"
+            )
+            logger.debug(
+                f"intp z={hbox_out.redshift}, min/max/mean = ({interp_field.min()},{interp_field.max()},{interp_field.mean()})"
+            )
 
     return hbox_out
 

@@ -566,12 +566,12 @@ void sum_halos_onto_grid(InitialConditions *ini_boxes, TsBox *previous_spin_temp
                 continue;
             }
 
-            x = halos->halo_coords[0 + 3 * i_halo] * simulation_options_global->HII_DIM /
-                simulation_options_global->BOX_LEN;
-            y = halos->halo_coords[1 + 3 * i_halo] * simulation_options_global->HII_DIM /
-                simulation_options_global->BOX_LEN;
-            z = halos->halo_coords[2 + 3 * i_halo] * simulation_options_global->HII_DIM /
-                simulation_options_global->BOX_LEN;
+            x = (int)(halos->halo_coords[0 + 3 * i_halo] * simulation_options_global->HII_DIM /
+                      simulation_options_global->BOX_LEN);
+            y = (int)(halos->halo_coords[1 + 3 * i_halo] * simulation_options_global->HII_DIM /
+                      simulation_options_global->BOX_LEN);
+            z = (int)(halos->halo_coords[2 + 3 * i_halo] * simulation_options_global->HII_DIM /
+                      simulation_options_global->BOX_LEN);
             i_cell = HII_R_INDEX(x, y, z);
 
             // set values before reionisation feedback

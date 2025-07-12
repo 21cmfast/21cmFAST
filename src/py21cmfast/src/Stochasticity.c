@@ -940,8 +940,8 @@ int sample_halo_progenitors(gsl_rng **rng_arr, double z_in, double z_out, HaloFi
               arraysize_local, 6. * arraysize_total * sizeof(int) / 1e9);
 
     double corr_arr[3] = {hs_constants->corr_star, hs_constants->corr_sfr, hs_constants->corr_xray};
-    double boxlen[3] = {(double)simulation_options_global->BOX_LEN,
-                        (double)simulation_options_global->BOX_LEN, BOXLEN_PARA};
+    double boxlen[3] = {simulation_options_global->BOX_LEN, simulation_options_global->BOX_LEN,
+                        BOXLEN_PARA};
 
 #pragma omp parallel num_threads(simulation_options_global->N_THREADS)
     {
