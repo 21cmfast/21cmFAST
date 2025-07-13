@@ -304,11 +304,10 @@ def rectlcn(
 
 @pytest.fixture(scope="session")
 def lc(rectlcn, ic, cache, default_input_struct_lc):
-    *_, lc = run_lightcone(
+    return run_lightcone(
         lightconer=rectlcn,
         initial_conditions=ic,
         inputs=default_input_struct_lc,
         write=CacheConfig(),
         cache=cache,
     )
-    return lc
