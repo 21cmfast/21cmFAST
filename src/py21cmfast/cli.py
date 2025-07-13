@@ -26,7 +26,7 @@ from .drivers import coeval as cvlmodule
 from .drivers.coeval import generate_coeval
 from .drivers.lightcone import run_lightcone
 from .drivers.single_field import compute_initial_conditions
-from .io.caching import OutputCache, RunCache
+from .io.caching import CacheConfig, OutputCache, RunCache
 from .lightconers import RectilinearLightconer
 from .run_templates import (
     list_templates,
@@ -127,7 +127,14 @@ class RunParams:
         "Where to write and search for cached items and output fullspec configuration "
         "files. Note that caches will be in hash-style folders inside this folder."
     )
-
+    cache_strategy: Literal["on", "off", "noloop", "dmfield", "last_step_only"] = (
+        "dmfield"
+    )
+    """A strategy for which fields to cache (only used for coeval and lightcones).
+Options are: (on) cache everything, (off) cache nothing (noloop) cache only boxes
+outside the astrophysics evolution loop (dmfield) alias for noloop (last_step_only)
+cache only boxes that are required more than one step away
+    """
     outcfg: Annotated[
         Path,
         Parameter(validator=(vld.Path(file_okay=False, dir_okay=False, ext=("toml",)))),
@@ -467,8 +474,10 @@ def coeval(
         out_redshifts=redshifts,
         inputs=inputs,
         regenerate=options.regenerate,
-        write=True,
         cache=OutputCache(options.cachedir),
+        write=getattr(
+            CacheConfig, options.cache_strategy.replace("dmfield", "noloop")
+        )(),
         progressbar=options.progress,
     ):
         if not in_outputs and not save_all_redshifts:
@@ -477,7 +486,7 @@ def coeval(
         outfile = out / f"coeval_z{coeval.redshift:.2f}.h5"
         coeval.save(outfile)
         cns.print(
-            f"[spring_green3]:duck:[/spring_green3] Saved z={coeval.redshift:.2f} coeval box to {outfile}."
+            f"[spring_green3]:duck: Saved z={coeval.redshift:.2f} coeval box to [purple]{outfile}."
         )
 
 
@@ -541,7 +550,9 @@ def lightcone(
         lightconer=lcn,
         inputs=inputs,
         regenerate=options.regenerate,
-        write=True,
+        write=getattr(
+            CacheConfig, options.cache_strategy.replace("dmfield", "noloop")
+        )(),
         cache=OutputCache(options.cachedir),
         progressbar=options.progress,
         global_quantities=global_quantities,
@@ -598,7 +609,9 @@ def pr_feature(
         lightconer=lcn,
         inputs=inputs_default,
         regenerate=options.regenerate,
-        write=True,
+        write=getattr(
+            CacheConfig, options.cache_strategy.replace("dmfield", "noloop")
+        )(),
         cache=OutputCache(options.cachedir),
         progressbar=True,
         global_quantities=("neutral_fraction", "brightness_temp"),
@@ -609,7 +622,9 @@ def pr_feature(
         lightconer=lcn,
         inputs=inputs_new,
         regenerate=options.regenerate,
-        write=True,
+        write=getattr(
+            CacheConfig, options.cache_strategy.replace("dmfield", "noloop")
+        )(),
         cache=OutputCache(options.cachedir),
         progressbar=True,
         global_quantities=("neutral_fraction", "brightness_temp"),
