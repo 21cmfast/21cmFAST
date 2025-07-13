@@ -266,8 +266,8 @@ int ComputePerturbField(float redshift, InitialConditions *boxes, PerturbedField
         } else {
             // Apply Zel'dovich/2LPT correction
 
-#pragma omp parallel shared(LOWRES_density_perturb, HIRES_density_perturb, dimension) private( \
-        i, j, k) num_threads(simulation_options_global -> N_THREADS)
+#pragma omp parallel shared(LOWRES_density_perturb, HIRES_density_perturb, dimension) \
+    private(i, j, k) num_threads(simulation_options_global -> N_THREADS)
             {
 #pragma omp for
                 for (i = 0; i < dimension; i++) {
@@ -385,11 +385,9 @@ int ComputePerturbField(float redshift, InitialConditions *boxes, PerturbedField
             }
 
 // go through the high-res box, mapping the mass onto the low-res (updated) box
-#pragma omp parallel shared(init_growth_factor, boxes, f_pixel_factor, resampled_box,             \
-                                dimension) private(i, j, k, xi, xf, yi, yf, zi, zf, HII_i, HII_j, \
-                                                       HII_k, d_x, d_y, d_z, t_x, t_y, t_z, xp1,  \
-                                                       yp1, zp1)                                  \
-    num_threads(simulation_options_global -> N_THREADS)
+#pragma omp parallel shared(init_growth_factor, boxes, f_pixel_factor, resampled_box, dimension) \
+    private(i, j, k, xi, xf, yi, yf, zi, zf, HII_i, HII_j, HII_k, d_x, d_y, d_z, t_x, t_y, t_z,  \
+                xp1, yp1, zp1) num_threads(simulation_options_global -> N_THREADS)
             {
 #pragma omp for
                 for (i = 0; i < simulation_options_global->DIM; i++) {
