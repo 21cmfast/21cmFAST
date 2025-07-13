@@ -13,9 +13,12 @@ import numpy as np
 from cyclopts import App, ArgumentCollection, Group, Parameter
 from cyclopts import types as cyctp
 from cyclopts import validators as vld
-from rich.console import Console
+from rich import box
+from rich.columns import Columns
+from rich.console import Console, group
 from rich.logging import RichHandler
 from rich.panel import Panel
+from rich.rule import Rule
 from rich.text import Text
 
 from . import __version__, plotting
@@ -28,11 +31,13 @@ from .run_templates import (
     list_templates,
     write_template,
 )
+from .wrapper._utils import snake_to_camel
 from .wrapper.inputs import (
     AstroOptions,
     AstroParams,
     CosmoParams,
     InputParameters,
+    InputStruct,
     MatterOptions,
     SimulationOptions,
 )
@@ -64,8 +69,12 @@ def print_banner():
         Text.from_markup("[orange]:duck: 21cmFAST :duck:", justify="center"),
         subtitle=f"v{__version__}",
         style="cyan",
+        padding=1,
+        highlight=True,
+        box=box.DOUBLE_EDGE,
     )
     cns.print(panel)
+    cns.print()
 
 
 def _at_least_one_validator(argument_collection: ArgumentCollection):
@@ -128,6 +137,8 @@ class RunParams:
         Literal["CRITICAL", "ERROR", "WARNING", "INFO", "DEBUG"],
         Parameter(alias=("-v", "--v")),
     ] = "WARNING"
+
+    progress: bool = True
 
 
 def _param_cls_factory(cls):
@@ -198,7 +209,7 @@ def _get_inputs(
 
 
 @cfg.command(name="avail")
-def show_configs():
+def cfg_avail():
     """Print all available builtin templates."""
     templates = list_templates()
     for template in templates:
@@ -214,6 +225,80 @@ def show_configs():
             cns.print()
 
         cns.print(f"\t{template['description']}")
+
+
+def _get_inputs_as_dict(inputs: InputParameters, minimal: bool = False):
+    all_inputs = attrs.asdict(inputs, recurse=True)
+    all_inputs = {
+        k: v
+        for k, v in all_inputs.items()
+        if isinstance(getattr(inputs, k), InputStruct)
+    }
+
+    del all_inputs["cosmo_params"]["_base_cosmo"]
+
+    if minimal:
+        defaults = InputParameters(random_seed=0)
+
+        default_dct = attrs.asdict(defaults, recurse=True)
+        default_dct = {
+            k: v
+            for k, v in default_dct.items()
+            if isinstance(getattr(inputs, k), InputStruct)
+        }
+
+        # Get the minimal set of params (non-default params)
+        all_inputs = {
+            structname: {
+                k: v for k, v in params.items() if default_dct[structname][k] != v
+            }
+            for structname, params in all_inputs.items()
+        }
+    return all_inputs
+
+
+def pretty_print_inputs(
+    inputs: InputParameters, name: str, description: str, minimal: bool = False
+):
+    inputs_dct = _get_inputs_as_dict(inputs, minimal)
+
+    @group()
+    def get_panel_elements():
+        yield description + "\n"
+
+        for structname, params in inputs_dct.items():
+            if params:
+                yield Rule(f"[bold purple]{snake_to_camel(structname)}")
+
+                keys = [f"[bold]{k}[/bold]:" for k in params]
+                vals = [
+                    f"{f'[green italic]{v}' if isinstance(v, str) else v}"
+                    for v in params.values()
+                ]
+                yield Columns(
+                    [val for pair in zip(keys, vals, strict=False) for val in pair],
+                    expand=False,
+                )
+                yield ""
+
+    cns.print(Panel(get_panel_elements(), title=name, highlight=True))
+
+
+@cfg.command(name="show")
+def cfg_show(
+    name: Annotated[Literal[*AVAILABLE_TEMPLATES], Parameter(accepts_keys=False)],
+    mode: Literal["minimal", "full"] = "full",
+):
+    """Show and describe an in-built template."""
+    template_desc = next(t for t in list_templates() if t["name"] == name)
+
+    inputs = InputParameters.from_template(name, random_seed=0)
+    pretty_print_inputs(
+        inputs=inputs,
+        name=name,
+        description=template_desc["description"],
+        minimal=mode == "minimal",
+    )
 
 
 @cfg.command(name="create")
@@ -236,6 +321,12 @@ def template_create(
     if not out.parent.exists():
         out.parent.mkdir(exist_ok=True, parents=True)
 
+    pretty_print_inputs(
+        inputs=inputs,
+        name="Custom Template",
+        description="The minimal set of non-default parameters of your custom model",
+        minimal=True,
+    )
     write_template(inputs, out)
     cns.print(f":duck:[spring_green3] Wrote new template file at [purple]{out}")
 
@@ -247,6 +338,8 @@ def _run_setup(
     force_nodez: bool = False,
 ) -> InputParameters:
     print_banner()
+
+    cns.print(Rule("Setting Up The Simulation", characters="="))
 
     def custom_rich_warning(message: str, *args, **kwargs):
         cns.print(f"[orange1]:warning: {message}")
@@ -271,6 +364,18 @@ def _run_setup(
         cns.print(
             f":duck: [spring_green3]Wrote full configuration to [purple]{config_file}"
         )
+    else:
+        config_file = options.param_selection.param_file
+
+    pretty_print_inputs(
+        inputs=inputs,
+        name=config_file.name,
+        description="The minimal set of non-default parameters of your model",
+        minimal=True,
+    )
+
+    cns.print()
+    cns.print(Rule("Starting Simulation", characters="="))
     return inputs
 
 
@@ -282,7 +387,7 @@ def params(params: Parameters = Parameters()):
 
 @run.command()
 def ics(
-    options: RunParams,
+    options: RunParams = RunParams(),
     params: Annotated[Parameters, Parameter(show=False, name="*")] = Parameters(),
 ):
     """Run a single iteration of 21cmFAST init, saving results to file.
@@ -321,8 +426,8 @@ def ics(
 
 @run.command()
 def coeval(
-    redshifts: list[float],
-    options: RunParams,
+    redshifts: Annotated[list[float], Parameter(alias=("-z",), required=True)],
+    options: RunParams = RunParams(),
     params: Annotated[Parameters, Parameter(show=False, name="*")] = Parameters(),
     out: Annotated[cyctp.ExistingDirectory, Parameter(name=("--out", "-o"))] = Path(),
     save_all_redshifts: Annotated[
@@ -355,21 +460,19 @@ def coeval(
         the evolution.
     """
     inputs = _run_setup(options, params, zmin=min_evolved_redshift)
-    print(inputs.node_redshifts)
+
     for coeval, in_outputs in generate_coeval(
         out_redshifts=redshifts,
         inputs=inputs,
         regenerate=options.regenerate,
         write=True,
         cache=OutputCache(options.cachedir),
-        progressbar=True,
+        progressbar=options.progress,
     ):
-        print(coeval.redshift, save_all_redshifts)
         if not in_outputs and not save_all_redshifts:
             continue
 
         outfile = out / f"coeval_z{coeval.redshift:.2f}.h5"
-        print(outfile)
         coeval.save(outfile)
         cns.print(
             f"[spring_green3]:duck:[/spring_green3] Saved z={coeval.redshift:.2f} coeval box to {outfile}."
@@ -385,10 +488,10 @@ def lightcone(
         Path,
         Parameter(validator=(vld.Path(dir_okay=False, file_okay=False, ext=("h5",)),)),
     ] = Path("lightcone.h5"),
-    lightcone_quantities: Annotated[tuple[str], Parameter(name=("--lq",))] = (
+    lightcone_quantities: Annotated[tuple[str], Parameter(alias=("--lq",))] = (
         "brightness_temp",
     ),
-    global_quantities: Annotated[tuple[str], Parameter(name=("--gq",))] = (
+    global_quantities: Annotated[tuple[str], Parameter(alias=("--gq",))] = (
         "neutral_fraction",
         "brightness_temp",
     ),
@@ -438,7 +541,7 @@ def lightcone(
         regenerate=options.regenerate,
         write=True,
         cache=OutputCache(options.cachedir),
-        progressbar=True,
+        progressbar=options.progress,
         global_quantities=global_quantities,
     )
 

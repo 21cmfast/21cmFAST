@@ -7,6 +7,12 @@ aliases = ["simple"]
 description = "A simple 21cmFAST run with no minihalos, discrete halos, recombinations or spin temperature fluctuations"
 
 [[templates]]
+name = "simple-small"
+file = "simple-small.toml"
+aliases = ["simple-small"]
+description = "A simple+small, non-evolving, 21cmFAST run with no minihalos, discrete halos, recombinations or spin temperature fluctuations."
+
+[[templates]]
 name = "const-zeta"
 file = "const-zeta.toml"
 aliases = ["const-zeta"]
