@@ -46,6 +46,15 @@ built-in templates, use the command::
 
     $ 21cmfast template avail
 
+You can view the parameters of any of the builtin templates with the ``show`` command::
+
+    $ 21cmfast template show latest-dhalos
+
+By default, this will display *all* of the parameters of that model. To only display
+the non-default parameters::
+
+    $ 21cmfast template show latest-dhalos --mode minimal
+
 Each of these built-in templates is itself a TOML config file, but it's better not to
 mess with them directly. To create a new parameter TOML that is exactly the same as
 an existing template, use the `create` command::
@@ -165,15 +174,26 @@ process can be written to file. These files can be used for three purposes:
 
 While in principle the cache does not need to be used at all, in the most recent models
 it is highly encouraged to use the cache for the purposes of reducing peak memory usage.
-Therefore, currently on the CLI **caching is always turned on**. You can manage where
-the cache is written with the ``--cachedir`` option. By default it is set to the
-*current working directory*. If you don't want to keep the cache around long-term,
-you can set it to a temporary directory, for example::
+You can manage where  the cache is written with the ``--cachedir`` option.
+By default it is set to the *current working directory*.
+If you don't want to keep the cache around long-term, you can set it to a temporary
+directory, for example::
 
     $ 21cmfast run coeval -z 8.0 --template simple-small --cachedir /tmp/21cmfast-cache
 
 Note that by default, the fully-specified parameter TOML that is automatically output
 by any ``run`` command is saved into the ``--cachedir``.
+
+To change which field types are cached, use the ``--cache-strategy`` parameter (note
+that this only affects the ``coeval`` and ``lightcone`` commands, not the ``ics``).
+By default this is set to ``dmfield``, which caches the initial conditions, perturbed
+matter fields, and perturbed halo fields (if applicable). Since all later boxes depend
+on these fields, and these fields are pre-computed at **all** redshifts before any of the
+astrophysics, it is generally advantageous to cache these. You can ensure all fields are
+cached by passing ``--cache-strategy on``, and opt to cache nothing with
+``--cache-strategy off``. Finally, you can optimize the tradeoff between disk usage
+and memory usage by using ``--cache-strategy last_step_only``, which only caches boxes
+that are required for more than just the next step.
 
 .. note:: All cache files are stored inside sub-directories of the ``--cachedir``
           which are named uniquely via hashing the input parameters. This is not meant
