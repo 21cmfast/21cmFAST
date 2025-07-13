@@ -22,6 +22,7 @@ from rich.rule import Rule
 from rich.text import Text
 
 from . import __version__, plotting
+from .drivers import coeval as cvlmodule
 from .drivers.coeval import generate_coeval
 from .drivers.lightcone import run_lightcone
 from .drivers.single_field import compute_initial_conditions
@@ -49,7 +50,7 @@ logging.basicConfig(
     level="WARNING",
     format=FORMAT,
     datefmt="[%X]",
-    handlers=[RichHandler(rich_tracebacks=True)],
+    handlers=[RichHandler(rich_tracebacks=True, console=cns)],
 )
 logger = logging.getLogger("py21cmfast")
 
@@ -344,6 +345,7 @@ def _run_setup(
     def custom_rich_warning(message: str, *args, **kwargs):
         cns.print(f"[orange1]:warning: {message}")
 
+    cvlmodule._console = cns
     warnings.showwarning = custom_rich_warning
     logger.setLevel(options.verbosity)
 
