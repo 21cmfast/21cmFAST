@@ -386,7 +386,6 @@ def _run_lightcone_from_perturbed_fields(
     cache: OutputCache = _ocache,
     cleanup: bool = True,
     write: CacheConfig = _cache,
-    always_purge: bool = False,
     progressbar: bool = False,
     lightcone_filename: str | Path | None = None,
 ):
@@ -445,7 +444,6 @@ def _run_lightcone_from_perturbed_fields(
         pt_halos=pt_halos,
         write=write,
         cleanup=cleanup,
-        always_purge=always_purge,
         progressbar=progressbar,
         photon_nonconservation_data=photon_nonconservation_data,
         start_idx=lightcone._last_completed_node + 1,
@@ -543,7 +541,6 @@ def generate_lightcone(
     write: CacheConfig = _cache,
     cache: OutputCache | None = _ocache,
     regenerate: bool = True,
-    always_purge: bool = False,
     progressbar: bool = False,
     lightcone_filename: str | Path | None = None,
 ):
@@ -616,7 +613,6 @@ def generate_lightcone(
         initial_conditions=initial_conditions,
         inputs=inputs,
         write=write,
-        always_purge=always_purge,
         progressbar=progressbar,
         **iokw,
     )
@@ -634,7 +630,6 @@ def generate_lightcone(
         cache=cache,
         write=write,
         cleanup=cleanup,
-        always_purge=always_purge,
         progressbar=progressbar,
         lightcone_filename=lightcone_filename,
     )

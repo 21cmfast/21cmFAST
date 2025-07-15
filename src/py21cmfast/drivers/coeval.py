@@ -607,9 +607,6 @@ def _redshift_loop_generator(
         if iz < start_idx:
             continue
 
-        logger.info(
-            f"Computing Redshift {z} ({iz + 1}/{len(all_redshifts)}) iterations."
-        )
         this_perturbed_field = perturbed_field[iz]
         this_perturbed_field.load_all()
 
