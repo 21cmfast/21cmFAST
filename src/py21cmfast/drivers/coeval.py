@@ -269,7 +269,6 @@ def evolve_perturb_halos(
     initial_conditions: InitialConditions,
     cache: OutputCache,
     regenerate: bool,
-    always_purge: bool = False,
     progressbar: bool = False,
 ):
     """
@@ -293,8 +292,6 @@ def evolve_perturb_halos(
         Cache object for storing and retrieving computed results.
     regenerate : bool
         Flag to indicate whether to regenerate results or use cached values.
-    always_purge : bool, optional
-        If True, always purge temporary data. Defaults to False.
     progressbar: bool, optional
         If True, a progress bar will be displayed throughout the simulation. Defaults to False.
 
@@ -349,8 +346,8 @@ def evolve_perturb_halos(
         )
 
         # we never want to store every halofield
-        with contextlib.suppress(OSError):
-            pt_halos[i].purge(force=always_purge)
+        if write.perturbed_halo_field:
+            pt_halos[i].purge(force=True)
 
         if z in inputs.node_redshifts:
             # Only evolve on the node_redshifts, not any redshifts in-between
@@ -371,7 +368,6 @@ def generate_coeval(
     cache: OutputCache | None = None,
     initial_conditions: InitialConditions | None = None,
     cleanup: bool = True,
-    always_purge: bool = False,
     progressbar: bool = False,
 ):
     r"""
@@ -426,9 +422,6 @@ def generate_coeval(
         true, as if the next box to be calculated has different shape, errors will occur
         if memory is not cleaned. Note that internally, this is set to False until the
         last iteration.
-    always_purge : bool, optional
-        If True, always purge temporary data from memory, even if the boxes are not
-        being cached. Defaults to False.
     progressbar: bool, optional
         If True, a progress bar will be displayed throughout the simulation. Defaults to False.
 
@@ -468,7 +461,6 @@ def generate_coeval(
             inputs=inputs,
             initial_conditions=initial_conditions,
             write=write,
-            always_purge=always_purge,
             progressbar=progressbar,
             **iokw,
         )
@@ -504,7 +496,6 @@ def generate_coeval(
         pt_halos=pt_halos,
         write=write,
         cleanup=cleanup,
-        always_purge=always_purge,
         progressbar=progressbar,
         iokw=iokw,
         init_coeval=coeval,
@@ -581,7 +572,6 @@ def _redshift_loop_generator(
     write: CacheConfig,
     iokw: dict,
     cleanup: bool,
-    always_purge: bool,
     progressbar: bool,
     photon_nonconservation_data: dict,
     start_idx: int = 0,
@@ -673,25 +663,22 @@ def _redshift_loop_generator(
         )
 
         if prev_coeval is not None:
-            with contextlib.suppress(OSError):
-                prev_coeval.perturbed_field.purge(force=always_purge)
+            prev_coeval.perturbed_field.purge(force=True)
 
         if this_pthalo is not None:
-            with contextlib.suppress(OSError):
-                this_pthalo.purge(force=always_purge)
+            this_pthalo.purge(force=True)
 
         # we only need the SFR fields at previous redshifts for XraySourceBox
         if this_halobox is not None:
-            with contextlib.suppress(OSError):
-                this_halobox.prepare(
-                    keep=[
-                        "halo_sfr",
-                        "halo_sfr_mini",
-                        "halo_xray",
-                        "log10_Mcrit_MCG_ave",
-                    ],
-                    force=always_purge,
-                )
+            this_halobox.prepare(
+                keep=[
+                    "halo_sfr",
+                    "halo_sfr_mini",
+                    "halo_xray",
+                    "log10_Mcrit_MCG_ave",
+                ],
+                force=True,
+            )
 
         logger.debug(f"PID={os.getpid()} doing brightness temp for z={z}")
 
@@ -729,7 +716,6 @@ def _setup_ics_and_pfs_for_scrolling(
     initial_conditions: InitialConditions | None,
     inputs: InputParameters,
     write: CacheConfig,
-    always_purge: bool,
     progressbar: bool,
     **iokw,
 ) -> tuple[InitialConditions, PerturbedField, PerturbHaloField, dict]:
@@ -740,11 +726,7 @@ def _setup_ics_and_pfs_for_scrolling(
 
     # We can go ahead and purge some of the stuff in the initial_conditions, but only if
     # it is cached -- otherwise we could be losing information.
-    with contextlib.suppress(OSError):
-        initial_conditions.prepare_for_perturb(
-            astro_options=inputs.astro_options, force=always_purge
-        )
-
+    initial_conditions.prepare_for_perturb(force=True)
     kw = {
         "initial_conditions": initial_conditions,
         **iokw,
@@ -782,24 +764,19 @@ def _setup_ics_and_pfs_for_scrolling(
             **kw,
         )
 
-        if inputs.matter_options.MINIMIZE_MEMORY:
-            with contextlib.suppress(OSError):
-                p.purge(force=always_purge)
+        if inputs.matter_options.MINIMIZE_MEMORY and write.perturbed_field:
+            p.purge(force=True)
         perturbed_field.append(p)
 
     pt_halos = evolve_perturb_halos(
         inputs=inputs,
         all_redshifts=all_redshifts,
         write=write,
-        always_purge=always_purge,
         progressbar=progressbar,
         **kw,
     )
     # Now we can purge initial_conditions further.
-    with contextlib.suppress(OSError):
-        initial_conditions.prepare_for_spin_temp(
-            astro_options=inputs.astro_options, force=always_purge
-        )
+    initial_conditions.prepare_for_spin_temp(force=True)
 
     return initial_conditions, perturbed_field, pt_halos, photon_nonconservation_data
 

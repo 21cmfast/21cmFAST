@@ -559,7 +559,7 @@ class InitialConditions(OutputStruct):
 
         return cls(inputs=inputs, **out, **kw)
 
-    def prepare_for_perturb(self, astro_options: AstroOptions, force: bool = False):
+    def prepare_for_perturb(self, force: bool = False):
         """Ensure the ICs have all the boxes loaded for perturb, but no extra."""
         keep = ["hires_density"]
 
@@ -589,7 +589,7 @@ class InitialConditions(OutputStruct):
 
         self.prepare(keep=keep, force=force)
 
-    def prepare_for_spin_temp(self, astro_options: AstroOptions, force: bool = False):
+    def prepare_for_spin_temp(self, force: bool = False):
         """Ensure ICs have all boxes required for spin_temp, and no more."""
         keep = []
         # NOTE: the astro flags doesn't change the computation, just the storage
