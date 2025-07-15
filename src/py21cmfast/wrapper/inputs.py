@@ -15,7 +15,7 @@ listed in the documentation for each class below.
 import logging
 import warnings
 from functools import cached_property
-from typing import Annotated, ClassVar, Literal, Self, get_args
+from typing import Annotated, Any, ClassVar, Literal, Self, get_args
 
 import attrs
 from astropy import units as un
@@ -25,6 +25,7 @@ from attrs import field as _field
 from cyclopts import Parameter
 
 from .._cfg import config
+from ._utils import snake_to_camel
 from .structs import StructWrapper
 
 logger = logging.getLogger(__name__)
@@ -1471,3 +1472,27 @@ class InputParameters:
                 max_redshift=zmax,
             )
         )
+
+    def asdict(
+        self,
+        only_structs: bool = False,
+        camel: bool = False,
+        remove_base_cosmo: bool = True,
+    ) -> dict[str, dict[str, Any]]:
+        """Convert the instance to a recursive dictionary."""
+        dct = attrs.asdict(self, recurse=True)
+
+        if remove_base_cosmo:
+            del dct["cosmo_params"]["_base_cosmo"]
+
+        if only_structs:
+            dct = {
+                k: v
+                for k, v in dct.items()
+                if isinstance(getattr(self, k), InputStruct)
+            }
+
+        if camel:
+            dct = {snake_to_camel(k): v for k, v in dct.items()}
+
+        return dct

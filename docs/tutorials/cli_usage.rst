@@ -78,6 +78,8 @@ descriptions, you can run::
 
     $ 21cmfast run params --help
 
+Note that if you *don't* specify a ``--template`` then you will just get all defaults.
+
 Specifying Parameters for Simulations
 -------------------------------------
 
@@ -118,8 +120,8 @@ Again, doing so is generally not a good idea, but can be useful for quick explor
 In summary, you have three ways to specify parameters: via ``--template``, ``--param-file``
 and explicit parameters. We encourage using *only* ``--param-file``, but it's always
 possible to use *either* ``--template`` or ``--param-file`` in conjunction with
-explicit parameter overrides. However, you *must* always specific one *and only one* of
-``--template`` or ``--param-file``.
+explicit parameter overrides. If neither ``--template`` nor ``--param-file`` is passed,
+all default parameters will be used.
 
 One final thing. Whenever you use ``21cmfast run``, a fully-specific parameter TOML will
 be automatically created for you, consistent with all of the parameters of your simulation
@@ -130,12 +132,12 @@ see below) and be named according to the following rules:
 1. If you passed ``--param-file`` and no explicit params, no new file will be written,
    regardless of any of the following.
 2. If you passed ``--cfgfile <path.toml>`` then it will be saved to ``<path.toml>``
-3. If you only passed ``--template <name>`` and no explicit params, it will be called
-   ``<name>.toml``. In effect, this TOML is the same specification as the built-in TOML,
-   however the built-ins are generally minimally-specified (i.e. they rely on the
-   default parameters of ``21cmFAST`` to fill in missing parameters) while the output
-   here will be fully-specified.
-4. If you pass any explicit parameters, regardless of whether these are building on a
+3. If you only passed ``--template <name>`` (or didn't pass anything), it will be called
+   ``<name>.toml`` (or ``defaults.toml``. In effect, this TOML is the same specification
+   as the built-in TOML, however the built-ins are generally minimally-specified (i.e.
+   they rely on the default parameters of ``21cmFAST`` to fill in missing parameters)
+   while the output here will be fully-specified.
+1. If you pass any explicit parameters, regardless of whether these are building on a
    ``--template`` or ``--param-file``, the file will be called ``config-<uuid>.toml``,
    where the ``uuid`` is a 6-character random string ensuring that you don't overwrite
    previous configurations. The output file will be printed to screen as part of the
@@ -340,6 +342,30 @@ Cookbook
 --------
 
 Here we outline some common usage patterns to make your life easier.
+
+Setting up both a minimal and full parameter TOML
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+The parameter TOML files can be written in either "minimal" or "full" modes: in *minimal*
+mode, only the parameters that are different from their default values are included in
+the TOML file. This can be useful as it provides more context about what you are
+trying to achieve with your run, however it has the downside that it is less explicit,
+and if the default parameters change in future versions of ``21cmFAST``, your results
+will also change, for the same TOML.
+
+We therefore always recommend to run from a *full* TOML. One way around this is to
+create *both* modes, using the full mode to run your simulation, but keeping a minimal
+TOML for clarity. To build this, you can first create your minimal TOML::
+
+    $ 21cmfast template create --template simple-small --use-ts-fluct --mode minimal --out custom-minimal.toml
+
+Then, create a full TOML *from this minimal TOML*::
+
+    $ 21cmfast template create --param-file custom-minimal.toml --out custom-full.toml
+
+You can then go on to run your simulation from the full file::
+
+    $ 21cmfast run coeval --param-file custom-full.toml -z 12
 
 Temporary/Exploratory Coeval Run
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~

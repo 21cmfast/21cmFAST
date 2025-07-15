@@ -12,6 +12,7 @@ import datetime
 import logging
 import warnings
 from pathlib import Path
+from typing import Literal
 
 import attrs
 import tomlkit
@@ -23,6 +24,8 @@ TEMPLATE_PATH = Path(__file__).parent / "templates/"
 MANIFEST = TEMPLATE_PATH / "manifest.toml"
 
 logger = logging.getLogger(__name__)
+
+TOMLMode = Literal["full", "minimal"]
 
 
 def _construct_param_objects(template_dict, **kwargs):
@@ -119,7 +122,26 @@ def create_params_from_template(template_name: str | Path, **kwargs):
     return _construct_param_objects(template, **kwargs)
 
 
-def write_template(inputs: InputParameters, template_file: Path | str):
+def _get_inputs_as_dict(inputs: InputParameters, mode: TOMLMode = "full"):
+    all_inputs = inputs.asdict(only_structs=True, camel=True)
+
+    if mode == "minimal":
+        defaults = InputParameters(random_seed=0)
+        default_dct = defaults.asdict(only_structs=True, camel=True)
+
+        # Get the minimal set of params (non-default params)
+        all_inputs = {
+            structname: {
+                k: v for k, v in params.items() if default_dct[structname][k] != v
+            }
+            for structname, params in all_inputs.items()
+        }
+    return all_inputs
+
+
+def write_template(
+    inputs: InputParameters, template_file: Path | str, mode: TOMLMode = "full"
+):
     """Write a set of input parameters to a template file.
 
     Parameters
@@ -129,13 +151,7 @@ def write_template(inputs: InputParameters, template_file: Path | str):
     template_file
         The path of the output.
     """
-    template = {
-        "CosmoParams": inputs.cosmo_params.asdict(),
-        "SimulationOptions": inputs.simulation_options.asdict(),
-        "MatterOptions": inputs.matter_options.asdict(),
-        "AstroParams": inputs.astro_params.asdict(),
-        "AstroOptions": inputs.astro_options.asdict(),
-    }
+    inputs_dct = _get_inputs_as_dict(inputs, mode=mode)
 
     template_file = Path(template_file)
     doc = tomlkit.document()
@@ -145,7 +161,7 @@ def write_template(inputs: InputParameters, template_file: Path | str):
         )
     )
     doc.add(tomlkit.comment(f"Created on: {datetime.datetime.now().isoformat()}"))
-    doc.update(template)
+    doc.update(inputs_dct)
 
     with template_file.open("w") as fl:
         tomlkit.dump(doc, fl)

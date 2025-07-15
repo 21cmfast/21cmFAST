@@ -10,7 +10,7 @@ from typing import Annotated, Literal
 import attrs
 import matplotlib.pyplot as plt
 import numpy as np
-from cyclopts import App, ArgumentCollection, Group, Parameter
+from cyclopts import App, Group, Parameter
 from cyclopts import types as cyctp
 from cyclopts import validators as vld
 from rich import box
@@ -28,17 +28,13 @@ from .drivers.lightcone import run_lightcone
 from .drivers.single_field import compute_initial_conditions
 from .io.caching import CacheConfig, OutputCache, RunCache
 from .lightconers import RectilinearLightconer
-from .run_templates import (
-    list_templates,
-    write_template,
-)
+from .run_templates import TOMLMode, _get_inputs_as_dict, list_templates, write_template
 from .wrapper._utils import snake_to_camel
 from .wrapper.inputs import (
     AstroOptions,
     AstroParams,
     CosmoParams,
     InputParameters,
-    InputStruct,
     MatterOptions,
     SimulationOptions,
 )
@@ -54,7 +50,9 @@ logging.basicConfig(
 )
 logger = logging.getLogger("py21cmfast")
 
-AVAILABLE_TEMPLATES: list[str] = [str(tmpl["name"]) for tmpl in list_templates()]
+AVAILABLE_TEMPLATES: list[str] = [str(tmpl["name"]) for tmpl in list_templates()] + [
+    "defaults"
+]
 
 app = App()
 app.command(
@@ -78,16 +76,9 @@ def print_banner():
     cns.print()
 
 
-def _at_least_one_validator(argument_collection: ArgumentCollection):
-    if not any(argument.has_tokens for argument in argument_collection):
-        raise ValueError(
-            f"Must specify one of: {{{(', ').join(arg.name for arg in argument_collection)}}}"
-        )
-
-
 _paramgroup = Group(
     "Simulation Parameters (set one)",
-    validator=(vld.MutuallyExclusive(), _at_least_one_validator),
+    validator=(vld.MutuallyExclusive(),),
 )
 
 
@@ -105,7 +96,7 @@ class ParameterSelection:
     template: Annotated[
         Literal[*AVAILABLE_TEMPLATES],
         Parameter(group=_paramgroup, alias=("--base-template")),
-    ] = None
+    ] = "defaults"
     "The name of a valid builtin template (see available with `21cmfast template avail`)."
 
 
@@ -197,11 +188,14 @@ def _get_inputs(
 ) -> tuple[InputParameters, bool]:
     pselect = options.param_selection if isinstance(options, RunParams) else options
 
-    # Set user/cosmo params from config.
-    inputs = InputParameters.from_template(
-        pselect.template or pselect.param_file,
-        random_seed=getattr(options, "seed", 42),
-    )
+    seed = getattr(options, "seed", 42)
+
+    if pselect.param_file is not None:
+        inputs = InputParameters.from_template(pselect.param_file, random_seed=seed)
+    elif pselect.template == "defaults":
+        inputs = InputParameters(random_seed=seed)
+    else:
+        inputs = InputParameters.from_template(pselect.template, random_seed=seed)
 
     # kwargs from params:
     kwargs = {}
@@ -235,40 +229,10 @@ def cfg_avail():
         cns.print(f"\t{template['description']}")
 
 
-def _get_inputs_as_dict(inputs: InputParameters, minimal: bool = False):
-    all_inputs = attrs.asdict(inputs, recurse=True)
-    all_inputs = {
-        k: v
-        for k, v in all_inputs.items()
-        if isinstance(getattr(inputs, k), InputStruct)
-    }
-
-    del all_inputs["cosmo_params"]["_base_cosmo"]
-
-    if minimal:
-        defaults = InputParameters(random_seed=0)
-
-        default_dct = attrs.asdict(defaults, recurse=True)
-        default_dct = {
-            k: v
-            for k, v in default_dct.items()
-            if isinstance(getattr(inputs, k), InputStruct)
-        }
-
-        # Get the minimal set of params (non-default params)
-        all_inputs = {
-            structname: {
-                k: v for k, v in params.items() if default_dct[structname][k] != v
-            }
-            for structname, params in all_inputs.items()
-        }
-    return all_inputs
-
-
 def pretty_print_inputs(
-    inputs: InputParameters, name: str, description: str, minimal: bool = False
+    inputs: InputParameters, name: str, description: str, mode: TOMLMode = "full"
 ):
-    inputs_dct = _get_inputs_as_dict(inputs, minimal)
+    inputs_dct = _get_inputs_as_dict(inputs, mode)
 
     @group()
     def get_panel_elements():
@@ -295,17 +259,14 @@ def pretty_print_inputs(
 @cfg.command(name="show")
 def cfg_show(
     name: Annotated[Literal[*AVAILABLE_TEMPLATES], Parameter(accepts_keys=False)],
-    mode: Literal["minimal", "full"] = "full",
+    mode: TOMLMode = "full",
 ):
     """Show and describe an in-built template."""
     template_desc = next(t for t in list_templates() if t["name"] == name)
 
     inputs = InputParameters.from_template(name, random_seed=0)
     pretty_print_inputs(
-        inputs=inputs,
-        name=name,
-        description=template_desc["description"],
-        minimal=mode == "minimal",
+        inputs=inputs, name=name, description=template_desc["description"], mode=mode
     )
 
 
@@ -317,6 +278,7 @@ def template_create(
     ],
     param_selection: ParameterSelection = ParameterSelection(),
     user_params: Parameters = Parameters(),
+    mode: TOMLMode = "full",
 ):
     """Create a new full simulation parameter template.
 
@@ -333,9 +295,9 @@ def template_create(
         inputs=inputs,
         name="Custom Template",
         description="The minimal set of non-default parameters of your custom model",
-        minimal=True,
+        mode="minimal",
     )
-    write_template(inputs, out)
+    write_template(inputs, out, mode=mode)
     cns.print(f":duck:[spring_green3] Wrote new template file at [purple]{out}")
 
 
@@ -380,7 +342,7 @@ def _run_setup(
         inputs=inputs,
         name=config_file.name,
         description="The minimal set of non-default parameters of your model",
-        minimal=True,
+        mode="minimal",
     )
 
     cns.print()
