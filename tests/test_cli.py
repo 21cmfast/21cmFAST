@@ -1,6 +1,7 @@
 """Test CLI functionality."""
 
 import tempfile
+import tomllib as toml
 from pathlib import Path
 
 import pytest
@@ -57,10 +58,16 @@ class TestTemplateCreate:
         with pytest.raises(SystemExit):
             app(f"template create --param-file {new} --template simple --out here.toml")
 
-    def test_failure_with_neither_template_nor_file(self, tmp_path: Path):
+    def test_default_minimal(self, tmp_path: Path):
         """Test that providing neither --template not --param-file errors."""
-        with pytest.raises(SystemExit):
-            app("template create --out here.toml")
+        fl = tmp_path / "test.toml"
+        app(f"template create --mode minimal --out {fl}")
+
+        with fl.open("rb") as _fl:
+            data = toml.load(_fl)
+
+        # Since it was minimal, the file should have no values.
+        assert all(len(v) == 0 for v in data.values())
 
     def test_non_existent_directory(self, tmp_path: Path):
         """Test that providing a non-existing directory to write to is OK."""
