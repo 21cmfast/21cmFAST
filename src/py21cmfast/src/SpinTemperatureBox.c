@@ -562,7 +562,7 @@ void fill_Rbox_table(float **result, fftwf_complex *unfiltered_box, double *R_ar
         // don't filter on cell size
         if (R >
             L_FACTOR * (simulation_options_global->BOX_LEN / simulation_options_global->HII_DIM)) {
-            filter_box(box, 1, astro_options_global->HEAT_FILTER, R, 0.);
+            filter_box(box, 1, astro_options_global->HEAT_FILTER, R, 0., 0.);
         }
 
         // now fft back to real space
@@ -607,7 +607,7 @@ void fill_Rbox_table(float **result, fftwf_complex *unfiltered_box, double *R_ar
 //   (better memory locality)
 // TODO: filter speed tests
 void one_annular_filter(float *input_box, float *output_box, double R_inner, double R_outer,
-                        double *u_avg, double *f_avg) {
+                        double r_star, int filter_type, double *u_avg, double *f_avg) {
     int i, j, k;
     unsigned long long int ct;
     double unfiltered_avg = 0;
@@ -655,7 +655,7 @@ void one_annular_filter(float *input_box, float *output_box, double R_inner, dou
 
     // Don't filter on the cell scale
     if (R_inner > 0) {
-        filter_box(filtered_box, 1, 4, R_inner, R_outer);
+        filter_box(filtered_box, 1, filter_type, R_inner, R_outer, r_star);
     }
 
     // now fft back to real space
@@ -694,11 +694,12 @@ void one_annular_filter(float *input_box, float *output_box, double R_inner, dou
 
 // fill a box[R_ct][box_ct] array for use in TS by filtering on different scales and storing results
 // Similar to fill_Rbox_table but called using different redshifts for each scale
-int UpdateXraySourceBox(HaloBox *halobox, double R_inner, double R_outer, int R_ct,
+int UpdateXraySourceBox(HaloBox *halobox, double R_inner, double R_outer, int R_ct, double r_star,
                         XraySourceBox *source_box) {
-    int status;
+    int status, filter_type;
     Try {
         // the indexing needs these
+        filter_type = astro_options_global->LYA_MULTIPLE_SCATTERING ? 5 : 4;
 
         // only print once, since this is called for every R
         if (R_ct == 0) LOG_DEBUG("starting XraySourceBox");
@@ -707,14 +708,14 @@ int UpdateXraySourceBox(HaloBox *halobox, double R_inner, double R_outer, int R_
         double xray_avg, fxray_avg;
         one_annular_filter(halobox->halo_sfr,
                            &(source_box->filtered_sfr[R_ct * HII_TOT_NUM_PIXELS]), R_inner, R_outer,
-                           &sfr_avg, &fsfr_avg);
+                           r_star, filter_type, &sfr_avg, &fsfr_avg);
         one_annular_filter(halobox->halo_xray,
                            &(source_box->filtered_xray[R_ct * HII_TOT_NUM_PIXELS]), R_inner,
-                           R_outer, &xray_avg, &fxray_avg);
+                           R_outer, r_star, 4, &xray_avg, &fxray_avg);
         if (astro_options_global->USE_MINI_HALOS) {
             one_annular_filter(halobox->halo_sfr_mini,
                                &(source_box->filtered_sfr_mini[R_ct * HII_TOT_NUM_PIXELS]), R_inner,
-                               R_outer, &sfr_avg_mini, &fsfr_avg_mini);
+                               R_outer, r_star, filter_type, &sfr_avg_mini, &fsfr_avg_mini);
         }
 
         source_box->mean_sfr[R_ct] = fsfr_avg;
@@ -845,6 +846,8 @@ void init_first_Ts(TsBox *box, float *dens, float z, float zp, double *x_e_ave, 
             gdens = dens[box_ct] * inverse_growth_factor_z * growth_factor_zp;
             box->kinetic_temp_neutral[box_ct] = TK * (1.0 + cT_ad * gdens);
             box->xray_ionised_fraction[box_ct] = xe;
+            box->J_alpha_star[box_ct] = 0.;
+            box->J_alpha_X[box_ct] = 0.;
             // compute the spin temperature
             box->spin_temperature[box_ct] = get_Ts(z, gdens, TK, xe, 0, &curr_xalpha);
         }
@@ -1112,6 +1115,8 @@ struct Ts_cell {
     double Ts;
     double x_e;
     double Tk;
+    double J_alpha_star;
+    double J_alpha_X;
     double J_21_LW;
 };
 
@@ -1217,6 +1222,8 @@ struct Ts_cell get_Ts_fast(float zp, float dzp, struct spintemp_from_sfr_prefact
     output.J_21_LW = astro_options_global->USE_MINI_HALOS ? rad->dstarLW_dt : 0.;
 
     double J_alpha_tot = rad->dstarlya_dt + rad->dxlya_dt;  // not really d/dz, but the lya flux
+    output.J_alpha_star = rad->dstarlya_dt;
+    output.J_alpha_X = rad->dxlya_dt;
 
     // JD: I'm leaving these as comments in case I'm wrong, but there's NO WAY a compiler doesn't
     // know the fastest way to invert a number
@@ -1719,6 +1726,8 @@ void ts_main(float redshift, float prev_redshift, float perturbed_field_redshift
             this_spin_temp->spin_temperature[box_ct] = ts_cell.Ts;
             this_spin_temp->kinetic_temp_neutral[box_ct] = ts_cell.Tk;
             this_spin_temp->xray_ionised_fraction[box_ct] = ts_cell.x_e;
+            this_spin_temp->J_alpha_star[box_ct] = ts_cell.J_alpha_star;
+            this_spin_temp->J_alpha_X[box_ct] = ts_cell.J_alpha_X;
             if (astro_options_global->USE_MINI_HALOS) {
                 this_spin_temp->J_21_LW[box_ct] = ts_cell.J_21_LW;
             }

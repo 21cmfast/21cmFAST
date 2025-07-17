@@ -720,7 +720,6 @@ class AstroOptions(InputStruct):
         set `M_MIN_in_Mass` to True.
     SUBCELL_RSDS : bool, optional
         Add sub-cell redshift-space-distortions (cf Sec 2.2 of Greig+2018).
-        Will only be effective if `USE_TS_FLUCT` is True.
     INHOMO_RECO : bool, optional
         Whether to perform inhomogeneous recombinations. Increases the computation
         time.
@@ -751,6 +750,14 @@ class AstroOptions(InputStruct):
         This is part of the perspective shift (see Davies & Furlanetto 2021) from counting photons/atoms in a sphere and flagging a central
         pixel to counting photons which we expect to reach the central pixel, and taking the ratio of atoms in the pixel.
         This flag simply turns off the filtering of N_rec grids, and takes the recombinations in the central cell.
+    LYA_MULTIPLE_SCATTERING: bool, optional
+        If True, multiple scattering window function is used for the computation of Lyman alpha photons.
+        If False, the straight-line window function is used.
+        Becomes relevant only when USE_HALO_FIELD=True.
+    TEST_SL_WITH_MS_FILTER: bool, optional
+        This flag is used for tests. If True, the multiple scattering window function will be used but with alpha=1e5 and beta=1,
+        thus effectively imitating the window function for the straight line scenario.
+        Becomes relevant only if LYA_MULTIPLE_SCATTERING is True.
     USE_UPPER_STELLAR_TURNOVER: bool, optional
         Whether to use an additional powerlaw in stellar mass fraction at high halo mass. The pivot mass scale and power-law index are
         controlled by two parameters, UPPER_STELLAR_TURNOVER_MASS and UPPER_STELLAR_TURNOVER_INDEX respectively.
@@ -814,6 +821,8 @@ class AstroOptions(InputStruct):
     FIX_VCB_AVG = field(default=False, converter=bool)
     USE_EXP_FILTER = field(default=True, converter=bool)
     CELL_RECOMB = field(default=True, converter=bool)
+    LYA_MULTIPLE_SCATTERING = field(default=False, converter=bool)
+    TEST_SL_WITH_MS_FILTER = field(default=False, converter=bool)
     PHOTON_CONS_TYPE = field(
         default="no-photoncons",
         converter=str,

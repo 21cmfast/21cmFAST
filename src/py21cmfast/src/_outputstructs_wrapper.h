@@ -73,6 +73,8 @@ typedef struct TsBox {
     float *spin_temperature;
     float *xray_ionised_fraction;
     float *kinetic_temp_neutral;
+    float *J_alpha_star;
+    float *J_alpha_X;
     float *J_21_LW;
 } TsBox;
 
