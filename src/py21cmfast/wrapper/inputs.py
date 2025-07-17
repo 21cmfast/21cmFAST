@@ -718,9 +718,13 @@ class AstroOptions(InputStruct):
     USE_MASS_DEPENDENT_ZETA : bool, optional
         Set to True if using new parameterization. Setting to True will automatically
         set `M_MIN_in_Mass` to True.
-    SUBCELL_RSDS : bool, optional
+    INCLUDE_DVDR_IN_TAU21: bool, optional
+        Whether to include velocity divergence corrections to the 21cm optical depth
+        (and brightness temperature). 
+        This is relevant only for lightcones.
+        Coeval boxes could be applied with the same corrections via include_dvdr_in_tau21 method.
+    APPLY_RSDS : bool, optional
         Add sub-cell redshift-space-distortions (cf Sec 2.2 of Greig+2018).
-        Will only be effective if `USE_TS_FLUCT` is True.
     INHOMO_RECO : bool, optional
         Whether to perform inhomogeneous recombinations. Increases the computation
         time.
@@ -807,8 +811,8 @@ class AstroOptions(InputStruct):
     USE_CMB_HEATING = field(default=True, converter=bool)
     USE_LYA_HEATING = field(default=True, converter=bool)
     USE_MASS_DEPENDENT_ZETA = field(default=True, converter=bool)
-    APPLY_RSDS = field(default=True, converter=bool)
-    SUBCELL_RSD = field(default=False, converter=bool)
+    INCLUDE_DVDR_IN_TAU21 = field(default=True, converter=bool)
+    APPLY_RSDS = field(default=False, converter=bool)
     INHOMO_RECO = field(default=False, converter=bool)
     USE_TS_FLUCT = field(default=False, converter=bool)
     FIX_VCB_AVG = field(default=False, converter=bool)
@@ -857,14 +861,6 @@ class AstroOptions(InputStruct):
         if not val and self.USE_MASS_DEPENDENT_ZETA:
             raise ValueError(
                 "M_MIN_in_Mass must be true if USE_MASS_DEPENDENT_ZETA is true."
-            )
-
-    @SUBCELL_RSD.validator
-    def _SUBCELL_RSD_vld(self, att, val):
-        """Raise an error if doing SUBCELL RSD but not APPLY_RSDS."""
-        if val and not self.APPLY_RSDS:
-            raise ValueError(
-                "The SUBCELL_RSD flag is only effective if APPLY_RSDS is True."
             )
 
     @USE_MINI_HALOS.validator

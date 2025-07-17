@@ -32,7 +32,7 @@ classy_params_default = {
     "tau_reio": 0.0554,
     "T_cmb": 2.7255 * units.K,
     "N_ncdm": 1,
-    "m_ncdm": "0.06" * units.eV,
+    "m_ncdm": "0.06", # units.eV (astropy > 7.1 doesn't like units referred to str instances)
     "N_ur": 2.0308,
     "lensing": "yes",
     "z_pk": 1087.0,

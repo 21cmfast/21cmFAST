@@ -212,7 +212,7 @@ class Coeval:
             A box of the brightness temperature, with redshift space distortions.
         """
         if n_subcells is None:
-            if self.inputs.astro_options.SUBCELL_RSD:
+            if self.inputs.astro_options.APPLY_RSDS:
                 n_subcells = self.inputs.astro_params.N_RSD_STEPS
             else:
                 n_subcells = 0

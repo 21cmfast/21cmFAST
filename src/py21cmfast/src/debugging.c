@@ -157,21 +157,21 @@ void writeAstroOptions(AstroOptions *p) {
         "\n        AstroOptions:\n"
         "       USE_MINI_HALOS=%1d\n"
         "       USE_MASS_DEPENDENT_ZETA=%1d\n"
-        "       SUBCELL_RSD=%1d\n"
+        "       APPLY_RSDS=%1d\n"
         "       INHOMO_RECO=%1d\n"
         "       USE_TS_FLUCT=%1d\n"
         "       M_MIN_in_Mass=%1d\n"
         "       USE_EXP_FILTER=%1d\n"
         "       USE_CMB_HEATING=%1d\n"
         "       USE_LYA_HEATING=%1d\n"
-        "       APPLY_RSDS=%1d\n"
+        "       INCLUDE_DVDR_IN_TAU21=%1d\n"
         "       FIX_VCB_AVG=%1d\n"
         "       CELL_RECOMB=%1d\n"
         "       PHOTON_CONS_TYPE=%2d\n"
         "       USE_UPPER_STELLAR_TURNOVER=%1d\n",
-        p->USE_MINI_HALOS, p->USE_MASS_DEPENDENT_ZETA, p->SUBCELL_RSD, p->INHOMO_RECO,
+        p->USE_MINI_HALOS, p->USE_MASS_DEPENDENT_ZETA, p->APPLY_RSDS, p->INHOMO_RECO,
         p->USE_TS_FLUCT, p->M_MIN_in_Mass, p->USE_EXP_FILTER, p->USE_CMB_HEATING,
-        p->USE_LYA_HEATING, p->APPLY_RSDS, p->FIX_VCB_AVG, p->CELL_RECOMB, p->PHOTON_CONS_TYPE,
+        p->USE_LYA_HEATING, p->INCLUDE_DVDR_IN_TAU21, p->FIX_VCB_AVG, p->CELL_RECOMB, p->PHOTON_CONS_TYPE,
         p->USE_UPPER_STELLAR_TURNOVER);
 }
 

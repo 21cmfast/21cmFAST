@@ -351,14 +351,14 @@ def setup_lightcone_instance(
             for quantity in lightconer.quantities
         }
 
-        if inputs.astro_options.APPLY_RSDS:
+        if inputs.astro_options.INCLUDE_DVDR_IN_TAU21 or inputs.astro_options.APPLY_RSDS:
             lc["los_velocity"] = np.zeros(
                 lightconer.get_shape(inputs.simulation_options), dtype=np.float32
             )
-            if inputs.astro_options.USE_TS_FLUCT:
-                lc["tau_21"] = np.zeros(
-                    lightconer.get_shape(inputs.simulation_options), dtype=np.float32
-                )
+        if inputs.astro_options.INCLUDE_DVDR_IN_TAU21 and inputs.astro_options.USE_TS_FLUCT:
+            lc["tau_21"] = np.zeros(
+                lightconer.get_shape(inputs.simulation_options), dtype=np.float32
+            )
 
         lightcone = lcn_cls(
             lightcone_distances=lightconer.lc_distances,
@@ -495,7 +495,7 @@ def _run_lightcone_from_perturbed_fields(
             if lib.photon_cons_allocated:
                 lib.FreePhotonConsMemory()
 
-            if inputs.astro_options.APPLY_RSDS:
+            if inputs.astro_options.INCLUDE_DVDR_IN_TAU21:
                 tb_with_rsds = compute_rsds(
                     brightness_temp=lightcone.lightcones["brightness_temp"],
                     los_velocity=lightcone.lightcones["los_velocity"],
@@ -509,7 +509,7 @@ def _run_lightcone_from_perturbed_fields(
                     periodic=False,
                     n_subcells=(
                         inputs.astro_params.N_RSD_STEPS
-                        if inputs.astro_options.SUBCELL_RSD
+                        if inputs.astro_options.APPLY_RSDS
                         else 0
                     ),
                 )
@@ -526,7 +526,7 @@ def _run_lightcone_from_perturbed_fields(
                             highz_buffer_pixels=highz_buffer_pixels,
                         )
 
-                if inputs.astro_options.SUBCELL_RSD:
+                if inputs.astro_options.APPLY_RSDS:
                     lightcone = lightcone.trim(lc_distances.min(), lc_distances.max())
 
         yield iz, coeval.redshift, coeval, lightcone

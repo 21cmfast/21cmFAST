@@ -57,7 +57,7 @@ def test_coeval_rsds(ic, default_input_struct_ts, cache):
 
     coeval = run_coeval(
         initial_conditions=ic,
-        inputs=default_input_struct_ts.evolve_input_structs(SUBCELL_RSD=True),
+        inputs=default_input_struct_ts.evolve_input_structs(APPLY_RSDS=True),
         cache=cache,
         regenerate=True,
     )
@@ -85,11 +85,11 @@ def test_bad_lightconer_inputs(default_input_struct_ts):
         quantities=("brightness_temp",),
     )
     with pytest.raises(
-        ValueError, match="You have set SUBCELL_RSD to True with node redshifts between"
+        ValueError, match="You have set APPLY_RSDS to True with node redshifts between"
     ):
         p21c.run_lightcone(
             lightconer=lcner,
-            inputs=default_input_struct_ts.evolve_input_structs(SUBCELL_RSD=True),
+            inputs=default_input_struct_ts.evolve_input_structs(APPLY_RSDS=True),
         )
 
 

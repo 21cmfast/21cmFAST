@@ -225,7 +225,7 @@ class Lightconer(ABC):
 
                 yield q, idx, self.construct_lightcone(lcd, box)
 
-                if c1.astro_options.APPLY_RSDS and q == self.quantities[0]:
+                if (c1.astro_options.INCLUDE_DVDR_IN_TAU21 or c1.astro_options.APPLY_RSDS) and q == self.quantities[0]:
                     # While doing the first quantity, also add in the los velocity, if desired.
                     # Doing it now means we can keep whatever cached interpolation setup
                     # is used to do construct_lightcone().
@@ -352,7 +352,7 @@ class Lightconer(ABC):
                 f"while the lightcone redshift range is {lcz.min()} to {lcz.max()}. "
                 "Extend the limits of node redshifts to avoid this error."
             )
-        if inputs.astro_options.SUBCELL_RSD:
+        if inputs.astro_options.APPLY_RSDS:
             if classy_output is None:
                 classy_output = run_classy(inputs=inputs, output="vTk")
             lcd_limits_rsd = self.find_required_lightcone_limits(
@@ -435,7 +435,7 @@ class Lightconer(ABC):
                 lcd_limits_rsd.append(distances_out[out_indices][0])
             else:
                 raise ValueError(
-                    f"You have set SUBCELL_RSD to True with node redshifts between {min(inputs.node_redshifts)} and {max(inputs.node_redshifts)} "
+                    f"You have set APPLY_RSDS to True with node redshifts between {min(inputs.node_redshifts)} and {max(inputs.node_redshifts)} "
                     f"and lightcone redshifts between {self.lc_redshifts.min()} and {self.lc_redshifts.max()}. "
                     "However, RSDs are expected to contribute the lightcone from higer/lower rdshifts. "
                     "Extend the limits of node redshifts to avoid this error."
@@ -655,7 +655,7 @@ class AngularLightconer(Lightconer):
         )
 
         if (
-            inputs.astro_options.APPLY_RSDS
+            (inputs.astro_options.INCLUDE_DVDR_IN_TAU21 or inputs.astro_options.APPLY_RSDS)
             and not inputs.matter_options.KEEP_3D_VELOCITIES
         ):
             raise ValueError(

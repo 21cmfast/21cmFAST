@@ -72,7 +72,7 @@ int ComputeBrightnessTemp(float redshift, TsBox *spin_temp, IonizedBox *ionized_
                             box->brightness_temp[HII_R_INDEX(i, j, k)] *=
                                 (1. + redshift) /
                                 (1000. * spin_temp->spin_temperature[HII_R_INDEX(i, j, k)]);
-                            if (astro_options_global->APPLY_RSDS) {
+                            if (astro_options_global->INCLUDE_DVDR_IN_TAU21) {
                                 box->tau_21[HII_R_INDEX(i, j, k)] =
                                     box->brightness_temp[HII_R_INDEX(i, j, k)];
                             }

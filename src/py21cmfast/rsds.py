@@ -108,7 +108,7 @@ def compute_rsds(
         tb_with_rsds = tb_no_rsds * rsd_factor
 
     if n_subcells is None:
-        if inputs.astro_options.SUBCELL_RSD:
+        if inputs.astro_options.APPLY_RSDS:
             n_subcells = inputs.astro_params.N_RSD_STEPS
         else:
             n_subcells = 0
