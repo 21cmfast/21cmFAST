@@ -466,6 +466,10 @@ def compute_xray_source_field(
     # inner and outer redshifts (following the C code)
     zpp_avg = zpp_edges - np.diff(np.insert(zpp_edges, 0, redshift)) / 2
 
+    interp_fields = ["halo_sfr", "halo_xray"]
+    if inputs.astro_options.USE_MINI_HALOS:
+        interp_fields += ["halo_sfr_mini", "log10_Mcrit_MCG_ave"]
+
     # call the box the initialize the memory, since I give some values before computing
     box._init_arrays()
     for i in range(inputs.astro_params.N_STEP_TS):
@@ -474,24 +478,29 @@ def compute_xray_source_field(
 
         if zpp_avg[i] >= z_max:
             box.filtered_sfr.value[i] = 0
-            box.filtered_sfr_mini.value[i] = 0
             box.filtered_xray.value[i] = 0
-            box.mean_log10_Mcrit_LW.value[i] = inputs.astro_params.M_TURN  # minimum
+            if inputs.astro_options.USE_MINI_HALOS:
+                box.filtered_sfr_mini.value[i] = 0
+                box.mean_log10_Mcrit_LW.value[i] = inputs.astro_params.M_TURN  # minimum
             logger.debug(f"ignoring Radius {i} which is above Z_HEAT_MAX")
             continue
 
         hbox_interp = interp_halo_boxes(
             halo_boxes=hboxes[::-1],
-            fields=["halo_sfr", "halo_xray", "halo_sfr_mini", "log10_Mcrit_MCG_ave"],
+            fields=interp_fields,
             redshift=zpp_avg[i],
         )
 
         # if we have no halos we ignore the whole shell
-        if np.all(hbox_interp.halo_sfr.value + hbox_interp.halo_sfr_mini.value == 0):
+        sfr_allzero = np.all(hbox_interp.get("halo_sfr") == 0)
+        if inputs.astro_options.USE_MINI_HALOS:
+            sfr_allzero = sfr_allzero & np.all(hbox_interp.get("halo_sfr_mini") == 0)
+        if sfr_allzero:
             box.filtered_sfr.value[i] = 0
-            box.filtered_sfr_mini.value[i] = 0
             box.filtered_xray.value[i] = 0
-            box.mean_log10_Mcrit_LW.value[i] = hbox_interp.log10_Mcrit_MCG_ave
+            if inputs.astro_options.USE_MINI_HALOS:
+                box.filtered_sfr_mini.value[i] = 0
+                box.mean_log10_Mcrit_LW.value[i] = hbox_interp.log10_Mcrit_MCG_ave
             logger.debug(f"ignoring Radius {i} due to no stars")
             continue
 

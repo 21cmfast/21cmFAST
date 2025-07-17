@@ -604,6 +604,10 @@ def _redshift_loop_generator(
             total=len(all_redshifts),
         )
     ):
+        if not progressbar:
+            logger.info(
+                f"Computing Redshift {z} ({iz + 1}/{len(all_redshifts)}) iterations."
+            )
         if iz < start_idx:
             continue
 
@@ -613,6 +617,7 @@ def _redshift_loop_generator(
         if inputs.matter_options.USE_HALO_FIELD:
             if not inputs.matter_options.FIXED_HALO_GRIDS:
                 this_pthalo = pt_halos[iz]
+                this_pthalo.load_all()
 
             this_halobox = sf.compute_halo_grid(
                 inputs=inputs,
@@ -625,9 +630,9 @@ def _redshift_loop_generator(
             )
 
         if inputs.astro_options.USE_TS_FLUCT:
-            # append the halo redshift array so we have all halo boxes [z,zmax]
-            hbox_arr += [this_halobox]
             if inputs.matter_options.USE_HALO_FIELD:
+                # append the halo redshift array so we have all halo boxes [z,zmax]
+                hbox_arr += [this_halobox]
                 xrs = sf.compute_xray_source_field(
                     redshift=z,
                     hboxes=hbox_arr,
@@ -659,24 +664,6 @@ def _redshift_loop_generator(
             **kw,
         )
 
-        if prev_coeval is not None:
-            prev_coeval.perturbed_field.purge(force=True)
-
-        if this_pthalo is not None:
-            this_pthalo.purge(force=True)
-
-        # we only need the SFR fields at previous redshifts for XraySourceBox
-        if this_halobox is not None:
-            this_halobox.prepare(
-                keep=[
-                    "halo_sfr",
-                    "halo_sfr_mini",
-                    "halo_xray",
-                    "log10_Mcrit_MCG_ave",
-                ],
-                force=True,
-            )
-
         logger.debug(f"PID={os.getpid()} doing brightness temp for z={z}")
 
         _bt = sf.brightness_temperature(
@@ -701,11 +688,21 @@ def _redshift_loop_generator(
             photon_nonconservation_data=photon_nonconservation_data,
         )
 
+        # yield before the cleanup, so we can get at the fields before they are purged
+        yield iz, this_coeval
+
+        # We purge previous fields and those we no longer need
+        if prev_coeval is not None:
+            prev_coeval.perturbed_field.purge(force=True)
+            prev_coeval.halobox.prepare_for_next_snapshot(force=True)
+
+        if this_pthalo is not None:
+            this_pthalo.purge(force=True)
+
         if z in inputs.node_redshifts:
             # Only evolve on the node_redshifts, not any redshifts in-between
             # that the user might care about.
             prev_coeval = this_coeval
-        yield iz, this_coeval
 
 
 def _setup_ics_and_pfs_for_scrolling(
