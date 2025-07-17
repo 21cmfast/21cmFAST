@@ -928,6 +928,9 @@ int test_halo_props(double redshift, float *vcb_grid, float *J21_LW_grid, float 
 
         LOG_DEBUG("Getting props for %llu halos at z=%.2f", n_halos, redshift);
 
+        double cell_length =
+            simulation_options_global->BOX_LEN / simulation_options_global->HII_DIM;
+
 #pragma omp parallel num_threads(simulation_options_global->N_THREADS)
         {
             int x, y, z;
@@ -940,7 +943,7 @@ int test_halo_props(double redshift, float *vcb_grid, float *J21_LW_grid, float 
             double M_turn_a = hbox_consts.mturn_a_nofb;
             double M_turn_r = 0.;
 
-            double in_props[3];
+            double in_props[3], halo_pos[3];
             struct HaloProperties out_props;
 
 #pragma omp for
@@ -952,12 +955,21 @@ int test_halo_props(double redshift, float *vcb_grid, float *J21_LW_grid, float 
                 if (m == 0.) {
                     continue;
                 }
-                x = (int)(halo_coords[0 + 3 * i_halo] * simulation_options_global->HII_DIM /
-                          simulation_options_global->BOX_LEN);
-                y = (int)(halo_coords[1 + 3 * i_halo] * simulation_options_global->HII_DIM /
-                          simulation_options_global->BOX_LEN);
-                z = (int)(halo_coords[2 + 3 * i_halo] * simulation_options_global->HII_DIM /
-                          simulation_options_global->BOX_LEN);
+
+                for (int i = 0; i < 3; i++) {
+                    halo_pos[i] = halo_coords[i + 3 * i_halo] / cell_length;
+                    // This is a special case, where the halo is exactly at the edge of the box
+                    // This can happen due to floating point errors when multiplied by the cell
+                    // length
+                    if (halo_pos[i] == (float)simulation_options_global->HII_DIM) {
+                        halo_pos[i] = (float)simulation_options_global->HII_DIM -
+                                      0.1;  // will place in last cell
+                    }
+                }
+
+                x = (int)(halo_pos[0]);
+                y = (int)(halo_pos[1]);
+                z = (int)(halo_pos[2]);
                 i_cell = HII_R_INDEX(x, y, z);
 
                 // set values before reionisation feedback
