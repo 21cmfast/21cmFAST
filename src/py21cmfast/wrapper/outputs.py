@@ -1155,7 +1155,7 @@ class TsBox(OutputStructZ):
             )
         else:
             return np.mean(self.get("J_alpha_star"))
-    
+
     @cached_property
     def global_J_alpha_X(self):
         """Global (mean) J_alpha_X."""
@@ -1165,7 +1165,7 @@ class TsBox(OutputStructZ):
             )
         else:
             return np.mean(self.get("J_alpha_X"))
-    
+
     def get_required_input_arrays(self, input_box: OutputStruct) -> list[str]:
         """Return all input arrays required to compute this object."""
         required = []

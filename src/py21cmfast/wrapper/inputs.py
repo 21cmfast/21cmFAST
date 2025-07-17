@@ -756,7 +756,7 @@ class AstroOptions(InputStruct):
         Becomes relevant only when USE_HALO_FIELD=True.
     TEST_SL_WITH_MS_FILTER: bool, optional
         This flag is used for tests. If True, the multiple scattering window function will be used but with alpha=1e5 and beta=1,
-        thus effectively imitating the window function for the straight line scenario. 
+        thus effectively imitating the window function for the straight line scenario.
         Becomes relevant only if LYA_MULTIPLE_SCATTERING is True.
     USE_UPPER_STELLAR_TURNOVER: bool, optional
         Whether to use an additional powerlaw in stellar mass fraction at high halo mass. The pivot mass scale and power-law index are

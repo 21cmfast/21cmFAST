@@ -114,10 +114,11 @@ int single_test_sample(int seed, int n_condition, float *conditions, int *cond_c
 int test_halo_props(double redshift, float *vcb_grid, float *J21_LW_grid, float *z_re_grid,
                     float *Gamma12_ion_grid, int n_halos, float *halo_masses, int *halo_coords,
                     float *star_rng, float *sfr_rnd, float *xray_rng, float *halo_props_out);
-int test_filter(float *input_box, double R, double R_param, double r_star, int filter_flag, double *result);
+int test_filter(float *input_box, double R, double R_param, double r_star, int filter_flag,
+                double *result);
 
 // test functions for multiple scattering
-double  hyper_2F3(double kR,double alpha, double beta);
+double hyper_2F3(double kR, double alpha, double beta);
 
 /* Functions required to access cosmology & mass functions directly */
 double dicke(double z);

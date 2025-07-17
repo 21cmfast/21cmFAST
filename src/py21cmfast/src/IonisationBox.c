@@ -585,7 +585,8 @@ void copy_filter_transform(struct FilteredGrids *fg_struct, struct IonBoxConstan
         } else {
             if (astro_options_global->USE_MINI_HALOS) {
                 filter_box(fg_struct->prev_deltax_filtered, 1, consts->hii_filter, R, 0., 0.);
-                filter_box(fg_struct->log10_Mturnover_MINI_filtered, 1, consts->hii_filter, R, 0., 0.);
+                filter_box(fg_struct->log10_Mturnover_MINI_filtered, 1, consts->hii_filter, R, 0.,
+                           0.);
                 filter_box(fg_struct->log10_Mturnover_filtered, 1, consts->hii_filter, R, 0., 0.);
             }
         }
