@@ -209,8 +209,12 @@ class Lightconer(ABC):
 
         lc_distances = pixlcdist[lcidx]
 
+        lc_quantities = self.quantities
+        if c1.astro_options.INCLUDE_DVDR_IN_TAU21 and c1.astro_options.USE_TS_FLUCT:
+            lc_quantities += ("tau_21",)
+
         for idx, lcd in zip(lcidx, lc_distances, strict=True):
-            for q in self.quantities:
+            for q in lc_quantities:
                 if q == "los_velocity":
                     continue
                 box1 = self.coeval_subselect(
