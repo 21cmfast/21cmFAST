@@ -265,10 +265,12 @@ void allocate_fftw_grids(struct FilteredGrids **fg_struct) {
         (*fg_struct)->stars_filtered =
             (fftwf_complex *)fftwf_malloc(sizeof(fftwf_complex) * HII_KSPACE_NUM_PIXELS);
 
-        (*fg_struct)->sfr_unfiltered =
-            (fftwf_complex *)fftwf_malloc(sizeof(fftwf_complex) * HII_KSPACE_NUM_PIXELS);
-        (*fg_struct)->sfr_filtered =
-            (fftwf_complex *)fftwf_malloc(sizeof(fftwf_complex) * HII_KSPACE_NUM_PIXELS);
+        if (astro_options_global->INHOMO_RECO) {
+            (*fg_struct)->sfr_unfiltered =
+                (fftwf_complex *)fftwf_malloc(sizeof(fftwf_complex) * HII_KSPACE_NUM_PIXELS);
+            (*fg_struct)->sfr_filtered =
+                (fftwf_complex *)fftwf_malloc(sizeof(fftwf_complex) * HII_KSPACE_NUM_PIXELS);
+        }
     }
     // TODO: check for null pointers and throw errors
 }
@@ -298,8 +300,10 @@ void free_fftw_grids(struct FilteredGrids *fg_struct) {
     if (matter_options_global->USE_HALO_FIELD) {
         fftwf_free(fg_struct->stars_unfiltered);
         fftwf_free(fg_struct->stars_filtered);
-        fftwf_free(fg_struct->sfr_unfiltered);
-        fftwf_free(fg_struct->sfr_filtered);
+        if (astro_options_global->INHOMO_RECO) {
+            fftwf_free(fg_struct->sfr_unfiltered);
+            fftwf_free(fg_struct->sfr_filtered);
+        }
     }
 
     free(fg_struct);
@@ -368,7 +372,7 @@ void setup_first_z_prevbox(IonizedBox *previous_ionize_box, PerturbedField *prev
     if (astro_options_global->USE_MINI_HALOS) {
         previous_ionize_box->mean_f_coll = 0.0;
         previous_ionize_box->mean_f_coll_MINI = 0.0;
-#pragma omp parallel private(ct) num_threads(simulation_options_global -> N_THREADS)
+#pragma omp parallel private(ct) num_threads(simulation_options_global->N_THREADS)
         {
 #pragma omp for
             for (ct = 0; ct < HII_TOT_NUM_PIXELS; ct++) {
@@ -508,7 +512,7 @@ double set_fully_neutral_box(IonizedBox *box, TsBox *spin_temp, PerturbedField *
     double global_xH = 0.;
     unsigned long long int ct;
     if (astro_options_global->USE_TS_FLUCT) {
-#pragma omp parallel private(ct) num_threads(simulation_options_global -> N_THREADS)
+#pragma omp parallel private(ct) num_threads(simulation_options_global->N_THREADS)
         {
 #pragma omp for reduction(+ : global_xH)
             for (ct = 0; ct < HII_TOT_NUM_PIXELS; ct++) {
@@ -521,7 +525,7 @@ double set_fully_neutral_box(IonizedBox *box, TsBox *spin_temp, PerturbedField *
         global_xH /= (double)HII_TOT_NUM_PIXELS;
     } else {
         global_xH = 1. - xion_RECFAST(consts->redshift, 0);
-#pragma omp parallel private(ct) num_threads(simulation_options_global -> N_THREADS)
+#pragma omp parallel private(ct) num_threads(simulation_options_global->N_THREADS)
         {
 #pragma omp for
             for (ct = 0; ct < HII_TOT_NUM_PIXELS; ct++) {
@@ -555,8 +559,10 @@ void copy_filter_transform(struct FilteredGrids *fg_struct, struct IonBoxConstan
     if (matter_options_global->USE_HALO_FIELD) {
         memcpy(fg_struct->stars_filtered, fg_struct->stars_unfiltered,
                sizeof(fftwf_complex) * HII_KSPACE_NUM_PIXELS);
-        memcpy(fg_struct->sfr_filtered, fg_struct->sfr_unfiltered,
-               sizeof(fftwf_complex) * HII_KSPACE_NUM_PIXELS);
+        if (astro_options_global->INHOMO_RECO) {
+            memcpy(fg_struct->sfr_filtered, fg_struct->sfr_unfiltered,
+                   sizeof(fftwf_complex) * HII_KSPACE_NUM_PIXELS);
+        }
     } else {
         if (astro_options_global->USE_MINI_HALOS) {
             memcpy(fg_struct->prev_deltax_filtered, fg_struct->prev_deltax_unfiltered,
@@ -581,7 +587,9 @@ void copy_filter_transform(struct FilteredGrids *fg_struct, struct IonBoxConstan
         if (matter_options_global->USE_HALO_FIELD) {
             int filter_hf = astro_options_global->USE_EXP_FILTER ? 3 : consts->hii_filter;
             filter_box(fg_struct->stars_filtered, 1, filter_hf, R, consts->mfp_meandens);
-            filter_box(fg_struct->sfr_filtered, 1, filter_hf, R, consts->mfp_meandens);
+            if (astro_options_global->INHOMO_RECO) {
+                filter_box(fg_struct->sfr_filtered, 1, filter_hf, R, consts->mfp_meandens);
+            }
         } else {
             if (astro_options_global->USE_MINI_HALOS) {
                 filter_box(fg_struct->prev_deltax_filtered, 1, consts->hii_filter, R, 0.);
@@ -597,8 +605,10 @@ void copy_filter_transform(struct FilteredGrids *fg_struct, struct IonBoxConstan
     if (matter_options_global->USE_HALO_FIELD) {
         dft_c2r_cube(matter_options_global->USE_FFTW_WISDOM, simulation_options_global->HII_DIM,
                      HII_D_PARA, simulation_options_global->N_THREADS, fg_struct->stars_filtered);
-        dft_c2r_cube(matter_options_global->USE_FFTW_WISDOM, simulation_options_global->HII_DIM,
-                     HII_D_PARA, simulation_options_global->N_THREADS, fg_struct->sfr_filtered);
+        if (astro_options_global->INHOMO_RECO) {
+            dft_c2r_cube(matter_options_global->USE_FFTW_WISDOM, simulation_options_global->HII_DIM,
+                         HII_D_PARA, simulation_options_global->N_THREADS, fg_struct->sfr_filtered);
+        }
     } else {
         if (astro_options_global->USE_MINI_HALOS) {
             dft_c2r_cube(matter_options_global->USE_FFTW_WISDOM, simulation_options_global->HII_DIM,
@@ -774,8 +784,11 @@ void calculate_fcoll_grid(IonizedBox *box, IonizedBox *previous_ionize_box,
                     if (matter_options_global->USE_HALO_FIELD) {
                         *((float *)fg_struct->stars_filtered + HII_R_FFT_INDEX(x, y, z)) = fmaxf(
                             *((float *)fg_struct->stars_filtered + HII_R_FFT_INDEX(x, y, z)), 0.0);
-                        *((float *)fg_struct->sfr_filtered + HII_R_FFT_INDEX(x, y, z)) = fmaxf(
-                            *((float *)fg_struct->sfr_filtered + HII_R_FFT_INDEX(x, y, z)), 0.0);
+                        if (astro_options_global->INHOMO_RECO) {
+                            *((float *)fg_struct->sfr_filtered + HII_R_FFT_INDEX(x, y, z)) = fmaxf(
+                                *((float *)fg_struct->sfr_filtered + HII_R_FFT_INDEX(x, y, z)),
+                                0.0);
+                        }
 
                         // Ionising photon output
                         Splined_Fcoll =
@@ -1170,7 +1183,7 @@ void find_ionised_regions(IonizedBox *box, IonizedBox *previous_ionize_box,
 void set_ionized_temperatures(IonizedBox *box, PerturbedField *perturbed_field, TsBox *spin_temp,
                               struct IonBoxConstants *consts) {
     int x, y, z;
-#pragma omp parallel private(x, y, z) num_threads(simulation_options_global -> N_THREADS)
+#pragma omp parallel private(x, y, z) num_threads(simulation_options_global->N_THREADS)
     {
         float thistk;
 #pragma omp for
@@ -1440,8 +1453,10 @@ int ComputeIonizedBox(float redshift, float prev_redshift, PerturbedField *pertu
             if (matter_options_global->USE_HALO_FIELD) {
                 prepare_box_for_filtering(halos->n_ion, grid_struct->stars_unfiltered, 1., 0.,
                                           1e20);
-                prepare_box_for_filtering(halos->whalo_sfr, grid_struct->sfr_unfiltered, 1., 0.,
-                                          1e20);
+                if (astro_options_global->INHOMO_RECO) {
+                    prepare_box_for_filtering(halos->whalo_sfr, grid_struct->sfr_unfiltered, 1., 0.,
+                                              1e20);
+                }
             } else {
                 if (astro_options_global->USE_MINI_HALOS) {
                     prepare_box_for_filtering(previous_perturbed_field->density,

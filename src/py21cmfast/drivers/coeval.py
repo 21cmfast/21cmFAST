@@ -694,7 +694,8 @@ def _redshift_loop_generator(
         # We purge previous fields and those we no longer need
         if prev_coeval is not None:
             prev_coeval.perturbed_field.purge(force=True)
-            prev_coeval.halobox.prepare_for_next_snapshot(force=True)
+            if inputs.matter_options.USE_HALO_FIELD:
+                prev_coeval.halobox.prepare_for_next_snapshot(force=True)
 
         if this_pthalo is not None:
             this_pthalo.purge(force=True)

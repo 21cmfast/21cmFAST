@@ -533,42 +533,27 @@ def print_failure_stats(test, truth, inputs, abs_tol, rel_tol, name):
         return False
 
     failed_idx = np.where(sel_failed)
-    warnings.warn(
-        f"{name}: atol {abs_tol} rtol {rel_tol} failed {sel_failed.sum()} of {sel_failed.size} {sel_failed.sum() / sel_failed.size * 100:.4f}%",
-        stacklevel=2,
-    )
-    warnings.warn(
-        f"subcube of failures [min] [max] {[f.min() for f in failed_idx]} {[f.max() for f in failed_idx]}",
-        stacklevel=2,
-    )
-    warnings.warn(
-        f"failure range truth ({truth[sel_failed].min():.3e},{truth[sel_failed].max():.3e}) test ({test[sel_failed].min():.3e},{test[sel_failed].max():.3e})",
-        stacklevel=2,
-    )
-    warnings.warn(
-        f"max abs diff of failures {np.fabs(truth - test)[sel_failed].max():.4e} relative {(np.fabs(truth - test) / truth)[sel_failed].max():.4e}",
-        stacklevel=2,
-    )
+    message = f"{name}: atol {abs_tol} rtol {rel_tol} failed {sel_failed.sum()} of {sel_failed.size} {sel_failed.sum() / sel_failed.size * 100:.4f} %\n"
+    message += f"subcube of failures [min] [max] {[f.min() for f in failed_idx]} {[f.max() for f in failed_idx]}\n"
+    message += f"failure range truth ({truth[sel_failed].min():.3e},{truth[sel_failed].max():.3e}) test ({test[sel_failed].min():.3e},{test[sel_failed].max():.3e})\n"
+    message += f"max abs diff of failures {np.fabs(truth - test)[sel_failed].max():.4e} relative {(np.fabs(truth - test) / truth)[sel_failed].max():.4e}\n"
 
     failed_inp = [
         inp[sel_failed if inp.shape == test.shape else failed_idx[i]]
         for i, inp in enumerate(inputs)
     ]
     for i, _inp in enumerate(inputs):
-        warnings.warn(
-            f"failure range of inputs axis {i} {failed_inp[i].min():.2e} {failed_inp[i].max():.2e}",
-            stacklevel=2,
-        )
+        message += f"failure range of inputs axis {i} {failed_inp[i].min():.2e} {failed_inp[i].max():.2e}\n"
 
-    warnings.warn("----- First 10 -----", stacklevel=2)
+    message += "----- First 10 -----\n"
     for j in range(min(10, sel_failed.sum())):
         input_arr = [f"{failed_inp[i][j]:.2e}" for i, finp in enumerate(failed_inp)]
-        warnings.warn(
+        message += (
             f"CRD {input_arr}"
-            + f"  {truth[sel_failed].flatten()[j]:.4e} {test[sel_failed].flatten()[j]:.4e}",
-            stacklevel=2,
+            + f"  {truth[sel_failed].flatten()[j]:.4e} {test[sel_failed].flatten()[j]:.4e}\n"
         )
 
+    warnings.warn(message, stacklevel=2)
     return True
 
 

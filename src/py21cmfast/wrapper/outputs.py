@@ -1371,7 +1371,9 @@ class IonizedBox(OutputStructZ):
                         "unnormalised_nion_mini",
                     ]
         elif isinstance(input_box, HaloBox):
-            required += ["n_ion", "whalo_sfr"]
+            required += ["n_ion"]
+            if self.astro_options.INHOMO_RECO:
+                required += ["whalo_sfr"]
         else:
             raise ValueError(
                 f"{type(input_box)} is not an input required for IonizedBox!"
