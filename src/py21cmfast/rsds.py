@@ -163,7 +163,8 @@ def apply_rsds(
     los_displacement = los_displacement.to(units.pixel, equivalencies=equiv)
 
     # We transform rectilinear lightcone to be an angular-like lightcone
-    if len(field.shape) == 3:
+    field_dimensions = len(field.shape)
+    if field_dimensions == 3:
         field = field.reshape(
             (field.shape[0] * field.shape[1], -1)
         )
@@ -229,7 +230,7 @@ def apply_rsds(
     )
 
     # And now we transform back to a rectilinear-like lightcone
-    if len(field.shape) == 3:
+    if field_dimensions == 3:
         field_with_rsds = field_with_rsds.reshape(
             (
                 int(np.sqrt(field_with_rsds.shape[0])),
