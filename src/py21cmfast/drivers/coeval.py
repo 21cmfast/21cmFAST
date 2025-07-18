@@ -18,7 +18,7 @@ from .. import __version__
 from ..c_21cmfast import lib
 from ..io import h5
 from ..io.caching import CacheConfig, OutputCache, RunCache
-from ..rsds import compute_rsds
+from ..rsds import include_dvdr_in_tau21
 from ..wrapper.arrays import Array
 from ..wrapper.inputs import InputParameters
 from ..wrapper.outputs import (
@@ -217,7 +217,7 @@ class Coeval:
             else:
                 n_subcells = 0
 
-        return compute_rsds(
+        return include_dvdr_in_tau21(
             brightness_temp=self.brightness_temp,
             los_velocity=self.velocity_z,  # TODO: generalize to an arbitrary los axis
             redshifts=self.redshift,  # TODO: do we want to use a single redshift? Or a redshift array that is determined from the coeval los?

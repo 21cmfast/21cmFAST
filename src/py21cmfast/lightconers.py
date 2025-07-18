@@ -659,7 +659,7 @@ class AngularLightconer(Lightconer):
             and not inputs.matter_options.KEEP_3D_VELOCITIES
         ):
             raise ValueError(
-                "To account for RSDs in an angular lightcone, you need to set "
+                "To account for RSDs or velocity corrections in an angular lightcone, you need to set "
                 "matter_options.KEEP_3D_VELOCITIES=True"
             )
         return lightconer

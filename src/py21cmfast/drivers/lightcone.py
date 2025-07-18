@@ -20,7 +20,7 @@ from ..c_21cmfast import lib
 from ..io import h5
 from ..io.caching import CacheConfig, OutputCache, RunCache
 from ..lightconers import Lightconer, RectilinearLightconer
-from ..rsds import compute_rsds
+from ..rsds import include_dvdr_in_tau21, apply_rsds
 from ..wrapper.inputs import InputParameters
 from ..wrapper.outputs import (
     BrightnessTemp,
@@ -496,7 +496,7 @@ def _run_lightcone_from_perturbed_fields(
                 lib.FreePhotonConsMemory()
 
             if inputs.astro_options.INCLUDE_DVDR_IN_TAU21:
-                tb_with_rsds = compute_rsds(
+                lightcone.lightcones["brightness_temp"] = include_dvdr_in_tau21(
                     brightness_temp=lightcone.lightcones["brightness_temp"],
                     los_velocity=lightcone.lightcones["los_velocity"],
                     redshifts=lightcone.lightcone_redshifts,
@@ -507,27 +507,33 @@ def _run_lightcone_from_perturbed_fields(
                         else None
                     ),
                     periodic=False,
-                    n_subcells=(
-                        inputs.astro_params.N_RSD_STEPS
-                        if inputs.astro_options.APPLY_RSDS
-                        else 0
-                    ),
                 )
-                lightcone.lightcones["brightness_temp_with_rsds"] = tb_with_rsds
 
-                if lightcone_filename:
-                    if Path(lightcone_filename).exists():
-                        with h5py.File(lightcone_filename, "a") as fl:
-                            fl["lightcones"]["brightness_temp_with_rsds"] = tb_with_rsds
-                    else:
-                        lightcone.save(
-                            lightcone_filename,
-                            lowz_buffer_pixels=lowz_buffer_pixels,
-                            highz_buffer_pixels=highz_buffer_pixels,
-                        )
+            if inputs.astro_options.APPLY_RSDS:
+                for q in lightconer.quantities:
+                    field_with_rsds = apply_rsds(
+                        field=lightcone.lightcones[q],
+                        los_velocity=lightcone.lightcones["los_velocity"],
+                        redshifts=lightcone.lightcone_redshifts,
+                        inputs=inputs,
+                        periodic=False,
+                        n_subcells=inputs.astro_params.N_RSD_STEPS,
+                    )
 
-                if inputs.astro_options.APPLY_RSDS:
-                    lightcone = lightcone.trim(lc_distances.min(), lc_distances.max())
+                    lightcone.lightcones[q + "_with_rsds"] = field_with_rsds
+
+                    if lightcone_filename:
+                        if Path(lightcone_filename).exists():
+                            with h5py.File(lightcone_filename, "a") as fl:
+                                fl["lightcones"][q + "_with_rsds"] = field_with_rsds
+                        else:
+                            lightcone.save(
+                                lightcone_filename,
+                                lowz_buffer_pixels=lowz_buffer_pixels,
+                                highz_buffer_pixels=highz_buffer_pixels,
+                            )
+
+                lightcone = lightcone.trim(lc_distances.min(), lc_distances.max())
 
         yield iz, coeval.redshift, coeval, lightcone
 

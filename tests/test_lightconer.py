@@ -242,6 +242,6 @@ def test_validation_options_angular(ang_lcner):
     inputs = InputParameters(node_redshifts=np.array([5.0, 8.0]), random_seed=42)
     inputs.evolve_input_structs(KEEP_3D_VELOCITIES=False, INCLUDE_DVDR_IN_TAU21=True)
     with pytest.raises(
-        ValueError, match="To account for RSDs in an angular lightcone, you need to set"
+        ValueError, match="To account for RSDs or velocity corrections in an angular lightcone, you need to set"
     ):
         ang_lcner.validate_options(inputs=inputs)

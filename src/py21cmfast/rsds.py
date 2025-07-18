@@ -14,24 +14,20 @@ from .wrapper.classy_interface import compute_rms
 from .wrapper.inputs import InputParameters
 
 
-def compute_rsds(
+def include_dvdr_in_tau21(
     brightness_temp: np.ndarray,
     los_velocity: np.ndarray,
     redshifts: np.ndarray | float,
     inputs: InputParameters,
     tau_21: np.ndarray | None = None,
     periodic: bool | None = None,
-    n_subcells: int | None = None,
 ) -> np.ndarray:
-    """Compute redshift-space distortions from the los_velocity lightcone.
-
-    This includes both modification to the optical depth due to a velocity gradient
-    and shifting the cells of the apparent brightness temperature (see Mao+ 2012).
+    """Include velocity gradient corrections to the brightness temperature field.
 
     Parameters
     ----------
     brightness_temp
-        A box of the brightness temperature, without redshift space distortions.
+        A box of the brightness temperature, without velocity gradient corrections.
     los_velocity
         Line-of-sight velocities for each cell of brightness_temp, in Mpc/second.
     redshifts
@@ -42,13 +38,11 @@ def compute_rsds(
         A box of the 21cm optical depth. Not required if inputs.astro_options.USE_TS_FLUCT = False.
     periodic
         Whether to assume periodic boundary conditions along the line-of-sight.
-    n_subcells
-        The number of sub-cells to interpolate onto, to make the RSDs more accurate. Default is inputs.astro_options.N_RSD_STEPS.
 
     Returns
     -------
-    tb_with_rsds
-        A box of the brightness temperature, with redshift space distortions.
+    tb_with_dvdr
+        A box of the brightness temperature, with velocity gradient corrections.
     """
     if tau_21 is None and inputs.astro_options.USE_TS_FLUCT:
         raise ValueError(
@@ -57,6 +51,10 @@ def compute_rsds(
     if hasattr(redshifts, "__len__") and len(redshifts) != brightness_temp.shape[-1]:
         raise ValueError(
             "Redshifts must be a float or array with the same size as number of LoS slices"
+        )
+    if los_velocity.shape != brightness_temp.shape:
+        raise ValueError(
+            "brightness_temp must be an array with the same shape as los_velocity"
         )
 
     N = inputs.simulation_options.HII_DIM
@@ -91,7 +89,7 @@ def compute_rsds(
         max_v_deriv = inputs.astro_params.MAX_DVDR * H
         dvdx = np.clip(vel_gradient, -max_v_deriv, max_v_deriv)
         gradient_component = np.abs(1.0 + dvdx / H)
-        tb_with_rsds = brightness_temp / gradient_component
+        tb_with_dvdr = brightness_temp / gradient_component
     else:
         # We have the spin temperature, and we do *not* make the Taylor approximation
         tb_no_rsds = brightness_temp.copy()
@@ -100,59 +98,20 @@ def compute_rsds(
         with np.errstate(
             divide="ignore", invalid="ignore"
         ):  # Don't show division by 0 warnings
-            rsd_factor = (1.0 - np.exp(-tau_21 / gradient_component)) / (
+            gradient_factor = (1.0 - np.exp(-tau_21 / gradient_component)) / (
                 1.0 - (np.exp(-tau_21))
             )
         # It doesn't really matter what the rsd_factor is when tau_21=0 because the brightness temperature is zero by definition
-        rsd_factor = np.float32(np.where(tau_21 < 1e-10, 1.0, rsd_factor))
-        tb_with_rsds = tb_no_rsds * rsd_factor
-
-    if n_subcells is None:
-        if inputs.astro_options.APPLY_RSDS:
-            n_subcells = inputs.astro_params.N_RSD_STEPS
-        else:
-            n_subcells = 0
-
-    # Compute the local RSDs
-    if n_subcells > 0:
-        los_displacement = los_velocity * units.Mpc / units.s / H
-        equiv = units.pixel_scale(dx_los * units.Mpc / units.pixel)
-        los_displacement = los_displacement.to(units.pixel, equivalencies=equiv)
-
-        # We transform rectilinear lightcone to be an angular-like lightcone
-        if len(brightness_temp.shape) == 3:
-            tb_with_rsds = tb_with_rsds.reshape(
-                (tb_with_rsds.shape[0] * tb_with_rsds.shape[1], -1)
-            )
-            los_displacement = los_displacement.reshape(
-                (los_displacement.shape[0] * los_displacement.shape[1], -1)
-            )
-
-        # Here we move the cells along the line of sight, regardless the geometry (rectilinear or angular)
-        tb_with_rsds = apply_rsds(
-            field=tb_with_rsds.T,
-            los_displacement=los_displacement.T,
-            n_subcells=n_subcells,
-            periodic=periodic,
-        ).T
-
-        # And now we transform back to a rectilinear-like lightcone
-        if len(brightness_temp.shape) == 3:
-            tb_with_rsds = tb_with_rsds.reshape(
-                (
-                    int(np.sqrt(tb_with_rsds.shape[0])),
-                    int(np.sqrt(tb_with_rsds.shape[0])),
-                    -1,
-                )
-            )
-
-    return tb_with_rsds
-
+        gradient_factor = np.float32(np.where(tau_21 < 1e-10, 1.0, gradient_factor))
+        tb_with_dvdr = tb_no_rsds * gradient_factor.value
+    
+    return tb_with_dvdr
 
 def apply_rsds(
     field: np.ndarray,
-    los_displacement: np.ndarray,
-    #    distance: np.ndarray,
+    los_velocity: np.ndarray,
+    redshifts: np.ndarray | float,
+    inputs: InputParameters,
     n_subcells: int = 4,
     periodic: bool = False,
 ) -> np.ndarray:
@@ -171,22 +130,57 @@ def apply_rsds(
     Parameters
     ----------
     field
-        The field to apply redshift-space distortions to, shape (nslices, ncoords).
-    los_displacement
-        The line-of-sight "apparent" displacement of the field, in pixel coordinates.
-        Equal to ``v / H(z) / cell_size``.
-        Positive values are towards the observer, shape ``(nslices, ncoords)``.
-    distance
-        The comoving distance to each slice in the field, in units of the cell size.
-        shape (nslices,).
+        A box of the field on which redshift-space distortions shall be applied.
+    los_velocity
+        Line-of-sight velocities for each cell of brightness_temp, in Mpc/second.
+    redshifts
+        An array of the redshifts along the los. Can also be a float (could be useful for coeval boxes)
+    inputs
+        The input parameters corresponding to the box.
     periodic: bool, optioanl
         Whether to assume periodic boundary conditions along the line-of-sight.
     n_subcells: int, optional
-        The number of sub-cells to interpolate onto, to make the RSDs more accurate. Default is inputs.astro_options.N_RSD_STEPS.
+        The number of sub-cells to interpolate onto, to make the RSDs more accurate. Default is 4.
+    
+    Returns
+    -------
+    field_with_rsds
+        A box of the field, with redshift space distortions.
     """
-    if field.shape[0] < 2:
-        raise ValueError("field must have at least 2 slices")
 
+    if hasattr(redshifts, "__len__") and len(redshifts) != field.shape[-1]:
+        raise ValueError(
+            "Redshifts must be a float or array with the same size as number of LoS slices"
+        )
+    if los_velocity.shape != field.shape:
+        raise ValueError(
+            "field must be an array with the same shape as los_velocity"
+        )
+    
+    H = inputs.cosmo_params.cosmo.H(redshifts)
+    los_displacement = los_velocity * units.Mpc / units.s / H
+    equiv = units.pixel_scale(inputs.simulation_options.cell_size / units.pixel)
+    los_displacement = los_displacement.to(units.pixel, equivalencies=equiv)
+
+    # We transform rectilinear lightcone to be an angular-like lightcone
+    if len(field.shape) == 3:
+        field = field.reshape(
+            (field.shape[0] * field.shape[1], -1)
+        )
+        los_displacement = los_displacement.reshape(
+            (los_displacement.shape[0] * los_displacement.shape[1], -1)
+        )
+
+    field = field.T,
+    los_displacement = los_displacement.T,
+
+    # TODO: I don't understand why the above command sometimes makes these fields to become a tuple with one entry.
+    # Below is a hacky way to avoid that
+    if isinstance(field,tuple):
+        field = field[0]
+    if isinstance(los_displacement,tuple):
+        los_displacement = los_displacement[0]
+            
     ang_coords = np.arange(field.shape[1])
 
     distance = np.arange(field.shape[0])
@@ -230,9 +224,20 @@ def apply_rsds(
 
     fine_field = cloud_in_cell_los(fine_field, fine_rsd, periodic=periodic)
     # Average the subcells back to the original grid
-    return np.sum(
+    field_with_rsds = np.sum(
         fine_field.T.reshape(len(ang_coords), len(distance), n_subcells), axis=-1
-    ).T
+    )
+
+    # And now we transform back to a rectilinear-like lightcone
+    if len(field.shape) == 3:
+        field_with_rsds = field_with_rsds.reshape(
+            (
+                int(np.sqrt(field_with_rsds.shape[0])),
+                int(np.sqrt(field_with_rsds.shape[0])),
+                -1,
+            )
+        )
+    return field_with_rsds
 
 
 def estimate_rsd_displacements(
