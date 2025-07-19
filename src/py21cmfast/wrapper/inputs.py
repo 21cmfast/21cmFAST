@@ -731,15 +731,15 @@ class AstroOptions(InputStruct):
         Whether the minimum halo mass (for ionization) is defined by
         mass or virial temperature. Automatically True if `USE_MASS_DEPENDENT_ZETA`
         is True.
-    PHOTON_CONS_TYPE : int, optional
+    PHOTON_CONS_TYPE : str, optional
         Whether to perform a small correction to account for the inherent
         photon non-conservation. This can be one of three types of correction:
 
-        0: No photon cosnervation correction,
-        1: Photon conservation correction by adjusting the redshift of the N_ion source field (Park+22)
-        2: Adjustment to the escape fraction power-law slope, based on fiducial results in Park+22, This runs a
+        'no-photoncons': No photon cosnervation correction,
+        'z-photoncons': Photon conservation correction by adjusting the redshift of the N_ion source field (Park+22)
+        'alpha-photoncons': Adjustment to the escape fraction power-law slope, based on fiducial results in Park+22, This runs a
         series of global xH evolutions and one calibration simulation to find the adjustment as a function of xH
-        3: Adjustment to the escape fraction normalisation, runs one calibration simulation to find the
+        'f-photoncons': Adjustment to the escape fraction normalisation, runs one calibration simulation to find the
         adjustment as a function of xH where f'/f = xH_global/xH_calibration
     FIX_VCB_AVG: bool, optional
         Determines whether to use a fixed vcb=VAVG (*regardless* of USE_RELATIVE_VELOCITIES). It includes the average effect of velocities but not its fluctuations. See Muñoz+21 (2110.13919).
@@ -890,11 +890,11 @@ class AstroOptions(InputStruct):
 
     @PHOTON_CONS_TYPE.validator
     def _PHOTON_CONS_TYPE_vld(self, att, val):
-        """Raise an error if using PHOTON_CONS_TYPE='z_photoncons' and USE_MINI_HALOS is True."""
+        """Raise an error if using PHOTON_CONS_TYPE='z-photoncons' and USE_MINI_HALOS is True."""
         if self.USE_MINI_HALOS and val == "z-photoncons":
             raise ValueError(
                 "USE_MINI_HALOS is not compatible with the redshift-based"
-                " photon conservation corrections (PHOTON_CONS_TYPE=='z_photoncons')! "
+                " photon conservation corrections (PHOTON_CONS_TYPE=='z-photoncons')! "
             )
 
     @USE_EXP_FILTER.validator
@@ -1283,7 +1283,7 @@ class InputParameters:
                 if val.PHOTON_CONS_TYPE == "z-photoncons":
                     raise ValueError(
                         "USE_HALO_FIELD is not compatible with the redshift-based"
-                        " photon conservation corrections (PHOTON_CONS_TYPE=='z_photoncons')! "
+                        " photon conservation corrections (PHOTON_CONS_TYPE=='z-photoncons')! "
                     )
                 """Raise an error if USE_HALO_FIELD is True and USE_MASS_DEPENDENT_ZETA is False."""
                 if not val.USE_MASS_DEPENDENT_ZETA:
@@ -1338,6 +1338,18 @@ class InputParameters:
                     "You are setting M_TURN > 8 when USE_MINI_HALOS=True. "
                     "This is non-standard (but allowed), and usually occurs upon manual "
                     "update of M_TURN",
+                    stacklevel=2,
+                )
+            if (
+                self.astro_options.USE_MASS_DEPENDENT_ZETA
+                and val.BETA_ESC != 0
+                and self.astro_options.PHOTON_CONS_TYPE
+                not in ["no-photoncons", "alpha-photoncons"]
+            ):
+                warnings.warn(
+                    f"You have set BETA_ESC != 0 but PHOTON_CONS_TYPE is {self.astro_options.PHOTON_CONS_TYPE}. "
+                    "This changes the escape fraction so it is not consistent with the manual setting of scaling."
+                    "Set PHOTON_CONS_TYPE to 'no-photoncons' or 'alpha-photoncons' if you want the scaling to be exact.",
                     stacklevel=2,
                 )
 

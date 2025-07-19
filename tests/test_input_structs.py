@@ -255,6 +255,22 @@ def test_validation():
             random_seed=1,
         )
 
+    with pytest.warns(
+        UserWarning,
+        match="You have set BETA_ESC != 0 but PHOTON_CONS_TYPE is f-photoncons.",
+    ):
+        InputParameters(
+            cosmo_params=CosmoParams(),
+            astro_params=AstroParams(BETA_ESC=0.1),
+            simulation_options=SimulationOptions(),
+            matter_options=MatterOptions(),
+            astro_options=AstroOptions(
+                PHOTON_CONS_TYPE="f-photoncons",
+                USE_MASS_DEPENDENT_ZETA=True,
+            ),
+            random_seed=1,
+        )
+
 
 def test_simulation_options():
     up = SimulationOptions()
