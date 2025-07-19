@@ -337,6 +337,7 @@ already discussed above (all are optional, with defaults):
   and expect results to change a little.
 * ``--verbosity``: set how much info is printed to screen by the simulator. The options
   here are the standard logging levels (INFO, DEBUG, WARNING, etc).
+* ``--progress/--no-progress``: turn the progress bar on and off.
 
 Cookbook
 --------

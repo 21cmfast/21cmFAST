@@ -126,6 +126,7 @@ Options are: (on) cache everything, (off) cache nothing (noloop) cache only boxe
 outside the astrophysics evolution loop (dmfield) alias for noloop (last_step_only)
 cache only boxes that are required more than one step away
     """
+
     outcfg: Annotated[
         Path,
         Parameter(validator=(vld.Path(file_okay=False, dir_okay=False, ext=("toml",)))),
@@ -136,8 +137,10 @@ cache only boxes that are required more than one step away
         Literal["CRITICAL", "ERROR", "WARNING", "INFO", "DEBUG"],
         Parameter(alias=("-v", "--v")),
     ] = "WARNING"
+    "How much information to print out while running the simulation."
 
     progress: bool = True
+    "Whether to display a progress bar as the simulation runs."
 
 
 def _param_cls_factory(cls):
@@ -454,8 +457,8 @@ def coeval(
 
 @run.command()
 def lightcone(
-    options: RunParams,
-    params: Annotated[Parameters, Parameter(show=False, name="*")],
+    options: RunParams = RunParams(),
+    params: Annotated[Parameters, Parameter(show=False, name="*")] = Parameters(),
     redshift_range: tuple[float, float] = (6.0, 30.0),
     out: Annotated[
         Path,

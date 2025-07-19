@@ -99,7 +99,6 @@ def setup_and_teardown_package(tmpdirec, request):
 
     log_level = request.config.getoption("--log-level-21") or logging.INFO
     logging.getLogger("py21cmfast").setLevel(log_level)
-    logging.getLogger("21cmFAST").setLevel(log_level)
 
     yield
 

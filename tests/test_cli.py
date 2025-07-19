@@ -59,7 +59,7 @@ class TestTemplateCreate:
             app(f"template create --param-file {new} --template simple --out here.toml")
 
     def test_default_minimal(self, tmp_path: Path):
-        """Test that providing neither --template not --param-file errors."""
+        """Test that creating a minimal toml with no values works."""
         fl = tmp_path / "test.toml"
         app(f"template create --mode minimal --out {fl}")
 
@@ -155,7 +155,7 @@ class TestRunICS:
     def test_basic_run(self, capsys, tmp_path: Path):
         """Test that a simple run creates an InitialConditions.h5 file."""
         app(
-            f"run ics --template simple {_small_box} --cachedir {tmp_path}",
+            f"run ics --template simple-small --cachedir {tmp_path}",
             console=Console(width=100),
         )
         output = capsys.readouterr().out
@@ -168,29 +168,26 @@ class TestRunICS:
 
     def test_warn_formatting(self, tmp_path, capsys):
         """Test that warnings are printed properly."""
-        app(
-            f"run ics --template simple --hii-dim 25 --dim 50 --box-len 400 "
-            f"--cachedir {tmp_path}"
-        )
+        app(f"run ics --template simple-small --box-len 400 --cachedir {tmp_path}")
         out = capsys.readouterr().out
         assert "Resolution is likely too low" in out
 
     def test_regen(self, capsys, tmp_path):
         """Test that re-running the same box with --regen does actually re-run things."""
         app(
-            f"run ics --template simple {_small_box} --cachedir {tmp_path}",
+            f"run ics --template simple-small --cachedir {tmp_path}",
         )
 
         # Now run it again right away with regen
         app(
-            f"run ics --template simple {_small_box} --cachedir {tmp_path} --regenerate",
+            f"run ics --template simple-small --cachedir {tmp_path} --regenerate",
         )
         out = capsys.readouterr().out
         assert "regeneration is requested. Overriding." in out
 
         # Run it without regen
         app(
-            f"run ics --template simple {_small_box} --cachedir {tmp_path}",
+            f"run ics --template simple-small --cachedir {tmp_path}",
         )
         out = capsys.readouterr().out
         assert "skipping computation" in out
@@ -203,7 +200,7 @@ class TestRunCoeval:
         """Test that a basic run through produces a coeval*.h5 file."""
         cfile = tmp_path / "coeval_z6.00.h5"
         app(
-            f"run coeval --template simple {_small_box} --cachedir {tmp_path} "
+            f"run coeval --template simple-small --cachedir {tmp_path} "
             f"--redshifts 6.0 --out {cfile.parent}"
         )
 
@@ -243,7 +240,7 @@ class TestRunLightcone:
         """Test that a basic run produces a lightcone.h5 file."""
         lcfile = tmp_path / "lightcone.h5"
         app(
-            f"run lightcone --template simple {_small_box} --cachedir {tmp_path} "
+            f"run lightcone --template simple-small --cachedir {tmp_path} "
             f"--redshift-range 6.0 12.0 --out {lcfile}"
         )
 
@@ -257,7 +254,7 @@ class TestRunLightcone:
         """Test that a non-existent output path is OK."""
         lcfile = tmp_path / "new" / "lightcone.h5"
         app(
-            f"run lightcone --template simple {_small_box} --cachedir {tmp_path} "
+            f"run lightcone --template simple-small --cachedir {tmp_path} "
             f"--redshift-range 6.0 12.0 --out {lcfile}"
         )
 
@@ -288,7 +285,7 @@ class TestPRFeature:
     def test_simple_run_through(self, tmp_path: Path):
         """Test that a simple run-through produces the expected plots."""
         template = tmp_path / "small-simple.toml"
-        app(f"template create --template simple {_small_box} --out {template}")
+        app(f"template create --template simple-small --out {template}")
         app(
             f"dev feature --param-file {template} --redshift-range 6 12 --hmf PS --cachedir {tmp_path} --outdir {tmp_path}"
         )

@@ -20,3 +20,5 @@ USE_MINI_HALOS = false
 USE_TS_FLUCT = false
 INHOMO_RECO = false
 HII_FILTER = 'sharp-k'
+ZPRIME_STEP_FACTOR = 1.2
+Z_HEAT_MAX = 20
