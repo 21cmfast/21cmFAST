@@ -36,6 +36,7 @@ struct ScalingConstants {
 
     double fesc_10;
     double alpha_esc;
+    double beta_esc;
     double fesc_7;
     double pop2_ion;
     double pop3_ion;

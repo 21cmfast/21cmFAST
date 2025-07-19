@@ -69,6 +69,7 @@ struct parameters_gsl_MF_integrals {
     // Nion additions
     double f_esc_norm;
     double alpha_esc;
+    double beta_esc;
     double Mlim_esc;
 
     // Minihalo additions
@@ -358,8 +359,9 @@ double nion_fraction(double lnM, void *param_struct) {
     struct parameters_gsl_MF_integrals p = *(struct parameters_gsl_MF_integrals *)param_struct;
     double Fstar = log_scaling_PL_limit(lnM, p.f_star_norm, p.alpha_star, 10 * LN10, p.Mlim_star);
     double Fesc = log_scaling_PL_limit(lnM, p.f_esc_norm, p.alpha_esc, 10 * LN10, p.Mlim_esc);
+    double Zesc = log(pow((1 + p.redshift) / 8.0, p.beta_esc));
 
-    return exp(Fstar + Fesc - p.Mturn_acg / exp(lnM) + lnM);
+    return exp(Fstar + Fesc + Zesc - p.Mturn_acg / exp(lnM) + lnM);
 }
 
 double nion_fraction_mini(double lnM, void *param_struct) {
@@ -856,7 +858,9 @@ double Nion_General(double z, double lnM_Min, double lnM_Max, double MassTurnove
         .HMF = matter_options_global->HMF,
         .gamma_type = 3,
     };
-    return IntegratedNdM(lnM_Min, lnM_Max, params, &u_nion_integrand, 0);
+    // z factor can be taken out of the integral
+    double Zesc = pow((1 + z) / 8.0, sc->beta_esc);
+    return Zesc * IntegratedNdM(lnM_Min, lnM_Max, params, &u_nion_integrand, 0);
 }
 
 double Nion_General_MINI(double z, double lnM_Min, double lnM_Max, double MassTurnover,
@@ -1008,7 +1012,7 @@ double Nion_ConditionalM(double growthf, double lnM1, double lnM2, double lnM_co
         .delta = delta2,
         .gamma_type = -3,
     };
-
+    double Zesc = pow((1 + sc->redshift) / 8.0, sc->beta_esc);
     if (lnM1 >= lnM_cond) return 0.;
     // return 1 halo at the condition mass if delta is exceeded and the condition is within the
     // integral limits
@@ -1024,7 +1028,8 @@ double Nion_ConditionalM(double growthf, double lnM1, double lnM2, double lnM_co
     // If we don't have a corresponding CMF, use EPS and normalise
     // NOTE: it's possible we may want to use another default
     if (params.HMF != 0 && params.HMF != 1 && params.HMF != 4) params.HMF = 0;
-    return IntegratedNdM(lnM1, lnM2, params, &c_nion_integrand, method);
+    // z factor can be taken out of the integral
+    return Zesc * IntegratedNdM(lnM1, lnM2, params, &c_nion_integrand, method);
 }
 
 double Xray_ConditionalM(double redshift, double growthf, double lnM1, double lnM2, double lnM_cond,
