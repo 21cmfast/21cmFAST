@@ -19,8 +19,8 @@ def include_dvdr_in_tau21(
     los_velocity: np.ndarray,
     redshifts: np.ndarray | float,
     inputs: InputParameters,
+    periodic: bool,
     tau_21: np.ndarray | None = None,
-    periodic: bool | None = None,
 ) -> np.ndarray:
     """Include velocity gradient corrections to the brightness temperature field.
 
@@ -58,10 +58,6 @@ def include_dvdr_in_tau21(
         )
 
     N = inputs.simulation_options.HII_DIM
-
-    if periodic is None:
-        # assume it's periodic if it looks like a coeval box
-        periodic = brightness_temp.shape == (N, N, N)
 
     dx_los = inputs.simulation_options.BOX_LEN / N  # Mpc
     # TODO: currently the gradient is applied w.r.t to the z-axis, even if the user specified a different los-axis. Needs to make it more flexible in the future
@@ -112,8 +108,8 @@ def apply_rsds(
     los_velocity: np.ndarray,
     redshifts: np.ndarray | float,
     inputs: InputParameters,
+    periodic: bool,
     n_subcells: int = 4,
-    periodic: bool = False,
 ) -> np.ndarray:
     """Apply redshift-space distortions to a field.
 
@@ -137,7 +133,7 @@ def apply_rsds(
         An array of the redshifts along the los. Can also be a float (could be useful for coeval boxes)
     inputs
         The input parameters corresponding to the box.
-    periodic: bool, optioanl
+    periodic: bool
         Whether to assume periodic boundary conditions along the line-of-sight.
     n_subcells: int, optional
         The number of sub-cells to interpolate onto, to make the RSDs more accurate. Default is 4.
@@ -151,10 +147,6 @@ def apply_rsds(
     if hasattr(redshifts, "__len__") and len(redshifts) != field.shape[-1]:
         raise ValueError(
             "Redshifts must be a float or array with the same size as number of LoS slices"
-        )
-    if los_velocity.shape != field.shape:
-        raise ValueError(
-            "field must be an array with the same shape as los_velocity"
         )
     
     H = inputs.cosmo_params.cosmo.H(redshifts)
@@ -171,17 +163,61 @@ def apply_rsds(
         los_displacement = los_displacement.reshape(
             (los_displacement.shape[0] * los_displacement.shape[1], -1)
         )
+    
+    # Here we move the cells along the line of sight, regardless the geometry (rectilinear or angular)
+    field_with_rsds = rsds_shift(
+        field=field.T,
+        los_displacement=los_displacement.T,
+        n_subcells=n_subcells,
+        periodic=periodic,
+    ).T
+        
+    # And now we transform back to a rectilinear-like lightcone
+    if field_dimensions == 3:
+        field_with_rsds = field_with_rsds.reshape(
+            (
+                int(np.sqrt(field_with_rsds.shape[0])),
+                int(np.sqrt(field_with_rsds.shape[0])),
+                -1,
+            )
+        )
+    return field_with_rsds
 
-    field = field.T,
-    los_displacement = los_displacement.T,
+def rsds_shift(
+    field: np.ndarray,
+    los_displacement: np.ndarray,
+    n_subcells: int = 4,
+    periodic: bool = False,
+) -> np.ndarray:
+    """Shift the cells of a field according to the los displacement.
 
-    # TODO: I don't understand why the above command sometimes makes these fields to become a tuple with one entry.
-    # Below is a hacky way to avoid that
-    if isinstance(field,tuple):
-        field = field[0]
-    if isinstance(los_displacement,tuple):
-        los_displacement = los_displacement[0]
-            
+    Parameters
+    ----------
+    field
+        A box of the field on which redshift-space distortions shall be applied, shape (nslices, ncoords).
+    los_displacement
+        The line-of-sight "apparent" displacement of the field, in pixel coordinates.
+        Equal to ``v / H(z) / cell_size``.
+        Positive values are towards the observer, shape ``(nslices, ncoords)``.
+    periodic: bool, optioanl
+        Whether to assume periodic boundary conditions along the line-of-sight.
+    n_subcells: int, optional
+        The number of sub-cells to interpolate onto, to make the RSDs more accurate. Default is 4.
+    
+    Returns
+    -------
+    field_with_rsds
+        A box of the field, with redshift space distortions, shape (nslices, ncoords).
+    """
+    if field.shape[0] < 2:
+        raise ValueError("field must have at least 2 slices")
+    if los_displacement.shape != field.shape:
+        raise ValueError(
+            "field must be an array with the same shape as los_displacement"
+        )
+    if not isinstance(n_subcells,int):
+        raise ValueError("n_subcells must be an integer")
+    
     ang_coords = np.arange(field.shape[1])
 
     distance = np.arange(field.shape[0])
@@ -225,21 +261,9 @@ def apply_rsds(
 
     fine_field = cloud_in_cell_los(fine_field, fine_rsd, periodic=periodic)
     # Average the subcells back to the original grid
-    field_with_rsds = np.sum(
+    return np.sum(
         fine_field.T.reshape(len(ang_coords), len(distance), n_subcells), axis=-1
-    )
-
-    # And now we transform back to a rectilinear-like lightcone
-    if field_dimensions == 3:
-        field_with_rsds = field_with_rsds.reshape(
-            (
-                int(np.sqrt(field_with_rsds.shape[0])),
-                int(np.sqrt(field_with_rsds.shape[0])),
-                -1,
-            )
-        )
-    return field_with_rsds
-
+    ).T
 
 def estimate_rsd_displacements(
     classy_output: Class,

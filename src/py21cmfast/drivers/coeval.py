@@ -291,6 +291,15 @@ class Coeval:
         field_with_rsds
             A box of the brightness temperature, with velocity gradient corrections and redshift-space distortions.
         """
+        if not hasattr(self,"velocity_" + axis):
+            if not axis in ["x", "y", "z"]:
+                raise ValueError("`axis` can only be `x`, `y` or `z`.")
+            else:
+                raise ValueError("You asked for axis = '"+axis+"', but the coeval doesn't have velocity_"+axis+"!"
+                                 " Set matter_options.KEEP_3D_VELOCITIES=True next time you call run_coeval if you "
+                                 "wish to set axis=`"+axis+"'."
+                                 )
+        
         if n_subcells is None:
             if self.inputs.astro_options.APPLY_RSDS:
                 n_subcells = self.inputs.astro_params.N_RSD_STEPS
