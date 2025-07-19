@@ -161,8 +161,8 @@ def test_ang_lightcone(lc, ang_lightcone: AngularLightcone):
     rbt = lc.lightcones["brightness_temp"]
     abt = ang_lightcone.lightcones["brightness_temp"].reshape(rbt.shape)
 
-    fullcorr0 = np.corrcoef(rbt[:, :, 0].flatten(), abt[:, :, 0].flatten())
-    fullcorrz = np.corrcoef(rbt[:, :, -1].flatten(), abt[:, :, -1].flatten())
+    fullcorr0 = np.corrcoef(rbt[:, :, 0].flatten().value, abt[:, :, 0].flatten().value)
+    fullcorrz = np.corrcoef(rbt[:, :, -1].flatten().value, abt[:, :, -1].flatten().value)
 
     print("correlation at low z: ", fullcorr0)
     print("correlation at highz: ", fullcorrz)

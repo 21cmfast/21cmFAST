@@ -7,7 +7,7 @@ from astropy import units
 import py21cmfast as p21c
 from py21cmfast import InputParameters, run_coeval
 from py21cmfast.lightconers import RectilinearLightconer
-from py21cmfast.rsds import apply_rsds, compute_rsds
+from py21cmfast.rsds import include_dvdr_in_tau21, apply_rsds
 from py21cmfast.wrapper.classy_interface import run_classy
 
 

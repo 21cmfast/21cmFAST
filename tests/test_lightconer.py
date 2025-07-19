@@ -53,6 +53,7 @@ class MockCoeval:
     brightness_temp: np.ndarray
     simulation_options: SimulationOptions
     cosmo_params: CosmoParams
+    astro_options: AstroOptions
 
 
 def get_uniform_coeval(redshift, fill=1.0, BOX_LEN=100, HII_DIM=50):
@@ -63,6 +64,7 @@ def get_uniform_coeval(redshift, fill=1.0, BOX_LEN=100, HII_DIM=50):
         brightness_temp=fill * np.ones((up.HII_DIM, up.HII_DIM, up.HII_DIM)),
         simulation_options=up,
         cosmo_params=CosmoParams(),
+        astro_options=AstroOptions()
     )
 
 
