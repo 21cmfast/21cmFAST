@@ -10,11 +10,12 @@ listed in the documentation for each class below.
 """
 
 # we use a few nested if statments in the validators here
-# ruff: noqa: SIM102
 
 import logging
 import warnings
+from collections.abc import Sequence
 from functools import cached_property
+from pathlib import Path
 from typing import Annotated, Any, ClassVar, Literal, Self, get_args
 
 import attrs
@@ -616,9 +617,17 @@ class SimulationOptions(InputStruct):
         Self-correlation length used for updating xray luminosity, see "CORR_STAR" for details.
     """
 
-    BOX_LEN: float = field(default=300.0, converter=float, validator=validators.gt(0))
     HII_DIM: int = field(default=200, converter=int, validator=validators.gt(0))
-    DIM: int = field(converter=int)
+    HIRES_TO_LOWRES_FACTOR: float = field(default=3, validator=validators.gt(1))
+    LOWRES_CELL_SIZE_MPC: float = field(default=1.5, validator=validators.gt(0))
+
+    _BOX_LEN: float = field(
+        default=None,
+        converter=attrs.converters.optional(float),
+        validator=validators.optional(validators.gt(0)),
+    )
+    _DIM: int | None = field(default=None, converter=attrs.converters.optional(int))
+
     NON_CUBIC_FACTOR: float = field(
         default=1.0, converter=float, validator=validators.gt(0)
     )
@@ -664,9 +673,29 @@ class SimulationOptions(InputStruct):
     # NOTE (Jdavies): I do not currently have great priors for this value
     CORR_LX: float = field(default=0.2, converter=float)
 
-    @DIM.default
-    def _dim_default(self):
-        return 3 * self.HII_DIM
+    @property
+    def DIM(self) -> int:
+        """The number of cells on a side of the hi-res box used for ICs.
+
+        If not given explicitly, it is auto-calculated via
+        ``HII_DIM * HIRES_TO_LOWRES_FACTOR``.
+        """
+        if self._DIM is not None:
+            return self._DIM
+        else:
+            return int(self.HII_DIM * self.HIRES_TO_LOWRES_FACTOR)
+
+    @property
+    def BOX_LEN(self) -> float:
+        """The size of the box along a side, in Mpc.
+
+        If not given explicitly, it is auto-calculated via
+        ``HII_DIM * LOWRES_CELL_SIZE_MPC``.
+        """
+        if self._BOX_LEN is not None:
+            return self._BOX_LEN
+        else:
+            return int(self.HII_DIM * self.LOWRES_CELL_SIZE_MPC)
 
     @NON_CUBIC_FACTOR.validator
     def _NON_CUBIC_FACTOR_validator(self, att, val):
@@ -1239,60 +1268,63 @@ class InputParameters:
 
     @astro_options.validator
     def _astro_options_validator(self, att, val):
-        if self.matter_options is not None:
-            if (
-                val.USE_MINI_HALOS
-                and not self.matter_options.USE_RELATIVE_VELOCITIES
-                and not val.FIX_VCB_AVG
-            ):
-                warnings.warn(
-                    "USE_MINI_HALOS needs USE_RELATIVE_VELOCITIES to get the right evolution!",
-                    stacklevel=2,
+        if self.matter_options is None:
+            return
+        if (
+            val.USE_MINI_HALOS
+            and not self.matter_options.USE_RELATIVE_VELOCITIES
+            and not val.FIX_VCB_AVG
+        ):
+            warnings.warn(
+                "USE_MINI_HALOS needs USE_RELATIVE_VELOCITIES to get the right evolution!",
+                stacklevel=2,
+            )
+        if self.matter_options.USE_HALO_FIELD:
+            if val.PHOTON_CONS_TYPE == "z-photoncons":
+                raise ValueError(
+                    "USE_HALO_FIELD is not compatible with the redshift-based"
+                    " photon conservation corrections (PHOTON_CONS_TYPE=='z_photoncons')! "
                 )
-            if self.matter_options.USE_HALO_FIELD:
-                if val.PHOTON_CONS_TYPE == "z-photoncons":
-                    raise ValueError(
-                        "USE_HALO_FIELD is not compatible with the redshift-based"
-                        " photon conservation corrections (PHOTON_CONS_TYPE=='z_photoncons')! "
-                    )
-                """Raise an error if USE_HALO_FIELD is True and USE_MASS_DEPENDENT_ZETA is False."""
-                if not val.USE_MASS_DEPENDENT_ZETA:
-                    raise ValueError(
-                        "You have set USE_MASS_DEPENDENT_ZETA to False but USE_HALO_FIELD is True! "
-                    )
-            else:
-                if val.USE_UPPER_STELLAR_TURNOVER:
-                    raise NotImplementedError(
-                        "USE_UPPER_STELLAR_TURNOVER is not yet implemented for when USE_HALO_FIELD is False"
-                    )
-                if val.USE_EXP_FILTER:
-                    raise ValueError(
-                        "USE_EXP_FILTER is not compatible with USE_HALO_FIELD == False"
-                    )
-            if self.matter_options.HMF not in ["PS", "ST"]:
-                warnings.warn(
-                    "A selection of a mass function other than Press-Schechter or Sheth-Tormen will"
-                    "Result in the use of the EPS conditional mass function, normalised the unconditional"
-                    "mass function provided by the user as matter_options.HMF",
-                    stacklevel=2,
+            """Raise an error if USE_HALO_FIELD is True and USE_MASS_DEPENDENT_ZETA is False."""
+            if not val.USE_MASS_DEPENDENT_ZETA:
+                raise ValueError(
+                    "You have set USE_MASS_DEPENDENT_ZETA to False but USE_HALO_FIELD is True! "
                 )
-            elif (
-                val.INTEGRATION_METHOD_ATOMIC == "GAMMA-APPROX"
-                or val.INTEGRATION_METHOD_ATOMIC == "GAMMA-APPROX"
-            ) and self.matter_options.HMF != 0:
-                warnings.warn(
-                    "The 'GAMMA-APPROX' integration method uses the EPS conditional mass function"
-                    "normalised to the unconditional mass function provided by the user as matter_options.HMF",
-                    stacklevel=2,
+        else:
+            if val.USE_UPPER_STELLAR_TURNOVER:
+                raise NotImplementedError(
+                    "USE_UPPER_STELLAR_TURNOVER is not yet implemented for when USE_HALO_FIELD is False"
                 )
+            if val.USE_EXP_FILTER:
+                raise ValueError(
+                    "USE_EXP_FILTER is not compatible with USE_HALO_FIELD == False"
+                )
+        if self.matter_options.HMF not in ["PS", "ST"]:
+            warnings.warn(
+                "A selection of a mass function other than Press-Schechter or Sheth-Tormen will"
+                "Result in the use of the EPS conditional mass function, normalised the unconditional"
+                "mass function provided by the user as matter_options.HMF",
+                stacklevel=2,
+            )
+        elif (
+            val.INTEGRATION_METHOD_ATOMIC == "GAMMA-APPROX"
+            and self.matter_options.HMF != 0
+        ):
+            warnings.warn(
+                "The 'GAMMA-APPROX' integration method uses the EPS conditional mass function"
+                "normalised to the unconditional mass function provided by the user as matter_options.HMF",
+                stacklevel=2,
+            )
 
     @astro_params.validator
     def _astro_params_validator(self, att, val):
-        if self.simulation_options is not None:
-            if val.R_BUBBLE_MAX > self.simulation_options.BOX_LEN:
-                raise InputCrossValidationError(
-                    f"R_BUBBLE_MAX is larger than BOX_LEN ({val.R_BUBBLE_MAX} > {self.simulation_options.BOX_LEN}). This is not allowed."
-                )
+        if (
+            self.simulation_options is not None
+            and val.R_BUBBLE_MAX > self.simulation_options.BOX_LEN
+        ):
+            raise InputCrossValidationError(
+                f"R_BUBBLE_MAX is larger than BOX_LEN ({val.R_BUBBLE_MAX} > {self.simulation_options.BOX_LEN}). This is not allowed."
+            )
 
         if self.astro_options is not None:
             if val.R_BUBBLE_MAX != 50 and self.astro_options.INHOMO_RECO:
@@ -1311,39 +1343,37 @@ class InputParameters:
                     stacklevel=2,
                 )
 
-        if self.simulation_options is not None:
-            if (
-                self.astro_options.HII_FILTER == "sharp-k"
-                and val.R_BUBBLE_MAX > self.simulation_options.BOX_LEN / 3
-            ):
-                msg = (
-                    "Your R_BUBBLE_MAX is > BOX_LEN/3 "
-                    f"({val.R_BUBBLE_MAX} > {self.simulation_options.BOX_LEN / 3})."
-                    f" This can produce strange reionisation topologies"
-                )
+        if self.simulation_options is not None and (
+            self.astro_options.HII_FILTER == "sharp-k"
+            and val.R_BUBBLE_MAX > self.simulation_options.BOX_LEN / 3
+        ):
+            msg = (
+                "Your R_BUBBLE_MAX is > BOX_LEN/3 "
+                f"({val.R_BUBBLE_MAX} > {self.simulation_options.BOX_LEN / 3})."
+                f" This can produce strange reionisation topologies"
+            )
 
-                if config["ignore_R_BUBBLE_MAX_error"]:
-                    warnings.warn(msg, stacklevel=2)
-                else:
-                    raise ValueError(
-                        msg
-                        + " To ignore this error, set `py21cmfast.config['ignore_R_BUBBLE_MAX_error'] = True`"
-                    )
+            if config["ignore_R_BUBBLE_MAX_error"]:
+                warnings.warn(msg, stacklevel=2)
+            else:
+                raise ValueError(
+                    msg
+                    + " To ignore this error, set `py21cmfast.config['ignore_R_BUBBLE_MAX_error'] = True`"
+                )
 
     @simulation_options.validator
     def _simulation_options_validator(self, att, val):
         # perform a very rudimentary check to see if we are underresolved and not using the linear approx
-        if self.matter_options is not None:
-            if (
-                val.BOX_LEN > val.DIM
-                and self.matter_options.PERTURB_ALGORITHM != "LINEAR"
-            ):
-                warnings.warn(
-                    "Resolution is likely too low for accurate evolved density fields. "
-                    "It Is recommended that you either increase the resolution "
-                    "(DIM/BOX_LEN) or set the EVOLVE_DENSITY_LINEARLY flag to 1",
-                    stacklevel=2,
-                )
+        if self.matter_options is not None and (
+            val.cell_size_hires < 1 * un.Mpc
+            and self.matter_options.PERTURB_ALGORITHM != "LINEAR"
+        ):
+            warnings.warn(
+                "Resolution is likely too low for accurate evolved density fields. "
+                "It Is recommended that you either increase the resolution "
+                "(DIM/BOX_LEN) or set the EVOLVE_DENSITY_LINEARLY flag to 1",
+                stacklevel=2,
+            )
 
     def __getitem__(self, key):
         """Get an item from the instance in a dict-like manner."""
@@ -1390,17 +1420,42 @@ class InputParameters:
         return self.clone(**struct_args)
 
     @classmethod
-    def from_template(cls, name, **kwargs):
+    def from_template(
+        cls,
+        name: str | Path | Sequence[str | Path],
+        random_seed: int,
+        node_redshifts: tuple[float] | None = None,
+        **kwargs,
+    ):
         """Construct full InputParameters instance from native or TOML file template.
 
-        Takes `InputStruct` fields as keyword arguments which overwrite the template/default fields
+        Parameters
+        ----------
+        name
+            Either a name of a built-in template, or a path to a parameter TOML,
+            or a list of such names/paths. If a list, the final parameters will be
+            built from left-to-right so that the parameters at the end of the list
+            will have precedence.
+        random_seed
+            A random seed to use for the run. Must be specified manually.
+        node_redshifts
+            The redshifts at which to evolve the simulation (if applicable). Default
+            detects whether evolution is required and sets the node redshifts according
+            to the simulation parameters.
+
+        Other Parameters
+        ----------------
+        All other parameters are interpreted as elements of :class:`InputStruct`
+        subclasses (e.g. :class:`SimulationOptions`) and will over-ride what is in
+        the template.
         """
         from ..run_templates import create_params_from_template
 
-        return cls(
-            **create_params_from_template(name),
-            **kwargs,
-        )
+        cls_kw = {"random_seed": random_seed}
+        if node_redshifts is not None:
+            cls_kw["node_redshifts"] = node_redshifts
+
+        return cls(**create_params_from_template(name, **kwargs), **cls_kw)
 
     def clone(self, **kwargs):
         """Generate a copy of the InputParameter structure with specified changes."""

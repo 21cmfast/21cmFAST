@@ -11,8 +11,9 @@ desired parameters and altering as few as possible.
 import datetime
 import logging
 import warnings
+from collections.abc import Sequence
 from pathlib import Path
-from typing import Literal
+from typing import Any, Literal
 
 import attrs
 import tomlkit
@@ -28,7 +29,9 @@ logger = logging.getLogger(__name__)
 TOMLMode = Literal["full", "minimal"]
 
 
-def _construct_param_objects(template_dict, **kwargs):
+def _construct_param_objects(
+    template_dict: dict[str, Any], **kwargs
+) -> dict[str, InputStruct]:
     input_classes = {c.__name__: c for c in InputStruct.__subclasses__()}
 
     input_dict = {}
@@ -86,7 +89,9 @@ def load_template_file(template_name: str | Path):
     raise ValueError(message)
 
 
-def create_params_from_template(template_name: str | Path, **kwargs):
+def create_params_from_template(
+    template_name: str | Path | Sequence[str | Path], **kwargs
+):
     """
     Construct the required InputStruct instances for a run from a given template.
 
@@ -117,9 +122,16 @@ def create_params_from_template(template_name: str | Path, **kwargs):
         astro_options : AstroOptions
             Instance containing astrophysical flags and enums
     """
-    template = load_template_file(template_name)
+    if isinstance(template_name, str | Path):
+        templates = [template_name]
+    else:
+        templates = template_name
 
-    return _construct_param_objects(template, **kwargs)
+    full_template = {}
+    for tmpl in templates:
+        full_template |= load_template_file(tmpl)
+
+    return _construct_param_objects(full_template, **kwargs)
 
 
 def _get_inputs_as_dict(inputs: InputParameters, mode: TOMLMode = "full"):
