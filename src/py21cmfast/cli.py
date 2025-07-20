@@ -50,9 +50,9 @@ logging.basicConfig(
 )
 logger = logging.getLogger("py21cmfast")
 
-AVAILABLE_TEMPLATES: list[str] = [str(tmpl["name"]) for tmpl in list_templates()] + [
-    "defaults"
-]
+AVAILABLE_TEMPLATES: list[str] = [
+    str(alias) for tmpl in list_templates() for alias in tmpl["aliases"]
+] + ["defaults"]
 
 app = App()
 app.command(
@@ -265,7 +265,11 @@ def cfg_show(
     mode: TOMLMode = "full",
 ):
     """Show and describe an in-built template."""
-    template_desc = next(t for t in list_templates() if t["name"] == name)
+    template_desc = next(
+        t
+        for t in list_templates()
+        if name.upper() in (tt.upper() for tt in t["aliases"])
+    )
 
     inputs = InputParameters.from_template(name, random_seed=0)
     pretty_print_inputs(
