@@ -10,5 +10,6 @@ Z_HEAT_MAX = 20
 [MatterOptions]
 
 [AstroParams]
+R_BUBBLE_MAX = 16
 
 [AstroOptions]

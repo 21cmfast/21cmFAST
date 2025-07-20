@@ -1,6 +1,12 @@
 # Contains names, aliases and descriptions of all available native templates in 21cmfast
 
 [[templates]]
+name = "defaults"
+file = "defaults.toml"
+aliases = ["defaults", "default"]
+description = "All the default parameters of 21cmFAST."
+
+[[templates]]
 name = "simple"
 file = "simple.toml"
 aliases = ["simple"]
@@ -20,9 +26,9 @@ aliases = ["latest"]
 description = "Our latest fiducial run without discrete halos, includes recominations and spin temperature fluctuations"
 
 [[templates]]
-name = "mini"
-file = "mini.toml"
-aliases = ["mini"]
+name = "minihalos"
+file = "minihalos.toml"
+aliases = ["minihalos"]
 description = "A run including minihalos"
 
 [[templates]]
@@ -65,23 +71,23 @@ description = "integrals of the CHMF on the Eulerian (evolved) density grid, FFR
 [[templates]]
 name = "size-mini"
 file = "size-mini.toml"
-aliases = ["size-mini"]
+aliases = ["size-mini", "mini"]
 description = "Set the simulation to have a very small size (48 Mpc), useful for quick tests. Intended to be used on top of another template"
 
 [[templates]]
 name = "size-small"
-file = "size-mini.toml"
-aliases = ["size-mini"]
+file = "size-small.toml"
+aliases = ["size-small", "small"]
 description = "Set the simulation to have a small size (92 Mpc), useful for quick exploration. Intended to be used on top of another template"
 
 [[templates]]
 name = "size-medium"
-file = "size-mini.toml"
-aliases = ["size-mini"]
+file = "size-medium.toml"
+aliases = ["size-medium", "medium"]
 description = "Set the simulation to have a medium size (384 Mpc), useful for MCMC. Intended to be used on top of another template."
 
 [[templates]]
 name = "size-gpc"
-file = "size-mini.toml"
-aliases = ["size-mini"]
+file = "size-gpc.toml"
+aliases = ["size-gpc", "gpc", "large"]
 description = "Set the simulation to have a large size (~1 Gpc). Intended to be used on top of another template."

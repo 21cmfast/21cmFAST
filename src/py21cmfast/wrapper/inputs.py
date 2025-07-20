@@ -256,7 +256,7 @@ class InputStruct:
         fieldnames = [
             field.name
             for field in attrs.fields(cls)
-            if field.eq and field.default is not None
+            if field.eq  # and field.default is not None
         ]
         if set(fieldnames) != set(dct.keys()):
             missing_items = [
@@ -284,6 +284,9 @@ class InputStruct:
                 )
             dct = {k: v for k, v in dct.items() if k in fieldnames}
 
+        # Strip leading underscores from items, because attrs accepts non-underscore
+        # versions of attributes.
+        dct = {k.strip("_"): v for k, v in dct.items()}
         return cls.new(dct)
 
 
@@ -618,8 +621,8 @@ class SimulationOptions(InputStruct):
     """
 
     HII_DIM: int = field(default=200, converter=int, validator=validators.gt(0))
-    HIRES_TO_LOWRES_FACTOR: float = field(default=3, validator=validators.gt(1))
-    LOWRES_CELL_SIZE_MPC: float = field(default=1.5, validator=validators.gt(0))
+    _HIRES_TO_LOWRES_FACTOR: float = field(default=3, validator=validators.gt(1))
+    _LOWRES_CELL_SIZE_MPC: float = field(default=1.5, validator=validators.gt(0))
 
     _BOX_LEN: float = field(
         default=None,
@@ -696,6 +699,22 @@ class SimulationOptions(InputStruct):
             return self._BOX_LEN
         else:
             return int(self.HII_DIM * self.LOWRES_CELL_SIZE_MPC)
+
+    @property
+    def HIRES_TO_LOWRES_FACTOR(self) -> float:
+        """The downsampling factor from high to low-res."""
+        if self._DIM is not None:
+            return self._DIM / self.HII_DIM
+        else:
+            return self._HIRES_TO_LOWRES_FACTOR
+
+    @property
+    def LOWRES_CELL_SIZE_MPC(self) -> float:
+        """The cell size (in Mpc) of the low-res grids."""
+        if self._BOX_LEN is not None:
+            return self._BOX_LEN / self.HII_DIM
+        else:
+            return self._LOWRES_CELL_SIZE_MPC
 
     @NON_CUBIC_FACTOR.validator
     def _NON_CUBIC_FACTOR_validator(self, att, val):
@@ -1365,13 +1384,14 @@ class InputParameters:
     def _simulation_options_validator(self, att, val):
         # perform a very rudimentary check to see if we are underresolved and not using the linear approx
         if self.matter_options is not None and (
-            val.cell_size_hires < 1 * un.Mpc
+            val.cell_size_hires > 1 * un.Mpc
             and self.matter_options.PERTURB_ALGORITHM != "LINEAR"
         ):
             warnings.warn(
                 "Resolution is likely too low for accurate evolved density fields. "
-                "It Is recommended that you either increase the resolution "
-                "(DIM/BOX_LEN) or set the EVOLVE_DENSITY_LINEARLY flag to 1",
+                "It is recommended that you either increase the resolution "
+                "(DIM/BOX_LEN) or set the EVOLVE_DENSITY_LINEARLY flag to True. "
+                f"Got DIM={val.DIM}, BOX_LEN={val.BOX_LEN}, resolution={val.cell_size_hires} Mpc.",
                 stacklevel=2,
             )
 
@@ -1533,6 +1553,7 @@ class InputParameters:
         only_structs: bool = False,
         camel: bool = False,
         remove_base_cosmo: bool = True,
+        only_cstruct_params: bool = True,
     ) -> dict[str, dict[str, Any]]:
         """Convert the instance to a recursive dictionary."""
         dct = attrs.asdict(self, recurse=True)
@@ -1547,6 +1568,13 @@ class InputParameters:
                 if isinstance(getattr(self, k), InputStruct)
             }
 
+        if only_cstruct_params:
+            for k, v in dct.items():
+                kls = getattr(self, k)
+                if isinstance(kls, InputStruct):
+                    dct[k] = {kk: vv for kk, vv in v.items() if kk in kls.cdict} | {
+                        kk: getattr(kls, kk) for kk in kls.cdict if kk not in dct[k]
+                    }
         if camel:
             dct = {snake_to_camel(k): v for k, v in dct.items()}
 

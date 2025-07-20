@@ -314,6 +314,9 @@ def _read_inputs_v4(group: h5py.Group, safe: bool = True):
 
                 subgrp = group[k]
                 dct = dict(subgrp.attrs)
+                for kk, vv in dct.items():
+                    if isinstance(vv, str) and vv.lower() == "none":
+                        dct[kk] = None
                 kwargs[k] = kls.from_subdict(dct, safe=safe)
             elif k in group.attrs:
                 kwargs[k] = group.attrs[k]

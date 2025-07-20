@@ -11,6 +11,7 @@ desired parameters and altering as few as possible.
 import datetime
 import logging
 import warnings
+from collections import defaultdict
 from collections.abc import Sequence
 from pathlib import Path
 from typing import Any, Literal
@@ -127,15 +128,17 @@ def create_params_from_template(
     else:
         templates = template_name
 
-    full_template = {}
+    full_template = defaultdict(dict)
     for tmpl in templates:
-        full_template |= load_template_file(tmpl)
+        thist = load_template_file(tmpl)
+        for k, v in thist.items():
+            full_template[k] |= v
 
     return _construct_param_objects(full_template, **kwargs)
 
 
 def _get_inputs_as_dict(inputs: InputParameters, mode: TOMLMode = "full"):
-    all_inputs = inputs.asdict(only_structs=True, camel=True)
+    all_inputs = inputs.asdict(only_structs=True, camel=True, only_cstruct_params=True)
 
     if mode == "minimal":
         defaults = InputParameters(random_seed=0)

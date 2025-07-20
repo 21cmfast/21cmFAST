@@ -3,7 +3,7 @@
 import logging
 import uuid
 import warnings
-from dataclasses import dataclass, fields
+from dataclasses import dataclass, field, fields
 from pathlib import Path
 from typing import Annotated, Literal
 
@@ -90,13 +90,16 @@ class ParameterSelection:
     You can either specify a TOML file, or a template name.
     """
 
-    param_file: Annotated[cyctp.ExistingTomlPath, Parameter(group=_paramgroup)] = None
+    param_file: Annotated[
+        list[cyctp.ExistingTomlPath], Parameter(group=_paramgroup)
+    ] = None
     "Path to a TOML configuration file (can be generated with `21cmfast template create`)."
 
     template: Annotated[
-        Literal[*AVAILABLE_TEMPLATES],
-        Parameter(group=_paramgroup, alias=("--base-template")),
-    ] = "defaults"
+        list[Literal[*AVAILABLE_TEMPLATES]],
+        Parameter(group=_paramgroup, alias=("--base-template"), consume_multiple=True),
+    ] = field(default_factory=lambda: ["defaults"])
+
     "The name of a valid builtin template (see available with `21cmfast template avail`)."
 
 
@@ -193,17 +196,14 @@ def _get_inputs(
 
     seed = getattr(options, "seed", 42)
 
-    if pselect.param_file is not None:
-        inputs = InputParameters.from_template(pselect.param_file, random_seed=seed)
-    elif pselect.template == "defaults":
-        inputs = InputParameters(random_seed=seed)
-    else:
-        inputs = InputParameters.from_template(pselect.template, random_seed=seed)
+    inputs = InputParameters.from_template(
+        pselect.param_file or pselect.template, random_seed=seed
+    )
 
     # kwargs from params:
     kwargs = {}
-    for field in fields(Parameters):
-        this = getattr(params, field.name)
+    for _field in fields(Parameters):
+        this = getattr(params, _field.name)
         kwargs |= {
             name: val for name, val in attrs.asdict(this).items() if val is not None
         }
@@ -261,19 +261,27 @@ def pretty_print_inputs(
 
 @cfg.command(name="show")
 def cfg_show(
-    name: Annotated[Literal[*AVAILABLE_TEMPLATES], Parameter(accepts_keys=False)],
+    names: Annotated[
+        list[Literal[*AVAILABLE_TEMPLATES]], Parameter(accepts_keys=False)
+    ],
     mode: TOMLMode = "full",
 ):
     """Show and describe an in-built template."""
-    template_desc = next(
-        t
-        for t in list_templates()
-        if name.upper() in (tt.upper() for tt in t["aliases"])
-    )
+    template_desc = [
+        next(
+            f"[blue bold]{t['name']}[/]: {t['description']}"
+            for t in list_templates()
+            if name.upper() in (tt.upper() for tt in t["aliases"])
+        )
+        for name in names
+    ]
 
-    inputs = InputParameters.from_template(name, random_seed=0)
+    inputs = InputParameters.from_template(names, random_seed=0)
     pretty_print_inputs(
-        inputs=inputs, name=name, description=template_desc["description"], mode=mode
+        inputs=inputs,
+        name=" + ".join(names),
+        description="\n".join(template_desc),
+        mode=mode,
     )
 
 
@@ -330,9 +338,17 @@ def _run_setup(
     if zmin is not None and (inputs.evolution_required or force_nodez):
         inputs = inputs.with_logspaced_redshifts(zmin=zmin)
 
-    if modified or options.param_selection.param_file is None:
-        if not modified:
-            config_file = options.cachedir / f"{options.param_selection.template}.toml"
+    if (
+        modified
+        or (
+            options.param_selection.param_file is None
+            or len(options.param_selection.param_file) > 1
+        )
+        or (len(options.param_selection.template) > 1)
+    ):
+        if not modified and options.param_selection.param_file is None:
+            name = "_and_".join(options.param_selection.template)
+            config_file = options.cachedir / f"{name}.toml"
         elif options.outcfg is not None:
             config_file = options.outcfg
         else:
@@ -342,12 +358,13 @@ def _run_setup(
         cns.print(
             f":duck: [spring_green3]Wrote full configuration to [purple]{config_file}"
         )
+        name = config_file.name
     else:
-        config_file = options.param_selection.param_file
+        name = " + ".join(cfg.name for cfg in options.param_selection.param_file)
 
     pretty_print_inputs(
         inputs=inputs,
-        name=config_file.name,
+        name=name,
         description="The minimal set of non-default parameters of your model",
         mode="minimal",
     )
@@ -600,28 +617,25 @@ def pr_feature(
     )
 
     cns.print("Plotting lightcone slices...")
-    for field in ["brightness_temp"]:
-        fig, ax = plt.subplots(3, 1, sharex=True, sharey=True)
+    fig, ax = plt.subplots(3, 1, sharex=True, sharey=True)
 
-        vmin = -150
-        vmax = 30
+    vmin = -150
+    vmax = 30
 
-        plotting.lightcone_sliceplot(
-            lc_default, ax=ax[0], fig=fig, vmin=vmin, vmax=vmax
-        )
-        ax[0].set_title("Default")
+    plotting.lightcone_sliceplot(lc_default, ax=ax[0], fig=fig, vmin=vmin, vmax=vmax)
+    ax[0].set_title("Default")
 
-        plotting.lightcone_sliceplot(
-            lc_new, ax=ax[1], fig=fig, cbar=False, vmin=vmin, vmax=vmax
-        )
-        ax[1].set_title("New")
+    plotting.lightcone_sliceplot(
+        lc_new, ax=ax[1], fig=fig, cbar=False, vmin=vmin, vmax=vmax
+    )
+    ax[1].set_title("New")
 
-        plotting.lightcone_sliceplot(
-            lc_default, lightcone2=lc_new, cmap="bwr", ax=ax[2], fig=fig
-        )
-        ax[2].set_title("Difference")
+    plotting.lightcone_sliceplot(
+        lc_default, lightcone2=lc_new, cmap="bwr", ax=ax[2], fig=fig
+    )
+    ax[2].set_title("Difference")
 
-        plt.savefig(f"{outdir}/pr_feature_lightcone_2d_{field}.pdf")
+    plt.savefig(f"{outdir}/pr_feature_lightcone_2d_{field}.pdf")
 
     def rms(x, axis=None):
         return np.sqrt(np.mean(x**2, axis=axis))
