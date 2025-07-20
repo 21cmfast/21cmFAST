@@ -38,14 +38,14 @@ def test_lightcone_quantities(
     )
 
     with pytest.raises(ValueError, match="You asked for"):
-        _, _, _, lc = p21c.run_lightcone(
+        lc = p21c.run_lightcone(
             lightconer=lcn,
             initial_conditions=ic,
             inputs=default_input_struct_lc,
             global_quantities=("cumulative_recombinations"),
             cache=cache,
         )
-    _, _, _, lc = p21c.run_lightcone(
+    lc = p21c.run_lightcone(
         lightconer=lcn,
         initial_conditions=ic,
         inputs=default_input_struct_lc,
@@ -132,7 +132,7 @@ def test_lc_with_lightcone_filename(
     ic, rectlcn, default_input_struct_lc, tmpdirec, cache
 ):
     fname = tmpdirec / "lightcone.h5"
-    _, _, _, lc = p21c.run_lightcone(
+    lc = p21c.run_lightcone(
         lightconer=rectlcn,
         initial_conditions=ic,
         inputs=default_input_struct_lc,
@@ -146,7 +146,7 @@ def test_lc_with_lightcone_filename(
     del lc_loaded
 
     # This one should NOT run anything.
-    _, _, _, lc2 = p21c.run_lightcone(
+    lc2 = p21c.run_lightcone(
         lightconer=rectlcn,
         initial_conditions=ic,
         inputs=default_input_struct_lc,

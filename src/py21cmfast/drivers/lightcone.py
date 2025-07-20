@@ -1,6 +1,5 @@
 """Module containing a driver function for creating lightcones."""
 
-import contextlib
 import logging
 import warnings
 from collections import deque
@@ -18,7 +17,7 @@ from astropy.cosmology import z_at_value
 from .. import __version__
 from ..c_21cmfast import lib
 from ..io import h5
-from ..io.caching import CacheConfig, OutputCache, RunCache
+from ..io.caching import CacheConfig, OutputCache
 from ..lightconers import Lightconer, RectilinearLightconer
 from ..rsds import compute_rsds
 from ..wrapper.inputs import InputParameters
@@ -31,15 +30,11 @@ from ..wrapper.outputs import (
     PerturbHaloField,
     TsBox,
 )
-from ..wrapper.photoncons import _get_photon_nonconservation_data, setup_photon_cons
-from . import exhaust
-from . import single_field as sf
 from ._param_config import high_level_func
 from .coeval import (
     _obtain_starting_point_for_scrolling,
     _redshift_loop_generator,
     _setup_ics_and_pfs_for_scrolling,
-    evolve_perturb_halos,
 )
 
 logger = logging.getLogger(__name__)
@@ -640,8 +635,8 @@ def generate_lightcone(
     )
 
 
-def run_lightcone(**kwargs):  # noqa: D103
-    return exhaust(generate_lightcone(**kwargs))
+def run_lightcone(**kwargs) -> LightCone:  # noqa: D103
+    return deque(generate_lightcone(**kwargs), maxlen=1)[0][-1]
 
 
 run_lightcone.__doc__ = generate_lightcone.__doc__

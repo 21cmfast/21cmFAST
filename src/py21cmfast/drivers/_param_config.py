@@ -9,9 +9,7 @@ from collections.abc import Sequence
 from typing import Any, get_args
 
 import attrs
-import numpy as np
 
-from ..c_21cmfast import ffi, lib
 from ..io import h5
 from ..io.caching import OutputCache
 from ..wrapper.cfuncs import broadcast_input_struct, construct_fftw_wisdoms

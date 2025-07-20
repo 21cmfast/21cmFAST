@@ -9,7 +9,6 @@ from typing import Any
 import attrs
 from bidict import bidict
 
-from .. import __version__
 from ..c_21cmfast import ffi
 from .arrays import Array
 

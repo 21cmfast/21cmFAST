@@ -3,7 +3,6 @@
 import re
 from dataclasses import dataclass
 
-import attr
 import numpy as np
 import pytest
 from astropy import units as un
@@ -12,10 +11,8 @@ from astropy_healpix import HEALPix
 from scipy.spatial.transform import Rotation
 
 from py21cmfast import (
-    AstroOptions,
     CosmoParams,
     InputParameters,
-    MatterOptions,
     SimulationOptions,
 )
 from py21cmfast import lightconers as lcn

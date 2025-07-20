@@ -99,7 +99,6 @@ def setup_and_teardown_package(tmpdirec, request):
 
     log_level = request.config.getoption("--log-level-21") or logging.INFO
     logging.getLogger("py21cmfast").setLevel(log_level)
-    logging.getLogger("21cmFAST").setLevel(log_level)
 
     yield
 
@@ -294,7 +293,7 @@ def rectlcn(
     default_simulation_options,
     default_cosmo_params,
 ) -> RectilinearLightconer:
-    return RectilinearLightconer.with_equal_cdist_slices(
+    return RectilinearLightconer.between_redshifts(
         min_redshift=lightcone_min_redshift,
         max_redshift=max_redshift,
         resolution=default_simulation_options.cell_size,
@@ -304,11 +303,10 @@ def rectlcn(
 
 @pytest.fixture(scope="session")
 def lc(rectlcn, ic, cache, default_input_struct_lc):
-    *_, lc = run_lightcone(
+    return run_lightcone(
         lightconer=rectlcn,
         initial_conditions=ic,
         inputs=default_input_struct_lc,
         write=CacheConfig(),
         cache=cache,
     )
-    return lc
