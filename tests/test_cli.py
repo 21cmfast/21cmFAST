@@ -76,6 +76,16 @@ class TestTemplateCreate:
         assert out.exists()
 
 
+class TestTemplateShow:
+    """Tests of the `template show` command."""
+
+    def test_show_alias(self, capsys):
+        """Test that showing an alias works."""
+        app("template show EOS21")
+        output = capsys.readouterr().out
+        assert "from Munoz" in output
+
+
 class TestRunSetup:
     """Tests of the _run_setup function."""
 
