@@ -164,7 +164,7 @@ class TestRunICS:
         outfile = Path(output.split("conditions to ")[-1].replace("\n", ""))
         assert outfile.exists()
         ics = read_output_struct(outfile)
-        assert ics.simulation_options.HII_DIM == 25
+        assert ics.simulation_options.HII_DIM == 32
 
     def test_warn_formatting(self, tmp_path, capsys):
         """Test that warnings are printed properly."""
