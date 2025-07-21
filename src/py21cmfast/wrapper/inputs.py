@@ -1554,6 +1554,7 @@ class InputParameters:
         camel: bool = False,
         remove_base_cosmo: bool = True,
         only_cstruct_params: bool = True,
+        use_aliases: bool = True,
     ) -> dict[str, dict[str, Any]]:
         """Convert the instance to a recursive dictionary."""
         dct = attrs.asdict(self, recurse=True)
@@ -1568,13 +1569,28 @@ class InputParameters:
                 if isinstance(getattr(self, k), InputStruct)
             }
 
+        if use_aliases:
+            # Change keys to aliases instead of attribute names if desired.
+            # i.e. change _DIM to DIM, which is actually what is needed to
+            # instantiate a class.
+            for k, v in dct.items():
+                attribute = getattr(self, k)
+                if isinstance(attribute, InputStruct):
+                    fields = attrs.fields_dict(attribute.__class__)
+                    dct[k] = {fields[kk].alias: vv for kk, vv in v.items()}
+
         if only_cstruct_params:
             for k, v in dct.items():
-                kls = getattr(self, k)
-                if isinstance(kls, InputStruct):
-                    dct[k] = {kk: vv for kk, vv in v.items() if kk in kls.cdict} | {
-                        kk: getattr(kls, kk) for kk in kls.cdict if kk not in dct[k]
+                attribute = getattr(self, k)
+                if isinstance(attribute, InputStruct):
+                    dct[k] = {
+                        kk: vv for kk, vv in v.items() if kk in attribute.cdict
+                    } | {
+                        kk: getattr(attribute, kk)
+                        for kk in attribute.cdict
+                        if kk not in dct[k]
                     }
+
         if camel:
             dct = {snake_to_camel(k): v for k, v in dct.items()}
 

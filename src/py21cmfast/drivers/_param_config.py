@@ -8,8 +8,7 @@ import logging
 from collections.abc import Sequence
 from typing import Any, get_args
 
-import attrs
-
+from ..input_serialization import convert_inputs_to_dict, get_input_params_difference
 from ..io import h5
 from ..io.caching import OutputCache
 from ..wrapper.cfuncs import broadcast_input_struct, construct_fftw_wisdoms
@@ -59,27 +58,9 @@ def _get_incompatible_params(
     inputs1: InputParameters, inputs2: InputParameters
 ) -> dict[str, Any]:
     """Return a dict of parameters that differ between two InputParameters objects."""
-    incompatible = {}
-    d1 = attrs.asdict(inputs1)  # recursive
-    d2 = attrs.asdict(inputs2)  # recursive
-
-    for name, struct in d1.items():
-        struct2 = d2[name]
-
-        if isinstance(struct, dict):
-            incompatible[name] = {}
-
-            for key, val in struct.items():
-                val2 = struct2[key]
-                if val2 != val:
-                    incompatible[name][key] = (val, val2)
-        elif struct != struct2:
-            incompatible[name] = (struct, struct2)
-
-    # Remove empty sub-dicts (i.e. InputStructs that totally match)
-    return {
-        k: v for k, v in incompatible.items() if not isinstance(v, dict) or len(v) > 0
-    }
+    d1 = convert_inputs_to_dict(inputs1, only_structs=False, camel=False)
+    d2 = convert_inputs_to_dict(inputs2, only_structs=False, camel=False)
+    return get_input_params_difference(d1, d2)
 
 
 def _get_incompatible_param_diffstring(

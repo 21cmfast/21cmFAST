@@ -10,17 +10,15 @@ desired parameters and altering as few as possible.
 
 import datetime
 import logging
-import warnings
 from collections import defaultdict
 from collections.abc import Sequence
 from pathlib import Path
 from typing import Any, Literal
 
-import attrs
 import tomlkit
 
-from .wrapper._utils import camel_to_snake
-from .wrapper.inputs import InputParameters, InputStruct
+from .input_serialization import deserialize_inputs, prepare_inputs_for_serialization
+from .wrapper.inputs import InputParameters
 
 TEMPLATE_PATH = Path(__file__).parent / "templates/"
 MANIFEST = TEMPLATE_PATH / "manifest.toml"
@@ -28,28 +26,6 @@ MANIFEST = TEMPLATE_PATH / "manifest.toml"
 logger = logging.getLogger(__name__)
 
 TOMLMode = Literal["full", "minimal"]
-
-
-def _construct_param_objects(
-    template_dict: dict[str, Any], **kwargs
-) -> dict[str, InputStruct]:
-    input_classes = {c.__name__: c for c in InputStruct.__subclasses__()}
-
-    input_dict = {}
-    for k, c in input_classes.items():
-        fieldnames = [field.name for field in attrs.fields(c)]
-        kw_dict = {kk: kwargs.pop(kk) for kk in fieldnames if kk in kwargs}
-        arg_dict = {**template_dict[k], **kw_dict}
-        input_struct = c.new(arg_dict)
-        input_dict[camel_to_snake(k)] = input_struct
-
-    if kwargs:
-        warnings.warn(
-            f"Excess arguments to `create_params_from_template` will be ignored: {kwargs}",
-            stacklevel=2,
-        )
-
-    return input_dict
 
 
 def list_templates() -> list[dict]:
@@ -92,7 +68,7 @@ def load_template_file(template_name: str | Path):
 
 def create_params_from_template(
     template_name: str | Path | Sequence[str | Path], **kwargs
-):
+) -> dict[str, dict[str, Any]]:
     """
     Construct the required InputStruct instances for a run from a given template.
 
@@ -134,24 +110,7 @@ def create_params_from_template(
         for k, v in thist.items():
             full_template[k] |= v
 
-    return _construct_param_objects(full_template, **kwargs)
-
-
-def _get_inputs_as_dict(inputs: InputParameters, mode: TOMLMode = "full"):
-    all_inputs = inputs.asdict(only_structs=True, camel=True, only_cstruct_params=True)
-
-    if mode == "minimal":
-        defaults = InputParameters(random_seed=0)
-        default_dct = defaults.asdict(only_structs=True, camel=True)
-
-        # Get the minimal set of params (non-default params)
-        all_inputs = {
-            structname: {
-                k: v for k, v in params.items() if default_dct[structname][k] != v
-            }
-            for structname, params in all_inputs.items()
-        }
-    return all_inputs
+    return deserialize_inputs(full_template, **kwargs)
 
 
 def write_template(
@@ -166,7 +125,7 @@ def write_template(
     template_file
         The path of the output.
     """
-    inputs_dct = _get_inputs_as_dict(inputs, mode=mode)
+    inputs_dct = prepare_inputs_for_serialization(inputs, mode=mode)
 
     template_file = Path(template_file)
     doc = tomlkit.document()

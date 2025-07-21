@@ -28,7 +28,7 @@ description = "Our latest fiducial run without discrete halos, includes recomina
 [[templates]]
 name = "minihalos"
 file = "minihalos.toml"
-aliases = ["minihalos"]
+aliases = ["minihalos", "mini"]
 description = "A run including minihalos"
 
 [[templates]]
@@ -69,9 +69,9 @@ description = "integrals of the CHMF on the Eulerian (evolved) density grid, FFR
 
 
 [[templates]]
-name = "size-mini"
-file = "size-mini.toml"
-aliases = ["size-mini", "mini"]
+name = "size-tiny"
+file = "size-tiny.toml"
+aliases = ["size-tiny", "tiny"]
 description = "Set the simulation to have a very small size (48 Mpc), useful for quick tests. Intended to be used on top of another template"
 
 [[templates]]

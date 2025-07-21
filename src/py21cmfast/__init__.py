@@ -1,9 +1,6 @@
 """The py21cmfast package."""
 
-try:
-    from importlib.metadata import PackageNotFoundError, version
-except ImportError:
-    from importlib_metadata import PackageNotFoundError, version
+from importlib.metadata import PackageNotFoundError, version
 
 try:
     from ._version import version as __version__
@@ -88,7 +85,6 @@ from .drivers.single_field import (
 from .io.caching import CacheConfig, OutputCache, RunCache
 from .lightconers import AngularLightconer, RectilinearLightconer
 from .run_templates import create_params_from_template
-from .utils import get_all_fieldnames
 from .wrapper.cfuncs import (
     compute_luminosity_function,
     compute_tau,

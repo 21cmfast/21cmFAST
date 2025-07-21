@@ -26,15 +26,16 @@ from .drivers import coeval as cvlmodule
 from .drivers.coeval import generate_coeval
 from .drivers.lightcone import run_lightcone
 from .drivers.single_field import compute_initial_conditions
+from .input_serialization import convert_inputs_to_dict
 from .io.caching import CacheConfig, OutputCache, RunCache
 from .lightconers import RectilinearLightconer
-from .run_templates import TOMLMode, _get_inputs_as_dict, list_templates, write_template
-from .wrapper._utils import snake_to_camel
+from .run_templates import TOMLMode, list_templates, write_template
 from .wrapper.inputs import (
     AstroOptions,
     AstroParams,
     CosmoParams,
     InputParameters,
+    InputStruct,
     MatterOptions,
     SimulationOptions,
 )
@@ -146,11 +147,11 @@ cache only boxes that are required more than one step away
     "Whether to display a progress bar as the simulation runs."
 
 
-def _param_cls_factory(cls):
+def _param_cls_factory(cls: type[InputStruct]) -> type:
     out = attrs.make_class(
         cls.__name__,
         {
-            fld.name: attrs.field(default=None, type=fld.type)
+            fld.alias: attrs.field(default=None, type=fld.type)
             for fld in attrs.fields(cls)
         },
         kw_only=True,
@@ -196,11 +197,7 @@ def _get_inputs(
 
     seed = getattr(options, "seed", 42)
 
-    inputs = InputParameters.from_template(
-        pselect.param_file or pselect.template, random_seed=seed
-    )
-
-    # kwargs from params:
+    # Turn our dummy Parameters into dictionaries, ignoring any unset values (None)
     kwargs = {}
     for _field in fields(Parameters):
         this = getattr(params, _field.name)
@@ -208,9 +205,20 @@ def _get_inputs(
             name: val for name, val in attrs.asdict(this).items() if val is not None
         }
 
-    new = inputs.evolve_input_structs(**kwargs)
-    modified = new != inputs
-    return new, modified
+    inputs = InputParameters.from_template(
+        pselect.param_file or pselect.template, random_seed=seed, **kwargs
+    )
+
+    modified = False
+    if kwargs:
+        # Other functions need to know if we modified the template/file params at all,
+        # so we make a version without the changes to compare.
+        without_kw = InputParameters.from_template(
+            pselect.param_file or pselect.template, random_seed=seed
+        )
+        modified = without_kw != inputs
+
+    return inputs, modified
 
 
 @cfg.command(name="avail")
@@ -235,7 +243,7 @@ def cfg_avail():
 def pretty_print_inputs(
     inputs: InputParameters, name: str, description: str, mode: TOMLMode = "full"
 ):
-    inputs_dct = _get_inputs_as_dict(inputs, mode)
+    inputs_dct = convert_inputs_to_dict(inputs, mode)
 
     @group()
     def get_panel_elements():
@@ -243,7 +251,7 @@ def pretty_print_inputs(
 
         for structname, params in inputs_dct.items():
             if params:
-                yield Rule(f"[bold purple]{snake_to_camel(structname)}")
+                yield Rule(f"[bold purple]{structname}")
 
                 keys = [f"[bold]{k}[/bold]:" for k in params]
                 vals = [
@@ -340,17 +348,16 @@ def _run_setup(
 
     if (
         modified
-        or (
-            options.param_selection.param_file is None
-            or len(options.param_selection.param_file) > 1
-        )
+        or options.param_selection.param_file is None
+        or len(options.param_selection.param_file) > 1
         or (len(options.param_selection.template) > 1)
+        or options.outcfg is not None
     ):
-        if not modified and options.param_selection.param_file is None:
+        if options.outcfg is not None:
+            config_file = options.outcfg
+        elif not modified and options.param_selection.param_file is None:
             name = "_and_".join(options.param_selection.template)
             config_file = options.cachedir / f"{name}.toml"
-        elif options.outcfg is not None:
-            config_file = options.outcfg
         else:
             config_file = options.cachedir / f"config-{uuid.uuid4().hex[:6]}.toml"
 
@@ -635,7 +642,7 @@ def pr_feature(
     )
     ax[2].set_title("Difference")
 
-    plt.savefig(f"{outdir}/pr_feature_lightcone_2d_{field}.pdf")
+    plt.savefig(f"{outdir}/pr_feature_lightcone_2d_brightness_temp.pdf")
 
     def rms(x, axis=None):
         return np.sqrt(np.mean(x**2, axis=axis))
