@@ -604,8 +604,7 @@ void sum_halos_onto_grid(InitialConditions *ini_boxes, TsBox *previous_spin_temp
 
             if (i_cell >= HII_TOT_NUM_PIXELS || i_cell < 0 || x < 0 || y < 0 || z < 0 ||
                 x >= simulation_options_global->HII_DIM ||
-                y >= simulation_options_global->HII_DIM ||
-                z >= simulation_options_global->HII_DIM) {
+                y >= simulation_options_global->HII_DIM || z >= HII_D_PARA) {
                 LOG_ERROR("Halo %llu (%d %d %d) out of bounds (%llu)", i_halo, x, y, z, i_cell);
                 LOG_ERROR("Halo Position (%f %f %f) Box Length %.2f",
                           halos->halo_coords[0 + 3 * i_halo], halos->halo_coords[1 + 3 * i_halo],

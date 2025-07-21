@@ -595,6 +595,7 @@ def go(
             sharey=True,
             gridspec_kw={"hspace": 0.1, "wspace": 0.1},
             layout="constrained",
+            squeeze=False,
         )
 
         bt_lc_fig, bt_lc_ax = plt.subplots(
@@ -605,6 +606,7 @@ def go(
             sharey=True,
             gridspec_kw={"hspace": 0.1, "wspace": 0.1},
             layout="constrained",
+            squeeze=False,
         )
 
         for i, name in enumerate(names):
@@ -633,7 +635,7 @@ def go(
                         plotting.coeval_sliceplot(coeval, kind=field, fig=fig, ax=ax[j])
                         ax[j].set_title(field)
                     else:
-                        ax[j].off()
+                        ax[j].set_axis_off()
 
                 fig.savefig(f"integration-test-plots/coeval-sliceplots-{name}.pdf")
                 plt.close(fig)
@@ -669,7 +671,7 @@ def go(
                         plotting.lightcone_sliceplot(lc, kind=field, fig=fig, ax=ax[j])
                         ax[j].set_title(field)
                     else:
-                        ax[j].off()
+                        ax[j].set_axis_off()
 
                 fig.savefig(f"integration-test-plots/lightcone-sliceplots-{name}.pdf")
                 plt.close(fig)
