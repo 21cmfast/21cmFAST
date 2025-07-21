@@ -372,7 +372,7 @@ void setup_first_z_prevbox(IonizedBox *previous_ionize_box, PerturbedField *prev
     if (astro_options_global->USE_MINI_HALOS) {
         previous_ionize_box->mean_f_coll = 0.0;
         previous_ionize_box->mean_f_coll_MINI = 0.0;
-#pragma omp parallel private(ct) num_threads(simulation_options_global->N_THREADS)
+#pragma omp parallel private(ct) num_threads(simulation_options_global -> N_THREADS)
         {
 #pragma omp for
             for (ct = 0; ct < HII_TOT_NUM_PIXELS; ct++) {
@@ -512,7 +512,7 @@ double set_fully_neutral_box(IonizedBox *box, TsBox *spin_temp, PerturbedField *
     double global_xH = 0.;
     unsigned long long int ct;
     if (astro_options_global->USE_TS_FLUCT) {
-#pragma omp parallel private(ct) num_threads(simulation_options_global->N_THREADS)
+#pragma omp parallel private(ct) num_threads(simulation_options_global -> N_THREADS)
         {
 #pragma omp for reduction(+ : global_xH)
             for (ct = 0; ct < HII_TOT_NUM_PIXELS; ct++) {
@@ -525,7 +525,7 @@ double set_fully_neutral_box(IonizedBox *box, TsBox *spin_temp, PerturbedField *
         global_xH /= (double)HII_TOT_NUM_PIXELS;
     } else {
         global_xH = 1. - xion_RECFAST(consts->redshift, 0);
-#pragma omp parallel private(ct) num_threads(simulation_options_global->N_THREADS)
+#pragma omp parallel private(ct) num_threads(simulation_options_global -> N_THREADS)
         {
 #pragma omp for
             for (ct = 0; ct < HII_TOT_NUM_PIXELS; ct++) {
@@ -1183,7 +1183,7 @@ void find_ionised_regions(IonizedBox *box, IonizedBox *previous_ionize_box,
 void set_ionized_temperatures(IonizedBox *box, PerturbedField *perturbed_field, TsBox *spin_temp,
                               struct IonBoxConstants *consts) {
     int x, y, z;
-#pragma omp parallel private(x, y, z) num_threads(simulation_options_global->N_THREADS)
+#pragma omp parallel private(x, y, z) num_threads(simulation_options_global -> N_THREADS)
     {
         float thistk;
 #pragma omp for
