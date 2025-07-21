@@ -3,7 +3,7 @@ source_files = [
   '_cfg.py',
   '_logging.py',
   'cli.py',
-  'lightcones.py',
+  'lightconers.py',
   'plotting.py',
   'run_templates.py',
   'utils.py',

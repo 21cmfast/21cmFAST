@@ -26,7 +26,6 @@ source_files = files([
   'recombinations.c',
   'rng.c',
   'scaling_relations.c',
-  'subcell_rsds.c',
   'thermochem.c',
   'MapMass_cpu.c',
   '_wrapper.cpp',
