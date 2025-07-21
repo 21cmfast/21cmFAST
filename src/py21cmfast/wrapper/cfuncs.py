@@ -771,8 +771,7 @@ def sample_halos_from_conditions(
 
     n_cond = cond_array.size
     # all coordinates zero
-    crd_in = np.zeros((n_cond, 3)).astype("i4")
-
+    crd_in = np.zeros((n_cond, 3)).astype("f4")
     cond_array = cond_array.astype("f4")
     nhalo_out = np.zeros(1).astype("i4")
     N_out = np.zeros(n_cond).astype("i4")

@@ -18,7 +18,7 @@ from py21cmfast import (
 )
 from py21cmfast.drivers.lightcone import AngularLightcone
 from py21cmfast.io import h5
-from py21cmfast.lightcones import AngularLightconer
+from py21cmfast.lightconers import AngularLightconer
 
 
 @pytest.fixture(scope="module")
@@ -38,21 +38,19 @@ def ang_lightcone(ic, lc, default_input_struct_lc, default_astro_options, cache)
         match_at_z=lc.lightcone_redshifts.min(),
         max_redshift=lc.lightcone_redshifts.max(),
         simulation_options=ic.simulation_options,
-        get_los_velocity=True,
     )
 
-    iz, z, coev, anglc = run_lightcone(
+    return run_lightcone(
         lightconer=lcn,
         initial_conditions=ic,
         write=True,
         inputs=default_input_struct_lc.clone(
             astro_options=default_astro_options.clone(
-                APPLY_RSDS=False,
+                APPLY_RSDS=True,
             )
         ),
         cache=cache,
     )
-    return anglc
 
 
 def test_read_bad_file_lc(test_direc: Path, lc: LightCone):

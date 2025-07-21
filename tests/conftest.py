@@ -24,7 +24,7 @@ from py21cmfast import (
     run_lightcone,
 )
 from py21cmfast.io.caching import CacheConfig
-from py21cmfast.lightcones import RectilinearLightconer
+from py21cmfast.lightconers import RectilinearLightconer
 
 
 def pytest_addoption(parser):
@@ -94,15 +94,11 @@ def setup_and_teardown_package(tmpdirec, request):
     # Set default global parameters for all tests
     # ------ #
 
-    # Set default config parameters for all tests.
-    config["regenerate"] = True
-    config["write"] = False
     # we run small boxes often here, and R_max is often large, so we ignore this error
     config["ignore_R_BUBBLE_MAX_error"] = True
 
     log_level = request.config.getoption("--log-level-21") or logging.INFO
     logging.getLogger("py21cmfast").setLevel(log_level)
-    logging.getLogger("21cmFAST").setLevel(log_level)
 
     yield
 
@@ -297,7 +293,7 @@ def rectlcn(
     default_simulation_options,
     default_cosmo_params,
 ) -> RectilinearLightconer:
-    return RectilinearLightconer.with_equal_cdist_slices(
+    return RectilinearLightconer.between_redshifts(
         min_redshift=lightcone_min_redshift,
         max_redshift=max_redshift,
         resolution=default_simulation_options.cell_size,
@@ -307,11 +303,10 @@ def rectlcn(
 
 @pytest.fixture(scope="session")
 def lc(rectlcn, ic, cache, default_input_struct_lc):
-    *_, lc = run_lightcone(
+    return run_lightcone(
         lightconer=rectlcn,
         initial_conditions=ic,
         inputs=default_input_struct_lc,
         write=CacheConfig(),
         cache=cache,
     )
-    return lc

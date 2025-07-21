@@ -3,7 +3,6 @@
 import re
 from dataclasses import dataclass
 
-import attr
 import numpy as np
 import pytest
 from astropy import units as un
@@ -12,22 +11,16 @@ from astropy_healpix import HEALPix
 from scipy.spatial.transform import Rotation
 
 from py21cmfast import (
-    AstroOptions,
-    BrightnessTemp,
-    Coeval,
     CosmoParams,
-    InitialConditions,
-    IonizedBox,
-    MatterOptions,
-    PerturbedField,
+    InputParameters,
     SimulationOptions,
 )
-from py21cmfast import lightcones as lcn
+from py21cmfast import lightconers as lcn
 
 
 @pytest.fixture(scope="module")
-def equal_cdist():
-    return lcn.RectilinearLightconer.with_equal_cdist_slices(
+def rect_lcner():
+    return lcn.RectilinearLightconer.between_redshifts(
         min_redshift=6.0,
         max_redshift=7.0,
         resolution=2.0 * un.Mpc,  # Mpc
@@ -36,34 +29,15 @@ def equal_cdist():
 
 
 @pytest.fixture(scope="module")
-def equal_z():
-    return lcn.RectilinearLightconer.with_equal_redshift_slices(
-        min_redshift=6.0,
-        max_redshift=7.0,
-        resolution=2 * un.Mpc,
-        quantities=("brightness_temp",),
-    )
-
-
-@pytest.fixture(scope="module")
-def equal_z_angle():
+def ang_lcner():
     hp = HEALPix(nside=4)
     lon, lat = hp.healpix_to_lonlat(np.arange(hp.npix))
-    return lcn.AngularLightconer.with_equal_redshift_slices(
+    return lcn.AngularLightconer.between_redshifts(
         latitude=lat.radian,
         longitude=lon.radian,
         min_redshift=6.0,
         max_redshift=7.0,
         resolution=2 * un.Mpc,
-        quantities=("brightness_temp",),
-        get_los_velocity=True,
-    )
-
-
-@pytest.fixture(scope="module")
-def freqbased(equal_cdist):
-    return lcn.RectilinearLightconer.from_frequencies(
-        freqs=1420.4 * un.MHz / (1 + equal_cdist.lc_redshifts),
         quantities=("brightness_temp",),
     )
 
@@ -90,12 +64,12 @@ def get_uniform_coeval(redshift, fill=1.0, BOX_LEN=100, HII_DIM=50):
 
 
 def test_equality(
-    equal_cdist: lcn.RectilinearLightconer, freqbased: lcn.RectilinearLightconer
+    rect_lcner: lcn.RectilinearLightconer,
 ):
-    assert equal_cdist == freqbased
+    assert rect_lcner == rect_lcner
 
 
-@pytest.mark.parametrize("lc", ["equal_z", "equal_z_angle"])
+@pytest.mark.parametrize("lc", ["rect_lcner", "ang_lcner"])
 def test_uniform_coevals(request, lc):
     """Test that uniform boxes interpolate the way we want."""
     lc = request.getfixturevalue(lc)
@@ -109,7 +83,7 @@ def test_uniform_coevals(request, lc):
     assert np.all(out[..., 0] == 0)
 
 
-def test_incompatible_coevals(equal_cdist):
+def test_incompatible_coevals(rect_lcner):
     z6 = get_uniform_coeval(redshift=6.0, fill=0)
     z7 = get_uniform_coeval(redshift=7.0, fill=1.0)
 
@@ -118,7 +92,7 @@ def test_incompatible_coevals(equal_cdist):
     z7.cosmo_params = z7.cosmo_params.clone(SIGMA_8=2 * orig)
 
     with pytest.raises(ValueError, match="c1 and c2 must have the same cosmo"):
-        next(equal_cdist.make_lightcone_slices(z6, z7))
+        next(rect_lcner.make_lightcone_slices(z6, z7))
 
     z7.cosmo_params = z7.cosmo_params.clone(SIGMA_8=orig)
 
@@ -130,38 +104,38 @@ def test_incompatible_coevals(equal_cdist):
     with pytest.raises(
         ValueError, match="c1 and c2 must have the same user parameters"
     ):
-        next(equal_cdist.make_lightcone_slices(z6, z7))
+        next(rect_lcner.make_lightcone_slices(z6, z7))
 
 
-def test_coeval_redshifts_outside_box(equal_cdist):
-    z0 = equal_cdist.lc_redshifts[0] - 3
-    z1 = equal_cdist.lc_redshifts[0] - 1
+def test_coeval_redshifts_outside_box(rect_lcner):
+    z0 = rect_lcner.lc_redshifts[0] - 3
+    z1 = rect_lcner.lc_redshifts[0] - 1
 
     z6 = get_uniform_coeval(redshift=z0, fill=0)
     z7 = get_uniform_coeval(redshift=z1, fill=1.0)
 
-    q, idx, out = next(equal_cdist.make_lightcone_slices(z6, z7))
+    q, idx, out = next(rect_lcner.make_lightcone_slices(z6, z7))
     assert q is None
     assert len(idx) == 0
     assert out is None
 
 
-def test_bad_coeval_sizes_for_redshift_interp(equal_cdist):
+def test_bad_coeval_sizes_for_redshift_interp(rect_lcner):
     c1 = np.zeros((10, 10, 10))
     c2 = np.zeros((20, 20, 20))
 
     with pytest.raises(
         ValueError, match="coeval_a and coeval_b must have the same shape"
     ):
-        equal_cdist.redshift_interpolation(3.0, c1, c2, 1, 4)
+        rect_lcner.redshift_interpolation(3.0, c1, c2, 1, 4)
 
 
-def test_bad_kind_for_redshift_interp(equal_cdist):
+def test_bad_kind_for_redshift_interp(rect_lcner):
     c1 = np.zeros((10, 10, 10))
     c2 = np.zeros((10, 10, 10))
 
     with pytest.raises(ValueError, match="kind must be 'mean' or 'mean_max'"):
-        equal_cdist.redshift_interpolation(3.0, c1, c2, 1, 4, kind="min")
+        rect_lcner.redshift_interpolation(3.0, c1, c2, 1, 4, kind="min")
 
 
 def test_bad_instantiation():
@@ -186,7 +160,7 @@ def test_equal_cdist_endpoint():
     d1 = d0 + 20 * res
     zmax = z_at_value(Planck18.comoving_distance, d1)
 
-    lc = lcn.AngularLightconer.with_equal_cdist_slices(
+    lc = lcn.AngularLightconer.between_redshifts(
         latitude=lat.radian,
         longitude=lon.radian,
         min_redshift=6.0,
@@ -194,21 +168,6 @@ def test_equal_cdist_endpoint():
         resolution=res,
     )
     assert np.isclose(lc.lc_distances.max(), d1, atol=d1 / 20)
-
-
-def test_equal_redshift_bad_instantiation():
-    hp = HEALPix(nside=4)
-    lon, lat = hp.healpix_to_lonlat(np.arange(hp.npix))
-
-    with pytest.raises(ValueError, match="Either dz or resolution must be provided"):
-        lcn.AngularLightconer.with_equal_redshift_slices(
-            latitude=lat.radian,
-            longitude=lon.radian,
-            min_redshift=6.0,
-            max_redshift=7.0,
-            resolution=None,
-            dz=None,
-        )
 
 
 def test_angular_lightconer_bad_instantiation():
@@ -245,7 +204,7 @@ def test_rotation_equality():
     hp = HEALPix(nside=4)
     lon, lat = hp.healpix_to_lonlat(np.arange(hp.npix))
 
-    lc1 = lcn.AngularLightconer.with_equal_cdist_slices(
+    lc1 = lcn.AngularLightconer.between_redshifts(
         latitude=lat.radian,
         longitude=lon.radian,
         min_redshift=6.0,
@@ -253,7 +212,7 @@ def test_rotation_equality():
         resolution=2 * un.Mpc,
     )
 
-    lc2 = lcn.AngularLightconer.with_equal_cdist_slices(
+    lc2 = lcn.AngularLightconer.between_redshifts(
         latitude=lat.radian,
         longitude=lon.radian,
         min_redshift=6.0,
@@ -264,7 +223,7 @@ def test_rotation_equality():
     assert lc1 == lc2
 
     rot = Rotation.from_euler("z", np.pi / 2)
-    lc3 = lcn.AngularLightconer.with_equal_cdist_slices(
+    lc3 = lcn.AngularLightconer.between_redshifts(
         latitude=lat.radian,
         longitude=lon.radian,
         min_redshift=6.0,
@@ -276,14 +235,10 @@ def test_rotation_equality():
     assert lc1 != lc3
 
 
-def test_validation_options_angular(equal_z_angle):
-    with pytest.raises(ValueError, match="APPLY_RSDs must be False"):
-        equal_z_angle.validate_options(
-            astro_options=AstroOptions(APPLY_RSDS=True), matter_options=MatterOptions()
-        )
-
-    with pytest.raises(ValueError, match="To get the LoS velocity, you need to set"):
-        equal_z_angle.validate_options(
-            matter_options=MatterOptions(KEEP_3D_VELOCITIES=False),
-            astro_options=AstroOptions(APPLY_RSDS=False),
-        )
+def test_validation_options_angular(ang_lcner):
+    inputs = InputParameters(node_redshifts=np.array([5.0, 8.0]), random_seed=42)
+    inputs.evolve_input_structs(KEEP_3D_VELOCITIES=False, APPLY_RSDS=True)
+    with pytest.raises(
+        ValueError, match="To account for RSDs in an angular lightcone, you need to set"
+    ):
+        ang_lcner.validate_options(inputs=inputs)

@@ -74,16 +74,24 @@ extlinks = {
     "issue": ("https://github.com/21cmFAST/21cmFAST/issues/%s", "#"),
     "pr": ("https://github.com/21cmFAST/21cmFAST/pull/%s", "PR #"),
 }
-# on_rtd is whether we are on readthedocs.org
-on_rtd = os.environ.get("READTHEDOCS", None) == "True"
+# # on_rtd is whether we are on readthedocs.org
+# on_rtd = os.environ.get("READTHEDOCS", None) == "True"
 
-if not on_rtd:  # only set the theme if we're building docs locally
-    html_theme = "sphinx_rtd_theme"
+html_theme = "furo"
 
 html_use_smartypants = True
 html_last_updated_fmt = "%b %d, %Y"
 html_split_index = False
-html_sidebars = {"**": ["searchbox.html", "globaltoc.html", "sourcelink.html"]}
+html_sidebars = {
+    "**": [
+        "sidebar/scroll-start.html",
+        "sidebar/brand.html",
+        "sidebar/search.html",
+        "sidebar/navigation.html",
+        "sidebar/ethical-ads.html",
+        "sidebar/scroll-end.html",
+    ]
+}
 html_short_title = f"{project}-{version}"
 
 napoleon_use_ivar = True

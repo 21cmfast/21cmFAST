@@ -1,6 +1,5 @@
 """Unit tests for output structures."""
 
-import copy
 import pickle
 
 import attrs
@@ -10,12 +9,7 @@ import pytest
 from py21cmfast import (
     InitialConditions,  # An example of an output struct
     InputParameters,
-    IonizedBox,
-    OutputCache,
-    PerturbedField,
-    TsBox,
 )
-from py21cmfast.io import h5
 from py21cmfast.wrapper import outputs as ox
 
 

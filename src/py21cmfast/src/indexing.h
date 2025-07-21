@@ -21,6 +21,8 @@
         to do the FFT, the extra spaces don't actually get used, and the indexing
         macros (eg. R_FFT_INDEX) skip these extra bits to index the truly used array.
 */
+#include <gsl/gsl_rng.h>
+
 #include "InputParameters.h"
 
 // -------------------------------------------------------------------------------------
@@ -30,6 +32,8 @@
     (simulation_options_global->BOX_LEN * simulation_options_global->BOX_LEN * \
      simulation_options_global->NON_CUBIC_FACTOR *                             \
      simulation_options_global->BOX_LEN)  // in Mpc^3
+#define BOXLEN_PARA \
+    (simulation_options_global->NON_CUBIC_FACTOR * simulation_options_global->BOX_LEN)  // in Mpc
 #define DELTA_K (TWOPI / simulation_options_global->BOX_LEN)
 #define DELTA_K_PARA \
     (TWOPI / (simulation_options_global->NON_CUBIC_FACTOR * simulation_options_global->BOX_LEN))
@@ -87,3 +91,8 @@
     ((unsigned long long)((z) + 2llu * (HII_MID_PARA + 1llu) * ((y) + HII_D * (x))))
 // for 3D real array with no padding
 #define HII_R_INDEX(x, y, z) ((unsigned long long)((z) + HII_D_PARA * ((y) + HII_D * (x))))
+
+void wrap_position(double pos[3], double size[3]);
+void wrap_coord(int idx[3], int size[3]);
+void random_point_in_sphere(double centre[3], double radius, gsl_rng *rng, double *point);
+void random_point_in_cell(int idx[3], double cell_len, gsl_rng *rng, double *point);

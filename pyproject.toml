@@ -40,10 +40,12 @@ dependencies=[
         "h5py>=2.8.0",
         "matplotlib",
         "bidict",
-        "cosmotile>=0.2.0",
+        "cosmotile>=0.2.5",
         "attrs",
         "tqdm",
-        "ninja",
+        "classy",
+        "cyclopts",
+        "tomlkit",
 ]
 
 # [tool.setuptools.packages.find]
@@ -62,15 +64,16 @@ tests = [
     "powerbox",
     "pytest-plt",
     "pytest-benchmark",
-    "questionary",
+    "tyro",
+    "rich",
     "pytest-xdist",
     "pytest-mock",
 ]
 docs = [
     "nbsphinx",
     "numpydoc",
-    "sphinx>=1.3",
-    "sphinx-rtd-theme",
+    "sphinx >= 1.3",
+    "furo"
 ]
 # When the min python version supports PEP 735, this can be simplified
 # as dev = test_req + doc_req again (as it was implemented in setup.py)
@@ -154,11 +157,12 @@ extend-select = [
 ]
 ignore = [
     "DTZ007",   # use %z in strptime
+    "DTZ005",
     "E203",
     "E266",
     "E501",
     "F403",
-    "F401",
+    #"F401",
     "E231",
     # Naming upper/lowercase -- too hard right now.
     "N803",
@@ -173,6 +177,7 @@ ignore = [
     # Module shadowing a builtin
     "A005",
     "RUF009",
+    "B008",
 ]
 
 [tool.ruff.lint.per-file-ignores]

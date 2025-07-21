@@ -14,7 +14,61 @@ except ModuleNotFoundError:  # pragma: no cover
         # package is not installed
         __version__ = "unknown"
 
-from . import lightcones, plotting, wrapper
+__all__ = [
+    "DATA_PATH",
+    "AngularLightconer",
+    "AstroOptions",
+    "AstroParams",
+    "BrightnessTemp",
+    "CacheConfig",
+    "Coeval",
+    "CosmoParams",
+    "HaloBox",
+    "HaloField",
+    "InitialConditions",
+    "InputParameters",
+    "IonizedBox",
+    "LightCone",
+    "MatterOptions",
+    "OutputCache",
+    "PerturbHaloField",
+    "PerturbedField",
+    "RectilinearLightconer",
+    "RunCache",
+    "SimulationOptions",
+    "TsBox",
+    "XraySourceBox",
+    "__version__",
+    "brightness_temperature",
+    "compute_halo_grid",
+    "compute_initial_conditions",
+    "compute_ionization_field",
+    "compute_luminosity_function",
+    "compute_rms",
+    "compute_spin_temperature",
+    "compute_tau",
+    "compute_xray_source_field",
+    "config",
+    "configure_logging",
+    "construct_fftw_wisdoms",
+    "create_params_from_template",
+    "determine_halo_list",
+    "generate_coeval",
+    "generate_lightcone",
+    "get_all_fieldnames",
+    "get_logspaced_redshifts",
+    "lightconers",
+    "perturb_field",
+    "perturb_halo_list",
+    "plotting",
+    "run_classy",
+    "run_coeval",
+    "run_lightcone",
+    "setup_photon_cons",
+    "wrapper",
+]
+
+from . import lightconers, plotting, wrapper
 from ._cfg import config
 from ._data import DATA_PATH
 from ._logging import configure_logging
@@ -32,7 +86,7 @@ from .drivers.single_field import (
     perturb_halo_list,
 )
 from .io.caching import CacheConfig, OutputCache, RunCache
-from .lightcones import AngularLightconer, RectilinearLightconer
+from .lightconers import AngularLightconer, RectilinearLightconer
 from .run_templates import create_params_from_template
 from .utils import get_all_fieldnames
 from .wrapper.cfuncs import (
@@ -40,6 +94,7 @@ from .wrapper.cfuncs import (
     compute_tau,
     construct_fftw_wisdoms,
 )
+from .wrapper.classy_interface import compute_rms, run_classy
 from .wrapper.inputs import (
     AstroOptions,
     AstroParams,

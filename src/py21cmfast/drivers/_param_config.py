@@ -9,9 +9,6 @@ from collections.abc import Sequence
 from typing import Any, get_args
 
 import attrs
-import numpy as np
-
-import py21cmfast.c_21cmfast as lib
 
 from ..io import h5
 from ..io.caching import OutputCache

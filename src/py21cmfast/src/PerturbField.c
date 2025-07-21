@@ -198,14 +198,6 @@ int ComputePerturbField(float redshift, InitialConditions *boxes, PerturbedField
         // ***************   BEGIN INITIALIZATION   ************************** //
 
         LOG_DEBUG("Computing Perturbed Field at z=%.3f", redshift);
-        // perform a very rudimentary check to see if we are underresolved and not using the linear
-        // approx
-        if ((simulation_options_global->BOX_LEN > simulation_options_global->DIM) &&
-            matter_options_global->PERTURB_ALGORITHM > 0) {
-            LOG_WARNING(
-                "Resolution is likely too low for accurate evolved density fields\n \
-                It is recommended that you either increase the resolution (DIM/BOX_LEN) or set PERTURB_ALGORITHM to 'LINEAR'\n");
-        }
 
         growth_factor = dicke(redshift);
         displacement_factor_2LPT = -(3.0 / 7.0) * growth_factor * growth_factor;  // 2LPT eq. D8
@@ -268,8 +260,8 @@ int ComputePerturbField(float redshift, InitialConditions *boxes, PerturbedField
         } else {
             // Apply Zel'dovich/2LPT correction
 
-#pragma omp parallel shared(LOWRES_density_perturb, HIRES_density_perturb, dimension) private( \
-        i, j, k) num_threads(simulation_options_global -> N_THREADS)
+#pragma omp parallel shared(LOWRES_density_perturb, HIRES_density_perturb, dimension) \
+    private(i, j, k) num_threads(simulation_options_global -> N_THREADS)
             {
 #pragma omp for
                 for (i = 0; i < dimension; i++) {

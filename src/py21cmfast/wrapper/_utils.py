@@ -6,7 +6,6 @@ import numpy as np
 
 import py21cmfast.c_21cmfast as lib
 
-from .. import __version__
 from .exceptions import _process_exitcode
 
 logger = logging.getLogger(__name__)

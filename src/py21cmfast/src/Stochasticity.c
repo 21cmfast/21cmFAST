@@ -233,24 +233,6 @@ void stoc_set_consts_cond(struct HaloSamplingConstants *const_struct, double con
     return;
 }
 
-void place_on_hires_grid(int x, int y, int z, int *crd_hi, gsl_rng *rng) {
-    // we want to randomly place each halo within each lores cell,then map onto hires
-    // this is so halos are on DIM grids to match HaloField and Perturb options
-    int x_hi, y_hi, z_hi;
-    double randbuf;
-    int lo_dim = simulation_options_global->HII_DIM;
-    int hi_dim = simulation_options_global->DIM;
-    randbuf = gsl_rng_uniform(rng);
-    x_hi = (int)((x + randbuf) / (double)(lo_dim) * (double)(hi_dim));
-    randbuf = gsl_rng_uniform(rng);
-    y_hi = (int)((y + randbuf) / (double)(lo_dim) * (double)(hi_dim));
-    randbuf = gsl_rng_uniform(rng);
-    z_hi = (int)((z + randbuf) / (double)(HII_D_PARA) * (double)(D_PARA));
-    crd_hi[0] = x_hi;
-    crd_hi[1] = y_hi;
-    crd_hi[2] = z_hi;
-}
-
 // This function adds stochastic halo properties to an existing halo
 void set_prop_rng(gsl_rng *rng, bool from_catalog, double *interp, double *input, double *output) {
     double rng_star, rng_sfr, rng_xray;
@@ -288,10 +270,7 @@ int add_properties_cat(unsigned long long int seed, float redshift, HaloField *h
     double dummy[3];  // we don't need interpolation here
 #pragma omp parallel for private(i, buf)
     for (i = 0; i < halos->n_halos; i++) {
-        // LOG_ULTRA_DEBUG("halo %d hm %.2e crd %d %d
-        // %d",i,halos->halo_masses[i],halos->halo_coords[3*i+0],halos->halo_coords[3*i+1],halos->halo_coords[3*i+2]);
         set_prop_rng(rng_stoc[omp_get_thread_num()], false, dummy, dummy, buf);
-        // LOG_ULTRA_DEBUG("stars %.2e sfr %.2e",buf[0],buf[1]);
         halos->star_rng[i] = buf[0];
         halos->sfr_rng[i] = buf[1];
         halos->xray_rng[i] = buf[2];
@@ -783,7 +762,8 @@ void condense_sparse_halolist(HaloField *halofield, unsigned long long int *ista
         memmove(&halofield->xray_rng[count_total], &halofield->xray_rng[istart_threads[i]],
                 sizeof(float) * nhalo_threads[i]);
         memmove(&halofield->halo_coords[3 * count_total],
-                &halofield->halo_coords[3 * istart_threads[i]], sizeof(int) * 3 * nhalo_threads[i]);
+                &halofield->halo_coords[3 * istart_threads[i]],
+                sizeof(float) * 3 * nhalo_threads[i]);
         LOG_SUPER_DEBUG("Moved array (start,count) (%llu, %llu) to position %llu",
                         istart_threads[i], nhalo_threads[i], count_total);
         count_total += nhalo_threads[i];
@@ -794,7 +774,7 @@ void condense_sparse_halolist(HaloField *halofield, unsigned long long int *ista
     memset(&halofield->halo_masses[count_total], 0,
            (halofield->buffer_size - count_total) * sizeof(float));
     memset(&halofield->halo_coords[3 * count_total], 0,
-           3 * (halofield->buffer_size - count_total) * sizeof(int));
+           3 * (halofield->buffer_size - count_total) * sizeof(float));
     memset(&halofield->star_rng[count_total], 0,
            (halofield->buffer_size - count_total) * sizeof(float));
     memset(&halofield->sfr_rng[count_total], 0,
@@ -842,7 +822,7 @@ int sample_halo_grids(gsl_rng **rng_arr, double redshift, float *dens_field,
         int nh_buf;
         double delta;
         double prop_buf[3], prop_dummy[3];
-        int crd_hi[3];
+        double crd_hi[3];
 
         double mass_defc;
 
@@ -913,14 +893,16 @@ int sample_halo_grids(gsl_rng **rng_arr, double redshift, float *dens_field,
                             Throw(ValueError);
                         }
 
-                        set_prop_rng(rng_arr[threadnum], false, prop_dummy, prop_dummy, prop_buf);
-                        place_on_hires_grid(x, y, z, crd_hi, rng_arr[threadnum]);
+                        random_point_in_cell((int[3]){x, y, z},
+                                             simulation_options_global->BOX_LEN / lo_dim,
+                                             rng_arr[threadnum], crd_hi);
 
                         halofield_out->halo_masses[istart + count] = hm_buf[i];
                         halofield_out->halo_coords[3 * (istart + count) + 0] = crd_hi[0];
                         halofield_out->halo_coords[3 * (istart + count) + 1] = crd_hi[1];
                         halofield_out->halo_coords[3 * (istart + count) + 2] = crd_hi[2];
 
+                        set_prop_rng(rng_arr[threadnum], false, prop_dummy, prop_dummy, prop_buf);
                         halofield_out->star_rng[istart + count] = prop_buf[0];
                         halofield_out->sfr_rng[istart + count] = prop_buf[1];
                         halofield_out->xray_rng[istart + count] = prop_buf[2];
@@ -980,6 +962,8 @@ int sample_halo_progenitors(gsl_rng **rng_arr, double z_in, double z_out, HaloFi
               arraysize_local, 6. * arraysize_total * sizeof(int) / 1e9);
 
     double corr_arr[3] = {hs_constants->corr_star, hs_constants->corr_sfr, hs_constants->corr_xray};
+    double boxlen[3] = {simulation_options_global->BOX_LEN, simulation_options_global->BOX_LEN,
+                        BOXLEN_PARA};
 
     // use cuda function if use_cuda is true
     bool use_cuda = false;  // pass this as a parameter later
@@ -1023,11 +1007,12 @@ int sample_halo_progenitors(gsl_rng **rng_arr, double z_in, double z_out, HaloFi
             double propbuf_out[3];
 
             int threadnum = omp_get_thread_num();
-            double M2;
+            double M2, R2, R1;
             int jj;
             unsigned long long int ii;
             unsigned long long int count = 0;
             unsigned long long int istart = threadnum * arraysize_local;
+            double pos_prog[3], pos_desc[3];
 
             // we need a private version
             // also the naming convention should be better between structs/struct pointers
@@ -1037,6 +1022,7 @@ int sample_halo_progenitors(gsl_rng **rng_arr, double z_in, double z_out, HaloFi
 #pragma omp for
             for (ii = 0; ii < nhalo_in; ii++) {
                 M2 = halofield_in->halo_masses[ii];
+                R2 = MtoR(M2);
                 if (M2 < Mmin || M2 > Mmax_tb) {
                     LOG_ERROR(
                         "Input Mass = %.2e at %llu of %llu, something went wrong in the input "
@@ -1053,6 +1039,9 @@ int sample_halo_progenitors(gsl_rng **rng_arr, double z_in, double z_out, HaloFi
                 propbuf_in[0] = halofield_in->star_rng[ii];
                 propbuf_in[1] = halofield_in->sfr_rng[ii];
                 propbuf_in[2] = halofield_in->xray_rng[ii];
+                pos_desc[0] = halofield_in->halo_coords[3 * ii + 0];
+                pos_desc[1] = halofield_in->halo_coords[3 * ii + 1];
+                pos_desc[2] = halofield_in->halo_coords[3 * ii + 2];
 
                 // place progenitors in local list
                 M_prog = 0;
@@ -1060,6 +1049,41 @@ int sample_halo_progenitors(gsl_rng **rng_arr, double z_in, double z_out, HaloFi
                     // sometimes halos are subtracted from the sample (set to zero)
                     // we do not want to save these
                     if (prog_buf[jj] < simulation_options_global->SAMPLER_MIN_MASS) continue;
+
+                    if (count >= arraysize_local) {
+                        LOG_ERROR(
+                            "More than %llu halos (expected %.1e) with buffer size factor %.1f",
+                            arraysize_local,
+                            arraysize_local / config_settings.HALO_CATALOG_MEM_FACTOR,
+                            config_settings.HALO_CATALOG_MEM_FACTOR);
+                        LOG_ERROR(
+                            "Input Mass = %.2e at %llu of %llu, something went wrong in the input "
+                            "catalogue",
+                            M2, ii, nhalo_in);
+                        Throw(ValueError);
+                    }
+                    // set condition-dependent variables for sampling
+                    stoc_set_consts_cond(&hs_constants_priv, M2);
+
+                    // Sample the CMF set by the descendant
+                    stoc_sample(&hs_constants_priv, rng_arr[threadnum], &n_prog, prog_buf);
+
+                    halofield_out->halo_masses[istart + count] = prog_buf[jj];
+
+                    // Place the progenitor in a random position within the condition
+                    // Such that a sphere of the progenitor's Lagrangian radius is placed
+                    // entirely within the descendant's Lagrangian radius,
+                    R1 = MtoR(prog_buf[jj]);
+                    random_point_in_sphere(pos_desc, R2 - R1, rng_arr[threadnum], pos_prog);
+                    wrap_position(pos_prog, boxlen);
+
+                    halofield_out->halo_coords[3 * (istart + count) + 0] = pos_prog[0];
+                    halofield_out->halo_coords[3 * (istart + count) + 1] = pos_prog[1];
+                    halofield_out->halo_coords[3 * (istart + count) + 2] = pos_prog[2];
+                    halofield_out->star_rng[istart + count] = propbuf_out[0];
+                    halofield_out->sfr_rng[istart + count] = propbuf_out[1];
+                    halofield_out->xray_rng[istart + count] = propbuf_out[2];
+                    count++;
 
                     if (count >= arraysize_local) {
                         LOG_ERROR(
@@ -1219,9 +1243,9 @@ int stochastic_halofield(unsigned long long int seed, float redshift_desc, float
 // produce a descendant list
 //       as well as per-condition number and mass counts
 int single_test_sample(unsigned long long int seed, int n_condition, float *conditions,
-                       int *cond_crd, double z_out, double z_in, int *out_n_tot, int *out_n_cell,
+                       float *cond_crd, double z_out, double z_in, int *out_n_tot, int *out_n_cell,
                        double *out_n_exp, double *out_m_cell, double *out_m_exp,
-                       float *out_halo_masses, int *out_halo_coords) {
+                       float *out_halo_masses, float *out_halo_coords) {
     int status;
     Try {
         // make the global structs
@@ -1240,6 +1264,9 @@ int single_test_sample(unsigned long long int seed, int n_condition, float *cond
         struct HaloSamplingConstants hs_const_struct;
         struct HaloSamplingConstants *hs_constants = &hs_const_struct;
 
+        double boxlen[3] = {simulation_options_global->BOX_LEN, simulation_options_global->BOX_LEN,
+                            BOXLEN_PARA};
+
         LOG_DEBUG("Setting z constants. %.3f %.3f", z_out, z_in);
         stoc_set_consts_z(hs_constants, z_out, z_in);
 
@@ -1255,18 +1282,26 @@ int single_test_sample(unsigned long long int seed, int n_condition, float *cond
         {
             float out_hm[MAX_HALO_CELL];
             double M_prog;
-            int out_crd[3];
+            double in_crd[3], out_crd[3];
+            int lo_crd[3];
             int n_halo, n_halo_cond;
-            double cond;
+            double cond, R2, R1;
             // we need a private version
             struct HaloSamplingConstants hs_constants_priv;
             hs_constants_priv = *hs_constants;
 #pragma omp for
             for (j = 0; j < n_condition; j++) {
                 cond = conditions[j];
+                for (i = 0; i < 3; i++) {
+                    in_crd[i] = cond_crd[3 * j + i];
+                    lo_crd[i] = (int)(in_crd[i] / simulation_options_global->BOX_LEN *
+                                      simulation_options_global->HII_DIM);
+                }
+
                 stoc_set_consts_cond(&hs_constants_priv, cond);
                 if (j == 0) print_hs_consts(&hs_constants_priv);
                 stoc_sample(&hs_constants_priv, rng_stoc[omp_get_thread_num()], &n_halo, out_hm);
+                R2 = MtoR(hs_constants_priv.M_cond);
 
                 n_halo_cond = 0;
                 M_prog = 0;
@@ -1280,13 +1315,18 @@ int single_test_sample(unsigned long long int seed, int n_condition, float *cond
                     {
                         out_halo_masses[n_halo_tot] = out_hm[i];
                         if (hs_constants_priv.from_catalog) {
+                            R1 = MtoR(out_hm[i]);
+                            random_point_in_sphere(in_crd, R2 - R1, rng_stoc[omp_get_thread_num()],
+                                                   out_crd);
+                            wrap_position(out_crd, boxlen);
                             out_halo_coords[3 * n_halo_tot + 0] = cond_crd[3 * j + 0];
                             out_halo_coords[3 * n_halo_tot + 1] = cond_crd[3 * j + 1];
                             out_halo_coords[3 * n_halo_tot + 2] = cond_crd[3 * j + 2];
                         } else {
-                            place_on_hires_grid(cond_crd[3 * j + 0], cond_crd[3 * j + 1],
-                                                cond_crd[3 * j + 2], out_crd,
-                                                rng_stoc[omp_get_thread_num()]);
+                            random_point_in_cell(lo_crd,
+                                                 simulation_options_global->BOX_LEN /
+                                                     simulation_options_global->HII_DIM,
+                                                 rng_stoc[omp_get_thread_num()], out_crd);
                             out_halo_coords[3 * n_halo_tot + 0] = out_crd[0];
                             out_halo_coords[3 * n_halo_tot + 1] = out_crd[1];
                             out_halo_coords[3 * n_halo_tot + 2] = out_crd[2];

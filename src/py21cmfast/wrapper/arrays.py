@@ -1,5 +1,6 @@
 """Module for dealing with arrays that are input/output to C functions."""
 
+import itertools
 from abc import ABC, abstractmethod
 from collections.abc import Sequence
 from pathlib import Path
@@ -54,6 +55,31 @@ class H5Backend(CacheBackend):
                 f.create_dataset(self.dataset, data=val)
 
 
+def _corner_elements(arr: np.ndarray) -> np.ndarray:
+    shape = arr.shape
+    dims = len(shape)
+
+    # Get all combinations of 0 and -1 for each dimension
+    corner_indices = list(itertools.product(*[(0, -1)] * dims))
+    return np.array([arr[idx] for idx in corner_indices]).reshape((2,) * dims)
+
+
+def _array_value_repr(x: np.ndarray | None) -> str:
+    """Return a more compact representation of an array."""
+    if x is None:
+        return "None"
+    elif x.size < 25:
+        return str(x)
+    else:
+        corners = _corner_elements(x)
+
+        return (
+            f"Corners: {corners}\n"
+            f"Min | Max | Mean: {x.min()} | {x.max()} | {x.mean()}\n"
+            f"First elements: {x.flatten()[:6]}"
+        )
+
+
 @attrs.define(slots=False, frozen=True)
 class Array:
     """
@@ -97,7 +123,10 @@ class Array:
     state = attrs.field(factory=ArrayState, kw_only=True)
     initfunc = attrs.field(default=np.zeros, kw_only=True)
     value = attrs.field(
-        converter=attrs.converters.optional(np.asarray), default=None, kw_only=True
+        converter=attrs.converters.optional(np.asarray),
+        default=None,
+        kw_only=True,
+        repr=_array_value_repr,
     )
     cache_backend = attrs.field(
         default=None, validator=optional(instance_of(CacheBackend)), kw_only=True
@@ -165,7 +194,7 @@ class Array:
         if backend is None:
             raise ValueError("backend must be specified")
 
-        value = backend.read()
+        value = backend.read().astype(self.dtype, copy=False)
         return attrs.evolve(
             self,
             value=value,
