@@ -26,7 +26,6 @@ from ..wrapper.outputs import (
 )
 from ._param_config import (
     check_output_consistency,
-    check_redshift_consistency,
     single_field_func,
 )
 

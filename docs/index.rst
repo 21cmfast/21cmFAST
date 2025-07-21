@@ -6,6 +6,7 @@ Contents
    :maxdepth: 2
 
    installation
+   quickstart
    design
    tutorials
    reference/index

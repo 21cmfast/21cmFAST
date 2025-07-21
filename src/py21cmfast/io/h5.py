@@ -41,7 +41,6 @@ import numpy as np
 from .. import __version__
 from ..wrapper import inputs as istruct
 from ..wrapper import outputs as ostruct
-from ..wrapper._utils import snake_to_camel
 from ..wrapper.arrays import Array, H5Backend
 from ..wrapper.arraystate import ArrayState
 from ..wrapper.inputs import InputParameters
@@ -309,21 +308,25 @@ def _read_inputs_v4(group: h5py.Group, safe: bool = True):
     # Read the input parameter dictionaries from file.
     kwargs = {}
     for k, fld in attrs.fields_dict(InputParameters).items():
-        if fld.type in istruct.InputStruct._subclasses:
-            kls = istruct.InputStruct._subclasses[fld.type]
+        try:
+            if fld.type in istruct.InputStruct._subclasses.values():
+                kls = fld.type
 
-            subgrp = group[k]
-            dct = dict(subgrp.attrs)
-            kwargs[k] = kls.from_subdict(dct, safe=safe)
-        elif k in group.attrs:
-            kwargs[k] = group.attrs[k]
-        else:
-            d = group[k][()]
-            if d is h5py.Empty(None):
-                kwargs[k] = None
+                subgrp = group[k]
+                dct = dict(subgrp.attrs)
+                kwargs[k] = kls.from_subdict(dct, safe=safe)
+            elif k in group.attrs:
+                kwargs[k] = group.attrs[k]
             else:
-                kwargs[k] = d
-
+                d = group[k][()]
+                kwargs[k] = None if d is h5py.Empty(None) else d
+        except Exception as e:
+            e.add_note(
+                f"InputStruct that failed: {k}\n"
+                f"In group: {group.name}\n"
+                f"In file: {group.file.filename}"
+            )
+            raise
     return InputParameters(**kwargs)
 
 

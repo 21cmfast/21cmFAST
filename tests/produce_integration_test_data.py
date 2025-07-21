@@ -30,7 +30,6 @@ from py21cmfast import (
     OutputCache,
     SimulationOptions,
     compute_initial_conditions,
-    config,
     get_logspaced_redshifts,
     perturb_field,
     plotting,
@@ -359,7 +358,7 @@ def produce_lc_power_spectra(redshift: float, cache: OutputCache, **kwargs):
         resolution=options["inputs"].simulation_options.cell_size,
     )
 
-    _, _, _, lightcone = run_lightcone(
+    lightcone = run_lightcone(
         lightconer=lcn,
         write=True,  # write so that perturbed fields and halos can be cached.
         regenerate=True,

@@ -541,9 +541,9 @@ class CacheConfig:
     ionized_box: bool = attrs.field(default=True, converter=bool)
     brightness_temp: bool = attrs.field(default=True, converter=bool)
     halobox: bool = attrs.field(default=True, converter=bool)
-    perturbed_halo_field = attrs.field(default=True, converter=bool)
-    halo_field = attrs.field(default=True, converter=bool)
-    xray_source_box = attrs.field(default=True, converter=bool)
+    perturbed_halo_field: bool = attrs.field(default=True, converter=bool)
+    halo_field: bool = attrs.field(default=True, converter=bool)
+    xray_source_box: bool = attrs.field(default=True, converter=bool)
 
     @classmethod
     def on(cls) -> Self:
@@ -575,7 +575,7 @@ class CacheConfig:
             ionized_box=False,
             brightness_temp=False,
             halobox=False,
-            perturbed_halo_field=False,
+            perturbed_halo_field=True,
             halo_field=False,
             xray_source_box=False,
         )

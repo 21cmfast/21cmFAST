@@ -1,7 +1,6 @@
 """Low-level python wrappers of C functions."""
 
 import logging
-import warnings
 from collections.abc import Callable, Sequence
 from functools import cache
 from typing import Literal
@@ -16,7 +15,6 @@ from ._utils import _process_exitcode
 from .inputs import (
     InputParameters,
 )
-from .outputs import InitialConditions, PerturbHaloField
 
 logger = logging.getLogger(__name__)
 

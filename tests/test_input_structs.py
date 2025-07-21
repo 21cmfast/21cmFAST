@@ -2,7 +2,6 @@
 
 import pickle
 import tomllib
-import warnings
 from pathlib import Path
 
 import pytest
@@ -12,10 +11,8 @@ from py21cmfast import (
     AstroParams,
     CosmoParams,
     InputParameters,
-    IonizedBox,
     MatterOptions,
     SimulationOptions,
-    __version__,
     config,
 )
 
