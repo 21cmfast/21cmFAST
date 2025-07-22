@@ -1,18 +1,17 @@
 """Compute simulations that evolve over redshift."""
 
-import contextlib
 import logging
-import os
 import warnings
 from collections.abc import Sequence
-from hashlib import md5
 from pathlib import Path
-from typing import Any, Self, get_args
+from typing import Self, get_args
 
 import attrs
 import h5py
 import numpy as np
-import tqdm
+from rich import progress as prg
+from rich.console import Console
+from rich.progress import Progress
 
 from .. import __version__
 from ..c_21cmfast import lib
@@ -36,6 +35,26 @@ from . import single_field as sf
 from ._param_config import high_level_func
 
 logger = logging.getLogger(__name__)
+
+_console = Console()
+
+
+def _progressbar(**kwargs):
+    return Progress(
+        prg.TextColumn("[progress.description]{task.description:>24}"),
+        prg.BarColumn(),
+        prg.TaskProgressColumn(),
+        prg.TextColumn("•"),
+        prg.MofNCompleteColumn(),
+        "[green]redshifts",
+        prg.TextColumn("•"),
+        prg.TimeElapsedColumn(),
+        prg.TextColumn("•"),
+        prg.TimeRemainingColumn(),
+        "remaining",
+        console=_console,
+        **kwargs,
+    )
 
 
 @attrs.define
@@ -366,7 +385,6 @@ def evolve_perturb_halos(
     initial_conditions: InitialConditions,
     cache: OutputCache,
     regenerate: bool,
-    always_purge: bool = False,
     progressbar: bool = False,
 ):
     """
@@ -390,8 +408,6 @@ def evolve_perturb_halos(
         Cache object for storing and retrieving computed results.
     regenerate : bool
         Flag to indicate whether to regenerate results or use cached values.
-    always_purge : bool, optional
-        If True, always purge temporary data. Defaults to False.
     progressbar: bool, optional
         If True, a progress bar will be displayed throughout the simulation. Defaults to False.
 
@@ -422,37 +438,34 @@ def evolve_perturb_halos(
         "regenerate": regenerate,
     }
     halos_desc = None
-    for i, z in enumerate(
-        tqdm.tqdm(
-            all_redshifts[::-1],
-            desc="Halos",
-            unit="redshift",
-            disable=not progressbar,
-            total=len(all_redshifts[::-1]),
-        )
-    ):
-        halos = sf.determine_halo_list(
-            redshift=z,
-            inputs=inputs,
-            descendant_halos=halos_desc,
-            write=write.halo_field,
-            **kw,
-        )
-
-        pt_halos.append(
-            sf.perturb_halo_list(
-                halo_field=halos, write=write.perturbed_halo_field, **kw
+    with _progressbar(disable=not progressbar) as _progbar:
+        for i, z in _progbar.track(
+            enumerate(all_redshifts[::-1]),
+            description="Evolving Halos",
+            total=len(all_redshifts),
+        ):
+            halos = sf.determine_halo_list(
+                redshift=z,
+                inputs=inputs,
+                descendant_halos=halos_desc,
+                write=write.halo_field,
+                **kw,
             )
-        )
 
-        # we never want to store every halofield
-        with contextlib.suppress(OSError):
-            pt_halos[i].purge(force=always_purge)
+            pt_halos.append(
+                sf.perturb_halo_list(
+                    halo_field=halos, write=write.perturbed_halo_field, **kw
+                )
+            )
 
-        if z in inputs.node_redshifts:
-            # Only evolve on the node_redshifts, not any redshifts in-between
-            # that the user might care about.
-            halos_desc = halos
+            # we never want to store every halofield
+            if write.perturbed_halo_field:
+                pt_halos[i].purge()
+
+            if z in inputs.node_redshifts:
+                # Only evolve on the node_redshifts, not any redshifts in-between
+                # that the user might care about.
+                halos_desc = halos
 
     # reverse to get the right redshift order
     return pt_halos[::-1]
@@ -468,7 +481,6 @@ def generate_coeval(
     cache: OutputCache | None = None,
     initial_conditions: InitialConditions | None = None,
     cleanup: bool = True,
-    always_purge: bool = False,
     progressbar: bool = False,
 ):
     r"""
@@ -523,9 +535,6 @@ def generate_coeval(
         true, as if the next box to be calculated has different shape, errors will occur
         if memory is not cleaned. Note that internally, this is set to False until the
         last iteration.
-    always_purge : bool, optional
-        If True, always purge temporary data from memory, even if the boxes are not
-        being cached. Defaults to False.
     progressbar: bool, optional
         If True, a progress bar will be displayed throughout the simulation. Defaults to False.
 
@@ -565,7 +574,6 @@ def generate_coeval(
             inputs=inputs,
             initial_conditions=initial_conditions,
             write=write,
-            always_purge=always_purge,
             progressbar=progressbar,
             **iokw,
         )
@@ -601,7 +609,6 @@ def generate_coeval(
         pt_halos=pt_halos,
         write=write,
         cleanup=cleanup,
-        always_purge=always_purge,
         progressbar=progressbar,
         iokw=iokw,
         init_coeval=coeval,
@@ -678,7 +685,6 @@ def _redshift_loop_generator(
     write: CacheConfig,
     iokw: dict,
     cleanup: bool,
-    always_purge: bool,
     progressbar: bool,
     photon_nonconservation_data: dict,
     start_idx: int = 0,
@@ -696,129 +702,117 @@ def _redshift_loop_generator(
     this_halobox = None
     this_spin_temp = None
     this_pthalo = None
+    this_xraysrouce = None
 
     kw = {
         **iokw,
         "initial_conditions": initial_conditions,
     }
 
-    for iz, z in enumerate(
-        tqdm.tqdm(
-            all_redshifts,
-            desc="Evolving Astrophysics",
-            unit="redshift",
-            disable=not progressbar,
+    with _progressbar(disable=not progressbar) as _progbar:
+        for iz, z in _progbar.track(
+            enumerate(all_redshifts),
+            description="Evolving Astrophysics",
             total=len(all_redshifts),
-        )
-    ):
-        if iz < start_idx:
-            continue
+        ):
+            if not progressbar:
+                logger.info(
+                    f"Computing Redshift {z} ({iz + 1}/{len(all_redshifts)}) iterations."
+                )
+            if iz < start_idx:
+                continue
 
-        logger.info(
-            f"Computing Redshift {z} ({iz + 1}/{len(all_redshifts)}) iterations."
-        )
-        this_perturbed_field = perturbed_field[iz]
-        this_perturbed_field.load_all()
+            this_perturbed_field = perturbed_field[iz]
+            this_perturbed_field.load_all()
 
-        if inputs.matter_options.USE_HALO_FIELD:
-            if not inputs.matter_options.FIXED_HALO_GRIDS:
-                this_pthalo = pt_halos[iz]
-
-            this_halobox = sf.compute_halo_grid(
-                inputs=inputs,
-                perturbed_halo_list=this_pthalo,
-                perturbed_field=this_perturbed_field,
-                previous_ionize_box=getattr(prev_coeval, "ionized_box", None),
-                previous_spin_temp=getattr(prev_coeval, "ts_box", None),
-                write=write.halobox,
-                **kw,
-            )
-
-        if inputs.astro_options.USE_TS_FLUCT:
-            # append the halo redshift array so we have all halo boxes [z,zmax]
-            hbox_arr += [this_halobox]
             if inputs.matter_options.USE_HALO_FIELD:
-                xrs = sf.compute_xray_source_field(
-                    redshift=z,
-                    hboxes=hbox_arr,
-                    write=write.xray_source_box,
+                if not inputs.matter_options.FIXED_HALO_GRIDS:
+                    this_pthalo = pt_halos[iz]
+                    this_pthalo.load_all()
+
+                this_halobox = sf.compute_halo_grid(
+                    inputs=inputs,
+                    perturbed_halo_list=this_pthalo,
+                    perturbed_field=this_perturbed_field,
+                    previous_ionize_box=getattr(prev_coeval, "ionized_box", None),
+                    previous_spin_temp=getattr(prev_coeval, "ts_box", None),
+                    write=write.halobox,
                     **kw,
                 )
-            else:
-                xrs = None
+            this_perturbed_field = perturbed_field[iz]
+            this_perturbed_field.load_all()
 
-            this_spin_temp = sf.compute_spin_temperature(
-                inputs=inputs,
-                previous_spin_temp=getattr(prev_coeval, "ts_box", None),
-                perturbed_field=this_perturbed_field,
-                xray_source_box=xrs,
-                write=write.spin_temp,
-                **kw,
-                cleanup=(cleanup and z == all_redshifts[-1]),
-            )
+            if inputs.astro_options.USE_TS_FLUCT:
+                if inputs.matter_options.USE_HALO_FIELD:
+                    # append the halo redshift array so we have all halo boxes [z,zmax]
+                    hbox_arr += [this_halobox]
+                    this_xraysrouce = sf.compute_xray_source_field(
+                        redshift=z,
+                        hboxes=hbox_arr,
+                        write=write.xray_source_box,
+                        **kw,
+                    )
 
-        this_ionized_box = sf.compute_ionization_field(
-            inputs=inputs,
-            previous_ionized_box=getattr(prev_coeval, "ionized_box", None),
-            perturbed_field=this_perturbed_field,
-            # perturb field *not* interpolated here.
-            previous_perturbed_field=getattr(prev_coeval, "perturbed_field", None),
-            halobox=this_halobox,
-            spin_temp=this_spin_temp,
-            write=write.ionized_box,
-            **kw,
-        )
-
-        if prev_coeval is not None:
-            with contextlib.suppress(OSError):
-                prev_coeval.perturbed_field.purge(force=always_purge)
-
-        if this_pthalo is not None:
-            with contextlib.suppress(OSError):
-                this_pthalo.purge(force=always_purge)
-
-        # we only need the SFR fields at previous redshifts for XraySourceBox
-        if this_halobox is not None:
-            with contextlib.suppress(OSError):
-                this_halobox.prepare(
-                    keep=[
-                        "halo_sfr",
-                        "halo_sfr_mini",
-                        "halo_xray",
-                        "log10_Mcrit_MCG_ave",
-                    ],
-                    force=always_purge,
+                this_spin_temp = sf.compute_spin_temperature(
+                    inputs=inputs,
+                    previous_spin_temp=getattr(prev_coeval, "ts_box", None),
+                    perturbed_field=this_perturbed_field,
+                    xray_source_box=this_xraysrouce,
+                    write=write.spin_temp,
+                    **kw,
+                    cleanup=(cleanup and z == all_redshifts[-1]),
                 )
 
-        logger.debug(f"PID={os.getpid()} doing brightness temp for z={z}")
+            this_ionized_box = sf.compute_ionization_field(
+                inputs=inputs,
+                previous_ionized_box=getattr(prev_coeval, "ionized_box", None),
+                perturbed_field=this_perturbed_field,
+                # perturb field *not* interpolated here.
+                previous_perturbed_field=getattr(prev_coeval, "perturbed_field", None),
+                halobox=this_halobox,
+                spin_temp=this_spin_temp,
+                write=write.ionized_box,
+                **kw,
+            )
 
-        _bt = sf.brightness_temperature(
-            ionized_box=this_ionized_box,
-            perturbed_field=this_perturbed_field,
-            spin_temp=this_spin_temp,
-            write=write.brightness_temp,
-            **iokw,
-        )
+            this_bt = sf.brightness_temperature(
+                ionized_box=this_ionized_box,
+                perturbed_field=this_perturbed_field,
+                spin_temp=this_spin_temp,
+                write=write.brightness_temp,
+                **iokw,
+            )
 
-        if inputs.astro_options.PHOTON_CONS_TYPE == "z-photoncons":
-            # Updated info at each z.
-            photon_nonconservation_data = _get_photon_nonconservation_data()
+            this_coeval = Coeval(
+                initial_conditions=initial_conditions,
+                perturbed_field=this_perturbed_field,
+                ionized_box=this_ionized_box,
+                brightness_temperature=this_bt,
+                ts_box=this_spin_temp,
+                halobox=this_halobox,
+                photon_nonconservation_data=photon_nonconservation_data,
+            )
 
-        this_coeval = Coeval(
-            initial_conditions=initial_conditions,
-            perturbed_field=this_perturbed_field,
-            ionized_box=this_ionized_box,
-            brightness_temperature=_bt,
-            ts_box=this_spin_temp,
-            halobox=this_halobox,
-            photon_nonconservation_data=photon_nonconservation_data,
-        )
+            # yield before the cleanup, so we can get at the fields before they are purged
+            yield iz, this_coeval
 
-        if z in inputs.node_redshifts:
-            # Only evolve on the node_redshifts, not any redshifts in-between
-            # that the user might care about.
-            prev_coeval = this_coeval
-        yield iz, this_coeval
+            # We purge previous fields and those we no longer need
+            if prev_coeval is not None:
+                prev_coeval.perturbed_field.purge()
+                if inputs.matter_options.USE_HALO_FIELD and write.halobox:
+                    prev_coeval.halobox.prepare_for_next_snapshot()
+
+            if this_pthalo is not None:
+                this_pthalo.purge()
+
+            if inputs.astro_options.PHOTON_CONS_TYPE == "z-photoncons":
+                # Updated info at each z.
+                photon_nonconservation_data = _get_photon_nonconservation_data()
+
+            if z in inputs.node_redshifts:
+                # Only evolve on the node_redshifts, not any redshifts in-between
+                # that the user might care about.
+                prev_coeval = this_coeval
 
 
 def _setup_ics_and_pfs_for_scrolling(
@@ -826,7 +820,6 @@ def _setup_ics_and_pfs_for_scrolling(
     initial_conditions: InitialConditions | None,
     inputs: InputParameters,
     write: CacheConfig,
-    always_purge: bool,
     progressbar: bool,
     **iokw,
 ) -> tuple[InitialConditions, PerturbedField, PerturbHaloField, dict]:
@@ -837,11 +830,8 @@ def _setup_ics_and_pfs_for_scrolling(
 
     # We can go ahead and purge some of the stuff in the initial_conditions, but only if
     # it is cached -- otherwise we could be losing information.
-    with contextlib.suppress(OSError):
-        initial_conditions.prepare_for_perturb(
-            astro_options=inputs.astro_options, force=always_purge
-        )
-
+    if write.initial_conditions:
+        initial_conditions.prepare_for_perturb()
     kw = {
         "initial_conditions": initial_conditions,
         **iokw,
@@ -865,38 +855,30 @@ def _setup_ics_and_pfs_for_scrolling(
     # Get all the perturb boxes early. We need to get the perturb at every
     # redshift.
     perturbed_field = []
-    for z in tqdm.tqdm(
-        all_redshifts,
-        desc="Perturbed Fields",
-        unit="redshift",
-        disable=not progressbar,
-        total=len(all_redshifts),
-    ):
-        p = sf.perturb_field(
-            redshift=z,
-            inputs=inputs,
-            write=write.perturbed_field,
-            **kw,
-        )
 
-        if inputs.matter_options.MINIMIZE_MEMORY:
-            with contextlib.suppress(OSError):
-                p.purge(force=always_purge)
-        perturbed_field.append(p)
+    with _progressbar(disable=not progressbar) as _progbar:
+        for z in _progbar.track(all_redshifts, description="Perturbing Matter Fields"):
+            p = sf.perturb_field(
+                redshift=z,
+                inputs=inputs,
+                write=write.perturbed_field,
+                **kw,
+            )
+
+            if inputs.matter_options.MINIMIZE_MEMORY and write.perturbed_field:
+                p.purge()
+            perturbed_field.append(p)
 
     pt_halos = evolve_perturb_halos(
         inputs=inputs,
         all_redshifts=all_redshifts,
         write=write,
-        always_purge=always_purge,
         progressbar=progressbar,
         **kw,
     )
     # Now we can purge initial_conditions further.
-    with contextlib.suppress(OSError):
-        initial_conditions.prepare_for_spin_temp(
-            astro_options=inputs.astro_options, force=always_purge
-        )
+    if write.initial_conditions:
+        initial_conditions.prepare_for_spin_temp()
 
     return initial_conditions, perturbed_field, pt_halos, photon_nonconservation_data
 

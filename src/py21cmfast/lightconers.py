@@ -11,7 +11,7 @@ import attrs
 import numpy as np
 from astropy import units
 from astropy.cosmology import FLRW, z_at_value
-from astropy.units import MHz, Mpc, Quantity, pixel, pixel_scale
+from astropy.units import Mpc, Quantity, pixel, pixel_scale
 from classy import Class
 from cosmotile import (
     make_lightcone_slice_interpolator,
@@ -19,7 +19,6 @@ from cosmotile import (
 )
 from scipy.spatial.transform import Rotation
 
-from .drivers.coeval import Coeval
 from .rsds import estimate_rsd_displacements
 from .wrapper.classy_interface import run_classy
 from .wrapper.inputs import (
@@ -161,7 +160,9 @@ class Lightconer(ABC):
         )
 
     def make_lightcone_slices(
-        self, c1: Coeval, c2: Coeval
+        self,
+        c1: Coeval,  # noqa: F821
+        c2: Coeval,  # noqa: F821
     ) -> tuple[dict[str, np.ndarray], np.ndarray]:
         """
         Make lightcone slices out of two coeval objects.

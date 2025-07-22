@@ -170,13 +170,20 @@ void mean_fix_grids(double M_min, double M_max, HaloBox *grids, struct HaloPrope
     for (idx = 0; idx < HII_TOT_NUM_PIXELS; idx++) {
         grids->halo_mass[idx] *= averages_global.halo_mass / averages_box->halo_mass;
         grids->halo_stars[idx] *= averages_global.stellar_mass / averages_box->stellar_mass;
-        grids->halo_stars_mini[idx] *=
-            averages_global.stellar_mass_mini / averages_box->stellar_mass_mini;
         grids->halo_sfr[idx] *= averages_global.halo_sfr / averages_box->halo_sfr;
-        grids->halo_sfr_mini[idx] *= averages_global.sfr_mini / averages_box->sfr_mini;
-        grids->halo_xray[idx] *= averages_global.halo_xray / averages_box->halo_xray;
         grids->n_ion[idx] *= averages_global.n_ion / averages_box->n_ion;
-        grids->whalo_sfr[idx] *= averages_global.fescweighted_sfr / averages_box->fescweighted_sfr;
+        if (astro_options_global->USE_MINI_HALOS) {
+            grids->halo_stars_mini[idx] *=
+                averages_global.stellar_mass_mini / averages_box->stellar_mass_mini;
+            grids->halo_sfr_mini[idx] *= averages_global.sfr_mini / averages_box->sfr_mini;
+        }
+        if (astro_options_global->USE_TS_FLUCT) {
+            grids->halo_xray[idx] *= averages_global.halo_xray / averages_box->halo_xray;
+        }
+        if (astro_options_global->INHOMO_RECO) {
+            grids->whalo_sfr[idx] *=
+                averages_global.fescweighted_sfr / averages_box->fescweighted_sfr;
+        }
     }
 }
 
@@ -355,40 +362,52 @@ int set_fixed_grids(double M_min, double M_max, InitialConditions *ini_boxes,
             grids->count[i] = (int)(h_count * M_cell * dens_fac);  // NOTE: truncated
             grids->halo_mass[i] = mass_intgrl * prefactor_mass * dens_fac;
             grids->halo_sfr[i] = (intgrl_stars_only * prefactor_sfr) * dens_fac;
-            grids->halo_sfr_mini[i] = intgrl_stars_only_mini * prefactor_sfr_mini * dens_fac;
             grids->n_ion[i] = (intgrl_fesc_weighted * prefactor_nion +
                                intgrl_fesc_weighted_mini * prefactor_nion_mini) *
                               dens_fac;
-            grids->whalo_sfr[i] = (intgrl_fesc_weighted * prefactor_wsfr +
-                                   intgrl_fesc_weighted_mini * prefactor_wsfr_mini) *
-                                  dens_fac;
-            grids->halo_xray[i] = prefactor_xray * integral_xray * dens_fac;
             grids->halo_stars[i] = intgrl_stars_only * prefactor_stars * dens_fac;
-            grids->halo_stars_mini[i] = intgrl_stars_only_mini * prefactor_stars_mini * dens_fac;
-
-#if LOG_LEVEL >= ULTRA_DEBUG_LEVEL
-            if (i == 0) {
-                // LOG_ULTRA_DEBUG("(%d %d %d) i_cell %llu i_halo %llu",x,y,z,i_cell, i_halo);
-                LOG_ULTRA_DEBUG(
-                    "Cell 0 fixed: HM: %.2e SM: %.2e (%.2e) SF: %.2e (%.2e) X: %.2e NI: %.2e WS: "
-                    "%.2e ct : %llu",
-                    grids->halo_mass[i], grids->halo_stars[i], grids->halo_stars_mini[i],
-                    grids->halo_sfr[i], grids->halo_sfr_mini[i], grids->halo_xray[i],
-                    grids->n_ion[i], grids->whalo_sfr[i], grids->count[i]);
-                LOG_ULTRA_DEBUG("Mturn_a %.2e Mturn_m %.2e", l10_mturn_a, l10_mturn_m);
-            }
-#endif
 
             hm_sum += grids->halo_mass[i];
             nion_sum += grids->n_ion[i];
             sfr_sum += grids->halo_sfr[i];
-            wsfr_sum += grids->whalo_sfr[i];
-            sfr_sum_mini += grids->halo_sfr_mini[i];
-            xray_sum += grids->halo_xray[i];
             sm_sum += grids->halo_stars[i];
-            sm_sum_mini += grids->halo_stars_mini[i];
+
+            if (astro_options_global->USE_TS_FLUCT) {
+                grids->halo_xray[i] = prefactor_xray * integral_xray * dens_fac;
+                xray_sum += grids->halo_xray[i];
+            }
+            if (astro_options_global->INHOMO_RECO) {
+                grids->whalo_sfr[i] = (intgrl_fesc_weighted * prefactor_wsfr +
+                                       intgrl_fesc_weighted_mini * prefactor_wsfr_mini) *
+                                      dens_fac;
+                wsfr_sum += grids->whalo_sfr[i];
+            }
+            if (astro_options_global->USE_MINI_HALOS) {
+                grids->halo_stars_mini[i] =
+                    intgrl_stars_only_mini * prefactor_stars_mini * dens_fac;
+                grids->halo_sfr_mini[i] = intgrl_stars_only_mini * prefactor_sfr_mini * dens_fac;
+                sm_sum_mini += grids->halo_stars_mini[i];
+                sfr_sum_mini += grids->halo_sfr_mini[i];
+            }
         }
     }
+
+    LOG_ULTRA_DEBUG("Cell 0 Totals: HM: %.2e SM: %.2e SF: %.2e NI: %.2e ct : %d",
+                    grids->halo_mass[HII_R_INDEX(0, 0, 0)], grids->halo_stars[HII_R_INDEX(0, 0, 0)],
+                    grids->halo_sfr[HII_R_INDEX(0, 0, 0)], grids->halo_xray[HII_R_INDEX(0, 0, 0)],
+                    grids->n_ion[HII_R_INDEX(0, 0, 0)], grids->count[HII_R_INDEX(0, 0, 0)]);
+    if (astro_options_global->INHOMO_RECO) {
+        LOG_ULTRA_DEBUG("FESC * SF %.2e", grids->whalo_sfr[HII_R_INDEX(0, 0, 0)]);
+    }
+    if (astro_options_global->USE_TS_FLUCT) {
+        LOG_ULTRA_DEBUG("X-ray %.2e", grids->halo_xray[HII_R_INDEX(0, 0, 0)]);
+    }
+    if (astro_options_global->USE_MINI_HALOS) {
+        LOG_ULTRA_DEBUG("MINI SM %.2e SF %.2e", grids->halo_stars_mini[HII_R_INDEX(0, 0, 0)],
+                        grids->halo_sfr_mini[HII_R_INDEX(0, 0, 0)]);
+    }
+    LOG_ULTRA_DEBUG("Mturn_a %.2e Mturn_m %.2e", mturn_a_grid[HII_R_INDEX(0, 0, 0)],
+                    mturn_m_grid[HII_R_INDEX(0, 0, 0)]);
 
     free(mturn_a_grid);
     free(mturn_m_grid);
@@ -538,9 +557,11 @@ void sum_halos_onto_grid(InitialConditions *ini_boxes, TsBox *previous_spin_temp
     unsigned long long int total_n_halos, n_halos_cut = 0.;
 
     double cell_volume = VOLUME / HII_TOT_NUM_PIXELS;
+    double cell_length = simulation_options_global->BOX_LEN / simulation_options_global->HII_DIM;
 #pragma omp parallel num_threads(simulation_options_global->N_THREADS)
     {
         int x, y, z;
+        double halo_pos[3];
         unsigned long long int i_halo, i_cell;
         double hmass, nion, sfr, wsfr, sfr_mini, stars_mini, stars, xray;
         double J21_val, Gamma12_val, zre_val;
@@ -565,12 +586,31 @@ void sum_halos_onto_grid(InitialConditions *ini_boxes, TsBox *previous_spin_temp
                 n_halos_cut++;
                 continue;
             }
-            // NOTE:Unlike HaloField, PerturbHaloField is on HII_DIM so we don't need to correct
-            // here
-            x = halos->halo_coords[0 + 3 * i_halo];
-            y = halos->halo_coords[1 + 3 * i_halo];
-            z = halos->halo_coords[2 + 3 * i_halo];
+
+            for (int i = 0; i < 3; i++) {
+                halo_pos[i] = halos->halo_coords[i + 3 * i_halo] / cell_length;
+                // This is a special case, where the halo is exactly at the edge of the box
+                // This can happen due to floating point errors when multiplied by the cell length
+                if (halo_pos[i] == (float)simulation_options_global->HII_DIM) {
+                    halo_pos[i] =
+                        (float)simulation_options_global->HII_DIM - 0.1;  // will place in last cell
+                }
+            }
+
+            x = (int)(halo_pos[0]);
+            y = (int)(halo_pos[1]);
+            z = (int)(halo_pos[2]);
             i_cell = HII_R_INDEX(x, y, z);
+
+            if (i_cell >= HII_TOT_NUM_PIXELS || i_cell < 0 || x < 0 || y < 0 || z < 0 ||
+                x >= simulation_options_global->HII_DIM ||
+                y >= simulation_options_global->HII_DIM || z >= HII_D_PARA) {
+                LOG_ERROR("Halo %llu (%d %d %d) out of bounds (%llu)", i_halo, x, y, z, i_cell);
+                LOG_ERROR("Halo Position (%f %f %f) Box Length %.2f",
+                          halos->halo_coords[0 + 3 * i_halo], halos->halo_coords[1 + 3 * i_halo],
+                          halos->halo_coords[2 + 3 * i_halo], simulation_options_global->BOX_LEN);
+                Throw(ValueError);
+            }
 
             // set values before reionisation feedback
             // NOTE: I could easily apply reionization feedback without minihalos but this was not
@@ -636,19 +676,28 @@ void sum_halos_onto_grid(InitialConditions *ini_boxes, TsBox *previous_spin_temp
 #pragma omp atomic update
             grids->halo_stars[i_cell] += stars;
 #pragma omp atomic update
-            grids->halo_stars_mini[i_cell] += stars_mini;
-#pragma omp atomic update
             grids->n_ion[i_cell] += nion;
 #pragma omp atomic update
             grids->halo_sfr[i_cell] += sfr;
 #pragma omp atomic update
-            grids->halo_sfr_mini[i_cell] += sfr_mini;
-#pragma omp atomic update
-            grids->whalo_sfr[i_cell] += wsfr;
-#pragma omp atomic update
-            grids->halo_xray[i_cell] += xray;
-#pragma omp atomic update
             grids->count[i_cell] += 1;
+
+            if (astro_options_global->USE_MINI_HALOS) {
+#pragma omp atomic update
+                grids->halo_stars_mini[i_cell] += stars_mini;
+#pragma omp atomic update
+                grids->halo_sfr_mini[i_cell] += sfr_mini;
+            }
+
+            if (astro_options_global->INHOMO_RECO) {
+#pragma omp atomic update
+                grids->whalo_sfr[i_cell] += wsfr;
+            }
+
+            if (astro_options_global->USE_TS_FLUCT) {
+#pragma omp atomic update
+                grids->halo_xray[i_cell] += xray;
+            }
 
             hm_avg += hmass;
             sfr_avg += sfr;
@@ -667,22 +716,35 @@ void sum_halos_onto_grid(InitialConditions *ini_boxes, TsBox *previous_spin_temp
         for (i_cell = 0; i_cell < HII_TOT_NUM_PIXELS; i_cell++) {
             grids->halo_mass[i_cell] /= cell_volume;
             grids->halo_sfr[i_cell] /= cell_volume;
-            grids->halo_sfr_mini[i_cell] /= cell_volume;
             grids->halo_stars[i_cell] /= cell_volume;
-            grids->halo_stars_mini[i_cell] /= cell_volume;
-            grids->halo_xray[i_cell] /= cell_volume;
             grids->n_ion[i_cell] /= cell_volume;
-            grids->whalo_sfr[i_cell] /= cell_volume;
+            if (astro_options_global->USE_TS_FLUCT) {
+                grids->halo_xray[i_cell] /= cell_volume;
+            }
+            if (astro_options_global->INHOMO_RECO) {
+                grids->whalo_sfr[i_cell] /= cell_volume;
+            }
+            if (astro_options_global->USE_MINI_HALOS) {
+                grids->halo_sfr_mini[i_cell] /= cell_volume;
+                grids->halo_stars_mini[i_cell] /= cell_volume;
+            }
         }
     }
     total_n_halos = halos->n_halos - n_halos_cut;
-    LOG_SUPER_DEBUG(
-        "Cell 0 Totals: HM: %.2e SM: %.2e (%.2e) SF: %.2e (%.2e) X: %.2e NI: %.2e WS: %.2e ct : %d",
-        grids->halo_mass[HII_R_INDEX(0, 0, 0)], grids->halo_stars[HII_R_INDEX(0, 0, 0)],
-        grids->halo_stars_mini[HII_R_INDEX(0, 0, 0)], grids->halo_sfr[HII_R_INDEX(0, 0, 0)],
-        grids->halo_sfr_mini[HII_R_INDEX(0, 0, 0)], grids->halo_xray[HII_R_INDEX(0, 0, 0)],
-        grids->n_ion[HII_R_INDEX(0, 0, 0)], grids->whalo_sfr[HII_R_INDEX(0, 0, 0)],
-        grids->count[HII_R_INDEX(0, 0, 0)]);
+    LOG_SUPER_DEBUG("Cell 0 Totals: HM: %.2e SM: %.2e SF: %.2e NI: %.2e ct : %d",
+                    grids->halo_mass[HII_R_INDEX(0, 0, 0)], grids->halo_stars[HII_R_INDEX(0, 0, 0)],
+                    grids->halo_sfr[HII_R_INDEX(0, 0, 0)], grids->halo_xray[HII_R_INDEX(0, 0, 0)],
+                    grids->n_ion[HII_R_INDEX(0, 0, 0)], grids->count[HII_R_INDEX(0, 0, 0)]);
+    if (astro_options_global->INHOMO_RECO) {
+        LOG_SUPER_DEBUG("FESC * SF %.2e", grids->whalo_sfr[HII_R_INDEX(0, 0, 0)]);
+    }
+    if (astro_options_global->USE_TS_FLUCT) {
+        LOG_SUPER_DEBUG("X-ray %.2e", grids->halo_xray[HII_R_INDEX(0, 0, 0)]);
+    }
+    if (astro_options_global->USE_MINI_HALOS) {
+        LOG_SUPER_DEBUG("MINI SM %.2e SF %.2e", grids->halo_stars_mini[HII_R_INDEX(0, 0, 0)],
+                        grids->halo_sfr_mini[HII_R_INDEX(0, 0, 0)]);
+    }
 
     // NOTE: There is an inconsistency here, the sampled grids use a halo-averaged turnover mass
     //   whereas the fixed grids / default 21cmfast uses the volume averaged LOG10(turnover mass).
@@ -740,11 +802,18 @@ int ComputeHaloBox(double redshift, InitialConditions *ini_boxes, PerturbedField
             grids->halo_mass[idx] = 0.0;
             grids->n_ion[idx] = 0.0;
             grids->halo_sfr[idx] = 0.0;
-            grids->halo_sfr_mini[idx] = 0.0;
             grids->halo_stars[idx] = 0.0;
-            grids->halo_stars_mini[idx] = 0.0;
-            grids->whalo_sfr[idx] = 0.0;
             grids->count[idx] = 0;
+            if (astro_options_global->USE_TS_FLUCT) {
+                grids->halo_xray[idx] = 0.0;
+            }
+            if (astro_options_global->USE_MINI_HALOS) {
+                grids->halo_stars_mini[idx] = 0.0;
+                grids->halo_sfr_mini[idx] = 0.0;
+            }
+            if (astro_options_global->INHOMO_RECO) {
+                grids->whalo_sfr[idx] = 0.0;
+            }
         }
 
         struct ScalingConstants hbox_consts;
@@ -798,12 +867,18 @@ int ComputeHaloBox(double redshift, InitialConditions *ini_boxes, PerturbedField
                     for (idx = 0; idx < HII_TOT_NUM_PIXELS; idx++) {
                         grids->halo_mass[idx] *= cell_volume;
                         grids->halo_stars[idx] *= cell_volume;
-                        grids->halo_stars_mini[idx] *= cell_volume;
-                        grids->halo_xray[idx] *= cell_volume;
                         grids->n_ion[idx] *= cell_volume;
                         grids->halo_sfr[idx] *= cell_volume;
-                        grids->halo_sfr_mini[idx] *= cell_volume;
-                        grids->whalo_sfr[idx] *= cell_volume;
+                        if (astro_options_global->USE_TS_FLUCT) {
+                            grids->halo_xray[idx] *= cell_volume;
+                        }
+                        if (astro_options_global->INHOMO_RECO) {
+                            grids->whalo_sfr[idx] *= cell_volume;
+                        }
+                        if (astro_options_global->USE_MINI_HALOS) {
+                            grids->halo_stars_mini[idx] *= cell_volume;
+                            grids->halo_sfr_mini[idx] *= cell_volume;
+                        }
                     }
                     LOG_DEBUG("finished subsampler M[%.2e %.2e]", M_min, M_max_integral);
                 }
@@ -840,7 +915,7 @@ int ComputeHaloBox(double redshift, InitialConditions *ini_boxes, PerturbedField
 // test function for getting halo properties from the wrapper, can use a lot of memory for large
 // catalogs
 int test_halo_props(double redshift, float *vcb_grid, float *J21_LW_grid, float *z_re_grid,
-                    float *Gamma12_ion_grid, int n_halos, float *halo_masses, int *halo_coords,
+                    float *Gamma12_ion_grid, int n_halos, float *halo_masses, float *halo_coords,
                     float *star_rng, float *sfr_rng, float *xray_rng, float *halo_props_out) {
     int status;
     Try {
@@ -851,6 +926,9 @@ int test_halo_props(double redshift, float *vcb_grid, float *J21_LW_grid, float 
         print_sc_consts(&hbox_consts);
 
         LOG_DEBUG("Getting props for %llu halos at z=%.2f", n_halos, redshift);
+
+        double cell_length =
+            simulation_options_global->BOX_LEN / simulation_options_global->HII_DIM;
 
 #pragma omp parallel num_threads(simulation_options_global->N_THREADS)
         {
@@ -864,7 +942,7 @@ int test_halo_props(double redshift, float *vcb_grid, float *J21_LW_grid, float 
             double M_turn_a = hbox_consts.mturn_a_nofb;
             double M_turn_r = 0.;
 
-            double in_props[3];
+            double in_props[3], halo_pos[3];
             struct HaloProperties out_props;
 
 #pragma omp for
@@ -876,9 +954,21 @@ int test_halo_props(double redshift, float *vcb_grid, float *J21_LW_grid, float 
                 if (m == 0.) {
                     continue;
                 }
-                x = halo_coords[0 + 3 * i_halo];
-                y = halo_coords[1 + 3 * i_halo];
-                z = halo_coords[2 + 3 * i_halo];
+
+                for (int i = 0; i < 3; i++) {
+                    halo_pos[i] = halo_coords[i + 3 * i_halo] / cell_length;
+                    // This is a special case, where the halo is exactly at the edge of the box
+                    // This can happen due to floating point errors when multiplied by the cell
+                    // length
+                    if (halo_pos[i] == (float)simulation_options_global->HII_DIM) {
+                        halo_pos[i] = (float)simulation_options_global->HII_DIM -
+                                      0.1;  // will place in last cell
+                    }
+                }
+
+                x = (int)(halo_pos[0]);
+                y = (int)(halo_pos[1]);
+                z = (int)(halo_pos[2]);
                 i_cell = HII_R_INDEX(x, y, z);
 
                 // set values before reionisation feedback

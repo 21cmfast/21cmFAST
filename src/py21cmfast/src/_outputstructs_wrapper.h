@@ -19,7 +19,7 @@ typedef struct HaloField {
     long long unsigned int n_halos;
     long long unsigned int buffer_size;
     float *halo_masses;
-    int *halo_coords;
+    float *halo_coords;
 
     // Halo properties for stochastic model
     float *star_rng;
@@ -31,7 +31,7 @@ typedef struct PerturbHaloField {
     long long unsigned int n_halos;
     long long unsigned int buffer_size;
     float *halo_masses;
-    int *halo_coords;
+    float *halo_coords;
 
     // Halo properties for stochastic model
     float *star_rng;

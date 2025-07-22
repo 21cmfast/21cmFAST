@@ -3,16 +3,9 @@
 import matplotlib as mpl
 import numpy as np
 import pytest
-from matplotlib.colors import LogNorm, Normalize
+from matplotlib.colors import Normalize
 from scipy.stats import binned_statistic as binstat
 
-from py21cmfast import (
-    AstroOptions,
-    AstroParams,
-    CosmoParams,
-    PerturbHaloField,
-    SimulationOptions,
-)
 from py21cmfast.c_21cmfast import ffi, lib
 from py21cmfast.wrapper.cfuncs import broadcast_input_struct
 

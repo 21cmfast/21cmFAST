@@ -1,6 +1,5 @@
 """Module for accounting redshift space distortions."""
 
-import warnings
 from collections.abc import Sequence
 
 import numpy as np

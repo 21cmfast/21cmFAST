@@ -40,7 +40,7 @@ def ang_lightcone(ic, lc, default_input_struct_lc, default_astro_options, cache)
         simulation_options=ic.simulation_options,
     )
 
-    iz, z, coev, anglc = run_lightcone(
+    return run_lightcone(
         lightconer=lcn,
         initial_conditions=ic,
         write=True,
@@ -51,7 +51,6 @@ def ang_lightcone(ic, lc, default_input_struct_lc, default_astro_options, cache)
         ),
         cache=cache,
     )
-    return anglc
 
 
 def test_read_bad_file_lc(test_direc: Path, lc: LightCone):

@@ -26,7 +26,6 @@ from ..wrapper.outputs import (
 )
 from ._param_config import (
     check_output_consistency,
-    check_redshift_consistency,
     single_field_func,
 )
 
@@ -345,6 +344,11 @@ def interp_halo_boxes(
     if redshift > z_halos[-1] or redshift < z_halos[0]:
         raise ValueError(f"Invalid z_target {redshift} for redshift array {z_halos}")
 
+    arr_fields = [f for f in fields if f in halo_boxes[0].arrays]
+    computed = [box.ensure_arrays_computed(*arr_fields) for box in halo_boxes]
+    if not all(computed):
+        raise ValueError("Some of the HaloBox fields required are not computed")
+
     idx_prog = np.searchsorted(z_halos, redshift, side="left")
 
     if idx_prog == 0 or idx_prog == len(z_halos):
@@ -372,20 +376,13 @@ def interp_halo_boxes(
     hbox_desc = halo_boxes[idx_desc]
 
     for field in fields:
-        interp_field = np.zeros_like(hbox_desc.get(field))
+        field_desc = hbox_desc.get(field)
+        field_prog = hbox_prog.get(field)
+        interp_field = np.zeros_like(field_desc)
         interp_field[...] = (1 - interp_param) * hbox_desc.get(
             field
-        ) + interp_param * hbox_prog.get(field)
+        ) + interp_param * field_prog
         hbox_out.set(field, interp_field)
-
-    logger.debug(
-        f"interpolated to z={redshift} between [{z_desc},{z_prog}] ({interp_param})"
-    )
-    logger.debug(
-        f"{fields[0]} averages desc ({idx_desc}): {hbox_desc.get(fields[0]).mean()}"
-        + f" interp {hbox_out.get(fields[0]).mean()}"
-        + f" prog ({idx_prog}) {hbox_prog.get(fields[0]).mean()}"
-    )
 
     return hbox_out
 
@@ -457,6 +454,10 @@ def compute_xray_source_field(
     # inner and outer redshifts (following the C code)
     zpp_avg = zpp_edges - np.diff(np.insert(zpp_edges, 0, redshift)) / 2
 
+    interp_fields = ["halo_sfr", "halo_xray"]
+    if inputs.astro_options.USE_MINI_HALOS:
+        interp_fields += ["halo_sfr_mini", "log10_Mcrit_MCG_ave"]
+
     # call the box the initialize the memory, since I give some values before computing
     box._init_arrays()
     for i in range(inputs.astro_params.N_STEP_TS):
@@ -465,24 +466,29 @@ def compute_xray_source_field(
 
         if zpp_avg[i] >= z_max:
             box.filtered_sfr.value[i] = 0
-            box.filtered_sfr_mini.value[i] = 0
             box.filtered_xray.value[i] = 0
-            box.mean_log10_Mcrit_LW.value[i] = inputs.astro_params.M_TURN  # minimum
+            if inputs.astro_options.USE_MINI_HALOS:
+                box.filtered_sfr_mini.value[i] = 0
+                box.mean_log10_Mcrit_LW.value[i] = inputs.astro_params.M_TURN  # minimum
             logger.debug(f"ignoring Radius {i} which is above Z_HEAT_MAX")
             continue
 
         hbox_interp = interp_halo_boxes(
             halo_boxes=hboxes[::-1],
-            fields=["halo_sfr", "halo_xray", "halo_sfr_mini", "log10_Mcrit_MCG_ave"],
+            fields=interp_fields,
             redshift=zpp_avg[i],
         )
 
         # if we have no halos we ignore the whole shell
-        if np.all(hbox_interp.halo_sfr.value + hbox_interp.halo_sfr_mini.value == 0):
+        sfr_allzero = np.all(hbox_interp.get("halo_sfr") == 0)
+        if inputs.astro_options.USE_MINI_HALOS:
+            sfr_allzero = sfr_allzero & np.all(hbox_interp.get("halo_sfr_mini") == 0)
+        if sfr_allzero:
             box.filtered_sfr.value[i] = 0
-            box.filtered_sfr_mini.value[i] = 0
             box.filtered_xray.value[i] = 0
-            box.mean_log10_Mcrit_LW.value[i] = hbox_interp.log10_Mcrit_MCG_ave
+            if inputs.astro_options.USE_MINI_HALOS:
+                box.filtered_sfr_mini.value[i] = 0
+                box.mean_log10_Mcrit_LW.value[i] = hbox_interp.log10_Mcrit_MCG_ave
             logger.debug(f"ignoring Radius {i} due to no stars")
             continue
 
