@@ -294,20 +294,19 @@ class OutputStruct(ABC):
         array = self.arrays[k]
         state = array.state
 
-        if (
-            not state.initialized
-        ):  # TODO: how to handle the case where some arrays aren't required at all?
+        if not state.initialized:
             warnings.warn(
                 f"Trying to remove array that isn't yet created: {k}", stacklevel=2
             )
             return
 
         if state.computed_in_mem and not state.on_disk and not force:
-            raise OSError(
-                f"Trying to purge array '{k}' from memory that hasn't been stored! Use force=True if you meant to do this."
+            warnings.warn(
+                f"Trying to purge array '{k}' from memory that hasn't been stored! Use force=True if you meant to do this.",
+                stacklevel=2,
             )
 
-        if state.c_has_active_memory:  # TODO: do we need C-managed memory any more?
+        if state.c_has_active_memory:
             lib.free(getattr(self.cstruct, k))
 
         setattr(self, k, array.without_value())

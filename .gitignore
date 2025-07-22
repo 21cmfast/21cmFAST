@@ -58,3 +58,4 @@ src/21cmfast/_version.py
 src/py21cmfast/_version.py
 .qodo/
 testplots/*.pdf
+tests/integration-test-plots/*.pdf
