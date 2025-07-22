@@ -300,7 +300,7 @@ class OutputStruct(ABC):
             return
 
         if state.computed_in_mem and not state.on_disk and not force:
-            raise warnings.warn(
+            warnings.warn(
                 f"Trying to purge array '{k}' from memory that hasn't been stored! Use force=True if you meant to do this.",
                 stacklevel=2,
             )
