@@ -14,6 +14,7 @@ from py21cmfast import (
     CosmoParams,
     InputParameters,
     SimulationOptions,
+    AstroOptions
 )
 from py21cmfast import lightconers as lcn
 

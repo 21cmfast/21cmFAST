@@ -84,7 +84,7 @@ def include_dvdr_in_tau21(
         max_v_deriv = inputs.astro_params.MAX_DVDR * H
         dvdx = np.clip(vel_gradient, -max_v_deriv, max_v_deriv)
         gradient_component = np.abs(1.0 + dvdx / H)
-        tb_with_dvdr = brightness_temp / gradient_component
+        tb_with_dvdr = brightness_temp / gradient_component.value
     else:
         # We have the spin temperature, and we do *not* make the Taylor approximation
         tb_no_rsds = brightness_temp.copy()
