@@ -171,8 +171,8 @@ void writeAstroOptions(AstroOptions *p) {
         "       USE_UPPER_STELLAR_TURNOVER=%1d\n",
         p->USE_MINI_HALOS, p->USE_MASS_DEPENDENT_ZETA, p->APPLY_RSDS, p->INHOMO_RECO,
         p->USE_TS_FLUCT, p->M_MIN_in_Mass, p->USE_EXP_FILTER, p->USE_CMB_HEATING,
-        p->USE_LYA_HEATING, p->INCLUDE_DVDR_IN_TAU21, p->FIX_VCB_AVG, p->CELL_RECOMB, p->PHOTON_CONS_TYPE,
-        p->USE_UPPER_STELLAR_TURNOVER);
+        p->USE_LYA_HEATING, p->INCLUDE_DVDR_IN_TAU21, p->FIX_VCB_AVG, p->CELL_RECOMB,
+        p->PHOTON_CONS_TYPE, p->USE_UPPER_STELLAR_TURNOVER);
 }
 
 void get_corner_indices(int size_x, int size_y, int size_z, unsigned long long indices[8]) {

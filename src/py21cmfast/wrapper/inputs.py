@@ -717,7 +717,7 @@ class AstroOptions(InputStruct):
         set `M_MIN_in_Mass` to True.
     INCLUDE_DVDR_IN_TAU21: bool, optional
         Whether to include velocity divergence corrections to the 21cm optical depth
-        (and brightness temperature). 
+        (and brightness temperature).
         This is relevant only for lightcones.
         Coeval boxes could be applied with the same corrections via include_dvdr_in_tau21 method.
     APPLY_RSDS : bool, optional

@@ -230,7 +230,10 @@ class Lightconer(ABC):
 
                 yield q, idx, self.construct_lightcone(lcd, box)
 
-                if (c1.astro_options.INCLUDE_DVDR_IN_TAU21 or c1.astro_options.APPLY_RSDS) and q == self.quantities[0]:
+                if (
+                    c1.astro_options.INCLUDE_DVDR_IN_TAU21
+                    or c1.astro_options.APPLY_RSDS
+                ) and q == self.quantities[0]:
                     # While doing the first quantity, also add in the los velocity, if desired.
                     # Doing it now means we can keep whatever cached interpolation setup
                     # is used to do construct_lightcone().
@@ -660,9 +663,9 @@ class AngularLightconer(Lightconer):
         )
 
         if (
-            (inputs.astro_options.INCLUDE_DVDR_IN_TAU21 or inputs.astro_options.APPLY_RSDS)
-            and not inputs.matter_options.KEEP_3D_VELOCITIES
-        ):
+            inputs.astro_options.INCLUDE_DVDR_IN_TAU21
+            or inputs.astro_options.APPLY_RSDS
+        ) and not inputs.matter_options.KEEP_3D_VELOCITIES:
             raise ValueError(
                 "To account for RSDs or velocity corrections in an angular lightcone, you need to set "
                 "matter_options.KEEP_3D_VELOCITIES=True"

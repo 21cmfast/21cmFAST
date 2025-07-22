@@ -17,7 +17,7 @@ from .. import __version__
 from ..c_21cmfast import lib
 from ..io import h5
 from ..io.caching import CacheConfig, OutputCache, RunCache
-from ..rsds import include_dvdr_in_tau21, apply_rsds
+from ..rsds import apply_rsds, include_dvdr_in_tau21
 from ..wrapper.arrays import Array
 from ..wrapper.inputs import InputParameters
 from ..wrapper.outputs import (
@@ -224,21 +224,26 @@ class Coeval:
             The assumed axis of the line-of-sight. Options are "x", "y", or "z". Default is "z".
         periodic: bool, optioanl
             Whether to assume periodic boundary conditions along the line-of-sight. Default is True.
-        
+
         Returns
         -------
         tb_with_dvdr
             A box of the brightness temperature, with velocity gradient corrections.
         """
-        if not hasattr(self,"velocity_" + axis):
-            if not axis in ["x", "y", "z"]:
+        if not hasattr(self, "velocity_" + axis):
+            if axis not in ["x", "y", "z"]:
                 raise ValueError("`axis` can only be `x`, `y` or `z`.")
             else:
-                raise ValueError("You asked for axis = '"+axis+"', but the coeval doesn't have velocity_"+axis+"!"
-                                 " Set matter_options.KEEP_3D_VELOCITIES=True next time you call run_coeval if you "
-                                 "wish to set axis=`"+axis+"'."
-                                 )
-        
+                raise ValueError(
+                    "You asked for axis = '"
+                    + axis
+                    + "', but the coeval doesn't have velocity_"
+                    + axis
+                    + "!"
+                    " Set matter_options.KEEP_3D_VELOCITIES=True next time you call run_coeval if you "
+                    "wish to set axis=`" + axis + "'."
+                )
+
         return include_dvdr_in_tau21(
             brightness_temp=self.brightness_temp,
             los_velocity=getattr(self, "velocity_" + axis),
@@ -247,8 +252,14 @@ class Coeval:
             tau_21=self.tau_21 if self.inputs.astro_options.USE_TS_FLUCT else None,
             periodic=periodic,
         )
-    
-    def apply_rsds(self, field: str = "brightness_temp", axis: str = "z", periodic: bool = True, n_subcells: int | None = None):
+
+    def apply_rsds(
+        self,
+        field: str = "brightness_temp",
+        axis: str = "z",
+        periodic: bool = True,
+        n_subcells: int | None = None,
+    ):
         """Apply redshift-space distortions to a particular field of the coeval box.
 
         Parameters
@@ -268,21 +279,26 @@ class Coeval:
         field_with_rsds
             A box of the field, with redshift space distortions.
         """
-        if not hasattr(self,"velocity_" + axis):
-            if not axis in ["x", "y", "z"]:
+        if not hasattr(self, "velocity_" + axis):
+            if axis not in ["x", "y", "z"]:
                 raise ValueError("`axis` can only be `x`, `y` or `z`.")
             else:
-                raise ValueError("You asked for axis = '"+axis+"', but the coeval doesn't have velocity_"+axis+"!"
-                                 " Set matter_options.KEEP_3D_VELOCITIES=True next time you call run_coeval if you "
-                                 "wish to set axis=`"+axis+"'."
-                                 )
+                raise ValueError(
+                    "You asked for axis = '"
+                    + axis
+                    + "', but the coeval doesn't have velocity_"
+                    + axis
+                    + "!"
+                    " Set matter_options.KEEP_3D_VELOCITIES=True next time you call run_coeval if you "
+                    "wish to set axis=`" + axis + "'."
+                )
 
         if n_subcells is None:
             if self.inputs.astro_options.APPLY_RSDS:
                 n_subcells = self.inputs.astro_params.N_RSD_STEPS
             else:
                 n_subcells = 4
-        
+
         return apply_rsds(
             field=getattr(self, field),
             los_velocity=getattr(self, "velocity_" + axis),
@@ -291,8 +307,10 @@ class Coeval:
             periodic=periodic,
             n_subcells=n_subcells,
         )
-    
-    def apply_velocity_corrections(self, axis: str = "z", periodic: bool = True, n_subcells: int | None = None):
+
+    def apply_velocity_corrections(
+        self, axis: str = "z", periodic: bool = True, n_subcells: int | None = None
+    ):
         """Apply velocity gradient corrections and redshift-space distortions to the brightness temperature field.
 
         Parameters
@@ -310,21 +328,26 @@ class Coeval:
         field_with_rsds
             A box of the brightness temperature, with velocity gradient corrections and redshift-space distortions.
         """
-        if not hasattr(self,"velocity_" + axis):
-            if not axis in ["x", "y", "z"]:
+        if not hasattr(self, "velocity_" + axis):
+            if axis not in ["x", "y", "z"]:
                 raise ValueError("`axis` can only be `x`, `y` or `z`.")
             else:
-                raise ValueError("You asked for axis = '"+axis+"', but the coeval doesn't have velocity_"+axis+"!"
-                                 " Set matter_options.KEEP_3D_VELOCITIES=True next time you call run_coeval if you "
-                                 "wish to set axis=`"+axis+"'."
-                                 )
-        
+                raise ValueError(
+                    "You asked for axis = '"
+                    + axis
+                    + "', but the coeval doesn't have velocity_"
+                    + axis
+                    + "!"
+                    " Set matter_options.KEEP_3D_VELOCITIES=True next time you call run_coeval if you "
+                    "wish to set axis=`" + axis + "'."
+                )
+
         if n_subcells is None:
             if self.inputs.astro_options.APPLY_RSDS:
                 n_subcells = self.inputs.astro_params.N_RSD_STEPS
             else:
                 n_subcells = 4
-        
+
         tb_with_dvdr = include_dvdr_in_tau21(
             brightness_temp=self.brightness_temp,
             los_velocity=getattr(self, "velocity_" + axis),
