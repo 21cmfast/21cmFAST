@@ -145,6 +145,7 @@ def default_astro_options():
         USE_EXP_FILTER=False,
         CELL_RECOMB=False,
         USE_UPPER_STELLAR_TURNOVER=False,
+        INCLUDE_DVDR_IN_TAU21=False,
     )
 
 

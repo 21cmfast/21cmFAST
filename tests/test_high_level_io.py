@@ -46,7 +46,7 @@ def ang_lightcone(ic, lc, default_input_struct_lc, default_astro_options, cache)
         write=True,
         inputs=default_input_struct_lc.clone(
             astro_options=default_astro_options.clone(
-                INCLUDE_DVDR_IN_TAU21=True,
+                INCLUDE_DVDR_IN_TAU21=False,
             )
         ),
         cache=cache,
@@ -152,7 +152,7 @@ def test_coeval_roundtrip(test_direc, coeval):
     assert np.all(np.isclose(coeval.brightness_temp, coeval2.brightness_temp))
 
 
-def test_ang_lightcone(lc, ang_lightcone: AngularLightcone):
+def test_ang_lightcone(lc, ang_lightcone: AngularLightcone, plt):
     # we test that the fields are "highly correlated",
     # and moreso in the one corner where the lightcones
     # should be almost exactly the same, and less so in the other
@@ -162,6 +162,16 @@ def test_ang_lightcone(lc, ang_lightcone: AngularLightcone):
 
     fullcorr0 = np.corrcoef(rbt[:, :, 0].flatten(), abt[:, :, 0].flatten())
     fullcorrz = np.corrcoef(rbt[:, :, -1].flatten(), abt[:, :, -1].flatten())
+
+    fig, ax = plt.subplots(2,2,figsize=(12,12))
+    ax[0,0].imshow(rbt[:, :, 0])
+    ax[0,0].set_title("lowest rect")
+    ax[0,1].imshow(rbt[:, :, -1])
+    ax[0,1].set_title("highest rect")
+    ax[1,0].imshow(abt[:, :, 0])
+    ax[1,0].set_title("lowest ang")
+    ax[1,1].imshow(abt[:, :, -1])
+    ax[1,1].set_title("highest ang")
 
     print("correlation at low z: ", fullcorr0)
     print("correlation at highz: ", fullcorrz)
