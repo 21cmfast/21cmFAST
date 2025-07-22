@@ -363,7 +363,7 @@ def evolve_perturb_halos(
 
             # we never want to store every halofield
             if write.perturbed_halo_field:
-                pt_halos[i].purge(force=True)
+                pt_halos[i].purge()
 
             if z in inputs.node_redshifts:
                 # Only evolve on the node_redshifts, not any redshifts in-between
@@ -701,12 +701,12 @@ def _redshift_loop_generator(
 
             # We purge previous fields and those we no longer need
             if prev_coeval is not None:
-                prev_coeval.perturbed_field.purge(force=True)
-                if inputs.matter_options.USE_HALO_FIELD:
-                    prev_coeval.halobox.prepare_for_next_snapshot(force=True)
+                prev_coeval.perturbed_field.purge()
+                if inputs.matter_options.USE_HALO_FIELD and write.halobox:
+                    prev_coeval.halobox.prepare_for_next_snapshot()
 
             if this_pthalo is not None:
-                this_pthalo.purge(force=True)
+                this_pthalo.purge()
 
             if inputs.astro_options.PHOTON_CONS_TYPE == "z-photoncons":
                 # Updated info at each z.
@@ -733,7 +733,8 @@ def _setup_ics_and_pfs_for_scrolling(
 
     # We can go ahead and purge some of the stuff in the initial_conditions, but only if
     # it is cached -- otherwise we could be losing information.
-    initial_conditions.prepare_for_perturb(force=True)
+    if write.initial_conditions:
+        initial_conditions.prepare_for_perturb()
     kw = {
         "initial_conditions": initial_conditions,
         **iokw,
@@ -768,7 +769,7 @@ def _setup_ics_and_pfs_for_scrolling(
             )
 
             if inputs.matter_options.MINIMIZE_MEMORY and write.perturbed_field:
-                p.purge(force=True)
+                p.purge()
             perturbed_field.append(p)
 
     pt_halos = evolve_perturb_halos(
@@ -779,7 +780,8 @@ def _setup_ics_and_pfs_for_scrolling(
         **kw,
     )
     # Now we can purge initial_conditions further.
-    initial_conditions.prepare_for_spin_temp(force=True)
+    if write.initial_conditions:
+        initial_conditions.prepare_for_spin_temp()
 
     return initial_conditions, perturbed_field, pt_halos, photon_nonconservation_data
 
