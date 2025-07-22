@@ -1,7 +1,10 @@
 """Tests of miscellaneous utility functions not part of the main 21cmFAST simulation modules."""
 
+import numpy as np
+import pytest
+
 from py21cmfast import InputParameters
-from py21cmfast.utils import show_references
+from py21cmfast.utils import recursive_difference, show_references
 
 
 def test_ref_printing():
@@ -34,3 +37,44 @@ def test_ref_printing():
     assert "10.1093/mnras/staa1131" not in ref_str
     assert "10.1093/mnras/stac185" not in ref_str
     assert "10.48550/arXiv.2504.17254" not in ref_str
+
+
+class TestRecursiveDifference:
+    def test_b_empty(self):
+        a = {"a": 1, "b": 2}
+        aa = recursive_difference(a, {})
+
+        assert a == aa
+
+    def test_a_empty(self):
+        a = {}
+        b = {"a": 1, "b": 2}
+        aa = recursive_difference(a, b)
+        assert len(aa) == 0
+
+    def test_disjoint(self):
+        a = {"a": 1}
+        b = {"b": 2}
+        assert recursive_difference(a, b) == a
+
+    def test_a_recursive_b_not_recursive(self):
+        a = {"a": {"a": 1, "b": 2}, "b": 1}
+        b = {"a": 1, "b": 2}
+
+        assert recursive_difference(a, b) == a
+
+    def test_a_and_b_recurse(self):
+        a = {"a": {"a": 1, "b": 2}, "b": 1}
+        b = a
+
+        assert recursive_difference(a, b) == {}
+
+    def test_comparison_rules(self):
+        a = {"a": np.zeros(10)}
+        b = {"a": np.zeros(10)}
+
+        with pytest.raises(ValueError, "The truthvalue of an array"):
+            recursive_difference(a, b)
+
+        cmprules = {np.ndarray: lambda x, y: np.allclose(x, y)}
+        assert recursive_difference(a, b, cmprules=cmprules) == {}

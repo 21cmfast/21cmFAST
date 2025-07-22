@@ -39,7 +39,7 @@ description = "Our latest fiducial run with discrete halos, recominations and sp
 
 [[templates]]
 name = "minihalos-discrete"
-file = "mini-dhalos.toml"
+file = "minihalos-discrete.toml"
 aliases = ["minihalos-discrete", "mini-dhalos"]
 description = "Run with discrete halos, including the molecularly cooled galaxy component"
 

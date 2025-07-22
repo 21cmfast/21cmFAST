@@ -109,7 +109,7 @@ def create_params_from_template(
         thist = load_template_file(tmpl)
         for k, v in thist.items():
             full_template[k] |= v
-
+    print(full_template)
     return deserialize_inputs(full_template, **kwargs)
 
 

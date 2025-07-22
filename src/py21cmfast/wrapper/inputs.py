@@ -1562,12 +1562,9 @@ class InputParameters:
         if remove_base_cosmo:
             del dct["cosmo_params"]["_base_cosmo"]
 
+        inpstructs = [k for k in dct if isinstance(getattr(self, k), InputStruct)]
         if only_structs:
-            dct = {
-                k: v
-                for k, v in dct.items()
-                if isinstance(getattr(self, k), InputStruct)
-            }
+            dct = {k: v for k, v in dct.items() if k in inpstructs}
 
         if use_aliases:
             # Change keys to aliases instead of attribute names if desired.
@@ -1592,6 +1589,8 @@ class InputParameters:
                     }
 
         if camel:
-            dct = {snake_to_camel(k): v for k, v in dct.items()}
+            dct = {
+                (snake_to_camel(k) if k in inpstructs else k): v for k, v in dct.items()
+            }
 
         return dct

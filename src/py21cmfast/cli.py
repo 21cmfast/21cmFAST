@@ -243,7 +243,7 @@ def cfg_avail():
 def pretty_print_inputs(
     inputs: InputParameters, name: str, description: str, mode: TOMLMode = "full"
 ):
-    inputs_dct = convert_inputs_to_dict(inputs, mode)
+    inputs_dct = convert_inputs_to_dict(inputs, mode, only_cstruct_params=True)
 
     @group()
     def get_panel_elements():

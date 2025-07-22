@@ -126,11 +126,11 @@ def _write_inputs_to_group(
         The group or file into which to write the inputs. Note that a new group called
         "InputParameters" will be created inside this group/file.
     """
-    must_close = False
-    if isinstance(group, str | Path):
-        file = h5py.File(group, "a")
-        group = file
-        must_close = True
+    if not isinstance(group, h5py.Group):
+        with h5py.File(group, "a") as fl:
+            _write_inputs_to_group(inputs, fl)
+        print("I should be closed now!", fl)
+        return
 
     grp = group.create_group("InputParameters")
 
@@ -160,9 +160,6 @@ def _write_inputs_to_group(
         if inputs.node_redshifts is None
         else np.array(inputs.node_redshifts)
     )
-
-    if must_close:
-        file.close()
 
 
 def write_outputs_to_group(

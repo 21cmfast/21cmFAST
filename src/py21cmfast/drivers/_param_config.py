@@ -8,9 +8,10 @@ import logging
 from collections.abc import Sequence
 from typing import Any, get_args
 
-from ..input_serialization import convert_inputs_to_dict, get_input_params_difference
+from ..input_serialization import convert_inputs_to_dict
 from ..io import h5
 from ..io.caching import OutputCache
+from ..utils import recursive_difference
 from ..wrapper.cfuncs import broadcast_input_struct, construct_fftw_wisdoms
 from ..wrapper.inputs import InputParameters
 from ..wrapper.outputs import OutputStruct, OutputStructZ, _HashType
@@ -60,7 +61,7 @@ def _get_incompatible_params(
     """Return a dict of parameters that differ between two InputParameters objects."""
     d1 = convert_inputs_to_dict(inputs1, only_structs=False, camel=False)
     d2 = convert_inputs_to_dict(inputs2, only_structs=False, camel=False)
-    return get_input_params_difference(d1, d2)
+    return recursive_difference(d1, d2)
 
 
 def _get_incompatible_param_diffstring(

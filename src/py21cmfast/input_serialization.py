@@ -15,7 +15,7 @@ def convert_inputs_to_dict(
     mode: Literal["full", "minimal"] = "full",
     only_structs: bool = True,
     camel: bool = True,
-    only_cstruct_params: bool = True,
+    only_cstruct_params: bool = False,
     use_aliases: bool = True,
 ) -> dict[str, dict[str, Any]]:
     """Convert an InputParameters object to a dictionary, with various options.
@@ -36,7 +36,8 @@ def convert_inputs_to_dict(
         otherwise also return other attributes (e.g. random_seed).
     camel
         Whether the keys of the returned dict should be camel-case, e.g.
-        SimulationOptions. Otherwise, return as snake_case.
+        SimulationOptions. Otherwise, return as snake_case. Only applies to
+        InputStruct attributes of the inputs (i.e. not node_redshifts or random_seed).
     only_cstruct_params
         Only return parameters that are part of the Cstruct, rather than all
         fields of the class. This is useful for pretty-printing.
@@ -56,18 +57,9 @@ def convert_inputs_to_dict(
     if mode == "minimal":
         defaults = InputParameters(random_seed=0)
         default_dct = defaults.asdict(**kw)
-        all_inputs = get_input_params_difference(all_inputs, default_dct)
+        all_inputs = recursive_difference(all_inputs, default_dct)
 
     return all_inputs
-
-
-def get_input_params_difference(inputs1: dict, inputs2: dict) -> dict:
-    """Given two dictionaries serialized from InputParameter structs, return the difference.
-
-    Note that the "difference" here is asymmetric, i.e. the output only has
-    data from inputs1, and only if that data is *different* to inputs2.
-    """
-    return recursive_difference(inputs1, inputs2)
 
 
 def prepare_inputs_for_serialization(
@@ -87,11 +79,10 @@ def prepare_inputs_for_serialization(
         mode=mode,
         only_structs=only_structs,
         camel=camel,
-        only_cstruct_params=False,
         use_aliases=False,  # convert to aliases below instead.
     )
 
-    # dctdct is a dict of dicts, where each subdict represents a
+    # dct is a dict of dicts, where each subdict represents a
     # single input parameter struct (SimulationOptions, AstroParams etc).
     # The rules are that _all_ of the input structs are in this dict, even if they are
     # empty. The keys allowed in each struct are such that:
@@ -114,12 +105,14 @@ def prepare_inputs_for_serialization(
     out = {}
     for structname, structvals in dct.items():
         this = {}
-        clsname = snake_to_camel(structname) if "_" in structname else structname
+        clsname = snake_to_camel(structname)
         fields = attrs.fields_dict(InputStruct._subclasses[clsname])
 
         for key, val in structvals.items():
             if val is None:
-                if fields[key].default is not None:
+                if fields[key].default is not None:  # pragma: nocover
+                    # This should not be reachable because setting a required parameter
+                    # to None should error on validation, rather than reaching here.
                     raise RuntimeError(
                         f"Detected that {structname} has {key}=None but it is not an optional parameter!"
                     )
@@ -164,8 +157,7 @@ def deserialize_inputs(
     # so when we modify it in-place (via .pop()) later, we don't mess with the user's
     # input.
     dict_of_structdicts = {
-        snake_to_camel(name) if "_" in name else name: dct
-        for name, dct in dict_of_structdicts.items()
+        snake_to_camel(name): dct for name, dct in dict_of_structdicts.items()
     }
 
     input_dict = {}
