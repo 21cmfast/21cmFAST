@@ -36,7 +36,6 @@ test_req = [
     "tyro",
     "rich",
     "pytest-xdist",
-    "classy<3.3",  # classy 3.3 not installing (some cython error)
     "pytest-mock",
 ]
 
@@ -89,7 +88,7 @@ setup(
         "cosmotile>=0.2.5",
         "attrs",
         "tqdm",
-        "classy<3.3",
+        "classy",
         "cyclopts",
         "tomlkit",
     ],

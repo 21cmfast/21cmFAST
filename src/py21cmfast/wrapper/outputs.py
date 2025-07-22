@@ -24,6 +24,8 @@ from typing import Any, Self
 
 import attrs
 import numpy as np
+from astropy import units as u
+from astropy.cosmology import z_at_value
 from bidict import bidict
 
 from ..c_21cmfast import lib
@@ -218,11 +220,11 @@ class OutputStruct(ABC):
                     raise AttributeError(f"The array {ary} does not exist") from e
         elif names := [name for name, x in self.arrays.items() if x is ary]:
             name = names[0]
-
         else:
             raise ValueError("The given array is not a part of this instance.")
+
         if not ary.state.on_disk and not ary.state.initialized:
-            raise ValueError(f"Array '{ary.name}' is not on disk and not initialized.")
+            raise ValueError(f"Array '{name}' is not on disk and not initialized.")
 
         if ary.state.on_disk and not ary.state.computed_in_mem:
             ary = ary.loaded_from_disk()
@@ -291,20 +293,19 @@ class OutputStruct(ABC):
         array = self.arrays[k]
         state = array.state
 
-        if (
-            not state.initialized
-        ):  # TODO: how to handle the case where some arrays aren't required at all?
+        if not state.initialized:
             warnings.warn(
                 f"Trying to remove array that isn't yet created: {k}", stacklevel=2
             )
             return
 
         if state.computed_in_mem and not state.on_disk and not force:
-            raise OSError(
-                f"Trying to purge array '{k}' from memory that hasn't been stored! Use force=True if you meant to do this."
+            warnings.warn(
+                f"Trying to purge array '{k}' from memory that hasn't been stored! Use force=True if you meant to do this.",
+                stacklevel=2,
             )
 
-        if state.c_has_active_memory:  # TODO: do we need C-managed memory any more?
+        if state.c_has_active_memory:
             lib.free(getattr(self.cstruct, k))
 
         setattr(self, k, array.without_value())
@@ -558,7 +559,7 @@ class InitialConditions(OutputStruct):
 
         return cls(inputs=inputs, **out, **kw)
 
-    def prepare_for_perturb(self, astro_options: AstroOptions, force: bool = False):
+    def prepare_for_perturb(self, force: bool = False):
         """Ensure the ICs have all the boxes loaded for perturb, but no extra."""
         keep = ["hires_density"]
 
@@ -588,7 +589,7 @@ class InitialConditions(OutputStruct):
 
         self.prepare(keep=keep, force=force)
 
-    def prepare_for_spin_temp(self, astro_options: AstroOptions, force: bool = False):
+    def prepare_for_spin_temp(self, force: bool = False):
         """Ensure ICs have all boxes required for spin_temp, and no more."""
         keep = []
         # NOTE: the astro flags doesn't change the computation, just the storage
@@ -772,7 +773,7 @@ class PerturbHaloField(OutputStructZ):
             star_rng=Array((buffer_size,), dtype=np.float32),
             sfr_rng=Array((buffer_size,), dtype=np.float32),
             xray_rng=Array((buffer_size,), dtype=np.float32),
-            halo_coords=Array((buffer_size, 3), dtype=np.int32),
+            halo_coords=Array((buffer_size, 3), dtype=np.float32),
             redshift=redshift,
             buffer_size=buffer_size,
             **kw,
@@ -883,13 +884,13 @@ class HaloBox(OutputStructZ):
 
     halo_mass = _arrayfield()
     halo_stars = _arrayfield()
-    halo_stars_mini = _arrayfield()
+    halo_stars_mini = _arrayfield(optional=True)
     count = _arrayfield()
     halo_sfr = _arrayfield()
-    halo_sfr_mini = _arrayfield()
-    halo_xray = _arrayfield()
+    halo_sfr_mini = _arrayfield(optional=True)
+    halo_xray = _arrayfield(optional=True)
     n_ion = _arrayfield()
-    whalo_sfr = _arrayfield()
+    whalo_sfr = _arrayfield(optional=True)
 
     log10_Mcrit_ACG_ave: float = attrs.field(default=None)
     log10_Mcrit_MCG_ave: float = attrs.field(default=None)
@@ -913,18 +914,28 @@ class HaloBox(OutputStructZ):
         dim = inputs.simulation_options.HII_DIM
         shape = (dim, dim, int(inputs.simulation_options.NON_CUBIC_FACTOR * dim))
 
+        out = {
+            "halo_mass": Array(shape, dtype=np.float32),
+            "halo_stars": Array(shape, dtype=np.float32),
+            "count": Array(shape, dtype=np.int32),
+            "halo_sfr": Array(shape, dtype=np.float32),
+            "n_ion": Array(shape, dtype=np.float32),
+        }
+
+        if inputs.astro_options.USE_MINI_HALOS:
+            out["halo_stars_mini"] = Array(shape, dtype=np.float32)
+            out["halo_sfr_mini"] = Array(shape, dtype=np.float32)
+
+        if inputs.astro_options.INHOMO_RECO:
+            out["whalo_sfr"] = Array(shape, dtype=np.float32)
+
+        if inputs.astro_options.USE_TS_FLUCT:
+            out["halo_xray"] = Array(shape, dtype=np.float32)
+
         return cls(
             inputs=inputs,
             redshift=redshift,
-            halo_mass=Array(shape, dtype=np.float32),
-            halo_stars=Array(shape, dtype=np.float32),
-            halo_stars_mini=Array(shape, dtype=np.float32),
-            count=Array(shape, dtype=np.int32),
-            halo_sfr=Array(shape, dtype=np.float32),
-            halo_sfr_mini=Array(shape, dtype=np.float32),
-            halo_xray=Array(shape, dtype=np.float32),
-            n_ion=Array(shape, dtype=np.float32),
-            whalo_sfr=Array(shape, dtype=np.float32),
+            **out,
             **kw,
         )
 
@@ -982,6 +993,29 @@ class HaloBox(OutputStructZ):
             previous_ionize_box,
         )
 
+    def prepare_for_next_snapshot(self, force: bool = False):
+        """Prepare the HaloBox for the next snapshot."""
+        # find maximum z
+        d_max_needed = (
+            self.cosmo_params.cosmo.comoving_distance(self.redshift)
+            + self.astro_params.R_MAX_TS * u.Mpc
+        )
+        max_z_needed = z_at_value(
+            self.cosmo_params.cosmo.comoving_distance, d_max_needed
+        )
+
+        # we need one redshift above the max z for interpolation, so find that value
+        first_z_above = np.argmax(self.inputs.node_redshifts > max_z_needed)
+
+        # If we need the box, only keep the interpolated fields
+        keep = []
+        if self.redshift <= self.inputs.node_redshifts[first_z_above]:
+            if self.astro_options.USE_TS_FLUCT:
+                keep += ["halo_sfr", "halo_xray"]
+            if self.astro_options.USE_MINI_HALOS:
+                keep += ["halo_sfr_mini"]
+        self.prepare(keep=keep, force=force)
+
 
 @attrs.define(slots=False, kw_only=True)
 class XraySourceBox(OutputStructZ):
@@ -991,10 +1025,10 @@ class XraySourceBox(OutputStructZ):
     _c_compute_function = lib.UpdateXraySourceBox
 
     filtered_sfr = _arrayfield()
-    filtered_sfr_mini = _arrayfield()
+    filtered_sfr_mini = _arrayfield(optional=True)
     filtered_xray = _arrayfield()
     mean_sfr = _arrayfield()
-    mean_sfr_mini = _arrayfield()
+    mean_sfr_mini = _arrayfield(optional=True)
     mean_log10_Mcrit_LW = _arrayfield()
 
     @classmethod
@@ -1024,15 +1058,24 @@ class XraySourceBox(OutputStructZ):
             )
         )
 
+        out = {
+            "filtered_sfr": Array(shape, dtype=np.float32),
+            "filtered_xray": Array(shape, dtype=np.float32),
+            "mean_sfr": Array(shape, dtype=np.float64),
+            "mean_log10_Mcrit_LW": Array(
+                (inputs.astro_params.N_STEP_TS,), dtype=np.float64
+            ),
+        }
+        if inputs.astro_options.USE_MINI_HALOS:
+            out["filtered_sfr_mini"] = Array(shape, dtype=np.float32)
+            out["mean_sfr_mini"] = Array(
+                (inputs.astro_params.N_STEP_TS,), dtype=np.float64
+            )
+
         return cls(
             inputs=inputs,
             redshift=redshift,
-            filtered_sfr=Array(shape, dtype=np.float32),
-            filtered_sfr_mini=Array(shape, dtype=np.float32),
-            filtered_xray=Array(shape, dtype=np.float32),
-            mean_sfr=Array(shape),
-            mean_sfr_mini=Array((inputs.astro_params.N_STEP_TS,)),
-            mean_log10_Mcrit_LW=Array((inputs.astro_params.N_STEP_TS,)),
+            **out,
             **kw,
         )
 
@@ -1326,7 +1369,9 @@ class IonizedBox(OutputStructZ):
                         "unnormalised_nion_mini",
                     ]
         elif isinstance(input_box, HaloBox):
-            required += ["n_ion", "whalo_sfr"]
+            required += ["n_ion"]
+            if self.astro_options.INHOMO_RECO:
+                required += ["whalo_sfr"]
         else:
             raise ValueError(
                 f"{type(input_box)} is not an input required for IonizedBox!"
