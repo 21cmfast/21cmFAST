@@ -10,12 +10,7 @@ from astropy.cosmology import Planck18, z_at_value
 from astropy_healpix import HEALPix
 from scipy.spatial.transform import Rotation
 
-from py21cmfast import (
-    CosmoParams,
-    InputParameters,
-    SimulationOptions,
-    AstroOptions
-)
+from py21cmfast import AstroOptions, CosmoParams, InputParameters, SimulationOptions
 from py21cmfast import lightconers as lcn
 
 
