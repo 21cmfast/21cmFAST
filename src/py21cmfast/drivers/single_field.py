@@ -383,17 +383,6 @@ def interp_halo_boxes(
             field
         ) + interp_param * field_prog
         hbox_out.set(field, interp_field)
-        if field in arr_fields:
-            logger.debug(f"field {field}")
-            logger.debug(
-                f"desc z={hbox_desc.redshift}, min/max/mean = ({field_desc.min()},{field_desc.max()},{field_desc.mean()})"
-            )
-            logger.debug(
-                f"prog z={hbox_prog.redshift}, min/max/mean = ({field_prog.min()},{field_prog.max()},{field_prog.mean()})"
-            )
-            logger.debug(
-                f"intp z={hbox_out.redshift}, min/max/mean = ({interp_field.min()},{interp_field.max()},{interp_field.mean()})"
-            )
 
     return hbox_out
 
