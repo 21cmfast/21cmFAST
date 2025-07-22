@@ -99,8 +99,9 @@ def include_dvdr_in_tau21(
         # It doesn't really matter what the rsd_factor is when tau_21=0 because the brightness temperature is zero by definition
         gradient_factor = np.float32(np.where(tau_21 < 1e-10, 1.0, gradient_factor))
         tb_with_dvdr = tb_no_rsds * gradient_factor.value
-    
+
     return tb_with_dvdr
+
 
 def apply_rsds(
     field: np.ndarray,
@@ -136,18 +137,17 @@ def apply_rsds(
         Whether to assume periodic boundary conditions along the line-of-sight.
     n_subcells: int, optional
         The number of sub-cells to interpolate onto, to make the RSDs more accurate. Default is 4.
-    
+
     Returns
     -------
     field_with_rsds
         A box of the field, with redshift space distortions.
     """
-
     if hasattr(redshifts, "__len__") and len(redshifts) != field.shape[-1]:
         raise ValueError(
             "Redshifts must be a float or array with the same size as number of LoS slices"
         )
-    
+
     H = inputs.cosmo_params.cosmo.H(redshifts)
     los_displacement = los_velocity * units.Mpc / units.s / H
     equiv = units.pixel_scale(inputs.simulation_options.cell_size / units.pixel)
@@ -156,13 +156,11 @@ def apply_rsds(
     # We transform rectilinear lightcone to be an angular-like lightcone
     field_dimensions = len(field.shape)
     if field_dimensions == 3:
-        field = field.reshape(
-            (field.shape[0] * field.shape[1], -1)
-        )
+        field = field.reshape((field.shape[0] * field.shape[1], -1))
         los_displacement = los_displacement.reshape(
             (los_displacement.shape[0] * los_displacement.shape[1], -1)
         )
-    
+
     # Here we move the cells along the line of sight, regardless the geometry (rectilinear or angular)
     field_with_rsds = rsds_shift(
         field=field.T,
@@ -170,7 +168,7 @@ def apply_rsds(
         n_subcells=n_subcells,
         periodic=periodic,
     ).T
-        
+
     # And now we transform back to a rectilinear-like lightcone
     if field_dimensions == 3:
         field_with_rsds = field_with_rsds.reshape(
@@ -181,6 +179,7 @@ def apply_rsds(
             )
         )
     return field_with_rsds
+
 
 def rsds_shift(
     field: np.ndarray,
@@ -202,7 +201,7 @@ def rsds_shift(
         Whether to assume periodic boundary conditions along the line-of-sight.
     n_subcells: int, optional
         The number of sub-cells to interpolate onto, to make the RSDs more accurate. Default is 4.
-    
+
     Returns
     -------
     field_with_rsds
@@ -214,9 +213,9 @@ def rsds_shift(
         raise ValueError(
             "field must be an array with the same shape as los_displacement"
         )
-    if not isinstance(n_subcells,int):
+    if not isinstance(n_subcells, int):
         raise ValueError("n_subcells must be an integer")
-    
+
     ang_coords = np.arange(field.shape[1])
 
     distance = np.arange(field.shape[0])
@@ -263,6 +262,7 @@ def rsds_shift(
     return np.sum(
         fine_field.T.reshape(len(ang_coords), len(distance), n_subcells), axis=-1
     ).T
+
 
 def estimate_rsd_displacements(
     classy_output: Class,

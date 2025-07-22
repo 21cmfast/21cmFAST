@@ -19,7 +19,7 @@ from ..c_21cmfast import lib
 from ..io import h5
 from ..io.caching import CacheConfig, OutputCache
 from ..lightconers import Lightconer, RectilinearLightconer
-from ..rsds import include_dvdr_in_tau21, apply_rsds
+from ..rsds import apply_rsds, include_dvdr_in_tau21
 from ..wrapper.inputs import InputParameters
 from ..wrapper.outputs import (
     BrightnessTemp,
@@ -346,11 +346,17 @@ def setup_lightcone_instance(
             for quantity in lightconer.quantities
         }
 
-        if inputs.astro_options.INCLUDE_DVDR_IN_TAU21 or inputs.astro_options.APPLY_RSDS:
+        if (
+            inputs.astro_options.INCLUDE_DVDR_IN_TAU21
+            or inputs.astro_options.APPLY_RSDS
+        ):
             lc["los_velocity"] = np.zeros(
                 lightconer.get_shape(inputs.simulation_options), dtype=np.float32
             )
-        if inputs.astro_options.INCLUDE_DVDR_IN_TAU21 and inputs.astro_options.USE_TS_FLUCT:
+        if (
+            inputs.astro_options.INCLUDE_DVDR_IN_TAU21
+            and inputs.astro_options.USE_TS_FLUCT
+        ):
             lc["tau_21"] = np.zeros(
                 lightconer.get_shape(inputs.simulation_options), dtype=np.float32
             )

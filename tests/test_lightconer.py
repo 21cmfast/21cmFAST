@@ -62,7 +62,7 @@ def get_uniform_coeval(redshift, fill=1.0, BOX_LEN=100, HII_DIM=50):
         brightness_temp=fill * np.ones((up.HII_DIM, up.HII_DIM, up.HII_DIM)),
         simulation_options=up,
         cosmo_params=CosmoParams(),
-        astro_options=AstroOptions()
+        astro_options=AstroOptions(),
     )
 
 
@@ -242,6 +242,7 @@ def test_validation_options_angular(ang_lcner):
     inputs = InputParameters(node_redshifts=np.array([5.0, 8.0]), random_seed=42)
     inputs.evolve_input_structs(KEEP_3D_VELOCITIES=False, INCLUDE_DVDR_IN_TAU21=True)
     with pytest.raises(
-        ValueError, match="To account for RSDs or velocity corrections in an angular lightcone, you need to set"
+        ValueError,
+        match="To account for RSDs or velocity corrections in an angular lightcone, you need to set",
     ):
         ang_lcner.validate_options(inputs=inputs)

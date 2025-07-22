@@ -7,7 +7,7 @@ from astropy import units
 import py21cmfast as p21c
 from py21cmfast import InputParameters, run_coeval
 from py21cmfast.lightconers import RectilinearLightconer
-from py21cmfast.rsds import include_dvdr_in_tau21, apply_rsds, rsds_shift
+from py21cmfast.rsds import apply_rsds, include_dvdr_in_tau21, rsds_shift
 from py21cmfast.wrapper.classy_interface import run_classy
 
 
@@ -54,7 +54,7 @@ def test_coeval_rsds(ic, default_input_struct_ts, cache):
     )
     box_rsd = coeval[0].apply_velocity_corrections()
     assert box_rsd.shape == coeval[0].brightness_temperature.brightness_temp.shape
-    
+
     box_rsd = coeval[0].include_dvdr_in_tau21()
     assert box_rsd.shape == coeval[0].brightness_temperature.brightness_temp.shape
 
@@ -73,23 +73,28 @@ def test_coeval_rsds(ic, default_input_struct_ts, cache):
     box_rsd = coeval[0].apply_rsds()
     assert box_rsd.shape == coeval[0].brightness_temperature.brightness_temp.shape
 
+
 def test_bad_coeval_inputs(default_input_struct, cache):
     coeval = run_coeval(
         inputs=default_input_struct.evolve_input_structs(KEEP_3D_VELOCITIES=False),
-        out_redshifts=8.,
+        out_redshifts=8.0,
         cache=cache,
     )
-    with pytest.raises(ValueError,match="You asked for axis ="):
-        coeval[0].apply_velocity_corrections(axis="x") # fails because KEEP_3D_VELOCITIES = False
-    with pytest.raises(ValueError,match="You asked for axis ="):
-        coeval[0].include_dvdr_in_tau21(axis="x") # fails because KEEP_3D_VELOCITIES = False
-    with pytest.raises(ValueError,match="You asked for axis ="):
-        coeval[0].apply_rsds(axis="x") # fails because KEEP_3D_VELOCITIES = False
-    with pytest.raises(ValueError,match="`axis` can only be `x`, `y` or `z`."):
+    with pytest.raises(ValueError, match="You asked for axis ="):
+        coeval[0].apply_velocity_corrections(
+            axis="x"
+        )  # fails because KEEP_3D_VELOCITIES = False
+    with pytest.raises(ValueError, match="You asked for axis ="):
+        coeval[0].include_dvdr_in_tau21(
+            axis="x"
+        )  # fails because KEEP_3D_VELOCITIES = False
+    with pytest.raises(ValueError, match="You asked for axis ="):
+        coeval[0].apply_rsds(axis="x")  # fails because KEEP_3D_VELOCITIES = False
+    with pytest.raises(ValueError, match="`axis` can only be `x`, `y` or `z`."):
         coeval[0].apply_velocity_corrections(axis="t")
-    with pytest.raises(ValueError,match="`axis` can only be `x`, `y` or `z`."):
+    with pytest.raises(ValueError, match="`axis` can only be `x`, `y` or `z`."):
         coeval[0].include_dvdr_in_tau21(axis="t")
-    with pytest.raises(ValueError,match="`axis` can only be `x`, `y` or `z`."):
+    with pytest.raises(ValueError, match="`axis` can only be `x`, `y` or `z`."):
         coeval[0].apply_rsds(axis="t")
 
 
@@ -213,7 +218,10 @@ class TestComputeRSDs:
                 tau_21=None,
                 periodic=periodic,
             )
-        with pytest.raises(ValueError, match="Redshifts must be a float or array with the same size as number of LoS slices"):
+        with pytest.raises(
+            ValueError,
+            match="Redshifts must be a float or array with the same size as number of LoS slices",
+        ):
             include_dvdr_in_tau21(
                 brightness_temp=self.bt3d,
                 los_velocity=self.vel3d,
@@ -221,9 +229,12 @@ class TestComputeRSDs:
                 inputs=self.inputs,
                 periodic=periodic,
             )
-        with pytest.raises(ValueError, match="brightness_temp must be an array with the same shape as los_velocity"):
+        with pytest.raises(
+            ValueError,
+            match="brightness_temp must be an array with the same shape as los_velocity",
+        ):
             include_dvdr_in_tau21(
-                brightness_temp=self.bt3d[:,:,:-1],
+                brightness_temp=self.bt3d[:, :, :-1],
                 los_velocity=self.vel3d,
                 redshifts=6.0,
                 inputs=self.inputs,
@@ -231,13 +242,16 @@ class TestComputeRSDs:
             )
         with pytest.raises(ValueError, match="field must have at least 2 slices"):
             apply_rsds(
-                field=self.bt3d[:,:,0].reshape(self.nang,self.nang,1),
-                los_velocity=self.vel3d[:,:,0].reshape(self.nang,self.nang,1),
+                field=self.bt3d[:, :, 0].reshape(self.nang, self.nang, 1),
+                los_velocity=self.vel3d[:, :, 0].reshape(self.nang, self.nang, 1),
                 redshifts=6.0,
                 inputs=self.inputs,
                 periodic=periodic,
             )
-        with pytest.raises(ValueError, match="Redshifts must be a float or array with the same size as number of LoS slices"):
+        with pytest.raises(
+            ValueError,
+            match="Redshifts must be a float or array with the same size as number of LoS slices",
+        ):
             apply_rsds(
                 field=self.bt3d,
                 los_velocity=self.vel3d,
@@ -245,9 +259,12 @@ class TestComputeRSDs:
                 inputs=self.inputs,
                 periodic=periodic,
             )
-        with pytest.raises(ValueError, match="field must be an array with the same shape as los_displacement"):
+        with pytest.raises(
+            ValueError,
+            match="field must be an array with the same shape as los_displacement",
+        ):
             apply_rsds(
-                field=self.bt3d[:,:,:-1],
+                field=self.bt3d[:, :, :-1],
                 los_velocity=self.vel3d,
                 redshifts=6.0,
                 inputs=self.inputs,

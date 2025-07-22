@@ -1438,7 +1438,10 @@ class BrightnessTemp(OutputStructZ):
         )
 
         out = {"brightness_temp": Array(shape, dtype=np.float32)}
-        if inputs.astro_options.USE_TS_FLUCT and inputs.astro_options.INCLUDE_DVDR_IN_TAU21:
+        if (
+            inputs.astro_options.USE_TS_FLUCT
+            and inputs.astro_options.INCLUDE_DVDR_IN_TAU21
+        ):
             out["tau_21"] = Array(shape, dtype=np.float32)
 
         return cls(
