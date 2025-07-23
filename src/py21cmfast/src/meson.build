@@ -56,8 +56,13 @@ log_level_map = {
   'ULTRA_DEBUG': 6,
 }
 
-# Get the LOG_LEVEL environment variable (default to 'WARNING' if not set)
-log_level_str = get_option('log_level')
+# Check for environment variable first, then fall back to meson option
+env_log_level = run_command('printenv', 'LOG_LEVEL', check: false).stdout().strip()
+if env_log_level != ''
+  log_level_str = env_log_level
+else
+  log_level_str = get_option('log_level')
+endif
 
 # Convert the string to an integer using the map, defaulting to 2 (warnings) if the key is invalid
 log_level = log_level_map.get(log_level_str, 2)

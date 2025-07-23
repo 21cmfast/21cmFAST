@@ -812,6 +812,8 @@ int sample_halo_grids(gsl_rng **rng_arr, double redshift, float *dens_field,
     double total_volume_dexm = 0.;
     double cell_volume = VOLUME / pow((double)simulation_options_global->HII_DIM, 3);
 
+    bool halo_overflow_error = false;
+
 #pragma omp parallel num_threads(simulation_options_global->N_THREADS)
     {
         // PRIVATE VARIABLES
@@ -881,16 +883,9 @@ int sample_halo_grids(gsl_rng **rng_arr, double redshift, float *dens_field,
                         // we do not want to save these
                         if (hm_buf[i] < simulation_options_global->SAMPLER_MIN_MASS) continue;
 
-                        if (count >= arraysize_local) {
-                            LOG_ERROR(
-                                "More than %llu halos (expected %.1e) with buffer size factor %.1f",
-                                arraysize_local,
-                                arraysize_local / config_settings.HALO_CATALOG_MEM_FACTOR,
-                                config_settings.HALO_CATALOG_MEM_FACTOR);
-                            LOG_ERROR(
-                                "If you expected to have an above average halo number try raising "
-                                "config_settings.HALO_CATALOG_MEM_FACTOR");
-                            Throw(ValueError);
+                        if (halo_overflow_error || count >= arraysize_local) {
+                            halo_overflow_error = true;
+                            continue;
                         }
 
                         random_point_in_cell((int[3]){x, y, z},
@@ -928,6 +923,16 @@ int sample_halo_grids(gsl_rng **rng_arr, double redshift, float *dens_field,
 
         istart_threads[threadnum] = istart;
         nhalo_threads[threadnum] = count;
+    }
+
+    if (halo_overflow_error) {
+        LOG_ERROR("More than %llu halos (expected %.1e) with buffer size factor %.1f",
+                  arraysize_local, arraysize_local / config_settings.HALO_CATALOG_MEM_FACTOR,
+                  config_settings.HALO_CATALOG_MEM_FACTOR);
+        LOG_ERROR(
+            "If you expected to have an above average halo number try raising "
+            "config_settings.HALO_CATALOG_MEM_FACTOR");
+        Throw(ValueError);
     }
 
     LOG_SUPER_DEBUG("Total dexm volume %.6e Total volume excluded %.6e (In units of HII_DIM cells)",
