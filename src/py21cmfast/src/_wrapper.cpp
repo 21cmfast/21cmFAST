@@ -65,7 +65,6 @@ NB_MODULE(c_21cmfast, m) {
         .def_rw("USE_RELATIVE_VELOCITIES", &MatterOptions::USE_RELATIVE_VELOCITIES)
         .def_rw("POWER_SPECTRUM", &MatterOptions::POWER_SPECTRUM)
         .def_rw("USE_INTERPOLATION_TABLES", &MatterOptions::USE_INTERPOLATION_TABLES)
-        .def_rw("NO_RNG", &MatterOptions::NO_RNG)
         .def_rw("PERTURB_ON_HIGH_RES", &MatterOptions::PERTURB_ON_HIGH_RES)
         .def_rw("PERTURB_ALGORITHM", &MatterOptions::PERTURB_ALGORITHM)
         .def_rw("MINIMIZE_MEMORY", &MatterOptions::MINIMIZE_MEMORY)
@@ -241,7 +240,7 @@ NB_MODULE(c_21cmfast, m) {
         .def("set_halo_masses",
              [](HaloField& self, nb::ndarray<float> array) { self.halo_masses = array.data(); })
         .def("set_halo_coords",
-             [](HaloField& self, nb::ndarray<int> array) { self.halo_coords = array.data(); })
+             [](HaloField& self, nb::ndarray<float> array) { self.halo_coords = array.data(); })
         .def("set_star_rng",
              [](HaloField& self, nb::ndarray<float> array) { self.star_rng = array.data(); })
         .def("set_sfr_rng",
@@ -257,7 +256,7 @@ NB_MODULE(c_21cmfast, m) {
         .def("set_halo_masses", [](PerturbHaloField& self,
                                    nb::ndarray<float> array) { self.halo_masses = array.data(); })
         .def("set_halo_coords", [](PerturbHaloField& self,
-                                   nb::ndarray<int> array) { self.halo_coords = array.data(); })
+                                   nb::ndarray<float> array) { self.halo_coords = array.data(); })
         .def("set_star_rng",
              [](PerturbHaloField& self, nb::ndarray<float> array) { self.star_rng = array.data(); })
         .def("set_sfr_rng",
@@ -365,9 +364,12 @@ NB_MODULE(c_21cmfast, m) {
     // Bind BrightnessTemp
     nb::class_<BrightnessTemp>(m, "BrightnessTemp")
         .def(nb::init<>())
-        .def("set_brightness_temp", [](BrightnessTemp& self, nb::ndarray<float> array) {
-            self.brightness_temp = array.data();
-        });
+        .def("set_brightness_temp",
+             [](BrightnessTemp& self, nb::ndarray<float> array) {
+                 self.brightness_temp = array.data();
+             })
+        .def("set_tau_21",
+             [](BrightnessTemp& self, nb::ndarray<float> array) { self.tau_21 = array.data(); });
 
     // Function Bindings
     // OutputStruct COMPUTE FUNCTIONS
@@ -602,11 +604,11 @@ NB_MODULE(c_21cmfast, m) {
     m.def("FunctionThatThrows", &FunctionThatThrows);
 
     m.def("single_test_sample",
-          [](unsigned long long int seed, nb::ndarray<float> conditions, nb::ndarray<int> cond_crd,
-             double z_out, double z_in, nb::ndarray<int> out_n_tot, nb::ndarray<int> out_n_cell,
-             nb::ndarray<double> out_n_exp, nb::ndarray<double> out_m_cell,
-             nb::ndarray<double> out_m_exp, nb::ndarray<float> out_halo_masses,
-             nb::ndarray<int> out_halo_coords) {
+          [](unsigned long long int seed, nb::ndarray<float> conditions,
+             nb::ndarray<float> cond_crd, double z_out, double z_in, nb::ndarray<int> out_n_tot,
+             nb::ndarray<int> out_n_cell, nb::ndarray<double> out_n_exp,
+             nb::ndarray<double> out_m_cell, nb::ndarray<double> out_m_exp,
+             nb::ndarray<float> out_halo_masses, nb::ndarray<float> out_halo_coords) {
               size_t n_condition = conditions.shape(0);
               if (cond_crd.shape(0) != n_condition || cond_crd.shape(1) != 3) {
                   throw std::runtime_error("cond_crd must have shape (n_condition, 3).");
@@ -628,7 +630,7 @@ NB_MODULE(c_21cmfast, m) {
     m.def("test_halo_props", [](double redshift, nb::ndarray<float> vcb_grid,
                                 nb::ndarray<float> J21_LW_grid, nb::ndarray<float> z_re_grid,
                                 nb::ndarray<float> Gamma12_ion_grid, nb::ndarray<float> halo_masses,
-                                nb::ndarray<int> halo_coords, nb::ndarray<float> star_rng,
+                                nb::ndarray<float> halo_coords, nb::ndarray<float> star_rng,
                                 nb::ndarray<float> sfr_rng, nb::ndarray<float> xray_rng,
                                 nb::ndarray<float> halo_props_out) {
         size_t n_halos = halo_masses.shape(0);

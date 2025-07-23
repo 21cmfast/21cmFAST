@@ -19,6 +19,7 @@ source_files = files([
   'filtering.c',
   'heating_helper_progs.c',
   'hmf.c',
+  'indexing.c',
   'integral_wrappers.c',
   'interp_tables.c',
   'interpolation.c',
