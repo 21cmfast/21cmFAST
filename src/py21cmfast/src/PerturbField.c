@@ -177,15 +177,9 @@ int ComputePerturbField(float redshift, InitialConditions *boxes, PerturbedField
 
         float growth_factor, displacement_factor_2LPT, init_growth_factor,
             init_displacement_factor_2LPT;
-        double xf, yf, zf;
         float mass_factor, dDdt, f_pixel_factor, velocity_displacement_factor,
             velocity_displacement_factor_2LPT;
-        unsigned long long HII_i, HII_j, HII_k;
-        int i, j, k, xi, yi, zi, dimension, dimension_z, switch_mid;
-
-        // Variables to perform cloud in cell re-distribution of mass for the perturbed field
-        int xp1, yp1, zp1;
-        float d_x, d_y, d_z, t_x, t_y, t_z;
+        int i, j, k, dimension, dimension_z, switch_mid;
 
         // Function for deciding the dimensions of loops when we could
         // use either the low or high resolution grids.
@@ -384,230 +378,19 @@ int ComputePerturbField(float redshift, InitialConditions *boxes, PerturbedField
                 resampled_box = (double *)calloc(HII_TOT_NUM_PIXELS, sizeof(double));
             }
 
-// go through the high-res box, mapping the mass onto the low-res (updated) box
-#pragma omp parallel shared(init_growth_factor, boxes, f_pixel_factor, resampled_box, dimension) \
-    private(i, j, k, xi, xf, yi, yf, zi, zf, HII_i, HII_j, HII_k, d_x, d_y, d_z, t_x, t_y, t_z,  \
-                xp1, yp1, zp1) num_threads(simulation_options_global -> N_THREADS)
-            {
-#pragma omp for
-                for (i = 0; i < simulation_options_global->DIM; i++) {
-                    for (j = 0; j < simulation_options_global->DIM; j++) {
-                        for (k = 0; k < D_PARA; k++) {
-                            // map indeces to locations in units of box size
-                            xf = (i + 0.5) / ((simulation_options_global->DIM) + 0.0);
-                            yf = (j + 0.5) / ((simulation_options_global->DIM) + 0.0);
-                            zf = (k + 0.5) / ((D_PARA) + 0.0);
-
-                            // update locations
-                            if (matter_options_global->PERTURB_ON_HIGH_RES) {
-                                xf += (boxes->hires_vx)[R_INDEX(i, j, k)];
-                                yf += (boxes->hires_vy)[R_INDEX(i, j, k)];
-                                zf += (boxes->hires_vz)[R_INDEX(i, j, k)];
-                            } else {
-                                HII_i = (unsigned long long)(i / f_pixel_factor);
-                                HII_j = (unsigned long long)(j / f_pixel_factor);
-                                HII_k = (unsigned long long)(k / f_pixel_factor);
-                                xf += (boxes->lowres_vx)[HII_R_INDEX(HII_i, HII_j, HII_k)];
-                                yf += (boxes->lowres_vy)[HII_R_INDEX(HII_i, HII_j, HII_k)];
-                                zf += (boxes->lowres_vz)[HII_R_INDEX(HII_i, HII_j, HII_k)];
-                            }
-
-                            // 2LPT PART
-                            // add second order corrections
-                            if (matter_options_global->PERTURB_ALGORITHM == 2) {
-                                if (matter_options_global->PERTURB_ON_HIGH_RES) {
-                                    xf -= (boxes->hires_vx_2LPT)[R_INDEX(i, j, k)];
-                                    yf -= (boxes->hires_vy_2LPT)[R_INDEX(i, j, k)];
-                                    zf -= (boxes->hires_vz_2LPT)[R_INDEX(i, j, k)];
-                                } else {
-                                    xf -= (boxes->lowres_vx_2LPT)[HII_R_INDEX(HII_i, HII_j, HII_k)];
-                                    yf -= (boxes->lowres_vy_2LPT)[HII_R_INDEX(HII_i, HII_j, HII_k)];
-                                    zf -= (boxes->lowres_vz_2LPT)[HII_R_INDEX(HII_i, HII_j, HII_k)];
-                                }
-                            }
-                            xf *= (double)(dimension);
-                            yf *= (double)(dimension);
-                            zf *= (double)(dimension_z);
-                            while (xf >= (double)(dimension)) {
-                                xf -= (dimension);
-                            }
-                            while (xf < 0) {
-                                xf += (dimension);
-                            }
-                            while (yf >= (double)(dimension)) {
-                                yf -= (dimension);
-                            }
-                            while (yf < 0) {
-                                yf += (dimension);
-                            }
-                            while (zf >= dimension_z) {
-                                zf -= dimension_z;
-                            }
-                            while (zf < 0) {
-                                zf += dimension_z;
-                            }
-                            xi = xf;
-                            yi = yf;
-                            zi = zf;
-                            if (xi >= (dimension)) {
-                                xi -= (dimension);
-                            }
-                            if (xi < 0) {
-                                xi += (dimension);
-                            }
-                            if (yi >= (dimension)) {
-                                yi -= (dimension);
-                            }
-                            if (yi < 0) {
-                                yi += (dimension);
-                            }
-                            if (zi >= (dimension_z)) {
-                                zi -= (dimension_z);
-                            }
-                            if (zi < 0) {
-                                zi += (dimension_z);
-                            }
-
-                            // Determine the fraction of the perturbed cell which overlaps with the
-                            // 8 nearest grid cells, based on the grid cell which contains the
-                            // centre of the perturbed cell
-                            d_x = fabs(xf - (double)(xi + 0.5));
-                            d_y = fabs(yf - (double)(yi + 0.5));
-                            d_z = fabs(zf - (double)(zi + 0.5));
-                            if (xf < (double)(xi + 0.5)) {
-                                // If perturbed cell centre is less than the mid-point then update
-                                // fraction of mass in the cell and determine the cell centre of
-                                // neighbour to be the lowest grid point index
-                                d_x = 1. - d_x;
-                                xi -= 1;
-                                if (xi < 0) {
-                                    xi += (dimension);
-                                }  // Only this critera is possible as iterate back by one (we
-                                   // cannot exceed DIM)
-                            }
-                            if (yf < (double)(yi + 0.5)) {
-                                d_y = 1. - d_y;
-                                yi -= 1;
-                                if (yi < 0) {
-                                    yi += (dimension);
-                                }
-                            }
-                            if (zf < (double)(zi + 0.5)) {
-                                d_z = 1. - d_z;
-                                zi -= 1;
-                                if (zi < 0) {
-                                    zi += (dimension_z);
-                                }
-                            }
-                            t_x = 1. - d_x;
-                            t_y = 1. - d_y;
-                            t_z = 1. - d_z;
-
-                            // Determine the grid coordinates of the 8 neighbouring cells
-                            // Takes into account the offset based on cell centre determined above
-                            xp1 = xi + 1;
-                            if (xp1 >= dimension) {
-                                xp1 -= (dimension);
-                            }
-                            yp1 = yi + 1;
-                            if (yp1 >= dimension) {
-                                yp1 -= (dimension);
-                            }
-                            zp1 = zi + 1;
-                            if (zp1 >= (dimension_z)) {
-                                zp1 -= (dimension_z);
-                            }
-
-                            if (matter_options_global->PERTURB_ON_HIGH_RES) {
-                                // Redistribute the mass over the 8 neighbouring cells according to
-                                // cloud in cell
-#pragma omp atomic
-                                resampled_box[R_INDEX(xi, yi, zi)] +=
-                                    (double)(1. + init_growth_factor *
-                                                      (boxes->hires_density)[R_INDEX(i, j, k)]) *
-                                    (t_x * t_y * t_z);
-#pragma omp atomic
-                                resampled_box[R_INDEX(xp1, yi, zi)] +=
-                                    (double)(1. + init_growth_factor *
-                                                      (boxes->hires_density)[R_INDEX(i, j, k)]) *
-                                    (d_x * t_y * t_z);
-#pragma omp atomic
-                                resampled_box[R_INDEX(xi, yp1, zi)] +=
-                                    (double)(1. + init_growth_factor *
-                                                      (boxes->hires_density)[R_INDEX(i, j, k)]) *
-                                    (t_x * d_y * t_z);
-#pragma omp atomic
-                                resampled_box[R_INDEX(xp1, yp1, zi)] +=
-                                    (double)(1. + init_growth_factor *
-                                                      (boxes->hires_density)[R_INDEX(i, j, k)]) *
-                                    (d_x * d_y * t_z);
-#pragma omp atomic
-                                resampled_box[R_INDEX(xi, yi, zp1)] +=
-                                    (double)(1. + init_growth_factor *
-                                                      (boxes->hires_density)[R_INDEX(i, j, k)]) *
-                                    (t_x * t_y * d_z);
-#pragma omp atomic
-                                resampled_box[R_INDEX(xp1, yi, zp1)] +=
-                                    (double)(1. + init_growth_factor *
-                                                      (boxes->hires_density)[R_INDEX(i, j, k)]) *
-                                    (d_x * t_y * d_z);
-#pragma omp atomic
-                                resampled_box[R_INDEX(xi, yp1, zp1)] +=
-                                    (double)(1. + init_growth_factor *
-                                                      (boxes->hires_density)[R_INDEX(i, j, k)]) *
-                                    (t_x * d_y * d_z);
-#pragma omp atomic
-                                resampled_box[R_INDEX(xp1, yp1, zp1)] +=
-                                    (double)(1. + init_growth_factor *
-                                                      (boxes->hires_density)[R_INDEX(i, j, k)]) *
-                                    (d_x * d_y * d_z);
-                            } else {
-                                // Redistribute the mass over the 8 neighbouring cells according to
-                                // cloud in cell
-#pragma omp atomic
-                                resampled_box[HII_R_INDEX(xi, yi, zi)] +=
-                                    (double)(1. + init_growth_factor *
-                                                      (boxes->hires_density)[R_INDEX(i, j, k)]) *
-                                    (t_x * t_y * t_z);
-#pragma omp atomic
-                                resampled_box[HII_R_INDEX(xp1, yi, zi)] +=
-                                    (double)(1. + init_growth_factor *
-                                                      (boxes->hires_density)[R_INDEX(i, j, k)]) *
-                                    (d_x * t_y * t_z);
-#pragma omp atomic
-                                resampled_box[HII_R_INDEX(xi, yp1, zi)] +=
-                                    (double)(1. + init_growth_factor *
-                                                      (boxes->hires_density)[R_INDEX(i, j, k)]) *
-                                    (t_x * d_y * t_z);
-#pragma omp atomic
-                                resampled_box[HII_R_INDEX(xp1, yp1, zi)] +=
-                                    (double)(1. + init_growth_factor *
-                                                      (boxes->hires_density)[R_INDEX(i, j, k)]) *
-                                    (d_x * d_y * t_z);
-#pragma omp atomic
-                                resampled_box[HII_R_INDEX(xi, yi, zp1)] +=
-                                    (double)(1. + init_growth_factor *
-                                                      (boxes->hires_density)[R_INDEX(i, j, k)]) *
-                                    (t_x * t_y * d_z);
-#pragma omp atomic
-                                resampled_box[HII_R_INDEX(xp1, yi, zp1)] +=
-                                    (double)(1. + init_growth_factor *
-                                                      (boxes->hires_density)[R_INDEX(i, j, k)]) *
-                                    (d_x * t_y * d_z);
-#pragma omp atomic
-                                resampled_box[HII_R_INDEX(xi, yp1, zp1)] +=
-                                    (double)(1. + init_growth_factor *
-                                                      (boxes->hires_density)[R_INDEX(i, j, k)]) *
-                                    (t_x * d_y * d_z);
-#pragma omp atomic
-                                resampled_box[HII_R_INDEX(xp1, yp1, zp1)] +=
-                                    (double)(1. + init_growth_factor *
-                                                      (boxes->hires_density)[R_INDEX(i, j, k)]) *
-                                    (d_x * d_y * d_z);
-                            }
-                        }
-                    }
-                }
+            // If using GPU, call CUDA function
+            LOG_DEBUG("Perturb the density field");
+            bool use_cuda = false;  // pass this as a parameter later
+            if (use_cuda) {
+#if CUDA_FOUND
+                resampled_box = MapMass_gpu(boxes, resampled_box, dimension, f_pixel_factor,
+                                            init_growth_factor);
+#else
+                LOG_ERROR("CUDA version of MapMass() called but code was not compiled for CUDA.");
+#endif
+            } else {
+                resampled_box = MapMass_cpu(boxes, resampled_box, dimension, f_pixel_factor,
+                                            init_growth_factor);
             }
 
             LOG_SUPER_DEBUG("resampled_box: ");

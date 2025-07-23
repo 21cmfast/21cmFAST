@@ -1,0 +1,2 @@
+# Define the log level option
+option('log_level', type: 'string', value: 'WARNING', description: 'Set the log level (e.g., NO_LOG, ERROR, WARNING, INFO, DEBUG, SUPER_DEBUG, ULTRA_DEBUG)')

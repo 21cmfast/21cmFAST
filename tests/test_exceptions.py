@@ -3,10 +3,10 @@
 import numpy as np
 import pytest
 
-from py21cmfast.c_21cmfast import ffi, lib
+import py21cmfast.c_21cmfast as lib
 from py21cmfast.wrapper.exceptions import (
     PHOTONCONSERROR,
-    ParameterError,
+    PhotonConsError,
     _process_exitcode,
 )
 
@@ -21,19 +21,16 @@ def test_basic(subfunc):
 def test_simple(subfunc):
     answer = np.array([0], dtype="f8")
 
-    status = lib.FunctionThatCatches(
-        subfunc, False, ffi.cast("double *", ffi.from_buffer(answer))
-    )
-
-    with pytest.raises(ParameterError):
+    status = lib.FunctionThatCatches(subfunc, False, answer)
+    with pytest.raises(PhotonConsError):
         _process_exitcode(
             status,
             lib.FunctionThatCatches,
-            (False, ffi.cast("double *", ffi.from_buffer(answer))),
+            (subfunc, False, answer),
         )
 
 
 def test_pass():
     answer = np.array([0], dtype="f8")
-    lib.FunctionThatCatches(True, True, ffi.cast("double *", ffi.from_buffer(answer)))
+    lib.FunctionThatCatches(True, True, answer)
     assert answer == 5.0

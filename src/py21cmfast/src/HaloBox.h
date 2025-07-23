@@ -9,9 +9,15 @@
 #include "PerturbHaloField.h"
 #include "SpinTemperatureBox.h"
 
+#ifdef __cplusplus
+extern "C" {
+#endif
 // Compute the HaloBox Object
 int ComputeHaloBox(double redshift, InitialConditions *ini_boxes, PerturbedField *perturbed_field,
                    PerturbHaloField *halos, TsBox *previous_spin_temp,
                    IonizedBox *previous_ionize_box, HaloBox *grids);
 
+#ifdef __cplusplus
+}
+#endif
 #endif
