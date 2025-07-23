@@ -4,7 +4,6 @@ import matplotlib as mpl
 import numpy as np
 import pytest
 
-import py21cmfast.c_21cmfast as lib
 from py21cmfast import (
     compute_halo_grid,
     compute_initial_conditions,

@@ -35,11 +35,9 @@ double *MapMass_cpu(InitialConditions *boxes, double *resampled_box, int dimensi
     int dimension_z = simulation_options_global->NON_CUBIC_FACTOR * dimension_pt;
     int dimension_ic = simulation_options_global->DIM;
 
-#pragma omp parallel shared(init_growth_factor, boxes, f_pixel_factor, resampled_box,             \
-                                dimension) private(i, j, k, xi, xf, yi, yf, zi, zf, HII_i, HII_j, \
-                                                       HII_k, d_x, d_y, d_z, t_x, t_y, t_z, xp1,  \
-                                                       yp1, zp1)                                  \
-    num_threads(simulation_options_global -> N_THREADS)
+#pragma omp parallel shared(init_growth_factor, boxes, f_pixel_factor, resampled_box, dimension) \
+    private(i, j, k, xi, xf, yi, yf, zi, zf, HII_i, HII_j, HII_k, d_x, d_y, d_z, t_x, t_y, t_z,  \
+                xp1, yp1, zp1) num_threads(simulation_options_global -> N_THREADS)
     {
 #pragma omp for
         for (i = 0; i < dimension_ic; i++) {

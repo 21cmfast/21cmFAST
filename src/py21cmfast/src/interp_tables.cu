@@ -26,7 +26,7 @@ __constant__ double d_Mcoll_yarr[device_n_max];
 // copy tables to gpu
 void copyTablesToDevice(RGTable1D h_Nhalo_table, RGTable1D h_Mcoll_table, RGTable2D h_Nhalo_inv_table)
 {
-    // copy Nhalo table and its member y_arr 
+    // copy Nhalo table and its member y_arr
     size_t size_Nhalo_yarr = sizeof(double) * h_Nhalo_table.n_bin;
     // get a copy of the Nhalo table
     RGTable1D h_Nhalo_table_to_device = h_Nhalo_table;
@@ -66,7 +66,7 @@ void copyTablesToDevice(RGTable1D h_Nhalo_table, RGTable1D h_Mcoll_table, RGTabl
     size_t size_Nhalo_inv_flatten_data = sizeof(double) * h_Nhalo_inv_table.nx_bin * h_Nhalo_inv_table.ny_bin;
     // get a copy of Nhalo_inv_table
     RGTable2D h_Nhalo_inv_table_to_device = h_Nhalo_inv_table;
-    
+
     double *d_Nhalo_flatten_data;
     CALL_CUDA(cudaMalloc(&d_Nhalo_flatten_data, size_Nhalo_inv_flatten_data));
     CALL_CUDA(cudaMemcpy(d_Nhalo_flatten_data, h_Nhalo_inv_table.flatten_data, size_Nhalo_inv_flatten_data, cudaMemcpyHostToDevice));
@@ -82,7 +82,7 @@ void copyTablesToDevice(RGTable1D h_Nhalo_table, RGTable1D h_Mcoll_table, RGTabl
 
     CALL_CUDA(cudaMalloc(&d_z_arr, size_z_arr));
     CALL_CUDA(cudaMemcpy(d_z_arr, z_arr_to_device, size_z_arr, cudaMemcpyHostToDevice));
-    
+
     // free data after it's been copied to the device
     CALL_CUDA(cudaFreeHost(z_arr_to_device));
 
@@ -155,4 +155,3 @@ __device__ double EvaluateNhalo(double condition, double growthf, double lnMmin,
     // todo: implement Nhalo_Conditional
     return 0;
 }
-

@@ -15,11 +15,11 @@ __global__ void initRandStates(unsigned long long int random_seed, int totalStat
 {
     // get thread idx
     int ind = blockIdx.x * blockDim.x + threadIdx.x;
-    
+
     if (ind < totalStates){
         curand_init(random_seed, ind, 0, &d_randStates[ind]);
 
-        // todo: add the following block to debug 
+        // todo: add the following block to debug
         if (ind < 2)
         {
             printf("temp check rng init.\n");

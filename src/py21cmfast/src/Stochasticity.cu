@@ -100,7 +100,7 @@ void condense_device_vector()
 //     // Wrap the raw device pointer into a thrust device pointer
 //     thrust::device_ptr<float> d_array_ptr(d_array);
 
-//     // Remove elements with mask value 
+//     // Remove elements with mask value
 //     // i.e.move elements not equal to mask value to the beginning of the array without changing order
 //     auto new_end = thrust::remove(d_array_ptr, d_array_ptr + original_size, mask_value);
 
@@ -133,7 +133,7 @@ int condenseDeviceArray(T *d_array, int original_size, T mask_value)
     return valid_size;
 }
 
-// todo: maybe add python wrapper for test functions 
+// todo: maybe add python wrapper for test functions
 void testCondenseDeviceArray()
 {
     // Input data
@@ -291,7 +291,7 @@ struct GridLayout{
     int n_threads;
     int n_blocks;
 };
-// calculate workload 
+// calculate workload
 // todo: add more checks on sparsity
 GridLayout getWorkload(int sparsity, unsigned long long int n_halos){
     GridLayout res;
@@ -387,7 +387,7 @@ __device__ void fix_mass_sample(curandState *state, double exp_M, float *M_prog,
     int random_idx;
     double last_M_del;
     int sel = curand(state) % 2;
-    // int sel = 1; //tmp: implement the first case 
+    // int sel = 1; //tmp: implement the first case
     if (sel)
     {
         if (fabs(*M_prog - M_out[write_limit] - exp_M) < fabs(*M_prog - exp_M))
@@ -412,7 +412,7 @@ __device__ void fix_mass_sample(curandState *state, double exp_M, float *M_prog,
             M_out[random_idx] = last_M_del;
             *M_prog += last_M_del;
         }
-        
+
     }
 }
 
@@ -573,13 +573,13 @@ __device__ void set_prop_rng(curandState *state, bool from_catalog, double *inte
     return;
 }
 
-__global__ void update_halo_constants(float *d_halo_masses, float *d_star_rng_in, float *d_sfr_rng_in, float *d_xray_rng_in, 
+__global__ void update_halo_constants(float *d_halo_masses, float *d_star_rng_in, float *d_sfr_rng_in, float *d_xray_rng_in,
                                       int *d_halo_coords_in, float *d_y_arr, double x_min, double x_width,
                                       unsigned long long int n_halos, int n_bin, struct HaloSamplingConstants d_hs_constants,
                                       int HMF,
                                       float *d_halo_masses_out, float *d_star_rng_out,
                                       float *d_sfr_rng_out, float *d_xray_rng_out, int *d_halo_coords_out, int *d_sum_check,
-                                      int *d_further_process, int *d_nprog_predict, int sparsity, unsigned long long int write_offset, 
+                                      int *d_further_process, int *d_nprog_predict, int sparsity, unsigned long long int write_offset,
                                       double *expected_mass, int *d_n_prog, int offset_shared)
 {
     // Define shared memory for block-level reduction
@@ -600,11 +600,11 @@ __global__ void update_halo_constants(float *d_halo_masses, float *d_star_rng_in
     for (int i=0;i<3;i++){
         shared_prop_rng[tid+i*offset_shared] = 0.0f;
     }
-    
+
 
     // get global thread idx
     int ind = blockIdx.x * blockDim.x + threadIdx.x;
-    
+
     // get halo idx
     int hid = ind / sparsity;
     if (hid >= n_halos)
@@ -661,7 +661,7 @@ __global__ void update_halo_constants(float *d_halo_masses, float *d_star_rng_in
         // printf("tmp res4 on gpu: %.17f \n", res4);
         // // tiger tmp: debug (end)
     // }
-    
+
     curandState local_state = d_randStates[ind];
     // if (blockIdx.x > 100000){
     //     // printf("check here. \n");
@@ -681,7 +681,7 @@ __global__ void update_halo_constants(float *d_halo_masses, float *d_star_rng_in
     // get stochastic halo properties
     set_prop_rng(&local_state, true, corr_arr, prop_in, &shared_prop_rng[tid*3]);
 
-    
+
 
     __syncthreads();
 
@@ -716,11 +716,11 @@ __global__ void update_halo_constants(float *d_halo_masses, float *d_star_rng_in
                     break;
                 }
                 }
-            
+
             if (meetCondition){
                 // correct the mass samples
                 int n_prog = write_limit +1;
-                
+
                 fix_mass_sample(&local_state, d_hs_constants.expected_M, &Mprog, &shared_mass[tid], write_limit, &n_prog);
 
                 // record number of progenitors
@@ -903,7 +903,7 @@ int updateHaloOut(float *halo_masses, float *star_rng, float *sfr_rng, float *xr
     printf("start launching kernel function.\n");
     update_halo_constants<<<grids.n_blocks, grids.n_threads, shared_size>>>(d_halo_masses, d_star_rng, d_sfr_rng, d_xray_rng, d_halo_coords,
                                                        d_y_arr, x_min, x_width, n_halos_tbp, n_bin_y, hs_constants, HMF, d_halo_masses_out, d_star_rng_out,
-                                                       d_sfr_rng_out, d_xray_rng_out, d_halo_coords_out, d_sum_check, d_further_process, d_nprog_predict, sparsity, write_offset, d_expected_mass, 
+                                                       d_sfr_rng_out, d_xray_rng_out, d_halo_coords_out, d_sum_check, d_further_process, d_nprog_predict, sparsity, write_offset, d_expected_mass,
                                                        d_n_prog, offset_shared);
 
     // Check kernel launch errors
@@ -915,7 +915,7 @@ int updateHaloOut(float *halo_masses, float *star_rng, float *sfr_rng, float *xr
     n_halos_tbp = filterWithMask(d_halo_masses, d_further_process, n_halos_tbp);
     printf("The number of halos for further processing: %d \n", n_halos_tbp);
 
-    // // tmp 2025-01-19: check d_halo_masses_out writing out 
+    // // tmp 2025-01-19: check d_halo_masses_out writing out
     // float *h_halo_masses_out_check;
     // CALL_CUDA(cudaHostAlloc((void **)&h_halo_masses_out_check, buffer_size, cudaHostAllocDefault));
     // CALL_CUDA(cudaMemcpy(h_halo_masses_out_check, d_halo_masses_out, buffer_size, cudaMemcpyDeviceToHost));
@@ -935,7 +935,7 @@ int updateHaloOut(float *halo_masses, float *star_rng, float *sfr_rng, float *xr
     // condense halo mass array on the device
     n_processed_prog = condenseDeviceArray(d_halo_masses_out, d_n_buffer, 0.0f);
     printf("The number of progenitors written in out halo field so far: %d \n", n_processed_prog);
-    
+
     // condense other halo field arrays on the device
     unsigned long long int n_processed_star_rng = condenseDeviceArray(d_star_rng_out, d_n_buffer, 0.0f);
     printf("The number of star prop rng written in out halo field so far: %d \n", n_processed_star_rng);
@@ -976,7 +976,7 @@ int updateHaloOut(float *halo_masses, float *star_rng, float *sfr_rng, float *xr
 
         // reset mask array
         CALL_CUDA(cudaMemset(d_further_process, 0, sizeof(int) * n_halos));
-        
+
         // copy data from device to host
         int h_sum_check;
         CALL_CUDA(cudaMemcpy(&h_sum_check, d_sum_check, sizeof(int), cudaMemcpyDeviceToHost));
@@ -990,7 +990,7 @@ int updateHaloOut(float *halo_masses, float *star_rng, float *sfr_rng, float *xr
     // write data back to the host
     halofield_out->n_halos = n_processed_prog;
     size_t out_size = sizeof(float) * n_processed_prog;
-    
+
     // float *h_halo_masses_out;
     // CALL_CUDA(cudaHostAlloc((void **)&h_halo_masses_out, out_size, cudaHostAllocDefault));
     CALL_CUDA(cudaGetLastError());
@@ -998,7 +998,7 @@ int updateHaloOut(float *halo_masses, float *star_rng, float *sfr_rng, float *xr
 
     CALL_CUDA(cudaMemcpy(halofield_out->halo_masses, d_halo_masses_out, out_size, cudaMemcpyDeviceToHost));
 
-    
+
     CALL_CUDA(cudaMemcpy(halofield_out->star_rng, d_star_rng_out, out_size, cudaMemcpyDeviceToHost));
     CALL_CUDA(cudaMemcpy(halofield_out->sfr_rng, d_sfr_rng_out, out_size, cudaMemcpyDeviceToHost));
     CALL_CUDA(cudaMemcpy(halofield_out->xray_rng, d_xray_rng_out, out_size, cudaMemcpyDeviceToHost));
@@ -1006,7 +1006,7 @@ int updateHaloOut(float *halo_masses, float *star_rng, float *sfr_rng, float *xr
     size_t out_coords_size = sizeof(int) * n_processed_prog * 3;
     CALL_CUDA(cudaMemcpy(halofield_out->halo_coords, d_halo_coords_out, out_coords_size, cudaMemcpyDeviceToHost));
 
-    
+
     // Free device memory
     CALL_CUDA(cudaFree(d_halo_masses));
     CALL_CUDA(cudaFree(d_y_arr));

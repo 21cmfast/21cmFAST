@@ -40,4 +40,3 @@ __device__ double EvaluateRGTable2D(double x, double y, RGTable2D *table)
 
     return result;
 }
-
