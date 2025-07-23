@@ -305,3 +305,34 @@ class TestComputeRSDs:
         )
 
         np.testing.assert_allclose(box_out_3d.flatten(), box_out_2d.flatten())
+
+
+def test_new_rsd_lightcones(cache):
+    """Test that new lightcones are added to output."""
+    inputs = p21c.InputParameters(
+        random_seed=12345,
+        node_redshifts=p21c.get_logspaced_redshifts(
+            min_redshift=34.0, max_redshift=35.0, z_step_factor=1.02
+        ),
+    ).evolve_input_structs(
+        BOX_LEN=15,
+        DIM=45,
+        HII_DIM=10,
+        N_THREADS=6,
+        USE_TS_FLUCT=True,
+        INCLUDE_DVDR_IN_TAU21=True,
+        APPLY_RSDS=True,
+    )
+    lightcone = p21c.run_lightcone(
+        lightconer=RectilinearLightconer.between_redshifts(
+            min_redshift=inputs.node_redshifts[-1] + 0.5,
+            max_redshift=inputs.node_redshifts[0] - 0.5,
+            resolution=inputs.simulation_options.cell_size,
+            cosmo=inputs.cosmo_params.cosmo,
+            quantities=("brightness_temp", "density"),
+        ),
+        inputs=inputs,
+        cache=cache,
+    )
+    assert "tau_21" in lightcone.lightcones
+    assert "density_with_rsds" in lightcone.lightcones
