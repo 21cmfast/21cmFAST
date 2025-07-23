@@ -8,6 +8,7 @@ The following introductory tutorials will help you get started with ``21cmFAST``
 
    tutorials/coeval_cubes
    tutorials/lightcones
+   tutorials/cli_usage
    tutorials/mini-halos
    tutorials/caching
    tutorials/relative_velocities

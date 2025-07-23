@@ -1,6 +1,5 @@
 """Test initializing tables in C."""
 
-from py21cmfast import AstroOptions, AstroParams, CosmoParams, SimulationOptions
 from py21cmfast.c_21cmfast import lib
 from py21cmfast.wrapper.cfuncs import broadcast_input_struct
 

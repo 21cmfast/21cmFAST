@@ -39,6 +39,11 @@ large-scale cosmological 21-cm signal. In particular, the speed of ``21cmFAST`` 
 to produce simulations that are large enough (several Gpc across) to represent modern
 low-frequency observations.
 
+Documentation
+=============
+Full documentation (with examples, installation instructions and full API reference)
+found at https://21cmfast.readthedocs.org.
+
 New Features in 4.0.0
 =====================
 
@@ -80,80 +85,7 @@ method is discouraged unless absolutely necessary. If using ``pip`` to install `
 (especially on MacOS), we thoroughly recommend reading the detailed
 `installation instructions <https://21cmfast.readthedocs.io/en/latest/installation.html>`_.
 
-Basic Usage
-===========
-``21cmFAST`` can be run both interactively and from the command line (CLI).
 
-Interactive
------------
-The most basic example of running a (very small) coeval simulation at a given redshift,
-and plotting an image of a slice through it::
-
-    >>> import py21cmfast as p21c
-    >>> inputs = p21c.InputParameters.from_template('latest-small')
-    >>> coeval = p21c.run_coeval(inputs=inputs,out_redshifts=8.0)
-    >>> p21c.plotting.coeval_sliceplot(coeval, kind='brightness_temp')
-
-The coeval object here has much more than just the ``brightness_temp`` field in it. You
-can plot the ``density`` field, ``velocity`` field or a number of other fields.
-To simulate a full lightcone::
-
-    >>> lcn = p21c.RectilinearLightconer.with_equal_cdist_slices(
-    >>>     min_redshift=min(inputs.node_redshifts),
-    >>>     max_redshift=max(inputs.node_redshifts),
-    >>>     resolution=inputs.matter_params.cell_size,
-    >>>     quantities=['brightness_temp'],
-    >>> )
-    >>> lc = p21c.run_lightcone(
-    >>>     lightconer=lcn
-    >>>     inputs=inputs,
-    >>> )
-    >>> p21c.plotting.lightcone_sliceplot(lc)
-
-Here, we used the already-computed initial density field from ``coeval``, which sets
-the size and parameters of the run, but also means we don't have to compute that
-(relatively expensive step again). Explore the full range of functionality in the
-`API Docs <https://21cmfast.readthedocs.io/en/latest/reference/py21cmfast.html>`_,
-or read more `in-depth tutorials <https://21cmfast.readthedocs.io/en/latest/tutorials.html>`_
-for further guidance.
-
-CLI
----
-The CLI can be used to generate boxes on-disk directly from a configuration file or
-command-line parameters. You can run specific steps of the simulation independently,
-or an entire simulation at once. For example, to run just the initial density field,
-you can do::
-
-    $ 21cmfast init --HII_DIM=100 --direc ./21cmFAST-cache
-
-The (quite small) simulation box produced is automatically saved into the cache.
-You can list all the files in your cache (and the parameters used in each of the simulations)
-with::
-
-    $ 21cmfast query
-
-To run an entire coeval cube, use the following as an example::
-
-    $ 21cmfast coeval 8.0 --out=output/coeval.h5 --HII_DIM=100
-
-In this case all the intermediate steps are cached in the standard cache directory, and
-the final ``Coeval`` box is saved to ``output/coeval.h5``. If no ``--out`` is specified,
-the coeval box itself is not written, but don't worry -- all of its parts are cached, and
-so it can be rebuilt extremely quickly. Every input parameter to any of the
-`input classes <https://21cmfast.readthedocs.io/en/latest/reference/_autosummary/py21cmfast.inputs.html>`_
-(there are a lot of parameters) can be specified at the end of the call with prefixes of
-``--`` (like ``HII_DIM`` here). Alternatively, you can point to a config TOML file, eg.::
-
-    $ 21cmfast lightcone 8.0 --max-z=15.0 --out=. --config=~/.21cmfast/src/py21cmfast/templates/simple.toml
-
-There is an example configuration file `here <user_data/runconfig_example.yml>`_ that you
-can build from. All input parameters are
-`documented here <https://21cmfast.readthedocs.io/en/latest/reference/_autosummary/py21cmfast.inputs.html>`_.
-
-Documentation
-=============
-Full documentation (with examples, installation instructions and full API reference)
-found at https://21cmfast.readthedocs.org.
 
 Acknowledging
 =============
