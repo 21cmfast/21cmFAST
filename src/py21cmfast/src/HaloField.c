@@ -84,7 +84,7 @@ int ComputeHaloField(float redshift_desc, float redshift, InitialConditions *box
         // store highly used parameters
         int grid_dim = simulation_options_global->DIM;
         int z_dim = D_PARA;
-
+        double cell_length = simulation_options_global->BOX_LEN / grid_dim;
         // set minimum source mass
         // if we use the sampler we want to stop at the HII cell mass
         if (matter_options_global->HALO_STOCHASTICITY)
@@ -319,9 +319,10 @@ int ComputeHaloField(float redshift_desc, float redshift, InitialConditions *box
                     halo_buf = halo_field[R_INDEX(x, y, z)];
                     if (halo_buf > 0.) {
                         halos_dexm->halo_masses[count] = halo_buf;
-                        halos_dexm->halo_coords[3 * count + 0] = x;
-                        halos_dexm->halo_coords[3 * count + 1] = y;
-                        halos_dexm->halo_coords[3 * count + 2] = z;
+                        // place DexM halos at the centre of the cell
+                        halos_dexm->halo_coords[3 * count + 0] = x * cell_length + 0.5;
+                        halos_dexm->halo_coords[3 * count + 1] = y * cell_length + 0.5;
+                        halos_dexm->halo_coords[3 * count + 2] = z * cell_length + 0.5;
                         count++;
                     }
                 }
@@ -520,7 +521,7 @@ void init_halo_coords(HaloField *halos, long long unsigned int n_halos) {
     halos->n_halos = n_halos;
     unsigned long long int alloc_size = fmax(1, n_halos);
     halos->halo_masses = (float *)calloc(alloc_size, sizeof(float));
-    halos->halo_coords = (int *)calloc(3 * alloc_size, sizeof(int));
+    halos->halo_coords = (float *)calloc(3 * alloc_size, sizeof(float));
 
     halos->star_rng = (float *)calloc(alloc_size, sizeof(float));
     halos->sfr_rng = (float *)calloc(alloc_size, sizeof(float));

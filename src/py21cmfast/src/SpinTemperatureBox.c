@@ -711,15 +711,16 @@ int UpdateXraySourceBox(HaloBox *halobox, double R_inner, double R_outer, int R_
         one_annular_filter(halobox->halo_xray,
                            &(source_box->filtered_xray[R_ct * HII_TOT_NUM_PIXELS]), R_inner,
                            R_outer, &xray_avg, &fxray_avg);
+
+        source_box->mean_sfr[R_ct] = fsfr_avg;
+        source_box->mean_log10_Mcrit_LW[R_ct] = halobox->log10_Mcrit_MCG_ave;
         if (astro_options_global->USE_MINI_HALOS) {
             one_annular_filter(halobox->halo_sfr_mini,
                                &(source_box->filtered_sfr_mini[R_ct * HII_TOT_NUM_PIXELS]), R_inner,
                                R_outer, &sfr_avg_mini, &fsfr_avg_mini);
-        }
 
-        source_box->mean_sfr[R_ct] = fsfr_avg;
-        source_box->mean_sfr_mini[R_ct] = fsfr_avg_mini;
-        source_box->mean_log10_Mcrit_LW[R_ct] = halobox->log10_Mcrit_MCG_ave;
+            source_box->mean_sfr_mini[R_ct] = fsfr_avg_mini;
+        }
 
         if (R_ct == astro_params_global->N_STEP_TS - 1) LOG_DEBUG("finished XraySourceBox");
 
@@ -1746,8 +1747,8 @@ void ts_main(float redshift, float prev_redshift, float perturbed_field_redshift
             Ts_ave += ts_cell.Ts;
             Tk_ave += ts_cell.Tk;
             J_LW_ave += ts_cell.J_21_LW;
-            eps_lya_inj_ave += rad.dstarlya_cont_dt;
-            eps_lya_cont_ave += rad.dstarlya_inj_dt;
+            eps_lya_inj_ave += rad.dstarlya_inj_dt;
+            eps_lya_cont_ave += rad.dstarlya_cont_dt;
             x_e_ave += ts_cell.x_e;
 #endif
         }
