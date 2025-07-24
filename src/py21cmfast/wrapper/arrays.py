@@ -194,7 +194,7 @@ class Array:
         if backend is None:
             raise ValueError("backend must be specified")
 
-        value = backend.read()
+        value = backend.read().astype(self.dtype, copy=False)
         return attrs.evolve(
             self,
             value=value,

@@ -1,5 +1,4 @@
-
-// Re-write of update_halo_pos from the original 21cmFAST
+// Re-write of update_halo_coords from the original 21cmFAST
 
 // ComputePerturbHaloField reads in the linear velocity field, and uses
 // it to update halo locations with a corresponding displacement field
@@ -41,9 +40,11 @@ int ComputePerturbHaloField(float redshift, InitialConditions *boxes, HaloField 
 
         omp_set_num_threads(simulation_options_global->N_THREADS);
 
-        float growth_factor, displacement_factor_2LPT, xf, yf, zf, growth_factor_over_BOX_LEN,
+        double growth_factor, displacement_factor_2LPT, xf, yf, zf, growth_factor_over_BOX_LEN,
             displacement_factor_2LPT_over_BOX_LEN;
-        unsigned long long int i, j, k, DI, dimension;
+        double boxlen = simulation_options_global->BOX_LEN;
+        double boxlen_z = boxlen * simulation_options_global->NON_CUBIC_FACTOR;
+        unsigned long long int i, j, k, dimension;
         unsigned long long i_halo;
 
         LOG_DEBUG("Begin Initialisation");
@@ -58,9 +59,10 @@ int ComputePerturbHaloField(float redshift, InitialConditions *boxes, HaloField 
         growth_factor = dicke(redshift);  // normalized to 1 at z=0
         displacement_factor_2LPT = -(3.0 / 7.0) * growth_factor * growth_factor;  // 2LPT eq. D8
 
-        growth_factor_over_BOX_LEN = growth_factor / simulation_options_global->BOX_LEN;
-        displacement_factor_2LPT_over_BOX_LEN =
-            displacement_factor_2LPT / simulation_options_global->BOX_LEN;
+        // TODO: combine/match with PerturbField.c
+        //  which uses (D(z) - D(init))/BOXLEN
+        growth_factor_over_BOX_LEN = growth_factor / boxlen;
+        displacement_factor_2LPT_over_BOX_LEN = displacement_factor_2LPT / boxlen;
 
         // now add the missing factor of Ddot to velocity field
 #pragma omp parallel shared(boxes, dimension, growth_factor_over_BOX_LEN) private(i, j, k) \
@@ -95,7 +97,6 @@ int ComputePerturbHaloField(float redshift, InitialConditions *boxes, HaloField 
         // ************************************************************************* //
         //                          BEGIN 2LPT PART                                  //
         // ************************************************************************* //
-
         // reference: reference: Scoccimarro R., 1998, MNRAS, 299, 1097-1118 Appendix D
         if (matter_options_global->PERTURB_ALGORITHM == 2) {
             // now add the missing factor in eq. D9
@@ -132,7 +133,6 @@ int ComputePerturbHaloField(float redshift, InitialConditions *boxes, HaloField 
                 }
             }
         }
-
         // ************************************************************************* //
         //                            END 2LPT PART                                  //
         // ************************************************************************* //
@@ -143,24 +143,25 @@ int ComputePerturbHaloField(float redshift, InitialConditions *boxes, HaloField 
 #pragma omp parallel shared(boxes, halos, halos_perturbed) private(i_halo, i, j, k, xf, yf, zf) \
     num_threads(simulation_options_global -> N_THREADS)
         {
+            double pos[3];
+            double box_size[3] = {boxlen, boxlen, boxlen_z};
 #pragma omp for
             for (i_halo = 0; i_halo < halos->n_halos; i_halo++) {
                 // convert location to fractional value
-                xf = halos->halo_coords[i_halo * 3 + 0] / (simulation_options_global->DIM + 0.);
-                yf = halos->halo_coords[i_halo * 3 + 1] / (simulation_options_global->DIM + 0.);
-                zf = halos->halo_coords[i_halo * 3 + 2] / (D_PARA + 0.);
+                xf = halos->halo_coords[i_halo * 3 + 0] / boxlen;
+                yf = halos->halo_coords[i_halo * 3 + 1] / boxlen;
+                zf = halos->halo_coords[i_halo * 3 + 2] / boxlen_z;
 
                 // determine halo position (downsampled if required)
                 if (matter_options_global->PERTURB_ON_HIGH_RES) {
-                    i = halos->halo_coords[i_halo * 3 + 0];
-                    j = halos->halo_coords[i_halo * 3 + 1];
-                    k = halos->halo_coords[i_halo * 3 + 2];
+                    i = xf * simulation_options_global->DIM;
+                    j = yf * simulation_options_global->DIM;
+                    k = zf * D_PARA;
                 } else {
                     i = xf * simulation_options_global->HII_DIM;
                     j = yf * simulation_options_global->HII_DIM;
                     k = zf * HII_D_PARA;
                 }
-
                 // get new positions using linear velocity displacement from z=INITIAL
                 if (matter_options_global->PERTURB_ON_HIGH_RES) {
                     xf += boxes->hires_vx[R_INDEX(i, j, k)];
@@ -186,40 +187,16 @@ int ComputePerturbHaloField(float redshift, InitialConditions *boxes, HaloField 
                     }
                 }
 
-                // check if we wrapped around, note the casting to ensure < 1.00000
-                DI = 10000;
-                xf = roundf(xf * DI);
-                yf = roundf(yf * DI);
-                zf = roundf(zf * DI);
-                while (xf >= (float)DI) {
-                    xf -= DI;
-                }
-                while (xf < 0) {
-                    xf += DI;
-                }
-                while (yf >= (float)DI) {
-                    yf -= DI;
-                }
-                while (yf < 0) {
-                    yf += DI;
-                }
-                while (zf >= (float)DI) {
-                    zf -= DI;
-                }
-                while (zf < 0) {
-                    zf += DI;
-                }
-                xf = fabs(xf / (float)DI);  // fabs gets rid of minus sign in -0.00000
-                yf = fabs(yf / (float)DI);
-                zf = fabs(zf / (float)DI);
+                // Mutliplying before the wrapping to ensure that floating point errors
+                //  do not cause the halo to be placed outside the box.
+                pos[0] = xf * boxlen;
+                pos[1] = yf * boxlen;
+                pos[2] = zf * boxlen_z;
+                wrap_position(pos, box_size);
 
-                xf *= simulation_options_global->HII_DIM;
-                yf *= simulation_options_global->HII_DIM;
-                zf *= HII_D_PARA;
-
-                halos_perturbed->halo_coords[i_halo * 3 + 0] = xf;
-                halos_perturbed->halo_coords[i_halo * 3 + 1] = yf;
-                halos_perturbed->halo_coords[i_halo * 3 + 2] = zf;
+                halos_perturbed->halo_coords[i_halo * 3 + 0] = pos[0];
+                halos_perturbed->halo_coords[i_halo * 3 + 1] = pos[1];
+                halos_perturbed->halo_coords[i_halo * 3 + 2] = pos[2];
 
                 halos_perturbed->halo_masses[i_halo] = halos->halo_masses[i_halo];
                 halos_perturbed->star_rng[i_halo] = halos->star_rng[i_halo];
@@ -227,7 +204,6 @@ int ComputePerturbHaloField(float redshift, InitialConditions *boxes, HaloField 
                 halos_perturbed->xray_rng[i_halo] = halos->xray_rng[i_halo];
             }
         }
-
         // Divide out multiplicative factor to return to pristine state
 #pragma omp parallel shared(boxes, growth_factor_over_BOX_LEN, dimension,               \
                                 displacement_factor_2LPT_over_BOX_LEN) private(i, j, k) \
