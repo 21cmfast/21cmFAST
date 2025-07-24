@@ -620,9 +620,10 @@ class SimulationOptions(InputStruct):
         Self-correlation length used for updating xray luminosity, see "CORR_STAR" for details.
     """
 
+    _DEFAULT_HIRES_TO_LOWRES_FACTOR: ClassVar[float] = 3
+    _DEFAULT_LOWRES_CELL_SIZE_MPC: ClassVar[float] = 1.5
+
     HII_DIM: int = field(default=200, converter=int, validator=validators.gt(0))
-    _HIRES_TO_LOWRES_FACTOR: float = field(default=3, validator=validators.gt(1))
-    _LOWRES_CELL_SIZE_MPC: float = field(default=1.5, validator=validators.gt(0))
 
     _BOX_LEN: float = field(
         default=None,
@@ -630,6 +631,17 @@ class SimulationOptions(InputStruct):
         validator=validators.optional(validators.gt(0)),
     )
     _DIM: int | None = field(default=None, converter=attrs.converters.optional(int))
+
+    _HIRES_TO_LOWRES_FACTOR: float = field(
+        default=None,
+        converter=attrs.converters.optional(float),
+        validator=attrs.validators.optional(validators.gt(1)),
+    )
+    _LOWRES_CELL_SIZE_MPC: float = field(
+        default=None,
+        converter=attrs.converters.optional(float),
+        validator=attrs.validators.optional(validators.gt(0)),
+    )
 
     NON_CUBIC_FACTOR: float = field(
         default=1.0, converter=float, validator=validators.gt(0)
@@ -700,21 +712,46 @@ class SimulationOptions(InputStruct):
         else:
             return int(self.HII_DIM * self.LOWRES_CELL_SIZE_MPC)
 
+    @_HIRES_TO_LOWRES_FACTOR.validator
+    def _hires_to_lowres_vld(self, att, val):
+        if self._DIM is not None and val is not None:
+            raise ValueError(
+                "Cannot set both DIM and HIRES_TO_LOWRES_FACTOR! "
+                "If this error arose when lading from template/file or evolving an "
+                "existing object, then explicitly set either DIM or HIRES_TO_LOWRES_FACTOR "
+                "to None while setting the other to the desired value."
+            )
+
+    @_LOWRES_CELL_SIZE_MPC.validator
+    def _lowres_cellsize_vld(self, att, val):
+        if self._BOX_LEN is not None and val is not None:
+            raise ValueError(
+                "Cannot set both BOX_LEN and LOWRES_CELL_SIZE_MPC! "
+                "If this error arose when lading from template/file or evolving an "
+                "existing object, then explicitly set either BOX_LEN or "
+                "LOWRES_CELL_SIZE_MPC to None while setting the other to the desired "
+                "value."
+            )
+
     @property
     def HIRES_TO_LOWRES_FACTOR(self) -> float:
         """The downsampling factor from high to low-res."""
         if self._DIM is not None:
             return self._DIM / self.HII_DIM
-        else:
+        elif self._HIRES_TO_LOWRES_FACTOR is not None:
             return self._HIRES_TO_LOWRES_FACTOR
+        else:
+            return self._DEFAULT_HIRES_TO_LOWRES_FACTOR
 
     @property
     def LOWRES_CELL_SIZE_MPC(self) -> float:
         """The cell size (in Mpc) of the low-res grids."""
         if self._BOX_LEN is not None:
             return self._BOX_LEN / self.HII_DIM
-        else:
+        elif self._LOWRES_CELL_SIZE_MPC is not None:
             return self._LOWRES_CELL_SIZE_MPC
+        else:
+            return self._DEFAULT_LOWRES_CELL_SIZE_MPC
 
     @NON_CUBIC_FACTOR.validator
     def _NON_CUBIC_FACTOR_validator(self, att, val):
@@ -1337,32 +1374,28 @@ class InputParameters:
 
     @astro_params.validator
     def _astro_params_validator(self, att, val):
-        if (
-            self.simulation_options is not None
-            and val.R_BUBBLE_MAX > self.simulation_options.BOX_LEN
-        ):
+        if val.R_BUBBLE_MAX > self.simulation_options.BOX_LEN:
             raise InputCrossValidationError(
                 f"R_BUBBLE_MAX is larger than BOX_LEN ({val.R_BUBBLE_MAX} > {self.simulation_options.BOX_LEN}). This is not allowed."
             )
 
-        if self.astro_options is not None:
-            if val.R_BUBBLE_MAX != 50 and self.astro_options.INHOMO_RECO:
-                warnings.warn(
-                    "You are setting R_BUBBLE_MAX != 50 when INHOMO_RECO=True. "
-                    "This is non-standard (but allowed), and usually occurs upon manual "
-                    "update of INHOMO_RECO",
-                    stacklevel=2,
-                )
+        if val.R_BUBBLE_MAX != 50 and self.astro_options.INHOMO_RECO:
+            warnings.warn(
+                "You are setting R_BUBBLE_MAX != 50 when INHOMO_RECO=True. "
+                "This is non-standard (but allowed), and usually occurs upon manual "
+                "update of INHOMO_RECO",
+                stacklevel=2,
+            )
 
-            if val.M_TURN > 8 and self.astro_options.USE_MINI_HALOS:
-                warnings.warn(
-                    "You are setting M_TURN > 8 when USE_MINI_HALOS=True. "
-                    "This is non-standard (but allowed), and usually occurs upon manual "
-                    "update of M_TURN",
-                    stacklevel=2,
-                )
+        if val.M_TURN > 8 and self.astro_options.USE_MINI_HALOS:
+            warnings.warn(
+                "You are setting M_TURN > 8 when USE_MINI_HALOS=True. "
+                "This is non-standard (but allowed), and usually occurs upon manual "
+                "update of M_TURN",
+                stacklevel=2,
+            )
 
-        if self.simulation_options is not None and (
+        if (
             self.astro_options.HII_FILTER == "sharp-k"
             and val.R_BUBBLE_MAX > self.simulation_options.BOX_LEN / 3
         ):
@@ -1469,7 +1502,7 @@ class InputParameters:
         subclasses (e.g. :class:`SimulationOptions`) and will over-ride what is in
         the template.
         """
-        from ..run_templates import create_params_from_template
+        from .._templates import create_params_from_template
 
         cls_kw = {"random_seed": random_seed}
         if node_redshifts is not None:

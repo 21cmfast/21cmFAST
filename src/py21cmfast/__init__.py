@@ -55,6 +55,7 @@ __all__ = [
     "get_all_fieldnames",
     "get_logspaced_redshifts",
     "lightconers",
+    "list_templates",
     "perturb_field",
     "perturb_halo_list",
     "plotting",
@@ -63,12 +64,14 @@ __all__ = [
     "run_lightcone",
     "setup_photon_cons",
     "wrapper",
+    "write_template",
 ]
 
 from . import lightconers, plotting, wrapper
 from ._cfg import config
 from ._data import DATA_PATH
 from ._logging import configure_logging
+from ._templates import list_templates, write_template
 from .drivers.coeval import Coeval, generate_coeval, run_coeval
 from .drivers.lightcone import LightCone, generate_lightcone, run_lightcone
 from .drivers.single_field import (
@@ -84,7 +87,6 @@ from .drivers.single_field import (
 )
 from .io.caching import CacheConfig, OutputCache, RunCache
 from .lightconers import AngularLightconer, RectilinearLightconer
-from .run_templates import create_params_from_template
 from .wrapper.cfuncs import (
     compute_luminosity_function,
     compute_tau,
