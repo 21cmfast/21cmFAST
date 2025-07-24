@@ -514,7 +514,7 @@ class InitialConditions(OutputStruct):
     lowres_vcb = _arrayfield(optional=True)
 
     @classmethod
-    def new(cls, inputs: InputParameters, **kw) -> dict[str, Array]:
+    def new(cls, inputs: InputParameters, **kw) -> Self:
         """Create a new instance, given a set of input parameters."""
         shape = (inputs.simulation_options.HII_DIM,) * 2 + (
             int(
@@ -648,7 +648,7 @@ class PerturbedField(OutputStructZ):
     velocity_y = _arrayfield(optional=True)
 
     @classmethod
-    def new(cls, inputs: InputParameters, redshift: float, **kw) -> dict[str, Array]:
+    def new(cls, inputs: InputParameters, redshift: float, **kw) -> Self:
         """Create a new PerturbedField instance with the given inputs.
 
         Parameters
@@ -747,7 +747,7 @@ class PerturbHaloField(OutputStructZ):
         redshift: float,
         buffer_size: float | None = None,
         **kw,
-    ) -> dict[str, Array]:
+    ) -> Self:
         """Create a new PerturbedHaloField instance with the given inputs.
 
         Parameters
