@@ -240,16 +240,18 @@ def read_output_struct(
             group = group[struct]
         else:
             raise KeyError(f"struct {struct} not found in the H5DF group {group}")
+
+        kls = getattr(ostruct, struct)
         assert "InputParameters" in group
         assert "OutputFields" in group
 
         redshift = group.attrs.get("redshift")
         inputs = read_inputs(group["InputParameters"], safe=safe)
-        outputs = _read_outputs(group["OutputFields"])
+        outputs = _read_outputs(group["OutputFields"], struct=kls)
 
     if redshift is not None:
         outputs["redshift"] = redshift
-    kls = getattr(ostruct, struct)
+
     out = kls(inputs=inputs, **outputs)
     return out
 
@@ -330,7 +332,7 @@ def _read_inputs_v4(group: h5py.Group, safe: bool = True):
     return InputParameters(**kwargs)
 
 
-def _read_outputs(group: h5py.Group):
+def _read_outputs(group: h5py.Group, struct: ostruct.OutputStruct):
     file_version = group.attrs.get("21cmFAST-version", None)
 
     if file_version > __version__:
@@ -339,19 +341,25 @@ def _read_outputs(group: h5py.Group):
             stacklevel=2,
         )
     else:
-        return _read_outputs_v4(group)
+        return _read_outputs_v4(group, struct)
 
 
-def _read_outputs_v4(group: h5py.Group):
+def _read_outputs_v4(group: h5py.Group, struct: ostruct.OutputStruct):
+    possible_arrays = {k.name: k for k in attrs.fields(struct) if k.type == Array}
+
+    # The following *allows* extra arrays in the file, and just ignores them.
+    # Missing arrays should be flagged at object creation time.
     arrays = {
         name: Array(
-            dtype=box.dtype,
-            shape=box.shape,
+            dtype=possible_arrays[name].dtype,
+            shape=possible_arrays[name].shape,
             state=ArrayState(on_disk=True),
             cache_backend=H5Backend(path=group.file.filename, dataset=box.name),
         )
         for name, box in group.items()
+        if name in possible_arrays
     }
+
     for k, val in group.attrs.items():
         if k == "21cmFAST-version":
             continue
