@@ -129,7 +129,6 @@ def _write_inputs_to_group(
     if not isinstance(group, h5py.Group):
         with h5py.File(group, "a") as fl:
             _write_inputs_to_group(inputs, fl)
-        print("I should be closed now!", fl)
         return
 
     grp = group.create_group("InputParameters")

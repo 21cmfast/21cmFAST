@@ -1,4 +1,4 @@
-"""Tests of the HDF5 read/write functionality"""
+"""Tests of the HDF5 read/write functionality."""
 
 from pathlib import Path
 
@@ -15,6 +15,7 @@ class TestHDF5ToDict:
     """Tests of the hdf5_to_dict function."""
 
     def test_empty(self, tmp_path: Path):
+        """Test reading/writing an empty dict."""
         pth = tmp_path / "tmp.h5"
         with h5py.File(pth, "w") as fl:
             fl.create_group("group")
@@ -25,6 +26,7 @@ class TestHDF5ToDict:
         assert out == {}
 
     def test_only_attrs(self, tmp_path: Path):
+        """Test reading only from  the attrs."""
         pth = tmp_path / "tmp.h5"
         dct = {
             "int": 1,
@@ -42,6 +44,7 @@ class TestHDF5ToDict:
         assert out == dct
 
     def test_with_dataset(self, tmp_path):
+        """Test a case with a dataset, not only attrs."""
         pth = tmp_path / "tmp.h5"
 
         with h5py.File(pth, "w") as fl:
@@ -53,6 +56,7 @@ class TestHDF5ToDict:
         assert np.allclose(out["dataset"], np.zeros(10))
 
     def test_recursive(self, tmp_path: Path):
+        """Test a recursive set of groups and datasets."""
         pth = tmp_path / "tmp.h5"
         with h5py.File(pth, "w") as fl:
             fl["dataset1"] = np.zeros(10)
@@ -73,9 +77,11 @@ class TestInputsIO:
     """Tests of reading and writing InputParameters to HDF5."""
 
     def setup_class(self):
+        """Set up the class."""
         self.defaults = InputParameters(random_seed=0)
 
     def test_appending(self, tmp_path: Path):
+        """Test that writing to an existing file doesn't wipe out existing info."""
         pth = tmp_path / "tmp.h5"
 
         with h5py.File(pth, "w") as fl:
@@ -84,6 +90,7 @@ class TestInputsIO:
             assert "sentinel" in fl
 
     def test_not_closing_group(self, tmp_path):
+        """Test that reading from an open Hdpy.File doesn't close it."""
         pth = tmp_path / "tmp.h5"
 
         with h5py.File(pth, "w") as fl:

@@ -40,36 +40,44 @@ def test_ref_printing():
 
 
 class TestRecursiveDifference:
+    """Tests of the recursive_difference function."""
+
     def test_b_empty(self):
+        """Test if b is empty in a - b gives a."""
         a = {"a": 1, "b": 2}
         aa = recursive_difference(a, {})
 
         assert a == aa
 
     def test_a_empty(self):
+        """Test that {} - b == {}."""
         a = {}
         b = {"a": 1, "b": 2}
         aa = recursive_difference(a, b)
         assert len(aa) == 0
 
     def test_disjoint(self):
+        """Test that a - b == a if b is disjoint with a."""
         a = {"a": 1}
         b = {"b": 2}
         assert recursive_difference(a, b) == a
 
     def test_a_recursive_b_not_recursive(self):
+        """Test where a is recursive but b is not."""
         a = {"a": {"a": 1, "b": 2}, "b": 1}
         b = {"a": 1, "b": 2}
 
         assert recursive_difference(a, b) == a
 
     def test_a_and_b_recurse(self):
+        """Test where both a and b are recursive."""
         a = {"a": {"a": 1, "b": 2}, "b": 1}
         b = a
 
         assert recursive_difference(a, b) == {}
 
     def test_comparison_rules(self):
+        """Test that passing cmprules works as expected."""
         a = {"a": np.zeros(10)}
         b = {"a": np.zeros(10)}
 

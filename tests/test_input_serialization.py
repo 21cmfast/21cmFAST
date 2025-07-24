@@ -9,6 +9,8 @@ from py21cmfast import input_serialization as srlz
 
 
 class TestConvertInputsToDict:
+    """Test the convert_inputs_to_dict function."""
+
     def test_default_minimal(self):
         """Test that default inputs have no difference to default inputs."""
         inputs = InputParameters(random_seed=0)
@@ -17,19 +19,21 @@ class TestConvertInputsToDict:
 
     @pytest.mark.parametrize("mode", ["full", "minimal"])
     def test_default_with_nonstructs(self, mode):
+        """Test also reading extra info like random_seed."""
         inputs = InputParameters(random_seed=42)
         out = srlz.convert_inputs_to_dict(inputs, mode=mode, only_structs=False)
         assert out["random_seed"] == 42
 
     def test_default_full_snake(self):
+        """Test reading in snake_case mode."""
         inputs = InputParameters(random_seed=42)
         out = srlz.convert_inputs_to_dict(inputs, mode="full", camel=False)
         assert "cosmo_params" in out
 
     def test_not_use_aliases(self):
+        """Test not using aliases."""
         inputs = InputParameters(random_seed=42)
         out = srlz.convert_inputs_to_dict(inputs, mode="full", use_aliases=False)
-        print(out["SimulationOptions"].keys())
         assert "_DIM" in out["SimulationOptions"]
         assert "DIM" not in out["SimulationOptions"]
 
@@ -38,6 +42,7 @@ class TestPrepareInputsForSerialization:
     """Tests of the prepare_inputs_for_serialization function."""
 
     def test_default_minimal(self):
+        """Test that constructing a minimal serialization from a default is empty."""
         inputs = InputParameters(random_seed=1)
         out = srlz.prepare_inputs_for_serialization(inputs, mode="minimal")
         assert out == {}
@@ -62,6 +67,7 @@ class TestPrepareInputsForSerialization:
     def test_roundtrip(
         self, inputs: InputParameters, mode: Literal["full", "minimal"], camel: bool
     ):
+        """Test that writing then reading gives back the same thing."""
         dct = srlz.prepare_inputs_for_serialization(
             inputs, mode=mode, only_structs=True, camel=camel
         )
@@ -76,6 +82,7 @@ class TestDeserializeInputs:
     """Tests of the deserialize_inputs function."""
 
     def test_extra_toplevel_param_warns(self):
+        """Test that extra top-level parameters yields a warning."""
         inputs = srlz.prepare_inputs_for_serialization(
             InputParameters(random_seed=0), mode="full"
         )
@@ -85,6 +92,7 @@ class TestDeserializeInputs:
             srlz.deserialize_inputs(inputs)
 
     def test_extra_loose_param_warns(self):
+        """Test that extra loose params that don't exist give warnings."""
         inputs = srlz.prepare_inputs_for_serialization(
             InputParameters(random_seed=0), mode="full"
         )
