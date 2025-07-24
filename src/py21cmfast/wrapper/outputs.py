@@ -481,6 +481,11 @@ class OutputStruct(ABC):
         self.pull_from_backend()
         return self
 
+    @classmethod
+    @abstractmethod
+    def new(cls, inputs: InputParameters, **kwargs) -> Self:
+        """Instantiate the class from InputParameters."""
+
 
 @attrs.define(slots=False, kw_only=True)
 class InitialConditions(OutputStruct):
@@ -509,7 +514,7 @@ class InitialConditions(OutputStruct):
     lowres_vcb = _arrayfield(optional=True)
 
     @classmethod
-    def new(cls, inputs: InputParameters, **kw) -> Self:
+    def new(cls, inputs: InputParameters, **kw) -> dict[str, Array]:
         """Create a new instance, given a set of input parameters."""
         shape = (inputs.simulation_options.HII_DIM,) * 2 + (
             int(
@@ -643,7 +648,7 @@ class PerturbedField(OutputStructZ):
     velocity_y = _arrayfield(optional=True)
 
     @classmethod
-    def new(cls, inputs: InputParameters, redshift: float, **kw) -> Self:
+    def new(cls, inputs: InputParameters, redshift: float, **kw) -> dict[str, Array]:
         """Create a new PerturbedField instance with the given inputs.
 
         Parameters
@@ -670,7 +675,7 @@ class PerturbedField(OutputStructZ):
             out["velocity_x"] = Array(shape, dtype=np.float32)
             out["velocity_y"] = Array(shape, dtype=np.float32)
 
-        return cls(redshift=redshift, inputs=inputs, **out, **kw)
+        return cls(inputs=inputs, redshift=redshift, **out, **kw)
 
     def get_required_input_arrays(self, input_box: OutputStruct) -> list[str]:
         """Return all input arrays required to compute this object."""
@@ -742,7 +747,7 @@ class PerturbHaloField(OutputStructZ):
         redshift: float,
         buffer_size: float | None = None,
         **kw,
-    ) -> Self:
+    ) -> dict[str, Array]:
         """Create a new PerturbedHaloField instance with the given inputs.
 
         Parameters

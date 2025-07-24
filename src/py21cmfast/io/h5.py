@@ -41,7 +41,7 @@ import numpy as np
 from .. import __version__
 from ..wrapper import inputs as istruct
 from ..wrapper import outputs as ostruct
-from ..wrapper.arrays import Array, H5Backend
+from ..wrapper.arrays import H5Backend
 from ..wrapper.arraystate import ArrayState
 from ..wrapper.inputs import InputParameters
 
@@ -247,12 +247,10 @@ def read_output_struct(
 
         redshift = group.attrs.get("redshift")
         inputs = read_inputs(group["InputParameters"], safe=safe)
-        outputs = _read_outputs(group["OutputFields"], struct=kls)
+        out = _read_outputs(
+            group["OutputFields"], struct=kls, redshift=redshift, inputs=inputs
+        )
 
-    if redshift is not None:
-        outputs["redshift"] = redshift
-
-    out = kls(inputs=inputs, **outputs)
     return out
 
 
@@ -332,7 +330,12 @@ def _read_inputs_v4(group: h5py.Group, safe: bool = True):
     return InputParameters(**kwargs)
 
 
-def _read_outputs(group: h5py.Group, struct: ostruct.OutputStruct):
+def _read_outputs(
+    group: h5py.Group,
+    struct: type[ostruct.OutputStruct],
+    redshift: float | None,
+    inputs: InputParameters,
+):
     file_version = group.attrs.get("21cmFAST-version", None)
 
     if file_version > __version__:
@@ -341,29 +344,51 @@ def _read_outputs(group: h5py.Group, struct: ostruct.OutputStruct):
             stacklevel=2,
         )
     else:
-        return _read_outputs_v4(group, struct)
+        return _read_outputs_v4(group, struct, redshift, inputs)
 
 
-def _read_outputs_v4(group: h5py.Group, struct: ostruct.OutputStruct):
-    possible_arrays = {k.name: k for k in attrs.fields(struct) if k.type == Array}
+def _read_outputs_v4(
+    group: h5py.Group,
+    struct: type[ostruct.OutputStruct],
+    redshift: float | None,
+    inputs: InputParameters,
+):
+    # First read other attributes that are not arrays.
+    kwargs = dict(group.attrs)
+    del kwargs["21cmFAST-version"]
 
-    # The following *allows* extra arrays in the file, and just ignores them.
-    # Missing arrays should be flagged at object creation time.
-    arrays = {
-        name: Array(
-            dtype=possible_arrays[name].dtype,
-            shape=possible_arrays[name].shape,
-            state=ArrayState(on_disk=True),
-            cache_backend=H5Backend(path=group.file.filename, dataset=box.name),
+    if redshift is not None:
+        kwargs["redshift"] = redshift
+
+    # Create the object with those attributes.
+    obj = struct.new(inputs, **kwargs)
+
+    # Now go and make sure all the arrays exist in the file, and have the correct shape.
+    # We don't actually read these right now, we just make pointers to the file.
+    for name, array in obj.arrays.items():
+        if name not in group:
+            raise OSError(
+                f"Required Array {name} not found in {group}. This file is not valid."
+            )
+
+        dataset = group[name]
+        if dataset.shape != array.shape:
+            raise OSError(
+                f"Array {name} has shape {dataset.shape} in the file {group.file.filename}, but requires shape {array.shape}"
+            )
+
+        # We don't check dtype because it can be usually safely cast.
+
+        setattr(
+            obj,
+            name,
+            attrs.evolve(
+                array,
+                state=ArrayState(on_disk=True),
+                cache_backend=H5Backend(
+                    path=group.file.filename, dataset=group.name + f"/{name}"
+                ),
+            ),
         )
-        for name, box in group.items()
-        if name in possible_arrays
-    }
 
-    for k, val in group.attrs.items():
-        if k == "21cmFAST-version":
-            continue
-
-        arrays[k] = val
-
-    return arrays
+    return obj
