@@ -46,6 +46,10 @@ from ..wrapper.arraystate import ArrayState
 from ..wrapper.inputs import InputParameters
 
 
+class HDF5FileStructureError(ValueError):
+    """An error in the structure of an HDF5 file for 21cmFAST."""
+
+
 def write_output_to_hdf5(
     output: ostruct.OutputStruct,
     path: Path,
@@ -67,7 +71,7 @@ def write_output_to_hdf5(
         The mode in which to open the file.
     """
     if not all(v.state.is_computed for v in output.arrays.values()):
-        raise OSError(
+        raise ValueError(
             "Not all boxes have been computed (or maybe some have been purged). Cannot write."
             f"Non-computed boxes: {[k for k, v in output.arrays.items() if not v.state.is_computed]}. "
             f"Computed boxes: {[k for k, v in output.arrays.items() if v.state.is_computed]}"
@@ -231,7 +235,9 @@ def read_output_struct(
 
         if struct is None:
             if len(group.keys()) > 1:
-                raise ValueError(f"Multiple structs found in {path}:{group}")
+                raise HDF5FileStructureError(
+                    f"Multiple structs found in {path}:{group}"
+                )
             else:
                 struct = next(iter(group.keys()))
             group = group[struct]
@@ -278,7 +284,7 @@ def read_inputs(
         if "InputParameters" in file:
             group = file["InputParameters"]
         elif len(file.keys()) > 1:
-            raise ValueError(
+            raise HDF5FileStructureError(
                 f"Multiple sub-groups found in {group}, none of them 'InputParameters'"
             )
         else:
@@ -367,13 +373,13 @@ def _read_outputs_v4(
     # We don't actually read these right now, we just make pointers to the file.
     for name, array in obj.arrays.items():
         if name not in group:
-            raise OSError(
+            raise HDF5FileStructureError(
                 f"Required Array {name} not found in {group}. This file is not valid."
             )
 
         dataset = group[name]
         if dataset.shape != array.shape:
-            raise OSError(
+            raise HDF5FileStructureError(
                 f"Array {name} has shape {dataset.shape} in the file {group.file.filename}, but requires shape {array.shape}"
             )
 
