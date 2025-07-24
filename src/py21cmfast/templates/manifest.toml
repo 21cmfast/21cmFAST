@@ -32,9 +32,9 @@ aliases = ["minihalos", "mini"]
 description = "A run including minihalos"
 
 [[templates]]
-name = "latest-dhalos"
-file = "latest-dhalos.toml"
-aliases = ["latest-dhalos"]
+name = "latest-discrete"
+file = "latest-discrete.toml"
+aliases = ["latest-discrete", "latest-dhalos"]
 description = "Our latest fiducial run with discrete halos, recominations and spin temperature fluctuations"
 
 [[templates]]
