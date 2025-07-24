@@ -1,0 +1,11 @@
+# Run template for default run.
+
+[CosmoParams]
+
+[SimulationOptions]
+
+[MatterOptions]
+
+[AstroParams]
+
+[AstroOptions]

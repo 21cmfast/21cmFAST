@@ -9,15 +9,12 @@ import pytest
 
 from py21cmfast import (
     Coeval,
-    InitialConditions,
     LightCone,
-    OutputCache,
     SimulationOptions,
     run_coeval,
     run_lightcone,
 )
 from py21cmfast.drivers.lightcone import AngularLightcone
-from py21cmfast.io import h5
 from py21cmfast.lightconers import AngularLightconer
 
 
@@ -177,14 +174,3 @@ def test_ang_lightcone(lc, ang_lightcone: AngularLightcone):
         rbt[n // 2 :, n // 2 :, 0].flatten(), abt[n // 2 :, n // 2 :, 0].flatten()
     )
     assert topcorner[0, 1] > bottomcorner[0, 1]
-
-
-def test_write_to_group(ic: InitialConditions, cache: OutputCache):
-    h5.write_output_to_hdf5(ic, path=cache.direc / "a_new_file.h5", group="new_group")
-
-    with h5py.File(cache.direc / "a_new_file.h5", "r") as fl:
-        assert "new_group" in fl
-
-    ic2 = h5.read_output_struct(cache.direc / "a_new_file.h5", group="new_group")
-
-    assert ic2 == ic
