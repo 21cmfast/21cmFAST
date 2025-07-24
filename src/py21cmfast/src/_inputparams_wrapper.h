@@ -120,7 +120,6 @@ typedef struct AstroParams {
     double POP2_ION;
     double POP3_ION;
 
-    int N_RSD_STEPS;
     double PHOTONCONS_CALIBRATION_END;
     double CLUMPING_FACTOR;
     double ALPHA_UVB;
@@ -139,8 +138,6 @@ typedef struct AstroOptions {
     bool USE_CMB_HEATING;  // CMB Heating Flag
     bool USE_LYA_HEATING;  // Lya Heating Flag
     bool USE_MASS_DEPENDENT_ZETA;
-    bool APPLY_RSDS;
-    bool INCLUDE_DVDR_IN_TAU21;
     bool INHOMO_RECO;
     bool USE_TS_FLUCT;
     bool M_MIN_in_Mass;

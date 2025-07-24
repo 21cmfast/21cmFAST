@@ -109,7 +109,7 @@ def apply_rsds(
     redshifts: np.ndarray | float,
     inputs: InputParameters,
     periodic: bool,
-    n_subcells: int = 4,
+    n_rsd_subcells: int = 4,
 ) -> np.ndarray:
     """Apply redshift-space distortions to a field.
 
@@ -135,8 +135,8 @@ def apply_rsds(
         The input parameters corresponding to the box.
     periodic: bool
         Whether to assume periodic boundary conditions along the line-of-sight.
-    n_subcells: int, optional
-        The number of sub-cells to interpolate onto, to make the RSDs more accurate. Default is 4.
+    n_rsd_subcells: int, optional
+        The number of subcells into each cell is divided when redshift space distortions are applied. Default is 4.
 
     Returns
     -------
@@ -165,7 +165,7 @@ def apply_rsds(
     field_with_rsds = rsds_shift(
         field=field.T,
         los_displacement=los_displacement.T,
-        n_subcells=n_subcells,
+        n_rsd_subcells=n_rsd_subcells,
         periodic=periodic,
     ).T
 
@@ -184,7 +184,7 @@ def apply_rsds(
 def rsds_shift(
     field: np.ndarray,
     los_displacement: np.ndarray,
-    n_subcells: int = 4,
+    n_rsd_subcells: int = 4,
     periodic: bool = False,
 ) -> np.ndarray:
     """Shift the cells of a field according to the los displacement.
@@ -199,8 +199,8 @@ def rsds_shift(
         Positive values are towards the observer, shape ``(nslices, ncoords)``.
     periodic: bool, optioanl
         Whether to assume periodic boundary conditions along the line-of-sight.
-    n_subcells: int, optional
-        The number of sub-cells to interpolate onto, to make the RSDs more accurate. Default is 4.
+    n_rsd_subcells: int, optional
+        The number of subcells into each cell is divided when redshift space distortions are applied. Default is 4.
 
     Returns
     -------
@@ -213,8 +213,8 @@ def rsds_shift(
         raise ValueError(
             "field must be an array with the same shape as los_displacement"
         )
-    if not isinstance(n_subcells, int):
-        raise ValueError("n_subcells must be an integer")
+    if not isinstance(n_rsd_subcells, int):
+        raise ValueError("n_rsd_subcells must be an integer")
 
     ang_coords = np.arange(field.shape[1])
 
@@ -238,20 +238,20 @@ def rsds_shift(
     else:
         distance_grid = (distance_plus[1:] + distance_plus[:-1]) / 2
 
-    fine_field = np.repeat(field, n_subcells, axis=0) / n_subcells
+    fine_field = np.repeat(field, n_rsd_subcells, axis=0) / n_rsd_subcells
 
     # This is where we shall evaluate the subcells
     distance_fine = np.linspace(
         distance_plus.min(),
         distance_plus.max(),
-        1 + n_subcells * (len(distance_plus) - 1),
+        1 + n_rsd_subcells * (len(distance_plus) - 1),
     )
     fine_grid = (distance_fine[1:] + distance_fine[:-1]) / 2
     x, y = np.meshgrid(fine_grid, ang_coords, indexing="ij")
     grid = (x.flatten(), y.flatten())
     fine_rsd = RegularGridInterpolator(
         (distance_grid, ang_coords),
-        los_displacement * n_subcells,
+        los_displacement * n_rsd_subcells,
         bounds_error=False,
         fill_value=None,
         method="linear",
@@ -260,7 +260,7 @@ def rsds_shift(
     fine_field = cloud_in_cell_los(fine_field, fine_rsd, periodic=periodic)
     # Average the subcells back to the original grid
     return np.sum(
-        fine_field.T.reshape(len(ang_coords), len(distance), n_subcells), axis=-1
+        fine_field.T.reshape(len(ang_coords), len(distance), n_rsd_subcells), axis=-1
     ).T
 
 

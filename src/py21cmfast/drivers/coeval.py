@@ -258,7 +258,7 @@ class Coeval:
         field: str = "brightness_temp",
         axis: str = "z",
         periodic: bool = True,
-        n_subcells: int | None = None,
+        n_rsd_subcells: int = 4,
     ):
         """Apply redshift-space distortions to a particular field of the coeval box.
 
@@ -270,9 +270,8 @@ class Coeval:
             The assumed axis of the line-of-sight. Options are "x", "y", or "z". Default is "z".
         periodic: bool, optioanl
             Whether to assume periodic boundary conditions along the line-of-sight. Default is True.
-        n_subcells: int, optional
-            The number of sub-cells to interpolate onto, to make the RSDs more accurate.
-            Default is astro_params.N_RSD_STEPS if astro_params.APPLY_RSDS=True, otherwise the default is 4.
+        n_rsd_subcells: int, optional
+            The number of subcells into each cell is divided when redshift space distortions are applied. Default is 4.
 
         Returns
         -------
@@ -293,23 +292,17 @@ class Coeval:
                     "wish to set axis=`" + axis + "'."
                 )
 
-        if n_subcells is None:
-            if self.inputs.astro_options.APPLY_RSDS:
-                n_subcells = self.inputs.astro_params.N_RSD_STEPS
-            else:
-                n_subcells = 4
-
         return apply_rsds(
             field=getattr(self, field),
             los_velocity=getattr(self, "velocity_" + axis),
             redshifts=self.redshift,  # TODO: do we want to use a single redshift? Or a redshift array that is determined from the coeval los?
             inputs=self.inputs,
             periodic=periodic,
-            n_subcells=n_subcells,
+            n_rsd_subcells=n_rsd_subcells,
         )
 
     def apply_velocity_corrections(
-        self, axis: str = "z", periodic: bool = True, n_subcells: int | None = None
+        self, axis: str = "z", periodic: bool = True, n_rsd_subcells: int = 4
     ):
         """Apply velocity gradient corrections and redshift-space distortions to the brightness temperature field.
 
@@ -319,9 +312,8 @@ class Coeval:
             The assumed axis of the line-of-sight. Options are "x", "y", or "z". Default is "z".
         periodic: bool, optioanl
             Whether to assume periodic boundary conditions along the line-of-sight. Default is True.
-        n_subcells: int, optional
-            The number of sub-cells to interpolate onto, to make the RSDs more accurate.
-            Default is astro_params.N_RSD_STEPS if astro_params.APPLY_RSDS=True, otherwise the default is 4.
+        n_rsd_subcells: int, optional
+            The number of subcells into each cell is divided when redshift space distortions are applied. Default is 4.
 
         Returns
         -------
@@ -342,12 +334,6 @@ class Coeval:
                     "wish to set axis=`" + axis + "'."
                 )
 
-        if n_subcells is None:
-            if self.inputs.astro_options.APPLY_RSDS:
-                n_subcells = self.inputs.astro_params.N_RSD_STEPS
-            else:
-                n_subcells = 4
-
         tb_with_dvdr = include_dvdr_in_tau21(
             brightness_temp=self.brightness_temp,
             los_velocity=getattr(self, "velocity_" + axis),
@@ -363,7 +349,7 @@ class Coeval:
             redshifts=self.redshift,  # TODO: do we want to use a single redshift? Or a redshift array that is determined from the coeval los?
             inputs=self.inputs,
             periodic=periodic,
-            n_subcells=n_subcells,
+            n_rsd_subcells=n_rsd_subcells,
         )
 
     @classmethod

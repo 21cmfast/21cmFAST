@@ -715,13 +715,6 @@ class AstroOptions(InputStruct):
     USE_MASS_DEPENDENT_ZETA : bool, optional
         Set to True if using new parameterization. Setting to True will automatically
         set `M_MIN_in_Mass` to True.
-    INCLUDE_DVDR_IN_TAU21: bool, optional
-        Whether to include velocity divergence corrections to the 21cm optical depth
-        (and brightness temperature).
-        This is relevant only for lightcones.
-        Coeval boxes could be applied with the same corrections via include_dvdr_in_tau21 method.
-    APPLY_RSDS : bool, optional
-        Add sub-cell redshift-space-distortions (cf Sec 2.2 of Greig+2018).
     INHOMO_RECO : bool, optional
         Whether to perform inhomogeneous recombinations. Increases the computation
         time.
@@ -791,8 +784,6 @@ class AstroOptions(InputStruct):
     USE_CMB_HEATING: bool = field(default=True, converter=bool)
     USE_LYA_HEATING: bool = field(default=True, converter=bool)
     USE_MASS_DEPENDENT_ZETA: bool = field(default=True, converter=bool)
-    INCLUDE_DVDR_IN_TAU21 = field(default=True, converter=bool)
-    APPLY_RSDS = field(default=False, converter=bool)
     INHOMO_RECO: bool = field(default=False, converter=bool)
     USE_TS_FLUCT: bool = field(default=False, converter=bool)
     FIX_VCB_AVG: bool = field(default=False, converter=bool)
@@ -963,9 +954,6 @@ class AstroParams(InputStruct):
         Fractional characteristic time-scale (fraction of hubble time) defining the
         star-formation rate of galaxies. Only used if `USE_MASS_DEPENDENT_ZETA` is set
         to True in :class:`AstroOptions`. See Sec 2.1, Eq. 3 of Park+2018.
-    N_RSD_STEPS : int, optional
-        Number of steps used in redshift-space-distortion algorithm. NOT A PHYSICAL
-        PARAMETER.
     A_LW, BETA_LW: float, optional
         Impact of the LW feedback on Mturn for minihaloes. Default is 22.8685 and 0.47 following Machacek+01, respectively. Latest simulations suggest 2.0 and 0.6. See Sec 2 of Muñoz+21 (2110.13919).
     A_VCB, BETA_VCB: float, optional
@@ -1066,7 +1054,6 @@ class AstroParams(InputStruct):
     )
     F_H2_SHIELD: float = field(default=0.0, converter=float)
     t_STAR: float = field(default=0.5, converter=float, validator=between(0, 1))
-    N_RSD_STEPS: float = field(default=20, converter=int, validator=validators.gt(0))
     A_LW: float = field(default=2.0, converter=float, validator=validators.gt(0))
     BETA_LW: float = field(default=0.6, converter=float)
     A_VCB: float = field(default=1.0, converter=float)

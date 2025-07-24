@@ -163,6 +163,8 @@ class Lightconer(ABC):
         self,
         c1: Coeval,  # noqa: F821
         c2: Coeval,  # noqa: F821
+        include_dvdr_in_tau21: bool,
+        apply_rsds: bool,
     ) -> tuple[dict[str, np.ndarray], np.ndarray]:
         """
         Make lightcone slices out of two coeval objects.
@@ -211,7 +213,7 @@ class Lightconer(ABC):
         lc_distances = pixlcdist[lcidx]
 
         lc_quantities = self.quantities
-        if c1.astro_options.INCLUDE_DVDR_IN_TAU21 and c1.astro_options.USE_TS_FLUCT:
+        if include_dvdr_in_tau21 and c1.astro_options.USE_TS_FLUCT:
             lc_quantities += ("tau_21",)
 
         for idx, lcd in zip(lcidx, lc_distances, strict=True):
@@ -230,10 +232,7 @@ class Lightconer(ABC):
 
                 yield q, idx, self.construct_lightcone(lcd, box)
 
-                if (
-                    c1.astro_options.INCLUDE_DVDR_IN_TAU21
-                    or c1.astro_options.APPLY_RSDS
-                ) and q == self.quantities[0]:
+                if (include_dvdr_in_tau21 or apply_rsds) and q == self.quantities[0]:
                     # While doing the first quantity, also add in the los velocity, if desired.
                     # Doing it now means we can keep whatever cached interpolation setup
                     # is used to do construct_lightcone().
@@ -341,6 +340,8 @@ class Lightconer(ABC):
     def validate_options(
         self,
         inputs: InputParameters,
+        include_dvdr_in_tau21: bool,
+        apply_rsds: bool,
         classy_output: Class | None = None,
     ) -> Lightconer:
         """Validate 21cmFAST options."""
@@ -360,7 +361,7 @@ class Lightconer(ABC):
                 f"while the lightcone redshift range is {lcz.min()} to {lcz.max()}. "
                 "Extend the limits of node redshifts to avoid this error."
             )
-        if inputs.astro_options.APPLY_RSDS:
+        if apply_rsds:
             if classy_output is None:
                 classy_output = run_classy(inputs=inputs, output="vTk")
             lcd_limits_rsd = self.find_required_lightcone_limits(
@@ -443,7 +444,7 @@ class Lightconer(ABC):
                 lcd_limits_rsd.append(distances_out[out_indices][0])
             else:
                 raise ValueError(
-                    f"You have set APPLY_RSDS to True with node redshifts between {min(inputs.node_redshifts)} and {max(inputs.node_redshifts)} "
+                    f"You have set apply_rsds to True with node redshifts between {min(inputs.node_redshifts)} and {max(inputs.node_redshifts)} "
                     f"and lightcone redshifts between {self.lc_redshifts.min()} and {self.lc_redshifts.max()}. "
                     "However, RSDs are expected to contribute the lightcone from higer/lower rdshifts. "
                     "Extend the limits of node redshifts to avoid this error."
@@ -655,16 +656,20 @@ class AngularLightconer(Lightconer):
     def validate_options(
         self,
         inputs: InputParameters,
+        include_dvdr_in_tau21: bool,
+        apply_rsds: bool,
         classy_output: Class | None = None,
     ) -> Lightconer:
         """Validate 21cmFAST options."""
         lightconer = super().validate_options(
-            inputs=inputs, classy_output=classy_output
+            inputs=inputs,
+            include_dvdr_in_tau21=include_dvdr_in_tau21,
+            apply_rsds=apply_rsds,
+            classy_output=classy_output,
         )
 
         if (
-            inputs.astro_options.INCLUDE_DVDR_IN_TAU21
-            or inputs.astro_options.APPLY_RSDS
+            include_dvdr_in_tau21 or apply_rsds
         ) and not inputs.matter_options.KEEP_3D_VELOCITIES:
             raise ValueError(
                 "To account for RSDs or velocity corrections in an angular lightcone, you need to set "
