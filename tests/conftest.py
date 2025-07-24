@@ -145,7 +145,6 @@ def default_astro_options():
         USE_EXP_FILTER=False,
         CELL_RECOMB=False,
         USE_UPPER_STELLAR_TURNOVER=False,
-        INCLUDE_DVDR_IN_TAU21=False,
     )
 
 
@@ -310,4 +309,5 @@ def lc(rectlcn, ic, cache, default_input_struct_lc):
         inputs=default_input_struct_lc,
         write=CacheConfig(),
         cache=cache,
+        include_dvdr_in_tau21=False,
     )

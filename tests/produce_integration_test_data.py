@@ -237,7 +237,6 @@ OPTIONS_TESTRUNS = {
             "MINIMIZE_MEMORY": True,
         },
     ],
-    "rsd": [18, {"APPLY_RSDS": True}],
     "fftw_wisdom": [18, {"USE_FFTW_WISDOM": True}],
 }
 

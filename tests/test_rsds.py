@@ -61,18 +61,6 @@ def test_coeval_rsds(ic, default_input_struct_ts, cache):
     box_rsd = coeval[0].apply_rsds()
     assert box_rsd.shape == coeval[0].brightness_temperature.brightness_temp.shape
 
-    coeval = run_coeval(
-        initial_conditions=ic,
-        inputs=default_input_struct_ts.evolve_input_structs(APPLY_RSDS=True),
-        cache=cache,
-        regenerate=True,
-    )
-    box_rsd = coeval[0].apply_velocity_corrections()
-    assert box_rsd.shape == coeval[0].brightness_temperature.brightness_temp.shape
-
-    box_rsd = coeval[0].apply_rsds()
-    assert box_rsd.shape == coeval[0].brightness_temperature.brightness_temp.shape
-
 
 def test_bad_coeval_inputs(default_input_struct, cache):
     coeval = run_coeval(
@@ -118,19 +106,18 @@ def test_bad_lightconer_inputs(default_input_struct_ts):
         quantities=("brightness_temp",),
     )
     with pytest.raises(
-        ValueError, match="You have set APPLY_RSDS to True with node redshifts between"
+        ValueError, match="You have set apply_rsds to True with node redshifts between"
     ):
         p21c.run_lightcone(
-            lightconer=lcner,
-            inputs=default_input_struct_ts.evolve_input_structs(APPLY_RSDS=True),
+            lightconer=lcner, inputs=default_input_struct_ts, apply_rsds=True
         )
 
 
 class TestRSDsShift:
     """Tests of the rsds_shift function."""
 
-    @pytest.mark.parametrize("n_subcells", [1, 2, 4, 5])
-    def test_mass_conservation(self, n_subcells):
+    @pytest.mark.parametrize("n_rsd_subcells", [1, 2, 4, 5])
+    def test_mass_conservation(self, n_rsd_subcells):
         """Test that sum along LOS is perserved in cloud in cell for a periodic box."""
         nslices = 10
         nangles = 5
@@ -141,7 +128,7 @@ class TestRSDsShift:
         box_out = rsds_shift(
             field=box_in,
             los_displacement=los_displacement,
-            n_subcells=n_subcells,
+            n_rsd_subcells=n_rsd_subcells,
             periodic=True,
         )
 
@@ -149,9 +136,9 @@ class TestRSDsShift:
         sum1 = np.sum(box_out, axis=0)
         np.testing.assert_allclose(sum_in, sum1)
 
-    @pytest.mark.parametrize("n_subcells", [1, 2])
+    @pytest.mark.parametrize("n_rsd_subcells", [1, 2])
     @pytest.mark.parametrize("velocity", [-10, -1, 0, 1, 10])
-    def test_integer_shift(self, n_subcells: int, velocity: int):
+    def test_integer_shift(self, n_rsd_subcells: int, velocity: int):
         """Test that cloud in cell results in a shifted box, for an integer velocity and a periodic box."""
         nslices = 10
         nangles = 5
@@ -161,15 +148,15 @@ class TestRSDsShift:
         box_out = rsds_shift(
             field=box_in,
             los_displacement=los_displacement,
-            n_subcells=n_subcells,
+            n_rsd_subcells=n_rsd_subcells,
             periodic=True,
         )
 
         box_in_shifted = np.roll(box_in, velocity, axis=0)
         np.testing.assert_allclose(box_out, box_in_shifted)
 
-    @pytest.mark.parametrize("n_subcells", [1, 2, 5])
-    def test_non_periodic_large_displacement(self, n_subcells: int):
+    @pytest.mark.parametrize("n_rsd_subcells", [1, 2, 5])
+    def test_non_periodic_large_displacement(self, n_rsd_subcells: int):
         """Test that a very large displacement results in all mass leaving the box."""
         nslices = 10
         nangles = 5
@@ -180,7 +167,7 @@ class TestRSDsShift:
             field=box_in,
             los_displacement=los_displacement,
             periodic=False,
-            n_subcells=n_subcells,
+            n_rsd_subcells=n_rsd_subcells,
         )
         np.testing.assert_allclose(box_out, 0)
 
@@ -270,14 +257,14 @@ class TestComputeRSDs:
                 inputs=self.inputs,
                 periodic=periodic,
             )
-        with pytest.raises(ValueError, match="n_subcells must be an integer"):
+        with pytest.raises(ValueError, match="n_rsd_subcells must be an integer"):
             apply_rsds(
                 field=self.bt3d,
                 los_velocity=self.vel3d,
                 redshifts=6.0,
                 inputs=self.inputs,
                 periodic=periodic,
-                n_subcells=2.5,
+                n_rsd_subcells=2.5,
             )
 
     @pytest.mark.parametrize("periodic", [True, False])
@@ -320,8 +307,6 @@ def test_new_rsd_lightcones(cache):
         HII_DIM=10,
         N_THREADS=6,
         USE_TS_FLUCT=True,
-        INCLUDE_DVDR_IN_TAU21=True,
-        APPLY_RSDS=True,
     )
     lightcone = p21c.run_lightcone(
         lightconer=RectilinearLightconer.between_redshifts(
@@ -333,6 +318,8 @@ def test_new_rsd_lightcones(cache):
         ),
         inputs=inputs,
         cache=cache,
+        include_dvdr_in_tau21=True,
+        apply_rsds=True,
     )
     assert "tau_21" in lightcone.lightcones
     assert "density_with_rsds" in lightcone.lightcones

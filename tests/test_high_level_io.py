@@ -44,11 +44,8 @@ def ang_lightcone(ic, lc, default_input_struct_lc, default_astro_options, cache)
         lightconer=lcn,
         initial_conditions=ic,
         write=True,
-        inputs=default_input_struct_lc.clone(
-            astro_options=default_astro_options.clone(
-                INCLUDE_DVDR_IN_TAU21=False,
-            )
-        ),
+        inputs=default_input_struct_lc,
+        include_dvdr_in_tau21=False,
         cache=cache,
     )
 

@@ -170,6 +170,7 @@ def test_lc_partial_eval(rectlcn, default_input_struct_lc, tmpdirec, lc, cache):
         lightcone_filename=fname,
         write=True,
         cache=cache,
+        include_dvdr_in_tau21=False,
     )
     while z > 20.0:
         iz_1, z, _, partial = next(lc_gen)
@@ -196,6 +197,7 @@ def test_lc_partial_eval(rectlcn, default_input_struct_lc, tmpdirec, lc, cache):
         cache=cache,
         write=False,
         regenerate=False,
+        include_dvdr_in_tau21=False,
     )
     for iz_2, z, _, finished in lc_gen_cont:  # noqa: B007
         assert z <= 20.0

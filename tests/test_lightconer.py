@@ -74,7 +74,9 @@ def test_uniform_coevals(request, lc):
     z6 = get_uniform_coeval(redshift=6.0, fill=0)
     z7 = get_uniform_coeval(redshift=7.0, fill=1.0)
 
-    q, idx, out = next(lc.make_lightcone_slices(z6, z7))
+    q, idx, out = next(
+        lc.make_lightcone_slices(z6, z7, include_dvdr_in_tau21=False, apply_rsds=False)
+    )
 
     assert np.all(out >= 0)
     assert np.all(out <= 1)
@@ -90,7 +92,11 @@ def test_incompatible_coevals(rect_lcner):
     z7.cosmo_params = z7.cosmo_params.clone(SIGMA_8=2 * orig)
 
     with pytest.raises(ValueError, match="c1 and c2 must have the same cosmo"):
-        next(rect_lcner.make_lightcone_slices(z6, z7))
+        next(
+            rect_lcner.make_lightcone_slices(
+                z6, z7, include_dvdr_in_tau21=False, apply_rsds=False
+            )
+        )
 
     z7.cosmo_params = z7.cosmo_params.clone(SIGMA_8=orig)
 
@@ -102,7 +108,11 @@ def test_incompatible_coevals(rect_lcner):
     with pytest.raises(
         ValueError, match="c1 and c2 must have the same user parameters"
     ):
-        next(rect_lcner.make_lightcone_slices(z6, z7))
+        next(
+            rect_lcner.make_lightcone_slices(
+                z6, z7, include_dvdr_in_tau21=False, apply_rsds=False
+            )
+        )
 
 
 def test_coeval_redshifts_outside_box(rect_lcner):
@@ -112,7 +122,11 @@ def test_coeval_redshifts_outside_box(rect_lcner):
     z6 = get_uniform_coeval(redshift=z0, fill=0)
     z7 = get_uniform_coeval(redshift=z1, fill=1.0)
 
-    q, idx, out = next(rect_lcner.make_lightcone_slices(z6, z7))
+    q, idx, out = next(
+        rect_lcner.make_lightcone_slices(
+            z6, z7, include_dvdr_in_tau21=False, apply_rsds=False
+        )
+    )
     assert q is None
     assert len(idx) == 0
     assert out is None
@@ -235,9 +249,11 @@ def test_rotation_equality():
 
 def test_validation_options_angular(ang_lcner):
     inputs = InputParameters(node_redshifts=np.array([5.0, 8.0]), random_seed=42)
-    inputs.evolve_input_structs(KEEP_3D_VELOCITIES=False, INCLUDE_DVDR_IN_TAU21=True)
+    inputs.evolve_input_structs(KEEP_3D_VELOCITIES=False)
     with pytest.raises(
         ValueError,
         match="To account for RSDs or velocity corrections in an angular lightcone, you need to set",
     ):
-        ang_lcner.validate_options(inputs=inputs)
+        ang_lcner.validate_options(
+            inputs=inputs, include_dvdr_in_tau21=True, apply_rsds=True
+        )
