@@ -295,6 +295,11 @@ def read_inputs(
         group = group["InputParameters"]
 
     file_version = group.attrs.get("21cmFAST-version", None)
+    if file_version is None:
+        raise NotImplementedError(
+            f"The file {group.file.filename} is not a valid 21cmFAST v4 file."
+        )
+
     if file_version > __version__:
         warnings.warn(
             f"File created with a newer version {file_version} of 21cmFAST than this {__version__}. "
@@ -344,13 +349,18 @@ def _read_outputs(
 ):
     file_version = group.attrs.get("21cmFAST-version", None)
 
+    if file_version is None:
+        raise NotImplementedError(
+            f"The file {group.file.filename} is not a valid 21cmFAST v4 file."
+        )
+
     if file_version > __version__:
         warnings.warn(
             f"File created with a newer version of 21cmFAST than this. Reading may break. Consider updating 21cmFAST to at least {file_version}",
             stacklevel=2,
         )
-    else:
-        return _read_outputs_v4(group, struct, redshift, inputs)
+
+    return _read_outputs_v4(group, struct, redshift, inputs)
 
 
 def _read_outputs_v4(
