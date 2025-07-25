@@ -550,23 +550,33 @@ class SimulationOptions(InputStruct):
     Parameters
     ----------
     HII_DIM : int, optional
-        Number of cells for the low-res box. Default 200.
+        Number of cells for the low-res box (after smoothing the high-resolution matter
+        field). Default 256.
     HIRES_TO_LOWRES_FACTOR : float, optional
         The ratio of the high-resolution box dimensionality to the low-resolution
         box dimensionality (i.e. DIM/HII_DIM). Use this parameter to define the size
         as a fixed ratio, instead of specifying DIM explicitly. This is useful if
         the parameters will be later evolved, so that specifying a new HII_DIM keeps
         the fixed resolution. By default, this is None, and a default of DIM=3*HII_DIM
-        is used.
+        is used. This should be at least 3, and generally an integer (though this is not
+        enforced).
     DIM : int, optional
         Number of cells for the high-res box (sampling ICs) along a principal axis.
-        To avoid sampling issues, DIM should be at least 3 or 4 times HII_DIM, and an
-        integer multiple. By default, it is set to 3*HII_DIM.
+        In general, prefer setting HIRES_TO_LOWRES_FACTOR instead of DIM directly.
+        Setting both will raise an error.
+    LOWRES_CELL_SIZE_MPC : float, optional
+        The cell size of the low-resolution boxes (i.e. after smoothing the high-resolution
+        matter field). Use either this parameter or BOX_LEN, setting both will raise
+        an error. This parameter is generally preferrable, as it allows you to evolve
+        the HII_DIM later, and keep the same resolution (automatically scaling up
+        BOX_LEN). Default is None, falling back on a cell size of 1.5 Mpc.
+    BOX_LEN : float, optional
+        Length of the box, in Mpc. Prefer setting LOWRES_CELL_SIZE_MPC, which automatically
+        defines this setting. Specifying both will result in an error. By default,
+        the BOX_LEN will be calculated as 1.5 * HII_DIM.
     NON_CUBIC_FACTOR : float, optional
         Factor which allows the creation of non-cubic boxes. It will shorten/lengthen the line
-        of sight dimension of all boxes. NON_CUBIC_FACTOR * DIM/HII_DIM must result in an integer
-    BOX_LEN : float, optional
-        Length of the box, in Mpc. Default 300 Mpc.
+        of sight dimension of all boxes. NON_CUBIC_FACTOR * DIM/HII_DIM must result in an integer.
     N_THREADS : int, optional
         Sets the number of processors (threads) to be used for performing 21cmFAST.
         Default 1.
@@ -630,7 +640,7 @@ class SimulationOptions(InputStruct):
     _DEFAULT_HIRES_TO_LOWRES_FACTOR: ClassVar[float] = 3
     _DEFAULT_LOWRES_CELL_SIZE_MPC: ClassVar[float] = 1.5
 
-    HII_DIM: int = field(default=200, converter=int, validator=validators.gt(0))
+    HII_DIM: int = field(default=256, converter=int, validator=validators.gt(0))
 
     _BOX_LEN: float = field(
         default=None,
