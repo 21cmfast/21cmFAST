@@ -112,10 +112,14 @@ Changelog="https://github.com/21cmFAST/21cmFAST"
 
 [build-system]
 build-backend = 'mesonpy'
-requires = ['meson-python','nanobind>=2.4.0']
+requires = ['meson-python', 'nanobind>=2.4.0', 'setuptools-scm>=8']
 
 [tool.meson-python.args]
 setup = ["-Dbuildtype=release"]
+
+[tool.setuptools_scm]
+version_file = "src/py21cmfast/_version.py"
+fallback_version = "4.0.0b1"
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
