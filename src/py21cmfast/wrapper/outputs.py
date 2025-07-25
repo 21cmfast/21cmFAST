@@ -481,6 +481,11 @@ class OutputStruct(ABC):
         self.pull_from_backend()
         return self
 
+    @classmethod
+    @abstractmethod
+    def new(cls, inputs: InputParameters, **kwargs) -> Self:
+        """Instantiate the class from InputParameters."""
+
 
 @attrs.define(slots=False, kw_only=True)
 class InitialConditions(OutputStruct):
@@ -670,7 +675,7 @@ class PerturbedField(OutputStructZ):
             out["velocity_x"] = Array(shape, dtype=np.float32)
             out["velocity_y"] = Array(shape, dtype=np.float32)
 
-        return cls(redshift=redshift, inputs=inputs, **out, **kw)
+        return cls(inputs=inputs, redshift=redshift, **out, **kw)
 
     def get_required_input_arrays(self, input_box: OutputStruct) -> list[str]:
         """Return all input arrays required to compute this object."""
