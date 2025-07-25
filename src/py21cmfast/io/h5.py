@@ -35,13 +35,14 @@ import warnings
 from pathlib import Path
 from typing import Any
 
+import attrs
 import h5py
 import numpy as np
 
 from .. import __version__
 from ..input_serialization import deserialize_inputs, prepare_inputs_for_serialization
 from ..wrapper import outputs as ostruct
-from ..wrapper.arrays import Array, H5Backend
+from ..wrapper.arrays import H5Backend
 from ..wrapper.arraystate import ArrayState
 from ..wrapper.inputs import InputParameters
 
@@ -60,6 +61,10 @@ def hdf5_to_dict(grp: h5py.Group) -> dict[str, Any]:
             out[k] = v[()]
 
     return out
+
+
+class HDF5FileStructureError(ValueError):
+    """An error in the structure of an HDF5 file for 21cmFAST."""
 
 
 def write_output_to_hdf5(
@@ -83,7 +88,7 @@ def write_output_to_hdf5(
         The mode in which to open the file.
     """
     if not all(v.state.is_computed for v in output.arrays.values()):
-        raise OSError(
+        raise ValueError(
             "Not all boxes have been computed (or maybe some have been purged). Cannot write."
             f"Non-computed boxes: {[k for k, v in output.arrays.items() if not v.state.is_computed]}. "
             f"Computed boxes: {[k for k, v in output.arrays.items() if v.state.is_computed]}"
@@ -239,7 +244,9 @@ def read_output_struct(
 
         if struct is None:
             if len(group.keys()) > 1:
-                raise ValueError(f"Multiple structs found in {path}:{group}")
+                raise HDF5FileStructureError(
+                    f"Multiple structs found in {path}:{group}"
+                )
             else:
                 struct = next(iter(group.keys()))
             group = group[struct]
@@ -248,17 +255,17 @@ def read_output_struct(
             group = group[struct]
         else:
             raise KeyError(f"struct {struct} not found in the H5DF group {group}")
+
+        kls = getattr(ostruct, struct)
         assert "InputParameters" in group
         assert "OutputFields" in group
 
         redshift = group.attrs.get("redshift")
         inputs = read_inputs(group["InputParameters"], safe=safe)
-        outputs = _read_outputs(group["OutputFields"])
+        out = _read_outputs(
+            group["OutputFields"], struct=kls, redshift=redshift, inputs=inputs
+        )
 
-    if redshift is not None:
-        outputs["redshift"] = redshift
-    kls = getattr(ostruct, struct)
-    out = kls(inputs=inputs, **outputs)
     return out
 
 
@@ -286,7 +293,7 @@ def read_inputs(
         if "InputParameters" in file:
             group = file["InputParameters"]
         elif len(file.keys()) > 1:
-            raise ValueError(
+            raise HDF5FileStructureError(
                 f"Multiple sub-groups found in {group}, none of them 'InputParameters'"
             )
         else:
@@ -297,6 +304,11 @@ def read_inputs(
         group = group["InputParameters"]
 
     file_version = group.attrs.get("21cmFAST-version", None)
+    if file_version is None:
+        raise NotImplementedError(
+            f"The file {group.file.filename} is not a valid 21cmFAST v4 file."
+        )
+
     if file_version > __version__:
         warnings.warn(
             f"File created with a newer version {file_version} of 21cmFAST than this {__version__}. "
@@ -326,32 +338,70 @@ def _read_inputs_v4(group: h5py.Group, safe: bool = True):
     )
 
 
-def _read_outputs(group: h5py.Group):
+def _read_outputs(
+    group: h5py.Group,
+    struct: type[ostruct.OutputStruct],
+    redshift: float | None,
+    inputs: InputParameters,
+):
     file_version = group.attrs.get("21cmFAST-version", None)
+
+    if file_version is None:
+        raise NotImplementedError(
+            f"The file {group.file.filename} is not a valid 21cmFAST v4 file."
+        )
 
     if file_version > __version__:
         warnings.warn(
             f"File created with a newer version of 21cmFAST than this. Reading may break. Consider updating 21cmFAST to at least {file_version}",
             stacklevel=2,
         )
-    else:
-        return _read_outputs_v4(group)
+
+    return _read_outputs_v4(group, struct, redshift, inputs)
 
 
-def _read_outputs_v4(group: h5py.Group):
-    arrays = {
-        name: Array(
-            dtype=box.dtype,
-            shape=box.shape,
-            state=ArrayState(on_disk=True),
-            cache_backend=H5Backend(path=group.file.filename, dataset=box.name),
+def _read_outputs_v4(
+    group: h5py.Group,
+    struct: type[ostruct.OutputStruct],
+    redshift: float | None,
+    inputs: InputParameters,
+):
+    # First read other attributes that are not arrays.
+    kwargs = dict(group.attrs)
+    del kwargs["21cmFAST-version"]
+
+    if redshift is not None:
+        kwargs["redshift"] = redshift
+
+    # Create the object with those attributes.
+    obj = struct.new(inputs, **kwargs)
+
+    # Now go and make sure all the arrays exist in the file, and have the correct shape.
+    # We don't actually read these right now, we just make pointers to the file.
+    for name, array in obj.arrays.items():
+        if name not in group:
+            raise HDF5FileStructureError(
+                f"Required Array {name} not found in {group}. This file is not valid."
+            )
+
+        dataset = group[name]
+        if dataset.shape != array.shape:
+            raise HDF5FileStructureError(
+                f"Array {name} has shape {dataset.shape} in the file {group.file.filename}, but requires shape {array.shape}"
+            )
+
+        # We don't check dtype because it can be usually safely cast.
+
+        setattr(
+            obj,
+            name,
+            attrs.evolve(
+                array,
+                state=ArrayState(on_disk=True),
+                cache_backend=H5Backend(
+                    path=group.file.filename, dataset=group.name + f"/{name}"
+                ),
+            ),
         )
-        for name, box in group.items()
-    }
-    for k, val in group.attrs.items():
-        if k == "21cmFAST-version":
-            continue
 
-        arrays[k] = val
-
-    return arrays
+    return obj
