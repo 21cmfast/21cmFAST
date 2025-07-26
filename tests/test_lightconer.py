@@ -74,9 +74,7 @@ def test_uniform_coevals(request, lc):
     z6 = get_uniform_coeval(redshift=6.0, fill=0)
     z7 = get_uniform_coeval(redshift=7.0, fill=1.0)
 
-    q, idx, out = next(
-        lc.make_lightcone_slices(z6, z7, include_dvdr_in_tau21=False, apply_rsds=False)
-    )
+    q, idx, out = next(lc.make_lightcone_slices(z6, z7))
 
     assert np.all(out >= 0)
     assert np.all(out <= 1)
@@ -92,11 +90,7 @@ def test_incompatible_coevals(rect_lcner):
     z7.cosmo_params = z7.cosmo_params.clone(SIGMA_8=2 * orig)
 
     with pytest.raises(ValueError, match="c1 and c2 must have the same cosmo"):
-        next(
-            rect_lcner.make_lightcone_slices(
-                z6, z7, include_dvdr_in_tau21=False, apply_rsds=False
-            )
-        )
+        next(rect_lcner.make_lightcone_slices(z6, z7))
 
     z7.cosmo_params = z7.cosmo_params.clone(SIGMA_8=orig)
 
@@ -108,11 +102,7 @@ def test_incompatible_coevals(rect_lcner):
     with pytest.raises(
         ValueError, match="c1 and c2 must have the same user parameters"
     ):
-        next(
-            rect_lcner.make_lightcone_slices(
-                z6, z7, include_dvdr_in_tau21=False, apply_rsds=False
-            )
-        )
+        next(rect_lcner.make_lightcone_slices(z6, z7))
 
 
 def test_coeval_redshifts_outside_box(rect_lcner):
@@ -122,11 +112,7 @@ def test_coeval_redshifts_outside_box(rect_lcner):
     z6 = get_uniform_coeval(redshift=z0, fill=0)
     z7 = get_uniform_coeval(redshift=z1, fill=1.0)
 
-    q, idx, out = next(
-        rect_lcner.make_lightcone_slices(
-            z6, z7, include_dvdr_in_tau21=False, apply_rsds=False
-        )
-    )
+    q, idx, out = next(rect_lcner.make_lightcone_slices(z6, z7))
     assert q is None
     assert len(idx) == 0
     assert out is None
