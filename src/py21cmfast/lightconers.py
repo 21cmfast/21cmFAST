@@ -163,8 +163,6 @@ class Lightconer(ABC):
         self,
         c1: Coeval,  # noqa: F821
         c2: Coeval,  # noqa: F821
-        include_dvdr_in_tau21: bool,
-        apply_rsds: bool,
     ) -> tuple[dict[str, np.ndarray], np.ndarray]:
         """
         Make lightcone slices out of two coeval objects.
@@ -213,8 +211,6 @@ class Lightconer(ABC):
         lc_distances = pixlcdist[lcidx]
 
         lc_quantities = self.quantities
-        if include_dvdr_in_tau21 and c1.astro_options.USE_TS_FLUCT:
-            lc_quantities += ("tau_21",)
 
         for idx, lcd in zip(lcidx, lc_distances, strict=True):
             for q in lc_quantities:
@@ -232,7 +228,7 @@ class Lightconer(ABC):
 
                 yield q, idx, self.construct_lightcone(lcd, box)
 
-                if (include_dvdr_in_tau21 or apply_rsds) and q == self.quantities[0]:
+                if "los_velocity" in self.quantities and q == self.quantities[0]:
                     # While doing the first quantity, also add in the los velocity, if desired.
                     # Doing it now means we can keep whatever cached interpolation setup
                     # is used to do construct_lightcone().
@@ -361,25 +357,34 @@ class Lightconer(ABC):
                 f"while the lightcone redshift range is {lcz.min()} to {lcz.max()}. "
                 "Extend the limits of node redshifts to avoid this error."
             )
-        if apply_rsds:
-            if classy_output is None:
-                classy_output = run_classy(inputs=inputs, output="vTk")
-            lcd_limits_rsd = self.find_required_lightcone_limits(
-                classy_output=classy_output, inputs=inputs
-            )
-            lcd_rsd = (
-                np.arange(
-                    lcd_limits_rsd[0].value,
-                    lcd_limits_rsd[1].value + inputs.simulation_options.cell_size.value,
-                    inputs.simulation_options.cell_size.value,
-                )
-                * self.lc_distances.unit
-            )
-            # Make a new lightconer which is identical to self, but extends to further boundaries!
-            lightconer_rsd = attrs.evolve(self, lc_redshifts=None, lc_distances=lcd_rsd)
-            return lightconer_rsd
+
+        if (
+            include_dvdr_in_tau21
+            and inputs.astro_options.USE_TS_FLUCT
+            and "tau_21" not in self.quantities
+        ):
+            lightconer = attrs.evolve(self, quantities=(*self.quantities, "tau_21"))
         else:
-            return self
+            lightconer = self
+
+        if not apply_rsds:
+            return lightconer
+
+        if classy_output is None:
+            classy_output = run_classy(inputs=inputs, output="vTk")
+        lcd_limits_rsd = self.find_required_lightcone_limits(
+            classy_output=classy_output, inputs=inputs
+        )
+        lcd_rsd = (
+            np.arange(
+                lcd_limits_rsd[0].value,
+                lcd_limits_rsd[1].value + inputs.simulation_options.cell_size.value,
+                inputs.simulation_options.cell_size.value,
+            )
+            * self.lc_distances.unit
+        )
+        # Make a new lightconer which is identical to self, but extends to further boundaries!
+        return attrs.evolve(lightconer, lc_redshifts=None, lc_distances=lcd_rsd)
 
     def find_required_lightcone_limits(
         self, classy_output: Class, inputs: InputParameters
@@ -668,11 +673,15 @@ class AngularLightconer(Lightconer):
             classy_output=classy_output,
         )
 
-        if (
-            include_dvdr_in_tau21 or apply_rsds
-        ) and not inputs.matter_options.KEEP_3D_VELOCITIES:
-            raise ValueError(
-                "To account for RSDs or velocity corrections in an angular lightcone, you need to set "
-                "matter_options.KEEP_3D_VELOCITIES=True"
-            )
+        if include_dvdr_in_tau21 or apply_rsds:
+            if not inputs.matter_options.KEEP_3D_VELOCITIES:
+                raise ValueError(
+                    "To account for RSDs or velocity corrections in an angular lightcone, you need to set "
+                    "matter_options.KEEP_3D_VELOCITIES=True"
+                )
+            if "los_velocity" not in lightconer.quantities:
+                lightconer = attrs.evolve(
+                    lightconer, quantities=(*lightconer.quantities, "los_velocity")
+                )
+
         return lightconer

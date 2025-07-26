@@ -477,8 +477,6 @@ def _run_lightcone_from_perturbed_fields(
             for quantity, idx, this_lc in lightconer.make_lightcone_slices(
                 coeval,
                 prev_coeval,
-                include_dvdr_in_tau21=include_dvdr_in_tau21,
-                apply_rsds=apply_rsds,
             ):
                 if this_lc is not None:
                     lightcone.lightcones[quantity][..., idx] = this_lc
@@ -581,13 +579,14 @@ def generate_lightcone(
         re-calculated.
     include_dvdr_in_tau21 : bool, optional
         If True, velocity gradient corrections to the 21cm optical depth will be applied.
-        See Mao+ 2012. Default is True.
+        Only applicable when AstroOptions.USE_TS_FLUCT=True. See Mao+ 2012. Default is
+        True.
     apply_rsds : bool, optional
         If True, all output lightcones will be transformed from real space to redshift space,
         according to the peculiar velocity fields.
         See Mao+ 2012. Default is False.
     n_rsd_subcells : int, optional
-        The number of subcells into each cell is divided when redshift space distortions are applied.
+        The number of subcells into which each cell is divided when redshift space distortions are applied.
         Becomes relevant only if apply_rsds is True. Default is False.
     cleanup : bool, optional
         A flag to specify whether the C routine cleans up its memory before returning.

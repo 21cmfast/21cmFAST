@@ -271,7 +271,7 @@ class Coeval:
         periodic: bool, optioanl
             Whether to assume periodic boundary conditions along the line-of-sight. Default is True.
         n_rsd_subcells: int, optional
-            The number of subcells into each cell is divided when redshift space distortions are applied. Default is 4.
+            The number of subcells into which each cell is divided when redshift space distortions are applied. Default is 4.
 
         Returns
         -------
@@ -313,7 +313,7 @@ class Coeval:
         periodic: bool, optioanl
             Whether to assume periodic boundary conditions along the line-of-sight. Default is True.
         n_rsd_subcells: int, optional
-            The number of subcells into each cell is divided when redshift space distortions are applied. Default is 4.
+            The number of subcells into which each cell is divided when redshift space distortions are applied. Default is 4.
 
         Returns
         -------

@@ -136,7 +136,7 @@ def apply_rsds(
     periodic: bool
         Whether to assume periodic boundary conditions along the line-of-sight.
     n_rsd_subcells: int, optional
-        The number of subcells into each cell is divided when redshift space distortions are applied. Default is 4.
+        The number of subcells into which each cell is divided when redshift space distortions are applied. Default is 4.
 
     Returns
     -------
@@ -200,7 +200,7 @@ def rsds_shift(
     periodic: bool, optioanl
         Whether to assume periodic boundary conditions along the line-of-sight.
     n_rsd_subcells: int, optional
-        The number of subcells into each cell is divided when redshift space distortions are applied. Default is 4.
+        The number of subcells into which each cell is divided when redshift space distortions are applied. Default is 4.
 
     Returns
     -------
