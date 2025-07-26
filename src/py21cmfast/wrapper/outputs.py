@@ -1443,7 +1443,7 @@ class BrightnessTemp(OutputStructZ):
         )
 
         out = {"brightness_temp": Array(shape, dtype=np.float32)}
-        if inputs.astro_options.USE_TS_FLUCT and inputs.astro_options.APPLY_RSDS:
+        if inputs.astro_options.USE_TS_FLUCT:
             out["tau_21"] = Array(shape, dtype=np.float32)
 
         return cls(
@@ -1468,8 +1468,6 @@ class BrightnessTemp(OutputStructZ):
         required = []
         if isinstance(input_box, PerturbedField):
             required += ["density"]
-            if self.astro_options.APPLY_RSDS:
-                required += ["velocity_z"]
         elif isinstance(input_box, TsBox):
             required += ["spin_temperature"]
         elif isinstance(input_box, IonizedBox):
