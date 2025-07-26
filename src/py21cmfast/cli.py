@@ -22,6 +22,7 @@ from rich.rule import Rule
 from rich.text import Text
 
 from . import __version__, plotting
+from ._templates import TOMLMode, list_templates, write_template
 from .drivers import coeval as cvlmodule
 from .drivers.coeval import generate_coeval
 from .drivers.lightcone import run_lightcone
@@ -29,7 +30,6 @@ from .drivers.single_field import compute_initial_conditions
 from .input_serialization import convert_inputs_to_dict
 from .io.caching import CacheConfig, OutputCache, RunCache
 from .lightconers import RectilinearLightconer
-from .run_templates import TOMLMode, list_templates, write_template
 from .wrapper.inputs import (
     AstroOptions,
     AstroParams,
