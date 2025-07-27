@@ -48,7 +48,7 @@ int ComputePerturbHaloField(float redshift, InitialConditions *boxes, HaloField 
         unsigned long long i_halo;
         bool error_in_parallel = false;
 
-        float box_size[3] = {boxlen, boxlen, boxlen_z};
+        double box_size[3] = {boxlen, boxlen, boxlen_z};
         unsigned long long int box_dim[3];
         float *vel_pointers[3], *vel_pointers_2LPT[3];
         if (matter_options_global->PERTURB_ON_HIGH_RES) {
@@ -169,7 +169,7 @@ int ComputePerturbHaloField(float redshift, InitialConditions *boxes, HaloField 
 #pragma omp parallel shared(boxes, halos, halos_perturbed) private(i_halo) \
     num_threads(simulation_options_global -> N_THREADS) reduction(+ : n_exact_dim)
         {
-            float pos[3];
+            double pos[3];
             unsigned long long grid_index;
             int ipos[3];
 #pragma omp for
