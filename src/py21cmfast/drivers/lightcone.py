@@ -19,7 +19,8 @@ from ..c_21cmfast import lib
 from ..io import h5
 from ..io.caching import CacheConfig, OutputCache
 from ..lightconers import Lightconer, RectilinearLightconer
-from ..rsds import compute_rsds
+from ..rsds import apply_rsds as do_rsds
+from ..rsds import include_dvdr_in_tau21 as do_dvdr_in_tau21
 from ..wrapper.inputs import InputParameters
 from ..wrapper.outputs import (
     BrightnessTemp,
@@ -306,7 +307,11 @@ def _check_desired_arrays_exist(desired_arrays: list[str], inputs: InputParamete
     for name in desired_arrays:
         exists = False
         for output in possible_outputs:
-            if name in output.arrays or name in ["log10_mturn_acg", "log10_mturn_mcg"]:
+            if name in output.arrays or name in [
+                "log10_mturn_acg",
+                "log10_mturn_mcg",
+                "los_velocity",
+            ]:
                 exists = True
                 break
         if not exists:
@@ -320,6 +325,8 @@ def setup_lightcone_instance(
     scrollz: Sequence[float],
     inputs: InputParameters,
     global_quantities: Sequence[str],
+    include_dvdr_in_tau21: bool,
+    apply_rsds: bool,
     photon_nonconservation_data: dict,
     lightcone_filename: Path | None = None,
 ) -> LightCone:
@@ -346,14 +353,14 @@ def setup_lightcone_instance(
             for quantity in lightconer.quantities
         }
 
-        if inputs.astro_options.APPLY_RSDS:
+        if include_dvdr_in_tau21 or apply_rsds:
             lc["los_velocity"] = np.zeros(
                 lightconer.get_shape(inputs.simulation_options), dtype=np.float32
             )
-            if inputs.astro_options.USE_TS_FLUCT:
-                lc["tau_21"] = np.zeros(
-                    lightconer.get_shape(inputs.simulation_options), dtype=np.float32
-                )
+        if include_dvdr_in_tau21 and inputs.astro_options.USE_TS_FLUCT:
+            lc["tau_21"] = np.zeros(
+                lightconer.get_shape(inputs.simulation_options), dtype=np.float32
+            )
 
         lightcone = lcn_cls(
             lightcone_distances=lightconer.lc_distances,
@@ -375,6 +382,9 @@ def _run_lightcone_from_perturbed_fields(
     inputs: InputParameters,
     lc_distances: np.array,
     photon_nonconservation_data: dict,
+    include_dvdr_in_tau21: bool,
+    apply_rsds: bool,
+    n_rsd_subcells: int,
     pt_halos: list[PerturbHaloField],
     regenerate: bool | None = None,
     global_quantities: tuple[str] = ("brightness_temp", "neutral_fraction"),
@@ -395,6 +405,8 @@ def _run_lightcone_from_perturbed_fields(
         inputs=inputs,
         scrollz=scrollz,
         global_quantities=global_quantities,
+        include_dvdr_in_tau21=include_dvdr_in_tau21,
+        apply_rsds=apply_rsds,
         lightcone_filename=lightcone_filename,
         photon_nonconservation_data=photon_nonconservation_data,
     )
@@ -467,7 +479,8 @@ def _run_lightcone_from_perturbed_fields(
         lc_index = None
         if prev_coeval is not None:
             for quantity, idx, this_lc in lightconer.make_lightcone_slices(
-                coeval, prev_coeval
+                coeval,
+                prev_coeval,
             ):
                 if this_lc is not None:
                     lightcone.lightcones[quantity][..., idx] = this_lc
@@ -488,8 +501,8 @@ def _run_lightcone_from_perturbed_fields(
             if lib.photon_cons_allocated:
                 lib.FreePhotonConsMemory()
 
-            if inputs.astro_options.APPLY_RSDS:
-                tb_with_rsds = compute_rsds(
+            if include_dvdr_in_tau21:
+                lightcone.lightcones["brightness_temp"] = do_dvdr_in_tau21(
                     brightness_temp=lightcone.lightcones["brightness_temp"],
                     los_velocity=lightcone.lightcones["los_velocity"],
                     redshifts=lightcone.lightcone_redshifts,
@@ -500,27 +513,33 @@ def _run_lightcone_from_perturbed_fields(
                         else None
                     ),
                     periodic=False,
-                    n_subcells=(
-                        inputs.astro_params.N_RSD_STEPS
-                        if inputs.astro_options.SUBCELL_RSD
-                        else 0
-                    ),
                 )
-                lightcone.lightcones["brightness_temp_with_rsds"] = tb_with_rsds
 
-                if lightcone_filename:
-                    if Path(lightcone_filename).exists():
-                        with h5py.File(lightcone_filename, "a") as fl:
-                            fl["lightcones"]["brightness_temp_with_rsds"] = tb_with_rsds
-                    else:
-                        lightcone.save(
-                            lightcone_filename,
-                            lowz_buffer_pixels=lowz_buffer_pixels,
-                            highz_buffer_pixels=highz_buffer_pixels,
-                        )
+            if apply_rsds:
+                for q in lightconer.quantities:
+                    field_with_rsds = do_rsds(
+                        field=lightcone.lightcones[q],
+                        los_velocity=lightcone.lightcones["los_velocity"],
+                        redshifts=lightcone.lightcone_redshifts,
+                        inputs=inputs,
+                        periodic=False,
+                        n_rsd_subcells=n_rsd_subcells,
+                    )
 
-                if inputs.astro_options.SUBCELL_RSD:
-                    lightcone = lightcone.trim(lc_distances.min(), lc_distances.max())
+                    lightcone.lightcones[q + "_with_rsds"] = field_with_rsds
+
+                    if lightcone_filename:
+                        if Path(lightcone_filename).exists():
+                            with h5py.File(lightcone_filename, "a") as fl:
+                                fl["lightcones"][q + "_with_rsds"] = field_with_rsds
+                        else:
+                            lightcone.save(
+                                lightcone_filename,
+                                lowz_buffer_pixels=lowz_buffer_pixels,
+                                highz_buffer_pixels=highz_buffer_pixels,
+                            )
+
+                lightcone = lightcone.trim(lc_distances.min(), lc_distances.max())
 
         yield iz, coeval.redshift, coeval, lightcone
 
@@ -532,6 +551,9 @@ def generate_lightcone(
     inputs: InputParameters,
     global_quantities=("brightness_temp", "neutral_fraction"),
     initial_conditions: InitialConditions | None = None,
+    include_dvdr_in_tau21: bool = True,
+    apply_rsds: bool = False,
+    n_rsd_subcells: int = 4,
     cleanup: bool = True,
     write: CacheConfig = _cache,
     cache: OutputCache | None = _ocache,
@@ -559,6 +581,17 @@ def generate_lightcone(
     initial_conditions : :class:`~InitialConditions`, optional
         If given, the user and cosmo params will be set from this object, and it will not be
         re-calculated.
+    include_dvdr_in_tau21 : bool, optional
+        If True, velocity gradient corrections to the 21cm optical depth will be applied.
+        Only applicable when AstroOptions.USE_TS_FLUCT=True. See Mao+ 2012. Default is
+        True.
+    apply_rsds : bool, optional
+        If True, all output lightcones will be transformed from real space to redshift space,
+        according to the peculiar velocity fields.
+        See Mao+ 2012. Default is False.
+    n_rsd_subcells : int, optional
+        The number of subcells into which each cell is divided when redshift space distortions are applied.
+        Becomes relevant only if apply_rsds is True. Default is False.
     cleanup : bool, optional
         A flag to specify whether the C routine cleans up its memory before returning.
         Typically, if `spin_temperature` is called directly, you will want this to be
@@ -588,7 +621,11 @@ def generate_lightcone(
 
     # Validate the lightconer options and return a "ghost" lightconer if we require
     # some extra buffer pixels (e.g. for RSDs).
-    lightconer = lightconer.validate_options(inputs)
+    lightconer = lightconer.validate_options(
+        inputs=inputs,
+        include_dvdr_in_tau21=include_dvdr_in_tau21,
+        apply_rsds=apply_rsds,
+    )
 
     if isinstance(write, bool):
         write = CacheConfig() if write else CacheConfig.off()
@@ -621,6 +658,9 @@ def generate_lightcone(
         regenerate=regenerate,
         pt_halos=pt_halos,
         photon_nonconservation_data=photon_nonconservation_data,
+        include_dvdr_in_tau21=include_dvdr_in_tau21,
+        apply_rsds=apply_rsds,
+        n_rsd_subcells=n_rsd_subcells,
         global_quantities=global_quantities,
         cache=cache,
         write=write,

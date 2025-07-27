@@ -17,7 +17,7 @@ from .. import __version__
 from ..c_21cmfast import lib
 from ..io import h5
 from ..io.caching import CacheConfig, OutputCache, RunCache
-from ..rsds import compute_rsds
+from ..rsds import apply_rsds, include_dvdr_in_tau21
 from ..wrapper.arrays import Array
 from ..wrapper.inputs import InputParameters
 from ..wrapper.outputs import (
@@ -215,35 +215,141 @@ class Coeval:
         for struct in output_structs.values():
             h5.write_output_to_hdf5(struct, path, mode="a")
 
-    def compute_rsds(self, periodic: bool = True, n_subcells: int | None = None):
-        """Compute redshift-space distortions from the los_velocity.
+    def include_dvdr_in_tau21(self, axis: str = "z", periodic: bool = True):
+        """Include velocity gradient corrections to the brightness temperature field.
 
         Parameters
         ----------
+        axis: str, optioanl
+            The assumed axis of the line-of-sight. Options are "x", "y", or "z". Default is "z".
         periodic: bool, optioanl
-            Whether to assume periodic boundary conditions along the line-of-sight.
-        n_subcells: int, optional
-            The number of sub-cells to interpolate onto, to make the RSDs more accurate. Default is astro_params.N_RSD_STEPS.
+            Whether to assume periodic boundary conditions along the line-of-sight. Default is True.
 
         Returns
         -------
-        tb_with_rsds : np.ndarray
-            A box of the brightness temperature, with redshift space distortions.
+        tb_with_dvdr
+            A box of the brightness temperature, with velocity gradient corrections.
         """
-        if n_subcells is None:
-            if self.inputs.astro_options.SUBCELL_RSD:
-                n_subcells = self.inputs.astro_params.N_RSD_STEPS
+        if not hasattr(self, "velocity_" + axis):
+            if axis not in ["x", "y", "z"]:
+                raise ValueError("`axis` can only be `x`, `y` or `z`.")
             else:
-                n_subcells = 0
+                raise ValueError(
+                    "You asked for axis = '"
+                    + axis
+                    + "', but the coeval doesn't have velocity_"
+                    + axis
+                    + "!"
+                    " Set matter_options.KEEP_3D_VELOCITIES=True next time you call run_coeval if you "
+                    "wish to set axis=`" + axis + "'."
+                )
 
-        return compute_rsds(
+        return include_dvdr_in_tau21(
             brightness_temp=self.brightness_temp,
-            los_velocity=self.velocity_z,  # TODO: generalize to an arbitrary los axis
+            los_velocity=getattr(self, "velocity_" + axis),
             redshifts=self.redshift,  # TODO: do we want to use a single redshift? Or a redshift array that is determined from the coeval los?
             inputs=self.inputs,
             tau_21=self.tau_21 if self.inputs.astro_options.USE_TS_FLUCT else None,
             periodic=periodic,
-            n_subcells=n_subcells,
+        )
+
+    def apply_rsds(
+        self,
+        field: str = "brightness_temp",
+        axis: str = "z",
+        periodic: bool = True,
+        n_rsd_subcells: int = 4,
+    ):
+        """Apply redshift-space distortions to a particular field of the coeval box.
+
+        Parameters
+        ----------
+        field: str, optional
+            The field onto which redshift-space distortions shall be applied. Default is "brightness_temp".
+        axis: str, optioanl
+            The assumed axis of the line-of-sight. Options are "x", "y", or "z". Default is "z".
+        periodic: bool, optioanl
+            Whether to assume periodic boundary conditions along the line-of-sight. Default is True.
+        n_rsd_subcells: int, optional
+            The number of subcells into which each cell is divided when redshift space distortions are applied. Default is 4.
+
+        Returns
+        -------
+        field_with_rsds
+            A box of the field, with redshift space distortions.
+        """
+        if not hasattr(self, "velocity_" + axis):
+            if axis not in ["x", "y", "z"]:
+                raise ValueError("`axis` can only be `x`, `y` or `z`.")
+            else:
+                raise ValueError(
+                    "You asked for axis = '"
+                    + axis
+                    + "', but the coeval doesn't have velocity_"
+                    + axis
+                    + "!"
+                    " Set matter_options.KEEP_3D_VELOCITIES=True next time you call run_coeval if you "
+                    "wish to set axis=`" + axis + "'."
+                )
+
+        return apply_rsds(
+            field=getattr(self, field),
+            los_velocity=getattr(self, "velocity_" + axis),
+            redshifts=self.redshift,  # TODO: do we want to use a single redshift? Or a redshift array that is determined from the coeval los?
+            inputs=self.inputs,
+            periodic=periodic,
+            n_rsd_subcells=n_rsd_subcells,
+        )
+
+    def apply_velocity_corrections(
+        self, axis: str = "z", periodic: bool = True, n_rsd_subcells: int = 4
+    ):
+        """Apply velocity gradient corrections and redshift-space distortions to the brightness temperature field.
+
+        Parameters
+        ----------
+        axis: str, optioanl
+            The assumed axis of the line-of-sight. Options are "x", "y", or "z". Default is "z".
+        periodic: bool, optioanl
+            Whether to assume periodic boundary conditions along the line-of-sight. Default is True.
+        n_rsd_subcells: int, optional
+            The number of subcells into which each cell is divided when redshift space distortions are applied. Default is 4.
+
+        Returns
+        -------
+        field_with_rsds
+            A box of the brightness temperature, with velocity gradient corrections and redshift-space distortions.
+        """
+        if not hasattr(self, "velocity_" + axis):
+            if axis not in ["x", "y", "z"]:
+                raise ValueError("`axis` can only be `x`, `y` or `z`.")
+            else:
+                raise ValueError(
+                    "You asked for axis = '"
+                    + axis
+                    + "', but the coeval doesn't have velocity_"
+                    + axis
+                    + "!"
+                    " Set matter_options.KEEP_3D_VELOCITIES=True next time you call run_coeval if you "
+                    "wish to set axis=`" + axis + "'."
+                )
+
+        tb_with_dvdr = include_dvdr_in_tau21(
+            brightness_temp=self.brightness_temp,
+            los_velocity=getattr(self, "velocity_" + axis),
+            redshifts=self.redshift,  # TODO: do we want to use a single redshift? Or a redshift array that is determined from the coeval los?
+            inputs=self.inputs,
+            tau_21=self.tau_21 if self.inputs.astro_options.USE_TS_FLUCT else None,
+            periodic=periodic,
+        )
+
+        return apply_rsds(
+            field=tb_with_dvdr,
+            los_velocity=getattr(self, "velocity_" + axis),
+            redshifts=self.redshift,  # TODO: do we want to use a single redshift? Or a redshift array that is determined from the coeval los?
+            inputs=self.inputs,
+            periodic=periodic,
+            n_rsd_subcells=n_rsd_subcells,
         )
 
     @classmethod
