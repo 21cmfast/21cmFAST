@@ -686,6 +686,10 @@ def _redshift_loop_generator(
                 **iokw,
             )
 
+            if inputs.astro_options.PHOTON_CONS_TYPE == "z-photoncons":
+                # Updated info at each z.
+                photon_nonconservation_data = _get_photon_nonconservation_data()
+
             this_coeval = Coeval(
                 initial_conditions=initial_conditions,
                 perturbed_field=this_perturbed_field,
@@ -696,26 +700,29 @@ def _redshift_loop_generator(
                 photon_nonconservation_data=photon_nonconservation_data,
             )
 
-            # yield before the cleanup, so we can get at the fields before they are purged
-            yield iz, this_coeval
-
             # We purge previous fields and those we no longer need
             if prev_coeval is not None:
                 prev_coeval.perturbed_field.purge()
-                if inputs.matter_options.USE_HALO_FIELD and write.halobox:
-                    prev_coeval.halobox.prepare_for_next_snapshot()
+                if (
+                    inputs.matter_options.USE_HALO_FIELD
+                    and write.halobox
+                    and iz + 1 < len(all_redshifts)
+                ):
+                    for hbox in hbox_arr:
+                        hbox.prepare_for_next_snapshot(
+                            next_z=inputs.node_redshifts[iz + 1]
+                        )
 
             if this_pthalo is not None:
                 this_pthalo.purge()
-
-            if inputs.astro_options.PHOTON_CONS_TYPE == "z-photoncons":
-                # Updated info at each z.
-                photon_nonconservation_data = _get_photon_nonconservation_data()
 
             if z in inputs.node_redshifts:
                 # Only evolve on the node_redshifts, not any redshifts in-between
                 # that the user might care about.
                 prev_coeval = this_coeval
+
+            # yield before the cleanup, so we can get at the fields before they are purged
+            yield iz, this_coeval
 
 
 def _setup_ics_and_pfs_for_scrolling(
