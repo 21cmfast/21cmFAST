@@ -711,7 +711,7 @@ def _redshift_loop_generator(
     this_halobox = None
     this_spin_temp = None
     this_pthalo = None
-    this_xraysrouce = None
+    this_xraysource = None
 
     kw = {
         **iokw,
@@ -755,7 +755,7 @@ def _redshift_loop_generator(
                 if inputs.matter_options.USE_HALO_FIELD:
                     # append the halo redshift array so we have all halo boxes [z,zmax]
                     hbox_arr += [this_halobox]
-                    this_xraysrouce = sf.compute_xray_source_field(
+                    this_xraysource = sf.compute_xray_source_field(
                         redshift=z,
                         hboxes=hbox_arr,
                         write=write.xray_source_box,
@@ -766,11 +766,13 @@ def _redshift_loop_generator(
                     inputs=inputs,
                     previous_spin_temp=getattr(prev_coeval, "ts_box", None),
                     perturbed_field=this_perturbed_field,
-                    xray_source_box=this_xraysrouce,
+                    xray_source_box=this_xraysource,
                     write=write.spin_temp,
                     **kw,
                     cleanup=(cleanup and z == all_redshifts[-1]),
                 )
+                if inputs.matter_options.USE_HALO_FIELD:
+                    this_xraysource.purge()
 
             this_ionized_box = sf.compute_ionization_field(
                 inputs=inputs,
@@ -792,6 +794,10 @@ def _redshift_loop_generator(
                 **iokw,
             )
 
+            if inputs.astro_options.PHOTON_CONS_TYPE == "z-photoncons":
+                # Updated info at each z.
+                photon_nonconservation_data = _get_photon_nonconservation_data()
+
             this_coeval = Coeval(
                 initial_conditions=initial_conditions,
                 perturbed_field=this_perturbed_field,
@@ -802,26 +808,29 @@ def _redshift_loop_generator(
                 photon_nonconservation_data=photon_nonconservation_data,
             )
 
-            # yield before the cleanup, so we can get at the fields before they are purged
-            yield iz, this_coeval
-
             # We purge previous fields and those we no longer need
             if prev_coeval is not None:
                 prev_coeval.perturbed_field.purge()
-                if inputs.matter_options.USE_HALO_FIELD and write.halobox:
-                    prev_coeval.halobox.prepare_for_next_snapshot()
+                if (
+                    inputs.matter_options.USE_HALO_FIELD
+                    and write.halobox
+                    and iz + 1 < len(all_redshifts)
+                ):
+                    for hbox in hbox_arr:
+                        hbox.prepare_for_next_snapshot(
+                            next_z=inputs.node_redshifts[iz + 1]
+                        )
 
             if this_pthalo is not None:
                 this_pthalo.purge()
-
-            if inputs.astro_options.PHOTON_CONS_TYPE == "z-photoncons":
-                # Updated info at each z.
-                photon_nonconservation_data = _get_photon_nonconservation_data()
 
             if z in inputs.node_redshifts:
                 # Only evolve on the node_redshifts, not any redshifts in-between
                 # that the user might care about.
                 prev_coeval = this_coeval
+
+            # yield before the cleanup, so we can get at the fields before they are purged
+            yield iz, this_coeval
 
 
 def _setup_ics_and_pfs_for_scrolling(
