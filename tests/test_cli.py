@@ -178,7 +178,9 @@ class TestRunICS:
 
     def test_warn_formatting(self, tmp_path, capsys):
         """Test that warnings are printed properly."""
-        app(f"run ics --template simple-small --box-len 400 --zmin 5.0 --cachedir {tmp_path}")
+        app(
+            f"run ics --template simple-small --box-len 400 --zmin 5.0 --cachedir {tmp_path}"
+        )
         out = capsys.readouterr().out
         assert "Resolution is likely too low" in out
 
