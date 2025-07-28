@@ -138,6 +138,7 @@ class TestAstroOptions:
                 INHOMO_RECO=True,
                 USE_TS_FLUCT=True,
             )
+
         with pytest.raises(
             ValueError,
             match="M_MIN_in_Mass must be true if USE_MASS_DEPENDENT_ZETA is true.",
