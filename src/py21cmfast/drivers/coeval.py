@@ -771,7 +771,8 @@ def _redshift_loop_generator(
                     **kw,
                     cleanup=(cleanup and z == all_redshifts[-1]),
                 )
-                this_xraysource.purge()
+                if inputs.matter_options.USE_HALO_FIELD:
+                    this_xraysource.purge()
 
             this_ionized_box = sf.compute_ionization_field(
                 inputs=inputs,
