@@ -300,10 +300,12 @@ class OutputStruct(ABC):
             return
 
         if state.computed_in_mem and not state.on_disk and not force:
+            # if we don't have the array on disk, don't purge unless we really want to
             warnings.warn(
                 f"Trying to purge array '{k}' from memory that hasn't been stored! Use force=True if you meant to do this.",
                 stacklevel=2,
             )
+            return
 
         if state.c_has_active_memory:
             lib.free(getattr(self.cstruct, k))
@@ -998,26 +1000,31 @@ class HaloBox(OutputStructZ):
             previous_ionize_box,
         )
 
-    def prepare_for_next_snapshot(self, force: bool = False):
+    def prepare_for_next_snapshot(self, next_z, force: bool = False):
         """Prepare the HaloBox for the next snapshot."""
         # find maximum z
         d_max_needed = (
-            self.cosmo_params.cosmo.comoving_distance(self.redshift)
+            self.cosmo_params.cosmo.comoving_distance(next_z)
             + self.astro_params.R_MAX_TS * u.Mpc
         )
         max_z_needed = z_at_value(
             self.cosmo_params.cosmo.comoving_distance, d_max_needed
         )
 
+        z_arr = np.array(self.inputs.node_redshifts)
         # we need one redshift above the max z for interpolation, so find that value
-        first_z_above = np.argmax(self.inputs.node_redshifts > max_z_needed)
+        last_z_above = (
+            z_arr[z_arr > max_z_needed].min()
+            if z_arr.max() > max_z_needed
+            else z_arr.max() + 1
+        )
 
         # If we need the box, only keep the interpolated fields
         keep = []
-        if self.redshift <= self.inputs.node_redshifts[first_z_above]:
+        if self.redshift <= last_z_above:
             if self.astro_options.USE_TS_FLUCT:
                 keep += ["halo_sfr", "halo_xray"]
-            if self.astro_options.USE_MINI_HALOS:
+            if self.astro_options.USE_MINI_HALOS and self.astro_options.USE_TS_FLUCT:
                 keep += ["halo_sfr_mini"]
         self.prepare(keep=keep, force=force)
 
