@@ -127,7 +127,7 @@ def prepare_inputs_for_serialization(
 
 
 def deserialize_inputs(
-    dict_of_structdicts: dict[str, Any], **loose_params
+    dict_of_structdicts: dict[str, Any], safe: bool = True, **loose_params
 ) -> dict[str, InputStruct]:
     """Construct a dictionary of InputStructs ready to be converted to InputParameters.
 
@@ -161,18 +161,27 @@ def deserialize_inputs(
     }
 
     input_dict = {}
+    extra_params = {}
     for structname, kls in InputStruct._subclasses.items():
         # Use field.alias instead of field.name because the alias is what needs
         # to be passed to the class constructor (e.g. "DIM" instead of "_DIM")
         fieldnames = [field.alias for field in attrs.fields(kls)]
         kw_dict = {kk: loose_params.pop(kk) for kk in fieldnames if kk in loose_params}
 
+        these_all = dict_of_structdicts.pop(structname, {})
+
+        these = {kk: these_all[kk] for kk in these_all if kk in fieldnames}
+        extra = {kk: these_all[kk] for kk in these_all if kk not in fieldnames}
+
         # Here, if structname is not in the input dict_of_structdicts, it is OK,
         # because we just assume an empty set of parameters, potentially added to
         # by the loose params.
-        arg_dict = {**dict_of_structdicts.pop(structname, {}), **kw_dict}
+        arg_dict = {**these, **kw_dict}
         input_struct = kls.new(arg_dict)
         input_dict[camel_to_snake(structname)] = input_struct
+
+        if extra:
+            extra_params[structname] = extra
 
     if dict_of_structdicts:
         warnings.warn(
@@ -180,10 +189,12 @@ def deserialize_inputs(
             stacklevel=2,
         )
 
-    if loose_params:
-        warnings.warn(
-            f"Excess arguments to `create_params_from_template` will be ignored: {loose_params}",
-            stacklevel=2,
-        )
+    if extra_params or loose_params:
+        all_extra = {**extra_params, **loose_params}
+        msg = f"Excess arguments exist: {all_extra}"
+        if safe:
+            raise ValueError(msg)
+        else:
+            warnings.warn(msg, stacklevel=2)
 
     return input_dict

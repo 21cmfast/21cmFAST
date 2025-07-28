@@ -332,7 +332,7 @@ def _read_inputs_v4(group: h5py.Group, safe: bool = True):
     node_redshifts = kwargs.pop("node_redshifts")
     random_seed = kwargs.pop("random_seed")
 
-    kwargs = deserialize_inputs(kwargs)
+    kwargs = deserialize_inputs(kwargs, safe=safe)
     return InputParameters(
         node_redshifts=node_redshifts, random_seed=random_seed, **kwargs
     )

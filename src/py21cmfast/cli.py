@@ -393,6 +393,9 @@ def params(params: Parameters = Parameters()):
 def ics(
     options: RunParams = RunParams(),
     params: Annotated[Parameters, Parameter(show=False, name="*")] = Parameters(),
+    min_evolved_redshift: Annotated[
+        float, Parameter(name=("--zmin-evolution", "--zmin"))
+    ] = 5.5,
 ):
     """Run a single iteration of 21cmFAST init, saving results to file.
 
@@ -400,8 +403,15 @@ def ics(
     --template) and optionally override any particular simulation parameters. To see the
     available simulation parameters and how to specify them, use
     `21cmfast run params --help`.
+
+    Parameters
+    ----------
+    min_evolved_redshift
+        The minimum redshift down to which to evolve the simulation. For some simulation
+        configurations, this is not used at all, while for others it will subtly change
+        the evolution.
     """
-    inputs = _run_setup(options, params)
+    inputs = _run_setup(options, params, zmin=min_evolved_redshift)
     cache = OutputCache(options.cachedir)
     rc = RunCache.from_inputs(inputs=inputs, cache=cache)
 

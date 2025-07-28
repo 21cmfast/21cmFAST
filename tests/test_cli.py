@@ -8,9 +8,9 @@ import pytest
 from rich.console import Console
 
 from py21cmfast import Coeval, LightCone, cli
+from py21cmfast._templates import create_params_from_template
 from py21cmfast.cli import Parameters, ParameterSelection, RunParams, _run_setup, app
 from py21cmfast.io.h5 import read_output_struct
-from py21cmfast.run_templates import create_params_from_template
 
 
 class TestTemplateAvail:
@@ -174,7 +174,9 @@ class TestRunICS:
 
     def test_warn_formatting(self, tmp_path, capsys):
         """Test that warnings are printed properly."""
-        app(f"run ics --template simple tiny --box-len 400 --cachedir {tmp_path}")
+        app(
+            f"run ics --template simple tiny --box-len 400 --zmin 5.0 --cachedir {tmp_path}"
+        )
         out = capsys.readouterr().out
         assert "Resolution is likely too low" in out
 
