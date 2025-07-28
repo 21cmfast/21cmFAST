@@ -486,6 +486,17 @@ class OutputStruct(ABC):
     def new(cls, inputs: InputParameters, **kwargs) -> Self:
         """Instantiate the class from InputParameters."""
 
+    def get_full_size(self) -> int:
+        """Return the size of the object in bytes.
+
+        This represents the size of the object if it is fully initialized/computed
+        and all in memory. Equivalently, it is close to the file size on disk.
+        """
+        size = 0
+        for ary in self.arrays.values():
+            size += np.prod(ary.shape) * np.dtype(ary.dtype).itemsize
+        return size
+
 
 @attrs.define(slots=False, kw_only=True)
 class InitialConditions(OutputStruct):
