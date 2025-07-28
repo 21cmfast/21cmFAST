@@ -367,6 +367,11 @@ class Lightconer(ABC):
         else:
             lightconer = self
 
+        if apply_rsds or include_dvdr_in_tau21:
+            lightconer = attrs.evolve(
+                lightconer, quantities=(*self.quantities, "los_velocity")
+            )
+
         if not apply_rsds:
             return lightconer
 
@@ -673,15 +678,12 @@ class AngularLightconer(Lightconer):
             classy_output=classy_output,
         )
 
-        if include_dvdr_in_tau21 or apply_rsds:
-            if not inputs.matter_options.KEEP_3D_VELOCITIES:
-                raise ValueError(
-                    "To account for RSDs or velocity corrections in an angular lightcone, you need to set "
-                    "matter_options.KEEP_3D_VELOCITIES=True"
-                )
-            if "los_velocity" not in lightconer.quantities:
-                lightconer = attrs.evolve(
-                    lightconer, quantities=(*lightconer.quantities, "los_velocity")
-                )
+        if (
+            include_dvdr_in_tau21 or apply_rsds
+        ) and not inputs.matter_options.KEEP_3D_VELOCITIES:
+            raise ValueError(
+                "To account for RSDs or velocity corrections in an angular lightcone, you need to set "
+                "matter_options.KEEP_3D_VELOCITIES=True"
+            )
 
         return lightconer
