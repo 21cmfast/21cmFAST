@@ -711,7 +711,7 @@ def _redshift_loop_generator(
     this_halobox = None
     this_spin_temp = None
     this_pthalo = None
-    this_xraysrouce = None
+    this_xraysource = None
 
     kw = {
         **iokw,
@@ -755,7 +755,7 @@ def _redshift_loop_generator(
                 if inputs.matter_options.USE_HALO_FIELD:
                     # append the halo redshift array so we have all halo boxes [z,zmax]
                     hbox_arr += [this_halobox]
-                    this_xraysrouce = sf.compute_xray_source_field(
+                    this_xraysource = sf.compute_xray_source_field(
                         redshift=z,
                         hboxes=hbox_arr,
                         write=write.xray_source_box,
@@ -766,7 +766,7 @@ def _redshift_loop_generator(
                     inputs=inputs,
                     previous_spin_temp=getattr(prev_coeval, "ts_box", None),
                     perturbed_field=this_perturbed_field,
-                    xray_source_box=this_xraysrouce,
+                    xray_source_box=this_xraysource,
                     write=write.spin_temp,
                     **kw,
                     cleanup=(cleanup and z == all_redshifts[-1]),
