@@ -8,6 +8,7 @@ import logging
 from collections.abc import Sequence
 from typing import Any, get_args
 
+from .._cfg import config
 from ..input_serialization import convert_inputs_to_dict
 from ..io import h5
 from ..io.caching import OutputCache
@@ -381,7 +382,7 @@ class _OutputStructComputationInspect:
         path = cache.find_existing(obj)
         if path is not None:
             with contextlib.suppress(OSError):
-                this = h5.read_output_struct(path)
+                this = h5.read_output_struct(path, safe=config["safe_read"])
                 if hasattr(this, "redshift"):
                     logger.info(
                         f"Existing {obj._name} found at z={this.redshift} and read in (seed={this.random_seed})."
