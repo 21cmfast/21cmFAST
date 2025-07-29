@@ -1,5 +1,5 @@
-# Define the source files that contribute to the 21cmFast build
-source_files = files([
+# Define the C source files
+c_source_files = files([
   'BrightnessTemperatureBox.c',
   'HaloBox.c',
   'HaloField.c',
@@ -29,8 +29,26 @@ source_files = files([
   'scaling_relations.c',
   'thermochem.c',
   'MapMass_cpu.c',
-  '_wrapper.cpp',
 ])
+
+# Define the CUDA source files
+cuda_source_files = files([
+  'HaloField.cu',
+  'IonisationBox.cu',
+  'SpinTemperatureBox.cu',
+  'Stochasticity.cu',
+  'filtering.cu',
+  'hmf.cu',
+  'interp_tables.cu',
+  'interpolation.cu',
+  'device_rng.cu',
+  'MapMass_gpu.cu',
+  'test_Stochasticity.cu',
+  'cuda_hello_world.cu',
+])
+
+# C++ wrapper file
+cpp_source_files = files(['_wrapper.cpp'])
 
 # Define the 21cmFast dependencies
 omp = dependency('openmp')
@@ -45,7 +63,58 @@ search_paths = [ '/usr/lib', '/usr/local/lib', '/opt/homebrew/lib' ]
 fftw = cc.find_library ('fftw3f', required: true, dirs: search_paths)
 fftw_threads = cc.find_library ('fftw3f_threads', required: true, dirs: search_paths)
 
-# Define a mapping of string values to integers (enum-like structure)
+# Base dependencies (always needed)
+deps = [omp, gsl, nanobind, fftw, fftw_threads]
+
+# CUDA dependency (optional)
+# The root meson.build already checked for USE_CUDA environment variable and nvcc availability
+cuda_dep = dependency('cuda', version: '>=10.0', required: false)
+
+# Check if CUDA language is available (this will be true only if root meson.build successfully added it)
+if cuda_dep.found()
+  message('Using CUDA compilation in source build')
+  cuda_compiler = meson.get_compiler('cuda', required: false)
+  add_project_arguments('-DUSE_CUDA=1', language: ['c', 'cpp', 'cuda'])
+
+  # CUDA compiler arguments
+  # Try to detect GPU architecture, fall back to a reasonable default
+  detect_arch_cmd = run_command('nvidia-smi', '--query-gpu=compute_cap', '--format=csv,noheader,nounits', check: false)
+
+  if detect_arch_cmd.returncode() == 0 and detect_arch_cmd.stdout().strip() != ''
+    # Parse the compute capability (e.g., "7.5" -> "sm_75")
+    compute_cap = detect_arch_cmd.stdout().strip().split('\n')[0]
+    arch_major = compute_cap.split('.')[0]
+    arch_minor = compute_cap.split('.')[1]
+    detected_arch = 'sm_' + arch_major + arch_minor
+    message('Detected GPU architecture: ' + detected_arch)
+    cuda_arch = detected_arch
+  else
+    # Fall back to a widely compatible architecture
+    cuda_arch = 'sm_60'  # Pascal - widely compatible
+    message('Could not detect GPU architecture, using default: ' + cuda_arch)
+  endif
+
+  cuda_args = [
+    '-arch=' + cuda_arch,
+    '--extended-lambda',
+    '--expt-relaxed-constexpr',
+  ]
+  add_project_arguments(cuda_args, language: 'cuda')
+
+  # Add CUDA runtime library
+  cuda_rt = cuda_compiler.find_library('cudart', required: true)
+  deps = deps + [cuda_dep, cuda_rt]
+
+  # Include CUDA source files
+  all_source_files = c_source_files + cuda_source_files + cpp_source_files
+else
+  message('Using CPU-only compilation in source build')
+  add_project_arguments('-DUSE_CUDA=0', language: ['c', 'cpp'])
+  # Only include C/C++ files, no CUDA files
+  all_source_files = c_source_files + cpp_source_files
+endif
+
+# Define a mapping of log level strings to integers
 log_level_map = {
   'NO_LOG': 0,
   'ERROR': 1,
@@ -73,10 +142,9 @@ message('Selected log level: ' + log_level.to_string())
 add_project_arguments('-DLOG_LEVEL=' + log_level.to_string(), language: 'c')
 
 # Define the Python extension module
-deps = [omp,gsl,fftw,fftw_threads,nanobind]
 py.extension_module(
   'c_21cmfast',
-  source_files,
+  all_source_files,
   dependencies: deps,
   install: true,
   subdir:'py21cmfast',
