@@ -10,6 +10,7 @@ import pytest
 from py21cmfast import (
     Coeval,
     InitialConditions,
+    InputParameters,
     LightCone,
     OutputCache,
     SimulationOptions,
@@ -44,11 +45,8 @@ def ang_lightcone(ic, lc, default_input_struct_lc, default_astro_options, cache)
         lightconer=lcn,
         initial_conditions=ic,
         write=True,
-        inputs=default_input_struct_lc.clone(
-            astro_options=default_astro_options.clone(
-                APPLY_RSDS=True,
-            )
-        ),
+        inputs=default_input_struct_lc,
+        include_dvdr_in_tau21=False,
         cache=cache,
     )
 
@@ -152,7 +150,7 @@ def test_coeval_roundtrip(test_direc, coeval):
     assert np.all(np.isclose(coeval.brightness_temp, coeval2.brightness_temp))
 
 
-def test_ang_lightcone(lc, ang_lightcone: AngularLightcone):
+def test_ang_lightcone(lc, ang_lightcone: AngularLightcone, plt):
     # we test that the fields are "highly correlated",
     # and moreso in the one corner where the lightcones
     # should be almost exactly the same, and less so in the other
@@ -162,6 +160,16 @@ def test_ang_lightcone(lc, ang_lightcone: AngularLightcone):
 
     fullcorr0 = np.corrcoef(rbt[:, :, 0].flatten(), abt[:, :, 0].flatten())
     fullcorrz = np.corrcoef(rbt[:, :, -1].flatten(), abt[:, :, -1].flatten())
+
+    fig, ax = plt.subplots(2, 2, figsize=(12, 12))
+    ax[0, 0].imshow(rbt[:, :, 0])
+    ax[0, 0].set_title("lowest rect")
+    ax[0, 1].imshow(rbt[:, :, -1])
+    ax[0, 1].set_title("highest rect")
+    ax[1, 0].imshow(abt[:, :, 0])
+    ax[1, 0].set_title("lowest ang")
+    ax[1, 1].imshow(abt[:, :, -1])
+    ax[1, 1].set_title("highest ang")
 
     print("correlation at low z: ", fullcorr0)
     print("correlation at highz: ", fullcorrz)
@@ -188,3 +196,120 @@ def test_write_to_group(ic: InitialConditions, cache: OutputCache):
     ic2 = h5.read_output_struct(cache.direc / "a_new_file.h5", group="new_group")
 
     assert ic2 == ic
+
+
+def test_write_output_to_hdf5_uncomputed(tmp_path):
+    """Test that writing an uncomputed box to file raises an error."""
+    inputs = InputParameters(random_seed=0)
+    ics = InitialConditions.new(inputs)
+    with pytest.raises(ValueError, match="Not all boxes have been computed"):
+        h5.write_output_to_hdf5(ics, path=tmp_path / "ics.h5")
+
+
+def read_nonexistent_output_struct(ic: InitialConditions, tmp_path: Path):
+    """Test that attempting to read a non-existent struct from a file fails."""
+    pth = tmp_path / "ics.h5"
+    h5.write_output_to_hdf5(ic, pth)
+
+    with pytest.raises(
+        KeyError, match="struct non-existent not found in the HDF5 group"
+    ):
+        h5.read_output_struct(pth, struct="non-existent")
+
+
+def test_read_inputs_from_filepath(tmp_path: Path):
+    pth = tmp_path / "tmp.h5"
+    inputs = InputParameters(random_seed=0)
+
+    with h5py.File(pth, "w") as fl:
+        h5._write_inputs_to_group(inputs, fl)
+
+    new = h5.read_inputs(pth)  # directly read from path.
+    assert new == inputs
+
+
+def test_read_inputs_badfile(ic: InitialConditions, perturbed_field, tmp_path: Path):
+    pth = tmp_path / "ics.h5"
+    h5.write_output_to_hdf5(ic, pth)
+    h5.write_output_to_hdf5(perturbed_field, pth, mode="a")
+
+    with pytest.raises(h5.HDF5FileStructureError, match="Multiple sub-groups found"):
+        h5.read_inputs(pth)
+
+
+def test_read_inputs_version_warning(tmp_path: Path):
+    pth = tmp_path / "tmp.h5"
+    inputs = InputParameters(random_seed=0)
+
+    with h5py.File(pth, "w") as fl:
+        h5._write_inputs_to_group(inputs, fl)
+        fl["InputParameters"].attrs["21cmFAST-version"] = "5.0.0"  # larger than reality
+
+    with pytest.warns(UserWarning, match="File created with a newer version"):
+        h5.read_inputs(pth)
+
+
+def test_read_outputs_version_warning(ic: InitialConditions, tmp_path: Path):
+    pth = tmp_path / "ics.h5"
+    h5.write_output_to_hdf5(ic, pth)
+
+    # Mock the version as newer than it really is.
+    with h5py.File(pth, "a") as fl:
+        fl["InitialConditions"]["OutputFields"].attrs["21cmFAST-version"] = "5.0.0"
+
+    with pytest.warns(UserWarning, match="File created with a newer version"):
+        h5.read_output_struct(pth)
+
+
+def test_read_output_struct_missing_arrays(ic: InitialConditions, tmp_path: Path):
+    pth = tmp_path / "ics.h5"
+    h5.write_output_to_hdf5(ic, pth)
+
+    # Artificially remove an array
+    with h5py.File(pth, "a") as fl:
+        del fl["InitialConditions"]["OutputFields"]["lowres_density"]
+
+    with pytest.raises(
+        h5.HDF5FileStructureError, match="Required Array lowres_density not found"
+    ):
+        h5.read_output_struct(pth)
+
+
+def test_read_output_struct_badshape_arrays(ic: InitialConditions, tmp_path: Path):
+    pth = tmp_path / "ics.h5"
+    h5.write_output_to_hdf5(ic, pth)
+
+    # Artificially remove an array
+    with h5py.File(pth, "a") as fl:
+        dens = fl["InitialConditions"]["OutputFields"]["lowres_density"][:10, :11, :12]
+        del fl["InitialConditions"]["OutputFields"]["lowres_density"]
+        fl["InitialConditions"]["OutputFields"]["lowres_density"] = dens
+
+    with pytest.raises(
+        h5.HDF5FileStructureError, match="Array lowres_density has shape"
+    ):
+        h5.read_output_struct(pth)
+
+
+def test_read_inputs_non_existent_version(tmp_path: Path):
+    pth = tmp_path / "tmp.h5"
+    inputs = InputParameters(random_seed=0)
+
+    with h5py.File(pth, "w") as fl:
+        h5._write_inputs_to_group(inputs, fl)
+        del fl["InputParameters"].attrs["21cmFAST-version"]
+
+    with pytest.raises(NotImplementedError, match=f"The file {pth} is not a valid"):
+        h5.read_inputs(pth)
+
+
+def test_read_output_struct_no_version(ic: InitialConditions, tmp_path: Path):
+    pth = tmp_path / "ics.h5"
+    h5.write_output_to_hdf5(ic, pth)
+
+    # Artificially remove an array
+    with h5py.File(pth, "a") as fl:
+        del fl["InitialConditions"]["OutputFields"].attrs["21cmFAST-version"]
+
+    with pytest.raises(NotImplementedError, match=f"The file {pth} is not a valid"):
+        h5.read_output_struct(pth)

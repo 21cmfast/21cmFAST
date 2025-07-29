@@ -1303,9 +1303,9 @@ int single_test_sample(unsigned long long int seed, int n_condition, float *cond
                             random_point_in_sphere(in_crd, R2 - R1, rng_stoc[omp_get_thread_num()],
                                                    out_crd);
                             wrap_position(out_crd, boxlen);
-                            out_halo_coords[3 * n_halo_tot + 0] = cond_crd[3 * j + 0];
-                            out_halo_coords[3 * n_halo_tot + 1] = cond_crd[3 * j + 1];
-                            out_halo_coords[3 * n_halo_tot + 2] = cond_crd[3 * j + 2];
+                            out_halo_coords[3 * n_halo_tot + 0] = out_crd[3 * j + 0];
+                            out_halo_coords[3 * n_halo_tot + 1] = out_crd[3 * j + 1];
+                            out_halo_coords[3 * n_halo_tot + 2] = out_crd[3 * j + 2];
                         } else {
                             random_point_in_cell(lo_crd,
                                                  simulation_options_global->BOX_LEN /
