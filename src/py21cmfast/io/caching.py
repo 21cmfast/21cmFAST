@@ -433,11 +433,11 @@ class RunCache:
         zs_of_kind = np.array(list(getattr(self, kind).keys()))
         if z not in zs_of_kind:
             closest = np.argmin(np.abs(zs_of_kind - z))
-            if abs(closest - z) > match_z_within:
+            if abs(zs_of_kind[closest] - z) > match_z_within:
                 raise ValueError(
                     f"No output struct found for kind '{kind}' at redshift {z} (closest available: {zs_of_kind[closest]} at z={closest})"
                 )
-            z = closest
+            z = zs_of_kind[closest]
 
         fl = getattr(self, kind)[z]
         return read_output_struct(fl)
