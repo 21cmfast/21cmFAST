@@ -724,13 +724,13 @@ int UpdateXraySourceBox(HaloBox *halobox, double R_inner, double R_outer, int R_
 
         if (R_ct == astro_params_global->N_STEP_TS - 1) LOG_DEBUG("finished XraySourceBox");
 
-        LOG_SUPER_DEBUG(
-            "R_inner = %8.3f | mean filtered sfr  = %10.3e (%10.3e MINI) unfiltered %10.3e (%10.3e "
-            "MINI) mean log10McritLW %.4e",
-            R_inner, fsfr_avg, fsfr_avg_mini, sfr_avg, sfr_avg_mini,
-            source_box->mean_log10_Mcrit_LW[R_ct]);
-        LOG_SUPER_DEBUG("R_outer = %8.3f | mean filtered xray = %10.3e unfiltered %10.3e", R_outer,
-                        fxray_avg, xray_avg);
+        LOG_SUPER_DEBUG("R = [%8.3f - %8.3f] | mean filtered sfr  = %10.3e unfiltered %10.3e",
+                        R_inner, R_outer, fsfr_avg, sfr_avg);
+        LOG_ULTRA_DEBUG("mean filtered xray = %10.3e unfiltered %10.3e", fxray_avg, xray_avg);
+        if (astro_options_global->USE_MINI_HALOS) {
+            LOG_SUPER_DEBUG("MINI: filtered sfr %10.3e unfiltered %10.3e log10_Mcrit_LW = %10.3e",
+                            fsfr_avg_mini, sfr_avg_mini, source_box->mean_log10_Mcrit_LW[R_ct]);
+        }
 
         fftwf_forget_wisdom();
         fftwf_cleanup_threads();
