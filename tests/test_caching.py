@@ -125,7 +125,7 @@ class TestRunCache:
                 continue
 
             for idx, z in enumerate(cache.inputs.node_redshifts):
-                output = cache.get_output_struct_at_z(kind=name, z=z)
+                output = cache.get_output_struct_at_z(kind=name, z=z+1e-3)
                 assert isinstance(output, getattr(outputs, name))
                 assert output.redshift == z
 
