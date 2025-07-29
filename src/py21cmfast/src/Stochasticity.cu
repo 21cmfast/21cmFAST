@@ -334,7 +334,7 @@ __device__ void stoc_set_consts_cond(struct HaloSamplingConstants *const_struct,
     // the splines don't work well for cells above Deltac, but there CAN be cells above deltac, since this calculation happens
     // before the overlap, and since the smallest dexm mass is M_cell*(1.01^3) there *could* be a cell above Deltac not in a halo
     // NOTE: all this does is prevent integration errors below since these cases are also dealt with in stoc_sample
-    if (const_struct->delta > MAX_DELTAC_FRAC * get_delta_crit(d_user_params.HMF, const_struct->sigma_cond, const_struct->growth_out)){
+    if (const_struct->delta > MAX_DELTAC_FRAC * get_delta_crit(d_matter_options.HMF, const_struct->sigma_cond, const_struct->growth_out)){
         const_struct->expected_M = const_struct->M_cond;
         const_struct->expected_N = 1;
     }
@@ -423,7 +423,7 @@ __device__ int stoc_mass_sample(struct HaloSamplingConstants *hs_constants, cura
     //   which is independent of density or halo mass,
     //   this factor reduces the total expected mass to bring it into line with the CMF
     // exp_M *= user_params_global->HALOMASS_CORRECTION;
-    exp_M *= d_user_params.HALOMASS_CORRECTION;
+    exp_M *= d_matter_options.HALOMASS_CORRECTION;
 
     // int n_halo_sampled = 0;
     // double M_prog = 0;
@@ -468,14 +468,14 @@ __device__ int stoc_sample(struct HaloSamplingConstants *hs_constants, curandSta
 
     // If the expected mass is below our minimum saved mass, don't bother calculating
     // NOTE: some of these conditions are redundant with set_consts_cond()
-    if (hs_constants->delta <= DELTA_MIN || hs_constants->expected_M < d_user_params.SAMPLER_MIN_MASS)
+    if (hs_constants->delta <= DELTA_MIN || hs_constants->expected_M < d_simulation_options.SAMPLER_MIN_MASS)
     {
         // *n_halo_out = 0;
         *sampleCondition = 0;
         return 0;
     }
     // if delta is above critical, form one big halo
-    if (hs_constants->delta >= MAX_DELTAC_FRAC * get_delta_crit(d_user_params.HMF, hs_constants->sigma_cond, hs_constants->growth_out)){
+    if (hs_constants->delta >= MAX_DELTAC_FRAC * get_delta_crit(d_matter_options.HMF, hs_constants->sigma_cond, hs_constants->growth_out)){
         // *n_halo_out = 1;
 
         // Expected mass takes into account potential dexm overlap
@@ -486,21 +486,21 @@ __device__ int stoc_sample(struct HaloSamplingConstants *hs_constants, curandSta
 
     // todo: implement callee functions for SAMPLE_METHOD (1,2,3)
     // We always use Number-Limited sampling for grid-based cases
-    if (d_user_params.SAMPLE_METHOD == 1 || !hs_constants->from_catalog)
+    if (d_matter_options.SAMPLE_METHOD == 1 || !hs_constants->from_catalog)
     {
         // err = stoc_halo_sample(hs_constants, rng, n_halo_out, M_out);
         return 0;
     }
-    else if (d_user_params.SAMPLE_METHOD == 0)
+    else if (d_matter_options.SAMPLE_METHOD == 0)
     {
         err = stoc_mass_sample(hs_constants, state, M_out);
     }
-    else if (d_user_params.SAMPLE_METHOD == 2)
+    else if (d_matter_options.SAMPLE_METHOD == 2)
     {
         // err = stoc_partition_sample(hs_constants, rng, n_halo_out, M_out);
         return 0;
     }
-    else if (d_user_params.SAMPLE_METHOD == 3)
+    else if (d_matter_options.SAMPLE_METHOD == 3)
     {
         // err = stoc_split_sample(hs_constants, rng, n_halo_out, M_out);
         return 0;
@@ -690,7 +690,7 @@ __global__ void update_halo_constants(float *d_halo_masses, float *d_star_rng_in
             d_n_prog[hid] = 0;
         }
         if (sampleCondition == 1){
-            if(shared_mass[tid] >= d_user_params.SAMPLER_MIN_MASS){
+            if(shared_mass[tid] >= d_simulation_options.SAMPLER_MIN_MASS){
                 d_halo_masses_out[out_id] = shared_mass[tid];
                 d_n_prog[hid] = 1;
                 d_star_rng_out[out_id] = shared_prop_rng[3 * tid];
@@ -728,7 +728,7 @@ __global__ void update_halo_constants(float *d_halo_masses, float *d_star_rng_in
 
                 for (int i = 0; i < write_limit + 1; ++i)
                 {
-                    if(shared_mass[tid + i] < d_user_params.SAMPLER_MIN_MASS) continue;
+                    if(shared_mass[tid + i] < d_simulation_options.SAMPLER_MIN_MASS) continue;
                     // write the final mass sample to array in global memory
                     d_halo_masses_out[out_id + i] = shared_mass[tid + i];
                     d_star_rng_out[out_id + i] = shared_prop_rng[3*(tid +i)];

@@ -120,7 +120,7 @@ void init_ionbox_gpu_data(
       sizeof(fftwf_complex) *
           hii_kspace_num_pixels)); // dereference the pointer to a pointer (*)
 
-  if (flag_options_global->USE_TS_FLUCT) {
+  if (astro_options_global->USE_TS_FLUCT) {
     CALL_CUDA(cudaMalloc((void **)d_xe_filtered,
                          sizeof(fftwf_complex) * hii_kspace_num_pixels));
     CALL_CUDA(cudaMemset(*d_xe_filtered, 0,
@@ -175,7 +175,7 @@ void calculate_fcoll_grid_gpu(
   CALL_CUDA(cudaMemcpy(d_deltax_filtered, h_deltax_filtered,
                        sizeof(fftwf_complex) * hii_kspace_num_pixels,
                        cudaMemcpyHostToDevice));
-  if (flag_options_global->USE_TS_FLUCT) {
+  if (astro_options_global->USE_TS_FLUCT) {
     CALL_CUDA(cudaMemcpy(d_xe_filtered, h_xe_filtered,
                          sizeof(fftwf_complex) * hii_kspace_num_pixels,
                          cudaMemcpyHostToDevice));
@@ -188,7 +188,7 @@ void calculate_fcoll_grid_gpu(
   // TODO: Can I pass these straight to kernel? (or access in kernel w/ Tiger's
   // method)
   double fract_float_err = FRACT_FLOAT_ERR;
-  bool use_ts_fluct = flag_options_global->USE_TS_FLUCT;
+  bool use_ts_fluct = astro_options_global->USE_TS_FLUCT;
   long long hii_d = HII_D;
   long long hii_d_para = HII_D_PARA;
   long long hii_mid_para = HII_MID_PARA;
@@ -218,7 +218,7 @@ void calculate_fcoll_grid_gpu(
   CALL_CUDA(cudaMemcpy(h_deltax_filtered, d_deltax_filtered,
                        sizeof(fftwf_complex) * hii_kspace_num_pixels,
                        cudaMemcpyDeviceToHost));
-  if (flag_options_global->USE_TS_FLUCT) {
+  if (astro_options_global->USE_TS_FLUCT) {
     CALL_CUDA(cudaMemcpy(h_xe_filtered, d_xe_filtered,
                          sizeof(fftwf_complex) * hii_kspace_num_pixels,
                          cudaMemcpyDeviceToHost));
@@ -231,7 +231,7 @@ void free_ionbox_gpu_data(
     fftwf_complex **d_xe_filtered, float **d_y_arr, float **d_Fcoll) {
   CALL_CUDA(cudaFree(
       *d_deltax_filtered)); // Need to dereference the pointers to pointers (*)
-  if (flag_options_global->USE_TS_FLUCT) {
+  if (astro_options_global->USE_TS_FLUCT) {
     CALL_CUDA(cudaFree(*d_xe_filtered));
   }
   CALL_CUDA(cudaFree(*d_y_arr));

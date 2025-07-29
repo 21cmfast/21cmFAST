@@ -227,16 +227,12 @@ __global__ void perturb_density_field_kernel(
 }
 
 double* MapMass_gpu(
-    UserParams *user_params, CosmoParams *cosmo_params, InitialConditions *boxes, double *resampled_box,
+    InitialConditions *boxes, double *resampled_box,
     int dimension, float f_pixel_factor, float init_growth_factor
 ) {
-    // Makes the parameter structs visible to a variety of functions/macros
-    // Do each time to avoid Python garbage collection issues
-    Broadcast_struct_global_noastro(user_params, cosmo_params);
-
     // Box shapes from outputs.py and convenience macros
     size_t size_double, size_float;
-    if(user_params->PERTURB_ON_HIGH_RES) {
+    if(matter_options_global->PERTURB_ON_HIGH_RES) {
         size_double = TOT_NUM_PIXELS * sizeof(double);
         size_float = TOT_NUM_PIXELS * sizeof(float);
     }
@@ -281,7 +277,7 @@ double* MapMass_gpu(
     float* lowres_vy_2LPT;
     float* lowres_vz_2LPT;
 
-    if (user_params->PERTURB_ON_HIGH_RES) {
+    if (matter_options_global->PERTURB_ON_HIGH_RES) {
         cudaMalloc(&hires_vx, size_float);
         cudaMalloc(&hires_vy, size_float);
         cudaMalloc(&hires_vz, size_float);
@@ -297,8 +293,8 @@ double* MapMass_gpu(
         cudaMemcpy(lowres_vy, boxes->lowres_vy, size_float, cudaMemcpyHostToDevice);
         cudaMemcpy(lowres_vz, boxes->lowres_vz, size_float, cudaMemcpyHostToDevice);
     }
-    if (user_params->USE_2LPT) {
-        if (user_params->PERTURB_ON_HIGH_RES) {
+    if (matter_options_global->USE_2LPT) {
+        if (matter_options_global->PERTURB_ON_HIGH_RES) {
             cudaMalloc(&hires_vx_2LPT, size_float);
             cudaMalloc(&hires_vy_2LPT, size_float);
             cudaMalloc(&hires_vz_2LPT, size_float);
@@ -333,8 +329,8 @@ double* MapMass_gpu(
     perturb_density_field_kernel<<<numBlocks, threadsPerBlock>>>(
         d_resampled_box, hires_density, hires_vx, hires_vy, hires_vz, lowres_vx, lowres_vy, lowres_vz,
         hires_vx_2LPT, hires_vy_2LPT, hires_vz_2LPT, lowres_vx_2LPT, lowres_vy_2LPT, lowres_vz_2LPT,
-        dimension, user_params->DIM, d_para, hii_d, hii_d_para, user_params->NON_CUBIC_FACTOR,
-        f_pixel_factor, init_growth_factor, user_params->PERTURB_ON_HIGH_RES, user_params->USE_2LPT);
+        dimension, simulation_options_global->DIM, d_para, hii_d, hii_d_para, simulation_options_global->NON_CUBIC_FACTOR,
+        f_pixel_factor, init_growth_factor, matter_options_global->PERTURB_ON_HIGH_RES, matter_options_global->USE_2LPT);
 
     // // Only use during development!
     // err = cudaDeviceSynchronize();
@@ -357,7 +353,7 @@ double* MapMass_gpu(
     cudaFree(d_resampled_box);
     cudaFree(hires_density);
 
-    if (user_params->PERTURB_ON_HIGH_RES) {
+    if (matter_options_global->PERTURB_ON_HIGH_RES) {
         cudaFree(hires_vx);
         cudaFree(hires_vy);
         cudaFree(hires_vz);
@@ -367,8 +363,8 @@ double* MapMass_gpu(
         cudaFree(lowres_vy);
         cudaFree(lowres_vz);
     }
-    if (user_params->USE_2LPT) {
-        if (user_params->PERTURB_ON_HIGH_RES) {
+    if (matter_options_global->USE_2LPT) {
+        if (matter_options_global->PERTURB_ON_HIGH_RES) {
             cudaFree(hires_vx_2LPT);
             cudaFree(hires_vy_2LPT);
             cudaFree(hires_vz_2LPT);
