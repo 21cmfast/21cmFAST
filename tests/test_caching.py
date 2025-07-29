@@ -129,6 +129,10 @@ class TestRunCache:
                 assert isinstance(output, getattr(outputs, name))
                 assert output.redshift == z
 
+                output = cache.get_output_struct_at_z(kind=name, z=z)
+                assert isinstance(output, getattr(outputs, name))
+                assert output.redshift == z
+
                 output = cache.get_output_struct_at_z(kind=name, index=idx)
                 assert isinstance(output, getattr(outputs, name))
                 assert output.redshift == z
