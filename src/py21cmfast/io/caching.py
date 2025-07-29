@@ -435,7 +435,7 @@ class RunCache:
             closest = np.argmin(np.abs(zs_of_kind - z))
             if abs(zs_of_kind[closest] - z) > match_z_within:
                 raise ValueError(
-                    f"No output struct found for kind '{kind}' at redshift {z} (closest available: {zs_of_kind[closest]} at z={closest})"
+                    f"No output struct found for kind '{kind}' at redshift {z} (closest available: {zs_of_kind[closest]} at z idx = {closest})"
                 )
             z = zs_of_kind[closest]
 
