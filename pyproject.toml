@@ -1,8 +1,128 @@
+[project]
+name="21cmFAST"
+dynamic = ["version"]
+license="MIT"
+license-files = ["LICENSE"]
+description="A semi-numerical cosmological simulation code for the 21cm signal"
+# long_description="%s\n%s"
+# % (
+#     re.compile("^.. start-badges.*^.. end-badges", re.M | re.S).sub(
+#         "", _read("README.rst")
+#     ),
+#     re.sub(":[a-z]+:`~?(.*?)`", r"``\1``", _read("CHANGELOG.rst")),
+# )
+# long_description_content_type="text/x-rst"
+authors=[ {name = "The 21cmFAST coredev team" ,email = "21cmfast.coredev@gmail.com"}]
+readme= {file = "README.rst", content-type = "text/x-rst" }
+include_package_data=true
+requires-python=">=3.10"
+classifiers=[
+    # complete classifier list: http://pypi.python.org/pypi?%3Aaction=list_classifiers
+    "Development Status :: 5 - Production/Stable",
+    "Intended Audience :: Developers",
+    "Operating System :: Unix",
+    "Operating System :: POSIX",
+    "Programming Language :: Python",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.9",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: Implementation :: CPython",
+]
+keywords=["Epoch of Reionization", "Cosmology"]
+dependencies=[
+        "click",
+        "numpy>=2.0",
+        "pyyaml",
+        "cffi>=1.0",
+        "scipy",
+        "astropy>=2.0",
+        "h5py>=2.8.0",
+        "matplotlib",
+        "bidict",
+        "cosmotile>=0.2.5",
+        "attrs",
+        "tqdm",
+        "classy",
+        "cyclopts",
+        "tomlkit",
+]
+
+# [tool.setuptools.packages.find]
+# where = ["src/py21cmfast"]
+
+[project.optional-dependencies]
+tests = [
+    "clang-format",
+    "clang-tidy",
+    "hmf",
+    "pre-commit",
+    "pytest>=5.0",
+    "pytest-cov",
+    "tox",
+    "pytest-remotedata>=0.3.2",
+    "powerbox",
+    "pytest-plt",
+    "pytest-benchmark",
+    "tyro",
+    "rich",
+    "pytest-xdist",
+    "pytest-mock",
+]
+docs = [
+    "nbsphinx",
+    "numpydoc",
+    "sphinx >= 1.3",
+    "furo"
+]
+# When the min python version supports PEP 735, this can be simplified
+# as dev = test_req + doc_req again (as it was implemented in setup.py)
+dev = [
+    "clang-format",
+    "clang-tidy",
+    "hmf",
+    "pre-commit",
+    "pytest>=5.0",
+    "pytest-cov",
+    "tox",
+    "pytest-remotedata>=0.3.2",
+    "powerbox",
+    "pytest-plt",
+    "pytest-benchmark",
+    "tyro",
+    "rich",
+    "pytest-xdist",
+    "pytest-mock",
+    "nbsphinx",
+    "numpydoc",
+    "sphinx>=1.3",
+    "sphinx-rtd-theme",
+]
+
+# UPDATE THESE
+[project.urls]
+Homepage="https://github.com/21cmFAST/21cmFAST"
+Documentation="https://github.com/21cmFAST/21cmFAST"
+Repository="https://github.com/21cmFAST/21cmFAST"
+Issues="https://github.com/21cmFAST/21cmFAST"
+Changelog="https://github.com/21cmFAST/21cmFAST"
+
+[project.scripts]
+21cmfast = "py21cmfast.cli:main"
+
 [build-system]
-requires = ["setuptools>=78.1.0", "setuptools_scm>=8", "cython"]
-build-backend = "setuptools.build_meta"
+build-backend = 'mesonpy'
+requires = ['meson-python', 'nanobind>=2.4.0', 'setuptools-scm>=8']
+
+[tool.meson-python.args]
+setup = ["-Dbuildtype=release"]
 
 [tool.setuptools_scm]
+version_file = "src/py21cmfast/_version.py"
+fallback_version = "4.0.0b1"
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
 
 [tool.ruff]
 line-length = 88
@@ -82,10 +202,6 @@ ignore = [
     "D103",  # ignore missing docstrings
     "T",     # print statements
 ]
-"build_cffi.py" = [
-    "T",     # print statements
-]
-
 
 [tool.ruff.lint.pydocstyle]
 convention = 'numpy'
