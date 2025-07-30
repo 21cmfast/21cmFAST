@@ -204,14 +204,6 @@ int ComputePerturbField(float redshift, InitialConditions *boxes, PerturbedField
         // ***************   BEGIN INITIALIZATION   ************************** //
 
         LOG_DEBUG("Computing Perturbed Field at z=%.3f", redshift);
-        // perform a very rudimentary check to see if we are underresolved and not using the linear
-        // approx
-        if ((simulation_options_global->BOX_LEN > simulation_options_global->DIM) &&
-            matter_options_global->PERTURB_ALGORITHM > 0) {
-            LOG_WARNING(
-                "Resolution is likely too low for accurate evolved density fields\n \
-                It is recommended that you either increase the resolution (DIM/BOX_LEN) or set PERTURB_ALGORITHM to 'LINEAR'\n");
-        }
 
         growth_factor = dicke(redshift);
         displacement_factor_2LPT = -(3.0 / 7.0) * growth_factor * growth_factor;  // 2LPT eq. D8
@@ -274,8 +266,8 @@ int ComputePerturbField(float redshift, InitialConditions *boxes, PerturbedField
         } else {
             // Apply Zel'dovich/2LPT correction
 
-#pragma omp parallel shared(LOWRES_density_perturb, HIRES_density_perturb, dimension) \
-    private(i, j, k) num_threads(simulation_options_global -> N_THREADS)
+#pragma omp parallel shared(LOWRES_density_perturb, HIRES_density_perturb, dimension) private( \
+        i, j, k) num_threads(simulation_options_global -> N_THREADS)
             {
 #pragma omp for
                 for (i = 0; i < dimension; i++) {
@@ -393,9 +385,11 @@ int ComputePerturbField(float redshift, InitialConditions *boxes, PerturbedField
             }
 
 // go through the high-res box, mapping the mass onto the low-res (updated) box
-#pragma omp parallel shared(init_growth_factor, boxes, f_pixel_factor, resampled_box, dimension) \
-    private(i, j, k, xi, xf, yi, yf, zi, zf, HII_i, HII_j, HII_k, d_x, d_y, d_z, t_x, t_y, t_z,  \
-                xp1, yp1, zp1) num_threads(simulation_options_global -> N_THREADS)
+#pragma omp parallel shared(init_growth_factor, boxes, f_pixel_factor, resampled_box,             \
+                                dimension) private(i, j, k, xi, xf, yi, yf, zi, zf, HII_i, HII_j, \
+                                                       HII_k, d_x, d_y, d_z, t_x, t_y, t_z, xp1,  \
+                                                       yp1, zp1)                                  \
+    num_threads(simulation_options_global -> N_THREADS)
             {
 #pragma omp for
                 for (i = 0; i < simulation_options_global->DIM; i++) {

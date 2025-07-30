@@ -40,8 +40,8 @@ def test_compute_rms(default_input_struct_ts):
     assert rms_vcb < 30.0 * units.km / units.s
     assert rms_vcb > 25.0 * units.km / units.s
 
-    # Same tests as above, but with synchronous gaguge
-    classy_output = run_classy(inputs=default_input_struct_ts, gague="synchronous")
+    # Same tests as above, but with synchronous gauge
+    classy_output = run_classy(inputs=default_input_struct_ts, gauge="synchronous")
     rms_d = compute_rms(
         classy_output,
         kind="d_m",

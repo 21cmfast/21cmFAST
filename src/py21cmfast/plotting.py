@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 import logging
-from typing import Optional, Union
 
 import matplotlib.pyplot as plt
 import numpy as np
@@ -346,7 +345,7 @@ def lightcone_sliceplot(
             **kwargs,
         )
     else:
-        d = (lightcone.lightcones[kind][:, :, plot_sel] - getattr(lightcone2, kind))[
+        d = (lightcone.lightcones[kind][:, :, plot_sel] - lightcone2.lightcones[kind])[
             :, :, plot_sel
         ]
         fig, ax = _imshow_slice(

@@ -20,13 +20,14 @@ from abc import ABC, abstractmethod
 from collections.abc import Sequence
 from enum import Enum
 from functools import cached_property
-from typing import Any, Literal, Self
+from typing import Any, Self
 
 import attrs
 import numpy as np
+from astropy import units as u
+from astropy.cosmology import z_at_value
 from bidict import bidict
 
-from .. import __version__
 from ..c_21cmfast import lib
 from .arrays import Array
 from .exceptions import _process_exitcode
@@ -219,11 +220,11 @@ class OutputStruct(ABC):
                     raise AttributeError(f"The array {ary} does not exist") from e
         elif names := [name for name, x in self.arrays.items() if x is ary]:
             name = names[0]
-
         else:
             raise ValueError("The given array is not a part of this instance.")
+
         if not ary.state.on_disk and not ary.state.initialized:
-            raise ValueError(f"Array '{ary.name}' is not on disk and not initialized.")
+            raise ValueError(f"Array '{name}' is not on disk and not initialized.")
 
         if ary.state.on_disk and not ary.state.computed_in_mem:
             ary = ary.loaded_from_disk()
@@ -292,20 +293,21 @@ class OutputStruct(ABC):
         array = self.arrays[k]
         state = array.state
 
-        if (
-            not state.initialized
-        ):  # TODO: how to handle the case where some arrays aren't required at all?
+        if not state.initialized:
             warnings.warn(
                 f"Trying to remove array that isn't yet created: {k}", stacklevel=2
             )
             return
 
         if state.computed_in_mem and not state.on_disk and not force:
-            raise OSError(
-                f"Trying to purge array '{k}' from memory that hasn't been stored! Use force=True if you meant to do this."
+            # if we don't have the array on disk, don't purge unless we really want to
+            warnings.warn(
+                f"Trying to purge array '{k}' from memory that hasn't been stored! Use force=True if you meant to do this.",
+                stacklevel=2,
             )
+            return
 
-        if state.c_has_active_memory:  # TODO: do we need C-managed memory any more?
+        if state.c_has_active_memory:
             lib.free(getattr(self.cstruct, k))
 
         setattr(self, k, array.without_value())
@@ -481,6 +483,11 @@ class OutputStruct(ABC):
         self.pull_from_backend()
         return self
 
+    @classmethod
+    @abstractmethod
+    def new(cls, inputs: InputParameters, **kwargs) -> Self:
+        """Instantiate the class from InputParameters."""
+
 
 @attrs.define(slots=False, kw_only=True)
 class InitialConditions(OutputStruct):
@@ -559,7 +566,7 @@ class InitialConditions(OutputStruct):
 
         return cls(inputs=inputs, **out, **kw)
 
-    def prepare_for_perturb(self, astro_options: AstroOptions, force: bool = False):
+    def prepare_for_perturb(self, force: bool = False):
         """Ensure the ICs have all the boxes loaded for perturb, but no extra."""
         keep = ["hires_density"]
 
@@ -589,7 +596,7 @@ class InitialConditions(OutputStruct):
 
         self.prepare(keep=keep, force=force)
 
-    def prepare_for_spin_temp(self, astro_options: AstroOptions, force: bool = False):
+    def prepare_for_spin_temp(self, force: bool = False):
         """Ensure ICs have all boxes required for spin_temp, and no more."""
         keep = []
         # NOTE: the astro flags doesn't change the computation, just the storage
@@ -670,7 +677,7 @@ class PerturbedField(OutputStructZ):
             out["velocity_x"] = Array(shape, dtype=np.float32)
             out["velocity_y"] = Array(shape, dtype=np.float32)
 
-        return cls(redshift=redshift, inputs=inputs, **out, **kw)
+        return cls(inputs=inputs, redshift=redshift, **out, **kw)
 
     def get_required_input_arrays(self, input_box: OutputStruct) -> list[str]:
         """Return all input arrays required to compute this object."""
@@ -773,7 +780,7 @@ class PerturbHaloField(OutputStructZ):
             star_rng=Array((buffer_size,), dtype=np.float32),
             sfr_rng=Array((buffer_size,), dtype=np.float32),
             xray_rng=Array((buffer_size,), dtype=np.float32),
-            halo_coords=Array((buffer_size, 3), dtype=np.int32),
+            halo_coords=Array((buffer_size, 3), dtype=np.float32),
             redshift=redshift,
             buffer_size=buffer_size,
             **kw,
@@ -884,13 +891,13 @@ class HaloBox(OutputStructZ):
 
     halo_mass = _arrayfield()
     halo_stars = _arrayfield()
-    halo_stars_mini = _arrayfield()
+    halo_stars_mini = _arrayfield(optional=True)
     count = _arrayfield()
     halo_sfr = _arrayfield()
-    halo_sfr_mini = _arrayfield()
-    halo_xray = _arrayfield()
+    halo_sfr_mini = _arrayfield(optional=True)
+    halo_xray = _arrayfield(optional=True)
     n_ion = _arrayfield()
-    whalo_sfr = _arrayfield()
+    whalo_sfr = _arrayfield(optional=True)
 
     log10_Mcrit_ACG_ave: float = attrs.field(default=None)
     log10_Mcrit_MCG_ave: float = attrs.field(default=None)
@@ -914,18 +921,28 @@ class HaloBox(OutputStructZ):
         dim = inputs.simulation_options.HII_DIM
         shape = (dim, dim, int(inputs.simulation_options.NON_CUBIC_FACTOR * dim))
 
+        out = {
+            "halo_mass": Array(shape, dtype=np.float32),
+            "halo_stars": Array(shape, dtype=np.float32),
+            "count": Array(shape, dtype=np.int32),
+            "halo_sfr": Array(shape, dtype=np.float32),
+            "n_ion": Array(shape, dtype=np.float32),
+        }
+
+        if inputs.astro_options.USE_MINI_HALOS:
+            out["halo_stars_mini"] = Array(shape, dtype=np.float32)
+            out["halo_sfr_mini"] = Array(shape, dtype=np.float32)
+
+        if inputs.astro_options.INHOMO_RECO:
+            out["whalo_sfr"] = Array(shape, dtype=np.float32)
+
+        if inputs.astro_options.USE_TS_FLUCT:
+            out["halo_xray"] = Array(shape, dtype=np.float32)
+
         return cls(
             inputs=inputs,
             redshift=redshift,
-            halo_mass=Array(shape, dtype=np.float32),
-            halo_stars=Array(shape, dtype=np.float32),
-            halo_stars_mini=Array(shape, dtype=np.float32),
-            count=Array(shape, dtype=np.int32),
-            halo_sfr=Array(shape, dtype=np.float32),
-            halo_sfr_mini=Array(shape, dtype=np.float32),
-            halo_xray=Array(shape, dtype=np.float32),
-            n_ion=Array(shape, dtype=np.float32),
-            whalo_sfr=Array(shape, dtype=np.float32),
+            **out,
             **kw,
         )
 
@@ -983,6 +1000,34 @@ class HaloBox(OutputStructZ):
             previous_ionize_box,
         )
 
+    def prepare_for_next_snapshot(self, next_z, force: bool = False):
+        """Prepare the HaloBox for the next snapshot."""
+        # find maximum z
+        d_max_needed = (
+            self.cosmo_params.cosmo.comoving_distance(next_z)
+            + self.astro_params.R_MAX_TS * u.Mpc
+        )
+        max_z_needed = z_at_value(
+            self.cosmo_params.cosmo.comoving_distance, d_max_needed
+        )
+
+        z_arr = np.array(self.inputs.node_redshifts)
+        # we need one redshift above the max z for interpolation, so find that value
+        last_z_above = (
+            z_arr[z_arr > max_z_needed].min()
+            if z_arr.max() > max_z_needed
+            else z_arr.max() + 1
+        )
+
+        # If we need the box, only keep the interpolated fields
+        keep = []
+        if self.redshift <= last_z_above:
+            if self.astro_options.USE_TS_FLUCT:
+                keep += ["halo_sfr", "halo_xray"]
+            if self.astro_options.USE_MINI_HALOS and self.astro_options.USE_TS_FLUCT:
+                keep += ["halo_sfr_mini"]
+        self.prepare(keep=keep, force=force)
+
 
 @attrs.define(slots=False, kw_only=True)
 class XraySourceBox(OutputStructZ):
@@ -998,7 +1043,7 @@ class XraySourceBox(OutputStructZ):
     filtered_sfr_mini_lw = _arrayfield(optional=True)
     mean_sfr = _arrayfield()
     mean_sfr_mini = _arrayfield(optional=True)
-    mean_log10_Mcrit_LW = _arrayfield()
+    mean_log10_Mcrit_LW = _arrayfield(optional=True)
 
     @classmethod
     def new(cls, inputs: InputParameters, redshift: float, **kw) -> Self:
@@ -1026,20 +1071,30 @@ class XraySourceBox(OutputStructZ):
                 ),
             )
         )
+
         out = {
             "filtered_sfr": Array(shape, dtype=np.float32),
             "filtered_xray": Array(shape, dtype=np.float32),
-            "mean_sfr": Array(shape),
-            "mean_log10_Mcrit_LW": Array((inputs.astro_params.N_STEP_TS,)),
+            "mean_sfr": Array((inputs.astro_params.N_STEP_TS,), dtype=np.float64),
         }
         if inputs.astro_options.USE_MINI_HALOS:
             out["filtered_sfr_mini"] = Array(shape, dtype=np.float32)
-            out["mean_sfr_mini"] = Array((inputs.astro_params.N_STEP_TS,))
+            out["mean_sfr_mini"] = Array(
+                (inputs.astro_params.N_STEP_TS,), dtype=np.float64
+            )
+            out["mean_log10_Mcrit_LW"] = Array(
+                (inputs.astro_params.N_STEP_TS,), dtype=np.float64
+            )
             if inputs.astro_options.LYA_MULTIPLE_SCATTERING:
                 out["filtered_sfr_lw"] = Array(shape, dtype=np.float32)
                 out["filtered_sfr_mini_lw"] = Array(shape, dtype=np.float32)
 
-        return cls(inputs=inputs, redshift=redshift, **out, **kw)
+        return cls(
+            inputs=inputs,
+            redshift=redshift,
+            **out,
+            **kw,
+        )
 
     def get_required_input_arrays(self, input_box: OutputStruct) -> list[str]:
         """Return all input arrays required to compute this object."""
@@ -1357,7 +1412,9 @@ class IonizedBox(OutputStructZ):
                         "unnormalised_nion_mini",
                     ]
         elif isinstance(input_box, HaloBox):
-            required += ["n_ion", "whalo_sfr"]
+            required += ["n_ion"]
+            if self.astro_options.INHOMO_RECO:
+                required += ["whalo_sfr"]
         else:
             raise ValueError(
                 f"{type(input_box)} is not an input required for IonizedBox!"
@@ -1424,7 +1481,7 @@ class BrightnessTemp(OutputStructZ):
         )
 
         out = {"brightness_temp": Array(shape, dtype=np.float32)}
-        if inputs.astro_options.USE_TS_FLUCT and inputs.astro_options.APPLY_RSDS:
+        if inputs.astro_options.USE_TS_FLUCT:
             out["tau_21"] = Array(shape, dtype=np.float32)
 
         return cls(
@@ -1449,8 +1506,6 @@ class BrightnessTemp(OutputStructZ):
         required = []
         if isinstance(input_box, PerturbedField):
             required += ["density"]
-            if self.astro_options.APPLY_RSDS:
-                required += ["velocity_z"]
         elif isinstance(input_box, TsBox):
             required += ["spin_temperature"]
         elif isinstance(input_box, IonizedBox):

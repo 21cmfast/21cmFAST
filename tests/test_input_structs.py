@@ -2,7 +2,6 @@
 
 import pickle
 import tomllib
-import warnings
 from pathlib import Path
 
 import pytest
@@ -12,10 +11,8 @@ from py21cmfast import (
     AstroParams,
     CosmoParams,
     InputParameters,
-    IonizedBox,
     MatterOptions,
     SimulationOptions,
-    __version__,
     config,
 )
 
@@ -296,12 +293,6 @@ def test_matter_options():
 
 # Testing all the AstroOptions dependencies, including emitted warnings
 def test_astro_options():
-    with pytest.raises(
-        ValueError,
-        match="The SUBCELL_RSD flag is only effective if APPLY_RSDS is True.",
-    ):
-        AstroOptions(SUBCELL_RSD=True, APPLY_RSDS=False)
-
     with pytest.raises(
         ValueError,
         match="You have set USE_MINI_HALOS to True but USE_MASS_DEPENDENT_ZETA is False!",

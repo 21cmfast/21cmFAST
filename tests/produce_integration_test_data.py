@@ -30,7 +30,6 @@ from py21cmfast import (
     OutputCache,
     SimulationOptions,
     compute_initial_conditions,
-    config,
     get_logspaced_redshifts,
     perturb_field,
     plotting,
@@ -209,6 +208,14 @@ OPTIONS_TESTRUNS = {
             "N_THREADS": 1,
         },
     ],
+    "sampler_noncubic": [
+        18,
+        {
+            "USE_HALO_FIELD": True,
+            "HALO_STOCHASTICITY": True,
+            "NON_CUBIC_FACTOR": 1.2,
+        },
+    ],
     "dexm": [
         18,
         {
@@ -230,7 +237,6 @@ OPTIONS_TESTRUNS = {
             "MINIMIZE_MEMORY": True,
         },
     ],
-    "rsd": [18, {"SUBCELL_RSD": True}],
     "fftw_wisdom": [18, {"USE_FFTW_WISDOM": True}],
 }
 
@@ -351,7 +357,7 @@ def produce_lc_power_spectra(redshift: float, cache: OutputCache, **kwargs):
         resolution=options["inputs"].simulation_options.cell_size,
     )
 
-    _, _, _, lightcone = run_lightcone(
+    lightcone = run_lightcone(
         lightconer=lcn,
         write=True,  # write so that perturbed fields and halos can be cached.
         regenerate=True,
@@ -525,21 +531,11 @@ def print_failure_stats(test, truth, inputs, abs_tol, rel_tol, name):
         return False
 
     failed_idx = np.where(sel_failed)
-    warnings.warn(
-        f"{name}: atol {abs_tol} rtol {rel_tol} failed {sel_failed.sum()} of {sel_failed.size} {sel_failed.sum() / sel_failed.size * 100:.4f}%",
-        stacklevel=2,
-    )
-    warnings.warn(
-        f"subcube of failures [min] [max] {[f.min() for f in failed_idx]} {[f.max() for f in failed_idx]}",
-        stacklevel=2,
-    )
-    warnings.warn(
-        f"failure range truth ({truth[sel_failed].min():.3e},{truth[sel_failed].max():.3e}) test ({test[sel_failed].min():.3e},{test[sel_failed].max():.3e})",
-        stacklevel=2,
-    )
-    warnings.warn(
-        f"max abs diff of failures {np.fabs(truth - test)[sel_failed].max():.4e} relative {(np.fabs(truth - test) / truth)[sel_failed].max():.4e}",
-        stacklevel=2,
+    message = (
+        f"{name}: atol {abs_tol} rtol {rel_tol} failed {sel_failed.sum()} of {sel_failed.size} {sel_failed.sum() / sel_failed.size * 100:.4f}\n"
+        f"subcube of failures [min] [max] {[f.min() for f in failed_idx]} {[f.max() for f in failed_idx]}\n"
+        f"failure range truth ({truth[sel_failed].min():.3e},{truth[sel_failed].max():.3e}) test ({test[sel_failed].min():.3e},{test[sel_failed].max():.3e})\n"
+        f"max abs diff of failures {np.fabs(truth - test)[sel_failed].max():.4e} relative {(np.fabs(truth - test) / truth)[sel_failed].max():.4e}\n"
     )
 
     failed_inp = [
@@ -547,20 +543,17 @@ def print_failure_stats(test, truth, inputs, abs_tol, rel_tol, name):
         for i, inp in enumerate(inputs)
     ]
     for i, _inp in enumerate(inputs):
-        warnings.warn(
-            f"failure range of inputs axis {i} {failed_inp[i].min():.2e} {failed_inp[i].max():.2e}",
-            stacklevel=2,
-        )
+        message += f"failure range of inputs axis {i} {failed_inp[i].min():.2e} {failed_inp[i].max():.2e}\n"
 
-    warnings.warn("----- First 10 -----", stacklevel=2)
+    message += "----- First 10 -----\n"
     for j in range(min(10, sel_failed.sum())):
         input_arr = [f"{failed_inp[i][j]:.2e}" for i, finp in enumerate(failed_inp)]
-        warnings.warn(
+        message += (
             f"CRD {input_arr}"
-            + f"  {truth[sel_failed].flatten()[j]:.4e} {test[sel_failed].flatten()[j]:.4e}",
-            stacklevel=2,
+            + f"  {truth[sel_failed].flatten()[j]:.4e} {test[sel_failed].flatten()[j]:.4e}\n"
         )
 
+    warnings.warn(message, stacklevel=2)
     return True
 
 
@@ -603,6 +596,7 @@ def go(
             sharey=True,
             gridspec_kw={"hspace": 0.1, "wspace": 0.1},
             layout="constrained",
+            squeeze=False,
         )
 
         bt_lc_fig, bt_lc_ax = plt.subplots(
@@ -613,6 +607,7 @@ def go(
             sharey=True,
             gridspec_kw={"hspace": 0.1, "wspace": 0.1},
             layout="constrained",
+            squeeze=False,
         )
 
         for i, name in enumerate(names):
@@ -641,7 +636,7 @@ def go(
                         plotting.coeval_sliceplot(coeval, kind=field, fig=fig, ax=ax[j])
                         ax[j].set_title(field)
                     else:
-                        ax[j].off()
+                        ax[j].set_axis_off()
 
                 fig.savefig(f"integration-test-plots/coeval-sliceplots-{name}.pdf")
                 plt.close(fig)
@@ -677,7 +672,7 @@ def go(
                         plotting.lightcone_sliceplot(lc, kind=field, fig=fig, ax=ax[j])
                         ax[j].set_title(field)
                     else:
-                        ax[j].off()
+                        ax[j].set_axis_off()
 
                 fig.savefig(f"integration-test-plots/lightcone-sliceplots-{name}.pdf")
                 plt.close(fig)

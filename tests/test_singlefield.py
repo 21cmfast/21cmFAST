@@ -6,10 +6,8 @@ correctness of simulations, but whether different parameter options work/don't w
 intended.
 """
 
-import h5py
 import numpy as np
 import pytest
-from astropy import units as un
 
 import py21cmfast as p21c
 from py21cmfast import BrightnessTemp, InitialConditions, IonizedBox, OutputCache, TsBox

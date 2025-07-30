@@ -29,11 +29,11 @@ import matplotlib as mpl
 import numpy as np
 import pytest
 
-from py21cmfast import Coeval, LightCone, OutputCache, config
+from py21cmfast import Coeval, LightCone, OutputCache
 
 from . import produce_integration_test_data as prd
 
-logger = logging.getLogger("21cmFAST")
+logger = logging.getLogger("py21cmfast")
 logger.setLevel(logging.INFO)
 
 options = list(prd.OPTIONS_TESTRUNS.keys())

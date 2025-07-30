@@ -3,7 +3,6 @@
 import re
 from dataclasses import dataclass
 
-import attr
 import numpy as np
 import pytest
 from astropy import units as un
@@ -11,13 +10,7 @@ from astropy.cosmology import Planck18, z_at_value
 from astropy_healpix import HEALPix
 from scipy.spatial.transform import Rotation
 
-from py21cmfast import (
-    AstroOptions,
-    CosmoParams,
-    InputParameters,
-    MatterOptions,
-    SimulationOptions,
-)
+from py21cmfast import AstroOptions, CosmoParams, InputParameters, SimulationOptions
 from py21cmfast import lightconers as lcn
 
 
@@ -53,6 +46,7 @@ class MockCoeval:
     brightness_temp: np.ndarray
     simulation_options: SimulationOptions
     cosmo_params: CosmoParams
+    astro_options: AstroOptions
 
 
 def get_uniform_coeval(redshift, fill=1.0, BOX_LEN=100, HII_DIM=50):
@@ -63,6 +57,7 @@ def get_uniform_coeval(redshift, fill=1.0, BOX_LEN=100, HII_DIM=50):
         brightness_temp=fill * np.ones((up.HII_DIM, up.HII_DIM, up.HII_DIM)),
         simulation_options=up,
         cosmo_params=CosmoParams(),
+        astro_options=AstroOptions(),
     )
 
 
@@ -240,8 +235,11 @@ def test_rotation_equality():
 
 def test_validation_options_angular(ang_lcner):
     inputs = InputParameters(node_redshifts=np.array([5.0, 8.0]), random_seed=42)
-    inputs.evolve_input_structs(KEEP_3D_VELOCITIES=False, APPLY_RSDS=True)
+    inputs.evolve_input_structs(KEEP_3D_VELOCITIES=False)
     with pytest.raises(
-        ValueError, match="To account for RSDs in an angular lightcone, you need to set"
+        ValueError,
+        match="To account for RSDs or velocity corrections in an angular lightcone, you need to set",
     ):
-        ang_lcner.validate_options(inputs=inputs)
+        ang_lcner.validate_options(
+            inputs=inputs, include_dvdr_in_tau21=True, apply_rsds=True
+        )
