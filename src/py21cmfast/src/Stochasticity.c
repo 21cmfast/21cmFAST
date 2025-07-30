@@ -859,7 +859,7 @@ int sample_halo_grids(gsl_rng **rng_arr, double redshift, float *dens_field,
                         // we do not want to save these
                         if (hm_buf[i] < simulation_options_global->SAMPLER_MIN_MASS) continue;
 
-                        if (count >= arraysize_local) {
+                        if (count >= 1e6 && count >= arraysize_local) {
                             LOG_ERROR(
                                 "More than %llu halos (expected %.1e) with buffer size factor %.1f",
                                 arraysize_local,
