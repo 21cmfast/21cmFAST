@@ -327,6 +327,7 @@ def read_inputs(
 def _read_inputs_v4(group: h5py.Group, safe: bool = True):
     # Read the input parameter dictionaries from file.
     kwargs = hdf5_to_dict(group)
+    del kwargs["21cmFAST-version"]
 
     # The node_redshifts and random_seed are treated differently.
     node_redshifts = kwargs.pop("node_redshifts")

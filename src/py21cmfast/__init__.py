@@ -59,11 +59,14 @@ __all__ = [
     "perturb_field",
     "perturb_halo_list",
     "plotting",
+    "read_inputs",
+    "read_output_struct",
     "run_classy",
     "run_coeval",
     "run_lightcone",
     "setup_photon_cons",
     "wrapper",
+    "write_output_to_hdf5",
     "write_template",
 ]
 
@@ -86,6 +89,7 @@ from .drivers.single_field import (
     perturb_halo_list,
 )
 from .io.caching import CacheConfig, OutputCache, RunCache
+from .io.h5 import read_inputs, read_output_struct, write_output_to_hdf5
 from .lightconers import AngularLightconer, RectilinearLightconer
 from .wrapper.cfuncs import (
     compute_luminosity_function,

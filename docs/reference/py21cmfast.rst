@@ -35,6 +35,7 @@ Plotting, Caching, I/O and Other Utilities
     :template: module.rst
 
     py21cmfast.plotting
+    py21cmfast.input_serialization
     py21cmfast.io.caching
     py21cmfast.io.h5
     py21cmfast.rsds
