@@ -9,8 +9,8 @@ import logging
 import warnings
 
 import numpy as np
-from astropy import units as un
 from astropy import constants
+from astropy import units as un
 from astropy.cosmology import z_at_value
 
 from ..wrapper.inputs import InputParameters
@@ -419,7 +419,7 @@ def compute_xray_source_field(
         This contains the list of Halobox instances which are used to create this source field
     previous_ionize_box: :class:`IonizedBox` or None
         An ionized box at higher redshift. This is only used if `LYA_MULTIPLE_SCATTERING` is true.
-    
+
 
     Returns
     -------
@@ -466,21 +466,32 @@ def compute_xray_source_field(
     if inputs.astro_options.LYA_MULTIPLE_SCATTERING:
         # TODO: In principle, the diffusion scale varies locally as it depends on the ionization field at the cell and its surrounding.
         # For simplicty, we consider the global ionization value, which is a good approximation before reionization begins.
-        # This approximation breaks when reionization begins, but under strong X-ray heating the value of the spin temperature (and 
-        # Lyman alpha flux) becomes irrelevant. This should be examined in the future in the case of weak X-ray heating during the 
-        # epoch of reionization (this would complicate things dramtically because a spatially varying filter implies 
-        # that the box cannot be filtered in Fourier space via the convolution theorem!) 
+        # This approximation breaks when reionization begins, but under strong X-ray heating the value of the spin temperature (and
+        # Lyman alpha flux) becomes irrelevant. This should be examined in the future in the case of weak X-ray heating during the
+        # epoch of reionization (this would complicate things dramtically because a spatially varying filter implies
+        # that the box cannot be filtered in Fourier space via the convolution theorem!)
         if previous_ionize_box is None:
-            x_HI = 1.
+            x_HI = 1.0
         else:
             x_HI = previous_ionize_box.neutral_fraction.value.mean()
         A_alpha = 6.25e8 * un.Hz
         nu_Lya = 2.46606727e15 * un.Hz
-        n_H_z0 = (1. - inputs.cosmo_params.Y_He) * inputs.cosmo_params.cosmo.critical_density(0) * inputs.cosmo_params.OMb / constants.m_p
-        r_star = 3. * constants.c**4 * A_alpha**2 * n_H_z0 * x_HI *(1.+redshift)
-        r_star /= 32. * np.pi**3 * nu_Lya**4 * inputs.cosmo_params.cosmo.H0**2 * inputs.cosmo_params.OMm
+        n_H_z0 = (
+            (1.0 - inputs.cosmo_params.Y_He)
+            * inputs.cosmo_params.cosmo.critical_density(0)
+            * inputs.cosmo_params.OMb
+            / constants.m_p
+        )
+        r_star = 3.0 * constants.c**4 * A_alpha**2 * n_H_z0 * x_HI * (1.0 + redshift)
+        r_star /= (
+            32.0
+            * np.pi**3
+            * nu_Lya**4
+            * inputs.cosmo_params.cosmo.H0**2
+            * inputs.cosmo_params.OMm
+        )
     else:
-        r_star = 0. * un.Mpc
+        r_star = 0.0 * un.Mpc
 
     # call the box the initialize the memory, since I give some values before computing
     box._init_arrays()
@@ -490,9 +501,13 @@ def compute_xray_source_field(
 
         if zpp_avg[i] >= z_max:
             box.filtered_sfr.value[i] = 0
-            box.filtered_sfr_mini.value[i] = 0
             box.filtered_xray.value[i] = 0
-            box.mean_log10_Mcrit_LW.value[i] = inputs.astro_params.M_TURN  # minimum
+            if inputs.astro_options.USE_MINI_HALOS:
+                box.filtered_sfr_mini.value[i] = 0
+                box.mean_log10_Mcrit_LW.value[i] = inputs.astro_params.M_TURN  # minimum
+                if inputs.astro_options.LYA_MULTIPLE_SCATTERING:
+                    box.filtered_sfr_lw.value[i] = 0
+                    box.filtered_sfr_mini_lw.value[i] = 0
             logger.debug(f"ignoring Radius {i} which is above Z_HEAT_MAX")
             continue
 
@@ -505,9 +520,13 @@ def compute_xray_source_field(
         # if we have no halos we ignore the whole shell
         if np.all(hbox_interp.halo_sfr.value + hbox_interp.halo_sfr_mini.value == 0):
             box.filtered_sfr.value[i] = 0
-            box.filtered_sfr_mini.value[i] = 0
             box.filtered_xray.value[i] = 0
-            box.mean_log10_Mcrit_LW.value[i] = hbox_interp.log10_Mcrit_MCG_ave
+            if inputs.astro_options.USE_MINI_HALOS:
+                box.filtered_sfr_mini.value[i] = 0
+                box.mean_log10_Mcrit_LW.value[i] = hbox_interp.log10_Mcrit_MCG_ave
+                if inputs.astro_options.LYA_MULTIPLE_SCATTERING:
+                    box.filtered_sfr_lw.value[i] = 0
+                    box.filtered_sfr_mini_lw.value[i] = 0
             logger.debug(f"ignoring Radius {i} due to no stars")
             continue
 

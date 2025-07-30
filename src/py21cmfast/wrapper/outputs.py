@@ -992,10 +992,12 @@ class XraySourceBox(OutputStructZ):
     _c_compute_function = lib.UpdateXraySourceBox
 
     filtered_sfr = _arrayfield()
-    filtered_sfr_mini = _arrayfield()
+    filtered_sfr_mini = _arrayfield(optional=True)
     filtered_xray = _arrayfield()
+    filtered_sfr_lw = _arrayfield(optional=True)
+    filtered_sfr_mini_lw = _arrayfield(optional=True)
     mean_sfr = _arrayfield()
-    mean_sfr_mini = _arrayfield()
+    mean_sfr_mini = _arrayfield(optional=True)
     mean_log10_Mcrit_LW = _arrayfield()
 
     @classmethod
@@ -1024,18 +1026,20 @@ class XraySourceBox(OutputStructZ):
                 ),
             )
         )
+        out = {
+            "filtered_sfr": Array(shape, dtype=np.float32),
+            "filtered_xray": Array(shape, dtype=np.float32),
+            "mean_sfr": Array(shape),
+            "mean_log10_Mcrit_LW": Array((inputs.astro_params.N_STEP_TS,)),
+        }
+        if inputs.astro_options.USE_MINI_HALOS:
+            out["filtered_sfr_mini"] = Array(shape, dtype=np.float32)
+            out["mean_sfr_mini"] = Array((inputs.astro_params.N_STEP_TS,))
+            if inputs.astro_options.LYA_MULTIPLE_SCATTERING:
+                out["filtered_sfr_lw"] = Array(shape, dtype=np.float32)
+                out["filtered_sfr_mini_lw"] = Array(shape, dtype=np.float32)
 
-        return cls(
-            inputs=inputs,
-            redshift=redshift,
-            filtered_sfr=Array(shape, dtype=np.float32),
-            filtered_sfr_mini=Array(shape, dtype=np.float32),
-            filtered_xray=Array(shape, dtype=np.float32),
-            mean_sfr=Array(shape),
-            mean_sfr_mini=Array((inputs.astro_params.N_STEP_TS,)),
-            mean_log10_Mcrit_LW=Array((inputs.astro_params.N_STEP_TS,)),
-            **kw,
-        )
+        return cls(inputs=inputs, redshift=redshift, **out, **kw)
 
     def get_required_input_arrays(self, input_box: OutputStruct) -> list[str]:
         """Return all input arrays required to compute this object."""
@@ -1155,7 +1159,7 @@ class TsBox(OutputStructZ):
             )
         else:
             return np.mean(self.get("J_alpha_star"))
-    
+
     @cached_property
     def global_J_alpha_X(self):
         """Global (mean) J_alpha_X."""
@@ -1165,7 +1169,7 @@ class TsBox(OutputStructZ):
             )
         else:
             return np.mean(self.get("J_alpha_X"))
-    
+
     def get_required_input_arrays(self, input_box: OutputStruct) -> list[str]:
         """Return all input arrays required to compute this object."""
         required = []

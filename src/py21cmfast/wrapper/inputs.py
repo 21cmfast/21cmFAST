@@ -756,8 +756,11 @@ class AstroOptions(InputStruct):
         Becomes relevant only when USE_HALO_FIELD=True.
     TEST_SL_WITH_MS_FILTER: bool, optional
         This flag is used for tests. If True, the multiple scattering window function will be used but with alpha=1e5 and beta=1,
-        thus effectively imitating the window function for the straight line scenario. 
+        thus effectively imitating the window function for the straight line scenario.
         Becomes relevant only if LYA_MULTIPLE_SCATTERING is True.
+    USE_ADIABATIC_FLUCTUATIONS: bool, optional
+        Whether to apply adiabatic fluctuations to the initial temperature box, see Munoz 2023. If set to False,
+        the initial temperature box is completely homogeneous. Default is True.
     USE_UPPER_STELLAR_TURNOVER: bool, optional
         Whether to use an additional powerlaw in stellar mass fraction at high halo mass. The pivot mass scale and power-law index are
         controlled by two parameters, UPPER_STELLAR_TURNOVER_MASS and UPPER_STELLAR_TURNOVER_INDEX respectively.
@@ -823,6 +826,7 @@ class AstroOptions(InputStruct):
     CELL_RECOMB = field(default=True, converter=bool)
     LYA_MULTIPLE_SCATTERING = field(default=False, converter=bool)
     TEST_SL_WITH_MS_FILTER = field(default=False, converter=bool)
+    USE_ADIABATIC_FLUCTUATIONS = field(default=True, converter=bool)
     PHOTON_CONS_TYPE = field(
         default="no-photoncons",
         converter=str,
