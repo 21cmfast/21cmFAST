@@ -106,7 +106,7 @@ void compute_perturbed_velocities(unsigned short axis, fftwf_complex *HIRES_dens
             filter_box(HIRES_density_perturb, 0, 0,
                        L_FACTOR * simulation_options_global->BOX_LEN /
                            (simulation_options_global->HII_DIM + 0.0),
-                       0.);
+                       0., 0.);
 
         dft_c2r_cube(matter_options_global->USE_FFTW_WISDOM, simulation_options_global->DIM, D_PARA,
                      simulation_options_global->N_THREADS, HIRES_density_perturb);
@@ -730,7 +730,7 @@ int ComputePerturbField(float redshift, InitialConditions *boxes, PerturbedField
                 filter_box(HIRES_density_perturb, 0, 0,
                            L_FACTOR * simulation_options_global->BOX_LEN /
                                (simulation_options_global->HII_DIM + 0.0),
-                           0.);
+                           0., 0.);
             }
 
             // FFT back to real space
@@ -800,7 +800,7 @@ int ComputePerturbField(float redshift, InitialConditions *boxes, PerturbedField
                        simulation_options_global->DENSITY_SMOOTH_RADIUS *
                            simulation_options_global->BOX_LEN /
                            (float)simulation_options_global->HII_DIM,
-                       0.);
+                       0., 0.);
         }
 
         LOG_SUPER_DEBUG("LOWRES_density_perturb after smoothing: ");
