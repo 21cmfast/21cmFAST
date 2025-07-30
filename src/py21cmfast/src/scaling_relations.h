@@ -41,6 +41,8 @@ struct ScalingConstants {
     double pop2_ion;
     double pop3_ion;
 
+    double zesc_power_law;
+
     double vcb_norel;
     double acg_thresh;
     double mturn_a_nofb;

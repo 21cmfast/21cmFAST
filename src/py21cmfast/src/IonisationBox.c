@@ -154,7 +154,7 @@ void set_ionbox_constants(double redshift, double prev_redshift, struct IonBoxCo
     consts->T_re = astro_params_global->T_RE;
 
     if (astro_options_global->USE_MASS_DEPENDENT_ZETA) {
-        consts->ion_eff_factor_gl = sc.pop2_ion * sc.fstar_10 * sc.fesc_10;
+        consts->ion_eff_factor_gl = sc.pop2_ion * sc.fstar_10 * sc.fesc_10 * sc.zesc_power_law;
         consts->ion_eff_factor_mini_gl = sc.pop3_ion * sc.fstar_7 * sc.fesc_7;
     } else {
         consts->ion_eff_factor_gl = astro_params_global->HII_EFF_FACTOR;

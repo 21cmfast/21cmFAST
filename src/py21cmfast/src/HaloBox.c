@@ -79,8 +79,7 @@ void set_halo_properties(double halo_mass, double M_turn_a, double M_turn_m,
 
     // no rng for escape fraction yet
     // add redshift dependence to fesc
-    fesc = fmin(consts->fesc_10 * pow(halo_mass / 1e10, consts->alpha_esc) *
-                    pow((1 + consts->redshift) / 8.0, consts->beta_esc),
+    fesc = fmin(consts->fesc_10 * pow(halo_mass / 1e10, consts->alpha_esc) * consts->zesc_power_law,
                 1);
     if (astro_options_global->USE_MINI_HALOS)
         fesc_mini = fmin(consts->fesc_7 * pow(halo_mass / 1e7, consts->alpha_esc), 1);
@@ -115,9 +114,11 @@ int get_box_averages(double M_min, double M_max, double M_turn_a, double M_turn_
     double prefactor_stars_mini = RHOcrit * cosmo_params_global->OMb * consts->fstar_7;
     double prefactor_sfr = prefactor_stars / consts->t_star / t_h;
     double prefactor_sfr_mini = prefactor_stars_mini / consts->t_star / t_h;
-    double prefactor_nion = prefactor_stars * consts->fesc_10 * consts->pop2_ion;
+    double prefactor_nion =
+        prefactor_stars * consts->fesc_10 * consts->pop2_ion * consts->zesc_power_law;
     double prefactor_nion_mini = prefactor_stars_mini * consts->fesc_7 * consts->pop3_ion;
-    double prefactor_wsfr = prefactor_sfr * consts->fesc_10 * consts->pop2_ion;
+    double prefactor_wsfr =
+        prefactor_sfr * consts->fesc_10 * consts->pop2_ion * consts->zesc_power_law;
     double prefactor_wsfr_mini = prefactor_sfr_mini * consts->fesc_7 * consts->pop3_ion;
     double prefactor_xray = RHOcrit * cosmo_params_global->OMm;
 
@@ -212,9 +213,11 @@ int set_fixed_grids(double M_min, double M_max, InitialConditions *ini_boxes,
     double prefactor_stars_mini = RHOcrit * cosmo_params_global->OMb * consts->fstar_7;
     double prefactor_sfr = prefactor_stars / consts->t_star / consts->t_h;
     double prefactor_sfr_mini = prefactor_stars_mini / consts->t_star / consts->t_h;
-    double prefactor_nion = prefactor_stars * consts->fesc_10 * consts->pop2_ion;
+    double prefactor_nion =
+        prefactor_stars * consts->fesc_10 * consts->pop2_ion * consts->zesc_power_law;
     double prefactor_nion_mini = prefactor_stars_mini * consts->fesc_7 * consts->pop3_ion;
-    double prefactor_wsfr = prefactor_sfr * consts->fesc_10 * consts->pop2_ion;
+    double prefactor_wsfr =
+        prefactor_sfr * consts->fesc_10 * consts->pop2_ion * consts->zesc_power_law;
     double prefactor_wsfr_mini = prefactor_sfr_mini * consts->fesc_7 * consts->pop3_ion;
     double prefactor_xray = RHOcrit * cosmo_params_global->OMm;
 
