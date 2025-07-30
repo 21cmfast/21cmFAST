@@ -569,7 +569,7 @@ void fill_Rbox_table(float **result, fftwf_complex *unfiltered_box, double *R_ar
         dft_c2r_cube(matter_options_global->USE_FFTW_WISDOM, simulation_options_global->HII_DIM,
                      HII_D_PARA, simulation_options_global->N_THREADS, box);
         // copy over the values
-#pragma omp parallel private(i, j, k) num_threads(simulation_options_global->N_THREADS)
+#pragma omp parallel private(i, j, k) num_threads(simulation_options_global -> N_THREADS)
         {
             float curr;
 #pragma omp for reduction(+ : ave_buffer) reduction(max : max_out_R) reduction(min : min_out_R)
@@ -618,7 +618,7 @@ void one_annular_filter(float *input_box, float *output_box, double R_inner, dou
     fftwf_complex *filtered_box =
         (fftwf_complex *)fftwf_malloc(sizeof(fftwf_complex) * HII_KSPACE_NUM_PIXELS);
 
-#pragma omp parallel private(i, j, k) num_threads(simulation_options_global->N_THREADS) \
+#pragma omp parallel private(i, j, k) num_threads(simulation_options_global -> N_THREADS) \
     reduction(+ : unfiltered_avg)
     {
         float curr_val;
@@ -663,7 +663,7 @@ void one_annular_filter(float *input_box, float *output_box, double R_inner, dou
                  HII_D_PARA, simulation_options_global->N_THREADS, filtered_box);
 
 // copy over the values
-#pragma omp parallel private(i, j, k) num_threads(simulation_options_global->N_THREADS) \
+#pragma omp parallel private(i, j, k) num_threads(simulation_options_global -> N_THREADS) \
     reduction(+ : filtered_avg)
     {
         float curr_val;
@@ -767,7 +767,7 @@ void fill_freqint_tables(double zp, double x_e_ave, double filling_factor_of_HI_
         R_end = astro_params_global->N_STEP_TS;
     }
 #pragma omp parallel private(R_ct, x_e_ct, lower_int_limit) \
-    num_threads(simulation_options_global->N_THREADS)
+    num_threads(simulation_options_global -> N_THREADS)
     {
 #pragma omp for
         // In TauX we integrate Nion from zpp to zp using the LW turnover mass at zp (predending its
@@ -850,7 +850,7 @@ void init_first_Ts(TsBox *box, float *dens, float z, float zp, double *x_e_ave, 
     *x_e_ave = xe;
     *Tk_ave = TK;
 
-#pragma omp parallel private(box_ct) num_threads(simulation_options_global->N_THREADS)
+#pragma omp parallel private(box_ct) num_threads(simulation_options_global -> N_THREADS)
     {
         double gdens;
         float curr_xalpha;
@@ -1434,7 +1434,7 @@ void ts_main(float redshift, float prev_redshift, float perturbed_field_redshift
     NO_LIGHT = global_reion_properties(redshift, x_e_ave_p, ave_log10_MturnLW, mean_sfr_zpp,
                                        mean_sfr_zpp_mini, &Q_HI_zp);
 
-#pragma omp parallel private(box_ct) num_threads(simulation_options_global->N_THREADS)
+#pragma omp parallel private(box_ct) num_threads(simulation_options_global -> N_THREADS)
     {
         float xHII_call;
 #pragma omp for
@@ -1567,7 +1567,7 @@ void ts_main(float redshift, float prev_redshift, float perturbed_field_redshift
 //   But here it's just (1+delta_source). This is for photon conservation.
 //   If we assume attenuation at mean density as we do in nu_tau_one(), we HAVE to assume mean
 //   density absorption otherwise we do not conserve photons
-#pragma omp parallel private(box_ct) num_threads(simulation_options_global->N_THREADS)
+#pragma omp parallel private(box_ct) num_threads(simulation_options_global -> N_THREADS)
             {
                 // private variables
                 int xidx;
