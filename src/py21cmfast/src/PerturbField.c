@@ -164,8 +164,7 @@ int ComputePerturbField(float redshift, InitialConditions *boxes, PerturbedField
 
         float growth_factor, displacement_factor_2LPT, init_growth_factor,
             init_displacement_factor_2LPT;
-        float mass_factor, dDdt, f_pixel_factor, velocity_displacement_factor,
-            velocity_displacement_factor_2LPT;
+        float mass_factor, dDdt, f_pixel_factor;
         int i, j, k, axis;
 
         // Function for deciding the dimensions of loops when we could
@@ -214,6 +213,7 @@ int ComputePerturbField(float redshift, InitialConditions *boxes, PerturbedField
         // find factor of HII pixel size / deltax pixel size
         f_pixel_factor =
             simulation_options_global->DIM / (float)(simulation_options_global->HII_DIM);
+        double f_pixel_inv = 1. / f_pixel_factor;
         mass_factor = pow(f_pixel_factor, 3);
 
         // allocate memory for the updated density, and initialize
@@ -283,9 +283,14 @@ int ComputePerturbField(float redshift, InitialConditions *boxes, PerturbedField
                 }
             }
 
-            velocity_displacement_factor = (growth_factor - init_growth_factor);
-            velocity_displacement_factor_2LPT =
-                (displacement_factor_2LPT - init_displacement_factor_2LPT);
+            double velocity_displacement_factor[3] = {
+                (growth_factor - init_growth_factor) / box_size[0],
+                (growth_factor - init_growth_factor) / box_size[1],
+                (growth_factor - init_growth_factor) / box_size[2]};
+            double velocity_displacement_factor_2LPT[3] = {
+                (displacement_factor_2LPT - init_displacement_factor_2LPT) / box_size[0],
+                (displacement_factor_2LPT - init_displacement_factor_2LPT) / box_size[1],
+                (displacement_factor_2LPT - init_displacement_factor_2LPT) / box_size[2]};
 
             // ************  END INITIALIZATION **************************** //
 
@@ -313,23 +318,23 @@ int ComputePerturbField(float redshift, InitialConditions *boxes, PerturbedField
                             pos[2] = (k + 0.5) / (D_PARA + 0.0);
                             ipos[0] = matter_options_global->PERTURB_ON_HIGH_RES
                                           ? i
-                                          : (int)(i / f_pixel_factor);
+                                          : (int)(i * f_pixel_inv);
                             ipos[1] = matter_options_global->PERTURB_ON_HIGH_RES
                                           ? j
-                                          : (int)(j / f_pixel_factor);
+                                          : (int)(j * f_pixel_inv);
                             ipos[2] = matter_options_global->PERTURB_ON_HIGH_RES
                                           ? k
-                                          : (int)(k / f_pixel_factor);
+                                          : (int)(k * f_pixel_inv);
                             vel_index = matter_options_global->PERTURB_ON_HIGH_RES
                                             ? R_INDEX(ipos[0], ipos[1], ipos[2])
                                             : HII_R_INDEX(ipos[0], ipos[1], ipos[2]);
                             for (axis = 0; axis < 3; axis++) {
                                 pos[axis] += vel_pointers[axis][vel_index] *
-                                             velocity_displacement_factor / box_size[axis];
+                                             velocity_displacement_factor[axis];
                                 // add 2LPT second order corrections
                                 if (matter_options_global->PERTURB_ALGORITHM == 2) {
                                     pos[axis] -= vel_pointers_2LPT[axis][vel_index] *
-                                                 velocity_displacement_factor_2LPT / box_size[axis];
+                                                 velocity_displacement_factor_2LPT[axis];
                                 }
 
                                 // transform to units of cell size
