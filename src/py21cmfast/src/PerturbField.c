@@ -287,30 +287,6 @@ int ComputePerturbField(float redshift, InitialConditions *boxes, PerturbedField
             velocity_displacement_factor_2LPT =
                 (displacement_factor_2LPT - init_displacement_factor_2LPT);
 
-            // Loop over the IC velocity arrays and multiply by the displacement factor
-#pragma omp parallel private(i, j, k, axis) num_threads(simulation_options_global -> N_THREADS)
-            {
-                unsigned long long int grid_index;
-#pragma omp for
-                for (i = 0; i < box_dim[0]; i++) {
-                    for (j = 0; j < box_dim[1]; j++) {
-                        for (k = 0; k < box_dim[2]; k++) {
-                            grid_index = matter_options_global->PERTURB_ON_HIGH_RES
-                                             ? R_INDEX(i, j, k)
-                                             : HII_R_INDEX(i, j, k);
-                            for (axis = 0; axis < 3; axis++) {
-                                vel_pointers[axis][grid_index] *=
-                                    velocity_displacement_factor / box_size[axis];
-                                if (matter_options_global->PERTURB_ALGORITHM == 2) {
-                                    vel_pointers_2LPT[axis][grid_index] *=
-                                        velocity_displacement_factor_2LPT / box_size[axis];
-                                }
-                            }
-                        }
-                    }
-                }
-            }
-
             // ************  END INITIALIZATION **************************** //
 
             // Perturbing the density field required adding over multiple cells. Store intermediate
@@ -348,10 +324,12 @@ int ComputePerturbField(float redshift, InitialConditions *boxes, PerturbedField
                                             ? R_INDEX(ipos[0], ipos[1], ipos[2])
                                             : HII_R_INDEX(ipos[0], ipos[1], ipos[2]);
                             for (axis = 0; axis < 3; axis++) {
-                                pos[axis] += vel_pointers[axis][vel_index];
+                                pos[axis] += vel_pointers[axis][vel_index] *
+                                             velocity_displacement_factor / box_size[axis];
                                 // add 2LPT second order corrections
                                 if (matter_options_global->PERTURB_ALGORITHM == 2) {
-                                    pos[axis] -= vel_pointers_2LPT[axis][vel_index];
+                                    pos[axis] -= vel_pointers_2LPT[axis][vel_index] *
+                                                 velocity_displacement_factor_2LPT / box_size[axis];
                                 }
 
                                 // transform to units of cell size
@@ -467,31 +445,6 @@ int ComputePerturbField(float redshift, InitialConditions *boxes, PerturbedField
 
             debugSummarizeBox((float *)fft_density_grid, box_dim[0], box_dim[1],
                               2 * (box_dim[2] / 2 + 1), "  ");
-
-            // restore the IC arrays to the original z=0 values
-#pragma omp parallel private(i, j, k, axis) num_threads(simulation_options_global -> N_THREADS)
-            {
-                unsigned long long int grid_index;
-#pragma omp for
-                for (i = 0; i < box_dim[0]; i++) {
-                    for (j = 0; j < box_dim[1]; j++) {
-                        for (k = 0; k < box_dim[2]; k++) {
-                            grid_index = matter_options_global->PERTURB_ON_HIGH_RES
-                                             ? R_INDEX(i, j, k)
-                                             : HII_R_INDEX(i, j, k);
-                            for (axis = 0; axis < 3; axis++) {
-                                vel_pointers[axis][grid_index] /=
-                                    velocity_displacement_factor / box_size[axis];
-
-                                if (matter_options_global->PERTURB_ALGORITHM == 2) {
-                                    vel_pointers_2LPT[axis][grid_index] /=
-                                        displacement_factor_2LPT / box_size[axis];
-                                }
-                            }
-                        }
-                    }
-                }
-            }
         }
 
         // Now `fft_density` grid holds the perturbed density field,
