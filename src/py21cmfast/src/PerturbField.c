@@ -33,7 +33,7 @@ void compute_perturbed_velocities(unsigned short axis, double redshift,
     unsigned long long int n_k_pixels, n_r_pixels;
     // Function for deciding the dimensions of loops when we could
     // use either the low or high resolution grids.
-    unsigned long long int box_dim[3];
+    int box_dim[3];
     float *vel_pointers[3], *vel_pointers_2LPT[3];
     float f_pixel_factor =
         simulation_options_global->DIM / (float)(simulation_options_global->HII_DIM);
@@ -93,7 +93,7 @@ void compute_perturbed_velocities(unsigned short axis, double redshift,
                     if ((n_x == 0) && (n_y == 0) && (n_z == 0)) {  // DC mode
                         velocity_fft_grid[grid_index] = 0.0 + 0.0 * I;
                     } else {
-                        velocity_fft_grid[grid_index] =
+                        velocity_fft_grid[grid_index] *=
                             dDdt_over_D * kvec[axis] * I / k_sq / n_r_pixels;
                     }
                 }
@@ -128,8 +128,7 @@ void compute_perturbed_velocities(unsigned short axis, double redshift,
                                                    (unsigned long long)(j * f_pixel_factor + 0.5),
                                                    (unsigned long long)(k * f_pixel_factor + 0.5))
                                      : HII_R_FFT_INDEX(i, j, k);
-                    *((float *)velocity + HII_R_INDEX(i, j, k)) =
-                        *((float *)velocity_fft_grid + grid_index);
+                    velocity[HII_R_INDEX(i, j, k)] = *((float *)velocity_fft_grid + grid_index);
                 }
             }
         }
@@ -325,14 +324,17 @@ int ComputePerturbField(float redshift, InitialConditions *boxes, PerturbedField
 // go through the high-res box, mapping the mass onto the low-res (updated) box
 #pragma omp parallel private(i, j, k, axis) num_threads(simulation_options_global -> N_THREADS)
             {
-                double pos[3], dist[3];
-                unsigned long long vel_index, ic_index, cic_index;
+                double pos[3], dist[3], curr_dens;
+                unsigned long long vel_index, cic_index;
                 int ipos[3], iposp1[3];
 #pragma omp for
                 for (i = 0; i < simulation_options_global->DIM; i++) {
                     for (j = 0; j < simulation_options_global->DIM; j++) {
                         for (k = 0; k < D_PARA; k++) {
                             // Transform position to units of box size
+                            pos[0] = (i + 0.5) / (simulation_options_global->DIM + 0.0);
+                            pos[1] = (j + 0.5) / (simulation_options_global->DIM + 0.0);
+                            pos[2] = (k + 0.5) / (D_PARA + 0.0);
                             ipos[0] = matter_options_global->PERTURB_ON_HIGH_RES
                                           ? i
                                           : (int)(i / f_pixel_factor);
@@ -343,10 +345,9 @@ int ComputePerturbField(float redshift, InitialConditions *boxes, PerturbedField
                                           ? k
                                           : (int)(k / f_pixel_factor);
                             vel_index = matter_options_global->PERTURB_ON_HIGH_RES
-                                            ? R_INDEX(i, j, k)
+                                            ? R_INDEX(ipos[0], ipos[1], ipos[2])
                                             : HII_R_INDEX(ipos[0], ipos[1], ipos[2]);
                             for (axis = 0; axis < 3; axis++) {
-                                pos[axis] = (ipos[axis] + 0.5) / (box_dim[axis] + 0.0);
                                 pos[axis] += vel_pointers[axis][vel_index];
                                 // add 2LPT second order corrections
                                 if (matter_options_global->PERTURB_ALGORITHM == 2) {
@@ -356,81 +357,80 @@ int ComputePerturbField(float redshift, InitialConditions *boxes, PerturbedField
                                 // transform to units of cell size
                                 pos[axis] *= box_dim[axis];
                                 // get the CIC indices and distances
-                                ipos[axis] = (int)(pos[axis] + 0.5) - 1;  // The low index in the
-                                                                          // CIC
-                                iposp1[axis] = ipos[axis] + 1;  // The high index in the CIC
-                                dist[axis] = fabs(pos[axis] - ipos[axis]);
+                                ipos[axis] = (int)floor(pos[axis] + 0.5) - 1;
+                                iposp1[axis] = ipos[axis] + 1;
+                                dist[axis] = pos[axis] - 0.5 - ipos[axis];
                             }
                             wrap_coord(ipos, box_dim);
                             wrap_coord(iposp1, box_dim);
 
                             // CIC interpolation
-                            ic_index = R_INDEX(i, j, k);
+                            curr_dens = boxes->hires_density[R_INDEX(i, j, k)];
                             if (matter_options_global->PERTURB_ON_HIGH_RES) {
+#pragma omp atomic update
                                 resampled_box[R_INDEX(ipos[0], ipos[1], ipos[2])] +=
-                                    (double)(1. +
-                                             init_growth_factor * boxes->hires_density[ic_index]) *
+                                    (double)(1. + init_growth_factor * curr_dens) *
                                     ((1. - dist[0]) * (1. - dist[1]) * (1. - dist[2]));
+#pragma omp atomic update
                                 resampled_box[R_INDEX(iposp1[0], ipos[1], ipos[2])] +=
-                                    (double)(1. +
-                                             init_growth_factor * boxes->hires_density[ic_index]) *
+                                    (double)(1. + init_growth_factor * curr_dens) *
                                     (dist[0] * (1. - dist[1]) * (1. - dist[2]));
+#pragma omp atomic update
                                 resampled_box[R_INDEX(ipos[0], iposp1[1], ipos[2])] +=
-                                    (double)(1. +
-                                             init_growth_factor * boxes->hires_density[ic_index]) *
+                                    (double)(1. + init_growth_factor * curr_dens) *
                                     ((1. - dist[0]) * dist[1] * (1. - dist[2]));
+#pragma omp atomic update
                                 resampled_box[R_INDEX(iposp1[0], iposp1[1], ipos[2])] +=
-                                    (double)(1. +
-                                             init_growth_factor * boxes->hires_density[ic_index]) *
+                                    (double)(1. + init_growth_factor * curr_dens) *
                                     (dist[0] * dist[1] * (1. - dist[2]));
+#pragma omp atomic update
                                 resampled_box[R_INDEX(ipos[0], ipos[1], iposp1[2])] +=
-                                    (double)(1. +
-                                             init_growth_factor * boxes->hires_density[ic_index]) *
+                                    (double)(1. + init_growth_factor * curr_dens) *
                                     ((1. - dist[0]) * (1. - dist[1]) * dist[2]);
+#pragma omp atomic update
                                 resampled_box[R_INDEX(iposp1[0], ipos[1], iposp1[2])] +=
-                                    (double)(1. +
-                                             init_growth_factor * boxes->hires_density[ic_index]) *
+                                    (double)(1. + init_growth_factor * curr_dens) *
                                     (dist[0] * (1. - dist[1]) * dist[2]);
+#pragma omp atomic update
                                 resampled_box[R_INDEX(ipos[0], iposp1[1], iposp1[2])] +=
-                                    (double)(1. +
-                                             init_growth_factor * boxes->hires_density[ic_index]) *
+                                    (double)(1. + init_growth_factor * curr_dens) *
                                     ((1. - dist[0]) * dist[1] * dist[2]);
+#pragma omp atomic update
                                 resampled_box[R_INDEX(iposp1[0], iposp1[1], iposp1[2])] +=
-                                    (double)(1. +
-                                             init_growth_factor * boxes->hires_density[ic_index]) *
+                                    (double)(1. + init_growth_factor * curr_dens) *
                                     (dist[0] * dist[1] * dist[2]);
                             } else {
+#pragma omp atomic update
                                 resampled_box[HII_R_INDEX(ipos[0], ipos[1], ipos[2])] +=
-                                    (double)(1. +
-                                             init_growth_factor * boxes->hires_density[ic_index]) *
+                                    (double)(1. + init_growth_factor * curr_dens) *
                                     ((1. - dist[0]) * (1. - dist[1]) * (1. - dist[2]));
+#pragma omp atomic update
                                 resampled_box[HII_R_INDEX(iposp1[0], ipos[1], ipos[2])] +=
-                                    (double)(1. +
-                                             init_growth_factor * boxes->hires_density[ic_index]) *
+                                    (double)(1. + init_growth_factor * curr_dens) *
                                     (dist[0] * (1. - dist[1]) * (1. - dist[2]));
+#pragma omp atomic update
                                 resampled_box[HII_R_INDEX(ipos[0], iposp1[1], ipos[2])] +=
-                                    (double)(1. +
-                                             init_growth_factor * boxes->hires_density[ic_index]) *
+                                    (double)(1. + init_growth_factor * curr_dens) *
                                     ((1. - dist[0]) * dist[1] * (1. - dist[2]));
+#pragma omp atomic update
                                 resampled_box[HII_R_INDEX(iposp1[0], iposp1[1], ipos[2])] +=
-                                    (double)(1. +
-                                             init_growth_factor * boxes->hires_density[ic_index]) *
+                                    (double)(1. + init_growth_factor * curr_dens) *
                                     (dist[0] * dist[1] * (1. - dist[2]));
+#pragma omp atomic update
                                 resampled_box[HII_R_INDEX(ipos[0], ipos[1], iposp1[2])] +=
-                                    (double)(1. +
-                                             init_growth_factor * boxes->hires_density[ic_index]) *
+                                    (double)(1. + init_growth_factor * curr_dens) *
                                     ((1. - dist[0]) * (1. - dist[1]) * dist[2]);
+#pragma omp atomic update
                                 resampled_box[HII_R_INDEX(iposp1[0], ipos[1], iposp1[2])] +=
-                                    (double)(1. +
-                                             init_growth_factor * boxes->hires_density[ic_index]) *
+                                    (double)(1. + init_growth_factor * curr_dens) *
                                     (dist[0] * (1. - dist[1]) * dist[2]);
+#pragma omp atomic update
                                 resampled_box[HII_R_INDEX(ipos[0], iposp1[1], iposp1[2])] +=
-                                    (double)(1. +
-                                             init_growth_factor * boxes->hires_density[ic_index]) *
+                                    (double)(1. + init_growth_factor * curr_dens) *
                                     ((1. - dist[0]) * dist[1] * dist[2]);
+#pragma omp atomic update
                                 resampled_box[HII_R_INDEX(iposp1[0], iposp1[1], iposp1[2])] +=
-                                    (double)(1. +
-                                             init_growth_factor * boxes->hires_density[ic_index]) *
+                                    (double)(1. + init_growth_factor * curr_dens) *
                                     (dist[0] * dist[1] * dist[2]);
                             }
                         }
@@ -480,11 +480,11 @@ int ComputePerturbField(float redshift, InitialConditions *boxes, PerturbedField
                                              ? R_INDEX(i, j, k)
                                              : HII_R_INDEX(i, j, k);
                             for (axis = 0; axis < 3; axis++) {
-                                vel_pointers[axis][grid_index] *=
+                                vel_pointers[axis][grid_index] /=
                                     velocity_displacement_factor / box_size[axis];
 
                                 if (matter_options_global->PERTURB_ALGORITHM == 2) {
-                                    vel_pointers_2LPT[axis][grid_index] *=
+                                    vel_pointers_2LPT[axis][grid_index] /=
                                         displacement_factor_2LPT / box_size[axis];
                                 }
                             }
