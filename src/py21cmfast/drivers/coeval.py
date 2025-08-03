@@ -772,7 +772,7 @@ def _redshift_loop_generator(
                     cleanup=(cleanup and z == all_redshifts[-1]),
                 )
                 if inputs.matter_options.USE_HALO_FIELD:
-                    this_xraysource.purge()
+                    this_xraysource.purge(force=True)
 
             this_ionized_box = sf.compute_ionization_field(
                 inputs=inputs,
@@ -814,7 +814,7 @@ def _redshift_loop_generator(
                 if (
                     inputs.matter_options.USE_HALO_FIELD
                     and write.halobox
-                    and iz + 1 < len(all_redshifts)
+                    and iz + 1 < len(inputs.node_redshifts)
                 ):
                     for hbox in hbox_arr:
                         hbox.prepare_for_next_snapshot(
