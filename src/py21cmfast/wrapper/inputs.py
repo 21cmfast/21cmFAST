@@ -1358,6 +1358,7 @@ class InputParameters:
         and only overwrites those sub-fields instead of the entire field
         """
         struct_args = {}
+        kwargs_copy = kwargs.copy()
         for inp_type in (
             "cosmo_params",
             "simulation_options",
@@ -1367,8 +1368,12 @@ class InputParameters:
         ):
             obj = getattr(self, inp_type)
             struct_args[inp_type] = obj.clone(
-                **{k: v for k, v in kwargs.items() if hasattr(obj, k)}
+                **{k: kwargs_copy.pop(k) for k in kwargs if hasattr(obj, k)}
             )
+
+        if len(kwargs_copy):
+            wrong_key = next(iter(kwargs_copy.keys()))
+            raise TypeError(f"{wrong_key} is not a valid keyword input.")
 
         return self.clone(**struct_args)
 
