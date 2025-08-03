@@ -717,7 +717,7 @@ def _redshift_loop_generator(
         **iokw,
         "initial_conditions": initial_conditions,
     }
-
+    iz_node = 0
     with _progressbar(disable=not progressbar) as _progbar:
         for iz, z in _progbar.track(
             enumerate(all_redshifts),
@@ -814,11 +814,11 @@ def _redshift_loop_generator(
                 if (
                     inputs.matter_options.USE_HALO_FIELD
                     and write.halobox
-                    and iz + 1 < len(inputs.node_redshifts)
+                    and iz_node + 1 < len(inputs.node_redshifts)
                 ):
                     for hbox in hbox_arr:
                         hbox.prepare_for_next_snapshot(
-                            next_z=inputs.node_redshifts[iz + 1]
+                            next_z=inputs.node_redshifts[iz_node + 1]
                         )
 
             if this_pthalo is not None:
@@ -828,6 +828,7 @@ def _redshift_loop_generator(
                 # Only evolve on the node_redshifts, not any redshifts in-between
                 # that the user might care about.
                 prev_coeval = this_coeval
+                iz_node += 1
 
             # yield before the cleanup, so we can get at the fields before they are purged
             yield iz, this_coeval
