@@ -20,13 +20,24 @@
 #include "indexing.h"
 #include "logger.h"
 
+static inline unsigned long long grid_index_general(int x, int y, int z, int dim[3]) {
+    return (z) + (dim[2] + 0llu) * (y + (dim[1] + 0llu) * x);
+}
+
+static inline unsigned long long grid_index_fftw_r(int x, int y, int z, int dim[3]) {
+    return (z) + 2llu * (dim[2] / 2 + 1llu) * (y + (dim[1] + 0llu) * x);
+}
+
+static inline unsigned long long grid_index_fftw_c(int x, int y, int z, int dim[3]) {
+    return (z) + (dim[2] / 2 + 1llu) * (y + (dim[1] + 0llu) * x);
+}
+
 static inline void do_cic_interpolation(double *resampled_box, double pos[3], int box_dim[3],
                                         double curr_dens) {
     // get the CIC indices and distances
-    int axis;
     int ipos[3], iposp1[3];
     double dist[3];
-    for (axis = 0; axis < 3; axis++) {
+    for (int axis = 0; axis < 3; axis++) {
         ipos[axis] = (int)floor(pos[axis] + 0.5) - 1;
         iposp1[axis] = ipos[axis] + 1;
         dist[axis] = pos[axis] - 0.5 - ipos[axis];
@@ -34,56 +45,29 @@ static inline void do_cic_interpolation(double *resampled_box, double pos[3], in
 
     wrap_coord(ipos, box_dim);
     wrap_coord(iposp1, box_dim);
-    if (matter_options_global->PERTURB_ON_HIGH_RES) {
+
+    unsigned long long int cic_indices[8] = {
+        grid_index_general(ipos[0], ipos[1], ipos[2], box_dim),
+        grid_index_general(iposp1[0], ipos[1], ipos[2], box_dim),
+        grid_index_general(ipos[0], iposp1[1], ipos[2], box_dim),
+        grid_index_general(iposp1[0], iposp1[1], ipos[2], box_dim),
+        grid_index_general(ipos[0], ipos[1], iposp1[2], box_dim),
+        grid_index_general(iposp1[0], ipos[1], iposp1[2], box_dim),
+        grid_index_general(ipos[0], iposp1[1], iposp1[2], box_dim),
+        grid_index_general(iposp1[0], iposp1[1], iposp1[2], box_dim)};
+
+    double cic_weights[8] = {(1. - dist[0]) * (1. - dist[1]) * (1. - dist[2]),
+                             dist[0] * (1. - dist[1]) * (1. - dist[2]),
+                             (1. - dist[0]) * dist[1] * (1. - dist[2]),
+                             dist[0] * dist[1] * (1. - dist[2]),
+                             (1. - dist[0]) * (1. - dist[1]) * dist[2],
+                             dist[0] * (1. - dist[1]) * dist[2],
+                             (1. - dist[0]) * dist[1] * dist[2],
+                             dist[0] * dist[1] * dist[2]};
+
+    for (int i = 0; i < 8; i++) {
 #pragma omp atomic update
-        resampled_box[R_INDEX(ipos[0], ipos[1], ipos[2])] +=
-            (double)(1. + curr_dens) * ((1. - dist[0]) * (1. - dist[1]) * (1. - dist[2]));
-#pragma omp atomic update
-        resampled_box[R_INDEX(iposp1[0], ipos[1], ipos[2])] +=
-            (double)(1. + curr_dens) * (dist[0] * (1. - dist[1]) * (1. - dist[2]));
-#pragma omp atomic update
-        resampled_box[R_INDEX(ipos[0], iposp1[1], ipos[2])] +=
-            (double)(1. + curr_dens) * ((1. - dist[0]) * dist[1] * (1. - dist[2]));
-#pragma omp atomic update
-        resampled_box[R_INDEX(iposp1[0], iposp1[1], ipos[2])] +=
-            (double)(1. + curr_dens) * (dist[0] * dist[1] * (1. - dist[2]));
-#pragma omp atomic update
-        resampled_box[R_INDEX(ipos[0], ipos[1], iposp1[2])] +=
-            (double)(1. + curr_dens) * ((1. - dist[0]) * (1. - dist[1]) * dist[2]);
-#pragma omp atomic update
-        resampled_box[R_INDEX(iposp1[0], ipos[1], iposp1[2])] +=
-            (double)(1. + curr_dens) * (dist[0] * (1. - dist[1]) * dist[2]);
-#pragma omp atomic update
-        resampled_box[R_INDEX(ipos[0], iposp1[1], iposp1[2])] +=
-            (double)(1. + curr_dens) * ((1. - dist[0]) * dist[1] * dist[2]);
-#pragma omp atomic update
-        resampled_box[R_INDEX(iposp1[0], iposp1[1], iposp1[2])] +=
-            (double)(1. + curr_dens) * (dist[0] * dist[1] * dist[2]);
-    } else {
-#pragma omp atomic update
-        resampled_box[HII_R_INDEX(ipos[0], ipos[1], ipos[2])] +=
-            (double)(1. + curr_dens) * ((1. - dist[0]) * (1. - dist[1]) * (1. - dist[2]));
-#pragma omp atomic update
-        resampled_box[HII_R_INDEX(iposp1[0], ipos[1], ipos[2])] +=
-            (double)(1. + curr_dens) * (dist[0] * (1. - dist[1]) * (1. - dist[2]));
-#pragma omp atomic update
-        resampled_box[HII_R_INDEX(ipos[0], iposp1[1], ipos[2])] +=
-            (double)(1. + curr_dens) * ((1. - dist[0]) * dist[1] * (1. - dist[2]));
-#pragma omp atomic update
-        resampled_box[HII_R_INDEX(iposp1[0], iposp1[1], ipos[2])] +=
-            (double)(1. + curr_dens) * (dist[0] * dist[1] * (1. - dist[2]));
-#pragma omp atomic update
-        resampled_box[HII_R_INDEX(ipos[0], ipos[1], iposp1[2])] +=
-            (double)(1. + curr_dens) * ((1. - dist[0]) * (1. - dist[1]) * dist[2]);
-#pragma omp atomic update
-        resampled_box[HII_R_INDEX(iposp1[0], ipos[1], iposp1[2])] +=
-            (double)(1. + curr_dens) * (dist[0] * (1. - dist[1]) * dist[2]);
-#pragma omp atomic update
-        resampled_box[HII_R_INDEX(ipos[0], iposp1[1], iposp1[2])] +=
-            (double)(1. + curr_dens) * ((1. - dist[0]) * dist[1] * dist[2]);
-#pragma omp atomic update
-        resampled_box[HII_R_INDEX(iposp1[0], iposp1[1], iposp1[2])] +=
-            (double)(1. + curr_dens) * (dist[0] * dist[1] * dist[2]);
+        resampled_box[cic_indices[i]] += curr_dens * cic_weights[i];
     }
 }
 
@@ -102,8 +86,10 @@ void compute_perturbed_velocities(unsigned short axis, double redshift,
     // use either the low or high resolution grids.
     int box_dim[3];
     float *vel_pointers[3], *vel_pointers_2LPT[3];
-    float f_pixel_factor =
-        simulation_options_global->DIM / (float)(simulation_options_global->HII_DIM);
+    double dim_ratio =
+        matter_options_global->PERTURB_ON_HIGH_RES
+            ? simulation_options_global->DIM / (double)(simulation_options_global->HII_DIM)
+            : 1.0;
 
     if (matter_options_global->PERTURB_ON_HIGH_RES) {
         box_dim[0] = simulation_options_global->DIM;
@@ -150,9 +136,7 @@ void compute_perturbed_velocities(unsigned short axis, double redshift,
                     kvec[0] = k_x;
                     kvec[1] = k_y;
                     kvec[2] = k_z;
-                    grid_index = matter_options_global->PERTURB_ON_HIGH_RES
-                                     ? C_INDEX(n_x, n_y, n_z)
-                                     : HII_C_INDEX(n_x, n_y, n_z);
+                    grid_index = grid_index_fftw_c(n_x, n_y, n_z, box_dim);
 
                     k_sq = k_x * k_x + k_y * k_y + k_z * k_z;
 
@@ -191,9 +175,9 @@ void compute_perturbed_velocities(unsigned short axis, double redshift,
             for (j = 0; j < simulation_options_global->HII_DIM; j++) {
                 for (k = 0; k < HII_D_PARA; k++) {
                     grid_index = matter_options_global->PERTURB_ON_HIGH_RES
-                                     ? R_FFT_INDEX((unsigned long long)(i * f_pixel_factor + 0.5),
-                                                   (unsigned long long)(j * f_pixel_factor + 0.5),
-                                                   (unsigned long long)(k * f_pixel_factor + 0.5))
+                                     ? R_FFT_INDEX((unsigned long long)(i * dim_ratio + 0.5),
+                                                   (unsigned long long)(j * dim_ratio + 0.5),
+                                                   (unsigned long long)(k * dim_ratio + 0.5))
                                      : HII_R_FFT_INDEX(i, j, k);
                     velocity[HII_R_INDEX(i, j, k)] = *((float *)velocity_fft_grid + grid_index);
                 }
@@ -231,9 +215,9 @@ int ComputePerturbField(float redshift, InitialConditions *boxes, PerturbedField
 
         float growth_factor, displacement_factor_2LPT, init_growth_factor,
             init_displacement_factor_2LPT;
-        float mass_factor, dDdt, f_pixel_factor;
         int i, j, k, axis;
 
+        double dim_ratio, dim_ratio_inv, mass_factor;
         // Function for deciding the dimensions of loops when we could
         // use either the low or high resolution grids.
         double boxlen = simulation_options_global->BOX_LEN;
@@ -277,11 +261,11 @@ int ComputePerturbField(float redshift, InitialConditions *boxes, PerturbedField
         init_displacement_factor_2LPT =
             -(3.0 / 7.0) * init_growth_factor * init_growth_factor;  // 2LPT eq. D8
 
-        // find factor of HII pixel size / deltax pixel size
-        f_pixel_factor =
-            simulation_options_global->DIM / (float)(simulation_options_global->HII_DIM);
-        double f_pixel_inv = 1. / f_pixel_factor;
-        mass_factor = pow(f_pixel_factor, 3);
+        // low --> high res index factor, used when downsampling
+        dim_ratio = simulation_options_global->DIM / (double)(simulation_options_global->HII_DIM);
+        // high --> low res index factor
+        dim_ratio_inv = matter_options_global->PERTURB_ON_HIGH_RES ? 1.0 : 1. / dim_ratio;
+        mass_factor = pow(dim_ratio, 3);
 
         // allocate memory for the updated density, and initialize
         LOWRES_density_perturb =
@@ -320,12 +304,8 @@ int ComputePerturbField(float redshift, InitialConditions *boxes, PerturbedField
                 for (i = 0; i < box_dim[0]; i++) {
                     for (j = 0; j < box_dim[1]; j++) {
                         for (k = 0; k < box_dim[2]; k++) {
-                            grid_index = matter_options_global->PERTURB_ON_HIGH_RES
-                                             ? R_INDEX(i, j, k)
-                                             : HII_R_INDEX(i, j, k);
-                            fft_index = matter_options_global->PERTURB_ON_HIGH_RES
-                                            ? R_FFT_INDEX(i, j, k)
-                                            : HII_R_FFT_INDEX(i, j, k);
+                            grid_index = grid_index_general(i, j, k, box_dim);
+                            fft_index = grid_index_fftw_r(i, j, k, box_dim);
                             *((float *)fft_density_grid + fft_index) =
                                 growth_factor * dens_pointer[grid_index];
                         }
@@ -341,9 +321,7 @@ int ComputePerturbField(float redshift, InitialConditions *boxes, PerturbedField
                 for (i = 0; i < box_dim[0]; i++) {
                     for (j = 0; j < box_dim[1]; j++) {
                         for (k = 0; k < box_dim[2]; k++) {
-                            fft_index = matter_options_global->PERTURB_ON_HIGH_RES
-                                            ? R_FFT_INDEX(i, j, k)
-                                            : HII_R_FFT_INDEX(i, j, k);
+                            fft_index = grid_index_fftw_r(i, j, k, box_dim);
                             *((float *)fft_density_grid + fft_index) = 0.;
                         }
                     }
@@ -374,7 +352,7 @@ int ComputePerturbField(float redshift, InitialConditions *boxes, PerturbedField
             {
                 double pos[3], curr_dens;
                 int ipos[3];
-                unsigned long long vel_index, cic_index;
+                unsigned long long vel_index;
 #pragma omp for
                 for (i = 0; i < simulation_options_global->DIM; i++) {
                     for (j = 0; j < simulation_options_global->DIM; j++) {
@@ -383,18 +361,10 @@ int ComputePerturbField(float redshift, InitialConditions *boxes, PerturbedField
                             pos[0] = (i + 0.5) / (simulation_options_global->DIM + 0.0);
                             pos[1] = (j + 0.5) / (simulation_options_global->DIM + 0.0);
                             pos[2] = (k + 0.5) / (D_PARA + 0.0);
-                            ipos[0] = matter_options_global->PERTURB_ON_HIGH_RES
-                                          ? i
-                                          : (int)(i * f_pixel_inv);
-                            ipos[1] = matter_options_global->PERTURB_ON_HIGH_RES
-                                          ? j
-                                          : (int)(j * f_pixel_inv);
-                            ipos[2] = matter_options_global->PERTURB_ON_HIGH_RES
-                                          ? k
-                                          : (int)(k * f_pixel_inv);
-                            vel_index = matter_options_global->PERTURB_ON_HIGH_RES
-                                            ? R_INDEX(ipos[0], ipos[1], ipos[2])
-                                            : HII_R_INDEX(ipos[0], ipos[1], ipos[2]);
+                            ipos[0] = (int)(i * dim_ratio_inv);
+                            ipos[1] = (int)(j * dim_ratio_inv);
+                            ipos[2] = (int)(k * dim_ratio_inv);
+                            vel_index = grid_index_general(ipos[0], ipos[1], ipos[2], box_dim);
                             for (axis = 0; axis < 3; axis++) {
                                 pos[axis] += vel_pointers[axis][vel_index] *
                                              velocity_displacement_factor[axis];
@@ -409,7 +379,8 @@ int ComputePerturbField(float redshift, InitialConditions *boxes, PerturbedField
                             }
 
                             // CIC interpolation
-                            curr_dens = boxes->hires_density[R_INDEX(i, j, k)] * init_growth_factor;
+                            curr_dens =
+                                1. + boxes->hires_density[R_INDEX(i, j, k)] * init_growth_factor;
                             do_cic_interpolation(resampled_box, pos, box_dim, curr_dens);
                         }
                     }
@@ -427,12 +398,8 @@ int ComputePerturbField(float redshift, InitialConditions *boxes, PerturbedField
                 for (i = 0; i < box_dim[0]; i++) {
                     for (j = 0; j < box_dim[1]; j++) {
                         for (k = 0; k < box_dim[2]; k++) {
-                            grid_index = matter_options_global->PERTURB_ON_HIGH_RES
-                                             ? R_INDEX(i, j, k)
-                                             : HII_R_INDEX(i, j, k);
-                            fft_index = matter_options_global->PERTURB_ON_HIGH_RES
-                                            ? R_FFT_INDEX(i, j, k)
-                                            : HII_R_FFT_INDEX(i, j, k);
+                            grid_index = grid_index_general(i, j, k, box_dim);
+                            fft_index = grid_index_fftw_r(i, j, k, box_dim);
                             *((float *)fft_density_grid + fft_index) =
                                 (float)resampled_box[grid_index];
                         }
@@ -471,9 +438,8 @@ int ComputePerturbField(float redshift, InitialConditions *boxes, PerturbedField
                          D_PARA, simulation_options_global->N_THREADS, HIRES_density_perturb);
 
             // Renormalise the FFT'd box
-#pragma omp parallel shared(HIRES_density_perturb, LOWRES_density_perturb, f_pixel_factor, \
-                                mass_factor) private(i, j, k)                              \
-    num_threads(simulation_options_global -> N_THREADS)
+#pragma omp parallel shared(HIRES_density_perturb, LOWRES_density_perturb, mass_factor) \
+    private(i, j, k) num_threads(simulation_options_global -> N_THREADS)
             {
 #pragma omp for
                 for (i = 0; i < simulation_options_global->HII_DIM; i++) {
@@ -481,9 +447,9 @@ int ComputePerturbField(float redshift, InitialConditions *boxes, PerturbedField
                         for (k = 0; k < HII_D_PARA; k++) {
                             *((float *)LOWRES_density_perturb + HII_R_FFT_INDEX(i, j, k)) =
                                 *((float *)HIRES_density_perturb +
-                                  R_FFT_INDEX((unsigned long long)(i * f_pixel_factor + 0.5),
-                                              (unsigned long long)(j * f_pixel_factor + 0.5),
-                                              (unsigned long long)(k * f_pixel_factor + 0.5))) /
+                                  R_FFT_INDEX((unsigned long long)(i * dim_ratio + 0.5),
+                                              (unsigned long long)(j * dim_ratio + 0.5),
+                                              (unsigned long long)(k * dim_ratio + 0.5))) /
                                 (float)TOT_NUM_PIXELS;
 
                             if (matter_options_global->PERTURB_ALGORITHM > 0) {
