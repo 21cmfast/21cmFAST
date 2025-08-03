@@ -154,7 +154,6 @@ a couple of differences::
         --out lightcone.h5 --cachedir cache \ # configure outputs and cache
         --sigma-8 0.85 --perturb-on-high-res\ # simulations params that override the template
         --lq brightness_temp --lq neutral_fraction \  # fields that become lightcones
-        --gq brightness_temp --gq kinetic_temperature # fields to compute as globally-averaged
 
 The major differences here are that:
 
@@ -167,10 +166,6 @@ The major differences here are that:
 4. We can pass multiple ``--lq`` (or more verbosely, ``--lightcone-quantities``) to specify
    the physical fields we want written out as lightcones. The default is to save only
    the 21cm brightness temperature.
-5. We can pass multiple ``--gq`` (or more verbosely, ``--global-quantities``) to specify
-   the fields we want to save as globally-averaged values as a function of redshift.
-   The default is to save the 21cm brightness temperature and the neutral fraction
-   of hydrogen.
 
 There are many more options, so make sure to read the full
 `CLI tutorial <tutorials/cli_usage.html>`_.
