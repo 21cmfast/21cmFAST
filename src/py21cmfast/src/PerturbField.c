@@ -20,21 +20,6 @@
 #include "indexing.h"
 #include "logger.h"
 
-// TODO: These functions may be useful in indexing.c as replacements/alternatives to the macros,
-//  but they are only used here as this is the only place where the indexing is done on variable
-//  dimensions
-static inline unsigned long long grid_index_general(int x, int y, int z, int dim[3]) {
-    return (z) + (dim[2] + 0llu) * (y + (dim[1] + 0llu) * x);
-}
-
-static inline unsigned long long grid_index_fftw_r(int x, int y, int z, int dim[3]) {
-    return (z) + 2llu * (dim[2] / 2 + 1llu) * (y + (dim[1] + 0llu) * x);
-}
-
-static inline unsigned long long grid_index_fftw_c(int x, int y, int z, int dim[3]) {
-    return (z) + (dim[2] / 2 + 1llu) * (y + (dim[1] + 0llu) * x);
-}
-
 static inline void do_cic_interpolation(double *resampled_box, double pos[3], int box_dim[3],
                                         double curr_dens) {
     // get the CIC indices and distances
