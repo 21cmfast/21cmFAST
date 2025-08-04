@@ -789,7 +789,7 @@ int sample_halo_grids(gsl_rng **rng_arr, double redshift, float *dens_field,
     double total_volume_excluded = 0.;
     double total_volume_dexm = 0.;
     double cell_volume = VOLUME / pow((double)simulation_options_global->HII_DIM, 3);
-
+    bool OUT_OF_BUFFER = false;
 #pragma omp parallel num_threads(simulation_options_global->N_THREADS)
     {
         // PRIVATE VARIABLES
@@ -860,15 +860,8 @@ int sample_halo_grids(gsl_rng **rng_arr, double redshift, float *dens_field,
                         if (hm_buf[i] < simulation_options_global->SAMPLER_MIN_MASS) continue;
 
                         if (count >= arraysize_local) {
-                            LOG_ERROR(
-                                "More than %llu halos (expected %.1e) with buffer size factor %.1f",
-                                arraysize_local,
-                                arraysize_local / config_settings.HALO_CATALOG_MEM_FACTOR,
-                                config_settings.HALO_CATALOG_MEM_FACTOR);
-                            LOG_ERROR(
-                                "If you expected to have an above average halo number try raising "
-                                "config_settings.HALO_CATALOG_MEM_FACTOR");
-                            Throw(ValueError);
+                            OUT_OF_BUFFER = true;
+                            continue;
                         }
 
                         random_point_in_cell((int[3]){x, y, z},
@@ -907,6 +900,15 @@ int sample_halo_grids(gsl_rng **rng_arr, double redshift, float *dens_field,
         istart_threads[threadnum] = istart;
         nhalo_threads[threadnum] = count;
     }
+    if (OUT_OF_BUFFER) {
+        LOG_ERROR("More than %llu halos (expected %.1e) with buffer size factor %.1f",
+                  arraysize_local, arraysize_local / config_settings.HALO_CATALOG_MEM_FACTOR,
+                  config_settings.HALO_CATALOG_MEM_FACTOR);
+        LOG_ERROR(
+            "If you expected to have an above average halo number try raising "
+            "config['HALO_CATALOG_MEM_FACTOR']");
+        Throw(ValueError);
+    }
 
     LOG_SUPER_DEBUG("Total dexm volume %.6e Total volume excluded %.6e (In units of HII_DIM cells)",
                     total_volume_dexm, total_volume_excluded);
@@ -942,6 +944,8 @@ int sample_halo_progenitors(gsl_rng **rng_arr, double z_in, double z_out, HaloFi
     double corr_arr[3] = {hs_constants->corr_star, hs_constants->corr_sfr, hs_constants->corr_xray};
     double boxlen[3] = {simulation_options_global->BOX_LEN, simulation_options_global->BOX_LEN,
                         BOXLEN_PARA};
+
+    bool OUT_OF_BUFFER = false;
 
 #pragma omp parallel num_threads(simulation_options_global->N_THREADS)
     {
@@ -997,14 +1001,8 @@ int sample_halo_progenitors(gsl_rng **rng_arr, double z_in, double z_out, HaloFi
                 if (prog_buf[jj] < simulation_options_global->SAMPLER_MIN_MASS) continue;
 
                 if (count >= arraysize_local) {
-                    LOG_ERROR("More than %llu halos (expected %.1e) with buffer size factor %.1f",
-                              arraysize_local,
-                              arraysize_local / config_settings.HALO_CATALOG_MEM_FACTOR,
-                              config_settings.HALO_CATALOG_MEM_FACTOR);
-                    LOG_ERROR(
-                        "If you expected to have an above average halo number try raising "
-                        "config['HALO_CATALOG_MEM_FACTOR']");
-                    Throw(ValueError);
+                    OUT_OF_BUFFER = true;
+                    continue;
                 }
 
                 set_prop_rng(rng_arr[threadnum], true, corr_arr, propbuf_in, propbuf_out);
@@ -1054,6 +1052,15 @@ int sample_halo_progenitors(gsl_rng **rng_arr, double z_in, double z_out, HaloFi
         }
         istart_threads[threadnum] = istart;
         nhalo_threads[threadnum] = count;
+    }
+    if (OUT_OF_BUFFER) {
+        LOG_ERROR("More than %llu halos (expected %.1e) with buffer size factor %.1f",
+                  arraysize_local, arraysize_local / config_settings.HALO_CATALOG_MEM_FACTOR,
+                  config_settings.HALO_CATALOG_MEM_FACTOR);
+        LOG_ERROR(
+            "If you expected to have an above average halo number try raising "
+            "config['HALO_CATALOG_MEM_FACTOR']");
+        Throw(ValueError);
     }
     condense_sparse_halolist(halofield_out, istart_threads, nhalo_threads);
     return 0;
