@@ -87,6 +87,9 @@ void assign_to_lowres_grid(fftwf_complex *hires_grid, fftwf_complex *lowres_grid
                  simulation_options_global->N_THREADS, hires_grid);
 
     // Need to save a copy of the unfiltered density field for the velocities
+
+    // TODO: The grid saving is awkward, it happens in different functions depending on the
+    //  resolution, and the low-res grid is saved *after* the smoothing
     memcpy(saved_grid, hires_grid, sizeof(fftwf_complex) * KSPACE_NUM_PIXELS);
 
     // Now filter the box
@@ -147,6 +150,72 @@ void normalise_delta_grid(fftwf_complex *deltap1_grid) {
     }
     LOG_SUPER_DEBUG("delta after normalisation: ");
     debugSummarizeBox((float *)deltap1_grid, lo_dim[0], lo_dim[1], 2 * (lo_dim[2] / 2 + 1), "  ");
+}
+
+void smooth_and_clip_density(fftwf_complex *lowres_grid, fftwf_complex *density_perturb_saved) {
+    // transform to k-space
+    int i, j, k;
+    dft_r2c_cube(matter_options_global->USE_FFTW_WISDOM, simulation_options_global->HII_DIM,
+                 HII_D_PARA, simulation_options_global->N_THREADS, lowres_grid);
+
+    // smooth the field
+    if (matter_options_global->PERTURB_ALGORITHM > 0 &&
+        matter_options_global->SMOOTH_EVOLVED_DENSITY_FIELD) {
+        filter_box(lowres_grid, 1, 2,
+                   simulation_options_global->DENSITY_SMOOTH_RADIUS *
+                       simulation_options_global->BOX_LEN /
+                       (float)simulation_options_global->HII_DIM,
+                   0.);
+    }
+
+    LOG_SUPER_DEBUG("delta_k after smoothing: ");
+    debugSummarizeBox((float *)lowres_grid, simulation_options_global->HII_DIM,
+                      simulation_options_global->HII_DIM, 2 * (HII_D_PARA / 2 + 1), "  ");
+
+    // save a copy of the k-space density field for velocity computation
+    // TODO: The grid saving is awkward, it happens in different functions depending on the
+    // resolution, and the low-res grid is saved *after* the smoothing
+    if (!matter_options_global->PERTURB_ON_HIGH_RES) {
+        memcpy(density_perturb_saved, lowres_grid, sizeof(fftwf_complex) * HII_KSPACE_NUM_PIXELS);
+    }
+
+    dft_c2r_cube(matter_options_global->USE_FFTW_WISDOM, simulation_options_global->HII_DIM,
+                 HII_D_PARA, simulation_options_global->N_THREADS, lowres_grid);
+
+    LOG_SUPER_DEBUG("delta back in real space: ");
+    debugSummarizeBox((float *)lowres_grid, simulation_options_global->HII_DIM,
+                      simulation_options_global->HII_DIM, 2 * (HII_D_PARA / 2 + 1), "  ");
+
+    // normalize after FFT
+    int bad_count = 0;
+#pragma omp parallel shared(lowres_grid) private(i, j, k) \
+    num_threads(simulation_options_global -> N_THREADS) reduction(+ : bad_count)
+    {
+#pragma omp for
+        for (i = 0; i < simulation_options_global->HII_DIM; i++) {
+            for (j = 0; j < simulation_options_global->HII_DIM; j++) {
+                for (k = 0; k < HII_D_PARA; k++) {
+                    *((float *)lowres_grid + HII_R_FFT_INDEX(i, j, k)) /= (float)HII_TOT_NUM_PIXELS;
+
+                    if (*((float *)lowres_grid + HII_R_FFT_INDEX(i, j, k)) <
+                        -1.0 + FRACT_FLOAT_ERR) {  // shouldn't happen
+
+                        if (bad_count < 5)
+                            LOG_WARNING("delta is <-1 for index %d %d %d (value=%f)", i, j, k,
+                                        *((float *)lowres_grid + HII_R_FFT_INDEX(i, j, k)));
+                        if (bad_count == 5)
+                            LOG_WARNING("Skipping further warnings for delta <= -1.");
+                        *((float *)lowres_grid + HII_R_FFT_INDEX(i, j, k)) = -1.0 + FRACT_FLOAT_ERR;
+                        bad_count++;
+                    }
+                }
+            }
+        }
+    }
+    if (bad_count >= 5) LOG_WARNING("Total number of bad indices: %d", bad_count);
+    LOG_SUPER_DEBUG("delta normalized: ");
+    debugSummarizeBox((float *)lowres_grid, simulation_options_global->HII_DIM,
+                      simulation_options_global->HII_DIM, 2 * (HII_D_PARA / 2 + 1), "  ");
 }
 
 void compute_perturbed_velocities(unsigned short axis, double redshift,
@@ -493,74 +562,10 @@ int ComputePerturbField(float redshift, InitialConditions *boxes, PerturbedField
             normalise_delta_grid(LOWRES_density_perturb);
         }
 
-        // transform to k-space
-        dft_r2c_cube(matter_options_global->USE_FFTW_WISDOM, simulation_options_global->HII_DIM,
-                     HII_D_PARA, simulation_options_global->N_THREADS, LOWRES_density_perturb);
+        // Smooth if required and make sure we have no values <= -1
+        smooth_and_clip_density(LOWRES_density_perturb, density_perturb_saved);
 
-        // smooth the field
-        if (matter_options_global->PERTURB_ALGORITHM > 0 &&
-            matter_options_global->SMOOTH_EVOLVED_DENSITY_FIELD) {
-            filter_box(LOWRES_density_perturb, 1, 2,
-                       simulation_options_global->DENSITY_SMOOTH_RADIUS *
-                           simulation_options_global->BOX_LEN /
-                           (float)simulation_options_global->HII_DIM,
-                       0.);
-        }
-
-        LOG_SUPER_DEBUG("LOWRES_density_perturb after smoothing: ");
-        debugSummarizeBox((float *)LOWRES_density_perturb, simulation_options_global->HII_DIM,
-                          simulation_options_global->HII_DIM, 2 * (HII_D_PARA / 2 + 1), "  ");
-
-        // save a copy of the k-space density field for velocity computation
-        if (!matter_options_global->PERTURB_ON_HIGH_RES) {
-            memcpy(density_perturb_saved, LOWRES_density_perturb,
-                   sizeof(fftwf_complex) * HII_KSPACE_NUM_PIXELS);
-        }
-
-        dft_c2r_cube(matter_options_global->USE_FFTW_WISDOM, simulation_options_global->HII_DIM,
-                     HII_D_PARA, simulation_options_global->N_THREADS, LOWRES_density_perturb);
-
-        LOG_SUPER_DEBUG("LOWRES_density_perturb back in real space: ");
-        debugSummarizeBox((float *)LOWRES_density_perturb, simulation_options_global->HII_DIM,
-                          simulation_options_global->HII_DIM, 2 * (HII_D_PARA / 2 + 1), "  ");
-
-        // normalize after FFT
-        int bad_count = 0;
-#pragma omp parallel shared(LOWRES_density_perturb) private(i, j, k) \
-    num_threads(simulation_options_global -> N_THREADS) reduction(+ : bad_count)
-        {
-#pragma omp for
-            for (i = 0; i < simulation_options_global->HII_DIM; i++) {
-                for (j = 0; j < simulation_options_global->HII_DIM; j++) {
-                    for (k = 0; k < HII_D_PARA; k++) {
-                        *((float *)LOWRES_density_perturb + HII_R_FFT_INDEX(i, j, k)) /=
-                            (float)HII_TOT_NUM_PIXELS;
-
-                        if (*((float *)LOWRES_density_perturb + HII_R_FFT_INDEX(i, j, k)) <
-                            -1.0) {  // shouldn't happen
-
-                            if (bad_count < 5)
-                                LOG_WARNING(
-                                    "LOWRES_density_perturb is <-1 for index %d %d %d (value=%f)",
-                                    i, j, k,
-                                    *((float *)LOWRES_density_perturb + HII_R_FFT_INDEX(i, j, k)));
-                            if (bad_count == 5)
-                                LOG_WARNING(
-                                    "Skipping further warnings for LOWRES_density_perturb.");
-                            *((float *)LOWRES_density_perturb + HII_R_FFT_INDEX(i, j, k)) =
-                                -1 + FRACT_FLOAT_ERR;
-                            bad_count++;
-                        }
-                    }
-                }
-            }
-        }
-        if (bad_count >= 5)
-            LOG_WARNING("Total number of bad indices for LOW_density_perturb: %d", bad_count);
-        LOG_SUPER_DEBUG("LOWRES_density_perturb back in real space (normalized): ");
-        debugSummarizeBox((float *)LOWRES_density_perturb, simulation_options_global->HII_DIM,
-                          simulation_options_global->HII_DIM, 2 * (HII_D_PARA / 2 + 1), "  ");
-
+        // Assign to the struct
 #pragma omp parallel shared(perturbed_field, LOWRES_density_perturb) private(i, j, k) \
     num_threads(simulation_options_global -> N_THREADS)
         {
