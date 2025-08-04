@@ -74,6 +74,180 @@ static inline void do_cic_interpolation(double *resampled_box, double pos[3], in
     }
 }
 
+void move_grid_masses(float redshift, fftwf_complex *fft_density_grid, InitialConditions *boxes) {
+    float growth_factor, displacement_factor_2LPT, init_growth_factor,
+        init_displacement_factor_2LPT;
+    int i, j, k, axis;
+
+    double dim_ratio, dim_ratio_inv;
+    // Function for deciding the dimensions of loops when we could
+    // use either the low or high resolution grids.
+    double boxlen = simulation_options_global->BOX_LEN;
+    double boxlen_z = boxlen * simulation_options_global->NON_CUBIC_FACTOR;
+    double box_size[3] = {boxlen, boxlen, boxlen_z};
+    int box_dim[3];
+    float *vel_pointers[3], *vel_pointers_2LPT[3];
+    float *dens_pointer;
+    if (matter_options_global->PERTURB_ON_HIGH_RES) {
+        box_dim[0] = simulation_options_global->DIM;
+        box_dim[1] = simulation_options_global->DIM;
+        box_dim[2] = D_PARA;
+        vel_pointers[0] = boxes->hires_vx;
+        vel_pointers[1] = boxes->hires_vy;
+        vel_pointers[2] = boxes->hires_vz;
+        vel_pointers_2LPT[0] = boxes->hires_vx_2LPT;
+        vel_pointers_2LPT[1] = boxes->hires_vy_2LPT;
+        vel_pointers_2LPT[2] = boxes->hires_vz_2LPT;
+        dens_pointer = boxes->hires_density;
+    } else {
+        box_dim[0] = simulation_options_global->HII_DIM;
+        box_dim[1] = simulation_options_global->HII_DIM;
+        box_dim[2] = HII_D_PARA;
+        vel_pointers[0] = boxes->lowres_vx;
+        vel_pointers[1] = boxes->lowres_vy;
+        vel_pointers[2] = boxes->lowres_vz;
+        vel_pointers_2LPT[0] = boxes->lowres_vx_2LPT;
+        vel_pointers_2LPT[1] = boxes->lowres_vy_2LPT;
+        vel_pointers_2LPT[2] = boxes->lowres_vz_2LPT;
+        dens_pointer = boxes->lowres_density;
+    }
+
+    // ***************   BEGIN INITIALIZATION   ************************** //
+
+    LOG_DEBUG("Computing Perturbed Field at z=%.3f", redshift);
+
+    growth_factor = dicke(redshift);
+    displacement_factor_2LPT = -(3.0 / 7.0) * growth_factor * growth_factor;  // 2LPT eq. D8
+
+    init_growth_factor = dicke(simulation_options_global->INITIAL_REDSHIFT);
+    init_displacement_factor_2LPT =
+        -(3.0 / 7.0) * init_growth_factor * init_growth_factor;  // 2LPT eq. D8
+
+    // low --> high res index factor, used when downsampling
+    dim_ratio = simulation_options_global->DIM / (double)(simulation_options_global->HII_DIM);
+    // high --> low res index factor
+    dim_ratio_inv = matter_options_global->PERTURB_ON_HIGH_RES ? 1.0 : 1. / dim_ratio;
+
+    double *resampled_box;
+
+    // check if the linear evolution flag was set
+    if (matter_options_global->PERTURB_ALGORITHM == 0) {
+#pragma omp parallel private(i, j, k) num_threads(simulation_options_global -> N_THREADS)
+        {
+            unsigned long long int grid_index, fft_index;
+#pragma omp for
+            for (i = 0; i < box_dim[0]; i++) {
+                for (j = 0; j < box_dim[1]; j++) {
+                    for (k = 0; k < box_dim[2]; k++) {
+                        grid_index = grid_index_general(i, j, k, box_dim);
+                        fft_index = grid_index_fftw_r(i, j, k, box_dim);
+                        *((float *)fft_density_grid + fft_index) =
+                            growth_factor * dens_pointer[grid_index];
+                    }
+                }
+            }
+        }
+    } else {
+        // Apply Zel'dovich/2LPT correction
+#pragma omp parallel private(i, j, k) num_threads(simulation_options_global -> N_THREADS)
+        {
+            unsigned long long int fft_index;
+#pragma omp for
+            for (i = 0; i < box_dim[0]; i++) {
+                for (j = 0; j < box_dim[1]; j++) {
+                    for (k = 0; k < box_dim[2]; k++) {
+                        fft_index = grid_index_fftw_r(i, j, k, box_dim);
+                        *((float *)fft_density_grid + fft_index) = 0.;
+                    }
+                }
+            }
+        }
+
+        double velocity_displacement_factor[3] = {
+            (growth_factor - init_growth_factor) / box_size[0],
+            (growth_factor - init_growth_factor) / box_size[1],
+            (growth_factor - init_growth_factor) / box_size[2]};
+        double velocity_displacement_factor_2LPT[3] = {
+            (displacement_factor_2LPT - init_displacement_factor_2LPT) / box_size[0],
+            (displacement_factor_2LPT - init_displacement_factor_2LPT) / box_size[1],
+            (displacement_factor_2LPT - init_displacement_factor_2LPT) / box_size[2]};
+
+        // ************  END INITIALIZATION **************************** //
+
+        // Perturbing the density field required adding over multiple cells. Store intermediate
+        // result as a double to avoid rounding errors
+        if (matter_options_global->PERTURB_ON_HIGH_RES) {
+            resampled_box = (double *)calloc(TOT_NUM_PIXELS, sizeof(double));
+        } else {
+            resampled_box = (double *)calloc(HII_TOT_NUM_PIXELS, sizeof(double));
+        }
+
+// go through the high-res box, mapping the mass onto the low-res (updated) box
+#pragma omp parallel private(i, j, k, axis) num_threads(simulation_options_global -> N_THREADS)
+        {
+            double pos[3], curr_dens;
+            int ipos[3];
+            unsigned long long vel_index;
+#pragma omp for
+            for (i = 0; i < simulation_options_global->DIM; i++) {
+                for (j = 0; j < simulation_options_global->DIM; j++) {
+                    for (k = 0; k < D_PARA; k++) {
+                        // Transform position to units of box size
+                        pos[0] = (i + 0.5) / (simulation_options_global->DIM + 0.0);
+                        pos[1] = (j + 0.5) / (simulation_options_global->DIM + 0.0);
+                        pos[2] = (k + 0.5) / (D_PARA + 0.0);
+                        ipos[0] = (int)(i * dim_ratio_inv);
+                        ipos[1] = (int)(j * dim_ratio_inv);
+                        ipos[2] = (int)(k * dim_ratio_inv);
+                        vel_index = grid_index_general(ipos[0], ipos[1], ipos[2], box_dim);
+                        for (axis = 0; axis < 3; axis++) {
+                            pos[axis] +=
+                                vel_pointers[axis][vel_index] * velocity_displacement_factor[axis];
+                            // add 2LPT second order corrections
+                            if (matter_options_global->PERTURB_ALGORITHM == 2) {
+                                pos[axis] -= vel_pointers_2LPT[axis][vel_index] *
+                                             velocity_displacement_factor_2LPT[axis];
+                            }
+
+                            // transform to units of cell size
+                            pos[axis] *= box_dim[axis];
+                        }
+
+                        // CIC interpolation
+                        curr_dens =
+                            1. + boxes->hires_density[R_INDEX(i, j, k)] * init_growth_factor;
+                        do_cic_interpolation(resampled_box, pos, box_dim, curr_dens);
+                    }
+                }
+            }
+        }
+
+        LOG_SUPER_DEBUG("resampled_box: ");
+        debugSummarizeBoxDouble(resampled_box, box_dim[0], box_dim[1], box_dim[2], "  ");
+
+        // Resample back to a fftw float for remaining algorithm
+#pragma omp parallel private(i, j, k) num_threads(simulation_options_global -> N_THREADS)
+        {
+            unsigned long long int grid_index, fft_index;
+#pragma omp for
+            for (i = 0; i < box_dim[0]; i++) {
+                for (j = 0; j < box_dim[1]; j++) {
+                    for (k = 0; k < box_dim[2]; k++) {
+                        grid_index = grid_index_general(i, j, k, box_dim);
+                        fft_index = grid_index_fftw_r(i, j, k, box_dim);
+                        *((float *)fft_density_grid + fft_index) = (float)resampled_box[grid_index];
+                    }
+                }
+            }
+        }
+        free(resampled_box);
+
+        LOG_SUPER_DEBUG("density_perturb: ");
+        debugSummarizeBox((float *)fft_density_grid, box_dim[0], box_dim[1],
+                          2 * (box_dim[2] / 2 + 1), "  ");
+    }
+}
+
 void assign_to_lowres_grid(fftwf_complex *hires_grid, fftwf_complex *lowres_grid,
                            fftwf_complex *saved_grid) {
     int i, j, k;
@@ -362,59 +536,6 @@ int ComputePerturbField(float redshift, InitialConditions *boxes, PerturbedField
         fftwf_complex *HIRES_density_perturb = NULL;
         fftwf_complex *LOWRES_density_perturb, *density_perturb_saved;
 
-        float growth_factor, displacement_factor_2LPT, init_growth_factor,
-            init_displacement_factor_2LPT;
-        int i, j, k, axis;
-
-        double dim_ratio, dim_ratio_inv;
-        // Function for deciding the dimensions of loops when we could
-        // use either the low or high resolution grids.
-        double boxlen = simulation_options_global->BOX_LEN;
-        double boxlen_z = boxlen * simulation_options_global->NON_CUBIC_FACTOR;
-        double box_size[3] = {boxlen, boxlen, boxlen_z};
-        int box_dim[3];
-        float *vel_pointers[3], *vel_pointers_2LPT[3];
-        float *dens_pointer;
-        if (matter_options_global->PERTURB_ON_HIGH_RES) {
-            box_dim[0] = simulation_options_global->DIM;
-            box_dim[1] = simulation_options_global->DIM;
-            box_dim[2] = D_PARA;
-            vel_pointers[0] = boxes->hires_vx;
-            vel_pointers[1] = boxes->hires_vy;
-            vel_pointers[2] = boxes->hires_vz;
-            vel_pointers_2LPT[0] = boxes->hires_vx_2LPT;
-            vel_pointers_2LPT[1] = boxes->hires_vy_2LPT;
-            vel_pointers_2LPT[2] = boxes->hires_vz_2LPT;
-            dens_pointer = boxes->hires_density;
-        } else {
-            box_dim[0] = simulation_options_global->HII_DIM;
-            box_dim[1] = simulation_options_global->HII_DIM;
-            box_dim[2] = HII_D_PARA;
-            vel_pointers[0] = boxes->lowres_vx;
-            vel_pointers[1] = boxes->lowres_vy;
-            vel_pointers[2] = boxes->lowres_vz;
-            vel_pointers_2LPT[0] = boxes->lowres_vx_2LPT;
-            vel_pointers_2LPT[1] = boxes->lowres_vy_2LPT;
-            vel_pointers_2LPT[2] = boxes->lowres_vz_2LPT;
-            dens_pointer = boxes->lowres_density;
-        }
-
-        // ***************   BEGIN INITIALIZATION   ************************** //
-
-        LOG_DEBUG("Computing Perturbed Field at z=%.3f", redshift);
-
-        growth_factor = dicke(redshift);
-        displacement_factor_2LPT = -(3.0 / 7.0) * growth_factor * growth_factor;  // 2LPT eq. D8
-
-        init_growth_factor = dicke(simulation_options_global->INITIAL_REDSHIFT);
-        init_displacement_factor_2LPT =
-            -(3.0 / 7.0) * init_growth_factor * init_growth_factor;  // 2LPT eq. D8
-
-        // low --> high res index factor, used when downsampling
-        dim_ratio = simulation_options_global->DIM / (double)(simulation_options_global->HII_DIM);
-        // high --> low res index factor
-        dim_ratio_inv = matter_options_global->PERTURB_ON_HIGH_RES ? 1.0 : 1. / dim_ratio;
-
         // allocate memory for the updated density, and initialize
         LOWRES_density_perturb =
             (fftwf_complex *)fftwf_malloc(sizeof(fftwf_complex) * HII_KSPACE_NUM_PIXELS);
@@ -432,126 +553,8 @@ int ComputePerturbField(float redshift, InitialConditions *boxes, PerturbedField
         fftwf_complex *fft_density_grid = matter_options_global->PERTURB_ON_HIGH_RES
                                               ? HIRES_density_perturb
                                               : LOWRES_density_perturb;
-        double *resampled_box;
 
-        // check if the linear evolution flag was set
-        if (matter_options_global->PERTURB_ALGORITHM == 0) {
-#pragma omp parallel private(i, j, k) num_threads(simulation_options_global -> N_THREADS)
-            {
-                unsigned long long int grid_index, fft_index;
-#pragma omp for
-                for (i = 0; i < box_dim[0]; i++) {
-                    for (j = 0; j < box_dim[1]; j++) {
-                        for (k = 0; k < box_dim[2]; k++) {
-                            grid_index = grid_index_general(i, j, k, box_dim);
-                            fft_index = grid_index_fftw_r(i, j, k, box_dim);
-                            *((float *)fft_density_grid + fft_index) =
-                                growth_factor * dens_pointer[grid_index];
-                        }
-                    }
-                }
-            }
-        } else {
-            // Apply Zel'dovich/2LPT correction
-#pragma omp parallel private(i, j, k) num_threads(simulation_options_global -> N_THREADS)
-            {
-                unsigned long long int fft_index;
-#pragma omp for
-                for (i = 0; i < box_dim[0]; i++) {
-                    for (j = 0; j < box_dim[1]; j++) {
-                        for (k = 0; k < box_dim[2]; k++) {
-                            fft_index = grid_index_fftw_r(i, j, k, box_dim);
-                            *((float *)fft_density_grid + fft_index) = 0.;
-                        }
-                    }
-                }
-            }
-
-            double velocity_displacement_factor[3] = {
-                (growth_factor - init_growth_factor) / box_size[0],
-                (growth_factor - init_growth_factor) / box_size[1],
-                (growth_factor - init_growth_factor) / box_size[2]};
-            double velocity_displacement_factor_2LPT[3] = {
-                (displacement_factor_2LPT - init_displacement_factor_2LPT) / box_size[0],
-                (displacement_factor_2LPT - init_displacement_factor_2LPT) / box_size[1],
-                (displacement_factor_2LPT - init_displacement_factor_2LPT) / box_size[2]};
-
-            // ************  END INITIALIZATION **************************** //
-
-            // Perturbing the density field required adding over multiple cells. Store intermediate
-            // result as a double to avoid rounding errors
-            if (matter_options_global->PERTURB_ON_HIGH_RES) {
-                resampled_box = (double *)calloc(TOT_NUM_PIXELS, sizeof(double));
-            } else {
-                resampled_box = (double *)calloc(HII_TOT_NUM_PIXELS, sizeof(double));
-            }
-
-// go through the high-res box, mapping the mass onto the low-res (updated) box
-#pragma omp parallel private(i, j, k, axis) num_threads(simulation_options_global -> N_THREADS)
-            {
-                double pos[3], curr_dens;
-                int ipos[3];
-                unsigned long long vel_index;
-#pragma omp for
-                for (i = 0; i < simulation_options_global->DIM; i++) {
-                    for (j = 0; j < simulation_options_global->DIM; j++) {
-                        for (k = 0; k < D_PARA; k++) {
-                            // Transform position to units of box size
-                            pos[0] = (i + 0.5) / (simulation_options_global->DIM + 0.0);
-                            pos[1] = (j + 0.5) / (simulation_options_global->DIM + 0.0);
-                            pos[2] = (k + 0.5) / (D_PARA + 0.0);
-                            ipos[0] = (int)(i * dim_ratio_inv);
-                            ipos[1] = (int)(j * dim_ratio_inv);
-                            ipos[2] = (int)(k * dim_ratio_inv);
-                            vel_index = grid_index_general(ipos[0], ipos[1], ipos[2], box_dim);
-                            for (axis = 0; axis < 3; axis++) {
-                                pos[axis] += vel_pointers[axis][vel_index] *
-                                             velocity_displacement_factor[axis];
-                                // add 2LPT second order corrections
-                                if (matter_options_global->PERTURB_ALGORITHM == 2) {
-                                    pos[axis] -= vel_pointers_2LPT[axis][vel_index] *
-                                                 velocity_displacement_factor_2LPT[axis];
-                                }
-
-                                // transform to units of cell size
-                                pos[axis] *= box_dim[axis];
-                            }
-
-                            // CIC interpolation
-                            curr_dens =
-                                1. + boxes->hires_density[R_INDEX(i, j, k)] * init_growth_factor;
-                            do_cic_interpolation(resampled_box, pos, box_dim, curr_dens);
-                        }
-                    }
-                }
-            }
-
-            LOG_SUPER_DEBUG("resampled_box: ");
-            debugSummarizeBoxDouble(resampled_box, box_dim[0], box_dim[1], box_dim[2], "  ");
-
-            // Resample back to a fftw float for remaining algorithm
-#pragma omp parallel private(i, j, k) num_threads(simulation_options_global -> N_THREADS)
-            {
-                unsigned long long int grid_index, fft_index;
-#pragma omp for
-                for (i = 0; i < box_dim[0]; i++) {
-                    for (j = 0; j < box_dim[1]; j++) {
-                        for (k = 0; k < box_dim[2]; k++) {
-                            grid_index = grid_index_general(i, j, k, box_dim);
-                            fft_index = grid_index_fftw_r(i, j, k, box_dim);
-                            *((float *)fft_density_grid + fft_index) =
-                                (float)resampled_box[grid_index];
-                        }
-                    }
-                }
-            }
-            free(resampled_box);
-
-            LOG_SUPER_DEBUG("density_perturb: ");
-
-            debugSummarizeBox((float *)fft_density_grid, box_dim[0], box_dim[1],
-                              2 * (box_dim[2] / 2 + 1), "  ");
-        }
+        move_grid_masses(redshift, fft_density_grid, boxes);
 
         // Move data from high-res to low-res grid if needed, and convert to delta
         if (matter_options_global->PERTURB_ON_HIGH_RES) {
@@ -566,13 +569,12 @@ int ComputePerturbField(float redshift, InitialConditions *boxes, PerturbedField
         smooth_and_clip_density(LOWRES_density_perturb, density_perturb_saved);
 
         // Assign to the struct
-#pragma omp parallel shared(perturbed_field, LOWRES_density_perturb) private(i, j, k) \
-    num_threads(simulation_options_global -> N_THREADS)
+#pragma omp parallel num_threads(simulation_options_global->N_THREADS)
         {
 #pragma omp for
-            for (i = 0; i < simulation_options_global->HII_DIM; i++) {
-                for (j = 0; j < simulation_options_global->HII_DIM; j++) {
-                    for (k = 0; k < HII_D_PARA; k++) {
+            for (int i = 0; i < simulation_options_global->HII_DIM; i++) {
+                for (int j = 0; j < simulation_options_global->HII_DIM; j++) {
+                    for (int k = 0; k < HII_D_PARA; k++) {
                         *((float *)perturbed_field->density + HII_R_INDEX(i, j, k)) =
                             *((float *)LOWRES_density_perturb + HII_R_FFT_INDEX(i, j, k));
                     }
