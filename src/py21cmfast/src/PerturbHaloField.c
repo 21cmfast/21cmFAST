@@ -72,6 +72,8 @@ int ComputePerturbHaloField(float redshift, InitialConditions *boxes, HaloField 
             vel_pointers_2LPT[1] = boxes->lowres_vy_2LPT;
             vel_pointers_2LPT[2] = boxes->lowres_vz_2LPT;
         }
+        double cell_size_inv[3] = {box_dim[0] / box_size[0], box_dim[1] / box_size[1],
+                                   box_dim[2] / box_size[2]};
 
         growth_factor = dicke(redshift);
         displacement_factor_2LPT = -(3.0 / 7.0) * growth_factor * growth_factor;  // 2LPT eq. D8
@@ -81,14 +83,9 @@ int ComputePerturbHaloField(float redshift, InitialConditions *boxes, HaloField 
             -(3.0 / 7.0) * init_growth_factor * init_growth_factor;  // 2LPT eq. D8
 
         // ***************   BEGIN INITIALIZATION   ************************** //
-        double velocity_displacement_factor[3] = {
-            (growth_factor - init_growth_factor) / box_size[0],
-            (growth_factor - init_growth_factor) / box_size[1],
-            (growth_factor - init_growth_factor) / box_size[2]};
-        double velocity_displacement_factor_2LPT[3] = {
-            (displacement_factor_2LPT - init_displacement_factor_2LPT) / box_size[0],
-            (displacement_factor_2LPT - init_displacement_factor_2LPT) / box_size[1],
-            (displacement_factor_2LPT - init_displacement_factor_2LPT) / box_size[2]};
+        double velocity_displacement_factor = growth_factor - init_growth_factor;
+        double velocity_displacement_factor_2LPT =
+            displacement_factor_2LPT - init_displacement_factor_2LPT;
 
         // Function for deciding the dimensions of loops when we could
         // use either the low or high resolution grids.
@@ -111,14 +108,14 @@ int ComputePerturbHaloField(float redshift, InitialConditions *boxes, HaloField 
                 if (error_in_parallel) continue;
                 // convert location to fractional value
                 for (int i_dim = 0; i_dim < 3; i_dim++) {
-                    pos[i_dim] = halos->halo_coords[i_halo * 3 + i_dim] / box_size[i_dim];
+                    pos[i_dim] = halos->halo_coords[i_halo * 3 + i_dim];
                     // Sometimes, halos are exactly on the edge of the box even after wrapping
                     //   from floating point errors.
-                    if (pos[i_dim] == 1.0) {
+                    if (pos[i_dim] == box_size[i_dim]) {
                         ipos[i_dim] = box_dim[i_dim] - 1;
                         n_exact_dim++;
                     } else {
-                        ipos[i_dim] = (int)(pos[i_dim] * box_dim[i_dim]);
+                        ipos[i_dim] = (int)(pos[i_dim] * cell_size_inv[i_dim]);
                     }
                 }
                 if (ipos[0] >= box_dim[0] || ipos[1] >= box_dim[1] || ipos[2] >= box_dim[2] ||
@@ -135,12 +132,10 @@ int ComputePerturbHaloField(float redshift, InitialConditions *boxes, HaloField 
                 grid_index = grid_index_general(ipos[0], ipos[1], ipos[2], box_dim);
 
                 for (int i_dim = 0; i_dim < 3; i_dim++) {
-                    pos[i_dim] +=
-                        vel_pointers[i_dim][grid_index] * velocity_displacement_factor[i_dim];
+                    pos[i_dim] += vel_pointers[i_dim][grid_index] * velocity_displacement_factor;
                     if (matter_options_global->PERTURB_ALGORITHM == 2)
                         pos[i_dim] -= vel_pointers_2LPT[i_dim][grid_index] *
-                                      velocity_displacement_factor_2LPT[i_dim];
-                    pos[i_dim] *= box_size[i_dim];  // convert to comoving position
+                                      velocity_displacement_factor_2LPT;
                 }
 
                 // Mutliplying before the wrapping to ensure that floating point errors
