@@ -28,12 +28,15 @@ def recursive_difference(
     out = {}
     for key, val1 in dct1.items():
         if isinstance(val1, dict):
-            diff = recursive_difference(val1, dct2[key], cmprules)
+            if not isinstance(dct2.get(key, None), dict):
+                diff = val1
+            else:
+                diff = recursive_difference(val1, dct2[key], cmprules)
             if diff:
                 out[key] = diff
         else:
             _eq = cmprules.get(type(val1), eq)
-            if not _eq(val1, dct2[key]):
+            if not _eq(val1, dct2.get(key, None)):
                 out[key] = val1
 
     return out

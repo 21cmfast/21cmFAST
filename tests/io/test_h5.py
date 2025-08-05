@@ -7,8 +7,8 @@ import numpy as np
 import pytest
 
 from py21cmfast import InputParameters
+from py21cmfast._templates import list_templates
 from py21cmfast.io import h5
-from py21cmfast.run_templates import list_templates
 
 
 class TestHDF5ToDict:

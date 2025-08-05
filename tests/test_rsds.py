@@ -306,8 +306,9 @@ def test_new_rsd_lightcones(cache, lcner):
         BOX_LEN=15,
         DIM=45,
         HII_DIM=10,
-        N_THREADS=6,
+        N_THREADS=1,
         USE_TS_FLUCT=True,
+        KEEP_3D_VELOCITIES=True,
     )
     if lcner == "rect":
         lightconer = RectilinearLightconer.between_redshifts(
@@ -319,9 +320,9 @@ def test_new_rsd_lightcones(cache, lcner):
         )
     else:
         lightconer = AngularLightconer.like_rectilinear(
-            min_redshift=inputs.node_redshifts[-1] + 0.5,
             max_redshift=inputs.node_redshifts[0] - 0.5,
-            resolution=inputs.simulation_options.cell_size,
+            simulation_options=inputs.simulation_options,
+            match_at_z=inputs.node_redshifts[-1] + 0.5,
             cosmo=inputs.cosmo_params.cosmo,
             quantities=("brightness_temp", "density"),
         )

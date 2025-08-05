@@ -81,7 +81,7 @@ class TestRecursiveDifference:
         a = {"a": np.zeros(10)}
         b = {"a": np.zeros(10)}
 
-        with pytest.raises(ValueError, "The truthvalue of an array"):
+        with pytest.raises(ValueError, match="The truth value of an array"):
             recursive_difference(a, b)
 
         cmprules = {np.ndarray: lambda x, y: np.allclose(x, y)}

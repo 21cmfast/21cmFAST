@@ -69,15 +69,17 @@ def _get_incompatible_param_diffstring(
     inputs1: InputParameters, inputs2: InputParameters
 ) -> str:
     incompatible_params = _get_incompatible_params(inputs1, inputs2)
+    rev = _get_incompatible_params(inputs2, inputs1)
 
     return "".join(
         (
             f"{name}:\n"
             + "\n".join(
-                f"  {key}:\n    {v1:>12}\n    {v2:>12}" for key, (v1, v2) in val.items()
+                f"  {key}:\n    {v1:>12}\n    {rev[name][key]:>12}"
+                for key, v1 in val.items()
             )
             if isinstance(val, dict)
-            else f"{name}:\n  {val[0]}\n  {val[1]}"
+            else f"{name}:\n  {val}\n  {rev[name]}"
         )
         for name, val in incompatible_params.items()
     )

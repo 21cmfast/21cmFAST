@@ -223,7 +223,7 @@ class TestRunCoeval:
         """Test that having nodez in addition to --redshifts works."""
         # We have other node redshifts, but we don't do anything with them.
         app(
-            f"run coeval --template Park19 tiny --zprime-step-factor 1.4 --z-heat-max 15"
+            f"run coeval --template Park19 tiny --zprime-step-factor 1.4 --z-heat-max 15 "
             f"--cachedir {tmp_path} "
             f"--no-save-all-redshifts "
             f"--redshifts 6.0 --out {tmp_path}"

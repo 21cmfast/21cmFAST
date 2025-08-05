@@ -98,4 +98,4 @@ class TestDeserializeInputs:
         )
 
         with pytest.warns(UserWarning, match="Excess arguments"):
-            srlz.deserialize_inputs(inputs, MY_EXTRA_PARAM=True)
+            srlz.deserialize_inputs(inputs, MY_EXTRA_PARAM=True, safe=False)

@@ -634,7 +634,6 @@ def generate_lightcone(
         include_dvdr_in_tau21=include_dvdr_in_tau21,
         apply_rsds=apply_rsds,
     )
-
     if isinstance(write, bool):
         write = CacheConfig() if write else CacheConfig.off()
 

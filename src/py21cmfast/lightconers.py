@@ -369,7 +369,7 @@ class Lightconer(ABC):
 
         if apply_rsds or include_dvdr_in_tau21:
             lightconer = attrs.evolve(
-                lightconer, quantities=(*self.quantities, "los_velocity")
+                lightconer, quantities=(*lightconer.quantities, "los_velocity")
             )
 
         if not apply_rsds:
