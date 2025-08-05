@@ -470,3 +470,11 @@ class TestInputParameters:
         """Test that creation from a template works for all templates."""
         inputs = InputParameters.from_template(template, random_seed=1)
         assert isinstance(inputs, InputParameters)
+
+    def test_bad_input(self):
+        """Test that passing a non-existent parameter to evolve raises."""
+        with pytest.raises(
+            TypeError,
+            match="BAD_INPUT is not a valid keyword input.",
+        ):
+            InputParameters(random_seed=0).evolve_input_structs(BAD_INPUT=True)
