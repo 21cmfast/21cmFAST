@@ -354,6 +354,14 @@ def test_inputstruct_init(default_seed):
     assert altered_struct.simulation_options.BOX_LEN == 30
 
 
+def test_bad_input(default_seed):
+    with pytest.raises(
+        TypeError,
+        match="BAD_INPUT is not a valid keyword input.",
+    ):
+        InputParameters(random_seed=default_seed).evolve_input_structs(BAD_INPUT=True)
+
+
 def test_native_template_loading(default_seed):
     template_path = Path(__file__).parent.parent / "src/py21cmfast/templates/"
     with (template_path / "manifest.toml").open("rb") as f:
