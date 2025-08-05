@@ -592,8 +592,7 @@ def generate_lightcone(
         re-calculated.
     include_dvdr_in_tau21 : bool, optional
         If True, velocity gradient corrections to the 21cm optical depth will be applied.
-        Only applicable when AstroOptions.USE_TS_FLUCT=True. See Mao+ 2012. Default is
-        True.
+        See Mao+ 2012. Default is True.
     apply_rsds : bool, optional
         If True, all output lightcones will be transformed from real space to redshift space,
         according to the peculiar velocity fields.
@@ -635,7 +634,6 @@ def generate_lightcone(
         include_dvdr_in_tau21=include_dvdr_in_tau21,
         apply_rsds=apply_rsds,
     )
-
     if isinstance(write, bool):
         write = CacheConfig() if write else CacheConfig.off()
 

@@ -1,5 +1,8 @@
 exclude: '(^docs/conf.py|^src/py21cmfast/_data/|changethelog.py)'
 
+ci:
+  autoupdate_schedule: 'monthly'
+
 repos:
 - repo: https://github.com/pre-commit/pre-commit-hooks
   rev: v5.0.0

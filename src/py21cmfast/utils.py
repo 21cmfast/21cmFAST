@@ -1,42 +1,45 @@
 """Utilities for interacting with 21cmFAST data structures."""
 
+from operator import eq
+from typing import Any
+
 from .wrapper.inputs import InputParameters
-from .wrapper.outputs import InitialConditions, OutputStruct
 
 # allow print functions and ambiguous unicode characters
 # ruff: noqa: RUF001
 
 
-def get_all_fieldnames(
-    arrays_only=True, lightcone_only=False, as_dict=False
-) -> dict[str, str] | set[str]:
-    """Return all possible fieldnames in output structs.
+def recursive_difference(
+    dct1: dict | Any, dct2: dict | Any, cmprules: dict[type, callable] | None = None
+) -> dict:
+    """Return the recursive difference between two dicts.
 
-    Parameters
-    ----------
-    arrays_only : bool, optional
-        Whether to only return fields that are arrays.
-    lightcone_only : bool, optional
-        Whether to only return fields from classes that evolve with redshift.
-    as_dict : bool, optional
-        Whether to return results as a dictionary of ``quantity: class_name``.
-        Otherwise returns a set of quantities.
+    This is an *asymmetric* difference, i.e. we only end with values from dct1, and
+    only if it is not exactly the same as in dct2. Entries in dct2 that are not in
+    dct1 are ignored.
+
+    Only dictionaries (and their subclasses) are recursed -- all other containers are
+    treated as primitive types to be compared. If you need to recurse into custom
+    structures, first "unstructure" your objects into dictionaries (e.g. with
+    ``attrs.asdict(obj)``) then use this function.
     """
-    classes = [cls.dummy() for cls in OutputStruct._implementations()]
+    cmprules = cmprules or {}
 
-    if not lightcone_only:
-        classes.append(InitialConditions())
+    out = {}
+    for key, val1 in dct1.items():
+        if isinstance(val1, dict):
+            if not isinstance(dct2.get(key, None), dict):
+                diff = val1
+            else:
+                diff = recursive_difference(val1, dct2[key], cmprules)
+            if diff:
+                out[key] = diff
+        else:
+            _eq = cmprules.get(type(val1), eq)
+            if not _eq(val1, dct2.get(key, None)):
+                out[key] = val1
 
-    attr = "pointer_fields" if arrays_only else "fieldnames"
-
-    if as_dict:
-        return {
-            name: cls.__class__.__name__
-            for cls in classes
-            for name in getattr(cls, attr)
-        }
-    else:
-        return {name for cls in classes for name in getattr(cls, attr)}
+    return out
 
 
 def show_references(inputs: InputParameters, print_to_stdout=True):
