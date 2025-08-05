@@ -789,7 +789,9 @@ int sample_halo_grids(gsl_rng **rng_arr, double redshift, float *dens_field,
     double total_volume_excluded = 0.;
     double total_volume_dexm = 0.;
     double cell_volume = VOLUME / pow((double)simulation_options_global->HII_DIM, 3);
-    bool OUT_OF_BUFFER = false;
+    bool out_of_buffer = false;
+    int threadnum_bad;
+    unsigned long long int count_bad;
 #pragma omp parallel num_threads(simulation_options_global->N_THREADS)
     {
         // PRIVATE VARIABLES
@@ -837,6 +839,7 @@ int sample_halo_grids(gsl_rng **rng_arr, double redshift, float *dens_field,
 
 #pragma omp for reduction(+ : total_volume_excluded)
         for (x = 0; x < lo_dim; x++) {
+            if (out_of_buffer) continue;
             for (y = 0; y < lo_dim; y++) {
                 for (z = 0; z < HII_D_PARA; z++) {
                     delta = dens_field[HII_R_INDEX(x, y, z)] * growthf;
@@ -860,7 +863,9 @@ int sample_halo_grids(gsl_rng **rng_arr, double redshift, float *dens_field,
                         if (hm_buf[i] < simulation_options_global->SAMPLER_MIN_MASS) continue;
 
                         if (count >= arraysize_local) {
-                            OUT_OF_BUFFER = true;
+                            out_of_buffer = true;
+                            threadnum_bad = threadnum;
+                            count_bad = count;
                             continue;
                         }
 
@@ -900,10 +905,12 @@ int sample_halo_grids(gsl_rng **rng_arr, double redshift, float *dens_field,
         istart_threads[threadnum] = istart;
         nhalo_threads[threadnum] = count;
     }
-    if (OUT_OF_BUFFER) {
-        LOG_ERROR("More than %llu halos (expected %.1e) with buffer size factor %.1f",
-                  arraysize_local, arraysize_local / config_settings.HALO_CATALOG_MEM_FACTOR,
-                  config_settings.HALO_CATALOG_MEM_FACTOR);
+    if (out_of_buffer) {
+        LOG_ERROR(
+            "More than %llu halos (expected %.1e for thread %d, but got %llu) with buffer size "
+            "factor %.1f",
+            arraysize_local, arraysize_local / config_settings.HALO_CATALOG_MEM_FACTOR,
+            threadnum_bad, count_bad, config_settings.HALO_CATALOG_MEM_FACTOR);
         LOG_ERROR(
             "If you expected to have an above average halo number try raising "
             "config['HALO_CATALOG_MEM_FACTOR']");
@@ -945,7 +952,9 @@ int sample_halo_progenitors(gsl_rng **rng_arr, double z_in, double z_out, HaloFi
     double boxlen[3] = {simulation_options_global->BOX_LEN, simulation_options_global->BOX_LEN,
                         BOXLEN_PARA};
 
-    bool OUT_OF_BUFFER = false;
+    bool out_of_buffer = false;
+    int threadnum_bad;
+    unsigned long long int count_bad;
 
 #pragma omp parallel num_threads(simulation_options_global->N_THREADS)
     {
@@ -971,6 +980,7 @@ int sample_halo_progenitors(gsl_rng **rng_arr, double z_in, double z_out, HaloFi
 
 #pragma omp for
         for (ii = 0; ii < nhalo_in; ii++) {
+            if (out_of_buffer) continue;
             M2 = halofield_in->halo_masses[ii];
             R2 = MtoR(M2);
             if (M2 < Mmin || M2 > Mmax_tb) {
@@ -1001,7 +1011,9 @@ int sample_halo_progenitors(gsl_rng **rng_arr, double z_in, double z_out, HaloFi
                 if (prog_buf[jj] < simulation_options_global->SAMPLER_MIN_MASS) continue;
 
                 if (count >= arraysize_local) {
-                    OUT_OF_BUFFER = true;
+                    out_of_buffer = true;
+                    threadnum_bad = threadnum;
+                    count_bad = count;
                     continue;
                 }
 
@@ -1053,10 +1065,12 @@ int sample_halo_progenitors(gsl_rng **rng_arr, double z_in, double z_out, HaloFi
         istart_threads[threadnum] = istart;
         nhalo_threads[threadnum] = count;
     }
-    if (OUT_OF_BUFFER) {
-        LOG_ERROR("More than %llu halos (expected %.1e) with buffer size factor %.1f",
-                  arraysize_local, arraysize_local / config_settings.HALO_CATALOG_MEM_FACTOR,
-                  config_settings.HALO_CATALOG_MEM_FACTOR);
+    if (out_of_buffer) {
+        LOG_ERROR(
+            "More than %llu halos (expected %.1e for thread %d, but got %llu) with buffer size "
+            "factor %.1f",
+            arraysize_local, arraysize_local / config_settings.HALO_CATALOG_MEM_FACTOR,
+            threadnum_bad, count_bad, config_settings.HALO_CATALOG_MEM_FACTOR);
         LOG_ERROR(
             "If you expected to have an above average halo number try raising "
             "config['HALO_CATALOG_MEM_FACTOR']");
