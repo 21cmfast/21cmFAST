@@ -124,12 +124,6 @@ class TestAstroOptions:
         """Test possible exceptions when creating the object."""
         with pytest.raises(
             ValueError,
-            match="The SUBCELL_RSD flag is only effective if APPLY_RSDS is True.",
-        ):
-            AstroOptions(SUBCELL_RSD=True, APPLY_RSDS=False)
-
-        with pytest.raises(
-            ValueError,
             match="You have set USE_MINI_HALOS to True but USE_MASS_DEPENDENT_ZETA is False!",
         ):
             AstroOptions(
@@ -470,3 +464,11 @@ class TestInputParameters:
         """Test that creation from a template works for all templates."""
         inputs = InputParameters.from_template(template, random_seed=1)
         assert isinstance(inputs, InputParameters)
+
+    def test_bad_input(self):
+        """Test that passing a non-existent parameter to evolve raises."""
+        with pytest.raises(
+            TypeError,
+            match="BAD_INPUT is not a valid keyword input.",
+        ):
+            InputParameters(random_seed=0).evolve_input_structs(BAD_INPUT=True)

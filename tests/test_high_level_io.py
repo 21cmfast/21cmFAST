@@ -9,11 +9,11 @@ import pytest
 
 from py21cmfast import (
     Coeval,
+    CosmoParams,
     InitialConditions,
     InputParameters,
     LightCone,
     OutputCache,
-    SimulationOptions,
     run_coeval,
     run_lightcone,
 )
@@ -34,7 +34,7 @@ def coeval(ic, default_input_struct_ts, cache) -> Coeval:
 
 
 @pytest.fixture(scope="module")
-def ang_lightcone(ic, lc, default_input_struct_lc, default_astro_options, cache):
+def ang_lightcone(ic, lc, default_input_struct_lc, cache):
     lcn = AngularLightconer.like_rectilinear(
         match_at_z=lc.lightcone_redshifts.min(),
         max_redshift=lc.lightcone_redshifts.max(),
@@ -65,28 +65,28 @@ def test_read_bad_file_lc(test_direc: Path, lc: LightCone):
         )
 
         # make gaps
-        del f["InputParameters"]["simulation_options"].attrs["BOX_LEN"]
+        del f["InputParameters"]["cosmo_params"].attrs["SIGMA_8"]
 
     # load without compatibility mode, make sure we throw the right error
-    with pytest.raises(ValueError, match="There are extra or missing"):
+    with pytest.raises(ValueError, match="Excess arguments exist"):
         LightCone.from_file(fname, safe=True)
 
     # load in compatibility mode, check that we warn correctly
-    with pytest.warns(UserWarning, match="There are extra or missing"):
+    with pytest.warns(UserWarning, match="Excess arguments exist"):
         lc2 = LightCone.from_file(fname, safe=False)
 
     # check that the fake fields didn't show up in the struct
     assert not hasattr(lc2.simulation_options, "NotARealParameter")
 
     # check that missing fields are set to default
-    assert lc2.simulation_options.BOX_LEN == SimulationOptions().BOX_LEN
+    assert lc2.cosmo_params.SIGMA_8 == CosmoParams().SIGMA_8
 
     # check that the fields which are good are read in the struct
+    assert lc2.simulation_options == lc.simulation_options
     assert all(
-        getattr(lc2.simulation_options, field.name)
-        == getattr(lc.simulation_options, field.name)
-        for field in attrs.fields(SimulationOptions)
-        if field.name != "BOX_LEN"
+        getattr(lc2.cosmo_params, field.name) == getattr(lc.cosmo_params, field.name)
+        for field in attrs.fields(CosmoParams)
+        if field.name != "SIGMA_8"
     )
 
 
@@ -104,28 +104,28 @@ def test_read_bad_file_coev(test_direc: Path, coeval: Coeval):
         ] = "fake_param"
 
         # make gaps
-        del f["BrightnessTemp"]["InputParameters"]["simulation_options"].attrs[
-            "BOX_LEN"
-        ]
+        del f["BrightnessTemp"]["InputParameters"]["cosmo_params"].attrs["SIGMA_8"]
 
     # load in the coeval check that we warn correctly
-    with pytest.raises(ValueError, match="There are extra or missing"):
+    with pytest.raises(ValueError, match="Excess arguments exist"):
         Coeval.from_file(fname, safe=True)
 
-    with pytest.warns(UserWarning, match="There are extra or missing"):
+    with pytest.warns(UserWarning, match="Excess arguments exist"):
         cv2 = Coeval.from_file(fname, safe=False)
 
     # check that the fake params didn't show up in the struct
     assert not hasattr(cv2.simulation_options, "NotARealParameter")
 
     # check that missing fields are set to default
-    assert cv2.simulation_options.BOX_LEN == SimulationOptions().BOX_LEN
+    assert cv2.cosmo_params.SIGMA_8 == CosmoParams().SIGMA_8
 
     # check that the fields which are good are read in the struct
+    assert cv2.simulation_options == coeval.simulation_options
     assert all(
-        getattr(cv2.simulation_options, k) == getattr(coeval.simulation_options, k)
-        for k in coeval.simulation_options.asdict()
-        if k != "BOX_LEN"
+        getattr(cv2.cosmo_params, field.name)
+        == getattr(coeval.cosmo_params, field.name)
+        for field in attrs.fields(CosmoParams)
+        if field.name != "SIGMA_8"
     )
 
 

@@ -774,7 +774,7 @@ def _redshift_loop_generator(
 
                 # Purge XraySourceBox because it's enormous
                 if inputs.matter_options.USE_HALO_FIELD:
-                    this_xraysrouce.purge()
+                    this_xraysource.purge()
 
             this_ionized_box = sf.compute_ionization_field(
                 inputs=inputs,
