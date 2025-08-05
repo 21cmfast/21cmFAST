@@ -790,8 +790,7 @@ int sample_halo_grids(gsl_rng **rng_arr, double redshift, float *dens_field,
     double total_volume_dexm = 0.;
     double cell_volume = VOLUME / pow((double)simulation_options_global->HII_DIM, 3);
     bool out_of_buffer = false;
-    int threadnum_bad;
-    unsigned long long int count_bad;
+
 #pragma omp parallel num_threads(simulation_options_global->N_THREADS)
     {
         // PRIVATE VARIABLES
@@ -864,8 +863,6 @@ int sample_halo_grids(gsl_rng **rng_arr, double redshift, float *dens_field,
 
                         if (count >= arraysize_local) {
                             out_of_buffer = true;
-                            threadnum_bad = threadnum;
-                            count_bad = count;
                             continue;
                         }
 
@@ -906,11 +903,10 @@ int sample_halo_grids(gsl_rng **rng_arr, double redshift, float *dens_field,
         nhalo_threads[threadnum] = count;
     }
     if (out_of_buffer) {
-        LOG_ERROR(
-            "More than %llu halos (expected %.1e for thread %d, but got %llu) with buffer size "
-            "factor %.1f",
-            arraysize_local, arraysize_local / config_settings.HALO_CATALOG_MEM_FACTOR,
-            threadnum_bad, count_bad, config_settings.HALO_CATALOG_MEM_FACTOR);
+        LOG_ERROR("Halo buffer overflow (allocated %d halos per thread)", arraysize_local);
+        for (int n_t = 0; n_t < simulation_options_global->N_THREADS; n_t++) {
+            LOG_ERROR("Thread %d: %d halos", n_t, nhalo_threads[n_t]);
+        }
         LOG_ERROR(
             "If you expected to have an above average halo number try raising "
             "config['HALO_CATALOG_MEM_FACTOR']");
@@ -953,8 +949,6 @@ int sample_halo_progenitors(gsl_rng **rng_arr, double z_in, double z_out, HaloFi
                         BOXLEN_PARA};
 
     bool out_of_buffer = false;
-    int threadnum_bad;
-    unsigned long long int count_bad;
 
 #pragma omp parallel num_threads(simulation_options_global->N_THREADS)
     {
@@ -1012,8 +1006,6 @@ int sample_halo_progenitors(gsl_rng **rng_arr, double z_in, double z_out, HaloFi
 
                 if (count >= arraysize_local) {
                     out_of_buffer = true;
-                    threadnum_bad = threadnum;
-                    count_bad = count;
                     continue;
                 }
 
@@ -1066,11 +1058,10 @@ int sample_halo_progenitors(gsl_rng **rng_arr, double z_in, double z_out, HaloFi
         nhalo_threads[threadnum] = count;
     }
     if (out_of_buffer) {
-        LOG_ERROR(
-            "More than %llu halos (expected %.1e for thread %d, but got %llu) with buffer size "
-            "factor %.1f",
-            arraysize_local, arraysize_local / config_settings.HALO_CATALOG_MEM_FACTOR,
-            threadnum_bad, count_bad, config_settings.HALO_CATALOG_MEM_FACTOR);
+        LOG_ERROR("Halo buffer overflow (allocated %d halos per thread)", arraysize_local);
+        for (int n_t = 0; n_t < simulation_options_global->N_THREADS; n_t++) {
+            LOG_ERROR("Thread %d: %d halos", n_t, nhalo_threads[n_t]);
+        }
         LOG_ERROR(
             "If you expected to have an above average halo number try raising "
             "config['HALO_CATALOG_MEM_FACTOR']");
