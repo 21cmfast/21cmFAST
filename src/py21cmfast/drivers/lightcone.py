@@ -84,6 +84,23 @@ class LightCone:
     _last_completed_node: int = attrs.field(default=-1)
     _last_completed_lcidx: int = attrs.field(default=-1)
 
+    @classmethod
+    def get_fields(cls, inputs: InputParameters) -> tuple:
+        """Get a list of the names of the available fields in the simulation."""
+        possible_outputs = [
+            PerturbedField.new(inputs, redshift=0),
+            IonizedBox.new(inputs, redshift=0),
+            BrightnessTemp.new(inputs, redshift=0),
+        ]
+        if inputs.astro_options.USE_TS_FLUCT:
+            possible_outputs.append(TsBox.new(inputs, redshift=0))
+        if inputs.matter_options.USE_HALO_FIELD:
+            possible_outputs.append(HaloBox.new(inputs, redshift=0))
+        field_names = ("log10_mturn_acg", "log10_mturn_mcg")
+        for output in possible_outputs:
+            field_names += tuple(output.arrays.keys())
+        return field_names
+
     @property
     def cell_size(self) -> float:
         """Cell size [Mpc] of the lightcone voxels."""
@@ -324,7 +341,6 @@ def setup_lightcone_instance(
     lightconer: Lightconer,
     scrollz: Sequence[float],
     inputs: InputParameters,
-    global_quantities: Sequence[str],
     include_dvdr_in_tau21: bool,
     apply_rsds: bool,
     photon_nonconservation_data: dict,
@@ -366,11 +382,12 @@ def setup_lightcone_instance(
             lightcone_distances=lightconer.lc_distances,
             inputs=inputs,
             lightcones=lc,
-            global_quantities={
-                quantity: np.zeros(len(scrollz)) for quantity in global_quantities
-            },
+            global_quantities={},
             photon_nonconservation_data=photon_nonconservation_data,
         )
+        for quantity in lightcone.get_fields(inputs):
+            lightcone.global_quantities[quantity] = np.zeros(len(scrollz))
+
     return lightcone
 
 
@@ -387,7 +404,6 @@ def _run_lightcone_from_perturbed_fields(
     n_rsd_subcells: int,
     pt_halos: list[PerturbHaloField],
     regenerate: bool | None = None,
-    global_quantities: tuple[str] = ("brightness_temp", "neutral_fraction"),
     cache: OutputCache = _ocache,
     cleanup: bool = True,
     write: CacheConfig = _cache,
@@ -404,7 +420,6 @@ def _run_lightcone_from_perturbed_fields(
         lightconer=lightconer,
         inputs=inputs,
         scrollz=scrollz,
-        global_quantities=global_quantities,
         include_dvdr_in_tau21=include_dvdr_in_tau21,
         apply_rsds=apply_rsds,
         lightcone_filename=lightcone_filename,
@@ -458,7 +473,7 @@ def _run_lightcone_from_perturbed_fields(
         iokw=iokw,
     ):
         # Save mean/global quantities
-        for quantity in global_quantities:
+        for quantity in lightcone.global_quantities:
             if quantity == "log10_mturn_acg":
                 lightcone.global_quantities[quantity][iz] = (
                     coeval.ionized_box.log10_Mturnover_ave
@@ -549,7 +564,6 @@ def generate_lightcone(
     *,
     lightconer: Lightconer,
     inputs: InputParameters,
-    global_quantities=("brightness_temp", "neutral_fraction"),
     initial_conditions: InitialConditions | None = None,
     include_dvdr_in_tau21: bool = True,
     apply_rsds: bool = False,
@@ -573,11 +587,6 @@ def generate_lightcone(
         This object specifies the dimensions, redshifts, and quantities required by the lightcone run
     inputs: :class:`~InputParameters`
         This object specifies the input parameters for the run, including the random seed
-    global_quantities : tuple of str, optional
-        The quantities to save as globally-averaged redshift-dependent functions.
-        These may be any of the quantities that can be used in ``Lightconer.quantities``.
-        The mean is taken over the full 3D cube at each redshift, rather than a 2D
-        slice.
     initial_conditions : :class:`~InitialConditions`, optional
         If given, the user and cosmo params will be set from this object, and it will not be
         re-calculated.
@@ -630,7 +639,6 @@ def generate_lightcone(
     if isinstance(write, bool):
         write = CacheConfig() if write else CacheConfig.off()
 
-    _check_desired_arrays_exist(global_quantities, inputs)
     _check_desired_arrays_exist(lightconer.quantities, inputs)
 
     iokw = {"cache": cache, "regenerate": regenerate}
@@ -661,7 +669,6 @@ def generate_lightcone(
         include_dvdr_in_tau21=include_dvdr_in_tau21,
         apply_rsds=apply_rsds,
         n_rsd_subcells=n_rsd_subcells,
-        global_quantities=global_quantities,
         cache=cache,
         write=write,
         cleanup=cleanup,
