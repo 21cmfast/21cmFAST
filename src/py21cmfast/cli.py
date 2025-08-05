@@ -505,10 +505,6 @@ def lightcone(
     lightcone_quantities: Annotated[tuple[str], Parameter(alias=("--lq",))] = (
         "brightness_temp",
     ),
-    global_quantities: Annotated[tuple[str], Parameter(alias=("--gq",))] = (
-        "neutral_fraction",
-        "brightness_temp",
-    ),
     min_evolved_redshift: Annotated[
         float, Parameter(name=("--zmin-evolution", "--zmin"))
     ] = 5.5,
@@ -528,8 +524,6 @@ def lightcone(
         The filename to which to save the lightcone data.
     lightcone_quantities
         Computed fields to generate lightcones for.
-    global_quantities
-        Fields for which to compute the globally-averaged signal.
     min_evolved_redshift
         The minimum redshift down to which to evolve the simulation. For some simulation
         configurations, this is not used at all, while for others it will subtly change
@@ -558,7 +552,6 @@ def lightcone(
         )(),
         cache=OutputCache(options.cachedir),
         progressbar=options.progress,
-        global_quantities=global_quantities,
     )
 
     lc.save(out)
@@ -617,7 +610,6 @@ def pr_feature(
         )(),
         cache=OutputCache(options.cachedir),
         progressbar=True,
-        global_quantities=("neutral_fraction", "brightness_temp"),
     )
 
     cns.print("Running lightcone with new feature...")
@@ -630,7 +622,6 @@ def pr_feature(
         )(),
         cache=OutputCache(options.cachedir),
         progressbar=True,
-        global_quantities=("neutral_fraction", "brightness_temp"),
     )
 
     cns.print("Plotting lightcone slices...")
