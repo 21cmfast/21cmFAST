@@ -33,17 +33,34 @@ structure::
 
 import warnings
 from pathlib import Path
+from typing import Any
 
 import attrs
 import h5py
 import numpy as np
 
 from .. import __version__
-from ..wrapper import inputs as istruct
+from ..input_serialization import deserialize_inputs, prepare_inputs_for_serialization
 from ..wrapper import outputs as ostruct
 from ..wrapper.arrays import H5Backend
 from ..wrapper.arraystate import ArrayState
 from ..wrapper.inputs import InputParameters
+
+
+def hdf5_to_dict(grp: h5py.Group) -> dict[str, Any]:
+    """Load all data from an HDF5 Group into a dict.
+
+    Essentially the same as toml.load() but for HDF5.
+    """
+    out = dict(grp.attrs)
+
+    for k, v in grp.items():
+        if isinstance(v, h5py.Group):
+            out[k] = hdf5_to_dict(v)
+        else:
+            out[k] = v[()]
+
+    return out
 
 
 class HDF5FileStructureError(ValueError):
@@ -97,19 +114,6 @@ def write_output_to_hdf5(
         _write_inputs_to_group(output.inputs, group)
 
 
-def write_input_struct(struct, fl: h5py.File | h5py.Group) -> None:
-    """Write a particular input struct (e.g. SimulationOptions) to an HDF5 file."""
-    dct = struct.asdict()
-
-    for kk, v in dct.items():
-        try:
-            fl.attrs[kk] = "none" if v is None else v
-        except TypeError as e:
-            raise TypeError(
-                f"key {kk} with value {v} is not able to be written to HDF5 attrs!"
-            ) from e
-
-
 def _write_inputs_to_group(
     inputs: InputParameters, group: h5py.Group | h5py.File | str | Path
 ) -> None:
@@ -127,24 +131,32 @@ def _write_inputs_to_group(
         The group or file into which to write the inputs. Note that a new group called
         "InputParameters" will be created inside this group/file.
     """
-    must_close = False
-    if isinstance(group, str | Path):
-        file = h5py.File(group, "a")
-        group = file
-        must_close = True
+    if not isinstance(group, h5py.Group):
+        with h5py.File(group, "a") as fl:
+            _write_inputs_to_group(inputs, fl)
+        return
 
     grp = group.create_group("InputParameters")
 
     # Write 21cmFAST version to the file
     grp.attrs["21cmFAST-version"] = __version__
 
-    write_input_struct(
-        inputs.simulation_options, grp.create_group("simulation_options")
+    inputsdct = prepare_inputs_for_serialization(
+        inputs, mode="full", only_structs=True, camel=False
     )
-    write_input_struct(inputs.matter_options, grp.create_group("matter_options"))
-    write_input_struct(inputs.cosmo_params, grp.create_group("cosmo_params"))
-    write_input_struct(inputs.astro_params, grp.create_group("astro_params"))
-    write_input_struct(inputs.astro_options, grp.create_group("astro_options"))
+
+    # Write the input structs. Note that all the "work" for converting attributes
+    # to appropriate values is done in the serialization method above, not here.
+    # Here, we just write primitives to group attrs.
+    for name, dct in inputsdct.items():
+        _grp = grp.create_group(name)
+        for key, val in dct.items():
+            try:
+                _grp.attrs[key] = val
+            except TypeError as e:
+                raise TypeError(
+                    f"key {key} with value {val} is not able to be written to HDF5 attrs!"
+                ) from e
 
     grp.attrs["random_seed"] = inputs.random_seed
     grp["node_redshifts"] = (
@@ -152,9 +164,6 @@ def _write_inputs_to_group(
         if inputs.node_redshifts is None
         else np.array(inputs.node_redshifts)
     )
-
-    if must_close:
-        file.close()
 
 
 def write_outputs_to_group(
@@ -317,28 +326,17 @@ def read_inputs(
 
 def _read_inputs_v4(group: h5py.Group, safe: bool = True):
     # Read the input parameter dictionaries from file.
-    kwargs = {}
-    for k, fld in attrs.fields_dict(InputParameters).items():
-        try:
-            if fld.type in istruct.InputStruct._subclasses.values():
-                kls = fld.type
+    kwargs = hdf5_to_dict(group)
+    del kwargs["21cmFAST-version"]
 
-                subgrp = group[k]
-                dct = dict(subgrp.attrs)
-                kwargs[k] = kls.from_subdict(dct, safe=safe)
-            elif k in group.attrs:
-                kwargs[k] = group.attrs[k]
-            else:
-                d = group[k][()]
-                kwargs[k] = None if d is h5py.Empty(None) else d
-        except Exception as e:
-            e.add_note(
-                f"InputStruct that failed: {k}\n"
-                f"In group: {group.name}\n"
-                f"In file: {group.file.filename}"
-            )
-            raise
-    return InputParameters(**kwargs)
+    # The node_redshifts and random_seed are treated differently.
+    node_redshifts = kwargs.pop("node_redshifts")
+    random_seed = kwargs.pop("random_seed")
+
+    kwargs = deserialize_inputs(kwargs, safe=safe)
+    return InputParameters(
+        node_redshifts=node_redshifts, random_seed=random_seed, **kwargs
+    )
 
 
 def _read_outputs(
