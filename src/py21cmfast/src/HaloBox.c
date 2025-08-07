@@ -557,11 +557,16 @@ void sum_halos_onto_grid(InitialConditions *ini_boxes, TsBox *previous_spin_temp
     unsigned long long int total_n_halos, n_halos_cut = 0.;
 
     double cell_volume = VOLUME / HII_TOT_NUM_PIXELS;
-    double cell_length = simulation_options_global->BOX_LEN / simulation_options_global->HII_DIM;
+    double cell_length_inv =
+        simulation_options_global->HII_DIM / simulation_options_global->BOX_LEN;
+    double box_len[3] = {simulation_options_global->BOX_LEN, simulation_options_global->BOX_LEN,
+                         BOXLEN_PARA};
+    double box_dim[3] = {simulation_options_global->HII_DIM, simulation_options_global->HII_DIM,
+                         HII_D_PARA};
 #pragma omp parallel num_threads(simulation_options_global->N_THREADS)
     {
-        int x, y, z;
         double halo_pos[3];
+        int halo_idx[3];
         unsigned long long int i_halo, i_cell;
         double hmass, nion, sfr, wsfr, sfr_mini, stars_mini, stars, xray;
         double J21_val, Gamma12_val, zre_val;
@@ -586,31 +591,17 @@ void sum_halos_onto_grid(InitialConditions *ini_boxes, TsBox *previous_spin_temp
                 n_halos_cut++;
                 continue;
             }
-
+            // Unrolled loop for i = 0 to 2
+            halo_pos[0] = halos->halo_coords[0 + 3 * i_halo];
+            halo_pos[1] = halos->halo_coords[1 + 3 * i_halo];
+            halo_pos[2] = halos->halo_coords[2 + 3 * i_halo];
             for (int i = 0; i < 3; i++) {
-                halo_pos[i] = halos->halo_coords[i + 3 * i_halo] / cell_length;
-                // This is a special case, where the halo is exactly at the edge of the box
-                // This can happen due to floating point errors when multiplied by the cell length
-                if (halo_pos[i] == (float)simulation_options_global->HII_DIM) {
-                    halo_pos[i] =
-                        (float)simulation_options_global->HII_DIM - 0.1;  // will place in last cell
-                }
+                halo_pos[i] = halos->halo_coords[i + 3 * i_halo];
             }
 
-            x = (int)(halo_pos[0]);
-            y = (int)(halo_pos[1]);
-            z = (int)(halo_pos[2]);
-            i_cell = HII_R_INDEX(x, y, z);
-
-            if (i_cell >= HII_TOT_NUM_PIXELS || i_cell < 0 || x < 0 || y < 0 || z < 0 ||
-                x >= simulation_options_global->HII_DIM ||
-                y >= simulation_options_global->HII_DIM || z >= HII_D_PARA) {
-                LOG_ERROR("Halo %llu (%d %d %d) out of bounds (%llu)", i_halo, x, y, z, i_cell);
-                LOG_ERROR("Halo Position (%f %f %f) Box Length %.2f",
-                          halos->halo_coords[0 + 3 * i_halo], halos->halo_coords[1 + 3 * i_halo],
-                          halos->halo_coords[2 + 3 * i_halo], simulation_options_global->BOX_LEN);
-                Throw(ValueError);
-            }
+            pos_to_index(halo_pos, cell_length_inv, halo_idx);
+            wrap_coord(halo_idx, box_dim);
+            i_cell = HII_R_INDEX(halo_idx[0], halo_idx[1], halo_idx[2]);
 
             // set values before reionisation feedback
             // NOTE: I could easily apply reionization feedback without minihalos but this was not

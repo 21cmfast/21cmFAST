@@ -72,8 +72,7 @@ int ComputePerturbHaloField(float redshift, InitialConditions *boxes, HaloField 
             vel_pointers_2LPT[1] = boxes->lowres_vy_2LPT;
             vel_pointers_2LPT[2] = boxes->lowres_vz_2LPT;
         }
-        double cell_size_inv[3] = {box_dim[0] / box_size[0], box_dim[1] / box_size[1],
-                                   box_dim[2] / box_size[2]};
+        double cell_size_inv = box_dim[0] / box_size[0];
 
         growth_factor = dicke(redshift);
         displacement_factor_2LPT = -(3.0 / 7.0) * growth_factor * growth_factor;  // 2LPT eq. D8
@@ -107,28 +106,12 @@ int ComputePerturbHaloField(float redshift, InitialConditions *boxes, HaloField 
             for (i_halo = 0; i_halo < halos->n_halos; i_halo++) {
                 if (error_in_parallel) continue;
                 // convert location to fractional value
-                for (int i_dim = 0; i_dim < 3; i_dim++) {
-                    pos[i_dim] = halos->halo_coords[i_halo * 3 + i_dim];
-                    // Sometimes, halos are exactly on the edge of the box even after wrapping
-                    //   from floating point errors.
-                    if (pos[i_dim] == box_size[i_dim]) {
-                        ipos[i_dim] = box_dim[i_dim] - 1;
-                        n_exact_dim++;
-                    } else {
-                        ipos[i_dim] = (int)(pos[i_dim] * cell_size_inv[i_dim]);
-                    }
-                }
-                if (ipos[0] >= box_dim[0] || ipos[1] >= box_dim[1] || ipos[2] >= box_dim[2] ||
-                    ipos[0] < 0 || ipos[1] < 0 || ipos[2] < 0) {
-                    LOG_ERROR(
-                        "Halo %llu is out of bounds: (%d, %d, %llu) for box size (%f, %f, %f) "
-                        "struct (%f, %f, %f) norm (%f, %f, %f)",
-                        i_halo, ipos[0], ipos[1], ipos[2], boxlen, boxlen, boxlen_z,
-                        halos->halo_coords[i_halo * 3 + 0], halos->halo_coords[i_halo * 3 + 1],
-                        halos->halo_coords[i_halo * 3 + 2], pos[0], pos[1], pos[2]);
-                    error_in_parallel = true;
-                    continue;  // skip this halo
-                }
+                pos[0] = halos->halo_coords[i_halo * 3 + 0];
+                pos[1] = halos->halo_coords[i_halo * 3 + 1];
+                pos[2] = halos->halo_coords[i_halo * 3 + 2];
+
+                pos_to_index(pos, cell_size_inv, ipos);
+                wrap_coord(ipos, box_dim);
                 grid_index = grid_index_general(ipos[0], ipos[1], ipos[2], box_dim);
 
                 for (int i_dim = 0; i_dim < 3; i_dim++) {

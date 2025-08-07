@@ -25,10 +25,11 @@ static inline void do_cic_interpolation(double *resampled_box, double pos[3], in
     // get the CIC indices and distances
     int ipos[3], iposp1[3];
     double dist[3];
+    // NOTE: assumes the cell at idx == 0 is *centred* at (0,0,0)
     for (int axis = 0; axis < 3; axis++) {
-        ipos[axis] = (int)floor(pos[axis] + 0.5) - 1;
+        ipos[axis] = (int)floor(pos[axis]);
         iposp1[axis] = ipos[axis] + 1;
-        dist[axis] = pos[axis] - 0.5 - ipos[axis];
+        dist[axis] = pos[axis] - ipos[axis];
     }
 
     wrap_coord(ipos, box_dim);
@@ -64,7 +65,6 @@ void move_grid_masses(float redshift, fftwf_complex *fft_density_grid, InitialCo
         init_displacement_factor_2LPT;
     int i, j, k, axis;
 
-    double dim_ratio, dim_ratio_inv;
     // Function for deciding the dimensions of loops when we could
     // use either the low or high resolution grids.
     double boxlen = simulation_options_global->BOX_LEN;
@@ -108,10 +108,8 @@ void move_grid_masses(float redshift, fftwf_complex *fft_density_grid, InitialCo
     init_displacement_factor_2LPT =
         -(3.0 / 7.0) * init_growth_factor * init_growth_factor;  // 2LPT eq. D8
 
-    // low --> high res index factor, used when downsampling
-    dim_ratio = simulation_options_global->DIM / (double)(simulation_options_global->HII_DIM);
     // high --> low res index factor
-    dim_ratio_inv = matter_options_global->PERTURB_ON_HIGH_RES ? 1.0 : 1. / dim_ratio;
+    double dim_ratio_inv = box_dim[0] / (double)simulation_options_global->DIM;
 
     double *resampled_box;
 
@@ -149,13 +147,15 @@ void move_grid_masses(float redshift, fftwf_complex *fft_density_grid, InitialCo
         }
 
         double velocity_displacement_factor[3] = {
-            (growth_factor - init_growth_factor) / box_size[0],
-            (growth_factor - init_growth_factor) / box_size[1],
-            (growth_factor - init_growth_factor) / box_size[2]};
+            (growth_factor - init_growth_factor) / box_size[0] * simulation_options_global->DIM,
+            (growth_factor - init_growth_factor) / box_size[1] * simulation_options_global->DIM,
+            (growth_factor - init_growth_factor) / box_size[2] * D_PARA};
         double velocity_displacement_factor_2LPT[3] = {
-            (displacement_factor_2LPT - init_displacement_factor_2LPT) / box_size[0],
-            (displacement_factor_2LPT - init_displacement_factor_2LPT) / box_size[1],
-            (displacement_factor_2LPT - init_displacement_factor_2LPT) / box_size[2]};
+            (displacement_factor_2LPT - init_displacement_factor_2LPT) / box_size[0] *
+                simulation_options_global->DIM,
+            (displacement_factor_2LPT - init_displacement_factor_2LPT) / box_size[1] *
+                simulation_options_global->DIM,
+            (displacement_factor_2LPT - init_displacement_factor_2LPT) / box_size[2] * D_PARA};
 
         // ************  END INITIALIZATION **************************** //
 
@@ -178,12 +178,10 @@ void move_grid_masses(float redshift, fftwf_complex *fft_density_grid, InitialCo
                 for (j = 0; j < simulation_options_global->DIM; j++) {
                     for (k = 0; k < D_PARA; k++) {
                         // Transform position to units of box size
-                        pos[0] = (i + 0.5) / (simulation_options_global->DIM + 0.0);
-                        pos[1] = (j + 0.5) / (simulation_options_global->DIM + 0.0);
-                        pos[2] = (k + 0.5) / (D_PARA + 0.0);
-                        ipos[0] = (int)(i * dim_ratio_inv);
-                        ipos[1] = (int)(j * dim_ratio_inv);
-                        ipos[2] = (int)(k * dim_ratio_inv);
+                        pos[0] = i;
+                        pos[1] = j;
+                        pos[2] = k;
+                        resample_index((int[3]){i, j, k}, dim_ratio_inv, ipos);
                         vel_index = grid_index_general(ipos[0], ipos[1], ipos[2], box_dim);
                         for (axis = 0; axis < 3; axis++) {
                             pos[axis] +=
@@ -193,9 +191,6 @@ void move_grid_masses(float redshift, fftwf_complex *fft_density_grid, InitialCo
                                 pos[axis] -= vel_pointers_2LPT[axis][vel_index] *
                                              velocity_displacement_factor_2LPT[axis];
                             }
-
-                            // transform to units of cell size
-                            pos[axis] *= box_dim[axis];
                         }
 
                         // CIC interpolation
@@ -239,8 +234,7 @@ void assign_to_lowres_grid(fftwf_complex *hires_grid, fftwf_complex *lowres_grid
     int lo_dim[3] = {simulation_options_global->HII_DIM, simulation_options_global->HII_DIM,
                      HII_D_PARA};
     int hi_dim[3] = {simulation_options_global->DIM, simulation_options_global->DIM, D_PARA};
-    double dim_ratio[3] = {hi_dim[0] / (double)lo_dim[0], hi_dim[1] / (double)lo_dim[1],
-                           hi_dim[2] / (double)lo_dim[2]};
+    double dim_ratio = hi_dim[0] / (double)lo_dim[0];
     // We need to downsample the high-res grid to the low-res grid
     dft_r2c_cube(matter_options_global->USE_FFTW_WISDOM, hi_dim[0], hi_dim[2],
                  simulation_options_global->N_THREADS, hires_grid);
@@ -259,20 +253,19 @@ void assign_to_lowres_grid(fftwf_complex *hires_grid, fftwf_complex *lowres_grid
     dft_c2r_cube(matter_options_global->USE_FFTW_WISDOM, hi_dim[0], hi_dim[2],
                  simulation_options_global->N_THREADS, hires_grid);
 
-#pragma omp parallel for private(i, j, k) num_threads(simulation_options_global->N_THREADS)
-    for (i = 0; i < lo_dim[0]; i++) {
-        for (j = 0; j < lo_dim[1]; j++) {
-            for (k = 0; k < lo_dim[2]; k++) {
-                // TODO: Order of operations makes this half a HIGH RES cell above the lower-left
-                // corner,
-                //  I think this is a bug, and it should be (i + midcell_term) * dim_ratio to be
-                //  half a LOW RES cell above the lower-left corner.
-                *((float *)lowres_grid + HII_R_FFT_INDEX(i, j, k)) =
-                    *((float *)hires_grid +
-                      R_FFT_INDEX((unsigned long long)(i * dim_ratio[0] + 0.5),
-                                  (unsigned long long)(j * dim_ratio[1] + 0.5),
-                                  (unsigned long long)(k * dim_ratio[2] + 0.5))) /
-                    (float)TOT_NUM_PIXELS;
+#pragma omp parallel private(i, j, k) num_threads(simulation_options_global -> N_THREADS)
+    {
+        int hires_pos[3];
+#pragma omp for
+        for (i = 0; i < lo_dim[0]; i++) {
+            for (j = 0; j < lo_dim[1]; j++) {
+                for (k = 0; k < lo_dim[2]; k++) {
+                    resample_index((int[3]){i, j, k}, dim_ratio, hires_pos);
+                    *((float *)lowres_grid + HII_R_FFT_INDEX(i, j, k)) =
+                        *((float *)hires_grid +
+                          R_FFT_INDEX(hires_pos[0], hires_pos[1], hires_pos[2])) /
+                        (float)TOT_NUM_PIXELS;
+                }
             }
         }
     }
@@ -285,12 +278,11 @@ void normalise_delta_grid(fftwf_complex *deltap1_grid) {
     int lo_dim[3] = {simulation_options_global->HII_DIM, simulation_options_global->HII_DIM,
                      HII_D_PARA};
     int hi_dim[3] = {simulation_options_global->DIM, simulation_options_global->DIM, D_PARA};
-    double dim_ratio[3] = {hi_dim[0] / (double)lo_dim[0], hi_dim[1] / (double)lo_dim[1],
-                           hi_dim[2] / (double)lo_dim[2]};
     // Renormalise the lowres box
-    double mass_factor = matter_options_global->PERTURB_ON_HIGH_RES
-                             ? 1.0
-                             : 1.0 / (dim_ratio[0] * dim_ratio[1] * dim_ratio[2]);
+    double mass_factor =
+        matter_options_global->PERTURB_ON_HIGH_RES
+            ? 1.0
+            : (lo_dim[0] * lo_dim[1] * lo_dim[2]) / (hi_dim[0] * hi_dim[1] * hi_dim[2]);
 #pragma omp parallel private(i, j, k) num_threads(simulation_options_global -> N_THREADS)
     {
         unsigned long long int grid_index;
@@ -391,11 +383,6 @@ void compute_perturbed_velocities(unsigned short axis, double redshift,
     // Function for deciding the dimensions of loops when we could
     // use either the low or high resolution grids.
     int box_dim[3];
-    double dim_ratio =
-        matter_options_global->PERTURB_ON_HIGH_RES
-            ? simulation_options_global->DIM / (double)(simulation_options_global->HII_DIM)
-            : 1.0;
-    double midcell_term = matter_options_global->PERTURB_ON_HIGH_RES ? 0.5 : 0.0;
 
     if (matter_options_global->PERTURB_ON_HIGH_RES) {
         box_dim[0] = simulation_options_global->DIM;
@@ -416,6 +403,7 @@ void compute_perturbed_velocities(unsigned short axis, double redshift,
         n_k_pixels = HII_KSPACE_NUM_PIXELS;
         n_r_pixels = HII_TOT_NUM_PIXELS;
     }
+    double dim_ratio = box_dim[0] / (double)simulation_options_global->HII_DIM;
 
     memcpy(velocity_fft_grid, density_saved, sizeof(fftwf_complex) * n_k_pixels);
 
@@ -476,17 +464,14 @@ void compute_perturbed_velocities(unsigned short axis, double redshift,
 #pragma omp parallel private(i, j, k) num_threads(simulation_options_global -> N_THREADS)
     {
         unsigned long long int grid_index;
+        int grid_ipos[3];
 #pragma omp for
         for (i = 0; i < simulation_options_global->HII_DIM; i++) {
             for (j = 0; j < simulation_options_global->HII_DIM; j++) {
                 for (k = 0; k < HII_D_PARA; k++) {
-                    // TODO: Order of operations makes this half a HIGH RES cell above the
-                    // lower-left corner,
-                    //  I think this is a bug, and it should be (i + midcell_term) * dim_ratio to be
-                    //  half a LOW RES cell above the lower-left corner.
-                    grid_index = grid_index_fftw_r((int)(i * dim_ratio + midcell_term),
-                                                   (int)(j * dim_ratio + midcell_term),
-                                                   (int)(k * dim_ratio + midcell_term), box_dim);
+                    resample_index((int[3]){i, j, k}, dim_ratio, grid_ipos);
+                    grid_index =
+                        grid_index_fftw_r(grid_ipos[0], grid_ipos[1], grid_ipos[2], box_dim);
                     velocity[HII_R_INDEX(i, j, k)] = *((float *)velocity_fft_grid + grid_index);
                 }
             }

@@ -874,6 +874,9 @@ int sample_halo_grids(gsl_rng **rng_arr, double redshift, float *dens_field,
                         random_point_in_cell((int[3]){x, y, z},
                                              simulation_options_global->BOX_LEN / lo_dim,
                                              rng_arr[threadnum], crd_hi);
+                        wrap_position(crd_hi,
+                                      (double[3]){simulation_options_global->BOX_LEN,
+                                                  simulation_options_global->BOX_LEN, BOXLEN_PARA});
 
                         halofield_out->halo_masses[istart + count] = hm_buf[i];
                         halofield_out->halo_coords[3 * (istart + count) + 0] = crd_hi[0];
