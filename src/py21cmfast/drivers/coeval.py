@@ -748,8 +748,6 @@ def _redshift_loop_generator(
                     write=write.halobox,
                     **kw,
                 )
-            this_perturbed_field = perturbed_field[iz]
-            this_perturbed_field.load_all()
 
             if inputs.astro_options.USE_TS_FLUCT:
                 if inputs.matter_options.USE_HALO_FIELD:
@@ -774,6 +772,10 @@ def _redshift_loop_generator(
                 )
                 if inputs.matter_options.USE_HALO_FIELD:
                     this_xraysource.purge(force=True)
+
+                # Purge XraySourceBox because it's enormous
+                if inputs.matter_options.USE_HALO_FIELD:
+                    this_xraysource.purge()
 
             this_ionized_box = sf.compute_ionization_field(
                 inputs=inputs,

@@ -1,16 +1,17 @@
 # Contains names, aliases and descriptions of all available native templates in 21cmfast
 
 [[templates]]
+name = "defaults"
+file = "defaults.toml"
+aliases = ["defaults", "default"]
+description = "All the default parameters of 21cmFAST."
+
+[[templates]]
 name = "simple"
 file = "simple.toml"
 aliases = ["simple"]
 description = "A simple 21cmFAST run with no minihalos, discrete halos, recombinations or spin temperature fluctuations"
 
-[[templates]]
-name = "simple-small"
-file = "simple-small.toml"
-aliases = ["simple-small"]
-description = "A simple+small, non-evolving, 21cmFAST run with no minihalos, discrete halos, recombinations or spin temperature fluctuations."
 
 [[templates]]
 name = "const-zeta"
@@ -25,21 +26,21 @@ aliases = ["latest"]
 description = "Our latest fiducial run without discrete halos, includes recominations and spin temperature fluctuations"
 
 [[templates]]
-name = "mini"
-file = "mini.toml"
-aliases = ["mini"]
+name = "minihalos"
+file = "minihalos.toml"
+aliases = ["minihalos", "mini"]
 description = "A run including minihalos"
 
 [[templates]]
-name = "latest-dhalos"
-file = "latest-dhalos.toml"
-aliases = ["latest-dhalos"]
+name = "latest-discrete"
+file = "latest-discrete.toml"
+aliases = ["latest-discrete", "latest-dhalos"]
 description = "Our latest fiducial run with discrete halos, recominations and spin temperature fluctuations"
 
 [[templates]]
-name = "mini-dhalos"
-file = "mini-dhalos.toml"
-aliases = ["mini-dhalos"]
+name = "minihalos-discrete"
+file = "minihalos-discrete.toml"
+aliases = ["minihalos-discrete", "mini-dhalos"]
 description = "Run with discrete halos, including the molecularly cooled galaxy component"
 
 [[templates]]
@@ -61,13 +62,32 @@ aliases = ["Munoz21", "EOS21"]
 description = "Exact fiducial parameters from Munoz et al 2021. Disables modules implemented afterwards"
 
 [[templates]]
-name = "latest-small"
-file = "latest-small.toml"
-aliases = ["latest-small"]
-description = "Small version of latest.toml"
-
-[[templates]]
 name = "fixed-halos"
 file = "fixed-halos.toml"
 aliases = ["fixed-halos"]
 description = "integrals of the CHMF on the Eulerian (evolved) density grid, FFRT-P in Davies+22 or ESF-E in Trac+22"
+
+
+[[templates]]
+name = "size-tiny"
+file = "size-tiny.toml"
+aliases = ["size-tiny", "tiny"]
+description = "Set the simulation to have a very small size (48 Mpc), useful for quick tests. Intended to be used on top of another template"
+
+[[templates]]
+name = "size-small"
+file = "size-small.toml"
+aliases = ["size-small", "small"]
+description = "Set the simulation to have a small size (92 Mpc), useful for quick exploration. Intended to be used on top of another template"
+
+[[templates]]
+name = "size-medium"
+file = "size-medium.toml"
+aliases = ["size-medium", "medium"]
+description = "Set the simulation to have a medium size (384 Mpc), useful for MCMC. Intended to be used on top of another template."
+
+[[templates]]
+name = "size-gpc"
+file = "size-gpc.toml"
+aliases = ["size-gpc", "gpc", "large"]
+description = "Set the simulation to have a large size (~1 Gpc). Intended to be used on top of another template."
