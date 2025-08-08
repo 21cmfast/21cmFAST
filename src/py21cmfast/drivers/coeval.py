@@ -717,7 +717,6 @@ def _redshift_loop_generator(
         **iokw,
         "initial_conditions": initial_conditions,
     }
-
     with _progressbar(disable=not progressbar) as _progbar:
         for iz, z in _progbar.track(
             enumerate(all_redshifts),
@@ -752,10 +751,9 @@ def _redshift_loop_generator(
             if inputs.astro_options.USE_TS_FLUCT:
                 if inputs.matter_options.USE_HALO_FIELD:
                     # append the halo redshift array so we have all halo boxes [z,zmax]
-                    hbox_arr += [this_halobox]
                     this_xraysource = sf.compute_xray_source_field(
                         redshift=z,
-                        hboxes=hbox_arr,
+                        hboxes=[*hbox_arr, this_halobox],
                         write=write.xray_source_box,
                         **kw,
                     )
@@ -770,7 +768,7 @@ def _redshift_loop_generator(
                     cleanup=(cleanup and z == all_redshifts[-1]),
                 )
                 if inputs.matter_options.USE_HALO_FIELD:
-                    this_xraysource.purge()
+                    this_xraysource.purge(force=True)
 
                 # Purge XraySourceBox because it's enormous
                 if inputs.matter_options.USE_HALO_FIELD:
@@ -819,9 +817,7 @@ def _redshift_loop_generator(
                     and iz + 1 < len(all_redshifts)
                 ):
                     for hbox in hbox_arr:
-                        hbox.prepare_for_next_snapshot(
-                            next_z=inputs.node_redshifts[iz + 1]
-                        )
+                        hbox.prepare_for_next_snapshot(next_z=all_redshifts[iz + 1])
 
             if this_pthalo is not None:
                 this_pthalo.purge()
@@ -830,6 +826,7 @@ def _redshift_loop_generator(
                 # Only evolve on the node_redshifts, not any redshifts in-between
                 # that the user might care about.
                 prev_coeval = this_coeval
+                hbox_arr += [this_halobox]
 
             # yield before the cleanup, so we can get at the fields before they are purged
             yield iz, this_coeval
