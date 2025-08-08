@@ -392,10 +392,10 @@ int set_fixed_grids(double M_min, double M_max, InitialConditions *ini_boxes,
         }
     }
 
-    LOG_ULTRA_DEBUG("Cell 0 Totals: HM: %.2e SM: %.2e SF: %.2e NI: %.2e ct : %d",
+    LOG_ULTRA_DEBUG("Cell 0 Totals: HM: %.2e SM: %.2e SF: %.2e, NI: %.2e ct : %d",
                     grids->halo_mass[HII_R_INDEX(0, 0, 0)], grids->halo_stars[HII_R_INDEX(0, 0, 0)],
-                    grids->halo_sfr[HII_R_INDEX(0, 0, 0)], grids->halo_xray[HII_R_INDEX(0, 0, 0)],
-                    grids->n_ion[HII_R_INDEX(0, 0, 0)], grids->count[HII_R_INDEX(0, 0, 0)]);
+                    grids->halo_sfr[HII_R_INDEX(0, 0, 0)], grids->n_ion[HII_R_INDEX(0, 0, 0)],
+                    grids->count[HII_R_INDEX(0, 0, 0)]);
     if (astro_options_global->INHOMO_RECO) {
         LOG_ULTRA_DEBUG("FESC * SF %.2e", grids->whalo_sfr[HII_R_INDEX(0, 0, 0)]);
     }
@@ -561,8 +561,8 @@ void sum_halos_onto_grid(InitialConditions *ini_boxes, TsBox *previous_spin_temp
         simulation_options_global->HII_DIM / simulation_options_global->BOX_LEN;
     double box_len[3] = {simulation_options_global->BOX_LEN, simulation_options_global->BOX_LEN,
                          BOXLEN_PARA};
-    double box_dim[3] = {simulation_options_global->HII_DIM, simulation_options_global->HII_DIM,
-                         HII_D_PARA};
+    int box_dim[3] = {simulation_options_global->HII_DIM, simulation_options_global->HII_DIM,
+                      HII_D_PARA};
 #pragma omp parallel num_threads(simulation_options_global->N_THREADS)
     {
         double halo_pos[3];
@@ -591,13 +591,10 @@ void sum_halos_onto_grid(InitialConditions *ini_boxes, TsBox *previous_spin_temp
                 n_halos_cut++;
                 continue;
             }
-            // Unrolled loop for i = 0 to 2
+
             halo_pos[0] = halos->halo_coords[0 + 3 * i_halo];
             halo_pos[1] = halos->halo_coords[1 + 3 * i_halo];
             halo_pos[2] = halos->halo_coords[2 + 3 * i_halo];
-            for (int i = 0; i < 3; i++) {
-                halo_pos[i] = halos->halo_coords[i + 3 * i_halo];
-            }
 
             pos_to_index(halo_pos, cell_length_inv, halo_idx);
             wrap_coord(halo_idx, box_dim);
@@ -641,7 +638,7 @@ void sum_halos_onto_grid(InitialConditions *ini_boxes, TsBox *previous_spin_temp
             xray = out_props.halo_xray;
 
 #if LOG_LEVEL >= ULTRA_DEBUG_LEVEL
-            if (x + y + z == 0) {
+            if (i_cell == 0) {
                 // LOG_ULTRA_DEBUG("(%d %d %d) i_cell %llu i_halo %llu",x,y,z,i_cell, i_halo);
                 LOG_ULTRA_DEBUG(
                     "Cell 0 Halo: HM: %.2e SM: %.2e (%.2e) SF: %.2e (%.2e) X: %.2e NI: %.2e WS: "
