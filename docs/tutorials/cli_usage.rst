@@ -59,11 +59,19 @@ Each of these built-in templates is itself a TOML config file, but it's better n
 mess with them directly. To create a new parameter TOML that is exactly the same as
 an existing template, use the `create` command::
 
-    $ 21cmfast template create --template simple-small --out my-simple-small.toml
+    $ 21cmfast template create --template simple --out my-simple.toml
 
-This creates a new template TOML ``my-simple-small.toml`` which lists the values of
-**all** available parameters, and is functionally identical to the `simple-small`
+This creates a new template TOML ``my-simple.toml`` which lists the values of
+**all** available parameters, and is functionally identical to the ``simple``
 built-in template.
+
+You can combine multiple templates as well::
+
+    $ 21cmfast template create --template simple small --out my-simple-small.toml
+
+This combines the parameters of both the ``simple`` and ``small`` templates, with
+the template listed *last* taking precedence in the case of parameters being set in
+more than one template.
 
 To over-ride particular settings, simply add them to the command as options::
 
@@ -89,15 +97,15 @@ simulation parameters. In this section of the tutorial we will use the ``ics`` s
 to illustrate the options for setting parameters for simulations, since it the simplest
 sub-command.
 
-The simplest way to specify parameters (but not the best, see below!) is by using one
-of the built-in templates. In the simplest case, you just do::
+The simplest way to specify parameters (but not the best, see below!) is by using one or
+more of the built-in templates. In the simplest case, you just do::
 
-    $ 21cmfast run ics --template simple-small
+    $ 21cmfast run ics --template simple small
 
-To override specific simulation parameters on top of this base template, simply pass
+To override specific simulation parameters on top of these base templates, simply pass
 them as options, for example::
 
-    $ 21cmfast run ics --template simple-small --use-ts-fluct --sigma-8 1.0
+    $ 21cmfast run ics --template simple small --use-ts-fluct --sigma-8 1.0
 
 However, while overriding parameters like this is convenient for simple one-off
 tests, it is generally better to run your simulations from a fully-specific parameter
@@ -106,7 +114,7 @@ results at a later time (and to share the configurtion with others). The recomme
 way of achieving this is to first construct a parameter TOML, and then to pass that
 to the `run` command, like so::
 
-    $ 21cmfast template create --template simple-small --use-ts-fluct --out custom.toml
+    $ 21cmfast template create --template simple small --use-ts-fluct --out custom.toml
     $ 21cmfast run ics --param-file custom.toml
 
 This two-step process is more explicit and allows you to share ``custom.toml`` for
@@ -133,11 +141,13 @@ see below) and be named according to the following rules:
    regardless of any of the following.
 2. If you passed ``--cfgfile <path.toml>`` then it will be saved to ``<path.toml>``
 3. If you only passed ``--template <name>`` (or didn't pass anything), it will be called
-   ``<name>.toml`` (or ``defaults.toml``. In effect, this TOML is the same specification
+   ``<name>.toml``. In effect, this TOML is the same specification
    as the built-in TOML, however the built-ins are generally minimally-specified (i.e.
    they rely on the default parameters of ``21cmFAST`` to fill in missing parameters)
    while the output here will be fully-specified.
-1. If you pass any explicit parameters, regardless of whether these are building on a
+4. If you pass more than one template, e.g. ``--template simple small``, the output
+   will be called ``simple_and_small.toml``.
+5. If you pass any explicit parameters, regardless of whether these are building on a
    ``--template`` or ``--param-file``, the file will be called ``config-<uuid>.toml``,
    where the ``uuid`` is a 6-character random string ensuring that you don't overwrite
    previous configurations. The output file will be printed to screen as part of the
@@ -181,7 +191,7 @@ By default it is set to the *current working directory*.
 If you don't want to keep the cache around long-term, you can set it to a temporary
 directory, for example::
 
-    $ 21cmfast run coeval -z 8.0 --template simple-small --cachedir /tmp/21cmfast-cache
+    $ 21cmfast run coeval -z 8.0 --template simple small --cachedir /tmp/21cmfast-cache
 
 Note that by default, the fully-specified parameter TOML that is automatically output
 by any ``run`` command is saved into the ``--cachedir``.
@@ -358,7 +368,7 @@ We therefore always recommend to run from a *full* TOML. One way around this is 
 create *both* modes, using the full mode to run your simulation, but keeping a minimal
 TOML for clarity. To build this, you can first create your minimal TOML::
 
-    $ 21cmfast template create --template simple-small --use-ts-fluct --mode minimal --out custom-minimal.toml
+    $ 21cmfast template create --template simple small --use-ts-fluct --mode minimal --out custom-minimal.toml
 
 Then, create a full TOML *from this minimal TOML*::
 
@@ -388,6 +398,15 @@ This will run the latest model, but at a smaller size that you control, saving t
 coeval to the current directory, and storing the cache in a temporary directory so it is
 removed automatically by your OS.
 
+Since ``21cmFAST`` has several built-in "size" templates, you can easily stack a
+model-defining template with a size template to achieve the same result, e.g.::
+
+    $ 21cmfast run coeval \
+        --template latest small               # Latest model, without discrete halos, made small
+        --redshift 6.0                        # At redshift 6.0
+        --cachedir /tmp/21cmfast-cache        # Save cache to a temporary directory
+
+
 Running a single lightcone
 ~~~~~~~~~~~~~~~~~~~~~~~~~~
 
@@ -402,7 +421,7 @@ on::
 Let's say you chose to use the "latest" model, then you would go ahead and create your
 custom parameter configuration based on this template::
 
-    $ 21cmfast template create --template latest --hii-dim 512 --dim 1536 --box-len 768 --out big-latest.toml
+    $ 21cmfast template create --template latest gpc --out big-latest.toml
 
 Now there is a file ``big-latest.toml`` in your current directory. You can use this file
 to run off your simulation::
@@ -425,13 +444,12 @@ common situation.
 
 We first make a directory to hold all of our cache, and our outputs::
 
-    $ mkdir cache
-    $ mkdir cache/configs
+    $ mkdir - cache/configs
     $ mkdir lightcones
 
 Then setup a "base" configuration::
 
-    $ 21cmfast template create --template latest --hii-dim 512 --dim 1536 --box-len 768 --out cache/configs/base.toml
+    $ 21cmfast template create --template latest gpc --out cache/configs/base.toml
 
 Now, before running off the other simulations, run off some initial conditions::
 

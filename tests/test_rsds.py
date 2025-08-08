@@ -6,7 +6,7 @@ from astropy import units
 
 import py21cmfast as p21c
 from py21cmfast import InputParameters, run_coeval
-from py21cmfast.lightconers import RectilinearLightconer
+from py21cmfast.lightconers import AngularLightconer, RectilinearLightconer
 from py21cmfast.rsds import apply_rsds, include_dvdr_in_tau21, rsds_shift
 from py21cmfast.wrapper.classy_interface import run_classy
 
@@ -294,7 +294,8 @@ class TestComputeRSDs:
         np.testing.assert_allclose(box_out_3d.flatten(), box_out_2d.flatten())
 
 
-def test_new_rsd_lightcones(cache):
+@pytest.mark.parametrize("lcner", ["rect", "ang"])
+def test_new_rsd_lightcones(cache, lcner):
     """Test that new lightcones are added to output."""
     inputs = p21c.InputParameters(
         random_seed=12345,
@@ -305,17 +306,29 @@ def test_new_rsd_lightcones(cache):
         BOX_LEN=15,
         DIM=45,
         HII_DIM=10,
-        N_THREADS=6,
+        N_THREADS=1,
         USE_TS_FLUCT=True,
+        KEEP_3D_VELOCITIES=True,
     )
-    lightcone = p21c.run_lightcone(
-        lightconer=RectilinearLightconer.between_redshifts(
+    if lcner == "rect":
+        lightconer = RectilinearLightconer.between_redshifts(
             min_redshift=inputs.node_redshifts[-1] + 0.5,
             max_redshift=inputs.node_redshifts[0] - 0.5,
             resolution=inputs.simulation_options.cell_size,
             cosmo=inputs.cosmo_params.cosmo,
             quantities=("brightness_temp", "density"),
-        ),
+        )
+    else:
+        lightconer = AngularLightconer.like_rectilinear(
+            max_redshift=inputs.node_redshifts[0] - 0.5,
+            simulation_options=inputs.simulation_options,
+            match_at_z=inputs.node_redshifts[-1] + 0.5,
+            cosmo=inputs.cosmo_params.cosmo,
+            quantities=("brightness_temp", "density"),
+        )
+
+    lightcone = p21c.run_lightcone(
+        lightconer=lightconer,
         inputs=inputs,
         cache=cache,
         include_dvdr_in_tau21=True,
@@ -323,3 +336,12 @@ def test_new_rsd_lightcones(cache):
     )
     assert "tau_21" in lightcone.lightcones
     assert "density_with_rsds" in lightcone.lightcones
+
+    assert not np.allclose(
+        lightcone.lightcones["brightness_temp"],
+        lightcone.lightcones["brightness_temp_with_rsds"],
+    )
+    assert not np.allclose(
+        lightcone.lightcones["density"], lightcone.lightcones["density_with_rsds"]
+    )
+    assert not np.allclose(lightcone.lightcones["tau_21"], 0)

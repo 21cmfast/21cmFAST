@@ -7,7 +7,6 @@ Contents
 
    installation
    quickstart
-   design
    tutorials
    reference/index
    contributing
