@@ -110,7 +110,6 @@ void move_grid_masses(float redshift, fftwf_complex *fft_density_grid, InitialCo
 
     // high --> low res index factor
     double dim_ratio_inv = box_dim[0] / (double)simulation_options_global->DIM;
-
     double *resampled_box;
 
     // check if the linear evolution flag was set
@@ -182,6 +181,7 @@ void move_grid_masses(float redshift, fftwf_complex *fft_density_grid, InitialCo
                         pos[1] = j;
                         pos[2] = k;
                         resample_index((int[3]){i, j, k}, dim_ratio_inv, ipos);
+                        wrap_coord(ipos, box_dim);
                         vel_index = grid_index_general(ipos[0], ipos[1], ipos[2], box_dim);
                         for (axis = 0; axis < 3; axis++) {
                             pos[axis] +=
@@ -191,6 +191,7 @@ void move_grid_masses(float redshift, fftwf_complex *fft_density_grid, InitialCo
                                 pos[axis] -= vel_pointers_2LPT[axis][vel_index] *
                                              velocity_displacement_factor_2LPT[axis];
                             }
+                            pos[axis] *= dim_ratio_inv;
                         }
 
                         // CIC interpolation
@@ -215,7 +216,7 @@ void move_grid_masses(float redshift, fftwf_complex *fft_density_grid, InitialCo
                     for (k = 0; k < box_dim[2]; k++) {
                         grid_index = grid_index_general(i, j, k, box_dim);
                         fft_index = grid_index_fftw_r(i, j, k, box_dim);
-                        *((float *)fft_density_grid + fft_index) = (float)resampled_box[grid_index];
+                        *((float *)fft_density_grid + fft_index) = resampled_box[grid_index];
                     }
                 }
             }
@@ -282,7 +283,7 @@ void normalise_delta_grid(fftwf_complex *deltap1_grid) {
     double mass_factor =
         matter_options_global->PERTURB_ON_HIGH_RES
             ? 1.0
-            : (lo_dim[0] * lo_dim[1] * lo_dim[2]) / (hi_dim[0] * hi_dim[1] * hi_dim[2]);
+            : (lo_dim[0] * lo_dim[1] * lo_dim[2]) / (double)(hi_dim[0] * hi_dim[1] * hi_dim[2]);
 #pragma omp parallel private(i, j, k) num_threads(simulation_options_global -> N_THREADS)
     {
         unsigned long long int grid_index;
