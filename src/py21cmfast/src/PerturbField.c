@@ -311,8 +311,7 @@ void smooth_and_clip_density(fftwf_complex *lowres_grid, fftwf_complex *density_
                  HII_D_PARA, simulation_options_global->N_THREADS, lowres_grid);
 
     // smooth the field
-    if (matter_options_global->PERTURB_ALGORITHM > 0 &&
-        matter_options_global->SMOOTH_EVOLVED_DENSITY_FIELD) {
+    if (matter_options_global->SMOOTH_EVOLVED_DENSITY_FIELD) {
         filter_box(lowres_grid, 1, 2,
                    simulation_options_global->DENSITY_SMOOTH_RADIUS *
                        simulation_options_global->BOX_LEN /
