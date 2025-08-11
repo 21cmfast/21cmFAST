@@ -60,16 +60,78 @@ static inline void do_cic_interpolation(double *resampled_box, double pos[3], in
     }
 }
 
-void move_grid_masses(float redshift, fftwf_complex *fft_density_grid, InitialConditions *boxes) {
-    float growth_factor, displacement_factor_2LPT, init_growth_factor,
-        init_displacement_factor_2LPT;
-    int i, j, k, axis;
-
-    // Function for deciding the dimensions of loops when we could
-    // use either the low or high resolution grids.
+// Function that maps a IC density grid to the perturbed density grid
+void move_grid_masses(double redshift, float *dens_pointer, int dens_dim[3], float *vel_pointers[3],
+                      float *vel_pointers_2LPT[3], int vel_dim[3], double *resampled_box,
+                      int out_dim[3]) {
+    // grid dimension constants
     double boxlen = simulation_options_global->BOX_LEN;
     double boxlen_z = boxlen * simulation_options_global->NON_CUBIC_FACTOR;
     double box_size[3] = {boxlen, boxlen, boxlen_z};
+    double dim_ratio_vel = (double)vel_dim[0] / (double)dens_dim[0];
+    double dim_ratio_out = (double)out_dim[0] / (double)dens_dim[0];
+
+    // Setup IC velocity factors
+    double growth_factor = dicke(redshift);
+    double displacement_factor_2LPT = -(3.0 / 7.0) * growth_factor * growth_factor;  // 2LPT eq. D8
+
+    double init_growth_factor = dicke(simulation_options_global->INITIAL_REDSHIFT);
+    double init_displacement_factor_2LPT =
+        -(3.0 / 7.0) * init_growth_factor * init_growth_factor;  // 2LPT eq. D8
+
+    double velocity_displacement_factor[3] = {
+        (growth_factor - init_growth_factor) / box_size[0] * simulation_options_global->DIM,
+        (growth_factor - init_growth_factor) / box_size[1] * simulation_options_global->DIM,
+        (growth_factor - init_growth_factor) / box_size[2] * D_PARA};
+    double velocity_displacement_factor_2LPT[3] = {
+        (displacement_factor_2LPT - init_displacement_factor_2LPT) / box_size[0] *
+            simulation_options_global->DIM,
+        (displacement_factor_2LPT - init_displacement_factor_2LPT) / box_size[1] *
+            simulation_options_global->DIM,
+        (displacement_factor_2LPT - init_displacement_factor_2LPT) / box_size[2] * D_PARA};
+#pragma omp parallel num_threads(simulation_options_global->N_THREADS)
+    {
+        int i, j, k, axis;
+        double pos[3], curr_dens;
+        int ipos[3];
+        unsigned long long vel_index, dens_index;
+#pragma omp for
+        for (i = 0; i < dens_dim[0]; i++) {
+            for (j = 0; j < dens_dim[1]; j++) {
+                for (k = 0; k < dens_dim[2]; k++) {
+                    // Transform position to units of box size
+                    pos[0] = i;
+                    pos[1] = j;
+                    pos[2] = k;
+                    resample_index((int[3]){i, j, k}, dim_ratio_vel, ipos);
+                    wrap_coord(ipos, vel_dim);
+                    vel_index = grid_index_general(ipos[0], ipos[1], ipos[2], vel_dim);
+                    for (axis = 0; axis < 3; axis++) {
+                        pos[axis] +=
+                            vel_pointers[axis][vel_index] * velocity_displacement_factor[axis];
+                        // add 2LPT second order corrections
+                        if (matter_options_global->PERTURB_ALGORITHM == 2) {
+                            pos[axis] -= vel_pointers_2LPT[axis][vel_index] *
+                                         velocity_displacement_factor_2LPT[axis];
+                        }
+                        pos[axis] *= dim_ratio_out;
+                    }
+
+                    // CIC interpolation
+                    dens_index = grid_index_general(i, j, k, dens_dim);
+                    curr_dens = 1.0 + dens_pointer[dens_index] * init_growth_factor;
+                    do_cic_interpolation(resampled_box, pos, out_dim, curr_dens);
+                }
+            }
+        }
+    }
+}
+
+void make_density_grid(float redshift, fftwf_complex *fft_density_grid, InitialConditions *boxes) {
+    int i, j, k;
+
+    // Function for deciding the dimensions of loops when we could
+    // use either the low or high resolution grids.
     int box_dim[3];
     float *vel_pointers[3], *vel_pointers_2LPT[3];
     float *dens_pointer;
@@ -101,15 +163,8 @@ void move_grid_masses(float redshift, fftwf_complex *fft_density_grid, InitialCo
 
     LOG_DEBUG("Computing Perturbed Field at z=%.3f", redshift);
 
-    growth_factor = dicke(redshift);
-    displacement_factor_2LPT = -(3.0 / 7.0) * growth_factor * growth_factor;  // 2LPT eq. D8
-
-    init_growth_factor = dicke(simulation_options_global->INITIAL_REDSHIFT);
-    init_displacement_factor_2LPT =
-        -(3.0 / 7.0) * init_growth_factor * init_growth_factor;  // 2LPT eq. D8
-
+    double growth_factor = dicke(redshift);
     // high --> low res index factor
-    double dim_ratio_inv = box_dim[0] / (double)simulation_options_global->DIM;
     double *resampled_box;
 
     // check if the linear evolution flag was set
@@ -145,17 +200,6 @@ void move_grid_masses(float redshift, fftwf_complex *fft_density_grid, InitialCo
             }
         }
 
-        double velocity_displacement_factor[3] = {
-            (growth_factor - init_growth_factor) / box_size[0] * simulation_options_global->DIM,
-            (growth_factor - init_growth_factor) / box_size[1] * simulation_options_global->DIM,
-            (growth_factor - init_growth_factor) / box_size[2] * D_PARA};
-        double velocity_displacement_factor_2LPT[3] = {
-            (displacement_factor_2LPT - init_displacement_factor_2LPT) / box_size[0] *
-                simulation_options_global->DIM,
-            (displacement_factor_2LPT - init_displacement_factor_2LPT) / box_size[1] *
-                simulation_options_global->DIM,
-            (displacement_factor_2LPT - init_displacement_factor_2LPT) / box_size[2] * D_PARA};
-
         // ************  END INITIALIZATION **************************** //
 
         // Perturbing the density field required adding over multiple cells. Store intermediate
@@ -165,43 +209,9 @@ void move_grid_masses(float redshift, fftwf_complex *fft_density_grid, InitialCo
         } else {
             resampled_box = (double *)calloc(HII_TOT_NUM_PIXELS, sizeof(double));
         }
-
-// go through the high-res box, mapping the mass onto the low-res (updated) box
-#pragma omp parallel private(i, j, k, axis) num_threads(simulation_options_global -> N_THREADS)
-        {
-            double pos[3], curr_dens;
-            int ipos[3];
-            unsigned long long vel_index;
-#pragma omp for
-            for (i = 0; i < simulation_options_global->DIM; i++) {
-                for (j = 0; j < simulation_options_global->DIM; j++) {
-                    for (k = 0; k < D_PARA; k++) {
-                        // Transform position to units of box size
-                        pos[0] = i;
-                        pos[1] = j;
-                        pos[2] = k;
-                        resample_index((int[3]){i, j, k}, dim_ratio_inv, ipos);
-                        wrap_coord(ipos, box_dim);
-                        vel_index = grid_index_general(ipos[0], ipos[1], ipos[2], box_dim);
-                        for (axis = 0; axis < 3; axis++) {
-                            pos[axis] +=
-                                vel_pointers[axis][vel_index] * velocity_displacement_factor[axis];
-                            // add 2LPT second order corrections
-                            if (matter_options_global->PERTURB_ALGORITHM == 2) {
-                                pos[axis] -= vel_pointers_2LPT[axis][vel_index] *
-                                             velocity_displacement_factor_2LPT[axis];
-                            }
-                            pos[axis] *= dim_ratio_inv;
-                        }
-
-                        // CIC interpolation
-                        curr_dens =
-                            1. + boxes->hires_density[R_INDEX(i, j, k)] * init_growth_factor;
-                        do_cic_interpolation(resampled_box, pos, box_dim, curr_dens);
-                    }
-                }
-            }
-        }
+        int hi_dim[3] = {simulation_options_global->DIM, simulation_options_global->DIM, D_PARA};
+        move_grid_masses(redshift, boxes->hires_density, hi_dim, vel_pointers, vel_pointers_2LPT,
+                         box_dim, resampled_box, box_dim);
 
         LOG_SUPER_DEBUG("resampled_box: ");
         debugSummarizeBoxDouble(resampled_box, box_dim[0], box_dim[1], box_dim[2], "  ");
@@ -524,7 +534,7 @@ int ComputePerturbField(float redshift, InitialConditions *boxes, PerturbedField
                                               ? HIRES_density_perturb
                                               : LOWRES_density_perturb;
 
-        move_grid_masses(redshift, fft_density_grid, boxes);
+        make_density_grid(redshift, fft_density_grid, boxes);
 
         // Move data from high-res to low-res grid if needed, and convert to delta
         if (matter_options_global->PERTURB_ON_HIGH_RES) {
