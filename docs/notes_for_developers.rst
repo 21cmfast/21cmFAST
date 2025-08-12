@@ -113,7 +113,10 @@ since we can always place a low-pass filter at the centre of a high-resolution c
 
 Continuous positions such as ``HaloField.halo_coords`` are specified on the range [0, ``BOX_LEN``]. And wrapping occurs such that
 the low-resolution cell at index 0 will contain the coordinates [``BOX_LEN(1 - 1/(2*HII_DIM))``, ``BOX_LEN``]
-and [0, ``BOX_LEN/(2*HII_DIM)``]
+and [0, ``BOX_LEN/(2*HII_DIM)``].
+
+Functions and macros regarding indexing and positioning in both continuous space and discrete grids can be found
+in ``indexing.c`` and ``indexing.h``.
 
 
 Performance and Memory Profiling
