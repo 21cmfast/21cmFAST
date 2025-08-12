@@ -102,7 +102,7 @@ Coordinate Systems & Grid Resolution
 used to specify the ``InitialConditions``, which is downsampled to ``HII_DIM`` in the ``PerturbedField`` and is used
 for all other fields. The two grids are aligned as follows (using a ratio of ``DIM`` / ``HII_DIM`` = 4 as an example):
 
-.. image:: ../figures/grid_schematic_4.png
+.. image:: ./images/grid_schematic_4.png
     :width: 600px
     :align: center
     :alt: Schematic of the grid alignment
