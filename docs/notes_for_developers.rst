@@ -103,7 +103,7 @@ used to specify the ``InitialConditions``, which is downsampled to ``HII_DIM`` i
 for all other fields. The two grids are aligned as follows (using a ratio of ``DIM`` / ``HII_DIM`` = 4 as an example):
 
 .. image:: ./images/grid_schematic_4.png
-    :width: 600px
+    :width: 400px
     :align: center
     :alt: Schematic of the grid alignment
 
