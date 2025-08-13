@@ -96,13 +96,55 @@ argument(s). In the case that _only_ the last argument is meant to be "output", 
 exists a simple wrapper ``_call_c_simple`` in ``wrapper/_utils.py`` that will neatly handle the
 calling of the function in an intuitive pythonic way.
 
+Coordinate Systems & Grid Resolution
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+``21cmFAST`` Uses two grid resolutions specified in ``SimulationOptions`` during the simulation: A high-resolution ``DIM``
+used to specify the ``InitialConditions``, which is downsampled to ``HII_DIM`` in the ``PerturbedField`` and is used
+for all other fields. The two grids are aligned as follows (using a ratio of ``DIM`` / ``HII_DIM`` = 4 as an example):
+
+.. image:: ./images/grid_schematic_4.png
+    :width: 400px
+    :align: center
+    :alt: Schematic of the grid alignment
+
+When the ratio of the two grid dimensions is an integer, the centres of the low-resolution grid cells will always
+align with the centre of a high resolution cell. This allows us to easily downsample the grids using Fourier-space filters,
+since we can always place a low-pass filter at the centre of a high-resolution cell.
+
+Continuous positions such as ``HaloField.halo_coords`` are specified on the range [0, ``BOX_LEN``]. And wrapping occurs such that
+the low-resolution cell at index 0 will contain the coordinates [``BOX_LEN(1 - 1/(2*HII_DIM))``, ``BOX_LEN``]
+and [0, ``BOX_LEN/(2*HII_DIM)``].
+
+Functions and macros regarding indexing and positioning in both continuous space and discrete grids can be found
+in ``indexing.c`` and ``indexing.h``.
+
+
+Performance and Memory Profiling
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+The simplest way to profile the code is using the package `py-spy <https://github.com/benfred/py-spy>`
+and `speedscope <https://speedscope.app>`, simply install py-spy and run
+
+    ``py-spy record --format speedscope -o [PATH_TO_PROFILE].json -- python [YOUR_PYTHON_SCRIPT].py``.
+
+Then drag the output JSON file into the speedscope web app to visualize the profiling data.
+
+Profiling the backend functions requires you to pass the ``--native`` flag to ``py-spy``, and more
+information will be available if you set ``PROFILE=TRUE`` when compiling ``21cmFAST``, which enables debug symbols.
+
+(Note 12/08/25: We have found that some versions of py-spy may have issues using the the ``--native`` flag, displaying stack errors.
+if you encounter this, try installing ``21cmFAST`` and ``py-spy`` on a Python 3.11 environment.)
+
+Memory usage can also be profiled simply using `memray <https://github.com/bloomberg/memray>`. After installing memray:
+
+    ``memray run -o [PATH_TO_PROFILE] python [YOUR_PYTHON_SCRIPT].py``
+    ``memray flamegraph [PATH_TO_PROFILE]``
+
+This will generate a HTML file that can be opened in a web browser to visualize memory usage.
+
 Running with gperftools
 ~~~~~~~~~~~~~~~~~~~~~~~
-profiling can be achieved using gperftools by compiling 21cmfast with the ``PROFILE`` flag
-
-    PROFILE=TRUE pip install .
-
-Then calling whichever script you use to run ``21cmFAST`` with the ``CPUPROFILE`` environment variabled
+profiling can also be achieved using gperftools by compiling 21cmfast with the ``PROFILE`` flag
+then calling whichever script you use to run ``21cmFAST`` with the ``CPUPROFILE`` environment variable
 
     env CPUPROFILE=[PATH-TO-PROFILE] python some_script.py
 
@@ -113,8 +155,8 @@ functions will be mapped correctly.
 
 Running with Valgrind
 ~~~~~~~~~~~~~~~~~~~~~
-If any changes to the C code are made, it is ideal to run tests under valgrind, and
-check for memory leaks. To do this, install ``valgrind`` (we have tested v3.14+),
+Much more detailed performance statistics can be obtained using valgrind, which explicitly
+checks for memory leaks. To do this, install ``valgrind`` (we have tested v3.14+),
 which is probably available via your package manager. We provide a
 suppression file for ``valgrind`` in the ``devel/`` directory of the main repository.
 
