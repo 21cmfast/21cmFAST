@@ -18,7 +18,7 @@
 #include "photoncons.h"
 #include "thermochem.h"
 
-void print_sc_consts(struct ScalingConstants *c) {
+void print_sc_consts(ScalingConstants *c) {
     LOG_DEBUG("Printing scaling relation constants z = %.3f....", c->redshift);
     LOG_DEBUG("SHMR: f10 %.2e a %.2e f7 %.2e a_mini %.2e sigma %.2e", c->fstar_10, c->alpha_star,
               c->fstar_7, c->alpha_star_mini, c->sigma_star);
@@ -33,11 +33,11 @@ void print_sc_consts(struct ScalingConstants *c) {
     return;
 }
 
-void set_scaling_constants(double redshift, struct ScalingConstants *consts, bool use_photoncons) {
+void set_scaling_constants(double redshift, ScalingConstants *consts, bool use_photoncons) {
     consts->redshift = redshift;
 
     // Set on for the fixed grid case since we are missing halos above the cell mass
-    consts->fix_mean = matter_options_global->FIXED_HALO_GRIDS;
+    consts->fix_mean = false;
     // whether to fix *integrated* (not sampled) galaxy properties to the expected mean
     consts->scaling_median = astro_options_global->HALO_SCALING_RELATIONS_MEDIAN;
 
@@ -103,8 +103,8 @@ void set_scaling_constants(double redshift, struct ScalingConstants *consts, boo
 }
 
 // It's often useful to create a copy of scaling constants without F_ESC
-struct ScalingConstants evolve_scaling_constants_sfr(struct ScalingConstants *sc) {
-    struct ScalingConstants sc_sfrd = *sc;
+ScalingConstants evolve_scaling_constants_sfr(ScalingConstants *sc) {
+    ScalingConstants sc_sfrd = *sc;
     sc_sfrd.fesc_10 = 1.;
     sc_sfrd.fesc_7 = 1.;
     sc_sfrd.alpha_esc = 0.;
@@ -115,10 +115,9 @@ struct ScalingConstants evolve_scaling_constants_sfr(struct ScalingConstants *sc
 }
 
 // It's often useful to create a copy of scaling relations at a different z
-struct ScalingConstants evolve_scaling_constants_to_redshift(double redshift,
-                                                             struct ScalingConstants *sc,
-                                                             bool use_photoncons) {
-    struct ScalingConstants sc_z = *sc;
+ScalingConstants evolve_scaling_constants_to_redshift(double redshift, ScalingConstants *sc,
+                                                      bool use_photoncons) {
+    ScalingConstants sc_z = *sc;
     sc_z.redshift = redshift;
     sc_z.t_h = t_hubble(redshift);
 
@@ -268,7 +267,7 @@ double get_lx_on_sfr(double sfr, double metallicity, double lx_constant) {
 }
 
 void get_halo_stellarmass(double halo_mass, double mturn_acg, double mturn_mcg, double star_rng,
-                          struct ScalingConstants *consts, double *star_acg, double *star_mcg) {
+                          ScalingConstants *consts, double *star_acg, double *star_mcg) {
     // low-mass ACG power-law parameters
     double f_10 = consts->fstar_10;
     double f_a = consts->alpha_star;
@@ -320,7 +319,7 @@ void get_halo_stellarmass(double halo_mass, double mturn_acg, double mturn_mcg, 
 }
 
 void get_halo_sfr(double stellar_mass, double stellar_mass_mini, double sfr_rng,
-                  struct ScalingConstants *consts, double *sfr, double *sfr_mini) {
+                  ScalingConstants *consts, double *sfr, double *sfr_mini) {
     double sfr_mean, sfr_mean_mini;
     double sfr_sample, sfr_sample_mini;
 
@@ -376,7 +375,7 @@ void get_halo_metallicity(double sfr, double stellar, double redshift, double *z
 }
 
 void get_halo_xray(double sfr, double sfr_mini, double metallicity, double xray_rng,
-                   struct ScalingConstants *consts, double *xray_out) {
+                   ScalingConstants *consts, double *xray_out) {
     double sigma_xray = consts->sigma_xray;
 
     // adjustment to the mean for lognormal scatter

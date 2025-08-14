@@ -958,20 +958,21 @@ class HaloBox(OutputStructZ):
                     "sfr_rng",
                     "xray_rng",
                 ]
-        elif isinstance(input_box, PerturbedField):
-            if self.matter_options.FIXED_HALO_GRIDS:
-                required += ["density"]
         elif isinstance(input_box, TsBox):
             if self.astro_options.USE_MINI_HALOS:
                 required += ["J_21_LW"]
         elif isinstance(input_box, IonizedBox):
             required += ["ionisation_rate_G12", "z_reion"]
         elif isinstance(input_box, InitialConditions):
-            if (
-                self.matter_options.HALO_STOCHASTICITY
-                and self.astro_options.AVG_BELOW_SAMPLER
-            ):
-                required += ["lowres_density"]
+            required += [
+                "lowres_density",
+                "lowres_vx",
+                "lowres_vy",
+                "lowres_vz",
+                "lowres_vx_2LPT",
+                "lowres_vy_2LPT",
+                "lowres_vz_2LPT",
+            ]
             if self.matter_options.USE_RELATIVE_VELOCITIES:
                 required += ["lowres_vcb"]
         else:
@@ -994,7 +995,6 @@ class HaloBox(OutputStructZ):
             allow_already_computed,
             self.redshift,
             initial_conditions,
-            perturbed_field,
             pt_halos,
             previous_spin_temp,
             previous_ionize_box,

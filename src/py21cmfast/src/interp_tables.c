@@ -92,7 +92,7 @@ static RGTable1D_f dSigmasqdm_InterpTable = {
 // NOTE: this table is initialised for up to N_redshift x N_Mturn, but only called N_filter times to
 // assign ST_over_PS in Spintemp.
 //   It may be better to just do the integrals at each R
-void initialise_SFRD_spline(int Nbin, float zmin, float zmax, struct ScalingConstants *sc) {
+void initialise_SFRD_spline(int Nbin, float zmin, float zmax, ScalingConstants *sc) {
     int i, j;
     double Mmax = M_MAX_INTEGRAL;
     double lnMmax = log(Mmax);
@@ -117,7 +117,7 @@ void initialise_SFRD_spline(int Nbin, float zmin, float zmax, struct ScalingCons
 
 #pragma omp parallel private(i, j) num_threads(simulation_options_global -> N_THREADS)
     {
-        struct ScalingConstants sc_sfrd;
+        ScalingConstants sc_sfrd;
         sc_sfrd = evolve_scaling_constants_sfr(sc);
         double mturn_mcg;
         double lnMmin;
@@ -159,7 +159,7 @@ void initialise_SFRD_spline(int Nbin, float zmin, float zmax, struct ScalingCons
 
 // Unlike the SFRD spline, this one is used more due to the nu_tau_one() rootfind
 // although still ignores reionisation feedback
-void initialise_Nion_Ts_spline(int Nbin, float zmin, float zmax, struct ScalingConstants *sc) {
+void initialise_Nion_Ts_spline(int Nbin, float zmin, float zmax, ScalingConstants *sc) {
     int i, j;
     double Mmax = M_MAX_INTEGRAL;
     double lnMmax = log(Mmax);
@@ -183,7 +183,7 @@ void initialise_Nion_Ts_spline(int Nbin, float zmin, float zmax, struct ScalingC
 
 #pragma omp parallel private(i, j) num_threads(simulation_options_global -> N_THREADS)
     {
-        struct ScalingConstants sc_z;
+        ScalingConstants sc_z;
         double mturn_mcg;
         double z_val;
         double lnMmin;
@@ -290,7 +290,7 @@ void initialise_Nion_Conditional_spline(double z, double min_density, double max
                                         double Mmin, double Mmax, double Mcond,
                                         double log10Mturn_min, double log10Mturn_max,
                                         double log10Mturn_min_MINI, double log10Mturn_max_MINI,
-                                        struct ScalingConstants *sc, bool prev) {
+                                        ScalingConstants *sc, bool prev) {
     int i, j;
     double overdense_table[NDELTA];
     double mturns[NMTURN], mturns_MINI[NMTURN];
@@ -412,7 +412,7 @@ void initialise_Nion_Conditional_spline(double z, double min_density, double max
 // This function initialises one table, for table Rx arrays I will call this function in a loop
 void initialise_SFRD_Conditional_table(double z, double min_density, double max_density,
                                        double Mmin, double Mmax, double Mcond,
-                                       struct ScalingConstants *sc) {
+                                       ScalingConstants *sc) {
     float sigma2;
     int i, k;
 
@@ -449,7 +449,7 @@ void initialise_SFRD_Conditional_table(double z, double min_density, double max_
         SFRD_conditional_table_MINI.y_width = (LOG10_MTURN_MAX - LOG10_MTURN_MIN) / (NMTURN - 1.);
     }
 
-    struct ScalingConstants sc_sfrd = evolve_scaling_constants_sfr(sc);
+    ScalingConstants sc_sfrd = evolve_scaling_constants_sfr(sc);
 
 #pragma omp parallel private(i, k) num_threads(simulation_options_global -> N_THREADS)
     {
@@ -494,7 +494,7 @@ void initialise_SFRD_Conditional_table(double z, double min_density, double max_
 // This function initialises one table, for table Rx arrays I will call this function in a loop
 void initialise_Xray_Conditional_table(double redshift, double min_density, double max_density,
                                        double Mmin, double Mmax, double Mcond,
-                                       struct ScalingConstants *sc) {
+                                       ScalingConstants *sc) {
     int i, k;
 
     LOG_SUPER_DEBUG("Initialising Xray conditional table at mass %.2e from delta %.2e to %.2e",
@@ -884,7 +884,7 @@ void free_global_tables() {
 
 // JD: moving the interp table evaluations here since some of them are needed in nu_tau_one
 // NOTE: with !USE_MASS_DEPENDENT_ZETA both EvaluateNionTs and EvaluateSFRD return Fcoll
-double EvaluateNionTs(double redshift, struct ScalingConstants *sc) {
+double EvaluateNionTs(double redshift, ScalingConstants *sc) {
     // differences in turnover are handled by table setup
     if (matter_options_global->USE_INTERPOLATION_TABLES > 1) {
         if (astro_options_global->USE_MASS_DEPENDENT_ZETA)
@@ -898,7 +898,7 @@ double EvaluateNionTs(double redshift, struct ScalingConstants *sc) {
     double lnMmin = log(minimum_source_mass(redshift, true));
     double lnMmax = log(M_MAX_INTEGRAL);
 
-    struct ScalingConstants sc_z = evolve_scaling_constants_to_redshift(redshift, sc, false);
+    ScalingConstants sc_z = evolve_scaling_constants_to_redshift(redshift, sc, false);
 
     // minihalos uses a different turnover mass
     if (astro_options_global->USE_MASS_DEPENDENT_ZETA)
@@ -907,19 +907,18 @@ double EvaluateNionTs(double redshift, struct ScalingConstants *sc) {
     return Fcoll_General(redshift, lnMmin, lnMmax);
 }
 
-double EvaluateNionTs_MINI(double redshift, double log10_Mturn_LW_ave,
-                           struct ScalingConstants *sc) {
+double EvaluateNionTs_MINI(double redshift, double log10_Mturn_LW_ave, ScalingConstants *sc) {
     if (matter_options_global->USE_INTERPOLATION_TABLES > 1) {
         return EvaluateRGTable2D(redshift, log10_Mturn_LW_ave, &Nion_z_table_MINI);
     }
     double lnMmin = log(minimum_source_mass(redshift, true));
     double lnMmax = log(M_MAX_INTEGRAL);
-    struct ScalingConstants sc_z = evolve_scaling_constants_to_redshift(redshift, sc, false);
+    ScalingConstants sc_z = evolve_scaling_constants_to_redshift(redshift, sc, false);
 
     return Nion_General_MINI(redshift, lnMmin, lnMmax, pow(10., log10_Mturn_LW_ave), &sc_z);
 }
 
-double EvaluateSFRD(double redshift, struct ScalingConstants *sc) {
+double EvaluateSFRD(double redshift, ScalingConstants *sc) {
     if (matter_options_global->USE_INTERPOLATION_TABLES > 1) {
         if (astro_options_global->USE_MASS_DEPENDENT_ZETA)
             return EvaluateRGTable1D(redshift, &SFRD_z_table);
@@ -934,7 +933,7 @@ double EvaluateSFRD(double redshift, struct ScalingConstants *sc) {
 
     // The SFRD calls the same function as N_ion but sets escape fractions to unity
     // NOTE: since this only occurs on integration, the struct copy shouldn't be a bottleneck
-    struct ScalingConstants sc_sfrd = evolve_scaling_constants_sfr(sc);
+    ScalingConstants sc_sfrd = evolve_scaling_constants_sfr(sc);
     sc_sfrd = evolve_scaling_constants_to_redshift(redshift, &sc_sfrd, false);
 
     if (astro_options_global->USE_MASS_DEPENDENT_ZETA)
@@ -942,7 +941,7 @@ double EvaluateSFRD(double redshift, struct ScalingConstants *sc) {
     return Fcoll_General(redshift, lnMmin, lnMmax);
 }
 
-double EvaluateSFRD_MINI(double redshift, double log10_Mturn_LW_ave, struct ScalingConstants *sc) {
+double EvaluateSFRD_MINI(double redshift, double log10_Mturn_LW_ave, ScalingConstants *sc) {
     if (matter_options_global->USE_INTERPOLATION_TABLES > 1) {
         return EvaluateRGTable2D(redshift, log10_Mturn_LW_ave, &SFRD_z_table_MINI);
     }
@@ -950,19 +949,19 @@ double EvaluateSFRD_MINI(double redshift, double log10_Mturn_LW_ave, struct Scal
     double lnMmin = log(minimum_source_mass(redshift, true));
     double lnMmax = log(M_MAX_INTEGRAL);
 
-    struct ScalingConstants sc_sfrd = evolve_scaling_constants_sfr(sc);
+    ScalingConstants sc_sfrd = evolve_scaling_constants_sfr(sc);
     sc_sfrd = evolve_scaling_constants_to_redshift(redshift, &sc_sfrd, false);
 
     return Nion_General_MINI(redshift, lnMmin, lnMmax, pow(10., log10_Mturn_LW_ave), &sc_sfrd);
 }
 
 double EvaluateSFRD_Conditional(double delta, double growthf, double M_min, double M_max,
-                                double M_cond, double sigma_max, struct ScalingConstants *sc) {
+                                double M_cond, double sigma_max, ScalingConstants *sc) {
     if (matter_options_global->USE_INTERPOLATION_TABLES > 1) {
         return exp(EvaluateRGTable1D_f(delta, &SFRD_conditional_table));
     }
 
-    struct ScalingConstants sc_sfrd = evolve_scaling_constants_sfr(sc);
+    ScalingConstants sc_sfrd = evolve_scaling_constants_sfr(sc);
     // SFRD in Ts assumes no (reion) feedback on ACG
     return Nion_ConditionalM(growthf, log(M_min), log(M_max), log(M_cond), sigma_max, delta,
                              sc_sfrd.mturn_a_nofb, &sc_sfrd,
@@ -971,20 +970,20 @@ double EvaluateSFRD_Conditional(double delta, double growthf, double M_min, doub
 
 double EvaluateSFRD_Conditional_MINI(double delta, double log10Mturn_m, double growthf,
                                      double M_min, double M_max, double M_cond, double sigma_max,
-                                     struct ScalingConstants *sc) {
+                                     ScalingConstants *sc) {
     if (matter_options_global->USE_INTERPOLATION_TABLES > 1) {
         return exp(EvaluateRGTable2D_f(delta, log10Mturn_m, &SFRD_conditional_table_MINI));
     }
 
-    struct ScalingConstants sc_sfrd = evolve_scaling_constants_sfr(sc);
+    ScalingConstants sc_sfrd = evolve_scaling_constants_sfr(sc);
     return Nion_ConditionalM_MINI(growthf, log(M_min), log(M_max), log(M_cond), sigma_max, delta,
                                   pow(10, log10Mturn_m), &sc_sfrd,
                                   astro_options_global->INTEGRATION_METHOD_MINI);
 }
 
 double EvaluateNion_Conditional(double delta, double log10Mturn, double growthf, double M_min,
-                                double M_max, double M_cond, double sigma_max,
-                                struct ScalingConstants *sc, bool prev) {
+                                double M_max, double M_cond, double sigma_max, ScalingConstants *sc,
+                                bool prev) {
     RGTable2D_f *table = prev ? &Nion_conditional_table_prev : &Nion_conditional_table2D;
     if (matter_options_global->USE_INTERPOLATION_TABLES > 1) {
         if (astro_options_global->USE_MINI_HALOS)
@@ -1001,7 +1000,7 @@ double EvaluateNion_Conditional(double delta, double log10Mturn, double growthf,
 
 double EvaluateNion_Conditional_MINI(double delta, double log10Mturn_m, double growthf,
                                      double M_min, double M_max, double M_cond, double sigma_max,
-                                     struct ScalingConstants *sc, bool prev) {
+                                     ScalingConstants *sc, bool prev) {
     RGTable2D_f *table = prev ? &Nion_conditional_table_MINI_prev : &Nion_conditional_table_MINI;
     if (matter_options_global->USE_INTERPOLATION_TABLES > 1) {
         return exp(EvaluateRGTable2D_f(delta, log10Mturn_m, table));
@@ -1014,7 +1013,7 @@ double EvaluateNion_Conditional_MINI(double delta, double log10Mturn_m, double g
 
 double EvaluateXray_Conditional(double delta, double log10Mturn_m, double redshift, double growthf,
                                 double M_min, double M_max, double M_cond, double sigma_max,
-                                struct ScalingConstants *sc) {
+                                ScalingConstants *sc) {
     if (matter_options_global->USE_INTERPOLATION_TABLES > 1) {
         if (astro_options_global->USE_MINI_HALOS)
             return exp(EvaluateRGTable2D_f(delta, log10Mturn_m, &Xray_conditional_table_2D));

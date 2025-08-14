@@ -94,7 +94,7 @@ int ComputePerturbHaloField(float redshift, InitialConditions *boxes, HaloField 
         halos_perturbed->n_halos = halos->n_halos;
 
         // ******************   END INITIALIZATION     ******************************** //
-        int n_exact_dim = 0;
+        unsigned long long int n_exact_dim = 0;
         bool error_in_parallel = false;
 #pragma omp parallel private(i_halo) num_threads(simulation_options_global -> N_THREADS) \
     reduction(+ : n_exact_dim)
@@ -136,7 +136,7 @@ int ComputePerturbHaloField(float redshift, InitialConditions *boxes, HaloField 
             }
         }
         // Divide out multiplicative factor to return to pristine state
-        LOG_SUPER_DEBUG("Number of halos exactly on the box edge = %d of %d", n_exact_dim,
+        LOG_SUPER_DEBUG("Number of halos exactly on the box edge = %llu of %llu", n_exact_dim,
                         halos->n_halos);
         if (error_in_parallel) {
             LOG_ERROR("Error in parallel processing, some halos were out of bounds.");
