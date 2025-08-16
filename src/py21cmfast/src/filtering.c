@@ -133,18 +133,22 @@ void compute_alpha_and_beta_for_multiple_scattering(double R_SL, double r_star,
     } else if (x_em > 3.) {
         mu = -0.104 * pow(zeta_em, 5) + 0.4867 * pow(zeta_em, 4) - 0.8217 * pow(zeta_em, 3) +
              0.4889 * zeta_em * zeta_em + 0.264 * zeta_em + 0.518;
-    } else {
+    } else if (x_em > 0.2) {
         mu = -0.0285 * pow(zeta_em, 5) + 0.087 * pow(zeta_em, 4) - 0.1205 * pow(zeta_em, 3) -
              0.0456 * zeta_em * zeta_em + 0.3787 * zeta_em + 0.5285;
+    } else {
+        mu = 0.3982 * pow(x_em, 0.1592);
     }
     if (x_em > 20.) {
         eta = 1. - 2.804 * pow(x_em, -1.242);
     } else if (x_em > 3.) {
         eta = 2.17 * pow(zeta_em, 5) - 8.832 * pow(zeta_em, 4) + 13.579 * pow(zeta_em, 3) -
               10.04 * zeta_em * zeta_em + 4.166 * zeta_em - 0.17;
-    } else {
+    } else if (x_em > 0.2) {
         eta = 0.352 * pow(zeta_em, 5) - 0.0516 * pow(zeta_em, 4) - 0.293 * pow(zeta_em, 3) +
               0.342 * zeta_em * zeta_em + 0.582 * zeta_em + 0.266;
+    } else {
+        eta = 0.4453 * pow(x_em, 1.296);
     }
     // mu = alpha/(alpha+beta), eta = alpha/(alpha+beta^2)
     consts->alpha_outer = (1. / eta - 1.) / pow(1. / mu - 1., 2);
