@@ -128,23 +128,23 @@ void compute_alpha_and_beta_for_multiple_scattering(double R_SL, double r_star,
     double x_em = R_SL / r_star;
     double zeta_em = log10(x_em);
     double mu, eta;
-    if (x_em < 10.) {
-        mu = (0.36 * zeta_em + 0.54) * (1. + 0.015 * exp(-0.5 * pow((zeta_em - 0.422) / 0.217, 2)));
-    } else if (x_em < 23.) {
-        mu = -0.338 * zeta_em * zeta_em + 0.94 * zeta_em + 0.298;
+    if (x_em > 30) {
+        mu = 1. - 1.0478 * pow(x_em, -0.7266);
+    } else if (x_em > 3.) {
+        mu = -0.104 * pow(zeta_em, 5) + 0.4867 * pow(zeta_em, 4) - 0.8217 * pow(zeta_em, 3) +
+             0.4889 * zeta_em * zeta_em + 0.264 * zeta_em + 0.518;
     } else {
-        mu = 0.96 - 0.00713 * exp(-0.051 * (x_em - 23.));
+        mu = -0.0285 * pow(zeta_em, 5) + 0.087 * pow(zeta_em, 4) - 0.1205 * pow(zeta_em, 3) -
+             0.0456 * zeta_em * zeta_em + 0.3787 * zeta_em + 0.5285;
     }
-    if (x_em < 1.3) {
-        eta = 0.278 * pow(x_em, 0.898);
-    } else if (x_em < 8.) {
-        eta = (0.662 * zeta_em + 0.262) *
-              (1. - 0.0296 * exp(-0.5 * pow((zeta_em - 0.481) / 0.146, 2)));
-    } else if (x_em < 20.) {
-        eta = -2.62 * pow(zeta_em, 4) + 12.81 * pow(zeta_em, 3) - 23.815 * zeta_em * zeta_em +
-              19.94 * zeta_em - 5.42;
+    if (x_em > 20.) {
+        eta = 1. - 2.804 * pow(x_em, -1.242);
+    } else if (x_em > 3.) {
+        eta = 2.17 * pow(zeta_em, 5) - 8.832 * pow(zeta_em, 4) + 13.579 * pow(zeta_em, 3) -
+              10.04 * zeta_em * zeta_em + 4.166 * zeta_em - 0.17;
     } else {
-        eta = -0.0786 * zeta_em + 1.023;
+        eta = 0.352 * pow(zeta_em, 5) - 0.0516 * pow(zeta_em, 4) - 0.293 * pow(zeta_em, 3) +
+              0.342 * zeta_em * zeta_em + 0.582 * zeta_em + 0.266;
     }
     // mu = alpha/(alpha+beta), eta = alpha/(alpha+beta^2)
     consts->alpha_outer = (1. / eta - 1.) / pow(1. / mu - 1., 2);
