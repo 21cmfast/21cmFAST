@@ -1086,7 +1086,8 @@ int stochastic_halofield(unsigned long long int seed, float redshift_desc, float
 
     // set up the rng
     gsl_rng *rng_stoc[simulation_options_global->N_THREADS];
-    seed_rng_threads_fast(rng_stoc, seed);
+    int seed_fac = (int)(redshift * 1000);
+    seed_rng_threads_fast(rng_stoc, seed + seed_fac);
 
     struct HaloSamplingConstants hs_constants;
     stoc_set_consts_z(&hs_constants, redshift, redshift_desc);
