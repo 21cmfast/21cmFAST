@@ -969,10 +969,13 @@ class HaloBox(OutputStructZ):
                 "lowres_vx",
                 "lowres_vy",
                 "lowres_vz",
-                "lowres_vx_2LPT",
-                "lowres_vy_2LPT",
-                "lowres_vz_2LPT",
             ]
+            if self.matter_options.PERTURB_ALGORITHM == "2LPT":
+                required += [
+                    "lowres_vx_2LPT",
+                    "lowres_vy_2LPT",
+                    "lowres_vz_2LPT",
+                ]
             if self.matter_options.USE_RELATIVE_VELOCITIES:
                 required += ["lowres_vcb"]
         else:
@@ -985,7 +988,6 @@ class HaloBox(OutputStructZ):
         *,
         initial_conditions: InitialConditions,
         pt_halos: PerturbHaloField,
-        perturbed_field: PerturbedField,
         previous_spin_temp: TsBox,
         previous_ionize_box: IonizedBox,
         allow_already_computed: bool = False,

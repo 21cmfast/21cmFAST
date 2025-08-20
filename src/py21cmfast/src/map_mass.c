@@ -14,6 +14,7 @@
 #include "InputParameters.h"
 #include "cosmology.h"
 #include "indexing.h"
+#include "logger.h"
 
 #define do_cic_interpolation(arr, ...)                                                           \
     _Generic((arr), float *: do_cic_interpolation_float, double *: do_cic_interpolation_double)( \
@@ -167,8 +168,7 @@ void move_grid_masses(double redshift, float *dens_pointer, int dens_dim[3], flo
 
 // Function that maps a IC density grid to the perturbed density grid
 // TODO: This shares a lot of code with move_grid_masses and (future) move_cat_galprops.
-//  I should move these functions to a MapMass.c file (like the GPU build) which contains all the
-//  mapping functions and specifies initialisation for the below constants. Since the differences
+//  I should look into combining elements, however since the differences
 //  are on the innermost loops, any generalisation is likely to slow things down.
 void move_grid_galprops(double redshift, float *dens_pointer, int dens_dim[3],
                         float *vel_pointers[3], float *vel_pointers_2LPT[3], int vel_dim[3],
@@ -212,7 +212,8 @@ void move_grid_galprops(double redshift, float *dens_pointer, int dens_dim[3],
         double pos[3], curr_dens;
         int ipos[3];
         unsigned long long vel_index, dens_index;
-        double l10_mturn_a, l10_mturn_m;
+        double l10_mturn_a = log10(consts->mturn_a_nofb);
+        double l10_mturn_m = log10(consts->mturn_m_nofb);
         HaloProperties properties;
 #pragma omp for
         for (i = 0; i < dens_dim[0]; i++) {
@@ -239,23 +240,29 @@ void move_grid_galprops(double redshift, float *dens_pointer, int dens_dim[3],
                     // CIC interpolation
                     dens_index = grid_index_general(i, j, k, dens_dim);
                     curr_dens = dens_pointer[dens_index] * growth_factor;
-                    l10_mturn_a = mturn_a_grid[i];
-                    l10_mturn_m = mturn_m_grid[i];
+                    if (astro_options_global->USE_MINI_HALOS) {
+                        l10_mturn_a = mturn_a_grid[dens_index];
+                        l10_mturn_m = mturn_m_grid[dens_index];
+                    }
 
                     get_cell_integrals(curr_dens, l10_mturn_a, l10_mturn_m, consts, integral_cond,
                                        &properties);
+
+                    // using the properties struct:
+                    // stellar_mass --> no F_esc integral ACG
+                    // stellar_mass_mini --> no F_esc integral MCG
+                    // n_ion --> F_esc integral ACG
+                    // fescweighted_sfr --> F_esc integral MCG
+                    // halo_xray --> Xray integral
                     do_cic_interpolation(boxes->halo_sfr, pos, out_dim,
-                                         properties.halo_sfr * prefactor_sfr);
-                    // re-used the fescweighted field for minihalos
+                                         properties.stellar_mass * prefactor_sfr);
                     do_cic_interpolation(boxes->n_ion, pos, out_dim,
                                          properties.n_ion * prefactor_nion +
                                              properties.fescweighted_sfr * prefactor_nion_mini);
 
                     if (astro_options_global->USE_MINI_HALOS) {
-                        do_cic_interpolation(boxes->halo_stars_mini, pos, out_dim,
-                                             properties.stellar_mass_mini * prefactor_stars_mini);
                         do_cic_interpolation(boxes->halo_sfr_mini, pos, out_dim,
-                                             properties.sfr_mini * prefactor_sfr_mini);
+                                             properties.stellar_mass_mini * prefactor_sfr_mini);
                     }
                     if (astro_options_global->USE_TS_FLUCT) {
                         do_cic_interpolation(boxes->halo_xray, pos, out_dim,
@@ -266,8 +273,11 @@ void move_grid_galprops(double redshift, float *dens_pointer, int dens_dim[3],
                     // fields but are useful
                     //  for analysis
                     //  do_cic_interpolation(boxes->halo_mass, pos, out_dim, properties.halo_mass *
-                    //  prefactor_mass); do_cic_interpolation(boxes->halo_stars, pos, out_dim,
-                    //  properties.stellar_mass * prefactor_stars);
+                    //      prefactor_mass);
+                    //  do_cic_interpolation(boxes->halo_stars, pos, out_dim,
+                    //      properties.stellar_mass * prefactor_stars);
+                    //  do_cic_interpolation(boxes->halo_stars_mini, pos, out_dim,
+                    //  properties.stellar_mass_mini * prefactor_stars_mini);
                 }
             }
         }

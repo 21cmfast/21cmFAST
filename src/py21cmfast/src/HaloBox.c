@@ -276,6 +276,7 @@ int set_fixed_grids(double M_min, double M_max, InitialConditions *ini_boxes, fl
                     HII_TOT_NUM_PIXELS;  // mass in cell of mean dens
     IntegralCondition integral_cond;
     set_integral_constants(&integral_cond, consts->redshift, M_min, M_max, M_cell);
+    double growthf = dicke(consts->redshift);
 
     // find grid limits for tables
     double min_density = 0.;
@@ -293,7 +294,7 @@ int set_fixed_grids(double M_min, double M_max, InitialConditions *ini_boxes, fl
 #pragma omp for reduction(min : min_density, min_log10_mturn_a, min_log10_mturn_m) \
     reduction(max : max_density, max_log10_mturn_a, max_log10_mturn_m)
         for (i = 0; i < HII_TOT_NUM_PIXELS; i++) {
-            dens = ini_boxes->lowres_density[i];
+            dens = ini_boxes->lowres_density[i] * growthf;
             if (dens > max_density) max_density = dens;
             if (dens < min_density) min_density = dens;
 
@@ -364,9 +365,9 @@ int set_fixed_grids(double M_min, double M_max, InitialConditions *ini_boxes, fl
     if (astro_options_global->USE_MINI_HALOS) {
         LOG_ULTRA_DEBUG("MINI SM %.2e SF %.2e", grids->halo_stars_mini[HII_R_INDEX(0, 0, 0)],
                         grids->halo_sfr_mini[HII_R_INDEX(0, 0, 0)]);
+        LOG_ULTRA_DEBUG("Mturn_a %.2e Mturn_m %.2e", mturn_a_grid[HII_R_INDEX(0, 0, 0)],
+                        mturn_m_grid[HII_R_INDEX(0, 0, 0)]);
     }
-    LOG_ULTRA_DEBUG("Mturn_a %.2e Mturn_m %.2e", mturn_a_grid[HII_R_INDEX(0, 0, 0)],
-                    mturn_m_grid[HII_R_INDEX(0, 0, 0)]);
     free_conditional_tables();
 
     if (consts->fix_mean) mean_fix_grids(M_min, M_max, grids, consts);
@@ -404,8 +405,8 @@ void halobox_debug_print_avg(HaloBox *halobox, ScalingConstants *consts, double 
 void get_log10_turnovers(InitialConditions *ini_boxes, TsBox *previous_spin_temp,
                          IonizedBox *previous_ionize_box, float *mturn_a_grid, float *mturn_m_grid,
                          ScalingConstants *consts, double averages[2]) {
-    averages[0] = consts->mturn_a_nofb;
-    averages[1] = consts->mturn_m_nofb;
+    averages[0] = log10(consts->mturn_a_nofb);
+    averages[1] = log10(consts->mturn_m_nofb);
     if (!astro_options_global->USE_MINI_HALOS) {
         return;
     }
