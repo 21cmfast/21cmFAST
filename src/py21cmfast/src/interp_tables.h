@@ -6,7 +6,6 @@
 
 // Functions within interp_tables.c need the parameter structures, but we don't want to pass them
 // all down the chain, so we broadcast them
-// TODO: in future it would be better to use a context struct. See `HaloBox.c`
 
 void initialise_SFRD_spline(int Nbin, float zmin, float zmax, ScalingConstants *sc);
 double EvaluateSFRD(double redshift, ScalingConstants *sc);

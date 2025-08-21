@@ -206,9 +206,7 @@ void set_ionbox_constants(double redshift, double prev_redshift, struct IonBoxCo
         pow(1 + redshift, 2) * CMperMPC * SIGMA_HI * astro_params_global->ALPHA_UVB /
         (astro_params_global->ALPHA_UVB + 2.75) * N_b0 * consts->ion_eff_factor / 1.0e-12;
     if (matter_options_global->USE_HALO_FIELD)
-        consts->gamma_prefactor /=
-            RHOcrit * cosmo_params_global->OMb;  // TODO: double-check these unit differences,
-                                                 // HaloBox.halo_wsfr vs Nion_General units
+        consts->gamma_prefactor /= RHOcrit * cosmo_params_global->OMb;
     else
         consts->gamma_prefactor = consts->gamma_prefactor / (sc.t_h * sc.t_star);
 

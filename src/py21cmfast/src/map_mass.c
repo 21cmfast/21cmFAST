@@ -269,15 +269,17 @@ void move_grid_galprops(double redshift, float *dens_pointer, int dens_dim[3],
                                              properties.halo_xray * prefactor_xray);
                     }
 
-                    // TODO: add an optional flag for fields which aren't used in the radiation
-                    // fields but are useful
-                    //  for analysis
-                    //  do_cic_interpolation(boxes->halo_mass, pos, out_dim, properties.halo_mass *
-                    //      prefactor_mass);
-                    //  do_cic_interpolation(boxes->halo_stars, pos, out_dim,
-                    //      properties.stellar_mass * prefactor_stars);
-                    //  do_cic_interpolation(boxes->halo_stars_mini, pos, out_dim,
-                    //  properties.stellar_mass_mini * prefactor_stars_mini);
+                    if (config_settings.EXTRA_HALOBOX_FIELDS) {
+                        do_cic_interpolation(boxes->halo_mass, pos, out_dim,
+                                             properties.halo_mass * prefactor_mass);
+                        do_cic_interpolation(boxes->halo_stars, pos, out_dim,
+                                             properties.stellar_mass * prefactor_stars);
+                        if (astro_options_global->USE_MINI_HALOS) {
+                            do_cic_interpolation(
+                                boxes->halo_stars_mini, pos, out_dim,
+                                properties.stellar_mass_mini * prefactor_stars_mini);
+                        }
+                    }
                 }
             }
         }

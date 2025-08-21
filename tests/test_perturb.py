@@ -106,43 +106,24 @@ class TestPerturb:
 
         return ics
 
-    def test_lowres_perturb(self, inputs_low, test_pt_z):
+    @pytest.mark.parametrize("inputs", ["inputs_low", "inputs_zel"])
+    def test_lowres_perturb(self, inputs, test_pt_z, request):
         """Tests low-resolution perturbation."""
-        ics = self.get_fake_ics(inputs_low, test_pt_z)
-        expected_dens = np.roll(ics.get("lowres_density"), (0, 1, -1), (0, 1, 2))
-        d_z_i = cf.get_growth_factor(
-            inputs=inputs_low, redshift=inputs_low.simulation_options.INITIAL_REDSHIFT
+        inputs = request.getfixturevalue(inputs)
+        ics = self.get_fake_ics(inputs, test_pt_z)
+        z_d = (
+            test_pt_z
+            if inputs.matter_options.PERTURB_ALGORITHM == "LINEAR"
+            else inputs.simulation_options.INITIAL_REDSHIFT
         )
-        expected_dens *= d_z_i
-        pt = perturb_field(
-            initial_conditions=ics,
-            redshift=test_pt_z,
-            regenerate=True,
-            write=False,
-        )
-        np.testing.assert_allclose(pt.get("density"), expected_dens, atol=1e-3)
+        roll_var = {
+            "LINEAR": (0, 0, 0),
+            "ZELDOVICH": (0, 1, 0),
+            "2LPT": (0, 1, -1),
+        }[inputs.matter_options.PERTURB_ALGORITHM]
+        d_z = cf.get_growth_factor(inputs=inputs, redshift=z_d)
 
-    def test_zel_perturb(self, inputs_zel, test_pt_z):
-        """Tests Zeldovich perturbation."""
-        ics = self.get_fake_ics(inputs_zel, test_pt_z)
-        expected_dens = np.roll(ics.get("lowres_density"), (0, 1, 0), (0, 1, 2))
-        d_z_i = cf.get_growth_factor(
-            inputs=inputs_zel, redshift=inputs_zel.simulation_options.INITIAL_REDSHIFT
-        )
-        expected_dens *= d_z_i
-        pt = perturb_field(
-            initial_conditions=ics,
-            redshift=test_pt_z,
-            regenerate=True,
-            write=False,
-        )
-        np.testing.assert_allclose(pt.get("density"), expected_dens, atol=1e-3)
-
-    def test_linear_perturb(self, inputs_linear, test_pt_z):
-        """Tests linear perturbation."""
-        ics = self.get_fake_ics(inputs_linear, test_pt_z)
-        expected_dens = ics.get("lowres_density").copy()
-        d_z = cf.get_growth_factor(inputs=inputs_linear, redshift=test_pt_z)
+        expected_dens = np.roll(ics.get("lowres_density"), roll_var, (0, 1, 2))
         expected_dens *= d_z
         pt = perturb_field(
             initial_conditions=ics,
@@ -170,45 +151,52 @@ class TestPerturb:
         np.testing.assert_allclose(pt.get("density"), expected_dens, atol=1e-3)
 
     # TODO: include minihalo properties
-    def test_hb_perturb(self, inputs_low, test_pt_z):
+    # TODO: include linear (for some reason)
+    @pytest.mark.parametrize("inputs", ["inputs_low", "inputs_zel"])
+    def test_hb_perturb(self, inputs, test_pt_z, request):
         """Tests the halo property perturbation."""
-        ics = self.get_fake_ics(inputs_low, test_pt_z)
+        inputs = request.getfixturevalue(inputs)
+        ics = self.get_fake_ics(inputs, test_pt_z)
         hbox = compute_halo_grid(
             redshift=test_pt_z,
             initial_conditions=ics,
-            inputs=inputs_low,
+            inputs=inputs,
         )
         cell_radius = 0.620350491 * (
-            inputs_low.simulation_options.BOX_LEN
-            / inputs_low.simulation_options.HII_DIM
+            inputs.simulation_options.BOX_LEN / inputs.simulation_options.HII_DIM
         )
         d_z = cf.get_growth_factor(
-            inputs=inputs_low,
+            inputs=inputs,
             redshift=test_pt_z,
         )
-        dens = np.roll(ics.get("lowres_density"), (0, 1, -1), (0, 1, 2)) * d_z
-        mt_grid = np.full_like(dens, inputs_low.astro_params.M_TURN)
+        roll_var = {
+            "LINEAR": (0, 0, 0),
+            "ZELDOVICH": (0, 1, 0),
+            "2LPT": (0, 1, -1),
+        }[inputs.matter_options.PERTURB_ALGORITHM]
+        dens = np.roll(ics.get("lowres_density"), roll_var, (0, 1, 2)) * d_z
+        mt_grid = np.full_like(dens, inputs.astro_params.M_TURN)
 
         prefac_sfr = (
-            inputs_low.cosmo_params.cosmo.critical_density(0).to("Msun Mpc-3").value
-            * inputs_low.astro_params.cdict["F_STAR10"]
-            * inputs_low.cosmo_params.OMb
-            * inputs_low.cosmo_params.cosmo.H(test_pt_z).to("s-1").value
-            / inputs_low.astro_params.t_STAR
+            inputs.cosmo_params.cosmo.critical_density(0).to("Msun Mpc-3").value
+            * inputs.astro_params.cdict["F_STAR10"]
+            * inputs.cosmo_params.OMb
+            * inputs.cosmo_params.cosmo.H(test_pt_z).to("s-1").value
+            / inputs.astro_params.t_STAR
         )
         prefac_nion = (
-            inputs_low.cosmo_params.cosmo.critical_density(0).to("Msun Mpc-3").value
-            * inputs_low.astro_params.cdict["F_STAR10"]
-            * inputs_low.cosmo_params.OMb
-            * inputs_low.astro_params.cdict["F_ESC10"]
-            * inputs_low.astro_params.cdict["POP2_ION"]
+            inputs.cosmo_params.cosmo.critical_density(0).to("Msun Mpc-3").value
+            * inputs.astro_params.cdict["F_STAR10"]
+            * inputs.cosmo_params.OMb
+            * inputs.astro_params.cdict["F_ESC10"]
+            * inputs.astro_params.cdict["POP2_ION"]
         )
         prefac_xray = (
-            inputs_low.cosmo_params.cosmo.critical_density(0).to("Msun Mpc-3").value
-            * inputs_low.cosmo_params.OMm
+            inputs.cosmo_params.cosmo.critical_density(0).to("Msun Mpc-3").value
+            * inputs.cosmo_params.OMm
         )
         integral_sfrd, _ = cf.evaluate_SFRD_cond(
-            inputs=inputs_low,
+            inputs=inputs,
             redshift=test_pt_z,
             radius=cell_radius,
             densities=dens,
@@ -217,7 +205,7 @@ class TestPerturb:
         integral_sfrd *= prefac_sfr
 
         integral_nion, _ = cf.evaluate_Nion_cond(
-            inputs=inputs_low,
+            inputs=inputs,
             redshift=test_pt_z,
             radius=cell_radius,
             densities=dens,
@@ -227,7 +215,7 @@ class TestPerturb:
         integral_nion *= prefac_nion
 
         integral_xray = cf.evaluate_Xray_cond(
-            inputs=inputs_low,
+            inputs=inputs,
             redshift=test_pt_z,
             radius=cell_radius,
             densities=dens,

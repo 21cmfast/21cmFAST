@@ -43,9 +43,8 @@ static RGTable2D SFRD_z_table_MINI = {.allocated = false};
 static RGTable2D Nion_z_table_MINI = {.allocated = false};
 static RGTable2D Xray_z_table_2D = {.allocated = false};
 // TODO: SFRD tables assume no reionisation feedback, this is self-inconsistent, but probably okay
-// given
-//  it's used (mostly) in the SpinTemperature, which deals with neutral regions
-//  Will overestimate integral component of SFRD lightcones used in observation
+// given it's used (mostly) in the SpinTemperature, which deals with neutral regions
+// Will overestimate integral component of SFRD lightcones used in observation
 static RGTable1D_f SFRD_conditional_table = {.allocated = false};
 static RGTable1D_f Nion_conditional_table1D = {.allocated = false};
 static RGTable2D_f Nion_conditional_table2D = {.allocated = false};

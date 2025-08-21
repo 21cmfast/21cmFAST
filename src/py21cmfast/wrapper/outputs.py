@@ -28,6 +28,7 @@ from astropy import units as u
 from astropy.cosmology import z_at_value
 from bidict import bidict
 
+from .._cfg import config
 from ..c_21cmfast import lib
 from .arrays import Array
 from .exceptions import _process_exitcode
@@ -889,10 +890,9 @@ class HaloBox(OutputStructZ):
     _meta = False
     _c_compute_function = lib.ComputeHaloBox
 
-    halo_mass = _arrayfield()
-    halo_stars = _arrayfield()
+    halo_mass = _arrayfield(optional=True)
+    halo_stars = _arrayfield(optional=True)
     halo_stars_mini = _arrayfield(optional=True)
-    count = _arrayfield()
     halo_sfr = _arrayfield()
     halo_sfr_mini = _arrayfield(optional=True)
     halo_xray = _arrayfield(optional=True)
@@ -922,15 +922,11 @@ class HaloBox(OutputStructZ):
         shape = (dim, dim, int(inputs.simulation_options.NON_CUBIC_FACTOR * dim))
 
         out = {
-            "halo_mass": Array(shape, dtype=np.float32),
-            "halo_stars": Array(shape, dtype=np.float32),
-            "count": Array(shape, dtype=np.int32),
             "halo_sfr": Array(shape, dtype=np.float32),
             "n_ion": Array(shape, dtype=np.float32),
         }
 
         if inputs.astro_options.USE_MINI_HALOS:
-            out["halo_stars_mini"] = Array(shape, dtype=np.float32)
             out["halo_sfr_mini"] = Array(shape, dtype=np.float32)
 
         if inputs.astro_options.INHOMO_RECO:
@@ -938,6 +934,13 @@ class HaloBox(OutputStructZ):
 
         if inputs.astro_options.USE_TS_FLUCT:
             out["halo_xray"] = Array(shape, dtype=np.float32)
+
+        if config["EXTRA_HALOBOX_FIELDS"]:
+            out["count"] = Array(shape, dtype=np.int32)
+            out["halo_mass"] = Array(shape, dtype=np.float32)
+            out["halo_stars"] = Array(shape, dtype=np.float32)
+            if inputs.astro_options.USE_MINI_HALOS:
+                out["halo_stars_mini"] = Array(shape, dtype=np.float32)
 
         return cls(
             inputs=inputs,

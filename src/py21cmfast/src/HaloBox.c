@@ -152,27 +152,29 @@ int get_uhmf_averages(double M_min, double M_max, double M_turn_a, double M_turn
     return 0;
 }
 HaloProperties get_halobox_averages(HaloBox *grids) {
-    double mean_count = 0., mean_mass = 0., mean_stars = 0., mean_stars_mini = 0., mean_sfr = 0.,
-           mean_sfr_mini = 0.;
+    int mean_count = 0;
+    double mean_mass = 0., mean_stars = 0., mean_stars_mini = 0., mean_sfr = 0., mean_sfr_mini = 0.;
     double mean_n_ion = 0., mean_xray = 0., mean_wsfr = 0.;
 
-// TODO: optional flags for count/hm/sm
 #pragma omp parallel for reduction(+ : mean_count, mean_mass, mean_stars, mean_stars_mini, \
                                        mean_sfr, mean_sfr_mini)
     for (int i = 0; i < HII_TOT_NUM_PIXELS; i++) {
-        mean_count += grids->count[i];
-        mean_mass += grids->halo_mass[i];
-        mean_stars += grids->halo_stars[i];
         mean_sfr += grids->halo_sfr[i];
         mean_n_ion += grids->n_ion[i];
         if (astro_options_global->USE_TS_FLUCT) {
             mean_xray += grids->halo_xray[i];
         }
         if (astro_options_global->USE_MINI_HALOS) {
-            mean_stars_mini += grids->halo_stars_mini[i];
             mean_sfr_mini += grids->halo_sfr_mini[i];
         }
         if (astro_options_global->INHOMO_RECO) mean_wsfr += grids->whalo_sfr[i];
+
+        if (config_settings.EXTRA_HALOBOX_FIELDS) {
+            mean_count += grids->count[i];
+            mean_mass += grids->halo_mass[i];
+            mean_stars += grids->halo_stars[i];
+            if (astro_options_global->USE_MINI_HALOS) mean_stars_mini += grids->halo_stars_mini[i];
+        }
     }
 
     HaloProperties averages = {
@@ -204,13 +206,9 @@ void mean_fix_grids(double M_min, double M_max, HaloBox *grids, ScalingConstants
     unsigned long long int idx;
 #pragma omp parallel for num_threads(simulation_options_global->N_THREADS) private(idx)
     for (idx = 0; idx < HII_TOT_NUM_PIXELS; idx++) {
-        grids->halo_mass[idx] *= averages_global.halo_mass / averages_hbox.halo_mass;
-        grids->halo_stars[idx] *= averages_global.stellar_mass / averages_hbox.stellar_mass;
         grids->halo_sfr[idx] *= averages_global.halo_sfr / averages_hbox.halo_sfr;
         grids->n_ion[idx] *= averages_global.n_ion / averages_hbox.n_ion;
         if (astro_options_global->USE_MINI_HALOS) {
-            grids->halo_stars_mini[idx] *=
-                averages_global.stellar_mass_mini / averages_hbox.stellar_mass_mini;
             grids->halo_sfr_mini[idx] *= averages_global.sfr_mini / averages_hbox.sfr_mini;
         }
         if (astro_options_global->USE_TS_FLUCT) {
@@ -219,6 +217,15 @@ void mean_fix_grids(double M_min, double M_max, HaloBox *grids, ScalingConstants
         if (astro_options_global->INHOMO_RECO) {
             grids->whalo_sfr[idx] *=
                 averages_global.fescweighted_sfr / averages_hbox.fescweighted_sfr;
+        }
+
+        if (config_settings.EXTRA_HALOBOX_FIELDS) {
+            grids->halo_mass[idx] *= averages_global.halo_mass / averages_hbox.halo_mass;
+            grids->halo_stars[idx] *= averages_global.stellar_mass / averages_hbox.stellar_mass;
+            if (astro_options_global->USE_MINI_HALOS) {
+                grids->halo_stars_mini[idx] *=
+                    averages_global.stellar_mass_mini / averages_hbox.stellar_mass_mini;
+            }
         }
     }
 }
@@ -233,6 +240,16 @@ void get_cell_integrals(double dens, double l10_mturn_a, double l10_mturn_m,
     double M_cell = int_consts->M_cell;
     double sigma_cell = int_consts->sigma_cell;
 
+    // set all fields to zero
+    memset(properties, 0, sizeof(HaloProperties));
+
+    // using the properties struct:
+    // stellar_mass --> no F_esc integral ACG
+    // stellar_mass_mini --> no F_esc integral MCG
+    // n_ion --> F_esc integral ACG
+    // fescweighted_sfr --> F_esc integral MCG
+    // halo_xray --> Xray integral
+    // halo_mass --> total mass
     properties->n_ion = EvaluateNion_Conditional(dens, l10_mturn_a, growth_z, M_min, M_max, M_cell,
                                                  sigma_cell, consts, false);
     properties->stellar_mass =
@@ -246,25 +263,18 @@ void get_cell_integrals(double dens, double l10_mturn_a, double l10_mturn_m,
         // re-using field
         properties->fescweighted_sfr = EvaluateNion_Conditional_MINI(
             dens, l10_mturn_m, growth_z, M_min, M_max, M_cell, sigma_cell, consts, false);
-    } else {
-        properties->stellar_mass_mini = 0;
-        properties->fescweighted_sfr = 0;
     }
 
     if (astro_options_global->USE_TS_FLUCT) {
         properties->halo_xray =
             EvaluateXray_Conditional(dens, l10_mturn_m, consts->redshift, growth_z, M_min, M_max,
                                      M_cell, sigma_cell, consts);
-    } else {
-        properties->halo_xray = 0;
     }
 
-    // TODO: add an optional flag for fields which aren't used in the radiation fields but are
-    // useful
-    //  for analysis
-    //  properties->count = EvaluateNhalo(dens, growth_z, lnMmin, lnMmax, M_cell, sigma_cell, dens);
-    //  properties->halo_mass = EvaluateMcoll(dens, growth_z, lnMmin, lnMmax, M_cell, sigma_cell,
-    //  dens);
+    if (config_settings.EXTRA_HALOBOX_FIELDS) {
+        properties->halo_mass =
+            EvaluateMcoll(dens, growth_z, log(M_min), log(M_max), M_cell, sigma_cell, dens);
+    }
 }
 
 // Fixed halo grids, where each property is set as the integral of the CMF on the EULERIAN cell
@@ -352,10 +362,8 @@ int set_fixed_grids(double M_min, double M_max, InitialConditions *ini_boxes, fl
                        vel_pointers_2LPT, grid_dim, grids, grid_dim, mturn_a_grid, mturn_m_grid,
                        consts, &integral_cond);
 
-    LOG_ULTRA_DEBUG("Cell 0 Totals: HM: %.2e SM: %.2e SF: %.2e, NI: %.2e ct : %d",
-                    grids->halo_mass[HII_R_INDEX(0, 0, 0)], grids->halo_stars[HII_R_INDEX(0, 0, 0)],
-                    grids->halo_sfr[HII_R_INDEX(0, 0, 0)], grids->n_ion[HII_R_INDEX(0, 0, 0)],
-                    grids->count[HII_R_INDEX(0, 0, 0)]);
+    LOG_ULTRA_DEBUG("Cell 0 Totals: SF: %.2e, NI: %.2e", grids->halo_sfr[HII_R_INDEX(0, 0, 0)],
+                    grids->n_ion[HII_R_INDEX(0, 0, 0)]);
     if (astro_options_global->INHOMO_RECO) {
         LOG_ULTRA_DEBUG("FESC * SF %.2e", grids->whalo_sfr[HII_R_INDEX(0, 0, 0)]);
     }
@@ -538,19 +546,11 @@ void sum_halos_onto_grid(InitialConditions *ini_boxes, PerturbHaloField *halos, 
 
 // update the grids
 #pragma omp atomic update
-            grids->halo_mass[i_cell] += hmass;
-#pragma omp atomic update
-            grids->halo_stars[i_cell] += out_props.stellar_mass;
-#pragma omp atomic update
             grids->n_ion[i_cell] += out_props.n_ion;
 #pragma omp atomic update
             grids->halo_sfr[i_cell] += out_props.halo_sfr;
-#pragma omp atomic update
-            grids->count[i_cell] += 1;
 
             if (astro_options_global->USE_MINI_HALOS) {
-#pragma omp atomic update
-                grids->halo_stars_mini[i_cell] += out_props.stellar_mass_mini;
 #pragma omp atomic update
                 grids->halo_sfr_mini[i_cell] += out_props.sfr_mini;
             }
@@ -564,14 +564,25 @@ void sum_halos_onto_grid(InitialConditions *ini_boxes, PerturbHaloField *halos, 
 #pragma omp atomic update
                 grids->halo_xray[i_cell] += out_props.halo_xray;
             }
+
+            if (config_settings.EXTRA_HALOBOX_FIELDS) {
+#pragma omp atomic update
+                grids->halo_mass[i_cell] += hmass;
+#pragma omp atomic update
+                grids->halo_stars[i_cell] += out_props.stellar_mass;
+#pragma omp atomic update
+                grids->count[i_cell] += 1;
+                if (astro_options_global->USE_MINI_HALOS) {
+#pragma omp atomic update
+                    grids->halo_stars_mini[i_cell] += out_props.stellar_mass_mini;
+                }
+            }
         }
 
 #pragma omp for
         for (i_cell = 0; i_cell < HII_TOT_NUM_PIXELS; i_cell++) {
-            grids->halo_mass[i_cell] /= cell_volume;
-            grids->halo_sfr[i_cell] /= cell_volume;
-            grids->halo_stars[i_cell] /= cell_volume;
             grids->n_ion[i_cell] /= cell_volume;
+            grids->halo_sfr[i_cell] /= cell_volume;
             if (astro_options_global->USE_TS_FLUCT) {
                 grids->halo_xray[i_cell] /= cell_volume;
             }
@@ -580,15 +591,19 @@ void sum_halos_onto_grid(InitialConditions *ini_boxes, PerturbHaloField *halos, 
             }
             if (astro_options_global->USE_MINI_HALOS) {
                 grids->halo_sfr_mini[i_cell] /= cell_volume;
-                grids->halo_stars_mini[i_cell] /= cell_volume;
+            }
+            if (config_settings.EXTRA_HALOBOX_FIELDS) {
+                grids->halo_mass[i_cell] /= cell_volume;
+                grids->halo_stars[i_cell] /= cell_volume;
+                if (astro_options_global->USE_MINI_HALOS) {
+                    grids->halo_stars_mini[i_cell] /= cell_volume;
+                }
             }
         }
     }
     total_n_halos = halos->n_halos - n_halos_cut;
-    LOG_SUPER_DEBUG("Cell 0 Totals: HM: %.2e SM: %.2e SF: %.2e NI: %.2e ct : %d",
-                    grids->halo_mass[HII_R_INDEX(0, 0, 0)], grids->halo_stars[HII_R_INDEX(0, 0, 0)],
-                    grids->halo_sfr[HII_R_INDEX(0, 0, 0)], grids->n_ion[HII_R_INDEX(0, 0, 0)],
-                    grids->count[HII_R_INDEX(0, 0, 0)]);
+    LOG_SUPER_DEBUG("Cell 0 Totals: SF: %.2e NI: %.2e", grids->halo_sfr[HII_R_INDEX(0, 0, 0)],
+                    grids->n_ion[HII_R_INDEX(0, 0, 0)]);
     if (astro_options_global->INHOMO_RECO) {
         LOG_SUPER_DEBUG("FESC * SF %.2e", grids->whalo_sfr[HII_R_INDEX(0, 0, 0)]);
     }
@@ -618,20 +633,24 @@ int ComputeHaloBox(double redshift, InitialConditions *ini_boxes, PerturbHaloFie
         unsigned long long int idx;
 #pragma omp parallel for num_threads(simulation_options_global->N_THREADS) private(idx)
         for (idx = 0; idx < HII_TOT_NUM_PIXELS; idx++) {
-            grids->halo_mass[idx] = 0.0;
             grids->n_ion[idx] = 0.0;
             grids->halo_sfr[idx] = 0.0;
-            grids->halo_stars[idx] = 0.0;
-            grids->count[idx] = 0;
             if (astro_options_global->USE_TS_FLUCT) {
                 grids->halo_xray[idx] = 0.0;
             }
             if (astro_options_global->USE_MINI_HALOS) {
-                grids->halo_stars_mini[idx] = 0.0;
                 grids->halo_sfr_mini[idx] = 0.0;
             }
             if (astro_options_global->INHOMO_RECO) {
                 grids->whalo_sfr[idx] = 0.0;
+            }
+            if (config_settings.EXTRA_HALOBOX_FIELDS) {
+                grids->halo_mass[idx] = 0.0;
+                grids->halo_stars[idx] = 0.0;
+                grids->count[idx] = 0;
+                if (astro_options_global->USE_MINI_HALOS) {
+                    grids->halo_stars_mini[idx] = 0.0;
+                }
             }
         }
 
