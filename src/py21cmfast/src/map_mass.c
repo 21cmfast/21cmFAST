@@ -284,7 +284,9 @@ void move_grid_galprops(double redshift, float *dens_pointer, int dens_dim[3],
     }
     // Without stochasticity, these grids are the same to a constant
     double prefactor_wsfr = 1 / consts->t_h / consts->t_star;
-    for (int i = 0; i < HII_TOT_NUM_PIXELS; i++) {
-        boxes->whalo_sfr[i] = boxes->n_ion[i] * prefactor_wsfr;
+    if (astro_options_global->INHOMO_RECO) {
+        for (int i = 0; i < HII_TOT_NUM_PIXELS; i++) {
+            boxes->whalo_sfr[i] = boxes->n_ion[i] * prefactor_wsfr;
+        }
     }
 }

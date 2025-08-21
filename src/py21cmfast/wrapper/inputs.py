@@ -1385,7 +1385,7 @@ class InputParameters:
             )
         elif (
             val.INTEGRATION_METHOD_ATOMIC == "GAMMA-APPROX"
-            and self.matter_options.HMF != 0
+            and self.matter_options.HMF != "PS"
         ):
             warnings.warn(
                 "The 'GAMMA-APPROX' integration method uses the EPS conditional mass function"
