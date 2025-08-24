@@ -890,6 +890,7 @@ class HaloBox(OutputStructZ):
     _meta = False
     _c_compute_function = lib.ComputeHaloBox
 
+    count = _arrayfield(optional=True)
     halo_mass = _arrayfield(optional=True)
     halo_stars = _arrayfield(optional=True)
     halo_stars_mini = _arrayfield(optional=True)

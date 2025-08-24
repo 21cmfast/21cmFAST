@@ -178,7 +178,7 @@ HaloProperties get_halobox_averages(HaloBox *grids) {
     }
 
     HaloProperties averages = {
-        .count = mean_count / HII_TOT_NUM_PIXELS,
+        .count = (double)mean_count / HII_TOT_NUM_PIXELS,
         .halo_mass = mean_mass / HII_TOT_NUM_PIXELS,
         .stellar_mass = mean_stars / HII_TOT_NUM_PIXELS,
         .stellar_mass_mini = mean_stars_mini / HII_TOT_NUM_PIXELS,
