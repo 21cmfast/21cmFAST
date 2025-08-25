@@ -91,6 +91,9 @@ def camel_to_snake(word: str, depublicize: bool = False):
 
 def snake_to_camel(word: str, publicize: bool = True):
     """Convert snake case to camel case."""
+    if "_" not in word:
+        return word
+
     if publicize:
         word = word.lstrip("_")
     return "".join(x.capitalize() or "_" for x in word.split("_"))

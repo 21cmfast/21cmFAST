@@ -79,7 +79,6 @@ def test_power_spectra_coeval(name, module_direc, plt):
             name=f"{name} - {key}",
         )
 
-    any_failed = True  # TODO:remove this testing line
     if plt == mpl.pyplot and any_failed:
         make_coeval_comparison_plot(true_k, test_k, true_powers, test_powers, plt)
 

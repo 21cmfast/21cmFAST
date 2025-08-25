@@ -37,24 +37,10 @@ def test_lightcone_quantities(
         ),
     )
 
-    with pytest.raises(ValueError, match="You asked for"):
-        lc = p21c.run_lightcone(
-            lightconer=lcn,
-            initial_conditions=ic,
-            inputs=default_input_struct_lc,
-            global_quantities=("cumulative_recombinations"),
-            cache=cache,
-        )
     lc = p21c.run_lightcone(
         lightconer=lcn,
         initial_conditions=ic,
         inputs=default_input_struct_lc,
-        global_quantities=(
-            "density",
-            "ionisation_rate_G12",
-            "log10_mturn_acg",
-            "log10_mturn_mcg",
-        ),
         cache=cache,
     )
 
@@ -90,16 +76,6 @@ def test_lightcone_quantities(
             lightconer=lcn_ts,
             initial_conditions=ic,
             inputs=default_input_struct_lc,
-            cache=cache,
-        )
-
-    # And also raise an error for global quantities.
-    with pytest.raises(AttributeError):
-        p21c.run_lightcone(
-            lightconer=lcn_ts,
-            initial_conditions=ic,
-            inputs=default_input_struct_lc,
-            global_quantities=("spin_temperature",),
             cache=cache,
         )
 

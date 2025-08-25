@@ -715,8 +715,6 @@ int stoc_sample(struct HaloSamplingConstants *hs_constants, gsl_rng *rng, int *n
 
         // Expected mass takes into account potential dexm overlap
         M_out[0] = hs_constants->expected_M;
-        // tmp: 2025-01-22
-        // printf("c code: meet sample condition 1 \n");
         return 0;
     }
 
@@ -811,8 +809,7 @@ int sample_halo_grids(gsl_rng **rng_arr, double redshift, float *dens_field,
     double total_volume_excluded = 0.;
     double total_volume_dexm = 0.;
     double cell_volume = VOLUME / pow((double)simulation_options_global->HII_DIM, 3);
-
-    bool halo_overflow_error = false;
+    bool out_of_buffer = false;
 
 #pragma omp parallel num_threads(simulation_options_global->N_THREADS)
     {
@@ -861,6 +858,7 @@ int sample_halo_grids(gsl_rng **rng_arr, double redshift, float *dens_field,
 
 #pragma omp for reduction(+ : total_volume_excluded)
         for (x = 0; x < lo_dim; x++) {
+            if (out_of_buffer) continue;
             for (y = 0; y < lo_dim; y++) {
                 for (z = 0; z < HII_D_PARA; z++) {
                     delta = dens_field[HII_R_INDEX(x, y, z)] * growthf;
@@ -882,15 +880,17 @@ int sample_halo_grids(gsl_rng **rng_arr, double redshift, float *dens_field,
                         // sometimes halos are subtracted from the sample (set to zero)
                         // we do not want to save these
                         if (hm_buf[i] < simulation_options_global->SAMPLER_MIN_MASS) continue;
-
-                        if (halo_overflow_error || count >= arraysize_local) {
-                            halo_overflow_error = true;
+                        if (count >= arraysize_local) {
+                            out_of_buffer = true;
                             continue;
                         }
 
                         random_point_in_cell((int[3]){x, y, z},
                                              simulation_options_global->BOX_LEN / lo_dim,
                                              rng_arr[threadnum], crd_hi);
+                        wrap_position(crd_hi,
+                                      (double[3]){simulation_options_global->BOX_LEN,
+                                                  simulation_options_global->BOX_LEN, BOXLEN_PARA});
 
                         halofield_out->halo_masses[istart + count] = hm_buf[i];
                         halofield_out->halo_coords[3 * (istart + count) + 0] = crd_hi[0];
@@ -924,15 +924,15 @@ int sample_halo_grids(gsl_rng **rng_arr, double redshift, float *dens_field,
         istart_threads[threadnum] = istart;
         nhalo_threads[threadnum] = count;
     }
-
-    if (halo_overflow_error) {
-        LOG_ERROR("More than %llu halos (expected %.1e) with buffer size factor %.1f",
-                  arraysize_local, arraysize_local / config_settings.HALO_CATALOG_MEM_FACTOR,
-                  config_settings.HALO_CATALOG_MEM_FACTOR);
+    if (out_of_buffer) {
+        LOG_ERROR("Halo buffer overflow (allocated %llu halos per thread)", arraysize_local);
+        for (int n_t = 0; n_t < simulation_options_global->N_THREADS; n_t++) {
+            LOG_ERROR("Thread %d: %llu halos", n_t, nhalo_threads[n_t]);
+        }
         LOG_ERROR(
             "If you expected to have an above average halo number try raising "
-            "config_settings.HALO_CATALOG_MEM_FACTOR");
-        Throw(ValueError);
+            "config['HALO_CATALOG_MEM_FACTOR']");
+        Throw(ParallelError);
     }
 
     LOG_SUPER_DEBUG("Total dexm volume %.6e Total volume excluded %.6e (In units of HII_DIM cells)",
@@ -1002,12 +1002,12 @@ int sample_halo_progenitors(gsl_rng **rng_arr, double z_in, double z_out, HaloFi
         Throw(ValueError);
 #endif
     } else {  // CPU fallback
-        bool halo_overflow_error = false;
+        bool parallel_error = false;
+
 #pragma omp parallel num_threads(simulation_options_global->N_THREADS)
         {
             float prog_buf[MAX_HALO_CELL];
             int n_prog;
-            double M_prog;
 
             double propbuf_in[3];
             double propbuf_out[3];
@@ -1027,6 +1027,7 @@ int sample_halo_progenitors(gsl_rng **rng_arr, double z_in, double z_out, HaloFi
 
 #pragma omp for
             for (ii = 0; ii < nhalo_in; ii++) {
+                if (parallel_error) continue;
                 M2 = halofield_in->halo_masses[ii];
                 R2 = MtoR(M2);
                 if (M2 < Mmin || M2 > Mmax_tb) {
@@ -1034,7 +1035,7 @@ int sample_halo_progenitors(gsl_rng **rng_arr, double z_in, double z_out, HaloFi
                         "Input Mass = %.2e at %llu of %llu, something went wrong in the input "
                         "catalogue",
                         M2, ii, nhalo_in);
-                    Throw(ValueError);
+                    parallel_error = true;
                 }
                 // set condition-dependent variables for sampling
                 stoc_set_consts_cond(&hs_constants_priv, M2);
@@ -1050,14 +1051,13 @@ int sample_halo_progenitors(gsl_rng **rng_arr, double z_in, double z_out, HaloFi
                 pos_desc[2] = halofield_in->halo_coords[3 * ii + 2];
 
                 // place progenitors in local list
-                M_prog = 0;
                 for (jj = 0; jj < n_prog; jj++) {
                     // sometimes halos are subtracted from the sample (set to zero)
                     // we do not want to save these
                     if (prog_buf[jj] < simulation_options_global->SAMPLER_MIN_MASS) continue;
 
-                    if (halo_overflow_error || count >= arraysize_local) {
-                        halo_overflow_error = true;
+                    if (parallel_error || count >= arraysize_local) {
+                        parallel_error = true;
                         continue;
                     }
                     halofield_out->halo_masses[istart + count] = prog_buf[jj];
@@ -1077,56 +1077,30 @@ int sample_halo_progenitors(gsl_rng **rng_arr, double z_in, double z_out, HaloFi
                     halofield_out->sfr_rng[istart + count] = propbuf_out[1];
                     halofield_out->xray_rng[istart + count] = propbuf_out[2];
                     count++;
-
-                    if (count >= arraysize_local) {
-                        LOG_ERROR(
-                            "More than %llu halos (expected %.1e) with buffer size factor %.1f",
-                            arraysize_local,
-                            arraysize_local / config_settings.HALO_CATALOG_MEM_FACTOR,
-                            config_settings.HALO_CATALOG_MEM_FACTOR);
-                        LOG_ERROR(
-                            "If you expected to have an above average halo number try raising "
-                            "config_settings.HALO_CATALOG_MEM_FACTOR");
-                        Throw(ValueError);
-                    }
-
                     if (ii == 0) {
-                        M_prog += prog_buf[jj];
                         LOG_ULTRA_DEBUG(
                             "Halo %d Prog %d: Mass %.2e Stellar %.2e SFR %.2e XRAY %.2e", ii, jj,
                             prog_buf[jj], propbuf_out[0], propbuf_out[1], propbuf_out[2]);
                     }
                 }
                 if (ii == 0) {
-                    LOG_ULTRA_DEBUG(
-                        " HMF %d delta %.3f delta_coll %.3f delta_desc %.3f adjusted %.3f",
-                        matter_options_global->HMF, hs_constants_priv.delta,
-                        get_delta_crit(matter_options_global->HMF, hs_constants_priv.sigma_cond,
-                                       hs_constants->growth_out),
-                        get_delta_crit(matter_options_global->HMF, hs_constants_priv.sigma_cond,
-                                       hs_constants->growth_in),
-                        get_delta_crit(matter_options_global->HMF, hs_constants_priv.sigma_cond,
-                                       hs_constants->growth_in) *
-                            hs_constants->growth_out / hs_constants->growth_in);
                     print_hs_consts(&hs_constants_priv);
-                }
-                if (ii == 0) {
-                    LOG_ULTRA_DEBUG(
-                        "Halo %d: Mass %.2f | N %d (exp. %.2e) | Total M %.2e (exp. %.2e)", ii, M2,
-                        n_prog, hs_constants_priv.expected_N, M_prog, hs_constants_priv.expected_M);
                 }
             }
             istart_threads[threadnum] = istart;
             nhalo_threads[threadnum] = count;
         }
-        if (halo_overflow_error) {
+        if (parallel_error) {
             LOG_ERROR("More than %llu halos (expected %.1e) with buffer size factor %.1f",
                       arraysize_local, arraysize_local / config_settings.HALO_CATALOG_MEM_FACTOR,
                       config_settings.HALO_CATALOG_MEM_FACTOR);
+            for (int n_t = 0; n_t < simulation_options_global->N_THREADS; n_t++) {
+                LOG_ERROR("Thread %d: %llu halos", n_t, nhalo_threads[n_t]);
+            }
             LOG_ERROR(
                 "If you expected to have an above average halo number try raising "
                 "config_settings.HALO_CATALOG_MEM_FACTOR");
-            Throw(ValueError);
+            Throw(ParallelError);
         }
         condense_sparse_halolist(halofield_out, istart_threads, nhalo_threads);
     }
@@ -1145,7 +1119,8 @@ int stochastic_halofield(unsigned long long int seed, float redshift_desc, float
 
     // set up the rng
     gsl_rng *rng_stoc[simulation_options_global->N_THREADS];
-    seed_rng_threads_fast(rng_stoc, seed);
+    unsigned long long int seed_fac = (unsigned long long int)(redshift * 1000);
+    seed_rng_threads_fast(rng_stoc, seed + seed_fac);
 
     struct HaloSamplingConstants hs_constants;
     stoc_set_consts_z(&hs_constants, redshift, redshift_desc);

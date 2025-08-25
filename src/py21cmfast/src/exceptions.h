@@ -23,6 +23,7 @@ extern struct exception_context the_exception_context[1];
 #define MassDepZetaError 8
 #define MemoryAllocError 9
 #define CUDAError 10
+#define ParallelError 11
 
 #define CATCH_GSL_ERROR(status)                                                           \
     if (status > 0) {                                                                     \

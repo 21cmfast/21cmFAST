@@ -722,7 +722,6 @@ def _redshift_loop_generator(
         **iokw,
         "initial_conditions": initial_conditions,
     }
-
     with _progressbar(disable=not progressbar) as _progbar:
         for iz, z in _progbar.track(
             enumerate(all_redshifts),
@@ -747,22 +746,19 @@ def _redshift_loop_generator(
                 this_halobox = sf.compute_halo_grid(
                     inputs=inputs,
                     perturbed_halo_list=this_pthalo,
-                    perturbed_field=this_perturbed_field,
+                    redshift=z,
                     previous_ionize_box=getattr(prev_coeval, "ionized_box", None),
                     previous_spin_temp=getattr(prev_coeval, "ts_box", None),
                     write=write.halobox,
                     **kw,
                 )
-            this_perturbed_field = perturbed_field[iz]
-            this_perturbed_field.load_all()
 
             if inputs.astro_options.USE_TS_FLUCT:
                 if inputs.matter_options.USE_HALO_FIELD:
                     # append the halo redshift array so we have all halo boxes [z,zmax]
-                    hbox_arr += [this_halobox]
                     this_xraysource = sf.compute_xray_source_field(
                         redshift=z,
-                        hboxes=hbox_arr,
+                        hboxes=[*hbox_arr, this_halobox],
                         write=write.xray_source_box,
                         **kw,
                     )
@@ -776,6 +772,10 @@ def _redshift_loop_generator(
                     **kw,
                     cleanup=(cleanup and z == all_redshifts[-1]),
                 )
+                if inputs.matter_options.USE_HALO_FIELD:
+                    this_xraysource.purge(force=True)
+
+                # Purge XraySourceBox because it's enormous
                 if inputs.matter_options.USE_HALO_FIELD:
                     this_xraysource.purge()
 
@@ -822,9 +822,7 @@ def _redshift_loop_generator(
                     and iz + 1 < len(all_redshifts)
                 ):
                     for hbox in hbox_arr:
-                        hbox.prepare_for_next_snapshot(
-                            next_z=inputs.node_redshifts[iz + 1]
-                        )
+                        hbox.prepare_for_next_snapshot(next_z=all_redshifts[iz + 1])
 
             if this_pthalo is not None:
                 this_pthalo.purge()
@@ -833,6 +831,7 @@ def _redshift_loop_generator(
                 # Only evolve on the node_redshifts, not any redshifts in-between
                 # that the user might care about.
                 prev_coeval = this_coeval
+                hbox_arr += [this_halobox]
 
             # yield before the cleanup, so we can get at the fields before they are purged
             yield iz, this_coeval

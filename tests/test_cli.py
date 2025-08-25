@@ -8,9 +8,9 @@ import pytest
 from rich.console import Console
 
 from py21cmfast import Coeval, LightCone, cli
+from py21cmfast._templates import create_params_from_template
 from py21cmfast.cli import Parameters, ParameterSelection, RunParams, _run_setup, app
 from py21cmfast.io.h5 import read_output_struct
-from py21cmfast.run_templates import create_params_from_template
 
 
 class TestTemplateAvail:
@@ -101,7 +101,7 @@ class TestRunSetup:
     def test_unmodified_paramfile(self, capsys):
         """Test that running with an unmodified --param-file doesn't write the fullspec."""
         runp = RunParams(
-            param_selection=ParameterSelection(param_file=self.simple),
+            param_selection=ParameterSelection(param_file=[self.simple]),
             cachedir=self.tmpdir,
         )
         params = Parameters()  # don't modify the input
@@ -112,7 +112,8 @@ class TestRunSetup:
     def test_unmodified_template(self, capsys):
         """Test that an unmodified --template does write a simple fullspec TOML."""
         runp = RunParams(
-            param_selection=ParameterSelection(template="simple"), cachedir=self.tmpdir
+            param_selection=ParameterSelection(template=["simple"]),
+            cachedir=self.tmpdir,
         )
         params = Parameters()  # don't modify the input
         _run_setup(runp, params)
@@ -124,7 +125,7 @@ class TestRunSetup:
         """Test that directly modifying params and passing an explicit file works."""
         outcfg = self.tmpdir / "custom-name.toml"
         runp = RunParams(
-            param_selection=ParameterSelection(template="simple"),
+            param_selection=ParameterSelection(template=["simple"]),
             outcfg=outcfg,
             cachedir=self.tmpdir,
         )
@@ -138,13 +139,13 @@ class TestRunSetup:
         _run_setup(runp, Parameters())
         out = capsys.readouterr().out
         assert "Wrote full configuration" in out
-        assert f"{outcfg}" not in out
-        assert "simple.toml" in out
+        assert f"{outcfg}" in out
 
     def test_unknown_name(self, capsys):
         """Test that modifying params without an explicit file creates a random file."""
         runp = RunParams(
-            param_selection=ParameterSelection(template="simple"), cachedir=self.tmpdir
+            param_selection=ParameterSelection(template=["simple"]),
+            cachedir=self.tmpdir,
         )
         params = Parameters(simulation_options=cli._SimulationOptions(HII_DIM=37))
 
@@ -154,18 +155,13 @@ class TestRunSetup:
         assert "simple.toml" not in out  # got a random uuid
 
 
-_small_box = (
-    "--hii-dim 25 --dim 50 --box-len 50 --zprime-step-factor 1.2 --z-heat-max 20"
-)
-
-
 class TestRunICS:
     """Tests of the `run ics` command."""
 
     def test_basic_run(self, capsys, tmp_path: Path):
         """Test that a simple run creates an InitialConditions.h5 file."""
         app(
-            f"run ics --template simple-small --cachedir {tmp_path}",
+            f"run ics --template simple tiny --cachedir {tmp_path}",
             console=Console(width=100),
         )
         output = capsys.readouterr().out
@@ -179,7 +175,7 @@ class TestRunICS:
     def test_warn_formatting(self, tmp_path, capsys):
         """Test that warnings are printed properly."""
         app(
-            f"run ics --template simple-small --box-len 400 --zmin 5.0 --cachedir {tmp_path}"
+            f"run ics --template simple tiny --box-len 400 --zmin 5.0 --cachedir {tmp_path}"
         )
         out = capsys.readouterr().out
         assert "Resolution is likely too low" in out
@@ -187,19 +183,19 @@ class TestRunICS:
     def test_regen(self, capsys, tmp_path):
         """Test that re-running the same box with --regen does actually re-run things."""
         app(
-            f"run ics --template simple-small --cachedir {tmp_path}",
+            f"run ics --template simple tiny --cachedir {tmp_path}",
         )
 
         # Now run it again right away with regen
         app(
-            f"run ics --template simple-small --cachedir {tmp_path} --regenerate",
+            f"run ics --template simple tiny --cachedir {tmp_path} --regenerate",
         )
         out = capsys.readouterr().out
         assert "regeneration is requested. Overriding." in out
 
         # Run it without regen
         app(
-            f"run ics --template simple-small --cachedir {tmp_path}",
+            f"run ics --template simple tiny --cachedir {tmp_path}",
         )
         out = capsys.readouterr().out
         assert "skipping computation" in out
@@ -212,7 +208,7 @@ class TestRunCoeval:
         """Test that a basic run through produces a coeval*.h5 file."""
         cfile = tmp_path / "coeval_z6.00.h5"
         app(
-            f"run coeval --template simple-small --cachedir {tmp_path} "
+            f"run coeval --template simple tiny --cachedir {tmp_path} "
             f"--redshifts 6.0 --out {cfile.parent}"
         )
 
@@ -227,7 +223,8 @@ class TestRunCoeval:
         """Test that having nodez in addition to --redshifts works."""
         # We have other node redshifts, but we don't do anything with them.
         app(
-            f"run coeval --template Park19 {_small_box} --cachedir {tmp_path} "
+            f"run coeval --template Park19 tiny --zprime-step-factor 1.4 --z-heat-max 15 "
+            f"--cachedir {tmp_path} "
             f"--no-save-all-redshifts "
             f"--redshifts 6.0 --out {tmp_path}"
         )
@@ -238,7 +235,7 @@ class TestRunCoeval:
         new = tmp_path / "new"
         new.mkdir()
         app(
-            f"run coeval --template Park19 {_small_box} --cachedir {new} "
+            f"run coeval --template Park19 tiny --cachedir {new} "
             f"--save-all-redshifts "
             f"--redshifts 6.0 --out {new}"
         )
@@ -252,7 +249,7 @@ class TestRunLightcone:
         """Test that a basic run produces a lightcone.h5 file."""
         lcfile = tmp_path / "lightcone.h5"
         app(
-            f"run lightcone --template simple-small --cachedir {tmp_path} "
+            f"run lightcone --template simple tiny --cachedir {tmp_path} "
             f"--redshift-range 6.0 12.0 --out {lcfile}"
         )
 
@@ -266,7 +263,7 @@ class TestRunLightcone:
         """Test that a non-existent output path is OK."""
         lcfile = tmp_path / "new" / "lightcone.h5"
         app(
-            f"run lightcone --template simple-small --cachedir {tmp_path} "
+            f"run lightcone --template simple tiny --cachedir {tmp_path} "
             f"--redshift-range 6.0 12.0 --out {lcfile}"
         )
 
@@ -297,7 +294,7 @@ class TestPRFeature:
     def test_simple_run_through(self, tmp_path: Path):
         """Test that a simple run-through produces the expected plots."""
         template = tmp_path / "small-simple.toml"
-        app(f"template create --template simple-small --out {template}")
+        app(f"template create --template simple tiny --out {template}")
         app(
             f"dev feature --param-file {template} --redshift-range 6 12 --hmf PS --cachedir {tmp_path} --outdir {tmp_path}"
         )

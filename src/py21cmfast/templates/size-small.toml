@@ -1,0 +1,13 @@
+[CosmoParams]
+
+[SimulationOptions]
+HII_DIM=64
+ZPRIME_STEP_FACTOR = 1.1
+Z_HEAT_MAX = 35
+
+[MatterOptions]
+
+[AstroParams]
+R_BUBBLE_MAX = 32
+
+[AstroOptions]

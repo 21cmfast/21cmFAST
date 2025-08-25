@@ -71,14 +71,15 @@ void random_point_in_sphere(double centre[3], double radius, gsl_rng *rng, doubl
 
 void random_point_in_cell(int idx[3], double cell_len, gsl_rng *rng, double *point) {
     // generate a random point in a cell given the coordinates and length the cell
+    // NOTE: assumes cell at idx == 0 is *centred* at (0,0,0)
     double randbuf;
-    randbuf = gsl_rng_uniform(rng);
+    randbuf = gsl_rng_uniform(rng) - 0.5;
     point[0] = (idx[0] + randbuf) * cell_len;
 
-    randbuf = gsl_rng_uniform(rng);
+    randbuf = gsl_rng_uniform(rng) - 0.5;
     point[1] = (idx[1] + randbuf) * cell_len;
 
-    randbuf = gsl_rng_uniform(rng);
+    randbuf = gsl_rng_uniform(rng) - 0.5;
     point[2] = (idx[2] + randbuf) * cell_len;
     return;
 }
