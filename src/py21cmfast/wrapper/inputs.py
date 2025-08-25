@@ -349,7 +349,7 @@ class CosmoParams(InputStruct):
         """Omega lambda, dark energy density."""
         return 1 - self.OMm
 
-    @property
+    @cached_property
     def cosmo(self):
         """An astropy cosmology object for this cosmology."""
         return self._base_cosmo.clone(
