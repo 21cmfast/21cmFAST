@@ -124,7 +124,7 @@ class TestPerturb:
         d_z = cf.get_growth_factor(inputs=inputs, redshift=z_d)
 
         # since we set the IC y,z velocities to move exactly one HII_DIM cell,
-        # The expected density is be the IC density rolled by one cell on two axes
+        # The expected density is the IC density rolled by one cell on two axes
         expected_dens = np.roll(ics.get("lowres_density"), roll_var, (0, 1, 2))
         expected_dens *= d_z
         pt = perturb_field(
