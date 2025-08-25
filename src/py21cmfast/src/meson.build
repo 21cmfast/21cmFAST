@@ -28,7 +28,7 @@ c_source_files = files([
   'rng.c',
   'scaling_relations.c',
   'thermochem.c',
-  'MapMass_cpu.c',
+  'map_mass.c',
 ])
 
 # Define the CUDA source files

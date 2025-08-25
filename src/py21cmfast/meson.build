@@ -6,7 +6,7 @@ source_files = [
   'lightconers.py',
   'plotting.py',
   'rsds.py',
-  'run_templates.py',
+  '_templates.py',
   'utils.py',
   'yaml.py',
 ]
