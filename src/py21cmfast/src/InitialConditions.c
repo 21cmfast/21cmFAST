@@ -94,6 +94,22 @@ int ComputeInitialConditions(unsigned long long random_seed, InitialConditions *
 
     int status;
 
+    bool use_cuda = false;
+    if (use_cuda) {
+        printf("Check GPU device ...\n\n");
+#if CUDA_FOUND
+        // print key device properties
+        print_key_device_properties();
+
+        // tmp: ensure hello_world works on GPU
+        call_cuda();
+#else
+        LOG_ERROR(
+            "CUDA function print_key_device_properties() and call_cuda() called but code was not "
+            "compiled for CUDA.");
+#endif
+    }
+
     Try {  // This Try wraps the entire function so we don't indent.
 
         // Makes the parameter structs visible to a variety of functions/macros

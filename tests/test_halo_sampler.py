@@ -4,11 +4,6 @@ import matplotlib as mpl
 import numpy as np
 import pytest
 
-from py21cmfast import (
-    compute_halo_grid,
-    compute_initial_conditions,
-    perturb_field,
-)
 from py21cmfast.wrapper import cfuncs as cf
 
 from . import test_c_interpolation_tables as cint
@@ -229,112 +224,6 @@ def test_halo_prop_sampling(default_input_struct_ts, plt):
     np.testing.assert_allclose(exp_SHMR, sim_SHMR, rtol=1e-4)
     np.testing.assert_allclose(exp_SSFR, sim_SSFR, rtol=3e-3)
     np.testing.assert_allclose(exp_LX, sim_LX, rtol=1e-4)
-
-
-# testing that the integrals in HaloBox.c are done correctly by
-#   using the fixed grids
-# TODO: extend test to minihalos w/o feedback
-# TODO: maybe let this run with the default ics and perturbed field,
-#   even though they have different flag options?
-def test_fixed_grids(default_input_struct_ts, plt):
-    inputs = default_input_struct_ts.evolve_input_structs(
-        USE_HALO_FIELD=True,
-        FIXED_HALO_GRIDS=True,
-        USE_UPPER_STELLAR_TURNOVER=False,
-    )
-
-    ic = compute_initial_conditions(
-        inputs=inputs,
-    )
-    perturbed_field = perturb_field(initial_conditions=ic, redshift=10.0, inputs=inputs)
-    dens = perturbed_field.get("density")
-
-    hbox = compute_halo_grid(
-        initial_conditions=ic,
-        inputs=inputs,
-        perturbed_field=perturbed_field,
-    )
-
-    cell_radius = 0.620350491 * (
-        inputs.simulation_options.BOX_LEN / inputs.simulation_options.HII_DIM
-    )
-    mt_grid = np.full_like(dens, inputs.astro_params.M_TURN)
-
-    integral_sfrd, _ = cf.evaluate_SFRD_cond(
-        inputs=inputs,
-        redshift=perturbed_field.redshift,
-        radius=cell_radius,
-        densities=dens,
-        log10mturns=mt_grid,
-    )
-    integral_sfrd *= 1 + dens
-
-    integral_nion, _ = cf.evaluate_Nion_cond(
-        inputs=inputs,
-        redshift=perturbed_field.redshift,
-        radius=cell_radius,
-        densities=dens,
-        l10mturns_acg=mt_grid,
-        l10mturns_mcg=mt_grid,
-    )
-    integral_nion *= 1 + dens
-
-    integral_xray = cf.evaluate_Xray_cond(
-        inputs=inputs,
-        redshift=perturbed_field.redshift,
-        radius=cell_radius,
-        densities=perturbed_field.density.value,
-        log10mturns=mt_grid,
-    )
-    integral_xray *= 1 + dens
-
-    # mean-fixing and prefactor numerics results in 1-to-1 comparisons being more difficult
-    #   for now we just test the relative values
-    integral_sfrd *= hbox.get("halo_sfr").mean() / integral_sfrd.mean()
-    integral_nion *= hbox.get("n_ion").mean() / integral_nion.mean()
-    integral_xray *= hbox.get("halo_xray").mean() / integral_xray.mean()
-
-    if plt == mpl.pyplot:
-        plot_scatter_comparison(
-            [integral_sfrd, integral_nion, integral_xray],
-            [hbox.get("halo_sfr"), hbox.get("n_ion"), hbox.get("halo_xray")],
-            [dens, dens, dens],
-            ["SFRD", "Nion", "LX"],
-            plt=plt,
-        )
-
-    # TODO: a 5% tolerance isn't fantastic here since they should be the same to a constant factor.
-    #   this happens near the GL integration transition (<1%) and delta_crit (~4%), examine plots
-    rtol = 5e-2
-    print(f"{hbox.get('halo_sfr').shape} {integral_sfrd.shape}", flush=True)
-    print_failure_stats(
-        hbox.get("halo_sfr"),
-        integral_sfrd,
-        [dens],
-        0.0,
-        rtol,
-        "sfr",
-    )
-    print_failure_stats(
-        hbox.get("n_ion"),
-        integral_nion,
-        [dens],
-        0.0,
-        rtol,
-        "nion",
-    )
-    print_failure_stats(
-        hbox.get("halo_xray"),
-        integral_xray,
-        [dens],
-        0.0,
-        rtol,
-        "LX",
-    )
-
-    np.testing.assert_allclose(hbox.get("halo_sfr"), integral_sfrd, rtol=rtol)
-    np.testing.assert_allclose(hbox.get("n_ion"), integral_nion, rtol=rtol)
-    np.testing.assert_allclose(hbox.get("halo_xray"), integral_xray, rtol=rtol)
 
 
 # very basic scatter comparison

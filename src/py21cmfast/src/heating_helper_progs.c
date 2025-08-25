@@ -857,7 +857,7 @@ typedef struct {
     double ion_eff;
     double ion_eff_MINI;
     double log10_Mturn_MINI;
-    struct ScalingConstants *scale_consts;
+    ScalingConstants *scale_consts;
 } tauX_params;
 
 double tauX_integrand_MINI(double zhat, void *params) {
@@ -919,8 +919,7 @@ double tauX_integrand(double zhat, void *params) {
     return drpropdz * n * HI_filling_factor_zhat * sigma_tilde;
 }
 double tauX_MINI(double nu, double x_e, double x_e_ave, double zp, double zpp,
-                 double HI_filling_factor_zp, double log10_Mturn_MINI,
-                 struct ScalingConstants *sc) {
+                 double HI_filling_factor_zp, double log10_Mturn_MINI, ScalingConstants *sc) {
     double result, error;
     gsl_function F;
 
@@ -963,7 +962,7 @@ double tauX_MINI(double nu, double x_e, double x_e_ave, double zp, double zpp,
 }
 
 double tauX(double nu, double x_e, double x_e_ave, double zp, double zpp,
-            double HI_filling_factor_zp, struct ScalingConstants *sc) {
+            double HI_filling_factor_zp, ScalingConstants *sc) {
     double result, error, fcoll;
     gsl_function F;
     double rel_tol = 0.005;  //<- relative tolerance
@@ -1026,7 +1025,7 @@ typedef struct {
     double zpp;
     double HI_filling_factor_zp;
     double log10_Mturn_MINI;
-    struct ScalingConstants *scale_consts;
+    ScalingConstants *scale_consts;
 } nu_tau_one_params;
 double nu_tau_one_helper_MINI(double nu, void *params) {
     nu_tau_one_params *p = (nu_tau_one_params *)params;
@@ -1039,7 +1038,7 @@ double nu_tau_one_helper(double nu, void *params) {
     return tauX(nu, p->x_e, p->x_e, p->zp, p->zpp, p->HI_filling_factor_zp, p->scale_consts) - 1;
 }
 double nu_tau_one_MINI(double zp, double zpp, double x_e, double HI_filling_factor_zp,
-                       double log10_Mturn_MINI, struct ScalingConstants *sc) {
+                       double log10_Mturn_MINI, ScalingConstants *sc) {
     int status, iter, max_iter;
     const gsl_root_fsolver_type *T;
     gsl_root_fsolver *s;
@@ -1107,7 +1106,7 @@ double nu_tau_one_MINI(double zp, double zpp, double x_e, double HI_filling_fact
 }
 
 double nu_tau_one(double zp, double zpp, double x_e, double HI_filling_factor_zp,
-                  struct ScalingConstants *sc) {
+                  ScalingConstants *sc) {
     int status, iter, max_iter;
     const gsl_root_fsolver_type *T;
     gsl_root_fsolver *s;

@@ -126,7 +126,7 @@ double transfer_function_CLASS(double k, int flag_int, int flag_dv) {
     int gsl_status;
     FILE *F;
 
-    static bool warning_printed;
+    static bool warning_printed = false;
     static double eh_ratio_at_kmax;
 
     char filename[500];
@@ -137,7 +137,6 @@ double transfer_function_CLASS(double k, int flag_int, int flag_dv) {
             LOG_ERROR("Unable to open file: %s for reading.", filename);
             Throw(IOError);
         }
-        warning_printed = false;
 
         int nscans;
         for (i = 0; i < CLASS_LENGTH; i++) {
@@ -190,9 +189,10 @@ double transfer_function_CLASS(double k, int flag_int, int flag_dv) {
     if (k > kclass[CLASS_LENGTH - 1]) {  // k>kmax
         if (!warning_printed) {
             LOG_WARNING(
-                "Called transfer_function_CLASS with k=%f, larger than kmax! performing linear "
+                "Called transfer_function_CLASS with k=%f > %f, larger than kmax! performing "
+                "linear "
                 "extrapolation with Eisenstein & Hu",
-                k);
+                k, kclass[CLASS_LENGTH - 1]);
             warning_printed = true;
         }
         if (flag_dv == 0) {  // output is density

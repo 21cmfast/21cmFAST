@@ -39,6 +39,11 @@ struct HaloSamplingConstants {
     double expected_M;
 };
 
+#ifdef __cplusplus
+extern "C" {
+
+#endif
+
 int stochastic_halofield(unsigned long long int seed, float redshift_desc, float redshift,
                          float *dens_field, float *halo_overlap_box, HaloField *halos_desc,
                          HaloField *halos);
@@ -59,4 +64,7 @@ void stoc_set_consts_z(struct HaloSamplingConstants *const_struct, double redshi
                        double redshift_desc);
 void stoc_set_consts_cond(struct HaloSamplingConstants *const_struct, double cond_val);
 
+#ifdef __cplusplus
+}
 #endif
+#endif  //_STOCHASTICITY_H

@@ -54,7 +54,7 @@ struct IonBoxConstants {
     int hii_filter;
 
     // astro parameters
-    struct ScalingConstants scale_consts;
+    ScalingConstants scale_consts;
     double T_re;
 
     // astro calculated values
@@ -135,7 +135,7 @@ void set_ionbox_constants(double redshift, double prev_redshift, struct IonBoxCo
     else
         consts->dz = prev_redshift - redshift;
 
-    struct ScalingConstants sc;
+    ScalingConstants sc;
     set_scaling_constants(redshift, &sc, true);
     consts->scale_consts = sc;
 
@@ -206,9 +206,7 @@ void set_ionbox_constants(double redshift, double prev_redshift, struct IonBoxCo
         pow(1 + redshift, 2) * CMperMPC * SIGMA_HI * astro_params_global->ALPHA_UVB /
         (astro_params_global->ALPHA_UVB + 2.75) * N_b0 * consts->ion_eff_factor / 1.0e-12;
     if (matter_options_global->USE_HALO_FIELD)
-        consts->gamma_prefactor /=
-            RHOcrit * cosmo_params_global->OMb;  // TODO: double-check these unit differences,
-                                                 // HaloBox.halo_wsfr vs Nion_General units
+        consts->gamma_prefactor /= RHOcrit * cosmo_params_global->OMb;
     else
         consts->gamma_prefactor = consts->gamma_prefactor / (sc.t_h * sc.t_star);
 
@@ -447,7 +445,7 @@ void calculate_mcrit_boxes(IonizedBox *prev_ionbox, TsBox *spin_temp, InitialCon
 void set_mean_fcoll(struct IonBoxConstants *c, IonizedBox *prev_box, IonizedBox *curr_box,
                     double mturn_acg, double mturn_mcg, double *f_limit_acg, double *f_limit_mcg) {
     double f_coll_curr = 0., f_coll_prev = 0., f_coll_curr_mini = 0., f_coll_prev_mini = 0.;
-    struct ScalingConstants *sc_ptr = &(c->scale_consts);
+    ScalingConstants *sc_ptr = &(c->scale_consts);
     if (astro_options_global->USE_MASS_DEPENDENT_ZETA) {
         f_coll_curr = Nion_General(c->redshift, c->lnMmin, c->lnMmax_gl, mturn_acg, sc_ptr);
         *f_limit_acg = Nion_General(simulation_options_global->Z_HEAT_MAX, c->lnMmin, c->lnMmax_gl,
@@ -669,7 +667,7 @@ void setup_integration_tables(struct FilteredGrids *fg_struct, struct IonBoxCons
     double min_density, max_density, prev_min_density = 0., prev_max_density = 0.;
     double log10Mturn_min = 0., log10Mturn_max = 0., log10Mturn_min_MINI = 0.,
            log10Mturn_max_MINI = 0.;
-    struct ScalingConstants *sc_ptr = &(consts->scale_consts);
+    ScalingConstants *sc_ptr = &(consts->scale_consts);
 
     // TODO: instead of putting a random upper limit, put a proper flag for switching of one/both
     // sides of the clipping
@@ -741,7 +739,7 @@ void calculate_fcoll_grid(IonizedBox *box, IonizedBox *previous_ionize_box,
     double f_coll_total = 0., f_coll_MINI_total = 0.;
     // TODO: make proper error tracking through the parallel region
     bool error_flag;
-    struct ScalingConstants *sc_ptr = &(consts->scale_consts);
+    ScalingConstants *sc_ptr = &(consts->scale_consts);
 
     int fc_r_idx;
     fc_r_idx = (astro_options_global->USE_MINI_HALOS && !matter_options_global->USE_HALO_FIELD)
@@ -1379,6 +1377,28 @@ int ComputeIonizedBox(float redshift, float prev_redshift, PerturbedField *pertu
         int n_radii;
         n_radii = setup_radii(&radii_spec, &ionbox_constants);
 
+        fftwf_complex *d_deltax_filtered = NULL;
+        fftwf_complex *d_xe_filtered = NULL;
+        float *d_y_arr = NULL;
+        float *d_Fcoll = NULL;  //_outputstructs_wrapper.h
+
+        unsigned int threadsPerBlock;
+        unsigned int numBlocks;
+
+        // If GPU & flags call init_ionbox_gpu_data()
+        bool use_cuda = false;  // pass this as a parameter later
+        if (use_cuda && astro_options_global->USE_MASS_DEPENDENT_ZETA &&
+            !astro_options_global->USE_MINI_HALOS && !matter_options_global->USE_HALO_FIELD) {
+            unsigned int Nion_nbins = get_nbins();
+#if CUDA_FOUND
+            init_ionbox_gpu_data(&d_deltax_filtered, &d_xe_filtered, &d_y_arr, &d_Fcoll, Nion_nbins,
+                                 HII_TOT_NUM_PIXELS, HII_KSPACE_NUM_PIXELS, &threadsPerBlock,
+                                 &numBlocks);
+#else
+            LOG_ERROR(
+                "CUDA function init_ionbox_gpu_data() called but code was not compiled for CUDA.");
+#endif
+        }
         // CONSTRUCT GRIDS OUTSIDE R LOOP HERE
         // if we don't have a previous ionised box, make a fake one here
         if (prev_redshift < 1)
@@ -1528,8 +1548,27 @@ int ComputeIonizedBox(float redshift, float prev_redshift, PerturbedField *pertu
                                              need_prev_ion);
                 }
 
-                calculate_fcoll_grid(box, previous_ionize_box, grid_struct, &ionbox_constants,
-                                     &curr_radius);
+                // If GPU & flags, call gpu version of calculate_fcoll_grid()
+                bool use_cuda = false;  // pass this as a parameter later
+                if (use_cuda && astro_options_global->USE_MASS_DEPENDENT_ZETA &&
+                    !astro_options_global->USE_MINI_HALOS &&
+                    !matter_options_global->USE_HALO_FIELD) {
+#if CUDA_FOUND
+                    calculate_fcoll_grid_gpu(box, grid_struct->deltax_filtered,
+                                             grid_struct->xe_filtered,
+                                             &curr_radius.f_coll_grid_mean, d_deltax_filtered,
+                                             d_xe_filtered, d_Fcoll, d_y_arr, HII_TOT_NUM_PIXELS,
+                                             HII_KSPACE_NUM_PIXELS, &threadsPerBlock, &numBlocks);
+#else
+                    LOG_ERROR(
+                        "CUDA function calculate_fcoll_grid_gpu() called but code was not compiled "
+                        "for CUDA.");
+#endif
+                } else {
+                    calculate_fcoll_grid(box, previous_ionize_box, grid_struct, &ionbox_constants,
+                                         &curr_radius);
+                }
+
                 // To avoid ST_over_PS becoming nan when f_coll = 0, I set f_coll = FRACT_FLOAT_ERR.
                 // TODO: This was the previous behaviour, but is this right?
                 // setting the *total* to the minimum for the adjustment factor,
@@ -1554,6 +1593,17 @@ int ComputeIonizedBox(float redshift, float prev_redshift, PerturbedField *pertu
                 LOG_ULTRA_DEBUG("z_reion after R=%f: ", curr_radius.R);
                 debugSummarizeBox(box->z_reion, simulation_options_global->HII_DIM,
                                   simulation_options_global->HII_DIM, HII_D_PARA, "  ");
+#endif
+            }
+            // If GPU & flags, call free_ionbox_gpu_data()
+            if (use_cuda && astro_options_global->USE_MASS_DEPENDENT_ZETA &&
+                !astro_options_global->USE_MINI_HALOS && !matter_options_global->USE_HALO_FIELD) {
+#if USE_CUDA
+                free_ionbox_gpu_data(&d_deltax_filtered, &d_xe_filtered, &d_y_arr, &d_Fcoll);
+#else
+                LOG_ERROR(
+                    "CUDA function free_ionbox_gpu_data() called but code was not compiled for "
+                    "CUDA.");
 #endif
             }
             set_ionized_temperatures(box, perturbed_field, spin_temp, &ionbox_constants);

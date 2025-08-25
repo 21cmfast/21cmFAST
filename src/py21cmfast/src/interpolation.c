@@ -43,10 +43,12 @@ void allocate_RGTable2D(int n_x, int n_y, RGTable2D *ptr) {
     ptr->nx_bin = n_x;
     ptr->ny_bin = n_y;
 
+    ptr->flatten_data = (double *)calloc(n_x * n_y, sizeof(double));
     ptr->z_arr = calloc(n_x, sizeof(double *));
     for (i = 0; i < n_x; i++) {
-        ptr->z_arr[i] = calloc(n_y, sizeof(double));
+        ptr->z_arr[i] = &ptr->flatten_data[i * n_y];
     }
+
     ptr->allocated = true;
 }
 
@@ -74,7 +76,7 @@ void free_RGTable2D_f(RGTable2D_f *ptr) {
 void free_RGTable2D(RGTable2D *ptr) {
     int i;
     if (ptr->allocated) {
-        for (i = 0; i < ptr->nx_bin; i++) free(ptr->z_arr[i]);
+        free(ptr->flatten_data);
         free(ptr->z_arr);
         ptr->allocated = false;
     }
