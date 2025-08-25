@@ -3,6 +3,7 @@ source_files = [
   '_cfg.py',
   '_logging.py',
   'cli.py',
+  'input_serialization.py',
   'lightconers.py',
   'plotting.py',
   'rsds.py',
