@@ -156,17 +156,17 @@ def test_optional_field_halobox(default_input_struct_lc: InputParameters):
         hb = ox.HaloBox.new(redshift=0.0, inputs=default_input_struct_lc)
         assert isinstance(hb.halo_mass, Array)
 
-    inputs = default_input_struct_lc.evolve_input_structs(INHOMO_RECO=True)
-    hb = ox.HaloBox.new(redshift=0.0, inputs=inputs)
-    assert isinstance(hb.whalo_sfr, Array)
+        inputs = default_input_struct_lc.evolve_input_structs(INHOMO_RECO=True)
+        hb = ox.HaloBox.new(redshift=0.0, inputs=inputs)
+        assert isinstance(hb.whalo_sfr, Array)
 
-    inputs = inputs.evolve_input_structs(USE_TS_FLUCT=True)
-    hb = ox.HaloBox.new(redshift=0.0, inputs=inputs)
-    assert isinstance(hb.halo_xray, Array)
+        inputs = inputs.evolve_input_structs(USE_TS_FLUCT=True)
+        hb = ox.HaloBox.new(redshift=0.0, inputs=inputs)
+        assert isinstance(hb.halo_xray, Array)
 
-    inputs = inputs.evolve_input_structs(USE_MINI_HALOS=True)
-    hb = ox.HaloBox.new(redshift=0.0, inputs=inputs)
-    assert isinstance(hb.halo_sfr_mini, Array)
+        inputs = inputs.evolve_input_structs(USE_MINI_HALOS=True)
+        hb = ox.HaloBox.new(redshift=0.0, inputs=inputs)
+        assert isinstance(hb.halo_sfr_mini, Array)
 
 
 def test_optional_field_xrs(default_input_struct_lc: InputParameters):
