@@ -25,6 +25,7 @@ class Config(dict):
         "ignore_R_BUBBLE_MAX_error": False,
         "external_table_path": DATA_PATH,
         "HALO_CATALOG_MEM_FACTOR": 1.2,
+        "EXTRA_HALOBOX_FIELDS": False,
         "safe_read": True,
     }
     _defaults["wisdoms_path"] = Path(_defaults["direc"]) / "wisdoms"

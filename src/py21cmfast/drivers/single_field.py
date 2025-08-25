@@ -203,10 +203,10 @@ def perturb_halo_list(
 @single_field_func
 def compute_halo_grid(
     *,
+    redshift: float,
     initial_conditions: InitialConditions,
     inputs: InputParameters | None = None,
     perturbed_halo_list: PerturbHaloField | None = None,
-    perturbed_field: PerturbedField | None = None,
     previous_spin_temp: TsBox | None = None,
     previous_ionize_box: IonizedBox | None = None,
 ) -> HaloBox:
@@ -243,29 +243,9 @@ def compute_halo_grid(
     regenerate, write, cache:
         See docs of :func:`initial_conditions` for more information.
     """
-    if perturbed_halo_list:
-        redshift = perturbed_halo_list.redshift
-    elif perturbed_field:
-        redshift = perturbed_field.redshift
-    else:
-        raise ValueError(
-            "Either perturbed_field or perturbed_halo_list are required (or both)."
-        )
-
     box = HaloBox.new(redshift=redshift, inputs=inputs)
 
-    if perturbed_field is None:
-        if (
-            inputs.matter_options.FIXED_HALO_GRIDS
-            or inputs.astro_options.AVG_BELOW_SAMPLER
-        ):
-            raise ValueError(
-                "You must provide the perturbed field if FIXED_HALO_GRIDS is True or AVG_BELOW_SAMPLER is True"
-            )
-        else:
-            perturbed_field = PerturbedField.dummy()
-
-    elif perturbed_halo_list is None:
+    if perturbed_halo_list is None:
         if not inputs.matter_options.FIXED_HALO_GRIDS:
             raise ValueError(
                 "You must provide the perturbed halo list if FIXED_HALO_GRIDS is False"
@@ -302,7 +282,6 @@ def compute_halo_grid(
     return box.compute(
         initial_conditions=initial_conditions,
         pt_halos=perturbed_halo_list,
-        perturbed_field=perturbed_field,
         previous_ionize_box=previous_ionize_box,
         previous_spin_temp=previous_spin_temp,
     )

@@ -116,7 +116,7 @@ void get_global_SFRD_z(int n_redshift, double *redshifts, double *log10_turnover
     if (matter_options_global->USE_INTERPOLATION_TABLES > 0)
         initialiseSigmaMInterpTable(M_min, 1e20);
 
-    struct ScalingConstants sc;
+    ScalingConstants sc;
     set_scaling_constants(redshifts[0], &sc, false);
 
     int i;
@@ -146,7 +146,7 @@ void get_global_Nion_z(int n_redshift, double *redshifts, double *log10_turnover
     if (matter_options_global->USE_INTERPOLATION_TABLES > 0)
         initialiseSigmaMInterpTable(M_min, 1e20);
 
-    struct ScalingConstants sc;
+    ScalingConstants sc;
     set_scaling_constants(redshifts[0], &sc, false);
 
     int i;
@@ -217,7 +217,7 @@ void get_conditional_SFRD(double redshift, double R, int n_densities, double *de
          astro_options_global->INTEGRATION_METHOD_MINI == 1))
         initialise_GL(log(M_min), log(M_cond));
 
-    struct ScalingConstants sc;
+    ScalingConstants sc;
     set_scaling_constants(redshift, &sc, false);
 
     int i;
@@ -260,7 +260,7 @@ void get_conditional_Nion(double redshift, double R, int n_densities, double *de
          astro_options_global->INTEGRATION_METHOD_MINI == 1))
         initialise_GL(log(M_min), log(M_cond));
 
-    struct ScalingConstants sc;
+    ScalingConstants sc;
     set_scaling_constants(redshift, &sc, false);
 
     int i;
@@ -315,7 +315,7 @@ void get_conditional_Xray(double redshift, double R, int n_densities, double *de
          astro_options_global->INTEGRATION_METHOD_MINI == 1))
         initialise_GL(log(M_min), log(M_cond));
 
-    struct ScalingConstants sc;
+    ScalingConstants sc;
     set_scaling_constants(redshift, &sc, false);
 
     int i;

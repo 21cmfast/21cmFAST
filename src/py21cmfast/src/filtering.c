@@ -167,8 +167,7 @@ void filter_box(fftwf_complex *box, int RES, int filter_type, float R, float R_p
                     grid_index = RES == 1 ? HII_C_INDEX(n_x, n_y, n_z) : C_INDEX(n_x, n_y, n_z);
 
                     // TODO: it would be nice to combine these into the filter_function call, *but*
-                    // since
-                    //  each can take different arguments more thought is needed
+                    // since each can take different arguments more thought is needed
                     if (filter_type == 0) {  // real space top-hat
                         kR = sqrt(k_mag_sq) * R;
                         box[grid_index] *= real_tophat_filter(kR);
