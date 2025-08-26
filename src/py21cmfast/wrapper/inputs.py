@@ -349,7 +349,7 @@ class CosmoParams(InputStruct):
         """Omega lambda, dark energy density."""
         return 1 - self.OMm
 
-    @property
+    @cached_property
     def cosmo(self):
         """An astropy cosmology object for this cosmology."""
         return self._base_cosmo.clone(
@@ -1385,7 +1385,7 @@ class InputParameters:
             )
         elif (
             val.INTEGRATION_METHOD_ATOMIC == "GAMMA-APPROX"
-            and self.matter_options.HMF != 0
+            and self.matter_options.HMF != "PS"
         ):
             warnings.warn(
                 "The 'GAMMA-APPROX' integration method uses the EPS conditional mass function"
