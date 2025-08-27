@@ -387,7 +387,7 @@ class Coeval:
         )
 
 
-def evolve_perturb_halos(
+def evolve_halos(
     inputs: InputParameters,
     all_redshifts: list[float],
     write: CacheConfig,
@@ -440,7 +440,7 @@ def evolve_perturb_halos(
             stacklevel=2,
         )
 
-    pt_halos = []
+    halofield_list = []
     kw = {
         "initial_conditions": initial_conditions,
         "cache": cache,
@@ -461,15 +461,11 @@ def evolve_perturb_halos(
                 **kw,
             )
 
-            pt_halos.append(
-                sf.perturb_halo_list(
-                    halo_field=halos, write=write.perturbed_halo_field, **kw
-                )
-            )
+            halofield_list.append(halos)
 
             # we never want to store every halofield
-            if write.perturbed_halo_field:
-                pt_halos[i].purge()
+            if write.halo_field:
+                halofield_list[i].purge()
 
             if z in inputs.node_redshifts:
                 # Only evolve on the node_redshifts, not any redshifts in-between
@@ -477,7 +473,7 @@ def evolve_perturb_halos(
                 halos_desc = halos
 
     # reverse to get the right redshift order
-    return pt_halos[::-1]
+    return halofield_list[::-1]
 
 
 @high_level_func
@@ -577,15 +573,18 @@ def generate_coeval(
     # Get the list of redshifts we need to scroll through.
     all_redshifts = _get_required_redshifts_coeval(inputs, out_redshifts)
 
-    (initial_conditions, perturbed_field, pt_halos, photon_nonconservation_data) = (
-        _setup_ics_and_pfs_for_scrolling(
-            all_redshifts=all_redshifts,
-            inputs=inputs,
-            initial_conditions=initial_conditions,
-            write=write,
-            progressbar=progressbar,
-            **iokw,
-        )
+    (
+        initial_conditions,
+        perturbed_field,
+        halofield_list,
+        photon_nonconservation_data,
+    ) = _setup_ics_and_pfs_for_scrolling(
+        all_redshifts=all_redshifts,
+        inputs=inputs,
+        initial_conditions=initial_conditions,
+        write=write,
+        progressbar=progressbar,
+        **iokw,
     )
 
     # get the first node redshift that is above all output redshifts
@@ -615,7 +614,7 @@ def generate_coeval(
         initial_conditions=initial_conditions,
         photon_nonconservation_data=photon_nonconservation_data,
         perturbed_field=perturbed_field,
-        pt_halos=pt_halos,
+        halofield_list=halofield_list,
         write=write,
         cleanup=cleanup,
         progressbar=progressbar,
@@ -690,7 +689,7 @@ def _redshift_loop_generator(
     initial_conditions: InitialConditions,
     all_redshifts: Sequence[float],
     perturbed_field: list[PerturbedField],
-    pt_halos: list[PerturbHaloField],
+    halofield_list: list[PerturbHaloField],
     write: CacheConfig,
     iokw: dict,
     cleanup: bool,
@@ -710,7 +709,7 @@ def _redshift_loop_generator(
 
     this_halobox = None
     this_spin_temp = None
-    this_pthalo = None
+    this_halofield = None
     this_xraysource = None
 
     kw = {
@@ -735,12 +734,12 @@ def _redshift_loop_generator(
 
             if inputs.matter_options.USE_HALO_FIELD:
                 if not inputs.matter_options.FIXED_HALO_GRIDS:
-                    this_pthalo = pt_halos[iz]
-                    this_pthalo.load_all()
+                    this_halofield = halofield_list[iz]
+                    this_halofield.load_all()
 
                 this_halobox = sf.compute_halo_grid(
                     inputs=inputs,
-                    perturbed_halo_list=this_pthalo,
+                    halo_field=this_halofield,
                     redshift=z,
                     previous_ionize_box=getattr(prev_coeval, "ionized_box", None),
                     previous_spin_temp=getattr(prev_coeval, "ts_box", None),
@@ -819,8 +818,8 @@ def _redshift_loop_generator(
                     for hbox in hbox_arr:
                         hbox.prepare_for_next_snapshot(next_z=all_redshifts[iz + 1])
 
-            if this_pthalo is not None:
-                this_pthalo.purge()
+            if this_halofield is not None:
+                this_halofield.purge()
 
             if z in inputs.node_redshifts:
                 # Only evolve on the node_redshifts, not any redshifts in-between
@@ -886,7 +885,7 @@ def _setup_ics_and_pfs_for_scrolling(
                 p.purge()
             perturbed_field.append(p)
 
-    pt_halos = evolve_perturb_halos(
+    halofield_list = evolve_halos(
         inputs=inputs,
         all_redshifts=all_redshifts,
         write=write,
@@ -897,7 +896,12 @@ def _setup_ics_and_pfs_for_scrolling(
     if write.initial_conditions:
         initial_conditions.prepare_for_spin_temp()
 
-    return initial_conditions, perturbed_field, pt_halos, photon_nonconservation_data
+    return (
+        initial_conditions,
+        perturbed_field,
+        halofield_list,
+        photon_nonconservation_data,
+    )
 
 
 def _get_required_redshifts_coeval(

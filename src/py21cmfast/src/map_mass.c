@@ -101,6 +101,46 @@ static inline void do_cic_interpolation_float(float *resampled_box, double pos[3
     }
 }
 
+static inline double cic_read_float(float *box, double pos[3], double box_dim[3]) {
+    // get the CIC indices and distances
+    int ipos[3], iposp1[3];
+    double dist[3];
+    double sum = 0;
+    // NOTE: assumes the cell at idx == 0 is *centred* at (0,0,0)
+    for (int axis = 0; axis < 3; axis++) {
+        ipos[axis] = (int)floor(pos[axis]);
+        iposp1[axis] = ipos[axis] + 1;
+        dist[axis] = pos[axis] - ipos[axis];
+    }
+
+    wrap_coord(ipos, box_dim);
+    wrap_coord(iposp1, box_dim);
+
+    unsigned long long int cic_indices[8] = {
+        grid_index_general(ipos[0], ipos[1], ipos[2], box_dim),
+        grid_index_general(iposp1[0], ipos[1], ipos[2], box_dim),
+        grid_index_general(ipos[0], iposp1[1], ipos[2], box_dim),
+        grid_index_general(iposp1[0], iposp1[1], ipos[2], box_dim),
+        grid_index_general(ipos[0], ipos[1], iposp1[2], box_dim),
+        grid_index_general(iposp1[0], ipos[1], iposp1[2], box_dim),
+        grid_index_general(ipos[0], iposp1[1], iposp1[2], box_dim),
+        grid_index_general(iposp1[0], iposp1[1], iposp1[2], box_dim)};
+
+    double cic_weights[8] = {(1. - dist[0]) * (1. - dist[1]) * (1. - dist[2]),
+                             dist[0] * (1. - dist[1]) * (1. - dist[2]),
+                             (1. - dist[0]) * dist[1] * (1. - dist[2]),
+                             dist[0] * dist[1] * (1. - dist[2]),
+                             (1. - dist[0]) * (1. - dist[1]) * dist[2],
+                             dist[0] * (1. - dist[1]) * dist[2],
+                             (1. - dist[0]) * dist[1] * dist[2],
+                             dist[0] * dist[1] * dist[2]};
+
+    for (int i = 0; i < 8; i++) {
+        sum += cic_weights[i] * box[cic_indices[i]];
+    }
+    return sum;
+}
+
 // Function that maps a IC density grid to the perturbed density grid
 void move_grid_masses(double redshift, float *dens_pointer, int dens_dim[3], float *vel_pointers[3],
                       float *vel_pointers_2LPT[3], int vel_dim[3], double *resampled_box,
@@ -289,6 +329,114 @@ void move_grid_galprops(double redshift, float *dens_pointer, int dens_dim[3],
     if (astro_options_global->INHOMO_RECO) {
         for (int i = 0; i < HII_TOT_NUM_PIXELS; i++) {
             boxes->whalo_sfr[i] = boxes->n_ion[i] * prefactor_wsfr;
+        }
+    }
+}
+
+void move_halo_galprops(double redshift, HaloField *halos, float *vel_pointers[3],
+                        float *vel_pointers_2LPT[3], int vel_dim[3], float *mturn_a_grid,
+                        float *mturn_m_grid, HaloBox *boxes, int out_dim[3],
+                        ScalingConstants *consts) {
+    // grid dimension constants
+    double boxlen = simulation_options_global->BOX_LEN;
+    double boxlen_z = boxlen * simulation_options_global->NON_CUBIC_FACTOR;
+    double box_size[3] = {boxlen, boxlen, boxlen_z};
+    double cell_size_inv_v = vel_dim[0] / simulation_options_global->BOX_LEN;
+    double cell_size_inv_o = out_dim[0] / simulation_options_global->BOX_LEN;
+
+    // Setup IC velocity factors
+    double growth_factor = dicke(redshift);
+    double displacement_factor_2LPT = -(3.0 / 7.0) * growth_factor * growth_factor;  // 2LPT eq. D8
+
+    double init_growth_factor = dicke(simulation_options_global->INITIAL_REDSHIFT);
+    double init_displacement_factor_2LPT =
+        -(3.0 / 7.0) * init_growth_factor * init_growth_factor;  // 2LPT eq. D8
+
+    // Since the halo coords are already in Mpc units, we don't need the box factors
+    double velocity_displacement_factor = growth_factor - init_growth_factor;
+    double velocity_displacement_factor_2LPT =
+        displacement_factor_2LPT - init_displacement_factor_2LPT;
+#pragma omp parallel num_threads(simulation_options_global->N_THREADS)
+    {
+        int i, axis;
+        double pos[3];
+        int ipos[3];
+        unsigned long long vel_index, pt_index;
+        HaloProperties properties;
+        double M_turn_a = consts->mturn_a_nofb;
+        double M_turn_m = consts->mturn_m_nofb;
+        double halo_rng[3];
+        double hmass;
+#pragma omp for
+        for (i = 0; i < halos->n_halos; i++) {
+            hmass = halos->halo_masses[i];
+            // It is sometimes useful to make cuts to the halo catalogues before gridding.
+            //   We implement this in a simple way, if the halo's mass is set to zero we skip it
+            if (hmass == 0.) {
+                continue;
+            }
+            // Transform position to units of box size
+            pos[0] = halos->halo_coords[3 * i + 0];
+            pos[1] = halos->halo_coords[3 * i + 1];
+            pos[2] = halos->halo_coords[3 * i + 2];
+            pos_to_index(pos, cell_size_inv_v, ipos);
+            wrap_coord(ipos, vel_dim);
+            vel_index = grid_index_general(ipos[0], ipos[1], ipos[2], vel_dim);
+            for (axis = 0; axis < 3; axis++) {
+                pos[axis] += vel_pointers[axis][vel_index] * velocity_displacement_factor;
+                // add 2LPT second order corrections
+                if (matter_options_global->PERTURB_ALGORITHM == 2) {
+                    pos[axis] -=
+                        vel_pointers_2LPT[axis][vel_index] * velocity_displacement_factor_2LPT;
+                }
+            }
+
+            // convert to cell size for the cic
+            pos[0] = pos[0] * out_dim[0] / box_size[0];
+            pos[1] = pos[1] * out_dim[1] / box_size[1];
+            pos[2] = pos[2] * out_dim[2] / box_size[2];
+            wrap_position(pos, out_dim);
+
+            M_turn_a = pow(10, cic_read_float(mturn_a_grid, pos, out_dim));
+            M_turn_m = pow(10, cic_read_float(mturn_m_grid, pos, out_dim));
+            halo_rng[0] = halos->star_rng[i];
+            halo_rng[1] = halos->sfr_rng[i];
+            halo_rng[2] = halos->xray_rng[i];
+
+            // CIC interpolation
+            set_halo_properties(hmass, M_turn_a, M_turn_m, consts, halo_rng, &properties);
+            do_cic_interpolation(boxes->halo_sfr, pos, out_dim, properties.stellar_mass);
+            do_cic_interpolation(boxes->n_ion, pos, out_dim, properties.n_ion);
+            if (astro_options_global->USE_MINI_HALOS) {
+                do_cic_interpolation(boxes->halo_sfr_mini, pos, out_dim, properties.sfr_mini);
+            }
+            if (astro_options_global->USE_TS_FLUCT) {
+                do_cic_interpolation(boxes->halo_xray, pos, out_dim, properties.halo_xray);
+            }
+            if (astro_options_global->INHOMO_RECO) {
+                do_cic_interpolation(boxes->whalo_sfr, pos, out_dim, properties.fescweighted_sfr);
+            }
+            if (config_settings.EXTRA_HALOBOX_FIELDS) {
+                do_cic_interpolation(boxes->halo_mass, pos, out_dim, properties.halo_mass);
+                do_cic_interpolation(boxes->halo_stars, pos, out_dim, properties.stellar_mass);
+                if (astro_options_global->USE_MINI_HALOS) {
+                    do_cic_interpolation(boxes->halo_stars_mini, pos, out_dim,
+                                         properties.stellar_mass_mini);
+                }
+            }
+
+#if LOG_LEVEL >= ULTRA_DEBUG_LEVEL
+            if (i_cell == 0) {
+                LOG_ULTRA_DEBUG(
+                    "Cell 0 Halo: HM: %.2e SM: %.2e (%.2e) SF: %.2e (%.2e) X: %.2e NI: %.2e WS: "
+                    "%.2e Z : %.2e ct : %llu",
+                    hmass, out_props.stellar_mass, out_props.stellar_mass_mini, out_props.halo_sfr,
+                    out_props.sfr_mini, out_props.halo_xray, out_props.n_ion,
+                    out_props.fescweighted_sfr, out_props.metallicity, i_halo);
+                LOG_ULTRA_DEBUG("Mturn_a %.2e Mturn_m %.2e RNG %.3f %.3f %.3f", M_turn_a, M_turn_m,
+                                in_props[0], in_props[1], in_props[2]);
+            }
+#endif
         }
     }
 }

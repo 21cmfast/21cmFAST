@@ -728,11 +728,12 @@ class PerturbedField(OutputStructZ):
 
 
 @attrs.define(slots=False, kw_only=True)
-class PerturbHaloField(OutputStructZ):
+class HaloField(OutputStructZ):
     """A class containing all fields related to halos."""
 
-    _c_compute_function = lib.ComputePerturbHaloField
+    _c_compute_function = lib.ComputeHaloField
     _meta = False
+    desc_redshift: float | None = attrs.field(default=None)
     _compat_hash = _HashType.zgrid
 
     halo_masses = _arrayfield()
@@ -791,57 +792,6 @@ class PerturbHaloField(OutputStructZ):
         """Return all input arrays required to compute this object."""
         required = []
         if isinstance(input_box, InitialConditions):
-            if self.matter_options.PERTURB_ON_HIGH_RES:
-                required += ["hires_vx", "hires_vy", "hires_vz"]
-            else:
-                required += ["lowres_vx", "lowres_vy", "lowres_vz"]
-
-            if self.matter_options.PERTURB_ALGORITHM == "2LPT":
-                required += [f"{k}_2LPT" for k in required]
-
-        elif isinstance(input_box, HaloField):
-            required += [
-                "halo_coords",
-                "halo_masses",
-                "star_rng",
-                "sfr_rng",
-                "xray_rng",
-            ]
-        else:
-            raise ValueError(
-                f"{type(input_box)} is not an input required for PerturbHaloField!"
-            )
-
-        return required
-
-    def compute(
-        self,
-        *,
-        ics: InitialConditions,
-        halo_field: HaloField,
-        allow_already_computed: bool = False,
-    ):
-        """Compute the function."""
-        return self._compute(
-            allow_already_computed,
-            self.redshift,
-            ics,
-            halo_field,
-        )
-
-
-@attrs.define(slots=False, kw_only=True)
-class HaloField(PerturbHaloField):
-    """A class containing all fields related to halos."""
-
-    _c_compute_function = lib.ComputeHaloField
-    desc_redshift: float | None = attrs.field(default=None)
-    _compat_hash = _HashType.zgrid
-
-    def get_required_input_arrays(self, input_box: OutputStruct) -> list[str]:
-        """Return all input arrays required to compute this object."""
-        required = []
-        if isinstance(input_box, InitialConditions):
             if self.matter_options.HALO_STOCHASTICITY:
                 # when the sampler is on, the grids are only needed for the first sample
                 if self.desc_redshift <= 0:
@@ -880,6 +830,55 @@ class HaloField(PerturbHaloField):
             ics,
             ics.random_seed,
             descendant_halos,
+        )
+
+
+@attrs.define(slots=False, kw_only=True)
+class PerturbHaloField(HaloField):
+    """A class to hold a HaloField whose coordinates are in real (Eulerian) space."""
+
+    _c_compute_function = lib.ComputePerturbHaloField
+
+    def get_required_input_arrays(self, input_box: OutputStruct) -> list[str]:
+        """Return all input arrays required to compute this object."""
+        required = []
+        if isinstance(input_box, InitialConditions):
+            if self.matter_options.PERTURB_ON_HIGH_RES:
+                required += ["hires_vx", "hires_vy", "hires_vz"]
+            else:
+                required += ["lowres_vx", "lowres_vy", "lowres_vz"]
+
+            if self.matter_options.PERTURB_ALGORITHM == "2LPT":
+                required += [f"{k}_2LPT" for k in required]
+
+        elif isinstance(input_box, HaloField):
+            required += [
+                "halo_coords",
+                "halo_masses",
+                "star_rng",
+                "sfr_rng",
+                "xray_rng",
+            ]
+        else:
+            raise ValueError(
+                f"{type(input_box)} is not an input required for PerturbHaloField!"
+            )
+
+        return required
+
+    def compute(
+        self,
+        *,
+        ics: InitialConditions,
+        halo_field: HaloField,
+        allow_already_computed: bool = False,
+    ):
+        """Compute the function."""
+        return self._compute(
+            allow_already_computed,
+            self.redshift,
+            ics,
+            halo_field,
         )
 
 
@@ -953,7 +952,7 @@ class HaloBox(OutputStructZ):
     def get_required_input_arrays(self, input_box: OutputStruct) -> list[str]:
         """Return all input arrays required to compute this object."""
         required = []
-        if isinstance(input_box, PerturbHaloField):
+        if isinstance(input_box, HaloField):
             if not self.matter_options.FIXED_HALO_GRIDS:
                 required += [
                     "halo_coords",
@@ -991,7 +990,7 @@ class HaloBox(OutputStructZ):
         self,
         *,
         initial_conditions: InitialConditions,
-        pt_halos: PerturbHaloField,
+        halo_field: HaloField,
         previous_spin_temp: TsBox,
         previous_ionize_box: IonizedBox,
         allow_already_computed: bool = False,
@@ -1001,7 +1000,7 @@ class HaloBox(OutputStructZ):
             allow_already_computed,
             self.redshift,
             initial_conditions,
-            pt_halos,
+            halo_field,
             previous_spin_temp,
             previous_ionize_box,
         )
