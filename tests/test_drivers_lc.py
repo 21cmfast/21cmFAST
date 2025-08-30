@@ -37,24 +37,10 @@ def test_lightcone_quantities(
         ),
     )
 
-    with pytest.raises(ValueError, match="You asked for"):
-        lc = p21c.run_lightcone(
-            lightconer=lcn,
-            initial_conditions=ic,
-            inputs=default_input_struct_lc,
-            global_quantities=("cumulative_recombinations"),
-            cache=cache,
-        )
     lc = p21c.run_lightcone(
         lightconer=lcn,
         initial_conditions=ic,
         inputs=default_input_struct_lc,
-        global_quantities=(
-            "density",
-            "ionisation_rate_G12",
-            "log10_mturn_acg",
-            "log10_mturn_mcg",
-        ),
         cache=cache,
     )
 
@@ -90,16 +76,6 @@ def test_lightcone_quantities(
             lightconer=lcn_ts,
             initial_conditions=ic,
             inputs=default_input_struct_lc,
-            cache=cache,
-        )
-
-    # And also raise an error for global quantities.
-    with pytest.raises(AttributeError):
-        p21c.run_lightcone(
-            lightconer=lcn_ts,
-            initial_conditions=ic,
-            inputs=default_input_struct_lc,
-            global_quantities=("spin_temperature",),
             cache=cache,
         )
 
@@ -170,6 +146,7 @@ def test_lc_partial_eval(rectlcn, default_input_struct_lc, tmpdirec, lc, cache):
         lightcone_filename=fname,
         write=True,
         cache=cache,
+        include_dvdr_in_tau21=False,
     )
     while z > 20.0:
         iz_1, z, _, partial = next(lc_gen)
@@ -196,6 +173,7 @@ def test_lc_partial_eval(rectlcn, default_input_struct_lc, tmpdirec, lc, cache):
         cache=cache,
         write=False,
         regenerate=False,
+        include_dvdr_in_tau21=False,
     )
     for iz_2, z, _, finished in lc_gen_cont:  # noqa: B007
         assert z <= 20.0

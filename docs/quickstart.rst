@@ -35,13 +35,14 @@ First, import the library::
 
 We use ``p21c`` as a standard convention. Then, setup your simulation parameters::
 
-    >>> inputs = p21c.InputParameters.from_template('simple-small', random_seed=1234)
+    >>> inputs = p21c.InputParameters.from_template(['simple', 'small'], random_seed=1234)
 
 The ``inputs`` created here contain a large number of simulation parameters, including
 options like the size of the box and its resolution, feature flags to toggle various
 physical models on and off, and astrophysical and cosmological parameter values.
 Here, we used the simplest method of setting up parameters: starting with a built-in
-template. See the `Running and Plotting Coeval Cubes <tutorials/coeval_cubes.html>`_
+template (here we specified two templates that build on each other).
+See the `Running and Plotting Coeval Cubes <tutorials/coeval_cubes.html>`_
 tutorial for more information on how to setup your parameters.
 
 Now, run the simulation::
@@ -115,7 +116,7 @@ Running a Coeval Simulation from the CLI
 To run a coeval simulation, use the following as an example::
 
     $ 21cmfast run coeval --redshifts 8.0 -z 10.0 \  # specify multiple redshifts
-        --template simple-small \                    # base your simulation on the simple-small template
+        --template simple small \                    # base your simulation on the simple + small templates
         --out . --cachedir cache \                   # configure outputs and cache
         --sigma-8 0.85 --perturb-on-high-res         # simulations params that override the template
 
@@ -150,11 +151,10 @@ a couple of differences::
 
     $ 21cmfast run lightcone \
         --redshift-range 6.0 12.0 \           # redshift range instead of specific redshifts
-        --template simple-small \             # base your simulation on the simple-small template
+        --template simple small \             # base your simulation on the simple + small templates
         --out lightcone.h5 --cachedir cache \ # configure outputs and cache
         --sigma-8 0.85 --perturb-on-high-res\ # simulations params that override the template
         --lq brightness_temp --lq neutral_fraction \  # fields that become lightcones
-        --gq brightness_temp --gq kinetic_temperature # fields to compute as globally-averaged
 
 The major differences here are that:
 
@@ -167,10 +167,6 @@ The major differences here are that:
 4. We can pass multiple ``--lq`` (or more verbosely, ``--lightcone-quantities``) to specify
    the physical fields we want written out as lightcones. The default is to save only
    the 21cm brightness temperature.
-5. We can pass multiple ``--gq`` (or more verbosely, ``--global-quantities``) to specify
-   the fields we want to save as globally-averaged values as a function of redshift.
-   The default is to save the 21cm brightness temperature and the neutral fraction
-   of hydrogen.
 
 There are many more options, so make sure to read the full
 `CLI tutorial <tutorials/cli_usage.html>`_.

@@ -96,3 +96,31 @@ void wrap_position(double pos[3], double size[3]);
 void wrap_coord(int idx[3], int size[3]);
 void random_point_in_sphere(double centre[3], double radius, gsl_rng *rng, double *point);
 void random_point_in_cell(int idx[3], double cell_len, gsl_rng *rng, double *point);
+
+// Functions which are more general versions of the macros in indexing.h
+inline unsigned long long grid_index_general(int x, int y, int z, int dim[3]) {
+    return (z) + (dim[2] + 0llu) * (y + (dim[1] + 0llu) * x);
+}
+
+inline unsigned long long grid_index_fftw_r(int x, int y, int z, int dim[3]) {
+    return (z) + 2llu * (dim[2] / 2 + 1llu) * (y + (dim[1] + 0llu) * x);
+}
+
+inline unsigned long long grid_index_fftw_c(int x, int y, int z, int dim[3]) {
+    return (z) + (dim[2] / 2 + 1llu) * (y + (dim[1] + 0llu) * x);
+}
+
+inline void pos_to_index(double pos[3], double cell_size_inv, int idx[3]) {
+    // Convert a position on [0,BOX_LEN] to an index for a particular cell size.
+    // NOTE: assumes the cell at idx == 0 is *centred* at (0,0,0), and so adds 0.5
+    idx[0] = (int)(pos[0] * cell_size_inv + 0.5);
+    idx[1] = (int)(pos[1] * cell_size_inv + 0.5);
+    idx[2] = (int)(pos[2] * cell_size_inv + 0.5);
+}
+
+inline void resample_index(int idx_in[3], double dim_ratio, int idx_out[3]) {
+    // 0.5 is added on the **OUTPUT** resolution becase dim_ratio is not necessarily an integer
+    idx_out[0] = (int)(idx_in[0] * dim_ratio + 0.5);
+    idx_out[1] = (int)(idx_in[1] * dim_ratio + 0.5);
+    idx_out[2] = (int)(idx_in[2] * dim_ratio + 0.5);
+}

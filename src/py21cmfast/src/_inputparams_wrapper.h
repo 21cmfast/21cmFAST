@@ -122,7 +122,6 @@ typedef struct AstroParams {
     double POP2_ION;
     double POP3_ION;
 
-    int N_RSD_STEPS;
     double PHOTONCONS_CALIBRATION_END;
     double CLUMPING_FACTOR;
     double ALPHA_UVB;
@@ -141,8 +140,6 @@ typedef struct AstroOptions {
     bool USE_CMB_HEATING;  // CMB Heating Flag
     bool USE_LYA_HEATING;  // Lya Heating Flag
     bool USE_MASS_DEPENDENT_ZETA;
-    bool SUBCELL_RSD;
-    bool APPLY_RSDS;
     bool INHOMO_RECO;
     bool USE_TS_FLUCT;
     bool M_MIN_in_Mass;
@@ -162,6 +159,7 @@ typedef struct AstroOptions {
 
 typedef struct ConfigSettings {
     double HALO_CATALOG_MEM_FACTOR;
+    bool EXTRA_HALOBOX_FIELDS;
 
     char *external_table_path;
     char *wisdoms_path;

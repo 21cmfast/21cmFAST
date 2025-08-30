@@ -8,10 +8,11 @@ import logging
 from collections.abc import Sequence
 from typing import Any, get_args
 
-import attrs
-
+from .._cfg import config
+from ..input_serialization import convert_inputs_to_dict
 from ..io import h5
 from ..io.caching import OutputCache
+from ..utils import recursive_difference
 from ..wrapper.cfuncs import broadcast_input_struct, construct_fftw_wisdoms
 from ..wrapper.inputs import InputParameters
 from ..wrapper.outputs import OutputStruct, OutputStructZ, _HashType
@@ -59,42 +60,26 @@ def _get_incompatible_params(
     inputs1: InputParameters, inputs2: InputParameters
 ) -> dict[str, Any]:
     """Return a dict of parameters that differ between two InputParameters objects."""
-    incompatible = {}
-    d1 = attrs.asdict(inputs1)  # recursive
-    d2 = attrs.asdict(inputs2)  # recursive
-
-    for name, struct in d1.items():
-        struct2 = d2[name]
-
-        if isinstance(struct, dict):
-            incompatible[name] = {}
-
-            for key, val in struct.items():
-                val2 = struct2[key]
-                if val2 != val:
-                    incompatible[name][key] = (val, val2)
-        elif struct != struct2:
-            incompatible[name] = (struct, struct2)
-
-    # Remove empty sub-dicts (i.e. InputStructs that totally match)
-    return {
-        k: v for k, v in incompatible.items() if not isinstance(v, dict) or len(v) > 0
-    }
+    d1 = convert_inputs_to_dict(inputs1, only_structs=False, camel=False)
+    d2 = convert_inputs_to_dict(inputs2, only_structs=False, camel=False)
+    return recursive_difference(d1, d2)
 
 
 def _get_incompatible_param_diffstring(
     inputs1: InputParameters, inputs2: InputParameters
 ) -> str:
     incompatible_params = _get_incompatible_params(inputs1, inputs2)
+    rev = _get_incompatible_params(inputs2, inputs1)
 
     return "".join(
         (
             f"{name}:\n"
             + "\n".join(
-                f"  {key}:\n    {v1:>12}\n    {v2:>12}" for key, (v1, v2) in val.items()
+                f"  {key}:\n    {v1:>12}\n    {rev[name][key]:>12}"
+                for key, v1 in val.items()
             )
             if isinstance(val, dict)
-            else f"{name}:\n  {val[0]}\n  {val[1]}"
+            else f"{name}:\n  {val}\n  {rev[name]}"
         )
         for name, val in incompatible_params.items()
     )
@@ -399,7 +384,7 @@ class _OutputStructComputationInspect:
         path = cache.find_existing(obj)
         if path is not None:
             with contextlib.suppress(OSError):
-                this = h5.read_output_struct(path)
+                this = h5.read_output_struct(path, safe=config["safe_read"])
                 if hasattr(this, "redshift"):
                     logger.info(
                         f"Existing {obj._name} found at z={this.redshift} and read in (seed={this.random_seed})."

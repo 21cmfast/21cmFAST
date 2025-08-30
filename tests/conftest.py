@@ -309,4 +309,5 @@ def lc(rectlcn, ic, cache, default_input_struct_lc):
         inputs=default_input_struct_lc,
         write=CacheConfig(),
         cache=cache,
+        include_dvdr_in_tau21=False,
     )

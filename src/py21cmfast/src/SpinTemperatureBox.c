@@ -713,24 +713,24 @@ int UpdateXraySourceBox(HaloBox *halobox, double R_inner, double R_outer, int R_
                            R_outer, &xray_avg, &fxray_avg);
 
         source_box->mean_sfr[R_ct] = fsfr_avg;
-        source_box->mean_log10_Mcrit_LW[R_ct] = halobox->log10_Mcrit_MCG_ave;
         if (astro_options_global->USE_MINI_HALOS) {
             one_annular_filter(halobox->halo_sfr_mini,
                                &(source_box->filtered_sfr_mini[R_ct * HII_TOT_NUM_PIXELS]), R_inner,
                                R_outer, &sfr_avg_mini, &fsfr_avg_mini);
 
             source_box->mean_sfr_mini[R_ct] = fsfr_avg_mini;
+            source_box->mean_log10_Mcrit_LW[R_ct] = halobox->log10_Mcrit_MCG_ave;
         }
 
         if (R_ct == astro_params_global->N_STEP_TS - 1) LOG_DEBUG("finished XraySourceBox");
 
-        LOG_SUPER_DEBUG(
-            "R_inner = %8.3f | mean filtered sfr  = %10.3e (%10.3e MINI) unfiltered %10.3e (%10.3e "
-            "MINI) mean log10McritLW %.4e",
-            R_inner, fsfr_avg, fsfr_avg_mini, sfr_avg, sfr_avg_mini,
-            source_box->mean_log10_Mcrit_LW[R_ct]);
-        LOG_SUPER_DEBUG("R_outer = %8.3f | mean filtered xray = %10.3e unfiltered %10.3e", R_outer,
-                        fxray_avg, xray_avg);
+        LOG_SUPER_DEBUG("R = [%8.3f - %8.3f] | mean filtered sfr  = %10.3e unfiltered %10.3e",
+                        R_inner, R_outer, fsfr_avg, sfr_avg);
+        LOG_ULTRA_DEBUG("mean filtered xray = %10.3e unfiltered %10.3e", fxray_avg, xray_avg);
+        if (astro_options_global->USE_MINI_HALOS) {
+            LOG_SUPER_DEBUG("MINI: filtered sfr %10.3e unfiltered %10.3e log10_Mcrit_LW = %10.3e",
+                            fsfr_avg_mini, sfr_avg_mini, source_box->mean_log10_Mcrit_LW[R_ct]);
+        }
 
         fftwf_forget_wisdom();
         fftwf_cleanup_threads();
@@ -745,7 +745,7 @@ int UpdateXraySourceBox(HaloBox *halobox, double R_inner, double R_outer, int R_
 // NOTE: Frequency integrals are based on PREVIOUS x_e_ave
 //   The x_e tables are not regular, hence the precomputation of indices/interp points
 void fill_freqint_tables(double zp, double x_e_ave, double filling_factor_of_HI_zp,
-                         double *log10_Mcrit_LW_ave, int R_mm, struct ScalingConstants *sc) {
+                         double *log10_Mcrit_LW_ave, int R_mm, ScalingConstants *sc) {
     double lower_int_limit;
     int x_e_ct, R_ct;
     int R_start, R_end;
@@ -867,7 +867,7 @@ int global_reion_properties(double zp, double x_e_ave, double *log10_Mcrit_LW_av
     double determine_zpp_max, determine_zpp_min;
 
     // at z', we need a differenc constant struct
-    struct ScalingConstants sc;
+    ScalingConstants sc;
     set_scaling_constants(zp, &sc, false);
 
     if (matter_options_global->USE_INTERPOLATION_TABLES > 1) {
@@ -930,7 +930,7 @@ int global_reion_properties(double zp, double x_e_ave, double *log10_Mcrit_LW_av
 
 void calculate_sfrd_from_grid(int R_ct, float *dens_R_grid, float *Mcrit_R_grid, float *sfrd_grid,
                               float *sfrd_grid_mini, double *ave_sfrd, double *ave_sfrd_mini,
-                              struct ScalingConstants *sc) {
+                              ScalingConstants *sc) {
     double ave_sfrd_buf = 0;
     double ave_sfrd_buf_mini = 0;
     if (astro_options_global->INTEGRATION_METHOD_ATOMIC == 1 ||
@@ -1382,7 +1382,7 @@ void ts_main(float redshift, float prev_redshift, float perturbed_field_redshift
             }
         }
         LOG_DEBUG("Constructed filtered boxes.");
-    } else {
+    } else if (astro_options_global->USE_MINI_HALOS) {
         for (R_ct = 0; R_ct < astro_params_global->N_STEP_TS; R_ct++) {
             ave_log10_MturnLW[R_ct] = source_box->mean_log10_Mcrit_LW[R_ct];
         }
@@ -1458,7 +1458,7 @@ void ts_main(float redshift, float prev_redshift, float perturbed_field_redshift
     int R_index;
     float *delta_box_input;
     float *Mcrit_box_input = NULL;  // may be unused
-    struct ScalingConstants sc, sc_sfrd;
+    ScalingConstants sc, sc_sfrd;
 
     // if we have stars, fill in the heating term boxes
     if (!NO_LIGHT) {

@@ -109,7 +109,6 @@ void writeAstroParams(AstroParams *p) {
         "\n        AstroParams:\n"
         "       M_TURN=%10.3e\n"
         "       R_BUBBLE_MAX=%8.3f\n"
-        "       N_RSD_STEPS=%5d\n"
         "       F_STAR10=%8.3f\n"
         "       ALPHA_STAR=%8.3f\n"
         "       F_ESC10=%8.3f\n"
@@ -150,8 +149,7 @@ void writeAstroParams(AstroParams *p) {
         "       HII_EFF_FACTOR=%10.3e\n"
         "       ION_Tvir_MIN=%10.3e\n"
         "       X_RAY_Tvir_MIN=%10.3e\n",
-        p->HII_EFF_FACTOR, p->ION_Tvir_MIN, p->X_RAY_Tvir_MIN, p->R_BUBBLE_MAX, p->L_X,
-        p->NU_X_THRESH, p->X_RAY_SPEC_INDEX, p->F_STAR10, p->t_STAR, p->N_RSD_STEPS);
+        p->HII_EFF_FACTOR, p->ION_Tvir_MIN, p->X_RAY_Tvir_MIN);
 }
 
 void writeAstroOptions(AstroOptions *p) {
@@ -159,22 +157,19 @@ void writeAstroOptions(AstroOptions *p) {
         "\n        AstroOptions:\n"
         "       USE_MINI_HALOS=%1d\n"
         "       USE_MASS_DEPENDENT_ZETA=%1d\n"
-        "       SUBCELL_RSD=%1d\n"
         "       INHOMO_RECO=%1d\n"
         "       USE_TS_FLUCT=%1d\n"
         "       M_MIN_in_Mass=%1d\n"
         "       USE_EXP_FILTER=%1d\n"
         "       USE_CMB_HEATING=%1d\n"
         "       USE_LYA_HEATING=%1d\n"
-        "       APPLY_RSDS=%1d\n"
         "       FIX_VCB_AVG=%1d\n"
         "       CELL_RECOMB=%1d\n"
         "       PHOTON_CONS_TYPE=%2d\n"
         "       USE_UPPER_STELLAR_TURNOVER=%1d\n",
-        p->USE_MINI_HALOS, p->USE_MASS_DEPENDENT_ZETA, p->SUBCELL_RSD, p->INHOMO_RECO,
-        p->USE_TS_FLUCT, p->M_MIN_in_Mass, p->USE_EXP_FILTER, p->USE_CMB_HEATING,
-        p->USE_LYA_HEATING, p->APPLY_RSDS, p->FIX_VCB_AVG, p->CELL_RECOMB, p->PHOTON_CONS_TYPE,
-        p->USE_UPPER_STELLAR_TURNOVER);
+        p->USE_MINI_HALOS, p->USE_MASS_DEPENDENT_ZETA, p->INHOMO_RECO, p->USE_TS_FLUCT,
+        p->M_MIN_in_Mass, p->USE_EXP_FILTER, p->USE_CMB_HEATING, p->USE_LYA_HEATING, p->FIX_VCB_AVG,
+        p->CELL_RECOMB, p->PHOTON_CONS_TYPE, p->USE_UPPER_STELLAR_TURNOVER);
 }
 
 void get_corner_indices(int size_x, int size_y, int size_z, unsigned long long indices[8]) {

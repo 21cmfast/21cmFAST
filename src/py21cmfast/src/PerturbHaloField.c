@@ -40,158 +40,89 @@ int ComputePerturbHaloField(float redshift, InitialConditions *boxes, HaloField 
 
         omp_set_num_threads(simulation_options_global->N_THREADS);
 
-        double growth_factor, displacement_factor_2LPT, xf, yf, zf, growth_factor_over_BOX_LEN,
-            displacement_factor_2LPT_over_BOX_LEN;
-        double boxlen = simulation_options_global->BOX_LEN;
-        double boxlen_z = boxlen * simulation_options_global->NON_CUBIC_FACTOR;
-        unsigned long long int i, j, k, dimension;
-        unsigned long long i_halo;
-
-        LOG_DEBUG("Begin Initialisation");
+        float growth_factor, displacement_factor_2LPT, init_growth_factor,
+            init_displacement_factor_2LPT;
+        unsigned long long int i_halo;
 
         // Function for deciding the dimensions of loops when we could
         // use either the low or high resolution grids.
-        dimension = matter_options_global->PERTURB_ON_HIGH_RES ? simulation_options_global->DIM
-                                                               : simulation_options_global->HII_DIM;
+        double boxlen = simulation_options_global->BOX_LEN;
+        double boxlen_z = boxlen * simulation_options_global->NON_CUBIC_FACTOR;
+        double box_size[3] = {boxlen, boxlen, boxlen_z};
+        int box_dim[3];
+        float *vel_pointers[3], *vel_pointers_2LPT[3];
+        if (matter_options_global->PERTURB_ON_HIGH_RES) {
+            box_dim[0] = simulation_options_global->DIM;
+            box_dim[1] = simulation_options_global->DIM;
+            box_dim[2] = D_PARA;
+            vel_pointers[0] = boxes->hires_vx;
+            vel_pointers[1] = boxes->hires_vy;
+            vel_pointers[2] = boxes->hires_vz;
+            vel_pointers_2LPT[0] = boxes->hires_vx_2LPT;
+            vel_pointers_2LPT[1] = boxes->hires_vy_2LPT;
+            vel_pointers_2LPT[2] = boxes->hires_vz_2LPT;
+        } else {
+            box_dim[0] = simulation_options_global->HII_DIM;
+            box_dim[1] = simulation_options_global->HII_DIM;
+            box_dim[2] = HII_D_PARA;
+            vel_pointers[0] = boxes->lowres_vx;
+            vel_pointers[1] = boxes->lowres_vy;
+            vel_pointers[2] = boxes->lowres_vz;
+            vel_pointers_2LPT[0] = boxes->lowres_vx_2LPT;
+            vel_pointers_2LPT[1] = boxes->lowres_vy_2LPT;
+            vel_pointers_2LPT[2] = boxes->lowres_vz_2LPT;
+        }
+        double cell_size_inv = box_dim[0] / box_size[0];
 
-        // ***************** END INITIALIZATION ***************** //
-        init_ps();
-        growth_factor = dicke(redshift);  // normalized to 1 at z=0
+        growth_factor = dicke(redshift);
         displacement_factor_2LPT = -(3.0 / 7.0) * growth_factor * growth_factor;  // 2LPT eq. D8
 
-        // TODO: combine/match with PerturbField.c
-        //  which uses (D(z) - D(init))/BOXLEN
-        growth_factor_over_BOX_LEN = growth_factor / boxlen;
-        displacement_factor_2LPT_over_BOX_LEN = displacement_factor_2LPT / boxlen;
+        init_growth_factor = dicke(simulation_options_global->INITIAL_REDSHIFT);
+        init_displacement_factor_2LPT =
+            -(3.0 / 7.0) * init_growth_factor * init_growth_factor;  // 2LPT eq. D8
 
-        // now add the missing factor of Ddot to velocity field
-#pragma omp parallel shared(boxes, dimension, growth_factor_over_BOX_LEN) private(i, j, k) \
-    num_threads(simulation_options_global -> N_THREADS)
-        {
-#pragma omp for
-            for (i = 0; i < dimension; i++) {
-                for (j = 0; j < dimension; j++) {
-                    for (k = 0;
-                         k < (unsigned long long)(simulation_options_global->NON_CUBIC_FACTOR *
-                                                  dimension);
-                         k++) {
-                        if (matter_options_global->PERTURB_ON_HIGH_RES) {
-                            boxes->hires_vx[R_INDEX(i, j, k)] *= growth_factor_over_BOX_LEN;
-                            boxes->hires_vy[R_INDEX(i, j, k)] *= growth_factor_over_BOX_LEN;
-                            boxes->hires_vz[R_INDEX(i, j, k)] *=
-                                (growth_factor_over_BOX_LEN /
-                                 simulation_options_global->NON_CUBIC_FACTOR);
-                        } else {
-                            boxes->lowres_vx[HII_R_INDEX(i, j, k)] *= growth_factor_over_BOX_LEN;
-                            boxes->lowres_vy[HII_R_INDEX(i, j, k)] *= growth_factor_over_BOX_LEN;
-                            boxes->lowres_vz[HII_R_INDEX(i, j, k)] *=
-                                (growth_factor_over_BOX_LEN /
-                                 simulation_options_global->NON_CUBIC_FACTOR);
-                        }
-                        // this is now comoving displacement in units of box size
-                    }
-                }
-            }
-        }
+        // ***************   BEGIN INITIALIZATION   ************************** //
+        double velocity_displacement_factor = growth_factor - init_growth_factor;
+        double velocity_displacement_factor_2LPT =
+            displacement_factor_2LPT - init_displacement_factor_2LPT;
 
-        // ************************************************************************* //
-        //                          BEGIN 2LPT PART                                  //
-        // ************************************************************************* //
-        // reference: reference: Scoccimarro R., 1998, MNRAS, 299, 1097-1118 Appendix D
-        if (matter_options_global->PERTURB_ALGORITHM == 2) {
-            // now add the missing factor in eq. D9
-#pragma omp parallel shared(boxes, displacement_factor_2LPT_over_BOX_LEN, dimension) \
-    private(i, j, k) num_threads(simulation_options_global -> N_THREADS)
-            {
-#pragma omp for
-                for (i = 0; i < dimension; i++) {
-                    for (j = 0; j < dimension; j++) {
-                        for (k = 0;
-                             k < (unsigned long long)(simulation_options_global->NON_CUBIC_FACTOR *
-                                                      dimension);
-                             k++) {
-                            if (matter_options_global->PERTURB_ON_HIGH_RES) {
-                                boxes->hires_vx_2LPT[R_INDEX(i, j, k)] *=
-                                    displacement_factor_2LPT_over_BOX_LEN;
-                                boxes->hires_vy_2LPT[R_INDEX(i, j, k)] *=
-                                    displacement_factor_2LPT_over_BOX_LEN;
-                                boxes->hires_vz_2LPT[R_INDEX(i, j, k)] *=
-                                    (displacement_factor_2LPT_over_BOX_LEN /
-                                     simulation_options_global->NON_CUBIC_FACTOR);
-                            } else {
-                                boxes->lowres_vx_2LPT[HII_R_INDEX(i, j, k)] *=
-                                    displacement_factor_2LPT_over_BOX_LEN;
-                                boxes->lowres_vy_2LPT[HII_R_INDEX(i, j, k)] *=
-                                    displacement_factor_2LPT_over_BOX_LEN;
-                                boxes->lowres_vz_2LPT[HII_R_INDEX(i, j, k)] *=
-                                    (displacement_factor_2LPT_over_BOX_LEN /
-                                     simulation_options_global->NON_CUBIC_FACTOR);
-                            }
-                            // this is now comoving displacement in units of box size
-                        }
-                    }
-                }
-            }
-        }
-        // ************************************************************************* //
-        //                            END 2LPT PART                                  //
-        // ************************************************************************* //
+        // Function for deciding the dimensions of loops when we could
+        // use either the low or high resolution grids.
+
+        init_ps();
+        growth_factor = dicke(redshift);  // normalized to 1 at z=0
         halos_perturbed->n_halos = halos->n_halos;
 
         // ******************   END INITIALIZATION     ******************************** //
-
-#pragma omp parallel shared(boxes, halos, halos_perturbed) private(i_halo, i, j, k, xf, yf, zf) \
-    num_threads(simulation_options_global -> N_THREADS)
+        unsigned long long int n_exact_dim = 0;
+        bool error_in_parallel = false;
+#pragma omp parallel private(i_halo) num_threads(simulation_options_global -> N_THREADS) \
+    reduction(+ : n_exact_dim)
         {
             double pos[3];
-            double box_size[3] = {boxlen, boxlen, boxlen_z};
+            unsigned long long grid_index;
+            int ipos[3];
 #pragma omp for
             for (i_halo = 0; i_halo < halos->n_halos; i_halo++) {
+                if (error_in_parallel) continue;
                 // convert location to fractional value
-                xf = halos->halo_coords[i_halo * 3 + 0] / boxlen;
-                yf = halos->halo_coords[i_halo * 3 + 1] / boxlen;
-                zf = halos->halo_coords[i_halo * 3 + 2] / boxlen_z;
+                pos[0] = halos->halo_coords[i_halo * 3 + 0];
+                pos[1] = halos->halo_coords[i_halo * 3 + 1];
+                pos[2] = halos->halo_coords[i_halo * 3 + 2];
 
-                // determine halo position (downsampled if required)
-                if (matter_options_global->PERTURB_ON_HIGH_RES) {
-                    i = xf * simulation_options_global->DIM;
-                    j = yf * simulation_options_global->DIM;
-                    k = zf * D_PARA;
-                } else {
-                    i = xf * simulation_options_global->HII_DIM;
-                    j = yf * simulation_options_global->HII_DIM;
-                    k = zf * HII_D_PARA;
-                }
-                // get new positions using linear velocity displacement from z=INITIAL
-                if (matter_options_global->PERTURB_ON_HIGH_RES) {
-                    xf += boxes->hires_vx[R_INDEX(i, j, k)];
-                    yf += boxes->hires_vy[R_INDEX(i, j, k)];
-                    zf += boxes->hires_vz[R_INDEX(i, j, k)];
-                } else {
-                    xf += boxes->lowres_vx[HII_R_INDEX(i, j, k)];
-                    yf += boxes->lowres_vy[HII_R_INDEX(i, j, k)];
-                    zf += boxes->lowres_vz[HII_R_INDEX(i, j, k)];
-                }
+                pos_to_index(pos, cell_size_inv, ipos);
+                wrap_coord(ipos, box_dim);
+                grid_index = grid_index_general(ipos[0], ipos[1], ipos[2], box_dim);
 
-                // 2LPT PART
-                // add second order corrections
-                if (matter_options_global->PERTURB_ALGORITHM == 2) {
-                    if (matter_options_global->PERTURB_ON_HIGH_RES) {
-                        xf -= boxes->hires_vx_2LPT[R_INDEX(i, j, k)];
-                        yf -= boxes->hires_vy_2LPT[R_INDEX(i, j, k)];
-                        zf -= boxes->hires_vz_2LPT[R_INDEX(i, j, k)];
-                    } else {
-                        xf -= boxes->lowres_vx_2LPT[HII_R_INDEX(i, j, k)];
-                        yf -= boxes->lowres_vy_2LPT[HII_R_INDEX(i, j, k)];
-                        zf -= boxes->lowres_vz_2LPT[HII_R_INDEX(i, j, k)];
-                    }
+                for (int i_dim = 0; i_dim < 3; i_dim++) {
+                    pos[i_dim] += vel_pointers[i_dim][grid_index] * velocity_displacement_factor;
+                    if (matter_options_global->PERTURB_ALGORITHM == 2)
+                        pos[i_dim] -= vel_pointers_2LPT[i_dim][grid_index] *
+                                      velocity_displacement_factor_2LPT;
                 }
 
                 // Mutliplying before the wrapping to ensure that floating point errors
                 //  do not cause the halo to be placed outside the box.
-                pos[0] = xf * boxlen;
-                pos[1] = yf * boxlen;
-                pos[2] = zf * boxlen_z;
                 wrap_position(pos, box_size);
 
                 halos_perturbed->halo_coords[i_halo * 3 + 0] = pos[0];
@@ -205,59 +136,12 @@ int ComputePerturbHaloField(float redshift, InitialConditions *boxes, HaloField 
             }
         }
         // Divide out multiplicative factor to return to pristine state
-#pragma omp parallel shared(boxes, growth_factor_over_BOX_LEN, dimension,               \
-                                displacement_factor_2LPT_over_BOX_LEN) private(i, j, k) \
-    num_threads(simulation_options_global -> N_THREADS)
-        {
-#pragma omp for
-            for (i = 0; i < dimension; i++) {
-                for (j = 0; j < dimension; j++) {
-                    for (k = 0;
-                         k < (unsigned long long)(simulation_options_global->NON_CUBIC_FACTOR *
-                                                  dimension);
-                         k++) {
-                        if (matter_options_global->PERTURB_ON_HIGH_RES) {
-                            boxes->hires_vx[R_INDEX(i, j, k)] /= growth_factor_over_BOX_LEN;
-                            boxes->hires_vy[R_INDEX(i, j, k)] /= growth_factor_over_BOX_LEN;
-                            boxes->hires_vz[R_INDEX(i, j, k)] /=
-                                (growth_factor_over_BOX_LEN /
-                                 simulation_options_global->NON_CUBIC_FACTOR);
-
-                            if (matter_options_global->PERTURB_ALGORITHM == 2) {
-                                boxes->hires_vx_2LPT[R_INDEX(i, j, k)] /=
-                                    displacement_factor_2LPT_over_BOX_LEN;
-                                boxes->hires_vy_2LPT[R_INDEX(i, j, k)] /=
-                                    displacement_factor_2LPT_over_BOX_LEN;
-                                boxes->hires_vz_2LPT[R_INDEX(i, j, k)] /=
-                                    (displacement_factor_2LPT_over_BOX_LEN /
-                                     simulation_options_global->NON_CUBIC_FACTOR);
-                            }
-                        } else {
-                            boxes->lowres_vx[HII_R_INDEX(i, j, k)] /= growth_factor_over_BOX_LEN;
-                            boxes->lowres_vy[HII_R_INDEX(i, j, k)] /= growth_factor_over_BOX_LEN;
-                            boxes->lowres_vz[HII_R_INDEX(i, j, k)] /=
-                                (growth_factor_over_BOX_LEN /
-                                 simulation_options_global->NON_CUBIC_FACTOR);
-
-                            if (matter_options_global->PERTURB_ALGORITHM == 2) {
-                                boxes->lowres_vx_2LPT[HII_R_INDEX(i, j, k)] /=
-                                    displacement_factor_2LPT_over_BOX_LEN;
-                                boxes->lowres_vy_2LPT[HII_R_INDEX(i, j, k)] /=
-                                    displacement_factor_2LPT_over_BOX_LEN;
-                                boxes->lowres_vz_2LPT[HII_R_INDEX(i, j, k)] /=
-                                    (displacement_factor_2LPT_over_BOX_LEN /
-                                     simulation_options_global->NON_CUBIC_FACTOR);
-                            }
-                        }
-                        // this is now comoving displacement in units of box size
-                    }
-                }
-            }
+        LOG_SUPER_DEBUG("Number of halos exactly on the box edge = %llu of %llu", n_exact_dim,
+                        halos->n_halos);
+        if (error_in_parallel) {
+            LOG_ERROR("Error in parallel processing, some halos were out of bounds.");
+            Throw(ValueError);
         }
-
-        fftwf_cleanup_threads();
-        fftwf_cleanup();
-        fftwf_forget_wisdom();
         LOG_DEBUG("Perturbed positions of %llu Halos", halos_perturbed->n_halos);
 
     }  // End of Try()
