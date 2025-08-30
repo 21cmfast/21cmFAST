@@ -933,6 +933,9 @@ class AstroParams(InputStruct):
     BETA_ESC : float, optional
         Power-law index of escape fraction as a function of redshift. See Eq. 2 of
         Qin+2025.
+    BETA_ESC_MINI : float, optional
+        Power-law index of escape fraction as a function of redshift for minihalos.
+        If the scaling relations are not provided explicitly, we extend the ACG ones by default.
     M_TURN : float, optional
         Turnover mass (in log10 solar mass units) for quenching of star formation in
         halos, due to SNe or photo-heating feedback, or inefficient gas accretion. Only
@@ -1036,6 +1039,7 @@ class AstroParams(InputStruct):
         default=0.0,
         converter=float,
     )
+    BETA_ESC_MINI: float = field(converter=float)
     F_ESC7_MINI: float = field(
         default=-2.0,
         converter=float,
@@ -1132,6 +1136,10 @@ class AstroParams(InputStruct):
     @ALPHA_STAR_MINI.default
     def _ALPHA_STAR_MINI_default(self):
         return self.ALPHA_STAR
+
+    @BETA_ESC_MINI.default
+    def _BETA_ESC_MINI_default(self):
+        return self.BETA_ESC
 
     @L_X_MINI.default
     def _L_X_MINI_default(self):
