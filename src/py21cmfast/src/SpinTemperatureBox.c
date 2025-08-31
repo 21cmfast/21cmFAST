@@ -552,10 +552,8 @@ int ComputeTsBox(float redshift, float prev_redshift, struct UserParams *user_pa
                             this_spin_temp->Ts_box[HII_R_INDEX(i, j, k)] = get_Ts(redshift,
                                                                                   perturbed_field->density[HII_R_INDEX(i, j, k)] * inverse_growth_factor_z * growth_factor_zp,
                                                                                   TK, xe, 0, &curr_xalpha);
-                            // this_spin_temp->Trad_box[HII_R_INDEX(i, j, k)] = 0.0; // Initialize to 0
                             this_spin_temp->SFRD_box[HII_R_INDEX(i, j, k)] = 0.0;
                             this_spin_temp->SFRD_MINI_box[HII_R_INDEX(i, j, k)] = 0.0;
-                            // this_spin_temp->History_box[HII_R_INDEX(i, j, k)] = 0.0;
                         }
                     }
                 }
@@ -2793,9 +2791,6 @@ int ComputeTsBox(float redshift, float prev_redshift, struct UserParams *user_pa
                 OutputFile = fopen("SFRD_2_no_MINI.txt", "a");
                 fprintf(OutputFile, "%f    %E\n", redshift, nion_tmp);
                 fclose(OutputFile);
-
-                // ---- SFRD for EoS mturn ----
-                Print_SFRD_MINI_EoS2021_tmp(redshift, astro_params, cosmo_params, flag_options);
 
                 // Finally to test Nion_General_MINI speed
                 double Mlim_Fstar_MINI_tmp = Mass_limit_bisection(global_params.M_MIN_INTEGRAL, global_params.M_MAX_INTEGRAL, astro_params->ALPHA_STAR_MINI,

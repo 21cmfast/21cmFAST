@@ -303,9 +303,11 @@ double History_box_Interp(struct TsBox *previous_spin_temp, double z, int Type, 
 double Get_Radio_Temp_HMG(struct TsBox *previous_spin_temp, struct TsBox *this_spin_temp, struct AstroParams *astro_params, struct CosmoParams *cosmo_params, struct FlagOptions *flag_options, double zpp_max, double redshift)
 {
 
-	// Find Radio Temp from sources in redshifts [zpp_max, Z_Heat_max]
-	// ---- inputs ----
-	// zpp_max: maximum zpp
+	/* Find Radio Temp from sources in redshifts [zpp_max, Z_Heat_max]
+	---- inputs ----
+	zpp_max: maximum zpp
+	redshift: redshift at which you want to compute radio temp
+	*/
 
 	double z1, z2, dz, Phi, Phi_mini, z, fun_ACG, fun_MCG, Radio_Temp, Radio_Prefix_ACG, Radio_Prefix_MCG;
 	int nz, zid, RadioSilent;
@@ -333,13 +335,12 @@ double Get_Radio_Temp_HMG(struct TsBox *previous_spin_temp, struct TsBox *this_s
 		Radio_Prefix_MCG = 0.0;
 	}
 
-	if ((RadioSilent || redshift > 33.0) || this_spin_temp->first_box)
+	if ((RadioSilent || redshift > 50.0) || this_spin_temp->first_box)
 	{
 		Radio_Temp = 0.0;
 	}
 	else
 	{
-
 		z2 = previous_spin_temp->History_box[5] - 0.01;
 		z1 = zpp_max;
 		if (z1 > z2)
@@ -722,26 +723,6 @@ double Nion_2_SFRD_tmp(double z, double nion, struct AstroParams *astro_params, 
 
 	SFRD = nion * OmB * RHOcrit * f710 * H / astro_params->t_STAR * SperYR;
 	return SFRD;
-}
-
-void Print_SFRD_MINI_EoS2021_tmp(double z, struct AstroParams *astro_params, struct CosmoParams *cosmo_params, struct FlagOptions *flag_options)
-{
-	double nion, mturn, matom, Mlim_Fstar_MINI, SFRD;
-	FILE *OutputFile;
-	mturn = get_mturn_interp_EoS_tmp(z);
-	matom = atomic_cooling_threshold(z);
-	if (flag_options->USE_MINI_HALOS && z < 35.)
-	{
-		nion = Nion_General_MINI(z, global_params.M_MIN_INTEGRAL, mturn, matom, 0., 0., astro_params->F_STAR7_MINI, 1., 0., 0.);
-	}
-	else
-	{
-		nion = 0.0;
-	}
-	SFRD = Nion_2_SFRD_tmp(z, nion, astro_params, cosmo_params, 1);
-	OutputFile = fopen("SFRD_MINI_EoS2021_tmp.txt", "a");
-	fprintf(OutputFile, "%E  %E\n", z, SFRD);
-	fclose(OutputFile);
 }
 
 void Test_History_box_Interp(struct TsBox *previous_spin_temp, struct AstroParams *astro_params, struct CosmoParams *cosmo_params)
