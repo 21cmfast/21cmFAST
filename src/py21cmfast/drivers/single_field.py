@@ -206,7 +206,7 @@ def compute_halo_grid(
     redshift: float,
     initial_conditions: InitialConditions,
     inputs: InputParameters | None = None,
-    halo_list: HaloField | None = None,
+    halo_field: HaloField | None = None,
     previous_spin_temp: TsBox | None = None,
     previous_ionize_box: IonizedBox | None = None,
 ) -> HaloBox:
@@ -245,11 +245,11 @@ def compute_halo_grid(
     """
     box = HaloBox.new(redshift=redshift, inputs=inputs)
 
-    if halo_list is None:
+    if halo_field is None:
         if not inputs.matter_options.FIXED_HALO_GRIDS:
-            raise ValueError("You must provide halo_list if FIXED_HALO_GRIDS is False")
+            raise ValueError("You must provide halo_field if FIXED_HALO_GRIDS is False")
         else:
-            halo_list = HaloField.dummy()
+            halo_field = HaloField.dummy()
 
     # NOTE: due to the order, we use the previous spin temp here, like spin_temperature,
     #       but UNLIKE ionize_box, which uses the current box
@@ -279,7 +279,7 @@ def compute_halo_grid(
 
     return box.compute(
         initial_conditions=initial_conditions,
-        halo_field=halo_list,
+        halo_field=halo_field,
         previous_ionize_box=previous_ionize_box,
         previous_spin_temp=previous_spin_temp,
     )

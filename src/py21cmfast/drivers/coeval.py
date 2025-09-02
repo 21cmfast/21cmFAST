@@ -23,11 +23,11 @@ from ..wrapper.inputs import InputParameters
 from ..wrapper.outputs import (
     BrightnessTemp,
     HaloBox,
+    HaloField,
     InitialConditions,
     IonizedBox,
     OutputStruct,
     PerturbedField,
-    PerturbHaloField,
     TsBox,
 )
 from ..wrapper.photoncons import _get_photon_nonconservation_data, setup_photon_cons
@@ -433,7 +433,7 @@ def evolve_halos(
     ):
         return []
 
-    if not write.perturbed_halo_field and len(all_redshifts) > 1:
+    if not write.halo_field and len(all_redshifts) > 1:
         warnings.warn(
             "You have turned off caching for the perturbed halo fields, but are"
             " evolving them across multiple redshifts. This will result in very high memory usage",
@@ -448,7 +448,7 @@ def evolve_halos(
     }
     halos_desc = None
     with _progressbar(disable=not progressbar) as _progbar:
-        for i, z in _progbar.track(
+        for _i, z in _progbar.track(
             enumerate(all_redshifts[::-1]),
             description="Evolving Halos",
             total=len(all_redshifts),
@@ -463,13 +463,12 @@ def evolve_halos(
 
             halofield_list.append(halos)
 
-            # we never want to store every halofield
-            if write.halo_field:
-                halofield_list[i].purge()
-
             if z in inputs.node_redshifts:
                 # Only evolve on the node_redshifts, not any redshifts in-between
                 # that the user might care about.
+                # we never want to store every halofield
+                if write.halo_field and (halos_desc is not None):
+                    halos_desc.purge()
                 halos_desc = halos
 
     # reverse to get the right redshift order
@@ -689,7 +688,7 @@ def _redshift_loop_generator(
     initial_conditions: InitialConditions,
     all_redshifts: Sequence[float],
     perturbed_field: list[PerturbedField],
-    halofield_list: list[PerturbHaloField],
+    halofield_list: list[HaloField],
     write: CacheConfig,
     iokw: dict,
     cleanup: bool,
@@ -838,7 +837,7 @@ def _setup_ics_and_pfs_for_scrolling(
     write: CacheConfig,
     progressbar: bool,
     **iokw,
-) -> tuple[InitialConditions, PerturbedField, PerturbHaloField, dict]:
+) -> tuple[InitialConditions, list[PerturbedField], list[HaloField], dict]:
     if initial_conditions is None:
         initial_conditions = sf.compute_initial_conditions(
             inputs=inputs, write=write.initial_conditions, **iokw

@@ -101,7 +101,7 @@ static inline void do_cic_interpolation_float(float *resampled_box, double pos[3
     }
 }
 
-static inline double cic_read_float(float *box, double pos[3], double box_dim[3]) {
+static inline double cic_read_float(float *box, double pos[3], int box_dim[3]) {
     // get the CIC indices and distances
     int ipos[3], iposp1[3];
     double dist[3];
@@ -395,17 +395,18 @@ void move_halo_galprops(double redshift, HaloField *halos, float *vel_pointers[3
             pos[0] = pos[0] * out_dim[0] / box_size[0];
             pos[1] = pos[1] * out_dim[1] / box_size[1];
             pos[2] = pos[2] * out_dim[2] / box_size[2];
-            wrap_position(pos, out_dim);
 
-            M_turn_a = pow(10, cic_read_float(mturn_a_grid, pos, out_dim));
-            M_turn_m = pow(10, cic_read_float(mturn_m_grid, pos, out_dim));
+            if (astro_options_global->USE_MINI_HALOS) {
+                M_turn_a = pow(10, cic_read_float(mturn_a_grid, pos, out_dim));
+                M_turn_m = pow(10, cic_read_float(mturn_m_grid, pos, out_dim));
+            }
             halo_rng[0] = halos->star_rng[i];
             halo_rng[1] = halos->sfr_rng[i];
             halo_rng[2] = halos->xray_rng[i];
 
             // CIC interpolation
             set_halo_properties(hmass, M_turn_a, M_turn_m, consts, halo_rng, &properties);
-            do_cic_interpolation(boxes->halo_sfr, pos, out_dim, properties.stellar_mass);
+            do_cic_interpolation(boxes->halo_sfr, pos, out_dim, properties.halo_sfr);
             do_cic_interpolation(boxes->n_ion, pos, out_dim, properties.n_ion);
             if (astro_options_global->USE_MINI_HALOS) {
                 do_cic_interpolation(boxes->halo_sfr_mini, pos, out_dim, properties.sfr_mini);

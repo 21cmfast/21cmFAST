@@ -605,6 +605,29 @@ class InitialConditions(OutputStruct):
             keep.append("lowres_density")  # for the cmfs
         if self.matter_options.USE_RELATIVE_VELOCITIES:
             keep.append("lowres_vcb")
+
+        if self.matter_options.USE_HALO_FIELD:
+            if not self.matter_options.PERTURB_ON_HIGH_RES:
+                keep.append("lowres_density")
+                keep.append("lowres_vx")
+                keep.append("lowres_vy")
+                keep.append("lowres_vz")
+
+                if self.matter_options.PERTURB_ALGORITHM == "2LPT":
+                    keep.append("lowres_vx_2LPT")
+                    keep.append("lowres_vy_2LPT")
+                    keep.append("lowres_vz_2LPT")
+
+            else:
+                keep.append("hires_vx")
+                keep.append("hires_vy")
+                keep.append("hires_vz")
+
+                if self.matter_options.PERTURB_ALGORITHM == "2LPT":
+                    keep.append("hires_vx_2LPT")
+                    keep.append("hires_vy_2LPT")
+                    keep.append("hires_vz_2LPT")
+
         self.prepare(keep=keep, force=force)
 
     def get_required_input_arrays(self, input_box: OutputStruct) -> list[str]:

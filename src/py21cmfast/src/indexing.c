@@ -7,6 +7,7 @@
 #include <stdlib.h>
 
 #include "InputParameters.h"
+#include "logger.h"
 
 // Minutia: Testing showed that the while loops were faster than a modulus
 // for uniformly distributed positions on a grid size greater than 8
