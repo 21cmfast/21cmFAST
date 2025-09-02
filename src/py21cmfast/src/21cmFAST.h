@@ -85,7 +85,7 @@ struct FlagOptions
     bool M_MIN_in_Mass;
     bool PHOTON_CONS;
     bool FIX_VCB_AVG;
-    // Settings for Radio Excess and Hawking Radiation
+    // Settings for Radio Excess Background
     bool USE_RADIO_ACG;
     bool USE_RADIO_MCG;
     bool Calibrate_EoR_feedback;

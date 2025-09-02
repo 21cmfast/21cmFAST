@@ -165,10 +165,6 @@ int ComputeTsBox(float redshift, float prev_redshift, struct UserParams *user_pa
         }
 
         // ---------------- Pre-flight checks ----------------
-        // Most of these need to be done in python in next version
-        // Make sure History_box is large enough
-
-        // Determine whether to use radio excess
         if (flag_options->USE_RADIO_ACG || flag_options->USE_RADIO_MCG)
         {
             Radio_Silent = 0;
@@ -548,12 +544,12 @@ int ComputeTsBox(float redshift, float prev_redshift, struct UserParams *user_pa
                             this_spin_temp->Tk_box[HII_R_INDEX(i, j, k)] = TK;
                             this_spin_temp->x_e_box[HII_R_INDEX(i, j, k)] = xe;
                             // compute the spin temperature
-                            // No impact from Excess Radio Background yet because now Trad=0
                             this_spin_temp->Ts_box[HII_R_INDEX(i, j, k)] = get_Ts(redshift,
                                                                                   perturbed_field->density[HII_R_INDEX(i, j, k)] * inverse_growth_factor_z * growth_factor_zp,
                                                                                   TK, xe, 0, &curr_xalpha);
                             this_spin_temp->SFRD_box[HII_R_INDEX(i, j, k)] = 0.0;
                             this_spin_temp->SFRD_MINI_box[HII_R_INDEX(i, j, k)] = 0.0;
+                            this_spin_temp->Trad_box[HII_R_INDEX(i, j, k)] = 0.0;
                         }
                     }
                 }
