@@ -13,8 +13,9 @@ from rich import progress as prg
 from rich.console import Console
 from rich.progress import Progress
 
+import py21cmfast.c_21cmfast as lib
+
 from .. import __version__
-from ..c_21cmfast import lib
 from ..io import h5
 from ..io.caching import CacheConfig, OutputCache, RunCache
 from ..rsds import apply_rsds, include_dvdr_in_tau21
@@ -30,7 +31,11 @@ from ..wrapper.outputs import (
     PerturbHaloField,
     TsBox,
 )
-from ..wrapper.photoncons import _get_photon_nonconservation_data, setup_photon_cons
+from ..wrapper.photoncons import (
+    _get_photon_nonconservation_data,
+    _photoncons_state,
+    setup_photon_cons,
+)
 from . import single_field as sf
 from ._param_config import high_level_func
 
@@ -625,7 +630,7 @@ def generate_coeval(
     ):
         yield coeval, coeval.redshift in out_redshifts
 
-    if lib.photon_cons_allocated:
+    if _photoncons_state.c_memory_allocated:
         lib.FreePhotonConsMemory()
 
 

@@ -3,12 +3,10 @@
 import logging
 
 import numpy as np
-from cffi import FFI
 
-from ..c_21cmfast import ffi, lib
+import py21cmfast.c_21cmfast as lib
+
 from .exceptions import _process_exitcode
-
-_ffi = FFI()
 
 logger = logging.getLogger(__name__)
 
@@ -30,33 +28,55 @@ ctype2dtype["int"] = np.dtype("i4")
 
 def asarray(ptr, shape):
     """Get the canonical C type of the elements of ptr as a string."""
-    ctype = _ffi.getctype(_ffi.typeof(ptr).item).split("*")[0].strip()
+    ctype = type(ptr).__name__  # TODO: check
 
     if ctype not in ctype2dtype:
         raise RuntimeError(
             f"Cannot create an array for element type: {ctype}. Can do {list(ctype2dtype.values())}."
         )
 
-    array = np.frombuffer(
-        _ffi.buffer(ptr, _ffi.sizeof(ctype) * np.prod(shape)), ctype2dtype[ctype]
-    )
+    array = np.frombuffer(ptr, ctype2dtype[ctype])  # TODO: check
     array.shape = shape
     return array
+
+
+def _nb_initialise_return_value(arg_string, out_shape=(1,)):
+    """Return a zero-initialised object of the correct type given a nanobind signature.
+
+    Currently only works with wrapped structures or numpy arrays.
+    """
+    # If it's a wrapped class, return the class
+    if "py21cmfast.c_21cmfast" in arg_string:
+        return getattr(lib, arg_string.split("py21cmfast.c_21cmfast")[-1])()
+
+    if "*" in arg_string or "ndarray" in arg_string:
+        base_type = arg_string.split("dtype=")[1].split("]")[0]
+        return np.zeros(out_shape, dtype=getattr(np, base_type))
+
+    raise ValueError(
+        f"Cannot create a zero-initialised object of type {arg_string}."
+        "As it is not a pointer, array or class. Please check the function signature."
+    )
 
 
 def _call_c_simple(fnc, *args):
     """Call a simple C function that just returns an object.
 
-    Any such function should be defined such that the last argument is an int pointer generating
-    the status.
+    Assumes that the last argument is a pointer to an object that will be filled in by the C function.
+    This argument is initialised here and returned.
     """
     # Parse the function to get the type of the last argument
-    cdata = str(ffi.addressof(lib, fnc.__name__))
-    kind = cdata.split("(")[-1].split(")")[0].split(",")[-1]
-    result = ffi.new(kind)
+    cdata = fnc.__nb_signature__[0][0]
+    # Nanobind signature is 'def fnc.__name__(arg0: type0, arg1: type1, ..., argN: typeN, /) -> returntype'
+    # We wish to extract the type of the last argument only.
+    signature_string = (
+        cdata.split("(")[-1].split(")")[0].split(",")[-2].replace("arg: ", "").strip()
+    )
+    # NOTE: This uses the default return size == 1 for arrays
+    result = _nb_initialise_return_value(signature_string)
     status = fnc(*args, result)
     _process_exitcode(status, fnc, args)
-    return result[0]
+    return result
 
 
 def camel_to_snake(word: str, depublicize: bool = False):

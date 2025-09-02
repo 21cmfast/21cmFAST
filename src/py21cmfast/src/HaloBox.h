@@ -10,6 +10,10 @@
 #include "SpinTemperatureBox.h"
 #include "scaling_relations.h"
 
+#ifdef __cplusplus
+extern "C" {
+#endif
+
 // struct holding each halo property we currently need.
 // This is only used for both averages over the box/catalogues
 //   as well as an individual halo's properties
@@ -54,4 +58,7 @@ void get_cell_integrals(double dens, double l10_mturn_a, double l10_mturn_m,
                         ScalingConstants *consts, IntegralCondition *int_consts,
                         HaloProperties *properties);
 
+#ifdef __cplusplus
+}
+#endif
 #endif
