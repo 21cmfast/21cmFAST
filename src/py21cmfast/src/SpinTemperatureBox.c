@@ -532,7 +532,7 @@ int ComputeTsBox(float redshift, float prev_redshift, struct UserParams *user_pa
             LOG_SUPER_DEBUG("growth factor zp = %f", growth_factor_zp);
 
             // read file
-#pragma omp parallel shared(this_spin_temp, xe, TK, redshift, perturbed_field, inverse_growth_factor_z, growth_factor_zp) private(i, j, k, curr_xalpha) num_threads(user_params->N_THREADS)
+#pragma omp parallel shared(this_spin_temp, xe, TK, redshift, perturbed_field, inverse_growth_factor_z, growth_factor_zp) private(i, j, k, curr_xalpha) num_threads(user_params -> N_THREADS)
             {
 #pragma omp for
                 for (i = 0; i < user_params->HII_DIM; i++)
@@ -547,9 +547,9 @@ int ComputeTsBox(float redshift, float prev_redshift, struct UserParams *user_pa
                             this_spin_temp->Ts_box[HII_R_INDEX(i, j, k)] = get_Ts(redshift,
                                                                                   perturbed_field->density[HII_R_INDEX(i, j, k)] * inverse_growth_factor_z * growth_factor_zp,
                                                                                   TK, xe, 0, &curr_xalpha);
+                            this_spin_temp->Trad_box[HII_R_INDEX(i, j, k)] = 0.0;
                             this_spin_temp->SFRD_box[HII_R_INDEX(i, j, k)] = 0.0;
                             this_spin_temp->SFRD_MINI_box[HII_R_INDEX(i, j, k)] = 0.0;
-                            this_spin_temp->Trad_box[HII_R_INDEX(i, j, k)] = 0.0;
                         }
                     }
                 }
@@ -584,7 +584,8 @@ int ComputeTsBox(float redshift, float prev_redshift, struct UserParams *user_pa
             {
                 LOG_SUPER_DEBUG("Treating as the first box");
 
-                // set boundary conditions for the evolution equations->  values of Tk and x_e at Z_HEAT_MAX
+                // Set boundary conditions for the evolution equations->  values of Tk and x_e at Z_HEAT_MAX
+                // No need to set Trad_box here because that's done in Get_Radio_Temp_HMG
                 if (global_params.XION_at_Z_HEAT_MAX > 0) // user has opted to use his/her own value
                     xe_BC = global_params.XION_at_Z_HEAT_MAX;
                 else // will use the results obtained from recfast
@@ -594,8 +595,8 @@ int ComputeTsBox(float redshift, float prev_redshift, struct UserParams *user_pa
                 else
                     Tk_BC = T_RECFAST(global_params.Z_HEAT_MAX, 0);
 
-                    // and initialize to the boundary values at Z_HEAT_END
-#pragma omp parallel shared(previous_spin_temp, Tk_BC, xe_BC) private(ct) num_threads(user_params->N_THREADS)
+                // and initialize to the boundary values at Z_HEAT_END
+#pragma omp parallel shared(previous_spin_temp, Tk_BC, xe_BC) private(ct) num_threads(user_params -> N_THREADS)
                 {
 #pragma omp for
                     for (ct = 0; ct < HII_TOT_NUM_PIXELS; ct++)
@@ -611,7 +612,7 @@ int ComputeTsBox(float redshift, float prev_redshift, struct UserParams *user_pa
             {
                 x_e_ave = Tk_ave = 0.0;
 
-#pragma omp parallel shared(previous_spin_temp) private(ct) num_threads(user_params->N_THREADS)
+#pragma omp parallel shared(previous_spin_temp) private(ct) num_threads(user_params -> N_THREADS)
                 {
 #pragma omp for reduction(+ : x_e_ave, Tk_ave)
                     for (ct = 0; ct < HII_TOT_NUM_PIXELS; ct++)
@@ -635,7 +636,7 @@ int ComputeTsBox(float redshift, float prev_redshift, struct UserParams *user_pa
             {
 
                 // allocate memory for the nonlinear density field
-#pragma omp parallel shared(unfiltered_box, perturbed_field) private(i, j, k) num_threads(user_params->N_THREADS)
+#pragma omp parallel shared(unfiltered_box, perturbed_field) private(i, j, k) num_threads(user_params -> N_THREADS)
                 {
 #pragma omp for
                     for (i = 0; i < user_params->HII_DIM; i++)
@@ -657,7 +658,7 @@ int ComputeTsBox(float redshift, float prev_redshift, struct UserParams *user_pa
 
                 // remember to add the factor of VOLUME/TOT_NUM_PIXELS when converting from real space to k-space
                 // Note: we will leave off factor of VOLUME, in anticipation of the inverse FFT below
-#pragma omp parallel shared(unfiltered_box) private(ct) num_threads(user_params->N_THREADS)
+#pragma omp parallel shared(unfiltered_box) private(ct) num_threads(user_params -> N_THREADS)
                 {
 #pragma omp for
                     for (ct = 0; ct < HII_KSPACE_NUM_PIXELS; ct++)
@@ -694,7 +695,7 @@ int ComputeTsBox(float redshift, float prev_redshift, struct UserParams *user_pa
                     max_density = 0.0;
 
                     // copy over the values
-#pragma omp parallel shared(box, inverse_growth_factor_z, delNL0, delNL0_rev) private(i, j, k, curr_delNL0) num_threads(user_params->N_THREADS)
+#pragma omp parallel shared(box, inverse_growth_factor_z, delNL0, delNL0_rev) private(i, j, k, curr_delNL0) num_threads(user_params -> N_THREADS)
                     {
 #pragma omp for reduction(max : max_density) reduction(min : min_density)
                         for (i = 0; i < user_params->HII_DIM; i++)
@@ -912,7 +913,7 @@ int ComputeTsBox(float redshift, float prev_redshift, struct UserParams *user_pa
 
                         // Calculate the sigma_z and Fgtr_M values for each point in the interpolation table
 #pragma omp parallel shared(determine_zpp_min, determine_zpp_max, Sigma_Tmin_grid, ST_over_PS_arg_grid, \
-                                mu_for_Ts, M_MIN, M_MIN_WDM) private(i, zpp_grid) num_threads(user_params->N_THREADS)
+                                mu_for_Ts, M_MIN, M_MIN_WDM) private(i, zpp_grid) num_threads(user_params -> N_THREADS)
                         {
 #pragma omp for
                             for (i = 0; i < zpp_interp_points_SFR; i++)
@@ -934,7 +935,7 @@ int ComputeTsBox(float redshift, float prev_redshift, struct UserParams *user_pa
 
                         // Create the interpolation tables for the derivative of the collapsed fraction and the collapse fraction itself
 #pragma omp parallel shared(fcoll_R_grid, dfcoll_dz_grid, Sigma_Tmin_grid, determine_zpp_min, determine_zpp_max, \
-                                grid_dens, sigma_atR) private(ii, i, j, zpp_grid, grid_sigmaTmin, grid_dens_val) num_threads(user_params->N_THREADS)
+                                grid_dens, sigma_atR) private(ii, i, j, zpp_grid, grid_sigmaTmin, grid_dens_val) num_threads(user_params -> N_THREADS)
                         {
 #pragma omp for
                             for (ii = 0; ii < global_params.NUM_FILTER_STEPS_FOR_Ts; ii++)
@@ -1075,7 +1076,7 @@ int ComputeTsBox(float redshift, float prev_redshift, struct UserParams *user_pa
                 {
                     log10_Mcrit_mol = log10(lyman_werner_threshold(zp, 0., 0., astro_params));
                     log10_Mcrit_LW_ave = 0.0;
-#pragma omp parallel shared(log10_Mcrit_LW_unfiltered, previous_spin_temp, zp) private(i, j, k, curr_vcb) num_threads(user_params->N_THREADS)
+#pragma omp parallel shared(log10_Mcrit_LW_unfiltered, previous_spin_temp, zp) private(i, j, k, curr_vcb) num_threads(user_params -> N_THREADS)
                     {
 #pragma omp for reduction(+ : log10_Mcrit_LW_ave)
                         for (i = 0; i < user_params->HII_DIM; i++)
@@ -1118,7 +1119,7 @@ int ComputeTsBox(float redshift, float prev_redshift, struct UserParams *user_pa
                     /*** Transform unfiltered box to k-space to prepare for filtering ***/
                     dft_r2c_cube(user_params->USE_FFTW_WISDOM, user_params->HII_DIM, user_params->N_THREADS, log10_Mcrit_LW_unfiltered);
 
-#pragma omp parallel shared(log10_Mcrit_LW_unfiltered) private(ct) num_threads(user_params->N_THREADS)
+#pragma omp parallel shared(log10_Mcrit_LW_unfiltered) private(ct) num_threads(user_params -> N_THREADS)
                     {
 #pragma omp for
                         for (ct = 0; ct < HII_KSPACE_NUM_PIXELS; ct++)
@@ -1272,7 +1273,7 @@ int ComputeTsBox(float redshift, float prev_redshift, struct UserParams *user_pa
                         dft_c2r_cube(user_params->USE_FFTW_WISDOM, user_params->HII_DIM, user_params->N_THREADS, log10_Mcrit_LW_filtered);
 
                         log10_Mcrit_LW_ave = 0; // recalculate it at this filtering scale
-#pragma omp parallel shared(log10_Mcrit_LW, log10_Mcrit_LW_filtered, log10_Mcrit_mol) private(i, j, k) num_threads(user_params->N_THREADS)
+#pragma omp parallel shared(log10_Mcrit_LW, log10_Mcrit_LW_filtered, log10_Mcrit_mol) private(i, j, k) num_threads(user_params -> N_THREADS)
                         {
 #pragma omp for reduction(+ : log10_Mcrit_LW_ave)
                             for (i = 0; i < user_params->HII_DIM; i++)
@@ -1517,7 +1518,7 @@ int ComputeTsBox(float redshift, float prev_redshift, struct UserParams *user_pa
             {
 
 #pragma omp parallel shared(ST_over_PS, zpp_for_evolve_list, log10_Mcrit_LW_ave_list, Mcrit_atom_interp_table, M_MIN, Mlim_Fstar, Mlim_Fstar_MINI, x_e_ave, \
-                                filling_factor_of_HI_zp, x_int_XHII, freq_int_heat_tbl, freq_int_ion_tbl, freq_int_lya_tbl, LOG10_MTURN_INT) private(R_ct, x_e_ct, lower_int_limit) num_threads(user_params->N_THREADS)
+                                filling_factor_of_HI_zp, x_int_XHII, freq_int_heat_tbl, freq_int_ion_tbl, freq_int_lya_tbl, LOG10_MTURN_INT) private(R_ct, x_e_ct, lower_int_limit) num_threads(user_params -> N_THREADS)
                 {
 #pragma omp for
                     for (R_ct = 0; R_ct < global_params.NUM_FILTER_STEPS_FOR_Ts; R_ct++)
@@ -1639,7 +1640,7 @@ int ComputeTsBox(float redshift, float prev_redshift, struct UserParams *user_pa
                         fcoll_R_for_reduction = 0.;
 
 #pragma omp parallel shared(dens_grid_int_vals, R_ct, fcoll_interp1, density_gridpoints, delNL0_rev, fcoll_interp2, \
-                                table_int_boundexceeded_threaded, zpp_for_evolve_list, sigma_Tmin, sigma_atR) private(box_ct) num_threads(user_params->N_THREADS)
+                                table_int_boundexceeded_threaded, zpp_for_evolve_list, sigma_Tmin, sigma_atR) private(box_ct) num_threads(user_params -> N_THREADS)
                         {
 #pragma omp for reduction(+ : fcoll_R_for_reduction)
                             for (box_ct = 0; box_ct < HII_TOT_NUM_PIXELS; box_ct++)
@@ -1790,7 +1791,9 @@ int ComputeTsBox(float redshift, float prev_redshift, struct UserParams *user_pa
 
 #pragma omp parallel shared(del_fcoll_Rct, dxheat_dt_box, dxion_source_dt_box, dxlya_dt_box, dstarlya_dt_box, previous_spin_temp, this_spin_temp,   \
                                 x_int_XHII, m_xHII_low_box, inverse_val_box, inverse_diff, dstarlyLW_dt_box, dstarlyLW_dt_box_MINI, Radio_Temp_HMG, \
-                                dxheat_dt_box_MINI, dxion_source_dt_box_MINI, dxlya_dt_box_MINI, dstarlya_dt_box_MINI) private(box_ct, xHII_call) num_threads(user_params->N_THREADS)
+                                dxheat_dt_box_MINI, dxion_source_dt_box_MINI, dxlya_dt_box_MINI, dstarlya_dt_box_MINI)\
+        private(box_ct, xHII_call)\
+        num_threads(user_params -> N_THREADS)
                 {
 #pragma omp for
                     for (box_ct = 0; box_ct < HII_TOT_NUM_PIXELS; box_ct++)
@@ -1885,7 +1888,7 @@ int ComputeTsBox(float redshift, float prev_redshift, struct UserParams *user_pa
                         LOG_ULTRA_DEBUG("Executed FFT for R=%f", R_values[R_ct]);
 
                         // copy over the values
-#pragma omp parallel shared(box, inverse_growth_factor_z, delNL0) private(i, j, k, curr_delNL0) num_threads(user_params->N_THREADS)
+#pragma omp parallel shared(box, inverse_growth_factor_z, delNL0) private(i, j, k, curr_delNL0) num_threads(user_params -> N_THREADS)
                         {
 #pragma omp for
                             for (i = 0; i < user_params->HII_DIM; i++)
@@ -1933,7 +1936,7 @@ int ComputeTsBox(float redshift, float prev_redshift, struct UserParams *user_pa
                                 fcoll_int_boundexceeded_threaded, log10_Mcrit_LW, SFRD_z_high_table_MINI,                                                                                                                                                                                  \
                                 log10_SFRD_z_low_table_MINI, del_fcoll_Rct, del_fcoll_Rct_MINI, Mmax, sigmaMmax, Mcrit_atom_interp_table, Mlim_Fstar, Mlim_Fstar_MINI) private(box_ct, curr_dens, fcoll, dens_val, fcoll_int, log10_Mcrit_LW_val, log10_Mcrit_LW_int, log10_Mcrit_LW_diff, \
                                                                                                                                                                                    fcoll_MINI_left, fcoll_MINI_right, fcoll_MINI)                                                          \
-    num_threads(user_params->N_THREADS)
+    num_threads(user_params -> N_THREADS)
                     {
 #pragma omp for reduction(+ : ave_fcoll, ave_fcoll_MINI)
 
@@ -2173,24 +2176,23 @@ int ComputeTsBox(float redshift, float prev_redshift, struct UserParams *user_pa
                         Radio_Prefix_MCG_Rct = 0.0;
                     }
 
-#pragma omp parallel shared(dxheat_dt_box, dxion_source_dt_box, dxlya_dt_box, dstarlya_dt_box, dfcoll_dz_val, del_fcoll_Rct, freq_int_heat_tbl_diff,                                           \
-                                m_xHII_low_box, inverse_val_box, freq_int_heat_tbl, freq_int_ion_tbl_diff, freq_int_ion_tbl, freq_int_lya_tbl_diff,                                            \
-                                freq_int_lya_tbl, dstarlya_dt_prefactor, R_ct, previous_spin_temp, this_spin_temp, const_zp_prefactor, prefactor_1,                                            \
-                                prefactor_2, delNL0, growth_factor_zp, dt_dzp, zp, dgrowth_factor_dzp, dcomp_dzp_prefactor, Trad_fast, dzp, TS_prefactor,                                      \
-                                xc_inverse, Trad_fast_inv, dstarlyLW_dt_box, dstarlyLW_dt_prefactor, dxheat_dt_box_MINI, dxion_source_dt_box_MINI,                                             \
-                                dxlya_dt_box_MINI, dstarlya_dt_box_MINI, dstarlyLW_dt_box_MINI, dfcoll_dz_val_MINI, del_fcoll_Rct_MINI,                                                        \
-                                dstarlya_dt_prefactor_MINI, dstarlyLW_dt_prefactor_MINI, prefactor_2_MINI, Radio_Prefix_MCG_Rct, Radio_Prefix_ACG_Rct,                                         \
-                                const_zp_prefactor_MINI) private(box_ct, x_e, T, dxion_sink_dt, dxe_dzp, dadia_dzp, dspec_dzp, dcomp_dzp, dxheat_dzp, J_alpha_tot, T_inv, T_inv_sq, dT_Radio,  \
-                                                                     xc_fast, xi_power, xa_tilde_fast_arg, TS_fast, TSold_fast, xa_tilde_fast, dxheat_dzp_MINI, J_alpha_tot_MINI, curr_delNL0) \
-    num_threads(user_params->N_THREADS)
+#pragma omp parallel shared(dxheat_dt_box, dxion_source_dt_box, dxlya_dt_box, dstarlya_dt_box, dfcoll_dz_val, del_fcoll_Rct, freq_int_heat_tbl_diff,      \
+                                m_xHII_low_box, inverse_val_box, freq_int_heat_tbl, freq_int_ion_tbl_diff, freq_int_ion_tbl, freq_int_lya_tbl_diff,       \
+                                freq_int_lya_tbl, dstarlya_dt_prefactor, R_ct, previous_spin_temp, this_spin_temp, const_zp_prefactor, prefactor_1,       \
+                                prefactor_2, delNL0, growth_factor_zp, dt_dzp, zp, dgrowth_factor_dzp, dcomp_dzp_prefactor, Trad_fast, dzp, TS_prefactor, \
+                                xc_inverse, Trad_fast_inv, dstarlyLW_dt_box, dstarlyLW_dt_prefactor, dxheat_dt_box_MINI, dxion_source_dt_box_MINI,        \
+                                dxlya_dt_box_MINI, dstarlya_dt_box_MINI, dstarlyLW_dt_box_MINI, dfcoll_dz_val_MINI, del_fcoll_Rct_MINI,                   \
+                                dstarlya_dt_prefactor_MINI, dstarlyLW_dt_prefactor_MINI, prefactor_2_MINI, Radio_Prefix_MCG_Rct, Radio_Prefix_ACG_Rct,    \
+                                const_zp_prefactor_MINI)                                                                                                  \
+    private(box_ct, x_e, T, dxion_sink_dt, dxe_dzp, dadia_dzp, dspec_dzp, dcomp_dzp, dxheat_dzp, J_alpha_tot, T_inv, T_inv_sq, dT_Radio, Trad_inv,        \
+                xc_fast, xi_power, xa_tilde_fast_arg, TS_fast, TSold_fast, xa_tilde_fast, dxheat_dzp_MINI, J_alpha_tot_MINI, curr_delNL0)                 \
+    num_threads(user_params -> N_THREADS)
                     {
 #pragma omp for reduction(+ : J_alpha_ave, xalpha_ave, Xheat_ave, Xion_ave, Ts_ave, Tk_ave, x_e_ave, J_alpha_ave_MINI, Xheat_ave_MINI, J_LW_ave, J_LW_ave_MINI) // JSC: summation & average
                         for (box_ct = 0; box_ct < HII_TOT_NUM_PIXELS; box_ct++)
                         {
 
-                            // I've added the addition of zero just in case. It should be zero anyway, but just in case there is some weird
-                            // numerical thing
-
+                            // I've added the addition of zero just in case. It should be zero anyway, but just in case there is some weird numerical thing
                             if (ave_fcoll != 0.)
                             {
                                 dxheat_dt_box[box_ct] += (dfcoll_dz_val * (double)del_fcoll_Rct[box_ct] * ((freq_int_heat_tbl_diff[m_xHII_low_box[box_ct]][R_ct]) * inverse_val_box[box_ct] + freq_int_heat_tbl[m_xHII_low_box[box_ct]][R_ct]));
@@ -2368,7 +2370,7 @@ int ComputeTsBox(float redshift, float prev_redshift, struct UserParams *user_pa
 
                                 // if (J_alpha_tot > 1.0e-20) { // Must use WF effect
                                 //  New in v1.4
-                                Trad_inv = 1 / (this_spin_temp->Trad_box[box_ct] + T_cmb * (1 + redshift));
+                                Trad_inv = 1.0 / (this_spin_temp->Trad_box[box_ct] + T_cmb * (1 + redshift));
                                 if (fabs(J_alpha_tot) > 1.0e-20)
                                 { // Must use WF effect
                                     TS_fast = Trad_fast;
@@ -2436,7 +2438,7 @@ int ComputeTsBox(float redshift, float prev_redshift, struct UserParams *user_pa
                                                            x_e, T, xHII_call, m_xHII_low, inverse_val, dxheat_dt, dxion_source_dt, dxlya_dt, dstarlya_dt, curr_delNL0, R_ct,        \
                                                            dfcoll_dz_val, dxion_sink_dt, dxe_dzp, dadia_dzp, dspec_dzp, dcomp_dzp, J_alpha_tot, T_inv, T_inv_sq, xc_fast, xi_power, \
                                                            xa_tilde_fast_arg, TS_fast, TSold_fast, xa_tilde_fast)                                                                   \
-    num_threads(user_params->N_THREADS)
+    num_threads(user_params -> N_THREADS)
                 {
 #pragma omp for reduction(+ : J_alpha_ave, xalpha_ave, Xheat_ave, Xion_ave, Ts_ave, Tk_ave, x_e_ave)
                     for (box_ct = 0; box_ct < HII_TOT_NUM_PIXELS; box_ct++)
