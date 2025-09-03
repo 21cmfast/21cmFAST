@@ -1791,9 +1791,9 @@ int ComputeTsBox(float redshift, float prev_redshift, struct UserParams *user_pa
 
 #pragma omp parallel shared(del_fcoll_Rct, dxheat_dt_box, dxion_source_dt_box, dxlya_dt_box, dstarlya_dt_box, previous_spin_temp, this_spin_temp,   \
                                 x_int_XHII, m_xHII_low_box, inverse_val_box, inverse_diff, dstarlyLW_dt_box, dstarlyLW_dt_box_MINI, Radio_Temp_HMG, \
-                                dxheat_dt_box_MINI, dxion_source_dt_box_MINI, dxlya_dt_box_MINI, dstarlya_dt_box_MINI)\
-        private(box_ct, xHII_call)\
-        num_threads(user_params -> N_THREADS)
+                                dxheat_dt_box_MINI, dxion_source_dt_box_MINI, dxlya_dt_box_MINI, dstarlya_dt_box_MINI)                              \
+    private(box_ct, xHII_call)                                                                                                                      \
+    num_threads(user_params -> N_THREADS)
                 {
 #pragma omp for
                     for (box_ct = 0; box_ct < HII_TOT_NUM_PIXELS; box_ct++)
@@ -2430,14 +2430,14 @@ int ComputeTsBox(float redshift, float prev_redshift, struct UserParams *user_pa
             }
             else
             {
-#pragma omp parallel shared(previous_spin_temp, x_int_XHII, inverse_diff, delNL0_rev, dens_grid_int_vals, ST_over_PS, zpp_growth, dfcoll_interp1, Radio_Temp_HMG,                   \
-                                density_gridpoints, dfcoll_interp2, freq_int_heat_tbl_diff, freq_int_heat_tbl, freq_int_ion_tbl_diff, freq_int_ion_tbl, Radio_Prefix_ACG,           \
-                                freq_int_lya_tbl_diff, freq_int_lya_tbl, dstarlya_dt_prefactor, const_zp_prefactor, prefactor_1, growth_factor_zp, dzp, Radio_Silent,               \
-                                dt_dzp, dgrowth_factor_dzp, dcomp_dzp_prefactor, this_spin_temp, xc_inverse, TS_prefactor, xa_tilde_prefactor,                                      \
-                                Trad_fast_inv) private(box_ct, Radio_Temp, dT_Radio,                                                                                                \
-                                                           x_e, T, xHII_call, m_xHII_low, inverse_val, dxheat_dt, dxion_source_dt, dxlya_dt, dstarlya_dt, curr_delNL0, R_ct,        \
-                                                           dfcoll_dz_val, dxion_sink_dt, dxe_dzp, dadia_dzp, dspec_dzp, dcomp_dzp, J_alpha_tot, T_inv, T_inv_sq, xc_fast, xi_power, \
-                                                           xa_tilde_fast_arg, TS_fast, TSold_fast, xa_tilde_fast)                                                                   \
+#pragma omp parallel shared(previous_spin_temp, x_int_XHII, inverse_diff, delNL0_rev, dens_grid_int_vals, ST_over_PS, zpp_growth, dfcoll_interp1, Radio_Temp_HMG,         \
+                                density_gridpoints, dfcoll_interp2, freq_int_heat_tbl_diff, freq_int_heat_tbl, freq_int_ion_tbl_diff, freq_int_ion_tbl, Radio_Prefix_ACG, \
+                                freq_int_lya_tbl_diff, freq_int_lya_tbl, dstarlya_dt_prefactor, const_zp_prefactor, prefactor_1, growth_factor_zp, dzp, Radio_Silent,     \
+                                dt_dzp, dgrowth_factor_dzp, dcomp_dzp_prefactor, this_spin_temp, xc_inverse, TS_prefactor, xa_tilde_prefactor,                            \
+                                Trad_fast_inv)                                                                                                                            \
+    private(box_ct, Radio_Temp, dT_Radio, x_e, T, xHII_call, m_xHII_low, inverse_val, dxheat_dt, dxion_source_dt, dxlya_dt, dstarlya_dt, curr_delNL0, R_ct,               \
+                dfcoll_dz_val, dxion_sink_dt, dxe_dzp, dadia_dzp, dspec_dzp, dcomp_dzp, J_alpha_tot, T_inv, T_inv_sq, xc_fast,                                            \
+                xi_power, xa_tilde_fast_arg, TS_fast, TSold_fast, xa_tilde_fast)                                                                                          \
     num_threads(user_params -> N_THREADS)
                 {
 #pragma omp for reduction(+ : J_alpha_ave, xalpha_ave, Xheat_ave, Xion_ave, Ts_ave, Tk_ave, x_e_ave)
@@ -2573,7 +2573,7 @@ int ComputeTsBox(float redshift, float prev_redshift, struct UserParams *user_pa
                         // Algorithm is the same, but written to be more computationally efficient
                         T_inv = pow(T, -1.);
                         T_inv_sq = pow(T, -2.);
-                        Trad_inv = 1 / (Radio_Temp + T_cmb * (1 + redshift));
+                        Trad_inv = 1.0 / (Radio_Temp + T_cmb * (1 + redshift));
 
                         xc_fast = (1.0 + curr_delNL0 * growth_factor_zp) * xc_inverse * ((1.0 - x_e) * No * kappa_10(T, 0) + x_e * N_b0 * kappa_10_elec(T, 0) + x_e * No * kappa_10_pH(T, 0));
                         xi_power = TS_prefactor * pow((1.0 + curr_delNL0 * growth_factor_zp) * (1.0 - x_e) * T_inv_sq, 1.0 / 3.0);
