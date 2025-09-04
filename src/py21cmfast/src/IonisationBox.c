@@ -521,7 +521,7 @@ int ComputeIonizedBox(float redshift, float prev_redshift, struct UserParams *us
                 box->log10_Mturnover_MINI_ave = ave_log10_Mturnover_MINI / (double)HII_TOT_NUM_PIXELS;
                 Mturnover = pow(10., box->log10_Mturnover_ave);
                 Mturnover_MINI = pow(10., box->log10_Mturnover_MINI_ave);
-                // if ((flag_options->Calibrate_EoR_feedback && (!spin_temp->first_box)) && ((redshift < 33.0) && (redshift > 4.0)))
+                // Saving m_turns, this spin_box is then passed to spin.c as prev_box
                 if (flag_options->Calibrate_EoR_feedback && (!spin_temp->first_box))
                 {
                     spin_temp->mturns_EoR[0] = Mturnover;
@@ -542,34 +542,6 @@ int ComputeIonizedBox(float redshift, float prev_redshift, struct UserParams *us
                     fclose(OutputFile);
                 }
                 
-                /* Module ditched, can lead to strange memory issue on cluster, switch to use mturns_EoR
-                // saving m_turns to history box, this spin_box is then passed to spin.c as prev_box
-                if ((flag_options->Calibrate_EoR_feedback && (!spin_temp->first_box)) && ((redshift < 33.0) && (redshift > 4.0)))
-                {
-
-                    // why add !spin_temp->first_box and z range:
-                    // avoid memory access at incorrect redshifts
-                    // isolated p21c call works ok on mac and cluster, mpi tests also went ok on mac but leads to malloc error on cluster
-                    // but maybe things work differently on HPC, one reason I can think of is that at the first box, History_box has not been initialised
-                    // so don't try to acess anything if first_box==1
-                    
-                    ArchiveSize = (int)round(spin_temp->History_box[0]);
-                    head = (ArchiveSize - 1) * History_box_LEN + 1;
-                    if (ArchiveSize > 1)
-                    {
-                        // Only save usable info when History_box has been initialised/filled at least once
-                        spin_temp->History_box[head + 5] = Mturnover;
-                        spin_temp->History_box[head + 6] = Mturnover_MINI;
-                    }
-                    else
-                    {
-                        // Maybe History_box has not been initialised, this should give near 0 SFRD but still try not to use this
-                        spin_temp->History_box[head + 5] = 1.0E20;
-                        spin_temp->History_box[head + 6] = 1.0E20;
-                    }
-                }
-                */
-
                 M_MIN = global_params.M_MIN_INTEGRAL;
                 Mlim_Fstar_MINI = Mass_limit_bisection(M_MIN, 1e16, astro_params->ALPHA_STAR_MINI, astro_params->F_STAR7_MINI * pow(1e3, astro_params->ALPHA_STAR_MINI));
                 Mlim_Fesc_MINI = Mass_limit_bisection(M_MIN, 1e16, astro_params->ALPHA_ESC, astro_params->F_ESC7_MINI * pow(1e3, astro_params->ALPHA_ESC));
