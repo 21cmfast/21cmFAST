@@ -811,7 +811,7 @@ def predict_storage_size(
 
     units = ["b", "kb", "mb", "gb", "tb"]
     if unit is None:
-        bigness = int((np.log(list(sizes.values())) / np.log(1024)).max())
+        bigness = int(np.log(max(size for _, size in sizes.values())) / np.log(1024))
     else:
         bigness = units.index(unit)
 
