@@ -144,7 +144,7 @@ int ComputeIonizedBox(float redshift, float prev_redshift, struct UserParams *us
             else
                 ZSTEP = prev_redshift - redshift;
 
-#pragma omp parallel shared(box) private(ct) num_threads(user_params->N_THREADS)
+#pragma omp parallel shared(box) private(ct) num_threads(user_params -> N_THREADS)
             {
 #pragma omp for
                 for (ct = 0; ct < HII_TOT_NUM_PIXELS; ct++)
@@ -159,7 +159,7 @@ int ComputeIonizedBox(float redshift, float prev_redshift, struct UserParams *us
             ZSTEP = 0.2;
         }
 
-#pragma omp parallel shared(box) private(ct) num_threads(user_params->N_THREADS)
+#pragma omp parallel shared(box) private(ct) num_threads(user_params -> N_THREADS)
         {
 #pragma omp for
             for (ct = 0; ct < HII_TOT_NUM_PIXELS; ct++)
@@ -217,7 +217,7 @@ int ComputeIonizedBox(float redshift, float prev_redshift, struct UserParams *us
             ERFC_VALS = calloc(ERFC_NUM_POINTS, sizeof(double));
             ERFC_VALS_DIFF = calloc(ERFC_NUM_POINTS, sizeof(double));
 
-#pragma omp parallel shared(ERFC_VALS, erfc_arg_min, ArgBinWidth) private(i, erfc_arg_val) num_threads(user_params->N_THREADS)
+#pragma omp parallel shared(ERFC_VALS, erfc_arg_min, ArgBinWidth) private(i, erfc_arg_val) num_threads(user_params -> N_THREADS)
             {
 #pragma omp for
                 for (i = 0; i < ERFC_NUM_POINTS; i++)
@@ -229,7 +229,7 @@ int ComputeIonizedBox(float redshift, float prev_redshift, struct UserParams *us
                 }
             }
 
-#pragma omp parallel shared(ERFC_VALS_DIFF, ERFC_VALS) private(i) num_threads(user_params->N_THREADS)
+#pragma omp parallel shared(ERFC_VALS_DIFF, ERFC_VALS) private(i) num_threads(user_params -> N_THREADS)
             {
 #pragma omp for
                 for (i = 0; i < (ERFC_NUM_POINTS - 1); i++)
@@ -328,7 +328,7 @@ int ComputeIonizedBox(float redshift, float prev_redshift, struct UserParams *us
             adjustment_factor = 1.;
         }
 
-#pragma omp parallel shared(deltax_unfiltered, perturbed_field, adjustment_factor) private(i, j, k) num_threads(user_params->N_THREADS)
+#pragma omp parallel shared(deltax_unfiltered, perturbed_field, adjustment_factor) private(i, j, k) num_threads(user_params -> N_THREADS)
         {
 #pragma omp for
             for (i = 0; i < user_params->HII_DIM; i++)
@@ -371,7 +371,7 @@ int ComputeIonizedBox(float redshift, float prev_redshift, struct UserParams *us
         {
             LOG_DEBUG("first redshift, do some initialization");
             previous_ionize_box->z_re_box = (float *)calloc(HII_TOT_NUM_PIXELS, sizeof(float));
-#pragma omp parallel shared(previous_ionize_box) private(i, j, k) num_threads(user_params->N_THREADS)
+#pragma omp parallel shared(previous_ionize_box) private(i, j, k) num_threads(user_params -> N_THREADS)
             {
 #pragma omp for
                 for (i = 0; i < user_params->HII_DIM; i++)
@@ -418,7 +418,7 @@ int ComputeIonizedBox(float redshift, float prev_redshift, struct UserParams *us
                     previous_ionize_box->mean_f_coll = 0.0;
                     previous_ionize_box->mean_f_coll_MINI = 0.0;
 
-#pragma omp parallel shared(prev_deltax_unfiltered) private(i, j, k) num_threads(user_params->N_THREADS)
+#pragma omp parallel shared(prev_deltax_unfiltered) private(i, j, k) num_threads(user_params -> N_THREADS)
                     {
 #pragma omp for
                         for (i = 0; i < user_params->HII_DIM; i++)
@@ -435,7 +435,7 @@ int ComputeIonizedBox(float redshift, float prev_redshift, struct UserParams *us
                 }
                 else
                 {
-#pragma omp parallel shared(prev_deltax_unfiltered, previous_perturbed_field) private(i, j, k) num_threads(user_params->N_THREADS)
+#pragma omp parallel shared(prev_deltax_unfiltered, previous_perturbed_field) private(i, j, k) num_threads(user_params -> N_THREADS)
                     {
 #pragma omp for
                         for (i = 0; i < user_params->HII_DIM; i++)
@@ -469,7 +469,9 @@ int ComputeIonizedBox(float redshift, float prev_redshift, struct UserParams *us
                 }
                 LOG_SUPER_DEBUG("Calculating and outputting Mcrit boxes for atomic and molecular halos...");
 
-#pragma omp parallel shared(redshift, previous_ionize_box, spin_temp, Mcrit_atom, log10_Mturnover_unfiltered, log10_Mturnover_MINI_unfiltered) private(x, y, z, Mcrit_RE, Mcrit_LW, Mturnover, Mturnover_MINI, log10_Mturnover, log10_Mturnover_MINI, curr_vcb) num_threads(user_params->N_THREADS)
+#pragma omp parallel shared(redshift, previous_ionize_box, spin_temp, Mcrit_atom, log10_Mturnover_unfiltered, log10_Mturnover_MINI_unfiltered) \
+    private(x, y, z, Mcrit_RE, Mcrit_LW, Mturnover, Mturnover_MINI, log10_Mturnover, log10_Mturnover_MINI, curr_vcb)                           \
+    num_threads(user_params -> N_THREADS)
                 {
 #pragma omp for reduction(+ : ave_log10_Mturnover, ave_log10_Mturnover_MINI)
                     for (x = 0; x < user_params->HII_DIM; x++)
@@ -541,7 +543,7 @@ int ComputeIonizedBox(float redshift, float prev_redshift, struct UserParams *us
                     fprintf(OutputFile, "%.3f    %.4E    %.4E    %.4E\n", redshift, Mturnover, Mturnover_MINI, atomic_cooling_threshold(redshift));
                     fclose(OutputFile);
                 }
-                
+
                 M_MIN = global_params.M_MIN_INTEGRAL;
                 Mlim_Fstar_MINI = Mass_limit_bisection(M_MIN, 1e16, astro_params->ALPHA_STAR_MINI, astro_params->F_STAR7_MINI * pow(1e3, astro_params->ALPHA_STAR_MINI));
                 Mlim_Fesc_MINI = Mass_limit_bisection(M_MIN, 1e16, astro_params->ALPHA_ESC, astro_params->F_ESC7_MINI * pow(1e3, astro_params->ALPHA_ESC));
@@ -609,7 +611,7 @@ int ComputeIonizedBox(float redshift, float prev_redshift, struct UserParams *us
             M_coll_unfiltered = (fftwf_complex *)fftwf_malloc(sizeof(fftwf_complex) * HII_KSPACE_NUM_PIXELS);
             M_coll_filtered = (fftwf_complex *)fftwf_malloc(sizeof(fftwf_complex) * HII_KSPACE_NUM_PIXELS);
 
-#pragma omp parallel shared(M_coll_unfiltered) private(ct) num_threads(user_params->N_THREADS)
+#pragma omp parallel shared(M_coll_unfiltered) private(ct) num_threads(user_params -> N_THREADS)
             {
 #pragma omp for
                 for (ct = 0; ct < HII_TOT_FFT_NUM_PIXELS; ct++)
@@ -618,7 +620,7 @@ int ComputeIonizedBox(float redshift, float prev_redshift, struct UserParams *us
                 }
             }
 
-#pragma omp parallel shared(M_coll_unfiltered, halos) private(i_halo, x, y, z) num_threads(user_params->N_THREADS)
+#pragma omp parallel shared(M_coll_unfiltered, halos) private(i_halo, x, y, z) num_threads(user_params -> N_THREADS)
             {
 #pragma omp for
                 for (i_halo = 0; i_halo < halos->n_halos; i_halo++)
@@ -715,7 +717,7 @@ int ComputeIonizedBox(float redshift, float prev_redshift, struct UserParams *us
             // find the neutral fraction
             if (flag_options->USE_TS_FLUCT)
             {
-#pragma omp parallel shared(box, spin_temp) private(ct) num_threads(user_params->N_THREADS)
+#pragma omp parallel shared(box, spin_temp) private(ct) num_threads(user_params -> N_THREADS)
                 {
 #pragma omp for reduction(+ : global_xH)
                     for (ct = 0; ct < HII_TOT_NUM_PIXELS; ct++)
@@ -731,7 +733,7 @@ int ComputeIonizedBox(float redshift, float prev_redshift, struct UserParams *us
             {
                 global_xH = 1. - xion_RECFAST(redshift, 0);
 
-#pragma omp parallel shared(box, global_xH, TK) private(ct) num_threads(user_params->N_THREADS)
+#pragma omp parallel shared(box, global_xH, TK) private(ct) num_threads(user_params -> N_THREADS)
                 {
 #pragma omp for
                     for (ct = 0; ct < HII_TOT_NUM_PIXELS; ct++)
@@ -748,7 +750,7 @@ int ComputeIonizedBox(float redshift, float prev_redshift, struct UserParams *us
             // Take the ionisation fraction from the X-ray ionisations from Ts.c (only if the calculate spin temperature flag is set)
             if (flag_options->USE_TS_FLUCT)
             {
-#pragma omp parallel shared(xe_unfiltered, spin_temp) private(i, j, k) num_threads(user_params->N_THREADS)
+#pragma omp parallel shared(xe_unfiltered, spin_temp) private(i, j, k) num_threads(user_params -> N_THREADS)
                 {
 #pragma omp for
                     for (i = 0; i < user_params->HII_DIM; i++)
@@ -768,7 +770,7 @@ int ComputeIonizedBox(float redshift, float prev_redshift, struct UserParams *us
 
             if (flag_options->INHOMO_RECO)
             {
-#pragma omp parallel shared(N_rec_unfiltered, previous_ionize_box) private(i, j, k) num_threads(user_params->N_THREADS)
+#pragma omp parallel shared(N_rec_unfiltered, previous_ionize_box) private(i, j, k) num_threads(user_params -> N_THREADS)
                 {
 #pragma omp for
                     for (i = 0; i < user_params->HII_DIM; i++)
@@ -818,7 +820,7 @@ int ComputeIonizedBox(float redshift, float prev_redshift, struct UserParams *us
             //  real space to k-space
             // Note: we will leave off factor of VOLUME, in anticipation of the inverse FFT below
 #pragma omp parallel shared(deltax_unfiltered, xe_unfiltered, N_rec_unfiltered, prev_deltax_unfiltered, \
-                                log10_Mturnover_unfiltered, log10_Mturnover_MINI_unfiltered, M_coll_unfiltered) private(ct) num_threads(user_params->N_THREADS)
+                                log10_Mturnover_unfiltered, log10_Mturnover_MINI_unfiltered, M_coll_unfiltered) private(ct) num_threads(user_params -> N_THREADS)
             {
 #pragma omp for
                 for (ct = 0; ct < HII_KSPACE_NUM_PIXELS; ct++)
@@ -985,7 +987,7 @@ int ComputeIonizedBox(float redshift, float prev_redshift, struct UserParams *us
 
                         min_density = max_density = 0.0;
 
-#pragma omp parallel shared(deltax_filtered) private(x, y, z) num_threads(user_params->N_THREADS)
+#pragma omp parallel shared(deltax_filtered) private(x, y, z) num_threads(user_params -> N_THREADS)
                         {
 #pragma omp for reduction(max : max_density) reduction(min : min_density)
                             for (x = 0; x < user_params->HII_DIM; x++)
@@ -1021,7 +1023,7 @@ int ComputeIonizedBox(float redshift, float prev_redshift, struct UserParams *us
                             // do the same for prev
                             prev_min_density = prev_max_density = 0.0;
 
-#pragma omp parallel shared(prev_deltax_filtered) private(x, y, z) num_threads(user_params->N_THREADS)
+#pragma omp parallel shared(prev_deltax_filtered) private(x, y, z) num_threads(user_params -> N_THREADS)
                             {
 #pragma omp for reduction(max : prev_max_density) reduction(min : prev_min_density)
                                 for (x = 0; x < user_params->HII_DIM; x++)
@@ -1058,7 +1060,7 @@ int ComputeIonizedBox(float redshift, float prev_redshift, struct UserParams *us
                             log10Mturn_min_MINI = 999;
                             log10Mturn_max_MINI = 0.0;
 
-#pragma omp parallel shared(log10_Mturnover_filtered, log10_Mturnover_MINI_filtered, log10_Mcrit_atom, log10_Mcrit_mol) private(x, y, z) num_threads(user_params->N_THREADS)
+#pragma omp parallel shared(log10_Mturnover_filtered, log10_Mturnover_MINI_filtered, log10_Mcrit_atom, log10_Mcrit_mol) private(x, y, z) num_threads(user_params -> N_THREADS)
                             {
 #pragma omp for reduction(max : log10Mturn_max, log10Mturn_max_MINI) reduction(min : log10Mturn_min, log10Mturn_min_MINI)
                                 for (x = 0; x < user_params->HII_DIM; x++)
@@ -1168,7 +1170,7 @@ int ComputeIonizedBox(float redshift, float prev_redshift, struct UserParams *us
                                 M_MIN, growth_factor, Mlim_Fstar, Mlim_Fesc, Mcrit_atom, Mlim_Fstar_MINI, Mlim_Fesc_MINI, prev_growth_factor) private(x, y, z, curr_dens, Splined_Fcoll, Splined_Fcoll_MINI, dens_val, overdense_int, erfc_arg_val, erfc_arg_val_index, log10_Mturnover, \
                                                                                                                                                           log10_Mturnover_int, log10_Mturnover_MINI, log10_Mturnover_MINI_int, prev_dens, prev_Splined_Fcoll, prev_Splined_Fcoll_MINI,   \
                                                                                                                                                           prev_dens_val, density_over_mean, status_int)                                                                                  \
-    num_threads(user_params->N_THREADS)
+    num_threads(user_params -> N_THREADS)
                 {
 #pragma omp for reduction(+ : f_coll, f_coll_MINI)
                     for (x = 0; x < user_params->HII_DIM; x++)
@@ -1480,7 +1482,7 @@ int ComputeIonizedBox(float redshift, float prev_redshift, struct UserParams *us
 #pragma omp parallel shared(deltax_filtered, N_rec_filtered, xe_filtered, box, ST_over_PS, pixel_mass, M_MIN, r, f_coll_min, Gamma_R_prefactor,                                                                                                                                                  \
                                 ION_EFF_FACTOR, ION_EFF_FACTOR_MINI, LAST_FILTER_STEP, counter, ST_over_PS_MINI, f_coll_min_MINI, Gamma_R_prefactor_MINI, TK) private(x, y, z, curr_dens, Splined_Fcoll, f_coll, ave_M_coll_cell, ave_N_min_cell, N_halos_in_cell, rec, xHII_from_xrays, res_xH, \
                                                                                                                                                                           Splined_Fcoll_MINI, f_coll_MINI)                                                                                       \
-    num_threads(user_params->N_THREADS)
+    num_threads(user_params -> N_THREADS)
                 {
 #pragma omp for
                     for (x = 0; x < user_params->HII_DIM; x++)
@@ -1638,9 +1640,9 @@ int ComputeIonizedBox(float redshift, float prev_redshift, struct UserParams *us
                                     box->xH_box[HII_R_INDEX(x, y, z)] = res_xH;
 
                                 } // end partial ionizations at last filtering step
-                            }     // k
-                        }         // j
-                    }             // i
+                            } // k
+                        } // j
+                    } // i
                 }
 
                 LOG_SUPER_DEBUG("z_re_box after R=%f: ", R);
@@ -1659,7 +1661,7 @@ int ComputeIonizedBox(float redshift, float prev_redshift, struct UserParams *us
                     counter += 1;
             }
 
-#pragma omp parallel shared(box, spin_temp, redshift, deltax_unfiltered_original, TK) private(x, y, z) num_threads(user_params->N_THREADS)
+#pragma omp parallel shared(box, spin_temp, redshift, deltax_unfiltered_original, TK) private(x, y, z) num_threads(user_params -> N_THREADS)
             {
 #pragma omp for
                 for (x = 0; x < user_params->HII_DIM; x++)
@@ -1712,7 +1714,7 @@ int ComputeIonizedBox(float redshift, float prev_redshift, struct UserParams *us
             {
                 global_xH = 0;
 
-#pragma omp parallel shared(box) private(ct) num_threads(user_params->N_THREADS)
+#pragma omp parallel shared(box) private(ct) num_threads(user_params -> N_THREADS)
                 {
 #pragma omp for reduction(+ : global_xH)
                     for (ct = 0; ct < HII_TOT_NUM_PIXELS; ct++)
@@ -1736,7 +1738,7 @@ int ComputeIonizedBox(float redshift, float prev_redshift, struct UserParams *us
             {
 
 #pragma omp parallel shared(perturbed_field, adjustment_factor, stored_redshift, redshift, box, previous_ionize_box, \
-                                fabs_dtdz, ZSTEP, something_finite_or_infinite) private(x, y, z, curr_dens, z_eff, dNrec) num_threads(user_params->N_THREADS)
+                                fabs_dtdz, ZSTEP, something_finite_or_infinite) private(x, y, z, curr_dens, z_eff, dNrec) num_threads(user_params -> N_THREADS)
                 {
 #pragma omp for
                     for (x = 0; x < user_params->HII_DIM; x++)
