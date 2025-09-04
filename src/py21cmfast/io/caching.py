@@ -17,7 +17,11 @@ import numpy as np
 from .._cfg import config
 from ..wrapper import outputs as op
 from ..wrapper.inputs import InputParameters
-from ..wrapper.outputs import OutputStruct, OutputStructZ, _HashType
+from ..wrapper.outputs import (
+    _ALL_OUTPUT_STRUCTS,
+    OutputStruct,
+    _HashType,
+)
 from .h5 import read_inputs, read_output_struct, write_output_to_hdf5
 
 logger = logging.getLogger(__name__)
@@ -43,7 +47,7 @@ class OutputCache:
 
     _output_to_cache_map: ClassVar = {
         kls.__name__: kls._compat_hash
-        for kls in OutputStruct.__subclasses__() + OutputStructZ.__subclasses__()
+        for name, kls in _ALL_OUTPUT_STRUCTS.items()
         if not kls._meta
     }
     _path_structures: ClassVar = {
@@ -291,7 +295,7 @@ class RunCache:
     IonizedBox: dict[float, Path] = _dict_of_paths_field()
     BrightnessTemp: dict[float, Path] = _dict_of_paths_field()
     HaloBox: dict[float, Path] | None = _dict_of_paths_field()
-    PerturbHaloField: dict[float, Path] | None = _dict_of_paths_field()
+    HaloField: dict[float, Path] | None = _dict_of_paths_field()
     XraySourceBox: dict[float, Path] | None = _dict_of_paths_field()
     inputs: InputParameters | None = attrs.field(default=None)
 
@@ -328,7 +332,7 @@ class RunCache:
         if inputs.astro_options.USE_TS_FLUCT:
             others |= {"TsBox": {}}
         if inputs.matter_options.USE_HALO_FIELD:
-            others |= {"PerturbHaloField": {}, "XraySourceBox": {}, "HaloBox": {}}
+            others |= {"HaloField": {}, "XraySourceBox": {}, "HaloBox": {}}
 
         for z in inputs.node_redshifts:
             for name, val in others.items():
@@ -541,7 +545,6 @@ class CacheConfig:
     ionized_box: bool = attrs.field(default=True, converter=bool)
     brightness_temp: bool = attrs.field(default=True, converter=bool)
     halobox: bool = attrs.field(default=True, converter=bool)
-    perturbed_halo_field: bool = attrs.field(default=True, converter=bool)
     halo_field: bool = attrs.field(default=True, converter=bool)
     xray_source_box: bool = attrs.field(default=True, converter=bool)
 
@@ -560,7 +563,6 @@ class CacheConfig:
             ionized_box=False,
             brightness_temp=False,
             halobox=False,
-            perturbed_halo_field=False,
             halo_field=False,
             xray_source_box=False,
         )
@@ -575,8 +577,7 @@ class CacheConfig:
             ionized_box=False,
             brightness_temp=False,
             halobox=False,
-            perturbed_halo_field=True,
-            halo_field=False,
+            halo_field=True,
             xray_source_box=False,
         )
 
@@ -596,7 +597,6 @@ class CacheConfig:
             ionized_box=False,
             brightness_temp=False,
             halobox=True,
-            perturbed_halo_field=True,
-            halo_field=False,
+            halo_field=True,
             xray_source_box=False,
         )
