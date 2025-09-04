@@ -842,7 +842,7 @@ double Fcoll_General(double z, double lnM_min, double lnM_max) {
 }
 
 double Nion_General(double z, double lnM_Min, double lnM_Max, double MassTurnover,
-                    struct ScalingConstants *sc) {
+                    ScalingConstants *sc) {
     struct parameters_gsl_MF_integrals params = {
         .redshift = z,
         .growthf = dicke(z),
@@ -860,7 +860,7 @@ double Nion_General(double z, double lnM_Min, double lnM_Max, double MassTurnove
 }
 
 double Nion_General_MINI(double z, double lnM_Min, double lnM_Max, double MassTurnover,
-                         struct ScalingConstants *sc) {
+                         ScalingConstants *sc) {
     struct parameters_gsl_MF_integrals params = {
         .redshift = z,
         .growthf = dicke(z),
@@ -879,7 +879,7 @@ double Nion_General_MINI(double z, double lnM_Min, double lnM_Max, double MassTu
 }
 
 double Xray_General(double z, double lnM_Min, double lnM_Max, double mturn_acg, double mturn_mcg,
-                    struct ScalingConstants *sc) {
+                    ScalingConstants *sc) {
     // NOTE:in the _General functions, we don't use the scaling relation constants
     //  that are z-dependent so we can evaluate them at multiple redshifts without redoing the
     //  constants
@@ -954,7 +954,7 @@ double Mcoll_Conditional(double growthf, double lnM1, double lnM2, double lnM_co
 
 double Nion_ConditionalM_MINI(double growthf, double lnM1, double lnM2, double lnM_cond,
                               double sigma2, double delta2, double MassTurnover,
-                              struct ScalingConstants *sc, int method) {
+                              ScalingConstants *sc, int method) {
     struct parameters_gsl_MF_integrals params = {
         .growthf = growthf,
         .Mturn_mcg = MassTurnover,
@@ -992,8 +992,7 @@ double Nion_ConditionalM_MINI(double growthf, double lnM1, double lnM2, double l
 }
 
 double Nion_ConditionalM(double growthf, double lnM1, double lnM2, double lnM_cond, double sigma2,
-                         double delta2, double MassTurnover, struct ScalingConstants *sc,
-                         int method) {
+                         double delta2, double MassTurnover, ScalingConstants *sc, int method) {
     struct parameters_gsl_MF_integrals params = {
         .growthf = growthf,
         .Mturn_acg = MassTurnover,
@@ -1029,7 +1028,7 @@ double Nion_ConditionalM(double growthf, double lnM1, double lnM2, double lnM_co
 
 double Xray_ConditionalM(double redshift, double growthf, double lnM1, double lnM2, double lnM_cond,
                          double sigma2, double delta2, double mturn_acg, double mturn_mcg,
-                         struct ScalingConstants *sc, int method) {
+                         ScalingConstants *sc, int method) {
     // re-using escape fraction for minihalo parameters
     struct parameters_gsl_MF_integrals params = {
         .redshift = redshift,

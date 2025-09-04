@@ -320,9 +320,9 @@ int ComputeHaloField(float redshift_desc, float redshift, InitialConditions *box
                     if (halo_buf > 0.) {
                         halos_dexm->halo_masses[count] = halo_buf;
                         // place DexM halos at the centre of the cell
-                        halos_dexm->halo_coords[3 * count + 0] = x * cell_length + 0.5;
-                        halos_dexm->halo_coords[3 * count + 1] = y * cell_length + 0.5;
-                        halos_dexm->halo_coords[3 * count + 2] = z * cell_length + 0.5;
+                        halos_dexm->halo_coords[3 * count + 0] = x * cell_length;
+                        halos_dexm->halo_coords[3 * count + 1] = y * cell_length;
+                        halos_dexm->halo_coords[3 * count + 2] = z * cell_length;
                         count++;
                     }
                 }
