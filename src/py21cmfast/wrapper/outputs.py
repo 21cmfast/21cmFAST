@@ -28,8 +28,9 @@ from astropy import units as u
 from astropy.cosmology import z_at_value
 from bidict import bidict
 
+import py21cmfast.c_21cmfast as lib
+
 from .._cfg import config
-from ..c_21cmfast import lib
 from .arrays import Array
 from .exceptions import _process_exitcode
 from .inputs import (

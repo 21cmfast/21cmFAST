@@ -6,7 +6,7 @@ import pytest
 from matplotlib.colors import Normalize
 from scipy.stats import binned_statistic as binstat
 
-from py21cmfast.c_21cmfast import ffi, lib
+import py21cmfast.c_21cmfast as lib
 from py21cmfast.wrapper.cfuncs import broadcast_input_struct
 
 from . import produce_integration_test_data as prd
@@ -98,19 +98,19 @@ def test_filters(filter_flag, R, plt):
     output_box_centre = np.zeros((up.HII_DIM,) * 3, dtype="f8")
     # use MFP=20 for the exp filter, use a 4 cell shell for the annular filter
     if filter_flag == 3:
-        R_param = 20
+        R_param = 20.0
     elif filter_flag == 4:
-        R_param = max(R - 4 * (up.BOX_LEN / up.HII_DIM), 0)
+        R_param = max(R - 4 * (up.BOX_LEN / up.HII_DIM), 0.0)
     else:
-        R_param = 0
+        R_param = 0.0
 
     broadcast_input_struct(inputs)
     lib.test_filter(
-        ffi.cast("float *", input_box_centre.ctypes.data),
+        input_box_centre,
         R,
         R_param,
         filter_flag,
-        ffi.cast("double *", output_box_centre.ctypes.data),
+        output_box_centre,
     )
 
     # expected outputs given in cell units

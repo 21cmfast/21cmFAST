@@ -55,7 +55,8 @@ import attrs
 import numpy as np
 from scipy.optimize import curve_fit
 
-from ..c_21cmfast import ffi, lib
+import py21cmfast.c_21cmfast as lib
+
 from ._utils import _process_exitcode
 from .cfuncs import broadcast_params
 from .inputs import InputParameters
@@ -79,7 +80,7 @@ class _PhotonConservationState:
 
     @c_memory_allocated.setter
     def c_memory_allocated(self, val):
-        lib.photon_cons_allocated = ffi.cast("bool", val)
+        lib.photon_cons_allocated = val
 
 
 _photoncons_state = _PhotonConservationState()
@@ -93,20 +94,18 @@ def _init_photon_conservation_correction(*, inputs):
     return lib.InitialisePhotonCons()
 
 
-def _calibrate_photon_conservation_correction(
-    *, redshifts_estimate, nf_estimate, NSpline
-):
+def _calibrate_photon_conservation_correction(*, redshifts_estimate, nf_estimate):
     # This function passes the calibration simulation results to C,
     #       Storing a clipped version in global arrays nf_vals and z_vals,
     #       and constructing the GSL interpolator z_NFHistory_spline
     redshifts_estimate = np.array(redshifts_estimate, dtype="float64")
     nf_estimate = np.array(nf_estimate, dtype="float64")
 
-    z = ffi.cast("double *", ffi.from_buffer(redshifts_estimate))
-    xHI = ffi.cast("double *", ffi.from_buffer(nf_estimate))
+    z = redshifts_estimate
+    xHI = nf_estimate
 
     logger.debug(f"PhotonCons nf estimates: {nf_estimate}")
-    return lib.PhotonCons_Calibration(z, xHI, NSpline)
+    return lib.PhotonCons_Calibration(z, xHI)
 
 
 def _calc_zstart_photon_cons():
@@ -114,7 +113,7 @@ def _calc_zstart_photon_cons():
     #   Set by neutral fraction astro_params.PHOTONCONS_ZSTART
     from ._utils import _call_c_simple
 
-    return _call_c_simple(lib.ComputeZstart_PhotonCons)
+    return _call_c_simple(lib.ComputeZstart_PhotonCons)[0]
 
 
 def _get_photon_nonconservation_data() -> dict:
@@ -149,16 +148,16 @@ def _get_photon_nonconservation_data() -> dict:
     IntVal2 = np.array(np.zeros(1), dtype="int32")
     IntVal3 = np.array(np.zeros(1), dtype="int32")
 
-    c_z_at_Q = ffi.cast("double *", ffi.from_buffer(data[0]))
-    c_Qval = ffi.cast("double *", ffi.from_buffer(data[1]))
-    c_z_cal = ffi.cast("double *", ffi.from_buffer(data[2]))
-    c_nf_cal = ffi.cast("double *", ffi.from_buffer(data[3]))
-    c_PC_nf = ffi.cast("double *", ffi.from_buffer(data[4]))
-    c_PC_deltaz = ffi.cast("double *", ffi.from_buffer(data[5]))
+    c_z_at_Q = data[0]
+    c_Qval = data[1]
+    c_z_cal = data[2]
+    c_nf_cal = data[3]
+    c_PC_nf = data[4]
+    c_PC_deltaz = data[5]
 
-    c_int_NQ = ffi.cast("int *", ffi.from_buffer(IntVal1))
-    c_int_NC = ffi.cast("int *", ffi.from_buffer(IntVal2))
-    c_int_NP = ffi.cast("int *", ffi.from_buffer(IntVal3))
+    c_int_NQ = IntVal1
+    c_int_NC = IntVal2
+    c_int_NP = IntVal3
 
     # Run the C code
     errcode = lib.ObtainPhotonConsData(
@@ -299,7 +298,8 @@ def calibrate_photon_cons(
     prev_perturb = None
 
     # Arrays for redshift and neutral fraction for the calibration curve
-    neutral_fraction_photon_cons = []
+    # TODO: double check, this was empty before, was that a bug?
+    neutral_fraction_photon_cons = [1.0]
 
     # Initialise the analytic expression for the reionisation history
     logger.info("About to start photon conservation correction")
@@ -361,7 +361,6 @@ def calibrate_photon_cons(
     _calibrate_photon_conservation_correction(
         redshifts_estimate=fast_node_redshifts,
         nf_estimate=neutral_fraction_photon_cons,
-        NSpline=len(fast_node_redshifts),
     )
 
 
@@ -374,9 +373,9 @@ def get_photoncons_dz(inputs, redshift):
     redshift_pc_in = np.array([redshift]).astype("f4")
     stored_redshift_pc_in = np.array([redshift]).astype("f4")
     lib.adjust_redshifts_for_photoncons(
-        ffi.cast("float *", redshift_pc_in.ctypes.data),
-        ffi.cast("float *", stored_redshift_pc_in.ctypes.data),
-        ffi.cast("float *", deltaz.ctypes.data),
+        redshift_pc_in,
+        stored_redshift_pc_in,
+        deltaz,
     )
 
     return redshift_pc_in[0], stored_redshift_pc_in[0], deltaz[0]
@@ -452,7 +451,8 @@ def photoncons_alpha(inputs):
     # ratio of given alpha with calibration
     ratio_ref = (1 - ref_pc_data["nf_calibration"]) / ref_interp
 
-    ratio_diff = ratio_test - 1 / ratio_ref[None, :]  # find N(alpha)/ref == ref/cal
+    # find N(alpha)/ref == ref/cal
+    ratio_diff = ratio_test - 1 / ratio_ref[None, :]
     diff_test = (
         (test_pc_data)
         + (1 - ref_pc_data["nf_calibration"])[None, ...]

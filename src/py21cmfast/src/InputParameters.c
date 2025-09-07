@@ -1,5 +1,8 @@
 #include "InputParameters.h"
 
+#include <stdlib.h>
+#include <string.h>
+
 void Broadcast_struct_global_all(SimulationOptions *simulation_options,
                                  MatterOptions *matter_options, CosmoParams *cosmo_params,
                                  AstroParams *astro_params, AstroOptions *astro_options) {

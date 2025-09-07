@@ -76,7 +76,7 @@ def test_power_spectra_coeval(name, module_direc, plt):
             [test_k],
             abs_tol=0,
             rel_tol=1e-4,
-            name=key,
+            name=f"{name} - {key}",
         )
 
     if plt == mpl.pyplot and any_failed:

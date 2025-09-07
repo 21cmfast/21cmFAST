@@ -1,6 +1,6 @@
 """Test initializing tables in C."""
 
-from py21cmfast.c_21cmfast import lib
+import py21cmfast.c_21cmfast as lib
 from py21cmfast.wrapper.cfuncs import broadcast_input_struct
 
 

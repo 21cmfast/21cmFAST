@@ -14,8 +14,9 @@ import numpy as np
 from astropy import units
 from astropy.cosmology import z_at_value
 
+import py21cmfast.c_21cmfast as lib
+
 from .. import __version__
-from ..c_21cmfast import lib
 from ..io import h5
 from ..io.caching import CacheConfig, OutputCache
 from ..lightconers import Lightconer, RectilinearLightconer
@@ -31,6 +32,7 @@ from ..wrapper.outputs import (
     PerturbHaloField,
     TsBox,
 )
+from ..wrapper.photoncons import _photoncons_state
 from ._param_config import high_level_func
 from .coeval import (
     _obtain_starting_point_for_scrolling,
@@ -513,7 +515,7 @@ def _run_lightcone_from_perturbed_fields(
 
         # last redshift things
         if iz == len(scrollz) - 1:
-            if lib.photon_cons_allocated:
+            if _photoncons_state.c_memory_allocated:
                 lib.FreePhotonConsMemory()
 
             if include_dvdr_in_tau21:

@@ -1181,3 +1181,34 @@ double EvaluatedSigmasqdm(double lnM) {
     }
     return dsigmasqdm_z0(exp(lnM));
 }
+
+// Accessor function for the GPU SpinTemp kernel to access table.
+RGTable1D_f *get_SFRD_conditional_table(void) { return &SFRD_conditional_table; }
+
+// Accessor function for the GPU Ionisation kernel to access table.
+RGTable1D_f *get_Nion_conditional_table1D(void) { return &Nion_conditional_table1D; }
+
+// Accessor function for GPU memory allocation functions to access nbins.
+int get_nbins(void) { return NDELTA; }
+
+// todo: only return when it's been initialized
+RGTable1D *GetNhaloTable() {
+    printf("The number of bins: %d; x_min: %f\n", Nhalo_table.n_bin, Nhalo_table.x_min);
+    return &Nhalo_table;
+}
+
+RGTable1D *GetMcollTable() {
+    printf("The number of bins: %d; x_min: %f\n", Mcoll_table.n_bin, Mcoll_table.x_min);
+    return &Mcoll_table;
+}
+
+RGTable2D *GetNhaloInvTable() {
+    printf("The number of nx bins: %d; the number of ny bins: %d \n", Nhalo_inv_table.nx_bin,
+           Nhalo_inv_table.ny_bin);
+    return &Nhalo_inv_table;
+}
+
+RGTable1D_f *GetSigmaInterpTable() {
+    printf("The number of bins: %d; x_min: %f\n", Sigma_InterpTable.n_bin, Sigma_InterpTable.x_min);
+    return &Sigma_InterpTable;
+}

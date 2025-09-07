@@ -81,6 +81,12 @@ class MemoryAllocError(FatalCError):
     default_message = """An error has occured while attempting to allocate memory! (check the LOG for more info)"""
 
 
+class CUDAError(FatalCError):
+    """An exception when an error occurs with CUDA."""
+
+    default_message = """A CUDA error has occured! (check the LOG for more info)"""
+
+
 SUCCESS = 0
 IOERROR = 1
 GSLERROR = 2
@@ -91,12 +97,15 @@ TABLEEVALUATIONERROR = 6
 INFINITYORNANERROR = 7
 MASSDEPZETAERROR = 8
 MEMORYALLOCERROR = 9
+CUDAERROR = 10
 
 
 def _process_exitcode(exitcode, fnc, args):
     """Determine what happens for different values of the (integer) exit code from a C function."""
     if exitcode != SUCCESS:
-        logger.error(f"In function: {fnc.__name__}.  Arguments: {args}")
+        logger.error(
+            f"Error code {exitcode} in function: {fnc.__name__}.  Arguments: {args}"
+        )
 
         if exitcode:
             try:
@@ -110,6 +119,7 @@ def _process_exitcode(exitcode, fnc, args):
                     INFINITYORNANERROR: InfinityorNaNError,
                     MASSDEPZETAERROR: MassDepZetaError,
                     MEMORYALLOCERROR: MemoryAllocError,
+                    CUDAERROR: CUDAError,
                 }[exitcode]
             except KeyError as e:  # pragma: no cover
                 raise FatalCError(

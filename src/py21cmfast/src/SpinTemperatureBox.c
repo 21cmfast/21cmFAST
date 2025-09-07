@@ -930,7 +930,8 @@ int global_reion_properties(double zp, double x_e_ave, double *log10_Mcrit_LW_av
 
 void calculate_sfrd_from_grid(int R_ct, float *dens_R_grid, float *Mcrit_R_grid, float *sfrd_grid,
                               float *sfrd_grid_mini, double *ave_sfrd, double *ave_sfrd_mini,
-                              ScalingConstants *sc) {
+                              unsigned int threadsPerBlock, float *d_y_arr, float *d_dens_R_grid,
+                              float *d_sfrd_grid, double *d_ave_sfrd_buf, ScalingConstants *sc) {
     double ave_sfrd_buf = 0;
     double ave_sfrd_buf_mini = 0;
     if (astro_options_global->INTEGRATION_METHOD_ATOMIC == 1 ||
@@ -951,43 +952,61 @@ void calculate_sfrd_from_grid(int R_ct, float *dens_R_grid, float *Mcrit_R_grid,
         }
     }
 
+    // --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+    // If GPU is to be used and flags are ideal, call GPU version of reduction
+    bool use_cuda = false;  // pass this as a parameter later
+    if (use_cuda && astro_options_global->USE_MASS_DEPENDENT_ZETA &&
+        matter_options_global->USE_INTERPOLATION_TABLES && !astro_options_global->USE_MINI_HALOS) {
+#if CUDA_FOUND
+        RGTable1D_f *SFRD_conditional_table = get_SFRD_conditional_table();
+        ave_sfrd_buf =
+            calculate_sfrd_from_grid_gpu(SFRD_conditional_table, dens_R_grid, zpp_growth, R_ct,
+                                         sfrd_grid, HII_TOT_NUM_PIXELS, threadsPerBlock,
+                                         // d_data
+                                         d_y_arr, d_dens_R_grid, d_sfrd_grid, d_ave_sfrd_buf);
+#else
+        LOG_ERROR("calculate_sfrd_from_grid_gpu() called but code was not compiled for CUDA.");
+#endif
+    } else {
 #pragma omp parallel num_threads(simulation_options_global->N_THREADS)
-    {
-        unsigned long long int box_ct;
-        double curr_dens;
-        double curr_mcrit = 0.;
-        double fcoll, dfcoll;
-        double fcoll_MINI = 0;
+        {
+            unsigned long long int box_ct;
+            double curr_dens;
+            double curr_mcrit = 0.;
+            double fcoll, dfcoll;
+            double fcoll_MINI = 0;
 
 #pragma omp for reduction(+ : ave_sfrd_buf, ave_sfrd_buf_mini)
-        for (box_ct = 0; box_ct < HII_TOT_NUM_PIXELS; box_ct++) {
-            curr_dens = dens_R_grid[box_ct] * zpp_growth[R_ct];
-            if (astro_options_global->USE_MINI_HALOS) curr_mcrit = Mcrit_R_grid[box_ct];
+            for (box_ct = 0; box_ct < HII_TOT_NUM_PIXELS; box_ct++) {
+                curr_dens = dens_R_grid[box_ct] * zpp_growth[R_ct];
+                if (astro_options_global->USE_MINI_HALOS) curr_mcrit = Mcrit_R_grid[box_ct];
 
-            if (astro_options_global->USE_MASS_DEPENDENT_ZETA) {
-                fcoll = EvaluateSFRD_Conditional(curr_dens, zpp_growth[R_ct], M_min_R[R_ct],
+                if (astro_options_global->USE_MASS_DEPENDENT_ZETA) {
+                    fcoll =
+                        EvaluateSFRD_Conditional(curr_dens, zpp_growth[R_ct], M_min_R[R_ct],
                                                  M_max_R[R_ct], M_max_R[R_ct], sigma_max[R_ct], sc);
-                sfrd_grid[box_ct] = (1. + curr_dens) * fcoll;
+                    sfrd_grid[box_ct] = (1. + curr_dens) * fcoll;
 
-                if (astro_options_global->USE_MINI_HALOS) {
-                    fcoll_MINI = EvaluateSFRD_Conditional_MINI(
-                        curr_dens, curr_mcrit, zpp_growth[R_ct], M_min_R[R_ct], M_max_R[R_ct],
-                        M_max_R[R_ct], sigma_max[R_ct], sc);
-                    sfrd_grid_mini[box_ct] = (1. + curr_dens) * fcoll_MINI;
+                    if (astro_options_global->USE_MINI_HALOS) {
+                        fcoll_MINI = EvaluateSFRD_Conditional_MINI(
+                            curr_dens, curr_mcrit, zpp_growth[R_ct], M_min_R[R_ct], M_max_R[R_ct],
+                            M_max_R[R_ct], sigma_max[R_ct], sc);
+                        sfrd_grid_mini[box_ct] = (1. + curr_dens) * fcoll_MINI;
+                    }
+                } else {
+                    fcoll = EvaluateFcoll_delta(curr_dens, zpp_growth[R_ct], sigma_min[R_ct],
+                                                sigma_max[R_ct]);
+                    dfcoll = EvaluatedFcolldz(curr_dens, zpp_for_evolve_list[R_ct], sigma_min[R_ct],
+                                              sigma_max[R_ct]);
+                    sfrd_grid[box_ct] = (1. + curr_dens) * dfcoll;
                 }
-            } else {
-                fcoll = EvaluateFcoll_delta(curr_dens, zpp_growth[R_ct], sigma_min[R_ct],
-                                            sigma_max[R_ct]);
-                dfcoll = EvaluatedFcolldz(curr_dens, zpp_for_evolve_list[R_ct], sigma_min[R_ct],
-                                          sigma_max[R_ct]);
-                sfrd_grid[box_ct] = (1. + curr_dens) * dfcoll;
+                ave_sfrd_buf += fcoll;
+                ave_sfrd_buf_mini += fcoll_MINI;
             }
-            ave_sfrd_buf += fcoll;
-            ave_sfrd_buf_mini += fcoll_MINI;
         }
+        *ave_sfrd = ave_sfrd_buf / HII_TOT_NUM_PIXELS;
+        *ave_sfrd_mini = ave_sfrd_buf_mini / HII_TOT_NUM_PIXELS;
     }
-    *ave_sfrd = ave_sfrd_buf / HII_TOT_NUM_PIXELS;
-    *ave_sfrd_mini = ave_sfrd_buf_mini / HII_TOT_NUM_PIXELS;
 
     // These functions check for allocation
     free_conditional_tables();
@@ -1462,6 +1481,45 @@ void ts_main(float redshift, float prev_redshift, float perturbed_field_redshift
 
     // if we have stars, fill in the heating term boxes
     if (!NO_LIGHT) {
+        // Device pointers that reference GPU memory and need to persist across loop iterations
+        // -------------------------------------------------------------------------
+        float *d_y_arr = NULL;
+        float *d_dens_R_grid = NULL;
+        float *d_sfrd_grid = NULL;
+        double *d_ave_sfrd_buf = NULL;
+
+        // initialise pointer to struct of pointers
+        // ----------------------------------------------------------------------------------------------------------------------
+        // sfrd_gpu_data *device_data;
+        // sfrd_gpu_data *device_data = (sfrd_gpu_data *)malloc(sizeof(sfrd_gpu_data));
+        unsigned int threadsPerBlock = 0;
+        unsigned int sfrd_nbins = get_nbins();
+
+        // GPU=True
+        // if (true) {
+        //     // unsigned int init_sfrd_gpu_data(float *dens_R_grid, float *sfrd_grid, unsigned
+        //     long long num_pixels,
+        //         //   unsigned int nbins, sfrd_gpu_data *d_data);
+        //     threadsPerBlock = init_sfrd_gpu_data(delta_box_input, del_fcoll_Rct,
+        //     HII_TOT_NUM_PIXELS, sfrd_nbins, &device_data);
+        // }
+        // struct
+        // ---------------------------------------------------------------------------------------------------------------------------------------------------------
+        // threadsPerBlock = init_sfrd_gpu_data(delta_box_input, del_fcoll_Rct, HII_TOT_NUM_PIXELS,
+        // sfrd_nbins, &device_data); pointers
+        // -------------------------------------------------------------------------------------------------------------------------------------------------------
+        bool use_cuda = false;  // pass this as a parameter later
+        if (use_cuda) {
+#if CUDA_FOUND
+            threadsPerBlock =
+                init_sfrd_gpu_data(delta_box_input, del_fcoll_Rct, HII_TOT_NUM_PIXELS, sfrd_nbins,
+                                   &d_y_arr, &d_dens_R_grid, &d_sfrd_grid, &d_ave_sfrd_buf);
+#else
+            LOG_ERROR(
+                "CUDA function init_sfrd_gpu_data() called but code was not compiled for CUDA.");
+#endif
+        }
+        // ---------------------------------------------------------------------------------------------------------------------------------------------------------------
         for (R_ct = astro_params_global->N_STEP_TS; R_ct--;) {
             dzpp_for_evolve = dzpp_list[R_ct];
             zpp = zpp_for_evolve_list[R_ct];
@@ -1509,7 +1567,9 @@ void ts_main(float redshift, float prev_redshift, float perturbed_field_redshift
                     Mcrit_box_input = log10_Mcrit_LW[R_index];
                 }
                 calculate_sfrd_from_grid(R_ct, delta_box_input, Mcrit_box_input, del_fcoll_Rct,
-                                         del_fcoll_Rct_MINI, &ave_fcoll, &ave_fcoll_MINI, &sc);
+                                         del_fcoll_Rct_MINI, &ave_fcoll, &ave_fcoll_MINI,
+                                         threadsPerBlock, d_y_arr, d_dens_R_grid, d_sfrd_grid,
+                                         d_ave_sfrd_buf, &sc);
                 avg_fix_term = mean_sfr_zpp[R_ct] / ave_fcoll;
                 if (astro_options_global->USE_MINI_HALOS)
                     avg_fix_term_MINI = mean_sfr_zpp_mini[R_ct] / ave_fcoll_MINI;
@@ -1665,6 +1725,21 @@ void ts_main(float redshift, float prev_redshift, float perturbed_field_redshift
                 }
             }
         }
+        // struct
+        // ------------------------------------------------------------------------------------------------------------------------------------------------------------------
+        // free_sfrd_gpu_data(device_data);
+        // free(device_data);
+        // pointers
+        // ----------------------------------------------------------------------------------------------------------------------------------------------------------------
+        if (use_cuda) {
+#if CUDA_FOUND
+            free_sfrd_gpu_data(&d_y_arr, &d_dens_R_grid, &d_sfrd_grid, &d_ave_sfrd_buf);
+#else
+            LOG_ERROR(
+                "CUDA function free_sfrd_gpu_data() called but code was not compiled for CUDA.");
+#endif
+        }
+        // -------------------------------------------------------------------------------------------------------------------------------------------------------------------------
     }
 
     // we definitely don't need these tables anymore
