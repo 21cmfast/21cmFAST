@@ -220,6 +220,8 @@ void move_grid_galprops(double redshift, float *dens_pointer, int dens_dim[3],
     double box_size[3] = {boxlen, boxlen, boxlen_z};
     double dim_ratio_vel = (double)vel_dim[0] / (double)dens_dim[0];
     double dim_ratio_out = (double)out_dim[0] / (double)dens_dim[0];
+    double vol_ratio_out = (double)(out_dim[0] * out_dim[1] * out_dim[2]) /
+                           (double)(dens_dim[0] * dens_dim[1] * dens_dim[2]);
 
     double prefactor_mass = RHOcrit * cosmo_params_global->OMm;
     double prefactor_stars = RHOcrit * cosmo_params_global->OMb * consts->fstar_10;
@@ -251,7 +253,7 @@ void move_grid_galprops(double redshift, float *dens_pointer, int dens_dim[3],
         int i, j, k, axis;
         double pos[3], curr_dens;
         int ipos[3];
-        unsigned long long vel_index, dens_index;
+        unsigned long long vel_index, dens_index, mturn_index;
         double l10_mturn_a = log10(consts->mturn_a_nofb);
         double l10_mturn_m = log10(consts->mturn_m_nofb);
         HaloProperties properties;
@@ -279,8 +281,12 @@ void move_grid_galprops(double redshift, float *dens_pointer, int dens_dim[3],
 
                     // CIC interpolation
                     dens_index = grid_index_general(i, j, k, dens_dim);
-                    curr_dens = dens_pointer[dens_index] * growth_factor;
+                    curr_dens = dens_pointer[dens_index] * growth_factor * vol_ratio_out;
+
+                    // mturn grids are at the output resolution (lower res)
                     if (astro_options_global->USE_MINI_HALOS) {
+                        resample_index((int[3]){i, j, k}, dim_ratio_out, ipos);
+                        mturn_index = grid_index_general(ipos[0], ipos[1], ipos[2], out_dim);
                         l10_mturn_a = mturn_a_grid[dens_index];
                         l10_mturn_m = mturn_m_grid[dens_index];
                     }
@@ -343,6 +349,7 @@ void move_halo_galprops(double redshift, HaloField *halos, float *vel_pointers[3
     double box_size[3] = {boxlen, boxlen, boxlen_z};
     double cell_size_inv_v = vel_dim[0] / simulation_options_global->BOX_LEN;
     double cell_size_inv_o = out_dim[0] / simulation_options_global->BOX_LEN;
+    double cell_vol_inv = cell_size_inv_o * cell_size_inv_o * cell_size_inv_o;
 
     // Setup IC velocity factors
     double growth_factor = dicke(redshift);
@@ -438,6 +445,27 @@ void move_halo_galprops(double redshift, HaloField *halos, float *vel_pointers[3
                                 in_props[0], in_props[1], in_props[2]);
             }
 #endif
+        }
+#pragma omp for
+        for (unsigned long long int i_cell = 0; i_cell < HII_TOT_NUM_PIXELS; i_cell++) {
+            boxes->n_ion[i_cell] *= cell_vol_inv;
+            boxes->halo_sfr[i_cell] *= cell_vol_inv;
+            if (astro_options_global->USE_TS_FLUCT) {
+                boxes->halo_xray[i_cell] *= cell_vol_inv;
+            }
+            if (astro_options_global->INHOMO_RECO) {
+                boxes->whalo_sfr[i_cell] *= cell_vol_inv;
+            }
+            if (astro_options_global->USE_MINI_HALOS) {
+                boxes->halo_sfr_mini[i_cell] *= cell_vol_inv;
+            }
+            if (config_settings.EXTRA_HALOBOX_FIELDS) {
+                boxes->halo_mass[i_cell] *= cell_vol_inv;
+                boxes->halo_stars[i_cell] *= cell_vol_inv;
+                if (astro_options_global->USE_MINI_HALOS) {
+                    boxes->halo_stars_mini[i_cell] *= cell_vol_inv;
+                }
+            }
         }
     }
 }

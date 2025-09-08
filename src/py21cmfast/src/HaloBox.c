@@ -295,19 +295,56 @@ int set_fixed_grids(double M_min, double M_max, InitialConditions *ini_boxes, fl
     double min_log10_mturn_m = log10(M_MAX_INTEGRAL);
     double max_log10_mturn_a = log10(astro_params_global->M_TURN);
     double max_log10_mturn_m = log10(astro_params_global->M_TURN);
+
+    float *vel_pointers[3];
+    float *vel_pointers_2LPT[3];
+    int grid_dim[3];
+    unsigned long long int num_pixels;
+    float *dens_pointer;
+    int out_dim[3] = {simulation_options_global->HII_DIM, simulation_options_global->HII_DIM,
+                      HII_D_PARA};  // always output to lowres grid
+    if (matter_options_global->PERTURB_ON_HIGH_RES) {
+        grid_dim[0] = simulation_options_global->DIM;
+        grid_dim[1] = simulation_options_global->DIM;
+        grid_dim[2] = D_PARA;
+        vel_pointers[0] = ini_boxes->hires_vx;
+        vel_pointers[1] = ini_boxes->hires_vy;
+        vel_pointers[2] = ini_boxes->hires_vz;
+        vel_pointers_2LPT[0] = ini_boxes->hires_vx_2LPT;
+        vel_pointers_2LPT[1] = ini_boxes->hires_vy_2LPT;
+        vel_pointers_2LPT[2] = ini_boxes->hires_vz_2LPT;
+        dens_pointer = ini_boxes->hires_density;
+        num_pixels = TOT_NUM_PIXELS;
+
+    } else {
+        grid_dim[0] = simulation_options_global->HII_DIM;
+        grid_dim[1] = simulation_options_global->HII_DIM;
+        grid_dim[2] = HII_D_PARA;
+        vel_pointers[0] = ini_boxes->lowres_vx;
+        vel_pointers[1] = ini_boxes->lowres_vy;
+        vel_pointers[2] = ini_boxes->lowres_vz;
+        vel_pointers_2LPT[0] = ini_boxes->lowres_vx_2LPT;
+        vel_pointers_2LPT[1] = ini_boxes->lowres_vy_2LPT;
+        vel_pointers_2LPT[2] = ini_boxes->lowres_vz_2LPT;
+        dens_pointer = ini_boxes->lowres_density;
+        num_pixels = HII_TOT_NUM_PIXELS;
+    }
 #pragma omp parallel num_threads(simulation_options_global->N_THREADS)
     {
         unsigned long long int i;
         double dens;
-        double M_turn_m = consts->mturn_m_nofb;
-        double M_turn_a = consts->mturn_a_nofb;
-#pragma omp for reduction(min : min_density, min_log10_mturn_a, min_log10_mturn_m) \
-    reduction(max : max_density, max_log10_mturn_a, max_log10_mturn_m)
-        for (i = 0; i < HII_TOT_NUM_PIXELS; i++) {
-            dens = ini_boxes->lowres_density[i] * growthf;
+#pragma omp for reduction(min : min_density) reduction(max : max_density)
+        for (i = 0; i < num_pixels; i++) {
+            dens = dens_pointer[i] * growthf;
             if (dens > max_density) max_density = dens;
             if (dens < min_density) min_density = dens;
+        }
 
+        double M_turn_m = consts->mturn_m_nofb;
+        double M_turn_a = consts->mturn_a_nofb;
+#pragma omp for reduction(min : min_log10_mturn_a, min_log10_mturn_m) \
+    reduction(max : max_log10_mturn_a, max_log10_mturn_m)
+        for (i = 0; i < HII_TOT_NUM_PIXELS; i++) {
             if (astro_options_global->USE_MINI_HALOS) {
                 M_turn_a = mturn_a_grid[i];
                 M_turn_m = mturn_m_grid[i];
@@ -352,15 +389,9 @@ int set_fixed_grids(double M_min, double M_max, InitialConditions *ini_boxes, fl
                                               M_max, M_cell, consts);
         }
     }
-
-    int grid_dim[3] = {simulation_options_global->HII_DIM, simulation_options_global->HII_DIM,
-                       HII_D_PARA};
-    float *vel_pointers[3] = {ini_boxes->lowres_vx, ini_boxes->lowres_vy, ini_boxes->lowres_vz};
-    float *vel_pointers_2LPT[3] = {ini_boxes->lowres_vx_2LPT, ini_boxes->lowres_vy_2LPT,
-                                   ini_boxes->lowres_vz_2LPT};
-    move_grid_galprops(consts->redshift, ini_boxes->lowres_density, grid_dim, vel_pointers,
-                       vel_pointers_2LPT, grid_dim, grids, grid_dim, mturn_a_grid, mturn_m_grid,
-                       consts, &integral_cond);
+    move_grid_galprops(consts->redshift, dens_pointer, grid_dim, vel_pointers, vel_pointers_2LPT,
+                       grid_dim, grids, out_dim, mturn_a_grid, mturn_m_grid, consts,
+                       &integral_cond);
 
     LOG_ULTRA_DEBUG("Cell 0 Totals: SF: %.2e, NI: %.2e", grids->halo_sfr[HII_R_INDEX(0, 0, 0)],
                     grids->n_ion[HII_R_INDEX(0, 0, 0)]);
@@ -467,36 +498,35 @@ void get_log10_turnovers(InitialConditions *ini_boxes, TsBox *previous_spin_temp
 void sum_halos_onto_grid(double redshift, InitialConditions *ini_boxes, HaloField *halos,
                          float *mturn_a_grid, float *mturn_m_grid, ScalingConstants *consts,
                          HaloBox *grids) {
-    double cell_volume = VOLUME / HII_TOT_NUM_PIXELS;
-    int grid_dim[3] = {simulation_options_global->HII_DIM, simulation_options_global->HII_DIM,
-                       HII_D_PARA};
-    float *vel_pointers[3] = {ini_boxes->lowres_vx, ini_boxes->lowres_vy, ini_boxes->lowres_vz};
-    float *vel_pointers_2LPT[3] = {ini_boxes->lowres_vx_2LPT, ini_boxes->lowres_vy_2LPT,
-                                   ini_boxes->lowres_vz_2LPT};
-    move_halo_galprops(redshift, halos, vel_pointers, vel_pointers_2LPT, grid_dim, mturn_a_grid,
-                       mturn_m_grid, grids, grid_dim, consts);
-
-#pragma omp parallel for num_threads(simulation_options_global->N_THREADS)
-    for (unsigned long long int i_cell = 0; i_cell < HII_TOT_NUM_PIXELS; i_cell++) {
-        grids->n_ion[i_cell] /= cell_volume;
-        grids->halo_sfr[i_cell] /= cell_volume;
-        if (astro_options_global->USE_TS_FLUCT) {
-            grids->halo_xray[i_cell] /= cell_volume;
-        }
-        if (astro_options_global->INHOMO_RECO) {
-            grids->whalo_sfr[i_cell] /= cell_volume;
-        }
-        if (astro_options_global->USE_MINI_HALOS) {
-            grids->halo_sfr_mini[i_cell] /= cell_volume;
-        }
-        if (config_settings.EXTRA_HALOBOX_FIELDS) {
-            grids->halo_mass[i_cell] /= cell_volume;
-            grids->halo_stars[i_cell] /= cell_volume;
-            if (astro_options_global->USE_MINI_HALOS) {
-                grids->halo_stars_mini[i_cell] /= cell_volume;
-            }
-        }
+    float *vel_pointers[3];
+    float *vel_pointers_2LPT[3];
+    int vel_dim[3];
+    int out_dim[3] = {simulation_options_global->HII_DIM, simulation_options_global->HII_DIM,
+                      HII_D_PARA};  // always output to lowres grid
+    if (matter_options_global->PERTURB_ON_HIGH_RES) {
+        vel_dim[0] = simulation_options_global->DIM;
+        vel_dim[1] = simulation_options_global->DIM;
+        vel_dim[2] = D_PARA;
+        vel_pointers[0] = ini_boxes->hires_vx;
+        vel_pointers[1] = ini_boxes->hires_vy;
+        vel_pointers[2] = ini_boxes->hires_vz;
+        vel_pointers_2LPT[0] = ini_boxes->hires_vx_2LPT;
+        vel_pointers_2LPT[1] = ini_boxes->hires_vy_2LPT;
+        vel_pointers_2LPT[2] = ini_boxes->hires_vz_2LPT;
+    } else {
+        vel_dim[0] = simulation_options_global->HII_DIM;
+        vel_dim[1] = simulation_options_global->HII_DIM;
+        vel_dim[2] = HII_D_PARA;
+        vel_pointers[0] = ini_boxes->lowres_vx;
+        vel_pointers[1] = ini_boxes->lowres_vy;
+        vel_pointers[2] = ini_boxes->lowres_vz;
+        vel_pointers_2LPT[0] = ini_boxes->lowres_vx_2LPT;
+        vel_pointers_2LPT[1] = ini_boxes->lowres_vy_2LPT;
+        vel_pointers_2LPT[2] = ini_boxes->lowres_vz_2LPT;
     }
+    move_halo_galprops(redshift, halos, vel_pointers, vel_pointers_2LPT, vel_dim, mturn_a_grid,
+                       mturn_m_grid, grids, out_dim, consts);
+
     LOG_SUPER_DEBUG("Cell 0 Totals: SF: %.2e NI: %.2e", grids->halo_sfr[HII_R_INDEX(0, 0, 0)],
                     grids->n_ion[HII_R_INDEX(0, 0, 0)]);
     if (astro_options_global->INHOMO_RECO) {
@@ -521,10 +551,13 @@ int ComputeHaloBox(double redshift, InitialConditions *ini_boxes, HaloField *hal
 #if LOG_LEVEL >= SUPER_DEBUG_LEVEL
         writeSimulationOptions(simulation_options_global);
         writeCosmoParams(cosmo_params_global);
+        writeMatterOptions(matter_options_global);
         writeAstroParams(astro_params_global);
         writeAstroOptions(astro_options_global);
 #endif
 
+        LOG_DEBUG("Resetting halobox dim %d %llu %llu", simulation_options_global->HII_DIM,
+                  HII_D_PARA, HII_TOT_NUM_PIXELS);
         unsigned long long int idx;
 #pragma omp parallel for num_threads(simulation_options_global->N_THREADS) private(idx)
         for (idx = 0; idx < HII_TOT_NUM_PIXELS; idx++) {

@@ -600,9 +600,6 @@ class InitialConditions(OutputStruct):
     def prepare_for_spin_temp(self, force: bool = False):
         """Ensure ICs have all boxes required for spin_temp, and no more."""
         keep = []
-        # NOTE: the astro flags doesn't change the computation, just the storage
-        if self.matter_options.USE_HALO_FIELD and self.astro_options.AVG_BELOW_SAMPLER:
-            keep.append("lowres_density")  # for the cmfs
         if self.matter_options.USE_RELATIVE_VELOCITIES:
             keep.append("lowres_vcb")
 
@@ -619,6 +616,7 @@ class InitialConditions(OutputStruct):
                     keep.append("lowres_vz_2LPT")
 
             else:
+                keep.append("hires_density")
                 keep.append("hires_vx")
                 keep.append("hires_vy")
                 keep.append("hires_vz")
@@ -990,18 +988,14 @@ class HaloBox(OutputStructZ):
         elif isinstance(input_box, IonizedBox):
             required += ["ionisation_rate_G12", "z_reion"]
         elif isinstance(input_box, InitialConditions):
-            required += [
-                "lowres_density",
-                "lowres_vx",
-                "lowres_vy",
-                "lowres_vz",
-            ]
+            if self.matter_options.PERTURB_ON_HIGH_RES:
+                required += ["hires_density", "hires_vx", "hires_vy", "hires_vz"]
+            else:
+                required += ["lowres_density", "lowres_vx", "lowres_vy", "lowres_vz"]
+
             if self.matter_options.PERTURB_ALGORITHM == "2LPT":
-                required += [
-                    "lowres_vx_2LPT",
-                    "lowres_vy_2LPT",
-                    "lowres_vz_2LPT",
-                ]
+                required += [f"{k}_2LPT" for k in required if "_v" in k]
+
             if self.matter_options.USE_RELATIVE_VELOCITIES:
                 required += ["lowres_vcb"]
         else:
