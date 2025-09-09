@@ -351,8 +351,8 @@ void compute_perturbed_velocities(unsigned short axis, double redshift,
     }
 
     LOG_SUPER_DEBUG("density_perturb after modification by dDdt: ");
-    debugSummarizeBoxComplex((float complex *)velocity_fft_grid, box_dim[0], box_dim[1], box_dim[2],
-                             "  ");
+    debugSummarizeBoxComplex((float complex *)velocity_fft_grid, box_dim[0], box_dim[1],
+                             box_dim[2] / 2 + 1, "  ");
 
     if (matter_options_global->PERTURB_ON_HIGH_RES &&
         simulation_options_global->DIM != simulation_options_global->HII_DIM) {
@@ -382,7 +382,8 @@ void compute_perturbed_velocities(unsigned short axis, double redshift,
         }
     }
     LOG_SUPER_DEBUG("velocity: ");
-    debugSummarizeBox(velocity, box_dim[0], box_dim[1], box_dim[2], "  ");
+    debugSummarizeBox(velocity, simulation_options_global->HII_DIM,
+                      simulation_options_global->HII_DIM, HII_D_PARA, "  ");
 }
 
 int ComputePerturbField(float redshift, InitialConditions *boxes, PerturbedField *perturbed_field) {

@@ -1678,8 +1678,10 @@ def check_halomass_range(inputs: InputParameters) -> None:
     max_integral_mass = 1e16 * un.M_sun  # define macro in hmf.h
 
     massdens = inputs.cosmo_params.cosmo.critical_density(0) * inputs.cosmo_params.OMm
-    hires_cell_mass = massdens * inputs.simulation_options.cell_size_hires**3
-    lores_cell_mass = massdens * inputs.simulation_options.cell_size**3
+    hires_cell_mass = (massdens * inputs.simulation_options.cell_size_hires**3).to(
+        un.M_sun
+    )
+    lores_cell_mass = (massdens * inputs.simulation_options.cell_size**3).to(un.M_sun)
     pt_cell_mass = (
         hires_cell_mass
         if inputs.matter_options.PERTURB_ON_HIGH_RES
@@ -1687,7 +1689,10 @@ def check_halomass_range(inputs: InputParameters) -> None:
     )
 
     has_dexm_halos = not inputs.matter_options.FIXED_HALO_GRIDS
-    has_sampled_halos = inputs.matter_options.HALO_STOCHASTICITY
+    has_sampled_halos = (
+        inputs.matter_options.HALO_STOCHASTICITY
+        and not inputs.matter_options.FIXED_HALO_GRIDS
+    )
     has_integrals = (
         inputs.matter_options.FIXED_HALO_GRIDS or inputs.astro_options.AVG_BELOW_SAMPLER
     )

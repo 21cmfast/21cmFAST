@@ -223,14 +223,16 @@ void move_grid_galprops(double redshift, float *dens_pointer, int dens_dim[3],
     double vol_ratio_out = (double)(out_dim[0] * out_dim[1] * out_dim[2]) /
                            (double)(dens_dim[0] * dens_dim[1] * dens_dim[2]);
 
-    double prefactor_mass = RHOcrit * cosmo_params_global->OMm;
-    double prefactor_stars = RHOcrit * cosmo_params_global->OMb * consts->fstar_10;
-    double prefactor_stars_mini = RHOcrit * cosmo_params_global->OMb * consts->fstar_7;
+    double prefactor_mass = RHOcrit * cosmo_params_global->OMm * vol_ratio_out;
+    double prefactor_stars = RHOcrit * cosmo_params_global->OMb * consts->fstar_10 * vol_ratio_out;
+    double prefactor_stars_mini =
+        RHOcrit * cosmo_params_global->OMb * consts->fstar_7 * vol_ratio_out;
+    double prefactor_xray = RHOcrit * cosmo_params_global->OMm * vol_ratio_out;
+
     double prefactor_sfr = prefactor_stars / consts->t_star / consts->t_h;
     double prefactor_sfr_mini = prefactor_stars_mini / consts->t_star / consts->t_h;
     double prefactor_nion = prefactor_stars * consts->fesc_10 * consts->pop2_ion;
     double prefactor_nion_mini = prefactor_stars_mini * consts->fesc_7 * consts->pop3_ion;
-    double prefactor_xray = RHOcrit * cosmo_params_global->OMm;
 
     // Setup IC velocity factors
     double growth_factor = dicke(redshift);
@@ -281,7 +283,7 @@ void move_grid_galprops(double redshift, float *dens_pointer, int dens_dim[3],
 
                     // CIC interpolation
                     dens_index = grid_index_general(i, j, k, dens_dim);
-                    curr_dens = dens_pointer[dens_index] * growth_factor * vol_ratio_out;
+                    curr_dens = dens_pointer[dens_index] * growth_factor;
 
                     // mturn grids are at the output resolution (lower res)
                     if (astro_options_global->USE_MINI_HALOS) {
@@ -368,7 +370,7 @@ void move_halo_galprops(double redshift, HaloField *halos, float *vel_pointers[3
         int i, axis;
         double pos[3];
         int ipos[3];
-        unsigned long long vel_index, pt_index;
+        unsigned long long vel_index;
         HaloProperties properties;
         double M_turn_a = consts->mturn_a_nofb;
         double M_turn_m = consts->mturn_m_nofb;
@@ -434,15 +436,15 @@ void move_halo_galprops(double redshift, HaloField *halos, float *vel_pointers[3
             }
 
 #if LOG_LEVEL >= ULTRA_DEBUG_LEVEL
-            if (i_cell == 0) {
+            if (i < 10) {
                 LOG_ULTRA_DEBUG(
-                    "Cell 0 Halo: HM: %.2e SM: %.2e (%.2e) SF: %.2e (%.2e) X: %.2e NI: %.2e WS: "
+                    "First 10 Halos: HM: %.2e SM: %.2e (%.2e) SF: %.2e (%.2e) X: %.2e NI: %.2e WS: "
                     "%.2e Z : %.2e ct : %llu",
-                    hmass, out_props.stellar_mass, out_props.stellar_mass_mini, out_props.halo_sfr,
-                    out_props.sfr_mini, out_props.halo_xray, out_props.n_ion,
-                    out_props.fescweighted_sfr, out_props.metallicity, i_halo);
+                    hmass, properties.stellar_mass, properties.stellar_mass_mini,
+                    properties.halo_sfr, properties.sfr_mini, properties.halo_xray,
+                    properties.n_ion, properties.fescweighted_sfr, properties.metallicity, i);
                 LOG_ULTRA_DEBUG("Mturn_a %.2e Mturn_m %.2e RNG %.3f %.3f %.3f", M_turn_a, M_turn_m,
-                                in_props[0], in_props[1], in_props[2]);
+                                halo_rng[0], halo_rng[1], halo_rng[2]);
             }
 #endif
         }

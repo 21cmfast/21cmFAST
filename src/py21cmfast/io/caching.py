@@ -47,7 +47,7 @@ class OutputCache:
 
     _output_to_cache_map: ClassVar = {
         kls.__name__: kls._compat_hash
-        for name, kls in _ALL_OUTPUT_STRUCTS.items()
+        for kls in _ALL_OUTPUT_STRUCTS.values()
         if not kls._meta
     }
     _path_structures: ClassVar = {
