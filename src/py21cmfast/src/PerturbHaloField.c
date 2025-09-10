@@ -12,6 +12,7 @@
 #include <stdlib.h>
 
 #include "Constants.h"
+#include "HaloBox.h"
 #include "InputParameters.h"
 #include "OutputStructs.h"
 #include "cexcept.h"
