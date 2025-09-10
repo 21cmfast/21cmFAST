@@ -158,6 +158,9 @@ def determine_halo_list(
 def perturb_halo_list(
     *,
     initial_conditions: InitialConditions,
+    inputs: InputParameters | None = None,
+    previous_spin_temp: TsBox | None = None,
+    previous_ionize_box: IonizedBox | None = None,
     halo_field: HaloField,
 ) -> PerturbHaloField:
     r"""
@@ -185,7 +188,6 @@ def perturb_halo_list(
     Fill this in once finalised
 
     """
-    inputs = halo_field.inputs
     hbuffer_size = halo_field.n_halos
     redshift = halo_field.redshift
 
@@ -195,9 +197,35 @@ def perturb_halo_list(
         buffer_size=hbuffer_size,
         inputs=inputs,
     )
+    if previous_spin_temp is None:
+        if (
+            redshift >= inputs.simulation_options.Z_HEAT_MAX
+            or not inputs.astro_options.USE_MINI_HALOS
+        ):
+            # Dummy spin temp is OK since we're above Z_HEAT_MAX
+            previous_spin_temp = TsBox.dummy()
+        else:
+            raise ValueError("Below Z_HEAT_MAX you must specify the previous_spin_temp")
+
+    if previous_ionize_box is None:
+        if (
+            redshift >= inputs.simulation_options.Z_HEAT_MAX
+            or not inputs.astro_options.USE_MINI_HALOS
+        ):
+            # Dummy ionize box is OK since we're above Z_HEAT_MAX
+            previous_ionize_box = IonizedBox.dummy()
+        else:
+            raise ValueError(
+                "Below Z_HEAT_MAX you must specify the previous_ionize_box"
+            )
 
     # Run the C Code
-    return fields.compute(ics=initial_conditions, halo_field=halo_field)
+    return fields.compute(
+        ics=initial_conditions,
+        halo_field=halo_field,
+        previous_spin_temp=previous_spin_temp,
+        previous_ionize_box=previous_ionize_box,
+    )
 
 
 @single_field_func

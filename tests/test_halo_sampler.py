@@ -4,6 +4,11 @@ import matplotlib as mpl
 import numpy as np
 import pytest
 
+from py21cmfast import (
+    compute_initial_conditions,
+    determine_halo_list,
+    perturb_halo_list,
+)
 from py21cmfast.wrapper import cfuncs as cf
 
 from . import test_c_interpolation_tables as cint
@@ -224,6 +229,48 @@ def test_halo_prop_sampling(default_input_struct_ts, plt):
     np.testing.assert_allclose(exp_SHMR, sim_SHMR, rtol=1e-4)
     np.testing.assert_allclose(exp_SSFR, sim_SSFR, rtol=3e-3)
     np.testing.assert_allclose(exp_LX, sim_LX, rtol=1e-4)
+
+
+def test_perturb_halos(default_input_struct):
+    inputs_test = default_input_struct.evolve_input_structs(
+        USE_HALO_FIELD=True,
+        HALO_STOCHASTICITY=True,
+        SAMPLER_MIN_MASS=5e9,
+    )
+    ics = compute_initial_conditions(
+        inputs=inputs_test,
+    )
+    halofield = determine_halo_list(
+        redshift=10.0, initial_conditions=ics, inputs=inputs_test
+    )
+
+    pt_halos = perturb_halo_list(
+        initial_conditions=ics,
+        halo_field=halofield,
+    )
+
+    prop_dict = cf.convert_halo_properties(
+        redshift=10.0,
+        inputs=inputs_test,
+        halo_masses=halofield.get("halo_masses"),
+        star_rng=halofield.get("star_rng"),
+        sfr_rng=halofield.get("sfr_rng"),
+        xray_rng=halofield.get("xray_rng"),
+    )
+
+    assert halofield.n_halos == pt_halos.n_halos
+    np.testing.assert_allclose(
+        pt_halos.get("halo_masses"), prop_dict["halo_mass"][: pt_halos.n_halos]
+    )
+    np.testing.assert_allclose(
+        pt_halos.get("stellar_masses"), prop_dict["halo_stars"][: pt_halos.n_halos]
+    )
+    np.testing.assert_allclose(
+        pt_halos.get("sfr"), prop_dict["halo_sfr"][: pt_halos.n_halos]
+    )
+    np.testing.assert_allclose(
+        pt_halos.get("ion_emissivity"), prop_dict["n_ion"][: pt_halos.n_halos]
+    )
 
 
 # very basic scatter comparison

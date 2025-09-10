@@ -17,3 +17,5 @@ void move_halo_galprops(double redshift, HaloField* halos, float* vel_pointers[3
                         float* vel_pointers_2LPT[3], int vel_dim[3], float* mturn_a_grid,
                         float* mturn_m_grid, HaloBox* boxes, int out_dim[3],
                         ScalingConstants* consts);
+
+double cic_read_float_wrapper(float* box, double pos[3], int box_dim[3]);

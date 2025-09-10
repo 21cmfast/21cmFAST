@@ -771,3 +771,105 @@ int test_halo_props(double redshift, float* vcb_grid, float* J21_LW_grid, float*
     LOG_DEBUG("Done.");
     return 0;
 }
+
+int convert_halo_props(double redshift, InitialConditions* ics, TsBox* prev_ts,
+                       IonizedBox* prev_ion, HaloField* halo_list,
+                       PerturbHaloField* halo_list_out) {
+    ScalingConstants hbox_consts;
+    set_scaling_constants(redshift, &hbox_consts, true);
+    // print_sc_consts(&hbox_consts);
+    float* mturn_a_grid = NULL;
+    float* mturn_m_grid = NULL;
+    if (astro_options_global->USE_MINI_HALOS) {
+        mturn_a_grid = calloc(HII_TOT_NUM_PIXELS, sizeof(float));
+        mturn_m_grid = calloc(HII_TOT_NUM_PIXELS, sizeof(float));
+    }
+    double mturn_averages[2];
+    get_log10_turnovers(ics, prev_ts, prev_ion, mturn_a_grid, mturn_m_grid, &hbox_consts,
+                        mturn_averages);
+
+    double box_to_lores_factor =
+        simulation_options_global->HII_DIM / (double)simulation_options_global->DIM;
+#pragma omp parallel num_threads(simulation_options_global->N_THREADS)
+    {
+        unsigned long long int i_halo;
+        double m;
+
+        double M_turn_m = hbox_consts.mturn_m_nofb;
+        double M_turn_a = hbox_consts.mturn_a_nofb;
+        double M_turn_r = 0.;
+
+        double in_props[3];
+        double halo_pos[3];
+        HaloProperties out_props;
+
+#pragma omp for
+        for (int i_halo = 0; i_halo < halo_list->n_halos; i_halo++) {
+            m = halo_list->halo_masses[i_halo];
+            // It is sometimes useful to make cuts to the halo catalogues before gridding.
+            //   We implement this in a simple way, if the user sets a halo's mass to zero we
+            //   skip it
+            if (m == 0.) {
+                continue;
+            }
+
+            // the coordinates are already done in PerturbHaloField
+            halo_pos[0] = halo_list_out->halo_coords[3 * i_halo + 0] * box_to_lores_factor;
+            halo_pos[1] = halo_list_out->halo_coords[3 * i_halo + 1] * box_to_lores_factor;
+            halo_pos[2] = halo_list_out->halo_coords[3 * i_halo + 2] * box_to_lores_factor;
+
+            LOG_ULTRA_DEBUG("getting mturns for halo at (%.2f, %.2f, %.2f)", halo_pos[0],
+                            halo_pos[1], halo_pos[2]);
+            if (astro_options_global->USE_MINI_HALOS) {
+                M_turn_a = pow(10, cic_read_float_wrapper(halo_pos, mturn_a_grid,
+                                                          simulation_options_global->HII_DIM));
+                M_turn_m = pow(10, cic_read_float_wrapper(halo_pos, mturn_m_grid,
+                                                          simulation_options_global->HII_DIM));
+            }
+
+            // these are the halo property RNG sequences
+            in_props[0] = halo_list->star_rng[i_halo];
+            in_props[1] = halo_list->sfr_rng[i_halo];
+            in_props[2] = halo_list->xray_rng[i_halo];
+
+            LOG_ULTRA_DEBUG("Halo %llu mass %.2e Mturn_a %.2e Mturn_m %.2e", i_halo, m, M_turn_a,
+                            M_turn_m);
+            LOG_ULTRA_DEBUG("RNG: STAR %.2e SFR %.2e XRAY %.2e", in_props[0], in_props[1],
+                            in_props[2]);
+            set_halo_properties(m, M_turn_a, M_turn_m, &hbox_consts, in_props, &out_props);
+
+            halo_list_out->halo_masses[i_halo] = out_props.halo_mass;
+            halo_list_out->stellar_masses[i_halo] = out_props.stellar_mass;
+            halo_list_out->sfr[i_halo] = out_props.halo_sfr;
+            halo_list_out->ion_emissivity[i_halo] = out_props.n_ion;
+
+            if (astro_options_global->USE_MINI_HALOS) {
+                halo_list_out->stellar_mini[i_halo] = out_props.stellar_mass_mini;
+                halo_list_out->sfr_mini[i_halo] = out_props.sfr_mini;
+            }
+            if (astro_options_global->INHOMO_RECO) {
+                halo_list_out->fesc_sfr[i_halo] = out_props.fescweighted_sfr;
+            }
+            if (astro_options_global->USE_TS_FLUCT) {
+                halo_list_out->xray_emissivity[i_halo] = out_props.halo_xray;
+            }
+
+            if (i_halo < 10) {
+                LOG_ULTRA_DEBUG("HM %.2e SM %.2e SF %.2e NI %.2e LX %.2e", out_props.halo_mass,
+                                out_props.stellar_mass, out_props.halo_sfr, out_props.n_ion,
+                                out_props.halo_xray);
+                LOG_ULTRA_DEBUG("MINI: SM %.2e SF %.2e WSF %.2e", out_props.stellar_mass_mini,
+                                out_props.sfr_mini, out_props.fescweighted_sfr);
+                LOG_ULTRA_DEBUG("Mturns ACG %.2e MCG %.2e Reion %.2e", M_turn_a, M_turn_m,
+                                M_turn_r);
+                LOG_ULTRA_DEBUG("RNG: STAR %.2e SFR %.2e XRAY %.2e", in_props[0], in_props[1],
+                                in_props[2]);
+            }
+        }
+    }
+    if (astro_options_global->USE_MINI_HALOS) {
+        free(mturn_a_grid);
+        free(mturn_m_grid);
+    }
+    return 0;
+}

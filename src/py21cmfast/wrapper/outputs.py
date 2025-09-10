@@ -855,10 +855,83 @@ class HaloField(OutputStructZ):
 
 
 @attrs.define(slots=False, kw_only=True)
-class PerturbHaloField(HaloField):
+class PerturbHaloField(OutputStructZ):
     """A class to hold a HaloField whose coordinates are in real (Eulerian) space."""
 
     _c_compute_function = lib.ComputePerturbHaloField
+    _meta = False
+    desc_redshift: float | None = attrs.field(default=None)
+    _compat_hash = _HashType.zgrid
+
+    halo_masses = _arrayfield()
+    halo_coords = _arrayfield()
+
+    sfr = _arrayfield()
+    stellar_masses = _arrayfield()
+    ion_emissivity = _arrayfield()
+    xray_emissivity = _arrayfield(optional=True)
+    fesc_sfr = _arrayfield(optional=True)
+
+    stellar_mini = _arrayfield(optional=True)
+    sfr_mini = _arrayfield(optional=True)
+
+    n_halos: int = attrs.field(default=None)
+    buffer_size: int = attrs.field(default=None)
+
+    @classmethod
+    def new(
+        cls,
+        inputs: InputParameters,
+        redshift: float,
+        buffer_size: float | None = None,
+        **kw,
+    ) -> Self:
+        """Create a new PerturbedHaloField instance with the given inputs.
+
+        Parameters
+        ----------
+        inputs : InputParameters
+            The input parameters defining the output struct.
+        redshift : float
+            The redshift at which to compute fields.
+
+        Other Parameters
+        ----------------
+        All other parameters are passed through to the :class:`PerturbedHaloField`
+        constructor.
+        """
+        from .cfuncs import get_halo_list_buffer_size
+
+        if kw.get("dummy", False):
+            buffer_size = 0
+        elif buffer_size is None:
+            buffer_size = get_halo_list_buffer_size(
+                redshift=redshift,
+                inputs=inputs,
+            )
+
+        out = {
+            "halo_coords": Array((buffer_size, 3), dtype=np.float32),
+            "halo_masses": Array((buffer_size,), dtype=np.float32),
+            "stellar_masses": Array((buffer_size,), dtype=np.float32),
+            "sfr": Array((buffer_size,), dtype=np.float32),
+            "ion_emissivity": Array((buffer_size,), dtype=np.float32),
+        }
+        if inputs.astro_options.USE_TS_FLUCT:
+            out["xray_emissivity"] = Array((buffer_size,), dtype=np.float32)
+        if inputs.astro_options.INHOMO_RECO:
+            out["fesc_sfr"] = Array((buffer_size,), dtype=np.float32)
+        if inputs.astro_options.USE_MINI_HALOS:
+            out["stellar_mini"] = Array((buffer_size,), dtype=np.float32)
+            out["sfr_mini"] = Array((buffer_size,), dtype=np.float32)
+
+        return cls(
+            inputs=inputs,
+            redshift=redshift,
+            buffer_size=buffer_size,
+            **out,
+            **kw,
+        )
 
     def get_required_input_arrays(self, input_box: OutputStruct) -> list[str]:
         """Return all input arrays required to compute this object."""
@@ -872,13 +945,19 @@ class PerturbHaloField(HaloField):
             if self.matter_options.PERTURB_ALGORITHM == "2LPT":
                 required += [f"{k}_2LPT" for k in required]
 
+            if self.matter_options.USE_RELATIVE_VELOCITIES:
+                required += ["lowres_vcb"]
+
+        elif isinstance(input_box, TsBox):
+            if self.astro_options.USE_MINI_HALOS:
+                required += ["J_21_LW"]
+        elif isinstance(input_box, IonizedBox):
+            required += ["ionisation_rate_G12", "z_reion"]
+
         elif isinstance(input_box, HaloField):
             required += [
                 "halo_coords",
                 "halo_masses",
-                "star_rng",
-                "sfr_rng",
-                "xray_rng",
             ]
         else:
             raise ValueError(
@@ -891,6 +970,8 @@ class PerturbHaloField(HaloField):
         self,
         *,
         ics: InitialConditions,
+        previous_spin_temp: TsBox,
+        previous_ionize_box: IonizedBox,
         halo_field: HaloField,
         allow_already_computed: bool = False,
     ):
@@ -899,6 +980,8 @@ class PerturbHaloField(HaloField):
             allow_already_computed,
             self.redshift,
             ics,
+            previous_spin_temp,
+            previous_ionize_box,
             halo_field,
         )
 

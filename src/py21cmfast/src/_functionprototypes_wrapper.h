@@ -10,7 +10,8 @@ int ComputePerturbField(float redshift, InitialConditions* boxes, PerturbedField
 int ComputeHaloField(float redshift_desc, float redshift, InitialConditions* boxes,
                      unsigned long long int random_seed, HaloField* halos_desc, HaloField* halos);
 
-int ComputePerturbHaloField(float redshift, InitialConditions* boxes, HaloField* halos,
+int ComputePerturbHaloField(float redshift, InitialConditions* boxes, TsBox* prev_ts,
+                            IonizedBox* prev_ion, HaloField* halos,
                             PerturbHaloField* halos_perturbed);
 
 int ComputeTsBox(float redshift, float prev_redshift, float perturbed_field_redshift, short cleanup,

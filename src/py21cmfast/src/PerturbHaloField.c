@@ -21,8 +21,9 @@
 #include "indexing.h"
 #include "logger.h"
 
-int ComputePerturbHaloField(float redshift, InitialConditions* boxes, HaloField* halos,
-                            PerturbHaloField* halos_perturbed) {
+int ComputePerturbHaloField(float redshift, InitialConditions *boxes, TsBox *prev_ts,
+                            IonizedBox *prev_ion, HaloField *halos,
+                            PerturbHaloField *halos_perturbed) {
     int status;
 
     Try {  // This Try brackets the whole function, so we don't indent.
@@ -128,13 +129,11 @@ int ComputePerturbHaloField(float redshift, InitialConditions* boxes, HaloField*
                 halos_perturbed->halo_coords[i_halo * 3 + 0] = pos[0];
                 halos_perturbed->halo_coords[i_halo * 3 + 1] = pos[1];
                 halos_perturbed->halo_coords[i_halo * 3 + 2] = pos[2];
-
-                halos_perturbed->halo_masses[i_halo] = halos->halo_masses[i_halo];
-                halos_perturbed->star_rng[i_halo] = halos->star_rng[i_halo];
-                halos_perturbed->sfr_rng[i_halo] = halos->sfr_rng[i_halo];
-                halos_perturbed->xray_rng[i_halo] = halos->xray_rng[i_halo];
             }
         }
+
+        LOG_DEBUG("starting haloprops");
+        convert_halo_props(redshift, boxes, prev_ts, prev_ion, halos, halos_perturbed);
         // Divide out multiplicative factor to return to pristine state
         LOG_SUPER_DEBUG("Number of halos exactly on the box edge = %llu of %llu", n_exact_dim,
                         halos->n_halos);
@@ -147,15 +146,4 @@ int ComputePerturbHaloField(float redshift, InitialConditions* boxes, HaloField*
     }  // End of Try()
     Catch(status) { return (status); }
     return (0);
-}
-
-void free_phf(PerturbHaloField* halos) {
-    LOG_DEBUG("Freeing PerturbHaloField");
-    free(halos->halo_masses);
-    free(halos->halo_coords);
-    free(halos->star_rng);
-    free(halos->sfr_rng);
-    free(halos->xray_rng);
-    LOG_DEBUG("Done Freeing PerturbHaloField");
-    halos->n_halos = 0;
 }

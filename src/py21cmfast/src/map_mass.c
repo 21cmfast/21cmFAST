@@ -141,6 +141,10 @@ static inline double cic_read_float(float* box, double pos[3], int box_dim[3]) {
     return sum;
 }
 
+double cic_read_float_wrapper(float* box, double pos[3], int box_dim[3]) {
+    return cic_read_float(box, pos, box_dim);
+}
+
 // Function that maps a IC density grid to the perturbed density grid
 void move_grid_masses(double redshift, float* dens_pointer, int dens_dim[3], float* vel_pointers[3],
                       float* vel_pointers_2LPT[3], int vel_dim[3], double* resampled_box,
