@@ -4,8 +4,8 @@
 #include "InputParameters.h"
 #include "OutputStructs.h"
 
-int ComputePerturbHaloField(float redshift, InitialConditions *boxes, TsBox *prev_ts,
-                            IonizedBox *prev_ion, HaloField *halos,
-                            PerturbHaloField *halos_perturbed);
+int ComputePerturbHaloField(float redshift, InitialConditions* boxes, TsBox* prev_ts,
+                            IonizedBox* prev_ion, HaloField* halos,
+                            PerturbHaloField* halos_perturbed);
 
 #endif
