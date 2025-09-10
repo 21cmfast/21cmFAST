@@ -124,7 +124,7 @@ double transfer_function_CLASS(double k, int flag_int, int flag_dv) {
     double ans;
     int i;
     int gsl_status;
-    FILE *F;
+    FILE* F;
 
     static bool warning_printed;
     static double eh_ratio_at_kmax;
@@ -307,10 +307,10 @@ struct SigmaIntegralParams {
 };
 
 // References: Padmanabhan, pg. 210, eq. 5.107
-double dsigma_dk(double k, void *params) {
+double dsigma_dk(double k, void* params) {
     double p, w, kR;
 
-    struct SigmaIntegralParams *pars = (struct SigmaIntegralParams *)params;
+    struct SigmaIntegralParams* pars = (struct SigmaIntegralParams*)params;
     double Radius = pars->radius;
     int filter = pars->filter_type;
     p = power_in_k_integrand(k);
@@ -323,7 +323,7 @@ double sigma_z0(double M) {
     double result, error, lower_limit, upper_limit;
     gsl_function F;
     double rel_tol = FRACT_FLOAT_ERR * 10;  //<- relative tolerance
-    gsl_integration_workspace *w = gsl_integration_workspace_alloc(1000);
+    gsl_integration_workspace* w = gsl_integration_workspace_alloc(1000);
 
     double Radius = MtoR(M);
 
@@ -360,8 +360,8 @@ double sigma_z0(double M) {
  FUNCTION dsigmasqdm_z0(M)
  returns  d/dm (sigma^2) (see function sigma), in units of Msun^-1
  */
-double dsigmasq_dm(double k, void *params) {
-    struct SigmaIntegralParams *pars = (struct SigmaIntegralParams *)params;
+double dsigmasq_dm(double k, void* params) {
+    struct SigmaIntegralParams* pars = (struct SigmaIntegralParams*)params;
     double Radius = pars->radius;
     int filter = pars->filter_type;
     double p = power_in_k_integrand(k);
@@ -375,7 +375,7 @@ double dsigmasqdm_z0(double M) {
     double result, error, lower_limit, upper_limit;
     gsl_function F;
     double rel_tol = FRACT_FLOAT_ERR * 10;  //<- relative tolerance
-    gsl_integration_workspace *w = gsl_integration_workspace_alloc(1000);
+    gsl_integration_workspace* w = gsl_integration_workspace_alloc(1000);
 
     double Radius = MtoR(M);
 
@@ -459,7 +459,7 @@ void init_ps() {
     double result, error, lower_limit, upper_limit;
     gsl_function F;
     double rel_tol = FRACT_FLOAT_ERR * 10;  //<- relative tolerance
-    gsl_integration_workspace *w = gsl_integration_workspace_alloc(1000);
+    gsl_integration_workspace* w = gsl_integration_workspace_alloc(1000);
 
     // Set cuttoff scale for WDM (eq. 4 in Barkana et al. 2001) in comoving Mpc
     // R_CUTOFF =

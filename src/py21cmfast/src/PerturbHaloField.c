@@ -21,8 +21,8 @@
 #include "indexing.h"
 #include "logger.h"
 
-int ComputePerturbHaloField(float redshift, InitialConditions *boxes, HaloField *halos,
-                            PerturbHaloField *halos_perturbed) {
+int ComputePerturbHaloField(float redshift, InitialConditions* boxes, HaloField* halos,
+                            PerturbHaloField* halos_perturbed) {
     int status;
 
     Try {  // This Try brackets the whole function, so we don't indent.
@@ -149,7 +149,7 @@ int ComputePerturbHaloField(float redshift, InitialConditions *boxes, HaloField 
     return (0);
 }
 
-void free_phf(PerturbHaloField *halos) {
+void free_phf(PerturbHaloField* halos) {
     LOG_DEBUG("Freeing PerturbHaloField");
     free(halos->halo_masses);
     free(halos->halo_coords);

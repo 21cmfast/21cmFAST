@@ -49,7 +49,7 @@
 #include <unistd.h>
 
 // === auxiliary functions
-static inline char *timenow();
+static inline char* timenow();
 
 #define _FILE strrchr(__FILE__, '/') ? strrchr(__FILE__, '/') + 1 : __FILE__
 
@@ -130,10 +130,10 @@ static inline char *timenow();
 #define LOG_IF_ERROR(condition, message, args...)
 #endif
 
-static inline char *timenow() {
+static inline char* timenow() {
     static char buffer[64];
     time_t rawtime;
-    struct tm *timeinfo;
+    struct tm* timeinfo;
 
     time(&rawtime);
     timeinfo = localtime(&rawtime);

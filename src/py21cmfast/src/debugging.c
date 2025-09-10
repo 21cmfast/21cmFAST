@@ -36,7 +36,7 @@ int SomethingThatCatches(bool sub_func) {
     return 0;
 }
 
-int FunctionThatCatches(bool sub_func, bool pass, double *result) {
+int FunctionThatCatches(bool sub_func, bool pass, double* result) {
     int status;
     if (!pass) {
         Try {
@@ -53,7 +53,7 @@ int FunctionThatCatches(bool sub_func, bool pass, double *result) {
     *result = 5.0;
     return 0;
 }
-void writeSimulationOptions(SimulationOptions *p) {
+void writeSimulationOptions(SimulationOptions* p) {
     LOG_INFO(
         "\n        SimulationOptions:\n"
         "       HII_DIM = %4d\n"
@@ -74,7 +74,7 @@ void writeSimulationOptions(SimulationOptions *p) {
         p->N_PROB_INTERP, p->MIN_LOGPROB, p->HALOMASS_CORRECTION);
 }
 
-void writeMatterOptions(MatterOptions *p) {
+void writeMatterOptions(MatterOptions* p) {
     LOG_INFO(
         "\n        MatterOptions:\n"
         "       HMF=%2d\n"
@@ -92,7 +92,7 @@ void writeMatterOptions(MatterOptions *p) {
         p->KEEP_3D_VELOCITIES, p->SAMPLE_METHOD);
 }
 
-void writeCosmoParams(CosmoParams *p) {
+void writeCosmoParams(CosmoParams* p) {
     LOG_INFO(
         "\n        CosmoParams:\n"
         "       SIGMA_8=%8.3f\n"
@@ -104,7 +104,7 @@ void writeCosmoParams(CosmoParams *p) {
         p->SIGMA_8, p->hlittle, p->OMm, p->OMl, p->OMb, p->POWER_INDEX);
 }
 
-void writeAstroParams(AstroParams *p) {
+void writeAstroParams(AstroParams* p) {
     LOG_INFO(
         "\n        AstroParams:\n"
         "       M_TURN=%10.3e\n"
@@ -150,7 +150,7 @@ void writeAstroParams(AstroParams *p) {
         p->HII_EFF_FACTOR, p->ION_Tvir_MIN, p->X_RAY_Tvir_MIN);
 }
 
-void writeAstroOptions(AstroOptions *p) {
+void writeAstroOptions(AstroOptions* p) {
     LOG_INFO(
         "\n        AstroOptions:\n"
         "       USE_MINI_HALOS=%1d\n"
@@ -184,7 +184,7 @@ void get_corner_indices(int size_x, int size_y, int size_z, unsigned long long i
                                     ((size_y - 1) + size_y * (size_x - 1));  //(x1,y1,z1)
 }
 
-void debugSummarizeBox(float *box, int size_x, int size_y, int size_z, char *indent) {
+void debugSummarizeBox(float* box, int size_x, int size_y, int size_z, char* indent) {
 #if LOG_LEVEL >= SUPER_DEBUG_LEVEL
     float corners[8];
     unsigned long long indices[8];
@@ -216,7 +216,7 @@ void debugSummarizeBox(float *box, int size_x, int size_y, int size_z, char *ind
 #endif
 }
 
-void debugSummarizeBoxDouble(double *box, int size_x, int size_y, int size_z, char *indent) {
+void debugSummarizeBoxDouble(double* box, int size_x, int size_y, int size_z, char* indent) {
 #if LOG_LEVEL >= SUPER_DEBUG_LEVEL
     double corners[8];
     unsigned long long indices[8];
@@ -248,8 +248,8 @@ void debugSummarizeBoxDouble(double *box, int size_x, int size_y, int size_z, ch
 #endif
 }
 
-void debugSummarizeBoxComplex(float complex *box, int size_x, int size_y, int size_z,
-                              char *indent) {
+void debugSummarizeBoxComplex(float complex* box, int size_x, int size_y, int size_z,
+                              char* indent) {
 #if LOG_LEVEL >= SUPER_DEBUG_LEVEL
     float corners_real[8];
     float corners_imag[8];
@@ -291,7 +291,7 @@ void debugSummarizeBoxComplex(float complex *box, int size_x, int size_y, int si
 #endif
 }
 
-void debugSummarizeIC(InitialConditions *x, int HII_DIM, int DIM, float NCF) {
+void debugSummarizeIC(InitialConditions* x, int HII_DIM, int DIM, float NCF) {
     LOG_SUPER_DEBUG("Summary of InitialConditions:");
     LOG_SUPER_DEBUG("  lowres_density: ");
     debugSummarizeBox(x->lowres_density, HII_DIM, HII_DIM, HII_D_PARA, "    ");
@@ -305,7 +305,7 @@ void debugSummarizeIC(InitialConditions *x, int HII_DIM, int DIM, float NCF) {
     debugSummarizeBox(x->lowres_vz, HII_DIM, HII_DIM, HII_D_PARA, "    ");
 }
 
-void debugSummarizePerturbField(PerturbedField *x, int HII_DIM, float NCF) {
+void debugSummarizePerturbField(PerturbedField* x, int HII_DIM, float NCF) {
     LOG_SUPER_DEBUG("Summary of PerturbedField:");
     LOG_SUPER_DEBUG("  density: ");
     debugSummarizeBox(x->density, HII_DIM, HII_DIM, HII_D_PARA, "    ");

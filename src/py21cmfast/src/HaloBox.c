@@ -26,7 +26,7 @@
 #include "thermochem.h"
 
 // TODO: this should probably be somewhere else
-void set_integral_constants(IntegralCondition *consts, double redshift, double M_min, double M_max,
+void set_integral_constants(IntegralCondition* consts, double redshift, double M_min, double M_max,
                             double M_cell) {
     consts->redshift = redshift;
     consts->growth_factor = dicke(redshift);
@@ -54,7 +54,7 @@ void set_integral_constants(IntegralCondition *consts, double redshift, double M
 //   representing a smooth transition in halo mass from one set of SFR/emmissivity parameters to the
 //   other.
 void set_halo_properties(double halo_mass, double M_turn_a, double M_turn_m,
-                         ScalingConstants *consts, double *input_rng, HaloProperties *output) {
+                         ScalingConstants* consts, double* input_rng, HaloProperties* output) {
     double n_ion_sample, wsfr_sample;
     double fesc;
     double fesc_mini = 0.;
@@ -97,7 +97,7 @@ void set_halo_properties(double halo_mass, double M_turn_a, double M_turn_m,
 // Expected global averages for box quantities for mean adjustment
 // WARNING: THESE AVERAGE BOXES ARE WRONG, CHECK THEM
 int get_uhmf_averages(double M_min, double M_max, double M_turn_a, double M_turn_m,
-                      ScalingConstants *consts, HaloProperties *averages_out) {
+                      ScalingConstants* consts, HaloProperties* averages_out) {
     LOG_SUPER_DEBUG("Getting Box averages z=%.2f M [%.2e %.2e] Mt [%.2e %.2e]", consts->redshift,
                     M_min, M_max, M_turn_a, M_turn_m);
     double t_h = consts->t_h;
@@ -151,7 +151,7 @@ int get_uhmf_averages(double M_min, double M_max, double M_turn_a, double M_turn
 
     return 0;
 }
-HaloProperties get_halobox_averages(HaloBox *grids) {
+HaloProperties get_halobox_averages(HaloBox* grids) {
     int mean_count = 0;
     double mean_mass = 0., mean_stars = 0., mean_stars_mini = 0., mean_sfr = 0., mean_sfr_mini = 0.;
     double mean_n_ion = 0., mean_xray = 0., mean_wsfr = 0.;
@@ -194,7 +194,7 @@ HaloProperties get_halobox_averages(HaloBox *grids) {
 // This takes a HaloBox struct and fixes it's mean to exactly what we expect from the UMF integrals.
 //   Generally should only be done for the fixed portion of the grids, since
 //   it will otherwise make the box inconsistent with the input catalogue
-void mean_fix_grids(double M_min, double M_max, HaloBox *grids, ScalingConstants *consts) {
+void mean_fix_grids(double M_min, double M_max, HaloBox* grids, ScalingConstants* consts) {
     HaloProperties averages_global;
     // NOTE: requires the mean mcrits to be set on the grids
     double M_turn_a_global = pow(10, grids->log10_Mcrit_ACG_ave);
@@ -232,8 +232,8 @@ void mean_fix_grids(double M_min, double M_max, HaloBox *grids, ScalingConstants
 
 // Evaluate Mass function integrals given information from the cell
 void get_cell_integrals(double dens, double l10_mturn_a, double l10_mturn_m,
-                        ScalingConstants *consts, IntegralCondition *int_consts,
-                        HaloProperties *properties) {
+                        ScalingConstants* consts, IntegralCondition* int_consts,
+                        HaloProperties* properties) {
     double M_min = int_consts->M_min;
     double M_max = int_consts->M_max;
     double growth_z = int_consts->growth_factor;
@@ -280,8 +280,8 @@ void get_cell_integrals(double dens, double l10_mturn_a, double l10_mturn_m,
 // Fixed halo grids, where each property is set as the integral of the CMF on the EULERIAN cell
 // scale As per default 21cmfast (strange pretending that the lagrangian density is eulerian and
 // then *(1+delta)) This outputs the UN-NORMALISED grids (before mean-adjustment)
-int set_fixed_grids(double M_min, double M_max, InitialConditions *ini_boxes, float *mturn_a_grid,
-                    float *mturn_m_grid, ScalingConstants *consts, HaloBox *grids) {
+int set_fixed_grids(double M_min, double M_max, InitialConditions* ini_boxes, float* mturn_a_grid,
+                    float* mturn_m_grid, ScalingConstants* consts, HaloBox* grids) {
     double M_cell = RHOcrit * cosmo_params_global->OMm * VOLUME /
                     HII_TOT_NUM_PIXELS;  // mass in cell of mean dens
     IntegralCondition integral_cond;
@@ -296,11 +296,11 @@ int set_fixed_grids(double M_min, double M_max, InitialConditions *ini_boxes, fl
     double max_log10_mturn_a = log10(astro_params_global->M_TURN);
     double max_log10_mturn_m = log10(astro_params_global->M_TURN);
 
-    float *vel_pointers[3];
-    float *vel_pointers_2LPT[3];
+    float* vel_pointers[3];
+    float* vel_pointers_2LPT[3];
     int grid_dim[3];
     unsigned long long int num_pixels;
-    float *dens_pointer;
+    float* dens_pointer;
     int out_dim[3] = {simulation_options_global->HII_DIM, simulation_options_global->HII_DIM,
                       HII_D_PARA};  // always output to lowres grid
     if (matter_options_global->PERTURB_ON_HIGH_RES) {
@@ -414,7 +414,7 @@ int set_fixed_grids(double M_min, double M_max, InitialConditions *ini_boxes, fl
     return 0;
 }
 
-void halobox_debug_print_avg(HaloBox *halobox, ScalingConstants *consts, double M_min,
+void halobox_debug_print_avg(HaloBox* halobox, ScalingConstants* consts, double M_min,
                              double M_max) {
     if (LOG_LEVEL < DEBUG_LEVEL) return;
     HaloProperties averages_box;
@@ -441,9 +441,9 @@ void halobox_debug_print_avg(HaloBox *halobox, ScalingConstants *consts, double 
 // We need the mean log10 turnover masses for comparison with expected global Nion and SFRD.
 // Sometimes we don't calculate these on the grid (if we use halos and no sub-sampler)
 // So this function simply returns the volume-weighted average log10 turnover mass
-void get_log10_turnovers(InitialConditions *ini_boxes, TsBox *previous_spin_temp,
-                         IonizedBox *previous_ionize_box, float *mturn_a_grid, float *mturn_m_grid,
-                         ScalingConstants *consts, double averages[2]) {
+void get_log10_turnovers(InitialConditions* ini_boxes, TsBox* previous_spin_temp,
+                         IonizedBox* previous_ionize_box, float* mturn_a_grid, float* mturn_m_grid,
+                         ScalingConstants* consts, double averages[2]) {
     averages[0] = log10(consts->mturn_a_nofb);
     averages[1] = log10(consts->mturn_m_nofb);
     if (!astro_options_global->USE_MINI_HALOS) {
@@ -495,11 +495,11 @@ void get_log10_turnovers(InitialConditions *ini_boxes, TsBox *previous_spin_temp
     averages[1] = log10_mturn_m_avg;
 }
 
-void sum_halos_onto_grid(double redshift, InitialConditions *ini_boxes, HaloField *halos,
-                         float *mturn_a_grid, float *mturn_m_grid, ScalingConstants *consts,
-                         HaloBox *grids) {
-    float *vel_pointers[3];
-    float *vel_pointers_2LPT[3];
+void sum_halos_onto_grid(double redshift, InitialConditions* ini_boxes, HaloField* halos,
+                         float* mturn_a_grid, float* mturn_m_grid, ScalingConstants* consts,
+                         HaloBox* grids) {
+    float* vel_pointers[3];
+    float* vel_pointers_2LPT[3];
     int vel_dim[3];
     int out_dim[3] = {simulation_options_global->HII_DIM, simulation_options_global->HII_DIM,
                       HII_D_PARA};  // always output to lowres grid
@@ -542,8 +542,8 @@ void sum_halos_onto_grid(double redshift, InitialConditions *ini_boxes, HaloFiel
 }
 
 // We grid a PERTURBED halofield into the necessary quantities for calculating radiative backgrounds
-int ComputeHaloBox(double redshift, InitialConditions *ini_boxes, HaloField *halos,
-                   TsBox *previous_spin_temp, IonizedBox *previous_ionize_box, HaloBox *grids) {
+int ComputeHaloBox(double redshift, InitialConditions* ini_boxes, HaloField* halos,
+                   TsBox* previous_spin_temp, IonizedBox* previous_ionize_box, HaloBox* grids) {
     int status;
     Try {
         // get parameters
@@ -596,8 +596,8 @@ int ComputeHaloBox(double redshift, InitialConditions *ini_boxes, HaloField *hal
             initialiseSigmaMInterpTable(M_min / 2, M_MAX_INTEGRAL);
         }
 
-        float *mturn_a_grid = NULL;
-        float *mturn_m_grid = NULL;
+        float* mturn_a_grid = NULL;
+        float* mturn_m_grid = NULL;
         if (astro_options_global->USE_MINI_HALOS) {
             mturn_a_grid = calloc(HII_TOT_NUM_PIXELS, sizeof(float));
             mturn_m_grid = calloc(HII_TOT_NUM_PIXELS, sizeof(float));
@@ -651,10 +651,10 @@ int ComputeHaloBox(double redshift, InitialConditions *ini_boxes, HaloField *hal
 
 // test function for getting halo properties from the wrapper, can use a lot of memory for large
 // catalogs
-int test_halo_props(double redshift, float *vcb_grid, float *J21_LW_grid, float *z_re_grid,
-                    float *Gamma12_ion_grid, unsigned long long int n_halos, float *halo_masses,
-                    float *halo_coords, float *star_rng, float *sfr_rng, float *xray_rng,
-                    float *halo_props_out) {
+int test_halo_props(double redshift, float* vcb_grid, float* J21_LW_grid, float* z_re_grid,
+                    float* Gamma12_ion_grid, unsigned long long int n_halos, float* halo_masses,
+                    float* halo_coords, float* star_rng, float* sfr_rng, float* xray_rng,
+                    float* halo_props_out) {
     int status;
     Try {
         // get parameters

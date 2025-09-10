@@ -5,7 +5,7 @@
 #include "InputParameters.h"
 #include "OutputStructs.h"
 
-int ComputeHaloField(float redshift_desc, float redshift, InitialConditions *boxes,
-                     unsigned long long int random_seed, HaloField *halos_desc, HaloField *halos);
+int ComputeHaloField(float redshift_desc, float redshift, InitialConditions* boxes,
+                     unsigned long long int random_seed, HaloField* halos_desc, HaloField* halos);
 
 #endif

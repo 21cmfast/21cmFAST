@@ -3,7 +3,7 @@
 
 #include "InputParameters.h"
 
-float ComputeTau(int Npoints, float *redshifts, float *global_xHI, float z_re_HeII);
+float ComputeTau(int Npoints, float* redshifts, float* global_xHI, float z_re_HeII);
 double molecular_cooling_threshold(float z);
 double atomic_cooling_threshold(float z);
 double lyman_werner_threshold(float z, float J_21_LW, float vcb);
