@@ -788,6 +788,9 @@ int convert_halo_props(double redshift, InitialConditions* ics, TsBox* prev_ts,
     get_log10_turnovers(ics, prev_ts, prev_ion, mturn_a_grid, mturn_m_grid, &hbox_consts,
                         mturn_averages);
 
+    int lo_dim[3] = {simulation_options_global->HII_DIM, simulation_options_global->HII_DIM,
+                     HII_D_PARA};  // always output to lowres grid
+
     double box_to_lores_factor =
         simulation_options_global->HII_DIM / (double)simulation_options_global->DIM;
 #pragma omp parallel num_threads(simulation_options_global->N_THREADS)
@@ -801,8 +804,6 @@ int convert_halo_props(double redshift, InitialConditions* ics, TsBox* prev_ts,
 
         double in_props[3];
         double halo_pos[3];
-        int lo_dim[3] = {simulation_options_global->HII_DIM, simulation_options_global->HII_DIM,
-                         HII_D_PARA};  // always output to lowres grid
         HaloProperties out_props;
 
 #pragma omp for
