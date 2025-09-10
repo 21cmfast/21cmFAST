@@ -801,6 +801,8 @@ int convert_halo_props(double redshift, InitialConditions* ics, TsBox* prev_ts,
 
         double in_props[3];
         double halo_pos[3];
+        int lo_dim[3] = {simulation_options_global->HII_DIM, simulation_options_global->HII_DIM,
+                         HII_D_PARA};  // always output to lowres grid
         HaloProperties out_props;
 
 #pragma omp for
@@ -821,10 +823,8 @@ int convert_halo_props(double redshift, InitialConditions* ics, TsBox* prev_ts,
             LOG_ULTRA_DEBUG("getting mturns for halo at (%.2f, %.2f, %.2f)", halo_pos[0],
                             halo_pos[1], halo_pos[2]);
             if (astro_options_global->USE_MINI_HALOS) {
-                M_turn_a = pow(10, cic_read_float_wrapper(halo_pos, mturn_a_grid,
-                                                          simulation_options_global->HII_DIM));
-                M_turn_m = pow(10, cic_read_float_wrapper(halo_pos, mturn_m_grid,
-                                                          simulation_options_global->HII_DIM));
+                M_turn_a = pow(10, cic_read_float_wrapper(mturn_a_grid, halo_pos, lo_dim));
+                M_turn_m = pow(10, cic_read_float_wrapper(mturn_m_grid, halo_pos, lo_dim));
             }
 
             // these are the halo property RNG sequences
