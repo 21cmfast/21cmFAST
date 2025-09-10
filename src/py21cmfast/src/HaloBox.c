@@ -800,14 +800,13 @@ int convert_halo_props(double redshift, InitialConditions* ics, TsBox* prev_ts,
 
         double M_turn_m = hbox_consts.mturn_m_nofb;
         double M_turn_a = hbox_consts.mturn_a_nofb;
-        double M_turn_r = 0.;
 
         double in_props[3];
         double halo_pos[3];
         HaloProperties out_props;
 
 #pragma omp for
-        for (int i_halo = 0; i_halo < halo_list->n_halos; i_halo++) {
+        for (i_halo = 0; i_halo < halo_list->n_halos; i_halo++) {
             m = halo_list->halo_masses[i_halo];
             // It is sometimes useful to make cuts to the halo catalogues before gridding.
             //   We implement this in a simple way, if the user sets a halo's mass to zero we
