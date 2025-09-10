@@ -72,7 +72,7 @@ class TestRunCache:
         cache = caching.RunCache.from_inputs(inputs, caching.OutputCache(tmp_path))
 
         assert isinstance(cache.HaloBox, dict)
-        assert isinstance(cache.PerturbHaloField, dict)
+        assert isinstance(cache.HaloField, dict)
         assert isinstance(cache.InitialConditions, Path)
         assert isinstance(cache.PerturbedField, dict)
         assert isinstance(cache.IonizedBox, dict)

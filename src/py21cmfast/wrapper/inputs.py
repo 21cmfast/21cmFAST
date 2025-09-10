@@ -1708,7 +1708,8 @@ def check_halomass_range(inputs: InputParameters) -> None:
     max_cellint = min(max_cellint, pt_cell_mass)
 
     min_sampler = inputs.simulation_options.SAMPLER_MIN_MASS * un.M_sun
-    max_sampler = lores_cell_mass
+    # if the cell is smaller, the sampler won't draw any halos
+    max_sampler = max(lores_cell_mass, min_sampler)
 
     min_dexm = (
         lores_cell_mass if inputs.matter_options.HALO_STOCHASTICITY else hires_cell_mass
