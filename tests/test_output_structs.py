@@ -142,6 +142,32 @@ def test_optional_field_perturb(default_input_struct_lc: InputParameters):
     assert pt.velocity_y is None
 
 
+def test_optional_field_pth(default_input_struct_lc: InputParameters):
+    """Ensure that the correct HaloBox fields are set based on the parameters."""
+    pth = ox.PerturbHaloField.new(redshift=0.0, inputs=default_input_struct_lc)
+    assert isinstance(pth.halo_masses, Array)
+    assert isinstance(pth.halo_coords, Array)
+    assert isinstance(pth.halo_masses, Array)
+    assert isinstance(pth.halo_coords, Array)
+    assert isinstance(pth.stellar_masses, Array)
+    assert isinstance(pth.ion_emissivity, Array)
+    assert pth.xray_emissivity is None
+    assert pth.fesc_sfr is None
+    assert pth.stellar_mini is None
+    assert pth.sfr_mini is None
+
+    inputs = default_input_struct_lc.evolve_input_structs(USE_TS_FLUCT=True)
+    pth = ox.PerturbHaloField.new(redshift=0.0, inputs=inputs)
+    assert isinstance(pth.xray_emissivity, Array)
+    inputs = inputs.evolve_input_structs(INHOMO_RECO=True)
+    pth = ox.PerturbHaloField.new(redshift=0.0, inputs=inputs)
+    assert isinstance(pth.fesc_sfr, Array)
+    inputs = inputs.evolve_input_structs(USE_MINI_HALOS=True)
+    pth = ox.PerturbHaloField.new(redshift=0.0, inputs=inputs)
+    assert isinstance(pth.stellar_mini, Array)
+    assert isinstance(pth.sfr_mini, Array)
+
+
 def test_optional_field_halobox(default_input_struct_lc: InputParameters):
     """Ensure that the correct HaloBox fields are set based on the parameters."""
     hb = ox.HaloBox.new(redshift=0.0, inputs=default_input_struct_lc)
