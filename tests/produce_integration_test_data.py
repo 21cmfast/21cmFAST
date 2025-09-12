@@ -175,6 +175,8 @@ OPTIONS_TESTRUNS = {
             "USE_TS_FLUCT": True,
             "INHOMO_RECO": True,
             "R_BUBBLE_MAX": 50.0,
+            "USE_RELATIVE_VELOCITIES": True,
+            "POWER_SPECTRUM": "CLASS",
             "M_TURN": 5.0,
         },
     ],

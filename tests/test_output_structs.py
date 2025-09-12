@@ -258,3 +258,13 @@ def test_optional_field_bt(default_input_struct_lc: InputParameters):
     inputs = default_input_struct_lc.evolve_input_structs(USE_TS_FLUCT=True)
     bt = ox.BrightnessTemp.new(redshift=0.0, inputs=inputs)
     assert isinstance(bt.tau_21, Array)
+
+
+@pytest.mark.parametrize("struct", list(ox._ALL_OUTPUT_STRUCTS.values()))
+def test_bad_required_array(default_input_struct, struct):
+    # no struct takes this input
+    bt = ox.BrightnessTemp.new(redshift=10.0, inputs=default_input_struct)
+    output = struct.new(redshift=10.0, inputs=default_input_struct)
+
+    with pytest.raises(ValueError, match="is not an input required for"):
+        _ = output.get_required_input_arrays(bt)

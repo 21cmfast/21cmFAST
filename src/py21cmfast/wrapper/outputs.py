@@ -883,7 +883,7 @@ class PerturbHaloField(OutputStructZ):
         cls,
         inputs: InputParameters,
         redshift: float,
-        buffer_size: float | None = None,
+        buffer_size: float,
         **kw,
     ) -> Self:
         """Create a new PerturbedHaloField instance with the given inputs.
@@ -900,16 +900,6 @@ class PerturbHaloField(OutputStructZ):
         All other parameters are passed through to the :class:`PerturbedHaloField`
         constructor.
         """
-        from .cfuncs import get_halo_list_buffer_size
-
-        if kw.get("dummy", False):
-            buffer_size = 0
-        elif buffer_size is None:
-            buffer_size = get_halo_list_buffer_size(
-                redshift=redshift,
-                inputs=inputs,
-            )
-
         out = {
             "halo_coords": Array((buffer_size, 3), dtype=np.float32),
             "halo_masses": Array((buffer_size,), dtype=np.float32),

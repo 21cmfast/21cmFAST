@@ -231,11 +231,14 @@ def test_halo_prop_sampling(default_input_struct_ts, plt):
     np.testing.assert_allclose(exp_LX, sim_LX, rtol=1e-4)
 
 
-def test_perturb_halos(default_input_struct):
-    inputs_test = default_input_struct.evolve_input_structs(
+def test_perturb_halos(default_input_struct_ts):
+    # inputs which get all the firlds
+    inputs_test = default_input_struct_ts.evolve_input_structs(
         USE_HALO_FIELD=True,
         HALO_STOCHASTICITY=True,
         SAMPLER_MIN_MASS=5e9,
+        PERTURB_ON_HIGH_RES=True,
+        INHOMO_RECO=True,
     )
     ics = compute_initial_conditions(
         inputs=inputs_test,
@@ -270,6 +273,12 @@ def test_perturb_halos(default_input_struct):
     )
     np.testing.assert_allclose(
         pt_halos.get("ion_emissivity"), prop_dict["n_ion"][: pt_halos.n_halos]
+    )
+    np.testing.assert_allclose(
+        pt_halos.get("xray_emissivity"), prop_dict["halo_xray"][: pt_halos.n_halos]
+    )
+    np.testing.assert_allclose(
+        pt_halos.get("fesc_sfr"), prop_dict["halo_wsfr"][: pt_halos.n_halos]
     )
 
 
