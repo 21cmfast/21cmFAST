@@ -15,7 +15,7 @@
 #include "logger.h"
 #include "scaling_relations.h"
 
-void get_sigma(int n_masses, double *mass_values, double *sigma_out, double *dsigmasqdm_out) {
+void get_sigma(int n_masses, double* mass_values, double* sigma_out, double* dsigmasqdm_out) {
     init_ps();
 
     if (matter_options_global->USE_INTERPOLATION_TABLES > 0)
@@ -30,7 +30,7 @@ void get_sigma(int n_masses, double *mass_values, double *sigma_out, double *dsi
 
 // we normally don't bounds-check the tables since they're hidden in the backend
 //  but these functions are exposed to the user pretty directly so we do it here
-bool cond_table_out_of_bounds(struct HaloSamplingConstants *consts) {
+bool cond_table_out_of_bounds(struct HaloSamplingConstants* consts) {
     return consts->M_cond < simulation_options_global->SAMPLER_MIN_MASS ||
            consts->M_cond > consts->M_max_tables || consts->delta < -1 ||
            consts->delta > MAX_DELTAC_FRAC * get_delta_crit(matter_options_global->HMF,
@@ -38,8 +38,8 @@ bool cond_table_out_of_bounds(struct HaloSamplingConstants *consts) {
 }
 
 // integrates at fixed (set by parameters) mass range for many conditions
-void get_condition_integrals(double redshift, double z_prev, int n_conditions, double *cond_values,
-                             double *out_n_exp, double *out_m_exp) {
+void get_condition_integrals(double redshift, double z_prev, int n_conditions, double* cond_values,
+                             double* out_n_exp, double* out_m_exp) {
     struct HaloSamplingConstants hs_const_struct;
     // unneccessarily creates the inverse table (a few seconds) but much cleaner this way
     stoc_set_consts_z(&hs_const_struct, redshift, z_prev);
@@ -59,8 +59,8 @@ void get_condition_integrals(double redshift, double z_prev, int n_conditions, d
 // A more flexible form of the function above, but with many mass ranges for outputting tables of
 // CHMF integrals
 //   Requires extra arguments for the mass limits
-void get_halo_chmf_interval(double redshift, double z_prev, int n_conditions, double *cond_values,
-                            int n_masslim, double *lnM_lo, double *lnM_hi, double *out_n) {
+void get_halo_chmf_interval(double redshift, double z_prev, int n_conditions, double* cond_values,
+                            int n_masslim, double* lnM_lo, double* lnM_hi, double* out_n) {
     // unneccessarily creates tables if flags are set (a few seconds)
     struct HaloSamplingConstants hs_const_struct;
     stoc_set_consts_z(&hs_const_struct, redshift, z_prev);
@@ -89,7 +89,7 @@ void get_halo_chmf_interval(double redshift, double z_prev, int n_conditions, do
 }
 
 void get_halomass_at_probability(double redshift, double z_prev, int n_conditions,
-                                 double *cond_values, double *probabilities, double *out_mass) {
+                                 double* cond_values, double* probabilities, double* out_mass) {
     struct HaloSamplingConstants hs_const_struct;
     stoc_set_consts_z(&hs_const_struct, redshift, z_prev);
 
@@ -107,8 +107,8 @@ void get_halomass_at_probability(double redshift, double z_prev, int n_condition
     }
 }
 
-void get_global_SFRD_z(int n_redshift, double *redshifts, double *log10_turnovers_mcg,
-                       double *out_sfrd, double *out_sfrd_mini) {
+void get_global_SFRD_z(int n_redshift, double* redshifts, double* log10_turnovers_mcg,
+                       double* out_sfrd, double* out_sfrd_mini) {
     init_ps();
 
     // a bit hacky, but we need a lower limit for the tables
@@ -138,8 +138,8 @@ void get_global_SFRD_z(int n_redshift, double *redshifts, double *log10_turnover
     }
 }
 
-void get_global_Nion_z(int n_redshift, double *redshifts, double *log10_turnovers_mcg,
-                       double *out_nion, double *out_nion_mini) {
+void get_global_Nion_z(int n_redshift, double* redshifts, double* log10_turnovers_mcg,
+                       double* out_nion, double* out_nion_mini) {
     init_ps();
 
     double M_min = minimum_source_mass(redshifts[0], true);
@@ -167,8 +167,8 @@ void get_global_Nion_z(int n_redshift, double *redshifts, double *log10_turnover
     }
 }
 
-void get_conditional_FgtrM(double redshift, double R, int n_densities, double *densities,
-                           double *out_fcoll, double *out_dfcoll) {
+void get_conditional_FgtrM(double redshift, double R, int n_densities, double* densities,
+                           double* out_fcoll, double* out_dfcoll) {
     init_ps();
 
     double M_min = minimum_source_mass(redshift, true);
@@ -201,8 +201,8 @@ void get_conditional_FgtrM(double redshift, double R, int n_densities, double *d
     }
 }
 
-void get_conditional_SFRD(double redshift, double R, int n_densities, double *densities,
-                          double *log10_mturns, double *out_sfrd, double *out_sfrd_mini) {
+void get_conditional_SFRD(double redshift, double R, int n_densities, double* densities,
+                          double* log10_mturns, double* out_sfrd, double* out_sfrd_mini) {
     init_ps();
 
     double M_min = minimum_source_mass(redshift, true);
@@ -243,9 +243,9 @@ void get_conditional_SFRD(double redshift, double R, int n_densities, double *de
     }
 }
 
-void get_conditional_Nion(double redshift, double R, int n_densities, double *densities,
-                          double *log10_mturns_acg, double *log10_mturns_mcg, double *out_nion,
-                          double *out_nion_mini) {
+void get_conditional_Nion(double redshift, double R, int n_densities, double* densities,
+                          double* log10_mturns_acg, double* log10_mturns_mcg, double* out_nion,
+                          double* out_nion_mini) {
     init_ps();
 
     double M_min = minimum_source_mass(redshift, true);
@@ -299,8 +299,8 @@ void get_conditional_Nion(double redshift, double R, int n_densities, double *de
     }
 }
 
-void get_conditional_Xray(double redshift, double R, int n_densities, double *densities,
-                          double *log10_mturns, double *out_xray) {
+void get_conditional_Xray(double redshift, double R, int n_densities, double* densities,
+                          double* log10_mturns, double* out_xray) {
     init_ps();
 
     double M_min = minimum_source_mass(redshift, true);

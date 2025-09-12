@@ -94,8 +94,8 @@
 
 void wrap_position(double pos[3], double size[3]);
 void wrap_coord(int idx[3], int size[3]);
-void random_point_in_sphere(double centre[3], double radius, gsl_rng *rng, double *point);
-void random_point_in_cell(int idx[3], double cell_len, gsl_rng *rng, double *point);
+void random_point_in_sphere(double centre[3], double radius, gsl_rng* rng, double* point);
+void random_point_in_cell(int idx[3], double cell_len, gsl_rng* rng, double* point);
 
 // Functions which are more general versions of the macros in indexing.h
 inline unsigned long long grid_index_general(int x, int y, int z, int dim[3]) {

@@ -24,7 +24,7 @@
 // buffer size (per cell of arbitrary size) in the sampling function
 #define MAX_HALO_CELL (int)1e5
 
-void print_hs_consts(struct HaloSamplingConstants *c) {
+void print_hs_consts(struct HaloSamplingConstants* c) {
     LOG_DEBUG("Printing halo sampler constants....");
     LOG_DEBUG("from_catalog %d z_in %.2f z_out %.2f d_in %.2f d_out %.2f", c->from_catalog, c->z_in,
               c->z_out, c->growth_in, c->growth_out);
@@ -62,8 +62,8 @@ double expected_nhalo(double redshift) {
     return result;
 }
 
-double sample_dndM_inverse(double condition, struct HaloSamplingConstants *hs_constants,
-                           gsl_rng *rng) {
+double sample_dndM_inverse(double condition, struct HaloSamplingConstants* hs_constants,
+                           gsl_rng* rng) {
     double p_in, result;
     p_in = gsl_rng_uniform(rng);
     result = EvaluateNhaloInv(condition, p_in);
@@ -75,7 +75,7 @@ double sample_dndM_inverse(double condition, struct HaloSamplingConstants *hs_co
 }
 
 // Set the constants that are calculated once per snapshot
-void stoc_set_consts_z(struct HaloSamplingConstants *const_struct, double redshift,
+void stoc_set_consts_z(struct HaloSamplingConstants* const_struct, double redshift,
                        double redshift_desc) {
     if (redshift_desc > 0 && redshift < redshift_desc) {
         LOG_ERROR("you have passed a descendant redshift above the progenitor redshift");
@@ -162,7 +162,7 @@ void stoc_set_consts_z(struct HaloSamplingConstants *const_struct, double redshi
 }
 
 // set the constants which are calculated once per condition
-void stoc_set_consts_cond(struct HaloSamplingConstants *const_struct, double cond_val) {
+void stoc_set_consts_cond(struct HaloSamplingConstants* const_struct, double cond_val) {
     double m_exp, n_exp;
 
     // Here the condition is a mass, volume is the Lagrangian volume and delta_l is set by the
@@ -214,7 +214,7 @@ void stoc_set_consts_cond(struct HaloSamplingConstants *const_struct, double con
 }
 
 // This function adds stochastic halo properties to an existing halo
-void set_prop_rng(gsl_rng *rng, bool from_catalog, double *interp, double *input, double *output) {
+void set_prop_rng(gsl_rng* rng, bool from_catalog, double* interp, double* input, double* output) {
     double rng_star, rng_sfr, rng_xray;
 
     // Correlate properties by interpolating between the sampled and descendant gaussians
@@ -237,9 +237,9 @@ void set_prop_rng(gsl_rng *rng, bool from_catalog, double *interp, double *input
 }
 
 // This is the function called to assign halo properties to an entire catalogue, used for DexM halos
-int add_properties_cat(unsigned long long int seed, float redshift, HaloField *halos) {
+int add_properties_cat(unsigned long long int seed, float redshift, HaloField* halos) {
     // set up the rng
-    gsl_rng *rng_stoc[simulation_options_global->N_THREADS];
+    gsl_rng* rng_stoc[simulation_options_global->N_THREADS];
     seed_rng_threads_fast(rng_stoc, seed);
 
     LOG_DEBUG("computing rng for %llu halos", halos->n_halos);
@@ -264,8 +264,8 @@ int add_properties_cat(unsigned long long int seed, float redshift, HaloField *h
 
 /* Creates a realisation of halo properties by sampling the halo mass function and
  * conditional property PDFs, the number of halos is poisson sampled from the integrated CMF*/
-int stoc_halo_sample(struct HaloSamplingConstants *hs_constants, gsl_rng *rng, int *n_halo_out,
-                     float *M_out) {
+int stoc_halo_sample(struct HaloSamplingConstants* hs_constants, gsl_rng* rng, int* n_halo_out,
+                     float* M_out) {
     double exp_N = hs_constants->expected_N;
     int ii, nh;
     int halo_count = 0;
@@ -285,8 +285,8 @@ int stoc_halo_sample(struct HaloSamplingConstants *hs_constants, gsl_rng *rng, i
 // This performs the number-limited sampling as above, modified to include a mass tolerance
 //  halo samples are entirely thrown out and re-drawn if they do not meet the tolerance
 //  This version is only currently used for internal testing against Nikolic et al. 2024,
-int stoc_halo_sample_tol(struct HaloSamplingConstants *hs_constants, gsl_rng *rng, int *n_halo_out,
-                         float *M_out) {
+int stoc_halo_sample_tol(struct HaloSamplingConstants* hs_constants, gsl_rng* rng, int* n_halo_out,
+                         float* M_out) {
     double exp_N = hs_constants->expected_N;
     double exp_M = hs_constants->expected_M;
     int ii, nh = 0;
@@ -325,7 +325,7 @@ int stoc_halo_sample_tol(struct HaloSamplingConstants *hs_constants, gsl_rng *rn
     return TableEvaluationError;
 }
 
-double remove_random_halo(gsl_rng *rng, int n_halo, int *idx, double *M_prog, float *M_out) {
+double remove_random_halo(gsl_rng* rng, int n_halo, int* idx, double* M_prog, float* M_out) {
     double last_M_del;
     int random_idx;
     do {
@@ -345,7 +345,7 @@ double remove_random_halo(gsl_rng *rng, int n_halo, int *idx, double *M_prog, fl
 //  However this introduces a bias since the last halo is likely larger than average So the other
 //  half the time, I throw away random halos until we are again below exp_M, effectively the same
 //  process in reverse. which has the opposite bias
-void fix_mass_sample(gsl_rng *rng, double exp_M, int *n_halo_pt, double *M_tot_pt, float *M_out) {
+void fix_mass_sample(gsl_rng* rng, double exp_M, int* n_halo_pt, double* M_tot_pt, float* M_out) {
     // Keep the last halo if it brings us closer to the expected mass
     // This is done by addition or subtraction over the limit to balance
     // the bias of the last halo being larger
@@ -378,8 +378,8 @@ void fix_mass_sample(gsl_rng *rng, double exp_M, int *n_halo_pt, double *M_tot_p
 /* Creates a realisation of halo properties by sampling the halo mass function and
  * conditional property PDFs, Sampling is done until there is no more mass in the condition
  * Stochasticity is ignored below a certain mass threshold */
-int stoc_mass_sample(struct HaloSamplingConstants *hs_constants, gsl_rng *rng, int *n_halo_out,
-                     float *M_out) {
+int stoc_mass_sample(struct HaloSamplingConstants* hs_constants, gsl_rng* rng, int* n_halo_out,
+                     float* M_out) {
     double exp_M = hs_constants->expected_M;
 
     // The mass-limited sampling as-is has a slight bias to producing too many halos,
@@ -418,7 +418,7 @@ int stoc_mass_sample(struct HaloSamplingConstants *hs_constants, gsl_rng *rng, i
 }
 
 bool partition_rejection(double sigma_m, double sigma_min, double sigma_cond, double del_c,
-                         double growthf, gsl_rng *rng) {
+                         double growthf, gsl_rng* rng) {
     // no rejection in EPS
     double test1, test2, randval;
     if (matter_options_global->HMF == 0) {
@@ -442,8 +442,8 @@ bool partition_rejection(double sigma_m, double sigma_min, double sigma_cond, do
 //   Do we not sample the same `particle` multiple times? (i.e 10x more samples for a single 10x
 //   mass halo) How does the reduction of mass after each sample *exactly* cancel this 1/M effect
 // If you want a non-barrier-based CMF, I don't know how to implement it here
-int stoc_partition_sample(struct HaloSamplingConstants *hs_constants, gsl_rng *rng, int *n_halo_out,
-                          float *M_out) {
+int stoc_partition_sample(struct HaloSamplingConstants* hs_constants, gsl_rng* rng, int* n_halo_out,
+                          float* M_out) {
     // lnMmin only used for sampling, apply factor here
     double M_cond = hs_constants->M_cond;
     double d_cond = hs_constants->delta;
@@ -500,8 +500,8 @@ double ComputeFraction_split(double sigma_start, double sigmasq_start, double si
 // binary splitting with small internal steps based on Parkinson+08, Bensen+16, Qiu+20 (Darkforest)
 // This code was modified from the tree generation function in Darkforest (Qiu et al 2020. ArXiv:
 // 2007.14624)
-int stoc_split_sample(struct HaloSamplingConstants *hs_constants, gsl_rng *rng, int *n_halo_out,
-                      float *M_out) {
+int stoc_split_sample(struct HaloSamplingConstants* hs_constants, gsl_rng* rng, int* n_halo_out,
+                      float* M_out) {
     // define constants
     double G0 = simulation_options_global->PARKINSON_G0;
     double gamma1 = simulation_options_global->PARKINSON_y1;
@@ -667,8 +667,8 @@ int stoc_split_sample(struct HaloSamplingConstants *hs_constants, gsl_rng *rng, 
     return 0;
 }
 
-int stoc_sample(struct HaloSamplingConstants *hs_constants, gsl_rng *rng, int *n_halo_out,
-                float *M_out) {
+int stoc_sample(struct HaloSamplingConstants* hs_constants, gsl_rng* rng, int* n_halo_out,
+                float* M_out) {
     // TODO: really examine the case for number/mass sampling
     // The poisson sample fails spectacularly for high delta (from_catalogs or dense cells)
     //   and excludes the correlation between number and mass (e.g many small halos or few large
@@ -726,8 +726,8 @@ int stoc_sample(struct HaloSamplingConstants *hs_constants, gsl_rng *rng, int *n
 // Halo lists are partitioned per thread for sampling
 //   so have trailing zeros in each thread.
 //   This function condenses the array
-void condense_sparse_halolist(HaloField *halofield, unsigned long long int *istart_threads,
-                              unsigned long long int *nhalo_threads) {
+void condense_sparse_halolist(HaloField* halofield, unsigned long long int* istart_threads,
+                              unsigned long long int* nhalo_threads) {
     int i = 0;
     unsigned long long int count_total = 0;
     for (i = 0; i < simulation_options_global->N_THREADS; i++) {
@@ -764,9 +764,9 @@ void condense_sparse_halolist(HaloField *halofield, unsigned long long int *ista
 }
 
 // will have to add properties here and output grids, instead of in perturbed
-int sample_halo_grids(gsl_rng **rng_arr, double redshift, float *dens_field,
-                      float *halo_overlap_box, HaloField *halofield_large, HaloField *halofield_out,
-                      struct HaloSamplingConstants *hs_constants) {
+int sample_halo_grids(gsl_rng** rng_arr, double redshift, float* dens_field,
+                      float* halo_overlap_box, HaloField* halofield_large, HaloField* halofield_out,
+                      struct HaloSamplingConstants* hs_constants) {
     int lo_dim = simulation_options_global->HII_DIM;
 
     double Mcell = hs_constants->M_cond;
@@ -923,8 +923,8 @@ int sample_halo_grids(gsl_rng **rng_arr, double redshift, float *dens_field,
 }
 
 // NOTE: there's a lot of repeated code here and in build_halo_cats, find a way to merge
-int sample_halo_progenitors(gsl_rng **rng_arr, double z_in, double z_out, HaloField *halofield_in,
-                            HaloField *halofield_out, struct HaloSamplingConstants *hs_constants) {
+int sample_halo_progenitors(gsl_rng** rng_arr, double z_in, double z_out, HaloField* halofield_in,
+                            HaloField* halofield_out, struct HaloSamplingConstants* hs_constants) {
     if (z_in >= z_out) {
         LOG_ERROR("halo progenitors must go backwards in time!!! z_in = %.1f, z_out = %.1f", z_in,
                   z_out);
@@ -1076,8 +1076,8 @@ int sample_halo_progenitors(gsl_rng **rng_arr, double z_in, double z_out, HaloFi
 
 // function that talks between the structures (Python objects) and the sampling functions
 int stochastic_halofield(unsigned long long int seed, float redshift_desc, float redshift,
-                         float *dens_field, float *halo_overlap_box, HaloField *halos_desc,
-                         HaloField *halos) {
+                         float* dens_field, float* halo_overlap_box, HaloField* halos_desc,
+                         HaloField* halos) {
     if (redshift_desc > 0 && halos_desc->n_halos == 0) {
         LOG_DEBUG("No halos to sample from redshifts %.2f to %.2f, continuing...", redshift_desc,
                   redshift);
@@ -1085,7 +1085,7 @@ int stochastic_halofield(unsigned long long int seed, float redshift_desc, float
     }
 
     // set up the rng
-    gsl_rng *rng_stoc[simulation_options_global->N_THREADS];
+    gsl_rng* rng_stoc[simulation_options_global->N_THREADS];
     unsigned long long int seed_fac = (unsigned long long int)(redshift * 1000);
     seed_rng_threads_fast(rng_stoc, seed + seed_fac);
 
@@ -1131,17 +1131,17 @@ int stochastic_halofield(unsigned long long int seed, float redshift_desc, float
 // This is a test function which takes a list of conditions (cells or halos) and samples them to
 // produce a descendant list
 //       as well as per-condition number and mass counts
-int single_test_sample(unsigned long long int seed, int n_condition, float *conditions,
-                       float *cond_crd, double z_out, double z_in, int *out_n_tot, int *out_n_cell,
-                       double *out_n_exp, double *out_m_cell, double *out_m_exp,
-                       float *out_halo_masses, float *out_halo_coords) {
+int single_test_sample(unsigned long long int seed, int n_condition, float* conditions,
+                       float* cond_crd, double z_out, double z_in, int* out_n_tot, int* out_n_cell,
+                       double* out_n_exp, double* out_m_cell, double* out_m_exp,
+                       float* out_halo_masses, float* out_halo_coords) {
     int status;
     Try {
         // make the global structs
         omp_set_num_threads(simulation_options_global->N_THREADS);
 
         // set up the rng
-        gsl_rng *rng_stoc[simulation_options_global->N_THREADS];
+        gsl_rng* rng_stoc[simulation_options_global->N_THREADS];
         seed_rng_threads_fast(rng_stoc, seed);
 
         if (z_in > 0 && z_out <= z_in) {
@@ -1151,7 +1151,7 @@ int single_test_sample(unsigned long long int seed, int n_condition, float *cond
         int i, j;
 
         struct HaloSamplingConstants hs_const_struct;
-        struct HaloSamplingConstants *hs_constants = &hs_const_struct;
+        struct HaloSamplingConstants* hs_constants = &hs_const_struct;
 
         double boxlen[3] = {simulation_options_global->BOX_LEN, simulation_options_global->BOX_LEN,
                             BOXLEN_PARA};

@@ -34,7 +34,7 @@ static float x_int_nion_HI[x_int_NXHII][x_int_NENERGY];
 static float x_int_nion_HeI[x_int_NXHII][x_int_NENERGY];
 static float x_int_nion_HeII[x_int_NXHII][x_int_NENERGY];
 
-void skipline(FILE *fl, int n) {
+void skipline(FILE* fl, int n) {
     int i;
     for (i = 0; i < n; i++) {
         char c;
@@ -48,7 +48,7 @@ void skipline(FILE *fl, int n) {
 // All data files should be in a local subdirectory "x_int_tables/"; if moved, change input_base
 // below to new location.
 void initialize_interp_arrays() {
-    FILE *input_file;
+    FILE* input_file;
     char input_file_name[256];  // needs to be longer than 100.
 
     float xHI, xHeI, xHeII, z, T;

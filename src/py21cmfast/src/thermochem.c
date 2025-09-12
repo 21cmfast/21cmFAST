@@ -144,10 +144,10 @@ typedef struct {
     float *z, *xH;
     int len;
 } tau_e_params;
-double dtau_e_dz(double z, void *params) {
+double dtau_e_dz(double z, void* params) {
     float xH, xi;
     int i = 1;
-    tau_e_params p = *(tau_e_params *)params;
+    tau_e_params p = *(tau_e_params*)params;
 
     if ((p.len == 0) || !(p.z)) {
         return (1 + z) * (1 + z) * drdz(z);
@@ -175,11 +175,11 @@ double dtau_e_dz(double z, void *params) {
         return xi * (1 + z) * (1 + z) * drdz(z);
     }
 }
-double tau_e(float zstart, float zend, float *zarry, float *xHarry, int len, float z_re_HeII) {
+double tau_e(float zstart, float zend, float* zarry, float* xHarry, int len, float z_re_HeII) {
     double prehelium, posthelium, error;
     gsl_function F;
     double rel_tol = 1e-3;  //<- relative tolerance
-    gsl_integration_workspace *w = gsl_integration_workspace_alloc(1000);
+    gsl_integration_workspace* w = gsl_integration_workspace_alloc(1000);
     tau_e_params p;
 
     if (zstart >= zend) {
@@ -257,7 +257,7 @@ double tau_e(float zstart, float zend, float *zarry, float *xHarry, int len, flo
     return SIGMAT * ((N_b0 + He_No) * prehelium + N_b0 * posthelium);
 }
 
-float ComputeTau(int NPoints, float *redshifts, float *global_xHI, float z_re_HeII) {
+float ComputeTau(int NPoints, float* redshifts, float* global_xHI, float z_re_HeII) {
     return tau_e(0, redshifts[NPoints - 1], redshifts, global_xHI, NPoints, z_re_HeII);
 }
 

@@ -193,7 +193,7 @@ is subject to change.
 
 #define define_exception_type(etype) \
     struct exception_context {       \
-        jmp_buf *penv;               \
+        jmp_buf* penv;               \
         int caught;                  \
         volatile struct {            \
             etype etmp;              \

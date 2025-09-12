@@ -168,7 +168,7 @@ double dNdlnM_conditional_Delos(double growthf, double lnM, double delta_cond, d
 // Sheth Tormen 2002 fit for the CMF, while the moving barrier does not allow for a simple
 // rescaling, it has been found That a taylor expansion of the barrier shape around the point of
 // interest well approximates the simulations
-double st_taylor_factor(double sig, double sig_cond, double growthf, double *zeroth_order) {
+double st_taylor_factor(double sig, double sig_cond, double growthf, double* zeroth_order) {
     int i;
     double a = JENKINS_a;
     double alpha = JENKINS_c;  // fixed instead of SHETH_c_DEXM bc of DexM corrections
@@ -354,16 +354,16 @@ double dNdlnM_WatsonFOF_z(double z, double growthf, double lnM) {
 
 // Halo property helper functions for HMF integrals
 // scaling relation for M_halo --> n_ion used in integrands
-double nion_fraction(double lnM, void *param_struct) {
-    struct parameters_gsl_MF_integrals p = *(struct parameters_gsl_MF_integrals *)param_struct;
+double nion_fraction(double lnM, void* param_struct) {
+    struct parameters_gsl_MF_integrals p = *(struct parameters_gsl_MF_integrals*)param_struct;
     double Fstar = log_scaling_PL_limit(lnM, p.f_star_norm, p.alpha_star, 10 * LN10, p.Mlim_star);
     double Fesc = log_scaling_PL_limit(lnM, p.f_esc_norm, p.alpha_esc, 10 * LN10, p.Mlim_esc);
 
     return exp(Fstar + Fesc - p.Mturn_acg / exp(lnM) + lnM);
 }
 
-double nion_fraction_mini(double lnM, void *param_struct) {
-    struct parameters_gsl_MF_integrals p = *(struct parameters_gsl_MF_integrals *)param_struct;
+double nion_fraction_mini(double lnM, void* param_struct) {
+    struct parameters_gsl_MF_integrals p = *(struct parameters_gsl_MF_integrals*)param_struct;
     double Fstar = log_scaling_PL_limit(lnM, p.f_star_norm, p.alpha_star, 7 * LN10, p.Mlim_star);
     double Fesc = log_scaling_PL_limit(lnM, p.f_esc_norm, p.alpha_esc, 7 * LN10, p.Mlim_esc);
     double M = exp(lnM);
@@ -374,8 +374,8 @@ double nion_fraction_mini(double lnM, void *param_struct) {
 // Due to the log(1+Mstar) in the metallicity, this is hard to simplify into log-space
 //   As a result this will be slower, and is currently used only for integrals in HaloBox
 //   below the sampler mass.
-double xray_fraction_doublePL(double lnM, void *param_struct) {
-    struct parameters_gsl_MF_integrals p = *(struct parameters_gsl_MF_integrals *)param_struct;
+double xray_fraction_doublePL(double lnM, void* param_struct) {
+    struct parameters_gsl_MF_integrals p = *(struct parameters_gsl_MF_integrals*)param_struct;
     double M = exp(lnM);
     double Fstar =
         exp(log_scaling_PL_limit(lnM, p.f_star_norm, p.alpha_star, 10 * LN10, p.Mlim_star) -
@@ -419,8 +419,8 @@ double conditional_hmf(double growthf, double lnM, double delta, double sigma, i
     return dNdM_conditional_EPS(growthf, lnM, delta, sigma);
 }
 
-double c_mf_integrand(double lnM, void *param_struct) {
-    struct parameters_gsl_MF_integrals params = *(struct parameters_gsl_MF_integrals *)param_struct;
+double c_mf_integrand(double lnM, void* param_struct) {
+    struct parameters_gsl_MF_integrals params = *(struct parameters_gsl_MF_integrals*)param_struct;
     double growthf = params.growthf;
     double delta = params.delta;  // the condition delta
     double sigma2 = params.sigma_cond;
@@ -429,19 +429,19 @@ double c_mf_integrand(double lnM, void *param_struct) {
     return conditional_hmf(growthf, lnM, delta, sigma2, HMF);
 }
 
-double c_fcoll_integrand(double lnM, void *param_struct) {
+double c_fcoll_integrand(double lnM, void* param_struct) {
     return exp(lnM) * c_mf_integrand(lnM, param_struct);
 }
 
-double c_nion_integrand(double lnM, void *param_struct) {
+double c_nion_integrand(double lnM, void* param_struct) {
     return nion_fraction(lnM, param_struct) * c_mf_integrand(lnM, param_struct);
 }
 
-double c_nion_integrand_mini(double lnM, void *param_struct) {
+double c_nion_integrand_mini(double lnM, void* param_struct) {
     return nion_fraction_mini(lnM, param_struct) * c_mf_integrand(lnM, param_struct);
 }
 
-double c_xray_integrand(double lnM, void *param_struct) {
+double c_xray_integrand(double lnM, void* param_struct) {
     return xray_fraction_doublePL(lnM, param_struct) * c_mf_integrand(lnM, param_struct);
 }
 
@@ -468,8 +468,8 @@ double unconditional_hmf(double growthf, double lnM, double z, int HMF) {
     }
 }
 
-double u_mf_integrand(double lnM, void *param_struct) {
-    struct parameters_gsl_MF_integrals params = *(struct parameters_gsl_MF_integrals *)param_struct;
+double u_mf_integrand(double lnM, void* param_struct) {
+    struct parameters_gsl_MF_integrals params = *(struct parameters_gsl_MF_integrals*)param_struct;
     double growthf = params.growthf;
     double z = params.redshift;
     int HMF = params.HMF;
@@ -477,20 +477,20 @@ double u_mf_integrand(double lnM, void *param_struct) {
     return unconditional_hmf(growthf, lnM, z, HMF);
 }
 
-double u_fcoll_integrand(double lnM, void *param_struct) {
+double u_fcoll_integrand(double lnM, void* param_struct) {
     return exp(lnM) * u_mf_integrand(lnM, param_struct);
 }
 
-double u_nion_integrand(double lnM, void *param_struct) {
+double u_nion_integrand(double lnM, void* param_struct) {
     return nion_fraction(lnM, param_struct) * u_mf_integrand(lnM, param_struct);
 }
 
 // The reason this is separated from the above is the second exponent
-double u_nion_integrand_mini(double lnM, void *param_struct) {
+double u_nion_integrand_mini(double lnM, void* param_struct) {
     return nion_fraction_mini(lnM, param_struct) * u_mf_integrand(lnM, param_struct);
 }
 
-double u_xray_integrand(double lnM, void *param_struct) {
+double u_xray_integrand(double lnM, void* param_struct) {
     return xray_fraction_doublePL(lnM, param_struct) * u_mf_integrand(lnM, param_struct);
 }
 
@@ -499,13 +499,13 @@ double u_xray_integrand(double lnM, void *param_struct) {
 // In future all MF integrals will go through here, simply selecting the integrand function from a
 // switch
 double IntegratedNdM_QAG(double lnM_lo, double lnM_hi, struct parameters_gsl_MF_integrals params,
-                         double (*integrand)(double, void *)) {
+                         double (*integrand)(double, void*)) {
     double result, error, lower_limit, upper_limit;
     gsl_function F;
     // double rel_tol = FRACT_FLOAT_ERR*128; //<- relative tolerance
     double rel_tol = 1e-3;  //<- relative tolerance
     int w_size = 1000;
-    gsl_integration_workspace *w = gsl_integration_workspace_alloc(w_size);
+    gsl_integration_workspace* w = gsl_integration_workspace_alloc(w_size);
 
     int status;
     F.function = integrand;
@@ -597,7 +597,7 @@ void initialise_GL(double lnM_Min, double lnM_Max) {
 // actually perform the GL integration
 // NOTE: that the lnM limits are not used
 double IntegratedNdM_GL(double lnM_lo, double lnM_hi, struct parameters_gsl_MF_integrals params,
-                        double (*integrand)(double, void *)) {
+                        double (*integrand)(double, void*)) {
     int i;
     double integral = 0;
     // compare to lower precision?
@@ -783,7 +783,7 @@ double MFIntegral_Approx(double lnM_lo, double lnM_hi, struct parameters_gsl_MF_
 }
 
 double IntegratedNdM(double lnM_lo, double lnM_hi, struct parameters_gsl_MF_integrals params,
-                     double (*integrand)(double, void *), int method) {
+                     double (*integrand)(double, void*), int method) {
     if (method == 0 || (method == 1 && params.delta > CRIT_DENS_TRANSITION))
         return IntegratedNdM_QAG(lnM_lo, lnM_hi, params, integrand);
     if (method == 1) return IntegratedNdM_GL(lnM_lo, lnM_hi, params, integrand);
@@ -842,7 +842,7 @@ double Fcoll_General(double z, double lnM_min, double lnM_max) {
 }
 
 double Nion_General(double z, double lnM_Min, double lnM_Max, double MassTurnover,
-                    ScalingConstants *sc) {
+                    ScalingConstants* sc) {
     struct parameters_gsl_MF_integrals params = {
         .redshift = z,
         .growthf = dicke(z),
@@ -860,7 +860,7 @@ double Nion_General(double z, double lnM_Min, double lnM_Max, double MassTurnove
 }
 
 double Nion_General_MINI(double z, double lnM_Min, double lnM_Max, double MassTurnover,
-                         ScalingConstants *sc) {
+                         ScalingConstants* sc) {
     struct parameters_gsl_MF_integrals params = {
         .redshift = z,
         .growthf = dicke(z),
@@ -879,7 +879,7 @@ double Nion_General_MINI(double z, double lnM_Min, double lnM_Max, double MassTu
 }
 
 double Xray_General(double z, double lnM_Min, double lnM_Max, double mturn_acg, double mturn_mcg,
-                    ScalingConstants *sc) {
+                    ScalingConstants* sc) {
     // NOTE:in the _General functions, we don't use the scaling relation constants
     //  that are z-dependent so we can evaluate them at multiple redshifts without redoing the
     //  constants
@@ -954,7 +954,7 @@ double Mcoll_Conditional(double growthf, double lnM1, double lnM2, double lnM_co
 
 double Nion_ConditionalM_MINI(double growthf, double lnM1, double lnM2, double lnM_cond,
                               double sigma2, double delta2, double MassTurnover,
-                              ScalingConstants *sc, int method) {
+                              ScalingConstants* sc, int method) {
     struct parameters_gsl_MF_integrals params = {
         .growthf = growthf,
         .Mturn_mcg = MassTurnover,
@@ -992,7 +992,7 @@ double Nion_ConditionalM_MINI(double growthf, double lnM1, double lnM2, double l
 }
 
 double Nion_ConditionalM(double growthf, double lnM1, double lnM2, double lnM_cond, double sigma2,
-                         double delta2, double MassTurnover, ScalingConstants *sc, int method) {
+                         double delta2, double MassTurnover, ScalingConstants* sc, int method) {
     struct parameters_gsl_MF_integrals params = {
         .growthf = growthf,
         .Mturn_acg = MassTurnover,
@@ -1028,7 +1028,7 @@ double Nion_ConditionalM(double growthf, double lnM1, double lnM2, double lnM_co
 
 double Xray_ConditionalM(double redshift, double growthf, double lnM1, double lnM2, double lnM_cond,
                          double sigma2, double delta2, double mturn_acg, double mturn_mcg,
-                         ScalingConstants *sc, int method) {
+                         ScalingConstants* sc, int method) {
     // re-using escape fraction for minihalo parameters
     struct parameters_gsl_MF_integrals params = {
         .redshift = redshift,
@@ -1152,7 +1152,7 @@ float dfcoll_dz(float z, float sigma_min, float del_bias, float sig_bias) {
 // NOTE (JD): Why aren't we using 1e10 * pow(FRAC,-1/PL)? what am I missing here that makes the
 // rootfind necessary
 float Mass_limit(float logM, float PL, float FRAC) { return FRAC * pow(pow(10., logM) / 1e10, PL); }
-void bisection(float *x, float xlow, float xup, int *iter) {
+void bisection(float* x, float xlow, float xup, int* iter) {
     *x = (xlow + xup) / 2.;
     ++(*iter);
 }
