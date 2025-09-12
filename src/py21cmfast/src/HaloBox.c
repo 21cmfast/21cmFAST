@@ -107,13 +107,14 @@ int get_uhmf_averages(double M_min, double M_max, double M_turn_a, double M_turn
     double prefactor_mass = RHOcrit * cosmo_params_global->OMm;
     double prefactor_stars = RHOcrit * cosmo_params_global->OMb * consts->fstar_10;
     double prefactor_stars_mini = RHOcrit * cosmo_params_global->OMb * consts->fstar_7;
+    double prefactor_xray = RHOcrit * cosmo_params_global->OMm;
+
     double prefactor_sfr = prefactor_stars / consts->t_star / t_h;
     double prefactor_sfr_mini = prefactor_stars_mini / consts->t_star / t_h;
     double prefactor_nion = prefactor_stars * consts->fesc_10 * consts->pop2_ion;
     double prefactor_nion_mini = prefactor_stars_mini * consts->fesc_7 * consts->pop3_ion;
     double prefactor_wsfr = prefactor_sfr * consts->fesc_10 * consts->pop2_ion;
     double prefactor_wsfr_mini = prefactor_sfr_mini * consts->fesc_7 * consts->pop3_ion;
-    double prefactor_xray = RHOcrit * cosmo_params_global->OMm;
 
     double mass_intgrl;
     double intgrl_fesc_weighted, intgrl_stars_only;
@@ -142,9 +143,9 @@ int get_uhmf_averages(double M_min, double M_max, double M_turn_a, double M_turn
     averages_out->stellar_mass_mini = intgrl_stars_only_mini * prefactor_stars_mini;
     averages_out->sfr_mini = intgrl_stars_only_mini * prefactor_sfr_mini;
     averages_out->n_ion =
-        intgrl_fesc_weighted * prefactor_nion + intgrl_fesc_weighted_mini * prefactor_nion_mini;
+        (intgrl_fesc_weighted * prefactor_nion) + (intgrl_fesc_weighted_mini * prefactor_nion_mini);
     averages_out->fescweighted_sfr =
-        intgrl_fesc_weighted * prefactor_wsfr + intgrl_fesc_weighted_mini * prefactor_wsfr_mini;
+        (intgrl_fesc_weighted * prefactor_wsfr) + (intgrl_fesc_weighted_mini * prefactor_wsfr_mini);
     averages_out->halo_xray = prefactor_xray * integral_xray;
     averages_out->m_turn_acg = M_turn_a;
     averages_out->m_turn_mcg = M_turn_m;
@@ -157,7 +158,7 @@ HaloProperties get_halobox_averages(HaloBox* grids) {
     double mean_n_ion = 0., mean_xray = 0., mean_wsfr = 0.;
 
 #pragma omp parallel for reduction(+ : mean_count, mean_mass, mean_stars, mean_stars_mini, \
-                                       mean_sfr, mean_sfr_mini)
+                                       mean_sfr, mean_sfr_mini, mean_n_ion, mean_xray, mean_wsfr)
     for (int i = 0; i < HII_TOT_NUM_PIXELS; i++) {
         mean_sfr += grids->halo_sfr[i];
         mean_n_ion += grids->n_ion[i];
@@ -282,10 +283,7 @@ void get_cell_integrals(double dens, double l10_mturn_a, double l10_mturn_m,
 // then *(1+delta)) This outputs the UN-NORMALISED grids (before mean-adjustment)
 int set_fixed_grids(double M_min, double M_max, InitialConditions* ini_boxes, float* mturn_a_grid,
                     float* mturn_m_grid, ScalingConstants* consts, HaloBox* grids) {
-    double M_cell = RHOcrit * cosmo_params_global->OMm * VOLUME /
-                    HII_TOT_NUM_PIXELS;  // mass in cell of mean dens
-    IntegralCondition integral_cond;
-    set_integral_constants(&integral_cond, consts->redshift, M_min, M_max, M_cell);
+    double M_cell;
     double growthf = dicke(consts->redshift);
 
     // find grid limits for tables
@@ -315,7 +313,7 @@ int set_fixed_grids(double M_min, double M_max, InitialConditions* ini_boxes, fl
         vel_pointers_2LPT[2] = ini_boxes->hires_vz_2LPT;
         dens_pointer = ini_boxes->hires_density;
         num_pixels = TOT_NUM_PIXELS;
-
+        M_cell = RHOcrit * cosmo_params_global->OMm * VOLUME / TOT_NUM_PIXELS;
     } else {
         grid_dim[0] = simulation_options_global->HII_DIM;
         grid_dim[1] = simulation_options_global->HII_DIM;
@@ -328,7 +326,11 @@ int set_fixed_grids(double M_min, double M_max, InitialConditions* ini_boxes, fl
         vel_pointers_2LPT[2] = ini_boxes->lowres_vz_2LPT;
         dens_pointer = ini_boxes->lowres_density;
         num_pixels = HII_TOT_NUM_PIXELS;
+        M_cell = RHOcrit * cosmo_params_global->OMm * VOLUME / HII_TOT_NUM_PIXELS;
     }
+
+    IntegralCondition integral_cond;
+    set_integral_constants(&integral_cond, consts->redshift, M_min, M_max, M_cell);
 #pragma omp parallel num_threads(simulation_options_global->N_THREADS)
     {
         unsigned long long int i;
@@ -860,8 +862,7 @@ int convert_halo_props(double redshift, InitialConditions* ics, TsBox* prev_ts,
                                 out_props.halo_xray);
                 LOG_ULTRA_DEBUG("MINI: SM %.2e SF %.2e WSF %.2e", out_props.stellar_mass_mini,
                                 out_props.sfr_mini, out_props.fescweighted_sfr);
-                LOG_ULTRA_DEBUG("Mturns ACG %.2e MCG %.2e Reion %.2e", M_turn_a, M_turn_m,
-                                M_turn_r);
+                LOG_ULTRA_DEBUG("Mturns ACG %.2e MCG %.2e", M_turn_a, M_turn_m);
                 LOG_ULTRA_DEBUG("RNG: STAR %.2e SFR %.2e XRAY %.2e", in_props[0], in_props[1],
                                 in_props[2]);
             }
