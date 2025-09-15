@@ -433,7 +433,7 @@ def test_bad_input_structs(default_input_struct_ts):
 
     # We don't need to compute since we arent testing a successful run
     ic = InitialConditions.new(inputs=test_inputs)
-    hf = HaloField.new(redshift=10.0, inputs=test_inputs)
+    hf = HaloField.new(redshift=10.0, inputs=test_inputs, buffer_size=1)
     hb = HaloBox.new(redshift=10.0, inputs=test_inputs)
     pt = PerturbedField.new(redshift=10.0, inputs=test_inputs)
     pt_p = PerturbedField.new(redshift=11.0, inputs=test_inputs)
