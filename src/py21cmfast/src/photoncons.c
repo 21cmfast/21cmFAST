@@ -40,24 +40,24 @@ static double *deltaz, *deltaz_smoothed, *NeutralFractions, *z_Q, *Q_value, *nf_
 static int N_NFsamples, N_extrapolated, N_analytic, N_calibrated, N_deltaz;
 static double FinalNF_Estimate, FirstNF_Estimate;
 
-static gsl_interp_accel *Q_at_z_spline_acc;
-static gsl_spline *Q_at_z_spline;
-static gsl_interp_accel *z_at_Q_spline_acc;
-static gsl_spline *z_at_Q_spline;
+static gsl_interp_accel* Q_at_z_spline_acc;
+static gsl_spline* Q_at_z_spline;
+static gsl_interp_accel* z_at_Q_spline_acc;
+static gsl_spline* z_at_Q_spline;
 static double Zmin, Zmax, Qmin, Qmax;
-void Q_at_z(double z, double *splined_value);
-void z_at_Q(double Q, double *splined_value);
+void Q_at_z(double z, double* splined_value);
+void z_at_Q(double Q, double* splined_value);
 
-static gsl_interp_accel *deltaz_spline_for_photoncons_acc;
-static gsl_spline *deltaz_spline_for_photoncons;
+static gsl_interp_accel* deltaz_spline_for_photoncons_acc;
+static gsl_spline* deltaz_spline_for_photoncons;
 
-static gsl_interp_accel *NFHistory_spline_acc;
-static gsl_spline *NFHistory_spline;
-static gsl_interp_accel *z_NFHistory_spline_acc;
-static gsl_spline *z_NFHistory_spline;
-void initialise_NFHistory_spline(double *redshifts, double *NF_estimate, int NSpline);
-void z_at_NFHist(double xHI_Hist, double *splined_value);
-void NFHist_at_z(double z, double *splined_value);
+static gsl_interp_accel* NFHistory_spline_acc;
+static gsl_spline* NFHistory_spline;
+static gsl_interp_accel* z_NFHistory_spline_acc;
+static gsl_spline* z_NFHistory_spline;
+void initialise_NFHistory_spline(double* redshifts, double* NF_estimate, int NSpline);
+void z_at_NFHist(double xHI_Hist, double* splined_value);
+void NFHist_at_z(double z, double* splined_value);
 
 // all the z-photoncons parameters
 // TODO: these will rarely be changed but probably shouldn't be hard-coded
@@ -286,8 +286,8 @@ int InitialisePhotonCons() {
         Qmax = Q_value[0];
 
         // initialise interpolation z as a function of Q
-        double *Q_z = calloc(nbin, sizeof(double));
-        double *z_value = calloc(nbin, sizeof(double));
+        double* Q_z = calloc(nbin, sizeof(double));
+        double* z_value = calloc(nbin, sizeof(double));
 
         z_at_Q_spline_acc = gsl_interp_accel_alloc();
         z_at_Q_spline = gsl_spline_alloc(gsl_interp_linear, nbin);
@@ -317,7 +317,7 @@ int InitialisePhotonCons() {
 }
 
 // Function to construct the spline for the calibration curve of the photon non-conservation
-int PhotonCons_Calibration(double *z_estimate, double *xH_estimate, int NSpline) {
+int PhotonCons_Calibration(double* z_estimate, double* xH_estimate, int NSpline) {
     int status;
     Try {
         if (xH_estimate[NSpline - 1] > 0.0 && xH_estimate[NSpline - 2] > 0.0 &&
@@ -331,7 +331,7 @@ int PhotonCons_Calibration(double *z_estimate, double *xH_estimate, int NSpline)
 
 // Function callable from Python to know at which redshift to start sampling the calibration curve
 // (to minimise function calls)
-int ComputeZstart_PhotonCons(double *zstart) {
+int ComputeZstart_PhotonCons(double* zstart) {
     int status;
     double temp;
 
@@ -687,8 +687,8 @@ void determine_deltaz_for_photoncons() {
     LOG_DEBUG("done");
 }
 
-void adjust_redshifts_for_photoncons(double z_step_factor, float *redshift, float *stored_redshift,
-                                     float *absolute_delta_z) {
+void adjust_redshifts_for_photoncons(double z_step_factor, float* redshift, float* stored_redshift,
+                                     float* absolute_delta_z) {
     int new_counter;
     double temp;
     float required_NF, adjusted_redshift, temp_redshift, check_required_NF;
@@ -843,7 +843,7 @@ void adjust_redshifts_for_photoncons(double z_step_factor, float *redshift, floa
     *redshift = adjusted_redshift;
 }
 
-void Q_at_z(double z, double *splined_value) {
+void Q_at_z(double z, double* splined_value) {
     float returned_value;
 
     if (z >= Zmax) {
@@ -856,7 +856,7 @@ void Q_at_z(double z, double *splined_value) {
     }
 }
 
-void z_at_Q(double Q, double *splined_value) {
+void z_at_Q(double Q, double* splined_value) {
     float returned_value;
 
     if (Q < Qmin) {
@@ -884,7 +884,7 @@ void free_Q_value() {
     gsl_interp_accel_free(z_at_Q_spline_acc);
 }
 
-void initialise_NFHistory_spline(double *redshifts, double *NF_estimate, int NSpline) {
+void initialise_NFHistory_spline(double* redshifts, double* NF_estimate, int NSpline) {
     int i, counter, start_index, found_start_index;
 
     // This takes in the data for the calibration curve for the photon non-conservation correction
@@ -952,24 +952,24 @@ void initialise_NFHistory_spline(double *redshifts, double *NF_estimate, int NSp
     CATCH_GSL_ERROR(gsl_status);
 }
 
-void z_at_NFHist(double xHI_Hist, double *splined_value) {
+void z_at_NFHist(double xHI_Hist, double* splined_value) {
     float returned_value;
 
     returned_value = gsl_spline_eval(NFHistory_spline, xHI_Hist, NFHistory_spline_acc);
     *splined_value = returned_value;
 }
 
-void NFHist_at_z(double z, double *splined_value) {
+void NFHist_at_z(double z, double* splined_value) {
     float returned_value;
 
     returned_value = gsl_spline_eval(z_NFHistory_spline, z, NFHistory_spline_acc);
     *splined_value = returned_value;
 }
 
-int ObtainPhotonConsData(double *z_at_Q_data, double *Q_data, int *Ndata_analytic,
-                         double *z_cal_data, double *nf_cal_data, int *Ndata_calibration,
-                         double *PhotonCons_NFdata, double *PhotonCons_deltaz,
-                         int *Ndata_PhotonCons) {
+int ObtainPhotonConsData(double* z_at_Q_data, double* Q_data, int* Ndata_analytic,
+                         double* z_cal_data, double* nf_cal_data, int* Ndata_calibration,
+                         double* PhotonCons_NFdata, double* PhotonCons_deltaz,
+                         int* Ndata_PhotonCons) {
     int i;
 
     *Ndata_analytic = N_analytic;
