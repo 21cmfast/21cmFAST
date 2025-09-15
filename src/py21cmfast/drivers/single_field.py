@@ -188,7 +188,7 @@ def perturb_halo_list(
     Fill this in once finalised
 
     """
-    hbuffer_size = getattr(halo_field, "n_halos", halo_field.buffer_size)
+    hbuffer_size = halo_field.n_halos if halo_field.n_halos else halo_field.buffer_size
     redshift = halo_field.redshift
 
     # Initialize halo list boxes.
