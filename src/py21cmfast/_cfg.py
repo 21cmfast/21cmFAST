@@ -68,6 +68,10 @@ class Config(dict):
                 )
 
         self["direc"] = Path(self["direc"]).expanduser().absolute()
+        # Junsong: testing caching
+        #if '<' in self["direc"]:
+        #    print("Found strange name in your path!!!")
+        # print("Junsong:", self["direc"])
 
         if do_write and write and self.file_name:
             self.write()

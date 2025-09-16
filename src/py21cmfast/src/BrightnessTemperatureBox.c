@@ -19,7 +19,7 @@ int ComputeBrightnessTemp(float redshift, struct UserParams *user_params, struct
         char wisdom_filename[500];
         int i, ii, j, k, n_x, n_y, n_z;
         float k_x, k_y, k_z;
-        double ave, Trad_tot;
+        double ave;
 
         ave = 0.;
 
@@ -69,7 +69,7 @@ int ComputeBrightnessTemp(float redshift, struct UserParams *user_params, struct
 
         // ok, lets fill the delta_T box; which will be the same size as the bubble box
 #pragma omp parallel shared(const_factor, perturb_field, ionized_box, box, redshift, spin_temp, T_rad) \
-    private(i, j, k, pixel_deltax, pixel_x_HI, pixel_Ts_factor, Trad_tot)                              \
+    private(i, j, k, pixel_deltax, pixel_x_HI, pixel_Ts_factor)                              \
     num_threads(user_params -> N_THREADS)
         {
 #pragma omp for reduction(+ : ave)
@@ -96,9 +96,7 @@ int ComputeBrightnessTemp(float redshift, struct UserParams *user_params, struct
                             else
                             {
                                 // pixel_Ts_factor = (1 - T_rad / spin_temp->Ts_box[HII_R_INDEX(i,j,k)]);
-                                // Adding Excess Radio Background
-                                Trad_tot = T_rad + spin_temp->Trad_box[HII_R_INDEX(i, j, k)];
-                                pixel_Ts_factor = (1 - Trad_tot / spin_temp->Ts_box[HII_R_INDEX(i, j, k)]);
+                                pixel_Ts_factor = (1 - (T_rad + spin_temp->Trad_box[HII_R_INDEX(i, j, k)]) / spin_temp->Ts_box[HII_R_INDEX(i, j, k)]);
                                 box->brightness_temp[HII_R_INDEX(i, j, k)] *= pixel_Ts_factor;
                             }
                         }
@@ -195,7 +193,6 @@ int ComputeBrightnessTemp(float redshift, struct UserParams *user_params, struct
                                         // Gradient component goes to zero, optical depth diverges.
                                         // But, since we take exp(-tau), this goes to zero and (1 - exp(-tau)) goes to unity.
                                         // Again, factors of 1000. are conversions from K to mK
-                                        // Trad_box: added contribution from excess radio background
                                         box->brightness_temp[HII_R_INDEX(i, j, k)] = 1000. * (spin_temp->Ts_box[HII_R_INDEX(i, j, k)] - T_rad - spin_temp->Trad_box[HII_R_INDEX(i, j, k)]) / (1. + redshift);
                                     }
                                     else

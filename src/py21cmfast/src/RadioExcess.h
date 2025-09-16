@@ -547,6 +547,7 @@ double Get_EoR_Radio_mini_v2(struct TsBox *this_spin_temp, struct AstroParams *a
 				remove("SFRD_PopIII_tmp.txt");
 				OutputFile = fopen("SFRD_PopIII_tmp.txt", "a");
 			}
+			// printf("z = %.2E @ EoR cali\n", redshift);
 
 			// First fill z_axis and nion_axis
 			if (ArchiveSize > 390)
@@ -562,7 +563,8 @@ double Get_EoR_Radio_mini_v2(struct TsBox *this_spin_temp, struct AstroParams *a
 				mt = this_spin_temp->History_box[head + 6];
 				if (mt < 1.0e2)
 				{
-					fprintf(stderr, "Error @ Get_EoR_Radio_mini: mturn is smaller than 100, this is not supposed to happen.\n");
+					fprintf(stderr, "Error @ Get_EoR_Radio_mini: mturn is smaller than 100, this is not supposed to happen. mt = %.2E, z = %.2f\n", mt, redshift);
+					Throw(ValueError);			
 				}
 				nion_axis[idx] = Nion_General_MINI(z, global_params.M_MIN_INTEGRAL, mt, mc, astro_params->ALPHA_STAR_MINI, 0., astro_params->F_STAR7_MINI, 1., Mlim_Fstar_MINI, 0.);
 

@@ -849,7 +849,7 @@ class AstroParams(StructWithDefaults):
         "BETA_LW": 0.6,
         "A_VCB": 1.0,
         "BETA_VCB": 1.8,
-        # Radio excess and PBH params
+        # Radio excess params
         "fR": -10.0,
         "aR": 0.7,
         "fR_mini": -10.0,
