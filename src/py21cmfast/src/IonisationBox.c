@@ -72,8 +72,7 @@ int ComputeIonizedBox(float redshift, float prev_redshift, struct UserParams *us
         float dens_val, prev_dens_val;
 
         int overdense_int, status_int, ArchiveSize, head;
-        // int History_box_LEN = 20; // same as History_box_DIM but I cannot acess History_box_DIM from here
-
+        
         int something_finite_or_infinite = 0;
         int log10_Mturnover_MINI_int, log10_Mturnover_int;
         int *overdense_int_boundexceeded_threaded = calloc(user_params->N_THREADS, sizeof(int));
