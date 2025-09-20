@@ -1,3 +1,6 @@
+#ifndef _INTERPOLATION_CU_IMPL
+#define _INTERPOLATION_CU_IMPL
+
 #include <cuda_runtime.h>
 
 #include "interpolation.cuh"
@@ -40,3 +43,5 @@ __device__ double EvaluateRGTable2D(double x, double y, RGTable2D *table)
 
     return result;
 }
+
+#endif // _INTERPOLATION_CU_IMPL

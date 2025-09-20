@@ -1,3 +1,6 @@
+#ifndef _INTERP_TABLES_CU_IMPL
+#define _INTERP_TABLES_CU_IMPL
+
 #include <cuda_runtime.h>
 
 #include <math.h>
@@ -155,3 +158,5 @@ __device__ double EvaluateNhalo(double condition, double growthf, double lnMmin,
     // todo: implement Nhalo_Conditional
     return 0;
 }
+
+#endif // _INTERP_TABLES_CU_IMPL

@@ -1,3 +1,6 @@
+#ifndef _HMF_CU_IMPL
+#define _HMF_CU_IMPL
+
 #include <cuda_runtime.h>
 #include <math.h>
 
@@ -19,3 +22,5 @@ __device__ double get_delta_crit(int HMF, double sigma, double growthf)
 
     return Deltac;
 }
+
+#endif // _HMF_CU_IMPL
