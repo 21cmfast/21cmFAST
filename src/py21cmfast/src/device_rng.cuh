@@ -4,8 +4,10 @@
 #ifdef __CUDACC__
 #include <curand_kernel.h>
 // Declare the device variables as extern so that they can be shared across CUDA files.
+#ifndef _DEVICE_RNG_CU_IMPL
 extern __device__ curandState *d_randStates;
 extern __device__ int d_numStates;
+#endif
 #endif
 
 

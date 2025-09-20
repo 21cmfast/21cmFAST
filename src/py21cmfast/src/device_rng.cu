@@ -4,8 +4,12 @@
 #include <stdio.h>
 
 #include "cuda_utils.cuh"
+
+// Define this before including device_rng.cuh to avoid extern declarations
+#define _DEVICE_RNG_CU_IMPL
 #include "device_rng.cuh"
 
+// Now define the actual device variables
 __device__ curandState *d_randStates = nullptr;
 __device__ int d_numStates = 0;
 
