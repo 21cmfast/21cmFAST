@@ -38,9 +38,9 @@ cuda_source_files = files([
   'SpinTemperatureBox.cu',
   'Stochasticity.cu',
   'filtering.cu',
-  'hmf.cu',
-  'interp_tables.cu',
-  'interpolation.cu',
+  # 'hmf.cu',  # Included by Stochasticity.cu, don't compile separately
+  # 'interp_tables.cu',  # Included by Stochasticity.cu, don't compile separately
+  # 'interpolation.cu',  # Included by interp_tables.cu, don't compile separately
   'device_rng.cu',
   'MapMass_gpu.cu',
   'test_Stochasticity.cu',
