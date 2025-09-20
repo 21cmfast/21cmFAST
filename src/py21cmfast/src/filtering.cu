@@ -139,13 +139,13 @@ void filter_box_gpu(fftwf_complex *box, int RES, int filter_type, float R, float
     int dimension, midpoint, midpoint_para, num_pixels;
     switch(RES) {
         case 0:
-            dimension = user_params_global->DIM;
+            dimension = simulation_options_global->DIM;
             midpoint = MIDDLE;  // midpoint of x,y = DIM / 2
             midpoint_para = MID_PARA;  // midpoint of z = NON_CUBIC_FACTOR * HII_DIM / 2
             num_pixels = KSPACE_NUM_PIXELS;
             break;
         case 1:
-            dimension = user_params_global->HII_DIM;
+            dimension = simulation_options_global->HII_DIM;
             midpoint = HII_MIDDLE;  // midpoint of x,y = HII_DIM / 2
             midpoint_para = HII_MID_PARA;  // midpoint of z = NON_CUBIC_FACTOR * HII_DIM / 2
             num_pixels = HII_KSPACE_NUM_PIXELS;
@@ -222,12 +222,12 @@ int test_filter_gpu(float *input_box, double R, double R_param, int filter_flag,
     fftwf_complex *box_unfiltered = (fftwf_complex *) fftwf_malloc(sizeof(fftwf_complex)*HII_KSPACE_NUM_PIXELS);
     fftwf_complex *box_filtered = (fftwf_complex *) fftwf_malloc(sizeof(fftwf_complex)*HII_KSPACE_NUM_PIXELS);
 
-    for (i=0; i<user_params->HII_DIM; i++)
-        for (j=0; j<user_params->HII_DIM; j++)
+    for (i=0; i<simulation_options_global->HII_DIM; i++)
+        for (j=0; j<simulation_options_global->HII_DIM; j++)
             for (k=0; k<HII_D_PARA; k++)
                 *((float *)box_unfiltered + HII_R_FFT_INDEX(i,j,k)) = input_box[HII_R_INDEX(i,j,k)];
 
-    dft_r2c_cube(user_params->USE_FFTW_WISDOM, user_params->HII_DIM, HII_D_PARA, user_params->N_THREADS, box_unfiltered);
+    dft_r2c_cube(matter_options_global->USE_FFTW_WISDOM, simulation_options_global->HII_DIM, HII_D_PARA, simulation_options_global->N_THREADS, box_unfiltered);
 
     // Convert to CUDA complex type
     cuFloatComplex* box_unfiltered_cu = reinterpret_cast<cuFloatComplex*>(box_unfiltered);
@@ -241,10 +241,10 @@ int test_filter_gpu(float *input_box, double R, double R_param, int filter_flag,
 
     filter_box_gpu(box_filtered, 1, filter_flag, R, R_param);
 
-    dft_c2r_cube(user_params->USE_FFTW_WISDOM, user_params->HII_DIM, HII_D_PARA, user_params->N_THREADS, box_filtered);
+    dft_c2r_cube(matter_options_global->USE_FFTW_WISDOM, simulation_options_global->HII_DIM, HII_D_PARA, simulation_options_global->N_THREADS, box_filtered);
 
-    for (i=0; i<user_params->HII_DIM; i++)
-        for (j=0; j<user_params->HII_DIM; j++)
+    for (i=0; i<simulation_options_global->HII_DIM; i++)
+        for (j=0; j<simulation_options_global->HII_DIM; j++)
             for (k=0; k<HII_D_PARA; k++)
                     result[HII_R_INDEX(i,j,k)] = *((float *)box_filtered + HII_R_FFT_INDEX(i,j,k));
 

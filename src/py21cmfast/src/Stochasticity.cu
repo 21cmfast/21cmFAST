@@ -423,7 +423,7 @@ __device__ int stoc_mass_sample(struct HaloSamplingConstants *hs_constants, cura
     //   which is independent of density or halo mass,
     //   this factor reduces the total expected mass to bring it into line with the CMF
     // exp_M *= user_params_global->HALOMASS_CORRECTION;
-    exp_M *= d_matter_options.HALOMASS_CORRECTION;
+    exp_M *= d_simulation_options.HALOMASS_CORRECTION;
 
     // int n_halo_sampled = 0;
     // double M_prog = 0;
@@ -835,7 +835,7 @@ int updateHaloOut(float *halo_masses, float *star_rng, float *sfr_rng, float *xr
     CALL_CUDA(cudaHostAlloc((void **)&h_expected_mass, sizeof(double) * n_halos, cudaHostAllocDefault));
 
     // get parameters needed by the kernel
-    int HMF = user_params_global->HMF;
+    int HMF = matter_options_global->HMF;
 
     // set buffer size (hard-coded)
     int scale = 5;
