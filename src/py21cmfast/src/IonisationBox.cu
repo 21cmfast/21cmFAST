@@ -213,8 +213,9 @@ void calculate_fcoll_grid_gpu(
   LOG_INFO("Fcoll sum reduced to single value by thrust::reduce operation.");
 
   // Copy results from device to host
-  CALL_CUDA(cudaMemcpy(box->Fcoll, d_Fcoll, sizeof(float) * hii_tot_num_pixels,
-                       cudaMemcpyDeviceToHost));
+  // NOTE: IonizedBox struct doesn't have Fcoll member - this appears to be obsolete code
+  // CALL_CUDA(cudaMemcpy(box->Fcoll, d_Fcoll, sizeof(float) * hii_tot_num_pixels,
+  //                      cudaMemcpyDeviceToHost));
   CALL_CUDA(cudaMemcpy(h_deltax_filtered, d_deltax_filtered,
                        sizeof(fftwf_complex) * hii_kspace_num_pixels,
                        cudaMemcpyDeviceToHost));

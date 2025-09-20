@@ -293,7 +293,7 @@ double* MapMass_gpu(
         cudaMemcpy(lowres_vy, boxes->lowres_vy, size_float, cudaMemcpyHostToDevice);
         cudaMemcpy(lowres_vz, boxes->lowres_vz, size_float, cudaMemcpyHostToDevice);
     }
-    if (matter_options_global->USE_2LPT) {
+    if (false /* USE_2LPT obsolete */) {
         if (matter_options_global->PERTURB_ON_HIGH_RES) {
             cudaMalloc(&hires_vx_2LPT, size_float);
             cudaMalloc(&hires_vy_2LPT, size_float);
@@ -330,7 +330,7 @@ double* MapMass_gpu(
         d_resampled_box, hires_density, hires_vx, hires_vy, hires_vz, lowres_vx, lowres_vy, lowres_vz,
         hires_vx_2LPT, hires_vy_2LPT, hires_vz_2LPT, lowres_vx_2LPT, lowres_vy_2LPT, lowres_vz_2LPT,
         dimension, simulation_options_global->DIM, d_para, hii_d, hii_d_para, simulation_options_global->NON_CUBIC_FACTOR,
-        f_pixel_factor, init_growth_factor, matter_options_global->PERTURB_ON_HIGH_RES, matter_options_global->USE_2LPT);
+        f_pixel_factor, init_growth_factor, matter_options_global->PERTURB_ON_HIGH_RES, false /* USE_2LPT obsolete */);
 
     // // Only use during development!
     // err = cudaDeviceSynchronize();
@@ -363,7 +363,7 @@ double* MapMass_gpu(
         cudaFree(lowres_vy);
         cudaFree(lowres_vz);
     }
-    if (matter_options_global->USE_2LPT) {
+    if (false /* USE_2LPT obsolete */) {
         if (matter_options_global->PERTURB_ON_HIGH_RES) {
             cudaFree(hires_vx_2LPT);
             cudaFree(hires_vy_2LPT);
