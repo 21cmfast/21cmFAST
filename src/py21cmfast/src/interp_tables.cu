@@ -119,7 +119,7 @@ __device__ double extrapolate_dNdM_inverse(double condition, double lnp)
     double x_table = x_min + x_idx * x_width;
     double interp_point_x = (condition - x_table) / x_width;
 
-    double extrap_point_y = (lnp - d_user_params.MIN_LOGPROB) / d_Nhalo_inv_table.y_width;
+    double extrap_point_y = (lnp - d_simulation_options.MIN_LOGPROB) / d_Nhalo_inv_table.y_width;
 
     // find the log-mass at the edge of the table for this condition
     double xlimit = d_Nhalo_inv_table.z_arr[x_idx][0] * (interp_point_x) + d_Nhalo_inv_table.z_arr[x_idx + 1][0] * (1 - interp_point_x);
@@ -135,14 +135,14 @@ __device__ double EvaluateNhaloInv(double condition, double prob)
     if (prob == 0.)
         return 1.; // q == 1 -> condition mass
     double lnp = log(prob);
-    if (lnp < d_user_params.MIN_LOGPROB)
+    if (lnp < d_simulation_options.MIN_LOGPROB)
         return extrapolate_dNdM_inverse(condition, lnp);
     return EvaluateRGTable2D(condition, lnp, &d_Nhalo_inv_table);
 }
 
 __device__ double EvaluateMcoll(double condition, double growthf, double lnMmin, double lnMmax, double M_cond, double sigma, double delta)
 {
-    if (d_user_params.USE_INTERPOLATION_TABLES)
+    if (d_matter_options.USE_INTERPOLATION_TABLES)
         return EvaluateRGTable1D(condition, &d_Mcoll_table);
     // todo: implement Mcoll_Conditional
     return 0;
@@ -150,7 +150,7 @@ __device__ double EvaluateMcoll(double condition, double growthf, double lnMmin,
 
 __device__ double EvaluateNhalo(double condition, double growthf, double lnMmin, double lnMmax, double M_cond, double sigma, double delta)
 {
-    if (d_user_params.USE_INTERPOLATION_TABLES)
+    if (d_matter_options.USE_INTERPOLATION_TABLES)
         return EvaluateRGTable1D(condition, &d_Nhalo_table);
     // todo: implement Nhalo_Conditional
     return 0;
