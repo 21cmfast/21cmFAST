@@ -203,9 +203,9 @@ void filter_box_cpu(fftwf_complex *box, int RES, int filter_type, float R, float
 }
 
 void filter_box(fftwf_complex *box, int RES, int filter_type, float R, float R_param) {
-    bool use_cuda = false;  // pass this as a parameter later
+    bool use_cuda = true;  // pass this as a parameter later
     if (use_cuda) {
-#if CUDA_FOUND
+#if USE_CUDA
         filter_box_gpu(box, RES, filter_type, R, R_param);
 #else
         LOG_ERROR("CUDA version of filter_box() called but code was not compiled for CUDA.");
@@ -258,9 +258,9 @@ int test_filter_cpu(float *input_box, double R, double R_param, int filter_flag,
 }
 
 int test_filter(float *input_box, double R, double R_param, int filter_flag, double *result) {
-    bool use_cuda = false;  // pass this as a parameter later
+    bool use_cuda = true;  // pass this as a parameter later
     if (use_cuda) {
-#if CUDA_FOUND
+#if USE_CUDA
         return test_filter_gpu(input_box, R, R_param, filter_flag, result);
 #else
         LOG_ERROR("CUDA version of test_filter() called but code was not compiled for CUDA.");

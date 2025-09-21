@@ -1386,11 +1386,11 @@ int ComputeIonizedBox(float redshift, float prev_redshift, PerturbedField *pertu
         unsigned int numBlocks;
 
         // If GPU & flags call init_ionbox_gpu_data()
-        bool use_cuda = false;  // pass this as a parameter later
+        bool use_cuda = true;  // pass this as a parameter later
         if (use_cuda && astro_options_global->USE_MASS_DEPENDENT_ZETA &&
             !astro_options_global->USE_MINI_HALOS && !matter_options_global->USE_HALO_FIELD) {
             unsigned int Nion_nbins = get_nbins();
-#if CUDA_FOUND
+#if USE_CUDA
             init_ionbox_gpu_data(&d_deltax_filtered, &d_xe_filtered, &d_y_arr, &d_Fcoll, Nion_nbins,
                                  HII_TOT_NUM_PIXELS, HII_KSPACE_NUM_PIXELS, &threadsPerBlock,
                                  &numBlocks);
@@ -1549,11 +1549,11 @@ int ComputeIonizedBox(float redshift, float prev_redshift, PerturbedField *pertu
                 }
 
                 // If GPU & flags, call gpu version of calculate_fcoll_grid()
-                bool use_cuda = false;  // pass this as a parameter later
+                bool use_cuda = true;  // pass this as a parameter later
                 if (use_cuda && astro_options_global->USE_MASS_DEPENDENT_ZETA &&
                     !astro_options_global->USE_MINI_HALOS &&
                     !matter_options_global->USE_HALO_FIELD) {
-#if CUDA_FOUND
+#if USE_CUDA
                     calculate_fcoll_grid_gpu(box, grid_struct->deltax_filtered,
                                              grid_struct->xe_filtered,
                                              &curr_radius.f_coll_grid_mean, d_deltax_filtered,
