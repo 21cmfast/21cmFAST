@@ -2690,17 +2690,17 @@ int ComputeTsBox(float redshift, float prev_redshift, struct UserParams *user_pa
             // Caching averaged quantities
             if (this_spin_temp->first_box)
             {
-                this_spin_temp->History_box[0] = 1.0;                      // ArchiveSize
-                this_spin_temp->History_box[1] = global_params.Z_HEAT_MAX; // redshift
-                this_spin_temp->History_box[2] = 0.0;                      // Phi
-                this_spin_temp->History_box[3] = Tk_BC;                    // Tk
-                this_spin_temp->History_box[4] = 0.0;                      // Phi_mini
-                this_spin_temp->History_box[5] = zpp_for_evolve_list[0];   // zpp0
-                this_spin_temp->History_box[6] = 1.0e20;                   // mturn_II
-                this_spin_temp->History_box[7] = 1.0e20;                   // mturn_III
-                this_spin_temp->History_box[8] = 0.0;                      // Phi_mini_calibrated
-                this_spin_temp->mturns_EoR[0] = 1.0e20;                    // mturn_II
-                this_spin_temp->mturns_EoR[1] = 1.0e20;                    // mturn_III
+                this_spin_temp->History_box[0] = 1.0;                    // ArchiveSize
+                this_spin_temp->History_box[1] = redshift;               // redshift
+                this_spin_temp->History_box[2] = 0.0;                    // Phi
+                this_spin_temp->History_box[3] = Tk_BC;                  // Tk
+                this_spin_temp->History_box[4] = 0.0;                    // Phi_mini
+                this_spin_temp->History_box[5] = zpp_for_evolve_list[0]; // zpp0
+                this_spin_temp->History_box[6] = 1.0e20;                 // mturn_II
+                this_spin_temp->History_box[7] = 1.0e20;                 // mturn_III
+                this_spin_temp->History_box[8] = 0.0;                    // Phi_mini_calibrated
+                this_spin_temp->mturns_EoR[0] = 1.0e20;                  // mturn_II
+                this_spin_temp->mturns_EoR[1] = 1.0e20;                  // mturn_III
             }
             else
             {
@@ -2714,8 +2714,17 @@ int ComputeTsBox(float redshift, float prev_redshift, struct UserParams *user_pa
                 this_spin_temp->History_box[head + 2] = T_IGM_ave;
                 this_spin_temp->History_box[head + 3] = Phi_ave_mini;
                 this_spin_temp->History_box[head + 4] = zpp_for_evolve_list[0];
-                this_spin_temp->History_box[head + 5] = previous_spin_temp->mturns_EoR[0];
-                this_spin_temp->History_box[head + 6] = previous_spin_temp->mturns_EoR[1];
+                if (redshift > global_params.Z_HEAT_MAX - 0.2)
+                {
+                    // P21f sometimes skip IO.c call
+                    this_spin_temp->History_box[head + 5] = 1.0E20;
+                    this_spin_temp->History_box[head + 6] = 1.0E20;
+                }
+                else
+                {
+                    this_spin_temp->History_box[head + 5] = previous_spin_temp->mturns_EoR[0];
+                    this_spin_temp->History_box[head + 6] = previous_spin_temp->mturns_EoR[1];
+                }
             }
 
             if (flag_options->Calibrate_EoR_feedback && !Radio_Silent)
