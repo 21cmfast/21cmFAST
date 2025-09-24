@@ -54,7 +54,7 @@ struct IonBoxConstants {
     int hii_filter;
 
     // astro parameters
-    struct ScalingConstants scale_consts;
+    ScalingConstants scale_consts;
     double T_re;
 
     // astro calculated values
@@ -135,7 +135,7 @@ void set_ionbox_constants(double redshift, double prev_redshift, struct IonBoxCo
     else
         consts->dz = prev_redshift - redshift;
 
-    struct ScalingConstants sc;
+    ScalingConstants sc;
     set_scaling_constants(redshift, &sc, true);
     consts->scale_consts = sc;
 
@@ -206,9 +206,7 @@ void set_ionbox_constants(double redshift, double prev_redshift, struct IonBoxCo
         pow(1 + redshift, 2) * CMperMPC * SIGMA_HI * astro_params_global->ALPHA_UVB /
         (astro_params_global->ALPHA_UVB + 2.75) * N_b0 * consts->ion_eff_factor / 1.0e-12;
     if (matter_options_global->USE_HALO_FIELD)
-        consts->gamma_prefactor /=
-            RHOcrit * cosmo_params_global->OMb;  // TODO: double-check these unit differences,
-                                                 // HaloBox.halo_wsfr vs Nion_General units
+        consts->gamma_prefactor /= RHOcrit * cosmo_params_global->OMb;
     else
         consts->gamma_prefactor = consts->gamma_prefactor / (sc.t_h * sc.t_star);
 
@@ -447,7 +445,7 @@ void calculate_mcrit_boxes(IonizedBox *prev_ionbox, TsBox *spin_temp, InitialCon
 void set_mean_fcoll(struct IonBoxConstants *c, IonizedBox *prev_box, IonizedBox *curr_box,
                     double mturn_acg, double mturn_mcg, double *f_limit_acg, double *f_limit_mcg) {
     double f_coll_curr = 0., f_coll_prev = 0., f_coll_curr_mini = 0., f_coll_prev_mini = 0.;
-    struct ScalingConstants *sc_ptr = &(c->scale_consts);
+    ScalingConstants *sc_ptr = &(c->scale_consts);
     if (astro_options_global->USE_MASS_DEPENDENT_ZETA) {
         f_coll_curr = Nion_General(c->redshift, c->lnMmin, c->lnMmax_gl, mturn_acg, sc_ptr);
         *f_limit_acg = Nion_General(simulation_options_global->Z_HEAT_MAX, c->lnMmin, c->lnMmax_gl,
@@ -670,7 +668,7 @@ void setup_integration_tables(struct FilteredGrids *fg_struct, struct IonBoxCons
     double min_density, max_density, prev_min_density = 0., prev_max_density = 0.;
     double log10Mturn_min = 0., log10Mturn_max = 0., log10Mturn_min_MINI = 0.,
            log10Mturn_max_MINI = 0.;
-    struct ScalingConstants *sc_ptr = &(consts->scale_consts);
+    ScalingConstants *sc_ptr = &(consts->scale_consts);
 
     // TODO: instead of putting a random upper limit, put a proper flag for switching of one/both
     // sides of the clipping
@@ -742,7 +740,7 @@ void calculate_fcoll_grid(IonizedBox *box, IonizedBox *previous_ionize_box,
     double f_coll_total = 0., f_coll_MINI_total = 0.;
     // TODO: make proper error tracking through the parallel region
     bool error_flag;
-    struct ScalingConstants *sc_ptr = &(consts->scale_consts);
+    ScalingConstants *sc_ptr = &(consts->scale_consts);
 
     int fc_r_idx;
     fc_r_idx = (astro_options_global->USE_MINI_HALOS && !matter_options_global->USE_HALO_FIELD)

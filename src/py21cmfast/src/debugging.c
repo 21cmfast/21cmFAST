@@ -147,8 +147,7 @@ void writeAstroParams(AstroParams *p) {
         "       HII_EFF_FACTOR=%10.3e\n"
         "       ION_Tvir_MIN=%10.3e\n"
         "       X_RAY_Tvir_MIN=%10.3e\n",
-        p->HII_EFF_FACTOR, p->ION_Tvir_MIN, p->X_RAY_Tvir_MIN, p->R_BUBBLE_MAX, p->L_X,
-        p->NU_X_THRESH, p->X_RAY_SPEC_INDEX, p->F_STAR10, p->t_STAR);
+        p->HII_EFF_FACTOR, p->ION_Tvir_MIN, p->X_RAY_Tvir_MIN);
 }
 
 void writeAstroOptions(AstroOptions *p) {

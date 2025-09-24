@@ -67,7 +67,7 @@ class OutputCache:
             "seed": inputs.random_seed,
             "zgrid": md5(repr(inputs.node_redshifts).encode()).hexdigest(),
             "astro_flag": md5(
-                (repr(inputs.astro_params) + repr(inputs.simulation_options)).encode()
+                (repr(inputs.astro_params) + repr(inputs.astro_options)).encode()
             ).hexdigest(),
         }
 

@@ -754,7 +754,7 @@ int UpdateXraySourceBox(HaloBox *halobox, double R_inner, double R_outer, int R_
 // NOTE: Frequency integrals are based on PREVIOUS x_e_ave
 //   The x_e tables are not regular, hence the precomputation of indices/interp points
 void fill_freqint_tables(double zp, double x_e_ave, double filling_factor_of_HI_zp,
-                         double *log10_Mcrit_LW_ave, int R_mm, struct ScalingConstants *sc) {
+                         double *log10_Mcrit_LW_ave, int R_mm, ScalingConstants *sc) {
     double lower_int_limit;
     int x_e_ct, R_ct;
     int R_start, R_end;
@@ -882,7 +882,7 @@ int global_reion_properties(double zp, double x_e_ave, double *log10_Mcrit_LW_av
     double determine_zpp_max, determine_zpp_min;
 
     // at z', we need a differenc constant struct
-    struct ScalingConstants sc;
+    ScalingConstants sc;
     set_scaling_constants(zp, &sc, false);
 
     if (matter_options_global->USE_INTERPOLATION_TABLES > 1) {
@@ -945,7 +945,7 @@ int global_reion_properties(double zp, double x_e_ave, double *log10_Mcrit_LW_av
 
 void calculate_sfrd_from_grid(int R_ct, float *dens_R_grid, float *Mcrit_R_grid, float *sfrd_grid,
                               float *sfrd_grid_mini, double *ave_sfrd, double *ave_sfrd_mini,
-                              struct ScalingConstants *sc) {
+                              ScalingConstants *sc) {
     double ave_sfrd_buf = 0;
     double ave_sfrd_buf_mini = 0;
     if (astro_options_global->INTEGRATION_METHOD_ATOMIC == 1 ||
@@ -1477,7 +1477,7 @@ void ts_main(float redshift, float prev_redshift, float perturbed_field_redshift
     int R_index;
     float *delta_box_input;
     float *Mcrit_box_input = NULL;  // may be unused
-    struct ScalingConstants sc, sc_sfrd;
+    ScalingConstants sc, sc_sfrd;
 
     // if we have stars, fill in the heating term boxes
     if (!NO_LIGHT) {

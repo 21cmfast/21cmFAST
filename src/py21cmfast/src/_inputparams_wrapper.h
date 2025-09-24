@@ -160,6 +160,7 @@ typedef struct AstroOptions {
 
 typedef struct ConfigSettings {
     double HALO_CATALOG_MEM_FACTOR;
+    bool EXTRA_HALOBOX_FIELDS;
 
     char *external_table_path;
     char *wisdoms_path;

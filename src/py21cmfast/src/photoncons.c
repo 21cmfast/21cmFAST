@@ -111,7 +111,7 @@ int InitialisePhotonCons() {
         z_arr = calloc(Nmax, sizeof(double));
         Q_arr = calloc(Nmax, sizeof(double));
 
-        struct ScalingConstants sc_i, sc_0, sc_1;
+        ScalingConstants sc_i, sc_0, sc_1;
         set_scaling_constants(a_end, &sc_i, false);
 
         // set the minimum source mass

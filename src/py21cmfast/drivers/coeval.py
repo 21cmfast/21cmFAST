@@ -741,7 +741,7 @@ def _redshift_loop_generator(
                 this_halobox = sf.compute_halo_grid(
                     inputs=inputs,
                     perturbed_halo_list=this_pthalo,
-                    perturbed_field=this_perturbed_field,
+                    redshift=z,
                     previous_ionize_box=getattr(prev_coeval, "ionized_box", None),
                     previous_spin_temp=getattr(prev_coeval, "ts_box", None),
                     write=write.halobox,

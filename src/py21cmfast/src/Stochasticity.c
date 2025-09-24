@@ -906,9 +906,9 @@ int sample_halo_grids(gsl_rng **rng_arr, double redshift, float *dens_field,
         nhalo_threads[threadnum] = count;
     }
     if (out_of_buffer) {
-        LOG_ERROR("Halo buffer overflow (allocated %d halos per thread)", arraysize_local);
+        LOG_ERROR("Halo buffer overflow (allocated %llu halos per thread)", arraysize_local);
         for (int n_t = 0; n_t < simulation_options_global->N_THREADS; n_t++) {
-            LOG_ERROR("Thread %d: %d halos", n_t, nhalo_threads[n_t]);
+            LOG_ERROR("Thread %d: %llu halos", n_t, nhalo_threads[n_t]);
         }
         LOG_ERROR(
             "If you expected to have an above average halo number try raising "
@@ -1061,9 +1061,9 @@ int sample_halo_progenitors(gsl_rng **rng_arr, double z_in, double z_out, HaloFi
         nhalo_threads[threadnum] = count;
     }
     if (out_of_buffer) {
-        LOG_ERROR("Halo buffer overflow (allocated %d halos per thread)", arraysize_local);
+        LOG_ERROR("Halo buffer overflow (allocated %llu halos per thread)", arraysize_local);
         for (int n_t = 0; n_t < simulation_options_global->N_THREADS; n_t++) {
-            LOG_ERROR("Thread %d: %d halos", n_t, nhalo_threads[n_t]);
+            LOG_ERROR("Thread %d: %llu halos", n_t, nhalo_threads[n_t]);
         }
         LOG_ERROR(
             "If you expected to have an above average halo number try raising "
@@ -1086,7 +1086,8 @@ int stochastic_halofield(unsigned long long int seed, float redshift_desc, float
 
     // set up the rng
     gsl_rng *rng_stoc[simulation_options_global->N_THREADS];
-    seed_rng_threads_fast(rng_stoc, seed);
+    unsigned long long int seed_fac = (unsigned long long int)(redshift * 1000);
+    seed_rng_threads_fast(rng_stoc, seed + seed_fac);
 
     struct HaloSamplingConstants hs_constants;
     stoc_set_consts_z(&hs_constants, redshift, redshift_desc);
