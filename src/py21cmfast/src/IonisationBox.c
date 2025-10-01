@@ -48,6 +48,7 @@ int ComputeIonizedBox(float redshift, float prev_redshift, struct UserParams *us
         Broadcast_struct_global_UF(user_params, cosmo_params);
 
         omp_set_num_threads(user_params->N_THREADS);
+        spin_temp->mturns_EoR[3] = 0.0; // MINIHALO hasn't been called yet
 
         // Other parameters used in the code
         int i, j, k, x, y, z, LAST_FILTER_STEP, first_step_R, short_completely_ionised, i_halo;
@@ -523,12 +524,10 @@ int ComputeIonizedBox(float redshift, float prev_redshift, struct UserParams *us
                 Mturnover = pow(10., box->log10_Mturnover_ave);
                 Mturnover_MINI = pow(10., box->log10_Mturnover_MINI_ave);
                 // Saving m_turns, this spin_box is then passed to spin.c as prev_box
-                if (flag_options->Calibrate_EoR_feedback && (!spin_temp->first_box))
-                {
-                    spin_temp->mturns_EoR[0] = Mturnover;
-                    spin_temp->mturns_EoR[1] = Mturnover_MINI;
-                }
-
+                spin_temp->mturns_EoR[0] = Mturnover;
+                spin_temp->mturns_EoR[1] = Mturnover_MINI;
+                spin_temp->mturns_EoR[3] = 1.0; // MINIHALO is called
+                
                 if (DEBUG_PRINT_MTURNS == 1)
                 {
                     FILE *OutputFile;

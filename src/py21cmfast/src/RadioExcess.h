@@ -536,29 +536,22 @@ double Get_EoR_Radio_mini(struct TsBox *this_spin_temp, struct AstroParams *astr
 
 double Get_EoR_Radio_mini_v2(struct TsBox *this_spin_temp, struct AstroParams *astro_params, struct CosmoParams *cosmo_params, float redshift)
 {
-	int idx, nz, ArchiveSize, head;
-	double nion, dz, fun, dT, T, Prefix, Phi, z, z_prev, mt, mc, Mlim_Fstar_MINI, SFRD_debug, z_axis[400], nion_axis[400], zmin, zmax;
-	FILE *OutputFile;
+	int idx, nz, ArchiveSize, head, terminate;
+	double nion, dz, fun, dT, T, Prefix, Phi, z, z_prev, mt, mc, Mlim_Fstar_MINI, z_axis[400], nion_axis[400], zmin, zmax;
 	nz = 400;
-
+	terminate = 0; // sometimes in mpi or parralel loops python might proceed even with error, use this to give NaN which will terminate the simulation by various NaN checkpoints
+	
 	if ((this_spin_temp->first_box) || (redshift > 33.0))
 	{
 		T = 0;
 	}
 	else
 	{
-		// printf("---- Using V2----\n");
 		ArchiveSize = (int)round(this_spin_temp->History_box[0]);
 		if (ArchiveSize > 3)
 		{
 			Mlim_Fstar_MINI = Mass_limit_bisection(global_params.M_MIN_INTEGRAL, global_params.M_MAX_INTEGRAL, astro_params->ALPHA_STAR_MINI,
 												   astro_params->F_STAR7_MINI * pow(1e3, astro_params->ALPHA_STAR_MINI));
-			if (Debug_Printer == 1)
-			{
-				remove("SFRD_PopIII_tmp.txt");
-				OutputFile = fopen("SFRD_PopIII_tmp.txt", "a");
-			}
-			// printf("z = %.2E @ EoR cali\n", redshift);
 
 			// First fill z_axis and nion_axis
 			if (ArchiveSize > 390)
@@ -574,21 +567,11 @@ double Get_EoR_Radio_mini_v2(struct TsBox *this_spin_temp, struct AstroParams *a
 				mt = this_spin_temp->History_box[head + 6];
 				if (mt < 1.0e2)
 				{
-					fprintf(stderr, "Error @ Get_EoR_Radio_mini (p21c): mturn is smaller than 100, this is not supposed to happen. mt = %.2E, z = %.2f\n", mt, redshift);
-					Throw(ValueError);			
+					fprintf(stderr, "Error @ Get_EoR_Radio_mini (p21f): mturn is smaller than 100. mturn = %.3E, redshift = %.3f, contaminated z = %.3f\n", mt, redshift, z);
+					Throw(ValueError);
+					terminate = 1;
 				}
 				nion_axis[idx] = Nion_General_MINI(z, global_params.M_MIN_INTEGRAL, mt, mc, astro_params->ALPHA_STAR_MINI, 0., astro_params->F_STAR7_MINI, 1., Mlim_Fstar_MINI, 0.);
-
-				if (Debug_Printer == 1)
-				{
-					Phi = nion_axis[idx] / astro_params->t_STAR / pow(1 + z, astro_params->X_RAY_SPEC_INDEX + 1.0);
-					SFRD_debug = Phi_2_SFRD(Phi, z, hubble(z), astro_params, cosmo_params, 1);
-					fprintf(OutputFile, "%E   %E    %E    %E\n", z, SFRD_debug, mt, Phi);
-				}
-			}
-			if (Debug_Printer == 1)
-			{
-				fclose(OutputFile);
 			}
 
 			// Now interpolate for finer z
@@ -608,7 +591,14 @@ double Get_EoR_Radio_mini_v2(struct TsBox *this_spin_temp, struct AstroParams *a
 		}
 		else
 		{
-			T = 0;
+			if (terminate == 1)
+			{
+				T = 0.0/0.0;
+			}
+			else
+			{
+				T = 0;
+			}
 		}
 	}
 	return T;

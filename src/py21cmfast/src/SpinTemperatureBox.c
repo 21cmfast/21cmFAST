@@ -64,6 +64,7 @@ int ComputeTsBox(float redshift, float prev_redshift, struct UserParams *user_pa
         // Initialising some variables
         Radio_Prefix_ACG = 113.6161 * astro_params->fR * cosmo_params->OMb * (pow(cosmo_params->hlittle, 2)) * (astro_params->F_STAR10) * pow(astro_nu0 / 1.4276, astro_params->aR) * pow(1 + redshift, 3 + astro_params->aR);
         Radio_Prefix_MCG = 113.6161 * astro_params->fR_mini * cosmo_params->OMb * (pow(cosmo_params->hlittle, 2)) * (astro_params->F_STAR7_MINI) * pow(astro_nu0 / 1.4276, astro_params->aR_mini) * pow(1 + redshift, 3 + astro_params->aR_mini);
+        this_spin_temp->mturns_EoR[2] = 0.0;
 
         // Makes the parameter structs visible to a variety of functions/macros
         // Do each time to avoid Python garbage collection issues
@@ -2687,10 +2688,12 @@ int ComputeTsBox(float redshift, float prev_redshift, struct UserParams *user_pa
                     this_spin_temp->History_box[box_ct] = previous_spin_temp->History_box[box_ct];
                 }
             }
+            this_spin_temp->mturns_EoR[2]  = 1.0;
 
             // Caching averaged quantities
-            if (this_spin_temp->first_box)
+            if (previous_spin_temp->mturns_EoR[2] < 1.0)
             {
+                // Astro module has never been called in Spin.c before
                 this_spin_temp->History_box[0] = 1.0;                    // ArchiveSize
                 this_spin_temp->History_box[1] = redshift;               // redshift
                 this_spin_temp->History_box[2] = 0.0;                    // Phi
@@ -2707,7 +2710,6 @@ int ComputeTsBox(float redshift, float prev_redshift, struct UserParams *user_pa
             {
                 this_spin_temp->History_box[0] = previous_spin_temp->History_box[0] + 1.0; // updating archive size
                 ArchiveSize = (int)round(this_spin_temp->History_box[0]);                  // remember that this is for current box, at least 2 by now
-
                 // Save results for this redshift
                 head = (ArchiveSize - 1) * History_box_DIM + 1;
                 this_spin_temp->History_box[head] = redshift;
@@ -2715,7 +2717,7 @@ int ComputeTsBox(float redshift, float prev_redshift, struct UserParams *user_pa
                 this_spin_temp->History_box[head + 2] = T_IGM_ave;
                 this_spin_temp->History_box[head + 3] = Phi_ave_mini;
                 this_spin_temp->History_box[head + 4] = zpp_for_evolve_list[0];
-                if (redshift > global_params.Z_HEAT_MAX - 0.2)
+                if (previous_spin_temp->mturns_EoR[3] < 1.0)
                 {
                     // P21f sometimes skip IO.c call
                     this_spin_temp->History_box[head + 5] = 1.0E20;
