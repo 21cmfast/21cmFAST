@@ -1784,7 +1784,8 @@ int ComputeTsBox(float redshift, float prev_redshift, struct UserParams *user_pa
             zpp_max = zpp_for_evolve_list[global_params.NUM_FILTER_STEPS_FOR_Ts - 1];
 
             // Correcting for the radio temp from sources > R_XLy_MAX
-            Radio_Temp_HMG = Get_Radio_Temp_HMG(previous_spin_temp, this_spin_temp, astro_params, cosmo_params, flag_options, zpp_max, redshift);
+            Radio_Temp_HMG = Get_Radio_Temp_HMG(previous_spin_temp, this_spin_temp, astro_params, cosmo_params, flag_options, zpp_max, redshift, global_params.Z_HEAT_MAX);
+                
 
             // Main loop over the entire box for the IGM spin temperature and relevant quantities.
             if (flag_options->USE_MASS_DEPENDENT_ZETA)
@@ -2806,6 +2807,28 @@ int ComputeTsBox(float redshift, float prev_redshift, struct UserParams *user_pa
                 for (idx = 0; idx < 10; idx++)
                 { // testing code speed
                     nion_tmp = Nion_General_MINI(redshift, global_params.M_MIN_INTEGRAL, 5.0e5, 1.0e10, astro_params->ALPHA_STAR_MINI, 0., astro_params->F_STAR7_MINI, 1., Mlim_Fstar_MINI_tmp, 0.);
+                }
+            }
+
+            // Final Check: Ensure that is no NaN
+            for (box_ct = 0; box_ct < HII_TOT_NUM_PIXELS; box_ct++)
+            {
+                if (isfinite(this_spin_temp->Ts_box[box_ct]) == 0)
+                {
+                    LOG_ERROR("Estimated spin temperature is either infinite of NaN!");
+                    Throw(InfinityorNaNError);
+                }
+
+                if (isfinite(this_spin_temp->Tk_box[box_ct]) == 0)
+                {
+                    LOG_ERROR("Estimated kinetic temperature is either infinite of NaN!");
+                    Throw(InfinityorNaNError);
+                }
+
+                if (isfinite(this_spin_temp->Trad_box[box_ct]) == 0)
+                {
+                    LOG_ERROR("Estimated Radio temperature is either infinite of NaN!");
+                    Throw(InfinityorNaNError);
                 }
             }
 
