@@ -1786,7 +1786,6 @@ int ComputeTsBox(float redshift, float prev_redshift, struct UserParams *user_pa
 
             // Correcting for the radio temp from sources > R_XLy_MAX
             Radio_Temp_HMG = Get_Radio_Temp_HMG(previous_spin_temp, this_spin_temp, astro_params, cosmo_params, flag_options, zpp_max, redshift, global_params.Z_HEAT_MAX);
-                
 
             // Main loop over the entire box for the IGM spin temperature and relevant quantities.
             if (flag_options->USE_MASS_DEPENDENT_ZETA)
@@ -2682,16 +2681,16 @@ int ComputeTsBox(float redshift, float prev_redshift, struct UserParams *user_pa
                 this_spin_temp->SFRD_box[box_ct] = Phi_2_SFRD(Phi, zpp_Rct0, H_Rct0, astro_params, cosmo_params, 0);
                 this_spin_temp->SFRD_MINI_box[box_ct] = Phi_2_SFRD(Phi_mini, zpp_Rct0, H_Rct0, astro_params, cosmo_params, 1);
 
-                if (!this_spin_temp->first_box)
+                // copying entire History_box
+                if (previous_spin_temp->mturns_EoR[2] >= 0.5) // Astro called previously
                 {
-                    // copying entire History_box
                     this_spin_temp->History_box[box_ct] = previous_spin_temp->History_box[box_ct];
                 }
             }
-            this_spin_temp->mturns_EoR[2]  = 1.0;
+            this_spin_temp->mturns_EoR[2] = 1.0;
 
             // Caching averaged quantities
-            if (previous_spin_temp->mturns_EoR[2] < 1.0)
+            if (previous_spin_temp->mturns_EoR[2] < 0.5)
             {
                 // Astro module has never been called in Spin.c before
                 this_spin_temp->History_box[0] = 1.0;                    // ArchiveSize
@@ -2730,11 +2729,11 @@ int ComputeTsBox(float redshift, float prev_redshift, struct UserParams *user_pa
                 }
             }
 
-            if (flag_options->Calibrate_EoR_feedback && !Radio_Silent)
+            if (flag_options->Calibrate_EoR_feedback && flag_options->USE_RADIO_MCG)
             {
                 // Calibrating EoR feedback, coupling to Ts should be negligible by now since T21 would be dominated by xH
                 // Tr_EoR = Get_EoR_Radio_mini(this_spin_temp, astro_params, cosmo_params, flag_options, redshift, Radio_Temp_ave, x_e_ave / (double)HII_TOT_NUM_PIXELS);
-                Tr_EoR = Get_EoR_Radio_mini_v2(this_spin_temp, astro_params, cosmo_params, redshift);
+                Tr_EoR = Get_EoR_Radio_mini(this_spin_temp, astro_params, cosmo_params, redshift);
                 // SFRD_EoR_MINI = Get_SFRD_EoR_MINI(previous_spin_temp, this_spin_temp, astro_params, cosmo_params, x_e_ave / (double)HII_TOT_NUM_PIXELS, zpp_Rct0);
                 SFRD_MINI_ave = Phi_2_SFRD(Phi_ave_mini, zpp_Rct0, H_Rct0, astro_params, cosmo_params, 1);
                 SFRD_MINI_ave = SFRD_MINI_ave > 1e-200 ? SFRD_MINI_ave : 1e-200; // avoid nan in divide

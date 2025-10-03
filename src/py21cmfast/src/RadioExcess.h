@@ -479,6 +479,8 @@ void Calibrate_Phi_mini(struct TsBox *previous_spin_temp, struct TsBox *this_spi
 	}
 }
 
+/*
+Old version of Get_EoR_Radio_mini, kept here for archive
 double Get_EoR_Radio_mini(struct TsBox *this_spin_temp, struct AstroParams *astro_params, struct CosmoParams *cosmo_params, struct FlagOptions *flag_options, double redshift, double Tr_ave, double xe_ave)
 {
 	// Find T_radio in presence of EoR feedback
@@ -533,8 +535,9 @@ double Get_EoR_Radio_mini(struct TsBox *this_spin_temp, struct AstroParams *astr
 	}
 	return Radio_Temp;
 }
+*/
 
-double Get_EoR_Radio_mini_v2(struct TsBox *this_spin_temp, struct AstroParams *astro_params, struct CosmoParams *cosmo_params, float redshift)
+double Get_EoR_Radio_mini(struct TsBox *this_spin_temp, struct AstroParams *astro_params, struct CosmoParams *cosmo_params, float redshift)
 {
 	int idx, nz, ArchiveSize, head, terminate;
 	double nion, dz, fun, dT, T, Prefix, Phi, z, z_prev, mt, mc, Mlim_Fstar_MINI, z_axis[400], nion_axis[400], zmin, zmax;
