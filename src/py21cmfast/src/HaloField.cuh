@@ -7,7 +7,7 @@
 extern "C"
 {
 #endif
-    void updateGlobalParams(SimulationOptions *h_simulation_options, CosmoParams *h_cosmo_params, AstroParams *h_astro_params);
+    void updateGlobalParams(SimulationOptions *h_simulation_options, MatterOptions *h_matter_options, CosmoParams *h_cosmo_params, AstroParams *h_astro_params);
 #ifdef __cplusplus
 }
 #endif

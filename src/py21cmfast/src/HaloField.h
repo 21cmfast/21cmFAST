@@ -11,6 +11,10 @@ extern "C" {
 int ComputeHaloField(float redshift_desc, float redshift, InitialConditions *boxes,
                      unsigned long long int random_seed, HaloField *halos_desc, HaloField *halos);
 
+// CUDA utility function (defined in HaloField.cu)
+void updateGlobalParams(SimulationOptions *h_simulation_options, MatterOptions *h_matter_options,
+                        CosmoParams *h_cosmo_params, AstroParams *h_astro_params);
+
 #ifdef __cplusplus
 }
 #endif
