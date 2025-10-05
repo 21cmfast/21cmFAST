@@ -17,6 +17,12 @@ __device__ int d_numStates = 0;
 // use the same random seed, different sub-sequence, and with offset of 0
 __global__ void initRandStates(unsigned long long int random_seed, int totalStates)
 {
+    // Debug output from first thread of first block
+    if (blockIdx.x == 0 && threadIdx.x == 0) {
+        printf("=== DEVICE KERNEL initRandStates EXECUTING! gridDim.x=%d, blockDim.x=%d, totalStates=%d, seed=%llu ===\n",
+               gridDim.x, blockDim.x, totalStates, random_seed);
+    }
+
     // get thread idx
     int ind = blockIdx.x * blockDim.x + threadIdx.x;
 

@@ -74,6 +74,11 @@ __device__ inline double spherical_shell_filter(double k, double R_outer, double
 }
 
 __global__ void filter_box_kernel(cuFloatComplex *box, int num_pixels, int dimension, int midpoint, int midpoint_para, double delta_k, float R, float R_param, double R_const, int filter_type) {
+    // Debug output from first thread of first block
+    if (blockIdx.x == 0 && threadIdx.x == 0) {
+        printf("=== DEVICE KERNEL filter_box_kernel EXECUTING! gridDim.x=%d, blockDim.x=%d, num_pixels=%d, R=%.3f ===\n",
+               gridDim.x, blockDim.x, num_pixels, R);
+    }
 
     // Get index of box (flattened k-box)
     unsigned long long idx = blockIdx.x * blockDim.x + threadIdx.x;
