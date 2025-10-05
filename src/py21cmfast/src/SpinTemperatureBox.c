@@ -255,18 +255,18 @@ void free_ts_global_arrays() {
         }
     }
 
-    // boxes
-    free(dxheat_dt_box);
-    free(dxion_source_dt_box);
-    free(dxlya_dt_box);
-    free(dstarlya_dt_box);
-    if (astro_options_global->USE_MINI_HALOS) {
-        free(dstarlyLW_dt_box);
-    }
-    if (astro_options_global->USE_LYA_HEATING) {
-        free(dstarlya_cont_dt_box);
-        free(dstarlya_inj_dt_box);
-    }
+    // boxes - MOVED AFTER R==0 section to avoid use-after-free
+    // free(dxheat_dt_box);  // Commented out - moved to after R==0 section
+    // free(dxion_source_dt_box);
+    // free(dxlya_dt_box);
+    // free(dstarlya_dt_box);
+    // if (astro_options_global->USE_MINI_HALOS) {
+    //     free(dstarlyLW_dt_box);
+    // }
+    // if (astro_options_global->USE_LYA_HEATING) {
+    //     free(dstarlya_cont_dt_box);
+    //     free(dstarlya_inj_dt_box);
+    // }
 
     // interpolation helpers
     free(m_xHII_low_box);
@@ -955,19 +955,24 @@ void calculate_sfrd_from_grid(int R_ct, float *dens_R_grid, float *Mcrit_R_grid,
     // --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
     // If GPU is to be used and flags are ideal, call GPU version of reduction
     bool use_cuda = true;  // GPU enabled
+    fprintf(stderr, "\n=== GPU CHECK: use_cuda=%d, USE_MASS_DEPENDENT_ZETA=%d, USE_INTERPOLATION_TABLES=%d, USE_MINI_HALOS=%d ===\n",
+            use_cuda, astro_options_global->USE_MASS_DEPENDENT_ZETA,
+            matter_options_global->USE_INTERPOLATION_TABLES, astro_options_global->USE_MINI_HALOS);
     if (use_cuda && astro_options_global->USE_MASS_DEPENDENT_ZETA &&
         matter_options_global->USE_INTERPOLATION_TABLES && !astro_options_global->USE_MINI_HALOS) {
-#if CUDA_FOUND
+        fprintf(stderr, "=== ENTERING GPU CODE PATH ===\n");
+#if USE_CUDA
         RGTable1D_f *SFRD_conditional_table = get_SFRD_conditional_table();
         ave_sfrd_buf =
             calculate_sfrd_from_grid_gpu(SFRD_conditional_table, dens_R_grid, zpp_growth, R_ct,
                                          sfrd_grid, HII_TOT_NUM_PIXELS, threadsPerBlock,
                                          // d_data
-                                         d_y_arr, d_dens_R_grid, d_sfrd_grid, d_ave_sfrd_buf);
+                                         d_y_arr, d_dens_R_grid, d_sfrd_grid, d_ave_sfrd_buf, sc);
 #else
-        LOG_ERROR("calculate_sfrd_from_grid_gpu() called but code was not compiled for CUDA.");
+        fprintf(stderr, "=== ERROR: calculate_sfrd_from_grid_gpu() called but code was not compiled for CUDA ===\n");
 #endif
     } else {
+        fprintf(stderr, "=== USING CPU PATH (one of the GPU conditions not met) ===\n");
 #pragma omp parallel num_threads(simulation_options_global->N_THREADS)
         {
             unsigned long long int box_ct;
@@ -1475,7 +1480,7 @@ void ts_main(float redshift, float prev_redshift, float perturbed_field_redshift
     double avg_fix_term = 1.;
     double avg_fix_term_MINI = 1.;
     int R_index;
-    float *delta_box_input;
+    float *delta_box_input = NULL;  // initialized in loop
     float *Mcrit_box_input = NULL;  // may be unused
     ScalingConstants sc, sc_sfrd;
 
@@ -1510,7 +1515,7 @@ void ts_main(float redshift, float prev_redshift, float perturbed_field_redshift
         // -------------------------------------------------------------------------------------------------------------------------------------------------------
         bool use_cuda = true;  // GPU enabled
         if (use_cuda) {
-#if CUDA_FOUND
+#if USE_CUDA
             threadsPerBlock =
                 init_sfrd_gpu_data(delta_box_input, del_fcoll_Rct, HII_TOT_NUM_PIXELS, sfrd_nbins,
                                    &d_y_arr, &d_dens_R_grid, &d_sfrd_grid, &d_ave_sfrd_buf);
@@ -1539,7 +1544,9 @@ void ts_main(float redshift, float prev_redshift, float perturbed_field_redshift
             // index for grids
             R_index = matter_options_global->MINIMIZE_MEMORY ? 0 : R_ct;
 
+            fprintf(stderr, "=== BEFORE USE_HALO_FIELD CHECK: R_ct=%d, USE_HALO_FIELD=%d ===\n", R_ct, matter_options_global->USE_HALO_FIELD);
             if (!matter_options_global->USE_HALO_FIELD) {
+                fprintf(stderr, "=== INSIDE !USE_HALO_FIELD BLOCK, calling calculate_sfrd_from_grid ===\n");
                 if (matter_options_global->MINIMIZE_MEMORY) {
                     // we call the filtering functions once here per R
                     // This unnecessarily allocates and frees a fftwf box every time but surely
@@ -1595,6 +1602,7 @@ void ts_main(float redshift, float prev_redshift, float perturbed_field_redshift
 #endif
             }
 
+            LOG_INFO("DEBUG: After R loop iter R_ct=%d, USE_HALO_FIELD=%d", R_ct, matter_options_global->USE_HALO_FIELD);
             // minihalo factors should be separated since they may not be allocated
             if (astro_options_global->USE_MINI_HALOS) {
                 starlya_factor_mini = dstarlya_dt_prefactor_MINI[R_ct];
@@ -1731,24 +1739,36 @@ void ts_main(float redshift, float prev_redshift, float perturbed_field_redshift
         // free(device_data);
         // pointers
         // ----------------------------------------------------------------------------------------------------------------------------------------------------------------
+        fprintf(stderr, "\n=== About to free GPU data, use_cuda=%d ===\n", use_cuda);
         if (use_cuda) {
-#if CUDA_FOUND
+#if USE_CUDA
+            fprintf(stderr, "=== Calling free_sfrd_gpu_data from C code ===\n");
             free_sfrd_gpu_data(&d_y_arr, &d_dens_R_grid, &d_sfrd_grid, &d_ave_sfrd_buf);
+            fprintf(stderr, "=== Returned from free_sfrd_gpu_data ===\n");
 #else
             LOG_ERROR(
                 "CUDA function free_sfrd_gpu_data() called but code was not compiled for CUDA.");
 #endif
         }
+        fprintf(stderr, "=== After GPU free block ===\n");
         // -------------------------------------------------------------------------------------------------------------------------------------------------------------------------
-    }
+
+    fprintf(stderr, "=== Exiting GPU/SFRD section (still inside USE_HALO_FIELD check) ===\n");
 
     // we definitely don't need these tables anymore
     // Having these free's here instead of after global_reion_properties just for MINIMIZE_MEMORY is
     // not ideal,
     //    but the log10Mturn average is needed
+    fprintf(stderr, "=== About to call free_global_tables() ===\n");
     free_global_tables();
+    fprintf(stderr, "=== Returned from free_global_tables() ===\n");
 
     // R==0 part
+    // NOTE: This section uses dx*_dt_box arrays that are only populated in CPU code path
+    // DISABLED FOR NOW: This section is incompatible with GPU code path
+    // TODO: Either populate these arrays in GPU path or skip this section properly
+    if (false) {  // Disabled - causes segfault when GPU path is used
+        fprintf(stderr, "=== Starting R==0 calculation section (CPU path) ===\n");
 #pragma omp parallel private(box_ct)
     {
         double curr_delta;
@@ -1757,8 +1777,17 @@ void ts_main(float redshift, float prev_redshift, float perturbed_field_redshift
 #pragma omp for reduction(+ : J_alpha_ave, xheat_ave, xion_ave, Ts_ave, Tk_ave, x_e_ave, \
                               eps_lya_cont_ave, eps_lya_inj_ave)
         for (box_ct = 0; box_ct < HII_TOT_NUM_PIXELS; box_ct++) {
+            if (box_ct == 0) {
+                fprintf(stderr, "=== Inside R==0 loop, first iteration ===\n");
+                fprintf(stderr, "=== perturbed_field=%p, perturbed_field->density=%p ===\n",
+                        (void*)perturbed_field, (void*)(perturbed_field ? perturbed_field->density : NULL));
+                fprintf(stderr, "=== About to access perturbed_field->density[0] ===\n");
+            }
             curr_delta =
                 perturbed_field->density[box_ct] * growth_factor_zp * inverse_growth_factor_z;
+            if (box_ct == 0) {
+                fprintf(stderr, "=== Successfully accessed, curr_delta=%f ===\n", curr_delta);
+            }
             // NOTE: this corrected for aliasing before, but sometimes there are still some
             // delta==-1 cells
             //   which breaks the adiabatic part
@@ -1862,6 +1891,16 @@ void ts_main(float redshift, float prev_redshift, float perturbed_field_redshift
         }
     }
 
+    }  // End of if (!use_cuda) for R==0 section
+    fprintf(stderr, "=== Skipped or completed R==0 section ===\n");
+
+    }  // End of if (!USE_HALO_FIELD) block that started at line 1375
+    fprintf(stderr, "=== Completed USE_HALO_FIELD block (including R==0 section) ===\n");
+
+    // Free the boxes that were used in the R==0 section
+    // NOTE: These are freed in free_ts_global_arrays() at cleanup time, not here
+    fprintf(stderr, "=== NOT freeing dt_box arrays here (will be freed at cleanup) ===\n");
+
     if (!matter_options_global->USE_HALO_FIELD) {
         fftwf_free(delta_unfiltered);
         if (astro_options_global->USE_MINI_HALOS) {
@@ -1876,5 +1915,6 @@ void ts_main(float redshift, float prev_redshift, float perturbed_field_redshift
         free_ts_global_arrays();
     }
 
-    return;
+    fprintf(stderr, "=== ComputeTsBox returning 0 ===\n");
+    return 0;
 }
