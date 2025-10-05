@@ -70,6 +70,11 @@ __global__ void perturb_density_field_kernel(
     float f_pixel_factor, float init_growth_factor,
     bool perturb_on_high_res, bool use_2lpt
     ) {
+    // Debug output from first thread of first block
+    if (blockIdx.x == 0 && threadIdx.x == 0) {
+        printf("=== DEVICE KERNEL perturb_density_field_kernel EXECUTING! gridDim.x=%d, blockDim.x=%d, DIM=%d ===\n",
+               gridDim.x, blockDim.x, DIM);
+    }
 
     unsigned long long idx = blockIdx.x * blockDim.x + threadIdx.x;
 

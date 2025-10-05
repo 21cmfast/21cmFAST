@@ -582,6 +582,12 @@ __global__ void update_halo_constants(float *d_halo_masses, float *d_star_rng_in
                                       int *d_further_process, int *d_nprog_predict, int sparsity, unsigned long long int write_offset,
                                       double *expected_mass, int *d_n_prog, int offset_shared)
 {
+    // Debug output from first thread of first block
+    if (blockIdx.x == 0 && threadIdx.x == 0) {
+        printf("=== DEVICE KERNEL update_halo_constants EXECUTING! gridDim.x=%d, blockDim.x=%d, n_halos=%llu ===\n",
+               gridDim.x, blockDim.x, n_halos);
+    }
+
     // Define shared memory for block-level reduction
     extern __shared__ float shared_memory[];
     // __shared__ float shared_mass[256];
