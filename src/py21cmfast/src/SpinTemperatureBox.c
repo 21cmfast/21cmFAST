@@ -954,7 +954,7 @@ void calculate_sfrd_from_grid(int R_ct, float *dens_R_grid, float *Mcrit_R_grid,
 
     // --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
     // If GPU is to be used and flags are ideal, call GPU version of reduction
-    bool use_cuda = false;  // pass this as a parameter later
+    bool use_cuda = true;  // GPU enabled
     if (use_cuda && astro_options_global->USE_MASS_DEPENDENT_ZETA &&
         matter_options_global->USE_INTERPOLATION_TABLES && !astro_options_global->USE_MINI_HALOS) {
 #if CUDA_FOUND
@@ -1508,7 +1508,7 @@ void ts_main(float redshift, float prev_redshift, float perturbed_field_redshift
         // threadsPerBlock = init_sfrd_gpu_data(delta_box_input, del_fcoll_Rct, HII_TOT_NUM_PIXELS,
         // sfrd_nbins, &device_data); pointers
         // -------------------------------------------------------------------------------------------------------------------------------------------------------
-        bool use_cuda = false;  // pass this as a parameter later
+        bool use_cuda = true;  // GPU enabled
         if (use_cuda) {
 #if CUDA_FOUND
             threadsPerBlock =

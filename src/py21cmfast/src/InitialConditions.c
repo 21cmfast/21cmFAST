@@ -94,7 +94,7 @@ int ComputeInitialConditions(unsigned long long random_seed, InitialConditions *
 
     int status;
 
-    bool use_cuda = false;
+    bool use_cuda = true;  // GPU enabled
     if (use_cuda) {
         printf("Check GPU device ...\n\n");
 #if CUDA_FOUND

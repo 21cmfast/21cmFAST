@@ -971,7 +971,7 @@ int sample_halo_progenitors(gsl_rng **rng_arr, double z_in, double z_out, HaloFi
                         BOXLEN_PARA};
 
     // use cuda function if use_cuda is true
-    bool use_cuda = false;  // pass this as a parameter later
+    bool use_cuda = true;  // GPU enabled
     if (use_cuda) {
 #if CUDA_FOUND
         // get parameters needed for sigma calculation
@@ -1125,7 +1125,7 @@ int stochastic_halofield(unsigned long long int seed, float redshift_desc, float
     struct HaloSamplingConstants hs_constants;
     stoc_set_consts_z(&hs_constants, redshift, redshift_desc);
 
-    bool use_cuda = false;
+    bool use_cuda = true;  // GPU enabled
     if (use_cuda) {
 #if CUDA_FOUND
         // get interp tables needed for sampling progenitors

@@ -104,7 +104,7 @@ void make_density_grid(float redshift, fftwf_complex *fft_density_grid, InitialC
             resampled_box = (double *)calloc(HII_TOT_NUM_PIXELS, sizeof(double));
         }
         int hi_dim[3] = {simulation_options_global->DIM, simulation_options_global->DIM, D_PARA};
-        bool use_cuda = false;  // pass this as a parameter later
+        bool use_cuda = true;  // GPU enabled
         if (use_cuda) {
 #if CUDA_FOUND
             resampled_box =
