@@ -95,20 +95,8 @@ int ComputeInitialConditions(unsigned long long random_seed, InitialConditions *
     int status;
 
     bool use_cuda = true;  // GPU enabled
-    if (use_cuda) {
-        printf("Check GPU device ...\n\n");
-#if CUDA_FOUND
-        // print key device properties
-        print_key_device_properties();
-
-        // tmp: ensure hello_world works on GPU
-        call_cuda();
-#else
-        LOG_ERROR(
-            "CUDA function print_key_device_properties() and call_cuda() called but code was not "
-            "compiled for CUDA.");
-#endif
-    }
+    // Note: Removed temporary GPU test code (print_key_device_properties, call_cuda)
+    // GPU computation is handled by actual CUDA kernels in other modules
 
     Try {  // This Try wraps the entire function so we don't indent.
 

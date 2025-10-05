@@ -104,18 +104,10 @@ void make_density_grid(float redshift, fftwf_complex *fft_density_grid, InitialC
             resampled_box = (double *)calloc(HII_TOT_NUM_PIXELS, sizeof(double));
         }
         int hi_dim[3] = {simulation_options_global->DIM, simulation_options_global->DIM, D_PARA};
-        bool use_cuda = true;  // GPU enabled
-        if (use_cuda) {
-#if CUDA_FOUND
-            resampled_box =
-                MapMass_gpu(boxes, resampled_box, dimension, f_pixel_factor, init_growth_factor);
-#else
-            LOG_ERROR("CUDA version of MapMass() called but code was not compiled for CUDA.");
-#endif
-        } else {
-            move_grid_masses(redshift, boxes->hires_density, hi_dim, vel_pointers,
-                             vel_pointers_2LPT, box_dim, resampled_box, box_dim);
-        }
+        // GPU disabled - MapMass_gpu integration incomplete (missing required parameters)
+        // Using CPU fallback move_grid_masses instead
+        move_grid_masses(redshift, boxes->hires_density, hi_dim, vel_pointers,
+                         vel_pointers_2LPT, box_dim, resampled_box, box_dim);
 
         LOG_SUPER_DEBUG("resampled_box: ");
         debugSummarizeBoxDouble(resampled_box, box_dim[0], box_dim[1], box_dim[2], "  ");

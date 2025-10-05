@@ -973,7 +973,7 @@ int sample_halo_progenitors(gsl_rng **rng_arr, double z_in, double z_out, HaloFi
     // use cuda function if use_cuda is true
     bool use_cuda = true;  // GPU enabled
     if (use_cuda) {
-#if CUDA_FOUND
+#if USE_CUDA
         // get parameters needed for sigma calculation
 
         RGTable1D_f *sigma_table = GetSigmaInterpTable();
@@ -1127,7 +1127,7 @@ int stochastic_halofield(unsigned long long int seed, float redshift_desc, float
 
     bool use_cuda = true;  // GPU enabled
     if (use_cuda) {
-#if CUDA_FOUND
+#if USE_CUDA
         // get interp tables needed for sampling progenitors
         RGTable1D *nhalo_table = GetNhaloTable();
         RGTable1D *mcoll_table = GetMcollTable();
@@ -1137,7 +1137,7 @@ int stochastic_halofield(unsigned long long int seed, float redshift_desc, float
 
         // copy global variables to the device
         // todo: move the following operation to InitialConditions.c
-        updateGlobalParams(simulation_options_global, cosmo_params_global, astro_params_global);
+        updateGlobalParams(simulation_options_global, matter_options_global, cosmo_params_global, astro_params_global);
 #else
         LOG_ERROR("CUDA function copyTablesToDevice called but code was not compiled for CUDA.");
 #endif
@@ -1152,7 +1152,7 @@ int stochastic_halofield(unsigned long long int seed, float redshift_desc, float
 
         if (use_cuda) {
             // initiate rand states on the device
-#if CUDA_FOUND
+#if USE_CUDA
             unsigned long long int nhalo_first = halos->n_halos;
             int buffer_scale = HALO_CUDA_THREAD_FACTOR + 1;
             unsigned long long int n_rstates = nhalo_first * buffer_scale;
