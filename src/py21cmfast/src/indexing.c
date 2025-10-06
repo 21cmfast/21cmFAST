@@ -56,7 +56,7 @@ void wrap_coord(int idx[3], int size[3]) {
     return;
 }
 
-void random_point_in_sphere(double centre[3], double radius, gsl_rng *rng, double *point) {
+void random_point_in_sphere(double centre[3], double radius, gsl_rng* rng, double* point) {
     // generate a random point in a sphere of given radius and centre
     double x1, y1, z1, d1, r1;
     x1 = 2 * gsl_rng_uniform(rng) - 1;
@@ -69,7 +69,7 @@ void random_point_in_sphere(double centre[3], double radius, gsl_rng *rng, doubl
     point[2] = centre[2] + (radius * r1 * z1 / d1);
 }
 
-void random_point_in_cell(int idx[3], double cell_len, gsl_rng *rng, double *point) {
+void random_point_in_cell(int idx[3], double cell_len, gsl_rng* rng, double* point) {
     // generate a random point in a cell given the coordinates and length the cell
     // NOTE: assumes cell at idx == 0 is *centred* at (0,0,0)
     double randbuf;

@@ -22,7 +22,7 @@ double T_RECFAST(float z, int flag);
 float cT_approx(float z);
 
 // * returns the spin temperature * //
-float get_Ts(float z, float delta, float TK, float xe, float Jalpha, float *curr_xalpha);
+float get_Ts(float z, float delta, float TK, float xe, float Jalpha, float* curr_xalpha);
 
 //* Returns recycling fraction (=fraction of photons converted into Lyalpha for Ly-n resonance * //
 double frecycle(int n);
@@ -45,9 +45,9 @@ double Energy_Lya_heating(double Tk, double Ts, double tau_gp, int flag);
 
 // rootfind to get the distance at which GP optical depth tau==1
 double nu_tau_one_MINI(double zp, double zpp, double x_e, double HI_filling_factor_zp,
-                       double log10_Mturn_MINI, ScalingConstants *sc);
+                       double log10_Mturn_MINI, ScalingConstants* sc);
 double nu_tau_one(double zp, double zpp, double x_e, double HI_filling_factor_zp,
-                  ScalingConstants *sc);
+                  ScalingConstants* sc);
 
 // xray heating integrals over frequency
 double integrate_over_nu(double zp, double local_x_e, double lower_int_limit, int FLAG);

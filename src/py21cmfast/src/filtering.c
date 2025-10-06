@@ -115,7 +115,7 @@ double spherical_shell_filter(double k, double R_outer, double R_inner) {
            (sin(kR_outer) - cos(kR_outer) * kR_outer - sin(kR_inner) + cos(kR_inner) * kR_inner);
 }
 
-void filter_box(fftwf_complex *box, int RES, int filter_type, float R, float R_param) {
+void filter_box(fftwf_complex* box, int RES, int filter_type, float R, float R_param) {
     int dimension, midpoint;  // TODO: figure out why defining as ULL breaks this
     switch (RES) {
         case 0:
@@ -206,20 +206,20 @@ void filter_box(fftwf_complex *box, int RES, int filter_type, float R, float R_p
 }
 
 // Test function to filter a box without computing a whole output box
-int test_filter(float *input_box, double R, double R_param, int filter_flag, double *result) {
+int test_filter(float* input_box, double R, double R_param, int filter_flag, double* result) {
     int i, j, k;
     unsigned long long int ii;
 
     // setup the box
-    fftwf_complex *box_unfiltered =
-        (fftwf_complex *)fftwf_malloc(sizeof(fftwf_complex) * HII_KSPACE_NUM_PIXELS);
-    fftwf_complex *box_filtered =
-        (fftwf_complex *)fftwf_malloc(sizeof(fftwf_complex) * HII_KSPACE_NUM_PIXELS);
+    fftwf_complex* box_unfiltered =
+        (fftwf_complex*)fftwf_malloc(sizeof(fftwf_complex) * HII_KSPACE_NUM_PIXELS);
+    fftwf_complex* box_filtered =
+        (fftwf_complex*)fftwf_malloc(sizeof(fftwf_complex) * HII_KSPACE_NUM_PIXELS);
 
     for (i = 0; i < simulation_options_global->HII_DIM; i++)
         for (j = 0; j < simulation_options_global->HII_DIM; j++)
             for (k = 0; k < HII_D_PARA; k++)
-                *((float *)box_unfiltered + HII_R_FFT_INDEX(i, j, k)) =
+                *((float*)box_unfiltered + HII_R_FFT_INDEX(i, j, k)) =
                     input_box[HII_R_INDEX(i, j, k)];
 
     dft_r2c_cube(matter_options_global->USE_FFTW_WISDOM, simulation_options_global->HII_DIM,
@@ -239,7 +239,7 @@ int test_filter(float *input_box, double R, double R_param, int filter_flag, dou
     for (i = 0; i < simulation_options_global->HII_DIM; i++)
         for (j = 0; j < simulation_options_global->HII_DIM; j++)
             for (k = 0; k < HII_D_PARA; k++)
-                result[HII_R_INDEX(i, j, k)] = *((float *)box_filtered + HII_R_FFT_INDEX(i, j, k));
+                result[HII_R_INDEX(i, j, k)] = *((float*)box_filtered + HII_R_FFT_INDEX(i, j, k));
 
     fftwf_free(box_unfiltered);
     fftwf_free(box_filtered);

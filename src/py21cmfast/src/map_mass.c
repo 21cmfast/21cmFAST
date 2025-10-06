@@ -16,11 +16,11 @@
 #include "indexing.h"
 #include "logger.h"
 
-#define do_cic_interpolation(arr, ...)                                                           \
-    _Generic((arr), float *: do_cic_interpolation_float, double *: do_cic_interpolation_double)( \
+#define do_cic_interpolation(arr, ...)                                                         \
+    _Generic((arr), float*: do_cic_interpolation_float, double*: do_cic_interpolation_double)( \
         arr, __VA_ARGS__)
 
-static inline void do_cic_interpolation_double(double *resampled_box, double pos[3], int box_dim[3],
+static inline void do_cic_interpolation_double(double* resampled_box, double pos[3], int box_dim[3],
                                                double curr_dens) {
     // get the CIC indices and distances
     int ipos[3], iposp1[3];
@@ -61,7 +61,7 @@ static inline void do_cic_interpolation_double(double *resampled_box, double pos
 }
 
 // Identical code as above, using a single precision output
-static inline void do_cic_interpolation_float(float *resampled_box, double pos[3], int box_dim[3],
+static inline void do_cic_interpolation_float(float* resampled_box, double pos[3], int box_dim[3],
                                               double curr_dens) {
     // get the CIC indices and distances
     int ipos[3], iposp1[3];
@@ -102,8 +102,8 @@ static inline void do_cic_interpolation_float(float *resampled_box, double pos[3
 }
 
 // Function that maps a IC density grid to the perturbed density grid
-void move_grid_masses(double redshift, float *dens_pointer, int dens_dim[3], float *vel_pointers[3],
-                      float *vel_pointers_2LPT[3], int vel_dim[3], double *resampled_box,
+void move_grid_masses(double redshift, float* dens_pointer, int dens_dim[3], float* vel_pointers[3],
+                      float* vel_pointers_2LPT[3], int vel_dim[3], double* resampled_box,
                       int out_dim[3]) {
     // grid dimension constants
     double boxlen = simulation_options_global->BOX_LEN;
@@ -170,10 +170,10 @@ void move_grid_masses(double redshift, float *dens_pointer, int dens_dim[3], flo
 // TODO: This shares a lot of code with move_grid_masses and (future) move_cat_galprops.
 //  I should look into combining elements, however since the differences
 //  are on the innermost loops, any generalisation is likely to slow things down.
-void move_grid_galprops(double redshift, float *dens_pointer, int dens_dim[3],
-                        float *vel_pointers[3], float *vel_pointers_2LPT[3], int vel_dim[3],
-                        HaloBox *boxes, int out_dim[3], float *mturn_a_grid, float *mturn_m_grid,
-                        ScalingConstants *consts, IntegralCondition *integral_cond) {
+void move_grid_galprops(double redshift, float* dens_pointer, int dens_dim[3],
+                        float* vel_pointers[3], float* vel_pointers_2LPT[3], int vel_dim[3],
+                        HaloBox* boxes, int out_dim[3], float* mturn_a_grid, float* mturn_m_grid,
+                        ScalingConstants* consts, IntegralCondition* integral_cond) {
     // grid dimension constants
     double boxlen = simulation_options_global->BOX_LEN;
     double boxlen_z = boxlen * simulation_options_global->NON_CUBIC_FACTOR;

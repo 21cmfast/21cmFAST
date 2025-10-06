@@ -44,14 +44,14 @@ typedef struct IntegralCondition {
     double sigma_cell;
 } IntegralCondition;
 
-void set_integral_constants(IntegralCondition *consts, double redshift, double M_min, double M_max,
+void set_integral_constants(IntegralCondition* consts, double redshift, double M_min, double M_max,
                             double M_cell);
 
-int ComputeHaloBox(double redshift, InitialConditions *ini_boxes, PerturbHaloField *halos,
-                   TsBox *previous_spin_temp, IonizedBox *previous_ionize_box, HaloBox *grids);
+int ComputeHaloBox(double redshift, InitialConditions* ini_boxes, PerturbHaloField* halos,
+                   TsBox* previous_spin_temp, IonizedBox* previous_ionize_box, HaloBox* grids);
 
 void get_cell_integrals(double dens, double l10_mturn_a, double l10_mturn_m,
-                        ScalingConstants *consts, IntegralCondition *int_consts,
-                        HaloProperties *properties);
+                        ScalingConstants* consts, IntegralCondition* int_consts,
+                        HaloProperties* properties);
 
 #endif

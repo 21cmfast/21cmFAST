@@ -5,7 +5,7 @@
 #include "InputParameters.h"
 #include "OutputStructs.h"
 
-int ComputeBrightnessTemp(float redshift, TsBox *spin_temp, IonizedBox *ionized_box,
-                          PerturbedField *perturb_field, BrightnessTemp *box);
+int ComputeBrightnessTemp(float redshift, TsBox* spin_temp, IonizedBox* ionized_box,
+                          PerturbedField* perturb_field, BrightnessTemp* box);
 
 #endif
