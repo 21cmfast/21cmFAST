@@ -582,11 +582,18 @@ double Get_EoR_Radio_mini(struct TsBox *this_spin_temp, struct AstroParams *astr
 				mt = this_spin_temp->History_box[head + 6];
 				if (mt < 1.0e2)
 				{
-					fprintf(stderr, "Error @ Get_EoR_Radio_mini (p21f): mturn is smaller than 100. mturn = %.3E, redshift = %.3f, contaminated z = %.3f\n", mt, redshift, z);
+					fprintf(stderr, "Error @ Get_EoR_Radio_mini (p21c): mturn is smaller than 100. mturn = %.3E, redshift = %.3f, contaminated z = %.3f\n", mt, redshift, z);
 					Throw(ValueError);
 					terminate = 1;
 				}
-				nion_axis[idx] = Nion_General_MINI(z, global_params.M_MIN_INTEGRAL, mt, mc, astro_params->ALPHA_STAR_MINI, 0., astro_params->F_STAR7_MINI, 1., Mlim_Fstar_MINI, 0.);
+				if (mt > 1.0E15)
+				{
+					nion_axis[idx] = 0.0;
+				}
+				else
+				{
+					nion_axis[idx] = Nion_General_MINI(z, global_params.M_MIN_INTEGRAL, mt, mc, astro_params->ALPHA_STAR_MINI, 0., astro_params->F_STAR7_MINI, 1., Mlim_Fstar_MINI, 0.);
+				}
 			}
 
 			// Now interpolate for finer z
