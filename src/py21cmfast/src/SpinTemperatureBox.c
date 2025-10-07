@@ -2716,7 +2716,7 @@ int ComputeTsBox(float redshift, float prev_redshift, struct UserParams *user_pa
                 this_spin_temp->History_box[head + 2] = T_IGM_ave;
                 this_spin_temp->History_box[head + 3] = Phi_ave_mini;
                 this_spin_temp->History_box[head + 4] = zpp_for_evolve_list[0];
-                if (previous_spin_temp->mturns_EoR[3] < 1.0)
+                if (previous_spin_temp->mturns_EoR[3] < 0.5)
                 {
                     // P21f sometimes skip IO.c call
                     this_spin_temp->History_box[head + 5] = 1.0E20;
@@ -2725,22 +2725,24 @@ int ComputeTsBox(float redshift, float prev_redshift, struct UserParams *user_pa
                 else
                 {
                     this_spin_temp->History_box[head + 5] = previous_spin_temp->mturns_EoR[0];
-                    this_spin_temp->History_box[head + 6] = previous_spin_temp->mturns_EoR[1];
+                    this_spin_temp->History_box[head + 6] = previous_spin_temp->mturns_EoR[1]; // Mturn_MINI
                 }
             }
 
-            if (flag_options->Calibrate_EoR_feedback && flag_options->USE_RADIO_MCG)
+            if (flag_options->Calibrate_EoR_feedback && flag_options->USE_MINI_HALOS)
             {
                 // Calibrating EoR feedback, coupling to Ts should be negligible by now since T21 would be dominated by xH
-                // Tr_EoR = Get_EoR_Radio_mini(this_spin_temp, astro_params, cosmo_params, flag_options, redshift, Radio_Temp_ave, x_e_ave / (double)HII_TOT_NUM_PIXELS);
                 Tr_EoR = Get_EoR_Radio_mini(this_spin_temp, astro_params, cosmo_params, redshift);
-                // SFRD_EoR_MINI = Get_SFRD_EoR_MINI(previous_spin_temp, this_spin_temp, astro_params, cosmo_params, x_e_ave / (double)HII_TOT_NUM_PIXELS, zpp_Rct0);
+                SFRD_EoR_MINI = Get_SFRD_EoR_MINI(previous_spin_temp, astro_params, cosmo_params, redshift);
                 SFRD_MINI_ave = Phi_2_SFRD(Phi_ave_mini, zpp_Rct0, H_Rct0, astro_params, cosmo_params, 1);
                 SFRD_MINI_ave = SFRD_MINI_ave > 1e-200 ? SFRD_MINI_ave : 1e-200; // avoid nan in divide
 
                 for (box_ct = 0; box_ct < HII_TOT_NUM_PIXELS; box_ct++)
                 {
-                    this_spin_temp->Trad_box[box_ct] = Tr_EoR * this_spin_temp->Trad_box[box_ct] / Radio_Temp_ave;
+                    if (flag_options->USE_RADIO_MCG)
+                    {
+                        this_spin_temp->Trad_box[box_ct] = Tr_EoR * this_spin_temp->Trad_box[box_ct] / Radio_Temp_ave;
+                    }
                     this_spin_temp->SFRD_MINI_box[box_ct] = SFRD_EoR_MINI * this_spin_temp->SFRD_MINI_box[box_ct] / SFRD_MINI_ave;
                 }
             }

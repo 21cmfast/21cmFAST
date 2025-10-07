@@ -537,6 +537,17 @@ double Get_EoR_Radio_mini(struct TsBox *this_spin_temp, struct AstroParams *astr
 }
 */
 
+
+float find_redshift_step(int idx)
+{
+	float dx, x1, x, z;
+	dx = log(global_params.ZPRIME_STEP_FACTOR);
+	x1 = log(1.0 + global_params.Z_HEAT_MAX);
+	x = x1 - ((float) idx - 1.0) * dx;
+	z = exp(x) - 1.0;
+	return z;
+}
+
 double Get_EoR_Radio_mini(struct TsBox *this_spin_temp, struct AstroParams *astro_params, struct CosmoParams *cosmo_params, float redshift)
 {
 	int idx, nz, ArchiveSize, head, terminate;
@@ -544,14 +555,14 @@ double Get_EoR_Radio_mini(struct TsBox *this_spin_temp, struct AstroParams *astr
 	nz = 400;
 	terminate = 0; // sometimes in mpi or parralel loops python might proceed even with error, use this to give NaN which will terminate the simulation by various NaN checkpoints
 	
-	if ((this_spin_temp->first_box) || (redshift > 33.0))
+	if ((this_spin_temp->first_box) || (redshift > find_redshift_step(2) - 0.5))
 	{
 		T = 0;
 	}
 	else
 	{
 		ArchiveSize = (int)round(this_spin_temp->History_box[0]);
-		if (ArchiveSize > 3)
+		if (ArchiveSize > 3) // U need to have sufficiently large interp table
 		{
 			Mlim_Fstar_MINI = Mass_limit_bisection(global_params.M_MIN_INTEGRAL, global_params.M_MAX_INTEGRAL, astro_params->ALPHA_STAR_MINI,
 												   astro_params->F_STAR7_MINI * pow(1e3, astro_params->ALPHA_STAR_MINI));
@@ -560,6 +571,7 @@ double Get_EoR_Radio_mini(struct TsBox *this_spin_temp, struct AstroParams *astr
 			if (ArchiveSize > 390)
 			{
 				fprintf(stderr, "Error @ Get_EoR_Radio_mini: Running with very fine z time steps, z and nion axis is not large enough.\n");
+				Throw(ValueError);
 			}
 			for (idx = 0; idx < ArchiveSize; idx++)
 			{
@@ -607,44 +619,44 @@ double Get_EoR_Radio_mini(struct TsBox *this_spin_temp, struct AstroParams *astr
 	return T;
 }
 
-double Get_SFRD_EoR_MINI(struct TsBox *previous_spin_temp, struct TsBox *this_spin_temp, struct AstroParams *astro_params, struct CosmoParams *cosmo_params, double xe_ave, double redshift)
+double Get_SFRD_EoR_MINI(struct TsBox *previous_spin_temp, struct AstroParams *astro_params, struct CosmoParams *cosmo_params, double redshift)
 {
-	// This is abit buggy cause we only have mturn info about previous box
-	// however at lowz the z timestep is small enough so that prev box gives good enough results, so if using xe weighing then we should be alright
-	// plus SFRD_box is not used anywhere else
-
-	double Phi_EoR, weigh, H, Phi_ave, Phi_old, SFRD, mturn, mc, Mlim_Fstar_MINI;
-	int ArchiveSize, head;
-	if (redshift > 33.0 || redshift < 4.0)
+	// This is abit buggy cause we are actually using the mturn info from the previous box
+	// However at lowz the z timestep is small enough so that prev box gives good enough results
+	
+	double Phi_EoR, H, SFRD, mturn, mc, Mlim_Fstar_MINI;
+	if (redshift > find_redshift_step(2) - 0.5)
+	{
+		mturn = 1.0E20;
+	}
+	else
+	{
+		if (fabs(previous_spin_temp->mturns_EoR[3] - 1.0) > 1E-2)
+		{
+			printf("mturn is unset, setting now to inf\n");
+			mturn = 1.0E20;
+		}
+		else
+		{
+			mturn = previous_spin_temp->mturns_EoR[1];
+		}
+	}
+	mc = atomic_cooling_threshold(redshift);
+	Mlim_Fstar_MINI = Mass_limit_bisection(global_params.M_MIN_INTEGRAL, global_params.M_MAX_INTEGRAL, astro_params->ALPHA_STAR_MINI, astro_params->F_STAR7_MINI * pow(1e3, astro_params->ALPHA_STAR_MINI));
+	if (mturn > 1E18)
 	{
 		Phi_EoR = 0.0;
 	}
 	else
 	{
-		ArchiveSize = (int)round(previous_spin_temp->History_box[0]);
-		head = (ArchiveSize - 1) * History_box_DIM + 1;
-		mturn = previous_spin_temp->History_box[head + 6]; // abit buggy but this is the best we have
-		mc = atomic_cooling_threshold(redshift);
-		Mlim_Fstar_MINI = Mass_limit_bisection(global_params.M_MIN_INTEGRAL, global_params.M_MAX_INTEGRAL, astro_params->ALPHA_STAR_MINI, astro_params->F_STAR7_MINI * pow(1e3, astro_params->ALPHA_STAR_MINI));
 		Phi_EoR = Nion_General_MINI(redshift, global_params.M_MIN_INTEGRAL, mturn, mc, astro_params->ALPHA_STAR_MINI, 0., astro_params->F_STAR7_MINI, 1., Mlim_Fstar_MINI, 0.);
-		Phi_EoR = Phi_EoR / (astro_params->t_STAR * pow(1. + redshift, astro_params->X_RAY_SPEC_INDEX + 1.0));
 	}
-
-	ArchiveSize = (int)round(this_spin_temp->History_box[0]);
-	head = (ArchiveSize - 1) * History_box_DIM + 1;
-	Phi_old = this_spin_temp->History_box[head + 3];
-
-	// weigh = fmin(xe_ave / 0.04, 1.0);
-	// weigh = redshift < 15 ? fmin(15 - redshift, 1) : 0;
-	weigh = 1.0;
-
-	Phi_ave = (1 - weigh) * Phi_old + weigh * Phi_EoR;
+	Phi_EoR = Phi_EoR / (astro_params->t_STAR * pow(1. + redshift, astro_params->X_RAY_SPEC_INDEX + 1.0));
 	H = hubble(redshift);
-
-	SFRD = Phi_2_SFRD(Phi_ave, redshift, H, astro_params, cosmo_params, 1);
-
+	SFRD = Phi_2_SFRD(Phi_EoR, redshift, H, astro_params, cosmo_params, 1);
 	return SFRD;
 }
+
 
 // ---- debug features ----
 // to be removed after testing
@@ -662,7 +674,7 @@ void Print_HMF(double z, struct UserParams *user_params)
 	growthf = dicke(z);
 	dlm = (lm2 - lm1) / ((double)nm - 1.0);
 	lm = lm1;
-	
+
 	OutputFile = fopen("HMF_Table_tmp.txt", "a");
 	fprintf(OutputFile, "%E  ", z);
 
