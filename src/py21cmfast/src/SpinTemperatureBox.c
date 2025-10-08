@@ -58,13 +58,12 @@ int ComputeTsBox(float redshift, float prev_redshift, struct UserParams *user_pa
         // All these are variables for Radio Background
         double Radio_Temp, Radio_Temp_HMG, Trad_inv, zpp_max, Phi, Phi_mini, Radio_zpp, new_nu, Phi_ave, Phi_ave_mini, T_IGM_ave, dT_Radio;
         double Radio_Prefix_ACG, Radio_Prefix_MCG, Fill_Fraction, Radio_Temp_ave, dzpp_Rct0, zpp_Rct0, H_Rct0, Tr_EoR, SFRD_EoR_MINI, SFRD_MINI_ave, Radio_Prefix_ACG_Rct, Radio_Prefix_MCG_Rct;
-        int idx, ArchiveSize, head, phi_idx, tk_idx, phi3_idx, zpp_idx, Radio_Silent, m2_idx, m3_idx;
+        int idx, ArchiveSize, head, phi_idx, tk_idx, phi3_idx, zpp_idx, Radio_Silent;
         FILE *OutputFile;
 
         // Initialising some variables
         Radio_Prefix_ACG = 113.6161 * astro_params->fR * cosmo_params->OMb * (pow(cosmo_params->hlittle, 2)) * (astro_params->F_STAR10) * pow(astro_nu0 / 1.4276, astro_params->aR) * pow(1 + redshift, 3 + astro_params->aR);
         Radio_Prefix_MCG = 113.6161 * astro_params->fR_mini * cosmo_params->OMb * (pow(cosmo_params->hlittle, 2)) * (astro_params->F_STAR7_MINI) * pow(astro_nu0 / 1.4276, astro_params->aR_mini) * pow(1 + redshift, 3 + astro_params->aR_mini);
-        this_spin_temp->mturns_EoR[2] = 0.0;
 
         // Makes the parameter structs visible to a variety of functions/macros
         // Do each time to avoid Python garbage collection issues
@@ -188,6 +187,16 @@ int ComputeTsBox(float redshift, float prev_redshift, struct UserParams *user_pa
             LOG_ERROR("Need to use Refine_T_Radio for this feature, which has not been tested for mpi.");
             Throw(ValueError);
         }
+        // Try initializing history_box here
+        for (box_ct = 0; box_ct < HII_TOT_NUM_PIXELS; box_ct++)
+        {
+            this_spin_temp->History_box[box_ct] = NAN;
+        }
+        for (box_ct = 0; box_ct < 4; box_ct++)
+        {
+            this_spin_temp->mturns_EoR[box_ct] = NAN;
+        }
+        this_spin_temp->mturns_EoR[2] = 0.0;
 
         double total_time, total_time2, total_time3, total_time4;
         float M_MIN_at_zp;
