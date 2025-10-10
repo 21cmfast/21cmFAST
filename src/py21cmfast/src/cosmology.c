@@ -487,7 +487,7 @@ void init_ps() {
 
     cosmo_consts.omhh =
         cosmo_params_global->OMm * cosmo_params_global->hlittle * cosmo_params_global->hlittle;
-    cosmo_consts.theta_cmb = T_cmb / 2.7;
+    cosmo_consts.theta_cmb = physconst.T_cmb / 2.7;
 
     cosmo_consts.f_nu = fmax(cosmo_params_global->OMn / cosmo_params_global->OMm, 1e-10);
     cosmo_consts.f_baryon = fmax(cosmo_params_global->OMb / cosmo_params_global->OMm, 1e-10);
@@ -760,4 +760,4 @@ double hubble(float z) {
 double t_hubble(float z) { return 1.0 / hubble(z); }
 
 /* comoving distance (in cm) per unit redshift */
-double drdz(float z) { return (1.0 + z) * C * dtdz(z); }
+double drdz(float z) { return (1.0 + z) * physconst.c_cms * dtdz(z); }

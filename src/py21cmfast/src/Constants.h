@@ -11,13 +11,62 @@
 #ifndef _CONSTANTS_21CM_H
 #define _CONSTANTS_21CM_H
 
+#include <math.h>
+
 #include "InputParameters.h"
 
-// ----------------------------------------------------------------------------------------- //
+typedef struct PhysicalConstants {
+    // Fundamental Constants
+    const double c_cms;     // speed of light in cm/s
+    const double c_kms;     // speed of light in km/s
+    const double h_p;       // Planck's constant in erg s
+    const double k_B;       // Boltzmann's constant in erg/K
+    const double m_p;       // proton mass in g
+    const double m_e;       // electron mass in g
+    const double G;         // gravitational constant in cgs
+    const double e_charge;  // electron charge in esu (g^1/2 cm^3/2 s^-1)
+    const double vac_perm;  // permittivity of free space in F/m (C^2 s^2 / kg m^3)
 
-// Taken from ANAL_PARAMS.H
+    // Units
+    const double Msun;        // solar mass in g
+    const double s_per_yr;    // seconds per year
+    const double cm_per_Mpc;  // cm per Mpc
+    const double eV_to_Hz;    // convert eV to Hz
 
-// ----------------------------------------------------------------------------------------- //
+    // Photon frequencies and temperatures
+    const double nu_ion_HI;        // ionization frequency of HI in Hz
+    const double nu_ion_HeI;       // ionization frequency of HeI in Hz
+    const double nu_ion_HeII;      // ionization frequency of HeII in Hz
+    const double nu_LW_thresh;     // Lyman-Werner threshold frequency in Hz
+    const double nu_Ly_alpha;      // frequency of Lyman-alpha in Hz
+    const double T_cmb;            // CMB temperature at z=0 in K
+    const double T_21;             // Temperature corresponding to 21cm photon in K
+    const double lambda_21;        // Wavelength of 21cm Radiation in cm
+    const double lambda_Ly_alpha;  // Wavelength of Lyman-Alpha in Angstroms
+    const double lambda_Ly_beta;   // Wavelength of Lyman-Beta in Angstroms
+    const double lambda_Ly_gamma;  // Wavelength of Lyman-Gamma in Angstroms
+
+    // Cross-sections and rate coefficients
+    const double sigma_T;      // Thomson scattering cross section in cm^2
+    const double sigma_HI;     // HI ionization cross section at 13.6 eV in cm^2
+    const double A10;          // spontaneous emission coefficient of 21cm in s^-1
+    const double A_Ly_alpha;   // Spontaneous emission coefficient for Lyman-Alpha line in s^-1
+    const double f_alpha;      // oscillator strength of Lya
+    const double alpha_A_10k;  // case A hydrogen recombination coefficient at 10,000 K in cm^3 s^-1
+    const double alpha_B_10k;  // case B hydrogen recombination coefficient at 10,000 K in cm^3 s^-1
+    const double alpha_B_20k;  // case B hydrogen recombination coefficient at 20,000 K in cm^3 s^-1
+} PhysicalConstants;
+
+extern const PhysicalConstants physconst;
+
+// Below are a few leftover macros, where they were used across multiple files or
+// depended on input parameters.
+
+// BEWARE: Since these macros are defined in a header, they *can* be applied to
+// any code included by 21cmFAST, e.g. if file A includes Constants.h, then includes
+// file B which includes fftw.h, the macros do find/replaces on fftw.h during compilation.
+
+// We should work toward *only* having definitions in .c files to avoid this.
 
 // factor relating cube length to filter radius = (4PI/3)^(-1/3)
 #define L_FACTOR (float)(0.620350491)
@@ -26,54 +75,9 @@
 #define Deltac (1.68)  // at z=0, density excess at virialization
 #define DELTAC_DELOS (1.5)
 
-// CONSTANTS //
-#define SIGMAT (double)(6.6524e-25)    // Thomson scattering cross section in cm^-2
-#define SIGMA_HI (double)(6.3e-18)     // HI ionization  cross section at 13.6 eV in cm^-2
-#define G (double)6.67259e-8           // cm^3 g^-1 s^-2
-#define hplank (double)6.62606896e-27  // erg s
+// Small numbers for comparison and avoiding division by zero
 #define TINY (double)1e-30
-#define FRACT_FLOAT_ERR (double)1e-7       // fractional floating point error
-#define f_alpha (float)0.4162              // oscillator strength of Lya
-#define Ly_alpha_HZ (double)2.46606727e15  // frequency of Lyalpha
-#define C (double)29979245800.0            //  speed of light  (cm/s)
-#define C_KMS (double)C / 1e5              /* speed of light in km/s  */
-#define alphaA_10k (double)4.18e-13        // taken from osterbrock for T=10000
-#define alphaB_10k (double)2.59e-13        // taken from osterbrock for T=10000
-#define alphaB_20k (double)2.52e-13        // taken from osterbrock for T=20000
-#define Ly_alpha_ANG (double)1215.67
-#define Ly_beta_ANG (double)1025.18
-#define Ly_gamma_ANG (double)972.02
-#define NV_ANG (double)1240.81                         // NV line center
-#define CMperMPC (double)3.086e24                      // cm/Mpc
-#define SperYR (double)31556925.9747                   // s/yr
-#define Msun (double)1.989e33                          // g
-#define Rsun (double)6.9598e10                         // cm
-#define Lsun (double)3.90e33                           // erg/s
-#define T_cmb (double)2.7255                           // K
-#define k_B (double)1.380658e-16                       // erg / K
-#define m_p (double)1.6726231e-24                      // proton mass (g)
-#define m_e (double)9.10938188e-28                     // electron mass (g)
-#define e_charge (double)4.80320467e-10                // elemetary charge (esu=g^1/2 cm^3/2 s^-1
-#define SQDEG_ALLSKY (double)((360.0 * 360.0) / M_PI)  // Square degrees in all sky
-#define G_AB_Jy (double)3631.0                         // AB mag constant in Jy
-#define NU_over_EV (double)(1.60217646e-12 / hplank)
-#define NU_LW_THRESH (double)(11.18 * NU_over_EV)
-#define NUIONIZATION (double)(13.60 * NU_over_EV)      // ionization frequency of H
-#define HeII_NUIONIZATION (double)(NUIONIZATION * 4)   // ionization frequency of HeII
-#define HeI_NUIONIZATION (double)(24.59 * NU_over_EV)  // ionization frequency of HeI
-#define T21 (double)0.0682              // temperature corresponding to the 21cm photon
-#define A10_HYPERFINE (double)2.85e-15  // spontaneous emission coefficient in s^-1
-
-#define Lambda_21 (double)21.106114054160  // Wavelength of 21cm Radiation in cm
-#define A21_Lya (double)6.24e8  // Spontaneous emission coefficient for Lyman-Alpha line in s^-1
-
-#define vac_perm (double)8.8541878128e-12  // vacuum permittivity in farads m^-1
-
-// ----------------------------------------------------------------------------------------- //
-
-// Taken from heating_helper_progs.c
-
-// ----------------------------------------------------------------------------------------- //
+#define FRACT_FLOAT_ERR (double)1e-7  // fractional floating point error
 
 #define NSPEC_MAX (int)23
 
@@ -89,14 +93,19 @@
 // -------------------------------------------------------------------------------------
 #define Ho (double)(cosmo_params_global->hlittle * 3.2407e-18)  // s^-1 at z=0
 // Msun Mpc^-3 ---- at z=0
-#define RHOcrit \
-    (double)((3.0 * Ho * Ho / (8.0 * M_PI * G)) * (CMperMPC * CMperMPC * CMperMPC) / Msun)
-#define RHOcrit_cgs (double)(3.0 * Ho * Ho / (8.0 * M_PI * G))  // g pcm^-3 ---- at z=0
+#define RHOcrit                                                                     \
+    (double)((3.0 * Ho * Ho / (8.0 * M_PI * physconst.G)) *                         \
+             (physconst.cm_per_Mpc * physconst.cm_per_Mpc * physconst.cm_per_Mpc) / \
+             physconst.Msun)
+#define RHOcrit_cgs (double)(3.0 * Ho * Ho / (8.0 * M_PI * physconst.G))  // g pcm^-3 ---- at z=0
 //  current hydrogen number density estimate  (#/cm^3)  ~1.92e-7
-#define No (double)(RHOcrit_cgs * cosmo_params_global->OMb * (1 - cosmo_params_global->Y_He) / m_p)
+#define No                                                                              \
+    (double)(RHOcrit_cgs * cosmo_params_global->OMb * (1 - cosmo_params_global->Y_He) / \
+             physconst.m_p)
 //  current helium number density estimate
-#define He_No \
-    (double)(RHOcrit_cgs * cosmo_params_global->OMb * cosmo_params_global->Y_He / (4.0 * m_p))
+#define He_No                                                                     \
+    (double)(RHOcrit_cgs * cosmo_params_global->OMb * cosmo_params_global->Y_He / \
+             (4.0 * physconst.m_p))
 #define N_b0 (double)(No + He_No)            // present-day baryon num density, H + He
 #define f_H (double)(No / (No + He_No))      // hydrogen number fraction
 #define f_He (double)(He_No / (No + He_No))  // helium number fraction

@@ -324,7 +324,8 @@ void setup_z_edges(double zp) {
         }
 
         // cell size
-        zpp_edge[R_ct] = prev_zpp - (R_values[R_ct] - prev_R) * CMperMPC / drdz(prev_zpp);
+        zpp_edge[R_ct] =
+            prev_zpp - (R_values[R_ct] - prev_R) * physconst.cm_per_Mpc / drdz(prev_zpp);
         // average redshift value of shell: z'' + 0.5 * dz''
         zpp = (zpp_edge[R_ct] + prev_zpp) * 0.5;
 
@@ -383,7 +384,8 @@ void calculate_spectral_factors(double zp) {
             if (astro_options_global->USE_MINI_HALOS) {
                 sum_ly2_val_MINI = frecycle(2) * spectral_emissivity(nuprime, 0, 3);
 
-                if (nuprime < NU_LW_THRESH / NUIONIZATION) nuprime = NU_LW_THRESH / NUIONIZATION;
+                if (nuprime < physconst.nu_LW_thresh / physconst.nu_ion_HI)
+                    nuprime = physconst.nu_LW_thresh / physconst.nu_ion_HI;
                 // NOTE: are we comparing nuprime at z' and z'' correctly here?
                 //   currently: emitted frequency >= received frequency of next n
                 if (nuprime >= nu_n(2 + 1)) continue;
@@ -403,7 +405,8 @@ void calculate_spectral_factors(double zp) {
             if (astro_options_global->USE_MINI_HALOS) {
                 sum_lynto2_val_MINI += frecycle(n_ct) * spectral_emissivity(nuprime, 0, 3);
 
-                if (nuprime < NU_LW_THRESH / NUIONIZATION) nuprime = NU_LW_THRESH / NUIONIZATION;
+                if (nuprime < physconst.nu_LW_thresh / physconst.nu_ion_HI)
+                    nuprime = physconst.nu_LW_thresh / physconst.nu_ion_HI;
                 if (nuprime >= nu_n(n_ct + 1)) continue;
                 sum_lyLW_val +=
                     (1. - astro_params_global->F_H2_SHIELD) * spectral_emissivity(nuprime, 2, 2);
@@ -776,11 +779,11 @@ void fill_freqint_tables(double zp, double x_e_ave, double filling_factor_of_HI_
                 lower_int_limit =
                     fmax(nu_tau_one_MINI(zp, zpp_for_evolve_list[R_ct], x_e_ave,
                                          filling_factor_of_HI_zp, log10_Mcrit_LW_ave[R_ct], sc),
-                         (astro_params_global->NU_X_THRESH) * NU_over_EV);
+                         (astro_params_global->NU_X_THRESH) * physconst.eV_to_Hz);
             } else {
                 lower_int_limit = fmax(
                     nu_tau_one(zp, zpp_for_evolve_list[R_ct], x_e_ave, filling_factor_of_HI_zp, sc),
-                    (astro_params_global->NU_X_THRESH) * NU_over_EV);
+                    (astro_params_global->NU_X_THRESH) * physconst.eV_to_Hz);
             }
             // set up frequency integral table for later interpolation for the cell's x_e value
             for (x_e_ct = 0; x_e_ct < x_int_NXHII; x_e_ct++) {
@@ -1026,50 +1029,55 @@ void set_zp_consts(double zp, struct spintemp_from_sfr_prefactors *consts) {
     consts->dt_dzp = dtdz(zp);
     if (fabs(astro_params_global->X_RAY_SPEC_INDEX - 1.0) < 1e-6) {
         luminosity_converstion_factor =
-            (astro_params_global->NU_X_THRESH) * NU_over_EV *
+            (astro_params_global->NU_X_THRESH) * physconst.eV_to_Hz *
             log(astro_params_global->NU_X_BAND_MAX / (astro_params_global->NU_X_THRESH));
         luminosity_converstion_factor = 1. / luminosity_converstion_factor;
     } else {
-        luminosity_converstion_factor = pow((astro_params_global->NU_X_BAND_MAX) * NU_over_EV,
-                                            1. - (astro_params_global->X_RAY_SPEC_INDEX)) -
-                                        pow((astro_params_global->NU_X_THRESH) * NU_over_EV,
-                                            1. - (astro_params_global->X_RAY_SPEC_INDEX));
+        luminosity_converstion_factor =
+            pow((astro_params_global->NU_X_BAND_MAX) * physconst.eV_to_Hz,
+                1. - (astro_params_global->X_RAY_SPEC_INDEX)) -
+            pow((astro_params_global->NU_X_THRESH) * physconst.eV_to_Hz,
+                1. - (astro_params_global->X_RAY_SPEC_INDEX));
         luminosity_converstion_factor = 1. / luminosity_converstion_factor;
-        luminosity_converstion_factor *= pow((astro_params_global->NU_X_THRESH) * NU_over_EV,
-                                             -(astro_params_global->X_RAY_SPEC_INDEX)) *
-                                         (1 - (astro_params_global->X_RAY_SPEC_INDEX));
+        luminosity_converstion_factor *=
+            pow((astro_params_global->NU_X_THRESH) * physconst.eV_to_Hz,
+                -(astro_params_global->X_RAY_SPEC_INDEX)) *
+            (1 - (astro_params_global->X_RAY_SPEC_INDEX));
     }
-    // Finally, convert to the correct units. NU_over_EV*hplank as only want to divide by eV -> erg
-    // (owing to the definition of Luminosity)
-    luminosity_converstion_factor /= (hplank);
+    // Finally, convert to the correct units. physconst.eV_to_Hz*physconst.h_p as only want to
+    // divide by eV -> erg (owing to the definition of Luminosity)
+    luminosity_converstion_factor /= (physconst.h_p);
 
     // for halos, we just want the SFR -> X-ray part
     // NOTE: compared to Mesinger+11: (1+zpp)^2 (1+zp) -> (1+zp)^3
     //(1+z)^3 is here because we don't want it in the
     // star lya (already in zpp integrand)
-    consts->xray_prefactor = luminosity_converstion_factor /
-                             ((astro_params_global->NU_X_THRESH) * NU_over_EV) * C *
-                             pow(1 + zp, astro_params_global->X_RAY_SPEC_INDEX + 3);
+    consts->xray_prefactor =
+        luminosity_converstion_factor / ((astro_params_global->NU_X_THRESH) * physconst.eV_to_Hz) *
+        physconst.c_cms * pow(1 + zp, astro_params_global->X_RAY_SPEC_INDEX + 3);
 
     // Required quantities for calculating the IGM spin temperature
     // Note: These used to be determined in evolveInt (and other functions). But I moved them all
     // here, into a single location.
-    consts->Trad = T_cmb * (1.0 + zp);
+    consts->Trad = physconst.T_cmb * (1.0 + zp);
     consts->Trad_inv = 1.0 / consts->Trad;
     consts->Ts_prefactor =
         pow(1.0e-7 * (1.342881e-7 / consts->hubble_zp) * No * pow(1 + zp, 3), 1. / 3.);
 
     // division of C/10. is converstion of electric charge from esu to coulomb
-    gamma_alpha = f_alpha * pow(Ly_alpha_HZ * e_charge / (C / 10.), 2.);
+    gamma_alpha = physconst.f_alpha *
+                  pow(physconst.nu_Ly_alpha * physconst.e_charge / (physconst.c_cms / 10.), 2.);
     // division by 1000. to convert gram to kg and division by 100. to convert cm to m
-    gamma_alpha /= 6. * (m_e / 1000.) * pow(C / 100., 3.) * vac_perm;
+    gamma_alpha /=
+        6. * (physconst.m_e / 1000.) * pow(physconst.c_cms / 100., 3.) * physconst.vac_perm;
 
     // 1e-8 converts angstrom to cm.
-    consts->xa_tilde_prefactor = 8. * M_PI * pow(Ly_alpha_ANG * 1.e-8, 2.) * gamma_alpha * T21;
-    consts->xa_tilde_prefactor /= 9. * A10_HYPERFINE * consts->Trad;
+    consts->xa_tilde_prefactor =
+        8. * M_PI * pow(physconst.lambda_Ly_alpha * 1.e-8, 2.) * gamma_alpha * physconst.T_21;
+    consts->xa_tilde_prefactor /= 9. * physconst.A10 * consts->Trad;
     // consts->xa_tilde_prefactor = 1.66e11/(1.0+zp);
 
-    consts->xc_inverse = pow(1.0 + zp, 3.0) * T21 / (consts->Trad * A10_HYPERFINE);
+    consts->xc_inverse = pow(1.0 + zp, 3.0) * physconst.T_21 / (consts->Trad * physconst.A10);
 
     consts->dcomp_dzp_prefactor = (-1.51e-4) / (consts->hubble_zp / Ho) /
                                   (cosmo_params_global->hlittle) * pow(consts->Trad, 4.0) /
@@ -1080,14 +1088,14 @@ void set_zp_consts(double zp, struct spintemp_from_sfr_prefactors *consts) {
     consts->Nb_zp = N_b0 * (1 + zp) * (1 + zp) * (1 + zp);
     consts->N_zp = No * (1 + zp) * (1 + zp) * (1 + zp);  // used for CMB
     // converts SFR density -> stellar baryon density + prefactors
-    consts->lya_star_prefactor =
-        C / (4.0 * M_PI) * Msun / m_p * (1 - 0.75 * cosmo_params_global->Y_He);
+    consts->lya_star_prefactor = physconst.c_cms / (4.0 * M_PI) * physconst.Msun / physconst.m_p *
+                                 (1 - 0.75 * cosmo_params_global->Y_He);
 
     // converts the grid emissivity unit to per cm-3
     if (matter_options_global->USE_HALO_FIELD) {
-        consts->volunit_inv = pow(CMperMPC, -3);
+        consts->volunit_inv = pow(physconst.cm_per_Mpc, -3);
     } else {
-        consts->volunit_inv = cosmo_params_global->OMb * RHOcrit * pow(CMperMPC, -3);
+        consts->volunit_inv = cosmo_params_global->OMb * RHOcrit * pow(physconst.cm_per_Mpc, -3);
     }
 
     LOG_DEBUG("Set zp consts xr %.2e Tr %.2e Ts %.2e xa %.2e xc %.2e cm %.2e",
@@ -1131,7 +1139,8 @@ struct Ts_cell get_Ts_fast(float zp, float dzp, struct spintemp_from_sfr_prefact
     double dCMBheat_dzp, eps_CMB, eps_Lya_cont, eps_Lya_inj, E_continuum, E_injected,
         Ndot_alpha_cont, Ndot_alpha_inj;
 
-    tau21 = (3 * hplank * A10_HYPERFINE * C * Lambda_21 * Lambda_21 / 32. / M_PI / k_B) *
+    tau21 = (3 * physconst.h_p * physconst.A10 * physconst.c_cms * physconst.lambda_21 *
+             physconst.lambda_21 / 32. / M_PI / physconst.k_B) *
             ((1 - rad->prev_xe) * consts->N_zp) / rad->prev_Ts / consts->hubble_zp;
     xCMB = (1. - exp(-tau21)) / tau21;
 
@@ -1158,15 +1167,17 @@ struct Ts_cell get_Ts_fast(float zp, float dzp, struct spintemp_from_sfr_prefact
                 (consts->Trad - rad->prev_Tk);
 
     // X-ray heating
-    dxheat_dzp = rad->dxheat_dt * consts->dt_dzp * 2.0 / 3.0 / k_B / (1.0 + rad->prev_xe);
+    dxheat_dzp = rad->dxheat_dt * consts->dt_dzp * 2.0 / 3.0 / physconst.k_B / (1.0 + rad->prev_xe);
     // CMB heating rate
     dCMBheat_dzp = 0.;
     if (astro_options_global->USE_CMB_HEATING) {
         // Meiksin et al. 2021
-        eps_CMB = (3. / 4.) * (consts->Trad / T21) * A10_HYPERFINE * f_H *
-                  (hplank * hplank / Lambda_21 / Lambda_21 / m_p) * (1. + 2. * rad->prev_Tk / T21);
-        dCMBheat_dzp =
-            -eps_CMB * (2. / 3. / k_B / (1. + rad->prev_xe)) / consts->hubble_zp / (1. + zp);
+        eps_CMB = (3. / 4.) * (consts->Trad / physconst.T_21) * physconst.A10 * f_H *
+                  (physconst.h_p * physconst.h_p / physconst.lambda_21 / physconst.lambda_21 /
+                   physconst.m_p) *
+                  (1. + 2. * rad->prev_Tk / physconst.T_21);
+        dCMBheat_dzp = -eps_CMB * (2. / 3. / physconst.k_B / (1. + rad->prev_xe)) /
+                       consts->hubble_zp / (1. + zp);
     }
 
     // Ly-alpha heating rate
@@ -1183,12 +1194,15 @@ struct Ts_cell get_Ts_fast(float zp, float dzp, struct spintemp_from_sfr_prefact
         if (isnan(E_injected) || isinf(E_injected)) {
             E_injected = 0.;
         }
-        Ndot_alpha_cont = (4. * M_PI * Ly_alpha_HZ) / (consts->Nb_zp * (1. + rad->delta)) /
-                          (1. + zp) / C * rad->dstarlya_cont_dt;
-        Ndot_alpha_inj = (4. * M_PI * Ly_alpha_HZ) / (consts->Nb_zp * (1. + rad->delta)) /
-                         (1. + zp) / C * rad->dstarlya_inj_dt;
-        eps_Lya_cont = -Ndot_alpha_cont * E_continuum * (2. / 3. / k_B / (1. + rad->prev_xe));
-        eps_Lya_inj = -Ndot_alpha_inj * E_injected * (2. / 3. / k_B / (1. + rad->prev_xe));
+        Ndot_alpha_cont = (4. * M_PI * physconst.nu_Ly_alpha) /
+                          (consts->Nb_zp * (1. + rad->delta)) / (1. + zp) / physconst.c_cms *
+                          rad->dstarlya_cont_dt;
+        Ndot_alpha_inj = (4. * M_PI * physconst.nu_Ly_alpha) / (consts->Nb_zp * (1. + rad->delta)) /
+                         (1. + zp) / physconst.c_cms * rad->dstarlya_inj_dt;
+        eps_Lya_cont =
+            -Ndot_alpha_cont * E_continuum * (2. / 3. / physconst.k_B / (1. + rad->prev_xe));
+        eps_Lya_inj =
+            -Ndot_alpha_inj * E_injected * (2. / 3. / physconst.k_B / (1. + rad->prev_xe));
     }
 
     // Update the cell quantities based on the above terms
@@ -1580,7 +1594,8 @@ void ts_main(float redshift, float prev_redshift, float perturbed_field_redshift
                         // stellar fraction
                         sfr_term = del_fcoll_Rct[box_ct] * z_edge_factor * avg_fix_term *
                                    astro_params_global->F_STAR10;
-                        xray_sfr = sfr_term * astro_params_global->L_X * xray_R_factor * SperYR;
+                        xray_sfr = sfr_term * astro_params_global->L_X * xray_R_factor *
+                                   physconst.s_per_yr;
                     }
                     if (astro_options_global->USE_MINI_HALOS) {
                         if (matter_options_global->USE_HALO_FIELD) {
@@ -1591,7 +1606,7 @@ void ts_main(float redshift, float prev_redshift, float perturbed_field_redshift
                             sfr_term_mini = del_fcoll_Rct_MINI[box_ct] * z_edge_factor *
                                             avg_fix_term_MINI * astro_params_global->F_STAR7_MINI;
                             xray_sfr += sfr_term_mini * astro_params_global->L_X_MINI *
-                                        xray_R_factor * SperYR;
+                                        xray_R_factor * physconst.s_per_yr;
                         }
                         dstarlyLW_dt_box[box_ct] +=
                             sfr_term * dstarlyLW_dt_prefactor[R_ct] +
@@ -1709,7 +1724,7 @@ void ts_main(float redshift, float prev_redshift, float perturbed_field_redshift
             rad.delta = curr_delta;
             if (astro_options_global->USE_MINI_HALOS) {
                 rad.dstarLW_dt = dstarlyLW_dt_box[box_ct] * zp_consts.lya_star_prefactor *
-                                 zp_consts.volunit_inv * hplank * 1e21;
+                                 zp_consts.volunit_inv * physconst.h_p * 1e21;
             }
             if (astro_options_global->USE_LYA_HEATING) {
                 rad.dstarlya_cont_dt = dstarlya_cont_dt_box[box_ct] * zp_consts.lya_star_prefactor *

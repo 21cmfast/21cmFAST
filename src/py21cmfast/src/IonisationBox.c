@@ -202,9 +202,10 @@ void set_ionbox_constants(double redshift, double prev_redshift, struct IonBoxCo
         simulation_options_global->BOX_LEN / (double)simulation_options_global->HII_DIM;
     consts->pixel_mass = cosmo_params_global->OMm * RHOcrit * pow(consts->pixel_length, 3);
 
-    consts->gamma_prefactor =
-        pow(1 + redshift, 2) * CMperMPC * SIGMA_HI * astro_params_global->ALPHA_UVB /
-        (astro_params_global->ALPHA_UVB + 2.75) * N_b0 * consts->ion_eff_factor / 1.0e-12;
+    consts->gamma_prefactor = pow(1 + redshift, 2) * physconst.cm_per_Mpc * physconst.sigma_HI *
+                              astro_params_global->ALPHA_UVB /
+                              (astro_params_global->ALPHA_UVB + 2.75) * N_b0 *
+                              consts->ion_eff_factor / 1.0e-12;
     if (matter_options_global->USE_HALO_FIELD)
         consts->gamma_prefactor /= RHOcrit * cosmo_params_global->OMb;
     else

@@ -280,15 +280,15 @@ int ComputeInitialConditions(unsigned long long random_seed, InitialConditions *
                                 } else {
                                     if (ii == 0) {
                                         HIRES_box[C_INDEX(n_x, n_y, n_z)] *=
-                                            I * k_x / k_mag * sqrt(p_vcb / p) * C_KMS;
+                                            I * k_x / k_mag * sqrt(p_vcb / p) * physconst.c_kms;
                                     }
                                     if (ii == 1) {
                                         HIRES_box[C_INDEX(n_x, n_y, n_z)] *=
-                                            I * k_y / k_mag * sqrt(p_vcb / p) * C_KMS;
+                                            I * k_y / k_mag * sqrt(p_vcb / p) * physconst.c_kms;
                                     }
                                     if (ii == 2) {
                                         HIRES_box[C_INDEX(n_x, n_y, n_z)] *=
-                                            I * k_z / k_mag * sqrt(p_vcb / p) * C_KMS;
+                                            I * k_z / k_mag * sqrt(p_vcb / p) * physconst.c_kms;
                                     }
                                 }
                             }

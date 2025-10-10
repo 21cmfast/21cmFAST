@@ -38,7 +38,7 @@ int ComputeBrightnessTemp(float redshift, TsBox *spin_temp, IonizedBox *ionized_
 
         init_ps();
 
-        T_rad = T_cmb * (1 + redshift);
+        T_rad = physconst.T_cmb * (1 + redshift);
         H = hubble(redshift);
         const_factor = 27 *
                        (cosmo_params_global->OMb * cosmo_params_global->hlittle *

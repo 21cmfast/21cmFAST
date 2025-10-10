@@ -431,7 +431,7 @@ double xray_fraction_doublePL(double lnM, void *param_struct) {
     if (astro_options_global->USE_MINI_HALOS)
         l_x_mini = get_lx_on_sfr(sfr_mini, metallicity, p.l_x_norm_mini);
 
-    return SperYR * (sfr * l_x + sfr_mini * l_x_mini);
+    return physconst.s_per_yr * (sfr * l_x + sfr_mini * l_x_mini);
 }
 
 double conditional_hmf(double growthf, double lnM, double delta, double sigma, int HMF) {

@@ -336,17 +336,17 @@ double spectral_emissivity(double nu_norm, int flag, int Population) {
                 if ((nu_norm >= nu_n[i]) && (nu_norm < nu_n[i + 1])) {
                     // We are in the correct spectral region
                     if (Population == 2)
-                        return N0_2[i] * pow(nu_norm, alpha_S_2[i]) / Ly_alpha_HZ;
+                        return N0_2[i] * pow(nu_norm, alpha_S_2[i]) / physconst.nu_Ly_alpha;
                     else
-                        return N0_3[i] * pow(nu_norm, alpha_S_3[i]) / Ly_alpha_HZ;
+                        return N0_3[i] * pow(nu_norm, alpha_S_3[i]) / physconst.nu_Ly_alpha;
                 }
             }
 
             i = NSPEC_MAX - 1;
             if (Population == 2)
-                return N0_2[i] * pow(nu_norm, alpha_S_2[i]) / Ly_alpha_HZ;
+                return N0_2[i] * pow(nu_norm, alpha_S_2[i]) / physconst.nu_Ly_alpha;
             else
-                return N0_3[i] * pow(nu_norm, alpha_S_3[i]) / Ly_alpha_HZ;
+                return N0_3[i] * pow(nu_norm, alpha_S_3[i]) / physconst.nu_Ly_alpha;
     }
 }
 
@@ -674,10 +674,10 @@ double xcoll_HI(double z, double TK, double delta, double xe) {
     double krate, nH, Trad;
     double xcoll;
 
-    Trad = T_cmb * (1.0 + z);
+    Trad = physconst.T_cmb * (1.0 + z);
     nH = (1.0 - xe) * No * pow(1.0 + z, 3.0) * (1.0 + delta);
     krate = kappa_10(TK, 0);
-    xcoll = T21 / Trad * nH * krate / A10_HYPERFINE;
+    xcoll = physconst.T_21 / Trad * nH * krate / physconst.A10;
     return xcoll;
 }
 
@@ -686,10 +686,10 @@ double xcoll_elec(double z, double TK, double delta, double xe) {
     double krate, ne, Trad;
     double xcoll;
 
-    Trad = T_cmb * (1.0 + z);
+    Trad = physconst.T_cmb * (1.0 + z);
     ne = xe * N_b0 * pow(1.0 + z, 3.0) * (1.0 + delta);
     krate = kappa_10_elec(TK, 0);
-    xcoll = T21 / Trad * ne * krate / A10_HYPERFINE;
+    xcoll = physconst.T_21 / Trad * ne * krate / physconst.A10;
     return xcoll;
 }
 
@@ -697,10 +697,10 @@ double xcoll_prot(double z, double TK, double delta, double xe) {
     double krate, np, Trad;
     double xcoll;
 
-    Trad = T_cmb * (1.0 + z);
+    Trad = physconst.T_cmb * (1.0 + z);
     np = xe * No * pow(1.0 + z, 3.0) * (1.0 + delta);
     krate = kappa_10_pH(TK, 0);
-    xcoll = T21 / Trad * np * krate / A10_HYPERFINE;
+    xcoll = physconst.T_21 / Trad * np * krate / physconst.A10;
     return xcoll;
 }
 
@@ -720,7 +720,7 @@ float get_Ts(float z, float delta, float TK, float xe, float Jalpha, float *curr
     double TS, TSold;
     double Tceff;
 
-    Trad = T_cmb * (1.0 + z);
+    Trad = physconst.T_cmb * (1.0 + z);
     xc = xcoll(z, TK, delta, xe);
     if (Jalpha > 1.0e-20) {  // * Must use WF effect * //
         TS = Trad;
@@ -755,18 +755,21 @@ double integrand_in_nu_heat_integral(double nu, void *params) {
     float x_e = *(double *)params;
 
     // HI
-    species_sum = interp_fheat((nu - NUIONIZATION) / NU_over_EV, x_e) * hplank *
-                  (nu - NUIONIZATION) * f_H * (1 - x_e) * HI_ion_crosssec(nu);
+    species_sum = interp_fheat((nu - physconst.nu_ion_HI) / physconst.eV_to_Hz, x_e) *
+                  physconst.h_p * (nu - physconst.nu_ion_HI) * f_H * (1 - x_e) *
+                  HI_ion_crosssec(nu);
 
     // HeI
-    species_sum += interp_fheat((nu - HeI_NUIONIZATION) / NU_over_EV, x_e) * hplank *
-                   (nu - HeI_NUIONIZATION) * f_He * (1 - x_e) * HeI_ion_crosssec(nu);
+    species_sum += interp_fheat((nu - physconst.nu_ion_HeI) / physconst.eV_to_Hz, x_e) *
+                   physconst.h_p * (nu - physconst.nu_ion_HeI) * f_He * (1 - x_e) *
+                   HeI_ion_crosssec(nu);
 
     // HeII
-    species_sum += interp_fheat((nu - HeII_NUIONIZATION) / NU_over_EV, x_e) * hplank *
-                   (nu - HeII_NUIONIZATION) * f_He * x_e * HeII_ion_crosssec(nu);
+    species_sum += interp_fheat((nu - physconst.nu_ion_HeII) / physconst.eV_to_Hz, x_e) *
+                   physconst.h_p * (nu - physconst.nu_ion_HeII) * f_He * x_e *
+                   HeII_ion_crosssec(nu);
 
-    return species_sum * pow(nu / ((astro_params_global->NU_X_THRESH) * NU_over_EV),
+    return species_sum * pow(nu / ((astro_params_global->NU_X_THRESH) * physconst.eV_to_Hz),
                              -(astro_params_global->X_RAY_SPEC_INDEX) - 1);
 }
 
@@ -775,24 +778,24 @@ double integrand_in_nu_ion_integral(double nu, void *params) {
     float x_e = *(double *)params;
 
     // photoionization of HI, prodicing e- of energy h*(nu - nu_HI)
-    F_i = interp_nion_HI((nu - NUIONIZATION) / NU_over_EV, x_e) +
-          interp_nion_HeI((nu - NUIONIZATION) / NU_over_EV, x_e) +
-          interp_nion_HeII((nu - NUIONIZATION) / NU_over_EV, x_e) + 1;
+    F_i = interp_nion_HI((nu - physconst.nu_ion_HI) / physconst.eV_to_Hz, x_e) +
+          interp_nion_HeI((nu - physconst.nu_ion_HI) / physconst.eV_to_Hz, x_e) +
+          interp_nion_HeII((nu - physconst.nu_ion_HI) / physconst.eV_to_Hz, x_e) + 1;
     species_sum = F_i * f_H * (1 - x_e) * HI_ion_crosssec(nu);
 
     // photoionization of HeI, prodicing e- of energy h*(nu - nu_HeI)
-    F_i = interp_nion_HI((nu - HeI_NUIONIZATION) / NU_over_EV, x_e) +
-          interp_nion_HeI((nu - HeI_NUIONIZATION) / NU_over_EV, x_e) +
-          interp_nion_HeII((nu - HeI_NUIONIZATION) / NU_over_EV, x_e) + 1;
+    F_i = interp_nion_HI((nu - physconst.nu_ion_HeI) / physconst.eV_to_Hz, x_e) +
+          interp_nion_HeI((nu - physconst.nu_ion_HeI) / physconst.eV_to_Hz, x_e) +
+          interp_nion_HeII((nu - physconst.nu_ion_HeI) / physconst.eV_to_Hz, x_e) + 1;
     species_sum += F_i * f_He * (1 - x_e) * HeI_ion_crosssec(nu);
 
     // photoionization of HeII, prodicing e- of energy h*(nu - nu_HeII)
-    F_i = interp_nion_HI((nu - HeII_NUIONIZATION) / NU_over_EV, x_e) +
-          interp_nion_HeI((nu - HeII_NUIONIZATION) / NU_over_EV, x_e) +
-          interp_nion_HeII((nu - HeII_NUIONIZATION) / NU_over_EV, x_e) + 1;
+    F_i = interp_nion_HI((nu - physconst.nu_ion_HeII) / physconst.eV_to_Hz, x_e) +
+          interp_nion_HeI((nu - physconst.nu_ion_HeII) / physconst.eV_to_Hz, x_e) +
+          interp_nion_HeII((nu - physconst.nu_ion_HeII) / physconst.eV_to_Hz, x_e) + 1;
     species_sum += F_i * f_He * x_e * HeII_ion_crosssec(nu);
 
-    return species_sum * pow(nu / ((astro_params_global->NU_X_THRESH) * NU_over_EV),
+    return species_sum * pow(nu / ((astro_params_global->NU_X_THRESH) * physconst.eV_to_Hz),
                              -(astro_params_global->X_RAY_SPEC_INDEX) - 1);
 }
 
@@ -801,18 +804,18 @@ double integrand_in_nu_lya_integral(double nu, void *params) {
     float x_e = *(double *)params;
 
     // HI
-    species_sum = interp_n_Lya((nu - NUIONIZATION) / NU_over_EV, x_e) * f_H * (double)(1 - x_e) *
-                  HI_ion_crosssec(nu);
+    species_sum = interp_n_Lya((nu - physconst.nu_ion_HI) / physconst.eV_to_Hz, x_e) * f_H *
+                  (double)(1 - x_e) * HI_ion_crosssec(nu);
 
     // HeI
-    species_sum += interp_n_Lya((nu - HeI_NUIONIZATION) / NU_over_EV, x_e) * f_He *
+    species_sum += interp_n_Lya((nu - physconst.nu_ion_HeI) / physconst.eV_to_Hz, x_e) * f_He *
                    (double)(1 - x_e) * HeI_ion_crosssec(nu);
 
     // HeII
-    species_sum += interp_n_Lya((nu - HeII_NUIONIZATION) / NU_over_EV, x_e) * f_He * (double)x_e *
-                   HeII_ion_crosssec(nu);
+    species_sum += interp_n_Lya((nu - physconst.nu_ion_HeII) / physconst.eV_to_Hz, x_e) * f_He *
+                   (double)x_e * HeII_ion_crosssec(nu);
 
-    return species_sum * pow(nu / ((astro_params_global->NU_X_THRESH) * NU_over_EV),
+    return species_sum * pow(nu / ((astro_params_global->NU_X_THRESH) * physconst.eV_to_Hz),
                              -(astro_params_global->X_RAY_SPEC_INDEX) - 1);
 }
 
@@ -834,13 +837,15 @@ double integrate_over_nu(double zp, double local_x_e, double lower_int_limit, in
 
     int status;
     gsl_set_error_handler_off();
-    status = gsl_integration_qag(&F, lower_int_limit, astro_params_global->NU_X_MAX * NU_over_EV, 0,
-                                 rel_tol, 1000, GSL_INTEG_GAUSS15, w, &result, &error);
+    status =
+        gsl_integration_qag(&F, lower_int_limit, astro_params_global->NU_X_MAX * physconst.eV_to_Hz,
+                            0, rel_tol, 1000, GSL_INTEG_GAUSS15, w, &result, &error);
 
     if (status != 0) {
         LOG_ERROR(
             "(function argument): lower_limit=%e upper_limit=%e rel_tol=%e result=%e error=%e",
-            lower_int_limit, astro_params_global->NU_X_MAX * NU_over_EV, rel_tol, result, error);
+            lower_int_limit, astro_params_global->NU_X_MAX * physconst.eV_to_Hz, rel_tol, result,
+            error);
         LOG_ERROR("data: zp=%e local_x_e=%e FLAG=%d", zp, local_x_e, FLAG);
         CATCH_GSL_ERROR(status);
     }
@@ -848,7 +853,8 @@ double integrate_over_nu(double zp, double local_x_e, double lower_int_limit, in
     gsl_integration_workspace_free(w);
 
     // if it is the Lya integral, add prefactor
-    if (FLAG == 2) return result * C / (4.0 * M_PI) / Ly_alpha_HZ / hubble(zp);
+    if (FLAG == 2)
+        return result * physconst.c_cms / (4.0 * M_PI) / physconst.nu_Ly_alpha / hubble(zp);
 
     //       if (isnan(result))
     //     fprintf(stderr, "We have a NaN in the intergrator with calling params: %g,%g,%g,%i\n",
@@ -897,7 +903,7 @@ double tauX_integrand_MINI(double zhat, void *params) {
 
     tauX_params *p = (tauX_params *)params;
 
-    drpropdz = C * dtdz(zhat);
+    drpropdz = physconst.c_cms * dtdz(zhat);
     n = N_b0 * pow(1 + zhat, 3);
     nuhat = p->nu_0 * (1 + zhat);
     log10_Mturn_MINI = p->log10_Mturn_MINI;
@@ -927,7 +933,7 @@ double tauX_integrand(double zhat, void *params) {
 
     tauX_params *p = (tauX_params *)params;
 
-    drpropdz = C * dtdz(zhat);
+    drpropdz = physconst.c_cms * dtdz(zhat);
     n = N_b0 * pow(1 + zhat, 3);
     nuhat = p->nu_0 * (1 + zhat);
 
@@ -1092,13 +1098,13 @@ double nu_tau_one_MINI(double zp, double zpp, double x_e, double HI_filling_fact
     }
 
     // check if lower bound has null
-    if (tauX_MINI(HeI_NUIONIZATION, x_e, x_e, zp, zpp, HI_filling_factor_zp, log10_Mturn_MINI, sc) <
-        1)
-        return HeI_NUIONIZATION;
+    if (tauX_MINI(physconst.nu_ion_HeI, x_e, x_e, zp, zpp, HI_filling_factor_zp, log10_Mturn_MINI,
+                  sc) < 1)
+        return physconst.nu_ion_HeI;
 
     // set frequency boundary values
-    x_lo = HeI_NUIONIZATION;
-    x_hi = 1e6 * NU_over_EV;
+    x_lo = physconst.nu_ion_HeI;
+    x_hi = 1e6 * physconst.eV_to_Hz;
 
     // select function we wish to solve
     p.x_e = x_e;
@@ -1160,12 +1166,12 @@ double nu_tau_one(double zp, double zpp, double x_e, double HI_filling_factor_zp
     }
 
     // check if lower bound has null
-    if (tauX(HeI_NUIONIZATION, x_e, x_e, zp, zpp, HI_filling_factor_zp, sc) < 1)
-        return HeI_NUIONIZATION;
+    if (tauX(physconst.nu_ion_HeI, x_e, x_e, zp, zpp, HI_filling_factor_zp, sc) < 1)
+        return physconst.nu_ion_HeI;
 
     // set frequency boundary values
-    x_lo = HeI_NUIONIZATION;
-    x_hi = 1e6 * NU_over_EV;
+    x_lo = physconst.nu_ion_HeI;
+    x_hi = 1e6 * physconst.eV_to_Hz;
 
     // select function we wish to solve
     p.x_e = x_e;

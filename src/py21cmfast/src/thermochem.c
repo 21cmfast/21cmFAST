@@ -76,7 +76,7 @@ double alpha_A(double T) {
 }
 
 /* returns the case B hydrogen recombination coefficient (Spitzer 1978) in cm^3 s^-1*/
-double alpha_B(double T) { return alphaB_10k * pow(T / 1.0e4, -0.75); }
+double alpha_B(double T) { return physconst.alpha_B_10k * pow(T / 1.0e4, -0.75); }
 
 /*
  Function NEUTRAL_FRACTION returns the hydrogen neutral fraction, chi, given:
@@ -115,9 +115,9 @@ double neutral_fraction(double density, double T4, double gamma, int usecaseB) {
 double HeI_ion_crosssec(double nu) {
     double x, y;
 
-    if (nu < HeI_NUIONIZATION) return 0;
+    if (nu < physconst.nu_ion_HeI) return 0;
 
-    x = nu / NU_over_EV / 13.61 - 0.4434;
+    x = nu / physconst.eV_to_Hz / 13.61 - 0.4434;
     y = sqrt(x * x + pow(2.136, 2));
     return 9.492e-16 * ((x - 1) * (x - 1) + 2.039 * 2.039) * pow(y, (0.5 * 3.188 - 5.5)) *
            pow(1.0 + sqrt(y / 1.469), -3.188);
@@ -128,12 +128,12 @@ double HeI_ion_crosssec(double nu) {
 double HeII_ion_crosssec(double nu) {
     double epsilon, Z = 2;
 
-    if (nu < HeII_NUIONIZATION) return 0;
+    if (nu < physconst.nu_ion_HeII) return 0;
 
-    if (nu == HeII_NUIONIZATION) nu += TINY;
+    if (nu == physconst.nu_ion_HeII) nu += TINY;
 
-    epsilon = sqrt(nu / HeII_NUIONIZATION - 1);
-    return (6.3e-18) / Z / Z * pow(HeII_NUIONIZATION / nu, 4) *
+    epsilon = sqrt(nu / physconst.nu_ion_HeII - 1);
+    return (6.3e-18) / Z / Z * pow(physconst.nu_ion_HeII / nu, 4) *
            exp(4 - (4 * atan(epsilon) / epsilon)) / (1 - exp(-2 * M_PI / epsilon));
 }
 
@@ -142,13 +142,13 @@ double HeII_ion_crosssec(double nu) {
 double HI_ion_crosssec(double nu) {
     double epsilon, Z = 1;
 
-    if (nu < NUIONIZATION) return 0;
+    if (nu < physconst.nu_ion_HI) return 0;
 
-    if (nu == NUIONIZATION) nu += TINY;
+    if (nu == physconst.nu_ion_HI) nu += TINY;
 
-    epsilon = sqrt(nu / NUIONIZATION - 1);
-    return (6.3e-18) / Z / Z * pow(NUIONIZATION / nu, 4) * exp(4 - (4 * atan(epsilon) / epsilon)) /
-           (1 - exp(-2 * M_PI / epsilon));
+    epsilon = sqrt(nu / physconst.nu_ion_HI - 1);
+    return (6.3e-18) / Z / Z * pow(physconst.nu_ion_HeI / nu, 4) *
+           exp(4 - (4 * atan(epsilon) / epsilon)) / (1 - exp(-2 * M_PI / epsilon));
 }
 
 /* Return the thomspon scattering optical depth from zstart to zend through fully ionized IGM.
@@ -268,7 +268,7 @@ double tau_e(float zstart, float zend, float *zarry, float *xHarry, int len, flo
     }
     gsl_integration_workspace_free(w);
 
-    return SIGMAT * ((N_b0 + He_No) * prehelium + N_b0 * posthelium);
+    return physconst.sigma_T * ((N_b0 + He_No) * prehelium + N_b0 * posthelium);
 }
 
 float ComputeTau(int NPoints, float *redshifts, float *global_xHI, float z_re_HeII) {
