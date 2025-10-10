@@ -1,6 +1,7 @@
 #ifndef _SCALING_H
 #define _SCALING_H
 
+#include <gsl/gsl_matrix.h>
 #include <stdbool.h>
 
 #include "InputParameters.h"
@@ -72,5 +73,10 @@ ScalingConstants evolve_scaling_constants_to_redshift(double redshift, ScalingCo
                                                       bool use_photoncons);
 ScalingConstants mimic_scatter_in_consts(ScalingConstants *sc);
 void print_sc_consts(ScalingConstants *c);
+void initialise_sfh_correlation(double z, double z_prev);
+
+// Forward define GSL types to avoid including GSL headers here
+void eval_sfh_moments(double tau, gsl_matrix *out_chol_cov, gsl_matrix *out_mean_correction);
+void free_sfh_correlation();
 
 #endif

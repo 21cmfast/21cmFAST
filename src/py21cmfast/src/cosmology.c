@@ -761,3 +761,27 @@ double t_hubble(float z) { return 1.0 / hubble(z); }
 
 /* comoving distance (in cm) per unit redshift */
 double drdz(float z) { return (1.0 + z) * physconst.c_cms * dtdz(z); }
+
+double time_between_z(double z_low, double z_high) {
+    double result, error;
+    gsl_function F;
+    double rel_tol = 1e-4;  //<- relative tolerance
+    int w_size = 1000;
+    gsl_integration_workspace* w = gsl_integration_workspace_alloc(w_size);
+
+    int status;
+    F.function = &dtdz;
+
+    gsl_set_error_handler_off();
+    status = gsl_integration_qag(&F, z_low, z_high, 0, rel_tol, w_size, GSL_INTEG_GAUSS61, w,
+                                 &result, &error);
+
+    if (status != 0) {
+        LOG_ERROR("gsl integration error occured!");
+        LOG_ERROR("z_low = %.4e z_high = %.4e", z_low, z_high);
+        CATCH_GSL_ERROR(status);
+    }
+
+    gsl_integration_workspace_free(w);
+    return result;
+}

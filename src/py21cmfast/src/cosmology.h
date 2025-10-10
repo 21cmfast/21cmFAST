@@ -33,4 +33,6 @@ double hubble(float z);
 double t_hubble(float z);
 double M_J_WDM();
 
+double time_between_z(double z_low, double z_high);
+
 #endif
