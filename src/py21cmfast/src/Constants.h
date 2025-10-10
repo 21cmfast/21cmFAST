@@ -8,8 +8,8 @@
     NOTE: Not all 21cmFAST variables will be found below. Only those useful for 21CMMC
 
  */
-#ifndef _CONSTANTS_H
-#define _CONSTANTS_H
+#ifndef _CONSTANTS_21CM_H
+#define _CONSTANTS_21CM_H
 
 #include "InputParameters.h"
 
@@ -82,13 +82,8 @@
 #define Watson_gamma_z (1.318)   // Watson FOF HMF, gamma parameter (Watson et al. 2013)
 
 // CONSTANTS //
-#define LN10 (double)(2.30258509299)
-#define SIGMAT (double)(6.6524e-25)  // Thomson scattering cross section in cm^-2
-#define SIGMA_HI (double)(6.3e-18)   // HI ionization  cross section at 13.6 eV in cm^-2
-#define E (double)(2.71828182846)
-#define PI (double)(3.14159265358979323846264338327)
-#define TWOPI (double)(2.0 * PI)
-#define FOURPI (double)(4.0 * PI)
+#define SIGMAT (double)(6.6524e-25)    // Thomson scattering cross section in cm^-2
+#define SIGMA_HI (double)(6.3e-18)     // HI ionization  cross section at 13.6 eV in cm^-2
 #define G (double)6.67259e-8           // cm^3 g^-1 s^-2
 #define hplank (double)6.62606896e-27  // erg s
 #define TINY (double)1e-30
@@ -103,19 +98,19 @@
 #define Ly_alpha_ANG (double)1215.67
 #define Ly_beta_ANG (double)1025.18
 #define Ly_gamma_ANG (double)972.02
-#define NV_ANG (double)1240.81                       // NV line center
-#define CMperMPC (double)3.086e24                    // cm/Mpc
-#define SperYR (double)31556925.9747                 // s/yr
-#define Msun (double)1.989e33                        // g
-#define Rsun (double)6.9598e10                       // cm
-#define Lsun (double)3.90e33                         // erg/s
-#define T_cmb (double)2.7255                         // K
-#define k_B (double)1.380658e-16                     // erg / K
-#define m_p (double)1.6726231e-24                    // proton mass (g)
-#define m_e (double)9.10938188e-28                   // electron mass (g)
-#define e_charge (double)4.80320467e-10              // elemetary charge (esu=g^1/2 cm^3/2 s^-1
-#define SQDEG_ALLSKY (double)((360.0 * 360.0) / PI)  // Square degrees in all sky
-#define G_AB_Jy (double)3631.0                       // AB mag constant in Jy
+#define NV_ANG (double)1240.81                         // NV line center
+#define CMperMPC (double)3.086e24                      // cm/Mpc
+#define SperYR (double)31556925.9747                   // s/yr
+#define Msun (double)1.989e33                          // g
+#define Rsun (double)6.9598e10                         // cm
+#define Lsun (double)3.90e33                           // erg/s
+#define T_cmb (double)2.7255                           // K
+#define k_B (double)1.380658e-16                       // erg / K
+#define m_p (double)1.6726231e-24                      // proton mass (g)
+#define m_e (double)9.10938188e-28                     // electron mass (g)
+#define e_charge (double)4.80320467e-10                // elemetary charge (esu=g^1/2 cm^3/2 s^-1
+#define SQDEG_ALLSKY (double)((360.0 * 360.0) / M_PI)  // Square degrees in all sky
+#define G_AB_Jy (double)3631.0                         // AB mag constant in Jy
 #define NU_over_EV (double)(1.60217646e-12 / hplank)
 #define NU_LW_THRESH (double)(11.18 * NU_over_EV)
 #define NUIONIZATION (double)(13.60 * NU_over_EV)      // ionization frequency of H
@@ -208,15 +203,14 @@
 #define REION_SM13_C (double)2.0
 #define REION_SM13_D (double)2.5
 
-#endif
-
 // -------------------------------------------------------------------------------------
 // Taken from COSMOLOGY.H
 // -------------------------------------------------------------------------------------
 #define Ho (double)(cosmo_params_global->hlittle * 3.2407e-18)  // s^-1 at z=0
 // Msun Mpc^-3 ---- at z=0
-#define RHOcrit (double)((3.0 * Ho * Ho / (8.0 * PI * G)) * (CMperMPC * CMperMPC * CMperMPC) / Msun)
-#define RHOcrit_cgs (double)(3.0 * Ho * Ho / (8.0 * PI * G))  // g pcm^-3 ---- at z=0
+#define RHOcrit \
+    (double)((3.0 * Ho * Ho / (8.0 * M_PI * G)) * (CMperMPC * CMperMPC * CMperMPC) / Msun)
+#define RHOcrit_cgs (double)(3.0 * Ho * Ho / (8.0 * M_PI * G))  // g pcm^-3 ---- at z=0
 //  current hydrogen number density estimate  (#/cm^3)  ~1.92e-7
 #define No (double)(RHOcrit_cgs * cosmo_params_global->OMb * (1 - cosmo_params_global->Y_He) / m_p)
 //  current helium number density estimate
@@ -225,3 +219,5 @@
 #define N_b0 (double)(No + He_No)            // present-day baryon num density, H + He
 #define f_H (double)(No / (No + He_No))      // hydrogen number fraction
 #define f_He (double)(He_No / (No + He_No))  // helium number fraction
+
+#endif

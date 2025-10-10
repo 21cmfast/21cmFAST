@@ -47,7 +47,7 @@ double transfer_function_EH(double k) {
     q = k * pow(cosmo_consts.theta_cmb, 2) / cosmo_consts.omhh;
     gamma_eff = sqrt(alpha_nu) + (1.0 - sqrt(alpha_nu)) / (1.0 + pow(0.43 * k * sound_horizon, 4));
     q_eff = q / gamma_eff;
-    TF_m = log(E + 1.84 * cosmo_consts.beta_c * sqrt(alpha_nu) * q_eff);
+    TF_m = log(M_E + 1.84 * cosmo_consts.beta_c * sqrt(alpha_nu) * q_eff);
     TF_m /= TF_m + pow(q_eff, 2) * (14.4 + 325.0 / (1.0 + 60.5 * pow(q_eff, 1.11)));
     q_nu = 3.92 * q / sqrt(f_nu / N_nu);
     TF_m *= 1.0 + (1.2 * pow(f_nu, 0.64) * pow(N_nu, 0.3 + 0.6 * f_nu)) /
@@ -265,7 +265,8 @@ double power_in_k_integrand(double k) {
 
 // we need a version with the prefactors for output
 double power_in_k(double k) {
-    return TWOPI * PI * cosmo_consts.sigma_norm * cosmo_consts.sigma_norm * power_in_k_integrand(k);
+    return 2.0 * M_PI * M_PI * cosmo_consts.sigma_norm * cosmo_consts.sigma_norm *
+           power_in_k_integrand(k);
 }
 
 /*
@@ -288,7 +289,7 @@ double power_in_vcb(double k) {
         Throw(ValueError);
     }
 
-    return p * TWOPI * PI * cosmo_consts.sigma_norm * cosmo_consts.sigma_norm;
+    return p * 2.0 * M_PI * M_PI * cosmo_consts.sigma_norm * cosmo_consts.sigma_norm;
 }
 
 // FUNCTION sigma_z0(M)

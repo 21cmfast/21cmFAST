@@ -1076,7 +1076,8 @@ void set_zp_consts(double zp, struct spintemp_from_sfr_prefactors *consts) {
     consts->Nb_zp = N_b0 * (1 + zp) * (1 + zp) * (1 + zp);
     consts->N_zp = No * (1 + zp) * (1 + zp) * (1 + zp);  // used for CMB
     // converts SFR density -> stellar baryon density + prefactors
-    consts->lya_star_prefactor = C / FOURPI * Msun / m_p * (1 - 0.75 * cosmo_params_global->Y_He);
+    consts->lya_star_prefactor =
+        C / (4.0 * M_PI) * Msun / m_p * (1 - 0.75 * cosmo_params_global->Y_He);
 
     // converts the grid emissivity unit to per cm-3
     if (matter_options_global->USE_HALO_FIELD) {

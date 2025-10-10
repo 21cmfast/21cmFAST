@@ -5,6 +5,7 @@
 
 #include <gsl/gsl_errno.h>
 #include <gsl/gsl_integration.h>
+#include <math.h>
 #include <stdbool.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -245,7 +246,7 @@ double dNdlnM_st(double growthf, double lnM) {
     nuhat = sqrt(SHETH_a) * Deltac / sigma;
 
     return -(dsigmadm / sigma) * sqrt(2. / PI) * SHETH_A * (1 + pow(nuhat, -2 * SHETH_p)) * nuhat *
-           pow(E, -nuhat * nuhat / 2.0);
+           exp(-nuhat * nuhat / 2.0);
 }
 
 // Conditional Extended Press-Schechter Mass function, with constant barrier delta=1.682 and sharp-k
@@ -356,16 +357,16 @@ double dNdlnM_WatsonFOF_z(double z, double growthf, double lnM) {
 // scaling relation for M_halo --> n_ion used in integrands
 double nion_fraction(double lnM, void *param_struct) {
     struct parameters_gsl_MF_integrals p = *(struct parameters_gsl_MF_integrals *)param_struct;
-    double Fstar = log_scaling_PL_limit(lnM, p.f_star_norm, p.alpha_star, 10 * LN10, p.Mlim_star);
-    double Fesc = log_scaling_PL_limit(lnM, p.f_esc_norm, p.alpha_esc, 10 * LN10, p.Mlim_esc);
+    double Fstar = log_scaling_PL_limit(lnM, p.f_star_norm, p.alpha_star, 10 * M_LN10, p.Mlim_star);
+    double Fesc = log_scaling_PL_limit(lnM, p.f_esc_norm, p.alpha_esc, 10 * M_LN10, p.Mlim_esc);
 
     return exp(Fstar + Fesc - p.Mturn_acg / exp(lnM) + lnM);
 }
 
 double nion_fraction_mini(double lnM, void *param_struct) {
     struct parameters_gsl_MF_integrals p = *(struct parameters_gsl_MF_integrals *)param_struct;
-    double Fstar = log_scaling_PL_limit(lnM, p.f_star_norm, p.alpha_star, 7 * LN10, p.Mlim_star);
-    double Fesc = log_scaling_PL_limit(lnM, p.f_esc_norm, p.alpha_esc, 7 * LN10, p.Mlim_esc);
+    double Fstar = log_scaling_PL_limit(lnM, p.f_star_norm, p.alpha_star, 7 * M_LN10, p.Mlim_star);
+    double Fesc = log_scaling_PL_limit(lnM, p.f_esc_norm, p.alpha_esc, 7 * M_LN10, p.Mlim_esc);
     double M = exp(lnM);
 
     return exp(Fstar + Fesc - M / p.Mturn_upper - p.Mturn_mcg / M + lnM);
@@ -378,14 +379,14 @@ double xray_fraction_doublePL(double lnM, void *param_struct) {
     struct parameters_gsl_MF_integrals p = *(struct parameters_gsl_MF_integrals *)param_struct;
     double M = exp(lnM);
     double Fstar =
-        exp(log_scaling_PL_limit(lnM, p.f_star_norm, p.alpha_star, 10 * LN10, p.Mlim_star) -
+        exp(log_scaling_PL_limit(lnM, p.f_star_norm, p.alpha_star, 10 * M_LN10, p.Mlim_star) -
             p.Mturn_acg / M + p.f_star_norm);
 
     // using the escape fraction variables for minihalos
     double Fstar_mini = 0.;
     if (astro_options_global->USE_MINI_HALOS)
         Fstar_mini =
-            exp(log_scaling_PL_limit(lnM, p.f_esc_norm, p.alpha_esc, 7 * LN10, p.Mlim_esc) -
+            exp(log_scaling_PL_limit(lnM, p.f_esc_norm, p.alpha_esc, 7 * M_LN10, p.Mlim_esc) -
                 p.Mturn_mcg / M - M / p.Mturn_upper + p.f_esc_norm);
 
     double stars = M * Fstar * cosmo_params_global->OMb / cosmo_params_global->OMm;

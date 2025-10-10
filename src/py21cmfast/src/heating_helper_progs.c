@@ -818,7 +818,7 @@ double integrate_over_nu(double zp, double local_x_e, double lower_int_limit, in
     gsl_integration_workspace_free(w);
 
     // if it is the Lya integral, add prefactor
-    if (FLAG == 2) return result * C / FOURPI / Ly_alpha_HZ / hubble(zp);
+    if (FLAG == 2) return result * C / (4.0 * M_PI) / Ly_alpha_HZ / hubble(zp);
 
     //       if (isnan(result))
     //     fprintf(stderr, "We have a NaN in the intergrator with calling params: %g,%g,%g,%i\n",

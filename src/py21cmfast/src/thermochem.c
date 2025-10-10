@@ -53,11 +53,11 @@ float ComputePartiallyIoinizedTemperature(float T_HI, float res_xH, float T_re) 
 double alpha_A(double T) {
     double logT, ans;
     logT = log(T / (double)1.1604505e4);
-    ans = pow(E, -28.6130338 - 0.72411256 * logT - 2.02604473e-2 * pow(logT, 2) -
-                     2.38086188e-3 * pow(logT, 3) - 3.21260521e-4 * pow(logT, 4) -
-                     1.42150291e-5 * pow(logT, 5) + 4.98910892e-6 * pow(logT, 6) +
-                     5.75561414e-7 * pow(logT, 7) - 1.85676704e-8 * pow(logT, 8) -
-                     3.07113524e-9 * pow(logT, 9));
+    ans = exp(-28.6130338 - 0.72411256 * logT - 2.02604473e-2 * pow(logT, 2) -
+              2.38086188e-3 * pow(logT, 3) - 3.21260521e-4 * pow(logT, 4) -
+              1.42150291e-5 * pow(logT, 5) + 4.98910892e-6 * pow(logT, 6) +
+              5.75561414e-7 * pow(logT, 7) - 1.85676704e-8 * pow(logT, 8) -
+              3.07113524e-9 * pow(logT, 9));
     return ans;
 }
 
@@ -120,7 +120,7 @@ double HeII_ion_crosssec(double nu) {
 
     epsilon = sqrt(nu / HeII_NUIONIZATION - 1);
     return (6.3e-18) / Z / Z * pow(HeII_NUIONIZATION / nu, 4) *
-           pow(E, 4 - (4 * atan(epsilon) / epsilon)) / (1 - pow(E, -2 * PI / epsilon));
+           exp(4 - (4 * atan(epsilon) / epsilon)) / (1 - exp(-2 * PI / epsilon));
 }
 
 /* function HI_ion_crosssec returns the HI ionization cross section at parameter frequency
@@ -133,8 +133,8 @@ double HI_ion_crosssec(double nu) {
     if (nu == NUIONIZATION) nu += TINY;
 
     epsilon = sqrt(nu / NUIONIZATION - 1);
-    return (6.3e-18) / Z / Z * pow(NUIONIZATION / nu, 4) *
-           pow(E, 4 - (4 * atan(epsilon) / epsilon)) / (1 - pow(E, -2 * PI / epsilon));
+    return (6.3e-18) / Z / Z * pow(NUIONIZATION / nu, 4) * exp(4 - (4 * atan(epsilon) / epsilon)) /
+           (1 - exp(-2 * PI / epsilon));
 }
 
 /* Return the thomspon scattering optical depth from zstart to zend through fully ionized IGM.

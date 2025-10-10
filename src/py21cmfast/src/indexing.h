@@ -34,9 +34,9 @@
      simulation_options_global->BOX_LEN)  // in Mpc^3
 #define BOXLEN_PARA \
     (simulation_options_global->NON_CUBIC_FACTOR * simulation_options_global->BOX_LEN)  // in Mpc
-#define DELTA_K (TWOPI / simulation_options_global->BOX_LEN)
+#define DELTA_K (2 * M_PI / simulation_options_global->BOX_LEN)
 #define DELTA_K_PARA \
-    (TWOPI / (simulation_options_global->NON_CUBIC_FACTOR * simulation_options_global->BOX_LEN))
+    (2 * M_PI / (simulation_options_global->NON_CUBIC_FACTOR * simulation_options_global->BOX_LEN))
 
 // -------------------------------------------------------------------------------------
 // Convenience Macros for hi-resolution boxes
