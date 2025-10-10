@@ -14,6 +14,20 @@
 #include "logger.h"
 
 #define MIN_DENSITY_LOW_LIMIT (9e-8)
+#define SIGMAVCB (29.0)  // rms value of the DM-b relative velocity [im km/s]
+
+// ----------------------------------------------------------------------------------------- //
+
+// For reionization_feedback, reference Sobacchi & Mesinger 2013
+
+// ----------------------------------------------------------------------------------------- //
+
+#define HALO_BIAS (double)2.0
+#define REION_SM13_M0 (double)3e9
+#define REION_SM13_A (double)0.17
+#define REION_SM13_B (double)-2.1
+#define REION_SM13_C (double)2.0
+#define REION_SM13_D (double)2.5
 
 float ComputeFullyIoinizedTemperature(float z_re, float z, float delta, float T_re) {
     // z_re: the redshift of reionization
@@ -120,7 +134,7 @@ double HeII_ion_crosssec(double nu) {
 
     epsilon = sqrt(nu / HeII_NUIONIZATION - 1);
     return (6.3e-18) / Z / Z * pow(HeII_NUIONIZATION / nu, 4) *
-           exp(4 - (4 * atan(epsilon) / epsilon)) / (1 - exp(-2 * PI / epsilon));
+           exp(4 - (4 * atan(epsilon) / epsilon)) / (1 - exp(-2 * M_PI / epsilon));
 }
 
 /* function HI_ion_crosssec returns the HI ionization cross section at parameter frequency
@@ -134,7 +148,7 @@ double HI_ion_crosssec(double nu) {
 
     epsilon = sqrt(nu / NUIONIZATION - 1);
     return (6.3e-18) / Z / Z * pow(NUIONIZATION / nu, 4) * exp(4 - (4 * atan(epsilon) / epsilon)) /
-           (1 - exp(-2 * PI / epsilon));
+           (1 - exp(-2 * M_PI / epsilon));
 }
 
 /* Return the thomspon scattering optical depth from zstart to zend through fully ionized IGM.

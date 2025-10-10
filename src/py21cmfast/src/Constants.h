@@ -22,64 +22,9 @@
 // factor relating cube length to filter radius = (4PI/3)^(-1/3)
 #define L_FACTOR (float)(0.620350491)
 
-/*
- Filenames of the appropriate output from RECFAST to be used as boundary conditions in Ts.c
- as well as other tables used to compute the spin temperature
- */
-#define RECFAST_FILENAME (const char *)"recfast_LCDM.dat"
-#define STELLAR_SPECTRA_FILENAME (const char *)"stellar_spectra.dat"
-#define KAPPA_EH_FILENAME (const char *)"kappa_eH_table.dat"
-#define KAPPA_PH_FILENAME (const char *)"kappa_pH_table.dat"
-// Interpolation table for Lya heating efficiencies
-#define LYA_HEATING_FILENAME (const char *)"Lyman_alpha_heating_table.dat"
-
-// ----------------------------------------------------------------------------------------- //
-
-// Taken from HEAT_PARAMS.H
-
-// ----------------------------------------------------------------------------------------- //
-
-/* Maximum allowed value for the kinetic temperature. Useful to set to avoid some spurious behaviour
- when the code is run with redshift poor resolution and very high X-ray heating efficiency */
-#define MAX_TK (float)5e4
-
-// ----------------------------------------------------------------------------------------- //
-
-// Taken from COSMOLOGY.H
-
-// ----------------------------------------------------------------------------------------- //
-
 // STRUCTURE //
 #define Deltac (1.68)  // at z=0, density excess at virialization
 #define DELTAC_DELOS (1.5)
-#define N_nu (1.0)      // # of heavy neutrinos (for EH trasfer function)
-#define BODE_e (0.361)  // Epsilon parameter in Bode et al. 2000 trans. funct.
-#define BODE_n (5.0)    // Eda parameter in Bode et al. 2000 trans. funct.
-#define BODE_v (1.2)    // Nu parameter in Bode et al. 2000 trans. funct.
-
-#define SIGMAVCB (29.0)  // rms value of the DM-b relative velocity [im km/s]
-
-// Universal FOF HMF (Watson et al. 2013)
-#define Watson_A (0.282)      // Watson FOF HMF, A parameter (Watson et al. 2013)
-#define Watson_alpha (2.163)  // Watson FOF HMF, alpha parameter (Watson et al. 2013)
-#define Watson_beta (1.406)   // Watson FOF HMF, beta parameter (Watson et al. 2013)
-#define Watson_gamma (1.210)  // Watson FOF HMF, gamma parameter (Watson et al. 2013)
-
-// Universal FOF HMF with redshift evolution (Watson et al. 2013)
-#define Watson_A_z_1 (0.990)  // Watson FOF HMF, normalisation of A_z parameter (Watson et al. 2013)
-#define Watson_A_z_2 (-3.216)  // Watson FOF HMF, power law of A_z parameter (Watson et al. 2013)
-#define Watson_A_z_3 (0.074)   // Watson FOF HMF, offset of A_z parameter (Watson et al. 2013)
-// Watson FOF HMF, normalisation of alpha_z parameter (Watson et al. 2013)
-#define Watson_alpha_z_1 (5.907)
-// Watson FOF HMF, power law of alpha_z parameter (Watson et al. 2013)
-#define Watson_alpha_z_2 (-3.058)
-#define Watson_alpha_z_3 (2.349)  // Watson FOF HMF, offset of beta_z parameter (Watson et al. 2013)
-// Watson FOF HMF, normalisation of beta_z parameter (Watson et al. 2013)
-#define Watson_beta_z_1 (3.136)
-// Watson FOF HMF, power law of beta_z parameter (Watson et al. 2013)
-#define Watson_beta_z_2 (-3.599)
-#define Watson_beta_z_3 (2.344)  // Watson FOF HMF, offset of beta_z parameter (Watson et al. 2013)
-#define Watson_gamma_z (1.318)   // Watson FOF HMF, gamma parameter (Watson et al. 2013)
 
 // CONSTANTS //
 #define SIGMAT (double)(6.6524e-25)    // Thomson scattering cross section in cm^-2
@@ -131,77 +76,13 @@
 // ----------------------------------------------------------------------------------------- //
 
 #define NSPEC_MAX (int)23
-#define RECFAST_NPTS (int)501
-#define KAPPA_10_NPTS (int)27
-#define KAPPA_10_elec_NPTS (int)20
-#define KAPPA_10_pH_NPTS (int)17
-
-#define KAPPA_10_NPTS_Spline (int)30
-#define KAPPA_10_elec_NPTS_Spline (int)30
-#define KAPPA_10_pH_NPTS_Spline (int)30
 
 /* Number of interpolation points for the interpolation table for z'' */
 #define zpp_interp_points_SFR (int)(400)
 
-/* Number of interpolation points for the interpolation table for the value of the density field */
-#define dens_Ninterp (int)(400)
-
-// Variables needed to read the Lyman-Alpha heating table
-#define Tk_max (double)3.0   // log10 (Tk_max)
-#define Tk_min (double)-1.0  // log10 (Tk_min)
-#define Ts_max (double)3.0   // log10 (Ts_max)
-#define Ts_min (double)-1.0  // log10 (Ts_min)
-#define nT (int)101
-#define taugp_max (double)7.0  // log10 (taugp_max)
-#define taugp_min (double)1.0  // log10 (taugp_min)
-#define ngp (int)51
-
-// ----------------------------------------------------------------------------------------- //
-
-// Taken from elec_interp.c
-
-// ----------------------------------------------------------------------------------------- //
-
-// ----------------------------------------------------------------------------------------- //
-
-// From ps.c (temporary way to including transfer function from CLASS
-
-// ----------------------------------------------------------------------------------------- //
-
-#define CLASS_FILENAME (const char *)"Transfers_z0.dat"
-#define CLASS_LENGTH 150  // length of the CLASS transfer function
-// max and min k in  CLASS transfer function, temporary until interfaced properly
-#define KBOT_CLASS (float)(1e-5)
-#define KTOP_CLASS (float)(1e3)
-
-// parameters for the M(sigma) power-law relation for FAST_FCOLL_TABLES
-#define MPIVOT1 (double)(1.5e9)  // pivot masses
-#define MPIVOT2 (double)(5.3e5)
-#define AINDEX1 (double)(9.0)   // power-law index of nu(M) between MPIVOT1 and infinite
-#define AINDEX2 (double)(13.6)  // power-law index of nu(M) between MPIVOT2 and MPIVOT1
-#define AINDEX3 (double)(21.0)  // power-law index of nu(M) between 0 and MPIVOT2
 // min mass at which the sigma table is computed if FAST_FCOLL_TABLES is turned
 // on. Has to be below MPIVOT2
 #define MMIN_FAST (double)(1e5)
-
-// parameters for DM-baryon relative velocity effect on the power spectrum
-#define KP_VCB_PM (300.0)  // Mpc-1
-#define A_VCB_PM (0.24)
-#define SIGMAK_VCB_PM (0.9)
-// this is for vcb=vrms at z=20. It scales roughly as sqrt(v) and (1+z)^(-1/6.)
-
-// ----------------------------------------------------------------------------------------- //
-
-// For reionization_feedback, reference Sobacchi & Mesinger 2013
-
-// ----------------------------------------------------------------------------------------- //
-
-#define HALO_BIAS (double)2.0
-#define REION_SM13_M0 (double)3e9
-#define REION_SM13_A (double)0.17
-#define REION_SM13_B (double)-2.1
-#define REION_SM13_C (double)2.0
-#define REION_SM13_D (double)2.5
 
 // -------------------------------------------------------------------------------------
 // Taken from COSMOLOGY.H

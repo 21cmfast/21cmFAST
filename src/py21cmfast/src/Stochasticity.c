@@ -494,7 +494,7 @@ int stoc_partition_sample(struct HaloSamplingConstants *hs_constants, gsl_rng *r
 double ComputeFraction_split(double sigma_start, double sigmasq_start, double sigmasq_res,
                              double G1, double dd, double gamma1) {
     double u_res = sigma_start * pow(sigmasq_res - sigmasq_start, -.5);
-    return sqrt(2. / PI) * EvaluateJ(u_res, gamma1) * G1 / sigma_start * dd;
+    return sqrt(2. / M_PI) * EvaluateJ(u_res, gamma1) * G1 / sigma_start * dd;
 }
 
 // binary splitting with small internal steps based on Parkinson+08, Bensen+16, Qiu+20 (Darkforest)
@@ -590,7 +590,7 @@ int stoc_split_sample(struct HaloSamplingConstants *hs_constants, gsl_rng *rng, 
             pow_diff = pow(.5, eta) - pow(q_res, eta);
             G2 = G1 * pow(sigma_half / sigma_start, gamma1) * pow(0.5, mu * gamma1);
             // this is the number of progenitors expected per unit increase in the barrier
-            dN_dd = sqrt(2. / PI) * B * pow_diff / eta * alpha_half * G2;
+            dN_dd = sqrt(2. / M_PI) * B * pow_diff / eta * alpha_half * G2;
             // barrier change which results in average of at most eps2 progenitors
             dd2 = eps2 / dN_dd;
 

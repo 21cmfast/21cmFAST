@@ -22,6 +22,36 @@
 #include "scaling_relations.h"
 #include "thermochem.h"
 
+/*
+ Filenames of the appropriate output from RECFAST to be used as boundary conditions in Ts.c
+ as well as other tables used to compute the spin temperature
+ */
+#define RECFAST_FILENAME (const char *)"recfast_LCDM.dat"
+#define STELLAR_SPECTRA_FILENAME (const char *)"stellar_spectra.dat"
+#define KAPPA_EH_FILENAME (const char *)"kappa_eH_table.dat"
+#define KAPPA_PH_FILENAME (const char *)"kappa_pH_table.dat"
+// Interpolation table for Lya heating efficiencies
+#define LYA_HEATING_FILENAME (const char *)"Lyman_alpha_heating_table.dat"
+
+#define RECFAST_NPTS (int)501
+#define KAPPA_10_NPTS (int)27
+#define KAPPA_10_elec_NPTS (int)20
+#define KAPPA_10_pH_NPTS (int)17
+
+#define KAPPA_10_NPTS_Spline (int)30
+#define KAPPA_10_elec_NPTS_Spline (int)30
+#define KAPPA_10_pH_NPTS_Spline (int)30
+
+// Variables needed to read the Lyman-Alpha heating table
+#define Tk_max (double)3.0   // log10 (Tk_max)
+#define Tk_min (double)-1.0  // log10 (Tk_min)
+#define Ts_max (double)3.0   // log10 (Ts_max)
+#define Ts_min (double)-1.0  // log10 (Ts_min)
+#define nT (int)101
+#define taugp_max (double)7.0  // log10 (taugp_max)
+#define taugp_min (double)1.0  // log10 (taugp_min)
+#define ngp (int)51
+
 static double BinWidth_pH, inv_BinWidth_pH, BinWidth_elec, inv_BinWidth_elec, BinWidth_10,
     inv_BinWidth_10, PS_ION_EFF;
 

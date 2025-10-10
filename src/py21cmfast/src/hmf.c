@@ -21,6 +21,28 @@
 
 #define EPS2 3.0e-11  // small number limit for GL integration
 
+// Universal FOF HMF (Watson et al. 2013)
+#define Watson_A (0.282)      // Watson FOF HMF, A parameter (Watson et al. 2013)
+#define Watson_alpha (2.163)  // Watson FOF HMF, alpha parameter (Watson et al. 2013)
+#define Watson_beta (1.406)   // Watson FOF HMF, beta parameter (Watson et al. 2013)
+#define Watson_gamma (1.210)  // Watson FOF HMF, gamma parameter (Watson et al. 2013)
+
+// Universal FOF HMF with redshift evolution (Watson et al. 2013)
+#define Watson_A_z_1 (0.990)  // Watson FOF HMF, normalisation of A_z parameter (Watson et al. 2013)
+#define Watson_A_z_2 (-3.216)  // Watson FOF HMF, power law of A_z parameter (Watson et al. 2013)
+#define Watson_A_z_3 (0.074)   // Watson FOF HMF, offset of A_z parameter (Watson et al. 2013)
+// Watson FOF HMF, normalisation of alpha_z parameter (Watson et al. 2013)
+#define Watson_alpha_z_1 (5.907)
+// Watson FOF HMF, power law of alpha_z parameter (Watson et al. 2013)
+#define Watson_alpha_z_2 (-3.058)
+#define Watson_alpha_z_3 (2.349)  // Watson FOF HMF, offset of beta_z parameter (Watson et al. 2013)
+// Watson FOF HMF, normalisation of beta_z parameter (Watson et al. 2013)
+#define Watson_beta_z_1 (3.136)
+// Watson FOF HMF, power law of beta_z parameter (Watson et al. 2013)
+#define Watson_beta_z_2 (-3.599)
+#define Watson_beta_z_3 (2.344)  // Watson FOF HMF, offset of beta_z parameter (Watson et al. 2013)
+#define Watson_gamma_z (1.318)   // Watson FOF HMF, gamma parameter (Watson et al. 2013)
+
 // SHETH-TORMEN PARAMETERS
 // For the Barrier
 #define JENKINS_a (0.73)  // Jenkins+01, SMT has 0.707
@@ -46,6 +68,13 @@
 // Gauss-Legendre does poorly at high delta, switch to GSL-QAG here
 // TODO: define a fraction (90%?) of the barrier rather than a fixed number
 #define CRIT_DENS_TRANSITION (1.2)
+
+// parameters for the M(sigma) power-law relation for FAST_FCOLL_TABLES
+#define MPIVOT1 (double)(1.5e9)  // pivot masses
+#define MPIVOT2 (double)(5.3e5)
+#define AINDEX1 (double)(9.0)   // power-law index of nu(M) between MPIVOT1 and infinite
+#define AINDEX2 (double)(13.6)  // power-law index of nu(M) between MPIVOT2 and MPIVOT1
+#define AINDEX3 (double)(21.0)  // power-law index of nu(M) between 0 and MPIVOT2
 
 static double xi_GL[NGL_INT + 1], wi_GL[NGL_INT + 1];
 static double GL_limit[2] = {0};
@@ -217,7 +246,8 @@ double dNdM_conditional_ST(double growthf, double lnM, double delta_cond, double
     sigdiff_inv = sigma1 == sigma_cond ? 1e6 : 1 / (sigma1 * sigma1 - sigma_cond * sigma_cond);
 
     result = -dsigmasqdm * factor * pow(sigdiff_inv, 1.5) *
-             exp(-(Barrier - delta_0) * (Barrier - delta_0) * 0.5 * (sigdiff_inv)) / sqrt(2. * PI);
+             exp(-(Barrier - delta_0) * (Barrier - delta_0) * 0.5 * (sigdiff_inv)) /
+             sqrt(2. * M_PI);
     return result;
 }
 
@@ -245,8 +275,8 @@ double dNdlnM_st(double growthf, double lnM) {
 
     nuhat = sqrt(SHETH_a) * Deltac / sigma;
 
-    return -(dsigmadm / sigma) * sqrt(2. / PI) * SHETH_A * (1 + pow(nuhat, -2 * SHETH_p)) * nuhat *
-           exp(-nuhat * nuhat / 2.0);
+    return -(dsigmadm / sigma) * sqrt(2. / M_PI) * SHETH_A * (1 + pow(nuhat, -2 * SHETH_p)) *
+           nuhat * exp(-nuhat * nuhat / 2.0);
 }
 
 // Conditional Extended Press-Schechter Mass function, with constant barrier delta=1.682 and sharp-k
@@ -263,7 +293,7 @@ double dNdM_conditional_EPS(double growthf, double lnM, double delta_cond, doubl
     del = (Deltac - delta_cond) / growthf;
 
     return -del * dsigmasqdm * pow(sigdiff_inv, 1.5) * exp(-del * del * 0.5 * sigdiff_inv) /
-           sqrt(2. * PI);
+           sqrt(2. * M_PI);
 }
 
 /*
@@ -287,7 +317,7 @@ double dNdlnM_PS(double growthf, double lnM) {
 
     sigma = sigma * growthf;
     dsigmadm = dsigmadm * (growthf * growthf / (2. * sigma));
-    return -sqrt(2 / PI) * (Deltac / (sigma * sigma)) * dsigmadm *
+    return -sqrt(2 / M_PI) * (Deltac / (sigma * sigma)) * dsigmadm *
            exp(-(Deltac * Deltac) / (2 * sigma * sigma));
 }
 
@@ -621,7 +651,7 @@ double IntegratedNdM_GL(double lnM_lo, double lnM_hi, struct parameters_gsl_MF_i
 double Fcollapprox(double numin, double beta) {
     // nu is deltacrit^2/sigma^2, corrected by delta(R) and sigma(R)
     double gg = gsl_sf_gamma_inc(0.5 + beta, 0.5 * numin);
-    return gg * pow(2, 0.5 + beta) * pow(2.0 * PI, -0.5);
+    return gg * pow(2, 0.5 + beta) * pow(2.0 * M_PI, -0.5);
 }
 
 // This takes into account the last approximation in Munoz+22, where erfc (beta=0) is used

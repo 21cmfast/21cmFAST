@@ -63,11 +63,11 @@ double dwdm_filter(double k, double R, int filter_type) {
         // TODO: figure out what this is/was
         // 3*k*( 3*cos(kR)/pow(kR,3) + sin(kR)*(-3*pow(kR, -4) + 1/(kR*kR)) );}
         //      dwdr = -1e8 * k / (R*1e3);
-        drdm = 1.0 / (4.0 * PI * cosmo_params_global->OMm * RHOcrit * R * R);
+        drdm = 1.0 / (4.0 * M_PI * cosmo_params_global->OMm * RHOcrit * R * R);
     } else if (filter_type == 2) {  // gaussian of width 1/R
         w = exp(-kR * kR / 2.0);
         dwdr = -k * kR * w;
-        drdm = 1.0 / (pow(2 * PI, 1.5) * cosmo_params_global->OMm * RHOcrit * 3 * R * R);
+        drdm = 1.0 / (pow(2 * M_PI, 1.5) * cosmo_params_global->OMm * RHOcrit * 3 * R * R);
     } else {
         LOG_ERROR("No such filter for dWdM: %i", matter_options_global->FILTER);
         Throw(ValueError);

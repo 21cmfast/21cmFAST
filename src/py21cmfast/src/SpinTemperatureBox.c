@@ -25,6 +25,10 @@
 #include "logger.h"
 #include "thermochem.h"
 
+/* Maximum allowed value for the kinetic temperature. Useful to set to avoid some spurious behaviour
+ when the code is run with redshift poor resolution and very high X-ray heating efficiency */
+#define MAX_TK (float)5e4
+
 void ts_main(float redshift, float prev_redshift, float perturbed_field_redshift, short cleanup,
              PerturbedField *perturbed_field, XraySourceBox *source_box, TsBox *previous_spin_temp,
              InitialConditions *ini_boxes, TsBox *this_spin_temp);
@@ -1061,7 +1065,7 @@ void set_zp_consts(double zp, struct spintemp_from_sfr_prefactors *consts) {
     gamma_alpha /= 6. * (m_e / 1000.) * pow(C / 100., 3.) * vac_perm;
 
     // 1e-8 converts angstrom to cm.
-    consts->xa_tilde_prefactor = 8. * PI * pow(Ly_alpha_ANG * 1.e-8, 2.) * gamma_alpha * T21;
+    consts->xa_tilde_prefactor = 8. * M_PI * pow(Ly_alpha_ANG * 1.e-8, 2.) * gamma_alpha * T21;
     consts->xa_tilde_prefactor /= 9. * A10_HYPERFINE * consts->Trad;
     // consts->xa_tilde_prefactor = 1.66e11/(1.0+zp);
 
@@ -1127,7 +1131,7 @@ struct Ts_cell get_Ts_fast(float zp, float dzp, struct spintemp_from_sfr_prefact
     double dCMBheat_dzp, eps_CMB, eps_Lya_cont, eps_Lya_inj, E_continuum, E_injected,
         Ndot_alpha_cont, Ndot_alpha_inj;
 
-    tau21 = (3 * hplank * A10_HYPERFINE * C * Lambda_21 * Lambda_21 / 32. / PI / k_B) *
+    tau21 = (3 * hplank * A10_HYPERFINE * C * Lambda_21 * Lambda_21 / 32. / M_PI / k_B) *
             ((1 - rad->prev_xe) * consts->N_zp) / rad->prev_Ts / consts->hubble_zp;
     xCMB = (1. - exp(-tau21)) / tau21;
 
@@ -1179,10 +1183,10 @@ struct Ts_cell get_Ts_fast(float zp, float dzp, struct spintemp_from_sfr_prefact
         if (isnan(E_injected) || isinf(E_injected)) {
             E_injected = 0.;
         }
-        Ndot_alpha_cont = (4. * PI * Ly_alpha_HZ) / (consts->Nb_zp * (1. + rad->delta)) /
+        Ndot_alpha_cont = (4. * M_PI * Ly_alpha_HZ) / (consts->Nb_zp * (1. + rad->delta)) /
                           (1. + zp) / C * rad->dstarlya_cont_dt;
-        Ndot_alpha_inj = (4. * PI * Ly_alpha_HZ) / (consts->Nb_zp * (1. + rad->delta)) / (1. + zp) /
-                         C * rad->dstarlya_inj_dt;
+        Ndot_alpha_inj = (4. * M_PI * Ly_alpha_HZ) / (consts->Nb_zp * (1. + rad->delta)) /
+                         (1. + zp) / C * rad->dstarlya_inj_dt;
         eps_Lya_cont = -Ndot_alpha_cont * E_continuum * (2. / 3. / k_B / (1. + rad->prev_xe));
         eps_Lya_inj = -Ndot_alpha_inj * E_injected * (2. / 3. / k_B / (1. + rad->prev_xe));
     }
