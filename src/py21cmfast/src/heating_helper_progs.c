@@ -756,17 +756,17 @@ double integrand_in_nu_heat_integral(double nu, void *params) {
 
     // HI
     species_sum = interp_fheat((nu - physconst.nu_ion_HI) / physconst.eV_to_Hz, x_e) *
-                  physconst.h_p * (nu - physconst.nu_ion_HI) * f_H * (1 - x_e) *
+                  physconst.h_p * (nu - physconst.nu_ion_HI) * H_FRAC * (1 - x_e) *
                   HI_ion_crosssec(nu);
 
     // HeI
     species_sum += interp_fheat((nu - physconst.nu_ion_HeI) / physconst.eV_to_Hz, x_e) *
-                   physconst.h_p * (nu - physconst.nu_ion_HeI) * f_He * (1 - x_e) *
+                   physconst.h_p * (nu - physconst.nu_ion_HeI) * HE_FRAC * (1 - x_e) *
                    HeI_ion_crosssec(nu);
 
     // HeII
     species_sum += interp_fheat((nu - physconst.nu_ion_HeII) / physconst.eV_to_Hz, x_e) *
-                   physconst.h_p * (nu - physconst.nu_ion_HeII) * f_He * x_e *
+                   physconst.h_p * (nu - physconst.nu_ion_HeII) * HE_FRAC * x_e *
                    HeII_ion_crosssec(nu);
 
     return species_sum * pow(nu / ((astro_params_global->NU_X_THRESH) * physconst.eV_to_Hz),
@@ -781,19 +781,19 @@ double integrand_in_nu_ion_integral(double nu, void *params) {
     F_i = interp_nion_HI((nu - physconst.nu_ion_HI) / physconst.eV_to_Hz, x_e) +
           interp_nion_HeI((nu - physconst.nu_ion_HI) / physconst.eV_to_Hz, x_e) +
           interp_nion_HeII((nu - physconst.nu_ion_HI) / physconst.eV_to_Hz, x_e) + 1;
-    species_sum = F_i * f_H * (1 - x_e) * HI_ion_crosssec(nu);
+    species_sum = F_i * H_FRAC * (1 - x_e) * HI_ion_crosssec(nu);
 
     // photoionization of HeI, prodicing e- of energy h*(nu - nu_HeI)
     F_i = interp_nion_HI((nu - physconst.nu_ion_HeI) / physconst.eV_to_Hz, x_e) +
           interp_nion_HeI((nu - physconst.nu_ion_HeI) / physconst.eV_to_Hz, x_e) +
           interp_nion_HeII((nu - physconst.nu_ion_HeI) / physconst.eV_to_Hz, x_e) + 1;
-    species_sum += F_i * f_He * (1 - x_e) * HeI_ion_crosssec(nu);
+    species_sum += F_i * HE_FRAC * (1 - x_e) * HeI_ion_crosssec(nu);
 
     // photoionization of HeII, prodicing e- of energy h*(nu - nu_HeII)
     F_i = interp_nion_HI((nu - physconst.nu_ion_HeII) / physconst.eV_to_Hz, x_e) +
           interp_nion_HeI((nu - physconst.nu_ion_HeII) / physconst.eV_to_Hz, x_e) +
           interp_nion_HeII((nu - physconst.nu_ion_HeII) / physconst.eV_to_Hz, x_e) + 1;
-    species_sum += F_i * f_He * x_e * HeII_ion_crosssec(nu);
+    species_sum += F_i * HE_FRAC * x_e * HeII_ion_crosssec(nu);
 
     return species_sum * pow(nu / ((astro_params_global->NU_X_THRESH) * physconst.eV_to_Hz),
                              -(astro_params_global->X_RAY_SPEC_INDEX) - 1);
@@ -804,15 +804,15 @@ double integrand_in_nu_lya_integral(double nu, void *params) {
     float x_e = *(double *)params;
 
     // HI
-    species_sum = interp_n_Lya((nu - physconst.nu_ion_HI) / physconst.eV_to_Hz, x_e) * f_H *
+    species_sum = interp_n_Lya((nu - physconst.nu_ion_HI) / physconst.eV_to_Hz, x_e) * H_FRAC *
                   (double)(1 - x_e) * HI_ion_crosssec(nu);
 
     // HeI
-    species_sum += interp_n_Lya((nu - physconst.nu_ion_HeI) / physconst.eV_to_Hz, x_e) * f_He *
+    species_sum += interp_n_Lya((nu - physconst.nu_ion_HeI) / physconst.eV_to_Hz, x_e) * HE_FRAC *
                    (double)(1 - x_e) * HeI_ion_crosssec(nu);
 
     // HeII
-    species_sum += interp_n_Lya((nu - physconst.nu_ion_HeII) / physconst.eV_to_Hz, x_e) * f_He *
+    species_sum += interp_n_Lya((nu - physconst.nu_ion_HeII) / physconst.eV_to_Hz, x_e) * HE_FRAC *
                    (double)x_e * HeII_ion_crosssec(nu);
 
     return species_sum * pow(nu / ((astro_params_global->NU_X_THRESH) * physconst.eV_to_Hz),
@@ -869,9 +869,9 @@ double integrate_over_nu(double zp, double local_x_e, double lower_int_limit, in
 double species_weighted_x_ray_cross_section(double nu, double x_e) {
     double HI_factor, HeI_factor, HeII_factor;
 
-    HI_factor = f_H * (1 - x_e) * HI_ion_crosssec(nu);
-    HeI_factor = f_He * (1 - x_e) * HeI_ion_crosssec(nu);
-    HeII_factor = f_He * x_e * HeII_ion_crosssec(nu);
+    HI_factor = H_FRAC * (1 - x_e) * HI_ion_crosssec(nu);
+    HeI_factor = HE_FRAC * (1 - x_e) * HeI_ion_crosssec(nu);
+    HeII_factor = HE_FRAC * x_e * HeII_ion_crosssec(nu);
 
     return HI_factor + HeI_factor + HeII_factor;
 }

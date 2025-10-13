@@ -804,6 +804,11 @@ void fill_freqint_tables(double zp, double x_e_ave, double filling_factor_of_HI_
                         freq_int_lya_tbl[x_e_ct][R_ct] - freq_int_lya_tbl[x_e_ct - 1][R_ct];
                 }
             }
+            LOG_ULTRA_DEBUG("Nu Integrals || R_ct %d R %.2e zpp %.2f nu_min %.2e", R_ct,
+                            R_values[R_ct], zpp_for_evolve_list[R_ct], lower_int_limit);
+            LOG_ULTRA_DEBUG("heat[x_e=0] %.2e ion[x_e=0] %.2e lya[x_e=0] %.2e",
+                            freq_int_heat_tbl[0][R_ct], freq_int_ion_tbl[0][R_ct],
+                            freq_int_lya_tbl[0][R_ct]);
         }
 // separating the inverse diff loop to prevent a race on different R_ct (shouldn't matter)
 #pragma omp for
@@ -1147,7 +1152,7 @@ struct Ts_cell get_Ts_fast(float zp, float dzp, struct spintemp_from_sfr_prefact
     // Electron density
     // NOTE: Nb_zp includes helium, TODO: make sure this is right
     dxion_sink_dt = alpha_A(rad->prev_Tk) * astro_params_global->CLUMPING_FACTOR * rad->prev_xe *
-                    rad->prev_xe * f_H * consts->Nb_zp * (1. + rad->delta);
+                    rad->prev_xe * H_FRAC * consts->Nb_zp * (1. + rad->delta);
 
     dxe_dzp = consts->dt_dzp * (rad->dxion_dt - dxion_sink_dt);
 
@@ -1163,7 +1168,7 @@ struct Ts_cell get_Ts_fast(float zp, float dzp, struct spintemp_from_sfr_prefact
     dspec_dzp = -dxe_dzp * rad->prev_Tk / (1 + rad->prev_xe);
 
     // Compton heating
-    dcomp_dzp = consts->dcomp_dzp_prefactor * (rad->prev_xe / (1.0 + rad->prev_xe + f_He)) *
+    dcomp_dzp = consts->dcomp_dzp_prefactor * (rad->prev_xe / (1.0 + rad->prev_xe + HE_FRAC)) *
                 (consts->Trad - rad->prev_Tk);
 
     // X-ray heating
@@ -1172,7 +1177,7 @@ struct Ts_cell get_Ts_fast(float zp, float dzp, struct spintemp_from_sfr_prefact
     dCMBheat_dzp = 0.;
     if (astro_options_global->USE_CMB_HEATING) {
         // Meiksin et al. 2021
-        eps_CMB = (3. / 4.) * (consts->Trad / physconst.T_21) * physconst.A10 * f_H *
+        eps_CMB = (3. / 4.) * (consts->Trad / physconst.T_21) * physconst.A10 * H_FRAC *
                   (physconst.h_p * physconst.h_p / physconst.lambda_21 / physconst.lambda_21 /
                    physconst.m_p) *
                   (1. + 2. * rad->prev_Tk / physconst.T_21);

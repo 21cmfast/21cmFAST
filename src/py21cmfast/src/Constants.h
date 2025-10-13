@@ -106,8 +106,13 @@ extern const PhysicalConstants physconst;
 #define He_No                                                                     \
     (double)(RHOcrit_cgs * cosmo_params_global->OMb * cosmo_params_global->Y_He / \
              (4.0 * physconst.m_p))
-#define N_b0 (double)(No + He_No)            // present-day baryon num density, H + He
-#define f_H (double)(No / (No + He_No))      // hydrogen number fraction
-#define f_He (double)(He_No / (No + He_No))  // helium number fraction
+#define N_b0 (double)(No + He_No)  // present-day baryon num density, H + He
+
+#define H_FRAC                                  \
+    (double)((1. - cosmo_params_global->Y_He) / \
+             (1. - 3. * cosmo_params_global->Y_He / 4.))  // hydrogen number fraction
+#define HE_FRAC                                 \
+    (double)((cosmo_params_global->Y_He / 4.) / \
+             (1. - 3. * cosmo_params_global->Y_He / 4.))  // helium number fraction
 
 #endif
