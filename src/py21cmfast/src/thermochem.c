@@ -147,7 +147,7 @@ double HI_ion_crosssec(double nu) {
     if (nu == physconst.nu_ion_HI) nu += TINY;
 
     epsilon = sqrt(nu / physconst.nu_ion_HI - 1);
-    return (6.3e-18) / Z / Z * pow(physconst.nu_ion_HeI / nu, 4) *
+    return (6.3e-18) / Z / Z * pow(physconst.nu_ion_HI / nu, 4) *
            exp(4 - (4 * atan(epsilon) / epsilon)) / (1 - exp(-2 * M_PI / epsilon));
 }
 
