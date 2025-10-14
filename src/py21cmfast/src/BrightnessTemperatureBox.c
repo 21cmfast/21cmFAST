@@ -30,6 +30,10 @@ int ComputeBrightnessTemp(float redshift, TsBox *spin_temp, IonizedBox *ionized_
         int i, j, k;
         double ave;
 
+        int box_dim[3] = {
+            simulation_options_global->HII_DIM, simulation_options_global->HII_DIM,
+            simulation_options_global->NON_CUBIC_FACTOR * simulation_options_global->HII_DIM};
+
         ave = 0.;
 
         omp_set_num_threads(simulation_options_global->N_THREADS);
@@ -56,31 +60,30 @@ int ComputeBrightnessTemp(float redshift, TsBox *spin_temp, IonizedBox *ionized_
                                 T_rad) private(i, j, k, pixel_deltax, pixel_x_HI)               \
     num_threads(simulation_options_global -> N_THREADS)
         {
+            unsigned long long int index;
 #pragma omp for reduction(+ : ave)
             for (i = 0; i < simulation_options_global->HII_DIM; i++) {
                 for (j = 0; j < simulation_options_global->HII_DIM; j++) {
                     for (k = 0; k < HII_D_PARA; k++) {
-                        pixel_deltax = perturb_field->density[HII_R_INDEX(i, j, k)];
-                        pixel_x_HI = ionized_box->neutral_fraction[HII_R_INDEX(i, j, k)];
+                        index = grid_index_general(i, j, k, box_dim);
+                        pixel_deltax = perturb_field->density[index];
+                        pixel_x_HI = ionized_box->neutral_fraction[index];
 
-                        box->brightness_temp[HII_R_INDEX(i, j, k)] =
+                        box->brightness_temp[index] =
                             const_factor * pixel_x_HI * (1 + pixel_deltax);
 
                         if (astro_options_global->USE_TS_FLUCT) {
                             // Converting the prefactors into the optical depth, tau. Factor of 1000
                             // is the conversion of spin temperature from K to mK
-                            box->brightness_temp[HII_R_INDEX(i, j, k)] *=
-                                (1. + redshift) /
-                                (1000. * spin_temp->spin_temperature[HII_R_INDEX(i, j, k)]);
-                            box->tau_21[HII_R_INDEX(i, j, k)] =
-                                box->brightness_temp[HII_R_INDEX(i, j, k)];
-                            box->brightness_temp[HII_R_INDEX(i, j, k)] =
-                                (1. - exp(-box->brightness_temp[HII_R_INDEX(i, j, k)])) * 1000. *
-                                (spin_temp->spin_temperature[HII_R_INDEX(i, j, k)] - T_rad) /
-                                (1. + redshift);
+                            box->brightness_temp[index] *=
+                                (1. + redshift) / (1000. * spin_temp->spin_temperature[index]);
+                            box->tau_21[index] = box->brightness_temp[index];
+                            box->brightness_temp[index] =
+                                (1. - exp(-box->brightness_temp[index])) * 1000. *
+                                (spin_temp->spin_temperature[index] - T_rad) / (1. + redshift);
                         }
 
-                        ave += box->brightness_temp[HII_R_INDEX(i, j, k)];
+                        ave += box->brightness_temp[index];
                     }
                 }
             }

@@ -767,7 +767,8 @@ void condense_sparse_halolist(HaloField *halofield, unsigned long long int *ista
 int sample_halo_grids(gsl_rng **rng_arr, double redshift, float *dens_field,
                       float *halo_overlap_box, HaloField *halofield_large, HaloField *halofield_out,
                       struct HaloSamplingConstants *hs_constants) {
-    int lo_dim = simulation_options_global->HII_DIM;
+    int lo_dim[3] = {simulation_options_global->HII_DIM, simulation_options_global->HII_DIM,
+                     HII_D_PARA};
 
     double Mcell = hs_constants->M_cond;
     double Mmin = hs_constants->M_min;
@@ -780,7 +781,7 @@ int sample_halo_grids(gsl_rng **rng_arr, double redshift, float *dens_field,
     unsigned long long int arraysize_total = halofield_out->buffer_size;
     unsigned long long int arraysize_local = arraysize_total / simulation_options_global->N_THREADS;
 
-    LOG_DEBUG("Beginning stochastic halo sampling on %d ^3 grid", lo_dim);
+    LOG_DEBUG("Beginning stochastic halo sampling on %d ^3 grid", lo_dim[0]);
     LOG_DEBUG("z = %f, Mmin = %e, Mmax = %e,volume = %.3e, D = %.3e", redshift, Mmin, Mcell,
               Mcell / RHOcrit / cosmo_params_global->OMm, growthf);
     LOG_DEBUG("Total Array Size %llu, array size per thread %llu (~%.3e GB total)", arraysize_total,
@@ -795,7 +796,7 @@ int sample_halo_grids(gsl_rng **rng_arr, double redshift, float *dens_field,
     {
         // PRIVATE VARIABLES
         int x, y, z, i;
-        unsigned long long int halo_idx;
+        unsigned long long int halo_idx, cell_idx;
         int threadnum = omp_get_thread_num();
 
         int nh_buf;
@@ -837,17 +838,18 @@ int sample_halo_grids(gsl_rng **rng_arr, double redshift, float *dens_field,
         }
 
 #pragma omp for reduction(+ : total_volume_excluded)
-        for (x = 0; x < lo_dim; x++) {
+        for (x = 0; x < lo_dim[0]; x++) {
             if (out_of_buffer) continue;
-            for (y = 0; y < lo_dim; y++) {
-                for (z = 0; z < HII_D_PARA; z++) {
-                    delta = dens_field[HII_R_INDEX(x, y, z)] * growthf;
+            for (y = 0; y < lo_dim[1]; y++) {
+                for (z = 0; z < lo_dim[2]; z++) {
+                    cell_idx = grid_index_general(x, y, z, lo_dim);
+                    delta = dens_field[cell_idx] * growthf;
                     stoc_set_consts_cond(&hs_constants_priv, delta);
                     if ((x + y + z) == 0) {
                         print_hs_consts(&hs_constants_priv);
                     }
 
-                    mass_defc = halo_overlap_box[HII_R_INDEX(x, y, z)];
+                    mass_defc = halo_overlap_box[cell_idx];
                     total_volume_excluded += mass_defc;
 
                     hs_constants_priv.expected_M *= (1. - mass_defc);
@@ -867,7 +869,7 @@ int sample_halo_grids(gsl_rng **rng_arr, double redshift, float *dens_field,
                         }
 
                         random_point_in_cell((int[3]){x, y, z},
-                                             simulation_options_global->BOX_LEN / lo_dim,
+                                             simulation_options_global->BOX_LEN / lo_dim[0],
                                              rng_arr[threadnum], crd_hi);
                         wrap_position(crd_hi,
                                       (double[3]){simulation_options_global->BOX_LEN,

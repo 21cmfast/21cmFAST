@@ -29,7 +29,7 @@
 #define REION_SM13_C (double)2.0
 #define REION_SM13_D (double)2.5
 
-float ComputeFullyIoinizedTemperature(float z_re, float z, float delta, float T_re) {
+float ComputeFullyIonizedTemperature(float z_re, float z, float delta, float T_re) {
     // z_re: the redshift of reionization
     // z:    the current redshift
     // delta:the density contrast
@@ -56,7 +56,7 @@ float ComputeFullyIoinizedTemperature(float z_re, float z, float delta, float T_
     return result;
 }
 
-float ComputePartiallyIoinizedTemperature(float T_HI, float res_xH, float T_re) {
+float ComputePartiallyIonizedTemperature(float T_HI, float res_xH, float T_re) {
     if (res_xH <= 0.) return T_re;
     if (res_xH >= 1) return T_HI;
 

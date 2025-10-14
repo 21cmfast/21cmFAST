@@ -151,8 +151,8 @@ void assign_to_lowres_grid(fftwf_complex *hires_grid, fftwf_complex *lowres_grid
     memcpy(saved_grid, hires_grid, sizeof(fftwf_complex) * KSPACE_NUM_PIXELS);
 
     // Now filter the box
-    filter_box(hires_grid, 0, 0, L_FACTOR * simulation_options_global->BOX_LEN / (lo_dim[0] + 0.0),
-               0.);
+    filter_box(hires_grid, hi_dim, 0,
+               L_FACTOR * simulation_options_global->BOX_LEN / (lo_dim[0] + 0.0), 0.);
 
     // FFT back to real space
     dft_c2r_cube(matter_options_global->USE_FFTW_WISDOM, hi_dim[0], hi_dim[2],
@@ -166,9 +166,9 @@ void assign_to_lowres_grid(fftwf_complex *hires_grid, fftwf_complex *lowres_grid
             for (j = 0; j < lo_dim[1]; j++) {
                 for (k = 0; k < lo_dim[2]; k++) {
                     resample_index((int[3]){i, j, k}, dim_ratio, hires_pos);
-                    *((float *)lowres_grid + HII_R_FFT_INDEX(i, j, k)) =
+                    *((float *)lowres_grid + grid_index_fftw_r(i, j, k, lo_dim)) =
                         *((float *)hires_grid +
-                          R_FFT_INDEX(hires_pos[0], hires_pos[1], hires_pos[2])) /
+                          grid_index_fftw_r(hires_pos[0], hires_pos[1], hires_pos[2], hi_dim)) /
                         (float)TOT_NUM_PIXELS;
                 }
             }
@@ -211,12 +211,14 @@ void normalise_delta_grid(fftwf_complex *deltap1_grid) {
 void smooth_and_clip_density(fftwf_complex *lowres_grid, fftwf_complex *density_perturb_saved) {
     // transform to k-space
     int i, j, k;
+    int box_dim[3] = {simulation_options_global->HII_DIM, simulation_options_global->HII_DIM,
+                      HII_D_PARA};
     dft_r2c_cube(matter_options_global->USE_FFTW_WISDOM, simulation_options_global->HII_DIM,
                  HII_D_PARA, simulation_options_global->N_THREADS, lowres_grid);
 
     // smooth the field
     if (matter_options_global->SMOOTH_EVOLVED_DENSITY_FIELD) {
-        filter_box(lowres_grid, 1, 2,
+        filter_box(lowres_grid, box_dim, 2,
                    simulation_options_global->DENSITY_SMOOTH_RADIUS *
                        simulation_options_global->BOX_LEN /
                        (float)simulation_options_global->HII_DIM,
@@ -246,21 +248,23 @@ void smooth_and_clip_density(fftwf_complex *lowres_grid, fftwf_complex *density_
 #pragma omp parallel shared(lowres_grid) private(i, j, k) \
     num_threads(simulation_options_global -> N_THREADS) reduction(+ : bad_count)
     {
+        unsigned long long int grid_index;
 #pragma omp for
         for (i = 0; i < simulation_options_global->HII_DIM; i++) {
             for (j = 0; j < simulation_options_global->HII_DIM; j++) {
                 for (k = 0; k < HII_D_PARA; k++) {
-                    *((float *)lowres_grid + HII_R_FFT_INDEX(i, j, k)) /= (float)HII_TOT_NUM_PIXELS;
+                    grid_index = grid_index_fftw_r(i, j, k, box_dim);
+                    *((float *)lowres_grid + grid_index) /= (float)HII_TOT_NUM_PIXELS;
 
-                    if (*((float *)lowres_grid + HII_R_FFT_INDEX(i, j, k)) <
+                    if (*((float *)lowres_grid + grid_index) <
                         -1.0 + FRACT_FLOAT_ERR) {  // shouldn't happen
 
                         if (bad_count < 5)
                             LOG_WARNING("delta is <-1 for index %d %d %d (value=%f)", i, j, k,
-                                        *((float *)lowres_grid + HII_R_FFT_INDEX(i, j, k)));
+                                        *((float *)lowres_grid + grid_index));
                         if (bad_count == 5)
                             LOG_WARNING("Skipping further warnings for delta <= -1.");
-                        *((float *)lowres_grid + HII_R_FFT_INDEX(i, j, k)) = -1.0 + FRACT_FLOAT_ERR;
+                        *((float *)lowres_grid + grid_index) = -1.0 + FRACT_FLOAT_ERR;
                         bad_count++;
                     }
                 }
@@ -307,7 +311,9 @@ void compute_perturbed_velocities(unsigned short axis, double redshift,
         n_k_pixels = HII_KSPACE_NUM_PIXELS;
         n_r_pixels = HII_TOT_NUM_PIXELS;
     }
-    double dim_ratio = box_dim[0] / (double)simulation_options_global->HII_DIM;
+    int lo_dim[3] = {simulation_options_global->HII_DIM, simulation_options_global->HII_DIM,
+                     HII_D_PARA};
+    double dim_ratio = box_dim[0] / (double)lo_dim[0];
 
     memcpy(velocity_fft_grid, density_saved, sizeof(fftwf_complex) * n_k_pixels);
 
@@ -356,7 +362,7 @@ void compute_perturbed_velocities(unsigned short axis, double redshift,
 
     if (matter_options_global->PERTURB_ON_HIGH_RES &&
         simulation_options_global->DIM != simulation_options_global->HII_DIM) {
-        filter_box(velocity_fft_grid, 0, 0,
+        filter_box(velocity_fft_grid, box_dim, 0,
                    L_FACTOR * simulation_options_global->BOX_LEN /
                        (simulation_options_global->HII_DIM + 0.0),
                    0.);
@@ -367,16 +373,17 @@ void compute_perturbed_velocities(unsigned short axis, double redshift,
 
 #pragma omp parallel private(i, j, k) num_threads(simulation_options_global -> N_THREADS)
     {
-        unsigned long long int grid_index;
+        unsigned long long int grid_index_f, grid_index_r;
         int grid_ipos[3];
 #pragma omp for
-        for (i = 0; i < simulation_options_global->HII_DIM; i++) {
-            for (j = 0; j < simulation_options_global->HII_DIM; j++) {
-                for (k = 0; k < HII_D_PARA; k++) {
+        for (i = 0; i < lo_dim[0]; i++) {
+            for (j = 0; j < lo_dim[1]; j++) {
+                for (k = 0; k < lo_dim[2]; k++) {
+                    grid_index_r = grid_index_general(i, j, k, lo_dim);
                     resample_index((int[3]){i, j, k}, dim_ratio, grid_ipos);
-                    grid_index =
+                    grid_index_f =
                         grid_index_fftw_r(grid_ipos[0], grid_ipos[1], grid_ipos[2], box_dim);
-                    velocity[HII_R_INDEX(i, j, k)] = *((float *)velocity_fft_grid + grid_index);
+                    velocity[grid_index_r] = *((float *)velocity_fft_grid + grid_index_f);
                 }
             }
         }
@@ -443,14 +450,19 @@ int ComputePerturbField(float redshift, InitialConditions *boxes, PerturbedField
         smooth_and_clip_density(LOWRES_density_perturb, density_perturb_saved);
 
         // Assign to the struct
+        int lo_dim[3] = {simulation_options_global->HII_DIM, simulation_options_global->HII_DIM,
+                         HII_D_PARA};
 #pragma omp parallel num_threads(simulation_options_global->N_THREADS)
         {
+            unsigned long long int index_r, index_f;
 #pragma omp for
-            for (int i = 0; i < simulation_options_global->HII_DIM; i++) {
-                for (int j = 0; j < simulation_options_global->HII_DIM; j++) {
-                    for (int k = 0; k < HII_D_PARA; k++) {
-                        *((float *)perturbed_field->density + HII_R_INDEX(i, j, k)) =
-                            *((float *)LOWRES_density_perturb + HII_R_FFT_INDEX(i, j, k));
+            for (int i = 0; i < lo_dim[0]; i++) {
+                for (int j = 0; j < lo_dim[1]; j++) {
+                    for (int k = 0; k < lo_dim[2]; k++) {
+                        index_r = grid_index_general(i, j, k, lo_dim);
+                        index_f = grid_index_fftw_r(i, j, k, lo_dim);
+                        *((float *)perturbed_field->density + index_r) =
+                            *((float *)LOWRES_density_perturb + index_f);
                     }
                 }
             }

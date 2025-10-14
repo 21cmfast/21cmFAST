@@ -27,40 +27,54 @@ void adj_complex_conj(fftwf_complex *HIRES_box) {
     /*****  Adjust the complex conjugate relations for a real array  *****/
 
     int i, j, k;
+    int box_dim[3] = {
+        simulation_options_global->DIM, simulation_options_global->DIM,
+        (int)(simulation_options_global->NON_CUBIC_FACTOR * simulation_options_global->DIM)};
+    int mid_index[3];
+    for (i = 0; i < 3; i++) {
+        mid_index[i] = box_dim[i] / 2;
+    }
 
-    // corners
-    HIRES_box[C_INDEX(0, 0, 0)] = 0;
-    HIRES_box[C_INDEX(0, 0, MIDDLE_PARA)] = crealf(HIRES_box[C_INDEX(0, 0, MIDDLE_PARA)]);
-    HIRES_box[C_INDEX(0, MIDDLE, 0)] = crealf(HIRES_box[C_INDEX(0, MIDDLE, 0)]);
-    HIRES_box[C_INDEX(0, MIDDLE, MIDDLE_PARA)] = crealf(HIRES_box[C_INDEX(0, MIDDLE, MIDDLE_PARA)]);
-    HIRES_box[C_INDEX(MIDDLE, 0, 0)] = crealf(HIRES_box[C_INDEX(MIDDLE, 0, 0)]);
-    HIRES_box[C_INDEX(MIDDLE, 0, MIDDLE_PARA)] = crealf(HIRES_box[C_INDEX(MIDDLE, 0, MIDDLE_PARA)]);
-    HIRES_box[C_INDEX(MIDDLE, MIDDLE, 0)] = crealf(HIRES_box[C_INDEX(MIDDLE, MIDDLE, 0)]);
-    HIRES_box[C_INDEX(MIDDLE, MIDDLE, MIDDLE_PARA)] =
-        crealf(HIRES_box[C_INDEX(MIDDLE, MIDDLE, MIDDLE_PARA)]);
+    unsigned long long int corner_indices[8] = {
+        grid_index_fftw_c(0, 0, 0, box_dim),
+        grid_index_fftw_c(0, 0, mid_index[2], box_dim),
+        grid_index_fftw_c(0, mid_index[1], 0, box_dim),
+        grid_index_fftw_c(0, mid_index[1], mid_index[2], box_dim),
+        grid_index_fftw_c(mid_index[0], 0, 0, box_dim),
+        grid_index_fftw_c(mid_index[0], 0, mid_index[2], box_dim),
+        grid_index_fftw_c(mid_index[0], mid_index[1], 0, box_dim),
+        grid_index_fftw_c(mid_index[0], mid_index[1], mid_index[2], box_dim)};
+
+    for (i = 0; i < 8; i++) {
+        HIRES_box[corner_indices[i]] = crealf(HIRES_box[corner_indices[i]]);
+    }
 
     // do entire i except corners
 #pragma omp parallel shared(HIRES_box) private(i, j, k) \
     num_threads(simulation_options_global -> N_THREADS)
     {
+        unsigned long long int index;
+        unsigned long long int index_rx, index_ry, index_rxy;
 #pragma omp for
-        for (i = 1; i < MIDDLE; i++) {
+        for (i = 1; i < mid_index[0]; i++) {
             // just j corners
-            for (j = 0; j <= MIDDLE; j += MIDDLE) {
-                for (k = 0; k <= MIDDLE_PARA; k += MIDDLE_PARA) {
-                    HIRES_box[C_INDEX(i, j, k)] =
-                        conjf(HIRES_box[C_INDEX((simulation_options_global->DIM) - i, j, k)]);
+            for (j = 0; j <= mid_index[1]; j += mid_index[1]) {
+                for (k = 0; k <= mid_index[2]; k += mid_index[2]) {
+                    index = grid_index_fftw_c(i, j, k, box_dim);
+                    index_rx = grid_index_fftw_c(box_dim[0] - i, j, k, box_dim);
+                    HIRES_box[index] = conjf(HIRES_box[index_rx]);
                 }
             }
 
             // all of j
-            for (j = 1; j < MIDDLE; j++) {
-                for (k = 0; k <= MIDDLE_PARA; k += MIDDLE_PARA) {
-                    HIRES_box[C_INDEX(i, j, k)] =
-                        conjf(HIRES_box[C_INDEX((simulation_options_global->DIM) - i,
-                                                (simulation_options_global->DIM) - j, k)]);
-                    HIRES_box[C_INDEX(i, (simulation_options_global->DIM) - j, k)] =
-                        conjf(HIRES_box[C_INDEX((simulation_options_global->DIM) - i, j, k)]);
+            for (j = 1; j < mid_index[1]; j++) {
+                for (k = 0; k <= mid_index[2]; k += mid_index[2]) {
+                    index = grid_index_fftw_c(i, j, k, box_dim);
+                    index_rx = grid_index_fftw_c(box_dim[0] - i, j, k, box_dim);
+                    index_ry = grid_index_fftw_c(i, box_dim[1] - j, k, box_dim);
+                    index_rxy = grid_index_fftw_c(box_dim[0] - i, box_dim[1] - j, k, box_dim);
+                    HIRES_box[index] = conjf(HIRES_box[index_rxy]);
+                    HIRES_box[index_ry] = conjf(HIRES_box[index_rx]);
                 }
             }
         }  // end loop over i
@@ -70,12 +84,15 @@ void adj_complex_conj(fftwf_complex *HIRES_box) {
 #pragma omp parallel shared(HIRES_box) private(i, j, k) \
     num_threads(simulation_options_global -> N_THREADS)
     {
+        unsigned long long int index;
+        unsigned long long int index_ry;
 #pragma omp for
         for (i = 0; i <= MIDDLE; i += MIDDLE) {
             for (j = 1; j < MIDDLE; j++) {
                 for (k = 0; k <= MIDDLE_PARA; k += MIDDLE_PARA) {
-                    HIRES_box[C_INDEX(i, j, k)] =
-                        conjf(HIRES_box[C_INDEX(i, (simulation_options_global->DIM) - j, k)]);
+                    index = grid_index_fftw_c(i, j, k, box_dim);
+                    index_ry = grid_index_fftw_c(i, box_dim[1] - j, k, box_dim);
+                    HIRES_box[index] = conjf(HIRES_box[index_ry]);
                 }
             }
         }  // end loop over remaining j
@@ -105,7 +122,7 @@ int ComputeInitialConditions(unsigned long long random_seed, InitialConditions *
         writeCosmoParams(cosmo_params_global);
 #endif
 
-        int n_x, n_y, n_z, i, j, k, ii, dimension;
+        int n_x, n_y, n_z, i, j, k, ii;
         float k_x, k_y, k_z, k_mag, p, a, b, k_sq;
         float p_vcb, vcb_i;
 
@@ -116,8 +133,38 @@ int ComputeInitialConditions(unsigned long long random_seed, InitialConditions *
 
         omp_set_num_threads(simulation_options_global->N_THREADS);
 
-        dimension = matter_options_global->PERTURB_ON_HIGH_RES ? simulation_options_global->DIM
-                                                               : simulation_options_global->HII_DIM;
+        // setup dimensions
+        int hi_dim[3] = {
+            simulation_options_global->DIM, simulation_options_global->DIM,
+            (int)(simulation_options_global->NON_CUBIC_FACTOR * simulation_options_global->DIM)};
+        int lo_dim[3] = {simulation_options_global->HII_DIM, simulation_options_global->HII_DIM,
+                         (int)(simulation_options_global->NON_CUBIC_FACTOR *
+                               simulation_options_global->HII_DIM)};
+        int pt_dim[3];
+        float *vel_pointers[3], *vel_pointers_2LPT[3];
+        float *hires_v_2LPT[3] = {boxes->hires_vx_2LPT, boxes->hires_vy_2LPT, boxes->hires_vz_2LPT};
+        if (matter_options_global->PERTURB_ON_HIGH_RES) {
+            pt_dim[0] = hi_dim[0];
+            pt_dim[1] = hi_dim[1];
+            pt_dim[2] = hi_dim[2];
+            vel_pointers[0] = boxes->hires_vx;
+            vel_pointers[1] = boxes->hires_vy;
+            vel_pointers[2] = boxes->hires_vz;
+            vel_pointers_2LPT[0] = boxes->hires_vx_2LPT;
+            vel_pointers_2LPT[1] = boxes->hires_vy_2LPT;
+            vel_pointers_2LPT[2] = boxes->hires_vz_2LPT;
+        } else {
+            pt_dim[0] = lo_dim[0];
+            pt_dim[1] = lo_dim[1];
+            pt_dim[2] = lo_dim[2];
+            vel_pointers[0] = boxes->lowres_vx;
+            vel_pointers[1] = boxes->lowres_vy;
+            vel_pointers[2] = boxes->lowres_vz;
+            vel_pointers_2LPT[0] = boxes->lowres_vx_2LPT;
+            vel_pointers_2LPT[1] = boxes->lowres_vy_2LPT;
+            vel_pointers_2LPT[2] = boxes->lowres_vz_2LPT;
+        }
+        double dim_ratio_hi_pt = hi_dim[0] / (double)pt_dim[0];
 
         // ************  INITIALIZATION ********************** //
         // allocate array for the k-space and real-space boxes
@@ -174,7 +221,8 @@ int ComputeInitialConditions(unsigned long long random_seed, InitialConditions *
                         a = gsl_ran_ugaussian(r[thread_num]);
                         b = gsl_ran_ugaussian(r[thread_num]);
 
-                        HIRES_box[C_INDEX(n_x, n_y, n_z)] = sqrt(VOLUME * p / 2.0) * (a + b * I);
+                        HIRES_box[grid_index_fftw_c(n_x, n_y, n_z, hi_dim)] =
+                            sqrt(VOLUME * p / 2.0) * (a + b * I);
                     }
                 }
             }
@@ -196,12 +244,15 @@ int ComputeInitialConditions(unsigned long long random_seed, InitialConditions *
 #pragma omp parallel shared(boxes, HIRES_box) private(i, j, k) \
     num_threads(simulation_options_global -> N_THREADS)
         {
+            unsigned long long index_r, index_f;
 #pragma omp for
             for (i = 0; i < simulation_options_global->DIM; i++) {
                 for (j = 0; j < simulation_options_global->DIM; j++) {
                     for (k = 0; k < D_PARA; k++) {
-                        *((float *)boxes->hires_density + R_INDEX(i, j, k)) =
-                            *((float *)HIRES_box + R_FFT_INDEX(i, j, k)) / VOLUME;
+                        index_r = grid_index_general(i, j, k, hi_dim);
+                        index_f = grid_index_fftw_r(i, j, k, hi_dim);
+                        *((float *)boxes->hires_density + index_r) =
+                            *((float *)HIRES_box + index_f) / VOLUME;
                     }
                 }
             }
@@ -215,7 +266,7 @@ int ComputeInitialConditions(unsigned long long random_seed, InitialConditions *
 
         // Only filter if we are perturbing on the low-resolution grid
         if (simulation_options_global->DIM != simulation_options_global->HII_DIM) {
-            filter_box(HIRES_box, 0, 0,
+            filter_box(HIRES_box, hi_dim, 0,
                        L_FACTOR * simulation_options_global->BOX_LEN /
                            (simulation_options_global->HII_DIM + 0.0),
                        0.);
@@ -230,16 +281,16 @@ int ComputeInitialConditions(unsigned long long random_seed, InitialConditions *
 #pragma omp parallel shared(boxes, HIRES_box, f_pixel_factor) private(i, j, k) \
     num_threads(simulation_options_global -> N_THREADS)
         {
+            unsigned long long index_r, index_f;
 #pragma omp for
-            for (i = 0; i < simulation_options_global->HII_DIM; i++) {
-                for (j = 0; j < simulation_options_global->HII_DIM; j++) {
-                    for (k = 0; k < HII_D_PARA; k++) {
-                        boxes->lowres_density[HII_R_INDEX(i, j, k)] =
-                            *((float *)HIRES_box +
-                              R_FFT_INDEX((unsigned long long)(i * f_pixel_factor + 0.5),
-                                          (unsigned long long)(j * f_pixel_factor + 0.5),
-                                          (unsigned long long)(k * f_pixel_factor + 0.5))) /
-                            VOLUME;
+            for (i = 0; i < lo_dim[0]; i++) {
+                for (j = 0; j < lo_dim[1]; j++) {
+                    for (k = 0; k < lo_dim[2]; k++) {
+                        index_r = grid_index_general(i, j, k, lo_dim);
+                        index_f = grid_index_fftw_r((int)(i * f_pixel_factor + 0.5),
+                                                    (int)(j * f_pixel_factor + 0.5),
+                                                    (int)(k * f_pixel_factor + 0.5), hi_dim);
+                        boxes->lowres_density[index_r] = *((float *)HIRES_box + index_f) / VOLUME;
                     }
                 }
             }
@@ -253,6 +304,7 @@ int ComputeInitialConditions(unsigned long long random_seed, InitialConditions *
 #pragma omp parallel shared(HIRES_box, ii) private(n_x, n_y, n_z, k_x, k_y, k_z, k_mag, p, p_vcb) \
     num_threads(simulation_options_global -> N_THREADS)
                 {
+                    unsigned long long int index;
 #pragma omp for
                     for (n_x = 0; n_x < simulation_options_global->DIM; n_x++) {
                         if (n_x > MIDDLE)
@@ -278,16 +330,17 @@ int ComputeInitialConditions(unsigned long long random_seed, InitialConditions *
                                 if ((n_x == 0) && (n_y == 0) && (n_z == 0)) {  // DC mode
                                     HIRES_box[0] = 0;
                                 } else {
+                                    index = grid_index_fftw_c(n_x, n_y, n_z, hi_dim);
                                     if (ii == 0) {
-                                        HIRES_box[C_INDEX(n_x, n_y, n_z)] *=
+                                        HIRES_box[index] *=
                                             I * k_x / k_mag * sqrt(p_vcb / p) * physconst.c_kms;
                                     }
                                     if (ii == 1) {
-                                        HIRES_box[C_INDEX(n_x, n_y, n_z)] *=
+                                        HIRES_box[index] *=
                                             I * k_y / k_mag * sqrt(p_vcb / p) * physconst.c_kms;
                                     }
                                     if (ii == 2) {
-                                        HIRES_box[C_INDEX(n_x, n_y, n_z)] *=
+                                        HIRES_box[index] *=
                                             I * k_z / k_mag * sqrt(p_vcb / p) * physconst.c_kms;
                                     }
                                 }
@@ -298,7 +351,7 @@ int ComputeInitialConditions(unsigned long long random_seed, InitialConditions *
 
                 // we only care about the lowres vcb box, so we filter it directly.
                 if (simulation_options_global->DIM != simulation_options_global->HII_DIM) {
-                    filter_box(HIRES_box, 0, 0,
+                    filter_box(HIRES_box, hi_dim, 0,
                                L_FACTOR * simulation_options_global->BOX_LEN /
                                    (simulation_options_global->HII_DIM + 0.0),
                                0.);
@@ -311,16 +364,18 @@ int ComputeInitialConditions(unsigned long long random_seed, InitialConditions *
 #pragma omp parallel shared(boxes, HIRES_box, f_pixel_factor, ii) private(i, j, k, vcb_i) \
     num_threads(simulation_options_global -> N_THREADS)
                 {
+                    unsigned long long int index_r, index_f;
 #pragma omp for
                     for (i = 0; i < simulation_options_global->HII_DIM; i++) {
                         for (j = 0; j < simulation_options_global->HII_DIM; j++) {
                             for (k = 0; k < HII_D_PARA; k++) {
-                                vcb_i =
-                                    *((float *)HIRES_box +
-                                      R_FFT_INDEX((unsigned long long)(i * f_pixel_factor + 0.5),
-                                                  (unsigned long long)(j * f_pixel_factor + 0.5),
-                                                  (unsigned long long)(k * f_pixel_factor + 0.5)));
-                                boxes->lowres_vcb[HII_R_INDEX(i, j, k)] += vcb_i * vcb_i;
+                                index_r = grid_index_general(i, j, k, lo_dim);
+                                index_f =
+                                    grid_index_fftw_r((int)(i * f_pixel_factor + 0.5),
+                                                      (int)(j * f_pixel_factor + 0.5),
+                                                      (int)(k * f_pixel_factor + 0.5), hi_dim);
+                                vcb_i = *((float *)HIRES_box + index_f);
+                                boxes->lowres_vcb[index_r] += vcb_i * vcb_i;
                             }
                         }
                     }
@@ -330,8 +385,8 @@ int ComputeInitialConditions(unsigned long long random_seed, InitialConditions *
             for (i = 0; i < simulation_options_global->HII_DIM; i++) {
                 for (j = 0; j < simulation_options_global->HII_DIM; j++) {
                     for (k = 0; k < HII_D_PARA; k++) {
-                        boxes->lowres_vcb[HII_R_INDEX(i, j, k)] =
-                            sqrt(boxes->lowres_vcb[HII_R_INDEX(i, j, k)]) / VOLUME;
+                        boxes->lowres_vcb[grid_index_general(i, j, k, lo_dim)] =
+                            sqrt(boxes->lowres_vcb[grid_index_general(i, j, k, lo_dim)]) / VOLUME;
                     }
                 }
             }
@@ -348,6 +403,8 @@ int ComputeInitialConditions(unsigned long long random_seed, InitialConditions *
 #pragma omp parallel shared(HIRES_box, ii) private(n_x, n_y, n_z, k_x, k_y, k_z, k_sq) \
     num_threads(simulation_options_global -> N_THREADS)
             {
+                unsigned long long int index;
+                double kvec[3];
 #pragma omp for
                 for (n_x = 0; n_x < simulation_options_global->DIM; n_x++) {
                     if (n_x > MIDDLE)
@@ -366,20 +423,16 @@ int ComputeInitialConditions(unsigned long long random_seed, InitialConditions *
                             k_z = n_z * DELTA_K_PARA;
 
                             k_sq = k_x * k_x + k_y * k_y + k_z * k_z;
+                            kvec[0] = k_x;
+                            kvec[1] = k_y;
+                            kvec[2] = k_z;
 
                             // now set the velocities
                             if ((n_x == 0) && (n_y == 0) && (n_z == 0)) {  // DC mode
                                 HIRES_box[0] = 0;
                             } else {
-                                if (ii == 0) {
-                                    HIRES_box[C_INDEX(n_x, n_y, n_z)] *= k_x * I / k_sq / VOLUME;
-                                }
-                                if (ii == 1) {
-                                    HIRES_box[C_INDEX(n_x, n_y, n_z)] *= k_y * I / k_sq / VOLUME;
-                                }
-                                if (ii == 2) {
-                                    HIRES_box[C_INDEX(n_x, n_y, n_z)] *= k_z * I / k_sq / VOLUME;
-                                }
+                                index = grid_index_fftw_c(n_x, n_y, n_z, hi_dim);
+                                HIRES_box[index] *= kvec[ii] * I / k_sq / VOLUME;
                             }
                         }
                     }
@@ -389,7 +442,7 @@ int ComputeInitialConditions(unsigned long long random_seed, InitialConditions *
             // Filter only if we require perturbing on the low-res grid
             if (!matter_options_global->PERTURB_ON_HIGH_RES) {
                 if (simulation_options_global->DIM != simulation_options_global->HII_DIM) {
-                    filter_box(HIRES_box, 0, 0,
+                    filter_box(HIRES_box, hi_dim, 0,
                                L_FACTOR * simulation_options_global->BOX_LEN /
                                    (simulation_options_global->HII_DIM + 0.0),
                                0.);
@@ -401,61 +454,20 @@ int ComputeInitialConditions(unsigned long long random_seed, InitialConditions *
 
             // now sample to lower res
             // now sample the filtered box
-#pragma omp parallel shared(boxes, HIRES_box, f_pixel_factor, ii, dimension) private(i, j, k) \
+#pragma omp parallel shared(boxes, HIRES_box, f_pixel_factor, ii) private(i, j, k) \
     num_threads(simulation_options_global -> N_THREADS)
             {
+                unsigned long long int index, index_f;
+                int resampled_index[3];
 #pragma omp for
-                for (i = 0; i < dimension; i++) {
-                    for (j = 0; j < dimension; j++) {
-                        for (k = 0;
-                             k < (unsigned long long)(simulation_options_global->NON_CUBIC_FACTOR *
-                                                      dimension);
-                             k++) {
-                            if (matter_options_global->PERTURB_ON_HIGH_RES) {
-                                if (ii == 0) {
-                                    boxes->hires_vx[R_INDEX(i, j, k)] = *(
-                                        (float *)HIRES_box + R_FFT_INDEX((unsigned long long)(i),
-                                                                         (unsigned long long)(j),
-                                                                         (unsigned long long)(k)));
-                                }
-                                if (ii == 1) {
-                                    boxes->hires_vy[R_INDEX(i, j, k)] = *(
-                                        (float *)HIRES_box + R_FFT_INDEX((unsigned long long)(i),
-                                                                         (unsigned long long)(j),
-                                                                         (unsigned long long)(k)));
-                                }
-                                if (ii == 2) {
-                                    boxes->hires_vz[R_INDEX(i, j, k)] = *(
-                                        (float *)HIRES_box + R_FFT_INDEX((unsigned long long)(i),
-                                                                         (unsigned long long)(j),
-                                                                         (unsigned long long)(k)));
-                                }
-                            } else {
-                                if (ii == 0) {
-                                    boxes->lowres_vx[HII_R_INDEX(i, j, k)] =
-                                        *((float *)HIRES_box +
-                                          R_FFT_INDEX(
-                                              (unsigned long long)(i * f_pixel_factor + 0.5),
-                                              (unsigned long long)(j * f_pixel_factor + 0.5),
-                                              (unsigned long long)(k * f_pixel_factor + 0.5)));
-                                }
-                                if (ii == 1) {
-                                    boxes->lowres_vy[HII_R_INDEX(i, j, k)] =
-                                        *((float *)HIRES_box +
-                                          R_FFT_INDEX(
-                                              (unsigned long long)(i * f_pixel_factor + 0.5),
-                                              (unsigned long long)(j * f_pixel_factor + 0.5),
-                                              (unsigned long long)(k * f_pixel_factor + 0.5)));
-                                }
-                                if (ii == 2) {
-                                    boxes->lowres_vz[HII_R_INDEX(i, j, k)] =
-                                        *((float *)HIRES_box +
-                                          R_FFT_INDEX(
-                                              (unsigned long long)(i * f_pixel_factor + 0.5),
-                                              (unsigned long long)(j * f_pixel_factor + 0.5),
-                                              (unsigned long long)(k * f_pixel_factor + 0.5)));
-                                }
-                            }
+                for (i = 0; i < pt_dim[0]; i++) {
+                    for (j = 0; j < pt_dim[1]; j++) {
+                        for (k = 0; k < pt_dim[2]; k++) {
+                            index = grid_index_general(i, j, k, pt_dim);
+                            resample_index((int[3]){i, j, k}, dim_ratio_hi_pt, resampled_index);
+                            index_f = grid_index_fftw_r(resampled_index[0], resampled_index[1],
+                                                        resampled_index[2], hi_dim);
+                            vel_pointers[ii][index] = *((float *)HIRES_box + index_f);
                         }
                     }
                 }
@@ -475,15 +487,6 @@ int ComputeInitialConditions(unsigned long long random_seed, InitialConditions *
         if (matter_options_global->PERTURB_ALGORITHM == 2) {
             // use six supplementary boxes to store the gradients of phi_1 (eq. D13b)
             // Allocating the boxes
-#define PHI_INDEX(i, j) ((int)((i) - (j)) + 3 * ((j)) - ((int)(j)) / 2)
-            // ij -> INDEX
-            // 00 -> 0
-            // 11 -> 3
-            // 22 -> 5
-            // 10 -> 1
-            // 20 -> 2
-            // 21 -> 4
-
             fftwf_complex *phi_1 =
                 (fftwf_complex *)fftwf_malloc(sizeof(fftwf_complex) * KSPACE_NUM_PIXELS);
 
@@ -499,13 +502,13 @@ int ComputeInitialConditions(unsigned long long random_seed, InitialConditions *
 #pragma omp parallel shared(HIRES_box, phi_1) private(i, j, k) \
     num_threads(simulation_options_global -> N_THREADS)
             {
+                unsigned long long int index;
 #pragma omp for
-                for (i = 0; i < simulation_options_global->DIM; i++) {
-                    for (j = 0; j < simulation_options_global->DIM; j++) {
-                        for (k = 0; k < D_PARA; k++) {
-                            *((float *)HIRES_box + R_FFT_INDEX((unsigned long long)(i),
-                                                               (unsigned long long)(j),
-                                                               (unsigned long long)(k))) = 0.;
+                for (i = 0; i < hi_dim[0]; i++) {
+                    for (j = 0; j < hi_dim[1]; j++) {
+                        for (k = 0; k < hi_dim[2]; k++) {
+                            index = grid_index_fftw_r(i, j, k, hi_dim);
+                            *((float *)HIRES_box + index) = 0.;
                         }
                     }
                 }
@@ -521,6 +524,7 @@ int ComputeInitialConditions(unsigned long long random_seed, InitialConditions *
 #pragma omp parallel shared(HIRES_box, phi_1, i, j) private(n_x, n_y, n_z, k_x, k_y, k_z, k_sq, k) \
     num_threads(simulation_options_global -> N_THREADS)
                 {
+                    unsigned long long int index;
 #pragma omp for
                     for (n_x = 0; n_x < simulation_options_global->DIM; n_x++) {
                         if (n_x > MIDDLE)
@@ -545,9 +549,9 @@ int ComputeInitialConditions(unsigned long long random_seed, InitialConditions *
                                 if ((n_x == 0) && (n_y == 0) && (n_z == 0)) {  // DC mode
                                     phi_1[0] = 0;
                                 } else {
-                                    phi_1[C_INDEX(n_x, n_y, n_z)] =
-                                        -k[i] * k[j] * HIRES_box_saved[C_INDEX(n_x, n_y, n_z)] /
-                                        k_sq / VOLUME;
+                                    index = grid_index_fftw_c(n_x, n_y, n_z, hi_dim);
+                                    phi_1[index] =
+                                        -k[i] * k[j] * HIRES_box_saved[index] / k_sq / VOLUME;
                                     // note the last factor of 1/VOLUME accounts for the scaling in
                                     // real-space, following the FFT
                                 }
@@ -563,43 +567,32 @@ int ComputeInitialConditions(unsigned long long random_seed, InitialConditions *
 #pragma omp parallel shared(boxes, phi_1, phi_component) private(i, j, k) \
     num_threads(simulation_options_global -> N_THREADS)
                 {
+                    unsigned long long int index;
+                    unsigned long long int index_f;
 #pragma omp for
-                    for (i = 0; i < simulation_options_global->DIM; i++) {
-                        for (j = 0; j < simulation_options_global->DIM; j++) {
-                            for (k = 0; k < D_PARA; k++) {
-                                if (phi_component == 0) {
-                                    boxes->hires_vx_2LPT[R_INDEX(i, j, k)] =
-                                        *((float *)phi_1 + R_FFT_INDEX((unsigned long long)(i),
-                                                                       (unsigned long long)(j),
-                                                                       (unsigned long long)(k)));
-                                }
-                                if (phi_component == 1) {
-                                    boxes->hires_vy_2LPT[R_INDEX(i, j, k)] =
-                                        *((float *)phi_1 + R_FFT_INDEX((unsigned long long)(i),
-                                                                       (unsigned long long)(j),
-                                                                       (unsigned long long)(k)));
-                                }
-                                if (phi_component == 2) {
-                                    boxes->hires_vz_2LPT[R_INDEX(i, j, k)] =
-                                        *((float *)phi_1 + R_FFT_INDEX((unsigned long long)(i),
-                                                                       (unsigned long long)(j),
-                                                                       (unsigned long long)(k)));
-                                }
+                    for (i = 0; i < hi_dim[0]; i++) {
+                        for (j = 0; j < hi_dim[1]; j++) {
+                            for (k = 0; k < hi_dim[2]; k++) {
+                                index = grid_index_general(i, j, k, hi_dim);
+                                index_f = grid_index_fftw_r(i, j, k, hi_dim);
+                                hires_v_2LPT[phi_component][index] = *((float *)phi_1 + index_f);
                             }
                         }
                     }
                 }
             }
 
+            int phi_i, phi_j;
             for (phi_component = 0; phi_component < 3; phi_component++) {
                 // Now calculate the cross components and start evaluating the 2LPT field
-                i = phi_directions[phi_component][0];
-                j = phi_directions[phi_component][1];
+                phi_i = phi_directions[phi_component][0];
+                phi_j = phi_directions[phi_component][1];
 
                 // generate the phi_1 boxes in Fourier transform
 #pragma omp parallel shared(HIRES_box, phi_1) private(n_x, n_y, n_z, k_x, k_y, k_z, k_sq, k) \
     num_threads(simulation_options_global -> N_THREADS)
                 {
+                    unsigned long long int index;
 #pragma omp for
                     for (n_x = 0; n_x < simulation_options_global->DIM; n_x++) {
                         if (n_x > MIDDLE)
@@ -619,14 +612,15 @@ int ComputeInitialConditions(unsigned long long random_seed, InitialConditions *
 
                                 k_sq = k_x * k_x + k_y * k_y + k_z * k_z;
 
+                                index = grid_index_fftw_c(n_x, n_y, n_z, hi_dim);
+
                                 float k[] = {k_x, k_y, k_z};
                                 // now set the velocities
                                 if ((n_x == 0) && (n_y == 0) && (n_z == 0)) {  // DC mode
                                     phi_1[0] = 0;
                                 } else {
-                                    phi_1[C_INDEX(n_x, n_y, n_z)] =
-                                        -k[i] * k[j] * HIRES_box_saved[C_INDEX(n_x, n_y, n_z)] /
-                                        k_sq / VOLUME;
+                                    phi_1[index] = -k[phi_i] * k[phi_j] * HIRES_box_saved[index] /
+                                                   k_sq / VOLUME;
                                     // note the last factor of 1/VOLUME accounts for the scaling in
                                     // real-space, following the FFT
                                 }
@@ -645,66 +639,43 @@ int ComputeInitialConditions(unsigned long long random_seed, InitialConditions *
     private(i, j, k, component_ii, component_jj, component_ij) \
     num_threads(simulation_options_global -> N_THREADS)
                 {
+                    unsigned long long index, index_f;
 #pragma omp for
-                    for (i = 0; i < simulation_options_global->DIM; i++) {
-                        for (j = 0; j < simulation_options_global->DIM; j++) {
-                            for (k = 0; k < D_PARA; k++) {
+                    for (i = 0; i < hi_dim[0]; i++) {
+                        for (j = 0; j < hi_dim[1]; j++) {
+                            for (k = 0; k < hi_dim[2]; k++) {
+                                index = grid_index_general(i, j, k, hi_dim);
+                                index_f = grid_index_fftw_r(i, j, k, hi_dim);
                                 // Note, I have temporarily stored the components into other arrays
                                 // to minimise memory usage phi - {0, 1, 2} -> {hires_vx_2LPT,
                                 // hires_vy_2LPT, hires_vz_2LPT} This may be opaque to the user, but
                                 // this shouldn't need modification
-                                if (phi_component == 0) {
-                                    component_ii = boxes->hires_vx_2LPT[R_INDEX(i, j, k)];
-                                    component_jj = boxes->hires_vy_2LPT[R_INDEX(i, j, k)];
-                                    component_ij =
-                                        *((float *)phi_1 + R_FFT_INDEX((unsigned long long)(i),
-                                                                       (unsigned long long)(j),
-                                                                       (unsigned long long)(k)));
-                                } else if (phi_component == 1) {
-                                    component_ii = boxes->hires_vx_2LPT[R_INDEX(i, j, k)];
-                                    component_jj = boxes->hires_vz_2LPT[R_INDEX(i, j, k)];
-                                    component_ij =
-                                        *((float *)phi_1 + R_FFT_INDEX((unsigned long long)(i),
-                                                                       (unsigned long long)(j),
-                                                                       (unsigned long long)(k)));
-                                } else if (phi_component == 2) {
-                                    component_ii = boxes->hires_vy_2LPT[R_INDEX(i, j, k)];
-                                    component_jj = boxes->hires_vz_2LPT[R_INDEX(i, j, k)];
-                                    component_ij =
-                                        *((float *)phi_1 + R_FFT_INDEX((unsigned long long)(i),
-                                                                       (unsigned long long)(j),
-                                                                       (unsigned long long)(k)));
-                                } else {
-                                    LOG_ERROR("Invalid phi component?");
-                                    Throw(ValueError);
-                                }
+                                component_ii = hires_v_2LPT[phi_i][index];
+                                component_jj = hires_v_2LPT[phi_j][index];
+                                component_ij = *((float *)phi_1 + index_f);
 
                                 // Kept in this form to maintain similar (possible) rounding errors
-                                *((float *)HIRES_box + R_FFT_INDEX((unsigned long long)(i),
-                                                                   (unsigned long long)(j),
-                                                                   (unsigned long long)(k))) +=
-                                    (component_ii * component_jj);
-
-                                *((float *)HIRES_box + R_FFT_INDEX((unsigned long long)(i),
-                                                                   (unsigned long long)(j),
-                                                                   (unsigned long long)(k))) -=
-                                    (component_ij * component_ij);
+                                *((float *)HIRES_box + index_f) += (component_ii * component_jj);
+                                *((float *)HIRES_box + index_f) -= (component_ij * component_ij);
                             }
                         }
                     }
                 }
             }
 
-#pragma omp parallel shared(HIRES_box, phi_1) private(i, j, k) \
+            // deallocate the supplementary boxes
+            fftwf_free(phi_1);
+
+#pragma omp parallel shared(HIRES_box) private(i, j, k) \
     num_threads(simulation_options_global -> N_THREADS)
             {
+                unsigned long long int index;
 #pragma omp for
                 for (i = 0; i < simulation_options_global->DIM; i++) {
                     for (j = 0; j < simulation_options_global->DIM; j++) {
                         for (k = 0; k < D_PARA; k++) {
-                            *((float *)HIRES_box +
-                              R_FFT_INDEX((unsigned long long)(i), (unsigned long long)(j),
-                                          (unsigned long long)(k))) /= TOT_NUM_PIXELS;
+                            index = grid_index_fftw_r(i, j, k, hi_dim);
+                            *((float *)HIRES_box + index) /= TOT_NUM_PIXELS;
                         }
                     }
                 }
@@ -726,7 +697,6 @@ int ComputeInitialConditions(unsigned long long random_seed, InitialConditions *
             // Now let's set the velocity field/dD/dt (in comoving Mpc)
 
             // read in the box
-            // TODO correct free of phi_1
 
             for (ii = 0; ii < 3; ii++) {
                 if (ii > 0) {
@@ -736,6 +706,8 @@ int ComputeInitialConditions(unsigned long long random_seed, InitialConditions *
 #pragma omp parallel shared(HIRES_box, ii) private(n_x, n_y, n_z, k_x, k_y, k_z, k_sq) \
     num_threads(simulation_options_global -> N_THREADS)
                 {
+                    unsigned long long int index;
+                    double kvec[3];
 #pragma omp for
                     // set velocities/dD/dt
                     for (n_x = 0; n_x < simulation_options_global->DIM; n_x++) {
@@ -759,16 +731,13 @@ int ComputeInitialConditions(unsigned long long random_seed, InitialConditions *
                                 // now set the velocities
                                 if ((n_x == 0) && (n_y == 0) && (n_z == 0)) {  // DC mode
                                     HIRES_box[0] = 0;
+
                                 } else {
-                                    if (ii == 0) {
-                                        HIRES_box[C_INDEX(n_x, n_y, n_z)] *= k_x * I / k_sq;
-                                    }
-                                    if (ii == 1) {
-                                        HIRES_box[C_INDEX(n_x, n_y, n_z)] *= k_y * I / k_sq;
-                                    }
-                                    if (ii == 2) {
-                                        HIRES_box[C_INDEX(n_x, n_y, n_z)] *= k_z * I / k_sq;
-                                    }
+                                    kvec[0] = k_x;
+                                    kvec[1] = k_y;
+                                    kvec[2] = k_z;
+                                    index = grid_index_fftw_c(n_x, n_y, n_z, hi_dim);
+                                    HIRES_box[index] *= kvec[ii] * I / k_sq;
                                 }
                             }
                             // note the last factor of 1/VOLUME accounts for the scaling in
@@ -780,7 +749,7 @@ int ComputeInitialConditions(unsigned long long random_seed, InitialConditions *
                 // Filter only if we require perturbing on the low-res grid
                 if (!matter_options_global->PERTURB_ON_HIGH_RES) {
                     if (simulation_options_global->DIM != simulation_options_global->HII_DIM) {
-                        filter_box(HIRES_box, 0, 0,
+                        filter_box(HIRES_box, hi_dim, 0,
                                    L_FACTOR * simulation_options_global->BOX_LEN /
                                        (simulation_options_global->HII_DIM + 0.0),
                                    0.);
@@ -792,73 +761,25 @@ int ComputeInitialConditions(unsigned long long random_seed, InitialConditions *
 
                 // now sample to lower res
                 // now sample the filtered box
-#pragma omp parallel shared(boxes, HIRES_box, f_pixel_factor, ii, dimension) private(i, j, k) \
+#pragma omp parallel shared(boxes, HIRES_box, f_pixel_factor, ii) private(i, j, k) \
     num_threads(simulation_options_global -> N_THREADS)
                 {
+                    unsigned long long int index, index_f;
+                    int resampled_index[3];
 #pragma omp for
-                    for (i = 0; i < dimension; i++) {
-                        for (j = 0; j < dimension; j++) {
-                            for (k = 0;
-                                 k <
-                                 (unsigned long long)(simulation_options_global->NON_CUBIC_FACTOR *
-                                                      dimension);
-                                 k++) {
-                                if (matter_options_global->PERTURB_ON_HIGH_RES) {
-                                    if (ii == 0) {
-                                        boxes->hires_vx_2LPT[R_INDEX(i, j, k)] =
-                                            *((float *)HIRES_box +
-                                              R_FFT_INDEX((unsigned long long)(i),
-                                                          (unsigned long long)(j),
-                                                          (unsigned long long)(k)));
-                                    }
-                                    if (ii == 1) {
-                                        boxes->hires_vy_2LPT[R_INDEX(i, j, k)] =
-                                            *((float *)HIRES_box +
-                                              R_FFT_INDEX((unsigned long long)(i),
-                                                          (unsigned long long)(j),
-                                                          (unsigned long long)(k)));
-                                    }
-                                    if (ii == 2) {
-                                        boxes->hires_vz_2LPT[R_INDEX(i, j, k)] =
-                                            *((float *)HIRES_box +
-                                              R_FFT_INDEX((unsigned long long)(i),
-                                                          (unsigned long long)(j),
-                                                          (unsigned long long)(k)));
-                                    }
-                                } else {
-                                    if (ii == 0) {
-                                        boxes->lowres_vx_2LPT[HII_R_INDEX(i, j, k)] =
-                                            *((float *)HIRES_box +
-                                              R_FFT_INDEX(
-                                                  (unsigned long long)(i * f_pixel_factor + 0.5),
-                                                  (unsigned long long)(j * f_pixel_factor + 0.5),
-                                                  (unsigned long long)(k * f_pixel_factor + 0.5)));
-                                    }
-                                    if (ii == 1) {
-                                        boxes->lowres_vy_2LPT[HII_R_INDEX(i, j, k)] =
-                                            *((float *)HIRES_box +
-                                              R_FFT_INDEX(
-                                                  (unsigned long long)(i * f_pixel_factor + 0.5),
-                                                  (unsigned long long)(j * f_pixel_factor + 0.5),
-                                                  (unsigned long long)(k * f_pixel_factor + 0.5)));
-                                    }
-                                    if (ii == 2) {
-                                        boxes->lowres_vz_2LPT[HII_R_INDEX(i, j, k)] =
-                                            *((float *)HIRES_box +
-                                              R_FFT_INDEX(
-                                                  (unsigned long long)(i * f_pixel_factor + 0.5),
-                                                  (unsigned long long)(j * f_pixel_factor + 0.5),
-                                                  (unsigned long long)(k * f_pixel_factor + 0.5)));
-                                    }
-                                }
+                    for (i = 0; i < pt_dim[0]; i++) {
+                        for (j = 0; j < pt_dim[1]; j++) {
+                            for (k = 0; k < pt_dim[2]; k++) {
+                                index = grid_index_general(i, j, k, pt_dim);
+                                resample_index((int[3]){i, j, k}, dim_ratio_hi_pt, resampled_index);
+                                index_f = grid_index_fftw_r(resampled_index[0], resampled_index[1],
+                                                            resampled_index[2], hi_dim);
+                                vel_pointers_2LPT[ii][index] = *((float *)HIRES_box + index_f);
                             }
                         }
                     }
                 }
             }
-
-            // deallocate the supplementary boxes
-            fftwf_free(phi_1);
         }
         LOG_SUPER_DEBUG("Done 2LPT.");
 

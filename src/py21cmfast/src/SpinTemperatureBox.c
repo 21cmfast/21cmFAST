@@ -489,21 +489,24 @@ void calculate_spectral_factors(double zp) {
 void prepare_filter_boxes(double redshift, float *input_dens, float *input_vcb, float *input_j21,
                           fftwf_complex *output_dens, fftwf_complex *output_LW) {
     int i, j, k;
-    unsigned long long int ct;
+    unsigned long long int ct, index_f;
     double curr_vcb, curr_j21, M_buf;
+    int box_dim[3] = {simulation_options_global->HII_DIM, simulation_options_global->HII_DIM,
+                      HII_D_PARA};
 
 // NOTE: Meraxes just applies a pointer cast box = (fftwf_complex *) input. Figure out why this
 // works,
 //       They pad the input by a factor of 2 to cover the complex part, but from the type I thought
 //       it would be stored [(r,c),(r,c)...] Not [(r,r,r,r....),(c,c,c....)] so the alignment should
 //       be wrong, right?
-#pragma omp parallel for private(i, j, k) num_threads(simulation_options_global->N_THREADS) \
-    collapse(3)
-    for (i = 0; i < simulation_options_global->HII_DIM; i++) {
-        for (j = 0; j < simulation_options_global->HII_DIM; j++) {
-            for (k = 0; k < HII_D_PARA; k++) {
-                *((float *)output_dens + HII_R_FFT_INDEX(i, j, k)) =
-                    input_dens[HII_R_INDEX(i, j, k)];
+#pragma omp parallel for private(i, j, k, ct, index_f) \
+    num_threads(simulation_options_global->N_THREADS) collapse(3)
+    for (i = 0; i < box_dim[0]; i++) {
+        for (j = 0; j < box_dim[1]; j++) {
+            for (k = 0; k < box_dim[2]; k++) {
+                ct = grid_index_general(i, j, k, box_dim);
+                index_f = grid_index_fftw_r(i, j, k, box_dim);
+                *((float *)output_dens + index_f) = input_dens[ct];
             }
         }
     }
@@ -517,21 +520,23 @@ void prepare_filter_boxes(double redshift, float *input_dens, float *input_vcb, 
 
     if (astro_options_global->USE_MINI_HALOS) {
         curr_vcb = astro_options_global->FIX_VCB_AVG ? astro_params_global->FIXED_VAVG : 0;
-#pragma omp parallel for firstprivate(curr_vcb) private(i, j, k, curr_j21, M_buf) \
+#pragma omp parallel for firstprivate(curr_vcb) private(i, j, k, curr_j21, M_buf, ct, index_f) \
     num_threads(simulation_options_global->N_THREADS) collapse(3)
-        for (i = 0; i < simulation_options_global->HII_DIM; i++) {
-            for (j = 0; j < simulation_options_global->HII_DIM; j++) {
-                for (k = 0; k < HII_D_PARA; k++) {
+        for (i = 0; i < box_dim[0]; i++) {
+            for (j = 0; j < box_dim[1]; j++) {
+                for (k = 0; k < box_dim[2]; k++) {
+                    ct = grid_index_general(i, j, k, box_dim);
+                    index_f = grid_index_fftw_r(i, j, k, box_dim);
                     if (!astro_options_global->FIX_VCB_AVG &&
                         matter_options_global->USE_RELATIVE_VELOCITIES) {
-                        curr_vcb = input_vcb[HII_R_INDEX(i, j, k)];
+                        curr_vcb = input_vcb[ct];
                     }
-                    curr_j21 = input_j21[HII_R_INDEX(i, j, k)];
+                    curr_j21 = input_j21[ct];
                     // NOTE: we don't use reionization_feedback here, I assume it wouldn't do much
                     // but it's inconsistent
                     M_buf = lyman_werner_threshold(redshift, curr_j21, curr_vcb);
                     M_buf = fmax(M_buf, astro_params_global->M_TURN);
-                    *((float *)output_LW + HII_R_FFT_INDEX(i, j, k)) = log10(M_buf);
+                    *((float *)output_LW + index_f) = log10(M_buf);
                 }
             }
         }
@@ -553,11 +558,14 @@ void fill_Rbox_table(float **result, fftwf_complex *unfiltered_box, double *R_ar
     int i, j, k, R_ct;
     double R;
     double ave_buffer, min_out_R, max_out_R;
+    int box_dim[3] = {simulation_options_global->HII_DIM, simulation_options_global->HII_DIM,
+                      HII_D_PARA};
 
     fftwf_complex *box =
         (fftwf_complex *)fftwf_malloc(sizeof(fftwf_complex) * HII_KSPACE_NUM_PIXELS);
     // Smooth the density field, at the same time store the minimum and maximum densities for their
     // usage in the interpolation tables
+    LOG_ULTRA_DEBUG("db0");
     for (R_ct = 0; R_ct < n_R; R_ct++) {
         R = R_array[R_ct];
         ave_buffer = 0;
@@ -565,25 +573,33 @@ void fill_Rbox_table(float **result, fftwf_complex *unfiltered_box, double *R_ar
         max_out_R = -1e20;
         // copy over unfiltered box
         memcpy(box, unfiltered_box, sizeof(fftwf_complex) * HII_KSPACE_NUM_PIXELS);
+        LOG_ULTRA_DEBUG("db1 %d", R_ct);
 
         // don't filter on cell size
         if (R >
             L_FACTOR * (simulation_options_global->BOX_LEN / simulation_options_global->HII_DIM)) {
-            filter_box(box, 1, astro_options_global->HEAT_FILTER, R, 0.);
+            filter_box(box, box_dim, astro_options_global->HEAT_FILTER, R, 0.);
         }
+
+        LOG_ULTRA_DEBUG("db2 %d", R_ct);
 
         // now fft back to real space
         dft_c2r_cube(matter_options_global->USE_FFTW_WISDOM, simulation_options_global->HII_DIM,
                      HII_D_PARA, simulation_options_global->N_THREADS, box);
+
+        LOG_ULTRA_DEBUG("db3 %d", R_ct);
         // copy over the values
 #pragma omp parallel private(i, j, k) num_threads(simulation_options_global -> N_THREADS)
         {
             float curr;
+            unsigned long long int index_r, index_f;
 #pragma omp for reduction(+ : ave_buffer) reduction(max : max_out_R) reduction(min : min_out_R)
-            for (i = 0; i < simulation_options_global->HII_DIM; i++) {
-                for (j = 0; j < simulation_options_global->HII_DIM; j++) {
-                    for (k = 0; k < HII_D_PARA; k++) {
-                        curr = *((float *)box + HII_R_FFT_INDEX(i, j, k));
+            for (i = 0; i < box_dim[0]; i++) {
+                for (j = 0; j < box_dim[1]; j++) {
+                    for (k = 0; k < box_dim[2]; k++) {
+                        index_r = grid_index_general(i, j, k, box_dim);
+                        index_f = grid_index_fftw_r(i, j, k, box_dim);
+                        curr = *((float *)box + index_f);
 
                         // NOTE: Min value is on the grid BEFORE constant factor
                         //  correct for aliasing in the filtering step
@@ -597,7 +613,7 @@ void fill_Rbox_table(float **result, fftwf_complex *unfiltered_box, double *R_ar
                         ave_buffer += curr;
                         if (curr < min_out_R) min_out_R = curr;
                         if (curr > max_out_R) max_out_R = curr;
-                        result[R_ct][HII_R_INDEX(i, j, k)] = curr;
+                        result[R_ct][index_r] = curr;
                     }
                 }
             }
@@ -605,7 +621,9 @@ void fill_Rbox_table(float **result, fftwf_complex *unfiltered_box, double *R_ar
         average_arr[R_ct] = ave_buffer / HII_TOT_NUM_PIXELS;
         min_arr[R_ct] = min_out_R;
         max_arr[R_ct] = max_out_R;
+        LOG_ULTRA_DEBUG("db4 %d", R_ct);
     }
+    LOG_ULTRA_DEBUG("db5");
     fftwf_free(box);
 }
 
@@ -619,6 +637,8 @@ void one_annular_filter(float *input_box, float *output_box, double R_inner, dou
     unsigned long long int ct;
     double unfiltered_avg = 0;
     double filtered_avg = 0;
+    int box_dim[3] = {simulation_options_global->HII_DIM, simulation_options_global->HII_DIM,
+                      HII_D_PARA};
 
     fftwf_complex *unfiltered_box =
         (fftwf_complex *)fftwf_malloc(sizeof(fftwf_complex) * HII_KSPACE_NUM_PIXELS);
@@ -629,12 +649,15 @@ void one_annular_filter(float *input_box, float *output_box, double R_inner, dou
     reduction(+ : unfiltered_avg)
     {
         float curr_val;
+        unsigned long long int index_r, index_f;
 #pragma omp for
-        for (i = 0; i < simulation_options_global->HII_DIM; i++) {
-            for (j = 0; j < simulation_options_global->HII_DIM; j++) {
-                for (k = 0; k < HII_D_PARA; k++) {
-                    curr_val = input_box[HII_R_INDEX(i, j, k)];
-                    *((float *)unfiltered_box + HII_R_FFT_INDEX(i, j, k)) = curr_val;
+        for (i = 0; i < box_dim[0]; i++) {
+            for (j = 0; j < box_dim[1]; j++) {
+                for (k = 0; k < box_dim[2]; k++) {
+                    index_r = grid_index_general(i, j, k, box_dim);
+                    index_f = grid_index_fftw_r(i, j, k, box_dim);
+                    curr_val = input_box[index_r];
+                    *((float *)unfiltered_box + index_f) = curr_val;
                     unfiltered_avg += curr_val;
                 }
             }
@@ -662,7 +685,7 @@ void one_annular_filter(float *input_box, float *output_box, double R_inner, dou
 
     // Don't filter on the cell scale
     if (R_inner > 0) {
-        filter_box(filtered_box, 1, 4, R_inner, R_outer);
+        filter_box(filtered_box, box_dim, 4, R_inner, R_outer);
     }
 
     // now fft back to real space
@@ -674,15 +697,18 @@ void one_annular_filter(float *input_box, float *output_box, double R_inner, dou
     reduction(+ : filtered_avg)
     {
         float curr_val;
+        unsigned long long int index_f, index_r;
 #pragma omp for
-        for (i = 0; i < simulation_options_global->HII_DIM; i++) {
-            for (j = 0; j < simulation_options_global->HII_DIM; j++) {
-                for (k = 0; k < HII_D_PARA; k++) {
-                    curr_val = *((float *)filtered_box + HII_R_FFT_INDEX(i, j, k));
+        for (i = 0; i < box_dim[0]; i++) {
+            for (j = 0; j < box_dim[1]; j++) {
+                for (k = 0; k < box_dim[2]; k++) {
+                    index_r = grid_index_general(i, j, k, box_dim);
+                    index_f = grid_index_fftw_r(i, j, k, box_dim);
+                    curr_val = *((float *)filtered_box + index_f);
                     // correct for aliasing in the filtering step
                     if (curr_val < 0.) curr_val = 0.;
 
-                    output_box[HII_R_INDEX(i, j, k)] = curr_val;
+                    output_box[index_r] = curr_val;
                     filtered_avg += curr_val;
                 }
             }
@@ -1380,13 +1406,16 @@ void ts_main(float redshift, float prev_redshift, float perturbed_field_redshift
             log10_Mcrit_LW_unfiltered =
                 (fftwf_complex *)fftwf_malloc(sizeof(fftwf_complex) * HII_KSPACE_NUM_PIXELS);
 
+        LOG_ULTRA_DEBUG("Starting unfiltered boxes.");
         prepare_filter_boxes(redshift, perturbed_field->density, ini_boxes->lowres_vcb,
                              previous_spin_temp->J_21_LW, delta_unfiltered,
                              log10_Mcrit_LW_unfiltered);
+        LOG_ULTRA_DEBUG("Prepared unfiltered boxes.");
         // fill the filtered boxes if we are storing them all
         if (!matter_options_global->MINIMIZE_MEMORY) {
             fill_Rbox_table(delNL0, delta_unfiltered, R_values, astro_params_global->N_STEP_TS, -1,
                             inverse_growth_factor_z, min_densities, ave_dens, max_densities);
+            LOG_ULTRA_DEBUG("Filled density filtered boxes.");
             if (astro_options_global->USE_MINI_HALOS) {
                 // NOTE: we are using previous_zp LW threshold for all zpp, inconsistent with the
                 // halo model
