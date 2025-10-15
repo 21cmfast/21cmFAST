@@ -36,7 +36,6 @@ void adj_complex_conj(fftwf_complex *HIRES_box) {
     }
 
     unsigned long long int corner_indices[8] = {
-        grid_index_fftw_c(0, 0, 0, box_dim),
         grid_index_fftw_c(0, 0, mid_index[2], box_dim),
         grid_index_fftw_c(0, mid_index[1], 0, box_dim),
         grid_index_fftw_c(0, mid_index[1], mid_index[2], box_dim),
@@ -45,9 +44,11 @@ void adj_complex_conj(fftwf_complex *HIRES_box) {
         grid_index_fftw_c(mid_index[0], mid_index[1], 0, box_dim),
         grid_index_fftw_c(mid_index[0], mid_index[1], mid_index[2], box_dim)};
 
-    for (i = 0; i < 8; i++) {
+    for (i = 0; i < 7; i++) {
         HIRES_box[corner_indices[i]] = crealf(HIRES_box[corner_indices[i]]);
     }
+    // set zero mode
+    HIRES_box[grid_index_fftw_c(0, 0, 0, box_dim)] = 0.;
 
     // do entire i except corners
 #pragma omp parallel shared(HIRES_box) private(i, j, k) \
@@ -244,15 +245,14 @@ int ComputeInitialConditions(unsigned long long random_seed, InitialConditions *
 #pragma omp parallel shared(boxes, HIRES_box) private(i, j, k) \
     num_threads(simulation_options_global -> N_THREADS)
         {
-            unsigned long long index_r, index_f;
+            unsigned long long int index_r, index_f;
 #pragma omp for
-            for (i = 0; i < simulation_options_global->DIM; i++) {
-                for (j = 0; j < simulation_options_global->DIM; j++) {
-                    for (k = 0; k < D_PARA; k++) {
+            for (i = 0; i < hi_dim[0]; i++) {
+                for (j = 0; j < hi_dim[1]; j++) {
+                    for (k = 0; k < hi_dim[2]; k++) {
                         index_r = grid_index_general(i, j, k, hi_dim);
                         index_f = grid_index_fftw_r(i, j, k, hi_dim);
-                        *((float *)boxes->hires_density + index_r) =
-                            *((float *)HIRES_box + index_f) / VOLUME;
+                        boxes->hires_density[index_r] = *((float *)HIRES_box + index_f) / VOLUME;
                     }
                 }
             }
@@ -281,7 +281,7 @@ int ComputeInitialConditions(unsigned long long random_seed, InitialConditions *
 #pragma omp parallel shared(boxes, HIRES_box, f_pixel_factor) private(i, j, k) \
     num_threads(simulation_options_global -> N_THREADS)
         {
-            unsigned long long index_r, index_f;
+            unsigned long long int index_r, index_f;
 #pragma omp for
             for (i = 0; i < lo_dim[0]; i++) {
                 for (j = 0; j < lo_dim[1]; j++) {
@@ -305,6 +305,7 @@ int ComputeInitialConditions(unsigned long long random_seed, InitialConditions *
     num_threads(simulation_options_global -> N_THREADS)
                 {
                     unsigned long long int index;
+                    double kvec[3];
 #pragma omp for
                     for (n_x = 0; n_x < simulation_options_global->DIM; n_x++) {
                         if (n_x > MIDDLE)
@@ -326,23 +327,17 @@ int ComputeInitialConditions(unsigned long long random_seed, InitialConditions *
                                 p = power_in_k(k_mag);
                                 p_vcb = power_in_vcb(k_mag);
 
+                                kvec[0] = k_x;
+                                kvec[1] = k_y;
+                                kvec[2] = k_z;
+
                                 // now set the velocities
                                 if ((n_x == 0) && (n_y == 0) && (n_z == 0)) {  // DC mode
                                     HIRES_box[0] = 0;
                                 } else {
                                     index = grid_index_fftw_c(n_x, n_y, n_z, hi_dim);
-                                    if (ii == 0) {
-                                        HIRES_box[index] *=
-                                            I * k_x / k_mag * sqrt(p_vcb / p) * physconst.c_kms;
-                                    }
-                                    if (ii == 1) {
-                                        HIRES_box[index] *=
-                                            I * k_y / k_mag * sqrt(p_vcb / p) * physconst.c_kms;
-                                    }
-                                    if (ii == 2) {
-                                        HIRES_box[index] *=
-                                            I * k_z / k_mag * sqrt(p_vcb / p) * physconst.c_kms;
-                                    }
+                                    HIRES_box[index] *=
+                                        I * kvec[ii] / k_mag * sqrt(p_vcb / p) * physconst.c_kms;
                                 }
                             }
                         }
