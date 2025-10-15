@@ -22,6 +22,7 @@
         macros (eg. R_FFT_INDEX) skip these extra bits to index the truly used array.
 */
 #include <gsl/gsl_rng.h>
+#include <math.h>
 
 #include "InputParameters.h"
 
@@ -34,9 +35,6 @@
      simulation_options_global->BOX_LEN)  // in Mpc^3
 #define BOXLEN_PARA \
     (simulation_options_global->NON_CUBIC_FACTOR * simulation_options_global->BOX_LEN)  // in Mpc
-#define DELTA_K (2 * M_PI / simulation_options_global->BOX_LEN)
-#define DELTA_K_PARA \
-    (2 * M_PI / (simulation_options_global->NON_CUBIC_FACTOR * simulation_options_global->BOX_LEN))
 
 // -------------------------------------------------------------------------------------
 // Convenience Macros for hi-resolution boxes
@@ -116,4 +114,10 @@ inline void resample_index(int idx_in[3], double dim_ratio, int idx_out[3]) {
     idx_out[0] = (int)(idx_in[0] * dim_ratio + 0.5);
     idx_out[1] = (int)(idx_in[1] * dim_ratio + 0.5);
     idx_out[2] = (int)(idx_in[2] * dim_ratio + 0.5);
+}
+
+inline double index_to_k(int idx, double len, int dim) {
+    // Convert an index to a k-mode, assuming box of length len and dim pixels
+    double buf = (idx <= dim / 2) ? idx : (idx - dim);
+    return buf * 2. * M_PI / len;
 }

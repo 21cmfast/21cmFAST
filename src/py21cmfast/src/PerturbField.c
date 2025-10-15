@@ -314,6 +314,9 @@ void compute_perturbed_velocities(unsigned short axis, double redshift,
     int lo_dim[3] = {simulation_options_global->HII_DIM, simulation_options_global->HII_DIM,
                      HII_D_PARA};
     double dim_ratio = box_dim[0] / (double)lo_dim[0];
+    double box_len[3] = {
+        simulation_options_global->BOX_LEN, simulation_options_global->BOX_LEN,
+        simulation_options_global->BOX_LEN * simulation_options_global->NON_CUBIC_FACTOR};
 
     memcpy(velocity_fft_grid, density_saved, sizeof(fftwf_complex) * n_k_pixels);
 
@@ -323,19 +326,12 @@ void compute_perturbed_velocities(unsigned short axis, double redshift,
         unsigned long long grid_index;
 #pragma omp for
         for (n_x = 0; n_x < box_dim[0]; n_x++) {
-            if (n_x > switch_mid[0])
-                k_x = (n_x - box_dim[0]) * DELTA_K;  // wrap around for FFT convention
-            else
-                k_x = n_x * DELTA_K;
-
+            k_x = index_to_k(n_x, box_len[0], box_dim[0]);
             for (n_y = 0; n_y < box_dim[1]; n_y++) {
-                if (n_y > switch_mid[1])
-                    k_y = (n_y - box_dim[1]) * DELTA_K;
-                else
-                    k_y = n_y * DELTA_K;
-
-                for (n_z = 0; n_z <= switch_mid[2]; n_z++) {
-                    k_z = n_z * DELTA_K_PARA;
+                k_y = index_to_k(n_y, box_len[1], box_dim[1]);
+                // since physical space field is real, only half contains independent modes
+                for (n_z = 0; n_z <= box_dim[2] / 2; n_z++) {
+                    k_z = index_to_k(n_z, box_len[2], box_dim[2]);  // never goes above box_dim/2
 
                     kvec[0] = k_x;
                     kvec[1] = k_y;

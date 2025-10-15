@@ -88,9 +88,9 @@ void adj_complex_conj(fftwf_complex *HIRES_box) {
         unsigned long long int index;
         unsigned long long int index_ry;
 #pragma omp for
-        for (i = 0; i <= MIDDLE; i += MIDDLE) {
-            for (j = 1; j < MIDDLE; j++) {
-                for (k = 0; k <= MIDDLE_PARA; k += MIDDLE_PARA) {
+        for (i = 0; i <= mid_index[0]; i += mid_index[0]) {
+            for (j = 1; j < mid_index[1]; j++) {
+                for (k = 0; k <= mid_index[2]; k += mid_index[2]) {
                     index = grid_index_fftw_c(i, j, k, box_dim);
                     index_ry = grid_index_fftw_c(i, box_dim[1] - j, k, box_dim);
                     HIRES_box[index] = conjf(HIRES_box[index_ry]);
@@ -126,8 +126,6 @@ int ComputeInitialConditions(unsigned long long random_seed, InitialConditions *
         int n_x, n_y, n_z, i, j, k, ii;
         float k_x, k_y, k_z, k_mag, p, a, b, k_sq;
         float p_vcb, vcb_i;
-
-        float f_pixel_factor;
 
         gsl_rng *r[simulation_options_global->N_THREADS];
         seed_rng_threads(r, random_seed);
@@ -166,6 +164,11 @@ int ComputeInitialConditions(unsigned long long random_seed, InitialConditions *
             vel_pointers_2LPT[2] = boxes->lowres_vz_2LPT;
         }
         double dim_ratio_hi_pt = hi_dim[0] / (double)pt_dim[0];
+        double dim_ratio_hi_lo = hi_dim[0] / (double)lo_dim[0];
+
+        double box_len[3] = {
+            simulation_options_global->BOX_LEN, simulation_options_global->BOX_LEN,
+            simulation_options_global->NON_CUBIC_FACTOR * simulation_options_global->BOX_LEN};
 
         // ************  INITIALIZATION ********************** //
         // allocate array for the k-space and real-space boxes
@@ -175,7 +178,6 @@ int ComputeInitialConditions(unsigned long long random_seed, InitialConditions *
             (fftwf_complex *)fftwf_malloc(sizeof(fftwf_complex) * KSPACE_NUM_PIXELS);
 
         // find factor of HII pixel size / deltax pixel size
-        f_pixel_factor = simulation_options_global->DIM / (float)simulation_options_global->HII_DIM;
 
         // ************  END INITIALIZATION ****************** //
         LOG_SUPER_DEBUG("Finished initialization.");
@@ -189,28 +191,13 @@ int ComputeInitialConditions(unsigned long long random_seed, InitialConditions *
         {
             int thread_num = omp_get_thread_num();
 #pragma omp for
-            for (n_x = 0; n_x < simulation_options_global->DIM; n_x++) {
-                // convert index to numerical value for this component of the k-mode: k = (2*pi/L) *
-                // n
-                if (n_x > MIDDLE)
-                    k_x = (n_x - simulation_options_global->DIM) *
-                          DELTA_K;  // wrap around for FFT convention
-                else
-                    k_x = n_x * DELTA_K;
-
-                for (n_y = 0; n_y < simulation_options_global->DIM; n_y++) {
-                    // convert index to numerical value for this component of the k-mode: k =
-                    // (2*pi/L) * n
-                    if (n_y > MIDDLE)
-                        k_y = (n_y - simulation_options_global->DIM) * DELTA_K;
-                    else
-                        k_y = n_y * DELTA_K;
-
+            for (n_x = 0; n_x < hi_dim[0]; n_x++) {
+                k_x = index_to_k(n_x, box_len[0], hi_dim[0]);
+                for (n_y = 0; n_y < hi_dim[1]; n_y++) {
+                    k_y = index_to_k(n_y, box_len[1], hi_dim[1]);
                     // since physical space field is real, only half contains independent modes
-                    for (n_z = 0; n_z <= MIDDLE_PARA; n_z++) {
-                        // convert index to numerical value for this component of the k-mode: k =
-                        // (2*pi/L) * n
-                        k_z = n_z * DELTA_K_PARA;
+                    for (n_z = 0; n_z <= hi_dim[2] / 2; n_z++) {
+                        k_z = index_to_k(n_z, box_len[2], hi_dim[2]);  // never goes above hi_dim/2
 
                         // now get the power spectrum; remember, only the magnitude of k counts (due
                         // to issotropy) this could be used to speed-up later maybe
@@ -278,18 +265,19 @@ int ComputeInitialConditions(unsigned long long random_seed, InitialConditions *
 
         // Renormalise the FFT'd box (sample the high-res box if we are perturbing on the
         // low-res grid)
-#pragma omp parallel shared(boxes, HIRES_box, f_pixel_factor) private(i, j, k) \
+#pragma omp parallel shared(boxes, HIRES_box, dim_ratio_hi_lo) private(i, j, k) \
     num_threads(simulation_options_global -> N_THREADS)
         {
             unsigned long long int index_r, index_f;
+            int resampled_index[3];
 #pragma omp for
             for (i = 0; i < lo_dim[0]; i++) {
                 for (j = 0; j < lo_dim[1]; j++) {
                     for (k = 0; k < lo_dim[2]; k++) {
                         index_r = grid_index_general(i, j, k, lo_dim);
-                        index_f = grid_index_fftw_r((int)(i * f_pixel_factor + 0.5),
-                                                    (int)(j * f_pixel_factor + 0.5),
-                                                    (int)(k * f_pixel_factor + 0.5), hi_dim);
+                        resample_index((int[3]){i, j, k}, dim_ratio_hi_lo, resampled_index);
+                        index_f = grid_index_fftw_r(resampled_index[0], resampled_index[1],
+                                                    resampled_index[2], hi_dim);
                         boxes->lowres_density[index_r] = *((float *)HIRES_box + index_f) / VOLUME;
                     }
                 }
@@ -307,21 +295,15 @@ int ComputeInitialConditions(unsigned long long random_seed, InitialConditions *
                     unsigned long long int index;
                     double kvec[3];
 #pragma omp for
-                    for (n_x = 0; n_x < simulation_options_global->DIM; n_x++) {
-                        if (n_x > MIDDLE)
-                            k_x = (n_x - simulation_options_global->DIM) *
-                                  DELTA_K;  // wrap around for FFT convention
-                        else
-                            k_x = n_x * DELTA_K;
-
-                        for (n_y = 0; n_y < simulation_options_global->DIM; n_y++) {
-                            if (n_y > MIDDLE)
-                                k_y = (n_y - simulation_options_global->DIM) * DELTA_K;
-                            else
-                                k_y = n_y * DELTA_K;
-
-                            for (n_z = 0; n_z <= MIDDLE_PARA; n_z++) {
-                                k_z = n_z * DELTA_K_PARA;
+                    for (n_x = 0; n_x < hi_dim[0]; n_x++) {
+                        k_x = index_to_k(n_x, box_len[0], hi_dim[0]);
+                        for (n_y = 0; n_y < hi_dim[1]; n_y++) {
+                            k_y = index_to_k(n_y, box_len[1], hi_dim[1]);
+                            // since physical space field is real, only half contains independent
+                            // modes
+                            for (n_z = 0; n_z <= hi_dim[2] / 2; n_z++) {
+                                k_z = index_to_k(n_z, box_len[2],
+                                                 hi_dim[2]);  // never goes above hi_dim/2
 
                                 k_mag = sqrt(k_x * k_x + k_y * k_y + k_z * k_z);
                                 p = power_in_k(k_mag);
@@ -356,19 +338,19 @@ int ComputeInitialConditions(unsigned long long random_seed, InitialConditions *
                 dft_c2r_cube(matter_options_global->USE_FFTW_WISDOM, simulation_options_global->DIM,
                              D_PARA, simulation_options_global->N_THREADS, HIRES_box);
 
-#pragma omp parallel shared(boxes, HIRES_box, f_pixel_factor, ii) private(i, j, k, vcb_i) \
+#pragma omp parallel shared(boxes, HIRES_box, dim_ratio_hi_lo, ii) private(i, j, k, vcb_i) \
     num_threads(simulation_options_global -> N_THREADS)
                 {
                     unsigned long long int index_r, index_f;
+                    int resampled_index[3];
 #pragma omp for
-                    for (i = 0; i < simulation_options_global->HII_DIM; i++) {
-                        for (j = 0; j < simulation_options_global->HII_DIM; j++) {
-                            for (k = 0; k < HII_D_PARA; k++) {
+                    for (i = 0; i < lo_dim[0]; i++) {
+                        for (j = 0; j < lo_dim[1]; j++) {
+                            for (k = 0; k < lo_dim[2]; k++) {
                                 index_r = grid_index_general(i, j, k, lo_dim);
-                                index_f =
-                                    grid_index_fftw_r((int)(i * f_pixel_factor + 0.5),
-                                                      (int)(j * f_pixel_factor + 0.5),
-                                                      (int)(k * f_pixel_factor + 0.5), hi_dim);
+                                resample_index((int[3]){i, j, k}, dim_ratio_hi_lo, resampled_index);
+                                index_f = grid_index_fftw_r(resampled_index[0], resampled_index[1],
+                                                            resampled_index[2], hi_dim);
                                 vcb_i = *((float *)HIRES_box + index_f);
                                 boxes->lowres_vcb[index_r] += vcb_i * vcb_i;
                             }
@@ -377,9 +359,9 @@ int ComputeInitialConditions(unsigned long long random_seed, InitialConditions *
                 }
             }
             // now we take the sqrt of that and normalize the FFT
-            for (i = 0; i < simulation_options_global->HII_DIM; i++) {
-                for (j = 0; j < simulation_options_global->HII_DIM; j++) {
-                    for (k = 0; k < HII_D_PARA; k++) {
+            for (i = 0; i < lo_dim[0]; i++) {
+                for (j = 0; j < lo_dim[1]; j++) {
+                    for (k = 0; k < lo_dim[2]; k++) {
                         boxes->lowres_vcb[grid_index_general(i, j, k, lo_dim)] =
                             sqrt(boxes->lowres_vcb[grid_index_general(i, j, k, lo_dim)]) / VOLUME;
                     }
@@ -401,22 +383,14 @@ int ComputeInitialConditions(unsigned long long random_seed, InitialConditions *
                 unsigned long long int index;
                 double kvec[3];
 #pragma omp for
-                for (n_x = 0; n_x < simulation_options_global->DIM; n_x++) {
-                    if (n_x > MIDDLE)
-                        k_x = (n_x - simulation_options_global->DIM) *
-                              DELTA_K;  // wrap around for FFT convention
-                    else
-                        k_x = n_x * DELTA_K;
-
-                    for (n_y = 0; n_y < simulation_options_global->DIM; n_y++) {
-                        if (n_y > MIDDLE)
-                            k_y = (n_y - simulation_options_global->DIM) * DELTA_K;
-                        else
-                            k_y = n_y * DELTA_K;
-
-                        for (n_z = 0; n_z <= MIDDLE_PARA; n_z++) {
-                            k_z = n_z * DELTA_K_PARA;
-
+                for (n_x = 0; n_x < hi_dim[0]; n_x++) {
+                    k_x = index_to_k(n_x, box_len[0], hi_dim[0]);
+                    for (n_y = 0; n_y < hi_dim[1]; n_y++) {
+                        k_y = index_to_k(n_y, box_len[1], hi_dim[1]);
+                        // since physical space field is real, only half contains independent modes
+                        for (n_z = 0; n_z <= hi_dim[2] / 2; n_z++) {
+                            k_z = index_to_k(n_z, box_len[2],
+                                             hi_dim[2]);  // never goes above hi_dim/2
                             k_sq = k_x * k_x + k_y * k_y + k_z * k_z;
                             kvec[0] = k_x;
                             kvec[1] = k_y;
@@ -449,7 +423,7 @@ int ComputeInitialConditions(unsigned long long random_seed, InitialConditions *
 
             // now sample to lower res
             // now sample the filtered box
-#pragma omp parallel shared(boxes, HIRES_box, f_pixel_factor, ii) private(i, j, k) \
+#pragma omp parallel shared(boxes, HIRES_box, dim_ratio_hi_lo, ii) private(i, j, k) \
     num_threads(simulation_options_global -> N_THREADS)
             {
                 unsigned long long int index, index_f;
@@ -521,21 +495,15 @@ int ComputeInitialConditions(unsigned long long random_seed, InitialConditions *
                 {
                     unsigned long long int index;
 #pragma omp for
-                    for (n_x = 0; n_x < simulation_options_global->DIM; n_x++) {
-                        if (n_x > MIDDLE)
-                            k_x = (n_x - simulation_options_global->DIM) *
-                                  DELTA_K;  // wrap around for FFT convention
-                        else
-                            k_x = n_x * DELTA_K;
-
-                        for (n_y = 0; n_y < simulation_options_global->DIM; n_y++) {
-                            if (n_y > MIDDLE)
-                                k_y = (n_y - simulation_options_global->DIM) * DELTA_K;
-                            else
-                                k_y = n_y * DELTA_K;
-
-                            for (n_z = 0; n_z <= MIDDLE_PARA; n_z++) {
-                                k_z = n_z * DELTA_K_PARA;
+                    for (n_x = 0; n_x < hi_dim[0]; n_x++) {
+                        k_x = index_to_k(n_x, box_len[0], hi_dim[0]);
+                        for (n_y = 0; n_y < hi_dim[1]; n_y++) {
+                            k_y = index_to_k(n_y, box_len[1], hi_dim[1]);
+                            // since physical space field is real, only half contains independent
+                            // modes
+                            for (n_z = 0; n_z <= hi_dim[2] / 2; n_z++) {
+                                k_z = index_to_k(n_z, box_len[2],
+                                                 hi_dim[2]);  // never goes above hi_dim/2
 
                                 k_sq = k_x * k_x + k_y * k_y + k_z * k_z;
 
@@ -589,21 +557,15 @@ int ComputeInitialConditions(unsigned long long random_seed, InitialConditions *
                 {
                     unsigned long long int index;
 #pragma omp for
-                    for (n_x = 0; n_x < simulation_options_global->DIM; n_x++) {
-                        if (n_x > MIDDLE)
-                            k_x = (n_x - simulation_options_global->DIM) *
-                                  DELTA_K;  // wrap around for FFT convention
-                        else
-                            k_x = n_x * DELTA_K;
-
-                        for (n_y = 0; n_y < simulation_options_global->DIM; n_y++) {
-                            if (n_y > MIDDLE)
-                                k_y = (n_y - simulation_options_global->DIM) * DELTA_K;
-                            else
-                                k_y = n_y * DELTA_K;
-
-                            for (n_z = 0; n_z <= MIDDLE_PARA; n_z++) {
-                                k_z = n_z * DELTA_K_PARA;
+                    for (n_x = 0; n_x < hi_dim[0]; n_x++) {
+                        k_x = index_to_k(n_x, box_len[0], hi_dim[0]);
+                        for (n_y = 0; n_y < hi_dim[1]; n_y++) {
+                            k_y = index_to_k(n_y, box_len[1], hi_dim[1]);
+                            // since physical space field is real, only half contains independent
+                            // modes
+                            for (n_z = 0; n_z <= hi_dim[2] / 2; n_z++) {
+                                k_z = index_to_k(n_z, box_len[2],
+                                                 hi_dim[2]);  // never goes above hi_dim/2
 
                                 k_sq = k_x * k_x + k_y * k_y + k_z * k_z;
 
@@ -666,9 +628,9 @@ int ComputeInitialConditions(unsigned long long random_seed, InitialConditions *
             {
                 unsigned long long int index;
 #pragma omp for
-                for (i = 0; i < simulation_options_global->DIM; i++) {
-                    for (j = 0; j < simulation_options_global->DIM; j++) {
-                        for (k = 0; k < D_PARA; k++) {
+                for (i = 0; i < hi_dim[0]; i++) {
+                    for (j = 0; j < hi_dim[1]; j++) {
+                        for (k = 0; k < hi_dim[2]; k++) {
                             index = grid_index_fftw_r(i, j, k, hi_dim);
                             *((float *)HIRES_box + index) /= TOT_NUM_PIXELS;
                         }
@@ -704,22 +666,15 @@ int ComputeInitialConditions(unsigned long long random_seed, InitialConditions *
                     unsigned long long int index;
                     double kvec[3];
 #pragma omp for
-                    // set velocities/dD/dt
-                    for (n_x = 0; n_x < simulation_options_global->DIM; n_x++) {
-                        if (n_x > MIDDLE)
-                            k_x = (n_x - simulation_options_global->DIM) *
-                                  DELTA_K;  // wrap around for FFT convention
-                        else
-                            k_x = n_x * DELTA_K;
-
-                        for (n_y = 0; n_y < simulation_options_global->DIM; n_y++) {
-                            if (n_y > MIDDLE)
-                                k_y = (n_y - simulation_options_global->DIM) * DELTA_K;
-                            else
-                                k_y = n_y * DELTA_K;
-
-                            for (n_z = 0; n_z <= MIDDLE_PARA; n_z++) {
-                                k_z = n_z * DELTA_K_PARA;
+                    for (n_x = 0; n_x < hi_dim[0]; n_x++) {
+                        k_x = index_to_k(n_x, box_len[0], hi_dim[0]);
+                        for (n_y = 0; n_y < hi_dim[1]; n_y++) {
+                            k_y = index_to_k(n_y, box_len[1], hi_dim[1]);
+                            // since physical space field is real, only half contains independent
+                            // modes
+                            for (n_z = 0; n_z <= hi_dim[2] / 2; n_z++) {
+                                k_z = index_to_k(n_z, box_len[2],
+                                                 hi_dim[2]);  // never goes above hi_dim/2
 
                                 k_sq = k_x * k_x + k_y * k_y + k_z * k_z;
 
@@ -735,8 +690,6 @@ int ComputeInitialConditions(unsigned long long random_seed, InitialConditions *
                                     HIRES_box[index] *= kvec[ii] * I / k_sq;
                                 }
                             }
-                            // note the last factor of 1/VOLUME accounts for the scaling in
-                            // real-space, following the FFT
                         }
                     }
                 }
@@ -754,9 +707,8 @@ int ComputeInitialConditions(unsigned long long random_seed, InitialConditions *
                 dft_c2r_cube(matter_options_global->USE_FFTW_WISDOM, simulation_options_global->DIM,
                              D_PARA, simulation_options_global->N_THREADS, HIRES_box);
 
-                // now sample to lower res
                 // now sample the filtered box
-#pragma omp parallel shared(boxes, HIRES_box, f_pixel_factor, ii) private(i, j, k) \
+#pragma omp parallel shared(boxes, HIRES_box, dim_ratio_hi_lo, ii) private(i, j, k) \
     num_threads(simulation_options_global -> N_THREADS)
                 {
                     unsigned long long int index, index_f;
