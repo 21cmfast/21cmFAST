@@ -286,7 +286,6 @@ void compute_perturbed_velocities(unsigned short axis, double redshift,
 
     float kvec[3];
     double dDdt_over_D = ddickedt(redshift) / dicke(redshift);
-    long long switch_mid[3];
     unsigned long long int n_k_pixels, n_r_pixels;
     // Function for deciding the dimensions of loops when we could
     // use either the low or high resolution grids.
@@ -296,18 +295,12 @@ void compute_perturbed_velocities(unsigned short axis, double redshift,
         box_dim[0] = simulation_options_global->DIM;
         box_dim[1] = simulation_options_global->DIM;
         box_dim[2] = D_PARA;
-        switch_mid[0] = MID;
-        switch_mid[1] = MID;
-        switch_mid[2] = MID_PARA;
         n_k_pixels = KSPACE_NUM_PIXELS;
         n_r_pixels = TOT_NUM_PIXELS;
     } else {
         box_dim[0] = simulation_options_global->HII_DIM;
         box_dim[1] = simulation_options_global->HII_DIM;
         box_dim[2] = HII_D_PARA;
-        switch_mid[0] = HII_MID;
-        switch_mid[1] = HII_MID;
-        switch_mid[2] = HII_MID_PARA;
         n_k_pixels = HII_KSPACE_NUM_PIXELS;
         n_r_pixels = HII_TOT_NUM_PIXELS;
     }
