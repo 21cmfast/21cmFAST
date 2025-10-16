@@ -674,7 +674,7 @@ int ComputeHaloBox(double redshift, InitialConditions *ini_boxes, PerturbHaloFie
                 if (matter_options_global->HALO_STOCHASTICITY) {
                     M_max_integral = simulation_options_global->SAMPLER_MIN_MASS;
                 } else {
-                    M_max_integral = RtoM(L_FACTOR * simulation_options_global->BOX_LEN /
+                    M_max_integral = RtoM(physconst.l_factor * simulation_options_global->BOX_LEN /
                                           simulation_options_global->DIM);
                 }
                 if (M_min < M_max_integral) {

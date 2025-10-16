@@ -152,7 +152,7 @@ void assign_to_lowres_grid(fftwf_complex *hires_grid, fftwf_complex *lowres_grid
 
     // Now filter the box
     filter_box(hires_grid, hi_dim, 0,
-               L_FACTOR * simulation_options_global->BOX_LEN / (lo_dim[0] + 0.0), 0.);
+               physconst.l_factor * simulation_options_global->BOX_LEN / (lo_dim[0] + 0.0), 0.);
 
     // FFT back to real space
     dft_c2r_cube(matter_options_global->USE_FFTW_WISDOM, hi_dim[0], hi_dim[2],
@@ -352,7 +352,7 @@ void compute_perturbed_velocities(unsigned short axis, double redshift,
     if (matter_options_global->PERTURB_ON_HIGH_RES &&
         simulation_options_global->DIM != simulation_options_global->HII_DIM) {
         filter_box(velocity_fft_grid, box_dim, 0,
-                   L_FACTOR * simulation_options_global->BOX_LEN /
+                   physconst.l_factor * simulation_options_global->BOX_LEN /
                        (simulation_options_global->HII_DIM + 0.0),
                    0.);
     }

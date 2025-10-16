@@ -610,7 +610,7 @@ double omega_mz(float z) {
  i.e. answer is rho / rho_crit
  In Einstein de sitter model = 178
  (fitting formula from Bryan & Norman 1998) */
-double Deltac_nonlinear(float z) {
+double deltac_nonlinear(float z) {
     double d;
     d = omega_mz(z) - 1.0;
     return 18 * M_PI * M_PI + 82 * d - 39 * d * d;
@@ -625,18 +625,18 @@ double Deltac_nonlinear(float z) {
  */
 double TtoM(double z, double T, double mu) {
     return 7030.97 / (cosmo_params_global->hlittle) *
-           sqrt(omega_mz(z) / (cosmo_params_global->OMm * Deltac_nonlinear(z))) *
+           sqrt(omega_mz(z) / (cosmo_params_global->OMm * deltac_nonlinear(z))) *
            pow(T / (mu * (1 + z)), 1.5);
     /*  if (!SUPRESS || (z >= z_re) ) // pre-reionization or don't worry about supression
-     return 7030.97 / hlittle * sqrt( omega_mz(z) / (OMm*Deltac_nonlinear(z)) ) *
+     return 7030.97 / hlittle * sqrt( omega_mz(z) / (OMm*deltac_nonlinear(z)) ) *
      pow( T/(mu * (1+z)), 1.5 );
 
      if (z >= z_ss) // self-shielding dominates, use T = 1e4 K
-     return 7030.97 / hlittle * sqrt( omega_mz(z) / (OMm*Deltac_nonlinear(z)) ) *
+     return 7030.97 / hlittle * sqrt( omega_mz(z) / (OMm*deltac_nonlinear(z)) ) *
      pow( 1.0e4 /(mu * (1+z)), 1.5 );
 
      // optically thin
-     return 7030.97 / hlittle * sqrt( omega_mz(z) / (OMm*Deltac_nonlinear(z)) ) *
+     return 7030.97 / hlittle * sqrt( omega_mz(z) / (OMm*deltac_nonlinear(z)) ) *
      pow( VcirtoT(v_ss, mu) /(mu * (1+z)), 1.5 );
      */
 }

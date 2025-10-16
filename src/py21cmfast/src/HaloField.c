@@ -89,11 +89,12 @@ int ComputeHaloField(float redshift_desc, float redshift, InitialConditions *box
         // set minimum source mass
         // if we use the sampler we want to stop at the HII cell mass
         if (matter_options_global->HALO_STOCHASTICITY)
-            M_MIN = fmax(M_MIN, RtoM(L_FACTOR * simulation_options_global->BOX_LEN /
+            M_MIN = fmax(M_MIN, RtoM(physconst.l_factor * simulation_options_global->BOX_LEN /
                                      simulation_options_global->HII_DIM));
         // otherwise we stop at the cell mass
         else
-            M_MIN = fmax(M_MIN, RtoM(L_FACTOR * simulation_options_global->BOX_LEN / grid_dim));
+            M_MIN = fmax(M_MIN,
+                         RtoM(physconst.l_factor * simulation_options_global->BOX_LEN / grid_dim));
 
         // allocate array for the k-space box
         density_field = (fftwf_complex *)fftwf_malloc(sizeof(fftwf_complex) * KSPACE_NUM_PIXELS);
@@ -156,14 +157,14 @@ int ComputeHaloField(float redshift_desc, float redshift, InitialConditions *box
 
         // lets filter it now
         // set initial R value
-        Delta_R = L_FACTOR * 2. * simulation_options_global->BOX_LEN / (grid_dim + 0.0);
+        Delta_R = physconst.l_factor * 2. * simulation_options_global->BOX_LEN / (grid_dim + 0.0);
 
         total_halo_num = 0;
         R = MtoR(M_MIN * 1.01);  // one percent higher for rounding
 
         LOG_DEBUG("Prepare to filter to find halos");
 
-        while (R < L_FACTOR * simulation_options_global->BOX_LEN)
+        while (R < physconst.l_factor * simulation_options_global->BOX_LEN)
             R *= simulation_options_global->DELTA_R_FACTOR;
 
         HaloField *halos_dexm;
@@ -189,7 +190,8 @@ int ComputeHaloField(float redshift_desc, float redshift, InitialConditions *box
             // parameters to the
             //       Sheth-Tormen mass function (as of right now, We do not even reproduce EPS
             //       results)
-            delta_crit = growth_factor * sheth_delc_dexm(Deltac / growth_factor, sigma_z0(M));
+            delta_crit =
+                growth_factor * sheth_delc_dexm(physconst.delta_c_sph / growth_factor, sigma_z0(M));
 
             // first let's check if virialized halos of this size are rare enough
             // that we don't have to worry about them (let's define 7 sigma away, as in Mesinger et
@@ -364,7 +366,7 @@ int ComputeHaloField(float redshift_desc, float redshift, InitialConditions *box
             if (simulation_options_global->DIM != simulation_options_global->HII_DIM) {
                 // the tophat filter here will smoothe the grid to HII_DIM
                 filter_box(density_field, dim_arr, 0,
-                           L_FACTOR * simulation_options_global->BOX_LEN /
+                           physconst.l_factor * simulation_options_global->BOX_LEN /
                                (simulation_options_global->HII_DIM + 0.0),
                            0.);
             }

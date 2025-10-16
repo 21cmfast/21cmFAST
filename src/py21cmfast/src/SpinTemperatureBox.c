@@ -310,7 +310,8 @@ void setup_z_edges(double zp) {
     double dzpp_for_evolve;
     int R_ct;
 
-    R = L_FACTOR * simulation_options_global->BOX_LEN / (float)simulation_options_global->HII_DIM;
+    R = physconst.l_factor * simulation_options_global->BOX_LEN /
+        (float)simulation_options_global->HII_DIM;
     R_factor = pow(astro_params_global->R_MAX_TS / R, 1 / ((float)astro_params_global->N_STEP_TS));
 
     for (R_ct = 0; R_ct < astro_params_global->N_STEP_TS; R_ct++) {
@@ -576,8 +577,8 @@ void fill_Rbox_table(float **result, fftwf_complex *unfiltered_box, double *R_ar
         LOG_ULTRA_DEBUG("db1 %d", R_ct);
 
         // don't filter on cell size
-        if (R >
-            L_FACTOR * (simulation_options_global->BOX_LEN / simulation_options_global->HII_DIM)) {
+        if (R > physconst.l_factor *
+                    (simulation_options_global->BOX_LEN / simulation_options_global->HII_DIM)) {
             filter_box(box, box_dim, astro_options_global->HEAT_FILTER, R, 0.);
         }
 

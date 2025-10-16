@@ -55,6 +55,11 @@ typedef struct PhysicalConstants {
     const double alpha_A_10k;  // case A hydrogen recombination coefficient at 10,000 K in cm^3 s^-1
     const double alpha_B_10k;  // case B hydrogen recombination coefficient at 10,000 K in cm^3 s^-1
     const double alpha_B_20k;  // case B hydrogen recombination coefficient at 20,000 K in cm^3 s^-1
+
+    // misc.
+    const double l_factor;       // factor relating cube length to filter radius = (4PI/3)^(-1/3)
+    const double delta_c_sph;    // critical overdensity in spherical collapse model
+    const double delta_c_delos;  // critical overdensity in Delos 2025 random walk model.
 } PhysicalConstants;
 
 extern const PhysicalConstants physconst;
@@ -65,15 +70,6 @@ extern const PhysicalConstants physconst;
 // BEWARE: Since these macros are defined in a header, they *can* be applied to
 // any code included by 21cmFAST, e.g. if file A includes Constants.h, then includes
 // file B which includes fftw.h, the macros do find/replaces on fftw.h during compilation.
-
-// We should work toward *only* having definitions in .c files to avoid this.
-
-// factor relating cube length to filter radius = (4PI/3)^(-1/3)
-#define L_FACTOR (float)(0.620350491)
-
-// STRUCTURE //
-#define Deltac (1.68)  // at z=0, density excess at virialization
-#define DELTAC_DELOS (1.5)
 
 // Small numbers for comparison and avoiding division by zero
 #define TINY (double)1e-30

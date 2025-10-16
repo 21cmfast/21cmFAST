@@ -529,9 +529,9 @@ int stoc_split_sample(struct HaloSamplingConstants *hs_constants, gsl_rng *rng, 
     float d_points[MAX_HALO_CELL], m_points[MAX_HALO_CELL];
 
     // set initial points
-    d_points[0] = Deltac / hs_constants->growth_in;
+    d_points[0] = physconst.delta_c_sph / hs_constants->growth_in;
     m_points[0] = hs_constants->M_cond;
-    d_target = Deltac / hs_constants->growth_out;
+    d_target = physconst.delta_c_sph / hs_constants->growth_out;
 
     // counters for total mass, number at target z, active index, and total number in sub-tree
     double M_total = 0;
@@ -1039,7 +1039,7 @@ int sample_halo_progenitors(gsl_rng **rng_arr, double z_in, double z_out, HaloFi
                     LOG_ULTRA_DEBUG(
                         "First Halo Prog %d: Mass %.2e Stellar %.2e SFR %.2e XRAY %.2e e_d %.3f",
                         jj, prog_buf[jj], propbuf_out[0], propbuf_out[1], propbuf_out[2],
-                        Deltac * hs_constants->growth_out / hs_constants->growth_in);
+                        physconst.delta_c_sph * hs_constants->growth_out / hs_constants->growth_in);
                 }
             }
             if (ii == 0) {

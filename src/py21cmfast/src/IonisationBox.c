@@ -948,10 +948,10 @@ void calculate_fcoll_grid(IonizedBox *box, IonizedBox *previous_ionize_box,
 }
 
 int setup_radii(struct RadiusSpec **rspec_array, struct IonBoxConstants *consts) {
-    double maximum_radius =
-        fmin(astro_params_global->R_BUBBLE_MAX, L_FACTOR * simulation_options_global->BOX_LEN);
+    double maximum_radius = fmin(astro_params_global->R_BUBBLE_MAX,
+                                 physconst.l_factor * simulation_options_global->BOX_LEN);
 
-    double cell_length_factor = L_FACTOR;
+    double cell_length_factor = physconst.l_factor;
     // TODO: figure out why this is used in such a specific case
     if (matter_options_global->USE_HALO_FIELD && !astro_options_global->IONISE_ENTIRE_SPHERE &&
         (consts->pixel_length < 1))

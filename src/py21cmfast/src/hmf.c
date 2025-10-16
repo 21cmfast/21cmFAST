@@ -131,10 +131,10 @@ double sheth_delc_fixed(double del, double sig) {
 
 // Get the relevant excursion set barrier density given the user-specified HMF
 double get_delta_crit(int HMF, double sigma, double growthf) {
-    if (HMF == 4) return DELTAC_DELOS;
-    if (HMF == 1) return sheth_delc_fixed(Deltac / growthf, sigma) * growthf;
+    if (HMF == 4) return physconst.delta_c_delos;
+    if (HMF == 1) return sheth_delc_fixed(physconst.delta_c_sph / growthf, sigma) * growthf;
 
-    return Deltac;
+    return physconst.delta_c_sph;
 }
 
 // Mo & White 1996 fit
@@ -164,7 +164,7 @@ double dNdlnM_Delos(double growthf, double lnM) {
     sigma_inv = 1 / sigma;
     dsigmadm = EvaluatedSigmasqdm(lnM) * (0.5 * sigma_inv);  // d(s^2)/dm z0 to dsdm
 
-    nu = DELTAC_DELOS * sigma_inv / growthf;
+    nu = physconst.delta_c_delos * sigma_inv / growthf;
 
     dfdnu = coeff_nu * pow(nu, index_nu) * exp(exp_factor * nu * nu);
     dfdM = dfdnu * fabs(dsigmadm) * sigma_inv;
@@ -186,7 +186,7 @@ double dNdlnM_conditional_Delos(double growthf, double lnM, double delta_cond, d
     dsigmadm = EvaluatedSigmasqdm(lnM) * 0.5;  // d(s^2)/dm to s*dsdm
     sigdiff_inv = sigma == sigma_cond ? 1e6 : 1 / (sigma * sigma - sigma_cond * sigma_cond);
 
-    nu = (DELTAC_DELOS - delta_cond) * sqrt(sigdiff_inv) / growthf;
+    nu = (physconst.delta_c_delos - delta_cond) * sqrt(sigdiff_inv) / growthf;
 
     dfdnu = coeff_nu * pow(nu, index_nu) * exp(exp_factor * nu * nu);
     dfdM = dfdnu * fabs(dsigmadm) * sigdiff_inv;
@@ -204,7 +204,7 @@ double st_taylor_factor(double sig, double sig_cond, double growthf, double *zer
     double alpha = JENKINS_c;  // fixed instead of SHETH_c_DEXM bc of DexM corrections
     double beta = JENKINS_b;   // fixed instead of SHETH_b_DEXM
 
-    double del = Deltac / growthf;
+    double del = physconst.delta_c_sph / growthf;
 
     double sigsq = sig * sig;
     double sigsq_inv = 1. / sigsq;
@@ -273,7 +273,7 @@ double dNdlnM_st(double growthf, double lnM) {
     sigma = sigma * growthf;
     dsigmadm = dsigmadm * (growthf * growthf / (2. * sigma));
 
-    nuhat = sqrt(SHETH_a) * Deltac / sigma;
+    nuhat = sqrt(SHETH_a) * physconst.delta_c_sph / sigma;
 
     return -(dsigmadm / sigma) * sqrt(2. / M_PI) * SHETH_A * (1 + pow(nuhat, -2 * SHETH_p)) *
            nuhat * exp(-nuhat * nuhat / 2.0);
@@ -290,7 +290,7 @@ double dNdM_conditional_EPS(double growthf, double lnM, double delta_cond, doubl
     // limit setting
     if (sigma1 < sigma_cond) return 0.;
     sigdiff_inv = sigma1 == sigma_cond ? 1e6 : 1 / (sigma1 * sigma1 - sigma_cond * sigma_cond);
-    del = (Deltac - delta_cond) / growthf;
+    del = (physconst.delta_c_sph - delta_cond) / growthf;
 
     return -del * dsigmasqdm * pow(sigdiff_inv, 1.5) * exp(-del * del * 0.5 * sigdiff_inv) /
            sqrt(2. * M_PI);
@@ -317,8 +317,8 @@ double dNdlnM_PS(double growthf, double lnM) {
 
     sigma = sigma * growthf;
     dsigmadm = dsigmadm * (growthf * growthf / (2. * sigma));
-    return -sqrt(2 / M_PI) * (Deltac / (sigma * sigma)) * dsigmadm *
-           exp(-(Deltac * Deltac) / (2 * sigma * sigma));
+    return -sqrt(2 / M_PI) * (physconst.delta_c_sph / (sigma * sigma)) * dsigmadm *
+           exp(-(physconst.delta_c_sph * physconst.delta_c_sph) / (2 * sigma * sigma));
 }
 
 // The below mass functions do not have a CMF given
@@ -724,7 +724,7 @@ double MFIntegral_Approx(double lnM_lo, double lnM_hi, struct parameters_gsl_MF_
     else
         index_base = -1.;
 
-    double delta_arg = pow((Deltac - delta) / growthf, 2);
+    double delta_arg = pow((physconst.delta_c_sph - delta) / growthf, 2);
     double beta1 = index_base * AINDEX1 * 0.5;  // exponent for Fcollapprox for nu>nupivot1 (large
                                                 // M)
     double beta2 =
@@ -833,7 +833,7 @@ double IntegratedNdM(double lnM_lo, double lnM_hi, struct parameters_gsl_MF_inte
 double FgtrM(double z, double M) {
     double del, sig;
 
-    del = Deltac / dicke(z);  // regular spherical collapse delta
+    del = physconst.delta_c_sph / dicke(z);  // regular spherical collapse delta
     sig = sigma_z0(M);
 
     return splined_erfc(del / (sqrt(2) * sig));
@@ -847,7 +847,7 @@ double FgtrM(double z, double M) {
 double FgtrM_wsigma(double z, double sig) {
     double del;
 
-    del = Deltac / dicke(z);  // regular spherical collapse delta
+    del = physconst.delta_c_sph / dicke(z);  // regular spherical collapse delta
 
     return splined_erfc(del / (sqrt(2) * sig));
 }
@@ -1145,9 +1145,9 @@ double FgtrM_bias_fast(float growthf, float del_bias, float sig_small, float sig
     if (sig_large == sig_small) {
         return 0.;
     }
-    // del = Deltac/growthf - del_bias; //NOTE HERE DELTA EXTRAPOLATED TO z=0
+    // del = physconst.delta_c_sph/growthf - del_bias; //NOTE HERE DELTA EXTRAPOLATED TO z=0
     sig = sqrt(sig_small * sig_small - sig_large * sig_large);
-    del = (Deltac - del_bias) / growthf;
+    del = (physconst.delta_c_sph - del_bias) / growthf;
 
     // if the density is above critical on this scale, it is collapsed
     // NOTE: should we allow del < 0??? We would need to change dfcolldz to prevent zero dfcoll

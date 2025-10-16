@@ -1,5 +1,7 @@
 #include "Constants.h"
 
+#include <math.h>
+
 // Values differing from the original 21cmFAST were taken from Astropy constants v7.1.0
 const PhysicalConstants physconst = {
     .c_cms = 2.99792458e10,
@@ -37,4 +39,7 @@ const PhysicalConstants physconst = {
     .alpha_A_10k = 4.18e-13,  // taken from osterbrock
     .alpha_B_10k = 2.59e-13,  // taken from osterbrock
     .alpha_B_20k = 2.52e-13,  // taken from osterbrock
-};
+
+    .l_factor = 0.620350491,
+    .delta_c_sph = 1.686,  // was 1.68
+    .delta_c_delos = 1.5};

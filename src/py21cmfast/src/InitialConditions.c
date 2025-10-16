@@ -196,7 +196,7 @@ void compute_relative_velocities(fftwf_complex *box, fftwf_complex *box_saved, f
         // we only care about the lowres vcb box, so we filter it directly.
         if (simulation_options_global->DIM != simulation_options_global->HII_DIM) {
             filter_box(box, hi_dim, 0,
-                       L_FACTOR * simulation_options_global->BOX_LEN /
+                       physconst.l_factor * simulation_options_global->BOX_LEN /
                            (simulation_options_global->HII_DIM + 0.0),
                        0.);
         }
@@ -330,7 +330,7 @@ void compute_velocity_fields(fftwf_complex *box, fftwf_complex *box_saved, float
         if (!matter_options_global->PERTURB_ON_HIGH_RES) {
             if (simulation_options_global->DIM != simulation_options_global->HII_DIM) {
                 filter_box(box, hi_dim, 0,
-                           L_FACTOR * simulation_options_global->BOX_LEN /
+                           physconst.l_factor * simulation_options_global->BOX_LEN /
                                (simulation_options_global->HII_DIM + 0.0),
                            0.);
             }
@@ -513,7 +513,7 @@ void compute_velocity_fields_2LPT(fftwf_complex *box, fftwf_complex *box_saved,
         if (!matter_options_global->PERTURB_ON_HIGH_RES) {
             if (simulation_options_global->DIM != simulation_options_global->HII_DIM) {
                 filter_box(box, hi_dim, 0,
-                           L_FACTOR * simulation_options_global->BOX_LEN /
+                           physconst.l_factor * simulation_options_global->BOX_LEN /
                                (simulation_options_global->HII_DIM + 0.0),
                            0.);
             }
@@ -653,7 +653,7 @@ int ComputeInitialConditions(unsigned long long random_seed, InitialConditions *
         // Only filter if we are perturbing on the low-resolution grid
         if (simulation_options_global->DIM != simulation_options_global->HII_DIM) {
             filter_box(HIRES_box, hi_dim, 0,
-                       L_FACTOR * simulation_options_global->BOX_LEN /
+                       physconst.l_factor * simulation_options_global->BOX_LEN /
                            (simulation_options_global->HII_DIM + 0.0),
                        0.);
         }
