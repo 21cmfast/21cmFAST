@@ -1,11 +1,14 @@
 """Tools for simulation managements."""
 
 from . import InputParameters
+from .io.caching import CacheConfig
 from .wrapper import outputs as ostrct
 from .wrapper.arrays import Array
 
 
-def get_expected_outputs(inputs: InputParameters) -> dict[str, dict[str, Array]]:
+def get_expected_outputs(
+    inputs: InputParameters, cache_config: CacheConfig = CacheConfig.on()
+) -> dict[str, dict[str, Array]]:
     """Return a dictionary of expected output structs and their arrays for given inputs."""
     out = {
         "InitialConditions": ostrct.InitialConditions.new(inputs).arrays,
@@ -29,11 +32,33 @@ def get_expected_outputs(inputs: InputParameters) -> dict[str, dict[str, Array]]
             "TsBox": ostrct.TsBox.new(inputs, redshift=6.0).arrays,
         }
 
+    # Make the outputs consistent with the cache config
+    if not cache_config.initial_conditions:
+        del out["InitialConditions"]
+    if not cache_config.perturbed_field:
+        del out["PerturbedField"]
+    if not cache_config.ionized_box:
+        del out["IonizedBox"]
+    if not cache_config.brightness_temp:
+        del out["BrightnessTemp"]
+    if not cache_config.halo_field and "HaloField" in out:
+        del out["HaloField"]
+    if not cache_config.halobox and "HaloBox" in out:
+        del out["HaloBox"]
+    if not cache_config.perturbed_halo_field and "PerturbHaloField" in out:
+        del out["PerturbHaloField"]
+    if not cache_config.spin_temp and "TsBox" in out:
+        del out["TsBox"]
+    if not cache_config.xray_source_box and "XraySourceBox" in out:
+        del out["XraySourceBox"]
+
     return out
 
 
 def get_expected_sizes(
-    inputs: InputParameters, redshift: float = 6.0
+    inputs: InputParameters,
+    cache_config: CacheConfig = CacheConfig.on(),
+    redshift: float = 6.0,
 ) -> dict[str, int]:
     """Compute the expected size of each of the relevant output structs in a sim.
 
@@ -46,11 +71,9 @@ def get_expected_sizes(
     two of each type of array must be in memory at once, and peak memory while inside
     a C compute function can be temporarily higher again.
     """
-    structs = get_expected_outputs(inputs)
+    structs = get_expected_outputs(inputs, cache_config)
 
-    out = {}
-    out["InitialConditions"] = ostrct.InitialConditions.new(inputs).get_full_size()
-
+    out = {"InitialConditions": ostrct.InitialConditions.new(inputs).get_full_size()}
     for name in structs:
         struct = getattr(ostrct, name)
         if name != "InitialConditions":
@@ -59,11 +82,13 @@ def get_expected_sizes(
     return out
 
 
-def get_total_storage_size(inputs: InputParameters):
+def get_total_storage_size(
+    inputs: InputParameters, cache_config: CacheConfig = CacheConfig.on()
+):
     """Compute the total storage size of a simulation."""
     out = {}
     for i, z in enumerate(inputs.node_redshifts):
-        sizes = get_expected_sizes(inputs, redshift=z)
+        sizes = get_expected_sizes(inputs, cache_config=cache_config, redshift=z)
         if i == 0:
             out["InitialConditions"] = (1, sizes["InitialConditions"])
             for name in sizes:

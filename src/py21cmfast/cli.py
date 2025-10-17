@@ -765,12 +765,15 @@ def predict_struct_size(
     param_selection: ParameterSelection = ParameterSelection(),
     user_params: Parameters = Parameters(),
     unit: Literal["b", "kb", "mb", "gb"] | None = None,
+    cache_config: Literal["on", "off", "noloop", "last_step_only"] = "on",
 ):
     """Compute the required storage per output kind for given inputs."""
     from .management import get_expected_sizes
 
     inputs, _ = _get_inputs(param_selection, user_params)
-    sizes = get_expected_sizes(inputs)
+    sizes = get_expected_sizes(
+        inputs, cache_config=getattr(CacheConfig, cache_config)()
+    )
 
     units = ["b", "kb", "mb", "gb", "tb"]
     if unit is None:
@@ -800,6 +803,7 @@ def predict_storage_size(
         float, Parameter(name=("--zmin-evolution", "--zmin"))
     ] = 5.5,
     unit: Literal["b", "kb", "mb", "gb"] | None = None,
+    cache_config: Literal["on", "off", "noloop", "last_step_only"] = "on",
 ):
     """Compute the required storage for an entire run."""
     from .management import get_total_storage_size
@@ -807,7 +811,9 @@ def predict_storage_size(
     inputs, _ = _get_inputs(param_selection, user_params)
     inputs = inputs.with_logspaced_redshifts(zmin=min_evolved_redshift)
 
-    sizes = get_total_storage_size(inputs)
+    sizes = get_total_storage_size(
+        inputs, cache_config=getattr(CacheConfig, cache_config)()
+    )
 
     units = ["b", "kb", "mb", "gb", "tb"]
     if unit is None:
