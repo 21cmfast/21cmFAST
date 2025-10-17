@@ -553,11 +553,11 @@ def print_failure_stats(test, truth, inputs, abs_tol, rel_tol, name):
         for i, inp in enumerate(inputs)
     ]
     for i, _inp in enumerate(inputs):
-        message += f"failure range of inputs axis {i} {failed_inp[i].min():.2e} {failed_inp[i].max():.2e}\n"
+        message += f"failure range of inputs axis {i} {failed_inp[i].min():.4e} {failed_inp[i].max():.2e}\n"
 
     message += "----- First 10 -----\n"
     for j in range(min(10, sel_failed.sum())):
-        input_arr = [f"{failed_inp[i][j]:.2e}" for i, finp in enumerate(failed_inp)]
+        input_arr = [f"{failed_inp[i][j]:.4e}" for i, finp in enumerate(failed_inp)]
         message += (
             f"CRD {input_arr}"
             + f"  {truth[sel_failed].flatten()[j]:.4e} {test[sel_failed].flatten()[j]:.4e}\n"

@@ -494,7 +494,7 @@ int stoc_partition_sample(struct HaloSamplingConstants *hs_constants, gsl_rng *r
 double ComputeFraction_split(double sigma_start, double sigmasq_start, double sigmasq_res,
                              double G1, double dd, double gamma1) {
     double u_res = sigma_start * pow(sigmasq_res - sigmasq_start, -.5);
-    return sqrt(2. / PI) * EvaluateJ(u_res, gamma1) * G1 / sigma_start * dd;
+    return sqrt(2. / M_PI) * EvaluateJ(u_res, gamma1) * G1 / sigma_start * dd;
 }
 
 // binary splitting with small internal steps based on Parkinson+08, Bensen+16, Qiu+20 (Darkforest)
@@ -529,9 +529,9 @@ int stoc_split_sample(struct HaloSamplingConstants *hs_constants, gsl_rng *rng, 
     float d_points[MAX_HALO_CELL], m_points[MAX_HALO_CELL];
 
     // set initial points
-    d_points[0] = Deltac / hs_constants->growth_in;
+    d_points[0] = physconst.delta_c_sph / hs_constants->growth_in;
     m_points[0] = hs_constants->M_cond;
-    d_target = Deltac / hs_constants->growth_out;
+    d_target = physconst.delta_c_sph / hs_constants->growth_out;
 
     // counters for total mass, number at target z, active index, and total number in sub-tree
     double M_total = 0;
@@ -590,7 +590,7 @@ int stoc_split_sample(struct HaloSamplingConstants *hs_constants, gsl_rng *rng, 
             pow_diff = pow(.5, eta) - pow(q_res, eta);
             G2 = G1 * pow(sigma_half / sigma_start, gamma1) * pow(0.5, mu * gamma1);
             // this is the number of progenitors expected per unit increase in the barrier
-            dN_dd = sqrt(2. / PI) * B * pow_diff / eta * alpha_half * G2;
+            dN_dd = sqrt(2. / M_PI) * B * pow_diff / eta * alpha_half * G2;
             // barrier change which results in average of at most eps2 progenitors
             dd2 = eps2 / dN_dd;
 
@@ -767,7 +767,8 @@ void condense_sparse_halolist(HaloField *halofield, unsigned long long int *ista
 int sample_halo_grids(gsl_rng **rng_arr, double redshift, float *dens_field,
                       float *halo_overlap_box, HaloField *halofield_large, HaloField *halofield_out,
                       struct HaloSamplingConstants *hs_constants) {
-    int lo_dim = simulation_options_global->HII_DIM;
+    int lo_dim[3] = {simulation_options_global->HII_DIM, simulation_options_global->HII_DIM,
+                     HII_D_PARA};
 
     double Mcell = hs_constants->M_cond;
     double Mmin = hs_constants->M_min;
@@ -780,7 +781,7 @@ int sample_halo_grids(gsl_rng **rng_arr, double redshift, float *dens_field,
     unsigned long long int arraysize_total = halofield_out->buffer_size;
     unsigned long long int arraysize_local = arraysize_total / simulation_options_global->N_THREADS;
 
-    LOG_DEBUG("Beginning stochastic halo sampling on %d ^3 grid", lo_dim);
+    LOG_DEBUG("Beginning stochastic halo sampling on %d ^3 grid", lo_dim[0]);
     LOG_DEBUG("z = %f, Mmin = %e, Mmax = %e,volume = %.3e, D = %.3e", redshift, Mmin, Mcell,
               Mcell / RHOcrit / cosmo_params_global->OMm, growthf);
     LOG_DEBUG("Total Array Size %llu, array size per thread %llu (~%.3e GB total)", arraysize_total,
@@ -795,7 +796,7 @@ int sample_halo_grids(gsl_rng **rng_arr, double redshift, float *dens_field,
     {
         // PRIVATE VARIABLES
         int x, y, z, i;
-        unsigned long long int halo_idx;
+        unsigned long long int halo_idx, cell_idx;
         int threadnum = omp_get_thread_num();
 
         int nh_buf;
@@ -837,17 +838,18 @@ int sample_halo_grids(gsl_rng **rng_arr, double redshift, float *dens_field,
         }
 
 #pragma omp for reduction(+ : total_volume_excluded)
-        for (x = 0; x < lo_dim; x++) {
+        for (x = 0; x < lo_dim[0]; x++) {
             if (out_of_buffer) continue;
-            for (y = 0; y < lo_dim; y++) {
-                for (z = 0; z < HII_D_PARA; z++) {
-                    delta = dens_field[HII_R_INDEX(x, y, z)] * growthf;
+            for (y = 0; y < lo_dim[1]; y++) {
+                for (z = 0; z < lo_dim[2]; z++) {
+                    cell_idx = grid_index_general(x, y, z, lo_dim);
+                    delta = dens_field[cell_idx] * growthf;
                     stoc_set_consts_cond(&hs_constants_priv, delta);
                     if ((x + y + z) == 0) {
                         print_hs_consts(&hs_constants_priv);
                     }
 
-                    mass_defc = halo_overlap_box[HII_R_INDEX(x, y, z)];
+                    mass_defc = halo_overlap_box[cell_idx];
                     total_volume_excluded += mass_defc;
 
                     hs_constants_priv.expected_M *= (1. - mass_defc);
@@ -867,7 +869,7 @@ int sample_halo_grids(gsl_rng **rng_arr, double redshift, float *dens_field,
                         }
 
                         random_point_in_cell((int[3]){x, y, z},
-                                             simulation_options_global->BOX_LEN / lo_dim,
+                                             simulation_options_global->BOX_LEN / lo_dim[0],
                                              rng_arr[threadnum], crd_hi);
                         wrap_position(crd_hi,
                                       (double[3]){simulation_options_global->BOX_LEN,
@@ -1037,7 +1039,7 @@ int sample_halo_progenitors(gsl_rng **rng_arr, double z_in, double z_out, HaloFi
                     LOG_ULTRA_DEBUG(
                         "First Halo Prog %d: Mass %.2e Stellar %.2e SFR %.2e XRAY %.2e e_d %.3f",
                         jj, prog_buf[jj], propbuf_out[0], propbuf_out[1], propbuf_out[2],
-                        Deltac * hs_constants->growth_out / hs_constants->growth_in);
+                        physconst.delta_c_sph * hs_constants->growth_out / hs_constants->growth_in);
                 }
             }
             if (ii == 0) {

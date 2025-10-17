@@ -395,19 +395,16 @@ int set_fixed_grids(double M_min, double M_max, InitialConditions *ini_boxes, fl
                        grid_dim, grids, out_dim, mturn_a_grid, mturn_m_grid, consts,
                        &integral_cond);
 
-    LOG_ULTRA_DEBUG("Cell 0 Totals: SF: %.2e, NI: %.2e", grids->halo_sfr[HII_R_INDEX(0, 0, 0)],
-                    grids->n_ion[HII_R_INDEX(0, 0, 0)]);
+    LOG_ULTRA_DEBUG("Cell 0 Totals: SF: %.2e, NI: %.2e", grids->halo_sfr[0], grids->n_ion[0]);
     if (astro_options_global->INHOMO_RECO) {
-        LOG_ULTRA_DEBUG("FESC * SF %.2e", grids->whalo_sfr[HII_R_INDEX(0, 0, 0)]);
+        LOG_ULTRA_DEBUG("FESC * SF %.2e", grids->whalo_sfr[0]);
     }
     if (astro_options_global->USE_TS_FLUCT) {
-        LOG_ULTRA_DEBUG("X-ray %.2e", grids->halo_xray[HII_R_INDEX(0, 0, 0)]);
+        LOG_ULTRA_DEBUG("X-ray %.2e", grids->halo_xray[0]);
     }
     if (astro_options_global->USE_MINI_HALOS) {
-        LOG_ULTRA_DEBUG("MINI SM %.2e SF %.2e", grids->halo_stars_mini[HII_R_INDEX(0, 0, 0)],
-                        grids->halo_sfr_mini[HII_R_INDEX(0, 0, 0)]);
-        LOG_ULTRA_DEBUG("Mturn_a %.2e Mturn_m %.2e", mturn_a_grid[HII_R_INDEX(0, 0, 0)],
-                        mturn_m_grid[HII_R_INDEX(0, 0, 0)]);
+        LOG_ULTRA_DEBUG("MINI SM %.2e SF %.2e", grids->halo_stars_mini[0], grids->halo_sfr_mini[0]);
+        LOG_ULTRA_DEBUG("Mturn_a %.2e Mturn_m %.2e", mturn_a_grid[0], mturn_m_grid[0]);
     }
     free_conditional_tables();
 
@@ -529,17 +526,15 @@ void sum_halos_onto_grid(double redshift, InitialConditions *ini_boxes, HaloFiel
     move_halo_galprops(redshift, halos, vel_pointers, vel_pointers_2LPT, vel_dim, mturn_a_grid,
                        mturn_m_grid, grids, out_dim, consts);
 
-    LOG_SUPER_DEBUG("Cell 0 Totals: SF: %.2e NI: %.2e", grids->halo_sfr[HII_R_INDEX(0, 0, 0)],
-                    grids->n_ion[HII_R_INDEX(0, 0, 0)]);
+    LOG_SUPER_DEBUG("Cell 0 Totals: SF: %.2e NI: %.2e", grids->halo_sfr[0], grids->n_ion[0]);
     if (astro_options_global->INHOMO_RECO) {
-        LOG_SUPER_DEBUG("FESC * SF %.2e", grids->whalo_sfr[HII_R_INDEX(0, 0, 0)]);
+        LOG_SUPER_DEBUG("FESC * SF %.2e", grids->whalo_sfr[0]);
     }
     if (astro_options_global->USE_TS_FLUCT) {
-        LOG_SUPER_DEBUG("X-ray %.2e", grids->halo_xray[HII_R_INDEX(0, 0, 0)]);
+        LOG_SUPER_DEBUG("X-ray %.2e", grids->halo_xray[0]);
     }
     if (astro_options_global->USE_MINI_HALOS) {
-        LOG_SUPER_DEBUG("MINI SM %.2e SF %.2e", grids->halo_stars_mini[HII_R_INDEX(0, 0, 0)],
-                        grids->halo_sfr_mini[HII_R_INDEX(0, 0, 0)]);
+        LOG_SUPER_DEBUG("MINI SM %.2e SF %.2e", grids->halo_stars_mini[0], grids->halo_sfr_mini[0]);
     }
 }
 
@@ -621,7 +616,7 @@ int ComputeHaloBox(double redshift, InitialConditions *ini_boxes, HaloField *hal
                 if (matter_options_global->HALO_STOCHASTICITY) {
                     M_max_integral = simulation_options_global->SAMPLER_MIN_MASS;
                 } else {
-                    M_max_integral = RtoM(L_FACTOR * simulation_options_global->BOX_LEN /
+                    M_max_integral = RtoM(physconst.l_factor * simulation_options_global->BOX_LEN /
                                           simulation_options_global->DIM);
                 }
                 if (M_min < M_max_integral) {
@@ -670,6 +665,9 @@ int test_halo_props(double redshift, float *vcb_grid, float *J21_LW_grid, float 
         double cell_length =
             simulation_options_global->BOX_LEN / simulation_options_global->HII_DIM;
 
+        int box_dim[3] = {simulation_options_global->HII_DIM, simulation_options_global->HII_DIM,
+                          HII_D_PARA};
+
 #pragma omp parallel num_threads(simulation_options_global->N_THREADS)
         {
             int x, y, z;
@@ -709,7 +707,7 @@ int test_halo_props(double redshift, float *vcb_grid, float *J21_LW_grid, float 
                 x = (int)(halo_pos[0]);
                 y = (int)(halo_pos[1]);
                 z = (int)(halo_pos[2]);
-                i_cell = HII_R_INDEX(x, y, z);
+                i_cell = grid_index_general(x, y, z, box_dim);
 
                 // set values before reionisation feedback
                 // NOTE: I could easily apply reionization feedback without minihalos but this was
