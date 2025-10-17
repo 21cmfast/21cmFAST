@@ -9,8 +9,8 @@
   (x,y,z) is the closest reflection of (x2,y2,z2) to (x1, y1, z1)
   JD: this is UNUSED Currently
 */
-float distance_coord(float x1, float y1, float z1, float x2, float y2, float z2, float* x, float* y,
-                     float* z) {
+float distance_coord(float x1, float y1, float z1, float x2, float y2, float z2, float *x, float *y,
+                     float *z) {
     float minimumsq, xsq, ysq, zsq, xplussq, yplussq, zplussq, xminsq, yminsq, zminsq;
 
     // remember to check all reflections
@@ -260,7 +260,7 @@ float distance(float x1, float y1, float z1, float x2, float y2, float z2) {
 }
 
 // helper function for update in sphere below
-void check_region(float* box, int dimensions, int dimensions_ncf, float Rsq_curr_index, int x,
+void check_region(float *box, int dimensions, int dimensions_ncf, float Rsq_curr_index, int x,
                   int y, int z, int x_min, int x_max, int y_min, int y_max, int z_min, int z_max) {
     int x_curr, y_curr, z_curr, x_index, y_index, z_index;
     float xsq, xplussq, xminsq, ysq, yplussq, yminsq, zsq, zplussq, zminsq;
@@ -350,7 +350,7 @@ void check_region(float* box, int dimensions, int dimensions_ncf, float Rsq_curr
   which fall within radius R of (x,y,z).
   all lengths are in units of box size.
 */
-void update_in_sphere(float* box, int dimensions, int dimensions_ncf, float R, float xf, float yf,
+void update_in_sphere(float *box, int dimensions, int dimensions_ncf, float R, float xf, float yf,
                       float zf) {
     int x_curr, y_curr, z_curr, xb_min, xb_max, yb_min, yb_max, zb_min, zb_max, R_index;
     int xl_min, xl_max, yl_min, yl_max, zl_min, zl_max;

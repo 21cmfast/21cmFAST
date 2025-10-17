@@ -22,9 +22,9 @@
 #include "indexing.h"
 #include "logger.h"
 
-int ComputePerturbHaloField(float redshift, InitialConditions* boxes, TsBox* prev_ts,
-                            IonizedBox* prev_ion, HaloField* halos,
-                            PerturbHaloField* halos_perturbed) {
+int ComputePerturbHaloField(float redshift, InitialConditions *boxes, TsBox *prev_ts,
+                            IonizedBox *prev_ion, HaloField *halos,
+                            PerturbHaloField *halos_perturbed) {
     int status;
 
     Try {  // This Try brackets the whole function, so we don't indent.

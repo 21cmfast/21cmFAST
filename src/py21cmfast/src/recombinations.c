@@ -18,18 +18,18 @@
     (int)(60) /*Warning: the calculation of the MHR model parameters is valid only from redshift 2 \
                  to A_NPTS+2*/
 static double A_table[A_NPTS], A_params[A_NPTS];
-static gsl_interp_accel* A_acc;
-static gsl_spline* A_spline;
+static gsl_interp_accel *A_acc;
+static gsl_spline *A_spline;
 
 #define C_NPTS (int)(12)
 static double C_table[C_NPTS], C_params[C_NPTS];
-static gsl_interp_accel* C_acc;
-static gsl_spline* C_spline;
+static gsl_interp_accel *C_acc;
+static gsl_spline *C_spline;
 
 #define beta_NPTS (int)(5)
 static double beta_table[beta_NPTS], beta_params[beta_NPTS];
-static gsl_interp_accel* beta_acc;
-static gsl_spline* beta_spline;
+static gsl_interp_accel *beta_acc;
+static gsl_spline *beta_spline;
 
 #define RR_Z_NPTS \
     (int)(300)  // number of points in redshift axis;  we will only interpolate over gamma, and just
@@ -39,8 +39,8 @@ static gsl_spline* beta_spline;
 #define RR_lnGamma_min (double)(-10)  // min ln gamma12 used
 #define RR_DEL_lnGamma (float)(0.1)
 static double RR_table[RR_Z_NPTS][RR_lnGamma_NPTS], lnGamma_values[RR_lnGamma_NPTS];
-static gsl_interp_accel* RR_acc[RR_Z_NPTS];
-static gsl_spline* RR_spline[RR_Z_NPTS];
+static gsl_interp_accel *RR_acc[RR_Z_NPTS];
+static gsl_spline *RR_spline[RR_Z_NPTS];
 
 static bool oob_warning_printed;
 
@@ -48,7 +48,7 @@ double recombination_rate(double z_eff, double gamma12_bg, double T4, int usecas
 void free_MHR(); /* deallocates the gsl structures from init_MHR */
 double Gamma_SS(double Gamma_bg, double Delta, double T_4,
                 double z);  // ionization rate w. self shielding
-double MHR_rr(double del, void* params);
+double MHR_rr(double del, void *params);
 double A_MHR(double z);            /*returns the A parameter in MHR00model*/
 double C_MHR(double z);            /*returns the C parameter in MHR00model*/
 double beta_MHR(double z);         /*returns the beta parameter in MHR00model*/
@@ -153,10 +153,10 @@ typedef struct {
     int usecaseB;
 } RR_par;
 
-double MHR_rr(double lnD, void* params) {
+double MHR_rr(double lnD, void *params) {
     double del = exp(lnD);
     double alpha;
-    RR_par p = *(RR_par*)params;
+    RR_par p = *(RR_par *)params;
     double z = p.z;
     double gamma = Gamma_SS(p.gamma12_bg, del, p.T4, z);
     double n_H = p.avenH * del;
@@ -184,7 +184,7 @@ double recombination_rate(double z, double gamma12_bg, double T4, int usecaseB) 
     double result, error, lower_limit, upper_limit;
     gsl_function F;
     double rel_tol = 0.01;  //<- relative tolerance
-    gsl_integration_workspace* w = gsl_integration_workspace_alloc(1000);
+    gsl_integration_workspace *w = gsl_integration_workspace_alloc(1000);
     RR_par p = {z, gamma12_bg, T4, A_MHR(z), C_MHR(z), beta_MHR(z), No * pow(1 + z, 3), usecaseB};
 
     F.function = &MHR_rr;
@@ -215,9 +215,9 @@ double recombination_rate(double z, double gamma12_bg, double T4, int usecaseB) 
     return result;
 }
 
-double aux_function(double del, void* params) {
+double aux_function(double del, void *params) {
     double result;
-    double z = *(double*)params;
+    double z = *(double *)params;
 
     result = exp(-(pow(del, -2.0 / 3.0) - C_MHR(z)) * (pow(del, -2.0 / 3.0) - C_MHR(z)) /
                  (2.0 * (2.0 * 7.61 / (3.0 * (1.0 + z))) * (2.0 * 7.61 / (3.0 * (1.0 + z))))) *
@@ -230,7 +230,7 @@ double A_aux_integral(double z) {
     double result, error, lower_limit, upper_limit;
     gsl_function F;
     double rel_tol = 0.001;  //<- relative tolerance
-    gsl_integration_workspace* w = gsl_integration_workspace_alloc(1000);
+    gsl_integration_workspace *w = gsl_integration_workspace_alloc(1000);
 
     F.function = &aux_function;
     F.params = &z;

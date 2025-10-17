@@ -29,11 +29,11 @@
 
 bool initialised_ComputeLF = false;
 
-gsl_interp_accel* LF_spline_acc;
-gsl_spline* LF_spline;
+gsl_interp_accel *LF_spline_acc;
+gsl_spline *LF_spline;
 
-gsl_interp_accel* deriv_spline_acc;
-gsl_spline* deriv_spline;
+gsl_interp_accel *deriv_spline_acc;
+gsl_spline *deriv_spline;
 
 double *lnMhalo_param, *Muv_param, *Mhalo_param;
 double *log10phi, *M_uv_z, *M_h_z;
@@ -70,8 +70,8 @@ void cleanup_ComputeLF() {
     initialised_ComputeLF = 0;
 }
 
-int ComputeLF(int nbins, int component, int NUM_OF_REDSHIFT_FOR_LF, float* z_LF, float* M_TURNs,
-              double* M_uv_z, double* M_h_z, double* log10phi) {
+int ComputeLF(int nbins, int component, int NUM_OF_REDSHIFT_FOR_LF, float *z_LF, float *M_TURNs,
+              double *M_uv_z, double *M_h_z, double *log10phi) {
     /*
         This is an API-level function and thus returns an int status.
     */

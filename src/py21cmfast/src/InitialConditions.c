@@ -23,7 +23,7 @@
 #include "logger.h"
 #include "rng.h"
 
-void adj_complex_conj(fftwf_complex* HIRES_box) {
+void adj_complex_conj(fftwf_complex *HIRES_box) {
     /*****  Adjust the complex conjugate relations for a real array  *****/
 
     int i, j, k;
@@ -84,7 +84,7 @@ void adj_complex_conj(fftwf_complex* HIRES_box) {
 
 // Re-write of init.c for original 21cmFAST
 
-int ComputeInitialConditions(unsigned long long random_seed, InitialConditions* boxes) {
+int ComputeInitialConditions(unsigned long long random_seed, InitialConditions *boxes) {
     //     Generates the initial conditions: gaussian random density field
     //     (simulation_options_global->DIM^3) as well as the equal or lower resolution velocity
     //     fields, and smoothed density field (simulation_options_global->HII_DIM^3).
@@ -111,7 +111,7 @@ int ComputeInitialConditions(unsigned long long random_seed, InitialConditions* 
 
         float f_pixel_factor;
 
-        gsl_rng* r[simulation_options_global->N_THREADS];
+        gsl_rng *r[simulation_options_global->N_THREADS];
         seed_rng_threads(r, random_seed);
 
         omp_set_num_threads(simulation_options_global->N_THREADS);
@@ -121,10 +121,10 @@ int ComputeInitialConditions(unsigned long long random_seed, InitialConditions* 
 
         // ************  INITIALIZATION ********************** //
         // allocate array for the k-space and real-space boxes
-        fftwf_complex* HIRES_box =
-            (fftwf_complex*)fftwf_malloc(sizeof(fftwf_complex) * KSPACE_NUM_PIXELS);
-        fftwf_complex* HIRES_box_saved =
-            (fftwf_complex*)fftwf_malloc(sizeof(fftwf_complex) * KSPACE_NUM_PIXELS);
+        fftwf_complex *HIRES_box =
+            (fftwf_complex *)fftwf_malloc(sizeof(fftwf_complex) * KSPACE_NUM_PIXELS);
+        fftwf_complex *HIRES_box_saved =
+            (fftwf_complex *)fftwf_malloc(sizeof(fftwf_complex) * KSPACE_NUM_PIXELS);
 
         // find factor of HII pixel size / deltax pixel size
         f_pixel_factor = simulation_options_global->DIM / (float)simulation_options_global->HII_DIM;
@@ -200,8 +200,8 @@ int ComputeInitialConditions(unsigned long long random_seed, InitialConditions* 
             for (i = 0; i < simulation_options_global->DIM; i++) {
                 for (j = 0; j < simulation_options_global->DIM; j++) {
                     for (k = 0; k < D_PARA; k++) {
-                        *((float*)boxes->hires_density + R_INDEX(i, j, k)) =
-                            *((float*)HIRES_box + R_FFT_INDEX(i, j, k)) / VOLUME;
+                        *((float *)boxes->hires_density + R_INDEX(i, j, k)) =
+                            *((float *)HIRES_box + R_FFT_INDEX(i, j, k)) / VOLUME;
                     }
                 }
             }
@@ -235,7 +235,7 @@ int ComputeInitialConditions(unsigned long long random_seed, InitialConditions* 
                 for (j = 0; j < simulation_options_global->HII_DIM; j++) {
                     for (k = 0; k < HII_D_PARA; k++) {
                         boxes->lowres_density[HII_R_INDEX(i, j, k)] =
-                            *((float*)HIRES_box +
+                            *((float *)HIRES_box +
                               R_FFT_INDEX((unsigned long long)(i * f_pixel_factor + 0.5),
                                           (unsigned long long)(j * f_pixel_factor + 0.5),
                                           (unsigned long long)(k * f_pixel_factor + 0.5))) /
@@ -316,7 +316,7 @@ int ComputeInitialConditions(unsigned long long random_seed, InitialConditions* 
                         for (j = 0; j < simulation_options_global->HII_DIM; j++) {
                             for (k = 0; k < HII_D_PARA; k++) {
                                 vcb_i =
-                                    *((float*)HIRES_box +
+                                    *((float *)HIRES_box +
                                       R_FFT_INDEX((unsigned long long)(i * f_pixel_factor + 0.5),
                                                   (unsigned long long)(j * f_pixel_factor + 0.5),
                                                   (unsigned long long)(k * f_pixel_factor + 0.5)));
@@ -413,27 +413,27 @@ int ComputeInitialConditions(unsigned long long random_seed, InitialConditions* 
                              k++) {
                             if (matter_options_global->PERTURB_ON_HIGH_RES) {
                                 if (ii == 0) {
-                                    boxes->hires_vx[R_INDEX(i, j, k)] =
-                                        *((float*)HIRES_box + R_FFT_INDEX((unsigned long long)(i),
-                                                                          (unsigned long long)(j),
-                                                                          (unsigned long long)(k)));
+                                    boxes->hires_vx[R_INDEX(i, j, k)] = *(
+                                        (float *)HIRES_box + R_FFT_INDEX((unsigned long long)(i),
+                                                                         (unsigned long long)(j),
+                                                                         (unsigned long long)(k)));
                                 }
                                 if (ii == 1) {
-                                    boxes->hires_vy[R_INDEX(i, j, k)] =
-                                        *((float*)HIRES_box + R_FFT_INDEX((unsigned long long)(i),
-                                                                          (unsigned long long)(j),
-                                                                          (unsigned long long)(k)));
+                                    boxes->hires_vy[R_INDEX(i, j, k)] = *(
+                                        (float *)HIRES_box + R_FFT_INDEX((unsigned long long)(i),
+                                                                         (unsigned long long)(j),
+                                                                         (unsigned long long)(k)));
                                 }
                                 if (ii == 2) {
-                                    boxes->hires_vz[R_INDEX(i, j, k)] =
-                                        *((float*)HIRES_box + R_FFT_INDEX((unsigned long long)(i),
-                                                                          (unsigned long long)(j),
-                                                                          (unsigned long long)(k)));
+                                    boxes->hires_vz[R_INDEX(i, j, k)] = *(
+                                        (float *)HIRES_box + R_FFT_INDEX((unsigned long long)(i),
+                                                                         (unsigned long long)(j),
+                                                                         (unsigned long long)(k)));
                                 }
                             } else {
                                 if (ii == 0) {
                                     boxes->lowres_vx[HII_R_INDEX(i, j, k)] =
-                                        *((float*)HIRES_box +
+                                        *((float *)HIRES_box +
                                           R_FFT_INDEX(
                                               (unsigned long long)(i * f_pixel_factor + 0.5),
                                               (unsigned long long)(j * f_pixel_factor + 0.5),
@@ -441,7 +441,7 @@ int ComputeInitialConditions(unsigned long long random_seed, InitialConditions* 
                                 }
                                 if (ii == 1) {
                                     boxes->lowres_vy[HII_R_INDEX(i, j, k)] =
-                                        *((float*)HIRES_box +
+                                        *((float *)HIRES_box +
                                           R_FFT_INDEX(
                                               (unsigned long long)(i * f_pixel_factor + 0.5),
                                               (unsigned long long)(j * f_pixel_factor + 0.5),
@@ -449,7 +449,7 @@ int ComputeInitialConditions(unsigned long long random_seed, InitialConditions* 
                                 }
                                 if (ii == 2) {
                                     boxes->lowres_vz[HII_R_INDEX(i, j, k)] =
-                                        *((float*)HIRES_box +
+                                        *((float *)HIRES_box +
                                           R_FFT_INDEX(
                                               (unsigned long long)(i * f_pixel_factor + 0.5),
                                               (unsigned long long)(j * f_pixel_factor + 0.5),
@@ -484,8 +484,8 @@ int ComputeInitialConditions(unsigned long long random_seed, InitialConditions* 
             // 20 -> 2
             // 21 -> 4
 
-            fftwf_complex* phi_1 =
-                (fftwf_complex*)fftwf_malloc(sizeof(fftwf_complex) * KSPACE_NUM_PIXELS);
+            fftwf_complex *phi_1 =
+                (fftwf_complex *)fftwf_malloc(sizeof(fftwf_complex) * KSPACE_NUM_PIXELS);
 
             // First generate the ii,jj phi_1 boxes
 
@@ -503,9 +503,9 @@ int ComputeInitialConditions(unsigned long long random_seed, InitialConditions* 
                 for (i = 0; i < simulation_options_global->DIM; i++) {
                     for (j = 0; j < simulation_options_global->DIM; j++) {
                         for (k = 0; k < D_PARA; k++) {
-                            *((float*)HIRES_box + R_FFT_INDEX((unsigned long long)(i),
-                                                              (unsigned long long)(j),
-                                                              (unsigned long long)(k))) = 0.;
+                            *((float *)HIRES_box + R_FFT_INDEX((unsigned long long)(i),
+                                                               (unsigned long long)(j),
+                                                               (unsigned long long)(k))) = 0.;
                         }
                     }
                 }
@@ -569,21 +569,21 @@ int ComputeInitialConditions(unsigned long long random_seed, InitialConditions* 
                             for (k = 0; k < D_PARA; k++) {
                                 if (phi_component == 0) {
                                     boxes->hires_vx_2LPT[R_INDEX(i, j, k)] =
-                                        *((float*)phi_1 + R_FFT_INDEX((unsigned long long)(i),
-                                                                      (unsigned long long)(j),
-                                                                      (unsigned long long)(k)));
+                                        *((float *)phi_1 + R_FFT_INDEX((unsigned long long)(i),
+                                                                       (unsigned long long)(j),
+                                                                       (unsigned long long)(k)));
                                 }
                                 if (phi_component == 1) {
                                     boxes->hires_vy_2LPT[R_INDEX(i, j, k)] =
-                                        *((float*)phi_1 + R_FFT_INDEX((unsigned long long)(i),
-                                                                      (unsigned long long)(j),
-                                                                      (unsigned long long)(k)));
+                                        *((float *)phi_1 + R_FFT_INDEX((unsigned long long)(i),
+                                                                       (unsigned long long)(j),
+                                                                       (unsigned long long)(k)));
                                 }
                                 if (phi_component == 2) {
                                     boxes->hires_vz_2LPT[R_INDEX(i, j, k)] =
-                                        *((float*)phi_1 + R_FFT_INDEX((unsigned long long)(i),
-                                                                      (unsigned long long)(j),
-                                                                      (unsigned long long)(k)));
+                                        *((float *)phi_1 + R_FFT_INDEX((unsigned long long)(i),
+                                                                       (unsigned long long)(j),
+                                                                       (unsigned long long)(k)));
                                 }
                             }
                         }
@@ -657,37 +657,37 @@ int ComputeInitialConditions(unsigned long long random_seed, InitialConditions* 
                                     component_ii = boxes->hires_vx_2LPT[R_INDEX(i, j, k)];
                                     component_jj = boxes->hires_vy_2LPT[R_INDEX(i, j, k)];
                                     component_ij =
-                                        *((float*)phi_1 + R_FFT_INDEX((unsigned long long)(i),
-                                                                      (unsigned long long)(j),
-                                                                      (unsigned long long)(k)));
+                                        *((float *)phi_1 + R_FFT_INDEX((unsigned long long)(i),
+                                                                       (unsigned long long)(j),
+                                                                       (unsigned long long)(k)));
                                 } else if (phi_component == 1) {
                                     component_ii = boxes->hires_vx_2LPT[R_INDEX(i, j, k)];
                                     component_jj = boxes->hires_vz_2LPT[R_INDEX(i, j, k)];
                                     component_ij =
-                                        *((float*)phi_1 + R_FFT_INDEX((unsigned long long)(i),
-                                                                      (unsigned long long)(j),
-                                                                      (unsigned long long)(k)));
+                                        *((float *)phi_1 + R_FFT_INDEX((unsigned long long)(i),
+                                                                       (unsigned long long)(j),
+                                                                       (unsigned long long)(k)));
                                 } else if (phi_component == 2) {
                                     component_ii = boxes->hires_vy_2LPT[R_INDEX(i, j, k)];
                                     component_jj = boxes->hires_vz_2LPT[R_INDEX(i, j, k)];
                                     component_ij =
-                                        *((float*)phi_1 + R_FFT_INDEX((unsigned long long)(i),
-                                                                      (unsigned long long)(j),
-                                                                      (unsigned long long)(k)));
+                                        *((float *)phi_1 + R_FFT_INDEX((unsigned long long)(i),
+                                                                       (unsigned long long)(j),
+                                                                       (unsigned long long)(k)));
                                 } else {
                                     LOG_ERROR("Invalid phi component?");
                                     Throw(ValueError);
                                 }
 
                                 // Kept in this form to maintain similar (possible) rounding errors
-                                *((float*)HIRES_box + R_FFT_INDEX((unsigned long long)(i),
-                                                                  (unsigned long long)(j),
-                                                                  (unsigned long long)(k))) +=
+                                *((float *)HIRES_box + R_FFT_INDEX((unsigned long long)(i),
+                                                                   (unsigned long long)(j),
+                                                                   (unsigned long long)(k))) +=
                                     (component_ii * component_jj);
 
-                                *((float*)HIRES_box + R_FFT_INDEX((unsigned long long)(i),
-                                                                  (unsigned long long)(j),
-                                                                  (unsigned long long)(k))) -=
+                                *((float *)HIRES_box + R_FFT_INDEX((unsigned long long)(i),
+                                                                   (unsigned long long)(j),
+                                                                   (unsigned long long)(k))) -=
                                     (component_ij * component_ij);
                             }
                         }
@@ -702,7 +702,7 @@ int ComputeInitialConditions(unsigned long long random_seed, InitialConditions* 
                 for (i = 0; i < simulation_options_global->DIM; i++) {
                     for (j = 0; j < simulation_options_global->DIM; j++) {
                         for (k = 0; k < D_PARA; k++) {
-                            *((float*)HIRES_box +
+                            *((float *)HIRES_box +
                               R_FFT_INDEX((unsigned long long)(i), (unsigned long long)(j),
                                           (unsigned long long)(k))) /= TOT_NUM_PIXELS;
                         }
@@ -806,21 +806,21 @@ int ComputeInitialConditions(unsigned long long random_seed, InitialConditions* 
                                 if (matter_options_global->PERTURB_ON_HIGH_RES) {
                                     if (ii == 0) {
                                         boxes->hires_vx_2LPT[R_INDEX(i, j, k)] =
-                                            *((float*)HIRES_box +
+                                            *((float *)HIRES_box +
                                               R_FFT_INDEX((unsigned long long)(i),
                                                           (unsigned long long)(j),
                                                           (unsigned long long)(k)));
                                     }
                                     if (ii == 1) {
                                         boxes->hires_vy_2LPT[R_INDEX(i, j, k)] =
-                                            *((float*)HIRES_box +
+                                            *((float *)HIRES_box +
                                               R_FFT_INDEX((unsigned long long)(i),
                                                           (unsigned long long)(j),
                                                           (unsigned long long)(k)));
                                     }
                                     if (ii == 2) {
                                         boxes->hires_vz_2LPT[R_INDEX(i, j, k)] =
-                                            *((float*)HIRES_box +
+                                            *((float *)HIRES_box +
                                               R_FFT_INDEX((unsigned long long)(i),
                                                           (unsigned long long)(j),
                                                           (unsigned long long)(k)));
@@ -828,7 +828,7 @@ int ComputeInitialConditions(unsigned long long random_seed, InitialConditions* 
                                 } else {
                                     if (ii == 0) {
                                         boxes->lowres_vx_2LPT[HII_R_INDEX(i, j, k)] =
-                                            *((float*)HIRES_box +
+                                            *((float *)HIRES_box +
                                               R_FFT_INDEX(
                                                   (unsigned long long)(i * f_pixel_factor + 0.5),
                                                   (unsigned long long)(j * f_pixel_factor + 0.5),
@@ -836,7 +836,7 @@ int ComputeInitialConditions(unsigned long long random_seed, InitialConditions* 
                                     }
                                     if (ii == 1) {
                                         boxes->lowres_vy_2LPT[HII_R_INDEX(i, j, k)] =
-                                            *((float*)HIRES_box +
+                                            *((float *)HIRES_box +
                                               R_FFT_INDEX(
                                                   (unsigned long long)(i * f_pixel_factor + 0.5),
                                                   (unsigned long long)(j * f_pixel_factor + 0.5),
@@ -844,7 +844,7 @@ int ComputeInitialConditions(unsigned long long random_seed, InitialConditions* 
                                     }
                                     if (ii == 2) {
                                         boxes->lowres_vz_2LPT[HII_R_INDEX(i, j, k)] =
-                                            *((float*)HIRES_box +
+                                            *((float *)HIRES_box +
                                               R_FFT_INDEX(
                                                   (unsigned long long)(i * f_pixel_factor + 0.5),
                                                   (unsigned long long)(j * f_pixel_factor + 0.5),

@@ -15,7 +15,7 @@
 #include "indexing.h"
 #include "logger.h"
 
-int dft_c2r_cube(bool use_wisdom, int dim, int dim_los, int n_threads, fftwf_complex* box) {
+int dft_c2r_cube(bool use_wisdom, int dim, int dim_los, int n_threads, fftwf_complex *box) {
     char wisdom_filename[500];
     unsigned flag = FFTW_ESTIMATE;
     int status;
@@ -35,7 +35,7 @@ int dft_c2r_cube(bool use_wisdom, int dim, int dim_los, int n_threads, fftwf_com
                     wisdom_filename);
             }
         }
-        plan = fftwf_plan_dft_c2r_3d(dim, dim, dim_los, (fftwf_complex*)box, (float*)box, flag);
+        plan = fftwf_plan_dft_c2r_3d(dim, dim, dim_los, (fftwf_complex *)box, (float *)box, flag);
         fftwf_execute(plan);
         fftwf_destroy_plan(plan);
     }
@@ -43,7 +43,7 @@ int dft_c2r_cube(bool use_wisdom, int dim, int dim_los, int n_threads, fftwf_com
     return (0);
 }
 
-int dft_r2c_cube(bool use_wisdom, int dim, int dim_los, int n_threads, fftwf_complex* box) {
+int dft_r2c_cube(bool use_wisdom, int dim, int dim_los, int n_threads, fftwf_complex *box) {
     char wisdom_filename[500];
     unsigned flag = FFTW_ESTIMATE;
     int status;
@@ -63,7 +63,7 @@ int dft_r2c_cube(bool use_wisdom, int dim, int dim_los, int n_threads, fftwf_com
                     wisdom_filename);
             }
         }
-        plan = fftwf_plan_dft_r2c_3d(dim, dim, dim_los, (float*)box, (fftwf_complex*)box, flag);
+        plan = fftwf_plan_dft_r2c_3d(dim, dim, dim_los, (float *)box, (fftwf_complex *)box, flag);
         fftwf_execute(plan);
         fftwf_destroy_plan(plan);
     }
@@ -85,17 +85,17 @@ int CreateFFTWWisdoms() {
         fftwf_cleanup_threads();
 
         // allocate array for the k-space and real-space boxes
-        fftwf_complex* HIRES_box =
-            (fftwf_complex*)fftwf_malloc(sizeof(fftwf_complex) * KSPACE_NUM_PIXELS);
-        fftwf_complex* LOWRES_box =
-            (fftwf_complex*)fftwf_malloc(sizeof(fftwf_complex) * HII_KSPACE_NUM_PIXELS);
+        fftwf_complex *HIRES_box =
+            (fftwf_complex *)fftwf_malloc(sizeof(fftwf_complex) * KSPACE_NUM_PIXELS);
+        fftwf_complex *LOWRES_box =
+            (fftwf_complex *)fftwf_malloc(sizeof(fftwf_complex) * HII_KSPACE_NUM_PIXELS);
 
         sprintf(wisdom_filename, "%s/r2c_DIM%d_DIM%d_NTHREADS%d", config_settings.wisdoms_path,
                 simulation_options_global->DIM, (int)D_PARA, simulation_options_global->N_THREADS);
         if (fftwf_import_wisdom_from_filename(wisdom_filename) == 0) {
             plan = fftwf_plan_dft_r2c_3d(simulation_options_global->DIM,
-                                         simulation_options_global->DIM, D_PARA, (float*)HIRES_box,
-                                         (fftwf_complex*)HIRES_box, FFTW_PATIENT);
+                                         simulation_options_global->DIM, D_PARA, (float *)HIRES_box,
+                                         (fftwf_complex *)HIRES_box, FFTW_PATIENT);
             fftwf_export_wisdom_to_filename(wisdom_filename);
             fftwf_destroy_plan(plan);
         }
@@ -105,7 +105,7 @@ int CreateFFTWWisdoms() {
         if (fftwf_import_wisdom_from_filename(wisdom_filename) == 0) {
             plan = fftwf_plan_dft_c2r_3d(
                 simulation_options_global->DIM, simulation_options_global->DIM, D_PARA,
-                (fftwf_complex*)HIRES_box, (float*)HIRES_box, FFTW_PATIENT);
+                (fftwf_complex *)HIRES_box, (float *)HIRES_box, FFTW_PATIENT);
             fftwf_export_wisdom_to_filename(wisdom_filename);
             fftwf_destroy_plan(plan);
         }
@@ -116,7 +116,7 @@ int CreateFFTWWisdoms() {
         if (fftwf_import_wisdom_from_filename(wisdom_filename) == 0) {
             plan = fftwf_plan_dft_r2c_3d(
                 simulation_options_global->HII_DIM, simulation_options_global->HII_DIM, HII_D_PARA,
-                (float*)LOWRES_box, (fftwf_complex*)LOWRES_box, FFTW_PATIENT);
+                (float *)LOWRES_box, (fftwf_complex *)LOWRES_box, FFTW_PATIENT);
             fftwf_export_wisdom_to_filename(wisdom_filename);
             fftwf_destroy_plan(plan);
         }
@@ -127,7 +127,7 @@ int CreateFFTWWisdoms() {
         if (fftwf_import_wisdom_from_filename(wisdom_filename) == 0) {
             plan = fftwf_plan_dft_c2r_3d(
                 simulation_options_global->HII_DIM, simulation_options_global->HII_DIM, HII_D_PARA,
-                (fftwf_complex*)LOWRES_box, (float*)LOWRES_box, FFTW_PATIENT);
+                (fftwf_complex *)LOWRES_box, (float *)LOWRES_box, FFTW_PATIENT);
             fftwf_export_wisdom_to_filename(wisdom_filename);
             fftwf_destroy_plan(plan);
         }

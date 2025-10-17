@@ -76,8 +76,8 @@ static RGTable1D J_split_table = {.allocated = false};
 // Since we want to easily construct it from the sigma table, it won't be uniform so use GSL
 // TODO: Consider a rootfind on the integrals for accuracy and speed if we want an RGTable
 //       It should only need one calculation per run
-static gsl_spline* Sigma_inv_table;
-static gsl_interp_accel* Sigma_inv_table_acc;
+static gsl_spline *Sigma_inv_table;
+static gsl_interp_accel *Sigma_inv_table_acc;
 #pragma omp threadprivate(Sigma_inv_table_acc)
 
 // Sigma interpolation tables
@@ -91,7 +91,7 @@ static RGTable1D_f dSigmasqdm_InterpTable = {
 // NOTE: this table is initialised for up to N_redshift x N_Mturn, but only called N_filter times to
 // assign ST_over_PS in Spintemp.
 //   It may be better to just do the integrals at each R
-void initialise_SFRD_spline(int Nbin, float zmin, float zmax, ScalingConstants* sc) {
+void initialise_SFRD_spline(int Nbin, float zmin, float zmax, ScalingConstants *sc) {
     int i, j;
     double Mmax = M_MAX_INTEGRAL;
     double lnMmax = log(Mmax);
@@ -158,7 +158,7 @@ void initialise_SFRD_spline(int Nbin, float zmin, float zmax, ScalingConstants* 
 
 // Unlike the SFRD spline, this one is used more due to the nu_tau_one() rootfind
 // although still ignores reionisation feedback
-void initialise_Nion_Ts_spline(int Nbin, float zmin, float zmax, ScalingConstants* sc) {
+void initialise_Nion_Ts_spline(int Nbin, float zmin, float zmax, ScalingConstants *sc) {
     int i, j;
     double Mmax = M_MAX_INTEGRAL;
     double lnMmax = log(Mmax);
@@ -289,7 +289,7 @@ void initialise_Nion_Conditional_spline(double z, double min_density, double max
                                         double Mmin, double Mmax, double Mcond,
                                         double log10Mturn_min, double log10Mturn_max,
                                         double log10Mturn_min_MINI, double log10Mturn_max_MINI,
-                                        ScalingConstants* sc, bool prev) {
+                                        ScalingConstants *sc, bool prev) {
     int i, j;
     double overdense_table[NDELTA];
     double mturns[NMTURN], mturns_MINI[NMTURN];
@@ -411,7 +411,7 @@ void initialise_Nion_Conditional_spline(double z, double min_density, double max
 // This function initialises one table, for table Rx arrays I will call this function in a loop
 void initialise_SFRD_Conditional_table(double z, double min_density, double max_density,
                                        double Mmin, double Mmax, double Mcond,
-                                       ScalingConstants* sc) {
+                                       ScalingConstants *sc) {
     float sigma2;
     int i, k;
 
@@ -493,7 +493,7 @@ void initialise_SFRD_Conditional_table(double z, double min_density, double max_
 // This function initialises one table, for table Rx arrays I will call this function in a loop
 void initialise_Xray_Conditional_table(double redshift, double min_density, double max_density,
                                        double Mmin, double Mmax, double Mcond,
-                                       ScalingConstants* sc) {
+                                       ScalingConstants *sc) {
     int i, k;
 
     LOG_SUPER_DEBUG("Initialising Xray conditional table at mass %.2e from delta %.2e to %.2e",
@@ -646,8 +646,8 @@ struct rf_inv_params {
     double rf_target;
 };
 
-double dndm_inv_f(double lnM_min, void* params) {
-    struct rf_inv_params* p = (struct rf_inv_params*)params;
+double dndm_inv_f(double lnM_min, void *params) {
+    struct rf_inv_params *p = (struct rf_inv_params *)params;
     double integral =
         Nhalo_Conditional(p->growthf, lnM_min, p->lnM_cond, p->lnM_cond, p->sigma, p->delta, 0);
     // This ensures that we never find the root if the ratio is zero, since that will set to M_cond
@@ -709,8 +709,8 @@ void initialise_dNdM_inverse_table(double xmin, double xmax, double lnM_min, dou
 
         // RF stuff
         int status, iter;
-        const gsl_root_fsolver_type* T;
-        gsl_root_fsolver* solver;
+        const gsl_root_fsolver_type *T;
+        gsl_root_fsolver *solver;
         gsl_function F;
         struct rf_inv_params params_rf;
         params_rf.growthf = growth_out;
@@ -797,8 +797,8 @@ void initialise_dNdM_inverse_table(double xmin, double xmax, double lnM_min, dou
     LOG_SUPER_DEBUG("Done.");
 }
 
-double J_integrand(double u, void* params) {
-    double gamma1 = *(double*)params;
+double J_integrand(double u, void *params) {
+    double gamma1 = *(double *)params;
     return pow((1. + 1. / u / u), gamma1 * 0.5);
 }
 
@@ -807,7 +807,7 @@ double integrate_J(double u_res, double gamma1) {
     gsl_function F;
     double rel_tol = 1e-4;  //<- relative tolerance
     int w_size = 1000;
-    gsl_integration_workspace* w = gsl_integration_workspace_alloc(w_size);
+    gsl_integration_workspace *w = gsl_integration_workspace_alloc(w_size);
 
     int status;
     F.function = &J_integrand;
@@ -883,7 +883,7 @@ void free_global_tables() {
 
 // JD: moving the interp table evaluations here since some of them are needed in nu_tau_one
 // NOTE: with !USE_MASS_DEPENDENT_ZETA both EvaluateNionTs and EvaluateSFRD return Fcoll
-double EvaluateNionTs(double redshift, ScalingConstants* sc) {
+double EvaluateNionTs(double redshift, ScalingConstants *sc) {
     // differences in turnover are handled by table setup
     if (matter_options_global->USE_INTERPOLATION_TABLES > 1) {
         if (astro_options_global->USE_MASS_DEPENDENT_ZETA)
@@ -906,7 +906,7 @@ double EvaluateNionTs(double redshift, ScalingConstants* sc) {
     return Fcoll_General(redshift, lnMmin, lnMmax);
 }
 
-double EvaluateNionTs_MINI(double redshift, double log10_Mturn_LW_ave, ScalingConstants* sc) {
+double EvaluateNionTs_MINI(double redshift, double log10_Mturn_LW_ave, ScalingConstants *sc) {
     if (matter_options_global->USE_INTERPOLATION_TABLES > 1) {
         return EvaluateRGTable2D(redshift, log10_Mturn_LW_ave, &Nion_z_table_MINI);
     }
@@ -917,7 +917,7 @@ double EvaluateNionTs_MINI(double redshift, double log10_Mturn_LW_ave, ScalingCo
     return Nion_General_MINI(redshift, lnMmin, lnMmax, pow(10., log10_Mturn_LW_ave), &sc_z);
 }
 
-double EvaluateSFRD(double redshift, ScalingConstants* sc) {
+double EvaluateSFRD(double redshift, ScalingConstants *sc) {
     if (matter_options_global->USE_INTERPOLATION_TABLES > 1) {
         if (astro_options_global->USE_MASS_DEPENDENT_ZETA)
             return EvaluateRGTable1D(redshift, &SFRD_z_table);
@@ -940,7 +940,7 @@ double EvaluateSFRD(double redshift, ScalingConstants* sc) {
     return Fcoll_General(redshift, lnMmin, lnMmax);
 }
 
-double EvaluateSFRD_MINI(double redshift, double log10_Mturn_LW_ave, ScalingConstants* sc) {
+double EvaluateSFRD_MINI(double redshift, double log10_Mturn_LW_ave, ScalingConstants *sc) {
     if (matter_options_global->USE_INTERPOLATION_TABLES > 1) {
         return EvaluateRGTable2D(redshift, log10_Mturn_LW_ave, &SFRD_z_table_MINI);
     }
@@ -955,7 +955,7 @@ double EvaluateSFRD_MINI(double redshift, double log10_Mturn_LW_ave, ScalingCons
 }
 
 double EvaluateSFRD_Conditional(double delta, double growthf, double M_min, double M_max,
-                                double M_cond, double sigma_max, ScalingConstants* sc) {
+                                double M_cond, double sigma_max, ScalingConstants *sc) {
     if (matter_options_global->USE_INTERPOLATION_TABLES > 1) {
         return exp(EvaluateRGTable1D_f(delta, &SFRD_conditional_table));
     }
@@ -969,7 +969,7 @@ double EvaluateSFRD_Conditional(double delta, double growthf, double M_min, doub
 
 double EvaluateSFRD_Conditional_MINI(double delta, double log10Mturn_m, double growthf,
                                      double M_min, double M_max, double M_cond, double sigma_max,
-                                     ScalingConstants* sc) {
+                                     ScalingConstants *sc) {
     if (matter_options_global->USE_INTERPOLATION_TABLES > 1) {
         return exp(EvaluateRGTable2D_f(delta, log10Mturn_m, &SFRD_conditional_table_MINI));
     }
@@ -981,9 +981,9 @@ double EvaluateSFRD_Conditional_MINI(double delta, double log10Mturn_m, double g
 }
 
 double EvaluateNion_Conditional(double delta, double log10Mturn, double growthf, double M_min,
-                                double M_max, double M_cond, double sigma_max, ScalingConstants* sc,
+                                double M_max, double M_cond, double sigma_max, ScalingConstants *sc,
                                 bool prev) {
-    RGTable2D_f* table = prev ? &Nion_conditional_table_prev : &Nion_conditional_table2D;
+    RGTable2D_f *table = prev ? &Nion_conditional_table_prev : &Nion_conditional_table2D;
     if (matter_options_global->USE_INTERPOLATION_TABLES > 1) {
         if (astro_options_global->USE_MINI_HALOS)
             return exp(EvaluateRGTable2D_f(delta, log10Mturn, table));
@@ -999,8 +999,8 @@ double EvaluateNion_Conditional(double delta, double log10Mturn, double growthf,
 
 double EvaluateNion_Conditional_MINI(double delta, double log10Mturn_m, double growthf,
                                      double M_min, double M_max, double M_cond, double sigma_max,
-                                     ScalingConstants* sc, bool prev) {
-    RGTable2D_f* table = prev ? &Nion_conditional_table_MINI_prev : &Nion_conditional_table_MINI;
+                                     ScalingConstants *sc, bool prev) {
+    RGTable2D_f *table = prev ? &Nion_conditional_table_MINI_prev : &Nion_conditional_table_MINI;
     if (matter_options_global->USE_INTERPOLATION_TABLES > 1) {
         return exp(EvaluateRGTable2D_f(delta, log10Mturn_m, table));
     }
@@ -1012,7 +1012,7 @@ double EvaluateNion_Conditional_MINI(double delta, double log10Mturn_m, double g
 
 double EvaluateXray_Conditional(double delta, double log10Mturn_m, double redshift, double growthf,
                                 double M_min, double M_max, double M_cond, double sigma_max,
-                                ScalingConstants* sc) {
+                                ScalingConstants *sc) {
     if (matter_options_global->USE_INTERPOLATION_TABLES > 1) {
         if (astro_options_global->USE_MINI_HALOS)
             return exp(EvaluateRGTable2D_f(delta, log10Mturn_m, &Xray_conditional_table_2D));

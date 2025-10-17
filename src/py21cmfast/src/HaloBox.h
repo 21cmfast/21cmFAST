@@ -44,18 +44,18 @@ typedef struct IntegralCondition {
     double sigma_cell;
 } IntegralCondition;
 
-void set_integral_constants(IntegralCondition* consts, double redshift, double M_min, double M_max,
+void set_integral_constants(IntegralCondition *consts, double redshift, double M_min, double M_max,
                             double M_cell);
 
-int ComputeHaloBox(double redshift, InitialConditions* ini_boxes, HaloField* halos,
-                   TsBox* previous_spin_temp, IonizedBox* previous_ionize_box, HaloBox* grids);
+int ComputeHaloBox(double redshift, InitialConditions *ini_boxes, HaloField *halos,
+                   TsBox *previous_spin_temp, IonizedBox *previous_ionize_box, HaloBox *grids);
 
 void get_cell_integrals(double dens, double l10_mturn_a, double l10_mturn_m,
-                        ScalingConstants* consts, IntegralCondition* int_consts,
-                        HaloProperties* properties);
+                        ScalingConstants *consts, IntegralCondition *int_consts,
+                        HaloProperties *properties);
 void set_halo_properties(double halo_mass, double M_turn_a, double M_turn_m,
-                         ScalingConstants* consts, double* input_rng, HaloProperties* output);
+                         ScalingConstants *consts, double *input_rng, HaloProperties *output);
 
-int convert_halo_props(double redshift, InitialConditions* ics, TsBox* prev_ts,
-                       IonizedBox* prev_ion, HaloField* halo_list, PerturbHaloField* halo_list_out);
+int convert_halo_props(double redshift, InitialConditions *ics, TsBox *prev_ts,
+                       IonizedBox *prev_ion, HaloField *halo_list, PerturbHaloField *halo_list_out);
 #endif

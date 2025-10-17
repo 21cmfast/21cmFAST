@@ -27,9 +27,9 @@
 //   used as a seed with a looping list of 5 different gsl initialisers.
 //   In order to keep consistency with master I'm leaving it as is for now, but I really want to
 //   understand why it was done this way.
-void seed_rng_threads(gsl_rng* rng_arr[], unsigned long long int seed) {
+void seed_rng_threads(gsl_rng *rng_arr[], unsigned long long int seed) {
     // An RNG for generating seeds for multithreading
-    gsl_rng* rseed = gsl_rng_alloc(gsl_rng_mt19937);
+    gsl_rng *rseed = gsl_rng_alloc(gsl_rng_mt19937);
 
     gsl_rng_set(rseed, seed);
 
@@ -40,7 +40,7 @@ void seed_rng_threads(gsl_rng* rng_arr[], unsigned long long int seed) {
     int num_int = INT_MAX / 16;
     int i, thread_num;
     // Some large number of possible integers
-    unsigned int* many_ints = (unsigned int*)malloc((size_t)(num_int * sizeof(unsigned int)));
+    unsigned int *many_ints = (unsigned int *)malloc((size_t)(num_int * sizeof(unsigned int)));
     for (i = 0; i < num_int; i++) {
         many_ints[i] = i;
     }
@@ -102,7 +102,7 @@ bool array_unique(unsigned int array[], int array_size) {
 // Samples a number of integers, repeating the samples if any repeat
 void sample_n_unique_integers(unsigned int n, unsigned long long int seed, unsigned int array[]) {
     // An RNG for generating seeds for multithreading
-    gsl_rng* rseed = gsl_rng_alloc(gsl_rng_mt19937);
+    gsl_rng *rseed = gsl_rng_alloc(gsl_rng_mt19937);
     gsl_rng_set(rseed, seed);
 
     int idx;
@@ -123,7 +123,7 @@ void sample_n_unique_integers(unsigned int n, unsigned long long int seed, unsig
 //   as well as be applied to different cells/halos, so I can't forsee any issues.
 // Just in case I'm not using it for the initial conditions, which is okay since the slower version
 // is only used once
-void seed_rng_threads_fast(gsl_rng* rng_arr[], unsigned long long int seed) {
+void seed_rng_threads_fast(gsl_rng *rng_arr[], unsigned long long int seed) {
     unsigned int seed_thread;
     unsigned int st_arr[1000];  // surely nobody uses > 1000 threads
     int thread_num, checker;
@@ -163,7 +163,7 @@ void seed_rng_threads_fast(gsl_rng* rng_arr[], unsigned long long int seed) {
     }
 }
 
-void free_rng_threads(gsl_rng* rng_arr[]) {
+void free_rng_threads(gsl_rng *rng_arr[]) {
     int ii;
     for (ii = 0; ii < simulation_options_global->N_THREADS; ii++) {
         gsl_rng_free(rng_arr[ii]);

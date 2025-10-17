@@ -62,11 +62,11 @@ void destruct_heat() {
 double T_RECFAST(float z, int flag) {
     double ans;
     static double zt[RECFAST_NPTS], TK[RECFAST_NPTS];
-    static gsl_interp_accel* acc;
-    static gsl_spline* spline;
+    static gsl_interp_accel *acc;
+    static gsl_spline *spline;
     float currz, currTK, trash;
     int i;
-    FILE* F;
+    FILE *F;
 
     char filename[500];
 
@@ -112,12 +112,12 @@ double T_RECFAST(float z, int flag) {
 // Ionization fraction from RECFAST. //
 double xion_RECFAST(float z, int flag) {
     static double zt[RECFAST_NPTS], xion[RECFAST_NPTS];
-    static gsl_interp_accel* acc;
-    static gsl_spline* spline;
+    static gsl_interp_accel *acc;
+    static gsl_spline *spline;
     float trash, currz, currxion;
     double ans;
     int i;
-    FILE* F;
+    FILE *F;
 
     char filename[500];
 
@@ -244,7 +244,7 @@ double spectral_emissivity(double nu_norm, int flag, int Population) {
     //  double ans, tot, lya;
     double result;
     int i;
-    FILE* F;
+    FILE *F;
 
     char filename[500];
 
@@ -685,7 +685,7 @@ double Tc_eff(double TK, double TS) {
     return ans;
 }
 
-float get_Ts(float z, float delta, float TK, float xe, float Jalpha, float* curr_xalpha) {
+float get_Ts(float z, float delta, float TK, float xe, float Jalpha, float *curr_xalpha) {
     double Trad, xc, xa_tilde;
     double TS, TSold;
     double Tceff;
@@ -720,9 +720,9 @@ float get_Ts(float z, float delta, float TK, float xe, float Jalpha, float* curr
 //  FLAG = 1 for ionization integral
 //  FLAG = 2 for Lya integral
 //
-double integrand_in_nu_heat_integral(double nu, void* params) {
+double integrand_in_nu_heat_integral(double nu, void *params) {
     double species_sum;
-    float x_e = *(double*)params;
+    float x_e = *(double *)params;
 
     // HI
     species_sum = interp_fheat((nu - NUIONIZATION) / NU_over_EV, x_e) * hplank *
@@ -740,9 +740,9 @@ double integrand_in_nu_heat_integral(double nu, void* params) {
                              -(astro_params_global->X_RAY_SPEC_INDEX) - 1);
 }
 
-double integrand_in_nu_ion_integral(double nu, void* params) {
+double integrand_in_nu_ion_integral(double nu, void *params) {
     double species_sum, F_i;
-    float x_e = *(double*)params;
+    float x_e = *(double *)params;
 
     // photoionization of HI, prodicing e- of energy h*(nu - nu_HI)
     F_i = interp_nion_HI((nu - NUIONIZATION) / NU_over_EV, x_e) +
@@ -766,9 +766,9 @@ double integrand_in_nu_ion_integral(double nu, void* params) {
                              -(astro_params_global->X_RAY_SPEC_INDEX) - 1);
 }
 
-double integrand_in_nu_lya_integral(double nu, void* params) {
+double integrand_in_nu_lya_integral(double nu, void *params) {
     double species_sum;
-    float x_e = *(double*)params;
+    float x_e = *(double *)params;
 
     // HI
     species_sum = interp_n_Lya((nu - NUIONIZATION) / NU_over_EV, x_e) * f_H * (double)(1 - x_e) *
@@ -790,7 +790,7 @@ double integrate_over_nu(double zp, double local_x_e, double lower_int_limit, in
     double result, error;
     double rel_tol = 0.01;  //<- relative tolerance
     gsl_function F;
-    gsl_integration_workspace* w = gsl_integration_workspace_alloc(1000);
+    gsl_integration_workspace *w = gsl_integration_workspace_alloc(1000);
 
     F.params = &local_x_e;
 
@@ -857,15 +857,15 @@ typedef struct {
     double ion_eff;
     double ion_eff_MINI;
     double log10_Mturn_MINI;
-    ScalingConstants* scale_consts;
+    ScalingConstants *scale_consts;
 } tauX_params;
 
-double tauX_integrand_MINI(double zhat, void* params) {
+double tauX_integrand_MINI(double zhat, void *params) {
     double n, drpropdz, nuhat, sigma_tilde, fcoll, HI_filling_factor_zhat;
     double log10_Mturn_MINI;
     double fcoll_MINI;
 
-    tauX_params* p = (tauX_params*)params;
+    tauX_params *p = (tauX_params *)params;
 
     drpropdz = C * dtdz(zhat);
     n = N_b0 * pow(1 + zhat, 3);
@@ -892,10 +892,10 @@ double tauX_integrand_MINI(double zhat, void* params) {
 
     return drpropdz * n * HI_filling_factor_zhat * sigma_tilde;
 }
-double tauX_integrand(double zhat, void* params) {
+double tauX_integrand(double zhat, void *params) {
     double n, drpropdz, nuhat, sigma_tilde, fcoll, HI_filling_factor_zhat;
 
-    tauX_params* p = (tauX_params*)params;
+    tauX_params *p = (tauX_params *)params;
 
     drpropdz = C * dtdz(zhat);
     n = N_b0 * pow(1 + zhat, 3);
@@ -919,12 +919,12 @@ double tauX_integrand(double zhat, void* params) {
     return drpropdz * n * HI_filling_factor_zhat * sigma_tilde;
 }
 double tauX_MINI(double nu, double x_e, double x_e_ave, double zp, double zpp,
-                 double HI_filling_factor_zp, double log10_Mturn_MINI, ScalingConstants* sc) {
+                 double HI_filling_factor_zp, double log10_Mturn_MINI, ScalingConstants *sc) {
     double result, error;
     gsl_function F;
 
     double rel_tol = 0.005;  //<- relative tolerance
-    gsl_integration_workspace* w = gsl_integration_workspace_alloc(1000);
+    gsl_integration_workspace *w = gsl_integration_workspace_alloc(1000);
     tauX_params p;
 
     F.function = &tauX_integrand_MINI;
@@ -962,11 +962,11 @@ double tauX_MINI(double nu, double x_e, double x_e_ave, double zp, double zpp,
 }
 
 double tauX(double nu, double x_e, double x_e_ave, double zp, double zpp,
-            double HI_filling_factor_zp, ScalingConstants* sc) {
+            double HI_filling_factor_zp, ScalingConstants *sc) {
     double result, error, fcoll;
     gsl_function F;
     double rel_tol = 0.005;  //<- relative tolerance
-    gsl_integration_workspace* w = gsl_integration_workspace_alloc(1000);
+    gsl_integration_workspace *w = gsl_integration_workspace_alloc(1000);
     tauX_params p;
 
     F.function = &tauX_integrand;
@@ -1025,23 +1025,23 @@ typedef struct {
     double zpp;
     double HI_filling_factor_zp;
     double log10_Mturn_MINI;
-    ScalingConstants* scale_consts;
+    ScalingConstants *scale_consts;
 } nu_tau_one_params;
-double nu_tau_one_helper_MINI(double nu, void* params) {
-    nu_tau_one_params* p = (nu_tau_one_params*)params;
+double nu_tau_one_helper_MINI(double nu, void *params) {
+    nu_tau_one_params *p = (nu_tau_one_params *)params;
     return tauX_MINI(nu, p->x_e, p->x_e, p->zp, p->zpp, p->HI_filling_factor_zp,
                      p->log10_Mturn_MINI, p->scale_consts) -
            1;
 }
-double nu_tau_one_helper(double nu, void* params) {
-    nu_tau_one_params* p = (nu_tau_one_params*)params;
+double nu_tau_one_helper(double nu, void *params) {
+    nu_tau_one_params *p = (nu_tau_one_params *)params;
     return tauX(nu, p->x_e, p->x_e, p->zp, p->zpp, p->HI_filling_factor_zp, p->scale_consts) - 1;
 }
 double nu_tau_one_MINI(double zp, double zpp, double x_e, double HI_filling_factor_zp,
-                       double log10_Mturn_MINI, ScalingConstants* sc) {
+                       double log10_Mturn_MINI, ScalingConstants *sc) {
     int status, iter, max_iter;
-    const gsl_root_fsolver_type* T;
-    gsl_root_fsolver* s;
+    const gsl_root_fsolver_type *T;
+    gsl_root_fsolver *s;
     gsl_function F;
     double x_lo, x_hi, r = 0;
     double relative_error = 0.02;
@@ -1106,10 +1106,10 @@ double nu_tau_one_MINI(double zp, double zpp, double x_e, double HI_filling_fact
 }
 
 double nu_tau_one(double zp, double zpp, double x_e, double HI_filling_factor_zp,
-                  ScalingConstants* sc) {
+                  ScalingConstants *sc) {
     int status, iter, max_iter;
-    const gsl_root_fsolver_type* T;
-    gsl_root_fsolver* s;
+    const gsl_root_fsolver_type *T;
+    gsl_root_fsolver *s;
     gsl_function F;
     double x_lo, x_hi, r = 0;
     double relative_error = 0.02;
@@ -1203,7 +1203,7 @@ int find_xyz_pos(int xpos, int ypos, int zpos, int len_yarr, int len_zarr) {
 }
 
 // Tri-linear interpolation function for Lyman-alpha heating efficiencies
-double interpolate_heating_efficiencies(double tk, double ts, double taugp, double* arrE) {
+double interpolate_heating_efficiencies(double tk, double ts, double taugp, double *arrE) {
     tk = log10(tk);
     // Check that the value doesn't exceed the bound of the table. If it does, set it to the edge
     // value (do not interpolate)
@@ -1281,7 +1281,7 @@ double Energy_Lya_heating(double Tk, double Ts, double tau_gp, int flag) {
     static double dEC[nT * nT * ngp];
     static double dEI[nT * nT * ngp];
     int ii, jj, kk, index;
-    FILE* F;
+    FILE *F;
 
     char filename[500];
 

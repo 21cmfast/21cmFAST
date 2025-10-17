@@ -26,12 +26,12 @@
  Filenames of the appropriate output from RECFAST to be used as boundary conditions in Ts.c
  as well as other tables used to compute the spin temperature
  */
-#define RECFAST_FILENAME (const char*)"recfast_LCDM.dat"
-#define STELLAR_SPECTRA_FILENAME (const char*)"stellar_spectra.dat"
-#define KAPPA_EH_FILENAME (const char*)"kappa_eH_table.dat"
-#define KAPPA_PH_FILENAME (const char*)"kappa_pH_table.dat"
+#define RECFAST_FILENAME (const char *)"recfast_LCDM.dat"
+#define STELLAR_SPECTRA_FILENAME (const char *)"stellar_spectra.dat"
+#define KAPPA_EH_FILENAME (const char *)"kappa_eH_table.dat"
+#define KAPPA_PH_FILENAME (const char *)"kappa_pH_table.dat"
 // Interpolation table for Lya heating efficiencies
-#define LYA_HEATING_FILENAME (const char*)"Lyman_alpha_heating_table.dat"
+#define LYA_HEATING_FILENAME (const char *)"Lyman_alpha_heating_table.dat"
 
 // ----------------------------------------------------------------------------------------- //
 
@@ -173,7 +173,7 @@
 
 // ----------------------------------------------------------------------------------------- //
 
-#define CLASS_FILENAME (const char*)"Transfers_z0.dat"
+#define CLASS_FILENAME (const char *)"Transfers_z0.dat"
 #define CLASS_LENGTH 150  // length of the CLASS transfer function
 // max and min k in  CLASS transfer function, temporary until interfaced properly
 #define KBOT_CLASS (float)(1e-5)

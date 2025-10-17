@@ -7,13 +7,13 @@
 // Functions within interp_tables.c need the parameter structures, but we don't want to pass them
 // all down the chain, so we broadcast them
 
-void initialise_SFRD_spline(int Nbin, float zmin, float zmax, ScalingConstants* sc);
-double EvaluateSFRD(double redshift, ScalingConstants* sc);
-double EvaluateSFRD_MINI(double redshift, double log10_Mturn_LW_ave, ScalingConstants* sc);
+void initialise_SFRD_spline(int Nbin, float zmin, float zmax, ScalingConstants *sc);
+double EvaluateSFRD(double redshift, ScalingConstants *sc);
+double EvaluateSFRD_MINI(double redshift, double log10_Mturn_LW_ave, ScalingConstants *sc);
 
-void initialise_Nion_Ts_spline(int Nbin, float zmin, float zmax, ScalingConstants* sc);
-double EvaluateNionTs(double redshift, ScalingConstants* sc);
-double EvaluateNionTs_MINI(double redshift, double log10_Mturn_LW_ave, ScalingConstants* sc);
+void initialise_Nion_Ts_spline(int Nbin, float zmin, float zmax, ScalingConstants *sc);
+double EvaluateNionTs(double redshift, ScalingConstants *sc);
+double EvaluateNionTs_MINI(double redshift, double log10_Mturn_LW_ave, ScalingConstants *sc);
 
 void initialise_FgtrM_delta_table(double min_dens, double max_dens, double zpp, double growth_zpp,
                                   double smin_zpp, double smax_zpp);
@@ -26,27 +26,27 @@ void initialise_Nion_Conditional_spline(double z, double min_density, double max
                                         double Mmin, double Mmax, double Mcond,
                                         double log10Mturn_min, double log10Mturn_max,
                                         double log10Mturn_min_MINI, double log10Mturn_max_MINI,
-                                        ScalingConstants* sc, bool prev);
+                                        ScalingConstants *sc, bool prev);
 double EvaluateNion_Conditional(double delta, double log10Mturn, double growthf, double M_min,
-                                double M_max, double M_cond, double sigma_max, ScalingConstants* sc,
+                                double M_max, double M_cond, double sigma_max, ScalingConstants *sc,
                                 bool prev);
 double EvaluateNion_Conditional_MINI(double delta, double log10Mturn_m, double growthf,
                                      double M_min, double M_max, double M_cond, double sigma_max,
-                                     ScalingConstants* sc, bool prev);
+                                     ScalingConstants *sc, bool prev);
 void initialise_Xray_Conditional_table(double redshift, double min_density, double max_density,
                                        double Mmin, double Mmax, double Mcond,
-                                       ScalingConstants* sc);
+                                       ScalingConstants *sc);
 double EvaluateXray_Conditional(double delta, double log10Mturn_m, double redshift, double growthf,
                                 double M_min, double M_max, double M_cond, double sigma_max,
-                                ScalingConstants* sc);
+                                ScalingConstants *sc);
 void initialise_SFRD_Conditional_table(double z, double min_density, double max_density,
                                        double Mmin, double Mmax, double Mcond,
-                                       ScalingConstants* sc);
+                                       ScalingConstants *sc);
 double EvaluateSFRD_Conditional(double delta, double growthf, double M_min, double M_max,
-                                double M_cond, double sigma_max, ScalingConstants* sc);
+                                double M_cond, double sigma_max, ScalingConstants *sc);
 double EvaluateSFRD_Conditional_MINI(double delta, double log10Mturn_m, double growthf,
                                      double M_min, double M_max, double M_cond, double sigma_max,
-                                     ScalingConstants* sc);
+                                     ScalingConstants *sc);
 
 void initialise_dNdM_tables(double xmin, double xmax, double ymin, double ymax, double growth1,
                             double param, bool from_catalog);

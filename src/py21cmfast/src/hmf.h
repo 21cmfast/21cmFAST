@@ -14,11 +14,11 @@
 void initialise_GL(double lnM_Min, double lnM_Max);
 
 double Nion_General(double z, double lnM_Min, double lnM_Max, double MassTurnover,
-                    ScalingConstants* sc);
+                    ScalingConstants *sc);
 double Nion_General_MINI(double z, double lnM_Min, double lnM_Max, double MassTurnover,
-                         ScalingConstants* sc);
+                         ScalingConstants *sc);
 double Xray_General(double z, double lnM_Min, double lnM_Max, double mturn_acg, double mturn_mcg,
-                    ScalingConstants* sc);
+                    ScalingConstants *sc);
 double Fcoll_General(double z, double lnM_min, double lnM_max);
 double Nhalo_General(double z, double lnM_min, double lnM_max);
 
@@ -28,12 +28,12 @@ double Mcoll_Conditional(double growthf, double lnM1, double lnM2, double lnM_co
                          double delta, int method);
 double Nion_ConditionalM_MINI(double growthf, double lnM1, double lnM2, double lnM_cond,
                               double sigma2, double delta2, double MassTurnover,
-                              ScalingConstants* sc, int method);
+                              ScalingConstants *sc, int method);
 double Nion_ConditionalM(double growthf, double lnM1, double lnM2, double lnM_cond, double sigma2,
-                         double delta2, double MassTurnover, ScalingConstants* sc, int method);
+                         double delta2, double MassTurnover, ScalingConstants *sc, int method);
 double Xray_ConditionalM(double redshift, double growthf, double lnM1, double lnM2, double lnM_cond,
                          double sigma2, double delta2, double mturn_acg, double mturn_mcg,
-                         ScalingConstants* sc, int method);
+                         ScalingConstants *sc, int method);
 
 double unconditional_hmf(double growthf, double lnM, double z, int HMF);
 double conditional_hmf(double growthf, double lnM, double delta_cond, double sigma_cond, int HMF);
@@ -46,7 +46,7 @@ double splined_erfc(double x);
 
 /* Other values required in other files */
 double get_delta_crit(int HMF, double sigma, double growthf);
-double st_taylor_factor(double sig, double sig_cond, double growthf, double* zeroth_order);
+double st_taylor_factor(double sig, double sig_cond, double growthf, double *zeroth_order);
 double atomic_cooling_threshold(float z);
 double minimum_source_mass(double redshift, bool xray);
 double sheth_delc_dexm(double del, double sig);

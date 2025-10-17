@@ -159,8 +159,8 @@ typedef struct ConfigSettings {
     double HALO_CATALOG_MEM_FACTOR;
     bool EXTRA_HALOBOX_FIELDS;
 
-    char* external_table_path;
-    char* wisdoms_path;
+    char *external_table_path;
+    char *wisdoms_path;
 } ConfigSettings;
 
 /* Previously, we had a few structures spread throughout the code e.g simulation_options_ufunc which
@@ -174,10 +174,10 @@ typedef struct ConfigSettings {
    decorate any library call) However this would require us to be very careful about initialising
    the globals when ANY function from that file is called */
 // The structs declared here defined in InputParameters.c
-extern SimulationOptions* simulation_options_global;
-extern MatterOptions* matter_options_global;
-extern CosmoParams* cosmo_params_global;
-extern AstroParams* astro_params_global;
-extern AstroOptions* astro_options_global;
+extern SimulationOptions *simulation_options_global;
+extern MatterOptions *matter_options_global;
+extern CosmoParams *cosmo_params_global;
+extern AstroParams *astro_params_global;
+extern AstroOptions *astro_options_global;
 
 extern ConfigSettings config_settings;

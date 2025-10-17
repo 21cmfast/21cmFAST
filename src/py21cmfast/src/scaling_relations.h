@@ -51,25 +51,25 @@ typedef struct ScalingConstants {
     double Mlim_Fesc_mini;
 } ScalingConstants;
 
-void set_scaling_constants(double redshift, ScalingConstants* consts, bool use_photoncons);
+void set_scaling_constants(double redshift, ScalingConstants *consts, bool use_photoncons);
 
 double get_lx_on_sfr(double sfr, double metallicity, double lx_constant);
 void get_halo_stellarmass(double halo_mass, double mturn_acg, double mturn_mcg, double star_rng,
-                          ScalingConstants* consts, double* star_acg, double* star_mcg);
+                          ScalingConstants *consts, double *star_acg, double *star_mcg);
 void get_halo_sfr(double stellar_mass, double stellar_mass_mini, double sfr_rng,
-                  ScalingConstants* consts, double* sfr, double* sfr_mini);
-void get_halo_metallicity(double sfr, double stellar, double redshift, double* z_out);
+                  ScalingConstants *consts, double *sfr, double *sfr_mini);
+void get_halo_metallicity(double sfr, double stellar, double redshift, double *z_out);
 void get_halo_xray(double sfr, double sfr_mini, double metallicity, double xray_rng,
-                   ScalingConstants* consts, double* xray_out);
+                   ScalingConstants *consts, double *xray_out);
 
 double scaling_PL_limit(double M, double norm, double alpha, double pivot, double limit);
 double log_scaling_PL_limit(double lnM, double ln_norm, double alpha, double ln_pivot,
                             double ln_limit);
 double scaling_double_PL(double M, double alpha_lo, double pivot_ratio, double alpha_hi,
                          double pivot_hi);
-ScalingConstants evolve_scaling_constants_sfr(ScalingConstants* sc);
-ScalingConstants evolve_scaling_constants_to_redshift(double redshift, ScalingConstants* sc,
+ScalingConstants evolve_scaling_constants_sfr(ScalingConstants *sc);
+ScalingConstants evolve_scaling_constants_to_redshift(double redshift, ScalingConstants *sc,
                                                       bool use_photoncons);
-void print_sc_consts(ScalingConstants* c);
+void print_sc_consts(ScalingConstants *c);
 
 #endif
