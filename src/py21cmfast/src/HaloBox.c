@@ -75,9 +75,13 @@ void set_halo_properties(double halo_mass, double M_turn_a, double M_turn_m,
     }
 
     // no rng for escape fraction yet
-    fesc = fmin(consts->fesc_10 * pow(halo_mass / 1e10, consts->alpha_esc), 1);
+    // add redshift dependence to fesc
+    fesc = fmin(consts->fesc_10 * pow(halo_mass / 1e10, consts->alpha_esc) * consts->zesc_power_law,
+                1);
     if (astro_options_global->USE_MINI_HALOS)
-        fesc_mini = fmin(consts->fesc_7 * pow(halo_mass / 1e7, consts->alpha_esc), 1);
+        fesc_mini = fmin(
+            consts->fesc_7 * pow(halo_mass / 1e7, consts->alpha_esc) * consts->zesc_power_law_mini,
+            1);
 
     n_ion_sample =
         stellar_mass * consts->pop2_ion * fesc + stellar_mass_mini * consts->pop3_ion * fesc_mini;
@@ -109,10 +113,14 @@ int get_uhmf_averages(double M_min, double M_max, double M_turn_a, double M_turn
     double prefactor_stars_mini = RHOcrit * cosmo_params_global->OMb * consts->fstar_7;
     double prefactor_sfr = prefactor_stars / consts->t_star / t_h;
     double prefactor_sfr_mini = prefactor_stars_mini / consts->t_star / t_h;
-    double prefactor_nion = prefactor_stars * consts->fesc_10 * consts->pop2_ion;
-    double prefactor_nion_mini = prefactor_stars_mini * consts->fesc_7 * consts->pop3_ion;
-    double prefactor_wsfr = prefactor_sfr * consts->fesc_10 * consts->pop2_ion;
-    double prefactor_wsfr_mini = prefactor_sfr_mini * consts->fesc_7 * consts->pop3_ion;
+    double prefactor_nion =
+        prefactor_stars * consts->fesc_10 * consts->pop2_ion * consts->zesc_power_law;
+    double prefactor_nion_mini =
+        prefactor_stars_mini * consts->fesc_7 * consts->pop3_ion * consts->zesc_power_law_mini;
+    double prefactor_wsfr =
+        prefactor_sfr * consts->fesc_10 * consts->pop2_ion * consts->zesc_power_law;
+    double prefactor_wsfr_mini =
+        prefactor_sfr_mini * consts->fesc_7 * consts->pop3_ion * consts->zesc_power_law_mini;
     double prefactor_xray = RHOcrit * cosmo_params_global->OMm;
 
     double mass_intgrl;
@@ -287,6 +295,32 @@ int set_fixed_grids(double M_min, double M_max, InitialConditions *ini_boxes, fl
     IntegralCondition integral_cond;
     set_integral_constants(&integral_cond, consts->redshift, M_min, M_max, M_cell);
     double growthf = dicke(consts->redshift);
+    double growth_z = dicke(consts->redshift);
+
+    double lnMmin = log(M_min);
+    double lnMcell = log(M_cell);
+    double lnMmax = log(M_max);
+
+    double sigma_cell = EvaluateSigma(lnMcell);
+
+    double prefactor_mass = RHOcrit * cosmo_params_global->OMm;
+    double prefactor_stars = RHOcrit * cosmo_params_global->OMb * consts->fstar_10;
+    double prefactor_stars_mini = RHOcrit * cosmo_params_global->OMb * consts->fstar_7;
+    double prefactor_sfr = prefactor_stars / consts->t_star / consts->t_h;
+    double prefactor_sfr_mini = prefactor_stars_mini / consts->t_star / consts->t_h;
+    double prefactor_nion =
+        prefactor_stars * consts->fesc_10 * consts->pop2_ion * consts->zesc_power_law;
+    double prefactor_nion_mini =
+        prefactor_stars_mini * consts->fesc_7 * consts->pop3_ion * consts->zesc_power_law_mini;
+    double prefactor_wsfr =
+        prefactor_sfr * consts->fesc_10 * consts->pop2_ion * consts->zesc_power_law;
+    double prefactor_wsfr_mini =
+        prefactor_sfr_mini * consts->fesc_7 * consts->pop3_ion * consts->zesc_power_law_mini;
+    double prefactor_xray = RHOcrit * cosmo_params_global->OMm;
+
+    double hm_sum = 0, nion_sum = 0, wsfr_sum = 0, xray_sum = 0;
+    double sm_sum = 0, sm_sum_mini = 0, sfr_sum = 0, sfr_sum_mini = 0;
+    double l10_mlim_m_sum = 0., l10_mlim_a_sum = 0., l10_mlim_r_sum = 0.;
 
     // find grid limits for tables
     double min_density = 0.;
