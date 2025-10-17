@@ -4,4 +4,5 @@
 BasedOnStyle: Google
 IndentWidth: 4
 ColumnLimit: 100
+DerivePointerAlignment: true
 ...

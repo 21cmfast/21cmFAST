@@ -262,45 +262,33 @@ float distance(float x1, float y1, float z1, float x2, float y2, float z2) {
 // helper function for update in sphere below
 void check_region(float *box, int dimensions, int dimensions_ncf, float Rsq_curr_index, int x,
                   int y, int z, int x_min, int x_max, int y_min, int y_max, int z_min, int z_max) {
-    int x_curr, y_curr, z_curr, x_index, y_index, z_index;
+    int x_curr, y_curr, z_curr;
     float xsq, xplussq, xminsq, ysq, yplussq, yminsq, zsq, zplussq, zminsq;
 
+    int index_arr[3];
+    int box_dim[3] = {dimensions, dimensions, dimensions_ncf};
+    unsigned long long int index;
     for (x_curr = x_min; x_curr <= x_max; x_curr++) {
         for (y_curr = y_min; y_curr <= y_max; y_curr++) {
             for (z_curr = z_min; z_curr <= z_max; z_curr++) {
-                x_index = x_curr;
-                y_index = y_curr;
-                z_index = z_curr;
-                // adjust if we are outside of the box
-                if (x_index < 0) {
-                    x_index += dimensions;
-                } else if (x_index >= dimensions) {
-                    x_index -= dimensions;
-                }
-                if (y_index < 0) {
-                    y_index += dimensions;
-                } else if (y_index >= dimensions) {
-                    y_index -= dimensions;
-                }
-                if (z_index < 0) {
-                    z_index += dimensions_ncf;
-                } else if (z_index >= dimensions_ncf) {
-                    z_index -= dimensions_ncf;
-                }
+                index_arr[0] = x_curr;
+                index_arr[1] = y_curr;
+                index_arr[2] = z_curr;
+                wrap_coord(index_arr, box_dim);
 
+                index = grid_index_general(index_arr[0], index_arr[1], index_arr[2], box_dim);
                 // now check
-                if (box[HII_R_INDEX(x_index, y_index,
-                                    z_index)]) {  // untaken pixel (not part of other halo)
-                                                  // remember to check all reflections
-                    xsq = pow(x - x_index, 2);
-                    ysq = pow(y - y_index, 2);
-                    zsq = pow(z - z_index, 2);
-                    xplussq = pow(x - x_index + dimensions, 2);
-                    yplussq = pow(y - y_index + dimensions, 2);
-                    zplussq = pow(z - z_index + dimensions_ncf, 2);
-                    xminsq = pow(x - x_index - dimensions, 2);
-                    yminsq = pow(y - y_index - dimensions, 2);
-                    zminsq = pow(z - z_index - dimensions_ncf, 2);
+                if (box[index]) {  // untaken pixel (not part of other halo)
+                                   // remember to check all reflections
+                    xsq = pow(x - index_arr[0], 2);
+                    ysq = pow(y - index_arr[1], 2);
+                    zsq = pow(z - index_arr[2], 2);
+                    xplussq = pow(x - index_arr[0] + dimensions, 2);
+                    yplussq = pow(y - index_arr[1] + dimensions, 2);
+                    zplussq = pow(z - index_arr[2] + dimensions_ncf, 2);
+                    xminsq = pow(x - index_arr[0] - dimensions, 2);
+                    yminsq = pow(y - index_arr[1] - dimensions, 2);
+                    zminsq = pow(z - index_arr[2] - dimensions_ncf, 2);
                     if ((Rsq_curr_index > (xsq + ysq + zsq)) ||
                         (Rsq_curr_index > (xsq + ysq + zplussq)) ||
                         (Rsq_curr_index > (xsq + ysq + zminsq)) ||
@@ -337,7 +325,7 @@ void check_region(float *box, int dimensions, int dimensions_ncf, float Rsq_curr
                         (Rsq_curr_index > (xminsq + yminsq + zplussq)) ||
                         (Rsq_curr_index > (xminsq + yminsq + zminsq))) {
                         // we are within the sphere defined by R, so change flag in box array
-                        box[HII_R_INDEX(x_index, y_index, z_index)] = 0;
+                        box[index] = 0;
                     }
                 }
             }
@@ -355,7 +343,10 @@ void update_in_sphere(float *box, int dimensions, int dimensions_ncf, float R, f
     int x_curr, y_curr, z_curr, xb_min, xb_max, yb_min, yb_max, zb_min, zb_max, R_index;
     int xl_min, xl_max, yl_min, yl_max, zl_min, zl_max;
     float Rsq_curr_index;
-    int x_index, y_index, z_index, x, y, z;
+    int x, y, z, index;
+
+    int index_arr[3];
+    int box_dim[3] = {dimensions, dimensions, dimensions_ncf};
 
     if (R < 0) return;
     // convert distances to index units
@@ -377,29 +368,14 @@ void update_in_sphere(float *box, int dimensions, int dimensions_ncf, float R, f
     for (x_curr = xl_min; x_curr <= xl_max; x_curr++) {
         for (y_curr = yl_min; y_curr <= yl_max; y_curr++) {
             for (z_curr = zl_min; z_curr <= zl_max; z_curr++) {
-                x_index = x_curr;
-                y_index = y_curr;
-                z_index = z_curr;
-                // adjust if we are outside of the box
-                if (x_index < 0) {
-                    x_index += dimensions;
-                } else if (x_index >= dimensions) {
-                    x_index -= dimensions;
-                }
-                if (y_index < 0) {
-                    y_index += dimensions;
-                } else if (y_index >= dimensions) {
-                    y_index -= dimensions;
-                }
-                if (z_index < 0) {
-                    z_index += dimensions_ncf;
-                } else if (z_index >= dimensions_ncf) {
-                    z_index -= dimensions_ncf;
-                }
+                index_arr[0] = x_curr;
+                index_arr[1] = y_curr;
+                index_arr[2] = z_curr;
+                wrap_coord(index_arr, box_dim);
+                index = grid_index_general(index_arr[0], index_arr[1], index_arr[2], box_dim);
 
                 // now just paint it
-                // box[HII_R_INDEX(x_index, y_index, z_index)] = 15;
-                box[HII_R_INDEX(x_index, y_index, z_index)] = 0;
+                box[index] = 0;
             }
         }
     }
