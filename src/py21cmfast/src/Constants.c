@@ -1,7 +1,5 @@
 #include "Constants.h"
 
-#include <math.h>
-
 // Values differing from the original 21cmFAST were taken from Astropy constants v7.1.0
 const PhysicalConstants physconst = {
     .c_cms = 2.99792458e10,

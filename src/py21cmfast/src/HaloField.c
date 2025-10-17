@@ -84,7 +84,7 @@ int ComputeHaloField(float redshift_desc, float redshift, InitialConditions *box
         // store highly used parameters
         int grid_dim = simulation_options_global->DIM;
         int z_dim = D_PARA;
-        int dim_arr[3] = {grid_dim, grid_dim, z_dim};
+        int box_dim[3] = {grid_dim, grid_dim, z_dim};
         double cell_length = simulation_options_global->BOX_LEN / grid_dim;
         // set minimum source mass
         // if we use the sampler we want to stop at the HII cell mass
@@ -137,8 +137,8 @@ int ComputeHaloField(float redshift_desc, float redshift, InitialConditions *box
             for (i = 0; i < grid_dim; i++) {
                 for (j = 0; j < grid_dim; j++) {
                     for (k = 0; k < z_dim; k++) {
-                        index_r = grid_index_general(i, j, k, dim_arr);
-                        index_f = grid_index_fftw_r(i, j, k, dim_arr);
+                        index_r = grid_index_general(i, j, k, box_dim);
+                        index_f = grid_index_fftw_r(i, j, k, box_dim);
                         *((float *)density_field + index_f) = boxes->hires_density[index_r];
                     }
                 }
@@ -206,7 +206,7 @@ int ComputeHaloField(float redshift_desc, float redshift, InitialConditions *box
 
             // now filter the box on scale R
             // 0 = top hat in real space, 1 = top hat in k space
-            filter_box(density_field, dim_arr, matter_options_global->HALO_FILTER, R, 0.);
+            filter_box(density_field, box_dim, matter_options_global->HALO_FILTER, R, 0.);
 
             // do the FFT to get delta_m box
             dft_c2r_cube(matter_options_global->USE_FFTW_WISDOM, grid_dim, z_dim,
@@ -229,7 +229,7 @@ int ComputeHaloField(float redshift_desc, float redshift, InitialConditions *box
                         for (x = 0; x < grid_dim; x++) {
                             for (y = 0; y < grid_dim; y++) {
                                 for (z = 0; z < z_dim; z++) {
-                                    halo_buf = halo_field[grid_index_general(x, y, z, dim_arr)];
+                                    halo_buf = halo_field[grid_index_general(x, y, z, box_dim)];
                                     if (halo_buf > 0.) {
                                         R_temp = MtoR(halo_buf);
                                         check_halo(
@@ -257,8 +257,8 @@ int ComputeHaloField(float redshift_desc, float redshift, InitialConditions *box
             for (x = 0; x < grid_dim; x++) {
                 for (y = 0; y < grid_dim; y++) {
                     for (z = 0; z < z_dim; z++) {
-                        idx_r = grid_index_general(x, y, z, dim_arr);
-                        idx_f = grid_index_fftw_r(x, y, z, dim_arr);
+                        idx_r = grid_index_general(x, y, z, box_dim);
+                        idx_f = grid_index_fftw_r(x, y, z, box_dim);
                         delta_m =
                             *((float *)density_field + idx_f) * growth_factor / TOT_NUM_PIXELS;
                         // if not within a larger halo, and radii don't overlap, update in_halo box
@@ -324,7 +324,7 @@ int ComputeHaloField(float redshift_desc, float redshift, InitialConditions *box
         for (x = 0; x < grid_dim; x++) {
             for (y = 0; y < grid_dim; y++) {
                 for (z = 0; z < z_dim; z++) {
-                    halo_buf = halo_field[grid_index_general(x, y, z, dim_arr)];
+                    halo_buf = halo_field[grid_index_general(x, y, z, box_dim)];
                     if (halo_buf > 0.) {
                         halos_dexm->halo_masses[count] = halo_buf;
                         // place DexM halos at the centre of the cell
@@ -353,8 +353,8 @@ int ComputeHaloField(float redshift_desc, float redshift, InitialConditions *box
                 for (i = 0; i < grid_dim; i++) {
                     for (j = 0; j < grid_dim; j++) {
                         for (k = 0; k < z_dim; k++) {
-                            index_r = grid_index_general(i, j, k, dim_arr);
-                            index_f = grid_index_fftw_r(i, j, k, dim_arr);
+                            index_r = grid_index_general(i, j, k, box_dim);
+                            index_f = grid_index_fftw_r(i, j, k, box_dim);
                             *((float *)density_field + index_f) = in_halo[index_r] ? 1. : 0.;
                         }
                     }
@@ -365,7 +365,7 @@ int ComputeHaloField(float redshift_desc, float redshift, InitialConditions *box
                          simulation_options_global->N_THREADS, density_field);
             if (simulation_options_global->DIM != simulation_options_global->HII_DIM) {
                 // the tophat filter here will smoothe the grid to HII_DIM
-                filter_box(density_field, dim_arr, 0,
+                filter_box(density_field, box_dim, 0,
                            physconst.l_factor * simulation_options_global->BOX_LEN /
                                (simulation_options_global->HII_DIM + 0.0),
                            0.);
@@ -459,7 +459,7 @@ int check_halo(char *in_halo, float R, int x, int y, int z, int check_type) {
 
     int grid_dim = simulation_options_global->DIM;
     int z_dim = D_PARA;
-    int dim_arr[3] = {grid_dim, grid_dim, z_dim};
+    int box_dim[3] = {grid_dim, grid_dim, z_dim};
 
     // convert R to index units
     R_index = ceil(R / simulation_options_global->BOX_LEN * grid_dim);
@@ -498,7 +498,7 @@ int check_halo(char *in_halo, float R, int x, int y, int z, int check_type) {
                     z_index -= z_dim;
                 }
 
-                curr_index = grid_index_general(x_index, y_index, z_index, dim_arr);
+                curr_index = grid_index_general(x_index, y_index, z_index, box_dim);
                 // LOG_ULTRA_DEBUG("current point (%d,%d,%d) idx
                 // %d",x_curr,y_curr,z_curr,curr_index);
 

@@ -242,7 +242,6 @@ void initialise_FgtrM_delta_table(double min_dens, double max_dens, double zpp, 
     dfcoll_conditional_table.x_min = fcoll_conditional_table.x_min;
     dfcoll_conditional_table.x_width = fcoll_conditional_table.x_width;
 
-    // N_DENS_INTERP is a global define, probably shouldn't be
     for (i = 0; i < N_DENS_INTERP; i++) {
         dens = fcoll_conditional_table.x_min + i * fcoll_conditional_table.x_width;
         fcoll_conditional_table.y_arr[i] = FgtrM_bias_fast(growth_zpp, dens, smin_zpp, smax_zpp);
