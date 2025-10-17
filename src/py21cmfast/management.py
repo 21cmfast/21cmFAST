@@ -73,7 +73,13 @@ def get_expected_sizes(
     """
     structs = get_expected_outputs(inputs, cache_config)
 
-    out = {"InitialConditions": ostrct.InitialConditions.new(inputs).get_full_size()}
+    if "InitialConditions" in structs:
+        out = {
+            "InitialConditions": ostrct.InitialConditions.new(inputs).get_full_size()
+        }
+    else:
+        out = {}
+
     for name in structs:
         struct = getattr(ostrct, name)
         if name != "InitialConditions":
@@ -90,7 +96,8 @@ def get_total_storage_size(
     for i, z in enumerate(inputs.node_redshifts):
         sizes = get_expected_sizes(inputs, cache_config=cache_config, redshift=z)
         if i == 0:
-            out["InitialConditions"] = (1, sizes["InitialConditions"])
+            if "InitialConditions" in sizes:
+                out["InitialConditions"] = (1, sizes["InitialConditions"])
             for name in sizes:
                 if name != "InitialConditions":
                     out[name] = (0, 0)

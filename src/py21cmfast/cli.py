@@ -774,6 +774,9 @@ def predict_struct_size(
     sizes = get_expected_sizes(
         inputs, cache_config=getattr(CacheConfig, cache_config)()
     )
+    if len(sizes) == 0:
+        cns.print("No output structs are expected for given inputs and cache-config.")
+        return
 
     units = ["b", "kb", "mb", "gb", "tb"]
     if unit is None:
@@ -814,6 +817,10 @@ def predict_storage_size(
     sizes = get_total_storage_size(
         inputs, cache_config=getattr(CacheConfig, cache_config)()
     )
+
+    if len(sizes) == 0:
+        cns.print("No output structs are expected for given inputs and cache-config.")
+        return
 
     units = ["b", "kb", "mb", "gb", "tb"]
     if unit is None:
