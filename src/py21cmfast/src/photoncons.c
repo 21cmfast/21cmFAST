@@ -213,8 +213,8 @@ int InitialisePhotonCons() {
                         Ho * sqrt(cosmo_params_global->OMm / a + cosmo_params_global->OMr / a / a +
                                   cosmo_params_global->OMl * a *
                                       a);  // da/dt = Ho*a*sqrt(OMm/a^3 + OMr/a^4 + OMl)
-                    Trec = 0.93 * 1e9 * SperYR * pow(C_HII / 3., -1) * pow(T_0 / 2e4, 0.7) *
-                           pow((1. + zi) / 7., -3);
+                    Trec = 0.93 * 1e9 * physconst.s_per_yr * pow(C_HII / 3., -1) *
+                           pow(T_0 / 2e4, 0.7) * pow((1. + zi) / 7., -3);
                     Q1 = Q0 + ((Nion0 - Nion1) / 2. / delta_a - Q0 / Trec / dadt) * da;
                 }
 
