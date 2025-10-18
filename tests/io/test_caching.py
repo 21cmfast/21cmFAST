@@ -70,6 +70,7 @@ class TestRunCache:
         """Test that the RunCache can be created with optional boxes."""
         inputs = InputParameters.from_template("latest-dhalos", random_seed=12345)
         cache = caching.RunCache.from_inputs(inputs, caching.OutputCache(tmp_path))
+        print(attrs.asdict(cache).keys(), flush=True)
 
         assert isinstance(cache.HaloBox, dict)
         assert isinstance(cache.HaloField, dict)
