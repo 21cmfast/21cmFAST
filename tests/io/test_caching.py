@@ -73,7 +73,7 @@ class TestRunCache:
         print(attrs.asdict(cache).keys(), flush=True)
 
         assert isinstance(cache.HaloBox, dict)
-        assert isinstance(cache.HaloField, dict)
+        assert isinstance(cache.HaloCatalog, dict)
         assert isinstance(cache.InitialConditions, Path)
         assert isinstance(cache.PerturbedField, dict)
         assert isinstance(cache.IonizedBox, dict)

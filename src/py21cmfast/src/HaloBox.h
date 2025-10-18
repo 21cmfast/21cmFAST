@@ -1,12 +1,12 @@
 #ifndef _HALOBOX_H
 #define _HALOBOX_H
 
-#include "HaloField.h"
+#include "HaloCatalog.h"
 #include "InitialConditions.h"
 #include "InputParameters.h"
 #include "IonisationBox.h"
 #include "OutputStructs.h"
-#include "PerturbHaloField.h"
+#include "PerturbHaloCatalog.h"
 #include "SpinTemperatureBox.h"
 #include "scaling_relations.h"
 
@@ -47,7 +47,7 @@ typedef struct IntegralCondition {
 void set_integral_constants(IntegralCondition *consts, double redshift, double M_min, double M_max,
                             double M_cell);
 
-int ComputeHaloBox(double redshift, InitialConditions *ini_boxes, HaloField *halos,
+int ComputeHaloBox(double redshift, InitialConditions *ini_boxes, HaloCatalog *halos,
                    TsBox *previous_spin_temp, IonizedBox *previous_ionize_box, HaloBox *grids);
 
 void get_cell_integrals(double dens, double l10_mturn_a, double l10_mturn_m,
@@ -57,5 +57,6 @@ void set_halo_properties(double halo_mass, double M_turn_a, double M_turn_m,
                          ScalingConstants *consts, double *input_rng, HaloProperties *output);
 
 int convert_halo_props(double redshift, InitialConditions *ics, TsBox *prev_ts,
-                       IonizedBox *prev_ion, HaloField *halo_list, PerturbHaloField *halo_list_out);
+                       IonizedBox *prev_ion, HaloCatalog *halo_list,
+                       PerturbHaloCatalog *halo_list_out);
 #endif

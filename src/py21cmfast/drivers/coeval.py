@@ -23,7 +23,7 @@ from ..wrapper.inputs import InputParameters
 from ..wrapper.outputs import (
     BrightnessTemp,
     HaloBox,
-    HaloField,
+    HaloCatalog,
     InitialConditions,
     IonizedBox,
     OutputStruct,
@@ -688,7 +688,7 @@ def _redshift_loop_generator(
     initial_conditions: InitialConditions,
     all_redshifts: Sequence[float],
     perturbed_field: list[PerturbedField],
-    halofield_list: list[HaloField],
+    halofield_list: list[HaloCatalog],
     write: CacheConfig,
     iokw: dict,
     cleanup: bool,
@@ -837,7 +837,7 @@ def _setup_ics_and_pfs_for_scrolling(
     write: CacheConfig,
     progressbar: bool,
     **iokw,
-) -> tuple[InitialConditions, list[PerturbedField], list[HaloField], dict]:
+) -> tuple[InitialConditions, list[PerturbedField], list[HaloCatalog], dict]:
     if initial_conditions is None:
         initial_conditions = sf.compute_initial_conditions(
             inputs=inputs, write=write.initial_conditions, **iokw

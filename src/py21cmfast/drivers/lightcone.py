@@ -25,7 +25,7 @@ from ..wrapper.inputs import InputParameters
 from ..wrapper.outputs import (
     BrightnessTemp,
     HaloBox,
-    HaloField,
+    HaloCatalog,
     InitialConditions,
     IonizedBox,
     PerturbedField,
@@ -402,7 +402,7 @@ def _run_lightcone_from_perturbed_fields(
     include_dvdr_in_tau21: bool,
     apply_rsds: bool,
     n_rsd_subcells: int,
-    halofield_list: list[HaloField],
+    halofield_list: list[HaloCatalog],
     regenerate: bool | None = None,
     cache: OutputCache = _ocache,
     cleanup: bool = True,

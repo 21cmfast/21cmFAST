@@ -173,8 +173,8 @@ survey, line intensity mapping, and cosmic background statistics. The sampler is
 activated with the flag ``HALO_STOCHASTICITY`` and serves as a faster replacement to the
 previous excursion-set halo finder, with greatly increased functionality. Halos are
 sampled in a backward time-loop in each run before the main IGM calculations start.
-Halo catlogues can be found in the :class:`HaloField` (Initial Lagrangian) and
-:class:`PerturbHaloField` (Final Eulerian) classes. Each catalogue contains the
+Halo catlogues can be found in the :class:`HaloCatalog` (Initial Lagrangian) and
+:class:`PerturbHaloCatalog` (Final Eulerian) classes. Each catalogue contains the
 coordinates and masses of each halo, as well as the correlated RNG used to determine
 their galaxy properties. Converting from the RNG to the properties can be done with
 :func:`py21cmfast.wrapper.cfuncs.convert_halo_properties`. Galaxy properties are not

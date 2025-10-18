@@ -295,7 +295,7 @@ class RunCache:
     IonizedBox: dict[float, Path] = _dict_of_paths_field()
     BrightnessTemp: dict[float, Path] = _dict_of_paths_field()
     HaloBox: dict[float, Path] | None = _dict_of_paths_field()
-    HaloField: dict[float, Path] | None = _dict_of_paths_field()
+    HaloCatalog: dict[float, Path] | None = _dict_of_paths_field()
     XraySourceBox: dict[float, Path] | None = _dict_of_paths_field()
     inputs: InputParameters | None = attrs.field(default=None)
 
@@ -332,7 +332,7 @@ class RunCache:
         if inputs.astro_options.USE_TS_FLUCT:
             others |= {"TsBox": {}}
         if inputs.matter_options.USE_HALO_FIELD:
-            others |= {"HaloField": {}, "XraySourceBox": {}, "HaloBox": {}}
+            others |= {"HaloCatalog": {}, "XraySourceBox": {}, "HaloBox": {}}
 
         for z in inputs.node_redshifts:
             for name, val in others.items():
@@ -586,7 +586,7 @@ class CacheConfig:
         """Generate a CacheConfig where only boxes needed from more than one step away are cached.
 
         This represents the minimum caching setup which will *never* store every redshift in memory.
-        PerturbedField and PerturbHaloFields are all calculated at the start of the run, and HaloBox
+        PerturbedField and PerturbHaloCatalogs are all calculated at the start of the run, and HaloBox
         is required at multiple redshifts for the XraySourceBox. So this caching setup allows free
         purging of these objects without losing data.
         """

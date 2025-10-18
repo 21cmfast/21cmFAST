@@ -1,9 +1,9 @@
 // Re-write of update_halo_coords from the original 21cmFAST
 
-// ComputePerturbHaloField reads in the linear velocity field, and uses
+// ComputePerturbHaloCatalog reads in the linear velocity field, and uses
 // it to update halo locations with a corresponding displacement field
 
-#include "PerturbHaloField.h"
+#include "PerturbHaloCatalog.h"
 
 #include <complex.h>
 #include <fftw3.h>
@@ -22,9 +22,9 @@
 #include "indexing.h"
 #include "logger.h"
 
-int ComputePerturbHaloField(float redshift, InitialConditions *boxes, TsBox *prev_ts,
-                            IonizedBox *prev_ion, HaloField *halos,
-                            PerturbHaloField *halos_perturbed) {
+int ComputePerturbHaloCatalog(float redshift, InitialConditions *boxes, TsBox *prev_ts,
+                              IonizedBox *prev_ion, HaloCatalog *halos,
+                              PerturbHaloCatalog *halos_perturbed) {
     int status;
 
     Try {  // This Try brackets the whole function, so we don't indent.

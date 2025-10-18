@@ -494,7 +494,7 @@ void get_log10_turnovers(InitialConditions *ini_boxes, TsBox *previous_spin_temp
     averages[1] = log10_mturn_m_avg;
 }
 
-void sum_halos_onto_grid(double redshift, InitialConditions *ini_boxes, HaloField *halos,
+void sum_halos_onto_grid(double redshift, InitialConditions *ini_boxes, HaloCatalog *halos,
                          float *mturn_a_grid, float *mturn_m_grid, ScalingConstants *consts,
                          HaloBox *grids) {
     float *vel_pointers[3];
@@ -539,7 +539,7 @@ void sum_halos_onto_grid(double redshift, InitialConditions *ini_boxes, HaloFiel
 }
 
 // We grid a PERTURBED halofield into the necessary quantities for calculating radiative backgrounds
-int ComputeHaloBox(double redshift, InitialConditions *ini_boxes, HaloField *halos,
+int ComputeHaloBox(double redshift, InitialConditions *ini_boxes, HaloCatalog *halos,
                    TsBox *previous_spin_temp, IonizedBox *previous_ionize_box, HaloBox *grids) {
     int status;
     Try {
@@ -773,8 +773,8 @@ int test_halo_props(double redshift, float *vcb_grid, float *J21_LW_grid, float 
 }
 
 int convert_halo_props(double redshift, InitialConditions *ics, TsBox *prev_ts,
-                       IonizedBox *prev_ion, HaloField *halo_list,
-                       PerturbHaloField *halo_list_out) {
+                       IonizedBox *prev_ion, HaloCatalog *halo_list,
+                       PerturbHaloCatalog *halo_list_out) {
     ScalingConstants hbox_consts;
     set_scaling_constants(redshift, &hbox_consts, true);
     // print_sc_consts(&hbox_consts);
@@ -815,7 +815,7 @@ int convert_halo_props(double redshift, InitialConditions *ics, TsBox *prev_ts,
                 continue;
             }
 
-            // the coordinates are already done in PerturbHaloField
+            // the coordinates are already done in PerturbHaloCatalog
             halo_pos[0] = halo_list_out->halo_coords[3 * i_halo + 0] * box_to_lores_factor;
             halo_pos[1] = halo_list_out->halo_coords[3 * i_halo + 1] * box_to_lores_factor;
             halo_pos[2] = halo_list_out->halo_coords[3 * i_halo + 2] * box_to_lores_factor;

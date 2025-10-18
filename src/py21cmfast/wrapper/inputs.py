@@ -697,7 +697,7 @@ class SimulationOptions(InputStruct):
         default=2, converter=float, validator=validators.gt(0)
     )
 
-    # NOTE: Thematically these should be in AstroParams, However they affect the HaloField
+    # NOTE: Thematically these should be in AstroParams, However they affect the HaloCatalog
     #   Objects and so need to be in the matter_cosmo hash, they seem a little strange here
     #   but will remain until someone comes up with a better organisation down the line
     CORR_STAR: float = field(default=0.5, converter=float)

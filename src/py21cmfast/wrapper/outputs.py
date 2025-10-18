@@ -760,10 +760,10 @@ class PerturbedField(OutputStructZ):
 
 
 @attrs.define(slots=False, kw_only=True)
-class HaloField(OutputStructZ):
+class HaloCatalog(OutputStructZ):
     """A class containing all fields related to halos."""
 
-    _c_compute_function = lib.ComputeHaloField
+    _c_compute_function = lib.ComputeHaloCatalog
     _meta = False
     desc_redshift: float | None = attrs.field(default=None)
     _compat_hash = _HashType.zgrid
@@ -784,7 +784,7 @@ class HaloField(OutputStructZ):
         buffer_size: float | None = None,
         **kw,
     ) -> Self:
-        """Create a new PerturbedHaloField instance with the given inputs.
+        """Create a new PerturbedHaloCatalog instance with the given inputs.
 
         Parameters
         ----------
@@ -795,7 +795,7 @@ class HaloField(OutputStructZ):
 
         Other Parameters
         ----------------
-        All other parameters are passed through to the :class:`PerturbedHaloField`
+        All other parameters are passed through to the :class:`PerturbedHaloCatalog`
         constructor.
         """
         from .cfuncs import get_halo_list_buffer_size
@@ -832,7 +832,7 @@ class HaloField(OutputStructZ):
             # without the sampler, dexm needs the hires density at each redshift
             else:
                 required += ["hires_density"]
-        elif isinstance(input_box, HaloField):
+        elif isinstance(input_box, HaloCatalog):
             if self.matter_options.HALO_STOCHASTICITY:
                 required += [
                     "halo_masses",
@@ -843,14 +843,14 @@ class HaloField(OutputStructZ):
                 ]
         else:
             raise ValueError(
-                f"{type(input_box)} is not an input required for HaloField!"
+                f"{type(input_box)} is not an input required for HaloCatalog!"
             )
         return required
 
     def compute(
         self,
         *,
-        descendant_halos: HaloField,
+        descendant_halos: HaloCatalog,
         ics: InitialConditions,
         allow_already_computed: bool = False,
     ):
@@ -866,10 +866,10 @@ class HaloField(OutputStructZ):
 
 
 @attrs.define(slots=False, kw_only=True)
-class PerturbHaloField(OutputStructZ):
-    """A class to hold a HaloField whose coordinates are in real (Eulerian) space."""
+class PerturbHaloCatalog(OutputStructZ):
+    """A class to hold a HaloCatalog whose coordinates are in real (Eulerian) space."""
 
-    _c_compute_function = lib.ComputePerturbHaloField
+    _c_compute_function = lib.ComputePerturbHaloCatalog
     _meta = False
     desc_redshift: float | None = attrs.field(default=None)
     _compat_hash = _HashType.zgrid
@@ -897,7 +897,7 @@ class PerturbHaloField(OutputStructZ):
         buffer_size: float,
         **kw,
     ) -> Self:
-        """Create a new PerturbedHaloField instance with the given inputs.
+        """Create a new PerturbedHaloCatalog instance with the given inputs.
 
         Parameters
         ----------
@@ -908,7 +908,7 @@ class PerturbHaloField(OutputStructZ):
 
         Other Parameters
         ----------------
-        All other parameters are passed through to the :class:`PerturbedHaloField`
+        All other parameters are passed through to the :class:`PerturbedHaloCatalog`
         constructor.
         """
         out = {
@@ -955,14 +955,14 @@ class PerturbHaloField(OutputStructZ):
         elif isinstance(input_box, IonizedBox):
             required += ["ionisation_rate_G12", "z_reion"]
 
-        elif isinstance(input_box, HaloField):
+        elif isinstance(input_box, HaloCatalog):
             required += [
                 "halo_coords",
                 "halo_masses",
             ]
         else:
             raise ValueError(
-                f"{type(input_box)} is not an input required for PerturbHaloField!"
+                f"{type(input_box)} is not an input required for PerturbHaloCatalog!"
             )
 
         return required
@@ -973,7 +973,7 @@ class PerturbHaloField(OutputStructZ):
         ics: InitialConditions,
         previous_spin_temp: TsBox,
         previous_ionize_box: IonizedBox,
-        halo_field: HaloField,
+        halo_field: HaloCatalog,
         allow_already_computed: bool = False,
     ):
         """Compute the function."""
@@ -1057,7 +1057,7 @@ class HaloBox(OutputStructZ):
     def get_required_input_arrays(self, input_box: OutputStruct) -> list[str]:
         """Return all input arrays required to compute this object."""
         required = []
-        if isinstance(input_box, HaloField):
+        if isinstance(input_box, HaloCatalog):
             if not self.matter_options.FIXED_HALO_GRIDS:
                 required += [
                     "halo_coords",
@@ -1091,7 +1091,7 @@ class HaloBox(OutputStructZ):
         self,
         *,
         initial_conditions: InitialConditions,
-        halo_field: HaloField,
+        halo_field: HaloCatalog,
         previous_spin_temp: TsBox,
         previous_ionize_box: IonizedBox,
         allow_already_computed: bool = False,
@@ -1326,7 +1326,7 @@ class TsBox(OutputStructZ):
                     required += ["filtered_sfr_mini"]
         else:
             raise ValueError(
-                f"{type(input_box)} is not an input required for PerturbHaloField!"
+                f"{type(input_box)} is not an input required for PerturbHaloCatalog!"
             )
 
         return required

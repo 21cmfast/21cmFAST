@@ -13,7 +13,7 @@ import py21cmfast as p21c
 from py21cmfast import (
     BrightnessTemp,
     HaloBox,
-    HaloField,
+    HaloCatalog,
     InitialConditions,
     IonizedBox,
     OutputCache,
@@ -433,7 +433,7 @@ def test_bad_input_structs(default_input_struct_ts):
 
     # We don't need to compute since we arent testing a successful run
     ic = InitialConditions.new(inputs=test_inputs)
-    hf = HaloField.new(redshift=10.0, inputs=test_inputs, buffer_size=1)
+    hf = HaloCatalog.new(redshift=10.0, inputs=test_inputs, buffer_size=1)
     hb = HaloBox.new(redshift=10.0, inputs=test_inputs)
     pt = PerturbedField.new(redshift=10.0, inputs=test_inputs)
     pt_p = PerturbedField.new(redshift=11.0, inputs=test_inputs)
@@ -441,7 +441,7 @@ def test_bad_input_structs(default_input_struct_ts):
     st_p = TsBox.new(redshift=11.0, inputs=test_inputs)
     ib_p = IonizedBox.new(redshift=11.0, inputs=test_inputs)
 
-    # PerturbHaloField
+    # PerturbHaloCatalog
     with pytest.raises(
         ValueError, match="Below Z_HEAT_MAX you must specify the previous_spin_temp"
     ):
