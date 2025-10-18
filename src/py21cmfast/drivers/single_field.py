@@ -16,11 +16,11 @@ from ..wrapper.inputs import InputParameters
 from ..wrapper.outputs import (
     BrightnessTemp,
     HaloBox,
-    HaloField,
+    HaloCatalog,
     InitialConditions,
     IonizedBox,
     PerturbedField,
-    PerturbHaloField,
+    PerturbHaloCatalog,
     TsBox,
     XraySourceBox,
 )
@@ -105,8 +105,8 @@ def determine_halo_list(
     redshift: float,
     inputs: InputParameters | None = None,
     initial_conditions: InitialConditions,
-    descendant_halos: HaloField | None = None,
-) -> HaloField:
+    descendant_halos: HaloCatalog | None = None,
+) -> HaloCatalog:
     r"""
     Find a halo list, given a redshift.
 
@@ -116,14 +116,14 @@ def determine_halo_list(
         The redshift at which to determine the halo list.
     initial_conditions : :class:`~InitialConditions` instance
         The initial conditions fields (density, velocity).
-    descendant_halos : :class:`~HaloField` instance, optional
+    descendant_halos : :class:`~HaloCatalog` instance, optional
         The halos that form the descendants (i.e. lower redshift) of those computed by
         this function. If this is not provided, we generate the initial stochastic halos
         directly in this function (and progenitors can then be determined by these).
 
     Returns
     -------
-    :class:`~HaloField`
+    :class:`~HaloCatalog`
 
     Other Parameters
     ----------------
@@ -138,10 +138,10 @@ def determine_halo_list(
         )
 
     if descendant_halos is None:
-        descendant_halos = HaloField.dummy()
+        descendant_halos = HaloCatalog.dummy()
 
     # Initialize halo list boxes.
-    fields = HaloField.new(
+    fields = HaloCatalog.new(
         redshift=redshift,
         desc_redshift=descendant_halos.redshift,
         inputs=inputs,
@@ -158,8 +158,11 @@ def determine_halo_list(
 def perturb_halo_list(
     *,
     initial_conditions: InitialConditions,
-    halo_field: HaloField,
-) -> PerturbHaloField:
+    inputs: InputParameters | None = None,
+    previous_spin_temp: TsBox | None = None,
+    previous_ionize_box: IonizedBox | None = None,
+    halo_field: HaloCatalog,
+) -> PerturbHaloCatalog:
     r"""
     Given a halo list, perturb the halos for a given redshift.
 
@@ -168,12 +171,12 @@ def perturb_halo_list(
     initial_conditions : :class:`~InitialConditions`
         The initial conditions of the run. The user and cosmo params
         as well as the random seed will be set from this object.
-    halo_field: :class: `~HaloField`
+    halo_field: :class: `~HaloCatalog`
         The halo catalogue in Lagrangian space to be perturbed.
 
     Returns
     -------
-    :class:`~PerturbHaloField`
+    :class:`~PerturbHaloCatalog`
 
     Other Parameters
     ----------------
@@ -185,19 +188,44 @@ def perturb_halo_list(
     Fill this in once finalised
 
     """
-    inputs = halo_field.inputs
-    hbuffer_size = halo_field.n_halos
+    hbuffer_size = halo_field.n_halos if halo_field.n_halos else halo_field.buffer_size
     redshift = halo_field.redshift
 
     # Initialize halo list boxes.
-    fields = PerturbHaloField.new(
+    fields = PerturbHaloCatalog.new(
         redshift=redshift,
         buffer_size=hbuffer_size,
         inputs=inputs,
     )
+    if previous_spin_temp is None:
+        if (
+            redshift >= inputs.simulation_options.Z_HEAT_MAX
+            or not inputs.astro_options.USE_MINI_HALOS
+        ):
+            # Dummy spin temp is OK since we're above Z_HEAT_MAX
+            previous_spin_temp = TsBox.dummy()
+        else:
+            raise ValueError("Below Z_HEAT_MAX you must specify the previous_spin_temp")
+
+    if previous_ionize_box is None:
+        if (
+            redshift >= inputs.simulation_options.Z_HEAT_MAX
+            or not inputs.astro_options.USE_MINI_HALOS
+        ):
+            # Dummy ionize box is OK since we're above Z_HEAT_MAX
+            previous_ionize_box = IonizedBox.dummy()
+        else:
+            raise ValueError(
+                "Below Z_HEAT_MAX you must specify the previous_ionize_box"
+            )
 
     # Run the C Code
-    return fields.compute(ics=initial_conditions, halo_field=halo_field)
+    return fields.compute(
+        ics=initial_conditions,
+        halo_field=halo_field,
+        previous_spin_temp=previous_spin_temp,
+        previous_ionize_box=previous_ionize_box,
+    )
 
 
 @single_field_func
@@ -206,7 +234,7 @@ def compute_halo_grid(
     redshift: float,
     initial_conditions: InitialConditions,
     inputs: InputParameters | None = None,
-    perturbed_halo_list: PerturbHaloField | None = None,
+    halo_field: HaloCatalog | None = None,
     previous_spin_temp: TsBox | None = None,
     previous_ionize_box: IonizedBox | None = None,
 ) -> HaloBox:
@@ -223,7 +251,7 @@ def compute_halo_grid(
         The initial conditions of the run.
     inputs : :class:`~InputParameters`, optional
         The input parameters specifying the run.
-    perturbed_halo_list: :class:`~PerturbHaloField`, optional
+    perturbed_halo_list: :class:`~PerturbHaloCatalog`, optional
         This contains all the dark matter haloes obtained if using the USE_HALO_FIELD.
         This is a list of halo masses and coords for the dark matter haloes.
     perturbed_field : :class:`~PerturbedField`, optional
@@ -245,13 +273,11 @@ def compute_halo_grid(
     """
     box = HaloBox.new(redshift=redshift, inputs=inputs)
 
-    if perturbed_halo_list is None:
+    if halo_field is None:
         if not inputs.matter_options.FIXED_HALO_GRIDS:
-            raise ValueError(
-                "You must provide the perturbed halo list if FIXED_HALO_GRIDS is False"
-            )
+            raise ValueError("You must provide halo_field if FIXED_HALO_GRIDS is False")
         else:
-            perturbed_halo_list = PerturbHaloField.dummy()
+            halo_field = HaloCatalog.dummy()
 
     # NOTE: due to the order, we use the previous spin temp here, like spin_temperature,
     #       but UNLIKE ionize_box, which uses the current box
@@ -281,7 +307,7 @@ def compute_halo_grid(
 
     return box.compute(
         initial_conditions=initial_conditions,
-        pt_halos=perturbed_halo_list,
+        halo_field=halo_field,
         previous_ionize_box=previous_ionize_box,
         previous_spin_temp=previous_spin_temp,
     )

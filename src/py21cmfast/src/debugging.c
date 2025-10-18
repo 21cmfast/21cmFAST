@@ -123,7 +123,7 @@ void writeAstroParams(AstroParams *p) {
         p->L_X, p->NU_X_THRESH, p->X_RAY_SPEC_INDEX, p->UPPER_STELLAR_TURNOVER_MASS,
         p->UPPER_STELLAR_TURNOVER_INDEX);
     LOG_INFO(
-        "\n        HaloField AstroParams:\n"
+        "\n        HaloCatalog AstroParams:\n"
         "       SIGMA_STAR=%8.3f\n"
         "       SIGMA_SFR_LIM=%8.3f\n"
         "       SIGMA_SFR_INDEX=%8.3f\n"

@@ -40,8 +40,8 @@ struct HaloSamplingConstants {
 };
 
 int stochastic_halofield(unsigned long long int seed, float redshift_desc, float redshift,
-                         float *dens_field, float *halo_overlap_box, HaloField *halos_desc,
-                         HaloField *halos);
+                         float *dens_field, float *halo_overlap_box, HaloCatalog *halos_desc,
+                         HaloCatalog *halos);
 
 int single_test_sample(unsigned long long int seed, int n_condition, float *conditions,
                        float *cond_crd, double z_out, double z_in, int *out_n_tot, int *out_n_cell,
@@ -52,8 +52,8 @@ int single_test_sample(unsigned long long int seed, int n_condition, float *cond
 // parameters and returns average number of halos within the box
 double expected_nhalo(double redshift);
 
-// used in HaloField.c to assign rng to DexM halos
-int add_properties_cat(unsigned long long int seed, float redshift, HaloField *halos);
+// used in HaloCatalog.c to assign rng to DexM halos
+int add_properties_cat(unsigned long long int seed, float redshift, HaloCatalog *halos);
 
 void stoc_set_consts_z(struct HaloSamplingConstants *const_struct, double redshift,
                        double redshift_desc);
