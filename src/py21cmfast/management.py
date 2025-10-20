@@ -44,8 +44,6 @@ def get_expected_outputs(
         del out["HaloCatalog"]
     if not cache_config.halobox and "HaloBox" in out:
         del out["HaloBox"]
-    if not cache_config.halo_field and "HaloCatalog" in out:
-        del out["HaloCatalog"]
     if not cache_config.spin_temp and "TsBox" in out:
         del out["TsBox"]
     if not cache_config.xray_source_box and "XraySourceBox" in out:
