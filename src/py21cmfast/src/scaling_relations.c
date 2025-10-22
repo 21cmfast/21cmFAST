@@ -360,12 +360,12 @@ void eval_sfh_moments(double tau, gsl_matrix *out_chol_cov, gsl_matrix *out_mean
     // Compute the conditional covariance matrix Cov(curr|prev) = Cov(curr) - Cov(curr,prev)
     // Cov(prev)^-1 Cov(prev,curr)
     gsl_matrix_memcpy(matrix_buf, cross_cov);
-    // Cov(curr,prev) L^T^-1
-    gsl_blas_dtrsm(CblasRight, CblasLower, CblasTrans, CblasNonUnit, 1.0, prev_cov, matrix_buf);
+    // L^-1  Cov(curr,prev)
+    gsl_blas_dtrsm(CblasLeft, CblasLower, CblasNoTrans, CblasNonUnit, 1.0, prev_cov, matrix_buf);
 
     // compute Cov(curr) - BUF*BUF^T == Cov(curr) - Cov(curr|prev) Cov(prev)^-1 Cov(prev,curr)
     // NOTE, curr_cov is symmetric here
-    gsl_blas_dsyrk(CblasLower, CblasNoTrans, -1.0, matrix_buf, 1.0, curr_cov);
+    gsl_blas_dsyrk(CblasLower, CblasTrans, -1.0, matrix_buf, 1.0, curr_cov);
     // The lower triangle of curr_cov now holds Cov(curr|prev)
 
     // Perform Cholesky decomposition (only uses lower triangle)
@@ -374,6 +374,7 @@ void eval_sfh_moments(double tau, gsl_matrix *out_chol_cov, gsl_matrix *out_mean
 
     // Now Compute the mean correction term, since BUF was preserved from the rank-k above
     //  Compute Cov(prev,curr) L^-T^-1 L^-1 = Cov(curr,prev) Cov(prev)^-1
+    gsl_matrix_transpose(matrix_buf);
     gsl_blas_dtrsm(CblasRight, CblasLower, CblasNoTrans, CblasNonUnit, 1.0, prev_cov, matrix_buf);
 
     // Since, for zero mean, E[X|Y] = Cov(X,Y) Cov(Y)^-1 Y
