@@ -118,16 +118,28 @@ double psd_sfh_powerlaw(double w) {
 #define N_FREQ_SFH (int)(N_TAU_SFH / 2 + 1)  // number of frequency bins in SFH
 
 // We want a singleton struct which holds the SFH correlation functions
+// We need the crosses between four timescales: 10 Myr, 100 Myr, snapshot interval, previous
+// snapshot interval
 typedef struct SFH_Correlation {
     RGTable1D *corr_10_10;
     RGTable1D *corr_10_100;
     RGTable1D *corr_100_100;
-    RGTable1D *corr_10_snap;
-    RGTable1D *corr_100_snap;
-    RGTable1D *corr_snap_snap;
+    RGTable1D *corr_10_curr;
+    RGTable1D *corr_100_curr;
+    RGTable1D *corr_curr_curr;
+    RGTable1D *corr_10_prev;
+    RGTable1D *corr_100_prev;
+    RGTable1D *corr_curr_prev;
+    RGTable1D *corr_prev_prev;
 } SFH_Correlation;
 
 static SFH_Correlation sfh_corr;
+
+// Make a union type for easy initialisation
+typedef union sfh_c_u {
+    SFH_Correlation sfh_c_s;
+    RGTable1D *sfh_c_a[10];
+} sfh_c_u;
 
 fftwf_complex shifted_tophat_1d(double wt) {
     // fourier transform of a real space tophat shift in the positive direction by R/2
@@ -138,37 +150,30 @@ fftwf_complex shifted_tophat_1d(double wt) {
     return I / wt * (exp(-I * wt) - 1.);
 }
 
-void initialise_sfh_correlation(double z, double z_prev) {
-    allocate_RGTable1D(N_FREQ_SFH, sfh_corr.corr_10_10);
-    allocate_RGTable1D(N_FREQ_SFH, sfh_corr.corr_10_100);
-    allocate_RGTable1D(N_FREQ_SFH, sfh_corr.corr_100_100);
-    allocate_RGTable1D(N_FREQ_SFH, sfh_corr.corr_10_snap);
-    allocate_RGTable1D(N_FREQ_SFH, sfh_corr.corr_100_snap);
-    allocate_RGTable1D(N_FREQ_SFH, sfh_corr.corr_snap_snap);
+void initialise_sfh_correlation(double z, double z_prev, double z_prev_2) {
+    sfh_c_u sfh_corr_u;
+    RGTable1D *table_ptr;
+    sfh_corr_u.sfh_c_s = sfh_corr;
 
-    // set up the RGTable1D x-axis
-    sfh_corr.corr_10_10->x_min = 0.;
-    sfh_corr.corr_10_10->x_width = MAX_TAU / (N_TAU_SFH - 1);
-    sfh_corr.corr_10_10->n_bin = N_TAU_SFH;
-
-    sfh_corr.corr_10_100->x_min = 0.;
-    sfh_corr.corr_10_100->x_width = MAX_TAU / (N_TAU_SFH - 1);
-    sfh_corr.corr_10_100->n_bin = N_TAU_SFH;
-
-    sfh_corr.corr_100_100->x_min = 0.;
-    sfh_corr.corr_100_100->x_width = MAX_TAU / (N_TAU_SFH - 1);
-    sfh_corr.corr_100_100->n_bin = N_TAU_SFH;
+    for (int i = 0; i < 9; i++) {
+        table_ptr = sfh_corr_u.sfh_c_a[i];
+        allocate_RGTable1D(N_FREQ_SFH, table_ptr);
+        table_ptr->x_min = 0.;
+        table_ptr->x_width = MAX_TAU / (N_TAU_SFH - 1);
+        table_ptr->n_bin = N_TAU_SFH;
+    }
 
     double w_arr[N_FREQ_SFH];
     for (int i = 0; i < N_FREQ_SFH; i++) {
         w_arr[i] = 2 * M_PI * i / MAX_TAU;
     }
 
-    double t_snap = time_between_z(z, z_prev) / (SperYR * 1e6);  // Myr
+    double t_snap = time_between_z(z, z_prev) / (physconst.s_per_yr * 1e6);              // Myr
+    double t_snap_prev = time_between_z(z_prev, z_prev_2) / (physconst.s_per_yr * 1e6);  // Myr
 
     // determine the SFH correlation functions
-    fftwf_complex psd_unfiltered[N_FREQ_SFH];
-    fftwf_complex W_10[N_FREQ_SFH], W_100[N_FREQ_SFH], W_snap[N_FREQ_SFH], psd_filtered[N_FREQ_SFH];
+    fftwf_complex W_10[N_FREQ_SFH], W_100[N_FREQ_SFH], W_curr[N_FREQ_SFH], W_prev[N_FREQ_SFH];
+    fftwf_complex psd_unfiltered[N_FREQ_SFH], psd_filtered[N_FREQ_SFH];
 
     fftwf_complex *in;
     float *out;
@@ -181,7 +186,8 @@ void initialise_sfh_correlation(double z, double z_prev) {
         psd_unfiltered[i] = psd_sfh_powerlaw(w_arr[i]);
         W_10[i] = shifted_tophat_1d(w_arr[i] * 10.);
         W_100[i] = shifted_tophat_1d(w_arr[i] * 100.);
-        W_snap[i] = shifted_tophat_1d(w_arr[i] * t_snap);
+        W_curr[i] = shifted_tophat_1d(w_arr[i] * t_snap);
+        W_prev[i] = shifted_tophat_1d(w_arr[i] * t_snap_prev);
     }
 
     // TODO: check that there N_TAU_SFH normalization on the iFFT
@@ -193,7 +199,7 @@ void initialise_sfh_correlation(double z, double z_prev) {
         sfh_corr.corr_10_10->y_arr[i] = out[i] / N_TAU_SFH;
     }
 
-    // 10_100
+    // 10Myr X 100Myr
     for (int i = 0; i < N_FREQ_SFH; i++) {
         in[i] = psd_unfiltered[i] * W_100[i] * conj(W_10[i]);
     }
@@ -202,7 +208,7 @@ void initialise_sfh_correlation(double z, double z_prev) {
         sfh_corr.corr_10_100->y_arr[i] = out[i] / N_TAU_SFH;
     }
 
-    // 100_100
+    // 100Myr X 100Myr
     for (int i = 0; i < N_FREQ_SFH; i++) {
         in[i] = psd_unfiltered[i] * W_100[i] * conj(W_100[i]);
     }
@@ -211,31 +217,67 @@ void initialise_sfh_correlation(double z, double z_prev) {
         sfh_corr.corr_100_100->y_arr[i] = out[i] / N_TAU_SFH;
     }
 
-    // 10_snap
+    // 10Myr X Current snapshot length
     for (int i = 0; i < N_FREQ_SFH; i++) {
-        in[i] = psd_unfiltered[i] * W_10[i] * conj(W_snap[i]);
+        in[i] = psd_unfiltered[i] * W_10[i] * conj(W_curr[i]);
     }
     fftwf_execute(p);
     for (int i = 0; i < N_TAU_SFH; i++) {
-        sfh_corr.corr_10_snap->y_arr[i] = out[i] / N_TAU_SFH;
+        sfh_corr.corr_10_curr->y_arr[i] = out[i] / N_TAU_SFH;
     }
 
-    // 100_snap
+    // 100Myr X Current snapshot length
     for (int i = 0; i < N_FREQ_SFH; i++) {
-        in[i] = psd_unfiltered[i] * W_100[i] * conj(W_snap[i]);
+        in[i] = psd_unfiltered[i] * W_100[i] * conj(W_curr[i]);
     }
     fftwf_execute(p);
     for (int i = 0; i < N_TAU_SFH; i++) {
-        sfh_corr.corr_100_snap->y_arr[i] = out[i] / N_TAU_SFH;
+        sfh_corr.corr_100_curr->y_arr[i] = out[i] / N_TAU_SFH;
     }
 
-    // snap_snap
+    // Current snapshot length X Current snapshot length
     for (int i = 0; i < N_FREQ_SFH; i++) {
-        in[i] = psd_unfiltered[i] * W_snap[i] * conj(W_snap[i]);
+        in[i] = psd_unfiltered[i] * W_curr[i] * conj(W_curr[i]);
     }
     fftwf_execute(p);
     for (int i = 0; i < N_TAU_SFH; i++) {
-        sfh_corr.corr_snap_snap->y_arr[i] = out[i] / N_TAU_SFH;
+        sfh_corr.corr_curr_curr->y_arr[i] = out[i] / N_TAU_SFH;
+    }
+
+    // 10Myr X Previous snapshot length
+    for (int i = 0; i < N_FREQ_SFH; i++) {
+        in[i] = psd_unfiltered[i] * W_10[i] * conj(W_prev[i]);
+    }
+    fftwf_execute(p);
+    for (int i = 0; i < N_TAU_SFH; i++) {
+        sfh_corr.corr_10_prev->y_arr[i] = out[i] / N_TAU_SFH;
+    }
+
+    // 100Myr X Previous snapshot length
+    for (int i = 0; i < N_FREQ_SFH; i++) {
+        in[i] = psd_unfiltered[i] * W_100[i] * conj(W_prev[i]);
+    }
+    fftwf_execute(p);
+    for (int i = 0; i < N_TAU_SFH; i++) {
+        sfh_corr.corr_100_prev->y_arr[i] = out[i] / N_TAU_SFH;
+    }
+
+    // Current snapshot length X Previous snapshot length
+    for (int i = 0; i < N_FREQ_SFH; i++) {
+        in[i] = psd_unfiltered[i] * W_curr[i] * conj(W_prev[i]);
+    }
+    fftwf_execute(p);
+    for (int i = 0; i < N_TAU_SFH; i++) {
+        sfh_corr.corr_curr_prev->y_arr[i] = out[i] / N_TAU_SFH;
+    }
+
+    // Previous snapshot length X Previous snapshot length
+    for (int i = 0; i < N_FREQ_SFH; i++) {
+        in[i] = psd_unfiltered[i] * W_prev[i] * conj(W_prev[i]);
+    }
+    fftwf_execute(p);
+    for (int i = 0; i < N_TAU_SFH; i++) {
+        sfh_corr.corr_prev_prev->y_arr[i] = out[i] / N_TAU_SFH;
     }
 
     fftwf_destroy_plan(p);
@@ -249,7 +291,7 @@ void eval_sfh_moments(double tau, gsl_matrix *out_chol_cov, gsl_matrix *out_mean
     Outputs are the two matrices required for sampling the SFR correctly
 
     out_chol_cov = Cholesky factor of Cov(curr|prev), multiplies standard normal vector
-    to get correlated & conditioned SFRs
+    to get correlated & conditioned SFRs. NOTE: The upper triangle is
 
     out_mean_correction = multiplies the condition vector, to be added to the correlated samples.
     */
@@ -257,86 +299,103 @@ void eval_sfh_moments(double tau, gsl_matrix *out_chol_cov, gsl_matrix *out_mean
     // Interpolate correlation functions at lag tau
     double cov_10_10_tau = EvaluateRGTable1D(tau, sfh_corr.corr_10_10);
     double cov_10_100_tau = EvaluateRGTable1D(tau, sfh_corr.corr_10_100);
-    double cov_10_snap_tau = EvaluateRGTable1D(tau, sfh_corr.corr_10_snap);
+    double cov_10_curr_tau = EvaluateRGTable1D(tau, sfh_corr.corr_10_curr);
+    double cov_10_prev_tau = EvaluateRGTable1D(tau, sfh_corr.corr_10_prev);
     double cov_100_100_tau = EvaluateRGTable1D(tau, sfh_corr.corr_100_100);
-    double cov_100_snap_tau = EvaluateRGTable1D(tau, sfh_corr.corr_100_snap);
-    double cov_snap_snap_tau = EvaluateRGTable1D(tau, sfh_corr.corr_snap_snap);
+    double cov_100_curr_tau = EvaluateRGTable1D(tau, sfh_corr.corr_100_curr);
+    double cov_100_prev_tau = EvaluateRGTable1D(tau, sfh_corr.corr_100_prev);
+    double cov_curr_prev_tau = EvaluateRGTable1D(tau, sfh_corr.corr_curr_prev);
 
     // Get zero-lag correlations
     double cov_10_10_zero = EvaluateRGTable1D(0.0, sfh_corr.corr_10_10);
     double cov_10_100_zero = EvaluateRGTable1D(0.0, sfh_corr.corr_10_100);
-    double cov_10_snap_zero = EvaluateRGTable1D(0.0, sfh_corr.corr_10_snap);
+    double cov_10_curr_zero = EvaluateRGTable1D(0.0, sfh_corr.corr_10_curr);
+    double cov_10_prev_zero = EvaluateRGTable1D(0.0, sfh_corr.corr_10_prev);
     double cov_100_100_zero = EvaluateRGTable1D(0.0, sfh_corr.corr_100_100);
-    double cov_100_snap_zero = EvaluateRGTable1D(0.0, sfh_corr.corr_100_snap);
-    double cov_snap_snap_zero = EvaluateRGTable1D(0.0, sfh_corr.corr_snap_snap);
+    double cov_100_curr_zero = EvaluateRGTable1D(0.0, sfh_corr.corr_100_curr);
+    double cov_100_prev_zero = EvaluateRGTable1D(0.0, sfh_corr.corr_100_prev);
+    double cov_curr_curr_zero = EvaluateRGTable1D(0.0, sfh_corr.corr_curr_curr);
+    double cov_prev_prev_zero = EvaluateRGTable1D(0.0, sfh_corr.corr_prev_prev);
 
+    // Previous Snapshot covariance matrix
     gsl_matrix *prev_cov = gsl_matrix_alloc(3, 3);
     gsl_matrix_set(prev_cov, 0, 0, cov_10_10_zero);      // 10_prev vs 10_prev
     gsl_matrix_set(prev_cov, 0, 1, cov_10_100_zero);     // 10_prev vs 100_prev
-    gsl_matrix_set(prev_cov, 0, 2, cov_10_snap_zero);    // 10_prev vs snap_prev
+    gsl_matrix_set(prev_cov, 0, 2, cov_10_prev_zero);    // 10_prev vs snap_prev
     gsl_matrix_set(prev_cov, 1, 0, cov_10_100_zero);     // 100_prev vs 10_prev
     gsl_matrix_set(prev_cov, 1, 1, cov_100_100_zero);    // 100_prev vs 100_prev
-    gsl_matrix_set(prev_cov, 1, 2, cov_100_snap_zero);   // 100_prev vs snap_prev
-    gsl_matrix_set(prev_cov, 2, 0, cov_10_snap_zero);    // snap_prev vs 10_prev
-    gsl_matrix_set(prev_cov, 2, 1, cov_100_snap_zero);   // snap_prev vs 100_prev
-    gsl_matrix_set(prev_cov, 2, 2, cov_snap_snap_zero);  // snap_prev vs snap_prev
+    gsl_matrix_set(prev_cov, 1, 2, cov_100_prev_zero);   // 100_prev vs snap_prev
+    gsl_matrix_set(prev_cov, 2, 0, cov_10_prev_zero);    // snap_prev vs 10_prev
+    gsl_matrix_set(prev_cov, 2, 1, cov_100_prev_zero);   // snap_prev vs 100_prev
+    gsl_matrix_set(prev_cov, 2, 2, cov_prev_prev_zero);  // snap_prev vs snap_prev
 
+    // Lower left corner Covariance is Cov(curr,prev) == Cov(prev,curr)^T
     gsl_matrix *cross_cov = gsl_matrix_alloc(3, 3);
     gsl_matrix_set(cross_cov, 0, 0, cov_10_10_tau);      // 10_prev vs 10_curr
     gsl_matrix_set(cross_cov, 0, 1, cov_10_100_tau);     // 10_prev vs 100_curr
-    gsl_matrix_set(cross_cov, 0, 2, cov_10_snap_tau);    // 10_prev vs snap_curr
+    gsl_matrix_set(cross_cov, 0, 2, cov_10_prev_tau);    // 10_prev vs snap_curr
     gsl_matrix_set(cross_cov, 1, 0, cov_10_100_tau);     // 100_prev vs 10_curr
     gsl_matrix_set(cross_cov, 1, 1, cov_100_100_tau);    // 100_prev vs 100_curr
-    gsl_matrix_set(cross_cov, 1, 2, cov_100_snap_tau);   // 100_prev vs snap_curr
-    gsl_matrix_set(cross_cov, 2, 0, cov_10_snap_tau);    // snap_prev vs 10_curr
-    gsl_matrix_set(cross_cov, 2, 1, cov_100_snap_tau);   // snap_prev vs 100_curr
-    gsl_matrix_set(cross_cov, 2, 2, cov_snap_snap_tau);  // snap_prev vs snap_curr
+    gsl_matrix_set(cross_cov, 1, 2, cov_100_prev_tau);   // 100_prev vs snap_curr
+    gsl_matrix_set(cross_cov, 2, 0, cov_10_curr_tau);    // snap_prev vs 10_curr
+    gsl_matrix_set(cross_cov, 2, 1, cov_100_curr_tau);   // snap_prev vs 100_curr
+    gsl_matrix_set(cross_cov, 2, 2, cov_curr_prev_tau);  // snap_prev vs snap_curr
 
+    // Current Snapshot covariance matrix
     gsl_matrix *curr_cov = gsl_matrix_alloc(3, 3);
-
-    // NOTE: Currently PSD is not a function of z, so curr_cov == prev_cov
+    // NOTE: Since the snapshot lengths are different, the snap variances are different
     gsl_matrix_memcpy(curr_cov, prev_cov);
+    gsl_matrix_set(curr_cov, 0, 2, cov_10_curr_zero);    // 10_curr vs 10_curr
+    gsl_matrix_set(curr_cov, 1, 2, cov_100_curr_zero);   // 100_curr vs 100_curr
+    gsl_matrix_set(curr_cov, 2, 0, cov_10_curr_zero);    // 10_curr vs 10_curr
+    gsl_matrix_set(curr_cov, 2, 1, cov_100_curr_zero);   // 100_curr vs 100_curr
+    gsl_matrix_set(curr_cov, 2, 2, cov_curr_curr_zero);  // snap_curr vs snap_curr
 
     // NOTE: Currently Cov(curr,prev) == Cov(prev,curr) == Cov(prev,curr)^T == Cov(curr,prev)^T
     gsl_matrix *matrix_buf = gsl_matrix_alloc(3, 3);
-    gsl_matrix *conditional_cov = gsl_matrix_alloc(3, 3);
 
     // Cholesky factorization of Cov(prev) = L L^T to do implicit inversion
     gsl_linalg_cholesky_decomp1(prev_cov);  // holds L
 
     // Compute the conditional covariance matrix Cov(curr|prev) = Cov(curr) - Cov(curr,prev)
     // Cov(prev)^-1 Cov(prev,curr)
-    gsl_matrix_transpose_memcpy(matrix_buf, cross_cov);  // The transpose is currently not needed
-    // Compute Cov(prev,curr) L^-1^T
+    gsl_matrix_memcpy(matrix_buf, cross_cov);
+    // Cov(curr,prev) L^T^-1
     gsl_blas_dtrsm(CblasRight, CblasLower, CblasTrans, CblasNonUnit, 1.0, prev_cov, matrix_buf);
 
-    // Compute Cov(prev,curr) L^-T^-1 L^-1 = Cov(curr,prev) Cov(prev)^-1
-    gsl_blas_dtrsm(CblasRight, CblasLower, CblasTrans, CblasNonUnit, 1.0, prev_cov, matrix_buf);
+    // compute Cov(curr) - BUF*BUF^T == Cov(curr) - Cov(curr|prev) Cov(prev)^-1 Cov(prev,curr)
+    // NOTE, curr_cov is symmetric here
+    gsl_blas_dsyrk(CblasLower, CblasNoTrans, -1.0, matrix_buf, 1.0, curr_cov);
+    // The lower triangle of curr_cov now holds Cov(curr|prev)
 
-    gsl_matrix_free(prev_cov);
+    // Perform Cholesky decomposition (only uses lower triangle)
+    gsl_linalg_cholesky_decomp1(curr_cov);
+    gsl_matrix_memcpy(out_chol_cov, curr_cov);
+
+    // Now Compute the mean correction term, since BUF was preserved from the rank-k above
+    //  Compute Cov(prev,curr) L^-T^-1 L^-1 = Cov(curr,prev) Cov(prev)^-1
+    gsl_blas_dtrsm(CblasRight, CblasLower, CblasNoTrans, CblasNonUnit, 1.0, prev_cov, matrix_buf);
 
     // Since, for zero mean, E[X|Y] = Cov(X,Y) Cov(Y)^-1 Y
     gsl_matrix_memcpy(out_mean_correction, matrix_buf);  // store for output
 
-    // compute Cov(curr) - Cov(curr|prev) Cov(prev)^-1 Cov(prev,curr)
-    gsl_matrix_memcpy(conditional_cov, curr_cov);
-    gsl_blas_dsymm(CblasLeft, CblasLower, -1.0, matrix_buf, cross_cov, 1.0, conditional_cov);
-
-    // Perform Cholesky decomposition
-    gsl_linalg_cholesky_decomp1(conditional_cov);
-
-    gsl_matrix_memcpy(out_chol_cov, conditional_cov);
+    gsl_matrix_free(prev_cov);
     gsl_matrix_free(curr_cov);
     gsl_matrix_free(cross_cov);
+    gsl_matrix_free(matrix_buf);
 }
 
 void free_sfh_correlation() {
     free_RGTable1D(sfh_corr.corr_10_10);
     free_RGTable1D(sfh_corr.corr_10_100);
     free_RGTable1D(sfh_corr.corr_100_100);
-    free_RGTable1D(sfh_corr.corr_10_snap);
-    free_RGTable1D(sfh_corr.corr_100_snap);
-    free_RGTable1D(sfh_corr.corr_snap_snap);
+    free_RGTable1D(sfh_corr.corr_10_curr);
+    free_RGTable1D(sfh_corr.corr_100_curr);
+    free_RGTable1D(sfh_corr.corr_curr_curr);
+    free_RGTable1D(sfh_corr.corr_10_prev);
+    free_RGTable1D(sfh_corr.corr_100_prev);
+    free_RGTable1D(sfh_corr.corr_curr_prev);
+    free_RGTable1D(sfh_corr.corr_prev_prev);
 }
 
 // It's often useful to create a copy of scaling constants without F_ESC
