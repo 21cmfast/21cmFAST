@@ -75,6 +75,10 @@ typedef struct MatterOptions {
 typedef struct AstroParams {
     float HII_EFF_FACTOR;
 
+    // SFH
+    double SFH_TAU;
+    double SFH_INDEX;
+
     // SHMR
     float F_STAR10;
     float ALPHA_STAR;

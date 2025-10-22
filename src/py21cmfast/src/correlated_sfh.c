@@ -46,10 +46,12 @@ typedef union sfh_c_u {
 // Carvajal-Bohorquez et al. 2025 form
 // Normalised to 1 for later multiplication
 double psd_sfh_powerlaw(double w) {
-    return 1.0 / (1 + pow(w * astro_params_global->tau_SFH, astro_params_global->b_SFH));
+    return 1.0 / (1 + pow(w * astro_params_global->SFH_TAU, astro_params_global->SFH_INDEX));
 }
 
-// NOTE: Since two filters can be shifted by different amounts we keep it general here
+// NOTE: This only differs from a tophat in phase. While we only use filter squared in the
+// correlation functions, Since two filters can be shifted by different amounts (due to width)
+// we keep the shifting
 fftwf_complex shifted_tophat_1d(double wt) {
     // fourier transform of a real space tophat shift in the positive direction by R/2
     // We use this in the SFH model to get SFR between now and R Myr ago
