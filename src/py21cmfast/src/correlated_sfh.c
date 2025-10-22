@@ -7,6 +7,8 @@
 #include <fftw3.h>
 #include <gsl/gsl_linalg.h>
 #include <gsl/gsl_matrix.h>
+#include <gsl/gsl_rng.h>
+#include <gsl/gsl_vector.h>
 #include <math.h>
 
 #include "Constants.h"
@@ -291,6 +293,44 @@ void eval_sfh_moments(double tau, gsl_matrix *out_chol_cov, gsl_matrix *out_mean
     gsl_matrix_free(curr_cov);
     gsl_matrix_free(cross_cov);
     gsl_matrix_free(matrix_buf);
+}
+
+void sample_correlated_sfh(gsl_rng *rng, double prev_values[3], gsl_matrix *L_cov,
+                           gsl_matrix *mean_corr, double out_values[3]) {
+    /* Sample correlated SFH values given previous values
+
+    Inputs:
+    prev_values: array of previous SFR values [SFR_10Myr, SFR_100Myr, SFR_snapshot_prev]
+    L_cov: Cholesky factor of Cov(curr|prev), from eval_sfh_moments, L L^T = Cov(curr|prev)
+    mean_corr: Mean correction matrix from eval_sfh_moments
+
+    Outputs:
+    out_values: array of sampled current SFR values [SFR_10Myr, SFR_100Myr, SFR_snapshot_curr]
+    */
+
+    // Generate standard normal random variables
+    gsl_vector *cov_term = gsl_vector_alloc(3);
+    for (int i = 0; i < 3; i++) {
+        gsl_vector_set(cov_term, i, gsl_ran_ugaussian(rng));
+    }
+
+    // Multiply by Cholesky factor to get correlated samples
+    gsl_blas_dtrmv(CblasLower, CblasNoTrans, CblasNonUnit, L_cov, cov_term);
+
+    // Create a vector for the conditioned samples
+    gsl_vector *cond_term = gsl_vector_alloc(3);
+    for (int i = 0; i < 3; i++) {
+        gsl_vector_set(cond_term, i, prev_values[i]);
+    }
+    // Add the mean correction term
+    gsl_blas_dgemv(CblasNoTrans, 1.0, mean_corr, cond_term, 1.0, cov_term);
+
+    // Copy to output
+    for (int i = 0; i < 3; i++) {
+        out_values[i] = gsl_vector_get(cov_term, i);
+    }
+    gsl_vector_free(cov_term);
+    gsl_vector_free(cond_term);
 }
 
 void free_sfh_correlation() {
