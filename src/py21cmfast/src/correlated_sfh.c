@@ -47,6 +47,7 @@ double psd_sfh_powerlaw(double w) {
     return 1.0 / (1 + pow(w * astro_params_global->tau_SFH, astro_params_global->b_SFH));
 }
 
+// NOTE: Since two filters can be shifted by different amounts we keep it general here
 fftwf_complex shifted_tophat_1d(double wt) {
     // fourier transform of a real space tophat shift in the positive direction by R/2
     // We use this in the SFH model to get SFR between now and R Myr ago
@@ -269,7 +270,7 @@ void eval_sfh_moments(double tau, gsl_matrix *out_chol_cov, gsl_matrix *out_mean
     // L^-1  Cov(curr,prev)
     gsl_blas_dtrsm(CblasLeft, CblasLower, CblasNoTrans, CblasNonUnit, 1.0, prev_cov, matrix_buf);
 
-    // compute Cov(curr) - BUF*BUF^T == Cov(curr) - Cov(curr|prev) Cov(prev)^-1 Cov(prev,curr)
+    // compute Cov(curr) - BUF^T*BUF == Cov(curr) - Cov(curr|prev) Cov(prev)^-1 Cov(prev,curr)
     // NOTE, curr_cov is symmetric here
     gsl_blas_dsyrk(CblasLower, CblasTrans, -1.0, matrix_buf, 1.0, curr_cov);
     // The lower triangle of curr_cov now holds Cov(curr|prev)
