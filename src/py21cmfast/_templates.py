@@ -18,6 +18,7 @@ from typing import Any, Literal
 import tomlkit
 
 from .input_serialization import deserialize_inputs, prepare_inputs_for_serialization
+from .wrapper import inputs as inputs_module
 from .wrapper.inputs import InputParameters
 
 TEMPLATE_PATH = Path(__file__).parent / "templates/"
@@ -66,6 +67,20 @@ def load_template_file(template_name: str | Path):
     raise ValueError(message)
 
 
+def construct_node_redshifts_from_toml(toml_data: list[float] | dict) -> list[float]:
+    """Construct a list of node redshifts from the TOML data."""
+    if isinstance(toml_data, list):
+        return toml_data
+    elif isinstance(toml_data, dict):
+        func = toml_data.pop("func", "get_logspaced_redshifts")
+        func = getattr(inputs_module, func)
+        return func(**toml_data)
+    else:
+        raise TypeError(
+            "node_redshifts must be either a list of floats or a dict defining start, end, and num."
+        )
+
+
 def create_params_from_template(
     template_name: str | Path | Sequence[str | Path], **kwargs
 ) -> dict[str, dict[str, Any]]:
@@ -109,7 +124,18 @@ def create_params_from_template(
         thist = load_template_file(tmpl)
         for k, v in thist.items():
             full_template[k] |= v
-    return deserialize_inputs(full_template, **kwargs)
+
+    params = {}
+
+    if "random_seed" in full_template:
+        params["random_seed"] = full_template.pop("random_seed")
+
+    if "node_redshifts" in full_template:
+        node_z_data = full_template.pop("node_redshifts")
+        params["node_redshifts"] = construct_node_redshifts_from_toml(node_z_data)
+
+    params |= deserialize_inputs(full_template, **kwargs)
+    return params
 
 
 def write_template(
