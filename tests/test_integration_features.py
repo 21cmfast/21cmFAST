@@ -143,8 +143,7 @@ def test_power_spectra_lightcone(name, module_direc, plt, benchmark):
 
     # For globals, we should assert that they are close
     for key, value in true_global.items():
-        print(f"Testing Global {key}")
-        assert np.allclose(value, lc.global_quantities[key], atol=0, rtol=1e-3)
+        np.testing.assert_allclose(value, lc.global_quantities[key], atol=0, rtol=1e-3)
 
 
 plot_ylab = {
