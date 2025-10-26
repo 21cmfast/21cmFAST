@@ -28,6 +28,12 @@ k_output = (
 )
 
 classy_params_default = {
+    "h": 0.6766,
+    "Omega_cdm": 0.11933 / 0.6766**2,
+    "Omega_b": 0.02242 / 0.6766**2,
+    "n_s": 0.9665,
+    "sigma8": 0.8102,
+    "A_s": 2.105e-9,  # TODO: these are the default values from inputs.py. I wonder if there's a more clever way to get them here.
     "output": "tCl,pCl,lCl,mTk,vTk,mPk",
     "tau_reio": 0.0554,
     "T_cmb": 2.7255 * units.K,
@@ -42,15 +48,20 @@ classy_params_default = {
 }
 
 
-def run_classy(inputs: InputParameters, **kwargs) -> Class:
+def run_classy(inputs: InputParameters | None = None, **kwargs) -> Class:
     """Run CLASS with specified input parameters.
 
     Parameters
     ----------
-    inputs: InputParameters
+    inputs: InputParameters, optional
         The input parameters corresponding to the box.
+        If not provided, default cosmological parameters from Planck18 will be considered, unless
+        they are provided in kwargs.
     kwargs :
         Optional keywords to pass to CLASS.
+        If inputs is provided and a cosmological parameters is found in kwargs (e.g. h),
+        the value in kwargs is sent to CLASS (and not the corresponding cosmological parameter
+        from inputs, e.g. inputs.cosmo_params.hlittle).
 
     Returns
     -------
@@ -58,15 +69,25 @@ def run_classy(inputs: InputParameters, **kwargs) -> Class:
         An object containing all the information from the CLASS calculation.
     """
     # Set CLASS parameters
-    params = {
-        "h": inputs.cosmo_params.hlittle,
-        "Omega_cdm": inputs.cosmo_params.OMm - inputs.cosmo_params.OMb,
-        "Omega_b": inputs.cosmo_params.OMb,
-        "sigma8": inputs.cosmo_params.SIGMA_8,
-        "n_s": inputs.cosmo_params.POWER_INDEX,
-    }
+    if inputs is not None:
+        params = {
+            "h": inputs.cosmo_params.hlittle,
+            "Omega_cdm": inputs.cosmo_params.OMm - inputs.cosmo_params.OMb,
+            "Omega_b": inputs.cosmo_params.OMb,
+            "n_s": inputs.cosmo_params.POWER_INDEX,
+        }
+        if "A_s" not in kwargs:
+            params["sigma8"] = inputs.cosmo_params.SIGMA_8
+    else:
+        params = {}
     for k in classy_params_default:
         if k in kwargs:
+            if k == "sigma8" and "A_s" in kwargs:
+                raise KeyError(
+                    "Do not provide both 'sigma8' and 'A_s' as arguments. Only one of them is allowed."
+                )
+            if k == "A_s" and "sigma8" in params:
+                continue
             if k == "m_ncdm" and params["N_ncdm"] == 0:
                 continue
             else:
@@ -77,6 +98,12 @@ def run_classy(inputs: InputParameters, **kwargs) -> Class:
             else:
                 params[k] = classy_params_default[k]
         else:
+            if k in params:
+                continue
+            if k == "sigma8" and "A_s" in kwargs:
+                continue
+            if k == "A_s" and "sigma8" in params:
+                continue
             if k == "m_ncdm" and params["N_ncdm"] == 0:
                 continue
             if k == "N_ur" and params["N_ncdm"] == 0:
