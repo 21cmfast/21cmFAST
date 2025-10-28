@@ -992,3 +992,31 @@ def return_chmf_value(
         sigma[None, :, None],
         inputs.matter_options.cdict["HMF"],
     )
+
+
+@broadcast_params
+def test_sfh_print(
+    *,
+    inputs: InputParameters,
+    z0: float,
+    z1: float,
+    z2: float,
+):
+    """Test the SFH printing function from the backend.
+
+    Parameters
+    ----------
+    inputs : InputParameters
+        The input parameters defining the simulation run.
+    z0 : float
+        The current redshift.
+    z1 : float
+        The previous redshift.
+    z2 : float
+        The second previous redshift.
+    """
+    lib.test_sfh_corr(
+        z0,
+        z1,
+        z2,
+    )

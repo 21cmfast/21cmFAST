@@ -26,7 +26,7 @@ double TtoM(double z, double T, double mu);
 double dicke(double z);
 double ddickedt(double z);
 double ddicke_dz(double z);
-double dtdz(float z);
+double dtdz(double z);
 double drdz(float z); /* comoving distance, (1+z)*C*dtdz(in cm) per unit z */
 
 double hubble(float z);

@@ -117,6 +117,7 @@ int test_halo_props(double redshift, float *vcb_grid, float *J21_LW_grid, float 
                     float *Gamma12_ion_grid, int n_halos, float *halo_masses, float *halo_coords,
                     float *star_rng, float *sfr_rnd, float *xray_rng, float *halo_props_out);
 int test_filter(float *input_box, double R, double R_param, int filter_flag, double *result);
+int test_sfh_corr(double z0, double z1, double z2);
 
 /* Functions required to access cosmology & mass functions directly */
 double dicke(double z);
