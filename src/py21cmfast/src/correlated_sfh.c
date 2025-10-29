@@ -343,10 +343,6 @@ void eval_sfh_moments(gsl_matrix *prev_cov, gsl_matrix *curr_cov, gsl_matrix *cr
     gsl_matrix *covar_buf = gsl_matrix_alloc(3, 3);
     gsl_matrix *L_buf = gsl_matrix_alloc(3, 3);
 
-    print_gsl_matrix(prev_cov, "Previous Covariance Matrix:");
-    print_gsl_matrix(curr_cov, "Current Covariance Matrix:");
-    print_gsl_matrix(cross_cov, "Cross Covariance Matrix:");
-
     gsl_matrix_memcpy(L_buf, prev_cov);         // preserve for Cholesky
     gsl_matrix_memcpy(partial_buf, cross_cov);  // will hold L^-1 Cov(prev,curr)
     gsl_matrix_memcpy(covar_buf, curr_cov);     // will hold the full conditional covariance
@@ -477,6 +473,8 @@ int test_sfh_corr(double z0, double z1, double z2) {
     double rel_tol = 1e-2;
     double tau = time_between_z(z0, z1) / (physconst.s_per_yr * 1e6);       // Myr
     double tau_prev = time_between_z(z1, z2) / (physconst.s_per_yr * 1e6);  // Myr
+    fprintf(stdout, "Testing SFH Correlation Functions at tau = %f Myr, tau_prev = %f Myr\n", tau,
+            tau_prev);
     initialise_psd_corrfunc_tables(tau, tau_prev);
 
     RGTable1D *table_ptrs[11] = {
@@ -519,7 +517,7 @@ int test_sfh_corr(double z0, double z1, double z2) {
         }
     }
 
-    fprintf(stdout, "sigma = %f, sq = %f", astro_params_global->SIGMA_STAR,
+    fprintf(stdout, "sigma = %f, sq = %f\n", astro_params_global->SIGMA_STAR,
             astro_params_global->SIGMA_STAR * astro_params_global->SIGMA_STAR);
 
     gsl_matrix *curr_cov = gsl_matrix_alloc(3, 3);
@@ -530,6 +528,10 @@ int test_sfh_corr(double z0, double z1, double z2) {
     gsl_matrix *prev_cov_2 = gsl_matrix_alloc(3, 3);
     gsl_matrix *cross_cov_2 = gsl_matrix_alloc(3, 3);
     fill_covar_analytic(tau, tau_prev, curr_cov_2, prev_cov_2, cross_cov_2);
+
+    print_gsl_matrix(prev_cov, "Previous Covariance Matrix:");
+    print_gsl_matrix(curr_cov, "Current Covariance Matrix:");
+    print_gsl_matrix(cross_cov, "Cross Covariance Matrix:");
 
     gsl_matrix *corrcoev = gsl_matrix_alloc(6, 6);
     for (int i = 0; i < 3; i++) {
