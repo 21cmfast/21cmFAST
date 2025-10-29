@@ -18,7 +18,7 @@ class TestTemplateAvail:
 
     def test_that_it_prints(self, capsys):
         """Test that it prints out and contains known template names."""
-        app("template avail")
+        app("template avail", result_action="return_value")
         output = capsys.readouterr().out
         assert "simple" in output
         assert "Munoz21" in output
@@ -29,7 +29,10 @@ class TestTemplateCreate:
 
     def test_create_without_explicit_params(self, tmp_path: Path):
         """Test creating from a template without overriding doesn't change anything."""
-        app(f"template create --template simple --out {tmp_path / 'simple.toml'}")
+        app(
+            f"template create --template simple --out {tmp_path / 'simple.toml'}",
+            result_action="return_value",
+        )
         assert (tmp_path / "simple.toml").exists()
 
         p1 = create_params_from_template(tmp_path / "simple.toml")
@@ -40,7 +43,10 @@ class TestTemplateCreate:
     def test_create_with_explicit_params(self, tmp_path: Path):
         """Test that overriding params does change the inputs."""
         out = tmp_path / "simple_plus.toml"
-        app(f"template create --template simple --hii-dim 37 --out {out}")
+        app(
+            f"template create --template simple --hii-dim 37 --out {out}",
+            result_action="return_value",
+        )
         assert out.exists()
 
         p1 = create_params_from_template(out)
@@ -52,16 +58,22 @@ class TestTemplateCreate:
     def test_failure_with_both_template_and_file(self, tmp_path):
         """Test that providing both --template and --param-file errors."""
         new = tmp_path / "new.toml"
-        app(f"template create --template simple --out {new}")
+        app(
+            f"template create --template simple --out {new}",
+            result_action="return_value",
+        )
 
         # This should fail
         with pytest.raises(SystemExit):
-            app(f"template create --param-file {new} --template simple --out here.toml")
+            app(
+                f"template create --param-file {new} --template simple --out here.toml",
+                result_action="return_value",
+            )
 
     def test_default_minimal(self, tmp_path: Path):
         """Test that creating a minimal toml with no values works."""
         fl = tmp_path / "test.toml"
-        app(f"template create --mode minimal --out {fl}")
+        app(f"template create --mode minimal --out {fl}", result_action="return_value")
 
         with fl.open("rb") as _fl:
             data = toml.load(_fl)
@@ -72,7 +84,10 @@ class TestTemplateCreate:
     def test_non_existent_directory(self, tmp_path: Path):
         """Test that providing a non-existing directory to write to is OK."""
         out = tmp_path / "parent" / "config.toml"
-        app(f"template create --template simple --out {out}")
+        app(
+            f"template create --template simple --out {out}",
+            result_action="return_value",
+        )
         assert out.exists()
 
 
@@ -81,7 +96,7 @@ class TestTemplateShow:
 
     def test_show_alias(self, capsys):
         """Test that showing an alias works."""
-        app("template show EOS21")
+        app("template show EOS21", result_action="return_value")
         output = capsys.readouterr().out
         assert "from Munoz" in output
 
@@ -96,7 +111,10 @@ class TestRunSetup:
         self.simple = self.tmpdir / "simple.toml"
 
         # Create a full template in tmpdir
-        app(f"template create --template simple --out {self.simple}")
+        app(
+            f"template create --template simple --out {self.simple}",
+            result_action="return_value",
+        )
 
     def test_unmodified_paramfile(self, capsys):
         """Test that running with an unmodified --param-file doesn't write the fullspec."""
@@ -163,6 +181,7 @@ class TestRunICS:
         app(
             f"run ics --template simple tiny --cachedir {tmp_path}",
             console=Console(width=100),
+            result_action="return_value",
         )
         output = capsys.readouterr().out
         assert "Saved initial conditions" in output
@@ -175,7 +194,8 @@ class TestRunICS:
     def test_warn_formatting(self, tmp_path, capsys):
         """Test that warnings are printed properly."""
         app(
-            f"run ics --template simple tiny --box-len 400 --zmin 5.0 --cachedir {tmp_path}"
+            f"run ics --template simple tiny --box-len 400 --zmin 5.0 --cachedir {tmp_path}",
+            result_action="return_value",
         )
         out = capsys.readouterr().out
         assert "Resolution is likely too low" in out
@@ -184,11 +204,13 @@ class TestRunICS:
         """Test that re-running the same box with --regen does actually re-run things."""
         app(
             f"run ics --template simple tiny --cachedir {tmp_path}",
+            result_action="return_value",
         )
 
         # Now run it again right away with regen
         app(
             f"run ics --template simple tiny --cachedir {tmp_path} --regenerate",
+            result_action="return_value",
         )
         out = capsys.readouterr().out
         assert "regeneration is requested. Overriding." in out
@@ -196,6 +218,7 @@ class TestRunICS:
         # Run it without regen
         app(
             f"run ics --template simple tiny --cachedir {tmp_path}",
+            result_action="return_value",
         )
         out = capsys.readouterr().out
         assert "skipping computation" in out
@@ -209,7 +232,8 @@ class TestRunCoeval:
         cfile = tmp_path / "coeval_z6.00.h5"
         app(
             f"run coeval --template simple tiny --cachedir {tmp_path} "
-            f"--redshifts 6.0 --out {cfile.parent}"
+            f"--redshifts 6.0 --out {cfile.parent}",
+            result_action="return_value",
         )
 
         output = capsys.readouterr().out
@@ -226,7 +250,8 @@ class TestRunCoeval:
             f"run coeval --template Park19 tiny --zprime-step-factor 1.4 --z-heat-max 15 "
             f"--cachedir {tmp_path} "
             f"--no-save-all-redshifts "
-            f"--redshifts 6.0 --out {tmp_path}"
+            f"--redshifts 6.0 --out {tmp_path}",
+            result_action="return_value",
         )
         cfile = tmp_path / "coeval_z6.00.h5"
         assert cfile.exists()
@@ -237,7 +262,8 @@ class TestRunCoeval:
         app(
             f"run coeval --template Park19 tiny --cachedir {new} "
             f"--save-all-redshifts "
-            f"--redshifts 6.0 --out {new}"
+            f"--redshifts 6.0 --out {new}",
+            result_action="return_value",
         )
         assert len(list(new.glob("coeval*.h5"))) > 1
 
@@ -250,7 +276,8 @@ class TestRunLightcone:
         lcfile = tmp_path / "lightcone.h5"
         app(
             f"run lightcone --template simple tiny --cachedir {tmp_path} "
-            f"--redshift-range 6.0 12.0 --out {lcfile}"
+            f"--redshift-range 6.0 12.0 --out {lcfile}",
+            result_action="return_value",
         )
 
         output = capsys.readouterr().out
@@ -264,7 +291,8 @@ class TestRunLightcone:
         lcfile = tmp_path / "new" / "lightcone.h5"
         app(
             f"run lightcone --template simple tiny --cachedir {tmp_path} "
-            f"--redshift-range 6.0 12.0 --out {lcfile}"
+            f"--redshift-range 6.0 12.0 --out {lcfile}",
+            result_action="return_value",
         )
 
         assert lcfile.exists()
@@ -275,12 +303,12 @@ class TestParamHelp:
 
     def test_printing(self, capsys):
         """Test that the (stub) command prints a short useful message."""
-        app("run params")
+        app("run params", result_action="return_value")
         assert "Usage: 21cmfast run params --help" in capsys.readouterr().out
 
     def test_full_help(self, capsys):
         """Test that the --help command prints out all the param help."""
-        app("run params --help")
+        app("run params --help", result_action="return_value")
         out = capsys.readouterr().out
 
         assert "--hii-dim" in out
@@ -294,9 +322,13 @@ class TestPRFeature:
     def test_simple_run_through(self, tmp_path: Path):
         """Test that a simple run-through produces the expected plots."""
         template = tmp_path / "small-simple.toml"
-        app(f"template create --template simple tiny --out {template}")
         app(
-            f"dev feature --param-file {template} --redshift-range 6 12 --hmf PS --cachedir {tmp_path} --outdir {tmp_path}"
+            f"template create --template simple tiny --out {template}",
+            result_action="return_value",
+        )
+        app(
+            f"dev feature --param-file {template} --redshift-range 6 12 --hmf PS --cachedir {tmp_path} --outdir {tmp_path}",
+            result_action="return_value",
         )
         assert (tmp_path / "pr_feature_history.pdf").exists()
         assert (tmp_path / "pr_feature_power_history.pdf").exists()
@@ -308,7 +340,10 @@ class TestPredictStructSize:
 
     def test_relevant_text_is_printed(self, capsys):
         """Test that running the size prediction CLI prints relevant text."""
-        app("predict struct-size --template simple tiny --unit mb")
+        app(
+            "predict struct-size --template simple tiny --unit mb",
+            result_action="return_value",
+        )
         # We just want to make sure it runs and prints something reasonable.
         # Detailed correctness is tested in management.py tests.
 
@@ -318,10 +353,16 @@ class TestPredictStructSize:
 
     def test_cache_off(self, capsys):
         """Test that running with cache off affects the predicted sizes."""
-        app("predict struct-size --template simple tiny --cache-config off")
+        app(
+            "predict struct-size --template simple tiny --cache-config off",
+            result_action="return_value",
+        )
         out_off = capsys.readouterr().out
 
-        app("predict struct-size --template simple tiny --cache-config on")
+        app(
+            "predict struct-size --template simple tiny --cache-config on",
+            result_action="return_value",
+        )
         out_on = capsys.readouterr().out
 
         assert out_off != out_on
@@ -338,7 +379,10 @@ class TestPredictTotalStorageSize:
     )
     def test_relevant_text_is_printed(self, capsys, template: str):
         """Test that running the total storage size CLI prints relevant text."""
-        app(f"predict storage-size --template {template} --unit gb")
+        app(
+            f"predict storage-size --template {template} --unit gb",
+            result_action="return_value",
+        )
         # We just want to make sure it runs and prints something reasonable.
         # Detailed correctness is tested in management.py tests.
 
@@ -351,10 +395,16 @@ class TestPredictTotalStorageSize:
     )
     def test_cache_off(self, capsys, template: str):
         """Test that running with cache off affects the predicted total storage size."""
-        app(f"predict storage-size --template {template} --cache-config off")
+        app(
+            f"predict storage-size --template {template} --cache-config off",
+            result_action="return_value",
+        )
         out_off = capsys.readouterr().out
 
-        app("predict storage-size --template simple tiny --cache-config on")
+        app(
+            f"predict storage-size --template {template} --cache-config on",
+            result_action="return_value",
+        )
         out_on = capsys.readouterr().out
 
         assert out_off != out_on
