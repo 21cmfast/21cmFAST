@@ -284,8 +284,6 @@ void get_cell_integrals(double dens, double l10_mturn_a, double l10_mturn_m,
 int set_fixed_grids(double M_min, double M_max, InitialConditions *ini_boxes, float *mturn_a_grid,
                     float *mturn_m_grid, ScalingConstants *consts, HaloBox *grids) {
     double M_cell;
-    double growthf = dicke(consts->redshift);
-
     // If our scaling relations define a median, the scatter will will increase the mean value
     // due to the asymmetry of the lognormal distribution, we mimic this in the
     // sub-sampler component. NOTE: this will also occur if FIXED_HALO_GRIDS is true, and it's
@@ -299,6 +297,7 @@ int set_fixed_grids(double M_min, double M_max, InitialConditions *ini_boxes, fl
     if (astro_options_global->HALO_SCALING_RELATIONS_MEDIAN) {
         _ev_consts = mimic_scatter_in_consts(consts);
     }
+    double growthf = dicke(ev_consts->redshift);
 
     // find grid limits for tables
     double min_density = 0.;
@@ -344,7 +343,7 @@ int set_fixed_grids(double M_min, double M_max, InitialConditions *ini_boxes, fl
     }
 
     IntegralCondition integral_cond;
-    set_integral_constants(&integral_cond, consts->redshift, M_min, M_max, M_cell);
+    set_integral_constants(&integral_cond, ev_consts->redshift, M_min, M_max, M_cell);
 #pragma omp parallel num_threads(simulation_options_global->N_THREADS)
     {
         unsigned long long int i;
