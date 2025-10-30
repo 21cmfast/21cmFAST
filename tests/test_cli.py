@@ -13,12 +13,17 @@ from py21cmfast.cli import Parameters, ParameterSelection, RunParams, _run_setup
 from py21cmfast.io.h5 import read_output_struct
 
 
+def app_noexit(*args, **kwargs):
+    """Return the CLI app with SystemExit disabled for testing."""
+    return app(*args, **kwargs, result_action="return_value")
+
+
 class TestTemplateAvail:
     """Tests of the template avail command."""
 
     def test_that_it_prints(self, capsys):
         """Test that it prints out and contains known template names."""
-        app("template avail")
+        app_noexit("template avail")
         output = capsys.readouterr().out
         assert "simple" in output
         assert "Munoz21" in output
@@ -29,7 +34,9 @@ class TestTemplateCreate:
 
     def test_create_without_explicit_params(self, tmp_path: Path):
         """Test creating from a template without overriding doesn't change anything."""
-        app(f"template create --template simple --out {tmp_path / 'simple.toml'}")
+        app_noexit(
+            f"template create --template simple --out {tmp_path / 'simple.toml'}"
+        )
         assert (tmp_path / "simple.toml").exists()
 
         p1 = create_params_from_template(tmp_path / "simple.toml")
@@ -40,7 +47,7 @@ class TestTemplateCreate:
     def test_create_with_explicit_params(self, tmp_path: Path):
         """Test that overriding params does change the inputs."""
         out = tmp_path / "simple_plus.toml"
-        app(f"template create --template simple --hii-dim 37 --out {out}")
+        app_noexit(f"template create --template simple --hii-dim 37 --out {out}")
         assert out.exists()
 
         p1 = create_params_from_template(out)
@@ -52,16 +59,18 @@ class TestTemplateCreate:
     def test_failure_with_both_template_and_file(self, tmp_path):
         """Test that providing both --template and --param-file errors."""
         new = tmp_path / "new.toml"
-        app(f"template create --template simple --out {new}")
+        app_noexit(f"template create --template simple --out {new}")
 
         # This should fail
         with pytest.raises(SystemExit):
-            app(f"template create --param-file {new} --template simple --out here.toml")
+            app_noexit(
+                f"template create --param-file {new} --template simple --out here.toml"
+            )
 
     def test_default_minimal(self, tmp_path: Path):
         """Test that creating a minimal toml with no values works."""
         fl = tmp_path / "test.toml"
-        app(f"template create --mode minimal --out {fl}")
+        app_noexit(f"template create --mode minimal --out {fl}")
 
         with fl.open("rb") as _fl:
             data = toml.load(_fl)
@@ -72,7 +81,7 @@ class TestTemplateCreate:
     def test_non_existent_directory(self, tmp_path: Path):
         """Test that providing a non-existing directory to write to is OK."""
         out = tmp_path / "parent" / "config.toml"
-        app(f"template create --template simple --out {out}")
+        app_noexit(f"template create --template simple --out {out}")
         assert out.exists()
 
 
@@ -81,7 +90,7 @@ class TestTemplateShow:
 
     def test_show_alias(self, capsys):
         """Test that showing an alias works."""
-        app("template show EOS21")
+        app_noexit("template show EOS21")
         output = capsys.readouterr().out
         assert "from Munoz" in output
 
@@ -96,7 +105,7 @@ class TestRunSetup:
         self.simple = self.tmpdir / "simple.toml"
 
         # Create a full template in tmpdir
-        app(f"template create --template simple --out {self.simple}")
+        app_noexit(f"template create --template simple --out {self.simple}")
 
     def test_unmodified_paramfile(self, capsys):
         """Test that running with an unmodified --param-file doesn't write the fullspec."""
@@ -160,7 +169,7 @@ class TestRunICS:
 
     def test_basic_run(self, capsys, tmp_path: Path):
         """Test that a simple run creates an InitialConditions.h5 file."""
-        app(
+        app_noexit(
             f"run ics --template simple tiny --cachedir {tmp_path}",
             console=Console(width=100),
         )
@@ -174,7 +183,7 @@ class TestRunICS:
 
     def test_warn_formatting(self, tmp_path, capsys):
         """Test that warnings are printed properly."""
-        app(
+        app_noexit(
             f"run ics --template simple tiny --box-len 400 --zmin 5.0 --cachedir {tmp_path}"
         )
         out = capsys.readouterr().out
@@ -182,19 +191,19 @@ class TestRunICS:
 
     def test_regen(self, capsys, tmp_path):
         """Test that re-running the same box with --regen does actually re-run things."""
-        app(
+        app_noexit(
             f"run ics --template simple tiny --cachedir {tmp_path}",
         )
 
         # Now run it again right away with regen
-        app(
+        app_noexit(
             f"run ics --template simple tiny --cachedir {tmp_path} --regenerate",
         )
         out = capsys.readouterr().out
         assert "regeneration is requested. Overriding." in out
 
         # Run it without regen
-        app(
+        app_noexit(
             f"run ics --template simple tiny --cachedir {tmp_path}",
         )
         out = capsys.readouterr().out
@@ -207,7 +216,7 @@ class TestRunCoeval:
     def test_basic_run(self, capsys, tmp_path: Path):
         """Test that a basic run through produces a coeval*.h5 file."""
         cfile = tmp_path / "coeval_z6.00.h5"
-        app(
+        app_noexit(
             f"run coeval --template simple tiny --cachedir {tmp_path} "
             f"--redshifts 6.0 --out {cfile.parent}"
         )
@@ -222,7 +231,7 @@ class TestRunCoeval:
     def test_node_redshifts(self, capsys, tmp_path):
         """Test that having nodez in addition to --redshifts works."""
         # We have other node redshifts, but we don't do anything with them.
-        app(
+        app_noexit(
             f"run coeval --template Park19 tiny --zprime-step-factor 1.4 --z-heat-max 15 "
             f"--cachedir {tmp_path} "
             f"--no-save-all-redshifts "
@@ -234,7 +243,7 @@ class TestRunCoeval:
         # This time save everything....
         new = tmp_path / "new"
         new.mkdir()
-        app(
+        app_noexit(
             f"run coeval --template Park19 tiny --cachedir {new} "
             f"--save-all-redshifts "
             f"--redshifts 6.0 --out {new}"
@@ -248,7 +257,7 @@ class TestRunLightcone:
     def test_basic_run(self, capsys, tmp_path: Path):
         """Test that a basic run produces a lightcone.h5 file."""
         lcfile = tmp_path / "lightcone.h5"
-        app(
+        app_noexit(
             f"run lightcone --template simple tiny --cachedir {tmp_path} "
             f"--redshift-range 6.0 12.0 --out {lcfile}"
         )
@@ -262,7 +271,7 @@ class TestRunLightcone:
     def test_non_existent_path(self, tmp_path):
         """Test that a non-existent output path is OK."""
         lcfile = tmp_path / "new" / "lightcone.h5"
-        app(
+        app_noexit(
             f"run lightcone --template simple tiny --cachedir {tmp_path} "
             f"--redshift-range 6.0 12.0 --out {lcfile}"
         )
@@ -275,12 +284,12 @@ class TestParamHelp:
 
     def test_printing(self, capsys):
         """Test that the (stub) command prints a short useful message."""
-        app("run params")
+        app_noexit("run params")
         assert "Usage: 21cmfast run params --help" in capsys.readouterr().out
 
     def test_full_help(self, capsys):
         """Test that the --help command prints out all the param help."""
-        app("run params --help")
+        app_noexit("run params --help")
         out = capsys.readouterr().out
 
         assert "--hii-dim" in out
@@ -294,8 +303,8 @@ class TestPRFeature:
     def test_simple_run_through(self, tmp_path: Path):
         """Test that a simple run-through produces the expected plots."""
         template = tmp_path / "small-simple.toml"
-        app(f"template create --template simple tiny --out {template}")
-        app(
+        app_noexit(f"template create --template simple tiny --out {template}")
+        app_noexit(
             f"dev feature --param-file {template} --redshift-range 6 12 --hmf PS --cachedir {tmp_path} --outdir {tmp_path}"
         )
         assert (tmp_path / "pr_feature_history.pdf").exists()
@@ -308,7 +317,7 @@ class TestPredictStructSize:
 
     def test_relevant_text_is_printed(self, capsys):
         """Test that running the size prediction CLI prints relevant text."""
-        app("predict struct-size --template simple tiny --unit mb")
+        app_noexit("predict struct-size --template simple tiny --unit mb")
         # We just want to make sure it runs and prints something reasonable.
         # Detailed correctness is tested in management.py tests.
 
@@ -318,10 +327,10 @@ class TestPredictStructSize:
 
     def test_cache_off(self, capsys):
         """Test that running with cache off affects the predicted sizes."""
-        app("predict struct-size --template simple tiny --cache-config off")
+        app_noexit("predict struct-size --template simple tiny --cache-config off")
         out_off = capsys.readouterr().out
 
-        app("predict struct-size --template simple tiny --cache-config on")
+        app_noexit("predict struct-size --template simple tiny --cache-config on")
         out_on = capsys.readouterr().out
 
         assert out_off != out_on
@@ -338,7 +347,7 @@ class TestPredictTotalStorageSize:
     )
     def test_relevant_text_is_printed(self, capsys, template: str):
         """Test that running the total storage size CLI prints relevant text."""
-        app(f"predict storage-size --template {template} --unit gb")
+        app_noexit(f"predict storage-size --template {template} --unit gb")
         # We just want to make sure it runs and prints something reasonable.
         # Detailed correctness is tested in management.py tests.
 
@@ -351,10 +360,10 @@ class TestPredictTotalStorageSize:
     )
     def test_cache_off(self, capsys, template: str):
         """Test that running with cache off affects the predicted total storage size."""
-        app(f"predict storage-size --template {template} --cache-config off")
+        app_noexit(f"predict storage-size --template {template} --cache-config off")
         out_off = capsys.readouterr().out
 
-        app("predict storage-size --template simple tiny --cache-config on")
+        app_noexit("predict storage-size --template simple tiny --cache-config on")
         out_on = capsys.readouterr().out
 
         assert out_off != out_on

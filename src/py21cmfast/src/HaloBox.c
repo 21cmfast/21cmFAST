@@ -288,6 +288,20 @@ int set_fixed_grids(double M_min, double M_max, InitialConditions *ini_boxes, fl
     set_integral_constants(&integral_cond, consts->redshift, M_min, M_max, M_cell);
     double growthf = dicke(consts->redshift);
 
+    // If our scaling relations define a median, the scatter will will increase the mean value
+    // due to the asymmetry of the lognormal distribution, we mimic this in the
+    // sub-sampler component. NOTE: this will also occur if FIXED_HALO_GRIDS is true, and it's
+    // not obvious whether that's what a user would want.
+    // TODO: redesign the USE_HALO_FIELD, FIXED_HALO_GRIDS, SCALING_RELATIONS_MEDIAN logic
+    // to be more transparent, and perhaps allow the FIXED_HALO_GRIDS to be a replacement for the v3
+    // source model
+    ScalingConstants _ev_consts = *consts;
+    ScalingConstants *ev_consts = &_ev_consts;
+
+    if (astro_options_global->HALO_SCALING_RELATIONS_MEDIAN) {
+        _ev_consts = mimic_scatter_in_consts(consts);
+    }
+
     // find grid limits for tables
     double min_density = 0.;
     double max_density = 0.;
@@ -299,8 +313,8 @@ int set_fixed_grids(double M_min, double M_max, InitialConditions *ini_boxes, fl
     {
         unsigned long long int i;
         double dens;
-        double M_turn_m = consts->mturn_m_nofb;
-        double M_turn_a = consts->mturn_a_nofb;
+        double M_turn_m = ev_consts->mturn_m_nofb;
+        double M_turn_a = ev_consts->mturn_a_nofb;
 #pragma omp for reduction(min : min_density, min_log10_mturn_a, min_log10_mturn_m) \
     reduction(max : max_density, max_log10_mturn_a, max_log10_mturn_m)
         for (i = 0; i < HII_TOT_NUM_PIXELS; i++) {
@@ -335,21 +349,21 @@ int set_fixed_grids(double M_min, double M_max, InitialConditions *ini_boxes, fl
             initialise_GL(integral_cond.lnM_min, integral_cond.lnM_max);
         }
         // This table assumes no reionisation feedback
-        initialise_SFRD_Conditional_table(consts->redshift, min_density, max_density, M_min, M_max,
-                                          M_cell, consts);
+        initialise_SFRD_Conditional_table(ev_consts->redshift, min_density, max_density, M_min,
+                                          M_max, M_cell, ev_consts);
 
         // This table includes reionisation feedback, but takes the atomic turnover anyway for the
         // upper turnover
-        initialise_Nion_Conditional_spline(consts->redshift, min_density, max_density, M_min, M_max,
-                                           M_cell, min_log10_mturn_a, max_log10_mturn_a,
-                                           min_log10_mturn_m, max_log10_mturn_m, consts, false);
+        initialise_Nion_Conditional_spline(ev_consts->redshift, min_density, max_density, M_min,
+                                           M_max, M_cell, min_log10_mturn_a, max_log10_mturn_a,
+                                           min_log10_mturn_m, max_log10_mturn_m, ev_consts, false);
 
         initialise_dNdM_tables(min_density, max_density, integral_cond.lnM_min,
                                integral_cond.lnM_max, integral_cond.growth_factor,
                                integral_cond.lnM_cell, false);
         if (astro_options_global->USE_TS_FLUCT) {
-            initialise_Xray_Conditional_table(consts->redshift, min_density, max_density, M_min,
-                                              M_max, M_cell, consts);
+            initialise_Xray_Conditional_table(ev_consts->redshift, min_density, max_density, M_min,
+                                              M_max, M_cell, ev_consts);
         }
     }
 
@@ -358,9 +372,9 @@ int set_fixed_grids(double M_min, double M_max, InitialConditions *ini_boxes, fl
     float *vel_pointers[3] = {ini_boxes->lowres_vx, ini_boxes->lowres_vy, ini_boxes->lowres_vz};
     float *vel_pointers_2LPT[3] = {ini_boxes->lowres_vx_2LPT, ini_boxes->lowres_vy_2LPT,
                                    ini_boxes->lowres_vz_2LPT};
-    move_grid_galprops(consts->redshift, ini_boxes->lowres_density, grid_dim, vel_pointers,
+    move_grid_galprops(ev_consts->redshift, ini_boxes->lowres_density, grid_dim, vel_pointers,
                        vel_pointers_2LPT, grid_dim, grids, grid_dim, mturn_a_grid, mturn_m_grid,
-                       consts, &integral_cond);
+                       ev_consts, &integral_cond);
 
     LOG_ULTRA_DEBUG("Cell 0 Totals: SF: %.2e, NI: %.2e", grids->halo_sfr[0], grids->n_ion[0]);
     if (astro_options_global->INHOMO_RECO) {
@@ -375,7 +389,7 @@ int set_fixed_grids(double M_min, double M_max, InitialConditions *ini_boxes, fl
     }
     free_conditional_tables();
 
-    if (consts->fix_mean) mean_fix_grids(M_min, M_max, grids, consts);
+    if (ev_consts->fix_mean) mean_fix_grids(M_min, M_max, grids, ev_consts);
 
     return 0;
 }
