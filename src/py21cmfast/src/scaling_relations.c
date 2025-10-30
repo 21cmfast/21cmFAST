@@ -126,6 +126,16 @@ ScalingConstants evolve_scaling_constants_to_redshift(double redshift, ScalingCo
             sc_z.alpha_esc = get_fesc_fit(redshift);
         else if (astro_options_global->PHOTON_CONS_TYPE == 3)
             sc_z.fesc_10 = get_fesc_fit(redshift);
+
+        // if we altered the escape fraction, we need to recalculate the mass limits
+        sc_z.Mlim_Fesc =
+            Mass_limit_bisection(M_MIN_INTEGRAL, M_MAX_INTEGRAL, sc_z.alpha_esc, sc_z.fesc_10);
+
+        if (astro_options_global->USE_MINI_HALOS) {
+            sc_z.Mlim_Fesc_mini =
+                Mass_limit_bisection(M_MIN_INTEGRAL, M_MAX_INTEGRAL, sc_z.alpha_esc,
+                                     sc_z.fesc_7 * pow(1e3, sc_z.alpha_esc));
+        }
     }
 
     sc_z.acg_thresh = atomic_cooling_threshold(redshift);
@@ -140,6 +150,37 @@ ScalingConstants evolve_scaling_constants_to_redshift(double redshift, ScalingCo
     }
 
     return sc_z;
+}
+
+ScalingConstants mimic_scatter_in_consts(ScalingConstants *sc) {
+    // This function mimics the effect of log-normal scatter in the scaling relations by increasing
+    //  the normalisation of the relations appropriately.
+    //  These should be used in individual integrals / table initialisations, scoped tightly,
+    //  and applied after evolving to the correct redshift / relation.
+    ScalingConstants ev_consts = *sc;
+    ev_consts.fstar_10 *= exp(0.5 * pow(ev_consts.sigma_star, 2));
+    ev_consts.fstar_7 *= exp(0.5 * pow(ev_consts.sigma_star, 2));
+    ev_consts.l_x *= exp(0.5 * pow(ev_consts.sigma_xray, 2));
+    ev_consts.l_x_mini *= exp(0.5 * pow(ev_consts.sigma_xray, 2));
+
+    // This is a lower-limit on the effect of scatter in SSFR
+    //  since the scatter depends on stellar mass. To fully apply the limit we would need
+    //  a new HMF integrand. Explicit Monte-Carlo Integration over the property PDFS might also
+    //  work.
+    // TODO: Something better than this
+    ev_consts.t_star /= exp(0.5 * pow(ev_consts.sigma_sfr_lim, 2));
+
+    // By altering the normalisations we need to recalculate the mass limits
+    ev_consts.Mlim_Fstar = Mass_limit_bisection(M_MIN_INTEGRAL, M_MAX_INTEGRAL,
+                                                ev_consts.alpha_star, ev_consts.fstar_10);
+
+    if (astro_options_global->USE_MINI_HALOS) {
+        ev_consts.Mlim_Fstar_mini =
+            Mass_limit_bisection(M_MIN_INTEGRAL, M_MAX_INTEGRAL, ev_consts.alpha_star_mini,
+                                 ev_consts.fstar_7 * pow(1e3, ev_consts.alpha_star_mini));
+    }
+
+    return ev_consts;
 }
 
 /*
