@@ -41,10 +41,8 @@ jobs:
         run: |
           bencher run \
           --project 21cmfast \
-          --token '${{ secrets.BENCHER_API_TOKEN }}' \
           --branch "$GITHUB_HEAD_REF" \
           --start-point "$GITHUB_BASE_REF" \
-          --start-point-hash '${{ github.event.pull_request.base.sha }}' \
           --start-point-clone-thresholds \
           --start-point-reset \
           --testbed ubuntu-latest \
