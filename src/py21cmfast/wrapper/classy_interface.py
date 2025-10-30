@@ -28,12 +28,6 @@ k_output = (
 )
 
 classy_params_default = {
-    "h": 0.6766,
-    "Omega_cdm": 0.11933 / 0.6766**2,
-    "Omega_b": 0.02242 / 0.6766**2,
-    "n_s": 0.9665,
-    "sigma8": 0.8102,
-    "A_s": 2.105e-9,  # TODO: these are the default values from inputs.py. I wonder if there's a more clever way to get them here.
     "output": "tCl,pCl,lCl,mTk,vTk,mPk",
     "tau_reio": 0.0554,
     "T_cmb": 2.7255 * units.K,
@@ -48,7 +42,9 @@ classy_params_default = {
 }
 
 
-def run_classy(inputs: InputParameters | None = None, **kwargs) -> Class:
+def run_classy(
+    inputs: InputParameters = InputParameters(random_seed=1234), **kwargs
+) -> Class:
     """Run CLASS with specified input parameters.
 
     Parameters
@@ -68,56 +64,48 @@ def run_classy(inputs: InputParameters | None = None, **kwargs) -> Class:
     output : :class:`classy.Class`
         An object containing all the information from the CLASS calculation.
     """
-    # Set CLASS parameters
-    if inputs is not None:
-        params = {
-            "h": inputs.cosmo_params.hlittle,
-            "Omega_cdm": inputs.cosmo_params.OMm - inputs.cosmo_params.OMb,
-            "Omega_b": inputs.cosmo_params.OMb,
-            "n_s": inputs.cosmo_params.POWER_INDEX,
-        }
-        if "A_s" not in kwargs:
-            params["sigma8"] = inputs.cosmo_params.SIGMA_8
-    else:
-        params = {}
-    for k in classy_params_default:
-        if k in kwargs:
-            if k == "sigma8" and "A_s" in kwargs:
-                raise KeyError(
-                    "Do not provide both 'sigma8' and 'A_s' as arguments. Only one of them is allowed."
-                )
-            if k == "A_s" and "sigma8" in params:
-                continue
-            if k == "m_ncdm" and params["N_ncdm"] == 0:
-                continue
-            else:
-                params[k] = kwargs[k]
-        elif k == "P_k_max_1/Mpc":
-            if "P_k_max" in kwargs:
-                params["P_k_max_1/Mpc"] = kwargs["P_k_max"]
-            else:
-                params[k] = classy_params_default[k]
-        else:
-            if k in params:
-                continue
-            if k == "sigma8" and "A_s" in kwargs:
-                continue
-            if k == "A_s" and "sigma8" in params:
-                continue
-            if k == "m_ncdm" and params["N_ncdm"] == 0:
-                continue
-            if k == "N_ur" and params["N_ncdm"] == 0:
-                params[k] = 3.044
-            elif k in ["lensing", "l_max_scalars"]:
-                if (
-                    params["output"].find("tCl") >= 0
-                    or params["output"].find("pCl") >= 0
-                    or params["output"].find("lCl") >= 0
-                ):
-                    params[k] = classy_params_default[k]
-            else:
-                params[k] = classy_params_default[k]
+    # Set CLASS parameters to be default parameters
+    params = classy_params_default.copy()
+    # Set cosmological parameters according to inputs
+    params["h"] = inputs.cosmo_params.hlittle
+    params["Omega_cdm"] = inputs.cosmo_params.OMm - inputs.cosmo_params.OMb
+    params["Omega_b"] = inputs.cosmo_params.OMb
+    params["n_s"] = inputs.cosmo_params.POWER_INDEX
+    # Take sigma8 from inputs, unless A_s is specified kwargs
+    if "A_s" not in kwargs:
+        params["sigma8"] = inputs.cosmo_params.SIGMA_8
 
+    for k in kwargs:
+        # Raise an error if both sigma8 and A_s are specified
+        if k == "sigma8" and "A_s" in kwargs:
+            raise KeyError(
+                "Do not provide both 'sigma8' and 'A_s' as arguments. Only one of them is allowed."
+            )
+        # Raise an error if N_ncdm=0 but m_ncdm is specified
+        elif k == "m_ncdm" and ("N_ncdm" in kwargs) and kwargs["N_ncdm"] == 0:
+            raise KeyError("You specified m_ncdm, but set N_ncdm=0.")
+        # "P_k_max_1/Mpc" cannot serve as a kwarg, but this is the input that CLASS expects to receive,
+        # so we control this input with "P_k_max" instead
+        elif k == "P_k_max":
+            params["P_k_max_1/Mpc"] = kwargs["P_k_max"]
+        else:
+            params[k] = kwargs[k]
+
+    # Set N_ur=3.044 pop out m_ncdm if N_ncdm=0 (no massive neutrinos)
+    if params["N_ncdm"] == 0.0:
+        params["N_ur"] = 3.044
+        params.pop("m_ncdm")
+
+    # If we don't need to evaluate CMB anisotropies, we don't need these kwargs in params
+    if not (
+        params["output"].find("tCl") >= 0
+        or params["output"].find("pCl") >= 0
+        or params["output"].find("lCl") >= 0
+    ):
+        params.pop("lensing")
+        params.pop("l_max_scalars")
+
+    # Set level to highest order, unless it is specified in kwargs
     if "level" not in kwargs:
         kwargs["level"] = ["distortions"]
 

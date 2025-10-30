@@ -20,7 +20,6 @@ from py21cmfast.input_serialization import (
     deserialize_inputs,
     prepare_inputs_for_serialization,
 )
-from py21cmfast.wrapper.classy_interface import classy_params_default
 
 _TEMPLATES = tmpl.list_templates()
 _ALL_ALIASES = list(chain.from_iterable(t["aliases"] for t in _TEMPLATES))
@@ -121,19 +120,19 @@ class TestCosmoParams:
     def test_defaults(self):
         """Test defaults."""
         cosmo_params = CosmoParams()
-        assert classy_params_default["sigma8"] == cosmo_params.SIGMA_8
-        assert cosmo_params.A_s == classy_params_default["A_s"]
+        assert cosmo_params.SIGMA_8 == cosmo_params._DEFAULT_SIGMA_8
+        assert cosmo_params.A_s == cosmo_params._DEFAULT_A_s
 
     def test_sigma8(self):
         """Test defaults with sigma8."""
         cosmo_params = CosmoParams(SIGMA_8=self.sigma_8)
         assert self.sigma_8 == cosmo_params.SIGMA_8
-        assert cosmo_params.A_s != classy_params_default["A_s"]
+        assert cosmo_params.A_s != cosmo_params._DEFAULT_A_s
 
     def test_A_s(self):
         """Test defaults with A_s."""
         cosmo_params = CosmoParams(A_s=self.A_s)
-        assert classy_params_default["sigma8"] != cosmo_params.SIGMA_8
+        assert cosmo_params.SIGMA_8 != cosmo_params._DEFAULT_SIGMA_8
         assert cosmo_params.A_s == self.A_s
 
     def test_bad_input(self):

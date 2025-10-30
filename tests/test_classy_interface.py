@@ -5,7 +5,6 @@ import pytest
 from astropy import units
 
 from py21cmfast.wrapper.classy_interface import (
-    classy_params_default,
     compute_rms,
     run_classy,
 )
@@ -13,32 +12,35 @@ from py21cmfast.wrapper.classy_interface import (
 
 def test_classy_runs():
     """Test classy runs in non trivial configurations."""
+    with pytest.raises(
+        KeyError,
+        match="You specified m_ncdm, but set N_ncdm=0.",
+    ):
+        classy_output = run_classy(
+            N_ncdm=0,
+            m_ncdm="0.06",
+        )
+
     classy_output = run_classy(
         N_ncdm=0,
-        m_ncdm="0.06",
         P_k_max=1.0 / units.Mpc,
     )
     assert classy_output.Om_ncdm(0) == 0.0
     assert max(classy_output.get_transfer(z=0)["k (h/Mpc)"] * classy_output.h()) < 10.0
 
-    classy_output = run_classy(
-        N_ncdm=0,
-    )
-    assert classy_output.Om_ncdm(0) == 0.0
 
-
-def test_classy_runs_with_sigma8_A_s():
+def test_classy_runs_with_sigma8_A_s(default_input_struct):
     """Test classy runs with sigma and A_s."""
     A_s = 3.0e-9
     sigma8 = 1.0
 
     classy_output = run_classy()
     assert np.isclose(
-        classy_output.sigma8(), classy_params_default["sigma8"]
+        classy_output.sigma8(), default_input_struct.cosmo_params.SIGMA_8
     )  # Not sure why they are not exactly the same
     assert np.isclose(
         classy_output.get_current_derived_parameters(["A_s"])["A_s"],
-        classy_params_default["A_s"],
+        default_input_struct.cosmo_params.A_s,
     )
 
     classy_output = run_classy(sigma8=sigma8)
