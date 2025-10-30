@@ -355,7 +355,7 @@ int set_fixed_grids(double M_min, double M_max, InitialConditions *ini_boxes, fl
             if (dens > max_density) max_density = dens;
             if (dens < min_density) min_density = dens;
         }
-        
+
         double M_turn_m = ev_consts->mturn_m_nofb;
         double M_turn_a = ev_consts->mturn_a_nofb;
 #pragma omp for reduction(min : min_log10_mturn_a, min_log10_mturn_m) \
