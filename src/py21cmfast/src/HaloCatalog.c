@@ -43,7 +43,7 @@ int ComputeHaloCatalog(float redshift_desc, float redshift, InitialConditions *b
     Try {  // This Try brackets the whole function, so we don't indent.
 
         // This happens if we are updating a halo field (no need to redo big halos)
-        if (matter_options_global->HALO_STOCHASTICITY && redshift_desc > 0) {
+        if (matter_options_global->USE_CHMF_SAMPLER && redshift_desc > 0) {
             LOG_DEBUG("Halo sampling switched on, bypassing halo finder to update %llu halos...",
                       halos_desc->n_halos);
             // this would hold the two boxes used in the halo sampler, but here we are taking the
@@ -89,7 +89,7 @@ int ComputeHaloCatalog(float redshift_desc, float redshift, InitialConditions *b
         double cell_length = simulation_options_global->BOX_LEN / grid_dim;
         // set minimum source mass
         // if we use the sampler we want to stop at the HII cell mass
-        if (matter_options_global->HALO_STOCHASTICITY)
+        if (matter_options_global->USE_CHMF_SAMPLER)
             M_MIN = fmax(M_MIN, RtoM(physconst.l_factor * simulation_options_global->BOX_LEN /
                                      simulation_options_global->HII_DIM));
         // otherwise we stop at the cell mass
@@ -169,7 +169,7 @@ int ComputeHaloCatalog(float redshift_desc, float redshift, InitialConditions *b
             R *= simulation_options_global->DELTA_R_FACTOR;
 
         HaloCatalog *halos_dexm;
-        if (matter_options_global->HALO_STOCHASTICITY) {
+        if (matter_options_global->USE_CHMF_SAMPLER) {
             // To save memory, we allocate the smaller (large mass) halofield here instead of using
             // halos_desc
             halos_dexm = malloc(sizeof(HaloCatalog));
@@ -310,7 +310,7 @@ int ComputeHaloCatalog(float redshift_desc, float redshift, InitialConditions *b
                   total_halo_num);
 
         // Allocate the Halo Mass and Coordinate Fields (non-wrapper structure)
-        if (matter_options_global->HALO_STOCHASTICITY)
+        if (matter_options_global->USE_CHMF_SAMPLER)
             init_halo_coords(halos_dexm, total_halo_num);
         else
             halos_dexm->n_halos = total_halo_num;
@@ -341,7 +341,7 @@ int ComputeHaloCatalog(float redshift_desc, float redshift, InitialConditions *b
         add_properties_cat(random_seed, redshift, halos_dexm);
         LOG_DEBUG("Found %llu DexM halos", halos_dexm->n_halos);
 
-        if (matter_options_global->HALO_STOCHASTICITY) {
+        if (matter_options_global->USE_CHMF_SAMPLER) {
             LOG_DEBUG("Finding halos below grid resolution %.3e", M_MIN);
             // First we construct a grid which corresponds to how much of a HII_DIM cell is covered
             // by halos

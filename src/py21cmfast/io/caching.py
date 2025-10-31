@@ -331,8 +331,10 @@ class RunCache:
         }
         if inputs.astro_options.USE_TS_FLUCT:
             others |= {"TsBox": {}}
-        if inputs.matter_options.USE_HALO_FIELD:
-            others |= {"HaloCatalog": {}, "XraySourceBox": {}, "HaloBox": {}}
+        if inputs.matter_options.LAGRANGIAN_SOURCE_GRIDS:
+            others |= {"XraySourceBox": {}, "HaloBox": {}}
+        if inputs.matter_options.USE_DISCRETE_HALOS:
+            others |= {"HaloCatalog": {}}
 
         for z in inputs.node_redshifts:
             for name, val in others.items():

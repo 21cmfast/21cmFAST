@@ -17,11 +17,10 @@ def get_expected_outputs(
         "BrightnessTemp": ostrct.BrightnessTemp.new(inputs, redshift=6).arrays,
     }
 
-    if inputs.matter_options.USE_HALO_FIELD:
-        out |= {
-            "HaloCatalog": ostrct.HaloCatalog.new(inputs, redshift=6).arrays,
-            "HaloBox": ostrct.HaloBox.new(inputs, redshift=6).arrays,
-        }
+    if inputs.matter_options.LAGRANGIAN_SOURCE_GRIDS:
+        out["HaloBox"] = ostrct.HaloBox.new(inputs, redshift=6).arrays
+        if inputs.matter_options.USE_DISCRETE_HALOS:
+            out["HaloCatalog"] = ostrct.HaloCatalog.new(inputs, redshift=6).arrays
 
         if inputs.astro_options.USE_TS_FLUCT:
             out["XraySourceBox"] = ostrct.XraySourceBox.new(inputs, redshift=6).arrays

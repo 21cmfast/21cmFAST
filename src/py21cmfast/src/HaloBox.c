@@ -286,11 +286,7 @@ int set_fixed_grids(double M_min, double M_max, InitialConditions *ini_boxes, fl
     double M_cell;
     // If our scaling relations define a median, the scatter will will increase the mean value
     // due to the asymmetry of the lognormal distribution, we mimic this in the
-    // sub-sampler component. NOTE: this will also occur if FIXED_HALO_GRIDS is true, and it's
-    // not obvious whether that's what a user would want.
-    // TODO: redesign the USE_HALO_FIELD, FIXED_HALO_GRIDS, SCALING_RELATIONS_MEDIAN logic
-    // to be more transparent, and perhaps allow the FIXED_HALO_GRIDS to be a replacement for the v3
-    // source model
+    // sub-sampler component.
     ScalingConstants _ev_consts = *consts;
     ScalingConstants *ev_consts = &_ev_consts;
 
@@ -617,27 +613,23 @@ int ComputeHaloBox(double redshift, InitialConditions *ini_boxes, HaloCatalog *h
                             mturn_m_grid, &hbox_consts, mturn_averages);
         grids->log10_Mcrit_ACG_ave = mturn_averages[0];
         grids->log10_Mcrit_MCG_ave = mturn_averages[1];
-        if (matter_options_global->FIXED_HALO_GRIDS) {
-            M_max_integral = M_MAX_INTEGRAL;
-            set_fixed_grids(M_min, M_max_integral, ini_boxes, mturn_a_grid, mturn_m_grid,
-                            &hbox_consts, grids);
-        } else {
+        if (matter_options_global->USE_DISCRETE_HALOS) {
             sum_halos_onto_grid(redshift, ini_boxes, halos, mturn_a_grid, mturn_m_grid,
                                 &hbox_consts, grids);
-            // set below-resolution properties
-            if (astro_options_global->AVG_BELOW_SAMPLER) {
-                if (matter_options_global->HALO_STOCHASTICITY) {
-                    M_max_integral = simulation_options_global->SAMPLER_MIN_MASS;
-                } else {
-                    M_max_integral = RtoM(physconst.l_factor * simulation_options_global->BOX_LEN /
-                                          simulation_options_global->DIM);
-                }
-                if (M_min < M_max_integral) {
-                    set_fixed_grids(M_min, M_max_integral, ini_boxes, mturn_a_grid, mturn_m_grid,
-                                    &hbox_consts, grids);
-                    LOG_DEBUG("finished subsampler M[%.2e %.2e]", M_min, M_max_integral);
-                }
-            }
+        }
+        // set sub-catalogue properties
+        if (matter_options_global->USE_CHMF_SAMPLER) {
+            M_max_integral = simulation_options_global->SAMPLER_MIN_MASS;
+        } else if (matter_options_global->USE_DISCRETE_HALOS) {
+            M_max_integral = RtoM(physconst.l_factor * simulation_options_global->BOX_LEN /
+                                  simulation_options_global->DIM);
+        } else {
+            M_max_integral = M_MAX_INTEGRAL;
+        }
+        if (M_min < M_max_integral) {
+            set_fixed_grids(M_min, M_max_integral, ini_boxes, mturn_a_grid, mturn_m_grid,
+                            &hbox_consts, grids);
+            LOG_DEBUG("finished integrated component M[%.2e %.2e]", M_min, M_max_integral);
         }
         halobox_debug_print_avg(grids, &hbox_consts, M_min, M_MAX_INTEGRAL);
 
@@ -645,7 +637,7 @@ int ComputeHaloBox(double redshift, InitialConditions *ini_boxes, HaloCatalog *h
             free(mturn_a_grid);
             free(mturn_m_grid);
         }
-        // NOTE: the density-grid based calculations (!USE_HALO_FIELD)
+        // NOTE: the density-grid based calculations (!LAGRANGIAN_SOURCE_GRIDS)
         //  use the cell-weighted average of the log10(Mturn) (see issue #369)
         LOG_SUPER_DEBUG("log10 Mutrn ACG: %.6e", pow(10, grids->log10_Mcrit_ACG_ave));
         LOG_SUPER_DEBUG("log10 Mutrn MCG: %.6e", pow(10, grids->log10_Mcrit_MCG_ave));

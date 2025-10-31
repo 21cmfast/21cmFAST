@@ -288,8 +288,9 @@ def calibrate_photon_cons(
         USE_TS_FLUCT=False,
         INHOMO_RECO=False,
         USE_MINI_HALOS=False,
-        USE_HALO_FIELD=False,
-        HALO_STOCHASTICITY=False,
+        LAGRANGIAN_SOURCE_FIELD=False,
+        USE_DISCRETE_HALOS=False,
+        USE_CHMF_SAMPLER=False,
         PHOTON_CONS_TYPE="no-photoncons",
         R_BUBBLE_MAX=(
             15 if inputs.astro_options.INHOMO_RECO else inputs.astro_params.R_BUBBLE_MAX

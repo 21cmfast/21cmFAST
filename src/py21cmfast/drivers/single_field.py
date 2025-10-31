@@ -251,8 +251,8 @@ def compute_halo_grid(
         The initial conditions of the run.
     inputs : :class:`~InputParameters`, optional
         The input parameters specifying the run.
-    perturbed_halo_list: :class:`~PerturbHaloCatalog`, optional
-        This contains all the dark matter haloes obtained if using the USE_HALO_FIELD.
+    halo_field: :class:`~HaloCatalog`, optional
+        This contains all the dark matter haloes obtained if using the USE_DISCRETE_HALOS.
         This is a list of halo masses and coords for the dark matter haloes.
     perturbed_field : :class:`~PerturbedField`, optional
         The perturbed density field. Used when calculating fixed source grids from CMF integrals
@@ -274,8 +274,10 @@ def compute_halo_grid(
     box = HaloBox.new(redshift=redshift, inputs=inputs)
 
     if halo_field is None:
-        if not inputs.matter_options.FIXED_HALO_GRIDS:
-            raise ValueError("You must provide halo_field if FIXED_HALO_GRIDS is False")
+        if inputs.matter_options.USE_DISCRETE_HALOS:
+            raise ValueError(
+                "You must provide halo_field if USE_DISCRETE_HALOS is True"
+            )
         else:
             halo_field = HaloCatalog.dummy()
 
@@ -535,8 +537,8 @@ def compute_spin_temperature(
     initial_conditions : :class:`~InitialConditions`
         The initial conditions
     inputs : :class:`~InputParameters`
-        The input parameters specifying the run. Since this may be the first box
-        to use the astro params/flags, it is needed when USE_HALO_FIELD=False.
+        The input parameters specifying the run. Since this will be the first box
+        to use the astro params/flags when LAGRANGIAN_SOURCE_GRIDS=False and USE_TS_FLUCT=True.
     perturbed_field : :class:`~PerturbedField`, optional
         If given, this field will be used, otherwise it will be generated. To be generated,
         either `initial_conditions` and `redshift` must be given, or `simulation_options`, `cosmo_params` and
@@ -545,7 +547,7 @@ def compute_spin_temperature(
         will be interpolated to the correct redshift, which can provide a speedup compared to
         actually computing it at the desired redshift.
     xray_source_box : :class:`XraySourceBox`, optional
-        If USE_HALO_FIELD is True, this box specifies the filtered sfr and xray emissivity at all
+        If USE_LAGRANGIAN_SOURCE_GRIDS is True, this box specifies the filtered sfr and xray emissivity at all
         redshifts/filter radii required by the spin temperature algorithm.
     previous_spin_temp : :class:`TsBox` or None
         The previous spin temperature box. Needed when we are beyond the first snapshot
@@ -566,8 +568,10 @@ def compute_spin_temperature(
         previous_spin_temp = TsBox.new(inputs=inputs, redshift=0.0, dummy=True)
 
     if xray_source_box is None:
-        if inputs.matter_options.USE_HALO_FIELD:
-            raise ValueError("xray_source_box is required when USE_HALO_FIELD is True")
+        if inputs.matter_options.LAGRANGIAN_SOURCE_GRIDS:
+            raise ValueError(
+                "xray_source_box is required when LAGRANGIAN_SOURCE_GRIDS is True"
+            )
         else:
             xray_source_box = XraySourceBox.dummy()
 
@@ -610,7 +614,8 @@ def compute_ionization_field(
         The initial conditions.
     inputs : :class:`~InputParameters`
         The input parameters specifying the run. Since this may be the first box
-        to use the astro params/flags, it is needed when USE_HALO_FIELD=False and USE_TS_FLUCT=False.
+        to use the astro params/flags, it is needed when LAGRANGIAN_SOURCE_GRIDS=False
+        and USE_TS_FLUCT=False.
     perturbed_field : :class:`~PerturbedField`
         The perturbed density field.
     previous_perturbed_field : :class:`~PerturbedField`, optional
@@ -626,8 +631,9 @@ def compute_ionization_field(
         create one, using the previous ionized box redshift as the previous spin temperature
         redshift.
     halobox: :class:`~HaloBox` or None, optional
-        If passed, this contains all the dark matter haloes obtained if using the USE_HALO_FIELD.
-        These are grids of containing summed halo properties such as ionizing emissivity.
+        If passed, this contains all the dark matter haloes obtained if using the
+        LAGRANGIAN_SOURCE_GRIDS. These are grids of containing summed halo properties
+        such as ionizing emissivity.
 
     Returns
     -------
@@ -666,11 +672,11 @@ def compute_ionization_field(
 
     box = IonizedBox.new(inputs=inputs, redshift=redshift)
 
-    if not inputs.matter_options.USE_HALO_FIELD:
+    if not inputs.matter_options.LAGRANGIAN_SOURCE_GRIDS:
         # Construct an empty halo field to pass in to the function.
         halobox = HaloBox.dummy()
     elif halobox is None:
-        raise ValueError("No halo box given but USE_HALO_FIELD=True")
+        raise ValueError("No halo box given but LAGRANGIAN_SOURCE_GRIDS=True")
 
     # Set empty spin temp box if necessary.
     if not inputs.astro_options.USE_TS_FLUCT:

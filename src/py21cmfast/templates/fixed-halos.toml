@@ -5,9 +5,9 @@
 [SimulationOptions]
 
 [MatterOptions]
-USE_HALO_FIELD = true
-FIXED_HALO_GRIDS = true
-HALO_STOCHASTICITY = false
+LAGRANGIAN_SOURCE_GRIDS = true
+USE_DISCRETE_HALOS = false
+USE_CHMF_SAMPLER = false
 
 [AstroParams]
 R_BUBBLE_MAX = 50.0
@@ -16,5 +16,6 @@ R_BUBBLE_MAX = 50.0
 USE_EXP_FILTER = true
 CELL_RECOMB = true
 USE_MINI_HALOS = false
+USE_UPPER_STELLAR_TURNOVER = false
 USE_TS_FLUCT = true
 INHOMO_RECO = true

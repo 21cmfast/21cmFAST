@@ -311,17 +311,22 @@ class TestMatterOptions:
 
     def test_bad_inputs(self):
         """Test that exceptions are raised for bad inputs."""
-        msg = r"The halo sampler enabled with HALO_STOCHASTICITY requires the use of HMF interpolation tables."
+        msg = r"The halo sampler enabled with USE_CHMF_SAMPLER requires the use of HMF interpolation tables."
         with pytest.raises(ValueError, match=msg):
             MatterOptions(
-                USE_HALO_FIELD=True,
-                HALO_STOCHASTICITY=True,
+                LAGRANGIAN_SOURCE_GRIDS=True,
+                USE_DISCRETE_HALOS=True,
+                USE_CHMF_SAMPLER=True,
                 USE_INTERPOLATION_TABLES="sigma-interpolation",
             )
 
-        msg = r"HALO_STOCHASTICITY is True but USE_HALO_FIELD is False"
+        msg = r"USE_CHMF_SAMPLER is is a sub-flag of USE_DISCRETE_HALOS"
         with pytest.raises(ValueError, match=msg):
-            MatterOptions(USE_HALO_FIELD=False, HALO_STOCHASTICITY=True)
+            MatterOptions(USE_DISCRETE_HALOS=False, USE_CHMF_SAMPLER=True)
+
+        msg = r"USE_DISCRETE_HALOS is a sub-flag of LAGRANGIAN_SOURCE_GRIDS"
+        with pytest.raises(ValueError, match=msg):
+            MatterOptions(LAGRANGIAN_SOURCE_GRIDS=False, USE_DISCRETE_HALOS=True)
 
         msg = r"Can only use 'CLASS' power spectrum with relative velocities"
         with pytest.raises(ValueError, match=msg):
@@ -329,7 +334,7 @@ class TestMatterOptions:
 
         msg = r"The conditional mass functions requied for the halo field"
         with pytest.raises(NotImplementedError, match=msg):
-            MatterOptions(USE_HALO_FIELD=True, HMF="WATSON")
+            MatterOptions(USE_DISCRETE_HALOS=True, HMF="WATSON")
 
 
 class TestInputParameters:
@@ -357,26 +362,28 @@ class TestInputParameters:
         ),
         (
             ValueError,
-            "You have set USE_MASS_DEPENDENT_ZETA to False but USE_HALO_FIELD is True!",
+            "You have set USE_MASS_DEPENDENT_ZETA to False but LAGRANGIAN_SOURCE_GRIDS is True!",
             {
-                "matter_options": MatterOptions(USE_HALO_FIELD=True),
+                "matter_options": MatterOptions(LAGRANGIAN_SOURCE_GRIDS=True),
                 "astro_options": AstroOptions(USE_MASS_DEPENDENT_ZETA=False),
             },
         ),
         (
             ValueError,
-            "USE_HALO_FIELD is not compatible with the redshift-based",
+            "LAGRANGIAN_SOURCE_GRIDS is not compatible with the redshift-based",
             {
-                "matter_options": MatterOptions(USE_HALO_FIELD=True),
+                "matter_options": MatterOptions(LAGRANGIAN_SOURCE_GRIDS=True),
                 "astro_options": AstroOptions(PHOTON_CONS_TYPE="z-photoncons"),
             },
         ),
         (
             ValueError,
-            "USE_EXP_FILTER is not compatible with USE_HALO_FIELD == False",
+            "USE_EXP_FILTER is not compatible with LAGRANGIAN_SOURCE_GRIDS == False",
             {
                 "matter_options": MatterOptions(
-                    USE_HALO_FIELD=False, HALO_STOCHASTICITY=False
+                    LAGRANGIAN_SOURCE_GRIDS=False,
+                    USE_CHMF_SAMPLER=False,
+                    USE_DISCRETE_HALOS=False,
                 ),
                 "astro_options": AstroOptions(
                     USE_EXP_FILTER=True, USE_UPPER_STELLAR_TURNOVER=False
@@ -385,10 +392,12 @@ class TestInputParameters:
         ),
         (
             NotImplementedError,
-            "USE_UPPER_STELLAR_TURNOVER is not yet implemented for when USE_HALO_FIELD is False",
+            "USE_UPPER_STELLAR_TURNOVER is not yet implemented for when USE_DISCRETE_HALOS is False",
             {
                 "matter_options": MatterOptions(
-                    USE_HALO_FIELD=False, HALO_STOCHASTICITY=False
+                    USE_DISCRETE_HALOS=False,
+                    USE_CHMF_SAMPLER=False,
+                    LAGRANGIAN_SOURCE_GRIDS=True,
                 ),
                 "astro_options": AstroOptions(
                     USE_UPPER_STELLAR_TURNOVER=True, USE_EXP_FILTER=False
@@ -487,11 +496,6 @@ class TestInputParameters:
             match="The maximum halo mass",
         ):
             # The cell size is ~1e11 Msun
-            self.default.evolve_input_structs(FIXED_HALO_GRIDS=True)
-
-        with pytest.warns(
-            UserWarning,
-            match="The minimum halo mass",
-        ):
-            # The cell size is ~1e11 Msun
-            self.default.evolve_input_structs(AVG_BELOW_SAMPLER=False)
+            self.default.evolve_input_structs(
+                USE_DISCRETE_HALOS=False, USE_CHMF_SAMPLER=False
+            )

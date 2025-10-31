@@ -30,8 +30,9 @@ class TestPerturb:
             DIM=12,
             HII_DIM=4,
             BOX_LEN=8,
-            USE_HALO_FIELD=True,
-            FIXED_HALO_GRIDS=True,
+            LAGRANGIAN_SOURCE_GRIDS=True,
+            USE_DISCRETE_HALOS=False,
+            USE_CHMF_SAMPLER=False,
             PERTURB_ON_HIGH_RES=False,
             R_BUBBLE_MAX=1.0,
         )
