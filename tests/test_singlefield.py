@@ -277,41 +277,41 @@ def test_incompatible_parameters(
         )
 
 
-def test_using_cached_halo_field(ic, test_direc):
+def test_using_cached_halo_catalog(ic, test_direc):
     """Test whether the C-based memory in halo fields is cached correctly.
 
     Prior to v3.1 this was segfaulting, so this test ensure that this behaviour does
     not regress.
     """
     cache = OutputCache(test_direc)
-    halo_field = p21c.determine_halo_list(
+    halo_catalog = p21c.determine_halo_catalog(
         redshift=10.0, initial_conditions=ic, write=True, cache=cache
     )
 
-    pt_halos = p21c.perturb_halo_list(
+    pt_halos = p21c.perturb_halo_catalog(
         initial_conditions=ic,
-        halo_field=halo_field,
+        halo_catalog=halo_catalog,
         write=True,
         cache=cache,
     )
 
     # Now get the halo field again at the same redshift -- should be cached
-    new_halo_field = p21c.determine_halo_list(
+    new_halo_catalog = p21c.determine_halo_catalog(
         redshift=10.0,
         initial_conditions=ic,
         write=False,
         regenerate=False,
     )
 
-    new_pt_halos = p21c.perturb_halo_list(
+    new_pt_halos = p21c.perturb_halo_catalog(
         initial_conditions=ic,
-        halo_field=new_halo_field,
+        halo_catalog=new_halo_catalog,
         write=False,
         regenerate=False,
     )
 
     np.testing.assert_allclose(
-        new_halo_field.halo_masses.value, halo_field.halo_masses.value
+        new_halo_catalog.halo_masses.value, halo_catalog.halo_masses.value
     )
     np.testing.assert_allclose(
         pt_halos.halo_coords.value, new_pt_halos.halo_coords.value
@@ -441,27 +441,27 @@ def test_bad_input_structs(default_input_struct_ts):
     st_p = TsBox.new(redshift=11.0, inputs=test_inputs)
     ib_p = IonizedBox.new(redshift=11.0, inputs=test_inputs)
 
-    # PerturbHaloCatalog
+    # PerturbedHaloCatalog
     with pytest.raises(
         ValueError, match="Below Z_HEAT_MAX you must specify the previous_spin_temp"
     ):
-        p21c.perturb_halo_list(
+        p21c.perturb_halo_catalog(
             initial_conditions=ic,
-            halo_field=hf,
+            halo_catalog=hf,
             previous_ionize_box=ib_p,
         )
     with pytest.raises(
         ValueError, match="Below Z_HEAT_MAX you must specify the previous_ionize_box"
     ):
-        p21c.perturb_halo_list(
+        p21c.perturb_halo_catalog(
             initial_conditions=ic,
-            halo_field=hf,
+            halo_catalog=hf,
             previous_spin_temp=st_p,
         )
 
     # HaloBox
     with pytest.raises(
-        ValueError, match="You must provide halo_field if FIXED_HALO_GRIDS is False"
+        ValueError, match="You must provide halo_catalog if FIXED_HALO_GRIDS is False"
     ):
         p21c.compute_halo_grid(
             redshift=10.0,
@@ -475,7 +475,7 @@ def test_bad_input_structs(default_input_struct_ts):
         p21c.compute_halo_grid(
             redshift=10.0,
             initial_conditions=ic,
-            halo_field=hf,
+            halo_catalog=hf,
             previous_ionize_box=ib_p,
         )
     with pytest.raises(
@@ -484,7 +484,7 @@ def test_bad_input_structs(default_input_struct_ts):
         p21c.compute_halo_grid(
             redshift=10.0,
             initial_conditions=ic,
-            halo_field=hf,
+            halo_catalog=hf,
         )
 
     # TsBox

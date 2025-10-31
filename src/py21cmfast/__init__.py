@@ -28,8 +28,8 @@ __all__ = [
     "LightCone",
     "MatterOptions",
     "OutputCache",
-    "PerturbHaloCatalog",
     "PerturbedField",
+    "PerturbedHaloCatalog",
     "RectilinearLightconer",
     "RunCache",
     "SimulationOptions",
@@ -49,7 +49,7 @@ __all__ = [
     "configure_logging",
     "construct_fftw_wisdoms",
     "create_params_from_template",
-    "determine_halo_list",
+    "determine_halo_catalog",
     "generate_coeval",
     "generate_lightcone",
     "get_all_fieldnames",
@@ -57,7 +57,7 @@ __all__ = [
     "lightconers",
     "list_templates",
     "perturb_field",
-    "perturb_halo_list",
+    "perturb_halo_catalog",
     "plotting",
     "read_inputs",
     "read_output_struct",
@@ -84,9 +84,9 @@ from .drivers.single_field import (
     compute_ionization_field,
     compute_spin_temperature,
     compute_xray_source_field,
-    determine_halo_list,
+    determine_halo_catalog,
     perturb_field,
-    perturb_halo_list,
+    perturb_halo_catalog,
 )
 from .io.caching import CacheConfig, OutputCache, RunCache
 from .io.h5 import read_inputs, read_output_struct, write_output_to_hdf5
@@ -113,7 +113,7 @@ from .wrapper.outputs import (
     InitialConditions,
     IonizedBox,
     PerturbedField,
-    PerturbHaloCatalog,
+    PerturbedHaloCatalog,
     TsBox,
     XraySourceBox,
 )

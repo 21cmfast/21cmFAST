@@ -1,9 +1,7 @@
 // Re-write of update_halo_coords from the original 21cmFAST
 
-// ComputePerturbHaloCatalog reads in the linear velocity field, and uses
+// ComputePerturbedHaloCatalog reads in the linear velocity field, and uses
 // it to update halo locations with a corresponding displacement field
-
-#include "PerturbHaloCatalog.h"
 
 #include <complex.h>
 #include <fftw3.h>
@@ -15,6 +13,7 @@
 #include "HaloBox.h"
 #include "InputParameters.h"
 #include "OutputStructs.h"
+#include "PerturbedHaloCatalog.h"
 #include "cexcept.h"
 #include "cosmology.h"
 #include "debugging.h"
@@ -22,9 +21,9 @@
 #include "indexing.h"
 #include "logger.h"
 
-int ComputePerturbHaloCatalog(float redshift, InitialConditions *boxes, TsBox *prev_ts,
-                              IonizedBox *prev_ion, HaloCatalog *halos,
-                              PerturbHaloCatalog *halos_perturbed) {
+int ComputePerturbedHaloCatalog(float redshift, InitialConditions *boxes, TsBox *prev_ts,
+                                IonizedBox *prev_ion, HaloCatalog *halos,
+                                PerturbedHaloCatalog *halos_perturbed) {
     int status;
 
     Try {  // This Try brackets the whole function, so we don't indent.
@@ -98,7 +97,7 @@ int ComputePerturbHaloCatalog(float redshift, InitialConditions *boxes, TsBox *p
         // ******************   END INITIALIZATION     ******************************** //
         unsigned long long int n_exact_dim = 0;
         bool error_in_parallel = false;
-#pragma omp parallel private(i_halo) num_threads(simulation_options_global -> N_THREADS) \
+#pragma omp parallel private(i_halo) num_threads(simulation_options_global->N_THREADS) \
     reduction(+ : n_exact_dim)
         {
             double pos[3];

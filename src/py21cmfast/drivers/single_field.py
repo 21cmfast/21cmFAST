@@ -20,7 +20,7 @@ from ..wrapper.outputs import (
     InitialConditions,
     IonizedBox,
     PerturbedField,
-    PerturbHaloCatalog,
+    PerturbedHaloCatalog,
     TsBox,
     XraySourceBox,
 )
@@ -100,7 +100,7 @@ def perturb_field(
 
 
 @single_field_func
-def determine_halo_list(
+def determine_halo_catalog(
     *,
     redshift: float,
     inputs: InputParameters | None = None,
@@ -155,14 +155,14 @@ def determine_halo_list(
 
 
 @single_field_func
-def perturb_halo_list(
+def perturb_halo_catalog(
     *,
     initial_conditions: InitialConditions,
     inputs: InputParameters | None = None,
     previous_spin_temp: TsBox | None = None,
     previous_ionize_box: IonizedBox | None = None,
-    halo_field: HaloCatalog,
-) -> PerturbHaloCatalog:
+    halo_catalog: HaloCatalog,
+) -> PerturbedHaloCatalog:
     r"""
     Given a halo list, perturb the halos for a given redshift.
 
@@ -171,12 +171,12 @@ def perturb_halo_list(
     initial_conditions : :class:`~InitialConditions`
         The initial conditions of the run. The user and cosmo params
         as well as the random seed will be set from this object.
-    halo_field: :class: `~HaloCatalog`
+    halo_catalog: :class: `~HaloCatalog`
         The halo catalogue in Lagrangian space to be perturbed.
 
     Returns
     -------
-    :class:`~PerturbHaloCatalog`
+    :class:`~PerturbedHaloCatalog`
 
     Other Parameters
     ----------------
@@ -188,11 +188,13 @@ def perturb_halo_list(
     Fill this in once finalised
 
     """
-    hbuffer_size = halo_field.n_halos if halo_field.n_halos else halo_field.buffer_size
-    redshift = halo_field.redshift
+    hbuffer_size = (
+        halo_catalog.n_halos if halo_catalog.n_halos else halo_catalog.buffer_size
+    )
+    redshift = halo_catalog.redshift
 
     # Initialize halo list boxes.
-    fields = PerturbHaloCatalog.new(
+    fields = PerturbedHaloCatalog.new(
         redshift=redshift,
         buffer_size=hbuffer_size,
         inputs=inputs,
@@ -222,7 +224,7 @@ def perturb_halo_list(
     # Run the C Code
     return fields.compute(
         ics=initial_conditions,
-        halo_field=halo_field,
+        halo_catalog=halo_catalog,
         previous_spin_temp=previous_spin_temp,
         previous_ionize_box=previous_ionize_box,
     )
@@ -234,7 +236,7 @@ def compute_halo_grid(
     redshift: float,
     initial_conditions: InitialConditions,
     inputs: InputParameters | None = None,
-    halo_field: HaloCatalog | None = None,
+    halo_catalog: HaloCatalog | None = None,
     previous_spin_temp: TsBox | None = None,
     previous_ionize_box: IonizedBox | None = None,
 ) -> HaloBox:
@@ -251,7 +253,7 @@ def compute_halo_grid(
         The initial conditions of the run.
     inputs : :class:`~InputParameters`, optional
         The input parameters specifying the run.
-    perturbed_halo_list: :class:`~PerturbHaloCatalog`, optional
+    perturbed_halo_catalog: :class:`~PerturbedHaloCatalog`, optional
         This contains all the dark matter haloes obtained if using the USE_HALO_FIELD.
         This is a list of halo masses and coords for the dark matter haloes.
     perturbed_field : :class:`~PerturbedField`, optional
@@ -273,11 +275,13 @@ def compute_halo_grid(
     """
     box = HaloBox.new(redshift=redshift, inputs=inputs)
 
-    if halo_field is None:
+    if halo_catalog is None:
         if not inputs.matter_options.FIXED_HALO_GRIDS:
-            raise ValueError("You must provide halo_field if FIXED_HALO_GRIDS is False")
+            raise ValueError(
+                "You must provide halo_catalog if FIXED_HALO_GRIDS is False"
+            )
         else:
-            halo_field = HaloCatalog.dummy()
+            halo_catalog = HaloCatalog.dummy()
 
     # NOTE: due to the order, we use the previous spin temp here, like spin_temperature,
     #       but UNLIKE ionize_box, which uses the current box
@@ -307,7 +311,7 @@ def compute_halo_grid(
 
     return box.compute(
         initial_conditions=initial_conditions,
-        halo_field=halo_field,
+        halo_catalog=halo_catalog,
         previous_ionize_box=previous_ionize_box,
         previous_spin_temp=previous_spin_temp,
     )

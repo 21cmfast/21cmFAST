@@ -433,7 +433,7 @@ def evolve_halos(
     ):
         return []
 
-    if not write.halo_field and len(all_redshifts) > 1:
+    if not write.halo_catalog and len(all_redshifts) > 1:
         warnings.warn(
             "You have turned off caching for the perturbed halo fields, but are"
             " evolving them across multiple redshifts. This will result in very high memory usage",
@@ -453,11 +453,11 @@ def evolve_halos(
             description="Evolving Halos",
             total=len(all_redshifts),
         ):
-            halos = sf.determine_halo_list(
+            halos = sf.determine_halo_catalog(
                 redshift=z,
                 inputs=inputs,
                 descendant_halos=halos_desc,
-                write=write.halo_field,
+                write=write.halo_catalog,
                 **kw,
             )
 
@@ -467,7 +467,7 @@ def evolve_halos(
                 # Only evolve on the node_redshifts, not any redshifts in-between
                 # that the user might care about.
                 # we never want to store every halofield
-                if write.halo_field and (halos_desc is not None):
+                if write.halo_catalog and (halos_desc is not None):
                     halos_desc.purge()
                 halos_desc = halos
 
@@ -738,7 +738,7 @@ def _redshift_loop_generator(
 
                 this_halobox = sf.compute_halo_grid(
                     inputs=inputs,
-                    halo_field=this_halofield,
+                    halo_catalog=this_halofield,
                     redshift=z,
                     previous_ionize_box=getattr(prev_coeval, "ionized_box", None),
                     previous_spin_temp=getattr(prev_coeval, "ts_box", None),

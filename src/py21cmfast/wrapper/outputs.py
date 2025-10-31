@@ -798,12 +798,12 @@ class HaloCatalog(OutputStructZ):
         All other parameters are passed through to the :class:`PerturbedHaloCatalog`
         constructor.
         """
-        from .cfuncs import get_halo_list_buffer_size
+        from .cfuncs import get_halo_catalog_buffer_size
 
         if kw.get("dummy", False):
             buffer_size = 0
         elif buffer_size is None:
-            buffer_size = get_halo_list_buffer_size(
+            buffer_size = get_halo_catalog_buffer_size(
                 redshift=redshift,
                 inputs=inputs,
             )
@@ -866,10 +866,10 @@ class HaloCatalog(OutputStructZ):
 
 
 @attrs.define(slots=False, kw_only=True)
-class PerturbHaloCatalog(OutputStructZ):
+class PerturbedHaloCatalog(OutputStructZ):
     """A class to hold a HaloCatalog whose coordinates are in real (Eulerian) space."""
 
-    _c_compute_function = lib.ComputePerturbHaloCatalog
+    _c_compute_function = lib.ComputePerturbedHaloCatalog
     _meta = False
     desc_redshift: float | None = attrs.field(default=None)
     _compat_hash = _HashType.zgrid
@@ -962,7 +962,7 @@ class PerturbHaloCatalog(OutputStructZ):
             ]
         else:
             raise ValueError(
-                f"{type(input_box)} is not an input required for PerturbHaloCatalog!"
+                f"{type(input_box)} is not an input required for PerturbedHaloCatalog!"
             )
 
         return required
@@ -973,7 +973,7 @@ class PerturbHaloCatalog(OutputStructZ):
         ics: InitialConditions,
         previous_spin_temp: TsBox,
         previous_ionize_box: IonizedBox,
-        halo_field: HaloCatalog,
+        halo_catalog: HaloCatalog,
         allow_already_computed: bool = False,
     ):
         """Compute the function."""
@@ -983,7 +983,7 @@ class PerturbHaloCatalog(OutputStructZ):
             ics,
             previous_spin_temp,
             previous_ionize_box,
-            halo_field,
+            halo_catalog,
         )
 
 
@@ -1091,7 +1091,7 @@ class HaloBox(OutputStructZ):
         self,
         *,
         initial_conditions: InitialConditions,
-        halo_field: HaloCatalog,
+        halo_catalog: HaloCatalog,
         previous_spin_temp: TsBox,
         previous_ionize_box: IonizedBox,
         allow_already_computed: bool = False,
@@ -1101,7 +1101,7 @@ class HaloBox(OutputStructZ):
             allow_already_computed,
             self.redshift,
             initial_conditions,
-            halo_field,
+            halo_catalog,
             previous_spin_temp,
             previous_ionize_box,
         )
@@ -1326,7 +1326,7 @@ class TsBox(OutputStructZ):
                     required += ["filtered_sfr_mini"]
         else:
             raise ValueError(
-                f"{type(input_box)} is not an input required for PerturbHaloCatalog!"
+                f"{type(input_box)} is not an input required for PerturbedHaloCatalog!"
             )
 
         return required

@@ -8,8 +8,8 @@ from py21cmfast import (
     IonizedBox,
     TsBox,
     compute_initial_conditions,
-    determine_halo_list,
-    perturb_halo_list,
+    determine_halo_catalog,
+    perturb_halo_catalog,
 )
 from py21cmfast.wrapper import cfuncs as cf
 
@@ -276,7 +276,7 @@ def test_perturb_halos(default_input_struct_ts):
     ics = compute_initial_conditions(
         inputs=inputs_test,
     )
-    halofield = determine_halo_list(
+    halofield = determine_halo_catalog(
         redshift=10.0, initial_conditions=ics, inputs=inputs_test
     )
 
@@ -293,9 +293,9 @@ def test_perturb_halos(default_input_struct_ts):
         output_cls=IonizedBox,
     )
 
-    pt_halos = perturb_halo_list(
+    pt_halos = perturb_halo_catalog(
         initial_conditions=ics,
-        halo_field=halofield,
+        halo_catalog=halofield,
         previous_spin_temp=prev_ts_box,
         previous_ionize_box=prev_ion_box,
     )
