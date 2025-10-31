@@ -288,7 +288,7 @@ def calibrate_photon_cons(
         USE_TS_FLUCT=False,
         INHOMO_RECO=False,
         USE_MINI_HALOS=False,
-        LAGRANGIAN_SOURCE_FIELD=False,
+        LAGRANGIAN_SOURCE_GRIDS=False,
         USE_DISCRETE_HALOS=False,
         USE_CHMF_SAMPLER=False,
         PHOTON_CONS_TYPE="no-photoncons",
