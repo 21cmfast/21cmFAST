@@ -502,7 +502,7 @@ class MatterOptions(InputStruct):
     )
     USE_FFTW_WISDOM: bool = field(default=False, converter=bool)
 
-    # NOTE: These do not affect the ICs & PerturbFields,
+    # NOTE: These do not affect the ICs & PerturbedFields,
     #  but we moved the halos to the matter side for now
     USE_HALO_FIELD: bool = field(default=True, converter=bool)
     FIXED_HALO_GRIDS: bool = field(default=False, converter=bool)
@@ -697,7 +697,7 @@ class SimulationOptions(InputStruct):
         default=2, converter=float, validator=validators.gt(0)
     )
 
-    # NOTE: Thematically these should be in AstroParams, However they affect the HaloField
+    # NOTE: Thematically these should be in AstroParams, However they affect the HaloCatalog
     #   Objects and so need to be in the matter_cosmo hash, they seem a little strange here
     #   but will remain until someone comes up with a better organisation down the line
     CORR_STAR: float = field(default=0.5, converter=float)
@@ -1653,3 +1653,100 @@ class InputParameters:
             }
 
         return dct
+
+    def __attrs_post_init__(self) -> None:
+        """Run a check after initialization.
+
+        Currently just checks that the halo mass ranges are sensible.
+        """
+        check_halomass_range(self)
+
+
+def check_halomass_range(inputs: InputParameters) -> None:
+    """Check that the halo mass range is sensible given the parameters.
+
+    This function checks that the minimum halo mass set by the various resolutions
+    and flags does not have any gaps. We raise an error if there is a gap, and a warning
+    if it is above the turnover mass.
+    """
+    # There are no problems if we are not using halos
+    if not inputs.matter_options.USE_HALO_FIELD:
+        return
+
+    # simplified behaviour of lib.minimum_source_mass()
+    min_integral_mass = max(inputs.astro_params.cdict["M_TURN"] / 50, 1e5) * un.M_sun
+    max_integral_mass = 1e16 * un.M_sun  # define macro in hmf.h
+
+    massdens = inputs.cosmo_params.cosmo.critical_density(0) * inputs.cosmo_params.OMm
+    hires_cell_mass = (massdens * inputs.simulation_options.cell_size_hires**3).to(
+        un.M_sun
+    )
+    lores_cell_mass = (massdens * inputs.simulation_options.cell_size**3).to(un.M_sun)
+    pt_cell_mass = (
+        hires_cell_mass
+        if inputs.matter_options.PERTURB_ON_HIGH_RES
+        else lores_cell_mass
+    )
+
+    has_dexm_halos = not inputs.matter_options.FIXED_HALO_GRIDS
+    has_sampled_halos = (
+        inputs.matter_options.HALO_STOCHASTICITY
+        and not inputs.matter_options.FIXED_HALO_GRIDS
+    )
+    has_integrals = (
+        inputs.matter_options.FIXED_HALO_GRIDS or inputs.astro_options.AVG_BELOW_SAMPLER
+    )
+
+    min_cellint = min_integral_mass
+    if inputs.matter_options.FIXED_HALO_GRIDS:
+        max_cellint = max_integral_mass
+    elif inputs.matter_options.HALO_STOCHASTICITY:
+        max_cellint = inputs.simulation_options.SAMPLER_MIN_MASS * un.M_sun
+    else:
+        max_cellint = hires_cell_mass
+
+    max_cellint = min(max_cellint, pt_cell_mass)
+
+    min_sampler = inputs.simulation_options.SAMPLER_MIN_MASS * un.M_sun
+    # if the cell is smaller, the sampler won't draw any halos
+    max_sampler = max(lores_cell_mass, min_sampler)
+
+    min_dexm = (
+        lores_cell_mass if inputs.matter_options.HALO_STOCHASTICITY else hires_cell_mass
+    )
+    max_dexm = (
+        1e16 * un.M_sun
+    )  # define macro in hmf.h, not the real dexm max, but this won't matter
+
+    mass_limits = ()
+    names = ()
+    if has_integrals:
+        mass_limits += ((min_cellint, max_cellint),)
+        names += ("integrals",)
+    if has_sampled_halos:
+        mass_limits += ((min_sampler, max_sampler),)
+        names += ("sampler",)
+    if has_dexm_halos:
+        mass_limits += ((min_dexm, max_dexm),)
+        names += ("dexm",)
+
+    for i in range(len(mass_limits) - 1):
+        if mass_limits[i][1] != mass_limits[i + 1][0]:
+            raise ValueError(
+                f"There is a gap/overlap in the halo mass ranges of {dict(zip(names, mass_limits, strict=False))}. "
+                "This will lead to unphysical results. Please adjust your parameters to remove this gap."
+            )
+
+    if min(min(mass_limits)) > min_integral_mass:
+        warnings.warn(
+            f"The minimum halo mass {min(min(mass_limits)):.2e} is high compared to the turnover {inputs.astro_params.cdict['M_TURN']:.2e}. "
+            f"Halos below {min(min(mass_limits)):.2e} will not be accounted for in the simulation.",
+            stacklevel=2,
+        )
+
+    if max(max(mass_limits)) < max_integral_mass:
+        warnings.warn(
+            f"The maximum halo mass {max(max(mass_limits)):.2e} is below the integral mass {max_integral_mass:.2e}. "
+            f"Halos above {max(max(mass_limits)):.2e} will not be accounted for in the simulation.",
+            stacklevel=2,
+        )
