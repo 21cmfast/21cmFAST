@@ -182,7 +182,7 @@ void alloc_global_arrays() {
 
     // Nonhalo stuff
     int num_R_boxes = matter_options_global->MINIMIZE_MEMORY ? 1 : astro_params_global->N_STEP_TS;
-    if (!matter_options_global->USE_HALO_FIELD) {
+    if (!matter_options_global->LAGRANGIAN_SOURCE_GRIDS) {
         delNL0 = (float **)calloc(num_R_boxes, sizeof(float *));
         for (i = 0; i < num_R_boxes; i++) {
             delNL0[i] = (float *)calloc((float)HII_TOT_NUM_PIXELS, sizeof(float));
@@ -278,7 +278,7 @@ void free_ts_global_arrays() {
 
     // interp tables
     int num_R_boxes = matter_options_global->MINIMIZE_MEMORY ? 1 : astro_params_global->N_STEP_TS;
-    if (!matter_options_global->USE_HALO_FIELD) {
+    if (!matter_options_global->LAGRANGIAN_SOURCE_GRIDS) {
         for (i = 0; i < num_R_boxes; i++) {
             free(delNL0[i]);
         }
@@ -1124,7 +1124,7 @@ void set_zp_consts(double zp, struct spintemp_from_sfr_prefactors *consts) {
                                  (1 - 0.75 * cosmo_params_global->Y_He);
 
     // converts the grid emissivity unit to per cm-3
-    if (matter_options_global->USE_HALO_FIELD) {
+    if (matter_options_global->LAGRANGIAN_SOURCE_GRIDS) {
         consts->volunit_inv = pow(physconst.cm_per_Mpc, -3);
     } else {
         consts->volunit_inv = cosmo_params_global->OMb * RHOcrit * pow(physconst.cm_per_Mpc, -3);
@@ -1399,7 +1399,7 @@ void ts_main(float redshift, float prev_redshift, float perturbed_field_redshift
     fftwf_complex *delta_unfiltered = NULL;
     double log10_Mcrit_limit;
 
-    if (!matter_options_global->USE_HALO_FIELD) {
+    if (!matter_options_global->LAGRANGIAN_SOURCE_GRIDS) {
         // copy over to FFTW, do the forward FFTs and apply constants
         delta_unfiltered =
             (fftwf_complex *)fftwf_malloc(sizeof(fftwf_complex) * HII_KSPACE_NUM_PIXELS);
@@ -1520,7 +1520,7 @@ void ts_main(float redshift, float prev_redshift, float perturbed_field_redshift
             dzpp_for_evolve = dzpp_list[R_ct];
             zpp = zpp_for_evolve_list[R_ct];
             // dtdz'' dz'' -> dR for the radius sum (c included in constants)
-            if (matter_options_global->USE_HALO_FIELD)
+            if (matter_options_global->LAGRANGIAN_SOURCE_GRIDS)
                 z_edge_factor = fabs(dzpp_for_evolve * dtdz_list[R_ct]);
             else if (astro_options_global->USE_MASS_DEPENDENT_ZETA)
                 z_edge_factor = fabs(dzpp_for_evolve * dtdz_list[R_ct]) * hubble(zpp) /
@@ -1535,7 +1535,7 @@ void ts_main(float redshift, float prev_redshift, float perturbed_field_redshift
             // index for grids
             R_index = matter_options_global->MINIMIZE_MEMORY ? 0 : R_ct;
 
-            if (!matter_options_global->USE_HALO_FIELD) {
+            if (!matter_options_global->LAGRANGIAN_SOURCE_GRIDS) {
                 if (matter_options_global->MINIMIZE_MEMORY) {
                     // we call the filtering functions once here per R
                     // This unnecessarily allocates and frees a fftwf box every time but surely
@@ -1617,7 +1617,7 @@ void ts_main(float redshift, float prev_redshift, float perturbed_field_redshift
                     // Secondly, it is *likely* faster to fill these boxes, and sum with a outer R
                     // loop than an inner one.
 
-                    if (matter_options_global->USE_HALO_FIELD) {
+                    if (matter_options_global->LAGRANGIAN_SOURCE_GRIDS) {
                         sfr_term = source_box->filtered_sfr[R_index * HII_TOT_NUM_PIXELS + box_ct] *
                                    z_edge_factor;
                         // Minihalos and s->yr conversion are already included here
@@ -1633,7 +1633,7 @@ void ts_main(float redshift, float prev_redshift, float perturbed_field_redshift
                                    physconst.s_per_yr;
                     }
                     if (astro_options_global->USE_MINI_HALOS) {
-                        if (matter_options_global->USE_HALO_FIELD) {
+                        if (matter_options_global->LAGRANGIAN_SOURCE_GRIDS) {
                             sfr_term_mini =
                                 source_box->filtered_sfr_mini[R_ct * HII_TOT_NUM_PIXELS + box_ct] *
                                 z_edge_factor;
@@ -1669,7 +1669,7 @@ void ts_main(float redshift, float prev_redshift, float perturbed_field_redshift
                     // I cannot check the integral if we are using the halo field since delNL0
                     // (filtered density) is not calculated
 #if LOG_LEVEL >= SUPER_DEBUG_LEVEL
-                    if (box_ct == 0 && !matter_options_global->USE_HALO_FIELD) {
+                    if (box_ct == 0 && !matter_options_global->LAGRANGIAN_SOURCE_GRIDS) {
                         double integral_db;
                         if (astro_options_global->USE_MASS_DEPENDENT_ZETA) {
                             integral_db =
@@ -1842,7 +1842,7 @@ void ts_main(float redshift, float prev_redshift, float perturbed_field_redshift
         }
     }
 
-    if (!matter_options_global->USE_HALO_FIELD) {
+    if (!matter_options_global->LAGRANGIAN_SOURCE_GRIDS) {
         fftwf_free(delta_unfiltered);
         if (astro_options_global->USE_MINI_HALOS) {
             fftwf_free(log10_Mcrit_LW_unfiltered);

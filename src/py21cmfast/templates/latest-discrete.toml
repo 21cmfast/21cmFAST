@@ -5,8 +5,9 @@
 [SimulationOptions]
 
 [MatterOptions]
-USE_HALO_FIELD = true
-HALO_STOCHASTICITY = true
+LAGRANGIAN_SOURCE_GRIDS = true
+USE_DISCRETE_HALOS = true
+USE_CHMF_SAMPLER = true
 
 [AstroParams]
 R_BUBBLE_MAX = 50.0

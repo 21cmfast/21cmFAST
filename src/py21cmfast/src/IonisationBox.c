@@ -111,12 +111,12 @@ struct FilteredGrids {
     // Used when INHOMO_RECO==True and CELL_RECOMB=False
     fftwf_complex *N_rec_unfiltered, *N_rec_filtered;
 
-    // Used when USE_MINI_HALOS==True and USE_HALO_FIELD=False
+    // Used when USE_MINI_HALOS==True and LAGRANGIAN_SOURCE_GRIDS=False
     fftwf_complex *prev_deltax_unfiltered, *prev_deltax_filtered;
     fftwf_complex *log10_Mturnover_unfiltered, *log10_Mturnover_filtered;
     fftwf_complex *log10_Mturnover_MINI_unfiltered, *log10_Mturnover_MINI_filtered;
 
-    // Used when USE_HALO_FIELD=True
+    // Used when LAGRANGIAN_SOURCE_GRIDS=True
     fftwf_complex *stars_unfiltered, *stars_filtered;
     fftwf_complex *sfr_unfiltered, *sfr_filtered;
 };
@@ -146,7 +146,7 @@ void set_ionbox_constants(double redshift, double prev_redshift, struct IonBoxCo
 
     // whether to fix *integrated* (not sampled) galaxy properties to the expected mean
     //   constant for now, to be a flag later
-    consts->fix_mean = !matter_options_global->USE_HALO_FIELD;
+    consts->fix_mean = !matter_options_global->LAGRANGIAN_SOURCE_GRIDS;
     consts->filter_recombinations =
         astro_options_global->INHOMO_RECO && !astro_options_global->CELL_RECOMB;
 
@@ -163,7 +163,7 @@ void set_ionbox_constants(double redshift, double prev_redshift, struct IonBoxCo
 
     // The halo fields already have Fstar,Fesc,nion taken into account, so their global factor
     // differs from the local one
-    if (matter_options_global->USE_HALO_FIELD) {
+    if (matter_options_global->LAGRANGIAN_SOURCE_GRIDS) {
         consts->ion_eff_factor = 1.;
         consts->ion_eff_factor_mini = 1.;
     } else {
@@ -206,7 +206,7 @@ void set_ionbox_constants(double redshift, double prev_redshift, struct IonBoxCo
                               astro_params_global->ALPHA_UVB /
                               (astro_params_global->ALPHA_UVB + 2.75) * N_b0 *
                               consts->ion_eff_factor / 1.0e-12;
-    if (matter_options_global->USE_HALO_FIELD)
+    if (matter_options_global->LAGRANGIAN_SOURCE_GRIDS)
         consts->gamma_prefactor /= RHOcrit * cosmo_params_global->OMb;
     else
         consts->gamma_prefactor = consts->gamma_prefactor / (sc.t_h * sc.t_star);
@@ -228,7 +228,7 @@ void allocate_fftw_grids(struct FilteredGrids **fg_struct) {
     (*fg_struct)->deltax_filtered =
         (fftwf_complex *)fftwf_malloc(sizeof(fftwf_complex) * HII_KSPACE_NUM_PIXELS);
 
-    if (astro_options_global->USE_MINI_HALOS && !matter_options_global->USE_HALO_FIELD) {
+    if (astro_options_global->USE_MINI_HALOS && !matter_options_global->LAGRANGIAN_SOURCE_GRIDS) {
         (*fg_struct)->prev_deltax_unfiltered =
             (fftwf_complex *)fftwf_malloc(sizeof(fftwf_complex) * HII_KSPACE_NUM_PIXELS);
         (*fg_struct)->prev_deltax_filtered =
@@ -258,7 +258,7 @@ void allocate_fftw_grids(struct FilteredGrids **fg_struct) {
             (fftwf_complex *)fftwf_malloc(sizeof(fftwf_complex) * HII_KSPACE_NUM_PIXELS);
     }
 
-    if (matter_options_global->USE_HALO_FIELD) {
+    if (matter_options_global->LAGRANGIAN_SOURCE_GRIDS) {
         (*fg_struct)->stars_unfiltered =
             (fftwf_complex *)fftwf_malloc(sizeof(fftwf_complex) * HII_KSPACE_NUM_PIXELS);
         (*fg_struct)->stars_filtered =
@@ -278,7 +278,7 @@ void free_fftw_grids(struct FilteredGrids *fg_struct) {
     fftwf_free(fg_struct->deltax_unfiltered);
     fftwf_free(fg_struct->deltax_filtered);
 
-    if (astro_options_global->USE_MINI_HALOS && !matter_options_global->USE_HALO_FIELD) {
+    if (astro_options_global->USE_MINI_HALOS && !matter_options_global->LAGRANGIAN_SOURCE_GRIDS) {
         fftwf_free(fg_struct->prev_deltax_unfiltered);
         fftwf_free(fg_struct->prev_deltax_filtered);
 
@@ -296,7 +296,7 @@ void free_fftw_grids(struct FilteredGrids *fg_struct) {
         fftwf_free(fg_struct->N_rec_filtered);
     }
 
-    if (matter_options_global->USE_HALO_FIELD) {
+    if (matter_options_global->LAGRANGIAN_SOURCE_GRIDS) {
         fftwf_free(fg_struct->stars_unfiltered);
         fftwf_free(fg_struct->stars_filtered);
         if (astro_options_global->INHOMO_RECO) {
@@ -571,7 +571,7 @@ void copy_filter_transform(struct FilteredGrids *fg_struct, struct IonBoxConstan
         memcpy(fg_struct->N_rec_filtered, fg_struct->N_rec_unfiltered,
                sizeof(fftwf_complex) * HII_KSPACE_NUM_PIXELS);
     }
-    if (matter_options_global->USE_HALO_FIELD) {
+    if (matter_options_global->LAGRANGIAN_SOURCE_GRIDS) {
         memcpy(fg_struct->stars_filtered, fg_struct->stars_unfiltered,
                sizeof(fftwf_complex) * HII_KSPACE_NUM_PIXELS);
         if (astro_options_global->INHOMO_RECO) {
@@ -599,7 +599,7 @@ void copy_filter_transform(struct FilteredGrids *fg_struct, struct IonBoxConstan
         if (consts->filter_recombinations) {
             filter_box(fg_struct->N_rec_filtered, box_dim, consts->hii_filter, R, 0.);
         }
-        if (matter_options_global->USE_HALO_FIELD) {
+        if (matter_options_global->LAGRANGIAN_SOURCE_GRIDS) {
             int filter_hf = astro_options_global->USE_EXP_FILTER ? 3 : consts->hii_filter;
             filter_box(fg_struct->stars_filtered, box_dim, filter_hf, R, consts->mfp_meandens);
             if (astro_options_global->INHOMO_RECO) {
@@ -618,7 +618,7 @@ void copy_filter_transform(struct FilteredGrids *fg_struct, struct IonBoxConstan
     // Perform FFTs
     dft_c2r_cube(matter_options_global->USE_FFTW_WISDOM, simulation_options_global->HII_DIM,
                  HII_D_PARA, simulation_options_global->N_THREADS, fg_struct->deltax_filtered);
-    if (matter_options_global->USE_HALO_FIELD) {
+    if (matter_options_global->LAGRANGIAN_SOURCE_GRIDS) {
         dft_c2r_cube(matter_options_global->USE_FFTW_WISDOM, simulation_options_global->HII_DIM,
                      HII_D_PARA, simulation_options_global->N_THREADS, fg_struct->stars_filtered);
         if (astro_options_global->INHOMO_RECO) {
@@ -764,9 +764,10 @@ void calculate_fcoll_grid(IonizedBox *box, IonizedBox *previous_ionize_box,
     ScalingConstants *sc_ptr = &(consts->scale_consts);
 
     int fc_r_idx;
-    fc_r_idx = (astro_options_global->USE_MINI_HALOS && !matter_options_global->USE_HALO_FIELD)
-                   ? rspec->R_index
-                   : 0;
+    fc_r_idx =
+        (astro_options_global->USE_MINI_HALOS && !matter_options_global->LAGRANGIAN_SOURCE_GRIDS)
+            ? rspec->R_index
+            : 0;
     int box_dim[3] = {simulation_options_global->HII_DIM, simulation_options_global->HII_DIM,
                       HII_D_PARA};
 #pragma omp parallel num_threads(simulation_options_global->N_THREADS)
@@ -805,7 +806,7 @@ void calculate_fcoll_grid(IonizedBox *box, IonizedBox *previous_ionize_box,
                     }
 
                     // stellar mass & sfr cannot be less than zero
-                    if (matter_options_global->USE_HALO_FIELD) {
+                    if (matter_options_global->LAGRANGIAN_SOURCE_GRIDS) {
                         *((float *)fg_struct->stars_filtered + index_f) =
                             fmaxf(*((float *)fg_struct->stars_filtered + index_f), 0.0);
                         if (astro_options_global->INHOMO_RECO) {
@@ -871,7 +872,7 @@ void calculate_fcoll_grid(IonizedBox *box, IonizedBox *previous_ionize_box,
                     //  after the Fcoll integration, and after trapezoidal integration here
                     //  we should figure which of these clips are necessary/useful
                     if (astro_options_global->USE_MINI_HALOS &&
-                        !matter_options_global->USE_HALO_FIELD) {
+                        !matter_options_global->LAGRANGIAN_SOURCE_GRIDS) {
                         if (Splined_Fcoll > 1.) Splined_Fcoll = 1.;
                         if (Splined_Fcoll < 0.) Splined_Fcoll = 1e-40;
                         if (prev_Splined_Fcoll > 1.) prev_Splined_Fcoll = 1.;
@@ -953,8 +954,8 @@ int setup_radii(struct RadiusSpec **rspec_array, struct IonBoxConstants *consts)
 
     double cell_length_factor = physconst.l_factor;
     // TODO: figure out why this is used in such a specific case
-    if (matter_options_global->USE_HALO_FIELD && !astro_options_global->IONISE_ENTIRE_SPHERE &&
-        (consts->pixel_length < 1))
+    if (matter_options_global->LAGRANGIAN_SOURCE_GRIDS &&
+        !astro_options_global->IONISE_ENTIRE_SPHERE && (consts->pixel_length < 1))
         cell_length_factor = 1.;
 
     double minimum_radius =
@@ -998,9 +999,10 @@ void find_ionised_regions(IonizedBox *box, IonizedBox *previous_ionize_box,
     double mean_fix_term_acg = 1.;
     double mean_fix_term_mcg = 1.;
     int fc_r_idx;
-    fc_r_idx = (astro_options_global->USE_MINI_HALOS && !matter_options_global->USE_HALO_FIELD)
-                   ? rspec.R_index
-                   : 0;
+    fc_r_idx =
+        (astro_options_global->USE_MINI_HALOS && !matter_options_global->LAGRANGIAN_SOURCE_GRIDS)
+            ? rspec.R_index
+            : 0;
 
     LOG_SUPER_DEBUG(
         "global mean fcoll (mini) %.3e (%.3e) box mean fcoll %.3e (%.3e) ratio %.3e (%.3e)",
@@ -1046,13 +1048,13 @@ void find_ionised_regions(IonizedBox *box, IonizedBox *previous_ionize_box,
                     // local density of absorbers
                     //   We have separated the source/absorber filtering in the halo model so this
                     //   is necessary
-                    if (matter_options_global->USE_HALO_FIELD)
+                    if (matter_options_global->LAGRANGIAN_SOURCE_GRIDS)
                         curr_fcoll *= 1 / (RHOcrit * cosmo_params_global->OMb * (1 + curr_dens));
 
                     // MINIHALOS are already included in the halo model
                     curr_fcoll_mini = 0.;
                     if (astro_options_global->USE_MINI_HALOS &&
-                        !matter_options_global->USE_HALO_FIELD) {
+                        !matter_options_global->LAGRANGIAN_SOURCE_GRIDS) {
                         curr_fcoll_mini =
                             box->unnormalised_nion_mini[fc_r_idx * HII_TOT_NUM_PIXELS + index_r];
                         curr_fcoll_mini = mean_fix_term_mcg * curr_fcoll_mini;
@@ -1103,7 +1105,7 @@ void find_ionised_regions(IonizedBox *box, IonizedBox *previous_ionize_box,
                         // regions...  breaks down post EoR
                         if (astro_options_global->INHOMO_RECO &&
                             (box->neutral_fraction[index_r] > FRACT_FLOAT_ERR)) {
-                            if (matter_options_global->USE_HALO_FIELD) {
+                            if (matter_options_global->LAGRANGIAN_SOURCE_GRIDS) {
                                 // since ION_EFF_FACTOR==1 here, gamma_prefactor is the same for ACG
                                 // and MCG
                                 box->ionisation_rate_G12[index_r] =
@@ -1384,7 +1386,7 @@ int ComputeIonizedBox(float redshift, float prev_redshift, PerturbedField *pertu
         // Find the mass limits and average turnovers
         double Mturnover_global_avg = 0., Mturnover_global_avg_MINI = 0.;
         if (astro_options_global->USE_MASS_DEPENDENT_ZETA) {
-            if (matter_options_global->USE_HALO_FIELD) {
+            if (matter_options_global->LAGRANGIAN_SOURCE_GRIDS) {
                 // Here these are only used for the global calculations
                 box->log10_Mturnover_ave = halos->log10_Mcrit_ACG_ave;
                 box->log10_Mturnover_MINI_ave = halos->log10_Mcrit_MCG_ave;
@@ -1444,7 +1446,7 @@ int ComputeIonizedBox(float redshift, float prev_redshift, PerturbedField *pertu
             // TODO: put a flag for to turn off clipping instead of putting the wide limits
             prepare_box_for_filtering(perturbed_field->density, grid_struct->deltax_unfiltered,
                                       ionbox_constants.photoncons_adjustment_factor, -1., 1e6);
-            if (matter_options_global->USE_HALO_FIELD) {
+            if (matter_options_global->LAGRANGIAN_SOURCE_GRIDS) {
                 prepare_box_for_filtering(halos->n_ion, grid_struct->stars_unfiltered, 1., 0.,
                                           1e20);
                 if (astro_options_global->INHOMO_RECO) {
@@ -1517,7 +1519,7 @@ int ComputeIonizedBox(float redshift, float prev_redshift, PerturbedField *pertu
                          previous_ionize_box->mean_f_coll * ionbox_constants.ion_eff_factor_gl >
                      1e-4);
 
-                if (!matter_options_global->USE_HALO_FIELD) {
+                if (!matter_options_global->LAGRANGIAN_SOURCE_GRIDS) {
                     setup_integration_tables(grid_struct, &ionbox_constants, curr_radius,
                                              need_prev_ion);
                 }

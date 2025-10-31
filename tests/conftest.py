@@ -129,8 +129,9 @@ def default_simulation_options():
 def default_matter_options():
     return MatterOptions(
         KEEP_3D_VELOCITIES=True,
-        USE_HALO_FIELD=False,
-        HALO_STOCHASTICITY=False,
+        LAGRANGIAN_SOURCE_GRIDS=False,
+        USE_DISCRETE_HALOS=False,
+        USE_CHMF_SAMPLER=False,
     )
 
 

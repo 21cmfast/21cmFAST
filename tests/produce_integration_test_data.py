@@ -53,8 +53,9 @@ DEFAULT_INPUTS_TESTRUNS = {
     "SAMPLER_MIN_MASS": 1e9,
     "ZPRIME_STEP_FACTOR": 1.04,
     # MatterOptions
-    "USE_HALO_FIELD": False,
-    "HALO_STOCHASTICITY": False,
+    "LAGRANGIAN_SOURCE_GRIDS": False,
+    "USE_DISCRETE_HALOS": False,
+    "USE_CHMF_SAMPLER": False,
     # AstroOptions
     "USE_EXP_FILTER": False,
     "CELL_RECOMB": False,
@@ -147,42 +148,58 @@ OPTIONS_TESTRUNS = {
     "sampler": [
         18,
         {
-            "USE_HALO_FIELD": True,
-            "HALO_STOCHASTICITY": True,
+            "LAGRANGIAN_SOURCE_GRIDS": True,
+            "USE_DISCRETE_HALOS": True,
+            "USE_CHMF_SAMPLER": True,
+        },
+    ],
+    "sampler_hires": [
+        18,
+        {
+            "LAGRANGIAN_SOURCE_GRIDS": True,
+            "USE_DISCRETE_HALOS": True,
+            "USE_CHMF_SAMPLER": True,
+            "PERTURB_ON_HIGH_RES": True,
         },
     ],
     "fixed_halogrids": [
         18,
         {
-            "USE_HALO_FIELD": True,
-            "FIXED_HALO_GRIDS": True,
+            "LAGRANGIAN_SOURCE_GRIDS": True,
+            "USE_DISCRETE_HALOS": False,
+            "USE_CHMF_SAMPLER": False,
         },
     ],
     "sampler_mini": [
         18,
         {
-            "USE_HALO_FIELD": True,
-            "HALO_STOCHASTICITY": True,
+            "LAGRANGIAN_SOURCE_GRIDS": True,
+            "USE_DISCRETE_HALOS": True,
+            "USE_CHMF_SAMPLER": True,
             "USE_MINI_HALOS": True,
             "USE_TS_FLUCT": True,
             "INHOMO_RECO": True,
             "R_BUBBLE_MAX": 50.0,
+            "USE_RELATIVE_VELOCITIES": True,
+            "POWER_SPECTRUM": "CLASS",
             "M_TURN": 5.0,
         },
     ],
     "sampler_ts": [
         18,
         {
-            "USE_HALO_FIELD": True,
-            "HALO_STOCHASTICITY": True,
+            "LAGRANGIAN_SOURCE_GRIDS": True,
+            "USE_DISCRETE_HALOS": True,
+            "USE_CHMF_SAMPLER": True,
             "USE_TS_FLUCT": True,
         },
     ],
     "sampler_ir": [
         18,
         {
-            "USE_HALO_FIELD": True,
-            "HALO_STOCHASTICITY": True,
+            "LAGRANGIAN_SOURCE_GRIDS": True,
+            "USE_DISCRETE_HALOS": True,
+            "USE_CHMF_SAMPLER": True,
             "INHOMO_RECO": True,
             "R_BUBBLE_MAX": 50.0,
         },
@@ -190,8 +207,9 @@ OPTIONS_TESTRUNS = {
     "sampler_ts_ir": [
         18,
         {
-            "USE_HALO_FIELD": True,
-            "HALO_STOCHASTICITY": True,
+            "LAGRANGIAN_SOURCE_GRIDS": True,
+            "USE_DISCRETE_HALOS": True,
+            "USE_CHMF_SAMPLER": True,
             "USE_TS_FLUCT": True,
             "INHOMO_RECO": True,
             "R_BUBBLE_MAX": 50.0,
@@ -200,8 +218,9 @@ OPTIONS_TESTRUNS = {
     "sampler_ts_ir_onethread": [
         18,
         {
-            "USE_HALO_FIELD": True,
-            "HALO_STOCHASTICITY": True,
+            "LAGRANGIAN_SOURCE_GRIDS": True,
+            "USE_DISCRETE_HALOS": True,
+            "USE_CHMF_SAMPLER": True,
             "USE_TS_FLUCT": True,
             "INHOMO_RECO": True,
             "R_BUBBLE_MAX": 50.0,
@@ -211,15 +230,18 @@ OPTIONS_TESTRUNS = {
     "sampler_noncubic": [
         18,
         {
-            "USE_HALO_FIELD": True,
-            "HALO_STOCHASTICITY": True,
+            "LAGRANGIAN_SOURCE_GRIDS": True,
+            "USE_DISCRETE_HALOS": True,
+            "USE_CHMF_SAMPLER": True,
             "NON_CUBIC_FACTOR": 1.2,
         },
     ],
     "dexm": [
         18,
         {
-            "USE_HALO_FIELD": True,
+            "LAGRANGIAN_SOURCE_GRIDS": True,
+            "USE_DISCRETE_HALOS": True,
+            "USE_CHMF_SAMPLER": False,
         },
     ],
     "photoncons-z": [
@@ -566,6 +588,7 @@ def go(
     remove: bool = True,
     pt_only: bool = False,
     no_pt: bool = False,
+    plot_dir: str | None = "./integration-test-plots/",
     names: tuple[CASE_CHOICES, ...] = tuple(OPTIONS_TESTRUNS.keys()),
 ):
     cns.print(Rule("[bold][purple]Reproducing Integration Test Data!"))
@@ -621,7 +644,7 @@ def go(
             fnames.append(fname)
 
             # Make a coeval plot for _this_ case with all the fields...
-            if coeval is not None:
+            if coeval is not None and plot_dir is not None:
                 fig, ax = plt.subplots(
                     1,
                     len(COEVAL_FIELDS),
@@ -638,7 +661,7 @@ def go(
                     else:
                         ax[j].set_axis_off()
 
-                fig.savefig(f"integration-test-plots/coeval-sliceplots-{name}.pdf")
+                fig.savefig(f"{plot_dir}/coeval-sliceplots-{name}.pdf")
                 plt.close(fig)
 
                 # Now plot the brightness temperature coeval with other cases.
@@ -657,7 +680,7 @@ def go(
                 )
 
             # Make a lightcone plot for _this_ case with all the fields...
-            if lc is not None:
+            if lc is not None and plot_dir is not None:
                 fig, ax = plt.subplots(
                     len(LIGHTCONE_FIELDS),
                     1,
@@ -674,7 +697,7 @@ def go(
                     else:
                         ax[j].set_axis_off()
 
-                fig.savefig(f"integration-test-plots/lightcone-sliceplots-{name}.pdf")
+                fig.savefig(f"{plot_dir}/lightcone-sliceplots-{name}.pdf")
                 plt.close(fig)
 
                 plotting.lightcone_sliceplot(
@@ -688,10 +711,9 @@ def go(
                     color="white",
                 )
 
-        bt_coeval_fig.savefig(
-            "integration-test-plots/coeval-brightness-temp-allcases.pdf"
-        )
-        bt_lc_fig.savefig("integration-test-plots/lc-brightness-temp-allcases.pdf")
+        if plot_dir is not None:
+            bt_coeval_fig.savefig(f"{plot_dir}/coeval-brightness-temp-allcases.pdf")
+            bt_lc_fig.savefig(f"{plot_dir}/lc-brightness-temp-allcases.pdf")
 
     cns.print("[green]:tick: Finished producing Coeval and Lightcone power spectra.")
 

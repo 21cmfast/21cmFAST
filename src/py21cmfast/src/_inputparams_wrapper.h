@@ -68,9 +68,9 @@ typedef struct MatterOptions {
     int HALO_FILTER;
     bool SMOOTH_EVOLVED_DENSITY_FIELD;
 
-    bool USE_HALO_FIELD;
-    bool HALO_STOCHASTICITY;
-    bool FIXED_HALO_GRIDS;
+    bool LAGRANGIAN_SOURCE_GRIDS;
+    bool USE_DISCRETE_HALOS;
+    bool USE_CHMF_SAMPLER;
     int SAMPLE_METHOD;
 } MatterOptions;
 
@@ -150,7 +150,6 @@ typedef struct AstroOptions {
     int HII_FILTER;
     int HEAT_FILTER;
     bool IONISE_ENTIRE_SPHERE;
-    bool AVG_BELOW_SAMPLER;
     int INTEGRATION_METHOD_ATOMIC;
     int INTEGRATION_METHOD_MINI;
 } AstroOptions;

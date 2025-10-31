@@ -70,9 +70,10 @@ class TestRunCache:
         """Test that the RunCache can be created with optional boxes."""
         inputs = InputParameters.from_template("latest-dhalos", random_seed=12345)
         cache = caching.RunCache.from_inputs(inputs, caching.OutputCache(tmp_path))
+        print(attrs.asdict(cache).keys(), flush=True)
 
         assert isinstance(cache.HaloBox, dict)
-        assert isinstance(cache.PerturbHaloField, dict)
+        assert isinstance(cache.HaloCatalog, dict)
         assert isinstance(cache.InitialConditions, Path)
         assert isinstance(cache.PerturbedField, dict)
         assert isinstance(cache.IonizedBox, dict)
@@ -318,7 +319,7 @@ def test_hash_for_different_inputs(default_input_struct, inp_type):
         "random_seed": 1,
         "node_redshifts": (30.0, 35.0),
         "simulation_options": {"BOX_LEN": 300},
-        "matter_options": {"USE_HALO_FIELD": True},
+        "matter_options": {"LAGRANGIAN_SOURCE_GRIDS": True},
         "cosmo_params": {"hlittle": 0.7},
         "astro_params": {"L_X": 38.0},
         "astro_options": {"USE_MASS_DEPENDENT_ZETA": False},

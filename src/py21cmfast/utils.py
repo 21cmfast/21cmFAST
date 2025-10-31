@@ -84,7 +84,7 @@ def show_references(inputs: InputParameters, print_to_stdout=True):
             "pp 3657-3681, 2022 https://doi.org/10.1093/mnras/stac185\n"
         )
 
-    if inputs.matter_options.USE_HALO_FIELD:
+    if inputs.matter_options.LAGRANGIAN_SOURCE_GRIDS:
         ref_string += (
             "Version 4 and the discrete halo sampler is described in:\n"
             "========================================================\n"
