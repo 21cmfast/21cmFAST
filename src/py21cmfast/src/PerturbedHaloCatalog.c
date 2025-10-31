@@ -98,7 +98,7 @@ int ComputePerturbedHaloCatalog(float redshift, InitialConditions *boxes, TsBox 
         // ******************   END INITIALIZATION     ******************************** //
         unsigned long long int n_exact_dim = 0;
         bool error_in_parallel = false;
-#pragma omp parallel private(i_halo) num_threads(simulation_options_global->N_THREADS) \
+#pragma omp parallel private(i_halo) num_threads(simulation_options_global -> N_THREADS) \
     reduction(+ : n_exact_dim)
         {
             double pos[3];

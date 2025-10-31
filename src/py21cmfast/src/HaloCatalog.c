@@ -347,7 +347,7 @@ int ComputeHaloCatalog(float redshift_desc, float redshift, InitialConditions *b
             // by halos
             //   This is used in the sampler
             // we don't need the density field anymore so we reuse it
-#pragma omp parallel private(i, j, k) num_threads(simulation_options_global->N_THREADS)
+#pragma omp parallel private(i, j, k) num_threads(simulation_options_global -> N_THREADS)
             {
                 unsigned long long int index_r, index_f;
 #pragma omp for
@@ -382,7 +382,7 @@ int ComputeHaloCatalog(float redshift_desc, float redshift, InitialConditions *b
             int hi_dim[3] = {simulation_options_global->DIM, simulation_options_global->DIM,
                              D_PARA};
             // Now downsample the highres grid to get the lowres version
-#pragma omp parallel private(i, j, k) num_threads(simulation_options_global->N_THREADS)
+#pragma omp parallel private(i, j, k) num_threads(simulation_options_global -> N_THREADS)
             {
                 int index, hi_index;
 #pragma omp for
