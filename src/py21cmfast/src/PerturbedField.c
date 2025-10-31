@@ -63,7 +63,7 @@ void make_density_grid(float redshift, fftwf_complex *fft_density_grid, InitialC
 
     // check if the linear evolution flag was set
     if (matter_options_global->PERTURB_ALGORITHM == 0) {
-#pragma omp parallel private(i, j, k) num_threads(simulation_options_global->N_THREADS)
+#pragma omp parallel private(i, j, k) num_threads(simulation_options_global -> N_THREADS)
         {
             unsigned long long int grid_index, fft_index;
 #pragma omp for
@@ -80,7 +80,7 @@ void make_density_grid(float redshift, fftwf_complex *fft_density_grid, InitialC
         }
     } else {
         // Apply Zel'dovich/2LPT correction
-#pragma omp parallel private(i, j, k) num_threads(simulation_options_global->N_THREADS)
+#pragma omp parallel private(i, j, k) num_threads(simulation_options_global -> N_THREADS)
         {
             unsigned long long int fft_index;
 #pragma omp for
@@ -111,7 +111,7 @@ void make_density_grid(float redshift, fftwf_complex *fft_density_grid, InitialC
         debugSummarizeBoxDouble(resampled_box, box_dim[0], box_dim[1], box_dim[2], "  ");
 
         // Resample back to a fftw float for remaining algorithm
-#pragma omp parallel private(i, j, k) num_threads(simulation_options_global->N_THREADS)
+#pragma omp parallel private(i, j, k) num_threads(simulation_options_global -> N_THREADS)
         {
             unsigned long long int grid_index, fft_index;
 #pragma omp for
@@ -158,7 +158,7 @@ void assign_to_lowres_grid(fftwf_complex *hires_grid, fftwf_complex *lowres_grid
     dft_c2r_cube(matter_options_global->USE_FFTW_WISDOM, hi_dim[0], hi_dim[2],
                  simulation_options_global->N_THREADS, hires_grid);
 
-#pragma omp parallel private(i, j, k) num_threads(simulation_options_global->N_THREADS)
+#pragma omp parallel private(i, j, k) num_threads(simulation_options_global -> N_THREADS)
     {
         int hires_pos[3];
 #pragma omp for
@@ -188,7 +188,7 @@ void normalise_delta_grid(fftwf_complex *deltap1_grid) {
         matter_options_global->PERTURB_ON_HIGH_RES
             ? 1.0
             : (lo_dim[0] * lo_dim[1] * lo_dim[2]) / (double)(hi_dim[0] * hi_dim[1] * hi_dim[2]);
-#pragma omp parallel private(i, j, k) num_threads(simulation_options_global->N_THREADS)
+#pragma omp parallel private(i, j, k) num_threads(simulation_options_global -> N_THREADS)
     {
         unsigned long long int grid_index;
         float *cell_ptr;
@@ -314,7 +314,7 @@ void compute_perturbed_velocities(unsigned short axis, double redshift,
     memcpy(velocity_fft_grid, density_saved, sizeof(fftwf_complex) * n_k_pixels);
 
 #pragma omp parallel private(n_x, n_y, n_z, k_x, k_y, k_z, k_sq, kvec) \
-    num_threads(simulation_options_global->N_THREADS)
+    num_threads(simulation_options_global -> N_THREADS)
     {
         unsigned long long grid_index;
 #pragma omp for
@@ -360,7 +360,7 @@ void compute_perturbed_velocities(unsigned short axis, double redshift,
     dft_c2r_cube(matter_options_global->USE_FFTW_WISDOM, box_dim[0], box_dim[2],
                  simulation_options_global->N_THREADS, velocity_fft_grid);
 
-#pragma omp parallel private(i, j, k) num_threads(simulation_options_global->N_THREADS)
+#pragma omp parallel private(i, j, k) num_threads(simulation_options_global -> N_THREADS)
     {
         unsigned long long int grid_index_f, grid_index_r;
         int grid_ipos[3];
