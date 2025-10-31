@@ -502,7 +502,7 @@ class MatterOptions(InputStruct):
     )
     USE_FFTW_WISDOM: bool = field(default=False, converter=bool)
 
-    # NOTE: These do not affect the ICs & PerturbFields,
+    # NOTE: These do not affect the ICs & PerturbedFields,
     #  but we moved the halos to the matter side for now
     USE_HALO_FIELD: bool = field(default=True, converter=bool)
     FIXED_HALO_GRIDS: bool = field(default=False, converter=bool)

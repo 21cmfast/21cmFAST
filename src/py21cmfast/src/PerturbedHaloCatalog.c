@@ -3,6 +3,8 @@
 // ComputePerturbedHaloCatalog reads in the linear velocity field, and uses
 // it to update halo locations with a corresponding displacement field
 
+#include "PerturbedHaloCatalog.h"
+
 #include <complex.h>
 #include <fftw3.h>
 #include <math.h>
@@ -13,7 +15,6 @@
 #include "HaloBox.h"
 #include "InputParameters.h"
 #include "OutputStructs.h"
-#include "PerturbedHaloCatalog.h"
 #include "cexcept.h"
 #include "cosmology.h"
 #include "debugging.h"

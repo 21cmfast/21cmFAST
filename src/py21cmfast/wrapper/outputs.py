@@ -673,7 +673,7 @@ class OutputStructZ(OutputStruct):
 class PerturbedField(OutputStructZ):
     """A class containing all perturbed field boxes."""
 
-    _c_compute_function = lib.ComputePerturbField
+    _c_compute_function = lib.ComputePerturbedField
     _meta = False
     _compat_hash = _HashType.zgrid
 

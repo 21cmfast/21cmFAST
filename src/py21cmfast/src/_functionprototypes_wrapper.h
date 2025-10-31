@@ -5,7 +5,8 @@
 /* OutputStruct COMPUTE FUNCTIONS */
 int ComputeInitialConditions(unsigned long long random_seed, InitialConditions *boxes);
 
-int ComputePerturbField(float redshift, InitialConditions *boxes, PerturbedField *perturbed_field);
+int ComputePerturbedField(float redshift, InitialConditions *boxes,
+                          PerturbedField *perturbed_field);
 
 int ComputeHaloCatalog(float redshift_desc, float redshift, InitialConditions *boxes,
                        unsigned long long int random_seed, HaloCatalog *halos_desc,
