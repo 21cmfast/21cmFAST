@@ -1362,7 +1362,7 @@ class InputParameters:
         if self.matter_options.LAGRANGIAN_SOURCE_GRIDS:
             if val.PHOTON_CONS_TYPE == "z-photoncons":
                 raise ValueError(
-                    "USE_LAGRANGIAN_SOURCE_GRIDS is not compatible with the redshift-based"
+                    "LAGRANGIAN_SOURCE_GRIDS is not compatible with the redshift-based"
                     " photon conservation corrections (PHOTON_CONS_TYPE=='z_photoncons')! "
                 )
             """Raise an error if LAGRANGIAN_SOURCE_GRIDS is True and USE_MASS_DEPENDENT_ZETA is False."""
@@ -1373,7 +1373,7 @@ class InputParameters:
         else:
             if val.USE_EXP_FILTER:
                 raise ValueError(
-                    "USE_EXP_FILTER is not compatible with USE_LAGRANGIAN_SOURCE_GRIDS == False"
+                    "USE_EXP_FILTER is not compatible with LAGRANGIAN_SOURCE_GRIDS == False"
                 )
         if (
             not self.matter_options.USE_DISCRETE_HALOS

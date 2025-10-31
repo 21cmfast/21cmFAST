@@ -547,7 +547,7 @@ def compute_spin_temperature(
         will be interpolated to the correct redshift, which can provide a speedup compared to
         actually computing it at the desired redshift.
     xray_source_box : :class:`XraySourceBox`, optional
-        If USE_LAGRANGIAN_SOURCE_GRIDS is True, this box specifies the filtered sfr and xray emissivity at all
+        If LAGRANGIAN_SOURCE_GRIDS is True, this box specifies the filtered sfr and xray emissivity at all
         redshifts/filter radii required by the spin temperature algorithm.
     previous_spin_temp : :class:`TsBox` or None
         The previous spin temperature box. Needed when we are beyond the first snapshot

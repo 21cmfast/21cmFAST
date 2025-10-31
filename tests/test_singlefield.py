@@ -429,7 +429,7 @@ def test_bad_input_structs(default_input_struct_ts):
     # setting parameters for the maximum number of fields required
     test_inputs = default_input_struct_ts.evolve_input_structs(
         USE_MINI_HALOS=True,
-        LAGRANGIAN_SOURCE_FIELD=True,
+        LAGRANGIAN_SOURCE_GRIDS=True,
         USE_DISCRETE_HALOS=True,
         INHOMO_RECO=True,
     ).clone(node_redshifts=(35.0, 11.0, 10.0))

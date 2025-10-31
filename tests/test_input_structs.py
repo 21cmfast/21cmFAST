@@ -332,7 +332,7 @@ class TestMatterOptions:
         with pytest.raises(ValueError, match=msg):
             MatterOptions(USE_RELATIVE_VELOCITIES=True, POWER_SPECTRUM="EH")
 
-        msg = r"The conditional mass functions requied for the halo field"
+        msg = r"The conditional mass functions requied for the discrete halo field"
         with pytest.raises(NotImplementedError, match=msg):
             MatterOptions(USE_DISCRETE_HALOS=True, HMF="WATSON")
 
@@ -497,5 +497,7 @@ class TestInputParameters:
         ):
             # The cell size is ~1e11 Msun
             self.default.evolve_input_structs(
-                USE_DISCRETE_HALOS=False, USE_CHMF_SAMPLER=False
+                USE_DISCRETE_HALOS=False,
+                USE_CHMF_SAMPLER=False,
+                USE_UPPER_STELLAR_TURNOVER=False,
             )
