@@ -80,7 +80,7 @@ jobs:
             TEST_RUN=True papermill -k tests --request-save-on-cell-execute docs/tutorials/${{ matrix.tutorial }}.ipynb ${{ matrix.tutorial }}.ipynb
 
       - name: Archive Notebooks
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v5
         with:
           name: tutorials-${{ matrix.tutorial }}
           path: |
