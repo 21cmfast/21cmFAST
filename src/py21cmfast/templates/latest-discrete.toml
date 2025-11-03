@@ -5,9 +5,7 @@
 [SimulationOptions]
 
 [MatterOptions]
-LAGRANGIAN_SOURCE_GRIDS = true
-USE_DISCRETE_HALOS = true
-USE_CHMF_SAMPLER = true
+SOURCE_MODEL = 'CHMF-SAMPLER'
 
 [AstroParams]
 R_BUBBLE_MAX = 50.0

@@ -429,8 +429,7 @@ def test_bad_input_structs(default_input_struct_ts):
     # setting parameters for the maximum number of fields required
     test_inputs = default_input_struct_ts.evolve_input_structs(
         USE_MINI_HALOS=True,
-        LAGRANGIAN_SOURCE_GRIDS=True,
-        USE_DISCRETE_HALOS=True,
+        SOURCE_MODEL="CHMF-SAMPLER",
         INHOMO_RECO=True,
     ).clone(node_redshifts=(35.0, 11.0, 10.0))
 
@@ -464,7 +463,7 @@ def test_bad_input_structs(default_input_struct_ts):
 
     # HaloBox
     with pytest.raises(
-        ValueError, match="You must provide halo_field if USE_DISCRETE_HALOS is True"
+        ValueError, match="You must provide halo_catalog for SOURCE_MODEL"
     ):
         p21c.compute_halo_grid(
             redshift=10.0,
@@ -493,7 +492,7 @@ def test_bad_input_structs(default_input_struct_ts):
     # TsBox
     with pytest.raises(
         ValueError,
-        match="xray_source_box is required when LAGRANGIAN_SOURCE_GRIDS is True",
+        match="xray_source_box is required for SOURCE_MODEL",
     ):
         p21c.compute_spin_temperature(
             initial_conditions=ic,
@@ -524,9 +523,7 @@ def test_bad_input_structs(default_input_struct_ts):
             previous_ionized_box=ib_p,
             spin_temp=st,
         )
-    with pytest.raises(
-        ValueError, match="No halo box given but LAGRANGIAN_SOURCE_GRIDS=True"
-    ):
+    with pytest.raises(ValueError, match="A HaloBox must be provided for SOURCE_MODEL"):
         p21c.compute_ionization_field(
             initial_conditions=ic,
             perturbed_field=pt,

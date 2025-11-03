@@ -5,9 +5,7 @@
 [SimulationOptions]
 
 [MatterOptions]
-LAGRANGIAN_SOURCE_GRIDS = false
-USE_DISCRETE_HALOS = false
-USE_CHMF_SAMPLER = false
+SOURCE_MODEL = 'E-INTEGRAL'
 
 [AstroParams]
 

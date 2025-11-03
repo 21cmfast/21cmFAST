@@ -53,9 +53,7 @@ DEFAULT_INPUTS_TESTRUNS = {
     "SAMPLER_MIN_MASS": 1e9,
     "ZPRIME_STEP_FACTOR": 1.04,
     # MatterOptions
-    "LAGRANGIAN_SOURCE_GRIDS": False,
-    "USE_DISCRETE_HALOS": False,
-    "USE_CHMF_SAMPLER": False,
+    "SOURCE_MODEL": "E-INTEGRAL",  # We should consider which model is best for test defaults
     # AstroOptions
     "USE_EXP_FILTER": False,
     "CELL_RECOMB": False,
@@ -148,34 +146,26 @@ OPTIONS_TESTRUNS = {
     "sampler": [
         18,
         {
-            "LAGRANGIAN_SOURCE_GRIDS": True,
-            "USE_DISCRETE_HALOS": True,
-            "USE_CHMF_SAMPLER": True,
+            "SOURCE_MODEL": "CHMF-SAMPLER",
         },
     ],
     "sampler_hires": [
         18,
         {
-            "LAGRANGIAN_SOURCE_GRIDS": True,
-            "USE_DISCRETE_HALOS": True,
-            "USE_CHMF_SAMPLER": True,
+            "SOURCE_MODEL": "CHMF-SAMPLER",
             "PERTURB_ON_HIGH_RES": True,
         },
     ],
     "fixed_halogrids": [
         18,
         {
-            "LAGRANGIAN_SOURCE_GRIDS": True,
-            "USE_DISCRETE_HALOS": False,
-            "USE_CHMF_SAMPLER": False,
+            "SOURCE_MODEL": "L-INTEGRAL",
         },
     ],
     "sampler_mini": [
         18,
         {
-            "LAGRANGIAN_SOURCE_GRIDS": True,
-            "USE_DISCRETE_HALOS": True,
-            "USE_CHMF_SAMPLER": True,
+            "SOURCE_MODEL": "CHMF-SAMPLER",
             "USE_MINI_HALOS": True,
             "USE_TS_FLUCT": True,
             "INHOMO_RECO": True,
@@ -188,18 +178,14 @@ OPTIONS_TESTRUNS = {
     "sampler_ts": [
         18,
         {
-            "LAGRANGIAN_SOURCE_GRIDS": True,
-            "USE_DISCRETE_HALOS": True,
-            "USE_CHMF_SAMPLER": True,
+            "SOURCE_MODEL": "CHMF-SAMPLER",
             "USE_TS_FLUCT": True,
         },
     ],
     "sampler_ir": [
         18,
         {
-            "LAGRANGIAN_SOURCE_GRIDS": True,
-            "USE_DISCRETE_HALOS": True,
-            "USE_CHMF_SAMPLER": True,
+            "SOURCE_MODEL": "CHMF-SAMPLER",
             "INHOMO_RECO": True,
             "R_BUBBLE_MAX": 50.0,
         },
@@ -207,9 +193,7 @@ OPTIONS_TESTRUNS = {
     "sampler_ts_ir": [
         18,
         {
-            "LAGRANGIAN_SOURCE_GRIDS": True,
-            "USE_DISCRETE_HALOS": True,
-            "USE_CHMF_SAMPLER": True,
+            "SOURCE_MODEL": "CHMF-SAMPLER",
             "USE_TS_FLUCT": True,
             "INHOMO_RECO": True,
             "R_BUBBLE_MAX": 50.0,
@@ -218,9 +202,7 @@ OPTIONS_TESTRUNS = {
     "sampler_ts_ir_onethread": [
         18,
         {
-            "LAGRANGIAN_SOURCE_GRIDS": True,
-            "USE_DISCRETE_HALOS": True,
-            "USE_CHMF_SAMPLER": True,
+            "SOURCE_MODEL": "CHMF-SAMPLER",
             "USE_TS_FLUCT": True,
             "INHOMO_RECO": True,
             "R_BUBBLE_MAX": 50.0,
@@ -230,18 +212,14 @@ OPTIONS_TESTRUNS = {
     "sampler_noncubic": [
         18,
         {
-            "LAGRANGIAN_SOURCE_GRIDS": True,
-            "USE_DISCRETE_HALOS": True,
-            "USE_CHMF_SAMPLER": True,
+            "SOURCE_MODEL": "CHMF-SAMPLER",
             "NON_CUBIC_FACTOR": 1.2,
         },
     ],
     "dexm": [
         18,
         {
-            "LAGRANGIAN_SOURCE_GRIDS": True,
-            "USE_DISCRETE_HALOS": True,
-            "USE_CHMF_SAMPLER": False,
+            "SOURCE_MODEL": "DEXM-ESF",
         },
     ],
     "photoncons-z": [

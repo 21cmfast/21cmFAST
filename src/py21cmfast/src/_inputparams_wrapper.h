@@ -68,9 +68,7 @@ typedef struct MatterOptions {
     int HALO_FILTER;
     bool SMOOTH_EVOLVED_DENSITY_FIELD;
 
-    bool LAGRANGIAN_SOURCE_GRIDS;
-    bool USE_DISCRETE_HALOS;
-    bool USE_CHMF_SAMPLER;
+    int SOURCE_MODEL;
     int SAMPLE_METHOD;
 } MatterOptions;
 

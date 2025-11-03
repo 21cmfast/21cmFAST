@@ -394,27 +394,27 @@ class MatterOptions(InputStruct):
 
     Parameters
     ----------
-    HMF: int or str, optional
+    HMF: str, optional
         Determines which halo mass function to be used for the normalisation of the
-        collapsed fraction (default Sheth-Tormen). If string should be one of the
+        collapsed fraction (default Sheth-Tormen). Should be one of the
         following codes:
-        0: PS (Press-Schechter)
-        1: ST (Sheth-Tormen)
-        2: Watson (Watson FOF)
-        3: Watson-z (Watson FOF-z)
-        3: Delos (Delos+23)
+        PS (Press-Schechter)
+        ST (Sheth-Tormen)
+        Watson (Watson FOF)
+        Watson-z (Watson FOF-z)
+        Delos (Delos+23)
     USE_RELATIVE_VELOCITIES: int, optional
         Flag to decide whether to use relative velocities.
         If True, POWER_SPECTRUM is automatically set to 5. Default False.
-    POWER_SPECTRUM: int or str, optional
+    POWER_SPECTRUM: str, optional
         Determines which power spectrum to use, default EH (unless `USE_RELATIVE_VELOCITIES`
-        is True). If string, use the following codes:
-        0: EH
-        1: BBKS
-        2: EFSTATHIOU
-        3: PEEBLES
-        4: WHITE
-        5: CLASS (single cosmology)
+        is True). Use the following codes:
+        EH : Eisenstein & Hu 1999
+        BBKS: Bardeen et al. 1986
+        EFSTATHIOU: Efstathiou et al. 1992
+        PEEBLES: Peebles 1980
+        WHITE: White 1985
+        CLASS: Uses fits from the CLASS code
     PERTURB_ON_HIGH_RES : bool, optional
         Whether to perform the Zel'Dovich or 2LPT perturbation on the low or high
         resolution grid.
@@ -436,16 +436,16 @@ class MatterOptions(InputStruct):
     MINIMIZE_MEMORY: bool, optional
         If set, the code will run in a mode that minimizes memory usage, at the expense
         of some CPU/disk-IO. Good for large boxes / small computers.
-    SAMPLE_METHOD: int, optional
+    SAMPLE_METHOD: str, optional
         The sampling method to use in the halo sampler when calculating progenitor populations:
-        0: Mass-limited CMF sampling, where samples are drawn until the expected mass is reached
-        1: Number-limited CMF sampling, where we select a number of halos from the Poisson distribution
+        MASS-LIMITED : Mass-limited CMF sampling, where samples are drawn until the expected mass is reached
+        NUMBER-LIMITED : Number-limited CMF sampling, where we select a number of halos from the Poisson distribution
         and then sample the CMF that many times
-        2: Sheth et al 1999 Partition sampling, where the EPS collapsed fraction is sampled (gaussian tail)
+        PARTITION : Sheth et al 1999 Partition sampling, where the EPS collapsed fraction is sampled (gaussian tail)
         and then the condition is updated using the conservation of mass.
-        3: Parkinsson et al 2008 Binary split model as in DarkForest (Qiu et al 2021) where the EPS merger rate
+        BINARY-SPLIT : Parkinsson et al 2008 Binary split model as in DarkForest (Qiu et al 2021) where the EPS merger rate
         is sampled on small internal timesteps such that only binary splits can occur.
-        NOTE: Sampling from the density grid will ALWAYS use number-limited sampling (method 1)
+        NOTE: The initial sampling from the density grid will ALWAYS use number-limited sampling (method 1)
     FILTER : string, optional
         Filter to use for sigma (matter field variance) and radius to mass conversions.
         available options are: `spherical-tophat` and `gaussian`
@@ -459,19 +459,25 @@ class MatterOptions(InputStruct):
     KEEP_3D_VELOCITIES: bool, optional
         Whether to keep the 3D velocities in the ICs.
         If False, only the z velocity is kept.
-    LAGRANGIAN_SOURCE_GRIDS: bool, optional
-        The new model in v4, where source properties are defined on the Lagrangian (IC) grid prior
-        to the IGM physics. This can include integrals over the CHMF (e.g. ESF-L in Trac+22), or
-        discrete halo catalogues (from the DexM excursion set or Sampling the CHMF).
-    USE_DISCRETE_HALOS: bool, optional
-        Enables the use of discrete halo catalogues from either DexM or the CHMF sampler. These
-        catalogues will go down to a certain mass determined by other parameters, and the
-        CHMF integrals will be calculated below this mass. Requires the use of LAGRANGIAN_SOURCE_GRIDS.
-    USE_CHMF_SAMPLER: bool, optional
-        Activates the CHMF sampler to generate halo catalogues between the HII_DIM cell mass, and
-        the parameter SAMPLER_MIN_MASS. This is much faster and more memory efficient than DexM,
-        which is usually not feasible for smaller masses. Requires the use of LAGRANGIAN_SOURCE_GRIDS and
-        USE_DISCRETE_HALOS.
+    SOURCE_MODEL: str, optional
+        The source model to use in the simulation. Options are:
+        E-INTEGRAL : The traditional excursion-set formalism, where source properties are
+            defined on the Eulerian grid after 2LPT in regions of filter scale R (see the X_FILTER options for filter shapes).
+            This integrates over the CHMF using the smoothed density grids, then multiplies the result.
+            by (1 + delta) to get the source properties in each cell.
+        L-INTEGRAL : Analagous to the 'ESF-L' model described in Trac+22, where source properties
+            are defined on the Lagrangian (IC) grid by integrating the CHMF prior to the IGM physics
+            and then mapping properties to the Eulerian grid using 2LPT.
+        DEXM-ESF : The DexM excursion-set formalism, where discrete halo catalogues are generated
+            on the Lagrangian (IC) grid using an excursion-set halo finder. Source properties
+            are defined on the Lagrangian grid and then mapped to the Eulerian grid using 2LPT.
+            This model utilised the 'L-INTEGRAL' method for halos below the DexM mass resolution,
+            which is the mass of the high-resolution (DIM^3) cells.
+        CHMF-SAMPLER : The CHMF sampler, where discrete halo catalogues are generated by sampling
+            the CHMF on the IC grid, between the low-resolution (HII_DIM^3) cell mass and a minimum
+            mass defined by the user (SAMPLER_MIN_MASS). This model uses the 'L-INTEGRAL' method for
+            halos below the SAMPLER_MIN_MASS, and the 'DEXM-ESF' method for halos above the HII_DIM
+            cell mass.
     """
 
     HMF: Literal["PS", "ST", "WATSON", "WATSON-Z", "DELOS"] = choice_field(default="ST")
@@ -502,11 +508,9 @@ class MatterOptions(InputStruct):
     )
     USE_FFTW_WISDOM: bool = field(default=False, converter=bool)
 
-    # NOTE: These do not affect the ICs & PerturbedFields,
-    #  but we moved the halos to the matter side for now
-    LAGRANGIAN_SOURCE_GRIDS: bool = field(default=True, converter=bool)
-    USE_DISCRETE_HALOS: bool = field(default=True, converter=bool)
-    USE_CHMF_SAMPLER: bool = field(default=True, converter=bool)
+    SOURCE_MODEL: Literal["E-INTEGRAL", "L-INTEGRAL", "DEXM-ESF", "CHMF-SAMPLER"] = (
+        choice_field(default="CHMF-SAMPLER")
+    )
 
     @POWER_SPECTRUM.default
     def _ps_default(self):
@@ -519,36 +523,34 @@ class MatterOptions(InputStruct):
                 "Can only use 'CLASS' power spectrum with relative velocities"
             )
 
-    @USE_DISCRETE_HALOS.validator
-    def _USE_DISCRETE_HALOS_vld(self, att, val):
-        """Raise an error if USE_DISCRETE_HALOS is True and LAGRANGIAN_SOURCE_GRIDS is False."""
-        if val and not self.LAGRANGIAN_SOURCE_GRIDS:
-            raise ValueError(
-                "USE_DISCRETE_HALOS is a sub-flag of LAGRANGIAN_SOURCE_GRIDS,"
-                " set it to True to use this model."
-            )
-        if val and self.HMF not in ["ST", "PS"]:
+    @SOURCE_MODEL.validator
+    def _SOURCE_MODEL_vld(self, att, val):
+        """Validate SOURCE_MODEL dependencies."""
+        if val in ["DEXM-ESF", "CHMF-SAMPLER"] and self.HMF not in ["ST", "PS"]:
             msg = (
                 "The conditional mass functions requied for the discrete halo field are only currently"
                 "available for the Sheth-Tormen and Press-Schechter mass functions., use HMF='ST' or 'PS'"
             )
             raise NotImplementedError(msg)
-
-    @USE_CHMF_SAMPLER.validator
-    def _USE_CHMF_SAMPLER_vld(self, att, val):
-        """Raise an error if USE_CHMF_SAMPLER is True and LAGRANGIAN_SOURCE_GRIDS is False."""
-        if val and not (self.LAGRANGIAN_SOURCE_GRIDS and self.USE_DISCRETE_HALOS):
-            raise ValueError(
-                "USE_CHMF_SAMPLER is is a sub-flag of USE_DISCRETE_HALOS and"
-                "LAGRANGIAN_SOURCE_GRIDS, set them both to True to use this model."
-            )
-
-        if val and self.USE_INTERPOLATION_TABLES != "hmf-interpolation":
+        if (
+            val in ["DEXM-ESF", "CHMF-SAMPLER"]
+            and self.USE_INTERPOLATION_TABLES != "hmf-interpolation"
+        ):
             msg = (
-                "The halo sampler enabled with USE_CHMF_SAMPLER requires the use of HMF interpolation tables."
+                "The halo sampler enabled with the halo sampler requires the use of HMF interpolation tables."
                 "Switch USE_INTERPOLATION_TABLES to 'hmf-interpolation' to use the halo sampler."
             )
             raise ValueError(msg)
+
+    @property
+    def has_discrete_halos(self) -> bool:
+        """Whether the current options will produce discrete halo catalogues."""
+        return self.SOURCE_MODEL in ["DEXM-ESF", "CHMF-SAMPLER"]
+
+    @property
+    def lagrangian_source_grid(self) -> bool:
+        """Whether the current source model is Lagrangian."""
+        return self.SOURCE_MODEL in ["L-INTEGRAL", "DEXM-ESF", "CHMF-SAMPLER"]
 
 
 @define(frozen=True, kw_only=True)
@@ -590,7 +592,7 @@ class SimulationOptions(InputStruct):
         Sets the number of processors (threads) to be used for performing 21cmFAST.
         Default 1.
     SAMPLER_MIN_MASS: float, optional
-        The minimum mass to sample in the halo sampler when USE_CHMF_SAMPLER is true,
+        The minimum mass to sample in the halo sampler when SOURCE_MODEL is "CHMF-SAMPLER",
         decreasing this can drastically increase both compute time and memory usage.
     SAMPLER_BUFFER_FACTOR: float, optional
         The arrays for the halo sampler will have size of SAMPLER_BUFFER_FACTOR multiplied by the expected
@@ -836,15 +838,15 @@ class AstroOptions(InputStruct):
         Whether the minimum halo mass (for ionization) is defined by
         mass or virial temperature. Automatically True if `USE_MASS_DEPENDENT_ZETA`
         is True.
-    PHOTON_CONS_TYPE : int, optional
+    PHOTON_CONS_TYPE : str, optional
         Whether to perform a small correction to account for the inherent
         photon non-conservation. This can be one of three types of correction:
 
-        0: No photon cosnervation correction,
-        1: Photon conservation correction by adjusting the redshift of the N_ion source field (Park+22)
-        2: Adjustment to the escape fraction power-law slope, based on fiducial results in Park+22, This runs a
+        no-photoncons: No photon cosnervation correction,
+        z-photoncons: Photon conservation correction by adjusting the redshift of the N_ion source field (Park+22)
+        alpha-photoncons: Adjustment to the escape fraction power-law slope, based on fiducial results in Park+22, This runs a
         series of global xH evolutions and one calibration simulation to find the adjustment as a function of xH
-        3: Adjustment to the escape fraction normalisation, runs one calibration simulation to find the
+        f-photoncons: Adjustment to the escape fraction normalisation, runs one calibration simulation to find the
         adjustment as a function of xH where f'/f = xH_global/xH_calibration
     FIX_VCB_AVG: bool, optional
         Determines whether to use a fixed vcb=VAVG (*regardless* of USE_RELATIVE_VELOCITIES). It includes the average effect of velocities but not its fluctuations. See Muñoz+21 (2110.13919).
@@ -859,7 +861,7 @@ class AstroOptions(InputStruct):
     USE_UPPER_STELLAR_TURNOVER: bool, optional
         Whether to use an additional powerlaw in stellar mass fraction at high halo mass. The pivot mass scale and power-law index are
         controlled by two parameters, UPPER_STELLAR_TURNOVER_MASS and UPPER_STELLAR_TURNOVER_INDEX respectively.
-        This is currently only implemented in the halo model (LAGRANGIAN_SOURCE_GRIDS=True), and has no effect otherwise.
+        This is currently only implemented using the discrete halo model, and has no effect otherwise.
     HALO_SCALING_RELATIONS_MEDIAN: bool, optional
         If True, halo scaling relation parameters (F_STAR10,t_STAR etc...) define the median of their conditional distributions
         If False, they describe the mean.
@@ -873,17 +875,17 @@ class AstroOptions(InputStruct):
     IONISE_ENTIRE_SPHERE: bool, optional
         If True, ionises the entire sphere on the filter scale when an ionised region is found
         in the excursion set.
-    INTEGRATION_METHOD_ATOMIC: int, optional
+    INTEGRATION_METHOD_ATOMIC: str, optional
         The integration method to use for conditional MF integrals of atomic halos in the grids:
         NOTE: global integrals will use GSL QAG adaptive integration
-        0: GSL QAG adaptive integration,
-        1: Gauss-Legendre integration, previously forced in the interpolation tables,
-        2: Approximate integration, assuming sharp cutoffs and a triple power-law for sigma(M) based on EPS
-    INTEGRATION_METHOD_MINI: int, optional
+        'GSL-QAG': GSL QAG adaptive integration,
+        'GAUSS-LEGENDRE': Gauss-Legendre integration, previously forced in the interpolation tables,
+        'GAMMA-APPROX': Approximate integration, assuming sharp cutoffs and a triple power-law for sigma(M) based on EPS
+    INTEGRATION_METHOD_MINI: str, optional
         The integration method to use for conditional MF integrals of minihalos in the grids:
-        0: GSL QAG adaptive integration,
-        1: Gauss-Legendre integration, previously forced in the interpolation tables,
-        2: Approximate integration, assuming sharp cutoffs and a triple power-law for sigma(M) based on EPS
+        'GSL-QAG': GSL QAG adaptive integration,
+        'GAUSS-LEGENDRE': Gauss-Legendre integration, previously forced in the interpolation tables,
+        'GAMMA-APPROX': Approximate integration, assuming sharp cutoffs and a triple power-law for sigma(M) based on EPS
     """
 
     USE_MINI_HALOS: bool = field(default=False, converter=bool)
@@ -1359,28 +1361,30 @@ class InputParameters:
                 "USE_MINI_HALOS needs USE_RELATIVE_VELOCITIES to get the right evolution!",
                 stacklevel=2,
             )
-        if self.matter_options.LAGRANGIAN_SOURCE_GRIDS:
+        if self.matter_options.lagrangian_source_grid:
             if val.PHOTON_CONS_TYPE == "z-photoncons":
                 raise ValueError(
-                    "LAGRANGIAN_SOURCE_GRIDS is not compatible with the redshift-based"
-                    " photon conservation corrections (PHOTON_CONS_TYPE=='z_photoncons')! "
+                    f"SOURCE_MODEL={self.matter_options.SOURCE_MODEL} is not compatible with the redshift-based"
+                    " photon conservation corrections (PHOTON_CONS_TYPE=='z_photoncons')! Use a "
+                    " different PHOTON_CONS_TYPE or set SOURCE_MODEL='E-INTEGRAL' to use the old"
+                    " source model"
                 )
-            """Raise an error if LAGRANGIAN_SOURCE_GRIDS is True and USE_MASS_DEPENDENT_ZETA is False."""
+            """Raise an error if using lagrangian sources and USE_MASS_DEPENDENT_ZETA is False."""
             if not val.USE_MASS_DEPENDENT_ZETA:
                 raise ValueError(
-                    "You have set USE_MASS_DEPENDENT_ZETA to False but LAGRANGIAN_SOURCE_GRIDS is True! "
+                    "All of the lagrangian SOURCE_MODELs require USE_MASS_DEPENDENT_ZETA == True"
                 )
         else:
             if val.USE_EXP_FILTER:
                 raise ValueError(
-                    "USE_EXP_FILTER is not compatible with LAGRANGIAN_SOURCE_GRIDS == False"
+                    "USE_EXP_FILTER is not compatible with SOURCE_MODEL == 'E-INTEGRAL'"
                 )
         if (
-            not self.matter_options.USE_DISCRETE_HALOS
+            not self.matter_options.has_discrete_halos
             and val.USE_UPPER_STELLAR_TURNOVER
         ):
             raise NotImplementedError(
-                "USE_UPPER_STELLAR_TURNOVER is not yet implemented for when USE_DISCRETE_HALOS is False"
+                f"USE_UPPER_STELLAR_TURNOVER is not yet implemented for SOURCE_MODEL = {self.matter_options.SOURCE_MODEL}"
             )
         if self.matter_options.HMF not in ["PS", "ST", "DELOS"]:
             warnings.warn(
@@ -1676,7 +1680,7 @@ def check_halomass_range(inputs: InputParameters) -> None:
     if it is above the turnover mass.
     """
     # There are no problems if we are not using halos
-    if not inputs.matter_options.LAGRANGIAN_SOURCE_GRIDS:
+    if not inputs.matter_options.lagrangian_source_grid:
         return
 
     # simplified behaviour of lib.minimum_source_mass()
@@ -1699,16 +1703,16 @@ def check_halomass_range(inputs: InputParameters) -> None:
         else lores_cell_mass
     )
 
-    has_dexm_halos = inputs.matter_options.USE_DISCRETE_HALOS
-    has_sampled_halos = inputs.matter_options.USE_CHMF_SAMPLER
+    has_dexm_halos = inputs.matter_options.SOURCE_MODEL in ["DEXM-ESF", "CHMF-SAMPLER"]
+    has_sampled_halos = inputs.matter_options.SOURCE_MODEL == "CHMF-SAMPLER"
     has_integrals = (
         min_integral_mass / un.M_sun < inputs.simulation_options.SAMPLER_MIN_MASS
     )
 
     min_cellint = min_integral_mass
-    if inputs.matter_options.USE_CHMF_SAMPLER:
+    if inputs.matter_options.SOURCE_MODEL == "CHMF-SAMPLER":
         max_cellint = inputs.simulation_options.SAMPLER_MIN_MASS * un.M_sun
-    elif inputs.matter_options.USE_DISCRETE_HALOS:
+    elif inputs.matter_options.SOURCE_MODEL == "DEXM-ESF":
         max_cellint = hires_cell_mass
     else:
         max_cellint = max_integral_mass

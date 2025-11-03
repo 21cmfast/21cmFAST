@@ -613,14 +613,14 @@ int ComputeHaloBox(double redshift, InitialConditions *ini_boxes, HaloCatalog *h
                             mturn_m_grid, &hbox_consts, mturn_averages);
         grids->log10_Mcrit_ACG_ave = mturn_averages[0];
         grids->log10_Mcrit_MCG_ave = mturn_averages[1];
-        if (matter_options_global->USE_DISCRETE_HALOS) {
+        if (matter_options_global->SOURCE_MODEL > 1) {
             sum_halos_onto_grid(redshift, ini_boxes, halos, mturn_a_grid, mturn_m_grid,
                                 &hbox_consts, grids);
         }
         // set sub-catalogue properties
-        if (matter_options_global->USE_CHMF_SAMPLER) {
+        if (matter_options_global->SOURCE_MODEL == 3) {
             M_max_integral = simulation_options_global->SAMPLER_MIN_MASS;
-        } else if (matter_options_global->USE_DISCRETE_HALOS) {
+        } else if (matter_options_global->SOURCE_MODEL == 2) {
             M_max_integral = RtoM(physconst.l_factor * simulation_options_global->BOX_LEN /
                                   simulation_options_global->DIM);
         } else {
@@ -637,7 +637,7 @@ int ComputeHaloBox(double redshift, InitialConditions *ini_boxes, HaloCatalog *h
             free(mturn_a_grid);
             free(mturn_m_grid);
         }
-        // NOTE: the density-grid based calculations (!LAGRANGIAN_SOURCE_GRIDS)
+        // NOTE: the density-grid based calculations (SOURCE_MODEL='E-INTEGRAL')
         //  use the cell-weighted average of the log10(Mturn) (see issue #369)
         LOG_SUPER_DEBUG("log10 Mutrn ACG: %.6e", pow(10, grids->log10_Mcrit_ACG_ave));
         LOG_SUPER_DEBUG("log10 Mutrn MCG: %.6e", pow(10, grids->log10_Mcrit_MCG_ave));

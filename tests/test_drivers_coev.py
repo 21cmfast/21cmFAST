@@ -49,8 +49,7 @@ def test_coeval_lowerz_than_photon_cons(
 def test_coeval_warnings(default_input_struct_lc, cache):
     # test for no caching with halo fields
     inputs = default_input_struct_lc.evolve_input_structs(
-        LAGRANGIAN_SOURCE_GRIDS=True,
-        USE_DISCRETE_HALOS=True,
+        SOURCE_MODEL="CHMF-SAMPLER",
     )
 
     with pytest.warns(UserWarning, match="You have turned off caching"):

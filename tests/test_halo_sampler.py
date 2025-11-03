@@ -264,9 +264,7 @@ def make_dummy_box(inputs, curr_redshift, redshift_type, output_cls):
 def test_perturb_halos(default_input_struct_ts):
     # inputs which get all the firlds
     inputs_test = default_input_struct_ts.evolve_input_structs(
-        LAGRANGIAN_SOURCE_GRIDS=True,
-        USE_DISCRETE_HALOS=True,
-        USE_CHMF_SAMPLER=True,
+        SOURCE_MODEL="CHMF-SAMPLER",
         SAMPLER_MIN_MASS=5e9,
         PERTURB_ON_HIGH_RES=True,
         INHOMO_RECO=True,
