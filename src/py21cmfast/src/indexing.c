@@ -7,9 +7,10 @@
 #include <stdlib.h>
 
 #include "InputParameters.h"
+#include "logger.h"
 
-// Minutia: I'm guessing that since particles will rarely be wrapped, the branching
-//  will be faster than a modulus, either way this is not likely to be a bottleneck
+// Minutia: Testing showed that the while loops were faster than a modulus
+// for uniformly distributed positions on a grid size greater than 8
 void wrap_position(double pos[3], double size[3]) {
     // wrap the coordinates to the box size
     while (pos[0] >= size[0]) {

@@ -19,9 +19,8 @@ def get_expected_outputs(
 
     if inputs.matter_options.USE_HALO_FIELD:
         out |= {
-            "HaloField": ostrct.HaloField.new(inputs, redshift=6).arrays,
+            "HaloCatalog": ostrct.HaloCatalog.new(inputs, redshift=6).arrays,
             "HaloBox": ostrct.HaloBox.new(inputs, redshift=6).arrays,
-            "PerturbHaloField": ostrct.PerturbHaloField.new(inputs, redshift=6).arrays,
         }
 
         if inputs.astro_options.USE_TS_FLUCT:
@@ -41,12 +40,10 @@ def get_expected_outputs(
         del out["IonizedBox"]
     if not cache_config.brightness_temp:
         del out["BrightnessTemp"]
-    if not cache_config.halo_field and "HaloField" in out:
-        del out["HaloField"]
+    if not cache_config.halo_catalog and "HaloCatalog" in out:
+        del out["HaloCatalog"]
     if not cache_config.halobox and "HaloBox" in out:
         del out["HaloBox"]
-    if not cache_config.perturbed_halo_field and "PerturbHaloField" in out:
-        del out["PerturbHaloField"]
     if not cache_config.spin_temp and "TsBox" in out:
         del out["TsBox"]
     if not cache_config.xray_source_box and "XraySourceBox" in out:

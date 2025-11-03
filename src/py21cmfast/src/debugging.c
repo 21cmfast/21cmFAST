@@ -123,7 +123,7 @@ void writeAstroParams(AstroParams *p) {
         p->L_X, p->NU_X_THRESH, p->X_RAY_SPEC_INDEX, p->UPPER_STELLAR_TURNOVER_MASS,
         p->UPPER_STELLAR_TURNOVER_INDEX);
     LOG_INFO(
-        "\n        HaloField AstroParams:\n"
+        "\n        HaloCatalog AstroParams:\n"
         "       SIGMA_STAR=%8.3f\n"
         "       SIGMA_SFR_LIM=%8.3f\n"
         "       SIGMA_SFR_INDEX=%8.3f\n"
@@ -305,7 +305,7 @@ void debugSummarizeIC(InitialConditions *x, int HII_DIM, int DIM, float NCF) {
     debugSummarizeBox(x->lowres_vz, HII_DIM, HII_DIM, HII_D_PARA, "    ");
 }
 
-void debugSummarizePerturbField(PerturbedField *x, int HII_DIM, float NCF) {
+void debugSummarizePerturbedField(PerturbedField *x, int HII_DIM, float NCF) {
     LOG_SUPER_DEBUG("Summary of PerturbedField:");
     LOG_SUPER_DEBUG("  density: ");
     debugSummarizeBox(x->density, HII_DIM, HII_DIM, HII_D_PARA, "    ");

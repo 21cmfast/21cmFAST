@@ -492,9 +492,8 @@ class TestInputParameters:
 
     def test_evolve(self):
         """Test that evolve_input_structs does what it says."""
-        # Test defaults
-        altered_struct = self.default.evolve_input_structs(BOX_LEN=30)
-        assert altered_struct.simulation_options.BOX_LEN == 30
+        altered_struct = self.default.evolve_input_structs(BOX_LEN=100)
+        assert altered_struct.simulation_options.BOX_LEN == 100
 
         altered_struct = self.default.evolve_input_structs(SIGMA_8=1.0)
         assert altered_struct.cosmo_params.SIGMA_8 == 1.0
@@ -528,3 +527,26 @@ class TestInputParameters:
             match="BAD_INPUT is not a valid keyword input.",
         ):
             InputParameters(random_seed=0).evolve_input_structs(BAD_INPUT=True)
+
+    def test_halomass_ranges(self):
+        """Test that passing a non-existent parameter to evolve raises."""
+        with pytest.raises(
+            ValueError,
+            match="There is a gap/overlap in the halo mass ranges",
+        ):
+            # These cells are ~6e7 Msun, with 1e8 minimum sampler mass this leaves a gap
+            self.default.evolve_input_structs(BOX_LEN=30.0)
+
+        with pytest.warns(
+            UserWarning,
+            match="The maximum halo mass",
+        ):
+            # The cell size is ~1e11 Msun
+            self.default.evolve_input_structs(FIXED_HALO_GRIDS=True)
+
+        with pytest.warns(
+            UserWarning,
+            match="The minimum halo mass",
+        ):
+            # The cell size is ~1e11 Msun
+            self.default.evolve_input_structs(AVG_BELOW_SAMPLER=False)
