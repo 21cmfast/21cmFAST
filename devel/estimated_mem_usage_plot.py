@@ -2,9 +2,9 @@
 
 import matplotlib.pyplot as plt
 import numpy as np
+from py21cmfast._memory import estimate_memory_lightcone
 
 from py21cmfast import AstroFlags, AstroParams, CosmoParams, MatterParams
-from py21cmfast._memory import estimate_memory_lightcone
 
 matter_params = MatterParams(
     {
