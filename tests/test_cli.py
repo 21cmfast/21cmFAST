@@ -172,7 +172,6 @@ class TestRunICS:
         app_noexit(
             f"run ics --template simple tiny --cachedir {tmp_path}",
             console=Console(width=100),
-            result_action="return_value",
         )
         output = capsys.readouterr().out
         assert "Saved initial conditions" in output
@@ -192,24 +191,17 @@ class TestRunICS:
 
     def test_regen(self, capsys, tmp_path):
         """Test that re-running the same box with --regen does actually re-run things."""
-        app_noexit(
-            f"run ics --template simple tiny --cachedir {tmp_path}",
-            result_action="return_value",
-        )
+        app_noexit(f"run ics --template simple tiny --cachedir {tmp_path}")
 
         # Now run it again right away with regen
         app_noexit(
             f"run ics --template simple tiny --cachedir {tmp_path} --regenerate",
-            result_action="return_value",
         )
         out = capsys.readouterr().out
         assert "regeneration is requested. Overriding." in out
 
         # Run it without regen
-        app_noexit(
-            f"run ics --template simple tiny --cachedir {tmp_path}",
-            result_action="return_value",
-        )
+        app_noexit(f"run ics --template simple tiny --cachedir {tmp_path}")
         out = capsys.readouterr().out
         assert "skipping computation" in out
 
@@ -223,7 +215,6 @@ class TestRunCoeval:
         app_noexit(
             f"run coeval --template simple tiny --cachedir {tmp_path} "
             f"--redshifts 6.0 --out {cfile.parent}",
-            result_action="return_value",
         )
 
         output = capsys.readouterr().out
@@ -241,7 +232,6 @@ class TestRunCoeval:
             f"--cachedir {tmp_path} "
             f"--no-save-all-redshifts "
             f"--redshifts 6.0 --out {tmp_path}",
-            result_action="return_value",
         )
         cfile = tmp_path / "coeval_z6.00.h5"
         assert cfile.exists()
@@ -253,7 +243,6 @@ class TestRunCoeval:
             f"run coeval --template Park19 tiny --cachedir {new} "
             f"--save-all-redshifts "
             f"--redshifts 6.0 --out {new}",
-            result_action="return_value",
         )
         assert len(list(new.glob("coeval*.h5"))) > 1
 
@@ -267,7 +256,6 @@ class TestRunLightcone:
         app_noexit(
             f"run lightcone --template simple tiny --cachedir {tmp_path} "
             f"--redshift-range 6.0 12.0 --out {lcfile}",
-            result_action="return_value",
         )
 
         output = capsys.readouterr().out
@@ -282,7 +270,6 @@ class TestRunLightcone:
         app_noexit(
             f"run lightcone --template simple tiny --cachedir {tmp_path} "
             f"--redshift-range 6.0 12.0 --out {lcfile}",
-            result_action="return_value",
         )
 
         assert lcfile.exists()
