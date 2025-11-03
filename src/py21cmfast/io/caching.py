@@ -547,7 +547,7 @@ class CacheConfig:
     ionized_box: bool = attrs.field(default=True, converter=bool)
     brightness_temp: bool = attrs.field(default=True, converter=bool)
     halobox: bool = attrs.field(default=True, converter=bool)
-    halo_field: bool = attrs.field(default=True, converter=bool)
+    halo_catalog: bool = attrs.field(default=True, converter=bool)
     xray_source_box: bool = attrs.field(default=True, converter=bool)
 
     @classmethod
@@ -565,7 +565,7 @@ class CacheConfig:
             ionized_box=False,
             brightness_temp=False,
             halobox=False,
-            halo_field=False,
+            halo_catalog=False,
             xray_source_box=False,
         )
 
@@ -579,7 +579,7 @@ class CacheConfig:
             ionized_box=False,
             brightness_temp=False,
             halobox=False,
-            halo_field=True,
+            halo_catalog=True,
             xray_source_box=False,
         )
 
@@ -588,7 +588,7 @@ class CacheConfig:
         """Generate a CacheConfig where only boxes needed from more than one step away are cached.
 
         This represents the minimum caching setup which will *never* store every redshift in memory.
-        PerturbedField and PerturbHaloCatalogs are all calculated at the start of the run, and HaloBox
+        PerturbedField and PerturbedHaloCatalogs are all calculated at the start of the run, and HaloBox
         is required at multiple redshifts for the XraySourceBox. So this caching setup allows free
         purging of these objects without losing data.
         """
@@ -599,6 +599,6 @@ class CacheConfig:
             ionized_box=False,
             brightness_temp=False,
             halobox=True,
-            halo_field=True,
+            halo_catalog=True,
             xray_source_box=False,
         )

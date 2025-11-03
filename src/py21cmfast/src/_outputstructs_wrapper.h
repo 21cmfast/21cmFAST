@@ -27,7 +27,7 @@ typedef struct HaloCatalog {
     float *xray_rng;
 } HaloCatalog;
 
-typedef struct PerturbHaloCatalog {
+typedef struct PerturbedHaloCatalog {
     long long unsigned int n_halos;
     long long unsigned int buffer_size;
     float *halo_masses;
@@ -42,7 +42,7 @@ typedef struct PerturbHaloCatalog {
 
     float *stellar_mini;
     float *sfr_mini;
-} PerturbHaloCatalog;
+} PerturbedHaloCatalog;
 
 typedef struct HaloBox {
     // Things that aren't used in radiation fields but useful outputs

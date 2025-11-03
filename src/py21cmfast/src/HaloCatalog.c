@@ -33,7 +33,7 @@ int check_halo(char *in_halo, float R, int x, int y, int z, int check_type);
 void init_halo_coords(HaloCatalog *halos, long long unsigned int n_halos);
 int pixel_in_halo(int grid_dim, int z_dim, int x, int x_index, int y, int y_index, int z,
                   int z_index, float Rsq_curr_index);
-void free_halo_field(HaloCatalog *halos);
+void free_halo_catalog(HaloCatalog *halos);
 
 int ComputeHaloCatalog(float redshift_desc, float redshift, InitialConditions *boxes,
                        unsigned long long int random_seed, HaloCatalog *halos_desc,
@@ -178,7 +178,7 @@ int ComputeHaloCatalog(float redshift_desc, float redshift, InitialConditions *b
             halos_dexm = halos;
         }
 
-        float *halo_field = calloc(TOT_NUM_PIXELS, sizeof(float));
+        float *halo_catalog = calloc(TOT_NUM_PIXELS, sizeof(float));
 
         while ((R > 0.5 * Delta_R) &&
                (RtoM(R) >= M_MIN)) {  // filter until we get to half the pixel size or M_MIN
@@ -230,7 +230,7 @@ int ComputeHaloCatalog(float redshift_desc, float redshift, InitialConditions *b
                         for (x = 0; x < grid_dim; x++) {
                             for (y = 0; y < grid_dim; y++) {
                                 for (z = 0; z < z_dim; z++) {
-                                    halo_buf = halo_field[grid_index_general(x, y, z, box_dim)];
+                                    halo_buf = halo_catalog[grid_index_general(x, y, z, box_dim)];
                                     if (halo_buf > 0.) {
                                         R_temp = MtoR(halo_buf);
                                         check_halo(
@@ -274,7 +274,7 @@ int ComputeHaloCatalog(float redshift_desc, float redshift, InitialConditions *b
                                            y, z,
                                            2);  // flag the pixels contained within this halo
 
-                                halo_field[idx_r] = M;
+                                halo_catalog[idx_r] = M;
 
                                 r_halo_num++;  // keep track of the number of halos
                             }
@@ -289,7 +289,7 @@ int ComputeHaloCatalog(float redshift_desc, float redshift, InitialConditions *b
                                             in_halo, R, x, y, z,
                                             2);  // flag the pixels contained within this halo
 
-                                        halo_field[idx_r] = M;
+                                        halo_catalog[idx_r] = M;
 
                                         r_halo_num++;
                                     }
@@ -325,7 +325,7 @@ int ComputeHaloCatalog(float redshift_desc, float redshift, InitialConditions *b
         for (x = 0; x < grid_dim; x++) {
             for (y = 0; y < grid_dim; y++) {
                 for (z = 0; z < z_dim; z++) {
-                    halo_buf = halo_field[grid_index_general(x, y, z, box_dim)];
+                    halo_buf = halo_catalog[grid_index_general(x, y, z, box_dim)];
                     if (halo_buf > 0.) {
                         halos_dexm->halo_masses[count] = halo_buf;
                         // place DexM halos at the centre of the cell
@@ -406,7 +406,7 @@ int ComputeHaloCatalog(float redshift_desc, float redshift, InitialConditions *b
                                  halo_overlap_box, halos_dexm, halos);
 
             // Here, halos_dexm is allocated in the C, so free it
-            free_halo_field(halos_dexm);
+            free_halo_catalog(halos_dexm);
             free(halos_dexm);
             free(halo_overlap_box);
         }
@@ -414,7 +414,7 @@ int ComputeHaloCatalog(float redshift_desc, float redshift, InitialConditions *b
         LOG_DEBUG("Finished halo processing.");
 
         free(in_halo);
-        free(halo_field);
+        free(halo_catalog);
 
         if (matter_options_global->DEXM_OPTIMIZE) {
             free(forbidden);
@@ -544,7 +544,7 @@ void init_halo_coords(HaloCatalog *halos, long long unsigned int n_halos) {
     halos->xray_rng = (float *)calloc(alloc_size, sizeof(float));
 }
 
-void free_halo_field(HaloCatalog *halos) {
+void free_halo_catalog(HaloCatalog *halos) {
     LOG_DEBUG("Freeing HaloCatalog instance.");
     free(halos->halo_masses);
     free(halos->halo_coords);

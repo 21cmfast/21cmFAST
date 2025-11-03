@@ -778,8 +778,8 @@ int test_halo_props(double redshift, float *vcb_grid, float *J21_LW_grid, float 
 }
 
 int convert_halo_props(double redshift, InitialConditions *ics, TsBox *prev_ts,
-                       IonizedBox *prev_ion, HaloCatalog *halo_list,
-                       PerturbHaloCatalog *halo_list_out) {
+                       IonizedBox *prev_ion, HaloCatalog *halo_catalog,
+                       PerturbedHaloCatalog *halo_catalog_out) {
     ScalingConstants hbox_consts;
     set_scaling_constants(redshift, &hbox_consts, true);
     // print_sc_consts(&hbox_consts);
@@ -811,8 +811,8 @@ int convert_halo_props(double redshift, InitialConditions *ics, TsBox *prev_ts,
         HaloProperties out_props;
 
 #pragma omp for
-        for (i_halo = 0; i_halo < halo_list->n_halos; i_halo++) {
-            m = halo_list->halo_masses[i_halo];
+        for (i_halo = 0; i_halo < halo_catalog->n_halos; i_halo++) {
+            m = halo_catalog->halo_masses[i_halo];
             // It is sometimes useful to make cuts to the halo catalogues before gridding.
             //   We implement this in a simple way, if the user sets a halo's mass to zero we
             //   skip it
@@ -820,10 +820,10 @@ int convert_halo_props(double redshift, InitialConditions *ics, TsBox *prev_ts,
                 continue;
             }
 
-            // the coordinates are already done in PerturbHaloCatalog
-            halo_pos[0] = halo_list_out->halo_coords[3 * i_halo + 0] * box_to_lores_factor;
-            halo_pos[1] = halo_list_out->halo_coords[3 * i_halo + 1] * box_to_lores_factor;
-            halo_pos[2] = halo_list_out->halo_coords[3 * i_halo + 2] * box_to_lores_factor;
+            // the coordinates are already done in PerturbedHaloCatalog
+            halo_pos[0] = halo_catalog_out->halo_coords[3 * i_halo + 0] * box_to_lores_factor;
+            halo_pos[1] = halo_catalog_out->halo_coords[3 * i_halo + 1] * box_to_lores_factor;
+            halo_pos[2] = halo_catalog_out->halo_coords[3 * i_halo + 2] * box_to_lores_factor;
 
             LOG_ULTRA_DEBUG("getting mturns for halo at (%.2f, %.2f, %.2f)", halo_pos[0],
                             halo_pos[1], halo_pos[2]);
@@ -833,9 +833,9 @@ int convert_halo_props(double redshift, InitialConditions *ics, TsBox *prev_ts,
             }
 
             // these are the halo property RNG sequences
-            in_props[0] = halo_list->star_rng[i_halo];
-            in_props[1] = halo_list->sfr_rng[i_halo];
-            in_props[2] = halo_list->xray_rng[i_halo];
+            in_props[0] = halo_catalog->star_rng[i_halo];
+            in_props[1] = halo_catalog->sfr_rng[i_halo];
+            in_props[2] = halo_catalog->xray_rng[i_halo];
 
             LOG_ULTRA_DEBUG("Halo %llu mass %.2e Mturn_a %.2e Mturn_m %.2e", i_halo, m, M_turn_a,
                             M_turn_m);
@@ -843,20 +843,20 @@ int convert_halo_props(double redshift, InitialConditions *ics, TsBox *prev_ts,
                             in_props[2]);
             set_halo_properties(m, M_turn_a, M_turn_m, &hbox_consts, in_props, &out_props);
 
-            halo_list_out->halo_masses[i_halo] = out_props.halo_mass;
-            halo_list_out->stellar_masses[i_halo] = out_props.stellar_mass;
-            halo_list_out->sfr[i_halo] = out_props.halo_sfr;
-            halo_list_out->ion_emissivity[i_halo] = out_props.n_ion;
+            halo_catalog_out->halo_masses[i_halo] = out_props.halo_mass;
+            halo_catalog_out->stellar_masses[i_halo] = out_props.stellar_mass;
+            halo_catalog_out->sfr[i_halo] = out_props.halo_sfr;
+            halo_catalog_out->ion_emissivity[i_halo] = out_props.n_ion;
 
             if (astro_options_global->USE_MINI_HALOS) {
-                halo_list_out->stellar_mini[i_halo] = out_props.stellar_mass_mini;
-                halo_list_out->sfr_mini[i_halo] = out_props.sfr_mini;
+                halo_catalog_out->stellar_mini[i_halo] = out_props.stellar_mass_mini;
+                halo_catalog_out->sfr_mini[i_halo] = out_props.sfr_mini;
             }
             if (astro_options_global->INHOMO_RECO) {
-                halo_list_out->fesc_sfr[i_halo] = out_props.fescweighted_sfr;
+                halo_catalog_out->fesc_sfr[i_halo] = out_props.fescweighted_sfr;
             }
             if (astro_options_global->USE_TS_FLUCT) {
-                halo_list_out->xray_emissivity[i_halo] = out_props.halo_xray;
+                halo_catalog_out->xray_emissivity[i_halo] = out_props.halo_xray;
             }
 
             if (i_halo < 10) {

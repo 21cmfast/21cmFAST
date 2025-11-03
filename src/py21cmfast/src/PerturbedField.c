@@ -1,5 +1,5 @@
 // Re-write of perturb_field.c for being accessible within the MCMC
-#include "PerturbField.h"
+#include "PerturbedField.h"
 
 #include <complex.h>
 #include <fftw3.h>
@@ -382,9 +382,10 @@ void compute_perturbed_velocities(unsigned short axis, double redshift,
                       simulation_options_global->HII_DIM, HII_D_PARA, "  ");
 }
 
-int ComputePerturbField(float redshift, InitialConditions *boxes, PerturbedField *perturbed_field) {
+int ComputePerturbedField(float redshift, InitialConditions *boxes,
+                          PerturbedField *perturbed_field) {
     /*
-     ComputePerturbField uses the first-order Langragian displacement field to move the
+     ComputePerturbedField uses the first-order Langragian displacement field to move the
      masses in the cells of the density field. The high-res density field is extrapolated
      to some high-redshift (simulation_options.INITIAL_REDSHIFT), then uses the zeldovich
      approximation to move the grid "particles" onto the lower-res grid we use for the

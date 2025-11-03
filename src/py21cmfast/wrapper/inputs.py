@@ -502,7 +502,7 @@ class MatterOptions(InputStruct):
     )
     USE_FFTW_WISDOM: bool = field(default=False, converter=bool)
 
-    # NOTE: These do not affect the ICs & PerturbFields,
+    # NOTE: These do not affect the ICs & PerturbedFields,
     #  but we moved the halos to the matter side for now
     LAGRANGIAN_SOURCE_GRIDS: bool = field(default=True, converter=bool)
     USE_DISCRETE_HALOS: bool = field(default=True, converter=bool)

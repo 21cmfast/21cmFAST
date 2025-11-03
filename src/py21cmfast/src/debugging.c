@@ -305,7 +305,7 @@ void debugSummarizeIC(InitialConditions *x, int HII_DIM, int DIM, float NCF) {
     debugSummarizeBox(x->lowres_vz, HII_DIM, HII_DIM, HII_D_PARA, "    ");
 }
 
-void debugSummarizePerturbField(PerturbedField *x, int HII_DIM, float NCF) {
+void debugSummarizePerturbedField(PerturbedField *x, int HII_DIM, float NCF) {
     LOG_SUPER_DEBUG("Summary of PerturbedField:");
     LOG_SUPER_DEBUG("  density: ");
     debugSummarizeBox(x->density, HII_DIM, HII_DIM, HII_D_PARA, "    ");

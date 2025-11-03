@@ -39,7 +39,7 @@ def get_expected_outputs(
         del out["IonizedBox"]
     if not cache_config.brightness_temp:
         del out["BrightnessTemp"]
-    if not cache_config.halo_field and "HaloCatalog" in out:
+    if not cache_config.halo_catalog and "HaloCatalog" in out:
         del out["HaloCatalog"]
     if not cache_config.halobox and "HaloBox" in out:
         del out["HaloBox"]
