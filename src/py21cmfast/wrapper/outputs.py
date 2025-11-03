@@ -1482,7 +1482,7 @@ class IonizedBox(OutputStructZ):
                 required += [
                     "unnormalised_nion",
                 ]
-                if self.matter_options.SOURCE_MODEL != "E-INTEGRAL":
+                if self.matter_options.SOURCE_MODEL == "E-INTEGRAL":
                     required += [
                         "unnormalised_nion_mini",
                     ]
