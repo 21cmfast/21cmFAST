@@ -50,6 +50,7 @@ struct IonBoxConstants {
 
     // compound/alternate flags
     bool fix_mean;
+    bool mass_dep_zeta;
     bool filter_recombinations;
     bool lagrangian_source_grids;
     bool need_minihalo_nion;
@@ -148,7 +149,8 @@ void set_ionbox_constants(double redshift, double prev_redshift, struct IonBoxCo
 
     // whether to fix *integrated* (not sampled) galaxy properties to the expected mean
     //   constant for now, to be a flag later
-    consts->lagrangian_source_grids = matter_options_global->SOURCE_MODEL > 0;
+    consts->mass_dep_zeta = matter_options_global->SOURCE_MODEL > 0;
+    consts->lagrangian_source_grids = matter_options_global->SOURCE_MODEL > 1;
     consts->fix_mean = !consts->lagrangian_source_grids;  // for now, opposite of above
     consts->need_minihalo_nion =
         !consts->lagrangian_source_grids && astro_options_global->USE_MINI_HALOS;
@@ -158,7 +160,7 @@ void set_ionbox_constants(double redshift, double prev_redshift, struct IonBoxCo
     consts->hii_filter = astro_options_global->HII_FILTER;
     consts->T_re = astro_params_global->T_RE;
 
-    if (astro_options_global->USE_MASS_DEPENDENT_ZETA) {
+    if (matter_options_global->SOURCE_MODEL > 0) {
         consts->ion_eff_factor_gl = sc.pop2_ion * sc.fstar_10 * sc.fesc_10;
         consts->ion_eff_factor_mini_gl = sc.pop3_ion * sc.fstar_7 * sc.fesc_7;
     } else {
@@ -233,7 +235,7 @@ void allocate_fftw_grids(struct FilteredGrids **fg_struct) {
     (*fg_struct)->deltax_filtered =
         (fftwf_complex *)fftwf_malloc(sizeof(fftwf_complex) * HII_KSPACE_NUM_PIXELS);
 
-    if (astro_options_global->USE_MINI_HALOS && matter_options_global->SOURCE_MODEL == 0) {
+    if (astro_options_global->USE_MINI_HALOS && matter_options_global->SOURCE_MODEL < 2) {
         (*fg_struct)->prev_deltax_unfiltered =
             (fftwf_complex *)fftwf_malloc(sizeof(fftwf_complex) * HII_KSPACE_NUM_PIXELS);
         (*fg_struct)->prev_deltax_filtered =
@@ -263,7 +265,7 @@ void allocate_fftw_grids(struct FilteredGrids **fg_struct) {
             (fftwf_complex *)fftwf_malloc(sizeof(fftwf_complex) * HII_KSPACE_NUM_PIXELS);
     }
 
-    if (matter_options_global->SOURCE_MODEL > 0) {
+    if (matter_options_global->SOURCE_MODEL > 1) {
         (*fg_struct)->stars_unfiltered =
             (fftwf_complex *)fftwf_malloc(sizeof(fftwf_complex) * HII_KSPACE_NUM_PIXELS);
         (*fg_struct)->stars_filtered =
@@ -283,7 +285,7 @@ void free_fftw_grids(struct FilteredGrids *fg_struct) {
     fftwf_free(fg_struct->deltax_unfiltered);
     fftwf_free(fg_struct->deltax_filtered);
 
-    if (astro_options_global->USE_MINI_HALOS && matter_options_global->SOURCE_MODEL == 0) {
+    if (astro_options_global->USE_MINI_HALOS && matter_options_global->SOURCE_MODEL < 2) {
         fftwf_free(fg_struct->prev_deltax_unfiltered);
         fftwf_free(fg_struct->prev_deltax_filtered);
 
@@ -301,7 +303,7 @@ void free_fftw_grids(struct FilteredGrids *fg_struct) {
         fftwf_free(fg_struct->N_rec_filtered);
     }
 
-    if (matter_options_global->SOURCE_MODEL > 0) {
+    if (matter_options_global->SOURCE_MODEL > 1) {
         fftwf_free(fg_struct->stars_unfiltered);
         fftwf_free(fg_struct->stars_filtered);
         if (astro_options_global->INHOMO_RECO) {
@@ -465,7 +467,7 @@ void set_mean_fcoll(struct IonBoxConstants *c, IonizedBox *prev_box, IonizedBox 
                     double mturn_acg, double mturn_mcg, double *f_limit_acg, double *f_limit_mcg) {
     double f_coll_curr = 0., f_coll_prev = 0., f_coll_curr_mini = 0., f_coll_prev_mini = 0.;
     ScalingConstants *sc_ptr = &(c->scale_consts);
-    if (astro_options_global->USE_MASS_DEPENDENT_ZETA) {
+    if (matter_options_global->SOURCE_MODEL > 0) {
         f_coll_curr = Nion_General(c->redshift, c->lnMmin, c->lnMmax_gl, mturn_acg, sc_ptr);
         *f_limit_acg = Nion_General(simulation_options_global->Z_HEAT_MAX, c->lnMmin, c->lnMmax_gl,
                                     mturn_acg, sc_ptr);
@@ -702,7 +704,7 @@ void setup_integration_tables(struct FilteredGrids *fg_struct, struct IonBoxCons
     min_density -= 0.001;
     max_density += 0.001;
 
-    if (astro_options_global->USE_MASS_DEPENDENT_ZETA) {
+    if (consts->mass_dep_zeta) {
         if (astro_options_global->USE_MINI_HALOS) {
             // do the same for prev
             clip_and_get_extrema(fg_struct->prev_deltax_filtered, -1, 1e6, &prev_min_density,
@@ -827,7 +829,7 @@ void calculate_fcoll_grid(IonizedBox *box, IonizedBox *previous_ionize_box,
                         prev_Splined_Fcoll_MINI = 0.;
                     } else {
                         curr_dens = *((float *)fg_struct->deltax_filtered + index_f);
-                        if (astro_options_global->USE_MASS_DEPENDENT_ZETA) {
+                        if (consts->mass_dep_zeta) {
                             if (astro_options_global->USE_MINI_HALOS) {
                                 log10_Mturnover =
                                     *((float *)fg_struct->log10_Mturnover_filtered + index_f);
@@ -1057,7 +1059,7 @@ void find_ionised_regions(IonizedBox *box, IonizedBox *previous_ionize_box,
                         curr_fcoll_mini = mean_fix_term_mcg * curr_fcoll_mini;
                     }
 
-                    if (astro_options_global->USE_MASS_DEPENDENT_ZETA) {
+                    if (consts->mass_dep_zeta) {
                         if (curr_fcoll < f_limit_acg) curr_fcoll = f_limit_acg;
                         if (astro_options_global->USE_MINI_HALOS) {
                             if (curr_fcoll_mini < f_limit_mcg) curr_fcoll_mini = f_limit_mcg;
@@ -1382,31 +1384,28 @@ int ComputeIonizedBox(float redshift, float prev_redshift, PerturbedField *pertu
 
         // Find the mass limits and average turnovers
         double Mturnover_global_avg = 0., Mturnover_global_avg_MINI = 0.;
-        if (astro_options_global->USE_MASS_DEPENDENT_ZETA) {
-            if (ionbox_constants.lagrangian_source_grids) {
-                // Here these are only used for the global calculations
-                box->log10_Mturnover_ave = halos->log10_Mcrit_ACG_ave;
-                box->log10_Mturnover_MINI_ave = halos->log10_Mcrit_MCG_ave;
-                Mturnover_global_avg = pow(10., halos->log10_Mcrit_ACG_ave);
-                Mturnover_global_avg_MINI = pow(10., halos->log10_Mcrit_MCG_ave);
-            } else if (astro_options_global->USE_MINI_HALOS) {
-                LOG_SUPER_DEBUG(
-                    "Calculating and outputting Mcrit boxes for atomic and molecular halos...");
-                calculate_mcrit_boxes(previous_ionize_box, spin_temp, ini_boxes, &ionbox_constants,
-                                      grid_struct->log10_Mturnover_unfiltered,
-                                      grid_struct->log10_Mturnover_MINI_unfiltered,
-                                      &(box->log10_Mturnover_ave),
-                                      &(box->log10_Mturnover_MINI_ave));
+        if (ionbox_constants.lagrangian_source_grids) {
+            // Here these are only used for the global calculations
+            box->log10_Mturnover_ave = halos->log10_Mcrit_ACG_ave;
+            box->log10_Mturnover_MINI_ave = halos->log10_Mcrit_MCG_ave;
+            Mturnover_global_avg = pow(10., halos->log10_Mcrit_ACG_ave);
+            Mturnover_global_avg_MINI = pow(10., halos->log10_Mcrit_MCG_ave);
+        } else if (astro_options_global->USE_MINI_HALOS) {
+            LOG_SUPER_DEBUG(
+                "Calculating and outputting Mcrit boxes for atomic and molecular halos...");
+            calculate_mcrit_boxes(previous_ionize_box, spin_temp, ini_boxes, &ionbox_constants,
+                                  grid_struct->log10_Mturnover_unfiltered,
+                                  grid_struct->log10_Mturnover_MINI_unfiltered,
+                                  &(box->log10_Mturnover_ave), &(box->log10_Mturnover_MINI_ave));
 
-                Mturnover_global_avg = pow(10., box->log10_Mturnover_ave);
-                Mturnover_global_avg_MINI = pow(10., box->log10_Mturnover_MINI_ave);
-                LOG_DEBUG("average log10 turnover masses are %.2f and %.2f for ACGs and MCGs",
-                          box->log10_Mturnover_ave, box->log10_Mturnover_MINI_ave);
-            } else {
-                Mturnover_global_avg = astro_params_global->M_TURN;
-                box->log10_Mturnover_ave = log10(Mturnover_global_avg);
-                box->log10_Mturnover_MINI_ave = log10(Mturnover_global_avg);
-            }
+            Mturnover_global_avg = pow(10., box->log10_Mturnover_ave);
+            Mturnover_global_avg_MINI = pow(10., box->log10_Mturnover_MINI_ave);
+            LOG_DEBUG("average log10 turnover masses are %.2f and %.2f for ACGs and MCGs",
+                      box->log10_Mturnover_ave, box->log10_Mturnover_MINI_ave);
+        } else {
+            Mturnover_global_avg = astro_params_global->M_TURN;
+            box->log10_Mturnover_ave = log10(Mturnover_global_avg);
+            box->log10_Mturnover_MINI_ave = log10(Mturnover_global_avg);
         }
         // lets check if we are going to bother with computing the inhmogeneous field at all...
         global_xH = 0.0;
@@ -1527,7 +1526,7 @@ int ComputeIonizedBox(float redshift, float prev_redshift, PerturbedField *pertu
                 // TODO: This was the previous behaviour, but is this right?
                 // setting the *total* to the minimum for the adjustment factor,
                 // then clipping the grid in the loop below?
-                if (astro_options_global->USE_MASS_DEPENDENT_ZETA) {
+                if (ionbox_constants.mass_dep_zeta) {
                     if (curr_radius.f_coll_grid_mean <= f_limit_acg)
                         curr_radius.f_coll_grid_mean = f_limit_acg;
                     if (astro_options_global->USE_MINI_HALOS) {

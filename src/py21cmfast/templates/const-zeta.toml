@@ -5,12 +5,11 @@
 [SimulationOptions]
 
 [MatterOptions]
-SOURCE_MODEL = 'E-INTEGRAL'
+SOURCE_MODEL = 'CONST-ZETA'
 
 [AstroParams]
 
 [AstroOptions]
-USE_MASS_DEPENDENT_ZETA = false
 USE_EXP_FILTER = false
 CELL_RECOMB = false
 USE_UPPER_STELLAR_TURNOVER = false

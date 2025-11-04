@@ -1460,7 +1460,7 @@ class IonizedBox(OutputStructZ):
         if isinstance(input_box, InitialConditions):
             if (
                 self.matter_options.USE_RELATIVE_VELOCITIES
-                and self.astro_options.USE_MASS_DEPENDENT_ZETA
+                and self.matter_options.mass_dependent_zeta
             ):
                 required += ["lowres_vcb"]
         elif isinstance(input_box, PerturbedField):
@@ -1476,7 +1476,7 @@ class IonizedBox(OutputStructZ):
                     "cumulative_recombinations",
                 ]
             if (
-                self.astro_options.USE_MASS_DEPENDENT_ZETA
+                self.matter_options.mass_dependent_zeta
                 and self.astro_options.USE_MINI_HALOS
             ):
                 required += [

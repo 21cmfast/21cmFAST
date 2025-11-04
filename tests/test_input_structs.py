@@ -114,31 +114,9 @@ class TestInputStructSubclasses:
 class TestAstroOptions:
     """Tests of AstroOptions."""
 
-    def test_mmin(self):
-        """Test that use_mass_dep_zeta sets M_MIN_in_mass."""
-        fo = AstroOptions(USE_MASS_DEPENDENT_ZETA=True)
-        assert fo.M_MIN_in_Mass
-
     # Testing all the AstroOptions dependencies, including emitted warnings
     def test_bad_inputs(self):
         """Test possible exceptions when creating the object."""
-        with pytest.raises(
-            ValueError,
-            match="You have set USE_MINI_HALOS to True but USE_MASS_DEPENDENT_ZETA is False!",
-        ):
-            AstroOptions(
-                USE_MASS_DEPENDENT_ZETA=False,
-                USE_MINI_HALOS=True,
-                INHOMO_RECO=True,
-                USE_TS_FLUCT=True,
-            )
-
-        with pytest.raises(
-            ValueError,
-            match="M_MIN_in_Mass must be true if USE_MASS_DEPENDENT_ZETA is true.",
-        ):
-            AstroOptions(USE_MASS_DEPENDENT_ZETA=True, M_MIN_in_Mass=False)
-
         with pytest.raises(
             ValueError,
             match="You have set USE_MINI_HALOS to True but INHOMO_RECO is False!",
@@ -311,7 +289,7 @@ class TestMatterOptions:
 
     def test_bad_inputs(self):
         """Test that exceptions are raised for bad inputs."""
-        msg = r"The halo sampler enabled with the halo sampler requires the use of HMF interpolation tables."
+        msg = r"SOURCE_MODEL settings using the halo sampler require the use of HMF interpolation tables."
         with pytest.raises(ValueError, match=msg):
             MatterOptions(
                 SOURCE_MODEL="CHMF-SAMPLER",
@@ -333,6 +311,20 @@ class TestInputParameters:
     EXCEPTION_CASES: ClassVar = [
         (
             ValueError,
+            "SOURCE_MODEL == 'CONST-ZETA' is not compatible with USE_MINI_HALOS=True",
+            {
+                "matter_options": MatterOptions(SOURCE_MODEL="CONST-ZETA"),
+                "astro_options": AstroOptions(
+                    USE_MINI_HALOS=True,
+                    INHOMO_RECO=True,
+                    USE_TS_FLUCT=True,
+                    USE_EXP_FILTER=False,
+                    USE_UPPER_STELLAR_TURNOVER=False,
+                ),
+            },
+        ),
+        (
+            ValueError,
             "R_BUBBLE_MAX is larger than BOX_LEN",
             {
                 "astro_params": AstroParams(R_BUBBLE_MAX=100),
@@ -352,14 +344,6 @@ class TestInputParameters:
         ),
         (
             ValueError,
-            "All of the lagrangian SOURCE_MODELs require USE_MASS_DEPENDENT_ZETA == True",
-            {
-                "matter_options": MatterOptions(SOURCE_MODEL="L-INTEGRAL"),
-                "astro_options": AstroOptions(USE_MASS_DEPENDENT_ZETA=False),
-            },
-        ),
-        (
-            ValueError,
             "is not compatible with the redshift-based",
             {
                 "matter_options": MatterOptions(SOURCE_MODEL="CHMF-SAMPLER"),
@@ -368,7 +352,7 @@ class TestInputParameters:
         ),
         (
             ValueError,
-            "USE_EXP_FILTER is not compatible with SOURCE_MODEL == 'E-INTEGRAL'",
+            "USE_EXP_FILTER is not compatible with SOURCE_MODEL == E-INTEGRAL",
             {
                 "matter_options": MatterOptions(
                     SOURCE_MODEL="E-INTEGRAL",

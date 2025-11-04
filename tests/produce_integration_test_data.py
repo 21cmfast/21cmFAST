@@ -86,7 +86,7 @@ OPTIONS_TESTRUNS = {
     "no-mdz": [
         18,
         {
-            "USE_MASS_DEPENDENT_ZETA": False,
+            "SOURCE_MODEL": "CONST-ZETA",
         },
     ],
     "mini": [
@@ -126,7 +126,7 @@ OPTIONS_TESTRUNS = {
     ],
     "ts_nomdz": [
         18,
-        {"USE_TS_FLUCT": True, "USE_MASS_DEPENDENT_ZETA": False},
+        {"USE_TS_FLUCT": True, "SOURCE_MODEL": "CONST-ZETA"},
     ],
     "inhomo": [
         18,

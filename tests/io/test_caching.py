@@ -322,7 +322,7 @@ def test_hash_for_different_inputs(default_input_struct, inp_type):
         "matter_options": {"SOURCE_MODEL": "L-INTEGRAL"},
         "cosmo_params": {"hlittle": 0.7},
         "astro_params": {"L_X": 38.0},
-        "astro_options": {"USE_MASS_DEPENDENT_ZETA": False},
+        "astro_options": {"USE_CMB_HEATING": False},
     }
     hash_default = caching.OutputCache()._get_hashes(default_input_struct)
     if inp_type not in ["random_seed", "node_redshifts"]:

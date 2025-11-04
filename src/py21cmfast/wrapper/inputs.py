@@ -508,9 +508,9 @@ class MatterOptions(InputStruct):
     )
     USE_FFTW_WISDOM: bool = field(default=False, converter=bool)
 
-    SOURCE_MODEL: Literal["E-INTEGRAL", "L-INTEGRAL", "DEXM-ESF", "CHMF-SAMPLER"] = (
-        choice_field(default="CHMF-SAMPLER")
-    )
+    SOURCE_MODEL: Literal[
+        "CONST-ZETA", "E-INTEGRAL", "L-INTEGRAL", "DEXM-ESF", "CHMF-SAMPLER"
+    ] = choice_field(default="CHMF-SAMPLER")
 
     @POWER_SPECTRUM.default
     def _ps_default(self):
@@ -537,8 +537,8 @@ class MatterOptions(InputStruct):
             and self.USE_INTERPOLATION_TABLES != "hmf-interpolation"
         ):
             msg = (
-                "The halo sampler enabled with the halo sampler requires the use of HMF interpolation tables."
-                "Switch USE_INTERPOLATION_TABLES to 'hmf-interpolation' to use the halo sampler."
+                "SOURCE_MODEL settings using the halo sampler require the use of HMF interpolation tables."
+                "Switch USE_INTERPOLATION_TABLES to 'hmf-interpolation'"
             )
             raise ValueError(msg)
 
@@ -551,6 +551,16 @@ class MatterOptions(InputStruct):
     def lagrangian_source_grid(self) -> bool:
         """Whether the current source model is Lagrangian."""
         return self.SOURCE_MODEL in ["L-INTEGRAL", "DEXM-ESF", "CHMF-SAMPLER"]
+
+    @property
+    def mass_dependent_zeta(self) -> bool:
+        """Whether the current source model uses mass-dependent zeta."""
+        return self.SOURCE_MODEL in [
+            "E-INTEGRAL",
+            "L-INTEGRAL",
+            "DEXM-ESF",
+            "CHMF-SAMPLER",
+        ]
 
 
 @define(frozen=True, kw_only=True)
@@ -820,14 +830,11 @@ class AstroOptions(InputStruct):
     ----------
     USE_MINI_HALOS : bool, optional
         Set to True if using mini-halos parameterization.
-        If True, USE_MASS_DEPENDENT_ZETA and INHOMO_RECO must be True.
+        If True, USE_TS_FLUCT and INHOMO_RECO must be True.
     USE_CMB_HEATING : bool, optional
         Whether to include CMB Heating. (cf Eq.4 of Meiksin 2021, arxiv.org/abs/2105.14516)
     USE_LYA_HEATING : bool, optional
         Whether to use Lyman-alpha heating. (cf Sec. 3 of Reis+2021, doi.org/10.1093/mnras/stab2089)
-    USE_MASS_DEPENDENT_ZETA : bool, optional
-        Set to True if using new parameterization. Setting to True will automatically
-        set `M_MIN_in_Mass` to True.
     INHOMO_RECO : bool, optional
         Whether to perform inhomogeneous recombinations. Increases the computation
         time.
@@ -836,8 +843,7 @@ class AstroOptions(InputStruct):
         Dramatically increases the computation time.
     M_MIN_in_Mass : bool, optional
         Whether the minimum halo mass (for ionization) is defined by
-        mass or virial temperature. Automatically True if `USE_MASS_DEPENDENT_ZETA`
-        is True.
+        mass or virial temperature. Only has an effect when SOURCE_MODEL == 'CONST-ZETA'
     PHOTON_CONS_TYPE : str, optional
         Whether to perform a small correction to account for the inherent
         photon non-conservation. This can be one of three types of correction:
@@ -891,7 +897,6 @@ class AstroOptions(InputStruct):
     USE_MINI_HALOS: bool = field(default=False, converter=bool)
     USE_CMB_HEATING: bool = field(default=True, converter=bool)
     USE_LYA_HEATING: bool = field(default=True, converter=bool)
-    USE_MASS_DEPENDENT_ZETA: bool = field(default=True, converter=bool)
     INHOMO_RECO: bool = field(default=False, converter=bool)
     USE_TS_FLUCT: bool = field(default=False, converter=bool)
     FIX_VCB_AVG: bool = field(default=False, converter=bool)
@@ -912,26 +917,13 @@ class AstroOptions(InputStruct):
     INTEGRATION_METHOD_ATOMIC: IntegralMethods = choice_field(default="GAUSS-LEGENDRE")
     INTEGRATION_METHOD_MINI: IntegralMethods = choice_field(default="GAUSS-LEGENDRE")
 
-    @M_MIN_in_Mass.validator
-    def _M_MIN_in_Mass_vld(self, att, val):
-        """M_MIN_in_Mass must be true if USE_MASS_DEPENDENT_ZETA is true."""
-        if not val and self.USE_MASS_DEPENDENT_ZETA:
-            raise ValueError(
-                "M_MIN_in_Mass must be true if USE_MASS_DEPENDENT_ZETA is true."
-            )
-
     @USE_MINI_HALOS.validator
     def _USE_MINI_HALOS_vald(self, att, val):
         """
         Raise an error USE_MINI_HALOS is True with incompatible flags.
 
-        This happens when anyof of USE_MASS_DEPENDENT_ZETA, INHOMO_RECO,
-        or USE_TS_FLUCT is False.
+        This happens when INHOMO_RECO or USE_TS_FLUCT is False.
         """
-        if val and not self.USE_MASS_DEPENDENT_ZETA:
-            raise ValueError(
-                "You have set USE_MINI_HALOS to True but USE_MASS_DEPENDENT_ZETA is False! "
-            )
         if val and not self.INHOMO_RECO:
             raise ValueError(
                 "You have set USE_MINI_HALOS to True but INHOMO_RECO is False! "
@@ -982,8 +974,7 @@ class AstroParams(InputStruct):
     F_STAR10 : float, optional
         The fraction of galactic gas in stars for 10^10 solar mass haloes.
         Only used in the "new" parameterization,
-        i.e. when `USE_MASS_DEPENDENT_ZETA` is set to True (in :class:`AstroOptions`).
-        If so, this is used along with `F_ESC10` to determine `HII_EFF_FACTOR` (which
+        This is used along with `F_ESC10` to determine `HII_EFF_FACTOR` (which
         is then unused). See Eq. 11 of Greig+2018 and Sec 2.1 of Park+2018.
         Given in log10 units.
     F_STAR7_MINI : float, optional
@@ -1009,9 +1000,8 @@ class AstroParams(InputStruct):
         index of the power-law between SFMS scatter and stellar mass below 1e10 solar.
     F_ESC10 : float, optional
         The "escape fraction", i.e. the fraction of ionizing photons escaping into the
-        IGM, for 10^10 solar mass haloes. Only used in the "new" parameterization,
-        i.e. when `USE_MASS_DEPENDENT_ZETA` is set to True (in :class:`AstroOptions`).
-        If so, this is used along with `F_STAR10` to determine `HII_EFF_FACTOR` (which
+        IGM, for 10^10 solar mass haloes. Only used in the "new" parameterization.
+        This is used along with `F_STAR10` to determine `HII_EFF_FACTOR` (which
         is then unused). See Eq. 11 of Greig+2018 and Sec 2.1 of Park+2018.
     F_ESC7_MINI: float, optional
         The "escape fraction for minihalos", i.e. the fraction of ionizing photons escaping
@@ -1026,8 +1016,7 @@ class AstroParams(InputStruct):
         Park+2018.
     M_TURN : float, optional
         Turnover mass (in log10 solar mass units) for quenching of star formation in
-        halos, due to SNe or photo-heating feedback, or inefficient gas accretion. Only
-        used if `USE_MASS_DEPENDENT_ZETA` is set to True in :class:`AstroOptions`.
+        halos, due to SNe or photo-heating feedback, or inefficient gas accretion.
         See Sec 2.1 of Park+2018.
     R_BUBBLE_MAX : float, optional
         Mean free path in Mpc of ionizing photons within ionizing regions (Sec. 2.1.2 of
@@ -1059,8 +1048,7 @@ class AstroParams(InputStruct):
         If used we recommend going back to Macachek+01 A_LW=22.86.
     t_STAR : float, optional
         Fractional characteristic time-scale (fraction of hubble time) defining the
-        star-formation rate of galaxies. Only used if `USE_MASS_DEPENDENT_ZETA` is set
-        to True in :class:`AstroOptions`. See Sec 2.1, Eq. 3 of Park+2018.
+        star-formation rate of galaxies. See Sec 2.1, Eq. 3 of Park+2018.
     A_LW, BETA_LW: float, optional
         Impact of the LW feedback on Mturn for minihaloes. Default is 22.8685 and 0.47 following Machacek+01, respectively. Latest simulations suggest 2.0 and 0.6. See Sec 2 of Muñoz+21 (2110.13919).
     A_VCB, BETA_VCB: float, optional
@@ -1352,15 +1340,17 @@ class InputParameters:
     def _astro_options_validator(self, att, val):
         if self.matter_options is None:
             return
-        if (
-            val.USE_MINI_HALOS
-            and not self.matter_options.USE_RELATIVE_VELOCITIES
-            and not val.FIX_VCB_AVG
-        ):
-            warnings.warn(
-                "USE_MINI_HALOS needs USE_RELATIVE_VELOCITIES to get the right evolution!",
-                stacklevel=2,
-            )
+        if val.USE_MINI_HALOS:
+            if not self.matter_options.USE_RELATIVE_VELOCITIES and not val.FIX_VCB_AVG:
+                warnings.warn(
+                    "USE_MINI_HALOS needs USE_RELATIVE_VELOCITIES to get the right evolution!",
+                    stacklevel=2,
+                )
+            if self.matter_options.SOURCE_MODEL == "CONST-ZETA":
+                raise ValueError(
+                    "SOURCE_MODEL == 'CONST-ZETA' is not compatible with USE_MINI_HALOS=True"
+                )
+
         if self.matter_options.lagrangian_source_grid:
             if val.PHOTON_CONS_TYPE == "z-photoncons":
                 raise ValueError(
@@ -1369,15 +1359,10 @@ class InputParameters:
                     " different PHOTON_CONS_TYPE or set SOURCE_MODEL='E-INTEGRAL' to use the old"
                     " source model"
                 )
-            """Raise an error if using lagrangian sources and USE_MASS_DEPENDENT_ZETA is False."""
-            if not val.USE_MASS_DEPENDENT_ZETA:
-                raise ValueError(
-                    "All of the lagrangian SOURCE_MODELs require USE_MASS_DEPENDENT_ZETA == True"
-                )
         else:
             if val.USE_EXP_FILTER:
                 raise ValueError(
-                    "USE_EXP_FILTER is not compatible with SOURCE_MODEL == 'E-INTEGRAL'"
+                    f"USE_EXP_FILTER is not compatible with SOURCE_MODEL == {self.matter_options.SOURCE_MODEL}"
                 )
         if (
             not self.matter_options.has_discrete_halos
@@ -1395,11 +1380,13 @@ class InputParameters:
             )
         elif (
             val.INTEGRATION_METHOD_ATOMIC == "GAMMA-APPROX"
-            and self.matter_options.HMF != "PS"
-        ):
+            or val.INTEGRATION_METHOD_MINI == "GAMMA-APPROX"
+            or self.matter_options.SOURCE_MODEL == "CONST-ZETA"
+        ) and self.matter_options.HMF != "PS":
             warnings.warn(
-                "The 'GAMMA-APPROX' integration method uses the EPS conditional mass function"
-                "normalised to the unconditional mass function provided by the user as matter_options.HMF",
+                "Your model (either SOURCE_MODEL=='CONST-ZETA' or INTEGRATION_METHOD_X=='GAMMA-APPROX')"
+                "uses the EPS conditional mass function normalised to the unconditional mass"
+                "function provided by the user as matter_options.HMF",
                 stacklevel=2,
             )
 

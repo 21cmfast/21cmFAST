@@ -58,7 +58,12 @@ def show_references(inputs: InputParameters, print_to_stdout=True):
         "https://ui.adsabs.harvard.edu/link_gateway/2011MNRAS.411..955M/doi:10.1111/j.1365-2966.2010.17731.x\n\n"
     )
 
-    if inputs.astro_options.USE_MASS_DEPENDENT_ZETA:
+    if inputs.matter_options.SOURCE_MODEL in [
+        "E-INTEGRAL",
+        "L-INTEGRAL",
+        "DEXM-ESF",
+        "CHMF-SAMPLER",
+    ]:
         ref_string += (
             "The mass-dependent ionising efficiency model:\n"
             "=============================================\n"
