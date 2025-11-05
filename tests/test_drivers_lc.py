@@ -96,7 +96,7 @@ def test_run_lc_bad_inputs(
 ):
     with pytest.raises(
         ValueError,
-        match="You are attempting to run a lightcone with no node_redshifts.",
+        match="You are attempting to run a lightcone with no node_redshifts",
     ):
         p21c.run_lightcone(
             lightconer=rectlcn,

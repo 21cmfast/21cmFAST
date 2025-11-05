@@ -4,6 +4,13 @@ import matplotlib as mpl
 import numpy as np
 import pytest
 
+from py21cmfast import (
+    IonizedBox,
+    TsBox,
+    compute_initial_conditions,
+    determine_halo_catalog,
+    perturb_halo_catalog,
+)
 from py21cmfast.wrapper import cfuncs as cf
 
 from . import test_c_interpolation_tables as cint
@@ -226,12 +233,130 @@ def test_halo_prop_sampling(default_input_struct_ts, plt):
     np.testing.assert_allclose(exp_LX, sim_LX, rtol=1e-4)
 
 
+def make_dummy_box(inputs, curr_redshift, redshift_type, output_cls):
+    """Make a dummy box of the given output class type.
+
+    All output fields are filled with zeros, and the box is marked
+    as having been computed at the given redshift.
+    """
+    if "curr" in redshift_type:
+        out_z = curr_redshift
+    elif "prev" in redshift_type:
+        out_z = [z for z in inputs.node_redshifts if z > curr_redshift][-1]
+    elif "desc" in redshift_type:
+        out_z = next([z for z in inputs.node_redshifts if z < curr_redshift])
+    else:
+        raise ValueError(f"redshift_type {redshift_type} not recognized.")
+
+    box = output_cls.new(inputs, redshift=out_z)
+    box._init_arrays()
+
+    for name, array in box.arrays.items():
+        setattr(
+            box,
+            name,
+            array.with_value(np.zeros(array.shape, dtype=array.dtype)).computed(),
+        )
+
+    return box
+
+
+def test_perturb_halos(default_input_struct_ts):
+    # inputs which get all the firlds
+    inputs_test = default_input_struct_ts.evolve_input_structs(
+        SOURCE_MODEL="CHMF-SAMPLER",
+        SAMPLER_MIN_MASS=5e9,
+        PERTURB_ON_HIGH_RES=True,
+        INHOMO_RECO=True,
+        USE_MINI_HALOS=True,
+        USE_RELATIVE_VELOCITIES=True,
+        POWER_SPECTRUM="CLASS",
+    )
+    ics = compute_initial_conditions(
+        inputs=inputs_test,
+    )
+    halofield = determine_halo_catalog(
+        redshift=10.0, initial_conditions=ics, inputs=inputs_test
+    )
+
+    prev_ts_box = make_dummy_box(
+        inputs=inputs_test,
+        curr_redshift=10.0,
+        redshift_type="prev",
+        output_cls=TsBox,
+    )
+    prev_ion_box = make_dummy_box(
+        inputs=inputs_test,
+        curr_redshift=10.0,
+        redshift_type="prev",
+        output_cls=IonizedBox,
+    )
+
+    pt_halos = perturb_halo_catalog(
+        initial_conditions=ics,
+        halo_catalog=halofield,
+        previous_spin_temp=prev_ts_box,
+        previous_ionize_box=prev_ion_box,
+    )
+
+    prop_dict = cf.convert_halo_properties(
+        redshift=10.0,
+        inputs=inputs_test,
+        halo_masses=halofield.get("halo_masses"),
+        star_rng=halofield.get("star_rng"),
+        sfr_rng=halofield.get("sfr_rng"),
+        xray_rng=halofield.get("xray_rng"),
+        J_21_LW_grid=prev_ts_box.get("J_21_LW"),
+        vcb_grid=ics.get("lowres_vcb"),
+        z_re_grid=prev_ion_box.get("z_reion"),
+        Gamma12_grid=prev_ion_box.get("ionisation_rate_G12"),
+    )
+
+    assert halofield.n_halos == pt_halos.n_halos
+    np.testing.assert_allclose(
+        pt_halos.get("halo_masses"),
+        prop_dict["halo_mass"][: pt_halos.n_halos],
+        rtol=1e-5,
+    )
+    np.testing.assert_allclose(
+        pt_halos.get("stellar_masses"),
+        prop_dict["halo_stars"][: pt_halos.n_halos],
+        rtol=1e-5,
+    )
+    np.testing.assert_allclose(
+        pt_halos.get("sfr"), prop_dict["halo_sfr"][: pt_halos.n_halos], rtol=1e-5
+    )
+    np.testing.assert_allclose(
+        pt_halos.get("ion_emissivity"),
+        prop_dict["n_ion"][: pt_halos.n_halos],
+        rtol=1e-5,
+    )
+    np.testing.assert_allclose(
+        pt_halos.get("xray_emissivity"),
+        prop_dict["halo_xray"][: pt_halos.n_halos],
+        rtol=1e-5,
+    )
+    np.testing.assert_allclose(
+        pt_halos.get("fesc_sfr"), prop_dict["halo_wsfr"][: pt_halos.n_halos], rtol=1e-5
+    )
+    np.testing.assert_allclose(
+        pt_halos.get("stellar_mini"),
+        prop_dict["halo_stars_mini"][: pt_halos.n_halos],
+        rtol=1e-5,
+    )
+    np.testing.assert_allclose(
+        pt_halos.get("sfr_mini"),
+        prop_dict["halo_sfr_mini"][: pt_halos.n_halos],
+        rtol=1e-5,
+    )
+
+
 # very basic scatter comparison
 def plot_scatter_comparison(
     truths, tests, inputs, names, log_vals=True, log_inp=False, plt=None
 ):
     nplots = len(truths)
-    fig, axs = plt.subplots(nrows=2, ncols=nplots, figsize=(4 * nplots, 6))
+    _fig, axs = plt.subplots(nrows=2, ncols=nplots, figsize=(4 * nplots, 6))
 
     for i, (true, test, inp, name) in enumerate(
         zip(truths, tests, inputs, names, strict=False)
@@ -257,7 +382,7 @@ def plot_scatter_comparison(
 def plot_sampler_comparison(
     bin_edges, exp_N, exp_M, N_array, M_array, exp_mf, mf_out, one_halo, title, plt
 ):
-    fig, axs = plt.subplots(nrows=1, ncols=2, figsize=(12, 5))
+    _fig, axs = plt.subplots(nrows=1, ncols=2, figsize=(12, 5))
 
     axst = [axs[0].twinx(), axs[1].twiny()]
 

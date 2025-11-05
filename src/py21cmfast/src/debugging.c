@@ -86,10 +86,16 @@ void writeMatterOptions(MatterOptions *p) {
         "       PERTURB_ALGORITHM=%1d\n"
         "       MINIMIZE_MEMORY=%1d,\n"
         "       KEEP_3D_VELOCITIES=%1d\n"
-        "       SAMPLE_METHOD=%2d\n",
+        "       SAMPLE_METHOD=%2d\n"
+        "       FILTER=%2d\n"
+        "       HALO_FILTER=%2d\n"
+        "       SOURCE_MODEL=%2d\n"
+        "       SMOOTH_EVOLVED_DENSITY_FIELD=%1d\n"
+        "       DEXM_OPTIMIZE=%1d\n",
         p->HMF, p->POWER_SPECTRUM, p->USE_RELATIVE_VELOCITIES, p->PERTURB_ON_HIGH_RES,
         p->USE_FFTW_WISDOM, p->USE_INTERPOLATION_TABLES, p->PERTURB_ALGORITHM, p->MINIMIZE_MEMORY,
-        p->KEEP_3D_VELOCITIES, p->SAMPLE_METHOD);
+        p->KEEP_3D_VELOCITIES, p->SAMPLE_METHOD, p->FILTER, p->HALO_FILTER, p->SOURCE_MODEL,
+        p->SMOOTH_EVOLVED_DENSITY_FIELD, p->DEXM_OPTIMIZE);
 }
 
 void writeCosmoParams(CosmoParams *p) {
@@ -100,8 +106,15 @@ void writeCosmoParams(CosmoParams *p) {
         "       OMm=%8.3f\n"
         "       OMl=%8.3f\n"
         "       OMb=%8.3f\n"
+        "       OMn=%8.3f\n"
+        "       OMk=%8.3f\n"
+        "       OMr=%8.3f\n"
+        "       OMtot=%8.3f\n"
+        "       Y_He=%8.3f\n"
+        "       wl=%8.3f\n"
         "       POWER_INDEX=%8.3f\n",
-        p->SIGMA_8, p->hlittle, p->OMm, p->OMl, p->OMb, p->POWER_INDEX);
+        p->SIGMA_8, p->hlittle, p->OMm, p->OMl, p->OMb, p->OMn, p->OMk, p->OMr, p->OMtot, p->Y_He,
+        p->wl, p->POWER_INDEX);
 }
 
 void writeAstroParams(AstroParams *p) {
@@ -123,7 +136,7 @@ void writeAstroParams(AstroParams *p) {
         p->L_X, p->NU_X_THRESH, p->X_RAY_SPEC_INDEX, p->UPPER_STELLAR_TURNOVER_MASS,
         p->UPPER_STELLAR_TURNOVER_INDEX);
     LOG_INFO(
-        "\n        HaloField AstroParams:\n"
+        "\n        HaloCatalog AstroParams:\n"
         "       SIGMA_STAR=%8.3f\n"
         "       SIGMA_SFR_LIM=%8.3f\n"
         "       SIGMA_SFR_INDEX=%8.3f\n"
@@ -154,7 +167,6 @@ void writeAstroOptions(AstroOptions *p) {
     LOG_INFO(
         "\n        AstroOptions:\n"
         "       USE_MINI_HALOS=%1d\n"
-        "       USE_MASS_DEPENDENT_ZETA=%1d\n"
         "       INHOMO_RECO=%1d\n"
         "       USE_TS_FLUCT=%1d\n"
         "       M_MIN_in_Mass=%1d\n"
@@ -164,10 +176,18 @@ void writeAstroOptions(AstroOptions *p) {
         "       FIX_VCB_AVG=%1d\n"
         "       CELL_RECOMB=%1d\n"
         "       PHOTON_CONS_TYPE=%2d\n"
-        "       USE_UPPER_STELLAR_TURNOVER=%1d\n",
-        p->USE_MINI_HALOS, p->USE_MASS_DEPENDENT_ZETA, p->INHOMO_RECO, p->USE_TS_FLUCT,
-        p->M_MIN_in_Mass, p->USE_EXP_FILTER, p->USE_CMB_HEATING, p->USE_LYA_HEATING, p->FIX_VCB_AVG,
-        p->CELL_RECOMB, p->PHOTON_CONS_TYPE, p->USE_UPPER_STELLAR_TURNOVER);
+        "       USE_UPPER_STELLAR_TURNOVER=%1d\n"
+        "       HALO_SCALING_RELATIONS_MEDIAN=%1d\n"
+        "       HII_FILTER=%2d\n"
+        "       HEAT_FILTER=%2d\n"
+        "       IONISE_ENTIRE_SPHERE=%1d\n"
+        "       INTEGRATION_METHOD_ATOMIC=%2d\n"
+        "       INTEGRATION_METHOD_MINI=%2d\n",
+        p->USE_MINI_HALOS, p->INHOMO_RECO, p->USE_TS_FLUCT, p->M_MIN_in_Mass, p->USE_EXP_FILTER,
+        p->USE_CMB_HEATING, p->USE_LYA_HEATING, p->FIX_VCB_AVG, p->CELL_RECOMB, p->PHOTON_CONS_TYPE,
+        p->USE_UPPER_STELLAR_TURNOVER, p->HALO_SCALING_RELATIONS_MEDIAN, p->HII_FILTER,
+        p->HEAT_FILTER, p->IONISE_ENTIRE_SPHERE, p->INTEGRATION_METHOD_ATOMIC,
+        p->INTEGRATION_METHOD_MINI);
 }
 
 void get_corner_indices(int size_x, int size_y, int size_z, unsigned long long indices[8]) {
@@ -305,7 +325,7 @@ void debugSummarizeIC(InitialConditions *x, int HII_DIM, int DIM, float NCF) {
     debugSummarizeBox(x->lowres_vz, HII_DIM, HII_DIM, HII_D_PARA, "    ");
 }
 
-void debugSummarizePerturbField(PerturbedField *x, int HII_DIM, float NCF) {
+void debugSummarizePerturbedField(PerturbedField *x, int HII_DIM, float NCF) {
     LOG_SUPER_DEBUG("Summary of PerturbedField:");
     LOG_SUPER_DEBUG("  density: ");
     debugSummarizeBox(x->density, HII_DIM, HII_DIM, HII_D_PARA, "    ");

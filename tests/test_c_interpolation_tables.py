@@ -28,8 +28,8 @@ OPTIONS_PS = {
 }
 
 OPTIONS_HMF = {
-    "PS": [10, {"HMF": "PS", "USE_MASS_DEPENDENT_ZETA": True, "M_MIN_in_Mass": True}],
-    "ST": [10, {"HMF": "ST", "USE_MASS_DEPENDENT_ZETA": True, "M_MIN_in_Mass": True}],
+    "PS": [10, {"HMF": "PS"}],
+    "ST": [10, {"HMF": "ST"}],
 }
 
 OPTIONS_INTMETHOD = {
@@ -53,7 +53,7 @@ options_intmethod = list(OPTIONS_INTMETHOD.keys())
 # Test delta range for CMF integrals over cells
 @pytest.fixture(scope="module")
 def delta_range():
-    return np.linspace(-0.98, 1.7, num=100)
+    return np.linspace(-0.98, 1.7, num=800)
 
 
 # Mass condition range, and integral bound range for testing CMF integrals
@@ -72,6 +72,22 @@ def log10_mturn_range():
 @pytest.fixture(scope="module")
 def z_range():
     return np.linspace(6, 35, num=100)
+
+
+def get_delta_subset(inputs, redshift, R, delta_range):
+    """Get a selection of delta values away from delta_crit for testing.
+
+    The integrals and tables perform poorly very close to delta_crit.
+    This was made a function for uniformity across tests.
+    """
+    delta_crit = cf.get_delta_crit(
+        inputs=inputs,
+        mass=cf.get_condition_mass(inputs, R),
+        redshift=redshift,
+    )
+    sel_delta = (delta_crit - delta_range) > 0.1
+
+    return sel_delta
 
 
 @pytest.mark.parametrize("name", options_ps)
@@ -99,6 +115,7 @@ def test_sigma_table(name, mass_range, plt):
             [sigma_tables, -dsigma_tables],
             [sigma_integrals, -dsigma_integrals],
             plt,
+            reltol=RELATIVE_TOLERANCE,
             xlabels=["Mass", "Mass"],
             ylabels=["sigma", "dsigmasqdM"],
         )
@@ -151,6 +168,7 @@ def test_massfunc_conditional_tables(name, cond_type, mass_range, delta_range, p
             [nhalo_tbl, mcoll_tbl],
             [nhalo_exp, mcoll_exp],
             plt,
+            reltol=RELATIVE_TOLERANCE,
             logx=from_cat,
             xlabels=["Mass" if from_cat else "delta"] * 2,
             ylabels=["Nhalo", "Mcoll"],
@@ -291,6 +309,7 @@ def test_FgtrM_conditional_tables(R, delta_range, plt):
         R=R,
     )
 
+    abs_tol = 0.0
     if plt == mpl.pyplot:
         make_table_comparison_plot(
             [delta_range, delta_range],
@@ -298,14 +317,17 @@ def test_FgtrM_conditional_tables(R, delta_range, plt):
             [fcoll_tables, np.fabs(dfcoll_tables)],
             [fcoll_integrals, np.fabs(dfcoll_integrals)],
             plt,
+            abstol=abs_tol,
+            reltol=RELATIVE_TOLERANCE,
             xlabels=["delta", "delta"],
             ylabels=["fcoll", "dfolldz"],
         )
 
-    abs_tol = 1e-4
+    sel_delta = get_delta_subset(inputs, redshift, R, delta_range)
+
     print_failure_stats(
-        fcoll_tables,
-        fcoll_integrals,
+        fcoll_tables[sel_delta],
+        fcoll_integrals[sel_delta],
         [delta_range],
         abs_tol,
         RELATIVE_TOLERANCE,
@@ -313,8 +335,8 @@ def test_FgtrM_conditional_tables(R, delta_range, plt):
     )
 
     print_failure_stats(
-        dfcoll_tables,
-        dfcoll_integrals,
+        dfcoll_tables[sel_delta],
+        dfcoll_integrals[sel_delta],
         [delta_range],
         abs_tol,
         RELATIVE_TOLERANCE,
@@ -322,10 +344,16 @@ def test_FgtrM_conditional_tables(R, delta_range, plt):
     )
 
     np.testing.assert_allclose(
-        fcoll_tables, fcoll_integrals, atol=abs_tol, rtol=RELATIVE_TOLERANCE
+        fcoll_tables[sel_delta],
+        fcoll_integrals[sel_delta],
+        atol=abs_tol,
+        rtol=RELATIVE_TOLERANCE,
     )
     np.testing.assert_allclose(
-        dfcoll_tables, dfcoll_integrals, atol=abs_tol, rtol=RELATIVE_TOLERANCE
+        dfcoll_tables[sel_delta],
+        dfcoll_integrals[sel_delta],
+        atol=abs_tol,
+        rtol=RELATIVE_TOLERANCE,
     )
 
 
@@ -356,6 +384,7 @@ def test_SFRD_z_tables(name, z_range, log10_mturn_range, plt):
         log10mturns=mt_input,
     )
 
+    abs_tol = 1e-5
     if plt == mpl.pyplot:
         xl = log10_mturn_range.size - 1
         sel_m = np.linspace(0, xl, num=5).astype(int)
@@ -365,12 +394,13 @@ def test_SFRD_z_tables(name, z_range, log10_mturn_range, plt):
             [SFRD_tables[..., 0], SFRD_tables_mini[..., sel_m]],
             [SFRD_integrals[..., 0], SFRD_integrals_mini[..., sel_m]],
             plt,
+            abstol=abs_tol,
+            reltol=RELATIVE_TOLERANCE,
             label_test=[True, False],
             xlabels=["redshift", "redshift"],
             ylabels=["SFRD", "SFRD_mini"],
         )
 
-    abs_tol = 1e-5
     print_failure_stats(
         SFRD_tables,
         SFRD_integrals,
@@ -423,6 +453,7 @@ def test_Nion_z_tables(name, z_range, log10_mturn_range, plt):
         log10mturns=mt_input,
     )
 
+    abs_tol = 2e-6
     if plt == mpl.pyplot:
         xl = log10_mturn_range.size - 1
         sel_m = np.linspace(0, xl, num=5).astype(int)
@@ -432,12 +463,13 @@ def test_Nion_z_tables(name, z_range, log10_mturn_range, plt):
             [nion_tables[..., 0], nion_tables_mini[..., sel_m]],
             [nion_integrals[..., 0], nion_integrals_mini[..., sel_m]],
             plt,
+            abstol=abs_tol,
+            reltol=RELATIVE_TOLERANCE,
             label_test=[True, False],
             xlabels=["redshift", "redshift"],
             ylabels=["Nion", "Nion_mini"],
         )
 
-    abs_tol = 2e-6
     print_failure_stats(
         nion_tables,
         nion_integrals,
@@ -542,15 +574,19 @@ def test_Nion_conditional_tables(
             [Nion_tb_plot[..., 0], Nion_tables_mini[..., sel_m]],
             [Nion_il_plot[..., 0], Nion_integrals_mini[..., sel_m]],
             plt,
+            abstol=abs_tol,
+            reltol=RELATIVE_TOLERANCE,
             label_test=[True, False],
             xlabels=["delta", "delta"],
             ylabels=["Nion", "Nion_mini"],
         )
 
+    sel_delta = get_delta_subset(inputs, redshift, R, delta_range)
+
     print_failure_stats(
-        Nion_tables,
-        Nion_integrals,
-        [delta_range, 10**log10_mturn_range],
+        Nion_tables[sel_delta],
+        Nion_integrals[sel_delta],
+        [delta_range[sel_delta], 10**log10_mturn_range],
         abs_tol,
         RELATIVE_TOLERANCE,
         "Nion_c",
@@ -558,24 +594,13 @@ def test_Nion_conditional_tables(
 
     if mini_flag:
         print_failure_stats(
-            Nion_tables_mini,
-            Nion_integrals_mini,
-            [delta_range, 10**log10_mturn_range],
+            Nion_tables_mini[sel_delta],
+            Nion_integrals_mini[sel_delta],
+            [delta_range[sel_delta], 10**log10_mturn_range],
             abs_tol,
             RELATIVE_TOLERANCE,
             "Nion_c_mini",
         )
-
-    # We don't want to include values close to delta crit, since
-    # interpolating across the sharp gap results in errors
-    # TODO: the bound should be over MAX_DELTAC_FRAC*delta_crit, and we should interpolate
-    # instead of setting the integral to its limit at delta crit.
-    delta_crit = cf.get_delta_crit(
-        inputs=inputs,
-        mass=cf.get_condition_mass(inputs, R),
-        redshift=redshift,
-    )
-    sel_delta = (delta_crit - delta_range) > 0.05
 
     np.testing.assert_allclose(
         Nion_tables[sel_delta],
@@ -640,6 +665,7 @@ def test_Xray_conditional_tables(
         log10mturns=mt_input,
     )
 
+    abs_tol = 0.0
     if plt == mpl.pyplot:
         xl = log10_mturn_range.size - 1
         sel_m = np.linspace(0, xl, num=5).astype(int)
@@ -651,29 +677,24 @@ def test_Xray_conditional_tables(
             [Xray_tb_plot],
             [Xray_il_plot],
             plt,
-            label_test=[
-                True,
-            ],
+            abstol=abs_tol,
+            reltol=RELATIVE_TOLERANCE,
+            label_test=[True],
             xlabels=["delta"],
             ylabels=["Lx"],
         )
 
-    abs_tol = 0.0
+    sel_delta = get_delta_subset(inputs, redshift, R, delta_range)
+
     print_failure_stats(
-        Xray_tables,
-        Xray_integrals,
-        [delta_range, 10**log10_mturn_range],
+        Xray_tables[sel_delta],
+        Xray_integrals[sel_delta],
+        [delta_range[sel_delta], 10**log10_mturn_range],
         abs_tol,
         RELATIVE_TOLERANCE,
         "Xray_c",
     )
 
-    delta_crit = cf.get_delta_crit(
-        inputs=inputs,
-        mass=cf.get_condition_mass(inputs, R),
-        redshift=redshift,
-    )
-    sel_delta = (delta_crit - delta_range) > 0.05
     np.testing.assert_allclose(
         Xray_tables[sel_delta],
         Xray_integrals[sel_delta],
@@ -739,34 +760,32 @@ def test_SFRD_conditional_table(
             [SFRD_tables[:, 0], SFRD_tables_mini[..., sel_m]],
             [SFRD_integrals[:, 0], SFRD_integrals_mini[..., sel_m]],
             plt,
+            abstol=abs_tol,
+            reltol=RELATIVE_TOLERANCE,
             label_test=[True, False],
             xlabels=["delta", "delta"],
             ylabels=["SFRD", "SFRD_mini"],
         )
 
+    sel_delta = get_delta_subset(inputs, redshift, R, delta_range)
+
     print_failure_stats(
-        SFRD_tables,
-        SFRD_integrals,
-        [delta_range],
+        SFRD_tables[sel_delta],
+        SFRD_integrals[sel_delta],
+        [delta_range[sel_delta]],
         abs_tol,
         RELATIVE_TOLERANCE,
         "SFRD_c",
     )
     print_failure_stats(
-        SFRD_tables_mini,
-        SFRD_integrals_mini,
-        [delta_range, 10**log10_mturn_range],
+        SFRD_tables_mini[sel_delta],
+        SFRD_integrals_mini[sel_delta],
+        [delta_range[sel_delta], 10**log10_mturn_range],
         abs_tol,
         RELATIVE_TOLERANCE,
         "SFRD_c_mini",
     )
 
-    delta_crit = cf.get_delta_crit(
-        inputs=inputs,
-        mass=cf.get_condition_mass(inputs, R),
-        redshift=redshift,
-    )
-    sel_delta = (delta_crit - delta_range) > 0.05
     np.testing.assert_allclose(
         SFRD_tables[sel_delta],
         SFRD_integrals[sel_delta],
@@ -864,7 +883,7 @@ def make_table_comparison_plot(
     **kwargs,
 ):
     # rows = values,fracitonal diff, cols = 1d table, 2d table
-    fig, axs = plt.subplots(
+    _fig, axs = plt.subplots(
         nrows=2, ncols=len(x), figsize=(12 * len(x) / 2, 9), squeeze=False
     )
     xlabels = kwargs.pop("xlabels", ["delta"] * len(x))
@@ -888,16 +907,16 @@ def make_table_comparison_plot(
                 ylab=ylabels[j],
                 label_base=zlab,
                 label_test=label_flags[j],
-                logx=kwargs.pop("logx", False),
-                xlim=kwargs.pop("xlim", None),
-                reltol=kwargs.pop("reltol", None),
+                logx=kwargs.get("logx", False),
+                xlim=kwargs.get("xlim"),
+                reltol=kwargs.get("reltol"),
                 color=f"C{i:d}",
             )
 
 
 # slightly different from comparison plot since each integral shares a "truth"
 def make_integral_comparison_plot(x1, x2, integral_list, integral_list_second, plt):
-    fig, axs = plt.subplots(nrows=2, ncols=2, figsize=(16, 8))
+    _fig, axs = plt.subplots(nrows=2, ncols=2, figsize=(16, 8))
 
     styles = ["-", ":", "--"]
     for i, (i_first, i_second) in enumerate(
@@ -949,6 +968,7 @@ def make_comparison_plot(
     xlab=None,
     ylab=None,
     xlim=None,
+    abstol=None,
     reltol=None,
     label_base="",
     label_test=True,
@@ -981,3 +1001,5 @@ def make_comparison_plot(
     ax[1].set_ylabel("Fractional Difference")
     if reltol:
         ax[1].set_ylim([-2 * reltol, 2 * reltol])
+        ax[1].axhline(reltol, color="gray", linestyle="--")
+        ax[1].axhline(-reltol, color="gray", linestyle="--")

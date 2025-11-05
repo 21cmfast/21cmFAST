@@ -25,10 +25,10 @@ from ..wrapper.inputs import InputParameters
 from ..wrapper.outputs import (
     BrightnessTemp,
     HaloBox,
+    HaloCatalog,
     InitialConditions,
     IonizedBox,
     PerturbedField,
-    PerturbHaloField,
     TsBox,
 )
 from ._param_config import high_level_func
@@ -94,7 +94,7 @@ class LightCone:
         ]
         if inputs.astro_options.USE_TS_FLUCT:
             possible_outputs.append(TsBox.new(inputs, redshift=0))
-        if inputs.matter_options.USE_HALO_FIELD:
+        if inputs.matter_options.lagrangian_source_grid:
             possible_outputs.append(HaloBox.new(inputs, redshift=0))
         field_names = ("log10_mturn_acg", "log10_mturn_mcg")
         for output in possible_outputs:
@@ -402,7 +402,7 @@ def _run_lightcone_from_perturbed_fields(
     include_dvdr_in_tau21: bool,
     apply_rsds: bool,
     n_rsd_subcells: int,
-    pt_halos: list[PerturbHaloField],
+    halofield_list: list[HaloCatalog],
     regenerate: bool | None = None,
     cache: OutputCache = _ocache,
     cleanup: bool = True,
@@ -463,7 +463,7 @@ def _run_lightcone_from_perturbed_fields(
         initial_conditions=initial_conditions,
         all_redshifts=scrollz,
         perturbed_field=perturbed_fields,
-        pt_halos=pt_halos,
+        halofield_list=halofield_list,
         write=write,
         cleanup=cleanup,
         progressbar=progressbar,
@@ -644,7 +644,7 @@ def generate_lightcone(
     (
         initial_conditions,
         perturbed_fields,
-        pt_halos,
+        halofield_list,
         photon_nonconservation_data,
     ) = _setup_ics_and_pfs_for_scrolling(
         all_redshifts=inputs.node_redshifts,
@@ -662,7 +662,7 @@ def generate_lightcone(
         inputs=inputs,
         lc_distances=lc_distances,
         regenerate=regenerate,
-        pt_halos=pt_halos,
+        halofield_list=halofield_list,
         photon_nonconservation_data=photon_nonconservation_data,
         include_dvdr_in_tau21=include_dvdr_in_tau21,
         apply_rsds=apply_rsds,

@@ -1,5 +1,5 @@
 // Re-write of perturb_field.c for being accessible within the MCMC
-#include "PerturbField.h"
+#include "PerturbedField.h"
 
 #include <complex.h>
 #include <fftw3.h>
@@ -63,7 +63,7 @@ void make_density_grid(float redshift, fftwf_complex *fft_density_grid, InitialC
 
     // check if the linear evolution flag was set
     if (matter_options_global->PERTURB_ALGORITHM == 0) {
-#pragma omp parallel private(i, j, k) num_threads(simulation_options_global -> N_THREADS)
+#pragma omp parallel private(i, j, k) num_threads(simulation_options_global->N_THREADS)
         {
             unsigned long long int grid_index, fft_index;
 #pragma omp for
@@ -80,7 +80,7 @@ void make_density_grid(float redshift, fftwf_complex *fft_density_grid, InitialC
         }
     } else {
         // Apply Zel'dovich/2LPT correction
-#pragma omp parallel private(i, j, k) num_threads(simulation_options_global -> N_THREADS)
+#pragma omp parallel private(i, j, k) num_threads(simulation_options_global->N_THREADS)
         {
             unsigned long long int fft_index;
 #pragma omp for
@@ -111,7 +111,7 @@ void make_density_grid(float redshift, fftwf_complex *fft_density_grid, InitialC
         debugSummarizeBoxDouble(resampled_box, box_dim[0], box_dim[1], box_dim[2], "  ");
 
         // Resample back to a fftw float for remaining algorithm
-#pragma omp parallel private(i, j, k) num_threads(simulation_options_global -> N_THREADS)
+#pragma omp parallel private(i, j, k) num_threads(simulation_options_global->N_THREADS)
         {
             unsigned long long int grid_index, fft_index;
 #pragma omp for
@@ -151,14 +151,14 @@ void assign_to_lowres_grid(fftwf_complex *hires_grid, fftwf_complex *lowres_grid
     memcpy(saved_grid, hires_grid, sizeof(fftwf_complex) * KSPACE_NUM_PIXELS);
 
     // Now filter the box
-    filter_box(hires_grid, 0, 0, L_FACTOR * simulation_options_global->BOX_LEN / (lo_dim[0] + 0.0),
-               0., 0.);
+    filter_box(hires_grid, hi_dim, 0,
+               physconst.l_factor * simulation_options_global->BOX_LEN / (lo_dim[0] + 0.0), 0., 0.);
 
     // FFT back to real space
     dft_c2r_cube(matter_options_global->USE_FFTW_WISDOM, hi_dim[0], hi_dim[2],
                  simulation_options_global->N_THREADS, hires_grid);
 
-#pragma omp parallel private(i, j, k) num_threads(simulation_options_global -> N_THREADS)
+#pragma omp parallel private(i, j, k) num_threads(simulation_options_global->N_THREADS)
     {
         int hires_pos[3];
 #pragma omp for
@@ -166,9 +166,9 @@ void assign_to_lowres_grid(fftwf_complex *hires_grid, fftwf_complex *lowres_grid
             for (j = 0; j < lo_dim[1]; j++) {
                 for (k = 0; k < lo_dim[2]; k++) {
                     resample_index((int[3]){i, j, k}, dim_ratio, hires_pos);
-                    *((float *)lowres_grid + HII_R_FFT_INDEX(i, j, k)) =
+                    *((float *)lowres_grid + grid_index_fftw_r(i, j, k, lo_dim)) =
                         *((float *)hires_grid +
-                          R_FFT_INDEX(hires_pos[0], hires_pos[1], hires_pos[2])) /
+                          grid_index_fftw_r(hires_pos[0], hires_pos[1], hires_pos[2], hi_dim)) /
                         (float)TOT_NUM_PIXELS;
                 }
             }
@@ -188,7 +188,7 @@ void normalise_delta_grid(fftwf_complex *deltap1_grid) {
         matter_options_global->PERTURB_ON_HIGH_RES
             ? 1.0
             : (lo_dim[0] * lo_dim[1] * lo_dim[2]) / (double)(hi_dim[0] * hi_dim[1] * hi_dim[2]);
-#pragma omp parallel private(i, j, k) num_threads(simulation_options_global -> N_THREADS)
+#pragma omp parallel private(i, j, k) num_threads(simulation_options_global->N_THREADS)
     {
         unsigned long long int grid_index;
         float *cell_ptr;
@@ -211,12 +211,14 @@ void normalise_delta_grid(fftwf_complex *deltap1_grid) {
 void smooth_and_clip_density(fftwf_complex *lowres_grid, fftwf_complex *density_perturb_saved) {
     // transform to k-space
     int i, j, k;
+    int box_dim[3] = {simulation_options_global->HII_DIM, simulation_options_global->HII_DIM,
+                      HII_D_PARA};
     dft_r2c_cube(matter_options_global->USE_FFTW_WISDOM, simulation_options_global->HII_DIM,
                  HII_D_PARA, simulation_options_global->N_THREADS, lowres_grid);
 
     // smooth the field
     if (matter_options_global->SMOOTH_EVOLVED_DENSITY_FIELD) {
-        filter_box(lowres_grid, 1, 2,
+        filter_box(lowres_grid, box_dim, 2,
                    simulation_options_global->DENSITY_SMOOTH_RADIUS *
                        simulation_options_global->BOX_LEN /
                        (float)simulation_options_global->HII_DIM,
@@ -246,21 +248,23 @@ void smooth_and_clip_density(fftwf_complex *lowres_grid, fftwf_complex *density_
 #pragma omp parallel shared(lowres_grid) private(i, j, k) \
     num_threads(simulation_options_global -> N_THREADS) reduction(+ : bad_count)
     {
+        unsigned long long int grid_index;
 #pragma omp for
         for (i = 0; i < simulation_options_global->HII_DIM; i++) {
             for (j = 0; j < simulation_options_global->HII_DIM; j++) {
                 for (k = 0; k < HII_D_PARA; k++) {
-                    *((float *)lowres_grid + HII_R_FFT_INDEX(i, j, k)) /= (float)HII_TOT_NUM_PIXELS;
+                    grid_index = grid_index_fftw_r(i, j, k, box_dim);
+                    *((float *)lowres_grid + grid_index) /= (float)HII_TOT_NUM_PIXELS;
 
-                    if (*((float *)lowres_grid + HII_R_FFT_INDEX(i, j, k)) <
+                    if (*((float *)lowres_grid + grid_index) <
                         -1.0 + FRACT_FLOAT_ERR) {  // shouldn't happen
 
                         if (bad_count < 5)
                             LOG_WARNING("delta is <-1 for index %d %d %d (value=%f)", i, j, k,
-                                        *((float *)lowres_grid + HII_R_FFT_INDEX(i, j, k)));
+                                        *((float *)lowres_grid + grid_index));
                         if (bad_count == 5)
                             LOG_WARNING("Skipping further warnings for delta <= -1.");
-                        *((float *)lowres_grid + HII_R_FFT_INDEX(i, j, k)) = -1.0 + FRACT_FLOAT_ERR;
+                        *((float *)lowres_grid + grid_index) = -1.0 + FRACT_FLOAT_ERR;
                         bad_count++;
                     }
                 }
@@ -282,7 +286,6 @@ void compute_perturbed_velocities(unsigned short axis, double redshift,
 
     float kvec[3];
     double dDdt_over_D = ddickedt(redshift) / dicke(redshift);
-    long long switch_mid[3];
     unsigned long long int n_k_pixels, n_r_pixels;
     // Function for deciding the dimensions of loops when we could
     // use either the low or high resolution grids.
@@ -292,44 +295,36 @@ void compute_perturbed_velocities(unsigned short axis, double redshift,
         box_dim[0] = simulation_options_global->DIM;
         box_dim[1] = simulation_options_global->DIM;
         box_dim[2] = D_PARA;
-        switch_mid[0] = MID;
-        switch_mid[1] = MID;
-        switch_mid[2] = MID_PARA;
         n_k_pixels = KSPACE_NUM_PIXELS;
         n_r_pixels = TOT_NUM_PIXELS;
     } else {
         box_dim[0] = simulation_options_global->HII_DIM;
         box_dim[1] = simulation_options_global->HII_DIM;
         box_dim[2] = HII_D_PARA;
-        switch_mid[0] = HII_MID;
-        switch_mid[1] = HII_MID;
-        switch_mid[2] = HII_MID_PARA;
         n_k_pixels = HII_KSPACE_NUM_PIXELS;
         n_r_pixels = HII_TOT_NUM_PIXELS;
     }
-    double dim_ratio = box_dim[0] / (double)simulation_options_global->HII_DIM;
+    int lo_dim[3] = {simulation_options_global->HII_DIM, simulation_options_global->HII_DIM,
+                     HII_D_PARA};
+    double dim_ratio = box_dim[0] / (double)lo_dim[0];
+    double box_len[3] = {
+        simulation_options_global->BOX_LEN, simulation_options_global->BOX_LEN,
+        simulation_options_global->BOX_LEN * simulation_options_global->NON_CUBIC_FACTOR};
 
     memcpy(velocity_fft_grid, density_saved, sizeof(fftwf_complex) * n_k_pixels);
 
 #pragma omp parallel private(n_x, n_y, n_z, k_x, k_y, k_z, k_sq, kvec) \
-    num_threads(simulation_options_global -> N_THREADS)
+    num_threads(simulation_options_global->N_THREADS)
     {
         unsigned long long grid_index;
 #pragma omp for
         for (n_x = 0; n_x < box_dim[0]; n_x++) {
-            if (n_x > switch_mid[0])
-                k_x = (n_x - box_dim[0]) * DELTA_K;  // wrap around for FFT convention
-            else
-                k_x = n_x * DELTA_K;
-
+            k_x = index_to_k(n_x, box_len[0], box_dim[0]);
             for (n_y = 0; n_y < box_dim[1]; n_y++) {
-                if (n_y > switch_mid[1])
-                    k_y = (n_y - box_dim[1]) * DELTA_K;
-                else
-                    k_y = n_y * DELTA_K;
-
-                for (n_z = 0; n_z <= switch_mid[2]; n_z++) {
-                    k_z = n_z * DELTA_K_PARA;
+                k_y = index_to_k(n_y, box_len[1], box_dim[1]);
+                // since physical space field is real, only half contains independent modes
+                for (n_z = 0; n_z <= box_dim[2] / 2; n_z++) {
+                    k_z = index_to_k(n_z, box_len[2], box_dim[2]);  // never goes above box_dim/2
 
                     kvec[0] = k_x;
                     kvec[1] = k_y;
@@ -351,13 +346,13 @@ void compute_perturbed_velocities(unsigned short axis, double redshift,
     }
 
     LOG_SUPER_DEBUG("density_perturb after modification by dDdt: ");
-    debugSummarizeBoxComplex((float complex *)velocity_fft_grid, box_dim[0], box_dim[1], box_dim[2],
-                             "  ");
+    debugSummarizeBoxComplex((float complex *)velocity_fft_grid, box_dim[0], box_dim[1],
+                             box_dim[2] / 2 + 1, "  ");
 
     if (matter_options_global->PERTURB_ON_HIGH_RES &&
         simulation_options_global->DIM != simulation_options_global->HII_DIM) {
-        filter_box(velocity_fft_grid, 0, 0,
-                   L_FACTOR * simulation_options_global->BOX_LEN /
+        filter_box(velocity_fft_grid, box_dim, 0,
+                   physconst.l_factor * simulation_options_global->BOX_LEN /
                        (simulation_options_global->HII_DIM + 0.0),
                    0., 0.);
     }
@@ -365,29 +360,32 @@ void compute_perturbed_velocities(unsigned short axis, double redshift,
     dft_c2r_cube(matter_options_global->USE_FFTW_WISDOM, box_dim[0], box_dim[2],
                  simulation_options_global->N_THREADS, velocity_fft_grid);
 
-#pragma omp parallel private(i, j, k) num_threads(simulation_options_global -> N_THREADS)
+#pragma omp parallel private(i, j, k) num_threads(simulation_options_global->N_THREADS)
     {
-        unsigned long long int grid_index;
+        unsigned long long int grid_index_f, grid_index_r;
         int grid_ipos[3];
 #pragma omp for
-        for (i = 0; i < simulation_options_global->HII_DIM; i++) {
-            for (j = 0; j < simulation_options_global->HII_DIM; j++) {
-                for (k = 0; k < HII_D_PARA; k++) {
+        for (i = 0; i < lo_dim[0]; i++) {
+            for (j = 0; j < lo_dim[1]; j++) {
+                for (k = 0; k < lo_dim[2]; k++) {
+                    grid_index_r = grid_index_general(i, j, k, lo_dim);
                     resample_index((int[3]){i, j, k}, dim_ratio, grid_ipos);
-                    grid_index =
+                    grid_index_f =
                         grid_index_fftw_r(grid_ipos[0], grid_ipos[1], grid_ipos[2], box_dim);
-                    velocity[HII_R_INDEX(i, j, k)] = *((float *)velocity_fft_grid + grid_index);
+                    velocity[grid_index_r] = *((float *)velocity_fft_grid + grid_index_f);
                 }
             }
         }
     }
     LOG_SUPER_DEBUG("velocity: ");
-    debugSummarizeBox(velocity, box_dim[0], box_dim[1], box_dim[2], "  ");
+    debugSummarizeBox(velocity, simulation_options_global->HII_DIM,
+                      simulation_options_global->HII_DIM, HII_D_PARA, "  ");
 }
 
-int ComputePerturbField(float redshift, InitialConditions *boxes, PerturbedField *perturbed_field) {
+int ComputePerturbedField(float redshift, InitialConditions *boxes,
+                          PerturbedField *perturbed_field) {
     /*
-     ComputePerturbField uses the first-order Langragian displacement field to move the
+     ComputePerturbedField uses the first-order Langragian displacement field to move the
      masses in the cells of the density field. The high-res density field is extrapolated
      to some high-redshift (simulation_options.INITIAL_REDSHIFT), then uses the zeldovich
      approximation to move the grid "particles" onto the lower-res grid we use for the
@@ -443,14 +441,19 @@ int ComputePerturbField(float redshift, InitialConditions *boxes, PerturbedField
         smooth_and_clip_density(LOWRES_density_perturb, density_perturb_saved);
 
         // Assign to the struct
+        int lo_dim[3] = {simulation_options_global->HII_DIM, simulation_options_global->HII_DIM,
+                         HII_D_PARA};
 #pragma omp parallel num_threads(simulation_options_global->N_THREADS)
         {
+            unsigned long long int index_r, index_f;
 #pragma omp for
-            for (int i = 0; i < simulation_options_global->HII_DIM; i++) {
-                for (int j = 0; j < simulation_options_global->HII_DIM; j++) {
-                    for (int k = 0; k < HII_D_PARA; k++) {
-                        *((float *)perturbed_field->density + HII_R_INDEX(i, j, k)) =
-                            *((float *)LOWRES_density_perturb + HII_R_FFT_INDEX(i, j, k));
+            for (int i = 0; i < lo_dim[0]; i++) {
+                for (int j = 0; j < lo_dim[1]; j++) {
+                    for (int k = 0; k < lo_dim[2]; k++) {
+                        index_r = grid_index_general(i, j, k, lo_dim);
+                        index_f = grid_index_fftw_r(i, j, k, lo_dim);
+                        *((float *)perturbed_field->density + index_r) =
+                            *((float *)LOWRES_density_perturb + index_f);
                     }
                 }
             }

@@ -9,7 +9,7 @@ from py21cmfast import InputParameters, LightCone
 def mock_lightcone():
     inputs = InputParameters.from_template(
         "simple", node_redshifts=list(range(6, 40, 2)), random_seed=1
-    ).evolve_input_structs(HII_DIM=300, BOX_LEN=300)
+    ).evolve_input_structs(HII_DIM=200, BOX_LEN=200)
     rng = np.random.default_rng(123)
 
     dist = (

@@ -53,8 +53,7 @@ DEFAULT_INPUTS_TESTRUNS = {
     "SAMPLER_MIN_MASS": 1e9,
     "ZPRIME_STEP_FACTOR": 1.04,
     # MatterOptions
-    "USE_HALO_FIELD": False,
-    "HALO_STOCHASTICITY": False,
+    "SOURCE_MODEL": "E-INTEGRAL",  # We should consider which model is best for test defaults
     # AstroOptions
     "USE_EXP_FILTER": False,
     "CELL_RECOMB": False,
@@ -87,7 +86,7 @@ OPTIONS_TESTRUNS = {
     "no-mdz": [
         18,
         {
-            "USE_MASS_DEPENDENT_ZETA": False,
+            "SOURCE_MODEL": "CONST-ION-EFF",
         },
     ],
     "mini": [
@@ -127,7 +126,7 @@ OPTIONS_TESTRUNS = {
     ],
     "ts_nomdz": [
         18,
-        {"USE_TS_FLUCT": True, "USE_MASS_DEPENDENT_ZETA": False},
+        {"USE_TS_FLUCT": True, "SOURCE_MODEL": "CONST-ION-EFF"},
     ],
     "inhomo": [
         18,
@@ -147,42 +146,46 @@ OPTIONS_TESTRUNS = {
     "sampler": [
         18,
         {
-            "USE_HALO_FIELD": True,
-            "HALO_STOCHASTICITY": True,
+            "SOURCE_MODEL": "CHMF-SAMPLER",
+        },
+    ],
+    "sampler_hires": [
+        18,
+        {
+            "SOURCE_MODEL": "CHMF-SAMPLER",
+            "PERTURB_ON_HIGH_RES": True,
         },
     ],
     "fixed_halogrids": [
         18,
         {
-            "USE_HALO_FIELD": True,
-            "FIXED_HALO_GRIDS": True,
+            "SOURCE_MODEL": "L-INTEGRAL",
         },
     ],
     "sampler_mini": [
         18,
         {
-            "USE_HALO_FIELD": True,
-            "HALO_STOCHASTICITY": True,
+            "SOURCE_MODEL": "CHMF-SAMPLER",
             "USE_MINI_HALOS": True,
             "USE_TS_FLUCT": True,
             "INHOMO_RECO": True,
             "R_BUBBLE_MAX": 50.0,
+            "USE_RELATIVE_VELOCITIES": True,
+            "POWER_SPECTRUM": "CLASS",
             "M_TURN": 5.0,
         },
     ],
     "sampler_ts": [
         18,
         {
-            "USE_HALO_FIELD": True,
-            "HALO_STOCHASTICITY": True,
+            "SOURCE_MODEL": "CHMF-SAMPLER",
             "USE_TS_FLUCT": True,
         },
     ],
     "sampler_ir": [
         18,
         {
-            "USE_HALO_FIELD": True,
-            "HALO_STOCHASTICITY": True,
+            "SOURCE_MODEL": "CHMF-SAMPLER",
             "INHOMO_RECO": True,
             "R_BUBBLE_MAX": 50.0,
         },
@@ -190,8 +193,7 @@ OPTIONS_TESTRUNS = {
     "sampler_ts_ir": [
         18,
         {
-            "USE_HALO_FIELD": True,
-            "HALO_STOCHASTICITY": True,
+            "SOURCE_MODEL": "CHMF-SAMPLER",
             "USE_TS_FLUCT": True,
             "INHOMO_RECO": True,
             "R_BUBBLE_MAX": 50.0,
@@ -200,8 +202,7 @@ OPTIONS_TESTRUNS = {
     "sampler_ts_ir_onethread": [
         18,
         {
-            "USE_HALO_FIELD": True,
-            "HALO_STOCHASTICITY": True,
+            "SOURCE_MODEL": "CHMF-SAMPLER",
             "USE_TS_FLUCT": True,
             "INHOMO_RECO": True,
             "R_BUBBLE_MAX": 50.0,
@@ -211,15 +212,14 @@ OPTIONS_TESTRUNS = {
     "sampler_noncubic": [
         18,
         {
-            "USE_HALO_FIELD": True,
-            "HALO_STOCHASTICITY": True,
+            "SOURCE_MODEL": "CHMF-SAMPLER",
             "NON_CUBIC_FACTOR": 1.2,
         },
     ],
     "dexm": [
         18,
         {
-            "USE_HALO_FIELD": True,
+            "SOURCE_MODEL": "DEXM-ESF",
         },
     ],
     "photoncons-z": [
@@ -543,11 +543,11 @@ def print_failure_stats(test, truth, inputs, abs_tol, rel_tol, name):
         for i, inp in enumerate(inputs)
     ]
     for i, _inp in enumerate(inputs):
-        message += f"failure range of inputs axis {i} {failed_inp[i].min():.2e} {failed_inp[i].max():.2e}\n"
+        message += f"failure range of inputs axis {i} {failed_inp[i].min():.4e} {failed_inp[i].max():.2e}\n"
 
     message += "----- First 10 -----\n"
     for j in range(min(10, sel_failed.sum())):
-        input_arr = [f"{failed_inp[i][j]:.2e}" for i, finp in enumerate(failed_inp)]
+        input_arr = [f"{failed_inp[i][j]:.4e}" for i, finp in enumerate(failed_inp)]
         message += (
             f"CRD {input_arr}"
             + f"  {truth[sel_failed].flatten()[j]:.4e} {test[sel_failed].flatten()[j]:.4e}\n"
@@ -566,6 +566,7 @@ def go(
     remove: bool = True,
     pt_only: bool = False,
     no_pt: bool = False,
+    plot_dir: str | None = "./integration-test-plots/",
     names: tuple[CASE_CHOICES, ...] = tuple(OPTIONS_TESTRUNS.keys()),
 ):
     cns.print(Rule("[bold][purple]Reproducing Integration Test Data!"))
@@ -621,7 +622,7 @@ def go(
             fnames.append(fname)
 
             # Make a coeval plot for _this_ case with all the fields...
-            if coeval is not None:
+            if coeval is not None and plot_dir is not None:
                 fig, ax = plt.subplots(
                     1,
                     len(COEVAL_FIELDS),
@@ -638,7 +639,7 @@ def go(
                     else:
                         ax[j].set_axis_off()
 
-                fig.savefig(f"integration-test-plots/coeval-sliceplots-{name}.pdf")
+                fig.savefig(f"{plot_dir}/coeval-sliceplots-{name}.pdf")
                 plt.close(fig)
 
                 # Now plot the brightness temperature coeval with other cases.
@@ -657,7 +658,7 @@ def go(
                 )
 
             # Make a lightcone plot for _this_ case with all the fields...
-            if lc is not None:
+            if lc is not None and plot_dir is not None:
                 fig, ax = plt.subplots(
                     len(LIGHTCONE_FIELDS),
                     1,
@@ -674,7 +675,7 @@ def go(
                     else:
                         ax[j].set_axis_off()
 
-                fig.savefig(f"integration-test-plots/lightcone-sliceplots-{name}.pdf")
+                fig.savefig(f"{plot_dir}/lightcone-sliceplots-{name}.pdf")
                 plt.close(fig)
 
                 plotting.lightcone_sliceplot(
@@ -688,10 +689,9 @@ def go(
                     color="white",
                 )
 
-        bt_coeval_fig.savefig(
-            "integration-test-plots/coeval-brightness-temp-allcases.pdf"
-        )
-        bt_lc_fig.savefig("integration-test-plots/lc-brightness-temp-allcases.pdf")
+        if plot_dir is not None:
+            bt_coeval_fig.savefig(f"{plot_dir}/coeval-brightness-temp-allcases.pdf")
+            bt_lc_fig.savefig(f"{plot_dir}/lc-brightness-temp-allcases.pdf")
 
     cns.print("[green]:tick: Finished producing Coeval and Lightcone power spectra.")
 

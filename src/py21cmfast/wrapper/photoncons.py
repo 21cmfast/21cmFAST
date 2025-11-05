@@ -284,12 +284,19 @@ def calibrate_photon_cons(
     #   to the default w/o recombinations ONLY when the original box has INHOMO_RECO enabled.
     # TODO: figure out if it's possible to find a "closest" Rmax, since the correction fails when
     # the histories are too different.
+
+    # Using the halo sampling twice would be very slow, so switch to L-INTEGRAL for the calibration
+    source_model_calibration = {
+        "E-INTEGRAL": "E-INTEGRAL",
+        "L-INTEGRAL": "L-INTEGRAL",
+        "DEXM-ESF": "L-INTEGRAL",
+        "CHMF-SAMPLER": "L-INTEGRAL",
+    }
     inputs_calibration = inputs.evolve_input_structs(
         USE_TS_FLUCT=False,
         INHOMO_RECO=False,
         USE_MINI_HALOS=False,
-        USE_HALO_FIELD=False,
-        HALO_STOCHASTICITY=False,
+        SOURCE_MODEL=source_model_calibration[inputs.matter_options.SOURCE_MODEL],
         PHOTON_CONS_TYPE="no-photoncons",
         R_BUBBLE_MAX=(
             15 if inputs.astro_options.INHOMO_RECO else inputs.astro_params.R_BUBBLE_MAX
@@ -551,7 +558,7 @@ def photoncons_alpha(inputs):
         )
 
     else:
-        popt, pcov = curve_fit(alpha_func, ref_interp[sel], fit_alpha[sel])
+        popt, _pcov = curve_fit(alpha_func, ref_interp[sel], fit_alpha[sel])
         # pass to C
         logger.info(f"ALPHA_ESC Original = {ap_c['ALPHA_ESC']:.3f}")
         logger.info(f"Running with ALPHA_ESC = {popt[0]:.2f} + {popt[1]:.2f} * Q")
@@ -599,7 +606,7 @@ def photoncons_fesc(inputs):
     fit_fesc = ratio_ref * ap_c["F_ESC10"]
     sel = np.isfinite(fit_fesc) & (ref_interp < max_q_fit) & (ref_interp > min_q_fit)
 
-    popt, pcov = curve_fit(alpha_func, ref_interp[sel], fit_fesc[sel])
+    popt, _pcov = curve_fit(alpha_func, ref_interp[sel], fit_fesc[sel])
     # pass to C
     logger.info(f"F_ESC10 Original = {ap_c['F_ESC10']:.3f}")
     logger.info(f"Running with F_ESC10 = {popt[0]:.2f} + {popt[1]:.2f} * Q")

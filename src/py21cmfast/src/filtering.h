@@ -5,7 +5,8 @@
 
 #include "InputParameters.h"
 
-void filter_box(fftwf_complex *box, int RES, int filter_type, float R, float R_param, float r_star);
+void filter_box(fftwf_complex *box, int box_dim[3], int filter_type, float R, float R_param,
+                float r_star);
 int test_filter(float *input_box, double R, double R_param, double r_star, int filter_flag,
                 double *result);
 double filter_function(double k, int filter_type);

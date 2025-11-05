@@ -314,12 +314,21 @@ class CosmoParams(InputStruct):
         Omega baryon, the baryon component.
     POWER_INDEX : float, optional
         Spectral index of the power spectrum.
+    A_s: float, optional
+        Amplitude of primordial curvature power spectrum, at k_pivot = 0.05 Mpc^-1.
     """
+
+    _DEFAULT_SIGMA_8: ClassVar[float] = 0.8102
+    _DEFAULT_A_s: ClassVar[float] = 2.105e-9
 
     _base_cosmo: Annotated[FLRW, Parameter(show=False, parse=False)] = field(
         default=Planck18, validator=validators.instance_of(FLRW), eq=False, repr=False
     )
-    SIGMA_8: float = field(default=0.8102, converter=float, validator=validators.gt(0))
+    _SIGMA_8: float = field(
+        default=None,
+        converter=attrs.converters.optional(float),
+        validator=validators.optional(validators.gt(0)),
+    )
     hlittle: float = field(
         default=Planck18.h, converter=float, validator=validators.gt(0)
     )
@@ -332,6 +341,11 @@ class CosmoParams(InputStruct):
     POWER_INDEX: float = field(
         default=0.9665, converter=float, validator=validators.gt(0)
     )
+    _A_s: float = field(
+        default=None,
+        converter=attrs.converters.optional(float),
+        validator=validators.optional(validators.gt(0)),
+    )
 
     OMn: float = field(default=0.0, converter=float, validator=validators.ge(0))
     OMk: float = field(default=0.0, converter=float, validator=validators.ge(0))
@@ -343,6 +357,62 @@ class CosmoParams(InputStruct):
     wl: float = field(default=-1.0, converter=float)
 
     # TODO: Combined validation via Astropy?
+
+    @_SIGMA_8.validator
+    def _sigma_8_vld(self, att, val):
+        if self._A_s is not None and val is not None:
+            raise ValueError(
+                "Cannot set both SIGMA_8 and A_s! "
+                "If this error arose when lading from template/file or evolving an "
+                "existing object, then explicitly set either SIGMA_8 or A_s "
+                "to None while setting the other to the desired value."
+            )
+
+    @cached_property
+    def SIGMA_8(self) -> float:
+        """RMS mass variance (power spectrum normalisation).
+
+        If not given explicitly, it is auto-calculated via A_s
+        and the other cosmological parameters.
+        """
+        from .classy_interface import run_classy
+
+        if self._SIGMA_8 is not None:
+            return self._SIGMA_8
+        elif self._A_s is not None:
+            classy_output = run_classy(
+                h=self.hlittle,
+                Omega_cdm=self.OMm - self.OMb,
+                Omega_b=self.OMb,
+                A_s=self._A_s,
+                n_s=self.POWER_INDEX,
+            )
+            return classy_output.sigma8()
+        else:
+            return self._DEFAULT_SIGMA_8
+
+    @cached_property
+    def A_s(self) -> float:
+        """Amplitude of primordial curvature power spectrum, at k_pivot = 0.05 Mpc^-1..
+
+        If not given explicitly, it is auto-calculated via sigma_8
+        and the other cosmological parameters.
+        """
+        from .classy_interface import run_classy
+
+        if self._A_s is not None:
+            return self._A_s
+        elif self._SIGMA_8 is not None:
+            classy_output = run_classy(
+                h=self.hlittle,
+                Omega_cdm=self.OMm - self.OMb,
+                Omega_b=self.OMb,
+                sigma8=self.SIGMA_8,
+                n_s=self.POWER_INDEX,
+            )
+            return classy_output.get_current_derived_parameters(["A_s"])["A_s"]
+        else:
+            return self._DEFAULT_A_s
 
     @property
     def OMl(self):
@@ -394,27 +464,27 @@ class MatterOptions(InputStruct):
 
     Parameters
     ----------
-    HMF: int or str, optional
+    HMF: str, optional
         Determines which halo mass function to be used for the normalisation of the
-        collapsed fraction (default Sheth-Tormen). If string should be one of the
+        collapsed fraction (default Sheth-Tormen). Should be one of the
         following codes:
-        0: PS (Press-Schechter)
-        1: ST (Sheth-Tormen)
-        2: Watson (Watson FOF)
-        3: Watson-z (Watson FOF-z)
-        3: Delos (Delos+23)
+        PS (Press-Schechter)
+        ST (Sheth-Tormen)
+        Watson (Watson FOF)
+        Watson-z (Watson FOF-z)
+        Delos (Delos+23)
     USE_RELATIVE_VELOCITIES: int, optional
         Flag to decide whether to use relative velocities.
         If True, POWER_SPECTRUM is automatically set to 5. Default False.
-    POWER_SPECTRUM: int or str, optional
+    POWER_SPECTRUM: str, optional
         Determines which power spectrum to use, default EH (unless `USE_RELATIVE_VELOCITIES`
-        is True). If string, use the following codes:
-        0: EH
-        1: BBKS
-        2: EFSTATHIOU
-        3: PEEBLES
-        4: WHITE
-        5: CLASS (single cosmology)
+        is True). Use the following codes:
+        EH : Eisenstein & Hu 1999
+        BBKS: Bardeen et al. 1986
+        EFSTATHIOU: Efstathiou et al. 1992
+        PEEBLES: Peebles 1980
+        WHITE: White 1985
+        CLASS: Uses fits from the CLASS code
     PERTURB_ON_HIGH_RES : bool, optional
         Whether to perform the Zel'Dovich or 2LPT perturbation on the low or high
         resolution grid.
@@ -436,16 +506,16 @@ class MatterOptions(InputStruct):
     MINIMIZE_MEMORY: bool, optional
         If set, the code will run in a mode that minimizes memory usage, at the expense
         of some CPU/disk-IO. Good for large boxes / small computers.
-    SAMPLE_METHOD: int, optional
+    SAMPLE_METHOD: str, optional
         The sampling method to use in the halo sampler when calculating progenitor populations:
-        0: Mass-limited CMF sampling, where samples are drawn until the expected mass is reached
-        1: Number-limited CMF sampling, where we select a number of halos from the Poisson distribution
+        MASS-LIMITED : Mass-limited CMF sampling, where samples are drawn until the expected mass is reached
+        NUMBER-LIMITED : Number-limited CMF sampling, where we select a number of halos from the Poisson distribution
         and then sample the CMF that many times
-        2: Sheth et al 1999 Partition sampling, where the EPS collapsed fraction is sampled (gaussian tail)
+        PARTITION : Sheth et al 1999 Partition sampling, where the EPS collapsed fraction is sampled (gaussian tail)
         and then the condition is updated using the conservation of mass.
-        3: Parkinsson et al 2008 Binary split model as in DarkForest (Qiu et al 2021) where the EPS merger rate
+        BINARY-SPLIT : Parkinsson et al 2008 Binary split model as in DarkForest (Qiu et al 2021) where the EPS merger rate
         is sampled on small internal timesteps such that only binary splits can occur.
-        NOTE: Sampling from the density grid will ALWAYS use number-limited sampling (method 1)
+        NOTE: The initial sampling from the density grid will ALWAYS use number-limited sampling (method 1)
     FILTER : string, optional
         Filter to use for sigma (matter field variance) and radius to mass conversions.
         available options are: `spherical-tophat` and `gaussian`
@@ -459,19 +529,25 @@ class MatterOptions(InputStruct):
     KEEP_3D_VELOCITIES: bool, optional
         Whether to keep the 3D velocities in the ICs.
         If False, only the z velocity is kept.
-    USE_HALO_FIELD : bool, optional
-        Set to True if intending to find and use the halo field. If False, uses
-        the mean collapse fraction (which is considerably faster).
-    FIXED_HALO_GRIDS: bool, optional
-        When USE_HALO_FIELD is True, this flag bypasses the sampler, and calculates fixed grids of halo mass, stellar mass etc
-        analagous to FFRT-P (Davies & Furlanetto 2021) or ESF-E (Trac et al 2021), This flag has no effect is USE_HALO_FIELD is False
-        With USE_HALO_FIELD: (FIXED_HALO_GRIDS,HALO_STOCHASTICITY):
-
-        (0,0): DexM only,
-        (0,1): Halo Sampler,
-        (1,?): FFRT-P fixed halo grids
-    HALO_STOCHASTICITY: bool, optional
-        Actitvates the faster CHMF sampling to get halos below the HII_DIM cell mass.
+    SOURCE_MODEL: str, optional
+        The source model to use in the simulation. Options are:
+        E-INTEGRAL : The traditional excursion-set formalism, where source properties are
+            defined on the Eulerian grid after 2LPT in regions of filter scale R (see the X_FILTER options for filter shapes).
+            This integrates over the CHMF using the smoothed density grids, then multiplies the result.
+            by (1 + delta) to get the source properties in each cell.
+        L-INTEGRAL : Analagous to the 'ESF-L' model described in Trac+22, where source properties
+            are defined on the Lagrangian (IC) grid by integrating the CHMF prior to the IGM physics
+            and then mapping properties to the Eulerian grid using 2LPT.
+        DEXM-ESF : The DexM excursion-set formalism, where discrete halo catalogues are generated
+            on the Lagrangian (IC) grid using an excursion-set halo finder. Source properties
+            are defined on the Lagrangian grid and then mapped to the Eulerian grid using 2LPT.
+            This model utilised the 'L-INTEGRAL' method for halos below the DexM mass resolution,
+            which is the mass of the high-resolution (DIM^3) cells.
+        CHMF-SAMPLER : The CHMF sampler, where discrete halo catalogues are generated by sampling
+            the CHMF on the IC grid, between the low-resolution (HII_DIM^3) cell mass and a minimum
+            mass defined by the user (SAMPLER_MIN_MASS). This model uses the 'L-INTEGRAL' method for
+            halos below the SAMPLER_MIN_MASS, and the 'DEXM-ESF' method for halos above the HII_DIM
+            cell mass.
     """
 
     HMF: Literal["PS", "ST", "WATSON", "WATSON-Z", "DELOS"] = choice_field(default="ST")
@@ -502,11 +578,9 @@ class MatterOptions(InputStruct):
     )
     USE_FFTW_WISDOM: bool = field(default=False, converter=bool)
 
-    # NOTE: These do not affect the ICs & PerturbFields,
-    #  but we moved the halos to the matter side for now
-    USE_HALO_FIELD: bool = field(default=True, converter=bool)
-    FIXED_HALO_GRIDS: bool = field(default=False, converter=bool)
-    HALO_STOCHASTICITY: bool = field(default=True, converter=bool)
+    SOURCE_MODEL: Literal[
+        "CONST-ION-EFF", "E-INTEGRAL", "L-INTEGRAL", "DEXM-ESF", "CHMF-SAMPLER"
+    ] = choice_field(default="CHMF-SAMPLER")
 
     @POWER_SPECTRUM.default
     def _ps_default(self):
@@ -519,27 +593,44 @@ class MatterOptions(InputStruct):
                 "Can only use 'CLASS' power spectrum with relative velocities"
             )
 
-    @HALO_STOCHASTICITY.validator
-    def _HALO_STOCHASTICITY_vld(self, att, val):
-        """Raise an error if HALO_STOCHASTICITY is True and USE_HALO_FIELD is False."""
-        if val and not self.USE_HALO_FIELD:
-            raise ValueError("HALO_STOCHASTICITY is True but USE_HALO_FIELD is False")
-
-        if val and self.USE_INTERPOLATION_TABLES != "hmf-interpolation":
+    @SOURCE_MODEL.validator
+    def _SOURCE_MODEL_vld(self, att, val):
+        """Validate SOURCE_MODEL dependencies."""
+        if val in ["DEXM-ESF", "CHMF-SAMPLER"] and self.HMF not in ["ST", "PS"]:
             msg = (
-                "The halo sampler enabled with HALO_STOCHASTICITY requires the use of HMF interpolation tables."
-                "Switch USE_INTERPOLATION_TABLES to 'hmf-interpolation' to use the halo sampler."
-            )
-            raise ValueError(msg)
-
-    @USE_HALO_FIELD.validator
-    def _USE_HALO_FIELD_vld(self, att, val):
-        if val and self.HMF not in ["ST", "PS"]:
-            msg = (
-                "The conditional mass functions requied for the halo field are only currently"
+                "The conditional mass functions requied for the discrete halo field are only currently"
                 "available for the Sheth-Tormen and Press-Schechter mass functions., use HMF='ST' or 'PS'"
             )
             raise NotImplementedError(msg)
+        if (
+            val in ["DEXM-ESF", "CHMF-SAMPLER"]
+            and self.USE_INTERPOLATION_TABLES != "hmf-interpolation"
+        ):
+            msg = (
+                "SOURCE_MODEL settings using the halo sampler require the use of HMF interpolation tables."
+                "Switch USE_INTERPOLATION_TABLES to 'hmf-interpolation'"
+            )
+            raise ValueError(msg)
+
+    @property
+    def has_discrete_halos(self) -> bool:
+        """Whether the current options will produce discrete halo catalogues."""
+        return self.SOURCE_MODEL in ["DEXM-ESF", "CHMF-SAMPLER"]
+
+    @property
+    def lagrangian_source_grid(self) -> bool:
+        """Whether the current source model is Lagrangian."""
+        return self.SOURCE_MODEL in ["L-INTEGRAL", "DEXM-ESF", "CHMF-SAMPLER"]
+
+    @property
+    def mass_dependent_zeta(self) -> bool:
+        """Whether the current source model uses mass-dependent zeta."""
+        return self.SOURCE_MODEL in [
+            "E-INTEGRAL",
+            "L-INTEGRAL",
+            "DEXM-ESF",
+            "CHMF-SAMPLER",
+        ]
 
 
 @define(frozen=True, kw_only=True)
@@ -581,7 +672,7 @@ class SimulationOptions(InputStruct):
         Sets the number of processors (threads) to be used for performing 21cmFAST.
         Default 1.
     SAMPLER_MIN_MASS: float, optional
-        The minimum mass to sample in the halo sampler when USE_HALO_FIELD and HALO_STOCHASTICITY are true,
+        The minimum mass to sample in the halo sampler when SOURCE_MODEL is "CHMF-SAMPLER",
         decreasing this can drastically increase both compute time and memory usage.
     SAMPLER_BUFFER_FACTOR: float, optional
         The arrays for the halo sampler will have size of SAMPLER_BUFFER_FACTOR multiplied by the expected
@@ -697,7 +788,7 @@ class SimulationOptions(InputStruct):
         default=2, converter=float, validator=validators.gt(0)
     )
 
-    # NOTE: Thematically these should be in AstroParams, However they affect the HaloField
+    # NOTE: Thematically these should be in AstroParams, However they affect the HaloCatalog
     #   Objects and so need to be in the matter_cosmo hash, they seem a little strange here
     #   but will remain until someone comes up with a better organisation down the line
     CORR_STAR: float = field(default=0.5, converter=float)
@@ -809,19 +900,11 @@ class AstroOptions(InputStruct):
     ----------
     USE_MINI_HALOS : bool, optional
         Set to True if using mini-halos parameterization.
-        If True, USE_MASS_DEPENDENT_ZETA and INHOMO_RECO must be True.
+        If True, USE_TS_FLUCT and INHOMO_RECO must be True.
     USE_CMB_HEATING : bool, optional
         Whether to include CMB Heating. (cf Eq.4 of Meiksin 2021, arxiv.org/abs/2105.14516)
     USE_LYA_HEATING : bool, optional
         Whether to use Lyman-alpha heating. (cf Sec. 3 of Reis+2021, doi.org/10.1093/mnras/stab2089)
-    USE_MASS_DEPENDENT_ZETA : bool, optional
-        Set to True if using new parameterization. Setting to True will automatically
-        set `M_MIN_in_Mass` to True.
-    <<<<<<< HEAD
-    SUBCELL_RSDS : bool, optional
-        Add sub-cell redshift-space-distortions (cf Sec 2.2 of Greig+2018).
-    =======
-    >>>>>>> main
     INHOMO_RECO : bool, optional
         Whether to perform inhomogeneous recombinations. Increases the computation
         time.
@@ -830,17 +913,16 @@ class AstroOptions(InputStruct):
         Dramatically increases the computation time.
     M_MIN_in_Mass : bool, optional
         Whether the minimum halo mass (for ionization) is defined by
-        mass or virial temperature. Automatically True if `USE_MASS_DEPENDENT_ZETA`
-        is True.
-    PHOTON_CONS_TYPE : int, optional
+        mass or virial temperature. Only has an effect when SOURCE_MODEL == 'CONST-ION-EFF'
+    PHOTON_CONS_TYPE : str, optional
         Whether to perform a small correction to account for the inherent
         photon non-conservation. This can be one of three types of correction:
 
-        0: No photon cosnervation correction,
-        1: Photon conservation correction by adjusting the redshift of the N_ion source field (Park+22)
-        2: Adjustment to the escape fraction power-law slope, based on fiducial results in Park+22, This runs a
+        no-photoncons: No photon cosnervation correction,
+        z-photoncons: Photon conservation correction by adjusting the redshift of the N_ion source field (Park+22)
+        alpha-photoncons: Adjustment to the escape fraction power-law slope, based on fiducial results in Park+22, This runs a
         series of global xH evolutions and one calibration simulation to find the adjustment as a function of xH
-        3: Adjustment to the escape fraction normalisation, runs one calibration simulation to find the
+        f-photoncons: Adjustment to the escape fraction normalisation, runs one calibration simulation to find the
         adjustment as a function of xH where f'/f = xH_global/xH_calibration
     FIX_VCB_AVG: bool, optional
         Determines whether to use a fixed vcb=VAVG (*regardless* of USE_RELATIVE_VELOCITIES). It includes the average effect of velocities but not its fluctuations. See Muñoz+21 (2110.13919).
@@ -866,7 +948,7 @@ class AstroOptions(InputStruct):
     USE_UPPER_STELLAR_TURNOVER: bool, optional
         Whether to use an additional powerlaw in stellar mass fraction at high halo mass. The pivot mass scale and power-law index are
         controlled by two parameters, UPPER_STELLAR_TURNOVER_MASS and UPPER_STELLAR_TURNOVER_INDEX respectively.
-        This is currently only implemented in the halo model (USE_HALO_FIELD=True), and has no effect otherwise.
+        This is currently only implemented using the discrete halo model, and has no effect otherwise.
     HALO_SCALING_RELATIONS_MEDIAN: bool, optional
         If True, halo scaling relation parameters (F_STAR10,t_STAR etc...) define the median of their conditional distributions
         If False, they describe the mean.
@@ -880,28 +962,22 @@ class AstroOptions(InputStruct):
     IONISE_ENTIRE_SPHERE: bool, optional
         If True, ionises the entire sphere on the filter scale when an ionised region is found
         in the excursion set.
-    AVG_BELOW_SAMPLER: bool, optional
-        When switched on, an integral is performed in each cell between the minimum source mass and SAMPLER_MIN_MASS,
-        effectively placing the average halo population in each HaloBox cell below the sampler resolution.
-        When switched off, all halos below SAMPLER_MIN_MASS are ignored. This flag saves memory for larger boxes,
-        while still including the effects of smaller sources, albeit without stochasticity.
-    INTEGRATION_METHOD_ATOMIC: int, optional
+    INTEGRATION_METHOD_ATOMIC: str, optional
         The integration method to use for conditional MF integrals of atomic halos in the grids:
         NOTE: global integrals will use GSL QAG adaptive integration
-        0: GSL QAG adaptive integration,
-        1: Gauss-Legendre integration, previously forced in the interpolation tables,
-        2: Approximate integration, assuming sharp cutoffs and a triple power-law for sigma(M) based on EPS
-    INTEGRATION_METHOD_MINI: int, optional
+        'GSL-QAG': GSL QAG adaptive integration,
+        'GAUSS-LEGENDRE': Gauss-Legendre integration, previously forced in the interpolation tables,
+        'GAMMA-APPROX': Approximate integration, assuming sharp cutoffs and a triple power-law for sigma(M) based on EPS
+    INTEGRATION_METHOD_MINI: str, optional
         The integration method to use for conditional MF integrals of minihalos in the grids:
-        0: GSL QAG adaptive integration,
-        1: Gauss-Legendre integration, previously forced in the interpolation tables,
-        2: Approximate integration, assuming sharp cutoffs and a triple power-law for sigma(M) based on EPS
+        'GSL-QAG': GSL QAG adaptive integration,
+        'GAUSS-LEGENDRE': Gauss-Legendre integration, previously forced in the interpolation tables,
+        'GAMMA-APPROX': Approximate integration, assuming sharp cutoffs and a triple power-law for sigma(M) based on EPS
     """
 
     USE_MINI_HALOS: bool = field(default=False, converter=bool)
     USE_CMB_HEATING: bool = field(default=True, converter=bool)
     USE_LYA_HEATING: bool = field(default=True, converter=bool)
-    USE_MASS_DEPENDENT_ZETA: bool = field(default=True, converter=bool)
     INHOMO_RECO: bool = field(default=False, converter=bool)
     USE_TS_FLUCT: bool = field(default=False, converter=bool)
     FIX_VCB_AVG: bool = field(default=False, converter=bool)
@@ -921,31 +997,17 @@ class AstroOptions(InputStruct):
     HII_FILTER: FilterOptions = choice_field(default="spherical-tophat")
     HEAT_FILTER: FilterOptions = choice_field(default="spherical-tophat")
     IONISE_ENTIRE_SPHERE: bool = field(default=False, converter=bool)
-    AVG_BELOW_SAMPLER: bool = field(default=True, converter=bool)
 
     INTEGRATION_METHOD_ATOMIC: IntegralMethods = choice_field(default="GAUSS-LEGENDRE")
     INTEGRATION_METHOD_MINI: IntegralMethods = choice_field(default="GAUSS-LEGENDRE")
-
-    @M_MIN_in_Mass.validator
-    def _M_MIN_in_Mass_vld(self, att, val):
-        """M_MIN_in_Mass must be true if USE_MASS_DEPENDENT_ZETA is true."""
-        if not val and self.USE_MASS_DEPENDENT_ZETA:
-            raise ValueError(
-                "M_MIN_in_Mass must be true if USE_MASS_DEPENDENT_ZETA is true."
-            )
 
     @USE_MINI_HALOS.validator
     def _USE_MINI_HALOS_vald(self, att, val):
         """
         Raise an error USE_MINI_HALOS is True with incompatible flags.
 
-        This happens when anyof of USE_MASS_DEPENDENT_ZETA, INHOMO_RECO,
-        or USE_TS_FLUCT is False.
+        This happens when INHOMO_RECO or USE_TS_FLUCT is False.
         """
-        if val and not self.USE_MASS_DEPENDENT_ZETA:
-            raise ValueError(
-                "You have set USE_MINI_HALOS to True but USE_MASS_DEPENDENT_ZETA is False! "
-            )
         if val and not self.INHOMO_RECO:
             raise ValueError(
                 "You have set USE_MINI_HALOS to True but INHOMO_RECO is False! "
@@ -996,8 +1058,7 @@ class AstroParams(InputStruct):
     F_STAR10 : float, optional
         The fraction of galactic gas in stars for 10^10 solar mass haloes.
         Only used in the "new" parameterization,
-        i.e. when `USE_MASS_DEPENDENT_ZETA` is set to True (in :class:`AstroOptions`).
-        If so, this is used along with `F_ESC10` to determine `HII_EFF_FACTOR` (which
+        This is used along with `F_ESC10` to determine `HII_EFF_FACTOR` (which
         is then unused). See Eq. 11 of Greig+2018 and Sec 2.1 of Park+2018.
         Given in log10 units.
     F_STAR7_MINI : float, optional
@@ -1023,9 +1084,8 @@ class AstroParams(InputStruct):
         index of the power-law between SFMS scatter and stellar mass below 1e10 solar.
     F_ESC10 : float, optional
         The "escape fraction", i.e. the fraction of ionizing photons escaping into the
-        IGM, for 10^10 solar mass haloes. Only used in the "new" parameterization,
-        i.e. when `USE_MASS_DEPENDENT_ZETA` is set to True (in :class:`AstroOptions`).
-        If so, this is used along with `F_STAR10` to determine `HII_EFF_FACTOR` (which
+        IGM, for 10^10 solar mass haloes. Only used in the "new" parameterization.
+        This is used along with `F_STAR10` to determine `HII_EFF_FACTOR` (which
         is then unused). See Eq. 11 of Greig+2018 and Sec 2.1 of Park+2018.
     F_ESC7_MINI: float, optional
         The "escape fraction for minihalos", i.e. the fraction of ionizing photons escaping
@@ -1040,8 +1100,7 @@ class AstroParams(InputStruct):
         Park+2018.
     M_TURN : float, optional
         Turnover mass (in log10 solar mass units) for quenching of star formation in
-        halos, due to SNe or photo-heating feedback, or inefficient gas accretion. Only
-        used if `USE_MASS_DEPENDENT_ZETA` is set to True in :class:`AstroOptions`.
+        halos, due to SNe or photo-heating feedback, or inefficient gas accretion.
         See Sec 2.1 of Park+2018.
     R_BUBBLE_MAX : float, optional
         Mean free path in Mpc of ionizing photons within ionizing regions (Sec. 2.1.2 of
@@ -1073,8 +1132,7 @@ class AstroParams(InputStruct):
         If used we recommend going back to Macachek+01 A_LW=22.86.
     t_STAR : float, optional
         Fractional characteristic time-scale (fraction of hubble time) defining the
-        star-formation rate of galaxies. Only used if `USE_MASS_DEPENDENT_ZETA` is set
-        to True in :class:`AstroOptions`. See Sec 2.1, Eq. 3 of Park+2018.
+        star-formation rate of galaxies. See Sec 2.1, Eq. 3 of Park+2018.
     A_LW, BETA_LW: float, optional
         Impact of the LW feedback on Mturn for minihaloes. Default is 22.8685 and 0.47 following Machacek+01, respectively. Latest simulations suggest 2.0 and 0.6. See Sec 2 of Muñoz+21 (2110.13919).
     A_VCB, BETA_VCB: float, optional
@@ -1366,49 +1424,53 @@ class InputParameters:
     def _astro_options_validator(self, att, val):
         if self.matter_options is None:
             return
-        if (
-            val.USE_MINI_HALOS
-            and not self.matter_options.USE_RELATIVE_VELOCITIES
-            and not val.FIX_VCB_AVG
-        ):
-            warnings.warn(
-                "USE_MINI_HALOS needs USE_RELATIVE_VELOCITIES to get the right evolution!",
-                stacklevel=2,
-            )
-        if self.matter_options.USE_HALO_FIELD:
+        if val.USE_MINI_HALOS:
+            if not self.matter_options.USE_RELATIVE_VELOCITIES and not val.FIX_VCB_AVG:
+                warnings.warn(
+                    "USE_MINI_HALOS needs USE_RELATIVE_VELOCITIES to get the right evolution!",
+                    stacklevel=2,
+                )
+            if self.matter_options.SOURCE_MODEL == "CONST-ION-EFF":
+                raise ValueError(
+                    "SOURCE_MODEL == 'CONST-ION-EFF' is not compatible with USE_MINI_HALOS=True"
+                )
+
+        if self.matter_options.lagrangian_source_grid:
             if val.PHOTON_CONS_TYPE == "z-photoncons":
                 raise ValueError(
-                    "USE_HALO_FIELD is not compatible with the redshift-based"
-                    " photon conservation corrections (PHOTON_CONS_TYPE=='z_photoncons')! "
-                )
-            """Raise an error if USE_HALO_FIELD is True and USE_MASS_DEPENDENT_ZETA is False."""
-            if not val.USE_MASS_DEPENDENT_ZETA:
-                raise ValueError(
-                    "You have set USE_MASS_DEPENDENT_ZETA to False but USE_HALO_FIELD is True! "
+                    f"SOURCE_MODEL={self.matter_options.SOURCE_MODEL} is not compatible with the redshift-based"
+                    " photon conservation corrections (PHOTON_CONS_TYPE=='z_photoncons')! Use a "
+                    " different PHOTON_CONS_TYPE or set SOURCE_MODEL='E-INTEGRAL' to use the old"
+                    " source model"
                 )
         else:
-            if val.USE_UPPER_STELLAR_TURNOVER:
-                raise NotImplementedError(
-                    "USE_UPPER_STELLAR_TURNOVER is not yet implemented for when USE_HALO_FIELD is False"
-                )
             if val.USE_EXP_FILTER:
                 raise ValueError(
-                    "USE_EXP_FILTER is not compatible with USE_HALO_FIELD == False"
+                    f"USE_EXP_FILTER is not compatible with SOURCE_MODEL == {self.matter_options.SOURCE_MODEL}"
                 )
-        if self.matter_options.HMF not in ["PS", "ST"]:
+        if (
+            not self.matter_options.has_discrete_halos
+            and val.USE_UPPER_STELLAR_TURNOVER
+        ):
+            raise NotImplementedError(
+                f"USE_UPPER_STELLAR_TURNOVER is not yet implemented for SOURCE_MODEL = {self.matter_options.SOURCE_MODEL}"
+            )
+        if self.matter_options.HMF not in ["PS", "ST", "DELOS"]:
             warnings.warn(
-                "A selection of a mass function other than Press-Schechter or Sheth-Tormen will"
+                "A selection of a mass function other than Press-Schechter, Sheth-Tormen or Delos will"
                 "Result in the use of the EPS conditional mass function, normalised the unconditional"
                 "mass function provided by the user as matter_options.HMF",
                 stacklevel=2,
             )
         elif (
             val.INTEGRATION_METHOD_ATOMIC == "GAMMA-APPROX"
-            and self.matter_options.HMF != "PS"
-        ):
+            or val.INTEGRATION_METHOD_MINI == "GAMMA-APPROX"
+            or self.matter_options.SOURCE_MODEL == "CONST-ION-EFF"
+        ) and self.matter_options.HMF != "PS":
             warnings.warn(
-                "The 'GAMMA-APPROX' integration method uses the EPS conditional mass function"
-                "normalised to the unconditional mass function provided by the user as matter_options.HMF",
+                "Your model (either SOURCE_MODEL=='CONST-ION-EFF' or INTEGRATION_METHOD_X=='GAMMA-APPROX')"
+                "uses the EPS conditional mass function normalised to the unconditional mass"
+                "function provided by the user as matter_options.HMF",
                 stacklevel=2,
             )
 
@@ -1672,3 +1734,99 @@ class InputParameters:
             }
 
         return dct
+
+    def __attrs_post_init__(self) -> None:
+        """Run a check after initialization.
+
+        Currently just checks that the halo mass ranges are sensible.
+        """
+        check_halomass_range(self)
+
+
+def check_halomass_range(inputs: InputParameters) -> None:
+    """Check that the halo mass range is sensible given the parameters.
+
+    This function checks that the minimum halo mass set by the various resolutions
+    and flags does not have any gaps. We raise an error if there is a gap, and a warning
+    if it is above the turnover mass.
+    """
+    # There are no problems if we are not using halos
+    if not inputs.matter_options.lagrangian_source_grid:
+        return
+
+    # simplified behaviour of lib.minimum_source_mass()
+    if inputs.astro_options.USE_MINI_HALOS:
+        min_integral_mass = 1e5 * un.M_sun
+    else:
+        min_integral_mass = (
+            max(inputs.astro_params.cdict["M_TURN"] / 50, 1e5) * un.M_sun
+        )
+    max_integral_mass = 1e16 * un.M_sun  # define macro in hmf.h
+
+    massdens = inputs.cosmo_params.cosmo.critical_density(0) * inputs.cosmo_params.OMm
+    hires_cell_mass = (massdens * inputs.simulation_options.cell_size_hires**3).to(
+        un.M_sun
+    )
+    lores_cell_mass = (massdens * inputs.simulation_options.cell_size**3).to(un.M_sun)
+    pt_cell_mass = (
+        hires_cell_mass
+        if inputs.matter_options.PERTURB_ON_HIGH_RES
+        else lores_cell_mass
+    )
+
+    has_dexm_halos = inputs.matter_options.SOURCE_MODEL in ["DEXM-ESF", "CHMF-SAMPLER"]
+    has_sampled_halos = inputs.matter_options.SOURCE_MODEL == "CHMF-SAMPLER"
+    has_integrals = (
+        min_integral_mass / un.M_sun < inputs.simulation_options.SAMPLER_MIN_MASS
+    )
+
+    min_cellint = min_integral_mass
+    if inputs.matter_options.SOURCE_MODEL == "CHMF-SAMPLER":
+        max_cellint = inputs.simulation_options.SAMPLER_MIN_MASS * un.M_sun
+    elif inputs.matter_options.SOURCE_MODEL == "DEXM-ESF":
+        max_cellint = hires_cell_mass
+    else:
+        max_cellint = max_integral_mass
+
+    max_cellint = min(max_cellint, pt_cell_mass)
+
+    min_sampler = inputs.simulation_options.SAMPLER_MIN_MASS * un.M_sun
+    # if the cell is smaller, the sampler won't draw any halos
+    max_sampler = max(lores_cell_mass, min_sampler)
+
+    min_dexm = lores_cell_mass if has_sampled_halos else hires_cell_mass
+    # not the real maximum, (7 sigma), but sufficient for our checks here
+    max_dexm = 1e16 * un.M_sun
+
+    mass_limits = ()
+    names = ()
+    if has_integrals:
+        mass_limits += ((min_cellint, max_cellint),)
+        names += ("integrals",)
+    if has_sampled_halos:
+        mass_limits += ((min_sampler, max_sampler),)
+        names += ("sampler",)
+    if has_dexm_halos:
+        mass_limits += ((min_dexm, max_dexm),)
+        names += ("dexm",)
+
+    for i in range(len(mass_limits) - 1):
+        if mass_limits[i][1] != mass_limits[i + 1][0]:
+            raise ValueError(
+                f"There is a gap/overlap in the halo mass ranges of {dict(zip(names, mass_limits, strict=False))}. "
+                "This will lead to unphysical results. Please adjust your parameters to remove this gap."
+            )
+
+    if min(min(mass_limits)) > min_integral_mass:
+        warnings.warn(
+            f"The minimum halo mass {min(min(mass_limits)):.2e} is high compared to the turnover {inputs.astro_params.cdict['M_TURN']:.2e}. "
+            f"Halos below {min(min(mass_limits)):.2e} will not be accounted for in the simulation.",
+            stacklevel=2,
+        )
+
+    if max(max(mass_limits)) < max_integral_mass:
+        warnings.warn(
+            f"The maximum halo mass {max(max(mass_limits)):.2e} is below the integral mass {max_integral_mass:.2e}. "
+            f"Halos above {max(max(mass_limits)):.2e} will not be accounted for in the simulation.",
+            stacklevel=2,
+        )

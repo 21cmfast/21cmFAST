@@ -115,7 +115,7 @@ int InitialisePhotonCons() {
         set_scaling_constants(a_end, &sc_i, false);
 
         // set the minimum source mass
-        if (astro_options_global->USE_MASS_DEPENDENT_ZETA) {
+        if (matter_options_global->SOURCE_MODEL > 0) {
             ION_EFF_FACTOR = astro_params_global->POP2_ION * astro_params_global->F_STAR10 *
                              astro_params_global->F_ESC10;
             M_MIN = astro_params_global->M_TURN / 50.;
@@ -170,7 +170,7 @@ int InitialisePhotonCons() {
                 // Ionizing emissivity (num of photons per baryon)
                 // We Force QAG due to the changing limits and messy implementation which I will fix
                 // later (hopefully move the whole thing to python)
-                if (astro_options_global->USE_MASS_DEPENDENT_ZETA) {
+                if (matter_options_global->SOURCE_MODEL > 0) {
                     Nion0 = ION_EFF_FACTOR *
                             Nion_General(z0, lnMmin, lnMmax, astro_params_global->M_TURN, &sc_0);
                     Nion1 = ION_EFF_FACTOR *
@@ -213,8 +213,8 @@ int InitialisePhotonCons() {
                         Ho * sqrt(cosmo_params_global->OMm / a + cosmo_params_global->OMr / a / a +
                                   cosmo_params_global->OMl * a *
                                       a);  // da/dt = Ho*a*sqrt(OMm/a^3 + OMr/a^4 + OMl)
-                    Trec = 0.93 * 1e9 * SperYR * pow(C_HII / 3., -1) * pow(T_0 / 2e4, 0.7) *
-                           pow((1. + zi) / 7., -3);
+                    Trec = 0.93 * 1e9 * physconst.s_per_yr * pow(C_HII / 3., -1) *
+                           pow(T_0 / 2e4, 0.7) * pow((1. + zi) / 7., -3);
                     Q1 = Q0 + ((Nion0 - Nion1) / 2. / delta_a - Q0 / Trec / dadt) * da;
                 }
 
@@ -305,7 +305,7 @@ int InitialisePhotonCons() {
         free(Q_z);
         free(z_value);
 
-        if (astro_options_global->USE_MASS_DEPENDENT_ZETA) {
+        if (matter_options_global->SOURCE_MODEL > 0) {
             freeSigmaMInterpTable();
         }
 

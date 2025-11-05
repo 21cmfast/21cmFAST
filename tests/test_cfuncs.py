@@ -11,14 +11,14 @@ from py21cmfast.wrapper import cfuncs as cf
 
 def test_run_lf():
     inputs = p21c.InputParameters(random_seed=9)
-    muv, mhalo, lf = p21c.compute_luminosity_function(
+    *_, lf = p21c.compute_luminosity_function(
         inputs=inputs, redshifts=[7, 8, 9], nbins=100
     )
     assert np.all(lf[~np.isnan(lf)] > -30)
     assert lf.shape == (3, 100)
 
     # Check that memory is in-tact and a second run also works:
-    muv, mhalo, lf2 = p21c.compute_luminosity_function(
+    _muv, _mhalo, lf2 = p21c.compute_luminosity_function(
         inputs=inputs, redshifts=[7, 8, 9], nbins=100
     )
     assert lf2.shape == (3, 100)
@@ -26,7 +26,7 @@ def test_run_lf():
 
     inputs = inputs.from_template("mini", random_seed=9)
 
-    muv_minih, mhalo_minih, lf_minih = p21c.compute_luminosity_function(
+    _muv_minih, _mhalo_minih, lf_minih = p21c.compute_luminosity_function(
         redshifts=[7, 8, 9],
         nbins=100,
         component="mcg",
@@ -116,7 +116,7 @@ def test_bad_integral_inputs(default_input_struct):
         )
 
     with pytest.raises(
-        ValueError, match="Halo masses and rng shapes must be identical."
+        ValueError, match="Halo masses and rng shapes must be identical"
     ):
         cf.convert_halo_properties(
             inputs=default_input_struct,
@@ -302,7 +302,7 @@ def make_matterfield_comparison_plot(
     plt,
     **kwargs,
 ):
-    fig, axs = plt.subplots(nrows=2, ncols=4, figsize=(16, 8))
+    _fig, axs = plt.subplots(nrows=2, ncols=4, figsize=(16, 8))
 
     for i, row in enumerate(axs):
         for j, ax in enumerate(row):
