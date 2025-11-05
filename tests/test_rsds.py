@@ -78,11 +78,11 @@ def test_bad_coeval_inputs(default_input_struct, cache):
         )  # fails because KEEP_3D_VELOCITIES = False
     with pytest.raises(ValueError, match="You asked for axis ="):
         coeval[0].apply_rsds(axis="x")  # fails because KEEP_3D_VELOCITIES = False
-    with pytest.raises(ValueError, match="`axis` can only be `x`, `y` or `z`."):
+    with pytest.raises(ValueError, match=r"`axis` can only be `x`, `y` or `z`."):
         coeval[0].apply_velocity_corrections(axis="t")
-    with pytest.raises(ValueError, match="`axis` can only be `x`, `y` or `z`."):
+    with pytest.raises(ValueError, match=r"`axis` can only be `x`, `y` or `z`."):
         coeval[0].include_dvdr_in_tau21(axis="t")
-    with pytest.raises(ValueError, match="`axis` can only be `x`, `y` or `z`."):
+    with pytest.raises(ValueError, match=r"`axis` can only be `x`, `y` or `z`."):
         coeval[0].apply_rsds(axis="t")
 
 
@@ -95,7 +95,7 @@ def test_bad_lightconer_inputs(default_input_struct_ts):
     )
     with pytest.raises(
         ValueError,
-        match="The lightcone redshifts are not compatible with the given redshift.",
+        match="The lightcone redshifts are not compatible with the given redshift",
     ):
         p21c.run_lightcone(lightconer=lcner, inputs=default_input_struct_ts)
 

@@ -558,7 +558,7 @@ def photoncons_alpha(inputs):
         )
 
     else:
-        popt, pcov = curve_fit(alpha_func, ref_interp[sel], fit_alpha[sel])
+        popt, _pcov = curve_fit(alpha_func, ref_interp[sel], fit_alpha[sel])
         # pass to C
         logger.info(f"ALPHA_ESC Original = {ap_c['ALPHA_ESC']:.3f}")
         logger.info(f"Running with ALPHA_ESC = {popt[0]:.2f} + {popt[1]:.2f} * Q")
@@ -606,7 +606,7 @@ def photoncons_fesc(inputs):
     fit_fesc = ratio_ref * ap_c["F_ESC10"]
     sel = np.isfinite(fit_fesc) & (ref_interp < max_q_fit) & (ref_interp > min_q_fit)
 
-    popt, pcov = curve_fit(alpha_func, ref_interp[sel], fit_fesc[sel])
+    popt, _pcov = curve_fit(alpha_func, ref_interp[sel], fit_fesc[sel])
     # pass to C
     logger.info(f"F_ESC10 Original = {ap_c['F_ESC10']:.3f}")
     logger.info(f"Running with F_ESC10 = {popt[0]:.2f} + {popt[1]:.2f} * Q")

@@ -356,7 +356,7 @@ def plot_scatter_comparison(
     truths, tests, inputs, names, log_vals=True, log_inp=False, plt=None
 ):
     nplots = len(truths)
-    fig, axs = plt.subplots(nrows=2, ncols=nplots, figsize=(4 * nplots, 6))
+    _fig, axs = plt.subplots(nrows=2, ncols=nplots, figsize=(4 * nplots, 6))
 
     for i, (true, test, inp, name) in enumerate(
         zip(truths, tests, inputs, names, strict=False)
@@ -382,7 +382,7 @@ def plot_scatter_comparison(
 def plot_sampler_comparison(
     bin_edges, exp_N, exp_M, N_array, M_array, exp_mf, mf_out, one_halo, title, plt
 ):
-    fig, axs = plt.subplots(nrows=1, ncols=2, figsize=(12, 5))
+    _fig, axs = plt.subplots(nrows=1, ncols=2, figsize=(12, 5))
 
     axst = [axs[0].twinx(), axs[1].twiny()]
 

@@ -168,7 +168,7 @@ def make_lightcone_comparison_plot(
     true_k, k, z, true_powers, true_global, test_powers, test_global, plt
 ):
     n = len(true_global) + len(true_powers)
-    fig, ax = plt.subplots(
+    _fig, ax = plt.subplots(
         2,
         n,
         figsize=(4 * n, 6),
@@ -205,7 +205,7 @@ def make_lightcone_comparison_plot(
 
 
 def make_coeval_comparison_plot(true_k, k, true_powers, test_powers, plt):
-    fig, ax = plt.subplots(
+    _fig, ax = plt.subplots(
         2,
         len(true_powers),
         figsize=(4 * len(true_powers), 6),
@@ -270,15 +270,15 @@ def test_perturb_field_data(name):
         pdf_vel = f["pdf_vel"][...]
 
     (
-        k_dens,
+        _k_dens,
         p_dens,
-        k_vel,
+        _k_vel,
         p_vel,
-        x_dens,
+        _x_dens,
         y_dens,
-        x_vel,
+        _x_vel,
         y_vel,
-        ic,
+        _ic,
     ) = prd.produce_perturb_field_data(redshift, **kwargs)
 
     np.testing.assert_allclose(p_dens, power_dens, atol=5e-3, rtol=1e-3)

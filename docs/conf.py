@@ -1,11 +1,10 @@
 """Configuration options for the docs."""
 
 import os
-import subprocess
+
 # import sys
 # from pathlib import Path
 # from unittest.mock import MagicMock
-
 # Import the package because if the import breaks, this gives a nice
 # stack trace, whereas if it breaks inside the autodoc step, it's harder to debug.
 import py21cmfast

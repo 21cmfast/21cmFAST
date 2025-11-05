@@ -366,14 +366,14 @@ def test_photoncons_backend_error(redshift, default_input_struct, ic):
 
     # first test if the error occurs with no inputs
     with pytest.raises(
-        ValueError, match="Photon conservation is needed but not initialised."
+        ValueError, match="Photon conservation is needed but not initialised"
     ):
         p21c.perturb_field(redshift=redshift, initial_conditions=ic, inputs=inputs)
 
     # test if the error occurs with the wrong inputs
     p21c.setup_photon_cons(initial_conditions=ic, inputs=inputs)
     with pytest.raises(
-        ValueError, match="Photon conservation is needed but not initialised."
+        ValueError, match="Photon conservation is needed but not initialised"
     ):
         p21c.perturb_field(
             redshift=redshift,
@@ -503,7 +503,7 @@ def test_bad_input_structs(default_input_struct_ts):
     # IonizedBox
     with pytest.raises(
         ValueError,
-        match="You need to provide a previous ionized box when redshift < Z_HEAT_MAX.",
+        match="You need to provide a previous ionized box when redshift < Z_HEAT_MAX",
     ):
         p21c.compute_ionization_field(
             initial_conditions=ic,
@@ -514,7 +514,7 @@ def test_bad_input_structs(default_input_struct_ts):
         )
     with pytest.raises(
         ValueError,
-        match="You need to provide a previous perturbed field when redshift < Z_HEAT_MAX.",
+        match="You need to provide a previous perturbed field when redshift < Z_HEAT_MAX",
     ):
         p21c.compute_ionization_field(
             initial_conditions=ic,

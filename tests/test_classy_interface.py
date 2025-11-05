@@ -14,7 +14,7 @@ def test_classy_runs():
     """Test classy runs in non trivial configurations."""
     with pytest.raises(
         KeyError,
-        match="You specified m_ncdm, but set N_ncdm=0.",
+        match="You specified m_ncdm, but set N_ncdm=0",
     ):
         classy_output = run_classy(
             N_ncdm=0,
@@ -53,7 +53,7 @@ def test_classy_runs_with_sigma8_A_s(default_input_struct):
 
     with pytest.raises(
         KeyError,
-        match="Do not provide both 'sigma8' and 'A_s' as arguments. Only one of them is allowed.",
+        match=r"Do not provide both 'sigma8' and 'A_s' as arguments. Only one of them is allowed.",
     ):
         classy_output = run_classy(sigma8=sigma8, A_s=A_s)
 
