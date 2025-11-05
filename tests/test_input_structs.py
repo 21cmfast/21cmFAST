@@ -503,7 +503,7 @@ class TestInputParameters:
         """Test that passing a non-existent parameter to evolve raises."""
         with pytest.raises(
             TypeError,
-            match="BAD_INPUT is not a valid keyword input.",
+            match="BAD_INPUT is not a valid keyword input",
         ):
             InputParameters(random_seed=0).evolve_input_structs(BAD_INPUT=True)
 
