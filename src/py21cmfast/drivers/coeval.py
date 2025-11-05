@@ -427,10 +427,7 @@ def evolve_halos(
         Returns an empty list if halo fields are not used or fixed grids are enabled.
     """
     # get the halos (reverse redshift order)
-    if (
-        not inputs.matter_options.USE_HALO_FIELD
-        or inputs.matter_options.FIXED_HALO_GRIDS
-    ):
+    if not inputs.matter_options.has_discrete_halos:
         return []
 
     if not write.halo_catalog and len(all_redshifts) > 1:
@@ -649,9 +646,9 @@ def _obtain_starting_point_for_scrolling(
         # the last one.
         minimum_node = len(inputs.node_redshifts) - 1
 
-    if minimum_node < 0 or inputs.matter_options.USE_HALO_FIELD or regenerate:
+    if minimum_node < 0 or inputs.matter_options.has_discrete_halos or regenerate:
         # TODO: (low priority) implement a backward loop for finding first halo files
-        #   Noting that we need *all* the perturbed halo fields in the cache to run
+        #   Noting that we need *all* the halo fields in the cache to run
         return (
             -1,
             None,
@@ -731,8 +728,8 @@ def _redshift_loop_generator(
             this_perturbed_field = perturbed_field[iz]
             this_perturbed_field.load_all()
 
-            if inputs.matter_options.USE_HALO_FIELD:
-                if not inputs.matter_options.FIXED_HALO_GRIDS:
+            if inputs.matter_options.lagrangian_source_grid:
+                if inputs.matter_options.has_discrete_halos:
                     this_halofield = halofield_list[iz]
                     this_halofield.load_all()
 
@@ -747,7 +744,7 @@ def _redshift_loop_generator(
                 )
 
             if inputs.astro_options.USE_TS_FLUCT:
-                if inputs.matter_options.USE_HALO_FIELD:
+                if inputs.matter_options.lagrangian_source_grid:
                     # append the halo redshift array so we have all halo boxes [z,zmax]
                     this_xraysource = sf.compute_xray_source_field(
                         redshift=z,
@@ -765,12 +762,9 @@ def _redshift_loop_generator(
                     **kw,
                     cleanup=(cleanup and z == all_redshifts[-1]),
                 )
-                if inputs.matter_options.USE_HALO_FIELD:
-                    this_xraysource.purge(force=True)
-
                 # Purge XraySourceBox because it's enormous
-                if inputs.matter_options.USE_HALO_FIELD:
-                    this_xraysource.purge()
+                if inputs.matter_options.lagrangian_source_grid:
+                    this_xraysource.purge(force=True)
 
             this_ionized_box = sf.compute_ionization_field(
                 inputs=inputs,
@@ -810,7 +804,7 @@ def _redshift_loop_generator(
             if prev_coeval is not None:
                 prev_coeval.perturbed_field.purge()
                 if (
-                    inputs.matter_options.USE_HALO_FIELD
+                    inputs.matter_options.lagrangian_source_grid
                     and write.halobox
                     and iz + 1 < len(all_redshifts)
                 ):

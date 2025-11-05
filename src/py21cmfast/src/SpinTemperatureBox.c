@@ -182,7 +182,7 @@ void alloc_global_arrays() {
 
     // Nonhalo stuff
     int num_R_boxes = matter_options_global->MINIMIZE_MEMORY ? 1 : astro_params_global->N_STEP_TS;
-    if (!matter_options_global->USE_HALO_FIELD) {
+    if (matter_options_global->SOURCE_MODEL < 2) {
         delNL0 = (float **)calloc(num_R_boxes, sizeof(float *));
         for (i = 0; i < num_R_boxes; i++) {
             delNL0[i] = (float *)calloc((float)HII_TOT_NUM_PIXELS, sizeof(float));
@@ -278,7 +278,7 @@ void free_ts_global_arrays() {
 
     // interp tables
     int num_R_boxes = matter_options_global->MINIMIZE_MEMORY ? 1 : astro_params_global->N_STEP_TS;
-    if (!matter_options_global->USE_HALO_FIELD) {
+    if (matter_options_global->SOURCE_MODEL < 2) {
         for (i = 0; i < num_R_boxes; i++) {
             free(delNL0[i]);
         }
@@ -920,7 +920,7 @@ int global_reion_properties(double zp, double x_e_ave, double *log10_Mcrit_LW_av
         //   ~100 redshifts. The benefit of interpolating here would only matter if we keep the same
         //   table over subsequent snapshots, which we don't seem to do. The Nion table is used in
         //   nu_tau_one a lot but I think there's a better way to do that
-        if (astro_options_global->USE_MASS_DEPENDENT_ZETA) {
+        if (matter_options_global->SOURCE_MODEL > 0) {
             /* initialise interpolation of the mean collapse fraction for global reionization.*/
             initialise_Nion_Ts_spline(zpp_interp_points_SFR, determine_zpp_min, determine_zpp_max,
                                       &sc);
@@ -978,15 +978,19 @@ void calculate_sfrd_from_grid(int R_ct, float *dens_R_grid, float *Mcrit_R_grid,
         initialise_GL(log(M_min_R[R_ct]), log(M_max_R[R_ct]));
 
     if (matter_options_global->USE_INTERPOLATION_TABLES > 1) {
-        if (astro_options_global->USE_MASS_DEPENDENT_ZETA) {
+        if (matter_options_global->SOURCE_MODEL == 1) {
             initialise_SFRD_Conditional_table(zpp_for_evolve_list[R_ct],
                                               min_densities[R_ct] * zpp_growth[R_ct],
                                               max_densities[R_ct] * zpp_growth[R_ct] * 1.001,
                                               M_min_R[R_ct], M_max_R[R_ct], M_max_R[R_ct], sc);
-        } else {
+        } else if (matter_options_global->SOURCE_MODEL == 0) {
             initialise_FgtrM_delta_table(
                 min_densities[R_ct] * zpp_growth[R_ct], max_densities[R_ct] * zpp_growth[R_ct],
                 zpp_for_evolve_list[R_ct], zpp_growth[R_ct], sigma_min[R_ct], sigma_max[R_ct]);
+        } else {
+            LOG_ERROR("Source model %d is trying to calculate SFRD from grid, something went wrong",
+                      matter_options_global->SOURCE_MODEL);
+            Throw(ValueError);
         }
     }
 
@@ -1003,7 +1007,7 @@ void calculate_sfrd_from_grid(int R_ct, float *dens_R_grid, float *Mcrit_R_grid,
             curr_dens = dens_R_grid[box_ct] * zpp_growth[R_ct];
             if (astro_options_global->USE_MINI_HALOS) curr_mcrit = Mcrit_R_grid[box_ct];
 
-            if (astro_options_global->USE_MASS_DEPENDENT_ZETA) {
+            if (matter_options_global->SOURCE_MODEL == 1) {
                 fcoll = EvaluateSFRD_Conditional(curr_dens, zpp_growth[R_ct], M_min_R[R_ct],
                                                  M_max_R[R_ct], M_max_R[R_ct], sigma_max[R_ct], sc);
                 sfrd_grid[box_ct] = (1. + curr_dens) * fcoll;
@@ -1124,7 +1128,7 @@ void set_zp_consts(double zp, struct spintemp_from_sfr_prefactors *consts) {
                                  (1 - 0.75 * cosmo_params_global->Y_He);
 
     // converts the grid emissivity unit to per cm-3
-    if (matter_options_global->USE_HALO_FIELD) {
+    if (matter_options_global->SOURCE_MODEL > 1) {
         consts->volunit_inv = pow(physconst.cm_per_Mpc, -3);
     } else {
         consts->volunit_inv = cosmo_params_global->OMb * RHOcrit * pow(physconst.cm_per_Mpc, -3);
@@ -1399,7 +1403,7 @@ void ts_main(float redshift, float prev_redshift, float perturbed_field_redshift
     fftwf_complex *delta_unfiltered = NULL;
     double log10_Mcrit_limit;
 
-    if (!matter_options_global->USE_HALO_FIELD) {
+    if (matter_options_global->SOURCE_MODEL < 2) {
         // copy over to FFTW, do the forward FFTs and apply constants
         delta_unfiltered =
             (fftwf_complex *)fftwf_malloc(sizeof(fftwf_complex) * HII_KSPACE_NUM_PIXELS);
@@ -1520,13 +1524,13 @@ void ts_main(float redshift, float prev_redshift, float perturbed_field_redshift
             dzpp_for_evolve = dzpp_list[R_ct];
             zpp = zpp_for_evolve_list[R_ct];
             // dtdz'' dz'' -> dR for the radius sum (c included in constants)
-            if (matter_options_global->USE_HALO_FIELD)
-                z_edge_factor = fabs(dzpp_for_evolve * dtdz_list[R_ct]);
-            else if (astro_options_global->USE_MASS_DEPENDENT_ZETA)
+            if (matter_options_global->SOURCE_MODEL == 0)
+                z_edge_factor = dzpp_for_evolve;  // uses dfcoll/dz
+            else if (matter_options_global->SOURCE_MODEL == 1)
                 z_edge_factor = fabs(dzpp_for_evolve * dtdz_list[R_ct]) * hubble(zpp) /
                                 astro_params_global->t_STAR;
             else
-                z_edge_factor = dzpp_for_evolve;  // uses dfcoll/dz
+                z_edge_factor = fabs(dzpp_for_evolve * dtdz_list[R_ct]);
 
             xray_R_factor = pow(1 + zpp, -(astro_params_global->X_RAY_SPEC_INDEX));
 
@@ -1535,7 +1539,7 @@ void ts_main(float redshift, float prev_redshift, float perturbed_field_redshift
             // index for grids
             R_index = matter_options_global->MINIMIZE_MEMORY ? 0 : R_ct;
 
-            if (!matter_options_global->USE_HALO_FIELD) {
+            if (matter_options_global->SOURCE_MODEL < 2) {
                 if (matter_options_global->MINIMIZE_MEMORY) {
                     // we call the filtering functions once here per R
                     // This unnecessarily allocates and frees a fftwf box every time but surely
@@ -1617,7 +1621,7 @@ void ts_main(float redshift, float prev_redshift, float perturbed_field_redshift
                     // Secondly, it is *likely* faster to fill these boxes, and sum with a outer R
                     // loop than an inner one.
 
-                    if (matter_options_global->USE_HALO_FIELD) {
+                    if (matter_options_global->SOURCE_MODEL > 1) {
                         sfr_term = source_box->filtered_sfr[R_index * HII_TOT_NUM_PIXELS + box_ct] *
                                    z_edge_factor;
                         // Minihalos and s->yr conversion are already included here
@@ -1625,7 +1629,7 @@ void ts_main(float redshift, float prev_redshift, float perturbed_field_redshift
                             source_box->filtered_xray[R_index * HII_TOT_NUM_PIXELS + box_ct] *
                             z_edge_factor * xray_R_factor * 1e38;
                     } else {
-                        // NOTE: for !USE_MASS_DEPENDENT_ZETA, F_STAR10 is still used for constant
+                        // NOTE: for SOURCE_MODEL==0 F_STAR10 is still used for constant
                         // stellar fraction
                         sfr_term = del_fcoll_Rct[box_ct] * z_edge_factor * avg_fix_term *
                                    astro_params_global->F_STAR10;
@@ -1633,7 +1637,7 @@ void ts_main(float redshift, float prev_redshift, float perturbed_field_redshift
                                    physconst.s_per_yr;
                     }
                     if (astro_options_global->USE_MINI_HALOS) {
-                        if (matter_options_global->USE_HALO_FIELD) {
+                        if (matter_options_global->SOURCE_MODEL > 1) {
                             sfr_term_mini =
                                 source_box->filtered_sfr_mini[R_ct * HII_TOT_NUM_PIXELS + box_ct] *
                                 z_edge_factor;
@@ -1669,9 +1673,9 @@ void ts_main(float redshift, float prev_redshift, float perturbed_field_redshift
                     // I cannot check the integral if we are using the halo field since delNL0
                     // (filtered density) is not calculated
 #if LOG_LEVEL >= SUPER_DEBUG_LEVEL
-                    if (box_ct == 0 && !matter_options_global->USE_HALO_FIELD) {
+                    if (box_ct == 0 && matter_options_global->SOURCE_MODEL < 2) {
                         double integral_db;
-                        if (astro_options_global->USE_MASS_DEPENDENT_ZETA) {
+                        if (matter_options_global->SOURCE_MODEL == 1) {
                             integral_db =
                                 Nion_ConditionalM(zpp_growth[R_ct], log(M_min_R[R_ct]),
                                                   log(M_max_R[R_ct]), M_max_R[R_ct],
@@ -1842,7 +1846,7 @@ void ts_main(float redshift, float prev_redshift, float perturbed_field_redshift
         }
     }
 
-    if (!matter_options_global->USE_HALO_FIELD) {
+    if (matter_options_global->SOURCE_MODEL < 2) {
         fftwf_free(delta_unfiltered);
         if (astro_options_global->USE_MINI_HALOS) {
             fftwf_free(log10_Mcrit_LW_unfiltered);

@@ -5,8 +5,7 @@
 [SimulationOptions]
 
 [MatterOptions]
-USE_HALO_FIELD = false
-HALO_STOCHASTICITY = false
+SOURCE_MODEL = 'E-INTEGRAL'
 USE_RELATIVE_VELOCITIES = true
 
 [AstroParams]

@@ -614,7 +614,7 @@ class InitialConditions(OutputStruct):
         if self.matter_options.USE_RELATIVE_VELOCITIES:
             keep.append("lowres_vcb")
 
-        if self.matter_options.USE_HALO_FIELD:
+        if self.matter_options.lagrangian_source_grid:
             if not self.matter_options.PERTURB_ON_HIGH_RES:
                 keep.append("lowres_density")
                 keep.append("lowres_vx")
@@ -824,7 +824,7 @@ class HaloCatalog(OutputStructZ):
         """Return all input arrays required to compute this object."""
         required = []
         if isinstance(input_box, InitialConditions):
-            if self.matter_options.HALO_STOCHASTICITY:
+            if self.matter_options.SOURCE_MODEL == "CHMF-SAMPLER":
                 # when the sampler is on, the grids are only needed for the first sample
                 if self.desc_redshift <= 0:
                     required += ["hires_density"]
@@ -833,7 +833,7 @@ class HaloCatalog(OutputStructZ):
             else:
                 required += ["hires_density"]
         elif isinstance(input_box, HaloCatalog):
-            if self.matter_options.HALO_STOCHASTICITY:
+            if self.matter_options.SOURCE_MODEL == "CHMF-SAMPLER":
                 required += [
                     "halo_masses",
                     "halo_coords",
@@ -1058,7 +1058,7 @@ class HaloBox(OutputStructZ):
         """Return all input arrays required to compute this object."""
         required = []
         if isinstance(input_box, HaloCatalog):
-            if not self.matter_options.FIXED_HALO_GRIDS:
+            if self.matter_options.has_discrete_halos:
                 required += [
                     "halo_coords",
                     "halo_masses",
@@ -1320,7 +1320,7 @@ class TsBox(OutputStructZ):
             if self.astro_options.USE_MINI_HALOS:
                 required += ["J_21_LW"]
         elif isinstance(input_box, XraySourceBox):
-            if self.matter_options.USE_HALO_FIELD:
+            if self.matter_options.lagrangian_source_grid:
                 required += ["filtered_sfr", "filtered_xray"]
                 if self.astro_options.USE_MINI_HALOS:
                     required += ["filtered_sfr_mini"]
@@ -1393,7 +1393,7 @@ class IonizedBox(OutputStructZ):
         """
         if (
             inputs.astro_options.USE_MINI_HALOS
-            and not inputs.matter_options.USE_HALO_FIELD
+            and not inputs.matter_options.lagrangian_source_grid
         ):
             n_filtering = (
                 int(
@@ -1438,7 +1438,7 @@ class IonizedBox(OutputStructZ):
 
         if (
             inputs.astro_options.USE_MINI_HALOS
-            and not inputs.matter_options.USE_HALO_FIELD
+            and not inputs.matter_options.lagrangian_source_grid
         ):
             out["unnormalised_nion_mini"] = Array(filter_shape, dtype=np.float32)
 
@@ -1460,7 +1460,7 @@ class IonizedBox(OutputStructZ):
         if isinstance(input_box, InitialConditions):
             if (
                 self.matter_options.USE_RELATIVE_VELOCITIES
-                and self.astro_options.USE_MASS_DEPENDENT_ZETA
+                and self.matter_options.mass_dependent_zeta
             ):
                 required += ["lowres_vcb"]
         elif isinstance(input_box, PerturbedField):
@@ -1476,13 +1476,13 @@ class IonizedBox(OutputStructZ):
                     "cumulative_recombinations",
                 ]
             if (
-                self.astro_options.USE_MASS_DEPENDENT_ZETA
+                self.matter_options.mass_dependent_zeta
                 and self.astro_options.USE_MINI_HALOS
             ):
                 required += [
                     "unnormalised_nion",
                 ]
-                if not self.matter_options.USE_HALO_FIELD:
+                if self.matter_options.SOURCE_MODEL == "E-INTEGRAL":
                     required += [
                         "unnormalised_nion_mini",
                     ]

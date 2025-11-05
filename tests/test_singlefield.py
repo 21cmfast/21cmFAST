@@ -428,7 +428,9 @@ def test_bad_input_structs(default_input_struct_ts):
     """Test that we raise errors when required input structs are omitted."""
     # setting parameters for the maximum number of fields required
     test_inputs = default_input_struct_ts.evolve_input_structs(
-        USE_MINI_HALOS=True, USE_HALO_FIELD=True, INHOMO_RECO=True
+        USE_MINI_HALOS=True,
+        SOURCE_MODEL="CHMF-SAMPLER",
+        INHOMO_RECO=True,
     ).clone(node_redshifts=(35.0, 11.0, 10.0))
 
     # We don't need to compute since we arent testing a successful run
@@ -461,7 +463,7 @@ def test_bad_input_structs(default_input_struct_ts):
 
     # HaloBox
     with pytest.raises(
-        ValueError, match="You must provide halo_catalog if FIXED_HALO_GRIDS is False"
+        ValueError, match="You must provide halo_catalog for SOURCE_MODEL"
     ):
         p21c.compute_halo_grid(
             redshift=10.0,
@@ -489,7 +491,8 @@ def test_bad_input_structs(default_input_struct_ts):
 
     # TsBox
     with pytest.raises(
-        ValueError, match="xray_source_box is required when USE_HALO_FIELD is True"
+        ValueError,
+        match="xray_source_box is required for SOURCE_MODEL",
     ):
         p21c.compute_spin_temperature(
             initial_conditions=ic,
@@ -520,7 +523,7 @@ def test_bad_input_structs(default_input_struct_ts):
             previous_ionized_box=ib_p,
             spin_temp=st,
         )
-    with pytest.raises(ValueError, match="No halo box given but USE_HALO_FIELD=True"):
+    with pytest.raises(ValueError, match="A HaloBox must be provided for SOURCE_MODEL"):
         p21c.compute_ionization_field(
             initial_conditions=ic,
             perturbed_field=pt,
