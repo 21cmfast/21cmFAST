@@ -2,35 +2,13 @@
 
 import os
 import subprocess
-import sys
-from pathlib import Path
-from unittest.mock import MagicMock
+# import sys
+# from pathlib import Path
+# from unittest.mock import MagicMock
 
-sys.path.insert(0, str(Path(__file__).absolute().parent.parent / "src"))
-
-
-class Mock(MagicMock):
-    """Make a Mock so that a package doesn't have to actually exist."""
-
-    @classmethod
-    def __getattr__(cls, name):
-        """Get stuff."""
-        return MagicMock()
-
-
-MOCK_MODULES = [
-    "py21cmfast.c_21cmfast",
-    "click",
-    "tqdm",
-    "pyyaml",
-    "h5py",
-    "cached_property",
-]
-sys.modules.update((mod_name, Mock()) for mod_name in MOCK_MODULES)
-
-# Get the version by running from shell -- this uses the git repo info, rather than
-# requiring it to be installed.
-out = subprocess.run(["python", "setup.py", "--version"], capture_output=True)
+# Import the package because if the import breaks, this gives a nice
+# stack trace, whereas if it breaks inside the autodoc step, it's harder to debug.
+import py21cmfast
 
 extensions = [
     "sphinx.ext.autodoc",
@@ -64,9 +42,7 @@ project = "21cmFAST"
 year = "2020"
 author = "The 21cmFAST collaboration"
 copyright = f"{year}, {author}"
-version = release = (
-    out.stdout.decode().rstrip()
-)  # Get it from `python setup.py --version`
+version = release = py21cmfast.__version__
 templates_path = ["templates"]
 
 pygments_style = "trac"

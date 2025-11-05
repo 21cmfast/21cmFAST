@@ -314,12 +314,21 @@ class CosmoParams(InputStruct):
         Omega baryon, the baryon component.
     POWER_INDEX : float, optional
         Spectral index of the power spectrum.
+    A_s: float, optional
+        Amplitude of primordial curvature power spectrum, at k_pivot = 0.05 Mpc^-1.
     """
+
+    _DEFAULT_SIGMA_8: ClassVar[float] = 0.8102
+    _DEFAULT_A_s: ClassVar[float] = 2.105e-9
 
     _base_cosmo: Annotated[FLRW, Parameter(show=False, parse=False)] = field(
         default=Planck18, validator=validators.instance_of(FLRW), eq=False, repr=False
     )
-    SIGMA_8: float = field(default=0.8102, converter=float, validator=validators.gt(0))
+    _SIGMA_8: float = field(
+        default=None,
+        converter=attrs.converters.optional(float),
+        validator=validators.optional(validators.gt(0)),
+    )
     hlittle: float = field(
         default=Planck18.h, converter=float, validator=validators.gt(0)
     )
@@ -332,6 +341,11 @@ class CosmoParams(InputStruct):
     POWER_INDEX: float = field(
         default=0.9665, converter=float, validator=validators.gt(0)
     )
+    _A_s: float = field(
+        default=None,
+        converter=attrs.converters.optional(float),
+        validator=validators.optional(validators.gt(0)),
+    )
 
     OMn: float = field(default=0.0, converter=float, validator=validators.ge(0))
     OMk: float = field(default=0.0, converter=float, validator=validators.ge(0))
@@ -343,6 +357,62 @@ class CosmoParams(InputStruct):
     wl: float = field(default=-1.0, converter=float)
 
     # TODO: Combined validation via Astropy?
+
+    @_SIGMA_8.validator
+    def _sigma_8_vld(self, att, val):
+        if self._A_s is not None and val is not None:
+            raise ValueError(
+                "Cannot set both SIGMA_8 and A_s! "
+                "If this error arose when lading from template/file or evolving an "
+                "existing object, then explicitly set either SIGMA_8 or A_s "
+                "to None while setting the other to the desired value."
+            )
+
+    @cached_property
+    def SIGMA_8(self) -> float:
+        """RMS mass variance (power spectrum normalisation).
+
+        If not given explicitly, it is auto-calculated via A_s
+        and the other cosmological parameters.
+        """
+        from .classy_interface import run_classy
+
+        if self._SIGMA_8 is not None:
+            return self._SIGMA_8
+        elif self._A_s is not None:
+            classy_output = run_classy(
+                h=self.hlittle,
+                Omega_cdm=self.OMm - self.OMb,
+                Omega_b=self.OMb,
+                A_s=self._A_s,
+                n_s=self.POWER_INDEX,
+            )
+            return classy_output.sigma8()
+        else:
+            return self._DEFAULT_SIGMA_8
+
+    @cached_property
+    def A_s(self) -> float:
+        """Amplitude of primordial curvature power spectrum, at k_pivot = 0.05 Mpc^-1..
+
+        If not given explicitly, it is auto-calculated via sigma_8
+        and the other cosmological parameters.
+        """
+        from .classy_interface import run_classy
+
+        if self._A_s is not None:
+            return self._A_s
+        elif self._SIGMA_8 is not None:
+            classy_output = run_classy(
+                h=self.hlittle,
+                Omega_cdm=self.OMm - self.OMb,
+                Omega_b=self.OMb,
+                sigma8=self.SIGMA_8,
+                n_s=self.POWER_INDEX,
+            )
+            return classy_output.get_current_derived_parameters(["A_s"])["A_s"]
+        else:
+            return self._DEFAULT_A_s
 
     @property
     def OMl(self):

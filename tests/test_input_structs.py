@@ -111,6 +111,36 @@ class TestInputStructSubclasses:
         assert c5 == self.cosmo
 
 
+class TestCosmoParams:
+    """Tests of CosmoParams."""
+
+    sigma_8 = 1.0
+    A_s = 3.0e-9
+
+    def test_defaults(self):
+        """Test defaults."""
+        cosmo_params = CosmoParams()
+        assert cosmo_params.SIGMA_8 == cosmo_params._DEFAULT_SIGMA_8
+        assert cosmo_params.A_s == cosmo_params._DEFAULT_A_s
+
+    def test_sigma8(self):
+        """Test defaults with sigma8."""
+        cosmo_params = CosmoParams(SIGMA_8=self.sigma_8)
+        assert self.sigma_8 == cosmo_params.SIGMA_8
+        assert cosmo_params.A_s != cosmo_params._DEFAULT_A_s
+
+    def test_A_s(self):
+        """Test defaults with A_s."""
+        cosmo_params = CosmoParams(A_s=self.A_s)
+        assert cosmo_params.SIGMA_8 != cosmo_params._DEFAULT_SIGMA_8
+        assert cosmo_params.A_s == self.A_s
+
+    def test_bad_input(self):
+        """Test bad inputs."""
+        with pytest.raises(ValueError, match="Cannot set both SIGMA_8 and A_s!"):
+            CosmoParams(SIGMA_8=self.sigma_8, A_s=self.A_s)
+
+
 class TestAstroOptions:
     """Tests of AstroOptions."""
 
@@ -412,6 +442,12 @@ class TestInputParameters:
     def setup_class(self):
         """Create a default InputParameters."""
         self.default = InputParameters(random_seed=1)
+        self.default_sigma8 = InputParameters(
+            random_seed=1, cosmo_params=CosmoParams(SIGMA_8=1.0)
+        )
+        self.default_A_s = InputParameters(
+            random_seed=1, cosmo_params=CosmoParams(A_s=3.0e-9)
+        )
 
     @pytest.mark.parametrize(("exc", "msg", "kw"), EXCEPTION_CASES)
     def test_validation_exceptions(self, exc, msg, kw):
@@ -437,6 +473,25 @@ class TestInputParameters:
         """Test that evolve_input_structs does what it says."""
         altered_struct = self.default.evolve_input_structs(BOX_LEN=100)
         assert altered_struct.simulation_options.BOX_LEN == 100
+
+        altered_struct = self.default.evolve_input_structs(SIGMA_8=1.0)
+        assert altered_struct.cosmo_params.SIGMA_8 == 1.0
+
+        altered_struct = self.default.evolve_input_structs(A_s=3.0e-9)
+        assert altered_struct.cosmo_params.A_s == 3.0e-9
+
+        # Test defaults with kwargs
+        altered_struct = self.default_sigma8.evolve_input_structs(SIGMA_8=1.0)
+        assert altered_struct.cosmo_params.SIGMA_8 == 1.0
+
+        altered_struct = self.default_A_s.evolve_input_structs(A_s=3.0e-9)
+        assert altered_struct.cosmo_params.A_s == 3.0e-9
+
+        with pytest.raises(ValueError, match="Cannot set both SIGMA_8 and A_s!"):
+            self.default_sigma8.evolve_input_structs(A_s=3.0e-9)
+
+        with pytest.raises(ValueError, match="Cannot set both SIGMA_8 and A_s!"):
+            self.default_A_s.evolve_input_structs(SIGMA_8=1.0)
 
     @pytest.mark.parametrize("template", _ALL_ALIASES)
     def test_from_template(self, template):

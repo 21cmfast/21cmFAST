@@ -65,7 +65,7 @@ def test_read_bad_file_lc(test_direc: Path, lc: LightCone):
         )
 
         # make gaps
-        del f["InputParameters"]["cosmo_params"].attrs["SIGMA_8"]
+        del f["InputParameters"]["cosmo_params"].attrs["hlittle"]
 
     # load without compatibility mode, make sure we throw the right error
     with pytest.raises(ValueError, match="Excess arguments exist"):
@@ -104,7 +104,7 @@ def test_read_bad_file_coev(test_direc: Path, coeval: Coeval):
         ] = "fake_param"
 
         # make gaps
-        del f["BrightnessTemp"]["InputParameters"]["cosmo_params"].attrs["SIGMA_8"]
+        del f["BrightnessTemp"]["InputParameters"]["cosmo_params"].attrs["hlittle"]
 
     # load in the coeval check that we warn correctly
     with pytest.raises(ValueError, match="Excess arguments exist"):
