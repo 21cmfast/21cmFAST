@@ -806,7 +806,7 @@ def _redshift_loop_generator(
                 if (
                     inputs.matter_options.lagrangian_source_grid
                     and write.halobox
-                    and iz + 1 < len(inputs.node_redshifts)
+                    and iz + 1 < len(all_redshifts)
                 ):
                     for hbox in hbox_arr:
                         hbox.prepare_for_next_snapshot(next_z=all_redshifts[iz + 1])
