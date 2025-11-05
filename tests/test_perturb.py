@@ -30,8 +30,7 @@ class TestPerturb:
             DIM=12,
             HII_DIM=4,
             BOX_LEN=8,
-            USE_HALO_FIELD=True,
-            FIXED_HALO_GRIDS=True,
+            SOURCE_MODEL="L-INTEGRAL",
             PERTURB_ON_HIGH_RES=False,
             R_BUBBLE_MAX=1.0,
         )

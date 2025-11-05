@@ -1235,17 +1235,14 @@ float Mass_limit_bisection(float Mmin, float Mmax, float PL, float FRAC) {
 //       from M_MIN_INTEGRAL
 double minimum_source_mass(double redshift, bool xray) {
     double Mmin, min_factor, mu_factor, t_vir_min;
-    if (astro_options_global->USE_MASS_DEPENDENT_ZETA && !astro_options_global->USE_MINI_HALOS)
+    if (matter_options_global->SOURCE_MODEL > 0 && !astro_options_global->USE_MINI_HALOS)
         min_factor = 50.;  // small lower bound to cover far below the turnover
     else
         min_factor = 1.;  // sharp cutoff
 
-    // automatically false if !USE_MASS_DEPENDENT_ZETA
     if (astro_options_global->USE_MINI_HALOS) {
-        Mmin = M_MIN_INTEGRAL;
-    }
-    // automatically true if USE_MASS_DEPENDENT_ZETA
-    else if (astro_options_global->M_MIN_in_Mass) {
+        Mmin = M_MIN_INTEGRAL;  // overrides the rest of the options
+    } else if (astro_options_global->M_MIN_in_Mass) {
         // NOTE: previously this divided Mturn by 50 in spin temperature, but not in the ionised box
         //      which I think is a bug with M_MIN_in_Mass, since there is a sharp cutoff
         Mmin = astro_params_global->M_TURN;

@@ -38,7 +38,7 @@ double Xray_ConditionalM(double redshift, double growthf, double lnM1, double ln
 double unconditional_hmf(double growthf, double lnM, double z, int HMF);
 double conditional_hmf(double growthf, double lnM, double delta_cond, double sigma_cond, int HMF);
 
-/* erfc-based HMF integrals (!USE_MASS_DEPENDENT_ZETA and EPS) */
+/* erfc-based HMF integrals (!SOURCE_MODEL==0 and EPS) */
 double FgtrM(double z, double M);
 double FgtrM_bias_fast(float growthf, float del_bias, float sig_small, float sig_large);
 float dfcoll_dz(float z, float sigma_min, float del_bias, float sig_bias);
