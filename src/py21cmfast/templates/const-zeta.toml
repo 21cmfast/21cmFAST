@@ -5,7 +5,7 @@
 [SimulationOptions]
 
 [MatterOptions]
-SOURCE_MODEL = 'CONST-ZETA'
+SOURCE_MODEL = 'CONST-ION-EFF'
 
 [AstroParams]
 

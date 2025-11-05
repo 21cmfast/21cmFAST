@@ -509,7 +509,7 @@ class MatterOptions(InputStruct):
     USE_FFTW_WISDOM: bool = field(default=False, converter=bool)
 
     SOURCE_MODEL: Literal[
-        "CONST-ZETA", "E-INTEGRAL", "L-INTEGRAL", "DEXM-ESF", "CHMF-SAMPLER"
+        "CONST-ION-EFF", "E-INTEGRAL", "L-INTEGRAL", "DEXM-ESF", "CHMF-SAMPLER"
     ] = choice_field(default="CHMF-SAMPLER")
 
     @POWER_SPECTRUM.default
@@ -843,7 +843,7 @@ class AstroOptions(InputStruct):
         Dramatically increases the computation time.
     M_MIN_in_Mass : bool, optional
         Whether the minimum halo mass (for ionization) is defined by
-        mass or virial temperature. Only has an effect when SOURCE_MODEL == 'CONST-ZETA'
+        mass or virial temperature. Only has an effect when SOURCE_MODEL == 'CONST-ION-EFF'
     PHOTON_CONS_TYPE : str, optional
         Whether to perform a small correction to account for the inherent
         photon non-conservation. This can be one of three types of correction:
@@ -1346,9 +1346,9 @@ class InputParameters:
                     "USE_MINI_HALOS needs USE_RELATIVE_VELOCITIES to get the right evolution!",
                     stacklevel=2,
                 )
-            if self.matter_options.SOURCE_MODEL == "CONST-ZETA":
+            if self.matter_options.SOURCE_MODEL == "CONST-ION-EFF":
                 raise ValueError(
-                    "SOURCE_MODEL == 'CONST-ZETA' is not compatible with USE_MINI_HALOS=True"
+                    "SOURCE_MODEL == 'CONST-ION-EFF' is not compatible with USE_MINI_HALOS=True"
                 )
 
         if self.matter_options.lagrangian_source_grid:
@@ -1381,10 +1381,10 @@ class InputParameters:
         elif (
             val.INTEGRATION_METHOD_ATOMIC == "GAMMA-APPROX"
             or val.INTEGRATION_METHOD_MINI == "GAMMA-APPROX"
-            or self.matter_options.SOURCE_MODEL == "CONST-ZETA"
+            or self.matter_options.SOURCE_MODEL == "CONST-ION-EFF"
         ) and self.matter_options.HMF != "PS":
             warnings.warn(
-                "Your model (either SOURCE_MODEL=='CONST-ZETA' or INTEGRATION_METHOD_X=='GAMMA-APPROX')"
+                "Your model (either SOURCE_MODEL=='CONST-ION-EFF' or INTEGRATION_METHOD_X=='GAMMA-APPROX')"
                 "uses the EPS conditional mass function normalised to the unconditional mass"
                 "function provided by the user as matter_options.HMF",
                 stacklevel=2,

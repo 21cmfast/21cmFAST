@@ -1390,22 +1390,30 @@ int ComputeIonizedBox(float redshift, float prev_redshift, PerturbedField *pertu
             box->log10_Mturnover_MINI_ave = halos->log10_Mcrit_MCG_ave;
             Mturnover_global_avg = pow(10., halos->log10_Mcrit_ACG_ave);
             Mturnover_global_avg_MINI = pow(10., halos->log10_Mcrit_MCG_ave);
-        } else if (astro_options_global->USE_MINI_HALOS) {
-            LOG_SUPER_DEBUG(
-                "Calculating and outputting Mcrit boxes for atomic and molecular halos...");
-            calculate_mcrit_boxes(previous_ionize_box, spin_temp, ini_boxes, &ionbox_constants,
-                                  grid_struct->log10_Mturnover_unfiltered,
-                                  grid_struct->log10_Mturnover_MINI_unfiltered,
-                                  &(box->log10_Mturnover_ave), &(box->log10_Mturnover_MINI_ave));
+        } else if (ionbox_constants.mass_dep_zeta) {
+            if (astro_options_global->USE_MINI_HALOS) {
+                LOG_SUPER_DEBUG(
+                    "Calculating and outputting Mcrit boxes for atomic and molecular halos...");
+                calculate_mcrit_boxes(previous_ionize_box, spin_temp, ini_boxes, &ionbox_constants,
+                                      grid_struct->log10_Mturnover_unfiltered,
+                                      grid_struct->log10_Mturnover_MINI_unfiltered,
+                                      &(box->log10_Mturnover_ave),
+                                      &(box->log10_Mturnover_MINI_ave));
 
-            Mturnover_global_avg = pow(10., box->log10_Mturnover_ave);
-            Mturnover_global_avg_MINI = pow(10., box->log10_Mturnover_MINI_ave);
-            LOG_DEBUG("average log10 turnover masses are %.2f and %.2f for ACGs and MCGs",
-                      box->log10_Mturnover_ave, box->log10_Mturnover_MINI_ave);
+                Mturnover_global_avg = pow(10., box->log10_Mturnover_ave);
+                Mturnover_global_avg_MINI = pow(10., box->log10_Mturnover_MINI_ave);
+                LOG_DEBUG("average log10 turnover masses are %.2f and %.2f for ACGs and MCGs",
+                          box->log10_Mturnover_ave, box->log10_Mturnover_MINI_ave);
+            } else {
+                Mturnover_global_avg = astro_params_global->M_TURN;
+                box->log10_Mturnover_ave = log10(Mturnover_global_avg);
+                box->log10_Mturnover_MINI_ave = 0.0;  // not used
+            }
         } else {
-            Mturnover_global_avg = astro_params_global->M_TURN;
-            box->log10_Mturnover_ave = log10(Mturnover_global_avg);
-            box->log10_Mturnover_MINI_ave = log10(Mturnover_global_avg);
+            // just store the sharp cutoff mass
+            Mturnover_global_avg = ionbox_constants.M_min;
+            box->log10_Mturnover_ave = log10(ionbox_constants.M_min);
+            box->log10_Mturnover_MINI_ave = 0.0;  // not used
         }
         // lets check if we are going to bother with computing the inhmogeneous field at all...
         global_xH = 0.0;

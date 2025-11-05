@@ -311,9 +311,9 @@ class TestInputParameters:
     EXCEPTION_CASES: ClassVar = [
         (
             ValueError,
-            "SOURCE_MODEL == 'CONST-ZETA' is not compatible with USE_MINI_HALOS=True",
+            "SOURCE_MODEL == 'CONST-ION-EFF' is not compatible with USE_MINI_HALOS=True",
             {
-                "matter_options": MatterOptions(SOURCE_MODEL="CONST-ZETA"),
+                "matter_options": MatterOptions(SOURCE_MODEL="CONST-ION-EFF"),
                 "astro_options": AstroOptions(
                     USE_MINI_HALOS=True,
                     INHOMO_RECO=True,
