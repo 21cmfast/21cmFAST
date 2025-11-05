@@ -144,31 +144,9 @@ class TestCosmoParams:
 class TestAstroOptions:
     """Tests of AstroOptions."""
 
-    def test_mmin(self):
-        """Test that use_mass_dep_zeta sets M_MIN_in_mass."""
-        fo = AstroOptions(USE_MASS_DEPENDENT_ZETA=True)
-        assert fo.M_MIN_in_Mass
-
     # Testing all the AstroOptions dependencies, including emitted warnings
     def test_bad_inputs(self):
         """Test possible exceptions when creating the object."""
-        with pytest.raises(
-            ValueError,
-            match="You have set USE_MINI_HALOS to True but USE_MASS_DEPENDENT_ZETA is False!",
-        ):
-            AstroOptions(
-                USE_MASS_DEPENDENT_ZETA=False,
-                USE_MINI_HALOS=True,
-                INHOMO_RECO=True,
-                USE_TS_FLUCT=True,
-            )
-
-        with pytest.raises(
-            ValueError,
-            match="M_MIN_in_Mass must be true if USE_MASS_DEPENDENT_ZETA is true.",
-        ):
-            AstroOptions(USE_MASS_DEPENDENT_ZETA=True, M_MIN_in_Mass=False)
-
         with pytest.raises(
             ValueError,
             match="You have set USE_MINI_HALOS to True but INHOMO_RECO is False!",
@@ -341,31 +319,40 @@ class TestMatterOptions:
 
     def test_bad_inputs(self):
         """Test that exceptions are raised for bad inputs."""
-        msg = r"The halo sampler enabled with HALO_STOCHASTICITY requires the use of HMF interpolation tables."
+        msg = r"SOURCE_MODEL settings using the halo sampler require the use of HMF interpolation tables."
         with pytest.raises(ValueError, match=msg):
             MatterOptions(
-                USE_HALO_FIELD=True,
-                HALO_STOCHASTICITY=True,
+                SOURCE_MODEL="CHMF-SAMPLER",
                 USE_INTERPOLATION_TABLES="sigma-interpolation",
             )
-
-        msg = r"HALO_STOCHASTICITY is True but USE_HALO_FIELD is False"
-        with pytest.raises(ValueError, match=msg):
-            MatterOptions(USE_HALO_FIELD=False, HALO_STOCHASTICITY=True)
 
         msg = r"Can only use 'CLASS' power spectrum with relative velocities"
         with pytest.raises(ValueError, match=msg):
             MatterOptions(USE_RELATIVE_VELOCITIES=True, POWER_SPECTRUM="EH")
 
-        msg = r"The conditional mass functions requied for the halo field"
+        msg = r"The conditional mass functions requied for the discrete halo field"
         with pytest.raises(NotImplementedError, match=msg):
-            MatterOptions(USE_HALO_FIELD=True, HMF="WATSON")
+            MatterOptions(SOURCE_MODEL="CHMF-SAMPLER", HMF="WATSON")
 
 
 class TestInputParameters:
     """Tests of the InputParameters class."""
 
     EXCEPTION_CASES: ClassVar = [
+        (
+            ValueError,
+            "SOURCE_MODEL == 'CONST-ION-EFF' is not compatible with USE_MINI_HALOS=True",
+            {
+                "matter_options": MatterOptions(SOURCE_MODEL="CONST-ION-EFF"),
+                "astro_options": AstroOptions(
+                    USE_MINI_HALOS=True,
+                    INHOMO_RECO=True,
+                    USE_TS_FLUCT=True,
+                    USE_EXP_FILTER=False,
+                    USE_UPPER_STELLAR_TURNOVER=False,
+                ),
+            },
+        ),
         (
             ValueError,
             "R_BUBBLE_MAX is larger than BOX_LEN",
@@ -387,26 +374,18 @@ class TestInputParameters:
         ),
         (
             ValueError,
-            "You have set USE_MASS_DEPENDENT_ZETA to False but USE_HALO_FIELD is True!",
+            "is not compatible with the redshift-based",
             {
-                "matter_options": MatterOptions(USE_HALO_FIELD=True),
-                "astro_options": AstroOptions(USE_MASS_DEPENDENT_ZETA=False),
-            },
-        ),
-        (
-            ValueError,
-            "USE_HALO_FIELD is not compatible with the redshift-based",
-            {
-                "matter_options": MatterOptions(USE_HALO_FIELD=True),
+                "matter_options": MatterOptions(SOURCE_MODEL="CHMF-SAMPLER"),
                 "astro_options": AstroOptions(PHOTON_CONS_TYPE="z-photoncons"),
             },
         ),
         (
             ValueError,
-            "USE_EXP_FILTER is not compatible with USE_HALO_FIELD == False",
+            "USE_EXP_FILTER is not compatible with SOURCE_MODEL == E-INTEGRAL",
             {
                 "matter_options": MatterOptions(
-                    USE_HALO_FIELD=False, HALO_STOCHASTICITY=False
+                    SOURCE_MODEL="E-INTEGRAL",
                 ),
                 "astro_options": AstroOptions(
                     USE_EXP_FILTER=True, USE_UPPER_STELLAR_TURNOVER=False
@@ -415,10 +394,10 @@ class TestInputParameters:
         ),
         (
             NotImplementedError,
-            "USE_UPPER_STELLAR_TURNOVER is not yet implemented for when USE_HALO_FIELD is False",
+            "USE_UPPER_STELLAR_TURNOVER is not yet implemented for SOURCE_MODEL",
             {
                 "matter_options": MatterOptions(
-                    USE_HALO_FIELD=False, HALO_STOCHASTICITY=False
+                    SOURCE_MODEL="L-INTEGRAL",
                 ),
                 "astro_options": AstroOptions(
                     USE_UPPER_STELLAR_TURNOVER=True, USE_EXP_FILTER=False
@@ -542,11 +521,7 @@ class TestInputParameters:
             match="The maximum halo mass",
         ):
             # The cell size is ~1e11 Msun
-            self.default.evolve_input_structs(FIXED_HALO_GRIDS=True)
-
-        with pytest.warns(
-            UserWarning,
-            match="The minimum halo mass",
-        ):
-            # The cell size is ~1e11 Msun
-            self.default.evolve_input_structs(AVG_BELOW_SAMPLER=False)
+            self.default.evolve_input_structs(
+                SOURCE_MODEL="L-INTEGRAL",
+                USE_UPPER_STELLAR_TURNOVER=False,
+            )

@@ -883,17 +883,17 @@ void free_global_tables() {
 }
 
 // JD: moving the interp table evaluations here since some of them are needed in nu_tau_one
-// NOTE: with !USE_MASS_DEPENDENT_ZETA both EvaluateNionTs and EvaluateSFRD return Fcoll
+// NOTE: with SOURCE_MODEL==0 both EvaluateNionTs and EvaluateSFRD return Fcoll
 double EvaluateNionTs(double redshift, ScalingConstants *sc) {
     // differences in turnover are handled by table setup
     if (matter_options_global->USE_INTERPOLATION_TABLES > 1) {
-        if (astro_options_global->USE_MASS_DEPENDENT_ZETA)
+        if (matter_options_global->SOURCE_MODEL > 0)
             return EvaluateRGTable1D(redshift, &Nion_z_table);
         return EvaluateRGTable1D(redshift, &fcoll_z_table);
     }
 
     // Currently assuming this is only called in the X-ray/spintemp calculation, this will only
-    // affect !USE_MASS_DEPENDENT_ZETA and !M_MIN_in_mass and only if the minimum virial
+    // affect SOURCE_MODEL==0 and !M_MIN_in_mass and only if the minimum virial
     // temperatures ION_Tvir_min and X_RAY_Tvir_min are different
     double lnMmin = log(minimum_source_mass(redshift, true));
     double lnMmax = log(M_MAX_INTEGRAL);
@@ -901,7 +901,7 @@ double EvaluateNionTs(double redshift, ScalingConstants *sc) {
     ScalingConstants sc_z = evolve_scaling_constants_to_redshift(redshift, sc, false);
 
     // minihalos uses a different turnover mass
-    if (astro_options_global->USE_MASS_DEPENDENT_ZETA)
+    if (matter_options_global->SOURCE_MODEL > 0)
         return Nion_General(redshift, lnMmin, lnMmax, sc_z.mturn_a_nofb, &sc_z);
 
     return Fcoll_General(redshift, lnMmin, lnMmax);
@@ -920,13 +920,13 @@ double EvaluateNionTs_MINI(double redshift, double log10_Mturn_LW_ave, ScalingCo
 
 double EvaluateSFRD(double redshift, ScalingConstants *sc) {
     if (matter_options_global->USE_INTERPOLATION_TABLES > 1) {
-        if (astro_options_global->USE_MASS_DEPENDENT_ZETA)
+        if (matter_options_global->SOURCE_MODEL > 0)
             return EvaluateRGTable1D(redshift, &SFRD_z_table);
         return EvaluateRGTable1D(redshift, &fcoll_z_table);
     }
 
     // Currently assuming this is only called in the X-ray/spintemp calculation, this will only
-    // affect !USE_MASS_DEPENDENT_ZETA and !M_MIN_in_mass and only if the minimum virial
+    // affect SOURCE_MODEL==0 and !M_MIN_in_mass and only if the minimum virial
     // temperatures ION_Tvir_min and X_RAY_Tvir_min are different
     double lnMmin = log(minimum_source_mass(redshift, true));
     double lnMmax = log(M_MAX_INTEGRAL);
@@ -936,7 +936,7 @@ double EvaluateSFRD(double redshift, ScalingConstants *sc) {
     ScalingConstants sc_sfrd = evolve_scaling_constants_sfr(sc);
     sc_sfrd = evolve_scaling_constants_to_redshift(redshift, &sc_sfrd, false);
 
-    if (astro_options_global->USE_MASS_DEPENDENT_ZETA)
+    if (matter_options_global->SOURCE_MODEL > 0)
         return Nion_General(redshift, lnMmin, lnMmax, sc_sfrd.mturn_a_nofb, &sc_sfrd);
     return Fcoll_General(redshift, lnMmin, lnMmax);
 }

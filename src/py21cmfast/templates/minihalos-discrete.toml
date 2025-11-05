@@ -5,8 +5,7 @@
 [SimulationOptions]
 
 [MatterOptions]
-USE_HALO_FIELD = true
-HALO_STOCHASTICITY = true
+SOURCE_MODEL = 'CHMF-SAMPLER'
 USE_RELATIVE_VELOCITIES = true
 
 [AstroParams]
