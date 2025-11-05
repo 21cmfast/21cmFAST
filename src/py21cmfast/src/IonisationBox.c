@@ -327,7 +327,7 @@ void prepare_box_for_filtering(float *input_box, fftwf_complex *output_c_box, do
     // should be wrong
     int box_dim[3] = {simulation_options_global->HII_DIM, simulation_options_global->HII_DIM,
                       HII_D_PARA};
-#pragma omp parallel private(i, j, k) num_threads(simulation_options_global->N_THREADS)
+#pragma omp parallel private(i, j, k) num_threads(simulation_options_global -> N_THREADS)
     {
         unsigned long long int index, index_f;
         double curr_cell;
@@ -387,7 +387,7 @@ void setup_first_z_prevbox(IonizedBox *previous_ionize_box, PerturbedField *prev
     if (astro_options_global->USE_MINI_HALOS) {
         previous_ionize_box->mean_f_coll = 0.0;
         previous_ionize_box->mean_f_coll_MINI = 0.0;
-#pragma omp parallel private(ct) num_threads(simulation_options_global->N_THREADS)
+#pragma omp parallel private(ct) num_threads(simulation_options_global -> N_THREADS)
         {
 #pragma omp for
             for (ct = 0; ct < HII_TOT_NUM_PIXELS; ct++) {
@@ -531,7 +531,7 @@ double set_fully_neutral_box(IonizedBox *box, TsBox *spin_temp, PerturbedField *
     double global_xH = 0.;
     unsigned long long int ct;
     if (astro_options_global->USE_TS_FLUCT) {
-#pragma omp parallel private(ct) num_threads(simulation_options_global->N_THREADS)
+#pragma omp parallel private(ct) num_threads(simulation_options_global -> N_THREADS)
         {
 #pragma omp for reduction(+ : global_xH)
             for (ct = 0; ct < HII_TOT_NUM_PIXELS; ct++) {
@@ -544,7 +544,7 @@ double set_fully_neutral_box(IonizedBox *box, TsBox *spin_temp, PerturbedField *
         global_xH /= (double)HII_TOT_NUM_PIXELS;
     } else {
         global_xH = 1. - xion_RECFAST(consts->redshift, 0);
-#pragma omp parallel private(ct) num_threads(simulation_options_global->N_THREADS)
+#pragma omp parallel private(ct) num_threads(simulation_options_global -> N_THREADS)
         {
 #pragma omp for
             for (ct = 0; ct < HII_TOT_NUM_PIXELS; ct++) {
@@ -1182,7 +1182,7 @@ void set_ionized_temperatures(IonizedBox *box, PerturbedField *perturbed_field, 
                       HII_D_PARA};
 
     unsigned long long int idx;
-#pragma omp parallel private(x, y, z, idx) num_threads(simulation_options_global->N_THREADS)
+#pragma omp parallel private(x, y, z, idx) num_threads(simulation_options_global -> N_THREADS)
     {
         float thistk;
 #pragma omp for
