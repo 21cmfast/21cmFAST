@@ -151,6 +151,10 @@ typedef struct AstroOptions {
     int INTEGRATION_METHOD_MINI;
 } AstroOptions;
 
+typedef struct CosmoTables {
+    float transfer_density;
+} CosmoTables;
+
 typedef struct ConfigSettings {
     double HALO_CATALOG_MEM_FACTOR;
     bool EXTRA_HALOBOX_FIELDS;
@@ -175,5 +179,6 @@ extern MatterOptions *matter_options_global;
 extern CosmoParams *cosmo_params_global;
 extern AstroParams *astro_params_global;
 extern AstroOptions *astro_options_global;
+extern CosmoTables *cosmo_tables_global;
 
 extern ConfigSettings config_settings;

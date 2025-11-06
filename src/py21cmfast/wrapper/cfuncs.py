@@ -32,6 +32,7 @@ def broadcast_input_struct(inputs: InputParameters):
         inputs.cosmo_params.cstruct,
         inputs.astro_params.cstruct,
         inputs.astro_options.cstruct,
+        inputs.cosmo_tables.cstruct,
     )
 
 

@@ -291,6 +291,15 @@ class InputStruct:
 
 
 @define(frozen=True, kw_only=True)
+class CosmoTables(InputStruct):
+    """Class for storing interpolation tables of cosmological functions (e.g. transfer functions, growth factor)."""
+
+    transfer_density: float = field(
+        default=1234, converter=float, validator=validators.gt(0)
+    )
+
+
+@define(frozen=True, kw_only=True)
 class CosmoParams(InputStruct):
     """
     Cosmological parameters (with defaults) which translates to a C struct.
@@ -1383,6 +1392,7 @@ class InputParameters:
     astro_options: AstroOptions = input_param_field(AstroOptions)
     astro_params: AstroParams = input_param_field(AstroParams)
     node_redshifts = _field(converter=_node_redshifts_converter)
+    cosmo_tables: CosmoTables = input_param_field(CosmoTables)
 
     @node_redshifts.default
     def _node_redshifts_default(self):
