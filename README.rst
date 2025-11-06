@@ -13,10 +13,8 @@
     :target: https://codecov.io/gh/21cmfast/21cmFAST
 .. image:: https://img.shields.io/pypi/pyversions/21cmFAST.svg
     :target: https://pypi.python.org/pypi/21cmFAST
-.. image:: https://github.com/21cmFAST/21cmFAST/workflows/CI/badge.svg
-    :target: https://github.com/21cmFAST/21cmFAST/actions
-.. image:: https://img.shields.io/badge/code%20style-black-000000.svg
-    :target: https://github.com/ambv/black
+.. image:: https://github.com/21cmfast/21cmFAST/actions/workflows/test_suite.yaml/badge.svg
+    :target: https://github.com/21cmfast/21cmFAST/actions/workflows/test_suite.yaml
 .. image:: https://readthedocs.org/projects/21cmfast/badge/?version=latest
     :target: https://21cmfast.readthedocs.io/en/latest/?badge=latest
     :alt: Documentation
@@ -29,7 +27,7 @@
 
 **A semi-numerical cosmological simulation code for the radio 21-cm signal.**
 
-.. image:: docs/images/angular_lightcone_horizontal.png
+.. image:: docs/images/angular_lightcone_horizontal.PNG
 
 This is the official repository for ``21cmFAST``: a semi-numerical code that is able to
 produce 3D cosmological realisations of many physical fields in the early Universe.
