@@ -3,27 +3,33 @@
 ========
 
 .. start-badges
-.. image:: https://travis-ci.org/21cmFAST/21cmFAST.svg
-    :target: https://travis-ci.org/21cmFAST/21cmFAST
-.. image:: https://coveralls.io/repos/github/21cmFAST/21cmFAST/badge.svg
-    :target: https://coveralls.io/github/21cmFAST/21cmFAST
+.. image:: https://img.shields.io/endpoint?url=https://raw.githubusercontent.com/astral-sh/ruff/main/assets/badge/v2.json
+    :target: https://github.com/21cmFAST/21cmFAST
+.. image:: https://img.shields.io/pypi/v/21cmFAST.svg
+    :target: https://pypi.org/pypi/21cmFAST
+.. image:: https://img.shields.io/pypi/l/21cmFAST.svg
+    :target: https://github.com/21cmFAST/21cmFAST/blob/main/LICENSE
+.. image:: https://codecov.io/gh/21cmfast/21cmFAST/graph/badge.svg?token=sPc47SaC7Y
+    :target: https://codecov.io/gh/21cmfast/21cmFAST
+.. image:: https://img.shields.io/pypi/pyversions/21cmFAST.svg
+    :target: https://pypi.python.org/pypi/21cmFAST
+.. image:: https://github.com/21cmFAST/21cmFAST/workflows/CI/badge.svg
+    :target: https://github.com/21cmFAST/21cmFAST/actions
 .. image:: https://img.shields.io/badge/code%20style-black-000000.svg
     :target: https://github.com/ambv/black
 .. image:: https://readthedocs.org/projects/21cmfast/badge/?version=latest
     :target: https://21cmfast.readthedocs.io/en/latest/?badge=latest
-    :alt: Documentation Status
+    :alt: Documentation
 .. image:: https://img.shields.io/conda/dn/conda-forge/21cmFAST
     :target: https://github.com/conda-forge/21cmfast-feedstock
     :alt: Conda
 .. image:: https://joss.theoj.org/papers/10.21105/joss.02582/status.svg
-   :target: https://doi.org/10.21105/joss.02582
+    :target: https://doi.org/10.21105/joss.02582
 .. end-badges
 
 **A semi-numerical cosmological simulation code for the radio 21-cm signal.**
 
-.. image:: joss-paper/yuxiangs-plot-small.png
-    :target: http://homepage.sns.it/mesinger/Media/lightcones_minihalo.png
-
+.. image:: docs/images/angular_lightcone_horizontal.png
 
 This is the official repository for ``21cmFAST``: a semi-numerical code that is able to
 produce 3D cosmological realisations of many physical fields in the early Universe.
