@@ -151,8 +151,14 @@ typedef struct AstroOptions {
     int INTEGRATION_METHOD_MINI;
 } AstroOptions;
 
+typedef struct Table1D {
+    int size;
+    double *x_values;
+    double *y_values;
+} Table1D;
+
 typedef struct CosmoTables {
-    double *transfer_density;
+    Table1D *transfer_density;
 } CosmoTables;
 
 typedef struct ConfigSettings {

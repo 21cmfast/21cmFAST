@@ -566,8 +566,10 @@ int ComputeInitialConditions(unsigned long long random_seed, InitialConditions *
 #endif
 
         int i, j, k;
-        for (i = 0; i < 3; i++) {
-            printf("transfer density is %f\n", cosmo_tables_global->transfer_density[i]);
+        for (i = 0; i < cosmo_tables_global->transfer_density->size; i++) {
+            printf("transfer density(k=%f) is %f\n",
+                   cosmo_tables_global->transfer_density->x_values[i],
+                   cosmo_tables_global->transfer_density->y_values[i]);
         }
         gsl_rng *r[simulation_options_global->N_THREADS];
         seed_rng_threads(r, random_seed);

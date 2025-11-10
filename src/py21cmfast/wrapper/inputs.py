@@ -190,15 +190,35 @@ class InputStruct:
         cdict = self.cdict
         for k in self.struct.fieldnames:
             val = cdict[k]
-            # TODO: is this required here?
-            if isinstance(val, str):
-                # If it is a string, need to convert it to C string ourselves.
-                val = self.ffi.new("char[]", val.encode())
+            if isinstance(self, CosmoTables):
+                if isinstance(val, Table1D):
+                    ctab = ffi.new("Table1D *")
+                    ctab.size = val.size
+                    ctab.x_values = ffi.cast("double *", ffi.from_buffer(val.x_values))
+                    ctab.y_values = ffi.cast("double *", ffi.from_buffer(val.y_values))
+                    setattr(self.struct.cstruct, k, ctab)
+                elif isinstance(
+                    val, dict
+                ):  # Can be a dictionary if loaded from the cache
+                    ctab = ffi.new("Table1D *")
+                    ctab.size = val["size"]
+                    ctab.x_values = ffi.cast(
+                        "double *", ffi.from_buffer(val["x_values"])
+                    )
+                    ctab.y_values = ffi.cast(
+                        "double *", ffi.from_buffer(val["y_values"])
+                    )
+                    setattr(self.struct.cstruct, k, ctab)
+            else:
+                # TODO: is this really required here? (I don't think the wrapper can satisfy this condition)
+                if isinstance(val, str):
+                    # If it is a string, need to convert it to C string ourselves.
+                    val = self.ffi.new("char[]", val.encode())
 
-            if isinstance(val, np.ndarray):
-                val = ffi.cast("double *", ffi.from_buffer(val))
+                if isinstance(val, np.ndarray):
+                    val = ffi.cast("double *", ffi.from_buffer(val))
 
-            setattr(self.struct.cstruct, k, val)
+                setattr(self.struct.cstruct, k, val)
 
         return self.struct.cstruct
 
@@ -296,13 +316,32 @@ class InputStruct:
 
 
 @define(frozen=True, kw_only=True)
-class CosmoTables(InputStruct):
-    """Class for storing interpolation tables of cosmological functions (e.g. transfer functions, growth factor)."""
+class Table1D:
+    """Class for setting 1D interpolation table."""
 
-    transfer_density: np.ndarray = field(
+    size: int = field(default=3, converter=int, validator=validators.gt(0))
+    x_values: np.ndarray = field(
         default=np.array([1.0, 2.0, 3.0]),
         converter=lambda v: np.asarray(v, dtype=np.float64),
         validator=validators.instance_of(np.ndarray),
+    )
+    y_values: np.ndarray = field(
+        default=np.array([1.0, 2.0, 3.0]) ** 2,
+        converter=lambda v: np.asarray(v, dtype=np.float64),
+        validator=validators.instance_of(np.ndarray),
+    )
+
+
+@define(frozen=True, kw_only=True)
+class CosmoTables(InputStruct):
+    """Class for storing interpolation tables of cosmological functions (e.g. transfer functions, growth factor)."""
+
+    transfer_density: Table1D = field(
+        default=Table1D(
+            size=3,
+            x_values=np.array([1.0, 2.0, 3.0]),
+            y_values=np.array([1.0, 2.0, 3.0]) ** 2,
+        )
     )
 
 

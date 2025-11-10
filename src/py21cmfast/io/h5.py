@@ -154,9 +154,14 @@ def _write_inputs_to_group(
             try:
                 _grp.attrs[key] = val
             except TypeError as e:
-                raise TypeError(
-                    f"key {key} with value {val} is not able to be written to HDF5 attrs!"
-                ) from e
+                if isinstance(val, dict):
+                    _grp_dict = _grp.create_group(key)
+                    for key_dict, val_dict in val.items():
+                        _grp_dict.attrs[key_dict] = val_dict
+                else:
+                    raise TypeError(
+                        f"key {key} with value {val} is not able to be written to HDF5 attrs!"
+                    ) from e
 
     grp.attrs["random_seed"] = inputs.random_seed
     grp["node_redshifts"] = (
