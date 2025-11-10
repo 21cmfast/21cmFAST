@@ -19,6 +19,7 @@ from pathlib import Path
 from typing import Annotated, Any, ClassVar, Literal, Self, get_args
 
 import attrs
+import numpy as np
 from astropy import units as un
 from astropy.cosmology import FLRW, Planck15
 from attrs import asdict, define, evolve, validators
@@ -26,6 +27,7 @@ from attrs import field as _field
 from cyclopts import Parameter
 
 from .._cfg import config
+from ..c_21cmfast import ffi
 from ._utils import snake_to_camel
 from .structs import StructWrapper
 
@@ -188,10 +190,13 @@ class InputStruct:
         cdict = self.cdict
         for k in self.struct.fieldnames:
             val = cdict[k]
-
+            # TODO: is this required here?
             if isinstance(val, str):
                 # If it is a string, need to convert it to C string ourselves.
                 val = self.ffi.new("char[]", val.encode())
+
+            if isinstance(val, np.ndarray):
+                val = ffi.cast("double *", ffi.from_buffer(val))
 
             setattr(self.struct.cstruct, k, val)
 
@@ -294,8 +299,10 @@ class InputStruct:
 class CosmoTables(InputStruct):
     """Class for storing interpolation tables of cosmological functions (e.g. transfer functions, growth factor)."""
 
-    transfer_density: float = field(
-        default=1234, converter=float, validator=validators.gt(0)
+    transfer_density: np.ndarray = field(
+        default=np.array([1.0, 2.0, 3.0]),
+        converter=lambda v: np.asarray(v, dtype=np.float64),
+        validator=validators.instance_of(np.ndarray),
     )
 
 
@@ -1652,7 +1659,17 @@ class InputParameters:
 
     @cached_property
     def _full_hash(self):
-        return hash(self)
+        return hash(
+            (
+                self.random_seed,
+                self.cosmo_params,
+                self.matter_options,
+                self.simulation_options,
+                self.astro_options,
+                self.astro_params,
+                self.node_redshifts,
+            )
+        )
 
     @property
     def evolution_required(self) -> bool:

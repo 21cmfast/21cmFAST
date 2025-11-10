@@ -152,7 +152,7 @@ typedef struct AstroOptions {
 } AstroOptions;
 
 typedef struct CosmoTables {
-    float transfer_density;
+    double *transfer_density;
 } CosmoTables;
 
 typedef struct ConfigSettings {

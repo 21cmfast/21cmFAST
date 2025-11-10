@@ -406,21 +406,20 @@ def compute_luminosity_function(
 
 
 @cache
-@broadcast_params
 def construct_fftw_wisdoms(
     *,
-    inputs: InputParameters,
+    use_fftw_wisdom: bool,
 ) -> int:
     """Construct all necessary FFTW wisdoms.
 
     Parameters
     ----------
-    inputs : :class:`~inputs.InputParameters`
-        Parameters defining the simulation run.
+    USE_FFTW_WISDOM : bool
+        Whether we are interested in having FFTW wisdoms.
 
     """
     # Run the C code
-    if inputs.matter_options.USE_FFTW_WISDOM:
+    if use_fftw_wisdom:
         return lib.CreateFFTWWisdoms()
     else:
         return 0
