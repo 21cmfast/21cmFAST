@@ -319,14 +319,12 @@ class InputStruct:
 class Table1D:
     """Class for setting 1D interpolation table."""
 
-    size: int = field(default=3, converter=int, validator=validators.gt(0))
+    size: int = field(converter=int, validator=validators.gt(0))
     x_values: np.ndarray = field(
-        default=np.array([1.0, 2.0, 3.0]),
         converter=lambda v: np.asarray(v, dtype=np.float64),
         validator=validators.instance_of(np.ndarray),
     )
     y_values: np.ndarray = field(
-        default=np.array([1.0, 2.0, 3.0]) ** 2,
         converter=lambda v: np.asarray(v, dtype=np.float64),
         validator=validators.instance_of(np.ndarray),
     )
@@ -336,13 +334,7 @@ class Table1D:
 class CosmoTables(InputStruct):
     """Class for storing interpolation tables of cosmological functions (e.g. transfer functions, growth factor)."""
 
-    transfer_density: Table1D = field(
-        default=Table1D(
-            size=3,
-            x_values=np.array([1.0, 2.0, 3.0]),
-            y_values=np.array([1.0, 2.0, 3.0]) ** 2,
-        )
-    )
+    transfer_density: Table1D = field()
 
 
 @define(frozen=True, kw_only=True)
@@ -1438,7 +1430,7 @@ class InputParameters:
     astro_options: AstroOptions = input_param_field(AstroOptions)
     astro_params: AstroParams = input_param_field(AstroParams)
     node_redshifts = _field(converter=_node_redshifts_converter)
-    cosmo_tables: CosmoTables = input_param_field(CosmoTables)
+    cosmo_tables: CosmoTables = field()
 
     @node_redshifts.default
     def _node_redshifts_default(self):
@@ -1461,6 +1453,16 @@ class InputParameters:
                 "For runs with inhomogeneous recombinations or spin temperature fluctuations,\n"
                 + f"your maximum passed node_redshifts {max(val) if hasattr(val, '__len__') else val} must be above Z_HEAT_MAX {self.simulation_options.Z_HEAT_MAX}"
             )
+
+    @cosmo_tables.default
+    def _cosmo_tables_default(self):
+        return CosmoTables(
+            transfer_density=Table1D(
+                size=3,
+                x_values=np.array([1.0, 2.0, 3.0]),
+                y_values=np.array([1.0, 2.0, 3.0]) ** 2,
+            )
+        )
 
     @astro_options.validator
     def _astro_options_validator(self, att, val):
