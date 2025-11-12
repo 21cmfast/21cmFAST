@@ -20,6 +20,7 @@ from typing import Annotated, Any, ClassVar, Literal, Self, get_args
 
 import attrs
 import numpy as np
+from astropy import constants
 from astropy import units as un
 from astropy.cosmology import FLRW, Planck15
 from attrs import asdict, define, evolve, validators
@@ -29,7 +30,12 @@ from cyclopts import Parameter
 from .._cfg import config
 from ..c_21cmfast import ffi
 from ._utils import snake_to_camel
-from .classy_interface import get_transfer_function, k_transfer, run_classy
+from .classy_interface import (
+    find_redshift_kinematic_decoupling,
+    get_transfer_function,
+    k_transfer,
+    run_classy,
+)
 from .structs import StructWrapper
 
 logger = logging.getLogger(__name__)
@@ -336,6 +342,7 @@ class CosmoTables(InputStruct):
     """Class for storing interpolation tables of cosmological functions (e.g. transfer functions, growth factor)."""
 
     transfer_density: Table1D = field(default=None)
+    transfer_vcb: Table1D = field(default=None)
 
 
 @define(frozen=True, kw_only=True)
@@ -1476,15 +1483,24 @@ class InputParameters:
                 output="mTk,vTk",
                 P_k_max=P_k_max,
             )
-            transfer = get_transfer_function(
+            # Linear matter density transfer function at z=0
+            transfer_density = get_transfer_function(
                 classy_output=classy_output, kind="d_m", z=0.0
-            ).value
+            )
+            # Linear vcb transfer function at kinematic decoupling
+            z_dec = find_redshift_kinematic_decoupling(classy_output)
+            transfer_vcb = (
+                get_transfer_function(classy_output=classy_output, kind="v_cb", z=z_dec)
+                / constants.c  # Need to normalize by c, because ComputeInitialConditions() accepts to receive a dimensionless transfer function
+            ).to(un.dimensionless_unscaled)
+
             cosmo_tables = CosmoTables(
                 transfer_density=Table1D(
-                    size=k_transfer.size,
-                    x_values=k_transfer,
-                    y_values=transfer,
-                )
+                    size=k_transfer.size, x_values=k_transfer, y_values=transfer_density
+                ),
+                transfer_vcb=Table1D(
+                    size=k_transfer.size, x_values=k_transfer, y_values=transfer_vcb
+                ),
             )
         else:
             cosmo_tables = CosmoTables()

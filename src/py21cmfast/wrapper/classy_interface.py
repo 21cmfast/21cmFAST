@@ -8,6 +8,8 @@ from astropy import constants, units
 from classy import Class
 from scipy.interpolate import interp1d
 
+_not4_ = 3.9715  # This is the ratio between Helium to Hydrogen mass. It is not 4!
+
 # Pivot wavenumber for primoridial power spectrum: A_s * (k/k_pivot)^{n_s-1}
 k_pivot = 0.05 / units.Mpc
 
@@ -237,3 +239,34 @@ def compute_rms(
         rms_list.append(np.sqrt(var))
     # NOTE: intg.simpson removes the unit information, which is why we multiply by the unit when we return
     return np.array(rms_list) * transfer.unit
+
+
+def find_redshift_kinematic_decoupling(classy_output: Class) -> float:
+    """
+    Find the redshift of kinematic decoupling.
+
+    For simplicity, we approximate the redshift of kinematic decoupling to be the same redshift of recombination,
+    which is defined as the moment when x_e = n_e/(n_H + n_He) = 0.1. For LCDM with Planck 2018 parameters, this corresponds
+    to z_dec ~ 1070.
+
+    Parameters
+    ----------
+    classy_output : :class:`classy.Class`
+        An object containing all the information from the CLASS calculation.
+
+    Returns
+    -------
+    z_dec : float
+        Redshift of kinematic decoupling.
+    """
+    YHe = classy_output.get_current_derived_parameters(["YHe"])["YHe"]
+    z_array = np.linspace(800, 1200, 400)
+    # There is a need to multiply by n_H/(n_H+n_He)=(1-YHe)/(1-(1-1/_not4_)*YHe)
+    # because CLASS returns n_e/n_H (but we want n_e/(n_H+n_He))
+    x_e_array = (
+        np.array([classy_output.ionization_fraction(z) for z in z_array])
+        * (1.0 - YHe)
+        / (1.0 - (1.0 - 1.0 / _not4_) * YHe)
+    )
+    z_dec = interp1d(x_e_array, z_array, kind="cubic")(0.1)
+    return z_dec
