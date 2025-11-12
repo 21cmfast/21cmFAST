@@ -8,8 +8,6 @@ from astropy import constants, units
 from classy import Class
 from scipy.interpolate import interp1d
 
-from .inputs import InputParameters
-
 # Pivot wavenumber for primoridial power spectrum: A_s * (k/k_pivot)^{n_s-1}
 k_pivot = 0.05 / units.Mpc
 
@@ -28,6 +26,12 @@ k_output = (
 )
 
 classy_params_default = {
+    "h": 0.6766,
+    "Omega_cdm": 0.11933 / 0.6766**2,
+    "Omega_b": 0.02242 / 0.6766**2,
+    "n_s": 0.9665,
+    "sigma8": 0.8102,
+    "A_s": 2.105e-9,
     "output": "tCl,pCl,lCl,mTk,vTk,mPk",
     "tau_reio": 0.0554,
     "T_cmb": 2.7255 * units.K,
@@ -42,22 +46,13 @@ classy_params_default = {
 }
 
 
-def run_classy(
-    inputs: InputParameters = InputParameters(random_seed=1234), **kwargs
-) -> Class:
+def run_classy(**kwargs) -> Class:
     """Run CLASS with specified input parameters.
 
     Parameters
     ----------
-    inputs: InputParameters, optional
-        The input parameters corresponding to the box.
-        If not provided, default cosmological parameters from Planck18 will be considered, unless
-        they are provided in kwargs.
     kwargs :
         Optional keywords to pass to CLASS.
-        If inputs is provided and a cosmological parameters is found in kwargs (e.g. h),
-        the value in kwargs is sent to CLASS (and not the corresponding cosmological parameter
-        from inputs, e.g. inputs.cosmo_params.hlittle).
 
     Returns
     -------
@@ -66,33 +61,30 @@ def run_classy(
     """
     # Set CLASS parameters to be default parameters
     params = classy_params_default.copy()
-    # Set cosmological parameters according to inputs
-    params["h"] = inputs.cosmo_params.hlittle
-    params["Omega_cdm"] = inputs.cosmo_params.OMm - inputs.cosmo_params.OMb
-    params["Omega_b"] = inputs.cosmo_params.OMb
-    params["n_s"] = inputs.cosmo_params.POWER_INDEX
-    # Take sigma8 from inputs, unless A_s is specified kwargs
+    # Pop out A_s if not specified, otherwise pop out sigma8
     if "A_s" not in kwargs:
-        params["sigma8"] = inputs.cosmo_params.SIGMA_8
+        params.pop("A_s")
+    elif "sigma8" not in kwargs:
+        params.pop("sigma8")
+    # Raise an error if both sigma8 and A_s are specified
+    else:
+        raise KeyError(
+            "Do not provide both 'sigma8' and 'A_s' as arguments. Only one of them is allowed."
+        )
+    # Raise an error if N_ncdm=0 but m_ncdm is specified
+    if ("m_ncdm" in kwargs) and ("N_ncdm" in kwargs) and kwargs["N_ncdm"] == 0:
+        raise KeyError("You specified m_ncdm, but set N_ncdm=0.")
 
     for k in kwargs:
-        # Raise an error if both sigma8 and A_s are specified
-        if k == "sigma8" and "A_s" in kwargs:
-            raise KeyError(
-                "Do not provide both 'sigma8' and 'A_s' as arguments. Only one of them is allowed."
-            )
-        # Raise an error if N_ncdm=0 but m_ncdm is specified
-        elif k == "m_ncdm" and ("N_ncdm" in kwargs) and kwargs["N_ncdm"] == 0:
-            raise KeyError("You specified m_ncdm, but set N_ncdm=0.")
         # "P_k_max_1/Mpc" cannot serve as a kwarg, but this is the input that CLASS expects to receive,
         # so we control this input with "P_k_max" instead
-        elif k == "P_k_max":
+        if k == "P_k_max":
             params["P_k_max_1/Mpc"] = kwargs["P_k_max"]
         else:
             params[k] = kwargs[k]
 
-    # Set N_ur=3.044 pop out m_ncdm if N_ncdm=0 (no massive neutrinos)
-    if params["N_ncdm"] == 0.0:
+    # Set N_ur=3.044 and pop out m_ncdm if N_ncdm=0 (no massive neutrinos)
+    if params["N_ncdm"] == 0:
         params["N_ur"] = 3.044
         params.pop("m_ncdm")
 

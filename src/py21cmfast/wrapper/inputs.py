@@ -29,6 +29,7 @@ from cyclopts import Parameter
 from .._cfg import config
 from ..c_21cmfast import ffi
 from ._utils import snake_to_camel
+from .classy_interface import run_classy
 from .structs import StructWrapper
 
 logger = logging.getLogger(__name__)
@@ -422,8 +423,6 @@ class CosmoParams(InputStruct):
         If not given explicitly, it is auto-calculated via A_s
         and the other cosmological parameters.
         """
-        from .classy_interface import run_classy
-
         if self._SIGMA_8 is not None:
             return self._SIGMA_8
         elif self._A_s is not None:
@@ -440,13 +439,11 @@ class CosmoParams(InputStruct):
 
     @cached_property
     def A_s(self) -> float:
-        """Amplitude of primordial curvature power spectrum, at k_pivot = 0.05 Mpc^-1..
+        """Amplitude of primordial curvature power spectrum, at k_pivot = 0.05 Mpc^-1.
 
         If not given explicitly, it is auto-calculated via sigma_8
         and the other cosmological parameters.
         """
-        from .classy_interface import run_classy
-
         if self._A_s is not None:
             return self._A_s
         elif self._SIGMA_8 is not None:
