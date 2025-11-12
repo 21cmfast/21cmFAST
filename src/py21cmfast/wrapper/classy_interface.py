@@ -14,7 +14,7 @@ k_pivot = 0.05 / units.Mpc
 # This array follows the same spacing transitions in the wavenumbers
 # listed in Transfers_z0.dat, but I added more samples in order to compute
 # more precisely the variance
-k_output = (
+k_transfer = (
     np.concatenate(
         (
             np.logspace(-5.15, -1.49, 50),
@@ -109,6 +109,72 @@ def run_classy(**kwargs) -> Class:
     return output
 
 
+def get_transfer_function(
+    classy_output: Class, kind: str = "d_m", z: float = 0
+) -> Sequence[float]:
+    """Get the transfer function of a field at a given redshift.
+
+    Parameters
+    ----------
+    classy_output : :class:`classy.Class`
+        An object containing all the information from the CLASS calculation.
+    kind: str, optioanl
+        The type of field for which the rms shall be computed.
+        Options are:
+            - "d_b", "d_cdm", "d_m": density field of baryons, cold dark matter, or all
+              matter (including massive neutrinos).
+            - "v_b", "v_cdm": magnitude of the velocity vector field of baryons or CDM
+              (this is gauge dependent).
+            - "v_cb": magnitude of the relative velocity vector field between baryons
+              and CDM (this is gauge independent).
+        Default is "d_m".
+    z: float, optional
+        The redshift at which the transfer function shall be computed. Default is 0.
+
+    Returns
+    -------
+    transfer : np.array
+        Array of the desired transfer function at the given redshift.
+    """
+    transfers = classy_output.get_transfer(z=z)
+    k_CLASS = transfers["k (h/Mpc)"] * classy_output.h() / units.Mpc
+    if kind in {"d_b", "d_cdm", "d_m"}:
+        transfer = transfers[kind] * units.dimensionless_unscaled
+    elif kind in {"v_b", "v_cdm"}:
+        try:
+            kind_v = f"t{kind[1:]}"
+            transfer = transfers[kind_v] / units.Mpc * constants.c / k_CLASS
+        except KeyError:  # We might get a KeyError if we are in synchronous gauge, in this case, the CDM peculiar velocity is zero
+            return 0.0 * units.Mpc / units.s
+    elif kind == "v_cb":
+        try:
+            transfer = (
+                (transfers["t_cdm"] - transfers["t_b"])
+                / units.Mpc
+                * constants.c
+                / k_CLASS
+            )
+        except KeyError:  # We might get a KeyError if we are in synchronous gauge, in this case, the CDM peculiar velocity is zero
+            transfer = -transfers["t_b"] / units.Mpc * constants.c / k_CLASS
+    else:
+        raise ValueError("'kind' can only be d_b, d_cdm, d_m, v_b, v_cdm or v_cb")
+    # Interpolate transfer at more data points
+    # Note: we lose phase information here due to the absolute value
+    transfer = (
+        np.exp(
+            interp1d(
+                np.log(k_CLASS / k_CLASS.unit),
+                np.log(np.abs(transfer / transfer.unit)),
+                kind="cubic",
+                bounds_error=False,
+                fill_value="extrapolate",
+            )(np.log(k_transfer / k_transfer.unit))
+        )
+        * transfer.unit
+    )
+    return transfer
+
+
 def compute_rms(
     classy_output: Class,
     kind: str = "d_m",
@@ -153,46 +219,11 @@ def compute_rms(
         redshifts = [redshifts]
 
     A_s = classy_output.get_current_derived_parameters(["A_s"])["A_s"]
-    priomordial_PS = A_s * pow(k_output / k_pivot, classy_output.n_s() - 1.0)
+    priomordial_PS = A_s * pow(k_transfer / k_pivot, classy_output.n_s() - 1.0)
     rms_list = []
     for z in redshifts:
-        transfers = classy_output.get_transfer(z=z)
-        k_CLASS = transfers["k (h/Mpc)"] * classy_output.h() / units.Mpc
-        if kind in {"d_b", "d_cdm", "d_m"}:
-            transfer = transfers[kind] * units.dimensionless_unscaled
-        elif kind in {"v_b", "v_cdm"}:
-            try:
-                kind_v = f"t{kind[1:]}"
-                transfer = transfers[kind_v] / units.Mpc * constants.c / k_CLASS
-            except KeyError:  # We might get a KeyError if we are in synchronous gauge, in this case, the CDM peculiar velocity is zero
-                return 0.0 * units.Mpc / units.s
-        elif kind == "v_cb":
-            try:
-                transfer = (
-                    (transfers["t_cdm"] - transfers["t_b"])
-                    / units.Mpc
-                    * constants.c
-                    / k_CLASS
-                )
-            except KeyError:  # We might get a KeyError if we are in synchronous gauge, in this case, the CDM peculiar velocity is zero
-                transfer = -transfers["t_b"] / units.Mpc * constants.c / k_CLASS
-        else:
-            raise ValueError("'kind' can only be d_b, d_cdm, d_m, v_b, v_cdm or v_cb")
-        # Interpolate transfer at more data points
-        # Note: we lose phase information here due to the absolute value
-        transfer = (
-            np.exp(
-                interp1d(
-                    np.log(k_CLASS / k_CLASS.unit),
-                    np.log(np.abs(transfer / transfer.unit)),
-                    kind="cubic",
-                    bounds_error=False,
-                    fill_value="extrapolate",
-                )(np.log(k_output / k_output.unit))
-            )
-            * transfer.unit
-        )
-        kr = k_output * smoothing_radius
+        transfer = get_transfer_function(classy_output=classy_output, kind=kind, z=z)
+        kr = k_transfer * smoothing_radius
         with np.errstate(
             divide="ignore", invalid="ignore"
         ):  # Don't show division by 0 warnings
@@ -202,7 +233,7 @@ def compute_rms(
         W_k[kr < 1.0e-3] = 1.0 - 3.0 * (kr_small**2) / 10.0
 
         integrand = priomordial_PS * (transfer * W_k) ** 2
-        var = intg.simpson(integrand, x=np.log(k_output / k_output.unit))
+        var = intg.simpson(integrand, x=np.log(k_transfer / k_transfer.unit))
         rms_list.append(np.sqrt(var))
     # NOTE: intg.simpson removes the unit information, which is why we multiply by the unit when we return
     return np.array(rms_list) * transfer.unit

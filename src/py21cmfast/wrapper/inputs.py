@@ -29,7 +29,7 @@ from cyclopts import Parameter
 from .._cfg import config
 from ..c_21cmfast import ffi
 from ._utils import snake_to_camel
-from .classy_interface import run_classy
+from .classy_interface import get_transfer_function, k_transfer, run_classy
 from .structs import StructWrapper
 
 logger = logging.getLogger(__name__)
@@ -335,7 +335,7 @@ class Table1D:
 class CosmoTables(InputStruct):
     """Class for storing interpolation tables of cosmological functions (e.g. transfer functions, growth factor)."""
 
-    transfer_density: Table1D = field()
+    transfer_density: Table1D = field(default=None)
 
 
 @define(frozen=True, kw_only=True)
@@ -1453,13 +1453,42 @@ class InputParameters:
 
     @cosmo_tables.default
     def _cosmo_tables_default(self):
-        return CosmoTables(
-            transfer_density=Table1D(
-                size=3,
-                x_values=np.array([1.0, 2.0, 3.0]),
-                y_values=np.array([1.0, 2.0, 3.0]) ** 2,
+        if self.matter_options.POWER_SPECTRUM == "CLASS":
+            # We determine the highest wavenumber to run CLASS according to M_h = 4*pi/3 * rho_m * R^3.
+            # This can be inverted to give
+            #                            R_min ~ 0.18 * (h^2 Omega_m / 0.143)^{-1/3} * (M_min / 10^9 M_sun)^{1/3} Mpc
+            # And thus
+            #                            k_max = 2 * pi / R_min ~ (h^2 Omega_m / 0.143)^{1/3} * (M_min / 10^9 M_sun)^{-1/3} Mpc^{-1}
+            # With (without) mini-halos, M_min ~ 1e5 M_sun (1e9 M_sun), which gives k_max ~ 20 Mpc^{-1} (1 Mpc^{-1}).
+            # However, to be on the safe side, the upper integration limit in cosmology.c is k_max = 350 / R,
+            # so that changes to 1200 Mpc^{-1} (350 Mpc^{-1}).
+            if self.astro_options.USE_MINI_HALOS:
+                P_k_max = 1200.0 / un.Mpc
+            else:
+                P_k_max = 350.0 / un.Mpc
+
+            classy_output = run_classy(
+                h=self.cosmo_params.hlittle,
+                Omega_cdm=self.cosmo_params.OMm - self.cosmo_params.OMb,
+                Omega_b=self.cosmo_params.OMb,
+                n_s=self.cosmo_params.POWER_INDEX,
+                sigma8=self.cosmo_params.SIGMA_8,
+                output="mTk,vTk",
+                P_k_max=P_k_max,
             )
-        )
+            transfer = get_transfer_function(
+                classy_output=classy_output, kind="d_m", z=0.0
+            ).value
+            cosmo_tables = CosmoTables(
+                transfer_density=Table1D(
+                    size=k_transfer.size,
+                    x_values=k_transfer,
+                    y_values=transfer,
+                )
+            )
+        else:
+            cosmo_tables = CosmoTables()
+        return cosmo_tables
 
     @astro_options.validator
     def _astro_options_validator(self, att, val):
