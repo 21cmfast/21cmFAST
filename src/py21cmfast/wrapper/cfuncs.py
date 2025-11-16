@@ -36,6 +36,12 @@ def broadcast_input_struct(inputs: InputParameters):
     )
 
 
+def free_cosmo_tables():
+    """Free the memory of cosmo_tables_global that was allocated at the C backend."""
+    # TODO: change to lib.Free_cosmo_tables_global()
+    return
+
+
 def broadcast_params(func: Callable) -> Callable:
     """Broadcast the parameters to the C library before calling the function.
 

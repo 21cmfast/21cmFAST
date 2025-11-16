@@ -155,7 +155,12 @@ double transfer_function_CLASS(double k, int flag_int, int flag_dv) {
             Throw(IOError);
         }
         warning_printed = false;
+        /*for (i=0; i < cosmo_tables_global->transfer_density->size; i++) {
+            printf("T(k=%e)=%e\n",
+                cosmo_tables_global->transfer_density->x_values[i],
+                cosmo_tables_global->transfer_density->y_values[i]);
 
+        }*/
         int nscans;
         for (i = 0; i < CLASS_LENGTH; i++) {
             nscans = fscanf(F, "%e %e %e ", &currk, &currTm, &currTv);

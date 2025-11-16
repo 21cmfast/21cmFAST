@@ -74,6 +74,7 @@ void Broadcast_struct_global_all(SimulationOptions *simulation_options,
                                  MatterOptions *matter_options, CosmoParams *cosmo_params,
                                  AstroParams *astro_params, AstroOptions *astro_options,
                                  CosmoTables *cosmo_tables);
+void Free_cosmo_tables_global();
 void initialiseSigmaMInterpTable(float M_Min, float M_Max);
 void initialise_GL(double lnM_Min, double lnM_Max);
 /*---------------------------*/

@@ -13,7 +13,11 @@ from ..input_serialization import convert_inputs_to_dict
 from ..io import h5
 from ..io.caching import OutputCache
 from ..utils import recursive_difference
-from ..wrapper.cfuncs import broadcast_input_struct, construct_fftw_wisdoms
+from ..wrapper.cfuncs import (
+    broadcast_input_struct,
+    construct_fftw_wisdoms,
+    free_cosmo_tables,
+)
 from ..wrapper.inputs import InputParameters
 from ..wrapper.outputs import OutputStruct, OutputStructZ, _HashType
 from ..wrapper.photoncons import _photoncons_state
@@ -221,6 +225,9 @@ class _OutputStructComputationInspect:
 
     def _broadcast_inputs(self, inputs: InputParameters):
         broadcast_input_struct(inputs=inputs)
+
+    def _free_cosmo_tables(self):
+        free_cosmo_tables()
 
     def check_output_struct_types(self, outputs: dict[str, OutputStruct]):
         """Check given OutputStruct parameters.
@@ -446,6 +453,14 @@ class single_field_func(_OutputStructComputationInspect):  # noqa: N801
             self._make_wisdoms(inputs.matter_options.USE_FFTW_WISDOM)
             out = self._func(**kwargs)
             self._handle_write_to_cache(cache, write, out)
+
+        # Free cosmo_tables, unless it is explicitly requested to keep their memory
+        # (useful in macro functions like run_coeval and run_lightcone, so we won't have to
+        # free and reallocate memory repeatedly)
+        if "free_cosmo_tables" in kwargs and not kwargs["free_cosmo_tables"]:
+            pass
+        else:
+            self._free_cosmo_tables()
 
         return out
 
