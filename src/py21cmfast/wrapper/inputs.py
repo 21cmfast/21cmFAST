@@ -1494,12 +1494,21 @@ class InputParameters:
                 / constants.c  # Need to normalize by c, because ComputeInitialConditions() accepts to receive a dimensionless transfer function
             ).to(un.dimensionless_unscaled)
 
+            # Include a sample at k=0
+            k_transfer_with_0 = np.concatenate(([0.0], k_transfer))
+            transfer_density = np.concatenate(([0.0], transfer_density))
+            transfer_vcb = np.concatenate(([0.0], transfer_vcb))
+
             cosmo_tables = CosmoTables(
                 transfer_density=Table1D(
-                    size=k_transfer.size, x_values=k_transfer, y_values=transfer_density
+                    size=k_transfer_with_0.size,
+                    x_values=k_transfer_with_0,
+                    y_values=transfer_density,
                 ),
                 transfer_vcb=Table1D(
-                    size=k_transfer.size, x_values=k_transfer, y_values=transfer_vcb
+                    size=k_transfer_with_0.size,
+                    x_values=k_transfer_with_0,
+                    y_values=transfer_vcb,
                 ),
             )
         else:
