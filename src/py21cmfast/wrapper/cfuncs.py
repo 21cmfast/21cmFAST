@@ -38,8 +38,7 @@ def broadcast_input_struct(inputs: InputParameters):
 
 def free_cosmo_tables():
     """Free the memory of cosmo_tables_global that was allocated at the C backend."""
-    # TODO: change to lib.Free_cosmo_tables_global()
-    return
+    lib.Free_cosmo_tables_global()
 
 
 def broadcast_params(func: Callable) -> Callable:
@@ -51,7 +50,10 @@ def broadcast_params(func: Callable) -> Callable:
 
     def wrapper(*args, inputs: InputParameters, **kwargs):
         broadcast_input_struct(inputs)
-        return func(*args, inputs=inputs, **kwargs)
+        out = func(*args, inputs=inputs, **kwargs)
+        if kwargs.get("free_cosmo_tables", True):
+            free_cosmo_tables()
+        return out
 
     return wrapper
 
@@ -111,11 +113,7 @@ def init_gl(func: Callable) -> Callable:
 
 
 @broadcast_params
-def get_expected_nhalo(
-    *,
-    redshift: float,
-    inputs: InputParameters,
-) -> int:
+def get_expected_nhalo(*, redshift: float, inputs: InputParameters, **kwargs) -> int:
     """Get the expected number of halos in a given box.
 
     Parameters
@@ -132,10 +130,7 @@ def get_expected_nhalo(
 
 @broadcast_params
 def get_halo_catalog_buffer_size(
-    *,
-    redshift: float,
-    inputs: InputParameters,
-    min_size: int = 1000000,
+    *, redshift: float, inputs: InputParameters, min_size: int = 1000000, **kwargs
 ) -> int:
     """Compute the required size of the memory buffer to hold a halo list.
 
@@ -149,7 +144,11 @@ def get_halo_catalog_buffer_size(
         A minimum size to be used as the buffer.
     """
     # find the buffer size from expected halos in the box
-    hbuffer_size = get_expected_nhalo(redshift=redshift, inputs=inputs)
+    hbuffer_size = get_expected_nhalo(
+        redshift=redshift,
+        inputs=inputs,
+        free_cosmo_tables=kwargs.get("free_cosmo_tables", True),
+    )
     hbuffer_size = int((hbuffer_size + 1) * config["HALO_CATALOG_MEM_FACTOR"])
 
     # set a minimum in case of fluctuation at high z

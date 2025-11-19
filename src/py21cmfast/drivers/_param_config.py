@@ -441,6 +441,8 @@ class single_field_func(_OutputStructComputationInspect):  # noqa: N801
 
         out = self._handle_read_from_cache(inputs, current_redshift, cache, regen)
 
+        free_cosmo_tables = kwargs.pop("free_cosmo_tables", True)
+
         if "inputs" in self._signature.parameters:
             # Here we set the inputs (if accepted by the function signature)
             # to the most advanced ones. This is the explicitly-passed inputs if
@@ -457,9 +459,7 @@ class single_field_func(_OutputStructComputationInspect):  # noqa: N801
         # Free cosmo_tables, unless it is explicitly requested to keep their memory
         # (useful in macro functions like run_coeval and run_lightcone, so we won't have to
         # free and reallocate memory repeatedly)
-        if "free_cosmo_tables" in kwargs and not kwargs["free_cosmo_tables"]:
-            pass
-        else:
+        if free_cosmo_tables:
             self._free_cosmo_tables()
 
         return out
