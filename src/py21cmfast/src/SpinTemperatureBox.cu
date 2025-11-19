@@ -92,12 +92,22 @@ __global__ void compute_and_reduce(
     unsigned int i = blockIdx.x * (threadsPerBlock * 2) + tid; // index of input data
     unsigned int gridSize = threadsPerBlock * 2 * gridDim.x;
 
+    // KERNEL PRINTF TEST: Simple unconditional output from first thread
+    if (blockIdx.x == 0 && tid == 0) {
+        printf("*** KERNEL PRINTF TEST: compute_and_reduce kernel is executing! ***\n");
+    }
+
     // Debug output from first thread of first block
     if (blockIdx.x == 0 && tid == 0) {
         printf("=== DEVICE KERNEL EXECUTING! gridDim.x=%d, threadsPerBlock=%d, num_pixels=%llu ===\n",
                gridDim.x, threadsPerBlock, num_pixels);
         printf("=== First block will access: i=%u to %u, buffer index will be blockIdx.x=%d ===\n",
                i, i + gridSize, blockIdx.x);
+        // Debug: Print table parameters and first/last entries
+        printf("=== TABLE PARAMS: x_min=%f, x_width=%f, x_max=%f ===\n",
+               x_min, x_width, x_min + x_width * 399);
+        printf("=== TABLE VALUES: y_arr[0]=%f, y_arr[199]=%f, y_arr[398]=%f, y_arr[399]=%f ===\n",
+               y_arr[0], y_arr[199], y_arr[398], y_arr[399]);
     }
 
     sdata[tid] = 0;
@@ -115,6 +125,14 @@ __global__ void compute_and_reduce(
 
         // Compute fraction of mass that has collapsed to form stars/other structures
         fcoll_i = exp(EvaluateRGTable1D_f_gpu(curr_dens_i, x_min, x_width, y_arr));
+
+        // Debug output from first thread for first 10 elements
+        if (blockIdx.x == 0 && tid == 0 && i < 10) {
+            int idx = (int)floor((curr_dens_i - x_min) / x_width);
+            double table_val_at_idx = (idx >= 0 && idx < 399) ? y_arr[idx] : -999.0;
+            printf("=== i=%u: curr_dens_i=%e, idx=%d, y_arr[idx]=%f, fcoll_i=%e, sfrd=%e ===\n",
+                   i, curr_dens_i, idx, table_val_at_idx, fcoll_i, (float)((1. + curr_dens_i) * fcoll_i));
+        }
 
         // Update the shared buffer with the collapse fractions
         sdata[tid] += fcoll_i;

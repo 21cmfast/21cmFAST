@@ -81,6 +81,35 @@ bool TsInterpArraysInitialised = false;
 // a debug flag for printing results from a single cell without passing cell number to the functions
 static int debug_printed;
 
+// Helper function for diagnostic array statistics
+static void print_array_stats(const char* system, const char* checkpoint, const char* stage,
+                               float redshift, const char* name, float* arr, unsigned long long size) {
+    if (arr == NULL) {
+        printf("=== [%s] CHECKPOINT_%s [z=%.2f] %s: %s is NULL ===\n",
+               system, checkpoint, redshift, stage, name);
+        return;
+    }
+    if (size == 0) {
+        printf("=== [%s] CHECKPOINT_%s [z=%.2f] %s: %s has size 0 ===\n",
+               system, checkpoint, redshift, stage, name);
+        return;
+    }
+
+    double sum = 0.0, sum_sq = 0.0;
+    float min_val = arr[0], max_val = arr[0];
+    for (unsigned long long i = 0; i < size; i++) {
+        sum += arr[i];
+        sum_sq += arr[i] * arr[i];
+        if (arr[i] < min_val) min_val = arr[i];
+        if (arr[i] > max_val) max_val = arr[i];
+    }
+    double mean = sum / size;
+    double std = sqrt(sum_sq / size - mean * mean);
+    printf("=== [%s] CHECKPOINT_%s [z=%.2f] %s: %s_mean=%e, %s_std=%e, %s_min=%e, %s_max=%e, samples=[0]=%e [1000]=%e ===\n",
+           system, checkpoint, redshift, stage,
+           name, mean, name, std, name, min_val, name, max_val, arr[0], size > 1000 ? arr[1000] : arr[0]);
+}
+
 int ComputeTsBox(float redshift, float prev_redshift, float perturbed_field_redshift, short cleanup,
                  PerturbedField *perturbed_field, XraySourceBox *source_box,
                  TsBox *previous_spin_temp, InitialConditions *ini_boxes, TsBox *this_spin_temp) {
@@ -968,6 +997,13 @@ void calculate_sfrd_from_grid(int R_ct, float *dens_R_grid, float *Mcrit_R_grid,
                                          sfrd_grid, HII_TOT_NUM_PIXELS, threadsPerBlock,
                                          // d_data
                                          d_y_arr, d_dens_R_grid, d_sfrd_grid, d_ave_sfrd_buf, sc);
+        // Convert SUM to AVERAGE (thrust::reduce returns sum over all pixels)
+        *ave_sfrd = ave_sfrd_buf / HII_TOT_NUM_PIXELS;
+        fprintf(stderr, "=== GPU SFRD AFTER DIVISION: R_ct=%d, ave_sfrd_buf=%e, HII_TOT_NUM_PIXELS=%llu, ave_sfrd=%e ===\n",
+                R_ct, ave_sfrd_buf, HII_TOT_NUM_PIXELS, *ave_sfrd);
+        // DIAGNOSTIC: Check per-pixel SFRD values from GPU
+        printf("=== GPU CHECKPOINT 1: R_ct=%d, sfrd_grid[0]=%e, sfrd_grid[1000]=%e ===\n",
+               R_ct, sfrd_grid[0], sfrd_grid[1000]);
 #else
         fprintf(stderr, "=== ERROR: calculate_sfrd_from_grid_gpu() called but code was not compiled for CUDA ===\n");
 #endif
@@ -1011,6 +1047,9 @@ void calculate_sfrd_from_grid(int R_ct, float *dens_R_grid, float *Mcrit_R_grid,
         }
         *ave_sfrd = ave_sfrd_buf / HII_TOT_NUM_PIXELS;
         *ave_sfrd_mini = ave_sfrd_buf_mini / HII_TOT_NUM_PIXELS;
+
+        // DIAGNOSTIC: Log SFRD value for GPU/CPU comparison
+        printf("=== CPU SFRD: R_ct=%d, ave_sfrd=%e ===\n", R_ct, *ave_sfrd);
     }
 
     // These functions check for allocation
@@ -1767,7 +1806,41 @@ void ts_main(float redshift, float prev_redshift, float perturbed_field_redshift
     // NOTE: This section uses dx*_dt_box arrays that are only populated in CPU code path
     // DISABLED FOR NOW: This section is incompatible with GPU code path
     // TODO: Either populate these arrays in GPU path or skip this section properly
-    if (false) {  // Disabled - causes segfault when GPU path is used
+
+    // DIAGNOSTIC: Check if required arrays are populated
+    printf("=== [GPU] ARRAY_CHECK [z=%.2f]: Checking dx*_dt_box array state ===\n", redshift);
+    printf("=== [GPU] ARRAY_POINTERS [z=%.2f]: dxheat_dt_box=%p, dxion_source_dt_box=%p, dxlya_dt_box=%p, dstarlya_dt_box=%p ===\n",
+           redshift, (void*)dxheat_dt_box, (void*)dxion_source_dt_box, (void*)dxlya_dt_box, (void*)dstarlya_dt_box);
+
+    if (dxheat_dt_box != NULL && HII_TOT_NUM_PIXELS > 0) {
+        printf("=== [GPU] ARRAY_VALUES [z=%.2f]: dxheat_dt_box[0]=%e, [1000]=%e, [10000]=%e ===\n",
+               redshift, dxheat_dt_box[0], dxheat_dt_box[1000], dxheat_dt_box[10000]);
+    }
+    if (dxion_source_dt_box != NULL && HII_TOT_NUM_PIXELS > 0) {
+        printf("=== [GPU] ARRAY_VALUES [z=%.2f]: dxion_source_dt_box[0]=%e, [1000]=%e, [10000]=%e ===\n",
+               redshift, dxion_source_dt_box[0], dxion_source_dt_box[1000], dxion_source_dt_box[10000]);
+    }
+    if (dxlya_dt_box != NULL && HII_TOT_NUM_PIXELS > 0) {
+        printf("=== [GPU] ARRAY_VALUES [z=%.2f]: dxlya_dt_box[0]=%e, [1000]=%e, [10000]=%e ===\n",
+               redshift, dxlya_dt_box[0], dxlya_dt_box[1000], dxlya_dt_box[10000]);
+    }
+    if (dstarlya_dt_box != NULL && HII_TOT_NUM_PIXELS > 0) {
+        printf("=== [GPU] ARRAY_VALUES [z=%.2f]: dstarlya_dt_box[0]=%e, [1000]=%e, [10000]=%e ===\n",
+               redshift, dstarlya_dt_box[0], dstarlya_dt_box[1000], dstarlya_dt_box[10000]);
+    }
+
+    // FIX: Arrays ARE populated even with GPU - enable the loop!
+    // Verified by diagnostics: dxheat_dt_box, dxion_source_dt_box, dxlya_dt_box, dstarlya_dt_box all valid
+    if (true) {  // FIXED: Re-enabled R==0 loop - arrays are populated by earlier CPU code
+        // LOOP DIAGNOSTIC: Before loop starts
+        printf("=== [GPU] LOOP_START [z=%.2f]: entering Ts/Tk/x_e loop, HII_TOT_NUM_PIXELS=%llu ===\n",
+               redshift, HII_TOT_NUM_PIXELS);
+        printf("=== [GPU] LOOP_POINTERS [z=%.2f]: this_spin_temp=%p, spin_temperature=%p, kinetic_temp_neutral=%p, xray_ionised_fraction=%p ===\n",
+               redshift, (void*)this_spin_temp,
+               (void*)(this_spin_temp ? this_spin_temp->spin_temperature : NULL),
+               (void*)(this_spin_temp ? this_spin_temp->kinetic_temp_neutral : NULL),
+               (void*)(this_spin_temp ? this_spin_temp->xray_ionised_fraction : NULL));
+
         fprintf(stderr, "=== Starting R==0 calculation section (CPU path) ===\n");
 #pragma omp parallel private(box_ct)
     {
@@ -1826,6 +1899,12 @@ void ts_main(float redshift, float prev_redshift, float perturbed_field_redshift
             this_spin_temp->xray_ionised_fraction[box_ct] = ts_cell.x_e;
             if (astro_options_global->USE_MINI_HALOS) {
                 this_spin_temp->J_21_LW[box_ct] = ts_cell.J_21_LW;
+            }
+
+            // DIAGNOSTIC: Log key values for select cells
+            if (box_ct == 0 || box_ct == 1000 || box_ct == 10000) {
+                printf("=== GPU CHECKPOINT 2: box_ct=%llu, Ts=%e, Tk=%e, x_e=%e, delta=%e ===\n",
+                       box_ct, ts_cell.Ts, ts_cell.Tk, ts_cell.x_e, curr_delta);
             }
 
             // Single cell debug
@@ -1915,6 +1994,13 @@ void ts_main(float redshift, float prev_redshift, float perturbed_field_redshift
         free_ts_global_arrays();
     }
 
-    fprintf(stderr, "=== ComputeTsBox returning 0 ===\n");
+    // DIAGNOSTIC CHECKPOINT 3c: C function exit - log array statistics of final TsBox
+    print_array_stats("GPU", "3c", "C_EXIT", redshift, "Ts",
+                      this_spin_temp->spin_temperature, HII_TOT_NUM_PIXELS);
+    print_array_stats("GPU", "3c", "C_EXIT", redshift, "Tk",
+                      this_spin_temp->kinetic_temp_neutral, HII_TOT_NUM_PIXELS);
+    print_array_stats("GPU", "3c", "C_EXIT", redshift, "x_e",
+                      this_spin_temp->xray_ionised_fraction, HII_TOT_NUM_PIXELS);
+
     return 0;
 }
