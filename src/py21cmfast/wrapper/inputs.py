@@ -1714,6 +1714,7 @@ class InputParameters:
             "matter_options",
             "astro_params",
             "astro_options",
+            "cosmo_tables",
         ):
             obj = getattr(self, inp_type)
             struct_args[inp_type] = obj.clone(
@@ -1724,7 +1725,20 @@ class InputParameters:
             wrong_key = next(iter(kwargs_copy.keys()))
             raise TypeError(f"{wrong_key} is not a valid keyword input.")
 
-        return self.clone(**struct_args)
+        inputs_clone = self.clone(**struct_args)
+        if inputs_clone.matter_options.POWER_SPECTRUM == "CLASS":
+            if self.matter_options.POWER_SPECTRUM != "CLASS" or np.any(
+                [hasattr(self.cosmo_params, k) for k in kwargs]
+            ):
+                struct_args["cosmo_tables"] = inputs_clone._cosmo_tables_default()
+                inputs_clone = self.clone(**struct_args)
+        elif self.matter_options.POWER_SPECTRUM == "CLASS":
+            struct_args["cosmo_tables"] = (
+                CosmoTables()
+            )  # No need to have the tables from the original inputs
+            inputs_clone = self.clone(**struct_args)
+
+        return inputs_clone
 
     @classmethod
     def from_template(
