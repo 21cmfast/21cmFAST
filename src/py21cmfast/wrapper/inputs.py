@@ -813,6 +813,8 @@ class SimulationOptions(InputStruct):
         Self-correlation length used for updating star formation rate, see "CORR_STAR" for details.
     CORR_LX : float, optional
         Self-correlation length used for updating xray luminosity, see "CORR_STAR" for details.
+    K_MAX_FOR_CLASS: float, optional
+        Maximum wavenumber to run CLASS, in 1/Mpc. Becomes relevant only if matter_options.POWER_SPECTRUM = "CLASS".
     """
 
     _DEFAULT_HIRES_TO_LOWRES_FACTOR: ClassVar[float] = 3
@@ -882,6 +884,11 @@ class SimulationOptions(InputStruct):
     CORR_SFR: float = field(default=0.2, converter=float)
     # NOTE (Jdavies): I do not currently have great priors for this value
     CORR_LX: float = field(default=0.2, converter=float)
+    K_MAX_FOR_CLASS: float | None = field(
+        default=None,
+        converter=attrs.converters.optional(float),
+        validator=attrs.validators.optional(validators.gt(0)),
+    )
 
     @property
     def DIM(self) -> int:
@@ -1497,18 +1504,27 @@ class InputParameters:
     @cosmo_tables.default
     def _cosmo_tables_default(self):
         if self.matter_options.POWER_SPECTRUM == "CLASS":
-            # We determine the highest wavenumber to run CLASS according to M_h = 4*pi/3 * rho_m * R^3.
-            # This can be inverted to give
-            #                            R_min ~ 0.18 * (h^2 Omega_m / 0.143)^{-1/3} * (M_min / 10^9 M_sun)^{1/3} Mpc
-            # And thus
-            #                            k_max = 2 * pi / R_min ~ (h^2 Omega_m / 0.143)^{1/3} * (M_min / 10^9 M_sun)^{-1/3} Mpc^{-1}
-            # With (without) mini-halos, M_min ~ 1e5 M_sun (1e9 M_sun), which gives k_max ~ 20 Mpc^{-1} (1 Mpc^{-1}).
-            # However, to be on the safe side, the upper integration limit in cosmology.c is k_max = 350 / R,
-            # so that changes to 1200 Mpc^{-1} (350 Mpc^{-1}).
-            if self.astro_options.USE_MINI_HALOS:
-                P_k_max = 1200.0 / un.Mpc
+            if self.simulation_options.K_MAX_FOR_CLASS is not None:
+                k_max = self.simulation_options.K_MAX_FOR_CLASS / un.Mpc
             else:
-                P_k_max = 350.0 / un.Mpc
+                if self.astro_options.USE_MINI_HALOS:
+                    M_min = 1e5 * un.M_sun
+                else:
+                    M_min = 1e9 * un.M_sun
+                R_min = pow(
+                    M_min
+                    / (
+                        4
+                        * np.pi
+                        / 3.0
+                        * self.cosmo_params.cosmo.critical_density0
+                        * self.cosmo_params.OMm
+                    ),
+                    1 / 3,
+                )
+                k_max = (2 * np.pi / R_min).to(
+                    "1/Mpc"
+                ) * 1.5  # Multiply by 1.5 for better precision
 
             classy_output = run_classy(
                 h=self.cosmo_params.hlittle,
@@ -1517,7 +1533,7 @@ class InputParameters:
                 n_s=self.cosmo_params.POWER_INDEX,
                 sigma8=self.cosmo_params.SIGMA_8,
                 output="mTk,vTk",
-                P_k_max=P_k_max,
+                P_k_max=k_max,
             )
             # Linear matter density transfer function at z=0
             transfer_density = get_transfer_function(
