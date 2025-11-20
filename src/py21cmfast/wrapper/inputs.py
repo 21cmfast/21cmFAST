@@ -314,6 +314,21 @@ class Table1D:
         validator=validators.instance_of(np.ndarray),
     )
 
+    def __eq__(self, other):
+        """Determine if this is equal to another object."""
+        if self is None and other is None:
+            return True
+        elif (self is not None and other is None) or (
+            self is None and other is not None
+        ):
+            return False
+        else:
+            return (
+                self.size == other.size
+                and np.all(self.x_values == other.x_values)
+                and np.all(self.y_values == other.y_values)
+            )
+
 
 @define(frozen=True, kw_only=True)
 class CosmoTables:
