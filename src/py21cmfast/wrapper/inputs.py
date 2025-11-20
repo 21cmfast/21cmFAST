@@ -197,35 +197,13 @@ class InputStruct:
         cdict = self.cdict
         for k in self.struct.fieldnames:
             val = cdict[k]
-            if isinstance(self, CosmoTables):
-                if isinstance(val, Table1D):
-                    ctab = ffi.new("Table1D *")
-                    ctab.size = val.size
-                    ctab.x_values = ffi.cast("double *", ffi.from_buffer(val.x_values))
-                    ctab.y_values = ffi.cast("double *", ffi.from_buffer(val.y_values))
-                    setattr(self.struct.cstruct, k, ctab)
-                elif isinstance(
-                    val, dict
-                ):  # Can be a dictionary if loaded from the cache
-                    ctab = ffi.new("Table1D *")
-                    ctab.size = val["size"]
-                    ctab.x_values = ffi.cast(
-                        "double *", ffi.from_buffer(val["x_values"])
-                    )
-                    ctab.y_values = ffi.cast(
-                        "double *", ffi.from_buffer(val["y_values"])
-                    )
-                    setattr(self.struct.cstruct, k, ctab)
-            else:
-                # TODO: is this really required here? (I don't think the wrapper can satisfy this condition)
-                if isinstance(val, str):
-                    # If it is a string, need to convert it to C string ourselves.
-                    val = self.ffi.new("char[]", val.encode())
 
-                if isinstance(val, np.ndarray):
-                    val = ffi.cast("double *", ffi.from_buffer(val))
+            # TODO: is this really required here? (I don't think the wrapper can satisfy this condition)
+            if isinstance(val, str):
+                # If it is a string, need to convert it to C string ourselves.
+                val = self.ffi.new("char[]", val.encode())
 
-                setattr(self.struct.cstruct, k, val)
+            setattr(self.struct.cstruct, k, val)
 
         return self.struct.cstruct
 
@@ -338,11 +316,69 @@ class Table1D:
 
 
 @define(frozen=True, kw_only=True)
-class CosmoTables(InputStruct):
+class CosmoTables:
     """Class for storing interpolation tables of cosmological functions (e.g. transfer functions, growth factor)."""
 
     transfer_density: Table1D = field(default=None)
     transfer_vcb: Table1D = field(default=None)
+
+    @classmethod
+    def new(cls, x: dict | Self | None = None, **kwargs):
+        """
+        Create a new instance of the struct.
+
+        Parameters
+        ----------
+        x : dict | CosmoTables | None
+            Initial values for the struct. If `x` is a dictionary, it should map field
+            names to their corresponding values. If `x` is an instance of this class,
+            its attributes will be used as initial values. If `x` is None, the
+            struct will be initialised with default values.
+
+        Other Parameters
+        ----------------
+        All other parameters should be passed as if directly to the class constructor
+        (i.e. as parameter names).
+        """
+        if isinstance(x, dict):
+            return cls(**x, **kwargs)
+        elif isinstance(x, CosmoTables):
+            return x.clone(**kwargs)
+        elif x is None:
+            return cls(**kwargs)
+        else:
+            raise ValueError(
+                f"Cannot instantiate {cls.__name__} with type {x.__class__}"
+            )
+
+    @cached_property
+    def struct(self):
+        """The python-wrapped struct associated with this input object."""
+        return StructWrapper("CosmoTables")
+
+    @cached_property
+    def cstruct(self) -> StructWrapper:
+        """The object pointing to the memory accessed by C-code for this struct."""
+        for k in self.struct.fieldnames:
+            val = getattr(self, k)
+            if isinstance(val, Table1D):
+                ctab = ffi.new("Table1D *")
+                ctab.size = val.size
+                ctab.x_values = ffi.cast("double *", ffi.from_buffer(val.x_values))
+                ctab.y_values = ffi.cast("double *", ffi.from_buffer(val.y_values))
+                setattr(self.struct.cstruct, k, ctab)
+            elif isinstance(val, dict):  # Can be a dictionary if loaded from the cache
+                ctab = ffi.new("Table1D *")
+                ctab.size = val["size"]
+                ctab.x_values = ffi.cast("double *", ffi.from_buffer(val["x_values"]))
+                ctab.y_values = ffi.cast("double *", ffi.from_buffer(val["y_values"]))
+                setattr(self.struct.cstruct, k, ctab)
+
+        return self.struct.cstruct
+
+    def clone(self, **kwargs):
+        """Make a fresh copy of the instance with arbitrary parameters updated."""
+        return evolve(self, **kwargs)
 
 
 @define(frozen=True, kw_only=True)
@@ -1807,7 +1843,9 @@ class InputParameters:
         if remove_base_cosmo:
             del dct["cosmo_params"]["_base_cosmo"]
 
-        inpstructs = [k for k in dct if isinstance(getattr(self, k), InputStruct)]
+        inpstructs = [
+            k for k in dct if isinstance(getattr(self, k), (InputStruct | CosmoTables))
+        ]
         if only_structs:
             dct = {k: v for k, v in dct.items() if k in inpstructs}
 
