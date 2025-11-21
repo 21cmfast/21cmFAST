@@ -376,7 +376,14 @@ class Lightconer(ABC):
             return lightconer
 
         if classy_output is None:
-            classy_output = run_classy(inputs=inputs, output="vTk")
+            classy_output = run_classy(
+                h=inputs.cosmo_params.hlittle,
+                Omega_cdm=inputs.cosmo_params.OMm - inputs.cosmo_params.OMb,
+                Omega_b=inputs.cosmo_params.OMb,
+                n_s=inputs.cosmo_params.POWER_INDEX,
+                sigma8=inputs.cosmo_params.SIGMA_8,
+                output="vTk",
+            )
         lcd_limits_rsd = self.find_required_lightcone_limits(
             classy_output=classy_output, inputs=inputs
         )

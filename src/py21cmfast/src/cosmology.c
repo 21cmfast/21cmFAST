@@ -23,12 +23,6 @@
 #define BODE_n (5.0)    // Eda parameter in Bode et al. 2000 trans. funct.
 #define BODE_v (1.2)    // Nu parameter in Bode et al. 2000 trans. funct.
 
-#define CLASS_FILENAME (const char *)"Transfers_z0.dat"
-#define CLASS_LENGTH 150  // length of the CLASS transfer function
-// max and min k in  CLASS transfer function, temporary until interfaced properly
-#define KBOT_CLASS (float)(1e-5)
-#define KTOP_CLASS (float)(1e3)
-
 // parameters for DM-baryon relative velocity effect on the power spectrum
 #define KP_VCB_PM (300.0)  // Mpc-1
 #define A_VCB_PM (0.24)
@@ -134,67 +128,44 @@ double transfer_function_White(double k) {
   similar to built-in function "double T_RECFAST(float z, int flag)"
 */
 double transfer_function_CLASS(double k, int flag_int, int flag_dv) {
-    static double kclass[CLASS_LENGTH], Tmclass[CLASS_LENGTH], Tvclass_vcb[CLASS_LENGTH];
+    static double *kclass, *Tmclass, *Tvclass_vcb;
+    static int size_density, size_vcb;
+
     static gsl_interp_accel *acc_density, *acc_vcb;
     static gsl_spline *spline_density, *spline_vcb;
-    float currk, currTm, currTv;
     double ans;
-    int i;
     int gsl_status;
-    FILE *F;
 
     static bool warning_printed;
     static double eh_ratio_at_kmax;
 
-    char filename[500];
-    sprintf(filename, "%s/%s", config_settings.external_table_path, CLASS_FILENAME);
-
     if (flag_int == 0) {  // Initialize vectors and read file
-        if (!(F = fopen(filename, "r"))) {
-            LOG_ERROR("Unable to open file: %s for reading.", filename);
-            Throw(IOError);
-        }
-        warning_printed = false;
-
-        int nscans;
-        for (i = 0; i < CLASS_LENGTH; i++) {
-            nscans = fscanf(F, "%e %e %e ", &currk, &currTm, &currTv);
-            if (nscans != 3) {
-                LOG_ERROR("Reading CLASS Transfer Function failed.");
-                Throw(IOError);
-            }
-            kclass[i] = currk;
-            Tmclass[i] = currTm;
-            Tvclass_vcb[i] = currTv;
-            if (i > 0 && kclass[i] <= kclass[i - 1]) {
-                LOG_WARNING("Tk table not ordered");
-                LOG_WARNING("k=%.1le kprev=%.1le", kclass[i], kclass[i - 1]);
-            }
-        }
-        fclose(F);
-
-        LOG_SUPER_DEBUG("Read CLASS Transfer file");
+        kclass = cosmo_tables_global->transfer_density->x_values;
+        Tmclass = cosmo_tables_global->transfer_density->y_values;
+        Tvclass_vcb = cosmo_tables_global->transfer_vcb->y_values;
+        size_density = cosmo_tables_global->transfer_density->size;
+        size_vcb = cosmo_tables_global->transfer_vcb->size;
 
         gsl_set_error_handler_off();
         // Set up spline table for densities
         acc_density = gsl_interp_accel_alloc();
-        spline_density = gsl_spline_alloc(gsl_interp_cspline, CLASS_LENGTH);
-        gsl_status = gsl_spline_init(spline_density, kclass, Tmclass, CLASS_LENGTH);
+        spline_density = gsl_spline_alloc(gsl_interp_cspline, size_density);
+        gsl_status = gsl_spline_init(spline_density, kclass, Tmclass, size_density);
         CATCH_GSL_ERROR(gsl_status);
 
         LOG_SUPER_DEBUG("Generated CLASS Density Spline.");
 
         // Set up spline table for velocities
         acc_vcb = gsl_interp_accel_alloc();
-        spline_vcb = gsl_spline_alloc(gsl_interp_cspline, CLASS_LENGTH);
-        gsl_status = gsl_spline_init(spline_vcb, kclass, Tvclass_vcb, CLASS_LENGTH);
+        spline_vcb = gsl_spline_alloc(gsl_interp_cspline, size_vcb);
+        gsl_status = gsl_spline_init(spline_vcb, kclass, Tvclass_vcb, size_vcb);
         CATCH_GSL_ERROR(gsl_status);
 
         LOG_SUPER_DEBUG("Generated CLASS velocity Spline.");
 
-        eh_ratio_at_kmax = Tmclass[CLASS_LENGTH - 1] / kclass[CLASS_LENGTH - 1] /
-                           kclass[CLASS_LENGTH - 1] /
-                           transfer_function_EH(kclass[CLASS_LENGTH - 1]);
+        eh_ratio_at_kmax = Tmclass[size_density - 1] / kclass[size_density - 1] /
+                           kclass[size_density - 1] /
+                           transfer_function_EH(kclass[size_density - 1]);
         return 0;
     } else if (flag_int == -1) {
         gsl_spline_free(spline_density);
@@ -204,7 +175,7 @@ double transfer_function_CLASS(double k, int flag_int, int flag_dv) {
         return 0;
     }
 
-    if (k > kclass[CLASS_LENGTH - 1]) {  // k>kmax
+    if (k > kclass[size_density - 1]) {  // k>kmax
         if (!warning_printed) {
             LOG_WARNING(
                 "Called transfer_function_CLASS with k=%f, larger than kmax! performing linear "
@@ -215,10 +186,10 @@ double transfer_function_CLASS(double k, int flag_int, int flag_dv) {
         if (flag_dv == 0) {  // output is density
             return eh_ratio_at_kmax * transfer_function_EH(k);
         } else if (flag_dv == 1) {  // output is rel velocity, do a log-log linear extrapolation
-            return exp(log(Tvclass_vcb[CLASS_LENGTH - 1]) +
-                       (log(Tvclass_vcb[CLASS_LENGTH - 1]) - log(Tvclass_vcb[CLASS_LENGTH - 2])) /
-                           (log(kclass[CLASS_LENGTH - 1]) - log(kclass[CLASS_LENGTH - 2])) *
-                           (log(k) - log(kclass[CLASS_LENGTH - 1]))) /
+            return exp(log(Tvclass_vcb[size_vcb - 1]) +
+                       (log(Tvclass_vcb[size_vcb - 1]) - log(Tvclass_vcb[size_vcb - 2])) /
+                           (log(kclass[size_vcb - 1]) - log(kclass[size_vcb - 2])) *
+                           (log(k) - log(kclass[size_vcb - 1]))) /
                    k / k;
         }  // we just set it to the last value, since sometimes it wants large k for R<<cell_size,
            // which does not matter much.

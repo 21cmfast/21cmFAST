@@ -403,17 +403,14 @@ def _run_lightcone_from_perturbed_fields(
     apply_rsds: bool,
     n_rsd_subcells: int,
     halofield_list: list[HaloCatalog],
-    regenerate: bool | None = None,
-    cache: OutputCache = _ocache,
     cleanup: bool = True,
     write: CacheConfig = _cache,
     progressbar: bool = False,
     lightcone_filename: str | Path | None = None,
+    **iokw,
 ):
     # Get the redshift through which we scroll and evaluate the ionization field.
     scrollz = np.array([pf.redshift for pf in perturbed_fields])
-
-    iokw = {"regenerate": regenerate, "cache": cache}
 
     # Create the LightCone instance, loading from file if needed
     lightcone = setup_lightcone_instance(
@@ -439,7 +436,7 @@ def _run_lightcone_from_perturbed_fields(
 
     if idx < lightcone._last_completed_node:
         warnings.warn(
-            f"The cache at {cache} only contains complete coeval boxes for {idx + 1} redshift nodes, "
+            f"The cache at {iokw.get('cache')} only contains complete coeval boxes for {idx + 1} redshift nodes, "
             f"instead of {lightcone._last_completed_node + 1}, which is the current checkpointing "
             f"redshift of the lightcone. Repeating the higher-z calculations...",
             stacklevel=2,
@@ -639,7 +636,7 @@ def generate_lightcone(
 
     _check_desired_arrays_exist(lightconer.quantities, inputs)
 
-    iokw = {"cache": cache, "regenerate": regenerate}
+    iokw = {"cache": cache, "regenerate": regenerate, "free_cosmo_tables": False}
 
     (
         initial_conditions,
@@ -661,18 +658,19 @@ def generate_lightcone(
         lightconer=lightconer,
         inputs=inputs,
         lc_distances=lc_distances,
-        regenerate=regenerate,
         halofield_list=halofield_list,
         photon_nonconservation_data=photon_nonconservation_data,
         include_dvdr_in_tau21=include_dvdr_in_tau21,
         apply_rsds=apply_rsds,
         n_rsd_subcells=n_rsd_subcells,
-        cache=cache,
         write=write,
         cleanup=cleanup,
         progressbar=progressbar,
         lightcone_filename=lightcone_filename,
+        **iokw,
     )
+
+    lib.Free_cosmo_tables_global()
 
 
 def run_lightcone(**kwargs) -> LightCone:  # noqa: D103
