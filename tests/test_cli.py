@@ -1,10 +1,10 @@
 """Test CLI functionality."""
 
 import tempfile
-import tomllib as toml
 from pathlib import Path
 
 import pytest
+import tomlkit as toml
 from rich.console import Console
 
 from py21cmfast import Coeval, LightCone, cli

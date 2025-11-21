@@ -3,7 +3,7 @@ channels:
   - conda-forge
   - defaults
 dependencies:
-  - python>=3.11
+  - python>=3.10
   - sphinxcontrib-htmlhelp
   - zlib
   - pip
@@ -36,7 +36,7 @@ dependencies:
   - ipython
   - sphinxcontrib-devhelp
   - traitlets
-  - toml
+  - tomlkit
   - jedi
   - cycler
   - more-itertools
