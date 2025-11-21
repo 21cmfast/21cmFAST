@@ -36,17 +36,41 @@ void print_sc_consts(ScalingConstants *c) {
     return;
 }
 
-void set_scaling_constants(double redshift, ScalingConstants *consts, bool use_photoncons) {
+void set_scaling_constants(double redshift, double redshift_prev, ScalingConstants *consts,
+                           bool use_photoncons) {
     consts->redshift = redshift;
+
+    if (redshift_prev > 0)
+        consts->snapshot_time = time_between_z(redshift, redshift_prev);
+    else
+        consts->snapshot_time = -1.0;  // indicates single snapshot mode
 
     // Set on for the fixed grid case since we are missing halos above the cell mass
     consts->fix_mean = matter_options_global->HMF == 2 || matter_options_global->HMF == 3;
     // whether to fix *integrated* (not sampled) galaxy properties to the expected mean
     consts->scaling_median = astro_options_global->HALO_SCALING_RELATIONS_MEDIAN;
 
+    // we need the sigmas for the current snapshot
+    if (matter_options_global->SOURCE_MODEL > 1) {
+        initialise_sfh_structs(redshift, -1, -1, false);
+        get_current_vars(consts->integral_mean_correction);
+        if (astro_options_global->HALO_SCALING_RELATIONS_MEDIAN) {
+            for (int i = 0; i < 3; i++) {
+                consts->integral_mean_correction[i] =
+                    exp(0.5 * consts->integral_mean_correction[i]);
+                consts->sampled_mean_correction[i] = 1.0;
+            }
+        } else {
+            for (int i = 0; i < 3; i++) {
+                consts->sampled_mean_correction[i] =
+                    exp(-0.5 * consts->integral_mean_correction[i]);
+                consts->integral_mean_correction[i] = 1.0;
+            }
+        }
+    }
+
     consts->fstar_10 = astro_params_global->F_STAR10;
     consts->alpha_star = astro_params_global->ALPHA_STAR;
-    consts->sigma_star = astro_params_global->SIGMA_STAR;
 
     consts->alpha_upper = astro_params_global->UPPER_STELLAR_TURNOVER_INDEX;
     consts->pivot_upper = astro_params_global->UPPER_STELLAR_TURNOVER_MASS;
@@ -56,14 +80,9 @@ void set_scaling_constants(double redshift, ScalingConstants *consts, bool use_p
     consts->fstar_7 = astro_params_global->F_STAR7_MINI;
     consts->alpha_star_mini = astro_params_global->ALPHA_STAR_MINI;
 
-    consts->t_h = t_hubble(redshift);
-    consts->t_star = astro_params_global->t_STAR;
-    consts->sigma_sfr_lim = astro_params_global->SIGMA_SFR_LIM;
-    consts->sigma_sfr_idx = astro_params_global->SIGMA_SFR_INDEX;
     // setting units to 1e38 erg s -1 so we can store in float
     consts->l_x = astro_params_global->L_X * 1e-38;
     consts->l_x_mini = astro_params_global->L_X_MINI * 1e-38;
-    consts->sigma_xray = astro_params_global->SIGMA_LX;
 
     consts->alpha_esc = astro_params_global->ALPHA_ESC;
     consts->fesc_10 = astro_params_global->F_ESC10;
@@ -118,28 +137,10 @@ ScalingConstants evolve_scaling_constants_sfr(ScalingConstants *sc) {
 }
 
 // It's often useful to create a copy of scaling relations at a different z
-ScalingConstants evolve_scaling_constants_to_redshift(double redshift, ScalingConstants *sc,
-                                                      bool use_photoncons) {
+// NOTE: Any alterations from f_esc from photoncons etc should be already set in 'sc'
+ScalingConstants evolve_scaling_constants_to_redshift(double redshift, ScalingConstants *sc) {
     ScalingConstants sc_z = *sc;
     sc_z.redshift = redshift;
-    sc_z.t_h = t_hubble(redshift);
-
-    if (use_photoncons) {
-        if (astro_options_global->PHOTON_CONS_TYPE == 2)
-            sc_z.alpha_esc = get_fesc_fit(redshift);
-        else if (astro_options_global->PHOTON_CONS_TYPE == 3)
-            sc_z.fesc_10 = get_fesc_fit(redshift);
-
-        // if we altered the escape fraction, we need to recalculate the mass limits
-        sc_z.Mlim_Fesc =
-            Mass_limit_bisection(M_MIN_INTEGRAL, M_MAX_INTEGRAL, sc_z.alpha_esc, sc_z.fesc_10);
-
-        if (astro_options_global->USE_MINI_HALOS) {
-            sc_z.Mlim_Fesc_mini =
-                Mass_limit_bisection(M_MIN_INTEGRAL, M_MAX_INTEGRAL, sc_z.alpha_esc,
-                                     sc_z.fesc_7 * pow(1e3, sc_z.alpha_esc));
-        }
-    }
 
     sc_z.acg_thresh = atomic_cooling_threshold(redshift);
     sc_z.mturn_a_nofb = astro_params_global->M_TURN;
@@ -311,12 +312,12 @@ double get_lx_on_sfr(double sfr, double metallicity, double lx_constant) {
     return lx_constant;
 }
 
-void get_halo_stellarmass(double halo_mass, double mturn_acg, double mturn_mcg, double star_rng,
-                          ScalingConstants *consts, double *star_acg, double *star_mcg) {
+void get_halo_sfh(double halo_mass, double mturn_acg, double mturn_mcg, double prog_hm,
+                  double prog_sm[2], double rng[3], ScalingConstants *consts, double sfr_out[3],
+                  double sfr_out_mini[3]) {
     // low-mass ACG power-law parameters
     double f_10 = consts->fstar_10;
     double f_a = consts->alpha_star;
-    double sigma_star = consts->sigma_star;
 
     // high-mass ACG power-law parameters
     double fu_a = consts->alpha_upper;
@@ -327,13 +328,9 @@ void get_halo_stellarmass(double halo_mass, double mturn_acg, double mturn_mcg, 
     double f_a_mini = consts->alpha_star_mini;
 
     // intermediates
-    double fstar_mean;
-    double f_sample, f_sample_mini;
-    double sm_sample, sm_sample_mini;
-
+    double fstar_mean, fstar_mean_mini;
+    double mass_growth = halo_mass - prog_hm;
     double baryon_ratio = cosmo_params_global->OMb / cosmo_params_global->OMm;
-    // adjustment to the mean for lognormal scatter
-    double stoc_adjustment_term = consts->scaling_median ? 0 : sigma_star * sigma_star / 2.;
 
     // We don't want an upturn even with a negative ALPHA_STAR
     if (astro_options_global->USE_UPPER_STELLAR_TURNOVER && (f_a > fu_a)) {
@@ -341,60 +338,46 @@ void get_halo_stellarmass(double halo_mass, double mturn_acg, double mturn_mcg, 
     } else {
         fstar_mean = scaling_single_PL(halo_mass, consts->alpha_star, 1e10);  // PL term
     }
+    fstar_mean = f_10 * fstar_mean;
     // 1e10 normalisation of stellar mass
-    f_sample = f_10 * fstar_mean *
-               exp(-mturn_acg / halo_mass + star_rng * sigma_star - stoc_adjustment_term);
-    if (f_sample > 1.) f_sample = 1.;
 
-    sm_sample = f_sample * halo_mass * baryon_ratio;
-    *star_acg = sm_sample;
-
-    if (!astro_options_global->USE_MINI_HALOS) {
-        *star_mcg = 0.;
+    // < 0 can happen occasionally due to the stochasticity of the sampler
+    if (mass_growth <= 0) {
+        for (int i = 0; i < 3; i++) {
+            sfr_out[i] = 0.;
+            sfr_out_mini[i] = 0.;
+        }
         return;
     }
 
-    f_sample_mini = scaling_single_PL(halo_mass, f_a_mini, 1e7) * f_7;
-    f_sample_mini *= exp(-mturn_mcg / halo_mass - halo_mass / consts->acg_thresh +
-                         star_rng * sigma_star - stoc_adjustment_term);
-    if (f_sample_mini > 1.) f_sample_mini = 1.;
-
-    sm_sample_mini = f_sample_mini * halo_mass * baryon_ratio;
-    *star_mcg = sm_sample_mini;
-}
-
-void get_halo_sfr(double stellar_mass, double stellar_mass_mini, double sfr_rng,
-                  ScalingConstants *consts, double *sfr, double *sfr_mini) {
-    double sfr_mean, sfr_mean_mini;
-    double sfr_sample, sfr_sample_mini;
-
-    double sigma_sfr_lim = consts->sigma_sfr_lim;
-    double sigma_sfr_idx = consts->sigma_sfr_idx;
-
-    // set the scatter based on the total Stellar mass
-    // We use the total stellar mass (MCG + ACG) NOTE: it might be better to separate later
-    double sigma_sfr = 0.;
-
-    if (sigma_sfr_lim > 0.) {
-        sigma_sfr =
-            sigma_sfr_idx * log10((stellar_mass + stellar_mass_mini) / 1e10) + sigma_sfr_lim;
-        if (sigma_sfr < sigma_sfr_lim) sigma_sfr = sigma_sfr_lim;
-    }
-    sfr_mean = stellar_mass / (consts->t_star * consts->t_h);
-
-    // adjustment to the mean for lognormal scatter
-    double stoc_adjustment_term = consts->scaling_median ? 0 : sigma_sfr * sigma_sfr / 2.;
-    sfr_sample = sfr_mean * exp(sfr_rng * sigma_sfr - stoc_adjustment_term);
-    *sfr = sfr_sample;
-
-    if (!astro_options_global->USE_MINI_HALOS) {
-        *sfr_mini = 0.;
-        return;
+    for (int i = 0; i < 3; i++) {
+        // we move the mturn here to go from 4 exp calls to 3
+        sfr_out[i] = max(1.0, fstar_mean * exp(-mturn_acg / halo_mass + rng[i])) * mass_growth *
+                     baryon_ratio * consts->sampled_mean_correction[i];
     }
 
-    sfr_mean_mini = stellar_mass_mini / (consts->t_star * consts->t_h);
-    sfr_sample_mini = sfr_mean_mini * exp(sfr_rng * sigma_sfr - stoc_adjustment_term);
-    *sfr_mini = sfr_sample_mini;
+    if (astro_options_global->USE_MINI_HALOS) {
+        fstar_mean_mini = scaling_single_PL(halo_mass, f_a_mini, 1e7) * f_7;
+        for (int i = 0; i < 3; i++) {
+            sfr_out_mini[i] =
+                max(1.0, fstar_mean_mini * exp(-mturn_mcg / halo_mass -
+                                               halo_mass / consts->acg_thresh + rng[i])) *
+                mass_growth * baryon_ratio * consts->sampled_mean_correction[i];
+        }
+    } else {
+        for (int i = 0; i < 3; i++) {
+            sfr_out_mini[i] = 0.;
+        }
+    }
+
+    // divide by snapshot time
+    sfr_out[0] = sfr_out[0] / consts->snapshot_time;
+    sfr_out_mini[0] = sfr_out_mini[0] / consts->snapshot_time;
+    sfr_out[1] = sfr_out[1] / consts->snapshot_time;
+    sfr_out_mini[1] = sfr_out_mini[1] / consts->snapshot_time;
+    // Finally, sum the progenitor stellar masses into the third field
+    sfr_out[2] = sfr_out[2] + prog_sm[0];
+    sfr_out_mini[2] = sfr_out_mini[2] + prog_sm[1];
 }
 
 void get_halo_metallicity(double sfr, double stellar, double redshift, double *z_out) {

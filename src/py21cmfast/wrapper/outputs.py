@@ -769,12 +769,14 @@ class HaloCatalog(OutputStructZ):
     _compat_hash = _HashType.zgrid
 
     halo_masses = _arrayfield()
-    star_rng = _arrayfield()
-    sfr_rng = _arrayfield()
-    xray_rng = _arrayfield()
+    sfr_10 = _arrayfield()
+    sfr_100 = _arrayfield()
+    stellar_mass = _arrayfield()
+    descendant_index = _arrayfield()
     halo_coords = _arrayfield()
     n_halos: int = attrs.field(default=None)
     buffer_size: int = attrs.field(default=None)
+    _sfh_computed: bool = attrs.field(init=False, default=False)
 
     @classmethod
     def new(
@@ -811,9 +813,10 @@ class HaloCatalog(OutputStructZ):
         return cls(
             inputs=inputs,
             halo_masses=Array((buffer_size,), dtype=np.float32),
-            star_rng=Array((buffer_size,), dtype=np.float32),
-            sfr_rng=Array((buffer_size,), dtype=np.float32),
-            xray_rng=Array((buffer_size,), dtype=np.float32),
+            sfr_10=Array((buffer_size,), dtype=np.float32),
+            sfr_100=Array((buffer_size,), dtype=np.float32),
+            sfr_snapshot=Array((buffer_size,), dtype=np.float32),
+            descendant_index=Array((buffer_size,), dtype=np.int64),
             halo_coords=Array((buffer_size, 3), dtype=np.float32),
             redshift=redshift,
             buffer_size=buffer_size,
@@ -1059,13 +1062,16 @@ class HaloBox(OutputStructZ):
         required = []
         if isinstance(input_box, HaloCatalog):
             if self.matter_options.has_discrete_halos:
-                required += [
-                    "halo_coords",
-                    "halo_masses",
-                    "star_rng",
-                    "sfr_rng",
-                    "xray_rng",
-                ]
+                if input_box.redshift != self.redshift:
+                    required += ["descendant_index", "halo_masses", "stellar_mass"]
+                else:
+                    required += [
+                        "halo_coords",
+                        "halo_masses",
+                        "sfr_10",
+                        "sfr_100",
+                        "stellar_mass",
+                    ]
         elif isinstance(input_box, TsBox):
             if self.astro_options.USE_MINI_HALOS:
                 required += ["J_21_LW"]
@@ -1092,6 +1098,7 @@ class HaloBox(OutputStructZ):
         *,
         initial_conditions: InitialConditions,
         halo_catalog: HaloCatalog,
+        previous_halo_catalog: HaloCatalog,
         previous_spin_temp: TsBox,
         previous_ionize_box: IonizedBox,
         allow_already_computed: bool = False,
@@ -1102,6 +1109,7 @@ class HaloBox(OutputStructZ):
             self.redshift,
             initial_conditions,
             halo_catalog,
+            previous_halo_catalog,
             previous_spin_temp,
             previous_ionize_box,
         )

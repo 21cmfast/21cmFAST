@@ -17,9 +17,11 @@ typedef struct HaloProperties {
     double count;  // from integral
     double halo_mass;
     double stellar_mass;
-    double halo_sfr;
     double stellar_mass_mini;
-    double sfr_mini;
+    double sfr_10;
+    double sfr_100;
+    double sfr_10_mcg;
+    double sfr_100_mcg;
     double fescweighted_sfr;
     double n_ion;
     double halo_xray;

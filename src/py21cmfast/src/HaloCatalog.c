@@ -35,15 +35,23 @@ int pixel_in_halo(int grid_dim, int z_dim, int x, int x_index, int y, int y_inde
                   int z_index, float Rsq_curr_index);
 void free_halo_catalog(HaloCatalog *halos);
 
-int ComputeHaloCatalog(float redshift_desc, float redshift, InitialConditions *boxes,
-                       unsigned long long int random_seed, HaloCatalog *halos_desc,
-                       HaloCatalog *halos) {
+int ComputeHaloCatalog(float redshift_desc2, float redshift_desc, float redshift,
+                       InitialConditions *boxes, unsigned long long int random_seed,
+                       HaloCatalog *halos_desc, HaloCatalog *halos) {
     int status;
 
     Try {  // This Try brackets the whole function, so we don't indent.
-
+        bool from_catalog = matter_options_global->SOURCE_MODEL == 4 && redshift_desc > 0;
+        if (halos->sfh_computed || halos_desc->sfh_computed) {
+            LOG_ERROR(
+                "You have passed a halo catalog with SFH already computed to the stochastic "
+                "sampler. "
+                "This is not allowed.");
+            Throw(ValueError);
+        }
+        initialise_sfh_structs(redshift, redshift_desc, redshift_desc2, from_catalog);
         // This happens if we are updating a halo field (no need to redo big halos)
-        if (matter_options_global->SOURCE_MODEL == 4 && redshift_desc > 0) {
+        if (from_catalog) {
             LOG_DEBUG("Halo sampling switched on, bypassing halo finder to update %llu halos...",
                       halos_desc->n_halos);
             // this would hold the two boxes used in the halo sampler, but here we are taking the
@@ -422,6 +430,8 @@ int ComputeHaloCatalog(float redshift_desc, float redshift, InitialConditions *b
 
         fftwf_free(density_field);
         fftwf_free(density_field_saved);
+
+        cleanup_sfh_structs();
 
         fftwf_cleanup_threads();
         fftwf_cleanup();

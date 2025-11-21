@@ -6,6 +6,7 @@
 #include <gsl/gsl_randist.h>
 #include <gsl/gsl_rng.h>
 #include <math.h>
+#include <stdbool.h>
 #include <stdio.h>
 #include <stdlib.h>
 
@@ -14,6 +15,7 @@
 #include "InputParameters.h"
 #include "OutputStructs.h"
 #include "cexcept.h"
+#include "correlated_sfh.h"
 #include "cosmology.h"
 #include "exceptions.h"
 #include "hmf.h"
@@ -76,7 +78,7 @@ double sample_dndM_inverse(double condition, struct HaloSamplingConstants *hs_co
 
 // Set the constants that are calculated once per snapshot
 void stoc_set_consts_z(struct HaloSamplingConstants *const_struct, double redshift,
-                       double redshift_desc) {
+                       double redshift_desc, bool from_catalog) {
     if (redshift_desc > 0 && redshift < redshift_desc) {
         LOG_ERROR("you have passed a descendant redshift above the progenitor redshift");
         Throw(ValueError);
@@ -106,25 +108,8 @@ void stoc_set_consts_z(struct HaloSamplingConstants *const_struct, double redshi
 
     const_struct->sigma_min = EvaluateSigma(const_struct->lnM_min);
 
-    if (redshift_desc > 0) {
-        const_struct->growth_in = dicke(redshift_desc);
-        if (simulation_options_global->CORR_SFR > 0)
-            const_struct->corr_sfr =
-                exp(-(redshift - redshift_desc) / simulation_options_global->CORR_SFR);
-        else
-            const_struct->corr_sfr = 0;
-        if (simulation_options_global->CORR_STAR > 0)
-            const_struct->corr_star =
-                exp(-(redshift - redshift_desc) / simulation_options_global->CORR_STAR);
-        else
-            const_struct->corr_star = 0;
-        if (simulation_options_global->CORR_LX > 0)
-            const_struct->corr_xray =
-                exp(-(redshift - redshift_desc) / simulation_options_global->CORR_LX);
-        else
-            const_struct->corr_xray = 0;
-
-        const_struct->from_catalog = 1;
+    if (from_catalog) {
+        const_struct->from_catalog = true;
         initialise_dNdM_tables(log(simulation_options_global->SAMPLER_MIN_MASS),
                                const_struct->lnM_max_tb, const_struct->lnM_min,
                                const_struct->lnM_max_tb, const_struct->growth_out,
@@ -146,7 +131,7 @@ void stoc_set_consts_z(struct HaloSamplingConstants *const_struct, double redshi
         // for the table limits
         double delta_crit = get_delta_crit(matter_options_global->HMF, const_struct->sigma_cond,
                                            const_struct->growth_out);
-        const_struct->from_catalog = 0;
+        const_struct->from_catalog = false;
         // TODO: determine the minimum density in the field and pass it in (<-1 is fine for
         // Lagrangian)
         initialise_dNdM_tables(DELTA_MIN, MAX_DELTAC_FRAC * delta_crit, const_struct->lnM_min,
@@ -213,29 +198,6 @@ void stoc_set_consts_cond(struct HaloSamplingConstants *const_struct, double con
     return;
 }
 
-// This function adds stochastic halo properties to an existing halo
-void set_prop_rng(gsl_rng *rng, bool from_catalog, double *interp, double *input, double *output) {
-    double rng_star, rng_sfr, rng_xray;
-
-    // Correlate properties by interpolating between the sampled and descendant gaussians
-    rng_star = gsl_ran_ugaussian(rng);
-    rng_sfr = gsl_ran_ugaussian(rng);
-    rng_xray = gsl_ran_ugaussian(rng);
-
-    if (from_catalog) {
-        // this transforms the sample to one from the multivariate Gaussian,
-        //   conditioned on the first sample
-        rng_star = sqrt(1 - interp[0] * interp[0]) * rng_star + interp[0] * input[0];
-        rng_sfr = sqrt(1 - interp[1] * interp[1]) * rng_sfr + interp[1] * input[1];
-        rng_xray = sqrt(1 - interp[2] * interp[2]) * rng_xray + interp[2] * input[2];
-    }
-
-    output[0] = rng_star;
-    output[1] = rng_sfr;
-    output[2] = rng_xray;
-    return;
-}
-
 // This is the function called to assign halo properties to an entire catalogue, used for DexM halos
 int add_properties_cat(unsigned long long int seed, float redshift, HaloCatalog *halos) {
     // set up the rng
@@ -247,13 +209,16 @@ int add_properties_cat(unsigned long long int seed, float redshift, HaloCatalog 
     // loop through the halos and assign properties
     unsigned long long int i;
     double buf[3];
-    double dummy[3];  // we don't need interpolation here
+    // Assume no correlation across snapshots for now, when this function is used
+    // This is currently only called in DexM halo assignment, where we don't have progenitor or
+    // descendant information
+    double prev_values[3] = {0., 0., 0.};
 #pragma omp parallel for private(i, buf)
     for (i = 0; i < halos->n_halos; i++) {
-        set_prop_rng(rng_stoc[omp_get_thread_num()], false, dummy, dummy, buf);
-        halos->star_rng[i] = buf[0];
-        halos->sfr_rng[i] = buf[1];
-        halos->xray_rng[i] = buf[2];
+        sample_correlated_sfh(rng_stoc[omp_get_thread_num()], prev_values, buf);
+        halos->sfr_10[i] = buf[0];
+        halos->sfr_100[i] = buf[1];
+        halos->stellar_mass[i] = buf[2];
     }
 
     free_rng_threads(rng_stoc);
@@ -801,7 +766,8 @@ int sample_halo_grids(gsl_rng **rng_arr, double redshift, float *dens_field,
 
         int nh_buf;
         double delta;
-        double prop_buf[3], prop_dummy[3];
+        double prop_buf[3];
+        double prop_dummy[3] = {0., 0., 0.};
         double crd_hi[3];
 
         double mass_defc;
@@ -880,10 +846,10 @@ int sample_halo_grids(gsl_rng **rng_arr, double redshift, float *dens_field,
                         halofield_out->halo_coords[3 * (istart + count) + 1] = crd_hi[1];
                         halofield_out->halo_coords[3 * (istart + count) + 2] = crd_hi[2];
 
-                        set_prop_rng(rng_arr[threadnum], false, prop_dummy, prop_dummy, prop_buf);
-                        halofield_out->star_rng[istart + count] = prop_buf[0];
-                        halofield_out->sfr_rng[istart + count] = prop_buf[1];
-                        halofield_out->xray_rng[istart + count] = prop_buf[2];
+                        sample_correlated_sfh(rng_arr[threadnum], prop_dummy, prop_buf);
+                        halofield_out->sfr_rng_10[istart + count] = prop_buf[0];
+                        halofield_out->sfr_rng_100[istart + count] = prop_buf[1];
+                        halofield_out->sfr_rng_snapshot[istart + count] = prop_buf[2];
                         count++;
 
                         M_tot_cell += hm_buf[i];
@@ -1015,7 +981,7 @@ int sample_halo_progenitors(gsl_rng **rng_arr, double z_in, double z_out, HaloCa
                     continue;
                 }
 
-                set_prop_rng(rng_arr[threadnum], true, corr_arr, propbuf_in, propbuf_out);
+                sample_correlated_sfh(rng_arr[threadnum], propbuf_in, propbuf_out);
 
                 halofield_out->halo_masses[istart + count] = prog_buf[jj];
 
@@ -1032,6 +998,7 @@ int sample_halo_progenitors(gsl_rng **rng_arr, double z_in, double z_out, HaloCa
                 halofield_out->star_rng[istart + count] = propbuf_out[0];
                 halofield_out->sfr_rng[istart + count] = propbuf_out[1];
                 halofield_out->xray_rng[istart + count] = propbuf_out[2];
+                halofield_out->descendant_index[istart + count] = ii;
                 count++;
 
                 if (ii == 0) {
@@ -1078,14 +1045,15 @@ int sample_halo_progenitors(gsl_rng **rng_arr, double z_in, double z_out, HaloCa
 }
 
 // function that talks between the structures (Python objects) and the sampling functions
-int stochastic_halofield(unsigned long long int seed, float redshift_desc, float redshift,
-                         float *dens_field, float *halo_overlap_box, HaloCatalog *halos_desc,
-                         HaloCatalog *halos) {
+int stochastic_halofield(unsigned long long int seed, float redshift_desc2, float redshift_desc,
+                         float redshift, float *dens_field, float *halo_overlap_box,
+                         HaloCatalog *halos_desc, HaloCatalog *halos) {
     if (redshift_desc > 0 && halos_desc->n_halos == 0) {
         LOG_DEBUG("No halos to sample from redshifts %.2f to %.2f, continuing...", redshift_desc,
                   redshift);
         return 0;
     }
+    bool from_catalog = (redshift_desc > 0.);
 
     // set up the rng
     gsl_rng *rng_stoc[simulation_options_global->N_THREADS];
@@ -1093,11 +1061,11 @@ int stochastic_halofield(unsigned long long int seed, float redshift_desc, float
     seed_rng_threads_fast(rng_stoc, seed + seed_fac);
 
     struct HaloSamplingConstants hs_constants;
-    stoc_set_consts_z(&hs_constants, redshift, redshift_desc);
+    stoc_set_consts_z(&hs_constants, redshift, redshift_desc, from_catalog);
 
     // Fill them
     // NOTE:Halos prev in the first box corresponds to the large DexM halos
-    if (redshift_desc <= 0.) {
+    if (!from_catalog) {
         LOG_DEBUG("building first halo field at z=%.1f", redshift);
         sample_halo_grids(rng_stoc, redshift, dens_field, halo_overlap_box, halos_desc, halos,
                           &hs_constants);

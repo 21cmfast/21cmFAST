@@ -178,6 +178,9 @@ void fill_covar_analytic(double tau, double tau_prev, gsl_matrix *curr_cov, gsl_
 
     rho(tau, t1, t2) = rho(-tau, t2, t1) So...
     Cov(X_prev, Y_curr) == Cov(Y_curr, X_prev) != Cov(X_curr, Y_prev) == Cov(Y_prev, X_curr)
+    Also note that positive tau means current snapshot is later than previous snapshot
+    and negative means the current snapshot is earlier. These functions should produce the
+    correct output for either case.
 
     The entire covariance matrix is symmetric and positive semi-definite,
     The auto-correlation sub-matrices (top-left/bottom-right) are both symmetric as well
@@ -381,21 +384,57 @@ void eval_sfh_moments(gsl_matrix *prev_cov, gsl_matrix *curr_cov, gsl_matrix *cr
     gsl_matrix_free(partial_buf);
 }
 
-void initialise_sfh_structs(double z0, double z1, double z2) {
+void eval_sfh_unconditioned(gsl_matrix *curr_cov, gsl_matrix *out_chol_cov,
+                            gsl_matrix *out_mean_correction) {
+    /* Evaluate the SFH covariance matrix for unconditioned sampling
+
+    Outputs are the Cholesky factor of the current covariance matrix
+    which multiplies standard normal vector to get correlated SFRs.
+
+    out_chol_cov = Cholesky factor of Cov(curr), NOTE: The upper triangle is garbage
+    */
+    gsl_matrix *covar_buf = gsl_matrix_alloc(3, 3);
+    gsl_matrix_memcpy(covar_buf, curr_cov);
+
+    // Perform Cholesky decomposition of Cov(curr) = L L^T to do implicit inversion
+    gsl_linalg_cholesky_decomp1(covar_buf);
+
+    // Not necessary, but it makes it clearer that only the lower triangle is valid
+    force_matrix_lotri(covar_buf);  // zero upper triangle
+
+    gsl_matrix_memcpy(out_chol_cov, covar_buf);
+
+    // set mean correction to zero matrix
+    gsl_matrix_set_zero(out_mean_correction);
+
+    gsl_matrix_free(covar_buf);
+}
+
+void initialise_sfh_structs(double z0, double z1, double z2, bool conditioned) {
     sfh_mats.curr_cov = gsl_matrix_alloc(3, 3);
     sfh_mats.prev_cov = gsl_matrix_alloc(3, 3);
     sfh_mats.pxc_cov = gsl_matrix_alloc(3, 3);
     sfh_mats.L_cov = gsl_matrix_alloc(3, 3);
     sfh_mats.mean_correction = gsl_matrix_alloc(3, 3);
 
+    if (z0 < 0. || conditioned && (z1 < 0. || z2 < 0.)) {
+        LOG_ERROR("You provided negative redshifts for SFH initialisation!");
+        Throw(ValueError);
+    }
+
+    // positive for z2 > z1 > z0
     double tau = time_between_z(z0, z1) / (physconst.s_per_yr * 1e6);       // Myr
     double tau_prev = time_between_z(z1, z2) / (physconst.s_per_yr * 1e6);  // Myr
 
     // initialise_psd_corrfunc_tables(tau, tau_prev);
     // fill_covar_from_tables(tau, sfh_mats.curr_cov, sfh_mats.prev_cov, sfh_mats.pxc_cov);
     fill_covar_analytic(tau, tau_prev, sfh_mats.curr_cov, sfh_mats.prev_cov, sfh_mats.pxc_cov);
-    eval_sfh_moments(sfh_mats.prev_cov, sfh_mats.curr_cov, sfh_mats.pxc_cov, sfh_mats.L_cov,
-                     sfh_mats.mean_correction);
+    if (conditioned) {
+        eval_sfh_moments(sfh_mats.prev_cov, sfh_mats.curr_cov, sfh_mats.pxc_cov, sfh_mats.L_cov,
+                         sfh_mats.mean_correction);
+    } else {
+        eval_sfh_unconditioned(sfh_mats.curr_cov, sfh_mats.L_cov, sfh_mats.mean_correction);
+    }
 }
 
 void cleanup_sfh_structs() {
@@ -429,6 +468,10 @@ void sample_correlated_sfh(gsl_rng *rng, double prev_values[3], double out_value
     L_cov: Cholesky factor of Cov(curr|prev), from eval_sfh_moments, L L^T = Cov(curr|prev)
     mean_corr: Mean correction matrix from eval_sfh_moments
 
+    Method:
+    Calculates the produce out = L_cov * N(0,1) + mean_corr * prev_values
+    Assumes zero mean of all variables.
+
     Outputs:
     out_values: array of sampled current SFR values [SFR_10Myr, SFR_100Myr, SFR_snapshot_curr]
     */
@@ -456,6 +499,13 @@ void sample_correlated_sfh(gsl_rng *rng, double prev_values[3], double out_value
     }
     gsl_vector_free(cov_term);
     gsl_vector_free(cond_term);
+}
+
+void get_current_vars(double out[3]) {
+    /* Get the variances of the current SFR variables */
+    for (int i = 0; i < 3; i++) {
+        out[i] = gsl_matrix_get(sfh_mats.curr_cov, i, i);
+    }
 }
 
 /* TESTING FUNCTIONS */

@@ -1,6 +1,8 @@
 #ifndef _STOCHASTICITY_H
 #define _STOCHASTICITY_H
 
+#include <stdbool.h>
+
 #include "InputParameters.h"
 #include "OutputStructs.h"
 
@@ -10,7 +12,7 @@
 //   can be set with differing frequencies depending on the condition type
 struct HaloSamplingConstants {
     // calculated per redshift
-    int from_catalog;  // flag for first box or updating halos
+    bool from_catalog;  // flag for first box or updating halos
     double corr_sfr;
     double corr_star;
     double corr_xray;
@@ -56,7 +58,7 @@ double expected_nhalo(double redshift);
 int add_properties_cat(unsigned long long int seed, float redshift, HaloCatalog *halos);
 
 void stoc_set_consts_z(struct HaloSamplingConstants *const_struct, double redshift,
-                       double redshift_desc);
+                       double redshift_desc, bool from_catalog);
 void stoc_set_consts_cond(struct HaloSamplingConstants *const_struct, double cond_val);
 
 #endif

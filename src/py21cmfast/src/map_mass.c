@@ -345,10 +345,10 @@ void move_grid_galprops(double redshift, float *dens_pointer, int dens_dim[3],
     }
 }
 
-void move_halo_galprops(double redshift, HaloCatalog *halos, float *vel_pointers[3],
-                        float *vel_pointers_2LPT[3], int vel_dim[3], float *mturn_a_grid,
-                        float *mturn_m_grid, HaloBox *boxes, int out_dim[3],
-                        ScalingConstants *consts) {
+void move_halo_galprops(double redshift, HaloCatalog *halos, float *progenitor_hm,
+                        float *progenitor_sm, float *vel_pointers[3], float *vel_pointers_2LPT[3],
+                        int vel_dim[3], float *mturn_a_grid, float *mturn_m_grid, HaloBox *boxes,
+                        int out_dim[3], ScalingConstants *consts) {
     // grid dimension constants
     double boxlen = simulation_options_global->BOX_LEN;
     double boxlen_z = boxlen * simulation_options_global->NON_CUBIC_FACTOR;
@@ -413,16 +413,16 @@ void move_halo_galprops(double redshift, HaloCatalog *halos, float *vel_pointers
                 M_turn_a = pow(10, cic_read_float(mturn_a_grid, pos, out_dim));
                 M_turn_m = pow(10, cic_read_float(mturn_m_grid, pos, out_dim));
             }
-            halo_rng[0] = halos->star_rng[i];
-            halo_rng[1] = halos->sfr_rng[i];
-            halo_rng[2] = halos->xray_rng[i];
+            halo_rng[0] = halos->sfr_10[i];
+            halo_rng[1] = halos->sfr_100[i];
+            halo_rng[2] = halos->stellar_mass[i];
 
             // CIC interpolation
             set_halo_properties(hmass, M_turn_a, M_turn_m, consts, halo_rng, &properties);
-            do_cic_interpolation(boxes->halo_sfr, pos, out_dim, properties.halo_sfr);
+            do_cic_interpolation(boxes->halo_sfr, pos, out_dim, properties.sfr_10);
             do_cic_interpolation(boxes->n_ion, pos, out_dim, properties.n_ion);
             if (astro_options_global->USE_MINI_HALOS) {
-                do_cic_interpolation(boxes->halo_sfr_mini, pos, out_dim, properties.sfr_mini);
+                do_cic_interpolation(boxes->halo_sfr_mini, pos, out_dim, properties.sfr_10_mcg);
             }
             if (astro_options_global->USE_TS_FLUCT) {
                 do_cic_interpolation(boxes->halo_xray, pos, out_dim, properties.halo_xray);
@@ -438,6 +438,11 @@ void move_halo_galprops(double redshift, HaloCatalog *halos, float *vel_pointers
                                          properties.stellar_mass_mini);
                 }
             }
+
+            // feed back the halo properties we need to store onto the HaloCatalog
+            halos->sfr_10[i] = properties.sfr_10;  // TODO: we don't need to store this really
+            halos->sfr_100[i] = properties.stellar_mass_mini;  // TODO:naming is misleading here
+            halos->stellar_mass[i] = properties.stellar_mass;
 
 #if LOG_LEVEL >= ULTRA_DEBUG_LEVEL
             if (i < 10) {

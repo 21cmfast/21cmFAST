@@ -237,6 +237,7 @@ def compute_halo_grid(
     initial_conditions: InitialConditions,
     inputs: InputParameters | None = None,
     halo_catalog: HaloCatalog | None = None,
+    previous_halo_catalog: HaloCatalog | None = None,
     previous_spin_temp: TsBox | None = None,
     previous_ionize_box: IonizedBox | None = None,
 ) -> HaloBox:
@@ -281,6 +282,17 @@ def compute_halo_grid(
         else:
             halo_catalog = HaloCatalog.dummy()
 
+    if previous_halo_catalog is None:
+        if (
+            inputs.matter_options.has_discrete_halos
+            and redshift < inputs.simulation_options.Z_HEAT_MAX
+        ):
+            raise ValueError(
+                "You must provide previous_halo_catalog for discrete halo models below Z_HEAT_MAX"
+            )
+        else:
+            previous_halo_catalog = HaloCatalog.dummy()
+
     # NOTE: due to the order, we use the previous spin temp here, like spin_temperature,
     #       but UNLIKE ionize_box, which uses the current box
     # TODO: think about the inconsistency here
@@ -310,6 +322,7 @@ def compute_halo_grid(
     return box.compute(
         initial_conditions=initial_conditions,
         halo_catalog=halo_catalog,
+        previous_halo_catalog=previous_halo_catalog,
         previous_ionize_box=previous_ionize_box,
         previous_spin_temp=previous_spin_temp,
     )

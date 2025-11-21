@@ -127,7 +127,9 @@ void initialise_SFRD_spline(int Nbin, float zmin, float zmax, ScalingConstants *
         for (i = 0; i < Nbin; i++) {
             z_val = SFRD_z_table.x_min +
                     i * SFRD_z_table.x_width;  // both tables will have the same values here
-            sc_sfrd = evolve_scaling_constants_to_redshift(z_val, &sc_sfrd, false);
+            sc_sfrd = evolve_scaling_constants_to_redshift(z_val, &sc_sfrd);
+
+            // NOTE: minimum mass used for La, LW and xrays
             lnMmin = log(minimum_source_mass(z_val, true));
 
             if (astro_options_global->USE_MINI_HALOS) {
@@ -190,12 +192,12 @@ void initialise_Nion_Ts_spline(int Nbin, float zmin, float zmax, ScalingConstant
         double lnMmin;
 #pragma omp for
         for (i = 0; i < Nbin; i++) {
-            z_val = Nion_z_table.x_min +
-                    i * Nion_z_table.x_width;  // both tables will have the same values here
-            sc_z = evolve_scaling_constants_to_redshift(z_val, sc, false);
-            // Minor note: while this is called in xray, we use it to estimate ionised fraction, do
-            // we use ION_Tvir_MIN if applicable?
-            lnMmin = log(minimum_source_mass(z_val, true));
+            // both tables will have the same values here
+            z_val = Nion_z_table.x_min + i * Nion_z_table.x_width;
+            sc_z = evolve_scaling_constants_to_redshift(z_val, sc);
+
+            // Note: v3/v4b used to have true (used XRAY_TVIR_MIN in const zeta mode)
+            lnMmin = log(minimum_source_mass(z_val, false));
             if (astro_options_global->USE_MINI_HALOS) {
                 for (j = 0; j < NMTURN; j++) {
                     mturn_mcg = pow(10, Nion_z_table_MINI.y_min + j * Nion_z_table_MINI.y_width);
@@ -911,7 +913,7 @@ double EvaluateNionTs_MINI(double redshift, double log10_Mturn_LW_ave, ScalingCo
     if (matter_options_global->USE_INTERPOLATION_TABLES > 1) {
         return EvaluateRGTable2D(redshift, log10_Mturn_LW_ave, &Nion_z_table_MINI);
     }
-    double lnMmin = log(minimum_source_mass(redshift, true));
+    double lnMmin = log(minimum_source_mass(redshift, false));
     double lnMmax = log(M_MAX_INTEGRAL);
     ScalingConstants sc_z = evolve_scaling_constants_to_redshift(redshift, sc, false);
 

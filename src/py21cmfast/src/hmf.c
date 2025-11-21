@@ -929,7 +929,7 @@ double Xray_General(double z, double lnM_Min, double lnM_Max, double mturn_acg, 
         .HMF = matter_options_global->HMF,
         .l_x_norm = sc->l_x,
         .l_x_norm_mini = sc->l_x_mini,
-        .t_h = t_hubble(z),
+        .t_h = sc->t_h,
         .t_star = sc->t_star,
         .gamma_type = 5,
     };
