@@ -102,7 +102,7 @@ void adj_complex_conj(fftwf_complex *HIRES_box) {
 
 void sample_ic_modes(fftwf_complex *box, int grid_dim[3], double box_len[3], gsl_rng *r[]) {
     int n_x, n_y, n_z;
-#pragma omp parallel private(n_x, n_y, n_z) num_threads(simulation_options_global->N_THREADS)
+#pragma omp parallel private(n_x, n_y, n_z) num_threads(simulation_options_global -> N_THREADS)
     {
         double a, b;
         double k_x, k_y, k_z, k_mag, p;
@@ -155,7 +155,7 @@ void compute_relative_velocities(fftwf_complex *box, fftwf_complex *box_saved, f
         simulation_options_global->BOX_LEN, simulation_options_global->BOX_LEN,
         simulation_options_global->BOX_LEN * simulation_options_global->NON_CUBIC_FACTOR};
     for (ii = 0; ii < 3; ii++) {
-#pragma omp parallel private(n_x, n_y, n_z) num_threads(simulation_options_global->N_THREADS)
+#pragma omp parallel private(n_x, n_y, n_z) num_threads(simulation_options_global -> N_THREADS)
         {
             double k_x, k_y, k_z, k_mag;
             double p, p_vcb;
@@ -205,7 +205,7 @@ void compute_relative_velocities(fftwf_complex *box, fftwf_complex *box_saved, f
         dft_c2r_cube(matter_options_global->USE_FFTW_WISDOM, simulation_options_global->DIM, D_PARA,
                      simulation_options_global->N_THREADS, box);
 
-#pragma omp parallel private(i, j, k) num_threads(simulation_options_global->N_THREADS)
+#pragma omp parallel private(i, j, k) num_threads(simulation_options_global -> N_THREADS)
         {
             double vcb_i;
             unsigned long long int index_r, index_f;
@@ -240,7 +240,7 @@ void compute_relative_velocities(fftwf_complex *box, fftwf_complex *box_saved, f
 void compute_f_gradient(fftwf_complex *box_in, fftwf_complex *box_out, int dim[3], double len[3],
                         int axis) {
     int n_x, n_y, n_z;
-#pragma omp parallel private(n_x, n_y, n_z) num_threads(simulation_options_global->N_THREADS)
+#pragma omp parallel private(n_x, n_y, n_z) num_threads(simulation_options_global -> N_THREADS)
     {
         unsigned long long int index;
         double k_x, k_y, k_z, k_sq;
@@ -269,7 +269,7 @@ void compute_f_gradient(fftwf_complex *box_in, fftwf_complex *box_out, int dim[3
 void compute_f_laplacian(fftwf_complex *box_in, fftwf_complex *box_out, int dim[3], double len[3],
                          int axes[2]) {
     int n_x, n_y, n_z;
-#pragma omp parallel private(n_x, n_y, n_z) num_threads(simulation_options_global->N_THREADS)
+#pragma omp parallel private(n_x, n_y, n_z) num_threads(simulation_options_global -> N_THREADS)
     {
         unsigned long long int index;
         double k_x, k_y, k_z, k_sq;
@@ -341,7 +341,7 @@ void compute_velocity_fields(fftwf_complex *box, fftwf_complex *box_saved, float
 
         // now sample to lower res
         // now sample the filtered box
-#pragma omp parallel private(i, j, k) num_threads(simulation_options_global->N_THREADS)
+#pragma omp parallel private(i, j, k) num_threads(simulation_options_global -> N_THREADS)
         {
             unsigned long long int index, index_f;
             int resampled_index[3];
@@ -403,7 +403,7 @@ void compute_velocity_fields_2LPT(fftwf_complex *box, fftwf_complex *box_saved,
     int phi_directions[3][2] = {{0, 1}, {0, 2}, {1, 2}};
 
     // First zero the workspace box for summation
-#pragma omp parallel private(i, j, k) num_threads(simulation_options_global->N_THREADS)
+#pragma omp parallel private(i, j, k) num_threads(simulation_options_global -> N_THREADS)
     {
         unsigned long long int index;
 #pragma omp for
@@ -429,7 +429,7 @@ void compute_velocity_fields_2LPT(fftwf_complex *box, fftwf_complex *box_saved,
 
         // Temporarily store the diagonal components.
         // This will usually be in the allocated hires_vi_2LPT boxes
-#pragma omp parallel private(i, j, k) num_threads(simulation_options_global->N_THREADS)
+#pragma omp parallel private(i, j, k) num_threads(simulation_options_global -> N_THREADS)
         {
             unsigned long long int index;
             unsigned long long int index_f;
@@ -458,7 +458,7 @@ void compute_velocity_fields_2LPT(fftwf_complex *box, fftwf_complex *box_saved,
                      simulation_options_global->N_THREADS, phi_1);
 
         // Now sum the stored components to get the laplacian of phi_2 (eq. D13b)
-#pragma omp parallel private(i, j, k) num_threads(simulation_options_global->N_THREADS)
+#pragma omp parallel private(i, j, k) num_threads(simulation_options_global -> N_THREADS)
         {
             unsigned long long index, index_f;
             double component_ii, component_jj, component_ij;
@@ -483,7 +483,7 @@ void compute_velocity_fields_2LPT(fftwf_complex *box, fftwf_complex *box_saved,
     // deallocate the supplementary boxes
     fftwf_free(phi_1);
 
-#pragma omp parallel private(i, j, k) num_threads(simulation_options_global->N_THREADS)
+#pragma omp parallel private(i, j, k) num_threads(simulation_options_global -> N_THREADS)
     {
         unsigned long long int index;
 #pragma omp for
@@ -523,7 +523,7 @@ void compute_velocity_fields_2LPT(fftwf_complex *box, fftwf_complex *box_saved,
                      simulation_options_global->N_THREADS, box);
 
         // now sample the filtered box
-#pragma omp parallel private(i, j, k) num_threads(simulation_options_global->N_THREADS)
+#pragma omp parallel private(i, j, k) num_threads(simulation_options_global -> N_THREADS)
         {
             unsigned long long int index, index_f;
             int resampled_index[3];
