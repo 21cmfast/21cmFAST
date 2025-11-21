@@ -58,7 +58,7 @@ setup(
     packages=find_packages("src"),
     package_dir={"": "src"},
     include_package_data=True,
-    python_requires=">=3.11",
+    python_requires=">=3.10",
     zip_safe=False,
     classifiers=[
         # complete classifier list: http://pypi.python.org/pypi?%3Aaction=list_classifiers
@@ -69,9 +69,9 @@ setup(
         "Operating System :: POSIX",
         "Programming Language :: Python",
         "Programming Language :: Python :: 3",
-        "Programming Language :: Python :: 3.9",
         "Programming Language :: Python :: 3.10",
         "Programming Language :: Python :: 3.11",
+        "Programming Language :: Python :: 3.12",
         "Programming Language :: Python :: Implementation :: CPython",
     ],
     keywords=["Epoch of Reionization", "Cosmology"],
