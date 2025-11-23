@@ -80,6 +80,17 @@ int ComputeBrightnessTemp(float redshift, TsBox *spin_temp, IonizedBox *ionized_
         ////////////////////////////////////////////////
         LOG_SUPER_DEBUG("Performed Initialization.");
 
+        // DIAGNOSTIC CHECKPOINT 4c: Brightness temperature constants
+        printf("=== [GPU] CHECKPOINT_4c [z=%.2f] BRIGHTNESS_CONSTANTS: const_factor=%e, T_rad=%e, H=%e ===\n",
+               redshift, const_factor, T_rad, H);
+
+        // DIAGNOSTIC CHECKPOINT 4a: Input arrays to brightness temp calculation
+        printf("=== [GPU] CHECKPOINT_4a [z=%.2f] BRIGHTNESS_INPUT: Input arrays to brightness temp calculation ===\n", redshift);
+        print_array_stats("GPU", "4a", "BRIGHTNESS_INPUT", redshift, "density",
+                          perturb_field->density, HII_TOT_NUM_PIXELS);
+        print_array_stats("GPU", "4a", "BRIGHTNESS_INPUT", redshift, "neutral_fraction",
+                          ionized_box->neutral_fraction, HII_TOT_NUM_PIXELS);
+
         // DIAGNOSTIC CHECKPOINT 4b: C function entry - verify spin_temp received from Python
         print_array_stats("GPU", "4b", "C_ENTRY", redshift, "Ts",
                           spin_temp->spin_temperature, HII_TOT_NUM_PIXELS);
@@ -115,6 +126,14 @@ int ComputeBrightnessTemp(float redshift, TsBox *spin_temp, IonizedBox *ionized_
                                 (1. - exp(-box->brightness_temp[HII_R_INDEX(i, j, k)])) * 1000. *
                                 (spin_temp->spin_temperature[HII_R_INDEX(i, j, k)] - T_rad) /
                                 (1. + redshift);
+                        }
+
+                        // DIAGNOSTIC CHECKPOINT 4c: Detailed pixel calculation for pixel (0,0,0)
+                        if (i == 0 && j == 0 && k == 0) {
+                            float intermediate = const_factor * pixel_x_HI * (1 + pixel_deltax);
+                            printf("=== [GPU] CHECKPOINT_4c [z=%.2f] BRIGHTNESS_PIXEL0: pixel_deltax=%e, pixel_x_HI=%e, intermediate=%e, final_brightness=%e ===\n",
+                                   redshift, pixel_deltax, pixel_x_HI, intermediate,
+                                   box->brightness_temp[HII_R_INDEX(0, 0, 0)]);
                         }
 
                         ave += box->brightness_temp[HII_R_INDEX(i, j, k)];
