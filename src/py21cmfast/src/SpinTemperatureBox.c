@@ -110,6 +110,34 @@ static void print_array_stats(const char* system, const char* checkpoint, const 
            name, mean, name, std, name, min_val, name, max_val, arr[0], size > 1000 ? arr[1000] : arr[0]);
 }
 
+static void print_array_stats_double(const char* system, const char* checkpoint, const char* stage,
+                                      float redshift, const char* name, double* arr, unsigned long long size) {
+    if (arr == NULL) {
+        printf("=== [%s] CHECKPOINT_%s [z=%.2f] %s: %s is NULL ===\n",
+               system, checkpoint, redshift, stage, name);
+        return;
+    }
+    if (size == 0) {
+        printf("=== [%s] CHECKPOINT_%s [z=%.2f] %s: %s has size 0 ===\n",
+               system, checkpoint, redshift, stage, name);
+        return;
+    }
+
+    double sum = 0.0, sum_sq = 0.0;
+    double min_val = arr[0], max_val = arr[0];
+    for (unsigned long long i = 0; i < size; i++) {
+        sum += arr[i];
+        sum_sq += arr[i] * arr[i];
+        if (arr[i] < min_val) min_val = arr[i];
+        if (arr[i] > max_val) max_val = arr[i];
+    }
+    double mean = sum / size;
+    double std = sqrt(sum_sq / size - mean * mean);
+    printf("=== [%s] CHECKPOINT_%s [z=%.2f] %s: %s_mean=%e, %s_std=%e, %s_min=%e, %s_max=%e, samples=[0]=%e [1000]=%e ===\n",
+           system, checkpoint, redshift, stage,
+           name, mean, name, std, name, min_val, name, max_val, arr[0], size > 1000 ? arr[1000] : arr[0]);
+}
+
 int ComputeTsBox(float redshift, float prev_redshift, float perturbed_field_redshift, short cleanup,
                  PerturbedField *perturbed_field, XraySourceBox *source_box,
                  TsBox *previous_spin_temp, InitialConditions *ini_boxes, TsBox *this_spin_temp) {
@@ -1616,6 +1644,15 @@ void ts_main(float redshift, float prev_redshift, float perturbed_field_redshift
                                          del_fcoll_Rct_MINI, &ave_fcoll, &ave_fcoll_MINI,
                                          threadsPerBlock, d_y_arr, d_dens_R_grid, d_sfrd_grid,
                                          d_ave_sfrd_buf, &sc);
+                // DIAGNOSTIC CHECKPOINT 1b: Full array statistics for SFRD grids (RIGHT AFTER calculation)
+                printf("=== GPU CHECKPOINT 1: R_ct=%d, del_fcoll_Rct[0]=%e, del_fcoll_Rct[1000]=%e ===\n",
+                       R_ct, del_fcoll_Rct[0], del_fcoll_Rct[1000]);
+                print_array_stats("GPU", "1b", "SFRD_GRID", redshift, "del_fcoll_Rct",
+                                  del_fcoll_Rct, HII_TOT_NUM_PIXELS);
+                if (astro_options_global->USE_MINI_HALOS) {
+                    print_array_stats("GPU", "1b", "SFRD_GRID", redshift, "del_fcoll_Rct_MINI",
+                                      del_fcoll_Rct_MINI, HII_TOT_NUM_PIXELS);
+                }
                 avg_fix_term = mean_sfr_zpp[R_ct] / ave_fcoll;
                 if (astro_options_global->USE_MINI_HALOS)
                     avg_fix_term_MINI = mean_sfr_zpp_mini[R_ct] / ave_fcoll_MINI;
@@ -1772,6 +1809,40 @@ void ts_main(float redshift, float prev_redshift, float perturbed_field_redshift
                 }
             }
         }
+
+        // DIAGNOSTIC CHECKPOINT 2b: Heating/Ionization rate arrays after R loop
+        printf("=== [GPU] CHECKPOINT_2b [z=%.2f] DX_DT_ARRAYS: Logging heating/ionization rate arrays ===\n", redshift);
+        print_array_stats_double("GPU", "2b", "DX_DT_ARRAYS", redshift, "dxheat_dt_box",
+                                  dxheat_dt_box, HII_TOT_NUM_PIXELS);
+        print_array_stats_double("GPU", "2b", "DX_DT_ARRAYS", redshift, "dxion_source_dt_box",
+                                  dxion_source_dt_box, HII_TOT_NUM_PIXELS);
+        print_array_stats_double("GPU", "2b", "DX_DT_ARRAYS", redshift, "dxlya_dt_box",
+                                  dxlya_dt_box, HII_TOT_NUM_PIXELS);
+        print_array_stats_double("GPU", "2b", "DX_DT_ARRAYS", redshift, "dstarlya_dt_box",
+                                  dstarlya_dt_box, HII_TOT_NUM_PIXELS);
+        if (astro_options_global->USE_MINI_HALOS) {
+            print_array_stats_double("GPU", "2b", "DX_DT_ARRAYS", redshift, "dxheat_dt_box_MINI",
+                                      dxheat_dt_box_MINI, HII_TOT_NUM_PIXELS);
+            print_array_stats_double("GPU", "2b", "DX_DT_ARRAYS", redshift, "dxion_source_dt_box_MINI",
+                                      dxion_source_dt_box_MINI, HII_TOT_NUM_PIXELS);
+            print_array_stats_double("GPU", "2b", "DX_DT_ARRAYS", redshift, "dxlya_dt_box_MINI",
+                                      dxlya_dt_box_MINI, HII_TOT_NUM_PIXELS);
+            print_array_stats_double("GPU", "2b", "DX_DT_ARRAYS", redshift, "dstarlya_dt_box_MINI",
+                                      dstarlya_dt_box_MINI, HII_TOT_NUM_PIXELS);
+        }
+        if (astro_options_global->USE_LYA_HEATING) {
+            print_array_stats_double("GPU", "2b", "DX_DT_ARRAYS", redshift, "dstarlya_cont_dt_box",
+                                      dstarlya_cont_dt_box, HII_TOT_NUM_PIXELS);
+            print_array_stats_double("GPU", "2b", "DX_DT_ARRAYS", redshift, "dstarlya_inj_dt_box",
+                                      dstarlya_inj_dt_box, HII_TOT_NUM_PIXELS);
+            if (astro_options_global->USE_MINI_HALOS) {
+                print_array_stats_double("GPU", "2b", "DX_DT_ARRAYS", redshift, "dstarlya_cont_dt_box_MINI",
+                                          dstarlya_cont_dt_box_MINI, HII_TOT_NUM_PIXELS);
+                print_array_stats_double("GPU", "2b", "DX_DT_ARRAYS", redshift, "dstarlya_inj_dt_box_MINI",
+                                          dstarlya_inj_dt_box_MINI, HII_TOT_NUM_PIXELS);
+            }
+        }
+
         // struct
         // ------------------------------------------------------------------------------------------------------------------------------------------------------------------
         // free_sfrd_gpu_data(device_data);
@@ -1972,6 +2043,15 @@ void ts_main(float redshift, float prev_redshift, float perturbed_field_redshift
 
     }  // End of if (!use_cuda) for R==0 section
     fprintf(stderr, "=== Skipped or completed R==0 section ===\n");
+
+    // DIAGNOSTIC CHECKPOINT 3b: Ts/Tk/x_e immediately after R==0 loop
+    printf("=== [GPU] CHECKPOINT_3b [z=%.2f] AFTER_R0_LOOP: Ts/Tk/x_e immediately after R==0 calculation ===\n", redshift);
+    print_array_stats("GPU", "3b", "AFTER_R0_LOOP", redshift, "Ts",
+                      this_spin_temp->spin_temperature, HII_TOT_NUM_PIXELS);
+    print_array_stats("GPU", "3b", "AFTER_R0_LOOP", redshift, "Tk",
+                      this_spin_temp->kinetic_temp_neutral, HII_TOT_NUM_PIXELS);
+    print_array_stats("GPU", "3b", "AFTER_R0_LOOP", redshift, "x_e",
+                      this_spin_temp->xray_ionised_fraction, HII_TOT_NUM_PIXELS);
 
     }  // End of if (!USE_HALO_FIELD) block that started at line 1375
     fprintf(stderr, "=== Completed USE_HALO_FIELD block (including R==0 section) ===\n");
