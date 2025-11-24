@@ -34,7 +34,6 @@ dependencies=[
         "click",
         "numpy>=2.0",
         "pyyaml",
-        "cffi>=1.0",
         "scipy",
         "astropy>=2.0",
         "h5py>=2.8.0",
@@ -45,7 +44,7 @@ dependencies=[
         "tqdm",
         "classy",
         "cyclopts",
-        "tomlkit",
+        "tomlkit"
 ]
 
 # [tool.setuptools.packages.find]
@@ -115,7 +114,7 @@ build-backend = 'mesonpy'
 requires = ['meson-python', 'nanobind>=2.4.0', 'setuptools-scm>=8']
 
 [tool.meson-python.args]
-setup = ["-Dbuildtype=release"]
+setup = ["-Dbuildtype=release", "-Dcpp_args=['-O3']", "-Dc_args=['-O3']"]
 
 [tool.setuptools_scm]
 version_file = "src/py21cmfast/_version.py"
