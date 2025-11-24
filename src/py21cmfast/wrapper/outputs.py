@@ -1145,6 +1145,8 @@ class XraySourceBox(OutputStructZ):
     filtered_sfr = _arrayfield()
     filtered_sfr_mini = _arrayfield(optional=True)
     filtered_xray = _arrayfield()
+    filtered_sfr_lw = _arrayfield(optional=True)
+    filtered_sfr_mini_lw = _arrayfield(optional=True)
     mean_sfr = _arrayfield()
     mean_sfr_mini = _arrayfield(optional=True)
     mean_log10_Mcrit_LW = _arrayfield(optional=True)
@@ -1189,6 +1191,9 @@ class XraySourceBox(OutputStructZ):
             out["mean_log10_Mcrit_LW"] = Array(
                 (inputs.astro_params.N_STEP_TS,), dtype=np.float64
             )
+            if inputs.astro_options.LYA_MULTIPLE_SCATTERING:
+                out["filtered_sfr_lw"] = Array(shape, dtype=np.float32)
+                out["filtered_sfr_mini_lw"] = Array(shape, dtype=np.float32)
 
         return cls(
             inputs=inputs,
@@ -1215,6 +1220,7 @@ class XraySourceBox(OutputStructZ):
         R_inner,
         R_outer,
         R_ct,
+        r_star,
         allow_already_computed: bool = False,
     ):
         """Compute the function."""
@@ -1224,6 +1230,7 @@ class XraySourceBox(OutputStructZ):
             R_inner,
             R_outer,
             R_ct,
+            r_star,
         )
 
 
@@ -1237,6 +1244,8 @@ class TsBox(OutputStructZ):
     spin_temperature = _arrayfield()
     xray_ionised_fraction = _arrayfield()
     kinetic_temp_neutral = _arrayfield()
+    J_alpha_star = _arrayfield()
+    J_alpha_X = _arrayfield()
     J_21_LW = _arrayfield(optional=True)
 
     @classmethod
@@ -1265,6 +1274,8 @@ class TsBox(OutputStructZ):
             "spin_temperature": Array(shape, dtype=np.float32),
             "xray_ionised_fraction": Array(shape, dtype=np.float32),
             "kinetic_temp_neutral": Array(shape, dtype=np.float32),
+            "J_alpha_star": Array(shape, dtype=np.float32),
+            "J_alpha_X": Array(shape, dtype=np.float32),
         }
         if inputs.astro_options.USE_MINI_HALOS:
             out["J_21_LW"] = Array(shape, dtype=np.float32)
@@ -1299,6 +1310,26 @@ class TsBox(OutputStructZ):
             )
         else:
             return np.mean(self.get("xray_ionised_fraction"))
+
+    @cached_property
+    def global_J_alpha_star(self):
+        """Global (mean) J_alpha_star."""
+        if not self.is_computed:
+            raise AttributeError(
+                "global_J_alpha_star is not defined until the ionization calculation has been performed"
+            )
+        else:
+            return np.mean(self.get("J_alpha_star"))
+
+    @cached_property
+    def global_J_alpha_X(self):
+        """Global (mean) J_alpha_X."""
+        if not self.is_computed:
+            raise AttributeError(
+                "global_J_alpha_X is not defined until the ionization calculation has been performed"
+            )
+        else:
+            return np.mean(self.get("J_alpha_X"))
 
     def get_required_input_arrays(self, input_box: OutputStruct) -> list[str]:
         """Return all input arrays required to compute this object."""
