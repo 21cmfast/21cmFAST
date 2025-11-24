@@ -71,7 +71,7 @@ deps = [omp, gsl, nanobind, fftw, fftw_threads]
 cuda_dep = dependency('cuda', version: '>=10.0', required: false)
 
 # Check if CUDA language is available (this will be true only if root meson.build successfully added it)
-if cuda_dep.found()
+if env_cuda_flag and cuda_dep.found()
   message('Using CUDA compilation in source build')
   cuda_compiler = meson.get_compiler('cuda')
   add_project_arguments('-DUSE_CUDA=1', language: ['c', 'cpp', 'cuda'])
