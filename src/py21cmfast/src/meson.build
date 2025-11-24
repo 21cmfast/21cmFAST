@@ -98,6 +98,7 @@ if cuda_dep.found()
     '-arch=' + cuda_arch,
     '--extended-lambda',
     '--expt-relaxed-constexpr',
+    '-rdc=true',  # Enable relocatable device code for cross-file __device__ globals
   ]
   add_project_arguments(cuda_args, language: 'cuda')
 
