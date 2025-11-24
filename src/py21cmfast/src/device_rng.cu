@@ -48,20 +48,17 @@ void init_rand_states(unsigned long long int seed, int numStates)
 
     CALL_CUDA(cudaMemcpyToSymbol(d_numStates, &numStates, sizeof(int), 0, cudaMemcpyHostToDevice));
 
-    // todo: add the following block to debug
-    curandState *checkPtr0 = nullptr;
-    CALL_CUDA(cudaMemcpyFromSymbol(&checkPtr0, d_randStates, sizeof(checkPtr0), 0, cudaMemcpyDeviceToHost));
-    printf("init device pointer = %p\n", checkPtr0);
-
     curandState *tmpPtr = nullptr;
     CALL_CUDA(cudaMalloc((void **)&tmpPtr, numStates * sizeof(curandState)));
+    printf("ALLOC: d_randStates allocated at %p for %d states (%zu bytes)\n",
+           tmpPtr, numStates, numStates * sizeof(curandState));
     CALL_CUDA(cudaMemcpyToSymbol(d_randStates, &tmpPtr, sizeof(tmpPtr), 0, cudaMemcpyHostToDevice));
     tmpPtr = nullptr;
 
-    // todo: add the following block to debug (verify device pointer has been updated successfully)
+    // Verify device pointer
     curandState *checkPtr = nullptr;
     CALL_CUDA(cudaMemcpyFromSymbol(&checkPtr, d_randStates, sizeof(checkPtr), 0, cudaMemcpyDeviceToHost));
-    printf("updated device pointer = %p\n", checkPtr);
+    printf("init_rand_states: d_randStates=%p, d_numStates=%d\n", checkPtr, numStates);
 
     // define kernel grids
     int threadsPerBlock = 256;
@@ -75,19 +72,35 @@ void init_rand_states(unsigned long long int seed, int numStates)
 
 void free_rand_states()
 {
+    printf("FREE: free_rand_states() called\n");
+
+    // CRITICAL: Wait for ALL GPU kernels to finish before freeing d_randStates
+    // This ensures no kernel is still using d_randStates when we deallocate it
+    printf("FREE: Calling cudaDeviceSynchronize()...\n");
+    cudaDeviceSynchronize();
+    printf("FREE: cudaDeviceSynchronize() completed\n");
+
     // copy device pointer/variable to the host
     curandState *h_randStates = nullptr;
     int h_numStates = 0;
     CALL_CUDA(cudaMemcpyFromSymbol(&h_randStates, d_randStates, sizeof(d_randStates), 0, cudaMemcpyDeviceToHost));
     CALL_CUDA(cudaMemcpyFromSymbol(&h_numStates, d_numStates, sizeof(int), 0, cudaMemcpyDeviceToHost));
+
+    printf("FREE: Before free - d_randStates=%p, d_numStates=%d\n", h_randStates, h_numStates);
+
     if (h_randStates){
+        printf("FREE: Freeing d_randStates at %p\n", h_randStates);
         CALL_CUDA(cudaFree(h_randStates));
         h_randStates = nullptr;
         CALL_CUDA(cudaMemcpyToSymbol(d_randStates, &h_randStates, sizeof(h_randStates), 0, cudaMemcpyHostToDevice));
+        printf("FREE: d_randStates set to nullptr\n");
     }
 
     if (h_numStates){
         h_numStates = 0;
         CALL_CUDA(cudaMemcpyToSymbol(d_numStates, &h_numStates, sizeof(int), 0, cudaMemcpyHostToDevice));
+        printf("FREE: d_numStates set to 0\n");
     }
+
+    printf("FREE: free_rand_states() completed\n");
 }

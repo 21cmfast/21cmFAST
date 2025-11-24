@@ -619,6 +619,16 @@ __global__ void update_halo_constants(float *d_halo_masses, float *d_star_rng_in
         return;
     }
 
+    // DEBUG: Check bounds before accessing arrays
+    if (ind == 0 && blockIdx.x == 0) {
+        printf("KERNEL DEBUG: First thread: n_halos=%llu, sparsity=%d, blockDim.x=%d, gridDim.x=%d\n",
+               n_halos, sparsity, blockDim.x, gridDim.x);
+        printf("KERNEL DEBUG: Max ind=%d, max hid=%d\n",
+               gridDim.x * blockDim.x - 1, (gridDim.x * blockDim.x - 1) / sparsity);
+        // Check d_numStates address and value
+        printf("KERNEL DEBUG: &d_numStates=%p, d_numStates=%d\n", &d_numStates, d_numStates);
+    }
+
     // get halo mass
     float M = d_halo_masses[hid];
 
@@ -667,6 +677,14 @@ __global__ void update_halo_constants(float *d_halo_masses, float *d_star_rng_in
         // printf("tmp res4 on gpu: %.17f \n", res4);
         // // tiger tmp: debug (end)
     // }
+
+    // CRITICAL DEBUG: Check if ind exceeds d_numStates before accessing d_randStates
+    // Note: d_numStates is declared extern in device_rng.cuh (included at line 26)
+    if (ind >= d_numStates) {
+        printf("ERROR: ind=%d >= d_numStates=%d d_randStates=%p (hid=%d, sparsity=%d, blockIdx=%d, threadIdx=%d)\n",
+               ind, d_numStates, d_randStates, hid, sparsity, blockIdx.x, threadIdx.x);
+        return;
+    }
 
     curandState local_state = d_randStates[ind];
     // if (blockIdx.x > 100000){
@@ -907,6 +925,10 @@ int updateHaloOut(float *halo_masses, float *star_rng, float *sfr_rng, float *xr
     size_t shared_size = grids.n_threads * sizeof(float) * 4;
     int offset_shared = grids.n_threads;
     printf("start launching kernel function.\n");
+    printf("DEBUG: n_halos=%llu, n_halos_tbp=%d, sparsity=%d, grids.n_blocks=%d, grids.n_threads=%d\n",
+           n_halos, n_halos_tbp, sparsity, grids.n_blocks, grids.n_threads);
+    printf("DEBUG: Total threads = %llu, write_offset=%llu, shared_size=%zu\n",
+           (unsigned long long)grids.n_blocks * grids.n_threads, write_offset, shared_size);
     update_halo_constants<<<grids.n_blocks, grids.n_threads, shared_size>>>(d_halo_masses, d_star_rng, d_sfr_rng, d_xray_rng, d_halo_coords,
                                                        d_y_arr, x_min, x_width, n_halos_tbp, n_bin_y, hs_constants, HMF, d_halo_masses_out, d_star_rng_out,
                                                        d_sfr_rng_out, d_xray_rng_out, d_halo_coords_out, d_sum_check, d_further_process, d_nprog_predict, sparsity, write_offset, d_expected_mass,
