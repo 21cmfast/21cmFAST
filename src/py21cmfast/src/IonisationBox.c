@@ -1520,7 +1520,7 @@ int ComputeIonizedBox(float redshift, float prev_redshift, PerturbedField *pertu
         unsigned int numBlocks;
 
         // If GPU & flags call init_ionbox_gpu_data()
-        bool use_cuda = true;  // pass this as a parameter later
+        bool use_cuda = USE_CUDA;  // GPU enabled based on compile-time flag
         if (use_cuda && astro_options_global->USE_MASS_DEPENDENT_ZETA &&
             !astro_options_global->USE_MINI_HALOS && !matter_options_global->USE_HALO_FIELD) {
             unsigned int Nion_nbins = get_nbins();
@@ -1683,7 +1683,7 @@ int ComputeIonizedBox(float redshift, float prev_redshift, PerturbedField *pertu
                 }
 
                 // If GPU & flags, call gpu version of calculate_fcoll_grid()
-                bool use_cuda = true;  // pass this as a parameter later
+                bool use_cuda = USE_CUDA;  // GPU enabled based on compile-time flag
                 if (use_cuda && astro_options_global->USE_MASS_DEPENDENT_ZETA &&
                     !astro_options_global->USE_MINI_HALOS &&
                     !matter_options_global->USE_HALO_FIELD) {
