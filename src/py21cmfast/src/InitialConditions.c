@@ -94,7 +94,7 @@ int ComputeInitialConditions(unsigned long long random_seed, InitialConditions *
 
     int status;
 
-    bool use_cuda = true;  // GPU enabled
+    bool use_cuda = USE_CUDA;  // GPU enabled
     // Note: Removed temporary GPU test code (print_key_device_properties, call_cuda)
     // GPU computation is handled by actual CUDA kernels in other modules
 
