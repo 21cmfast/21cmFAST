@@ -329,6 +329,15 @@ class Table1D:
                 and np.all(self.y_values == other.y_values)
             )
 
+    @cached_property
+    def ctab_pointer(self):
+        """Cached pointer to the memory of the object in C."""
+        ctab = ffi.new("Table1D *")
+        ctab.size = self.size
+        ctab.x_values = ffi.cast("double *", ffi.from_buffer(self.x_values))
+        ctab.y_values = ffi.cast("double *", ffi.from_buffer(self.y_values))
+        return ctab
+
 
 @define(frozen=True, kw_only=True)
 class CosmoTables:
@@ -371,16 +380,13 @@ class CosmoTables:
         """The python-wrapped struct associated with this input object."""
         return StructWrapper("CosmoTables")
 
-    @property
+    @cached_property
     def cstruct(self) -> StructWrapper:
         """The object pointing to the memory accessed by C-code for this struct."""
         for k in self.struct.fieldnames:
             val = getattr(self, k)
             if isinstance(val, Table1D):
-                ctab = ffi.new("Table1D *")
-                ctab.size = val.size
-                ctab.x_values = ffi.cast("double *", ffi.from_buffer(val.x_values))
-                ctab.y_values = ffi.cast("double *", ffi.from_buffer(val.y_values))
+                ctab = val.ctab_pointer
                 setattr(self.struct.cstruct, k, ctab)
 
         return self.struct.cstruct
