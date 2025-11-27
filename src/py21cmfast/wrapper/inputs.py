@@ -371,7 +371,7 @@ class CosmoTables:
         """The python-wrapped struct associated with this input object."""
         return StructWrapper("CosmoTables")
 
-    @cached_property
+    @property
     def cstruct(self) -> StructWrapper:
         """The object pointing to the memory accessed by C-code for this struct."""
         for k in self.struct.fieldnames:
@@ -381,12 +381,6 @@ class CosmoTables:
                 ctab.size = val.size
                 ctab.x_values = ffi.cast("double *", ffi.from_buffer(val.x_values))
                 ctab.y_values = ffi.cast("double *", ffi.from_buffer(val.y_values))
-                setattr(self.struct.cstruct, k, ctab)
-            elif isinstance(val, dict):  # Can be a dictionary if loaded from the cache
-                ctab = ffi.new("Table1D *")
-                ctab.size = val["size"]
-                ctab.x_values = ffi.cast("double *", ffi.from_buffer(val["x_values"]))
-                ctab.y_values = ffi.cast("double *", ffi.from_buffer(val["y_values"]))
                 setattr(self.struct.cstruct, k, ctab)
 
         return self.struct.cstruct
@@ -1791,7 +1785,9 @@ class InputParameters:
         if node_redshifts is not None:
             cls_kw["node_redshifts"] = node_redshifts
 
-        return cls(**create_params_from_template(name, **kwargs), **cls_kw)
+        dct = create_params_from_template(name, **kwargs)
+        dct.pop("cosmo_tables")
+        return cls(**dct, **cls_kw)
 
     def clone(self, **kwargs):
         """Generate a copy of the InputParameter structure with specified changes."""

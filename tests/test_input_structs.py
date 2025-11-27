@@ -496,7 +496,10 @@ class TestInputParameters:
     @pytest.mark.parametrize("template", _ALL_ALIASES)
     def test_from_template(self, template):
         """Test that creation from a template works for all templates."""
-        inputs = InputParameters.from_template(template, random_seed=1)
+        # Some templates require running CLASS. We set K_MAX_FOR_CLASS to be small so the test won't take too long
+        inputs = InputParameters.from_template(
+            template, random_seed=1, K_MAX_FOR_CLASS=1.0
+        )
         assert isinstance(inputs, InputParameters)
 
     def test_bad_input(self):

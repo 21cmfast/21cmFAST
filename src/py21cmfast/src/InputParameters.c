@@ -37,10 +37,13 @@ void Broadcast_struct_global_all(SimulationOptions *simulation_options,
         LOG_DEBUG("Allocated memory for cosmo_tables_global");
     }
     if (matter_options_global->POWER_SPECTRUM == 5) {
+        n = cosmo_tables->transfer_density->size;
         memcpy(cosmo_tables_global->transfer_density->x_values,
                cosmo_tables->transfer_density->x_values, n * sizeof(double));
         memcpy(cosmo_tables_global->transfer_density->y_values,
                cosmo_tables->transfer_density->y_values, n * sizeof(double));
+
+        n = cosmo_tables->transfer_vcb->size;
         memcpy(cosmo_tables_global->transfer_vcb->x_values, cosmo_tables->transfer_vcb->x_values,
                n * sizeof(double));
         memcpy(cosmo_tables_global->transfer_vcb->y_values, cosmo_tables->transfer_vcb->y_values,

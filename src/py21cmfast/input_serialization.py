@@ -7,7 +7,7 @@ import attrs
 
 from .utils import recursive_difference
 from .wrapper._utils import camel_to_snake, snake_to_camel
-from .wrapper.inputs import CosmoTables, InputParameters, InputStruct
+from .wrapper.inputs import CosmoTables, InputParameters, InputStruct, Table1D
 
 
 def convert_inputs_to_dict(
@@ -175,7 +175,12 @@ def deserialize_inputs(
 
         these_all = dict_of_structdicts.pop(structname, {})
 
-        these = {kk: these_all[kk] for kk in these_all if kk in fieldnames}
+        if structname == "CosmoTables":
+            these = {
+                kk: Table1D(**these_all[kk]) for kk in these_all if kk in fieldnames
+            }
+        else:
+            these = {kk: these_all[kk] for kk in these_all if kk in fieldnames}
         extra = {kk: these_all[kk] for kk in these_all if kk not in fieldnames}
 
         # Here, if structname is not in the input dict_of_structdicts, it is OK,
