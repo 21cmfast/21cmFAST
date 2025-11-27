@@ -1551,9 +1551,13 @@ class InputParameters:
             # Linear vcb transfer function at kinematic decoupling
             z_dec = find_redshift_kinematic_decoupling(classy_output)
             transfer_vcb = (
-                get_transfer_function(classy_output=classy_output, kind="v_cb", z=z_dec)
-                / constants.c  # Need to normalize by c, because ComputeInitialConditions() accepts to receive a dimensionless transfer function
-            ).to(un.dimensionless_unscaled)
+                (
+                    get_transfer_function(
+                        classy_output=classy_output, kind="v_cb", z=z_dec
+                    )
+                    / constants.c  # Need to normalize by c, because ComputeInitialConditions() accepts to receive a dimensionless transfer function
+                ).to(un.dimensionless_unscaled)
+            )
 
             # Include a sample at k=0
             k_transfer_with_0 = np.concatenate(([0.0], k_transfer))
