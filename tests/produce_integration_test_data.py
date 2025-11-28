@@ -102,6 +102,7 @@ OPTIONS_TESTRUNS = {
             "N_THREADS": 4,
             "USE_RELATIVE_VELOCITIES": True,
             "POWER_SPECTRUM": "CLASS",
+            "K_MAX_FOR_CLASS": 1.0,
         },
     ],
     "mini_gamma_approx": [
@@ -118,6 +119,7 @@ OPTIONS_TESTRUNS = {
             "INTEGRATION_METHOD_MINI": "GAMMA-APPROX",
             "INTEGRATION_METHOD_ATOMIC": "GAMMA-APPROX",
             "POWER_SPECTRUM": "CLASS",
+            "K_MAX_FOR_CLASS": 1.0,
         },
     ],
     "ts": [
@@ -173,6 +175,7 @@ OPTIONS_TESTRUNS = {
             "USE_RELATIVE_VELOCITIES": True,
             "POWER_SPECTRUM": "CLASS",
             "M_TURN": 5.0,
+            "K_MAX_FOR_CLASS": 1.0,
         },
     ],
     "sampler_ts": [

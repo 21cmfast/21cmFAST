@@ -20,6 +20,7 @@ from py21cmfast.input_serialization import (
     deserialize_inputs,
     prepare_inputs_for_serialization,
 )
+from py21cmfast.wrapper.inputs import CosmoTables, Table1D
 
 _TEMPLATES = tmpl.list_templates()
 _ALL_ALIASES = list(chain.from_iterable(t["aliases"] for t in _TEMPLATES))
@@ -109,6 +110,60 @@ class TestInputStructSubclasses:
             c5.cdict != c5.asdict()
         )  # not the same because the former doesn't include dynamic parameters.
         assert c5 == self.cosmo
+
+
+class TestCosmoTables:
+    """Tests of CosmoTables."""
+
+    def setup_class(self):
+        """Set up basic objects to have fun with."""
+        self.size = 3
+        self.x_values = [1, 2, 3]
+        self.y_values = [4, 5, 6]
+        self.transfer_density = (
+            Table1D(
+                size=self.size,
+                x_values=self.x_values,
+                y_values=self.y_values,
+            ),
+        )
+        self.transfer_vcb = Table1D(
+            size=self.size,
+            x_values=self.x_values,
+            y_values=self.y_values,
+        )
+        self.cosmo_tables = CosmoTables(
+            transfer_density=self.transfer_density, transfer_vcb=self.transfer_vcb
+        )
+
+    def test_constructed_from_itself(self):
+        """Test that constructing an object from itself returns a new equivalent one."""
+        cosmo_tables2 = CosmoTables.new(self.cosmo_tables)
+        cosmo_tables3 = CosmoTables.new(
+            {
+                "transfer_density": self.cosmo_tables.transfer_density,
+                "transfer_vcb": self.cosmo_tables.transfer_vcb,
+            }
+        )
+
+        assert self.cosmo_tables == cosmo_tables2
+        assert self.cosmo_tables == cosmo_tables3
+        assert self.cosmo_tables is not cosmo_tables2
+        assert self.cosmo_tables is not cosmo_tables3
+
+    def test_none_input_to_new(self):
+        """Test None input to a new CosmoTables."""
+        cosmo_tables2 = CosmoTables.new()
+        cosmo_tables3 = CosmoTables.new()
+
+        assert self.cosmo_tables != cosmo_tables2
+        assert cosmo_tables2 == cosmo_tables3
+        assert cosmo_tables2 is not cosmo_tables3
+
+    def test_bad_input(self):
+        """Test bad inputs."""
+        with pytest.raises(ValueError, match="Cannot instantiate"):
+            CosmoParams.new("")
 
 
 class TestCosmoParams:
@@ -473,6 +528,16 @@ class TestInputParameters:
         """Test that evolve_input_structs does what it says."""
         altered_struct = self.default.evolve_input_structs(BOX_LEN=100)
         assert altered_struct.simulation_options.BOX_LEN == 100
+
+        altered_struct = self.default.evolve_input_structs(
+            POWER_SPECTRUM="CLASS", K_MAX_FOR_CLASS=1.0
+        )
+        altered_struct2 = self.default.evolve_input_structs(OMm=0.5)
+        altered_struct3 = altered_struct2.evolve_input_structs(POWER_SPECTRUM="EH")
+        assert self.default.cosmo_tables.transfer_density is None
+        assert altered_struct.cosmo_tables.transfer_density is not None
+        assert altered_struct.cosmo_tables != altered_struct2.cosmo_tables
+        assert altered_struct3.cosmo_tables.transfer_density is None
 
         altered_struct = self.default.evolve_input_structs(SIGMA_8=1.0)
         assert altered_struct.cosmo_params.SIGMA_8 == 1.0
