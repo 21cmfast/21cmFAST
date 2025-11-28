@@ -32,10 +32,7 @@ class TestFindRequiredLightconeLimits:
 
     def test_limits_are_reasonable(self):
         """Test that the limits returned by find_required_lightcone_limits are reasonable."""
-        classy = run_classy(
-            inputs=self.inputs,
-            output="vTk",
-        )
+        classy = run_classy(output="vTk")
         limits = self.lcner.find_required_lightcone_limits(classy, inputs=self.inputs)
         assert len(limits) == 2
         assert limits[0] < limits[1]
