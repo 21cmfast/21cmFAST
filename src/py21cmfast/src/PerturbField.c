@@ -107,9 +107,11 @@ void make_density_grid(float redshift, fftwf_complex *fft_density_grid, InitialC
         int hi_dim[3] = {simulation_options_global->DIM, simulation_options_global->DIM, D_PARA};
         
         if (use_cuda) {
+            printf("=== BRANCH [PerturbField/perturb_density]: GPU PATH (z=%.2f) ===\n", redshift);
             float f_pixel_factor = simulation_options_global->DIM / (float)simulation_options_global->HII_DIM;
             MapMass_gpu(boxes, resampled_box, box_dim[0], f_pixel_factor, (float)growth_factor);
         } else {
+            printf("=== BRANCH [PerturbField/perturb_density]: CPU PATH (z=%.2f) ===\n", redshift);
             // Using CPU fallback move_grid_masses
             move_grid_masses(redshift, boxes->hires_density, hi_dim, vel_pointers,
                              vel_pointers_2LPT, box_dim, resampled_box, box_dim);
