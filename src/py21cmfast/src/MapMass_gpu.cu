@@ -231,7 +231,7 @@ __global__ void perturb_density_field_kernel(
     }
 }
 
-double* MapMass_gpu(
+extern "C" double* MapMass_gpu(
     InitialConditions *boxes, double *resampled_box,
     int dimension, float f_pixel_factor, float init_growth_factor
 ) {

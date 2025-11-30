@@ -991,17 +991,18 @@ int sample_halo_progenitors(gsl_rng **rng_arr, double z_in, double z_out, HaloFi
         float *halo_xray_rng = halofield_in->xray_rng;
         int *halo_c = halofield_in->halo_coords;
 
-        printf("Start cuda calculation for progenitors. ");
+        printf("=== BRANCH [Stochasticity/sample_halo_progenitors]: GPU PATH (nhalo=%llu) ===\n", nhalo_in);
         updateHaloOut(halo_m, halo_star_rng, halo_sfr_rng, halo_xray_rng, halo_c, nhalo_in,
                       sigma_y_arr, sigma_bin, x_min, x_width, d_hs_constants, arraysize_total,
                       halofield_out);
-        printf("End cuda calculation for progenitors. ");
+        printf("=== BRANCH [Stochasticity/sample_halo_progenitors]: GPU PATH complete ===\n");
 
 #else
         LOG_ERROR("CUDA function updateHaloOut() called but code was not compiled for CUDA.");
         Throw(ValueError);
 #endif
     } else {  // CPU fallback
+        printf("=== BRANCH [Stochasticity/sample_halo_progenitors]: CPU PATH (nhalo=%llu) ===\n", nhalo_in);
         bool parallel_error = false;
 
 #pragma omp parallel num_threads(simulation_options_global->N_THREADS)
