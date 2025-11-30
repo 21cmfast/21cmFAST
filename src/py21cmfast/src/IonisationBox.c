@@ -1688,7 +1688,6 @@ int ComputeIonizedBox(float redshift, float prev_redshift, PerturbedField *pertu
                     !astro_options_global->USE_MINI_HALOS &&
                     !matter_options_global->USE_HALO_FIELD) {
 #if USE_CUDA
-                    printf("=== BRANCH [IonisationBox/calculate_fcoll_grid]: GPU PATH (z=%.2f, R=%.3f) ===\n", redshift, curr_radius.R);
                     calculate_fcoll_grid_gpu(box, grid_struct->deltax_filtered,
                                              grid_struct->xe_filtered,
                                              &curr_radius.f_coll_grid_mean, d_deltax_filtered,
@@ -1700,7 +1699,6 @@ int ComputeIonizedBox(float redshift, float prev_redshift, PerturbedField *pertu
                         "for CUDA.");
 #endif
                 } else {
-                    printf("=== BRANCH [IonisationBox/calculate_fcoll_grid]: CPU PATH (z=%.2f, R=%.3f) ===\n", redshift, curr_radius.R);
                     calculate_fcoll_grid(box, previous_ionize_box, grid_struct, &ionbox_constants,
                                          &curr_radius);
                 }

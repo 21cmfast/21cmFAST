@@ -206,13 +206,11 @@ void filter_box(fftwf_complex *box, int RES, int filter_type, float R, float R_p
     bool use_cuda = USE_CUDA;  // GPU enabled based on compile-time flag
     if (use_cuda) {
 #if USE_CUDA
-        printf("=== BRANCH [filter_box]: GPU PATH (R=%.3f) ===\n", R);
         filter_box_gpu(box, RES, filter_type, R, R_param);
 #else
         LOG_ERROR("CUDA version of filter_box() called but code was not compiled for CUDA.");
 #endif
     } else {
-        printf("=== BRANCH [filter_box]: CPU PATH (R=%.3f) ===\n", R);
         filter_box_cpu(box, RES, filter_type, R, R_param);
     }
 }
@@ -263,14 +261,12 @@ int test_filter(float *input_box, double R, double R_param, int filter_flag, dou
     bool use_cuda = USE_CUDA;  // GPU enabled based on compile-time flag
     if (use_cuda) {
 #if USE_CUDA
-        printf("=== BRANCH [test_filter]: GPU PATH (R=%.3f) ===\n", R);
         return test_filter_gpu(input_box, R, R_param, filter_flag, result);
 #else
         LOG_ERROR("CUDA version of test_filter() called but code was not compiled for CUDA.");
         return 1;
 #endif
     } else {
-        printf("=== BRANCH [test_filter]: CPU PATH (R=%.3f) ===\n", R);
         return test_filter_cpu(input_box, R, R_param, filter_flag, result);
     }
 }
