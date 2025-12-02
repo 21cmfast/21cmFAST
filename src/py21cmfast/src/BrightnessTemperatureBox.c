@@ -19,35 +19,6 @@
 #include "indexing.h"
 #include "logger.h"
 
-// Helper function for diagnostic array statistics
-static void print_array_stats(const char* system, const char* checkpoint, const char* stage,
-                               float redshift, const char* name, float* arr, unsigned long long size) {
-    if (arr == NULL) {
-        printf("=== [%s] CHECKPOINT_%s [z=%.2f] %s: %s is NULL ===\n",
-               system, checkpoint, redshift, stage, name);
-        return;
-    }
-    if (size == 0) {
-        printf("=== [%s] CHECKPOINT_%s [z=%.2f] %s: %s has size 0 ===\n",
-               system, checkpoint, redshift, stage, name);
-        return;
-    }
-
-    double sum = 0.0, sum_sq = 0.0;
-    float min_val = arr[0], max_val = arr[0];
-    for (unsigned long long i = 0; i < size; i++) {
-        sum += arr[i];
-        sum_sq += arr[i] * arr[i];
-        if (arr[i] < min_val) min_val = arr[i];
-        if (arr[i] > max_val) max_val = arr[i];
-    }
-    double mean = sum / size;
-    double std = sqrt(sum_sq / size - mean * mean);
-    printf("=== [%s] CHECKPOINT_%s [z=%.2f] %s: %s_mean=%e, %s_std=%e, %s_min=%e, %s_max=%e, samples=[0]=%e [1000]=%e ===\n",
-           system, checkpoint, redshift, stage,
-           name, mean, name, std, name, min_val, name, max_val, arr[0], size > 1000 ? arr[1000] : arr[0]);
-}
-
 int ComputeBrightnessTemp(float redshift, TsBox *spin_temp, IonizedBox *ionized_box,
                           PerturbedField *perturb_field, BrightnessTemp *box) {
     int status;
@@ -80,25 +51,6 @@ int ComputeBrightnessTemp(float redshift, TsBox *spin_temp, IonizedBox *ionized_
         ////////////////////////////////////////////////
         LOG_SUPER_DEBUG("Performed Initialization.");
 
-        // DIAGNOSTIC CHECKPOINT 4c: Brightness temperature constants
-        printf("=== [GPU] CHECKPOINT_4c [z=%.2f] BRIGHTNESS_CONSTANTS: const_factor=%e, T_rad=%e, H=%e ===\n",
-               redshift, const_factor, T_rad, H);
-
-        // DIAGNOSTIC CHECKPOINT 4a: Input arrays to brightness temp calculation
-        printf("=== [GPU] CHECKPOINT_4a [z=%.2f] BRIGHTNESS_INPUT: Input arrays to brightness temp calculation ===\n", redshift);
-        print_array_stats("GPU", "4a", "BRIGHTNESS_INPUT", redshift, "density",
-                          perturb_field->density, HII_TOT_NUM_PIXELS);
-        print_array_stats("GPU", "4a", "BRIGHTNESS_INPUT", redshift, "neutral_fraction",
-                          ionized_box->neutral_fraction, HII_TOT_NUM_PIXELS);
-
-        // DIAGNOSTIC CHECKPOINT 4b: C function entry - verify spin_temp received from Python
-        print_array_stats("GPU", "4b", "C_ENTRY", redshift, "Ts",
-                          spin_temp->spin_temperature, HII_TOT_NUM_PIXELS);
-        print_array_stats("GPU", "4b", "C_ENTRY", redshift, "Tk",
-                          spin_temp->kinetic_temp_neutral, HII_TOT_NUM_PIXELS);
-        print_array_stats("GPU", "4b", "C_ENTRY", redshift, "x_e",
-                          spin_temp->xray_ionised_fraction, HII_TOT_NUM_PIXELS);
-
         // ok, lets fill the delta_T box; which will be the same size as the bubble box
 #pragma omp parallel shared(const_factor, perturb_field, ionized_box, box, redshift, spin_temp, \
                                 T_rad) private(i, j, k, pixel_deltax, pixel_x_HI)               \
@@ -128,23 +80,7 @@ int ComputeBrightnessTemp(float redshift, TsBox *spin_temp, IonizedBox *ionized_
                                 (1. + redshift);
                         }
 
-                        // DIAGNOSTIC CHECKPOINT 4c: Detailed pixel calculation for pixel (0,0,0)
-                        if (i == 0 && j == 0 && k == 0) {
-                            float intermediate = const_factor * pixel_x_HI * (1 + pixel_deltax);
-                            printf("=== [GPU] CHECKPOINT_4c [z=%.2f] BRIGHTNESS_PIXEL0: pixel_deltax=%e, pixel_x_HI=%e, intermediate=%e, final_brightness=%e ===\n",
-                                   redshift, pixel_deltax, pixel_x_HI, intermediate,
-                                   box->brightness_temp[HII_R_INDEX(0, 0, 0)]);
-                        }
-
                         ave += box->brightness_temp[HII_R_INDEX(i, j, k)];
-
-                        // DIAGNOSTIC CHECKPOINT 4: Log brightness temp for select cells
-                        if ((i == 0 && j == 0 && k == 0) || HII_R_INDEX(i, j, k) == 1000 || HII_R_INDEX(i, j, k) == 10000) {
-                            printf("=== BRIGHTNESS CHECKPOINT: idx=%d, x_HI=%e, delta=%e, Ts=%e, brightness_temp=%e ===\n",
-                                   HII_R_INDEX(i, j, k), pixel_x_HI, pixel_deltax,
-                                   spin_temp->spin_temperature[HII_R_INDEX(i, j, k)],
-                                   box->brightness_temp[HII_R_INDEX(i, j, k)]);
-                        }
                     }
                 }
             }

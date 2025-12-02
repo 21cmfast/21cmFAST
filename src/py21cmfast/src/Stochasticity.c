@@ -1154,11 +1154,7 @@ int stochastic_halofield(unsigned long long int seed, float redshift_desc, float
             unsigned long long int nhalo_first = halos->n_halos;
             int buffer_scale = HALO_CUDA_THREAD_FACTOR + 1;
             unsigned long long int n_rstates = nhalo_first * buffer_scale;
-            printf("initializing %llu random states on the device... \n", n_rstates);
             init_rand_states(seed, n_rstates);
-
-            printf("finish initializing \n");
-
             // todo: add a signal to free rand states once all iterations are done
 #else
             LOG_ERROR(

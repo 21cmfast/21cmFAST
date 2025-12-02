@@ -505,64 +505,6 @@ void set_mean_fcoll(struct IonBoxConstants *c, IonizedBox *prev_box, IonizedBox 
     }
 }
 
-// Helper function for printing array statistics (float version)
-static void print_array_stats(const char* system, const char* checkpoint, const char* stage,
-                               float redshift, const char* name, float* arr, unsigned long long size) {
-    if (arr == NULL) {
-        printf("=== [%s] CHECKPOINT_%s [z=%.2f] %s: %s is NULL ===\n",
-               system, checkpoint, redshift, stage, name);
-        return;
-    }
-    if (size == 0) {
-        printf("=== [%s] CHECKPOINT_%s [z=%.2f] %s: %s has size 0 ===\n",
-               system, checkpoint, redshift, stage, name);
-        return;
-    }
-
-    double sum = 0.0, sum_sq = 0.0;
-    float min_val = arr[0], max_val = arr[0];
-    for (unsigned long long i = 0; i < size; i++) {
-        sum += arr[i];
-        sum_sq += (double)arr[i] * arr[i];
-        if (arr[i] < min_val) min_val = arr[i];
-        if (arr[i] > max_val) max_val = arr[i];
-    }
-    double mean = sum / size;
-    double std = sqrt(sum_sq / size - mean * mean);
-    printf("=== [%s] CHECKPOINT_%s [z=%.2f] %s: %s_mean=%e, %s_std=%e, %s_min=%e, %s_max=%e, samples=[0]=%e [1000]=%e ===\n",
-           system, checkpoint, redshift, stage,
-           name, mean, name, std, name, min_val, name, max_val, arr[0], size > 1000 ? arr[1000] : arr[0]);
-}
-
-// Helper function for printing array statistics (double precision version)
-static void print_array_stats_double(const char* system, const char* checkpoint, const char* stage,
-                                      float redshift, const char* name, double* arr, unsigned long long size) {
-    if (arr == NULL) {
-        printf("=== [%s] CHECKPOINT_%s [z=%.2f] %s: %s is NULL ===\n",
-               system, checkpoint, redshift, stage, name);
-        return;
-    }
-    if (size == 0) {
-        printf("=== [%s] CHECKPOINT_%s [z=%.2f] %s: %s has size 0 ===\n",
-               system, checkpoint, redshift, stage, name);
-        return;
-    }
-
-    double sum = 0.0, sum_sq = 0.0;
-    double min_val = arr[0], max_val = arr[0];
-    for (unsigned long long i = 0; i < size; i++) {
-        sum += arr[i];
-        sum_sq += arr[i] * arr[i];
-        if (arr[i] < min_val) min_val = arr[i];
-        if (arr[i] > max_val) max_val = arr[i];
-    }
-    double mean = sum / size;
-    double std = sqrt(sum_sq / size - mean * mean);
-    printf("=== [%s] CHECKPOINT_%s [z=%.2f] %s: %s_mean=%e, %s_std=%e, %s_min=%e, %s_max=%e, samples=[0]=%e [1000]=%e ===\n",
-           system, checkpoint, redshift, stage,
-           name, mean, name, std, name, min_val, name, max_val, arr[0], size > 1000 ? arr[1000] : arr[0]);
-}
-
 double set_fully_neutral_box(IonizedBox *box, TsBox *spin_temp, PerturbedField *perturbed_field,
                              struct IonBoxConstants *consts) {
     double global_xH = 0.;
@@ -913,13 +855,6 @@ void calculate_fcoll_grid(IonizedBox *box, IonizedBox *previous_ionize_box,
                         if (prev_Splined_Fcoll > 1.) prev_Splined_Fcoll = 1.;
                         if (prev_Splined_Fcoll < 0.) prev_Splined_Fcoll = 1e-40;
 
-                        // DIAGNOSTIC CHECKPOINT 7b: Detailed fcoll calculation for pixel (0,0,0)
-                        if (x == 0 && y == 0 && z == 0) {
-                            float prev_box_value = previous_ionize_box->unnormalised_nion[fc_r_idx * HII_TOT_NUM_PIXELS + HII_R_INDEX(0, 0, 0)];
-                            printf("=== [GPU] CHECKPOINT_7b [z=%.2f] PIXEL_000 [R=%.3f, R_idx=%d]: prev_box_unnorm_nion=%e, Splined_Fcoll=%e, prev_Splined_Fcoll=%e, delta=(Fcoll-prev)=%e ===\n",
-                                   consts->redshift, rspec->R, rspec->R_index, prev_box_value, Splined_Fcoll, prev_Splined_Fcoll, Splined_Fcoll - prev_Splined_Fcoll);
-                        }
-
                         box->unnormalised_nion[fc_r_idx * HII_TOT_NUM_PIXELS +
                                                HII_R_INDEX(x, y, z)] =
                             previous_ionize_box->unnormalised_nion[fc_r_idx * HII_TOT_NUM_PIXELS +
@@ -1074,20 +1009,6 @@ void find_ionised_regions(IonizedBox *box, IonizedBox *previous_ionize_box,
         }
     }
 
-    // DIAGNOSTIC CHECKPOINT 6a: Entry to find_ionised_regions
-    printf("=== [GPU] CHECKPOINT_6a [z=%.2f] ENTRY: R=%.3f, R_index=%d, mean_fix_term_acg=%e, mean_fix_term_mcg=%e ===\n",
-           consts->redshift, rspec.R, rspec.R_index, mean_fix_term_acg, mean_fix_term_mcg);
-
-    // DIAGNOSTIC CHECKPOINT 8a: N_rec_filtered array stats
-    if (astro_options_global->INHOMO_RECO && !astro_options_global->CELL_RECOMB) {
-        printf("=== [GPU] CHECKPOINT_8a [z=%.2f] N_REC_FILTERED [R=%.3f, R_idx=%d]: N_rec[0]=%e, N_rec[1000]=%e ===\n",
-               consts->redshift, rspec.R, rspec.R_index,
-               (*((float *)fg_struct->N_rec_filtered + HII_R_FFT_INDEX(0, 0, 0))),
-               (*((float *)fg_struct->N_rec_filtered + 1000)));
-        print_array_stats("GPU", "8a", "N_REC_FILTERED", consts->redshift,
-                          "N_rec_filtered", (float *)fg_struct->N_rec_filtered, HII_KSPACE_NUM_PIXELS);
-    }
-
 #pragma omp parallel num_threads(simulation_options_global->N_THREADS)
     {
         int x, y, z;
@@ -1148,13 +1069,6 @@ void find_ionised_regions(IonizedBox *box, IonizedBox *previous_ionize_box,
                         else
                             rec =
                                 (*((float *)fg_struct->N_rec_filtered + HII_R_FFT_INDEX(x, y, z)));
-
-                        // DIAGNOSTIC CHECKPOINT 8b: Detailed rec calculation for pixel (0,0,0)
-                        if (x == 0 && y == 0 && z == 0) {
-                            printf("=== [GPU] CHECKPOINT_8b [z=%.2f] PIXEL_000 [R=%.3f, R_idx=%d]: N_rec_filtered[000]=%e, curr_dens=%e, rec_before_div=%e ===\n",
-                                   consts->redshift, rspec.R, rspec.R_index, rec, curr_dens, rec);
-                        }
-
                         // number of recombinations per baryon inside cell/filter
                         rec /= (1. + curr_dens);
                     } else {
@@ -1177,18 +1091,6 @@ void find_ionised_regions(IonizedBox *box, IonizedBox *previous_ionize_box,
                             rspec.R, curr_dens, curr_fcoll, curr_fcoll_mini, rec, xHII_from_xrays);
                     }
 #endif
-
-                    // DIAGNOSTIC CHECKPOINT 6b: Detailed ionization condition for pixel (0,0,0)
-                    if (x == 0 && y == 0 && z == 0) {
-                        double ion_lhs = curr_fcoll * consts->ion_eff_factor +
-                                         curr_fcoll_mini * consts->ion_eff_factor_mini;
-                        double ion_rhs = (1. - xHII_from_xrays) * (1.0 + rec);
-                        int ion_decision = (ion_lhs > ion_rhs) ? 1 : 0;
-                        printf("=== [GPU] CHECKPOINT_6b [z=%.2f] PIXEL_000 [R=%.3f]: curr_dens=%e, curr_fcoll=%e, curr_fcoll_mini=%e, rec=%e, xHII_from_xrays=%e, ion_eff_factor=%e, ion_eff_factor_mini=%e, LHS=%e, RHS=%e, decision=%d, prev_neutral_fraction=%e ===\n",
-                               consts->redshift, rspec.R, curr_dens, curr_fcoll, curr_fcoll_mini, rec, xHII_from_xrays,
-                               consts->ion_eff_factor, consts->ion_eff_factor_mini, ion_lhs, ion_rhs, ion_decision,
-                               box->neutral_fraction[HII_R_INDEX(0, 0, 0)]);
-                    }
 
                     // check if fully ionized!
                     if ((curr_fcoll * consts->ion_eff_factor +
@@ -1293,11 +1195,6 @@ void find_ionised_regions(IonizedBox *box, IonizedBox *previous_ionize_box,
             }
         }
     }
-    printf("=== [GPU] CHECKPOINT_6c [z=%.2f] EXIT [R=%.3f]: fully_ionized=%llu, partially_ionized=%llu, neutral=%llu, total=%llu ===\n",
-           consts->redshift, rspec.R, fully_ionized_count, partially_ionized_count, neutral_count,
-           fully_ionized_count + partially_ionized_count + neutral_count);
-    print_array_stats("GPU", "6c", "NEUTRAL_FRACTION_AFTER_LOOP", consts->redshift,
-                      "neutral_fraction", box->neutral_fraction, HII_TOT_NUM_PIXELS);
 }
 
 void set_ionized_temperatures(IonizedBox *box, PerturbedField *perturbed_field, TsBox *spin_temp,
@@ -1432,18 +1329,6 @@ int ComputeIonizedBox(float redshift, float prev_redshift, PerturbedField *pertu
         writeAstroParams(astro_params_global);
         writeAstroOptions(astro_options_global);
 #endif
-
-        // DIAGNOSTIC CHECKPOINT 5a: ComputeIonizedBox entry
-        printf("=== [GPU] CHECKPOINT_5a [z=%.2f] ENTRY: redshift=%.2f, prev_redshift=%.2f ===\n",
-               redshift, redshift, prev_redshift);
-        if (previous_ionize_box != NULL && previous_ionize_box->neutral_fraction != NULL) {
-            printf("=== [GPU] CHECKPOINT_5a [z=%.2f] ENTRY: previous_ionize_box exists ===\n", redshift);
-            print_array_stats("GPU", "5a", "PREV_NEUTRAL_FRACTION", redshift,
-                              "prev_neutral_fraction", previous_ionize_box->neutral_fraction,
-                              HII_TOT_NUM_PIXELS);
-        } else {
-            printf("=== [GPU] CHECKPOINT_5a [z=%.2f] ENTRY: previous_ionize_box is NULL or empty ===\n", redshift);
-        }
 
         // Makes the parameter structs visible to a variety of functions/macros
         // Do each time to avoid Python garbage collection issues
@@ -1703,15 +1588,6 @@ int ComputeIonizedBox(float redshift, float prev_redshift, PerturbedField *pertu
                                          &curr_radius);
                 }
 
-                // DIAGNOSTIC CHECKPOINT 7a: After calculate_fcoll_grid completes
-                int fc_r_idx_7a = (astro_options_global->USE_MINI_HALOS && !matter_options_global->USE_HALO_FIELD) ? curr_radius.R_index : 0;
-                printf("=== [GPU] CHECKPOINT_7a [z=%.2f] AFTER_FCOLL_GRID [R=%.3f, R_idx=%d]: unnorm_nion[0]=%e, unnorm_nion[1000]=%e ===\n",
-                       redshift, curr_radius.R, curr_radius.R_index,
-                       box->unnormalised_nion[fc_r_idx_7a * HII_TOT_NUM_PIXELS + 0],
-                       box->unnormalised_nion[fc_r_idx_7a * HII_TOT_NUM_PIXELS + 1000]);
-                print_array_stats("GPU", "7a", "UNNORM_NION_AFTER_FCOLL_GRID", redshift,
-                                  "unnormalised_nion", &(box->unnormalised_nion[fc_r_idx_7a * HII_TOT_NUM_PIXELS]), HII_TOT_NUM_PIXELS);
-
                 // To avoid ST_over_PS becoming nan when f_coll = 0, I set f_coll = FRACT_FLOAT_ERR.
                 // TODO: This was the previous behaviour, but is this right?
                 // setting the *total* to the minimum for the adjustment factor,
@@ -1750,11 +1626,6 @@ int ComputeIonizedBox(float redshift, float prev_redshift, PerturbedField *pertu
 #endif
             }
             set_ionized_temperatures(box, perturbed_field, spin_temp, &ionbox_constants);
-
-            // DIAGNOSTIC CHECKPOINT 5b: After ionization calculation
-            printf("=== [GPU] CHECKPOINT_5b [z=%.2f] AFTER_IONIZATION_CALC ===\n", redshift);
-            print_array_stats("GPU", "5b", "AFTER_IONIZATION_CALC", redshift,
-                              "neutral_fraction", box->neutral_fraction, HII_TOT_NUM_PIXELS);
 
             // find the neutral fraction
             global_xH = 0;
@@ -1807,11 +1678,6 @@ int ComputeIonizedBox(float redshift, float prev_redshift, PerturbedField *pertu
         free_conditional_tables();
 
         free(radii_spec);
-
-        // DIAGNOSTIC CHECKPOINT 5c: ComputeIonizedBox exit
-        printf("=== [GPU] CHECKPOINT_5c [z=%.2f] EXIT: global_xH=%e ===\n", redshift, global_xH);
-        print_array_stats("GPU", "5c", "FINAL_NEUTRAL_FRACTION", redshift,
-                          "neutral_fraction", box->neutral_fraction, HII_TOT_NUM_PIXELS);
 
         LOG_DEBUG("finished!\n");
 
