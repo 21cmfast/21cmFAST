@@ -98,7 +98,6 @@ int ComputeTsBox(float redshift, float prev_redshift, float perturbed_field_reds
         // Do each time to avoid Python garbage collection issues
 
         omp_set_num_threads(simulation_options_global->N_THREADS);
-        debug_printed = 0;
 
         ts_main(redshift, prev_redshift, perturbed_field_redshift, cleanup, perturbed_field,
                 source_box, previous_spin_temp, ini_boxes, this_spin_temp);
@@ -1216,7 +1215,7 @@ struct Ts_cell get_Ts_fast(float zp, float dzp, struct spintemp_from_sfr_prefact
     // but it's strange anyway
     Tk = rad->prev_Tk;
     if (Tk < MAX_TK) {
-        if (debug_printed == 0 && omp_get_thread_num() == 0)
+        if (omp_get_thread_num() == 0)
             LOG_SUPER_DEBUG(
                 "Heating Terms: T %.4e | X %.4e | c %.4e | S %.4e | A %.4e | c %.4e | lc %.4e | li "
                 "%.4e | dz %.4e",
@@ -1226,7 +1225,7 @@ struct Ts_cell get_Ts_fast(float zp, float dzp, struct spintemp_from_sfr_prefact
         Tk += (dxheat_dzp + dcomp_dzp + dspec_dzp + dadia_dzp + dCMBheat_dzp + eps_Lya_cont +
                eps_Lya_inj) *
               dzp;
-        if (debug_printed == 0 && omp_get_thread_num() == 0) LOG_SUPER_DEBUG("--> T %.4e", Tk);
+        if (omp_get_thread_num() == 0) LOG_SUPER_DEBUG("--> T %.4e", Tk);
     }
     // spurious bahaviour of the trapazoidalintegrator. generally overcooling in underdensities
     if (Tk < 0) Tk = consts->Trad;
@@ -1280,10 +1279,9 @@ struct Ts_cell get_Ts_fast(float zp, float dzp, struct spintemp_from_sfr_prefact
         TS_fast = (xCMB + xc_fast) / (xCMB * consts->Trad_inv + xc_fast * T_inv);
     }
 #if LOG_LEVEL >= SUPER_DEBUG_LEVEL
-    if (debug_printed == 0 && omp_get_thread_num() == 0) {
+    if (omp_get_thread_num() == 0) {
         LOG_SUPER_DEBUG("Spin terms xc %.5e xa %.5e xC %.5e Ti %.5e T2 %.5e --> T %.4e", xc_fast,
                         xa_tilde_fast, xCMB, T_inv, T_inv_sq, TS_fast);
-        debug_printed = 1;
     }
 #endif
     // It can very rarely result in a negative spin temperature. If negative, it is a very small
