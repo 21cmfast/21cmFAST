@@ -40,16 +40,9 @@ __device__ inline double EvaluateRGTable1D_f_gpu(double x, double x_min, double 
 
     int idx = (int)floor((x - x_min) / x_width);
 
-    // Debug: Check for out of bounds access (nbins is typically 400)
-    if (idx < 0 || idx >= 399) {
-        if (blockIdx.x == 0 && threadIdx.x == 0) {
-            printf("=== WARNING: Table lookup idx=%d out of bounds! x=%f, x_min=%f, x_width=%f ===\n",
-                   idx, x, x_min, x_width);
-        }
-        // Clamp to valid range
-        if (idx < 0) idx = 0;
-        if (idx >= 399) idx = 398;
-    }
+    // Clamp to valid range
+    if (idx < 0) idx = 0;
+    if (idx >= 399) idx = 398;
 
     double table_val = x_min + x_width * (float)idx;
     double interp_point = (x - table_val) / x_width;
@@ -92,24 +85,6 @@ __global__ void compute_and_reduce(
     unsigned int i = blockIdx.x * (threadsPerBlock * 2) + tid; // index of input data
     unsigned int gridSize = threadsPerBlock * 2 * gridDim.x;
 
-    // KERNEL PRINTF TEST: Simple unconditional output from first thread
-    if (blockIdx.x == 0 && tid == 0) {
-        printf("*** KERNEL PRINTF TEST: compute_and_reduce kernel is executing! ***\n");
-    }
-
-    // Debug output from first thread of first block
-    if (blockIdx.x == 0 && tid == 0) {
-        printf("=== DEVICE KERNEL EXECUTING! gridDim.x=%d, threadsPerBlock=%d, num_pixels=%llu ===\n",
-               gridDim.x, threadsPerBlock, num_pixels);
-        printf("=== First block will access: i=%u to %u, buffer index will be blockIdx.x=%d ===\n",
-               i, i + gridSize, blockIdx.x);
-        // Debug: Print table parameters and first/last entries
-        printf("=== TABLE PARAMS: x_min=%f, x_width=%f, x_max=%f ===\n",
-               x_min, x_width, x_min + x_width * 399);
-        printf("=== TABLE VALUES: y_arr[0]=%f, y_arr[199]=%f, y_arr[398]=%f, y_arr[399]=%f ===\n",
-               y_arr[0], y_arr[199], y_arr[398], y_arr[399]);
-    }
-
     sdata[tid] = 0;
 
     // In bounds of gridSize, sum pairs of collapse fraction data together
@@ -126,21 +101,8 @@ __global__ void compute_and_reduce(
         // Compute fraction of mass that has collapsed to form stars/other structures
         fcoll_i = exp(EvaluateRGTable1D_f_gpu(curr_dens_i, x_min, x_width, y_arr));
 
-        // Debug output from first thread for first 10 elements
-        if (blockIdx.x == 0 && tid == 0 && i < 10) {
-            int idx = (int)floor((curr_dens_i - x_min) / x_width);
-            double table_val_at_idx = (idx >= 0 && idx < 399) ? y_arr[idx] : -999.0;
-            printf("=== i=%u: curr_dens_i=%e, idx=%d, y_arr[idx]=%f, fcoll_i=%e, sfrd=%e ===\n",
-                   i, curr_dens_i, idx, table_val_at_idx, fcoll_i, (float)((1. + curr_dens_i) * fcoll_i));
-        }
-
         // Update the shared buffer with the collapse fractions
         sdata[tid] += fcoll_i;
-
-        // Debug: First thread of first block reports first write
-        if (blockIdx.x == 0 && tid == 0 && i == 0) {
-            printf("=== About to write sfrd_grid[%u] = %f ===\n", i, (float)((1. + curr_dens_i) * fcoll_i));
-        }
 
         // Update the relevant cells in the star formation rate density grid
         sfrd_grid[i] = (1. + curr_dens_i) * fcoll_i;
@@ -150,12 +112,6 @@ __global__ void compute_and_reduce(
             curr_dens_j = dens_R_grid[i + threadsPerBlock] * zpp_growth_R_ct;
             fcoll_j = exp(EvaluateRGTable1D_f_gpu(curr_dens_j, x_min, x_width, y_arr));
             sdata[tid] += fcoll_j;
-
-            // Debug: First thread of first block reports second write
-            if (blockIdx.x == 0 && tid == 0 && i == 0) {
-                printf("=== About to write sfrd_grid[%u] = %f ===\n", i + threadsPerBlock, (float)((1. + curr_dens_j) * fcoll_j));
-            }
-
             sfrd_grid[i + threadsPerBlock] = (1. + curr_dens_j) * fcoll_j;
         }
 
@@ -173,15 +129,7 @@ __global__ void compute_and_reduce(
 
     // The first thread of each block updates the block totals
     if (tid == 0) {
-        // Debug: check buffer bounds before writing
-        if (blockIdx.x < gridDim.x) {
-            ave_sfrd_buf[blockIdx.x] = sdata[0];
-            if (blockIdx.x == 0 || blockIdx.x == gridDim.x - 1) {
-                printf("=== Block %d writing to ave_sfrd_buf[%d] = %f ===\n", blockIdx.x, blockIdx.x, sdata[0]);
-            }
-        } else {
-            printf("=== ERROR: Block %d trying to write beyond gridDim.x=%d ===\n", blockIdx.x, gridDim.x);
-        }
+        ave_sfrd_buf[blockIdx.x] = sdata[0];
     }
 }
 
@@ -228,8 +176,6 @@ extern "C" unsigned int init_sfrd_gpu_data(
     // Allocate memory for SFRD sum buffer and initialise to 0 only for initial filter step;
     // reuse memory for remaining filter steps.
     unsigned int numBlocks = ceil(num_pixels / (threadsPerBlock * 2));
-    fprintf(stderr, "=== init_sfrd_gpu_data: Allocating buffer with numBlocks=%u (num_pixels=%llu, threadsPerBlock=%u) ===\n",
-            numBlocks, num_pixels, threadsPerBlock);
     CALL_CUDA(cudaMalloc(d_ave_sfrd_buf, sizeof(double) * numBlocks)); // already pointer to a pointer (no & needed)
     LOG_INFO("SFRD sum reduction buffer allocated on device.");
 
@@ -254,26 +200,16 @@ extern "C" double calculate_sfrd_from_grid_gpu(
     double *d_ave_sfrd_buf,
     struct ScalingConstants *sc  // parameter added to match header declaration but not used in this implementation
 ) {
-    fprintf(stderr, "=== INSIDE calculate_sfrd_from_grid_gpu! R_ct=%d, num_pixels=%llu, threadsPerBlock=%u ===\n", R_ct, num_pixels, threadsPerBlock);
-    fprintf(stderr, "=== Device pointers: d_y_arr=%p, d_dens_R_grid=%p, d_sfrd_grid=%p, d_ave_sfrd_buf=%p ===\n",
-            (void*)d_y_arr, (void*)d_dens_R_grid, (void*)d_sfrd_grid, (void*)d_ave_sfrd_buf);
-
     // Get growth factor for current filter step
     double zpp_growth_R_ct = zpp_growth[R_ct];
 
     // Copy data from host to device
-    fprintf(stderr, "=== About to copy %u floats to d_y_arr ===\n", SFRD_conditional_table->n_bin);
     CALL_CUDA(cudaMemcpy(d_y_arr, SFRD_conditional_table->y_arr, sizeof(float) * SFRD_conditional_table->n_bin, cudaMemcpyHostToDevice));
-    fprintf(stderr, "=== About to copy %llu floats to d_dens_R_grid ===\n", num_pixels);
     CALL_CUDA(cudaMemcpy(d_dens_R_grid, dens_R_grid, sizeof(float) * num_pixels, cudaMemcpyHostToDevice));
-    fprintf(stderr, "=== Memcpy completed ===\n");
     LOG_INFO("SFRD_conditional_table.y_arr and density grid copied to device.");
 
     unsigned int numBlocks = ceil(num_pixels / (threadsPerBlock * 2));
     unsigned int smemSize = threadsPerBlock * sizeof(double); // shared memory
-
-    fprintf(stderr, "=== Calculated numBlocks=%u for num_pixels=%llu, threadsPerBlock=%u ===\n",
-            numBlocks, num_pixels, threadsPerBlock);
 
     // Invoke kernel
     switch (threadsPerBlock) {
@@ -296,30 +232,20 @@ extern "C" double calculate_sfrd_from_grid_gpu(
             LOG_WARNING("Thread size invalid; defaulting to 256.");
             compute_and_reduce<256><<< numBlocks, 256, 256 * sizeof(double) >>>(SFRD_conditional_table->x_min, SFRD_conditional_table->x_width, d_y_arr, d_dens_R_grid, zpp_growth_R_ct, d_sfrd_grid, d_ave_sfrd_buf, num_pixels);
     }
-    fprintf(stderr, "=== Kernel dispatched, checking cudaGetLastError... ===\n");
     CALL_CUDA(cudaGetLastError());
-    fprintf(stderr, "=== cudaGetLastError OK, now synchronizing... ===\n");
-    CALL_CUDA(cudaDeviceSynchronize()); // Synchronize to flush printf and check for errors
-    fprintf(stderr, "=== cudaDeviceSynchronize OK ===\n");
+    CALL_CUDA(cudaDeviceSynchronize());
     LOG_INFO("SpinTemperatureBox compute-and-reduce kernel called.");
 
     // Use thrust to reduce computed sums to one value.
     // Wrap device pointer in a thrust::device_ptr
-    fprintf(stderr, "=== About to call thrust::reduce on buffer with %u elements ===\n", numBlocks);
     thrust::device_ptr<double> d_ave_sfrd_buf_ptr(d_ave_sfrd_buf);
-    fprintf(stderr, "=== Created thrust device_ptr ===\n");
     // Reduce final buffer sums to one value
     double ave_sfrd_buf = thrust::reduce(d_ave_sfrd_buf_ptr, d_ave_sfrd_buf_ptr + numBlocks, 0., thrust::plus<double>());
-    fprintf(stderr, "=== thrust::reduce completed, checking error... ===\n");
     CALL_CUDA(cudaGetLastError());
-    fprintf(stderr, "=== thrust::reduce result=%f ===\n", ave_sfrd_buf);
-    // CALL_CUDA(cudaDeviceSynchronize()); // Only use during development
     LOG_INFO("SFRD sum reduced to single value by thrust::reduce operation.");
 
     // Copy results from device to host
-    fprintf(stderr, "=== About to cudaMemcpy %llu elements from device to host ===\n", num_pixels);
     CALL_CUDA(cudaMemcpy(sfrd_grid, d_sfrd_grid, sizeof(float) * num_pixels, cudaMemcpyDeviceToHost));
-    fprintf(stderr, "=== cudaMemcpy completed ===\n");
     LOG_INFO("SFRD sum copied to host.");
 
     return ave_sfrd_buf;
@@ -331,20 +257,10 @@ extern "C" void free_sfrd_gpu_data(
     float **d_sfrd_grid,
     double **d_ave_sfrd_buf
 ) {
-    fprintf(stderr, "=== Entering free_sfrd_gpu_data ===\n");
-    fprintf(stderr, "=== Pointers: d_y_arr=%p (*=%p), d_dens_R_grid=%p (*=%p), d_sfrd_grid=%p (*=%p), d_ave_sfrd_buf=%p (*=%p) ===\n",
-            (void*)d_y_arr, (void*)*d_y_arr, (void*)d_dens_R_grid, (void*)*d_dens_R_grid,
-            (void*)d_sfrd_grid, (void*)*d_sfrd_grid, (void*)d_ave_sfrd_buf, (void*)*d_ave_sfrd_buf);
-
     // Need to dereference the pointers to pointers (*)
-    fprintf(stderr, "=== Freeing d_y_arr ===\n");
     CALL_CUDA(cudaFree(*d_y_arr));
-    fprintf(stderr, "=== Freeing d_dens_R_grid ===\n");
     CALL_CUDA(cudaFree(*d_dens_R_grid));
-    fprintf(stderr, "=== Freeing d_sfrd_grid ===\n");
     CALL_CUDA(cudaFree(*d_sfrd_grid));
-    fprintf(stderr, "=== Freeing d_ave_sfrd_buf ===\n");
     CALL_CUDA(cudaFree(*d_ave_sfrd_buf));
-    fprintf(stderr, "=== All device memory freed ===\n");
     LOG_INFO("Device memory freed.");
 }

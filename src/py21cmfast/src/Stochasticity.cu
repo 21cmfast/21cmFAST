@@ -582,12 +582,6 @@ __global__ void update_halo_constants(float *d_halo_masses, float *d_star_rng_in
                                       int *d_further_process, int *d_nprog_predict, int sparsity, unsigned long long int write_offset,
                                       double *expected_mass, int *d_n_prog, int offset_shared)
 {
-    // Debug output from first thread of first block
-    if (blockIdx.x == 0 && threadIdx.x == 0) {
-        printf("=== DEVICE KERNEL update_halo_constants EXECUTING! gridDim.x=%d, blockDim.x=%d, n_halos=%llu ===\n",
-               gridDim.x, blockDim.x, n_halos);
-    }
-
     // Define shared memory for block-level reduction
     extern __shared__ float shared_memory[];
     // __shared__ float shared_mass[256];
@@ -615,18 +609,7 @@ __global__ void update_halo_constants(float *d_halo_masses, float *d_star_rng_in
     int hid = ind / sparsity;
     if (hid >= n_halos)
     {
-        // printf("Out of halo range.\n");
         return;
-    }
-
-    // DEBUG: Check bounds before accessing arrays
-    if (ind == 0 && blockIdx.x == 0) {
-        printf("KERNEL DEBUG: First thread: n_halos=%llu, sparsity=%d, blockDim.x=%d, gridDim.x=%d\n",
-               n_halos, sparsity, blockDim.x, gridDim.x);
-        printf("KERNEL DEBUG: Max ind=%d, max hid=%d\n",
-               gridDim.x * blockDim.x - 1, (gridDim.x * blockDim.x - 1) / sparsity);
-        // Check d_numStates address and value
-        printf("KERNEL DEBUG: &d_numStates=%p, d_numStates=%d\n", &d_numStates, d_numStates);
     }
 
     // get halo mass
@@ -924,11 +907,6 @@ int updateHaloOut(float *halo_masses, float *star_rng, float *sfr_rng, float *xr
     while (n_halos_tbp > 0){
     size_t shared_size = grids.n_threads * sizeof(float) * 4;
     int offset_shared = grids.n_threads;
-    printf("start launching kernel function.\n");
-    printf("DEBUG: n_halos=%llu, n_halos_tbp=%d, sparsity=%d, grids.n_blocks=%d, grids.n_threads=%d\n",
-           n_halos, n_halos_tbp, sparsity, grids.n_blocks, grids.n_threads);
-    printf("DEBUG: Total threads = %llu, write_offset=%llu, shared_size=%zu\n",
-           (unsigned long long)grids.n_blocks * grids.n_threads, write_offset, shared_size);
     update_halo_constants<<<grids.n_blocks, grids.n_threads, shared_size>>>(d_halo_masses, d_star_rng, d_sfr_rng, d_xray_rng, d_halo_coords,
                                                        d_y_arr, x_min, x_width, n_halos_tbp, n_bin_y, hs_constants, HMF, d_halo_masses_out, d_star_rng_out,
                                                        d_sfr_rng_out, d_xray_rng_out, d_halo_coords_out, d_sum_check, d_further_process, d_nprog_predict, sparsity, write_offset, d_expected_mass,
@@ -941,7 +919,6 @@ int updateHaloOut(float *halo_masses, float *star_rng, float *sfr_rng, float *xr
 
     // filter device halo masses in-place
     n_halos_tbp = filterWithMask(d_halo_masses, d_further_process, n_halos_tbp);
-    printf("The number of halos for further processing: %d \n", n_halos_tbp);
 
     // // tmp 2025-01-19: check d_halo_masses_out writing out
     // float *h_halo_masses_out_check;
@@ -962,20 +939,12 @@ int updateHaloOut(float *halo_masses, float *star_rng, float *sfr_rng, float *xr
 
     // condense halo mass array on the device
     n_processed_prog = condenseDeviceArray(d_halo_masses_out, d_n_buffer, 0.0f);
-    printf("The number of progenitors written in out halo field so far: %d \n", n_processed_prog);
 
     // condense other halo field arrays on the device
-    unsigned long long int n_processed_star_rng = condenseDeviceArray(d_star_rng_out, d_n_buffer, 0.0f);
-    printf("The number of star prop rng written in out halo field so far: %d \n", n_processed_star_rng);
-
-    unsigned long long int n_processed_sfr_rng = condenseDeviceArray(d_sfr_rng_out, d_n_buffer, 0.0f);
-    printf("The number of sfr prop rng written in out halo field so far: %d \n", n_processed_sfr_rng);
-
-    unsigned long long int n_processed_xray_rng = condenseDeviceArray(d_xray_rng_out, d_n_buffer, 0.0f);
-    printf("The number of xray prop rng written in out halo field so far: %d \n", n_processed_xray_rng);
-
-    unsigned long long int n_processed_coords = condenseDeviceArray(d_halo_coords_out, d_n_buffer*3, -1000);
-    printf("The number of halo coords written in out halo field so far: %d \n", n_processed_coords);
+    condenseDeviceArray(d_star_rng_out, d_n_buffer, 0.0f);
+    condenseDeviceArray(d_sfr_rng_out, d_n_buffer, 0.0f);
+    condenseDeviceArray(d_xray_rng_out, d_n_buffer, 0.0f);
+    condenseDeviceArray(d_halo_coords_out, d_n_buffer*3, -1000);
 
     // tmp: the following is just needed for debugging purpose
     // float *h_filter_halos;

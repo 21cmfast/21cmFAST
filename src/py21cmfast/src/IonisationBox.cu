@@ -66,12 +66,6 @@ compute_Fcoll(cuFloatComplex *deltax_filtered, // fg_struct
               long long hii_mid_para,                // HII_MID_PARA
               float *Fcoll                           // box
 ) {
-  // Debug output from first thread of first block
-  if (blockIdx.x == 0 && threadIdx.x == 0) {
-    printf("=== DEVICE KERNEL compute_Fcoll EXECUTING! gridDim.x=%d, blockDim.x=%d, num_pixels=%llu ===\n",
-           gridDim.x, blockDim.x, hii_tot_num_pixels);
-  }
-
   // Get index of grids
   unsigned long long idx = blockIdx.x * blockDim.x + threadIdx.x;
 
