@@ -30,6 +30,7 @@ import numpy as np
 import pytest
 
 from py21cmfast import Coeval, LightCone, OutputCache
+from py21cmfast.wrapper.inputs import Table1D
 
 from . import produce_integration_test_data as prd
 
@@ -107,6 +108,27 @@ def test_power_spectra_lightcone(name, module_direc, plt, benchmark):
         iterations=1,  # these tests can be slow
         rounds=1,
     )
+
+    if lc.inputs.matter_options.POWER_SPECTRUM == "CLASS":
+        with h5py.File(prd.get_filename("power_spectra", name), "r") as fl:
+            x_values = fl["cosmo_tables"]["transfer_density"]["x_values"]
+            y_values = fl["cosmo_tables"]["transfer_density"]["y_values"]
+            transfer_density = Table1D(
+                size=x_values.size, x_values=x_values, y_values=y_values
+            )
+        assert transfer_density.x_values.size == transfer_density.y_values.size
+        np.testing.assert_allclose(
+            transfer_density.x_values,
+            lc.inputs.cosmo_tables.transfer_density.x_values,
+            atol=0,
+            rtol=1e-3,
+        )
+        np.testing.assert_allclose(
+            transfer_density.y_values,
+            lc.inputs.cosmo_tables.transfer_density.y_values,
+            atol=0,
+            rtol=5e-3,
+        )
 
     assert isinstance(lc, LightCone)
     assert np.all(np.isfinite(lc.lightcones["brightness_temp"]))
