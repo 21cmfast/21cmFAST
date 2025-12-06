@@ -1746,8 +1746,13 @@ class InputParameters:
 
         inputs_clone = self.clone(**struct_args)
         if inputs_clone.matter_options.POWER_SPECTRUM == "CLASS":
-            if self.matter_options.POWER_SPECTRUM != "CLASS" or np.any(
-                [hasattr(self.cosmo_params, k) for k in kwargs]
+            if (
+                self.matter_options.POWER_SPECTRUM != "CLASS"
+                or np.any([hasattr(self.cosmo_params, k) for k in kwargs])
+                or (
+                    self.simulation_options.K_MAX_FOR_CLASS
+                    != inputs_clone.simulation_options.K_MAX_FOR_CLASS
+                )
             ):
                 struct_args["cosmo_tables"] = inputs_clone._cosmo_tables_default()
                 inputs_clone = self.clone(**struct_args)
