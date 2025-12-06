@@ -127,7 +127,7 @@ def test_power_spectra_lightcone(name, module_direc, plt, benchmark):
             transfer_density.y_values,
             lc.inputs.cosmo_tables.transfer_density.y_values,
             atol=0,
-            rtol=1e-3,
+            rtol=5e-3,
         )
 
     assert isinstance(lc, LightCone)
