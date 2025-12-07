@@ -68,6 +68,7 @@ __global__ void perturb_density_field_kernel(
     long long d_para, long long hii_d, long long hii_d_para,
     int non_cubic_factor,
     float f_pixel_factor, float init_growth_factor,
+    float velocity_scale, float velocity_scale_z,
     bool perturb_on_high_res, bool use_2lpt
     ) {
     unsigned long long idx = blockIdx.x * blockDim.x + threadIdx.x;
@@ -90,24 +91,20 @@ __global__ void perturb_density_field_kernel(
         unsigned long long HII_index;
 
         if (perturb_on_high_res) {
-            // xf += __ldg(&hires_vx[r_index]);
-            // yf += __ldg(&hires_vy[r_index]);
-            // zf += __ldg(&hires_vz[r_index]);
-            xf += hires_vx[r_index];
-            yf += hires_vy[r_index];
-            zf += hires_vz[r_index];
+            // Apply velocity displacement with proper scaling
+            xf += hires_vx[r_index] * velocity_scale;
+            yf += hires_vy[r_index] * velocity_scale;
+            zf += hires_vz[r_index] * velocity_scale_z;
         }
         else {
             unsigned long long HII_i = (unsigned long long)(i / f_pixel_factor);
             unsigned long long HII_j = (unsigned long long)(j / f_pixel_factor);
             unsigned long long HII_k = (unsigned long long)(k / f_pixel_factor);
             HII_index = compute_HII_R_INDEX(HII_i, HII_j, HII_k, hii_d, hii_d_para);
-            // xf += __ldg(&lowres_vx[HII_index]);
-            // yf += __ldg(&lowres_vy[HII_index]);
-            // zf += __ldg(&lowres_vz[HII_index]);
-            xf += lowres_vx[HII_index];
-            yf += lowres_vy[HII_index];
-            zf += lowres_vz[HII_index];
+            // Apply velocity displacement with proper scaling
+            xf += lowres_vx[HII_index] * velocity_scale;
+            yf += lowres_vy[HII_index] * velocity_scale;
+            zf += lowres_vz[HII_index] * velocity_scale_z;
         }
 
         // 2LPT (add second order corrections)
@@ -227,7 +224,8 @@ __global__ void perturb_density_field_kernel(
 
 extern "C" double* MapMass_gpu(
     InitialConditions *boxes, double *resampled_box,
-    int dimension, float f_pixel_factor, float init_growth_factor
+    int dimension, float f_pixel_factor, float init_growth_factor,
+    float velocity_scale, float velocity_scale_z
 ) {
     // Box shapes from outputs.py and convenience macros
     size_t size_double, size_float;
@@ -329,7 +327,8 @@ extern "C" double* MapMass_gpu(
         d_resampled_box, hires_density, hires_vx, hires_vy, hires_vz, lowres_vx, lowres_vy, lowres_vz,
         hires_vx_2LPT, hires_vy_2LPT, hires_vz_2LPT, lowres_vx_2LPT, lowres_vy_2LPT, lowres_vz_2LPT,
         dimension, simulation_options_global->DIM, d_para, hii_d, hii_d_para, simulation_options_global->NON_CUBIC_FACTOR,
-        f_pixel_factor, init_growth_factor, matter_options_global->PERTURB_ON_HIGH_RES, false /* USE_2LPT obsolete */);
+        f_pixel_factor, init_growth_factor, velocity_scale, velocity_scale_z,
+        matter_options_global->PERTURB_ON_HIGH_RES, false /* USE_2LPT obsolete */);
 
     // // Only use during development!
     // err = cudaDeviceSynchronize();
