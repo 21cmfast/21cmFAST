@@ -391,8 +391,11 @@ def evolve_halos(
     inputs: InputParameters,
     all_redshifts: list[float],
     write: CacheConfig,
+    initial_conditions: InitialConditions,
+    cache: OutputCache,
+    regenerate: bool,
+    free_cosmo_tables: bool,
     progressbar: bool = False,
-    **kw,
 ):
     """
     Evolve and perturb halo fields across multiple redshifts.
@@ -409,6 +412,12 @@ def evolve_halos(
         List of redshifts to process, in descending order.
     write : CacheConfig
         Configuration for writing output to cache.
+    initial_conditions : InitialConditions
+        Initial conditions for the simulation.
+    cache : OutputCache
+        Cache object for storing and retrieving computed results.
+    regenerate : bool
+        Flag to indicate whether to regenerate results or use cached values.
     progressbar: bool, optional
         If True, a progress bar will be displayed throughout the simulation. Defaults to False.
 
@@ -430,6 +439,12 @@ def evolve_halos(
         )
 
     halofield_list = []
+    kw = {
+        "initial_conditions": initial_conditions,
+        "cache": cache,
+        "regenerate": regenerate,
+        "free_cosmo_tables": free_cosmo_tables,
+    }
     halos_desc = None
     with _progressbar(disable=not progressbar) as _progbar:
         for _i, z in _progbar.track(
@@ -584,8 +599,9 @@ def generate_coeval(
         inputs=inputs,
         initial_conditions=initial_conditions,
         photon_nonconservation_data=photon_nonconservation_data,
+        cache=cache,
+        regenerate=regenerate,
         minimum_node=first_out_node,
-        **iokw,
     )
     # convert node_redshift index to all_redshift index
     if idx > 0:
@@ -624,12 +640,11 @@ def _obtain_starting_point_for_scrolling(
     inputs: InputParameters,
     initial_conditions: InitialConditions,
     photon_nonconservation_data: dict,
+    cache: OutputCache,
+    regenerate: bool,
     minimum_node: int | None = None,
-    **iokw,
 ):
     outputs = None
-    cache = iokw.get("cache")
-    regenerate = iokw.get("regenerate")
 
     if minimum_node is None:
         # By default, check for completeness at all nodes, starting at

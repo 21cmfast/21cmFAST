@@ -36,6 +36,10 @@ void Broadcast_struct_global_all(SimulationOptions *simulation_options,
         allocated_cosmo_tables = true;
         LOG_DEBUG("Allocated memory for cosmo_tables_global");
     }
+    // NOTE: While this is somewhat wasteful (re-copying EVERY time, though not re-allocating every
+    // time), it's essentially impossible to know the user's mind and when they might want to
+    // refresh the transfer density to a new cosmology, so it's better to just assume every time
+    // that they might have a different transfer function.
     if (matter_options_global->POWER_SPECTRUM == 5) {
         n = cosmo_tables->transfer_density->size;
         memcpy(cosmo_tables_global->transfer_density->x_values,

@@ -308,29 +308,16 @@ class Table1D:
     x_values: np.ndarray = field(
         converter=lambda v: np.asarray(v, dtype=np.float64),
         validator=validators.instance_of(np.ndarray),
+        eq=attrs.cmp_using(eq=np.array_equal),
     )
     y_values: np.ndarray = field(
         converter=lambda v: np.asarray(v, dtype=np.float64),
         validator=validators.instance_of(np.ndarray),
+        eq=attrs.cmp_using(eq=np.array_equal),
     )
 
-    def __eq__(self, other):
-        """Determine if this is equal to another object."""
-        if self is None and other is None:
-            return True
-        elif (self is not None and other is None) or (
-            self is None and other is not None
-        ):
-            return False
-        else:
-            return (
-                self.size == other.size
-                and np.all(self.x_values == other.x_values)
-                and np.all(self.y_values == other.y_values)
-            )
-
     @cached_property
-    def ctab_pointer(self):
+    def cstruct(self):
         """Cached pointer to the memory of the object in C."""
         ctab = ffi.new("Table1D *")
         ctab.size = self.size
@@ -386,8 +373,7 @@ class CosmoTables:
         for k in self.struct.fieldnames:
             val = getattr(self, k)
             if isinstance(val, Table1D):
-                ctab = val.ctab_pointer
-                setattr(self.struct.cstruct, k, ctab)
+                setattr(self.struct.cstruct, k, val.cstruct)
 
         return self.struct.cstruct
 

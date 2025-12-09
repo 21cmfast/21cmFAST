@@ -5,7 +5,9 @@ from collections.abc import Sequence
 import numpy as np
 import scipy.integrate as intg
 from astropy import constants, units
+from astropy.cosmology import FlatLambdaCDM
 from classy import Class
+from hmf import transfer_models
 from scipy.interpolate import interp1d
 
 _not4_ = 3.9715  # This is the ratio between Helium to Hydrogen mass. It is not 4!
@@ -323,107 +325,47 @@ def find_redshift_kinematic_decoupling(classy_output: Class) -> float:
 
 
 class EHTransferFunction:
-    """Eisenstein & Hu (1998) transfer function matching 21cmFAST implementation. This is the MDM (massive neutrino) formulation from their Eq. 29-31."""
+    """Wrapper for hmf EH transfer function with simple interface."""
 
     def __init__(self, classy_output):
         """
-        Initialize EH transfer function parameters.
+        Initialize EH transfer function.
 
         Parameters
         ----------
-        classy_output : :class:`classy.Class`
-            An object containing all the information from the CLASS calculation.
+        classy_output : classy.Class instance
+            CLASS cosmology object
         """
-        self.Omega_m = classy_output.Omega_m()
-        self.Omega_b = classy_output.Omega_b()
-        self.hlittle = classy_output.h()
-        self.T_cmb = classy_output.T_cmb
-        self.Omega_nu = classy_output.Omega_nu()
-        self.N_nu = classy_output.pars["N_ncdm"]
-
-        self.omhh = self.Omega_m * self.hlittle**2
-        self.obhh = self.Omega_b * self.hlittle**2
-        self.theta_cmb = self.T_cmb / 2.7
-
-        self.f_nu = max(self.Omega_nu / self.Omega_m, 1e-10)
-        self.f_baryon = max(self.Omega_b / self.Omega_m, 1e-10)
-
-        self._set_parameters()
-
-    def _set_parameters(self):
-        """Set constants used in the EH transfer function (matches TFset_parameters in cosmology.c)."""
-        f_nu = self.f_nu
-        f_b = self.f_baryon
-        omhh = self.omhh
-        obhh = self.obhh
-        theta_cmb = self.theta_cmb
-
-        z_equality = 25000 * omhh * pow(theta_cmb, -4) - 1.0
-        k_equality = 0.0746 * omhh / (theta_cmb * theta_cmb)
-
-        z_drag = 0.313 * pow(omhh, -0.419) * (1 + 0.607 * pow(omhh, 0.674))
-        z_drag = 1 + z_drag * pow(obhh, 0.238 * pow(omhh, 0.223))
-        z_drag *= 1291 * pow(omhh, 0.251) / (1 + 0.659 * pow(omhh, 0.828))
-
-        y_d = (1 + z_equality) / (1.0 + z_drag)
-
-        R_drag = 31.5 * obhh * pow(theta_cmb, -4) * 1000 / (1.0 + z_drag)
-        R_equality = 31.5 * obhh * pow(theta_cmb, -4) * 1000 / (1.0 + z_equality)
-
-        self.sound_horizon = (
-            2.0
-            / 3.0
-            / k_equality
-            * np.sqrt(6.0 / R_equality)
-            * np.log(
-                (np.sqrt(1 + R_drag) + np.sqrt(R_drag + R_equality))
-                / (1.0 + np.sqrt(R_equality))
+        self.h = classy_output.h()
+        self._transfer = transfer_models.EH(
+            cosmo=FlatLambdaCDM(
+                H0=100.0 * self.h,
+                Om0=classy_output.Omega_m(),
+                Ob0=classy_output.Omega_b(),
+                Tcmb0=classy_output.T_cmb(),
             )
         )
 
-        p_c = -(5 - np.sqrt(1 + 24 * (1 - f_nu - f_b))) / 4.0
-        p_cb = -(5 - np.sqrt(1 + 24 * (1 - f_nu))) / 4.0
-        f_c = 1 - f_nu - f_b
-        f_cb = 1 - f_nu
-        f_nub = f_nu + f_b
-
-        alpha_nu = (f_c / f_cb) * (2 * (p_c + p_cb) + 5) / (4 * p_cb + 5.0)
-        alpha_nu *= 1 - 0.553 * f_nub + 0.126 * pow(f_nub, 3)
-        alpha_nu /= 1 - 0.193 * np.sqrt(f_nu) + 0.169 * f_nu
-        alpha_nu *= pow(1 + y_d, p_c - p_cb)
-        alpha_nu *= 1 + (p_cb - p_c) / 2.0 * (
-            1.0 + 1.0 / (4.0 * p_c + 3.0) / (4.0 * p_cb + 7.0)
-        ) / (1.0 + y_d)
-
-        self.alpha_nu = alpha_nu
-        self.beta_c = 1.0 / (1.0 - 0.949 * f_nub)
-
     def __call__(self, k):
         """
-        Compute the transfer function at wavenumber k. This matches transfer_function_EH in cosmology.c.
+        Compute transfer function at k.
 
         Parameters
         ----------
-        k : float or array-like
-            Wavenumber in Mpc^-1
+        k : array-like with or without astropy units
+            Wavenumber. If units provided, converts to h/Mpc.
+            If no units, assumes h/Mpc.
 
         Returns
         -------
-        T_k : float or array-like
-            Transfer function T(k)
+        T(k) : array-like
+            Transfer function values
         """
-        k = np.asarray(k.value)
+        # Handle astropy units
+        if hasattr(k, "unit"):
+            # Convert to h/Mpc
+            k_hmpc = k.to(units.Mpc**-1).value / self.h
+        else:
+            k_hmpc = np.asarray(k)
 
-        q = k * pow(self.theta_cmb, 2) / self.omhh
-        gamma_eff = np.sqrt(self.alpha_nu) + (1.0 - np.sqrt(self.alpha_nu)) / (
-            1.0 + pow(0.43 * k * self.sound_horizon, 4)
-        )
-        q_eff = q / gamma_eff
-        TF_m = np.log(np.e + 1.84 * self.beta_c * np.sqrt(self.alpha_nu) * q_eff)
-        TF_m /= TF_m + pow(q_eff, 2) * (14.4 + 325.0 / (1.0 + 60.5 * pow(q_eff, 1.11)))
-        q_nu = 3.92 * q / np.sqrt(self.f_nu / self.N_nu)
-        TF_m *= 1.0 + (
-            1.2 * pow(self.f_nu, 0.64) * pow(self.N_nu, 0.3 + 0.6 * self.f_nu)
-        ) / (pow(q_nu, -1.6) + pow(q_nu, 0.8))
-
-        return TF_m
+        return np.exp(self._transfer.lnt(np.log(k_hmpc)))

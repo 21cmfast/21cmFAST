@@ -147,7 +147,6 @@ def _write_inputs_to_group(
 
     # Write the input structs. Note that all the "work" for converting attributes
     # to appropriate values is done in the serialization method above, not here.
-    # Here, we just write primitives to group attrs.
     for name, dct in inputsdct.items():
         _grp = grp.create_group(name)
         for key, val in dct.items():
@@ -155,6 +154,7 @@ def _write_inputs_to_group(
                 _grp.attrs[key] = val
             except TypeError as e:
                 if isinstance(val, dict):
+                    # A "second layer" of recursion is needed since CosmoTables has an attribute that is itself a non-primitive class (Table1D)
                     _grp_dict = _grp.create_group(key)
                     for key_dict, val_dict in val.items():
                         _grp_dict.attrs[key_dict] = val_dict

@@ -430,8 +430,9 @@ def _run_lightcone_from_perturbed_fields(
         inputs=inputs,
         initial_conditions=initial_conditions,
         photon_nonconservation_data=photon_nonconservation_data,
+        cache=iokw.get("cache"),
+        regenerate=iokw.get("regenerate"),
         minimum_node=lightcone._last_completed_node,
-        **iokw,
     )
 
     if idx < lightcone._last_completed_node:
