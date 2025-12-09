@@ -70,11 +70,15 @@ deps = [omp, gsl, nanobind, fftw, fftw_threads]
 # The root meson.build already checked for USE_CUDA environment variable and nvcc availability
 cuda_dep = dependency('cuda', version: '>=10.0', required: false)
 
+# Add debug symbols for profiling with gperftools
+add_project_arguments('-g', language: ['c', 'cpp'])
+
 # Check if CUDA language is available (this will be true only if root meson.build successfully added it)
 if env_cuda_flag and cuda_dep.found()
   message('Using CUDA compilation in source build')
   cuda_compiler = meson.get_compiler('cuda')
   add_project_arguments('-DUSE_CUDA=1', language: ['c', 'cpp', 'cuda'])
+  add_project_arguments('-g', '-lineinfo', language: 'cuda')  # Debug symbols for CUDA
 
   # CUDA compiler arguments
   # Try to detect GPU architecture, fall back to a reasonable default
