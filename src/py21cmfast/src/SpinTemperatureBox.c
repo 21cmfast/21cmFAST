@@ -48,7 +48,6 @@ float *del_fcoll_Rct, *del_fcoll_Rct_MINI;
 
 // radiative term boxes which are summed over R
 double *dxheat_dt_box, *dxion_source_dt_box, *dxlya_dt_box, *dstarlya_dt_box;
-double *dxheat_dt_box_MINI, *dxion_source_dt_box_MINI, *dxlya_dt_box_MINI, *dstarlya_dt_box_MINI;
 double *dstarlyLW_dt_box, *dstarlyLW_dt_box_MINI;
 double *dstarlya_cont_dt_box, *dstarlya_inj_dt_box;
 double *dstarlya_cont_dt_box_MINI, *dstarlya_inj_dt_box_MINI;
@@ -150,7 +149,9 @@ void alloc_global_arrays() {
     }
     inverse_diff = (float *)calloc(x_int_NXHII, sizeof(float));
     // actual heating term boxes
-    dxheat_dt_box = (double *)calloc(HII_TOT_NUM_PIXELS, sizeof(double));
+    if (astro_options_global->USE_X_RAY_HEATING) {
+        dxheat_dt_box = (double *)calloc(HII_TOT_NUM_PIXELS, sizeof(double));
+    }
     dxion_source_dt_box = (double *)calloc(HII_TOT_NUM_PIXELS, sizeof(double));
     dxlya_dt_box = (double *)calloc(HII_TOT_NUM_PIXELS, sizeof(double));
     dstarlya_dt_box = (double *)calloc(HII_TOT_NUM_PIXELS, sizeof(double));
@@ -260,7 +261,9 @@ void free_ts_global_arrays() {
     }
 
     // boxes
-    free(dxheat_dt_box);
+    if (astro_options_global->USE_X_RAY_HEATING) {
+        free(dxheat_dt_box);
+    }
     free(dxion_source_dt_box);
     free(dxlya_dt_box);
     free(dstarlya_dt_box);
@@ -590,7 +593,7 @@ void fill_Rbox_table(float **result, fftwf_complex *unfiltered_box, double *R_ar
 
         LOG_ULTRA_DEBUG("db3 %d", R_ct);
         // copy over the values
-#pragma omp parallel private(i, j, k) num_threads(simulation_options_global -> N_THREADS)
+#pragma omp parallel private(i, j, k) num_threads(simulation_options_global->N_THREADS)
         {
             float curr;
             unsigned long long int index_r, index_f;
@@ -646,7 +649,7 @@ void one_annular_filter(float *input_box, float *output_box, double R_inner, dou
     fftwf_complex *filtered_box =
         (fftwf_complex *)fftwf_malloc(sizeof(fftwf_complex) * HII_KSPACE_NUM_PIXELS);
 
-#pragma omp parallel private(i, j, k) num_threads(simulation_options_global -> N_THREADS) \
+#pragma omp parallel private(i, j, k) num_threads(simulation_options_global->N_THREADS) \
     reduction(+ : unfiltered_avg)
     {
         float curr_val;
@@ -694,7 +697,7 @@ void one_annular_filter(float *input_box, float *output_box, double R_inner, dou
                  HII_D_PARA, simulation_options_global->N_THREADS, filtered_box);
 
 // copy over the values
-#pragma omp parallel private(i, j, k) num_threads(simulation_options_global -> N_THREADS) \
+#pragma omp parallel private(i, j, k) num_threads(simulation_options_global->N_THREADS) \
     reduction(+ : filtered_avg)
     {
         float curr_val;
@@ -792,7 +795,7 @@ void fill_freqint_tables(double zp, double x_e_ave, double filling_factor_of_HI_
         R_end = astro_params_global->N_STEP_TS;
     }
 #pragma omp parallel private(R_ct, x_e_ct, lower_int_limit) \
-    num_threads(simulation_options_global -> N_THREADS)
+    num_threads(simulation_options_global->N_THREADS)
     {
 #pragma omp for
         // In TauX we integrate Nion from zpp to zp using the LW turnover mass at zp (predending its
@@ -876,7 +879,7 @@ void init_first_Ts(TsBox *box, float *dens, float z, float zp, double *x_e_ave, 
     *x_e_ave = xe;
     *Tk_ave = TK;
 
-#pragma omp parallel private(box_ct) num_threads(simulation_options_global -> N_THREADS)
+#pragma omp parallel private(box_ct) num_threads(simulation_options_global->N_THREADS)
     {
         double gdens;
         float curr_xalpha;
@@ -1203,7 +1206,11 @@ struct Ts_cell get_Ts_fast(float zp, float dzp, struct spintemp_from_sfr_prefact
                 (consts->Trad - rad->prev_Tk);
 
     // X-ray heating
-    dxheat_dzp = rad->dxheat_dt * consts->dt_dzp * 2.0 / 3.0 / physconst.k_B / (1.0 + rad->prev_xe);
+    dxheat_dzp = 0.;
+    if (astro_options_global->USE_X_RAY_HEATING) {
+        dxheat_dzp =
+            rad->dxheat_dt * consts->dt_dzp * 2.0 / 3.0 / physconst.k_B / (1.0 + rad->prev_xe);
+    }
     // CMB heating rate
     dCMBheat_dzp = 0.;
     if (astro_options_global->USE_CMB_HEATING) {
@@ -1473,7 +1480,7 @@ void ts_main(float redshift, float prev_redshift, float perturbed_field_redshift
     NO_LIGHT = global_reion_properties(redshift, x_e_ave_p, ave_log10_MturnLW, mean_sfr_zpp,
                                        mean_sfr_zpp_mini, &Q_HI_zp);
 
-#pragma omp parallel private(box_ct) num_threads(simulation_options_global -> N_THREADS)
+#pragma omp parallel private(box_ct) num_threads(simulation_options_global->N_THREADS)
     {
         float xHII_call;
 #pragma omp for
@@ -1492,7 +1499,9 @@ void ts_main(float redshift, float prev_redshift, float perturbed_field_redshift
                                       inverse_diff[m_xHII_low_box[box_ct]];
 
             // initialise += boxes (memory sometimes re-used)
-            dxheat_dt_box[box_ct] = 0.;
+            if (astro_options_global->USE_X_RAY_HEATING) {
+                dxheat_dt_box[box_ct] = 0.;
+            }
             dxion_source_dt_box[box_ct] = 0.;
             dxlya_dt_box[box_ct] = 0.;
             dstarlya_dt_box[box_ct] = 0.;
@@ -1606,7 +1615,7 @@ void ts_main(float redshift, float prev_redshift, float perturbed_field_redshift
 //   But here it's just (1+delta_source). This is for photon conservation.
 //   If we assume attenuation at mean density as we do in nu_tau_one(), we HAVE to assume mean
 //   density absorption otherwise we do not conserve photons
-#pragma omp parallel private(box_ct) num_threads(simulation_options_global -> N_THREADS)
+#pragma omp parallel private(box_ct) num_threads(simulation_options_global->N_THREADS)
             {
                 // private variables
                 int xidx;
@@ -1653,8 +1662,11 @@ void ts_main(float redshift, float prev_redshift, float perturbed_field_redshift
                     }
                     xidx = m_xHII_low_box[box_ct];
                     ival = inverse_val_box[box_ct];
-                    dxheat_dt_box[box_ct] += xray_sfr * (freq_int_heat_tbl_diff[xidx][R_ct] * ival +
-                                                         freq_int_heat_tbl[xidx][R_ct]);
+                    if (astro_options_global->USE_X_RAY_HEATING) {
+                        dxheat_dt_box[box_ct] +=
+                            xray_sfr * (freq_int_heat_tbl_diff[xidx][R_ct] * ival +
+                                        freq_int_heat_tbl[xidx][R_ct]);
+                    }
                     dxion_source_dt_box[box_ct] +=
                         xray_sfr *
                         (freq_int_ion_tbl_diff[xidx][R_ct] * ival + freq_int_ion_tbl[xidx][R_ct]);
@@ -1711,11 +1723,19 @@ void ts_main(float redshift, float prev_redshift, float perturbed_field_redshift
                                     (1 + delNL0[R_index][box_ct] * zpp_growth[R_ct]) *
                                     avg_fix_term_MINI * astro_params_global->F_STAR7_MINI);
 
-                        LOG_SUPER_DEBUG("xh %.2e | xi %.2e | xl %.2e | sl %.2e",
-                                        dxheat_dt_box[box_ct] / astro_params_global->L_X,
-                                        dxion_source_dt_box[box_ct] / astro_params_global->L_X,
-                                        dxlya_dt_box[box_ct] / astro_params_global->L_X,
-                                        dstarlya_dt_box[box_ct]);
+                        if (astro_options_global->USE_X_RAY_HEATING) {
+                            LOG_SUPER_DEBUG("xh %.2e | xi %.2e | xl %.2e | sl %.2e",
+                                            dxheat_dt_box[box_ct] / astro_params_global->L_X,
+                                            dxion_source_dt_box[box_ct] / astro_params_global->L_X,
+                                            dxlya_dt_box[box_ct] / astro_params_global->L_X,
+                                            dstarlya_dt_box[box_ct]);
+                        } else {
+                            LOG_SUPER_DEBUG("xi %.2e | xl %.2e | sl %.2e",
+                                            dxion_source_dt_box[box_ct] / astro_params_global->L_X,
+                                            dxlya_dt_box[box_ct] / astro_params_global->L_X,
+                                            dstarlya_dt_box[box_ct]);
+                        }
+
                         if (astro_options_global->USE_LYA_HEATING)
                             LOG_SUPER_DEBUG("ct %.2e | ij %.2e", dstarlya_cont_dt_box[box_ct],
                                             dstarlya_inj_dt_box[box_ct]);
@@ -1751,8 +1771,10 @@ void ts_main(float redshift, float prev_redshift, float perturbed_field_redshift
             }
 
             // Add prefactors that don't depend on R
-            rad.dxheat_dt =
-                dxheat_dt_box[box_ct] * zp_consts.xray_prefactor * zp_consts.volunit_inv;
+            if (astro_options_global->USE_X_RAY_HEATING) {
+                rad.dxheat_dt =
+                    dxheat_dt_box[box_ct] * zp_consts.xray_prefactor * zp_consts.volunit_inv;
+            }
             rad.dxion_dt =
                 dxion_source_dt_box[box_ct] * zp_consts.xray_prefactor * zp_consts.volunit_inv;
             // 2 density terms from downscattering absorbers
@@ -1836,12 +1858,19 @@ void ts_main(float redshift, float prev_redshift, float perturbed_field_redshift
 
     for (box_ct = 0; box_ct < HII_TOT_NUM_PIXELS; box_ct++) {
         if (isfinite(this_spin_temp->spin_temperature[box_ct]) == 0) {
-            LOG_ERROR(
-                "Estimated spin temperature is either infinite of NaN!"
-                "idx %llu delta %.3e dxheat %.3e dxion %.3e dxlya %.3e dstarlya %.3e",
-                box_ct, perturbed_field->density[box_ct], dxheat_dt_box[box_ct],
-                dxion_source_dt_box[box_ct], dxlya_dt_box[box_ct], dstarlya_dt_box[box_ct]);
-            //                Throw(ParameterError);
+            if (astro_options_global->USE_X_RAY_HEATING) {
+                LOG_ERROR(
+                    "Estimated spin temperature is either infinite of NaN!"
+                    "idx %llu delta %.3e dxheat %.3e dxion %.3e dxlya %.3e dstarlya %.3e",
+                    box_ct, perturbed_field->density[box_ct], dxheat_dt_box[box_ct],
+                    dxion_source_dt_box[box_ct], dxlya_dt_box[box_ct], dstarlya_dt_box[box_ct]);
+            } else {
+                LOG_ERROR(
+                    "Estimated spin temperature is either infinite of NaN!"
+                    "idx %llu delta %.3e dxion %.3e dxlya %.3e dstarlya %.3e",
+                    box_ct, perturbed_field->density[box_ct], dxion_source_dt_box[box_ct],
+                    dxlya_dt_box[box_ct], dstarlya_dt_box[box_ct]);
+            }
             Throw(InfinityorNaNError);
         }
     }

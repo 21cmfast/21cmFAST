@@ -901,8 +901,10 @@ class AstroOptions(InputStruct):
     USE_MINI_HALOS : bool, optional
         Set to True if using mini-halos parameterization.
         If True, USE_TS_FLUCT and INHOMO_RECO must be True.
+    USE_X_RAY_HEATING : bool, optional
+        Whether to include X-ray heating (useful for debugging).
     USE_CMB_HEATING : bool, optional
-        Whether to include CMB Heating. (cf Eq.4 of Meiksin 2021, arxiv.org/abs/2105.14516)
+        Whether to include CMB heating. (cf Eq.4 of Meiksin 2021, arxiv.org/abs/2105.14516)
     USE_LYA_HEATING : bool, optional
         Whether to use Lyman-alpha heating. (cf Sec. 3 of Reis+2021, doi.org/10.1093/mnras/stab2089)
     INHOMO_RECO : bool, optional
@@ -965,6 +967,7 @@ class AstroOptions(InputStruct):
     """
 
     USE_MINI_HALOS: bool = field(default=False, converter=bool)
+    USE_X_RAY_HEATING: bool = field(default=True, converter=bool)
     USE_CMB_HEATING: bool = field(default=True, converter=bool)
     USE_LYA_HEATING: bool = field(default=True, converter=bool)
     INHOMO_RECO: bool = field(default=False, converter=bool)
