@@ -91,6 +91,7 @@ setup(
         "classy",
         "cyclopts",
         "tomlkit",
+        "hmf",
     ],
     extras_require={"tests": test_req, "docs": doc_req, "dev": test_req + doc_req},
     setup_requires=["cffi>=1.0", "setuptools_scm"],
