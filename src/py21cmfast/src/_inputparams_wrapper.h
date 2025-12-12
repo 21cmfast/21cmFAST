@@ -133,6 +133,7 @@ typedef struct AstroParams {
 
 typedef struct AstroOptions {
     bool USE_MINI_HALOS;
+    bool USE_X_RAY_HEATING;
     bool USE_CMB_HEATING;  // CMB Heating Flag
     bool USE_LYA_HEATING;  // Lya Heating Flag
     bool INHOMO_RECO;
@@ -150,6 +151,17 @@ typedef struct AstroOptions {
     int INTEGRATION_METHOD_ATOMIC;
     int INTEGRATION_METHOD_MINI;
 } AstroOptions;
+
+typedef struct Table1D {
+    int size;
+    double *x_values;
+    double *y_values;
+} Table1D;
+
+typedef struct CosmoTables {
+    Table1D *transfer_density;
+    Table1D *transfer_vcb;
+} CosmoTables;
 
 typedef struct ConfigSettings {
     double HALO_CATALOG_MEM_FACTOR;
@@ -175,5 +187,6 @@ extern MatterOptions *matter_options_global;
 extern CosmoParams *cosmo_params_global;
 extern AstroParams *astro_params_global;
 extern AstroOptions *astro_options_global;
+extern CosmoTables *cosmo_tables_global;
 
 extern ConfigSettings config_settings;
