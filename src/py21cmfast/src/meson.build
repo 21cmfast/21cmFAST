@@ -72,6 +72,8 @@ cuda_dep = dependency('cuda', version: '>=10.0', required: false)
 
 # Add debug symbols for profiling with gperftools
 add_project_arguments('-g', language: ['c', 'cpp'])
+# Export all symbols to ensure visibility for profiling
+add_project_arguments('-fvisibility=default', language: ['c', 'cpp'])
 
 # Check if CUDA language is available (this will be true only if root meson.build successfully added it)
 if env_cuda_flag and cuda_dep.found()
