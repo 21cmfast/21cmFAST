@@ -436,8 +436,18 @@ def get_matter_power_values(
     inputs: InputParameters,
     k_values: Sequence[float],
 ):
-    """Evaluate the power at a certain scale from the 21cmFAST backend."""
+    """Evaluate the matter density power spectrum (at z=0) at a certain scale from the 21cmFAST backend."""
     return np.vectorize(lib.power_in_k)(k_values)
+
+
+@init_backend_ps
+def get_vcb_power_values(
+    *,
+    inputs: InputParameters,
+    k_values: Sequence[float],
+):
+    """Evaluate the vcb power spectrum (at kinematic decoupling) at a certain scale from the 21cmFAST backend."""
+    return np.vectorize(lib.power_in_vcb)(k_values)
 
 
 @broadcast_params

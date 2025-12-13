@@ -184,13 +184,24 @@ double transfer_function_CLASS(double k, int flag_int, int flag_dv) {
             warning_printed = true;
         }
         if (flag_dv == 0) {  // output is density
-            return eh_ratio_at_kmax * transfer_function_EH(k);
+            if (simulation_options_global->USE_A_S) {
+                return eh_ratio_at_kmax * transfer_function_EH(k) * k * k;
+            } else {
+                return eh_ratio_at_kmax * transfer_function_EH(k);
+            }
         } else if (flag_dv == 1) {  // output is rel velocity, do a log-log linear extrapolation
-            return exp(log(Tvclass_vcb[size_vcb - 1]) +
-                       (log(Tvclass_vcb[size_vcb - 1]) - log(Tvclass_vcb[size_vcb - 2])) /
-                           (log(kclass[size_vcb - 1]) - log(kclass[size_vcb - 2])) *
-                           (log(k) - log(kclass[size_vcb - 1]))) /
-                   k / k;
+            if (simulation_options_global->USE_A_S) {
+                return exp(log(Tvclass_vcb[size_vcb - 1]) +
+                           (log(Tvclass_vcb[size_vcb - 1]) - log(Tvclass_vcb[size_vcb - 2])) /
+                               (log(kclass[size_vcb - 1]) - log(kclass[size_vcb - 2])) *
+                               (log(k) - log(kclass[size_vcb - 1])));
+            } else {
+                return exp(log(Tvclass_vcb[size_vcb - 1]) +
+                           (log(Tvclass_vcb[size_vcb - 1]) - log(Tvclass_vcb[size_vcb - 2])) /
+                               (log(kclass[size_vcb - 1]) - log(kclass[size_vcb - 2])) *
+                               (log(k) - log(kclass[size_vcb - 1]))) /
+                       k / k;
+            }
         }  // we just set it to the last value, since sometimes it wants large k for R<<cell_size,
            // which does not matter much.
         else {
@@ -206,8 +217,11 @@ double transfer_function_CLASS(double k, int flag_int, int flag_dv) {
             ans = 0.0;  // neither densities not velocities?
         }
     }
-
-    return ans / k / k;
+    if (simulation_options_global->USE_A_S) {
+        return ans;
+    } else {
+        return ans / k / k;
+    }
     // we have to divide by k^2 to agree with the old-fashioned convention.
 }
 
@@ -236,10 +250,6 @@ double power_in_k_integrand(double k) {
     T = transfer_function(k);
     p = T * T * pow(k, cosmo_params_global->POWER_INDEX);
 
-    // TODO: figure this out, it was always a comment?
-    // if(matter_options_global->POWER_SPECTRUM == 0)
-    //   p = pow(k, POWER_INDEX - 0.05*log(k/0.05)) * T * T; //running, alpha=0.05
-
     // NOTE: USE_RELATIVE_VELOCITIES is only allowed if using CLASS
     if (matter_options_global->POWER_SPECTRUM == 5 &&
         matter_options_global->USE_RELATIVE_VELOCITIES) {
@@ -253,8 +263,32 @@ double power_in_k_integrand(double k) {
 
 // we need a version with the prefactors for output
 double power_in_k(double k) {
-    return 2.0 * M_PI * M_PI * cosmo_consts.sigma_norm * cosmo_consts.sigma_norm *
-           power_in_k_integrand(k);
+    if (matter_options_global->POWER_SPECTRUM < 5) {
+        return 2.0 * M_PI * M_PI * cosmo_consts.sigma_norm * cosmo_consts.sigma_norm *
+               power_in_k_integrand(k);
+    } else {
+        if (simulation_options_global->USE_A_S) {
+            if (k == 0.) {
+                return 0.;
+            } else {
+                double k_pivot = 0.05;  // Mpc^{-1} (this is the scale in which the dimensionless
+                                        // primordial power spectrum is A_s)
+                double T = transfer_function(k);
+                double primordial = cosmo_params_global->A_s *
+                                    pow(k / k_pivot, cosmo_params_global->POWER_INDEX - 1.);
+                double p = 2.0 * M_PI * M_PI * primordial * T * T / pow(k, 3);
+                if (matter_options_global->USE_RELATIVE_VELOCITIES) {
+                    // jbm:Add average relvel suppression
+                    p *= 1.0 - A_VCB_PM * exp(-pow(log(k / KP_VCB_PM), 2.0) /
+                                              (2.0 * SIGMAK_VCB_PM * SIGMAK_VCB_PM));
+                }
+                return p;
+            }
+        } else {
+            return 2.0 * M_PI * M_PI * cosmo_consts.sigma_norm * cosmo_consts.sigma_norm *
+                   power_in_k_integrand(k);
+        }
+    }
 }
 
 /*
@@ -266,9 +300,26 @@ double power_in_vcb(double k) {
 
     // only works if using CLASS
     if (matter_options_global->POWER_SPECTRUM == 5) {  // CLASS
-        T = transfer_function_CLASS(k, 1, 1);  // read from CLASS file. flag_int=1 since we have
-                                               // initialized before, flag_vcb=1 for velocity
-        p = pow(k, cosmo_params_global->POWER_INDEX) * T * T;
+        if (simulation_options_global->USE_A_S) {
+            if (k == 0.) {
+                return 0.;
+            } else {
+                double k_pivot = 0.05;  // Mpc^{-1} (this is the scale in which the dimensionless
+                                        // primordial power spectrum is A_s)
+                T = transfer_function_CLASS(k, 1,
+                                            1);  // read from CLASS file. flag_int=1 since we have
+                                                 // initialized before, flag_vcb=1 for velocity
+                double primordial = cosmo_params_global->A_s *
+                                    pow(k / k_pivot, cosmo_params_global->POWER_INDEX - 1.);
+                p = 2.0 * M_PI * M_PI * primordial * T * T / pow(k, 3);
+                return p;
+            }
+        } else {
+            T = transfer_function_CLASS(k, 1, 1);  // read from CLASS file. flag_int=1 since we have
+                                                   // initialized before, flag_vcb=1 for velocity
+            p = pow(k, cosmo_params_global->POWER_INDEX) * T * T;
+            return p * 2.0 * M_PI * M_PI * cosmo_consts.sigma_norm * cosmo_consts.sigma_norm;
+        }
     } else {
         LOG_ERROR(
             "Cannot get P_cb unless using CLASS: %i\n Set USE_RELATIVE_VELOCITIES 0 or use "
@@ -276,8 +327,6 @@ double power_in_vcb(double k) {
             matter_options_global->POWER_SPECTRUM);
         Throw(ValueError);
     }
-
-    return p * 2.0 * M_PI * M_PI * cosmo_consts.sigma_norm * cosmo_consts.sigma_norm;
 }
 
 // FUNCTION sigma_z0(M)
@@ -302,11 +351,22 @@ double dsigma_dk(double k, void *params) {
     struct SigmaIntegralParams *pars = (struct SigmaIntegralParams *)params;
     double Radius = pars->radius;
     int filter = pars->filter_type;
-    p = power_in_k_integrand(k);
 
     kR = k * Radius;
     w = filter_function(kR, filter);
-    return k * k * p * w * w;
+
+    if (matter_options_global->POWER_SPECTRUM < 5) {
+        p = power_in_k_integrand(k);
+        return k * k * p * w * w;
+    } else {
+        if (simulation_options_global->USE_A_S) {
+            p = power_in_k(k);
+            return k * k * p * w * w / (2.0 * M_PI * M_PI);
+        } else {
+            p = power_in_k_integrand(k);
+            return k * k * p * w * w;
+        }
+    }
 }
 double sigma_z0(double M) {
     double result, error, lower_limit, upper_limit;
@@ -342,7 +402,15 @@ double sigma_z0(double M) {
 
     gsl_integration_workspace_free(w);
 
-    return cosmo_consts.sigma_norm * sqrt(result);
+    if (matter_options_global->POWER_SPECTRUM < 5) {
+        return cosmo_consts.sigma_norm * sqrt(result);
+    } else {
+        if (simulation_options_global->USE_A_S) {
+            return sqrt(result);
+        } else {
+            return cosmo_consts.sigma_norm * sqrt(result);
+        }
+    }
 }
 
 /*
@@ -353,12 +421,22 @@ double dsigmasq_dm(double k, void *params) {
     struct SigmaIntegralParams *pars = (struct SigmaIntegralParams *)params;
     double Radius = pars->radius;
     int filter = pars->filter_type;
-    double p = power_in_k_integrand(k);
 
     // now get the value of the window function
     double dw2dm = dwdm_filter(k, Radius, filter);
 
-    return k * k * p * dw2dm;
+    if (matter_options_global->POWER_SPECTRUM < 5) {
+        double p = power_in_k_integrand(k);
+        return k * k * p * dw2dm;
+    } else {
+        if (simulation_options_global->USE_A_S) {
+            double p = power_in_k(k);
+            return k * k * p * dw2dm / (2.0 * M_PI * M_PI);
+        } else {
+            double p = power_in_k_integrand(k);
+            return k * k * p * dw2dm;
+        }
+    }
 }
 double dsigmasqdm_z0(double M) {
     double result, error, lower_limit, upper_limit;
@@ -393,8 +471,15 @@ double dsigmasqdm_z0(double M) {
     }
 
     gsl_integration_workspace_free(w);
-
-    return cosmo_consts.sigma_norm * cosmo_consts.sigma_norm * result;
+    if (matter_options_global->POWER_SPECTRUM < 5) {
+        return cosmo_consts.sigma_norm * cosmo_consts.sigma_norm * result;
+    } else {
+        if (simulation_options_global->USE_A_S) {
+            return result;
+        } else {
+            return cosmo_consts.sigma_norm * cosmo_consts.sigma_norm * result;
+        }
+    }
 }
 
 // Sets constants used in the EH transfer function

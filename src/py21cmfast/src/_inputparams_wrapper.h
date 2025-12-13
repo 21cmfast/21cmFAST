@@ -10,6 +10,7 @@ typedef struct CosmoParams {
     float OMl;
     float OMb;
     float POWER_INDEX;
+    float A_s;
 
     float OMn;
     float OMk;
@@ -29,6 +30,7 @@ typedef struct SimulationOptions {
     int N_THREADS;
     double Z_HEAT_MAX;
     double ZPRIME_STEP_FACTOR;
+    bool USE_A_S;
 
     // Halo Sampler Options
     float SAMPLER_MIN_MASS;

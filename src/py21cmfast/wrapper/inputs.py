@@ -841,6 +841,8 @@ class SimulationOptions(InputStruct):
         validator=attrs.validators.optional(validators.gt(0)),
     )
 
+    USE_A_S: bool = field(default=False, converter=bool)
+
     NON_CUBIC_FACTOR: float = field(
         default=1.0, converter=float, validator=validators.gt(0)
     )
