@@ -476,6 +476,8 @@ class CosmoParams(InputStruct):
                 Omega_b=self.OMb,
                 A_s=self._A_s,
                 n_s=self.POWER_INDEX,
+                output="mPk",
+                level="fourier",
             )
             return classy_output.sigma8()
         else:
@@ -497,6 +499,8 @@ class CosmoParams(InputStruct):
                 Omega_b=self.OMb,
                 sigma8=self.SIGMA_8,
                 n_s=self.POWER_INDEX,
+                output="mTk",
+                level="thermodynamics",
             )
             return classy_output.get_current_derived_parameters(["A_s"])["A_s"]
         else:
