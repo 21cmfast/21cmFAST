@@ -5,6 +5,7 @@
 
 #include <gsl/gsl_errno.h>
 #include <gsl/gsl_integration.h>
+#include <math.h>
 #include <stdbool.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -19,6 +20,28 @@
 #include "scaling_relations.h"
 
 #define EPS2 3.0e-11  // small number limit for GL integration
+
+// Universal FOF HMF (Watson et al. 2013)
+#define Watson_A (0.282)      // Watson FOF HMF, A parameter (Watson et al. 2013)
+#define Watson_alpha (2.163)  // Watson FOF HMF, alpha parameter (Watson et al. 2013)
+#define Watson_beta (1.406)   // Watson FOF HMF, beta parameter (Watson et al. 2013)
+#define Watson_gamma (1.210)  // Watson FOF HMF, gamma parameter (Watson et al. 2013)
+
+// Universal FOF HMF with redshift evolution (Watson et al. 2013)
+#define Watson_A_z_1 (0.990)  // Watson FOF HMF, normalisation of A_z parameter (Watson et al. 2013)
+#define Watson_A_z_2 (-3.216)  // Watson FOF HMF, power law of A_z parameter (Watson et al. 2013)
+#define Watson_A_z_3 (0.074)   // Watson FOF HMF, offset of A_z parameter (Watson et al. 2013)
+// Watson FOF HMF, normalisation of alpha_z parameter (Watson et al. 2013)
+#define Watson_alpha_z_1 (5.907)
+// Watson FOF HMF, power law of alpha_z parameter (Watson et al. 2013)
+#define Watson_alpha_z_2 (-3.058)
+#define Watson_alpha_z_3 (2.349)  // Watson FOF HMF, offset of beta_z parameter (Watson et al. 2013)
+// Watson FOF HMF, normalisation of beta_z parameter (Watson et al. 2013)
+#define Watson_beta_z_1 (3.136)
+// Watson FOF HMF, power law of beta_z parameter (Watson et al. 2013)
+#define Watson_beta_z_2 (-3.599)
+#define Watson_beta_z_3 (2.344)  // Watson FOF HMF, offset of beta_z parameter (Watson et al. 2013)
+#define Watson_gamma_z (1.318)   // Watson FOF HMF, gamma parameter (Watson et al. 2013)
 
 // SHETH-TORMEN PARAMETERS
 // For the Barrier
@@ -45,6 +68,13 @@
 // Gauss-Legendre does poorly at high delta, switch to GSL-QAG here
 // TODO: define a fraction (90%?) of the barrier rather than a fixed number
 #define CRIT_DENS_TRANSITION (1.2)
+
+// parameters for the M(sigma) power-law relation for FAST_FCOLL_TABLES
+#define MPIVOT1 (double)(1.5e9)  // pivot masses
+#define MPIVOT2 (double)(5.3e5)
+#define AINDEX1 (double)(9.0)   // power-law index of nu(M) between MPIVOT1 and infinite
+#define AINDEX2 (double)(13.6)  // power-law index of nu(M) between MPIVOT2 and MPIVOT1
+#define AINDEX3 (double)(21.0)  // power-law index of nu(M) between 0 and MPIVOT2
 
 static double xi_GL[NGL_INT + 1], wi_GL[NGL_INT + 1];
 static double GL_limit[2] = {0};
@@ -101,10 +131,10 @@ double sheth_delc_fixed(double del, double sig) {
 
 // Get the relevant excursion set barrier density given the user-specified HMF
 double get_delta_crit(int HMF, double sigma, double growthf) {
-    if (HMF == 4) return DELTAC_DELOS;
-    if (HMF == 1) return sheth_delc_fixed(Deltac / growthf, sigma) * growthf;
+    if (HMF == 4) return physconst.delta_c_delos;
+    if (HMF == 1) return sheth_delc_fixed(physconst.delta_c_sph / growthf, sigma) * growthf;
 
-    return Deltac;
+    return physconst.delta_c_sph;
 }
 
 // Mo & White 1996 fit
@@ -134,7 +164,7 @@ double dNdlnM_Delos(double growthf, double lnM) {
     sigma_inv = 1 / sigma;
     dsigmadm = EvaluatedSigmasqdm(lnM) * (0.5 * sigma_inv);  // d(s^2)/dm z0 to dsdm
 
-    nu = DELTAC_DELOS * sigma_inv / growthf;
+    nu = physconst.delta_c_delos * sigma_inv / growthf;
 
     dfdnu = coeff_nu * pow(nu, index_nu) * exp(exp_factor * nu * nu);
     dfdM = dfdnu * fabs(dsigmadm) * sigma_inv;
@@ -156,7 +186,7 @@ double dNdlnM_conditional_Delos(double growthf, double lnM, double delta_cond, d
     dsigmadm = EvaluatedSigmasqdm(lnM) * 0.5;  // d(s^2)/dm to s*dsdm
     sigdiff_inv = sigma == sigma_cond ? 1e6 : 1 / (sigma * sigma - sigma_cond * sigma_cond);
 
-    nu = (DELTAC_DELOS - delta_cond) * sqrt(sigdiff_inv) / growthf;
+    nu = (physconst.delta_c_delos - delta_cond) * sqrt(sigdiff_inv) / growthf;
 
     dfdnu = coeff_nu * pow(nu, index_nu) * exp(exp_factor * nu * nu);
     dfdM = dfdnu * fabs(dsigmadm) * sigdiff_inv;
@@ -174,7 +204,7 @@ double st_taylor_factor(double sig, double sig_cond, double growthf, double *zer
     double alpha = JENKINS_c;  // fixed instead of SHETH_c_DEXM bc of DexM corrections
     double beta = JENKINS_b;   // fixed instead of SHETH_b_DEXM
 
-    double del = Deltac / growthf;
+    double del = physconst.delta_c_sph / growthf;
 
     double sigsq = sig * sig;
     double sigsq_inv = 1. / sigsq;
@@ -216,7 +246,8 @@ double dNdM_conditional_ST(double growthf, double lnM, double delta_cond, double
     sigdiff_inv = sigma1 == sigma_cond ? 1e6 : 1 / (sigma1 * sigma1 - sigma_cond * sigma_cond);
 
     result = -dsigmasqdm * factor * pow(sigdiff_inv, 1.5) *
-             exp(-(Barrier - delta_0) * (Barrier - delta_0) * 0.5 * (sigdiff_inv)) / sqrt(2. * PI);
+             exp(-(Barrier - delta_0) * (Barrier - delta_0) * 0.5 * (sigdiff_inv)) /
+             sqrt(2. * M_PI);
     return result;
 }
 
@@ -242,10 +273,10 @@ double dNdlnM_st(double growthf, double lnM) {
     sigma = sigma * growthf;
     dsigmadm = dsigmadm * (growthf * growthf / (2. * sigma));
 
-    nuhat = sqrt(SHETH_a) * Deltac / sigma;
+    nuhat = sqrt(SHETH_a) * physconst.delta_c_sph / sigma;
 
-    return -(dsigmadm / sigma) * sqrt(2. / PI) * SHETH_A * (1 + pow(nuhat, -2 * SHETH_p)) * nuhat *
-           pow(E, -nuhat * nuhat / 2.0);
+    return -(dsigmadm / sigma) * sqrt(2. / M_PI) * SHETH_A * (1 + pow(nuhat, -2 * SHETH_p)) *
+           nuhat * exp(-nuhat * nuhat / 2.0);
 }
 
 // Conditional Extended Press-Schechter Mass function, with constant barrier delta=1.682 and sharp-k
@@ -259,10 +290,10 @@ double dNdM_conditional_EPS(double growthf, double lnM, double delta_cond, doubl
     // limit setting
     if (sigma1 < sigma_cond) return 0.;
     sigdiff_inv = sigma1 == sigma_cond ? 1e6 : 1 / (sigma1 * sigma1 - sigma_cond * sigma_cond);
-    del = (Deltac - delta_cond) / growthf;
+    del = (physconst.delta_c_sph - delta_cond) / growthf;
 
     return -del * dsigmasqdm * pow(sigdiff_inv, 1.5) * exp(-del * del * 0.5 * sigdiff_inv) /
-           sqrt(2. * PI);
+           sqrt(2. * M_PI);
 }
 
 /*
@@ -286,8 +317,8 @@ double dNdlnM_PS(double growthf, double lnM) {
 
     sigma = sigma * growthf;
     dsigmadm = dsigmadm * (growthf * growthf / (2. * sigma));
-    return -sqrt(2 / PI) * (Deltac / (sigma * sigma)) * dsigmadm *
-           exp(-(Deltac * Deltac) / (2 * sigma * sigma));
+    return -sqrt(2 / M_PI) * (physconst.delta_c_sph / (sigma * sigma)) * dsigmadm *
+           exp(-(physconst.delta_c_sph * physconst.delta_c_sph) / (2 * sigma * sigma));
 }
 
 // The below mass functions do not have a CMF given
@@ -356,16 +387,16 @@ double dNdlnM_WatsonFOF_z(double z, double growthf, double lnM) {
 // scaling relation for M_halo --> n_ion used in integrands
 double nion_fraction(double lnM, void *param_struct) {
     struct parameters_gsl_MF_integrals p = *(struct parameters_gsl_MF_integrals *)param_struct;
-    double Fstar = log_scaling_PL_limit(lnM, p.f_star_norm, p.alpha_star, 10 * LN10, p.Mlim_star);
-    double Fesc = log_scaling_PL_limit(lnM, p.f_esc_norm, p.alpha_esc, 10 * LN10, p.Mlim_esc);
+    double Fstar = log_scaling_PL_limit(lnM, p.f_star_norm, p.alpha_star, 10 * M_LN10, p.Mlim_star);
+    double Fesc = log_scaling_PL_limit(lnM, p.f_esc_norm, p.alpha_esc, 10 * M_LN10, p.Mlim_esc);
 
     return exp(Fstar + Fesc - p.Mturn_acg / exp(lnM) + lnM);
 }
 
 double nion_fraction_mini(double lnM, void *param_struct) {
     struct parameters_gsl_MF_integrals p = *(struct parameters_gsl_MF_integrals *)param_struct;
-    double Fstar = log_scaling_PL_limit(lnM, p.f_star_norm, p.alpha_star, 7 * LN10, p.Mlim_star);
-    double Fesc = log_scaling_PL_limit(lnM, p.f_esc_norm, p.alpha_esc, 7 * LN10, p.Mlim_esc);
+    double Fstar = log_scaling_PL_limit(lnM, p.f_star_norm, p.alpha_star, 7 * M_LN10, p.Mlim_star);
+    double Fesc = log_scaling_PL_limit(lnM, p.f_esc_norm, p.alpha_esc, 7 * M_LN10, p.Mlim_esc);
     double M = exp(lnM);
 
     return exp(Fstar + Fesc - M / p.Mturn_upper - p.Mturn_mcg / M + lnM);
@@ -378,14 +409,14 @@ double xray_fraction_doublePL(double lnM, void *param_struct) {
     struct parameters_gsl_MF_integrals p = *(struct parameters_gsl_MF_integrals *)param_struct;
     double M = exp(lnM);
     double Fstar =
-        exp(log_scaling_PL_limit(lnM, p.f_star_norm, p.alpha_star, 10 * LN10, p.Mlim_star) -
+        exp(log_scaling_PL_limit(lnM, p.f_star_norm, p.alpha_star, 10 * M_LN10, p.Mlim_star) -
             p.Mturn_acg / M + p.f_star_norm);
 
     // using the escape fraction variables for minihalos
     double Fstar_mini = 0.;
     if (astro_options_global->USE_MINI_HALOS)
         Fstar_mini =
-            exp(log_scaling_PL_limit(lnM, p.f_esc_norm, p.alpha_esc, 7 * LN10, p.Mlim_esc) -
+            exp(log_scaling_PL_limit(lnM, p.f_esc_norm, p.alpha_esc, 7 * M_LN10, p.Mlim_esc) -
                 p.Mturn_mcg / M - M / p.Mturn_upper + p.f_esc_norm);
 
     double stars = M * Fstar * cosmo_params_global->OMb / cosmo_params_global->OMm;
@@ -400,7 +431,7 @@ double xray_fraction_doublePL(double lnM, void *param_struct) {
     if (astro_options_global->USE_MINI_HALOS)
         l_x_mini = get_lx_on_sfr(sfr_mini, metallicity, p.l_x_norm_mini);
 
-    return SperYR * (sfr * l_x + sfr_mini * l_x_mini);
+    return physconst.s_per_yr * (sfr * l_x + sfr_mini * l_x_mini);
 }
 
 double conditional_hmf(double growthf, double lnM, double delta, double sigma, int HMF) {
@@ -620,7 +651,7 @@ double IntegratedNdM_GL(double lnM_lo, double lnM_hi, struct parameters_gsl_MF_i
 double Fcollapprox(double numin, double beta) {
     // nu is deltacrit^2/sigma^2, corrected by delta(R) and sigma(R)
     double gg = gsl_sf_gamma_inc(0.5 + beta, 0.5 * numin);
-    return gg * pow(2, 0.5 + beta) * pow(2.0 * PI, -0.5);
+    return gg * pow(2, 0.5 + beta) * pow(2.0 * M_PI, -0.5);
 }
 
 // This takes into account the last approximation in Munoz+22, where erfc (beta=0) is used
@@ -693,7 +724,7 @@ double MFIntegral_Approx(double lnM_lo, double lnM_hi, struct parameters_gsl_MF_
     else
         index_base = -1.;
 
-    double delta_arg = pow((Deltac - delta) / growthf, 2);
+    double delta_arg = pow((physconst.delta_c_sph - delta) / growthf, 2);
     double beta1 = index_base * AINDEX1 * 0.5;  // exponent for Fcollapprox for nu>nupivot1 (large
                                                 // M)
     double beta2 =
@@ -802,7 +833,7 @@ double IntegratedNdM(double lnM_lo, double lnM_hi, struct parameters_gsl_MF_inte
 double FgtrM(double z, double M) {
     double del, sig;
 
-    del = Deltac / dicke(z);  // regular spherical collapse delta
+    del = physconst.delta_c_sph / dicke(z);  // regular spherical collapse delta
     sig = sigma_z0(M);
 
     return splined_erfc(del / (sqrt(2) * sig));
@@ -816,7 +847,7 @@ double FgtrM(double z, double M) {
 double FgtrM_wsigma(double z, double sig) {
     double del;
 
-    del = Deltac / dicke(z);  // regular spherical collapse delta
+    del = physconst.delta_c_sph / dicke(z);  // regular spherical collapse delta
 
     return splined_erfc(del / (sqrt(2) * sig));
 }
@@ -1113,9 +1144,9 @@ double FgtrM_bias_fast(float growthf, float del_bias, float sig_small, float sig
     if (sig_large == sig_small) {
         return 0.;
     }
-    // del = Deltac/growthf - del_bias; //NOTE HERE DELTA EXTRAPOLATED TO z=0
+    // del = physconst.delta_c_sph/growthf - del_bias; //NOTE HERE DELTA EXTRAPOLATED TO z=0
     sig = sqrt(sig_small * sig_small - sig_large * sig_large);
-    del = (Deltac - del_bias) / growthf;
+    del = (physconst.delta_c_sph - del_bias) / growthf;
 
     // if the density is above critical on this scale, it is collapsed
     // NOTE: should we allow del < 0??? We would need to change dfcolldz to prevent zero dfcoll
@@ -1203,17 +1234,14 @@ float Mass_limit_bisection(float Mmin, float Mmax, float PL, float FRAC) {
 //       from M_MIN_INTEGRAL
 double minimum_source_mass(double redshift, bool xray) {
     double Mmin, min_factor, mu_factor, t_vir_min;
-    if (astro_options_global->USE_MASS_DEPENDENT_ZETA && !astro_options_global->USE_MINI_HALOS)
+    if (matter_options_global->SOURCE_MODEL > 0 && !astro_options_global->USE_MINI_HALOS)
         min_factor = 50.;  // small lower bound to cover far below the turnover
     else
         min_factor = 1.;  // sharp cutoff
 
-    // automatically false if !USE_MASS_DEPENDENT_ZETA
     if (astro_options_global->USE_MINI_HALOS) {
-        Mmin = M_MIN_INTEGRAL;
-    }
-    // automatically true if USE_MASS_DEPENDENT_ZETA
-    else if (astro_options_global->M_MIN_in_Mass) {
+        Mmin = M_MIN_INTEGRAL;  // overrides the rest of the options
+    } else if (astro_options_global->M_MIN_in_Mass) {
         // NOTE: previously this divided Mturn by 50 in spin temperature, but not in the ionised box
         //      which I think is a bug with M_MIN_in_Mass, since there is a sharp cutoff
         Mmin = astro_params_global->M_TURN;

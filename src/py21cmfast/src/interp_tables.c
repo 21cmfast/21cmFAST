@@ -30,6 +30,8 @@
 #define LOG10_MTURN_MIN ((double)(5. - 9e-8))
 #define MAX_ITER_RF 200
 #define N_MASS_INTERP 300
+/* Number of interpolation points for the interpolation table for the value of the density field */
+#define N_DENS_INTERP (int)(400)
 
 // we need to define a density minimum for the tables, since we are in lagrangian density / linear
 // growth it's possible to go below -1 so we explicitly set a minimum here which sets table limits
@@ -230,18 +232,17 @@ void initialise_FgtrM_delta_table(double min_dens, double max_dens, double zpp, 
                     min_dens, max_dens, smin_zpp, smax_zpp);
 
     if (!fcoll_conditional_table.allocated) {
-        allocate_RGTable1D_f(dens_Ninterp, &fcoll_conditional_table);
+        allocate_RGTable1D_f(N_DENS_INTERP, &fcoll_conditional_table);
     }
     fcoll_conditional_table.x_min = min_dens;
-    fcoll_conditional_table.x_width = (max_dens - min_dens) / (dens_Ninterp - 1.);
+    fcoll_conditional_table.x_width = (max_dens - min_dens) / (N_DENS_INTERP - 1.);
     if (!dfcoll_conditional_table.allocated) {
-        allocate_RGTable1D_f(dens_Ninterp, &dfcoll_conditional_table);
+        allocate_RGTable1D_f(N_DENS_INTERP, &dfcoll_conditional_table);
     }
     dfcoll_conditional_table.x_min = fcoll_conditional_table.x_min;
     dfcoll_conditional_table.x_width = fcoll_conditional_table.x_width;
 
-    // dens_Ninterp is a global define, probably shouldn't be
-    for (i = 0; i < dens_Ninterp; i++) {
+    for (i = 0; i < N_DENS_INTERP; i++) {
         dens = fcoll_conditional_table.x_min + i * fcoll_conditional_table.x_width;
         fcoll_conditional_table.y_arr[i] = FgtrM_bias_fast(growth_zpp, dens, smin_zpp, smax_zpp);
         dfcoll_conditional_table.y_arr[i] = dfcoll_dz(zpp, smin_zpp, dens, smax_zpp);
@@ -882,17 +883,17 @@ void free_global_tables() {
 }
 
 // JD: moving the interp table evaluations here since some of them are needed in nu_tau_one
-// NOTE: with !USE_MASS_DEPENDENT_ZETA both EvaluateNionTs and EvaluateSFRD return Fcoll
+// NOTE: with SOURCE_MODEL==0 both EvaluateNionTs and EvaluateSFRD return Fcoll
 double EvaluateNionTs(double redshift, ScalingConstants *sc) {
     // differences in turnover are handled by table setup
     if (matter_options_global->USE_INTERPOLATION_TABLES > 1) {
-        if (astro_options_global->USE_MASS_DEPENDENT_ZETA)
+        if (matter_options_global->SOURCE_MODEL > 0)
             return EvaluateRGTable1D(redshift, &Nion_z_table);
         return EvaluateRGTable1D(redshift, &fcoll_z_table);
     }
 
     // Currently assuming this is only called in the X-ray/spintemp calculation, this will only
-    // affect !USE_MASS_DEPENDENT_ZETA and !M_MIN_in_mass and only if the minimum virial
+    // affect SOURCE_MODEL==0 and !M_MIN_in_mass and only if the minimum virial
     // temperatures ION_Tvir_min and X_RAY_Tvir_min are different
     double lnMmin = log(minimum_source_mass(redshift, true));
     double lnMmax = log(M_MAX_INTEGRAL);
@@ -900,7 +901,7 @@ double EvaluateNionTs(double redshift, ScalingConstants *sc) {
     ScalingConstants sc_z = evolve_scaling_constants_to_redshift(redshift, sc, false);
 
     // minihalos uses a different turnover mass
-    if (astro_options_global->USE_MASS_DEPENDENT_ZETA)
+    if (matter_options_global->SOURCE_MODEL > 0)
         return Nion_General(redshift, lnMmin, lnMmax, sc_z.mturn_a_nofb, &sc_z);
 
     return Fcoll_General(redshift, lnMmin, lnMmax);
@@ -919,13 +920,13 @@ double EvaluateNionTs_MINI(double redshift, double log10_Mturn_LW_ave, ScalingCo
 
 double EvaluateSFRD(double redshift, ScalingConstants *sc) {
     if (matter_options_global->USE_INTERPOLATION_TABLES > 1) {
-        if (astro_options_global->USE_MASS_DEPENDENT_ZETA)
+        if (matter_options_global->SOURCE_MODEL > 0)
             return EvaluateRGTable1D(redshift, &SFRD_z_table);
         return EvaluateRGTable1D(redshift, &fcoll_z_table);
     }
 
     // Currently assuming this is only called in the X-ray/spintemp calculation, this will only
-    // affect !USE_MASS_DEPENDENT_ZETA and !M_MIN_in_mass and only if the minimum virial
+    // affect SOURCE_MODEL==0 and !M_MIN_in_mass and only if the minimum virial
     // temperatures ION_Tvir_min and X_RAY_Tvir_min are different
     double lnMmin = log(minimum_source_mass(redshift, true));
     double lnMmax = log(M_MAX_INTEGRAL);
@@ -935,7 +936,7 @@ double EvaluateSFRD(double redshift, ScalingConstants *sc) {
     ScalingConstants sc_sfrd = evolve_scaling_constants_sfr(sc);
     sc_sfrd = evolve_scaling_constants_to_redshift(redshift, &sc_sfrd, false);
 
-    if (astro_options_global->USE_MASS_DEPENDENT_ZETA)
+    if (matter_options_global->SOURCE_MODEL > 0)
         return Nion_General(redshift, lnMmin, lnMmax, sc_sfrd.mturn_a_nofb, &sc_sfrd);
     return Fcoll_General(redshift, lnMmin, lnMmax);
 }

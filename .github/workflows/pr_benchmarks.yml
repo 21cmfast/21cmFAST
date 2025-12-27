@@ -17,7 +17,7 @@ jobs:
           # Adding -l {0} ensures conda can be found properly in each step
           shell: bash -l {0}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
       - uses: bencherdev/bencher@main
 
       - name: Setup Miniconda
@@ -36,13 +36,13 @@ jobs:
           pip install ".[dev]"
 
       - name: Track base branch benchmarks with Bencher
+        env:
+          BENCHER_API_TOKEN: ${{ secrets.BENCHER_API_TOKEN }}
         run: |
           bencher run \
           --project 21cmfast \
-          --token '${{ secrets.BENCHER_API_TOKEN }}' \
           --branch "$GITHUB_HEAD_REF" \
           --start-point "$GITHUB_BASE_REF" \
-          --start-point-hash '${{ github.event.pull_request.base.sha }}' \
           --start-point-clone-thresholds \
           --start-point-reset \
           --testbed ubuntu-latest \

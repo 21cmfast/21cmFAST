@@ -75,6 +75,7 @@ double scaling_double_PL(double M, double alpha_lo, double pivot_ratio, double a
 ScalingConstants evolve_scaling_constants_sfr(ScalingConstants *sc);
 ScalingConstants evolve_scaling_constants_to_redshift(double redshift, ScalingConstants *sc,
                                                       bool use_photoncons);
+ScalingConstants mimic_scatter_in_consts(ScalingConstants *sc);
 void print_sc_consts(ScalingConstants *c);
 
 #endif

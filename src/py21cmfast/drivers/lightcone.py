@@ -25,10 +25,10 @@ from ..wrapper.inputs import InputParameters
 from ..wrapper.outputs import (
     BrightnessTemp,
     HaloBox,
+    HaloCatalog,
     InitialConditions,
     IonizedBox,
     PerturbedField,
-    PerturbHaloField,
     TsBox,
 )
 from ._param_config import high_level_func
@@ -94,7 +94,7 @@ class LightCone:
         ]
         if inputs.astro_options.USE_TS_FLUCT:
             possible_outputs.append(TsBox.new(inputs, redshift=0))
-        if inputs.matter_options.USE_HALO_FIELD:
+        if inputs.matter_options.lagrangian_source_grid:
             possible_outputs.append(HaloBox.new(inputs, redshift=0))
         field_names = ("log10_mturn_acg", "log10_mturn_mcg")
         for output in possible_outputs:
@@ -402,18 +402,15 @@ def _run_lightcone_from_perturbed_fields(
     include_dvdr_in_tau21: bool,
     apply_rsds: bool,
     n_rsd_subcells: int,
-    pt_halos: list[PerturbHaloField],
-    regenerate: bool | None = None,
-    cache: OutputCache = _ocache,
+    halofield_list: list[HaloCatalog],
     cleanup: bool = True,
     write: CacheConfig = _cache,
     progressbar: bool = False,
     lightcone_filename: str | Path | None = None,
+    **iokw,
 ):
     # Get the redshift through which we scroll and evaluate the ionization field.
     scrollz = np.array([pf.redshift for pf in perturbed_fields])
-
-    iokw = {"regenerate": regenerate, "cache": cache}
 
     # Create the LightCone instance, loading from file if needed
     lightcone = setup_lightcone_instance(
@@ -433,13 +430,14 @@ def _run_lightcone_from_perturbed_fields(
         inputs=inputs,
         initial_conditions=initial_conditions,
         photon_nonconservation_data=photon_nonconservation_data,
+        cache=iokw.get("cache"),
+        regenerate=iokw.get("regenerate"),
         minimum_node=lightcone._last_completed_node,
-        **iokw,
     )
 
     if idx < lightcone._last_completed_node:
         warnings.warn(
-            f"The cache at {cache} only contains complete coeval boxes for {idx + 1} redshift nodes, "
+            f"The cache at {iokw.get('cache')} only contains complete coeval boxes for {idx + 1} redshift nodes, "
             f"instead of {lightcone._last_completed_node + 1}, which is the current checkpointing "
             f"redshift of the lightcone. Repeating the higher-z calculations...",
             stacklevel=2,
@@ -463,7 +461,7 @@ def _run_lightcone_from_perturbed_fields(
         initial_conditions=initial_conditions,
         all_redshifts=scrollz,
         perturbed_field=perturbed_fields,
-        pt_halos=pt_halos,
+        halofield_list=halofield_list,
         write=write,
         cleanup=cleanup,
         progressbar=progressbar,
@@ -639,12 +637,12 @@ def generate_lightcone(
 
     _check_desired_arrays_exist(lightconer.quantities, inputs)
 
-    iokw = {"cache": cache, "regenerate": regenerate}
+    iokw = {"cache": cache, "regenerate": regenerate, "free_cosmo_tables": False}
 
     (
         initial_conditions,
         perturbed_fields,
-        pt_halos,
+        halofield_list,
         photon_nonconservation_data,
     ) = _setup_ics_and_pfs_for_scrolling(
         all_redshifts=inputs.node_redshifts,
@@ -661,18 +659,19 @@ def generate_lightcone(
         lightconer=lightconer,
         inputs=inputs,
         lc_distances=lc_distances,
-        regenerate=regenerate,
-        pt_halos=pt_halos,
+        halofield_list=halofield_list,
         photon_nonconservation_data=photon_nonconservation_data,
         include_dvdr_in_tau21=include_dvdr_in_tau21,
         apply_rsds=apply_rsds,
         n_rsd_subcells=n_rsd_subcells,
-        cache=cache,
         write=write,
         cleanup=cleanup,
         progressbar=progressbar,
         lightcone_filename=lightcone_filename,
+        **iokw,
     )
+
+    lib.Free_cosmo_tables_global()
 
 
 def run_lightcone(**kwargs) -> LightCone:  # noqa: D103

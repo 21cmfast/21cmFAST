@@ -86,7 +86,7 @@ _photoncons_state = _PhotonConservationState()
 
 
 @broadcast_params
-def _init_photon_conservation_correction(*, inputs):
+def _init_photon_conservation_correction(*, inputs, **kwargs):
     # This function calculates the global expected evolution of reionisation and saves
     #   it to C global arrays z_Q and Q_value (as well as other non-global confusingly named arrays),
     #   and constructs a GSL interpolator z_at_Q_spline
@@ -249,7 +249,7 @@ def setup_photon_cons(
         photoncons_data = _get_photon_nonconservation_data()
 
     if inputs.astro_options.PHOTON_CONS_TYPE == "alpha-photoncons":
-        photoncons_data = photoncons_alpha(inputs)
+        photoncons_data = photoncons_alpha(inputs, **kwargs)
 
     if inputs.astro_options.PHOTON_CONS_TYPE == "f-photoncons":
         photoncons_data = photoncons_fesc(inputs)
@@ -284,12 +284,19 @@ def calibrate_photon_cons(
     #   to the default w/o recombinations ONLY when the original box has INHOMO_RECO enabled.
     # TODO: figure out if it's possible to find a "closest" Rmax, since the correction fails when
     # the histories are too different.
+
+    # Using the halo sampling twice would be very slow, so switch to L-INTEGRAL for the calibration
+    source_model_calibration = {
+        "E-INTEGRAL": "E-INTEGRAL",
+        "L-INTEGRAL": "L-INTEGRAL",
+        "DEXM-ESF": "L-INTEGRAL",
+        "CHMF-SAMPLER": "L-INTEGRAL",
+    }
     inputs_calibration = inputs.evolve_input_structs(
         USE_TS_FLUCT=False,
         INHOMO_RECO=False,
         USE_MINI_HALOS=False,
-        USE_HALO_FIELD=False,
-        HALO_STOCHASTICITY=False,
+        SOURCE_MODEL=source_model_calibration[inputs.matter_options.SOURCE_MODEL],
         PHOTON_CONS_TYPE="no-photoncons",
         R_BUBBLE_MAX=(
             15 if inputs.astro_options.INHOMO_RECO else inputs.astro_params.R_BUBBLE_MAX
@@ -303,7 +310,7 @@ def calibrate_photon_cons(
 
     # Initialise the analytic expression for the reionisation history
     logger.info("About to start photon conservation correction")
-    _init_photon_conservation_correction(inputs=inputs)
+    _init_photon_conservation_correction(inputs=inputs, **kwargs)
     # Determine the starting redshift to start scrolling through to create the
     # calibration reionisation history
     logger.info("Calculating photon conservation zstart")
@@ -368,7 +375,7 @@ def calibrate_photon_cons(
 # (Jdavies): I needed a function to access the delta z from the wrapper
 # get_photoncons_data does not have the edge cases that adjust_redshifts_for_photoncons does
 @broadcast_params
-def get_photoncons_dz(inputs, redshift):
+def get_photoncons_dz(inputs, redshift, **kwargs):
     """Access the delta z arrays from the photon conservation model in C."""
     deltaz = np.zeros(1).astype("f4")
     redshift_pc_in = np.array([redshift]).astype("f4")
@@ -394,7 +401,7 @@ def alpha_func(Q, a_const, a_slope):
 # Q vs z curves for different ALPHA_STAR, and then finding the aloha star which has the inverse ratio
 # with the reference analytic as the calibration
 # TODO: don't rely on the photoncons functions since they do a bunch of other stuff in C
-def photoncons_alpha(inputs):
+def photoncons_alpha(inputs, **kwargs):
     """Run the Simpler photons conservation model using ALPHA_ESC.
 
     This adjusts the slope of the escape fraction instead of redshifts to match a global
@@ -433,7 +440,7 @@ def photoncons_alpha(inputs):
         # TODO: Theres a small memory leak here since global arrays are allocated (for some reason)
         # TODO: use ffi to free them?
         #       This will be fixed by moving the photoncons to python
-        _init_photon_conservation_correction(inputs=inputs_photoncons)
+        _init_photon_conservation_correction(inputs=inputs_photoncons, **kwargs)
 
         # save it
         pcd_buf = _get_photon_nonconservation_data()
@@ -551,7 +558,7 @@ def photoncons_alpha(inputs):
         )
 
     else:
-        popt, pcov = curve_fit(alpha_func, ref_interp[sel], fit_alpha[sel])
+        popt, _pcov = curve_fit(alpha_func, ref_interp[sel], fit_alpha[sel])
         # pass to C
         logger.info(f"ALPHA_ESC Original = {ap_c['ALPHA_ESC']:.3f}")
         logger.info(f"Running with ALPHA_ESC = {popt[0]:.2f} + {popt[1]:.2f} * Q")
@@ -599,7 +606,7 @@ def photoncons_fesc(inputs):
     fit_fesc = ratio_ref * ap_c["F_ESC10"]
     sel = np.isfinite(fit_fesc) & (ref_interp < max_q_fit) & (ref_interp > min_q_fit)
 
-    popt, pcov = curve_fit(alpha_func, ref_interp[sel], fit_fesc[sel])
+    popt, _pcov = curve_fit(alpha_func, ref_interp[sel], fit_fesc[sel])
     # pass to C
     logger.info(f"F_ESC10 Original = {ap_c['F_ESC10']:.3f}")
     logger.info(f"Running with F_ESC10 = {popt[0]:.2f} + {popt[1]:.2f} * Q")

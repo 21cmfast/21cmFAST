@@ -30,6 +30,7 @@ import numpy as np
 import pytest
 
 from py21cmfast import Coeval, LightCone, OutputCache
+from py21cmfast.wrapper.inputs import Table1D
 
 from . import produce_integration_test_data as prd
 
@@ -108,6 +109,27 @@ def test_power_spectra_lightcone(name, module_direc, plt, benchmark):
         rounds=1,
     )
 
+    if lc.inputs.matter_options.POWER_SPECTRUM == "CLASS":
+        with h5py.File(prd.get_filename("power_spectra", name), "r") as fl:
+            x_values = fl["cosmo_tables"]["transfer_density"]["x_values"]
+            y_values = fl["cosmo_tables"]["transfer_density"]["y_values"]
+            transfer_density = Table1D(
+                size=x_values.size, x_values=x_values, y_values=y_values
+            )
+        assert transfer_density.x_values.size == transfer_density.y_values.size
+        np.testing.assert_allclose(
+            transfer_density.x_values,
+            lc.inputs.cosmo_tables.transfer_density.x_values,
+            atol=0,
+            rtol=1e-3,
+        )
+        np.testing.assert_allclose(
+            transfer_density.y_values,
+            lc.inputs.cosmo_tables.transfer_density.y_values,
+            atol=0,
+            rtol=5e-3,
+        )
+
     assert isinstance(lc, LightCone)
     assert np.all(np.isfinite(lc.lightcones["brightness_temp"]))
 
@@ -143,8 +165,7 @@ def test_power_spectra_lightcone(name, module_direc, plt, benchmark):
 
     # For globals, we should assert that they are close
     for key, value in true_global.items():
-        print(f"Testing Global {key}")
-        assert np.allclose(value, lc.global_quantities[key], atol=0, rtol=1e-3)
+        np.testing.assert_allclose(value, lc.global_quantities[key], atol=0, rtol=1e-3)
 
 
 plot_ylab = {
@@ -169,7 +190,7 @@ def make_lightcone_comparison_plot(
     true_k, k, z, true_powers, true_global, test_powers, test_global, plt
 ):
     n = len(true_global) + len(true_powers)
-    fig, ax = plt.subplots(
+    _fig, ax = plt.subplots(
         2,
         n,
         figsize=(4 * n, 6),
@@ -206,7 +227,7 @@ def make_lightcone_comparison_plot(
 
 
 def make_coeval_comparison_plot(true_k, k, true_powers, test_powers, plt):
-    fig, ax = plt.subplots(
+    _fig, ax = plt.subplots(
         2,
         len(true_powers),
         figsize=(4 * len(true_powers), 6),
@@ -271,15 +292,15 @@ def test_perturb_field_data(name):
         pdf_vel = f["pdf_vel"][...]
 
     (
-        k_dens,
+        _k_dens,
         p_dens,
-        k_vel,
+        _k_vel,
         p_vel,
-        x_dens,
+        _x_dens,
         y_dens,
-        x_vel,
+        _x_vel,
         y_vel,
-        ic,
+        _ic,
     ) = prd.produce_perturb_field_data(redshift, **kwargs)
 
     np.testing.assert_allclose(p_dens, power_dens, atol=5e-3, rtol=1e-3)

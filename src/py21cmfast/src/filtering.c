@@ -63,11 +63,11 @@ double dwdm_filter(double k, double R, int filter_type) {
         // TODO: figure out what this is/was
         // 3*k*( 3*cos(kR)/pow(kR,3) + sin(kR)*(-3*pow(kR, -4) + 1/(kR*kR)) );}
         //      dwdr = -1e8 * k / (R*1e3);
-        drdm = 1.0 / (4.0 * PI * cosmo_params_global->OMm * RHOcrit * R * R);
+        drdm = 1.0 / (4.0 * M_PI * cosmo_params_global->OMm * RHOcrit * R * R);
     } else if (filter_type == 2) {  // gaussian of width 1/R
         w = exp(-kR * kR / 2.0);
         dwdr = -k * kR * w;
-        drdm = 1.0 / (pow(2 * PI, 1.5) * cosmo_params_global->OMm * RHOcrit * 3 * R * R);
+        drdm = 1.0 / (pow(2 * M_PI, 1.5) * cosmo_params_global->OMm * RHOcrit * 3 * R * R);
     } else {
         LOG_ERROR("No such filter for dWdM: %i", matter_options_global->FILTER);
         Throw(ValueError);
@@ -115,22 +115,12 @@ double spherical_shell_filter(double k, double R_outer, double R_inner) {
            (sin(kR_outer) - cos(kR_outer) * kR_outer - sin(kR_inner) + cos(kR_inner) * kR_inner);
 }
 
-void filter_box(fftwf_complex *box, int RES, int filter_type, float R, float R_param) {
-    int dimension, midpoint;  // TODO: figure out why defining as ULL breaks this
-    switch (RES) {
-        case 0:
-            dimension = simulation_options_global->DIM;
-            midpoint = MIDDLE;
-            break;
-        case 1:
-            dimension = simulation_options_global->HII_DIM;
-            midpoint = HII_MIDDLE;
-            break;
-        default:
-            LOG_ERROR("Resolution for filter functions must be 0(DIM) or 1(HII_DIM)");
-            Throw(ValueError);
-            break;
-    }
+void filter_box(fftwf_complex *box, int box_dim[3], int filter_type, float R, float R_param) {
+    double delta_k[3] = {
+        2.0 * M_PI / simulation_options_global->BOX_LEN,
+        2.0 * M_PI / simulation_options_global->BOX_LEN,
+        2.0 * M_PI /
+            (simulation_options_global->BOX_LEN * simulation_options_global->NON_CUBIC_FACTOR)};
 
     // setup constants if needed
     double R_const;
@@ -145,26 +135,25 @@ void filter_box(fftwf_complex *box, int RES, int filter_type, float R, float R_p
         float k_x, k_y, k_z, k_mag_sq, kR;
         unsigned long long grid_index;
 #pragma omp for
-        for (n_x = 0; n_x < dimension; n_x++) {
-            if (n_x > midpoint) {
-                k_x = (n_x - dimension) * DELTA_K;
+        for (n_x = 0; n_x < box_dim[0]; n_x++) {
+            if (n_x > (box_dim[0] / 2)) {
+                k_x = (n_x - box_dim[0]) * delta_k[0];
             } else {
-                k_x = n_x * DELTA_K;
+                k_x = n_x * delta_k[0];
             }
 
-            for (n_y = 0; n_y < dimension; n_y++) {
-                if (n_y > midpoint) {
-                    k_y = (n_y - dimension) * DELTA_K;
+            for (n_y = 0; n_y < box_dim[1]; n_y++) {
+                if (n_y > (box_dim[1] / 2)) {
+                    k_y = (n_y - box_dim[1]) * delta_k[1];
                 } else {
-                    k_y = n_y * DELTA_K;
+                    k_y = n_y * delta_k[1];
                 }
 
-                for (n_z = 0; n_z <= (int)(simulation_options_global->NON_CUBIC_FACTOR * midpoint);
-                     n_z++) {
-                    k_z = n_z * DELTA_K_PARA;
+                for (n_z = 0; n_z <= box_dim[2] / 2; n_z++) {
+                    k_z = n_z * delta_k[2];  // no negative frequencies in z with fftw r2c/c2r
                     k_mag_sq = k_x * k_x + k_y * k_y + k_z * k_z;
 
-                    grid_index = RES == 1 ? HII_C_INDEX(n_x, n_y, n_z) : C_INDEX(n_x, n_y, n_z);
+                    grid_index = grid_index_fftw_c(n_x, n_y, n_z, box_dim);
 
                     // TODO: it would be nice to combine these into the filter_function call, *but*
                     // since each can take different arguments more thought is needed
@@ -208,7 +197,10 @@ void filter_box(fftwf_complex *box, int RES, int filter_type, float R, float R_p
 // Test function to filter a box without computing a whole output box
 int test_filter(float *input_box, double R, double R_param, int filter_flag, double *result) {
     int i, j, k;
-    unsigned long long int ii;
+    unsigned long long int ii, jj;
+    int box_dim[3] = {
+        simulation_options_global->HII_DIM, simulation_options_global->HII_DIM,
+        simulation_options_global->NON_CUBIC_FACTOR * simulation_options_global->HII_DIM};
 
     // setup the box
     fftwf_complex *box_unfiltered =
@@ -216,11 +208,13 @@ int test_filter(float *input_box, double R, double R_param, int filter_flag, dou
     fftwf_complex *box_filtered =
         (fftwf_complex *)fftwf_malloc(sizeof(fftwf_complex) * HII_KSPACE_NUM_PIXELS);
 
-    for (i = 0; i < simulation_options_global->HII_DIM; i++)
-        for (j = 0; j < simulation_options_global->HII_DIM; j++)
-            for (k = 0; k < HII_D_PARA; k++)
-                *((float *)box_unfiltered + HII_R_FFT_INDEX(i, j, k)) =
-                    input_box[HII_R_INDEX(i, j, k)];
+    for (i = 0; i < box_dim[0]; i++)
+        for (j = 0; j < box_dim[1]; j++)
+            for (k = 0; k < box_dim[2]; k++) {
+                ii = grid_index_general(i, j, k, box_dim);
+                jj = grid_index_fftw_r(i, j, k, box_dim);
+                *((float *)box_unfiltered + jj) = input_box[ii];
+            }
 
     dft_r2c_cube(matter_options_global->USE_FFTW_WISDOM, simulation_options_global->HII_DIM,
                  HII_D_PARA, simulation_options_global->N_THREADS, box_unfiltered);
@@ -231,15 +225,18 @@ int test_filter(float *input_box, double R, double R_param, int filter_flag, dou
 
     memcpy(box_filtered, box_unfiltered, sizeof(fftwf_complex) * HII_KSPACE_NUM_PIXELS);
 
-    filter_box(box_filtered, 1, filter_flag, R, R_param);
+    filter_box(box_filtered, box_dim, filter_flag, R, R_param);
 
     dft_c2r_cube(matter_options_global->USE_FFTW_WISDOM, simulation_options_global->HII_DIM,
                  HII_D_PARA, simulation_options_global->N_THREADS, box_filtered);
 
     for (i = 0; i < simulation_options_global->HII_DIM; i++)
         for (j = 0; j < simulation_options_global->HII_DIM; j++)
-            for (k = 0; k < HII_D_PARA; k++)
-                result[HII_R_INDEX(i, j, k)] = *((float *)box_filtered + HII_R_FFT_INDEX(i, j, k));
+            for (k = 0; k < HII_D_PARA; k++) {
+                ii = grid_index_general(i, j, k, box_dim);
+                jj = grid_index_fftw_r(i, j, k, box_dim);
+                result[ii] = *((float *)box_filtered + jj);
+            }
 
     fftwf_free(box_unfiltered);
     fftwf_free(box_filtered);

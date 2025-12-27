@@ -68,9 +68,7 @@ typedef struct MatterOptions {
     int HALO_FILTER;
     bool SMOOTH_EVOLVED_DENSITY_FIELD;
 
-    bool USE_HALO_FIELD;
-    bool HALO_STOCHASTICITY;
-    bool FIXED_HALO_GRIDS;
+    int SOURCE_MODEL;
     int SAMPLE_METHOD;
 } MatterOptions;
 
@@ -137,9 +135,9 @@ typedef struct AstroParams {
 
 typedef struct AstroOptions {
     bool USE_MINI_HALOS;
+    bool USE_X_RAY_HEATING;
     bool USE_CMB_HEATING;  // CMB Heating Flag
     bool USE_LYA_HEATING;  // Lya Heating Flag
-    bool USE_MASS_DEPENDENT_ZETA;
     bool INHOMO_RECO;
     bool USE_TS_FLUCT;
     bool M_MIN_in_Mass;
@@ -152,10 +150,20 @@ typedef struct AstroOptions {
     int HII_FILTER;
     int HEAT_FILTER;
     bool IONISE_ENTIRE_SPHERE;
-    bool AVG_BELOW_SAMPLER;
     int INTEGRATION_METHOD_ATOMIC;
     int INTEGRATION_METHOD_MINI;
 } AstroOptions;
+
+typedef struct Table1D {
+    int size;
+    double *x_values;
+    double *y_values;
+} Table1D;
+
+typedef struct CosmoTables {
+    Table1D *transfer_density;
+    Table1D *transfer_vcb;
+} CosmoTables;
 
 typedef struct ConfigSettings {
     double HALO_CATALOG_MEM_FACTOR;
@@ -181,5 +189,6 @@ extern MatterOptions *matter_options_global;
 extern CosmoParams *cosmo_params_global;
 extern AstroParams *astro_params_global;
 extern AstroOptions *astro_options_global;
+extern CosmoTables *cosmo_tables_global;
 
 extern ConfigSettings config_settings;

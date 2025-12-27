@@ -6,7 +6,7 @@ from pathlib import Path
 import pytest
 
 from py21cmfast import _templates as tmpl
-from py21cmfast.wrapper.inputs import InputParameters, InputStruct
+from py21cmfast.wrapper.inputs import CosmoTables, InputParameters, InputStruct
 
 _TEMPLATES = tmpl.list_templates()
 _ALL_ALIASES = list(chain.from_iterable(t["aliases"] for t in _TEMPLATES))
@@ -81,7 +81,9 @@ class TestCreateParamsFromTemplate:
     def test_each_template_works(self, template: str):
         """Test that each template creates a dict of input structs."""
         dct = tmpl.create_params_from_template(template)
+        cosmo_tables = dct.pop("cosmo_tables")
         assert all(isinstance(v, InputStruct) for v in dct.values())
+        assert isinstance(cosmo_tables, CosmoTables)
 
     def test_adding_kwargs(self):
         """Test that also specifying loose params does set those params."""
@@ -109,9 +111,12 @@ class TestWriteTemplate:
     @pytest.mark.parametrize("mode", ["full", "minimal"])
     def test_roundtrip(self, template, tmp_path: Path, mode: str):
         """Test that writing then reading a template gives the same answer."""
-        inputs = InputParameters.from_template(template, random_seed=1)
+        # Some templates require running CLASS. We set K_MAX_FOR_CLASS to be small so the test won't take too long
+        inputs = InputParameters.from_template(
+            template, random_seed=1, K_MAX_FOR_CLASS=1.0
+        )
         pth = tmp_path / "tmp.toml"
         tmpl.write_template(inputs, pth, mode=mode)
 
-        new = InputParameters.from_template(pth, random_seed=1)
+        new = InputParameters.from_template(pth, random_seed=1, K_MAX_FOR_CLASS=1.0)
         assert new == inputs

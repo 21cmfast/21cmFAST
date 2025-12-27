@@ -18,6 +18,17 @@
 #include "filtering.h"
 #include "logger.h"
 
+#define N_nu (1.0)      // # of heavy neutrinos (for EH trasfer function)
+#define BODE_e (0.361)  // Epsilon parameter in Bode et al. 2000 trans. funct.
+#define BODE_n (5.0)    // Eda parameter in Bode et al. 2000 trans. funct.
+#define BODE_v (1.2)    // Nu parameter in Bode et al. 2000 trans. funct.
+
+// parameters for DM-baryon relative velocity effect on the power spectrum
+#define KP_VCB_PM (300.0)  // Mpc-1
+#define A_VCB_PM (0.24)
+#define SIGMAK_VCB_PM (0.9)
+// this is for vcb=vrms at z=20. It scales roughly as sqrt(v) and (1+z)^(-1/6.)
+
 struct CosmoConstants {
     // calculated constants in TFset_parameters() for the EH transfer function
     double sound_horizon;
@@ -47,7 +58,7 @@ double transfer_function_EH(double k) {
     q = k * pow(cosmo_consts.theta_cmb, 2) / cosmo_consts.omhh;
     gamma_eff = sqrt(alpha_nu) + (1.0 - sqrt(alpha_nu)) / (1.0 + pow(0.43 * k * sound_horizon, 4));
     q_eff = q / gamma_eff;
-    TF_m = log(E + 1.84 * cosmo_consts.beta_c * sqrt(alpha_nu) * q_eff);
+    TF_m = log(M_E + 1.84 * cosmo_consts.beta_c * sqrt(alpha_nu) * q_eff);
     TF_m /= TF_m + pow(q_eff, 2) * (14.4 + 325.0 / (1.0 + 60.5 * pow(q_eff, 1.11)));
     q_nu = 3.92 * q / sqrt(f_nu / N_nu);
     TF_m *= 1.0 + (1.2 * pow(f_nu, 0.64) * pow(N_nu, 0.3 + 0.6 * f_nu)) /
@@ -117,67 +128,44 @@ double transfer_function_White(double k) {
   similar to built-in function "double T_RECFAST(float z, int flag)"
 */
 double transfer_function_CLASS(double k, int flag_int, int flag_dv) {
-    static double kclass[CLASS_LENGTH], Tmclass[CLASS_LENGTH], Tvclass_vcb[CLASS_LENGTH];
+    static double *kclass, *Tmclass, *Tvclass_vcb;
+    static int size_density, size_vcb;
+
     static gsl_interp_accel *acc_density, *acc_vcb;
     static gsl_spline *spline_density, *spline_vcb;
-    float currk, currTm, currTv;
     double ans;
-    int i;
     int gsl_status;
-    FILE *F;
 
     static bool warning_printed;
     static double eh_ratio_at_kmax;
 
-    char filename[500];
-    sprintf(filename, "%s/%s", config_settings.external_table_path, CLASS_FILENAME);
-
     if (flag_int == 0) {  // Initialize vectors and read file
-        if (!(F = fopen(filename, "r"))) {
-            LOG_ERROR("Unable to open file: %s for reading.", filename);
-            Throw(IOError);
-        }
-        warning_printed = false;
-
-        int nscans;
-        for (i = 0; i < CLASS_LENGTH; i++) {
-            nscans = fscanf(F, "%e %e %e ", &currk, &currTm, &currTv);
-            if (nscans != 3) {
-                LOG_ERROR("Reading CLASS Transfer Function failed.");
-                Throw(IOError);
-            }
-            kclass[i] = currk;
-            Tmclass[i] = currTm;
-            Tvclass_vcb[i] = currTv;
-            if (i > 0 && kclass[i] <= kclass[i - 1]) {
-                LOG_WARNING("Tk table not ordered");
-                LOG_WARNING("k=%.1le kprev=%.1le", kclass[i], kclass[i - 1]);
-            }
-        }
-        fclose(F);
-
-        LOG_SUPER_DEBUG("Read CLASS Transfer file");
+        kclass = cosmo_tables_global->transfer_density->x_values;
+        Tmclass = cosmo_tables_global->transfer_density->y_values;
+        Tvclass_vcb = cosmo_tables_global->transfer_vcb->y_values;
+        size_density = cosmo_tables_global->transfer_density->size;
+        size_vcb = cosmo_tables_global->transfer_vcb->size;
 
         gsl_set_error_handler_off();
         // Set up spline table for densities
         acc_density = gsl_interp_accel_alloc();
-        spline_density = gsl_spline_alloc(gsl_interp_cspline, CLASS_LENGTH);
-        gsl_status = gsl_spline_init(spline_density, kclass, Tmclass, CLASS_LENGTH);
+        spline_density = gsl_spline_alloc(gsl_interp_cspline, size_density);
+        gsl_status = gsl_spline_init(spline_density, kclass, Tmclass, size_density);
         CATCH_GSL_ERROR(gsl_status);
 
         LOG_SUPER_DEBUG("Generated CLASS Density Spline.");
 
         // Set up spline table for velocities
         acc_vcb = gsl_interp_accel_alloc();
-        spline_vcb = gsl_spline_alloc(gsl_interp_cspline, CLASS_LENGTH);
-        gsl_status = gsl_spline_init(spline_vcb, kclass, Tvclass_vcb, CLASS_LENGTH);
+        spline_vcb = gsl_spline_alloc(gsl_interp_cspline, size_vcb);
+        gsl_status = gsl_spline_init(spline_vcb, kclass, Tvclass_vcb, size_vcb);
         CATCH_GSL_ERROR(gsl_status);
 
         LOG_SUPER_DEBUG("Generated CLASS velocity Spline.");
 
-        eh_ratio_at_kmax = Tmclass[CLASS_LENGTH - 1] / kclass[CLASS_LENGTH - 1] /
-                           kclass[CLASS_LENGTH - 1] /
-                           transfer_function_EH(kclass[CLASS_LENGTH - 1]);
+        eh_ratio_at_kmax = Tmclass[size_density - 1] / kclass[size_density - 1] /
+                           kclass[size_density - 1] /
+                           transfer_function_EH(kclass[size_density - 1]);
         return 0;
     } else if (flag_int == -1) {
         gsl_spline_free(spline_density);
@@ -187,7 +175,7 @@ double transfer_function_CLASS(double k, int flag_int, int flag_dv) {
         return 0;
     }
 
-    if (k > kclass[CLASS_LENGTH - 1]) {  // k>kmax
+    if (k > kclass[size_density - 1]) {  // k>kmax
         if (!warning_printed) {
             LOG_WARNING(
                 "Called transfer_function_CLASS with k=%f, larger than kmax! performing linear "
@@ -198,10 +186,10 @@ double transfer_function_CLASS(double k, int flag_int, int flag_dv) {
         if (flag_dv == 0) {  // output is density
             return eh_ratio_at_kmax * transfer_function_EH(k);
         } else if (flag_dv == 1) {  // output is rel velocity, do a log-log linear extrapolation
-            return exp(log(Tvclass_vcb[CLASS_LENGTH - 1]) +
-                       (log(Tvclass_vcb[CLASS_LENGTH - 1]) - log(Tvclass_vcb[CLASS_LENGTH - 2])) /
-                           (log(kclass[CLASS_LENGTH - 1]) - log(kclass[CLASS_LENGTH - 2])) *
-                           (log(k) - log(kclass[CLASS_LENGTH - 1]))) /
+            return exp(log(Tvclass_vcb[size_vcb - 1]) +
+                       (log(Tvclass_vcb[size_vcb - 1]) - log(Tvclass_vcb[size_vcb - 2])) /
+                           (log(kclass[size_vcb - 1]) - log(kclass[size_vcb - 2])) *
+                           (log(k) - log(kclass[size_vcb - 1]))) /
                    k / k;
         }  // we just set it to the last value, since sometimes it wants large k for R<<cell_size,
            // which does not matter much.
@@ -265,7 +253,8 @@ double power_in_k_integrand(double k) {
 
 // we need a version with the prefactors for output
 double power_in_k(double k) {
-    return TWOPI * PI * cosmo_consts.sigma_norm * cosmo_consts.sigma_norm * power_in_k_integrand(k);
+    return 2.0 * M_PI * M_PI * cosmo_consts.sigma_norm * cosmo_consts.sigma_norm *
+           power_in_k_integrand(k);
 }
 
 /*
@@ -288,7 +277,7 @@ double power_in_vcb(double k) {
         Throw(ValueError);
     }
 
-    return p * TWOPI * PI * cosmo_consts.sigma_norm * cosmo_consts.sigma_norm;
+    return p * 2.0 * M_PI * M_PI * cosmo_consts.sigma_norm * cosmo_consts.sigma_norm;
 }
 
 // FUNCTION sigma_z0(M)
@@ -469,7 +458,7 @@ void init_ps() {
 
     cosmo_consts.omhh =
         cosmo_params_global->OMm * cosmo_params_global->hlittle * cosmo_params_global->hlittle;
-    cosmo_consts.theta_cmb = T_cmb / 2.7;
+    cosmo_consts.theta_cmb = physconst.T_cmb / 2.7;
 
     cosmo_consts.f_nu = fmax(cosmo_params_global->OMn / cosmo_params_global->OMm, 1e-10);
     cosmo_consts.f_baryon = fmax(cosmo_params_global->OMb / cosmo_params_global->OMm, 1e-10);
@@ -560,9 +549,9 @@ double MtoR(double M) {
     // set R according to M<->R conversion defined by the filter type in
     // ../Parameter_files/COSMOLOGY.H
     if (matter_options_global->FILTER == 0)  // top hat M = (4/3) PI <rho> R^3
-        return pow(3 * M / (4 * PI * cosmo_params_global->OMm * RHOcrit), 1.0 / 3.0);
+        return pow(3 * M / (4 * M_PI * cosmo_params_global->OMm * RHOcrit), 1.0 / 3.0);
     else if (matter_options_global->FILTER == 2)  // gaussian: M = (2PI)^1.5 <rho> R^3
-        return pow(M / (pow(2 * PI, 1.5) * cosmo_params_global->OMm * RHOcrit), 1.0 / 3.0);
+        return pow(M / (pow(2 * M_PI, 1.5) * cosmo_params_global->OMm * RHOcrit), 1.0 / 3.0);
     else  // filter not defined
         LOG_ERROR("No such filter = %i. Results are bogus.", matter_options_global->FILTER);
     Throw(ValueError);
@@ -573,9 +562,9 @@ double RtoM(double R) {
     // set M according to M<->R conversion defined by the filter type in
     // ../Parameter_files/COSMOLOGY.H
     if (matter_options_global->FILTER == 0)  // top hat M = (4/3) PI <rho> R^3
-        return (4.0 / 3.0) * PI * pow(R, 3) * (cosmo_params_global->OMm * RHOcrit);
+        return (4.0 / 3.0) * M_PI * pow(R, 3) * (cosmo_params_global->OMm * RHOcrit);
     else if (matter_options_global->FILTER == 2)  // gaussian: M = (2PI)^1.5 <rho> R^3
-        return pow(2 * PI, 1.5) * cosmo_params_global->OMm * RHOcrit * pow(R, 3);
+        return pow(2 * M_PI, 1.5) * cosmo_params_global->OMm * RHOcrit * pow(R, 3);
     else  // filter not defined
         LOG_ERROR("No such filter = %i. Results are bogus.", matter_options_global->FILTER);
     Throw(ValueError);
@@ -592,10 +581,10 @@ double omega_mz(float z) {
  i.e. answer is rho / rho_crit
  In Einstein de sitter model = 178
  (fitting formula from Bryan & Norman 1998) */
-double Deltac_nonlinear(float z) {
+double deltac_nonlinear(float z) {
     double d;
     d = omega_mz(z) - 1.0;
-    return 18 * PI * PI + 82 * d - 39 * d * d;
+    return 18 * M_PI * M_PI + 82 * d - 39 * d * d;
 }
 
 /*
@@ -607,18 +596,18 @@ double Deltac_nonlinear(float z) {
  */
 double TtoM(double z, double T, double mu) {
     return 7030.97 / (cosmo_params_global->hlittle) *
-           sqrt(omega_mz(z) / (cosmo_params_global->OMm * Deltac_nonlinear(z))) *
+           sqrt(omega_mz(z) / (cosmo_params_global->OMm * deltac_nonlinear(z))) *
            pow(T / (mu * (1 + z)), 1.5);
     /*  if (!SUPRESS || (z >= z_re) ) // pre-reionization or don't worry about supression
-     return 7030.97 / hlittle * sqrt( omega_mz(z) / (OMm*Deltac_nonlinear(z)) ) *
+     return 7030.97 / hlittle * sqrt( omega_mz(z) / (OMm*deltac_nonlinear(z)) ) *
      pow( T/(mu * (1+z)), 1.5 );
 
      if (z >= z_ss) // self-shielding dominates, use T = 1e4 K
-     return 7030.97 / hlittle * sqrt( omega_mz(z) / (OMm*Deltac_nonlinear(z)) ) *
+     return 7030.97 / hlittle * sqrt( omega_mz(z) / (OMm*deltac_nonlinear(z)) ) *
      pow( 1.0e4 /(mu * (1+z)), 1.5 );
 
      // optically thin
-     return 7030.97 / hlittle * sqrt( omega_mz(z) / (OMm*Deltac_nonlinear(z)) ) *
+     return 7030.97 / hlittle * sqrt( omega_mz(z) / (OMm*deltac_nonlinear(z)) ) *
      pow( VcirtoT(v_ss, mu) /(mu * (1+z)), 1.5 );
      */
 }
@@ -742,4 +731,4 @@ double hubble(float z) {
 double t_hubble(float z) { return 1.0 / hubble(z); }
 
 /* comoving distance (in cm) per unit redshift */
-double drdz(float z) { return (1.0 + z) * C * dtdz(z); }
+double drdz(float z) { return (1.0 + z) * physconst.c_cms * dtdz(z); }

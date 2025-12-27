@@ -10,7 +10,16 @@ import numpy as np
 import pytest
 
 import py21cmfast as p21c
-from py21cmfast import BrightnessTemp, InitialConditions, IonizedBox, OutputCache, TsBox
+from py21cmfast import (
+    BrightnessTemp,
+    HaloBox,
+    HaloCatalog,
+    InitialConditions,
+    IonizedBox,
+    OutputCache,
+    PerturbedField,
+    TsBox,
+)
 
 
 @pytest.fixture(scope="module")
@@ -268,41 +277,41 @@ def test_incompatible_parameters(
         )
 
 
-def test_using_cached_halo_field(ic, test_direc):
+def test_using_cached_halo_catalog(ic, test_direc):
     """Test whether the C-based memory in halo fields is cached correctly.
 
     Prior to v3.1 this was segfaulting, so this test ensure that this behaviour does
     not regress.
     """
     cache = OutputCache(test_direc)
-    halo_field = p21c.determine_halo_list(
+    halo_catalog = p21c.determine_halo_catalog(
         redshift=10.0, initial_conditions=ic, write=True, cache=cache
     )
 
-    pt_halos = p21c.perturb_halo_list(
+    pt_halos = p21c.perturb_halo_catalog(
         initial_conditions=ic,
-        halo_field=halo_field,
+        halo_catalog=halo_catalog,
         write=True,
         cache=cache,
     )
 
     # Now get the halo field again at the same redshift -- should be cached
-    new_halo_field = p21c.determine_halo_list(
+    new_halo_catalog = p21c.determine_halo_catalog(
         redshift=10.0,
         initial_conditions=ic,
         write=False,
         regenerate=False,
     )
 
-    new_pt_halos = p21c.perturb_halo_list(
+    new_pt_halos = p21c.perturb_halo_catalog(
         initial_conditions=ic,
-        halo_field=new_halo_field,
+        halo_catalog=new_halo_catalog,
         write=False,
         regenerate=False,
     )
 
     np.testing.assert_allclose(
-        new_halo_field.halo_masses.value, halo_field.halo_masses.value
+        new_halo_catalog.halo_masses.value, halo_catalog.halo_masses.value
     )
     np.testing.assert_allclose(
         pt_halos.halo_coords.value, new_pt_halos.halo_coords.value
@@ -357,14 +366,14 @@ def test_photoncons_backend_error(redshift, default_input_struct, ic):
 
     # first test if the error occurs with no inputs
     with pytest.raises(
-        ValueError, match="Photon conservation is needed but not initialised."
+        ValueError, match="Photon conservation is needed but not initialised"
     ):
         p21c.perturb_field(redshift=redshift, initial_conditions=ic, inputs=inputs)
 
     # test if the error occurs with the wrong inputs
     p21c.setup_photon_cons(initial_conditions=ic, inputs=inputs)
     with pytest.raises(
-        ValueError, match="Photon conservation is needed but not initialised."
+        ValueError, match="Photon conservation is needed but not initialised"
     ):
         p21c.perturb_field(
             redshift=redshift,
@@ -413,3 +422,122 @@ def test_global_properties(
         ionized_box=ionize_box, perturbed_field=perturbed_field
     )
     assert bt.global_Tb == np.mean(bt.get("brightness_temp"))
+
+
+def test_bad_input_structs(default_input_struct_ts):
+    """Test that we raise errors when required input structs are omitted."""
+    # setting parameters for the maximum number of fields required
+    test_inputs = default_input_struct_ts.evolve_input_structs(
+        USE_MINI_HALOS=True,
+        SOURCE_MODEL="CHMF-SAMPLER",
+        INHOMO_RECO=True,
+    ).clone(node_redshifts=(35.0, 11.0, 10.0))
+
+    # We don't need to compute since we arent testing a successful run
+    ic = InitialConditions.new(inputs=test_inputs)
+    hf = HaloCatalog.new(redshift=10.0, inputs=test_inputs, buffer_size=1)
+    hb = HaloBox.new(redshift=10.0, inputs=test_inputs)
+    pt = PerturbedField.new(redshift=10.0, inputs=test_inputs)
+    pt_p = PerturbedField.new(redshift=11.0, inputs=test_inputs)
+    st = TsBox.new(redshift=10.0, inputs=test_inputs)
+    st_p = TsBox.new(redshift=11.0, inputs=test_inputs)
+    ib_p = IonizedBox.new(redshift=11.0, inputs=test_inputs)
+
+    # PerturbedHaloCatalog
+    with pytest.raises(
+        ValueError, match="Below Z_HEAT_MAX you must specify the previous_spin_temp"
+    ):
+        p21c.perturb_halo_catalog(
+            initial_conditions=ic,
+            halo_catalog=hf,
+            previous_ionize_box=ib_p,
+        )
+    with pytest.raises(
+        ValueError, match="Below Z_HEAT_MAX you must specify the previous_ionize_box"
+    ):
+        p21c.perturb_halo_catalog(
+            initial_conditions=ic,
+            halo_catalog=hf,
+            previous_spin_temp=st_p,
+        )
+
+    # HaloBox
+    with pytest.raises(
+        ValueError, match="You must provide halo_catalog for SOURCE_MODEL"
+    ):
+        p21c.compute_halo_grid(
+            redshift=10.0,
+            initial_conditions=ic,
+            previous_ionize_box=ib_p,
+            previous_spin_temp=st_p,
+        )
+    with pytest.raises(
+        ValueError, match="Below Z_HEAT_MAX you must specify the previous_spin_temp"
+    ):
+        p21c.compute_halo_grid(
+            redshift=10.0,
+            initial_conditions=ic,
+            halo_catalog=hf,
+            previous_ionize_box=ib_p,
+        )
+    with pytest.raises(
+        ValueError, match="Below Z_HEAT_MAX you must specify the previous_spin_temp"
+    ):
+        p21c.compute_halo_grid(
+            redshift=10.0,
+            initial_conditions=ic,
+            halo_catalog=hf,
+        )
+
+    # TsBox
+    with pytest.raises(
+        ValueError,
+        match="xray_source_box is required for SOURCE_MODEL",
+    ):
+        p21c.compute_spin_temperature(
+            initial_conditions=ic,
+            perturbed_field=pt,
+            previous_spin_temp=st_p,
+        )
+
+    # IonizedBox
+    with pytest.raises(
+        ValueError,
+        match="You need to provide a previous ionized box when redshift < Z_HEAT_MAX",
+    ):
+        p21c.compute_ionization_field(
+            initial_conditions=ic,
+            perturbed_field=pt,
+            previous_perturbed_field=pt_p,
+            halobox=hb,
+            spin_temp=st,
+        )
+    with pytest.raises(
+        ValueError,
+        match="You need to provide a previous perturbed field when redshift < Z_HEAT_MAX",
+    ):
+        p21c.compute_ionization_field(
+            initial_conditions=ic,
+            perturbed_field=pt,
+            halobox=hb,
+            previous_ionized_box=ib_p,
+            spin_temp=st,
+        )
+    with pytest.raises(ValueError, match="A HaloBox must be provided for SOURCE_MODEL"):
+        p21c.compute_ionization_field(
+            initial_conditions=ic,
+            perturbed_field=pt,
+            previous_perturbed_field=pt_p,
+            previous_ionized_box=ib_p,
+            spin_temp=st,
+        )
+    with pytest.raises(
+        ValueError, match="No spin temperature box given but USE_TS_FLUCT=True"
+    ):
+        p21c.compute_ionization_field(
+            initial_conditions=ic,
+            perturbed_field=pt,
+            previous_perturbed_field=pt_p,
+            halobox=hb,
+            previous_ionized_box=ib_p,
+        )
