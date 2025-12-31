@@ -1445,6 +1445,8 @@ def get_logspaced_redshifts(
 ) -> tuple[float]:
     """Compute a sequence of redshifts to evolve over that are log-spaced."""
     redshifts = [min_redshift]
+    if z_step_factor <= 1.0:
+        return (min_redshift,)
     while redshifts[-1] < max_redshift:
         redshifts.append((redshifts[-1] + 1.0) * z_step_factor - 1.0)
 

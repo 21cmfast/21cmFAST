@@ -134,9 +134,9 @@ void writeAstroParams(AstroParams *p) {
         "       X_RAY_SPEC_INDEX=%8.3f,\n"
         "       UPPER_STELLAR_TURNOVER_MASS=%10.3e\n"
         "       UPPER_STELLAR_TURNOVER_INDEX=%8.3e\n",
-        p->M_TURN, p->R_BUBBLE_MAX, p->N_RSD_STEPS, p->F_STAR10, p->ALPHA_STAR, p->F_ESC10,
-        p->ALPHA_ESC, p->BETA_ESC, p->BETA_ESC_MINI, p->t_STAR, p->L_X, p->NU_X_THRESH,
-        p->X_RAY_SPEC_INDEX, p->UPPER_STELLAR_TURNOVER_MASS, p->UPPER_STELLAR_TURNOVER_INDEX);
+        p->M_TURN, p->R_BUBBLE_MAX, p->F_STAR10, p->ALPHA_STAR, p->F_ESC10, p->ALPHA_ESC,
+        p->BETA_ESC, p->BETA_ESC_MINI, p->t_STAR, p->L_X, p->NU_X_THRESH, p->X_RAY_SPEC_INDEX,
+        p->UPPER_STELLAR_TURNOVER_MASS, p->UPPER_STELLAR_TURNOVER_INDEX);
     LOG_INFO(
         "\n        HaloCatalog AstroParams:\n"
         "       SIGMA_STAR=%8.3f\n"
