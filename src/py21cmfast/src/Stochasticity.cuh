@@ -7,7 +7,7 @@
 extern "C"
 {
 #endif
-    int updateHaloOut(float *halo_masses, float *star_rng, float *sfr_rng, float *xray_rng, int *halo_coords,
+    int updateHaloOut(float *halo_masses, float *star_rng, float *sfr_rng, float *xray_rng, float *halo_coords,  // FIX: was int*
                       unsigned long long int n_halos, float *y_arr, int n_bin_y, double x_min, double x_width,
                       struct HaloSamplingConstants hs_constants, unsigned long long int n_buffer, HaloField *halofield_out);
 #ifdef __cplusplus

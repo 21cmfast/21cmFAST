@@ -989,7 +989,7 @@ int sample_halo_progenitors(gsl_rng **rng_arr, double z_in, double z_out, HaloFi
         float *halo_star_rng = halofield_in->star_rng;
         float *halo_sfr_rng = halofield_in->sfr_rng;
         float *halo_xray_rng = halofield_in->xray_rng;
-        int *halo_c = halofield_in->halo_coords;
+        float *halo_c = halofield_in->halo_coords;  // FIX: was int*, but halo_coords is float*
 
         updateHaloOut(halo_m, halo_star_rng, halo_sfr_rng, halo_xray_rng, halo_c, nhalo_in,
                       sigma_y_arr, sigma_bin, x_min, x_width, d_hs_constants, arraysize_total,

@@ -308,6 +308,80 @@ GridLayout getWorkload(int sparsity, unsigned long long int n_halos){
     return res;
 }
 
+// ============================================================================
+// Device functions for position randomization (Bug #5 fix)
+// ============================================================================
+
+// Convert halo mass to Lagrangian radius (device version of MtoR from cosmology.c)
+// Assumes FILTER == 0 (top hat): M = (4/3) * PI * rho * R^3
+// R in Mpc, M in Msun
+__device__ double device_MtoR(double M) {
+    // Compute RHOcrit on device using d_cosmo_params.hlittle
+    // Ho = hlittle * 3.2407e-18 s^-1
+    // RHOcrit = (3 * Ho^2 / (8 * PI * G)) * (CMperMPC^3 / Msun)
+    // Constants from Constants.h (using different names to avoid macro conflicts):
+    const double grav_const = 6.67259e-8;       // G in cm^3 g^-1 s^-2
+    const double cm_per_mpc = 3.086e24;         // cm/Mpc
+    const double solar_mass = 1.989e33;         // g
+
+    double h_little = d_cosmo_params.hlittle;
+    double hubble_0 = h_little * 3.2407e-18;    // s^-1
+    double rho_crit = (3.0 * hubble_0 * hubble_0 / (8.0 * PI * grav_const))
+                      * (cm_per_mpc * cm_per_mpc * cm_per_mpc) / solar_mass;
+
+    double omega_m = d_cosmo_params.OMm;
+    // For top hat filter: R = (3*M / (4*PI*OMm*RHOcrit))^(1/3)
+    return pow(3.0 * M / (4.0 * PI * omega_m * rho_crit), 1.0 / 3.0);
+}
+
+// Generate a random point uniformly distributed within a sphere
+// Matches CPU implementation in indexing.c:random_point_in_sphere
+// Uses rejection-free method: random direction * random radius
+__device__ void device_random_point_in_sphere(float *centre, double radius, curandState *state, float *point) {
+    // Generate random point on unit cube [-1, 1]^3
+    float x1 = 2.0f * curand_uniform(state) - 1.0f;
+    float y1 = 2.0f * curand_uniform(state) - 1.0f;
+    float z1 = 2.0f * curand_uniform(state) - 1.0f;
+
+    // Normalize to get direction on unit sphere
+    float d1 = sqrtf(x1 * x1 + y1 * y1 + z1 * z1);
+
+    // Handle edge case where d1 is very small
+    if (d1 < 1e-10f) {
+        d1 = 1.0f;
+        x1 = 1.0f;
+        y1 = 0.0f;
+        z1 = 0.0f;
+    }
+
+    // Random radius (linear distribution, matching CPU)
+    float r1 = curand_uniform(state);
+
+    // Compute point offset from centre
+    float scale = (float)(radius * r1 / d1);
+    point[0] = centre[0] + scale * x1;
+    point[1] = centre[1] + scale * y1;
+    point[2] = centre[2] + scale * z1;
+}
+
+// Wrap coordinates to periodic box boundaries
+// Matches CPU implementation in indexing.c:wrap_position
+__device__ void device_wrap_position(float *pos, float box_len, float box_len_para) {
+    // Wrap x coordinate
+    while (pos[0] >= box_len) pos[0] -= box_len;
+    while (pos[0] < 0.0f) pos[0] += box_len;
+
+    // Wrap y coordinate
+    while (pos[1] >= box_len) pos[1] -= box_len;
+    while (pos[1] < 0.0f) pos[1] += box_len;
+
+    // Wrap z coordinate (may have different size due to light cone)
+    while (pos[2] >= box_len_para) pos[2] -= box_len_para;
+    while (pos[2] < 0.0f) pos[2] += box_len_para;
+}
+
+// ============================================================================
+
 // 11-30: the following implementation works (before using any global params on gpu)
 __device__ void stoc_set_consts_cond(struct HaloSamplingConstants *const_struct, float cond_val, int HMF, double x_min, double x_width, float *d_y_arr, int n_bin, double *expected_mass)
 {
@@ -574,11 +648,11 @@ __device__ void set_prop_rng(curandState *state, bool from_catalog, double *inte
 }
 
 __global__ void update_halo_constants(float *d_halo_masses, float *d_star_rng_in, float *d_sfr_rng_in, float *d_xray_rng_in,
-                                      int *d_halo_coords_in, float *d_y_arr, double x_min, double x_width,
+                                      float *d_halo_coords_in, float *d_y_arr, double x_min, double x_width,  // FIX: was int*
                                       unsigned long long int n_halos, int n_bin, struct HaloSamplingConstants d_hs_constants,
                                       int HMF,
                                       float *d_halo_masses_out, float *d_star_rng_out,
-                                      float *d_sfr_rng_out, float *d_xray_rng_out, int *d_halo_coords_out, int *d_sum_check,
+                                      float *d_sfr_rng_out, float *d_xray_rng_out, float *d_halo_coords_out, int *d_sum_check,  // FIX: was int*
                                       int *d_further_process, int *d_nprog_predict, int sparsity, unsigned long long int write_offset,
                                       double *expected_mass, int *d_n_prog, int offset_shared)
 {
@@ -622,7 +696,7 @@ __global__ void update_halo_constants(float *d_halo_masses, float *d_star_rng_in
     double corr_arr[3] = {d_hs_constants.corr_star, d_hs_constants.corr_sfr, d_hs_constants.corr_xray};
 
     // get coordinate
-    int coords_in[3] = {d_halo_coords_in[hid*3], d_halo_coords_in[hid*3+1], d_halo_coords_in[hid*3+2]};
+    float coords_in[3] = {d_halo_coords_in[hid*3], d_halo_coords_in[hid*3+1], d_halo_coords_in[hid*3+2]};  // FIX: was int
 
     // idx of d_halo_masses_out and other halo field arrays
     int out_id = write_offset + ind;
@@ -703,10 +777,25 @@ __global__ void update_halo_constants(float *d_halo_masses, float *d_star_rng_in
                 d_star_rng_out[out_id] = shared_prop_rng[3 * tid];
                 d_sfr_rng_out[out_id] = shared_prop_rng[3 * tid + 1];
                 d_xray_rng_out[out_id] = shared_prop_rng[3 * tid + 2];
-                d_halo_coords_out[out_id*3] = coords_in[0];
-                d_halo_coords_out[out_id*3+1] = coords_in[1];
-                d_halo_coords_out[out_id*3+2] = coords_in[2];
 
+                // FIX Bug #5: Randomize progenitor position within descendant's Lagrangian sphere
+                // Compute Lagrangian radii: R2 (descendant), R1 (progenitor)
+                double R2 = device_MtoR((double)M);
+                double R1 = device_MtoR((double)shared_mass[tid]);
+                double sphere_radius = R2 - R1;
+                if (sphere_radius < 0.0) sphere_radius = 0.0;  // Safety check
+
+                float pos_prog[3];
+                device_random_point_in_sphere(coords_in, sphere_radius, &local_state, pos_prog);
+
+                // Wrap to periodic box boundaries
+                float box_len = d_simulation_options.BOX_LEN;
+                float box_len_para = d_simulation_options.NON_CUBIC_FACTOR * box_len;
+                device_wrap_position(pos_prog, box_len, box_len_para);
+
+                d_halo_coords_out[out_id*3] = pos_prog[0];
+                d_halo_coords_out[out_id*3+1] = pos_prog[1];
+                d_halo_coords_out[out_id*3+2] = pos_prog[2];
             }
         }
         if (sampleCondition == 2){
@@ -733,6 +822,11 @@ __global__ void update_halo_constants(float *d_halo_masses, float *d_star_rng_in
                 // record number of progenitors
                 d_n_prog[hid] = min(100,n_prog);
 
+                // Precompute descendant radius and box lengths for position randomization
+                double R2 = device_MtoR((double)M);
+                float box_len = d_simulation_options.BOX_LEN;
+                float box_len_para = d_simulation_options.NON_CUBIC_FACTOR * box_len;
+
                 for (int i = 0; i < write_limit + 1; ++i)
                 {
                     if(shared_mass[tid + i] < d_simulation_options.SAMPLER_MIN_MASS) continue;
@@ -741,9 +835,19 @@ __global__ void update_halo_constants(float *d_halo_masses, float *d_star_rng_in
                     d_star_rng_out[out_id + i] = shared_prop_rng[3*(tid +i)];
                     d_sfr_rng_out[out_id + i] = shared_prop_rng[3*(tid+i) + 1];
                     d_xray_rng_out[out_id + i] = shared_prop_rng[3*(tid+i) + 2];
-                    d_halo_coords_out[(out_id+i) * 3] = coords_in[0];
-                    d_halo_coords_out[(out_id+i) * 3 + 1] = coords_in[1];
-                    d_halo_coords_out[(out_id+i) * 3 + 2] = coords_in[2];
+
+                    // FIX Bug #5: Randomize progenitor position within descendant's Lagrangian sphere
+                    double R1 = device_MtoR((double)shared_mass[tid + i]);
+                    double sphere_radius = R2 - R1;
+                    if (sphere_radius < 0.0) sphere_radius = 0.0;  // Safety check
+
+                    float pos_prog[3];
+                    device_random_point_in_sphere(coords_in, sphere_radius, &local_state, pos_prog);
+                    device_wrap_position(pos_prog, box_len, box_len_para);
+
+                    d_halo_coords_out[(out_id+i) * 3] = pos_prog[0];
+                    d_halo_coords_out[(out_id+i) * 3 + 1] = pos_prog[1];
+                    d_halo_coords_out[(out_id+i) * 3 + 2] = pos_prog[2];
                 }
             }
             else{
@@ -782,7 +886,7 @@ __global__ void update_halo_constants(float *d_halo_masses, float *d_star_rng_in
 }
 
 // function to launch kernel grids
-int updateHaloOut(float *halo_masses, float *star_rng, float *sfr_rng, float *xray_rng, int *halo_coords,
+int updateHaloOut(float *halo_masses, float *star_rng, float *sfr_rng, float *xray_rng, float *halo_coords,  // FIX: was int*
                   unsigned long long int n_halos, float *y_arr, int n_bin_y, double x_min, double x_width,
                   struct HaloSamplingConstants hs_constants, unsigned long long int n_buffer, HaloField *halofield_out)
 {
@@ -804,8 +908,8 @@ int updateHaloOut(float *halo_masses, float *star_rng, float *sfr_rng, float *xr
     CALL_CUDA(cudaMalloc(&d_xray_rng, size_halo));
     CALL_CUDA(cudaMemcpy(d_xray_rng, xray_rng, size_halo, cudaMemcpyHostToDevice));
 
-    int *d_halo_coords;
-    size_t size_halo_coords = 3 * sizeof(int) * n_halos;
+    float *d_halo_coords;  // FIX: was int*
+    size_t size_halo_coords = 3 * sizeof(float) * n_halos;  // FIX: was sizeof(int)
     CALL_CUDA(cudaMalloc(&d_halo_coords, size_halo_coords));
     CALL_CUDA(cudaMemcpy(d_halo_coords, halo_coords, size_halo_coords, cudaMemcpyHostToDevice));
 
@@ -868,9 +972,11 @@ int updateHaloOut(float *halo_masses, float *star_rng, float *sfr_rng, float *xr
     CALL_CUDA(cudaMalloc(&d_xray_rng_out, buffer_size));
     CALL_CUDA(cudaMemset(d_xray_rng_out, 0, buffer_size));
 
-    int *d_halo_coords_out;
-    CALL_CUDA(cudaMalloc(&d_halo_coords_out, sizeof(int) * d_n_buffer * 3));
-    initializeArray(d_halo_coords_out, d_n_buffer * 3, -1000);
+    float *d_halo_coords_out;  // FIX: was int*
+    CALL_CUDA(cudaMalloc(&d_halo_coords_out, sizeof(float) * d_n_buffer * 3));  // FIX: was sizeof(int)
+    // FIX: Use cudaMemset with a pattern representing -1000.0f in IEEE 754
+    // -1000.0f = 0xc47a0000 in IEEE 754, but simpler to init to 0 and use 0.0f as sentinel
+    CALL_CUDA(cudaMemset(d_halo_coords_out, 0, sizeof(float) * d_n_buffer * 3));
 
     // initiate n_halo check
     // unsigned long long int n_halo_check = n_halos;
@@ -891,8 +997,23 @@ int updateHaloOut(float *halo_masses, float *star_rng, float *sfr_rng, float *xr
     // printf("Kernel Registers per Thread: %d\n", attr.numRegs);
     // printf("Kernel Max Threads per Block: %d\n", attr.maxThreadsPerBlock);
 
+    // FIX: Read available RNG states from device to prevent out-of-bounds access
+    // This fixes the bug where thread indices could exceed d_numStates, causing
+    // halos to be silently skipped and destroying GPU/CPU correlations.
+    int h_numStates = 0;
+    CALL_CUDA(cudaMemcpyFromSymbol(&h_numStates, d_numStates, sizeof(int), 0, cudaMemcpyDeviceToHost));
+    if (h_numStates <= 0) {
+        throw std::runtime_error("RNG states not initialized - d_numStates <= 0");
+    }
+
     // start with 4 threads work with one halo
     int sparsity = 4;
+
+    // FIX: Cap initial sparsity based on available RNG states
+    int max_sparsity = h_numStates / n_halos;
+    if (max_sparsity < sparsity) {
+        sparsity = std::max(1, max_sparsity);
+    }
 
     // Check if sparsity is smaller than scale
     if (sparsity >= scale)
@@ -944,7 +1065,7 @@ int updateHaloOut(float *halo_masses, float *star_rng, float *sfr_rng, float *xr
     condenseDeviceArray(d_star_rng_out, d_n_buffer, 0.0f);
     condenseDeviceArray(d_sfr_rng_out, d_n_buffer, 0.0f);
     condenseDeviceArray(d_xray_rng_out, d_n_buffer, 0.0f);
-    condenseDeviceArray(d_halo_coords_out, d_n_buffer*3, -1000);
+    condenseDeviceArray(d_halo_coords_out, d_n_buffer*3, 0.0f);  // FIX: was -1000 (int), now using 0.0f as sentinel
 
     // tmp: the following is just needed for debugging purpose
     // float *h_filter_halos;
@@ -964,6 +1085,13 @@ int updateHaloOut(float *halo_masses, float *star_rng, float *sfr_rng, float *xr
         // sparsity should not exceed the max threads per block
         // sparsity = 256;
         sparsity = std::min(sparsity, 512);
+
+        // FIX: Cap sparsity based on available RNG states to prevent out-of-bounds access
+        // Without this, threads with ind >= d_numStates return early, skipping halos
+        int max_sparsity_rng = h_numStates / n_halos_tbp;
+        if (max_sparsity_rng < sparsity) {
+            sparsity = std::max(1, max_sparsity_rng);
+        }
 
         // reset grids layout
         grids = getWorkload(sparsity, n_halos_tbp);
@@ -1000,7 +1128,7 @@ int updateHaloOut(float *halo_masses, float *star_rng, float *sfr_rng, float *xr
     CALL_CUDA(cudaMemcpy(halofield_out->sfr_rng, d_sfr_rng_out, out_size, cudaMemcpyDeviceToHost));
     CALL_CUDA(cudaMemcpy(halofield_out->xray_rng, d_xray_rng_out, out_size, cudaMemcpyDeviceToHost));
 
-    size_t out_coords_size = sizeof(int) * n_processed_prog * 3;
+    size_t out_coords_size = sizeof(float) * n_processed_prog * 3;  // FIX: was sizeof(int)
     CALL_CUDA(cudaMemcpy(halofield_out->halo_coords, d_halo_coords_out, out_coords_size, cudaMemcpyDeviceToHost));
 
 
