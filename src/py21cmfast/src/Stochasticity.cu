@@ -189,6 +189,36 @@ int filterWithMask(float *d_data, int *d_mask, int original_size)
     return valid_size;
 }
 
+// Filter coordinates array (3 floats per entry) using a mask
+// Coordinates are stored as [x0,y0,z0,x1,y1,z1,...] so we need special handling
+int filterCoordsWithMask(float *d_coords, int *d_mask, int n_entries)
+{
+    thrust::device_ptr<float> d_coords_ptr(d_coords);
+    thrust::device_ptr<int> d_mask_ptr(d_mask);
+
+    // Create temporary storage for filtered coordinates
+    thrust::device_vector<float> temp_coords(n_entries * 3);
+
+    int write_idx = 0;
+    // Filter 3 elements at a time based on mask
+    for (int i = 0; i < n_entries; ++i) {
+        int mask_val;
+        cudaMemcpy(&mask_val, d_mask + i, sizeof(int), cudaMemcpyDeviceToHost);
+        if (mask_val == 1) {
+            // Copy 3 floats for this entry
+            cudaMemcpy(thrust::raw_pointer_cast(temp_coords.data()) + write_idx * 3,
+                       d_coords + i * 3, 3 * sizeof(float), cudaMemcpyDeviceToDevice);
+            write_idx++;
+        }
+    }
+
+    // Copy back to original array
+    cudaMemcpy(d_coords, thrust::raw_pointer_cast(temp_coords.data()),
+               write_idx * 3 * sizeof(float), cudaMemcpyDeviceToDevice);
+
+    return write_idx;
+}
+
 void testFilterWithMask()
 {
     // Input arrays
@@ -496,36 +526,23 @@ __device__ int stoc_mass_sample(struct HaloSamplingConstants *hs_constants, cura
     // The mass-limited sampling as-is has a slight bias to producing too many halos,
     //   which is independent of density or halo mass,
     //   this factor reduces the total expected mass to bring it into line with the CMF
-    // exp_M *= user_params_global->HALOMASS_CORRECTION;
     exp_M *= d_simulation_options.HALOMASS_CORRECTION;
 
-    // int n_halo_sampled = 0;
-    // double M_prog = 0;
-    // double M_sample;
+    // Bug #2 fix: rare halo truncation using the same criteria as DexM (matching CPU)
+    // Our model sometimes refuses to split large halos over multiple snapshots, resulting in
+    // too many extreme halos, this criteria keeps things sensible by not allowing these objects to
+    // sample too close to their condition mass, simply taking away the expected amount of mass
+    if (hs_constants->sigma_cond * 7. * hs_constants->growth_out < hs_constants->delta_crit) {
+        *M_out = exp_M;  // Bug #4 fix: use the HALOMASS_CORRECTION-adjusted expected mass
+        return 0;
+    }
 
     double tbl_arg = hs_constants->cond_val;
 
-    // tmp (start)
+    // GPU architecture: sample ONE mass per thread (not a loop like CPU)
+    // Multiple threads collectively sample the halo population
     double M_sample = sample_dndM_inverse(tbl_arg, hs_constants, state);
 
-    // M_prog += M_sample;
-    // tmp (end)
-
-    // while (M_prog < exp_M){
-    //     M_sample = sample_dndM_inverse(tbl_arg, hs_constants, state);
-
-    //     M_prog += M_sample;
-    //     M_out[n_halo_sampled++] = M_sample;
-    // }
-    // todo: enable fix_mass_sample
-    // The above sample is above the expected mass, by up to 100%. I wish to make the average mass equal to exp_M
-    // fix_mass_sample(state, exp_M, &n_halo_sampled, &M_prog, M_out);
-
-    // *n_halo_out = n_halo_sampled;
-    // if (M_prog < exp_M){
-    //     *further_process = 1;
-    //     return 1;
-    // }
     *M_out = M_sample;
     return 0;
 }
@@ -558,34 +575,51 @@ __device__ int stoc_sample(struct HaloSamplingConstants *hs_constants, curandSta
         return 0;
     }
 
-    // todo: implement callee functions for SAMPLE_METHOD (1,2,3)
-    // We always use Number-Limited sampling for grid-based cases
-    if (d_matter_options.SAMPLE_METHOD == 1 || !hs_constants->from_catalog)
+    // Bug #3: Only SAMPLE_METHOD 0 (MASS-LIMITED) is fully implemented for GPU catalog updates
+    // Grid-based sampling (!from_catalog) requires stoc_halo_sample which is not yet implemented
+    if (!hs_constants->from_catalog)
     {
-        // err = stoc_halo_sample(hs_constants, rng, n_halo_out, M_out);
+        // Grid-based initial halo sampling - stoc_halo_sample not yet implemented for GPU
+        // This path is used for initial halo field generation (not catalog updates)
+        // For now, we fall through to return 0 with no sampling
+        // TODO: implement stoc_halo_sample for GPU grid-based sampling
+        *sampleCondition = 0;
         return 0;
     }
-    else if (d_matter_options.SAMPLE_METHOD == 0)
+
+    // Catalog-based halo updates (from_catalog = true)
+    if (d_matter_options.SAMPLE_METHOD == 0)
     {
+        // MASS-LIMITED sampling - fully implemented
+        // sampleCondition stays at default value 2 for normal aggregation
         err = stoc_mass_sample(hs_constants, state, M_out);
+    }
+    else if (d_matter_options.SAMPLE_METHOD == 1)
+    {
+        // NUMBER-LIMITED sampling - not yet implemented for GPU
+        // printf("WARNING: SAMPLE_METHOD 1 (NUMBER-LIMITED) not implemented for GPU, skipping\n");
+        *sampleCondition = 0;
+        return 0;
     }
     else if (d_matter_options.SAMPLE_METHOD == 2)
     {
-        // err = stoc_partition_sample(hs_constants, rng, n_halo_out, M_out);
+        // PARTITION sampling - not yet implemented for GPU
+        // printf("WARNING: SAMPLE_METHOD 2 (PARTITION) not implemented for GPU, skipping\n");
+        *sampleCondition = 0;
         return 0;
     }
     else if (d_matter_options.SAMPLE_METHOD == 3)
     {
-        // err = stoc_split_sample(hs_constants, rng, n_halo_out, M_out);
+        // BINARY-SPLIT sampling - not yet implemented for GPU
+        // printf("WARNING: SAMPLE_METHOD 3 (BINARY-SPLIT) not implemented for GPU, skipping\n");
+        *sampleCondition = 0;
         return 0;
     }
     else
     {
-        printf("Invalid sampling method \n");
+        printf("ERROR: Invalid sampling method %d\n", d_matter_options.SAMPLE_METHOD);
+        *sampleCondition = 0;
         return 0;
-        // todo: check how to throw error in cuda
-        // LOG_ERROR("Invalid sampling method");
-        // Throw(ValueError);
     }
     // if (*n_halo_out > MAX_HALO_CELL)
     // {
@@ -803,9 +837,13 @@ __global__ void update_halo_constants(float *d_halo_masses, float *d_star_rng_in
             int write_limit = 0;
             int meetCondition = 0;
 
+            // Bug #4 fix: Apply HALOMASS_CORRECTION to expected_M for aggregation
+            // This matches CPU behavior where exp_M *= HALOMASS_CORRECTION
+            double corrected_exp_M = d_hs_constants.expected_M * d_simulation_options.HALOMASS_CORRECTION;
+
             for (int i = 0; i < sparsity; ++i){
                 Mprog += shared_mass[tid + i];
-                if (Mprog >= d_hs_constants.expected_M)
+                if (Mprog >= corrected_exp_M)
                 {
                     write_limit = i;
                     meetCondition = 1;
@@ -817,7 +855,7 @@ __global__ void update_halo_constants(float *d_halo_masses, float *d_star_rng_in
                 // correct the mass samples
                 int n_prog = write_limit +1;
 
-                fix_mass_sample(&local_state, d_hs_constants.expected_M, &Mprog, &shared_mass[tid], write_limit, &n_prog);
+                fix_mass_sample(&local_state, corrected_exp_M, &Mprog, &shared_mass[tid], write_limit, &n_prog);
 
                 // record number of progenitors
                 d_n_prog[hid] = min(100,n_prog);
@@ -852,7 +890,7 @@ __global__ void update_halo_constants(float *d_halo_masses, float *d_star_rng_in
             }
             else{
                 d_further_process[hid] = 1;
-                d_nprog_predict[hid] = ceil(d_hs_constants.expected_M * sparsity / Mprog);
+                d_nprog_predict[hid] = ceil(corrected_exp_M * sparsity / Mprog);
 
             }
         }
@@ -1039,7 +1077,19 @@ int updateHaloOut(float *halo_masses, float *star_rng, float *sfr_rng, float *xr
     CALL_CUDA(cudaDeviceSynchronize());
 
     // filter device halo masses in-place
+    // Save the previous count before filtering (for filtering other arrays with same mask)
+    unsigned long long int n_prev = n_halos_tbp;
     n_halos_tbp = filterWithMask(d_halo_masses, d_further_process, n_halos_tbp);
+
+    // BUG FIX: Also filter the input property arrays using the same mask
+    // Without this, halos that need further processing would get wrong properties
+    // because their indices in d_halo_masses no longer match indices in d_star_rng, etc.
+    if (n_halos_tbp > 0) {
+        filterWithMask(d_star_rng, d_further_process, n_prev);
+        filterWithMask(d_sfr_rng, d_further_process, n_prev);
+        filterWithMask(d_xray_rng, d_further_process, n_prev);
+        filterCoordsWithMask(d_halo_coords, d_further_process, n_prev);
+    }
 
     // // tmp 2025-01-19: check d_halo_masses_out writing out
     // float *h_halo_masses_out_check;
