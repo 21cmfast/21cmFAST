@@ -70,17 +70,56 @@ deps = [omp, gsl, nanobind, fftw, fftw_threads]
 # The root meson.build already checked for USE_CUDA environment variable and nvcc availability
 cuda_dep = dependency('cuda', version: '>=10.0', required: false)
 
-# Add debug symbols for profiling with gperftools
-add_project_arguments('-g', language: ['c', 'cpp'])
+# ==============================================================================
+# Optimization Flags based on PY21C_* environment variables
+# ==============================================================================
+# py21c_opt_level, py21c_debug_flag, py21c_cuda_debug_flag, py21c_pgo_phase
+# are set in the root meson.build
+
 # Export all symbols to ensure visibility for profiling
 add_project_arguments('-fvisibility=default', language: ['c', 'cpp'])
+
+# Apply optimization level
+if py21c_opt_level == 'debug'
+    message('Applying debug optimization flags: -O0 -g')
+    add_project_arguments('-O0', '-g', language: ['c', 'cpp'])
+elif py21c_opt_level == 'fast'
+    message('Applying fast optimization flags: -O3 -march=native -ffast-math -flto')
+    add_project_arguments('-O3', '-march=native', '-ffast-math', '-flto', language: ['c', 'cpp'])
+    add_project_link_arguments('-flto', language: ['c', 'cpp'])
+else
+    # 'release' is the default
+    message('Applying release optimization flags: -O3')
+    add_project_arguments('-O3', language: ['c', 'cpp'])
+endif
+
+# Apply PGO flags
+if py21c_pgo_phase == 'generate'
+    message('Applying PGO generate flags: -fprofile-generate')
+    add_project_arguments('-fprofile-generate', language: ['c', 'cpp'])
+    add_project_link_arguments('-fprofile-generate', language: ['c', 'cpp'])
+elif py21c_pgo_phase == 'use'
+    message('Applying PGO use flags: -fprofile-use -fprofile-correction')
+    add_project_arguments('-fprofile-use', '-fprofile-correction', language: ['c', 'cpp'])
+    add_project_link_arguments('-fprofile-use', language: ['c', 'cpp'])
+endif
 
 # Check if CUDA language is available (this will be true only if root meson.build successfully added it)
 if env_cuda_flag and cuda_dep.found()
   message('Using CUDA compilation in source build')
   cuda_compiler = meson.get_compiler('cuda')
   add_project_arguments('-DUSE_CUDA=1', language: ['c', 'cpp', 'cuda'])
-  add_project_arguments('-g', '-lineinfo', language: 'cuda')  # Debug symbols for CUDA
+
+  # Apply CUDA optimization and debug flags
+  # PY21C_CUDA_DEBUG or py21c_opt_level='debug' enables full CUDA debugging
+  if py21c_cuda_debug_flag or py21c_opt_level == 'debug'
+    # -G enables device debugging (overrides -lineinfo, so we don't add both)
+    message('Applying CUDA debug flags: -g -G')
+    add_project_arguments('-g', '-G', language: 'cuda')
+  else
+    # Just line info for profiling, no full device debugging
+    add_project_arguments('-lineinfo', language: 'cuda')
+  endif
 
   # CUDA compiler arguments
   # Try to detect GPU architecture, fall back to a reasonable default
