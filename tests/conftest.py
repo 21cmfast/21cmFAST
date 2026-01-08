@@ -29,6 +29,50 @@ from py21cmfast.lightconers import RectilinearLightconer
 
 def pytest_addoption(parser):
     parser.addoption("--log-level-21", action="store", default="WARNING")
+    parser.addoption(
+        "--skip-gpu",
+        action="store_true",
+        default=False,
+        help="Skip tests marked with @pytest.mark.gpu",
+    )
+    parser.addoption(
+        "--skip-slow",
+        action="store_true",
+        default=False,
+        help="Skip tests marked with @pytest.mark.slow",
+    )
+
+
+def _gpu_available():
+    """Check if a CUDA GPU is available."""
+    try:
+        import subprocess
+
+        result = subprocess.run(
+            ["nvidia-smi", "--query-gpu=name", "--format=csv,noheader"],
+            capture_output=True,
+            text=True,
+            timeout=5,
+        )
+        return result.returncode == 0 and result.stdout.strip() != ""
+    except (FileNotFoundError, subprocess.TimeoutExpired):
+        return False
+
+
+def pytest_collection_modifyitems(config, items):
+    """Auto-skip GPU tests if no GPU available or --skip-gpu specified."""
+    skip_gpu = pytest.mark.skip(reason="GPU not available or --skip-gpu specified")
+    skip_slow = pytest.mark.skip(reason="Skipped via --skip-slow")
+
+    gpu_available = _gpu_available()
+    force_skip_gpu = config.getoption("--skip-gpu")
+    force_skip_slow = config.getoption("--skip-slow")
+
+    for item in items:
+        if "gpu" in item.keywords and (force_skip_gpu or not gpu_available):
+            item.add_marker(skip_gpu)
+        if "slow" in item.keywords and force_skip_slow:
+            item.add_marker(skip_slow)
 
 
 @pytest.fixture(scope="session")

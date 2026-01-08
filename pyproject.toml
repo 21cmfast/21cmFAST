@@ -122,6 +122,10 @@ fallback_version = "4.0.0b1"
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
+markers = [
+    "gpu: mark test as requiring GPU (deselect with '-m \"not gpu\"')",
+    "slow: mark test as slow running (deselect with '-m \"not slow\"')",
+]
 
 [tool.ruff]
 line-length = 88
