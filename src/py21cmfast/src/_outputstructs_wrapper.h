@@ -83,6 +83,12 @@ typedef struct TsBox {
     float *J_alpha_star;
     float *J_alpha_X;
     float *J_21_LW;
+    float *dadia_dzp;
+    float *dcomp_dzp;
+    float *dxheat_dzp;
+    float *dCMBheat_dzp;
+    float *dLya_cont_dzp;
+    float *dLya_inj_dzp;
 } TsBox;
 
 typedef struct IonizedBox {

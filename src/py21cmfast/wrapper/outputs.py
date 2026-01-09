@@ -1248,6 +1248,12 @@ class TsBox(OutputStructZ):
     J_alpha_star = _arrayfield()
     J_alpha_X = _arrayfield()
     J_21_LW = _arrayfield(optional=True)
+    dadia_dzp = _arrayfield()
+    dcomp_dzp = _arrayfield()
+    dxheat_dzp = _arrayfield(optional=True)
+    dCMBheat_dzp = _arrayfield(optional=True)
+    dLya_cont_dzp = _arrayfield(optional=True)
+    dLya_inj_dzp = _arrayfield(optional=True)
 
     @classmethod
     def new(cls, inputs: InputParameters, redshift: float, **kw) -> Self:
@@ -1277,9 +1283,19 @@ class TsBox(OutputStructZ):
             "kinetic_temp_neutral": Array(shape, dtype=np.float32),
             "J_alpha_star": Array(shape, dtype=np.float32),
             "J_alpha_X": Array(shape, dtype=np.float32),
+            "dadia_dzp": Array(shape, dtype=np.float32),
+            "dcomp_dzp": Array(shape, dtype=np.float32),
         }
         if inputs.astro_options.USE_MINI_HALOS:
             out["J_21_LW"] = Array(shape, dtype=np.float32)
+        if inputs.astro_options.USE_X_RAY_HEATING:
+            out["dxheat_dzp"] = Array(shape, dtype=np.float32)
+        if inputs.astro_options.USE_CMB_HEATING:
+            out["dCMBheat_dzp"] = Array(shape, dtype=np.float32)
+        if inputs.astro_options.USE_LYA_HEATING:
+            out["dLya_cont_dzp"] = Array(shape, dtype=np.float32)
+            out["dLya_inj_dzp"] = Array(shape, dtype=np.float32)
+
         return cls(inputs=inputs, redshift=redshift, **out, **kw)
 
     @cached_property
@@ -1311,26 +1327,6 @@ class TsBox(OutputStructZ):
             )
         else:
             return np.mean(self.get("xray_ionised_fraction"))
-
-    @cached_property
-    def global_J_alpha_star(self):
-        """Global (mean) J_alpha_star."""
-        if not self.is_computed:
-            raise AttributeError(
-                "global_J_alpha_star is not defined until the ionization calculation has been performed"
-            )
-        else:
-            return np.mean(self.get("J_alpha_star"))
-
-    @cached_property
-    def global_J_alpha_X(self):
-        """Global (mean) J_alpha_X."""
-        if not self.is_computed:
-            raise AttributeError(
-                "global_J_alpha_X is not defined until the ionization calculation has been performed"
-            )
-        else:
-            return np.mean(self.get("J_alpha_X"))
 
     def get_required_input_arrays(self, input_box: OutputStruct) -> list[str]:
         """Return all input arrays required to compute this object."""
