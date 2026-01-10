@@ -43,6 +43,7 @@ cuda_source_files = files([
   # 'interpolation.cu',  # Included by interp_tables.cu, don't compile separately
   'device_rng.cu',
   'MapMass_gpu.cu',
+  'InitialConditions_gpu.cu',
   'test_Stochasticity.cu',
   'cuda_hello_world.cu',
 ])
@@ -147,9 +148,10 @@ if env_cuda_flag and cuda_dep.found()
   ]
   add_project_arguments(cuda_args, language: 'cuda')
 
-  # Add CUDA runtime library
+  # Add CUDA runtime library and cuFFT
   cuda_rt = cuda_compiler.find_library('cudart', required: true)
-  deps = deps + [cuda_dep, cuda_rt]
+  cufft = cuda_compiler.find_library('cufft', required: true)
+  deps = deps + [cuda_dep, cuda_rt, cufft]
 
   # Include CUDA source files
   all_source_files = c_source_files + cuda_source_files + cpp_source_files

@@ -23,6 +23,10 @@
 #include "logger.h"
 #include "rng.h"
 
+#if USE_CUDA
+#include "InitialConditions_gpu.h"
+#endif
+
 void adj_complex_conj(fftwf_complex *HIRES_box) {
     /*****  Adjust the complex conjugate relations for a real array  *****/
 
@@ -95,8 +99,20 @@ int ComputeInitialConditions(unsigned long long random_seed, InitialConditions *
     int status;
 
     bool use_cuda = USE_CUDA;  // GPU enabled based on compile-time flag
-    // Note: Removed temporary GPU test code (print_key_device_properties, call_cuda)
-    // GPU computation is handled by actual CUDA kernels in other modules
+
+    // Dispatch to GPU implementation if CUDA is enabled
+    // Note: GPU version now supports 2LPT (PERTURB_ALGORITHM == 2)
+    // USE_RELATIVE_VELOCITIES will fall back to CPU for now
+#if USE_CUDA
+    if (use_cuda && !matter_options_global->USE_RELATIVE_VELOCITIES) {
+        LOG_DEBUG("Using GPU-accelerated InitialConditions");
+        return ComputeInitialConditions_gpu(random_seed, boxes);
+    }
+    if (use_cuda) {
+        LOG_DEBUG("GPU InitialConditions: falling back to CPU (USE_RELATIVE_VELOCITIES=%d)",
+                  matter_options_global->USE_RELATIVE_VELOCITIES);
+    }
+#endif
 
     Try {  // This Try wraps the entire function so we don't indent.
 
