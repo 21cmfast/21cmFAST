@@ -1,6 +1,7 @@
 """Test filtering of the density field."""
 
 import matplotlib as mpl
+import mpmath
 import numpy as np
 import pytest
 from matplotlib.colors import Normalize
@@ -299,3 +300,71 @@ def filter_plot(
         axs[idx, 3].grid()
         axs[idx, 3].set_xlabel("expected cell value")
         axs[idx, 3].set_ylabel("filtered cell value")
+
+
+@pytest.mark.parametrize("R_inner", R_PARAM_LIST)
+@pytest.mark.parametrize("n", [2, 4, 6, 8])
+@pytest.mark.parametrize("r_star", [1e-6, 5, 10, 20])
+def test_MS_filter(R_inner, n, r_star):
+    """Test the multiple scattering filter."""
+    opts = prd.get_all_options_struct(redshift=10.0)
+    inputs = opts["inputs"]
+    up = inputs.simulation_options
+
+    # testing a random input box
+    rng = np.random.default_rng(12345)
+    input_box = rng.random((up.HII_DIM,) * 3)
+    output_box_SL = np.zeros((up.HII_DIM,) * 3, dtype="f8")
+    output_box_MS = np.zeros((up.HII_DIM,) * 3, dtype="f8")
+
+    R_outer = n * R_inner
+
+    broadcast_input_struct(inputs)
+    lib.test_filter(
+        ffi.cast("float *", input_box.ctypes.data),
+        R_inner,
+        R_outer,
+        r_star,
+        4,
+        ffi.cast("double *", output_box_SL.ctypes.data),
+    )
+
+    broadcast_input_struct(inputs)
+    lib.test_filter(
+        ffi.cast("float *", input_box.ctypes.data),
+        R_inner,
+        R_outer,
+        r_star,
+        5,
+        ffi.cast("double *", output_box_MS.ctypes.data),
+    )
+
+    if r_star < 1:
+        # Test that MS filter returns the same output as the SL filter in the SL limit (r_star -> 0).
+        np.testing.assert_allclose(output_box_SL, output_box_MS, atol=1e-4)
+    else:
+        # Test that the SL and MS filters yield different outputs if r_star is not too small
+        assert not np.allclose(output_box_SL, output_box_MS, atol=1e-4)
+
+
+@pytest.mark.parametrize("alpha", [0.1, 0.5, 1, 5, 10])
+@pytest.mark.parametrize(
+    "beta", [0.1, 0.5, 1]
+)  # Note that the implementation fails for large beta values and small alpha values (never happens in the simulation)
+def test_hyper_2F3(alpha, beta):
+    """Test the implementation of the hypergeometric function in the C code."""
+    kR_array = np.logspace(-1, 3, 100)
+    hyper_python = np.array(
+        [
+            float(
+                mpmath.hyper(
+                    [(2.0 + alpha) / 2.0, (3.0 + alpha) / 2.0],
+                    [5.0 / 2.0, (2.0 + alpha + beta) / 2.0, (3.0 + alpha + beta) / 2.0],
+                    -0.25 * kR**2,
+                )
+            )
+            for kR in kR_array
+        ]
+    )
+    hyper_C = np.array([lib.hyper_2F3(kR, alpha, beta) for kR in kR_array])
+    np.testing.assert_allclose(hyper_python, hyper_C, rtol=0.0, atol=1e-2)

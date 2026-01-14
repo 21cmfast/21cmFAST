@@ -351,7 +351,7 @@ void filter_box(fftwf_complex *box, int box_dim[3], int filter_type, float R, fl
                         box[grid_index] *= exp_mfp_filter(sqrt(k_mag_sq), R, R_param, R_const);
                     } else if (filter_type == 4) {  // spherical shell, R_param == inner radius
                         box[grid_index] *= spherical_shell_filter(sqrt(k_mag_sq), R, R_param);
-                    } else if (filter_type == 5) {  // spherical ring
+                    } else if (filter_type == 5) {  // multiple scattering window function
                         box[grid_index] *=
                             multiple_scattering_filter(sqrt(k_mag_sq), R, R_param, &consts_for_ms);
                     } else {
