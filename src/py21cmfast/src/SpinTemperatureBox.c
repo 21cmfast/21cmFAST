@@ -1704,6 +1704,8 @@ void ts_main(float redshift, float prev_redshift, float perturbed_field_redshift
                                             avg_fix_term_MINI * astro_params_global->F_STAR7_MINI;
                             xray_sfr += sfr_term_mini * astro_params_global->L_X_MINI *
                                         xray_R_factor * physconst.s_per_yr;
+                            sfr_term_lw = sfr_term;
+                            sfr_term_mini_lw = sfr_term_mini;
                         }
                         dstarlyLW_dt_box[box_ct] +=
                             sfr_term_lw * dstarlyLW_dt_prefactor[R_ct] +
