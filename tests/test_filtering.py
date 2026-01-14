@@ -53,8 +53,8 @@ def get_expected_output_centre(r_in, R_filter, R_param, filter_flag):
         return (R_ratio < 1) * np.exp(-r_in / R_param) / exp_vol
     elif filter_flag == 4:
         # output is spherical shell
-        exp_vol = 4 / 3 * np.pi * (R_filter**3 - R_param**3)
-        return (R_ratio < 1) * (R_param <= r_in) / exp_vol
+        exp_vol = 4 / 3 * np.pi * (R_param**3 - R_filter**3)
+        return (R_ratio > 1) * (R_param >= r_in) / exp_vol
 
 
 # return binned quantities
@@ -100,7 +100,7 @@ def test_filters(filter_flag, R, plt):
     if filter_flag == 3:
         R_param = 20
     elif filter_flag == 4:
-        R_param = max(R - 4 * (up.BOX_LEN / up.HII_DIM), 0)
+        R_param = R + 4 * (up.BOX_LEN / up.HII_DIM)
     else:
         R_param = 0
 
@@ -109,6 +109,7 @@ def test_filters(filter_flag, R, plt):
         ffi.cast("float *", input_box_centre.ctypes.data),
         R,
         R_param,
+        0.0,
         filter_flag,
         ffi.cast("double *", output_box_centre.ctypes.data),
     )

@@ -1035,10 +1035,6 @@ class AstroOptions(InputStruct):
         If True, multiple scattering window function is used for the computation of Lyman alpha photons.
         If False, the straight-line window function is used.
         Becomes relevant only when USE_HALO_FIELD=True.
-    TEST_SL_WITH_MS_FILTER: bool, optional
-        This flag is used for tests. If True, the multiple scattering window function will be used but with alpha=1e5 and beta=1,
-        thus effectively imitating the window function for the straight line scenario.
-        Becomes relevant only if LYA_MULTIPLE_SCATTERING is True.
     USE_ADIABATIC_FLUCTUATIONS: bool, optional
         Whether to apply adiabatic fluctuations to the initial temperature box, see Munoz 2023. If set to False,
         the initial temperature box is completely homogeneous. Default is True.
@@ -1082,7 +1078,6 @@ class AstroOptions(InputStruct):
     USE_EXP_FILTER: bool = field(default=True, converter=bool)
     CELL_RECOMB: bool = field(default=True, converter=bool)
     LYA_MULTIPLE_SCATTERING = field(default=False, converter=bool)
-    TEST_SL_WITH_MS_FILTER = field(default=False, converter=bool)
     USE_ADIABATIC_FLUCTUATIONS = field(default=True, converter=bool)
     PHOTON_CONS_TYPE: Literal[
         "no-photoncons", "z-photoncons", "alpha-photoncons", "f-photoncons"

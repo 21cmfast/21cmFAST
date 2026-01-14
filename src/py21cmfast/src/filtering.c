@@ -230,11 +230,6 @@ double asymptotic_2F3(double kR, double alpha, double beta) {
 
 // Implementation of 2F3((alpha+2)/2, (alpha+3)/2 ; (alpha+beta+2)/2, (alpha+beta+3)/2 ; -kR^2 /4))
 double hyper_2F3(double kR, double alpha, double beta) {
-    if (astro_options_global->TEST_SL_WITH_MS_FILTER) {
-        alpha = 1.e5;
-        beta = 1.;
-    }
-
     // For a small argument, we compute the hypergeometric function through power-law expansion
     if (kR < 30.) {
         int n;

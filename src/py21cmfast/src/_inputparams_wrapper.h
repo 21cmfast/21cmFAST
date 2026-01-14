@@ -143,7 +143,6 @@ typedef struct AstroOptions {
     bool USE_EXP_FILTER;
     bool CELL_RECOMB;
     bool LYA_MULTIPLE_SCATTERING;
-    bool TEST_SL_WITH_MS_FILTER;
     bool USE_ADIABATIC_FLUCTUATIONS;
     int PHOTON_CONS_TYPE;
     bool USE_UPPER_STELLAR_TURNOVER;
