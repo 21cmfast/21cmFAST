@@ -313,8 +313,15 @@ void setup_z_edges(double zp) {
     double dzpp_for_evolve;
     int R_ct;
 
-    R = physconst.l_factor * simulation_options_global->BOX_LEN /
-        (float)simulation_options_global->HII_DIM;
+    if (simulation_options_global->HII_DIM == 1) {
+        // If HII_DIM=1 (happens when we run_global_evolution), we take a typical cell size
+        // of 1.5Mpc, just to for setting the z'' array (note that filtering won't be done on a box
+        // with a single cell)
+        R = physconst.l_factor * 1.5;
+    } else {
+        R = physconst.l_factor * simulation_options_global->BOX_LEN /
+            (float)simulation_options_global->HII_DIM;
+    }
     R_factor = pow(astro_params_global->R_MAX_TS / R, 1 / ((float)astro_params_global->N_STEP_TS));
 
     for (R_ct = 0; R_ct < astro_params_global->N_STEP_TS; R_ct++) {
@@ -667,35 +674,36 @@ void one_annular_filter(float *input_box, float *output_box, double R_inner, dou
             }
         }
     }
-
-    // Transform unfiltered box to k-space to prepare for filtering
-    // this would normally only be done once but we're using a different redshift for each R now
-    dft_r2c_cube(matter_options_global->USE_FFTW_WISDOM, simulation_options_global->HII_DIM,
-                 HII_D_PARA, simulation_options_global->N_THREADS, unfiltered_box);
+    if (simulation_options_global->HII_DIM >
+        1) {  // No need to filter the box if we only have one cell!
+        // Transform unfiltered box to k-space to prepare for filtering
+        // this would normally only be done once but we're using a different redshift for each R now
+        dft_r2c_cube(matter_options_global->USE_FFTW_WISDOM, simulation_options_global->HII_DIM,
+                     HII_D_PARA, simulation_options_global->N_THREADS, unfiltered_box);
 
 // remember to add the factor of VOLUME/TOT_NUM_PIXELS when converting from real space to k-space
 // Note: we will leave off factor of VOLUME, in anticipation of the inverse FFT below
 #pragma omp parallel num_threads(simulation_options_global->N_THREADS)
-    {
+        {
 #pragma omp for
-        for (ct = 0; ct < HII_KSPACE_NUM_PIXELS; ct++) {
-            unfiltered_box[ct] /= (float)HII_TOT_NUM_PIXELS;
+            for (ct = 0; ct < HII_KSPACE_NUM_PIXELS; ct++) {
+                unfiltered_box[ct] /= (float)HII_TOT_NUM_PIXELS;
+            }
         }
+
+        // Smooth the density field, at the same time store the minimum and maximum densities for
+        // their usage in the interpolation tables copy over unfiltered box
+        memcpy(filtered_box, unfiltered_box, sizeof(fftwf_complex) * HII_KSPACE_NUM_PIXELS);
+
+        // Don't filter on the cell scale
+        if (R_inner > 0) {
+            filter_box(filtered_box, box_dim, 4, R_inner, R_outer);
+        }
+
+        // now fft back to real space
+        dft_c2r_cube(matter_options_global->USE_FFTW_WISDOM, simulation_options_global->HII_DIM,
+                     HII_D_PARA, simulation_options_global->N_THREADS, filtered_box);
     }
-
-    // Smooth the density field, at the same time store the minimum and maximum densities for their
-    // usage in the interpolation tables copy over unfiltered box
-    memcpy(filtered_box, unfiltered_box, sizeof(fftwf_complex) * HII_KSPACE_NUM_PIXELS);
-
-    // Don't filter on the cell scale
-    if (R_inner > 0) {
-        filter_box(filtered_box, box_dim, 4, R_inner, R_outer);
-    }
-
-    // now fft back to real space
-    dft_c2r_cube(matter_options_global->USE_FFTW_WISDOM, simulation_options_global->HII_DIM,
-                 HII_D_PARA, simulation_options_global->N_THREADS, filtered_box);
-
 // copy over the values
 #pragma omp parallel private(i, j, k) num_threads(simulation_options_global -> N_THREADS) \
     reduction(+ : filtered_avg)
@@ -708,7 +716,11 @@ void one_annular_filter(float *input_box, float *output_box, double R_inner, dou
                 for (k = 0; k < box_dim[2]; k++) {
                     index_r = grid_index_general(i, j, k, box_dim);
                     index_f = grid_index_fftw_r(i, j, k, box_dim);
-                    curr_val = *((float *)filtered_box + index_f);
+                    if (simulation_options_global->HII_DIM > 1) {
+                        curr_val = *((float *)filtered_box + index_f);
+                    } else {  // Just take the unfiltered box/cell if HII_DIM = 1
+                        curr_val = *((float *)unfiltered_box + index_f);
+                    }
                     // correct for aliasing in the filtering step
                     if (curr_val < 0.) curr_val = 0.;
 

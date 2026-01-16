@@ -456,9 +456,16 @@ def compute_xray_source_field(
 
     # set minimum R at cell size
     l_factor = (4 * np.pi / 3.0) ** (-1 / 3)
-    R_min = (
-        inputs.simulation_options.BOX_LEN / inputs.simulation_options.HII_DIM * l_factor
-    )
+    if inputs.simulation_options.HII_DIM == 1:
+        # If HII_DIM=1 (happens when we run_global_evolution), we take a typical cell size of 1.5Mpc,
+        # just to for setting the z'' array (note that filtering won't be done on a box with a single cell)
+        R_min = 1.5 * l_factor
+    else:
+        R_min = (
+            inputs.simulation_options.BOX_LEN
+            / inputs.simulation_options.HII_DIM
+            * l_factor
+        )
     z_max = min(max(z_halos), inputs.simulation_options.Z_HEAT_MAX)
 
     # now we need to find the closest halo box to the redshift of the shell
