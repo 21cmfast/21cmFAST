@@ -619,6 +619,8 @@ class MatterOptions(InputStruct):
         If False, only the z velocity is kept.
     SOURCE_MODEL: str, optional
         The source model to use in the simulation. Options are:
+        CONST-ION-EFF: Similarly to E-INTEGRAL (see below), but ionizing efficiency is constant and does not depend on the halo mass
+            (see Mesinger+ 2010).
         E-INTEGRAL : The traditional excursion-set formalism, where source properties are
             defined on the Eulerian grid after 2LPT in regions of filter scale R (see the X_FILTER options for filter shapes).
             This integrates over the CHMF using the smoothed density grids, then multiplies the result.
