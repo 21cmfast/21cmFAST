@@ -696,29 +696,49 @@ def compute_ionization_field(
 
     box = IonizedBox.new(inputs=inputs, redshift=redshift)
 
-    if not inputs.matter_options.lagrangian_source_grid:
-        # Construct an empty halo field to pass in to the function.
-        halobox = HaloBox.dummy()
-    elif halobox is None:
-        raise ValueError(
-            f"A HaloBox must be provided for SOURCE_MODEL={inputs.matter_options.SOURCE_MODEL}"
+    if inputs.simulation_options.HII_DIM > 1:
+        if not inputs.matter_options.lagrangian_source_grid:
+            # Construct an empty halo field to pass in to the function.
+            halobox = HaloBox.dummy()
+        elif halobox is None:
+            raise ValueError(
+                f"A HaloBox must be provided for SOURCE_MODEL={inputs.matter_options.SOURCE_MODEL}"
+            )
+
+        # Set empty spin temp box if necessary.
+        if not inputs.astro_options.USE_TS_FLUCT:
+            spin_temp = TsBox.dummy()
+        elif spin_temp is None:
+            raise ValueError("No spin temperature box given but USE_TS_FLUCT=True")
+
+        # Run the C Code
+        return box.compute(
+            perturbed_field=perturbed_field,
+            prev_perturbed_field=previous_perturbed_field,
+            prev_ionize_box=previous_ionized_box,
+            spin_temp=spin_temp,
+            halobox=halobox,
+            ics=initial_conditions,
         )
-
-    # Set empty spin temp box if necessary.
-    if not inputs.astro_options.USE_TS_FLUCT:
-        spin_temp = TsBox.dummy()
-    elif spin_temp is None:
-        raise ValueError("No spin temperature box given but USE_TS_FLUCT=True")
-
-    # Run the C Code
-    return box.compute(
-        perturbed_field=perturbed_field,
-        prev_perturbed_field=previous_perturbed_field,
-        prev_ionize_box=previous_ionized_box,
-        spin_temp=spin_temp,
-        halobox=halobox,
-        ics=initial_conditions,
-    )
+    else:
+        # If we have only one cell (could happen if we do a global evolution), we set the neutral fraction
+        # according to the global evolution
+        shape = (1, 1, 1)
+        # TODO: fix these global values
+        required_arrays = {
+            "neutral_fraction": 1.0 - spin_temp.xray_ionised_fraction.value,
+            "ionisation_rate_G12": 0.0,
+            "z_reion": -1.0,
+        }
+        for name, val in required_arrays.items():
+            setattr(
+                box,
+                name,
+                Array(shape=shape, dtype=np.float32)
+                .initialize()
+                .with_value(val=val * np.ones(shape)),
+            )
+        return box
 
 
 @single_field_func
