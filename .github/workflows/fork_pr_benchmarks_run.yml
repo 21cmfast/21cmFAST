@@ -1,0 +1,51 @@
+name: Run Benchmarks
+
+on:
+  pull_request:
+    types: [opened, reopened, edited, synchronize]
+
+jobs:
+  benchmark_fork_pr_branch:
+    name: Run Fork PR Benchmarks
+    if: github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name == github.repository
+    permissions:
+      pull-requests: write
+
+    defaults:
+        run:
+            # Adding -l {0} ensures conda can be found properly in each step
+            shell: bash -l {0}
+
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+
+      - name: Setup Miniconda
+        uses: conda-incubator/setup-miniconda@v3
+        with:
+            channels: conda-forge,defaults
+            python-version: 3.11
+            channel-priority: true
+
+      - name: Install Non-Python Dependencies
+        run: |
+          conda install fftw gsl numba
+
+      - name: Install 21cmFAST
+        run: |
+          pip install ".[dev]"
+
+      - name: Run Benchmarking
+        run: |
+          pytest --benchmark-json results.json tests/test_integration_features.py
+
+      - name: Upload Benchmark Results
+        uses: actions/upload-artifact@v4
+        with:
+          name: benchmark_results.json
+          path: ./results.json
+      - name: Upload GitHub Pull Request Event
+        uses: actions/upload-artifact@v4
+        with:
+          name: event.json
+          path: ${{ github.event_path }}
