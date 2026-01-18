@@ -474,6 +474,15 @@ extern "C" int ComputeInitialConditions_gpu(unsigned long long random_seed, Init
     Try {
         LOG_DEBUG("ComputeInitialConditions_gpu: Starting GPU-accelerated computation");
 
+        // Initialize CUDA context explicitly before any cuFFT calls.
+        // On older GPUs (e.g., P100/Pascal), cuFFT may fail on the first call if
+        // the CUDA context is not already initialized. This is a common CUDA idiom.
+        err = cudaFree(0);
+        if (err != cudaSuccess && err != cudaErrorInvalidValue) {
+            LOG_ERROR("CUDA context initialization failed: %s", cudaGetErrorString(err));
+            Throw(CUDAError);
+        }
+
 #if LOG_LEVEL >= DEBUG_LEVEL
         writeSimulationOptions(simulation_options_global);
         writeMatterOptions(matter_options_global);
