@@ -40,12 +40,12 @@ jobs:
           pytest --benchmark-json results.json tests/test_integration_features.py
 
       - name: Upload Benchmark Results
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v6
         with:
           name: benchmark_results.json
           path: ./results.json
       - name: Upload GitHub Pull Request Event
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v6
         with:
           name: event.json
           path: ${{ github.event_path }}
