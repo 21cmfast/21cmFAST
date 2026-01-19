@@ -264,8 +264,20 @@ def run_global_evolution(
         progressbar=progressbar,
         **iokw,
     )
-
-    for iz, coeval in _redshift_loop_generator(
+    halo_time_list = []
+    xray_time_list = []
+    spin_time_list = []
+    ionization_time_list = []
+    brightness_time_list = []
+    for (
+        iz,
+        coeval,
+        halo_time,
+        xray_time,
+        spin_time,
+        ionization_time,
+        brightness_time,
+    ) in _redshift_loop_generator(
         inputs=inputs_one_cell,
         initial_conditions=initial_conditions,
         all_redshifts=inputs_one_cell.node_redshifts,
@@ -284,6 +296,12 @@ def run_global_evolution(
             )
 
         prev_coeval = coeval
+
+        halo_time_list.append(halo_time)
+        xray_time_list.append(xray_time)
+        spin_time_list.append(spin_time)
+        ionization_time_list.append(ionization_time)
+        brightness_time_list.append(brightness_time)
 
     lib.Free_cosmo_tables_global()
 

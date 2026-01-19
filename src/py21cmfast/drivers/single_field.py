@@ -338,6 +338,7 @@ def interp_halo_boxes(
     halo_boxes: list[HaloBox],
     fields: list[str],
     redshift: float,
+    ensure_arrays: bool,
 ) -> HaloBox:
     """
     Interpolate HaloBox history to the desired redshift.
@@ -355,6 +356,8 @@ def interp_halo_boxes(
         The properties of the haloboxes to be interpolated
     redshift : float
         The desired redshift of interpolation
+    ensure_arrays: bool
+        Whether to ensure that the relevant arrays of all the halo boxes have been computed
 
     Returns
     -------
@@ -370,9 +373,10 @@ def interp_halo_boxes(
         raise ValueError(f"Invalid z_target {redshift} for redshift array {z_halos}")
 
     arr_fields = [f for f in fields if f in halo_boxes[0].arrays]
-    computed = [box.ensure_arrays_computed(*arr_fields) for box in halo_boxes]
-    if not all(computed):
-        raise ValueError("Some of the HaloBox fields required are not computed")
+    if ensure_arrays:
+        computed = [box.ensure_arrays_computed(*arr_fields) for box in halo_boxes]
+        if not all(computed):
+            raise ValueError("Some of the HaloBox fields required are not computed")
 
     idx_prog = np.searchsorted(z_halos, redshift, side="left")
 
@@ -477,11 +481,12 @@ def compute_xray_source_field(
     )
     R_range = un.Mpc * R_min * R_factor
     cmd_edges = cmd_zp + R_range  # comoving distance edges
-    # NOTE(jdavies) added the 'bounded' method since it seems there are some compatibility issues with astropy and scipy
-    # where astropy gives default bounds to a function with default unbounded minimization
-    zpp_edges = [
-        z_at_value(cosmo_ap.comoving_distance, d, method="bounded") for d in cmd_edges
-    ]
+    # Get the edges of the shells
+    zmin = z_at_value(cosmo_ap.comoving_distance, cmd_edges.min()).value
+    zmax = z_at_value(cosmo_ap.comoving_distance, cmd_edges.max()).value
+    zgrid = np.logspace(np.log10(zmin), np.log10(zmax), 100)
+    dgrid = cosmo_ap.comoving_distance(zgrid)
+    zpp_edges = np.interp(cmd_edges.value, dgrid.value, zgrid)
     # the `average` redshift of the shell is the average of the
     # inner and outer redshifts (following the C code)
     zpp_avg = zpp_edges - np.diff(np.insert(zpp_edges, 0, redshift)) / 2
@@ -509,6 +514,8 @@ def compute_xray_source_field(
             halo_boxes=hboxes[::-1],
             fields=interp_fields,
             redshift=zpp_avg[i],
+            ensure_arrays=inputs.simulation_options.HII_DIM
+            > 1,  # Ensuring the arrays takes time. If we do global evolution, no need to do that
         )
 
         # if we have no halos we ignore the whole shell
