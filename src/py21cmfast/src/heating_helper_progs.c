@@ -67,9 +67,11 @@ int init_heat() {
     if (kappa_10_pH(1.0, 1) < 0) return -3;
 
     // Initialize interpolation array for Lya heating
-    LOG_DEBUG("Reading Lyman-alpha Heating File");
-    if (Energy_Lya_heating(1.0, 1.0, 3.0, 1) < 0) {
-        return -7;
+    if (astro_options_global->USE_LYA_HEATING) {
+        LOG_DEBUG("Reading Lyman-alpha Heating File");
+        if (Energy_Lya_heating(1.0, 1.0, 3.0, 1) < 0) {
+            return -7;
+        }
     }
 
     LOG_SUPER_DEBUG("About to initialize interp arrays");
