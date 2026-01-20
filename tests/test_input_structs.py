@@ -368,6 +368,22 @@ class TestSimulationOptions:
         new = new.evolve_input_structs(**evolved)
         self.check_attributes_dim(new.simulation_options, expected)
 
+    with pytest.warns(
+        UserWarning,
+        match="You have set BETA_ESC != 0 but PHOTON_CONS_TYPE is f-photoncons.",
+    ):
+        InputParameters(
+            cosmo_params=CosmoParams(),
+            astro_params=AstroParams(BETA_ESC=0.1),
+            simulation_options=SimulationOptions(),
+            matter_options=MatterOptions(),
+            astro_options=AstroOptions(
+                PHOTON_CONS_TYPE="f-photoncons",
+                USE_MASS_DEPENDENT_ZETA=True,
+            ),
+            random_seed=1,
+        )
+
 
 class TestMatterOptions:
     """Tests of the MatterOptions class."""
