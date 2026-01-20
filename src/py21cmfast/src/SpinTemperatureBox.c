@@ -84,12 +84,6 @@ bool TsInterpArraysInitialised = false;
 // a debug flag for printing results from a single cell without passing cell number to the functions
 static int debug_printed;
 
-double get_time_ms() {
-    struct timespec ts;
-    clock_gettime(CLOCK_MONOTONIC, &ts);
-    return ts.tv_sec * 1000.0 + ts.tv_nsec / 1000000.0;
-}
-
 int ComputeTsBox(float redshift, float prev_redshift, float perturbed_field_redshift, short cleanup,
                  PerturbedField *perturbed_field, XraySourceBox *source_box,
                  TsBox *previous_spin_temp, InitialConditions *ini_boxes, TsBox *this_spin_temp) {
@@ -1368,7 +1362,6 @@ void ts_main(float redshift, float prev_redshift, float perturbed_field_redshift
     double growth_factor_z, growth_factor_zp;
     double inverse_growth_factor_z;
     double dzp;
-    double start, end;
 
     // Must be always initialised due to the strange way Ionisationbox.c expects some initialisation
     init_ps();
@@ -1498,11 +1491,8 @@ void ts_main(float redshift, float prev_redshift, float perturbed_field_redshift
     //   ion_eff) global SFRD at each filter radius (numerator of ST_over_PS factor)
     double Q_HI_zp;
 
-    // start = get_time_ms();
     NO_LIGHT = global_reion_properties(redshift, x_e_ave_p, ave_log10_MturnLW, mean_sfr_zpp,
                                        mean_sfr_zpp_mini, &Q_HI_zp);
-    // end = get_time_ms();
-    // printf("global_reion_properties took %.3f ms\n", end - start);
 
 #pragma omp parallel private(box_ct) num_threads(simulation_options_global -> N_THREADS)
     {

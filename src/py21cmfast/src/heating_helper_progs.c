@@ -910,8 +910,16 @@ double tauX_integrand_MINI(double zhat, void *params) {
     nuhat = p->nu_0 * (1 + zhat);
     log10_Mturn_MINI = p->log10_Mturn_MINI;
 
-    fcoll = EvaluateNionTs(zhat, p->scale_consts);
-    fcoll_MINI = EvaluateNionTs_MINI(zhat, log10_Mturn_MINI, p->scale_consts);
+    // If we only have one cell, approximate fcoll to zero at high redshifts, when x_e is still very
+    // small
+    // TODO: Should we extend this to full boxes too?
+    if (simulation_options_global->HII_DIM == 1 && p->x_e_ave < 1e-3) {
+        fcoll = 0.;
+        fcoll_MINI = 0.;
+    } else {
+        fcoll = EvaluateNionTs(zhat, p->scale_consts);
+        fcoll_MINI = EvaluateNionTs_MINI(zhat, log10_Mturn_MINI, p->scale_consts);
+    }
 
     // simplification to use the <x_e> value at zp and not
     // zhat.  should'nt matter much since the evolution in
@@ -939,7 +947,14 @@ double tauX_integrand(double zhat, void *params) {
     n = N_b0 * pow(1 + zhat, 3);
     nuhat = p->nu_0 * (1 + zhat);
 
-    fcoll = EvaluateNionTs(zhat, p->scale_consts);
+    // If we only have one cell, approximate fcoll to zero at high redshifts, when x_e is still very
+    // small
+    // TODO: Should we extend this to full boxes too?
+    if (simulation_options_global->HII_DIM == 1 && p->x_e_ave < 1e-3) {
+        fcoll = 0.;
+    } else {
+        fcoll = EvaluateNionTs(zhat, p->scale_consts);
+    }
 
     // simplification to use the <x_e> value at zp and not
     // zhat.  should'nt matter much since the evolution in

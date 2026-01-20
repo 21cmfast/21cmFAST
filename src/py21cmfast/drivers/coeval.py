@@ -714,6 +714,9 @@ def _redshift_loop_generator(
     this_halofield = None
     this_xraysource = None
 
+    halo_time = 0.0
+    xray_time = 0.0
+
     kw = {
         **iokw,
         "initial_conditions": initial_conditions,
