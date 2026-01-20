@@ -303,6 +303,31 @@ def run_global_evolution(
         ionization_time_list.append(ionization_time)
         brightness_time_list.append(brightness_time)
 
+    import matplotlib.pyplot as plt
+
+    _, ax = plt.subplots(1, 1, figsize=(7, 7))
+    ax.plot(halo_time_list, label=f"halo ({np.sum(np.array(halo_time_list)):.0f} sec)")
+    ax.plot(xray_time_list, label=f"xray  ({np.sum(np.array(xray_time_list)):.0f} sec)")
+    ax.plot(spin_time_list, label=f"spin ({np.sum(np.array(spin_time_list)):.0f} sec)")
+    ax.plot(
+        ionization_time_list,
+        label=f"ionization ({np.sum(np.array(ionization_time_list)):.2f} sec)",
+    )
+    ax.plot(
+        brightness_time_list,
+        label=f"brightness ({np.sum(np.array(brightness_time_list)):.1f} sec)",
+    )
+    ax.xaxis.set_tick_params(labelsize=20)
+    ax.yaxis.set_tick_params(labelsize=20)
+    ax.set_xlabel("Iteration", fontsize=20)
+    ax.set_ylabel("Runtime per iteration (sec)", fontsize=20)
+    ax.set_title(
+        f"Total runtime ({(np.sum(np.array(halo_time_list)) + np.sum(np.array(xray_time_list)) + np.sum(np.array(spin_time_list)) + np.sum(np.array(ionization_time_list)) + np.sum(np.array(brightness_time_list))):.0f} sec)",
+        fontsize=20,
+    )
+    ax.legend(fontsize=20)
+    plt.show(block=True)
+
     lib.Free_cosmo_tables_global()
 
     return global_evolution
