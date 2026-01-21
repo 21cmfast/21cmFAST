@@ -26,6 +26,7 @@
 .. end-badges
 
 **A semi-numerical cosmological simulation code for the radio 21-cm signal.**
+
 .. image:: docs/images/angular_lightcone_horizontal.PNG
 
 This is the official repository for ``21cmFAST``: a semi-numerical code that is able to
