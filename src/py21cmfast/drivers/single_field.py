@@ -338,7 +338,6 @@ def interp_halo_boxes(
     halo_boxes: list[HaloBox],
     fields: list[str],
     redshift: float,
-    ensure_arrays: bool,
 ) -> HaloBox:
     """
     Interpolate HaloBox history to the desired redshift.
@@ -356,8 +355,6 @@ def interp_halo_boxes(
         The properties of the haloboxes to be interpolated
     redshift : float
         The desired redshift of interpolation
-    ensure_arrays: bool
-        Whether to ensure that the relevant arrays of all the halo boxes have been computed
 
     Returns
     -------
@@ -372,8 +369,9 @@ def interp_halo_boxes(
     if redshift > z_halos[-1] or redshift < z_halos[0]:
         raise ValueError(f"Invalid z_target {redshift} for redshift array {z_halos}")
 
-    arr_fields = [f for f in fields if f in halo_boxes[0].arrays]
-    if ensure_arrays:
+    # If we do global evolution, no need to do that
+    if inputs.simulation_options.HII_DIM > 1:
+        arr_fields = [f for f in fields if f in halo_boxes[0].arrays]
         computed = [box.ensure_arrays_computed(*arr_fields) for box in halo_boxes]
         if not all(computed):
             raise ValueError("Some of the HaloBox fields required are not computed")
@@ -390,11 +388,19 @@ def interp_halo_boxes(
     z_desc = z_halos[idx_desc]
     interp_param = (redshift - z_desc) / (z_prog - z_desc)
 
-    # I set the box redshift to be the stored one so it is read properly into the ionize box
-    # for the xray source it doesn't matter, also since it is not _compute()'d, it won't be cached
-    check_output_consistency(
-        dict(zip([f"box-{i}" for i in range(len(halo_boxes))], halo_boxes, strict=True))
-    )
+    # If we do global evolution, no need to do that
+    if inputs.simulation_options.HII_DIM > 1:
+        # I set the box redshift to be the stored one so it is read properly into the ionize box
+        # for the xray source it doesn't matter, also since it is not _compute()'d, it won't be cached
+        check_output_consistency(
+            dict(
+                zip(
+                    [f"box-{i}" for i in range(len(halo_boxes))],
+                    halo_boxes,
+                    strict=True,
+                )
+            )
+        )
     hbox_out = HaloBox.new(redshift=redshift, inputs=inputs)
 
     # initialise the memory
@@ -408,9 +414,7 @@ def interp_halo_boxes(
         field_desc = hbox_desc.get(field)
         field_prog = hbox_prog.get(field)
         interp_field = np.zeros_like(field_desc)
-        interp_field[...] = (1 - interp_param) * hbox_desc.get(
-            field
-        ) + interp_param * field_prog
+        interp_field[...] = (1 - interp_param) * field_desc + interp_param * field_prog
         hbox_out.set(field, interp_field)
 
     return hbox_out
@@ -514,8 +518,6 @@ def compute_xray_source_field(
             halo_boxes=hboxes[::-1],
             fields=interp_fields,
             redshift=zpp_avg[i],
-            ensure_arrays=inputs.simulation_options.HII_DIM
-            > 1,  # Ensuring the arrays takes time. If we do global evolution, no need to do that
         )
 
         # if we have no halos we ignore the whole shell

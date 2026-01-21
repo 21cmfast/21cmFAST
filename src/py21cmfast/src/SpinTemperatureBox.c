@@ -675,8 +675,8 @@ void one_annular_filter(float *input_box, float *output_box, double R_inner, dou
             }
         }
     }
-    if (simulation_options_global->HII_DIM >
-        1) {  // No need to filter the box if we only have one cell!
+    // No need to filter the box if we only have one cell!
+    if (simulation_options_global->HII_DIM > 1) {
         // Transform unfiltered box to k-space to prepare for filtering
         // this would normally only be done once but we're using a different redshift for each R now
         dft_r2c_cube(matter_options_global->USE_FFTW_WISDOM, simulation_options_global->HII_DIM,
@@ -782,9 +782,12 @@ int UpdateXraySourceBox(HaloBox *halobox, double R_inner, double R_outer, int R_
                             fsfr_avg_mini, sfr_avg_mini, source_box->mean_log10_Mcrit_LW[R_ct]);
         }
 
-        fftwf_forget_wisdom();
-        fftwf_cleanup_threads();
-        fftwf_cleanup();
+        // free fftwf only if we have a full box (with more than one cell)
+        if (simulation_options_global->HII_DIM > 1) {
+            fftwf_forget_wisdom();
+            fftwf_cleanup_threads();
+            fftwf_cleanup();
+        }
     }  // End of try
     Catch(status) { return (status); }
     return (0);
