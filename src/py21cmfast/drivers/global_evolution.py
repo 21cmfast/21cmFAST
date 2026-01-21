@@ -217,24 +217,29 @@ def run_global_evolution(
         The object containing the global evolution of the fields in the simulation.
 
     """
+    # When doing glboal evolution, we allow only source models free of discrete halos
+    possible_sources = ["CONST-ION-EFF", "E-INTEGRAL", "L-INTEGRAL"]
+    if source_model not in possible_sources:
+        raise ValueError(
+            f"'source_model' must be one of {possible_sources}, got {source_model} instead."
+        )
+
     new_input_kwargs = {
-        "DIM": 1,
-        "HII_DIM": 1,
-        "BOX_LEN": 1e6,
+        "DIM": 1,  # we need only one cell
+        "HII_DIM": 1,  # we need only one cell
+        "BOX_LEN": 1e6,  # we need a huge box/cell in order to simulate the global evolution
         "SOURCE_MODEL": source_model
         if inputs.matter_options.has_discrete_halos
         else inputs.matter_options.SOURCE_MODEL,
-        "PERTURB_ALGORITHM": "LINEAR",
-        "USE_TS_FLUCT": True,
-        "USE_INTERPOLATION_TABLES": "sigma-interpolation",
-        "INTEGRATION_METHOD_ATOMIC": "GSL-QAG",
+        "PERTURB_ALGORITHM": "LINEAR",  # no need to do 2LPT
+        "USE_TS_FLUCT": True,  # we are interested in global evolution of T_s, T_k, etc
+        "USE_INTERPOLATION_TABLES": "sigma-interpolation",  # only need sigma interpolation tables (hmf integrals are evaluated once per snapshot, without interpolation)
+        "INTEGRATION_METHOD_ATOMIC": "GSL-QAG",  # due to above, we ought to use gsl, and not gauss-legendre (BUG?)
         "INTEGRATION_METHOD_MINI": "GSL-QAG",
-        "PERTURB_ON_HIGH_RES": False,
-        "USE_UPPER_STELLAR_TURNOVER": False,
-        "USE_EXP_FILTER": False,
-        "FIX_VCB_AVG": True,
-        "KEEP_3D_VELOCITIES": False,
-        "PHOTON_CONS_TYPE": "no-photoncons",
+        "USE_UPPER_STELLAR_TURNOVER": False,  # no upper stellar turnover without discrete halos
+        "USE_EXP_FILTER": False,  # we don't run reionization module, so we can leave this parameter on False for all source models
+        "KEEP_3D_VELOCITIES": False,  # we don't need any velocities
+        "PHOTON_CONS_TYPE": "no-photoncons",  # we don't do photon conservation
     }
     inputs_one_cell = inputs.evolve_input_structs(**new_input_kwargs)
 

@@ -284,9 +284,9 @@ void get_cell_integrals(double dens, double l10_mturn_a, double l10_mturn_m,
     }
 }
 
-// Fixed halo grids, where each property is set as the integral of the CMF on the EULERIAN cell
-// scale As per default 21cmfast (strange pretending that the lagrangian density is eulerian and
-// then *(1+delta)) This outputs the UN-NORMALISED grids (before mean-adjustment)
+// Fixed halo grids, where each property is set as the integral of the CMF on the LAGRANGIAN cell,
+// and then the properties are moved to the EULERIAN grid according to the velocities.
+// This outputs the UN-NORMALISED grids (before mean-adjustment)
 int set_fixed_grids(double M_min, double M_max, InitialConditions *ini_boxes, float *mturn_a_grid,
                     float *mturn_m_grid, ScalingConstants *consts, HaloBox *grids) {
     double M_cell;
