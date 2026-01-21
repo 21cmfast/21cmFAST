@@ -36,8 +36,14 @@ void set_integral_constants(IntegralCondition *consts, double redshift, double M
     consts->lnM_max = log(M_max);
     consts->M_cell = M_cell;
     consts->lnM_cell = log(M_cell);
-    // no table since this should be called once
-    consts->sigma_cell = sigma_z0(M_cell);
+    if (simulation_options_global->HII_DIM == 1 && simulation_options_global->BOX_LEN > 1e5) {
+        // When simulating only the global signal, the box/cell size should be infinite, so the
+        // conditional sigma is 0
+        consts->sigma_cell = 0.;
+    } else {
+        // no table since this should be called once
+        consts->sigma_cell = sigma_z0(M_cell);
+    }
 }
 
 // calculates halo properties from astro parameters plus the correlated rng

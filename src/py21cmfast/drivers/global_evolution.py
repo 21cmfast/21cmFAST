@@ -264,20 +264,8 @@ def run_global_evolution(
         progressbar=progressbar,
         **iokw,
     )
-    halo_time_list = []
-    xray_time_list = []
-    spin_time_list = []
-    ionization_time_list = []
-    brightness_time_list = []
-    for (
-        iz,
-        coeval,
-        halo_time,
-        xray_time,
-        spin_time,
-        ionization_time,
-        brightness_time,
-    ) in _redshift_loop_generator(
+
+    for iz, coeval in _redshift_loop_generator(
         inputs=inputs_one_cell,
         initial_conditions=initial_conditions,
         all_redshifts=inputs_one_cell.node_redshifts,
@@ -296,37 +284,6 @@ def run_global_evolution(
             )
 
         prev_coeval = coeval
-
-        halo_time_list.append(halo_time)
-        xray_time_list.append(xray_time)
-        spin_time_list.append(spin_time)
-        ionization_time_list.append(ionization_time)
-        brightness_time_list.append(brightness_time)
-
-    import matplotlib.pyplot as plt
-
-    _, ax = plt.subplots(1, 1, figsize=(7, 7))
-    ax.plot(halo_time_list, label=f"halo ({np.sum(np.array(halo_time_list)):.0f} sec)")
-    ax.plot(xray_time_list, label=f"xray  ({np.sum(np.array(xray_time_list)):.0f} sec)")
-    ax.plot(spin_time_list, label=f"spin ({np.sum(np.array(spin_time_list)):.0f} sec)")
-    ax.plot(
-        ionization_time_list,
-        label=f"ionization ({np.sum(np.array(ionization_time_list)):.2f} sec)",
-    )
-    ax.plot(
-        brightness_time_list,
-        label=f"brightness ({np.sum(np.array(brightness_time_list)):.1f} sec)",
-    )
-    ax.xaxis.set_tick_params(labelsize=20)
-    ax.yaxis.set_tick_params(labelsize=20)
-    ax.set_xlabel("Iteration", fontsize=20)
-    ax.set_ylabel("Runtime per iteration (sec)", fontsize=20)
-    ax.set_title(
-        f"Total runtime ({(np.sum(np.array(halo_time_list)) + np.sum(np.array(xray_time_list)) + np.sum(np.array(spin_time_list)) + np.sum(np.array(ionization_time_list)) + np.sum(np.array(brightness_time_list))):.0f} sec)",
-        fontsize=20,
-    )
-    ax.legend(fontsize=20)
-    plt.show(block=True)
 
     lib.Free_cosmo_tables_global()
 

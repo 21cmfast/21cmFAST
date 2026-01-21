@@ -707,15 +707,11 @@ def _redshift_loop_generator(
 
     prev_coeval = init_coeval
     this_coeval = None
-    import time
 
     this_halobox = None
     this_spin_temp = None
     this_halofield = None
     this_xraysource = None
-
-    halo_time = 0.0
-    xray_time = 0.0
 
     kw = {
         **iokw,
@@ -741,7 +737,6 @@ def _redshift_loop_generator(
                 if inputs.matter_options.has_discrete_halos:
                     this_halofield = halofield_list[iz]
                     this_halofield.load_all()
-                start = time.time()
                 this_halobox = sf.compute_halo_grid(
                     inputs=inputs,
                     halo_catalog=this_halofield,
@@ -751,23 +746,17 @@ def _redshift_loop_generator(
                     write=write.halobox,
                     **kw,
                 )
-                end = time.time()
-                halo_time = end - start
 
             if inputs.astro_options.USE_TS_FLUCT:
                 if inputs.matter_options.lagrangian_source_grid:
                     # append the halo redshift array so we have all halo boxes [z,zmax]
-                    start = time.time()
                     this_xraysource = sf.compute_xray_source_field(
                         redshift=z,
                         hboxes=[*hbox_arr, this_halobox],
                         write=write.xray_source_box,
                         **kw,
                     )
-                    end = time.time()
-                    xray_time = end - start
 
-                start = time.time()
                 this_spin_temp = sf.compute_spin_temperature(
                     inputs=inputs,
                     previous_spin_temp=getattr(prev_coeval, "ts_box", None),
@@ -777,13 +766,10 @@ def _redshift_loop_generator(
                     **kw,
                     cleanup=(cleanup and z == all_redshifts[-1]),
                 )
-                end = time.time()
-                spin_time = end - start
                 # Purge XraySourceBox because it's enormous
                 if inputs.matter_options.lagrangian_source_grid:
                     this_xraysource.purge(force=True)
 
-            start = time.time()
             this_ionized_box = sf.compute_ionization_field(
                 inputs=inputs,
                 previous_ionized_box=getattr(prev_coeval, "ionized_box", None),
@@ -795,10 +781,7 @@ def _redshift_loop_generator(
                 write=write.ionized_box,
                 **kw,
             )
-            end = time.time()
-            ionization_time = end - start
 
-            start = time.time()
             this_bt = sf.brightness_temperature(
                 ionized_box=this_ionized_box,
                 perturbed_field=this_perturbed_field,
@@ -806,8 +789,6 @@ def _redshift_loop_generator(
                 write=write.brightness_temp,
                 **iokw,
             )
-            end = time.time()
-            brightness_time = end - start
 
             if inputs.astro_options.PHOTON_CONS_TYPE == "z-photoncons":
                 # Updated info at each z.
@@ -847,15 +828,7 @@ def _redshift_loop_generator(
                 hbox_arr += [this_halobox]
 
             # yield before the cleanup, so we can get at the fields before they are purged
-            yield (
-                iz,
-                this_coeval,
-                halo_time,
-                xray_time,
-                spin_time,
-                ionization_time,
-                brightness_time,
-            )
+            yield iz, this_coeval
 
 
 def _setup_ics_and_pfs_for_scrolling(
