@@ -1,8 +1,11 @@
-========
-21cmFAST
-========
+
 
 .. image:: docs/images/Logo_horizontal_blue_red.jpg
+
+========
+21cmFAST **A semi-numerical cosmological simulation code for the radio 21-cm signal.**
+========
+
 
 .. start-badges
 .. image:: https://img.shields.io/endpoint?url=https://raw.githubusercontent.com/astral-sh/ruff/main/assets/badge/v2.json
@@ -27,7 +30,7 @@
     :target: https://doi.org/10.21105/joss.02582
 .. end-badges
 
-**A semi-numerical cosmological simulation code for the radio 21-cm signal.**
+
 
 
 
