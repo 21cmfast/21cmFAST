@@ -123,11 +123,12 @@ struct multiple_scattering_params {
     double beta_inner;
 };
 
-void compute_alpha_and_beta_for_multiple_scattering(double R_SL, double r_star,
+void compute_alpha_and_beta_for_multiple_scattering(double R_SL, double R_star,
                                                     struct multiple_scattering_params *consts) {
-    double x_em = R_SL / r_star;
+    double x_em = R_SL / R_star;  // Eq. (25) in arxiv: 2601.14360
     double zeta_em = log10(x_em);
     double mu, eta;
+    // Eq. (29) in arxiv: 2601.14360
     if (x_em > 30) {
         mu = 1. - 1.0478 * pow(x_em, -0.7266);
     } else if (x_em > 3.) {
@@ -139,6 +140,7 @@ void compute_alpha_and_beta_for_multiple_scattering(double R_SL, double r_star,
     } else {
         mu = 0.3982 * pow(x_em, 0.1592);
     }
+    // Eq. (30) in arxiv: 2601.14360
     if (x_em > 20.) {
         eta = 1. - 2.804 * pow(x_em, -1.242);
     } else if (x_em > 3.) {
@@ -150,16 +152,16 @@ void compute_alpha_and_beta_for_multiple_scattering(double R_SL, double r_star,
     } else {
         eta = 0.4453 * pow(x_em, 1.296);
     }
-    // mu = alpha/(alpha+beta), eta = alpha/(alpha+beta^2)
+    // Eq. (28) in arxiv: 2601.14360 (mu = alpha/(alpha+beta), eta = alpha/(alpha+beta^2))
     consts->alpha_outer = (1. / eta - 1.) / pow(1. / mu - 1., 2);
     consts->beta_outer = (1. / eta - 1.) / (1. / mu - 1.);
 }
 
 void initialize_alphas_and_betas_for_multiple_scattering(
-    double R_inner, double R_outer, double r_star, struct multiple_scattering_params *consts) {
+    double R_inner, double R_outer, double R_star, struct multiple_scattering_params *consts) {
     struct multiple_scattering_params consts_outer, consts_inner;
-    compute_alpha_and_beta_for_multiple_scattering(R_inner, r_star, &consts_inner);
-    compute_alpha_and_beta_for_multiple_scattering(R_outer, r_star, &consts_outer);
+    compute_alpha_and_beta_for_multiple_scattering(R_inner, R_star, &consts_inner);
+    compute_alpha_and_beta_for_multiple_scattering(R_outer, R_star, &consts_outer);
     consts->alpha_outer = consts_outer.alpha_outer;
     consts->beta_outer = consts_outer.beta_outer;
     // Note that we use the "outer" alpha and beta here.
@@ -173,6 +175,7 @@ double asymptotic_2F3(double kR, double alpha, double beta) {
     // as given in
     // https://functions.wolfram.com/HypergeometricFunctions/Hypergeometric2F3/06/02/03/01/0003/. In
     // our case, z=-kR^2/4 and the parameters of the hypergeometric function are given below
+    // (see also Eq. D8 in arxiv: 2601.14360)
     double a1 = (2. + alpha) / 2.;
     double a2 = (3. + alpha) / 2.;
     double b1 = 5. / 2.;
@@ -229,8 +232,10 @@ double asymptotic_2F3(double kR, double alpha, double beta) {
 }
 
 // Implementation of 2F3((alpha+2)/2, (alpha+3)/2 ; (alpha+beta+2)/2, (alpha+beta+3)/2 ; -kR^2 /4))
+// This is Eq. (32) in arxiv: 2601.14360
 double hyper_2F3(double kR, double alpha, double beta) {
     // For a small argument, we compute the hypergeometric function through power-law expansion
+    // This is Eq. (D7) in arxiv: 2601.14360
     if (kR < 30.) {
         int n;
         int max_terms = 1000;
@@ -272,7 +277,7 @@ double multiple_scattering_filter(double k, double R_inner, double R_outer,
     double kR_inner = k * R_inner;
     double kR_outer = k * R_outer;
     double W;
-
+    // Eq. (11) in arxiv: 2601.14360
     W = pow(R_outer, 3.) * hyper_2F3(kR_outer, consts->alpha_outer, consts->beta_outer) -
         pow(R_inner, 3.) * hyper_2F3(kR_inner, consts->alpha_inner, consts->beta_inner);
     W /= pow(R_outer, 3.) - pow(R_inner, 3.);
@@ -280,7 +285,7 @@ double multiple_scattering_filter(double k, double R_inner, double R_outer,
 }
 
 void filter_box(fftwf_complex *box, int box_dim[3], int filter_type, float R, float R_param,
-                float r_star) {
+                float R_star) {
     double delta_k[3] = {
         2.0 * M_PI / simulation_options_global->BOX_LEN,
         2.0 * M_PI / simulation_options_global->BOX_LEN,
@@ -295,7 +300,7 @@ void filter_box(fftwf_complex *box, int box_dim[3], int filter_type, float R, fl
         R_const = exp(-R / R_param);
     }
     if (filter_type == 5) {
-        initialize_alphas_and_betas_for_multiple_scattering(R, R_param, r_star, &consts_for_ms);
+        initialize_alphas_and_betas_for_multiple_scattering(R, R_param, R_star, &consts_for_ms);
     }
 
 // loop through k-box
@@ -368,7 +373,7 @@ void filter_box(fftwf_complex *box, int box_dim[3], int filter_type, float R, fl
 }
 
 // Test function to filter a box without computing a whole output box
-int test_filter(float *input_box, double R, double R_param, double r_star, int filter_flag,
+int test_filter(float *input_box, double R, double R_param, double R_star, int filter_flag,
                 double *result) {
     int i, j, k;
     unsigned long long int ii, jj;
@@ -399,7 +404,7 @@ int test_filter(float *input_box, double R, double R_param, double r_star, int f
 
     memcpy(box_filtered, box_unfiltered, sizeof(fftwf_complex) * HII_KSPACE_NUM_PIXELS);
 
-    filter_box(box_filtered, box_dim, filter_flag, R, R_param, r_star);
+    filter_box(box_filtered, box_dim, filter_flag, R, R_param, R_star);
 
     dft_c2r_cube(matter_options_global->USE_FFTW_WISDOM, simulation_options_global->HII_DIM,
                  HII_D_PARA, simulation_options_global->N_THREADS, box_filtered);

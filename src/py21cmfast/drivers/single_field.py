@@ -486,8 +486,9 @@ def compute_xray_source_field(
             * inputs.cosmo_params.OMb
             / constants.m_p
         )
-        r_star = 3.0 * constants.c**4 * A_alpha**2 * n_H_z0 * x_HI * (1.0 + redshift)
-        r_star /= (
+        # Eq. (24) in arxiv: 2601.14360
+        R_star = 3.0 * constants.c**4 * A_alpha**2 * n_H_z0 * x_HI * (1.0 + redshift)
+        R_star /= (
             32.0
             * np.pi**3
             * nu_Lya**4
@@ -495,7 +496,7 @@ def compute_xray_source_field(
             * inputs.cosmo_params.OMm
         )
     else:
-        r_star = 0.0 * un.Mpc
+        R_star = 0.0 * un.Mpc
 
     interp_fields = ["halo_sfr", "halo_xray"]
     if inputs.astro_options.USE_MINI_HALOS:
@@ -546,7 +547,7 @@ def compute_xray_source_field(
             R_inner=R_inner,
             R_outer=R_outer,
             R_ct=i,
-            r_star=r_star.to("Mpc").value,
+            R_star=R_star.to("Mpc").value,
             allow_already_computed=True,
         )
 

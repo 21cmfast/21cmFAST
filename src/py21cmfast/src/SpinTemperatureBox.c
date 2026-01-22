@@ -636,7 +636,7 @@ void fill_Rbox_table(float **result, fftwf_complex *unfiltered_box, double *R_ar
 //   (better memory locality)
 // TODO: filter speed tests
 void one_annular_filter(float *input_box, float *output_box, double R_inner, double R_outer,
-                        double r_star, int filter_type, double *u_avg, double *f_avg) {
+                        double R_star, int filter_type, double *u_avg, double *f_avg) {
     int i, j, k;
     unsigned long long int ct;
     double unfiltered_avg = 0;
@@ -689,7 +689,7 @@ void one_annular_filter(float *input_box, float *output_box, double R_inner, dou
 
     // Don't filter on the cell scale
     if (R_inner > 0) {
-        filter_box(filtered_box, box_dim, filter_type, R_inner, R_outer, r_star);
+        filter_box(filtered_box, box_dim, filter_type, R_inner, R_outer, R_star);
     }
 
     // now fft back to real space
@@ -731,7 +731,7 @@ void one_annular_filter(float *input_box, float *output_box, double R_inner, dou
 
 // fill a box[R_ct][box_ct] array for use in TS by filtering on different scales and storing results
 // Similar to fill_Rbox_table but called using different redshifts for each scale
-int UpdateXraySourceBox(HaloBox *halobox, double R_inner, double R_outer, int R_ct, double r_star,
+int UpdateXraySourceBox(HaloBox *halobox, double R_inner, double R_outer, int R_ct, double R_star,
                         XraySourceBox *source_box) {
     int status, filter_type;
     Try {
@@ -745,15 +745,15 @@ int UpdateXraySourceBox(HaloBox *halobox, double R_inner, double R_outer, int R_
         double xray_avg, fxray_avg;
         one_annular_filter(halobox->halo_sfr,
                            &(source_box->filtered_sfr[R_ct * HII_TOT_NUM_PIXELS]), R_inner, R_outer,
-                           r_star, filter_type, &sfr_avg, &fsfr_avg);
+                           R_star, filter_type, &sfr_avg, &fsfr_avg);
         one_annular_filter(halobox->halo_xray,
                            &(source_box->filtered_xray[R_ct * HII_TOT_NUM_PIXELS]), R_inner,
-                           R_outer, r_star, 4, &xray_avg, &fxray_avg);
+                           R_outer, R_star, 4, &xray_avg, &fxray_avg);
         source_box->mean_sfr[R_ct] = fsfr_avg;
         if (astro_options_global->USE_MINI_HALOS) {
             one_annular_filter(halobox->halo_sfr_mini,
                                &(source_box->filtered_sfr_mini[R_ct * HII_TOT_NUM_PIXELS]), R_inner,
-                               R_outer, r_star, filter_type, &sfr_avg_mini, &fsfr_avg_mini);
+                               R_outer, R_star, filter_type, &sfr_avg_mini, &fsfr_avg_mini);
             source_box->mean_sfr_mini[R_ct] = fsfr_avg_mini;
             source_box->mean_log10_Mcrit_LW[R_ct] = halobox->log10_Mcrit_MCG_ave;
             // In case of multiple scattering and mini-halos, we need to filter the SFRD fields
@@ -761,10 +761,10 @@ int UpdateXraySourceBox(HaloBox *halobox, double R_inner, double R_outer, int R_
             if (astro_options_global->LYA_MULTIPLE_SCATTERING) {
                 one_annular_filter(halobox->halo_sfr,
                                    &(source_box->filtered_sfr_lw[R_ct * HII_TOT_NUM_PIXELS]),
-                                   R_inner, R_outer, r_star, 4, &sfr_avg, &fsfr_avg);
+                                   R_inner, R_outer, R_star, 4, &sfr_avg, &fsfr_avg);
                 one_annular_filter(halobox->halo_sfr_mini,
                                    &(source_box->filtered_sfr_mini_lw[R_ct * HII_TOT_NUM_PIXELS]),
-                                   R_inner, R_outer, r_star, 4, &sfr_avg_mini, &fsfr_avg_mini);
+                                   R_inner, R_outer, R_star, 4, &sfr_avg_mini, &fsfr_avg_mini);
             }
         }
 

@@ -304,8 +304,8 @@ def filter_plot(
 
 @pytest.mark.parametrize("R_inner", R_PARAM_LIST)
 @pytest.mark.parametrize("n", [2, 4, 6, 8])
-@pytest.mark.parametrize("r_star", [1e-6, 5, 10, 20])
-def test_MS_filter(R_inner, n, r_star):
+@pytest.mark.parametrize("R_star", [1e-6, 5, 10, 20])
+def test_MS_filter(R_inner, n, R_star):
     """Test the multiple scattering filter."""
     opts = prd.get_all_options_struct(redshift=10.0)
     inputs = opts["inputs"]
@@ -324,7 +324,7 @@ def test_MS_filter(R_inner, n, r_star):
         ffi.cast("float *", input_box.ctypes.data),
         R_inner,
         R_outer,
-        r_star,
+        R_star,
         4,
         ffi.cast("double *", output_box_SL.ctypes.data),
     )
@@ -334,16 +334,16 @@ def test_MS_filter(R_inner, n, r_star):
         ffi.cast("float *", input_box.ctypes.data),
         R_inner,
         R_outer,
-        r_star,
+        R_star,
         5,
         ffi.cast("double *", output_box_MS.ctypes.data),
     )
 
-    if r_star < 1:
-        # Test that MS filter returns the same output as the SL filter in the SL limit (r_star -> 0).
+    if R_star < 1:
+        # Test that MS filter returns the same output as the SL filter in the SL limit (R_star -> 0).
         np.testing.assert_allclose(output_box_SL, output_box_MS, atol=1e-4)
     else:
-        # Test that the SL and MS filters yield different outputs if r_star is not too small
+        # Test that the SL and MS filters yield different outputs if R_star is not too small
         assert not np.allclose(output_box_SL, output_box_MS, atol=1e-4)
 
 
