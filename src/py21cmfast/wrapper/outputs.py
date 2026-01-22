@@ -1239,6 +1239,7 @@ class TsBox(OutputStructZ):
     xray_ionised_fraction = _arrayfield()
     kinetic_temp_neutral = _arrayfield()
     J_21_LW = _arrayfield(optional=True)
+    Q_HI: float = attrs.field(default=1.0)
 
     @classmethod
     def new(cls, inputs: InputParameters, redshift: float, **kw) -> Self:

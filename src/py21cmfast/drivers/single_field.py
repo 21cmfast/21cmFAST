@@ -729,15 +729,27 @@ def compute_ionization_field(
             halobox=halobox,
             ics=initial_conditions,
         )
+    # If we have only one cell (could happen if we do a global evolution), we set the neutral fraction
+    # according to the global evolution
     else:
-        # If we have only one cell (could happen if we do a global evolution), we set the neutral fraction
-        # according to the global evolution
         shape = (1, 1, 1)
-        # TODO: fix these global values
+        # TODO: I think a more accurate global Q_HI can be achieved by solving an ODE that includes also the recombination rate
+        Q_HI = spin_temp.Q_HI if spin_temp.Q_HI > 0.0 else 0.0
+        # A crude way to estimate the global photoionization rate
+        try:
+            dQdz = (Q_HI - previous_ionized_box.neutral_fraction.value) / (
+                redshift - previous_ionized_box.redshift
+            )
+        except TypeError:
+            dQdz = 0.0
+        dzdt = -(1.0 + redshift) * inputs.cosmo_params.cosmo.H(redshift)
+        ionisation_rate_G12 = np.abs(dQdz * dzdt)
         required_arrays = {
-            "neutral_fraction": 1.0 - spin_temp.xray_ionised_fraction.value,
-            "ionisation_rate_G12": 0.0,
-            "z_reion": -1.0,
+            "neutral_fraction": Q_HI,
+            "ionisation_rate_G12": ionisation_rate_G12.to("1/s"),
+            "z_reion": -1.0
+            if Q_HI > 0.0
+            else redshift,  # TODO: is there a more clever way to estimate global z_reion?
         }
         for name, val in required_arrays.items():
             setattr(

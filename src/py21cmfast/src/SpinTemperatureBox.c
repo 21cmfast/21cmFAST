@@ -1496,6 +1496,7 @@ void ts_main(float redshift, float prev_redshift, float perturbed_field_redshift
 
     NO_LIGHT = global_reion_properties(redshift, x_e_ave_p, ave_log10_MturnLW, mean_sfr_zpp,
                                        mean_sfr_zpp_mini, &Q_HI_zp);
+    this_spin_temp->Q_HI = Q_HI_zp;
 
 #pragma omp parallel private(box_ct) num_threads(simulation_options_global -> N_THREADS)
     {
