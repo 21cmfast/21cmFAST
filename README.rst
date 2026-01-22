@@ -2,6 +2,8 @@
 21cmFAST
 ========
 
+.. image:: docs/images/Logo_horizontal_blue_red.jpg
+
 .. start-badges
 .. image:: https://img.shields.io/endpoint?url=https://raw.githubusercontent.com/astral-sh/ruff/main/assets/badge/v2.json
     :target: https://github.com/21cmFAST/21cmFAST
@@ -27,7 +29,7 @@
 
 **A semi-numerical cosmological simulation code for the radio 21-cm signal.**
 
-.. image:: docs/images/Logo_horizontal_blue_red.jpg
+
 
 This is the official repository for ``21cmFAST``: a semi-numerical code that is able to
 produce 3D cosmological realisations of many physical fields in the early Universe.
