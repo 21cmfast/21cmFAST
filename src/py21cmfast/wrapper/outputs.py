@@ -1395,6 +1395,7 @@ class IonizedBox(OutputStructZ):
         if (
             inputs.astro_options.USE_MINI_HALOS
             and not inputs.matter_options.lagrangian_source_grid
+            and inputs.simulation_options.HII_DIM > 1
         ):
             n_filtering = (
                 int(
