@@ -7,7 +7,6 @@ from typing import Self
 import attrs
 import h5py
 import numpy as np
-from astropy import units
 
 from .. import __version__
 from ..c_21cmfast import lib
@@ -31,7 +30,7 @@ class GlobalEvolution:
     Attributes
     ----------
     inputs: InputParameters
-        The input parameters corresponding to the lightcones.
+        The input parameters for the simulation.
     quantities: dict[str, np.ndarray] | None
         Arrays of length `node_redshifts` containing the global field across redshift.
     """
@@ -91,43 +90,26 @@ class GlobalEvolution:
         """Random seed shared by all datasets."""
         return self.inputs.random_seed
 
-    # TODO: Needs to modify save and load methods
     def save(
         self,
         path: str | Path,
         clobber=False,
-        lowz_buffer_pixels: int = 0,
-        highz_buffer_pixels: int = 0,
     ):
-        """Save the lightcone object to disk."""
+        """Save the global_evolution object to disk."""
         path = Path(path)
         path.parent.mkdir(parents=True, exist_ok=True)
 
         file_mode = "w" if clobber else "a"
         with h5py.File(path, file_mode) as fl:
-            fl.attrs["lightcone"] = True  # marker identifying this as a lightcone box
-
-            fl.attrs["last_completed_node"] = self._last_completed_node
-            fl.attrs["last_completed_lcidx"] = self._last_completed_lcidx
-            fl.attrs["lowz_buffer_pixels"] = lowz_buffer_pixels
-            fl.attrs["highz_buffer_pixels"] = highz_buffer_pixels
+            fl.attrs["global_evolution"] = (
+                True  # marker identifying this as a global_evolution
+            )
 
             fl.attrs["__version__"] = __version__
-
-            grp = fl.create_group("photon_nonconservation_data")
-            for k, v in self.photon_nonconservation_data.items():
-                grp[k] = v
-
-            # Save the boxes to the file
-            boxes = fl.create_group("lightcones")
-            for k, val in self.lightcones.items():
-                boxes[k] = val
 
             global_q = fl.create_group("quantities")
             for k, v in self.quantities.items():
                 global_q[k] = v
-
-            fl["lightcone_distances"] = self.lightcone_distances.to_value("Mpc")
 
         h5._write_inputs_to_group(self.inputs, path)
 
@@ -135,39 +117,16 @@ class GlobalEvolution:
     def from_file(
         cls, path: str | Path, safe: bool = True, remove_buffer: bool = True
     ) -> Self:
-        """Create a new instance from a saved lightcone on disk."""
+        """Create a new instance from a saved global_evolution on disk."""
         kwargs = {}
         with h5py.File(path, "r") as fl:
-            if not fl.attrs.get("lightcone", False):
-                raise ValueError(f"The file {path} is not a lightcone file!")
+            if not fl.attrs.get("global_evolution", False):
+                raise ValueError(f"The file {path} is not a global_evolution file!")
 
             kwargs["inputs"] = h5.read_inputs(fl, safe=safe)
-            kwargs["last_completed_node"] = fl.attrs["last_completed_node"]
-            kwargs["last_completed_lcidx"] = fl.attrs["last_completed_lcidx"]
-
-            if remove_buffer:
-                lowz_buffer_pixels = fl.attrs.get("lowz_buffer_pixels", 0)
-                highz_buffer_pixels = fl.attrs.get("highz_buffer_pixels", 0)
-            else:
-                lowz_buffer_pixels = 0
-                highz_buffer_pixels = 0
-
-            highz_buffer_pixels = len(fl["lightcone_distances"]) - highz_buffer_pixels
-
-            grp = fl["photon_nonconservation_data"]
-            kwargs["photon_nonconservation_data"] = {k: v[...] for k, v in grp.items()}
-
-            boxes = fl["lightcones"]
-            kwargs["lightcones"] = {
-                k: boxes[k][..., lowz_buffer_pixels:highz_buffer_pixels] for k in boxes
-            }
 
             glb = fl["quantities"]
             kwargs["quantities"] = {k: glb[k][...] for k in glb}
-            kwargs["lightcone_distances"] = (
-                fl["lightcone_distances"][..., lowz_buffer_pixels:highz_buffer_pixels]
-                * units.Mpc
-            )
 
         return cls(**kwargs)
 
@@ -187,10 +146,7 @@ def run_global_evolution(
     progressbar: bool = False,
 ):
     r"""
-    Create a generator function for a lightcone run.
-
-    This is generally the easiest and most efficient way to generate a lightcone, though it can
-    be done manually by using the lower-level functions which are called by this function.
+    Compute the global evolution of all the fields in the simulation.
 
     Parameters
     ----------
