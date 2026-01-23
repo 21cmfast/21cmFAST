@@ -211,9 +211,6 @@ void alloc_global_arrays() {
 }
 
 void free_ts_global_arrays() {
-    // free external interpolation tables that are initialized in heating_healper_progs.c
-    destruct_heat();
-
     int i;
     // frequency integrals
     for (i = 0; i < x_int_NXHII; i++) {
@@ -1409,6 +1406,9 @@ void ts_main(float redshift, float prev_redshift, float perturbed_field_redshift
         LOG_DEBUG("redshift greater than Z_HEAT_MAX");
         init_first_Ts(this_spin_temp, perturbed_field->density, perturbed_field_redshift, redshift,
                       &x_e_ave_p, &Tk_ave_p);
+        // free external interpolation tables that are initialized in heating_healper_progs.c
+        destruct_heat();
+
         return;
     }
 
