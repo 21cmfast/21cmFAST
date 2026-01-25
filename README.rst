@@ -1,6 +1,6 @@
 
 
-.. image:: docs/images/Logo_horizontal_blue_red.jpg
+.. image:: images/Logo_horizontal_blue_red.jpg
     :scale: 50 %
 
 ========
