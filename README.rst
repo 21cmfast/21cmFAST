@@ -1,6 +1,6 @@
 
 
-.. image:: docs/images/Logo_horizontal_blue_red.jpg
+.. image:: https://raw.githubusercontent.com/nikos-triantafyllou/21cmFAST/readme-updates/docs/images/Logo_horizontal_blue_red.jpg
 
 ========
 21cmFAST: **A semi-numerical cosmological simulation code for the radio 21-cm signal.**
