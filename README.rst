@@ -1,6 +1,7 @@
 
 
-.. image:: docs/images/Logo_horizontal_blue_red.jpg
+.. image:: docs/images/Logo_horizontal_blue_red.jpg 
+    :scale: 50 %
 
 ========
 21cmFAST: **A semi-numerical cosmological simulation code for the radio 21-cm signal.**
