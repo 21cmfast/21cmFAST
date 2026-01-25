@@ -1,6 +1,5 @@
 """Module containing a driver function for computing the global evolution of the fields in the simulation."""
 
-import logging
 from pathlib import Path
 from typing import Self
 
@@ -19,8 +18,6 @@ from ..wrapper.outputs import (
     TsBox,
 )
 from .coeval import _redshift_loop_generator, _setup_ics_and_pfs_for_scrolling
-
-logger = logging.getLogger(__name__)
 
 
 @attrs.define()
