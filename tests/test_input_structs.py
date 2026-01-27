@@ -437,6 +437,20 @@ class TestInputParameters:
         ),
         (
             ValueError,
+            "LYA_MULTIPLE_SCATTERING is not compatible with SOURCE_MODEL == E-INTEGRAL",
+            {
+                "matter_options": MatterOptions(
+                    SOURCE_MODEL="E-INTEGRAL",
+                ),
+                "astro_options": AstroOptions(
+                    LYA_MULTIPLE_SCATTERING=True,
+                    USE_EXP_FILTER=False,
+                    USE_UPPER_STELLAR_TURNOVER=False,
+                ),
+            },
+        ),
+        (
+            ValueError,
             "USE_EXP_FILTER is not compatible with SOURCE_MODEL == E-INTEGRAL",
             {
                 "matter_options": MatterOptions(

@@ -1033,8 +1033,8 @@ class AstroOptions(InputStruct):
         This flag simply turns off the filtering of N_rec grids, and takes the recombinations in the central cell.
     LYA_MULTIPLE_SCATTERING: bool, optional
         If True, multiple scattering window function is used for the computation of Lyman alpha photons.
-        If False, the straight-line window function is used.
-        Becomes relevant only when USE_HALO_FIELD=True.
+        If False, the straight-line window function is used (see more info in arxiv: 2601.14360).
+        This feature can be turned on only when the source model is defined on the Lagrangian grid, otherwise an error is raised.
     USE_ADIABATIC_FLUCTUATIONS: bool, optional
         Whether to apply adiabatic fluctuations to the initial temperature box, see Munoz 2023. If set to False,
         the initial temperature box is completely homogeneous. Default is True.
@@ -1611,6 +1611,10 @@ class InputParameters:
             if val.USE_EXP_FILTER:
                 raise ValueError(
                     f"USE_EXP_FILTER is not compatible with SOURCE_MODEL == {self.matter_options.SOURCE_MODEL}"
+                )
+            if val.LYA_MULTIPLE_SCATTERING:
+                raise ValueError(
+                    f"LYA_MULTIPLE_SCATTERING is not compatible with SOURCE_MODEL == {self.matter_options.SOURCE_MODEL}"
                 )
         if (
             not self.matter_options.has_discrete_halos
