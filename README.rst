@@ -3,7 +3,7 @@
 .. image:: https://raw.githubusercontent.com/nikos-triantafyllou/21cmFAST/readme-updates/docs/images/Logo_horizontal_transparent.png
 
 ========
-**A fast simulation of the first billion years**
+**A fast simulator of the first billion years**
 ========
 
 
