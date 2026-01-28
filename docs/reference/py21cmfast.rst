@@ -17,14 +17,20 @@ High-Level Simulations and Inputs
     py21cmfast.drivers.coeval
     py21cmfast.drivers.lightcone
 
-Low-Level Simulation Functions and Outputs
-------------------------------------------
+Low-Level Simulation Functions
+------------------------------
+
+.. automodule::
+
+    py21cmfast.drivers.single_field
+
+Low-Level Output Structures
+---------------------------
 
 .. autosummary::
     :toctree: _autosummary
     :template: module.rst
 
-    py21cmfast.drivers.single_field
     py21cmfast.wrapper.outputs
 
 Plotting, Caching, I/O and Other Utilities
@@ -40,6 +46,7 @@ Plotting, Caching, I/O and Other Utilities
     py21cmfast.io.h5
     py21cmfast.rsds
     py21cmfast.utils
+    py21cmfast._templates
 
 Internals
 ---------

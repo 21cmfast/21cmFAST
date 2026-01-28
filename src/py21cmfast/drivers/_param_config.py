@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import contextlib
+import functools
 import inspect
 import logging
 from collections.abc import Sequence
@@ -418,6 +419,12 @@ class single_field_func(_OutputStructComputationInspect):  # noqa: N801
 
     This decorator is meant for internal use only.
     """
+
+    def __init__(self, _func: callable):
+        super().__init__(_func)
+
+        # Explicitly update the wrapper instance with the original function's metadata
+        functools.update_wrapper(self, _func)
 
     def __call__(self, **kwargs) -> OutputStruct:
         """Call the single field function."""
