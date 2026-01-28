@@ -1,6 +1,11 @@
+
+
+.. image:: https://raw.githubusercontent.com/nikos-triantafyllou/21cmFAST/readme-updates/docs/images/Logo_horizontal_transparent.png
+
 ========
-21cmFAST
+**A fast simulator of the first billion years**
 ========
+
 
 .. start-badges
 .. image:: https://img.shields.io/endpoint?url=https://raw.githubusercontent.com/astral-sh/ruff/main/assets/badge/v2.json
@@ -25,9 +30,9 @@
     :target: https://doi.org/10.21105/joss.02582
 .. end-badges
 
-**A semi-numerical cosmological simulation code for the radio 21-cm signal.**
 
-.. image:: docs/images/angular_lightcone_horizontal.PNG
+
+
 
 This is the official repository for ``21cmFAST``: a semi-numerical code that is able to
 produce 3D cosmological realisations of many physical fields in the early Universe.
