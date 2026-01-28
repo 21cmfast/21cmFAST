@@ -2,7 +2,7 @@
 Installation
 ============
 
-.. note:: Due to ``classy`` not being available on ``conda-forge``, we do not 
+.. note:: Due to ``classy`` not being available on ``conda-forge``, we do not
           support installation via ``conda`` from v4 (it was support for v3.x.x).
           Please use ``pip`` or ``uv`` installation as described below.
 
@@ -25,7 +25,7 @@ way that ``21cmFAST`` understands on various operating systems can be slightly n
 
 See `<faqs/installation_faq>`_ for more detailed questions on installation.
 If you are on MacOS and are having trouble with installation (or would like to share
-a successful installation strategy!) please see 
+a successful installation strategy!) please see
 `this discussion <https://github.com/21cmfast/21cmFAST/discussions/208>`_.
 
 
@@ -44,7 +44,7 @@ a successful installation strategy!) please see
 
     .. tab:: Linux
 
-        Most linux distros come with packages for the requirements, and also ``gcc`` by 
+        Most linux distros come with packages for the requirements, and also ``gcc`` by
         default. As long as these packages install into the standard location,
         a standard installation of ``21cmFAST`` will be automatically possible (see below).
 
@@ -55,7 +55,7 @@ a successful installation strategy!) please see
         On Debian-based distros::
 
             sudo apt-get install libfftw3-dev libgsl-dev
-        
+
     .. tab:: MacOS
 
         The easiest way to get the dependencies (other than ``conda``) is via
@@ -64,12 +64,12 @@ a successful installation strategy!) please see
             brew install gsl fftw
 
     .. tab:: HPC
-        
-        These libraries will often be available on a HPC environment by using 
-        ``module load gsl fftw3`` (or similar) commands. 
-        
-        
-        
+
+        These libraries will often be available on a HPC environment by using
+        ``module load gsl fftw3`` (or similar) commands.
+
+
+
         Note that just because they are loaded
         doesn't mean that ``21cmFAST`` will be able to find them. You may have to point to the
         relevant ``lib/`` and ``include/`` folders for both ``gsl`` and ``fftw`` (these should
@@ -86,11 +86,11 @@ Setting correct env variables for installation
 It is not gauranteed that the libraries you just installed will be able to be found
 by the compiler when installing ``21cmFAST``. If they are installed to a place not on the
 ``LD_LIBRARY``/``INCLUDE`` paths, then you must use compilation options to specify where they are.
-The following options will be set as options at the front of the installation command 
+The following options will be set as options at the front of the installation command
 (see below).
 
-To specify the C compiler, use ``CC`` (e.g. ``CC=gcc`` or ``CC=clang``). Usually this 
-will not be necessary sinc the default compiler should work. However, if you'd like to 
+To specify the C compiler, use ``CC`` (e.g. ``CC=gcc`` or ``CC=clang``). Usually this
+will not be necessary sinc the default compiler should work. However, if you'd like to
 use ``clang`` on linux, for example, you may need to set ``CC`` explicitly.
 
 To add a library search path, use ``<LIBRARY>_LIB`` where ``<LIBRARY>`` is either
@@ -109,7 +109,7 @@ to find the libs, or::
 
 to find the include files.
 
-.. note:: On MacOS (at least, 10.14-10.15), you may need to also add the following 
+.. note:: On MacOS (at least, 10.14-10.15), you may need to also add the following
           installation flag (see `here<https://github.com/21cmfast/21cmFAST/discussions/208>`_)::
 
               CFLAGS="-isysroot /Library/Developer/CommandLineTools/SDKs/MacOSX<input version>.sdk"
@@ -154,7 +154,7 @@ in some specific cases.
 Installation Instructions
 -------------------------
 
-How you install ``21cmFAST`` depends on whether you are a user or a developer, and 
+How you install ``21cmFAST`` depends on whether you are a user or a developer, and
 which tool you'd like to use to install it.
 
 First, make an isolated virtual environment and activate it (note the python
@@ -212,7 +212,7 @@ For Users
         Install the latest stable release with::
 
             [COMPILE OPTIONS] uv add 21cmfast
-    
+
 
 For Developers
 --------------
