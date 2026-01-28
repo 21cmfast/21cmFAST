@@ -2,7 +2,7 @@
 Installation
 ============
 
-.. note:: Due to ``classy`` not being available on ``conda-forge``, we do not
+.. attention:: Due to ``classy`` not being available on ``conda-forge``, we do not
           support installation via ``conda`` from v4 (it was support for v3.x.x).
           Please use ``pip`` or ``uv`` installation as described below.
 
@@ -23,15 +23,15 @@ The C libraries required are:
 As it turns out, though these are fairly common libraries, getting them installed in a
 way that ``21cmFAST`` understands on various operating systems can be slightly non-trivial.
 
-See `<faqs/installation_faq>`_ for more detailed questions on installation.
+See the `FAQ <faqs/installation_faq>`_ for more detailed questions on installation.
 If you are on MacOS and are having trouble with installation (or would like to share
 a successful installation strategy!) please see
 `this discussion <https://github.com/21cmfast/21cmFAST/discussions/208>`_.
 
 
-.. tabs::
+.. tab-set::
 
-    .. tab:: Conda on any OS
+    .. tab-item:: Conda on any OS
 
         If you are using ``conda``, the easiest way to get the dependencies is to
         install them via ``conda`` itself. You can do this with::
@@ -42,7 +42,7 @@ a successful installation strategy!) please see
         need to point to the relevant ``lib/`` and ``include/`` folders for both
         ``gsl`` and ``fftw`` during installation of ``21cmFAST`` (see below).
 
-    .. tab:: Linux
+    .. tab-item:: Linux
 
         Most linux distros come with packages for the requirements, and also ``gcc`` by
         default. As long as these packages install into the standard location,
@@ -56,34 +56,28 @@ a successful installation strategy!) please see
 
             sudo apt-get install libfftw3-dev libgsl-dev
 
-    .. tab:: MacOS
+    .. tab-item:: MacOS
 
         The easiest way to get the dependencies (other than ``conda``) is via
         ``homebrew``. You can install them with::
 
             brew install gsl fftw
 
-    .. tab:: HPC
+    .. tab-item:: HPC
 
         These libraries will often be available on a HPC environment by using
         ``module load gsl fftw3`` (or similar) commands.
 
-
-
-        Note that just because they are loaded
-        doesn't mean that ``21cmFAST`` will be able to find them. You may have to point to the
-        relevant ``lib/`` and ``include/`` folders for both ``gsl`` and ``fftw`` (these should
-        be available using ``module show gsl`` etc.)
-
         Note also that while ``fftw`` may be available to load, it may not have the correct
-        compilation options (i.e. float-enabled and multiprocessing-enabled). In this case,
-        see below.
+        compilation options (i.e. float-enabled and multiprocessing-enabled). In that
+        case, you may need to install your own local copy of ``fftw`` (and possibly
+        ``gsl`` too) from source.
 
 
 Setting correct env variables for installation
 ----------------------------------------------
 
-It is not gauranteed that the libraries you just installed will be able to be found
+It is not guaranteed that the libraries you just installed will be able to be found
 by the compiler when installing ``21cmFAST``. If they are installed to a place not on the
 ``LD_LIBRARY``/``INCLUDE`` paths, then you must use compilation options to specify where they are.
 The following options will be set as options at the front of the installation command
@@ -110,7 +104,7 @@ to find the libs, or::
 to find the include files.
 
 .. note:: On MacOS (at least, 10.14-10.15), you may need to also add the following
-          installation flag (see `here<https://github.com/21cmfast/21cmFAST/discussions/208>`_)::
+          installation flag (see `here <https://github.com/21cmfast/21cmFAST/discussions/208>`_)::
 
               CFLAGS="-isysroot /Library/Developer/CommandLineTools/SDKs/MacOSX<input version>.sdk"
 
@@ -154,6 +148,7 @@ in some specific cases.
 Installation Instructions
 -------------------------
 
+After following the above instructions, you are ready to install ``21cmFAST``.
 How you install ``21cmFAST`` depends on whether you are a user or a developer, and
 which tool you'd like to use to install it.
 
@@ -161,87 +156,61 @@ First, make an isolated virtual environment and activate it (note the python
 version should be the latest compatible version):
 
 
-.. tabs::
-    .. tab:: conda (rec. for MacOS)
+.. tab-set::
 
-        Create and activate an isolated environment with::
+    .. tab-item:: conda (rec. for MacOS)
+        :sync: conda
+
+        .. code-block:: bash
 
             conda create -n 21cmfast_env python=3.13 numpy scipy click pyyaml cffi astropy h5py matplotlib attrs
             conda activate 21cmfast_env
 
-    .. tab:: uv (rec. for linux)
+    .. tab-item:: uv (rec. for linux)
+        :sync: uv
 
-        Create and activate an isolated environment with::
+        .. code-block:: bash
 
-            uv venv --python=3.13
+            uv venv --python 3.13
             source activate .venv/bin/activate
 
-    .. tab:: uv (new project)
+    .. tab-item:: uv (new project)
+        :sync: uvp
 
-        Create a new project that will use ``21cmFAST`` with::
+        .. code-block:: bash
 
             uv init --name project-name --python=3.13  # see other uv options
             cd project-name
 
-    .. tab:: venv
+    .. tab-item:: venv
 
-        Create and activate an isolated environment with::
+        .. code-block:: bash
 
             python3 -m venv 21cmfast_env
             source 21cmfast_env/bin/activate
 
 
-For Users
-~~~~~~~~~
+Then install the latest stable release from PyPI with (see above for compile options):
 
+.. tab-set::
 
-.. tabs::
+    .. tab-item:: conda/pip
+        :sync: conda
 
-    .. tab:: conda/pip
-
-        Install the latest stable release from PyPI with::
+        .. code-block:: bash
 
             [COMPILE OPTIONS] pip install 21cmFAST
 
-    .. tab:: uv (rec. for linux)
-        Install the latest stable release with::
+    .. tab-item:: uv (rec. for linux)
+        :sync: uv
+
+        .. code-block:: bash
 
             [COMPILE OPTIONS] uv pip install 21cmfast
 
-    .. tab:: uv project
-        Install the latest stable release with::
+    .. tab-item:: uv project
+        :sync: uvp
+
+        .. code-block:: bash
 
             [COMPILE OPTIONS] uv add 21cmfast
-
-
-For Developers
---------------
-
-First clone the repository from GitHub::
-
-    git clone git@github.com:21cmfast/21cmFAST.git
-    cd 21cmFAST
-
-Then, to install in "editable" or "development" mode, do one of the following.
-
-.. tabs::
-
-    .. tab:: uv (rec. for linux)
-
-        If you are using ``uv`` to manage your environment, do::
-
-            [COMPILE OPTIONS] uv pip install -e .[dev]
-
-    .. tab:: conda/pip
-
-        If you are using ``conda`` or ``pip``::
-
-            [COMPILE OPTIONS] pip install -e .[dev]
-
-The ``[dev]`` "extra" here installs all development dependencies. You can instead use
-``[tests]`` if you only want dependencies for testing, or ``[docs]`` to be able to
-compile the documentation.
-
-Finally, install pre-commit hooks to ensure code quality::
-
-    pre-commit install
