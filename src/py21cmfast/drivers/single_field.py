@@ -703,9 +703,9 @@ def compute_ionization_field(
         if previous_perturbed_field is None:
             previous_perturbed_field = PerturbedField.initial(inputs=inputs)
 
-    box = IonizedBox.new(inputs=inputs, redshift=redshift)
-
     if inputs.simulation_options.HII_DIM > 1:
+        box = IonizedBox.new(inputs=inputs, redshift=redshift)
+
         if not inputs.matter_options.lagrangian_source_grid:
             # Construct an empty halo field to pass in to the function.
             halobox = HaloBox.dummy()
@@ -729,36 +729,20 @@ def compute_ionization_field(
             halobox=halobox,
             ics=initial_conditions,
         )
-    # If we have only one cell (could happen if we do a global evolution), we set the neutral fraction
-    # according to the global evolution
     else:
-        shape = (1, 1, 1)
-        # TODO: I think a more accurate global Q_HI can be achieved by solving an ODE that includes also the recombination rate
-        Q_HI = spin_temp.Q_HI if spin_temp.Q_HI > 0.0 else 0.0
-        # A crude way to estimate the global photoionization rate
-        try:
-            dQdz = (Q_HI - previous_ionized_box.neutral_fraction.value) / (
-                redshift - previous_ionized_box.redshift
-            )
-        except TypeError:
-            dQdz = 0.0
-        dzdt = -(1.0 + redshift) * inputs.cosmo_params.cosmo.H(redshift)
-        ionisation_rate_G12 = np.abs(dQdz * dzdt)
-        required_arrays = {
-            "neutral_fraction": Q_HI,
-            "ionisation_rate_G12": ionisation_rate_G12.to("1/s"),
-            "z_reion": -1.0
-            if Q_HI > 0.0
-            else redshift,  # TODO: is there a more clever way to estimate global z_reion?
-        }
-        for name, val in required_arrays.items():
-            setattr(
-                box,
-                name,
-                Array(shape=shape, dtype=np.float32)
-                .initialize()
-                .with_value(val=val * np.ones(shape)),
-            )
+        # If we have only one cell (could happen if we do a global evolution), we set the neutral fraction
+        # according to the global evolution
+
+        from .global_evolution import (
+            compute_global_reionization_at_z,  # This is imported here to prevent circular import
+        )
+
+        box = compute_global_reionization_at_z(
+            redshift=redshift,
+            inputs=inputs,
+            previous_ionized_box=previous_ionized_box,
+            spin_temp=spin_temp,
+        )
         return box
 
 

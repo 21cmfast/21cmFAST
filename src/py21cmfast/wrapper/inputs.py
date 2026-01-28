@@ -619,12 +619,12 @@ class MatterOptions(InputStruct):
         If False, only the z velocity is kept.
     SOURCE_MODEL: str, optional
         The source model to use in the simulation. Options are:
-        CONST-ION-EFF: Similarly to E-INTEGRAL (see below), but ionizing efficiency is constant and does not depend on the halo mass
-            (see Mesinger+ 2010).
         E-INTEGRAL : The traditional excursion-set formalism, where source properties are
             defined on the Eulerian grid after 2LPT in regions of filter scale R (see the X_FILTER options for filter shapes).
             This integrates over the CHMF using the smoothed density grids, then multiplies the result.
             by (1 + delta) to get the source properties in each cell.
+        CONST-ION-EFF: Similar to E-INTEGRAL, but ionizing efficiency is constant and does not depend on the halo mass
+            (see Mesinger+ 2010).
         L-INTEGRAL : Analagous to the 'ESF-L' model described in Trac+22, where source properties
             are defined on the Lagrangian (IC) grid by integrating the CHMF prior to the IGM physics
             and then mapping properties to the Eulerian grid using 2LPT.
@@ -818,6 +818,11 @@ class SimulationOptions(InputStruct):
         Self-correlation length used for updating xray luminosity, see "CORR_STAR" for details.
     K_MAX_FOR_CLASS: float, optional
         Maximum wavenumber to run CLASS, in 1/Mpc. Becomes relevant only if matter_options.POWER_SPECTRUM = "CLASS".
+    MIN_XE_FOR_FCOLL_IN_TAUX: float, optional
+        Minimum global x_e value for which the collapsed fraction (f_coll) is evaluated in the tau_X integral (X-ray optical depth).
+        When x_e is above this threshold value, it is assumed that f_coll=0, in order to speed up the calculations.
+        For now, this parameter becomes relevant only when run_global_evolution is called, as it controls the runtime of this
+        function (higher values reduce the runtime, in expense of degraded precision).
     """
 
     _DEFAULT_HIRES_TO_LOWRES_FACTOR: ClassVar[float] = 3
@@ -864,6 +869,7 @@ class SimulationOptions(InputStruct):
     PARKINSON_y2: float = field(default=0.0, converter=float)
     Z_HEAT_MAX: float = field(default=35.0, converter=float)
     ZPRIME_STEP_FACTOR: float = field(default=1.02, converter=float)
+    MIN_XE_FOR_FCOLL_IN_TAUX: float = field(default=1e-3, converter=float)
 
     INITIAL_REDSHIFT: float = field(default=300.0, converter=float)
     DELTA_R_FACTOR: float = field(

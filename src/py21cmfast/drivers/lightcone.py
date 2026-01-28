@@ -165,6 +165,11 @@ class LightCone:
         """Random seed shared by all datasets."""
         return self.inputs.random_seed
 
+    @property
+    def node_redshifts(self):
+        """Redshifts at which coeval boxes and global quantities are computed."""
+        return self.inputs.node_redshifts
+
     @cached_property
     def lightcone_redshifts(self) -> np.ndarray:
         """Redshift of each cell along the redshift axis."""

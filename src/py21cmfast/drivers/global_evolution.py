@@ -1,5 +1,6 @@
 """Module containing a driver function for computing the global evolution of the fields in the simulation."""
 
+import warnings
 from pathlib import Path
 from typing import Self
 
@@ -11,13 +12,98 @@ from .. import __version__
 from ..c_21cmfast import lib
 from ..io import h5
 from ..io.caching import CacheConfig
+from ..wrapper.arrays import Array
+from ..wrapper.cfuncs import evaluate_Nion_z
 from ..wrapper.inputs import InputParameters
 from ..wrapper.outputs import (
     BrightnessTemp,
     HaloBox,
+    IonizedBox,
     TsBox,
 )
 from .coeval import _redshift_loop_generator, _setup_ics_and_pfs_for_scrolling
+
+
+def compute_global_reionization_at_z(
+    redshift: float,
+    inputs: InputParameters,
+    previous_ionized_box: IonizedBox,
+    spin_temp: TsBox | None,
+) -> IonizedBox:
+    r"""
+    Compute an ionized box at a given redshift, according to the global evolution.
+
+    Parameters
+    ----------
+    inputs : :class:`~InputParameters`
+        The input parameters specifying the run. Since this may be the first box
+        to use the astro params/flags, it is needed when we have not computed a TsBox or HaloBox.
+    previous_ionize_box: :class:`IonizedBox`
+        An ionized box at higher redshift.
+    spin_temp: :class:`TsBox` or None, optional
+        A spin-temperature box, only required if `USE_TS_FLUCT` is True. This is useful since
+        the volume filling factor Q_HI is already contained in this object. If None, it will be
+        evaluated by calling the C code.
+
+    Returns
+    -------
+    :class:`~IonizedBox` :
+        An object containing the ionized box data.
+    """
+    box = IonizedBox.new(inputs=inputs, redshift=redshift)
+    shape = (1, 1, 1)
+
+    if spin_temp is None:
+        # We compute Q_HI very similarly as in SpinTemperatureBox.c.
+        nion, _ = evaluate_Nion_z(
+            inputs=inputs,
+            redshifts=np.asarray(redshift),
+            # I just put here an arbitrary number because we currently don't allow to have mini-halos when USE_TS_FLUCT=False.
+            # TODO: should this limitation be relaxed in the future?
+            log10mturns=np.asarray(5.0),
+        )
+        if inputs.matter_options.SOURCE_MODEL == "CONST-ION-EFF":
+            ion_eff_factor = inputs.astro_params.HII_EFF_FACTOR
+        else:
+            ion_eff_factor = (
+                pow(10.0, inputs.astro_params.F_STAR10)
+                * pow(10.0, inputs.astro_params.F_ESC10)
+                * inputs.astro_params.POP2_ION
+            )
+        Q_HI = 1.0 - ion_eff_factor * nion
+    else:
+        Q_HI = spin_temp.Q_HI
+
+    # TODO: I think a more accurate global Q_HI can be achieved by solving an ODE that includes also the recombination rate
+    Q_HI = Q_HI if Q_HI > 0.0 else 0.0
+
+    # A crude way to estimate the global photoionization rate
+    try:
+        dQdz = (Q_HI - previous_ionized_box.neutral_fraction.value) / (
+            redshift - previous_ionized_box.redshift
+        )
+    except TypeError:
+        dQdz = 0.0
+    dzdt = -(1.0 + redshift) * inputs.cosmo_params.cosmo.H(redshift)
+    ionisation_rate_G12 = np.abs(dQdz * dzdt)
+    # TODO: is there a more clever way to estimate global z_reion?
+    z_reion = -1.0 if Q_HI > 0.0 else redshift
+
+    # Now initialize the output box with the global values!
+    required_arrays = {
+        "neutral_fraction": Q_HI,
+        "ionisation_rate_G12": ionisation_rate_G12.to("1/s"),
+        "z_reion": z_reion,
+    }
+    for name, val in required_arrays.items():
+        setattr(
+            box,
+            name,
+            Array(shape=shape, dtype=np.float32)
+            .initialize()
+            .with_value(val=val * np.ones(shape)),
+        )
+    return box
 
 
 @attrs.define()
@@ -87,6 +173,11 @@ class GlobalEvolution:
         """Random seed shared by all datasets."""
         return self.inputs.random_seed
 
+    @property
+    def node_redshifts(self):
+        """Redshifts at which coeval boxes and global quantities are computed."""
+        return self.inputs.node_redshifts
+
     def save(
         self,
         path: str | Path,
@@ -136,10 +227,9 @@ class GlobalEvolution:
         )
 
 
-# TODO: @high_level_func ???
 def run_global_evolution(
     inputs: InputParameters,
-    source_model: str = "L-INTEGRAL",
+    source_model: str | None = None,
     progressbar: bool = False,
 ):
     r"""
@@ -148,16 +238,16 @@ def run_global_evolution(
     Parameters
     ----------
     inputs: :class:`~InputParameters`
-        This object specifies the input parameters for the run, including the random seed
+        This object specifies the input parameters for the run, including the random seed.
     source_model: str, optional
-        The source model to use in the simulation. Default is taken from inputs, unless inputs.matter_options.has_discrete_halos
-        is True. Options are:
-        CONST-ION-EFF: Similarly to E-INTEGRAL (see below), but ionizing efficiency is constant and does not depend on the halo mass
-            (see Mesinger+ 2010).
+        The source model to use in the simulation. If not provided, it is taken from inputs, unless inputs.matter_options.has_discrete_halos
+        is True, in which case an error is thrown. Options are:
         E-INTEGRAL : The traditional excursion-set formalism, where source properties are
             defined on the Eulerian grid after 2LPT in regions of filter scale R (see the X_FILTER options for filter shapes).
             This integrates over the CHMF using the smoothed density grids, then multiplies the result.
             by (1 + delta) to get the source properties in each cell.
+        CONST-ION-EFF: Similar to E-INTEGRAL, but ionizing efficiency is constant and does not depend on the halo mass
+            (see Mesinger+ 2010).
         L-INTEGRAL : Analagous to the 'ESF-L' model described in Trac+22, where source properties
             are defined on the Lagrangian (IC) grid by integrating the CHMF prior to the IGM physics
             and then mapping properties to the Eulerian grid using 2LPT.
@@ -169,23 +259,56 @@ def run_global_evolution(
     global_evolution : :class:`~py21cmfast.GlobalEvolution`
         The object containing the global evolution of the fields in the simulation.
 
+    Raises
+    ------
+    ValueError: If source_model is None and inputs.matter_options.has_discrete_halos, or if source_model is provided,
+    but is not one of the said options above.
+
+    Notes
+    -----
+    For convenience, the provided InputParameters object by the user is overwritten to allow this function to work smoothly
+    in all cases. The InputParameters object that was used in this function can be accessed via global_evolution.inputs.
+    Note for example that the actual InputParameters object that is used by this function has only one cell (HII_DIM=DIM=1)
+    and no 2LPT is performed (since we have only one cell).
+    In addition, note that the classic reionization module of 21cmFAST (where the excursion-set algorithm is applied to find ionized
+    bubbles) is not called by this function, since there are no bubbles in a one cell box! Instead, we compute the global reionization
+    history based on the global volume filling factor Q. For that reason, note that the correction due to photon non-conservation in the
+    excursion-set algorithm is never applied when this function is called.
+
     """
     # When doing glboal evolution, we allow only source models free of discrete halos
     possible_sources = ["CONST-ION-EFF", "E-INTEGRAL", "L-INTEGRAL"]
+
+    if source_model is None:
+        if inputs.matter_options.has_discrete_halos:
+            raise ValueError(
+                "You did not specify 'source_model', but SOURCE_MODEL in `inputs` has discrete halos! "
+                "Either specify 'source_model' or change SOURCE_MODEL in `inputs` to a model with no discrete halos."
+            )
+        else:
+            source_model = inputs.matter_options.SOURCE_MODEL
+
     if source_model not in possible_sources:
         raise ValueError(
             f"'source_model' must be one of {possible_sources}, got {source_model} instead."
+        )
+
+    if not inputs.astro_options.USE_TS_FLUCT:
+        warnings.warn(
+            "Your inputs.astro_options.USE_TS_FLUCT = False. "
+            "While this is the default settings (to reduce computation time when full coeval boxes are evaluated), "
+            "it yields the incorrect 21-cm signal at high redshifts, before the spin temperature saturates the "
+            "background photon temperature. Consider changing USE_TS_FLUCT to True in order to get the correct "
+            "global 21-cm signal at all redshifts.",
+            stacklevel=2,
         )
 
     new_input_kwargs = {
         "DIM": 1,  # we need only one cell
         "HII_DIM": 1,  # we need only one cell
         "BOX_LEN": 1e6,  # we need a huge box/cell in order to simulate the global evolution
-        "SOURCE_MODEL": source_model
-        if inputs.matter_options.has_discrete_halos
-        else inputs.matter_options.SOURCE_MODEL,
+        "SOURCE_MODEL": source_model,
         "PERTURB_ALGORITHM": "LINEAR",  # no need to do 2LPT
-        "USE_TS_FLUCT": True,  # we are interested in global evolution of T_s, T_k, etc
         "USE_INTERPOLATION_TABLES": "sigma-interpolation",  # only need sigma interpolation tables (hmf integrals are evaluated once per snapshot, without interpolation)
         "INTEGRATION_METHOD_ATOMIC": "GSL-QAG",  # due to above, we ought to use gsl, and not gauss-legendre (BUG?)
         "INTEGRATION_METHOD_MINI": "GSL-QAG",

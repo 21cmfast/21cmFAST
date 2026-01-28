@@ -913,7 +913,8 @@ double tauX_integrand_MINI(double zhat, void *params) {
     // If we only have one cell, approximate fcoll to zero at high redshifts, when x_e is still very
     // small
     // TODO: Should we extend this to full boxes too?
-    if (simulation_options_global->HII_DIM == 1 && p->x_e_ave < 1e-3) {
+    if (simulation_options_global->HII_DIM == 1 &&
+        p->x_e_ave < simulation_options_global->MIN_XE_FOR_FCOLL_IN_TAUX) {
         fcoll = 0.;
         fcoll_MINI = 0.;
     } else {
@@ -950,7 +951,8 @@ double tauX_integrand(double zhat, void *params) {
     // If we only have one cell, approximate fcoll to zero at high redshifts, when x_e is still very
     // small
     // TODO: Should we extend this to full boxes too?
-    if (simulation_options_global->HII_DIM == 1 && p->x_e_ave < 1e-3) {
+    if (simulation_options_global->HII_DIM == 1 &&
+        p->x_e_ave < simulation_options_global->MIN_XE_FOR_FCOLL_IN_TAUX) {
         fcoll = 0.;
     } else {
         fcoll = EvaluateNionTs(zhat, p->scale_consts);
