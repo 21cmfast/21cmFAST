@@ -23,6 +23,7 @@ extensions = [
     "sphinx.ext.autosectionlabel",
     "numpydoc",
     "nbsphinx",
+    "sphinx_tabs.tabs",
     "IPython.sphinxext.ipython_console_highlighting",
 ]
 if os.getenv("SPELLCHECK"):
