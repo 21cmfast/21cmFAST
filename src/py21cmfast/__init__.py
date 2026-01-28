@@ -20,6 +20,7 @@ __all__ = [
     "CacheConfig",
     "Coeval",
     "CosmoParams",
+    "GlobalEvolution",
     "HaloBox",
     "HaloCatalog",
     "InitialConditions",
@@ -63,6 +64,7 @@ __all__ = [
     "read_output_struct",
     "run_classy",
     "run_coeval",
+    "run_global_evolution",
     "run_lightcone",
     "setup_photon_cons",
     "wrapper",
@@ -76,6 +78,7 @@ from ._data import DATA_PATH
 from ._logging import configure_logging
 from ._templates import list_templates, write_template
 from .drivers.coeval import Coeval, generate_coeval, run_coeval
+from .drivers.global_evolution import GlobalEvolution, run_global_evolution
 from .drivers.lightcone import LightCone, generate_lightcone, run_lightcone
 from .drivers.single_field import (
     brightness_temperature,
