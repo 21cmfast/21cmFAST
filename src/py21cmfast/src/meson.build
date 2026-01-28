@@ -94,15 +94,18 @@ else
     add_project_arguments('-O3', language: ['c', 'cpp'])
 endif
 
-# Apply PGO flags
+# Apply PGO flags with explicit profile directory
+# py21c_pgo_dir is set in root meson.build (default: ./pgo_profiles)
 if py21c_pgo_phase == 'generate'
-    message('Applying PGO generate flags: -fprofile-generate')
-    add_project_arguments('-fprofile-generate', language: ['c', 'cpp'])
-    add_project_link_arguments('-fprofile-generate', language: ['c', 'cpp'])
+    # Create profile directory if it doesn't exist
+    run_command('mkdir', '-p', py21c_pgo_dir, check: false)
+    message('Applying PGO generate flags: -fprofile-generate=' + py21c_pgo_dir)
+    add_project_arguments('-fprofile-generate=' + py21c_pgo_dir, language: ['c', 'cpp'])
+    add_project_link_arguments('-fprofile-generate=' + py21c_pgo_dir, language: ['c', 'cpp'])
 elif py21c_pgo_phase == 'use'
-    message('Applying PGO use flags: -fprofile-use -fprofile-correction')
-    add_project_arguments('-fprofile-use', '-fprofile-correction', language: ['c', 'cpp'])
-    add_project_link_arguments('-fprofile-use', language: ['c', 'cpp'])
+    message('Applying PGO use flags: -fprofile-use=' + py21c_pgo_dir + ' -fprofile-correction')
+    add_project_arguments('-fprofile-use=' + py21c_pgo_dir, '-fprofile-correction', language: ['c', 'cpp'])
+    add_project_link_arguments('-fprofile-use=' + py21c_pgo_dir, language: ['c', 'cpp'])
 endif
 
 # Check if CUDA language is available (this will be true only if root meson.build successfully added it)

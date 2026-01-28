@@ -82,6 +82,18 @@ if py21c_pgo_phase != ''
     message('PGO phase: ' + py21c_pgo_phase)
 endif
 
+# PY21C_PGO_DIR: directory for PGO profile data (default: ./pgo_profiles)
+env_py21c_pgo_dir = run_command('printenv', 'PY21C_PGO_DIR', check: false).stdout().strip()
+if env_py21c_pgo_dir == ''
+    py21c_pgo_dir = meson.current_source_dir() / 'pgo_profiles'
+else
+    py21c_pgo_dir = env_py21c_pgo_dir
+endif
+
+if py21c_pgo_phase != ''
+    message('PGO profile directory: ' + py21c_pgo_dir)
+endif
+
 nvcc_prog = find_program('nvcc', required: false)
 
 # Add CUDA language if both the environment variable is set AND nvcc is available
