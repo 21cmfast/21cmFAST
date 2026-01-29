@@ -156,9 +156,19 @@ class LightCone:
         return self.inputs.astro_params
 
     @property
+    def cosmo_tables(self):
+        """Cosmo tables shared by all datasets."""
+        return self.inputs.cosmo_tables
+
+    @property
     def random_seed(self):
         """Random seed shared by all datasets."""
         return self.inputs.random_seed
+
+    @property
+    def node_redshifts(self):
+        """Redshifts at which coeval boxes and global quantities are computed."""
+        return self.inputs.node_redshifts
 
     @cached_property
     def lightcone_redshifts(self) -> np.ndarray:
