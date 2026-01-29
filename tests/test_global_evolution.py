@@ -77,6 +77,14 @@ def test_run_global_evolution_without_Ts(default_input_struct):
     assert isinstance(global_evolution, GlobalEvolution)
 
 
+def test_run_global_evolution_from_template():
+    """Test that run_global_evolution doesn't crash when using a template."""
+    global_evolution = p21c.run_global_evolution(
+        inputs=p21c.InputParameters.from_template("simple", random_seed=1234)
+    )
+    assert isinstance(global_evolution, GlobalEvolution)
+
+
 def test_global_evolution_roundtrip(test_direc, default_input_struct_ts):
     """Test that the save/from_file methods yield the same GlobalEvolution object."""
     global_evolution1 = p21c.run_global_evolution(inputs=default_input_struct_ts)
