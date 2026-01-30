@@ -39,7 +39,7 @@ test_req = [
     "pytest-mock",
 ]
 
-doc_req = ["nbsphinx", "numpydoc", "sphinx >= 1.3", "furo"]
+doc_req = ["nbsphinx", "numpydoc", "sphinx >= 1.3", "furo", "ipython", "pandoc"]
 
 setup(
     name="21cmFAST",
