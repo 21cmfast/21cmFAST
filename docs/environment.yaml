@@ -24,4 +24,4 @@ dependencies:
     - cffi
     - sphinx-design
     - sphinx-copybutton
-    - sphinxext-autoapi
+    - sphinx-autoapi
