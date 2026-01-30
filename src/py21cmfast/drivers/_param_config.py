@@ -479,6 +479,7 @@ class high_level_func(_OutputStructComputationInspect):  # noqa: N801
         self._func = _func
         self._signature = inspect.signature(_func)
         self._kls = self._signature.return_annotation
+        functools.update_wrapper(self, _func)
 
     def __call__(self, **kwargs):
         """Call the function."""

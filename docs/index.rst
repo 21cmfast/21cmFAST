@@ -10,6 +10,10 @@
    faqs/index
    updates_from_v3
    acknowledge
+
+.. toctree::
+   :caption: API Reference
+   :hidden:
    autoapi/py21cmfast/index
 
 .. toctree::

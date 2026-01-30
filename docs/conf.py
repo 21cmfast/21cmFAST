@@ -52,8 +52,8 @@ class ClassDecoratedDocumenter(Documenter):
 
 
 extensions = [
-    "sphinx.ext.autodoc",
-    "sphinx.ext.autosummary",
+    "sphinx.ext.autodoc.typehints",
+#    "sphinx.ext.autosummary",
     "sphinx.ext.coverage",
     "sphinx.ext.doctest",
     "sphinx.ext.extlinks",
@@ -76,7 +76,7 @@ if os.getenv("SPELLCHECK"):
     spelling_lang = "en_US"
 
 autosectionlabel_prefix_document = True
-autodoc_use_legacy_class_based = True
+# autodoc_use_legacy_class_based = True
 
 # Auto-API settings
 autoapi_options=[ 
@@ -85,7 +85,8 @@ autoapi_options=[
     'show-inheritance', 
     'show-module-summary', 
     'special-members', 
-    'imported-members'
+    'imported-members',
+    'inherited-members',
 ]
 autoapi_dirs = ['../src/py21cmfast']
 autoapi_add_toctree_entry = False  # We add it ourselves in index.rst
@@ -93,6 +94,7 @@ autoapi_python_class_content = 'init'
 autoapi_member_order = 'groupwise'
 autoapi_own_page_level = 'class'
 autoapi_keep_files = True
+autodoc_typehints = 'description'
 
 autosummary_generate = False
 numpydoc_show_class_members = False

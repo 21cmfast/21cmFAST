@@ -23,7 +23,7 @@ import numpy as np
 from astropy import constants
 from astropy import units as un
 from astropy.cosmology import FLRW, Planck15
-from attrs import asdict, define, evolve, validators
+from attrs import asdict, evolve, validators
 from attrs import field as _field
 from cyclopts import Parameter
 
@@ -110,7 +110,7 @@ Planck18 = Planck15.clone(
 )
 
 
-@define(frozen=True, kw_only=True)
+@attrs.define(frozen=True, kw_only=True)
 class InputStruct:
     """
     A convenient interface to create a C structure with defaults specified.
@@ -300,7 +300,7 @@ class InputStruct:
         return cls.new(dct)
 
 
-@define(frozen=True, kw_only=True)
+@attrs.define(frozen=True, kw_only=True)
 class Table1D:
     """Class for setting 1D interpolation table."""
 
@@ -326,7 +326,7 @@ class Table1D:
         return ctab
 
 
-@define(frozen=True, kw_only=True)
+@attrs.define(frozen=True, kw_only=True)
 class CosmoTables:
     """Class for storing interpolation tables of cosmological functions (e.g. transfer functions, growth factor)."""
 
@@ -382,7 +382,7 @@ class CosmoTables:
         return evolve(self, **kwargs)
 
 
-@define(frozen=True, kw_only=True)
+@attrs.define(frozen=True, kw_only=True)
 class CosmoParams(InputStruct):
     """
     Cosmological parameters (with defaults) which translates to a C struct.
@@ -545,7 +545,7 @@ class CosmoParams(InputStruct):
         return d
 
 
-@define(frozen=True, kw_only=True)
+@attrs.define(frozen=True, kw_only=True)
 class MatterOptions(InputStruct):
     """
     Structure containing options which affect the matter field (ICs, perturbedfield, halos).
@@ -722,7 +722,7 @@ class MatterOptions(InputStruct):
         ]
 
 
-@define(frozen=True, kw_only=True)
+@attrs.define(frozen=True, kw_only=True)
 class SimulationOptions(InputStruct):
     """
     Structure containing broad simulation options.
@@ -987,7 +987,7 @@ class SimulationOptions(InputStruct):
         return (self.BOX_LEN / self.DIM) * un.Mpc
 
 
-@define(frozen=True, kw_only=True)
+@attrs.define(frozen=True, kw_only=True)
 class AstroOptions(InputStruct):
     """
     Options for the ionization routines which enable/disable certain modules.
@@ -1123,7 +1123,7 @@ class AstroOptions(InputStruct):
             raise ValueError("USE_EXP_FILTER is True but CELL_RECOMB is False")
 
 
-@define(frozen=True, kw_only=True)
+@attrs.define(frozen=True, kw_only=True)
 class AstroParams(InputStruct):
     """
     Astrophysical parameters.
@@ -1445,7 +1445,7 @@ def _node_redshifts_converter(value) -> tuple[float] | None:
     return (float(value),)
 
 
-@define(kw_only=True, frozen=True)
+@attrs.define(kw_only=True, frozen=True)
 class InputParameters:
     """A class defining a collection of InputStruct instances.
 
