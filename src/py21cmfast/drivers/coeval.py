@@ -629,11 +629,14 @@ def generate_coeval(
     lib.Free_cosmo_tables_global()
 
 
-def run_coeval(**kwargs) -> list[Coeval]:  # noqa: D103
+def run_coeval(**kwargs) -> list[Coeval]:
+    """Run a coeval simulation and return the resulting coeval boxes.
+
+    This simply wraps :func:`generate_coeval` and returns a list of coeval objects
+    at the requested output redshifts after the generator has been exhausted. All
+    parameters are passed directly to :func:`generate_coeval`.
+    """
     return [coeval for coeval, in_outputs in generate_coeval(**kwargs) if in_outputs]
-
-
-run_coeval.__doc__ = generate_coeval.__doc__
 
 
 def _obtain_starting_point_for_scrolling(

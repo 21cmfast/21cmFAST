@@ -684,8 +684,11 @@ def generate_lightcone(
     lib.Free_cosmo_tables_global()
 
 
-def run_lightcone(**kwargs) -> LightCone:  # noqa: D103
+def run_lightcone(**kwargs) -> LightCone:
+    """Run a lightcone simulation and return the final lightcone object.
+
+    This simply wraps :func:`generate_lightcone` and returns the final lightcone
+    object after the generator has been exhausted. All parameters are passed
+    directly to :func:`generate_lightcone`.
+    """
     return deque(generate_lightcone(**kwargs), maxlen=1)[0][-1]
-
-
-run_lightcone.__doc__ = generate_lightcone.__doc__
