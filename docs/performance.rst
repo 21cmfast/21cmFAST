@@ -15,7 +15,7 @@ The runtime of ``21cmFAST`` depends on several sensitivity parameters. These inc
 
 6. ``N_THREADS``. The higher this number, the more cpus (threads) participate in the calculation.
 
-Roughly speaking, the total amount of time of the 2LPT calculation in ``21cmFAST`` scales like :math:`DIM^3 * N_z / N_THREADS`, where :math:`N_z` is the number of redshift iterations. The total amount of time for the calculation of the spin temperature scales like :math:`HII_DIM^3 * N_z * N_R / N_THREADS`, where :math:`N_R` is ``N_STEP_TS``. A similar formula can be used to crudely estimate the total amount of time that is needed for the reionization computations, though here :math:`N_R` refers to the number of ionized bubble radii.
+Roughly speaking, the total amount of time of the 2LPT calculation in ``21cmFAST`` scales like ``DIM^3 * N_z / N_THREADS``, where ``N_z`` is the number of redshift iterations. The total amount of time for the calculation of the spin temperature scales like ``HII_DIM^3 * N_z * N_R / N_THREADS``, where ``N_R`` is ``N_STEP_TS``. A similar formula can be used to crudely estimate the total amount of time that is needed for the reionization computations, though here ``N_R`` refers to the number of ionized bubble radii.
 
 The total runtime is also affected by the flag and parameter configurations, e.g. whether there are discrete halos in the simulation, and whether
 mini-halos are taken into account.
