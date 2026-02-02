@@ -740,7 +740,6 @@ def _redshift_loop_generator(
                 if inputs.matter_options.has_discrete_halos:
                     this_halofield = halofield_list[iz]
                     this_halofield.load_all()
-
                 this_halobox = sf.compute_halo_grid(
                     inputs=inputs,
                     halo_catalog=this_halofield,
@@ -810,7 +809,10 @@ def _redshift_loop_generator(
 
             # We purge previous fields and those we no longer need
             if prev_coeval is not None:
-                prev_coeval.perturbed_field.purge()
+                if (
+                    inputs.simulation_options.HII_DIM > 1
+                ):  # No need to purge if we have just one cell
+                    prev_coeval.perturbed_field.purge()
                 if (
                     inputs.matter_options.lagrangian_source_grid
                     and write.halobox

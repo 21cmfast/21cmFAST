@@ -1239,6 +1239,7 @@ class TsBox(OutputStructZ):
     xray_ionised_fraction = _arrayfield()
     kinetic_temp_neutral = _arrayfield()
     J_21_LW = _arrayfield(optional=True)
+    Q_HI: float = attrs.field(default=1.0)
 
     @classmethod
     def new(cls, inputs: InputParameters, redshift: float, **kw) -> Self:
@@ -1395,6 +1396,7 @@ class IonizedBox(OutputStructZ):
         if (
             inputs.astro_options.USE_MINI_HALOS
             and not inputs.matter_options.lagrangian_source_grid
+            and inputs.simulation_options.HII_DIM > 1
         ):
             n_filtering = (
                 int(
