@@ -156,9 +156,19 @@ class LightCone:
         return self.inputs.astro_params
 
     @property
+    def cosmo_tables(self):
+        """Cosmo tables shared by all datasets."""
+        return self.inputs.cosmo_tables
+
+    @property
     def random_seed(self):
         """Random seed shared by all datasets."""
         return self.inputs.random_seed
+
+    @property
+    def node_redshifts(self):
+        """Redshifts at which coeval boxes and global quantities are computed."""
+        return self.inputs.node_redshifts
 
     @cached_property
     def lightcone_redshifts(self) -> np.ndarray:
@@ -674,8 +684,11 @@ def generate_lightcone(
     lib.Free_cosmo_tables_global()
 
 
-def run_lightcone(**kwargs) -> LightCone:  # noqa: D103
+def run_lightcone(**kwargs) -> LightCone:
+    """Run a lightcone simulation and return the final lightcone object.
+
+    This simply wraps :func:`generate_lightcone` and returns the final lightcone
+    object after the generator has been exhausted. All parameters are passed
+    directly to :func:`generate_lightcone`.
+    """
     return deque(generate_lightcone(**kwargs), maxlen=1)[0][-1]
-
-
-run_lightcone.__doc__ = generate_lightcone.__doc__

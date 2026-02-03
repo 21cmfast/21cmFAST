@@ -1,0 +1,11 @@
+@import '../styles/furo.css';  /* for Alabaster */
+
+h2 {
+    margin-top: 2em; /* Adjust 1.5em to your desired spacing */
+}
+h3 {
+    margin-top: 1.5em; /* Adjust 1.5em to your desired spacing */
+}
+h4 {
+    margin-top: 1.2em; /* Adjust 1.5em to your desired spacing */
+}

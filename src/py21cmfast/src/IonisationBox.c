@@ -1316,8 +1316,9 @@ int ComputeIonizedBox(float redshift, float prev_redshift, PerturbedField *pertu
 
         double global_xH;
 
-        // TODO: check if this is used in this file with TS fluctuations
-        init_heat();
+        if (!astro_options_global->USE_TS_FLUCT) {
+            init_heat();
+        }
         init_ps();
 
         struct IonBoxConstants ionbox_constants;
@@ -1595,7 +1596,9 @@ int ComputeIonizedBox(float redshift, float prev_redshift, PerturbedField *pertu
             fftwf_forget_wisdom();
         }
 
-        destruct_heat();
+        if (!astro_options_global->USE_TS_FLUCT) {
+            destruct_heat();
+        }
 
         LOG_DEBUG("global_xH = %e", global_xH);
         free_fftw_grids(grid_struct);

@@ -1,6 +1,15 @@
 Miscellaneous FAQs
 ==================
 
+My global signal doesn't make sense, what's wrong?
+--------------------------------------------------
+If you plot the 21-cm global signal as a function of redshift, and it doesn't look as expected, it is very likely due to setting ``USE_TS_FLUCT=False``.
+
+Historically, ``21cmFAST`` was initially designed to simulate very fast reionization maps of the Universe. At sufficiently low redshifts, due to strong Lyman-alpha coupling and X-ray heating, the spin temperature of the IGM exceeds the CMB temperature to such an extent that the brightness temperature does not depend on the spin temperature. This is known as the "saturation limit". For that reason, in order to speed up the calculations, the default value of ``USE_TS_FLUCT`` is ``False``, namely ``21cmFAST`` assumes by default that the saturation limit holds at all redshifts and therefore does not bother to calculate the spin temperature. At sufficiently high redshifts however the saturation limit breaks, which might explain why your 21-cm global signal increases with redshift and doesn't exhibit any absorption features. Try to set ``USE_TS_FLUCT=True`` to recover the true global signal when the saturation limit is relaxed (note that the runtime is expected to increase when ``USE_TS_FLUCT=True``).
+
+In general, before running a full lightcone simulation via ``run_lightcone``, it's a good practice to make a quick calculation with ``run_global_evolution`` (find more information and limitations of this feature in `the global evolution tutorial <../tutorials/global_evolution.ipynb>`_).
+
+
 My run seg-faulted, what should I do?
 -------------------------------------
 Since ``21cmFAST`` is written in C, there is the off-chance that something
@@ -13,33 +22,27 @@ to ``stderr`` if a segfault occurs.
 
 Configuring 21cmFAST
 --------------------
-``21cmFAST`` has a configuration file located at ``~/.21cmfast/config.yml``. This file
-specifies some options to use in a rather global sense, especially to do with I/O.
-You can directly edit this file to change how ``21cmFAST`` behaves for you across
-sessions.
-For any particular function call, any of the options may be overwritten by supplying
-arguments to the function itself.
-To set the configuration for a particular session, you can also set the global ``config``
+``21cmFAST`` has a few global configuration options that affect many calculations.
+To set the configuration for a particular session, you can set the global ``config``
 instance, for example::
 
     >>> import py21cmfast as p21
-    >>> p21.config['regenerate'] = True
+    >>> p21.config['ignore_R_BUBBLE_MAX_error'] = True
     >>> p21.run_lightcone(...)
 
-All functions that use the ``regenerate`` keyword will now use the value you've set in the
-config. Sometimes, you may want to be a little more careful -- perhaps you want to change
+Sometimes, you may want to be a little more careful -- perhaps you want to change
 the configuration for a set of calls, but have it change back to the defaults after that.
 We provide a context manager to do this::
 
-    >>> with p21.config.use(regenerate=True):
+    >>> with p21.config.use(ignore_R_BUBBLE_MAX_error=True):
     >>>     p21.run_lightcone()
-    >>>     print(p21.config['regenerate'])  # prints "True"
-    >>> print(p21.config['regenerate'])  # prints "False"
+    >>>     print(p21.config['ignore_R_BUBBLE_MAX_error'])  # prints "True"
+    >>> print(p21.config['ignore_R_BUBBLE_MAX_error'])  # prints "False"
 
 To make the current configuration permanent, simply use the ``write`` method::
 
     >>> p21.config['direc'] = 'my_own_cache'
-    >>> p21.config.write()
+    >>> p21.config.write("config.yaml")
 
 How can I read a Coeval object from disk?
 -----------------------------------------

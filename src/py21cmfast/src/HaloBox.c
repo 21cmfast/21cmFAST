@@ -36,8 +36,14 @@ void set_integral_constants(IntegralCondition *consts, double redshift, double M
     consts->lnM_max = log(M_max);
     consts->M_cell = M_cell;
     consts->lnM_cell = log(M_cell);
-    // no table since this should be called once
-    consts->sigma_cell = sigma_z0(M_cell);
+    if (simulation_options_global->HII_DIM == 1 && simulation_options_global->BOX_LEN > 1e5) {
+        // When simulating only the global signal, the box/cell size should be infinite, so the
+        // conditional sigma is 0
+        consts->sigma_cell = 0.;
+    } else {
+        // no table since this should be called once
+        consts->sigma_cell = sigma_z0(M_cell);
+    }
 }
 
 // calculates halo properties from astro parameters plus the correlated rng
@@ -278,9 +284,9 @@ void get_cell_integrals(double dens, double l10_mturn_a, double l10_mturn_m,
     }
 }
 
-// Fixed halo grids, where each property is set as the integral of the CMF on the EULERIAN cell
-// scale As per default 21cmfast (strange pretending that the lagrangian density is eulerian and
-// then *(1+delta)) This outputs the UN-NORMALISED grids (before mean-adjustment)
+// Fixed halo grids, where each property is set as the integral of the CMF on the LAGRANGIAN cell,
+// and then the properties are moved to the EULERIAN grid according to the velocities.
+// This outputs the UN-NORMALISED grids (before mean-adjustment)
 int set_fixed_grids(double M_min, double M_max, InitialConditions *ini_boxes, float *mturn_a_grid,
                     float *mturn_m_grid, ScalingConstants *consts, HaloBox *grids) {
     double M_cell;

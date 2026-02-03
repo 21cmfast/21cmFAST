@@ -68,15 +68,24 @@ jobs:
 
       - name: Run Unit Tests
         run: |
-          python -m pytest -n 2 -l ${{ env.extra_pytest_args }} --ignore tests/test_integration_features.py --cov=py21cmfast --cov-config=.coveragerc -vv --cov-report xml:./coverage.xml --durations=25
+          python -m pytest -n 2 -l ${{ env.extra_pytest_args }} \
+          --ignore tests/test_integration_features.py \
+          --cov=py21cmfast --cov-config=.coveragerc \
+          -vv --cov-report xml:./coverage.xml --durations=25
+
 
       - name: Run Integration Tests
         run: |
-          python -m pytest -n 2 -l ${{ env.extra_pytest_args }} tests/test_integration_features.py --cov=py21cmfast --cov-config=.coveragerc -vv  --cov-append --cov-report xml:./coverage.xml --durations=25 --plots=testplots
+          python -m pytest -n 2 -l ${{ env.extra_pytest_args }} \
+            tests/test_integration_features.py \
+            --cov=py21cmfast --cov-config=.coveragerc \
+            -vv  --cov-append --cov-report xml:./coverage.xml \
+            --durations=25 --plots=testplots \
+            --junitxml=junit.xml -o junit_family=legacy
 
       - name: Archive Integration Test Plots
         if: always()
-        uses: actions/upload-artifact@v5
+        uses: actions/upload-artifact@v6
         with:
           name: integration-test-plots-${{ matrix.os }}-${{ matrix.python-version }}-${{ matrix.compiler }}
           path: |
@@ -87,4 +96,10 @@ jobs:
         with:
           fail_ci_if_error: true
           verbose: true
+          token: ${{ secrets.CODECOV_TOKEN }}
+
+      - name: Upload test results to Codecov
+        if: ${{ !cancelled() }}
+        uses: codecov/test-results-action@v1
+        with:
           token: ${{ secrets.CODECOV_TOKEN }}
