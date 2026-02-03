@@ -4,13 +4,12 @@
 // WARNING: DO NOT #include THIS FILE IN THE C CODE EXCEPT FOR IN InputParameters.h
 
 typedef struct CosmoParams {
-    float SIGMA_8;
+    // NOTE: power spectrum normalization (A_s or sigma_8) is given by ps_norm in cosmo_tables
     float hlittle;
     float OMm;
     float OMl;
     float OMb;
     float POWER_INDEX;
-    float A_s;
 
     float OMn;
     float OMk;

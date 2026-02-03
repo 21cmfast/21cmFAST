@@ -1763,6 +1763,10 @@ class InputParameters:
                     self.simulation_options.K_MAX_FOR_CLASS
                     != inputs_clone.simulation_options.K_MAX_FOR_CLASS
                 )
+                or (
+                    inputs_clone.simulation_options.USE_A_S
+                    and not self.simulation_options.USE_A_S
+                )
             ):
                 # we need to run CLASS again and update cosmo_tables
                 struct_args["cosmo_tables"] = inputs_clone._cosmo_tables_default()

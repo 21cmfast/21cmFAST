@@ -261,11 +261,15 @@ double power_in_k_integrand(double k) {
     return p;
 }
 
+/*
+    The dimensionless power spectrum of the primordial curvature field, in LambdaCDM.
+    It is given by A_s * (k/k_pivot)^{n_s - 1} .
+*/
 double primordial_power_spectrum(double k) {
     // This is the scale in which the dimensionless primordial power spectrum is A_s
     double k_pivot = 0.05;  // Mpc^{-1}
-
-    return cosmo_params_global->A_s * pow(k / k_pivot, cosmo_params_global->POWER_INDEX - 1.);
+    // NOTE: in this case, since we use the CLASS transfer function, ps_norm = A_s
+    return cosmo_tables_global->ps_norm * pow(k / k_pivot, cosmo_params_global->POWER_INDEX - 1.);
 }
 
 // we need a version with the prefactors for output
@@ -587,9 +591,9 @@ void init_ps() {
         gsl_integration_workspace_free(w);
 
         LOG_DEBUG("Initialized Power Spectrum.");
-
+        // NOTE: in this case, since we don't use the CLASS transfer function, ps_norm = sigma_8
         cosmo_consts.sigma_norm =
-            cosmo_params_global->SIGMA_8 / sqrt(result);  // takes care of volume factor
+            cosmo_tables_global->ps_norm / sqrt(result);  // takes care of volume factor
     }
     return;
 }
