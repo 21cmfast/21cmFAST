@@ -530,17 +530,6 @@ void TFset_parameters() {
 }
 
 void init_ps() {
-    double result, error, lower_limit, upper_limit;
-    gsl_function F;
-    double rel_tol = FRACT_FLOAT_ERR * 10;  //<- relative tolerance
-    gsl_integration_workspace *w = gsl_integration_workspace_alloc(1000);
-
-    // Set cuttoff scale for WDM (eq. 4 in Barkana et al. 2001) in comoving Mpc
-    // R_CUTOFF =
-    // 0.201*pow((cosmo_params_global->OMm-cosmo_params_global->OMb)
-    // *cosmo_params_global->hlittle*cosmo_params_global->hlittle/0.15,
-    // 0.15)*pow(.g_x/1.5, -0.29)*pow(.M_WDM, -1.15);
-
     cosmo_consts.omhh =
         cosmo_params_global->OMm * cosmo_params_global->hlittle * cosmo_params_global->hlittle;
     cosmo_consts.theta_cmb = physconst.T_cmb / 2.7;
@@ -552,47 +541,55 @@ void init_ps() {
 
     cosmo_consts.sigma_norm = -1;
 
-    // we start the interpolator if using CLASS:
     if (matter_options_global->POWER_SPECTRUM == 5) {
+        // We start the interpolator if using CLASS:
         LOG_DEBUG("Setting CLASS Transfer Function inits.");
         transfer_function_CLASS(1.0, 0, 0);
     }
+    if (!simulation_options_global->USE_A_S) {
+        // Otherwise, we normalize the power spectrum to match with sigma8
+        double result, error, lower_limit, upper_limit;
+        gsl_function F;
+        double rel_tol = FRACT_FLOAT_ERR * 10;  //<- relative tolerance
+        gsl_integration_workspace *w = gsl_integration_workspace_alloc(1000);
 
-    double Radius_8;
-    Radius_8 = 8.0 / cosmo_params_global->hlittle;
+        double Radius_8;
+        Radius_8 = 8.0 / cosmo_params_global->hlittle;
 
-    lower_limit = 1.0e-99 / Radius_8;  // kstart
-    upper_limit = 350.0 / Radius_8;    // kend
+        lower_limit = 1.0e-99 / Radius_8;  // kstart
+        upper_limit = 350.0 / Radius_8;    // kend
 
-    struct SigmaIntegralParams sigma_params = {.radius = Radius_8,
-                                               .filter_type = matter_options_global->FILTER};
-    F.function = &dsigma_dk;
-    F.params = &sigma_params;
+        struct SigmaIntegralParams sigma_params = {.radius = Radius_8,
+                                                   .filter_type = matter_options_global->FILTER};
+        F.function = &dsigma_dk;
+        F.params = &sigma_params;
 
-    LOG_DEBUG(
-        "Initializing Power Spectrum with lower_limit=%e, upper_limit=%e, rel_tol=%e, radius_8=%g",
-        lower_limit, upper_limit, rel_tol, Radius_8);
-    int status;
+        LOG_DEBUG(
+            "Initializing Power Spectrum with lower_limit=%e, upper_limit=%e, rel_tol=%e, "
+            "radius_8=%g",
+            lower_limit, upper_limit, rel_tol, Radius_8);
+        int status;
 
-    gsl_set_error_handler_off();
+        gsl_set_error_handler_off();
 
-    status = gsl_integration_qag(&F, lower_limit, upper_limit, 0, rel_tol, 1000, GSL_INTEG_GAUSS61,
-                                 w, &result, &error);
+        status = gsl_integration_qag(&F, lower_limit, upper_limit, 0, rel_tol, 1000,
+                                     GSL_INTEG_GAUSS61, w, &result, &error);
 
-    if (status != 0) {
-        LOG_ERROR("gsl integration error occured!");
-        LOG_ERROR(
-            "(function argument): lower_limit=%e upper_limit=%e rel_tol=%e result=%e error=%e",
-            lower_limit, upper_limit, rel_tol, result, error);
-        CATCH_GSL_ERROR(status);
+        if (status != 0) {
+            LOG_ERROR("gsl integration error occured!");
+            LOG_ERROR(
+                "(function argument): lower_limit=%e upper_limit=%e rel_tol=%e result=%e error=%e",
+                lower_limit, upper_limit, rel_tol, result, error);
+            CATCH_GSL_ERROR(status);
+        }
+
+        gsl_integration_workspace_free(w);
+
+        LOG_DEBUG("Initialized Power Spectrum.");
+
+        cosmo_consts.sigma_norm =
+            cosmo_params_global->SIGMA_8 / sqrt(result);  // takes care of volume factor
     }
-
-    gsl_integration_workspace_free(w);
-
-    LOG_DEBUG("Initialized Power Spectrum.");
-
-    cosmo_consts.sigma_norm =
-        cosmo_params_global->SIGMA_8 / sqrt(result);  // takes care of volume factor
     return;
 }
 
