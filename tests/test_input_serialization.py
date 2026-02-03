@@ -12,10 +12,11 @@ class TestConvertInputsToDict:
     """Test the convert_inputs_to_dict function."""
 
     def test_default_minimal(self):
-        """Test that default inputs have no difference to default inputs."""
+        """Test that ps_norm is in default inputs."""
         inputs = InputParameters(random_seed=0)
         out = srlz.convert_inputs_to_dict(inputs, mode="minimal")
-        assert len(out) == 0
+        assert "CosmoTables" in out
+        assert "ps_norm" in out["CosmoTables"]
 
     @pytest.mark.parametrize("mode", ["full", "minimal"])
     def test_default_with_nonstructs(self, mode):
@@ -42,10 +43,11 @@ class TestPrepareInputsForSerialization:
     """Tests of the prepare_inputs_for_serialization function."""
 
     def test_default_minimal(self):
-        """Test that constructing a minimal serialization from a default is empty."""
+        """Test that constructing a minimal serialization results in a dictionary that still contains ps_norm."""
         inputs = InputParameters(random_seed=1)
         out = srlz.prepare_inputs_for_serialization(inputs, mode="minimal")
-        assert out == {}
+        assert "CosmoTables" in out
+        assert "ps_norm" in out["CosmoTables"]
 
     @pytest.mark.parametrize(
         "inputs",

@@ -164,6 +164,7 @@ typedef struct Table1D {
 typedef struct CosmoTables {
     Table1D *transfer_density;
     Table1D *transfer_vcb;
+    double ps_norm;
 } CosmoTables;
 
 typedef struct ConfigSettings {

@@ -447,7 +447,12 @@ def get_vcb_power_values(
     k_values: Sequence[float],
 ):
     """Evaluate the vcb power spectrum (at kinematic decoupling) at a certain scale from the 21cmFAST backend."""
-    return np.vectorize(lib.power_in_vcb)(k_values)
+    if inputs.matter_options.USE_RELATIVE_VELOCITIES:
+        return np.vectorize(lib.power_in_vcb)(k_values)
+    else:
+        raise ValueError(
+            "inputs.matter_options.USE_RELATIVE_VELOCITIES must be True in order to compute the v_cb power spectrum."
+        )
 
 
 @broadcast_params

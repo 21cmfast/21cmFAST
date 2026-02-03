@@ -332,6 +332,7 @@ class CosmoTables:
 
     transfer_density: Table1D = field(default=None)
     transfer_vcb: Table1D = field(default=None)
+    ps_norm: float = field(default=None)
 
     @classmethod
     def new(cls, x: dict | Self | None = None, **kwargs):
@@ -374,6 +375,8 @@ class CosmoTables:
             val = getattr(self, k)
             if isinstance(val, Table1D):
                 setattr(self.struct.cstruct, k, val.cstruct)
+            elif isinstance(val, float):
+                setattr(self.struct.cstruct, k, val)
 
         return self.struct.cstruct
 
@@ -1584,9 +1587,13 @@ class InputParameters:
                     x_values=k_transfer_with_0,
                     y_values=transfer_vcb,
                 ),
+                ps_norm=self.cosmo_params.A_s
+                if self.simulation_options.USE_A_S
+                else self.cosmo_params.SIGMA_8,  # we use A_s to normalize the power spectrum if we use CLASS
             )
         else:
-            cosmo_tables = CosmoTables()
+            # we use sigma8 to normalize the power spectrum if we don't use CLASS
+            cosmo_tables = CosmoTables(ps_norm=self.cosmo_params.SIGMA_8)
         return cosmo_tables
 
     @astro_options.validator
@@ -1757,12 +1764,12 @@ class InputParameters:
                     != inputs_clone.simulation_options.K_MAX_FOR_CLASS
                 )
             ):
+                # we need to run CLASS again and update cosmo_tables
                 struct_args["cosmo_tables"] = inputs_clone._cosmo_tables_default()
                 inputs_clone = self.clone(**struct_args)
         elif self.matter_options.POWER_SPECTRUM == "CLASS":
-            struct_args["cosmo_tables"] = (
-                CosmoTables()
-            )  # No need to have the tables from the original inputs
+            # No need to have the tables from the original inputs, but we do need to change ps_norm
+            struct_args["cosmo_tables"] = CosmoTables(ps_norm=self.cosmo_params.SIGMA_8)
             inputs_clone = self.clone(**struct_args)
 
         return inputs_clone
