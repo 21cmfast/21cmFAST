@@ -261,6 +261,13 @@ double power_in_k_integrand(double k) {
     return p;
 }
 
+double primordial_power_spectrum(double k) {
+    // This is the scale in which the dimensionless primordial power spectrum is A_s
+    double k_pivot = 0.05;  // Mpc^{-1}
+
+    return cosmo_params_global->A_s * pow(k / k_pivot, cosmo_params_global->POWER_INDEX - 1.);
+}
+
 // we need a version with the prefactors for output
 double power_in_k(double k) {
     if (matter_options_global->POWER_SPECTRUM < 5) {
@@ -271,11 +278,8 @@ double power_in_k(double k) {
             if (k == 0.) {
                 return 0.;
             } else {
-                double k_pivot = 0.05;  // Mpc^{-1} (this is the scale in which the dimensionless
-                                        // primordial power spectrum is A_s)
                 double T = transfer_function(k);
-                double primordial = cosmo_params_global->A_s *
-                                    pow(k / k_pivot, cosmo_params_global->POWER_INDEX - 1.);
+                double primordial = primordial_power_spectrum(k);
                 double p = 2.0 * M_PI * M_PI * primordial * T * T / pow(k, 3);
                 if (matter_options_global->USE_RELATIVE_VELOCITIES) {
                     // jbm:Add average relvel suppression
@@ -304,13 +308,10 @@ double power_in_vcb(double k) {
             if (k == 0.) {
                 return 0.;
             } else {
-                double k_pivot = 0.05;  // Mpc^{-1} (this is the scale in which the dimensionless
-                                        // primordial power spectrum is A_s)
-                T = transfer_function_CLASS(k, 1,
-                                            1);  // read from CLASS file. flag_int=1 since we have
-                                                 // initialized before, flag_vcb=1 for velocity
-                double primordial = cosmo_params_global->A_s *
-                                    pow(k / k_pivot, cosmo_params_global->POWER_INDEX - 1.);
+                // read from CLASS file. flag_int=1 since we have initialized before, flag_vcb=1 for
+                // velocity
+                T = transfer_function_CLASS(k, 1, 1);
+                double primordial = primordial_power_spectrum(k);
                 p = 2.0 * M_PI * M_PI * primordial * T * T / pow(k, 3);
                 return p;
             }
