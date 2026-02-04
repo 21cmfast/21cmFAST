@@ -319,7 +319,7 @@ double power_in_vcb(double k) {
             // velocity
             T = transfer_function_CLASS(k, 1, 1);
             p = pow(k, cosmo_params_global->POWER_INDEX) * T * T;
-            return p;
+            return p * 2.0 * M_PI * M_PI * cosmo_consts.sigma_norm * cosmo_consts.sigma_norm;
         }
     } else {
         LOG_ERROR(
