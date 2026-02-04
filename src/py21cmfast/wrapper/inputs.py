@@ -855,8 +855,6 @@ class SimulationOptions(InputStruct):
         validator=attrs.validators.optional(validators.gt(0)),
     )
 
-    USE_A_S: bool = field(default=False, converter=bool)
-
     NON_CUBIC_FACTOR: float = field(
         default=1.0, converter=float, validator=validators.gt(0)
     )
@@ -1587,9 +1585,7 @@ class InputParameters:
                     x_values=k_transfer_with_0,
                     y_values=transfer_vcb,
                 ),
-                ps_norm=self.cosmo_params.A_s
-                if self.simulation_options.USE_A_S
-                else self.cosmo_params.SIGMA_8,  # we use A_s to normalize the power spectrum if we use CLASS
+                ps_norm=self.cosmo_params.A_s,  # we use A_s to normalize the power spectrum if we use CLASS
             )
         else:
             # we use sigma8 to normalize the power spectrum if we don't use CLASS
@@ -1762,10 +1758,6 @@ class InputParameters:
                 or (
                     self.simulation_options.K_MAX_FOR_CLASS
                     != inputs_clone.simulation_options.K_MAX_FOR_CLASS
-                )
-                or (
-                    inputs_clone.simulation_options.USE_A_S
-                    and not self.simulation_options.USE_A_S
                 )
             ):
                 # we need to run CLASS again and update cosmo_tables
