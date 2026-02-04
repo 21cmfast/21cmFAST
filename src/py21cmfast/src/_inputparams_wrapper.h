@@ -29,7 +29,6 @@ typedef struct SimulationOptions {
     int N_THREADS;
     double Z_HEAT_MAX;
     double ZPRIME_STEP_FACTOR;
-    bool USE_A_S;
 
     // Halo Sampler Options
     float SAMPLER_MIN_MASS;
@@ -164,6 +163,7 @@ typedef struct CosmoTables {
     Table1D *transfer_density;
     Table1D *transfer_vcb;
     double ps_norm;
+    bool USE_SIGMA_8;
 } CosmoTables;
 
 typedef struct ConfigSettings {

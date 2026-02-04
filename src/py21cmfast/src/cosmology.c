@@ -184,13 +184,13 @@ double transfer_function_CLASS(double k, int flag_int, int flag_dv) {
             warning_printed = true;
         }
         if (flag_dv == 0) {  // output is density
-            if (simulation_options_global->USE_A_S) {
+            if (!cosmo_tables_global->USE_SIGMA_8) {
                 return eh_ratio_at_kmax * transfer_function_EH(k) * k * k;
             } else {
                 return eh_ratio_at_kmax * transfer_function_EH(k);
             }
         } else if (flag_dv == 1) {  // output is rel velocity, do a log-log linear extrapolation
-            if (simulation_options_global->USE_A_S) {
+            if (!cosmo_tables_global->USE_SIGMA_8) {
                 return exp(log(Tvclass_vcb[size_vcb - 1]) +
                            (log(Tvclass_vcb[size_vcb - 1]) - log(Tvclass_vcb[size_vcb - 2])) /
                                (log(kclass[size_vcb - 1]) - log(kclass[size_vcb - 2])) *
@@ -217,7 +217,7 @@ double transfer_function_CLASS(double k, int flag_int, int flag_dv) {
             ans = 0.0;  // neither densities not velocities?
         }
     }
-    if (simulation_options_global->USE_A_S) {
+    if (!cosmo_tables_global->USE_SIGMA_8) {
         return ans;
     } else {
         return ans / k / k;
@@ -274,28 +274,23 @@ double primordial_power_spectrum(double k) {
 
 // we need a version with the prefactors for output
 double power_in_k(double k) {
-    if (matter_options_global->POWER_SPECTRUM < 5) {
+    if (!cosmo_tables_global->USE_SIGMA_8) {
+        if (k == 0.) {
+            return 0.;
+        } else {
+            double T = transfer_function(k);
+            double primordial = primordial_power_spectrum(k);
+            double p = 2.0 * M_PI * M_PI * primordial * T * T / pow(k, 3);
+            if (matter_options_global->USE_RELATIVE_VELOCITIES) {
+                // jbm:Add average relvel suppression
+                p *= 1.0 - A_VCB_PM * exp(-pow(log(k / KP_VCB_PM), 2.0) /
+                                          (2.0 * SIGMAK_VCB_PM * SIGMAK_VCB_PM));
+            }
+            return p;
+        }
+    } else {
         return 2.0 * M_PI * M_PI * cosmo_consts.sigma_norm * cosmo_consts.sigma_norm *
                power_in_k_integrand(k);
-    } else {
-        if (simulation_options_global->USE_A_S) {
-            if (k == 0.) {
-                return 0.;
-            } else {
-                double T = transfer_function(k);
-                double primordial = primordial_power_spectrum(k);
-                double p = 2.0 * M_PI * M_PI * primordial * T * T / pow(k, 3);
-                if (matter_options_global->USE_RELATIVE_VELOCITIES) {
-                    // jbm:Add average relvel suppression
-                    p *= 1.0 - A_VCB_PM * exp(-pow(log(k / KP_VCB_PM), 2.0) /
-                                              (2.0 * SIGMAK_VCB_PM * SIGMAK_VCB_PM));
-                }
-                return p;
-            }
-        } else {
-            return 2.0 * M_PI * M_PI * cosmo_consts.sigma_norm * cosmo_consts.sigma_norm *
-                   power_in_k_integrand(k);
-        }
     }
 }
 
@@ -308,7 +303,7 @@ double power_in_vcb(double k) {
 
     // only works if using CLASS
     if (matter_options_global->POWER_SPECTRUM == 5) {  // CLASS
-        if (simulation_options_global->USE_A_S) {
+        if (!cosmo_tables_global->USE_SIGMA_8) {
             if (k == 0.) {
                 return 0.;
             } else {
@@ -360,17 +355,12 @@ double dsigma_dk(double k, void *params) {
     kR = k * Radius;
     w = filter_function(kR, filter);
 
-    if (matter_options_global->POWER_SPECTRUM < 5) {
+    if (!cosmo_tables_global->USE_SIGMA_8) {
+        p = power_in_k(k);
+        return k * k * p * w * w / (2.0 * M_PI * M_PI);
+    } else {
         p = power_in_k_integrand(k);
         return k * k * p * w * w;
-    } else {
-        if (simulation_options_global->USE_A_S) {
-            p = power_in_k(k);
-            return k * k * p * w * w / (2.0 * M_PI * M_PI);
-        } else {
-            p = power_in_k_integrand(k);
-            return k * k * p * w * w;
-        }
     }
 }
 double sigma_z0(double M) {
@@ -407,14 +397,10 @@ double sigma_z0(double M) {
 
     gsl_integration_workspace_free(w);
 
-    if (matter_options_global->POWER_SPECTRUM < 5) {
-        return cosmo_consts.sigma_norm * sqrt(result);
+    if (!cosmo_tables_global->USE_SIGMA_8) {
+        return sqrt(result);
     } else {
-        if (simulation_options_global->USE_A_S) {
-            return sqrt(result);
-        } else {
-            return cosmo_consts.sigma_norm * sqrt(result);
-        }
+        return cosmo_consts.sigma_norm * sqrt(result);
     }
 }
 
@@ -430,17 +416,12 @@ double dsigmasq_dm(double k, void *params) {
     // now get the value of the window function
     double dw2dm = dwdm_filter(k, Radius, filter);
 
-    if (matter_options_global->POWER_SPECTRUM < 5) {
+    if (!cosmo_tables_global->USE_SIGMA_8) {
+        double p = power_in_k(k);
+        return k * k * p * dw2dm / (2.0 * M_PI * M_PI);
+    } else {
         double p = power_in_k_integrand(k);
         return k * k * p * dw2dm;
-    } else {
-        if (simulation_options_global->USE_A_S) {
-            double p = power_in_k(k);
-            return k * k * p * dw2dm / (2.0 * M_PI * M_PI);
-        } else {
-            double p = power_in_k_integrand(k);
-            return k * k * p * dw2dm;
-        }
     }
 }
 double dsigmasqdm_z0(double M) {
@@ -476,14 +457,10 @@ double dsigmasqdm_z0(double M) {
     }
 
     gsl_integration_workspace_free(w);
-    if (matter_options_global->POWER_SPECTRUM < 5) {
-        return cosmo_consts.sigma_norm * cosmo_consts.sigma_norm * result;
+    if (!cosmo_tables_global->USE_SIGMA_8) {
+        return result;
     } else {
-        if (simulation_options_global->USE_A_S) {
-            return result;
-        } else {
-            return cosmo_consts.sigma_norm * cosmo_consts.sigma_norm * result;
-        }
+        return cosmo_consts.sigma_norm * cosmo_consts.sigma_norm * result;
     }
 }
 
@@ -551,7 +528,7 @@ void init_ps() {
         LOG_DEBUG("Setting CLASS Transfer Function inits.");
         transfer_function_CLASS(1.0, 0, 0);
     }
-    if (!simulation_options_global->USE_A_S) {
+    if (cosmo_tables_global->USE_SIGMA_8) {
         // Otherwise, we normalize the power spectrum to match with sigma8
         double result, error, lower_limit, upper_limit;
         gsl_function F;

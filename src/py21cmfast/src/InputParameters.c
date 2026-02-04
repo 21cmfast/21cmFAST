@@ -21,6 +21,7 @@ void Broadcast_struct_global_all(SimulationOptions *simulation_options,
     if (!allocated_cosmo_tables) {
         cosmo_tables_global = malloc(sizeof(CosmoTables));
         cosmo_tables_global->ps_norm = cosmo_tables->ps_norm;
+        cosmo_tables_global->USE_SIGMA_8 = cosmo_tables->USE_SIGMA_8;
 
         if (matter_options_global->POWER_SPECTRUM == 5) {
             n = cosmo_tables->transfer_density->size;
