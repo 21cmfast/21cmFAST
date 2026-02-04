@@ -184,12 +184,24 @@ double transfer_function_CLASS(double k, int flag_int, int flag_dv) {
             warning_printed = true;
         }
         if (flag_dv == 0) {  // output is density
-            return eh_ratio_at_kmax * transfer_function_EH(k) * k * k;
+            if (!cosmo_tables_global->USE_SIGMA_8) {
+                return eh_ratio_at_kmax * transfer_function_EH(k) * k * k;
+            } else {
+                return eh_ratio_at_kmax * transfer_function_EH(k);
+            }
         } else if (flag_dv == 1) {  // output is rel velocity, do a log-log linear extrapolation
-            return exp(log(Tvclass_vcb[size_vcb - 1]) +
-                       (log(Tvclass_vcb[size_vcb - 1]) - log(Tvclass_vcb[size_vcb - 2])) /
-                           (log(kclass[size_vcb - 1]) - log(kclass[size_vcb - 2])) *
-                           (log(k) - log(kclass[size_vcb - 1])));
+            if (!cosmo_tables_global->USE_SIGMA_8) {
+                return exp(log(Tvclass_vcb[size_vcb - 1]) +
+                           (log(Tvclass_vcb[size_vcb - 1]) - log(Tvclass_vcb[size_vcb - 2])) /
+                               (log(kclass[size_vcb - 1]) - log(kclass[size_vcb - 2])) *
+                               (log(k) - log(kclass[size_vcb - 1])));
+            } else {
+                return exp(log(Tvclass_vcb[size_vcb - 1]) +
+                           (log(Tvclass_vcb[size_vcb - 1]) - log(Tvclass_vcb[size_vcb - 2])) /
+                               (log(kclass[size_vcb - 1]) - log(kclass[size_vcb - 2])) *
+                               (log(k) - log(kclass[size_vcb - 1]))) /
+                       k / k;
+            }
         }  // we just set it to the last value, since sometimes it wants large k for R<<cell_size,
            // which does not matter much.
         else {
@@ -205,7 +217,11 @@ double transfer_function_CLASS(double k, int flag_int, int flag_dv) {
             ans = 0.0;  // neither densities not velocities?
         }
     }
-    return ans;
+    if (!cosmo_tables_global->USE_SIGMA_8) {
+        return ans;
+    } else {
+        return ans / k / k;
+    }
     // we have to divide by k^2 to agree with the old-fashioned convention.
 }
 
@@ -258,10 +274,7 @@ double primordial_power_spectrum(double k) {
 
 // we need a version with the prefactors for output
 double power_in_k(double k) {
-    if (matter_options_global->POWER_SPECTRUM < 5) {
-        return 2.0 * M_PI * M_PI * cosmo_consts.sigma_norm * cosmo_consts.sigma_norm *
-               power_in_k_integrand(k);
-    } else {
+    if (!cosmo_tables_global->USE_SIGMA_8) {
         if (k == 0.) {
             return 0.;
         } else {
@@ -275,6 +288,9 @@ double power_in_k(double k) {
             }
             return p;
         }
+    } else {
+        return 2.0 * M_PI * M_PI * cosmo_consts.sigma_norm * cosmo_consts.sigma_norm *
+               power_in_k_integrand(k);
     }
 }
 
@@ -287,14 +303,22 @@ double power_in_vcb(double k) {
 
     // only works if using CLASS
     if (matter_options_global->POWER_SPECTRUM == 5) {  // CLASS
-        if (k == 0.) {
-            return 0.;
+        if (!cosmo_tables_global->USE_SIGMA_8) {
+            if (k == 0.) {
+                return 0.;
+            } else {
+                // read from CLASS file. flag_int=1 since we have initialized before, flag_vcb=1 for
+                // velocity
+                T = transfer_function_CLASS(k, 1, 1);
+                double primordial = primordial_power_spectrum(k);
+                p = 2.0 * M_PI * M_PI * primordial * T * T / pow(k, 3);
+                return p;
+            }
         } else {
             // read from CLASS file. flag_int=1 since we have initialized before, flag_vcb=1 for
             // velocity
             T = transfer_function_CLASS(k, 1, 1);
-            double primordial = primordial_power_spectrum(k);
-            p = 2.0 * M_PI * M_PI * primordial * T * T / pow(k, 3);
+            p = pow(k, cosmo_params_global->POWER_INDEX) * T * T;
             return p;
         }
     } else {
@@ -332,12 +356,12 @@ double dsigma_dk(double k, void *params) {
     kR = k * Radius;
     w = filter_function(kR, filter);
 
-    if (matter_options_global->POWER_SPECTRUM < 5) {
-        p = power_in_k_integrand(k);
-        return k * k * p * w * w;
-    } else {
+    if (!cosmo_tables_global->USE_SIGMA_8) {
         p = power_in_k(k);
         return k * k * p * w * w / (2.0 * M_PI * M_PI);
+    } else {
+        p = power_in_k_integrand(k);
+        return k * k * p * w * w;
     }
 }
 double sigma_z0(double M) {
@@ -374,10 +398,10 @@ double sigma_z0(double M) {
 
     gsl_integration_workspace_free(w);
 
-    if (matter_options_global->POWER_SPECTRUM < 5) {
-        return cosmo_consts.sigma_norm * sqrt(result);
-    } else {
+    if (!cosmo_tables_global->USE_SIGMA_8) {
         return sqrt(result);
+    } else {
+        return cosmo_consts.sigma_norm * sqrt(result);
     }
 }
 
@@ -393,12 +417,12 @@ double dsigmasq_dm(double k, void *params) {
     // now get the value of the window function
     double dw2dm = dwdm_filter(k, Radius, filter);
 
-    if (matter_options_global->POWER_SPECTRUM < 5) {
-        double p = power_in_k_integrand(k);
-        return k * k * p * dw2dm;
-    } else {
+    if (!cosmo_tables_global->USE_SIGMA_8) {
         double p = power_in_k(k);
         return k * k * p * dw2dm / (2.0 * M_PI * M_PI);
+    } else {
+        double p = power_in_k_integrand(k);
+        return k * k * p * dw2dm;
     }
 }
 double dsigmasqdm_z0(double M) {
@@ -434,10 +458,10 @@ double dsigmasqdm_z0(double M) {
     }
 
     gsl_integration_workspace_free(w);
-    if (matter_options_global->POWER_SPECTRUM < 5) {
-        return cosmo_consts.sigma_norm * cosmo_consts.sigma_norm * result;
-    } else {
+    if (!cosmo_tables_global->USE_SIGMA_8) {
         return result;
+    } else {
+        return cosmo_consts.sigma_norm * cosmo_consts.sigma_norm * result;
     }
 }
 
@@ -504,7 +528,8 @@ void init_ps() {
         // We start the interpolator if using CLASS:
         LOG_DEBUG("Setting CLASS Transfer Function inits.");
         transfer_function_CLASS(1.0, 0, 0);
-    } else {
+    }
+    if (cosmo_tables_global->USE_SIGMA_8) {
         // Otherwise, we normalize the power spectrum to match with sigma8
         double result, error, lower_limit, upper_limit;
         gsl_function F;

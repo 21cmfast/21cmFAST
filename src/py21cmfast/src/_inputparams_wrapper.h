@@ -163,6 +163,7 @@ typedef struct CosmoTables {
     Table1D *transfer_density;
     Table1D *transfer_vcb;
     double ps_norm;
+    bool USE_SIGMA_8;
 } CosmoTables;
 
 typedef struct ConfigSettings {
