@@ -58,7 +58,7 @@ def convert_inputs_to_dict(
         defaults = InputParameters(random_seed=0)
         default_dct = defaults.asdict(**kw)
         cosmo_tables_key = "CosmoTables" if camel else "cosmo_tables"
-        # we still want to keep cosmo_tables, even in minimal mode (since we want to keep ps_norm)
+        # we still want to keep cosmo_tables, even in minimal mode (since we want to keep ps_norm and USE_SIGMA_8)
         cosmo_tables_dct = all_inputs[cosmo_tables_key].copy()
         all_inputs = recursive_difference(all_inputs, default_dct)
         all_inputs[cosmo_tables_key] = cosmo_tables_dct

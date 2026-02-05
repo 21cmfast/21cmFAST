@@ -1711,6 +1711,20 @@ class InputParameters:
                 stacklevel=2,
             )
 
+        if (
+            self.matter_options.POWER_SPECTRUM != "CLASS"
+            and self.cosmo_params._A_s is not None
+        ):
+            warnings.warn(
+                f"You have chosen to work with POWER_SPECTRUM={self.matter_options.POWER_SPECTRUM}, "
+                "but at the same time you work with A_s (rather than SIGMA_8). "
+                "While this is allowed, it is important to realize that it is impossible "
+                "to normalize correctly the power spectrum with A_s while using the "
+                f"{self.matter_options.POWER_SPECTRUM} transfer function. "
+                "CLASS will convert your A_s to SIGMA_8.",
+                stacklevel=2,
+            )
+
     def __getitem__(self, key):
         """Get an item from the instance in a dict-like manner."""
         # Also allow using **input_parameters
@@ -1772,10 +1786,10 @@ class InputParameters:
                 # we need to run CLASS again and update cosmo_tables
                 struct_args["cosmo_tables"] = inputs_clone._cosmo_tables_default()
                 inputs_clone = self.clone(**struct_args)
-        elif self.matter_options.POWER_SPECTRUM == "CLASS":
+        else:
             # No need to have the tables from the original inputs, but we do need to change ps_norm and USE_SIGMA_8
             struct_args["cosmo_tables"] = CosmoTables(
-                ps_norm=self.cosmo_params.SIGMA_8, USE_SIGMA_8=True
+                ps_norm=inputs_clone.cosmo_params.SIGMA_8, USE_SIGMA_8=True
             )
             inputs_clone = self.clone(**struct_args)
 
