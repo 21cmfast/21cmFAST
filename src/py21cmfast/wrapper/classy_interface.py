@@ -79,6 +79,9 @@ def run_classy(**kwargs) -> Class:
     if ("m_ncdm" in kwargs) and ("N_ncdm" in kwargs) and kwargs["N_ncdm"] == 0:
         raise KeyError("You specified m_ncdm, but set N_ncdm=0.")
 
+    # Set level to highest order, unless it is specified in kwargs
+    level = kwargs.pop("level", "distortions")
+
     for k in kwargs:
         # "P_k_max_1/Mpc" cannot serve as a kwarg, but this is the input that CLASS expects to receive,
         # so we control this input with "P_k_max" instead
@@ -101,14 +104,10 @@ def run_classy(**kwargs) -> Class:
         params.pop("lensing")
         params.pop("l_max_scalars")
 
-    # Set level to highest order, unless it is specified in kwargs
-    if "level" not in kwargs:
-        kwargs["level"] = ["distortions"]
-
     # Run CLASS!
     output = Class()
     output.set(params)
-    output.compute(level=kwargs["level"])
+    output.compute(level=level)
 
     return output
 
