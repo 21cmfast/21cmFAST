@@ -459,7 +459,7 @@ class CosmoParams(InputStruct):
         if self._A_s is not None and val is not None:
             raise ValueError(
                 "Cannot set both SIGMA_8 and A_s! "
-                "If this error arose when lading from template/file or evolving an "
+                "If this error arose when loading from template/file or evolving an "
                 "existing object, then explicitly set either SIGMA_8 or A_s "
                 "to None while setting the other to the desired value."
             )
@@ -936,7 +936,7 @@ class SimulationOptions(InputStruct):
         if self._DIM is not None and val is not None:
             raise ValueError(
                 "Cannot set both DIM and HIRES_TO_LOWRES_FACTOR! "
-                "If this error arose when lading from template/file or evolving an "
+                "If this error arose when loading from template/file or evolving an "
                 "existing object, then explicitly set either DIM or HIRES_TO_LOWRES_FACTOR "
                 "to None while setting the other to the desired value."
             )
@@ -946,7 +946,7 @@ class SimulationOptions(InputStruct):
         if self._BOX_LEN is not None and val is not None:
             raise ValueError(
                 "Cannot set both BOX_LEN and LOWRES_CELL_SIZE_MPC! "
-                "If this error arose when lading from template/file or evolving an "
+                "If this error arose when loading from template/file or evolving an "
                 "existing object, then explicitly set either BOX_LEN or "
                 "LOWRES_CELL_SIZE_MPC to None while setting the other to the desired "
                 "value."
@@ -1595,7 +1595,7 @@ class InputParameters:
                 USE_SIGMA_8=USE_SIGMA_8,
             )
         else:
-            # we use sigma8 to normalize the power spectrum if we don't use CLASS
+            # we ALWAYS use sigma8 to normalize the power spectrum if we don't use CLASS
             cosmo_tables = CosmoTables(
                 ps_norm=self.cosmo_params.SIGMA_8, USE_SIGMA_8=True
             )
