@@ -42,7 +42,7 @@ void get_condition_integrals(double redshift, double z_prev, int n_conditions, d
                              double *out_n_exp, double *out_m_exp) {
     struct HaloSamplingConstants hs_const_struct;
     // unneccessarily creates the inverse table (a few seconds) but much cleaner this way
-    stoc_set_consts_z(&hs_const_struct, redshift, z_prev);
+    stoc_set_consts_z(&hs_const_struct, redshift, z_prev, z_prev > 0.0);
 
     int i;
     for (i = 0; i < n_conditions; i++) {
@@ -63,7 +63,7 @@ void get_halo_chmf_interval(double redshift, double z_prev, int n_conditions, do
                             int n_masslim, double *lnM_lo, double *lnM_hi, double *out_n) {
     // unneccessarily creates tables if flags are set (a few seconds)
     struct HaloSamplingConstants hs_const_struct;
-    stoc_set_consts_z(&hs_const_struct, redshift, z_prev);
+    stoc_set_consts_z(&hs_const_struct, redshift, z_prev, z_prev > 0.0);
 
     // we're only using the HS constants here to do mass/sigma calculations
     //   re-doing the sigma tables here lets us integrate below SAMPLER_MIN_MASS
@@ -91,7 +91,7 @@ void get_halo_chmf_interval(double redshift, double z_prev, int n_conditions, do
 void get_halomass_at_probability(double redshift, double z_prev, int n_conditions,
                                  double *cond_values, double *probabilities, double *out_mass) {
     struct HaloSamplingConstants hs_const_struct;
-    stoc_set_consts_z(&hs_const_struct, redshift, z_prev);
+    stoc_set_consts_z(&hs_const_struct, redshift, z_prev, z_prev > 0.0);
 
     int i;
     bool out_of_bounds;

@@ -900,7 +900,7 @@ double EvaluateNionTs(double redshift, ScalingConstants *sc) {
     double lnMmin = log(minimum_source_mass(redshift, true));
     double lnMmax = log(M_MAX_INTEGRAL);
 
-    ScalingConstants sc_z = evolve_scaling_constants_to_redshift(redshift, sc, false);
+    ScalingConstants sc_z = evolve_scaling_constants_to_redshift(redshift, sc);
 
     // minihalos uses a different turnover mass
     if (matter_options_global->SOURCE_MODEL > 0)
@@ -915,7 +915,7 @@ double EvaluateNionTs_MINI(double redshift, double log10_Mturn_LW_ave, ScalingCo
     }
     double lnMmin = log(minimum_source_mass(redshift, false));
     double lnMmax = log(M_MAX_INTEGRAL);
-    ScalingConstants sc_z = evolve_scaling_constants_to_redshift(redshift, sc, false);
+    ScalingConstants sc_z = evolve_scaling_constants_to_redshift(redshift, sc);
 
     return Nion_General_MINI(redshift, lnMmin, lnMmax, pow(10., log10_Mturn_LW_ave), &sc_z);
 }
@@ -936,7 +936,7 @@ double EvaluateSFRD(double redshift, ScalingConstants *sc) {
     // The SFRD calls the same function as N_ion but sets escape fractions to unity
     // NOTE: since this only occurs on integration, the struct copy shouldn't be a bottleneck
     ScalingConstants sc_sfrd = evolve_scaling_constants_sfr(sc);
-    sc_sfrd = evolve_scaling_constants_to_redshift(redshift, &sc_sfrd, false);
+    sc_sfrd = evolve_scaling_constants_to_redshift(redshift, &sc_sfrd);
 
     if (matter_options_global->SOURCE_MODEL > 0)
         return Nion_General(redshift, lnMmin, lnMmax, sc_sfrd.mturn_a_nofb, &sc_sfrd);
@@ -952,7 +952,7 @@ double EvaluateSFRD_MINI(double redshift, double log10_Mturn_LW_ave, ScalingCons
     double lnMmax = log(M_MAX_INTEGRAL);
 
     ScalingConstants sc_sfrd = evolve_scaling_constants_sfr(sc);
-    sc_sfrd = evolve_scaling_constants_to_redshift(redshift, &sc_sfrd, false);
+    sc_sfrd = evolve_scaling_constants_to_redshift(redshift, &sc_sfrd);
 
     return Nion_General_MINI(redshift, lnMmin, lnMmax, pow(10., log10_Mturn_LW_ave), &sc_sfrd);
 }

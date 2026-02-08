@@ -163,6 +163,12 @@ typedef struct ConfigSettings {
     char *wisdoms_path;
 } ConfigSettings;
 
+typedef struct NodeRedshifts {
+    int n_nodes;
+    double *node_redshifts;
+    int curr_node;
+} NodeRedshifts;
+
 /* Previously, we had a few structures spread throughout the code e.g simulation_options_ufunc which
    were all globally defined and separately broadcast at different times. Several of these were used
    across different files and some inside #defines (e.g indexing.h), so for now I've combined
@@ -179,5 +185,6 @@ extern MatterOptions *matter_options_global;
 extern CosmoParams *cosmo_params_global;
 extern AstroParams *astro_params_global;
 extern AstroOptions *astro_options_global;
+extern NodeRedshifts node_redshifts_global;
 
 extern ConfigSettings config_settings;

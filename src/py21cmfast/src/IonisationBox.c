@@ -1291,10 +1291,9 @@ void set_recombination_rates(IonizedBox *box, IonizedBox *previous_ionize_box,
     }
 }
 
-int ComputeIonizedBox(float redshift, float prev_redshift, PerturbedField *perturbed_field,
-                      PerturbedField *previous_perturbed_field, IonizedBox *previous_ionize_box,
-                      TsBox *spin_temp, HaloBox *halos, InitialConditions *ini_boxes,
-                      IonizedBox *box) {
+int ComputeIonizedBox(PerturbedField *perturbed_field, PerturbedField *previous_perturbed_field,
+                      IonizedBox *previous_ionize_box, TsBox *spin_temp, HaloBox *halos,
+                      InitialConditions *ini_boxes, IonizedBox *box) {
     int status;
 
     Try {  // This Try brackets the whole function, so we don't indent.
@@ -1307,6 +1306,9 @@ int ComputeIonizedBox(float redshift, float prev_redshift, PerturbedField *pertu
         writeAstroParams(astro_params_global);
         writeAstroOptions(astro_options_global);
 #endif
+
+        double redshift = get_current_redshift();
+        double prev_redshift = get_previous_redshift();
 
         // Makes the parameter structs visible to a variety of functions/macros
         // Do each time to avoid Python garbage collection issues

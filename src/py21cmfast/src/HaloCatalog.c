@@ -35,13 +35,14 @@ int pixel_in_halo(int grid_dim, int z_dim, int x, int x_index, int y, int y_inde
                   int z_index, float Rsq_curr_index);
 void free_halo_catalog(HaloCatalog *halos);
 
-int ComputeHaloCatalog(float redshift_desc2, float redshift_desc, float redshift,
-                       InitialConditions *boxes, unsigned long long int random_seed,
+int ComputeHaloCatalog(InitialConditions *boxes, unsigned long long int random_seed,
                        HaloCatalog *halos_desc, HaloCatalog *halos) {
     int status;
 
     Try {  // This Try brackets the whole function, so we don't indent.
-        bool from_catalog = matter_options_global->SOURCE_MODEL == 4 && redshift_desc > 0;
+        double redshift = get_current_redshift(boxes);
+        bool from_catalog =
+            (matter_options_global->SOURCE_MODEL == 4 && get_descendant_redshift() > 0);
         if (halos->sfh_computed || halos_desc->sfh_computed) {
             LOG_ERROR(
                 "You have passed a halo catalog with SFH already computed to the stochastic "
@@ -49,7 +50,6 @@ int ComputeHaloCatalog(float redshift_desc2, float redshift_desc, float redshift
                 "This is not allowed.");
             Throw(ValueError);
         }
-        initialise_sfh_structs(redshift, redshift_desc, redshift_desc2, from_catalog);
         // This happens if we are updating a halo field (no need to redo big halos)
         if (from_catalog) {
             LOG_DEBUG("Halo sampling switched on, bypassing halo finder to update %llu halos...",
@@ -57,8 +57,7 @@ int ComputeHaloCatalog(float redshift_desc2, float redshift_desc, float redshift
             // this would hold the two boxes used in the halo sampler, but here we are taking the
             // sample from a catalogue so we define a dummy here
             float *dummy_box = NULL;
-            stochastic_halofield(random_seed, redshift_desc, redshift, dummy_box, dummy_box,
-                                 halos_desc, halos);
+            stochastic_halofield(random_seed, dummy_box, dummy_box, halos_desc, halos);
             return 0;
         }
 
@@ -410,8 +409,8 @@ int ComputeHaloCatalog(float redshift_desc2, float redshift_desc, float redshift
                 }
             }
 
-            stochastic_halofield(random_seed, redshift_desc, redshift, boxes->lowres_density,
-                                 halo_overlap_box, halos_dexm, halos);
+            stochastic_halofield(random_seed, boxes->lowres_density, halo_overlap_box, halos_dexm,
+                                 halos);
 
             // Here, halos_dexm is allocated in the C, so free it
             free_halo_catalog(halos_dexm);
@@ -430,8 +429,6 @@ int ComputeHaloCatalog(float redshift_desc2, float redshift_desc, float redshift
 
         fftwf_free(density_field);
         fftwf_free(density_field_saved);
-
-        cleanup_sfh_structs();
 
         fftwf_cleanup_threads();
         fftwf_cleanup();
@@ -549,18 +546,18 @@ void init_halo_coords(HaloCatalog *halos, long long unsigned int n_halos) {
     halos->halo_masses = (float *)calloc(alloc_size, sizeof(float));
     halos->halo_coords = (float *)calloc(3 * alloc_size, sizeof(float));
 
-    halos->star_rng = (float *)calloc(alloc_size, sizeof(float));
-    halos->sfr_rng = (float *)calloc(alloc_size, sizeof(float));
-    halos->xray_rng = (float *)calloc(alloc_size, sizeof(float));
+    halos->sfr_10 = (float *)calloc(alloc_size, sizeof(float));
+    halos->sfr_100 = (float *)calloc(alloc_size, sizeof(float));
+    halos->stellar_mass = (float *)calloc(alloc_size, sizeof(float));
 }
 
 void free_halo_catalog(HaloCatalog *halos) {
     LOG_DEBUG("Freeing HaloCatalog instance.");
     free(halos->halo_masses);
     free(halos->halo_coords);
-    free(halos->star_rng);
-    free(halos->sfr_rng);
-    free(halos->xray_rng);
+    free(halos->sfr_10);
+    free(halos->sfr_100);
+    free(halos->stellar_mass);
     halos->n_halos = 0;
 }
 

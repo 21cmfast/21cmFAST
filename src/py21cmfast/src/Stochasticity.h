@@ -41,9 +41,8 @@ struct HaloSamplingConstants {
     double expected_M;
 };
 
-int stochastic_halofield(unsigned long long int seed, float redshift_desc, float redshift,
-                         float *dens_field, float *halo_overlap_box, HaloCatalog *halos_desc,
-                         HaloCatalog *halos);
+int stochastic_halofield(unsigned long long int seed, float *dens_field, float *halo_overlap_box,
+                         HaloCatalog *halos_desc, HaloCatalog *halos);
 
 int single_test_sample(unsigned long long int seed, int n_condition, float *conditions,
                        float *cond_crd, double z_out, double z_in, int *out_n_tot, int *out_n_cell,

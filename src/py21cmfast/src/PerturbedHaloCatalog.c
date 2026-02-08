@@ -22,13 +22,12 @@
 #include "indexing.h"
 #include "logger.h"
 
-int ComputePerturbedHaloCatalog(float redshift, InitialConditions *boxes, TsBox *prev_ts,
-                                IonizedBox *prev_ion, HaloCatalog *halos,
-                                PerturbedHaloCatalog *halos_perturbed) {
+int ComputePerturbedHaloCatalog(InitialConditions *boxes, TsBox *prev_ts, IonizedBox *prev_ion,
+                                HaloCatalog *halos, PerturbedHaloCatalog *halos_perturbed) {
     int status;
 
     Try {  // This Try brackets the whole function, so we don't indent.
-
+        double redshift = get_current_redshift(boxes);
         LOG_DEBUG("input value:");
         LOG_DEBUG("redshift=%f", redshift);
 #if LOG_LEVEL >= SUPER_DEBUG_LEVEL
@@ -134,8 +133,7 @@ int ComputePerturbedHaloCatalog(float redshift, InitialConditions *boxes, TsBox 
         }
 
         LOG_DEBUG("starting haloprops");
-        convert_halo_props(redshift, boxes, prev_ts, prev_ion, halos, halos_perturbed);
-        // Divide out multiplicative factor to return to pristine state
+        convert_halo_props(boxes, prev_ts, prev_ion, halos, halos_perturbed);
         LOG_SUPER_DEBUG("Number of halos exactly on the box edge = %llu of %llu", n_exact_dim,
                         halos->n_halos);
         if (error_in_parallel) {

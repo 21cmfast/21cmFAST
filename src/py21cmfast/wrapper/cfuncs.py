@@ -35,7 +35,7 @@ def broadcast_input_struct(inputs: InputParameters):
     )
 
 
-def broadcast_params(func: Callable) -> Callable:
+def broadcast_params(func: Callable, redshift: float | None = None) -> Callable:
     """Broadcast the parameters to the C library before calling the function.
 
     This should be added as a decorator to any function which accesses the
@@ -44,6 +44,14 @@ def broadcast_params(func: Callable) -> Callable:
 
     def wrapper(*args, inputs: InputParameters, **kwargs):
         broadcast_input_struct(inputs)
+        if redshift is not None:
+            lib.Broadcast_snapshot_info(
+                inputs.node_redshifts.cstruct.size,
+                np.array(
+                    inputs.node_redshifts.cstruct.node_redshifts, dtype="f8"
+                ).ctypes.data,
+                inputs.node_redshifts.cstruct.node_redshifts.index(redshift),
+            )
         return func(*args, inputs=inputs, **kwargs)
 
     return wrapper

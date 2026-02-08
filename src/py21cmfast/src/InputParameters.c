@@ -17,12 +17,33 @@ void Broadcast_struct_global_noastro(SimulationOptions *simulation_options,
     cosmo_params_global = cosmo_params;
 }
 
+void Broadcast_snapshot_info(int n_nodes, double *node_redshifts, int curr_node) {
+    node_redshifts_global.n_nodes = n_nodes;
+    node_redshifts_global.node_redshifts = node_redshifts;
+    node_redshifts_global.curr_node = curr_node;
+}
+
+double get_redshift_relative(int offset) {
+    int target_node = node_redshifts_global.curr_node + offset;
+    if (target_node >= 0 && target_node < node_redshifts_global.n_nodes) {
+        return node_redshifts_global.node_redshifts[target_node];
+    } else {
+        return -1.0;  // or some other sentinel value indicating out of bounds
+    }
+}
+
+// some useful aliases
+double get_current_redshift() { return get_redshift_relative(0); }
+double get_previous_redshift() { return get_redshift_relative(-1); }
+double get_descendant_redshift() { return get_redshift_relative(1); }
+
 /*GLOBAL INPUT STRUCT DEFINITION*/
 SimulationOptions *simulation_options_global;
 MatterOptions *matter_options_global;
 CosmoParams *cosmo_params_global;
 AstroParams *astro_params_global;
 AstroOptions *astro_options_global;
+NodeRedshifts node_redshifts_global;
 
 // data paths, wisdoms, etc
 ConfigSettings config_settings;

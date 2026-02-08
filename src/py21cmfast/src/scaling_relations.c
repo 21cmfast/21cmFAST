@@ -13,6 +13,7 @@
 #include "Constants.h"
 #include "InputParameters.h"
 #include "cexcept.h"
+#include "correlated_sfh.h"
 #include "cosmology.h"
 #include "exceptions.h"
 #include "hmf.h"
@@ -36,14 +37,8 @@ void print_sc_consts(ScalingConstants *c) {
     return;
 }
 
-void set_scaling_constants(double redshift, double redshift_prev, ScalingConstants *consts,
-                           bool use_photoncons) {
+void set_scaling_constants(double redshift, ScalingConstants *consts, bool use_photoncons) {
     consts->redshift = redshift;
-
-    if (redshift_prev > 0)
-        consts->snapshot_time = time_between_z(redshift, redshift_prev);
-    else
-        consts->snapshot_time = -1.0;  // indicates single snapshot mode
 
     // Set on for the fixed grid case since we are missing halos above the cell mass
     consts->fix_mean = matter_options_global->HMF == 2 || matter_options_global->HMF == 3;
@@ -53,6 +48,7 @@ void set_scaling_constants(double redshift, double redshift_prev, ScalingConstan
     // we need the sigmas for the current snapshot
     if (matter_options_global->SOURCE_MODEL > 1) {
         initialise_sfh_structs(redshift, -1, -1, false);
+        // TODO: seriously review this
         get_current_vars(consts->integral_mean_correction);
         if (astro_options_global->HALO_SCALING_RELATIONS_MEDIAN) {
             for (int i = 0; i < 3; i++) {
@@ -122,6 +118,10 @@ void set_scaling_constants(double redshift, double redshift_prev, ScalingConstan
             Mass_limit_bisection(M_MIN_INTEGRAL, M_MAX_INTEGRAL, consts->alpha_esc,
                                  consts->fesc_7 * pow(1e3, consts->alpha_esc));
     }
+
+    // TODO: can remove if we find a better way to get the average integrated SFR
+    consts->t_h = t_Hubble(redshift);
+    consts->t_star = astro_params_global->t_STAR;
 }
 
 // It's often useful to create a copy of scaling constants without F_ESC
@@ -154,37 +154,6 @@ ScalingConstants evolve_scaling_constants_to_redshift(double redshift, ScalingCo
     }
 
     return sc_z;
-}
-
-ScalingConstants mimic_scatter_in_consts(ScalingConstants *sc) {
-    // This function mimics the effect of log-normal scatter in the scaling relations by increasing
-    //  the normalisation of the relations appropriately.
-    //  These should be used in individual integrals / table initialisations, scoped tightly,
-    //  and applied after evolving to the correct redshift / relation.
-    ScalingConstants ev_consts = *sc;
-    ev_consts.fstar_10 *= exp(0.5 * pow(ev_consts.sigma_star, 2));
-    ev_consts.fstar_7 *= exp(0.5 * pow(ev_consts.sigma_star, 2));
-    ev_consts.l_x *= exp(0.5 * pow(ev_consts.sigma_xray, 2));
-    ev_consts.l_x_mini *= exp(0.5 * pow(ev_consts.sigma_xray, 2));
-
-    // This is a lower-limit on the effect of scatter in SSFR
-    //  since the scatter depends on stellar mass. To fully apply the limit we would need
-    //  a new HMF integrand. Explicit Monte-Carlo Integration over the property PDFS might also
-    //  work.
-    // TODO: Something better than this
-    ev_consts.t_star /= exp(0.5 * pow(ev_consts.sigma_sfr_lim, 2));
-
-    // By altering the normalisations we need to recalculate the mass limits
-    ev_consts.Mlim_Fstar = Mass_limit_bisection(M_MIN_INTEGRAL, M_MAX_INTEGRAL,
-                                                ev_consts.alpha_star, ev_consts.fstar_10);
-
-    if (astro_options_global->USE_MINI_HALOS) {
-        ev_consts.Mlim_Fstar_mini =
-            Mass_limit_bisection(M_MIN_INTEGRAL, M_MAX_INTEGRAL, ev_consts.alpha_star_mini,
-                                 ev_consts.fstar_7 * pow(1e3, ev_consts.alpha_star_mini));
-    }
-
-    return ev_consts;
 }
 
 /*
@@ -312,9 +281,9 @@ double get_lx_on_sfr(double sfr, double metallicity, double lx_constant) {
     return lx_constant;
 }
 
-void get_halo_sfh(double halo_mass, double mturn_acg, double mturn_mcg, double prog_hm,
-                  double prog_sm[2], double rng[3], ScalingConstants *consts, double sfr_out[3],
-                  double sfr_out_mini[3]) {
+void get_halo_sfh(double snapshot_time, double halo_mass, double mturn_acg, double mturn_mcg,
+                  double prog_hm, double prog_sm[2], double rng[3], ScalingConstants *consts,
+                  double sfr_out[3], double sfr_out_mini[3]) {
     // low-mass ACG power-law parameters
     double f_10 = consts->fstar_10;
     double f_a = consts->alpha_star;
@@ -371,10 +340,10 @@ void get_halo_sfh(double halo_mass, double mturn_acg, double mturn_mcg, double p
     }
 
     // divide by snapshot time
-    sfr_out[0] = sfr_out[0] / consts->snapshot_time;
-    sfr_out_mini[0] = sfr_out_mini[0] / consts->snapshot_time;
-    sfr_out[1] = sfr_out[1] / consts->snapshot_time;
-    sfr_out_mini[1] = sfr_out_mini[1] / consts->snapshot_time;
+    sfr_out[0] = sfr_out[0] / snapshot_time;
+    sfr_out_mini[0] = sfr_out_mini[0] / snapshot_time;
+    sfr_out[1] = sfr_out[1] / snapshot_time;
+    sfr_out_mini[1] = sfr_out_mini[1] / snapshot_time;
     // Finally, sum the progenitor stellar masses into the third field
     sfr_out[2] = sfr_out[2] + prog_sm[0];
     sfr_out_mini[2] = sfr_out_mini[2] + prog_sm[1];

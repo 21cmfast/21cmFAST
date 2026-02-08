@@ -19,8 +19,8 @@
 #include "indexing.h"
 #include "logger.h"
 
-int ComputeBrightnessTemp(float redshift, TsBox *spin_temp, IonizedBox *ionized_box,
-                          PerturbedField *perturb_field, BrightnessTemp *box) {
+int ComputeBrightnessTemp(TsBox *spin_temp, IonizedBox *ionized_box, PerturbedField *perturb_field,
+                          BrightnessTemp *box) {
     int status;
     Try {  // Try block around whole function.
         LOG_DEBUG("Starting Brightness Temperature calculation for redshift %f", redshift);
@@ -29,6 +29,8 @@ int ComputeBrightnessTemp(float redshift, TsBox *spin_temp, IonizedBox *ionized_
 
         int i, j, k;
         double ave;
+
+        double redshift = get_current_redshift();
 
         int box_dim[3] = {
             simulation_options_global->HII_DIM, simulation_options_global->HII_DIM,

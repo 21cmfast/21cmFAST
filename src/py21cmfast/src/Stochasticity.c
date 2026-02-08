@@ -23,6 +23,7 @@
 #include "interp_tables.h"
 #include "logger.h"
 #include "rng.h"
+
 // buffer size (per cell of arbitrary size) in the sampling function
 #define MAX_HALO_CELL (int)1e5
 
@@ -79,7 +80,7 @@ double sample_dndM_inverse(double condition, struct HaloSamplingConstants *hs_co
 // Set the constants that are calculated once per snapshot
 void stoc_set_consts_z(struct HaloSamplingConstants *const_struct, double redshift,
                        double redshift_desc, bool from_catalog) {
-    if (redshift_desc > 0 && redshift < redshift_desc) {
+    if (from_catalog && redshift < redshift_desc) {
         LOG_ERROR("you have passed a descendant redshift above the progenitor redshift");
         Throw(ValueError);
     }
@@ -698,11 +699,11 @@ void condense_sparse_halolist(HaloCatalog *halofield, unsigned long long int *is
     for (i = 0; i < simulation_options_global->N_THREADS; i++) {
         memmove(&halofield->halo_masses[count_total], &halofield->halo_masses[istart_threads[i]],
                 sizeof(float) * nhalo_threads[i]);
-        memmove(&halofield->star_rng[count_total], &halofield->star_rng[istart_threads[i]],
+        memmove(&halofield->sfr_10[count_total], &halofield->sfr_10[istart_threads[i]],
                 sizeof(float) * nhalo_threads[i]);
-        memmove(&halofield->sfr_rng[count_total], &halofield->sfr_rng[istart_threads[i]],
+        memmove(&halofield->sfr_100[count_total], &halofield->sfr_100[istart_threads[i]],
                 sizeof(float) * nhalo_threads[i]);
-        memmove(&halofield->xray_rng[count_total], &halofield->xray_rng[istart_threads[i]],
+        memmove(&halofield->stellar_mass[count_total], &halofield->stellar_mass[istart_threads[i]],
                 sizeof(float) * nhalo_threads[i]);
         memmove(&halofield->halo_coords[3 * count_total],
                 &halofield->halo_coords[3 * istart_threads[i]],
@@ -718,11 +719,11 @@ void condense_sparse_halolist(HaloCatalog *halofield, unsigned long long int *is
            (halofield->buffer_size - count_total) * sizeof(float));
     memset(&halofield->halo_coords[3 * count_total], 0,
            3 * (halofield->buffer_size - count_total) * sizeof(float));
-    memset(&halofield->star_rng[count_total], 0,
+    memset(&halofield->sfr_10[count_total], 0,
            (halofield->buffer_size - count_total) * sizeof(float));
-    memset(&halofield->sfr_rng[count_total], 0,
+    memset(&halofield->sfr_100[count_total], 0,
            (halofield->buffer_size - count_total) * sizeof(float));
-    memset(&halofield->xray_rng[count_total], 0,
+    memset(&halofield->stellar_mass[count_total], 0,
            (halofield->buffer_size - count_total) * sizeof(float));
     LOG_SUPER_DEBUG("Set %llu elements beyond %llu to zero", halofield->buffer_size - count_total,
                     count_total);
@@ -788,9 +789,9 @@ int sample_halo_grids(gsl_rng **rng_arr, double redshift, float *dens_field,
 #pragma omp for reduction(+ : total_volume_dexm)
         for (halo_idx = 0; halo_idx < nhalo_in; halo_idx++) {
             halofield_out->halo_masses[istart + count] = halofield_large->halo_masses[halo_idx];
-            halofield_out->star_rng[istart + count] = halofield_large->star_rng[halo_idx];
-            halofield_out->sfr_rng[istart + count] = halofield_large->sfr_rng[halo_idx];
-            halofield_out->xray_rng[istart + count] = halofield_large->xray_rng[halo_idx];
+            halofield_out->sfr_10[istart + count] = halofield_large->sfr_10[halo_idx];
+            halofield_out->sfr_100[istart + count] = halofield_large->sfr_100[halo_idx];
+            halofield_out->stellar_mass[istart + count] = halofield_large->stellar_mass[halo_idx];
             halofield_out->halo_coords[0 + 3 * (istart + count)] =
                 halofield_large->halo_coords[0 + 3 * halo_idx];
             halofield_out->halo_coords[1 + 3 * (istart + count)] =
@@ -847,9 +848,9 @@ int sample_halo_grids(gsl_rng **rng_arr, double redshift, float *dens_field,
                         halofield_out->halo_coords[3 * (istart + count) + 2] = crd_hi[2];
 
                         sample_correlated_sfh(rng_arr[threadnum], prop_dummy, prop_buf);
-                        halofield_out->sfr_rng_10[istart + count] = prop_buf[0];
-                        halofield_out->sfr_rng_100[istart + count] = prop_buf[1];
-                        halofield_out->sfr_rng_snapshot[istart + count] = prop_buf[2];
+                        halofield_out->sfr_10[istart + count] = prop_buf[0];
+                        halofield_out->sfr_100[istart + count] = prop_buf[1];
+                        halofield_out->stellar_mass[istart + count] = prop_buf[2];
                         count++;
 
                         M_tot_cell += hm_buf[i];
@@ -962,9 +963,9 @@ int sample_halo_progenitors(gsl_rng **rng_arr, double z_in, double z_out, HaloCa
             // Sample the CMF set by the descendant
             stoc_sample(&hs_constants_priv, rng_arr[threadnum], &n_prog, prog_buf);
 
-            propbuf_in[0] = halofield_in->star_rng[ii];
-            propbuf_in[1] = halofield_in->sfr_rng[ii];
-            propbuf_in[2] = halofield_in->xray_rng[ii];
+            propbuf_in[0] = halofield_in->sfr_10[ii];
+            propbuf_in[1] = halofield_in->sfr_100[ii];
+            propbuf_in[2] = halofield_in->stellar_mass[ii];
             pos_desc[0] = halofield_in->halo_coords[3 * ii + 0];
             pos_desc[1] = halofield_in->halo_coords[3 * ii + 1];
             pos_desc[2] = halofield_in->halo_coords[3 * ii + 2];
@@ -995,9 +996,9 @@ int sample_halo_progenitors(gsl_rng **rng_arr, double z_in, double z_out, HaloCa
                 halofield_out->halo_coords[3 * (istart + count) + 0] = pos_prog[0];
                 halofield_out->halo_coords[3 * (istart + count) + 1] = pos_prog[1];
                 halofield_out->halo_coords[3 * (istart + count) + 2] = pos_prog[2];
-                halofield_out->star_rng[istart + count] = propbuf_out[0];
-                halofield_out->sfr_rng[istart + count] = propbuf_out[1];
-                halofield_out->xray_rng[istart + count] = propbuf_out[2];
+                halofield_out->sfr_10[istart + count] = propbuf_out[0];
+                halofield_out->sfr_100[istart + count] = propbuf_out[1];
+                halofield_out->stellar_mass[istart + count] = propbuf_out[2];
                 halofield_out->descendant_index[istart + count] = ii;
                 count++;
 
@@ -1045,9 +1046,12 @@ int sample_halo_progenitors(gsl_rng **rng_arr, double z_in, double z_out, HaloCa
 }
 
 // function that talks between the structures (Python objects) and the sampling functions
-int stochastic_halofield(unsigned long long int seed, float redshift_desc2, float redshift_desc,
-                         float redshift, float *dens_field, float *halo_overlap_box,
+int stochastic_halofield(unsigned long long int seed, float *dens_field, float *halo_overlap_box,
                          HaloCatalog *halos_desc, HaloCatalog *halos) {
+    double redshift = get_current_redshift();
+    double redshift_desc = get_descendant_redshift();
+    double redshift_desc2 = get_redshift_relative(-2);
+
     if (redshift_desc > 0 && halos_desc->n_halos == 0) {
         LOG_DEBUG("No halos to sample from redshifts %.2f to %.2f, continuing...", redshift_desc,
                   redshift);
@@ -1067,11 +1071,13 @@ int stochastic_halofield(unsigned long long int seed, float redshift_desc2, floa
     // NOTE:Halos prev in the first box corresponds to the large DexM halos
     if (!from_catalog) {
         LOG_DEBUG("building first halo field at z=%.1f", redshift);
+        initialise_sfh_structs(redshift, -1.0, -1.0, false);
         sample_halo_grids(rng_stoc, redshift, dens_field, halo_overlap_box, halos_desc, halos,
                           &hs_constants);
     } else {
         LOG_DEBUG("Calculating halo progenitors from z=%.1f to z=%.1f | %llu", redshift_desc,
                   redshift, halos_desc->n_halos);
+        initialise_sfh_structs(redshift, redshift_desc, redshift_desc2, true);
         sample_halo_progenitors(rng_stoc, redshift_desc, redshift, halos_desc, halos,
                                 &hs_constants);
     }
@@ -1095,6 +1101,7 @@ int stochastic_halofield(unsigned long long int seed, float redshift_desc2, floa
     free_dNdM_tables();
 
     free_rng_threads(rng_stoc);
+    cleanup_sfh_structs();
     LOG_DEBUG("Done.");
     return 0;
 }
@@ -1128,7 +1135,7 @@ int single_test_sample(unsigned long long int seed, int n_condition, float *cond
                             BOXLEN_PARA};
 
         LOG_DEBUG("Setting z constants. %.3f %.3f", z_out, z_in);
-        stoc_set_consts_z(hs_constants, z_out, z_in);
+        stoc_set_consts_z(hs_constants, z_out, z_in, (z_in > 0.));
 
         LOG_DEBUG("SINGLE SAMPLE: z = (%.2f,%.2f), Mmin = %.3e, cond(%d)=[%.2e,%.2e,%.2e...]",
                   z_out, z_in, hs_constants->M_min, n_condition, conditions[0], conditions[1],
