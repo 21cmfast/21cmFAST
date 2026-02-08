@@ -209,7 +209,9 @@ double st_taylor_factor(double sig, double sig_cond, double growthf, double *zer
     double sigsq = sig * sig;
     double sigsq_inv = 1. / sigsq;
     double sigcsq = sig_cond * sig_cond;
-    double sigdiff = sig == sig_cond ? 1e-6 : sigsq - sigcsq;
+    // Note: I'm using here (a-b)*(a+b) because that seems to be numerically more stable than
+    // a^2-b^2 !
+    double sigdiff = sig == sig_cond ? 1e-6 : (sig - sig_cond) * (sig + sig_cond);
 
     // This array cumulatively builds the taylor series terms
     // sigdiff^n / n! * df/dsigma (polynomial w alpha)
