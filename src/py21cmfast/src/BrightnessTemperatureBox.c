@@ -99,16 +99,33 @@ int ComputeBrightnessTemp(float redshift, TsBox *spin_temp, IonizedBox *ionized_
 
         // Diagnostic output - brightness temperature
         {
+            const char *label = USE_CUDA ? "BT_GPU" : "BT_CPU";
             double sum2 = 0.0, val, std, vmin, vmax;
+            unsigned long long ii;
+
             vmin = box->brightness_temp[0]; vmax = vmin;
-            for (unsigned long long ii = 0; ii < HII_TOT_NUM_PIXELS; ii++) {
+            for (ii = 0; ii < HII_TOT_NUM_PIXELS; ii++) {
                 val = box->brightness_temp[ii];
                 sum2 += val * val;
                 if (val < vmin) vmin = val; if (val > vmax) vmax = val;
             }
             std = sqrt(sum2 / HII_TOT_NUM_PIXELS - ave * ave);
-            fprintf(stderr, "[DIAG] %s brightness_temp mean=%.6e std=%.6e min=%.6e max=%.6e\n",
-                    USE_CUDA ? "BT_GPU" : "BT_CPU", ave, std, vmin, vmax);
+            fprintf(stderr, "[DIAG] %s brightness_temp mean=%.6e std=%.6e min=%.6e max=%.6e\n", label, ave, std, vmin, vmax);
+
+            // tau_21
+            if (box->tau_21 != NULL) {
+                double sum = 0.0; sum2 = 0.0; vmin = box->tau_21[0]; vmax = vmin;
+                for (ii = 0; ii < HII_TOT_NUM_PIXELS; ii++) {
+                    val = box->tau_21[ii];
+                    sum += val; sum2 += val * val;
+                    if (val < vmin) vmin = val; if (val > vmax) vmax = val;
+                }
+                double mean = sum / HII_TOT_NUM_PIXELS;
+                std = sqrt(sum2 / HII_TOT_NUM_PIXELS - mean * mean);
+                fprintf(stderr, "[DIAG] %s tau_21 mean=%.6e std=%.6e min=%.6e max=%.6e\n", label, mean, std, vmin, vmax);
+            }
+
+            fflush(stderr);
         }
 
     }  // End of try

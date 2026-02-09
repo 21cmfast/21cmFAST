@@ -1891,6 +1891,32 @@ void ts_main(float redshift, float prev_redshift, float perturbed_field_redshift
         }
         mean = sum / HII_TOT_NUM_PIXELS; std = sqrt(sum2 / HII_TOT_NUM_PIXELS - mean * mean);
         fprintf(stderr, "[DIAG] %s Tk mean=%.6e std=%.6e min=%.6e max=%.6e\n", label, mean, std, vmin, vmax);
+
+        // xray_ionised_fraction
+        if (this_spin_temp->xray_ionised_fraction != NULL) {
+            sum = 0.0; sum2 = 0.0; vmin = this_spin_temp->xray_ionised_fraction[0]; vmax = vmin;
+            for (unsigned long long ii = 0; ii < HII_TOT_NUM_PIXELS; ii++) {
+                val = this_spin_temp->xray_ionised_fraction[ii];
+                sum += val; sum2 += val * val;
+                if (val < vmin) vmin = val; if (val > vmax) vmax = val;
+            }
+            mean = sum / HII_TOT_NUM_PIXELS; std = sqrt(sum2 / HII_TOT_NUM_PIXELS - mean * mean);
+            fprintf(stderr, "[DIAG] %s x_e mean=%.6e std=%.6e min=%.6e max=%.6e\n", label, mean, std, vmin, vmax);
+        }
+
+        // J_21_LW
+        if (this_spin_temp->J_21_LW != NULL) {
+            sum = 0.0; sum2 = 0.0; vmin = this_spin_temp->J_21_LW[0]; vmax = vmin;
+            for (unsigned long long ii = 0; ii < HII_TOT_NUM_PIXELS; ii++) {
+                val = this_spin_temp->J_21_LW[ii];
+                sum += val; sum2 += val * val;
+                if (val < vmin) vmin = val; if (val > vmax) vmax = val;
+            }
+            mean = sum / HII_TOT_NUM_PIXELS; std = sqrt(sum2 / HII_TOT_NUM_PIXELS - mean * mean);
+            fprintf(stderr, "[DIAG] %s J_21_LW mean=%.6e std=%.6e min=%.6e max=%.6e\n", label, mean, std, vmin, vmax);
+        }
+
+        fflush(stderr);
     }
 
     }  // End of if (!use_cuda) for R==0 section
