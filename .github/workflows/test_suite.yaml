@@ -68,22 +68,26 @@ jobs:
 
       # ADD THESE NEW STEPS FOR DEBUG OUTPUT ON MACOS
       - name: Reinstall with Debug Flags (macOS only)
-        if: matrix.os == 'macos-latest'
+        if: matrix.os == 'macos-latest' && matrix.python-version == '3.11' && matrix.compiler == 'clang'
         run: |
           pip uninstall -y 21cmFAST
-          CFLAGS="-DDEBUG_ST" pip install . --no-build-isolation
+          # Force clean rebuild by removing build artifacts
+          rm -rf build dist *.egg-info
+          python setup.py clean --all || true
+          # Install with debug flag
+          CFLAGS="-DDEBUG_ST" pip install . --no-build-isolation --force-reinstall --no-cache-dir
 
       - name: Run Debug Test for grid-ST (macOS only)
-        if: matrix.os == 'macos-latest'
+        if: matrix.os == 'macos-latest' && matrix.python-version == '3.11' && matrix.compiler == 'clang'
         continue-on-error: true
         run: |
           python -m pytest 'tests/test_c_interpolation_tables.py::test_massfunc_conditional_tables[grid-ST]' -v -s > debug_github_macos.txt 2>&1 || true
 
       - name: Upload Debug Output (macOS only)
-        if: matrix.os == 'macos-latest'
+        if: matrix.os == 'macos-latest' && matrix.python-version == '3.11' && matrix.compiler == 'clang'
         uses: actions/upload-artifact@v6
         with:
-          name: debug-output-macos-py${{ matrix.python-version }}-${{ matrix.compiler }}
+          name: debug-output-macos-py3.11-clang
           path: debug_github_macos.txt
 
       # CONTINUE WITH EXISTING STEPS
