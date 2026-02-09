@@ -65,7 +65,10 @@ jobs:
       - name: Install 21cmFAST (with debug on macOS 3.12)
         if: matrix.os == 'macos-latest' && matrix.python-version == '3.12'
         run: |
-          CFLAGS="-DDEBUG_ST" LOG_LEVEL=${{ env.log_level }} pip install ".[dev]"
+          export CPATH="$CONDA_PREFIX/include:$CPATH"
+          export LIBRARY_PATH="$CONDA_PREFIX/lib:$LIBRARY_PATH"
+          export LD_LIBRARY_PATH="$CONDA_PREFIX/lib:$LD_LIBRARY_PATH"
+          CFLAGS="-DDEBUG_ST -I$CONDA_PREFIX/include" LDFLAGS="-L$CONDA_PREFIX/lib" LOG_LEVEL=${{ env.log_level }} pip install ".[dev]"
 
       - name: Install 21cmFAST (normal for others)
         if: "!(matrix.os == 'macos-latest' && matrix.python-version == '3.12')"
