@@ -200,43 +200,6 @@ __global__ void perturb_density_field_kernel(
         // double scaled_density = 1 + init_growth_factor * __ldg(&hires_density[r_index]);
         double scaled_density = 1.0 + init_growth_factor * hires_density[r_index];
 
-        // Diagnostic output for sample cells (GPU) - matches CPU format
-        // Note: Only works when !perturb_on_high_res (the common test case)
-        if (!perturb_on_high_res && ((i == 0 && j == 0 && k == 0) || (i == 100 && j == 50 && k == 25))) {
-            // Recompute velocity indices for diagnostic (matches the actual calculation above)
-            int diag_HII_i = (int)(i * dim_ratio_vel + 0.5);
-            int diag_HII_j = (int)(j * dim_ratio_vel + 0.5);
-            int diag_HII_k = (int)(k * dim_ratio_vel + 0.5);
-            // Apply wrapping for diagnostic
-            while (diag_HII_i >= hii_d) diag_HII_i -= hii_d;
-            while (diag_HII_j >= hii_d) diag_HII_j -= hii_d;
-            while (diag_HII_k >= hii_d_para) diag_HII_k -= hii_d_para;
-            // Compute velocity contribution for diagnostic
-            double vel_contrib_x = (double)lowres_vx[HII_index] * vdf_xy;
-            double vel_contrib_y = (double)lowres_vy[HII_index] * vdf_xy;
-            double vel_contrib_z = (double)lowres_vz[HII_index] * vdf_z;
-            printf("[DIAG_GPU] cell=(%d,%d,%d) dens_dim=%d out_dim=%d dim_ratio_out=%.9f\n",
-                   i, j, k, DIM, dimension, dim_ratio_out);
-            printf("[DIAG_GPU]   vel_idx=(%d,%d,%d) vel_index=%llu\n",
-                   diag_HII_i, diag_HII_j, diag_HII_k, HII_index);
-            printf("[DIAG_GPU]   vel_raw=(%.9f,%.9f,%.9f)\n",
-                   lowres_vx[HII_index], lowres_vy[HII_index], lowres_vz[HII_index]);
-            printf("[DIAG_GPU]   vdf=(%.9f,%.9f,%.9f)\n",
-                   vdf_xy, vdf_xy, vdf_z);
-            printf("[DIAG_GPU]   vel_contrib=(%.9f,%.9f,%.9f)\n",
-                   vel_contrib_x, vel_contrib_y, vel_contrib_z);
-            printf("[DIAG_GPU]   pos_init=(%d,%d,%d) pos_displaced=(%.9f,%.9f,%.9f)\n",
-                   i, j, k,
-                   (double)i + vel_contrib_x, (double)j + vel_contrib_y, (double)k + vel_contrib_z);
-            printf("[DIAG_GPU]   pos_final=(%.9f,%.9f,%.9f) dens=%.9f\n",
-                   pos_x, pos_y, pos_z, scaled_density);
-            printf("[DIAG_GPU]   cic_base_raw=(%d,%d,%d) cic_base_wrapped=(%d,%d,%d)\n",
-                   (int)floor(pos_x), (int)floor(pos_y), (int)floor(pos_z),
-                   xi, yi, zi);
-            printf("[DIAG_GPU]   cic_dist=(%.9f,%.9f,%.9f)\n",
-                   d_x, d_y, d_z);
-        }
-
         if (perturb_on_high_res) {
             // Redistribute the mass over the 8 neighbouring cells according to cloud in cell
             // Cell mass = (1 + init_growth_factor * orig_density) * (proportion of mass to distribute)
@@ -385,6 +348,27 @@ extern "C" double* MapMass_gpu(
     if (err != cudaSuccess) {
         LOG_ERROR("CUDA error: %s", cudaGetErrorString(err));
         Throw(CUDAError);
+    }
+
+    // Compute and print aggregate diagnostics for GPU resampled_box
+    {
+        size_t num_pixels = matter_options_global->PERTURB_ON_HIGH_RES ? TOT_NUM_PIXELS : HII_TOT_NUM_PIXELS;
+        double sum = 0.0, sum_sq = 0.0;
+        double min_val = resampled_box[0];
+        double max_val = resampled_box[0];
+        for (size_t idx = 0; idx < num_pixels; idx++) {
+            double val = resampled_box[idx];
+            sum += val;
+            sum_sq += val * val;
+            if (val < min_val) min_val = val;
+            if (val > max_val) max_val = val;
+        }
+        double mean = sum / (double)num_pixels;
+        double variance = (sum_sq / (double)num_pixels) - (mean * mean);
+        double std = (variance > 0.0) ? sqrt(variance) : 0.0;
+        fprintf(stderr, "[DIAG] MapMass_GPU resampled_box mean=%.9f std=%.9f min=%.9f max=%.9f\n",
+                mean, std, min_val, max_val);
+        fflush(stderr);
     }
 
     // Deallocate device memory

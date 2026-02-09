@@ -160,50 +160,6 @@ void move_grid_masses(double redshift, float *dens_pointer, int dens_dim[3], flo
                     dens_index = grid_index_general(i, j, k, dens_dim);
                     curr_dens = 1.0 + dens_pointer[dens_index] * init_growth_factor;
 
-                    // Diagnostic output for sample cells (CPU)
-                    if ((i == 0 && j == 0 && k == 0) || (i == 100 && j == 50 && k == 25)) {
-                        // Compute CIC values for diagnostic (mirrors do_cic_interpolation_double)
-                        int diag_ipos[3], diag_iposp1[3];
-                        double diag_dist[3];
-                        for (int ax = 0; ax < 3; ax++) {
-                            diag_ipos[ax] = (int)floor(pos[ax]);
-                            diag_iposp1[ax] = diag_ipos[ax] + 1;
-                            diag_dist[ax] = pos[ax] - diag_ipos[ax];
-                        }
-                        int diag_ipos_wrapped[3] = {diag_ipos[0], diag_ipos[1], diag_ipos[2]};
-                        int diag_iposp1_wrapped[3] = {diag_iposp1[0], diag_iposp1[1], diag_iposp1[2]};
-                        wrap_coord(diag_ipos_wrapped, out_dim);
-                        wrap_coord(diag_iposp1_wrapped, out_dim);
-
-                        // Note: pos has already been scaled by dim_ratio_out at this point
-                        // To show step-by-step: pos_init=i, pos_displaced=i+vel*vdf, pos_scaled=pos_displaced*dim_ratio_out
-                        double diag_vel_contrib[3] = {
-                            vel_pointers[0][vel_index] * velocity_displacement_factor[0],
-                            vel_pointers[1][vel_index] * velocity_displacement_factor[1],
-                            vel_pointers[2][vel_index] * velocity_displacement_factor[2]
-                        };
-                        fprintf(stderr, "[DIAG_CPU] cell=(%d,%d,%d) dens_dim=%d out_dim=%d dim_ratio_out=%.9f\n",
-                                i, j, k, dens_dim[0], out_dim[0], dim_ratio_out);
-                        fprintf(stderr, "[DIAG_CPU]   vel_idx=(%d,%d,%d) vel_index=%llu\n",
-                                ipos[0], ipos[1], ipos[2], vel_index);
-                        fprintf(stderr, "[DIAG_CPU]   vel_raw=(%.9f,%.9f,%.9f)\n",
-                                vel_pointers[0][vel_index], vel_pointers[1][vel_index], vel_pointers[2][vel_index]);
-                        fprintf(stderr, "[DIAG_CPU]   vdf=(%.9f,%.9f,%.9f)\n",
-                                velocity_displacement_factor[0], velocity_displacement_factor[1], velocity_displacement_factor[2]);
-                        fprintf(stderr, "[DIAG_CPU]   vel_contrib=(%.9f,%.9f,%.9f)\n",
-                                diag_vel_contrib[0], diag_vel_contrib[1], diag_vel_contrib[2]);
-                        fprintf(stderr, "[DIAG_CPU]   pos_init=(%d,%d,%d) pos_displaced=(%.9f,%.9f,%.9f)\n",
-                                i, j, k,
-                                (double)i + diag_vel_contrib[0], (double)j + diag_vel_contrib[1], (double)k + diag_vel_contrib[2]);
-                        fprintf(stderr, "[DIAG_CPU]   pos_final=(%.9f,%.9f,%.9f) dens=%.9f\n",
-                                pos[0], pos[1], pos[2], curr_dens);
-                        fprintf(stderr, "[DIAG_CPU]   cic_base_raw=(%d,%d,%d) cic_base_wrapped=(%d,%d,%d)\n",
-                                diag_ipos[0], diag_ipos[1], diag_ipos[2],
-                                diag_ipos_wrapped[0], diag_ipos_wrapped[1], diag_ipos_wrapped[2]);
-                        fprintf(stderr, "[DIAG_CPU]   cic_dist=(%.9f,%.9f,%.9f)\n",
-                                diag_dist[0], diag_dist[1], diag_dist[2]);
-                    }
-
                     do_cic_interpolation(resampled_box, pos, out_dim, curr_dens);
                 }
             }
