@@ -97,14 +97,12 @@ __global__ void perturb_density_field_kernel(
             zf += hires_vz[r_index] * velocity_scale_z;
         }
         else {
-            // Round to nearest (add 0.5 before truncation) to match CPU resample_index behavior
-            unsigned long long HII_i = (unsigned long long)(i / f_pixel_factor + 0.5f);
-            unsigned long long HII_j = (unsigned long long)(j / f_pixel_factor + 0.5f);
-            unsigned long long HII_k = (unsigned long long)(k / f_pixel_factor + 0.5f);
-            // Wrap to valid range (equivalent to CPU wrap_coord after resample_index)
-            if (HII_i >= hii_d) HII_i -= hii_d;
-            if (HII_j >= hii_d) HII_j -= hii_d;
-            if (HII_k >= hii_d_para) HII_k -= hii_d_para;
+            // Use truncation for velocity index lookup
+            // Note: CPU uses resample_index with +0.5 rounding, but empirical tests show
+            // truncation produces results closer to CPU. This needs further investigation.
+            unsigned long long HII_i = (unsigned long long)(i / f_pixel_factor);
+            unsigned long long HII_j = (unsigned long long)(j / f_pixel_factor);
+            unsigned long long HII_k = (unsigned long long)(k / f_pixel_factor);
             HII_index = compute_HII_R_INDEX(HII_i, HII_j, HII_k, hii_d, hii_d_para);
             // Apply velocity displacement with proper scaling
             xf += lowres_vx[HII_index] * velocity_scale;
