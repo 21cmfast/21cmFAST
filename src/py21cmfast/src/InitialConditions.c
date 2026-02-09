@@ -111,7 +111,8 @@ int ComputeInitialConditions(unsigned long long random_seed, InitialConditions *
         return ComputeInitialConditions_gpu(random_seed, boxes);
     }
     if (use_cuda) {
-        LOG_DEBUG("GPU InitialConditions: DISABLED - using CPU InitialConditions for debugging");
+        fprintf(stderr, "[IC_DEBUG] GPU InitialConditions DISABLED - using CPU path for debugging\n");
+        fflush(stderr);
     }
 #endif
 
