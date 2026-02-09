@@ -253,7 +253,7 @@ double dNdM_conditional_ST(double growthf, double lnM, double delta_cond, double
 
     factor = st_taylor_factor(sigma1, sigma_cond, growthf, &Barrier) - delta_0;
 
-    sigdiff_inv = sigma1 == sigma_cond ? 1e6 : 1 / (sigma1 * sigma1 - sigma_cond * sigma_cond);
+    sigdiff_inv = sigma1 == sigma_cond ? 1e6 : 1 / ((sigma1 - sigma_cond) * (sigma1 + sigma_cond));
 
     result = -dsigmasqdm * factor * pow(sigdiff_inv, 1.5) *
              exp(-(Barrier - delta_0) * (Barrier - delta_0) * 0.5 * (sigdiff_inv)) /
