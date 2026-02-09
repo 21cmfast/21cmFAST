@@ -217,8 +217,15 @@ double st_taylor_factor(double sig, double sig_cond, double growthf, double *zer
     // sigdiff^n / n! * df/dsigma (polynomial w alpha)
     double t_array[6];
     t_array[0] = 1.;
-    for (i = 1; i < 6; i++)
-        t_array[i] = t_array[i - 1] * (-sigdiff) / i * (alpha - i + 1) * sigsq_inv;
+    double neg_sigdiff_over_sigsq = -sigdiff * sigsq_inv;
+    double factorial = 1.;
+    double alpha_term = 1.;
+
+    for (i = 1; i < 6; i++) {
+        factorial *= i;
+        alpha_term *= (alpha - i + 1);
+        t_array[i] = pow(neg_sigdiff_over_sigsq, i) * alpha_term / factorial;
+    }
 
     // Sum small to large
     double result = 0.;
@@ -227,7 +234,8 @@ double st_taylor_factor(double sig, double sig_cond, double growthf, double *zer
     }
 
     double prefactor_1 = sqrt(a) * del;
-    double prefactor_2 = beta * pow(sigsq_inv * (a * del * del), -alpha);
+    double base = a * del * del / sigsq;
+    double prefactor_2 = beta / pow(base, alpha);  // Avoid negative exponent
 
     result = prefactor_1 * (1 + prefactor_2 * result);
     *zeroth_order =
