@@ -1667,6 +1667,21 @@ int ComputeIonizedBox(float redshift, float prev_redshift, PerturbedField *pertu
         destruct_heat();
 
         LOG_DEBUG("global_xH = %e", global_xH);
+
+        // Diagnostic output - IonizedBox fields
+        {
+            double sum = 0.0, sum2 = 0.0, val, mean, std, vmin, vmax;
+            vmin = box->neutral_fraction[0]; vmax = vmin;
+            for (unsigned long long ii = 0; ii < HII_TOT_NUM_PIXELS; ii++) {
+                val = box->neutral_fraction[ii];
+                sum += val; sum2 += val * val;
+                if (val < vmin) vmin = val; if (val > vmax) vmax = val;
+            }
+            mean = sum / HII_TOT_NUM_PIXELS; std = sqrt(sum2 / HII_TOT_NUM_PIXELS - mean * mean);
+            fprintf(stderr, "[DIAG] %s neutral_fraction mean=%.6e std=%.6e min=%.6e max=%.6e\n",
+                    USE_CUDA ? "IB_GPU" : "IB_CPU", mean, std, vmin, vmax);
+        }
+
         free_fftw_grids(grid_struct);
 
         if (!astro_options_global->USE_TS_FLUCT &&

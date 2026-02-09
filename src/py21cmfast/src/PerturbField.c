@@ -115,10 +115,38 @@ void make_density_grid(float redshift, fftwf_complex *fft_density_grid, InitialC
                 (simulation_options_global->BOX_LEN * simulation_options_global->NON_CUBIC_FACTOR));
             MapMass_gpu(boxes, resampled_box, box_dim[0], f_pixel_factor, init_growth_factor,
                         velocity_scale, velocity_scale_z);
+
+            // Diagnostic output after GPU perturb
+            {
+                double sum = 0.0, sum2 = 0.0, val, mean, std, vmin, vmax;
+                unsigned long long n = (unsigned long long)box_dim[0] * box_dim[1] * box_dim[2];
+                vmin = resampled_box[0]; vmax = vmin;
+                for (unsigned long long ii = 0; ii < n; ii++) {
+                    val = resampled_box[ii];
+                    sum += val; sum2 += val * val;
+                    if (val < vmin) vmin = val; if (val > vmax) vmax = val;
+                }
+                mean = sum / n; std = sqrt(sum2 / n - mean * mean);
+                fprintf(stderr, "[DIAG] PF_GPU resampled_box mean=%.6e std=%.6e min=%.6e max=%.6e\n", mean, std, vmin, vmax);
+            }
         } else {
             // Using CPU fallback move_grid_masses
             move_grid_masses(redshift, boxes->hires_density, hi_dim, vel_pointers,
                              vel_pointers_2LPT, box_dim, resampled_box, box_dim);
+
+            // Diagnostic output after CPU perturb
+            {
+                double sum = 0.0, sum2 = 0.0, val, mean, std, vmin, vmax;
+                unsigned long long n = (unsigned long long)box_dim[0] * box_dim[1] * box_dim[2];
+                vmin = resampled_box[0]; vmax = vmin;
+                for (unsigned long long ii = 0; ii < n; ii++) {
+                    val = resampled_box[ii];
+                    sum += val; sum2 += val * val;
+                    if (val < vmin) vmin = val; if (val > vmax) vmax = val;
+                }
+                mean = sum / n; std = sqrt(sum2 / n - mean * mean);
+                fprintf(stderr, "[DIAG] PF_CPU resampled_box mean=%.6e std=%.6e min=%.6e max=%.6e\n", mean, std, vmin, vmax);
+            }
         }
 
         LOG_SUPER_DEBUG("resampled_box: ");
@@ -480,6 +508,34 @@ int ComputePerturbField(float redshift, InitialConditions *boxes, PerturbedField
         }
         compute_perturbed_velocities(2, redshift, density_perturb_saved, fft_density_grid,
                                      perturbed_field->velocity_z);
+
+        // Diagnostic output - final PerturbField arrays
+        {
+            double sum, sum2, val, mean, std, vmin, vmax;
+            unsigned long long i, n;
+            const char *label = USE_CUDA ? "PF_GPU" : "PF_CPU";
+
+            n = (unsigned long long)simulation_options_global->HII_DIM *
+                simulation_options_global->HII_DIM * HII_D_PARA;
+
+            sum = 0.0; sum2 = 0.0; vmin = perturbed_field->density[0]; vmax = vmin;
+            for (i = 0; i < n; i++) {
+                val = perturbed_field->density[i];
+                sum += val; sum2 += val * val;
+                if (val < vmin) vmin = val; if (val > vmax) vmax = val;
+            }
+            mean = sum / n; std = sqrt(sum2 / n - mean * mean);
+            fprintf(stderr, "[DIAG] %s density mean=%.6e std=%.6e min=%.6e max=%.6e\n", label, mean, std, vmin, vmax);
+
+            sum = 0.0; sum2 = 0.0; vmin = perturbed_field->velocity_z[0]; vmax = vmin;
+            for (i = 0; i < n; i++) {
+                val = perturbed_field->velocity_z[i];
+                sum += val; sum2 += val * val;
+                if (val < vmin) vmin = val; if (val > vmax) vmax = val;
+            }
+            mean = sum / n; std = sqrt(sum2 / n - mean * mean);
+            fprintf(stderr, "[DIAG] %s velocity_z mean=%.6e std=%.6e min=%.6e max=%.6e\n", label, mean, std, vmin, vmax);
+        }
 
         fftwf_cleanup_threads();
         fftwf_cleanup();

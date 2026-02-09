@@ -97,6 +97,20 @@ int ComputeBrightnessTemp(float redshift, TsBox *spin_temp, IonizedBox *ionized_
 
         LOG_DEBUG("z = %.2f, ave Tb = %e", redshift, ave);
 
+        // Diagnostic output - brightness temperature
+        {
+            double sum2 = 0.0, val, std, vmin, vmax;
+            vmin = box->brightness_temp[0]; vmax = vmin;
+            for (unsigned long long ii = 0; ii < HII_TOT_NUM_PIXELS; ii++) {
+                val = box->brightness_temp[ii];
+                sum2 += val * val;
+                if (val < vmin) vmin = val; if (val > vmax) vmax = val;
+            }
+            std = sqrt(sum2 / HII_TOT_NUM_PIXELS - ave * ave);
+            fprintf(stderr, "[DIAG] %s brightness_temp mean=%.6e std=%.6e min=%.6e max=%.6e\n",
+                    USE_CUDA ? "BT_GPU" : "BT_CPU", ave, std, vmin, vmax);
+        }
+
     }  // End of try
     Catch(status) { return (status); }
 

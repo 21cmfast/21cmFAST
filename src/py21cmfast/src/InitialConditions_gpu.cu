@@ -1356,6 +1356,59 @@ extern "C" int ComputeInitialConditions_gpu(unsigned long long random_seed, Init
 
         LOG_DEBUG("ComputeInitialConditions_gpu: Complete");
 
+        // Diagnostic output - compute stats of output arrays
+        {
+            double sum, sum2, val, mean, std, vmin, vmax;
+            unsigned long long i, n;
+
+            n = TOT_NUM_PIXELS;
+            sum = 0.0; sum2 = 0.0; vmin = boxes->hires_density[0]; vmax = vmin;
+            for (i = 0; i < n; i++) {
+                val = boxes->hires_density[i];
+                sum += val; sum2 += val * val;
+                if (val < vmin) vmin = val; if (val > vmax) vmax = val;
+            }
+            mean = sum / n; std = sqrt(sum2 / n - mean * mean);
+            fprintf(stderr, "[DIAG] IC_GPU hires_density mean=%.6e std=%.6e min=%.6e max=%.6e\n", mean, std, vmin, vmax);
+
+            n = HII_TOT_NUM_PIXELS;
+            sum = 0.0; sum2 = 0.0; vmin = boxes->lowres_density[0]; vmax = vmin;
+            for (i = 0; i < n; i++) {
+                val = boxes->lowres_density[i];
+                sum += val; sum2 += val * val;
+                if (val < vmin) vmin = val; if (val > vmax) vmax = val;
+            }
+            mean = sum / n; std = sqrt(sum2 / n - mean * mean);
+            fprintf(stderr, "[DIAG] IC_GPU lowres_density mean=%.6e std=%.6e min=%.6e max=%.6e\n", mean, std, vmin, vmax);
+
+            sum = 0.0; sum2 = 0.0; vmin = boxes->lowres_vx[0]; vmax = vmin;
+            for (i = 0; i < n; i++) {
+                val = boxes->lowres_vx[i];
+                sum += val; sum2 += val * val;
+                if (val < vmin) vmin = val; if (val > vmax) vmax = val;
+            }
+            mean = sum / n; std = sqrt(sum2 / n - mean * mean);
+            fprintf(stderr, "[DIAG] IC_GPU lowres_vx mean=%.6e std=%.6e min=%.6e max=%.6e\n", mean, std, vmin, vmax);
+
+            sum = 0.0; sum2 = 0.0; vmin = boxes->lowres_vy[0]; vmax = vmin;
+            for (i = 0; i < n; i++) {
+                val = boxes->lowres_vy[i];
+                sum += val; sum2 += val * val;
+                if (val < vmin) vmin = val; if (val > vmax) vmax = val;
+            }
+            mean = sum / n; std = sqrt(sum2 / n - mean * mean);
+            fprintf(stderr, "[DIAG] IC_GPU lowres_vy mean=%.6e std=%.6e min=%.6e max=%.6e\n", mean, std, vmin, vmax);
+
+            sum = 0.0; sum2 = 0.0; vmin = boxes->lowres_vz[0]; vmax = vmin;
+            for (i = 0; i < n; i++) {
+                val = boxes->lowres_vz[i];
+                sum += val; sum2 += val * val;
+                if (val < vmin) vmin = val; if (val > vmax) vmax = val;
+            }
+            mean = sum / n; std = sqrt(sum2 / n - mean * mean);
+            fprintf(stderr, "[DIAG] IC_GPU lowres_vz mean=%.6e std=%.6e min=%.6e max=%.6e\n", mean, std, vmin, vmax);
+        }
+
     }  // End of Try{}
 
     Catch(status) { return (status); }
