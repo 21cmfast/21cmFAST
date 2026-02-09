@@ -107,12 +107,13 @@ void make_density_grid(float redshift, fftwf_complex *fft_density_grid, InitialC
         int hi_dim[3] = {simulation_options_global->DIM, simulation_options_global->DIM, D_PARA};
         
         if (use_cuda) {
-            float f_pixel_factor = simulation_options_global->DIM / (float)simulation_options_global->HII_DIM;
-            float init_growth_factor = (float)dicke(simulation_options_global->INITIAL_REDSHIFT);
+            // Use double precision to match CPU move_grid_masses calculations
+            double f_pixel_factor = (double)simulation_options_global->DIM / (double)simulation_options_global->HII_DIM;
+            double init_growth_factor = dicke(simulation_options_global->INITIAL_REDSHIFT);
             // Calculate velocity displacement factor (matches CPU version in map_mass.c)
-            float velocity_scale = (float)((growth_factor - init_growth_factor) / simulation_options_global->BOX_LEN);
-            float velocity_scale_z = (float)((growth_factor - init_growth_factor) /
-                (simulation_options_global->BOX_LEN * simulation_options_global->NON_CUBIC_FACTOR));
+            double velocity_scale = (growth_factor - init_growth_factor) / simulation_options_global->BOX_LEN;
+            double velocity_scale_z = (growth_factor - init_growth_factor) /
+                (simulation_options_global->BOX_LEN * simulation_options_global->NON_CUBIC_FACTOR);
             MapMass_gpu(boxes, resampled_box, box_dim[0], f_pixel_factor, init_growth_factor,
                         velocity_scale, velocity_scale_z);
 

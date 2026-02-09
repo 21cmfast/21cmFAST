@@ -17,8 +17,8 @@ void move_grid_galprops(double redshift, float *dens_pointer, int dens_dim[3],
                         ScalingConstants *consts, IntegralCondition *integral_cond);
 
 double *MapMass_gpu(InitialConditions *boxes, double *resampled_box, int dimension,
-                    float f_pixel_factor, float init_growth_factor,
-                    float velocity_scale, float velocity_scale_z);
+                    double f_pixel_factor, double init_growth_factor,
+                    double velocity_scale, double velocity_scale_z);
 
 #ifdef __cplusplus
 }

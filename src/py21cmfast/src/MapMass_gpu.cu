@@ -67,8 +67,8 @@ __global__ void perturb_density_field_kernel(
     int dimension, int DIM,
     long long d_para, long long hii_d, long long hii_d_para,
     int non_cubic_factor,
-    float f_pixel_factor, float init_growth_factor,
-    float velocity_scale, float velocity_scale_z,
+    double f_pixel_factor, double init_growth_factor,
+    double velocity_scale, double velocity_scale_z,
     bool perturb_on_high_res, bool use_2lpt
     ) {
     unsigned long long idx = blockIdx.x * blockDim.x + threadIdx.x;
@@ -264,8 +264,8 @@ __global__ void perturb_density_field_kernel(
 
 extern "C" double* MapMass_gpu(
     InitialConditions *boxes, double *resampled_box,
-    int dimension, float f_pixel_factor, float init_growth_factor,
-    float velocity_scale, float velocity_scale_z
+    int dimension, double f_pixel_factor, double init_growth_factor,
+    double velocity_scale, double velocity_scale_z
 ) {
     // Box shapes from outputs.py and convenience macros
     size_t size_double, size_float;
