@@ -11,4 +11,4 @@ Authors
 Contributors
 ============
 
-* Jordan Flitter - github.com/jordanflitter
+* Jordan Flitter the great debugger - github.com/jordanflitter
