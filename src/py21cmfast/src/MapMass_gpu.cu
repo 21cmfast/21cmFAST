@@ -82,24 +82,39 @@ __global__ void perturb_density_field_kernel(
 
         unsigned long long r_index = compute_R_INDEX(i, j, k, DIM, d_para);
 
-        // Map index to location in units of box size
-        double xf = (i + 0.5) / (DIM + 0.0);
-        double yf = (j + 0.5) / (DIM + 0.0);
-        double zf = (k + 0.5) / (d_para + 0.0);
+        // ============================================================
+        // CPU-MATCHING ALGORITHM: Start with integer position, apply
+        // velocity displacement in dens_dim units, then scale to out_dim
+        // ============================================================
+
+        // Position initialization: integer cell index (matches CPU)
+        double pos_x = (double)i;
+        double pos_y = (double)j;
+        double pos_z = (double)k;
+
+        // Dimension ratios (matches CPU)
+        double dim_ratio_vel = 1.0 / (double)f_pixel_factor;  // vel_dim / dens_dim
+        double dim_ratio_out = (double)dimension / (double)DIM;  // out_dim / dens_dim
+
+        // Velocity displacement factor in dens_dim units (matches CPU vdf)
+        // CPU: vdf = velocity_scale * BOX_LEN / box_size * dens_dim
+        // Since velocity_scale = (growth - init_growth) / BOX_LEN,
+        // and box_size = BOX_LEN (cubic), we have:
+        // vdf = velocity_scale * DIM
+        double vdf_xy = (double)velocity_scale * (double)DIM;
+        double vdf_z = (double)velocity_scale_z * (double)d_para;
 
         // Update locations
         unsigned long long HII_index;
 
         if (perturb_on_high_res) {
-            // Apply velocity displacement with proper scaling
-            xf += hires_vx[r_index] * velocity_scale;
-            yf += hires_vy[r_index] * velocity_scale;
-            zf += hires_vz[r_index] * velocity_scale_z;
+            // Apply velocity displacement in dens_dim units (matches CPU)
+            pos_x += (double)hires_vx[r_index] * vdf_xy;
+            pos_y += (double)hires_vy[r_index] * vdf_xy;
+            pos_z += (double)hires_vz[r_index] * vdf_z;
         }
         else {
             // Match CPU resample_index exactly: idx_out = (int)(idx_in * dim_ratio + 0.5)
-            // dim_ratio = hii_d / DIM = 1 / f_pixel_factor
-            double dim_ratio_vel = 1.0 / (double)f_pixel_factor;
             int HII_i = (int)(i * dim_ratio_vel + 0.5);
             int HII_j = (int)(j * dim_ratio_vel + 0.5);
             int HII_k = (int)(k * dim_ratio_vel + 0.5);
@@ -111,140 +126,115 @@ __global__ void perturb_density_field_kernel(
             while (HII_k >= hii_d_para) HII_k -= hii_d_para;
             while (HII_k < 0) HII_k += hii_d_para;
             HII_index = compute_HII_R_INDEX(HII_i, HII_j, HII_k, hii_d, hii_d_para);
-            // Apply velocity displacement with proper scaling
-            xf += lowres_vx[HII_index] * velocity_scale;
-            yf += lowres_vy[HII_index] * velocity_scale;
-            zf += lowres_vz[HII_index] * velocity_scale_z;
+            // Apply velocity displacement in dens_dim units (matches CPU)
+            pos_x += (double)lowres_vx[HII_index] * vdf_xy;
+            pos_y += (double)lowres_vy[HII_index] * vdf_xy;
+            pos_z += (double)lowres_vz[HII_index] * vdf_z;
         }
 
-        // 2LPT (add second order corrections)
+        // 2LPT (add second order corrections) - NOTE: currently disabled
         if (use_2lpt) {
+            // TODO: Need to compute velocity_displacement_factor_2LPT matching CPU
+            // For now, 2LPT is disabled in the caller (use_2lpt = false)
             if (perturb_on_high_res) {
-                // xf -= __ldg(&hires_vx_2LPT[r_index]);
-                // yf -= __ldg(&hires_vy_2LPT[r_index]);
-                // zf -= __ldg(&hires_vz_2LPT[r_index]);
-                xf -= hires_vx_2LPT[r_index];
-                yf -= hires_vy_2LPT[r_index];
-                zf -= hires_vz_2LPT[r_index];
+                pos_x -= (double)hires_vx_2LPT[r_index];
+                pos_y -= (double)hires_vy_2LPT[r_index];
+                pos_z -= (double)hires_vz_2LPT[r_index];
             }
             else {
-                // xf -= __ldg(&lowres_vx_2LPT[HII_index]);
-                // yf -= __ldg(&lowres_vy_2LPT[HII_index]);
-                // zf -= __ldg(&lowres_vz_2LPT[HII_index]);
-                xf -= lowres_vx_2LPT[HII_index];
-                yf -= lowres_vy_2LPT[HII_index];
-                zf -= lowres_vz_2LPT[HII_index];
+                pos_x -= (double)lowres_vx_2LPT[HII_index];
+                pos_y -= (double)lowres_vy_2LPT[HII_index];
+                pos_z -= (double)lowres_vz_2LPT[HII_index];
             }
         }
 
-        // TODO: shared between threads?
-        // Convert once to reduce overhead of multiple casts
-        double dimension_double = (double)(dimension);
-        double dimension_factored_double = dimension_double * (double)(non_cubic_factor);
-        int dimension_factored = dimension * non_cubic_factor;
+        // Scale position to output grid dimensions (matches CPU: pos *= dim_ratio_out)
+        pos_x *= dim_ratio_out;
+        pos_y *= dim_ratio_out;
+        pos_z *= dim_ratio_out;
 
-        // Scale coordinates back to grid size
-        xf *= dimension_double;
-        yf *= dimension_double;
-        zf *= dimension_factored_double;
+        // Output dimensions for wrapping
+        int out_dim_xy = dimension;
+        int out_dim_z = dimension * non_cubic_factor;
 
-        // Wrap coordinates to keep them within valid boundaries
-        xf = fmod(fmod(xf, dimension_double) + dimension_double, dimension_double);
-        yf = fmod(fmod(yf, dimension_double) + dimension_double, dimension_double);
-        zf = fmod(fmod(zf, dimension_factored_double) + dimension_factored_double, dimension_factored_double);
+        // ============================================================
+        // CPU-MATCHING CIC: floor-based corner algorithm
+        // ============================================================
 
-        // FROM NVIDIA DOCS:
-        // __device__ doublenearbyint(double x) // Round the input argument to the nearest integer.
-        // There are SO many double-to-int conversion intrinsics. How to know if should use any?
+        // Get base cell index using floor (matches CPU)
+        int xi = (int)floor(pos_x);
+        int yi = (int)floor(pos_y);
+        int zi = (int)floor(pos_z);
 
-        // Get integer values for indices from double precision values
-        int xi = xf;
-        int yi = yf;
-        int zi = zf;
+        // Get +1 neighbor indices
+        int xp1 = xi + 1;
+        int yp1 = yi + 1;
+        int zp1 = zi + 1;
 
-        // Wrap index coordinates to ensure no out-of-bounds array access will be attempted
-        xi = ((xi % dimension) + dimension) % dimension;
-        yi = ((yi % dimension) + dimension) % dimension;
-        zi = ((zi % dimension_factored) + dimension_factored) % dimension_factored;
+        // Fractional distance from base cell (matches CPU: dist = pos - floor(pos))
+        double d_x = pos_x - (double)xi;
+        double d_y = pos_y - (double)yi;
+        double d_z = pos_z - (double)zi;
 
-        // Determine the fraction of the perturbed cell which overlaps with the 8 nearest grid cells,
-        // based on the grid cell which contains the centre of the perturbed cell
-        float d_x = fabs(xf - (double)(xi + 0.5)); // Absolute distances from grid cell centre to perturbed cell centre
-        float d_y = fabs(yf - (double)(yi + 0.5)); // (also) The fractions of mass which will be moved to neighbouring cells
-        float d_z = fabs(zf - (double)(zi + 0.5));
+        // Wrap base indices into [0, out_dim) (matches CPU wrap_coord)
+        while (xi >= out_dim_xy) xi -= out_dim_xy;
+        while (xi < 0) xi += out_dim_xy;
+        while (yi >= out_dim_xy) yi -= out_dim_xy;
+        while (yi < 0) yi += out_dim_xy;
+        while (zi >= out_dim_z) zi -= out_dim_z;
+        while (zi < 0) zi += out_dim_z;
 
-        // 8 neighbour cells-of-interest will be shifted left/down/behind if perturbed midpoint is in left/bottom/back corner of cell.
-        if (xf < (double)(xi + 0.5)) {
-            // If perturbed cell centre is less than the mid-point then update fraction
-            // of mass in the cell and determine the cell centre of neighbour to be the
-            // lowest grid point index
-            d_x = 1. - d_x;
-            xi -= 1;
-            xi = (xi + dimension) % dimension; // Only this critera is possible as iterate back by one (we cannot exceed DIM)
-        }
-        if(yf < (double)(yi + 0.5)) {
-            d_y = 1. - d_y;
-            yi -= 1;
-            yi = (yi + dimension) % dimension;
-        }
-        if(zf < (double)(zi + 0.5)) {
-            d_z = 1. - d_z;
-            zi -= 1;
-            zi = (zi + (unsigned long long)(non_cubic_factor * dimension)) % (unsigned long long)(non_cubic_factor * dimension);
-        }
-        // The fractions of mass which will remain with perturbed cell
-        float t_x = 1. - d_x;
-        float t_y = 1. - d_y;
-        float t_z = 1. - d_z;
+        // Wrap +1 indices
+        while (xp1 >= out_dim_xy) xp1 -= out_dim_xy;
+        while (xp1 < 0) xp1 += out_dim_xy;
+        while (yp1 >= out_dim_xy) yp1 -= out_dim_xy;
+        while (yp1 < 0) yp1 += out_dim_xy;
+        while (zp1 >= out_dim_z) zp1 -= out_dim_z;
+        while (zp1 < 0) zp1 += out_dim_z;
 
-        // Determine the grid coordinates of the 8 neighbouring cells.
-        // Neighbours will be in positive direction; front/right/above cells (-> 2x2 cube, with perturbed cell bottom/left/back)
-        // Takes into account the offset based on cell centre determined above
-        int xp1 = (xi + 1) % dimension;
-        int yp1 = (yi + 1) % dimension;
-        int zp1 = (zi + 1) % (unsigned long long)(non_cubic_factor * dimension);
+        // CIC weights (matches CPU: t = 1 - d)
+        double t_x = 1.0 - d_x;
+        double t_y = 1.0 - d_y;
+        double t_z = 1.0 - d_z;
 
         // double scaled_density = 1 + init_growth_factor * __ldg(&hires_density[r_index]);
         double scaled_density = 1.0 + init_growth_factor * hires_density[r_index];
 
-        // Diagnostic output for sample cells (GPU)
+        // Diagnostic output for sample cells (GPU) - matches CPU format
         // Note: Only works when !perturb_on_high_res (the common test case)
         if (!perturb_on_high_res && ((i == 0 && j == 0 && k == 0) || (i == 100 && j == 50 && k == 25))) {
             // Recompute velocity indices for diagnostic (matches the actual calculation above)
-            double diag_dim_ratio_vel = 1.0 / (double)f_pixel_factor;
-            int diag_HII_i = (int)(i * diag_dim_ratio_vel + 0.5);
-            int diag_HII_j = (int)(j * diag_dim_ratio_vel + 0.5);
-            int diag_HII_k = (int)(k * diag_dim_ratio_vel + 0.5);
+            int diag_HII_i = (int)(i * dim_ratio_vel + 0.5);
+            int diag_HII_j = (int)(j * dim_ratio_vel + 0.5);
+            int diag_HII_k = (int)(k * dim_ratio_vel + 0.5);
             // Apply wrapping for diagnostic
             while (diag_HII_i >= hii_d) diag_HII_i -= hii_d;
             while (diag_HII_j >= hii_d) diag_HII_j -= hii_d;
             while (diag_HII_k >= hii_d_para) diag_HII_k -= hii_d_para;
-            // Reconstruct intermediate values for comparison
-            double pos_init_x = (i + 0.5) / (double)DIM;
-            double pos_init_y = (j + 0.5) / (double)DIM;
-            double pos_init_z = (k + 0.5) / (double)d_para;
-            double vel_contrib_x = lowres_vx[HII_index] * velocity_scale;
-            double vel_contrib_y = lowres_vy[HII_index] * velocity_scale;
-            double vel_contrib_z = lowres_vz[HII_index] * velocity_scale_z;
-            printf("[DIAG_GPU] cell=(%d,%d,%d) DIM=%d dimension=%d f_pixel_factor=%.1f\n",
-                   i, j, k, DIM, dimension, f_pixel_factor);
-            printf("[DIAG_GPU]   vel_idx=(%d,%d,%d) HII_index=%llu\n",
+            // Compute velocity contribution for diagnostic
+            double vel_contrib_x = (double)lowres_vx[HII_index] * vdf_xy;
+            double vel_contrib_y = (double)lowres_vy[HII_index] * vdf_xy;
+            double vel_contrib_z = (double)lowres_vz[HII_index] * vdf_z;
+            printf("[DIAG_GPU] cell=(%d,%d,%d) dens_dim=%d out_dim=%d dim_ratio_out=%.9f\n",
+                   i, j, k, DIM, dimension, dim_ratio_out);
+            printf("[DIAG_GPU]   vel_idx=(%d,%d,%d) vel_index=%llu\n",
                    diag_HII_i, diag_HII_j, diag_HII_k, HII_index);
             printf("[DIAG_GPU]   vel_raw=(%.9f,%.9f,%.9f)\n",
                    lowres_vx[HII_index], lowres_vy[HII_index], lowres_vz[HII_index]);
-            printf("[DIAG_GPU]   vel_scale=(%.9f,%.9f)\n",
-                   (double)velocity_scale, (double)velocity_scale_z);
+            printf("[DIAG_GPU]   vdf=(%.9f,%.9f,%.9f)\n",
+                   vdf_xy, vdf_xy, vdf_z);
             printf("[DIAG_GPU]   vel_contrib=(%.9f,%.9f,%.9f)\n",
                    vel_contrib_x, vel_contrib_y, vel_contrib_z);
-            printf("[DIAG_GPU]   pos_init_norm=(%.9f,%.9f,%.9f)\n",
-                   pos_init_x, pos_init_y, pos_init_z);
-            printf("[DIAG_GPU]   pos_displaced_norm=(%.9f,%.9f,%.9f)\n",
-                   pos_init_x + vel_contrib_x, pos_init_y + vel_contrib_y, pos_init_z + vel_contrib_z);
+            printf("[DIAG_GPU]   pos_init=(%d,%d,%d) pos_displaced=(%.9f,%.9f,%.9f)\n",
+                   i, j, k,
+                   (double)i + vel_contrib_x, (double)j + vel_contrib_y, (double)k + vel_contrib_z);
             printf("[DIAG_GPU]   pos_final=(%.9f,%.9f,%.9f) dens=%.9f\n",
-                   xf, yf, zf, scaled_density);
-            printf("[DIAG_GPU]   cic_base=(%d,%d,%d) cic_dist=(%.9f,%.9f,%.9f)\n",
-                   xi, yi, zi,
-                   (double)d_x, (double)d_y, (double)d_z);
+                   pos_x, pos_y, pos_z, scaled_density);
+            printf("[DIAG_GPU]   cic_base_raw=(%d,%d,%d) cic_base_wrapped=(%d,%d,%d)\n",
+                   (int)floor(pos_x), (int)floor(pos_y), (int)floor(pos_z),
+                   xi, yi, zi);
+            printf("[DIAG_GPU]   cic_dist=(%.9f,%.9f,%.9f)\n",
+                   d_x, d_y, d_z);
         }
 
         if (perturb_on_high_res) {
