@@ -66,6 +66,27 @@ jobs:
         run: |
           LOG_LEVEL=${{ env.log_level }} pip install ".[dev]"
 
+      # ADD THESE NEW STEPS FOR DEBUG OUTPUT ON MACOS
+      - name: Reinstall with Debug Flags (macOS only)
+        if: matrix.os == 'macos-latest'
+        run: |
+          pip uninstall -y 21cmFAST
+          CFLAGS="-DDEBUG_ST" pip install . --no-build-isolation
+
+      - name: Run Debug Test for grid-ST (macOS only)
+        if: matrix.os == 'macos-latest'
+        continue-on-error: true
+        run: |
+          python -m pytest 'tests/test_c_interpolation_tables.py::test_massfunc_conditional_tables[grid-ST]' -v -s > debug_github_macos.txt 2>&1 || true
+
+      - name: Upload Debug Output (macOS only)
+        if: matrix.os == 'macos-latest'
+        uses: actions/upload-artifact@v6
+        with:
+          name: debug-output-macos-py${{ matrix.python-version }}
+          path: debug_github_macos.txt
+
+      # CONTINUE WITH EXISTING STEPS
       - name: Run Unit Tests
         run: |
           python -m pytest -n 2 -l ${{ env.extra_pytest_args }} \

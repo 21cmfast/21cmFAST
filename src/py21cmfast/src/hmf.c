@@ -240,6 +240,21 @@ double st_taylor_factor(double sig, double sig_cond, double growthf, double *zer
     result = prefactor_1 * (1 + prefactor_2 * result);
     *zeroth_order =
         prefactor_1 * (1 + prefactor_2);  // 0th order term gives the barrier for efficiency
+// In st_taylor_factor, just before the return statement:
+#ifdef DEBUG_ST
+    // Only print when sig and sig_cond are very close (where issues likely occur)
+    if (fabs(sig - sig_cond) < 0.01 * sig) {
+        static int close_count = 0;
+        close_count++;
+        if (close_count <= 100) {  // Only first 100 "close" cases
+            fprintf(stderr, "ST_TAYLOR #%d: sig=%.17g sig_c=%.17g sigdiff=%.17g\n", close_count,
+                    sig, sig_cond, sigdiff);
+            fprintf(stderr, "  t_array: %.17g %.17g %.17g %.17g %.17g %.17g\n", t_array[0],
+                    t_array[1], t_array[2], t_array[3], t_array[4], t_array[5]);
+            fprintf(stderr, "  result=%.17g barrier=%.17g\n", result, (*zeroth_order));
+        }
+    }
+#endif
     return result;
 }
 
