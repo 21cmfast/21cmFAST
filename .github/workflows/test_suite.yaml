@@ -70,10 +70,13 @@ jobs:
       - name: Reinstall with Debug Flags (macOS only)
         if: matrix.os == 'macos-latest' && matrix.python-version == '3.12'
         run: |
-          pip uninstall -y 21cmFAST
+          # Clean C build artifacts but keep Python package installed
           rm -rf build dist *.egg-info
           python setup.py clean --all || true
-          CFLAGS="-DDEBUG_ST" pip install . --no-build-isolation --force-reinstall --no-cache-dir
+          # Rebuild just the C extension with debug flag
+          CFLAGS="-DDEBUG_ST" python setup.py build_ext --inplace --force
+          # Copy the rebuilt extension to the installed location
+          cp -f build/lib*/py21cmfast/_utils.*.so $(python -c "import py21cmfast; import os; print(os.path.dirname(py21cmfast.__file__))")/
 
       - name: Run Debug Test for grid-ST (macOS only)
         if: matrix.os == 'macos-latest' && matrix.python-version == '3.12'
