@@ -97,12 +97,19 @@ __global__ void perturb_density_field_kernel(
             zf += hires_vz[r_index] * velocity_scale_z;
         }
         else {
-            // Use truncation for velocity index lookup
-            // Note: CPU uses resample_index with +0.5 rounding, but empirical tests show
-            // truncation produces results closer to CPU. This needs further investigation.
-            unsigned long long HII_i = (unsigned long long)(i / f_pixel_factor);
-            unsigned long long HII_j = (unsigned long long)(j / f_pixel_factor);
-            unsigned long long HII_k = (unsigned long long)(k / f_pixel_factor);
+            // Match CPU resample_index exactly: idx_out = (int)(idx_in * dim_ratio + 0.5)
+            // dim_ratio = hii_d / DIM = 1 / f_pixel_factor
+            double dim_ratio_vel = 1.0 / (double)f_pixel_factor;
+            int HII_i = (int)(i * dim_ratio_vel + 0.5);
+            int HII_j = (int)(j * dim_ratio_vel + 0.5);
+            int HII_k = (int)(k * dim_ratio_vel + 0.5);
+            // Match CPU wrap_coord: wrap into [0, hii_d)
+            while (HII_i >= hii_d) HII_i -= hii_d;
+            while (HII_i < 0) HII_i += hii_d;
+            while (HII_j >= hii_d) HII_j -= hii_d;
+            while (HII_j < 0) HII_j += hii_d;
+            while (HII_k >= hii_d_para) HII_k -= hii_d_para;
+            while (HII_k < 0) HII_k += hii_d_para;
             HII_index = compute_HII_R_INDEX(HII_i, HII_j, HII_k, hii_d, hii_d_para);
             // Apply velocity displacement with proper scaling
             xf += lowres_vx[HII_index] * velocity_scale;
@@ -203,9 +210,15 @@ __global__ void perturb_density_field_kernel(
         // Diagnostic output for sample cells (GPU)
         // Note: Only works when !perturb_on_high_res (the common test case)
         if (!perturb_on_high_res && ((i == 0 && j == 0 && k == 0) || (i == 100 && j == 50 && k == 25))) {
-            unsigned long long diag_HII_i = (unsigned long long)(i / f_pixel_factor);
-            unsigned long long diag_HII_j = (unsigned long long)(j / f_pixel_factor);
-            unsigned long long diag_HII_k = (unsigned long long)(k / f_pixel_factor);
+            // Recompute velocity indices for diagnostic (matches the actual calculation above)
+            double diag_dim_ratio_vel = 1.0 / (double)f_pixel_factor;
+            int diag_HII_i = (int)(i * diag_dim_ratio_vel + 0.5);
+            int diag_HII_j = (int)(j * diag_dim_ratio_vel + 0.5);
+            int diag_HII_k = (int)(k * diag_dim_ratio_vel + 0.5);
+            // Apply wrapping for diagnostic
+            while (diag_HII_i >= hii_d) diag_HII_i -= hii_d;
+            while (diag_HII_j >= hii_d) diag_HII_j -= hii_d;
+            while (diag_HII_k >= hii_d_para) diag_HII_k -= hii_d_para;
             // Reconstruct intermediate values for comparison
             double pos_init_x = (i + 0.5) / (double)DIM;
             double pos_init_y = (j + 0.5) / (double)DIM;
@@ -215,7 +228,7 @@ __global__ void perturb_density_field_kernel(
             double vel_contrib_z = lowres_vz[HII_index] * velocity_scale_z;
             printf("[DIAG_GPU] cell=(%d,%d,%d) DIM=%d dimension=%d f_pixel_factor=%.1f\n",
                    i, j, k, DIM, dimension, f_pixel_factor);
-            printf("[DIAG_GPU]   vel_idx=(%llu,%llu,%llu) HII_index=%llu\n",
+            printf("[DIAG_GPU]   vel_idx=(%d,%d,%d) HII_index=%llu\n",
                    diag_HII_i, diag_HII_j, diag_HII_k, HII_index);
             printf("[DIAG_GPU]   vel_raw=(%.9f,%.9f,%.9f)\n",
                    lowres_vx[HII_index], lowres_vy[HII_index], lowres_vz[HII_index]);
