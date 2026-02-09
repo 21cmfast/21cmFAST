@@ -83,7 +83,7 @@ jobs:
         if: matrix.os == 'macos-latest'
         uses: actions/upload-artifact@v6
         with:
-          name: debug-output-macos-py${{ matrix.python-version }}
+          name: debug-output-macos-py${{ matrix.python-version }}-${{ matrix.compiler }}
           path: debug_github_macos.txt
 
       # CONTINUE WITH EXISTING STEPS
