@@ -541,7 +541,10 @@ void init_ps() {
         // dimensionless primodial curvature power spectrumis and the transfer function
         // T(k)=delta(k,z=0)/zeta(k), is sigma_norm = 1!
         cosmo_consts.sigma_norm = 1;
-        cosmo_consts.sigma_norm = pow(cosmo_tables_global->ps_norm / sigma_z0(RtoM(Radius_8)), 2);
+        double sigma_8_computed = sigma_z0(RtoM(Radius_8));
+        double sigma_norm_raw = pow(cosmo_tables_global->ps_norm / sigma_8_computed, 2);
+        // Round to 14 significant digits to eliminate platform noise
+        cosmo_consts.sigma_norm = round(sigma_norm_raw * 1e14) / 1e14;
     } else {
         // Otherwise, if we use A_s to normalize the power spectrum (and don't care about SIGMA_8),
         // sigma_norm = 2*pi^2. This ensures that the dimensionless power spectrum of the primordial
