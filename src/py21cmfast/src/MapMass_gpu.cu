@@ -200,6 +200,40 @@ __global__ void perturb_density_field_kernel(
         // double scaled_density = 1 + init_growth_factor * __ldg(&hires_density[r_index]);
         double scaled_density = 1.0 + init_growth_factor * hires_density[r_index];
 
+        // Diagnostic output for sample cells (GPU)
+        // Note: Only works when !perturb_on_high_res (the common test case)
+        if (!perturb_on_high_res && ((i == 0 && j == 0 && k == 0) || (i == 100 && j == 50 && k == 25))) {
+            unsigned long long diag_HII_i = (unsigned long long)(i / f_pixel_factor);
+            unsigned long long diag_HII_j = (unsigned long long)(j / f_pixel_factor);
+            unsigned long long diag_HII_k = (unsigned long long)(k / f_pixel_factor);
+            // Reconstruct intermediate values for comparison
+            double pos_init_x = (i + 0.5) / (double)DIM;
+            double pos_init_y = (j + 0.5) / (double)DIM;
+            double pos_init_z = (k + 0.5) / (double)d_para;
+            double vel_contrib_x = lowres_vx[HII_index] * velocity_scale;
+            double vel_contrib_y = lowres_vy[HII_index] * velocity_scale;
+            double vel_contrib_z = lowres_vz[HII_index] * velocity_scale_z;
+            printf("[DIAG_GPU] cell=(%d,%d,%d) DIM=%d dimension=%d f_pixel_factor=%.1f\n",
+                   i, j, k, DIM, dimension, f_pixel_factor);
+            printf("[DIAG_GPU]   vel_idx=(%llu,%llu,%llu) HII_index=%llu\n",
+                   diag_HII_i, diag_HII_j, diag_HII_k, HII_index);
+            printf("[DIAG_GPU]   vel_raw=(%.9f,%.9f,%.9f)\n",
+                   lowres_vx[HII_index], lowres_vy[HII_index], lowres_vz[HII_index]);
+            printf("[DIAG_GPU]   vel_scale=(%.9f,%.9f)\n",
+                   (double)velocity_scale, (double)velocity_scale_z);
+            printf("[DIAG_GPU]   vel_contrib=(%.9f,%.9f,%.9f)\n",
+                   vel_contrib_x, vel_contrib_y, vel_contrib_z);
+            printf("[DIAG_GPU]   pos_init_norm=(%.9f,%.9f,%.9f)\n",
+                   pos_init_x, pos_init_y, pos_init_z);
+            printf("[DIAG_GPU]   pos_displaced_norm=(%.9f,%.9f,%.9f)\n",
+                   pos_init_x + vel_contrib_x, pos_init_y + vel_contrib_y, pos_init_z + vel_contrib_z);
+            printf("[DIAG_GPU]   pos_final=(%.9f,%.9f,%.9f) dens=%.9f\n",
+                   xf, yf, zf, scaled_density);
+            printf("[DIAG_GPU]   cic_base=(%d,%d,%d) cic_dist=(%.9f,%.9f,%.9f)\n",
+                   xi, yi, zi,
+                   (double)d_x, (double)d_y, (double)d_z);
+        }
+
         if (perturb_on_high_res) {
             // Redistribute the mass over the 8 neighbouring cells according to cloud in cell
             // Cell mass = (1 + init_growth_factor * orig_density) * (proportion of mass to distribute)
