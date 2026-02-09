@@ -97,9 +97,10 @@ __global__ void perturb_density_field_kernel(
             zf += hires_vz[r_index] * velocity_scale_z;
         }
         else {
-            unsigned long long HII_i = (unsigned long long)(i / f_pixel_factor);
-            unsigned long long HII_j = (unsigned long long)(j / f_pixel_factor);
-            unsigned long long HII_k = (unsigned long long)(k / f_pixel_factor);
+            // Round to nearest (add 0.5 before truncation) to match CPU resample_index behavior
+            unsigned long long HII_i = (unsigned long long)(i / f_pixel_factor + 0.5f);
+            unsigned long long HII_j = (unsigned long long)(j / f_pixel_factor + 0.5f);
+            unsigned long long HII_k = (unsigned long long)(k / f_pixel_factor + 0.5f);
             HII_index = compute_HII_R_INDEX(HII_i, HII_j, HII_k, hii_d, hii_d_para);
             // Apply velocity displacement with proper scaling
             xf += lowres_vx[HII_index] * velocity_scale;
