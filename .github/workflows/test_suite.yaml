@@ -62,29 +62,24 @@ jobs:
         run: |
           conda install fftw gsl numba
 
-      - name: Install 21cmFAST
+      - name: Install 21cmFAST (with debug on macOS 3.12)
+        if: matrix.os == 'macos-latest' && matrix.python-version == '3.12'
+        run: |
+          CFLAGS="-DDEBUG_ST" LOG_LEVEL=${{ env.log_level }} pip install ".[dev]" --no-build-isolation
+
+      - name: Install 21cmFAST (normal for others)
+        if: "!(matrix.os == 'macos-latest' && matrix.python-version == '3.12')"
         run: |
           LOG_LEVEL=${{ env.log_level }} pip install ".[dev]"
 
       # ADD THESE NEW STEPS FOR DEBUG OUTPUT ON MACOS
-      - name: Reinstall with Debug Flags (macOS only)
-        if: matrix.os == 'macos-latest' && matrix.python-version == '3.12'
-        run: |
-          # Clean C build artifacts but keep Python package installed
-          rm -rf build dist *.egg-info
-          python setup.py clean --all || true
-          # Rebuild just the C extension with debug flag
-          CFLAGS="-DDEBUG_ST" python setup.py build_ext --inplace --force
-          # Copy the rebuilt extension to the installed location
-          cp -f build/lib*/py21cmfast/_utils.*.so $(python -c "import py21cmfast; import os; print(os.path.dirname(py21cmfast.__file__))")/
-
-      - name: Run Debug Test for grid-ST (macOS only)
+      - name: Capture Debug Output for grid-ST (macOS 3.12 only)
         if: matrix.os == 'macos-latest' && matrix.python-version == '3.12'
         continue-on-error: true
         run: |
           python -m pytest 'tests/test_c_interpolation_tables.py::test_massfunc_conditional_tables[grid-ST]' -v -s > debug_github_macos.txt 2>&1 || true
 
-      - name: Upload Debug Output (macOS only)
+      - name: Upload Debug Output (macOS 3.12 only)
         if: matrix.os == 'macos-latest' && matrix.python-version == '3.12'
         uses: actions/upload-artifact@v6
         with:
