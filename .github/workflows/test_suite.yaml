@@ -62,34 +62,23 @@ jobs:
         run: |
           conda install fftw gsl numba
 
-      - name: Install 21cmFAST (with debug on macOS 3.12)
-        if: matrix.os == 'macos-latest' && matrix.python-version == '3.12'
-        run: |
-          export CPATH="$CONDA_PREFIX/include:$CPATH"
-          export LIBRARY_PATH="$CONDA_PREFIX/lib:$LIBRARY_PATH"
-          export LD_LIBRARY_PATH="$CONDA_PREFIX/lib:$LD_LIBRARY_PATH"
-          CFLAGS="-DDEBUG_ST -I$CONDA_PREFIX/include" LDFLAGS="-L$CONDA_PREFIX/lib" LOG_LEVEL=${{ env.log_level }} pip install ".[dev]"
-
-      - name: Install 21cmFAST (normal for others)
-        if: "!(matrix.os == 'macos-latest' && matrix.python-version == '3.12')"
+      - name: Install 21cmFAST
         run: |
           LOG_LEVEL=${{ env.log_level }} pip install ".[dev]"
 
-      # ADD THESE NEW STEPS FOR DEBUG OUTPUT ON MACOS
-      - name: Capture Debug Output for grid-ST (macOS 3.12 only)
-        if: matrix.os == 'macos-latest' && matrix.python-version == '3.12'
-        continue-on-error: true
+      # ADD THIS NEW STEP
+      - name: Run debug tests only
         run: |
-          python -m pytest 'tests/test_c_interpolation_tables.py::test_massfunc_conditional_tables[grid-ST]' -v -s > debug_github_macos.txt 2>&1 || true
+          python -m pytest tests/test_c_interpolation_tables.py -k "test_massfunc_conditional_tables or test_inverse_cmf_tables" -v
 
-      - name: Upload Debug Output (macOS 3.12 only)
-        if: matrix.os == 'macos-latest' && matrix.python-version == '3.12'
+      - name: Upload debug test outputs
+        if: always()  # Upload even if tests fail
         uses: actions/upload-artifact@v6
         with:
-          name: debug-output-macos-py${{ matrix.python-version }}-${{ matrix.compiler }}
-          path: debug_github_macos.txt
+          name: debug-test-outputs-${{ matrix.os }}-py${{ matrix.python-version }}-${{ matrix.compiler }}
+          path: debug_test_outputs/
+          if-no-files-found: ignore  # Don't fail if directory doesn't exist
 
-      # CONTINUE WITH EXISTING STEPS
       - name: Run Unit Tests
         run: |
           python -m pytest -n 2 -l ${{ env.extra_pytest_args }} \

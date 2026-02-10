@@ -161,6 +161,27 @@ def test_massfunc_conditional_tables(name, cond_type, mass_range, delta_range, p
         cond_array=inputs_cond,
     )
 
+    # ADD THIS: Save debug data for ST-grid configuration
+    if name == "ST" and cond_type == "grid":
+        import platform
+        from pathlib import Path
+
+        debug_dir = Path("debug_test_outputs")
+        debug_dir.mkdir(parents=True, exist_ok=True)
+
+        # Create unique filename with OS and Python version
+        filename = f"{debug_dir}/massfunc_ST_grid_{platform.system()}_{platform.python_version()}.npz"
+
+        np.savez(
+            filename,
+            inputs_cond=inputs_cond,
+            nhalo_exp=nhalo_exp,
+            nhalo_tbl=nhalo_tbl,
+            mcoll_exp=mcoll_exp,
+            mcoll_tbl=mcoll_tbl,
+        )
+        print(f"Saved debug data to {filename}")
+
     if plt == mpl.pyplot:
         make_table_comparison_plot(
             [inputs_cond, inputs_cond],
@@ -279,6 +300,25 @@ def test_inverse_cmf_tables(name, cond_type, delta_range, mass_range, plt):
         rtol,
         "Inverse CMF",
     )
+
+    if name == "ST" and cond_type == "grid":
+        import platform
+        from pathlib import Path
+
+        debug_dir = Path("debug_test_outputs")
+        debug_dir.mkdir(parents=True, exist_ok=True)
+
+        filename = f"{debug_dir}/inverse_cmf_ST_grid_{platform.system()}_{platform.python_version()}.npz"
+
+        np.savez(
+            filename,
+            inputs_cond=inputs_cond,
+            inputs_mmin_bc=inputs_mmin_bc,
+            log_icmf_table=np.log(icmf_table),
+            icmf_table=icmf_table,
+            nhalo=nhalo,
+        )
+        print(f"Saved debug data to {filename}")
 
     np.testing.assert_allclose(
         inputs_mmin_bc,
