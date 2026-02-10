@@ -209,23 +209,14 @@ double st_taylor_factor(double sig, double sig_cond, double growthf, double *zer
     double sigsq = sig * sig;
     double sigsq_inv = 1. / sigsq;
     double sigcsq = sig_cond * sig_cond;
-    // Note: I'm using here (a-b)*(a+b) because that seems to be numerically more stable than
-    // a^2-b^2 !
-    double sigdiff = sig == sig_cond ? 1e-6 : (sig - sig_cond) * (sig + sig_cond);
+    double sigdiff = sig == sig_cond ? 1e-6 : sigsq - sigcsq;
 
     // This array cumulatively builds the taylor series terms
     // sigdiff^n / n! * df/dsigma (polynomial w alpha)
     double t_array[6];
     t_array[0] = 1.;
-    double neg_sigdiff_over_sigsq = -sigdiff * sigsq_inv;
-    double factorial = 1.;
-    double alpha_term = 1.;
-
-    for (i = 1; i < 6; i++) {
-        factorial *= i;
-        alpha_term *= (alpha - i + 1);
-        t_array[i] = pow(neg_sigdiff_over_sigsq, i) * alpha_term / factorial;
-    }
+    for (i = 1; i < 6; i++)
+        t_array[i] = t_array[i - 1] * (-sigdiff) / i * (alpha - i + 1) * sigsq_inv;
 
     // Sum small to large
     double result = 0.;
@@ -234,27 +225,11 @@ double st_taylor_factor(double sig, double sig_cond, double growthf, double *zer
     }
 
     double prefactor_1 = sqrt(a) * del;
-    double base = a * del * del / sigsq;
-    double prefactor_2 = beta / pow(base, alpha);  // Avoid negative exponent
+    double prefactor_2 = beta * pow(sigsq_inv * (a * del * del), -alpha);
 
     result = prefactor_1 * (1 + prefactor_2 * result);
     *zeroth_order =
         prefactor_1 * (1 + prefactor_2);  // 0th order term gives the barrier for efficiency
-// In st_taylor_factor, just before the return statement:
-#ifdef DEBUG_ST
-    // Only print when sig and sig_cond are very close (where issues likely occur)
-    if (fabs(sig - sig_cond) < 0.01 * sig) {
-        static int close_count = 0;
-        close_count++;
-        if (close_count <= 100) {  // Only first 100 "close" cases
-            fprintf(stderr, "ST_TAYLOR #%d: sig=%.17g sig_c=%.17g sigdiff=%.17g\n", close_count,
-                    sig, sig_cond, sigdiff);
-            fprintf(stderr, "  t_array: %.17g %.17g %.17g %.17g %.17g %.17g\n", t_array[0],
-                    t_array[1], t_array[2], t_array[3], t_array[4], t_array[5]);
-            fprintf(stderr, "  result=%.17g barrier=%.17g\n", result, (*zeroth_order));
-        }
-    }
-#endif
     return result;
 }
 
@@ -268,7 +243,7 @@ double dNdM_conditional_ST(double growthf, double lnM, double delta_cond, double
 
     factor = st_taylor_factor(sigma1, sigma_cond, growthf, &Barrier) - delta_0;
 
-    sigdiff_inv = sigma1 == sigma_cond ? 1e6 : 1 / ((sigma1 - sigma_cond) * (sigma1 + sigma_cond));
+    sigdiff_inv = sigma1 == sigma_cond ? 1e6 : 1 / (sigma1 * sigma1 - sigma_cond * sigma_cond);
 
     result = -dsigmasqdm * factor * pow(sigdiff_inv, 1.5) *
              exp(-(Barrier - delta_0) * (Barrier - delta_0) * 0.5 * (sigdiff_inv)) /

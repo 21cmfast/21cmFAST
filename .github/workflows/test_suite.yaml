@@ -66,19 +66,6 @@ jobs:
         run: |
           LOG_LEVEL=${{ env.log_level }} pip install ".[dev]"
 
-      # ADD THIS NEW STEP
-      - name: Run debug tests only
-        run: |
-          python -m pytest tests/test_c_interpolation_tables.py -k "test_massfunc_conditional_tables or test_inverse_cmf_tables" -v
-
-      - name: Upload debug test outputs
-        if: always()  # Upload even if tests fail
-        uses: actions/upload-artifact@v6
-        with:
-          name: debug-test-outputs-${{ matrix.os }}-py${{ matrix.python-version }}-${{ matrix.compiler }}
-          path: debug_test_outputs/
-          if-no-files-found: ignore  # Don't fail if directory doesn't exist
-
       - name: Run Unit Tests
         run: |
           python -m pytest -n 2 -l ${{ env.extra_pytest_args }} \
