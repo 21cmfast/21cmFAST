@@ -310,8 +310,7 @@ double power_in_vcb(double k) {
         if (k == 0.) {
             return 0.;
         } else {
-            // read from CLASS file. flag_int=1 since we have initialized before, flag_vcb=1 for
-            // velocity
+            // flag_int=1 since we have initialized before, flag_vcb=1 for velocity
             T = transfer_function_CLASS(k, 1, 1);
             primordial = primordial_curvature_power_spectrum(k);
             p = cosmo_consts.sigma_norm * primordial * T * T / pow(k, 3);
