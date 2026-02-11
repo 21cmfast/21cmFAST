@@ -57,7 +57,11 @@ def convert_inputs_to_dict(
     if mode == "minimal":
         defaults = InputParameters(random_seed=0)
         default_dct = defaults.asdict(**kw)
+        cosmo_tables_key = "CosmoTables" if camel else "cosmo_tables"
+        # we still want to keep cosmo_tables, even in minimal mode (since we want to keep ps_norm and USE_SIGMA_8)
+        cosmo_tables_dct = all_inputs[cosmo_tables_key].copy()
         all_inputs = recursive_difference(all_inputs, default_dct)
+        all_inputs[cosmo_tables_key] = cosmo_tables_dct
 
     return all_inputs
 
@@ -177,7 +181,11 @@ def deserialize_inputs(
 
         if structname == "CosmoTables":
             these = {
-                kk: Table1D(**these_all[kk]) for kk in these_all if kk in fieldnames
+                kk: Table1D(**these_all[kk])
+                if isinstance(these_all[kk], dict)
+                else these_all[kk]
+                for kk in these_all
+                if kk in fieldnames
             }
         else:
             these = {kk: these_all[kk] for kk in these_all if kk in fieldnames}

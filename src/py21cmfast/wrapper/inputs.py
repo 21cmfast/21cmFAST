@@ -332,6 +332,8 @@ class CosmoTables:
 
     transfer_density: Table1D = field(default=None)
     transfer_vcb: Table1D = field(default=None)
+    ps_norm: float = field(default=None)
+    USE_SIGMA_8: bool = field(default=None)
 
     @classmethod
     def new(cls, x: dict | Self | None = None, **kwargs):
@@ -374,6 +376,8 @@ class CosmoTables:
             val = getattr(self, k)
             if isinstance(val, Table1D):
                 setattr(self.struct.cstruct, k, val.cstruct)
+            elif isinstance(val, (float | bool)):
+                setattr(self.struct.cstruct, k, val)
 
         return self.struct.cstruct
 
@@ -455,7 +459,7 @@ class CosmoParams(InputStruct):
         if self._A_s is not None and val is not None:
             raise ValueError(
                 "Cannot set both SIGMA_8 and A_s! "
-                "If this error arose when lading from template/file or evolving an "
+                "If this error arose when loading from template/file or evolving an "
                 "existing object, then explicitly set either SIGMA_8 or A_s "
                 "to None while setting the other to the desired value."
             )
@@ -476,6 +480,8 @@ class CosmoParams(InputStruct):
                 Omega_b=self.OMb,
                 A_s=self._A_s,
                 n_s=self.POWER_INDEX,
+                output="mPk",
+                level="fourier",
             )
             return classy_output.sigma8()
         else:
@@ -497,6 +503,8 @@ class CosmoParams(InputStruct):
                 Omega_b=self.OMb,
                 sigma8=self.SIGMA_8,
                 n_s=self.POWER_INDEX,
+                output="mTk",
+                level="thermodynamics",
             )
             return classy_output.get_current_derived_parameters(["A_s"])["A_s"]
         else:
@@ -928,7 +936,7 @@ class SimulationOptions(InputStruct):
         if self._DIM is not None and val is not None:
             raise ValueError(
                 "Cannot set both DIM and HIRES_TO_LOWRES_FACTOR! "
-                "If this error arose when lading from template/file or evolving an "
+                "If this error arose when loading from template/file or evolving an "
                 "existing object, then explicitly set either DIM or HIRES_TO_LOWRES_FACTOR "
                 "to None while setting the other to the desired value."
             )
@@ -938,7 +946,7 @@ class SimulationOptions(InputStruct):
         if self._BOX_LEN is not None and val is not None:
             raise ValueError(
                 "Cannot set both BOX_LEN and LOWRES_CELL_SIZE_MPC! "
-                "If this error arose when lading from template/file or evolving an "
+                "If this error arose when loading from template/file or evolving an "
                 "existing object, then explicitly set either BOX_LEN or "
                 "LOWRES_CELL_SIZE_MPC to None while setting the other to the desired "
                 "value."
@@ -1567,6 +1575,9 @@ class InputParameters:
             transfer_density = np.concatenate(([0.0], transfer_density))
             transfer_vcb = np.concatenate(([0.0], transfer_vcb))
 
+            # we use A_s to normalize the power spectrum only if it was provided
+            USE_SIGMA_8 = self.cosmo_params._A_s is None
+
             cosmo_tables = CosmoTables(
                 transfer_density=Table1D(
                     size=k_transfer_with_0.size,
@@ -1578,9 +1589,16 @@ class InputParameters:
                     x_values=k_transfer_with_0,
                     y_values=transfer_vcb,
                 ),
+                ps_norm=self.cosmo_params.SIGMA_8
+                if USE_SIGMA_8
+                else self.cosmo_params.A_s,
+                USE_SIGMA_8=USE_SIGMA_8,
             )
         else:
-            cosmo_tables = CosmoTables()
+            # we ALWAYS use sigma8 to normalize the power spectrum if we don't use CLASS
+            cosmo_tables = CosmoTables(
+                ps_norm=self.cosmo_params.SIGMA_8, USE_SIGMA_8=True
+            )
         return cosmo_tables
 
     @astro_options.validator
@@ -1693,6 +1711,20 @@ class InputParameters:
                 stacklevel=2,
             )
 
+        if (
+            self.matter_options.POWER_SPECTRUM != "CLASS"
+            and self.cosmo_params._A_s is not None
+        ):
+            warnings.warn(
+                f"You have chosen to work with POWER_SPECTRUM={self.matter_options.POWER_SPECTRUM}, "
+                "but at the same time you work with A_s (rather than SIGMA_8). "
+                "While this is allowed, it is important to realize that it is impossible "
+                "to normalize correctly the power spectrum with A_s while using the "
+                f"{self.matter_options.POWER_SPECTRUM} transfer function. "
+                "CLASS will convert your A_s to SIGMA_8.",
+                stacklevel=2,
+            )
+
     def __getitem__(self, key):
         """Get an item from the instance in a dict-like manner."""
         # Also allow using **input_parameters
@@ -1751,12 +1783,14 @@ class InputParameters:
                     != inputs_clone.simulation_options.K_MAX_FOR_CLASS
                 )
             ):
+                # we need to run CLASS again and update cosmo_tables
                 struct_args["cosmo_tables"] = inputs_clone._cosmo_tables_default()
                 inputs_clone = self.clone(**struct_args)
-        elif self.matter_options.POWER_SPECTRUM == "CLASS":
-            struct_args["cosmo_tables"] = (
-                CosmoTables()
-            )  # No need to have the tables from the original inputs
+        else:
+            # No need to have the tables from the original inputs, but we do need to change ps_norm and USE_SIGMA_8
+            struct_args["cosmo_tables"] = CosmoTables(
+                ps_norm=inputs_clone.cosmo_params.SIGMA_8, USE_SIGMA_8=True
+            )
             inputs_clone = self.clone(**struct_args)
 
         return inputs_clone

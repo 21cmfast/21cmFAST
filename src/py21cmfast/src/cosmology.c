@@ -41,7 +41,7 @@ struct CosmoConstants {
     double f_baryon;
     double theta_cmb;
 
-    // Normalisation of the power-spectrum integral for sigma_8
+    // Normalisation of the power-spectrum
     double sigma_norm;
 };
 
@@ -184,13 +184,13 @@ double transfer_function_CLASS(double k, int flag_int, int flag_dv) {
             warning_printed = true;
         }
         if (flag_dv == 0) {  // output is density
-            return eh_ratio_at_kmax * transfer_function_EH(k);
+            return eh_ratio_at_kmax * transfer_function_EH(k) * k * k;
         } else if (flag_dv == 1) {  // output is rel velocity, do a log-log linear extrapolation
             return exp(log(Tvclass_vcb[size_vcb - 1]) +
                        (log(Tvclass_vcb[size_vcb - 1]) - log(Tvclass_vcb[size_vcb - 2])) /
                            (log(kclass[size_vcb - 1]) - log(kclass[size_vcb - 2])) *
-                           (log(k) - log(kclass[size_vcb - 1]))) /
-                   k / k;
+                           (log(k) - log(kclass[size_vcb - 1])));
+
         }  // we just set it to the last value, since sometimes it wants large k for R<<cell_size,
            // which does not matter much.
         else {
@@ -206,9 +206,7 @@ double transfer_function_CLASS(double k, int flag_int, int flag_dv) {
             ans = 0.0;  // neither densities not velocities?
         }
     }
-
-    return ans / k / k;
-    // we have to divide by k^2 to agree with the old-fashioned convention.
+    return ans;
 }
 
 double transfer_function(double k) {
@@ -231,44 +229,94 @@ double transfer_function(double k) {
     }
 }
 
-double power_in_k_integrand(double k) {
-    double T, p;
-    T = transfer_function(k);
-    p = T * T * pow(k, cosmo_params_global->POWER_INDEX);
-
-    // TODO: figure this out, it was always a comment?
-    // if(matter_options_global->POWER_SPECTRUM == 0)
-    //   p = pow(k, POWER_INDEX - 0.05*log(k/0.05)) * T * T; //running, alpha=0.05
-
-    // NOTE: USE_RELATIVE_VELOCITIES is only allowed if using CLASS
-    if (matter_options_global->POWER_SPECTRUM == 5 &&
-        matter_options_global->USE_RELATIVE_VELOCITIES) {
-        // jbm:Add average relvel suppression
-        p *= 1.0 -
-             A_VCB_PM * exp(-pow(log(k / KP_VCB_PM), 2.0) / (2.0 * SIGMAK_VCB_PM * SIGMAK_VCB_PM));
-    }
-
-    return p;
+/*
+    The dimensionless power spectrum of the primordial curvature field (zeta), in LambdaCDM.
+    It is given by A_s * (k/k_pivot)^{n_s - 1} .
+*/
+double primordial_curvature_power_spectrum(double k) {
+    // This is the scale in which the dimensionless primordial power spectrum is A_s
+    double k_pivot = 0.05;  // Mpc^{-1}
+    // NOTE: there are two possibilities, depending on the value of USE_SIGMA_8:
+    //      (1) If USE_SIGMA_8 = False, then ps_norm = A_s.
+    //      (2) If USE_SIGMA_8 = True, then ps_norm = SIGMA_8. This may seem very weird to define
+    //      the
+    //          primordial curvature power spectrum like this, however remember that when
+    //          USE_SIGMA_8 = True, we normalize the power spectrum such that sigma(R_8) = SIGMA_8.
+    //          In other words, when USE_SIGMA_8 = True, the normalization factor used in this
+    //          function is completely irrelevant.
+    return cosmo_tables_global->ps_norm * pow(k / k_pivot, cosmo_params_global->POWER_INDEX - 1.);
 }
 
-// we need a version with the prefactors for output
+/*
+    The dimensionfull power spectrum of the linear matter density field, at z=0.
+    Output is given in units of Mpc^3 .
+
+    Note that the power spectrum for every field f is ALWAYS defined as being proportional to
+
+                                primordial_curvature_power_spectrum X T^2 / k^3
+
+    where T(k,z)=f(k,z)/zeta(k) is the transfer function of the field f at redshift z (this is the
+   "CLASS" convention for the transfer function). The constant of proportionality (sigma_norm in the
+   code below) is determined based on the value of USE_SIGMA_8: (1) If USE_SIGMA_8 = False, then
+   sigma_norm = 2*pi^2. This ensures that the dimensionless power spectrum of the primordial
+   curvature field zeta is precisely A_s at the pivot scale. (2) If USE_SIGMA_8 = True, then
+   sigma_norm is determined such that the rms of the linearly extrapolated matter density field at
+   z=0, smoothed on a scale of 8/h Mpc, is precisely SIGMA_8.
+
+    In LCDM, where the the primordial curvature power spectrum scales like k^{n_s-1}, and a
+   non-CLASS transfer function (e.g. EH, BBKS, etc) is used such that T(k)=Phi(k,z=0)/Phi_prim(k),
+   the linear matter density power spectrum at z=0 is proportional to k^n_s * T^2, where the factor
+   of proportionality is determined by SIGMA_8. This is the old notation that was used in previous
+   versions of 21cmFAST.
+*/
 double power_in_k(double k) {
-    return 2.0 * M_PI * M_PI * cosmo_consts.sigma_norm * cosmo_consts.sigma_norm *
-           power_in_k_integrand(k);
+    double p, T, primordial;
+
+    if (k == 0.) {
+        return 0.;
+    } else {
+        T = transfer_function(k);
+        if (matter_options_global->POWER_SPECTRUM < 5) {
+            // In non-CLASS transfer functions (EH, BBKS, etc), the convention is that the transfer
+            // function approches unity as k->0. We therefore have to multiply by k^2 in order to
+            // match with the CLASS notation that is used below.
+            T *= k * k;
+        }
+
+        primordial = primordial_curvature_power_spectrum(k);
+        p = cosmo_consts.sigma_norm * primordial * T * T / pow(k, 3);
+
+        // NOTE: USE_RELATIVE_VELOCITIES is only allowed if using CLASS
+        if (matter_options_global->POWER_SPECTRUM == 5 &&
+            matter_options_global->USE_RELATIVE_VELOCITIES) {
+            // jbm:Add average relvel suppression
+            p *= 1.0 - A_VCB_PM * exp(-pow(log(k / KP_VCB_PM), 2.0) /
+                                      (2.0 * SIGMAK_VCB_PM * SIGMAK_VCB_PM));
+        }
+        return p;
+    }
 }
 
 /*
   Returns the value of the linear power spectrum of the DM-b relative velocity
-  at kinematic decoupling (which we set at zkin=1010)
+  at kinematic decoupling
 */
+// TODO: this function looks now very similar to power_in_k. They should be merged in the future.
 double power_in_vcb(double k) {
-    double p, T;
+    double p, T, primordial;
 
     // only works if using CLASS
     if (matter_options_global->POWER_SPECTRUM == 5) {  // CLASS
-        T = transfer_function_CLASS(k, 1, 1);  // read from CLASS file. flag_int=1 since we have
-                                               // initialized before, flag_vcb=1 for velocity
-        p = pow(k, cosmo_params_global->POWER_INDEX) * T * T;
+        if (k == 0.) {
+            return 0.;
+        } else {
+            // flag_int=1 since we have initialized before, flag_vcb=1 for velocity
+            T = transfer_function_CLASS(k, 1, 1);
+            primordial = primordial_curvature_power_spectrum(k);
+            p = cosmo_consts.sigma_norm * primordial * T * T / pow(k, 3);
+
+            return p;
+        }
     } else {
         LOG_ERROR(
             "Cannot get P_cb unless using CLASS: %i\n Set USE_RELATIVE_VELOCITIES 0 or use "
@@ -276,16 +324,21 @@ double power_in_vcb(double k) {
             matter_options_global->POWER_SPECTRUM);
         Throw(ValueError);
     }
-
-    return p * 2.0 * M_PI * M_PI * cosmo_consts.sigma_norm * cosmo_consts.sigma_norm;
 }
 
 // FUNCTION sigma_z0(M)
 // Returns the standard deviation of the normalized, density excess (delta(x)) field,
 // smoothed on the comoving scale of M (see filter definitions for M<->R conversion).
+// It is given by solving the integral
+//
+//                      sigma(M) = \int d^3k/(2\pi)^3 * P_m(k,z=0) * W^2(kR_M)
+//                               = \int k^2 dk/(2\pi^2) * P_m(k,z=0) * W^2(kR_M)
+//
+// where P_m(k,z=0) is the linear matter density power specturm at z=0, W(kR) is the window function
+// that corresponds to the chosen smoothing filter, and R_M is the comoving radius that corresponds
+// to the mass M.
 // The sigma is evaluated at z=0, with the time evolution contained in the dicke(z) factor,
-// i.e. sigma(M,z) = sigma_z0(m) * dicke(z)
-// normalized so that sigma_z0(M->8/h Mpc) = SIGMA_8 in the SimulationOptions
+// i.e. sigma(M,z) = sigma_z0(m) * dicke(z).
 
 // NOTE: volume is normalized to = 1, so this is equvalent to the mass standard deviation
 
@@ -295,18 +348,18 @@ struct SigmaIntegralParams {
     int filter_type;
 };
 
-// References: Padmanabhan, pg. 210, eq. 5.107
 double dsigma_dk(double k, void *params) {
     double p, w, kR;
 
     struct SigmaIntegralParams *pars = (struct SigmaIntegralParams *)params;
     double Radius = pars->radius;
     int filter = pars->filter_type;
-    p = power_in_k_integrand(k);
 
     kR = k * Radius;
     w = filter_function(kR, filter);
-    return k * k * p * w * w;
+    p = power_in_k(k);
+
+    return k * k * p * w * w / (2.0 * M_PI * M_PI);
 }
 double sigma_z0(double M) {
     double result, error, lower_limit, upper_limit;
@@ -342,7 +395,7 @@ double sigma_z0(double M) {
 
     gsl_integration_workspace_free(w);
 
-    return cosmo_consts.sigma_norm * sqrt(result);
+    return sqrt(result);
 }
 
 /*
@@ -353,12 +406,12 @@ double dsigmasq_dm(double k, void *params) {
     struct SigmaIntegralParams *pars = (struct SigmaIntegralParams *)params;
     double Radius = pars->radius;
     int filter = pars->filter_type;
-    double p = power_in_k_integrand(k);
 
     // now get the value of the window function
     double dw2dm = dwdm_filter(k, Radius, filter);
+    double p = power_in_k(k);
 
-    return k * k * p * dw2dm;
+    return k * k * p * dw2dm / (2.0 * M_PI * M_PI);
 }
 double dsigmasqdm_z0(double M) {
     double result, error, lower_limit, upper_limit;
@@ -393,8 +446,7 @@ double dsigmasqdm_z0(double M) {
     }
 
     gsl_integration_workspace_free(w);
-
-    return cosmo_consts.sigma_norm * cosmo_consts.sigma_norm * result;
+    return result;
 }
 
 // Sets constants used in the EH transfer function
@@ -444,18 +496,10 @@ void TFset_parameters() {
     cosmo_consts.beta_c = 1.0 / (1.0 - 0.949 * f_nub);
 }
 
+/*
+    Initialization of the parameters relevant for the power spectrum calculation.
+*/
 void init_ps() {
-    double result, error, lower_limit, upper_limit;
-    gsl_function F;
-    double rel_tol = FRACT_FLOAT_ERR * 10;  //<- relative tolerance
-    gsl_integration_workspace *w = gsl_integration_workspace_alloc(1000);
-
-    // Set cuttoff scale for WDM (eq. 4 in Barkana et al. 2001) in comoving Mpc
-    // R_CUTOFF =
-    // 0.201*pow((cosmo_params_global->OMm-cosmo_params_global->OMb)
-    // *cosmo_params_global->hlittle*cosmo_params_global->hlittle/0.15,
-    // 0.15)*pow(.g_x/1.5, -0.29)*pow(.M_WDM, -1.15);
-
     cosmo_consts.omhh =
         cosmo_params_global->OMm * cosmo_params_global->hlittle * cosmo_params_global->hlittle;
     cosmo_consts.theta_cmb = physconst.T_cmb / 2.7;
@@ -463,51 +507,47 @@ void init_ps() {
     cosmo_consts.f_nu = fmax(cosmo_params_global->OMn / cosmo_params_global->OMm, 1e-10);
     cosmo_consts.f_baryon = fmax(cosmo_params_global->OMb / cosmo_params_global->OMm, 1e-10);
 
+    // NOTE: even if we use the CLASS transfer function, we still need to call the function below in
+    // order to initialize the parameters for the EH transfer function, since the EH transfer
+    // function is used for extrapolating the transfer function at high k.
     TFset_parameters();
 
-    cosmo_consts.sigma_norm = -1;
-
-    // we start the interpolator if using CLASS:
     if (matter_options_global->POWER_SPECTRUM == 5) {
+        // We start the interpolator if using CLASS:
         LOG_DEBUG("Setting CLASS Transfer Function inits.");
         transfer_function_CLASS(1.0, 0, 0);
     }
 
-    double Radius_8;
-    Radius_8 = 8.0 / cosmo_params_global->hlittle;
+    // We now need to initialize sigma_norm, the constant that would give us the correct
+    // normalization to the power spectrum
+    if (cosmo_tables_global->USE_SIGMA_8) {
+        // If we use SIGMA_8 to normalize the power spectrum, then sigma_norm is determined such
+        // that the rms of the linearly extrapolated matter density field at z=0, smoothed on a
+        // scale of 8/h Mpc, would be precisely SIGMA_8 (note that ps_norm in this case is SIGMA_8).
+        double Radius_8 = 8.0 / cosmo_params_global->hlittle;
 
-    lower_limit = 1.0e-99 / Radius_8;  // kstart
-    upper_limit = 350.0 / Radius_8;    // kend
+        // NOTE: it is very important to set sigma_norm=1 at first since it is used in power_in_k
+        // and power_in_k is used in sigma_z0. If it is initialized by a different number, we won't
+        // get eventually the correct normalization for the power spectrum! Anoter way to look at it
+        // would be to say that
 
-    struct SigmaIntegralParams sigma_params = {.radius = Radius_8,
-                                               .filter_type = matter_options_global->FILTER};
-    F.function = &dsigma_dk;
-    F.params = &sigma_params;
-
-    LOG_DEBUG(
-        "Initializing Power Spectrum with lower_limit=%e, upper_limit=%e, rel_tol=%e, radius_8=%g",
-        lower_limit, upper_limit, rel_tol, Radius_8);
-    int status;
-
-    gsl_set_error_handler_off();
-
-    status = gsl_integration_qag(&F, lower_limit, upper_limit, 0, rel_tol, 1000, GSL_INTEG_GAUSS61,
-                                 w, &result, &error);
-
-    if (status != 0) {
-        LOG_ERROR("gsl integration error occured!");
-        LOG_ERROR(
-            "(function argument): lower_limit=%e upper_limit=%e rel_tol=%e result=%e error=%e",
-            lower_limit, upper_limit, rel_tol, result, error);
-        CATCH_GSL_ERROR(status);
+        //                      sigma_norm = (SIGMA_8)^2 / \int k^2 dk/(2\pi^2) * P_m(k,z=0) *
+        //                      W^2(kR_8)
+        // and                  P_m(k,z=0) = sigma_norm^2 * primordial_curvature_power_spectrum *
+        // T^2 / k^3
+        //
+        // Thus the only consistent solution that would yield sigma(M(R_8)) = SIGMA_8, given the
+        // dimensionless primodial curvature power spectrumis and the transfer function
+        // T(k)=delta(k,z=0)/zeta(k), is sigma_norm = 1!
+        cosmo_consts.sigma_norm = 1;
+        cosmo_consts.sigma_norm = pow(cosmo_tables_global->ps_norm / sigma_z0(RtoM(Radius_8)), 2);
+    } else {
+        // Otherwise, if we use A_s to normalize the power spectrum (and don't care about SIGMA_8),
+        // sigma_norm = 2*pi^2. This ensures that the dimensionless power spectrum of the primordial
+        // curvature field zeta is precisely A_s at the pivot scale.
+        cosmo_consts.sigma_norm = 2.0 * M_PI * M_PI;
     }
-
-    gsl_integration_workspace_free(w);
-
     LOG_DEBUG("Initialized Power Spectrum.");
-
-    cosmo_consts.sigma_norm =
-        cosmo_params_global->SIGMA_8 / sqrt(result);  // takes care of volume factor
     return;
 }
 
