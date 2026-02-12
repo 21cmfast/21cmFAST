@@ -80,7 +80,7 @@ def run_classy(**kwargs) -> Class:
         raise KeyError("You specified m_ncdm, but set N_ncdm=0.")
 
     # Set level to highest order, unless it is specified in kwargs
-    level = [kwargs.pop("level", "distortions")]
+    level = list(kwargs.pop("level", "distortions"))
 
     for k in kwargs:
         # "P_k_max_1/Mpc" cannot serve as a kwarg, but this is the input that CLASS expects to receive,
