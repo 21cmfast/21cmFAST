@@ -962,10 +962,15 @@ int global_reion_properties(double zp, double x_e_ave, double *log10_Mcrit_LW_av
     LOG_DEBUG("nion zp = %.3e (%.3e MINI)", sum_nion, sum_nion_mini);
 
     double ION_EFF_FACTOR, ION_EFF_FACTOR_MINI;
-    ION_EFF_FACTOR = astro_params_global->F_STAR10 * astro_params_global->F_ESC10 *
-                     astro_params_global->POP2_ION;
-    ION_EFF_FACTOR_MINI = astro_params_global->F_STAR7_MINI * astro_params_global->F_ESC7_MINI *
-                          astro_params_global->POP3_ION;
+    if (matter_options_global->SOURCE_MODEL > 0) {
+        ION_EFF_FACTOR = astro_params_global->F_STAR10 * astro_params_global->F_ESC10 *
+                         astro_params_global->POP2_ION;
+        ION_EFF_FACTOR_MINI = astro_params_global->F_STAR7_MINI * astro_params_global->F_ESC7_MINI *
+                              astro_params_global->POP3_ION;
+    } else {
+        // no mini-halos when SOURCE_MODEL=0 (constant ionization efficiency)
+        ION_EFF_FACTOR = astro_params_global->HII_EFF_FACTOR;
+    }
 
     // NOTE: only used without MASS_DEPENDENT_ZETA
     *Q_HI = 1 - (ION_EFF_FACTOR * sum_nion + ION_EFF_FACTOR_MINI * sum_nion_mini) / (1.0 - x_e_ave);
