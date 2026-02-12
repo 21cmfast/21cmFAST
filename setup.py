@@ -88,7 +88,7 @@ setup(
         "cosmotile>=0.2.5",
         "attrs",
         "tqdm",
-        "classy",
+        "classy>=3.3.4",
         "cyclopts",
         "tomlkit",
         "hmf",
