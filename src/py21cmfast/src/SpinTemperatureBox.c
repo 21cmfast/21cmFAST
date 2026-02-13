@@ -807,7 +807,7 @@ void fill_freqint_tables(double zp, double x_e_ave, double filling_factor_of_HI_
     int x_e_ct, R_ct;
     int R_start, R_end;
     // if we minimize mem these arrays are filled one by one
-    if (matter_options_global->MINIMIZE_MEMORY) {
+    if (matter_options_global->MINIMIZE_MEMORY && matter_options_global->SOURCE_MODEL < 2) {
         R_start = R_mm;
         R_end = R_mm + 1;
     } else {
@@ -980,7 +980,7 @@ int global_reion_properties(double zp, double x_e_ave, double *log10_Mcrit_LW_av
     *Q_HI = 1 - (ION_EFF_FACTOR * sum_nion + ION_EFF_FACTOR_MINI * sum_nion_mini) / (1.0 - x_e_ave);
 
     // Initialise freq tables & prefactors (x_e by R tables)
-    if (!matter_options_global->MINIMIZE_MEMORY) {
+    if (matter_options_global->SOURCE_MODEL >= 2 || !matter_options_global->MINIMIZE_MEMORY) {
         // Now global SFRD at (R_ct) for the mean fixing
         for (R_ct = 0; R_ct < astro_params_global->N_STEP_TS; R_ct++) {
             zpp = zpp_for_evolve_list[R_ct];
@@ -1572,8 +1572,13 @@ void ts_main(float redshift, float prev_redshift, float perturbed_field_redshift
 
             set_scaling_constants(zpp, &sc, false);
 
-            // index for grids
-            R_index = matter_options_global->MINIMIZE_MEMORY ? 0 : R_ct;
+            // index for grids. For Eulerian grid source models (<2), we can use a single
+            // filter radius at a time, if MINIMIZE_MEMORY=True
+            if (matter_options_global->SOURCE_MODEL < 2 && matter_options_global->MINIMIZE_MEMORY) {
+                R_index = 0;
+            } else {
+                R_index = R_ct;
+            }
 
             if (matter_options_global->SOURCE_MODEL < 2) {
                 if (matter_options_global->MINIMIZE_MEMORY) {
