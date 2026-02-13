@@ -180,8 +180,10 @@ void alloc_global_arrays() {
     }
 
     // Nonhalo stuff
-    int num_R_boxes = matter_options_global->MINIMIZE_MEMORY ? 1 : astro_params_global->N_STEP_TS;
     if (matter_options_global->SOURCE_MODEL < 2) {
+        int num_R_boxes =
+            matter_options_global->MINIMIZE_MEMORY ? 1 : astro_params_global->N_STEP_TS;
+
         delNL0 = (float **)calloc(num_R_boxes, sizeof(float *));
         for (i = 0; i < num_R_boxes; i++) {
             delNL0[i] = (float *)calloc((float)HII_TOT_NUM_PIXELS, sizeof(float));
@@ -281,8 +283,10 @@ void free_ts_global_arrays() {
     free(inverse_val_box);
 
     // interp tables
-    int num_R_boxes = matter_options_global->MINIMIZE_MEMORY ? 1 : astro_params_global->N_STEP_TS;
     if (matter_options_global->SOURCE_MODEL < 2) {
+        int num_R_boxes =
+            matter_options_global->MINIMIZE_MEMORY ? 1 : astro_params_global->N_STEP_TS;
+
         for (i = 0; i < num_R_boxes; i++) {
             free(delNL0[i]);
         }
@@ -1654,12 +1658,11 @@ void ts_main(float redshift, float prev_redshift, float perturbed_field_redshift
                     // loop than an inner one.
 
                     if (matter_options_global->SOURCE_MODEL > 1) {
-                        sfr_term = source_box->filtered_sfr[R_index * HII_TOT_NUM_PIXELS + box_ct] *
+                        sfr_term = source_box->filtered_sfr[R_ct * HII_TOT_NUM_PIXELS + box_ct] *
                                    z_edge_factor;
                         // Minihalos and s->yr conversion are already included here
-                        xray_sfr =
-                            source_box->filtered_xray[R_index * HII_TOT_NUM_PIXELS + box_ct] *
-                            z_edge_factor * xray_R_factor * 1e38;
+                        xray_sfr = source_box->filtered_xray[R_ct * HII_TOT_NUM_PIXELS + box_ct] *
+                                   z_edge_factor * xray_R_factor * 1e38;
                     } else {
                         // NOTE: for SOURCE_MODEL==0 F_STAR10 is still used for constant
                         // stellar fraction
