@@ -1237,7 +1237,7 @@ class TsBox(OutputStructZ):
 
     spin_temperature = _arrayfield()
     xray_ionised_fraction = _arrayfield()
-    kinetic_temp_neutral = _arrayfield()
+    kinetic_temp_neutral = _arrayfield(optional=True)
     J_21_LW = _arrayfield(optional=True)
     Q_HI: float = attrs.field(default=1.0)
 
@@ -1266,8 +1266,10 @@ class TsBox(OutputStructZ):
         out = {
             "spin_temperature": Array(shape, dtype=np.float32),
             "xray_ionised_fraction": Array(shape, dtype=np.float32),
-            "kinetic_temp_neutral": Array(shape, dtype=np.float32),
         }
+        if inputs.optional_quantities.kinetic_temp_neutral:
+            out["kinetic_temp_neutral"] = Array(shape, dtype=np.float32)
+
         if inputs.astro_options.USE_MINI_HALOS:
             out["J_21_LW"] = Array(shape, dtype=np.float32)
         return cls(inputs=inputs, redshift=redshift, **out, **kw)
@@ -1315,10 +1317,12 @@ class TsBox(OutputStructZ):
             required += ["density"]
         elif isinstance(input_box, TsBox):
             required += [
-                "kinetic_temp_neutral",
                 "xray_ionised_fraction",
                 "spin_temperature",
             ]
+            if self.inputs.optional_quantities.kinetic_temp_neutral:
+                required += ["kinetic_temp_neutral"]
+
             if self.astro_options.USE_MINI_HALOS:
                 required += ["J_21_LW"]
         elif isinstance(input_box, XraySourceBox):
@@ -1366,11 +1370,11 @@ class IonizedBox(OutputStructZ):
 
     neutral_fraction = _arrayfield()
     ionisation_rate_G12 = _arrayfield()
-    mean_free_path = _arrayfield()  # never used
+    mean_free_path = _arrayfield(optional=True)
     z_reion = _arrayfield()
     cumulative_recombinations = _arrayfield(optional=True)
-    kinetic_temperature = _arrayfield()  # never used
-    unnormalised_nion = _arrayfield()  # not sure about this one
+    kinetic_temperature = _arrayfield(optional=True)
+    unnormalised_nion = _arrayfield()
     unnormalised_nion_mini = _arrayfield(optional=True)
     log10_Mturnover_ave: float = attrs.field(default=None)
     log10_Mturnover_MINI_ave: float = attrs.field(default=None)
@@ -1430,11 +1434,14 @@ class IonizedBox(OutputStructZ):
         out = {
             "neutral_fraction": Array(shape, initfunc=np.ones, dtype=np.float32),
             "ionisation_rate_G12": Array(shape, dtype=np.float32),
-            "mean_free_path": Array(shape, dtype=np.float32),
             "z_reion": Array(shape, dtype=np.float32),
-            "kinetic_temperature": Array(shape, dtype=np.float32),
             "unnormalised_nion": Array(filter_shape, dtype=np.float32),
         }
+
+        if inputs.optional_quantities.kinetic_temp_neutral:
+            out["kinetic_temperature"] = Array(shape, dtype=np.float32)
+        if inputs.optional_quantities.mean_free_path:
+            out["mean_free_path"] = Array(shape, dtype=np.float32)
 
         if inputs.astro_options.INHOMO_RECO:
             out["cumulative_recombinations"] = Array(shape, dtype=np.float32)
@@ -1469,7 +1476,9 @@ class IonizedBox(OutputStructZ):
         elif isinstance(input_box, PerturbedField):
             required += ["density"]
         elif isinstance(input_box, TsBox):
-            required += ["kinetic_temp_neutral", "xray_ionised_fraction"]
+            required += ["xray_ionised_fraction"]
+            if self.inputs.optional_quantities.kinetic_temperature:
+                required += ["kinetic_temp_neutral"]
             if self.astro_options.USE_MINI_HALOS:
                 required += ["J_21_LW"]
         elif isinstance(input_box, IonizedBox):

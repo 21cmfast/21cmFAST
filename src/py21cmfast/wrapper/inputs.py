@@ -1461,6 +1461,47 @@ def _node_redshifts_converter(value) -> tuple[float] | None:
 
 
 @attrs.define(kw_only=True, frozen=True)
+class OptionalQuantities(InputStruct):
+    """Parameters defining which optional quantities you'd like to compute.
+
+    Each parameter is the name of a quantity that can be optionally computed and
+    returned by the wrapper, and the value is a boolean determining whether to compute
+    it or not. Note that *most* quantities are not optional (i.e. they must be computed
+    because some other quantity depends on them). Quantities that do not appear here
+    may also be "optional" in the sense that they can be turned off by setting relevant
+    parameters in the other InputStructs (e.g. setting USE_X_RAY_HEATING to False in
+    AstroOptions will turn off the calculation of X-ray heating rates). Rather, the
+    quantities in this class are those that are not turned on/off by any other
+    parameter, and are also not used to compute anything else.
+
+    Parameters
+    ----------
+    kinetic_temp_neutral
+        Whether to compute the kinetic temperature of the neutral IGM. This is a
+        quantity in :class:`~py21cmfast.wrapper.outputs.TsBox`.
+    kinetic_temperature
+        Whether to compute the kinetic temperature of the IGM (including ionized
+        regions). This is a quantity in :class:`~py21cmfast.wrapper.outputs.IonizedBox`.
+    mean_free_path
+        Whether to compute the mean free path of ionizing photons. This is a quantity
+        in :class:`~py21cmfast.wrapper.outputs.IonizedBox`.
+    """
+
+    kinetic_temp_neutral: bool = field(default=True, converter=bool)
+    kinetic_temperature: bool = field(default=True, converter=bool)
+    mean_free_path: bool = field(default=True, converter=bool)
+
+    @kinetic_temperature.validator
+    def _kinetic_temperature_validator(self, att, val):
+        if val and not self.kinetic_temp_neutral:
+            raise ValueError(
+                "You cannot compute the kinetic temperature of the IGM if you are not "
+                "computing the kinetic temperature of the neutral IGM! Set "
+                "kinetic_temp_neutral=True to compute kinetic_temperature"
+            )
+
+
+@attrs.define(kw_only=True, frozen=True)
 class InputParameters:
     """A class defining a collection of InputStruct instances.
 
@@ -1487,7 +1528,8 @@ class InputParameters:
         Options for which physical processes to include in the simulation.
     astro_params
         Astrophysical parameter values.
-
+    optional_quantities
+        Which optional physical quantities to compute and return in the outputs.
     """
 
     random_seed = _field(converter=int)
@@ -1496,6 +1538,7 @@ class InputParameters:
     simulation_options: SimulationOptions = input_param_field(SimulationOptions)
     astro_options: AstroOptions = input_param_field(AstroOptions)
     astro_params: AstroParams = input_param_field(AstroParams)
+    optional_quantities: OptionalQuantities = input_param_field(OptionalQuantities)
     node_redshifts = _field(converter=_node_redshifts_converter)
     cosmo_tables: CosmoTables = field()
 
@@ -1762,6 +1805,7 @@ class InputParameters:
             "matter_options",
             "astro_params",
             "astro_options",
+            "optional_quantities",
             "cosmo_tables",
         ):
             obj = getattr(self, inp_type)
@@ -1852,6 +1896,7 @@ class InputParameters:
             + f"matter_options: {self.matter_options!r}\n"
             + f"astro_params: {self.astro_params!r}\n"
             + f"astro_options: {self.astro_options!r}\n"
+            + f"optional_quantities: {self.optional_quantities!r}\n"
         )
 
     # NOTE: These hashes are used to compare structs within a run, and so don't need to stay
@@ -1883,6 +1928,7 @@ class InputParameters:
                 self.astro_options,
                 self.astro_params,
                 self.node_redshifts,
+                self.optional_quantities,
             )
         )
 

@@ -11,12 +11,14 @@ bool allocated_cosmo_tables = false;
 void Broadcast_struct_global_all(SimulationOptions *simulation_options,
                                  MatterOptions *matter_options, CosmoParams *cosmo_params,
                                  AstroParams *astro_params, AstroOptions *astro_options,
-                                 CosmoTables *cosmo_tables) {
+                                 CosmoTables *cosmo_tables,
+                                 OptionalQuantities *optional_quantities) {
     simulation_options_global = simulation_options;
     matter_options_global = matter_options;
     cosmo_params_global = cosmo_params;
     astro_params_global = astro_params;
     astro_options_global = astro_options;
+    optional_quantities_global = optional_quantities;
     int n;
     if (!allocated_cosmo_tables) {
         cosmo_tables_global = malloc(sizeof(CosmoTables));
@@ -89,6 +91,7 @@ CosmoParams *cosmo_params_global;
 AstroParams *astro_params_global;
 AstroOptions *astro_options_global;
 CosmoTables *cosmo_tables_global;
+OptionalQuantities *optional_quantities_global;
 
 // data paths, wisdoms, etc
 ConfigSettings config_settings;

@@ -33,6 +33,7 @@ def broadcast_input_struct(inputs: InputParameters):
         inputs.astro_params.cstruct,
         inputs.astro_options.cstruct,
         inputs.cosmo_tables.cstruct,
+        inputs.optional_quantities.cstruct,
     )
 
 
@@ -522,7 +523,9 @@ def get_delta_crit(*, inputs: InputParameters, mass: float, redshift: float):
     """Get the critical collapse density given a mass, redshift and parameters."""
     sigma, _ = evaluate_sigma(inputs=inputs, masses=np.array([mass]))
     growth = get_growth_factor(inputs=inputs, redshift=redshift)
-    return get_delta_crit_nu(inputs.matter_options.cdict["HMF"], sigma, growth)
+    return get_delta_crit_nu(
+        inputs.matter_options.cdict["HMF"], float(sigma[0]), growth
+    )
 
 
 def get_delta_crit_nu(hmf_int_flag: int, sigma: float, growth: float):

@@ -9,7 +9,8 @@
 void Broadcast_struct_global_all(SimulationOptions *simulation_options,
                                  MatterOptions *matter_options, CosmoParams *cosmo_params,
                                  AstroParams *astro_params, AstroOptions *astro_options,
-                                 CosmoTables *cosmo_tables);
+                                 CosmoTables *cosmo_tables,
+                                 OptionalQuantities *optional_quantities);
 void Broadcast_struct_global_noastro(SimulationOptions *simulation_options,
                                      MatterOptions *matter_options, CosmoParams *cosmo_params);
 
