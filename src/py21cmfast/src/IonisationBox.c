@@ -771,7 +771,6 @@ void calculate_fcoll_grid(IonizedBox *box, IonizedBox *previous_ionize_box,
                           struct RadiusSpec *rspec) {
     double f_coll_total = 0., f_coll_MINI_total = 0.;
     // TODO: make proper error tracking through the parallel region
-    bool error_flag;
     ScalingConstants *sc_ptr = &(consts->scale_consts);
 
     int fc_r_idx;
@@ -1191,8 +1190,8 @@ void set_ionized_temperatures(IonizedBox *box, PerturbedField *perturbed_field, 
     int box_dim[3] = {simulation_options_global->HII_DIM, simulation_options_global->HII_DIM,
                       HII_D_PARA};
 
+    unsigned long long int idx;
     if (optional_quantities_global->kinetic_temperature) {
-        unsigned long long int idx;
 #pragma omp parallel private(x, y, z, idx) num_threads(simulation_options_global -> N_THREADS)
         {
             float thistk;
