@@ -538,7 +538,9 @@ double set_fully_neutral_box(IonizedBox *box, TsBox *spin_temp, PerturbedField *
                 box->neutral_fraction[ct] =
                     1. - spin_temp->xray_ionised_fraction[ct];  // convert from x_e to xH
                 global_xH += box->neutral_fraction[ct];
-                box->kinetic_temperature[ct] = spin_temp->kinetic_temp_neutral[ct];
+                if (optional_quantities_global->kinetic_temperature) {
+                    box->kinetic_temperature[ct] = spin_temp->kinetic_temp_neutral[ct];
+                }
             }
         }
         global_xH /= (double)HII_TOT_NUM_PIXELS;
@@ -549,9 +551,11 @@ double set_fully_neutral_box(IonizedBox *box, TsBox *spin_temp, PerturbedField *
 #pragma omp for
             for (ct = 0; ct < HII_TOT_NUM_PIXELS; ct++) {
                 box->neutral_fraction[ct] = global_xH;
-                box->kinetic_temperature[ct] =
-                    consts->TK_nofluct *
-                    (1.0 + consts->adia_TK_term * perturbed_field->density[ct]);
+                if (optional_quantities_global->kinetic_temperature) {
+                    box->kinetic_temperature[ct] =
+                        consts->TK_nofluct *
+                        (1.0 + consts->adia_TK_term * perturbed_field->density[ct]);
+                }
             }
         }
     }
@@ -1115,7 +1119,9 @@ void find_ionised_regions(IonizedBox *box, IonizedBox *previous_ionize_box,
                                     rspec.R * (consts->gamma_prefactor * curr_fcoll +
                                                consts->gamma_prefactor_mini * curr_fcoll_mini);
                             }
-                            box->mean_free_path[index_r] = rspec.R;
+                            if (optional_quantities_global->mean_free_path) {
+                                box->mean_free_path[index_r] = rspec.R;
+                            }
                         }
 
                         // keep track of the first time this cell is ionized (earliest time)
@@ -1147,14 +1153,20 @@ void find_ionised_regions(IonizedBox *box, IonizedBox *previous_ionize_box,
                                  curr_fcoll_mini * consts->ion_eff_factor_mini;
                         // put the partial ionization here because we need to exclude
                         // xHII_from_xrays...
-                        if (astro_options_global->USE_TS_FLUCT) {
-                            box->kinetic_temperature[index_r] = ComputePartiallyIonizedTemperature(
-                                spin_temp->kinetic_temp_neutral[index_r], res_xH, consts->T_re);
-                        } else {
-                            box->kinetic_temperature[index_r] = ComputePartiallyIonizedTemperature(
-                                consts->TK_nofluct *
-                                    (1 + consts->adia_TK_term * perturbed_field->density[index_r]),
-                                res_xH, consts->T_re);
+                        if (optional_quantities_global->kinetic_temperature) {
+                            if (astro_options_global->USE_TS_FLUCT) {
+                                box->kinetic_temperature[index_r] =
+                                    ComputePartiallyIonizedTemperature(
+                                        spin_temp->kinetic_temp_neutral[index_r], res_xH,
+                                        consts->T_re);
+                            } else {
+                                box->kinetic_temperature[index_r] =
+                                    ComputePartiallyIonizedTemperature(
+                                        consts->TK_nofluct *
+                                            (1 + consts->adia_TK_term *
+                                                     perturbed_field->density[index_r]),
+                                        res_xH, consts->T_re);
+                            }
                         }
                         res_xH -= xHII_from_xrays;
 
@@ -1179,31 +1191,34 @@ void set_ionized_temperatures(IonizedBox *box, PerturbedField *perturbed_field, 
     int box_dim[3] = {simulation_options_global->HII_DIM, simulation_options_global->HII_DIM,
                       HII_D_PARA};
 
-    unsigned long long int idx;
+    if (optional_quantities_global->kinetic_temperature) {
+        unsigned long long int idx;
 #pragma omp parallel private(x, y, z, idx) num_threads(simulation_options_global -> N_THREADS)
-    {
-        float thistk;
+        {
+            float thistk;
 #pragma omp for
-        for (x = 0; x < simulation_options_global->HII_DIM; x++) {
-            for (y = 0; y < simulation_options_global->HII_DIM; y++) {
-                for (z = 0; z < HII_D_PARA; z++) {
-                    idx = grid_index_general(x, y, z, box_dim);
-                    if ((box->z_reion[idx] > 0) && (box->neutral_fraction[idx] < TINY)) {
-                        box->kinetic_temperature[idx] = ComputeFullyIonizedTemperature(
-                            box->z_reion[idx], consts->stored_redshift,
-                            perturbed_field->density[idx], consts->T_re);
-                        // Below sometimes (very rare though) can happen when the density drops too
-                        // fast and to below T_HI
-                        if (astro_options_global->USE_TS_FLUCT) {
-                            if (box->kinetic_temperature[idx] <
-                                spin_temp->kinetic_temp_neutral[idx])
-                                box->kinetic_temperature[idx] =
-                                    spin_temp->kinetic_temp_neutral[idx];
-                        } else {
-                            thistk = consts->TK_nofluct *
-                                     (1 + consts->adia_TK_term * perturbed_field->density[idx]);
-                            if (box->kinetic_temperature[idx] < thistk)
-                                box->kinetic_temperature[idx] = thistk;
+            for (x = 0; x < simulation_options_global->HII_DIM; x++) {
+                for (y = 0; y < simulation_options_global->HII_DIM; y++) {
+                    for (z = 0; z < HII_D_PARA; z++) {
+                        idx = grid_index_general(x, y, z, box_dim);
+                        if ((box->z_reion[idx] > 0) && (box->neutral_fraction[idx] < TINY)) {
+                            box->kinetic_temperature[idx] = ComputeFullyIonizedTemperature(
+                                box->z_reion[idx], consts->stored_redshift,
+                                perturbed_field->density[idx], consts->T_re);
+
+                            // Below sometimes (very rare though) can happen when the density drops
+                            // too fast and to below T_HI
+                            if (astro_options_global->USE_TS_FLUCT) {
+                                if (box->kinetic_temperature[idx] <
+                                    spin_temp->kinetic_temp_neutral[idx])
+                                    box->kinetic_temperature[idx] =
+                                        spin_temp->kinetic_temp_neutral[idx];
+                            } else {
+                                thistk = consts->TK_nofluct *
+                                         (1 + consts->adia_TK_term * perturbed_field->density[idx]);
+                                if (box->kinetic_temperature[idx] < thistk)
+                                    box->kinetic_temperature[idx] = thistk;
+                            }
                         }
                     }
                 }
@@ -1211,17 +1226,21 @@ void set_ionized_temperatures(IonizedBox *box, PerturbedField *perturbed_field, 
         }
     }
 
-    for (x = 0; x < simulation_options_global->HII_DIM; x++) {
-        for (y = 0; y < simulation_options_global->HII_DIM; y++) {
-            for (z = 0; z < HII_D_PARA; z++) {
-                idx = grid_index_general(x, y, z, box_dim);
-                if (isfinite(box->kinetic_temperature[idx]) == 0) {
-                    LOG_ERROR(
-                        "Tk after fully ionization is either infinite or a Nan. Something has gone "
-                        "wrong in the temperature calculation: z_re=%.4f, redshift=%.4f, "
-                        "curr_dens=%.4e",
-                        box->z_reion[idx], consts->stored_redshift, perturbed_field->density[idx]);
-                    Throw(InfinityorNaNError);
+    if (optional_quantities_global->kinetic_temperature) {
+        for (x = 0; x < simulation_options_global->HII_DIM; x++) {
+            for (y = 0; y < simulation_options_global->HII_DIM; y++) {
+                for (z = 0; z < HII_D_PARA; z++) {
+                    idx = grid_index_general(x, y, z, box_dim);
+                    if (isfinite(box->kinetic_temperature[idx]) == 0) {
+                        LOG_ERROR(
+                            "Tk after fully ionization is either infinite or a Nan. Something has "
+                            "gone "
+                            "wrong in the temperature calculation: z_re=%.4f, redshift=%.4f, "
+                            "curr_dens=%.4e",
+                            box->z_reion[idx], consts->stored_redshift,
+                            perturbed_field->density[idx]);
+                        Throw(InfinityorNaNError);
+                    }
                 }
             }
         }

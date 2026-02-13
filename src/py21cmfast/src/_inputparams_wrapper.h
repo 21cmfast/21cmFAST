@@ -153,6 +153,12 @@ typedef struct AstroOptions {
     int INTEGRATION_METHOD_MINI;
 } AstroOptions;
 
+typedef struct OptionalQuantities {
+    bool kinetic_temp_neutral;
+    bool kinetic_temperature;
+    bool mean_free_path;
+} OptionalQuantities;
+
 typedef struct Table1D {
     int size;
     double *x_values;
@@ -191,5 +197,5 @@ extern CosmoParams *cosmo_params_global;
 extern AstroParams *astro_params_global;
 extern AstroOptions *astro_options_global;
 extern CosmoTables *cosmo_tables_global;
-
+extern OptionalQuantities *optional_quantities_global;
 extern ConfigSettings config_settings;

@@ -906,7 +906,9 @@ void init_first_Ts(TsBox *box, float *dens, float z, float zp, double *x_e_ave, 
 #pragma omp for
         for (box_ct = 0; box_ct < HII_TOT_NUM_PIXELS; box_ct++) {
             gdens = dens[box_ct] * inverse_growth_factor_z * growth_factor_zp;
-            box->kinetic_temp_neutral[box_ct] = TK * (1.0 + cT_ad * gdens);
+            if (optional_quantities_global->kinetic_temp_neutral) {
+                box->kinetic_temp_neutral[box_ct] = TK * (1.0 + cT_ad * gdens);
+            }
             box->xray_ionised_fraction[box_ct] = xe;
             // compute the spin temperature
             box->spin_temperature[box_ct] = get_Ts(z, gdens, TK, xe, 0, &curr_xalpha);
@@ -1481,18 +1483,16 @@ void ts_main(float redshift, float prev_redshift, float perturbed_field_redshift
     struct spintemp_from_sfr_prefactors zp_consts;
     set_zp_consts(redshift, &zp_consts);
 
-    x_e_ave_p = Tk_ave_p = 0.0;
+    x_e_ave_p = 0.0;
 #pragma omp parallel num_threads(simulation_options_global->N_THREADS)
     {
 #pragma omp for reduction(+ : x_e_ave_p, Tk_ave_p)
         for (box_ct = 0; box_ct < HII_TOT_NUM_PIXELS; box_ct++) {
             x_e_ave_p += previous_spin_temp->xray_ionised_fraction[box_ct];
-            Tk_ave_p += previous_spin_temp->kinetic_temp_neutral[box_ct];
         }
     }
     x_e_ave_p /= (float)HII_TOT_NUM_PIXELS;
-    Tk_ave_p /= (float)HII_TOT_NUM_PIXELS;  // not used?
-    LOG_DEBUG("Prev Box: x_e_ave %.3e | TK_ave %.3e", x_e_ave_p, Tk_ave_p);
+    LOG_DEBUG("Prev Box: x_e_ave %.3e", x_e_ave_p);
 
     int NO_LIGHT;
     double mean_sfr_zpp[astro_params_global->N_STEP_TS];
@@ -1825,12 +1825,16 @@ void ts_main(float redshift, float prev_redshift, float perturbed_field_redshift
                                       zp_consts.volunit_inv;
             }
             rad.prev_Ts = previous_spin_temp->spin_temperature[box_ct];
-            rad.prev_Tk = previous_spin_temp->kinetic_temp_neutral[box_ct];
+            if (optional_quantities_global->kinetic_temp_neutral) {
+                rad.prev_Tk = previous_spin_temp->kinetic_temp_neutral[box_ct];
+            }
             rad.prev_xe = previous_spin_temp->xray_ionised_fraction[box_ct];
 
             ts_cell = get_Ts_fast(redshift, dzp, &zp_consts, &rad);
             this_spin_temp->spin_temperature[box_ct] = ts_cell.Ts;
-            this_spin_temp->kinetic_temp_neutral[box_ct] = ts_cell.Tk;
+            if (optional_quantities_global->kinetic_temp_neutral) {
+                this_spin_temp->kinetic_temp_neutral[box_ct] = ts_cell.Tk;
+            }
             this_spin_temp->xray_ionised_fraction[box_ct] = ts_cell.x_e;
             if (astro_options_global->USE_MINI_HALOS) {
                 this_spin_temp->J_21_LW[box_ct] = ts_cell.J_21_LW;

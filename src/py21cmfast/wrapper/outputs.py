@@ -1370,11 +1370,11 @@ class IonizedBox(OutputStructZ):
 
     neutral_fraction = _arrayfield()
     ionisation_rate_G12 = _arrayfield()
-    mean_free_path = _arrayfield(optional=True)  # never used
+    mean_free_path = _arrayfield(optional=True)
     z_reion = _arrayfield()
     cumulative_recombinations = _arrayfield(optional=True)
-    kinetic_temperature = _arrayfield(optional=True)  # never used
-    unnormalised_nion = _arrayfield()  # not sure about this one
+    kinetic_temperature = _arrayfield(optional=True)
+    unnormalised_nion = _arrayfield()
     unnormalised_nion_mini = _arrayfield(optional=True)
     log10_Mturnover_ave: float = attrs.field(default=None)
     log10_Mturnover_MINI_ave: float = attrs.field(default=None)
