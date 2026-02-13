@@ -10,15 +10,12 @@ import py21cmfast as p21c
 def test_minimize_memory_on_global_evolution(source_model: str):
     """Test that switching minimize memory on/off doesn't change outputs.
 
-    We test this for a number of templates, to make make sure there aren't combinations
-    of flags for which it fails. Specifically:
-
-    * "latest-dhalos" -- in this the MINIMIZE_MEMORY flag should NOT have any effect
-      at all in SpinTemperatureBox.c, since the source model is discrete halos.
-    * "latest" -- in this the MINIMIZE_MEMORY flag should have a significant effect on
-      memory, but will not change the results, since the source model is on the Eulerian
-      grid
-    * "default" -- always good to test the default case!
+    We test this for two source models: one on the lagrangian grid (L-INTEGRAL) and one
+    on the Eulerian grid (E-INTEGRAL). The former should not be affected at all by the
+    MINIMIZE_MEMORY flag, while the latter should be significantly affected in terms of
+    memory usage, but not in terms of results. We test this by running the global
+    evolution for both cases and checking that the brightness temperature evolution is
+    unchanged.
     """
     inputs = p21c.InputParameters.from_template(
         ["park19", "tiny"],
