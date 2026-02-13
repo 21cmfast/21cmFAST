@@ -1483,14 +1483,12 @@ class IonizedBox(OutputStructZ):
             if (
                 self.matter_options.mass_dependent_zeta
                 and self.astro_options.USE_MINI_HALOS
+                and not self.matter_options.lagrangian_source_grid
             ):
                 required += [
                     "unnormalised_nion",
+                    "unnormalised_nion_mini",
                 ]
-                if self.matter_options.SOURCE_MODEL == "E-INTEGRAL":
-                    required += [
-                        "unnormalised_nion_mini",
-                    ]
         elif isinstance(input_box, HaloBox):
             required += ["n_ion"]
             if self.astro_options.INHOMO_RECO:
