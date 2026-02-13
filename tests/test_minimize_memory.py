@@ -33,3 +33,17 @@ def test_minimize_memory_on_global_evolution(source_model: str):
         global_evolution_minmem.quantities["brightness_temp"],
         atol=0.1,  # mK
     )
+
+
+def test_kinetic_temperature_validator():
+    """Test that kinetic_temperature validator raises error when kinetic_temp_neutral is False."""
+    with pytest.raises(
+        ValueError,
+        match="You cannot compute the kinetic temperature of the IGM if you are not",
+    ):
+        p21c.InputParameters.from_template(
+            ["park19", "tiny"],
+            random_seed=1234,
+            kinetic_temp_neutral=False,
+            kinetic_temperature=True,
+        )
