@@ -1433,7 +1433,6 @@ class IonizedBox(OutputStructZ):
             "mean_free_path": Array(shape, dtype=np.float32),
             "z_reion": Array(shape, dtype=np.float32),
             "kinetic_temperature": Array(shape, dtype=np.float32),
-            "unnormalised_nion": Array(filter_shape, dtype=np.float32),
         }
 
         if inputs.astro_options.INHOMO_RECO:
@@ -1444,6 +1443,9 @@ class IonizedBox(OutputStructZ):
             and not inputs.matter_options.lagrangian_source_grid
         ):
             out["unnormalised_nion_mini"] = Array(filter_shape, dtype=np.float32)
+
+        if not inputs.matter_options.lagrangian_source_grid:
+            out["unnormalised_nion"] = Array(filter_shape, dtype=np.float32)
 
         return cls(inputs=inputs, redshift=redshift, **out, **kw)
 
