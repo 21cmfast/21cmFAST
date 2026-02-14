@@ -347,12 +347,20 @@ def test_MS_filter(R_inner, n, R_star):
         assert not np.allclose(output_box_SL, output_box_MS, atol=1e-4)
 
 
-@pytest.mark.parametrize("alpha", [0.1, 0.5, 1, 5, 10])
-@pytest.mark.parametrize(
-    "beta", [0.1, 0.5, 1]
-)  # Note that the implementation fails for large beta values and small alpha values (never happens in the simulation)
-def test_hyper_2F3(alpha, beta):
+@pytest.mark.parametrize("x_em", [0.0, 0.1, 0.5, 1.0, 5.0, 10.0, 50.0, 100.0, 500.0])
+def test_hyper_2F3(x_em):
     """Test the implementation of the hypergeometric function in the C code."""
+    mu = lib.compute_mu_for_multiple_scattering(x_em)
+    eta = lib.compute_eta_for_multiple_scattering(x_em)
+
+    # Eq. (28) in arxiv: 2601.14360 (mu = alpha/(alpha+beta), eta = alpha/(alpha+beta^2))
+    if mu == 0.0 and eta == 0.0:
+        alpha = np.inf
+        beta = 0.0
+    else:
+        alpha = (1.0 / eta - 1.0) / pow(1.0 / mu - 1.0, 2)
+        beta = (1.0 / eta - 1.0) / (1.0 / mu - 1.0)
+
     kR_array = np.logspace(-1, 3, 100)
     hyper_python = np.array(
         [
@@ -367,4 +375,4 @@ def test_hyper_2F3(alpha, beta):
         ]
     )
     hyper_C = np.array([lib.hyper_2F3(kR, alpha, beta) for kR in kR_array])
-    np.testing.assert_allclose(hyper_python, hyper_C, rtol=0.0, atol=1e-2)
+    np.testing.assert_allclose(hyper_python, hyper_C, rtol=0.0, atol=2e-3)

@@ -123,57 +123,66 @@ struct multiple_scattering_params {
     double beta_inner;
 };
 
-void compute_alpha_and_beta_for_multiple_scattering(double R_SL, double R_star,
-                                                    struct multiple_scattering_params *consts) {
-    if (R_star == 0.) {
-        // R_star == 0. could happen after reionization since R_star is proportional to x_HI
-        consts->alpha_outer = 1.;
-        consts->beta_outer = 0.;
+double compute_mu_for_multiple_scattering(double x_em) {
+    double mu;
+    double zeta_em = log10(x_em);
+    // Eq. (29) in arxiv: 2601.14360
+    if (x_em > 30) {
+        mu = 1. - 1.0478 * pow(x_em, -0.7266);
+    } else if (x_em > 3.) {
+        mu = -0.104 * pow(zeta_em, 5) + 0.4867 * pow(zeta_em, 4) - 0.8217 * pow(zeta_em, 3) +
+             0.4889 * zeta_em * zeta_em + 0.264 * zeta_em + 0.518;
+    } else if (x_em > 0.2) {
+        mu = -0.0285 * pow(zeta_em, 5) + 0.087 * pow(zeta_em, 4) - 0.1205 * pow(zeta_em, 3) -
+             0.0456 * zeta_em * zeta_em + 0.3787 * zeta_em + 0.5285;
     } else {
-        double x_em = R_SL / R_star;  // Eq. (25) in arxiv: 2601.14360
-        double zeta_em = log10(x_em);
-        double mu, eta;
-        // Eq. (29) in arxiv: 2601.14360
-        if (x_em > 30) {
-            mu = 1. - 1.0478 * pow(x_em, -0.7266);
-        } else if (x_em > 3.) {
-            mu = -0.104 * pow(zeta_em, 5) + 0.4867 * pow(zeta_em, 4) - 0.8217 * pow(zeta_em, 3) +
-                 0.4889 * zeta_em * zeta_em + 0.264 * zeta_em + 0.518;
-        } else if (x_em > 0.2) {
-            mu = -0.0285 * pow(zeta_em, 5) + 0.087 * pow(zeta_em, 4) - 0.1205 * pow(zeta_em, 3) -
-                 0.0456 * zeta_em * zeta_em + 0.3787 * zeta_em + 0.5285;
-        } else {
-            mu = 0.3982 * pow(x_em, 0.1592);
-        }
-        // Eq. (30) in arxiv: 2601.14360
-        if (x_em > 20.) {
-            eta = 1. - 2.804 * pow(x_em, -1.242);
-        } else if (x_em > 3.) {
-            eta = 2.17 * pow(zeta_em, 5) - 8.832 * pow(zeta_em, 4) + 13.579 * pow(zeta_em, 3) -
-                  10.04 * zeta_em * zeta_em + 4.166 * zeta_em - 0.17;
-        } else if (x_em > 0.2) {
-            eta = 0.352 * pow(zeta_em, 5) - 0.0516 * pow(zeta_em, 4) - 0.293 * pow(zeta_em, 3) +
-                  0.342 * zeta_em * zeta_em + 0.582 * zeta_em + 0.266;
-        } else {
-            eta = 0.4453 * pow(x_em, 1.296);
-        }
-        // Eq. (28) in arxiv: 2601.14360 (mu = alpha/(alpha+beta), eta = alpha/(alpha+beta^2))
-        consts->alpha_outer = (1. / eta - 1.) / pow(1. / mu - 1., 2);
-        consts->beta_outer = (1. / eta - 1.) / (1. / mu - 1.);
+        mu = 0.3982 * pow(x_em, 0.1592);
     }
+    return mu;
+}
+
+double compute_eta_for_multiple_scattering(double x_em) {
+    double eta;
+    double zeta_em = log10(x_em);
+    // Eq. (30) in arxiv: 2601.14360
+    if (x_em > 20.) {
+        eta = 1. - 2.804 * pow(x_em, -1.242);
+    } else if (x_em > 3.) {
+        eta = 2.17 * pow(zeta_em, 5) - 8.832 * pow(zeta_em, 4) + 13.579 * pow(zeta_em, 3) -
+              10.04 * zeta_em * zeta_em + 4.166 * zeta_em - 0.17;
+    } else if (x_em > 0.2) {
+        eta = 0.352 * pow(zeta_em, 5) - 0.0516 * pow(zeta_em, 4) - 0.293 * pow(zeta_em, 3) +
+              0.342 * zeta_em * zeta_em + 0.582 * zeta_em + 0.266;
+    } else {
+        eta = 0.4453 * pow(x_em, 1.296);
+    }
+    return eta;
 }
 
 void initialize_alphas_and_betas_for_multiple_scattering(
     double R_inner, double R_outer, double R_star, struct multiple_scattering_params *consts) {
-    struct multiple_scattering_params consts_outer, consts_inner;
-    compute_alpha_and_beta_for_multiple_scattering(R_inner, R_star, &consts_inner);
-    compute_alpha_and_beta_for_multiple_scattering(R_outer, R_star, &consts_outer);
-    consts->alpha_outer = consts_outer.alpha_outer;
-    consts->beta_outer = consts_outer.beta_outer;
-    // Note that we use the "outer" alpha and beta here.
-    // This is because the above function only fills the values of the outer parameters.
-    consts->alpha_inner = consts_inner.alpha_outer;
-    consts->beta_inner = consts_inner.beta_outer;
+    if (R_star == 0.) {
+        // R_star == 0 could happen after reionization since R_star is proportional to x_HI
+        consts->alpha_inner = 1.;
+        consts->alpha_outer = 1.;
+        consts->beta_inner = 1.;
+        consts->beta_outer = 0.;
+    } else {
+        // Eq. (25) in arxiv: 2601.14360
+        double x_em_inner = R_inner / R_star;
+        double x_em_outer = R_outer / R_star;
+
+        double mu_inner = compute_mu_for_multiple_scattering(x_em_inner);
+        double eta_inner = compute_eta_for_multiple_scattering(x_em_inner);
+        double mu_outer = compute_mu_for_multiple_scattering(x_em_outer);
+        double eta_outer = compute_eta_for_multiple_scattering(x_em_outer);
+
+        // Eq. (28) in arxiv: 2601.14360 (mu = alpha/(alpha+beta), eta = alpha/(alpha+beta^2))
+        consts->alpha_inner = (1. / eta_inner - 1.) / pow(1. / mu_inner - 1., 2);
+        consts->beta_inner = (1. / eta_inner - 1.) / (1. / mu_inner - 1.);
+        consts->alpha_outer = (1. / eta_outer - 1.) / pow(1. / mu_outer - 1., 2);
+        consts->beta_outer = (1. / eta_outer - 1.) / (1. / mu_outer - 1.);
+    }
 }
 
 double asymptotic_2F3(double kR, double alpha, double beta) {

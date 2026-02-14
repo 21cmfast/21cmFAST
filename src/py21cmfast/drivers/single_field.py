@@ -502,12 +502,8 @@ def compute_xray_source_field(
 
     # Compute the comoving diffusion scale in the case of Lyman alpha multiple scattering
     if inputs.astro_options.LYA_MULTIPLE_SCATTERING:
-        # TODO: In principle, the diffusion scale varies locally as it depends on the ionization field at the cell and its surrounding.
-        # For simplicty, we consider the global ionization value, which is a good approximation before reionization begins.
-        # This approximation breaks when reionization begins, but under strong X-ray heating the value of the spin temperature (and
-        # Lyman alpha flux) becomes irrelevant. This should be examined in the future in the case of weak X-ray heating during the
-        # epoch of reionization (this would complicate things dramtically because a spatially varying filter implies
-        # that the box cannot be filtered in Fourier space via the convolution theorem!)
+        # TODO: In principle, the diffusion scale varies locally but for simplicty, we consider the global ionization value.
+        # See https://github.com/21cmfast/21cmFAST/issues/606.
         if previous_ionize_box is None:
             x_HI = 1.0
         else:
