@@ -104,20 +104,34 @@ __global__ void perturb_density_field_kernel(
         double vdf_xy = (double)velocity_scale * (double)DIM;
         double vdf_z = (double)velocity_scale_z * (double)d_para;
 
+        // Check if this is a sample cell for diagnostics (only thread 0 prints header)
+        bool is_sample_cell = ((i == 0 && j == 0 && k == 0) ||
+                               (i == 50 && j == 25 && k == 12));
+
+        // Save position before velocity displacement for diagnostics
+        double pos_before_x = pos_x;
+        double pos_before_y = pos_y;
+        double pos_before_z = pos_z;
+
         // Update locations
-        unsigned long long HII_index;
+        unsigned long long HII_index = 0;
+        int HII_i = 0, HII_j = 0, HII_k = 0;
+        float vel_x = 0, vel_y = 0, vel_z = 0;
 
         if (perturb_on_high_res) {
             // Apply velocity displacement in dens_dim units (matches CPU)
-            pos_x += (double)hires_vx[r_index] * vdf_xy;
-            pos_y += (double)hires_vy[r_index] * vdf_xy;
-            pos_z += (double)hires_vz[r_index] * vdf_z;
+            vel_x = hires_vx[r_index];
+            vel_y = hires_vy[r_index];
+            vel_z = hires_vz[r_index];
+            pos_x += (double)vel_x * vdf_xy;
+            pos_y += (double)vel_y * vdf_xy;
+            pos_z += (double)vel_z * vdf_z;
         }
         else {
             // Match CPU resample_index exactly: idx_out = (int)(idx_in * dim_ratio + 0.5)
-            int HII_i = (int)(i * dim_ratio_vel + 0.5);
-            int HII_j = (int)(j * dim_ratio_vel + 0.5);
-            int HII_k = (int)(k * dim_ratio_vel + 0.5);
+            HII_i = (int)(i * dim_ratio_vel + 0.5);
+            HII_j = (int)(j * dim_ratio_vel + 0.5);
+            HII_k = (int)(k * dim_ratio_vel + 0.5);
             // Match CPU wrap_coord: wrap into [0, hii_d)
             while (HII_i >= hii_d) HII_i -= hii_d;
             while (HII_i < 0) HII_i += hii_d;
@@ -127,10 +141,18 @@ __global__ void perturb_density_field_kernel(
             while (HII_k < 0) HII_k += hii_d_para;
             HII_index = compute_HII_R_INDEX(HII_i, HII_j, HII_k, hii_d, hii_d_para);
             // Apply velocity displacement in dens_dim units (matches CPU)
-            pos_x += (double)lowres_vx[HII_index] * vdf_xy;
-            pos_y += (double)lowres_vy[HII_index] * vdf_xy;
-            pos_z += (double)lowres_vz[HII_index] * vdf_z;
+            vel_x = lowres_vx[HII_index];
+            vel_y = lowres_vy[HII_index];
+            vel_z = lowres_vz[HII_index];
+            pos_x += (double)vel_x * vdf_xy;
+            pos_y += (double)vel_y * vdf_xy;
+            pos_z += (double)vel_z * vdf_z;
         }
+
+        // Save position after velocity displacement for diagnostics
+        double pos_after_vel_x = pos_x;
+        double pos_after_vel_y = pos_y;
+        double pos_after_vel_z = pos_z;
 
         // 2LPT (add second order corrections) - NOTE: currently disabled
         if (use_2lpt) {
@@ -176,6 +198,10 @@ __global__ void perturb_density_field_kernel(
         double d_y = pos_y - (double)yi;
         double d_z = pos_z - (double)zi;
 
+        // Save pre-wrap indices for diagnostics
+        int xi_prewrap = xi, yi_prewrap = yi, zi_prewrap = zi;
+        int xp1_prewrap = xp1, yp1_prewrap = yp1, zp1_prewrap = zp1;
+
         // Wrap base indices into [0, out_dim) (matches CPU wrap_coord)
         while (xi >= out_dim_xy) xi -= out_dim_xy;
         while (xi < 0) xi += out_dim_xy;
@@ -199,6 +225,22 @@ __global__ void perturb_density_field_kernel(
 
         // double scaled_density = 1 + init_growth_factor * __ldg(&hires_density[r_index]);
         double scaled_density = 1.0 + init_growth_factor * hires_density[r_index];
+
+        // Diagnostic output for sample cells (only from one thread to avoid garbled output)
+        if (is_sample_cell) {
+            printf("[DIAG] GPU cell=(%d,%d,%d) vel_idx=(%d,%d,%d) vel=(%.9f,%.9f,%.9f)\n",
+                   i, j, k, HII_i, HII_j, HII_k,
+                   (double)vel_x, (double)vel_y, (double)vel_z);
+            printf("[DIAG] GPU cell=(%d,%d,%d) pos_before=(%.9f,%.9f,%.9f) pos_after_vel=(%.9f,%.9f,%.9f)\n",
+                   i, j, k, pos_before_x, pos_before_y, pos_before_z,
+                   pos_after_vel_x, pos_after_vel_y, pos_after_vel_z);
+            printf("[DIAG] GPU cell=(%d,%d,%d) pos_final=(%.9f,%.9f,%.9f) curr_dens=%.9f\n",
+                   i, j, k, pos_x, pos_y, pos_z, scaled_density);
+            printf("[DIAG] GPU cell=(%d,%d,%d) cic_ipos=(%d,%d,%d) cic_iposp1=(%d,%d,%d)\n",
+                   i, j, k, xi, yi, zi, xp1, yp1, zp1);
+            printf("[DIAG] GPU cell=(%d,%d,%d) cic_dist=(%.9f,%.9f,%.9f) t=(%.9f,%.9f,%.9f)\n",
+                   i, j, k, d_x, d_y, d_z, t_x, t_y, t_z);
+        }
 
         if (perturb_on_high_res) {
             // Redistribute the mass over the 8 neighbouring cells according to cloud in cell
@@ -323,6 +365,18 @@ extern "C" double* MapMass_gpu(
     long long hii_d = HII_D;
     long long hii_d_para = HII_D_PARA;
 
+    // Print diagnostic header (matches CPU format)
+    {
+        double dim_ratio_vel_diag = 1.0 / f_pixel_factor;
+        double dim_ratio_out_diag = (double)dimension / (double)simulation_options_global->DIM;
+        double vdf_x = velocity_scale * simulation_options_global->DIM;
+        double vdf_y = velocity_scale * simulation_options_global->DIM;
+        double vdf_z = velocity_scale_z * d_para;
+        fprintf(stderr, "[DIAG] GPU MapMass params: dim_ratio_vel=%.9f dim_ratio_out=%.9f init_growth=%.9f vdf=[%.9f,%.9f,%.9f]\n",
+                dim_ratio_vel_diag, dim_ratio_out_diag, init_growth_factor, vdf_x, vdf_y, vdf_z);
+        fflush(stderr);
+    }
+
     // Invoke kernel
     int threadsPerBlock = 256;
     int numBlocks = (TOT_NUM_PIXELS + threadsPerBlock - 1) / threadsPerBlock;
@@ -333,9 +387,12 @@ extern "C" double* MapMass_gpu(
         f_pixel_factor, init_growth_factor, velocity_scale, velocity_scale_z,
         matter_options_global->PERTURB_ON_HIGH_RES, false /* USE_2LPT obsolete */);
 
-    // // Only use during development!
-    // err = cudaDeviceSynchronize();
-    // CATCH_CUDA_ERROR(err);
+    // Synchronize to flush printf from kernel (needed for diagnostics)
+    err = cudaDeviceSynchronize();
+    if (err != cudaSuccess) {
+        LOG_ERROR("CUDA sync error: %s", cudaGetErrorString(err));
+        Throw(CUDAError);
+    }
 
     err = cudaGetLastError();
     if (err != cudaSuccess) {
