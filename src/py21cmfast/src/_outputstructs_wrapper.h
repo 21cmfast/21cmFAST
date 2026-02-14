@@ -68,6 +68,8 @@ typedef struct XraySourceBox {
     float *filtered_sfr;
     float *filtered_xray;
     float *filtered_sfr_mini;
+    float *filtered_sfr_lw;
+    float *filtered_sfr_mini_lw;
 
     double *mean_log10_Mcrit_LW;
     double *mean_sfr;
@@ -78,7 +80,15 @@ typedef struct TsBox {
     float *spin_temperature;
     float *xray_ionised_fraction;
     float *kinetic_temp_neutral;
+    float *J_alpha_star;
+    float *J_alpha_X;
     float *J_21_LW;
+    float *dadia_dzp;
+    float *dcomp_dzp;
+    float *dxheat_dzp;
+    float *dCMBheat_dzp;
+    float *dLya_cont_dzp;
+    float *dLya_inj_dzp;
     double Q_HI;
 } TsBox;
 
