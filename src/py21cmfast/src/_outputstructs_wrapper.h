@@ -89,6 +89,7 @@ typedef struct TsBox {
     float *dCMBheat_dzp;
     float *dLya_cont_dzp;
     float *dLya_inj_dzp;
+    double Q_HI;
 } TsBox;
 
 typedef struct IonizedBox {

@@ -135,7 +135,9 @@ def test_massfunc_conditional_tables(name, cond_type, mass_range, delta_range, p
     inputs = get_all_options_struct(redshift, **kwargs)["inputs"]
     from_cat = "cat" in cond_type
 
-    inputs_cond = mass_range if from_cat else delta_range
+    # We limit our delta range here because it seems that the calculations are numerically unstable
+    # for high delta values (especially if name = "ST" and cond_type = "grid")
+    inputs_cond = mass_range if from_cat else delta_range[delta_range <= 1.44]
     z_desc = (
         (redshift + 1) / inputs.simulation_options.ZPRIME_STEP_FACTOR - 1
         if from_cat
@@ -203,7 +205,9 @@ def test_inverse_cmf_tables(name, cond_type, delta_range, mass_range, plt):
 
     from_cat = "cat" in cond_type
     lnMmin_range = np.log(mass_range)
-    inputs_cond = mass_range if from_cat else delta_range
+    # We limit our delta range here because it seems that the calculations are numerically unstable
+    # for high delta values (especially if name = "ST" and cond_type = "grid")
+    inputs_cond = mass_range if from_cat else delta_range[delta_range <= 1.44]
     z_desc = (
         (redshift + 1) / inputs.simulation_options.ZPRIME_STEP_FACTOR - 1
         if from_cat

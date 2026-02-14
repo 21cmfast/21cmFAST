@@ -13,6 +13,7 @@ from astropy import constants
 from astropy import units as un
 from astropy.cosmology import z_at_value
 
+from ..wrapper.arrays import Array
 from ..wrapper.inputs import InputParameters
 from ..wrapper.outputs import (
     BrightnessTemp,
@@ -55,7 +56,24 @@ def compute_initial_conditions(*, inputs: InputParameters) -> InitialConditions:
     """
     # Initialize memory for the boxes that will be returned.
     ics = InitialConditions.new(inputs=inputs)
-    return ics.compute()
+
+    if inputs.simulation_options.HII_DIM == 1 and inputs.simulation_options.DIM == 1:
+        # If we have only one cell (could happen if we do a global evolution), we don't really need to compute the ics
+        shape = (1, 1, 1)
+        required_arrays = PerturbedField.new(
+            redshift=0, inputs=inputs
+        ).get_required_input_arrays(ics)
+        for array in required_arrays:
+            setattr(
+                ics,
+                array,
+                Array(shape=shape, dtype=np.float32)
+                .initialize()
+                .with_value(val=np.zeros(shape)),
+            )
+        return ics
+    else:
+        return ics.compute()
 
 
 @single_field_func
@@ -352,10 +370,12 @@ def interp_halo_boxes(
     if redshift > z_halos[-1] or redshift < z_halos[0]:
         raise ValueError(f"Invalid z_target {redshift} for redshift array {z_halos}")
 
-    arr_fields = [f for f in fields if f in halo_boxes[0].arrays]
-    computed = [box.ensure_arrays_computed(*arr_fields) for box in halo_boxes]
-    if not all(computed):
-        raise ValueError("Some of the HaloBox fields required are not computed")
+    # If we do global evolution, no need to do that
+    if inputs.simulation_options.HII_DIM > 1:
+        arr_fields = [f for f in fields if f in halo_boxes[0].arrays]
+        computed = [box.ensure_arrays_computed(*arr_fields) for box in halo_boxes]
+        if not all(computed):
+            raise ValueError("Some of the HaloBox fields required are not computed")
 
     idx_prog = np.searchsorted(z_halos, redshift, side="left")
 
@@ -369,11 +389,19 @@ def interp_halo_boxes(
     z_desc = z_halos[idx_desc]
     interp_param = (redshift - z_desc) / (z_prog - z_desc)
 
-    # I set the box redshift to be the stored one so it is read properly into the ionize box
-    # for the xray source it doesn't matter, also since it is not _compute()'d, it won't be cached
-    check_output_consistency(
-        dict(zip([f"box-{i}" for i in range(len(halo_boxes))], halo_boxes, strict=True))
-    )
+    # If we do global evolution, no need to do that
+    if inputs.simulation_options.HII_DIM > 1:
+        # I set the box redshift to be the stored one so it is read properly into the ionize box
+        # for the xray source it doesn't matter, also since it is not _compute()'d, it won't be cached
+        check_output_consistency(
+            dict(
+                zip(
+                    [f"box-{i}" for i in range(len(halo_boxes))],
+                    halo_boxes,
+                    strict=True,
+                )
+            )
+        )
     hbox_out = HaloBox.new(redshift=redshift, inputs=inputs)
 
     # initialise the memory
@@ -387,9 +415,7 @@ def interp_halo_boxes(
         field_desc = hbox_desc.get(field)
         field_prog = hbox_prog.get(field)
         interp_field = np.zeros_like(field_desc)
-        interp_field[...] = (1 - interp_param) * hbox_desc.get(
-            field
-        ) + interp_param * field_prog
+        interp_field[...] = (1 - interp_param) * field_desc + interp_param * field_prog
         hbox_out.set(field, interp_field)
 
     return hbox_out
@@ -443,9 +469,16 @@ def compute_xray_source_field(
 
     # set minimum R at cell size
     l_factor = (4 * np.pi / 3.0) ** (-1 / 3)
-    R_min = (
-        inputs.simulation_options.BOX_LEN / inputs.simulation_options.HII_DIM * l_factor
-    )
+    if inputs.simulation_options.HII_DIM == 1:
+        # If HII_DIM=1 (happens when we run_global_evolution), we take a typical cell size of 1.5Mpc,
+        # just to for setting the z'' array (note that filtering won't be done on a box with a single cell)
+        R_min = 1.5 * l_factor
+    else:
+        R_min = (
+            inputs.simulation_options.BOX_LEN
+            / inputs.simulation_options.HII_DIM
+            * l_factor
+        )
     z_max = min(max(z_halos), inputs.simulation_options.Z_HEAT_MAX)
 
     # now we need to find the closest halo box to the redshift of the shell
@@ -457,11 +490,12 @@ def compute_xray_source_field(
     )
     R_range = un.Mpc * R_min * R_factor
     cmd_edges = cmd_zp + R_range  # comoving distance edges
-    # NOTE(jdavies) added the 'bounded' method since it seems there are some compatibility issues with astropy and scipy
-    # where astropy gives default bounds to a function with default unbounded minimization
-    zpp_edges = [
-        z_at_value(cosmo_ap.comoving_distance, d, method="bounded") for d in cmd_edges
-    ]
+    # Get the edges of the shells
+    zmin = z_at_value(cosmo_ap.comoving_distance, cmd_edges.min()).value
+    zmax = z_at_value(cosmo_ap.comoving_distance, cmd_edges.max()).value
+    zgrid = np.logspace(np.log10(zmin), np.log10(zmax), 100)
+    dgrid = cosmo_ap.comoving_distance(zgrid)
+    zpp_edges = np.interp(cmd_edges.value, dgrid.value, zgrid)
     # the `average` redshift of the shell is the average of the
     # inner and outer redshifts (following the C code)
     zpp_avg = zpp_edges - np.diff(np.insert(zpp_edges, 0, redshift)) / 2
@@ -713,31 +747,47 @@ def compute_ionization_field(
         if previous_perturbed_field is None:
             previous_perturbed_field = PerturbedField.initial(inputs=inputs)
 
-    box = IonizedBox.new(inputs=inputs, redshift=redshift)
+    if inputs.simulation_options.HII_DIM > 1:
+        box = IonizedBox.new(inputs=inputs, redshift=redshift)
 
-    if not inputs.matter_options.lagrangian_source_grid:
-        # Construct an empty halo field to pass in to the function.
-        halobox = HaloBox.dummy()
-    elif halobox is None:
-        raise ValueError(
-            f"A HaloBox must be provided for SOURCE_MODEL={inputs.matter_options.SOURCE_MODEL}"
+        if not inputs.matter_options.lagrangian_source_grid:
+            # Construct an empty halo field to pass in to the function.
+            halobox = HaloBox.dummy()
+        elif halobox is None:
+            raise ValueError(
+                f"A HaloBox must be provided for SOURCE_MODEL={inputs.matter_options.SOURCE_MODEL}"
+            )
+
+        # Set empty spin temp box if necessary.
+        if not inputs.astro_options.USE_TS_FLUCT:
+            spin_temp = TsBox.dummy()
+        elif spin_temp is None:
+            raise ValueError("No spin temperature box given but USE_TS_FLUCT=True")
+
+        # Run the C Code
+        return box.compute(
+            perturbed_field=perturbed_field,
+            prev_perturbed_field=previous_perturbed_field,
+            prev_ionize_box=previous_ionized_box,
+            spin_temp=spin_temp,
+            halobox=halobox,
+            ics=initial_conditions,
+        )
+    else:
+        # If we have only one cell (could happen if we do a global evolution), we set the neutral fraction
+        # according to the global evolution
+
+        from .global_evolution import (
+            compute_global_reionization_at_z,  # This is imported here to prevent circular import
         )
 
-    # Set empty spin temp box if necessary.
-    if not inputs.astro_options.USE_TS_FLUCT:
-        spin_temp = TsBox.dummy()
-    elif spin_temp is None:
-        raise ValueError("No spin temperature box given but USE_TS_FLUCT=True")
-
-    # Run the C Code
-    return box.compute(
-        perturbed_field=perturbed_field,
-        prev_perturbed_field=previous_perturbed_field,
-        prev_ionize_box=previous_ionized_box,
-        spin_temp=spin_temp,
-        halobox=halobox,
-        ics=initial_conditions,
-    )
+        box = compute_global_reionization_at_z(
+            redshift=redshift,
+            inputs=inputs,
+            previous_ionized_box=previous_ionized_box,
+            spin_temp=spin_temp,
+        )
+        return box
 
 
 @single_field_func

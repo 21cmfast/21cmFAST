@@ -629,11 +629,14 @@ def generate_coeval(
     lib.Free_cosmo_tables_global()
 
 
-def run_coeval(**kwargs) -> list[Coeval]:  # noqa: D103
+def run_coeval(**kwargs) -> list[Coeval]:
+    """Run a coeval simulation and return the resulting coeval boxes.
+
+    This simply wraps :func:`generate_coeval` and returns a list of coeval objects
+    at the requested output redshifts after the generator has been exhausted. All
+    parameters are passed directly to :func:`generate_coeval`.
+    """
     return [coeval for coeval, in_outputs in generate_coeval(**kwargs) if in_outputs]
-
-
-run_coeval.__doc__ = generate_coeval.__doc__
 
 
 def _obtain_starting_point_for_scrolling(
@@ -737,7 +740,6 @@ def _redshift_loop_generator(
                 if inputs.matter_options.has_discrete_halos:
                     this_halofield = halofield_list[iz]
                     this_halofield.load_all()
-
                 this_halobox = sf.compute_halo_grid(
                     inputs=inputs,
                     halo_catalog=this_halofield,
@@ -808,7 +810,10 @@ def _redshift_loop_generator(
 
             # We purge previous fields and those we no longer need
             if prev_coeval is not None:
-                prev_coeval.perturbed_field.purge()
+                if (
+                    inputs.simulation_options.HII_DIM > 1
+                ):  # No need to purge if we have just one cell
+                    prev_coeval.perturbed_field.purge()
                 if (
                     inputs.matter_options.lagrangian_source_grid
                     and write.halobox

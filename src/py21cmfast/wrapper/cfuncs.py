@@ -50,10 +50,17 @@ def broadcast_params(func: Callable) -> Callable:
 
     def wrapper(*args, inputs: InputParameters, **kwargs):
         broadcast_input_struct(inputs)
-        out = func(*args, inputs=inputs, **kwargs)
-        if kwargs.get("free_cosmo_tables", True):
+        try:
+            out = func(*args, inputs=inputs, **kwargs)
+        except:
+            # Always free on error, regardless of the flag
             free_cosmo_tables()
-        return out
+            raise  # Re-raise the original exception
+        else:
+            # Only free on success if the flag allows it
+            if kwargs.get("free_cosmo_tables", True):
+                free_cosmo_tables()
+            return out
 
     return wrapper
 
@@ -436,8 +443,23 @@ def get_matter_power_values(
     inputs: InputParameters,
     k_values: Sequence[float],
 ):
-    """Evaluate the power at a certain scale from the 21cmFAST backend."""
+    """Evaluate the matter density power spectrum (at z=0) at a certain scale from the 21cmFAST backend."""
     return np.vectorize(lib.power_in_k)(k_values)
+
+
+@init_backend_ps
+def get_vcb_power_values(
+    *,
+    inputs: InputParameters,
+    k_values: Sequence[float],
+):
+    """Evaluate the vcb power spectrum (at kinematic decoupling) at a certain scale from the 21cmFAST backend."""
+    if inputs.matter_options.USE_RELATIVE_VELOCITIES:
+        return np.vectorize(lib.power_in_vcb)(k_values)
+    else:
+        raise ValueError(
+            "inputs.matter_options.USE_RELATIVE_VELOCITIES must be True in order to compute the v_cb power spectrum."
+        )
 
 
 @broadcast_params

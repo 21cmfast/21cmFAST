@@ -1254,6 +1254,7 @@ class TsBox(OutputStructZ):
     dCMBheat_dzp = _arrayfield(optional=True)
     dLya_cont_dzp = _arrayfield(optional=True)
     dLya_inj_dzp = _arrayfield(optional=True)
+    Q_HI: float = attrs.field(default=1.0)
 
     @classmethod
     def new(cls, inputs: InputParameters, redshift: float, **kw) -> Self:
@@ -1392,11 +1393,11 @@ class IonizedBox(OutputStructZ):
 
     neutral_fraction = _arrayfield()
     ionisation_rate_G12 = _arrayfield()
-    mean_free_path = _arrayfield()
+    mean_free_path = _arrayfield()  # never used
     z_reion = _arrayfield()
     cumulative_recombinations = _arrayfield(optional=True)
-    kinetic_temperature = _arrayfield()
-    unnormalised_nion = _arrayfield()
+    kinetic_temperature = _arrayfield()  # never used
+    unnormalised_nion = _arrayfield()  # not sure about this one
     unnormalised_nion_mini = _arrayfield(optional=True)
     log10_Mturnover_ave: float = attrs.field(default=None)
     log10_Mturnover_MINI_ave: float = attrs.field(default=None)
@@ -1422,6 +1423,7 @@ class IonizedBox(OutputStructZ):
         if (
             inputs.astro_options.USE_MINI_HALOS
             and not inputs.matter_options.lagrangian_source_grid
+            and inputs.simulation_options.HII_DIM > 1
         ):
             n_filtering = (
                 int(

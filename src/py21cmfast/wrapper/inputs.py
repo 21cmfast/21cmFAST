@@ -23,7 +23,7 @@ import numpy as np
 from astropy import constants
 from astropy import units as un
 from astropy.cosmology import FLRW, Planck15
-from attrs import asdict, define, evolve, validators
+from attrs import asdict, evolve, validators
 from attrs import field as _field
 from cyclopts import Parameter
 
@@ -110,7 +110,7 @@ Planck18 = Planck15.clone(
 )
 
 
-@define(frozen=True, kw_only=True)
+@attrs.define(frozen=True, kw_only=True)
 class InputStruct:
     """
     A convenient interface to create a C structure with defaults specified.
@@ -300,7 +300,7 @@ class InputStruct:
         return cls.new(dct)
 
 
-@define(frozen=True, kw_only=True)
+@attrs.define(frozen=True, kw_only=True)
 class Table1D:
     """Class for setting 1D interpolation table."""
 
@@ -326,12 +326,14 @@ class Table1D:
         return ctab
 
 
-@define(frozen=True, kw_only=True)
+@attrs.define(frozen=True, kw_only=True)
 class CosmoTables:
     """Class for storing interpolation tables of cosmological functions (e.g. transfer functions, growth factor)."""
 
     transfer_density: Table1D = field(default=None)
     transfer_vcb: Table1D = field(default=None)
+    ps_norm: float = field(default=None)
+    USE_SIGMA_8: bool = field(default=None)
 
     @classmethod
     def new(cls, x: dict | Self | None = None, **kwargs):
@@ -374,6 +376,8 @@ class CosmoTables:
             val = getattr(self, k)
             if isinstance(val, Table1D):
                 setattr(self.struct.cstruct, k, val.cstruct)
+            elif isinstance(val, (float | bool)):
+                setattr(self.struct.cstruct, k, val)
 
         return self.struct.cstruct
 
@@ -382,7 +386,7 @@ class CosmoTables:
         return evolve(self, **kwargs)
 
 
-@define(frozen=True, kw_only=True)
+@attrs.define(frozen=True, kw_only=True)
 class CosmoParams(InputStruct):
     """
     Cosmological parameters (with defaults) which translates to a C struct.
@@ -455,7 +459,7 @@ class CosmoParams(InputStruct):
         if self._A_s is not None and val is not None:
             raise ValueError(
                 "Cannot set both SIGMA_8 and A_s! "
-                "If this error arose when lading from template/file or evolving an "
+                "If this error arose when loading from template/file or evolving an "
                 "existing object, then explicitly set either SIGMA_8 or A_s "
                 "to None while setting the other to the desired value."
             )
@@ -476,6 +480,8 @@ class CosmoParams(InputStruct):
                 Omega_b=self.OMb,
                 A_s=self._A_s,
                 n_s=self.POWER_INDEX,
+                output="mPk",
+                level="fourier",
             )
             return classy_output.sigma8()
         else:
@@ -497,6 +503,8 @@ class CosmoParams(InputStruct):
                 Omega_b=self.OMb,
                 sigma8=self.SIGMA_8,
                 n_s=self.POWER_INDEX,
+                output="mTk",
+                level="thermodynamics",
             )
             return classy_output.get_current_derived_parameters(["A_s"])["A_s"]
         else:
@@ -545,7 +553,7 @@ class CosmoParams(InputStruct):
         return d
 
 
-@define(frozen=True, kw_only=True)
+@attrs.define(frozen=True, kw_only=True)
 class MatterOptions(InputStruct):
     """
     Structure containing options which affect the matter field (ICs, perturbedfield, halos).
@@ -623,6 +631,8 @@ class MatterOptions(InputStruct):
             defined on the Eulerian grid after 2LPT in regions of filter scale R (see the X_FILTER options for filter shapes).
             This integrates over the CHMF using the smoothed density grids, then multiplies the result.
             by (1 + delta) to get the source properties in each cell.
+        CONST-ION-EFF: Similar to E-INTEGRAL, but ionizing efficiency is constant and does not depend on the halo mass
+            (see Mesinger+ 2010).
         L-INTEGRAL : Analagous to the 'ESF-L' model described in Trac+22, where source properties
             are defined on the Lagrangian (IC) grid by integrating the CHMF prior to the IGM physics
             and then mapping properties to the Eulerian grid using 2LPT.
@@ -721,7 +731,7 @@ class MatterOptions(InputStruct):
         ]
 
 
-@define(frozen=True, kw_only=True)
+@attrs.define(frozen=True, kw_only=True)
 class SimulationOptions(InputStruct):
     """
     Structure containing broad simulation options.
@@ -816,6 +826,11 @@ class SimulationOptions(InputStruct):
         Self-correlation length used for updating xray luminosity, see "CORR_STAR" for details.
     K_MAX_FOR_CLASS: float, optional
         Maximum wavenumber to run CLASS, in 1/Mpc. Becomes relevant only if matter_options.POWER_SPECTRUM = "CLASS".
+    MIN_XE_FOR_FCOLL_IN_TAUX: float, optional
+        Minimum global x_e value for which the collapsed fraction (f_coll) is evaluated in the tau_X integral (X-ray optical depth).
+        When x_e is above this threshold value, it is assumed that f_coll=0, in order to speed up the calculations.
+        For now, this parameter becomes relevant only when run_global_evolution is called, as it controls the runtime of this
+        function (higher values reduce the runtime, in expense of degraded precision).
     """
 
     _DEFAULT_HIRES_TO_LOWRES_FACTOR: ClassVar[float] = 3
@@ -862,6 +877,7 @@ class SimulationOptions(InputStruct):
     PARKINSON_y2: float = field(default=0.0, converter=float)
     Z_HEAT_MAX: float = field(default=35.0, converter=float)
     ZPRIME_STEP_FACTOR: float = field(default=1.02, converter=float)
+    MIN_XE_FOR_FCOLL_IN_TAUX: float = field(default=1e-3, converter=float)
 
     INITIAL_REDSHIFT: float = field(default=300.0, converter=float)
     DELTA_R_FACTOR: float = field(
@@ -920,7 +936,7 @@ class SimulationOptions(InputStruct):
         if self._DIM is not None and val is not None:
             raise ValueError(
                 "Cannot set both DIM and HIRES_TO_LOWRES_FACTOR! "
-                "If this error arose when lading from template/file or evolving an "
+                "If this error arose when loading from template/file or evolving an "
                 "existing object, then explicitly set either DIM or HIRES_TO_LOWRES_FACTOR "
                 "to None while setting the other to the desired value."
             )
@@ -930,7 +946,7 @@ class SimulationOptions(InputStruct):
         if self._BOX_LEN is not None and val is not None:
             raise ValueError(
                 "Cannot set both BOX_LEN and LOWRES_CELL_SIZE_MPC! "
-                "If this error arose when lading from template/file or evolving an "
+                "If this error arose when loading from template/file or evolving an "
                 "existing object, then explicitly set either BOX_LEN or "
                 "LOWRES_CELL_SIZE_MPC to None while setting the other to the desired "
                 "value."
@@ -986,7 +1002,7 @@ class SimulationOptions(InputStruct):
         return (self.BOX_LEN / self.DIM) * un.Mpc
 
 
-@define(frozen=True, kw_only=True)
+@attrs.define(frozen=True, kw_only=True)
 class AstroOptions(InputStruct):
     """
     Options for the ionization routines which enable/disable certain modules.
@@ -1131,7 +1147,7 @@ class AstroOptions(InputStruct):
             raise ValueError("USE_EXP_FILTER is True but CELL_RECOMB is False")
 
 
-@define(frozen=True, kw_only=True)
+@attrs.define(frozen=True, kw_only=True)
 class AstroParams(InputStruct):
     """
     Astrophysical parameters.
@@ -1453,7 +1469,7 @@ def _node_redshifts_converter(value) -> tuple[float] | None:
     return (float(value),)
 
 
-@define(kw_only=True, frozen=True)
+@attrs.define(kw_only=True, frozen=True)
 class InputParameters:
     """A class defining a collection of InputStruct instances.
 
@@ -1568,6 +1584,9 @@ class InputParameters:
             transfer_density = np.concatenate(([0.0], transfer_density))
             transfer_vcb = np.concatenate(([0.0], transfer_vcb))
 
+            # we use A_s to normalize the power spectrum only if it was provided
+            USE_SIGMA_8 = self.cosmo_params._A_s is None
+
             cosmo_tables = CosmoTables(
                 transfer_density=Table1D(
                     size=k_transfer_with_0.size,
@@ -1579,9 +1598,16 @@ class InputParameters:
                     x_values=k_transfer_with_0,
                     y_values=transfer_vcb,
                 ),
+                ps_norm=self.cosmo_params.SIGMA_8
+                if USE_SIGMA_8
+                else self.cosmo_params.A_s,
+                USE_SIGMA_8=USE_SIGMA_8,
             )
         else:
-            cosmo_tables = CosmoTables()
+            # we ALWAYS use sigma8 to normalize the power spectrum if we don't use CLASS
+            cosmo_tables = CosmoTables(
+                ps_norm=self.cosmo_params.SIGMA_8, USE_SIGMA_8=True
+            )
         return cosmo_tables
 
     @astro_options.validator
@@ -1698,6 +1724,20 @@ class InputParameters:
                 stacklevel=2,
             )
 
+        if (
+            self.matter_options.POWER_SPECTRUM != "CLASS"
+            and self.cosmo_params._A_s is not None
+        ):
+            warnings.warn(
+                f"You have chosen to work with POWER_SPECTRUM={self.matter_options.POWER_SPECTRUM}, "
+                "but at the same time you work with A_s (rather than SIGMA_8). "
+                "While this is allowed, it is important to realize that it is impossible "
+                "to normalize correctly the power spectrum with A_s while using the "
+                f"{self.matter_options.POWER_SPECTRUM} transfer function. "
+                "CLASS will convert your A_s to SIGMA_8.",
+                stacklevel=2,
+            )
+
     def __getitem__(self, key):
         """Get an item from the instance in a dict-like manner."""
         # Also allow using **input_parameters
@@ -1756,12 +1796,14 @@ class InputParameters:
                     != inputs_clone.simulation_options.K_MAX_FOR_CLASS
                 )
             ):
+                # we need to run CLASS again and update cosmo_tables
                 struct_args["cosmo_tables"] = inputs_clone._cosmo_tables_default()
                 inputs_clone = self.clone(**struct_args)
-        elif self.matter_options.POWER_SPECTRUM == "CLASS":
-            struct_args["cosmo_tables"] = (
-                CosmoTables()
-            )  # No need to have the tables from the original inputs
+        else:
+            # No need to have the tables from the original inputs, but we do need to change ps_norm and USE_SIGMA_8
+            struct_args["cosmo_tables"] = CosmoTables(
+                ps_norm=inputs_clone.cosmo_params.SIGMA_8, USE_SIGMA_8=True
+            )
             inputs_clone = self.clone(**struct_args)
 
         return inputs_clone

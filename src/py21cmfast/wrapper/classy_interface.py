@@ -79,6 +79,9 @@ def run_classy(**kwargs) -> Class:
     if ("m_ncdm" in kwargs) and ("N_ncdm" in kwargs) and kwargs["N_ncdm"] == 0:
         raise KeyError("You specified m_ncdm, but set N_ncdm=0.")
 
+    # Set level to highest order, unless it is specified in kwargs
+    level = kwargs.pop("level", "distortions")
+
     for k in kwargs:
         # "P_k_max_1/Mpc" cannot serve as a kwarg, but this is the input that CLASS expects to receive,
         # so we control this input with "P_k_max" instead
@@ -101,14 +104,10 @@ def run_classy(**kwargs) -> Class:
         params.pop("lensing")
         params.pop("l_max_scalars")
 
-    # Set level to highest order, unless it is specified in kwargs
-    if "level" not in kwargs:
-        kwargs["level"] = ["distortions"]
-
     # Run CLASS!
     output = Class()
     output.set(params)
-    output.compute(level=kwargs["level"])
+    output.compute(level=level)
 
     return output
 
@@ -125,12 +124,12 @@ def get_transfer_function(
     kind: str, optioanl
         The type of field for which the rms shall be computed.
         Options are:
-            - "d_b", "d_cdm", "d_m": density field of baryons, cold dark matter, or all
-              matter (including massive neutrinos).
-            - "v_b", "v_cdm": magnitude of the velocity vector field of baryons or CDM
-              (this is gauge dependent).
-            - "v_cb": magnitude of the relative velocity vector field between baryons
-              and CDM (this is gauge independent).
+        * "d_b", "d_cdm", "d_m": density field of baryons, cold dark matter, or all
+        matter (including massive neutrinos).
+        * "v_b", "v_cdm": magnitude of the velocity vector field of baryons or CDM
+        (this is gauge dependent).
+        * "v_cb": magnitude of the relative velocity vector field between baryons
+        and CDM (this is gauge independent).
         Default is "d_m".
     z: float, optional
         The redshift at which the transfer function shall be computed. Default is 0.
@@ -244,12 +243,13 @@ def compute_rms(
     kind: str, optioanl
         The type of field for which the rms shall be computed.
         Options are:
-            - "d_b", "d_cdm", "d_m": density field of baryons, cold dark matter, or all
-              matter (including massive neutrinos).
-            - "v_b", "v_cdm": magnitude of the velocity vector field of baryons or CDM
-              (this is gauge dependent).
-            - "v_cb": magnitude of the relative velocity vector field between baryons
-              and CDM (this is gauge independent).
+
+        * "d_b", "d_cdm", "d_m": density field of baryons, cold dark matter, or all
+          matter (including massive neutrinos).
+        * "v_b", "v_cdm": magnitude of the velocity vector field of baryons or CDM
+          (this is gauge dependent).
+        * "v_cb": magnitude of the relative velocity vector field between baryons
+          and CDM (this is gauge independent).
         Default is "d_m".
     redshifts: np.array or a float, optional
         The redshifts at which the rms shall be computed. Default is 0.

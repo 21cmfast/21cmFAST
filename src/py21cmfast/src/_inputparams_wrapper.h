@@ -4,7 +4,7 @@
 // WARNING: DO NOT #include THIS FILE IN THE C CODE EXCEPT FOR IN InputParameters.h
 
 typedef struct CosmoParams {
-    float SIGMA_8;
+    // NOTE: power spectrum normalization (A_s or sigma_8) is given by ps_norm in cosmo_tables
     float hlittle;
     float OMm;
     float OMl;
@@ -51,6 +51,7 @@ typedef struct SimulationOptions {
     double CORR_STAR;
     double CORR_SFR;
     double CORR_LX;
+    double MIN_XE_FOR_FCOLL_IN_TAUX;
 } SimulationOptions;
 
 typedef struct MatterOptions {
@@ -163,6 +164,8 @@ typedef struct Table1D {
 typedef struct CosmoTables {
     Table1D *transfer_density;
     Table1D *transfer_vcb;
+    double ps_norm;
+    bool USE_SIGMA_8;
 } CosmoTables;
 
 typedef struct ConfigSettings {
