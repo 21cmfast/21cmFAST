@@ -702,7 +702,7 @@ void one_annular_filter(float *input_box, float *output_box, double R_inner, dou
 
         // Don't filter on the cell scale
         if (R_inner > 0) {
-            filter_box(filtered_box, box_dim, 4, R_inner, R_outer, R_star);
+            filter_box(filtered_box, box_dim, filter_type, R_inner, R_outer, R_star);
         }
 
         // now fft back to real space
