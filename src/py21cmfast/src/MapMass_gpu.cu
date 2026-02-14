@@ -228,8 +228,13 @@ __global__ void perturb_density_field_kernel(
 
         // Diagnostic output for sample cells (only from one thread to avoid garbled output)
         if (is_sample_cell) {
+            // For high-res, vel_idx is just (i,j,k) since we use hires_vx directly
+            // For low-res, vel_idx is the resampled (HII_i, HII_j, HII_k)
+            int vel_idx_i = perturb_on_high_res ? i : HII_i;
+            int vel_idx_j = perturb_on_high_res ? j : HII_j;
+            int vel_idx_k = perturb_on_high_res ? k : HII_k;
             printf("[DIAG] GPU cell=(%d,%d,%d) vel_idx=(%d,%d,%d) vel=(%.9f,%.9f,%.9f)\n",
-                   i, j, k, HII_i, HII_j, HII_k,
+                   i, j, k, vel_idx_i, vel_idx_j, vel_idx_k,
                    (double)vel_x, (double)vel_y, (double)vel_z);
             printf("[DIAG] GPU cell=(%d,%d,%d) pos_before=(%.9f,%.9f,%.9f) pos_after_vel=(%.9f,%.9f,%.9f)\n",
                    i, j, k, pos_before_x, pos_before_y, pos_before_z,
