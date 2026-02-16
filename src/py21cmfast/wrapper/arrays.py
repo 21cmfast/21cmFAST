@@ -162,6 +162,13 @@ class Array:
             self, value=val.astype(self.dtype, copy=False), state=self.state.computed()
         )
 
+    def with_value_not_computed(self, val: np.ndarray) -> Self:
+        """Set the array to a given value and return a new Array, but without indicating the array has been computed."""
+        return attrs.evolve(
+            self,
+            value=val.astype(self.dtype, copy=False),
+        )
+
     def computed(self) -> Self:
         """Set the array to a given value and return a new Array."""
         return attrs.evolve(self, state=self.state.computed())
