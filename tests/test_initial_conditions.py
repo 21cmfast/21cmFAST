@@ -15,6 +15,33 @@ def ic_hires(default_input_struct) -> p21c.InitialConditions:
     )
 
 
+@pytest.fixture(scope="module")
+def ic_from_ic(default_input_struct, ic) -> p21c.InitialConditions:
+    """Make initial conditions, given the hires density of an initial condition instance."""
+    return p21c.compute_initial_conditions(
+        inputs=default_input_struct, hires_density_array=ic.hires_density.value
+    )
+
+
+@pytest.fixture(scope="module")
+def single_pxl_array_mean_zero(default_input_struct) -> np.ndarray:
+    """Make a single pixel array, with mean zero."""
+    dim = default_input_struct.simulation_options.DIM
+    array = -np.ones((dim,) * 3)
+    array[dim // 2, dim // 2, dim // 2] = array[0, 0, 0] - array.sum()
+    return array
+
+
+@pytest.fixture(scope="module")
+def ic_from_array(
+    default_input_struct, single_pxl_array_mean_zero
+) -> p21c.InitialConditions:
+    """Make initial conditions, given the hires density array of a single pixel."""
+    return p21c.compute_initial_conditions(
+        inputs=default_input_struct, hires_density_array=single_pxl_array_mean_zero
+    )
+
+
 def test_box_shape(ic_hires: p21c.InitialConditions, ic: p21c.InitialConditions):
     """Test basic properties of the InitialConditions struct."""
     shape = (35, 35, 35)
@@ -108,3 +135,44 @@ def test_relvels():
     assert vcbrms_lowres < 40.0
     assert vcbavg_lowres < 0.97 * vcbrms_lowres
     assert vcbavg_lowres > 0.88 * vcbrms_lowres
+
+
+@pytest.mark.parametrize(
+    "name",
+    [
+        "lowres_density",
+        "hires_density",
+        "lowres_vx",
+        "lowres_vy",
+        "lowres_vz",
+        "lowres_vx_2LPT",
+        "lowres_vy_2LPT",
+        "lowres_vz_2LPT",
+    ],
+)
+def test_hires_density_array(
+    ic: p21c.InitialConditions,
+    ic_from_ic: p21c.InitialConditions,
+    ic_from_array: p21c.InitialConditions,
+    single_pxl_array_mean_zero: np.ndarray,
+    name: str,
+):
+    """Test that functionality with the hires_density_array argument."""
+    # Test that the hires_density arrays are exactly the same (by definition)
+    assert np.all(ic_from_ic.hires_density.value == ic.hires_density.value)
+
+    # Test that the other arrays are close (numerical differences exist due to FFT-IFFT)
+    np.testing.assert_allclose(
+        getattr(ic, name).value, getattr(ic_from_ic, name).value, atol=1e-5, rtol=0.0
+    )
+
+    # Test the array we use actually has mean zero
+    assert single_pxl_array_mean_zero.mean() == 0.0
+
+    # Test that the hires_density array is exactly our single pixel array input
+    assert np.all(ic_from_array.hires_density.value == single_pxl_array_mean_zero)
+
+    # Test that the arrays are different between the original ic and the ic we got from array
+    assert not np.allclose(
+        getattr(ic, name).value, getattr(ic_from_array, name).value, atol=1e-5, rtol=0.0
+    )

@@ -34,7 +34,9 @@ logger = logging.getLogger(__name__)
 
 
 @single_field_func
-def compute_initial_conditions(*, inputs: InputParameters) -> InitialConditions:
+def compute_initial_conditions(
+    *, inputs: InputParameters, hires_density_array: np.ndarray | None = None
+) -> InitialConditions:
     r"""
     Compute initial conditions.
 
@@ -42,6 +44,8 @@ def compute_initial_conditions(*, inputs: InputParameters) -> InitialConditions:
     ----------
     inputs
         The InputParameters instance defining the run.
+    hires_density_array: np.ndarray, optional
+        A realization of the density field on the high resolution grid.
     regenerate : bool, optional
         Whether to force regeneration of data, even if matching cached data is found.
     cache
@@ -72,6 +76,14 @@ def compute_initial_conditions(*, inputs: InputParameters) -> InitialConditions:
             )
         return ics
     else:
+        if hires_density_array is not None:
+            dim = inputs.simulation_options.DIM
+            shape = (dim, dim, dim)
+            ics.hires_density = (
+                Array(shape=shape, dtype=np.float32)
+                .initialize()
+                .with_value_not_computed(val=hires_density_array)
+            )
         return ics.compute()
 
 
