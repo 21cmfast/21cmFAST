@@ -129,11 +129,6 @@ void move_grid_masses(double redshift, float *dens_pointer, int dens_dim[3], flo
         (displacement_factor_2LPT - init_displacement_factor_2LPT) / box_size[1] * dens_dim[1],
         (displacement_factor_2LPT - init_displacement_factor_2LPT) / box_size[2] * dens_dim[2]};
 
-    // Print diagnostic header for each call (to compare with GPU at each redshift)
-    fprintf(stderr, "[DIAG] CPU MapMass params: dim_ratio_vel=%.9f dim_ratio_out=%.9f init_growth=%.9f vdf=[%.9f,%.9f,%.9f]\n",
-            dim_ratio_vel, dim_ratio_out, init_growth_factor,
-            velocity_displacement_factor[0], velocity_displacement_factor[1], velocity_displacement_factor[2]);
-
 #pragma omp parallel num_threads(simulation_options_global->N_THREADS)
     {
         int i, j, k, axis;
@@ -152,16 +147,6 @@ void move_grid_masses(double redshift, float *dens_pointer, int dens_dim[3], flo
                     wrap_coord(ipos, vel_dim);
                     vel_index = grid_index_general(ipos[0], ipos[1], ipos[2], vel_dim);
 
-                    // Diagnostic output for sample cells
-                    int is_sample_cell = ((i == 0 && j == 0 && k == 0) ||
-                                          (i == 50 && j == 25 && k == 12));
-                    double pos_before[3], pos_after_vel[3];
-                    if (is_sample_cell) {
-                        pos_before[0] = pos[0];
-                        pos_before[1] = pos[1];
-                        pos_before[2] = pos[2];
-                    }
-
                     for (axis = 0; axis < 3; axis++) {
                         pos[axis] +=
                             vel_pointers[axis][vel_index] * velocity_displacement_factor[axis];
@@ -170,48 +155,12 @@ void move_grid_masses(double redshift, float *dens_pointer, int dens_dim[3], flo
                             pos[axis] -= vel_pointers_2LPT[axis][vel_index] *
                                          velocity_displacement_factor_2LPT[axis];
                         }
-                        if (is_sample_cell) {
-                            pos_after_vel[axis] = pos[axis];
-                        }
                         pos[axis] *= dim_ratio_out;
                     }
 
                     // CIC interpolation
                     dens_index = grid_index_general(i, j, k, dens_dim);
                     curr_dens = 1.0 + dens_pointer[dens_index] * init_growth_factor;
-
-                    // Diagnostic output for sample cells - compute CIC values inline
-                    if (is_sample_cell) {
-                        int cic_ipos[3], cic_iposp1[3];
-                        double cic_dist[3];
-                        for (int ax = 0; ax < 3; ax++) {
-                            cic_ipos[ax] = (int)floor(pos[ax]);
-                            cic_iposp1[ax] = cic_ipos[ax] + 1;
-                            cic_dist[ax] = pos[ax] - cic_ipos[ax];
-                        }
-                        int cic_ipos_wrapped[3] = {cic_ipos[0], cic_ipos[1], cic_ipos[2]};
-                        int cic_iposp1_wrapped[3] = {cic_iposp1[0], cic_iposp1[1], cic_iposp1[2]};
-                        wrap_coord(cic_ipos_wrapped, out_dim);
-                        wrap_coord(cic_iposp1_wrapped, out_dim);
-
-                        #pragma omp critical
-                        {
-                            fprintf(stderr, "[DIAG] CPU cell=(%d,%d,%d) vel_idx=(%d,%d,%d) vel=(%.9f,%.9f,%.9f)\n",
-                                    i, j, k, ipos[0], ipos[1], ipos[2],
-                                    vel_pointers[0][vel_index], vel_pointers[1][vel_index], vel_pointers[2][vel_index]);
-                            fprintf(stderr, "[DIAG] CPU cell=(%d,%d,%d) pos_before=(%.9f,%.9f,%.9f) pos_after_vel=(%.9f,%.9f,%.9f)\n",
-                                    i, j, k, pos_before[0], pos_before[1], pos_before[2],
-                                    pos_after_vel[0], pos_after_vel[1], pos_after_vel[2]);
-                            fprintf(stderr, "[DIAG] CPU cell=(%d,%d,%d) pos_final=(%.9f,%.9f,%.9f) curr_dens=%.9f\n",
-                                    i, j, k, pos[0], pos[1], pos[2], curr_dens);
-                            fprintf(stderr, "[DIAG] CPU cell=(%d,%d,%d) cic_ipos=(%d,%d,%d) cic_iposp1=(%d,%d,%d)\n",
-                                    i, j, k, cic_ipos_wrapped[0], cic_ipos_wrapped[1], cic_ipos_wrapped[2],
-                                    cic_iposp1_wrapped[0], cic_iposp1_wrapped[1], cic_iposp1_wrapped[2]);
-                            fprintf(stderr, "[DIAG] CPU cell=(%d,%d,%d) cic_dist=(%.9f,%.9f,%.9f) t=(%.9f,%.9f,%.9f)\n",
-                                    i, j, k, cic_dist[0], cic_dist[1], cic_dist[2],
-                                    1.0 - cic_dist[0], 1.0 - cic_dist[1], 1.0 - cic_dist[2]);
-                        }
-                    }
 
                     do_cic_interpolation(resampled_box, pos, out_dim, curr_dens);
                 }

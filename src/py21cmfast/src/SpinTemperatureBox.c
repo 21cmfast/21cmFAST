@@ -1568,20 +1568,6 @@ void ts_main(float redshift, float prev_redshift, float perturbed_field_redshift
                                          threadsPerBlock, d_y_arr, d_dens_R_grid, d_sfrd_grid,
                                          d_ave_sfrd_buf, &sc);
 
-                // Diagnostic output after SFRD calculation
-                {
-                    double sum = 0.0, sum2 = 0.0, val, mean, std, vmin, vmax;
-                    vmin = del_fcoll_Rct[0]; vmax = vmin;
-                    for (unsigned long long ii = 0; ii < HII_TOT_NUM_PIXELS; ii++) {
-                        val = del_fcoll_Rct[ii];
-                        sum += val; sum2 += val * val;
-                        if (val < vmin) vmin = val; if (val > vmax) vmax = val;
-                    }
-                    mean = sum / HII_TOT_NUM_PIXELS; std = sqrt(sum2 / HII_TOT_NUM_PIXELS - mean * mean);
-                    fprintf(stderr, "[DIAG] %s sfrd R_ct=%d mean=%.6e std=%.6e min=%.6e max=%.6e\n",
-                            USE_CUDA ? "TS_GPU" : "TS_CPU", R_ct, mean, std, vmin, vmax);
-                }
-
                 avg_fix_term = mean_sfr_zpp[R_ct] / ave_fcoll;
                 if (astro_options_global->USE_MINI_HALOS)
                     avg_fix_term_MINI = mean_sfr_zpp_mini[R_ct] / ave_fcoll_MINI;
@@ -1867,56 +1853,6 @@ void ts_main(float redshift, float prev_redshift, float perturbed_field_redshift
             //                Throw(ParameterError);
             Throw(InfinityorNaNError);
         }
-    }
-
-    // Diagnostic output - final spin temperature
-    {
-        double sum, sum2, val, mean, std, vmin, vmax;
-        const char *label = USE_CUDA ? "TS_GPU" : "TS_CPU";
-
-        sum = 0.0; sum2 = 0.0; vmin = this_spin_temp->spin_temperature[0]; vmax = vmin;
-        for (unsigned long long ii = 0; ii < HII_TOT_NUM_PIXELS; ii++) {
-            val = this_spin_temp->spin_temperature[ii];
-            sum += val; sum2 += val * val;
-            if (val < vmin) vmin = val; if (val > vmax) vmax = val;
-        }
-        mean = sum / HII_TOT_NUM_PIXELS; std = sqrt(sum2 / HII_TOT_NUM_PIXELS - mean * mean);
-        fprintf(stderr, "[DIAG] %s Ts mean=%.6e std=%.6e min=%.6e max=%.6e\n", label, mean, std, vmin, vmax);
-
-        sum = 0.0; sum2 = 0.0; vmin = this_spin_temp->kinetic_temp_neutral[0]; vmax = vmin;
-        for (unsigned long long ii = 0; ii < HII_TOT_NUM_PIXELS; ii++) {
-            val = this_spin_temp->kinetic_temp_neutral[ii];
-            sum += val; sum2 += val * val;
-            if (val < vmin) vmin = val; if (val > vmax) vmax = val;
-        }
-        mean = sum / HII_TOT_NUM_PIXELS; std = sqrt(sum2 / HII_TOT_NUM_PIXELS - mean * mean);
-        fprintf(stderr, "[DIAG] %s Tk mean=%.6e std=%.6e min=%.6e max=%.6e\n", label, mean, std, vmin, vmax);
-
-        // xray_ionised_fraction
-        if (this_spin_temp->xray_ionised_fraction != NULL) {
-            sum = 0.0; sum2 = 0.0; vmin = this_spin_temp->xray_ionised_fraction[0]; vmax = vmin;
-            for (unsigned long long ii = 0; ii < HII_TOT_NUM_PIXELS; ii++) {
-                val = this_spin_temp->xray_ionised_fraction[ii];
-                sum += val; sum2 += val * val;
-                if (val < vmin) vmin = val; if (val > vmax) vmax = val;
-            }
-            mean = sum / HII_TOT_NUM_PIXELS; std = sqrt(sum2 / HII_TOT_NUM_PIXELS - mean * mean);
-            fprintf(stderr, "[DIAG] %s x_e mean=%.6e std=%.6e min=%.6e max=%.6e\n", label, mean, std, vmin, vmax);
-        }
-
-        // J_21_LW
-        if (this_spin_temp->J_21_LW != NULL) {
-            sum = 0.0; sum2 = 0.0; vmin = this_spin_temp->J_21_LW[0]; vmax = vmin;
-            for (unsigned long long ii = 0; ii < HII_TOT_NUM_PIXELS; ii++) {
-                val = this_spin_temp->J_21_LW[ii];
-                sum += val; sum2 += val * val;
-                if (val < vmin) vmin = val; if (val > vmax) vmax = val;
-            }
-            mean = sum / HII_TOT_NUM_PIXELS; std = sqrt(sum2 / HII_TOT_NUM_PIXELS - mean * mean);
-            fprintf(stderr, "[DIAG] %s J_21_LW mean=%.6e std=%.6e min=%.6e max=%.6e\n", label, mean, std, vmin, vmax);
-        }
-
-        fflush(stderr);
     }
 
     }  // End of if (!use_cuda) for R==0 section
