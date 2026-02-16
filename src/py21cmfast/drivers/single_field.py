@@ -35,7 +35,7 @@ logger = logging.getLogger(__name__)
 
 @single_field_func
 def compute_initial_conditions(
-    *, inputs: InputParameters, hires_density_array: np.ndarray | None = None
+    *, inputs: InputParameters, hires_density_array: np.ndarray | float | None = None
 ) -> InitialConditions:
     r"""
     Compute initial conditions.
@@ -44,8 +44,10 @@ def compute_initial_conditions(
     ----------
     inputs
         The InputParameters instance defining the run.
-    hires_density_array: np.ndarray, optional
+    hires_density_array: np.ndarray or float, optional
         A realization of the density field on the high resolution grid.
+        This input can also be used to determine the global density field,
+        in case we have a single cell in the box.
     regenerate : bool, optional
         Whether to force regeneration of data, even if matching cached data is found.
     cache
@@ -66,17 +68,31 @@ def compute_initial_conditions(
         required_arrays = PerturbedField.new(
             redshift=0, inputs=inputs
         ).get_required_input_arrays(ics)
+
+        # Set the arrays to zero, or according to hires_density_array if the arrays are density fields
         for array in required_arrays:
+            if (hires_density_array is not None) and (
+                array in ["hires_density", "lowres_density"]
+            ):
+                value = hires_density_array
+            else:
+                value = 0.0
             setattr(
                 ics,
                 array,
                 Array(shape=shape, dtype=np.float32)
                 .initialize()
-                .with_value(val=np.zeros(shape)),
+                .with_value(val=value * np.ones(shape)),
             )
         return ics
     else:
         if hires_density_array is not None:
+            if np.abs(hires_density_array.mean() > 1e-3):
+                warnings.warn(
+                    f"Your hires_density_array has mean {hires_density_array.mean()}. "
+                    + "Make sure you know what you are doing.",
+                    stacklevel=2,
+                )
             dim = inputs.simulation_options.DIM
             shape = (dim, dim, dim)
             ics.hires_density = (

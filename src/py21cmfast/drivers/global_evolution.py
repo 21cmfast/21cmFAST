@@ -231,6 +231,7 @@ def run_global_evolution(
     inputs: InputParameters,
     source_model: str | None = None,
     progressbar: bool = False,
+    delta_z0: float | None = None,
 ):
     r"""
     Compute the global evolution of all the fields in the simulation.
@@ -253,6 +254,8 @@ def run_global_evolution(
             and then mapping properties to the Eulerian grid using 2LPT.
     progressbar: bool, optional
         If True, a progress bar will be displayed throughout the simulation. Defaults to False.
+    delta_z0: bool, optional
+        The linear matter overdensity at z=0. Default is 0. This input argument could be useful for doing linear perturbation analysis with 21cmFAST.
 
     Returns
     -------
@@ -344,6 +347,7 @@ def run_global_evolution(
         initial_conditions=None,
         write=CacheConfig.off(),
         progressbar=progressbar,
+        delta_z0=delta_z0,
         **iokw,
     )
 

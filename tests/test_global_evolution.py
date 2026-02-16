@@ -129,3 +129,32 @@ def test_compatability_with_database():
     fname = DATA_PATH / "global_evolution.h5"
     global_evolution = GlobalEvolution.from_file(fname)
     assert isinstance(global_evolution, GlobalEvolution)
+
+
+def test_linear_perturbation_theory(default_input_struct_ts, ic):
+    """
+    Test that we can do linear perturbation theory with 21cmFAST.
+
+    What this test does is to confirm that the contrast of the fields we compute does not depend
+    on our chosen initial perturbation, at first order.
+    """
+    delta1 = 1e-7
+    delta2 = 1e-8
+
+    # Compute global evolution three times.
+    # We stop at relatively high redshift, where linear perturbation theory becomes non-valid below it
+    inputs = default_input_struct_ts.with_logspaced_redshifts(zmin=20)
+    global_evolution_0 = p21c.run_global_evolution(inputs=inputs)
+    global_evolution_delta1 = p21c.run_global_evolution(inputs=inputs, delta_z0=delta1)
+    global_evolution_delta2 = p21c.run_global_evolution(inputs=inputs, delta_z0=delta2)
+
+    for quantity in global_evolution_0.quantities:
+        f_0 = global_evolution_0.quantities[quantity]
+
+        f_delta1 = global_evolution_delta1.quantities[quantity]
+        contrast1 = (f_delta1 - f_0) / delta1
+
+        f_delta2 = global_evolution_delta2.quantities[quantity]
+        contrast2 = (f_delta2 - f_0) / delta2
+
+        np.testing.assert_allclose(contrast1, contrast2, atol=0, rtol=1e-5)

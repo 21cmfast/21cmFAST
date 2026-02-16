@@ -840,11 +840,15 @@ def _setup_ics_and_pfs_for_scrolling(
     inputs: InputParameters,
     write: CacheConfig,
     progressbar: bool,
+    delta_z0: float | None = None,
     **iokw,
 ) -> tuple[InitialConditions, list[PerturbedField], list[HaloCatalog], dict]:
     if initial_conditions is None:
         initial_conditions = sf.compute_initial_conditions(
-            inputs=inputs, write=write.initial_conditions, **iokw
+            inputs=inputs,
+            write=write.initial_conditions,
+            hires_density_array=delta_z0,
+            **iokw,
         )
 
     # We can go ahead and purge some of the stuff in the initial_conditions, but only if
