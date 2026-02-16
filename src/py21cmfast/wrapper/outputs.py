@@ -1438,14 +1438,11 @@ class IonizedBox(OutputStructZ):
         if inputs.astro_options.INHOMO_RECO:
             out["cumulative_recombinations"] = Array(shape, dtype=np.float32)
 
-        if (
-            inputs.astro_options.USE_MINI_HALOS
-            and not inputs.matter_options.lagrangian_source_grid
-        ):
-            out["unnormalised_nion_mini"] = Array(filter_shape, dtype=np.float32)
-
         if not inputs.matter_options.lagrangian_source_grid:
             out["unnormalised_nion"] = Array(filter_shape, dtype=np.float32)
+
+            if inputs.astro_options.USE_MINI_HALOS:
+                out["unnormalised_nion_mini"] = Array(filter_shape, dtype=np.float32)
 
         return cls(inputs=inputs, redshift=redshift, **out, **kw)
 
@@ -1481,8 +1478,7 @@ class IonizedBox(OutputStructZ):
                     "cumulative_recombinations",
                 ]
             if (
-                self.matter_options.mass_dependent_zeta
-                and self.astro_options.USE_MINI_HALOS
+                self.astro_options.USE_MINI_HALOS
                 and not self.matter_options.lagrangian_source_grid
             ):
                 required += [
