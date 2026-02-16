@@ -61,3 +61,4 @@ devel/*.bin
 devel/*.html
 docs/tutorials/cache/
 docs/autoapi/
+VERSION
