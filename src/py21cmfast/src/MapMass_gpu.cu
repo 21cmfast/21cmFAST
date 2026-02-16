@@ -69,7 +69,8 @@ __global__ void perturb_density_field_kernel(
     int non_cubic_factor,
     double f_pixel_factor, double init_growth_factor,
     double velocity_scale, double velocity_scale_z,
-    bool perturb_on_high_res, bool use_2lpt
+    bool perturb_on_high_res, bool use_2lpt,
+    double vdf_2LPT_xy, double vdf_2LPT_z
     ) {
     unsigned long long idx = blockIdx.x * blockDim.x + threadIdx.x;
 
@@ -154,19 +155,18 @@ __global__ void perturb_density_field_kernel(
         double pos_after_vel_y = pos_y;
         double pos_after_vel_z = pos_z;
 
-        // 2LPT (add second order corrections) - NOTE: currently disabled
+        // 2LPT (add second order corrections)
+        // Matches CPU map_mass.c:169-171: pos -= vel_2LPT * vdf_2LPT
         if (use_2lpt) {
-            // TODO: Need to compute velocity_displacement_factor_2LPT matching CPU
-            // For now, 2LPT is disabled in the caller (use_2lpt = false)
             if (perturb_on_high_res) {
-                pos_x -= (double)hires_vx_2LPT[r_index];
-                pos_y -= (double)hires_vy_2LPT[r_index];
-                pos_z -= (double)hires_vz_2LPT[r_index];
+                pos_x -= (double)hires_vx_2LPT[r_index] * vdf_2LPT_xy;
+                pos_y -= (double)hires_vy_2LPT[r_index] * vdf_2LPT_xy;
+                pos_z -= (double)hires_vz_2LPT[r_index] * vdf_2LPT_z;
             }
             else {
-                pos_x -= (double)lowres_vx_2LPT[HII_index];
-                pos_y -= (double)lowres_vy_2LPT[HII_index];
-                pos_z -= (double)lowres_vz_2LPT[HII_index];
+                pos_x -= (double)lowres_vx_2LPT[HII_index] * vdf_2LPT_xy;
+                pos_y -= (double)lowres_vy_2LPT[HII_index] * vdf_2LPT_xy;
+                pos_z -= (double)lowres_vz_2LPT[HII_index] * vdf_2LPT_z;
             }
         }
 
@@ -275,7 +275,8 @@ __global__ void perturb_density_field_kernel(
 extern "C" double* MapMass_gpu(
     InitialConditions *boxes, double *resampled_box,
     int dimension, double f_pixel_factor, double init_growth_factor,
-    double velocity_scale, double velocity_scale_z
+    double velocity_scale, double velocity_scale_z,
+    double velocity_scale_2LPT, double velocity_scale_2LPT_z
 ) {
     // Box shapes from outputs.py and convenience macros
     size_t size_double, size_float;
@@ -340,7 +341,9 @@ extern "C" double* MapMass_gpu(
         cudaMemcpy(lowres_vy, boxes->lowres_vy, size_float, cudaMemcpyHostToDevice);
         cudaMemcpy(lowres_vz, boxes->lowres_vz, size_float, cudaMemcpyHostToDevice);
     }
-    if (false /* USE_2LPT obsolete */) {
+    // Allocate and copy 2LPT velocity arrays if using 2LPT algorithm
+    bool use_2lpt = (matter_options_global->PERTURB_ALGORITHM == 2);
+    if (use_2lpt) {
         if (matter_options_global->PERTURB_ON_HIGH_RES) {
             cudaMalloc(&hires_vx_2LPT, size_float);
             cudaMalloc(&hires_vy_2LPT, size_float);
@@ -370,6 +373,10 @@ extern "C" double* MapMass_gpu(
     long long hii_d = HII_D;
     long long hii_d_para = HII_D_PARA;
 
+    // Compute 2LPT velocity displacement factors (matches CPU map_mass.c)
+    double vdf_2LPT_xy = velocity_scale_2LPT * (double)simulation_options_global->DIM;
+    double vdf_2LPT_z = velocity_scale_2LPT_z * (double)d_para;
+
     // Print diagnostic header (matches CPU format)
     {
         double dim_ratio_vel_diag = 1.0 / f_pixel_factor;
@@ -377,8 +384,9 @@ extern "C" double* MapMass_gpu(
         double vdf_x = velocity_scale * simulation_options_global->DIM;
         double vdf_y = velocity_scale * simulation_options_global->DIM;
         double vdf_z = velocity_scale_z * d_para;
-        fprintf(stderr, "[DIAG] GPU MapMass params: dim_ratio_vel=%.9f dim_ratio_out=%.9f init_growth=%.9f vdf=[%.9f,%.9f,%.9f]\n",
-                dim_ratio_vel_diag, dim_ratio_out_diag, init_growth_factor, vdf_x, vdf_y, vdf_z);
+        fprintf(stderr, "[DIAG] GPU MapMass params: dim_ratio_vel=%.9f dim_ratio_out=%.9f init_growth=%.9f vdf=[%.9f,%.9f,%.9f] use_2lpt=%d vdf_2LPT=[%.9f,%.9f]\n",
+                dim_ratio_vel_diag, dim_ratio_out_diag, init_growth_factor, vdf_x, vdf_y, vdf_z,
+                use_2lpt ? 1 : 0, vdf_2LPT_xy, vdf_2LPT_z);
         fflush(stderr);
     }
 
@@ -390,7 +398,7 @@ extern "C" double* MapMass_gpu(
         hires_vx_2LPT, hires_vy_2LPT, hires_vz_2LPT, lowres_vx_2LPT, lowres_vy_2LPT, lowres_vz_2LPT,
         dimension, simulation_options_global->DIM, d_para, hii_d, hii_d_para, simulation_options_global->NON_CUBIC_FACTOR,
         f_pixel_factor, init_growth_factor, velocity_scale, velocity_scale_z,
-        matter_options_global->PERTURB_ON_HIGH_RES, false /* USE_2LPT obsolete */);
+        matter_options_global->PERTURB_ON_HIGH_RES, use_2lpt, vdf_2LPT_xy, vdf_2LPT_z);
 
     // Synchronize to flush printf from kernel (needed for diagnostics)
     err = cudaDeviceSynchronize();
@@ -447,7 +455,7 @@ extern "C" double* MapMass_gpu(
         cudaFree(lowres_vy);
         cudaFree(lowres_vz);
     }
-    if (false /* USE_2LPT obsolete */) {
+    if (use_2lpt) {
         if (matter_options_global->PERTURB_ON_HIGH_RES) {
             cudaFree(hires_vx_2LPT);
             cudaFree(hires_vy_2LPT);

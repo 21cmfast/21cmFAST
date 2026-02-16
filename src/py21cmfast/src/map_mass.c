@@ -129,14 +129,10 @@ void move_grid_masses(double redshift, float *dens_pointer, int dens_dim[3], flo
         (displacement_factor_2LPT - init_displacement_factor_2LPT) / box_size[1] * dens_dim[1],
         (displacement_factor_2LPT - init_displacement_factor_2LPT) / box_size[2] * dens_dim[2]};
 
-    // Print diagnostic header for first redshift only (use static flag)
-    static int diag_header_printed = 0;
-    if (!diag_header_printed) {
-        fprintf(stderr, "[DIAG] CPU MapMass params: dim_ratio_vel=%.9f dim_ratio_out=%.9f init_growth=%.9f vdf=[%.9f,%.9f,%.9f]\n",
-                dim_ratio_vel, dim_ratio_out, init_growth_factor,
-                velocity_displacement_factor[0], velocity_displacement_factor[1], velocity_displacement_factor[2]);
-        diag_header_printed = 1;
-    }
+    // Print diagnostic header for each call (to compare with GPU at each redshift)
+    fprintf(stderr, "[DIAG] CPU MapMass params: dim_ratio_vel=%.9f dim_ratio_out=%.9f init_growth=%.9f vdf=[%.9f,%.9f,%.9f]\n",
+            dim_ratio_vel, dim_ratio_out, init_growth_factor,
+            velocity_displacement_factor[0], velocity_displacement_factor[1], velocity_displacement_factor[2]);
 
 #pragma omp parallel num_threads(simulation_options_global->N_THREADS)
     {

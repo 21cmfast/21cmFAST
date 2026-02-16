@@ -114,8 +114,15 @@ void make_density_grid(float redshift, fftwf_complex *fft_density_grid, InitialC
             double velocity_scale = (growth_factor - init_growth_factor) / simulation_options_global->BOX_LEN;
             double velocity_scale_z = (growth_factor - init_growth_factor) /
                 (simulation_options_global->BOX_LEN * simulation_options_global->NON_CUBIC_FACTOR);
+            // Calculate 2LPT velocity displacement factor (matches CPU map_mass.c:117-130)
+            // D2 = -(3/7) * D1^2 (2LPT second-order growth factor)
+            double displacement_factor_2LPT = -(3.0 / 7.0) * growth_factor * growth_factor;
+            double init_displacement_factor_2LPT = -(3.0 / 7.0) * init_growth_factor * init_growth_factor;
+            double velocity_scale_2LPT = (displacement_factor_2LPT - init_displacement_factor_2LPT)
+                                         / simulation_options_global->BOX_LEN;
+            double velocity_scale_2LPT_z = velocity_scale_2LPT / simulation_options_global->NON_CUBIC_FACTOR;
             MapMass_gpu(boxes, resampled_box, box_dim[0], f_pixel_factor, init_growth_factor,
-                        velocity_scale, velocity_scale_z);
+                        velocity_scale, velocity_scale_z, velocity_scale_2LPT, velocity_scale_2LPT_z);
 
             // Diagnostic output after GPU perturb
             {
