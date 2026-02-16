@@ -133,7 +133,7 @@ class GlobalEvolution:
             possible_outputs.append(TsBox.new(inputs, redshift=0))
         if inputs.matter_options.lagrangian_source_grid:
             possible_outputs.append(HaloBox.new(inputs, redshift=0))
-        field_names = ("neutral_fraction", "ionisation_rate_G12")
+        field_names = ("density", "neutral_fraction", "ionisation_rate_G12")
         for output in possible_outputs:
             field_names += tuple(output.arrays.keys())
         return field_names

@@ -131,7 +131,7 @@ def test_compatability_with_database():
     assert isinstance(global_evolution, GlobalEvolution)
 
 
-def test_linear_perturbation_theory(default_input_struct_ts, ic):
+def test_linear_perturbation_theory(default_input_struct_ts):
     """
     Test that we can do linear perturbation theory with 21cmFAST.
 
@@ -158,3 +158,25 @@ def test_linear_perturbation_theory(default_input_struct_ts, ic):
         contrast2 = (f_delta2 - f_0) / delta2
 
         np.testing.assert_allclose(contrast1, contrast2, atol=0, rtol=1e-5)
+
+
+def test_linear_density_field(default_input_struct):
+    """Test that the linear density field grows linearly with time."""
+    delta1 = 1e-7
+    delta2 = 1e-8
+
+    global_evolution1 = p21c.run_global_evolution(
+        inputs=default_input_struct, delta_z0=delta1
+    )
+    global_evolution2 = p21c.run_global_evolution(
+        inputs=default_input_struct, delta_z0=delta2
+    )
+
+    growth_factor1 = global_evolution1.quantities["density"] / delta1
+    growth_factor2 = global_evolution2.quantities["density"] / delta2
+
+    # Test that the linear density field is linear
+    np.testing.assert_allclose(growth_factor1, growth_factor2, atol=0, rtol=1e-5)
+
+    # Test that the linear density field grows with time
+    assert np.all(np.diff(growth_factor1) < 0)
