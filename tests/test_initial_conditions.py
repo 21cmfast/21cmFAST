@@ -176,3 +176,14 @@ def test_hires_density_array(
     assert not np.allclose(
         getattr(ic, name).value, getattr(ic_from_array, name).value, atol=1e-5, rtol=0.0
     )
+
+
+def test_non_zero_hires_density_array(
+    default_input_struct: p21c.InitialConditions, single_pxl_array_mean_zero: np.ndarray
+):
+    """Run initial conditions with hires density box that has non-zero mean, just to throw the relevant warning."""
+    ic_non_zero = p21c.compute_initial_conditions(
+        inputs=default_input_struct,
+        hires_density_array=np.ones_like(single_pxl_array_mean_zero),
+    )
+    assert isinstance(ic_non_zero, p21c.InitialConditions)
