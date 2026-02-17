@@ -19,7 +19,7 @@ def ic_hires(default_input_struct) -> p21c.InitialConditions:
 def ic_from_ic(default_input_struct, ic) -> p21c.InitialConditions:
     """Make initial conditions, given the hires density of an initial condition instance."""
     return p21c.compute_initial_conditions(
-        inputs=default_input_struct, hires_density_array=ic.hires_density.value
+        inputs=default_input_struct, initial_density=ic.hires_density.value
     )
 
 
@@ -38,7 +38,7 @@ def ic_from_array(
 ) -> p21c.InitialConditions:
     """Make initial conditions, given the hires density array of a single pixel."""
     return p21c.compute_initial_conditions(
-        inputs=default_input_struct, hires_density_array=single_pxl_array_mean_zero
+        inputs=default_input_struct, initial_density=single_pxl_array_mean_zero
     )
 
 
@@ -150,14 +150,14 @@ def test_relvels():
         "lowres_vz_2LPT",
     ],
 )
-def test_hires_density_array(
+def test_initial_density_array(
     ic: p21c.InitialConditions,
     ic_from_ic: p21c.InitialConditions,
     ic_from_array: p21c.InitialConditions,
     single_pxl_array_mean_zero: np.ndarray,
     name: str,
 ):
-    """Test that functionality with the hires_density_array argument."""
+    """Test the functionality with the initial_density argument."""
     # Test that the hires_density arrays are exactly the same (by definition)
     assert np.all(ic_from_ic.hires_density.value == ic.hires_density.value)
 
@@ -178,12 +178,22 @@ def test_hires_density_array(
     )
 
 
-def test_non_zero_hires_density_array(
+def test_bad_initial_density_array(
     default_input_struct: p21c.InitialConditions, single_pxl_array_mean_zero: np.ndarray
 ):
-    """Run initial conditions with hires density box that has non-zero mean, just to throw the relevant warning."""
+    """Test bad/weird initial_density array."""
+    # Run initial conditions with hires density box that has non-zero mean, just to throw the relevant warning
     ic_non_zero = p21c.compute_initial_conditions(
         inputs=default_input_struct,
-        hires_density_array=np.ones_like(single_pxl_array_mean_zero),
+        initial_density=np.ones_like(single_pxl_array_mean_zero),
     )
     assert isinstance(ic_non_zero, p21c.InitialConditions)
+
+    with pytest.raises(
+        ValueError,
+        match="The shape of your high resolution initial_density is not consistent with inputs!",
+    ):
+        p21c.compute_initial_conditions(
+            inputs=default_input_struct,
+            initial_density=np.zeros((single_pxl_array_mean_zero.shape[0] * 2,) * 3),
+        )

@@ -35,7 +35,7 @@ logger = logging.getLogger(__name__)
 
 @single_field_func
 def compute_initial_conditions(
-    *, inputs: InputParameters, hires_density_array: np.ndarray | float | None = None
+    *, inputs: InputParameters, initial_density: np.ndarray | float | None = None
 ) -> InitialConditions:
     r"""
     Compute initial conditions.
@@ -44,7 +44,7 @@ def compute_initial_conditions(
     ----------
     inputs
         The InputParameters instance defining the run.
-    hires_density_array: np.ndarray or float, optional
+    initial_density: np.ndarray or float, optional
         A realization of the density field on the high resolution grid.
         This input can also be used to determine the global density field,
         in case we have a single cell in the box.
@@ -69,12 +69,12 @@ def compute_initial_conditions(
             redshift=0, inputs=inputs
         ).get_required_input_arrays(ics)
 
-        # Set the arrays to zero, or according to hires_density_array if the arrays are density fields
+        # Set the arrays to zero, or according to initial_density if the arrays are density fields
         for array in required_arrays:
-            if (hires_density_array is not None) and (
+            if (initial_density is not None) and (
                 array in ["hires_density", "lowres_density"]
             ):
-                value = hires_density_array
+                value = initial_density
             else:
                 value = 0.0
             setattr(
@@ -86,19 +86,24 @@ def compute_initial_conditions(
             )
         return ics
     else:
-        if hires_density_array is not None:
-            if np.abs(hires_density_array.mean() > 1e-3):
+        if initial_density is not None:
+            if np.abs(initial_density.mean() > 1e-3):
                 warnings.warn(
-                    f"Your hires_density_array has mean {hires_density_array.mean()}. "
+                    f"Your initial_density has mean {initial_density.mean()}. "
                     + "Make sure you know what you are doing.",
                     stacklevel=2,
                 )
-            dim = inputs.simulation_options.DIM
-            shape = (dim, dim, dim)
+            shape = ics.hires_density.shape
+            if initial_density.shape != shape:
+                raise ValueError(
+                    "The shape of your high resolution initial_density is not consistent with inputs!"
+                    + f" According to inputs, initial_density must be of shape {shape}, got {initial_density.shape}."
+                )
+
             ics.hires_density = (
                 Array(shape=shape, dtype=np.float32)
                 .initialize()
-                .with_value_not_computed(val=hires_density_array)
+                .with_value_not_computed(val=initial_density)
             )
         return ics.compute()
 
