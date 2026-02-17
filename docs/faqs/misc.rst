@@ -117,3 +117,13 @@ using the ``InitialConditions`` as an example::
 You would use this ``.set()`` method on each of the fields you needed to set. Now this
 data should be properly shared with the backend C-code, and the object can be used
 in subsequent steps within ``21cmFAST``.
+
+Can I inject my own initial conditions for the density field?
+-------------------------------------------------------------
+Yes, if you have a high resolution realization of the initial linear density field (at z=0),
+you can run
+
+    ics = p21c.compute_initial_conditions(inputs=p21c.InputParameters(), initial_density=my_hires_density_field)
+
+This will output an ``InitialConditions`` instance where all of its fields (initial densities and velocities) are consistent
+with your input ``my_hires_density_field``. You can then pass ``ics`` as an input to higher level functions (``run_coeval`` or ``run_lightcone``).
