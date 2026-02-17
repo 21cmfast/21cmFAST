@@ -847,7 +847,7 @@ def _setup_ics_and_pfs_for_scrolling(
         initial_conditions = sf.compute_initial_conditions(
             inputs=inputs,
             write=write.initial_conditions,
-            hires_density_array=delta_z0,
+            initial_density=delta_z0,
             **iokw,
         )
 
