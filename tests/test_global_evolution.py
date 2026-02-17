@@ -145,8 +145,12 @@ def test_linear_perturbation_theory(default_input_struct_ts):
     # We stop at relatively high redshift, where linear perturbation theory becomes non-valid below it
     inputs = default_input_struct_ts.with_logspaced_redshifts(zmin=20)
     global_evolution_0 = p21c.run_global_evolution(inputs=inputs)
-    global_evolution_delta1 = p21c.run_global_evolution(inputs=inputs, delta_z0=delta1)
-    global_evolution_delta2 = p21c.run_global_evolution(inputs=inputs, delta_z0=delta2)
+    global_evolution_delta1 = p21c.run_global_evolution(
+        inputs=inputs, overdensity_z0=delta1
+    )
+    global_evolution_delta2 = p21c.run_global_evolution(
+        inputs=inputs, overdensity_z0=delta2
+    )
 
     for quantity in global_evolution_0.quantities:
         f_0 = global_evolution_0.quantities[quantity]
@@ -166,10 +170,10 @@ def test_linear_density_field(default_input_struct):
     delta2 = 1e-8
 
     global_evolution1 = p21c.run_global_evolution(
-        inputs=default_input_struct, delta_z0=delta1
+        inputs=default_input_struct, overdensity_z0=delta1
     )
     global_evolution2 = p21c.run_global_evolution(
-        inputs=default_input_struct, delta_z0=delta2
+        inputs=default_input_struct, overdensity_z0=delta2
     )
 
     growth_factor1 = global_evolution1.quantities["density"] / delta1
