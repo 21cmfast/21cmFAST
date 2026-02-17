@@ -103,7 +103,7 @@ def compute_initial_conditions(
             ics.hires_density = (
                 Array(shape=shape, dtype=np.float32)
                 .initialize()
-                .with_value_not_computed(val=initial_density)
+                ._with_value_not_computed(val=initial_density)
             )
         return ics.compute()
 
