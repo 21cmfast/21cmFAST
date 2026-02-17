@@ -104,15 +104,9 @@ int ComputeInitialConditions(unsigned long long random_seed, InitialConditions *
     // Note: GPU version now supports 2LPT (PERTURB_ALGORITHM == 2)
     // USE_RELATIVE_VELOCITIES will fall back to CPU for now
 #if USE_CUDA
-    // TEMPORARY: Force CPU InitialConditions to isolate PerturbField differences
-    // When this is reverted, GPU InitialConditions will be used again
-    if (0 && use_cuda && !matter_options_global->USE_RELATIVE_VELOCITIES) {
+    if (use_cuda && !matter_options_global->USE_RELATIVE_VELOCITIES) {
         LOG_DEBUG("Using GPU-accelerated InitialConditions");
         return ComputeInitialConditions_gpu(random_seed, boxes);
-    }
-    if (use_cuda) {
-        fprintf(stderr, "[IC_DEBUG] GPU InitialConditions DISABLED - using CPU path for debugging\n");
-        fflush(stderr);
     }
 #endif
 
