@@ -1038,7 +1038,6 @@ double Nion_ConditionalM(double growthf, double lnM1, double lnM2, double lnM_co
         .delta = delta2,
         .gamma_type = -3,
     };
-
     if (lnM1 >= lnM_cond) return 0.;
     // return 1 halo at the condition mass if delta is exceeded and the condition is within the
     // integral limits

@@ -36,9 +36,14 @@ typedef struct ScalingConstants {
 
     double fesc_10;
     double alpha_esc;
+    double beta_esc;
     double fesc_7;
+    double beta_esc_mini;
     double pop2_ion;
     double pop3_ion;
+
+    double zesc_power_law;
+    double zesc_power_law_mini;
 
     double vcb_norel;
     double acg_thresh;

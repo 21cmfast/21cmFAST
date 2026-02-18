@@ -23,7 +23,8 @@ void print_sc_consts(ScalingConstants *c) {
     LOG_DEBUG("SHMR: f10 %.2e a %.2e f7 %.2e a_mini %.2e sigma %.2e", c->fstar_10, c->alpha_star,
               c->fstar_7, c->alpha_star_mini, c->sigma_star);
     LOG_DEBUG("Upper: a_upper %.2e pivot %.2e", c->alpha_upper, c->pivot_upper);
-    LOG_DEBUG("FESC: f10 %.2e a %.2e f7 %.2e", c->fesc_10, c->alpha_esc, c->fesc_7);
+    LOG_DEBUG("FESC: f10 %.2e a %.2e b %.2e f7 %.2e zesc_pl %.2e", c->fesc_10, c->alpha_esc,
+              c->beta_esc, c->beta_esc_mini, c->fesc_7, c->zesc_power_law, c->zesc_power_law_mini);
     LOG_DEBUG("SSFR: t* %.2e th %.8e sigma %.2e idx %.2e", c->t_star, c->t_h, c->sigma_sfr_lim,
               c->sigma_sfr_idx);
     LOG_DEBUG("Turnovers (nofb) ACG %.2e MCG %.2e Upper %.2e", c->mturn_a_nofb, c->mturn_m_nofb,
@@ -63,8 +64,14 @@ void set_scaling_constants(double redshift, ScalingConstants *consts, bool use_p
     consts->sigma_xray = astro_params_global->SIGMA_LX;
 
     consts->alpha_esc = astro_params_global->ALPHA_ESC;
+    consts->beta_esc = astro_params_global->BETA_ESC;
+    consts->beta_esc_mini = astro_params_global->BETA_ESC_MINI;
     consts->fesc_10 = astro_params_global->F_ESC10;
     consts->fesc_7 = astro_params_global->F_ESC7_MINI;
+
+    // Calculate the redshift-dependent power-law term for escape fraction once per redshift
+    consts->zesc_power_law = pow((1 + redshift) / 8.0, consts->beta_esc);
+    consts->zesc_power_law_mini = pow((1 + redshift) / 8.0, consts->beta_esc_mini);
 
     if (use_photoncons) {
         if (astro_options_global->PHOTON_CONS_TYPE == 2)
@@ -108,6 +115,9 @@ ScalingConstants evolve_scaling_constants_sfr(ScalingConstants *sc) {
     sc_sfrd.fesc_10 = 1.;
     sc_sfrd.fesc_7 = 1.;
     sc_sfrd.alpha_esc = 0.;
+    sc_sfrd.beta_esc = 0.;
+    sc_sfrd.beta_esc_mini = 0.;
+    sc_sfrd.zesc_power_law = 1.;
     sc_sfrd.Mlim_Fesc = 0.;
     sc_sfrd.Mlim_Fesc_mini = 0.;
 
@@ -148,6 +158,10 @@ ScalingConstants evolve_scaling_constants_to_redshift(double redshift, ScalingCo
         sc_z.vcb_norel = astro_options_global->FIX_VCB_AVG ? astro_params_global->FIXED_VAVG : 0;
         sc_z.mturn_m_nofb = lyman_werner_threshold(redshift, 0., sc_z.vcb_norel);
     }
+
+    // Update the redshift-dependent power-law term for escape fraction
+    sc_z.zesc_power_law = pow((1 + redshift) / 8.0, sc_z.beta_esc);
+    sc_z.zesc_power_law_mini = pow((1 + redshift) / 8.0, sc_z.beta_esc_mini);
 
     return sc_z;
 }

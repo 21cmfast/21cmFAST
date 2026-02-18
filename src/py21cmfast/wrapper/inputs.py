@@ -1119,11 +1119,11 @@ class AstroOptions(InputStruct):
 
     @PHOTON_CONS_TYPE.validator
     def _PHOTON_CONS_TYPE_vld(self, att, val):
-        """Raise an error if using PHOTON_CONS_TYPE='z_photoncons' and USE_MINI_HALOS is True."""
+        """Raise an error if using PHOTON_CONS_TYPE='z-photoncons' and USE_MINI_HALOS is True."""
         if self.USE_MINI_HALOS and val == "z-photoncons":
             raise ValueError(
                 "USE_MINI_HALOS is not compatible with the redshift-based"
-                " photon conservation corrections (PHOTON_CONS_TYPE=='z_photoncons')! "
+                " photon conservation corrections (PHOTON_CONS_TYPE=='z-photoncons')! "
             )
 
     @USE_EXP_FILTER.validator
@@ -1198,6 +1198,12 @@ class AstroParams(InputStruct):
     ALPHA_ESC : float, optional
         Power-law index of escape fraction as a function of halo mass. See Sec 2.1 of
         Park+2018.
+    BETA_ESC : float, optional
+        Power-law index of escape fraction as a function of redshift. See Eq. 2 of
+        Qin+2025.
+    BETA_ESC_MINI : float, optional
+        Power-law index of escape fraction as a function of redshift for minihalos.
+        If the scaling relations are not provided explicitly, we extend the ACG ones by default.
     M_TURN : float, optional
         Turnover mass (in log10 solar mass units) for quenching of star formation in
         halos, due to SNe or photo-heating feedback, or inefficient gas accretion.
@@ -1292,6 +1298,11 @@ class AstroParams(InputStruct):
         default=-0.5,
         converter=float,
     )
+    BETA_ESC: float = field(
+        default=0.0,
+        converter=float,
+    )
+    BETA_ESC_MINI: float = field(converter=float)
     F_ESC7_MINI: float = field(
         default=-2.0,
         converter=float,
@@ -1388,6 +1399,10 @@ class AstroParams(InputStruct):
     def _ALPHA_STAR_MINI_default(self):
         return self.ALPHA_STAR
 
+    @BETA_ESC_MINI.default
+    def _BETA_ESC_MINI_default(self):
+        return self.BETA_ESC
+
     @L_X_MINI.default
     def _L_X_MINI_default(self):
         return self.L_X
@@ -1446,6 +1461,8 @@ def get_logspaced_redshifts(
 ) -> tuple[float]:
     """Compute a sequence of redshifts to evolve over that are log-spaced."""
     redshifts = [min_redshift]
+    if z_step_factor <= 1.0:
+        return (min_redshift,)
     while redshifts[-1] < max_redshift:
         redshifts.append((redshifts[-1] + 1.0) * z_step_factor - 1.0)
 
@@ -1677,6 +1694,18 @@ class InputParameters:
                 "update of M_TURN",
                 stacklevel=2,
             )
+            if (
+                self.astro_options.USE_MASS_DEPENDENT_ZETA
+                and val.BETA_ESC != 0
+                and self.astro_options.PHOTON_CONS_TYPE
+                not in ["no-photoncons", "alpha-photoncons"]
+            ):
+                warnings.warn(
+                    f"You have set BETA_ESC != 0 but PHOTON_CONS_TYPE is {self.astro_options.PHOTON_CONS_TYPE}. "
+                    "This changes the escape fraction so it is not consistent with the manual setting of scaling."
+                    "Set PHOTON_CONS_TYPE to 'no-photoncons' or 'alpha-photoncons' if you want the scaling to be exact.",
+                    stacklevel=2,
+                )
 
         if (
             self.astro_options.HII_FILTER == "sharp-k"
