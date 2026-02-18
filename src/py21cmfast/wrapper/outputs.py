@@ -1245,15 +1245,7 @@ class TsBox(OutputStructZ):
     spin_temperature = _arrayfield()
     xray_ionised_fraction = _arrayfield()
     kinetic_temp_neutral = _arrayfield()
-    J_alpha_star = _arrayfield()
-    J_alpha_X = _arrayfield()
     J_21_LW = _arrayfield(optional=True)
-    dadia_dzp = _arrayfield()
-    dcomp_dzp = _arrayfield()
-    dxheat_dzp = _arrayfield(optional=True)
-    dCMBheat_dzp = _arrayfield(optional=True)
-    dLya_cont_dzp = _arrayfield(optional=True)
-    dLya_inj_dzp = _arrayfield(optional=True)
     Q_HI: float = attrs.field(default=1.0)
 
     @classmethod
@@ -1282,20 +1274,9 @@ class TsBox(OutputStructZ):
             "spin_temperature": Array(shape, dtype=np.float32),
             "xray_ionised_fraction": Array(shape, dtype=np.float32),
             "kinetic_temp_neutral": Array(shape, dtype=np.float32),
-            "J_alpha_star": Array(shape, dtype=np.float32),
-            "J_alpha_X": Array(shape, dtype=np.float32),
-            "dadia_dzp": Array(shape, dtype=np.float32),
-            "dcomp_dzp": Array(shape, dtype=np.float32),
         }
         if inputs.astro_options.USE_MINI_HALOS:
             out["J_21_LW"] = Array(shape, dtype=np.float32)
-        if inputs.astro_options.USE_X_RAY_HEATING:
-            out["dxheat_dzp"] = Array(shape, dtype=np.float32)
-        if inputs.astro_options.USE_CMB_HEATING:
-            out["dCMBheat_dzp"] = Array(shape, dtype=np.float32)
-        if inputs.astro_options.USE_LYA_HEATING:
-            out["dLya_cont_dzp"] = Array(shape, dtype=np.float32)
-            out["dLya_inj_dzp"] = Array(shape, dtype=np.float32)
 
         return cls(inputs=inputs, redshift=redshift, **out, **kw)
 

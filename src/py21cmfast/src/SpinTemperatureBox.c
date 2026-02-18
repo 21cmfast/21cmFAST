@@ -921,8 +921,6 @@ void init_first_Ts(TsBox *box, float *dens, float z, float zp, double *x_e_ave, 
             gdens = dens[box_ct] * inverse_growth_factor_z * growth_factor_zp;
             box->kinetic_temp_neutral[box_ct] = TK * (1.0 + cT_ad * gdens);
             box->xray_ionised_fraction[box_ct] = xe;
-            box->J_alpha_star[box_ct] = 0.;
-            box->J_alpha_X[box_ct] = 0.;
             // compute the spin temperature
             box->spin_temperature[box_ct] = get_Ts(z, gdens, TK, xe, 0, &curr_xalpha);
         }
@@ -1205,15 +1203,7 @@ struct Ts_cell {
     double Ts;
     double x_e;
     double Tk;
-    double J_alpha_star;
-    double J_alpha_X;
     double J_21_LW;
-    double dadia_dzp;
-    double dcomp_dzp;
-    double dxheat_dzp;
-    double dCMBheat_dzp;
-    double dLya_cont_dzp;
-    double dLya_inj_dzp;
 };
 
 // Function for calculating the Ts box outputs quickly by using pre-calculated constants
@@ -1323,20 +1313,11 @@ struct Ts_cell get_Ts_fast(float zp, float dzp, struct spintemp_from_sfr_prefact
     // spurious bahaviour of the trapazoidalintegrator. generally overcooling in underdensities
     if (Tk < 0) Tk = consts->Trad;
 
-    output.dadia_dzp = dadia_dzp;
-    output.dcomp_dzp = dcomp_dzp;
-    output.dxheat_dzp = dxheat_dzp;
-    output.dCMBheat_dzp = dCMBheat_dzp;
-    output.dLya_cont_dzp = eps_Lya_cont;
-    output.dLya_inj_dzp = eps_Lya_inj;
-
     output.x_e = x_e;
     output.Tk = Tk;
     output.J_21_LW = astro_options_global->USE_MINI_HALOS ? rad->dstarLW_dt : 0.;
 
     double J_alpha_tot = rad->dstarlya_dt + rad->dxlya_dt;  // not really d/dz, but the lya flux
-    output.J_alpha_star = rad->dstarlya_dt;
-    output.J_alpha_X = rad->dxlya_dt;
 
     // JD: I'm leaving these as comments in case I'm wrong, but there's NO WAY a compiler doesn't
     // know the fastest way to invert a number
@@ -1883,22 +1864,8 @@ void ts_main(float redshift, float prev_redshift, float perturbed_field_redshift
             this_spin_temp->spin_temperature[box_ct] = ts_cell.Ts;
             this_spin_temp->kinetic_temp_neutral[box_ct] = ts_cell.Tk;
             this_spin_temp->xray_ionised_fraction[box_ct] = ts_cell.x_e;
-            this_spin_temp->J_alpha_star[box_ct] = ts_cell.J_alpha_star;
-            this_spin_temp->J_alpha_X[box_ct] = ts_cell.J_alpha_X;
             if (astro_options_global->USE_MINI_HALOS) {
                 this_spin_temp->J_21_LW[box_ct] = ts_cell.J_21_LW;
-            }
-            this_spin_temp->dadia_dzp[box_ct] = ts_cell.dadia_dzp;
-            this_spin_temp->dcomp_dzp[box_ct] = ts_cell.dcomp_dzp;
-            if (astro_options_global->USE_X_RAY_HEATING) {
-                this_spin_temp->dxheat_dzp[box_ct] = ts_cell.dxheat_dzp;
-            }
-            if (astro_options_global->USE_CMB_HEATING) {
-                this_spin_temp->dCMBheat_dzp[box_ct] = ts_cell.dCMBheat_dzp;
-            }
-            if (astro_options_global->USE_LYA_HEATING) {
-                this_spin_temp->dLya_cont_dzp[box_ct] = ts_cell.dLya_cont_dzp;
-                this_spin_temp->dLya_inj_dzp[box_ct] = ts_cell.dLya_inj_dzp;
             }
 
             // Single cell debug
