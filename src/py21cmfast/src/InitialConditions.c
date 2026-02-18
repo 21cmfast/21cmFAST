@@ -566,6 +566,7 @@ int ComputeInitialConditions(unsigned long long random_seed, InitialConditions *
 #endif
 
         int i, j, k;
+        unsigned long long int box_ct;
 
         gsl_rng *r[simulation_options_global->N_THREADS];
         seed_rng_threads(r, random_seed);
@@ -617,36 +618,83 @@ int ComputeInitialConditions(unsigned long long random_seed, InitialConditions *
 
         init_ps();
 
-        sample_ic_modes(HIRES_box, hi_dim, box_len, r);
-
-        memcpy(HIRES_box_saved, HIRES_box, sizeof(fftwf_complex) * KSPACE_NUM_PIXELS);
-
-        /* ASSIGN HIRES DENSITY */
-        // FFT back to real space
-        int stat =
-            dft_c2r_cube(matter_options_global->USE_FFTW_WISDOM, simulation_options_global->DIM,
-                         D_PARA, simulation_options_global->N_THREADS, HIRES_box);
-        if (stat > 0) Throw(stat);
-        LOG_SUPER_DEBUG("FFT'd hires boxes.");
-
-#pragma omp parallel shared(boxes, HIRES_box) private(i, j, k) \
+        // Check if the input hires density box is all zero
+        bool non_zero_input = false;
+#pragma omp parallel shared(boxes, non_zero_input) \
     num_threads(simulation_options_global -> N_THREADS)
         {
-            unsigned long long int index_r, index_f;
 #pragma omp for
-            for (i = 0; i < hi_dim[0]; i++) {
-                for (j = 0; j < hi_dim[1]; j++) {
-                    for (k = 0; k < hi_dim[2]; k++) {
-                        index_r = grid_index_general(i, j, k, hi_dim);
-                        index_f = grid_index_fftw_r(i, j, k, hi_dim);
-                        boxes->hires_density[index_r] = *((float *)HIRES_box + index_f) / VOLUME;
-                    }
+            for (box_ct = 0; box_ct < TOT_NUM_PIXELS; box_ct++) {
+                if (!non_zero_input && boxes->hires_density[box_ct]) {
+#pragma omp atomic write
+                    non_zero_input = true;
                 }
             }
         }
 
-        LOG_SUPER_DEBUG("Saved HIRES_box to struct.");
+        // If we have a non zero input, we reverse the order of operations,
+        // namely we assign the input to HIRES_box, inverse FFT it, and save the result in
+        // HIRES_box_saved
+        if (non_zero_input) {
+#pragma omp parallel shared(boxes, HIRES_box) private(i, j, k) \
+    num_threads(simulation_options_global -> N_THREADS)
+            {
+                unsigned long long int index_r, index_f;
+#pragma omp for
+                for (i = 0; i < hi_dim[0]; i++) {
+                    for (j = 0; j < hi_dim[1]; j++) {
+                        for (k = 0; k < hi_dim[2]; k++) {
+                            index_r = grid_index_general(i, j, k, hi_dim);
+                            index_f = grid_index_fftw_r(i, j, k, hi_dim);
+                            // remember to add the factor of VOLUME/TOT_NUM_PIXELS when converting
+                            // from real space to k-space
+                            *((float *)HIRES_box + index_f) =
+                                boxes->hires_density[index_r] * VOLUME / TOT_NUM_PIXELS;
+                        }
+                    }
+                }
+            }
+            LOG_SUPER_DEBUG("Saved struct to HIRES_box.");
 
+            int stat =
+                dft_r2c_cube(matter_options_global->USE_FFTW_WISDOM, simulation_options_global->DIM,
+                             D_PARA, simulation_options_global->N_THREADS, HIRES_box);
+            if (stat > 0) Throw(stat);
+            LOG_SUPER_DEBUG("Inverse FFT'd hires boxes.");
+
+            memcpy(HIRES_box_saved, HIRES_box, sizeof(fftwf_complex) * KSPACE_NUM_PIXELS);
+        } else {
+            sample_ic_modes(HIRES_box, hi_dim, box_len, r);
+
+            memcpy(HIRES_box_saved, HIRES_box, sizeof(fftwf_complex) * KSPACE_NUM_PIXELS);
+
+            /* ASSIGN HIRES DENSITY */
+            // FFT back to real space
+            int stat =
+                dft_c2r_cube(matter_options_global->USE_FFTW_WISDOM, simulation_options_global->DIM,
+                             D_PARA, simulation_options_global->N_THREADS, HIRES_box);
+            if (stat > 0) Throw(stat);
+            LOG_SUPER_DEBUG("FFT'd hires boxes.");
+
+#pragma omp parallel shared(boxes, HIRES_box) private(i, j, k) \
+    num_threads(simulation_options_global -> N_THREADS)
+            {
+                unsigned long long int index_r, index_f;
+#pragma omp for
+                for (i = 0; i < hi_dim[0]; i++) {
+                    for (j = 0; j < hi_dim[1]; j++) {
+                        for (k = 0; k < hi_dim[2]; k++) {
+                            index_r = grid_index_general(i, j, k, hi_dim);
+                            index_f = grid_index_fftw_r(i, j, k, hi_dim);
+                            boxes->hires_density[index_r] =
+                                *((float *)HIRES_box + index_f) / VOLUME;
+                        }
+                    }
+                }
+            }
+
+            LOG_SUPER_DEBUG("Saved HIRES_box to struct.");
+        }
         /* FILTER AND ASSIGN LOWRES DENSITY */
         memcpy(HIRES_box, HIRES_box_saved, sizeof(fftwf_complex) * KSPACE_NUM_PIXELS);
 

@@ -35,7 +35,9 @@ logger = logging.getLogger(__name__)
 
 
 @single_field_func
-def compute_initial_conditions(*, inputs: InputParameters) -> InitialConditions:
+def compute_initial_conditions(
+    *, inputs: InputParameters, initial_density: np.ndarray | float | None = None
+) -> InitialConditions:
     r"""
     Compute initial conditions.
 
@@ -43,6 +45,10 @@ def compute_initial_conditions(*, inputs: InputParameters) -> InitialConditions:
     ----------
     inputs
         The InputParameters instance defining the run.
+    initial_density: np.ndarray or float, optional
+        A realization of the density field on the high resolution grid.
+        This input can also be used to determine the global density field,
+        in case we have a single cell in the box.
     regenerate : bool, optional
         Whether to force regeneration of data, even if matching cached data is found.
     cache
@@ -63,16 +69,43 @@ def compute_initial_conditions(*, inputs: InputParameters) -> InitialConditions:
         required_arrays = PerturbedField.new(
             redshift=0, inputs=inputs
         ).get_required_input_arrays(ics)
+
+        # Set the arrays to zero, or according to initial_density if the arrays are density fields
         for array in required_arrays:
+            if (initial_density is not None) and (
+                array in ["hires_density", "lowres_density"]
+            ):
+                value = initial_density
+            else:
+                value = 0.0
             setattr(
                 ics,
                 array,
                 Array(shape=shape, dtype=np.float32)
                 .initialize()
-                .with_value(val=np.zeros(shape)),
+                .with_value(val=value * np.ones(shape)),
             )
         return ics
     else:
+        if initial_density is not None:
+            if np.abs(initial_density.mean() > 1e-3):
+                warnings.warn(
+                    f"Your initial_density has mean {initial_density.mean()}. "
+                    + "Make sure you know what you are doing.",
+                    stacklevel=2,
+                )
+            shape = ics.hires_density.shape
+            if initial_density.shape != shape:
+                raise ValueError(
+                    "The shape of your high resolution initial_density is not consistent with inputs!"
+                    + f" According to inputs, initial_density must be of shape {shape}, got {initial_density.shape}."
+                )
+
+            ics.hires_density = (
+                Array(shape=shape, dtype=np.float32)
+                .initialize()
+                ._with_value_not_computed(val=initial_density)
+            )
         return ics.compute()
 
 

@@ -1393,11 +1393,11 @@ class IonizedBox(OutputStructZ):
 
     neutral_fraction = _arrayfield()
     ionisation_rate_G12 = _arrayfield()
-    mean_free_path = _arrayfield()  # never used
+    mean_free_path = _arrayfield()
     z_reion = _arrayfield()
     cumulative_recombinations = _arrayfield(optional=True)
-    kinetic_temperature = _arrayfield()  # never used
-    unnormalised_nion = _arrayfield()  # not sure about this one
+    kinetic_temperature = _arrayfield()
+    unnormalised_nion = _arrayfield(optional=True)
     unnormalised_nion_mini = _arrayfield(optional=True)
     log10_Mturnover_ave: float = attrs.field(default=None)
     log10_Mturnover_MINI_ave: float = attrs.field(default=None)
@@ -1460,17 +1460,16 @@ class IonizedBox(OutputStructZ):
             "mean_free_path": Array(shape, dtype=np.float32),
             "z_reion": Array(shape, dtype=np.float32),
             "kinetic_temperature": Array(shape, dtype=np.float32),
-            "unnormalised_nion": Array(filter_shape, dtype=np.float32),
         }
 
         if inputs.astro_options.INHOMO_RECO:
             out["cumulative_recombinations"] = Array(shape, dtype=np.float32)
 
-        if (
-            inputs.astro_options.USE_MINI_HALOS
-            and not inputs.matter_options.lagrangian_source_grid
-        ):
-            out["unnormalised_nion_mini"] = Array(filter_shape, dtype=np.float32)
+        if not inputs.matter_options.lagrangian_source_grid:
+            out["unnormalised_nion"] = Array(filter_shape, dtype=np.float32)
+
+            if inputs.astro_options.USE_MINI_HALOS:
+                out["unnormalised_nion_mini"] = Array(filter_shape, dtype=np.float32)
 
         return cls(inputs=inputs, redshift=redshift, **out, **kw)
 
@@ -1506,16 +1505,13 @@ class IonizedBox(OutputStructZ):
                     "cumulative_recombinations",
                 ]
             if (
-                self.matter_options.mass_dependent_zeta
-                and self.astro_options.USE_MINI_HALOS
+                self.astro_options.USE_MINI_HALOS
+                and not self.matter_options.lagrangian_source_grid
             ):
                 required += [
                     "unnormalised_nion",
+                    "unnormalised_nion_mini",
                 ]
-                if self.matter_options.SOURCE_MODEL == "E-INTEGRAL":
-                    required += [
-                        "unnormalised_nion_mini",
-                    ]
         elif isinstance(input_box, HaloBox):
             required += ["n_ion"]
             if self.astro_options.INHOMO_RECO:

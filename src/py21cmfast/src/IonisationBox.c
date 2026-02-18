@@ -941,8 +941,10 @@ void calculate_fcoll_grid(IonizedBox *box, IonizedBox *previous_ionize_box,
                             Throw(InfinityorNaNError);
                         }
                     } else {
-                        box->unnormalised_nion[fc_r_idx * HII_TOT_NUM_PIXELS + index_r] =
-                            Splined_Fcoll;
+                        if (!consts->lagrangian_source_grids) {
+                            box->unnormalised_nion[fc_r_idx * HII_TOT_NUM_PIXELS + index_r] =
+                                Splined_Fcoll;
+                        }
                         f_coll_total += Splined_Fcoll;
                     }
                 }
@@ -1043,7 +1045,12 @@ void find_ionised_regions(IonizedBox *box, IonizedBox *previous_ionize_box,
                     else
                         curr_dens = *((float *)fg_struct->deltax_filtered + index_f);
 
-                    curr_fcoll = box->unnormalised_nion[fc_r_idx * HII_TOT_NUM_PIXELS + index_r];
+                    if (consts->lagrangian_source_grids) {
+                        curr_fcoll = *((float *)fg_struct->stars_filtered + index_f);
+                    } else {
+                        curr_fcoll =
+                            box->unnormalised_nion[fc_r_idx * HII_TOT_NUM_PIXELS + index_r];
+                    }
                     curr_fcoll = mean_fix_term_acg * curr_fcoll;
 
                     // Since the halo boxes give ionising photon output, this term accounts for the
