@@ -224,12 +224,6 @@ class _OutputStructComputationInspect:
     def _make_wisdoms(self, use_fftw_wisdom: bool):
         construct_fftw_wisdoms(use_fftw_wisdom=use_fftw_wisdom)
 
-    def _broadcast_inputs(self, inputs: InputParameters):
-        broadcast_input_struct(inputs=inputs)
-
-    def _free_cosmo_tables(self):
-        free_cosmo_tables()
-
     def check_output_struct_types(self, outputs: dict[str, OutputStruct]):
         """Check given OutputStruct parameters.
 
@@ -386,12 +380,12 @@ class _OutputStructComputationInspect:
         # First check whether the boxes already exist.
         if issubclass(self._kls, OutputStructZ):
             if issubclass(self._kls, HaloCatalog):
-                # We need to specify more arguments because there is a call to a C function when doing HaloCatalog.new()
+                # We need to specify that this was called from a higher level function
+                # because there is a call to a C function when doing HaloCatalog.new()
                 obj = self._kls.new(
                     inputs=inputs,
                     redshift=current_redshift,
-                    broadcast_inputs=False,
-                    free_cosmo_tables=False,
+                    called_by_higher_level=True,
                 )
             else:
                 obj = self._kls.new(inputs=inputs, redshift=current_redshift)
@@ -457,8 +451,7 @@ class single_field_func(_OutputStructComputationInspect):  # noqa: N801
 
         out = self._handle_read_from_cache(inputs, current_redshift, cache, regen)
 
-        broadcast_inputs = kwargs.pop("broadcast_inputs", True)
-        free_cosmo_tables = kwargs.pop("free_cosmo_tables", True)
+        called_by_higher_level = kwargs.pop("called_by_higher_level", False)
 
         if "inputs" in self._signature.parameters:
             # Here we set the inputs (if accepted by the function signature)
@@ -469,9 +462,9 @@ class single_field_func(_OutputStructComputationInspect):  # noqa: N801
 
         if out is None:
             # Skip broadcast when a high-level function has already broadcast
-            # (indicated by free_cosmo_tables=False).
-            if broadcast_inputs:
-                self._broadcast_inputs(inputs)
+            # (indicated by called_by_higher_level=True).
+            if not called_by_higher_level:
+                broadcast_input_struct(inputs)
             self._make_wisdoms(inputs.matter_options.USE_FFTW_WISDOM)
             out = self._func(**kwargs)
             self._handle_write_to_cache(cache, write, out)
@@ -479,8 +472,8 @@ class single_field_func(_OutputStructComputationInspect):  # noqa: N801
         # Free cosmo_tables, unless it is explicitly requested to keep their memory
         # (useful in macro functions like run_coeval and run_lightcone, so we won't have to
         # free and reallocate memory repeatedly)
-        if free_cosmo_tables:
-            self._free_cosmo_tables()
+        if not called_by_higher_level:
+            free_cosmo_tables()
 
         return out
 
@@ -508,7 +501,7 @@ class high_level_func(_OutputStructComputationInspect):  # noqa: N801
         self.check_consistency(kwargs, outputs)
 
         # Broadcast once here so that every single_field_func called downstream
-        # (with free_cosmo_tables=False) can skip its own redundant broadcast.
+        # (with called_by_higher_level=True) can skip its own redundant broadcast.
         broadcast_input_struct(inputs=inputs)
         try:
             yield from self._func(**kwargs)

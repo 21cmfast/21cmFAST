@@ -253,8 +253,7 @@ def generate_global_evolution(
     iokw = {
         "cache": None,
         "regenerate": True,
-        "broadcast_inputs": False,
-        "free_cosmo_tables": False,
+        "called_by_higher_level": True,
     }
 
     (

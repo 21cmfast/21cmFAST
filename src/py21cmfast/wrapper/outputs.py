@@ -806,8 +806,7 @@ class HaloCatalog(OutputStructZ):
             buffer_size = get_halo_catalog_buffer_size(
                 redshift=redshift,
                 inputs=inputs,
-                broadcast_inputs=kw.pop("broadcast_inputs", True),
-                free_cosmo_tables=kw.pop("free_cosmo_tables", True),
+                called_by_higher_level=kw.pop("called_by_higher_level", False),
             )
 
         return cls(

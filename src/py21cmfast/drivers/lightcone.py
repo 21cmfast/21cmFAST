@@ -650,8 +650,7 @@ def generate_lightcone(
     iokw = {
         "cache": cache,
         "regenerate": regenerate,
-        "broadcast_inputs": False,
-        "free_cosmo_tables": False,
+        "called_by_higher_level": True,
     }
 
     (

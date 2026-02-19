@@ -395,8 +395,7 @@ def evolve_halos(
     initial_conditions: InitialConditions,
     cache: OutputCache,
     regenerate: bool,
-    broadcast_inputs: bool,
-    free_cosmo_tables: bool,
+    called_by_higher_level: bool = False,
     progressbar: bool = False,
 ):
     """
@@ -445,8 +444,7 @@ def evolve_halos(
         "initial_conditions": initial_conditions,
         "cache": cache,
         "regenerate": regenerate,
-        "broadcast_inputs": broadcast_inputs,
-        "free_cosmo_tables": free_cosmo_tables,
+        "called_by_higher_level": called_by_higher_level,
     }
     halos_desc = None
     with _progressbar(disable=not progressbar) as _progbar:
@@ -566,8 +564,7 @@ def generate_coeval(
     iokw = {
         "regenerate": regenerate,
         "cache": cache,
-        "broadcast_inputs": False,
-        "free_cosmo_tables": False,
+        "called_by_higher_level": True,
     }
 
     if not hasattr(out_redshifts, "__len__"):
