@@ -154,14 +154,14 @@ class OutputStruct(ABC):
         return {k: x for k, x in me.items() if isinstance(x, Array)}
 
     @cached_property
-    def struct(self) -> StructWrapper:
+    def _struct(self) -> StructWrapper:
         """The python-wrapped struct associated with this input object."""
         return StructWrapper(self._name)
 
     @cached_property
-    def cstruct(self) -> StructWrapper:
+    def _cstruct(self) -> StructWrapper:
         """The object pointing to the memory accessed by C-code for this struct."""
-        return self.struct.cstruct
+        return self._struct.cstruct
 
     def _init_arrays(self):
         for k, array in self.arrays.items():
@@ -193,11 +193,11 @@ class OutputStruct(ABC):
             # to unnecessarily load things in. We leave it to the user to ensure that all
             # required arrays are loaded into memory before calling this function.
             if array.state.initialized:
-                self.struct.expose_to_c(array, name)
+                self._struct.expose_to_c(array, name)
 
-        for k in self.struct.primitive_fields:
+        for k in self._struct.primitive_fields:
             if getattr(self, k) is not None:
-                setattr(self.cstruct, k, getattr(self, k))
+                setattr(self._cstruct, k, getattr(self, k))
 
     def pull_from_backend(self):
         """Sync the current state of the object with the underlying C-struct.
@@ -205,8 +205,8 @@ class OutputStruct(ABC):
         This will pull any primitives calculated in the backend to the python object.
         Arrays are passed in as pointers, and do not need to be copied back.
         """
-        for k in self.struct.primitive_fields:
-            setattr(self, k, getattr(self.cstruct, k))
+        for k in self._struct.primitive_fields:
+            setattr(self, k, getattr(self._cstruct, k))
 
     def get(self, ary: str | Array):
         """If possible, load an array from disk, storing it and returning the underlying array."""
@@ -309,7 +309,7 @@ class OutputStruct(ABC):
             return
 
         if state.c_has_active_memory:
-            lib.free(getattr(self.cstruct, k))
+            lib.free(getattr(self._cstruct, k))
 
         setattr(self, k, array.without_value())
 
@@ -407,7 +407,7 @@ class OutputStruct(ABC):
         # print primitive fields
         out += "".join(
             f"{indent}    {fieldname:>25}: {getattr(self, fieldname, 'non-existent')}\n"
-            for fieldname in self.struct.primitive_fields
+            for fieldname in self._struct.primitive_fields
         )
 
         return out
@@ -471,7 +471,7 @@ class OutputStruct(ABC):
 
         # Perform the C computation
         try:
-            exitcode = self._c_compute_function(*inputs, self.cstruct)
+            exitcode = self._c_compute_function(*inputs, self._cstruct)
         except TypeError as e:
             logger.error(f"Arguments to {self._c_compute_function.__name__}: {inputs}")
             raise e
