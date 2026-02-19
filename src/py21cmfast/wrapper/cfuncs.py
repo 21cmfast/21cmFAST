@@ -49,7 +49,8 @@ def broadcast_params(func: Callable) -> Callable:
     """
 
     def wrapper(*args, inputs: InputParameters, **kwargs):
-        broadcast_input_struct(inputs)
+        if kwargs.get("broadcast_inputs", True):
+            broadcast_input_struct(inputs)
         try:
             out = func(*args, inputs=inputs, **kwargs)
         except:
@@ -154,6 +155,7 @@ def get_halo_catalog_buffer_size(
     hbuffer_size = get_expected_nhalo(
         redshift=redshift,
         inputs=inputs,
+        broadcast_inputs=kwargs.get("broadcast_inputs", True),
         free_cosmo_tables=kwargs.get("free_cosmo_tables", True),
     )
     hbuffer_size = int((hbuffer_size + 1) * config["HALO_CATALOG_MEM_FACTOR"])

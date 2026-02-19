@@ -20,7 +20,7 @@ from ..wrapper.cfuncs import (
     free_cosmo_tables,
 )
 from ..wrapper.inputs import InputParameters
-from ..wrapper.outputs import OutputStruct, OutputStructZ, _HashType
+from ..wrapper.outputs import HaloCatalog, OutputStruct, OutputStructZ, _HashType
 from ..wrapper.photoncons import _photoncons_state
 
 logger = logging.getLogger(__name__)
@@ -385,7 +385,16 @@ class _OutputStructComputationInspect:
 
         # First check whether the boxes already exist.
         if issubclass(self._kls, OutputStructZ):
-            obj = self._kls.new(inputs=inputs, redshift=current_redshift)
+            if issubclass(self._kls, HaloCatalog):
+                # We need to specify more arguments because there is a call to a C function when doing HaloCatalog.new()
+                obj = self._kls.new(
+                    inputs=inputs,
+                    redshift=current_redshift,
+                    broadcast_inputs=False,
+                    free_cosmo_tables=False,
+                )
+            else:
+                obj = self._kls.new(inputs=inputs, redshift=current_redshift)
         else:
             obj = self._kls.new(inputs=inputs)
 
@@ -448,6 +457,7 @@ class single_field_func(_OutputStructComputationInspect):  # noqa: N801
 
         out = self._handle_read_from_cache(inputs, current_redshift, cache, regen)
 
+        broadcast_inputs = kwargs.pop("broadcast_inputs", True)
         free_cosmo_tables = kwargs.pop("free_cosmo_tables", True)
 
         if "inputs" in self._signature.parameters:
@@ -460,7 +470,7 @@ class single_field_func(_OutputStructComputationInspect):  # noqa: N801
         if out is None:
             # Skip broadcast when a high-level function has already broadcast
             # (indicated by free_cosmo_tables=False).
-            if free_cosmo_tables:
+            if broadcast_inputs:
                 self._broadcast_inputs(inputs)
             self._make_wisdoms(inputs.matter_options.USE_FFTW_WISDOM)
             out = self._func(**kwargs)
@@ -502,6 +512,5 @@ class high_level_func(_OutputStructComputationInspect):  # noqa: N801
         broadcast_input_struct(inputs=inputs)
         try:
             yield from self._func(**kwargs)
-        except:
+        finally:
             free_cosmo_tables()
-            raise

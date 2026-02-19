@@ -196,6 +196,8 @@ def determine_halo_catalog(
         redshift=redshift,
         desc_redshift=descendant_halos.redshift,
         inputs=inputs,
+        broadcast_inputs=False,
+        free_cosmo_tables=False,
     )
 
     # Run the C Code

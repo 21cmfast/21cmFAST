@@ -9,7 +9,6 @@ import h5py
 import numpy as np
 
 from .. import __version__
-from ..c_21cmfast import lib
 from ..io import h5
 from ..io.caching import CacheConfig
 from ..wrapper.arrays import Array
@@ -251,7 +250,12 @@ def generate_global_evolution(
 
     prev_coeval = None
 
-    iokw = {"cache": None, "regenerate": True, "free_cosmo_tables": False}
+    iokw = {
+        "cache": None,
+        "regenerate": True,
+        "broadcast_inputs": False,
+        "free_cosmo_tables": False,
+    }
 
     (
         initial_conditions,
@@ -289,8 +293,6 @@ def generate_global_evolution(
         prev_coeval = coeval
 
     yield global_evolution
-
-    lib.Free_cosmo_tables_global()
 
 
 def run_global_evolution(

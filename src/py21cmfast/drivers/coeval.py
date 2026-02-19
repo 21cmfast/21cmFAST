@@ -395,6 +395,7 @@ def evolve_halos(
     initial_conditions: InitialConditions,
     cache: OutputCache,
     regenerate: bool,
+    broadcast_inputs: bool,
     free_cosmo_tables: bool,
     progressbar: bool = False,
 ):
@@ -444,6 +445,7 @@ def evolve_halos(
         "initial_conditions": initial_conditions,
         "cache": cache,
         "regenerate": regenerate,
+        "broadcast_inputs": broadcast_inputs,
         "free_cosmo_tables": free_cosmo_tables,
     }
     halos_desc = None
@@ -561,7 +563,12 @@ def generate_coeval(
     if not out_redshifts and not inputs.node_redshifts:
         raise ValueError("out_redshifts must be given if inputs has no node redshifts")
 
-    iokw = {"regenerate": regenerate, "cache": cache, "free_cosmo_tables": False}
+    iokw = {
+        "regenerate": regenerate,
+        "cache": cache,
+        "broadcast_inputs": False,
+        "free_cosmo_tables": False,
+    }
 
     if not hasattr(out_redshifts, "__len__"):
         out_redshifts = [out_redshifts]
@@ -604,6 +611,7 @@ def generate_coeval(
         regenerate=regenerate,
         minimum_node=first_out_node,
     )
+
     # convert node_redshift index to all_redshift index
     if idx > 0:
         idx = np.argmin(np.fabs(np.array(all_redshifts) - inputs.node_redshifts[idx]))
@@ -626,8 +634,6 @@ def generate_coeval(
 
     if lib.photon_cons_allocated:
         lib.FreePhotonConsMemory()
-
-    lib.Free_cosmo_tables_global()
 
 
 def run_coeval(**kwargs) -> list[Coeval]:

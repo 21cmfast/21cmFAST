@@ -647,7 +647,12 @@ def generate_lightcone(
 
     _check_desired_arrays_exist(lightconer.quantities, inputs)
 
-    iokw = {"cache": cache, "regenerate": regenerate, "free_cosmo_tables": False}
+    iokw = {
+        "cache": cache,
+        "regenerate": regenerate,
+        "broadcast_inputs": False,
+        "free_cosmo_tables": False,
+    }
 
     (
         initial_conditions,
@@ -680,8 +685,6 @@ def generate_lightcone(
         lightcone_filename=lightcone_filename,
         **iokw,
     )
-
-    lib.Free_cosmo_tables_global()
 
 
 def run_lightcone(**kwargs) -> LightCone:
