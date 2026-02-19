@@ -158,17 +158,17 @@ class InputStruct:
 
         Examples
         --------
-        >>> up = SimulationOptions({'HII_DIM': 250})
-        >>> up.HII_DIM
+        >>> params = SimulationOptions.new({'HII_DIM': 250})
+        >>> params.HII_DIM
         250
-        >>> up = SimulationOptions(up)
-        >>> up.HII_DIM
+        >>> params = SimulationOptions.new(params)
+        >>> params.HII_DIM
         250
-        >>> up = SimulationOptions()
-        >>> up.HII_DIM
+        >>> params = SimulationOptions.new()
+        >>> params.HII_DIM
         200
-        >>> up = SimulationOptions(HII_DIM=256)
-        >>> up.HII_DIM
+        >>> params = SimulationOptions.new(HII_DIM=256)
+        >>> params.HII_DIM
         256
         """
         if isinstance(x, dict):
@@ -187,15 +187,15 @@ class InputStruct:
         InputStruct._subclasses[cls.__name__] = cls
 
     @cached_property
-    def struct(self) -> StructWrapper:
+    def _struct(self) -> StructWrapper:
         """The python-wrapped struct associated with this input object."""
         return StructWrapper(self.__class__.__name__)
 
     @cached_property
-    def cstruct(self) -> StructWrapper:
+    def _cstruct(self) -> StructWrapper:
         """The object pointing to the memory accessed by C-code for this struct."""
         cdict = self.cdict
-        for k in self.struct.fieldnames:
+        for k in self._struct.fieldnames:
             val = cdict[k]
 
             # TODO: is this really required here? (I don't think the wrapper can satisfy this condition)
@@ -203,9 +203,9 @@ class InputStruct:
                 # If it is a string, need to convert it to C string ourselves.
                 val = self.ffi.new("char[]", val.encode())
 
-            setattr(self.struct.cstruct, k, val)
+            setattr(self._struct.cstruct, k, val)
 
-        return self.struct.cstruct
+        return self._struct.cstruct
 
     def clone(self, **kwargs):
         """Make a fresh copy of the instance with arbitrary parameters updated."""
@@ -245,7 +245,7 @@ class InputStruct:
         }
 
         out = {}
-        for k in self.struct.fieldnames:
+        for k in self._struct.fieldnames:
             val = getattr(self, k)
             att = attrs.fields_dict(self.__class__).get(k, None)
             # we assume properties (as opposed to attributes) are already converted
@@ -261,8 +261,8 @@ class InputStruct:
         return f"""{self.__class__.__name__}:{params} """
 
     @classmethod
-    def from_subdict(cls, dct, safe=True):
-        """Construct an instance of a parameter structure from a dictionary."""
+    def from_subdict(cls, dct: dict[str, Any], safe: bool = True) -> Self:
+        """Construct an instance of this class from a dictionary."""
         fieldnames = [
             field.name
             for field in attrs.fields(cls)
@@ -317,7 +317,7 @@ class Table1D:
     )
 
     @cached_property
-    def cstruct(self):
+    def _cstruct(self):
         """Cached pointer to the memory of the object in C."""
         ctab = ffi.new("Table1D *")
         ctab.size = self.size
@@ -365,21 +365,21 @@ class CosmoTables:
             )
 
     @cached_property
-    def struct(self):
+    def _struct(self):
         """The python-wrapped struct associated with this input object."""
         return StructWrapper("CosmoTables")
 
     @cached_property
-    def cstruct(self) -> StructWrapper:
+    def _cstruct(self) -> StructWrapper:
         """The object pointing to the memory accessed by C-code for this struct."""
-        for k in self.struct.fieldnames:
+        for k in self._struct.fieldnames:
             val = getattr(self, k)
             if isinstance(val, Table1D):
-                setattr(self.struct.cstruct, k, val.cstruct)
+                setattr(self._struct.cstruct, k, val._cstruct)
             elif isinstance(val, (float | bool)):
-                setattr(self.struct.cstruct, k, val)
+                setattr(self._struct.cstruct, k, val)
 
-        return self.struct.cstruct
+        return self._struct.cstruct
 
     def clone(self, **kwargs):
         """Make a fresh copy of the instance with arbitrary parameters updated."""
@@ -388,30 +388,59 @@ class CosmoTables:
 
 @attrs.define(frozen=True, kw_only=True)
 class CosmoParams(InputStruct):
-    """
-    Cosmological parameters (with defaults) which translates to a C struct.
+    r"""
+    Cosmological parameters.
 
-    To see default values for each parameter, use ``CosmoParams._defaults_``.
-    All parameters passed in the constructor are also saved as instance attributes which should
-    be considered read-only. This is true of all input-parameter classes.
+    Default parameters are based on `Plank18 <https://arxiv.org/pdf/1807.06209.pdf>`_,
+    Table 2, last column [TT,TE,EE+lowE+lensing+BAO].
 
-    Default parameters are based on Plank18, https://arxiv.org/pdf/1807.06209.pdf,
-    Table 2, last column. [TT,TE,EE+lowE+lensing+BAO]
-
-    Parameters
+    Attributes
     ----------
-    SIGMA_8 : float, optional
-        RMS mass variance (power spectrum normalisation).
-    hlittle : float, optional
-        The hubble parameter, H_0/100.
-    OMm : float, optional
-        Omega matter.
-    OMb : float, optional
-        Omega baryon, the baryon component.
-    POWER_INDEX : float, optional
-        Spectral index of the power spectrum.
-    A_s: float, optional
-        Amplitude of primordial curvature power spectrum, at k_pivot = 0.05 Mpc^-1.
+    hlittle : float
+        The hubble parameter, :math:`H_0/100`.
+    OMm : float
+        The fractional matter density, :math:`\Omega_m`. This is the sum of the baryon
+        and CDM densities.
+    OMb : float
+        The fraction baryon density, :math:`\Omega_b`.
+    POWER_INDEX : float
+        Spectral index of the power spectrum, :math:`n_s`
+    SIGMA_8 : float
+        RMS mass variance of the matter field in spheres of 8 Mpc/h (power spectrum
+        normalisation). If not given explicitly but A_s is given, it is auto-calculated
+        via A_s and the other cosmological parameters. Only one of SIGMA_8 and A_s can
+        be given, otherwise an error is raised. If neither is given, it is set to the
+        default value of 0.8102.
+    A_s : float
+        Amplitude of primordial curvature power spectrum, at
+        :math:`k_{pivot} = 0.05 {\rm Mpc}^{-1}`.
+        If not given explicitly and SIGMA_8 is given, it is auto-calculated via SIGMA_8
+        and the other cosmological parameters, using CLASS. Only one of SIGMA_8 and A_s
+        can be given, otherwise an error is raised. If neither is given, it is set to
+        the default value of 2.105e-9.
+    base_cosmo : :class:`astropy.cosmology.FLRW`, optional
+        The base astropy cosmology object to use for this cosmology.
+        You can set this to something other than LambdaCDM if you want to use a
+        different cosmology. Note that the cosmological parameters in ``base_cosmo``
+        are not used at all---only the cosmography. You almost certainly should not
+        set this to anything other than the default, unless you know what you are doing.
+    OMn : float
+        Omega neutrino, the neutrino component. Note that this is not used in any of the
+        calculations in the code, but is just provided for completeness.
+    OMk : float
+        Omega curvature, the curvature component. Note that this is not used in any of
+        the calculations in the code, but is just provided for completeness.
+    OMr : float
+        Omega radiation, the radiation component. Note that this is not used in any of
+        the calculations in the code, but is just provided for completeness.
+    OMtot : float
+        Omega total, the total density. Note that this is not used in any of the
+        calculations and is assumed to be unity (i.e. a flat universe), but is just
+        provided for completeness.
+    Y_He : float
+        Helium mass fraction.
+    wl : float
+        Dark energy equation of state parameter.
     """
 
     _DEFAULT_SIGMA_8: ClassVar[float] = 0.8102
@@ -420,23 +449,28 @@ class CosmoParams(InputStruct):
     _base_cosmo: Annotated[FLRW, Parameter(show=False, parse=False)] = field(
         default=Planck18, validator=validators.instance_of(FLRW), eq=False, repr=False
     )
+
     _SIGMA_8: float = field(
         default=None,
         converter=attrs.converters.optional(float),
         validator=validators.optional(validators.gt(0)),
     )
+
     hlittle: float = field(
         default=Planck18.h, converter=float, validator=validators.gt(0)
     )
     OMm: float = field(
         default=Planck18.Om0, converter=float, validator=validators.gt(0)
     )
+
     OMb: float = field(
         default=Planck18.Ob0, converter=float, validator=validators.gt(0)
     )
+
     POWER_INDEX: float = field(
         default=0.9665, converter=float, validator=validators.gt(0)
     )
+
     _A_s: float = field(
         default=None,
         converter=attrs.converters.optional(float),
@@ -444,12 +478,17 @@ class CosmoParams(InputStruct):
     )
 
     OMn: float = field(default=0.0, converter=float, validator=validators.ge(0))
+
     OMk: float = field(default=0.0, converter=float, validator=validators.ge(0))
+
     OMr: float = field(default=8.6e-5, converter=float, validator=validators.ge(0))
+
     OMtot: float = field(
         default=1.0, converter=float, validator=validators.ge(0)
     )  # TODO: force this to be the sum of the others
+
     Y_He: float = field(default=0.24, converter=float, validator=validators.ge(0))
+
     wl: float = field(default=-1.0, converter=float)
 
     # TODO: Combined validation via Astropy?
@@ -555,97 +594,113 @@ class CosmoParams(InputStruct):
 
 @attrs.define(frozen=True, kw_only=True)
 class MatterOptions(InputStruct):
-    """
+    r"""
     Structure containing options which affect the matter field (ICs, perturbedfield, halos).
 
-    Parameters
+    Attributes
     ----------
-    HMF: str, optional
+    HMF
         Determines which halo mass function to be used for the normalisation of the
         collapsed fraction (default Sheth-Tormen). Should be one of the
         following codes:
-        PS (Press-Schechter)
-        ST (Sheth-Tormen)
-        Watson (Watson FOF)
-        Watson-z (Watson FOF-z)
-        Delos (Delos+23)
-    USE_RELATIVE_VELOCITIES: int, optional
+
+        * PS (Press-Schechter)
+        * ST (Sheth-Tormen)
+        * Watson (Watson FOF)
+        * Watson-z (Watson FOF-z)
+        * Delos (Delos+23)
+
+    USE_RELATIVE_VELOCITIES
         Flag to decide whether to use relative velocities.
         If True, POWER_SPECTRUM is automatically set to 5. Default False.
-    POWER_SPECTRUM: str, optional
+    POWER_SPECTRUM
         Determines which power spectrum to use, default EH (unless `USE_RELATIVE_VELOCITIES`
         is True). Use the following codes:
-        EH : Eisenstein & Hu 1999
-        BBKS: Bardeen et al. 1986
-        EFSTATHIOU: Efstathiou et al. 1992
-        PEEBLES: Peebles 1980
-        WHITE: White 1985
-        CLASS: Uses fits from the CLASS code
-    PERTURB_ON_HIGH_RES : bool, optional
+
+        * EH : Eisenstein & Hu 1999
+        * BBKS: Bardeen et al. 1986
+        * EFSTATHIOU: Efstathiou et al. 1992
+        * PEEBLES: Peebles 1980
+        * WHITE: White 1985
+        * CLASS: Uses fits from the CLASS code
+    PERTURB_ON_HIGH_RES
         Whether to perform the Zel'Dovich or 2LPT perturbation on the low or high
         resolution grid.
-    USE_FFTW_WISDOM : bool, optional
+    USE_FFTW_WISDOM
         Whether or not to use stored FFTW_WISDOMs for improving performance of FFTs
-    USE_INTERPOLATION_TABLES: str, optional
+    USE_INTERPOLATION_TABLES
         Defines the interpolation tables used in the code. Default is 'hmf-interpolation'.
         There are three levels available:
-        'no-interpolation': No interpolation tables are used.
-        'sigma-interpolation': Interpolation tables are used for sigma(M) only.
-        'hmf-interpolation': Interpolation tables are used for sigma(M) the halo mass function.
-    PERTURB_ALGORITHM: str, optional
-        Whether to use second-order Lagrangian perturbation theory (2LPT), Zel'dovich (ZELDOVICH),
-        or linear evolution (LINEAR).
+
+        * 'no-interpolation': No interpolation tables are used.
+        * 'sigma-interpolation': Interpolation tables are used for sigma(M) only.
+        * 'hmf-interpolation': Interpolation tables are used for sigma(M) the halo mass
+        function.
+    PERTURB_ALGORITHM
+        Whether to use second-order Lagrangian perturbation theory (2LPT), Zel'dovich
+        (ZELDOVICH), or linear evolution (LINEAR).
         Set this to 2LPT if the density field or the halo positions are extrapolated to
         low redshifts. The current implementation is very naive and adds a factor ~6 to
         the memory requirements. Reference: Scoccimarro R., 1998, MNRAS, 299, 1097-1118
         Appendix D.
-    MINIMIZE_MEMORY: bool, optional
+    MINIMIZE_MEMORY
         If set, the code will run in a mode that minimizes memory usage, at the expense
         of some CPU/disk-IO. Good for large boxes / small computers.
-    SAMPLE_METHOD: str, optional
+    SAMPLE_METHOD
         The sampling method to use in the halo sampler when calculating progenitor populations:
-        MASS-LIMITED : Mass-limited CMF sampling, where samples are drawn until the expected mass is reached
-        NUMBER-LIMITED : Number-limited CMF sampling, where we select a number of halos from the Poisson distribution
-        and then sample the CMF that many times
-        PARTITION : Sheth et al 1999 Partition sampling, where the EPS collapsed fraction is sampled (gaussian tail)
-        and then the condition is updated using the conservation of mass.
-        BINARY-SPLIT : Parkinsson et al 2008 Binary split model as in DarkForest (Qiu et al 2021) where the EPS merger rate
-        is sampled on small internal timesteps such that only binary splits can occur.
-        NOTE: The initial sampling from the density grid will ALWAYS use number-limited sampling (method 1)
-    FILTER : string, optional
+
+        * MASS-LIMITED : Mass-limited CMF sampling, where samples are drawn until the
+          expected mass is reached
+        * NUMBER-LIMITED : Number-limited CMF sampling, where we select a number of
+          halos from the Poisson distribution and then sample the CMF that many times
+        * PARTITION : Sheth et al 1999 Partition sampling, where the EPS collapsed
+          fraction is sampled (gaussian tail) and then the condition is updated using
+          the conservation of mass.
+        * BINARY-SPLIT : Parkinson et al 2008 Binary split model as in DarkForest
+          (Qiu et al 2021) where the EPS merger rate is sampled on small internal
+          timesteps such that only binary splits can occur.
+
+        .. note:: The initial sampling from the density grid will ALWAYS use NUMBER-LIMITED
+          sampling (method 1)
+    FILTER
         Filter to use for sigma (matter field variance) and radius to mass conversions.
         available options are: `spherical-tophat` and `gaussian`
-    HALO_FILTER : string, optional
+    HALO_FILTER
         Filter to use for the DexM halo finder.
         available options are: `spherical-tophat`, `sharp-k` and `gaussian`
-    SMOOTH_EVOLVED_DENSITY_FIELD: bool, optional
+    SMOOTH_EVOLVED_DENSITY_FIELD
         Smooth the evolved density field after perturbation.
-    DEXM_OPTMIZE: bool, optional
-        Use a faster version of the DexM halo finder which excludes halos from forming within a certain distance of larger halos.
-    KEEP_3D_VELOCITIES: bool, optional
+    DEXM_OPTMIZE
+        Use a faster version of the DexM halo finder which excludes halos from forming
+        within a certain distance of larger halos.
+    KEEP_3D_VELOCITIES
         Whether to keep the 3D velocities in the ICs.
         If False, only the z velocity is kept.
-    SOURCE_MODEL: str, optional
+    SOURCE_MODEL
         The source model to use in the simulation. Options are:
-        E-INTEGRAL : The traditional excursion-set formalism, where source properties are
-            defined on the Eulerian grid after 2LPT in regions of filter scale R (see the X_FILTER options for filter shapes).
-            This integrates over the CHMF using the smoothed density grids, then multiplies the result.
-            by (1 + delta) to get the source properties in each cell.
-        CONST-ION-EFF: Similar to E-INTEGRAL, but ionizing efficiency is constant and does not depend on the halo mass
-            (see Mesinger+ 2010).
-        L-INTEGRAL : Analagous to the 'ESF-L' model described in Trac+22, where source properties
-            are defined on the Lagrangian (IC) grid by integrating the CHMF prior to the IGM physics
-            and then mapping properties to the Eulerian grid using 2LPT.
-        DEXM-ESF : The DexM excursion-set formalism, where discrete halo catalogues are generated
-            on the Lagrangian (IC) grid using an excursion-set halo finder. Source properties
-            are defined on the Lagrangian grid and then mapped to the Eulerian grid using 2LPT.
-            This model utilised the 'L-INTEGRAL' method for halos below the DexM mass resolution,
-            which is the mass of the high-resolution (DIM^3) cells.
-        CHMF-SAMPLER : The CHMF sampler, where discrete halo catalogues are generated by sampling
-            the CHMF on the IC grid, between the low-resolution (HII_DIM^3) cell mass and a minimum
-            mass defined by the user (SAMPLER_MIN_MASS). This model uses the 'L-INTEGRAL' method for
-            halos below the SAMPLER_MIN_MASS, and the 'DEXM-ESF' method for halos above the HII_DIM
-            cell mass.
+
+        * ``E-INTEGRAL``: The traditional excursion-set formalism, where source properties
+          are defined on the Eulerian grid after 2LPT in regions of filter scale R
+          (see the X_FILTER options for filter shapes). This integrates over the CHMF
+          using the smoothed density grids, then multiplies the result by (1 + delta)
+          to get the source properties in each cell.
+        * ``CONST-ION-EFF``: Similar to E-INTEGRAL, but ionizing efficiency is constant and
+          does not depend on the halo mass (see Mesinger+ 2010).
+        * ``L-INTEGRAL``: Analagous to the 'ESF-L' model described in Trac+22, where source
+          properties are defined on the Lagrangian (IC) grid by integrating the CHMF
+          prior to the IGM physics and then mapping properties to the Eulerian grid
+          using 2LPT.
+        * ``DEXM-ESF``: The DexM excursion-set formalism, where discrete halo catalogues
+          are generated on the Lagrangian (IC) grid using an excursion-set halo
+          finder. Source properties are defined on the Lagrangian grid and then mapped
+          to the Eulerian grid using 2LPT. This model utilised the 'L-INTEGRAL' method
+          for halos below the DexM mass resolution, which is the mass of the
+          high-resolution (DIM^3) cells.
+        * ``CHMF-SAMPLER``: The CHMF sampler, where discrete halo catalogues are generated
+          by sampling the CHMF on the IC grid, between the low-resolution (HII_DIM^3)
+          cell mass and a minimum mass defined by the user (SAMPLER_MIN_MASS). This
+          model uses the 'L-INTEGRAL' method for halos below the SAMPLER_MIN_MASS, and
+          the 'DEXM-ESF' method for halos above the HII_DIM cell mass.
     """
 
     HMF: Literal["PS", "ST", "WATSON", "WATSON-Z", "DELOS"] = choice_field(default="ST")
@@ -736,7 +791,7 @@ class SimulationOptions(InputStruct):
     """
     Structure containing broad simulation options.
 
-    Parameters
+    Attributes
     ----------
     HII_DIM : int, optional
         Number of cells for the low-res box (after smoothing the high-resolution matter
@@ -764,18 +819,20 @@ class SimulationOptions(InputStruct):
         defines this setting. Specifying both will result in an error. By default,
         the BOX_LEN will be calculated as 1.5 * HII_DIM.
     NON_CUBIC_FACTOR : float, optional
-        Factor which allows the creation of non-cubic boxes. It will shorten/lengthen the line
-        of sight dimension of all boxes. NON_CUBIC_FACTOR * DIM/HII_DIM must result in an integer.
+        Factor which allows the creation of non-cubic boxes. It will shorten/lengthen
+        the line of sight dimension of all boxes. ``NON_CUBIC_FACTOR * DIM/HII_DIM``
+        must  result in an integer.
     N_THREADS : int, optional
         Sets the number of processors (threads) to be used for performing 21cmFAST.
         Default 1.
     SAMPLER_MIN_MASS: float, optional
-        The minimum mass to sample in the halo sampler when SOURCE_MODEL is "CHMF-SAMPLER",
-        decreasing this can drastically increase both compute time and memory usage.
+        The minimum mass to sample in the halo sampler when ``SOURCE_MODEL`` is
+        "CHMF-SAMPLER", decreasing this can drastically increase both compute time and
+        memory usage.
     SAMPLER_BUFFER_FACTOR: float, optional
-        The arrays for the halo sampler will have size of SAMPLER_BUFFER_FACTOR multiplied by the expected
-        number of halos in the box. Ideally this should be close to unity but one may wish to increase it to
-        test alternative scenarios
+        The arrays for the halo sampler will have size of SAMPLER_BUFFER_FACTOR
+        multiplied by the expected number of halos in the box. Ideally this should be
+        close to unity but one may wish to increase it to test alternative scenarios.
     N_COND_INTERP: int, optional
         The number of condition bins in the inverse CMF tables.
     N_PROB_INTERP: int, optional
@@ -784,13 +841,14 @@ class SimulationOptions(InputStruct):
         The minimum log-probability of the inverse CMF tables.
     HALOMASS_CORRECTION: float, optional
         This provides a corrective factor to the mass-limited (SAMPLE_METHOD==0) sampling, which multiplies the
-        expected mass from a condition by this number. The default value of 0.9 is calibrated to the mass-limited
-        sampling on a timestep of ZPRIME_STEP_FACTOR=1.02.
+        expected mass from a condition by this number. The default value of 0.9 is
+        calibrated to the mass-limited sampling on a timestep of ZPRIME_STEP_FACTOR=1.02.
         If ZPRIME_STEP_FACTOR is increased, this value should be set closer to 1.
-        This factor is also used in the partition (SAMPLE_METHOD==2) sampler, dividing nu(M) of each sample drawn.
+        This factor is also used in the partition (SAMPLE_METHOD==2) sampler, dividing
+        nu(M) of each sample drawn.
     PARKINSON_G0: float, optional
-        Only used when SAMPLE_METHOD==3, sets the normalisation of the correction to the extended press-schecter
-        used in Parkinson et al. 2008.
+        Only used when SAMPLE_METHOD==3, sets the normalisation of the correction to the
+        extended press-schecter used in Parkinson et al. 2008.
     PARKINSON_y1: float, optional
         Only used when SAMPLE_METHOD==3, sets the index of the sigma power-law term of the correction to the
         extended Press-Schechter mass function used in Parkinson et al. 2008.
@@ -808,29 +866,38 @@ class SimulationOptions(InputStruct):
     INITIAL_REDSHIFT : float, optional
         Initial redshift used to perturb field from
     DELTA_R_FACTOR: float, optional
-        The factor by which to decrease the size of the filter in DexM when creating halo catalogues.
+        The factor by which to decrease the size of the filter in DexM when creating
+        halo catalogues.
     DENSITY_SMOOTH_RADIUS: float, optional
         The radius of the smoothing kernel in Mpc.
     DEXM_OPTIMIZE_MINMASS: float, optional
-        The minimum mass of a halo for which to use the DexM optimization if DEXM_OPTIMIZE is True.
+        The minimum mass of a halo for which to use the DexM optimization if
+        DEXM_OPTIMIZE is True.
     DEXM_R_OVERLAP: float, optional
-        The factor by which to multiply the halo radius to determine the distance within which smaller halos are excluded.
+        The factor by which to multiply the halo radius to determine the distance within
+        which smaller halos are excluded.
     CORR_STAR : float, optional
         Self-correlation length used for updating halo properties. To model the
-        correlation in the SHMR between timesteps, we sample from a conditional bivariate gaussian
-        with correlation factor given by exp(-dz/CORR_STAR). This value is placed in SimulationOptions
-        since it is used in the halo sampler, and not in the ionization routines.
+        correlation in the SHMR between timesteps, we sample from a conditional
+        bivariate gaussian with correlation factor given by exp(-dz/CORR_STAR). This
+        value is placed in SimulationOptions since it is used in the halo sampler, and
+        not in the ionization routines.
     CORR_SFR : float, optional
-        Self-correlation length used for updating star formation rate, see "CORR_STAR" for details.
+        Self-correlation length used for updating star formation rate, see "CORR_STAR"
+        for details.
     CORR_LX : float, optional
-        Self-correlation length used for updating xray luminosity, see "CORR_STAR" for details.
+        Self-correlation length used for updating xray luminosity, see "CORR_STAR" for
+        details.
     K_MAX_FOR_CLASS: float, optional
-        Maximum wavenumber to run CLASS, in 1/Mpc. Becomes relevant only if matter_options.POWER_SPECTRUM = "CLASS".
+        Maximum wavenumber to run CLASS, in 1/Mpc. Becomes relevant only if
+        ``matter_options.POWER_SPECTRUM = "CLASS"``.
     MIN_XE_FOR_FCOLL_IN_TAUX: float, optional
-        Minimum global x_e value for which the collapsed fraction (f_coll) is evaluated in the tau_X integral (X-ray optical depth).
-        When x_e is above this threshold value, it is assumed that f_coll=0, in order to speed up the calculations.
-        For now, this parameter becomes relevant only when run_global_evolution is called, as it controls the runtime of this
-        function (higher values reduce the runtime, in expense of degraded precision).
+        Minimum global x_e value for which the collapsed fraction (f_coll) is evaluated
+        in the tau_X integral (X-ray optical depth). When x_e is above this threshold
+        value, it is assumed that f_coll=0, in order to speed up the calculations.
+        For now, this parameter becomes relevant only when run_global_evolution is
+        called, as it controls the runtime of this function (higher values reduce the
+        runtime, in expense of degraded precision).
     """
 
     _DEFAULT_HIRES_TO_LOWRES_FACTOR: ClassVar[float] = 3
@@ -1015,9 +1082,11 @@ class AstroOptions(InputStruct):
     USE_X_RAY_HEATING : bool, optional
         Whether to include X-ray heating (useful for debugging).
     USE_CMB_HEATING : bool, optional
-        Whether to include CMB heating. (cf Eq.4 of Meiksin 2021, arxiv.org/abs/2105.14516)
+        Whether to include CMB heating. (cf Eq.4 of Meiksin 2021,
+        https://arxiv.org/abs/2105.14516)
     USE_LYA_HEATING : bool, optional
-        Whether to use Lyman-alpha heating. (cf Sec. 3 of Reis+2021, doi.org/10.1093/mnras/stab2089)
+        Whether to use Lyman-alpha heating. (cf Sec. 3 of Reis+2021,
+        https://doi.org/10.1093/mnras/stab2089)
     INHOMO_RECO : bool, optional
         Whether to perform inhomogeneous recombinations. Increases the computation
         time.
@@ -1026,62 +1095,87 @@ class AstroOptions(InputStruct):
         Dramatically increases the computation time.
     M_MIN_in_Mass : bool, optional
         Whether the minimum halo mass (for ionization) is defined by
-        mass or virial temperature. Only has an effect when SOURCE_MODEL == 'CONST-ION-EFF'
+        mass or virial temperature. Only has an effect when
+        ``SOURCE_MODEL == 'CONST-ION-EFF'``
     PHOTON_CONS_TYPE : str, optional
         Whether to perform a small correction to account for the inherent
         photon non-conservation. This can be one of three types of correction:
 
-        no-photoncons: No photon cosnervation correction,
-        z-photoncons: Photon conservation correction by adjusting the redshift of the N_ion source field (Park+22)
-        alpha-photoncons: Adjustment to the escape fraction power-law slope, based on fiducial results in Park+22, This runs a
-        series of global xH evolutions and one calibration simulation to find the adjustment as a function of xH
-        f-photoncons: Adjustment to the escape fraction normalisation, runs one calibration simulation to find the
-        adjustment as a function of xH where f'/f = xH_global/xH_calibration
+        * no-photoncons: No photon cosnervation correction,
+        * z-photoncons: Photon conservation correction by adjusting the redshift of the
+          N_ion source field (Park+22)
+        * alpha-photoncons: Adjustment to the escape fraction power-law slope, based on
+          fiducial results in Park+22, This runs a series of global xH evolutions and
+          one calibration simulation to find the adjustment as a function of xH
+        * f-photoncons: Adjustment to the escape fraction normalisation, runs one
+          calibration simulation to find the adjustment as a function of xH where
+          ``f'/f = xH_global/xH_calibration``
     FIX_VCB_AVG: bool, optional
-        Determines whether to use a fixed vcb=VAVG (*regardless* of USE_RELATIVE_VELOCITIES). It includes the average effect of velocities but not its fluctuations. See Muñoz+21 (2110.13919).
+        Determines whether to use a fixed vcb=VAVG (*regardless* of
+        USE_RELATIVE_VELOCITIES). It includes the average effect of velocities but not
+        its fluctuations. See `Muñoz+21 <https://arxiv.org/abs/2110.13919>`_)
     USE_EXP_FILTER: bool, optional
-        Use the exponential filter (MFP-epsilon(r) from Davies & Furlanetto 2021) when calculating ionising emissivity fields
-        NOTE: this does not affect other field filters, and should probably be used with HII_FILTER==0 (real-space top-hat)
-    CELL_RECOMB: bool, optional
-        An alternate way of counting recombinations based on the local cell rather than the filter region.
-        This is part of the perspective shift (see Davies & Furlanetto 2021) from counting photons/atoms in a sphere and flagging a central
-        pixel to counting photons which we expect to reach the central pixel, and taking the ratio of atoms in the pixel.
-        This flag simply turns off the filtering of N_rec grids, and takes the recombinations in the central cell.
+        Use the exponential filter (MFP-epsilon(r) from Davies & Furlanetto 2021) when
+        calculating ionising emissivity fields.
+
+        .. warning: this does not affect other field filters, and should probably be
+          used with HII_FILTER==0 (real-space top-hat).
+
+    CELL_RECOMB : bool, optional
+        An alternate way of counting recombinations based on the local cell rather than
+        the filter region. This is part of the perspective shift (see Davies &
+        Furlanetto 2021) from counting photons/atoms in a sphere and flagging a central
+        pixel to counting photons which we expect to reach the central pixel, and taking
+        the ratio of atoms in the pixel. This flag simply turns off the filtering of
+        N_rec grids, and takes the recombinations in the central cell.
     LYA_MULTIPLE_SCATTERING: bool, optional
-        If True, multiple scattering window function is used for the computation of Lyman alpha photons.
-        If False, the straight-line window function is used (see more info in arxiv: 2601.14360).
-        This feature can be turned on only when the source model is defined on the Lagrangian grid, otherwise an error is raised.
+        If True, multiple scattering window function is used for the computation of
+        Lyman alpha photons. If False, the straight-line window function is used (see
+        more info in `2601.14360 <https://arxiv.org/abs/2601.14360>`_).
+        This feature can be turned on only when the source model is defined on the
+        Lagrangian grid, otherwise an error is raised.
     USE_ADIABATIC_FLUCTUATIONS: bool, optional
-        Whether to apply adiabatic fluctuations to the initial temperature box, see Munoz 2023. If set to False,
-        the initial temperature box is completely homogeneous. Default is True.
+        Whether to apply adiabatic fluctuations to the initial temperature box, see
+        Munoz 2023. If set to False, the initial temperature box is completely
+        homogeneous. Default is True.
     USE_UPPER_STELLAR_TURNOVER: bool, optional
-        Whether to use an additional powerlaw in stellar mass fraction at high halo mass. The pivot mass scale and power-law index are
-        controlled by two parameters, UPPER_STELLAR_TURNOVER_MASS and UPPER_STELLAR_TURNOVER_INDEX respectively.
+        Whether to use an additional powerlaw in stellar mass fraction at high halo
+        mass. The pivot mass scale and power-law index are controlled by two parameters,
+        UPPER_STELLAR_TURNOVER_MASS and UPPER_STELLAR_TURNOVER_INDEX respectively.
         This is currently only implemented using the discrete halo model, and has no effect otherwise.
     HALO_SCALING_RELATIONS_MEDIAN: bool, optional
-        If True, halo scaling relation parameters (F_STAR10,t_STAR etc...) define the median of their conditional distributions
-        If False, they describe the mean.
-        This becomes important when using non-symmetric dristributions such as the log-normal
-    HII_FILTER : string
+        If True, halo scaling relation parameters (F_STAR10,t_STAR etc...) define the
+        median of their conditional distributions. If False, they describe the mean.
+        This becomes important when using non-symmetric dristributions such as the log-normal.
+    HII_FILTER : str
         Filter for the halo or density field used to generate ionization field
         Available options are: 'spherical-tophat', 'sharp-k', and 'gaussian'
-    HEAT_FILTER : int
+    HEAT_FILTER : str
         Filter for the halo or density field used to generate the spin-temperature field
         Available options are: 'spherical-tophat', 'sharp-k', and 'gaussian'
     IONISE_ENTIRE_SPHERE: bool, optional
-        If True, ionises the entire sphere on the filter scale when an ionised region is found
-        in the excursion set.
+        If True, ionises the entire sphere on the filter scale when an ionised region is
+        found in the excursion set.
     INTEGRATION_METHOD_ATOMIC: str, optional
-        The integration method to use for conditional MF integrals of atomic halos in the grids:
-        NOTE: global integrals will use GSL QAG adaptive integration
-        'GSL-QAG': GSL QAG adaptive integration,
-        'GAUSS-LEGENDRE': Gauss-Legendre integration, previously forced in the interpolation tables,
-        'GAMMA-APPROX': Approximate integration, assuming sharp cutoffs and a triple power-law for sigma(M) based on EPS
+        The integration method to use for conditional MF integrals of atomic halos in
+        the grids:
+
+        * 'GSL-QAG': GSL QAG adaptive integration,
+        * 'GAUSS-LEGENDRE': Gauss-Legendre integration, previously forced in the
+          interpolation tables,
+        * 'GAMMA-APPROX': Approximate integration, assuming sharp cutoffs and a triple
+          power-law for sigma(M) based on EPS
+
+        .. note:: Global integrals will use GSL QAG adaptive integration
     INTEGRATION_METHOD_MINI: str, optional
-        The integration method to use for conditional MF integrals of minihalos in the grids:
-        'GSL-QAG': GSL QAG adaptive integration,
-        'GAUSS-LEGENDRE': Gauss-Legendre integration, previously forced in the interpolation tables,
-        'GAMMA-APPROX': Approximate integration, assuming sharp cutoffs and a triple power-law for sigma(M) based on EPS
+        The integration method to use for conditional MF integrals of minihalos in the
+        grids:
+
+        * 'GSL-QAG': GSL QAG adaptive integration,
+        * 'GAUSS-LEGENDRE': Gauss-Legendre integration, previously forced in the
+          interpolation tables,
+        * 'GAMMA-APPROX': Approximate integration, assuming sharp cutoffs and a triple
+          power-law for sigma(M) based on EPS
     """
 
     USE_MINI_HALOS: bool = field(default=False, converter=bool)
@@ -1152,29 +1246,29 @@ class AstroParams(InputStruct):
     """
     Astrophysical parameters.
 
-    NB: All Mean scaling relations are defined in log-space, such that the lines they produce
-    give exp(<log(property)>), this means that increasing the lognormal scatter in these relations
-    will increase the <property> but not <log(property)>
+    .. attention: All Mean scaling relations are defined in log-space, such that the
+      lines they produce give ``exp(mean(log(property)))``. This means that increasing
+      the  lognormal scatter in these relations will increase the ``mean(property)`` but
+      not ``mean(log(property))``
 
     Parameters
     ----------
     INHOMO_RECO : bool, optional
-        Whether inhomogeneous recombinations are being calculated. This is not a part of the
-        astro parameters structure, but is required by this class to set some default behaviour.
+        Whether inhomogeneous recombinations are being calculated. This is not a part of
+        the astro parameters structure, but is required by this class to set some
+        default behaviour.
     HII_EFF_FACTOR : float, optional
         The ionizing efficiency of high-z galaxies (zeta, from Eq. 2 of Greig+2015).
         Higher values tend to speed up reionization.
     F_STAR10 : float, optional
         The fraction of galactic gas in stars for 10^10 solar mass haloes.
-        Only used in the "new" parameterization,
-        This is used along with `F_ESC10` to determine `HII_EFF_FACTOR` (which
-        is then unused). See Eq. 11 of Greig+2018 and Sec 2.1 of Park+2018.
+        Only used if ``MASS_DEPENDENT_ZETA`` is True in :class:`AstroOptions`.
+        See Eq. 11 of Greig+2018 and Sec 2.1 of Park+2018.
         Given in log10 units.
     F_STAR7_MINI : float, optional
         The fraction of galactic gas in stars for 10^7 solar mass minihaloes. Only used
         in the "minihalo" parameterization, i.e. when `USE_MINI_HALOS` is set to True
-        (in :class:`AstroOptions`). If so, this is used along with `F_ESC7_MINI` to
-        determine `HII_EFF_FACTOR_MINI` (which is then unused). See Eq. 8 of Qin+2020.
+        (in :class:`AstroOptions`).. See Eq. 8 of Qin+2020.
         If the MCG scaling relations are not provided explicitly, we extend the ACG
         ones by default. Given in log10 units.
     ALPHA_STAR : float, optional
@@ -1188,20 +1282,21 @@ class AstroParams(InputStruct):
         Lognormal scatter (dex) of the halo mass to stellar mass relation.
         Uniform across all masses and redshifts.
     SIGMA_SFR_LIM : float, optional
-        Lognormal scatter (dex) of the stellar mass to SFR relation above a stellar mass of 1e10 solar.
+        Lognormal scatter (dex) of the stellar mass to SFR relation above a stellar mass
+        of 1e10 solar.
     SIGMA_SFR_INDEX : float, optional
         index of the power-law between SFMS scatter and stellar mass below 1e10 solar.
     F_ESC10 : float, optional
         The "escape fraction", i.e. the fraction of ionizing photons escaping into the
-        IGM, for 10^10 solar mass haloes. Only used in the "new" parameterization.
-        This is used along with `F_STAR10` to determine `HII_EFF_FACTOR` (which
+        IGM, for 10^10 solar mass haloes. Only used if ``MASS_DEPENDENT_ZETA`` is True
+        in :class:`AstroOptions`. This is used along with `F_STAR10` to determine
+        ``HII_EFF_FACTOR`` (which
         is then unused). See Eq. 11 of Greig+2018 and Sec 2.1 of Park+2018.
     F_ESC7_MINI: float, optional
         The "escape fraction for minihalos", i.e. the fraction of ionizing photons escaping
         into the IGM, for 10^7 solar mass minihaloes. Only used in the "minihalo"
         parameterization, i.e. when `USE_MINI_HALOS` is set to True (in
-        :class:`AstroOptions`). If so, this is used along with `F_ESC7_MINI` to determine
-        `HII_EFF_FACTOR_MINI` (which is then unused). See Eq. 17 of Qin+2020. If the MCG
+        :class:`AstroOptions`). See Eq. 17 of Qin+2020. If the MCG
         scaling relations are not provided explicitly, we extend the ACG ones by default.
         Given in log10 units.
     ALPHA_ESC : float, optional
@@ -1213,18 +1308,18 @@ class AstroParams(InputStruct):
         See Sec 2.1 of Park+2018.
     R_BUBBLE_MAX : float, optional
         Mean free path in Mpc of ionizing photons within ionizing regions (Sec. 2.1.2 of
-        Greig+2015). Default is 50 if `INHOMO_RECO` is True, or 15.0 if not.
+        Greig+2015). Default is 50 if ``INHOMO_RECO`` is True, or 15.0 if not.
     ION_Tvir_MIN : float, optional
         Minimum virial temperature of star-forming haloes (Sec 2.1.3 of Greig+2015).
         Given in log10 units.
     L_X : float, optional
         The specific X-ray luminosity per unit star formation escaping host galaxies.
-        Cf. Eq. 6 of Greig+2018. Given in log10 units. For the double power-law used in the Halo Model
-        This gives the low-z limite.
+        Cf. Eq. 6 of Greig+2018. Given in log10 units. For the double power-law used in
+        the Halo Model. This gives the low-z limit.
     L_X_MINI: float, optional
         The specific X-ray luminosity per unit star formation escaping host galaxies for
         minihalos. Cf. Eq. 23 of Qin+2020. Given in log10 units. For the double
-        power-law used in the Halo Model. This gives the low-z limite. If the MCG
+        power-law used in the Halo Model. This gives the low-z limit. If the MCG
         scaling relations are not provided explicitly, we extend the ACG ones by default.
     NU_X_THRESH : float, optional
         X-ray energy threshold for self-absorption by host galaxies (in eV). Also called
@@ -1243,30 +1338,40 @@ class AstroParams(InputStruct):
         Fractional characteristic time-scale (fraction of hubble time) defining the
         star-formation rate of galaxies. See Sec 2.1, Eq. 3 of Park+2018.
     A_LW, BETA_LW: float, optional
-        Impact of the LW feedback on Mturn for minihaloes. Default is 22.8685 and 0.47 following Machacek+01, respectively. Latest simulations suggest 2.0 and 0.6. See Sec 2 of Muñoz+21 (2110.13919).
+        Impact of the LW feedback on Mturn for minihaloes. Default is 22.8685 and 0.47
+        following Machacek+01, respectively. Latest simulations suggest 2.0 and 0.6.
+        See Sec 2 of Muñoz+21 (2110.13919).
     A_VCB, BETA_VCB: float, optional
-        Impact of the DM-baryon relative velocities on Mturn for minihaloes. Default is 1.0 and 1.8, and agrees between different sims. See Sec 2 of Muñoz+21 (2110.13919).
-    UPPER_STELLAR_TURNOVER_MASS:
-        The pivot mass associated with the optional upper mass power-law of the stellar-halo mass relation
-        (see AstroOptions.USE_UPPER_STELLAR_TURNOVER)
-    UPPER_STELLAR_TURNOVER_INDEX:
-        The power-law index associated with the optional upper mass power-law of the stellar-halo mass relation
-        (see AstroOptions.USE_UPPER_STELLAR_TURNOVER)
+        Impact of the DM-baryon relative velocities on Mturn for minihaloes. Default is
+        1.0 and 1.8, and agrees between different sims. See Sec 2 of Muñoz+21 (2110.13919).
+    UPPER_STELLAR_TURNOVER_MASS : float
+        The pivot mass associated with the optional upper mass power-law of the
+        stellar-halo mass relation (see ``USE_UPPER_STELLAR_TURNOVER``
+        in :class:`AstroOptions`)
+    UPPER_STELLAR_TURNOVER_INDEX : float
+        The power-law index associated with the optional upper mass power-law of the
+        stellar-halo mass relation (see ``USE_UPPER_STELLAR_TURNOVER``
+        in :class:`AstroOptions`)
     SIGMA_LX: float, optional
-        Lognormal scatter (dex) of the Xray luminosity relation (a function of stellar mass, star formation rate and redshift).
-        This scatter is uniform across all halo properties and redshifts.
+        Lognormal scatter (dex) of the Xray luminosity relation (a function of stellar
+        mass, star formation rate and redshift). This scatter is uniform across all
+        halo properties and redshifts.
     FIXED_VAVG : float, optional
-        The fixed value of the average velocity used when AstroOptions.FIX_VCB_AVG is set to True.
+        The fixed value of the average velocity used when AstroOptions.FIX_VCB_AVG is
+        set to True.
     POP2_ION: float, optional
         Number of ionizing photons per baryon produced by Pop II stars.
     POP3_ION: float, optional
         Number of ionizing photons per baryon produced by Pop III stars.
     CLUMPING_FACTOR: float, optional
-        Clumping factor of the IGM used ONLY in the x-ray partial ionisations (not the reionsiation model). Default is 2.0.
+        Clumping factor of the IGM used ONLY in the x-ray partial ionisations (not the
+        reionsiation model). Default is 2.0.
     ALPHA_UVB: float, optional
-        The power-law index of the UVB spectrum. Used for Gamma12 in the recombination model
+        The power-law index of the UVB spectrum. Used for Gamma12 in the recombination
+        model
     DELTA_R_HII_FACTOR: float, optional
-        The factor by which to decrease the size of the HII filter when calculating the HII regions.
+        The factor by which to decrease the size of the HII filter when calculating the
+        HII regions.
     R_BUBBLE_MIN: float, optional
         Minimum size of ionized regions in Mpc. Default is 0.620350491.
     MAX_DVDR: float, optional
@@ -1452,7 +1557,7 @@ def get_logspaced_redshifts(
     min_redshift: float,
     z_step_factor: float,
     max_redshift: float,
-) -> tuple[float]:
+) -> tuple[float, ...]:
     """Compute a sequence of redshifts to evolve over that are log-spaced."""
     redshifts = [min_redshift]
     while redshifts[-1] < max_redshift:
@@ -1461,7 +1566,7 @@ def get_logspaced_redshifts(
     return tuple(redshifts[::-1])
 
 
-def _node_redshifts_converter(value) -> tuple[float] | None:
+def _node_redshifts_converter(value) -> tuple[float, ...] | None:
     if value is None or len(value) == 0:
         return ()
     if hasattr(value, "__len__"):
@@ -1479,27 +1584,27 @@ class InputParameters:
 
     Parameters
     ----------
-    random_seed
+    random_seed : float
         The seed that determines the realization produced by a 21cmFAST run.
-    node_redshifts
+    node_redshifts : list[float]
         The redshifts at which coeval boxes will be computed. By default,
         empty if no evolution is required, and logarithmically spaced in (1+z)
         between z=5.5 and SimulationOptions.Z_HEAT_MAX if evolution is required.
-    cosmo_params
+    cosmo_params : :class:`~CosmoParams`
         Cosmological parameters of a 21cmFAST run.
-    simulation_options
+    simulation_options : :class:`~SimulationOptions`
         Parameters controlling the simulation as a whole, e.g. the box size and
         dimensionality.
-    matter_options
+    matter_options : :class:`~MatterOptions`
         Parameters controlling the matter field generated by 21cmFAST.
-    astro_options
+    astro_options : :class:`~AstroOptions`
         Options for which physical processes to include in the simulation.
-    astro_params
+    astro_params : :class:`~AstroParams`
         Astrophysical parameter values.
 
     """
 
-    random_seed = _field(converter=int)
+    random_seed: int = _field(converter=int)
     cosmo_params: CosmoParams = input_param_field(CosmoParams)
     matter_options: MatterOptions = input_param_field(MatterOptions)
     simulation_options: SimulationOptions = input_param_field(SimulationOptions)
@@ -1761,7 +1866,7 @@ class InputParameters:
             for key in self.merge_keys()
         )
 
-    def evolve_input_structs(self, **kwargs):
+    def evolve_input_structs(self, **kwargs) -> Self:
         """Return an altered clone of the `InputParameters` structs.
 
         Unlike clone(), this function takes fields from the constituent `InputStruct` classes
@@ -1815,7 +1920,7 @@ class InputParameters:
         random_seed: int,
         node_redshifts: tuple[float] | None = None,
         **kwargs,
-    ):
+    ) -> Self:
         """Construct full InputParameters instance from native or TOML file template.
 
         Parameters
@@ -1848,11 +1953,11 @@ class InputParameters:
         dct.pop("cosmo_tables")
         return cls(**dct, **cls_kw)
 
-    def clone(self, **kwargs):
+    def clone(self, **kwargs) -> Self:
         """Generate a copy of the InputParameter structure with specified changes."""
         return evolve(self, **kwargs)
 
-    def __repr__(self):
+    def __repr__(self) -> str:
         """
         Return a string representation of the structure.
 

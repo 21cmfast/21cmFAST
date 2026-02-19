@@ -454,7 +454,7 @@ class OutputStruct(ABC):
         # Construct the args. All StructWrapper objects need to actually pass their
         # underlying cstruct, rather than themselves.
         inputs = [
-            arg.cstruct if isinstance(arg, OutputStruct | InputStruct) else arg
+            arg._cstruct if isinstance(arg, OutputStruct | InputStruct) else arg
             for arg in args
         ]
         # Sync the python/C memory

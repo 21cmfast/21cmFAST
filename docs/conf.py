@@ -84,7 +84,7 @@ autoapi_options=[
     'undoc-members', 
     'show-inheritance', 
     'show-module-summary', 
-    'special-members', 
+    #'special-members', 
     'imported-members',
     'inherited-members',
 ]
@@ -94,7 +94,8 @@ autoapi_python_class_content = 'init'
 autoapi_member_order = 'groupwise'
 autoapi_own_page_level = 'class'
 autoapi_keep_files = True
-autodoc_typehints = 'description'
+autodoc_typehints = 'both'
+autoapi_template_dir = 'templates/autoapi'
 
 autosummary_generate = False
 numpydoc_show_class_members = False
@@ -159,11 +160,3 @@ exclude_patterns = [
     "templates",
     "**.ipynb_checkpoints",
 ]
-
-def setup(app):
-    """Setup function for Sphinx."""
-    print("SETTING UP THE CLASS BASED DECORATOR DOCUMENTER")
-    app.add_autodocumenter(ClassDecoratedDocumenter)
-    return {
-        'parallel_read_safe': True
-    }

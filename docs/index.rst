@@ -16,6 +16,8 @@
 .. toctree::
    :caption: API Reference
    :hidden:
+   :maxdepth: 1
+
    autoapi/py21cmfast/index
 
 .. toctree::
