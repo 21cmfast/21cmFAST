@@ -458,7 +458,10 @@ class single_field_func(_OutputStructComputationInspect):  # noqa: N801
             kwargs["inputs"] = inputs
 
         if out is None:
-            self._broadcast_inputs(inputs)
+            # Skip broadcast when a high-level function has already broadcast
+            # (indicated by free_cosmo_tables=False).
+            if free_cosmo_tables:
+                self._broadcast_inputs(inputs)
             self._make_wisdoms(inputs.matter_options.USE_FFTW_WISDOM)
             out = self._func(**kwargs)
             self._handle_write_to_cache(cache, write, out)
@@ -494,4 +497,11 @@ class high_level_func(_OutputStructComputationInspect):  # noqa: N801
 
         self.check_consistency(kwargs, outputs)
 
-        yield from self._func(**kwargs)
+        # Broadcast once here so that every single_field_func called downstream
+        # (with free_cosmo_tables=False) can skip its own redundant broadcast.
+        broadcast_input_struct(inputs=inputs)
+        try:
+            yield from self._func(**kwargs)
+        except:
+            free_cosmo_tables()
+            raise

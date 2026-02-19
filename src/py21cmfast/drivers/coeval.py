@@ -19,6 +19,7 @@ from ..io import h5
 from ..io.caching import CacheConfig, OutputCache, RunCache
 from ..rsds import apply_rsds, include_dvdr_in_tau21
 from ..wrapper.arrays import Array
+from ..wrapper.cfuncs import broadcast_input_struct
 from ..wrapper.inputs import InputParameters
 from ..wrapper.outputs import (
     BrightnessTemp,
@@ -862,6 +863,9 @@ def _setup_ics_and_pfs_for_scrolling(
     photon_nonconservation_data = {}
     if inputs.astro_options.PHOTON_CONS_TYPE != "no-photoncons":
         photon_nonconservation_data = setup_photon_cons(**kw)
+        # Re-broadcast the main inputs after the photon-cons calibration loop,
+        # which internally switches to a different InputParameters object.
+        broadcast_input_struct(inputs=inputs)
 
     if (
         inputs.astro_options.PHOTON_CONS_TYPE == "z-photoncons"

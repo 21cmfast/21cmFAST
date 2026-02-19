@@ -279,6 +279,14 @@ def calibrate_photon_cons(
     # avoiding circular imports by importing here
     from ..drivers.single_field import compute_ionization_field, perturb_field
 
+    # Remove free_cosmo_tables from kwargs for the calibration loop.
+    # The calls below use inputs_calibration (a derived InputParameters), not
+    # the inputs that was already broadcast by the high-level caller. Since
+    # free_cosmo_tables=False would suppress the broadcast inside single_field_func,
+    # those C calls would run against the wrong global structs. By forcing
+    # free_cosmo_tables=True here, each call broadcasts its own inputs correctly.
+    calibration_kwargs = {k: v for k, v in kwargs.items() if k != "free_cosmo_tables"}
+
     # Create a new astro_params and astro_options just for the photon_cons correction
     # NOTE: Since the calibration cannot do INHOMO_RECO, we set the R_BUBBLE_MAX
     #   to the default w/o recombinations ONLY when the original box has INHOMO_RECO enabled.
@@ -329,7 +337,7 @@ def calibrate_photon_cons(
             redshift=z,
             inputs=inputs_calibration,
             initial_conditions=initial_conditions,
-            **kwargs,
+            **calibration_kwargs,
         )
 
         ib2 = compute_ionization_field(
@@ -338,7 +346,7 @@ def calibrate_photon_cons(
             initial_conditions=initial_conditions,
             perturbed_field=this_perturb,
             previous_perturbed_field=prev_perturb,
-            **kwargs,
+            **calibration_kwargs,
         )
 
         mean_nf = np.mean(ib2.get("neutral_fraction"))
