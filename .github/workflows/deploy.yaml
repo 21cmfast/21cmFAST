@@ -27,7 +27,7 @@ jobs:
           sudo apt-get install libfftw3-dev
           sudo apt-get install libgsl0-dev
 
-      - name: Build a binary wheel
+      - name: Build a source distribution
         run: |
           python -m build --sdist .
 
