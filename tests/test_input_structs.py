@@ -98,7 +98,7 @@ class TestInputStructSubclasses:
         assert self.cosmo == c4
 
         # Make sure the c data gets loaded fine.
-        assert c4.cstruct.hlittle == self.cosmo.cstruct.hlittle
+        assert c4._cstruct.hlittle == self.cosmo._cstruct.hlittle
 
     def test_asdict(self):
         """Test the asdict() method works."""
