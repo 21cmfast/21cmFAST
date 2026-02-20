@@ -13,12 +13,12 @@ import logging
 from collections import defaultdict
 from collections.abc import Sequence
 from pathlib import Path
-from typing import Any, Literal
+from typing import Literal
 
 import tomlkit
 
 from .input_serialization import deserialize_inputs, prepare_inputs_for_serialization
-from .wrapper.inputs import InputParameters
+from .wrapper.inputs import InputParameters, InputStruct
 
 TEMPLATE_PATH = Path(__file__).parent / "templates/"
 MANIFEST = TEMPLATE_PATH / "manifest.toml"
@@ -68,7 +68,7 @@ def load_template_file(template_name: str | Path):
 
 def create_params_from_template(
     template_name: str | Path | Sequence[str | Path], **kwargs
-) -> dict[str, dict[str, Any]]:
+) -> dict[str, InputStruct]:
     """
     Construct the required InputStruct instances for a run from a given template.
 
@@ -105,15 +105,32 @@ def create_params_from_template(
         templates = template_name
 
     full_template = defaultdict(dict)
+
+    random_seed = None
+    node_redshifts = None
+
     for tmpl in templates:
         thist = load_template_file(tmpl)
         for k, v in thist.items():
-            full_template[k] |= v
-    return deserialize_inputs(full_template, **kwargs)
+            if k == "random_seed":
+                random_seed = v
+            elif k == "node_redshifts":
+                node_redshifts = v
+            else:
+                full_template[k] |= v
+    out = deserialize_inputs(full_template, **kwargs)
+    if random_seed is not None:
+        out["random_seed"] = random_seed
+    if node_redshifts is not None:
+        out["node_redshifts"] = node_redshifts
+    return out
 
 
 def write_template(
-    inputs: InputParameters, template_file: Path | str, mode: TOMLMode = "full"
+    inputs: InputParameters,
+    template_file: Path | str,
+    mode: TOMLMode = "full",
+    only_structs: bool | None = None,
 ):
     """Write a set of input parameters to a template file.
 
@@ -124,7 +141,14 @@ def write_template(
     template_file
         The path of the output.
     """
-    inputs_dct = prepare_inputs_for_serialization(inputs, mode=mode)
+    assert mode in ("full", "minimal"), "mode must be 'full' or 'minimal'"
+
+    if only_structs is None:
+        only_structs = mode == "minimal"
+
+    inputs_dct = prepare_inputs_for_serialization(
+        inputs, mode=mode, only_structs=only_structs
+    )
     inputs_dct.pop("CosmoTables", None)
 
     template_file = Path(template_file)
