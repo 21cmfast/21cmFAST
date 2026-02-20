@@ -221,9 +221,6 @@ class _OutputStructComputationInspect:
         if given_inputs is not None:
             check_consistency_of_outputs_with_inputs(given_inputs, outputs.values())
 
-    def _make_wisdoms(self, use_fftw_wisdom: bool):
-        construct_fftw_wisdoms(use_fftw_wisdom=use_fftw_wisdom)
-
     def check_output_struct_types(self, outputs: dict[str, OutputStruct]):
         """Check given OutputStruct parameters.
 
@@ -461,19 +458,16 @@ class single_field_func(_OutputStructComputationInspect):  # noqa: N801
             kwargs["inputs"] = inputs
 
         if out is None:
-            # Skip broadcast when a high-level function has already broadcast
-            # (indicated by called_by_higher_level=True).
+            # Broadcast inputs to C, unless this function was called by a higher level function
             if not called_by_higher_level:
                 broadcast_input_struct(inputs)
-            self._make_wisdoms(inputs.matter_options.USE_FFTW_WISDOM)
+                if inputs.matter_options.USE_FFTW_WISDOM:
+                    construct_fftw_wisdoms()
             out = self._func(**kwargs)
+            # Free cosmo_tables, unless this function was called by a higher level function
+            if not called_by_higher_level:
+                free_cosmo_tables()
             self._handle_write_to_cache(cache, write, out)
-
-        # Free cosmo_tables, unless it is explicitly requested to keep their memory
-        # (useful in macro functions like run_coeval and run_lightcone, so we won't have to
-        # free and reallocate memory repeatedly)
-        if not called_by_higher_level:
-            free_cosmo_tables()
 
         return out
 
@@ -503,6 +497,8 @@ class high_level_func(_OutputStructComputationInspect):  # noqa: N801
         # Broadcast once here so that every single_field_func called downstream
         # (with called_by_higher_level=True) can skip its own redundant broadcast.
         broadcast_input_struct(inputs=inputs)
+        if inputs.matter_options.USE_FFTW_WISDOM:
+            construct_fftw_wisdoms()
         try:
             yield from self._func(**kwargs)
         finally:

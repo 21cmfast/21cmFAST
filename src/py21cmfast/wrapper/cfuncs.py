@@ -49,6 +49,7 @@ def broadcast_params(func: Callable) -> Callable:
     """
 
     def wrapper(*args, inputs: InputParameters, **kwargs):
+        # Broadcast inputs to C, unless this function was called by a higher level function
         if not kwargs.get("called_by_higher_level", False):
             broadcast_input_struct(inputs)
         try:
@@ -419,23 +420,9 @@ def compute_luminosity_function(
 
 
 @cache
-def construct_fftw_wisdoms(
-    *,
-    use_fftw_wisdom: bool,
-) -> int:
-    """Construct all necessary FFTW wisdoms.
-
-    Parameters
-    ----------
-    USE_FFTW_WISDOM : bool
-        Whether we are interested in having FFTW wisdoms.
-
-    """
-    # Run the C code
-    if use_fftw_wisdom:
-        return lib.CreateFFTWWisdoms()
-    else:
-        return 0
+def construct_fftw_wisdoms():
+    """Construct all necessary FFTW wisdoms."""
+    return lib.CreateFFTWWisdoms()
 
 
 @init_backend_ps
