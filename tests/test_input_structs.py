@@ -105,9 +105,9 @@ class TestInputStructSubclasses:
         c5 = CosmoParams.new(self.cosmo)
         assert c5 == self.cosmo
         assert c5.asdict() == self.cosmo.asdict()
-        assert c5._cdict == self.cosmo._cdict
+        assert c5.cdict == self.cosmo.cdict
         assert (
-            c5._cdict != c5.asdict()
+            c5.cdict != c5.asdict()
         )  # not the same because the former doesn't include dynamic parameters.
         assert c5 == self.cosmo
 
