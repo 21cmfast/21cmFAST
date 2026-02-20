@@ -3,7 +3,7 @@ Changes from v3 to v4
 =====================
 
 This page outlines the main differences between the usage of ``21cmFAST`` versions 3 and
-1. Use this documentation as a reference for understanding and adapting to the updates in
+4. Use this documentation as a reference for understanding and adapting to the updates in
 ``21cmFAST`` version 4.
 
 Stochastic Halo Sampling
