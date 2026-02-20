@@ -448,8 +448,6 @@ class single_field_func(_OutputStructComputationInspect):  # noqa: N801
 
         out = self._handle_read_from_cache(inputs, current_redshift, cache, regen)
 
-        called_by_higher_level = kwargs.pop("called_by_higher_level", False)
-
         if "inputs" in self._signature.parameters:
             # Here we set the inputs (if accepted by the function signature)
             # to the most advanced ones. This is the explicitly-passed inputs if
@@ -458,13 +456,20 @@ class single_field_func(_OutputStructComputationInspect):  # noqa: N801
             kwargs["inputs"] = inputs
 
         if out is None:
+            called_by_higher_level = kwargs.pop("called_by_higher_level", False)
             # Broadcast inputs to C, unless this function was called by a higher level function
             if not called_by_higher_level:
                 broadcast_input_struct(inputs)
                 if inputs.matter_options.USE_FFTW_WISDOM:
                     construct_fftw_wisdoms()
-            out = self._func(**kwargs)
-            # Free cosmo_tables, unless this function was called by a higher level function
+            try:
+                out = self._func(**kwargs)
+            except:
+                # Free cosmo_tables (error path), unless this function was called by a higher level function
+                if not called_by_higher_level:
+                    free_cosmo_tables()
+                raise  # Re-raise the original exception
+            # Free cosmo_tables (success path), unless this function was called by a higher level function
             if not called_by_higher_level:
                 free_cosmo_tables()
             self._handle_write_to_cache(cache, write, out)
@@ -494,12 +499,19 @@ class high_level_func(_OutputStructComputationInspect):  # noqa: N801
 
         self.check_consistency(kwargs, outputs)
 
-        # Broadcast once here so that every single_field_func called downstream
-        # (with called_by_higher_level=True) can skip its own redundant broadcast.
-        broadcast_input_struct(inputs=inputs)
-        if inputs.matter_options.USE_FFTW_WISDOM:
-            construct_fftw_wisdoms()
+        called_by_higher_level = False
+        # Broadcast inputs to C, unless this function was called by a higher level function
+        if not called_by_higher_level:
+            broadcast_input_struct(inputs=inputs)
+            if inputs.matter_options.USE_FFTW_WISDOM:
+                construct_fftw_wisdoms()
         try:
             yield from self._func(**kwargs)
-        finally:
+        except:
+            # Free cosmo_tables (error path), unless this function was called by a higher level function
+            if not called_by_higher_level:
+                free_cosmo_tables()
+            raise  # Re-raise the original exception
+        # Free cosmo_tables (success path), unless this function was called by a higher level function
+        if not called_by_higher_level:
             free_cosmo_tables()

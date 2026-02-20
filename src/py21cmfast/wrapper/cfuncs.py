@@ -49,20 +49,23 @@ def broadcast_params(func: Callable) -> Callable:
     """
 
     def wrapper(*args, inputs: InputParameters, **kwargs):
+        called_by_higher_level = kwargs.pop("called_by_higher_level", False)
         # Broadcast inputs to C, unless this function was called by a higher level function
-        if not kwargs.get("called_by_higher_level", False):
+        if not called_by_higher_level:
             broadcast_input_struct(inputs)
+            if inputs.matter_options.USE_FFTW_WISDOM:
+                construct_fftw_wisdoms()
         try:
             out = func(*args, inputs=inputs, **kwargs)
         except:
-            # Always free on error, regardless of the flag
-            free_cosmo_tables()
-            raise  # Re-raise the original exception
-        else:
-            # Only free on success if the flag allows it
-            if not kwargs.get("called_by_higher_level", False):
+            # Free cosmo_tables (error path), unless this function was called by a higher level function
+            if not called_by_higher_level:
                 free_cosmo_tables()
-            return out
+            raise  # Re-raise the original exception
+        # Free cosmo_tables (success path), unless this function was called by a higher level function
+        if not called_by_higher_level:
+            free_cosmo_tables()
+        return out
 
     return wrapper
 
