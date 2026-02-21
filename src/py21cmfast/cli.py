@@ -26,6 +26,7 @@ from . import __version__, plotting
 from ._templates import TOMLMode, list_templates, write_template
 from .drivers import coeval as cvlmodule
 from .drivers.coeval import generate_coeval
+from .drivers.global_evolution import run_global_evolution
 from .drivers.lightcone import run_lightcone
 from .drivers.single_field import compute_initial_conditions
 from .input_serialization import convert_inputs_to_dict
@@ -252,6 +253,9 @@ def pretty_print_inputs(
         yield description + "\n"
 
         for structname, params in inputs_dct.items():
+            if structname == "CosmoTables":
+                # grrr cosmo tables being annoying again!
+                continue
             if params:
                 yield Rule(f"[bold purple]{structname}")
 
@@ -559,6 +563,60 @@ def lightcone(
     lc.save(out)
 
     cns.print(f"[spring_green3]:duck: Saved Lightcone to {out}.")
+
+
+@run.command(name="global")
+def global_signal(
+    source_model: Literal["E-INTEGRAL", "CONST-ION-EFF", "L-INTEGRAL"] | None = None,
+    options: RunParams = RunParams(
+        # Use a default that runs without warnings.
+        param_selection=ParameterSelection(template=["EOS21"])
+    ),
+    params: Annotated[Parameters, Parameter(show=False, name="*")] = Parameters(),
+    redshift_range: tuple[float, float] = (6.0, 30.0),
+    out: Annotated[
+        Path,
+        Parameter(validator=(vld.Path(dir_okay=False, file_okay=False, ext=("h5",)),)),
+    ] = Path("global-evolution.h5"),
+):
+    """Generate the global evolution between given redshifts.
+
+    To specify simulation parameters, use a base template (either via --param-file or
+    --template) and optionally override any particular simulation parameters. To see the
+    available simulation parameters and how to specify them, use
+    `21cmfast run params --help`.
+
+    Parameters
+    ----------
+    redshift_range
+        The redshifts between which to generate the global evolution.
+    out
+        The filename to which to save the global evolution data.
+    """
+    if not out.parent.exists():
+        out.parent.mkdir(parents=True, exist_ok=True)
+
+    inputs = _run_setup(options, params, redshift_range[0], force_nodez=True)
+
+    if source_model is None and inputs.matter_options.SOURCE_MODEL not in [
+        "E-INTEGRAL",
+        "CONST-ION-EFF",
+        "L-INTEGRAL",
+    ]:
+        cns.print(
+            "[red]:warning: No source model specified, and the SOURCE_MODEL in the inputs is not a valid option for global evolution."
+        )
+        return
+
+    lc = run_global_evolution(
+        inputs=inputs,
+        source_model=source_model,
+        progressbar=options.progress,
+    )
+
+    lc.save(out)
+
+    cns.print(f"[spring_green3]:duck: Saved Global Evolution to {out}.")
 
 
 @dev.command(name="feature")
