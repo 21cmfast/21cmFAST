@@ -594,7 +594,7 @@ void fill_Rbox_table(float **result, fftwf_complex *unfiltered_box, double *R_ar
         // don't filter on cell size
         if (R > physconst.l_factor *
                     (simulation_options_global->BOX_LEN / simulation_options_global->HII_DIM)) {
-            filter_box(box, box_dim, astro_options_global->HEAT_FILTER, R, 0.);
+            filter_box(box, box_dim, astro_options_global->HEAT_FILTER, R, 0., 0.);
         }
 
         LOG_ULTRA_DEBUG("db2 %d", R_ct);
@@ -648,7 +648,7 @@ void fill_Rbox_table(float **result, fftwf_complex *unfiltered_box, double *R_ar
 //   (better memory locality)
 // TODO: filter speed tests
 void one_annular_filter(float *input_box, float *output_box, double R_inner, double R_outer,
-                        double *u_avg, double *f_avg) {
+                        double R_star, int filter_type, double *u_avg, double *f_avg) {
     int i, j, k;
     unsigned long long int ct;
     double unfiltered_avg = 0;
@@ -702,7 +702,7 @@ void one_annular_filter(float *input_box, float *output_box, double R_inner, dou
 
         // Don't filter on the cell scale
         if (R_inner > 0) {
-            filter_box(filtered_box, box_dim, 4, R_inner, R_outer);
+            filter_box(filtered_box, box_dim, filter_type, R_inner, R_outer, R_star);
         }
 
         // now fft back to real space
@@ -748,11 +748,12 @@ void one_annular_filter(float *input_box, float *output_box, double R_inner, dou
 
 // fill a box[R_ct][box_ct] array for use in TS by filtering on different scales and storing results
 // Similar to fill_Rbox_table but called using different redshifts for each scale
-int UpdateXraySourceBox(HaloBox *halobox, double R_inner, double R_outer, int R_ct,
+int UpdateXraySourceBox(HaloBox *halobox, double R_inner, double R_outer, int R_ct, double R_star,
                         XraySourceBox *source_box) {
-    int status;
+    int status, filter_type;
     Try {
         // the indexing needs these
+        filter_type = astro_options_global->LYA_MULTIPLE_SCATTERING ? 5 : 4;
 
         // only print once, since this is called for every R
         if (R_ct == 0) LOG_DEBUG("starting XraySourceBox");
@@ -761,19 +762,27 @@ int UpdateXraySourceBox(HaloBox *halobox, double R_inner, double R_outer, int R_
         double xray_avg, fxray_avg;
         one_annular_filter(halobox->halo_sfr,
                            &(source_box->filtered_sfr[R_ct * HII_TOT_NUM_PIXELS]), R_inner, R_outer,
-                           &sfr_avg, &fsfr_avg);
+                           R_star, filter_type, &sfr_avg, &fsfr_avg);
         one_annular_filter(halobox->halo_xray,
                            &(source_box->filtered_xray[R_ct * HII_TOT_NUM_PIXELS]), R_inner,
-                           R_outer, &xray_avg, &fxray_avg);
-
+                           R_outer, R_star, 4, &xray_avg, &fxray_avg);
         source_box->mean_sfr[R_ct] = fsfr_avg;
         if (astro_options_global->USE_MINI_HALOS) {
             one_annular_filter(halobox->halo_sfr_mini,
                                &(source_box->filtered_sfr_mini[R_ct * HII_TOT_NUM_PIXELS]), R_inner,
-                               R_outer, &sfr_avg_mini, &fsfr_avg_mini);
-
+                               R_outer, R_star, filter_type, &sfr_avg_mini, &fsfr_avg_mini);
             source_box->mean_sfr_mini[R_ct] = fsfr_avg_mini;
             source_box->mean_log10_Mcrit_LW[R_ct] = halobox->log10_Mcrit_MCG_ave;
+            // In case of multiple scattering and mini-halos, we need to filter the SFRD fields
+            // again for the the LW feedback, as these photons travel in straight lines
+            if (astro_options_global->LYA_MULTIPLE_SCATTERING) {
+                one_annular_filter(halobox->halo_sfr,
+                                   &(source_box->filtered_sfr_lw[R_ct * HII_TOT_NUM_PIXELS]),
+                                   R_inner, R_outer, R_star, 4, &sfr_avg, &fsfr_avg);
+                one_annular_filter(halobox->halo_sfr_mini,
+                                   &(source_box->filtered_sfr_mini_lw[R_ct * HII_TOT_NUM_PIXELS]),
+                                   R_inner, R_outer, R_star, 4, &sfr_avg_mini, &fsfr_avg_mini);
+            }
         }
 
         if (R_ct == astro_params_global->N_STEP_TS - 1) LOG_DEBUG("finished XraySourceBox");
@@ -891,7 +900,11 @@ void init_first_Ts(TsBox *box, float *dens, float z, float zp, double *x_e_ave, 
 
     xe = xion_RECFAST(zp, 0);
     TK = T_RECFAST(zp, 0);
-    cT_ad = cT_approx(zp);
+    if (astro_options_global->USE_ADIABATIC_FLUCTUATIONS) {
+        cT_ad = cT_approx(zp);
+    } else {
+        cT_ad = 0.;
+    }
 
     growth_factor_zp = dicke(zp);
     inverse_growth_factor_z = 1 / dicke(z);
@@ -1653,6 +1666,7 @@ void ts_main(float redshift, float prev_redshift, float perturbed_field_redshift
                 int xidx;
                 double ival, sfr_term, xray_sfr;
                 double sfr_term_mini = 0;
+                double sfr_term_lw, sfr_term_mini_lw;
 #pragma omp for
                 for (box_ct = 0; box_ct < HII_TOT_NUM_PIXELS; box_ct++) {
                     // sum each R contribution together
@@ -1668,6 +1682,14 @@ void ts_main(float redshift, float prev_redshift, float perturbed_field_redshift
                         // Minihalos and s->yr conversion are already included here
                         xray_sfr = source_box->filtered_xray[R_ct * HII_TOT_NUM_PIXELS + box_ct] *
                                    z_edge_factor * xray_R_factor * 1e38;
+                        if (astro_options_global->USE_MINI_HALOS &&
+                            astro_options_global->LYA_MULTIPLE_SCATTERING) {
+                            sfr_term_lw =
+                                source_box->filtered_sfr_lw[R_ct * HII_TOT_NUM_PIXELS + box_ct] *
+                                z_edge_factor;
+                        } else {
+                            sfr_term_lw = sfr_term;
+                        }
                     } else {
                         // NOTE: for SOURCE_MODEL==0 F_STAR10 is still used for constant
                         // stellar fraction
@@ -1681,15 +1703,25 @@ void ts_main(float redshift, float prev_redshift, float perturbed_field_redshift
                             sfr_term_mini =
                                 source_box->filtered_sfr_mini[R_ct * HII_TOT_NUM_PIXELS + box_ct] *
                                 z_edge_factor;
+                            if (astro_options_global->LYA_MULTIPLE_SCATTERING) {
+                                sfr_term_mini_lw =
+                                    source_box
+                                        ->filtered_sfr_mini_lw[R_ct * HII_TOT_NUM_PIXELS + box_ct] *
+                                    z_edge_factor;
+                            } else {
+                                sfr_term_mini_lw = sfr_term_mini;
+                            }
                         } else {
                             sfr_term_mini = del_fcoll_Rct_MINI[box_ct] * z_edge_factor *
                                             avg_fix_term_MINI * astro_params_global->F_STAR7_MINI;
                             xray_sfr += sfr_term_mini * astro_params_global->L_X_MINI *
                                         xray_R_factor * physconst.s_per_yr;
+                            sfr_term_lw = sfr_term;
+                            sfr_term_mini_lw = sfr_term_mini;
                         }
                         dstarlyLW_dt_box[box_ct] +=
-                            sfr_term * dstarlyLW_dt_prefactor[R_ct] +
-                            sfr_term_mini * dstarlyLW_dt_prefactor_MINI[R_ct];
+                            sfr_term_lw * dstarlyLW_dt_prefactor[R_ct] +
+                            sfr_term_mini_lw * dstarlyLW_dt_prefactor_MINI[R_ct];
                     }
                     xidx = m_xHII_low_box[box_ct];
                     ival = inverse_val_box[box_ct];

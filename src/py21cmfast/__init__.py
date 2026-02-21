@@ -12,7 +12,7 @@ except ModuleNotFoundError:  # pragma: no cover
         __version__ = "unknown"
 
 __all__ = [
-    "DATA_PATH",
+    "_DATA_PATH",
     "AngularLightconer",
     "AstroOptions",
     "AstroParams",
@@ -73,7 +73,7 @@ __all__ = [
 
 from . import lightconers, plotting, wrapper
 from ._cfg import config
-from ._data import DATA_PATH
+from ._data import _DATA_PATH
 from ._logging import configure_logging
 from ._templates import create_params_from_template, list_templates, write_template
 from .drivers.coeval import Coeval, generate_coeval, run_coeval

@@ -7,7 +7,7 @@ from pathlib import Path
 from typing import ClassVar
 
 from . import yaml
-from ._data import DATA_PATH
+from ._data import _DATA_PATH
 from .c_21cmfast import ffi, lib
 from .wrapper.structs import StructInstanceWrapper
 
@@ -23,7 +23,7 @@ class Config(dict):
     _defaults: ClassVar = {
         "direc": "~/21cmFAST-cache",
         "ignore_R_BUBBLE_MAX_error": False,
-        "external_table_path": DATA_PATH,
+        "external_table_path": _DATA_PATH,
         "HALO_CATALOG_MEM_FACTOR": 1.2,
         "EXTRA_HALOBOX_FIELDS": False,
         "safe_read": True,
@@ -106,3 +106,4 @@ class Config(dict):
 
 # On import, load the default config
 config = Config()
+"""A singleton Config object used to manage global configuration options."""

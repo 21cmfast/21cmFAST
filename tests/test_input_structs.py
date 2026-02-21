@@ -98,7 +98,7 @@ class TestInputStructSubclasses:
         assert self.cosmo == c4
 
         # Make sure the c data gets loaded fine.
-        assert c4.cstruct.hlittle == self.cosmo.cstruct.hlittle
+        assert c4._cstruct.hlittle == self.cosmo._cstruct.hlittle
 
     def test_asdict(self):
         """Test the asdict() method works."""
@@ -433,6 +433,20 @@ class TestInputParameters:
             {
                 "matter_options": MatterOptions(SOURCE_MODEL="CHMF-SAMPLER"),
                 "astro_options": AstroOptions(PHOTON_CONS_TYPE="z-photoncons"),
+            },
+        ),
+        (
+            ValueError,
+            "LYA_MULTIPLE_SCATTERING is not compatible with SOURCE_MODEL == E-INTEGRAL",
+            {
+                "matter_options": MatterOptions(
+                    SOURCE_MODEL="E-INTEGRAL",
+                ),
+                "astro_options": AstroOptions(
+                    LYA_MULTIPLE_SCATTERING=True,
+                    USE_EXP_FILTER=False,
+                    USE_UPPER_STELLAR_TURNOVER=False,
+                ),
             },
         ),
         (

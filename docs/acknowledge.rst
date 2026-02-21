@@ -15,11 +15,24 @@ If you use ``21cmFAST v3+`` in your research please cite both of:
 In addition, the following papers introduce various features into ``21cmFAST``. If you use
 these features, please cite the relevant papers.
 
+Lyman alpha multiple scattering
+
+    Flitter, J., Munoz, J. B., Mesinger, A.,
+    "Semi-analytical approach to Lyman-alpha multiple-scattering in 21-cm signal simulations",
+    eprint arXiv:2601.14360, 2026. https://doi.org/10.48550/arXiv.2601.14360.
+
 Discrete Halo Sampler / version 4:
 
     Davies, J. E., Mesinger, A., Murray, S. G.,
     "Efficient simulation of discrete galaxy populations and associated radiation fields during the first billion years",
-    eprint arXiv:2504.17254, 2025. https://doi.org/10.48550/arXiv.2504.17254
+    Astronomy and Astrophysics, vol. 701, A. 236, 2025. https://doi.org/10.1051/0004-6361/202554951.
+
+Photon non-conservation correction:
+
+    Park, J., Greig, B., Mesinger, A.,
+    "Calibrating excursion set reionization models to approximately conserve ionizing photons",
+    Monthly Notices of the Royal Astronomical Society, vol. 517, no. 1,
+    pp 192-200, 2022 https://doi.org/10.1093/mnras/stac2756.
 
 Mini-halos:
 
@@ -41,6 +54,20 @@ Mass-dependent ionizing efficiency:
     “Inferring the astrophysics of reionization and cosmic dawn from galaxy luminosity
     functions and the 21-cm signal”, Monthly Notices of the Royal Astronomical Society,
     vol. 484, no. 1, pp. 933–949, 2019. https://doi.org/10.1093/mnras/stz032.
+
+Lightcone and redshift space distortions:
+
+    Greig, B., Mesinger, A.,
+    "21CMMC with a 3D light-cone: the impact of the co-evolution approximation on the astrophysics of reionisation and cosmic dawn.",
+    Monthly Notices of the Royal Astronomical Society, vol. 477, no. 3,
+    pp 3217-3229, 2018. https://doi.org/10.1093/mnras/sty796.
+
+Inhomogeneous recombination:
+
+    Sobacchi, E., Mesinger, A.,
+    "Inhomogeneous recombinations during cosmic reionization",
+    Monthly Notices of the Royal Astronomical Society, vol. 440, no. 2,
+    pp 1662-1673, 2014. https://doi.org/10.1093/mnras/stu377.
 
 If you are unsure which modules are used within your simulations, we provide a handy function
 to print out which works to refer ``py21cmfast.utils.show_references``, which accepts a single instance of
