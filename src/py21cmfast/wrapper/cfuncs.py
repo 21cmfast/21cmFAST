@@ -48,15 +48,48 @@ def broadcast_params(func: Callable) -> Callable:
     21cmFAST if it does not directly call `broadcast_input_struct`.
     """
 
-    def wrapper(*args, inputs: InputParameters, **kwargs):
+    def wrapper(*args, **kwargs):
         called_by_higher_level = kwargs.pop("called_by_higher_level", False)
-        # Broadcast inputs to C, unless this function was called by a higher level function
+
+        # We need to broadcast inputs to C, unless this function was called by a higher level function
         if not called_by_higher_level:
+            # Try to get inputs directly from kwargs first
+            inputs = kwargs.get("inputs")
+            if inputs is None:
+                # Not in kwargs — search inputs in attributes of args and kwargs
+                # (handles brightness_temperature, compute_xray_source_field,
+                # and chained wrappers like init_backend_ps where inputs is
+                # passed through *args)
+                for val in (*args, *kwargs.values()):
+                    if isinstance(val, InputParameters):
+                        inputs = val
+                        break
+                    if hasattr(val, "inputs") and isinstance(
+                        val.inputs, InputParameters
+                    ):
+                        inputs = val.inputs
+                        break
+                    if hasattr(val, "__iter__"):
+                        for item in val:
+                            if hasattr(item, "inputs") and isinstance(
+                                item.inputs, InputParameters
+                            ):
+                                inputs = item.inputs
+                                break
+                    if inputs is not None:
+                        break
+            if inputs is None:
+                raise ValueError(
+                    f"Could not determine InputParameters for {func.__name__}. "
+                    "Ensure inputs is passed as a keyword argument or at least "
+                    "one argument has an 'inputs' attribute."
+                )
+            # Broadcast inputs to C
             broadcast_input_struct(inputs)
             if inputs.matter_options.USE_FFTW_WISDOM:
                 construct_fftw_wisdoms()
         try:
-            out = func(*args, inputs=inputs, **kwargs)
+            out = func(*args, **kwargs)
         except:
             # Free cosmo_tables (error path), unless this function was called by a higher level function
             if not called_by_higher_level:

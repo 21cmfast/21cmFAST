@@ -16,6 +16,7 @@ from ..io.caching import OutputCache
 from ..utils import recursive_difference
 from ..wrapper.cfuncs import (
     broadcast_input_struct,
+    broadcast_params,
     construct_fftw_wisdoms,
     free_cosmo_tables,
 )
@@ -457,21 +458,8 @@ class single_field_func(_OutputStructComputationInspect):  # noqa: N801
 
         if out is None:
             called_by_higher_level = kwargs.pop("called_by_higher_level", False)
-            # Broadcast inputs to C, unless this function was called by a higher level function
-            if not called_by_higher_level:
-                broadcast_input_struct(inputs)
-                if inputs.matter_options.USE_FFTW_WISDOM:
-                    construct_fftw_wisdoms()
-            try:
-                out = self._func(**kwargs)
-            except:
-                # Free cosmo_tables (error path), unless this function was called by a higher level function
-                if not called_by_higher_level:
-                    free_cosmo_tables()
-                raise  # Re-raise the original exception
-            # Free cosmo_tables (success path), unless this function was called by a higher level function
-            if not called_by_higher_level:
-                free_cosmo_tables()
+            wrapped = broadcast_params(self._func)
+            out = wrapped(called_by_higher_level=called_by_higher_level, **kwargs)
             self._handle_write_to_cache(cache, write, out)
 
         return out
