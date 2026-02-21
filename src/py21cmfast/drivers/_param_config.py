@@ -14,12 +14,7 @@ from ..input_serialization import convert_inputs_to_dict
 from ..io import h5
 from ..io.caching import OutputCache
 from ..utils import recursive_difference
-from ..wrapper.cfuncs import (
-    broadcast_input_struct,
-    broadcast_params,
-    construct_fftw_wisdoms,
-    free_cosmo_tables,
-)
+from ..wrapper.cfuncs import broadcast_params
 from ..wrapper.inputs import InputParameters
 from ..wrapper.outputs import HaloCatalog, OutputStruct, OutputStructZ, _HashType
 from ..wrapper.photoncons import _photoncons_state
@@ -487,19 +482,5 @@ class high_level_func(_OutputStructComputationInspect):  # noqa: N801
 
         self.check_consistency(kwargs, outputs)
 
-        called_by_higher_level = False
-        # Broadcast inputs to C, unless this function was called by a higher level function
-        if not called_by_higher_level:
-            broadcast_input_struct(inputs=inputs)
-            if inputs.matter_options.USE_FFTW_WISDOM:
-                construct_fftw_wisdoms()
-        try:
-            yield from self._func(**kwargs)
-        except:
-            # Free cosmo_tables (error path), unless this function was called by a higher level function
-            if not called_by_higher_level:
-                free_cosmo_tables()
-            raise  # Re-raise the original exception
-        # Free cosmo_tables (success path), unless this function was called by a higher level function
-        if not called_by_higher_level:
-            free_cosmo_tables()
+        wrapped = broadcast_params(self._func, is_generator=True)
+        yield from wrapped(called_by_higher_level=False, **kwargs)

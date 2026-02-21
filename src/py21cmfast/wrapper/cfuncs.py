@@ -41,7 +41,8 @@ def free_cosmo_tables():
     lib.Free_cosmo_tables_global()
 
 
-def broadcast_params(func: Callable) -> Callable:
+# TODO: I put the C901 comment in order to pass pre-commit, this should be removed when we take the inputs logic outside the wrappers
+def broadcast_params(func: Callable, is_generator: bool = False) -> Callable:  # noqa: C901
     """Broadcast the parameters to the C library before calling the function.
 
     This should be added as a decorator to any function which accesses the
@@ -100,7 +101,58 @@ def broadcast_params(func: Callable) -> Callable:
             free_cosmo_tables()
         return out
 
-    return wrapper
+    def generator_wrapper(*args, **kwargs):
+        called_by_higher_level = kwargs.pop("called_by_higher_level", False)
+
+        # We need to broadcast inputs to C, unless this function was called by a higher level function
+        if not called_by_higher_level:
+            # Try to get inputs directly from kwargs first
+            inputs = kwargs.get("inputs")
+            if inputs is None:
+                # Not in kwargs — search inputs in attributes of args and kwargs
+                # (handles brightness_temperature, compute_xray_source_field,
+                # and chained wrappers like init_backend_ps where inputs is
+                # passed through *args)
+                for val in (*args, *kwargs.values()):
+                    if isinstance(val, InputParameters):
+                        inputs = val
+                        break
+                    if hasattr(val, "inputs") and isinstance(
+                        val.inputs, InputParameters
+                    ):
+                        inputs = val.inputs
+                        break
+                    if hasattr(val, "__iter__"):
+                        for item in val:
+                            if hasattr(item, "inputs") and isinstance(
+                                item.inputs, InputParameters
+                            ):
+                                inputs = item.inputs
+                                break
+                    if inputs is not None:
+                        break
+            if inputs is None:
+                raise ValueError(
+                    f"Could not determine InputParameters for {func.__name__}. "
+                    "Ensure inputs is passed as a keyword argument or at least "
+                    "one argument has an 'inputs' attribute."
+                )
+            # Broadcast inputs to C
+            broadcast_input_struct(inputs)
+            if inputs.matter_options.USE_FFTW_WISDOM:
+                construct_fftw_wisdoms()
+        try:
+            yield from func(*args, **kwargs)
+        except:
+            # Free cosmo_tables (error path), unless this function was called by a higher level function
+            if not called_by_higher_level:
+                free_cosmo_tables()
+            raise  # Re-raise the original exception
+        # Free cosmo_tables (success path), unless this function was called by a higher level function
+        if not called_by_higher_level:
+            free_cosmo_tables()
+
+    return generator_wrapper if is_generator else wrapper
 
 
 def init_backend_ps(func: Callable) -> Callable:
