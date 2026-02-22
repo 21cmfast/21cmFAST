@@ -14,7 +14,6 @@ from ..input_serialization import convert_inputs_to_dict
 from ..io import h5
 from ..io.caching import OutputCache
 from ..utils import recursive_difference
-from ..wrapper.cfuncs import c_wrapper
 from ..wrapper.inputs import InputParameters
 from ..wrapper.outputs import HaloCatalog, OutputStruct, OutputStructZ, _HashType
 from ..wrapper.photoncons import _photoncons_state
@@ -453,8 +452,8 @@ class single_field_func(_OutputStructComputationInspect):  # noqa: N801
 
         if out is None:
             called_by_higher_level = kwargs.pop("called_by_higher_level", False)
-            wrapped = c_wrapper(self._func)
-            out = wrapped(called_by_higher_level=called_by_higher_level, **kwargs)
+            kwargs["called_by_higher_level"] = called_by_higher_level
+            out = self._func(**kwargs)
             self._handle_write_to_cache(cache, write, out)
 
         return out
@@ -482,5 +481,4 @@ class high_level_func(_OutputStructComputationInspect):  # noqa: N801
 
         self.check_consistency(kwargs, outputs)
 
-        wrapped = c_wrapper(self._func, is_generator=True)
-        yield from wrapped(**kwargs)
+        yield from self._func(**kwargs)

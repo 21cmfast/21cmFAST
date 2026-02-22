@@ -19,7 +19,7 @@ from ..io import h5
 from ..io.caching import CacheConfig, OutputCache, RunCache
 from ..rsds import apply_rsds, include_dvdr_in_tau21
 from ..wrapper.arrays import Array
-from ..wrapper.cfuncs import broadcast_input_struct
+from ..wrapper.cfuncs import broadcast_input_struct, c_wrapper
 from ..wrapper.inputs import InputParameters
 from ..wrapper.outputs import (
     BrightnessTemp,
@@ -476,6 +476,7 @@ def evolve_halos(
 
 
 @high_level_func
+@c_wrapper(is_generator=True)
 def generate_coeval(
     *,
     inputs: InputParameters | None = None,

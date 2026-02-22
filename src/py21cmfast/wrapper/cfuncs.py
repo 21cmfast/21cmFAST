@@ -1,5 +1,6 @@
 """Low-level python wrappers of C functions."""
 
+import functools
 import logging
 from collections.abc import Callable, Sequence
 from functools import cache
@@ -67,7 +68,7 @@ def _get_inputs_from_call(*args, **kwargs) -> InputParameters:
     )
 
 
-def c_wrapper(func: Callable, is_generator: bool = False) -> Callable:
+def c_wrapper(func: Callable | None = None, *, is_generator: bool = False) -> Callable:
     """Unified decorator managing the C backend lifecycle.
 
     Handles broadcasting inputs, optional FFTW wisdom construction, calling
@@ -76,45 +77,54 @@ def c_wrapper(func: Callable, is_generator: bool = False) -> Callable:
     taken responsibility for the lifecycle.
     """
 
-    def wrapper(*args, **kwargs):
-        called_by_higher_level = kwargs.pop("called_by_higher_level", False)
-        # Broadcast inputs to C, unless this function was called by a higher level function
-        if not called_by_higher_level:
+    def _make_wrapper(_func):
+        def wrapper(*args, **kwargs):
+            called_by_higher_level = kwargs.pop("called_by_higher_level", False)
+            # Broadcast inputs to C, unless this function was called by a higher level function
+            if not called_by_higher_level:
+                inputs = _get_inputs_from_call(*args, **kwargs)
+                # Broadcast inputs to C
+                broadcast_input_struct(inputs)
+                if inputs.matter_options.USE_FFTW_WISDOM:
+                    construct_fftw_wisdoms()
+            try:
+                out = _func(*args, **kwargs)
+            except Exception:
+                # Free cosmo_tables (error path), unless this function was called by a higher level function
+                if not called_by_higher_level:
+                    free_cosmo_tables()
+                raise  # Re-raise the original exception
+            # Free cosmo_tables (success path), unless this function was called by a higher level function
+            if not called_by_higher_level:
+                free_cosmo_tables()
+            return out
+
+        def generator_wrapper(*args, **kwargs):
+            # NOTE: generator_wrapper is only used for high-level functions, which are
+            # never called by a higher level function, so we always broadcast and free.
             inputs = _get_inputs_from_call(*args, **kwargs)
             # Broadcast inputs to C
             broadcast_input_struct(inputs)
             if inputs.matter_options.USE_FFTW_WISDOM:
                 construct_fftw_wisdoms()
-        try:
-            out = func(*args, **kwargs)
-        except Exception:
-            # Free cosmo_tables (error path), unless this function was called by a higher level function
-            if not called_by_higher_level:
+            try:
+                yield from _func(*args, **kwargs)
+            except Exception:
+                # Free cosmo_tables (error path)
                 free_cosmo_tables()
-            raise  # Re-raise the original exception
-        # Free cosmo_tables (success path), unless this function was called by a higher level function
-        if not called_by_higher_level:
+                raise  # Re-raise the original exception
+            # Free cosmo_tables (success path)
             free_cosmo_tables()
-        return out
 
-    def generator_wrapper(*args, **kwargs):
-        # NOTE: generator_wrapper is only used for high-level functions, which are
-        # never called by a higher level function, so we always broadcast and free.
-        inputs = _get_inputs_from_call(*args, **kwargs)
-        # Broadcast inputs to C
-        broadcast_input_struct(inputs)
-        if inputs.matter_options.USE_FFTW_WISDOM:
-            construct_fftw_wisdoms()
-        try:
-            yield from func(*args, **kwargs)
-        except Exception:
-            # Free cosmo_tables (error path)
-            free_cosmo_tables()
-            raise  # Re-raise the original exception
-        # Free cosmo_tables (success path)
-        free_cosmo_tables()
+        result = generator_wrapper if is_generator else wrapper
+        functools.update_wrapper(result, _func)
+        return result
 
-    return generator_wrapper if is_generator else wrapper
+    if func is not None:
+        # Called as @c_wrapper without arguments
+        return _make_wrapper(func)
+    # Called as @c_wrapper(is_generator=True)
+    return _make_wrapper
 
 
 def init_backend_ps(func: Callable) -> Callable:
