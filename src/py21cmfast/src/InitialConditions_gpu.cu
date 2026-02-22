@@ -1217,20 +1217,43 @@ extern "C" int ComputeInitialConditions_gpu(unsigned long long random_seed, Init
                 Throw(CUDAError);
             }
 
-            // Copy source to GPU (with padding -> need to copy only real data)
-            // HIRES_box has FFT padding, copy it as complex array
-            err = cudaMemcpy(d_kspace, HIRES_box, kspace_bytes, cudaMemcpyHostToDevice);
-            CATCH_CUDA_ERROR(err);
+            // cuFFT R2C expects tightly-packed real input (DIM x DIM x D_PARA)
+            // but HIRES_box has FFT padding (DIM x DIM x 2*(MID_PARA+1))
+            // We need to extract the real data without padding first
+            float *source_packed = (float *)malloc(real_bytes_needed);
+            if (!source_packed) {
+                LOG_ERROR("Failed to allocate source_packed for 2LPT R2C");
+                cufftDestroy(fft_plan_r2c);
+                Throw(MemoryAllocError);
+            }
+            float *hires_src = (float *)HIRES_box;
+            #pragma omp parallel for collapse(2) num_threads(simulation_options_global->N_THREADS)
+            for (int ix = 0; ix < simulation_options_global->DIM; ix++) {
+                for (int iy = 0; iy < simulation_options_global->DIM; iy++) {
+                    for (int iz = 0; iz < D_PARA; iz++) {
+                        unsigned long long fft_idx = R_FFT_INDEX(ix, iy, iz);
+                        unsigned long long packed_idx = iz + D_PARA * (iy + (unsigned long long)simulation_options_global->DIM * ix);
+                        source_packed[packed_idx] = hires_src[fft_idx];
+                    }
+                }
+            }
 
-            // Execute R2C - but we need real input, not complex
-            // Let's copy the padded real data and execute
-            // Actually, HIRES_box as fftwf_complex has the right layout for in-place FFTW
-            // For cuFFT, we need to copy the real data with padding
+            // Copy tightly-packed source to GPU
             float *d_source_real;
-            err = cudaMalloc(&d_source_real, sizeof(float) * TOT_FFT_NUM_PIXELS);
-            CATCH_CUDA_ERROR(err);
-            err = cudaMemcpy(d_source_real, HIRES_box, sizeof(float) * TOT_FFT_NUM_PIXELS, cudaMemcpyHostToDevice);
-            CATCH_CUDA_ERROR(err);
+            err = cudaMalloc(&d_source_real, real_bytes_needed);
+            if (err != cudaSuccess) {
+                free(source_packed);
+                cufftDestroy(fft_plan_r2c);
+                CATCH_CUDA_ERROR(err);
+            }
+            err = cudaMemcpy(d_source_real, source_packed, real_bytes_needed, cudaMemcpyHostToDevice);
+            if (err != cudaSuccess) {
+                free(source_packed);
+                cudaFree(d_source_real);
+                cufftDestroy(fft_plan_r2c);
+                CATCH_CUDA_ERROR(err);
+            }
+            free(source_packed);
 
             cufft_status = cufftExecR2C(fft_plan_r2c, d_source_real, d_kspace);
             if (cufft_status != CUFFT_SUCCESS) {
@@ -1250,13 +1273,22 @@ extern "C" int ComputeInitialConditions_gpu(unsigned long long random_seed, Init
 
             LOG_DEBUG("FFT'd 2LPT source to k-space");
 
+            // Scale phi_2 k-space by VOLUME to match the scaling convention used in the velocity kernel
+            // The velocity kernel divides by VOLUME (needed for base velocity which has sqrt(VOLUME) scaling),
+            // but phi_2 doesn't have that scaling, so we pre-multiply by VOLUME to compensate.
+            {
+                float *phi2_kspace = (float *)HIRES_box_saved;
+                #pragma omp parallel for num_threads(simulation_options_global->N_THREADS)
+                for (size_t i = 0; i < 2 * KSPACE_NUM_PIXELS; i++) {
+                    phi2_kspace[i] *= VOLUME;
+                }
+            }
+
             // Compute 2LPT velocities (same as ZA but from phi_2)
             for (ii = 0; ii < 3; ii++) {
-                if (ii > 0) {
-                    // Restore phi_2 k-space
-                    err = cudaMemcpy(d_kspace, HIRES_box_saved, kspace_bytes, cudaMemcpyHostToDevice);
-                    CATCH_CUDA_ERROR(err);
-                }
+                // Copy phi_2 k-space (scaled by VOLUME) to GPU
+                err = cudaMemcpy(d_kspace, HIRES_box_saved, kspace_bytes, cudaMemcpyHostToDevice);
+                CATCH_CUDA_ERROR(err);
 
                 // Compute velocity: v_k = i * k_component / k^2 * phi_2_k
                 compute_velocity_kernel<<<numBlocks_kspace, threadsPerBlock>>>(
