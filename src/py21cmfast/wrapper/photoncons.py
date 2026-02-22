@@ -57,7 +57,7 @@ from scipy.optimize import curve_fit
 
 from ..c_21cmfast import ffi, lib
 from ._utils import _process_exitcode
-from .cfuncs import broadcast_params
+from .cfuncs import c_wrapper
 from .inputs import InputParameters
 from .outputs import InitialConditions
 
@@ -85,7 +85,7 @@ class _PhotonConservationState:
 _photoncons_state = _PhotonConservationState()
 
 
-@broadcast_params
+@c_wrapper
 def _init_photon_conservation_correction(*, inputs, **kwargs):
     # This function calculates the global expected evolution of reionisation and saves
     #   it to C global arrays z_Q and Q_value (as well as other non-global confusingly named arrays),
@@ -384,7 +384,7 @@ def calibrate_photon_cons(
 
 # (Jdavies): I needed a function to access the delta z from the wrapper
 # get_photoncons_data does not have the edge cases that adjust_redshifts_for_photoncons does
-@broadcast_params
+@c_wrapper
 def get_photoncons_dz(inputs, redshift, **kwargs):
     """Access the delta z arrays from the photon conservation model in C."""
     deltaz = np.zeros(1).astype("f4")

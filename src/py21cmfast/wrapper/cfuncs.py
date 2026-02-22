@@ -36,62 +36,58 @@ def broadcast_input_struct(inputs: InputParameters):
     )
 
 
+@cache
+def construct_fftw_wisdoms():
+    """Construct all necessary FFTW wisdoms."""
+    lib.CreateFFTWWisdoms()
+
+
 def free_cosmo_tables():
     """Free the memory of cosmo_tables_global that was allocated at the C backend."""
     lib.Free_cosmo_tables_global()
 
 
-# TODO: I put the C901 comment in order to pass pre-commit, this should be removed when we take the inputs logic outside the wrappers
-def broadcast_params(func: Callable, is_generator: bool = False) -> Callable:  # noqa: C901
-    """Broadcast the parameters to the C library before calling the function.
+def _get_inputs_from_call(*args, **kwargs) -> InputParameters:
+    """Extract InputParameters from the arguments of a C-wrapped call."""
+    inputs = kwargs.get("inputs")
+    if inputs is not None:
+        return inputs
+    for val in (*args, *kwargs.values()):
+        if isinstance(val, InputParameters):
+            return val
+        if hasattr(val, "inputs") and isinstance(val.inputs, InputParameters):
+            return val.inputs
+        if hasattr(val, "__iter__"):
+            for item in val:
+                if hasattr(item, "inputs") and isinstance(item.inputs, InputParameters):
+                    return item.inputs
+    raise ValueError(
+        "Could not determine InputParameters. Ensure inputs is passed as a "
+        "keyword argument or at least one argument has an 'inputs' attribute."
+    )
 
-    This should be added as a decorator to any function which accesses the
-    21cmFAST if it does not directly call `broadcast_input_struct`.
+
+def c_wrapper(func: Callable, is_generator: bool = False) -> Callable:
+    """Unified decorator managing the C backend lifecycle.
+
+    Handles broadcasting inputs, optional FFTW wisdom construction, calling
+    the function, and freeing cosmo tables. Each step is skipped if
+    called_by_higher_level=True, meaning a higher-level caller has already
+    taken responsibility for the lifecycle.
     """
 
     def wrapper(*args, **kwargs):
         called_by_higher_level = kwargs.pop("called_by_higher_level", False)
-
-        # We need to broadcast inputs to C, unless this function was called by a higher level function
+        # Broadcast inputs to C, unless this function was called by a higher level function
         if not called_by_higher_level:
-            # Try to get inputs directly from kwargs first
-            inputs = kwargs.get("inputs")
-            if inputs is None:
-                # Not in kwargs — search inputs in attributes of args and kwargs
-                # (handles brightness_temperature, compute_xray_source_field,
-                # and chained wrappers like init_backend_ps where inputs is
-                # passed through *args)
-                for val in (*args, *kwargs.values()):
-                    if isinstance(val, InputParameters):
-                        inputs = val
-                        break
-                    if hasattr(val, "inputs") and isinstance(
-                        val.inputs, InputParameters
-                    ):
-                        inputs = val.inputs
-                        break
-                    if hasattr(val, "__iter__"):
-                        for item in val:
-                            if hasattr(item, "inputs") and isinstance(
-                                item.inputs, InputParameters
-                            ):
-                                inputs = item.inputs
-                                break
-                    if inputs is not None:
-                        break
-            if inputs is None:
-                raise ValueError(
-                    f"Could not determine InputParameters for {func.__name__}. "
-                    "Ensure inputs is passed as a keyword argument or at least "
-                    "one argument has an 'inputs' attribute."
-                )
+            inputs = _get_inputs_from_call(*args, **kwargs)
             # Broadcast inputs to C
             broadcast_input_struct(inputs)
             if inputs.matter_options.USE_FFTW_WISDOM:
                 construct_fftw_wisdoms()
         try:
             out = func(*args, **kwargs)
-        except:
+        except Exception:
             # Free cosmo_tables (error path), unless this function was called by a higher level function
             if not called_by_higher_level:
                 free_cosmo_tables()
@@ -102,55 +98,21 @@ def broadcast_params(func: Callable, is_generator: bool = False) -> Callable:  #
         return out
 
     def generator_wrapper(*args, **kwargs):
-        called_by_higher_level = kwargs.pop("called_by_higher_level", False)
-
-        # We need to broadcast inputs to C, unless this function was called by a higher level function
-        if not called_by_higher_level:
-            # Try to get inputs directly from kwargs first
-            inputs = kwargs.get("inputs")
-            if inputs is None:
-                # Not in kwargs — search inputs in attributes of args and kwargs
-                # (handles brightness_temperature, compute_xray_source_field,
-                # and chained wrappers like init_backend_ps where inputs is
-                # passed through *args)
-                for val in (*args, *kwargs.values()):
-                    if isinstance(val, InputParameters):
-                        inputs = val
-                        break
-                    if hasattr(val, "inputs") and isinstance(
-                        val.inputs, InputParameters
-                    ):
-                        inputs = val.inputs
-                        break
-                    if hasattr(val, "__iter__"):
-                        for item in val:
-                            if hasattr(item, "inputs") and isinstance(
-                                item.inputs, InputParameters
-                            ):
-                                inputs = item.inputs
-                                break
-                    if inputs is not None:
-                        break
-            if inputs is None:
-                raise ValueError(
-                    f"Could not determine InputParameters for {func.__name__}. "
-                    "Ensure inputs is passed as a keyword argument or at least "
-                    "one argument has an 'inputs' attribute."
-                )
-            # Broadcast inputs to C
-            broadcast_input_struct(inputs)
-            if inputs.matter_options.USE_FFTW_WISDOM:
-                construct_fftw_wisdoms()
+        # NOTE: generator_wrapper is only used for high-level functions, which are
+        # never called by a higher level function, so we always broadcast and free.
+        inputs = _get_inputs_from_call(*args, **kwargs)
+        # Broadcast inputs to C
+        broadcast_input_struct(inputs)
+        if inputs.matter_options.USE_FFTW_WISDOM:
+            construct_fftw_wisdoms()
         try:
             yield from func(*args, **kwargs)
-        except:
-            # Free cosmo_tables (error path), unless this function was called by a higher level function
-            if not called_by_higher_level:
-                free_cosmo_tables()
-            raise  # Re-raise the original exception
-        # Free cosmo_tables (success path), unless this function was called by a higher level function
-        if not called_by_higher_level:
+        except Exception:
+            # Free cosmo_tables (error path)
             free_cosmo_tables()
+            raise  # Re-raise the original exception
+        # Free cosmo_tables (success path)
+        free_cosmo_tables()
 
     return generator_wrapper if is_generator else wrapper
 
@@ -162,7 +124,7 @@ def init_backend_ps(func: Callable) -> Callable:
     from the 21cmFAST backend without passing through our regular functions.
     """
 
-    @broadcast_params
+    @c_wrapper
     def wrapper(*args, **kwargs):
         lib.init_ps()
         return func(*args, **kwargs)
@@ -209,7 +171,7 @@ def init_gl(func: Callable) -> Callable:
     return wrapper
 
 
-@broadcast_params
+@c_wrapper
 def get_expected_nhalo(*, redshift: float, inputs: InputParameters, **kwargs) -> int:
     """Get the expected number of halos in a given box.
 
@@ -225,7 +187,7 @@ def get_expected_nhalo(*, redshift: float, inputs: InputParameters, **kwargs) ->
     )
 
 
-@broadcast_params
+@c_wrapper
 def get_halo_catalog_buffer_size(
     *, redshift: float, inputs: InputParameters, min_size: int = 1000000, **kwargs
 ) -> int:
@@ -252,7 +214,7 @@ def get_halo_catalog_buffer_size(
     return int(max(hbuffer_size, min_size))
 
 
-@broadcast_params
+@c_wrapper
 def compute_tau(
     *,
     redshifts: Sequence[float],
@@ -306,7 +268,7 @@ def compute_tau(
     )
 
 
-@broadcast_params
+@c_wrapper
 def compute_luminosity_function(
     *,
     redshifts: Sequence[float],
@@ -507,12 +469,6 @@ def compute_luminosity_function(
         )
 
 
-@cache
-def construct_fftw_wisdoms():
-    """Construct all necessary FFTW wisdoms."""
-    return lib.CreateFFTWWisdoms()
-
-
 @init_backend_ps
 def get_matter_power_values(
     *,
@@ -538,11 +494,11 @@ def get_vcb_power_values(
         )
 
 
-@broadcast_params
+@c_wrapper
 def evaluate_sigma(
     *,
     inputs: InputParameters,
-    masses: NDArray[float],
+    masses: NDArray[np.floating],
 ):
     """
     Evaluate the variance of a mass scale.
@@ -593,7 +549,7 @@ def get_condition_mass(inputs: InputParameters, R: float):
     return volume * rhocrit
 
 
-@broadcast_params
+@c_wrapper
 def get_delta_crit(*, inputs: InputParameters, mass: float, redshift: float):
     """Get the critical collapse density given a mass, redshift and parameters."""
     sigma, _ = evaluate_sigma(inputs=inputs, masses=np.array([mass]))
@@ -607,10 +563,10 @@ def get_delta_crit_nu(hmf_int_flag: int, sigma: float, growth: float):
     return lib.get_delta_crit(hmf_int_flag, sigma, growth)
 
 
-@broadcast_params
+@c_wrapper
 def evaluate_condition_integrals(
     inputs: InputParameters,
-    cond_array: NDArray[float],
+    cond_array: NDArray[np.floating],
     redshift: float,
     redshift_prev: float | None = None,
 ):
@@ -636,13 +592,13 @@ def evaluate_condition_integrals(
     return n_halo, m_coll
 
 
-@broadcast_params
+@c_wrapper
 def integrate_chmf_interval(
     inputs: InputParameters,
     redshift: float,
-    lnm_lower: NDArray[float],
-    lnm_upper: NDArray[float],
-    cond_values: NDArray[float],
+    lnm_lower: NDArray[np.floating],
+    lnm_upper: NDArray[np.floating],
+    cond_values: NDArray[np.floating],
     redshift_prev: float | None = None,
 ):
     """Evaluate conditional mass function integrals at a range of mass intervals."""
@@ -669,11 +625,11 @@ def integrate_chmf_interval(
     return out_prob
 
 
-@broadcast_params
+@c_wrapper
 def evaluate_inverse_table(
     inputs: InputParameters,
-    cond_array: NDArray[float],
-    probabilities: NDArray[float],
+    cond_array: NDArray[np.floating],
+    probabilities: NDArray[np.floating],
     redshift: float,
     redshift_prev: float | None = None,
 ):
@@ -703,10 +659,10 @@ def evaluate_inverse_table(
     return masses
 
 
-@broadcast_params
+@c_wrapper
 def evaluate_FgtrM_cond(
     inputs: InputParameters,
-    densities: NDArray[float],
+    densities: NDArray[np.floating],
     redshift: float,
     R: float,
 ):
@@ -726,12 +682,12 @@ def evaluate_FgtrM_cond(
     return fcoll, dfcoll
 
 
-@broadcast_params
+@c_wrapper
 def evaluate_SFRD_z(
     *,
     inputs: InputParameters,
-    redshifts: NDArray[float],
-    log10mturns: NDArray[float],
+    redshifts: NDArray[np.floating],
+    log10mturns: NDArray[np.floating],
 ):
     """Evaluate the global star formation rate density expected at a range of redshifts."""
     if redshifts.shape != log10mturns.shape:
@@ -756,12 +712,12 @@ def evaluate_SFRD_z(
     return sfrd, sfrd_mini
 
 
-@broadcast_params
+@c_wrapper
 def evaluate_Nion_z(
     *,
     inputs: InputParameters,
-    redshifts: NDArray[float],
-    log10mturns: NDArray[float],
+    redshifts: NDArray[np.floating],
+    log10mturns: NDArray[np.floating],
 ):
     """Evaluate the global ionising emissivity expected at a range of redshifts."""
     if redshifts.shape != log10mturns.shape:
@@ -786,14 +742,14 @@ def evaluate_Nion_z(
     return nion, nion_mini
 
 
-@broadcast_params
+@c_wrapper
 def evaluate_SFRD_cond(
     *,
     inputs: InputParameters,
     redshift: float,
     radius: float,
-    densities: NDArray[float],
-    log10mturns: NDArray[float],
+    densities: NDArray[np.floating],
+    log10mturns: NDArray[np.floating],
 ):
     """Evaluate the conditional star formation rate density expected at a range of densities."""
     if densities.shape != log10mturns.shape:
@@ -819,15 +775,15 @@ def evaluate_SFRD_cond(
     return sfrd, sfrd_mini
 
 
-@broadcast_params
+@c_wrapper
 def evaluate_Nion_cond(
     *,
     inputs: InputParameters,
     redshift: float,
     radius: float,
-    densities: NDArray[float],
-    l10mturns_acg: NDArray[float],
-    l10mturns_mcg: NDArray[float],
+    densities: NDArray[np.floating],
+    l10mturns_acg: NDArray[np.floating],
+    l10mturns_mcg: NDArray[np.floating],
 ):
     """Evaluate the conditional ionising emissivity expected at a range of densities."""
     if not (densities.shape == l10mturns_mcg.shape == l10mturns_acg.shape):
@@ -855,14 +811,14 @@ def evaluate_Nion_cond(
     return nion, nion_mini
 
 
-@broadcast_params
+@c_wrapper
 def evaluate_Xray_cond(
     *,
     inputs: InputParameters,
     redshift: float,
     radius: float,
-    densities: NDArray[float],
-    log10mturns: NDArray[float],
+    densities: NDArray[np.floating],
+    log10mturns: NDArray[np.floating],
 ):
     """Evaluate the conditional star formation rate density expected at a range of densities."""
     if densities.shape != log10mturns.shape:
@@ -887,7 +843,7 @@ def evaluate_Xray_cond(
     return xray
 
 
-@broadcast_params
+@c_wrapper
 def sample_halos_from_conditions(
     *,
     inputs: InputParameters,
@@ -940,20 +896,20 @@ def sample_halos_from_conditions(
     }
 
 
-@broadcast_params
+@c_wrapper
 def convert_halo_properties(
     *,
     redshift: float,
     inputs: InputParameters,
-    halo_masses: NDArray[float],
-    star_rng: NDArray[float],
-    sfr_rng: NDArray[float],
-    xray_rng: NDArray[float],
-    halo_coords: NDArray[float] | None = None,
-    vcb_grid: NDArray[float] | None = None,
-    J_21_LW_grid: NDArray[float] | None = None,
-    z_re_grid: NDArray[float] | None = None,
-    Gamma12_grid: NDArray[float] | None = None,
+    halo_masses: NDArray[np.floating],
+    star_rng: NDArray[np.floating],
+    sfr_rng: NDArray[np.floating],
+    xray_rng: NDArray[np.floating],
+    halo_coords: NDArray[np.floating] | None = None,
+    vcb_grid: NDArray[np.floating] | None = None,
+    J_21_LW_grid: NDArray[np.floating] | None = None,
+    z_re_grid: NDArray[np.floating] | None = None,
+    Gamma12_grid: NDArray[np.floating] | None = None,
 ):
     """
     Convert a halo catalogue's mass and RNG fields to halo properties.
