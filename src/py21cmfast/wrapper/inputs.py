@@ -871,6 +871,10 @@ class AstroOptions(InputStruct):
     IONISE_ENTIRE_SPHERE: bool, optional
         If True, ionises the entire sphere on the filter scale when an ionised region is found
         in the excursion set.
+    AVG_BELOW_SAMPLER: bool, optional
+        If True, use averaged/integrated source properties for halos below the sampler
+        minimum mass (SAMPLER_MIN_MASS). If False, only explicitly sampled halos
+        contribute to source properties. Default is True.
     INTEGRATION_METHOD_ATOMIC: str, optional
         The integration method to use for conditional MF integrals of atomic halos in the grids:
         NOTE: global integrals will use GSL QAG adaptive integration
@@ -903,6 +907,7 @@ class AstroOptions(InputStruct):
     HII_FILTER: FilterOptions = choice_field(default="spherical-tophat")
     HEAT_FILTER: FilterOptions = choice_field(default="spherical-tophat")
     IONISE_ENTIRE_SPHERE: bool = field(default=False, converter=bool)
+    AVG_BELOW_SAMPLER: bool = field(default=True, converter=bool)
 
     INTEGRATION_METHOD_ATOMIC: IntegralMethods = choice_field(default="GAUSS-LEGENDRE")
     INTEGRATION_METHOD_MINI: IntegralMethods = choice_field(default="GAUSS-LEGENDRE")
