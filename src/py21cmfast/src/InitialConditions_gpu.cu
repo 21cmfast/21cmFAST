@@ -503,6 +503,9 @@ extern "C" int ComputeInitialConditions_gpu(unsigned long long random_seed, Init
         dimension = matter_options_global->PERTURB_ON_HIGH_RES ? simulation_options_global->DIM
                                                                : simulation_options_global->HII_DIM;
 
+        // Define hi_dim for filter_box calls (must match CPU version)
+        int hi_dim[3] = {simulation_options_global->DIM, simulation_options_global->DIM, (int)D_PARA};
+
         // Allocate CPU arrays
         fftwf_complex *HIRES_box =
             (fftwf_complex *)fftwf_malloc(sizeof(fftwf_complex) * KSPACE_NUM_PIXELS);
@@ -683,23 +686,6 @@ extern "C" int ComputeInitialConditions_gpu(unsigned long long random_seed, Init
                   kspace_bytes, real_bytes);
 
         // ============ cuFFT: FFT to real space ============
-        // Debug: Check input data validity
-        {
-            float *hires_float = (float *)HIRES_box;
-            int nan_count = 0, inf_count = 0;
-            float min_val = 1e30f, max_val = -1e30f;
-            for (size_t i = 0; i < 2 * KSPACE_NUM_PIXELS; i++) {
-                if (isnan(hires_float[i])) nan_count++;
-                if (isinf(hires_float[i])) inf_count++;
-                if (!isnan(hires_float[i]) && !isinf(hires_float[i])) {
-                    if (hires_float[i] < min_val) min_val = hires_float[i];
-                    if (hires_float[i] > max_val) max_val = hires_float[i];
-                }
-            }
-            LOG_ERROR("cuFFT input diagnostics: nan=%d, inf=%d, min=%e, max=%e, first=(%e,%e)",
-                      nan_count, inf_count, min_val, max_val, hires_float[0], hires_float[1]);
-        }
-
         err = cudaMemcpy(d_kspace, HIRES_box, kspace_bytes, cudaMemcpyHostToDevice);
         CATCH_CUDA_ERROR(err);
 
@@ -792,7 +778,7 @@ extern "C" int ComputeInitialConditions_gpu(unsigned long long random_seed, Init
         memcpy(HIRES_box, HIRES_box_saved, sizeof(fftwf_complex) * KSPACE_NUM_PIXELS);
 
         if (simulation_options_global->DIM != simulation_options_global->HII_DIM) {
-            filter_box(HIRES_box, 0, 0,
+            filter_box(HIRES_box, hi_dim, 0,
                        L_FACTOR * simulation_options_global->BOX_LEN /
                            (simulation_options_global->HII_DIM + 0.0),
                        0.);
@@ -937,7 +923,7 @@ extern "C" int ComputeInitialConditions_gpu(unsigned long long random_seed, Init
             // Filter if needed
             if (!matter_options_global->PERTURB_ON_HIGH_RES) {
                 if (simulation_options_global->DIM != simulation_options_global->HII_DIM) {
-                    filter_box(HIRES_box, 0, 0,
+                    filter_box(HIRES_box, hi_dim, 0,
                                L_FACTOR * simulation_options_global->BOX_LEN /
                                    (simulation_options_global->HII_DIM + 0.0),
                                0.);
@@ -1306,7 +1292,7 @@ extern "C" int ComputeInitialConditions_gpu(unsigned long long random_seed, Init
                     simulation_options_global->DIM != simulation_options_global->HII_DIM) {
                     err = cudaMemcpy(HIRES_box, d_kspace, kspace_bytes, cudaMemcpyDeviceToHost);
                     CATCH_CUDA_ERROR(err);
-                    filter_box(HIRES_box, 0, 0,
+                    filter_box(HIRES_box, hi_dim, 0,
                                L_FACTOR * simulation_options_global->BOX_LEN /
                                    (simulation_options_global->HII_DIM + 0.0),
                                0.);
