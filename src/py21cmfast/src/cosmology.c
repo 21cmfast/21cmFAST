@@ -181,7 +181,7 @@ double transfer_function_CLASS(double k, int flag_int, int flag_dv) {
                 "Called transfer_function_CLASS with k=%f > %f, larger than kmax! performing "
                 "linear "
                 "extrapolation with Eisenstein & Hu",
-                k, kclass[CLASS_LENGTH - 1]);
+                k, kclass[size_density - 1]);
             warning_printed = true;
         }
         if (flag_dv == 0) {  // output is density

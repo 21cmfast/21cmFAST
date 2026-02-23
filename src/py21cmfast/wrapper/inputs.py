@@ -28,7 +28,7 @@ from attrs import field as _field
 from cyclopts import Parameter
 
 from .._cfg import config
-from ..c_21cmfast import ffi
+import py21cmfast.c_21cmfast as lib
 from ._utils import snake_to_camel
 from .classy_interface import (
     find_redshift_kinematic_decoupling,
@@ -308,10 +308,10 @@ class Table1D:
     @cached_property
     def cstruct(self):
         """Cached pointer to the memory of the object in C."""
-        ctab = ffi.new("Table1D *")
+        ctab = lib.Table1D()
         ctab.size = self.size
-        ctab.x_values = ffi.cast("double *", ffi.from_buffer(self.x_values))
-        ctab.y_values = ffi.cast("double *", ffi.from_buffer(self.y_values))
+        ctab.set_x_values(self.x_values)
+        ctab.set_y_values(self.y_values)
         return ctab
 
 
@@ -359,12 +359,12 @@ class CosmoTables:
     @cached_property
     def cstruct(self) -> StructWrapper:
         """The object pointing to the memory accessed by C-code for this struct."""
-        for k in self.struct.fieldnames:
-            val = getattr(self, k)
-            if isinstance(val, Table1D):
-                setattr(self.struct.cstruct, k, val.cstruct)
-
-        return self.struct.cstruct
+        cstruct = self.struct.cstruct
+        if self.transfer_density is not None:
+            cstruct.set_transfer_density(self.transfer_density.cstruct)
+        if self.transfer_vcb is not None:
+            cstruct.set_transfer_vcb(self.transfer_vcb.cstruct)
+        return cstruct
 
     def clone(self, **kwargs):
         """Make a fresh copy of the instance with arbitrary parameters updated."""

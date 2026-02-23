@@ -161,6 +161,23 @@ NB_MODULE(c_21cmfast, m) {
         .def("get_wisdoms_path",
              [](ConfigSettings& self) { return std::string(self.wisdoms_path); });
 
+    // Bind Table1D
+    nb::class_<Table1D>(m, "Table1D")
+        .def(nb::init<>())
+        .def_rw("size", &Table1D::size)
+        .def("set_x_values",
+             [](Table1D& self, nb::ndarray<double> array) { self.x_values = array.data(); })
+        .def("set_y_values",
+             [](Table1D& self, nb::ndarray<double> array) { self.y_values = array.data(); });
+
+    // Bind CosmoTables
+    nb::class_<CosmoTables>(m, "CosmoTables")
+        .def(nb::init<>())
+        .def("set_transfer_density",
+             [](CosmoTables& self, Table1D* table) { self.transfer_density = table; })
+        .def("set_transfer_vcb",
+             [](CosmoTables& self, Table1D* table) { self.transfer_vcb = table; });
+
     // Output Struct Bindings
     // Bind InitialConditions
     nb::class_<InitialConditions>(m, "InitialConditions")
@@ -437,6 +454,7 @@ NB_MODULE(c_21cmfast, m) {
               }
           });
     m.def("FreePhotonConsMemory", &FreePhotonConsMemory);
+    m.def("Free_cosmo_tables_global", &Free_cosmo_tables_global);
     m.def("set_alphacons_params", &set_alphacons_params);
 
     // Non-OutputStruct data products

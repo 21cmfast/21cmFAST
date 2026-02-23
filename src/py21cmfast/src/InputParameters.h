@@ -163,6 +163,17 @@ typedef struct ConfigSettings {
     char wisdoms_path[200];
 } ConfigSettings;
 
+typedef struct Table1D {
+    int size;
+    double *x_values;
+    double *y_values;
+} Table1D;
+
+typedef struct CosmoTables {
+    Table1D *transfer_density;
+    Table1D *transfer_vcb;
+} CosmoTables;
+
 void Broadcast_struct_global_all(SimulationOptions *simulation_options,
                                  MatterOptions *matter_options, CosmoParams *cosmo_params,
                                  AstroParams *astro_params, AstroOptions *astro_options,
@@ -191,6 +202,7 @@ extern MatterOptions *matter_options_global;
 extern CosmoParams *cosmo_params_global;
 extern AstroParams *astro_params_global;
 extern AstroOptions *astro_options_global;
+extern CosmoTables *cosmo_tables_global;
 
 extern ConfigSettings config_settings;
 
