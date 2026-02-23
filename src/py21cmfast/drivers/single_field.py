@@ -13,7 +13,7 @@ from astropy import units as un
 from astropy.cosmology import z_at_value
 
 from ..wrapper.arrays import Array
-from ..wrapper.cfuncs import c_wrapper
+from ..wrapper.cfuncs import c_wrapper, init_backend_ps
 from ..wrapper.inputs import InputParameters
 from ..wrapper.outputs import (
     BrightnessTemp,
@@ -35,7 +35,7 @@ logger = logging.getLogger(__name__)
 
 
 @single_field_func
-@c_wrapper(is_generator=False)
+@init_backend_ps(is_generator=False)
 def compute_initial_conditions(
     *, inputs: InputParameters, initial_density: np.ndarray | float | None = None
 ) -> InitialConditions:
@@ -154,7 +154,7 @@ def perturb_field(
 
 
 @single_field_func
-@c_wrapper(is_generator=False)
+@init_backend_ps(is_generator=False)
 def determine_halo_catalog(
     *,
     redshift: float,
@@ -211,7 +211,7 @@ def determine_halo_catalog(
 
 
 @single_field_func
-@c_wrapper(is_generator=False)
+@init_backend_ps(is_generator=False)
 def perturb_halo_catalog(
     *,
     initial_conditions: InitialConditions,
@@ -288,7 +288,7 @@ def perturb_halo_catalog(
 
 
 @single_field_func
-@c_wrapper(is_generator=False)
+@init_backend_ps(is_generator=False)
 def compute_halo_grid(
     *,
     redshift: float,
@@ -593,7 +593,7 @@ def compute_xray_source_field(
 
 
 @single_field_func
-@c_wrapper(is_generator=False)
+@init_backend_ps(is_generator=False)
 def compute_spin_temperature(
     *,
     initial_conditions: InitialConditions,
@@ -668,7 +668,7 @@ def compute_spin_temperature(
 
 
 @single_field_func
-@c_wrapper(is_generator=False)
+@init_backend_ps(is_generator=False)
 def compute_ionization_field(
     *,
     perturbed_field: PerturbedField,

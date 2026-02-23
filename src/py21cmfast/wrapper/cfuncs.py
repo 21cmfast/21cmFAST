@@ -43,9 +43,10 @@ def construct_fftw_wisdoms():
     lib.CreateFFTWWisdoms()
 
 
-def free_cosmo_tables():
+def free_cosmo_tables(skip=False):
     """Free the memory of cosmo_tables_global that was allocated at the C backend."""
-    lib.Free_cosmo_tables_global()
+    if not skip:
+        lib.Free_cosmo_tables_global()
 
 
 def _get_inputs_from_call(*args, **kwargs) -> InputParameters:
@@ -77,9 +78,9 @@ def c_wrapper(*, is_generator: bool = False) -> Callable:
     taken responsibility for the lifecycle.
     """
 
-    def _make_wrapper(_func):
+    def _make_wrapper(func):
         def wrapper(*args, **kwargs):
-            called_by_higher_level = kwargs.pop("called_by_higher_level", False)
+            called_by_higher_level = kwargs.get("called_by_higher_level", False)
             # Broadcast inputs to C, unless this function was called by a higher level function
             if not called_by_higher_level:
                 inputs = _get_inputs_from_call(*args, **kwargs)
@@ -88,15 +89,28 @@ def c_wrapper(*, is_generator: bool = False) -> Callable:
                 if inputs.matter_options.USE_FFTW_WISDOM:
                     construct_fftw_wisdoms()
             try:
-                out = _func(*args, **kwargs)
+                out = func(*args, **kwargs)
+            except TypeError as e:
+                if "called_by_higher_level" in str(e):
+                    # called_by_higher_level is not accepted by this function — remove and retry
+                    del kwargs["called_by_higher_level"]
+                    try:
+                        out = func(*args, **kwargs)
+                    except Exception:
+                        # Free cosmo_tables (general error path), unless this function was called by a higher level function
+                        free_cosmo_tables(skip=called_by_higher_level)
+                        raise  # Re-raise the original exception
+                else:
+                    # Free cosmo_tables (TypeError path, not becaause of called_by_higher_level),
+                    # unless this function was called by a higher level function
+                    free_cosmo_tables(skip=called_by_higher_level)
+                    raise  # Re-raise the original exception
             except Exception:
-                # Free cosmo_tables (error path), unless this function was called by a higher level function
-                if not called_by_higher_level:
-                    free_cosmo_tables()
+                # Free cosmo_tables (not a TypeError path), unless this function was called by a higher level function
+                free_cosmo_tables(skip=called_by_higher_level)
                 raise  # Re-raise the original exception
             # Free cosmo_tables (success path), unless this function was called by a higher level function
-            if not called_by_higher_level:
-                free_cosmo_tables()
+            free_cosmo_tables(skip=called_by_higher_level)
             return out
 
         def generator_wrapper(*args, **kwargs):
@@ -108,7 +122,7 @@ def c_wrapper(*, is_generator: bool = False) -> Callable:
             if inputs.matter_options.USE_FFTW_WISDOM:
                 construct_fftw_wisdoms()
             try:
-                yield from _func(*args, **kwargs)
+                yield from func(*args, **kwargs)
             except Exception:
                 # Free cosmo_tables (error path)
                 free_cosmo_tables()
@@ -117,25 +131,51 @@ def c_wrapper(*, is_generator: bool = False) -> Callable:
             free_cosmo_tables()
 
         result = generator_wrapper if is_generator else wrapper
-        functools.update_wrapper(result, _func)
+        functools.update_wrapper(result, func)
         return result
 
     return _make_wrapper
 
 
-def init_backend_ps(func: Callable) -> Callable:
-    """Initialise the backend power-spectrum before calling the function.
+def init_backend_ps(*, is_generator: bool = False) -> Callable:
+    """Initialise the backend power-spectrum before calling the function."""
 
-    This should be added as a decorator to any function which uses the cosmology
-    from the 21cmFAST backend without passing through our regular functions.
-    """
+    def _make_wrapper(func):
+        def wrapper(*args, **kwargs):
+            called_by_higher_level = kwargs.pop("called_by_higher_level", False)
+            # Initialize power spectrum, unless this function was called by a higher level function
+            if not called_by_higher_level:
+                lib.init_ps()
+            try:
+                out = func(*args, **kwargs)
+            except Exception:
+                # Free power spectrum (error path), unless this function was called by a higher level function
+                if not called_by_higher_level:
+                    lib.free_ps()
+                raise
+            # Free power spectrum (success path), unless this function was called by a higher level function
+            if not called_by_higher_level:
+                lib.free_ps()
+            return out
 
-    @c_wrapper(is_generator=False)
-    def wrapper(*args, **kwargs):
-        lib.init_ps()
-        return func(*args, **kwargs)
+        def generator_wrapper(*args, **kwargs):
+            # Initialize power spectrum
+            lib.init_ps()
+            try:
+                yield from func(*args, **kwargs)
+            except Exception:
+                # Free power spectrum (error path)
+                lib.free_ps()
+                raise
+            # Free power spectrum (success path)
+            lib.free_ps()
 
-    return wrapper
+        result = generator_wrapper if is_generator else wrapper
+        functools.update_wrapper(result, func)
+        wrapped_func = c_wrapper(is_generator=is_generator)
+        return wrapped_func(result)
+
+    return _make_wrapper
 
 
 def init_sigma_table(func: Callable) -> Callable:
@@ -145,7 +185,7 @@ def init_sigma_table(func: Callable) -> Callable:
     or the sigma tables directly.
     """
 
-    @init_backend_ps
+    @init_backend_ps(is_generator=False)
     def wrapper(*args, inputs: InputParameters, **kwargs):
         sigma_min_mass = kwargs.get("M_min", 1e5)
         sigma_max_mass = kwargs.get("M_max", 1e16)
@@ -177,7 +217,7 @@ def init_gl(func: Callable) -> Callable:
     return wrapper
 
 
-@c_wrapper(is_generator=False)
+@init_backend_ps(is_generator=False)
 def get_expected_nhalo(*, redshift: float, inputs: InputParameters, **kwargs) -> int:
     """Get the expected number of halos in a given box.
 
@@ -193,7 +233,7 @@ def get_expected_nhalo(*, redshift: float, inputs: InputParameters, **kwargs) ->
     )
 
 
-@c_wrapper(is_generator=False)
+@init_backend_ps(is_generator=False)
 def get_halo_catalog_buffer_size(
     *, redshift: float, inputs: InputParameters, min_size: int = 1000000, **kwargs
 ) -> int:
@@ -274,7 +314,7 @@ def compute_tau(
     )
 
 
-@c_wrapper(is_generator=False)
+@init_backend_ps(is_generator=False)
 def compute_luminosity_function(
     *,
     redshifts: Sequence[float],
@@ -475,7 +515,7 @@ def compute_luminosity_function(
         )
 
 
-@init_backend_ps
+@init_backend_ps(is_generator=False)
 def get_matter_power_values(
     *,
     inputs: InputParameters,
@@ -485,7 +525,7 @@ def get_matter_power_values(
     return np.vectorize(lib.power_in_k)(k_values)
 
 
-@init_backend_ps
+@init_backend_ps(is_generator=False)
 def get_vcb_power_values(
     *,
     inputs: InputParameters,
@@ -500,7 +540,7 @@ def get_vcb_power_values(
         )
 
 
-@c_wrapper(is_generator=False)
+@init_backend_ps(is_generator=False)
 def evaluate_sigma(
     *,
     inputs: InputParameters,
@@ -525,7 +565,7 @@ def evaluate_sigma(
     return sigma, dsigmasq
 
 
-@init_backend_ps
+@init_backend_ps(is_generator=False)
 def get_growth_factor(
     *,
     inputs: InputParameters,
@@ -569,7 +609,7 @@ def get_delta_crit_nu(hmf_int_flag: int, sigma: float, growth: float):
     return lib.get_delta_crit(hmf_int_flag, sigma, growth)
 
 
-@c_wrapper(is_generator=False)
+@init_backend_ps(is_generator=False)
 def evaluate_condition_integrals(
     inputs: InputParameters,
     cond_array: NDArray[np.floating],
@@ -598,7 +638,7 @@ def evaluate_condition_integrals(
     return n_halo, m_coll
 
 
-@c_wrapper(is_generator=False)
+@init_backend_ps(is_generator=False)
 def integrate_chmf_interval(
     inputs: InputParameters,
     redshift: float,
@@ -631,7 +671,7 @@ def integrate_chmf_interval(
     return out_prob
 
 
-@c_wrapper(is_generator=False)
+@init_backend_ps(is_generator=False)
 def evaluate_inverse_table(
     inputs: InputParameters,
     cond_array: NDArray[np.floating],
@@ -665,7 +705,7 @@ def evaluate_inverse_table(
     return masses
 
 
-@c_wrapper(is_generator=False)
+@init_backend_ps(is_generator=False)
 def evaluate_FgtrM_cond(
     inputs: InputParameters,
     densities: NDArray[np.floating],
@@ -688,7 +728,7 @@ def evaluate_FgtrM_cond(
     return fcoll, dfcoll
 
 
-@c_wrapper(is_generator=False)
+@init_backend_ps(is_generator=False)
 def evaluate_SFRD_z(
     *,
     inputs: InputParameters,
@@ -718,7 +758,7 @@ def evaluate_SFRD_z(
     return sfrd, sfrd_mini
 
 
-@c_wrapper(is_generator=False)
+@init_backend_ps(is_generator=False)
 def evaluate_Nion_z(
     *,
     inputs: InputParameters,
@@ -748,7 +788,7 @@ def evaluate_Nion_z(
     return nion, nion_mini
 
 
-@c_wrapper(is_generator=False)
+@init_backend_ps(is_generator=False)
 def evaluate_SFRD_cond(
     *,
     inputs: InputParameters,
@@ -781,7 +821,7 @@ def evaluate_SFRD_cond(
     return sfrd, sfrd_mini
 
 
-@c_wrapper(is_generator=False)
+@init_backend_ps(is_generator=False)
 def evaluate_Nion_cond(
     *,
     inputs: InputParameters,
@@ -817,7 +857,7 @@ def evaluate_Nion_cond(
     return nion, nion_mini
 
 
-@c_wrapper(is_generator=False)
+@init_backend_ps(is_generator=False)
 def evaluate_Xray_cond(
     *,
     inputs: InputParameters,
@@ -849,7 +889,7 @@ def evaluate_Xray_cond(
     return xray
 
 
-@c_wrapper(is_generator=False)
+@init_backend_ps(is_generator=False)
 def sample_halos_from_conditions(
     *,
     inputs: InputParameters,

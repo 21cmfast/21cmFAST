@@ -602,7 +602,6 @@ int ComputeHaloBox(double redshift, InitialConditions *ini_boxes, HaloCatalog *h
         double M_min = minimum_source_mass(redshift, false);
         double M_max_integral;
 
-        init_ps();
         if (matter_options_global->USE_INTERPOLATION_TABLES > 0) {
             // this needs to be initialised above MMax because of Nion_General
             initialiseSigmaMInterpTable(M_min / 2, M_MAX_INTEGRAL);

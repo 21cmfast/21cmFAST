@@ -57,7 +57,7 @@ from scipy.optimize import curve_fit
 
 from ..c_21cmfast import ffi, lib
 from ._utils import _process_exitcode
-from .cfuncs import c_wrapper
+from .cfuncs import c_wrapper, init_backend_ps
 from .inputs import InputParameters
 from .outputs import InitialConditions
 
@@ -85,7 +85,7 @@ class _PhotonConservationState:
 _photoncons_state = _PhotonConservationState()
 
 
-@c_wrapper(is_generator=False)
+@init_backend_ps(is_generator=False)
 def _init_photon_conservation_correction(*, inputs, **kwargs):
     # This function calculates the global expected evolution of reionisation and saves
     #   it to C global arrays z_Q and Q_value (as well as other non-global confusingly named arrays),

@@ -47,8 +47,6 @@ int initialise_ComputeLF(int nbins) {
     LF_spline_acc = gsl_interp_accel_alloc();
     LF_spline = gsl_spline_alloc(gsl_interp_cspline, nbins);
 
-    init_ps();
-
     int status;
     Try initialiseSigmaMInterpTable(0.999 * Mhalo_min, 1.001 * Mhalo_max);
     Catch(status) {

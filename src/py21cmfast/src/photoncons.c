@@ -79,7 +79,6 @@ int InitialisePhotonCons() {
     int status;
     Try {  // this try wraps the whole function.
 
-        init_ps();
         //     To solve differentail equation, uses Euler's method.
         //     NOTE:
         //     (1) With the fiducial parameter set,

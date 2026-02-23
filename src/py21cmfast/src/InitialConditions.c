@@ -616,8 +616,6 @@ int ComputeInitialConditions(unsigned long long random_seed, InitialConditions *
         LOG_SUPER_DEBUG("Finished initialization.");
         // ************ CREATE K-SPACE GAUSSIAN RANDOM FIELD *********** //
 
-        init_ps();
-
         // Check if the input hires density box is all zero
         bool non_zero_input = false;
 #pragma omp parallel shared(boxes, non_zero_input) \
@@ -764,8 +762,6 @@ int ComputeInitialConditions(unsigned long long random_seed, InitialConditions *
         // deallocate
         fftwf_free(HIRES_box);
         fftwf_free(HIRES_box_saved);
-
-        free_ps();
 
         free_rng_threads(r);
         LOG_SUPER_DEBUG("Cleaned Up.");

@@ -78,7 +78,6 @@ int ComputeHaloCatalog(float redshift_desc, float redshift, InitialConditions *b
         LOG_DEBUG("Begin Initialisation");
 
         // ***************** BEGIN INITIALIZATION ***************** //
-        init_ps();
 
         growth_factor = dicke(redshift);  // normalized to 1 at z=0
 

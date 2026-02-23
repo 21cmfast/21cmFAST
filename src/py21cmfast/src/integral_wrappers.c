@@ -16,8 +16,6 @@
 #include "scaling_relations.h"
 
 void get_sigma(int n_masses, double *mass_values, double *sigma_out, double *dsigmasqdm_out) {
-    init_ps();
-
     if (matter_options_global->USE_INTERPOLATION_TABLES > 0)
         initialiseSigmaMInterpTable(M_MIN_INTEGRAL, 1e20);
 
@@ -109,8 +107,6 @@ void get_halomass_at_probability(double redshift, double z_prev, int n_condition
 
 void get_global_SFRD_z(int n_redshift, double *redshifts, double *log10_turnovers_mcg,
                        double *out_sfrd, double *out_sfrd_mini) {
-    init_ps();
-
     // a bit hacky, but we need a lower limit for the tables
     double M_min = minimum_source_mass(redshifts[0], true);
     if (matter_options_global->USE_INTERPOLATION_TABLES > 0)
@@ -140,8 +136,6 @@ void get_global_SFRD_z(int n_redshift, double *redshifts, double *log10_turnover
 
 void get_global_Nion_z(int n_redshift, double *redshifts, double *log10_turnovers_mcg,
                        double *out_nion, double *out_nion_mini) {
-    init_ps();
-
     double M_min = minimum_source_mass(redshifts[0], true);
     if (matter_options_global->USE_INTERPOLATION_TABLES > 0)
         initialiseSigmaMInterpTable(M_min, 1e20);
@@ -169,8 +163,6 @@ void get_global_Nion_z(int n_redshift, double *redshifts, double *log10_turnover
 
 void get_conditional_FgtrM(double redshift, double R, int n_densities, double *densities,
                            double *out_fcoll, double *out_dfcoll) {
-    init_ps();
-
     double M_min = minimum_source_mass(redshift, true);
     if (matter_options_global->USE_INTERPOLATION_TABLES > 0)
         initialiseSigmaMInterpTable(M_min, 1e20);
@@ -203,8 +195,6 @@ void get_conditional_FgtrM(double redshift, double R, int n_densities, double *d
 
 void get_conditional_SFRD(double redshift, double R, int n_densities, double *densities,
                           double *log10_mturns, double *out_sfrd, double *out_sfrd_mini) {
-    init_ps();
-
     double M_min = minimum_source_mass(redshift, true);
     if (matter_options_global->USE_INTERPOLATION_TABLES > 0)
         initialiseSigmaMInterpTable(M_min, 1e20);
@@ -246,8 +236,6 @@ void get_conditional_SFRD(double redshift, double R, int n_densities, double *de
 void get_conditional_Nion(double redshift, double R, int n_densities, double *densities,
                           double *log10_mturns_acg, double *log10_mturns_mcg, double *out_nion,
                           double *out_nion_mini) {
-    init_ps();
-
     double M_min = minimum_source_mass(redshift, true);
     if (matter_options_global->USE_INTERPOLATION_TABLES > 0)
         initialiseSigmaMInterpTable(M_min, 1e20);
@@ -301,8 +289,6 @@ void get_conditional_Nion(double redshift, double R, int n_densities, double *de
 
 void get_conditional_Xray(double redshift, double R, int n_densities, double *densities,
                           double *log10_mturns, double *out_xray) {
-    init_ps();
-
     double M_min = minimum_source_mass(redshift, true);
     if (matter_options_global->USE_INTERPOLATION_TABLES > 0)
         initialiseSigmaMInterpTable(M_min, 1e20);

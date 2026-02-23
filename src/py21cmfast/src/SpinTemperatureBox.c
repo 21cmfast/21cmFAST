@@ -1375,9 +1375,6 @@ void ts_main(float redshift, float prev_redshift, float perturbed_field_redshift
     double inverse_growth_factor_z;
     double dzp;
 
-    // Must be always initialised due to the strange way Ionisationbox.c expects some initialisation
-    init_ps();
-
     // allocate the global arrays we always use
     if (!TsInterpArraysInitialised) {
         alloc_global_arrays();

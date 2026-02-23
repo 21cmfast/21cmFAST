@@ -48,7 +48,6 @@ double expected_nhalo(double redshift) {
     double M_max = RHOcrit * cosmo_params_global->OMm * VOLUME / HII_TOT_NUM_PIXELS;
     double result;
 
-    init_ps();
     if (matter_options_global->USE_INTERPOLATION_TABLES > 0)
         initialiseSigmaMInterpTable(M_min, M_max);
 
@@ -93,7 +92,6 @@ void stoc_set_consts_z(struct HaloSamplingConstants *const_struct, double redshi
     const_struct->M_max_tables = M_MAX_INTEGRAL;
     const_struct->lnM_max_tb = log(const_struct->M_max_tables);
 
-    init_ps();
     if (matter_options_global->USE_INTERPOLATION_TABLES > 0) {
         // the binary split needs to go below the resolution
         if (matter_options_global->SAMPLE_METHOD == 3)
