@@ -451,8 +451,7 @@ class single_field_func(_OutputStructComputationInspect):  # noqa: N801
             kwargs["inputs"] = inputs
 
         if out is None:
-            called_by_higher_level = kwargs.pop("called_by_higher_level", False)
-            kwargs["called_by_higher_level"] = called_by_higher_level
+            kwargs.setdefault("called_by_higher_level", False)
             out = self._func(**kwargs)
             self._handle_write_to_cache(cache, write, out)
 

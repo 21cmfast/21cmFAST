@@ -68,7 +68,7 @@ def _get_inputs_from_call(*args, **kwargs) -> InputParameters:
     )
 
 
-def c_wrapper(func: Callable | None = None, *, is_generator: bool = False) -> Callable:
+def c_wrapper(*, is_generator: bool = False) -> Callable:
     """Unified decorator managing the C backend lifecycle.
 
     Handles broadcasting inputs, optional FFTW wisdom construction, calling
@@ -120,10 +120,6 @@ def c_wrapper(func: Callable | None = None, *, is_generator: bool = False) -> Ca
         functools.update_wrapper(result, _func)
         return result
 
-    if func is not None:
-        # Called as @c_wrapper without arguments
-        return _make_wrapper(func)
-    # Called as @c_wrapper(is_generator=True)
     return _make_wrapper
 
 
@@ -134,7 +130,7 @@ def init_backend_ps(func: Callable) -> Callable:
     from the 21cmFAST backend without passing through our regular functions.
     """
 
-    @c_wrapper
+    @c_wrapper(is_generator=False)
     def wrapper(*args, **kwargs):
         lib.init_ps()
         return func(*args, **kwargs)
@@ -181,7 +177,7 @@ def init_gl(func: Callable) -> Callable:
     return wrapper
 
 
-@c_wrapper
+@c_wrapper(is_generator=False)
 def get_expected_nhalo(*, redshift: float, inputs: InputParameters, **kwargs) -> int:
     """Get the expected number of halos in a given box.
 
@@ -197,7 +193,7 @@ def get_expected_nhalo(*, redshift: float, inputs: InputParameters, **kwargs) ->
     )
 
 
-@c_wrapper
+@c_wrapper(is_generator=False)
 def get_halo_catalog_buffer_size(
     *, redshift: float, inputs: InputParameters, min_size: int = 1000000, **kwargs
 ) -> int:
@@ -224,7 +220,7 @@ def get_halo_catalog_buffer_size(
     return int(max(hbuffer_size, min_size))
 
 
-@c_wrapper
+@c_wrapper(is_generator=False)
 def compute_tau(
     *,
     redshifts: Sequence[float],
@@ -278,7 +274,7 @@ def compute_tau(
     )
 
 
-@c_wrapper
+@c_wrapper(is_generator=False)
 def compute_luminosity_function(
     *,
     redshifts: Sequence[float],
@@ -504,7 +500,7 @@ def get_vcb_power_values(
         )
 
 
-@c_wrapper
+@c_wrapper(is_generator=False)
 def evaluate_sigma(
     *,
     inputs: InputParameters,
@@ -559,7 +555,7 @@ def get_condition_mass(inputs: InputParameters, R: float):
     return volume * rhocrit
 
 
-@c_wrapper
+@c_wrapper(is_generator=False)
 def get_delta_crit(*, inputs: InputParameters, mass: float, redshift: float):
     """Get the critical collapse density given a mass, redshift and parameters."""
     sigma, _ = evaluate_sigma(inputs=inputs, masses=np.array([mass]))
@@ -573,7 +569,7 @@ def get_delta_crit_nu(hmf_int_flag: int, sigma: float, growth: float):
     return lib.get_delta_crit(hmf_int_flag, sigma, growth)
 
 
-@c_wrapper
+@c_wrapper(is_generator=False)
 def evaluate_condition_integrals(
     inputs: InputParameters,
     cond_array: NDArray[np.floating],
@@ -602,7 +598,7 @@ def evaluate_condition_integrals(
     return n_halo, m_coll
 
 
-@c_wrapper
+@c_wrapper(is_generator=False)
 def integrate_chmf_interval(
     inputs: InputParameters,
     redshift: float,
@@ -635,7 +631,7 @@ def integrate_chmf_interval(
     return out_prob
 
 
-@c_wrapper
+@c_wrapper(is_generator=False)
 def evaluate_inverse_table(
     inputs: InputParameters,
     cond_array: NDArray[np.floating],
@@ -669,7 +665,7 @@ def evaluate_inverse_table(
     return masses
 
 
-@c_wrapper
+@c_wrapper(is_generator=False)
 def evaluate_FgtrM_cond(
     inputs: InputParameters,
     densities: NDArray[np.floating],
@@ -692,7 +688,7 @@ def evaluate_FgtrM_cond(
     return fcoll, dfcoll
 
 
-@c_wrapper
+@c_wrapper(is_generator=False)
 def evaluate_SFRD_z(
     *,
     inputs: InputParameters,
@@ -722,7 +718,7 @@ def evaluate_SFRD_z(
     return sfrd, sfrd_mini
 
 
-@c_wrapper
+@c_wrapper(is_generator=False)
 def evaluate_Nion_z(
     *,
     inputs: InputParameters,
@@ -752,7 +748,7 @@ def evaluate_Nion_z(
     return nion, nion_mini
 
 
-@c_wrapper
+@c_wrapper(is_generator=False)
 def evaluate_SFRD_cond(
     *,
     inputs: InputParameters,
@@ -785,7 +781,7 @@ def evaluate_SFRD_cond(
     return sfrd, sfrd_mini
 
 
-@c_wrapper
+@c_wrapper(is_generator=False)
 def evaluate_Nion_cond(
     *,
     inputs: InputParameters,
@@ -821,7 +817,7 @@ def evaluate_Nion_cond(
     return nion, nion_mini
 
 
-@c_wrapper
+@c_wrapper(is_generator=False)
 def evaluate_Xray_cond(
     *,
     inputs: InputParameters,
@@ -853,7 +849,7 @@ def evaluate_Xray_cond(
     return xray
 
 
-@c_wrapper
+@c_wrapper(is_generator=False)
 def sample_halos_from_conditions(
     *,
     inputs: InputParameters,
@@ -906,7 +902,7 @@ def sample_halos_from_conditions(
     }
 
 
-@c_wrapper
+@c_wrapper(is_generator=False)
 def convert_halo_properties(
     *,
     redshift: float,
