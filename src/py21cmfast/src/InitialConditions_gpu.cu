@@ -38,6 +38,7 @@
 #include "InputParameters.h"
 #include "OutputStructs.h"
 #include "indexing.h"
+#include "indexing.cuh"
 #include "dft.h"
 #include "filtering.h"
 #include "cosmology.h"

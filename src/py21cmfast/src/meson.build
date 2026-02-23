@@ -1,6 +1,7 @@
 # Define the C source files
 c_source_files = files([
   'BrightnessTemperatureBox.c',
+  'Constants.c',
   'HaloBox.c',
   'HaloField.c',
   'InitialConditions.c',

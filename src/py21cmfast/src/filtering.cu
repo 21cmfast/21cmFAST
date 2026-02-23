@@ -19,6 +19,7 @@
 #include "Constants.h"
 #include "InputParameters.h"
 #include "indexing.h"
+#include "indexing.cuh"
 #include "dft.h"
 #include "filtering.h"
 
@@ -200,7 +201,7 @@ void filter_box_gpu(fftwf_complex *box, int box_dim[3], int filter_type, float R
 //TODO: set device constants here
 int test_filter_gpu(float *input_box, double R, double R_param, int filter_flag, double *result) {
     int i,j,k;
-    unsigned long long int ii;
+    unsigned long long int ii, jj;
     int box_dim[3] = {
         simulation_options_global->HII_DIM,
         simulation_options_global->HII_DIM,
@@ -210,10 +211,13 @@ int test_filter_gpu(float *input_box, double R, double R_param, int filter_flag,
     fftwf_complex *box_unfiltered = (fftwf_complex *) fftwf_malloc(sizeof(fftwf_complex)*HII_KSPACE_NUM_PIXELS);
     fftwf_complex *box_filtered = (fftwf_complex *) fftwf_malloc(sizeof(fftwf_complex)*HII_KSPACE_NUM_PIXELS);
 
-    for (i=0; i<simulation_options_global->HII_DIM; i++)
-        for (j=0; j<simulation_options_global->HII_DIM; j++)
-            for (k=0; k<HII_D_PARA; k++)
-                *((float *)box_unfiltered + HII_R_FFT_INDEX(i,j,k)) = input_box[HII_R_INDEX(i,j,k)];
+    for (i=0; i<box_dim[0]; i++)
+        for (j=0; j<box_dim[1]; j++)
+            for (k=0; k<box_dim[2]; k++) {
+                ii = grid_index_general_d(i, j, k, box_dim);
+                jj = grid_index_fftw_r_d(i, j, k, box_dim);
+                *((float *)box_unfiltered + jj) = input_box[ii];
+            }
 
     dft_r2c_cube(matter_options_global->USE_FFTW_WISDOM, simulation_options_global->HII_DIM, HII_D_PARA, simulation_options_global->N_THREADS, box_unfiltered);
 
@@ -231,10 +235,13 @@ int test_filter_gpu(float *input_box, double R, double R_param, int filter_flag,
 
     dft_c2r_cube(matter_options_global->USE_FFTW_WISDOM, simulation_options_global->HII_DIM, HII_D_PARA, simulation_options_global->N_THREADS, box_filtered);
 
-    for (i=0; i<simulation_options_global->HII_DIM; i++)
-        for (j=0; j<simulation_options_global->HII_DIM; j++)
-            for (k=0; k<HII_D_PARA; k++)
-                    result[HII_R_INDEX(i,j,k)] = *((float *)box_filtered + HII_R_FFT_INDEX(i,j,k));
+    for (i=0; i<box_dim[0]; i++)
+        for (j=0; j<box_dim[1]; j++)
+            for (k=0; k<box_dim[2]; k++) {
+                ii = grid_index_general_d(i, j, k, box_dim);
+                jj = grid_index_fftw_r_d(i, j, k, box_dim);
+                result[ii] = *((float *)box_filtered + jj);
+            }
 
     fftwf_free(box_unfiltered);
     fftwf_free(box_filtered);

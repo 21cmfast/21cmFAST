@@ -1174,10 +1174,12 @@ void find_ionised_regions(IonizedBox *box, IonizedBox *previous_ionize_box,
     unsigned long long fully_ionized_count = 0;
     unsigned long long partially_ionized_count = 0;
     unsigned long long neutral_count = 0;
+    int hii_box_dim[3] = {simulation_options_global->HII_DIM, simulation_options_global->HII_DIM,
+                          HII_D_PARA};
     for (int x = 0; x < simulation_options_global->HII_DIM; x++) {
         for (int y = 0; y < simulation_options_global->HII_DIM; y++) {
             for (int z = 0; z < HII_D_PARA; z++) {
-                float nf = box->neutral_fraction[HII_R_INDEX(x, y, z)];
+                float nf = box->neutral_fraction[grid_index_general(x, y, z, hii_box_dim)];
                 if (nf < TINY) {
                     fully_ionized_count++;
                 } else if (nf < 0.99) {

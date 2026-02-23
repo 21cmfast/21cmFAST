@@ -189,9 +189,9 @@ void calculate_fcoll_grid_gpu(
   // method)
   double fract_float_err = FRACT_FLOAT_ERR;
   bool use_ts_fluct = astro_options_global->USE_TS_FLUCT;
-  long long hii_d = HII_D;
+  long long hii_d = simulation_options_global->HII_DIM;
   long long hii_d_para = HII_D_PARA;
-  long long hii_mid_para = HII_MID_PARA;
+  long long hii_mid_para = hii_d_para / 2;
 
   // Invoke kernel
   compute_Fcoll<<<*numBlocks, *threadsPerBlock>>>(

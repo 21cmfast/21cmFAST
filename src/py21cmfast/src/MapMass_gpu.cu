@@ -331,7 +331,7 @@ extern "C" double* MapMass_gpu(
 
     // Can't pass macro straight to kernel
     long long d_para = D_PARA;
-    long long hii_d = HII_D;
+    long long hii_d = simulation_options_global->HII_DIM;
     long long hii_d_para = HII_D_PARA;
 
     // Compute 2LPT velocity displacement factors (matches CPU map_mass.c)
