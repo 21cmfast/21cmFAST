@@ -563,8 +563,8 @@ def lightcone(
 
 @dev.command(name="feature")
 def pr_feature(
-    params: Parameters,
-    options: RunParams,
+    params: Parameters = Parameters(),
+    options: RunParams = RunParams(),
     redshift_range: tuple[float, float] = (6.0, 30.0),
     outdir: cyctp.ExistingDirectory = Path(),
 ):

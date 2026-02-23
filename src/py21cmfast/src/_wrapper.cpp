@@ -73,9 +73,7 @@ NB_MODULE(c_21cmfast, m) {
         .def_rw("FILTER", &MatterOptions::FILTER)
         .def_rw("HALO_FILTER", &MatterOptions::HALO_FILTER)
         .def_rw("SMOOTH_EVOLVED_DENSITY_FIELD", &MatterOptions::SMOOTH_EVOLVED_DENSITY_FIELD)
-        .def_rw("USE_HALO_FIELD", &MatterOptions::USE_HALO_FIELD)
-        .def_rw("HALO_STOCHASTICITY", &MatterOptions::HALO_STOCHASTICITY)
-        .def_rw("FIXED_HALO_GRIDS", &MatterOptions::FIXED_HALO_GRIDS)
+        .def_rw("SOURCE_MODEL", &MatterOptions::SOURCE_MODEL)
         .def_rw("SAMPLE_METHOD", &MatterOptions::SAMPLE_METHOD);
 
     // Bind AstroParams
@@ -130,7 +128,6 @@ NB_MODULE(c_21cmfast, m) {
         .def_rw("USE_MINI_HALOS", &AstroOptions::USE_MINI_HALOS)
         .def_rw("USE_CMB_HEATING", &AstroOptions::USE_CMB_HEATING)
         .def_rw("USE_LYA_HEATING", &AstroOptions::USE_LYA_HEATING)
-        .def_rw("USE_MASS_DEPENDENT_ZETA", &AstroOptions::USE_MASS_DEPENDENT_ZETA)
         .def_rw("INHOMO_RECO", &AstroOptions::INHOMO_RECO)
         .def_rw("USE_TS_FLUCT", &AstroOptions::USE_TS_FLUCT)
         .def_rw("M_MIN_in_Mass", &AstroOptions::M_MIN_in_Mass)
@@ -229,37 +226,45 @@ NB_MODULE(c_21cmfast, m) {
             self.velocity_z = array.data();
         });
 
-    // Bind HaloField
-    nb::class_<HaloField>(m, "HaloField")
+    // Bind HaloCatalog
+    nb::class_<HaloCatalog>(m, "HaloCatalog")
         .def(nb::init<>())
-        .def_rw("n_halos", &HaloField::n_halos)
-        .def_rw("buffer_size", &HaloField::buffer_size)
+        .def_rw("n_halos", &HaloCatalog::n_halos)
+        .def_rw("buffer_size", &HaloCatalog::buffer_size)
         .def("set_halo_masses",
-             [](HaloField& self, nb::ndarray<float> array) { self.halo_masses = array.data(); })
+             [](HaloCatalog& self, nb::ndarray<float> array) { self.halo_masses = array.data(); })
         .def("set_halo_coords",
-             [](HaloField& self, nb::ndarray<float> array) { self.halo_coords = array.data(); })
+             [](HaloCatalog& self, nb::ndarray<float> array) { self.halo_coords = array.data(); })
         .def("set_star_rng",
-             [](HaloField& self, nb::ndarray<float> array) { self.star_rng = array.data(); })
+             [](HaloCatalog& self, nb::ndarray<float> array) { self.star_rng = array.data(); })
         .def("set_sfr_rng",
-             [](HaloField& self, nb::ndarray<float> array) { self.sfr_rng = array.data(); })
+             [](HaloCatalog& self, nb::ndarray<float> array) { self.sfr_rng = array.data(); })
         .def("set_xray_rng",
-             [](HaloField& self, nb::ndarray<float> array) { self.xray_rng = array.data(); });
+             [](HaloCatalog& self, nb::ndarray<float> array) { self.xray_rng = array.data(); });
 
-    // Bind PerturbHaloField
-    nb::class_<PerturbHaloField>(m, "PerturbHaloField")
+    // Bind PerturbedHaloCatalog
+    nb::class_<PerturbedHaloCatalog>(m, "PerturbedHaloCatalog")
         .def(nb::init<>())
-        .def_rw("n_halos", &PerturbHaloField::n_halos)
-        .def_rw("buffer_size", &PerturbHaloField::buffer_size)
-        .def("set_halo_masses", [](PerturbHaloField& self,
+        .def_rw("n_halos", &PerturbedHaloCatalog::n_halos)
+        .def_rw("buffer_size", &PerturbedHaloCatalog::buffer_size)
+        .def("set_halo_masses", [](PerturbedHaloCatalog& self,
                                    nb::ndarray<float> array) { self.halo_masses = array.data(); })
-        .def("set_halo_coords", [](PerturbHaloField& self,
+        .def("set_halo_coords", [](PerturbedHaloCatalog& self,
                                    nb::ndarray<float> array) { self.halo_coords = array.data(); })
-        .def("set_star_rng",
-             [](PerturbHaloField& self, nb::ndarray<float> array) { self.star_rng = array.data(); })
-        .def("set_sfr_rng",
-             [](PerturbHaloField& self, nb::ndarray<float> array) { self.sfr_rng = array.data(); })
-        .def("set_xray_rng", [](PerturbHaloField& self, nb::ndarray<float> array) {
-            self.xray_rng = array.data();
+        .def("set_sfr",
+             [](PerturbedHaloCatalog& self, nb::ndarray<float> array) { self.sfr = array.data(); })
+        .def("set_stellar_masses",
+             [](PerturbedHaloCatalog& self, nb::ndarray<float> array) { self.stellar_masses = array.data(); })
+        .def("set_ion_emissivity",
+             [](PerturbedHaloCatalog& self, nb::ndarray<float> array) { self.ion_emissivity = array.data(); })
+        .def("set_xray_emissivity",
+             [](PerturbedHaloCatalog& self, nb::ndarray<float> array) { self.xray_emissivity = array.data(); })
+        .def("set_fesc_sfr",
+             [](PerturbedHaloCatalog& self, nb::ndarray<float> array) { self.fesc_sfr = array.data(); })
+        .def("set_stellar_mini",
+             [](PerturbedHaloCatalog& self, nb::ndarray<float> array) { self.stellar_mini = array.data(); })
+        .def("set_sfr_mini", [](PerturbedHaloCatalog& self, nb::ndarray<float> array) {
+            self.sfr_mini = array.data();
         });
 
     // Bind HaloBox
@@ -371,9 +376,9 @@ NB_MODULE(c_21cmfast, m) {
     // Function Bindings
     // OutputStruct COMPUTE FUNCTIONS
     m.def("ComputeInitialConditions", &ComputeInitialConditions);
-    m.def("ComputePerturbField", &ComputePerturbField);
-    m.def("ComputeHaloField", &ComputeHaloField);
-    m.def("ComputePerturbHaloField", &ComputePerturbHaloField);
+    m.def("ComputePerturbedField", &ComputePerturbedField);
+    m.def("ComputeHaloCatalog", &ComputeHaloCatalog);
+    m.def("ComputePerturbedHaloCatalog", &ComputePerturbedHaloCatalog);
     m.def("ComputeTsBox", &ComputeTsBox);
     m.def("ComputeIonizedBox", &ComputeIonizedBox);
     m.def("ComputeBrightnessTemp", &ComputeBrightnessTemp);

@@ -257,7 +257,7 @@ void set_prop_rng(gsl_rng *rng, bool from_catalog, double *interp, double *input
 }
 
 // This is the function called to assign halo properties to an entire catalogue, used for DexM halos
-int add_properties_cat(unsigned long long int seed, float redshift, HaloField *halos) {
+int add_properties_cat(unsigned long long int seed, float redshift, HaloCatalog *halos) {
     // set up the rng
     gsl_rng *rng_stoc[simulation_options_global->N_THREADS];
     seed_rng_threads_fast(rng_stoc, seed);
@@ -746,7 +746,7 @@ int stoc_sample(struct HaloSamplingConstants *hs_constants, gsl_rng *rng, int *n
 // Halo lists are partitioned per thread for sampling
 //   so have trailing zeros in each thread.
 //   This function condenses the array
-void condense_sparse_halolist(HaloField *halofield, unsigned long long int *istart_threads,
+void condense_sparse_halolist(HaloCatalog *halofield, unsigned long long int *istart_threads,
                               unsigned long long int *nhalo_threads) {
     int i = 0;
     unsigned long long int count_total = 0;
@@ -785,8 +785,8 @@ void condense_sparse_halolist(HaloField *halofield, unsigned long long int *ista
 
 // will have to add properties here and output grids, instead of in perturbed
 int sample_halo_grids(gsl_rng **rng_arr, double redshift, float *dens_field,
-                      float *halo_overlap_box, HaloField *halofield_large, HaloField *halofield_out,
-                      struct HaloSamplingConstants *hs_constants) {
+                      float *halo_overlap_box, HaloCatalog *halofield_large,
+                      HaloCatalog *halofield_out, struct HaloSamplingConstants *hs_constants) {
     int lo_dim[3] = {simulation_options_global->HII_DIM, simulation_options_global->HII_DIM,
                      HII_D_PARA};
 
@@ -944,8 +944,9 @@ int sample_halo_grids(gsl_rng **rng_arr, double redshift, float *dens_field,
 }
 
 // NOTE: there's a lot of repeated code here and in build_halo_cats, find a way to merge
-int sample_halo_progenitors(gsl_rng **rng_arr, double z_in, double z_out, HaloField *halofield_in,
-                            HaloField *halofield_out, struct HaloSamplingConstants *hs_constants) {
+int sample_halo_progenitors(gsl_rng **rng_arr, double z_in, double z_out, HaloCatalog *halofield_in,
+                            HaloCatalog *halofield_out,
+                            struct HaloSamplingConstants *hs_constants) {
     if (z_in >= z_out) {
         LOG_ERROR("halo progenitors must go backwards in time!!! z_in = %.1f, z_out = %.1f", z_in,
                   z_out);
@@ -1109,8 +1110,8 @@ int sample_halo_progenitors(gsl_rng **rng_arr, double z_in, double z_out, HaloFi
 
 // function that talks between the structures (Python objects) and the sampling functions
 int stochastic_halofield(unsigned long long int seed, float redshift_desc, float redshift,
-                         float *dens_field, float *halo_overlap_box, HaloField *halos_desc,
-                         HaloField *halos) {
+                         float *dens_field, float *halo_overlap_box, HaloCatalog *halos_desc,
+                         HaloCatalog *halos) {
     if (redshift_desc > 0 && halos_desc->n_halos == 0) {
         LOG_DEBUG("No halos to sample from redshifts %.2f to %.2f, continuing...", redshift_desc,
                   redshift);

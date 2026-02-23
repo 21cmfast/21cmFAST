@@ -926,7 +926,7 @@ __global__ void update_halo_constants(float *d_halo_masses, float *d_star_rng_in
 // function to launch kernel grids
 int updateHaloOut(float *halo_masses, float *star_rng, float *sfr_rng, float *xray_rng, float *halo_coords,  // FIX: was int*
                   unsigned long long int n_halos, float *y_arr, int n_bin_y, double x_min, double x_width,
-                  struct HaloSamplingConstants hs_constants, unsigned long long int n_buffer, HaloField *halofield_out)
+                  struct HaloSamplingConstants hs_constants, unsigned long long int n_buffer, HaloCatalog *halofield_out)
 {
     // allocate memory and copy halo data to the device (halo in)
     size_t size_halo = sizeof(float) * n_halos;

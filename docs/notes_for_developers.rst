@@ -111,7 +111,7 @@ When the ratio of the two grid dimensions is an integer, the centres of the low-
 align with the centre of a high resolution cell. This allows us to easily downsample the grids using Fourier-space filters,
 since we can always place a low-pass filter at the centre of a high-resolution cell.
 
-Continuous positions such as ``HaloField.halo_coords`` are specified on the range [0, ``BOX_LEN``]. And wrapping occurs such that
+Continuous positions such as ``HaloCatalog.halo_coords`` are specified on the range [0, ``BOX_LEN``]. And wrapping occurs such that
 the low-resolution cell at index 0 will contain the coordinates [``BOX_LEN(1 - 1/(2*HII_DIM))``, ``BOX_LEN``]
 and [0, ``BOX_LEN/(2*HII_DIM)``].
 

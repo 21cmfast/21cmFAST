@@ -15,7 +15,7 @@ from .single_field import (
     compute_spin_temperature,
     compute_xray_source_field,
     perturb_field,
-    perturb_halo_list,
+    perturb_halo_catalog,
 )
 
 __all__ = [
@@ -29,7 +29,7 @@ __all__ = [
     "generate_coeval",
     "generate_lightcone",
     "perturb_field",
-    "perturb_halo_list",
+    "perturb_halo_catalog",
     "run_coeval",
     "run_lightcone",
 ]

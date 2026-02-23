@@ -1011,14 +1011,13 @@ double tauX(double nu, double x_e, double x_e_ave, double zp, double zpp,
     p.x_e_ave = x_e_ave;
     p.scale_consts = sc;
 
-    if (astro_options_global->USE_MASS_DEPENDENT_ZETA) {
+    if (matter_options_global->SOURCE_MODEL > 0) {
         p.ion_eff = sc->pop2_ion * sc->fstar_10 * sc->fesc_10;
     } else {
         // TODO: figure out why this isn't just HII_EFF_FACTOR
-        // if we don't have an explicit ionising efficiency, we estimate one by using the values at
-        // zp
+        // if we don't have an explicit ionising efficiency, we estimate one at zp
         if (HI_filling_factor_zp > FRACT_FLOAT_ERR) {
-            fcoll = EvaluateNionTs(zp, sc);  // since !USE_MASS_DEPENDENT_ZETA, Mlim doesn't matter
+            fcoll = EvaluateNionTs(zp, sc);  // since it's constant zeta, Mlim doesn't matter
             p.ion_eff = (1.0 - HI_filling_factor_zp) / fcoll * (1.0 - x_e_ave);
             PS_ION_EFF = p.ion_eff;
         } else {

@@ -115,7 +115,7 @@ int InitialisePhotonCons() {
         set_scaling_constants(a_end, &sc_i, false);
 
         // set the minimum source mass
-        if (astro_options_global->USE_MASS_DEPENDENT_ZETA) {
+        if (matter_options_global->SOURCE_MODEL > 0) {
             ION_EFF_FACTOR = astro_params_global->POP2_ION * astro_params_global->F_STAR10 *
                              astro_params_global->F_ESC10;
             M_MIN = astro_params_global->M_TURN / 50.;
@@ -170,7 +170,7 @@ int InitialisePhotonCons() {
                 // Ionizing emissivity (num of photons per baryon)
                 // We Force QAG due to the changing limits and messy implementation which I will fix
                 // later (hopefully move the whole thing to python)
-                if (astro_options_global->USE_MASS_DEPENDENT_ZETA) {
+                if (matter_options_global->SOURCE_MODEL > 0) {
                     Nion0 = ION_EFF_FACTOR *
                             Nion_General(z0, lnMmin, lnMmax, astro_params_global->M_TURN, &sc_0);
                     Nion1 = ION_EFF_FACTOR *
@@ -305,7 +305,7 @@ int InitialisePhotonCons() {
         free(Q_z);
         free(z_value);
 
-        if (astro_options_global->USE_MASS_DEPENDENT_ZETA) {
+        if (matter_options_global->SOURCE_MODEL > 0) {
             freeSigmaMInterpTable();
         }
 

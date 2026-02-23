@@ -34,10 +34,11 @@ jobs:
           pip install ".[dev]"
 
       - name: Track base branch benchmarks with Bencher
+        env:
+          BENCHER_API_TOKEN: ${{ secrets.BENCHER_API_TOKEN }}
         run: |
           bencher run \
           --project 21cmfast \
-          --token '${{ secrets.BENCHER_API_TOKEN }}' \
           --branch main \
           --testbed ubuntu-latest \
           --threshold-measure latency \

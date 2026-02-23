@@ -1,11 +1,11 @@
 // Re-write of find_halos.c from the original 21cmFAST
 
-// ComputeHaloField takes in a k_space box of the linear overdensity field
+// ComputeHaloCatalog takes in a k_space box of the linear overdensity field
 // and filters it on decreasing scales in order to find virialized halos.
 // Virialized halos are defined according to the linear critical overdensity.
-// ComputeHaloField outputs a cube with non-zero elements containing the Mass of
+// ComputeHaloCatalog outputs a cube with non-zero elements containing the Mass of
 // the virialized halos
-#include "HaloField.h"
+#include "HaloCatalog.h"
 
 #include <complex.h>
 #include <fftw3.h>
@@ -30,19 +30,20 @@
 #include "logger.h"
 
 int check_halo(char *in_halo, float R, int x, int y, int z, int check_type);
-void init_halo_coords(HaloField *halos, long long unsigned int n_halos);
+void init_halo_coords(HaloCatalog *halos, long long unsigned int n_halos);
 int pixel_in_halo(int grid_dim, int z_dim, int x, int x_index, int y, int y_index, int z,
                   int z_index, float Rsq_curr_index);
-void free_halo_field(HaloField *halos);
+void free_halo_catalog(HaloCatalog *halos);
 
-int ComputeHaloField(float redshift_desc, float redshift, InitialConditions *boxes,
-                     unsigned long long int random_seed, HaloField *halos_desc, HaloField *halos) {
+int ComputeHaloCatalog(float redshift_desc, float redshift, InitialConditions *boxes,
+                       unsigned long long int random_seed, HaloCatalog *halos_desc,
+                       HaloCatalog *halos) {
     int status;
 
     Try {  // This Try brackets the whole function, so we don't indent.
 
         // This happens if we are updating a halo field (no need to redo big halos)
-        if (matter_options_global->HALO_STOCHASTICITY && redshift_desc > 0) {
+        if (matter_options_global->SOURCE_MODEL == 4 && redshift_desc > 0) {
             LOG_DEBUG("Halo sampling switched on, bypassing halo finder to update %llu halos...",
                       halos_desc->n_halos);
             // this would hold the two boxes used in the halo sampler, but here we are taking the
@@ -88,7 +89,7 @@ int ComputeHaloField(float redshift_desc, float redshift, InitialConditions *box
         double cell_length = simulation_options_global->BOX_LEN / grid_dim;
         // set minimum source mass
         // if we use the sampler we want to stop at the HII cell mass
-        if (matter_options_global->HALO_STOCHASTICITY)
+        if (matter_options_global->SOURCE_MODEL == 4)
             M_MIN = fmax(M_MIN, RtoM(physconst.l_factor * simulation_options_global->BOX_LEN /
                                      simulation_options_global->HII_DIM));
         // otherwise we stop at the cell mass
@@ -167,17 +168,17 @@ int ComputeHaloField(float redshift_desc, float redshift, InitialConditions *box
         while (R < physconst.l_factor * simulation_options_global->BOX_LEN)
             R *= simulation_options_global->DELTA_R_FACTOR;
 
-        HaloField *halos_dexm;
-        if (matter_options_global->HALO_STOCHASTICITY) {
+        HaloCatalog *halos_dexm;
+        if (matter_options_global->SOURCE_MODEL == 4) {
             // To save memory, we allocate the smaller (large mass) halofield here instead of using
             // halos_desc
-            halos_dexm = malloc(sizeof(HaloField));
+            halos_dexm = malloc(sizeof(HaloCatalog));
         } else {
             // assign directly to the output field instead
             halos_dexm = halos;
         }
 
-        float *halo_field = calloc(TOT_NUM_PIXELS, sizeof(float));
+        float *halo_catalog = calloc(TOT_NUM_PIXELS, sizeof(float));
 
         while ((R > 0.5 * Delta_R) &&
                (RtoM(R) >= M_MIN)) {  // filter until we get to half the pixel size or M_MIN
@@ -229,7 +230,7 @@ int ComputeHaloField(float redshift_desc, float redshift, InitialConditions *box
                         for (x = 0; x < grid_dim; x++) {
                             for (y = 0; y < grid_dim; y++) {
                                 for (z = 0; z < z_dim; z++) {
-                                    halo_buf = halo_field[grid_index_general(x, y, z, box_dim)];
+                                    halo_buf = halo_catalog[grid_index_general(x, y, z, box_dim)];
                                     if (halo_buf > 0.) {
                                         R_temp = MtoR(halo_buf);
                                         check_halo(
@@ -273,7 +274,7 @@ int ComputeHaloField(float redshift_desc, float redshift, InitialConditions *box
                                            y, z,
                                            2);  // flag the pixels contained within this halo
 
-                                halo_field[idx_r] = M;
+                                halo_catalog[idx_r] = M;
 
                                 r_halo_num++;  // keep track of the number of halos
                             }
@@ -288,7 +289,7 @@ int ComputeHaloField(float redshift_desc, float redshift, InitialConditions *box
                                             in_halo, R, x, y, z,
                                             2);  // flag the pixels contained within this halo
 
-                                        halo_field[idx_r] = M;
+                                        halo_catalog[idx_r] = M;
 
                                         r_halo_num++;
                                     }
@@ -305,11 +306,11 @@ int ComputeHaloField(float redshift_desc, float redshift, InitialConditions *box
             R /= simulation_options_global->DELTA_R_FACTOR;
         }
 
-        LOG_DEBUG("Obtained %llu halo masses and positions, now saving to HaloField struct.",
+        LOG_DEBUG("Obtained %llu halo masses and positions, now saving to HaloCatalog struct.",
                   total_halo_num);
 
         // Allocate the Halo Mass and Coordinate Fields (non-wrapper structure)
-        if (matter_options_global->HALO_STOCHASTICITY)
+        if (matter_options_global->SOURCE_MODEL == 4)
             init_halo_coords(halos_dexm, total_halo_num);
         else
             halos_dexm->n_halos = total_halo_num;
@@ -324,7 +325,7 @@ int ComputeHaloField(float redshift_desc, float redshift, InitialConditions *box
         for (x = 0; x < grid_dim; x++) {
             for (y = 0; y < grid_dim; y++) {
                 for (z = 0; z < z_dim; z++) {
-                    halo_buf = halo_field[grid_index_general(x, y, z, box_dim)];
+                    halo_buf = halo_catalog[grid_index_general(x, y, z, box_dim)];
                     if (halo_buf > 0.) {
                         halos_dexm->halo_masses[count] = halo_buf;
                         // place DexM halos at the centre of the cell
@@ -340,7 +341,7 @@ int ComputeHaloField(float redshift_desc, float redshift, InitialConditions *box
         add_properties_cat(random_seed, redshift, halos_dexm);
         LOG_DEBUG("Found %llu DexM halos", halos_dexm->n_halos);
 
-        if (matter_options_global->HALO_STOCHASTICITY) {
+        if (matter_options_global->SOURCE_MODEL == 4) {
             LOG_DEBUG("Finding halos below grid resolution %.3e", M_MIN);
             // First we construct a grid which corresponds to how much of a HII_DIM cell is covered
             // by halos
@@ -405,7 +406,7 @@ int ComputeHaloField(float redshift_desc, float redshift, InitialConditions *box
                                  halo_overlap_box, halos_dexm, halos);
 
             // Here, halos_dexm is allocated in the C, so free it
-            free_halo_field(halos_dexm);
+            free_halo_catalog(halos_dexm);
             free(halos_dexm);
             free(halo_overlap_box);
         }
@@ -413,7 +414,7 @@ int ComputeHaloField(float redshift_desc, float redshift, InitialConditions *box
         LOG_DEBUG("Finished halo processing.");
 
         free(in_halo);
-        free(halo_field);
+        free(halo_catalog);
 
         if (matter_options_global->DEXM_OPTIMIZE) {
             free(forbidden);
@@ -531,7 +532,7 @@ int check_halo(char *in_halo, float R, int x, int y, int z, int check_type) {
     return 0;
 }
 
-void init_halo_coords(HaloField *halos, long long unsigned int n_halos) {
+void init_halo_coords(HaloCatalog *halos, long long unsigned int n_halos) {
     // Minimise memory usage by only storing the halo mass and positions
     halos->n_halos = n_halos;
     unsigned long long int alloc_size = fmax(1, n_halos);
@@ -543,8 +544,8 @@ void init_halo_coords(HaloField *halos, long long unsigned int n_halos) {
     halos->xray_rng = (float *)calloc(alloc_size, sizeof(float));
 }
 
-void free_halo_field(HaloField *halos) {
-    LOG_DEBUG("Freeing HaloField instance.");
+void free_halo_catalog(HaloCatalog *halos) {
+    LOG_DEBUG("Freeing HaloCatalog instance.");
     free(halos->halo_masses);
     free(halos->halo_coords);
     free(halos->star_rng);

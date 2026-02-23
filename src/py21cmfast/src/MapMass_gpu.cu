@@ -23,7 +23,7 @@
 #include "debugging.h"
 #include "filtering.h"
 
-#include "PerturbField.h"
+#include "PerturbedField.h"
 
 // #define R_INDEX(x,y,z)((unsigned long long)((z)+D_PARA*((y)+D*(x))))
 __device__ inline unsigned long long compute_R_INDEX(int i, int j, int k, int dim, long long d_para) {
