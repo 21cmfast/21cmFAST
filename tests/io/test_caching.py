@@ -102,7 +102,7 @@ class TestRunCache:
         h5.write_output_to_hdf5(perturbed_field, badpath)
 
         with pytest.raises(
-            ValueError, match="does not seem to be within a cache structure."
+            ValueError, match="does not seem to be within a cache structure"
         ):
             caching.RunCache.from_example_file(badpath)
 

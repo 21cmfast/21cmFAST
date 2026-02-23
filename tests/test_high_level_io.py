@@ -65,7 +65,7 @@ def test_read_bad_file_lc(test_direc: Path, lc: LightCone):
         )
 
         # make gaps
-        del f["InputParameters"]["cosmo_params"].attrs["SIGMA_8"]
+        del f["InputParameters"]["cosmo_params"].attrs["hlittle"]
 
     # load without compatibility mode, make sure we throw the right error
     with pytest.raises(ValueError, match="Excess arguments exist"):
@@ -104,7 +104,7 @@ def test_read_bad_file_coev(test_direc: Path, coeval: Coeval):
         ] = "fake_param"
 
         # make gaps
-        del f["BrightnessTemp"]["InputParameters"]["cosmo_params"].attrs["SIGMA_8"]
+        del f["BrightnessTemp"]["InputParameters"]["cosmo_params"].attrs["hlittle"]
 
     # load in the coeval check that we warn correctly
     with pytest.raises(ValueError, match="Excess arguments exist"):
@@ -161,7 +161,7 @@ def test_ang_lightcone(lc, ang_lightcone: AngularLightcone, plt):
     fullcorr0 = np.corrcoef(rbt[:, :, 0].flatten(), abt[:, :, 0].flatten())
     fullcorrz = np.corrcoef(rbt[:, :, -1].flatten(), abt[:, :, -1].flatten())
 
-    fig, ax = plt.subplots(2, 2, figsize=(12, 12))
+    _fig, ax = plt.subplots(2, 2, figsize=(12, 12))
     ax[0, 0].imshow(rbt[:, :, 0])
     ax[0, 0].set_title("lowest rect")
     ax[0, 1].imshow(rbt[:, :, -1])

@@ -883,7 +883,7 @@ def make_table_comparison_plot(
     **kwargs,
 ):
     # rows = values,fracitonal diff, cols = 1d table, 2d table
-    fig, axs = plt.subplots(
+    _fig, axs = plt.subplots(
         nrows=2, ncols=len(x), figsize=(12 * len(x) / 2, 9), squeeze=False
     )
     xlabels = kwargs.pop("xlabels", ["delta"] * len(x))
@@ -916,7 +916,7 @@ def make_table_comparison_plot(
 
 # slightly different from comparison plot since each integral shares a "truth"
 def make_integral_comparison_plot(x1, x2, integral_list, integral_list_second, plt):
-    fig, axs = plt.subplots(nrows=2, ncols=2, figsize=(16, 8))
+    _fig, axs = plt.subplots(nrows=2, ncols=2, figsize=(16, 8))
 
     styles = ["-", ":", "--"]
     for i, (i_first, i_second) in enumerate(

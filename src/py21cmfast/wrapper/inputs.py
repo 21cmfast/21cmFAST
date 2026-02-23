@@ -19,6 +19,8 @@ from pathlib import Path
 from typing import Annotated, Any, ClassVar, Literal, Self, get_args
 
 import attrs
+import numpy as np
+from astropy import constants
 from astropy import units as un
 from astropy.cosmology import FLRW, Planck15
 from attrs import asdict, define, evolve, validators
@@ -26,7 +28,14 @@ from attrs import field as _field
 from cyclopts import Parameter
 
 from .._cfg import config
+from ..c_21cmfast import ffi
 from ._utils import snake_to_camel
+from .classy_interface import (
+    find_redshift_kinematic_decoupling,
+    get_transfer_function,
+    k_transfer,
+    run_classy,
+)
 from .structs import StructWrapper
 
 logger = logging.getLogger(__name__)
@@ -281,6 +290,88 @@ class InputStruct:
 
 
 @define(frozen=True, kw_only=True)
+class Table1D:
+    """Class for setting 1D interpolation table."""
+
+    size: int = field(converter=int, validator=validators.gt(0))
+    x_values: np.ndarray = field(
+        converter=lambda v: np.asarray(v, dtype=np.float64),
+        validator=validators.instance_of(np.ndarray),
+        eq=attrs.cmp_using(eq=np.array_equal),
+    )
+    y_values: np.ndarray = field(
+        converter=lambda v: np.asarray(v, dtype=np.float64),
+        validator=validators.instance_of(np.ndarray),
+        eq=attrs.cmp_using(eq=np.array_equal),
+    )
+
+    @cached_property
+    def cstruct(self):
+        """Cached pointer to the memory of the object in C."""
+        ctab = ffi.new("Table1D *")
+        ctab.size = self.size
+        ctab.x_values = ffi.cast("double *", ffi.from_buffer(self.x_values))
+        ctab.y_values = ffi.cast("double *", ffi.from_buffer(self.y_values))
+        return ctab
+
+
+@define(frozen=True, kw_only=True)
+class CosmoTables:
+    """Class for storing interpolation tables of cosmological functions (e.g. transfer functions, growth factor)."""
+
+    transfer_density: Table1D = field(default=None)
+    transfer_vcb: Table1D = field(default=None)
+
+    @classmethod
+    def new(cls, x: dict | Self | None = None, **kwargs):
+        """
+        Create a new instance of the struct.
+
+        Parameters
+        ----------
+        x : dict | CosmoTables | None
+            Initial values for the struct. If `x` is a dictionary, it should map field
+            names to their corresponding values. If `x` is an instance of this class,
+            its attributes will be used as initial values. If `x` is None, the
+            struct will be initialised with default values.
+
+        Other Parameters
+        ----------------
+        All other parameters should be passed as if directly to the class constructor
+        (i.e. as parameter names).
+        """
+        if isinstance(x, dict):
+            return cls(**x, **kwargs)
+        elif isinstance(x, CosmoTables):
+            return x.clone(**kwargs)
+        elif x is None:
+            return cls(**kwargs)
+        else:
+            raise ValueError(
+                f"Cannot instantiate {cls.__name__} with type {x.__class__}"
+            )
+
+    @cached_property
+    def struct(self):
+        """The python-wrapped struct associated with this input object."""
+        return StructWrapper("CosmoTables")
+
+    @cached_property
+    def cstruct(self) -> StructWrapper:
+        """The object pointing to the memory accessed by C-code for this struct."""
+        for k in self.struct.fieldnames:
+            val = getattr(self, k)
+            if isinstance(val, Table1D):
+                setattr(self.struct.cstruct, k, val.cstruct)
+
+        return self.struct.cstruct
+
+    def clone(self, **kwargs):
+        """Make a fresh copy of the instance with arbitrary parameters updated."""
+        return evolve(self, **kwargs)
+
+
+@define(frozen=True, kw_only=True)
 class CosmoParams(InputStruct):
     """
     Cosmological parameters (with defaults) which translates to a C struct.
@@ -304,12 +395,21 @@ class CosmoParams(InputStruct):
         Omega baryon, the baryon component.
     POWER_INDEX : float, optional
         Spectral index of the power spectrum.
+    A_s: float, optional
+        Amplitude of primordial curvature power spectrum, at k_pivot = 0.05 Mpc^-1.
     """
+
+    _DEFAULT_SIGMA_8: ClassVar[float] = 0.8102
+    _DEFAULT_A_s: ClassVar[float] = 2.105e-9
 
     _base_cosmo: Annotated[FLRW, Parameter(show=False, parse=False)] = field(
         default=Planck18, validator=validators.instance_of(FLRW), eq=False, repr=False
     )
-    SIGMA_8: float = field(default=0.8102, converter=float, validator=validators.gt(0))
+    _SIGMA_8: float = field(
+        default=None,
+        converter=attrs.converters.optional(float),
+        validator=validators.optional(validators.gt(0)),
+    )
     hlittle: float = field(
         default=Planck18.h, converter=float, validator=validators.gt(0)
     )
@@ -322,6 +422,11 @@ class CosmoParams(InputStruct):
     POWER_INDEX: float = field(
         default=0.9665, converter=float, validator=validators.gt(0)
     )
+    _A_s: float = field(
+        default=None,
+        converter=attrs.converters.optional(float),
+        validator=validators.optional(validators.gt(0)),
+    )
 
     OMn: float = field(default=0.0, converter=float, validator=validators.ge(0))
     OMk: float = field(default=0.0, converter=float, validator=validators.ge(0))
@@ -333,6 +438,58 @@ class CosmoParams(InputStruct):
     wl: float = field(default=-1.0, converter=float)
 
     # TODO: Combined validation via Astropy?
+
+    @_SIGMA_8.validator
+    def _sigma_8_vld(self, att, val):
+        if self._A_s is not None and val is not None:
+            raise ValueError(
+                "Cannot set both SIGMA_8 and A_s! "
+                "If this error arose when lading from template/file or evolving an "
+                "existing object, then explicitly set either SIGMA_8 or A_s "
+                "to None while setting the other to the desired value."
+            )
+
+    @cached_property
+    def SIGMA_8(self) -> float:
+        """RMS mass variance (power spectrum normalisation).
+
+        If not given explicitly, it is auto-calculated via A_s
+        and the other cosmological parameters.
+        """
+        if self._SIGMA_8 is not None:
+            return self._SIGMA_8
+        elif self._A_s is not None:
+            classy_output = run_classy(
+                h=self.hlittle,
+                Omega_cdm=self.OMm - self.OMb,
+                Omega_b=self.OMb,
+                A_s=self._A_s,
+                n_s=self.POWER_INDEX,
+            )
+            return classy_output.sigma8()
+        else:
+            return self._DEFAULT_SIGMA_8
+
+    @cached_property
+    def A_s(self) -> float:
+        """Amplitude of primordial curvature power spectrum, at k_pivot = 0.05 Mpc^-1.
+
+        If not given explicitly, it is auto-calculated via sigma_8
+        and the other cosmological parameters.
+        """
+        if self._A_s is not None:
+            return self._A_s
+        elif self._SIGMA_8 is not None:
+            classy_output = run_classy(
+                h=self.hlittle,
+                Omega_cdm=self.OMm - self.OMb,
+                Omega_b=self.OMb,
+                sigma8=self.SIGMA_8,
+                n_s=self.POWER_INDEX,
+            )
+            return classy_output.get_current_derived_parameters(["A_s"])["A_s"]
+        else:
+            return self._DEFAULT_A_s
 
     @property
     def OMl(self):
@@ -646,6 +803,8 @@ class SimulationOptions(InputStruct):
         Self-correlation length used for updating star formation rate, see "CORR_STAR" for details.
     CORR_LX : float, optional
         Self-correlation length used for updating xray luminosity, see "CORR_STAR" for details.
+    K_MAX_FOR_CLASS: float, optional
+        Maximum wavenumber to run CLASS, in 1/Mpc. Becomes relevant only if matter_options.POWER_SPECTRUM = "CLASS".
     """
 
     _DEFAULT_HIRES_TO_LOWRES_FACTOR: ClassVar[float] = 3
@@ -715,6 +874,11 @@ class SimulationOptions(InputStruct):
     CORR_SFR: float = field(default=0.2, converter=float)
     # NOTE (Jdavies): I do not currently have great priors for this value
     CORR_LX: float = field(default=0.2, converter=float)
+    K_MAX_FOR_CLASS: float | None = field(
+        default=None,
+        converter=attrs.converters.optional(float),
+        validator=attrs.validators.optional(validators.gt(0)),
+    )
 
     @property
     def DIM(self) -> int:
@@ -1308,6 +1472,7 @@ class InputParameters:
     astro_options: AstroOptions = input_param_field(AstroOptions)
     astro_params: AstroParams = input_param_field(AstroParams)
     node_redshifts = _field(converter=_node_redshifts_converter)
+    cosmo_tables: CosmoTables = field()
 
     @node_redshifts.default
     def _node_redshifts_default(self):
@@ -1330,6 +1495,76 @@ class InputParameters:
                 "For runs with inhomogeneous recombinations or spin temperature fluctuations,\n"
                 + f"your maximum passed node_redshifts {max(val) if hasattr(val, '__len__') else val} must be above Z_HEAT_MAX {self.simulation_options.Z_HEAT_MAX}"
             )
+
+    @cosmo_tables.default
+    def _cosmo_tables_default(self):
+        if self.matter_options.POWER_SPECTRUM == "CLASS":
+            if self.simulation_options.K_MAX_FOR_CLASS is not None:
+                k_max = self.simulation_options.K_MAX_FOR_CLASS / un.Mpc
+            else:
+                if self.astro_options.USE_MINI_HALOS:
+                    M_min = 1e5 * un.M_sun
+                else:
+                    M_min = 1e9 * un.M_sun
+                R_min = pow(
+                    M_min
+                    / (
+                        4
+                        * np.pi
+                        / 3.0
+                        * self.cosmo_params.cosmo.critical_density0
+                        * self.cosmo_params.OMm
+                    ),
+                    1 / 3,
+                )
+                k_max = (2 * np.pi / R_min).to(
+                    "1/Mpc"
+                ) * 1.5  # Multiply by 1.5 for better precision
+
+            classy_output = run_classy(
+                h=self.cosmo_params.hlittle,
+                Omega_cdm=self.cosmo_params.OMm - self.cosmo_params.OMb,
+                Omega_b=self.cosmo_params.OMb,
+                n_s=self.cosmo_params.POWER_INDEX,
+                sigma8=self.cosmo_params.SIGMA_8,
+                output="mTk,vTk",
+                P_k_max=k_max,
+            )
+            # Linear matter density transfer function at z=0
+            transfer_density = get_transfer_function(
+                classy_output=classy_output, kind="d_m", z=0.0
+            )
+            # Linear vcb transfer function at kinematic decoupling
+            z_dec = find_redshift_kinematic_decoupling(classy_output)
+            transfer_vcb = (
+                (
+                    get_transfer_function(
+                        classy_output=classy_output, kind="v_cb", z=z_dec
+                    )
+                    / constants.c  # Need to normalize by c, because ComputeInitialConditions() accepts to receive a dimensionless transfer function
+                ).to(un.dimensionless_unscaled)
+            )
+
+            # Include a sample at k=0
+            k_transfer_with_0 = np.concatenate(([0.0], k_transfer))
+            transfer_density = np.concatenate(([0.0], transfer_density))
+            transfer_vcb = np.concatenate(([0.0], transfer_vcb))
+
+            cosmo_tables = CosmoTables(
+                transfer_density=Table1D(
+                    size=k_transfer_with_0.size,
+                    x_values=k_transfer_with_0,
+                    y_values=transfer_density,
+                ),
+                transfer_vcb=Table1D(
+                    size=k_transfer_with_0.size,
+                    x_values=k_transfer_with_0,
+                    y_values=transfer_vcb,
+                ),
+            )
+        else:
+            cosmo_tables = CosmoTables()
+        return cosmo_tables
 
     @astro_options.validator
     def _astro_options_validator(self, att, val):
@@ -1478,6 +1713,7 @@ class InputParameters:
             "matter_options",
             "astro_params",
             "astro_options",
+            "cosmo_tables",
         ):
             obj = getattr(self, inp_type)
             struct_args[inp_type] = obj.clone(
@@ -1488,7 +1724,25 @@ class InputParameters:
             wrong_key = next(iter(kwargs_copy.keys()))
             raise TypeError(f"{wrong_key} is not a valid keyword input.")
 
-        return self.clone(**struct_args)
+        inputs_clone = self.clone(**struct_args)
+        if inputs_clone.matter_options.POWER_SPECTRUM == "CLASS":
+            if (
+                self.matter_options.POWER_SPECTRUM != "CLASS"
+                or np.any([hasattr(self.cosmo_params, k) for k in kwargs])
+                or (
+                    self.simulation_options.K_MAX_FOR_CLASS
+                    != inputs_clone.simulation_options.K_MAX_FOR_CLASS
+                )
+            ):
+                struct_args["cosmo_tables"] = inputs_clone._cosmo_tables_default()
+                inputs_clone = self.clone(**struct_args)
+        elif self.matter_options.POWER_SPECTRUM == "CLASS":
+            struct_args["cosmo_tables"] = (
+                CosmoTables()
+            )  # No need to have the tables from the original inputs
+            inputs_clone = self.clone(**struct_args)
+
+        return inputs_clone
 
     @classmethod
     def from_template(
@@ -1526,7 +1780,9 @@ class InputParameters:
         if node_redshifts is not None:
             cls_kw["node_redshifts"] = node_redshifts
 
-        return cls(**create_params_from_template(name, **kwargs), **cls_kw)
+        dct = create_params_from_template(name, **kwargs)
+        dct.pop("cosmo_tables")
+        return cls(**dct, **cls_kw)
 
     def clone(self, **kwargs):
         """Generate a copy of the InputParameter structure with specified changes."""
@@ -1567,7 +1823,17 @@ class InputParameters:
 
     @cached_property
     def _full_hash(self):
-        return hash(self)
+        return hash(
+            (
+                self.random_seed,
+                self.cosmo_params,
+                self.matter_options,
+                self.simulation_options,
+                self.astro_options,
+                self.astro_params,
+                self.node_redshifts,
+            )
+        )
 
     @property
     def evolution_required(self) -> bool:
@@ -1613,7 +1879,9 @@ class InputParameters:
         if remove_base_cosmo:
             del dct["cosmo_params"]["_base_cosmo"]
 
-        inpstructs = [k for k in dct if isinstance(getattr(self, k), InputStruct)]
+        inpstructs = [
+            k for k in dct if isinstance(getattr(self, k), (InputStruct | CosmoTables))
+        ]
         if only_structs:
             dct = {k: v for k, v in dct.items() if k in inpstructs}
 

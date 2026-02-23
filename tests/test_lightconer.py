@@ -74,7 +74,7 @@ def test_uniform_coevals(request, lc):
     z6 = get_uniform_coeval(redshift=6.0, fill=0)
     z7 = get_uniform_coeval(redshift=7.0, fill=1.0)
 
-    q, idx, out = next(lc.make_lightcone_slices(z6, z7))
+    _q, _idx, out = next(lc.make_lightcone_slices(z6, z7))
 
     assert np.all(out >= 0)
     assert np.all(out <= 1)
