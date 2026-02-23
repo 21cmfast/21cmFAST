@@ -8,9 +8,9 @@
 extern "C" {
 #endif
 
-void filter_box(fftwf_complex *box, int RES, int filter_type, float R, float R_param);
-void filter_box_cpu(fftwf_complex *box, int RES, int filter_type, float R, float R_param);
-void filter_box_gpu(fftwf_complex *box, int RES, int filter_type, float R, float R_param);
+void filter_box(fftwf_complex *box, int box_dim[3], int filter_type, float R, float R_param);
+void filter_box_cpu(fftwf_complex *box, int box_dim[3], int filter_type, float R, float R_param);
+void filter_box_gpu(fftwf_complex *box, int box_dim[3], int filter_type, float R, float R_param);
 int test_filter(float *input_box, double R, double R_param, int filter_flag, double *result);
 int test_filter_cpu(float *input_box, double R, double R_param, int filter_flag, double *result);
 int test_filter_gpu(float *input_box, double R, double R_param, int filter_flag, double *result);

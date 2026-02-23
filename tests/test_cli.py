@@ -301,3 +301,62 @@ class TestPRFeature:
         assert (tmp_path / "pr_feature_history.pdf").exists()
         assert (tmp_path / "pr_feature_power_history.pdf").exists()
         assert (tmp_path / "pr_feature_lightcone_2d_brightness_temp.pdf").exists()
+
+
+class TestPredictStructSize:
+    """Test the predict struct-size command."""
+
+    def test_relevant_text_is_printed(self, capsys):
+        """Test that running the size prediction CLI prints relevant text."""
+        app("predict struct-size --template simple tiny --unit mb")
+        # We just want to make sure it runs and prints something reasonable.
+        # Detailed correctness is tested in management.py tests.
+
+        out = capsys.readouterr().out
+        assert "Output Struct Sizes" in out
+        assert "InitialConditions" in out
+
+    def test_cache_off(self, capsys):
+        """Test that running with cache off affects the predicted sizes."""
+        app("predict struct-size --template simple tiny --cache-config off")
+        out_off = capsys.readouterr().out
+
+        app("predict struct-size --template simple tiny --cache-config on")
+        out_on = capsys.readouterr().out
+
+        assert out_off != out_on
+        assert "InitialConditions" in out_on
+        assert "InitialConditions" not in out_off
+
+
+class TestPredictTotalStorageSize:
+    """Test the predict total storage-size command."""
+
+    @pytest.mark.parametrize(
+        "template",
+        ["simple tiny", "Park19 small", "Munoz21 small", "latest-dhalos large"],
+    )
+    def test_relevant_text_is_printed(self, capsys, template: str):
+        """Test that running the total storage size CLI prints relevant text."""
+        app(f"predict storage-size --template {template} --unit gb")
+        # We just want to make sure it runs and prints something reasonable.
+        # Detailed correctness is tested in management.py tests.
+
+        out = capsys.readouterr().out
+        assert "Storage Sizes" in out
+
+    @pytest.mark.parametrize(
+        "template",
+        ["simple tiny", "Park19 small", "Munoz21 small", "latest-dhalos large"],
+    )
+    def test_cache_off(self, capsys, template: str):
+        """Test that running with cache off affects the predicted total storage size."""
+        app(f"predict storage-size --template {template} --cache-config off")
+        out_off = capsys.readouterr().out
+
+        app("predict storage-size --template simple tiny --cache-config on")
+        out_on = capsys.readouterr().out
+
+        assert out_off != out_on
+        assert "PerturbedField" in out_on
+        assert "PerturbedField" not in out_off

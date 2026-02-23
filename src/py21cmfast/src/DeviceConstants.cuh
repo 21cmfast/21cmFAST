@@ -11,6 +11,10 @@ extern __constant__ CosmoParams d_cosmo_params;
 extern __constant__ AstroParams d_astro_params;
 extern __constant__ double d_test_params;
 
+// Physical constants for GPU kernels
+extern __constant__ double d_delta_c_sph;
+extern __constant__ double d_delta_c_delos;
+
 #endif
 
 #endif

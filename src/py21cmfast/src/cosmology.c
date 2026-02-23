@@ -18,6 +18,23 @@
 #include "filtering.h"
 #include "logger.h"
 
+#define N_nu (1.0)      // # of heavy neutrinos (for EH trasfer function)
+#define BODE_e (0.361)  // Epsilon parameter in Bode et al. 2000 trans. funct.
+#define BODE_n (5.0)    // Eda parameter in Bode et al. 2000 trans. funct.
+#define BODE_v (1.2)    // Nu parameter in Bode et al. 2000 trans. funct.
+
+#define CLASS_FILENAME (const char *)"Transfers_z0.dat"
+#define CLASS_LENGTH 150  // length of the CLASS transfer function
+// max and min k in  CLASS transfer function, temporary until interfaced properly
+#define KBOT_CLASS (float)(1e-5)
+#define KTOP_CLASS (float)(1e3)
+
+// parameters for DM-baryon relative velocity effect on the power spectrum
+#define KP_VCB_PM (300.0)  // Mpc-1
+#define A_VCB_PM (0.24)
+#define SIGMAK_VCB_PM (0.9)
+// this is for vcb=vrms at z=20. It scales roughly as sqrt(v) and (1+z)^(-1/6.)
+
 struct CosmoConstants {
     // calculated constants in TFset_parameters() for the EH transfer function
     double sound_horizon;
@@ -47,7 +64,7 @@ double transfer_function_EH(double k) {
     q = k * pow(cosmo_consts.theta_cmb, 2) / cosmo_consts.omhh;
     gamma_eff = sqrt(alpha_nu) + (1.0 - sqrt(alpha_nu)) / (1.0 + pow(0.43 * k * sound_horizon, 4));
     q_eff = q / gamma_eff;
-    TF_m = log(E + 1.84 * cosmo_consts.beta_c * sqrt(alpha_nu) * q_eff);
+    TF_m = log(M_E + 1.84 * cosmo_consts.beta_c * sqrt(alpha_nu) * q_eff);
     TF_m /= TF_m + pow(q_eff, 2) * (14.4 + 325.0 / (1.0 + 60.5 * pow(q_eff, 1.11)));
     q_nu = 3.92 * q / sqrt(f_nu / N_nu);
     TF_m *= 1.0 + (1.2 * pow(f_nu, 0.64) * pow(N_nu, 0.3 + 0.6 * f_nu)) /
@@ -265,7 +282,8 @@ double power_in_k_integrand(double k) {
 
 // we need a version with the prefactors for output
 double power_in_k(double k) {
-    return TWOPI * PI * cosmo_consts.sigma_norm * cosmo_consts.sigma_norm * power_in_k_integrand(k);
+    return 2.0 * M_PI * M_PI * cosmo_consts.sigma_norm * cosmo_consts.sigma_norm *
+           power_in_k_integrand(k);
 }
 
 /*
@@ -288,7 +306,7 @@ double power_in_vcb(double k) {
         Throw(ValueError);
     }
 
-    return p * TWOPI * PI * cosmo_consts.sigma_norm * cosmo_consts.sigma_norm;
+    return p * 2.0 * M_PI * M_PI * cosmo_consts.sigma_norm * cosmo_consts.sigma_norm;
 }
 
 // FUNCTION sigma_z0(M)
@@ -469,7 +487,7 @@ void init_ps() {
 
     cosmo_consts.omhh =
         cosmo_params_global->OMm * cosmo_params_global->hlittle * cosmo_params_global->hlittle;
-    cosmo_consts.theta_cmb = T_cmb / 2.7;
+    cosmo_consts.theta_cmb = physconst.T_cmb / 2.7;
 
     cosmo_consts.f_nu = fmax(cosmo_params_global->OMn / cosmo_params_global->OMm, 1e-10);
     cosmo_consts.f_baryon = fmax(cosmo_params_global->OMb / cosmo_params_global->OMm, 1e-10);
@@ -560,9 +578,9 @@ double MtoR(double M) {
     // set R according to M<->R conversion defined by the filter type in
     // ../Parameter_files/COSMOLOGY.H
     if (matter_options_global->FILTER == 0)  // top hat M = (4/3) PI <rho> R^3
-        return pow(3 * M / (4 * PI * cosmo_params_global->OMm * RHOcrit), 1.0 / 3.0);
+        return pow(3 * M / (4 * M_PI * cosmo_params_global->OMm * RHOcrit), 1.0 / 3.0);
     else if (matter_options_global->FILTER == 2)  // gaussian: M = (2PI)^1.5 <rho> R^3
-        return pow(M / (pow(2 * PI, 1.5) * cosmo_params_global->OMm * RHOcrit), 1.0 / 3.0);
+        return pow(M / (pow(2 * M_PI, 1.5) * cosmo_params_global->OMm * RHOcrit), 1.0 / 3.0);
     else  // filter not defined
         LOG_ERROR("No such filter = %i. Results are bogus.", matter_options_global->FILTER);
     Throw(ValueError);
@@ -573,9 +591,9 @@ double RtoM(double R) {
     // set M according to M<->R conversion defined by the filter type in
     // ../Parameter_files/COSMOLOGY.H
     if (matter_options_global->FILTER == 0)  // top hat M = (4/3) PI <rho> R^3
-        return (4.0 / 3.0) * PI * pow(R, 3) * (cosmo_params_global->OMm * RHOcrit);
+        return (4.0 / 3.0) * M_PI * pow(R, 3) * (cosmo_params_global->OMm * RHOcrit);
     else if (matter_options_global->FILTER == 2)  // gaussian: M = (2PI)^1.5 <rho> R^3
-        return pow(2 * PI, 1.5) * cosmo_params_global->OMm * RHOcrit * pow(R, 3);
+        return pow(2 * M_PI, 1.5) * cosmo_params_global->OMm * RHOcrit * pow(R, 3);
     else  // filter not defined
         LOG_ERROR("No such filter = %i. Results are bogus.", matter_options_global->FILTER);
     Throw(ValueError);
@@ -592,10 +610,10 @@ double omega_mz(float z) {
  i.e. answer is rho / rho_crit
  In Einstein de sitter model = 178
  (fitting formula from Bryan & Norman 1998) */
-double Deltac_nonlinear(float z) {
+double deltac_nonlinear(float z) {
     double d;
     d = omega_mz(z) - 1.0;
-    return 18 * PI * PI + 82 * d - 39 * d * d;
+    return 18 * M_PI * M_PI + 82 * d - 39 * d * d;
 }
 
 /*
@@ -607,18 +625,18 @@ double Deltac_nonlinear(float z) {
  */
 double TtoM(double z, double T, double mu) {
     return 7030.97 / (cosmo_params_global->hlittle) *
-           sqrt(omega_mz(z) / (cosmo_params_global->OMm * Deltac_nonlinear(z))) *
+           sqrt(omega_mz(z) / (cosmo_params_global->OMm * deltac_nonlinear(z))) *
            pow(T / (mu * (1 + z)), 1.5);
     /*  if (!SUPRESS || (z >= z_re) ) // pre-reionization or don't worry about supression
-     return 7030.97 / hlittle * sqrt( omega_mz(z) / (OMm*Deltac_nonlinear(z)) ) *
+     return 7030.97 / hlittle * sqrt( omega_mz(z) / (OMm*deltac_nonlinear(z)) ) *
      pow( T/(mu * (1+z)), 1.5 );
 
      if (z >= z_ss) // self-shielding dominates, use T = 1e4 K
-     return 7030.97 / hlittle * sqrt( omega_mz(z) / (OMm*Deltac_nonlinear(z)) ) *
+     return 7030.97 / hlittle * sqrt( omega_mz(z) / (OMm*deltac_nonlinear(z)) ) *
      pow( 1.0e4 /(mu * (1+z)), 1.5 );
 
      // optically thin
-     return 7030.97 / hlittle * sqrt( omega_mz(z) / (OMm*Deltac_nonlinear(z)) ) *
+     return 7030.97 / hlittle * sqrt( omega_mz(z) / (OMm*deltac_nonlinear(z)) ) *
      pow( VcirtoT(v_ss, mu) /(mu * (1+z)), 1.5 );
      */
 }
@@ -742,4 +760,4 @@ double hubble(float z) {
 double t_hubble(float z) { return 1.0 / hubble(z); }
 
 /* comoving distance (in cm) per unit redshift */
-double drdz(float z) { return (1.0 + z) * C * dtdz(z); }
+double drdz(float z) { return (1.0 + z) * physconst.c_cms * dtdz(z); }

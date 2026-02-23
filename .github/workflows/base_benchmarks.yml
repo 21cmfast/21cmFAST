@@ -15,7 +15,7 @@ jobs:
           # Adding -l {0} ensures conda can be found properly in each step
           shell: bash -l {0}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
       - uses: bencherdev/bencher@main
 
       - name: Setup Miniconda

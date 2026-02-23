@@ -141,7 +141,7 @@ int ComputeLF(int nbins, int component, int NUM_OF_REDSHIFT_FOR_LF, float *z_LF,
                 // parametrization of SFR
                 SFRparam = Mhalo_i * cosmo_params_global->OMb / cosmo_params_global->OMm *
                            (double)Fstar *
-                           (double)(hubble(z_LF[i_z]) * SperYR /
+                           (double)(hubble(z_LF[i_z]) * physconst.s_per_yr /
                                     astro_params_global->t_STAR);  // units of M_solar/year
 
                 Muv_param[i] = 51.63 - 2.5 * log10(SFRparam * Luv_over_SFR);  // UV magnitude

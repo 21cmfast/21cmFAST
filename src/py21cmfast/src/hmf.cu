@@ -5,6 +5,7 @@
 #include <math.h>
 
 #include "Constants.h"
+#include "DeviceConstants.cuh"
 #include "hmf.cuh"
 
 __device__ double sheth_delc_fixed(double del, double sig)
@@ -16,11 +17,11 @@ __device__ double sheth_delc_fixed(double del, double sig)
 __device__ double get_delta_crit(int HMF, double sigma, double growthf)
 {
     if (HMF == 4)
-        return DELTAC_DELOS;
+        return d_delta_c_delos;
     if (HMF == 1)
-        return sheth_delc_fixed(Deltac / growthf, sigma) * growthf;
+        return sheth_delc_fixed(d_delta_c_sph / growthf, sigma) * growthf;
 
-    return Deltac;
+    return d_delta_c_sph;
 }
 
 #endif // _HMF_CU_IMPL

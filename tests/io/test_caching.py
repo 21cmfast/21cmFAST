@@ -298,3 +298,39 @@ class TestOutputCache:
         assert reader_spy.call_count == 0
         assert compute_spy.call_count == 1
         assert ics_regen == ic
+
+
+@pytest.mark.parametrize(
+    "inp_type",
+    [
+        "random_seed",
+        "node_redshifts",
+        "simulation_options",
+        "matter_options",
+        "cosmo_params",
+        "astro_params",
+        "astro_options",
+    ],
+)
+def test_hash_for_different_inputs(default_input_struct, inp_type):
+    """Test that the hash table is different for different inputs."""
+    new_kwargs = {
+        "random_seed": 1,
+        "node_redshifts": (30.0, 35.0),
+        "simulation_options": {"BOX_LEN": 300},
+        "matter_options": {"USE_HALO_FIELD": True},
+        "cosmo_params": {"hlittle": 0.7},
+        "astro_params": {"L_X": 38.0},
+        "astro_options": {"USE_MASS_DEPENDENT_ZETA": False},
+    }
+    hash_default = caching.OutputCache()._get_hashes(default_input_struct)
+    if inp_type not in ["random_seed", "node_redshifts"]:
+        new_input = getattr(default_input_struct, inp_type).clone(
+            **new_kwargs[inp_type]
+        )
+    else:
+        new_input = new_kwargs[inp_type]
+    new_inputs = default_input_struct.clone(**{inp_type: new_input})
+    new_hash = caching.OutputCache()._get_hashes(new_inputs)
+
+    assert new_hash != hash_default

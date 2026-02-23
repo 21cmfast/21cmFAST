@@ -356,12 +356,12 @@ __device__ double device_MtoR(double M) {
 
     double h_little = d_cosmo_params.hlittle;
     double hubble_0 = h_little * 3.2407e-18;    // s^-1
-    double rho_crit = (3.0 * hubble_0 * hubble_0 / (8.0 * PI * grav_const))
+    double rho_crit = (3.0 * hubble_0 * hubble_0 / (8.0 * M_PI * grav_const))
                       * (cm_per_mpc * cm_per_mpc * cm_per_mpc) / solar_mass;
 
     double omega_m = d_cosmo_params.OMm;
     // For top hat filter: R = (3*M / (4*PI*OMm*RHOcrit))^(1/3)
-    return pow(3.0 * M / (4.0 * PI * omega_m * rho_crit), 1.0 / 3.0);
+    return pow(3.0 * M / (4.0 * M_PI * omega_m * rho_crit), 1.0 / 3.0);
 }
 
 // Generate a random point uniformly distributed within a sphere

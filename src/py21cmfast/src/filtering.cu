@@ -126,7 +126,7 @@ __global__ void filter_box_kernel(cuFloatComplex *box, int num_pixels, int dimen
     }
 }
 
-void filter_box_gpu(fftwf_complex *box, int RES, int filter_type, float R, float R_param) {
+void filter_box_gpu(fftwf_complex *box, int box_dim[3], int filter_type, float R, float R_param) {
 
     // Check for valid filter type
     if (filter_type < 0 || filter_type > 4) {
@@ -134,27 +134,12 @@ void filter_box_gpu(fftwf_complex *box, int RES, int filter_type, float R, float
         return;
     }
 
-    // Get required values
-    int dimension, midpoint, midpoint_para, num_pixels;
-    switch(RES) {
-        case 0:
-            dimension = simulation_options_global->DIM;
-            midpoint = MIDDLE;  // midpoint of x,y = DIM / 2
-            midpoint_para = MID_PARA;  // midpoint of z = NON_CUBIC_FACTOR * HII_DIM / 2
-            num_pixels = KSPACE_NUM_PIXELS;
-            break;
-        case 1:
-            dimension = simulation_options_global->HII_DIM;
-            midpoint = HII_MIDDLE;  // midpoint of x,y = HII_DIM / 2
-            midpoint_para = HII_MID_PARA;  // midpoint of z = NON_CUBIC_FACTOR * HII_DIM / 2
-            num_pixels = HII_KSPACE_NUM_PIXELS;
-            break;
-        default:
-            LOG_ERROR("Resolution for filter functions must be 0(DIM) or 1(HII_DIM)");
-            Throw(ValueError);
-            break;
-    }
-    double delta_k = DELTA_K;
+    // Derive required values from box_dim
+    int dimension = box_dim[0];  // Assumes cubic in x,y
+    int midpoint = dimension / 2;
+    int midpoint_para = box_dim[2] / 2;
+    int num_pixels = (unsigned long long)box_dim[0] * box_dim[1] * (box_dim[2] / 2 + 1);
+    double delta_k = 2.0 * M_PI / simulation_options_global->BOX_LEN;
     double R_const;
     if (filter_type == 3) {
         R_const = exp(-R / R_param);
@@ -216,6 +201,10 @@ void filter_box_gpu(fftwf_complex *box, int RES, int filter_type, float R, float
 int test_filter_gpu(float *input_box, double R, double R_param, int filter_flag, double *result) {
     int i,j,k;
     unsigned long long int ii;
+    int box_dim[3] = {
+        simulation_options_global->HII_DIM,
+        simulation_options_global->HII_DIM,
+        (int)(simulation_options_global->NON_CUBIC_FACTOR * simulation_options_global->HII_DIM)};
 
     //setup the box
     fftwf_complex *box_unfiltered = (fftwf_complex *) fftwf_malloc(sizeof(fftwf_complex)*HII_KSPACE_NUM_PIXELS);
@@ -238,7 +227,7 @@ int test_filter_gpu(float *input_box, double R, double R_param, int filter_flag,
 
     memcpy(box_filtered, box_unfiltered, sizeof(fftwf_complex) * HII_KSPACE_NUM_PIXELS);
 
-    filter_box_gpu(box_filtered, 1, filter_flag, R, R_param);
+    filter_box_gpu(box_filtered, box_dim, filter_flag, R, R_param);
 
     dft_c2r_cube(matter_options_global->USE_FFTW_WISDOM, simulation_options_global->HII_DIM, HII_D_PARA, simulation_options_global->N_THREADS, box_filtered);
 

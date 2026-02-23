@@ -19,6 +19,7 @@ from rich.console import Console, group
 from rich.logging import RichHandler
 from rich.panel import Panel
 from rich.rule import Rule
+from rich.table import Table
 from rich.text import Text
 
 from . import __version__, plotting
@@ -61,6 +62,7 @@ app.command(
 )
 app.command(run := App(name="run", help="Run 21cmFAST simulations."))
 app.command(dev := App(name="dev", help="Run development tasks."))
+app.command(pred := App(name="predict", help="Predict properties of simulations"))
 
 
 def print_banner():
@@ -756,6 +758,90 @@ def pr_feature(
     ax[0].legend()
 
     plt.savefig(f"{outdir}/pr_feature_power_history.pdf")
+
+
+@pred.command(name="struct-size")
+def predict_struct_size(
+    param_selection: ParameterSelection = ParameterSelection(),
+    user_params: Parameters = Parameters(),
+    unit: Literal["b", "kb", "mb", "gb"] | None = None,
+    cache_config: Literal["on", "off", "noloop", "last_step_only"] = "on",
+):
+    """Compute the required storage per output kind for given inputs."""
+    from .management import get_expected_sizes
+
+    inputs, _ = _get_inputs(param_selection, user_params)
+    sizes = get_expected_sizes(
+        inputs, cache_config=getattr(CacheConfig, cache_config)()
+    )
+    if len(sizes) == 0:
+        cns.print("No output structs are expected for given inputs and cache-config.")
+        return
+
+    units = ["b", "kb", "mb", "gb", "tb"]
+    if unit is None:
+        bigness = int((np.log(list(sizes.values())) / np.log(1024)).max())
+    else:
+        bigness = units.index(unit)
+
+    table = Table(title="Output Struct Sizes")
+    table.add_column("Struct Name")
+    table.add_column("Size")
+    table.add_column("Unit")
+
+    for name, size in sizes.items():
+        table.add_row(name, f"{size / 1024**bigness:.2f}", units[bigness].upper())
+    table.add_section()
+    table.add_row(
+        "Total", f"{sum(sizes.values()) / 1024**bigness:.2f}", units[bigness].upper()
+    )
+    cns.print(table)
+
+
+@pred.command(name="storage-size")
+def predict_storage_size(
+    param_selection: ParameterSelection = ParameterSelection(),
+    user_params: Parameters = Parameters(),
+    min_evolved_redshift: Annotated[
+        float, Parameter(name=("--zmin-evolution", "--zmin"))
+    ] = 5.5,
+    unit: Literal["b", "kb", "mb", "gb"] | None = None,
+    cache_config: Literal["on", "off", "noloop", "last_step_only"] = "on",
+):
+    """Compute the required storage for an entire run."""
+    from .management import get_total_storage_size
+
+    inputs, _ = _get_inputs(param_selection, user_params)
+    inputs = inputs.with_logspaced_redshifts(zmin=min_evolved_redshift)
+
+    sizes = get_total_storage_size(
+        inputs, cache_config=getattr(CacheConfig, cache_config)()
+    )
+
+    if len(sizes) == 0:
+        cns.print("No output structs are expected for given inputs and cache-config.")
+        return
+
+    units = ["b", "kb", "mb", "gb", "tb"]
+    if unit is None:
+        bigness = int(np.log(max(size for _, size in sizes.values())) / np.log(1024))
+    else:
+        bigness = units.index(unit)
+
+    table = Table(title="Storage Sizes")
+    table.add_column("Struct Name")
+    table.add_column(f"Size [{units[bigness].upper()}]")
+    table.add_column("Quantity")
+
+    total_size = 0
+    total_quant = 0
+    for name, (quant, size) in sizes.items():
+        total_size += size
+        total_quant += quant
+        table.add_row(name, f"{size / 1024**bigness:.2f}", f"{quant}")
+    table.add_section()
+    table.add_row("Total", f"{total_size / 1024**bigness:.2f}", f"{total_quant}")
+    cns.print(table)
 
 
 if __name__ == "__main__":

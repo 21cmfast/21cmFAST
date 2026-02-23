@@ -237,7 +237,8 @@ double lx_on_sfr_PL_Kaur(double sfr, double metallicity, double lx_constant) {
     double cross_index = 0.0;
     double l10z = log10(metallicity);
 
-    double lx_over_sfr = (cross_index * l10z + sfr_index) * log10(sfr * SperYR) + z_index * l10z;
+    double lx_over_sfr =
+        (cross_index * l10z + sfr_index) * log10(sfr * physconst.s_per_yr) + z_index * l10z;
     return pow(10, lx_over_sfr) * lx_constant;
 }
 
@@ -365,7 +366,7 @@ void get_halo_metallicity(double sfr, double stellar, double redshift, double *z
     //   where M* ~ 1e-300, but if we change the SSFR relation to a MAR relation
     //   we will need to change this as well
     if (stellar > 0 && sfr > 0.) {
-        z_denom = (1.28825e10 * pow(sfr * SperYR, 0.56));
+        z_denom = (1.28825e10 * pow(sfr * physconst.s_per_yr, 0.56));
         stellar_term = pow(1 + pow(stellar / z_denom, -2.1), -0.148);
     }
 
@@ -383,13 +384,13 @@ void get_halo_xray(double sfr, double sfr_mini, double metallicity, double xray_
     double rng_factor = exp(xray_rng * consts->sigma_xray - stoc_adjustment_term);
 
     double lx_over_sfr = get_lx_on_sfr(sfr, metallicity, consts->l_x);
-    double xray = lx_over_sfr * (sfr * SperYR) * rng_factor;
+    double xray = lx_over_sfr * (sfr * physconst.s_per_yr) * rng_factor;
 
     if (astro_options_global->USE_MINI_HALOS) {
         // Since there *are* some SFR-dependent
         // models, this is done separately
         lx_over_sfr = get_lx_on_sfr(sfr_mini, metallicity, consts->l_x_mini);
-        xray += lx_over_sfr * (sfr_mini * SperYR) * rng_factor;
+        xray += lx_over_sfr * (sfr_mini * physconst.s_per_yr) * rng_factor;
     }
 
     *xray_out = xray;

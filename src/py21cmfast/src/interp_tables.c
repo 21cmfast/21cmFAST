@@ -30,6 +30,8 @@
 #define LOG10_MTURN_MIN ((double)(5. - 9e-8))
 #define MAX_ITER_RF 200
 #define N_MASS_INTERP 300
+/* Number of interpolation points for the interpolation table for the value of the density field */
+#define N_DENS_INTERP (int)(400)
 
 // we need to define a density minimum for the tables, since we are in lagrangian density / linear
 // growth it's possible to go below -1 so we explicitly set a minimum here which sets table limits
@@ -230,18 +232,17 @@ void initialise_FgtrM_delta_table(double min_dens, double max_dens, double zpp, 
                     min_dens, max_dens, smin_zpp, smax_zpp);
 
     if (!fcoll_conditional_table.allocated) {
-        allocate_RGTable1D_f(dens_Ninterp, &fcoll_conditional_table);
+        allocate_RGTable1D_f(N_DENS_INTERP, &fcoll_conditional_table);
     }
     fcoll_conditional_table.x_min = min_dens;
-    fcoll_conditional_table.x_width = (max_dens - min_dens) / (dens_Ninterp - 1.);
+    fcoll_conditional_table.x_width = (max_dens - min_dens) / (N_DENS_INTERP - 1.);
     if (!dfcoll_conditional_table.allocated) {
-        allocate_RGTable1D_f(dens_Ninterp, &dfcoll_conditional_table);
+        allocate_RGTable1D_f(N_DENS_INTERP, &dfcoll_conditional_table);
     }
     dfcoll_conditional_table.x_min = fcoll_conditional_table.x_min;
     dfcoll_conditional_table.x_width = fcoll_conditional_table.x_width;
 
-    // dens_Ninterp is a global define, probably shouldn't be
-    for (i = 0; i < dens_Ninterp; i++) {
+    for (i = 0; i < N_DENS_INTERP; i++) {
         dens = fcoll_conditional_table.x_min + i * fcoll_conditional_table.x_width;
         fcoll_conditional_table.y_arr[i] = FgtrM_bias_fast(growth_zpp, dens, smin_zpp, smax_zpp);
         dfcoll_conditional_table.y_arr[i] = dfcoll_dz(zpp, smin_zpp, dens, smax_zpp);

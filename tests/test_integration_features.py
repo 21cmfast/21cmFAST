@@ -145,7 +145,7 @@ def test_power_spectra_lightcone(name, module_direc, plt, benchmark):
     # which show ~4% platform-dependent variance. Can be tightened later.
     for key, value in true_global.items():
         print(f"Testing Global {key}")
-        assert np.allclose(value, lc.global_quantities[key], atol=0, rtol=5e-2)
+        np.testing.assert_allclose(value, lc.global_quantities[key], atol=0, rtol=5e-2)
 
 
 plot_ylab = {
