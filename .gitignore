@@ -62,3 +62,4 @@ tests/integration-test-plots/*.pdf
 devel/*.bin
 devel/*.html
 docs/tutorials/cache/
+docs/autoapi/

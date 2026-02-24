@@ -126,6 +126,7 @@ NB_MODULE(c_21cmfast, m) {
     nb::class_<AstroOptions>(m, "AstroOptions")
         .def(nb::init<>())
         .def_rw("USE_MINI_HALOS", &AstroOptions::USE_MINI_HALOS)
+        .def_rw("USE_X_RAY_HEATING", &AstroOptions::USE_X_RAY_HEATING)
         .def_rw("USE_CMB_HEATING", &AstroOptions::USE_CMB_HEATING)
         .def_rw("USE_LYA_HEATING", &AstroOptions::USE_LYA_HEATING)
         .def_rw("INHOMO_RECO", &AstroOptions::INHOMO_RECO)
