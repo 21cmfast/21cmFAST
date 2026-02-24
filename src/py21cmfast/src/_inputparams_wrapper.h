@@ -98,6 +98,8 @@ typedef struct AstroParams {
     // Escape Fraction
     float F_ESC10;
     float ALPHA_ESC;
+    float BETA_ESC;
+    float BETA_ESC_MINI;
     float F_ESC7_MINI;
 
     float T_RE;
