@@ -1,6 +1,15 @@
 Miscellaneous FAQs
 ==================
 
+My global signal doesn't make sense, what's wrong?
+--------------------------------------------------
+If you plot the 21-cm global signal as a function of redshift, and it doesn't look as expected, it is very likely due to setting ``USE_TS_FLUCT=False``.
+
+Historically, ``21cmFAST`` was initially designed to simulate very fast reionization maps of the Universe. At sufficiently low redshifts, due to strong Lyman-alpha coupling and X-ray heating, the spin temperature of the IGM exceeds the CMB temperature to such an extent that the brightness temperature does not depend on the spin temperature. This is known as the "saturation limit". For that reason, in order to speed up the calculations, the default value of ``USE_TS_FLUCT`` is ``False``, namely ``21cmFAST`` assumes by default that the saturation limit holds at all redshifts and therefore does not bother to calculate the spin temperature. At sufficiently high redshifts however the saturation limit breaks, which might explain why your 21-cm global signal increases with redshift and doesn't exhibit any absorption features. Try to set ``USE_TS_FLUCT=True`` to recover the true global signal when the saturation limit is relaxed (note that the runtime is expected to increase when ``USE_TS_FLUCT=True``).
+
+In general, before running a full lightcone simulation via ``run_lightcone``, it's a good practice to make a quick calculation with ``run_global_evolution`` (find more information and limitations of this feature in `the global evolution tutorial <../tutorials/global_evolution.ipynb>`_).
+
+
 My run seg-faulted, what should I do?
 -------------------------------------
 Since ``21cmFAST`` is written in C, there is the off-chance that something

@@ -9,6 +9,7 @@ The following introductory tutorials will help you get started with ``21cmFAST``
    tutorials/defining_input_params
    tutorials/coeval_cubes
    tutorials/lightcones
+   tutorials/global_evolution
    tutorials/caching
    tutorials/cli_usage
 
