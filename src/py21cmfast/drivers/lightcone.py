@@ -21,7 +21,7 @@ from ..io.caching import CacheConfig, OutputCache
 from ..lightconers import Lightconer, RectilinearLightconer
 from ..rsds import apply_rsds as do_rsds
 from ..rsds import include_dvdr_in_tau21 as do_dvdr_in_tau21
-from ..wrapper.cfuncs import init_heat_tables
+from ..wrapper.cfuncs import InitManager, init_heat_tables
 from ..wrapper.inputs import InputParameters
 from ..wrapper.outputs import (
     BrightnessTemp,
@@ -584,6 +584,7 @@ def generate_lightcone(
     regenerate: bool = True,
     progressbar: bool = False,
     lightcone_filename: str | Path | None = None,
+    **kwargs,
 ):
     r"""
     Create a generator function for a lightcone run.
@@ -652,7 +653,9 @@ def generate_lightcone(
     iokw = {
         "cache": cache,
         "regenerate": regenerate,
-        "called_by_higher_level": True,
+        "init_manager": kwargs.setdefault(
+            "init_manager", InitManager.all_initialized()
+        ),
     }
 
     (

@@ -279,15 +279,13 @@ def calibrate_photon_cons(
     # avoiding circular imports by importing here
     from ..drivers.single_field import compute_ionization_field, perturb_field
 
-    # Remove called_by_higher_level from kwargs for the calibration loop.
+    # Remove init_manager from kwargs for the calibration loop.
     # The calls below use inputs_calibration (a derived InputParameters), not
     # the inputs that was already broadcast by the high-level caller. Since
-    # called_by_higher_level=True would suppress the broadcast inside single_field_func,
-    # those C calls would run against the wrong global structs. By forcing
-    # called_by_higher_level=False here, each call broadcasts its own inputs correctly.
-    calibration_kwargs = {
-        k: v for k, v in kwargs.items() if k != "called_by_higher_level"
-    }
+    # init_manager.broadcast_inputs=True would suppress the broadcast inside single_field_func,
+    # those C calls would run against the wrong global structs. By removing
+    # init_manager here, each call broadcasts its own inputs correctly.
+    calibration_kwargs = {k: v for k, v in kwargs.items() if k != "init_manager"}
 
     # Create a new astro_params and astro_options just for the photon_cons correction
     # NOTE: Since the calibration cannot do INHOMO_RECO, we set the R_BUBBLE_MAX

@@ -4,8 +4,9 @@ import functools
 import logging
 from collections.abc import Callable, Sequence
 from functools import cache
-from typing import Literal
+from typing import Literal, Self
 
+import attrs
 import numpy as np
 from numpy.typing import NDArray
 from scipy.interpolate import interp1d
@@ -23,6 +24,21 @@ logger = logging.getLogger(__name__)
 # These decorators are for lower functions which are called directly in one or two lines, like delta_crit
 
 # TODO: a lot of these assume input as numpy arrays via use of .shape, explicitly require this
+
+
+@attrs.define
+class InitManager:
+    """Class for tracking the initialization states in the C backend."""
+
+    broadcast_inputs: bool = False
+    init_ps: bool = False
+    init_sigma: bool = False
+    init_heat: bool = False
+
+    @classmethod
+    def all_initialized(cls) -> Self:
+        """Return an InitManager with all fields set to True."""
+        return cls(**{f.name: True for f in attrs.fields(cls)})
 
 
 def broadcast_input_struct(*args, skip: bool = False, **kwargs):
@@ -123,6 +139,7 @@ def _make_lifecycle_decorator(
     *,
     init_func: Callable,
     free_func: Callable,
+    manager_field: str,
     next_decorator: Callable | None = None,
     is_generator: bool = False,
 ) -> Callable:
@@ -130,35 +147,56 @@ def _make_lifecycle_decorator(
 
     def _make_wrapper(func):
         def wrapper(*args, **kwargs):
-            skip = kwargs.get("called_by_higher_level", False)
+            init_manager = kwargs.get("init_manager") or InitManager()
+            kwargs["init_manager"] = init_manager
+            skip = getattr(init_manager, manager_field)
             init_func(*args, skip=skip, **kwargs)
+            if not skip:
+                setattr(init_manager, manager_field, True)
             try:
                 out = func(*args, **kwargs)
             except TypeError as e:
-                if "called_by_higher_level" in str(e):
-                    del kwargs["called_by_higher_level"]
+                if "init_manager" in str(e):
+                    del kwargs["init_manager"]
                     try:
                         out = func(*args, **kwargs)
                     except Exception:
+                        if not skip:
+                            setattr(init_manager, manager_field, False)
                         free_func(*args, skip=skip, **kwargs)
                         raise
                 else:
+                    if not skip:
+                        setattr(init_manager, manager_field, False)
                     free_func(*args, skip=skip, **kwargs)
                     raise
             except Exception:
+                if not skip:
+                    setattr(init_manager, manager_field, False)
                 free_func(*args, skip=skip, **kwargs)
                 raise
+            if not skip:
+                setattr(init_manager, manager_field, False)
             free_func(*args, skip=skip, **kwargs)
             return out
 
         def generator_wrapper(*args, **kwargs):
-            init_func(*args, skip=False, **kwargs)
+            init_manager = kwargs.get("init_manager") or InitManager()
+            kwargs["init_manager"] = init_manager
+            skip = getattr(init_manager, manager_field)
+            init_func(*args, skip=skip, **kwargs)
+            if not skip:
+                setattr(init_manager, manager_field, True)
             try:
                 yield from func(*args, **kwargs)
             except Exception:
-                free_func(*args, skip=False, **kwargs)
+                if not skip:
+                    setattr(init_manager, manager_field, False)
+                free_func(*args, skip=skip, **kwargs)
                 raise
-            free_func(*args, skip=False, **kwargs)
+            if not skip:
+                setattr(init_manager, manager_field, False)
+            free_func(*args, skip=skip, **kwargs)
 
         result = generator_wrapper if is_generator else wrapper
         functools.update_wrapper(result, func)
@@ -174,6 +212,7 @@ def c_wrapper(*, is_generator: bool = False) -> Callable:
     return _make_lifecycle_decorator(
         init_func=broadcast_input_struct,
         free_func=free_cosmo_tables,
+        manager_field="broadcast_inputs",
         next_decorator=None,
         is_generator=is_generator,
     )
@@ -184,6 +223,7 @@ def init_backend_ps(*, is_generator: bool = False) -> Callable:
     return _make_lifecycle_decorator(
         init_func=initialize_power_spectrum,
         free_func=free_power_spectrum,
+        manager_field="init_ps",
         next_decorator=c_wrapper,
         is_generator=is_generator,
     )
@@ -194,6 +234,7 @@ def init_sigma_table(*, is_generator: bool = False) -> Callable:
     return _make_lifecycle_decorator(
         init_func=initialize_sigma_tables,
         free_func=free_sigma_tables,
+        manager_field="init_sigma",
         next_decorator=init_backend_ps,
         is_generator=is_generator,
     )
@@ -204,6 +245,7 @@ def init_heat_tables(*, is_generator: bool = False) -> Callable:
     return _make_lifecycle_decorator(
         init_func=initialize_heat,
         free_func=free_heat,
+        manager_field="init_heat",
         next_decorator=init_sigma_table,
         is_generator=is_generator,
     )
@@ -265,7 +307,7 @@ def get_halo_catalog_buffer_size(
     hbuffer_size = get_expected_nhalo(
         redshift=redshift,
         inputs=inputs,
-        called_by_higher_level=kwargs.get("called_by_higher_level", True),
+        init_manager=kwargs.get("init_manager", InitManager.all_initialized()),
     )
     hbuffer_size = int((hbuffer_size + 1) * config["HALO_CATALOG_MEM_FACTOR"])
 

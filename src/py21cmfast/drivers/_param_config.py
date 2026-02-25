@@ -14,6 +14,7 @@ from ..input_serialization import convert_inputs_to_dict
 from ..io import h5
 from ..io.caching import OutputCache
 from ..utils import recursive_difference
+from ..wrapper.cfuncs import InitManager
 from ..wrapper.inputs import InputParameters
 from ..wrapper.outputs import HaloCatalog, OutputStruct, OutputStructZ, _HashType
 from ..wrapper.photoncons import _photoncons_state
@@ -377,7 +378,7 @@ class _OutputStructComputationInspect:
                 obj = self._kls.new(
                     inputs=inputs,
                     redshift=current_redshift,
-                    called_by_higher_level=True,
+                    init_manager=InitManager.all_initialized(),
                 )
             else:
                 obj = self._kls.new(inputs=inputs, redshift=current_redshift)
@@ -451,7 +452,7 @@ class single_field_func(_OutputStructComputationInspect):  # noqa: N801
             kwargs["inputs"] = inputs
 
         if out is None:
-            kwargs.setdefault("called_by_higher_level", False)
+            kwargs.setdefault("init_manager", InitManager())
             out = self._func(**kwargs)
             self._handle_write_to_cache(cache, write, out)
 

@@ -14,6 +14,7 @@ from astropy.cosmology import z_at_value
 
 from ..wrapper.arrays import Array
 from ..wrapper.cfuncs import (
+    InitManager,
     c_wrapper,
     init_backend_ps,
     init_heat_tables,
@@ -205,7 +206,7 @@ def determine_halo_catalog(
         redshift=redshift,
         desc_redshift=descendant_halos.redshift,
         inputs=inputs,
-        called_by_higher_level=True,
+        init_manager=InitManager.all_initialized(),
     )
 
     # Run the C Code

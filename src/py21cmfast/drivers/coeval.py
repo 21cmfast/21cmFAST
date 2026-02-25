@@ -19,7 +19,7 @@ from ..io import h5
 from ..io.caching import CacheConfig, OutputCache, RunCache
 from ..rsds import apply_rsds, include_dvdr_in_tau21
 from ..wrapper.arrays import Array
-from ..wrapper.cfuncs import init_heat_tables
+from ..wrapper.cfuncs import InitManager, init_heat_tables
 from ..wrapper.inputs import InputParameters
 from ..wrapper.outputs import (
     BrightnessTemp,
@@ -395,7 +395,7 @@ def evolve_halos(
     initial_conditions: InitialConditions,
     cache: OutputCache,
     regenerate: bool,
-    called_by_higher_level: bool = False,
+    init_manager: InitManager = InitManager(),
     progressbar: bool = False,
 ):
     """
@@ -444,7 +444,7 @@ def evolve_halos(
         "initial_conditions": initial_conditions,
         "cache": cache,
         "regenerate": regenerate,
-        "called_by_higher_level": called_by_higher_level,
+        "init_manager": init_manager,
     }
     halos_desc = None
     with _progressbar(disable=not progressbar) as _progbar:
@@ -487,6 +487,7 @@ def generate_coeval(
     initial_conditions: InitialConditions | None = None,
     cleanup: bool = True,
     progressbar: bool = False,
+    **kwargs,
 ):
     r"""
     Perform a full coeval simulation of all fields at given redshifts.
@@ -565,7 +566,9 @@ def generate_coeval(
     iokw = {
         "regenerate": regenerate,
         "cache": cache,
-        "called_by_higher_level": True,
+        "init_manager": kwargs.setdefault(
+            "init_manager", InitManager.all_initialized()
+        ),
     }
 
     if not hasattr(out_redshifts, "__len__"):
