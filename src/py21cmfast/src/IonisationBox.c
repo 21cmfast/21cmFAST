@@ -1323,10 +1323,6 @@ int ComputeIonizedBox(float redshift, float prev_redshift, PerturbedField *pertu
 
         double global_xH;
 
-        if (!astro_options_global->USE_TS_FLUCT) {
-            init_heat();
-        }
-
         struct IonBoxConstants ionbox_constants;
         set_ionbox_constants(redshift, prev_redshift, &ionbox_constants);
 
@@ -1591,10 +1587,6 @@ int ComputeIonizedBox(float redshift, float prev_redshift, PerturbedField *pertu
             fftwf_cleanup_threads();
             fftwf_cleanup();
             fftwf_forget_wisdom();
-        }
-
-        if (!astro_options_global->USE_TS_FLUCT) {
-            destruct_heat();
         }
 
         LOG_DEBUG("global_xH = %e", global_xH);

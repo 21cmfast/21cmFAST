@@ -79,9 +79,10 @@ void initialise_GL(double lnM_Min, double lnM_Max);
 /*---------------------------*/
 
 /* Free memory routines*/
+void destruct_heat();
+void freeSigmaMInterpTable();
 void free_ps();
 void Free_cosmo_tables_global();
-void freeSigmaMInterpTable();
 
 /*---------------------------*/
 

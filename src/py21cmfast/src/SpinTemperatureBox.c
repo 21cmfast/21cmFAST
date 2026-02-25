@@ -213,9 +213,6 @@ void alloc_global_arrays() {
 }
 
 void free_ts_global_arrays() {
-    // free external interpolation tables that are initialized in heating_healper_progs.c
-    destruct_heat();
-
     int i;
     // frequency integrals
     for (i = 0; i < x_int_NXHII; i++) {
@@ -1378,8 +1375,6 @@ void ts_main(float redshift, float prev_redshift, float perturbed_field_redshift
     // allocate the global arrays we always use
     if (!TsInterpArraysInitialised) {
         alloc_global_arrays();
-        // Initialize heating interpolation arrays
-        init_heat();
     }
 
     // NOTE: For the code to work, previous_spin_temp MUST be allocated &

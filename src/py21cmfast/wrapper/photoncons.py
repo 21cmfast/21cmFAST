@@ -389,6 +389,7 @@ def calibrate_photon_cons(
         sigma_min_mass = 5e2
         sigma_max_mass = 1e20
         lib.initialiseSigmaMInterpTable(sigma_min_mass, sigma_max_mass)
+    lib.init_heat()
 
 
 # (Jdavies): I needed a function to access the delta z from the wrapper

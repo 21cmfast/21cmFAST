@@ -12,7 +12,7 @@ from .. import __version__
 from ..io import h5
 from ..io.caching import CacheConfig
 from ..wrapper.arrays import Array
-from ..wrapper.cfuncs import evaluate_Nion_z, init_sigma_table
+from ..wrapper.cfuncs import evaluate_Nion_z, init_heat_tables
 from ..wrapper.inputs import InputParameters
 from ..wrapper.outputs import (
     BrightnessTemp,
@@ -228,7 +228,7 @@ class GlobalEvolution:
 
 
 @high_level_func
-@init_sigma_table(is_generator=True)
+@init_heat_tables(is_generator=True)
 def generate_global_evolution(
     *,
     inputs: InputParameters,

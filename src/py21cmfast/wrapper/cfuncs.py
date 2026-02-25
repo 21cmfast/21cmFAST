@@ -172,7 +172,7 @@ def init_backend_ps(*, is_generator: bool = False) -> Callable:
             except Exception:
                 # Free power spectrum (error path), unless this function was called by a higher level function
                 free_power_spectrum(skip=called_by_higher_level)
-                raise
+                raise  # Re-raise the original exception
             # Free power spectrum (success path), unless this function was called by a higher level function
             free_power_spectrum(skip=called_by_higher_level)
             return out
@@ -204,7 +204,7 @@ def init_sigma_table(*, is_generator: bool = False) -> Callable:
 
     def _make_wrapper(func):
         def wrapper(*args, **kwargs):
-            called_by_higher_level = kwargs.pop("called_by_higher_level", False)
+            called_by_higher_level = kwargs.get("called_by_higher_level", False)
             inputs = _get_inputs_from_call(*args, **kwargs)
             # Initialize sigma tables, unless this function was called by a higher level function
             if (
@@ -216,6 +216,31 @@ def init_sigma_table(*, is_generator: bool = False) -> Callable:
                 lib.initialiseSigmaMInterpTable(sigma_min_mass, sigma_max_mass)
             try:
                 out = func(*args, **kwargs)
+            except TypeError as e:
+                if "called_by_higher_level" in str(e):
+                    # called_by_higher_level is not accepted by this function — remove and retry
+                    del kwargs["called_by_higher_level"]
+                    try:
+                        out = func(*args, **kwargs)
+                    except Exception:
+                        # Free sigma tables (general error path), unless this function was called by a higher level function
+                        if (
+                            not called_by_higher_level
+                            and inputs.matter_options.USE_INTERPOLATION_TABLES
+                            != "no-interpolation"
+                        ):
+                            lib.freeSigmaMInterpTable()
+                        raise  # Re-raise the original exception
+                else:
+                    # Free sigma tables (TypeError path, not becaause of called_by_higher_level),
+                    # unless this function was called by a higher level function
+                    if (
+                        not called_by_higher_level
+                        and inputs.matter_options.USE_INTERPOLATION_TABLES
+                        != "no-interpolation"
+                    ):
+                        lib.freeSigmaMInterpTable()
+                    raise  # Re-raise the original exception
             except Exception:
                 # Free sigma tables (error path), unless this function was called by a higher level function
                 if (
@@ -256,6 +281,49 @@ def init_sigma_table(*, is_generator: bool = False) -> Callable:
         result = generator_wrapper if is_generator else wrapper
         functools.update_wrapper(result, func)
         wrapped_func = init_backend_ps(is_generator=is_generator)
+        return wrapped_func(result)
+
+    return _make_wrapper
+
+
+def init_heat_tables(*, is_generator: bool = False) -> Callable:
+    """Initialise the the heat interpolation tables before calling the function."""
+
+    def _make_wrapper(func):
+        def wrapper(*args, **kwargs):
+            called_by_higher_level = kwargs.pop("called_by_higher_level", False)
+            # Initialize heat tables, unless this function was called by a higher level function
+            if not called_by_higher_level:
+                lib.init_heat()
+            try:
+                out = func(*args, **kwargs)
+            except Exception:
+                # Free heat tables (error path), unless this function was called by a higher level function
+                if not called_by_higher_level:
+                    lib.destruct_heat()
+                raise  # Re-raise the original exception
+            # Free heat tables (success path), unless this function was called by a higher level function
+            if not called_by_higher_level:
+                lib.destruct_heat()
+            return out
+
+        def generator_wrapper(*args, **kwargs):
+            # NOTE: generator_wrapper is only used for high-level functions, which are
+            # never called by a higher level function, so we always initialize and free.
+            # Initialize heat tables
+            lib.init_heat()
+            try:
+                yield from func(*args, **kwargs)
+            except Exception:
+                # Free heat tables (error path)
+                lib.destruct_heat()
+                raise  # Re-raise the original exception
+            # Free heat tables (success path)
+            lib.destruct_heat()
+
+        result = generator_wrapper if is_generator else wrapper
+        functools.update_wrapper(result, func)
+        wrapped_func = init_sigma_table(is_generator=is_generator)
         return wrapped_func(result)
 
     return _make_wrapper

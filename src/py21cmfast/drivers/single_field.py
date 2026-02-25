@@ -13,7 +13,12 @@ from astropy import units as un
 from astropy.cosmology import z_at_value
 
 from ..wrapper.arrays import Array
-from ..wrapper.cfuncs import c_wrapper, init_backend_ps, init_sigma_table
+from ..wrapper.cfuncs import (
+    c_wrapper,
+    init_backend_ps,
+    init_heat_tables,
+    init_sigma_table,
+)
 from ..wrapper.inputs import InputParameters
 from ..wrapper.outputs import (
     BrightnessTemp,
@@ -593,7 +598,7 @@ def compute_xray_source_field(
 
 
 @single_field_func
-@init_sigma_table(is_generator=False)
+@init_heat_tables(is_generator=False)
 def compute_spin_temperature(
     *,
     initial_conditions: InitialConditions,
@@ -668,7 +673,7 @@ def compute_spin_temperature(
 
 
 @single_field_func
-@init_sigma_table(is_generator=False)
+@init_heat_tables(is_generator=False)
 def compute_ionization_field(
     *,
     perturbed_field: PerturbedField,
