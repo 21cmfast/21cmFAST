@@ -121,7 +121,6 @@ int ComputeHaloCatalog(float redshift_desc, float redshift, InitialConditions *b
         // simulation_options_global->N_THREADS;
 
 #if LOG_LEVEL >= DEBUG_LEVEL
-        initialiseSigmaMInterpTable(M_MIN, M_MAX_INTEGRAL);
         double nhalo_debug = Nhalo_General(redshift, log(M_MIN), log(M_MAX_INTEGRAL)) * VOLUME *
                              cosmo_params_global->OMm * RHOcrit;
         // expected halos above minimum filter mass

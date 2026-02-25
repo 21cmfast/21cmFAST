@@ -1393,18 +1393,6 @@ void ts_main(float redshift, float prev_redshift, float perturbed_field_redshift
     // setup the R_ct 1D arrays
     setup_z_edges(redshift);
 
-    // with the TtoM limit, we use the largest redshift, to cover the whole range
-    double M_MIN_tb = M_min_R[astro_params_global->N_STEP_TS - 1];
-    // This M_MIN just sets the sigma table range, the minimum mass for the integrals is set per
-    // radius in setup_z_edges
-    if (astro_options_global->INTEGRATION_METHOD_ATOMIC == 2 ||
-        astro_options_global->INTEGRATION_METHOD_MINI == 2)
-        M_MIN_tb = fmin(MMIN_FAST, M_MIN_tb);
-
-    // we need a larger table here due to the large radii
-    if (matter_options_global->USE_INTERPOLATION_TABLES > 0)
-        initialiseSigmaMInterpTable(M_MIN_tb / 2, 1e20);
-
     // now that we have the sigma table we can assign the sigma arrays
     for (R_ct = 0; R_ct < astro_params_global->N_STEP_TS; R_ct++) {
         sigma_min[R_ct] = EvaluateSigma(log(M_min_R[R_ct]));

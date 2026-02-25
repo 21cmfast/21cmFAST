@@ -49,6 +49,12 @@ def free_cosmo_tables(skip=False):
         lib.Free_cosmo_tables_global()
 
 
+def free_power_spectrum(skip=False):
+    """Free the memory of power spectrum that was allocated at the C backend."""
+    if not skip:
+        lib.free_ps()
+
+
 def _get_inputs_from_call(*args, **kwargs) -> InputParameters:
     """Extract InputParameters from the arguments of a C-wrapped call."""
     inputs = kwargs.get("inputs")
@@ -142,33 +148,48 @@ def init_backend_ps(*, is_generator: bool = False) -> Callable:
 
     def _make_wrapper(func):
         def wrapper(*args, **kwargs):
-            called_by_higher_level = kwargs.pop("called_by_higher_level", False)
+            called_by_higher_level = kwargs.get("called_by_higher_level", False)
             # Initialize power spectrum, unless this function was called by a higher level function
             if not called_by_higher_level:
                 lib.init_ps()
             try:
                 out = func(*args, **kwargs)
+            except TypeError as e:
+                if "called_by_higher_level" in str(e):
+                    # called_by_higher_level is not accepted by this function — remove and retry
+                    del kwargs["called_by_higher_level"]
+                    try:
+                        out = func(*args, **kwargs)
+                    except Exception:
+                        # Free power spectrum (general error path), unless this function was called by a higher level function
+                        free_power_spectrum(skip=called_by_higher_level)
+                        raise  # Re-raise the original exception
+                else:
+                    # Free power spectrum (TypeError path, not becaause of called_by_higher_level),
+                    # unless this function was called by a higher level function
+                    free_power_spectrum(skip=called_by_higher_level)
+                    raise  # Re-raise the original exception
             except Exception:
                 # Free power spectrum (error path), unless this function was called by a higher level function
-                if not called_by_higher_level:
-                    lib.free_ps()
+                free_power_spectrum(skip=called_by_higher_level)
                 raise
             # Free power spectrum (success path), unless this function was called by a higher level function
-            if not called_by_higher_level:
-                lib.free_ps()
+            free_power_spectrum(skip=called_by_higher_level)
             return out
 
         def generator_wrapper(*args, **kwargs):
+            # NOTE: generator_wrapper is only used for high-level functions, which are
+            # never called by a higher level function, so we always initialize and free.
             # Initialize power spectrum
             lib.init_ps()
             try:
                 yield from func(*args, **kwargs)
             except Exception:
                 # Free power spectrum (error path)
-                lib.free_ps()
-                raise
+                free_power_spectrum()
+                raise  # Re-raise the original exception
             # Free power spectrum (success path)
-            lib.free_ps()
+            free_power_spectrum()
 
         result = generator_wrapper if is_generator else wrapper
         functools.update_wrapper(result, func)
@@ -178,22 +199,66 @@ def init_backend_ps(*, is_generator: bool = False) -> Callable:
     return _make_wrapper
 
 
-def init_sigma_table(func: Callable) -> Callable:
-    """Initialise the the sigma interpolation table before calling the function.
+def init_sigma_table(*, is_generator: bool = False) -> Callable:
+    """Initialise the the sigma interpolation table before calling the function."""
 
-    This should be added as a decorator to any function which calls lib.EvaluateSigma
-    or the sigma tables directly.
-    """
+    def _make_wrapper(func):
+        def wrapper(*args, **kwargs):
+            called_by_higher_level = kwargs.pop("called_by_higher_level", False)
+            inputs = _get_inputs_from_call(*args, **kwargs)
+            # Initialize sigma tables, unless this function was called by a higher level function
+            if (
+                not called_by_higher_level
+                and inputs.matter_options.USE_INTERPOLATION_TABLES != "no-interpolation"
+            ):
+                sigma_min_mass = kwargs.get("M_min", 5e2)
+                sigma_max_mass = kwargs.get("M_max", 1e20)
+                lib.initialiseSigmaMInterpTable(sigma_min_mass, sigma_max_mass)
+            try:
+                out = func(*args, **kwargs)
+            except Exception:
+                # Free sigma tables (error path), unless this function was called by a higher level function
+                if (
+                    not called_by_higher_level
+                    and inputs.matter_options.USE_INTERPOLATION_TABLES
+                    != "no-interpolation"
+                ):
+                    lib.freeSigmaMInterpTable()
+                raise  # Re-raise the original exception
+            # Free sigma tables (success path), unless this function was called by a higher level function
+            if (
+                not called_by_higher_level
+                and inputs.matter_options.USE_INTERPOLATION_TABLES != "no-interpolation"
+            ):
+                lib.freeSigmaMInterpTable()
+            return out
 
-    @init_backend_ps(is_generator=False)
-    def wrapper(*args, inputs: InputParameters, **kwargs):
-        sigma_min_mass = kwargs.get("M_min", 1e5)
-        sigma_max_mass = kwargs.get("M_max", 1e16)
-        if inputs.matter_options.USE_INTERPOLATION_TABLES != "no-interpolation":
-            lib.initialiseSigmaMInterpTable(sigma_min_mass, sigma_max_mass)
-        return func(*args, inputs=inputs, **kwargs)
+        def generator_wrapper(*args, **kwargs):
+            # NOTE: generator_wrapper is only used for high-level functions, which are
+            # never called by a higher level function, so we always initialize and free.
+            # Initialize sigma tables
+            inputs = _get_inputs_from_call(*args, **kwargs)
+            if inputs.matter_options.USE_INTERPOLATION_TABLES != "no-interpolation":
+                sigma_min_mass = kwargs.get("M_min", 5e2)
+                sigma_max_mass = kwargs.get("M_max", 1e20)
+                lib.initialiseSigmaMInterpTable(sigma_min_mass, sigma_max_mass)
+            try:
+                yield from func(*args, **kwargs)
+            except Exception:
+                # Free sigma tables (error path)
+                if inputs.matter_options.USE_INTERPOLATION_TABLES != "no-interpolation":
+                    lib.freeSigmaMInterpTable()
+                raise  # Re-raise the original exception
+            # Free sigma tables (success path)
+            if inputs.matter_options.USE_INTERPOLATION_TABLES != "no-interpolation":
+                lib.freeSigmaMInterpTable()
 
-    return wrapper
+        result = generator_wrapper if is_generator else wrapper
+        functools.update_wrapper(result, func)
+        wrapped_func = init_backend_ps(is_generator=is_generator)
+        return wrapped_func(result)
+
+    return _make_wrapper
 
 
 def init_gl(func: Callable) -> Callable:
@@ -204,7 +269,7 @@ def init_gl(func: Callable) -> Callable:
     any function which calls backend integrals directly.
     """
 
-    @init_sigma_table
+    @init_sigma_table(is_generator=False)
     def wrapper(*args, inputs: InputParameters, **kwargs):
         if "GAUSS-LEGENDRE" in (
             inputs.astro_options.INTEGRATION_METHOD_ATOMIC,
@@ -217,7 +282,7 @@ def init_gl(func: Callable) -> Callable:
     return wrapper
 
 
-@init_backend_ps(is_generator=False)
+@init_sigma_table(is_generator=False)
 def get_expected_nhalo(*, redshift: float, inputs: InputParameters, **kwargs) -> int:
     """Get the expected number of halos in a given box.
 
@@ -233,7 +298,7 @@ def get_expected_nhalo(*, redshift: float, inputs: InputParameters, **kwargs) ->
     )
 
 
-@init_backend_ps(is_generator=False)
+@init_sigma_table(is_generator=False)
 def get_halo_catalog_buffer_size(
     *, redshift: float, inputs: InputParameters, min_size: int = 1000000, **kwargs
 ) -> int:
@@ -314,7 +379,7 @@ def compute_tau(
     )
 
 
-@init_backend_ps(is_generator=False)
+@init_sigma_table(is_generator=False)
 def compute_luminosity_function(
     *,
     redshifts: Sequence[float],
@@ -540,7 +605,7 @@ def get_vcb_power_values(
         )
 
 
-@init_backend_ps(is_generator=False)
+@init_sigma_table(is_generator=False)
 def evaluate_sigma(
     *,
     inputs: InputParameters,
@@ -609,7 +674,7 @@ def get_delta_crit_nu(hmf_int_flag: int, sigma: float, growth: float):
     return lib.get_delta_crit(hmf_int_flag, sigma, growth)
 
 
-@init_backend_ps(is_generator=False)
+@init_sigma_table(is_generator=False)
 def evaluate_condition_integrals(
     inputs: InputParameters,
     cond_array: NDArray[np.floating],
@@ -638,7 +703,7 @@ def evaluate_condition_integrals(
     return n_halo, m_coll
 
 
-@init_backend_ps(is_generator=False)
+@init_sigma_table(is_generator=False)
 def integrate_chmf_interval(
     inputs: InputParameters,
     redshift: float,
@@ -671,7 +736,7 @@ def integrate_chmf_interval(
     return out_prob
 
 
-@init_backend_ps(is_generator=False)
+@init_sigma_table(is_generator=False)
 def evaluate_inverse_table(
     inputs: InputParameters,
     cond_array: NDArray[np.floating],
@@ -705,7 +770,7 @@ def evaluate_inverse_table(
     return masses
 
 
-@init_backend_ps(is_generator=False)
+@init_sigma_table(is_generator=False)
 def evaluate_FgtrM_cond(
     inputs: InputParameters,
     densities: NDArray[np.floating],
@@ -728,7 +793,7 @@ def evaluate_FgtrM_cond(
     return fcoll, dfcoll
 
 
-@init_backend_ps(is_generator=False)
+@init_sigma_table(is_generator=False)
 def evaluate_SFRD_z(
     *,
     inputs: InputParameters,
@@ -758,7 +823,7 @@ def evaluate_SFRD_z(
     return sfrd, sfrd_mini
 
 
-@init_backend_ps(is_generator=False)
+@init_sigma_table(is_generator=False)
 def evaluate_Nion_z(
     *,
     inputs: InputParameters,
@@ -788,7 +853,7 @@ def evaluate_Nion_z(
     return nion, nion_mini
 
 
-@init_backend_ps(is_generator=False)
+@init_sigma_table(is_generator=False)
 def evaluate_SFRD_cond(
     *,
     inputs: InputParameters,
@@ -821,7 +886,7 @@ def evaluate_SFRD_cond(
     return sfrd, sfrd_mini
 
 
-@init_backend_ps(is_generator=False)
+@init_sigma_table(is_generator=False)
 def evaluate_Nion_cond(
     *,
     inputs: InputParameters,
@@ -857,7 +922,7 @@ def evaluate_Nion_cond(
     return nion, nion_mini
 
 
-@init_backend_ps(is_generator=False)
+@init_sigma_table(is_generator=False)
 def evaluate_Xray_cond(
     *,
     inputs: InputParameters,
@@ -889,7 +954,7 @@ def evaluate_Xray_cond(
     return xray
 
 
-@init_backend_ps(is_generator=False)
+@init_sigma_table(is_generator=False)
 def sample_halos_from_conditions(
     *,
     inputs: InputParameters,
@@ -1039,7 +1104,7 @@ def convert_halo_properties(
     }
 
 
-@init_sigma_table
+@init_sigma_table(is_generator=False)
 def return_uhmf_value(
     *,
     inputs: InputParameters,
@@ -1063,7 +1128,7 @@ def return_uhmf_value(
     )
 
 
-@init_sigma_table
+@init_sigma_table(is_generator=False)
 def return_chmf_value(
     *,
     inputs: InputParameters,

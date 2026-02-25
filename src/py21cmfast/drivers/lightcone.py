@@ -21,7 +21,7 @@ from ..io.caching import CacheConfig, OutputCache
 from ..lightconers import Lightconer, RectilinearLightconer
 from ..rsds import apply_rsds as do_rsds
 from ..rsds import include_dvdr_in_tau21 as do_dvdr_in_tau21
-from ..wrapper.cfuncs import init_backend_ps
+from ..wrapper.cfuncs import init_sigma_table
 from ..wrapper.inputs import InputParameters
 from ..wrapper.outputs import (
     BrightnessTemp,
@@ -569,7 +569,7 @@ def _run_lightcone_from_perturbed_fields(
 
 
 @high_level_func
-@init_backend_ps(is_generator=True)
+@init_sigma_table(is_generator=True)
 def generate_lightcone(
     *,
     lightconer: Lightconer,

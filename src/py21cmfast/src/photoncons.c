@@ -118,12 +118,6 @@ int InitialisePhotonCons() {
             ION_EFF_FACTOR = astro_params_global->POP2_ION * astro_params_global->F_STAR10 *
                              astro_params_global->F_ESC10;
             M_MIN = astro_params_global->M_TURN / 50.;
-            if (astro_options_global->INTEGRATION_METHOD_ATOMIC == 2 ||
-                astro_options_global->INTEGRATION_METHOD_MINI == 2) {
-                initialiseSigmaMInterpTable(fmin(MMIN_FAST, M_MIN), 1e20);
-            } else {
-                initialiseSigmaMInterpTable(M_MIN, 1e20);
-            }
             lnMmin = log(M_MIN);
         } else {
             ION_EFF_FACTOR = astro_params_global->HII_EFF_FACTOR;
@@ -184,23 +178,8 @@ int InitialisePhotonCons() {
                         M_MIN_z1 = (float)TtoM(z1, astro_params_global->ION_Tvir_MIN, 0.6);
                     }
 
-                    if (M_MIN_z0 < M_MIN_z1) {
-                        if (astro_options_global->INTEGRATION_METHOD_ATOMIC == 2) {
-                            initialiseSigmaMInterpTable(fmin(MMIN_FAST, M_MIN_z0), 1e20);
-                        } else {
-                            initialiseSigmaMInterpTable(M_MIN_z0, 1e20);
-                        }
-                    } else {
-                        if (astro_options_global->INTEGRATION_METHOD_ATOMIC == 2) {
-                            initialiseSigmaMInterpTable(fmin(MMIN_FAST, M_MIN_z1), 1e20);
-                        } else {
-                            initialiseSigmaMInterpTable(M_MIN_z1, 1e20);
-                        }
-                    }
-
                     Nion0 = ION_EFF_FACTOR * Fcoll_General(z0, log(M_MIN_z0), lnMmax);
                     Nion1 = ION_EFF_FACTOR * Fcoll_General(z1, log(M_MIN_z1), lnMmax);
-                    freeSigmaMInterpTable();
                 }
 
                 // With scale factor a, the above equation is written as dQ/da = n_{ion}/da -
@@ -303,10 +282,6 @@ int InitialisePhotonCons() {
 
         free(Q_z);
         free(z_value);
-
-        if (matter_options_global->SOURCE_MODEL > 0) {
-            freeSigmaMInterpTable();
-        }
 
         LOG_DEBUG("Initialised PhotonCons.");
     }  // End of try

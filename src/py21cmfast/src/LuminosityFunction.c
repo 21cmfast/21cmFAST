@@ -47,13 +47,6 @@ int initialise_ComputeLF(int nbins) {
     LF_spline_acc = gsl_interp_accel_alloc();
     LF_spline = gsl_spline_alloc(gsl_interp_cspline, nbins);
 
-    int status;
-    Try initialiseSigmaMInterpTable(0.999 * Mhalo_min, 1.001 * Mhalo_max);
-    Catch(status) {
-        LOG_ERROR("\t...called from initialise_ComputeLF");
-        return (status);
-    }
-
     initialised_ComputeLF = true;
     return (0);
 }
@@ -64,7 +57,6 @@ void cleanup_ComputeLF() {
     free(Mhalo_param);
     gsl_spline_free(LF_spline);
     gsl_interp_accel_free(LF_spline_acc);
-    freeSigmaMInterpTable();
     initialised_ComputeLF = 0;
 }
 

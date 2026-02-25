@@ -48,15 +48,10 @@ double expected_nhalo(double redshift) {
     double M_max = RHOcrit * cosmo_params_global->OMm * VOLUME / HII_TOT_NUM_PIXELS;
     double result;
 
-    if (matter_options_global->USE_INTERPOLATION_TABLES > 0)
-        initialiseSigmaMInterpTable(M_min, M_max);
-
     result = Nhalo_General(redshift, log(M_min), log(M_max)) * VOLUME * cosmo_params_global->OMm *
              RHOcrit;
     LOG_DEBUG("Expected %.2e Halos in the box from masses %.2e to %.2e at z=%.2f", result, M_min,
               M_max, redshift);
-
-    if (matter_options_global->USE_INTERPOLATION_TABLES > 0) freeSigmaMInterpTable();
 
     return result;
 }
@@ -92,14 +87,9 @@ void stoc_set_consts_z(struct HaloSamplingConstants *const_struct, double redshi
     const_struct->M_max_tables = M_MAX_INTEGRAL;
     const_struct->lnM_max_tb = log(const_struct->M_max_tables);
 
-    if (matter_options_global->USE_INTERPOLATION_TABLES > 0) {
-        // the binary split needs to go below the resolution
-        if (matter_options_global->SAMPLE_METHOD == 3)
-            initialiseSigmaMInterpTable(const_struct->M_min / 2, const_struct->M_max_tables);
-        else
-            initialiseSigmaMInterpTable(const_struct->M_min, const_struct->M_max_tables);
-
-        if (matter_options_global->SAMPLE_METHOD == 2) InitialiseSigmaInverseTable();
+    if (matter_options_global->USE_INTERPOLATION_TABLES > 0 &&
+        matter_options_global->SAMPLE_METHOD == 2) {
+        InitialiseSigmaInverseTable();
     }
 
     const_struct->sigma_min = EvaluateSigma(const_struct->lnM_min);
@@ -1119,9 +1109,6 @@ int stochastic_halofield(unsigned long long int seed, float redshift_desc, float
                   halos->xray_rng[1], halos->xray_rng[2]);
     }
 
-    if (matter_options_global->USE_INTERPOLATION_TABLES > 0) {
-        freeSigmaMInterpTable();
-    }
     free_dNdM_tables();
 
     free_rng_threads(rng_stoc);
@@ -1262,9 +1249,6 @@ int single_test_sample(unsigned long long int seed, int n_condition, float *cond
             }
         }
 
-        if (matter_options_global->USE_INTERPOLATION_TABLES > 0) {
-            freeSigmaMInterpTable();
-        }
         free_dNdM_tables();
 
         free_rng_threads(rng_stoc);

@@ -57,7 +57,7 @@ from scipy.optimize import curve_fit
 
 from ..c_21cmfast import ffi, lib
 from ._utils import _process_exitcode
-from .cfuncs import c_wrapper, init_backend_ps
+from .cfuncs import broadcast_input_struct, c_wrapper, init_sigma_table
 from .inputs import InputParameters
 from .outputs import InitialConditions
 
@@ -85,7 +85,7 @@ class _PhotonConservationState:
 _photoncons_state = _PhotonConservationState()
 
 
-@init_backend_ps(is_generator=False)
+@init_sigma_table(is_generator=False)
 def _init_photon_conservation_correction(*, inputs, **kwargs):
     # This function calculates the global expected evolution of reionisation and saves
     #   it to C global arrays z_Q and Q_value (as well as other non-global confusingly named arrays),
@@ -380,6 +380,15 @@ def calibrate_photon_cons(
         nf_estimate=neutral_fraction_photon_cons,
         NSpline=len(fast_node_redshifts),
     )
+
+    # Re-broadcast the main inputs after the photon-cons calibration loop,
+    # which internally switches to a different InputParameters object.
+    broadcast_input_struct(inputs=inputs)
+    lib.init_ps()
+    if inputs.matter_options.USE_INTERPOLATION_TABLES != "no-interpolation":
+        sigma_min_mass = 5e2
+        sigma_max_mass = 1e20
+        lib.initialiseSigmaMInterpTable(sigma_min_mass, sigma_max_mass)
 
 
 # (Jdavies): I needed a function to access the delta z from the wrapper
