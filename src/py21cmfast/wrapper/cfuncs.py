@@ -25,16 +25,44 @@ logger = logging.getLogger(__name__)
 # TODO: a lot of these assume input as numpy arrays via use of .shape, explicitly require this
 
 
-def broadcast_input_struct(inputs: InputParameters):
-    """Broadcast the parameters to the C library."""
-    lib.Broadcast_struct_global_all(
-        inputs.simulation_options.cstruct,
-        inputs.matter_options.cstruct,
-        inputs.cosmo_params.cstruct,
-        inputs.astro_params.cstruct,
-        inputs.astro_options.cstruct,
-        inputs.cosmo_tables.cstruct,
-    )
+def broadcast_input_struct(*args, skip: bool = False, **kwargs):
+    """Broadcast the parameters to the C library, and construct FFTW wisdoms if necessary."""
+    inputs = _get_inputs_from_call(*args, **kwargs)
+    if not skip:
+        lib.Broadcast_struct_global_all(
+            inputs.simulation_options.cstruct,
+            inputs.matter_options.cstruct,
+            inputs.cosmo_params.cstruct,
+            inputs.astro_params.cstruct,
+            inputs.astro_options.cstruct,
+            inputs.cosmo_tables.cstruct,
+        )
+        if inputs.matter_options.USE_FFTW_WISDOM:
+            construct_fftw_wisdoms()
+
+
+def initialize_power_spectrum(*args, skip: bool = False, **kwargs):
+    """Initialize power spectrum at the C backend."""
+    if not skip:
+        lib.init_ps()
+
+
+def initialize_sigma_tables(*args, skip: bool = False, **kwargs):
+    """Initialize sigma interpolation tables at the C backend."""
+    inputs = _get_inputs_from_call(*args, **kwargs)
+    if (
+        not skip
+        and inputs.matter_options.USE_INTERPOLATION_TABLES != "no-interpolation"
+    ):
+        sigma_min_mass = kwargs.get("M_min", 5e2)
+        sigma_max_mass = kwargs.get("M_max", 1e20)
+        lib.initialiseSigmaMInterpTable(sigma_min_mass, sigma_max_mass)
+
+
+def initialize_heat(*args, skip: bool = False, **kwargs):
+    """Initialize heat interpolation tables at the C backend."""
+    if not skip:
+        lib.init_heat()
 
 
 @cache
@@ -43,16 +71,32 @@ def construct_fftw_wisdoms():
     lib.CreateFFTWWisdoms()
 
 
-def free_cosmo_tables(skip=False):
+def free_cosmo_tables(*args, skip: bool = False, **kwargs):
     """Free the memory of cosmo_tables_global that was allocated at the C backend."""
     if not skip:
         lib.Free_cosmo_tables_global()
 
 
-def free_power_spectrum(skip=False):
+def free_power_spectrum(*args, skip: bool = False, **kwargs):
     """Free the memory of power spectrum that was allocated at the C backend."""
     if not skip:
         lib.free_ps()
+
+
+def free_sigma_tables(*args, skip: bool = False, **kwargs):
+    """Free sigma interpolation tables at the C backend."""
+    inputs = _get_inputs_from_call(*args, **kwargs)
+    if (
+        not skip
+        and inputs.matter_options.USE_INTERPOLATION_TABLES != "no-interpolation"
+    ):
+        lib.freeSigmaMInterpTable()
+
+
+def free_heat(*args, skip: bool = False, **kwargs):
+    """Free heat interpolation tables at the C backend."""
+    if not skip:
+        lib.destruct_heat()
 
 
 def _get_inputs_from_call(*args, **kwargs) -> InputParameters:
@@ -75,258 +119,94 @@ def _get_inputs_from_call(*args, **kwargs) -> InputParameters:
     )
 
 
-def c_wrapper(*, is_generator: bool = False) -> Callable:
-    """Unified decorator managing the C backend lifecycle.
-
-    Handles broadcasting inputs, optional FFTW wisdom construction, calling
-    the function, and freeing cosmo tables. Each step is skipped if
-    called_by_higher_level=True, meaning a higher-level caller has already
-    taken responsibility for the lifecycle.
-    """
+def _make_lifecycle_decorator(
+    *,
+    init_func: Callable,
+    free_func: Callable,
+    next_decorator: Callable | None = None,
+    is_generator: bool = False,
+) -> Callable:
+    """Build a decorator that calls init_func before and free_func after the wrapped function."""
 
     def _make_wrapper(func):
         def wrapper(*args, **kwargs):
-            called_by_higher_level = kwargs.get("called_by_higher_level", False)
-            # Broadcast inputs to C, unless this function was called by a higher level function
-            if not called_by_higher_level:
-                inputs = _get_inputs_from_call(*args, **kwargs)
-                # Broadcast inputs to C
-                broadcast_input_struct(inputs)
-                if inputs.matter_options.USE_FFTW_WISDOM:
-                    construct_fftw_wisdoms()
+            skip = kwargs.get("called_by_higher_level", False)
+            init_func(*args, skip=skip, **kwargs)
             try:
                 out = func(*args, **kwargs)
             except TypeError as e:
                 if "called_by_higher_level" in str(e):
-                    # called_by_higher_level is not accepted by this function — remove and retry
                     del kwargs["called_by_higher_level"]
                     try:
                         out = func(*args, **kwargs)
                     except Exception:
-                        # Free cosmo_tables (general error path), unless this function was called by a higher level function
-                        free_cosmo_tables(skip=called_by_higher_level)
-                        raise  # Re-raise the original exception
+                        free_func(*args, skip=skip, **kwargs)
+                        raise
                 else:
-                    # Free cosmo_tables (TypeError path, not becaause of called_by_higher_level),
-                    # unless this function was called by a higher level function
-                    free_cosmo_tables(skip=called_by_higher_level)
-                    raise  # Re-raise the original exception
+                    free_func(*args, skip=skip, **kwargs)
+                    raise
             except Exception:
-                # Free cosmo_tables (not a TypeError path), unless this function was called by a higher level function
-                free_cosmo_tables(skip=called_by_higher_level)
-                raise  # Re-raise the original exception
-            # Free cosmo_tables (success path), unless this function was called by a higher level function
-            free_cosmo_tables(skip=called_by_higher_level)
+                free_func(*args, skip=skip, **kwargs)
+                raise
+            free_func(*args, skip=skip, **kwargs)
             return out
 
         def generator_wrapper(*args, **kwargs):
-            # NOTE: generator_wrapper is only used for high-level functions, which are
-            # never called by a higher level function, so we always broadcast and free.
-            inputs = _get_inputs_from_call(*args, **kwargs)
-            # Broadcast inputs to C
-            broadcast_input_struct(inputs)
-            if inputs.matter_options.USE_FFTW_WISDOM:
-                construct_fftw_wisdoms()
+            init_func(*args, skip=False, **kwargs)
             try:
                 yield from func(*args, **kwargs)
             except Exception:
-                # Free cosmo_tables (error path)
-                free_cosmo_tables()
-                raise  # Re-raise the original exception
-            # Free cosmo_tables (success path)
-            free_cosmo_tables()
+                free_func(*args, skip=False, **kwargs)
+                raise
+            free_func(*args, skip=False, **kwargs)
 
         result = generator_wrapper if is_generator else wrapper
         functools.update_wrapper(result, func)
+        if next_decorator is not None:
+            result = next_decorator(is_generator=is_generator)(result)
         return result
 
     return _make_wrapper
 
 
+def c_wrapper(*, is_generator: bool = False) -> Callable:
+    """Broadcast inputs and construct FFTW wisdom before calling the function."""
+    return _make_lifecycle_decorator(
+        init_func=broadcast_input_struct,
+        free_func=free_cosmo_tables,
+        next_decorator=None,
+        is_generator=is_generator,
+    )
+
+
 def init_backend_ps(*, is_generator: bool = False) -> Callable:
     """Initialise the backend power-spectrum before calling the function."""
-
-    def _make_wrapper(func):
-        def wrapper(*args, **kwargs):
-            called_by_higher_level = kwargs.get("called_by_higher_level", False)
-            # Initialize power spectrum, unless this function was called by a higher level function
-            if not called_by_higher_level:
-                lib.init_ps()
-            try:
-                out = func(*args, **kwargs)
-            except TypeError as e:
-                if "called_by_higher_level" in str(e):
-                    # called_by_higher_level is not accepted by this function — remove and retry
-                    del kwargs["called_by_higher_level"]
-                    try:
-                        out = func(*args, **kwargs)
-                    except Exception:
-                        # Free power spectrum (general error path), unless this function was called by a higher level function
-                        free_power_spectrum(skip=called_by_higher_level)
-                        raise  # Re-raise the original exception
-                else:
-                    # Free power spectrum (TypeError path, not becaause of called_by_higher_level),
-                    # unless this function was called by a higher level function
-                    free_power_spectrum(skip=called_by_higher_level)
-                    raise  # Re-raise the original exception
-            except Exception:
-                # Free power spectrum (error path), unless this function was called by a higher level function
-                free_power_spectrum(skip=called_by_higher_level)
-                raise  # Re-raise the original exception
-            # Free power spectrum (success path), unless this function was called by a higher level function
-            free_power_spectrum(skip=called_by_higher_level)
-            return out
-
-        def generator_wrapper(*args, **kwargs):
-            # NOTE: generator_wrapper is only used for high-level functions, which are
-            # never called by a higher level function, so we always initialize and free.
-            # Initialize power spectrum
-            lib.init_ps()
-            try:
-                yield from func(*args, **kwargs)
-            except Exception:
-                # Free power spectrum (error path)
-                free_power_spectrum()
-                raise  # Re-raise the original exception
-            # Free power spectrum (success path)
-            free_power_spectrum()
-
-        result = generator_wrapper if is_generator else wrapper
-        functools.update_wrapper(result, func)
-        wrapped_func = c_wrapper(is_generator=is_generator)
-        return wrapped_func(result)
-
-    return _make_wrapper
+    return _make_lifecycle_decorator(
+        init_func=initialize_power_spectrum,
+        free_func=free_power_spectrum,
+        next_decorator=c_wrapper,
+        is_generator=is_generator,
+    )
 
 
 def init_sigma_table(*, is_generator: bool = False) -> Callable:
     """Initialise the the sigma interpolation table before calling the function."""
-
-    def _make_wrapper(func):
-        def wrapper(*args, **kwargs):
-            called_by_higher_level = kwargs.get("called_by_higher_level", False)
-            inputs = _get_inputs_from_call(*args, **kwargs)
-            # Initialize sigma tables, unless this function was called by a higher level function
-            if (
-                not called_by_higher_level
-                and inputs.matter_options.USE_INTERPOLATION_TABLES != "no-interpolation"
-            ):
-                sigma_min_mass = kwargs.get("M_min", 5e2)
-                sigma_max_mass = kwargs.get("M_max", 1e20)
-                lib.initialiseSigmaMInterpTable(sigma_min_mass, sigma_max_mass)
-            try:
-                out = func(*args, **kwargs)
-            except TypeError as e:
-                if "called_by_higher_level" in str(e):
-                    # called_by_higher_level is not accepted by this function — remove and retry
-                    del kwargs["called_by_higher_level"]
-                    try:
-                        out = func(*args, **kwargs)
-                    except Exception:
-                        # Free sigma tables (general error path), unless this function was called by a higher level function
-                        if (
-                            not called_by_higher_level
-                            and inputs.matter_options.USE_INTERPOLATION_TABLES
-                            != "no-interpolation"
-                        ):
-                            lib.freeSigmaMInterpTable()
-                        raise  # Re-raise the original exception
-                else:
-                    # Free sigma tables (TypeError path, not becaause of called_by_higher_level),
-                    # unless this function was called by a higher level function
-                    if (
-                        not called_by_higher_level
-                        and inputs.matter_options.USE_INTERPOLATION_TABLES
-                        != "no-interpolation"
-                    ):
-                        lib.freeSigmaMInterpTable()
-                    raise  # Re-raise the original exception
-            except Exception:
-                # Free sigma tables (error path), unless this function was called by a higher level function
-                if (
-                    not called_by_higher_level
-                    and inputs.matter_options.USE_INTERPOLATION_TABLES
-                    != "no-interpolation"
-                ):
-                    lib.freeSigmaMInterpTable()
-                raise  # Re-raise the original exception
-            # Free sigma tables (success path), unless this function was called by a higher level function
-            if (
-                not called_by_higher_level
-                and inputs.matter_options.USE_INTERPOLATION_TABLES != "no-interpolation"
-            ):
-                lib.freeSigmaMInterpTable()
-            return out
-
-        def generator_wrapper(*args, **kwargs):
-            # NOTE: generator_wrapper is only used for high-level functions, which are
-            # never called by a higher level function, so we always initialize and free.
-            # Initialize sigma tables
-            inputs = _get_inputs_from_call(*args, **kwargs)
-            if inputs.matter_options.USE_INTERPOLATION_TABLES != "no-interpolation":
-                sigma_min_mass = kwargs.get("M_min", 5e2)
-                sigma_max_mass = kwargs.get("M_max", 1e20)
-                lib.initialiseSigmaMInterpTable(sigma_min_mass, sigma_max_mass)
-            try:
-                yield from func(*args, **kwargs)
-            except Exception:
-                # Free sigma tables (error path)
-                if inputs.matter_options.USE_INTERPOLATION_TABLES != "no-interpolation":
-                    lib.freeSigmaMInterpTable()
-                raise  # Re-raise the original exception
-            # Free sigma tables (success path)
-            if inputs.matter_options.USE_INTERPOLATION_TABLES != "no-interpolation":
-                lib.freeSigmaMInterpTable()
-
-        result = generator_wrapper if is_generator else wrapper
-        functools.update_wrapper(result, func)
-        wrapped_func = init_backend_ps(is_generator=is_generator)
-        return wrapped_func(result)
-
-    return _make_wrapper
+    return _make_lifecycle_decorator(
+        init_func=initialize_sigma_tables,
+        free_func=free_sigma_tables,
+        next_decorator=init_backend_ps,
+        is_generator=is_generator,
+    )
 
 
 def init_heat_tables(*, is_generator: bool = False) -> Callable:
     """Initialise the the heat interpolation tables before calling the function."""
-
-    def _make_wrapper(func):
-        def wrapper(*args, **kwargs):
-            called_by_higher_level = kwargs.pop("called_by_higher_level", False)
-            # Initialize heat tables, unless this function was called by a higher level function
-            if not called_by_higher_level:
-                lib.init_heat()
-            try:
-                out = func(*args, **kwargs)
-            except Exception:
-                # Free heat tables (error path), unless this function was called by a higher level function
-                if not called_by_higher_level:
-                    lib.destruct_heat()
-                raise  # Re-raise the original exception
-            # Free heat tables (success path), unless this function was called by a higher level function
-            if not called_by_higher_level:
-                lib.destruct_heat()
-            return out
-
-        def generator_wrapper(*args, **kwargs):
-            # NOTE: generator_wrapper is only used for high-level functions, which are
-            # never called by a higher level function, so we always initialize and free.
-            # Initialize heat tables
-            lib.init_heat()
-            try:
-                yield from func(*args, **kwargs)
-            except Exception:
-                # Free heat tables (error path)
-                lib.destruct_heat()
-                raise  # Re-raise the original exception
-            # Free heat tables (success path)
-            lib.destruct_heat()
-
-        result = generator_wrapper if is_generator else wrapper
-        functools.update_wrapper(result, func)
-        wrapped_func = init_sigma_table(is_generator=is_generator)
-        return wrapped_func(result)
-
-    return _make_wrapper
+    return _make_lifecycle_decorator(
+        init_func=initialize_heat,
+        free_func=free_heat,
+        next_decorator=init_sigma_table,
+        is_generator=is_generator,
+    )
 
 
 def init_gl(func: Callable) -> Callable:
