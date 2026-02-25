@@ -8,6 +8,8 @@ jobs:
   build-n-publish:
     name: Make Release on PyPI and Github
     runs-on: ubuntu-latest
+    permissions:
+      id-token: write  # IMPORTANT: this permission is mandatory for trusted publishing
     steps:
       - uses: actions/checkout@master
         with:
@@ -30,6 +32,4 @@ jobs:
           python -m build .
 
       - name: Publish to PyPI
-        uses: pypa/gh-action-pypi-publish@master
-        with:
-          password: ${{ secrets.pypi_password }}
+        uses: pypa/gh-action-pypi-publish@release/v1
