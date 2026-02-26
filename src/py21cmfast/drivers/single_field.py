@@ -219,7 +219,7 @@ def determine_halo_catalog(
 
 
 @single_field_func
-@init_backend_ps(is_generator=False)
+@c_wrapper(is_generator=False)
 def perturb_halo_catalog(
     *,
     initial_conditions: InitialConditions,

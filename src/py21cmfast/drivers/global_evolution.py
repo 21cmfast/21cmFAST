@@ -389,6 +389,7 @@ def run_global_evolution(
         "USE_UPPER_STELLAR_TURNOVER": False,  # no upper stellar turnover without discrete halos
         "USE_EXP_FILTER": False,  # we don't run reionization module, so we can leave this parameter on False for all source models
         "KEEP_3D_VELOCITIES": False,  # we don't need any velocities
+        "USE_FFTW_WISDOM": False,  # we don't do FFT when we have just one cell
         "PHOTON_CONS_TYPE": "no-photoncons",  # we don't do photon conservation
     }
     inputs_one_cell = inputs.evolve_input_structs(**new_input_kwargs)

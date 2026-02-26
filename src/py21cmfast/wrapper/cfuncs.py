@@ -372,7 +372,7 @@ def evaluate_sigma(
     return sigma, dsigmasq
 
 
-@init_backend_ps(is_generator=False)
+@c_wrapper(is_generator=False)
 def get_growth_factor(
     *,
     inputs: InputParameters,
