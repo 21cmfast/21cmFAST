@@ -85,7 +85,6 @@ class _PhotonConservationState:
 _photoncons_state = _PhotonConservationState()
 
 
-@init_sigma_table(is_generator=False)
 def _init_photon_conservation_correction(*, inputs, **kwargs):
     # This function calculates the global expected evolution of reionisation and saves
     #   it to C global arrays z_Q and Q_value (as well as other non-global confusingly named arrays),
@@ -199,6 +198,7 @@ def _get_photon_nonconservation_data() -> dict:
     }
 
 
+@init_sigma_table(is_generator=False)
 def setup_photon_cons(
     initial_conditions: InitialConditions,
     inputs: InputParameters | None = None,
@@ -279,13 +279,11 @@ def calibrate_photon_cons(
     # avoiding circular imports by importing here
     from ..drivers.single_field import compute_ionization_field, perturb_field
 
-    # Remove init_manager from kwargs for the calibration loop.
-    # The calls below use inputs_calibration (a derived InputParameters), not
-    # the inputs that was already broadcast by the high-level caller. Since
-    # init_manager.broadcast_inputs=True would suppress the broadcast inside single_field_func,
-    # those C calls would run against the wrong global structs. By removing
-    # init_manager here, each call broadcasts its own inputs correctly.
-    calibration_kwargs = {k: v for k, v in kwargs.items() if k != "init_manager"}
+    # The single field calls below use inputs_calibration, not the inputs that was already broadcast by
+    # the high-level caller. We therefore toggle off the broadcast_inputs flag, so that the single field
+    # calls will broadcast inputs_calibration
+    # TODO: This is hacky (better to put this entire module under high_level_func)
+    kwargs["init_manager"].broadcast_inputs = False
 
     # Create a new astro_params and astro_options just for the photon_cons correction
     # NOTE: Since the calibration cannot do INHOMO_RECO, we set the R_BUBBLE_MAX
@@ -337,7 +335,7 @@ def calibrate_photon_cons(
             redshift=z,
             inputs=inputs_calibration,
             initial_conditions=initial_conditions,
-            **calibration_kwargs,
+            **kwargs,
         )
 
         ib2 = compute_ionization_field(
@@ -346,7 +344,7 @@ def calibrate_photon_cons(
             initial_conditions=initial_conditions,
             perturbed_field=this_perturb,
             previous_perturbed_field=prev_perturb,
-            **calibration_kwargs,
+            **kwargs,
         )
 
         mean_nf = np.mean(ib2.get("neutral_fraction"))
@@ -379,15 +377,10 @@ def calibrate_photon_cons(
         NSpline=len(fast_node_redshifts),
     )
 
-    # Re-broadcast the main inputs after the photon-cons calibration loop,
-    # which internally switches to a different InputParameters object.
+    # Re-broadcast the main inputs after the photon-cons calibration loop is over
+    # TODO: This is hacky (better to put this entire module under high_level_func)
+    kwargs["init_manager"].broadcast_inputs = True
     broadcast_input_struct(inputs=inputs)
-    lib.init_ps()
-    if inputs.matter_options.USE_INTERPOLATION_TABLES != "no-interpolation":
-        sigma_min_mass = 5e2
-        sigma_max_mass = 1e20
-        lib.initialiseSigmaMInterpTable(sigma_min_mass, sigma_max_mass)
-    lib.init_heat()
 
 
 # (Jdavies): I needed a function to access the delta z from the wrapper

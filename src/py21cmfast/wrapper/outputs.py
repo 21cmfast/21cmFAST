@@ -30,7 +30,7 @@ from bidict import bidict
 
 from .._cfg import config
 from ..c_21cmfast import lib
-from ..wrapper.cfuncs import InitManager
+from ..wrapper.cfuncs import _InitManager
 from .arrays import Array
 from .exceptions import _process_exitcode
 from .inputs import (
@@ -807,7 +807,7 @@ class HaloCatalog(OutputStructZ):
             buffer_size = get_halo_catalog_buffer_size(
                 redshift=redshift,
                 inputs=inputs,
-                init_manager=kw.pop("init_manager", InitManager()),
+                init_manager=kw.pop("init_manager", _InitManager()),
             )
 
         return cls(

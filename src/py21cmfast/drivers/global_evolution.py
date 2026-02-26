@@ -12,7 +12,7 @@ from .. import __version__
 from ..io import h5
 from ..io.caching import CacheConfig
 from ..wrapper.arrays import Array
-from ..wrapper.cfuncs import InitManager, evaluate_Nion_z, init_heat_tables
+from ..wrapper.cfuncs import evaluate_Nion_z, init_heat_tables, init_sigma_table
 from ..wrapper.inputs import InputParameters
 from ..wrapper.outputs import (
     BrightnessTemp,
@@ -228,6 +228,7 @@ class GlobalEvolution:
 
 
 @high_level_func
+@init_sigma_table(is_generator=True)
 @init_heat_tables(is_generator=True)
 def generate_global_evolution(
     *,
@@ -255,9 +256,7 @@ def generate_global_evolution(
     iokw = {
         "cache": None,
         "regenerate": True,
-        "init_manager": kwargs.setdefault(
-            "init_manager", InitManager.all_initialized()
-        ),
+        "init_manager": kwargs.get("init_manager"),
     }
 
     (

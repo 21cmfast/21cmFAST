@@ -4,7 +4,7 @@ import functools
 import logging
 from collections.abc import Callable, Sequence
 from functools import cache
-from typing import Literal, Self
+from typing import Literal
 
 import attrs
 import numpy as np
@@ -27,7 +27,7 @@ logger = logging.getLogger(__name__)
 
 
 @attrs.define
-class InitManager:
+class _InitManager:
     """Class for tracking the initialization states in the C backend."""
 
     broadcast_inputs: bool = False
@@ -35,16 +35,11 @@ class InitManager:
     init_sigma: bool = False
     init_heat: bool = False
 
-    @classmethod
-    def all_initialized(cls) -> Self:
-        """Return an InitManager with all fields set to True."""
-        return cls(**{f.name: True for f in attrs.fields(cls)})
-
 
 def broadcast_input_struct(*args, skip: bool = False, **kwargs):
     """Broadcast the parameters to the C library, and construct FFTW wisdoms if necessary."""
-    inputs = _get_inputs_from_call(*args, **kwargs)
     if not skip:
+        inputs = _get_inputs_from_call(*args, **kwargs)
         lib.Broadcast_struct_global_all(
             inputs.simulation_options.cstruct,
             inputs.matter_options.cstruct,
@@ -65,14 +60,12 @@ def initialize_power_spectrum(*args, skip: bool = False, **kwargs):
 
 def initialize_sigma_tables(*args, skip: bool = False, **kwargs):
     """Initialize sigma interpolation tables at the C backend."""
-    inputs = _get_inputs_from_call(*args, **kwargs)
-    if (
-        not skip
-        and inputs.matter_options.USE_INTERPOLATION_TABLES != "no-interpolation"
-    ):
-        sigma_min_mass = kwargs.get("M_min", 5e2)
-        sigma_max_mass = kwargs.get("M_max", 1e20)
-        lib.initialiseSigmaMInterpTable(sigma_min_mass, sigma_max_mass)
+    if not skip:
+        inputs = _get_inputs_from_call(*args, **kwargs)
+        if inputs.matter_options.USE_INTERPOLATION_TABLES != "no-interpolation":
+            sigma_min_mass = kwargs.get("M_min", 5e2)
+            sigma_max_mass = kwargs.get("M_max", 1e20)
+            lib.initialiseSigmaMInterpTable(sigma_min_mass, sigma_max_mass)
 
 
 def initialize_heat(*args, skip: bool = False, **kwargs):
@@ -101,12 +94,10 @@ def free_power_spectrum(*args, skip: bool = False, **kwargs):
 
 def free_sigma_tables(*args, skip: bool = False, **kwargs):
     """Free sigma interpolation tables at the C backend."""
-    inputs = _get_inputs_from_call(*args, **kwargs)
-    if (
-        not skip
-        and inputs.matter_options.USE_INTERPOLATION_TABLES != "no-interpolation"
-    ):
-        lib.freeSigmaMInterpTable()
+    if not skip:
+        inputs = _get_inputs_from_call(*args, **kwargs)
+        if inputs.matter_options.USE_INTERPOLATION_TABLES != "no-interpolation":
+            lib.freeSigmaMInterpTable()
 
 
 def free_heat(*args, skip: bool = False, **kwargs):
@@ -147,7 +138,7 @@ def _make_lifecycle_decorator(
 
     def _make_wrapper(func):
         def wrapper(*args, **kwargs):
-            init_manager = kwargs.get("init_manager") or InitManager()
+            init_manager = kwargs.get("init_manager", _InitManager())
             kwargs["init_manager"] = init_manager
             skip = getattr(init_manager, manager_field)
             init_func(*args, skip=skip, **kwargs)
@@ -155,21 +146,6 @@ def _make_lifecycle_decorator(
                 setattr(init_manager, manager_field, True)
             try:
                 out = func(*args, **kwargs)
-            except TypeError as e:
-                if "init_manager" in str(e):
-                    del kwargs["init_manager"]
-                    try:
-                        out = func(*args, **kwargs)
-                    except Exception:
-                        if not skip:
-                            setattr(init_manager, manager_field, False)
-                        free_func(*args, skip=skip, **kwargs)
-                        raise
-                else:
-                    if not skip:
-                        setattr(init_manager, manager_field, False)
-                    free_func(*args, skip=skip, **kwargs)
-                    raise
             except Exception:
                 if not skip:
                     setattr(init_manager, manager_field, False)
@@ -181,7 +157,7 @@ def _make_lifecycle_decorator(
             return out
 
         def generator_wrapper(*args, **kwargs):
-            init_manager = kwargs.get("init_manager") or InitManager()
+            init_manager = kwargs.get("init_manager", _InitManager())
             kwargs["init_manager"] = init_manager
             skip = getattr(init_manager, manager_field)
             init_func(*args, skip=skip, **kwargs)
@@ -246,7 +222,7 @@ def init_heat_tables(*, is_generator: bool = False) -> Callable:
         init_func=initialize_heat,
         free_func=free_heat,
         manager_field="init_heat",
-        next_decorator=init_sigma_table,
+        next_decorator=c_wrapper,
         is_generator=is_generator,
     )
 
@@ -307,7 +283,7 @@ def get_halo_catalog_buffer_size(
     hbuffer_size = get_expected_nhalo(
         redshift=redshift,
         inputs=inputs,
-        init_manager=kwargs.get("init_manager", InitManager.all_initialized()),
+        init_manager=kwargs.get("init_manager"),
     )
     hbuffer_size = int((hbuffer_size + 1) * config["HALO_CATALOG_MEM_FACTOR"])
 
@@ -322,6 +298,7 @@ def compute_tau(
     global_xHI: Sequence[float],
     inputs: InputParameters,
     z_re_HeII: float = 3.0,
+    **kwargs,
 ) -> float:
     """Compute the optical depth to reionization under the given model.
 
@@ -378,6 +355,7 @@ def compute_luminosity_function(
     mturnovers: np.ndarray | None = None,
     mturnovers_mini: np.ndarray | None = None,
     component: Literal["both", "acg", "mcg"] = "both",
+    **kwargs,
 ) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
     """Compute a the luminosity function over a given number of bins and redshifts.
 
@@ -575,6 +553,7 @@ def get_matter_power_values(
     *,
     inputs: InputParameters,
     k_values: Sequence[float],
+    **kwargs,
 ):
     """Evaluate the matter density power spectrum (at z=0) at a certain scale from the 21cmFAST backend."""
     return np.vectorize(lib.power_in_k)(k_values)
@@ -585,6 +564,7 @@ def get_vcb_power_values(
     *,
     inputs: InputParameters,
     k_values: Sequence[float],
+    **kwargs,
 ):
     """Evaluate the vcb power spectrum (at kinematic decoupling) at a certain scale from the 21cmFAST backend."""
     if inputs.matter_options.USE_RELATIVE_VELOCITIES:
@@ -600,6 +580,7 @@ def evaluate_sigma(
     *,
     inputs: InputParameters,
     masses: NDArray[np.floating],
+    **kwargs,
 ):
     """
     Evaluate the variance of a mass scale.
@@ -625,6 +606,7 @@ def get_growth_factor(
     *,
     inputs: InputParameters,
     redshift: float,
+    **kwargs,
 ):
     """Get the growth factor at a given redshift."""
     return lib.dicke(redshift)
@@ -651,7 +633,7 @@ def get_condition_mass(inputs: InputParameters, R: float):
 
 
 @c_wrapper(is_generator=False)
-def get_delta_crit(*, inputs: InputParameters, mass: float, redshift: float):
+def get_delta_crit(*, inputs: InputParameters, mass: float, redshift: float, **kwargs):
     """Get the critical collapse density given a mass, redshift and parameters."""
     sigma, _ = evaluate_sigma(inputs=inputs, masses=np.array([mass]))
     growth = get_growth_factor(inputs=inputs, redshift=redshift)
@@ -670,6 +652,7 @@ def evaluate_condition_integrals(
     cond_array: NDArray[np.floating],
     redshift: float,
     redshift_prev: float | None = None,
+    **kwargs,
 ):
     """Get the expected number and mass of halos given a condition.
 
@@ -701,6 +684,7 @@ def integrate_chmf_interval(
     lnm_upper: NDArray[np.floating],
     cond_values: NDArray[np.floating],
     redshift_prev: float | None = None,
+    **kwargs,
 ):
     """Evaluate conditional mass function integrals at a range of mass intervals."""
     if lnm_lower.shape != lnm_upper.shape:
@@ -733,6 +717,7 @@ def evaluate_inverse_table(
     probabilities: NDArray[np.floating],
     redshift: float,
     redshift_prev: float | None = None,
+    **kwargs,
 ):
     """Get the expected number and mass of halos given a condition."""
     if cond_array.shape != probabilities.shape:
@@ -766,6 +751,7 @@ def evaluate_FgtrM_cond(
     densities: NDArray[np.floating],
     redshift: float,
     R: float,
+    **kwargs,
 ):
     """Get the collapsed fraction from the backend, given a density and condition sigma."""
     densities = densities.astype("f8")
@@ -789,6 +775,7 @@ def evaluate_SFRD_z(
     inputs: InputParameters,
     redshifts: NDArray[np.floating],
     log10mturns: NDArray[np.floating],
+    **kwargs,
 ):
     """Evaluate the global star formation rate density expected at a range of redshifts."""
     if redshifts.shape != log10mturns.shape:
@@ -819,6 +806,7 @@ def evaluate_Nion_z(
     inputs: InputParameters,
     redshifts: NDArray[np.floating],
     log10mturns: NDArray[np.floating],
+    **kwargs,
 ):
     """Evaluate the global ionising emissivity expected at a range of redshifts."""
     if redshifts.shape != log10mturns.shape:
@@ -851,6 +839,7 @@ def evaluate_SFRD_cond(
     radius: float,
     densities: NDArray[np.floating],
     log10mturns: NDArray[np.floating],
+    **kwargs,
 ):
     """Evaluate the conditional star formation rate density expected at a range of densities."""
     if densities.shape != log10mturns.shape:
@@ -885,6 +874,7 @@ def evaluate_Nion_cond(
     densities: NDArray[np.floating],
     l10mturns_acg: NDArray[np.floating],
     l10mturns_mcg: NDArray[np.floating],
+    **kwargs,
 ):
     """Evaluate the conditional ionising emissivity expected at a range of densities."""
     if not (densities.shape == l10mturns_mcg.shape == l10mturns_acg.shape):
@@ -920,6 +910,7 @@ def evaluate_Xray_cond(
     radius: float,
     densities: NDArray[np.floating],
     log10mturns: NDArray[np.floating],
+    **kwargs,
 ):
     """Evaluate the conditional star formation rate density expected at a range of densities."""
     if densities.shape != log10mturns.shape:
@@ -952,6 +943,7 @@ def sample_halos_from_conditions(
     cond_array,
     redshift_prev: float | None = None,
     buffer_size: int | None = None,
+    **kwargs,
 ):
     """Construct a halo sample given a descendant catalogue and redshifts."""
     z_prev = -1 if redshift_prev is None else redshift_prev
@@ -1011,6 +1003,7 @@ def convert_halo_properties(
     J_21_LW_grid: NDArray[np.floating] | None = None,
     z_re_grid: NDArray[np.floating] | None = None,
     Gamma12_grid: NDArray[np.floating] | None = None,
+    **kwargs,
 ):
     """
     Convert a halo catalogue's mass and RNG fields to halo properties.
@@ -1100,6 +1093,7 @@ def return_uhmf_value(
     inputs: InputParameters,
     redshift: float,
     mass_values: Sequence[float],
+    **kwargs,
 ):
     """Return the value of the unconditional halo mass function at given parameters.
 
@@ -1126,6 +1120,7 @@ def return_chmf_value(
     mass_values: Sequence[float],
     delta_values: Sequence[float],
     condmass_values: Sequence[float],
+    **kwargs,
 ):
     """Return the value of the conditional halo mass function at given parameters.
 

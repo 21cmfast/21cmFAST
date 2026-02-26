@@ -14,7 +14,7 @@ from ..input_serialization import convert_inputs_to_dict
 from ..io import h5
 from ..io.caching import OutputCache
 from ..utils import recursive_difference
-from ..wrapper.cfuncs import InitManager
+from ..wrapper.cfuncs import _InitManager
 from ..wrapper.inputs import InputParameters
 from ..wrapper.outputs import HaloCatalog, OutputStruct, OutputStructZ, _HashType
 from ..wrapper.photoncons import _photoncons_state
@@ -359,6 +359,7 @@ class _OutputStructComputationInspect:
         self,
         inputs: InputParameters,
         current_redshift: float | None,
+        init_manager: _InitManager,
         cache: OutputCache | None,
         regen: bool = True,
     ) -> OutputStruct | None:
@@ -373,12 +374,11 @@ class _OutputStructComputationInspect:
         # First check whether the boxes already exist.
         if issubclass(self._kls, OutputStructZ):
             if issubclass(self._kls, HaloCatalog):
-                # We need to specify that this was called from a higher level function
-                # because there is a call to a C function when doing HaloCatalog.new()
+                # We need to provide init_manager because there is a call to a C function when doing HaloCatalog.new()
                 obj = self._kls.new(
                     inputs=inputs,
                     redshift=current_redshift,
-                    init_manager=InitManager.all_initialized(),
+                    init_manager=init_manager,
                 )
             else:
                 obj = self._kls.new(inputs=inputs, redshift=current_redshift)
@@ -441,8 +441,11 @@ class single_field_func(_OutputStructComputationInspect):  # noqa: N801
         cache = kwargs.pop("cache", None)
         regen = kwargs.pop("regenerate", True)
         write = kwargs.pop("write", False)
+        init_manager = kwargs.get("init_manager", _InitManager())
 
-        out = self._handle_read_from_cache(inputs, current_redshift, cache, regen)
+        out = self._handle_read_from_cache(
+            inputs, current_redshift, init_manager, cache, regen
+        )
 
         if "inputs" in self._signature.parameters:
             # Here we set the inputs (if accepted by the function signature)
@@ -452,7 +455,6 @@ class single_field_func(_OutputStructComputationInspect):  # noqa: N801
             kwargs["inputs"] = inputs
 
         if out is None:
-            kwargs.setdefault("init_manager", InitManager())
             out = self._func(**kwargs)
             self._handle_write_to_cache(cache, write, out)
 

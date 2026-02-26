@@ -21,7 +21,7 @@ from ..io.caching import CacheConfig, OutputCache
 from ..lightconers import Lightconer, RectilinearLightconer
 from ..rsds import apply_rsds as do_rsds
 from ..rsds import include_dvdr_in_tau21 as do_dvdr_in_tau21
-from ..wrapper.cfuncs import InitManager, init_heat_tables
+from ..wrapper.cfuncs import init_heat_tables, init_sigma_table
 from ..wrapper.inputs import InputParameters
 from ..wrapper.outputs import (
     BrightnessTemp,
@@ -569,6 +569,7 @@ def _run_lightcone_from_perturbed_fields(
 
 
 @high_level_func
+@init_sigma_table(is_generator=True)
 @init_heat_tables(is_generator=True)
 def generate_lightcone(
     *,
@@ -653,9 +654,7 @@ def generate_lightcone(
     iokw = {
         "cache": cache,
         "regenerate": regenerate,
-        "init_manager": kwargs.setdefault(
-            "init_manager", InitManager.all_initialized()
-        ),
+        "init_manager": kwargs.get("init_manager"),
     }
 
     (

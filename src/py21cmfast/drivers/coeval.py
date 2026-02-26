@@ -19,7 +19,7 @@ from ..io import h5
 from ..io.caching import CacheConfig, OutputCache, RunCache
 from ..rsds import apply_rsds, include_dvdr_in_tau21
 from ..wrapper.arrays import Array
-from ..wrapper.cfuncs import InitManager, init_heat_tables
+from ..wrapper.cfuncs import _InitManager, init_heat_tables, init_sigma_table
 from ..wrapper.inputs import InputParameters
 from ..wrapper.outputs import (
     BrightnessTemp,
@@ -395,7 +395,7 @@ def evolve_halos(
     initial_conditions: InitialConditions,
     cache: OutputCache,
     regenerate: bool,
-    init_manager: InitManager = InitManager(),
+    init_manager: _InitManager = _InitManager(),
     progressbar: bool = False,
 ):
     """
@@ -476,6 +476,7 @@ def evolve_halos(
 
 
 @high_level_func
+@init_sigma_table(is_generator=True)
 @init_heat_tables(is_generator=True)
 def generate_coeval(
     *,
@@ -566,9 +567,7 @@ def generate_coeval(
     iokw = {
         "regenerate": regenerate,
         "cache": cache,
-        "init_manager": kwargs.setdefault(
-            "init_manager", InitManager.all_initialized()
-        ),
+        "init_manager": kwargs.get("init_manager"),
     }
 
     if not hasattr(out_redshifts, "__len__"):

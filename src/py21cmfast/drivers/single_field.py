@@ -14,7 +14,6 @@ from astropy.cosmology import z_at_value
 
 from ..wrapper.arrays import Array
 from ..wrapper.cfuncs import (
-    InitManager,
     c_wrapper,
     init_backend_ps,
     init_heat_tables,
@@ -43,7 +42,10 @@ logger = logging.getLogger(__name__)
 @single_field_func
 @init_backend_ps(is_generator=False)
 def compute_initial_conditions(
-    *, inputs: InputParameters, initial_density: np.ndarray | float | None = None
+    *,
+    inputs: InputParameters,
+    initial_density: np.ndarray | float | None = None,
+    **kwargs,
 ) -> InitialConditions:
     r"""
     Compute initial conditions.
@@ -123,6 +125,7 @@ def perturb_field(
     redshift: float,
     inputs: InputParameters | None = None,
     initial_conditions: InitialConditions,
+    **kwargs,
 ) -> PerturbedField:
     r"""
     Compute a perturbed field at a given redshift.
@@ -167,6 +170,7 @@ def determine_halo_catalog(
     inputs: InputParameters | None = None,
     initial_conditions: InitialConditions,
     descendant_halos: HaloCatalog | None = None,
+    **kwargs,
 ) -> HaloCatalog:
     r"""
     Find a halo list, given a redshift.
@@ -206,7 +210,7 @@ def determine_halo_catalog(
         redshift=redshift,
         desc_redshift=descendant_halos.redshift,
         inputs=inputs,
-        init_manager=InitManager.all_initialized(),
+        init_manager=kwargs.get("init_manager"),
     )
 
     # Run the C Code
@@ -225,6 +229,7 @@ def perturb_halo_catalog(
     previous_spin_temp: TsBox | None = None,
     previous_ionize_box: IonizedBox | None = None,
     halo_catalog: HaloCatalog,
+    **kwargs,
 ) -> PerturbedHaloCatalog:
     r"""
     Given a halo list, perturb the halos for a given redshift.
@@ -303,6 +308,7 @@ def compute_halo_grid(
     halo_catalog: HaloCatalog | None = None,
     previous_spin_temp: TsBox | None = None,
     previous_ionize_box: IonizedBox | None = None,
+    **kwargs,
 ) -> HaloBox:
     r"""
     Compute grids of halo properties from a catalogue.
@@ -476,6 +482,7 @@ def compute_xray_source_field(
     initial_conditions: InitialConditions,
     hboxes: list[HaloBox],
     redshift: float,
+    **kwargs,
 ) -> XraySourceBox:
     r"""
     Compute filtered grid of SFR for use in spin temperature calculation.
@@ -599,6 +606,7 @@ def compute_xray_source_field(
 
 
 @single_field_func
+@init_sigma_table(is_generator=False)
 @init_heat_tables(is_generator=False)
 def compute_spin_temperature(
     *,
@@ -608,6 +616,7 @@ def compute_spin_temperature(
     xray_source_box: XraySourceBox | None = None,
     previous_spin_temp: TsBox | None = None,
     cleanup: bool = False,
+    **kwargs,
 ) -> TsBox:
     r"""
     Compute spin temperature boxes at a given redshift.
@@ -674,6 +683,7 @@ def compute_spin_temperature(
 
 
 @single_field_func
+@init_sigma_table(is_generator=False)
 @init_heat_tables(is_generator=False)
 def compute_ionization_field(
     *,
@@ -684,6 +694,7 @@ def compute_ionization_field(
     previous_ionized_box: IonizedBox | None = None,
     spin_temp: TsBox | None = None,
     halobox: HaloBox | None = None,
+    **kwargs,
 ) -> IonizedBox:
     r"""
     Compute an ionized box at a given redshift.
@@ -802,6 +813,7 @@ def brightness_temperature(
     ionized_box: IonizedBox,
     perturbed_field: PerturbedField,
     spin_temp: TsBox | None = None,
+    **kwargs,
 ) -> BrightnessTemp:
     r"""
     Compute a coeval brightness temperature box.
