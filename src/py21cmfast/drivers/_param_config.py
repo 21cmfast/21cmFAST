@@ -6,20 +6,246 @@ import contextlib
 import functools
 import inspect
 import logging
-from collections.abc import Sequence
+from collections.abc import Callable, Sequence
+from functools import cache
 from typing import Any, get_args
 
+import attrs
+import numpy as np
+
 from .._cfg import config
+from ..c_21cmfast import lib
 from ..input_serialization import convert_inputs_to_dict
 from ..io import h5
 from ..io.caching import OutputCache
 from ..utils import recursive_difference
-from ..wrapper.cfuncs import _InitManager
 from ..wrapper.inputs import InputParameters
 from ..wrapper.outputs import HaloCatalog, OutputStruct, OutputStructZ, _HashType
-from ..wrapper.photoncons import _photoncons_state
 
 logger = logging.getLogger(__name__)
+
+
+@attrs.define
+class _InitManager:
+    """Class for tracking the initialization states in the C backend."""
+
+    broadcast_inputs: bool = False
+    init_ps: bool = False
+    init_sigma: bool = False
+    init_heat: bool = False
+
+
+def broadcast_input_struct(*args, skip: bool = False, **kwargs):
+    """Broadcast the parameters to the C library, and construct FFTW wisdoms if necessary."""
+    if not skip:
+        inputs = _get_inputs_from_call(*args, **kwargs)
+        lib.Broadcast_struct_global_all(
+            inputs.simulation_options.cstruct,
+            inputs.matter_options.cstruct,
+            inputs.cosmo_params.cstruct,
+            inputs.astro_params.cstruct,
+            inputs.astro_options.cstruct,
+            inputs.cosmo_tables.cstruct,
+        )
+        if inputs.matter_options.USE_FFTW_WISDOM:
+            construct_fftw_wisdoms()
+
+
+def initialize_power_spectrum(*args, skip: bool = False, **kwargs):
+    """Initialize power spectrum at the C backend."""
+    if not skip:
+        lib.init_ps()
+
+
+def initialize_sigma_tables(*args, skip: bool = False, **kwargs):
+    """Initialize sigma interpolation tables at the C backend."""
+    if not skip:
+        inputs = _get_inputs_from_call(*args, **kwargs)
+        if inputs.matter_options.USE_INTERPOLATION_TABLES != "no-interpolation":
+            sigma_min_mass = kwargs.get("M_min", 5e2)
+            sigma_max_mass = kwargs.get("M_max", 1e20)
+            lib.initialiseSigmaMInterpTable(sigma_min_mass, sigma_max_mass)
+
+
+def initialize_heat(*args, skip: bool = False, **kwargs):
+    """Initialize heat interpolation tables at the C backend."""
+    if not skip:
+        lib.init_heat()
+
+
+@cache
+def construct_fftw_wisdoms():
+    """Construct all necessary FFTW wisdoms."""
+    lib.CreateFFTWWisdoms()
+
+
+def free_cosmo_tables(*args, skip: bool = False, **kwargs):
+    """Free the memory of cosmo_tables_global that was allocated at the C backend."""
+    if not skip:
+        lib.Free_cosmo_tables_global()
+
+
+def free_power_spectrum(*args, skip: bool = False, **kwargs):
+    """Free the memory of power spectrum that was allocated at the C backend."""
+    if not skip:
+        lib.free_ps()
+
+
+def free_sigma_tables(*args, skip: bool = False, **kwargs):
+    """Free sigma interpolation tables at the C backend."""
+    if not skip:
+        inputs = _get_inputs_from_call(*args, **kwargs)
+        if inputs.matter_options.USE_INTERPOLATION_TABLES != "no-interpolation":
+            lib.freeSigmaMInterpTable()
+
+
+def free_heat(*args, skip: bool = False, **kwargs):
+    """Free heat interpolation tables at the C backend."""
+    if not skip:
+        lib.destruct_heat()
+
+
+def _get_inputs_from_call(*args, **kwargs) -> InputParameters:
+    """Extract InputParameters from the arguments of a C-wrapped call."""
+    inputs = kwargs.get("inputs")
+    if inputs is not None:
+        return inputs
+    for val in (*args, *kwargs.values()):
+        if isinstance(val, InputParameters):
+            return val
+        if hasattr(val, "inputs") and isinstance(val.inputs, InputParameters):
+            return val.inputs
+        if hasattr(val, "__iter__"):
+            for item in val:
+                if hasattr(item, "inputs") and isinstance(item.inputs, InputParameters):
+                    return item.inputs
+    raise ValueError(
+        "Could not determine InputParameters. Ensure inputs is passed as a "
+        "keyword argument or at least one argument has an 'inputs' attribute."
+    )
+
+
+def _make_lifecycle_decorator(
+    *,
+    init_func: Callable,
+    free_func: Callable,
+    manager_field: str,
+    next_decorator: Callable | None = None,
+    is_generator: bool = False,
+) -> Callable:
+    """Build a decorator that calls init_func before and free_func after the wrapped function."""
+
+    def _make_wrapper(func):
+        def wrapper(*args, **kwargs):
+            init_manager = kwargs.get("init_manager", _InitManager())
+            kwargs["init_manager"] = init_manager
+            skip = getattr(init_manager, manager_field)
+            init_func(*args, skip=skip, **kwargs)
+            if not skip:
+                setattr(init_manager, manager_field, True)
+            try:
+                out = func(*args, **kwargs)
+            except Exception:
+                if not skip:
+                    setattr(init_manager, manager_field, False)
+                free_func(*args, skip=skip, **kwargs)
+                raise
+            if not skip:
+                setattr(init_manager, manager_field, False)
+            free_func(*args, skip=skip, **kwargs)
+            return out
+
+        def generator_wrapper(*args, **kwargs):
+            init_manager = kwargs.get("init_manager", _InitManager())
+            kwargs["init_manager"] = init_manager
+            skip = getattr(init_manager, manager_field)
+            init_func(*args, skip=skip, **kwargs)
+            if not skip:
+                setattr(init_manager, manager_field, True)
+            try:
+                yield from func(*args, **kwargs)
+            except Exception:
+                if not skip:
+                    setattr(init_manager, manager_field, False)
+                free_func(*args, skip=skip, **kwargs)
+                raise
+            if not skip:
+                setattr(init_manager, manager_field, False)
+            free_func(*args, skip=skip, **kwargs)
+
+        result = generator_wrapper if is_generator else wrapper
+        functools.update_wrapper(result, func)
+        if next_decorator is not None:
+            result = next_decorator(is_generator=is_generator)(result)
+        return result
+
+    return _make_wrapper
+
+
+def c_wrapper(*, is_generator: bool = False) -> Callable:
+    """Broadcast inputs and construct FFTW wisdom before calling the function."""
+    return _make_lifecycle_decorator(
+        init_func=broadcast_input_struct,
+        free_func=free_cosmo_tables,
+        manager_field="broadcast_inputs",
+        next_decorator=None,
+        is_generator=is_generator,
+    )
+
+
+def init_backend_ps(*, is_generator: bool = False) -> Callable:
+    """Initialise the backend power-spectrum before calling the function."""
+    return _make_lifecycle_decorator(
+        init_func=initialize_power_spectrum,
+        free_func=free_power_spectrum,
+        manager_field="init_ps",
+        next_decorator=c_wrapper,
+        is_generator=is_generator,
+    )
+
+
+def init_sigma_table(*, is_generator: bool = False) -> Callable:
+    """Initialise the the sigma interpolation table before calling the function."""
+    return _make_lifecycle_decorator(
+        init_func=initialize_sigma_tables,
+        free_func=free_sigma_tables,
+        manager_field="init_sigma",
+        next_decorator=init_backend_ps,
+        is_generator=is_generator,
+    )
+
+
+def init_heat_tables(*, is_generator: bool = False) -> Callable:
+    """Initialise the the heat interpolation tables before calling the function."""
+    return _make_lifecycle_decorator(
+        init_func=initialize_heat,
+        free_func=free_heat,
+        manager_field="init_heat",
+        next_decorator=c_wrapper,
+        is_generator=is_generator,
+    )
+
+
+# TODO: this seemed unused...
+def init_gl(func: Callable) -> Callable:
+    """Initialise the Gauss-Legendre integration if required before calling the function.
+
+    Calculates the abcissae weights and stores them as arrays in the backend when either of the
+    HMF integrals is set to use Gauss-Legendre integration. This should be added as a decorator to
+    any function which calls backend integrals directly.
+    """
+
+    @init_sigma_table(is_generator=False)
+    def wrapper(*args, inputs: InputParameters, **kwargs):
+        if "GAUSS-LEGENDRE" in (
+            inputs.astro_options.INTEGRATION_METHOD_ATOMIC,
+            inputs.astro_options.INTEGRATION_METHOD_MINI,
+        ):
+            # no defualt since GL mass limits are strict
+            lib.initialise_GL(np.log(kwargs.get("M_min")), np.log(kwargs.get("M_max")))
+        return func(*args, inputs=inputs, **kwargs)
+
+    return wrapper
 
 
 def check_redshift_consistency(
@@ -344,6 +570,8 @@ class _OutputStructComputationInspect:
         both needed and not initialised.
         In Future, may hold more backend state checks.
         """
+        from ..wrapper.photoncons import _photoncons_state
+
         # we need photon cons to be done before any non-IC box is computed
         if (
             inputs.astro_options.PHOTON_CONS_TYPE != "no-photoncons"

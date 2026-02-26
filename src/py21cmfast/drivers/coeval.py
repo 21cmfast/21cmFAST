@@ -19,7 +19,6 @@ from ..io import h5
 from ..io.caching import CacheConfig, OutputCache, RunCache
 from ..rsds import apply_rsds, include_dvdr_in_tau21
 from ..wrapper.arrays import Array
-from ..wrapper.cfuncs import _InitManager, init_heat_tables, init_sigma_table
 from ..wrapper.inputs import InputParameters
 from ..wrapper.outputs import (
     BrightnessTemp,
@@ -33,7 +32,12 @@ from ..wrapper.outputs import (
 )
 from ..wrapper.photoncons import _get_photon_nonconservation_data, setup_photon_cons
 from . import single_field as sf
-from ._param_config import high_level_func
+from ._param_config import (
+    _InitManager,
+    high_level_func,
+    init_heat_tables,
+    init_sigma_table,
+)
 
 logger = logging.getLogger(__name__)
 

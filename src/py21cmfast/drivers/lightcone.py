@@ -21,7 +21,6 @@ from ..io.caching import CacheConfig, OutputCache
 from ..lightconers import Lightconer, RectilinearLightconer
 from ..rsds import apply_rsds as do_rsds
 from ..rsds import include_dvdr_in_tau21 as do_dvdr_in_tau21
-from ..wrapper.cfuncs import init_heat_tables, init_sigma_table
 from ..wrapper.inputs import InputParameters
 from ..wrapper.outputs import (
     BrightnessTemp,
@@ -32,7 +31,7 @@ from ..wrapper.outputs import (
     PerturbedField,
     TsBox,
 )
-from ._param_config import high_level_func
+from ._param_config import high_level_func, init_heat_tables, init_sigma_table
 from .coeval import (
     _obtain_starting_point_for_scrolling,
     _redshift_loop_generator,

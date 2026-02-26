@@ -56,8 +56,8 @@ import numpy as np
 from scipy.optimize import curve_fit
 
 from ..c_21cmfast import ffi, lib
+from ..drivers._param_config import broadcast_input_struct, c_wrapper, init_sigma_table
 from ._utils import _process_exitcode
-from .cfuncs import broadcast_input_struct, c_wrapper, init_sigma_table
 from .inputs import InputParameters
 from .outputs import InitialConditions
 

@@ -30,7 +30,6 @@ from bidict import bidict
 
 from .._cfg import config
 from ..c_21cmfast import lib
-from ..wrapper.cfuncs import _InitManager
 from .arrays import Array
 from .exceptions import _process_exitcode
 from .inputs import (
@@ -799,6 +798,7 @@ class HaloCatalog(OutputStructZ):
         All other parameters are passed through to the :class:`PerturbedHaloCatalog`
         constructor.
         """
+        from ..drivers._param_config import _InitManager
         from .cfuncs import get_halo_catalog_buffer_size
 
         if kw.get("dummy", False):

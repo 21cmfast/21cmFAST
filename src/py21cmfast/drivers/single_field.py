@@ -13,12 +13,6 @@ from astropy import units as un
 from astropy.cosmology import z_at_value
 
 from ..wrapper.arrays import Array
-from ..wrapper.cfuncs import (
-    c_wrapper,
-    init_backend_ps,
-    init_heat_tables,
-    init_sigma_table,
-)
 from ..wrapper.inputs import InputParameters
 from ..wrapper.outputs import (
     BrightnessTemp,
@@ -32,7 +26,11 @@ from ..wrapper.outputs import (
     XraySourceBox,
 )
 from ._param_config import (
+    c_wrapper,
     check_output_consistency,
+    init_backend_ps,
+    init_heat_tables,
+    init_sigma_table,
     single_field_func,
 )
 

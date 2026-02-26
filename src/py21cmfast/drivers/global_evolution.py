@@ -12,7 +12,7 @@ from .. import __version__
 from ..io import h5
 from ..io.caching import CacheConfig
 from ..wrapper.arrays import Array
-from ..wrapper.cfuncs import evaluate_Nion_z, init_heat_tables, init_sigma_table
+from ..wrapper.cfuncs import evaluate_Nion_z
 from ..wrapper.inputs import InputParameters
 from ..wrapper.outputs import (
     BrightnessTemp,
@@ -20,7 +20,7 @@ from ..wrapper.outputs import (
     IonizedBox,
     TsBox,
 )
-from ._param_config import high_level_func
+from ._param_config import high_level_func, init_heat_tables, init_sigma_table
 from .coeval import _redshift_loop_generator, _setup_ics_and_pfs_for_scrolling
 
 
