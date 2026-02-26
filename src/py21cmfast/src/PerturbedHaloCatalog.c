@@ -91,7 +91,6 @@ int ComputePerturbedHaloCatalog(float redshift, InitialConditions *boxes, TsBox 
         // Function for deciding the dimensions of loops when we could
         // use either the low or high resolution grids.
 
-        init_ps();
         growth_factor = dicke(redshift);  // normalized to 1 at z=0
         halos_perturbed->n_halos = halos->n_halos;
 

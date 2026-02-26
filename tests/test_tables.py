@@ -2,7 +2,7 @@
 
 from py21cmfast.c_21cmfast import lib
 
-from py21cmfast.wrapper.cfuncs import broadcast_input_struct
+from py21cmfast.drivers._param_config import broadcast_input_struct
 
 
 def test_init_heat(default_input_struct):
