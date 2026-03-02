@@ -55,7 +55,8 @@ NB_MODULE(c_21cmfast, m) {
         .def_rw("DEXM_R_OVERLAP", &SimulationOptions::DEXM_R_OVERLAP)
         .def_rw("CORR_STAR", &SimulationOptions::CORR_STAR)
         .def_rw("CORR_SFR", &SimulationOptions::CORR_SFR)
-        .def_rw("CORR_LX", &SimulationOptions::CORR_LX);
+        .def_rw("CORR_LX", &SimulationOptions::CORR_LX)
+        .def_rw("MIN_XE_FOR_FCOLL_IN_TAUX", &SimulationOptions::MIN_XE_FOR_FCOLL_IN_TAUX);
 
     // Bind MatterOptions
     nb::class_<MatterOptions>(m, "MatterOptions")
