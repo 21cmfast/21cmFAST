@@ -1193,18 +1193,10 @@ RGTable1D_f *get_Nion_conditional_table1D(void) { return &Nion_conditional_table
 int get_nbins(void) { return NDELTA; }
 
 // todo: only return when it's been initialized
-RGTable1D *GetNhaloTable() {
-    return &Nhalo_table;
-}
+RGTable1D *GetNhaloTable() { return &Nhalo_table; }
 
-RGTable1D *GetMcollTable() {
-    return &Mcoll_table;
-}
+RGTable1D *GetMcollTable() { return &Mcoll_table; }
 
-RGTable2D *GetNhaloInvTable() {
-    return &Nhalo_inv_table;
-}
+RGTable2D *GetNhaloInvTable() { return &Nhalo_inv_table; }
 
-RGTable1D_f *GetSigmaInterpTable() {
-    return &Sigma_InterpTable;
-}
+RGTable1D_f *GetSigmaInterpTable() { return &Sigma_InterpTable; }

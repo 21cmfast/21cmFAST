@@ -25,9 +25,9 @@ void move_halo_galprops(double redshift, HaloCatalog *halos, float *vel_pointers
 double cic_read_float_wrapper(float *box, double pos[3], int box_dim[3]);
 
 double *MapMass_gpu(InitialConditions *boxes, double *resampled_box, int dimension,
-                    double f_pixel_factor, double init_growth_factor,
-                    double velocity_scale, double velocity_scale_z,
-                    double velocity_scale_2LPT, double velocity_scale_2LPT_z);
+                    double f_pixel_factor, double init_growth_factor, double velocity_scale,
+                    double velocity_scale_z, double velocity_scale_2LPT,
+                    double velocity_scale_2LPT_z);
 
 #ifdef __cplusplus
 }

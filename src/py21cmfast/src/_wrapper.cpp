@@ -275,15 +275,21 @@ NB_MODULE(c_21cmfast, m) {
         .def("set_sfr",
              [](PerturbedHaloCatalog& self, nb::ndarray<float> array) { self.sfr = array.data(); })
         .def("set_stellar_masses",
-             [](PerturbedHaloCatalog& self, nb::ndarray<float> array) { self.stellar_masses = array.data(); })
+             [](PerturbedHaloCatalog& self, nb::ndarray<float> array) {
+                 self.stellar_masses = array.data();
+             })
         .def("set_ion_emissivity",
-             [](PerturbedHaloCatalog& self, nb::ndarray<float> array) { self.ion_emissivity = array.data(); })
+             [](PerturbedHaloCatalog& self, nb::ndarray<float> array) {
+                 self.ion_emissivity = array.data();
+             })
         .def("set_xray_emissivity",
-             [](PerturbedHaloCatalog& self, nb::ndarray<float> array) { self.xray_emissivity = array.data(); })
-        .def("set_fesc_sfr",
-             [](PerturbedHaloCatalog& self, nb::ndarray<float> array) { self.fesc_sfr = array.data(); })
-        .def("set_stellar_mini",
-             [](PerturbedHaloCatalog& self, nb::ndarray<float> array) { self.stellar_mini = array.data(); })
+             [](PerturbedHaloCatalog& self, nb::ndarray<float> array) {
+                 self.xray_emissivity = array.data();
+             })
+        .def("set_fesc_sfr", [](PerturbedHaloCatalog& self,
+                                nb::ndarray<float> array) { self.fesc_sfr = array.data(); })
+        .def("set_stellar_mini", [](PerturbedHaloCatalog& self,
+                                    nb::ndarray<float> array) { self.stellar_mini = array.data(); })
         .def("set_sfr_mini", [](PerturbedHaloCatalog& self, nb::ndarray<float> array) {
             self.sfr_mini = array.data();
         });

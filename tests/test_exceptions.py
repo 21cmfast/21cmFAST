@@ -1,9 +1,9 @@
 """Test exceptions raised in the C backend."""
 
 import numpy as np
+import py21cmfast.c_21cmfast as lib
 import pytest
 
-import py21cmfast.c_21cmfast as lib
 from py21cmfast.wrapper.exceptions import (
     PHOTONCONSERROR,
     PhotonConsError,

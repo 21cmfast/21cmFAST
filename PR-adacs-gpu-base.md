@@ -60,7 +60,7 @@ Note: GPU is slower on A100 for these small test workloads due to transfer overh
 - Fix cuFFT first-call failure on P100/Pascal GPUs
 - Fix GPU velocity displacement calculation in MapMass_gpu
 - Fix GPU stochasticity: position randomization and type mismatch for discrete halo sampling
-- Fix 2LPT implementation: cuFFT R2C requires tightly-packed input (not FFT-padded), 
+- Fix 2LPT implementation: cuFFT R2C requires tightly-packed input (not FFT-padded),
   and phi_2 needs VOLUME pre-multiplication to match velocity kernel expectations
 
 ### Test Configurations

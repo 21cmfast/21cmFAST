@@ -8,8 +8,9 @@ import attrs
 import h5py
 import numpy as np
 
-from .. import __version__
 import py21cmfast.c_21cmfast as lib
+
+from .. import __version__
 from ..io import h5
 from ..io.caching import CacheConfig
 from ..wrapper.arrays import Array

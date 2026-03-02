@@ -8,24 +8,28 @@ This script:
 3. Provides ways to verify GPU acceleration
 """
 
+import os
 import subprocess
 import sys
-import os
-import time
 import threading
+import time
 
 # Fix the ninja path issue first
 try:
     import _21cmfast_editable_loader
+
     for item in sys.meta_path:
         if isinstance(item, _21cmfast_editable_loader.MesonpyMetaFinder):
-            item._build_cmd = ['ninja']
+            item._build_cmd = ["ninja"]
             break
 except ImportError:
     pass
 
 # Set CUDA library path
-os.environ['LD_LIBRARY_PATH'] = f"/apps/modules/software/CUDA/12.8.0/lib64:{os.environ.get('LD_LIBRARY_PATH', '')}"
+os.environ["LD_LIBRARY_PATH"] = (
+    f"/apps/modules/software/CUDA/12.8.0/lib64:{os.environ.get('LD_LIBRARY_PATH', '')}"
+)
+
 
 def check_cuda_compilation():
     """Check if the binary was compiled with CUDA support."""
@@ -34,16 +38,17 @@ def check_cuda_compilation():
     print("=" * 60)
 
     # Check if the compiled library has CUDA symbols
-    so_file = "build/cp311/src/py21cmfast/src/c_21cmfast.cpython-311-x86_64-linux-gnu.so"
+    so_file = (
+        "build/cp311/src/py21cmfast/src/c_21cmfast.cpython-311-x86_64-linux-gnu.so"
+    )
     if os.path.exists(so_file):
         try:
-            result = subprocess.run(
-                ["nm", so_file],
-                capture_output=True,
-                text=True
-            )
-            cuda_symbols = [line for line in result.stdout.split('\n')
-                          if 'cuda' in line.lower() or 'gpu' in line.lower()]
+            result = subprocess.run(["nm", so_file], capture_output=True, text=True)
+            cuda_symbols = [
+                line
+                for line in result.stdout.split("\n")
+                if "cuda" in line.lower() or "gpu" in line.lower()
+            ]
 
             if cuda_symbols:
                 print(f"✓ Found {len(cuda_symbols)} CUDA-related symbols in the binary")
@@ -61,6 +66,7 @@ def check_cuda_compilation():
 
     return False
 
+
 def check_cuda_runtime():
     """Check if CUDA runtime is available."""
     print("\n" + "=" * 60)
@@ -68,14 +74,10 @@ def check_cuda_runtime():
     print("=" * 60)
 
     try:
-        result = subprocess.run(
-            ["nvidia-smi", "-L"],
-            capture_output=True,
-            text=True
-        )
+        result = subprocess.run(["nvidia-smi", "-L"], capture_output=True, text=True)
         if result.returncode == 0:
             print("✓ NVIDIA GPU(s) detected:")
-            print("  " + result.stdout.strip().replace('\n', '\n  '))
+            print("  " + result.stdout.strip().replace("\n", "\n  "))
             return True
         else:
             print("✗ No NVIDIA GPUs detected or nvidia-smi not available")
@@ -84,25 +86,32 @@ def check_cuda_runtime():
         print("✗ nvidia-smi not found - CUDA runtime may not be installed")
         return False
 
+
 def monitor_gpu(stop_event, gpu_used):
     """Monitor GPU usage in a separate thread."""
     while not stop_event.is_set():
         try:
             result = subprocess.run(
-                ["nvidia-smi", "--query-gpu=utilization.gpu,memory.used",
-                 "--format=csv,noheader,nounits"],
+                [
+                    "nvidia-smi",
+                    "--query-gpu=utilization.gpu,memory.used",
+                    "--format=csv,noheader,nounits",
+                ],
                 capture_output=True,
-                text=True
+                text=True,
             )
             if result.returncode == 0:
-                util, mem = result.stdout.strip().split(', ')
-                if int(util) > 5 or int(mem) > 100:  # GPU utilization > 5% or memory > 100MB
+                util, mem = result.stdout.strip().split(", ")
+                if (
+                    int(util) > 5 or int(mem) > 100
+                ):  # GPU utilization > 5% or memory > 100MB
                     gpu_used[0] = True
                     gpu_used[1] = max(gpu_used[1], int(util))
                     gpu_used[2] = max(gpu_used[2], int(mem))
         except:
             pass
         time.sleep(0.1)
+
 
 def test_gpu_usage():
     """Run a small test to see if GPU is being used."""
@@ -117,13 +126,13 @@ def test_gpu_usage():
 
         # Check the compiled library for USE_CUDA flag
         print("\nChecking USE_CUDA compilation flag...")
-        lib_path = p21c.c_21cmfast.__file__ if hasattr(p21c, 'c_21cmfast') else None
+        lib_path = p21c.c_21cmfast.__file__ if hasattr(p21c, "c_21cmfast") else None
         if lib_path:
             result = subprocess.run(
                 ["strings", lib_path, "|", "grep", "-i", "cuda"],
                 shell=True,
                 capture_output=True,
-                text=True
+                text=True,
             )
             if "cuda" in result.stdout.lower():
                 print("✓ CUDA strings found in compiled library")
@@ -137,7 +146,9 @@ def test_gpu_usage():
         # Start GPU monitoring
         stop_event = threading.Event()
         gpu_used = [False, 0, 0]  # [was_used, max_utilization%, max_memory_mb]
-        monitor_thread = threading.Thread(target=monitor_gpu, args=(stop_event, gpu_used))
+        monitor_thread = threading.Thread(
+            target=monitor_gpu, args=(stop_event, gpu_used)
+        )
         monitor_thread.start()
 
         try:
@@ -148,8 +159,7 @@ def test_gpu_usage():
 
             # This should trigger GPU usage if available
             ionize_box = p21c.ionize_box(
-                initial_conditions=initial_conditions,
-                redshift=8.0
+                initial_conditions=initial_conditions, redshift=8.0
             )
 
             time.sleep(1)  # Give GPU monitor a chance to catch any activity
@@ -159,7 +169,7 @@ def test_gpu_usage():
             monitor_thread.join()
 
         if gpu_used[0]:
-            print(f"✓ GPU was used during calculation!")
+            print("✓ GPU was used during calculation!")
             print(f"  Max GPU utilization: {gpu_used[1]}%")
             print(f"  Max GPU memory used: {gpu_used[2]} MB")
         else:
@@ -177,8 +187,10 @@ def test_gpu_usage():
     except Exception as e:
         print(f"✗ Error during test: {e}")
         import traceback
+
         traceback.print_exc()
         return False
+
 
 def check_code_flags():
     """Check the source code for GPU flags."""
@@ -194,7 +206,7 @@ def check_code_flags():
 
     for file in files_to_check:
         if os.path.exists(file):
-            with open(file, 'r') as f:
+            with open(file) as f:
                 content = f.read()
                 if "use_cuda = false" in content:
                     print(f"✗ Found 'use_cuda = false' hardcoded in {file}")
@@ -205,6 +217,7 @@ def check_code_flags():
                     print(f"✓ Found 'use_cuda = true' in {file}")
                 else:
                     print(f"  No use_cuda assignments found in {file}")
+
 
 if __name__ == "__main__":
     print("21cmFAST GPU Usage Verification Script")

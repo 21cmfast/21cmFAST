@@ -138,16 +138,18 @@ double EvaluateRGTable1D_f(double x, RGTable1D_f *table) {
         oob_low_count++;
         if (x < oob_low_min_x) oob_low_min_x = x;
         if (oob_low_count <= 5 || (oob_low_count % 100000 == 0)) {
-            fprintf(stderr, "[OOB] EvaluateRGTable1D_f: idx=%d < 0, x=%.6e, x_min=%.6e (count=%ld)\n",
-                    idx, x, x_min, oob_low_count);
+            fprintf(stderr,
+                    "[OOB] EvaluateRGTable1D_f: idx=%d < 0, x=%.6e, x_min=%.6e (count=%ld)\n", idx,
+                    x, x_min, oob_low_count);
         }
         idx = 0;
     } else if (idx > max_idx) {
         oob_high_count++;
         if (x > oob_high_max_x) oob_high_max_x = x;
         if (oob_high_count <= 5 || (oob_high_count % 100000 == 0)) {
-            fprintf(stderr, "[OOB] EvaluateRGTable1D_f: idx=%d > %d, x=%.6e, x_max=%.6e (count=%ld)\n",
-                    idx, max_idx, x, x_min + x_width * table->n_bin, oob_high_count);
+            fprintf(stderr,
+                    "[OOB] EvaluateRGTable1D_f: idx=%d > %d, x=%.6e, x_max=%.6e (count=%ld)\n", idx,
+                    max_idx, x, x_min + x_width * table->n_bin, oob_high_count);
         }
         idx = max_idx;
     }

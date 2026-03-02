@@ -1138,7 +1138,8 @@ int stochastic_halofield(unsigned long long int seed, float redshift_desc, float
 
         // copy global variables to the device
         // todo: move the following operation to InitialConditions.c
-        updateGlobalParams(simulation_options_global, matter_options_global, cosmo_params_global, astro_params_global);
+        updateGlobalParams(simulation_options_global, matter_options_global, cosmo_params_global,
+                           astro_params_global);
 #else
         LOG_ERROR("CUDA function copyTablesToDevice called but code was not compiled for CUDA.");
 #endif

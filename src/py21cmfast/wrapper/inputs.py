@@ -27,8 +27,9 @@ from attrs import asdict, evolve, validators
 from attrs import field as _field
 from cyclopts import Parameter
 
-from .._cfg import config
 import py21cmfast.c_21cmfast as lib
+
+from .._cfg import config
 from ._utils import snake_to_camel
 from .classy_interface import (
     find_redshift_kinematic_decoupling,

@@ -140,8 +140,8 @@ typedef struct AstroParams {
 typedef struct AstroOptions {
     bool USE_MINI_HALOS;
     bool USE_X_RAY_HEATING;  // X-ray Heating Flag
-    bool USE_CMB_HEATING;  // CMB Heating Flag
-    bool USE_LYA_HEATING;  // Lya Heating Flag
+    bool USE_CMB_HEATING;    // CMB Heating Flag
+    bool USE_LYA_HEATING;    // Lya Heating Flag
     bool INHOMO_RECO;
     bool USE_TS_FLUCT;
     bool M_MIN_in_Mass;

@@ -18,7 +18,6 @@ import numpy as np
 import pytest
 
 import py21cmfast as p21c
-from py21cmfast import InitialConditions, PerturbedField
 
 
 def _check_cuda_available():
@@ -26,7 +25,8 @@ def _check_cuda_available():
     try:
         # Check if the library was compiled with CUDA support
         import py21cmfast.c_21cmfast as lib
-        return hasattr(lib, 'cuda_hello_world')
+
+        return hasattr(lib, "cuda_hello_world")
     except (ImportError, AttributeError):
         return False
 
@@ -95,8 +95,12 @@ class TestGPUParity:
         lowres = ic.lowres_density.value
 
         # Density contrast should have mean near 0
-        assert abs(np.mean(hires)) < 0.1, f"Mean hires density too large: {np.mean(hires)}"
-        assert abs(np.mean(lowres)) < 0.1, f"Mean lowres density too large: {np.mean(lowres)}"
+        assert abs(np.mean(hires)) < 0.1, (
+            f"Mean hires density too large: {np.mean(hires)}"
+        )
+        assert abs(np.mean(lowres)) < 0.1, (
+            f"Mean lowres density too large: {np.mean(lowres)}"
+        )
 
         # Should have non-trivial variance
         assert np.std(hires) > 0.01, f"Hires density std too small: {np.std(hires)}"
@@ -105,12 +109,12 @@ class TestGPUParity:
     def test_initial_conditions_velocity_finite(self, ic):
         """Test that initial conditions velocity fields contain finite values."""
         # Check lowres velocities (default configuration)
-        if hasattr(ic, 'lowres_vx') and ic.lowres_vx is not None:
+        if hasattr(ic, "lowres_vx") and ic.lowres_vx is not None:
             assert np.all(np.isfinite(ic.lowres_vx.value))
             assert np.all(np.isfinite(ic.lowres_vy.value))
             assert np.all(np.isfinite(ic.lowres_vz.value))
         # Check hires velocities (if PERTURB_ON_HIGH_RES)
-        if hasattr(ic, 'hires_vx') and ic.hires_vx is not None:
+        if hasattr(ic, "hires_vx") and ic.hires_vx is not None:
             assert np.all(np.isfinite(ic.hires_vx.value))
             assert np.all(np.isfinite(ic.hires_vy.value))
             assert np.all(np.isfinite(ic.hires_vz.value))
@@ -134,13 +138,17 @@ class TestGPUParity:
         velocity = perturbed_field.velocity_z.value
 
         # Density contrast should have mean near 0
-        assert abs(np.mean(density)) < 0.1, f"Mean density too large: {np.mean(density)}"
+        assert abs(np.mean(density)) < 0.1, (
+            f"Mean density too large: {np.mean(density)}"
+        )
 
         # Velocity should be roughly symmetric around 0
         assert abs(np.mean(velocity)) < np.std(velocity), "Velocity mean too far from 0"
 
     @pytest.mark.slow
-    def test_ionization_field(self, ic, perturbed_field, small_inputs, tmp_path_factory):
+    def test_ionization_field(
+        self, ic, perturbed_field, small_inputs, tmp_path_factory
+    ):
         """Test ionization field computation."""
         cache_dir = tmp_path_factory.mktemp("gpu_parity_cache_ion")
         cache = p21c.OutputCache(cache_dir)
@@ -160,7 +168,9 @@ class TestGPUParity:
         assert np.all(ion_box.neutral_fraction.value <= 1.0)
 
     @pytest.mark.slow
-    def test_brightness_temperature(self, ic, perturbed_field, small_inputs, tmp_path_factory):
+    def test_brightness_temperature(
+        self, ic, perturbed_field, small_inputs, tmp_path_factory
+    ):
         """Test brightness temperature computation."""
         cache_dir = tmp_path_factory.mktemp("gpu_parity_cache_bt")
         cache = p21c.OutputCache(cache_dir)
@@ -197,6 +207,7 @@ class TestGPUSpecificFeatures:
             pytest.skip("CUDA not available in compiled library")
 
         import py21cmfast.c_21cmfast as lib
+
         # Just verify it doesn't crash
         result = lib.cuda_hello_world()
         assert result == 0
@@ -245,6 +256,7 @@ class TestGPUCPUComparison:
     def reference_data_path(self):
         """Path to GPU-CPU parity reference data."""
         from pathlib import Path
+
         return Path(__file__).parent / "data" / "gpu_parity_reference"
 
     @pytest.fixture(scope="class")
@@ -313,17 +325,23 @@ class TestGPUCPUComparison:
 
         # Compare hires density
         gpu_hires = gpu_ic.hires_density.value
-        cpu_hires = ref_data['hires_density']
+        cpu_hires = ref_data["hires_density"]
         corr_hires = self._compute_correlation(gpu_hires, cpu_hires)
-        assert corr_hires > 0.999, f"GPU-CPU hires density correlation too low: {corr_hires}"
+        assert corr_hires > 0.999, (
+            f"GPU-CPU hires density correlation too low: {corr_hires}"
+        )
 
         # Compare lowres density
         gpu_lowres = gpu_ic.lowres_density.value
-        cpu_lowres = ref_data['lowres_density']
+        cpu_lowres = ref_data["lowres_density"]
         corr_lowres = self._compute_correlation(gpu_lowres, cpu_lowres)
-        assert corr_lowres > 0.999, f"GPU-CPU lowres density correlation too low: {corr_lowres}"
+        assert corr_lowres > 0.999, (
+            f"GPU-CPU lowres density correlation too low: {corr_lowres}"
+        )
 
-    def test_perturbed_field_matches_cpu(self, reference_data_path, gpu_perturbed_field):
+    def test_perturbed_field_matches_cpu(
+        self, reference_data_path, gpu_perturbed_field
+    ):
         """Test that GPU perturbed field matches CPU reference."""
         ref_file = reference_data_path / "perturbed_field.npz"
         if not ref_file.exists():
@@ -333,12 +351,16 @@ class TestGPUCPUComparison:
 
         # Compare density field
         gpu_density = gpu_perturbed_field.density.value
-        cpu_density = ref_data['density']
+        cpu_density = ref_data["density"]
         corr_density = self._compute_correlation(gpu_density, cpu_density)
-        assert corr_density > 0.999, f"GPU-CPU density correlation too low: {corr_density}"
+        assert corr_density > 0.999, (
+            f"GPU-CPU density correlation too low: {corr_density}"
+        )
 
         # Compare velocity field
         gpu_velocity = gpu_perturbed_field.velocity_z.value
-        cpu_velocity = ref_data['velocity_z']
+        cpu_velocity = ref_data["velocity_z"]
         corr_velocity = self._compute_correlation(gpu_velocity, cpu_velocity)
-        assert corr_velocity > 0.999, f"GPU-CPU velocity correlation too low: {corr_velocity}"
+        assert corr_velocity > 0.999, (
+            f"GPU-CPU velocity correlation too low: {corr_velocity}"
+        )
