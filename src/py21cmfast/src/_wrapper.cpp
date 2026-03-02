@@ -346,7 +346,8 @@ NB_MODULE(c_21cmfast, m) {
             "set_kinetic_temp_neutral",
             [](TsBox& self, nb::ndarray<float> array) { self.kinetic_temp_neutral = array.data(); })
         .def("set_J_21_LW",
-             [](TsBox& self, nb::ndarray<float> array) { self.J_21_LW = array.data(); });
+             [](TsBox& self, nb::ndarray<float> array) { self.J_21_LW = array.data(); })
+        .def_rw("Q_HI", &TsBox::Q_HI);
 
     // Bind IonizedBox
     nb::class_<IonizedBox>(m, "IonizedBox")

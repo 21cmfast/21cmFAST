@@ -82,6 +82,7 @@ typedef struct TsBox {
     float *xray_ionised_fraction;
     float *kinetic_temp_neutral;
     float *J_21_LW;
+    double Q_HI;
 } TsBox;
 
 typedef struct IonizedBox {
