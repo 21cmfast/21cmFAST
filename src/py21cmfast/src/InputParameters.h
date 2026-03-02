@@ -171,6 +171,8 @@ typedef struct Table1D {
 } Table1D;
 
 typedef struct CosmoTables {
+    double ps_norm;
+    bool USE_SIGMA_8;
     Table1D *transfer_density;
     Table1D *transfer_vcb;
 } CosmoTables;

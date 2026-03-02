@@ -362,6 +362,10 @@ class CosmoTables:
     def cstruct(self) -> StructWrapper:
         """The object pointing to the memory accessed by C-code for this struct."""
         cstruct = self.struct.cstruct
+        if self.ps_norm is not None:
+            cstruct.ps_norm = self.ps_norm
+        if self.USE_SIGMA_8 is not None:
+            cstruct.USE_SIGMA_8 = self.USE_SIGMA_8
         if self.transfer_density is not None:
             cstruct.set_transfer_density(self.transfer_density.cstruct)
         if self.transfer_vcb is not None:

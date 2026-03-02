@@ -174,6 +174,8 @@ NB_MODULE(c_21cmfast, m) {
     // Bind CosmoTables
     nb::class_<CosmoTables>(m, "CosmoTables")
         .def(nb::init<>())
+        .def_rw("ps_norm", &CosmoTables::ps_norm)
+        .def_rw("USE_SIGMA_8", &CosmoTables::USE_SIGMA_8)
         .def("set_transfer_density",
              [](CosmoTables& self, Table1D* table) { self.transfer_density = table; })
         .def("set_transfer_vcb",
