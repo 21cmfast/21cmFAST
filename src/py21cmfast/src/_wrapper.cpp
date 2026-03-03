@@ -706,6 +706,7 @@ NB_MODULE(c_21cmfast, m) {
     m.def("sigma_z0", &sigma_z0);
     m.def("dsigmasqdm_z0", &dsigmasqdm_z0);
     m.def("power_in_k", &power_in_k);
+    m.def("power_in_vcb", &power_in_vcb);
     m.def("get_delta_crit", &get_delta_crit);
     m.def("atomic_cooling_threshold", &atomic_cooling_threshold);
     m.def("unconditional_hmf", &unconditional_hmf);
