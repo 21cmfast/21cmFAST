@@ -1,0 +1,18 @@
+#!/usr/bin/bash
+set -e
+
+PART=$1
+
+OLDVERSION=$(cat VERSION)
+NEWVERSION=$(bump2version --dry-run --list ${PART} | grep new_version | sed -r s,"^.*=",,)
+echo "New Version: ${NEWVERSION}"
+
+# Actually Run The Update
+bump2version $PART
+
+# Now add in stuff to the changelog
+python changethelog.py ${NEWVERSION}
+
+# Now commit
+git add .
+git commit -m "Bump Version: ${OLDVERSION} -> ${NEWVERSION}"
