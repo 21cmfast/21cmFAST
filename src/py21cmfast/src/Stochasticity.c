@@ -973,8 +973,10 @@ int sample_halo_progenitors(gsl_rng **rng_arr, double z_in, double z_out, HaloCa
     double boxlen[3] = {simulation_options_global->BOX_LEN, simulation_options_global->BOX_LEN,
                         BOXLEN_PARA};
 
-    // use cuda function if use_cuda is true
-    bool use_cuda = USE_CUDA;  // GPU enabled based on compile-time flag
+    // GPU halo property computation disabled: the GPU path uses curand which
+    // produces different random sequences than the CPU GSL RNG, making results
+    // non-reproducible across CPU/GPU. Always use CPU path for now.
+    bool use_cuda = false;
     if (use_cuda) {
 #if USE_CUDA
         // get parameters needed for sigma calculation
@@ -1126,7 +1128,10 @@ int stochastic_halofield(unsigned long long int seed, float redshift_desc, float
     struct HaloSamplingConstants hs_constants;
     stoc_set_consts_z(&hs_constants, redshift, redshift_desc);
 
-    bool use_cuda = USE_CUDA;  // GPU enabled based on compile-time flag
+    // GPU halo catalog construction disabled: curand RNG produces different
+    // halo catalogs than CPU GSL RNG, making CPU/GPU correlation impossible.
+    // Always use CPU path for now. See note/gpu-halo-code-removal.md.
+    bool use_cuda = false;
     if (use_cuda) {
 #if USE_CUDA
         // get interp tables needed for sampling progenitors
