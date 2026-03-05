@@ -175,7 +175,10 @@ extern "C" unsigned int init_sfrd_gpu_data(
 
     // Allocate memory for SFRD sum buffer and initialise to 0 only for initial filter step;
     // reuse memory for remaining filter steps.
+    // Ensure at least 1 block: run_global_evolution uses HII_DIM=1 (num_pixels=1),
+    // which would give numBlocks=0 and an invalid kernel launch configuration.
     unsigned int numBlocks = ceil(num_pixels / (threadsPerBlock * 2));
+    if (numBlocks == 0) numBlocks = 1;
     CALL_CUDA(cudaMalloc(d_ave_sfrd_buf, sizeof(double) * numBlocks)); // already pointer to a pointer (no & needed)
     LOG_INFO("SFRD sum reduction buffer allocated on device.");
 
@@ -208,7 +211,9 @@ extern "C" double calculate_sfrd_from_grid_gpu(
     CALL_CUDA(cudaMemcpy(d_dens_R_grid, dens_R_grid, sizeof(float) * num_pixels, cudaMemcpyHostToDevice));
     LOG_INFO("SFRD_conditional_table.y_arr and density grid copied to device.");
 
+    // Ensure at least 1 block (see allocation above for rationale).
     unsigned int numBlocks = ceil(num_pixels / (threadsPerBlock * 2));
+    if (numBlocks == 0) numBlocks = 1;
     unsigned int smemSize = threadsPerBlock * sizeof(double); // shared memory
 
     // Invoke kernel
