@@ -1600,7 +1600,9 @@ void ts_main(float redshift, float prev_redshift, float perturbed_field_redshift
         // sfrd_nbins, &device_data); pointers
         // -------------------------------------------------------------------------------------------------------------------------------------------------------
         bool use_cuda = USE_CUDA;  // GPU enabled based on compile-time flag
-        if (use_cuda) {
+        // GPU SFRD computation is only used for Eulerian grid source models (SOURCE_MODEL < 2).
+        // E-INTEGRAL and L-INTEGRAL use source_box->filtered_sfr instead.
+        if (use_cuda && matter_options_global->SOURCE_MODEL < 2) {
 #if USE_CUDA
             threadsPerBlock =
                 init_sfrd_gpu_data(delta_box_input, del_fcoll_Rct, HII_TOT_NUM_PIXELS, sfrd_nbins,
@@ -1836,7 +1838,7 @@ void ts_main(float redshift, float prev_redshift, float perturbed_field_redshift
             }
         }
 
-        if (use_cuda) {
+        if (use_cuda && matter_options_global->SOURCE_MODEL < 2) {
 #if USE_CUDA
             free_sfrd_gpu_data(&d_y_arr, &d_dens_R_grid, &d_sfrd_grid, &d_ave_sfrd_buf);
 #else
