@@ -31,6 +31,11 @@ void init_rand_states(unsigned long long int seed, int numStates)
     // ensure previously allocated random states on the device are freed before allocating new ones
     free_rand_states();
 
+    // Nothing to do if no states requested (e.g. no halos found in a small box)
+    if (numStates <= 0) {
+        return;
+    }
+
     CALL_CUDA(cudaMemcpyToSymbol(d_numStates, &numStates, sizeof(int), 0, cudaMemcpyHostToDevice));
 
     curandState *tmpPtr = nullptr;

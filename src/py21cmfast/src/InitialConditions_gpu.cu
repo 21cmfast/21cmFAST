@@ -519,55 +519,99 @@ extern "C" int ComputeInitialConditions_gpu(unsigned long long random_seed, Init
 
         f_pixel_factor = simulation_options_global->DIM / (float)simulation_options_global->HII_DIM;
 
-        // ============ CPU: Generate k-space Gaussian random field ============
-        // This stays on CPU for bit-for-bit reproducibility with the CPU version
-        // Use float pointer to access real/imag parts (CUDA-compatible, avoids C complex.h issues)
-        LOG_DEBUG("Generating k-space Gaussian random field on CPU");
-
         init_ps();
 
-        float *hires_float = (float *)HIRES_box;
-
-#pragma omp parallel shared(hires_float, r) private(n_x, n_y, n_z, k_x, k_y, k_z, k_mag, p, a, b) \
+        // Check if the input hires density box is non-zero (user provided initial_density)
+        bool non_zero_input = false;
+        unsigned long long box_ct;
+#pragma omp parallel shared(boxes, non_zero_input) \
     num_threads(simulation_options_global->N_THREADS)
         {
-            int thread_num = omp_get_thread_num();
 #pragma omp for
-            for (n_x = 0; n_x < simulation_options_global->DIM; n_x++) {
-                if (n_x > MIDDLE)
-                    k_x = (n_x - simulation_options_global->DIM) * DELTA_K;
-                else
-                    k_x = n_x * DELTA_K;
-
-                for (n_y = 0; n_y < simulation_options_global->DIM; n_y++) {
-                    if (n_y > MIDDLE)
-                        k_y = (n_y - simulation_options_global->DIM) * DELTA_K;
-                    else
-                        k_y = n_y * DELTA_K;
-
-                    for (n_z = 0; n_z <= MIDDLE_PARA; n_z++) {
-                        k_z = n_z * DELTA_K_PARA;
-                        k_mag = sqrtf(k_x * k_x + k_y * k_y + k_z * k_z);
-                        p = power_in_k(k_mag);
-
-                        a = gsl_ran_ugaussian(r[thread_num]);
-                        b = gsl_ran_ugaussian(r[thread_num]);
-
-                        float scale = sqrtf(VOLUME * p / 2.0f);
-                        unsigned long long idx = C_INDEX(n_x, n_y, n_z);
-                        hires_float[2 * idx] = scale * a;      // real part
-                        hires_float[2 * idx + 1] = scale * b;  // imag part
-                    }
+            for (box_ct = 0; box_ct < TOT_NUM_PIXELS; box_ct++) {
+                if (!non_zero_input && boxes->hires_density[box_ct]) {
+#pragma omp atomic write
+                    non_zero_input = true;
                 }
             }
         }
-        LOG_DEBUG("Generated random field");
 
-        // ============ CPU: Adjust complex conjugates ============
-        // Keep on CPU for now (small operation, complex indexing)
-        // Using float pointer to access real/imag parts directly (CUDA-compatible)
+        float *hires_float = (float *)HIRES_box;
 
-        float *box_float = (float *)HIRES_box;
+        if (non_zero_input) {
+            // User provided initial_density: copy to HIRES_box with FFTW padding,
+            // then R2C FFT to get k-space representation for velocity computation.
+            LOG_DEBUG("Using provided hires_density (non-zero input detected)");
+#pragma omp parallel shared(boxes, HIRES_box) private(i, j, k) \
+    num_threads(simulation_options_global->N_THREADS)
+            {
+                unsigned long long int index_r, index_f;
+#pragma omp for
+                for (i = 0; i < hi_dim[0]; i++) {
+                    for (j = 0; j < hi_dim[1]; j++) {
+                        for (k = 0; k < hi_dim[2]; k++) {
+                            index_r = grid_index_general(i, j, k, hi_dim);
+                            index_f = grid_index_fftw_r(i, j, k, hi_dim);
+                            *((float *)HIRES_box + index_f) =
+                                boxes->hires_density[index_r] * VOLUME / TOT_NUM_PIXELS;
+                        }
+                    }
+                }
+            }
+
+            int stat =
+                dft_r2c_cube(matter_options_global->USE_FFTW_WISDOM, simulation_options_global->DIM,
+                             D_PARA, simulation_options_global->N_THREADS, HIRES_box);
+            if (stat > 0) Throw(stat);
+
+            memcpy(HIRES_box_saved, HIRES_box, sizeof(fftwf_complex) * KSPACE_NUM_PIXELS);
+            LOG_DEBUG("Saved provided density to k-space (HIRES_box_saved)");
+        } else {
+            // ============ CPU: Generate k-space Gaussian random field ============
+            // This stays on CPU for bit-for-bit reproducibility with the CPU version
+            // Use float pointer to access real/imag parts (CUDA-compatible, avoids C complex.h issues)
+            LOG_DEBUG("Generating k-space Gaussian random field on CPU");
+
+#pragma omp parallel shared(hires_float, r) private(n_x, n_y, n_z, k_x, k_y, k_z, k_mag, p, a, b) \
+    num_threads(simulation_options_global->N_THREADS)
+            {
+                int thread_num = omp_get_thread_num();
+#pragma omp for
+                for (n_x = 0; n_x < simulation_options_global->DIM; n_x++) {
+                    if (n_x > MIDDLE)
+                        k_x = (n_x - simulation_options_global->DIM) * DELTA_K;
+                    else
+                        k_x = n_x * DELTA_K;
+
+                    for (n_y = 0; n_y < simulation_options_global->DIM; n_y++) {
+                        if (n_y > MIDDLE)
+                            k_y = (n_y - simulation_options_global->DIM) * DELTA_K;
+                        else
+                            k_y = n_y * DELTA_K;
+
+                        for (n_z = 0; n_z <= MIDDLE_PARA; n_z++) {
+                            k_z = n_z * DELTA_K_PARA;
+                            k_mag = sqrtf(k_x * k_x + k_y * k_y + k_z * k_z);
+                            p = power_in_k(k_mag);
+
+                            a = gsl_ran_ugaussian(r[thread_num]);
+                            b = gsl_ran_ugaussian(r[thread_num]);
+
+                            float scale = sqrtf(VOLUME * p / 2.0f);
+                            unsigned long long idx = C_INDEX(n_x, n_y, n_z);
+                            hires_float[2 * idx] = scale * a;      // real part
+                            hires_float[2 * idx + 1] = scale * b;  // imag part
+                        }
+                    }
+                }
+            }
+            LOG_DEBUG("Generated random field");
+
+            // ============ CPU: Adjust complex conjugates ============
+            // Keep on CPU for now (small operation, complex indexing)
+            // Using float pointer to access real/imag parts directly (CUDA-compatible)
+
+            float *box_float = (float *)HIRES_box;
 
         // Helper macro for accessing real and imag parts
         #define BOX_REAL(idx) box_float[2*(idx)]
@@ -633,16 +677,16 @@ extern "C" int ComputeInitialConditions_gpu(unsigned long long random_seed, Init
 
         LOG_DEBUG("Adjusted complex conjugates");
 
-        // Save the k-space field for later use
-        memcpy(HIRES_box_saved, HIRES_box, sizeof(fftwf_complex) * KSPACE_NUM_PIXELS);
-        LOG_SUPER_DEBUG("Saved k-space field");
+            // Save the k-space field for later use
+            memcpy(HIRES_box_saved, HIRES_box, sizeof(fftwf_complex) * KSPACE_NUM_PIXELS);
+            LOG_SUPER_DEBUG("Saved k-space field");
+        } // end else (normal random IC generation)
 
         // ============ cuFFT: Create plan for C2R transforms ============
-        // cuFFT C2R plan uses real-space dimensions (same as FFTW)
+        // Used by both paths (normal and initial_density) for lowres density and velocities
         cufftHandle fft_plan;
         cufftResult cufft_status;
 
-        // Use cufftPlan3d with real-space dimensions: (DIM, DIM, D_PARA)
         int fft_nx = simulation_options_global->DIM;
         int fft_ny = simulation_options_global->DIM;
         int fft_nz = (int)D_PARA;
@@ -655,7 +699,6 @@ extern "C" int ComputeInitialConditions_gpu(unsigned long long random_seed, Init
             Throw(CUDAError);
         }
 
-        // Use the default stream (null stream)
         cufft_status = cufftSetStream(fft_plan, 0);
         if (cufft_status != CUFFT_SUCCESS) {
             LOG_WARNING("cufftSetStream failed: %d", cufft_status);
@@ -664,13 +707,8 @@ extern "C" int ComputeInitialConditions_gpu(unsigned long long random_seed, Init
         LOG_DEBUG("Created cuFFT C2R plan successfully");
 
         // Allocate GPU memory for FFT
-        // Input: KSPACE_NUM_PIXELS complex numbers
-        // Output: TOT_NUM_PIXELS floats, BUT cuFFT may use output buffer for intermediate
-        // results during multi-kernel operations, so we need to allocate at least as much
-        // as the input buffer (see cuFFT documentation)
         size_t kspace_bytes = KSPACE_NUM_PIXELS * sizeof(cufftComplex);
         size_t real_bytes_needed = TOT_NUM_PIXELS * sizeof(float);
-        // Output buffer must be at least as large as input for cuFFT intermediate results
         size_t real_bytes = (real_bytes_needed > kspace_bytes) ? real_bytes_needed : kspace_bytes;
         cufftComplex *d_kspace;
         float *d_realspace;
@@ -685,93 +723,91 @@ extern "C" int ComputeInitialConditions_gpu(unsigned long long random_seed, Init
         LOG_DEBUG("Allocated GPU memory: d_kspace=%zu bytes, d_realspace=%zu bytes",
                   kspace_bytes, real_bytes);
 
-        // ============ cuFFT: FFT to real space ============
-        err = cudaMemcpy(d_kspace, HIRES_box, kspace_bytes, cudaMemcpyHostToDevice);
-        CATCH_CUDA_ERROR(err);
-
-        cufft_status = cufftExecC2R(fft_plan, d_kspace, d_realspace);
-        if (cufft_status != CUFFT_SUCCESS) {
-            LOG_ERROR("cuFFT C2R execution failed: %d (kspace=%zu bytes, real=%zu bytes)",
-                      cufft_status, kspace_bytes, real_bytes);
-            cudaFree(d_kspace);
-            cudaFree(d_realspace);
-            cufftDestroy(fft_plan);
-            Throw(CUDAError);
-        }
-        err = cudaDeviceSynchronize();
-        CATCH_CUDA_ERROR(err);
-        LOG_DEBUG("cuFFT execution complete");
-
-        // Copy result back - cuFFT output is tightly packed (no FFT padding)
-        // We need to copy to a temporary buffer then add padding for compatibility with rest of code
-        // Note: We allocated real_bytes for cuFFT workspace requirements, but actual data is real_bytes_needed
-        float *temp_real = (float *)malloc(real_bytes_needed);
-        if (!temp_real) {
-            LOG_ERROR("Failed to allocate temp buffer");
-            Throw(MemoryAllocError);
-        }
-        err = cudaMemcpy(temp_real, d_realspace, real_bytes_needed, cudaMemcpyDeviceToHost);
-        CATCH_CUDA_ERROR(err);
-
-        // Copy to HIRES_box with FFT padding
-        // cuFFT output: [x][y][z] with z = 0..D_PARA-1
-        // FFTW output: [x][y][z] with z = 0..2*(MID_PARA+1)-1 (padded)
-        hires_float = (float *)HIRES_box;
-        #pragma omp parallel for collapse(2) num_threads(simulation_options_global->N_THREADS)
-        for (int ix = 0; ix < simulation_options_global->DIM; ix++) {
-            for (int iy = 0; iy < simulation_options_global->DIM; iy++) {
-                for (int iz = 0; iz < D_PARA; iz++) {
-                    unsigned long long src_idx = iz + D_PARA * (iy + (unsigned long long)simulation_options_global->DIM * ix);
-                    unsigned long long dst_idx = R_FFT_INDEX(ix, iy, iz);
-                    hires_float[dst_idx] = temp_real[src_idx];
-                }
-            }
-        }
-        free(temp_real);
-        LOG_DEBUG("cuFFT to real space complete");
-
-        // ============ GPU: Copy hires density to output ============
-        {
-            size_t fft_size = TOT_FFT_NUM_PIXELS * sizeof(float);
-            size_t out_size = TOT_NUM_PIXELS * sizeof(float);
-
-            float *d_hires_box, *d_output;
-            err = cudaMalloc(&d_hires_box, fft_size);
-            if (err != cudaSuccess) {
-                LOG_ERROR("CUDA malloc failed for d_hires_box: %s", cudaGetErrorString(err));
-                Throw(CUDAError);
-            }
-
-            err = cudaMalloc(&d_output, out_size);
-            if (err != cudaSuccess) {
-                cudaFree(d_hires_box);
-                LOG_ERROR("CUDA malloc failed for d_output: %s", cudaGetErrorString(err));
-                Throw(CUDAError);
-            }
-
-            err = cudaMemcpy(d_hires_box, (float *)HIRES_box, fft_size, cudaMemcpyHostToDevice);
+        // ============ Hires density: C2R FFT and output copy ============
+        // Skip when initial_density was provided (hires_density already set by caller)
+        if (!non_zero_input) {
+            err = cudaMemcpy(d_kspace, HIRES_box, kspace_bytes, cudaMemcpyHostToDevice);
             CATCH_CUDA_ERROR(err);
 
-            int threadsPerBlock = 256;
-            int numBlocks = (TOT_NUM_PIXELS + threadsPerBlock - 1) / threadsPerBlock;
-
-            copy_hires_density_kernel<<<numBlocks, threadsPerBlock>>>(
-                d_hires_box, d_output,
-                simulation_options_global->DIM,
-                D_PARA, MID_PARA, VOLUME
-            );
-
+            cufft_status = cufftExecC2R(fft_plan, d_kspace, d_realspace);
+            if (cufft_status != CUFFT_SUCCESS) {
+                LOG_ERROR("cuFFT C2R execution failed: %d (kspace=%zu bytes, real=%zu bytes)",
+                          cufft_status, kspace_bytes, real_bytes);
+                cudaFree(d_kspace);
+                cudaFree(d_realspace);
+                cufftDestroy(fft_plan);
+                Throw(CUDAError);
+            }
             err = cudaDeviceSynchronize();
             CATCH_CUDA_ERROR(err);
-            err = cudaGetLastError();
+            LOG_DEBUG("cuFFT execution complete");
+
+            // Copy result back with FFT padding
+            float *temp_real = (float *)malloc(real_bytes_needed);
+            if (!temp_real) {
+                LOG_ERROR("Failed to allocate temp buffer");
+                Throw(MemoryAllocError);
+            }
+            err = cudaMemcpy(temp_real, d_realspace, real_bytes_needed, cudaMemcpyDeviceToHost);
             CATCH_CUDA_ERROR(err);
 
-            err = cudaMemcpy(boxes->hires_density, d_output, out_size, cudaMemcpyDeviceToHost);
-            CATCH_CUDA_ERROR(err);
+            hires_float = (float *)HIRES_box;
+            #pragma omp parallel for collapse(2) num_threads(simulation_options_global->N_THREADS)
+            for (int ix = 0; ix < simulation_options_global->DIM; ix++) {
+                for (int iy = 0; iy < simulation_options_global->DIM; iy++) {
+                    for (int iz = 0; iz < D_PARA; iz++) {
+                        unsigned long long src_idx = iz + D_PARA * (iy + (unsigned long long)simulation_options_global->DIM * ix);
+                        unsigned long long dst_idx = R_FFT_INDEX(ix, iy, iz);
+                        hires_float[dst_idx] = temp_real[src_idx];
+                    }
+                }
+            }
+            free(temp_real);
+            LOG_DEBUG("cuFFT to real space complete");
 
-            cudaFree(d_hires_box);
-            cudaFree(d_output);
-        }
+            // Copy hires density to output via GPU kernel
+            {
+                size_t fft_size = TOT_FFT_NUM_PIXELS * sizeof(float);
+                size_t out_size = TOT_NUM_PIXELS * sizeof(float);
+
+                float *d_hires_box, *d_output;
+                err = cudaMalloc(&d_hires_box, fft_size);
+                if (err != cudaSuccess) {
+                    LOG_ERROR("CUDA malloc failed for d_hires_box: %s", cudaGetErrorString(err));
+                    Throw(CUDAError);
+                }
+
+                err = cudaMalloc(&d_output, out_size);
+                if (err != cudaSuccess) {
+                    cudaFree(d_hires_box);
+                    LOG_ERROR("CUDA malloc failed for d_output: %s", cudaGetErrorString(err));
+                    Throw(CUDAError);
+                }
+
+                err = cudaMemcpy(d_hires_box, (float *)HIRES_box, fft_size, cudaMemcpyHostToDevice);
+                CATCH_CUDA_ERROR(err);
+
+                int threadsPerBlock = 256;
+                int numBlocks = (TOT_NUM_PIXELS + threadsPerBlock - 1) / threadsPerBlock;
+
+                copy_hires_density_kernel<<<numBlocks, threadsPerBlock>>>(
+                    d_hires_box, d_output,
+                    simulation_options_global->DIM,
+                    D_PARA, MID_PARA, VOLUME
+                );
+
+                err = cudaDeviceSynchronize();
+                CATCH_CUDA_ERROR(err);
+                err = cudaGetLastError();
+                CATCH_CUDA_ERROR(err);
+
+                err = cudaMemcpy(boxes->hires_density, d_output, out_size, cudaMemcpyDeviceToHost);
+                CATCH_CUDA_ERROR(err);
+
+                cudaFree(d_hires_box);
+                cudaFree(d_output);
+            }
+        } // end if (!non_zero_input)
         LOG_DEBUG("Saved hires_density");
 
         // ============ Create low-res density field ============
