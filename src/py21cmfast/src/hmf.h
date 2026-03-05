@@ -5,6 +5,10 @@
 #include "scaling_relations.h"
 // integrals
 
+#ifdef __cplusplus
+extern "C" {
+#endif
+
 #define MAX_DELTAC_FRAC (float)0.99  // max delta/deltac for the mass function integrals
 #define DELTA_MIN -1                 // minimum delta for Lagrangian mass function integrals
 #define M_MIN_INTEGRAL 1e5
@@ -53,4 +57,7 @@ double sheth_delc_dexm(double del, double sig);
 float Mass_limit_bisection(float Mmin, float Mmax, float PL, float FRAC);
 double euler_to_lagrangian_delta(double delta);
 
+#ifdef __cplusplus
+}
+#endif
 #endif

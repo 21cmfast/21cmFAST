@@ -1,6 +1,9 @@
 #ifndef _PS_H
 #define _PS_H
 
+#ifdef __cplusplus
+extern "C" {
+#endif
 void init_ps();
 double dicke(double z);
 double sigma_z0(double M);
@@ -33,4 +36,7 @@ double hubble(float z);
 double t_hubble(float z);
 double M_J_WDM();
 
+#ifdef __cplusplus
+}
+#endif
 #endif

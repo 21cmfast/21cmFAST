@@ -170,7 +170,7 @@ def coeval_sliceplot(
     """
     if kind is None:
         if isinstance(struct, outputs.OutputStruct):
-            kind = struct.struct.fieldnames[0]
+            kind = next(iter(struct.arrays.keys()))
         elif isinstance(struct, Coeval):
             kind = "brightness_temp"
 

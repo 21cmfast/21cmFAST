@@ -172,6 +172,7 @@ void move_grid_masses(double redshift, float *dens_pointer, int dens_dim[3], flo
         (displacement_factor_2LPT - init_displacement_factor_2LPT) / box_size[0] * dens_dim[0],
         (displacement_factor_2LPT - init_displacement_factor_2LPT) / box_size[1] * dens_dim[1],
         (displacement_factor_2LPT - init_displacement_factor_2LPT) / box_size[2] * dens_dim[2]};
+
 #pragma omp parallel num_threads(simulation_options_global->N_THREADS)
     {
         int i, j, k, axis;
@@ -189,6 +190,7 @@ void move_grid_masses(double redshift, float *dens_pointer, int dens_dim[3], flo
                     resample_index((int[3]){i, j, k}, dim_ratio_vel, ipos);
                     wrap_coord(ipos, vel_dim);
                     vel_index = grid_index_general(ipos[0], ipos[1], ipos[2], vel_dim);
+
                     for (axis = 0; axis < 3; axis++) {
                         pos[axis] +=
                             vel_pointers[axis][vel_index] * velocity_displacement_factor[axis];
@@ -203,6 +205,7 @@ void move_grid_masses(double redshift, float *dens_pointer, int dens_dim[3], flo
                     // CIC interpolation
                     dens_index = grid_index_general(i, j, k, dens_dim);
                     curr_dens = 1.0 + dens_pointer[dens_index] * init_growth_factor;
+
                     do_cic_interpolation(resampled_box, pos, out_dim, curr_dens);
                 }
             }

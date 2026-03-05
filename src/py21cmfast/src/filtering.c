@@ -1,3 +1,4 @@
+#include "filtering.h"
 
 #include <complex.h>
 #include <fftw3.h>
@@ -115,7 +116,7 @@ double spherical_shell_filter(double k, double R_outer, double R_inner) {
            (sin(kR_outer) - cos(kR_outer) * kR_outer - sin(kR_inner) + cos(kR_inner) * kR_inner);
 }
 
-void filter_box(fftwf_complex *box, int box_dim[3], int filter_type, float R, float R_param) {
+void filter_box_cpu(fftwf_complex *box, int box_dim[3], int filter_type, float R, float R_param) {
     double delta_k[3] = {
         2.0 * M_PI / simulation_options_global->BOX_LEN,
         2.0 * M_PI / simulation_options_global->BOX_LEN,
@@ -161,22 +162,18 @@ void filter_box(fftwf_complex *box, int box_dim[3], int filter_type, float R, fl
                         kR = sqrt(k_mag_sq) * R;
                         box[grid_index] *= real_tophat_filter(kR);
                     } else if (filter_type == 1) {  // k-space top hat
-                        // NOTE: why was this commented????
-                        //  This is actually (kR^2) but since we zero the value and find kR > 1 this
-                        //  is more computationally efficient kR = 0.17103765852*( k_x*k_x + k_y*k_y
-                        //  + k_z*k_z )*R*R;
+                        // NOTE: Since it's a tophat we could just supply kr^2 for speed
                         kR = sqrt(k_mag_sq) * R;
                         box[grid_index] *= sharp_k_filter(kR);
                     } else if (filter_type == 2) {  // gaussian
-                        // This is actually (kR^2) but since we zero the value and find kR > 1 this
-                        // is more computationally efficient
+                        // NOTE: This is actually (kR^2)
                         kR = k_mag_sq * R * R;
                         box[grid_index] *= gaussian_filter(kR);
                     }
                     // The next two filters are not given by the HII_FILTER global, but used for
                     // specific grids
-                    else if (filter_type ==
-                             3) {  // exponentially decaying tophat, param == scale of decay (MFP)
+                    // exponentially decaying tophat, param == scale of decay (MFP)
+                    else if (filter_type == 3) {
                         // NOTE: This should be optimized, I havne't looked at it in a while
                         box[grid_index] *= exp_mfp_filter(sqrt(k_mag_sq), R, R_param, R_const);
                     } else if (filter_type == 4) {  // spherical shell, R_param == inner radius
@@ -194,8 +191,21 @@ void filter_box(fftwf_complex *box, int box_dim[3], int filter_type, float R, fl
     return;
 }
 
+void filter_box(fftwf_complex *box, int box_dim[3], int filter_type, float R, float R_param) {
+    bool use_cuda = USE_CUDA;  // GPU enabled based on compile-time flag
+    if (use_cuda) {
+#if USE_CUDA
+        filter_box_gpu(box, box_dim, filter_type, R, R_param);
+#else
+        LOG_ERROR("CUDA version of filter_box() called but code was not compiled for CUDA.");
+#endif
+    } else {
+        filter_box_cpu(box, box_dim, filter_type, R, R_param);
+    }
+}
+
 // Test function to filter a box without computing a whole output box
-int test_filter(float *input_box, double R, double R_param, int filter_flag, double *result) {
+int test_filter_cpu(float *input_box, double R, double R_param, int filter_flag, double *result) {
     int i, j, k;
     unsigned long long int ii, jj;
     int box_dim[3] = {
@@ -225,7 +235,7 @@ int test_filter(float *input_box, double R, double R_param, int filter_flag, dou
 
     memcpy(box_filtered, box_unfiltered, sizeof(fftwf_complex) * HII_KSPACE_NUM_PIXELS);
 
-    filter_box(box_filtered, box_dim, filter_flag, R, R_param);
+    filter_box_cpu(box_filtered, box_dim, filter_flag, R, R_param);
 
     dft_c2r_cube(matter_options_global->USE_FFTW_WISDOM, simulation_options_global->HII_DIM,
                  HII_D_PARA, simulation_options_global->N_THREADS, box_filtered);
@@ -242,4 +252,18 @@ int test_filter(float *input_box, double R, double R_param, int filter_flag, dou
     fftwf_free(box_filtered);
 
     return 0;
+}
+
+int test_filter(float *input_box, double R, double R_param, int filter_flag, double *result) {
+    bool use_cuda = USE_CUDA;  // GPU enabled based on compile-time flag
+    if (use_cuda) {
+#if USE_CUDA
+        return test_filter_gpu(input_box, R, R_param, filter_flag, result);
+#else
+        LOG_ERROR("CUDA version of test_filter() called but code was not compiled for CUDA.");
+        return 1;
+#endif
+    } else {
+        return test_filter_cpu(input_box, R, R_param, filter_flag, result);
+    }
 }

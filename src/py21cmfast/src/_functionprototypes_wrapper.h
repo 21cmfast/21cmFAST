@@ -1,7 +1,3 @@
-/* This file contains the repeated function prototypes which are needed by CFFI
-    to be included explicitly via ffi.cdef(), These are the only functions which
-    are visible to the python wrapper */
-
 /* OutputStruct COMPUTE FUNCTIONS */
 int ComputeInitialConditions(unsigned long long random_seed, InitialConditions *boxes);
 

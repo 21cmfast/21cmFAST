@@ -5,6 +5,9 @@
 
 #include "InputParameters.h"
 
+#ifdef __cplusplus
+extern "C" {
+#endif
 // This is directly accessed in the wrapper currently
 // TODO: remove this global declaration and make an internal checking function
 extern bool photon_cons_allocated;
@@ -29,4 +32,7 @@ int ObtainPhotonConsData(double *z_at_Q_data, double *Q_data, int *Ndata_analyti
 void set_alphacons_params(double norm, double slope);
 double get_fesc_fit(double redshift);
 
+#ifdef __cplusplus
+}
+#endif
 #endif
