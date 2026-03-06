@@ -70,6 +70,9 @@
 - name: "type: performance: speed"
   description: Performance improvements that reduce walltime
   color: "016175"
+- name: "type: performance: gpu"
+  description: Performance improvements to do with GPU
+  color: "016175"
 - name: "type: ci"
   description: Updates to CI (GH actions, RTD, etc.)
   color: "000000"
@@ -89,6 +92,9 @@
 
 - name: "context: C backend"
   description: Changes occur predominantly in the C code
+  color: "#1d76db"
+- name: "context: CUDA"
+  description: Changes occur predominantly in CUDA code
   color: "#1d76db"
 - name: "context: cache/io"
   description: Changes predominantly affect caching or I/O
