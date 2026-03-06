@@ -378,6 +378,8 @@ class CosmoTables:
                 setattr(self._struct.cstruct, k, val._cstruct)
             elif isinstance(val, (float | bool)):
                 setattr(self._struct.cstruct, k, val)
+            elif val is not None:
+                setattr(self._struct.cstruct, k, val)
 
         return self._struct.cstruct
 
