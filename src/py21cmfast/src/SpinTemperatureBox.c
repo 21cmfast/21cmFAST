@@ -1033,10 +1033,13 @@ void calculate_sfrd_from_grid(int R_ct, float *dens_R_grid, float *Mcrit_R_grid,
     }
 
     // --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
-    // If GPU is to be used and flags are ideal, call GPU version of reduction
+    // If GPU is to be used and flags are ideal, call GPU version of reduction.
+    // The GPU path requires SFRD_conditional_table which is only initialized when
+    // USE_INTERPOLATION_TABLES > 1 (hmf-interpolation). With sigma-interpolation (==1)
+    // the table is not allocated and accessing it would segfault.
     bool use_cuda = USE_CUDA;  // GPU enabled based on compile-time flag
     if (use_cuda && matter_options_global->SOURCE_MODEL == 1 &&
-        matter_options_global->USE_INTERPOLATION_TABLES && !astro_options_global->USE_MINI_HALOS) {
+        matter_options_global->USE_INTERPOLATION_TABLES > 1 && !astro_options_global->USE_MINI_HALOS) {
 #if USE_CUDA
         RGTable1D_f *SFRD_conditional_table = get_SFRD_conditional_table();
         ave_sfrd_buf =
