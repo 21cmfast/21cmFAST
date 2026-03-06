@@ -2,20 +2,20 @@
 
 import pytest
 
-from py21cmfast import DATA_PATH
+from py21cmfast import _DATA_PATH
 
 
 @pytest.fixture(scope="module")
 def datafiles():
-    return list(DATA_PATH.glob("*.dat"))
+    return list(_DATA_PATH.glob("*.dat"))
 
 
 def test_exists(datafiles):
     for fl in datafiles:
         assert fl.exists()
 
-    assert (DATA_PATH / "x_int_tables").exists()
-    assert (DATA_PATH / "x_int_tables").is_dir()
+    assert (_DATA_PATH / "x_int_tables").exists()
+    assert (_DATA_PATH / "x_int_tables").is_dir()
 
 
 def test_readable(datafiles):

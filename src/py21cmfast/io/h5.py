@@ -205,7 +205,7 @@ def write_outputs_to_group(
         new = array.written_to_disk(H5Backend(group.file.filename, f"{group.name}/{k}"))
         setattr(output, k, new)
 
-    for k in output.struct.primitive_fields:
+    for k in output._struct.primitive_fields:
         try:
             group.attrs[k] = getattr(output, k)
         except TypeError as e:

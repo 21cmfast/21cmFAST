@@ -20,6 +20,7 @@ from py21cmfast import (
     PerturbedField,
     TsBox,
 )
+from py21cmfast.wrapper.arrays import Array
 
 
 @pytest.fixture(scope="module")
@@ -541,3 +542,54 @@ def test_bad_input_structs(default_input_struct_ts):
             halobox=hb,
             previous_ionized_box=ib_p,
         )
+
+
+@pytest.mark.parametrize("lya_multiple_scattering", [False, True])
+@pytest.mark.parametrize("use_mini_halos", [False, True])
+def test_xray_source_field_with_zero_sfr(
+    default_input_struct_ts, redshift, use_mini_halos, lya_multiple_scattering
+):
+    """Test compute_xray_source_field with zero sfr boxes."""
+    inputs = default_input_struct_ts.evolve_input_structs(
+        USE_MINI_HALOS=use_mini_halos,
+        INHOMO_RECO=True,
+        LYA_MULTIPLE_SCATTERING=lya_multiple_scattering,
+        SOURCE_MODEL="L-INTEGRAL",
+    )
+    ics = p21c.InitialConditions.new(inputs=inputs)
+
+    hbox1 = HaloBox.new(redshift=redshift + 1, inputs=inputs)
+    hbox2 = HaloBox.new(redshift=redshift, inputs=inputs)
+
+    # This is needed because the input arrays must be in a computed state.
+    fields = ["halo_sfr", "halo_xray"]
+    if use_mini_halos:
+        fields += ["halo_sfr_mini", "log10_Mcrit_MCG_ave"]
+    shape = hbox1.halo_sfr.shape
+    array = (
+        Array(shape=shape, dtype=np.float32)
+        .initialize()
+        .with_value(val=np.zeros(shape))
+    )
+    for hbox in [hbox1, hbox2]:
+        for name in fields:
+            setattr(hbox, name, array.computed())
+        if use_mini_halos:
+            hbox.log10_Mcrit_MCG_ave = 5.0
+
+    xraysource = p21c.compute_xray_source_field(
+        initial_conditions=ics,
+        hboxes=[hbox1, hbox2],
+        redshift=redshift,
+    )
+
+    output_fields = ["filtered_sfr", "filtered_xray"]
+    if use_mini_halos:
+        output_fields += [
+            "filtered_sfr_mini",
+        ]
+        if lya_multiple_scattering:
+            output_fields += ["filtered_sfr_lw", "filtered_sfr_mini_lw"]
+
+    for field in output_fields:
+        assert np.all(getattr(xraysource, field).value == 0.0)
