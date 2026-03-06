@@ -161,14 +161,14 @@ Managing Simulation Outputs and Cache
 -------------------------------------
 
 There are two kinds of outputs that ``21cmfast run`` can create. The "primary" outputs
-are the ``Coeval`` boxes and ``LightCone`` files, which are the end-products of the
-simulations. These are saved according to the ``--out`` parameter, but they behave a little
-differently depending on the simualation:
+are the ``Coeval`` boxes, ``LightCone`` files and ``GlobalEvolution`` files,
+which are the end-products of the simulations. These are saved according to the ``--out``
+parameter, but they behave a little differently depending on the simualation:
 
 1. For ``21cmfast run coeval`` the ``--out <direc>`` parameter specifies a *directory*,
    and the coeval boxes are written to ``out/coeval_z<redshift>.h5``.
-2. For ``21cmfast run lightcone`` the ``--out <path.h5>`` parameter specifies an output
-   *file*, and there is only lightcone file created.
+2. For ``21cmfast run lightcone`` and ``21cmfast run global`` the ``--out <path.h5>``
+3. parameter specifies an output *file*, and there is only lightcone file created.
 
 The other kind of output is the cache. The way that ``21cmFAST`` works is that it
 simulates several kinds of physical fields that build on each other. Each step of this
@@ -224,7 +224,7 @@ that are required for more than just the next step.
 Defining Redshifts and Evolution
 --------------------------------
 
-When running either `run coeval` or `run lightcone`, you will need to specify the
+When running either `run coeval`, `run global` or `run lightcone`, you will need to specify the
 redshifts of interest. This can be a little more subtle than you might expect, so here
 we describe the ways you can do this, and the difference between the output redshifts
 and the internal redshifts used for evaluating cosmic evolution.
@@ -259,11 +259,13 @@ slice does not need to match the ``node_redshifts`` (again, the ``node_redshifts
 define how the simulation is evolved, while these slice redshifts are simply
 interpolated from that grid).
 
+As for the ``global`` evolution, we simply save the mean at each node redshift.
+
 Specifying the ``node_redshifts``
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-For ``coeval`` and ``lightcone`` runs the ``node_redshifts`` can be configured by the
-following options:
+For ``coeval``, ``global`` and ``lightcone`` runs the ``node_redshifts`` can be
+configured by the following options:
 
 1. ``--min-evolved-redshift`` (aliased to ``--zmin-evolution`` and ``--zmin``)
 2. ``--zprime-step-factor``

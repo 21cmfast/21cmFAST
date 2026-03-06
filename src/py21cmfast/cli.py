@@ -566,14 +566,16 @@ def lightcone(
 
 
 @run.command(name="global")
-def global_signal(
+def global_evolution(
     source_model: Literal["E-INTEGRAL", "CONST-ION-EFF", "L-INTEGRAL"] | None = None,
     options: RunParams = RunParams(
         # Use a default that runs without warnings.
         param_selection=ParameterSelection(template=["EOS21"])
     ),
     params: Annotated[Parameters, Parameter(show=False, name="*")] = Parameters(),
-    redshift_range: tuple[float, float] = (6.0, 30.0),
+    min_evolved_redshift: Annotated[
+        float, Parameter(name=("--zmin-evolution", "--zmin"))
+    ] = 5.5,
     out: Annotated[
         Path,
         Parameter(validator=(vld.Path(dir_okay=False, file_okay=False, ext=("h5",)),)),
@@ -588,15 +590,15 @@ def global_signal(
 
     Parameters
     ----------
-    redshift_range
-        The redshifts between which to generate the global evolution.
+    zmin
+        The minimum redshift down to which to generate the global evolution.
     out
         The filename to which to save the global evolution data.
     """
     if not out.parent.exists():
         out.parent.mkdir(parents=True, exist_ok=True)
 
-    inputs = _run_setup(options, params, redshift_range[0], force_nodez=True)
+    inputs = _run_setup(options, params, min_evolved_redshift, force_nodez=True)
 
     if source_model is None and inputs.matter_options.SOURCE_MODEL not in [
         "E-INTEGRAL",
