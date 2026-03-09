@@ -7,7 +7,7 @@ from pathlib import Path
 import pytest
 from rich.console import Console
 
-from py21cmfast import Coeval, LightCone, cli
+from py21cmfast import Coeval, GlobalEvolution, LightCone, cli
 from py21cmfast._templates import create_params_from_template
 from py21cmfast.cli import Parameters, ParameterSelection, RunParams, _run_setup, app
 from py21cmfast.io.h5 import read_output_struct
@@ -365,3 +365,31 @@ class TestPredictTotalStorageSize:
         assert out_off != out_on
         assert "PerturbedField" in out_on
         assert "PerturbedField" not in out_off
+
+
+class TestGlobalEvolution:
+    """Tests of the global evolution CLI command."""
+
+    def test_basic_run(self, capsys, tmp_path: Path):
+        """Test that a basic run produces a lightcone.h5 file."""
+        lcfile = tmp_path / "global-evolution.h5"
+        app_noexit(
+            f"run global --template simple --cachedir {tmp_path} "
+            f"--zmin 12.0 --out {lcfile}",
+        )
+
+        output = capsys.readouterr().out
+        assert "Saved Global Evolution" in output
+
+        assert lcfile.exists()
+        GlobalEvolution.from_file(lcfile)
+
+    def test_non_existent_path(self, tmp_path):
+        """Test that a non-existent output path is OK."""
+        lcfile = tmp_path / "new" / "global-evolution.h5"
+        app_noexit(
+            f"run global --template simple tiny --cachedir {tmp_path} "
+            f"--zmin 10.0 --out {lcfile}",
+        )
+
+        assert lcfile.exists()
