@@ -17,6 +17,7 @@ typedef struct CosmoParams {
     float OMtot;
     float Y_He;
     float wl;
+    float f_NL;
 
 } CosmoParams;
 
@@ -68,6 +69,7 @@ typedef struct MatterOptions {
     int FILTER;
     int HALO_FILTER;
     bool SMOOTH_EVOLVED_DENSITY_FIELD;
+    bool PRIMORDIAL_NON_GAUSSIANITIES;
 
     int SOURCE_MODEL;
     int SAMPLE_METHOD;

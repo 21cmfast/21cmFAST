@@ -14,6 +14,7 @@ void free_ps();              /* deallocates the gsl structures from init_ps */
 double power_in_k(double k); /* Returns the value of the linear power spectrum density (i.e.
                                 <|delta_k|^2>/V) at a given k mode at z=0 */
 
+double transfer_function(double k);
 double TF_CLASS(double k, int flag_int,
                 int flag_dv);  // transfer function of matter (flag_dv=0) and relative velocities
                                // (flag_dv=1) fluctuations from CLASS

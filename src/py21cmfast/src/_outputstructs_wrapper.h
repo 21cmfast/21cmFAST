@@ -9,6 +9,7 @@ typedef struct InitialConditions {
     float *hires_density, *hires_vx, *hires_vy, *hires_vz, *hires_vx_2LPT, *hires_vy_2LPT,
         *hires_vz_2LPT;  // cw addition
     float *lowres_vcb;
+    float *hires_Phi;
 } InitialConditions;
 
 typedef struct PerturbedField {
