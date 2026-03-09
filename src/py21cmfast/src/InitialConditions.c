@@ -23,6 +23,8 @@
 #include "logger.h"
 #include "rng.h"
 
+typedef double (*k_weight_func)(double k_mag);
+
 void adj_complex_conj(fftwf_complex *HIRES_box) {
     /*****  Adjust the complex conjugate relations for a real array  *****/
 
@@ -543,6 +545,167 @@ void compute_velocity_fields_2LPT(fftwf_complex *box, fftwf_complex *box_saved,
     }
 }
 
+/*
+    Returns the Poisson factor to convert from the overdensity field delta to the gravitational
+   potential Phi via the Poisson equation,
+
+                            Phi(k,z=0) = 3* H0^2 * Omega_m / (c^2 * k^2 * T(k)) * delta(k,z=0),
+
+    where T(k) is the linear matter density transfer function at z=0.
+    NOTE: It is important that T(k) follows the convention that it is normalized to unity at k->0
+   (e.g. EH, BBKS), otherwise the conversion is incorrect (the CLASS transfer function for example
+   is inadequate for this conversion)
+*/
+double Poisson_factor(double k) {
+    return (3. * Ho * Ho * cosmo_params_global->OMm /
+            (2. * physconst.c_cms * physconst.c_cms * k * k * transfer_function(k)) *
+            physconst.cm_per_Mpc * physconst.cm_per_Mpc);
+}
+
+// TODO: This shares similiarities with filter_box. Better to merge in the future
+void multiply_by_factor_in_Fourier_space(fftwf_complex *box, k_weight_func weight_func,
+                                         bool divide_not_mult) {
+    double factor;
+    int n_x, n_z, n_y;
+    double k_x, k_y, k_z, k_mag;
+    unsigned long long grid_index;
+    int hi_dim[3] = {
+        simulation_options_global->DIM, simulation_options_global->DIM,
+        (int)(simulation_options_global->NON_CUBIC_FACTOR * simulation_options_global->DIM)};
+    double delta_k[3] = {
+        2.0 * M_PI / simulation_options_global->BOX_LEN,
+        2.0 * M_PI / simulation_options_global->BOX_LEN,
+        2.0 * M_PI /
+            (simulation_options_global->BOX_LEN * simulation_options_global->NON_CUBIC_FACTOR)};
+
+    // loop through k-box
+#pragma omp parallel shared(box, hi_dim, delta_k, weight_func, divide_not_mult) \
+    private(n_x, n_z, n_y, k_x, k_y, k_z, k_mag, grid_index, factor)            \
+    num_threads(simulation_options_global -> N_THREADS)
+    {
+#pragma omp for
+        for (n_x = 0; n_x < hi_dim[0]; n_x++) {
+            if (n_x > (hi_dim[0] / 2)) {
+                k_x = (n_x - hi_dim[0]) * delta_k[0];
+            } else {
+                k_x = n_x * delta_k[0];
+            }
+            for (n_y = 0; n_y < hi_dim[1]; n_y++) {
+                if (n_y > (hi_dim[1] / 2)) {
+                    k_y = (n_y - hi_dim[1]) * delta_k[1];
+                } else {
+                    k_y = n_y * delta_k[1];
+                }
+                for (n_z = 0; n_z <= hi_dim[2] / 2; n_z++) {
+                    k_z = n_z * delta_k[2];  // no negative frequencies in z with fftw r2c/c2r
+                    k_mag = sqrt(k_x * k_x + k_y * k_y + k_z * k_z);
+                    grid_index = grid_index_fftw_c(n_x, n_y, n_z, hi_dim);
+                    if (k_mag == 0.) {
+                        box[grid_index] = 0.;
+                        continue;
+                    }
+                    factor = weight_func(k_mag);
+                    if (divide_not_mult) {
+                        factor = 1. / factor;
+                    }
+                    box[grid_index] *= factor;
+                }
+            }
+        }
+    }
+}
+
+/*
+    Add primordial non-Gaussianities to a Gaussian Phi box.
+    The Phi box is expected to be received and returned in real space.
+*/
+void add_pngs_to_Phi_box(fftwf_complex *box, InitialConditions *ics_boxes) {
+    int i, j, k;
+    int hi_dim[3] = {
+        simulation_options_global->DIM, simulation_options_global->DIM,
+        (int)(simulation_options_global->NON_CUBIC_FACTOR * simulation_options_global->DIM)};
+    float value, variance;
+    unsigned long long int index_f, index_r;
+
+    variance = 0.;
+// Compute first the variance of the Phi box
+#pragma omp parallel shared(box, hi_dim, variance) private(i, j, k, index_f, value) \
+    num_threads(simulation_options_global -> N_THREADS)
+    {
+#pragma omp for reduction(+ : variance)
+        for (i = 0; i < hi_dim[0]; i++) {
+            for (j = 0; j < hi_dim[1]; j++) {
+                for (k = 0; k < hi_dim[2]; k++) {
+                    index_f = grid_index_fftw_r(i, j, k, hi_dim);
+                    value = *((float *)box + index_f);
+                    variance += value * value;
+                }
+            }
+        }
+    }
+    variance /= TOT_NUM_PIXELS;
+
+// Now add the non-Gaussianities to the Phi box
+#pragma omp parallel shared(box, hi_dim, variance) private(i, j, k, index_r, index_f, value) \
+    num_threads(simulation_options_global -> N_THREADS)
+    {
+#pragma omp for
+        for (i = 0; i < hi_dim[0]; i++) {
+            for (j = 0; j < hi_dim[1]; j++) {
+                for (k = 0; k < hi_dim[2]; k++) {
+                    index_r = grid_index_general(i, j, k, hi_dim);
+                    index_f = grid_index_fftw_r(i, j, k, hi_dim);
+                    value = *((float *)box + index_f);
+                    value += cosmo_params_global->f_NL * (value * value - variance);
+                    *((float *)box + index_f) = value;
+                    ics_boxes->hires_Phi[index_r] = value;
+                }
+            }
+        }
+    }
+}
+
+/*
+    Add primordial non-Gaussianities to a Gaussian delta box.
+    The delta box is expected to be received and returned in Fourier space.
+*/
+void add_pngs_to_delta_box(fftwf_complex *box, InitialConditions *ics_boxes) {
+    int i, j, k;
+    int hi_dim[3] = {
+        simulation_options_global->DIM, simulation_options_global->DIM,
+        (int)(simulation_options_global->NON_CUBIC_FACTOR * simulation_options_global->DIM)};
+    unsigned long long int index_f;
+
+    multiply_by_factor_in_Fourier_space(box, Poisson_factor, false);
+    LOG_SUPER_DEBUG("Converted delta_G to Phi_G in Fourier space.");
+    // FFT back to real space
+    dft_c2r_cube(matter_options_global->USE_FFTW_WISDOM, simulation_options_global->DIM, D_PARA,
+                 simulation_options_global->N_THREADS, box);
+// remember to add the factor of 1/TOT_NUM_PIXELS when converting from k-space to real space
+#pragma omp parallel shared(box, hi_dim) private(i, j, k, index_f) \
+    num_threads(simulation_options_global -> N_THREADS)
+    {
+#pragma omp for
+        for (i = 0; i < hi_dim[0]; i++) {
+            for (j = 0; j < hi_dim[1]; j++) {
+                for (k = 0; k < hi_dim[2]; k++) {
+                    index_f = grid_index_fftw_r(i, j, k, hi_dim);
+                    *((float *)box + index_f) *= 1. / TOT_NUM_PIXELS;
+                }
+            }
+        }
+    }
+    add_pngs_to_Phi_box(box, ics_boxes);
+    LOG_SUPER_DEBUG("Added png to Phi_G in real space.");
+    // FFT to Fourier space
+    dft_r2c_cube(matter_options_global->USE_FFTW_WISDOM, simulation_options_global->DIM, D_PARA,
+                 simulation_options_global->N_THREADS, box);
+    multiply_by_factor_in_Fourier_space(
+        box, Poisson_factor,
+        true);  // we divide by the Poisson factor since the last argument is true
+    LOG_SUPER_DEBUG("Converted Phi_NG to delta_NG in Fourier space.");
+}
+
 // Re-write of init.c for original 21cmFAST
 int ComputeInitialConditions(unsigned long long random_seed, InitialConditions *boxes) {
     //     Generates the initial conditions: gaussian random density field
@@ -666,6 +829,10 @@ int ComputeInitialConditions(unsigned long long random_seed, InitialConditions *
         } else {
             sample_ic_modes(HIRES_box, hi_dim, box_len, r);
 
+            if (matter_options_global->PRIMORDIAL_NON_GAUSSIANITIES) {
+                add_pngs_to_delta_box(HIRES_box, boxes);
+            }
+
             memcpy(HIRES_box_saved, HIRES_box, sizeof(fftwf_complex) * KSPACE_NUM_PIXELS);
 
             /* ASSIGN HIRES DENSITY */
@@ -695,6 +862,7 @@ int ComputeInitialConditions(unsigned long long random_seed, InitialConditions *
 
             LOG_SUPER_DEBUG("Saved HIRES_box to struct.");
         }
+
         /* FILTER AND ASSIGN LOWRES DENSITY */
         memcpy(HIRES_box, HIRES_box_saved, sizeof(fftwf_complex) * KSPACE_NUM_PIXELS);
 

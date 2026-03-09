@@ -526,6 +526,7 @@ class InitialConditions(OutputStruct):
     hires_vz_2LPT = _arrayfield(optional=True)
 
     lowres_vcb = _arrayfield(optional=True)
+    hires_Phi = _arrayfield(optional=True)
 
     @classmethod
     def new(cls, inputs: InputParameters, **kw) -> Self:
@@ -575,6 +576,9 @@ class InitialConditions(OutputStruct):
 
         if inputs.matter_options.USE_RELATIVE_VELOCITIES:
             out["lowres_vcb"] = Array(shape, dtype=np.float32)
+
+        if inputs.matter_options.PRIMORDIAL_NON_GAUSSIANITIES:
+            out["hires_Phi"] = Array(hires_shape, dtype=np.float32)
 
         return cls(inputs=inputs, **out, **kw)
 

@@ -412,6 +412,9 @@ class CosmoParams(InputStruct):
         Spectral index of the power spectrum.
     A_s: float, optional
         Amplitude of primordial curvature power spectrum, at k_pivot = 0.05 Mpc^-1.
+    f_NL: float, optional
+        This parameter controls how much local non-Gaussianity there is in the initial conditions.
+        Becomes relevant only if PRIMORDIAL_NON_GAUSSIANITIES = True in matter_options.
     """
 
     _DEFAULT_SIGMA_8: ClassVar[float] = 0.8102
@@ -451,6 +454,7 @@ class CosmoParams(InputStruct):
     )  # TODO: force this to be the sum of the others
     Y_He: float = field(default=0.24, converter=float, validator=validators.ge(0))
     wl: float = field(default=-1.0, converter=float)
+    f_NL: float = field(default=0.0, converter=float)
 
     # TODO: Combined validation via Astropy?
 
@@ -625,6 +629,8 @@ class MatterOptions(InputStruct):
     KEEP_3D_VELOCITIES: bool, optional
         Whether to keep the 3D velocities in the ICs.
         If False, only the z velocity is kept.
+    PRIMORDIAL_NON_GAUSSIANITIES: bool, optional
+        Whether to add primordial local non-Gaussianities to the initial conditions.
     SOURCE_MODEL: str, optional
         The source model to use in the simulation. Options are:
         E-INTEGRAL : The traditional excursion-set formalism, where source properties are
@@ -675,6 +681,7 @@ class MatterOptions(InputStruct):
         default="2LPT",
     )
     USE_FFTW_WISDOM: bool = field(default=False, converter=bool)
+    PRIMORDIAL_NON_GAUSSIANITIES: bool = field(default=False, converter=bool)
 
     SOURCE_MODEL: Literal[
         "CONST-ION-EFF", "E-INTEGRAL", "L-INTEGRAL", "DEXM-ESF", "CHMF-SAMPLER"
