@@ -154,14 +154,14 @@ class OutputStruct(ABC):
         return {k: x for k, x in me.items() if isinstance(x, Array)}
 
     @cached_property
-    def struct(self) -> StructWrapper:
+    def _struct(self) -> StructWrapper:
         """The python-wrapped struct associated with this input object."""
         return StructWrapper(self._name)
 
     @cached_property
-    def cstruct(self) -> StructWrapper:
+    def _cstruct(self) -> StructWrapper:
         """The object pointing to the memory accessed by C-code for this struct."""
-        return self.struct.cstruct
+        return self._struct.cstruct
 
     def _init_arrays(self):
         for k, array in self.arrays.items():
@@ -193,11 +193,11 @@ class OutputStruct(ABC):
             # to unnecessarily load things in. We leave it to the user to ensure that all
             # required arrays are loaded into memory before calling this function.
             if array.state.initialized:
-                self.struct.expose_to_c(array, name)
+                self._struct.expose_to_c(array, name)
 
-        for k in self.struct.primitive_fields:
+        for k in self._struct.primitive_fields:
             if getattr(self, k) is not None:
-                setattr(self.cstruct, k, getattr(self, k))
+                setattr(self._cstruct, k, getattr(self, k))
 
     def pull_from_backend(self):
         """Sync the current state of the object with the underlying C-struct.
@@ -205,8 +205,8 @@ class OutputStruct(ABC):
         This will pull any primitives calculated in the backend to the python object.
         Arrays are passed in as pointers, and do not need to be copied back.
         """
-        for k in self.struct.primitive_fields:
-            setattr(self, k, getattr(self.cstruct, k))
+        for k in self._struct.primitive_fields:
+            setattr(self, k, getattr(self._cstruct, k))
 
     def get(self, ary: str | Array):
         """If possible, load an array from disk, storing it and returning the underlying array."""
@@ -309,7 +309,7 @@ class OutputStruct(ABC):
             return
 
         if state.c_has_active_memory:
-            lib.free(getattr(self.cstruct, k))
+            lib.free(getattr(self._cstruct, k))
 
         setattr(self, k, array.without_value())
 
@@ -407,7 +407,7 @@ class OutputStruct(ABC):
         # print primitive fields
         out += "".join(
             f"{indent}    {fieldname:>25}: {getattr(self, fieldname, 'non-existent')}\n"
-            for fieldname in self.struct.primitive_fields
+            for fieldname in self._struct.primitive_fields
         )
 
         return out
@@ -454,7 +454,7 @@ class OutputStruct(ABC):
         # Construct the args. All StructWrapper objects need to actually pass their
         # underlying cstruct, rather than themselves.
         inputs = [
-            arg.cstruct if isinstance(arg, OutputStruct | InputStruct) else arg
+            arg._cstruct if isinstance(arg, OutputStruct | InputStruct) else arg
             for arg in args
         ]
         # Sync the python/C memory
@@ -471,7 +471,7 @@ class OutputStruct(ABC):
 
         # Perform the C computation
         try:
-            exitcode = self._c_compute_function(*inputs, self.cstruct)
+            exitcode = self._c_compute_function(*inputs, self._cstruct)
         except TypeError as e:
             logger.error(f"Arguments to {self._c_compute_function.__name__}: {inputs}")
             raise e
@@ -1146,6 +1146,8 @@ class XraySourceBox(OutputStructZ):
     filtered_sfr = _arrayfield()
     filtered_sfr_mini = _arrayfield(optional=True)
     filtered_xray = _arrayfield()
+    filtered_sfr_lw = _arrayfield(optional=True)
+    filtered_sfr_mini_lw = _arrayfield(optional=True)
     mean_sfr = _arrayfield()
     mean_sfr_mini = _arrayfield(optional=True)
     mean_log10_Mcrit_LW = _arrayfield(optional=True)
@@ -1190,6 +1192,9 @@ class XraySourceBox(OutputStructZ):
             out["mean_log10_Mcrit_LW"] = Array(
                 (inputs.astro_params.N_STEP_TS,), dtype=np.float64
             )
+            if inputs.astro_options.LYA_MULTIPLE_SCATTERING:
+                out["filtered_sfr_lw"] = Array(shape, dtype=np.float32)
+                out["filtered_sfr_mini_lw"] = Array(shape, dtype=np.float32)
 
         return cls(
             inputs=inputs,
@@ -1216,6 +1221,7 @@ class XraySourceBox(OutputStructZ):
         R_inner,
         R_outer,
         R_ct,
+        R_star,
         allow_already_computed: bool = False,
     ):
         """Compute the function."""
@@ -1225,6 +1231,7 @@ class XraySourceBox(OutputStructZ):
             R_inner,
             R_outer,
             R_ct,
+            R_star,
         )
 
 
@@ -1270,6 +1277,7 @@ class TsBox(OutputStructZ):
         }
         if inputs.astro_options.USE_MINI_HALOS:
             out["J_21_LW"] = Array(shape, dtype=np.float32)
+
         return cls(inputs=inputs, redshift=redshift, **out, **kw)
 
     @cached_property
