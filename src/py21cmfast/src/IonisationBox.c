@@ -1335,11 +1335,6 @@ int ComputeIonizedBox(float redshift, float prev_redshift, PerturbedField *pertu
 
         double global_xH;
 
-        if (!astro_options_global->USE_TS_FLUCT) {
-            init_heat();
-        }
-        init_ps();
-
         struct IonBoxConstants ionbox_constants;
         set_ionbox_constants(redshift, prev_redshift, &ionbox_constants);
 
@@ -1437,15 +1432,6 @@ int ComputeIonizedBox(float redshift, float prev_redshift, PerturbedField *pertu
         }
         // lets check if we are going to bother with computing the inhmogeneous field at all...
         global_xH = 0.0;
-
-        // HMF integral initialisation
-        if (matter_options_global->USE_INTERPOLATION_TABLES > 0) {
-            if (astro_options_global->INTEGRATION_METHOD_ATOMIC == 2 ||
-                astro_options_global->INTEGRATION_METHOD_MINI == 2)
-                initialiseSigmaMInterpTable(fmin(MMIN_FAST, ionbox_constants.M_min), 1e20);
-            else
-                initialiseSigmaMInterpTable(ionbox_constants.M_min, 1e20);
-        }
 
         if (astro_options_global->INTEGRATION_METHOD_ATOMIC == 1 ||
             (astro_options_global->USE_MINI_HALOS &&
@@ -1617,17 +1603,8 @@ int ComputeIonizedBox(float redshift, float prev_redshift, PerturbedField *pertu
             fftwf_forget_wisdom();
         }
 
-        if (!astro_options_global->USE_TS_FLUCT) {
-            destruct_heat();
-        }
-
         LOG_DEBUG("global_xH = %e", global_xH);
         free_fftw_grids(grid_struct);
-
-        if (!astro_options_global->USE_TS_FLUCT &&
-            matter_options_global->USE_INTERPOLATION_TABLES > 0) {
-            freeSigmaMInterpTable();
-        }
 
         // This function checks for allocation so don't worry about double-freeing tables
         free_conditional_tables();

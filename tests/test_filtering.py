@@ -7,7 +7,7 @@ from matplotlib.colors import Normalize
 from py21cmfast.c_21cmfast import ffi, lib
 from scipy.stats import binned_statistic as binstat
 
-from py21cmfast.wrapper.cfuncs import broadcast_input_struct
+from py21cmfast.drivers._param_config import broadcast_input_struct
 
 from . import produce_integration_test_data as prd
 from .test_c_interpolation_tables import print_failure_stats

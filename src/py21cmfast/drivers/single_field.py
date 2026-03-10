@@ -26,7 +26,11 @@ from ..wrapper.outputs import (
     XraySourceBox,
 )
 from ._param_config import (
+    c_wrapper,
     check_output_consistency,
+    init_backend_ps,
+    init_heat_tables,
+    init_sigma_table,
     single_field_func,
 )
 
@@ -34,8 +38,12 @@ logger = logging.getLogger(__name__)
 
 
 @single_field_func
+@init_backend_ps(is_generator=False)
 def compute_initial_conditions(
-    *, inputs: InputParameters, initial_density: np.ndarray | float | None = None
+    *,
+    inputs: InputParameters,
+    initial_density: np.ndarray | float | None = None,
+    **kwargs,
 ) -> InitialConditions:
     r"""
     Compute initial conditions.
@@ -109,11 +117,13 @@ def compute_initial_conditions(
 
 
 @single_field_func
+@c_wrapper(is_generator=False)
 def perturb_field(
     *,
     redshift: float,
     inputs: InputParameters | None = None,
     initial_conditions: InitialConditions,
+    **kwargs,
 ) -> PerturbedField:
     r"""
     Compute a perturbed field at a given redshift.
@@ -151,12 +161,14 @@ def perturb_field(
 
 
 @single_field_func
+@init_sigma_table(is_generator=False)
 def determine_halo_catalog(
     *,
     redshift: float,
     inputs: InputParameters | None = None,
     initial_conditions: InitialConditions,
     descendant_halos: HaloCatalog | None = None,
+    **kwargs,
 ) -> HaloCatalog:
     r"""
     Find a halo list, given a redshift.
@@ -196,6 +208,7 @@ def determine_halo_catalog(
         redshift=redshift,
         desc_redshift=descendant_halos.redshift,
         inputs=inputs,
+        init_manager=kwargs.get("init_manager"),
     )
 
     # Run the C Code
@@ -206,6 +219,7 @@ def determine_halo_catalog(
 
 
 @single_field_func
+@c_wrapper(is_generator=False)
 def perturb_halo_catalog(
     *,
     initial_conditions: InitialConditions,
@@ -213,6 +227,7 @@ def perturb_halo_catalog(
     previous_spin_temp: TsBox | None = None,
     previous_ionize_box: IonizedBox | None = None,
     halo_catalog: HaloCatalog,
+    **kwargs,
 ) -> PerturbedHaloCatalog:
     r"""
     Given a halo list, perturb the halos for a given redshift.
@@ -282,6 +297,7 @@ def perturb_halo_catalog(
 
 
 @single_field_func
+@init_sigma_table(is_generator=False)
 def compute_halo_grid(
     *,
     redshift: float,
@@ -290,6 +306,7 @@ def compute_halo_grid(
     halo_catalog: HaloCatalog | None = None,
     previous_spin_temp: TsBox | None = None,
     previous_ionize_box: IonizedBox | None = None,
+    **kwargs,
 ) -> HaloBox:
     r"""
     Compute grids of halo properties from a catalogue.
@@ -457,11 +474,13 @@ def interp_halo_boxes(
 #   over multiple redshifts in a nice way using this wrapper.
 # TODO: if we move some code to jax or similar I think this would be one of the first candidates (just filling out some filtered grids)
 @single_field_func
+@c_wrapper(is_generator=False)
 def compute_xray_source_field(
     *,
     initial_conditions: InitialConditions,
     hboxes: list[HaloBox],
     redshift: float,
+    **kwargs,
 ) -> XraySourceBox:
     r"""
     Compute filtered grid of SFR for use in spin temperature calculation.
@@ -585,6 +604,8 @@ def compute_xray_source_field(
 
 
 @single_field_func
+@init_sigma_table(is_generator=False)
+@init_heat_tables(is_generator=False)
 def compute_spin_temperature(
     *,
     initial_conditions: InitialConditions,
@@ -593,6 +614,7 @@ def compute_spin_temperature(
     xray_source_box: XraySourceBox | None = None,
     previous_spin_temp: TsBox | None = None,
     cleanup: bool = False,
+    **kwargs,
 ) -> TsBox:
     r"""
     Compute spin temperature boxes at a given redshift.
@@ -659,6 +681,8 @@ def compute_spin_temperature(
 
 
 @single_field_func
+@init_sigma_table(is_generator=False)
+@init_heat_tables(is_generator=False)
 def compute_ionization_field(
     *,
     perturbed_field: PerturbedField,
@@ -668,6 +692,7 @@ def compute_ionization_field(
     previous_ionized_box: IonizedBox | None = None,
     spin_temp: TsBox | None = None,
     halobox: HaloBox | None = None,
+    **kwargs,
 ) -> IonizedBox:
     r"""
     Compute an ionized box at a given redshift.
@@ -780,11 +805,13 @@ def compute_ionization_field(
 
 
 @single_field_func
+@c_wrapper(is_generator=False)
 def brightness_temperature(
     *,
     ionized_box: IonizedBox,
     perturbed_field: PerturbedField,
     spin_temp: TsBox | None = None,
+    **kwargs,
 ) -> BrightnessTemp:
     r"""
     Compute a coeval brightness temperature box.

@@ -32,7 +32,12 @@ from ..wrapper.outputs import (
 )
 from ..wrapper.photoncons import _get_photon_nonconservation_data, setup_photon_cons
 from . import single_field as sf
-from ._param_config import high_level_func
+from ._param_config import (
+    _InitManager,
+    high_level_func,
+    init_heat_tables,
+    init_sigma_table,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -394,7 +399,7 @@ def evolve_halos(
     initial_conditions: InitialConditions,
     cache: OutputCache,
     regenerate: bool,
-    free_cosmo_tables: bool,
+    init_manager: _InitManager = _InitManager(),
     progressbar: bool = False,
 ):
     """
@@ -443,7 +448,7 @@ def evolve_halos(
         "initial_conditions": initial_conditions,
         "cache": cache,
         "regenerate": regenerate,
-        "free_cosmo_tables": free_cosmo_tables,
+        "init_manager": init_manager,
     }
     halos_desc = None
     with _progressbar(disable=not progressbar) as _progbar:
@@ -475,6 +480,8 @@ def evolve_halos(
 
 
 @high_level_func
+@init_sigma_table(is_generator=True)
+@init_heat_tables(is_generator=True)
 def generate_coeval(
     *,
     inputs: InputParameters | None = None,
@@ -485,6 +492,7 @@ def generate_coeval(
     initial_conditions: InitialConditions | None = None,
     cleanup: bool = True,
     progressbar: bool = False,
+    **kwargs,
 ):
     r"""
     Perform a full coeval simulation of all fields at given redshifts.
@@ -560,7 +568,11 @@ def generate_coeval(
     if not out_redshifts and not inputs.node_redshifts:
         raise ValueError("out_redshifts must be given if inputs has no node redshifts")
 
-    iokw = {"regenerate": regenerate, "cache": cache, "free_cosmo_tables": False}
+    iokw = {
+        "regenerate": regenerate,
+        "cache": cache,
+        "init_manager": kwargs.get("init_manager"),
+    }
 
     if not hasattr(out_redshifts, "__len__"):
         out_redshifts = [out_redshifts]
@@ -603,6 +615,7 @@ def generate_coeval(
         regenerate=regenerate,
         minimum_node=first_out_node,
     )
+
     # convert node_redshift index to all_redshift index
     if idx > 0:
         idx = np.argmin(np.fabs(np.array(all_redshifts) - inputs.node_redshifts[idx]))
@@ -625,8 +638,6 @@ def generate_coeval(
 
     if lib.photon_cons_allocated:
         lib.FreePhotonConsMemory()
-
-    lib.Free_cosmo_tables_global()
 
 
 def run_coeval(**kwargs) -> list[Coeval]:

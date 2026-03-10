@@ -16,11 +16,6 @@
 #include "scaling_relations.h"
 
 void get_sigma(int n_masses, double *mass_values, double *sigma_out, double *dsigmasqdm_out) {
-    init_ps();
-
-    if (matter_options_global->USE_INTERPOLATION_TABLES > 0)
-        initialiseSigmaMInterpTable(M_MIN_INTEGRAL, 1e20);
-
     int i;
     for (i = 0; i < n_masses; i++) {
         sigma_out[i] = EvaluateSigma(log(mass_values[i]));
@@ -65,12 +60,6 @@ void get_halo_chmf_interval(double redshift, double z_prev, int n_conditions, do
     struct HaloSamplingConstants hs_const_struct;
     stoc_set_consts_z(&hs_const_struct, redshift, z_prev);
 
-    // we're only using the HS constants here to do mass/sigma calculations
-    //   re-doing the sigma tables here lets us integrate below SAMPLER_MIN_MASS
-    //   if requested by the user.
-    if (matter_options_global->USE_INTERPOLATION_TABLES > 0)
-        initialiseSigmaMInterpTable(M_MIN_INTEGRAL, M_MAX_INTEGRAL);
-
     int i, j;
     double exp_n_total;
     double buf;
@@ -109,13 +98,6 @@ void get_halomass_at_probability(double redshift, double z_prev, int n_condition
 
 void get_global_SFRD_z(int n_redshift, double *redshifts, double *log10_turnovers_mcg,
                        double *out_sfrd, double *out_sfrd_mini) {
-    init_ps();
-
-    // a bit hacky, but we need a lower limit for the tables
-    double M_min = minimum_source_mass(redshifts[0], true);
-    if (matter_options_global->USE_INTERPOLATION_TABLES > 0)
-        initialiseSigmaMInterpTable(M_min, 1e20);
-
     ScalingConstants sc;
     set_scaling_constants(redshifts[0], &sc, false);
 
@@ -140,12 +122,6 @@ void get_global_SFRD_z(int n_redshift, double *redshifts, double *log10_turnover
 
 void get_global_Nion_z(int n_redshift, double *redshifts, double *log10_turnovers_mcg,
                        double *out_nion, double *out_nion_mini) {
-    init_ps();
-
-    double M_min = minimum_source_mass(redshifts[0], true);
-    if (matter_options_global->USE_INTERPOLATION_TABLES > 0)
-        initialiseSigmaMInterpTable(M_min, 1e20);
-
     ScalingConstants sc;
     set_scaling_constants(redshifts[0], &sc, false);
 
@@ -169,11 +145,7 @@ void get_global_Nion_z(int n_redshift, double *redshifts, double *log10_turnover
 
 void get_conditional_FgtrM(double redshift, double R, int n_densities, double *densities,
                            double *out_fcoll, double *out_dfcoll) {
-    init_ps();
-
     double M_min = minimum_source_mass(redshift, true);
-    if (matter_options_global->USE_INTERPOLATION_TABLES > 0)
-        initialiseSigmaMInterpTable(M_min, 1e20);
     double sigma_min = EvaluateSigma(log(M_min));
     double sigma_cond = EvaluateSigma(log(RtoM(R)));
     double growthf = dicke(redshift);
@@ -203,11 +175,7 @@ void get_conditional_FgtrM(double redshift, double R, int n_densities, double *d
 
 void get_conditional_SFRD(double redshift, double R, int n_densities, double *densities,
                           double *log10_mturns, double *out_sfrd, double *out_sfrd_mini) {
-    init_ps();
-
     double M_min = minimum_source_mass(redshift, true);
-    if (matter_options_global->USE_INTERPOLATION_TABLES > 0)
-        initialiseSigmaMInterpTable(M_min, 1e20);
     double M_cond = RtoM(R);
     double sigma_cond = EvaluateSigma(log(M_cond));
     double growthf = dicke(redshift);
@@ -246,11 +214,7 @@ void get_conditional_SFRD(double redshift, double R, int n_densities, double *de
 void get_conditional_Nion(double redshift, double R, int n_densities, double *densities,
                           double *log10_mturns_acg, double *log10_mturns_mcg, double *out_nion,
                           double *out_nion_mini) {
-    init_ps();
-
     double M_min = minimum_source_mass(redshift, true);
-    if (matter_options_global->USE_INTERPOLATION_TABLES > 0)
-        initialiseSigmaMInterpTable(M_min, 1e20);
     double M_cond = RtoM(R);
     double sigma_cond = EvaluateSigma(log(M_cond));
     double growthf = dicke(redshift);
@@ -301,11 +265,7 @@ void get_conditional_Nion(double redshift, double R, int n_densities, double *de
 
 void get_conditional_Xray(double redshift, double R, int n_densities, double *densities,
                           double *log10_mturns, double *out_xray) {
-    init_ps();
-
     double M_min = minimum_source_mass(redshift, true);
-    if (matter_options_global->USE_INTERPOLATION_TABLES > 0)
-        initialiseSigmaMInterpTable(M_min, 1e20);
     double M_cond = RtoM(R);
     double sigma_cond = EvaluateSigma(log(M_cond));
     double growthf = dicke(redshift);

@@ -31,7 +31,7 @@ from ..wrapper.outputs import (
     PerturbedField,
     TsBox,
 )
-from ._param_config import high_level_func
+from ._param_config import high_level_func, init_heat_tables, init_sigma_table
 from .coeval import (
     _obtain_starting_point_for_scrolling,
     _redshift_loop_generator,
@@ -568,6 +568,8 @@ def _run_lightcone_from_perturbed_fields(
 
 
 @high_level_func
+@init_sigma_table(is_generator=True)
+@init_heat_tables(is_generator=True)
 def generate_lightcone(
     *,
     lightconer: Lightconer,
@@ -582,6 +584,7 @@ def generate_lightcone(
     regenerate: bool = True,
     progressbar: bool = False,
     lightcone_filename: str | Path | None = None,
+    **kwargs,
 ):
     r"""
     Create a generator function for a lightcone run.
@@ -647,7 +650,11 @@ def generate_lightcone(
 
     _check_desired_arrays_exist(lightconer.quantities, inputs)
 
-    iokw = {"cache": cache, "regenerate": regenerate, "free_cosmo_tables": False}
+    iokw = {
+        "cache": cache,
+        "regenerate": regenerate,
+        "init_manager": kwargs.get("init_manager"),
+    }
 
     (
         initial_conditions,
@@ -680,8 +687,6 @@ def generate_lightcone(
         lightcone_filename=lightcone_filename,
         **iokw,
     )
-
-    lib.Free_cosmo_tables_global()
 
 
 def run_lightcone(**kwargs) -> LightCone:
