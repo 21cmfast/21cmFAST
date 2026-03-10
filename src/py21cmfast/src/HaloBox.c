@@ -292,6 +292,7 @@ int set_fixed_grids(double M_min, double M_max, InitialConditions *ini_boxes, fl
                     float *mturn_m_grid, ScalingConstants *consts, HaloBox *grids) {
     double M_cell;
 
+    double growthf = dicke(consts->redshift);
     // find grid limits for tables
     double min_density = 0.;
     double max_density = 0.;

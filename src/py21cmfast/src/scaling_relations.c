@@ -373,11 +373,9 @@ void get_halo_metallicity(double sfr, double stellar, double redshift, double *z
 
 void get_halo_xray(double sfr, double sfr_mini, double metallicity, double xray_rng,
                    ScalingConstants *consts, double *xray_out) {
-    double sigma_xray = consts->sigma_xray;
-
     // adjustment to the mean for lognormal scatter
-    double stoc_adjustment_term = consts->scaling_median ? 0 : sigma_xray * sigma_xray / 2.;
-    double rng_factor = exp(xray_rng * consts->sigma_xray - stoc_adjustment_term);
+    double stoc_adjustment_term = consts->sampled_mean_correction[0];
+    double rng_factor = exp(xray_rng - stoc_adjustment_term);
 
     double lx_over_sfr = get_lx_on_sfr(sfr, metallicity, consts->l_x);
     double xray = lx_over_sfr * (sfr * physconst.s_per_yr) * rng_factor;
