@@ -120,3 +120,18 @@ class TestWriteTemplate:
 
         new = InputParameters.from_template(pth, random_seed=1, K_MAX_FOR_CLASS=1.0)
         assert new == inputs
+
+    def test_writing_non_structs(self, tmp_path):
+        """Test that writing with only_structs=False does include non-struct parameters."""
+        inputs = InputParameters.from_template("simple", random_seed=1)
+        pth = tmp_path / "tmp.toml"
+        tmpl.write_template(inputs, pth, mode="full", only_structs=False)
+
+        with pth.open("r") as fl:
+            contents = fl.read()
+
+        assert "random_seed" in contents
+        assert "node_redshifts" in contents
+
+        new = InputParameters.from_template(pth)
+        assert new == inputs

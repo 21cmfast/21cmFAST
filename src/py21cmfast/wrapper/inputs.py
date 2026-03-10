@@ -1799,7 +1799,7 @@ class InputParameters:
     def from_template(
         cls,
         name: str | Path | Sequence[str | Path],
-        random_seed: int,
+        random_seed: int | None = None,
         node_redshifts: tuple[float] | None = None,
         **kwargs,
     ):
@@ -1827,13 +1827,15 @@ class InputParameters:
         """
         from .._templates import create_params_from_template
 
-        cls_kw = {"random_seed": random_seed}
-        if node_redshifts is not None:
-            cls_kw["node_redshifts"] = node_redshifts
-
         dct = create_params_from_template(name, **kwargs)
         dct.pop("cosmo_tables")
-        return cls(**dct, **cls_kw)
+
+        if random_seed is not None:
+            dct["random_seed"] = random_seed
+        if node_redshifts is not None:
+            dct["node_redshifts"] = node_redshifts
+
+        return cls(**dct)
 
     def clone(self, **kwargs):
         """Generate a copy of the InputParameter structure with specified changes."""
