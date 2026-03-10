@@ -38,7 +38,7 @@ def create_full_run_cache(cachedir: Path) -> caching.RunCache:
                     setattr(o, k, v.with_value(v.value))
 
                 # Mock the primitive fields as well...
-                for fld in o.struct.primitive_fields:
+                for fld in o._struct.primitive_fields:
                     setattr(o, fld, 0.0)
 
                 h5.write_output_to_hdf5(o, fname)
