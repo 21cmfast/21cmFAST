@@ -87,6 +87,7 @@ void stoc_set_consts_z(struct HaloSamplingConstants *const_struct, double redshi
 
     LOG_DEBUG("Setting z constants z=%.2f z_desc=%.2f", redshift, redshift_desc);
     const_struct->growth_out = dicke(redshift);
+
     const_struct->z_out = redshift;
     const_struct->z_in = redshift_desc;
 
@@ -111,6 +112,7 @@ void stoc_set_consts_z(struct HaloSamplingConstants *const_struct, double redshi
 
     if (from_catalog) {
         const_struct->from_catalog = true;
+        const_struct->growth_in = dicke(redshift_desc);
         initialise_dNdM_tables(log(simulation_options_global->SAMPLER_MIN_MASS),
                                const_struct->lnM_max_tb, const_struct->lnM_min,
                                const_struct->lnM_max_tb, const_struct->growth_out,
