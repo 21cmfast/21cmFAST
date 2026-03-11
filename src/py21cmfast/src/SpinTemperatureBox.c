@@ -88,8 +88,6 @@ int ComputeTsBox(short cleanup, PerturbedField *perturbed_field, XraySourceBox *
                  TsBox *previous_spin_temp, InitialConditions *ini_boxes, TsBox *this_spin_temp) {
     int status;
     Try {  // This Try{} wraps the whole function.
-        LOG_DEBUG("Spintemp input values:");
-        LOG_DEBUG("redshift=%f, prev_redshift=%f", redshift, prev_redshift);
 
 #if LOG_LEVEL >= SUPER_DEBUG_LEVEL
         writeSimulationOptions(simulation_options_global);
@@ -1350,6 +1348,9 @@ void ts_main(short cleanup, PerturbedField *perturbed_field, XraySourceBox *sour
     // NOTE: If we re-allow other redshifts in perturbed_field, this will need to change
     double redshift = get_current_redshift();
     double prev_redshift = get_previous_redshift();
+
+    LOG_DEBUG("Spintemp input values:");
+    LOG_DEBUG("redshift=%f, prev_redshift=%f", redshift, prev_redshift);
 
     // NOTE: For the code to work, previous_spin_temp MUST be allocated &
     // calculated if redshift < Z_HEAT_MAX

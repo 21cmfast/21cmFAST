@@ -24,12 +24,11 @@
 
 void print_sc_consts(ScalingConstants *c) {
     LOG_DEBUG("Printing scaling relation constants z = %.3f....", c->redshift);
-    LOG_DEBUG("SHMR: f10 %.2e a %.2e f7 %.2e a_mini %.2e sigma %.2e", c->fstar_10, c->alpha_star,
-              c->fstar_7, c->alpha_star_mini, c->sigma_star);
+    LOG_DEBUG("SHMR: f10 %.2e a %.2e f7 %.2e a_mini %.2e", c->fstar_10, c->alpha_star, c->fstar_7,
+              c->alpha_star_mini);
     LOG_DEBUG("Upper: a_upper %.2e pivot %.2e", c->alpha_upper, c->pivot_upper);
     LOG_DEBUG("FESC: f10 %.2e a %.2e f7 %.2e", c->fesc_10, c->alpha_esc, c->fesc_7);
-    LOG_DEBUG("SSFR: t* %.2e th %.8e sigma %.2e idx %.2e", c->t_star, c->t_h, c->sigma_sfr_lim,
-              c->sigma_sfr_idx);
+    LOG_DEBUG("SSFR: t* %.2e th %.8e", c->t_star, c->t_h);
     LOG_DEBUG("Turnovers (nofb) ACG %.2e MCG %.2e Upper %.2e", c->mturn_a_nofb, c->mturn_m_nofb,
               c->acg_thresh);
     LOG_DEBUG("Limits (ACG,MCG) F* (%.2e %.2e) Fesc (%.2e %.2e)", c->Mlim_Fstar, c->Mlim_Fstar_mini,
@@ -120,7 +119,7 @@ void set_scaling_constants(double redshift, ScalingConstants *consts, bool use_p
     }
 
     // TODO: can remove if we find a better way to get the average integrated SFR
-    consts->t_h = t_Hubble(redshift);
+    consts->t_h = t_hubble(redshift);
     consts->t_star = astro_params_global->t_STAR;
 }
 
@@ -321,7 +320,7 @@ void get_halo_sfh(double snapshot_time, double halo_mass, double mturn_acg, doub
 
     for (int i = 0; i < 3; i++) {
         // we move the mturn here to go from 4 exp calls to 3
-        sfr_out[i] = max(1.0, fstar_mean * exp(-mturn_acg / halo_mass + rng[i])) * mass_growth *
+        sfr_out[i] = fmax(1.0, fstar_mean * exp(-mturn_acg / halo_mass + rng[i])) * mass_growth *
                      baryon_ratio * consts->sampled_mean_correction[i];
     }
 
@@ -329,8 +328,8 @@ void get_halo_sfh(double snapshot_time, double halo_mass, double mturn_acg, doub
         fstar_mean_mini = scaling_single_PL(halo_mass, f_a_mini, 1e7) * f_7;
         for (int i = 0; i < 3; i++) {
             sfr_out_mini[i] =
-                max(1.0, fstar_mean_mini * exp(-mturn_mcg / halo_mass -
-                                               halo_mass / consts->acg_thresh + rng[i])) *
+                fmax(1.0, fstar_mean_mini * exp(-mturn_mcg / halo_mass -
+                                                halo_mass / consts->acg_thresh + rng[i])) *
                 mass_growth * baryon_ratio * consts->sampled_mean_correction[i];
         }
     } else {

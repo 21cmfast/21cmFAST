@@ -470,9 +470,9 @@ void move_halo_galprops(HaloCatalog *halos, float *progenitor_hm, float *progeni
                 LOG_ULTRA_DEBUG(
                     "First 10 Halos: HM: %.2e SM: %.2e (%.2e) SF: %.2e (%.2e) X: %.2e NI: %.2e WS: "
                     "%.2e Z : %.2e ct : %llu",
-                    hmass, properties.stellar_mass, properties.stellar_mass_mini,
-                    properties.halo_sfr, properties.sfr_mini, properties.halo_xray,
-                    properties.n_ion, properties.fescweighted_sfr, properties.metallicity, i);
+                    hmass, properties.stellar_mass, properties.stellar_mass_mini, properties.sfr_10,
+                    properties.sfr_10_mcg, properties.halo_xray, properties.n_ion,
+                    properties.fescweighted_sfr, properties.metallicity, i);
                 LOG_ULTRA_DEBUG("Mturn_a %.2e Mturn_m %.2e RNG %.3f %.3f %.3f", M_turn_a, M_turn_m,
                                 halo_rng[0], halo_rng[1], halo_rng[2]);
             }

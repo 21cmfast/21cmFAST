@@ -23,14 +23,13 @@ int ComputeBrightnessTemp(TsBox *spin_temp, IonizedBox *ionized_box, PerturbedFi
                           BrightnessTemp *box) {
     int status;
     Try {  // Try block around whole function.
+        double redshift = get_current_redshift();
         LOG_DEBUG("Starting Brightness Temperature calculation for redshift %f", redshift);
         // Makes the parameter structs visible to a variety of functions/macros
         // Do each time to avoid Python garbage collection issues
 
         int i, j, k;
         double ave;
-
-        double redshift = get_current_redshift();
 
         int box_dim[3] = {
             simulation_options_global->HII_DIM, simulation_options_global->HII_DIM,

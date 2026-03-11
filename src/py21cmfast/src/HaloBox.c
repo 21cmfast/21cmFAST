@@ -432,16 +432,19 @@ void halobox_debug_print_avg(HaloBox *halobox, ScalingConstants *consts, double 
     get_uhmf_averages(M_min, M_max, mturn_a_avg, mturn_m_avg, consts, &averages_global);
 
     LOG_DEBUG(
-        "Exp. averages: (HM %11.3e, SM %11.3e SM_MINI %11.3e SFR %11.3e, SFR_MINI %11.3e, XRAY "
-        "%11.3e, NION %11.3e)",
+        "====== Expected averages ======\n"
+        "| HM %11.3e | SM %11.3e (MCG %11.3e) | SFR10 %11.3e (MCG %11.3e) |\n"
+        "| SFR100 %11.3e (MCG %11.3e) | XRAY %11.3e | ION %11.3e ",
         averages_global.halo_mass, averages_global.stellar_mass, averages_global.stellar_mass_mini,
-        averages_global.halo_sfr, averages_global.sfr_mini, averages_global.halo_xray,
-        averages_global.n_ion);
+        averages_global.sfr_10, averages_global.sfr_10_mcg, averages_global.sfr_100,
+        averages_global.sfr_100_mcg, averages_global.halo_xray, averages_global.n_ion);
     LOG_DEBUG(
-        "Box. averages: (HM %11.3e, SM %11.3e SM_MINI %11.3e SFR %11.3e, SFR_MINI %11.3e, XRAY "
-        "%11.3e, NION %11.3e)",
+        "====== BOX averages ======\n"
+        "| HM %11.3e | SM %11.3e (MCG %11.3e) | SFR10 %11.3e (MCG %11.3e) |\n"
+        "| SFR100 %11.3e (MCG %11.3e) | XRAY %11.3e | ION %11.3e ",
         averages_box.halo_mass, averages_box.stellar_mass, averages_box.stellar_mass_mini,
-        averages_box.halo_sfr, averages_box.sfr_mini, averages_box.halo_xray, averages_box.n_ion);
+        averages_box.sfr_10, averages_box.sfr_10_mcg, averages_box.sfr_100,
+        averages_box.sfr_100_mcg, averages_box.halo_xray, averages_box.n_ion);
 }
 
 // We need the mean log10 turnover masses for comparison with expected global Nion and SFRD.
@@ -784,10 +787,10 @@ int test_halo_props(double redshift, double redshift_prev, float *vcb_grid, floa
 
                 if (i_halo < 10) {
                     LOG_ULTRA_DEBUG("HM %.2e SM %.2e SF %.2e NI %.2e LX %.2e", out_props.halo_mass,
-                                    out_props.stellar_mass, out_props.halo_sfr, out_props.n_ion,
+                                    out_props.stellar_mass, out_props.sfr_10, out_props.n_ion,
                                     out_props.halo_xray);
                     LOG_ULTRA_DEBUG("MINI: SM %.2e SF %.2e WSF %.2e", out_props.stellar_mass_mini,
-                                    out_props.sfr_mini, out_props.fescweighted_sfr);
+                                    out_props.sfr_10_mcg, out_props.fescweighted_sfr);
                     LOG_ULTRA_DEBUG("Mturns ACG %.2e MCG %.2e Reion %.2e", M_turn_a, M_turn_m,
                                     M_turn_r);
                     LOG_ULTRA_DEBUG("RNG: STAR %.2e SFR %.2e XRAY %.2e", in_props[0], in_props[1],
@@ -892,10 +895,10 @@ int convert_halo_props(InitialConditions *ics, TsBox *prev_ts, IonizedBox *prev_
 
             if (i_halo < 10) {
                 LOG_ULTRA_DEBUG("HM %.2e SM %.2e SF %.2e NI %.2e LX %.2e", out_props.halo_mass,
-                                out_props.stellar_mass, out_props.halo_sfr, out_props.n_ion,
+                                out_props.stellar_mass, out_props.sfr_10, out_props.n_ion,
                                 out_props.halo_xray);
                 LOG_ULTRA_DEBUG("MINI: SM %.2e SF %.2e WSF %.2e", out_props.stellar_mass_mini,
-                                out_props.sfr_mini, out_props.fescweighted_sfr);
+                                out_props.sfr_10_mcg, out_props.fescweighted_sfr);
                 LOG_ULTRA_DEBUG("Mturns ACG %.2e MCG %.2e", M_turn_a, M_turn_m);
                 LOG_ULTRA_DEBUG("RNG: STAR %.2e SFR %.2e XRAY %.2e", in_props[0], in_props[1],
                                 in_props[2]);

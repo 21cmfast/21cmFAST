@@ -1297,6 +1297,8 @@ int ComputeIonizedBox(PerturbedField *perturbed_field, PerturbedField *previous_
     int status;
 
     Try {  // This Try brackets the whole function, so we don't indent.
+        double redshift = get_current_redshift();
+        double prev_redshift = get_previous_redshift();
         LOG_DEBUG("input values:");
         LOG_DEBUG("redshift=%f, prev_redshift=%f", redshift, prev_redshift);
 #if LOG_LEVEL >= DEBUG_LEVEL
@@ -1306,9 +1308,6 @@ int ComputeIonizedBox(PerturbedField *perturbed_field, PerturbedField *previous_
         writeAstroParams(astro_params_global);
         writeAstroOptions(astro_options_global);
 #endif
-
-        double redshift = get_current_redshift();
-        double prev_redshift = get_previous_redshift();
 
         // Makes the parameter structs visible to a variety of functions/macros
         // Do each time to avoid Python garbage collection issues

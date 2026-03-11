@@ -1087,12 +1087,12 @@ int stochastic_halofield(unsigned long long int seed, float *dens_field, float *
     if (halos->n_halos >= 3) {
         LOG_DEBUG("First few Masses:  %11.3e %11.3e %11.3e", halos->halo_masses[0],
                   halos->halo_masses[1], halos->halo_masses[2]);
-        LOG_DEBUG("First few Stellar RNG: %11.3e %11.3e %11.3e", halos->star_rng[0],
-                  halos->star_rng[1], halos->star_rng[2]);
-        LOG_DEBUG("First few SFR RNG:     %11.3e %11.3e %11.3e", halos->sfr_rng[0],
-                  halos->sfr_rng[1], halos->sfr_rng[2]);
-        LOG_DEBUG("First few XRAY RNG:     %11.3e %11.3e %11.3e", halos->xray_rng[0],
-                  halos->xray_rng[1], halos->xray_rng[2]);
+        LOG_DEBUG("First few SFR10 RNG: %11.3e %11.3e %11.3e", halos->sfr_10[0], halos->sfr_10[1],
+                  halos->sfr_10[2]);
+        LOG_DEBUG("First few SFR100 RNG:     %11.3e %11.3e %11.3e", halos->sfr_100[0],
+                  halos->sfr_100[1], halos->sfr_100[2]);
+        LOG_DEBUG("First few Snapshot RNG:     %11.3e %11.3e %11.3e", halos->stellar_mass[0],
+                  halos->stellar_mass[1], halos->stellar_mass[2]);
     }
 
     if (matter_options_global->USE_INTERPOLATION_TABLES > 0) {
