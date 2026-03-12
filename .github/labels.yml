@@ -108,3 +108,7 @@
 - name: "context: python wrapper"
   description: Changes predominantly concerning the python wrapper
   color: "#1d76db"
+
+- name: "effort: high"
+  description: Issues that will probably require >1 full day of coding to implement
+  color: "B60205"
