@@ -226,7 +226,7 @@ OPTIONS_TESTRUNS = {
         },
     ],
     "photoncons-z": [
-        18,
+        12,
         {
             "PHOTON_CONS_TYPE": "z-photoncons",
         },
