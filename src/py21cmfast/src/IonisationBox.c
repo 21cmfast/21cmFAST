@@ -82,6 +82,9 @@ struct IonBoxConstants {
     // dimensions
     double pixel_length;
     double pixel_mass;
+
+    // GPU: persistent device filter buffers
+    struct DeviceFilterBuffers dev_filter;
 };
 
 // TODO: Something like these structs should also replace the globals in SpinTemperature.c
@@ -225,6 +228,8 @@ void set_ionbox_constants(double redshift, double prev_redshift, struct IonBoxCo
                     consts->ion_eff_factor);
     LOG_SUPER_DEBUG("Mini Gamma %.3e Mini ion %.3e", consts->gamma_prefactor_mini,
                     consts->ion_eff_factor_mini);
+
+    consts->dev_filter.n_fields = 0;
 }
 
 void allocate_fftw_grids(struct FilteredGrids **fg_struct) {
@@ -603,6 +608,38 @@ void copy_filter_transform(struct FilteredGrids *fg_struct, struct IonBoxConstan
 
     if (rspec.R_index > 0) {
         double R = rspec.R;
+#if USE_CUDA
+        int fi = 0;
+        struct DeviceFilterBuffers *db = &consts->dev_filter;
+
+        filter_and_transform_device(db->d_fields[fi++], db->d_working,
+            fg_struct->deltax_filtered, box_dim, consts->hii_filter, R, 0., db->plan);
+        if (astro_options_global->USE_TS_FLUCT) {
+            filter_and_transform_device(db->d_fields[fi++], db->d_working,
+                fg_struct->xe_filtered, box_dim, consts->hii_filter, R, 0., db->plan);
+        }
+        if (consts->filter_recombinations) {
+            filter_and_transform_device(db->d_fields[fi++], db->d_working,
+                fg_struct->N_rec_filtered, box_dim, consts->hii_filter, R, 0., db->plan);
+        }
+        if (consts->lagrangian_source_grids) {
+            int filter_hf = astro_options_global->USE_EXP_FILTER ? 3 : consts->hii_filter;
+            filter_and_transform_device(db->d_fields[fi++], db->d_working,
+                fg_struct->stars_filtered, box_dim, filter_hf, R, consts->mfp_meandens, db->plan);
+            if (astro_options_global->INHOMO_RECO) {
+                filter_and_transform_device(db->d_fields[fi++], db->d_working,
+                    fg_struct->sfr_filtered, box_dim, filter_hf, R, consts->mfp_meandens, db->plan);
+            }
+        } else if (astro_options_global->USE_MINI_HALOS) {
+            filter_and_transform_device(db->d_fields[fi++], db->d_working,
+                fg_struct->prev_deltax_filtered, box_dim, consts->hii_filter, R, 0., db->plan);
+            filter_and_transform_device(db->d_fields[fi++], db->d_working,
+                fg_struct->log10_Mturnover_MINI_filtered, box_dim, consts->hii_filter, R, 0., db->plan);
+            filter_and_transform_device(db->d_fields[fi++], db->d_working,
+                fg_struct->log10_Mturnover_filtered, box_dim, consts->hii_filter, R, 0., db->plan);
+        }
+        return;
+#else
         filter_box(fg_struct->deltax_filtered, box_dim, consts->hii_filter, R, 0., 0.);
         if (astro_options_global->USE_TS_FLUCT) {
             filter_box(fg_struct->xe_filtered, box_dim, consts->hii_filter, R, 0., 0.);
@@ -626,9 +663,10 @@ void copy_filter_transform(struct FilteredGrids *fg_struct, struct IonBoxConstan
                            0.);
             }
         }
+#endif
     }
 
-    // Perform FFTs
+    // Perform FFTs (CPU path only — GPU path returns above after cuFFT c2r)
     dft_c2r_cube(matter_options_global->USE_FFTW_WISDOM, simulation_options_global->HII_DIM,
                  HII_D_PARA, simulation_options_global->N_THREADS, fg_struct->deltax_filtered);
     if (consts->lagrangian_source_grids) {
@@ -1563,6 +1601,35 @@ int ComputeIonizedBox(float redshift, float prev_redshift, PerturbedField *pertu
 
             int R_ct;
             struct RadiusSpec curr_radius;
+#if USE_CUDA
+            {
+                /* Upload all unfiltered k-space fields to device once */
+                int plan_dim[3] = {simulation_options_global->HII_DIM,
+                                   simulation_options_global->HII_DIM, HII_D_PARA};
+                int nf = 0;
+                fftwf_complex *h_fields[MAX_DEVICE_FILTER_FIELDS];
+
+                /* Field 0: deltax (always) */
+                h_fields[nf++] = grid_struct->deltax_unfiltered;
+                /* Field 1: xe (if USE_TS_FLUCT) */
+                if (astro_options_global->USE_TS_FLUCT)
+                    h_fields[nf++] = grid_struct->xe_unfiltered;
+                /* Field 2: N_rec (if filter_recombinations) */
+                if (ionbox_constants.filter_recombinations)
+                    h_fields[nf++] = grid_struct->N_rec_unfiltered;
+                /* Fields for lagrangian or mini-halos path */
+                if (ionbox_constants.lagrangian_source_grids) {
+                    h_fields[nf++] = grid_struct->stars_unfiltered;
+                    if (astro_options_global->INHOMO_RECO)
+                        h_fields[nf++] = grid_struct->sfr_unfiltered;
+                } else if (astro_options_global->USE_MINI_HALOS) {
+                    h_fields[nf++] = grid_struct->prev_deltax_unfiltered;
+                    h_fields[nf++] = grid_struct->log10_Mturnover_MINI_unfiltered;
+                    h_fields[nf++] = grid_struct->log10_Mturnover_unfiltered;
+                }
+                init_device_filter_buffers(&ionbox_constants.dev_filter, plan_dim, h_fields, nf);
+            }
+#endif
             for (R_ct = n_radii; R_ct--;) {
                 curr_radius = radii_spec[R_ct];
 
@@ -1638,6 +1705,11 @@ int ComputeIonizedBox(float redshift, float prev_redshift, PerturbedField *pertu
                                   simulation_options_global->HII_DIM, HII_D_PARA, "  ");
 #endif
             }
+#if USE_CUDA
+            if (ionbox_constants.dev_filter.n_fields > 0) {
+                free_device_filter_buffers(&ionbox_constants.dev_filter);
+            }
+#endif
             // If GPU & flags, call free_ionbox_gpu_data()
             if (use_cuda && matter_options_global->SOURCE_MODEL == 1 &&
                 !astro_options_global->USE_MINI_HALOS) {

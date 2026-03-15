@@ -566,6 +566,13 @@ void prepare_filter_boxes(double redshift, float *input_dens, float *input_vcb, 
 void fill_Rbox_table(float **result, fftwf_complex *unfiltered_box, double *R_array, int n_R,
                      double min_value, double const_factor, double *min_arr, double *average_arr,
                      double *max_arr) {
+#if USE_CUDA
+    if (USE_CUDA) {
+        fill_Rbox_table_gpu(result, unfiltered_box, R_array, n_R,
+                            min_value, const_factor, min_arr, average_arr, max_arr);
+        return;
+    }
+#endif
     // allocate table/grid memory
     int i, j, k, R_ct;
     double R;
