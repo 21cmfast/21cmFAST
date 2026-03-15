@@ -211,7 +211,7 @@ void filter_box_gpu(fftwf_complex *box, int box_dim[3], int filter_type, float R
 }
 
 /* Forward declaration */
-void filter_box_gpu_inplace(cuFloatComplex *d_box, int box_dim[3], int filter_type,
+void filter_box_gpu_inplace(void *d_box_v, int box_dim[3], int filter_type,
                             float R, float R_param);
 
 /*
@@ -383,8 +383,9 @@ void free_device_filter_buffers(struct DeviceFilterBuffers *bufs) {
  * filter_box_gpu_inplace — Filter k-space data already on device, in place.
  * Same as filter_box_gpu but operates on a device pointer, no H2D/D2H.
  */
-void filter_box_gpu_inplace(cuFloatComplex *d_box, int box_dim[3], int filter_type,
+void filter_box_gpu_inplace(void *d_box_v, int box_dim[3], int filter_type,
                             float R, float R_param) {
+    cuFloatComplex *d_box = (cuFloatComplex *)d_box_v;
     if (filter_type < 0 || filter_type > 4) {
         LOG_WARNING("Filter type %i is undefined. Box is unfiltered.", filter_type);
         return;

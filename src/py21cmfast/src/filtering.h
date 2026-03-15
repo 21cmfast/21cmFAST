@@ -19,6 +19,8 @@ void fill_Rbox_table_gpu(float **result, fftwf_complex *unfiltered_box, double *
                          double *min_arr, double *average_arr, double *max_arr);
 void filter_and_transform_gpu(fftwf_complex *box, int box_dim[3], int filter_type,
                               float R, float R_param, int plan);
+void filter_box_gpu_inplace(void *d_box, int box_dim[3], int filter_type,
+                            float R, float R_param);
 int create_cufft_c2r_plan(int box_dim[3]);
 void destroy_cufft_plan(int plan);
 

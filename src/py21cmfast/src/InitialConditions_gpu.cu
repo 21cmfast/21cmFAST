@@ -223,6 +223,40 @@ __global__ void subsample_box_kernel(
 }
 
 // ============================================================================
+// GPU Kernel: Subsample from tightly packed cuFFT output to low-res
+// ============================================================================
+
+__global__ void subsample_box_packed_kernel(
+    float *packed_input,      // Input: cuFFT C2R output (tightly packed, DIM x DIM x D_PARA)
+    float *lowres_box,        // Output: low-res box (no padding)
+    int hii_dim,              // HII_DIM
+    int hii_d_para,           // HII_D_PARA
+    int dim,                  // DIM
+    int d_para,               // D_PARA
+    float f_pixel_factor,     // DIM / HII_DIM
+    float volume              // VOLUME for normalization
+) {
+    unsigned long long idx = blockIdx.x * blockDim.x + threadIdx.x;
+    unsigned long long num_pixels = (unsigned long long)hii_dim * hii_dim * hii_d_para;
+
+    if (idx >= num_pixels) return;
+
+    int k = idx % hii_d_para;
+    unsigned long long remaining = idx / hii_d_para;
+    int j = remaining % hii_dim;
+    int i = remaining / hii_dim;
+
+    int hi = (int)(i * f_pixel_factor + 0.5f);
+    int hj = (int)(j * f_pixel_factor + 0.5f);
+    int hk = (int)(k * f_pixel_factor + 0.5f);
+
+    // Tightly packed: stride is d_para (not 2*(mid_para+1))
+    unsigned long long hires_idx = hk + (unsigned long long)d_para * (hj + (unsigned long long)dim * hi);
+
+    lowres_box[idx] = packed_input[hires_idx] / volume;
+}
+
+// ============================================================================
 // GPU Kernel: Copy hires density to output (with normalization)
 // ============================================================================
 
@@ -249,6 +283,23 @@ __global__ void copy_hires_density_kernel(
     unsigned long long fft_idx = k + 2llu * (mid_para + 1) * (j + (unsigned long long)dim * i);
 
     output[idx] = hires_box[fft_idx] / volume;
+}
+
+// ============================================================================
+// GPU Kernel: Copy hires density from tightly packed cuFFT output
+// ============================================================================
+// Same as copy_hires_density_kernel but input is tightly packed (no FFT padding).
+// Source index == output index, so this is just a divide-by-volume.
+
+__global__ void copy_hires_density_packed_kernel(
+    float *packed_input,      // Input: cuFFT C2R output (tightly packed)
+    float *output,            // Output: hires_density array (no padding)
+    unsigned long long num_pixels,
+    float volume              // VOLUME for normalization
+) {
+    unsigned long long idx = blockIdx.x * blockDim.x + threadIdx.x;
+    if (idx >= num_pixels) return;
+    output[idx] = packed_input[idx] / volume;
 }
 
 // ============================================================================
@@ -289,6 +340,91 @@ __global__ void store_velocity_kernel(
     }
 
     output[idx] = hires_box[fft_idx];
+}
+
+// ============================================================================
+// GPU Kernel: Store velocity from tightly packed cuFFT output
+// ============================================================================
+// Reads tightly packed input (stride D_PARA) and writes to output array.
+// Handles both hires (direct copy) and lowres (subsample) cases.
+
+__global__ void store_velocity_packed_kernel(
+    float *packed_input,      // Input: cuFFT C2R output (tightly packed)
+    float *output,            // Output: velocity array
+    int dimension,            // output DIM or HII_DIM
+    int d_para,               // output D_PARA or HII_D_PARA
+    int dim,                  // DIM (hires dimension)
+    int dim_d_para,           // D_PARA (hires z-dimension)
+    float f_pixel_factor,     // DIM / HII_DIM
+    bool is_hires             // true for hires, false for lowres
+) {
+    unsigned long long idx = blockIdx.x * blockDim.x + threadIdx.x;
+    unsigned long long num_pixels = (unsigned long long)dimension * dimension * d_para;
+
+    if (idx >= num_pixels) return;
+
+    int k = idx % d_para;
+    unsigned long long remaining = idx / d_para;
+    int j = remaining % dimension;
+    int i = remaining / dimension;
+
+    unsigned long long src_idx;
+    if (is_hires) {
+        src_idx = k + (unsigned long long)dim_d_para * (j + (unsigned long long)dim * i);
+    } else {
+        int hi = (int)(i * f_pixel_factor + 0.5f);
+        int hj = (int)(j * f_pixel_factor + 0.5f);
+        int hk = (int)(k * f_pixel_factor + 0.5f);
+        src_idx = hk + (unsigned long long)dim_d_para * (hj + (unsigned long long)dim * hi);
+    }
+
+    output[idx] = packed_input[src_idx];
+}
+
+// ============================================================================
+// GPU Kernel: Accumulate 2LPT source from tightly packed phi components
+// ============================================================================
+// source[i] += phi_ii[i] * phi_jj[i] - phi_ij[i]^2
+// All arrays tightly packed (no FFT padding).
+
+__global__ void accumulate_2lpt_packed_kernel(
+    float *source,            // Input/Output: accumulated source (tightly packed)
+    float *phi_ii,            // Input: diagonal component i
+    float *phi_jj,            // Input: diagonal component j
+    float *phi_ij,            // Input: cross component ij
+    unsigned long long num_pixels
+) {
+    unsigned long long idx = blockIdx.x * blockDim.x + threadIdx.x;
+    if (idx >= num_pixels) return;
+    source[idx] += phi_ii[idx] * phi_jj[idx] - phi_ij[idx] * phi_ij[idx];
+}
+
+// ============================================================================
+// GPU Kernel: Normalise tightly packed array
+// ============================================================================
+
+__global__ void normalize_packed_kernel(
+    float *data,
+    unsigned long long num_pixels,
+    float divisor
+) {
+    unsigned long long idx = blockIdx.x * blockDim.x + threadIdx.x;
+    if (idx >= num_pixels) return;
+    data[idx] /= divisor;
+}
+
+// ============================================================================
+// GPU Kernel: Scale k-space array by a constant
+// ============================================================================
+
+__global__ void scale_kspace_kernel(
+    cuFloatComplex *data,
+    unsigned long long num_pixels,
+    float factor
+) {
+    unsigned long long idx = blockIdx.x * blockDim.x + threadIdx.x;
+    if (idx >= num_pixels) return;
+    data[idx] = make_cuFloatComplex(cuCrealf(data[idx]) * factor, cuCimagf(data[idx]) * factor);
 }
 
 // ============================================================================
@@ -731,69 +867,26 @@ extern "C" int ComputeInitialConditions_gpu(unsigned long long random_seed, Init
 
             cufft_status = cufftExecC2R(fft_plan, d_kspace, d_realspace);
             if (cufft_status != CUFFT_SUCCESS) {
-                LOG_ERROR("cuFFT C2R execution failed: %d (kspace=%zu bytes, real=%zu bytes)",
-                          cufft_status, kspace_bytes, real_bytes);
-                cudaFree(d_kspace);
-                cudaFree(d_realspace);
-                cufftDestroy(fft_plan);
+                LOG_ERROR("cuFFT C2R execution failed: %d", cufft_status);
+                cudaFree(d_kspace); cudaFree(d_realspace); cufftDestroy(fft_plan);
                 Throw(CUDAError);
             }
             err = cudaDeviceSynchronize();
             CATCH_CUDA_ERROR(err);
-            LOG_DEBUG("cuFFT execution complete");
 
-            // Copy result back with FFT padding
-            float *temp_real = (float *)malloc(real_bytes_needed);
-            if (!temp_real) {
-                LOG_ERROR("Failed to allocate temp buffer");
-                Throw(MemoryAllocError);
-            }
-            err = cudaMemcpy(temp_real, d_realspace, real_bytes_needed, cudaMemcpyDeviceToHost);
-            CATCH_CUDA_ERROR(err);
-
-            hires_float = (float *)HIRES_box;
-            #pragma omp parallel for collapse(2) num_threads(simulation_options_global->N_THREADS)
-            for (int ix = 0; ix < simulation_options_global->DIM; ix++) {
-                for (int iy = 0; iy < simulation_options_global->DIM; iy++) {
-                    for (int iz = 0; iz < D_PARA; iz++) {
-                        unsigned long long src_idx = iz + D_PARA * (iy + (unsigned long long)simulation_options_global->DIM * ix);
-                        unsigned long long dst_idx = R_FFT_INDEX(ix, iy, iz);
-                        hires_float[dst_idx] = temp_real[src_idx];
-                    }
-                }
-            }
-            free(temp_real);
-            LOG_DEBUG("cuFFT to real space complete");
-
-            // Copy hires density to output via GPU kernel
+            // Copy hires density directly from tightly packed cuFFT output on device.
+            // No padding round-trip: d_realspace is already tightly packed.
             {
-                size_t fft_size = TOT_FFT_NUM_PIXELS * sizeof(float);
                 size_t out_size = TOT_NUM_PIXELS * sizeof(float);
-
-                float *d_hires_box, *d_output;
-                err = cudaMalloc(&d_hires_box, fft_size);
-                if (err != cudaSuccess) {
-                    LOG_ERROR("CUDA malloc failed for d_hires_box: %s", cudaGetErrorString(err));
-                    Throw(CUDAError);
-                }
-
+                float *d_output;
                 err = cudaMalloc(&d_output, out_size);
-                if (err != cudaSuccess) {
-                    cudaFree(d_hires_box);
-                    LOG_ERROR("CUDA malloc failed for d_output: %s", cudaGetErrorString(err));
-                    Throw(CUDAError);
-                }
-
-                err = cudaMemcpy(d_hires_box, (float *)HIRES_box, fft_size, cudaMemcpyHostToDevice);
                 CATCH_CUDA_ERROR(err);
 
                 int threadsPerBlock = 256;
                 int numBlocks = (TOT_NUM_PIXELS + threadsPerBlock - 1) / threadsPerBlock;
 
-                copy_hires_density_kernel<<<numBlocks, threadsPerBlock>>>(
-                    d_hires_box, d_output,
-                    simulation_options_global->DIM,
-                    D_PARA, MID_PARA, VOLUME
+                copy_hires_density_packed_kernel<<<numBlocks, threadsPerBlock>>>(
+                    d_realspace, d_output, TOT_NUM_PIXELS, VOLUME
                 );
 
                 err = cudaDeviceSynchronize();
@@ -804,25 +897,22 @@ extern "C" int ComputeInitialConditions_gpu(unsigned long long random_seed, Init
                 err = cudaMemcpy(boxes->hires_density, d_output, out_size, cudaMemcpyDeviceToHost);
                 CATCH_CUDA_ERROR(err);
 
-                cudaFree(d_hires_box);
                 cudaFree(d_output);
             }
         } // end if (!non_zero_input)
         LOG_DEBUG("Saved hires_density");
 
         // ============ Create low-res density field ============
-        memcpy(HIRES_box, HIRES_box_saved, sizeof(fftwf_complex) * KSPACE_NUM_PIXELS);
+        // Upload saved k-space, filter on device, cuFFT, subsample on device
+        err = cudaMemcpy(d_kspace, HIRES_box_saved, kspace_bytes, cudaMemcpyHostToDevice);
+        CATCH_CUDA_ERROR(err);
 
         if (simulation_options_global->DIM != simulation_options_global->HII_DIM) {
-            filter_box(HIRES_box, hi_dim, 0,
+            filter_box_gpu_inplace(d_kspace, hi_dim, 0,
                        L_FACTOR * simulation_options_global->BOX_LEN /
                            (simulation_options_global->HII_DIM + 0.0),
-                       0., 0.);
+                       0.);
         }
-
-        // cuFFT: FFT to real space for lowres density
-        err = cudaMemcpy(d_kspace, HIRES_box, kspace_bytes, cudaMemcpyHostToDevice);
-        CATCH_CUDA_ERROR(err);
 
         cufft_status = cufftExecC2R(fft_plan, d_kspace, d_realspace);
         if (cufft_status != CUFFT_SUCCESS) {
@@ -832,56 +922,22 @@ extern "C" int ComputeInitialConditions_gpu(unsigned long long random_seed, Init
         err = cudaDeviceSynchronize();
         CATCH_CUDA_ERROR(err);
 
-        // Copy cuFFT output (tightly packed) back with FFT padding
+        // Subsample directly from tightly packed cuFFT output on device
         {
-            float *temp_real2 = (float *)malloc(real_bytes);
-            if (!temp_real2) {
-                LOG_ERROR("Failed to allocate temp buffer for lowres");
-                Throw(MemoryAllocError);
-            }
-            err = cudaMemcpy(temp_real2, d_realspace, real_bytes, cudaMemcpyDeviceToHost);
-            CATCH_CUDA_ERROR(err);
-
-            float *hires_float2 = (float *)HIRES_box;
-            #pragma omp parallel for collapse(2) num_threads(simulation_options_global->N_THREADS)
-            for (int ix = 0; ix < simulation_options_global->DIM; ix++) {
-                for (int iy = 0; iy < simulation_options_global->DIM; iy++) {
-                    for (int iz = 0; iz < D_PARA; iz++) {
-                        unsigned long long src_idx = iz + D_PARA * (iy + (unsigned long long)simulation_options_global->DIM * ix);
-                        unsigned long long dst_idx = R_FFT_INDEX(ix, iy, iz);
-                        hires_float2[dst_idx] = temp_real2[src_idx];
-                    }
-                }
-            }
-            free(temp_real2);
-        }
-
-        // ============ GPU: Subsample to low-res ============
-        {
-            size_t fft_size = TOT_FFT_NUM_PIXELS * sizeof(float);
             size_t lowres_size = HII_TOT_NUM_PIXELS * sizeof(float);
-
-            float *d_hires_box, *d_lowres_box;
-            err = cudaMalloc(&d_hires_box, fft_size);
-            CATCH_CUDA_ERROR(err);
+            float *d_lowres_box;
             err = cudaMalloc(&d_lowres_box, lowres_size);
-            if (err != cudaSuccess) {
-                cudaFree(d_hires_box);
-                CATCH_CUDA_ERROR(err);
-            }
-
-            err = cudaMemcpy(d_hires_box, (float *)HIRES_box, fft_size, cudaMemcpyHostToDevice);
             CATCH_CUDA_ERROR(err);
 
             int threadsPerBlock = 256;
             int numBlocks = (HII_TOT_NUM_PIXELS + threadsPerBlock - 1) / threadsPerBlock;
 
-            subsample_box_kernel<<<numBlocks, threadsPerBlock>>>(
-                d_hires_box, d_lowres_box,
+            subsample_box_packed_kernel<<<numBlocks, threadsPerBlock>>>(
+                d_realspace, d_lowres_box,
                 simulation_options_global->HII_DIM,
                 HII_D_PARA,
                 simulation_options_global->DIM,
-                MID_PARA,
+                D_PARA,
                 f_pixel_factor,
                 VOLUME
             );
@@ -894,160 +950,122 @@ extern "C" int ComputeInitialConditions_gpu(unsigned long long random_seed, Init
             err = cudaMemcpy(boxes->lowres_density, d_lowres_box, lowres_size, cudaMemcpyDeviceToHost);
             CATCH_CUDA_ERROR(err);
 
-            cudaFree(d_hires_box);
             cudaFree(d_lowres_box);
         }
         LOG_DEBUG("Created lowres_density");
 
         // ============ Velocity fields ============
-        // Allocate GPU memory for velocity computation
-        size_t kspace_size = KSPACE_NUM_PIXELS * sizeof(fftwf_complex);
-        size_t fft_size = TOT_FFT_NUM_PIXELS * sizeof(float);
+        // Upload saved k-space once, compute velocity on device, filter on device,
+        // cuFFT C2R on device, store from tightly packed output.
+        {
+            size_t kspace_size = KSPACE_NUM_PIXELS * sizeof(fftwf_complex);
 
-        cuFloatComplex *d_kspace_box;
-        float *d_realspace_box, *d_output_box;
-
-        err = cudaMalloc(&d_kspace_box, kspace_size);
-        CATCH_CUDA_ERROR(err);
-        err = cudaMalloc(&d_realspace_box, fft_size);
-        if (err != cudaSuccess) {
-            cudaFree(d_kspace_box);
+            // Upload saved k-space to device once
+            cuFloatComplex *d_saved_kspace;
+            err = cudaMalloc(&d_saved_kspace, kspace_size);
             CATCH_CUDA_ERROR(err);
-        }
-
-        size_t vel_output_size;
-        if (matter_options_global->PERTURB_ON_HIGH_RES) {
-            vel_output_size = TOT_NUM_PIXELS * sizeof(float);
-        } else {
-            vel_output_size = HII_TOT_NUM_PIXELS * sizeof(float);
-        }
-
-        err = cudaMalloc(&d_output_box, vel_output_size);
-        if (err != cudaSuccess) {
-            cudaFree(d_kspace_box);
-            cudaFree(d_realspace_box);
+            err = cudaMemcpy(d_saved_kspace, HIRES_box_saved, kspace_size, cudaMemcpyHostToDevice);
             CATCH_CUDA_ERROR(err);
-        }
 
-        for (ii = 0; ii < 3; ii++) {
-            memcpy(HIRES_box, HIRES_box_saved, sizeof(fftwf_complex) * KSPACE_NUM_PIXELS);
+            // Working k-space buffer (modified per component)
+            cuFloatComplex *d_vel_kspace;
+            err = cudaMalloc(&d_vel_kspace, kspace_size);
+            CATCH_CUDA_ERROR(err);
 
-            // ============ GPU: Compute velocity in k-space ============
-            err = cudaMemcpy(d_kspace_box, HIRES_box, kspace_size, cudaMemcpyHostToDevice);
+            size_t vel_output_size;
+            if (matter_options_global->PERTURB_ON_HIGH_RES) {
+                vel_output_size = TOT_NUM_PIXELS * sizeof(float);
+            } else {
+                vel_output_size = HII_TOT_NUM_PIXELS * sizeof(float);
+            }
+
+            float *d_output_box;
+            err = cudaMalloc(&d_output_box, vel_output_size);
             CATCH_CUDA_ERROR(err);
 
             int threadsPerBlock = 256;
-            int numBlocks = (KSPACE_NUM_PIXELS + threadsPerBlock - 1) / threadsPerBlock;
 
-            compute_velocity_kernel<<<numBlocks, threadsPerBlock>>>(
-                d_kspace_box,
-                simulation_options_global->DIM,
-                MIDDLE, MIDDLE_PARA,
-                DELTA_K, DELTA_K_PARA,
-                VOLUME,
-                ii
-            );
-
-            err = cudaDeviceSynchronize();
-            CATCH_CUDA_ERROR(err);
-            err = cudaGetLastError();
-            CATCH_CUDA_ERROR(err);
-
-            err = cudaMemcpy(HIRES_box, d_kspace_box, kspace_size, cudaMemcpyDeviceToHost);
-            CATCH_CUDA_ERROR(err);
-
-            // Filter if needed
-            if (!matter_options_global->PERTURB_ON_HIGH_RES) {
-                if (simulation_options_global->DIM != simulation_options_global->HII_DIM) {
-                    filter_box(HIRES_box, hi_dim, 0,
-                               L_FACTOR * simulation_options_global->BOX_LEN /
-                                   (simulation_options_global->HII_DIM + 0.0),
-                               0., 0.);
-                }
-            }
-
-            // cuFFT: FFT to real space for velocity
-            err = cudaMemcpy(d_kspace, HIRES_box, kspace_bytes, cudaMemcpyHostToDevice);
-            CATCH_CUDA_ERROR(err);
-
-            cufft_status = cufftExecC2R(fft_plan, d_kspace, d_realspace);
-            if (cufft_status != CUFFT_SUCCESS) {
-                LOG_ERROR("cuFFT C2R execution failed for velocity %d: %d", ii, cufft_status);
-                Throw(CUDAError);
-            }
-            err = cudaDeviceSynchronize();
-            CATCH_CUDA_ERROR(err);
-
-            // Copy cuFFT output (tightly packed) back with FFT padding
-            {
-                float *temp_real3 = (float *)malloc(real_bytes);
-                if (!temp_real3) {
-                    LOG_ERROR("Failed to allocate temp buffer for velocity");
-                    Throw(MemoryAllocError);
-                }
-                err = cudaMemcpy(temp_real3, d_realspace, real_bytes, cudaMemcpyDeviceToHost);
+            for (ii = 0; ii < 3; ii++) {
+                // D2D copy saved k-space to working buffer
+                err = cudaMemcpy(d_vel_kspace, d_saved_kspace, kspace_size, cudaMemcpyDeviceToDevice);
                 CATCH_CUDA_ERROR(err);
 
-                float *hires_float3 = (float *)HIRES_box;
-                #pragma omp parallel for collapse(2) num_threads(simulation_options_global->N_THREADS)
-                for (int ix = 0; ix < simulation_options_global->DIM; ix++) {
-                    for (int iy = 0; iy < simulation_options_global->DIM; iy++) {
-                        for (int iz = 0; iz < D_PARA; iz++) {
-                            unsigned long long src_idx = iz + D_PARA * (iy + (unsigned long long)simulation_options_global->DIM * ix);
-                            unsigned long long dst_idx = R_FFT_INDEX(ix, iy, iz);
-                            hires_float3[dst_idx] = temp_real3[src_idx];
-                        }
+                // Compute velocity in k-space on device
+                int numBlocks = (KSPACE_NUM_PIXELS + threadsPerBlock - 1) / threadsPerBlock;
+                compute_velocity_kernel<<<numBlocks, threadsPerBlock>>>(
+                    d_vel_kspace,
+                    simulation_options_global->DIM,
+                    MIDDLE, MIDDLE_PARA,
+                    DELTA_K, DELTA_K_PARA,
+                    VOLUME,
+                    ii
+                );
+                err = cudaDeviceSynchronize();
+                CATCH_CUDA_ERROR(err);
+
+                // Filter on device if needed (no host round-trip)
+                if (!matter_options_global->PERTURB_ON_HIGH_RES) {
+                    if (simulation_options_global->DIM != simulation_options_global->HII_DIM) {
+                        filter_box_gpu_inplace(d_vel_kspace, hi_dim, 0,
+                                   L_FACTOR * simulation_options_global->BOX_LEN /
+                                       (simulation_options_global->HII_DIM + 0.0),
+                                   0.);
                     }
                 }
-                free(temp_real3);
+
+                // cuFFT C2R on device
+                cufft_status = cufftExecC2R(fft_plan, (cufftComplex *)d_vel_kspace, d_realspace);
+                if (cufft_status != CUFFT_SUCCESS) {
+                    LOG_ERROR("cuFFT C2R execution failed for velocity %d: %d", ii, cufft_status);
+                    Throw(CUDAError);
+                }
+                err = cudaDeviceSynchronize();
+                CATCH_CUDA_ERROR(err);
+
+                // Store velocity from tightly packed cuFFT output
+                int vel_dimension, vel_d_para;
+                unsigned long long vel_num_pixels;
+                float *output_ptr;
+
+                if (matter_options_global->PERTURB_ON_HIGH_RES) {
+                    vel_dimension = simulation_options_global->DIM;
+                    vel_d_para = D_PARA;
+                    vel_num_pixels = TOT_NUM_PIXELS;
+                    if (ii == 0) output_ptr = boxes->hires_vx;
+                    else if (ii == 1) output_ptr = boxes->hires_vy;
+                    else output_ptr = boxes->hires_vz;
+                } else {
+                    vel_dimension = simulation_options_global->HII_DIM;
+                    vel_d_para = HII_D_PARA;
+                    vel_num_pixels = HII_TOT_NUM_PIXELS;
+                    if (ii == 0) output_ptr = boxes->lowres_vx;
+                    else if (ii == 1) output_ptr = boxes->lowres_vy;
+                    else output_ptr = boxes->lowres_vz;
+                }
+
+                numBlocks = (vel_num_pixels + threadsPerBlock - 1) / threadsPerBlock;
+
+                store_velocity_packed_kernel<<<numBlocks, threadsPerBlock>>>(
+                    d_realspace, d_output_box,
+                    vel_dimension, vel_d_para,
+                    simulation_options_global->DIM, D_PARA,
+                    f_pixel_factor,
+                    matter_options_global->PERTURB_ON_HIGH_RES
+                );
+
+                err = cudaDeviceSynchronize();
+                CATCH_CUDA_ERROR(err);
+                err = cudaGetLastError();
+                CATCH_CUDA_ERROR(err);
+
+                err = cudaMemcpy(output_ptr, d_output_box, vel_output_size, cudaMemcpyDeviceToHost);
+                CATCH_CUDA_ERROR(err);
             }
 
-            // ============ GPU: Store velocity to output ============
-            err = cudaMemcpy(d_realspace_box, (float *)HIRES_box, fft_size, cudaMemcpyHostToDevice);
-            CATCH_CUDA_ERROR(err);
-
-            int vel_dimension, vel_d_para;
-            unsigned long long vel_num_pixels;
-            float *output_ptr;
-
-            if (matter_options_global->PERTURB_ON_HIGH_RES) {
-                vel_dimension = simulation_options_global->DIM;
-                vel_d_para = D_PARA;
-                vel_num_pixels = TOT_NUM_PIXELS;
-                if (ii == 0) output_ptr = boxes->hires_vx;
-                else if (ii == 1) output_ptr = boxes->hires_vy;
-                else output_ptr = boxes->hires_vz;
-            } else {
-                vel_dimension = simulation_options_global->HII_DIM;
-                vel_d_para = HII_D_PARA;
-                vel_num_pixels = HII_TOT_NUM_PIXELS;
-                if (ii == 0) output_ptr = boxes->lowres_vx;
-                else if (ii == 1) output_ptr = boxes->lowres_vy;
-                else output_ptr = boxes->lowres_vz;
-            }
-
-            numBlocks = (vel_num_pixels + threadsPerBlock - 1) / threadsPerBlock;
-
-            store_velocity_kernel<<<numBlocks, threadsPerBlock>>>(
-                d_realspace_box, d_output_box,
-                vel_dimension, vel_d_para,
-                simulation_options_global->DIM, MID_PARA,
-                f_pixel_factor,
-                matter_options_global->PERTURB_ON_HIGH_RES
-            );
-
-            err = cudaDeviceSynchronize();
-            CATCH_CUDA_ERROR(err);
-            err = cudaGetLastError();
-            CATCH_CUDA_ERROR(err);
-
-            err = cudaMemcpy(output_ptr, d_output_box, vel_output_size, cudaMemcpyDeviceToHost);
-            CATCH_CUDA_ERROR(err);
+            cudaFree(d_saved_kspace);
+            cudaFree(d_vel_kspace);
+            cudaFree(d_output_box);
         }
-
-        cudaFree(d_kspace_box);
-        cudaFree(d_realspace_box);
-        cudaFree(d_output_box);
 
         LOG_DEBUG("Computed velocity fields");
 
@@ -1125,17 +1143,19 @@ extern "C" int ComputeInitialConditions_gpu(unsigned long long random_seed, Init
             err = cudaDeviceSynchronize();
             CATCH_CUDA_ERROR(err);
 
-            // Copy zeroed buffer back to have a clean padded buffer
-            // We'll use HIRES_box as the CPU-side accumulator
-            memset(HIRES_box, 0, sizeof(fftwf_complex) * KSPACE_NUM_PIXELS);
+            // Allocate tightly packed accumulator on device (zeroed)
+            float *d_source;
+            err = cudaMalloc(&d_source, real_bytes_needed);
+            CATCH_CUDA_ERROR(err);
+            err = cudaMemset(d_source, 0, real_bytes_needed);
+            CATCH_CUDA_ERROR(err);
 
-            // Compute cross phi_1 components (ij = 01, 02, 12) and accumulate source
+            // Compute cross phi_1 components and accumulate on device
             int phi_directions[3][2] = {{0, 1}, {0, 2}, {1, 2}};
             for (int phi_comp = 0; phi_comp < 3; phi_comp++) {
                 int comp_i = phi_directions[phi_comp][0];
                 int comp_j = phi_directions[phi_comp][1];
 
-                // Compute phi_1[k] = -k[i] * k[j] * delta_k / k^2 / VOLUME (cross term)
                 compute_phi1_kernel<<<numBlocks_kspace, threadsPerBlock>>>(
                     d_kspace, d_phi1_kspace,
                     simulation_options_global->DIM, MIDDLE, MIDDLE_PARA,
@@ -1145,11 +1165,7 @@ extern "C" int ComputeInitialConditions_gpu(unsigned long long random_seed, Init
                 err = cudaDeviceSynchronize();
                 CATCH_CUDA_ERROR(err);
 
-                // FFT to real space - result goes to d_realspace temporarily
-                // But we need d_realspace for accumulation, so use a different approach:
-                // Copy d_realspace (accumulator) to host, do FFT, then accumulate
-
-                // Actually, let's allocate a temporary buffer for the cross component FFT result
+                // cuFFT C2R to get phi_ij in real space (tightly packed)
                 float *d_phi_ij_real;
                 err = cudaMalloc(&d_phi_ij_real, real_bytes);
                 CATCH_CUDA_ERROR(err);
@@ -1163,76 +1179,26 @@ extern "C" int ComputeInitialConditions_gpu(unsigned long long random_seed, Init
                 err = cudaDeviceSynchronize();
                 CATCH_CUDA_ERROR(err);
 
-                // Accumulate: source += phi_ii * phi_jj - phi_ij^2
-                // Note: d_phi_ij_real is tightly packed (cuFFT output), d_phi_diag are tightly packed
-                // We need to handle this carefully - use d_realspace as source with FFT padding
-
-                // First, copy the current accumulator state to d_realspace with padding
-                // Actually, let's do the accumulation on GPU with a modified kernel that handles
-                // the tightly packed phi_ij
-
-                // For simplicity, let's copy phi_ij to d_realspace with padding, then accumulate
-                // Copy phi_ij (tightly packed) to temp buffer and add padding to d_realspace
-                float *temp_phi_ij = (float *)malloc(real_bytes_needed);
-                if (!temp_phi_ij) {
-                    cudaFree(d_phi_ij_real);
-                    LOG_ERROR("Failed to allocate temp_phi_ij");
-                    Throw(MemoryAllocError);
-                }
-                err = cudaMemcpy(temp_phi_ij, d_phi_ij_real, real_bytes_needed, cudaMemcpyDeviceToHost);
+                // Accumulate on device: source += phi_ii * phi_jj - phi_ij^2
+                accumulate_2lpt_packed_kernel<<<numBlocks_real, threadsPerBlock>>>(
+                    d_source, d_phi_diag[comp_i], d_phi_diag[comp_j],
+                    d_phi_ij_real, TOT_NUM_PIXELS
+                );
+                err = cudaDeviceSynchronize();
                 CATCH_CUDA_ERROR(err);
+
                 cudaFree(d_phi_ij_real);
-
-                // Get diagonal components to host
-                float *temp_phi_ii = (float *)malloc(real_bytes_needed);
-                float *temp_phi_jj = (float *)malloc(real_bytes_needed);
-                if (!temp_phi_ii || !temp_phi_jj) {
-                    free(temp_phi_ij);
-                    if (temp_phi_ii) free(temp_phi_ii);
-                    LOG_ERROR("Failed to allocate temp_phi_ii/jj");
-                    Throw(MemoryAllocError);
-                }
-                err = cudaMemcpy(temp_phi_ii, d_phi_diag[comp_i], real_bytes_needed, cudaMemcpyDeviceToHost);
-                CATCH_CUDA_ERROR(err);
-                err = cudaMemcpy(temp_phi_jj, d_phi_diag[comp_j], real_bytes_needed, cudaMemcpyDeviceToHost);
-                CATCH_CUDA_ERROR(err);
-
-                // Accumulate on CPU: HIRES_box += phi_ii * phi_jj - phi_ij^2
-                float *hires_real = (float *)HIRES_box;
-                #pragma omp parallel for collapse(2) num_threads(simulation_options_global->N_THREADS)
-                for (int ix = 0; ix < simulation_options_global->DIM; ix++) {
-                    for (int iy = 0; iy < simulation_options_global->DIM; iy++) {
-                        for (int iz = 0; iz < D_PARA; iz++) {
-                            unsigned long long r_idx = iz + D_PARA * (iy + (unsigned long long)simulation_options_global->DIM * ix);
-                            unsigned long long fft_idx = R_FFT_INDEX(ix, iy, iz);
-                            float val_ii = temp_phi_ii[r_idx];
-                            float val_jj = temp_phi_jj[r_idx];
-                            float val_ij = temp_phi_ij[r_idx];
-                            hires_real[fft_idx] += val_ii * val_jj - val_ij * val_ij;
-                        }
-                    }
-                }
-
-                free(temp_phi_ij);
-                free(temp_phi_ii);
-                free(temp_phi_jj);
             }
-            LOG_DEBUG("Accumulated 2LPT source term");
+            LOG_DEBUG("Accumulated 2LPT source term on device");
 
-            // Normalize source by TOT_NUM_PIXELS
-            float *hires_real = (float *)HIRES_box;
-            #pragma omp parallel for collapse(2) num_threads(simulation_options_global->N_THREADS)
-            for (int ix = 0; ix < simulation_options_global->DIM; ix++) {
-                for (int iy = 0; iy < simulation_options_global->DIM; iy++) {
-                    for (int iz = 0; iz < D_PARA; iz++) {
-                        unsigned long long fft_idx = R_FFT_INDEX(ix, iy, iz);
-                        hires_real[fft_idx] /= (float)TOT_NUM_PIXELS;
-                    }
-                }
-            }
+            // Normalise on device
+            normalize_packed_kernel<<<numBlocks_real, threadsPerBlock>>>(
+                d_source, TOT_NUM_PIXELS, (float)TOT_NUM_PIXELS
+            );
+            err = cudaDeviceSynchronize();
+            CATCH_CUDA_ERROR(err);
 
-            // FFT source to k-space (R2C)
-            // Need to create R2C plan
+            // cuFFT R2C on device (source already tightly packed)
             cufftHandle fft_plan_r2c;
             cufft_status = cufftPlan3d(&fft_plan_r2c, fft_nx, fft_ny, fft_nz, CUFFT_R2C);
             if (cufft_status != CUFFT_SUCCESS) {
@@ -1240,152 +1206,123 @@ extern "C" int ComputeInitialConditions_gpu(unsigned long long random_seed, Init
                 Throw(CUDAError);
             }
 
-            // cuFFT R2C expects tightly-packed real input (DIM x DIM x D_PARA)
-            // but HIRES_box has FFT padding (DIM x DIM x 2*(MID_PARA+1))
-            // We need to extract the real data without padding first
-            float *source_packed = (float *)malloc(real_bytes_needed);
-            if (!source_packed) {
-                LOG_ERROR("Failed to allocate source_packed for 2LPT R2C");
-                cufftDestroy(fft_plan_r2c);
-                Throw(MemoryAllocError);
-            }
-            float *hires_src = (float *)HIRES_box;
-            #pragma omp parallel for collapse(2) num_threads(simulation_options_global->N_THREADS)
-            for (int ix = 0; ix < simulation_options_global->DIM; ix++) {
-                for (int iy = 0; iy < simulation_options_global->DIM; iy++) {
-                    for (int iz = 0; iz < D_PARA; iz++) {
-                        unsigned long long fft_idx = R_FFT_INDEX(ix, iy, iz);
-                        unsigned long long packed_idx = iz + D_PARA * (iy + (unsigned long long)simulation_options_global->DIM * ix);
-                        source_packed[packed_idx] = hires_src[fft_idx];
-                    }
-                }
-            }
-
-            // Copy tightly-packed source to GPU
-            float *d_source_real;
-            err = cudaMalloc(&d_source_real, real_bytes_needed);
-            if (err != cudaSuccess) {
-                free(source_packed);
-                cufftDestroy(fft_plan_r2c);
-                CATCH_CUDA_ERROR(err);
-            }
-            err = cudaMemcpy(d_source_real, source_packed, real_bytes_needed, cudaMemcpyHostToDevice);
-            if (err != cudaSuccess) {
-                free(source_packed);
-                cudaFree(d_source_real);
-                cufftDestroy(fft_plan_r2c);
-                CATCH_CUDA_ERROR(err);
-            }
-            free(source_packed);
-
-            cufft_status = cufftExecR2C(fft_plan_r2c, d_source_real, d_kspace);
+            cufft_status = cufftExecR2C(fft_plan_r2c, d_source, d_kspace);
             if (cufft_status != CUFFT_SUCCESS) {
                 LOG_ERROR("cuFFT R2C execution failed: %d", cufft_status);
-                cudaFree(d_source_real);
                 cufftDestroy(fft_plan_r2c);
                 Throw(CUDAError);
             }
             err = cudaDeviceSynchronize();
             CATCH_CUDA_ERROR(err);
-            cudaFree(d_source_real);
+            cudaFree(d_source);
             cufftDestroy(fft_plan_r2c);
 
-            // Save phi_2 k-space for velocity computation
-            err = cudaMemcpy(HIRES_box_saved, d_kspace, kspace_bytes, cudaMemcpyDeviceToHost);
+            LOG_DEBUG("FFT'd 2LPT source to k-space on device");
+
+            // Scale phi_2 k-space by VOLUME on device
+            scale_kspace_kernel<<<numBlocks_kspace, threadsPerBlock>>>(
+                d_kspace, KSPACE_NUM_PIXELS, VOLUME
+            );
+            err = cudaDeviceSynchronize();
             CATCH_CUDA_ERROR(err);
 
-            LOG_DEBUG("FFT'd 2LPT source to k-space");
+            // Save scaled phi_2 k-space to a device buffer for the velocity loop
+            cuFloatComplex *d_phi2_kspace;
+            err = cudaMalloc(&d_phi2_kspace, kspace_bytes);
+            CATCH_CUDA_ERROR(err);
+            err = cudaMemcpy(d_phi2_kspace, d_kspace, kspace_bytes, cudaMemcpyDeviceToDevice);
+            CATCH_CUDA_ERROR(err);
 
-            // Scale phi_2 k-space by VOLUME to match the scaling convention used in the velocity kernel
-            // The velocity kernel divides by VOLUME (needed for base velocity which has sqrt(VOLUME) scaling),
-            // but phi_2 doesn't have that scaling, so we pre-multiply by VOLUME to compensate.
+            // Compute 2LPT velocities on device (same pattern as ZA velocity loop)
             {
-                float *phi2_kspace = (float *)HIRES_box_saved;
-                #pragma omp parallel for num_threads(simulation_options_global->N_THREADS)
-                for (size_t i = 0; i < 2 * KSPACE_NUM_PIXELS; i++) {
-                    phi2_kspace[i] *= VOLUME;
-                }
-            }
-
-            // Compute 2LPT velocities (same as ZA but from phi_2)
-            for (ii = 0; ii < 3; ii++) {
-                // Copy phi_2 k-space (scaled by VOLUME) to GPU
-                err = cudaMemcpy(d_kspace, HIRES_box_saved, kspace_bytes, cudaMemcpyHostToDevice);
+                cuFloatComplex *d_vel2_kspace;
+                err = cudaMalloc(&d_vel2_kspace, kspace_bytes);
                 CATCH_CUDA_ERROR(err);
 
-                // Compute velocity: v_k = i * k_component / k^2 * phi_2_k
-                compute_velocity_kernel<<<numBlocks_kspace, threadsPerBlock>>>(
-                    d_kspace,
-                    simulation_options_global->DIM, MIDDLE, MIDDLE_PARA,
-                    DELTA_K, DELTA_K_PARA, VOLUME,
-                    ii
-                );
-                err = cudaDeviceSynchronize();
-                CATCH_CUDA_ERROR(err);
-
-                // Filter if needed (for lowres output)
-                if (!matter_options_global->PERTURB_ON_HIGH_RES &&
-                    simulation_options_global->DIM != simulation_options_global->HII_DIM) {
-                    err = cudaMemcpy(HIRES_box, d_kspace, kspace_bytes, cudaMemcpyDeviceToHost);
-                    CATCH_CUDA_ERROR(err);
-                    filter_box(HIRES_box, hi_dim, 0,
-                               L_FACTOR * simulation_options_global->BOX_LEN /
-                                   (simulation_options_global->HII_DIM + 0.0),
-                               0., 0.);
-                    err = cudaMemcpy(d_kspace, HIRES_box, kspace_bytes, cudaMemcpyHostToDevice);
-                    CATCH_CUDA_ERROR(err);
-                }
-
-                // FFT to real space
-                cufft_status = cufftExecC2R(fft_plan, d_kspace, d_realspace);
-                if (cufft_status != CUFFT_SUCCESS) {
-                    LOG_ERROR("cuFFT C2R failed for 2LPT velocity %d: %d", ii, cufft_status);
-                    Throw(CUDAError);
-                }
-                err = cudaDeviceSynchronize();
-                CATCH_CUDA_ERROR(err);
-
-                // Copy back and store in output
-                float *temp_vel = (float *)malloc(real_bytes_needed);
-                if (!temp_vel) {
-                    LOG_ERROR("Failed to allocate temp buffer for 2LPT velocity");
-                    Throw(MemoryAllocError);
-                }
-                err = cudaMemcpy(temp_vel, d_realspace, real_bytes_needed, cudaMemcpyDeviceToHost);
-                CATCH_CUDA_ERROR(err);
-
-                // Store to output arrays
+                size_t vel_output_size;
                 if (matter_options_global->PERTURB_ON_HIGH_RES) {
-                    float *output_ptr = (ii == 0) ? boxes->hires_vx_2LPT :
-                                        (ii == 1) ? boxes->hires_vy_2LPT : boxes->hires_vz_2LPT;
-                    #pragma omp parallel for collapse(2) num_threads(simulation_options_global->N_THREADS)
-                    for (int ix = 0; ix < simulation_options_global->DIM; ix++) {
-                        for (int iy = 0; iy < simulation_options_global->DIM; iy++) {
-                            for (int iz = 0; iz < D_PARA; iz++) {
-                                unsigned long long r_idx = iz + D_PARA * (iy + (unsigned long long)simulation_options_global->DIM * ix);
-                                output_ptr[r_idx] = temp_vel[r_idx];
-                            }
-                        }
-                    }
+                    vel_output_size = TOT_NUM_PIXELS * sizeof(float);
                 } else {
-                    float *output_ptr = (ii == 0) ? boxes->lowres_vx_2LPT :
-                                        (ii == 1) ? boxes->lowres_vy_2LPT : boxes->lowres_vz_2LPT;
-                    #pragma omp parallel for collapse(2) num_threads(simulation_options_global->N_THREADS)
-                    for (int ix = 0; ix < simulation_options_global->HII_DIM; ix++) {
-                        for (int iy = 0; iy < simulation_options_global->HII_DIM; iy++) {
-                            for (int iz = 0; iz < HII_D_PARA; iz++) {
-                                int hi = (int)(ix * f_pixel_factor + 0.5f);
-                                int hj = (int)(iy * f_pixel_factor + 0.5f);
-                                int hk = (int)(iz * f_pixel_factor + 0.5f);
-                                unsigned long long src_idx = hk + D_PARA * (hj + (unsigned long long)simulation_options_global->DIM * hi);
-                                unsigned long long dst_idx = iz + HII_D_PARA * (iy + (unsigned long long)simulation_options_global->HII_DIM * ix);
-                                output_ptr[dst_idx] = temp_vel[src_idx];
-                            }
-                        }
-                    }
+                    vel_output_size = HII_TOT_NUM_PIXELS * sizeof(float);
                 }
-                free(temp_vel);
+                float *d_vel2_output;
+                err = cudaMalloc(&d_vel2_output, vel_output_size);
+                CATCH_CUDA_ERROR(err);
+
+                for (ii = 0; ii < 3; ii++) {
+                    // D2D copy phi_2 k-space to working buffer
+                    err = cudaMemcpy(d_vel2_kspace, d_phi2_kspace, kspace_bytes, cudaMemcpyDeviceToDevice);
+                    CATCH_CUDA_ERROR(err);
+
+                    compute_velocity_kernel<<<numBlocks_kspace, threadsPerBlock>>>(
+                        d_vel2_kspace,
+                        simulation_options_global->DIM, MIDDLE, MIDDLE_PARA,
+                        DELTA_K, DELTA_K_PARA, VOLUME,
+                        ii
+                    );
+                    err = cudaDeviceSynchronize();
+                    CATCH_CUDA_ERROR(err);
+
+                    // Filter on device if needed
+                    if (!matter_options_global->PERTURB_ON_HIGH_RES &&
+                        simulation_options_global->DIM != simulation_options_global->HII_DIM) {
+                        filter_box_gpu_inplace(d_vel2_kspace, hi_dim, 0,
+                                   L_FACTOR * simulation_options_global->BOX_LEN /
+                                       (simulation_options_global->HII_DIM + 0.0),
+                                   0.);
+                    }
+
+                    // cuFFT C2R on device
+                    cufft_status = cufftExecC2R(fft_plan, (cufftComplex *)d_vel2_kspace, d_realspace);
+                    if (cufft_status != CUFFT_SUCCESS) {
+                        LOG_ERROR("cuFFT C2R failed for 2LPT velocity %d: %d", ii, cufft_status);
+                        Throw(CUDAError);
+                    }
+                    err = cudaDeviceSynchronize();
+                    CATCH_CUDA_ERROR(err);
+
+                    // Store from tightly packed cuFFT output
+                    int vel_dimension, vel_d_para;
+                    unsigned long long vel_num_pixels;
+                    float *output_ptr;
+
+                    if (matter_options_global->PERTURB_ON_HIGH_RES) {
+                        vel_dimension = simulation_options_global->DIM;
+                        vel_d_para = D_PARA;
+                        vel_num_pixels = TOT_NUM_PIXELS;
+                        if (ii == 0) output_ptr = boxes->hires_vx_2LPT;
+                        else if (ii == 1) output_ptr = boxes->hires_vy_2LPT;
+                        else output_ptr = boxes->hires_vz_2LPT;
+                    } else {
+                        vel_dimension = simulation_options_global->HII_DIM;
+                        vel_d_para = HII_D_PARA;
+                        vel_num_pixels = HII_TOT_NUM_PIXELS;
+                        if (ii == 0) output_ptr = boxes->lowres_vx_2LPT;
+                        else if (ii == 1) output_ptr = boxes->lowres_vy_2LPT;
+                        else output_ptr = boxes->lowres_vz_2LPT;
+                    }
+
+                    int numBlocks_vel = (vel_num_pixels + threadsPerBlock - 1) / threadsPerBlock;
+                    store_velocity_packed_kernel<<<numBlocks_vel, threadsPerBlock>>>(
+                        d_realspace, d_vel2_output,
+                        vel_dimension, vel_d_para,
+                        simulation_options_global->DIM, D_PARA,
+                        f_pixel_factor,
+                        matter_options_global->PERTURB_ON_HIGH_RES
+                    );
+                    err = cudaDeviceSynchronize();
+                    CATCH_CUDA_ERROR(err);
+                    err = cudaGetLastError();
+                    CATCH_CUDA_ERROR(err);
+
+                    err = cudaMemcpy(output_ptr, d_vel2_output, vel_output_size, cudaMemcpyDeviceToHost);
+                    CATCH_CUDA_ERROR(err);
+                }
+
+                cudaFree(d_vel2_kspace);
+                cudaFree(d_vel2_output);
             }
+            cudaFree(d_phi2_kspace);
 
             // Free 2LPT GPU memory
             cudaFree(d_phi_00);
