@@ -119,11 +119,3 @@ exclude_patterns = [
     "templates",
     "**.ipynb_checkpoints",
 ]
-
-def setup(app):
-    """Setup function for Sphinx."""
-    print("SETTING UP THE CLASS BASED DECORATOR DOCUMENTER")
-    app.add_autodocumenter(ClassDecoratedDocumenter)
-    return {
-        'parallel_read_safe': True
-    }
