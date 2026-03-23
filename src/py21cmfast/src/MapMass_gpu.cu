@@ -261,73 +261,68 @@ extern "C" double* MapMass_gpu(
         Throw(CUDAError);
     }
 
-    // Allocate device memory for density field
-    float* hires_density;
-    cudaMalloc(&hires_density, (TOT_NUM_PIXELS * sizeof(float))); // from 21cmFAST.h, outputs.py & indexing.h
-    cudaMemcpy(hires_density, boxes->hires_density, (TOT_NUM_PIXELS * sizeof(float)), cudaMemcpyHostToDevice);
+    // IC arrays (density + velocities) are constant across redshifts.
+    // Upload once on first call, reuse on subsequent calls.
+    static float *s_hires_density = NULL;
+    static float *s_hires_vx = NULL, *s_hires_vy = NULL, *s_hires_vz = NULL;
+    static float *s_lowres_vx = NULL, *s_lowres_vy = NULL, *s_lowres_vz = NULL;
+    static float *s_hires_vx_2LPT = NULL, *s_hires_vy_2LPT = NULL, *s_hires_vz_2LPT = NULL;
+    static float *s_lowres_vx_2LPT = NULL, *s_lowres_vy_2LPT = NULL, *s_lowres_vz_2LPT = NULL;
+    static bool s_initialized = false;
 
-    err = cudaGetLastError();
-    if (err != cudaSuccess) {
-        LOG_ERROR("CUDA error: %s", cudaGetErrorString(err));
-        Throw(CUDAError);
-    }
-
-    // Allocate device memory and copy arrays to device as per user_params
-    float* hires_vx; // floats as per 21cmFAST.h
-    float* hires_vy;
-    float* hires_vz;
-    float* lowres_vx;
-    float* lowres_vy;
-    float* lowres_vz;
-    float* hires_vx_2LPT;
-    float* hires_vy_2LPT;
-    float* hires_vz_2LPT;
-    float* lowres_vx_2LPT;
-    float* lowres_vy_2LPT;
-    float* lowres_vz_2LPT;
-
-    if (matter_options_global->PERTURB_ON_HIGH_RES) {
-        cudaMalloc(&hires_vx, size_float);
-        cudaMalloc(&hires_vy, size_float);
-        cudaMalloc(&hires_vz, size_float);
-        cudaMemcpy(hires_vx, boxes->hires_vx, size_float, cudaMemcpyHostToDevice);
-        cudaMemcpy(hires_vy, boxes->hires_vy, size_float, cudaMemcpyHostToDevice);
-        cudaMemcpy(hires_vz, boxes->hires_vz, size_float, cudaMemcpyHostToDevice);
-    }
-    else {
-        cudaMalloc(&lowres_vx, size_float);
-        cudaMalloc(&lowres_vy, size_float);
-        cudaMalloc(&lowres_vz, size_float);
-        cudaMemcpy(lowres_vx, boxes->lowres_vx, size_float, cudaMemcpyHostToDevice);
-        cudaMemcpy(lowres_vy, boxes->lowres_vy, size_float, cudaMemcpyHostToDevice);
-        cudaMemcpy(lowres_vz, boxes->lowres_vz, size_float, cudaMemcpyHostToDevice);
-    }
-    // Allocate and copy 2LPT velocity arrays if using 2LPT algorithm
     bool use_2lpt = (matter_options_global->PERTURB_ALGORITHM == 2);
-    if (use_2lpt) {
+
+    if (!s_initialized) {
+        cudaMalloc(&s_hires_density, TOT_NUM_PIXELS * sizeof(float));
+        cudaMemcpy(s_hires_density, boxes->hires_density, TOT_NUM_PIXELS * sizeof(float), cudaMemcpyHostToDevice);
+
         if (matter_options_global->PERTURB_ON_HIGH_RES) {
-            cudaMalloc(&hires_vx_2LPT, size_float);
-            cudaMalloc(&hires_vy_2LPT, size_float);
-            cudaMalloc(&hires_vz_2LPT, size_float);
-            cudaMemcpy(hires_vx_2LPT, boxes->hires_vx_2LPT, size_float, cudaMemcpyHostToDevice);
-            cudaMemcpy(hires_vy_2LPT, boxes->hires_vy_2LPT, size_float, cudaMemcpyHostToDevice);
-            cudaMemcpy(hires_vz_2LPT, boxes->hires_vz_2LPT, size_float, cudaMemcpyHostToDevice);
+            cudaMalloc(&s_hires_vx, size_float);
+            cudaMalloc(&s_hires_vy, size_float);
+            cudaMalloc(&s_hires_vz, size_float);
+            cudaMemcpy(s_hires_vx, boxes->hires_vx, size_float, cudaMemcpyHostToDevice);
+            cudaMemcpy(s_hires_vy, boxes->hires_vy, size_float, cudaMemcpyHostToDevice);
+            cudaMemcpy(s_hires_vz, boxes->hires_vz, size_float, cudaMemcpyHostToDevice);
+        } else {
+            cudaMalloc(&s_lowres_vx, size_float);
+            cudaMalloc(&s_lowres_vy, size_float);
+            cudaMalloc(&s_lowres_vz, size_float);
+            cudaMemcpy(s_lowres_vx, boxes->lowres_vx, size_float, cudaMemcpyHostToDevice);
+            cudaMemcpy(s_lowres_vy, boxes->lowres_vy, size_float, cudaMemcpyHostToDevice);
+            cudaMemcpy(s_lowres_vz, boxes->lowres_vz, size_float, cudaMemcpyHostToDevice);
         }
-        else {
-            cudaMalloc(&lowres_vx_2LPT, size_float);
-            cudaMalloc(&lowres_vy_2LPT, size_float);
-            cudaMalloc(&lowres_vz_2LPT, size_float);
-            cudaMemcpy(lowres_vx_2LPT, boxes->lowres_vx_2LPT, size_float, cudaMemcpyHostToDevice);
-            cudaMemcpy(lowres_vy_2LPT, boxes->lowres_vy_2LPT, size_float, cudaMemcpyHostToDevice);
-            cudaMemcpy(lowres_vz_2LPT, boxes->lowres_vz_2LPT, size_float, cudaMemcpyHostToDevice);
+        if (use_2lpt) {
+            if (matter_options_global->PERTURB_ON_HIGH_RES) {
+                cudaMalloc(&s_hires_vx_2LPT, size_float);
+                cudaMalloc(&s_hires_vy_2LPT, size_float);
+                cudaMalloc(&s_hires_vz_2LPT, size_float);
+                cudaMemcpy(s_hires_vx_2LPT, boxes->hires_vx_2LPT, size_float, cudaMemcpyHostToDevice);
+                cudaMemcpy(s_hires_vy_2LPT, boxes->hires_vy_2LPT, size_float, cudaMemcpyHostToDevice);
+                cudaMemcpy(s_hires_vz_2LPT, boxes->hires_vz_2LPT, size_float, cudaMemcpyHostToDevice);
+            } else {
+                cudaMalloc(&s_lowres_vx_2LPT, size_float);
+                cudaMalloc(&s_lowres_vy_2LPT, size_float);
+                cudaMalloc(&s_lowres_vz_2LPT, size_float);
+                cudaMemcpy(s_lowres_vx_2LPT, boxes->lowres_vx_2LPT, size_float, cudaMemcpyHostToDevice);
+                cudaMemcpy(s_lowres_vy_2LPT, boxes->lowres_vy_2LPT, size_float, cudaMemcpyHostToDevice);
+                cudaMemcpy(s_lowres_vz_2LPT, boxes->lowres_vz_2LPT, size_float, cudaMemcpyHostToDevice);
+            }
         }
+
+        err = cudaGetLastError();
+        if (err != cudaSuccess) {
+            LOG_ERROR("CUDA error uploading IC arrays: %s", cudaGetErrorString(err));
+            Throw(CUDAError);
+        }
+        s_initialized = true;
     }
 
-    err = cudaGetLastError();
-    if (err != cudaSuccess) {
-        LOG_ERROR("CUDA error: %s", cudaGetErrorString(err));
-        Throw(CUDAError);
-    }
+    // Use persistent device pointers
+    float *hires_density = s_hires_density;
+    float *hires_vx = s_hires_vx, *hires_vy = s_hires_vy, *hires_vz = s_hires_vz;
+    float *lowres_vx = s_lowres_vx, *lowres_vy = s_lowres_vy, *lowres_vz = s_lowres_vz;
+    float *hires_vx_2LPT = s_hires_vx_2LPT, *hires_vy_2LPT = s_hires_vy_2LPT, *hires_vz_2LPT = s_hires_vz_2LPT;
+    float *lowres_vx_2LPT = s_lowres_vx_2LPT, *lowres_vy_2LPT = s_lowres_vy_2LPT, *lowres_vz_2LPT = s_lowres_vz_2LPT;
 
     // Can't pass macro straight to kernel
     long long d_para = D_PARA;
@@ -368,32 +363,8 @@ extern "C" double* MapMass_gpu(
         Throw(CUDAError);
     }
 
-    // Deallocate device memory
+    // Free per-call output buffer only (IC arrays persist in static pointers)
     cudaFree(d_resampled_box);
-    cudaFree(hires_density);
-
-    if (matter_options_global->PERTURB_ON_HIGH_RES) {
-        cudaFree(hires_vx);
-        cudaFree(hires_vy);
-        cudaFree(hires_vz);
-    }
-    else {
-        cudaFree(lowres_vx);
-        cudaFree(lowres_vy);
-        cudaFree(lowres_vz);
-    }
-    if (use_2lpt) {
-        if (matter_options_global->PERTURB_ON_HIGH_RES) {
-            cudaFree(hires_vx_2LPT);
-            cudaFree(hires_vy_2LPT);
-            cudaFree(hires_vz_2LPT);
-        }
-        else {
-            cudaFree(lowres_vx_2LPT);
-            cudaFree(lowres_vy_2LPT);
-            cudaFree(lowres_vz_2LPT);
-        }
-    }
 
     err = cudaGetLastError();
     if (err != cudaSuccess) {
