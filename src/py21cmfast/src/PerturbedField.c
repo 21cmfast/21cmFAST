@@ -179,13 +179,16 @@ void assign_to_lowres_grid(fftwf_complex *hires_grid, fftwf_complex *lowres_grid
     //  resolution, and the low-res grid is saved *after* the smoothing
     memcpy(saved_grid, hires_grid, sizeof(fftwf_complex) * KSPACE_NUM_PIXELS);
 
-    // Now filter the box
+    // Filter and inverse FFT
+#if USE_CUDA
+    filter_and_transform_gpu(hires_grid, hi_dim, 0,
+               physconst.l_factor * simulation_options_global->BOX_LEN / (lo_dim[0] + 0.0), 0., 0);
+#else
     filter_box(hires_grid, hi_dim, 0,
                physconst.l_factor * simulation_options_global->BOX_LEN / (lo_dim[0] + 0.0), 0., 0.);
-
-    // FFT back to real space
     dft_c2r_cube(matter_options_global->USE_FFTW_WISDOM, hi_dim[0], hi_dim[2],
                  simulation_options_global->N_THREADS, hires_grid);
+#endif
 
 #pragma omp parallel private(i, j, k) num_threads(simulation_options_global -> N_THREADS)
     {
@@ -378,6 +381,18 @@ void compute_perturbed_velocities(unsigned short axis, double redshift,
     debugSummarizeBoxComplex((float complex *)velocity_fft_grid, box_dim[0], box_dim[1],
                              box_dim[2] / 2 + 1, "  ");
 
+#if USE_CUDA
+    if (matter_options_global->PERTURB_ON_HIGH_RES &&
+        simulation_options_global->DIM != simulation_options_global->HII_DIM) {
+        filter_and_transform_gpu(velocity_fft_grid, box_dim, 0,
+                   physconst.l_factor * simulation_options_global->BOX_LEN /
+                       (simulation_options_global->HII_DIM + 0.0),
+                   0., 0);
+    } else {
+        dft_c2r_cube(matter_options_global->USE_FFTW_WISDOM, box_dim[0], box_dim[2],
+                     simulation_options_global->N_THREADS, velocity_fft_grid);
+    }
+#else
     if (matter_options_global->PERTURB_ON_HIGH_RES &&
         simulation_options_global->DIM != simulation_options_global->HII_DIM) {
         filter_box(velocity_fft_grid, box_dim, 0,
@@ -385,9 +400,9 @@ void compute_perturbed_velocities(unsigned short axis, double redshift,
                        (simulation_options_global->HII_DIM + 0.0),
                    0., 0.);
     }
-
     dft_c2r_cube(matter_options_global->USE_FFTW_WISDOM, box_dim[0], box_dim[2],
                  simulation_options_global->N_THREADS, velocity_fft_grid);
+#endif
 
 #pragma omp parallel private(i, j, k) num_threads(simulation_options_global -> N_THREADS)
     {

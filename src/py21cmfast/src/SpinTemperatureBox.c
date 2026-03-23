@@ -704,13 +704,20 @@ void one_annular_filter(float *input_box, float *output_box, double R_inner, dou
         memcpy(filtered_box, unfiltered_box, sizeof(fftwf_complex) * HII_KSPACE_NUM_PIXELS);
 
         // Don't filter on the cell scale
+#if USE_CUDA
+        if (R_inner > 0) {
+            filter_and_transform_gpu(filtered_box, box_dim, 4, R_inner, R_outer, 0);
+        } else {
+            dft_c2r_cube(matter_options_global->USE_FFTW_WISDOM, simulation_options_global->HII_DIM,
+                         HII_D_PARA, simulation_options_global->N_THREADS, filtered_box);
+        }
+#else
         if (R_inner > 0) {
             filter_box(filtered_box, box_dim, filter_type, R_inner, R_outer, R_star);
         }
-
-        // now fft back to real space
         dft_c2r_cube(matter_options_global->USE_FFTW_WISDOM, simulation_options_global->HII_DIM,
                      HII_D_PARA, simulation_options_global->N_THREADS, filtered_box);
+#endif
     }
 // copy over the values
 #pragma omp parallel private(i, j, k) num_threads(simulation_options_global -> N_THREADS) \
