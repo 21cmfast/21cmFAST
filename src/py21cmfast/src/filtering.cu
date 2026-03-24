@@ -210,6 +210,12 @@ void filter_box_gpu(fftwf_complex *box, int box_dim[3], int filter_type, float R
     }
 }
 
+/* Device-to-device memcpy wrapper (callable from C code without CUDA headers) */
+void device_memcpy(void *dst, void *src, unsigned long long size) {
+    cudaError_t err = cudaMemcpy(dst, src, size, cudaMemcpyDeviceToDevice);
+    if (err != cudaSuccess) { LOG_ERROR("device_memcpy: %s", cudaGetErrorString(err)); Throw(CUDAError); }
+}
+
 /* Forward declaration */
 void filter_box_gpu_inplace(void *d_box_v, int box_dim[3], int filter_type,
                             float R, float R_param);
@@ -348,9 +354,12 @@ void init_device_filter_buffers(struct DeviceFilterBuffers *bufs, int box_dim[3]
 
     bufs->n_fields = n_fields;
     bufs->kspace_size = kspace_size;
+    bufs->real_padded_size = real_padded_size;
     bufs->box_dim[0] = box_dim[0];
     bufs->box_dim[1] = box_dim[1];
     bufs->box_dim[2] = box_dim[2];
+    bufs->d_deltax_real = NULL;
+    bufs->d_xe_real = NULL;
 
     /* Allocate and upload each unfiltered field */
     for (int i = 0; i < n_fields; i++) {
@@ -364,6 +373,14 @@ void init_device_filter_buffers(struct DeviceFilterBuffers *bufs, int box_dim[3]
     err = cudaMalloc(&bufs->d_working, alloc_size);
     if (err != cudaSuccess) { LOG_ERROR("cudaMalloc working: %s", cudaGetErrorString(err)); Throw(CUDAError); }
 
+    /* Allocate persistent buffers for filtered real-space grids (Fcoll GPU path) */
+    err = cudaMalloc(&bufs->d_deltax_real, alloc_size);
+    if (err != cudaSuccess) { LOG_ERROR("cudaMalloc d_deltax_real: %s", cudaGetErrorString(err)); Throw(CUDAError); }
+    if (astro_options_global->USE_TS_FLUCT) {
+        err = cudaMalloc(&bufs->d_xe_real, alloc_size);
+        if (err != cudaSuccess) { LOG_ERROR("cudaMalloc d_xe_real: %s", cudaGetErrorString(err)); Throw(CUDAError); }
+    }
+
     /* Create cuFFT plan */
     int n_fft[3] = {dimension, dimension, box_dim[2]};
     cufftResult cr = cufftPlanMany(&bufs->plan, 3, n_fft, NULL, 1, 0, NULL, 1, 0, CUFFT_C2R, 1);
@@ -375,6 +392,8 @@ void free_device_filter_buffers(struct DeviceFilterBuffers *bufs) {
         if (bufs->d_fields[i]) { cudaFree(bufs->d_fields[i]); bufs->d_fields[i] = NULL; }
     }
     if (bufs->d_working) { cudaFree(bufs->d_working); bufs->d_working = NULL; }
+    if (bufs->d_deltax_real) { cudaFree(bufs->d_deltax_real); bufs->d_deltax_real = NULL; }
+    if (bufs->d_xe_real) { cudaFree(bufs->d_xe_real); bufs->d_xe_real = NULL; }
     cufftDestroy(bufs->plan);
     bufs->n_fields = 0;
 }

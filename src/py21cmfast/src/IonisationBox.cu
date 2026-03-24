@@ -168,17 +168,31 @@ void calculate_fcoll_grid_gpu(
     fftwf_complex *d_xe_filtered, float *d_Fcoll, float *d_y_arr,
     unsigned long long hii_tot_num_pixels,    // HII_TOT_NUM_PIXELS
     unsigned long long hii_kspace_num_pixels, // HII_KSPACE_NUM_PIXELS
-    unsigned int *threadsPerBlock, unsigned int *numBlocks) {
+    unsigned int *threadsPerBlock, unsigned int *numBlocks,
+    void *d_deltax_device_src,        // optional: D2D source (NULL = use H2D from host)
+    void *d_xe_device_src) {          // optional: D2D source (NULL = use H2D from host)
   RGTable1D_f *Nion_conditional_table1D = get_Nion_conditional_table1D();
 
-  // Copy grids from host to device
-  CALL_CUDA(cudaMemcpy(d_deltax_filtered, h_deltax_filtered,
-                       sizeof(fftwf_complex) * hii_kspace_num_pixels,
-                       cudaMemcpyHostToDevice));
-  if (astro_options_global->USE_TS_FLUCT) {
-    CALL_CUDA(cudaMemcpy(d_xe_filtered, h_xe_filtered,
+  // Copy grids to device — D2D from persistent buffer if available, else H2D from host
+  if (d_deltax_device_src) {
+    CALL_CUDA(cudaMemcpy(d_deltax_filtered, d_deltax_device_src,
+                         sizeof(fftwf_complex) * hii_kspace_num_pixels,
+                         cudaMemcpyDeviceToDevice));
+  } else {
+    CALL_CUDA(cudaMemcpy(d_deltax_filtered, h_deltax_filtered,
                          sizeof(fftwf_complex) * hii_kspace_num_pixels,
                          cudaMemcpyHostToDevice));
+  }
+  if (astro_options_global->USE_TS_FLUCT) {
+    if (d_xe_device_src) {
+      CALL_CUDA(cudaMemcpy(d_xe_filtered, d_xe_device_src,
+                           sizeof(fftwf_complex) * hii_kspace_num_pixels,
+                           cudaMemcpyDeviceToDevice));
+    } else {
+      CALL_CUDA(cudaMemcpy(d_xe_filtered, h_xe_filtered,
+                           sizeof(fftwf_complex) * hii_kspace_num_pixels,
+                           cudaMemcpyHostToDevice));
+    }
   }
   CALL_CUDA(cudaMemcpy(d_y_arr, Nion_conditional_table1D->y_arr,
                        sizeof(float) * Nion_conditional_table1D->n_bin,

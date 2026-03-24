@@ -33,8 +33,12 @@ struct DeviceFilterBuffers {
     void *d_working;
     int plan;
     unsigned long long kspace_size;
+    unsigned long long real_padded_size;
     int box_dim[3];
+    void *d_deltax_real;  /* persistent copy of filtered deltax for Fcoll GPU path */
+    void *d_xe_real;      /* persistent copy of filtered xe for Fcoll GPU path */
 };
+void device_memcpy(void *dst, void *src, unsigned long long size);
 void init_device_filter_buffers(struct DeviceFilterBuffers *bufs, int box_dim[3],
                                 fftwf_complex **h_unfiltered_fields, int n_fields);
 void free_device_filter_buffers(struct DeviceFilterBuffers *bufs);

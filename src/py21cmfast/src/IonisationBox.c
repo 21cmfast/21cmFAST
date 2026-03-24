@@ -614,9 +614,11 @@ void copy_filter_transform(struct FilteredGrids *fg_struct, struct IonBoxConstan
 
         filter_and_transform_device(db->d_fields[fi++], db->d_working,
             fg_struct->deltax_filtered, box_dim, consts->hii_filter, R, 0., db->plan);
+        device_memcpy(db->d_deltax_real, db->d_working, db->real_padded_size);
         if (astro_options_global->USE_TS_FLUCT) {
             filter_and_transform_device(db->d_fields[fi++], db->d_working,
                 fg_struct->xe_filtered, box_dim, consts->hii_filter, R, 0., db->plan);
+            device_memcpy(db->d_xe_real, db->d_working, db->real_padded_size);
         }
         if (consts->filter_recombinations) {
             filter_and_transform_device(db->d_fields[fi++], db->d_working,
@@ -1668,7 +1670,9 @@ int ComputeIonizedBox(float redshift, float prev_redshift, PerturbedField *pertu
                                              grid_struct->xe_filtered,
                                              &curr_radius.f_coll_grid_mean, d_deltax_filtered,
                                              d_xe_filtered, d_Fcoll, d_y_arr, HII_TOT_NUM_PIXELS,
-                                             HII_KSPACE_NUM_PIXELS, &threadsPerBlock, &numBlocks);
+                                             HII_KSPACE_NUM_PIXELS, &threadsPerBlock, &numBlocks,
+                                             curr_radius.R_index > 0 ? ionbox_constants.dev_filter.d_deltax_real : NULL,
+                                             curr_radius.R_index > 0 ? ionbox_constants.dev_filter.d_xe_real : NULL);
 #else
                     LOG_ERROR(
                         "CUDA function calculate_fcoll_grid_gpu() called but code was not compiled "
