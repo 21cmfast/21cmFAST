@@ -1649,6 +1649,22 @@ void ts_main(float redshift, float prev_redshift, float perturbed_field_redshift
                 "CUDA function init_sfrd_gpu_data() called but code was not compiled for CUDA.");
 #endif
         }
+        // Phase 11.6a: Initialise spectral integration GPU data
+        SpectralIntegDeviceData *spec_dev = NULL;
+        bool use_spectral_gpu = use_cuda && matter_options_global->SOURCE_MODEL < 2;
+        if (use_spectral_gpu) {
+#if USE_CUDA
+            spec_dev = init_spectral_integration_gpu(
+                HII_TOT_NUM_PIXELS, astro_params_global->N_STEP_TS,
+                freq_int_heat_tbl, freq_int_ion_tbl, freq_int_lya_tbl,
+                freq_int_heat_tbl_diff, freq_int_ion_tbl_diff, freq_int_lya_tbl_diff,
+                m_xHII_low_box, inverse_val_box,
+                astro_options_global->USE_MINI_HALOS,
+                astro_options_global->USE_X_RAY_HEATING,
+                astro_options_global->USE_LYA_HEATING
+            );
+#endif
+        }
         // ---------------------------------------------------------------------------------------------------------------------------------------------------------------
         for (R_ct = astro_params_global->N_STEP_TS; R_ct--;) {
             dzpp_for_evolve = dzpp_list[R_ct];
@@ -1744,6 +1760,34 @@ void ts_main(float redshift, float prev_redshift, float perturbed_field_redshift
 //   But here it's just (1+delta_source). This is for photon conservation.
 //   If we assume attenuation at mean density as we do in nu_tau_one(), we HAVE to assume mean
 //   density absorption otherwise we do not conserve photons
+
+            // Phase 11.6a: GPU spectral integration dispatch
+            if (use_spectral_gpu && spec_dev != NULL) {
+#if USE_CUDA
+                launch_spectral_integration_kernel(
+                    spec_dev, R_ct,
+                    del_fcoll_Rct, del_fcoll_Rct_MINI,
+                    z_edge_factor, xray_R_factor,
+                    avg_fix_term, avg_fix_term_MINI,
+                    astro_params_global->F_STAR10,
+                    astro_params_global->L_X,
+                    physconst.s_per_yr,
+                    astro_params_global->F_STAR7_MINI,
+                    astro_params_global->L_X_MINI,
+                    dstarlya_dt_prefactor[R_ct],
+                    astro_options_global->USE_MINI_HALOS ? dstarlyLW_dt_prefactor[R_ct] : 0.0,
+                    astro_options_global->USE_MINI_HALOS ? dstarlyLW_dt_prefactor_MINI[R_ct] : 0.0,
+                    astro_options_global->USE_MINI_HALOS ? dstarlya_dt_prefactor_MINI[R_ct] : 0.0,
+                    astro_options_global->USE_LYA_HEATING ? dstarlya_cont_dt_prefactor[R_ct] : 0.0,
+                    astro_options_global->USE_LYA_HEATING ? dstarlya_inj_dt_prefactor[R_ct] : 0.0,
+                    (astro_options_global->USE_MINI_HALOS && astro_options_global->USE_LYA_HEATING)
+                        ? dstarlya_cont_dt_prefactor_MINI[R_ct] : 0.0,
+                    (astro_options_global->USE_MINI_HALOS && astro_options_global->USE_LYA_HEATING)
+                        ? dstarlya_inj_dt_prefactor_MINI[R_ct] : 0.0
+                );
+#endif
+            } else {
+            // CPU fallback: original OpenMP path
 #pragma omp parallel private(box_ct) num_threads(simulation_options_global -> N_THREADS)
             {
                 // private variables
@@ -1890,6 +1934,21 @@ void ts_main(float redshift, float prev_redshift, float perturbed_field_redshift
 #endif
                 }
             }
+            } // end else (CPU fallback)
+        } // end R-loop
+
+        // Phase 11.6a: Download accumulated results and free GPU data
+        if (use_spectral_gpu && spec_dev != NULL) {
+#if USE_CUDA
+            download_spectral_integration_results(
+                spec_dev,
+                dxheat_dt_box, dxion_source_dt_box, dxlya_dt_box, dstarlya_dt_box,
+                dstarlyLW_dt_box, dstarlya_cont_dt_box, dstarlya_inj_dt_box
+            );
+            free_spectral_integration_gpu(spec_dev);
+            free(spec_dev);
+            spec_dev = NULL;
+#endif
         }
 
         if (use_cuda && matter_options_global->SOURCE_MODEL < 2) {

@@ -269,3 +269,394 @@ extern "C" void free_sfrd_gpu_data(
     CALL_CUDA(cudaFree(*d_ave_sfrd_buf));
     LOG_INFO("Device memory freed.");
 }
+
+// ============================================================================
+// Phase 11.6a: Spectral integration GPU kernel
+// ============================================================================
+//
+// Replaces the OpenMP per-pixel loop in ts_main that accumulates
+// dxheat_dt_box, dxion_source_dt_box, dxlya_dt_box, dstarlya_dt_box
+// (and optionally dstarlyLW_dt_box, dstarlya_cont_dt_box, dstarlya_inj_dt_box)
+// from frequency integral table lookups per R iteration.
+//
+// The host manages the sequential R-loop; this kernel handles pixel parallelism.
+
+// Flattened frequency integral tables on device.
+// Layout: tbl[xidx * max_n_step + R_ct], where xidx in [0, x_int_NXHII)
+// and R_ct in [0, N_STEP_TS).
+struct SpectralIntegDeviceData {
+    // Frequency integral tables (flattened [x_int_NXHII * N_STEP_TS])
+    double *d_freq_int_heat_tbl;
+    double *d_freq_int_ion_tbl;
+    double *d_freq_int_lya_tbl;
+    double *d_freq_int_heat_tbl_diff;
+    double *d_freq_int_ion_tbl_diff;
+    double *d_freq_int_lya_tbl_diff;
+
+    // Per-pixel precomputed arrays
+    int *d_m_xHII_low_box;
+    float *d_inverse_val_box;
+
+    // Per-pixel input: del_fcoll_Rct (uploaded per R for SOURCE_MODEL < 2)
+    float *d_del_fcoll_Rct;
+    float *d_del_fcoll_Rct_MINI;
+
+    // Accumulation arrays (persistent across R iterations)
+    double *d_dxheat_dt_box;
+    double *d_dxion_source_dt_box;
+    double *d_dxlya_dt_box;
+    double *d_dstarlya_dt_box;
+    double *d_dstarlyLW_dt_box;
+    double *d_dstarlya_cont_dt_box;
+    double *d_dstarlya_inj_dt_box;
+
+    // Dimensions
+    unsigned long long num_pixels;
+    int n_step_ts;
+
+    // Feature flags (copied from host options at init time)
+    bool use_mini_halos;
+    bool use_x_ray_heating;
+    bool use_lya_heating;
+};
+
+__global__ void spectral_integration_kernel(
+    int R_ct,
+    int n_step_ts,
+    unsigned long long num_pixels,
+    // Per-pixel input
+    float *d_del_fcoll_Rct,
+    float *d_del_fcoll_Rct_MINI,
+    int *d_m_xHII_low_box,
+    float *d_inverse_val_box,
+    // Frequency integral tables (flattened [x_int_NXHII * n_step_ts])
+    double *d_freq_int_heat_tbl,
+    double *d_freq_int_ion_tbl,
+    double *d_freq_int_lya_tbl,
+    double *d_freq_int_heat_tbl_diff,
+    double *d_freq_int_ion_tbl_diff,
+    double *d_freq_int_lya_tbl_diff,
+    // Accumulation arrays (output, +=)
+    double *d_dxheat_dt_box,
+    double *d_dxion_source_dt_box,
+    double *d_dxlya_dt_box,
+    double *d_dstarlya_dt_box,
+    double *d_dstarlyLW_dt_box,
+    double *d_dstarlya_cont_dt_box,
+    double *d_dstarlya_inj_dt_box,
+    // R-dependent scalars (passed per kernel call)
+    double z_edge_factor,
+    double xray_R_factor,
+    double avg_fix_term,
+    double avg_fix_term_MINI,
+    double F_STAR10,
+    double L_X,
+    double s_per_yr,
+    double F_STAR7_MINI,
+    double L_X_MINI,
+    double dstarlya_dt_prefactor_R,
+    double dstarlyLW_dt_prefactor_R,
+    double dstarlyLW_dt_prefactor_MINI_R,
+    double dstarlya_dt_prefactor_MINI_R,
+    double dstarlya_cont_dt_prefactor_R,
+    double dstarlya_inj_dt_prefactor_R,
+    double dstarlya_cont_dt_prefactor_MINI_R,
+    double dstarlya_inj_dt_prefactor_MINI_R,
+    // Feature flags
+    bool use_mini_halos,
+    bool use_x_ray_heating,
+    bool use_lya_heating
+) {
+    unsigned long long idx = (unsigned long long)blockIdx.x * blockDim.x + threadIdx.x;
+    if (idx >= num_pixels) return;
+
+    float fcoll = d_del_fcoll_Rct[idx];
+    double sfr_term = (double)fcoll * z_edge_factor * avg_fix_term * F_STAR10;
+    double xray_sfr = sfr_term * L_X * xray_R_factor * s_per_yr;
+
+    double sfr_term_mini = 0.0;
+    if (use_mini_halos) {
+        sfr_term_mini = (double)d_del_fcoll_Rct_MINI[idx] * z_edge_factor *
+                        avg_fix_term_MINI * F_STAR7_MINI;
+        xray_sfr += sfr_term_mini * L_X_MINI * xray_R_factor * s_per_yr;
+
+        d_dstarlyLW_dt_box[idx] +=
+            sfr_term * dstarlyLW_dt_prefactor_R +
+            sfr_term_mini * dstarlyLW_dt_prefactor_MINI_R;
+    }
+
+    int xidx = d_m_xHII_low_box[idx];
+    double ival = (double)d_inverse_val_box[idx];
+
+    // Table index: flattened [xidx][R_ct] -> xidx * n_step_ts + R_ct
+    int tbl_idx = xidx * n_step_ts + R_ct;
+
+    if (use_x_ray_heating) {
+        d_dxheat_dt_box[idx] +=
+            xray_sfr * (d_freq_int_heat_tbl_diff[tbl_idx] * ival +
+                        d_freq_int_heat_tbl[tbl_idx]);
+    }
+
+    d_dxion_source_dt_box[idx] +=
+        xray_sfr * (d_freq_int_ion_tbl_diff[tbl_idx] * ival +
+                    d_freq_int_ion_tbl[tbl_idx]);
+
+    d_dxlya_dt_box[idx] +=
+        xray_sfr * (d_freq_int_lya_tbl_diff[tbl_idx] * ival +
+                    d_freq_int_lya_tbl[tbl_idx]);
+
+    d_dstarlya_dt_box[idx] +=
+        sfr_term * dstarlya_dt_prefactor_R +
+        sfr_term_mini * dstarlya_dt_prefactor_MINI_R;
+
+    if (use_lya_heating) {
+        d_dstarlya_cont_dt_box[idx] +=
+            sfr_term * dstarlya_cont_dt_prefactor_R +
+            sfr_term_mini * dstarlya_cont_dt_prefactor_MINI_R;
+        d_dstarlya_inj_dt_box[idx] +=
+            sfr_term * dstarlya_inj_dt_prefactor_R +
+            sfr_term_mini * dstarlya_inj_dt_prefactor_MINI_R;
+    }
+}
+
+// Initialise device data for spectral integration.
+// Flattens 2D tables [x_int_NXHII][N_STEP_TS] into 1D device arrays.
+// Allocates persistent accumulation buffers.
+extern "C" SpectralIntegDeviceData *init_spectral_integration_gpu(
+    unsigned long long num_pixels,
+    int n_step_ts,
+    // Host 2D tables (double*[x_int_NXHII], each row has n_step_ts entries)
+    double **freq_int_heat_tbl,
+    double **freq_int_ion_tbl,
+    double **freq_int_lya_tbl,
+    double **freq_int_heat_tbl_diff,
+    double **freq_int_ion_tbl_diff,
+    double **freq_int_lya_tbl_diff,
+    // Host per-pixel arrays
+    int *m_xHII_low_box,
+    float *inverse_val_box,
+    // Feature flags
+    bool use_mini_halos,
+    bool use_x_ray_heating,
+    bool use_lya_heating
+) {
+    SpectralIntegDeviceData *dev = (SpectralIntegDeviceData *)malloc(sizeof(SpectralIntegDeviceData));
+    dev->num_pixels = num_pixels;
+    dev->n_step_ts = n_step_ts;
+    dev->use_mini_halos = use_mini_halos;
+    dev->use_x_ray_heating = use_x_ray_heating;
+    dev->use_lya_heating = use_lya_heating;
+
+    int nxhii = 14;  // x_int_NXHII
+    size_t tbl_size = nxhii * n_step_ts * sizeof(double);
+    size_t pix_size_d = num_pixels * sizeof(double);
+    size_t pix_size_f = num_pixels * sizeof(float);
+    size_t pix_size_i = num_pixels * sizeof(int);
+
+    // Flatten and upload frequency integral tables
+    double *h_flat = (double *)malloc(tbl_size);
+
+    auto upload_table = [&](double **host_tbl, double **d_tbl) {
+        for (int i = 0; i < nxhii; i++)
+            memcpy(h_flat + i * n_step_ts, host_tbl[i], n_step_ts * sizeof(double));
+        CALL_CUDA(cudaMalloc(d_tbl, tbl_size));
+        CALL_CUDA(cudaMemcpy(*d_tbl, h_flat, tbl_size, cudaMemcpyHostToDevice));
+    };
+
+    upload_table(freq_int_heat_tbl, &dev->d_freq_int_heat_tbl);
+    upload_table(freq_int_ion_tbl, &dev->d_freq_int_ion_tbl);
+    upload_table(freq_int_lya_tbl, &dev->d_freq_int_lya_tbl);
+    upload_table(freq_int_heat_tbl_diff, &dev->d_freq_int_heat_tbl_diff);
+    upload_table(freq_int_ion_tbl_diff, &dev->d_freq_int_ion_tbl_diff);
+    upload_table(freq_int_lya_tbl_diff, &dev->d_freq_int_lya_tbl_diff);
+    free(h_flat);
+
+    // Upload per-pixel index arrays
+    CALL_CUDA(cudaMalloc(&dev->d_m_xHII_low_box, pix_size_i));
+    CALL_CUDA(cudaMemcpy(dev->d_m_xHII_low_box, m_xHII_low_box, pix_size_i, cudaMemcpyHostToDevice));
+
+    CALL_CUDA(cudaMalloc(&dev->d_inverse_val_box, pix_size_f));
+    CALL_CUDA(cudaMemcpy(dev->d_inverse_val_box, inverse_val_box, pix_size_f, cudaMemcpyHostToDevice));
+
+    // Allocate per-pixel input buffers (filled per R)
+    CALL_CUDA(cudaMalloc(&dev->d_del_fcoll_Rct, pix_size_f));
+    dev->d_del_fcoll_Rct_MINI = NULL;
+    if (use_mini_halos) {
+        CALL_CUDA(cudaMalloc(&dev->d_del_fcoll_Rct_MINI, pix_size_f));
+    }
+
+    // Allocate accumulation arrays and zero them
+    if (use_x_ray_heating) {
+        CALL_CUDA(cudaMalloc(&dev->d_dxheat_dt_box, pix_size_d));
+        CALL_CUDA(cudaMemset(dev->d_dxheat_dt_box, 0, pix_size_d));
+    } else {
+        dev->d_dxheat_dt_box = NULL;
+    }
+
+    CALL_CUDA(cudaMalloc(&dev->d_dxion_source_dt_box, pix_size_d));
+    CALL_CUDA(cudaMemset(dev->d_dxion_source_dt_box, 0, pix_size_d));
+
+    CALL_CUDA(cudaMalloc(&dev->d_dxlya_dt_box, pix_size_d));
+    CALL_CUDA(cudaMemset(dev->d_dxlya_dt_box, 0, pix_size_d));
+
+    CALL_CUDA(cudaMalloc(&dev->d_dstarlya_dt_box, pix_size_d));
+    CALL_CUDA(cudaMemset(dev->d_dstarlya_dt_box, 0, pix_size_d));
+
+    dev->d_dstarlyLW_dt_box = NULL;
+    if (use_mini_halos) {
+        CALL_CUDA(cudaMalloc(&dev->d_dstarlyLW_dt_box, pix_size_d));
+        CALL_CUDA(cudaMemset(dev->d_dstarlyLW_dt_box, 0, pix_size_d));
+    }
+
+    dev->d_dstarlya_cont_dt_box = NULL;
+    dev->d_dstarlya_inj_dt_box = NULL;
+    if (use_lya_heating) {
+        CALL_CUDA(cudaMalloc(&dev->d_dstarlya_cont_dt_box, pix_size_d));
+        CALL_CUDA(cudaMemset(dev->d_dstarlya_cont_dt_box, 0, pix_size_d));
+        CALL_CUDA(cudaMalloc(&dev->d_dstarlya_inj_dt_box, pix_size_d));
+        CALL_CUDA(cudaMemset(dev->d_dstarlya_inj_dt_box, 0, pix_size_d));
+    }
+
+    LOG_INFO("Spectral integration GPU data initialised (%llu pixels, %d R steps)",
+             num_pixels, n_step_ts);
+    return dev;
+}
+
+// Download accumulated results from device to host arrays.
+extern "C" void download_spectral_integration_results(
+    SpectralIntegDeviceData *dev,
+    double *dxheat_dt_box,
+    double *dxion_source_dt_box,
+    double *dxlya_dt_box,
+    double *dstarlya_dt_box,
+    double *dstarlyLW_dt_box,
+    double *dstarlya_cont_dt_box,
+    double *dstarlya_inj_dt_box
+) {
+    size_t pix_size_d = dev->num_pixels * sizeof(double);
+
+    if (dev->use_x_ray_heating && dev->d_dxheat_dt_box)
+        CALL_CUDA(cudaMemcpy(dxheat_dt_box, dev->d_dxheat_dt_box, pix_size_d, cudaMemcpyDeviceToHost));
+
+    CALL_CUDA(cudaMemcpy(dxion_source_dt_box, dev->d_dxion_source_dt_box, pix_size_d, cudaMemcpyDeviceToHost));
+    CALL_CUDA(cudaMemcpy(dxlya_dt_box, dev->d_dxlya_dt_box, pix_size_d, cudaMemcpyDeviceToHost));
+    CALL_CUDA(cudaMemcpy(dstarlya_dt_box, dev->d_dstarlya_dt_box, pix_size_d, cudaMemcpyDeviceToHost));
+
+    if (dev->use_mini_halos && dev->d_dstarlyLW_dt_box)
+        CALL_CUDA(cudaMemcpy(dstarlyLW_dt_box, dev->d_dstarlyLW_dt_box, pix_size_d, cudaMemcpyDeviceToHost));
+
+    if (dev->use_lya_heating) {
+        if (dev->d_dstarlya_cont_dt_box)
+            CALL_CUDA(cudaMemcpy(dstarlya_cont_dt_box, dev->d_dstarlya_cont_dt_box, pix_size_d, cudaMemcpyDeviceToHost));
+        if (dev->d_dstarlya_inj_dt_box)
+            CALL_CUDA(cudaMemcpy(dstarlya_inj_dt_box, dev->d_dstarlya_inj_dt_box, pix_size_d, cudaMemcpyDeviceToHost));
+    }
+
+    LOG_INFO("Spectral integration results downloaded from GPU");
+}
+
+// Free all device memory for spectral integration.
+extern "C" void free_spectral_integration_gpu(SpectralIntegDeviceData *dev) {
+    CALL_CUDA(cudaFree(dev->d_freq_int_heat_tbl));
+    CALL_CUDA(cudaFree(dev->d_freq_int_ion_tbl));
+    CALL_CUDA(cudaFree(dev->d_freq_int_lya_tbl));
+    CALL_CUDA(cudaFree(dev->d_freq_int_heat_tbl_diff));
+    CALL_CUDA(cudaFree(dev->d_freq_int_ion_tbl_diff));
+    CALL_CUDA(cudaFree(dev->d_freq_int_lya_tbl_diff));
+
+    CALL_CUDA(cudaFree(dev->d_m_xHII_low_box));
+    CALL_CUDA(cudaFree(dev->d_inverse_val_box));
+    CALL_CUDA(cudaFree(dev->d_del_fcoll_Rct));
+    if (dev->d_del_fcoll_Rct_MINI) CALL_CUDA(cudaFree(dev->d_del_fcoll_Rct_MINI));
+
+    if (dev->d_dxheat_dt_box) CALL_CUDA(cudaFree(dev->d_dxheat_dt_box));
+    CALL_CUDA(cudaFree(dev->d_dxion_source_dt_box));
+    CALL_CUDA(cudaFree(dev->d_dxlya_dt_box));
+    CALL_CUDA(cudaFree(dev->d_dstarlya_dt_box));
+    if (dev->d_dstarlyLW_dt_box) CALL_CUDA(cudaFree(dev->d_dstarlyLW_dt_box));
+    if (dev->d_dstarlya_cont_dt_box) CALL_CUDA(cudaFree(dev->d_dstarlya_cont_dt_box));
+    if (dev->d_dstarlya_inj_dt_box) CALL_CUDA(cudaFree(dev->d_dstarlya_inj_dt_box));
+
+    LOG_INFO("Spectral integration GPU data freed");
+}
+
+// Launch the spectral integration kernel for one R iteration.
+// del_fcoll_Rct is the host array for the current R (uploaded H2D per call).
+extern "C" void launch_spectral_integration_kernel(
+    SpectralIntegDeviceData *dev,
+    int R_ct,
+    float *del_fcoll_Rct,
+    float *del_fcoll_Rct_MINI,
+    double z_edge_factor,
+    double xray_R_factor,
+    double avg_fix_term,
+    double avg_fix_term_MINI,
+    double F_STAR10,
+    double L_X,
+    double s_per_yr,
+    double F_STAR7_MINI,
+    double L_X_MINI,
+    double dstarlya_dt_prefactor_R,
+    double dstarlyLW_dt_prefactor_R,
+    double dstarlyLW_dt_prefactor_MINI_R,
+    double dstarlya_dt_prefactor_MINI_R,
+    double dstarlya_cont_dt_prefactor_R,
+    double dstarlya_inj_dt_prefactor_R,
+    double dstarlya_cont_dt_prefactor_MINI_R,
+    double dstarlya_inj_dt_prefactor_MINI_R
+) {
+    size_t pix_size_f = dev->num_pixels * sizeof(float);
+
+    // Upload del_fcoll for this R
+    CALL_CUDA(cudaMemcpy(dev->d_del_fcoll_Rct, del_fcoll_Rct, pix_size_f, cudaMemcpyHostToDevice));
+    if (dev->use_mini_halos && del_fcoll_Rct_MINI) {
+        CALL_CUDA(cudaMemcpy(dev->d_del_fcoll_Rct_MINI, del_fcoll_Rct_MINI, pix_size_f, cudaMemcpyHostToDevice));
+    }
+
+    unsigned int threads = 256;
+    unsigned int blocks = (unsigned int)((dev->num_pixels + threads - 1) / threads);
+
+    spectral_integration_kernel<<<blocks, threads>>>(
+        R_ct,
+        dev->n_step_ts,
+        dev->num_pixels,
+        dev->d_del_fcoll_Rct,
+        dev->d_del_fcoll_Rct_MINI,
+        dev->d_m_xHII_low_box,
+        dev->d_inverse_val_box,
+        dev->d_freq_int_heat_tbl,
+        dev->d_freq_int_ion_tbl,
+        dev->d_freq_int_lya_tbl,
+        dev->d_freq_int_heat_tbl_diff,
+        dev->d_freq_int_ion_tbl_diff,
+        dev->d_freq_int_lya_tbl_diff,
+        dev->d_dxheat_dt_box,
+        dev->d_dxion_source_dt_box,
+        dev->d_dxlya_dt_box,
+        dev->d_dstarlya_dt_box,
+        dev->d_dstarlyLW_dt_box,
+        dev->d_dstarlya_cont_dt_box,
+        dev->d_dstarlya_inj_dt_box,
+        z_edge_factor,
+        xray_R_factor,
+        avg_fix_term,
+        avg_fix_term_MINI,
+        F_STAR10,
+        L_X,
+        s_per_yr,
+        F_STAR7_MINI,
+        L_X_MINI,
+        dstarlya_dt_prefactor_R,
+        dstarlyLW_dt_prefactor_R,
+        dstarlyLW_dt_prefactor_MINI_R,
+        dstarlya_dt_prefactor_MINI_R,
+        dstarlya_cont_dt_prefactor_R,
+        dstarlya_inj_dt_prefactor_R,
+        dstarlya_cont_dt_prefactor_MINI_R,
+        dstarlya_inj_dt_prefactor_MINI_R,
+        dev->use_mini_halos,
+        dev->use_x_ray_heating,
+        dev->use_lya_heating
+    );
+    CALL_CUDA(cudaGetLastError());
+}
