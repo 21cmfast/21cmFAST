@@ -63,8 +63,9 @@ jobs:
 
       - name: Install Non-Python Dependencies
         run: |
-          conda install fftw gsl
-
+          conda install -y fftw gsl pkg-config
+          echo "PKG_CONFIG_PATH=${CONDA_PREFIX}/lib/pkgconfig:${CONDA_PREFIX}/share/pkgconfig:${PKG_CONFIG_PATH}" >> $GITHUB_ENV
+    
       - name: Install 21cmFAST
         run: |
           LOG_LEVEL=${{ env.log_level }} pip install ".[dev]"
