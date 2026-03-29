@@ -1966,8 +1966,39 @@ void ts_main(float redshift, float prev_redshift, float perturbed_field_redshift
         //    but the log10Mturn average is needed
         free_global_tables();
 
-        // R==0 part
-        if (true) {
+        // R==0 part: compute final spin temperature per pixel
+        if (use_spectral_gpu) {
+#if USE_CUDA
+            launch_spin_temperature_kernel(
+                HII_TOT_NUM_PIXELS,
+                redshift, dzp,
+                zp_consts.xray_prefactor, zp_consts.volunit_inv,
+                zp_consts.lya_star_prefactor, zp_consts.Nb_zp,
+                zp_consts.Trad, zp_consts.Trad_inv,
+                zp_consts.Ts_prefactor, zp_consts.xa_tilde_prefactor,
+                zp_consts.xc_inverse, zp_consts.dcomp_dzp_prefactor,
+                zp_consts.hubble_zp, zp_consts.N_zp,
+                zp_consts.growth_zp, zp_consts.dgrowth_dzp, zp_consts.dt_dzp,
+                growth_factor_zp, inverse_growth_factor_z,
+                No, N_b0, H_FRAC, HE_FRAC,
+                astro_params_global->CLUMPING_FACTOR,
+                physconst.A10, physconst.c_cms, physconst.lambda_21,
+                physconst.k_B, physconst.h_p, physconst.T_21, physconst.m_p,
+                astro_options_global->USE_X_RAY_HEATING,
+                astro_options_global->USE_MINI_HALOS,
+                dxheat_dt_box, dxion_source_dt_box,
+                dxlya_dt_box, dstarlya_dt_box, dstarlyLW_dt_box,
+                perturbed_field->density,
+                previous_spin_temp->spin_temperature,
+                previous_spin_temp->kinetic_temp_neutral,
+                previous_spin_temp->xray_ionised_fraction,
+                this_spin_temp->spin_temperature,
+                this_spin_temp->kinetic_temp_neutral,
+                this_spin_temp->xray_ionised_fraction,
+                this_spin_temp->J_21_LW
+            );
+#endif
+        } else if (true) {
 #pragma omp parallel private(box_ct)
             {
                 double curr_delta;

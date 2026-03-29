@@ -271,6 +271,376 @@ extern "C" void free_sfrd_gpu_data(
 }
 
 // ============================================================================
+// Phase 11.6b: Spin temperature (get_Ts_fast) GPU kernel
+// ============================================================================
+//
+// Replaces the per-pixel OpenMP loop that calls get_Ts_fast after the R-loop.
+// Each thread computes one pixel's Ts, Tk, x_e, J_21_LW from the accumulated
+// spectral integration arrays and the previous snapshot's spin temperature.
+
+// Kappa tables (hardcoded from heating_helper_progs.c, 30 points each)
+// All are uniformly spaced in log(T), with linear interpolation.
+#define KAPPA_NPTS 30
+
+// kappa_10 (H-H collisions): Allison & Dalgarno / Zygelman
+__constant__ double d_kap10_logT0 = 0.0;
+__constant__ double d_kap10_inv_dlogT = 1.0 / 0.317597943861;
+__constant__ double d_kap10_y[KAPPA_NPTS] = {
+    -29.6115227098, -29.6228184691, -29.5917673123, -29.4469989515,
+    -29.1171430989, -28.5382192456, -27.7424388865, -26.8137036254,
+    -25.8749225449, -25.0548322235, -24.4005076336, -23.8952335377,
+    -23.5075651004, -23.201637629,  -22.9593758343, -22.7534867461,
+    -22.5745752086, -22.4195690855, -22.2833176123, -22.1549519419,
+    -22.0323282988, -21.9149994721, -21.800121439,  -21.6839502137,
+    -21.5662434981, -21.4473595491, -21.3279560712, -21.2067614838,
+    -21.0835560288, -20.9627928675
+};
+
+// kappa_10_pH (H-proton collisions)
+__constant__ double d_kap_pH_logT0 = 0.0;
+__constant__ double d_kap_pH_inv_dlogT = 1.0 / 0.341499570777;
+__constant__ double d_kap_pH_y[KAPPA_NPTS] = {
+    -21.6395565688, -21.5641675629, -21.5225112028, -21.5130514508,
+    -21.5342522691, -21.5845293039, -21.6581396414, -21.7420392948,
+    -21.8221380683, -21.8837908896, -21.9167553997, -21.9200173678,
+    -21.8938574675, -21.8414464728, -21.7684762963, -21.6796222358,
+    -21.5784701374, -21.4679438133, -21.3503236936, -21.2277666787,
+    -21.1017425964, -20.9733966978, -20.8437244283, -20.7135746917,
+    -20.583135408,  -20.4523507819, -20.3215504736, -20.1917429161,
+    -20.0629513946, -19.9343540344
+};
+
+// kappa_10_elec (H-electron collisions)
+__constant__ double d_kap_elec_logT0 = 0.0;
+__constant__ double d_kap_elec_inv_dlogT = 1.0 / 0.396997429827;
+__constant__ double d_kap_elec_y[KAPPA_NPTS] = {
+    -22.1549007191, -21.9576919899, -21.760758435,  -21.5641795674,
+    -21.3680349001, -21.1724124486, -20.9774403051, -20.78327367,
+    -20.5901042551, -20.3981934669, -20.2078762485, -20.0195787458,
+    -19.8339587914, -19.6518934427, -19.4745894649, -19.3043925781,
+    -19.1444129787, -18.9986014565, -18.8720602784, -18.768679825,
+    -18.6909581885, -18.6387511068, -18.6093755705, -18.5992098958,
+    -18.6050625357, -18.6319366207, -18.7017996535, -18.8477153986,
+    -19.0813436512, -19.408859606
+};
+
+// Device function: linear interpolation on log-spaced kappa table
+__device__ inline double kappa_interp_gpu(
+    double logT, const double *y, double logT0, double inv_dlogT, double extrap_power
+) {
+    if (logT < logT0) return exp(y[0]);
+    double logT_last = logT0 + (KAPPA_NPTS - 1) / inv_dlogT;
+    if (logT > logT_last) {
+        // Power-law extrapolation
+        double slope = (y[KAPPA_NPTS - 1] - y[KAPPA_NPTS - 2]) * inv_dlogT;
+        return exp(y[KAPPA_NPTS - 1] + slope * (logT - logT_last));
+    }
+    int idx = (int)floor((logT - logT0) * inv_dlogT);
+    if (idx >= KAPPA_NPTS - 1) idx = KAPPA_NPTS - 2;
+    double frac = (logT - (logT0 + idx / inv_dlogT)) * inv_dlogT;
+    return exp(y[idx] + frac * (y[idx + 1] - y[idx]));
+}
+
+__device__ inline double kappa_10_gpu(double Tk) {
+    double logT = log(Tk);
+    if (logT > d_kap10_y[0] + (KAPPA_NPTS - 1) / d_kap10_inv_dlogT + 1.0) {
+        // Special: kappa_10 uses power-law with exponent 0.381
+        double logT_last = (KAPPA_NPTS - 1) / d_kap10_inv_dlogT;
+        return exp(d_kap10_y[KAPPA_NPTS - 1]) * pow(exp(logT) / exp(logT_last), 0.381);
+    }
+    return kappa_interp_gpu(logT, d_kap10_y, d_kap10_logT0, d_kap10_inv_dlogT, 0.381);
+}
+
+__device__ inline double kappa_10_pH_gpu(double Tk) {
+    return kappa_interp_gpu(log(Tk), d_kap_pH_y, d_kap_pH_logT0, d_kap_pH_inv_dlogT, 0.0);
+}
+
+__device__ inline double kappa_10_elec_gpu(double Tk) {
+    return kappa_interp_gpu(log(Tk), d_kap_elec_y, d_kap_elec_logT0, d_kap_elec_inv_dlogT, 0.0);
+}
+
+// Device function: Case-A recombination coefficient (from thermochem.c)
+__device__ inline double alpha_A_gpu(double T) {
+    double logT = log(T / 1.1604505e4);
+    return exp(-28.6130338 - 0.72411256 * logT - 2.02604473e-2 * logT * logT -
+               2.38086188e-3 * logT * logT * logT - 3.21260521e-4 * pow(logT, 4) -
+               1.42150291e-5 * pow(logT, 5) + 4.98910892e-6 * pow(logT, 6) +
+               5.75561414e-7 * pow(logT, 7) - 1.85676704e-8 * pow(logT, 8) -
+               3.07113524e-9 * pow(logT, 9));
+}
+
+// Struct to pass all the per-snapshot constants to the Ts kernel
+struct TsKernelConstants {
+    double zp, dzp;
+    double xray_prefactor, volunit_inv, lya_star_prefactor, Nb_zp;
+    double Trad, Trad_inv, Ts_prefactor, xa_tilde_prefactor, xc_inverse;
+    double dcomp_dzp_prefactor, hubble_zp, N_zp;
+    double growth_zp, dgrowth_dzp, dt_dzp;
+    double growth_factor_zp, inverse_growth_factor_z;
+    double No, N_b0, H_FRAC, HE_FRAC;
+    double CLUMPING_FACTOR;
+    double A10, c_cms, lambda_21, k_B, h_p, T_21, m_p;
+    double MAX_TK;
+    bool use_x_ray_heating;
+    bool use_mini_halos;
+};
+
+__global__ void compute_spin_temperature_kernel(
+    TsKernelConstants c,
+    unsigned long long num_pixels,
+    // Input: accumulated spectral integration results
+    double *d_dxheat_dt_box,
+    double *d_dxion_source_dt_box,
+    double *d_dxlya_dt_box,
+    double *d_dstarlya_dt_box,
+    double *d_dstarlyLW_dt_box,
+    // Input: density and previous spin temp
+    float *d_density,
+    float *d_prev_spin_temperature,
+    float *d_prev_kinetic_temp,
+    float *d_prev_xray_ionised_fraction,
+    // Output
+    float *d_spin_temperature,
+    float *d_kinetic_temp,
+    float *d_xray_ionised_fraction,
+    float *d_J_21_LW
+) {
+    unsigned long long idx = (unsigned long long)blockIdx.x * blockDim.x + threadIdx.x;
+    if (idx >= num_pixels) return;
+
+    double curr_delta = (double)d_density[idx] * c.growth_factor_zp * c.inverse_growth_factor_z;
+    if (curr_delta <= -1.0) curr_delta = -1.0 + 1.0e-7;
+
+    // Apply prefactors to accumulated boxes
+    double dxheat_dt = 0.0;
+    if (c.use_x_ray_heating && d_dxheat_dt_box != NULL)
+        dxheat_dt = d_dxheat_dt_box[idx] * c.xray_prefactor * c.volunit_inv;
+
+    double dxion_dt = d_dxion_source_dt_box[idx] * c.xray_prefactor * c.volunit_inv;
+    double dxlya_dt = d_dxlya_dt_box[idx] * c.xray_prefactor * c.volunit_inv *
+                      c.Nb_zp * (1.0 + curr_delta);
+    double dstarlya_dt = d_dstarlya_dt_box[idx] * c.lya_star_prefactor * c.volunit_inv;
+
+    double prev_Ts = (double)d_prev_spin_temperature[idx];
+    double prev_Tk = (double)d_prev_kinetic_temp[idx];
+    double prev_xe = (double)d_prev_xray_ionised_fraction[idx];
+
+    // === get_Ts_fast logic ===
+
+    double tau21 = (3.0 * c.h_p * c.A10 * c.c_cms * c.lambda_21 * c.lambda_21 /
+                    32.0 / M_PI / c.k_B) *
+                   ((1.0 - prev_xe) * c.N_zp) / prev_Ts / c.hubble_zp;
+    double xCMB = (1.0 - exp(-tau21)) / tau21;
+
+    // Electron density sink
+    double dxion_sink_dt = alpha_A_gpu(prev_Tk) * c.CLUMPING_FACTOR * prev_xe * prev_xe *
+                           c.H_FRAC * c.Nb_zp * (1.0 + curr_delta);
+    double dxe_dzp = c.dt_dzp * (dxion_dt - dxion_sink_dt);
+
+    // Adiabatic
+    double dadia_dzp = 3.0 / (1.0 + c.zp);
+    if (fabs(curr_delta) > 1.0e-7)
+        dadia_dzp += c.dgrowth_dzp / (c.growth_zp * (1.0 / curr_delta + 1.0));
+    dadia_dzp *= (2.0 / 3.0) * prev_Tk;
+
+    // Species change
+    double dspec_dzp = -dxe_dzp * prev_Tk / (1.0 + prev_xe);
+
+    // Compton
+    double dcomp_dzp = c.dcomp_dzp_prefactor * (prev_xe / (1.0 + prev_xe + c.HE_FRAC)) *
+                       (c.Trad - prev_Tk);
+
+    // X-ray heating
+    double dxheat_dzp = 0.0;
+    if (c.use_x_ray_heating)
+        dxheat_dzp = dxheat_dt * c.dt_dzp * 2.0 / 3.0 / c.k_B / (1.0 + prev_xe);
+
+    // Update x_e and Tk
+    double x_e = prev_xe + dxe_dzp * c.dzp;
+    if (x_e > 1.0) x_e = 1.0 - 1.0e-7;
+    else if (x_e < 0.0) x_e = 0.0;
+
+    double Tk = prev_Tk;
+    if (Tk < c.MAX_TK)
+        Tk += (dxheat_dzp + dcomp_dzp + dspec_dzp + dadia_dzp) * c.dzp;
+    if (Tk < 0.0) Tk = c.Trad;
+
+    // Spin temperature
+    double T_inv = 1.0 / Tk;
+    double T_inv_sq = T_inv * T_inv;
+
+    double xc_fast = (1.0 + curr_delta) * c.xc_inverse *
+                     ((1.0 - x_e) * c.No * kappa_10_gpu(Tk) +
+                      x_e * c.N_b0 * kappa_10_elec_gpu(Tk) +
+                      x_e * c.No * kappa_10_pH_gpu(Tk));
+
+    double xi_power = c.Ts_prefactor * cbrt((1.0 + curr_delta) * (1.0 - x_e) * T_inv_sq);
+
+    double J_alpha_tot = dstarlya_dt + dxlya_dt;
+    double xa_tilde_fast_arg = c.xa_tilde_prefactor * J_alpha_tot *
+                               pow(1.0 + 2.98394 * xi_power + 1.53583 * xi_power * xi_power +
+                                       3.85289 * xi_power * xi_power * xi_power,
+                                   -1.0);
+
+    double TS_fast;
+    if (J_alpha_tot > 1.0e-20) {
+        // WF effect: iterative
+        TS_fast = c.Trad;
+        double TSold_fast = 0.0;
+        double xa_tilde_fast;
+        for (int iter = 0; iter < 100; iter++) {  // safety limit
+            TSold_fast = TS_fast;
+            xa_tilde_fast =
+                (1.0 - 0.0631789 * T_inv + 0.115995 * T_inv_sq -
+                 0.401403 * T_inv / TS_fast + 0.336463 * T_inv_sq / TS_fast) *
+                xa_tilde_fast_arg;
+            TS_fast = (xCMB + xa_tilde_fast + xc_fast) /
+                      (xCMB * c.Trad_inv +
+                       xa_tilde_fast * (T_inv + 0.405535 * T_inv / TS_fast -
+                                        0.405535 * T_inv_sq) +
+                       xc_fast * T_inv);
+            if (fabs(TS_fast - TSold_fast) / TS_fast <= 1.0e-3) break;
+        }
+    } else {
+        // Collisions only
+        TS_fast = (xCMB + xc_fast) / (xCMB * c.Trad_inv + xc_fast * T_inv);
+    }
+    TS_fast = fabs(TS_fast);
+
+    // Write outputs
+    d_spin_temperature[idx] = (float)TS_fast;
+    d_kinetic_temp[idx] = (float)Tk;
+    d_xray_ionised_fraction[idx] = (float)x_e;
+    if (c.use_mini_halos && d_J_21_LW != NULL && d_dstarlyLW_dt_box != NULL) {
+        double dstarLW_dt = d_dstarlyLW_dt_box[idx] * c.lya_star_prefactor *
+                            c.volunit_inv * c.h_p * 1e21;
+        d_J_21_LW[idx] = (float)dstarLW_dt;
+    }
+}
+
+// Launch the spin temperature kernel.
+// Expects accumulated dxdt arrays on host (will upload them).
+extern "C" void launch_spin_temperature_kernel(
+    unsigned long long num_pixels,
+    // Constants
+    float zp, float dzp,
+    double xray_prefactor, double volunit_inv, double lya_star_prefactor, double Nb_zp,
+    double Trad, double Trad_inv, double Ts_prefactor, double xa_tilde_prefactor,
+    double xc_inverse, double dcomp_dzp_prefactor, double hubble_zp, double N_zp,
+    double growth_zp, double dgrowth_dzp, double dt_dzp,
+    double growth_factor_zp, double inverse_growth_factor_z,
+    double No_val, double N_b0_val, double H_FRAC_val, double HE_FRAC_val,
+    double CLUMPING_FACTOR,
+    double A10, double c_cms, double lambda_21, double k_B, double h_p, double T_21, double m_p,
+    bool use_x_ray_heating, bool use_mini_halos,
+    // Host arrays: accumulated spectral integration
+    double *dxheat_dt_box, double *dxion_source_dt_box,
+    double *dxlya_dt_box, double *dstarlya_dt_box, double *dstarlyLW_dt_box,
+    // Host arrays: density and previous spin temp
+    float *density, float *prev_spin_temperature,
+    float *prev_kinetic_temp, float *prev_xray_ionised_fraction,
+    // Host arrays: output
+    float *spin_temperature, float *kinetic_temp,
+    float *xray_ionised_fraction, float *J_21_LW
+) {
+    size_t pix_d = num_pixels * sizeof(double);
+    size_t pix_f = num_pixels * sizeof(float);
+
+    // Upload inputs
+    double *d_dxheat = NULL, *d_dxion = NULL, *d_dxlya = NULL, *d_dstarlya = NULL;
+    double *d_dstarlyLW = NULL;
+    float *d_dens = NULL, *d_prev_Ts = NULL, *d_prev_Tk = NULL, *d_prev_xe = NULL;
+    float *d_out_Ts = NULL, *d_out_Tk = NULL, *d_out_xe = NULL, *d_out_LW = NULL;
+
+    if (use_x_ray_heating && dxheat_dt_box) {
+        CALL_CUDA(cudaMalloc(&d_dxheat, pix_d));
+        CALL_CUDA(cudaMemcpy(d_dxheat, dxheat_dt_box, pix_d, cudaMemcpyHostToDevice));
+    }
+    CALL_CUDA(cudaMalloc(&d_dxion, pix_d));
+    CALL_CUDA(cudaMemcpy(d_dxion, dxion_source_dt_box, pix_d, cudaMemcpyHostToDevice));
+    CALL_CUDA(cudaMalloc(&d_dxlya, pix_d));
+    CALL_CUDA(cudaMemcpy(d_dxlya, dxlya_dt_box, pix_d, cudaMemcpyHostToDevice));
+    CALL_CUDA(cudaMalloc(&d_dstarlya, pix_d));
+    CALL_CUDA(cudaMemcpy(d_dstarlya, dstarlya_dt_box, pix_d, cudaMemcpyHostToDevice));
+    if (use_mini_halos && dstarlyLW_dt_box) {
+        CALL_CUDA(cudaMalloc(&d_dstarlyLW, pix_d));
+        CALL_CUDA(cudaMemcpy(d_dstarlyLW, dstarlyLW_dt_box, pix_d, cudaMemcpyHostToDevice));
+    }
+
+    CALL_CUDA(cudaMalloc(&d_dens, pix_f));
+    CALL_CUDA(cudaMemcpy(d_dens, density, pix_f, cudaMemcpyHostToDevice));
+    CALL_CUDA(cudaMalloc(&d_prev_Ts, pix_f));
+    CALL_CUDA(cudaMemcpy(d_prev_Ts, prev_spin_temperature, pix_f, cudaMemcpyHostToDevice));
+    CALL_CUDA(cudaMalloc(&d_prev_Tk, pix_f));
+    CALL_CUDA(cudaMemcpy(d_prev_Tk, prev_kinetic_temp, pix_f, cudaMemcpyHostToDevice));
+    CALL_CUDA(cudaMalloc(&d_prev_xe, pix_f));
+    CALL_CUDA(cudaMemcpy(d_prev_xe, prev_xray_ionised_fraction, pix_f, cudaMemcpyHostToDevice));
+
+    // Allocate outputs
+    CALL_CUDA(cudaMalloc(&d_out_Ts, pix_f));
+    CALL_CUDA(cudaMalloc(&d_out_Tk, pix_f));
+    CALL_CUDA(cudaMalloc(&d_out_xe, pix_f));
+    if (use_mini_halos) {
+        CALL_CUDA(cudaMalloc(&d_out_LW, pix_f));
+    }
+
+    // Build constants struct
+    TsKernelConstants c;
+    c.zp = zp; c.dzp = dzp;
+    c.xray_prefactor = xray_prefactor; c.volunit_inv = volunit_inv;
+    c.lya_star_prefactor = lya_star_prefactor; c.Nb_zp = Nb_zp;
+    c.Trad = Trad; c.Trad_inv = Trad_inv;
+    c.Ts_prefactor = Ts_prefactor; c.xa_tilde_prefactor = xa_tilde_prefactor;
+    c.xc_inverse = xc_inverse; c.dcomp_dzp_prefactor = dcomp_dzp_prefactor;
+    c.hubble_zp = hubble_zp; c.N_zp = N_zp;
+    c.growth_zp = growth_zp; c.dgrowth_dzp = dgrowth_dzp; c.dt_dzp = dt_dzp;
+    c.growth_factor_zp = growth_factor_zp; c.inverse_growth_factor_z = inverse_growth_factor_z;
+    c.No = No_val; c.N_b0 = N_b0_val; c.H_FRAC = H_FRAC_val; c.HE_FRAC = HE_FRAC_val;
+    c.CLUMPING_FACTOR = CLUMPING_FACTOR;
+    c.A10 = A10; c.c_cms = c_cms; c.lambda_21 = lambda_21; c.k_B = k_B;
+    c.h_p = h_p; c.T_21 = T_21; c.m_p = m_p;
+    c.MAX_TK = 5e4;
+    c.use_x_ray_heating = use_x_ray_heating;
+    c.use_mini_halos = use_mini_halos;
+
+    unsigned int threads = 256;
+    unsigned int blocks = (unsigned int)((num_pixels + threads - 1) / threads);
+
+    compute_spin_temperature_kernel<<<blocks, threads>>>(
+        c, num_pixels,
+        d_dxheat, d_dxion, d_dxlya, d_dstarlya, d_dstarlyLW,
+        d_dens, d_prev_Ts, d_prev_Tk, d_prev_xe,
+        d_out_Ts, d_out_Tk, d_out_xe, d_out_LW
+    );
+    CALL_CUDA(cudaGetLastError());
+    CALL_CUDA(cudaDeviceSynchronize());
+
+    // Download results
+    CALL_CUDA(cudaMemcpy(spin_temperature, d_out_Ts, pix_f, cudaMemcpyDeviceToHost));
+    CALL_CUDA(cudaMemcpy(kinetic_temp, d_out_Tk, pix_f, cudaMemcpyDeviceToHost));
+    CALL_CUDA(cudaMemcpy(xray_ionised_fraction, d_out_xe, pix_f, cudaMemcpyDeviceToHost));
+    if (use_mini_halos && d_out_LW)
+        CALL_CUDA(cudaMemcpy(J_21_LW, d_out_LW, pix_f, cudaMemcpyDeviceToHost));
+
+    // Free device memory
+    if (d_dxheat) CALL_CUDA(cudaFree(d_dxheat));
+    CALL_CUDA(cudaFree(d_dxion));
+    CALL_CUDA(cudaFree(d_dxlya));
+    CALL_CUDA(cudaFree(d_dstarlya));
+    if (d_dstarlyLW) CALL_CUDA(cudaFree(d_dstarlyLW));
+    CALL_CUDA(cudaFree(d_dens));
+    CALL_CUDA(cudaFree(d_prev_Ts));
+    CALL_CUDA(cudaFree(d_prev_Tk));
+    CALL_CUDA(cudaFree(d_prev_xe));
+    CALL_CUDA(cudaFree(d_out_Ts));
+    CALL_CUDA(cudaFree(d_out_Tk));
+    CALL_CUDA(cudaFree(d_out_xe));
+    if (d_out_LW) CALL_CUDA(cudaFree(d_out_LW));
+
+    LOG_INFO("Spin temperature GPU kernel complete");
+}
+
+// ============================================================================
 // Phase 11.6a: Spectral integration GPU kernel
 // ============================================================================
 //
