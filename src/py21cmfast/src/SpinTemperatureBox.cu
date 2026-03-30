@@ -427,7 +427,7 @@ __global__ void compute_spin_temperature_kernel(
 
     // === get_Ts_fast logic ===
 
-    double tau21 = (3.0 * c.h_p_val * c.A10_val * c.c_cms_val * c.lambda_21_val * c.lambda_21 /
+    double tau21 = (3.0 * c.h_p_val * c.A10_val * c.c_cms_val * c.lambda_21_val * c.lambda_21_val /
                     32.0 / M_PI / c.k_B_val) *
                    ((1.0 - prev_xe) * c.N_zp) / prev_Ts / c.hubble_zp;
     double xCMB = (1.0 - exp(-tau21)) / tau21;
@@ -595,7 +595,7 @@ extern "C" void launch_spin_temperature_kernel(
     c.hubble_zp = hubble_zp; c.N_zp = N_zp;
     c.growth_zp = growth_zp; c.dgrowth_dzp = dgrowth_dzp; c.dt_dzp = dt_dzp;
     c.growth_factor_zp = growth_factor_zp; c.inverse_growth_factor_z = inverse_growth_factor_z;
-    c.No_val= No_val; c.N_b0 = N_b0_val; c.H_FRAC = H_FRAC_val; c.HE_FRAC = HE_FRAC_val;
+    c.No_val = No_val; c.N_b0_val = N_b0_val; c.H_FRAC_val = H_FRAC_val; c.HE_FRAC_val = HE_FRAC_val;
     c.CLUMPING_FACTOR_val = CLUMPING_FACTOR;
     c.A10_val = A10; c.c_cms_val = c_cms; c.lambda_21_val = lambda_21; c.k_B_val = k_B;
     c.h_p_val = h_p; c.T_21_val = T_21; c.m_p_val = m_p;
