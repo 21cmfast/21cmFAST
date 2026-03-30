@@ -377,9 +377,9 @@ struct TsKernelConstants {
     double dcomp_dzp_prefactor, hubble_zp, N_zp;
     double growth_zp, dgrowth_dzp, dt_dzp;
     double growth_factor_zp, inverse_growth_factor_z;
-    double No, N_b0, H_FRAC, HE_FRAC;
-    double CLUMPING_FACTOR;
-    double A10, c_cms, lambda_21, k_B, h_p, T_21, m_p;
+    double No_val, N_b0_val, H_FRAC_val, HE_FRAC_val;
+    double CLUMPING_FACTOR_val;
+    double A10_val, c_cms_val, lambda_21_val, k_B_val, h_p_val, T_21_val, m_p_val;
     double MAX_TK;
     bool use_x_ray_heating;
     bool use_mini_halos;
@@ -427,14 +427,14 @@ __global__ void compute_spin_temperature_kernel(
 
     // === get_Ts_fast logic ===
 
-    double tau21 = (3.0 * c.h_p * c.A10 * c.c_cms * c.lambda_21 * c.lambda_21 /
-                    32.0 / M_PI / c.k_B) *
+    double tau21 = (3.0 * c.h_p_val * c.A10_val * c.c_cms_val * c.lambda_21_val * c.lambda_21 /
+                    32.0 / M_PI / c.k_B_val) *
                    ((1.0 - prev_xe) * c.N_zp) / prev_Ts / c.hubble_zp;
     double xCMB = (1.0 - exp(-tau21)) / tau21;
 
     // Electron density sink
-    double dxion_sink_dt = alpha_A_gpu(prev_Tk) * c.CLUMPING_FACTOR * prev_xe * prev_xe *
-                           c.H_FRAC * c.Nb_zp * (1.0 + curr_delta);
+    double dxion_sink_dt = alpha_A_gpu(prev_Tk) * c.CLUMPING_FACTOR_val * prev_xe * prev_xe *
+                           c.H_FRAC_val * c.Nb_zp * (1.0 + curr_delta);
     double dxe_dzp = c.dt_dzp * (dxion_dt - dxion_sink_dt);
 
     // Adiabatic
@@ -447,13 +447,13 @@ __global__ void compute_spin_temperature_kernel(
     double dspec_dzp = -dxe_dzp * prev_Tk / (1.0 + prev_xe);
 
     // Compton
-    double dcomp_dzp = c.dcomp_dzp_prefactor * (prev_xe / (1.0 + prev_xe + c.HE_FRAC)) *
+    double dcomp_dzp = c.dcomp_dzp_prefactor * (prev_xe / (1.0 + prev_xe + c.HE_FRAC_val)) *
                        (c.Trad - prev_Tk);
 
     // X-ray heating
     double dxheat_dzp = 0.0;
     if (c.use_x_ray_heating)
-        dxheat_dzp = dxheat_dt * c.dt_dzp * 2.0 / 3.0 / c.k_B / (1.0 + prev_xe);
+        dxheat_dzp = dxheat_dt * c.dt_dzp * 2.0 / 3.0 / c.k_B_val / (1.0 + prev_xe);
 
     // Update x_e and Tk
     double x_e = prev_xe + dxe_dzp * c.dzp;
@@ -470,9 +470,9 @@ __global__ void compute_spin_temperature_kernel(
     double T_inv_sq = T_inv * T_inv;
 
     double xc_fast = (1.0 + curr_delta) * c.xc_inverse *
-                     ((1.0 - x_e) * c.No * kappa_10_gpu(Tk) +
-                      x_e * c.N_b0 * kappa_10_elec_gpu(Tk) +
-                      x_e * c.No * kappa_10_pH_gpu(Tk));
+                     ((1.0 - x_e) * c.No_val * kappa_10_gpu(Tk) +
+                      x_e * c.N_b0_val * kappa_10_elec_gpu(Tk) +
+                      x_e * c.No_val * kappa_10_pH_gpu(Tk));
 
     double xi_power = c.Ts_prefactor * cbrt((1.0 + curr_delta) * (1.0 - x_e) * T_inv_sq);
 
@@ -513,7 +513,7 @@ __global__ void compute_spin_temperature_kernel(
     d_xray_ionised_fraction[idx] = (float)x_e;
     if (c.use_mini_halos && d_J_21_LW != NULL && d_dstarlyLW_dt_box != NULL) {
         double dstarLW_dt = d_dstarlyLW_dt_box[idx] * c.lya_star_prefactor *
-                            c.volunit_inv * c.h_p * 1e21;
+                            c.volunit_inv * c.h_p_val * 1e21;
         d_J_21_LW[idx] = (float)dstarLW_dt;
     }
 }
@@ -595,10 +595,10 @@ extern "C" void launch_spin_temperature_kernel(
     c.hubble_zp = hubble_zp; c.N_zp = N_zp;
     c.growth_zp = growth_zp; c.dgrowth_dzp = dgrowth_dzp; c.dt_dzp = dt_dzp;
     c.growth_factor_zp = growth_factor_zp; c.inverse_growth_factor_z = inverse_growth_factor_z;
-    c.No = No_val; c.N_b0 = N_b0_val; c.H_FRAC = H_FRAC_val; c.HE_FRAC = HE_FRAC_val;
-    c.CLUMPING_FACTOR = CLUMPING_FACTOR;
-    c.A10 = A10; c.c_cms = c_cms; c.lambda_21 = lambda_21; c.k_B = k_B;
-    c.h_p = h_p; c.T_21 = T_21; c.m_p = m_p;
+    c.No_val= No_val; c.N_b0 = N_b0_val; c.H_FRAC = H_FRAC_val; c.HE_FRAC = HE_FRAC_val;
+    c.CLUMPING_FACTOR_val = CLUMPING_FACTOR;
+    c.A10_val = A10; c.c_cms_val = c_cms; c.lambda_21_val = lambda_21; c.k_B_val = k_B;
+    c.h_p_val = h_p; c.T_21_val = T_21; c.m_p_val = m_p;
     c.MAX_TK = 5e4;
     c.use_x_ray_heating = use_x_ray_heating;
     c.use_mini_halos = use_mini_halos;
