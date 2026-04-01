@@ -322,8 +322,7 @@ void move_grid_galprops(double redshift, float *dens_pointer, int dens_dim[3],
                     }
 
                     if (config_settings.EXTRA_HALOBOX_FIELDS) {
-                        do_cic_interpolation(boxes->count, pos, out_dim,
-                                             properties.count);
+                        do_cic_interpolation(boxes->count, pos, out_dim, properties.count);
                         do_cic_interpolation(boxes->halo_mass, pos, out_dim,
                                              properties.halo_mass * prefactor_mass);
                         do_cic_interpolation(boxes->halo_stars, pos, out_dim,

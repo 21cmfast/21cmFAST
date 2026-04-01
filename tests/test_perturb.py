@@ -241,5 +241,7 @@ class TestPerturb:
                 inputs=inputs_low,
             )
         count = hbox.get("count")
-        assert count is not None, "count field should be populated when EXTRA_HALOBOX_FIELDS=True"
+        assert count is not None, (
+            "count field should be populated when EXTRA_HALOBOX_FIELDS=True"
+        )
         assert np.any(count > 0), "count field should be non-zero"
