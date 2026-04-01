@@ -228,3 +228,18 @@ class TestPerturb:
         np.testing.assert_allclose(hbox.get("halo_sfr"), integral_sfrd, rtol=rtol)
         np.testing.assert_allclose(hbox.get("n_ion"), integral_nion, rtol=rtol)
         np.testing.assert_allclose(hbox.get("halo_xray"), integral_xray, rtol=rtol)
+
+    def test_hb_count_nonzero(self, inputs_low, test_pt_z):
+        """Tests that the HaloBox count field is non-zero with EXTRA_HALOBOX_FIELDS=True."""
+        from py21cmfast import config
+
+        ics = self.get_fake_ics(inputs_low, test_pt_z)
+        with config.use(EXTRA_HALOBOX_FIELDS=True):
+            hbox = compute_halo_grid(
+                redshift=test_pt_z,
+                initial_conditions=ics,
+                inputs=inputs_low,
+            )
+        count = hbox.get("count")
+        assert count is not None, "count field should be populated when EXTRA_HALOBOX_FIELDS=True"
+        assert np.any(count > 0), "count field should be non-zero"
