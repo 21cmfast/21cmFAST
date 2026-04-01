@@ -322,7 +322,8 @@ class AngularLightcone(LightCone):
         raise AttributeError("This is not an attribute of an AngularLightcone")
 
 
-def _check_desired_arrays_exist(desired_arrays: list[str], inputs: InputParameters):
+def _get_all_possible_arrays(inputs: InputParameters) -> list[str]:
+
     possible_outputs = [
         InitialConditions.new(inputs),
         PerturbedField.new(inputs, redshift=0),
@@ -331,20 +332,22 @@ def _check_desired_arrays_exist(desired_arrays: list[str], inputs: InputParamete
         IonizedBox.new(inputs, redshift=0),
         BrightnessTemp.new(inputs, redshift=0),
     ]
-    for name in desired_arrays:
-        exists = False
-        for output in possible_outputs:
-            if name in output.arrays or name in [
-                "log10_mturn_acg",
-                "log10_mturn_mcg",
-                "los_velocity",
-            ]:
-                exists = True
-                break
-        if not exists:
-            raise ValueError(
-                f"You asked for {name} but it is not computed for the inputs: {inputs}"
-            )
+    return [name for output in possible_outputs for name in output.arrays]
+
+
+def _check_desired_arrays_exist(desired_arrays: list[str], inputs: InputParameters):
+    possible_arrays = _get_all_possible_arrays(inputs)
+    unknown = [
+        name
+        for name in desired_arrays
+        if name
+        not in [*possible_arrays, "log10_mturn_acg", "log10_mturn_mcg", "los_velocity"]
+    ]
+
+    raise ValueError(
+        f"The following arrays: {unknown} were asked for but are not computed for the "
+        f"inputs: {inputs}.\nThe possible arrays that can be output for these inputs are: {possible_arrays}"
+    )
 
 
 def setup_lightcone_instance(

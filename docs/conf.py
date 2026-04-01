@@ -1,8 +1,6 @@
 """Configuration options for the docs."""
 
 import os
-from sphinx.ext.autodoc import Documenter
-from inspect import signature
 
 # import sys
 # from pathlib import Path
@@ -39,22 +37,22 @@ autosectionlabel_prefix_document = True
 # autodoc_use_legacy_class_based = True
 
 # Auto-API settings
-autoapi_options=[ 
-    'members', 
-    'undoc-members', 
-    'show-inheritance', 
-    'show-module-summary', 
-    'special-members', 
-    'imported-members',
-    'inherited-members',
+autoapi_options=[
+    "members",
+    "undoc-members",
+    "show-inheritance",
+    "show-module-summary",
+    "special-members",
+    "imported-members",
+    "inherited-members",
 ]
-autoapi_dirs = ['../src/py21cmfast']
+autoapi_dirs = ["../src/py21cmfast"]
 autoapi_add_toctree_entry = False  # We add it ourselves in index.rst
-autoapi_python_class_content = 'init'
-autoapi_member_order = 'groupwise'
-autoapi_own_page_level = 'class'
+autoapi_python_class_content = "init"
+autoapi_member_order = "groupwise"
+autoapi_own_page_level = "class"
 autoapi_keep_files = True
-autodoc_typehints = 'description'
+autodoc_typehints = "description"
 
 autosummary_generate = False
 numpydoc_show_class_members = False
@@ -77,13 +75,13 @@ extlinks = {
 # on_rtd = os.environ.get("READTHEDOCS", None) == "True"
 
 html_theme = "furo"
-html_style = 'css/custom.css'
+html_style = "css/custom.css"
 html_logo = "images/Logo_square_transparent.png"
 
 # These folders are copied to the documentation's HTML output
-html_static_path = ['_static']
+html_static_path = ["_static"]
 html_css_files = [
-    'css/custom.css',
+    "css/custom.css",
 ]
 
 html_theme_options = {
