@@ -344,10 +344,11 @@ def _check_desired_arrays_exist(desired_arrays: list[str], inputs: InputParamete
         not in [*possible_arrays, "log10_mturn_acg", "log10_mturn_mcg", "los_velocity"]
     ]
 
-    raise ValueError(
-        f"The following arrays: {unknown} were asked for but are not computed for the "
-        f"inputs: {inputs}.\nThe possible arrays that can be output for these inputs are: {possible_arrays}"
-    )
+    if unknown:
+        raise ValueError(
+            f"The following arrays: {unknown} were asked for but are not computed for the "
+            f"inputs: {inputs}.\nThe possible arrays that can be output for these inputs are: {possible_arrays}"
+        )
 
 
 def setup_lightcone_instance(
