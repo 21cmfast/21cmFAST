@@ -143,7 +143,8 @@ int get_uhmf_averages(double M_min, double M_max, double M_turn_a, double M_turn
         integral_xray = Xray_General(consts->redshift, lnMmin, lnMmax, M_turn_a, M_turn_m, consts);
     }
 
-    averages_out->count = Nhalo_General(consts->redshift, lnMmin, lnMmax);
+    averages_out->count = Nhalo_General(consts->redshift, lnMmin, lnMmax) * prefactor_mass *
+                          VOLUME / HII_TOT_NUM_PIXELS;
     averages_out->halo_mass = mass_intgrl * prefactor_mass;
     averages_out->stellar_mass = intgrl_stars_only * prefactor_stars;
     averages_out->halo_sfr = intgrl_stars_only * prefactor_sfr;
@@ -282,7 +283,8 @@ void get_cell_integrals(double dens, double l10_mturn_a, double l10_mturn_m,
 
     if (config_settings.EXTRA_HALOBOX_FIELDS) {
         properties->count =
-            EvaluateNhalo(dens, growth_z, log(M_min), log(M_max), M_cell, sigma_cell, dens);
+            EvaluateNhalo(dens, growth_z, log(M_min), log(M_max), M_cell, sigma_cell, dens) *
+            M_cell;
         properties->halo_mass =
             EvaluateMcoll(dens, growth_z, log(M_min), log(M_max), M_cell, sigma_cell, dens);
     }
