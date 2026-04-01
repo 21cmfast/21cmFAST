@@ -143,6 +143,8 @@ int get_uhmf_averages(double M_min, double M_max, double M_turn_a, double M_turn
         integral_xray = Xray_General(consts->redshift, lnMmin, lnMmax, M_turn_a, M_turn_m, consts);
     }
 
+    averages_out->count = Nhalo_General(consts->redshift, lnMmin, lnMmax) * prefactor_mass *
+                          VOLUME / HII_TOT_NUM_PIXELS;
     averages_out->halo_mass = mass_intgrl * prefactor_mass;
     averages_out->stellar_mass = intgrl_stars_only * prefactor_stars;
     averages_out->halo_sfr = intgrl_stars_only * prefactor_sfr;
@@ -159,7 +161,7 @@ int get_uhmf_averages(double M_min, double M_max, double M_turn_a, double M_turn
     return 0;
 }
 HaloProperties get_halobox_averages(HaloBox *grids) {
-    int mean_count = 0;
+    double mean_count = 0.;
     double mean_mass = 0., mean_stars = 0., mean_stars_mini = 0., mean_sfr = 0., mean_sfr_mini = 0.;
     double mean_n_ion = 0., mean_xray = 0., mean_wsfr = 0.;
 
@@ -185,7 +187,7 @@ HaloProperties get_halobox_averages(HaloBox *grids) {
     }
 
     HaloProperties averages = {
-        .count = (double)mean_count / HII_TOT_NUM_PIXELS,
+        .count = mean_count / HII_TOT_NUM_PIXELS,
         .halo_mass = mean_mass / HII_TOT_NUM_PIXELS,
         .stellar_mass = mean_stars / HII_TOT_NUM_PIXELS,
         .stellar_mass_mini = mean_stars_mini / HII_TOT_NUM_PIXELS,
@@ -227,6 +229,7 @@ void mean_fix_grids(double M_min, double M_max, HaloBox *grids, ScalingConstants
         }
 
         if (config_settings.EXTRA_HALOBOX_FIELDS) {
+            grids->count[idx] *= averages_global.count / averages_hbox.count;
             grids->halo_mass[idx] *= averages_global.halo_mass / averages_hbox.halo_mass;
             grids->halo_stars[idx] *= averages_global.stellar_mass / averages_hbox.stellar_mass;
             if (astro_options_global->USE_MINI_HALOS) {
@@ -279,6 +282,9 @@ void get_cell_integrals(double dens, double l10_mturn_a, double l10_mturn_m,
     }
 
     if (config_settings.EXTRA_HALOBOX_FIELDS) {
+        properties->count =
+            EvaluateNhalo(dens, growth_z, log(M_min), log(M_max), M_cell, sigma_cell, dens) *
+            M_cell;
         properties->halo_mass =
             EvaluateMcoll(dens, growth_z, log(M_min), log(M_max), M_cell, sigma_cell, dens);
     }
@@ -587,7 +593,7 @@ int ComputeHaloBox(double redshift, InitialConditions *ini_boxes, HaloCatalog *h
             if (config_settings.EXTRA_HALOBOX_FIELDS) {
                 grids->halo_mass[idx] = 0.0;
                 grids->halo_stars[idx] = 0.0;
-                grids->count[idx] = 0;
+                grids->count[idx] = 0.0;
                 if (astro_options_global->USE_MINI_HALOS) {
                     grids->halo_stars_mini[idx] = 0.0;
                 }

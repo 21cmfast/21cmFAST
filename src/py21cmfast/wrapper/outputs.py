@@ -1042,7 +1042,7 @@ class HaloBox(OutputStructZ):
             out["halo_xray"] = Array(shape, dtype=np.float32)
 
         if config["EXTRA_HALOBOX_FIELDS"]:
-            out["count"] = Array(shape, dtype=np.int32)
+            out["count"] = Array(shape, dtype=np.float32)
             out["halo_mass"] = Array(shape, dtype=np.float32)
             out["halo_stars"] = Array(shape, dtype=np.float32)
             if inputs.astro_options.USE_MINI_HALOS:
