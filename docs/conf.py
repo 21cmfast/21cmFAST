@@ -1,8 +1,6 @@
 """Configuration options for the docs."""
 
 import os
-from sphinx.ext.autodoc import Documenter
-from inspect import signature
 
 # import sys
 # from pathlib import Path
@@ -10,46 +8,6 @@ from inspect import signature
 # Import the package because if the import breaks, this gives a nice
 # stack trace, whereas if it breaks inside the autodoc step, it's harder to debug.
 import py21cmfast
-
-class ClassDecoratedDocumenter(Documenter):
-    """Document task definitions."""
-
-    objtype = 'func'
-    member_order = 11
-    priority = 60000  # run before FunctionDocumenter
-
-    
-    @classmethod
-    def can_document_member(cls, member, membername, isattr, parent):
-        raise ValueError(">>>>>>>>>>>>>>>>>>>>>>>><<<<<<<<<<<<<<<<<<<<<<<<<<<< HEY HEY !!!")
-        
-        return getattr(member, '__wrapped__')
-
-        
-    def format_args(self):
-        wrapped = getattr(self.object, '__wrapped__', None)
-        if wrapped is not None:
-            sig = signature(wrapped)
-            if "self" in sig.parameters or "cls" in sig.parameters:
-                sig = sig.replace(parameters=list(sig.parameters.values())[1:])
-            return str(sig)
-        return ''
-    
-    def document_members(self, all_members=False):
-        pass
-        
-    def check_module(self):
-        # Normally checks if *self.object* is really defined in the module
-        # given by *self.modname*. But since functions decorated with the @task
-        # decorator are instances living in the celery.local, we have to check
-        # the wrapped function instead.
-        raise ValueError(">>>>>>>>>>>>>>>>>>>>>>>><<<<<<<<<<<<<<<<<<<<<<<<<<<< HEY HEY !!!")
-        print(">>>>>>>>>>>>>>>>>>>>>>>><<<<<<<<<<<<<<<<<<<<<<<<<<<< HEY HEY !!!")
-        wrapped = getattr(self.object, '__wrapped__', None)
-        if wrapped and getattr(wrapped, '__module__') == self.modname:
-            return True
-        return super().check_module()
-
 
 extensions = [
     "sphinx.ext.autodoc.typehints",
@@ -88,11 +46,11 @@ autoapi_options=[
     'imported-members',
     'inherited-members',
 ]
-autoapi_dirs = ['../src/py21cmfast']
+autoapi_dirs = ["../src/py21cmfast"]
 autoapi_add_toctree_entry = False  # We add it ourselves in index.rst
-autoapi_python_class_content = 'init'
-autoapi_member_order = 'groupwise'
-autoapi_own_page_level = 'class'
+autoapi_python_class_content = "init"
+autoapi_member_order = "groupwise"
+autoapi_own_page_level = "class"
 autoapi_keep_files = True
 autodoc_typehints = 'both'
 autoapi_template_dir = 'templates/autoapi'
@@ -118,13 +76,13 @@ extlinks = {
 # on_rtd = os.environ.get("READTHEDOCS", None) == "True"
 
 html_theme = "furo"
-html_style = 'css/custom.css'
+html_style = "css/custom.css"
 html_logo = "images/Logo_square_transparent.png"
 
 # These folders are copied to the documentation's HTML output
-html_static_path = ['_static']
+html_static_path = ["_static"]
 html_css_files = [
-    'css/custom.css',
+    "css/custom.css",
 ]
 
 html_theme_options = {
