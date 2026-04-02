@@ -109,6 +109,9 @@
   description: Changes predominantly concerning the python wrapper
   color: "#1d76db"
 
+- name: "effort: low"
+  description: Issues that will require less than a day of coding to implement
+  color: "BFD4F2"
 - name: "effort: high"
   description: Issues that will probably require >1 full day of coding to implement
   color: "B60205"
