@@ -1206,6 +1206,8 @@ struct Ts_cell get_Ts_fast(float zp, float dzp, struct spintemp_from_sfr_prefact
     tau21 = (3 * physconst.h_p * physconst.A10 * physconst.c_cms * physconst.lambda_21 *
              physconst.lambda_21 / 32. / M_PI / physconst.k_B) *
             ((1 - rad->prev_xe) * consts->N_zp) / rad->prev_Ts / consts->hubble_zp;
+    // Clip tau21 to avoid division by zero; lim(tau->0) (1-exp(-tau))/tau = 1
+    tau21 = fmax(tau21, 1e-8);
     xCMB = (1. - exp(-tau21)) / tau21;
 
     // Electron density
