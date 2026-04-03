@@ -304,6 +304,13 @@ def template_create(
     param_selection: ParameterSelection = ParameterSelection(),
     user_params: Parameters = Parameters(),
     mode: TOMLMode = "full",
+    zmin: Annotated[float | None, Parameter(name="--zmin")] = None,
+    zmax: Annotated[float | None, Parameter(name="--zmax")] = None,
+    zstep: Annotated[float | None, Parameter(name="--zstep")] = None,
+    nz: Annotated[int | None, Parameter(name="--nz")] = None,
+    zscroll_func: Annotated[
+        Literal["logspace", "linear"], Parameter(name="--zscroll-func")
+    ] = "logspace",
 ):
     """Create a new full simulation parameter template.
 
@@ -311,8 +318,30 @@ def template_create(
     To create it, use a base template (either via --param-file or --template) and
     optionally override any particular simulation parameters. To see the available
     simulation parameters and how to specify them, use `21cmfast run params --help`.
+
+    Node redshifts can be embedded in the template by providing one or more of
+    ``--zmin``, ``--zmax``, ``--zstep``, or ``--nz``.  The spacing function is
+    controlled by ``--zscroll-func`` (``logspace`` or ``linear``).
     """
     inputs, _ = _get_inputs(param_selection, user_params)
+
+    if zmin is not None or zmax is not None or zstep is not None or nz is not None:
+        _zmin = zmin if zmin is not None else 5.5
+        if zscroll_func == "logspace":
+            inputs = inputs.with_logspaced_redshifts(
+                zmin=_zmin,
+                zmax=zmax,
+                zstep_factor=zstep if nz is None else None,
+                nz=nz,
+            )
+        else:
+            inputs = inputs.with_linear_redshifts(
+                zmin=_zmin,
+                zmax=zmax,
+                zstep=zstep if nz is None else None,
+                nz=nz,
+            )
+
     if not out.parent.exists():
         out.parent.mkdir(exist_ok=True, parents=True)
 

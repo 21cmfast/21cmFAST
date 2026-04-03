@@ -42,7 +42,11 @@ class TestTemplateCreate:
         p1 = create_params_from_template(tmp_path / "simple.toml")
         p2 = create_params_from_template("simple")
 
-        assert all(v == p2[k] for k, v in p1.items())
+        # A full TOML may include extra top-level keys (random_seed, node_redshifts)
+        # that are not present in the minimal built-in template. Compare only the
+        # struct params that are common to both.
+        struct_keys = [k for k in p1 if k in p2]
+        assert all(p1[k] == p2[k] for k in struct_keys)
 
     def test_create_with_explicit_params(self, tmp_path: Path):
         """Test that overriding params does change the inputs."""
@@ -83,6 +87,77 @@ class TestTemplateCreate:
         out = tmp_path / "parent" / "config.toml"
         app_noexit(f"template create --template simple --out {out}")
         assert out.exists()
+
+    def test_node_redshifts_logspace_zstep(self, tmp_path: Path):
+        """Test that --zmin/--zmax/--zstep embed logspaced node_redshifts."""
+        out = tmp_path / "logspace.toml"
+        app_noexit(
+            f"template create --template simple --out {out} "
+            "--zmin 5.0 --zmax 20.0 --zstep 1.05"
+        )
+        assert out.exists()
+
+        p = create_params_from_template(out)
+        nz = p["node_redshifts"]
+        assert nz is not None and len(nz) > 0
+        assert min(nz) == pytest.approx(5.0, rel=1e-4)
+        assert max(nz) >= 20.0
+
+    def test_node_redshifts_logspace_nz(self, tmp_path: Path):
+        """Test that --nz overrides --zstep for logspaced node_redshifts."""
+        out = tmp_path / "logspace_nz.toml"
+        app_noexit(
+            f"template create --template simple --out {out} "
+            "--zmin 5.0 --zmax 20.0 --nz 10"
+        )
+        assert out.exists()
+
+        p = create_params_from_template(out)
+        nz = p["node_redshifts"]
+        assert nz is not None and len(nz) == 10
+        assert min(nz) == pytest.approx(5.0, rel=1e-4)
+        assert max(nz) == pytest.approx(20.0, rel=1e-4)
+
+    def test_node_redshifts_linear_zstep(self, tmp_path: Path):
+        """Test that --zscroll-func linear with --zstep produces linear node_redshifts."""
+        out = tmp_path / "linear.toml"
+        app_noexit(
+            f"template create --template simple --out {out} "
+            "--zmin 5.0 --zmax 20.0 --zstep 1.5 --zscroll-func linear"
+        )
+        assert out.exists()
+
+        p = create_params_from_template(out)
+        nz = p["node_redshifts"]
+        assert nz is not None and len(nz) > 0
+        assert min(nz) == pytest.approx(5.0, rel=1e-4)
+        # Spacing should be roughly linear (constant differences)
+        diffs = [nz[i] - nz[i + 1] for i in range(len(nz) - 1)]
+        assert all(abs(d - diffs[0]) < 1e-8 for d in diffs)
+
+    def test_node_redshifts_linear_nz(self, tmp_path: Path):
+        """Test that --nz with --zscroll-func linear produces exactly nz nodes."""
+        out = tmp_path / "linear_nz.toml"
+        app_noexit(
+            f"template create --template simple --out {out} "
+            "--zmin 5.0 --zmax 20.0 --nz 8 --zscroll-func linear"
+        )
+        assert out.exists()
+
+        p = create_params_from_template(out)
+        nz = p["node_redshifts"]
+        assert nz is not None and len(nz) == 8
+        assert min(nz) == pytest.approx(5.0, rel=1e-4)
+        assert max(nz) == pytest.approx(20.0, rel=1e-4)
+
+    def test_no_node_redshifts_without_z_args(self, tmp_path: Path):
+        """Test that without z-related args, node_redshifts remain as template default."""
+        out = tmp_path / "no_nz.toml"
+        app_noexit(f"template create --template simple --out {out}")
+
+        p = create_params_from_template(out)
+        # simple template has no evolution, so default node_redshifts should be empty
+        assert not p.get("node_redshifts")
 
 
 class TestTemplateShow:

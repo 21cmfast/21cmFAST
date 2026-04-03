@@ -88,6 +88,50 @@ descriptions, you can run::
 
 Note that if you *don't* specify a ``--template`` then you will just get all defaults.
 
+Embedding Node Redshifts in a Template
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+The ``template create`` command can also embed ``node_redshifts`` directly into the
+template file, making it fully self-contained (including the redshift grid). This is
+particularly useful when you want to share or re-use a template without having to
+remember which redshift grid was used.
+
+To embed node redshifts, supply one or more of the following options:
+
+* ``--zmin``: minimum redshift of the grid (default: 5.5).
+* ``--zmax``: maximum redshift of the grid (default: ``Z_HEAT_MAX`` from the model,
+  typically 35.0).
+* ``--zstep``: step parameter. For ``logspace`` this is the multiplicative step factor
+  between consecutive ``(1 + z)`` values (default: ``ZPRIME_STEP_FACTOR`` from the
+  model, typically 1.02). For ``linear`` this is the additive step size.
+* ``--nz``: number of redshifts in the grid. When given, it overrides ``--zstep``.
+* ``--zscroll-func``: the spacing function used to generate the grid, either
+  ``logspace`` (default, calls
+  :meth:`~py21cmfast.wrapper.inputs.InputParameters.with_logspaced_redshifts`) or
+  ``linear`` (calls
+  :meth:`~py21cmfast.wrapper.inputs.InputParameters.with_linear_redshifts`).
+
+For example, to produce a template with a logarithmically-spaced redshift grid from
+z=5 to z=35 with a step factor of 1.01::
+
+    $ 21cmfast template create --template simple --out my-simple.toml \
+        --zmin 5.0 --zmax 35.0 --zstep 1.01
+
+Or to request exactly 30 log-spaced nodes between z=5 and z=30::
+
+    $ 21cmfast template create --template simple --out my-simple.toml \
+        --zmin 5.0 --zmax 30.0 --nz 30
+
+To use a linearly-spaced grid instead::
+
+    $ 21cmfast template create --template simple --out my-simple.toml \
+        --zmin 5.0 --zmax 35.0 --zstep 1.5 --zscroll-func linear
+
+Or with a fixed number of linearly-spaced nodes::
+
+    $ 21cmfast template create --template simple --out my-simple.toml \
+        --zmin 5.0 --zmax 35.0 --nz 30 --zscroll-func linear
+
 Specifying Parameters for Simulations
 -------------------------------------
 

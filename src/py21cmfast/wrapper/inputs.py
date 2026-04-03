@@ -1902,21 +1902,83 @@ class InputParameters:
         zmin: float = 5.5,
         zmax: float | None = None,
         zstep_factor: float | None = None,
+        nz: int | None = None,
     ) -> Self:
-        """Create a new InputParameters instance with logspaced redshifts."""
+        """Create a new InputParameters instance with logspaced redshifts.
+
+        Parameters
+        ----------
+        zmin
+            Minimum redshift of the node grid.
+        zmax
+            Maximum redshift of the node grid. Defaults to ``Z_HEAT_MAX`` from
+            :class:`SimulationOptions`.
+        zstep_factor
+            Multiplicative step factor between consecutive ``(1 + z)`` values.
+            Defaults to ``ZPRIME_STEP_FACTOR`` from :class:`SimulationOptions`.
+            Ignored when ``nz`` is provided.
+        nz
+            If given, produce exactly ``nz`` redshifts equally spaced in
+            ``log(1 + z)`` between ``zmin`` and ``zmax``, overriding
+            ``zstep_factor``.
+        """
         if zmax is None:
             zmax = self.simulation_options.Z_HEAT_MAX
 
-        if zstep_factor is None:
-            zstep_factor = self.simulation_options.ZPRIME_STEP_FACTOR
+        if nz is not None:
+            node_redshifts = tuple(
+                (np.geomspace(1 + zmin, 1 + zmax, nz) - 1).tolist()
+            )
+        else:
+            if zstep_factor is None:
+                zstep_factor = self.simulation_options.ZPRIME_STEP_FACTOR
 
-        return self.clone(
-            node_redshifts=get_logspaced_redshifts(
+            node_redshifts = get_logspaced_redshifts(
                 min_redshift=zmin,
                 z_step_factor=zstep_factor,
                 max_redshift=zmax,
             )
-        )
+
+        return self.clone(node_redshifts=node_redshifts)
+
+    def with_linear_redshifts(
+        self,
+        zmin: float = 5.5,
+        zmax: float | None = None,
+        zstep: float | None = None,
+        nz: int | None = None,
+    ) -> Self:
+        """Create a new InputParameters instance with linearly-spaced redshifts.
+
+        Parameters
+        ----------
+        zmin
+            Minimum redshift of the node grid.
+        zmax
+            Maximum redshift of the node grid. Defaults to ``Z_HEAT_MAX`` from
+            :class:`SimulationOptions`.
+        zstep
+            Linear step size between consecutive redshifts. The grid will
+            include ``zmin`` and extend up to at least ``zmax``. Ignored when
+            ``nz`` is provided.
+        nz
+            If given, produce exactly ``nz`` redshifts linearly spaced between
+            ``zmin`` and ``zmax``, overriding ``zstep``.
+        """
+        if zmax is None:
+            zmax = self.simulation_options.Z_HEAT_MAX
+
+        if nz is not None:
+            node_redshifts = tuple(np.linspace(zmin, zmax, nz).tolist())
+        elif zstep is not None:
+            # Use half-step tolerance so that zmax is always included in the grid.
+            node_redshifts = tuple(
+                np.arange(zmin, zmax + zstep * 0.5, zstep).tolist()
+            )
+        else:
+            raise ValueError("Either `nz` or `zstep` must be provided.")
+
+        return self.clone(node_redshifts=node_redshifts)
 
     def asdict(
         self,
