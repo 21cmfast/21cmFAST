@@ -322,7 +322,7 @@ def produce_coeval_power_spectra(redshift: float, cache: OutputCache, **kwargs):
                 getattr(coeval, field),
                 boxlength=coeval.simulation_options.BOX_LEN,
                 bins_upto_boxlen=True,
-            )
+            )[:2]
 
     return k, p, coeval
 
@@ -375,7 +375,7 @@ def produce_lc_power_spectra(redshift: float, cache: OutputCache, **kwargs):
                 lightcone.lightcones[field],
                 boxlength=lightcone.lightcone_dimensions,
                 bins_upto_boxlen=True,
-            )
+            )[:2]
 
     return k, p, lightcone
 
@@ -393,12 +393,12 @@ def produce_perturb_field_data(redshift, **kwargs):
         pt_box.get("density"),
         boxlength=options["inputs"].simulation_options.BOX_LEN,
         bins_upto_boxlen=True,
-    )
+    )[:2]
     p_vel, k_vel = get_power(
         pt_box.get("velocity_z") * velocity_normalisation,
         boxlength=options["inputs"].simulation_options.BOX_LEN,
         bins_upto_boxlen=True,
-    )
+    )[:2]
 
     def hist(kind, xmin, xmax, nbins):
         data = pt_box.get(kind)

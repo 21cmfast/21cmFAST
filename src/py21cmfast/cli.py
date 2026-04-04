@@ -716,18 +716,21 @@ def pr_feature(
     start = 0
     cns.print(ncells)
     while start + ncells <= lc_new.shape[-1]:
+        # Note that earlier versions of powerbox would only return (p,k) but newer
+        # versions always return (p,k,var,nsamples) even if the latter are None.
+        # So we need to slice the output to get just (p,k) for compatibility with both versions.
         pd, k = powerbox.get_power(
             lc_default.lightcones["brightness_temp"][:, :, start : start + ncells],
             (*lc_default.lightcone_dimensions[:2], chunk_size),
             bins_upto_boxlen=True,
-        )
+        )[:2]
         p_default.append(pd)
 
         pn, k = powerbox.get_power(
             lc_new.lightcones["brightness_temp"][:, :, start : start + ncells],
             (*lc_new.lightcone_dimensions[:2], chunk_size),
             bins_upto_boxlen=True,
-        )
+        )[:2]
         p_new.append(pn)
         z.append(lc_new.lightcone_redshifts[start])
 
