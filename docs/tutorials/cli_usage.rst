@@ -105,11 +105,18 @@ To embed node redshifts, supply one or more of the following options:
   between consecutive ``(1 + z)`` values (default: ``ZPRIME_STEP_FACTOR`` from the
   model, typically 1.02). For ``linear`` this is the additive step size.
 * ``--nz``: number of redshifts in the grid. When given, it overrides ``--zstep``.
-* ``--zscroll-func``: the spacing function used to generate the grid, either
+* ``--znode-func``: the spacing function used to generate the grid, either
   ``logspace`` (default, calls
   :meth:`~py21cmfast.wrapper.inputs.InputParameters.with_logspaced_redshifts`) or
   ``linear`` (calls
   :meth:`~py21cmfast.wrapper.inputs.InputParameters.with_linear_redshifts`).
+
+In addition, a random seed can be embedded directly in the template with
+``--random-seed`` (aliased to ``--seed``). This produces a fully self-contained
+template that, together with an input parameter TOML, provides everything needed to
+reproduce a simulation::
+
+    $ 21cmfast template create --template simple --out my-simple.toml --seed 42
 
 For example, to produce a template with a logarithmically-spaced redshift grid from
 z=5 to z=35 with a step factor of 1.01::
@@ -125,12 +132,12 @@ Or to request exactly 30 log-spaced nodes between z=5 and z=30::
 To use a linearly-spaced grid instead::
 
     $ 21cmfast template create --template simple --out my-simple.toml \
-        --zmin 5.0 --zmax 35.0 --zstep 1.5 --zscroll-func linear
+        --zmin 5.0 --zmax 35.0 --zstep 1.5 --znode-func linear
 
 Or with a fixed number of linearly-spaced nodes::
 
     $ 21cmfast template create --template simple --out my-simple.toml \
-        --zmin 5.0 --zmax 35.0 --nz 30 --zscroll-func linear
+        --zmin 5.0 --zmax 35.0 --nz 30 --znode-func linear
 
 Specifying Parameters for Simulations
 -------------------------------------

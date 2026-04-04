@@ -304,12 +304,15 @@ def template_create(
     param_selection: ParameterSelection = ParameterSelection(),
     user_params: Parameters = Parameters(),
     mode: TOMLMode = "full",
+    random_seed: Annotated[
+        int | None, Parameter(name=["--random-seed", "--seed"])
+    ] = None,
     zmin: Annotated[float | None, Parameter(name="--zmin")] = None,
     zmax: Annotated[float | None, Parameter(name="--zmax")] = None,
     zstep: Annotated[float | None, Parameter(name="--zstep")] = None,
     nz: Annotated[int | None, Parameter(name="--nz")] = None,
-    zscroll_func: Annotated[
-        Literal["logspace", "linear"], Parameter(name="--zscroll-func")
+    znode_func: Annotated[
+        Literal["logspace", "linear"], Parameter(name="--znode-func")
     ] = "logspace",
 ):
     """Create a new full simulation parameter template.
@@ -321,13 +324,17 @@ def template_create(
 
     Node redshifts can be embedded in the template by providing one or more of
     ``--zmin``, ``--zmax``, ``--zstep``, or ``--nz``.  The spacing function is
-    controlled by ``--zscroll-func`` (``logspace`` or ``linear``).
+    controlled by ``--znode-func`` (``logspace`` or ``linear``).
+    A random seed can also be embedded with ``--random-seed``.
     """
     inputs, _ = _get_inputs(param_selection, user_params)
 
+    if random_seed is not None:
+        inputs = inputs.clone(random_seed=random_seed)
+
     if zmin is not None or zmax is not None or zstep is not None or nz is not None:
         _zmin = zmin if zmin is not None else 5.5
-        if zscroll_func == "logspace":
+        if znode_func == "logspace":
             inputs = inputs.with_logspaced_redshifts(
                 zmin=_zmin,
                 zmax=zmax,

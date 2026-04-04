@@ -119,11 +119,11 @@ class TestTemplateCreate:
         assert max(nz) == pytest.approx(20.0, rel=1e-4)
 
     def test_node_redshifts_linear_zstep(self, tmp_path: Path):
-        """Test that --zscroll-func linear with --zstep produces linear node_redshifts."""
+        """Test that --znode-func linear with --zstep produces linear node_redshifts."""
         out = tmp_path / "linear.toml"
         app_noexit(
             f"template create --template simple --out {out} "
-            "--zmin 5.0 --zmax 20.0 --zstep 1.5 --zscroll-func linear"
+            "--zmin 5.0 --zmax 20.0 --zstep 1.5 --znode-func linear"
         )
         assert out.exists()
 
@@ -136,11 +136,11 @@ class TestTemplateCreate:
         assert all(abs(d - diffs[0]) < 1e-8 for d in diffs)
 
     def test_node_redshifts_linear_nz(self, tmp_path: Path):
-        """Test that --nz with --zscroll-func linear produces exactly nz nodes."""
+        """Test that --nz with --znode-func linear produces exactly nz nodes."""
         out = tmp_path / "linear_nz.toml"
         app_noexit(
             f"template create --template simple --out {out} "
-            "--zmin 5.0 --zmax 20.0 --nz 8 --zscroll-func linear"
+            "--zmin 5.0 --zmax 20.0 --nz 8 --znode-func linear"
         )
         assert out.exists()
 
@@ -158,6 +158,21 @@ class TestTemplateCreate:
         p = create_params_from_template(out)
         # simple template has no evolution, so default node_redshifts should be empty
         assert not p.get("node_redshifts")
+
+    def test_random_seed_embedded(self, tmp_path: Path):
+        """Test that --random-seed (and --seed alias) embed the seed in the template."""
+        out = tmp_path / "seeded.toml"
+        app_noexit(f"template create --template simple --out {out} --random-seed 1234")
+        assert out.exists()
+
+        p = create_params_from_template(out)
+        assert p["random_seed"] == 1234
+
+        # Test the --seed alias too
+        out2 = tmp_path / "seeded2.toml"
+        app_noexit(f"template create --template simple --out {out2} --seed 5678")
+        p2 = create_params_from_template(out2)
+        assert p2["random_seed"] == 5678
 
 
 class TestTemplateShow:
