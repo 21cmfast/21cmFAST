@@ -189,6 +189,7 @@ def test_optional_field_halobox(default_input_struct_lc: InputParameters):
     with config.use(EXTRA_HALOBOX_FIELDS=True):
         hb = ox.HaloBox.new(redshift=0.0, inputs=default_input_struct_lc)
         assert isinstance(hb.halo_mass, Array)
+        assert isinstance(hb.count, Array)
 
         inputs = default_input_struct_lc.evolve_input_structs(INHOMO_RECO=True)
         hb = ox.HaloBox.new(redshift=0.0, inputs=inputs)

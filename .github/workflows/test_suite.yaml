@@ -85,13 +85,13 @@ jobs:
 
       - name: Archive Integration Test Plots
         if: always()
-        uses: actions/upload-artifact@v6
+        uses: actions/upload-artifact@v7
         with:
           name: integration-test-plots-${{ matrix.os }}-${{ matrix.python-version }}-${{ matrix.compiler }}
           path: |
             testplots/*.pdf
 
-      - uses: codecov/codecov-action@v5
+      - uses: codecov/codecov-action@v6
         if: matrix.os == 'ubuntu-latest' && success() && !contains(github.event.pull_request.labels.*.name, 'auto-pr')
         with:
           fail_ci_if_error: true

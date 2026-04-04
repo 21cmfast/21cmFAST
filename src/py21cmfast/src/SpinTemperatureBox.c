@@ -1206,7 +1206,14 @@ struct Ts_cell get_Ts_fast(float zp, float dzp, struct spintemp_from_sfr_prefact
     tau21 = (3 * physconst.h_p * physconst.A10 * physconst.c_cms * physconst.lambda_21 *
              physconst.lambda_21 / 32. / M_PI / physconst.k_B) *
             ((1 - rad->prev_xe) * consts->N_zp) / rad->prev_Ts / consts->hubble_zp;
-    xCMB = (1. - exp(-tau21)) / tau21;
+
+    if (tau21 > 1e-8) {
+        xCMB = (1. - exp(-tau21)) / tau21;
+    } else {
+        // When tau21 is very small, we can use the Taylor expansion of the exponential
+        // to avoid numerical issues
+        xCMB = 1. - tau21 / 2 * (1 - tau21 / 3 * (1 - tau21 / 4));
+    }
 
     // Electron density
     // NOTE: Nb_zp includes helium, TODO: make sure this is right

@@ -1,9 +1,11 @@
 """Test the Lightcone class."""
 
 import numpy as np
+import pytest
 from astropy import units
 
 from py21cmfast import InputParameters, LightCone
+from py21cmfast.drivers.lightcone import _check_desired_arrays_exist
 
 
 def mock_lightcone():
@@ -36,6 +38,12 @@ def mock_lightcone():
 
 class TestLightcone:
     """Test the LightCone object."""
+
+    def test_invalid_quantity_raises(self):
+        """Test that requesting an unknown lightcone quantity raises ValueError."""
+        lc = mock_lightcone()
+        with pytest.raises(ValueError, match="not computed"):
+            _check_desired_arrays_exist(["not_a_real_quantity"], lc.inputs)
 
     def test_trim(self):
         """Test that trimming actually removes slices."""

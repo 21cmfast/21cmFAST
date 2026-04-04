@@ -1042,7 +1042,7 @@ class HaloBox(OutputStructZ):
             out["halo_xray"] = Array(shape, dtype=np.float32)
 
         if config["EXTRA_HALOBOX_FIELDS"]:
-            out["count"] = Array(shape, dtype=np.int32)
+            out["count"] = Array(shape, dtype=np.float32)
             out["halo_mass"] = Array(shape, dtype=np.float32)
             out["halo_stars"] = Array(shape, dtype=np.float32)
             if inputs.astro_options.USE_MINI_HALOS:
@@ -1366,10 +1366,10 @@ class IonizedBox(OutputStructZ):
 
     neutral_fraction = _arrayfield()
     ionisation_rate_G12 = _arrayfield()
-    mean_free_path = _arrayfield()
     z_reion = _arrayfield()
+    mean_free_path = _arrayfield(optional=True)
     cumulative_recombinations = _arrayfield(optional=True)
-    kinetic_temperature = _arrayfield()
+    kinetic_temperature = _arrayfield(optional=True)
     unnormalised_nion = _arrayfield(optional=True)
     unnormalised_nion_mini = _arrayfield(optional=True)
     log10_Mturnover_ave: float = attrs.field(default=None)
@@ -1430,10 +1430,12 @@ class IonizedBox(OutputStructZ):
         out = {
             "neutral_fraction": Array(shape, initfunc=np.ones, dtype=np.float32),
             "ionisation_rate_G12": Array(shape, dtype=np.float32),
-            "mean_free_path": Array(shape, dtype=np.float32),
             "z_reion": Array(shape, dtype=np.float32),
-            "kinetic_temperature": Array(shape, dtype=np.float32),
         }
+
+        if not inputs.matter_options.MINIMIZE_MEMORY:
+            out["mean_free_path"] = Array(shape, dtype=np.float32)
+            out["kinetic_temperature"] = Array(shape, dtype=np.float32)
 
         if inputs.astro_options.INHOMO_RECO:
             out["cumulative_recombinations"] = Array(shape, dtype=np.float32)
