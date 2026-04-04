@@ -99,7 +99,8 @@ class TestTemplateCreate:
 
         p = create_params_from_template(out)
         nz = p["node_redshifts"]
-        assert nz is not None and len(nz) > 0
+        assert nz is not None
+        assert len(nz) > 0
         assert min(nz) == pytest.approx(5.0, rel=1e-4)
         assert max(nz) >= 20.0
 
@@ -114,7 +115,8 @@ class TestTemplateCreate:
 
         p = create_params_from_template(out)
         nz = p["node_redshifts"]
-        assert nz is not None and len(nz) == 10
+        assert nz is not None
+        assert len(nz) == 10
         assert min(nz) == pytest.approx(5.0, rel=1e-4)
         assert max(nz) == pytest.approx(20.0, rel=1e-4)
 
@@ -129,7 +131,8 @@ class TestTemplateCreate:
 
         p = create_params_from_template(out)
         nz = p["node_redshifts"]
-        assert nz is not None and len(nz) > 0
+        assert nz is not None
+        assert len(nz) > 0
         assert min(nz) == pytest.approx(5.0, rel=1e-4)
         # Spacing should be roughly linear (constant differences)
         diffs = [nz[i] - nz[i + 1] for i in range(len(nz) - 1)]
@@ -146,7 +149,8 @@ class TestTemplateCreate:
 
         p = create_params_from_template(out)
         nz = p["node_redshifts"]
-        assert nz is not None and len(nz) == 8
+        assert nz is not None
+        assert len(nz) == 8
         assert min(nz) == pytest.approx(5.0, rel=1e-4)
         assert max(nz) == pytest.approx(20.0, rel=1e-4)
 

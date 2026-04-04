@@ -1926,9 +1926,7 @@ class InputParameters:
             zmax = self.simulation_options.Z_HEAT_MAX
 
         if nz is not None:
-            node_redshifts = tuple(
-                (np.geomspace(1 + zmin, 1 + zmax, nz) - 1).tolist()
-            )
+            node_redshifts = tuple((np.geomspace(1 + zmin, 1 + zmax, nz) - 1).tolist())
         else:
             if zstep_factor is None:
                 zstep_factor = self.simulation_options.ZPRIME_STEP_FACTOR
@@ -1972,9 +1970,7 @@ class InputParameters:
             node_redshifts = tuple(np.linspace(zmin, zmax, nz).tolist())
         elif zstep is not None:
             # Use half-step tolerance so that zmax is always included in the grid.
-            node_redshifts = tuple(
-                np.arange(zmin, zmax + zstep * 0.5, zstep).tolist()
-            )
+            node_redshifts = tuple(np.arange(zmin, zmax + zstep * 0.5, zstep).tolist())
         else:
             raise ValueError("Either `nz` or `zstep` must be provided.")
 
