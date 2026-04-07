@@ -608,12 +608,6 @@ int ComputeHaloBox(double redshift, InitialConditions *ini_boxes, HaloCatalog *h
         double M_min = minimum_source_mass(redshift, false);
         double M_max_integral;
 
-        init_ps();
-        if (matter_options_global->USE_INTERPOLATION_TABLES > 0) {
-            // this needs to be initialised above MMax because of Nion_General
-            initialiseSigmaMInterpTable(M_min / 2, M_MAX_INTEGRAL);
-        }
-
         float *mturn_a_grid = NULL;
         float *mturn_m_grid = NULL;
         if (astro_options_global->USE_MINI_HALOS) {
@@ -653,10 +647,6 @@ int ComputeHaloBox(double redshift, InitialConditions *ini_boxes, HaloCatalog *h
         //  use the cell-weighted average of the log10(Mturn) (see issue #369)
         LOG_SUPER_DEBUG("log10 Mutrn ACG: %.6e", pow(10, grids->log10_Mcrit_ACG_ave));
         LOG_SUPER_DEBUG("log10 Mutrn MCG: %.6e", pow(10, grids->log10_Mcrit_MCG_ave));
-
-        if (matter_options_global->USE_INTERPOLATION_TABLES > 0) {
-            freeSigmaMInterpTable();
-        }
     }
     Catch(status) { return (status); }
     LOG_DEBUG("Done.");

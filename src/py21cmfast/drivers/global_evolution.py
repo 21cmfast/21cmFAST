@@ -9,7 +9,6 @@ import h5py
 import numpy as np
 
 from .. import __version__
-from ..c_21cmfast import lib
 from ..io import h5
 from ..io.caching import CacheConfig
 from ..wrapper.arrays import Array
@@ -21,6 +20,7 @@ from ..wrapper.outputs import (
     IonizedBox,
     TsBox,
 )
+from ._param_config import high_level_func, init_heat_tables, init_sigma_table
 from .coeval import _redshift_loop_generator, _setup_ics_and_pfs_for_scrolling
 
 
@@ -227,12 +227,82 @@ class GlobalEvolution:
         )
 
 
+@high_level_func
+@init_sigma_table(is_generator=True)
+@init_heat_tables(is_generator=True)
+def generate_global_evolution(
+    *,
+    inputs: InputParameters,
+    progressbar: bool = False,
+    overdensity_z0: float | None = None,
+    **kwargs,
+):
+    """Run the global evolution and return the result.
+
+    This is simply a wrapper to :func:`generate_global_evolution`.
+    """
+    # NOTE: inputs here is already inputs_one_cell (the modified single-cell
+    # InputParameters). The validation and construction of inputs_one_cell is
+    # done in run_global_evolution before calling this function.
+    global_evolution = GlobalEvolution(
+        inputs=inputs,
+        quantities={},
+    )
+    for quantity in global_evolution.get_fields(inputs):
+        global_evolution.quantities[quantity] = np.zeros(len(inputs.node_redshifts))
+
+    prev_coeval = None
+
+    iokw = {
+        "cache": None,
+        "regenerate": True,
+        "init_manager": kwargs.get("init_manager"),
+    }
+
+    (
+        initial_conditions,
+        perturbed_fields,
+        halofield_list,
+        photon_nonconservation_data,
+    ) = _setup_ics_and_pfs_for_scrolling(
+        all_redshifts=inputs.node_redshifts,
+        inputs=inputs,
+        initial_conditions=None,
+        write=CacheConfig.off(),
+        progressbar=progressbar,
+        overdensity_z0=overdensity_z0,
+        **iokw,
+    )
+
+    for iz, coeval in _redshift_loop_generator(
+        inputs=inputs,
+        initial_conditions=initial_conditions,
+        all_redshifts=inputs.node_redshifts,
+        perturbed_field=perturbed_fields,
+        halofield_list=halofield_list,
+        write=CacheConfig.off(),
+        cleanup=True,
+        progressbar=progressbar,
+        photon_nonconservation_data=photon_nonconservation_data,
+        init_coeval=prev_coeval,
+        iokw=iokw,
+    ):
+        for quantity in global_evolution.quantities:
+            global_evolution.quantities[quantity][iz] = np.mean(
+                getattr(coeval, quantity)
+            )
+
+        prev_coeval = coeval
+
+    yield global_evolution
+
+
 def run_global_evolution(
     inputs: InputParameters,
     source_model: str | None = None,
     progressbar: bool = False,
     overdensity_z0: float | None = None,
-):
+) -> GlobalEvolution:
     r"""
     Compute the global evolution of all the fields in the simulation.
 
@@ -319,58 +389,16 @@ def run_global_evolution(
         "USE_UPPER_STELLAR_TURNOVER": False,  # no upper stellar turnover without discrete halos
         "USE_EXP_FILTER": False,  # we don't run reionization module, so we can leave this parameter on False for all source models
         "KEEP_3D_VELOCITIES": False,  # we don't need any velocities
+        "USE_FFTW_WISDOM": False,  # we don't do FFT when we have just one cell
         "PHOTON_CONS_TYPE": "no-photoncons",  # we don't do photon conservation
     }
     inputs_one_cell = inputs.evolve_input_structs(**new_input_kwargs)
 
-    global_evolution = GlobalEvolution(
-        inputs=inputs_one_cell,
-        quantities={},
-    )
-    for quantity in global_evolution.get_fields(inputs_one_cell):
-        global_evolution.quantities[quantity] = np.zeros(
-            len(inputs_one_cell.node_redshifts)
+    results = list(
+        generate_global_evolution(
+            inputs=inputs_one_cell,
+            progressbar=progressbar,
+            overdensity_z0=overdensity_z0,
         )
-
-    prev_coeval = None
-
-    iokw = {"cache": None, "regenerate": True, "free_cosmo_tables": False}
-
-    (
-        initial_conditions,
-        perturbed_fields,
-        halofield_list,
-        photon_nonconservation_data,
-    ) = _setup_ics_and_pfs_for_scrolling(
-        all_redshifts=inputs_one_cell.node_redshifts,
-        inputs=inputs_one_cell,
-        initial_conditions=None,
-        write=CacheConfig.off(),
-        progressbar=progressbar,
-        overdensity_z0=overdensity_z0,
-        **iokw,
     )
-
-    for iz, coeval in _redshift_loop_generator(
-        inputs=inputs_one_cell,
-        initial_conditions=initial_conditions,
-        all_redshifts=inputs_one_cell.node_redshifts,
-        perturbed_field=perturbed_fields,
-        halofield_list=halofield_list,
-        write=CacheConfig.off(),
-        cleanup=True,
-        progressbar=progressbar,
-        photon_nonconservation_data=photon_nonconservation_data,
-        init_coeval=prev_coeval,
-        iokw=iokw,
-    ):
-        for quantity in global_evolution.quantities:
-            global_evolution.quantities[quantity][iz] = np.mean(
-                getattr(coeval, quantity)
-            )
-
-        prev_coeval = coeval
-
-    lib.Free_cosmo_tables_global()
-
-    return global_evolution
+    return results[0]

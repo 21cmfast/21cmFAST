@@ -213,9 +213,6 @@ void alloc_global_arrays() {
 }
 
 void free_ts_global_arrays() {
-    // free external interpolation tables that are initialized in heating_healper_progs.c
-    destruct_heat();
-
     int i;
     // frequency integrals
     for (i = 0; i < x_int_NXHII; i++) {
@@ -1382,14 +1379,9 @@ void ts_main(float redshift, float prev_redshift, float perturbed_field_redshift
     double inverse_growth_factor_z;
     double dzp;
 
-    // Must be always initialised due to the strange way Ionisationbox.c expects some initialisation
-    init_ps();
-
     // allocate the global arrays we always use
     if (!TsInterpArraysInitialised) {
         alloc_global_arrays();
-        // Initialize heating interpolation arrays
-        init_heat();
     }
 
     // NOTE: For the code to work, previous_spin_temp MUST be allocated &
@@ -1402,18 +1394,6 @@ void ts_main(float redshift, float prev_redshift, float perturbed_field_redshift
 
     // setup the R_ct 1D arrays
     setup_z_edges(redshift);
-
-    // with the TtoM limit, we use the largest redshift, to cover the whole range
-    double M_MIN_tb = M_min_R[astro_params_global->N_STEP_TS - 1];
-    // This M_MIN just sets the sigma table range, the minimum mass for the integrals is set per
-    // radius in setup_z_edges
-    if (astro_options_global->INTEGRATION_METHOD_ATOMIC == 2 ||
-        astro_options_global->INTEGRATION_METHOD_MINI == 2)
-        M_MIN_tb = fmin(MMIN_FAST, M_MIN_tb);
-
-    // we need a larger table here due to the large radii
-    if (matter_options_global->USE_INTERPOLATION_TABLES > 0)
-        initialiseSigmaMInterpTable(M_MIN_tb / 2, 1e20);
 
     // now that we have the sigma table we can assign the sigma arrays
     for (R_ct = 0; R_ct < astro_params_global->N_STEP_TS; R_ct++) {
