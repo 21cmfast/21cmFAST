@@ -1,3 +1,3 @@
 from pathlib import Path
 
-DATA_PATH = Path(__file__).parent
+_DATA_PATH = Path(__file__).parent
