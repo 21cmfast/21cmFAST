@@ -337,26 +337,26 @@ class NodeRedshiftParameters:
         if not force and not inputs.evolution_required and not anything_set:
             return inputs
 
-        if anything_set:
-            # User explicitly set a parameter, so we overwrite the node redshifts.
-            _zmin = self.min if self.min is not None else 5.5
-            if self.spacing == "logspace":
-                return inputs.with_logspaced_redshifts(
-                    zmin=_zmin,
-                    zmax=self.max,
-                    zstep_factor=self.step if self.n is None else None,
-                    nz=self.n,
-                )
-            else:
-                step = 0.1 if self.step is None and self.n is None else self.step
-                return inputs.with_linear_redshifts(
-                    zmin=_zmin,
-                    zmax=self.max,
-                    zstep=step if self.n is None else None,
-                    nz=self.n,
-                )
+        if not force and not anything_set:
+            return inputs
 
-        return inputs
+        # User explicitly set node-z parameters, or force=True requested defaults.
+        _zmin = self.min if self.min is not None else 5.5
+        if self.spacing == "logspace":
+            return inputs.with_logspaced_redshifts(
+                zmin=_zmin,
+                zmax=self.max,
+                zstep_factor=self.step if self.n is None else None,
+                nz=self.n,
+            )
+
+        step = 0.1 if self.step is None and self.n is None else self.step
+        return inputs.with_linear_redshifts(
+            zmin=_zmin,
+            zmax=self.max,
+            zstep=step if self.n is None else None,
+            nz=self.n,
+        )
 
 
 @cfg.command(name="create")
@@ -435,7 +435,7 @@ def _run_setup(
     logger.setLevel(options.verbosity)
 
     inputs, modified = _get_inputs(options, params)
-    if nodez_params is not None or force_nodez:
+    if nodez_params is not None:
         inputs = nodez_params.update_inputs(inputs, force=force_nodez)
 
     if (
@@ -853,7 +853,7 @@ def predict_struct_size(
     """Compute the required storage per output kind for given inputs."""
     from .management import get_expected_sizes
 
-    inputs, _ = _run_setup(
+    inputs = _run_setup(
         options=RunParams(param_selection=param_selection),
         params=user_params,
         nodez_params=nodez_params,
@@ -891,14 +891,14 @@ def predict_struct_size(
 def predict_storage_size(
     param_selection: ParameterSelection = ParameterSelection(),
     user_params: Parameters = Parameters(),
-    nodez_params: NodeRedshiftParameters | None = None,
+    nodez_params: NodeRedshiftParameters = NodeRedshiftParameters(),
     unit: Literal["b", "kb", "mb", "gb"] | None = None,
     cache_config: Literal["on", "off", "noloop", "last_step_only"] = "on",
 ):
     """Compute the required storage for an entire run."""
     from .management import get_total_storage_size
 
-    inputs, _ = _run_setup(
+    inputs = _run_setup(
         options=RunParams(param_selection=param_selection),
         params=user_params,
         nodez_params=nodez_params,
