@@ -89,11 +89,11 @@ class TestTemplateCreate:
         assert out.exists()
 
     def test_node_redshifts_logspace_zstep(self, tmp_path: Path):
-        """Test that --zmin/--zmax/--zstep embed logspaced node_redshifts."""
+        """Test that --nodez.min/--nodez.max/--nodez.step embed logspaced node_redshifts."""
         out = tmp_path / "logspace.toml"
         app_noexit(
             f"template create --template simple --out {out} "
-            "--zmin 5.0 --zmax 20.0 --zstep 1.05"
+            "--nodez.min 5.0 --nodez.max 20.0 --nodez.step 1.05"
         )
         assert out.exists()
 
@@ -105,11 +105,11 @@ class TestTemplateCreate:
         assert max(nz) >= 20.0
 
     def test_node_redshifts_logspace_nz(self, tmp_path: Path):
-        """Test that --nz overrides --zstep for logspaced node_redshifts."""
+        """Test that --nodez.n overrides --nodez.step for logspaced node_redshifts."""
         out = tmp_path / "logspace_nz.toml"
         app_noexit(
             f"template create --template simple --out {out} "
-            "--zmin 5.0 --zmax 20.0 --nz 10"
+            "--nodez.min 5.0 --nodez.max 20.0 --nodez.n 10"
         )
         assert out.exists()
 
@@ -121,11 +121,11 @@ class TestTemplateCreate:
         assert max(nz) == pytest.approx(20.0, rel=1e-4)
 
     def test_node_redshifts_linear_zstep(self, tmp_path: Path):
-        """Test that --znode-func linear with --zstep produces linear node_redshifts."""
+        """Test that --nodez.spacing linear with --nodez.step produces linear node_redshifts."""
         out = tmp_path / "linear.toml"
         app_noexit(
             f"template create --template simple --out {out} "
-            "--zmin 5.0 --zmax 20.0 --zstep 1.5 --znode-func linear"
+            "--nodez.min 5.0 --nodez.max 20.0 --nodez.step 1.5 --nodez.spacing linear"
         )
         assert out.exists()
 
@@ -139,11 +139,11 @@ class TestTemplateCreate:
         assert all(abs(d - diffs[0]) < 1e-8 for d in diffs)
 
     def test_node_redshifts_linear_nz(self, tmp_path: Path):
-        """Test that --nz with --znode-func linear produces exactly nz nodes."""
+        """Test that --nodez.n with --nodez.spacing linear produces exactly nz nodes."""
         out = tmp_path / "linear_nz.toml"
         app_noexit(
             f"template create --template simple --out {out} "
-            "--zmin 5.0 --zmax 20.0 --nz 8 --znode-func linear"
+            "--nodez.min 5.0 --nodez.max 20.0 --nodez.n 8 --nodez.spacing linear"
         )
         assert out.exists()
 
@@ -278,7 +278,7 @@ class TestRunICS:
     def test_warn_formatting(self, tmp_path, capsys):
         """Test that warnings are printed properly."""
         app_noexit(
-            f"run ics --template simple tiny --box-len 400 --zmin 5.0 --cachedir {tmp_path}"
+            f"run ics --template simple tiny --box-len 400 --nodez.min 5.0 --cachedir {tmp_path}"
         )
         out = capsys.readouterr().out
         assert "Resolution is likely too low" in out
@@ -298,6 +298,33 @@ class TestRunICS:
         app_noexit(f"run ics --template simple tiny --cachedir {tmp_path}")
         out = capsys.readouterr().out
         assert "skipping computation" in out
+
+    def test_passing_nodez_overwriting_template(self, capsys, tmp_path):
+        """Test that passing nodez parameters does overwrite the template node redshifts."""
+        app_noexit(
+            f"template create --template latest tiny --nodez.min 5.0 --nodez.n 10 --out {tmp_path / 'latest.toml'}"
+        )
+
+        with (tmp_path / "latest.toml").open("rb") as f:
+            data = toml.load(f)
+        assert "node_redshifts" in data
+        assert len(data["node_redshifts"]) == 10
+        assert min(data["node_redshifts"]) == pytest.approx(5.0, rel=1e-4)
+
+        # Run ICs again, this time overwriting the node redshift info with
+        # --nodez.min and --nodez.n
+        app_noexit(
+            f"run ics --param-file {tmp_path / 'latest.toml'} --cachedir {tmp_path} "
+            f"--nodez.min 10.0 --nodez.n 10"
+        )
+
+        out = capsys.readouterr().out
+        outfile = out.split("conditions to ")[-1].replace("\n", "").strip()
+        assert Path(outfile).exists()
+        ics = read_output_struct(outfile)
+        assert ics.inputs.node_redshifts is not None
+        assert len(ics.inputs.node_redshifts) == 10
+        assert min(ics.inputs.node_redshifts) == pytest.approx(10.0, rel=1e-4)
 
 
 class TestRunCoeval:

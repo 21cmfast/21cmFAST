@@ -96,3 +96,8 @@ property-decorators = [
 ]
 [tool.ruff.lint.mccabe]
 max-complexity = 20
+
+[dependency-groups]
+dev = [
+    "ipython>=9.12.0",
+]
