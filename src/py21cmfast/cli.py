@@ -435,8 +435,9 @@ def _run_setup(
     logger.setLevel(options.verbosity)
 
     inputs, modified = _get_inputs(options, params)
-    if nodez_params is not None:
-        inputs = nodez_params.update_inputs(inputs, force=force_nodez)
+    if nodez_params is not None or force_nodez:
+        _nodez = nodez_params if nodez_params is not None else NodeRedshiftParameters()
+        inputs = _nodez.update_inputs(inputs, force=force_nodez)
 
     if (
         modified
