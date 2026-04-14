@@ -696,8 +696,7 @@ NB_MODULE(c_21cmfast, m) {
         if (result.size() != n_elements) {
             throw std::runtime_error("result array must have the same size as input_box.");
         }
-        int status =
-            test_filter(input_box.data(), R, R_param, R_star, filter_flag, result.data());
+        int status = test_filter(input_box.data(), R, R_param, R_star, filter_flag, result.data());
         if (status != 0) {
             throw std::runtime_error("test_filter failed with status: " + std::to_string(status));
         }
