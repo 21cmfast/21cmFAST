@@ -127,7 +127,21 @@ __global__ void filter_box_kernel(cuFloatComplex *box, int num_pixels, int dimen
     }
 }
 
-void filter_box_gpu(fftwf_complex *box, int box_dim[3], int filter_type, float R, float R_param) {
+void filter_box_gpu(fftwf_complex *box, int box_dim[3], int filter_type, float R, float R_param,
+                    float R_star) {
+
+    // Upstream release-v4.2 introduced filter_type==5 (multiple-scattering window function)
+    // with a new R_star parameter. The multi-scattering implementation uses GSL special
+    // functions (gsl_sf_gammainv) and a hypergeometric-2F3 evaluator that are not yet
+    // available on the GPU. When filter_type==5 is requested on the GPU dispatch path we
+    // transparently delegate to the CPU implementation (filter_box_cpu). This is
+    // documented in UPSTREAM.md / PLAN.md 11.10; it keeps the upstream physics correct
+    // without requiring us to port multi-scattering to CUDA for this merge. R_star is
+    // otherwise unused on the GPU path.
+    if (filter_type == 5) {
+        filter_box_cpu(box, box_dim, filter_type, R, R_param, R_star);
+        return;
+    }
 
     // Check for valid filter type
     if (filter_type < 0 || filter_type > 4) {
@@ -199,7 +213,8 @@ void filter_box_gpu(fftwf_complex *box, int box_dim[3], int filter_type, float R
 
 // Test function to filter a box without computing a whole output box
 //TODO: set device constants here
-int test_filter_gpu(float *input_box, double R, double R_param, int filter_flag, double *result) {
+int test_filter_gpu(float *input_box, double R, double R_param, double R_star, int filter_flag,
+                    double *result) {
     int i,j,k;
     unsigned long long int ii, jj;
     int box_dim[3] = {
@@ -231,7 +246,7 @@ int test_filter_gpu(float *input_box, double R, double R_param, int filter_flag,
 
     memcpy(box_filtered, box_unfiltered, sizeof(fftwf_complex) * HII_KSPACE_NUM_PIXELS);
 
-    filter_box_gpu(box_filtered, box_dim, filter_flag, R, R_param);
+    filter_box_gpu(box_filtered, box_dim, filter_flag, R, R_param, R_star);
 
     dft_c2r_cube(matter_options_global->USE_FFTW_WISDOM, simulation_options_global->HII_DIM, HII_D_PARA, simulation_options_global->N_THREADS, box_filtered);
 

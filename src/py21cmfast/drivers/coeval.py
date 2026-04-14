@@ -761,6 +761,7 @@ def _redshift_loop_generator(
                     this_xraysource = sf.compute_xray_source_field(
                         redshift=z,
                         hboxes=[*hbox_arr, this_halobox],
+                        previous_ionize_box=getattr(prev_coeval, "ionized_box", None),
                         write=write.xray_source_box,
                         **kw,
                     )
@@ -866,7 +867,10 @@ def _setup_ics_and_pfs_for_scrolling(
     }
     photon_nonconservation_data = {}
     if inputs.astro_options.PHOTON_CONS_TYPE != "no-photoncons":
-        photon_nonconservation_data = setup_photon_cons(**kw)
+        # Note that we need to pass the inputs directly here.
+        # Otherwise, they are taken from initial_conditions, which may have
+        # a different (compatible) set of inputs.
+        photon_nonconservation_data = setup_photon_cons(inputs=inputs, **kw)
 
     if (
         inputs.astro_options.PHOTON_CONS_TYPE == "z-photoncons"

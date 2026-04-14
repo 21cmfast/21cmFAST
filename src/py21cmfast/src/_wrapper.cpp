@@ -303,7 +303,8 @@ NB_MODULE(c_21cmfast, m) {
              [](HaloBox& self, nb::ndarray<float> array) { self.halo_stars = array.data(); })
         .def("set_halo_stars_mini",
              [](HaloBox& self, nb::ndarray<float> array) { self.halo_stars_mini = array.data(); })
-        .def("set_count", [](HaloBox& self, nb::ndarray<int> array) { self.count = array.data(); })
+        .def("set_count",
+             [](HaloBox& self, nb::ndarray<float> array) { self.count = array.data(); })
         .def("set_n_ion",
              [](HaloBox& self, nb::ndarray<float> array) { self.n_ion = array.data(); })
         .def("set_halo_sfr",
@@ -689,13 +690,14 @@ NB_MODULE(c_21cmfast, m) {
         }
     });
 
-    m.def("test_filter", [](nb::ndarray<float> input_box, double R, double R_param, int filter_flag,
-                            nb::ndarray<double> result) {
+    m.def("test_filter", [](nb::ndarray<float> input_box, double R, double R_param, double R_star,
+                            int filter_flag, nb::ndarray<double> result) {
         size_t n_elements = input_box.size();
         if (result.size() != n_elements) {
             throw std::runtime_error("result array must have the same size as input_box.");
         }
-        int status = test_filter(input_box.data(), R, R_param, filter_flag, result.data());
+        int status =
+            test_filter(input_box.data(), R, R_param, R_star, filter_flag, result.data());
         if (status != 0) {
             throw std::runtime_error("test_filter failed with status: " + std::to_string(status));
         }

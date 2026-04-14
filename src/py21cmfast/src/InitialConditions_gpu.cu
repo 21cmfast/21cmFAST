@@ -781,7 +781,7 @@ extern "C" int ComputeInitialConditions_gpu(unsigned long long random_seed, Init
             filter_box(HIRES_box, hi_dim, 0,
                        L_FACTOR * simulation_options_global->BOX_LEN /
                            (simulation_options_global->HII_DIM + 0.0),
-                       0.);
+                       0., 0.);
         }
 
         // cuFFT: FFT to real space for lowres density
@@ -926,7 +926,7 @@ extern "C" int ComputeInitialConditions_gpu(unsigned long long random_seed, Init
                     filter_box(HIRES_box, hi_dim, 0,
                                L_FACTOR * simulation_options_global->BOX_LEN /
                                    (simulation_options_global->HII_DIM + 0.0),
-                               0.);
+                               0., 0.);
                 }
             }
 
@@ -1295,7 +1295,7 @@ extern "C" int ComputeInitialConditions_gpu(unsigned long long random_seed, Init
                     filter_box(HIRES_box, hi_dim, 0,
                                L_FACTOR * simulation_options_global->BOX_LEN /
                                    (simulation_options_global->HII_DIM + 0.0),
-                               0.);
+                               0., 0.);
                     err = cudaMemcpy(d_kspace, HIRES_box, kspace_bytes, cudaMemcpyHostToDevice);
                     CATCH_CUDA_ERROR(err);
                 }

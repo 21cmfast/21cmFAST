@@ -538,7 +538,9 @@ double set_fully_neutral_box(IonizedBox *box, TsBox *spin_temp, PerturbedField *
                 box->neutral_fraction[ct] =
                     1. - spin_temp->xray_ionised_fraction[ct];  // convert from x_e to xH
                 global_xH += box->neutral_fraction[ct];
-                box->kinetic_temperature[ct] = spin_temp->kinetic_temp_neutral[ct];
+                if (!matter_options_global->MINIMIZE_MEMORY) {
+                    box->kinetic_temperature[ct] = spin_temp->kinetic_temp_neutral[ct];
+                }
             }
         }
         global_xH /= (double)HII_TOT_NUM_PIXELS;
@@ -549,9 +551,11 @@ double set_fully_neutral_box(IonizedBox *box, TsBox *spin_temp, PerturbedField *
 #pragma omp for
             for (ct = 0; ct < HII_TOT_NUM_PIXELS; ct++) {
                 box->neutral_fraction[ct] = global_xH;
-                box->kinetic_temperature[ct] =
-                    consts->TK_nofluct *
-                    (1.0 + consts->adia_TK_term * perturbed_field->density[ct]);
+                if (!matter_options_global->MINIMIZE_MEMORY) {
+                    box->kinetic_temperature[ct] =
+                        consts->TK_nofluct *
+                        (1.0 + consts->adia_TK_term * perturbed_field->density[ct]);
+                }
             }
         }
     }
@@ -599,25 +603,27 @@ void copy_filter_transform(struct FilteredGrids *fg_struct, struct IonBoxConstan
 
     if (rspec.R_index > 0) {
         double R = rspec.R;
-        filter_box(fg_struct->deltax_filtered, box_dim, consts->hii_filter, R, 0.);
+        filter_box(fg_struct->deltax_filtered, box_dim, consts->hii_filter, R, 0., 0.);
         if (astro_options_global->USE_TS_FLUCT) {
-            filter_box(fg_struct->xe_filtered, box_dim, consts->hii_filter, R, 0.);
+            filter_box(fg_struct->xe_filtered, box_dim, consts->hii_filter, R, 0., 0.);
         }
         if (consts->filter_recombinations) {
-            filter_box(fg_struct->N_rec_filtered, box_dim, consts->hii_filter, R, 0.);
+            filter_box(fg_struct->N_rec_filtered, box_dim, consts->hii_filter, R, 0., 0.);
         }
         if (consts->lagrangian_source_grids) {
             int filter_hf = astro_options_global->USE_EXP_FILTER ? 3 : consts->hii_filter;
-            filter_box(fg_struct->stars_filtered, box_dim, filter_hf, R, consts->mfp_meandens);
+            filter_box(fg_struct->stars_filtered, box_dim, filter_hf, R, consts->mfp_meandens, 0.);
             if (astro_options_global->INHOMO_RECO) {
-                filter_box(fg_struct->sfr_filtered, box_dim, filter_hf, R, consts->mfp_meandens);
+                filter_box(fg_struct->sfr_filtered, box_dim, filter_hf, R, consts->mfp_meandens,
+                           0.);
             }
         } else {
             if (astro_options_global->USE_MINI_HALOS) {
-                filter_box(fg_struct->prev_deltax_filtered, box_dim, consts->hii_filter, R, 0.);
+                filter_box(fg_struct->prev_deltax_filtered, box_dim, consts->hii_filter, R, 0., 0.);
                 filter_box(fg_struct->log10_Mturnover_MINI_filtered, box_dim, consts->hii_filter, R,
+                           0., 0.);
+                filter_box(fg_struct->log10_Mturnover_filtered, box_dim, consts->hii_filter, R, 0.,
                            0.);
-                filter_box(fg_struct->log10_Mturnover_filtered, box_dim, consts->hii_filter, R, 0.);
             }
         }
     }
@@ -1121,7 +1127,9 @@ void find_ionised_regions(IonizedBox *box, IonizedBox *previous_ionize_box,
                                     rspec.R * (consts->gamma_prefactor * curr_fcoll +
                                                consts->gamma_prefactor_mini * curr_fcoll_mini);
                             }
-                            box->mean_free_path[index_r] = rspec.R;
+                            if (!matter_options_global->MINIMIZE_MEMORY) {
+                                box->mean_free_path[index_r] = rspec.R;
+                            }
                         }
 
                         // keep track of the first time this cell is ionized (earliest time)
@@ -1153,14 +1161,20 @@ void find_ionised_regions(IonizedBox *box, IonizedBox *previous_ionize_box,
                                  curr_fcoll_mini * consts->ion_eff_factor_mini;
                         // put the partial ionization here because we need to exclude
                         // xHII_from_xrays...
-                        if (astro_options_global->USE_TS_FLUCT) {
-                            box->kinetic_temperature[index_r] = ComputePartiallyIonizedTemperature(
-                                spin_temp->kinetic_temp_neutral[index_r], res_xH, consts->T_re);
-                        } else {
-                            box->kinetic_temperature[index_r] = ComputePartiallyIonizedTemperature(
-                                consts->TK_nofluct *
-                                    (1 + consts->adia_TK_term * perturbed_field->density[index_r]),
-                                res_xH, consts->T_re);
+                        if (!matter_options_global->MINIMIZE_MEMORY) {
+                            if (astro_options_global->USE_TS_FLUCT) {
+                                box->kinetic_temperature[index_r] =
+                                    ComputePartiallyIonizedTemperature(
+                                        spin_temp->kinetic_temp_neutral[index_r], res_xH,
+                                        consts->T_re);
+                            } else {
+                                box->kinetic_temperature[index_r] =
+                                    ComputePartiallyIonizedTemperature(
+                                        consts->TK_nofluct *
+                                            (1 + consts->adia_TK_term *
+                                                     perturbed_field->density[index_r]),
+                                        res_xH, consts->T_re);
+                            }
                         }
                         res_xH -= xHII_from_xrays;
 
@@ -1635,7 +1649,9 @@ int ComputeIonizedBox(float redshift, float prev_redshift, PerturbedField *pertu
                     "CUDA.");
 #endif
             }
-            set_ionized_temperatures(box, perturbed_field, spin_temp, &ionbox_constants);
+            if (!matter_options_global->MINIMIZE_MEMORY) {
+                set_ionized_temperatures(box, perturbed_field, spin_temp, &ionbox_constants);
+            }
 
             // find the neutral fraction
             global_xH = 0;

@@ -226,7 +226,7 @@ OPTIONS_TESTRUNS = {
         },
     ],
     "photoncons-z": [
-        18,
+        12,
         {
             "PHOTON_CONS_TYPE": "z-photoncons",
         },
@@ -241,6 +241,30 @@ OPTIONS_TESTRUNS = {
         },
     ],
     "fftw_wisdom": [18, {"USE_FFTW_WISDOM": True}],
+    "multiple_scattering": [
+        18,
+        {
+            "LYA_MULTIPLE_SCATTERING": True,
+            "SOURCE_MODEL": "L-INTEGRAL",
+            "USE_TS_FLUCT": True,
+        },
+    ],
+    "multiple_scattering_mini": [
+        18,
+        {
+            "LYA_MULTIPLE_SCATTERING": True,
+            "SOURCE_MODEL": "L-INTEGRAL",
+            "USE_TS_FLUCT": True,
+            "USE_MINI_HALOS": True,
+            "INHOMO_RECO": True,
+            "N_THREADS": 4,
+            "USE_RELATIVE_VELOCITIES": True,
+            "POWER_SPECTRUM": "CLASS",
+            "K_MAX_FOR_CLASS": 1.0,
+            "R_BUBBLE_MAX": 50.0,
+            "M_TURN": 5.0,
+        },
+    ],
 }
 
 if len(set(OPTIONS_TESTRUNS.keys())) != len(list(OPTIONS_TESTRUNS.keys())):
@@ -322,7 +346,7 @@ def produce_coeval_power_spectra(redshift: float, cache: OutputCache, **kwargs):
                 getattr(coeval, field),
                 boxlength=coeval.simulation_options.BOX_LEN,
                 bins_upto_boxlen=True,
-            )
+            )[:2]
 
     return k, p, coeval
 
@@ -375,7 +399,7 @@ def produce_lc_power_spectra(redshift: float, cache: OutputCache, **kwargs):
                 lightcone.lightcones[field],
                 boxlength=lightcone.lightcone_dimensions,
                 bins_upto_boxlen=True,
-            )
+            )[:2]
 
     return k, p, lightcone
 
@@ -393,12 +417,12 @@ def produce_perturb_field_data(redshift, **kwargs):
         pt_box.get("density"),
         boxlength=options["inputs"].simulation_options.BOX_LEN,
         bins_upto_boxlen=True,
-    )
+    )[:2]
     p_vel, k_vel = get_power(
         pt_box.get("velocity_z") * velocity_normalisation,
         boxlength=options["inputs"].simulation_options.BOX_LEN,
         bins_upto_boxlen=True,
-    )
+    )[:2]
 
     def hist(kind, xmin, xmax, nbins):
         data = pt_box.get(kind)

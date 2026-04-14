@@ -325,6 +325,7 @@ void move_grid_galprops(double redshift, float *dens_pointer, int dens_dim[3],
                     }
 
                     if (config_settings.EXTRA_HALOBOX_FIELDS) {
+                        do_cic_interpolation(boxes->count, pos, out_dim, properties.count);
                         do_cic_interpolation(boxes->halo_mass, pos, out_dim,
                                              properties.halo_mass * prefactor_mass);
                         do_cic_interpolation(boxes->halo_stars, pos, out_dim,
@@ -434,6 +435,7 @@ void move_halo_galprops(double redshift, HaloCatalog *halos, float *vel_pointers
                 do_cic_interpolation(boxes->whalo_sfr, pos, out_dim, properties.fescweighted_sfr);
             }
             if (config_settings.EXTRA_HALOBOX_FIELDS) {
+                do_cic_interpolation(boxes->count, pos, out_dim, 1.0);
                 do_cic_interpolation(boxes->halo_mass, pos, out_dim, properties.halo_mass);
                 do_cic_interpolation(boxes->halo_stars, pos, out_dim, properties.stellar_mass);
                 if (astro_options_global->USE_MINI_HALOS) {
