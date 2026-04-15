@@ -60,7 +60,7 @@ jobs:
 
       - name: Install Non-Python Dependencies
         run: |
-          conda install fftw gsl numba
+          conda install -y fftw gsl pkg-config numba
 
       - name: Install 21cmFAST
         run: |
