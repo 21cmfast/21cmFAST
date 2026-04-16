@@ -61,18 +61,40 @@ if not omp.found()
   # locating libomp directly and wiring it up with `-Xpreprocessor -fopenmp`.
   conda_prefix_omp = run_command('sh', '-c', 'printf %s "$CONDA_PREFIX"',
                                  check: false).stdout()
-  omp_search_paths = ['/usr/lib', '/usr/local/lib', '/opt/homebrew/lib']
-  omp_include_paths = ['/usr/include', '/usr/local/include', '/opt/homebrew/include']
+  fs = import('fs')
+  omp_search_paths = []
+  foreach path : ['/usr/lib', '/usr/local/lib', '/opt/homebrew/lib']
+    if fs.is_dir(path)
+      omp_search_paths += path
+    endif
+  endforeach
+  omp_include_dirs = []
+  foreach path : ['/usr/local/include', '/opt/homebrew/include']
+    if fs.is_dir(path)
+      omp_include_dirs += path
+    endif
+  endforeach
   if conda_prefix_omp != ''
-    omp_search_paths += conda_prefix_omp + '/lib'
-    omp_include_paths += conda_prefix_omp + '/include'
+    if fs.is_dir(conda_prefix_omp + '/lib')
+      omp_search_paths += conda_prefix_omp + '/lib'
+    endif
+    if fs.is_dir(conda_prefix_omp + '/include')
+      omp_include_dirs += conda_prefix_omp + '/include'
+    endif
   endif
   libomp = cc.find_library('omp', dirs: omp_search_paths, required: true)
-  omp = declare_dependency(
-    compile_args: ['-Xpreprocessor', '-fopenmp'],
-    dependencies: [libomp],
-    include_directories: include_directories(omp_include_paths, is_system: true),
-  )
+  if omp_include_dirs.length() > 0
+    omp = declare_dependency(
+      compile_args: ['-Xpreprocessor', '-fopenmp'],
+      dependencies: [libomp],
+      include_directories: include_directories(omp_include_dirs, is_system: true),
+    )
+  else
+    omp = declare_dependency(
+      compile_args: ['-Xpreprocessor', '-fopenmp'],
+      dependencies: [libomp],
+    )
+  endif
 endif
 gsl = dependency('gsl')
 nanobind = dependency('nanobind', static: true)
