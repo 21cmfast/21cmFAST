@@ -1714,8 +1714,6 @@ void ts_main(float redshift, float prev_redshift, float perturbed_field_redshift
 #endif
             }
 
-            LOG_INFO("DEBUG: After R loop iter R_ct=%d, USE_HALO_FIELD=%d", R_ct,
-                     matter_options_global->USE_HALO_FIELD);
             // minihalo factors should be separated since they may not be allocated
             if (astro_options_global->USE_MINI_HALOS) {
                 starlya_factor_mini = dstarlya_dt_prefactor_MINI[R_ct];
