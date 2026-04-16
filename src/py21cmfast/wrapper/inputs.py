@@ -368,9 +368,9 @@ class CosmoTables:
         if self.USE_SIGMA_8 is not None:
             cstruct.USE_SIGMA_8 = bool(self.USE_SIGMA_8)
         if self.transfer_density is not None:
-            cstruct.set_transfer_density(self.transfer_density.cstruct)
+            cstruct.set_transfer_density(self.transfer_density._cstruct)
         if self.transfer_vcb is not None:
-            cstruct.set_transfer_vcb(self.transfer_vcb.cstruct)
+            cstruct.set_transfer_vcb(self.transfer_vcb._cstruct)
         return cstruct
 
     def clone(self, **kwargs):

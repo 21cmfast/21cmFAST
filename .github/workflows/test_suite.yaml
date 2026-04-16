@@ -61,7 +61,7 @@ jobs:
 
       - name: Install Non-Python Dependencies
         run: |
-          conda install -y fftw gsl pkg-config numba
+          conda install -y -c conda-forge fftw gsl pkg-config numba llvm-openmp
 
       - name: Install 21cmFAST
         run: |
