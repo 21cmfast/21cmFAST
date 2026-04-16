@@ -630,6 +630,7 @@ def generate_coeval(
 
     if _photoncons_state.c_memory_allocated:
         lib.FreePhotonConsMemory()
+        _photoncons_state.c_memory_allocated = False
 
     lib.Free_cosmo_tables_global()
 

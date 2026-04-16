@@ -76,11 +76,11 @@ class _PhotonConservationState:
     @property
     def c_memory_allocated(self) -> bool:
         """Whether the memory for the parameter shifts has been allocated in the backend."""
-        return lib.photon_cons_allocated
+        return lib.get_photon_cons_allocated()
 
     @c_memory_allocated.setter
     def c_memory_allocated(self, val):
-        lib.photon_cons_allocated = val
+        lib.set_photon_cons_allocated(bool(val))
 
 
 _photoncons_state = _PhotonConservationState()

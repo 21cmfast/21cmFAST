@@ -724,5 +724,12 @@ NB_MODULE(c_21cmfast, m) {
         "get_config_settings", []() -> ConfigSettings& { return config_settings; },
         nb::rv_policy::reference);
 
-    m.attr("photon_cons_allocated") = nb::cast(&photon_cons_allocated);
+    // photon_cons_allocated is a C-side bool tracking whether the photon
+    // conservation globals are live. Previously this was bound with
+    // `m.attr("photon_cons_allocated") = nb::cast(&photon_cons_allocated)`
+    // which captured the value at module load and never tracked changes.
+    // Expose explicit getter/setter functions so the Python wrapper can
+    // read and mutate the C global faithfully.
+    m.def("get_photon_cons_allocated", []() { return photon_cons_allocated; });
+    m.def("set_photon_cons_allocated", [](bool value) { photon_cons_allocated = value; });
 }
