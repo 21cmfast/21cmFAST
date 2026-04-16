@@ -62,6 +62,13 @@ nanobind = dependency('nanobind', static: true)
 # ... but until then, we need to jump through some hoops:
 cc = meson.get_compiler ('c')
 search_paths = [ '/usr/lib', '/usr/local/lib', '/opt/homebrew/lib' ]
+# Append $CONDA_PREFIX/lib when building inside a conda / mamba environment
+# (CI runs use this; conda's fftw package installs libfftw3f*.so there).
+conda_prefix = run_command('sh', '-c', 'printf %s "$CONDA_PREFIX"',
+                           check: false).stdout()
+if conda_prefix != ''
+    search_paths += conda_prefix + '/lib'
+endif
 fftw = cc.find_library ('fftw3f', required: true, dirs: search_paths)
 fftw_threads = cc.find_library ('fftw3f_threads', required: true, dirs: search_paths)
 
