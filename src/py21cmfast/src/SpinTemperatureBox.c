@@ -2034,6 +2034,4 @@ void ts_main(float redshift, float prev_redshift, float perturbed_field_redshift
     if (cleanup) {
         free_ts_global_arrays();
     }
-
-    return 0;
 }
