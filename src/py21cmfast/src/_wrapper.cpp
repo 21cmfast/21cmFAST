@@ -150,6 +150,7 @@ NB_MODULE(c_21cmfast, m) {
     nb::class_<ConfigSettings>(m, "ConfigSettings")
         .def(nb::init<>())
         .def_rw("HALO_CATALOG_MEM_FACTOR", &ConfigSettings::HALO_CATALOG_MEM_FACTOR)
+        .def_rw("EXTRA_HALOBOX_FIELDS", &ConfigSettings::EXTRA_HALOBOX_FIELDS)
         .def("set_external_table_path",
              [](ConfigSettings& self, const std::string& path) {
                  strcpy(self.external_table_path, path.c_str());
