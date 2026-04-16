@@ -332,6 +332,14 @@ NB_MODULE(c_21cmfast, m) {
              [](XraySourceBox& self, nb::ndarray<float> array) {
                  self.filtered_sfr_mini = array.data();
              })
+        .def("set_filtered_sfr_lw",
+             [](XraySourceBox& self, nb::ndarray<float> array) {
+                 self.filtered_sfr_lw = array.data();
+             })
+        .def("set_filtered_sfr_mini_lw",
+             [](XraySourceBox& self, nb::ndarray<float> array) {
+                 self.filtered_sfr_mini_lw = array.data();
+             })
         .def("set_mean_log10_Mcrit_LW",
              [](XraySourceBox& self, nb::ndarray<double> array) {
                  self.mean_log10_Mcrit_LW = array.data();

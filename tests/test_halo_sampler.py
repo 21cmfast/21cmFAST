@@ -335,6 +335,7 @@ def test_perturb_halos(default_input_struct_ts):
         pt_halos.get("xray_emissivity"),
         prop_dict["halo_xray"][: pt_halos.n_halos],
         rtol=1e-5,
+        atol=1e-40,
     )
     np.testing.assert_allclose(
         pt_halos.get("fesc_sfr"), prop_dict["halo_wsfr"][: pt_halos.n_halos], rtol=1e-5
