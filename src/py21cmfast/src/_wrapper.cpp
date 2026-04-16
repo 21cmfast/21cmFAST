@@ -509,6 +509,11 @@ NB_MODULE(c_21cmfast, m) {
     m.def("initialiseSigmaMInterpTable", &initialiseSigmaMInterpTable);
     m.def("initialise_GL", &initialise_GL);
 
+    // Multiple-scattering filter helpers (used by tests/test_filtering.py)
+    m.def("compute_mu_for_multiple_scattering", &compute_mu_for_multiple_scattering);
+    m.def("compute_eta_for_multiple_scattering", &compute_eta_for_multiple_scattering);
+    m.def("hyper_2F3", &hyper_2F3);
+
     // Integration routines
     // TODO: it may be a better choice to rewrite integral_wrappers in C++ directly
     m.def("get_sigma", [](nb::ndarray<double> mass_values, nb::ndarray<double> sigma_out,

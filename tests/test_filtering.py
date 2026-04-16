@@ -313,7 +313,7 @@ def test_MS_filter(R_inner, n, R_star):
 
     # testing a random input box
     rng = np.random.default_rng(12345)
-    input_box = rng.random((up.HII_DIM,) * 3)
+    input_box = rng.random((up.HII_DIM,) * 3).astype("f4")
     output_box_SL = np.zeros((up.HII_DIM,) * 3, dtype="f8")
     output_box_MS = np.zeros((up.HII_DIM,) * 3, dtype="f8")
 
@@ -321,22 +321,22 @@ def test_MS_filter(R_inner, n, R_star):
 
     broadcast_input_struct(inputs)
     lib.test_filter(
-        ffi.cast("float *", input_box.ctypes.data),
+        input_box,
         R_inner,
         R_outer,
         R_star,
         4,
-        ffi.cast("double *", output_box_SL.ctypes.data),
+        output_box_SL,
     )
 
     broadcast_input_struct(inputs)
     lib.test_filter(
-        ffi.cast("float *", input_box.ctypes.data),
+        input_box,
         R_inner,
         R_outer,
         R_star,
         5,
-        ffi.cast("double *", output_box_MS.ctypes.data),
+        output_box_MS,
     )
 
     if R_star < 1:
