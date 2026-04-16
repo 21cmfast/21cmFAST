@@ -5,6 +5,7 @@ source_files = [
   'cli.py',
   'input_serialization.py',
   'lightconers.py',
+  'management.py',
   'plotting.py',
   'rsds.py',
   '_templates.py',
