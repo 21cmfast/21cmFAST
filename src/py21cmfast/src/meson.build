@@ -53,14 +53,33 @@ cuda_source_files = files([
 cpp_source_files = files(['_wrapper.cpp'])
 
 # Define the 21cmFast dependencies
-omp = dependency('openmp')
+cc = meson.get_compiler('c')
+omp = dependency('openmp', required: false)
+if not omp.found()
+  # Apple clang does not expose OpenMP via `dependency('openmp')`, even when
+  # libomp is available from conda (llvm-openmp) or Homebrew. Fall back to
+  # locating libomp directly and wiring it up with `-Xpreprocessor -fopenmp`.
+  conda_prefix_omp = run_command('sh', '-c', 'printf %s "$CONDA_PREFIX"',
+                                 check: false).stdout()
+  omp_search_paths = ['/usr/lib', '/usr/local/lib', '/opt/homebrew/lib']
+  omp_include_paths = ['/usr/include', '/usr/local/include', '/opt/homebrew/include']
+  if conda_prefix_omp != ''
+    omp_search_paths += conda_prefix_omp + '/lib'
+    omp_include_paths += conda_prefix_omp + '/include'
+  endif
+  libomp = cc.find_library('omp', dirs: omp_search_paths, required: true)
+  omp = declare_dependency(
+    compile_args: ['-Xpreprocessor', '-fopenmp'],
+    dependencies: [libomp],
+    include_directories: include_directories(omp_include_paths, is_system: true),
+  )
+endif
 gsl = dependency('gsl')
 nanobind = dependency('nanobind', static: true)
 
 # If/when fftw gets added to Meson WrapDB, we'll be able to use this:
 # fftw = dependency('fftw3f_threads')
 # ... but until then, we need to jump through some hoops:
-cc = meson.get_compiler ('c')
 search_paths = [ '/usr/lib', '/usr/local/lib', '/opt/homebrew/lib' ]
 # Append $CONDA_PREFIX/lib when building inside a conda / mamba environment
 # (CI runs use this; conda's fftw package installs libfftw3f*.so there).
