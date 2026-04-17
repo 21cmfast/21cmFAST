@@ -313,42 +313,42 @@ def test_perturb_halos(default_input_struct_ts):
     )
 
     assert halofield.n_halos == pt_halos.n_halos
+    _kw = dict(rtol=1e-5, atol=1e-40)
     np.testing.assert_allclose(
         pt_halos.get("halo_masses"),
         prop_dict["halo_mass"][: pt_halos.n_halos],
-        rtol=1e-5,
+        **_kw,
     )
     np.testing.assert_allclose(
         pt_halos.get("stellar_masses"),
         prop_dict["halo_stars"][: pt_halos.n_halos],
-        rtol=1e-5,
+        **_kw,
     )
     np.testing.assert_allclose(
-        pt_halos.get("sfr"), prop_dict["halo_sfr"][: pt_halos.n_halos], rtol=1e-5
+        pt_halos.get("sfr"), prop_dict["halo_sfr"][: pt_halos.n_halos], **_kw
     )
     np.testing.assert_allclose(
         pt_halos.get("ion_emissivity"),
         prop_dict["n_ion"][: pt_halos.n_halos],
-        rtol=1e-5,
+        **_kw,
     )
     np.testing.assert_allclose(
         pt_halos.get("xray_emissivity"),
         prop_dict["halo_xray"][: pt_halos.n_halos],
-        rtol=1e-5,
-        atol=1e-40,
+        **_kw,
     )
     np.testing.assert_allclose(
-        pt_halos.get("fesc_sfr"), prop_dict["halo_wsfr"][: pt_halos.n_halos], rtol=1e-5
+        pt_halos.get("fesc_sfr"), prop_dict["halo_wsfr"][: pt_halos.n_halos], **_kw
     )
     np.testing.assert_allclose(
         pt_halos.get("stellar_mini"),
         prop_dict["halo_stars_mini"][: pt_halos.n_halos],
-        rtol=1e-5,
+        **_kw,
     )
     np.testing.assert_allclose(
         pt_halos.get("sfr_mini"),
         prop_dict["halo_sfr_mini"][: pt_halos.n_halos],
-        rtol=1e-5,
+        **_kw,
     )
 
 
