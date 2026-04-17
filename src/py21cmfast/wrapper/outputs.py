@@ -1366,7 +1366,6 @@ class TsBox(OutputStructZ):
         )
 
 
-
 @attrs.define(slots=False, kw_only=True)
 class IonizedBox(OutputStructZ):
     """A class containing all ionized boxes."""
