@@ -3,6 +3,7 @@ channels:
   - defaults
 
 dependencies:
+  - python=3.12
   - pip
   - ipython
   - numpydoc
@@ -14,6 +15,8 @@ dependencies:
   - ipykernel
   - gsl
   - fftw
+  - pkg-config
+  - llvm-openmp
   - pip:
     - furo
     - setuptools_scm

@@ -1,15 +1,29 @@
 #ifndef _FILTERING_H
 #define _FILTERING_H
 
+#include <complex.h>
 #include <fftw3.h>
 
-#include "InputParameters.h"
+#ifdef __cplusplus
+extern "C" {
+#endif
 
 void filter_box(fftwf_complex *box, int box_dim[3], int filter_type, float R, float R_param,
                 float R_star);
+void filter_box_cpu(fftwf_complex *box, int box_dim[3], int filter_type, float R, float R_param,
+                    float R_star);
+void filter_box_gpu(fftwf_complex *box, int box_dim[3], int filter_type, float R, float R_param,
+                    float R_star);
 int test_filter(float *input_box, double R, double R_param, double R_star, int filter_flag,
                 double *result);
+int test_filter_cpu(float *input_box, double R, double R_param, double R_star, int filter_flag,
+                    double *result);
+int test_filter_gpu(float *input_box, double R, double R_param, double R_star, int filter_flag,
+                    double *result);
 double filter_function(double k, int filter_type);
 double dwdm_filter(double k, double R, int filter_type);
 
+#ifdef __cplusplus
+}
+#endif
 #endif

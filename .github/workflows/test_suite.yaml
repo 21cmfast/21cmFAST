@@ -9,6 +9,7 @@ on:
   pull_request:
     branches:
       - '*'
+  workflow_dispatch:
 
 
 jobs:
@@ -60,7 +61,7 @@ jobs:
 
       - name: Install Non-Python Dependencies
         run: |
-          conda install fftw gsl numba
+          conda install -y -c conda-forge fftw gsl pkg-config numba llvm-openmp
 
       - name: Install 21cmFAST
         run: |
