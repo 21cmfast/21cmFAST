@@ -99,19 +99,24 @@ endif
 gsl = dependency('gsl')
 nanobind = dependency('nanobind', static: true)
 
-# If/when fftw gets added to Meson WrapDB, we'll be able to use this:
-# fftw = dependency('fftw3f_threads')
-# ... but until then, we need to jump through some hoops:
-search_paths = [ '/usr/lib', '/usr/local/lib', '/opt/homebrew/lib' ]
-# Append $CONDA_PREFIX/lib when building inside a conda / mamba environment
-# (CI runs use this; conda's fftw package installs libfftw3f*.so there).
-conda_prefix = run_command('sh', '-c', 'printf %s "$CONDA_PREFIX"',
-                           check: false).stdout()
-if conda_prefix != ''
-    search_paths += conda_prefix + '/lib'
+# Try pkg-config first (works when conda/system fftw ships .pc files),
+# then fall back to cc.find_library with manual search paths.
+fftw = dependency('fftw3f', required: false)
+fftw_threads = dependency('fftw3f_threads', required: false)
+if not fftw.found() or not fftw_threads.found()
+    search_paths = [ '/usr/lib', '/usr/local/lib', '/opt/homebrew/lib' ]
+    conda_prefix = run_command('sh', '-c', 'printf %s "$CONDA_PREFIX"',
+                               check: false).stdout()
+    if conda_prefix != ''
+        search_paths += conda_prefix + '/lib'
+    endif
+    if not fftw.found()
+        fftw = cc.find_library('fftw3f', required: true, dirs: search_paths)
+    endif
+    if not fftw_threads.found()
+        fftw_threads = cc.find_library('fftw3f_threads', required: true, dirs: search_paths)
+    endif
 endif
-fftw = cc.find_library ('fftw3f', required: true, dirs: search_paths)
-fftw_threads = cc.find_library ('fftw3f_threads', required: true, dirs: search_paths)
 
 # Base dependencies (always needed)
 deps = [omp, gsl, nanobind, fftw, fftw_threads]
