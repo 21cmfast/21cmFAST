@@ -44,7 +44,8 @@ dependencies=[
         "tqdm",
         "classy",
         "cyclopts",
-        "tomlkit"
+        "tomlkit",
+        "hmf",
 ]
 
 # [tool.setuptools.packages.find]
@@ -54,7 +55,6 @@ dependencies=[
 tests = [
     "clang-format",
     "clang-tidy",
-    "hmf",
     "pre-commit",
     "pytest>=5.0",
     "pytest-cov",
