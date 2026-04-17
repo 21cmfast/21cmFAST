@@ -313,7 +313,7 @@ def test_perturb_halos(default_input_struct_ts):
     )
 
     assert halofield.n_halos == pt_halos.n_halos
-    _kw = dict(rtol=1e-5, atol=1e-40)
+    _kw = {"rtol": 1e-5, "atol": 1e-40}
     np.testing.assert_allclose(
         pt_halos.get("halo_masses"),
         prop_dict["halo_mass"][: pt_halos.n_halos],

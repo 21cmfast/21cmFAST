@@ -479,15 +479,6 @@ class OutputStruct(ABC):
 
         _process_exitcode(exitcode, self._c_compute_function, args)
 
-        # DIAGNOSTIC CHECKPOINT 3d/4a: Python receives data from C function
-        if hasattr(self, "spin_temperature") and hasattr(self, "redshift"):
-            # This is TsBox - Checkpoint 3d
-            self._log_tsbox_checkpoint_3d()
-        elif hasattr(self, "brightness_temp") and hasattr(self, "redshift"):
-            # This is BrightnessTemp - Checkpoint 4a
-            # (4a logs the INPUT spin_temp before calling C, done elsewhere)
-            pass
-
         for name, array in self.arrays.items():
             setattr(self, name, array.computed())
 
@@ -1374,36 +1365,6 @@ class TsBox(OutputStructZ):
             ics,
         )
 
-    def _log_tsbox_checkpoint_3d(self):
-        """Log Checkpoint 3d: Python receives TsBox from C."""
-        import numpy as np
-
-        # Determine if this is CPU or GPU run (heuristic: check if simulation uses GPU)
-        system = (
-            "GPU"
-            if hasattr(self.simulation_options, "USE_GPU")
-            and self.simulation_options.USE_GPU
-            else "CPU"
-        )
-
-        # Get array statistics for Ts, Tk, x_e
-        for name, attr in [
-            ("Ts", "spin_temperature"),
-            ("Tk", "kinetic_temp_neutral"),
-            ("x_e", "xray_ionised_fraction"),
-        ]:
-            arr = getattr(self, attr, None)
-            if arr is not None and hasattr(arr, "__array__"):
-                arr_data = np.asarray(arr)
-                mean = np.mean(arr_data)
-                std = np.std(arr_data)
-                min_val = np.min(arr_data)
-                max_val = np.max(arr_data)
-                sample_0 = arr_data.flat[0] if arr_data.size > 0 else 0.0
-                sample_1000 = arr_data.flat[1000] if arr_data.size > 1000 else sample_0
-                print(
-                    f"=== [{system}] CHECKPOINT_3d [z={self.redshift:.2f}] PYTHON_ENTRY: {name}_mean={mean:e}, {name}_std={std:e}, {name}_min={min_val:e}, {name}_max={max_val:e}, samples=[0]={sample_0:e} [1000]={sample_1000:e} ==="
-                )
 
 
 @attrs.define(slots=False, kw_only=True)
@@ -1651,9 +1612,6 @@ class BrightnessTemp(OutputStructZ):
         allow_already_computed: bool = False,
     ):
         """Compute the function."""
-        # DIAGNOSTIC CHECKPOINT 4a: Log spin_temp data before calling C function
-        self._log_brightness_checkpoint_4a(spin_temp)
-
         return self._compute(
             allow_already_computed,
             self.redshift,
@@ -1661,34 +1619,3 @@ class BrightnessTemp(OutputStructZ):
             ionized_box,
             perturbed_field,
         )
-
-    def _log_brightness_checkpoint_4a(self, spin_temp: TsBox):
-        """Log Checkpoint 4a: Python sends TsBox to ComputeBrightnessTemp."""
-        import numpy as np
-
-        # Determine if this is CPU or GPU run
-        system = (
-            "GPU"
-            if hasattr(self.simulation_options, "USE_GPU")
-            and self.simulation_options.USE_GPU
-            else "CPU"
-        )
-
-        # Get array statistics for Ts, Tk, x_e from the spin_temp being passed
-        for name, attr in [
-            ("Ts", "spin_temperature"),
-            ("Tk", "kinetic_temp_neutral"),
-            ("x_e", "xray_ionised_fraction"),
-        ]:
-            arr = getattr(spin_temp, attr, None)
-            if arr is not None and hasattr(arr, "__array__"):
-                arr_data = np.asarray(arr)
-                mean = np.mean(arr_data)
-                std = np.std(arr_data)
-                min_val = np.min(arr_data)
-                max_val = np.max(arr_data)
-                sample_0 = arr_data.flat[0] if arr_data.size > 0 else 0.0
-                sample_1000 = arr_data.flat[1000] if arr_data.size > 1000 else sample_0
-                print(
-                    f"=== [{system}] CHECKPOINT_4a [z={self.redshift:.2f}] PYTHON_EXIT: {name}_mean={mean:e}, {name}_std={std:e}, {name}_min={min_val:e}, {name}_max={max_val:e}, samples=[0]={sample_0:e} [1000]={sample_1000:e} ==="
-                )

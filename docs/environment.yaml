@@ -14,6 +14,8 @@ dependencies:
   - ipykernel
   - gsl
   - fftw
+  - pkg-config
+  - llvm-openmp
   - pip:
     - furo
     - setuptools_scm
