@@ -109,11 +109,16 @@ if not fftw_threads.found()
     fftw_threads = dependency('fftw3f_omp', required: false)
 endif
 if not fftw.found() or not fftw_threads.found()
-    search_paths = [ '/usr/lib', '/usr/local/lib', '/opt/homebrew/lib' ]
+    search_paths = ['/usr/lib', '/usr/local/lib', '/opt/homebrew/lib']
     conda_prefix = run_command('sh', '-c', 'printf %s "$CONDA_PREFIX"',
                                check: false).stdout()
     if conda_prefix != ''
         search_paths += conda_prefix + '/lib'
+    endif
+    fftw3f_libdir = run_command('pkg-config', '--variable=libdir', 'fftw3f',
+                                check: false).stdout().strip()
+    if fftw3f_libdir != ''
+        search_paths += fftw3f_libdir
     endif
     if not fftw.found()
         fftw = cc.find_library('fftw3f', required: true, dirs: search_paths)
