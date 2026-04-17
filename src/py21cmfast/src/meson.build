@@ -99,10 +99,15 @@ endif
 gsl = dependency('gsl')
 nanobind = dependency('nanobind', static: true)
 
-# Try pkg-config first (works when conda/system fftw ships .pc files),
-# then fall back to cc.find_library with manual search paths.
+# FFTW single-precision with threading support.
+# Try pkg-config first, then cc.find_library with manual search paths.
+# Conda-forge fftw ships fftw3f.pc but often omits fftw3f_threads.pc;
+# it provides fftw3f_omp instead (OpenMP threading).
 fftw = dependency('fftw3f', required: false)
 fftw_threads = dependency('fftw3f_threads', required: false)
+if not fftw_threads.found()
+    fftw_threads = dependency('fftw3f_omp', required: false)
+endif
 if not fftw.found() or not fftw_threads.found()
     search_paths = [ '/usr/lib', '/usr/local/lib', '/opt/homebrew/lib' ]
     conda_prefix = run_command('sh', '-c', 'printf %s "$CONDA_PREFIX"',
@@ -114,7 +119,10 @@ if not fftw.found() or not fftw_threads.found()
         fftw = cc.find_library('fftw3f', required: true, dirs: search_paths)
     endif
     if not fftw_threads.found()
-        fftw_threads = cc.find_library('fftw3f_threads', required: true, dirs: search_paths)
+        fftw_threads = cc.find_library('fftw3f_threads', required: false, dirs: search_paths)
+        if not fftw_threads.found()
+            fftw_threads = cc.find_library('fftw3f_omp', required: true, dirs: search_paths)
+        endif
     endif
 endif
 
