@@ -49,8 +49,7 @@ class TestGPUParity:
             ),
             cosmo_params=p21c.CosmoParams(),
             matter_options=p21c.MatterOptions(
-                USE_HALO_FIELD=False,
-                HALO_STOCHASTICITY=False,
+                SOURCE_MODEL="E-INTEGRAL",
             ),
             astro_options=p21c.AstroOptions(
                 USE_EXP_FILTER=False,
@@ -270,8 +269,7 @@ class TestGPUCPUComparison:
             ),
             cosmo_params=p21c.CosmoParams(),
             matter_options=p21c.MatterOptions(
-                USE_HALO_FIELD=False,
-                HALO_STOCHASTICITY=False,
+                SOURCE_MODEL="E-INTEGRAL",
             ),
             astro_options=p21c.AstroOptions(
                 USE_EXP_FILTER=False,
