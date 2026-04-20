@@ -261,16 +261,43 @@ extern "C" double* MapMass_gpu(
         Throw(CUDAError);
     }
 
-    // IC arrays (density + velocities) are constant across redshifts.
-    // Upload once on first call, reuse on subsequent calls.
+    // IC arrays (density + velocities) are constant across redshifts within a
+    // single simulation but change when a new InitialConditions struct is
+    // used (e.g. new seed, new template, successive simulations in the same
+    // process). Upload once on first call; reuse on subsequent calls with the
+    // same InitialConditions; free and re-upload when ICs change.
+    //
+    // Cache-invalidation key: the host pointer `boxes->hires_density`. Python
+    // allocates a fresh array for every InitialConditions struct, so a change
+    // in this pointer is a reliable signal that the data changed.
     static float *s_hires_density = NULL;
     static float *s_hires_vx = NULL, *s_hires_vy = NULL, *s_hires_vz = NULL;
     static float *s_lowres_vx = NULL, *s_lowres_vy = NULL, *s_lowres_vz = NULL;
     static float *s_hires_vx_2LPT = NULL, *s_hires_vy_2LPT = NULL, *s_hires_vz_2LPT = NULL;
     static float *s_lowres_vx_2LPT = NULL, *s_lowres_vy_2LPT = NULL, *s_lowres_vz_2LPT = NULL;
     static bool s_initialized = false;
+    static const float *s_cached_hires_density_host = NULL;
 
     bool use_2lpt = (matter_options_global->PERTURB_ALGORITHM == 2);
+    bool ics_changed = (s_cached_hires_density_host != boxes->hires_density);
+
+    if (s_initialized && ics_changed) {
+        // ICs changed: free previously-cached device buffers before re-uploading.
+        if (s_hires_density) { cudaFree(s_hires_density); s_hires_density = NULL; }
+        if (s_hires_vx) { cudaFree(s_hires_vx); s_hires_vx = NULL; }
+        if (s_hires_vy) { cudaFree(s_hires_vy); s_hires_vy = NULL; }
+        if (s_hires_vz) { cudaFree(s_hires_vz); s_hires_vz = NULL; }
+        if (s_lowres_vx) { cudaFree(s_lowres_vx); s_lowres_vx = NULL; }
+        if (s_lowres_vy) { cudaFree(s_lowres_vy); s_lowres_vy = NULL; }
+        if (s_lowres_vz) { cudaFree(s_lowres_vz); s_lowres_vz = NULL; }
+        if (s_hires_vx_2LPT) { cudaFree(s_hires_vx_2LPT); s_hires_vx_2LPT = NULL; }
+        if (s_hires_vy_2LPT) { cudaFree(s_hires_vy_2LPT); s_hires_vy_2LPT = NULL; }
+        if (s_hires_vz_2LPT) { cudaFree(s_hires_vz_2LPT); s_hires_vz_2LPT = NULL; }
+        if (s_lowres_vx_2LPT) { cudaFree(s_lowres_vx_2LPT); s_lowres_vx_2LPT = NULL; }
+        if (s_lowres_vy_2LPT) { cudaFree(s_lowres_vy_2LPT); s_lowres_vy_2LPT = NULL; }
+        if (s_lowres_vz_2LPT) { cudaFree(s_lowres_vz_2LPT); s_lowres_vz_2LPT = NULL; }
+        s_initialized = false;
+    }
 
     if (!s_initialized) {
         cudaMalloc(&s_hires_density, TOT_NUM_PIXELS * sizeof(float));
@@ -315,6 +342,7 @@ extern "C" double* MapMass_gpu(
             Throw(CUDAError);
         }
         s_initialized = true;
+        s_cached_hires_density_host = boxes->hires_density;
     }
 
     // Use persistent device pointers
