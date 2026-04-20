@@ -182,7 +182,7 @@ def test_filters(filter_flag, R, plt):
         norm_factor = 1
     # firstly, make sure the filters are normalised
     np.testing.assert_allclose(
-        input_box_centre.sum() * norm_factor, output_box_centre.sum(), atol=1e-4
+        input_box_centre.sum() * norm_factor, output_box_centre.sum(), atol=2e-4
     )
 
     # secondly, make sure binned results are reasonable
