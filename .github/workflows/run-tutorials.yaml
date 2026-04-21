@@ -10,6 +10,7 @@ on:
   pull_request:
     branches:
       - 'main'
+  workflow_dispatch:
 
 
 jobs:
@@ -63,7 +64,7 @@ jobs:
 
       - name: Install Non-Python Dependencies
         run: |
-          conda install fftw gsl
+          conda install -y fftw gsl pkg-config
 
       - name: Install 21cmFAST
         run: |

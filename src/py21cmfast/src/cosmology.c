@@ -136,7 +136,7 @@ double transfer_function_CLASS(double k, int flag_int, int flag_dv) {
     double ans;
     int gsl_status;
 
-    static bool warning_printed;
+    static bool warning_printed = false;
     static double eh_ratio_at_kmax;
 
     if (flag_int == 0) {  // Initialize vectors and read file
@@ -178,9 +178,10 @@ double transfer_function_CLASS(double k, int flag_int, int flag_dv) {
     if (k > kclass[size_density - 1]) {  // k>kmax
         if (!warning_printed) {
             LOG_WARNING(
-                "Called transfer_function_CLASS with k=%f, larger than kmax! performing linear "
+                "Called transfer_function_CLASS with k=%f > %f, larger than kmax! performing "
+                "linear "
                 "extrapolation with Eisenstein & Hu",
-                k);
+                k, kclass[size_density - 1]);
             warning_printed = true;
         }
         if (flag_dv == 0) {  // output is density

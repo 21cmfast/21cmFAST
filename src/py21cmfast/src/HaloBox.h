@@ -10,6 +10,10 @@
 #include "SpinTemperatureBox.h"
 #include "scaling_relations.h"
 
+#ifdef __cplusplus
+extern "C" {
+#endif
+
 // struct holding each halo property we currently need.
 // This is only used for both averages over the box/catalogues
 //   as well as an individual halo's properties
@@ -59,4 +63,8 @@ void set_halo_properties(double halo_mass, double M_turn_a, double M_turn_m,
 int convert_halo_props(double redshift, InitialConditions *ics, TsBox *prev_ts,
                        IonizedBox *prev_ion, HaloCatalog *halo_catalog,
                        PerturbedHaloCatalog *halo_catalog_out);
+
+#ifdef __cplusplus
+}
+#endif
 #endif

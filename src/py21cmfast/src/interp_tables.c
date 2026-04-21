@@ -1182,3 +1182,21 @@ double EvaluatedSigmasqdm(double lnM) {
     }
     return dsigmasqdm_z0(exp(lnM));
 }
+
+// Accessor function for the GPU SpinTemp kernel to access table.
+RGTable1D_f *get_SFRD_conditional_table(void) { return &SFRD_conditional_table; }
+
+// Accessor function for the GPU Ionisation kernel to access table.
+RGTable1D_f *get_Nion_conditional_table1D(void) { return &Nion_conditional_table1D; }
+
+// Accessor function for GPU memory allocation functions to access nbins.
+int get_nbins(void) { return NDELTA; }
+
+// todo: only return when it's been initialized
+RGTable1D *GetNhaloTable() { return &Nhalo_table; }
+
+RGTable1D *GetMcollTable() { return &Mcoll_table; }
+
+RGTable2D *GetNhaloInvTable() { return &Nhalo_inv_table; }
+
+RGTable1D_f *GetSigmaInterpTable() { return &Sigma_InterpTable; }

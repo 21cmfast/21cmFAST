@@ -27,8 +27,9 @@ from attrs import asdict, evolve, validators
 from attrs import field as _field
 from cyclopts import Parameter
 
+import py21cmfast.c_21cmfast as lib
+
 from .._cfg import config
-from ..c_21cmfast import ffi
 from ._utils import snake_to_camel
 from .classy_interface import (
     find_redshift_kinematic_decoupling,
@@ -128,11 +129,6 @@ class InputStruct:
     .. warning:: This class will *not* deal well with parameters of the struct which are
                  pointers. All parameters should be primitive types, except for strings,
                  which are dealt with specially.
-
-    Parameters
-    ----------
-    ffi : cffi object
-        The ffi object from any cffi-wrapped library.
     """
 
     _subclasses: ClassVar = {}
@@ -197,12 +193,6 @@ class InputStruct:
         cdict = self.cdict
         for k in self._struct.fieldnames:
             val = cdict[k]
-
-            # TODO: is this really required here? (I don't think the wrapper can satisfy this condition)
-            if isinstance(val, str):
-                # If it is a string, need to convert it to C string ourselves.
-                val = self.ffi.new("char[]", val.encode())
-
             setattr(self._struct.cstruct, k, val)
 
         return self._struct.cstruct
@@ -319,10 +309,10 @@ class Table1D:
     @cached_property
     def _cstruct(self):
         """Cached pointer to the memory of the object in C."""
-        ctab = ffi.new("Table1D *")
+        ctab = lib.Table1D()
         ctab.size = self.size
-        ctab.x_values = ffi.cast("double *", ffi.from_buffer(self.x_values))
-        ctab.y_values = ffi.cast("double *", ffi.from_buffer(self.y_values))
+        ctab.set_x_values(self.x_values)
+        ctab.set_y_values(self.y_values)
         return ctab
 
 
@@ -372,14 +362,16 @@ class CosmoTables:
     @cached_property
     def _cstruct(self) -> StructWrapper:
         """The object pointing to the memory accessed by C-code for this struct."""
-        for k in self._struct.fieldnames:
-            val = getattr(self, k)
-            if isinstance(val, Table1D):
-                setattr(self._struct.cstruct, k, val._cstruct)
-            elif isinstance(val, (float | bool)) or val is not None:
-                setattr(self._struct.cstruct, k, val)
-
-        return self._struct.cstruct
+        cstruct = self._struct.cstruct
+        if self.ps_norm is not None:
+            cstruct.ps_norm = self.ps_norm
+        if self.USE_SIGMA_8 is not None:
+            cstruct.USE_SIGMA_8 = bool(self.USE_SIGMA_8)
+        if self.transfer_density is not None:
+            cstruct.set_transfer_density(self.transfer_density._cstruct)
+        if self.transfer_vcb is not None:
+            cstruct.set_transfer_vcb(self.transfer_vcb._cstruct)
+        return cstruct
 
     def clone(self, **kwargs):
         """Make a fresh copy of the instance with arbitrary parameters updated."""
@@ -1156,6 +1148,10 @@ class AstroOptions(InputStruct):
     IONISE_ENTIRE_SPHERE: bool, optional
         If True, ionises the entire sphere on the filter scale when an ionised region is
         found in the excursion set.
+    AVG_BELOW_SAMPLER: bool, optional
+        If True, use averaged/integrated source properties for halos below the sampler
+        minimum mass (SAMPLER_MIN_MASS). If False, only explicitly sampled halos
+        contribute to source properties. Default is True.
     INTEGRATION_METHOD_ATOMIC: str, optional
         The integration method to use for conditional MF integrals of atomic halos in
         the grids:
@@ -1200,6 +1196,7 @@ class AstroOptions(InputStruct):
     HII_FILTER: FilterOptions = choice_field(default="spherical-tophat")
     HEAT_FILTER: FilterOptions = choice_field(default="spherical-tophat")
     IONISE_ENTIRE_SPHERE: bool = field(default=False, converter=bool)
+    AVG_BELOW_SAMPLER: bool = field(default=True, converter=bool)
 
     INTEGRATION_METHOD_ATOMIC: IntegralMethods = choice_field(default="GAUSS-LEGENDRE")
     INTEGRATION_METHOD_MINI: IntegralMethods = choice_field(default="GAUSS-LEGENDRE")

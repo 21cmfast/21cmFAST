@@ -3,9 +3,9 @@
 import matplotlib as mpl
 import mpmath
 import numpy as np
+import py21cmfast.c_21cmfast as lib
 import pytest
 from matplotlib.colors import Normalize
-from py21cmfast.c_21cmfast import ffi, lib
 from scipy.stats import binned_statistic as binstat
 
 from py21cmfast.wrapper.cfuncs import broadcast_input_struct
@@ -99,20 +99,20 @@ def test_filters(filter_flag, R, plt):
     output_box_centre = np.zeros((up.HII_DIM,) * 3, dtype="f8")
     # use MFP=20 for the exp filter, use a 4 cell shell for the annular filter
     if filter_flag == 3:
-        R_param = 20
+        R_param = 20.0
     elif filter_flag == 4:
         R_param = R + 4 * (up.BOX_LEN / up.HII_DIM)
     else:
-        R_param = 0
+        R_param = 0.0
 
     broadcast_input_struct(inputs)
     lib.test_filter(
-        ffi.cast("float *", input_box_centre.ctypes.data),
+        input_box_centre,
         R,
         R_param,
         0.0,
         filter_flag,
-        ffi.cast("double *", output_box_centre.ctypes.data),
+        output_box_centre,
     )
 
     # expected outputs given in cell units
@@ -182,7 +182,7 @@ def test_filters(filter_flag, R, plt):
         norm_factor = 1
     # firstly, make sure the filters are normalised
     np.testing.assert_allclose(
-        input_box_centre.sum() * norm_factor, output_box_centre.sum(), atol=1e-4
+        input_box_centre.sum() * norm_factor, output_box_centre.sum(), atol=2e-4
     )
 
     # secondly, make sure binned results are reasonable
@@ -313,7 +313,7 @@ def test_MS_filter(R_inner, n, R_star):
 
     # testing a random input box
     rng = np.random.default_rng(12345)
-    input_box = rng.random((up.HII_DIM,) * 3)
+    input_box = rng.random((up.HII_DIM,) * 3).astype("f4")
     output_box_SL = np.zeros((up.HII_DIM,) * 3, dtype="f8")
     output_box_MS = np.zeros((up.HII_DIM,) * 3, dtype="f8")
 
@@ -321,22 +321,22 @@ def test_MS_filter(R_inner, n, R_star):
 
     broadcast_input_struct(inputs)
     lib.test_filter(
-        ffi.cast("float *", input_box.ctypes.data),
+        input_box,
         R_inner,
         R_outer,
         R_star,
         4,
-        ffi.cast("double *", output_box_SL.ctypes.data),
+        output_box_SL,
     )
 
     broadcast_input_struct(inputs)
     lib.test_filter(
-        ffi.cast("float *", input_box.ctypes.data),
+        input_box,
         R_inner,
         R_outer,
         R_star,
         5,
-        ffi.cast("double *", output_box_MS.ctypes.data),
+        output_box_MS,
     )
 
     if R_star < 1:

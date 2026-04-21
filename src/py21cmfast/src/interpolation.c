@@ -43,10 +43,12 @@ void allocate_RGTable2D(int n_x, int n_y, RGTable2D *ptr) {
     ptr->nx_bin = n_x;
     ptr->ny_bin = n_y;
 
+    ptr->flatten_data = (double *)calloc(n_x * n_y, sizeof(double));
     ptr->z_arr = calloc(n_x, sizeof(double *));
     for (i = 0; i < n_x; i++) {
-        ptr->z_arr[i] = calloc(n_y, sizeof(double));
+        ptr->z_arr[i] = &ptr->flatten_data[i * n_y];
     }
+
     ptr->allocated = true;
 }
 
@@ -74,7 +76,7 @@ void free_RGTable2D_f(RGTable2D_f *ptr) {
 void free_RGTable2D(RGTable2D *ptr) {
     int i;
     if (ptr->allocated) {
-        for (i = 0; i < ptr->nx_bin; i++) free(ptr->z_arr[i]);
+        free(ptr->flatten_data);
         free(ptr->z_arr);
         ptr->allocated = false;
     }
@@ -121,9 +123,37 @@ double EvaluateRGTable2D(double x, double y, RGTable2D *table) {
 
 // some tables are floats but I still need to return doubles
 double EvaluateRGTable1D_f(double x, RGTable1D_f *table) {
+    static long oob_low_count = 0;
+    static long oob_high_count = 0;
+    static double oob_low_min_x = 1e30;
+    static double oob_high_max_x = -1e30;
+
     double x_min = table->x_min;
     double x_width = table->x_width;
     int idx = (int)floor((x - x_min) / x_width);
+    int max_idx = table->n_bin - 2;  // -2 because we access idx+1
+
+    // Bounds checking with OOB diagnostics
+    if (idx < 0) {
+        oob_low_count++;
+        if (x < oob_low_min_x) oob_low_min_x = x;
+        if (oob_low_count <= 5 || (oob_low_count % 100000 == 0)) {
+            fprintf(stderr,
+                    "[OOB] EvaluateRGTable1D_f: idx=%d < 0, x=%.6e, x_min=%.6e (count=%ld)\n", idx,
+                    x, x_min, oob_low_count);
+        }
+        idx = 0;
+    } else if (idx > max_idx) {
+        oob_high_count++;
+        if (x > oob_high_max_x) oob_high_max_x = x;
+        if (oob_high_count <= 5 || (oob_high_count % 100000 == 0)) {
+            fprintf(stderr,
+                    "[OOB] EvaluateRGTable1D_f: idx=%d > %d, x=%.6e, x_max=%.6e (count=%ld)\n", idx,
+                    max_idx, x, x_min + x_width * table->n_bin, oob_high_count);
+        }
+        idx = max_idx;
+    }
+
     double table_val = x_min + x_width * (float)idx;
     double interp_point = (x - table_val) / x_width;
 
