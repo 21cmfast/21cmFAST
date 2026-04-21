@@ -612,33 +612,39 @@ void copy_filter_transform(struct FilteredGrids *fg_struct, struct IonBoxConstan
         int fi = 0;
         struct DeviceFilterBuffers *db = &consts->dev_filter;
 
-        filter_and_transform_device(db->d_fields[fi++], db->d_working,
-            fg_struct->deltax_filtered, box_dim, consts->hii_filter, R, 0., db->plan);
+        filter_and_transform_device(db->d_fields[fi++], db->d_working, fg_struct->deltax_filtered,
+                                    box_dim, consts->hii_filter, R, 0., db->plan);
         device_memcpy(db->d_deltax_real, db->d_working, db->real_padded_size);
         if (astro_options_global->USE_TS_FLUCT) {
-            filter_and_transform_device(db->d_fields[fi++], db->d_working,
-                fg_struct->xe_filtered, box_dim, consts->hii_filter, R, 0., db->plan);
+            filter_and_transform_device(db->d_fields[fi++], db->d_working, fg_struct->xe_filtered,
+                                        box_dim, consts->hii_filter, R, 0., db->plan);
             device_memcpy(db->d_xe_real, db->d_working, db->real_padded_size);
         }
         if (consts->filter_recombinations) {
             filter_and_transform_device(db->d_fields[fi++], db->d_working,
-                fg_struct->N_rec_filtered, box_dim, consts->hii_filter, R, 0., db->plan);
+                                        fg_struct->N_rec_filtered, box_dim, consts->hii_filter, R,
+                                        0., db->plan);
         }
         if (consts->lagrangian_source_grids) {
             int filter_hf = astro_options_global->USE_EXP_FILTER ? 3 : consts->hii_filter;
             filter_and_transform_device(db->d_fields[fi++], db->d_working,
-                fg_struct->stars_filtered, box_dim, filter_hf, R, consts->mfp_meandens, db->plan);
+                                        fg_struct->stars_filtered, box_dim, filter_hf, R,
+                                        consts->mfp_meandens, db->plan);
             if (astro_options_global->INHOMO_RECO) {
                 filter_and_transform_device(db->d_fields[fi++], db->d_working,
-                    fg_struct->sfr_filtered, box_dim, filter_hf, R, consts->mfp_meandens, db->plan);
+                                            fg_struct->sfr_filtered, box_dim, filter_hf, R,
+                                            consts->mfp_meandens, db->plan);
             }
         } else if (astro_options_global->USE_MINI_HALOS) {
             filter_and_transform_device(db->d_fields[fi++], db->d_working,
-                fg_struct->prev_deltax_filtered, box_dim, consts->hii_filter, R, 0., db->plan);
+                                        fg_struct->prev_deltax_filtered, box_dim,
+                                        consts->hii_filter, R, 0., db->plan);
             filter_and_transform_device(db->d_fields[fi++], db->d_working,
-                fg_struct->log10_Mturnover_MINI_filtered, box_dim, consts->hii_filter, R, 0., db->plan);
+                                        fg_struct->log10_Mturnover_MINI_filtered, box_dim,
+                                        consts->hii_filter, R, 0., db->plan);
             filter_and_transform_device(db->d_fields[fi++], db->d_working,
-                fg_struct->log10_Mturnover_filtered, box_dim, consts->hii_filter, R, 0., db->plan);
+                                        fg_struct->log10_Mturnover_filtered, box_dim,
+                                        consts->hii_filter, R, 0., db->plan);
         }
         return;
 #else
@@ -1614,8 +1620,7 @@ int ComputeIonizedBox(float redshift, float prev_redshift, PerturbedField *pertu
                 /* Field 0: deltax (always) */
                 h_fields[nf++] = grid_struct->deltax_unfiltered;
                 /* Field 1: xe (if USE_TS_FLUCT) */
-                if (astro_options_global->USE_TS_FLUCT)
-                    h_fields[nf++] = grid_struct->xe_unfiltered;
+                if (astro_options_global->USE_TS_FLUCT) h_fields[nf++] = grid_struct->xe_unfiltered;
                 /* Field 2: N_rec (if filter_recombinations) */
                 if (ionbox_constants.filter_recombinations)
                     h_fields[nf++] = grid_struct->N_rec_unfiltered;
@@ -1666,13 +1671,13 @@ int ComputeIonizedBox(float redshift, float prev_redshift, PerturbedField *pertu
                 if (use_cuda && matter_options_global->SOURCE_MODEL == 1 &&
                     !astro_options_global->USE_MINI_HALOS) {
 #if USE_CUDA
-                    calculate_fcoll_grid_gpu(box, grid_struct->deltax_filtered,
-                                             grid_struct->xe_filtered,
-                                             &curr_radius.f_coll_grid_mean, d_deltax_filtered,
-                                             d_xe_filtered, d_Fcoll, d_y_arr, HII_TOT_NUM_PIXELS,
-                                             HII_KSPACE_NUM_PIXELS, &threadsPerBlock, &numBlocks,
-                                             curr_radius.R_index > 0 ? ionbox_constants.dev_filter.d_deltax_real : NULL,
-                                             curr_radius.R_index > 0 ? ionbox_constants.dev_filter.d_xe_real : NULL);
+                    calculate_fcoll_grid_gpu(
+                        box, grid_struct->deltax_filtered, grid_struct->xe_filtered,
+                        &curr_radius.f_coll_grid_mean, d_deltax_filtered, d_xe_filtered, d_Fcoll,
+                        d_y_arr, HII_TOT_NUM_PIXELS, HII_KSPACE_NUM_PIXELS, &threadsPerBlock,
+                        &numBlocks,
+                        curr_radius.R_index > 0 ? ionbox_constants.dev_filter.d_deltax_real : NULL,
+                        curr_radius.R_index > 0 ? ionbox_constants.dev_filter.d_xe_real : NULL);
 #else
                     LOG_ERROR(
                         "CUDA function calculate_fcoll_grid_gpu() called but code was not compiled "

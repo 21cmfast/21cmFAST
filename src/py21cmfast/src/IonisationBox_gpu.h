@@ -26,7 +26,7 @@ void calculate_fcoll_grid_gpu(IonizedBox *box,                   // for box->Fco
                               unsigned long long hii_tot_num_pixels,     // HII_TOT_NUM_PIXELS
                               unsigned long long hii_kspace_num_pixels,  // HII_KSPACE_NUM_PIXELS
                               unsigned int *threadsPerBlock, unsigned int *numBlocks,
-                              void *d_deltax_device_src,         // NULL = H2D from host
+                              void *d_deltax_device_src,  // NULL = H2D from host
                               void *d_xe_device_src);
 void free_ionbox_gpu_data(fftwf_complex **d_deltax_filtered,  // copies of pointers to pointers
                           fftwf_complex **d_xe_filtered, float **d_y_arr, float **d_Fcoll);
