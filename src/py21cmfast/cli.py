@@ -342,9 +342,6 @@ class NodeRedshiftParameters:
         if not force and not inputs.evolution_required and not anything_set:
             return inputs
 
-        if not force and not anything_set:
-            return inputs
-
         # User explicitly set node-z parameters, or force=True requested defaults.
         _zmin = self.min if self.min is not None else 5.5
         if self.spacing == "logspace":

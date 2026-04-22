@@ -667,3 +667,10 @@ class TestInputParameters:
                 SOURCE_MODEL="L-INTEGRAL",
                 USE_UPPER_STELLAR_TURNOVER=False,
             )
+
+    def test_linear_node_redshifts(self):
+        """Test that with_linear_redshifts works as expected."""
+        with pytest.raises(
+            ValueError, match=r"Either `nz` or `zstep` must be provided"
+        ):
+            InputParameters(random_seed=1).with_linear_redshifts()
