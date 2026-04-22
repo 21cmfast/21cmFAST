@@ -256,6 +256,7 @@ def pretty_print_inputs(
             if structname == "CosmoTables":
                 # grrr cosmo tables being annoying again!
                 continue
+
             if params:
                 yield Rule(f"[bold purple]{structname}")
 
@@ -678,7 +679,12 @@ def global_evolution(
     if not out.parent.exists():
         out.parent.mkdir(parents=True, exist_ok=True)
 
-    inputs = _run_setup(options, params, min_evolved_redshift, force_nodez=True)
+    inputs = _run_setup(
+        options=options,
+        params=params,
+        nodez_params=NodeRedshiftParameters(min=min_evolved_redshift),
+        force_nodez=True,
+    )
 
     if source_model is None and inputs.matter_options.SOURCE_MODEL not in [
         "E-INTEGRAL",
