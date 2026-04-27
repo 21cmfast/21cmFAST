@@ -895,7 +895,7 @@ class PerturbedHaloCatalog(OutputStructZ):
         cls,
         inputs: InputParameters,
         redshift: float,
-        buffer_size: float,
+        buffer_size: float | None = None,
         **kw,
     ) -> Self:
         """Create a new PerturbedHaloCatalog instance with the given inputs.
@@ -912,6 +912,17 @@ class PerturbedHaloCatalog(OutputStructZ):
         All other parameters are passed through to the :class:`PerturbedHaloCatalog`
         constructor.
         """
+        from .cfuncs import get_halo_catalog_buffer_size
+
+        if kw.get("dummy", False):
+            buffer_size = 0
+        elif buffer_size is None:
+            buffer_size = get_halo_catalog_buffer_size(
+                redshift=redshift,
+                inputs=inputs,
+                free_cosmo_tables=kw.get("free_cosmo_tables", False),
+            )
+
         out = {
             "halo_coords": Array((buffer_size, 3), dtype=np.float32),
             "halo_masses": Array((buffer_size,), dtype=np.float32),
@@ -960,6 +971,9 @@ class PerturbedHaloCatalog(OutputStructZ):
             required += [
                 "halo_coords",
                 "halo_masses",
+                "star_rng",
+                "sfr_rng",
+                "xray_rng",
             ]
         else:
             raise ValueError(
