@@ -103,6 +103,32 @@ def test_run_lc_bad_inputs(
             inputs=default_input_struct_lc.clone(node_redshifts=[]),
         )
 
+    cosmo = rectlcn.cosmo
+    with pytest.raises(
+        ValueError,
+        match="The cosmology used to construct the lightcone is not the same as the cosmology in the input parameters",
+    ):
+        p21c.run_lightcone(
+            lightconer=rectlcn,
+            inputs=default_input_struct_lc.evolve_input_structs(hlittle=0.9 * cosmo.h),
+        )
+    with pytest.raises(
+        ValueError,
+        match="The cosmology used to construct the lightcone is not the same as the cosmology in the input parameters",
+    ):
+        p21c.run_lightcone(
+            lightconer=rectlcn,
+            inputs=default_input_struct_lc.evolve_input_structs(OMm=0.9 * cosmo.Om0),
+        )
+    with pytest.raises(
+        ValueError,
+        match="The cosmology used to construct the lightcone is not the same as the cosmology in the input parameters",
+    ):
+        p21c.run_lightcone(
+            lightconer=rectlcn,
+            inputs=default_input_struct_lc.evolve_input_structs(OMb=0.9 * cosmo.Ob0),
+        )
+
 
 def test_lc_with_lightcone_filename(
     ic, rectlcn, default_input_struct_lc, tmpdirec, cache
