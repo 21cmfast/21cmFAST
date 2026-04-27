@@ -56,7 +56,7 @@ import numpy as np
 from scipy.optimize import curve_fit
 
 from ..c_21cmfast import ffi, lib
-from ..drivers._param_config import broadcast_input_struct, c_wrapper, init_sigma_table
+from ..drivers._param_config import broadcast_input_struct, c_state_initializer
 from ._utils import _process_exitcode
 from .inputs import InputParameters
 from .outputs import InitialConditions
@@ -198,7 +198,9 @@ def _get_photon_nonconservation_data() -> dict:
     }
 
 
-@init_sigma_table(is_generator=False)
+@c_state_initializer(
+    broadcast_inputs=True, init_ps=True, init_heat=False, init_sigma=True
+)
 def setup_photon_cons(
     initial_conditions: InitialConditions,
     inputs: InputParameters | None = None,
@@ -279,12 +281,6 @@ def calibrate_photon_cons(
     # avoiding circular imports by importing here
     from ..drivers.single_field import compute_ionization_field, perturb_field
 
-    # The single field calls below use inputs_calibration, not the inputs that was already broadcast by
-    # the high-level caller. We therefore toggle off the broadcast_inputs flag, so that the single field
-    # calls will broadcast inputs_calibration
-    # TODO: This is hacky (better to put this entire module under high_level_func)
-    kwargs["init_manager"].broadcast_inputs = False
-
     # Create a new astro_params and astro_options just for the photon_cons correction
     # NOTE: Since the calibration cannot do INHOMO_RECO, we set the R_BUBBLE_MAX
     #   to the default w/o recombinations ONLY when the original box has INHOMO_RECO enabled.
@@ -310,6 +306,12 @@ def calibrate_photon_cons(
     )
     ib = None
     prev_perturb = None
+
+    # The single-field functions below are wrapped by c_state_initializer, which
+    # initializes backend state on every call.
+    # broadcasts in a high-level call context. We therefore explicitly broadcast the
+    # calibration inputs once here so the calibration loop runs with the intended globals.
+    broadcast_input_struct(inputs=inputs_calibration)
 
     # Arrays for redshift and neutral fraction for the calibration curve
     neutral_fraction_photon_cons = []
@@ -377,15 +379,15 @@ def calibrate_photon_cons(
         NSpline=len(fast_node_redshifts),
     )
 
-    # Re-broadcast the main inputs after the photon-cons calibration loop is over
-    # TODO: This is hacky (better to put this entire module under high_level_func)
-    kwargs["init_manager"].broadcast_inputs = True
+    # Re-broadcast the main inputs after the photon-cons calibration loop is over.
     broadcast_input_struct(inputs=inputs)
 
 
 # (Jdavies): I needed a function to access the delta z from the wrapper
 # get_photoncons_data does not have the edge cases that adjust_redshifts_for_photoncons does
-@c_wrapper(is_generator=False)
+@c_state_initializer(
+    broadcast_inputs=True, init_ps=False, init_heat=False, init_sigma=False
+)
 def get_photoncons_dz(inputs, redshift, **kwargs):
     """Access the delta z arrays from the photon conservation model in C."""
     deltaz = np.zeros(1).astype("f4")

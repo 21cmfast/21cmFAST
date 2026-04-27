@@ -90,6 +90,79 @@ static RGTable1D_f dSigmasqdm_InterpTable = {
     .allocated = false,
 };
 
+/* -------------------------------------------------------------------------
+     Parameter-change detection for initialiseSigmaMInterpTable()
+
+     The sigma interpolation tables depend on:
+         1. The requested mass range (M_min, M_max)
+         2. The cosmology / power-spectrum globals used by sigma_z0()
+
+     The cache below records the parameter values used for the most recent
+     successful sigma-table build so that:
+
+         - initialiseSigmaMInterpTable() can skip re-computation when called with
+             unchanged inputs (idempotency / performance).
+         - sigma_table_is_consistent() can be queried from Python.
+         - invalidate_sigma_table_cache() can force re-initialisation.
+     ------------------------------------------------------------------------- */
+struct SigmaTableParamsCache {
+    float M_min;
+    float M_max;
+    float hlittle;
+    float OMm;
+    float OMb;
+    float OMn;
+    float POWER_INDEX;
+    double ps_norm;
+    bool USE_SIGMA_8;
+    int POWER_SPECTRUM;
+    int FILTER;
+    bool valid;
+};
+
+static struct SigmaTableParamsCache sigma_table_params_cache = {.valid = false};
+
+/* Returns true if the cached parameters match the current globals and arguments. */
+static bool sigma_table_params_match_cache(float M_min, float M_max) {
+    if (!sigma_table_params_cache.valid) return false;
+    return (sigma_table_params_cache.M_min == M_min && sigma_table_params_cache.M_max == M_max &&
+            sigma_table_params_cache.hlittle == cosmo_params_global->hlittle &&
+            sigma_table_params_cache.OMm == cosmo_params_global->OMm &&
+            sigma_table_params_cache.OMb == cosmo_params_global->OMb &&
+            sigma_table_params_cache.OMn == cosmo_params_global->OMn &&
+            sigma_table_params_cache.POWER_INDEX == cosmo_params_global->POWER_INDEX &&
+            sigma_table_params_cache.ps_norm == cosmo_tables_global->ps_norm &&
+            sigma_table_params_cache.USE_SIGMA_8 == cosmo_tables_global->USE_SIGMA_8 &&
+            sigma_table_params_cache.POWER_SPECTRUM == matter_options_global->POWER_SPECTRUM &&
+            sigma_table_params_cache.FILTER == matter_options_global->FILTER);
+}
+
+/* Snapshots the current parameters into sigma_table_params_cache. */
+static void sigma_table_update_cache(float M_min, float M_max) {
+    sigma_table_params_cache.M_min = M_min;
+    sigma_table_params_cache.M_max = M_max;
+    sigma_table_params_cache.hlittle = cosmo_params_global->hlittle;
+    sigma_table_params_cache.OMm = cosmo_params_global->OMm;
+    sigma_table_params_cache.OMb = cosmo_params_global->OMb;
+    sigma_table_params_cache.OMn = cosmo_params_global->OMn;
+    sigma_table_params_cache.POWER_INDEX = cosmo_params_global->POWER_INDEX;
+    sigma_table_params_cache.ps_norm = cosmo_tables_global->ps_norm;
+    sigma_table_params_cache.USE_SIGMA_8 = cosmo_tables_global->USE_SIGMA_8;
+    sigma_table_params_cache.POWER_SPECTRUM = matter_options_global->POWER_SPECTRUM;
+    sigma_table_params_cache.FILTER = matter_options_global->FILTER;
+    sigma_table_params_cache.valid = true;
+}
+
+bool sigma_table_is_consistent(float M_min, float M_max) {
+    return sigma_table_params_match_cache(M_min, M_max);
+}
+
+bool sigma_table_is_allocated(void) {
+    return Sigma_InterpTable.allocated || dSigmasqdm_InterpTable.allocated;
+}
+
+void invalidate_sigma_table_cache(void) { sigma_table_params_cache.valid = false; }
+
 // NOTE: this table is initialised for up to N_redshift x N_Mturn, but only called N_filter times to
 // assign ST_over_PS in Spintemp.
 //   It may be better to just do the integrals at each R
@@ -1133,6 +1206,13 @@ double EvaluateSigmaInverse(double sigma) {
 void initialiseSigmaMInterpTable(float M_min, float M_max) {
     int i;
 
+    if (sigma_table_params_match_cache(M_min, M_max)) {
+        LOG_DEBUG(
+            "Sigma interpolation table already initialised with current parameters - "
+            "skipping re-computation.");
+        return;
+    }
+
     if (!Sigma_InterpTable.allocated) allocate_RGTable1D_f(N_MASS_INTERP, &Sigma_InterpTable);
     if (!dSigmasqdm_InterpTable.allocated)
         allocate_RGTable1D_f(N_MASS_INTERP, &dSigmasqdm_InterpTable);
@@ -1160,11 +1240,14 @@ void initialiseSigmaMInterpTable(float M_min, float M_max) {
             Throw(TableGenerationError);
         }
     }
+
+    sigma_table_update_cache(M_min, M_max);
 }
 
 void freeSigmaMInterpTable() {
     free_RGTable1D_f(&Sigma_InterpTable);
     free_RGTable1D_f(&dSigmasqdm_InterpTable);
+    invalidate_sigma_table_cache();
 }
 
 double EvaluateSigma(double lnM) {

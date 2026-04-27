@@ -2,6 +2,10 @@
 #define _PS_H
 
 void init_ps();
+bool ps_is_consistent(void);
+bool ps_is_allocated(void);
+void invalidate_ps_cache(void);
+
 double dicke(double z);
 double sigma_z0(double M);
 double dsigmasqdm_z0(double M);

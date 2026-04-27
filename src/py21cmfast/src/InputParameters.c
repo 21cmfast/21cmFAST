@@ -7,6 +7,59 @@
 #include "logger.h"
 
 bool allocated_cosmo_tables = false;
+static bool allocated_transfer_tables = false;
+
+static void free_transfer_tables(void) {
+    if (!allocated_transfer_tables) return;
+
+    free(cosmo_tables_global->transfer_density->x_values);
+    free(cosmo_tables_global->transfer_density->y_values);
+    free(cosmo_tables_global->transfer_density);
+    free(cosmo_tables_global->transfer_vcb->x_values);
+    free(cosmo_tables_global->transfer_vcb->y_values);
+    free(cosmo_tables_global->transfer_vcb);
+
+    cosmo_tables_global->transfer_density = NULL;
+    cosmo_tables_global->transfer_vcb = NULL;
+    allocated_transfer_tables = false;
+}
+
+static void ensure_transfer_tables_allocated(const CosmoTables *cosmo_tables) {
+    int n_density = cosmo_tables->transfer_density->size;
+    int n_vcb = cosmo_tables->transfer_vcb->size;
+
+    if (!allocated_transfer_tables) {
+        cosmo_tables_global->transfer_density = malloc(sizeof(Table1D));
+        cosmo_tables_global->transfer_vcb = malloc(sizeof(Table1D));
+
+        cosmo_tables_global->transfer_density->size = n_density;
+        cosmo_tables_global->transfer_density->x_values = malloc(n_density * sizeof(double));
+        cosmo_tables_global->transfer_density->y_values = malloc(n_density * sizeof(double));
+
+        cosmo_tables_global->transfer_vcb->size = n_vcb;
+        cosmo_tables_global->transfer_vcb->x_values = malloc(n_vcb * sizeof(double));
+        cosmo_tables_global->transfer_vcb->y_values = malloc(n_vcb * sizeof(double));
+
+        allocated_transfer_tables = true;
+        return;
+    }
+
+    if (cosmo_tables_global->transfer_density->size != n_density) {
+        cosmo_tables_global->transfer_density->x_values =
+            realloc(cosmo_tables_global->transfer_density->x_values, n_density * sizeof(double));
+        cosmo_tables_global->transfer_density->y_values =
+            realloc(cosmo_tables_global->transfer_density->y_values, n_density * sizeof(double));
+        cosmo_tables_global->transfer_density->size = n_density;
+    }
+
+    if (cosmo_tables_global->transfer_vcb->size != n_vcb) {
+        cosmo_tables_global->transfer_vcb->x_values =
+            realloc(cosmo_tables_global->transfer_vcb->x_values, n_vcb * sizeof(double));
+        cosmo_tables_global->transfer_vcb->y_values =
+            realloc(cosmo_tables_global->transfer_vcb->y_values, n_vcb * sizeof(double));
+        cosmo_tables_global->transfer_vcb->size = n_vcb;
+    }
+}
 
 void Broadcast_struct_global_all(SimulationOptions *simulation_options,
                                  MatterOptions *matter_options, CosmoParams *cosmo_params,
@@ -20,31 +73,25 @@ void Broadcast_struct_global_all(SimulationOptions *simulation_options,
     int n;
     if (!allocated_cosmo_tables) {
         cosmo_tables_global = malloc(sizeof(CosmoTables));
+        cosmo_tables_global->transfer_density = NULL;
+        cosmo_tables_global->transfer_vcb = NULL;
         cosmo_tables_global->ps_norm = cosmo_tables->ps_norm;
         cosmo_tables_global->USE_SIGMA_8 = cosmo_tables->USE_SIGMA_8;
-
-        if (matter_options_global->POWER_SPECTRUM == 5) {
-            n = cosmo_tables->transfer_density->size;
-            cosmo_tables_global->transfer_density = malloc(sizeof(Table1D));
-            cosmo_tables_global->transfer_density->size = n;
-            cosmo_tables_global->transfer_density->x_values = malloc(n * sizeof(double));
-            cosmo_tables_global->transfer_density->y_values = malloc(n * sizeof(double));
-
-            n = cosmo_tables->transfer_vcb->size;
-            cosmo_tables_global->transfer_vcb = malloc(sizeof(Table1D));
-            cosmo_tables_global->transfer_vcb->size = n;
-            cosmo_tables_global->transfer_vcb->x_values = malloc(n * sizeof(double));
-            cosmo_tables_global->transfer_vcb->y_values = malloc(n * sizeof(double));
-        }
 
         allocated_cosmo_tables = true;
         LOG_DEBUG("Allocated memory for cosmo_tables_global");
     }
+
+    cosmo_tables_global->ps_norm = cosmo_tables->ps_norm;
+    cosmo_tables_global->USE_SIGMA_8 = cosmo_tables->USE_SIGMA_8;
+
     // NOTE: While this is somewhat wasteful (re-copying EVERY time, though not re-allocating every
     // time), it's essentially impossible to know the user's mind and when they might want to
     // refresh the transfer density to a new cosmology, so it's better to just assume every time
     // that they might have a different transfer function.
     if (matter_options_global->POWER_SPECTRUM == 5) {
+        ensure_transfer_tables_allocated(cosmo_tables);
+
         n = cosmo_tables->transfer_density->size;
         memcpy(cosmo_tables_global->transfer_density->x_values,
                cosmo_tables->transfer_density->x_values, n * sizeof(double));
@@ -56,6 +103,9 @@ void Broadcast_struct_global_all(SimulationOptions *simulation_options,
                n * sizeof(double));
         memcpy(cosmo_tables_global->transfer_vcb->y_values, cosmo_tables->transfer_vcb->y_values,
                n * sizeof(double));
+    } else {
+        // If we switch away from CLASS, release transfer tables to avoid stale allocations.
+        free_transfer_tables();
     }
 }
 
@@ -68,14 +118,7 @@ void Broadcast_struct_global_noastro(SimulationOptions *simulation_options,
 
 void Free_cosmo_tables_global() {
     if (allocated_cosmo_tables) {
-        if (matter_options_global->POWER_SPECTRUM == 5) {
-            free(cosmo_tables_global->transfer_density->x_values);
-            free(cosmo_tables_global->transfer_density->y_values);
-            free(cosmo_tables_global->transfer_density);
-            free(cosmo_tables_global->transfer_vcb->x_values);
-            free(cosmo_tables_global->transfer_vcb->y_values);
-            free(cosmo_tables_global->transfer_vcb);
-        }
+        free_transfer_tables();
         free(cosmo_tables_global);
         allocated_cosmo_tables = false;
         LOG_DEBUG("Freed cosmo_tables_global");

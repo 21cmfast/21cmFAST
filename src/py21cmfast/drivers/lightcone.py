@@ -31,7 +31,7 @@ from ..wrapper.outputs import (
     PerturbedField,
     TsBox,
 )
-from ._param_config import high_level_func, init_heat_tables, init_sigma_table
+from ._param_config import c_state_initializer, high_level_func
 from .coeval import (
     _obtain_starting_point_for_scrolling,
     _redshift_loop_generator,
@@ -568,8 +568,9 @@ def _run_lightcone_from_perturbed_fields(
 
 
 @high_level_func
-@init_sigma_table(is_generator=True)
-@init_heat_tables(is_generator=True)
+@c_state_initializer(
+    broadcast_inputs=True, init_ps=True, init_heat=True, init_sigma=True
+)
 def generate_lightcone(
     *,
     lightconer: Lightconer,
@@ -653,7 +654,6 @@ def generate_lightcone(
     iokw = {
         "cache": cache,
         "regenerate": regenerate,
-        "init_manager": kwargs.get("init_manager"),
     }
 
     (

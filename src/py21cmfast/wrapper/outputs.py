@@ -798,7 +798,6 @@ class HaloCatalog(OutputStructZ):
         All other parameters are passed through to the :class:`PerturbedHaloCatalog`
         constructor.
         """
-        from ..drivers._param_config import _InitManager
         from .cfuncs import get_halo_catalog_buffer_size
 
         if kw.get("dummy", False):
@@ -807,7 +806,6 @@ class HaloCatalog(OutputStructZ):
             buffer_size = get_halo_catalog_buffer_size(
                 redshift=redshift,
                 inputs=inputs,
-                init_manager=kw.pop("init_manager", _InitManager()),
             )
 
         return cls(

@@ -63,6 +63,9 @@ void initialise_J_split_table(int Nbin, double umin, double umax, double gamma1)
 double EvaluateJ(double u_res, double gamma1);
 
 void initialiseSigmaMInterpTable(float M_Min, float M_Max);
+bool sigma_table_is_consistent(float M_Min, float M_Max);
+bool sigma_table_is_allocated(void);
+void invalidate_sigma_table_cache(void);
 double EvaluateSigma(double lnM);
 double EvaluatedSigmasqdm(double lnM);
 

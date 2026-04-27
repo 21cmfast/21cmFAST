@@ -5,6 +5,9 @@
 
 // * initialization routine * //
 int init_heat();
+bool heat_is_consistent(void);
+bool heat_is_allocated(void);
+void invalidate_heat_cache(void);
 
 /* destruction/deallocation routine */
 void destruct_heat();

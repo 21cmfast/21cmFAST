@@ -53,6 +53,7 @@ int ObtainPhotonConsData(double *z_at_Q_data, double *Q_data, int *Ndata_analyti
 
 void FreePhotonConsMemory();
 extern bool photon_cons_allocated;
+extern bool allocated_cosmo_tables;
 
 void set_alphacons_params(double norm, double slope);
 /* ------------------------------- */
@@ -66,7 +67,14 @@ float ComputeTau(int NPoints, float *redshifts, float *global_xHI, float z_re_He
 
 /* Initialisation functions needed in the wrapper*/
 double init_ps();
+bool ps_is_consistent(void);
+bool ps_is_allocated(void);
+void invalidate_ps_cache(void);
+
 int init_heat();
+bool heat_is_consistent(void);
+bool heat_is_allocated(void);
+void invalidate_heat_cache(void);
 int CreateFFTWWisdoms();
 void Broadcast_struct_global_noastro(SimulationOptions *simulation_options,
                                      MatterOptions *matter_options, CosmoParams *cosmo_params);
@@ -75,6 +83,9 @@ void Broadcast_struct_global_all(SimulationOptions *simulation_options,
                                  AstroParams *astro_params, AstroOptions *astro_options,
                                  CosmoTables *cosmo_tables);
 void initialiseSigmaMInterpTable(float M_Min, float M_Max);
+bool sigma_table_is_consistent(float M_Min, float M_Max);
+bool sigma_table_is_allocated(void);
+void invalidate_sigma_table_cache(void);
 void initialise_GL(double lnM_Min, double lnM_Max);
 /*---------------------------*/
 

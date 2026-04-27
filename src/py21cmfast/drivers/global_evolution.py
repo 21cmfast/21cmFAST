@@ -20,7 +20,7 @@ from ..wrapper.outputs import (
     IonizedBox,
     TsBox,
 )
-from ._param_config import high_level_func, init_heat_tables, init_sigma_table
+from ._param_config import c_state_initializer, high_level_func
 from .coeval import _redshift_loop_generator, _setup_ics_and_pfs_for_scrolling
 
 
@@ -228,8 +228,9 @@ class GlobalEvolution:
 
 
 @high_level_func
-@init_sigma_table(is_generator=True)
-@init_heat_tables(is_generator=True)
+@c_state_initializer(
+    broadcast_inputs=True, init_ps=True, init_heat=True, init_sigma=True
+)
 def generate_global_evolution(
     *,
     inputs: InputParameters,
@@ -256,7 +257,6 @@ def generate_global_evolution(
     iokw = {
         "cache": None,
         "regenerate": True,
-        "init_manager": kwargs.get("init_manager"),
     }
 
     (

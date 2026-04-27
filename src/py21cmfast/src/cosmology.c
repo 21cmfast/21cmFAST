@@ -46,6 +46,86 @@ struct CosmoConstants {
 };
 
 static struct CosmoConstants cosmo_consts;
+static bool ps_allocated = false;
+
+/* -------------------------------------------------------------------------
+   Parameter-change detection for init_ps()
+
+   cosmo_consts is derived from several global parameter structs. If those
+   structs are updated (e.g. via Broadcast_struct_global_all) without a
+   subsequent call to init_ps(), cosmo_consts becomes stale. The cache below
+   records the parameter values used in the most recent successful call to
+   init_ps() so that:
+
+     1. init_ps() can skip re-calculation when called with unchanged params
+        (idempotency / performance).
+     2. power_in_k() and sigma_z0() can detect a stale cosmo_consts and
+        automatically trigger re-initialisation before returning.
+
+   NOTE: ps_update_cache() is called at the START of init_ps(), before the
+   expensive sigma_z0 integral, so that the "currently initialising" state is
+   visible to any power_in_k() call that happens inside that integral.  This
+   breaks what would otherwise be an infinite re-initialisation loop:
+       power_in_k → init_ps → sigma_z0 → power_in_k  (would loop forever)
+   Because the cache is updated beforehand, the inner power_in_k sees the
+   cache as valid and proceeds without triggering another init_ps() call.
+   ------------------------------------------------------------------------- */
+struct PsParamsCache {
+    float hlittle;
+    float OMm;
+    float OMb;
+    float OMn;
+    float POWER_INDEX;
+    double ps_norm;
+    bool USE_SIGMA_8;
+    int POWER_SPECTRUM;
+    int FILTER;
+    bool valid; /* whether the cache has been populated */
+};
+
+static struct PsParamsCache ps_params_cache = {.valid = false};
+
+/* Returns true if the cached parameters match the current global parameters. */
+static bool ps_params_match_cache(void) {
+    if (!ps_params_cache.valid) return false;
+    return (ps_params_cache.hlittle == cosmo_params_global->hlittle &&
+            ps_params_cache.OMm == cosmo_params_global->OMm &&
+            ps_params_cache.OMb == cosmo_params_global->OMb &&
+            ps_params_cache.OMn == cosmo_params_global->OMn &&
+            ps_params_cache.POWER_INDEX == cosmo_params_global->POWER_INDEX &&
+            ps_params_cache.ps_norm == cosmo_tables_global->ps_norm &&
+            ps_params_cache.USE_SIGMA_8 == cosmo_tables_global->USE_SIGMA_8 &&
+            ps_params_cache.POWER_SPECTRUM == matter_options_global->POWER_SPECTRUM &&
+            ps_params_cache.FILTER == matter_options_global->FILTER);
+}
+
+/* Snapshots the current global parameters into ps_params_cache. */
+static void ps_update_cache(void) {
+    ps_params_cache.hlittle = cosmo_params_global->hlittle;
+    ps_params_cache.OMm = cosmo_params_global->OMm;
+    ps_params_cache.OMb = cosmo_params_global->OMb;
+    ps_params_cache.OMn = cosmo_params_global->OMn;
+    ps_params_cache.POWER_INDEX = cosmo_params_global->POWER_INDEX;
+    ps_params_cache.ps_norm = cosmo_tables_global->ps_norm;
+    ps_params_cache.USE_SIGMA_8 = cosmo_tables_global->USE_SIGMA_8;
+    ps_params_cache.POWER_SPECTRUM = matter_options_global->POWER_SPECTRUM;
+    ps_params_cache.FILTER = matter_options_global->FILTER;
+    ps_params_cache.valid = true;
+}
+
+/*
+ * ps_is_consistent(): returns true if cosmo_consts matches the current globals.
+ * Exposed to Python via CFFI so that wrapper code can query the state.
+ */
+bool ps_is_consistent(void) { return ps_params_match_cache(); }
+bool ps_is_allocated(void) { return ps_allocated; }
+
+/*
+ * invalidate_ps_cache(): marks the cache as invalid, forcing a full
+ * re-initialisation on the next init_ps() call.
+ * Exposed to Python via CFFI for testing and explicit invalidation.
+ */
+void invalidate_ps_cache(void) { ps_params_cache.valid = false; }
 
 // NOTE: All Transfer functions take k in Mpc^-1, and convert to hMpc^-1 internally
 //  FUNCTION TFmdm is the power spectrum transfer function from Eisenstein & Hu ApJ, 1999, 511, 5
@@ -272,6 +352,17 @@ double primordial_curvature_power_spectrum(double k) {
 double power_in_k(double k) {
     double p, T, primordial;
 
+    /* Detect stale cosmo_consts and re-initialise if needed.
+     * Note: ps_params_match_cache() returns true during the sigma_z0 call inside
+     * init_ps() (because ps_update_cache() is called before sigma_z0), so this
+     * check does NOT cause infinite recursion. */
+    if (!ps_params_match_cache()) {
+        LOG_WARNING(
+            "power_in_k: cosmological parameters have changed since init_ps() was "
+            "last called – re-initialising the power spectrum automatically.");
+        init_ps();
+    }
+
     if (k == 0.) {
         return 0.;
     } else {
@@ -304,6 +395,15 @@ double power_in_k(double k) {
 // TODO: this function looks now very similar to power_in_k. They should be merged in the future.
 double power_in_vcb(double k) {
     double p, T, primordial;
+
+    /* Detect stale cosmo_consts and re-initialise if needed (same reasoning as in
+     * power_in_k above). */
+    if (!ps_params_match_cache()) {
+        LOG_WARNING(
+            "power_in_vcb: cosmological parameters have changed since init_ps() was "
+            "last called – re-initialising the power spectrum automatically.");
+        init_ps();
+    }
 
     // only works if using CLASS
     if (matter_options_global->POWER_SPECTRUM == 5) {  // CLASS
@@ -500,6 +600,21 @@ void TFset_parameters() {
     Initialization of the parameters relevant for the power spectrum calculation.
 */
 void init_ps() {
+    // If the parameters have not changed since the last call, skip re-initialisation.
+    if (ps_params_match_cache()) {
+        LOG_DEBUG(
+            "Power spectrum already initialised with current parameters – skipping "
+            "re-computation.");
+        return;
+    }
+
+    ps_allocated = true;
+
+    // Snapshot the current parameters into the cache NOW – before calling sigma_z0
+    // below – so that any power_in_k() call inside sigma_z0 sees a valid cache and
+    // does not trigger another init_ps() call (which would cause infinite recursion).
+    ps_update_cache();
+
     cosmo_consts.omhh =
         cosmo_params_global->OMm * cosmo_params_global->hlittle * cosmo_params_global->hlittle;
     cosmo_consts.theta_cmb = physconst.T_cmb / 2.7;
@@ -557,6 +672,11 @@ void free_ps() {
     if (matter_options_global->POWER_SPECTRUM == 5) {
         transfer_function_CLASS(1.0, -1, 0);
     }
+
+    // Invalidate the parameter cache so the next init_ps() call performs a full
+    // re-initialisation (including re-creating any CLASS spline that was just freed).
+    invalidate_ps_cache();
+    ps_allocated = false;
 
     return;
 }

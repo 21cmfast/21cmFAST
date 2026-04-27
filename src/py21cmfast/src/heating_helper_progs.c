@@ -54,8 +54,75 @@
 
 static double BinWidth_pH, inv_BinWidth_pH, BinWidth_elec, inv_BinWidth_elec, BinWidth_10,
     inv_BinWidth_10, PS_ION_EFF;
+static bool heat_allocated = false;
+
+/* -------------------------------------------------------------------------
+   Parameter-change detection for init_heat()
+
+   init_heat() loads interpolation tables that depend on two global parameter
+   structs.  Specifically:
+
+     - astro_options_global->USE_LYA_HEATING  (controls Lya table loading)
+     - astro_params_global->POP2_ION          (used in spectral_emissivity init)
+     - astro_params_global->POP3_ION          (used in spectral_emissivity init)
+
+   The cache below records the parameter values used in the most recent
+   successful call to init_heat() so that:
+
+     1. init_heat() can skip re-loading all tables when called with unchanged
+        parameters (idempotency / performance).
+     2. heat_is_consistent() can be queried from Python to detect whether the
+        cached state matches the current global parameters.
+   ------------------------------------------------------------------------- */
+struct HeatParamsCache {
+    bool USE_LYA_HEATING;
+    double POP2_ION;
+    double POP3_ION;
+    bool valid; /* whether the cache has been populated */
+};
+
+static struct HeatParamsCache heat_params_cache = {.valid = false};
+
+/* Returns true if the cached parameters match the current global parameters. */
+static bool heat_params_match_cache(void) {
+    if (!heat_params_cache.valid) return false;
+    return (heat_params_cache.USE_LYA_HEATING == astro_options_global->USE_LYA_HEATING &&
+            heat_params_cache.POP2_ION == astro_params_global->POP2_ION &&
+            heat_params_cache.POP3_ION == astro_params_global->POP3_ION);
+}
+
+/* Snapshots the current global parameters into heat_params_cache. */
+static void heat_update_cache(void) {
+    heat_params_cache.USE_LYA_HEATING = astro_options_global->USE_LYA_HEATING;
+    heat_params_cache.POP2_ION = astro_params_global->POP2_ION;
+    heat_params_cache.POP3_ION = astro_params_global->POP3_ION;
+    heat_params_cache.valid = true;
+}
+
+/*
+ * heat_is_consistent(): returns true if the heat tables match the current globals.
+ * Exposed to Python via CFFI so that wrapper code can query the state.
+ */
+bool heat_is_consistent(void) { return heat_params_match_cache(); }
+bool heat_is_allocated(void) { return heat_allocated; }
+
+/*
+ * invalidate_heat_cache(): marks the cache as invalid, forcing a full
+ * re-initialisation on the next init_heat() call.
+ * Exposed to Python via CFFI for testing and explicit invalidation.
+ */
+void invalidate_heat_cache(void) { heat_params_cache.valid = false; }
 
 int init_heat() {
+    // If the parameters have not changed since the last call, skip re-initialisation.
+    if (heat_params_match_cache()) {
+        LOG_DEBUG("Heat tables already initialised with current parameters – skipping re-load.");
+        return 0;
+    }
+
+    // Snapshot the current parameters into the cache before doing any work.
+    heat_update_cache();
+
     kappa_10(1.0, 1);
     kappa_10_elec(1.0, 1);
     kappa_10_pH(1.0, 1);
@@ -78,12 +145,17 @@ int init_heat() {
     initialize_interp_arrays();
 
     LOG_SUPER_DEBUG("Done initializing heat.");
+    heat_allocated = true;
     return 0;
 }
 
 void destruct_heat() {
     T_RECFAST(100.0, 2);
     xion_RECFAST(100.0, 2);
+    // Invalidate the parameter cache so the next init_heat() call performs a full
+    // re-initialisation (including re-reading all table files).
+    invalidate_heat_cache();
+    heat_allocated = false;
 }
 
 // ******************************************************************** //
