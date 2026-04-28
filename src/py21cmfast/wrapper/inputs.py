@@ -2025,6 +2025,7 @@ class InputParameters:
         zmin: float = 5.5,
         zmax: float | None = None,
         step: float | None = None,
+        zstep_factor: float | None = None,
         nz: int | None = None,
     ) -> Self:
         """Create a new InputParameters instance with logspaced redshifts.
@@ -2051,9 +2052,15 @@ class InputParameters:
         if nz is not None:
             node_redshifts = tuple((np.geomspace(1 + zmin, 1 + zmax, nz) - 1).tolist())
         else:
-            if step is None:
+            if step is None and zstep_factor is not None:
                 step = self.simulation_options.ZPRIME_STEP_FACTOR
-
+            if zstep_factor is not None:
+                step = zstep_factor
+                warnings.warn(
+                    "The `zstep_factor` argument is deprecated and will be removed in a future version. Please use `step` instead.",
+                    DeprecationWarning,
+                    stacklevel=2,
+                )
             node_redshifts = get_logspaced_redshifts(
                 min_redshift=zmin,
                 z_step_factor=step,
@@ -2084,7 +2091,7 @@ class InputParameters:
             ``nz`` is provided.
         nz
             If given, produce exactly ``nz`` redshifts linearly spaced between
-            ``zmin`` and ``zmax``, overriding ``zstep``.
+            ``zmin`` and ``zmax``, overriding ``step``.
         """
         if zmax is None:
             zmax = self.simulation_options.Z_HEAT_MAX
