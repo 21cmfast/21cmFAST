@@ -177,20 +177,42 @@ class Parameters:
     """A trimmed-down version of InputParameters with all defaults of None."""
 
     simulation_options: Annotated[
-        _SimulationOptions, Parameter(name="*", group="SimulationOptions")
+        _SimulationOptions, Parameter(name="*", group="SimulationOptions", show=False)
     ] = _SimulationOptions()
     astro_options: Annotated[
-        _AstroOptions, Parameter(name="*", group="AstroOptions")
+        _AstroOptions, Parameter(name="*", group="AstroOptions", show=False)
     ] = _AstroOptions()
+    astro_params: Annotated[
+        _AstroParams, Parameter(name="*", group="AstroParams", show=False)
+    ] = _AstroParams()
+    cosmo_params: Annotated[
+        _CosmoParams, Parameter(name="*", group="CosmoParams", show=False)
+    ] = _CosmoParams()
+    matter_options: Annotated[
+        _MatterOptions, Parameter(name="*", group="MatterOptions", show=False)
+    ] = _MatterOptions()
+
+
+@app.command(name="params")
+def params_show(
+    simulation_options: Annotated[
+        _SimulationOptions, Parameter(name="*", group="SimulationOptions")
+    ] = _SimulationOptions(),
+    astro_options: Annotated[
+        _AstroOptions, Parameter(name="*", group="AstroOptions")
+    ] = _AstroOptions(),
     astro_params: Annotated[_AstroParams, Parameter(name="*", group="AstroParams")] = (
         _AstroParams()
-    )
+    ),
     cosmo_params: Annotated[_CosmoParams, Parameter(name="*", group="CosmoParams")] = (
         _CosmoParams()
-    )
+    ),
     matter_options: Annotated[
         _MatterOptions, Parameter(name="*", group="MatterOptions")
-    ] = _MatterOptions()
+    ] = _MatterOptions(),
+):
+    """Show all available simulation parameters with --help."""
+    print("Usage: 21cmfast run params --help")
 
 
 def _get_inputs(
@@ -348,7 +370,7 @@ class NodeRedshiftParameters:
             return inputs.with_logspaced_redshifts(
                 zmin=_zmin,
                 zmax=self.max,
-                zstep_factor=self.step if self.n is None else None,
+                step=self.step if self.n is None else None,
                 nz=self.n,
             )
 
@@ -356,7 +378,7 @@ class NodeRedshiftParameters:
         return inputs.with_linear_redshifts(
             zmin=_zmin,
             zmax=self.max,
-            zstep=step if self.n is None else None,
+            step=step if self.n is None else None,
             nz=self.n,
         )
 
@@ -383,8 +405,8 @@ def template_create(
     simulation parameters and how to specify them, use `21cmfast run params --help`.
 
     Node redshifts can be embedded in the template by providing one or more of
-    ``--zmin``, ``--zmax``, ``--zstep``, or ``--nz``.  The spacing function is
-    controlled by ``--znode-func`` (``logspace`` or ``linear``).
+    ``--nodez.min``, ``--nodez.max``, ``--nodez.step``, or ``--nodez.n``.
+    The spacing function is controlled by ``--nodez.spacing`` (``logspace`` or ``linear``).
     A random seed can also be embedded with ``--random-seed``.
 
     Parameters
@@ -392,8 +414,8 @@ def template_create(
     out
         The path at which to save the template file.
     mode
-        The mode in which to write the template file. This controls which parameters are included
-        in the template file.
+        The mode in which to write the template file. This controls which parameters are
+        included in the template file.
     random_seed
         An optional random seed to include in the template file.
     """
