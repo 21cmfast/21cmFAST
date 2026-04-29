@@ -20,7 +20,6 @@ jobs:
       fail-fast: false
       matrix:
         os:
-        - macos-latest   # always up-to-date arm64-based os.
         - macos-26       # arm64-based os. Cycle out when it gets out of date
         - macos-26-intel # intel-based os. Cycle out when it gets out of date
         - macos-15       # arm64-based os. Cycle out when it gets out of date
@@ -28,7 +27,7 @@ jobs:
         - macos-14       # arm64-based os. Cycle out when it gets out of date
         - ubuntu-latest  # Linux-based os / only other is 22.04 which is surely old enough not to test any more
 
-        python-version: ["3.12", "3.13", "3.14"]
+        python-version: ["3.12", "3.14"]  # bracket the versions we support.
         compiler: ["gcc", "clang"]
         non-python-dependency-manager: ["conda", "brew", "apt-get"]
         exclude:
@@ -47,6 +46,8 @@ jobs:
             non-python-dependency-manager: apt-get
           - os: ubuntu-latest
             non-python-dependency-manager: brew
+          - python-version: "3.12"
+            compiler: clang
 
     defaults:
      run:
@@ -76,16 +77,26 @@ jobs:
         run: |
           conda install pip fftw gsl compilers pkg-config
 
+      - name: Install OpenMP (Conda+clang)
+        if: matrix.non-python-dependency-manager == 'conda' && matrix.compiler == 'clang'
+        run: |
+          conda install -c conda-forge llvm-openmp
+
+      - name: Install OpenMP (Conda+gcc)
+        if: matrix.non-python-dependency-manager == 'conda' && matrix.compiler == 'gcc'
+        run: |
+          conda install -c conda-forge libgomp
+
       - name: Install Non-Python Dependencies (Brew)
         if: matrix.non-python-dependency-manager == 'brew'
         run: |
-          brew install fftw gsl pkgconf
+          brew install fftw gsl libomp pkgconf
 
       - name: Install Non-Python Dependencies (apt-get)
         if: matrix.non-python-dependency-manager == 'apt-get'
         run: |
           sudo apt-get update
-          sudo apt-get install -y libfftw3-dev libgsl-dev pkg-config
+          sudo apt-get install -y libfftw3-dev libgsl-dev libomp-dev pkg-config
 
       - name: Install 21cmFAST
         run: |
