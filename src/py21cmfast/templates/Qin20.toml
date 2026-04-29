@@ -30,5 +30,5 @@ USE_MINI_HALOS = true
 USE_CMB_HEATING = false
 USE_LYA_HEATING = false
 USE_TS_FLUCT = true
-INHOMO_RECO = true
+RECOMB_MODEL = 'inhomogeneous'
 HII_FILTER = 'sharp-k'

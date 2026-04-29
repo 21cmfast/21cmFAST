@@ -204,22 +204,24 @@ class TestAstroOptions:
         """Test possible exceptions when creating the object."""
         with pytest.raises(
             ValueError,
-            match="You have set USE_MINI_HALOS to True but INHOMO_RECO is False!",
+            match="You have set USE_MINI_HALOS to True but RECOMB_MODEL is 'none'!",
         ):
-            AstroOptions(USE_MINI_HALOS=True, USE_TS_FLUCT=True, INHOMO_RECO=False)
+            AstroOptions(USE_MINI_HALOS=True, USE_TS_FLUCT=True, RECOMB_MODEL="none")
 
         with pytest.raises(
             ValueError,
             match="You have set USE_MINI_HALOS to True but USE_TS_FLUCT is False!",
         ):
-            AstroOptions(USE_MINI_HALOS=True, INHOMO_RECO=True, USE_TS_FLUCT=False)
+            AstroOptions(
+                USE_MINI_HALOS=True, RECOMB_MODEL="inhomogeneous", USE_TS_FLUCT=False
+            )
 
         msg = r"USE_MINI_HALOS is not compatible with the redshift-based"
         with pytest.raises(ValueError, match=msg):
             AstroOptions(
                 PHOTON_CONS_TYPE="z-photoncons",
                 USE_MINI_HALOS=True,
-                INHOMO_RECO=True,
+                RECOMB_MODEL="inhomogeneous",
                 USE_TS_FLUCT=True,
             )
 
@@ -401,7 +403,7 @@ class TestInputParameters:
                 "matter_options": MatterOptions(SOURCE_MODEL="CONST-ION-EFF"),
                 "astro_options": AstroOptions(
                     USE_MINI_HALOS=True,
-                    INHOMO_RECO=True,
+                    RECOMB_MODEL="inhomogeneous",
                     USE_TS_FLUCT=True,
                     USE_EXP_FILTER=False,
                     USE_UPPER_STELLAR_TURNOVER=False,
@@ -467,7 +469,7 @@ class TestInputParameters:
             {
                 "astro_params": AstroParams(M_TURN=10),
                 "astro_options": AstroOptions(
-                    USE_MINI_HALOS=True, USE_TS_FLUCT=True, INHOMO_RECO=True
+                    USE_MINI_HALOS=True, USE_TS_FLUCT=True, RECOMB_MODEL="inhomogeneous"
                 ),
             },
         ),
@@ -476,11 +478,11 @@ class TestInputParameters:
             {"simulation_options": SimulationOptions(BOX_LEN=50, DIM=20)},
         ),
         (
-            r"This is non\-standard \(but allowed\), and usually occurs upon manual update of INHOMO_RECO",
+            r"This is non\-standard \(but allowed\), and usually occurs upon manual update of RECOMB_MODEL or R_BUBBLE_MAX",
             {
                 "astro_params": AstroParams(R_BUBBLE_MAX=10),
                 "simulation_options": SimulationOptions(BOX_LEN=50),
-                "astro_options": AstroOptions(INHOMO_RECO=True),
+                "astro_options": AstroOptions(RECOMB_MODEL="inhomogeneous"),
             },
         ),
         (
@@ -488,7 +490,7 @@ class TestInputParameters:
             {
                 "matter_options": MatterOptions(USE_RELATIVE_VELOCITIES=False),
                 "astro_options": AstroOptions(
-                    USE_MINI_HALOS=True, INHOMO_RECO=True, USE_TS_FLUCT=True
+                    USE_MINI_HALOS=True, RECOMB_MODEL="inhomogeneous", USE_TS_FLUCT=True
                 ),
             },
         ),

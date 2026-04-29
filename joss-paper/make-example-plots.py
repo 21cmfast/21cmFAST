@@ -18,7 +18,7 @@ lightcone = p21c.run_lightcone(
     },
     flag_options={
         "USE_TS_FLUCT": True,  # Do not assume saturated spin temperature
-        "INHOMO_RECO": True,  # Use inhomogeneous recominations
+        "RECOMB_MODEL": "inhomogeneous",  # Use inhomogeneous recominations
     },
     lightcone_quantities=(  # Component fields to store as interpolated lightcones
         "brightness_temp",

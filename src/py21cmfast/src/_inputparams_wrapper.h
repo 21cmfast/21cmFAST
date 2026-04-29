@@ -137,7 +137,7 @@ typedef struct AstroOptions {
     bool USE_X_RAY_HEATING;
     bool USE_CMB_HEATING;  // CMB Heating Flag
     bool USE_LYA_HEATING;  // Lya Heating Flag
-    bool INHOMO_RECO;
+    int RECOMB_MODEL;
     bool USE_TS_FLUCT;
     bool M_MIN_in_Mass;
     bool FIX_VCB_AVG;

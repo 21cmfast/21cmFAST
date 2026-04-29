@@ -166,7 +166,7 @@ void writeAstroOptions(AstroOptions *p) {
     LOG_INFO(
         "\n        AstroOptions:\n"
         "       USE_MINI_HALOS=%1d\n"
-        "       INHOMO_RECO=%1d\n"
+        "       RECOMB_MODEL=%2d\n"
         "       USE_TS_FLUCT=%1d\n"
         "       M_MIN_in_Mass=%1d\n"
         "       USE_EXP_FILTER=%1d\n"
@@ -182,7 +182,7 @@ void writeAstroOptions(AstroOptions *p) {
         "       IONISE_ENTIRE_SPHERE=%1d\n"
         "       INTEGRATION_METHOD_ATOMIC=%2d\n"
         "       INTEGRATION_METHOD_MINI=%2d\n",
-        p->USE_MINI_HALOS, p->INHOMO_RECO, p->USE_TS_FLUCT, p->M_MIN_in_Mass, p->USE_EXP_FILTER,
+        p->USE_MINI_HALOS, p->RECOMB_MODEL, p->USE_TS_FLUCT, p->M_MIN_in_Mass, p->USE_EXP_FILTER,
         p->USE_CMB_HEATING, p->USE_LYA_HEATING, p->FIX_VCB_AVG, p->CELL_RECOMB, p->PHOTON_CONS_TYPE,
         p->USE_UPPER_STELLAR_TURNOVER, p->HALO_SCALING_RELATIONS_MEDIAN, p->HII_FILTER,
         p->HEAT_FILTER, p->IONISE_ENTIRE_SPHERE, p->INTEGRATION_METHOD_ATOMIC,

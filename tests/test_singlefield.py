@@ -430,7 +430,7 @@ def test_bad_input_structs(default_input_struct_ts):
     test_inputs = default_input_struct_ts.evolve_input_structs(
         USE_MINI_HALOS=True,
         SOURCE_MODEL="CHMF-SAMPLER",
-        INHOMO_RECO=True,
+        RECOMB_MODEL="inhomogeneous",
     ).clone(node_redshifts=(35.0, 11.0, 10.0))
 
     # We don't need to compute since we arent testing a successful run

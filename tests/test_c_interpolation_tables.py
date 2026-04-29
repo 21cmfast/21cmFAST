@@ -367,7 +367,7 @@ def test_SFRD_z_tables(name, z_range, log10_mturn_range, plt):
     inputs = get_all_options_struct(
         redshift,
         USE_MINI_HALOS=True,
-        INHOMO_RECO=True,
+        RECOMB_MODEL="inhomogeneous",
         USE_TS_FLUCT=True,
         **kwargs,
     )["inputs"]
@@ -436,7 +436,7 @@ def test_Nion_z_tables(name, z_range, log10_mturn_range, plt):
     inputs = get_all_options_struct(
         redshift,
         USE_MINI_HALOS=True,
-        INHOMO_RECO=True,
+        RECOMB_MODEL="inhomogeneous",
         USE_TS_FLUCT=True,
         **kwargs,
     )["inputs"]
@@ -528,7 +528,7 @@ def test_Nion_conditional_tables(
     inputs = get_all_options_struct(
         redshift,
         USE_MINI_HALOS=mini_flag,
-        INHOMO_RECO=True,
+        RECOMB_MODEL="inhomogeneous",
         USE_TS_FLUCT=True,
         **kwargs,
     )["inputs"]
@@ -642,7 +642,7 @@ def test_Xray_conditional_tables(
     inputs = get_all_options_struct(
         redshift,
         USE_MINI_HALOS=mini_flag,
-        INHOMO_RECO=True,
+        RECOMB_MODEL="inhomogeneous",
         USE_TS_FLUCT=True,
         **kwargs,
     )["inputs"]
@@ -723,7 +723,7 @@ def test_SFRD_conditional_table(
     inputs = get_all_options_struct(
         redshift,
         USE_MINI_HALOS=True,
-        INHOMO_RECO=True,
+        RECOMB_MODEL="inhomogeneous",
         USE_TS_FLUCT=True,
         **kwargs,
     )["inputs"]
@@ -817,7 +817,7 @@ def test_conditional_integral_methods(
     inputs = get_all_options_struct(
         redshift,
         USE_MINI_HALOS=True,
-        INHOMO_RECO=True,
+        RECOMB_MODEL="inhomogeneous",
         USE_TS_FLUCT=True,
         **kwargs,
     )["inputs"]

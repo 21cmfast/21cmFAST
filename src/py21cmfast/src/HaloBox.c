@@ -176,7 +176,7 @@ HaloProperties get_halobox_averages(HaloBox *grids) {
         if (astro_options_global->USE_MINI_HALOS) {
             mean_sfr_mini += grids->halo_sfr_mini[i];
         }
-        if (astro_options_global->INHOMO_RECO) mean_wsfr += grids->whalo_sfr[i];
+        if (astro_options_global->RECOMB_MODEL > 0) mean_wsfr += grids->whalo_sfr[i];
 
         if (config_settings.EXTRA_HALOBOX_FIELDS) {
             mean_count += grids->count[i];
@@ -223,7 +223,7 @@ void mean_fix_grids(double M_min, double M_max, HaloBox *grids, ScalingConstants
         if (astro_options_global->USE_TS_FLUCT) {
             grids->halo_xray[idx] *= averages_global.halo_xray / averages_hbox.halo_xray;
         }
-        if (astro_options_global->INHOMO_RECO) {
+        if (astro_options_global->RECOMB_MODEL > 0) {
             grids->whalo_sfr[idx] *=
                 averages_global.fescweighted_sfr / averages_hbox.fescweighted_sfr;
         }
@@ -417,7 +417,7 @@ int set_fixed_grids(double M_min, double M_max, InitialConditions *ini_boxes, fl
                        &integral_cond);
 
     LOG_ULTRA_DEBUG("Cell 0 Totals: SF: %.2e, NI: %.2e", grids->halo_sfr[0], grids->n_ion[0]);
-    if (astro_options_global->INHOMO_RECO) {
+    if (astro_options_global->RECOMB_MODEL > 0) {
         LOG_ULTRA_DEBUG("FESC * SF %.2e", grids->whalo_sfr[0]);
     }
     if (astro_options_global->USE_TS_FLUCT) {
@@ -548,7 +548,7 @@ void sum_halos_onto_grid(double redshift, InitialConditions *ini_boxes, HaloCata
                        mturn_m_grid, grids, out_dim, consts);
 
     LOG_SUPER_DEBUG("Cell 0 Totals: SF: %.2e NI: %.2e", grids->halo_sfr[0], grids->n_ion[0]);
-    if (astro_options_global->INHOMO_RECO) {
+    if (astro_options_global->RECOMB_MODEL > 0) {
         LOG_SUPER_DEBUG("FESC * SF %.2e", grids->whalo_sfr[0]);
     }
     if (astro_options_global->USE_TS_FLUCT) {
@@ -587,7 +587,7 @@ int ComputeHaloBox(double redshift, InitialConditions *ini_boxes, HaloCatalog *h
             if (astro_options_global->USE_MINI_HALOS) {
                 grids->halo_sfr_mini[idx] = 0.0;
             }
-            if (astro_options_global->INHOMO_RECO) {
+            if (astro_options_global->RECOMB_MODEL > 0) {
                 grids->whalo_sfr[idx] = 0.0;
             }
             if (config_settings.EXTRA_HALOBOX_FIELDS) {
@@ -864,7 +864,7 @@ int convert_halo_props(double redshift, InitialConditions *ics, TsBox *prev_ts,
                 halo_catalog_out->stellar_mini[i_halo] = out_props.stellar_mass_mini;
                 halo_catalog_out->sfr_mini[i_halo] = out_props.sfr_mini;
             }
-            if (astro_options_global->INHOMO_RECO) {
+            if (astro_options_global->RECOMB_MODEL > 0) {
                 halo_catalog_out->fesc_sfr[i_halo] = out_props.fescweighted_sfr;
             }
             if (astro_options_global->USE_TS_FLUCT) {

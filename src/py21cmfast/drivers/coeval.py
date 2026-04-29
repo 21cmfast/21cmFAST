@@ -921,7 +921,10 @@ def _get_required_redshifts_coeval(
     # Turn into a set so that exact matching user-set redshift
     # don't double-up with scrolling ones.
     if (
-        (inputs.astro_options.USE_TS_FLUCT or inputs.astro_options.INHOMO_RECO)
+        (
+            inputs.astro_options.USE_TS_FLUCT
+            or inputs.astro_options.RECOMB_MODEL != "none"
+        )
         and user_redshifts
         and min(inputs.node_redshifts) > min(user_redshifts)
     ):

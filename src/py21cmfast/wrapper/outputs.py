@@ -921,7 +921,7 @@ class PerturbedHaloCatalog(OutputStructZ):
         }
         if inputs.astro_options.USE_TS_FLUCT:
             out["xray_emissivity"] = Array((buffer_size,), dtype=np.float32)
-        if inputs.astro_options.INHOMO_RECO:
+        if inputs.astro_options.RECOMB_MODEL != "none":
             out["fesc_sfr"] = Array((buffer_size,), dtype=np.float32)
         if inputs.astro_options.USE_MINI_HALOS:
             out["stellar_mini"] = Array((buffer_size,), dtype=np.float32)
@@ -1035,7 +1035,7 @@ class HaloBox(OutputStructZ):
         if inputs.astro_options.USE_MINI_HALOS:
             out["halo_sfr_mini"] = Array(shape, dtype=np.float32)
 
-        if inputs.astro_options.INHOMO_RECO:
+        if inputs.astro_options.RECOMB_MODEL != "none":
             out["whalo_sfr"] = Array(shape, dtype=np.float32)
 
         if inputs.astro_options.USE_TS_FLUCT:
@@ -1437,7 +1437,7 @@ class IonizedBox(OutputStructZ):
             out["mean_free_path"] = Array(shape, dtype=np.float32)
             out["kinetic_temperature"] = Array(shape, dtype=np.float32)
 
-        if inputs.astro_options.INHOMO_RECO:
+        if inputs.astro_options.RECOMB_MODEL != "none":
             out["cumulative_recombinations"] = Array(shape, dtype=np.float32)
 
         if not inputs.matter_options.lagrangian_source_grid:
@@ -1475,7 +1475,7 @@ class IonizedBox(OutputStructZ):
                 required += ["J_21_LW"]
         elif isinstance(input_box, IonizedBox):
             required += ["z_reion", "ionisation_rate_G12"]
-            if self.astro_options.INHOMO_RECO:
+            if self.astro_options.RECOMB_MODEL != "none":
                 required += [
                     "cumulative_recombinations",
                 ]
@@ -1489,7 +1489,7 @@ class IonizedBox(OutputStructZ):
                 ]
         elif isinstance(input_box, HaloBox):
             required += ["n_ion"]
-            if self.astro_options.INHOMO_RECO:
+            if self.astro_options.RECOMB_MODEL != "none":
                 required += ["whalo_sfr"]
         else:
             raise ValueError(

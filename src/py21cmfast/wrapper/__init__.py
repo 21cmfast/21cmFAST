@@ -75,8 +75,8 @@ recombinations, pulled from the natural evolution of the fields:
 >>> all_boxes = p21.run_coeval(
 >>>                 redshift=[7,8,9],
 >>>                 simulation_options=p21.SimulationOptions(HII_DIM=100),
->>>                 astro_options=p21.AstroOptions(INHOMO_RECO=True),
->>>                 do_spin_temp=True
+>>>                 astro_options=p21.AstroOptions(RECOMB_MODEL="inhomogeneous"),
+>>>                 USE_TS_FLUCT=True
 >>>             )
 
 Get a self-consistent lightcone defined between z1 and z2 (`z_step_factor` changes the
