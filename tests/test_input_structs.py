@@ -667,3 +667,18 @@ class TestInputParameters:
                 SOURCE_MODEL="L-INTEGRAL",
                 USE_UPPER_STELLAR_TURNOVER=False,
             )
+
+    def test_linear_node_redshifts(self):
+        """Test that with_linear_redshifts works as expected."""
+        with pytest.raises(ValueError, match=r"Either `nz` or `step` must be provided"):
+            InputParameters(random_seed=1).with_linear_redshifts()
+
+    def test_zstep_factor_raises_warning(self):
+        """Test that using zstep_factor raises a warning."""
+        with pytest.warns(
+            DeprecationWarning,
+            match=r"The `zstep_factor` argument is deprecated and will be removed in a future version. Please use `step` instead.",
+        ):
+            InputParameters(random_seed=1).with_logspaced_redshifts(
+                zstep_factor=0.5, zmin=5, zmax=15
+            )

@@ -177,19 +177,19 @@ class Parameters:
     """A trimmed-down version of InputParameters with all defaults of None."""
 
     simulation_options: Annotated[
-        _SimulationOptions, Parameter(name="*", group="SimulationOptions")
+        _SimulationOptions, Parameter(name="*", group="SimulationOptions", show=False)
     ] = _SimulationOptions()
     astro_options: Annotated[
-        _AstroOptions, Parameter(name="*", group="AstroOptions")
+        _AstroOptions, Parameter(name="*", group="AstroOptions", show=False)
     ] = _AstroOptions()
-    astro_params: Annotated[_AstroParams, Parameter(name="*", group="AstroParams")] = (
-        _AstroParams()
-    )
-    cosmo_params: Annotated[_CosmoParams, Parameter(name="*", group="CosmoParams")] = (
-        _CosmoParams()
-    )
+    astro_params: Annotated[
+        _AstroParams, Parameter(name="*", group="AstroParams", show=False)
+    ] = _AstroParams()
+    cosmo_params: Annotated[
+        _CosmoParams, Parameter(name="*", group="CosmoParams", show=False)
+    ] = _CosmoParams()
     matter_options: Annotated[
-        _MatterOptions, Parameter(name="*", group="MatterOptions")
+        _MatterOptions, Parameter(name="*", group="MatterOptions", show=False)
     ] = _MatterOptions()
 
 
@@ -256,6 +256,7 @@ def pretty_print_inputs(
             if structname == "CosmoTables":
                 # grrr cosmo tables being annoying again!
                 continue
+
             if params:
                 yield Rule(f"[bold purple]{structname}")
 
@@ -299,15 +300,80 @@ def cfg_show(
     )
 
 
+@Parameter(name="nodez", group="Node Redshifts")
+@dataclass(kw_only=True, frozen=True)
+class NodeRedshiftParameters:
+    """Parameters for setting the node redshifts of the simulation."""
+
+    min: float | None = None
+    """The minimum node redshift. If not provided, and redshift
+        evolution is required by the input parameters, the default minimum redshift of
+        5.5 is used."""
+
+    max: float | None = None
+    """The maximum node redshift. If not provided, the `Z_HEAT_MAX`
+        parameter of the input parameters is used."""
+
+    step: float | None = None
+    """The step size (or step factor for logspace) of the node redshifts. If not provided,
+        the default step size of 0.1 for linear spacing or `ZPRIME_STEP_FACTOR` if
+        logspace is used."""
+
+    n: int | None = None
+    """The number of node redshifts. If provided, this overrides `step` and sets the
+        step size such that `n` redshifts are included between `min` and `max`."""
+
+    spacing: Literal["logspace", "linear"] = "logspace"
+    """The function to use for spacing the node redshifts."""
+
+    def update_inputs(
+        self, inputs: InputParameters, force: bool = False
+    ) -> InputParameters:
+        """Return a copy of the input parameters with updated node redshifts."""
+        anything_set = any(
+            [
+                self.min is not None,
+                self.max is not None,
+                self.step is not None,
+                self.n is not None,
+            ]
+        )
+
+        if not force and not inputs.evolution_required and not anything_set:
+            return inputs
+
+        # User explicitly set node-z parameters, or force=True requested defaults.
+        _zmin = self.min if self.min is not None else 5.5
+        if self.spacing == "logspace":
+            return inputs.with_logspaced_redshifts(
+                zmin=_zmin,
+                zmax=self.max,
+                step=self.step if self.n is None else None,
+                nz=self.n,
+            )
+
+        step = 0.1 if self.step is None and self.n is None else self.step
+        return inputs.with_linear_redshifts(
+            zmin=_zmin,
+            zmax=self.max,
+            step=step if self.n is None else None,
+            nz=self.n,
+        )
+
+
 @cfg.command(name="create")
 def template_create(
     out: Annotated[
         cyctp.TomlPath,
         Parameter(validator=(vld.Path(file_okay=False, dir_okay=False, ext=("toml",)))),
     ],
+    nodez_params: NodeRedshiftParameters | None = None,
     param_selection: ParameterSelection = ParameterSelection(),
     user_params: Parameters = Parameters(),
     mode: TOMLMode = "full",
+    random_seed: Annotated[
+        int | None, Parameter(name=["--random-seed", "--seed"])
+    ] = None,
 ):
     """Create a new full simulation parameter template.
 
@@ -315,8 +381,30 @@ def template_create(
     To create it, use a base template (either via --param-file or --template) and
     optionally override any particular simulation parameters. To see the available
     simulation parameters and how to specify them, use `21cmfast run params --help`.
+
+    Node redshifts can be embedded in the template by providing one or more of
+    ``--nodez.min``, ``--nodez.max``, ``--nodez.step``, or ``--nodez.n``.
+    The spacing function is controlled by ``--nodez.spacing`` (``logspace`` or ``linear``).
+    A random seed can also be embedded with ``--random-seed``.
+
+    Parameters
+    ----------
+    out
+        The path at which to save the template file.
+    mode
+        The mode in which to write the template file. This controls which parameters are
+        included in the template file.
+    random_seed
+        An optional random seed to include in the template file.
     """
     inputs, _ = _get_inputs(param_selection, user_params)
+
+    if random_seed is not None:
+        inputs = inputs.clone(random_seed=random_seed)
+
+    if nodez_params is not None:
+        inputs = nodez_params.update_inputs(inputs)
+
     if not out.parent.exists():
         out.parent.mkdir(exist_ok=True, parents=True)
 
@@ -333,8 +421,9 @@ def template_create(
 def _run_setup(
     options: RunParams,
     params: Parameters,
-    zmin: float | None = None,
+    nodez_params: NodeRedshiftParameters | None = None,
     force_nodez: bool = False,
+    allow_write: bool = True,
 ) -> InputParameters:
     print_banner()
 
@@ -348,9 +437,9 @@ def _run_setup(
     logger.setLevel(options.verbosity)
 
     inputs, modified = _get_inputs(options, params)
-
-    if zmin is not None and (inputs.evolution_required or force_nodez):
-        inputs = inputs.with_logspaced_redshifts(zmin=zmin)
+    if nodez_params is not None or force_nodez:
+        _nodez = nodez_params if nodez_params is not None else NodeRedshiftParameters()
+        inputs = _nodez.update_inputs(inputs, force=force_nodez)
 
     if (
         modified
@@ -367,10 +456,11 @@ def _run_setup(
         else:
             config_file = options.cachedir / f"config-{uuid.uuid4().hex[:6]}.toml"
 
-        write_template(inputs, config_file)
-        cns.print(
-            f":duck: [spring_green3]Wrote full configuration to [purple]{config_file}"
-        )
+        if allow_write:
+            write_template(inputs, config_file)
+            cns.print(
+                f":duck: [spring_green3]Wrote full configuration to [purple]{config_file}"
+            )
         name = config_file.name
     else:
         name = " + ".join(cfg.name for cfg in options.param_selection.param_file)
@@ -388,7 +478,23 @@ def _run_setup(
 
 
 @run.command
-def params(params: Parameters = Parameters()):
+def params(
+    simulation_options: Annotated[
+        _SimulationOptions, Parameter(name="*", group="SimulationOptions")
+    ] = _SimulationOptions(),
+    astro_options: Annotated[
+        _AstroOptions, Parameter(name="*", group="AstroOptions")
+    ] = _AstroOptions(),
+    astro_params: Annotated[_AstroParams, Parameter(name="*", group="AstroParams")] = (
+        _AstroParams()
+    ),
+    cosmo_params: Annotated[_CosmoParams, Parameter(name="*", group="CosmoParams")] = (
+        _CosmoParams()
+    ),
+    matter_options: Annotated[
+        _MatterOptions, Parameter(name="*", group="MatterOptions")
+    ] = _MatterOptions(),
+):
     """Show the current simulation parameters."""
     cns.print("Usage: 21cmfast run params --help")
 
@@ -397,9 +503,7 @@ def params(params: Parameters = Parameters()):
 def ics(
     options: RunParams = RunParams(),
     params: Annotated[Parameters, Parameter(show=False, name="*")] = Parameters(),
-    min_evolved_redshift: Annotated[
-        float, Parameter(name=("--zmin-evolution", "--zmin"))
-    ] = 5.5,
+    nodez_params: NodeRedshiftParameters | None = None,
 ):
     """Run a single iteration of 21cmFAST init, saving results to file.
 
@@ -410,12 +514,10 @@ def ics(
 
     Parameters
     ----------
-    min_evolved_redshift
-        The minimum redshift down to which to evolve the simulation. For some simulation
-        configurations, this is not used at all, while for others it will subtly change
-        the evolution.
+    nodez_params
+        Parameters for setting the redshifts at which to evolve the simulation.
     """
-    inputs = _run_setup(options, params, zmin=min_evolved_redshift)
+    inputs = _run_setup(options, params, nodez_params=nodez_params)
     cache = OutputCache(options.cachedir)
     rc = RunCache.from_inputs(inputs=inputs, cache=cache)
 
@@ -451,9 +553,7 @@ def coeval(
     save_all_redshifts: Annotated[
         bool, Parameter(name=("--save-all-redshifts", "-a", "--all"))
     ] = False,
-    min_evolved_redshift: Annotated[
-        float, Parameter(name=("--zmin-evolution", "--zmin"))
-    ] = 5.5,
+    nodez_params: NodeRedshiftParameters | None = None,
 ):
     """Generate coeval cubes at given redshifts.
 
@@ -477,7 +577,7 @@ def coeval(
         configurations, this is not used at all, while for others it will subtly change
         the evolution.
     """
-    inputs = _run_setup(options, params, zmin=min_evolved_redshift)
+    inputs = _run_setup(options, params, nodez_params=nodez_params)
 
     for coeval, in_outputs in generate_coeval(
         out_redshifts=redshifts,
@@ -511,9 +611,7 @@ def lightcone(
     lightcone_quantities: Annotated[tuple[str], Parameter(alias=("--lq",))] = (
         "brightness_temp",
     ),
-    min_evolved_redshift: Annotated[
-        float, Parameter(name=("--zmin-evolution", "--zmin"))
-    ] = 5.5,
+    nodez_params: NodeRedshiftParameters | None = None,
 ):
     """Generate a lightcone between given redshifts.
 
@@ -530,15 +628,11 @@ def lightcone(
         The filename to which to save the lightcone data.
     lightcone_quantities
         Computed fields to generate lightcones for.
-    min_evolved_redshift
-        The minimum redshift down to which to evolve the simulation. For some simulation
-        configurations, this is not used at all, while for others it will subtly change
-        the evolution.
     """
     if not out.parent.exists():
         out.parent.mkdir(parents=True, exist_ok=True)
 
-    inputs = _run_setup(options, params, min_evolved_redshift, force_nodez=True)
+    inputs = _run_setup(options, params, nodez_params=nodez_params, force_nodez=True)
 
     # For now, always use the old default lightconing algorithm
     lcn = RectilinearLightconer.between_redshifts(
@@ -598,7 +692,12 @@ def global_evolution(
     if not out.parent.exists():
         out.parent.mkdir(parents=True, exist_ok=True)
 
-    inputs = _run_setup(options, params, min_evolved_redshift, force_nodez=True)
+    inputs = _run_setup(
+        options=options,
+        params=params,
+        nodez_params=NodeRedshiftParameters(min=min_evolved_redshift),
+        force_nodez=True,
+    )
 
     if source_model is None and inputs.matter_options.SOURCE_MODEL not in [
         "E-INTEGRAL",
@@ -829,11 +928,18 @@ def predict_struct_size(
     user_params: Parameters = Parameters(),
     unit: Literal["b", "kb", "mb", "gb"] | None = None,
     cache_config: Literal["on", "off", "noloop", "last_step_only"] = "on",
+    nodez_params: NodeRedshiftParameters = NodeRedshiftParameters(),
 ):
     """Compute the required storage per output kind for given inputs."""
     from .management import get_expected_sizes
 
-    inputs, _ = _get_inputs(param_selection, user_params)
+    inputs = _run_setup(
+        options=RunParams(param_selection=param_selection),
+        params=user_params,
+        nodez_params=nodez_params,
+        force_nodez=True,
+        allow_write=False,
+    )
     sizes = get_expected_sizes(
         inputs, cache_config=getattr(CacheConfig, cache_config)()
     )
@@ -865,17 +971,20 @@ def predict_struct_size(
 def predict_storage_size(
     param_selection: ParameterSelection = ParameterSelection(),
     user_params: Parameters = Parameters(),
-    min_evolved_redshift: Annotated[
-        float, Parameter(name=("--zmin-evolution", "--zmin"))
-    ] = 5.5,
+    nodez_params: NodeRedshiftParameters = NodeRedshiftParameters(),
     unit: Literal["b", "kb", "mb", "gb"] | None = None,
     cache_config: Literal["on", "off", "noloop", "last_step_only"] = "on",
 ):
     """Compute the required storage for an entire run."""
     from .management import get_total_storage_size
 
-    inputs, _ = _get_inputs(param_selection, user_params)
-    inputs = inputs.with_logspaced_redshifts(zmin=min_evolved_redshift)
+    inputs = _run_setup(
+        options=RunParams(param_selection=param_selection),
+        params=user_params,
+        nodez_params=nodez_params,
+        force_nodez=True,
+        allow_write=False,
+    )
 
     sizes = get_total_storage_size(
         inputs, cache_config=getattr(CacheConfig, cache_config)()

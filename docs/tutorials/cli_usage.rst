@@ -88,6 +88,57 @@ descriptions, you can run::
 
 Note that if you *don't* specify a ``--template`` then you will just get all defaults.
 
+Specifying Node Redshifts in a Template
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+The ``template create`` command can also embed ``node_redshifts`` directly into the
+template file, making it fully self-contained (including the redshift grid). This is
+particularly useful when you want to share or re-use a template without having to
+remember which redshift grid was used.
+
+To embed node redshifts, supply one or more of the following options:
+
+* ``--nodez.min``: minimum redshift of the grid (default: 5.5).
+* ``--nodez.max``: maximum redshift of the grid (default: ``Z_HEAT_MAX`` from the model,
+  typically 35.0).
+* ``--nodez.step``: step parameter. For ``logspace`` this is the multiplicative step factor
+  between consecutive ``(1 + z)`` values (default: ``ZPRIME_STEP_FACTOR`` from the
+  model, typically 1.02). For ``linear`` this is the additive step size.
+* ``--nodez.n``: number of redshifts in the grid. When given, it overrides ``--nodez.step``.
+* ``--nodez.spacing``: the spacing function used to generate the grid, either
+  ``logspace`` (default, calls
+  :meth:`~py21cmfast.wrapper.inputs.InputParameters.with_logspaced_redshifts`) or
+  ``linear`` (calls
+  :meth:`~py21cmfast.wrapper.inputs.InputParameters.with_linear_redshifts`).
+
+In addition, a random seed can be embedded directly in the template with
+``--random-seed`` (aliased to ``--seed``). This produces a fully self-contained
+template that, together with an input parameter TOML, provides everything needed to
+reproduce a simulation::
+
+    $ 21cmfast template create --template simple --out my-simple.toml --seed 42
+
+For example, to produce a template with a logarithmically-spaced redshift grid from
+z=5 to z=35 with a step factor of 1.01::
+
+    $ 21cmfast template create --template simple --out my-simple.toml \
+        --nodez.min 5.0 --nodez.max 35.0 --nodez.step 1.01
+
+Or to request exactly 30 log-spaced nodes between z=5 and z=30::
+
+    $ 21cmfast template create --template simple --out my-simple.toml \
+        --nodez.min 5.0 --nodez.max 30.0 --nodez.n 30
+
+To use a linearly-spaced grid instead::
+
+    $ 21cmfast template create --template simple --out my-simple.toml \
+        --nodez.min 5.0 --nodez.max 35.0 --nodez.step 1.5 --nodez.spacing linear
+
+Or with a fixed number of linearly-spaced nodes::
+
+    $ 21cmfast template create --template simple --out my-simple.toml \
+        --nodez.min 5.0 --nodez.max 35.0 --nodez.n 30 --nodez.spacing linear
+
 Specifying Parameters for Simulations
 -------------------------------------
 
@@ -261,36 +312,6 @@ interpolated from that grid).
 
 As for the ``global`` evolution, we simply save the mean at each node redshift.
 
-Specifying the ``node_redshifts``
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-
-For ``coeval``, ``global`` and ``lightcone`` runs the ``node_redshifts`` can be
-configured by the following options:
-
-1. ``--min-evolved-redshift`` (aliased to ``--zmin-evolution`` and ``--zmin``)
-2. ``--zprime-step-factor``
-3. ``--z-heat-max``
-
-The resulting grid will be regular in ``log(1 + z)``, starting from exactly
-``--min-evolved-redshift``, increasing by a geometric factor of ``--zprime-step-factor``
-and ending *above* ``--z-heat-max``.
-
-You do not need to specify any of these options for ``ics`` (though you *can* specify
-both ``--zprime-step-factor`` and ``--z-heat-max``, they will not affect the hash
-under which the output is stored).
-
-For ``coeval`` and ``lightcone`` runs, all of the options have defaults. The default
-of ``--min-evolved-redshift`` is 5.5, which covers all reasonable physical scenarios
-where ``21cmFAST`` is well-specified.
-The defaults of ``--zprime-step-factor`` and ``--z-heat-max`` depend on the template
-that is being used, but are usually 1.02 and 35.0 respectively.
-
-.. note:: ``21cmFAST`` in general does not enforce that the ``node_redshifts`` are
-          geometrically-spaced, and if you use the library, you can specify any
-          node redshifts that you like, so long as the maximum is greater than
-          ``Z_HEAT_MAX``. However, a geometric redshift grid is close to optimal
-          for standard cases, and so we currently enforce this from the CLI.
-
 Output Redshifts for Coeval Simulations
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
@@ -374,7 +395,7 @@ TOML for clarity. To build this, you can first create your minimal TOML::
 
 Then, create a full TOML *from this minimal TOML*::
 
-    $ 21cmfast template create --param-file custom-minimal.toml --out custom-full.toml
+    $ 21cmfast template create --param-file custom-minimal.toml --out custom-full.toml --seed 42 --nodez.min 5.0
 
 You can then go on to run your simulation from the full file::
 
@@ -423,7 +444,7 @@ on::
 Let's say you chose to use the "latest" model, then you would go ahead and create your
 custom parameter configuration based on this template::
 
-    $ 21cmfast template create --template latest gpc --out big-latest.toml
+    $ 21cmfast template create --template latest gpc --seed 42 --out big-latest.toml
 
 Now there is a file ``big-latest.toml`` in your current directory. You can use this file
 to run off your simulation::
@@ -446,16 +467,16 @@ common situation.
 
 We first make a directory to hold all of our cache, and our outputs::
 
-    $ mkdir - cache/configs
+    $ mkdir -p cache/configs
     $ mkdir lightcones
 
 Then setup a "base" configuration::
 
-    $ 21cmfast template create --template latest gpc --out cache/configs/base.toml
+    $ 21cmfast template create --template latest gpc --seed 77577 --out cache/configs/base.toml
 
 Now, before running off the other simulations, run off some initial conditions::
 
-    $ 21cmfast run ics --param-file cache/configs/base.toml --seed 77577 --cachedir cache
+    $ 21cmfast run ics --param-file cache/configs/base.toml --cachedir cache
 
 We'll then have a folder ``cache/<ugly_hash>/77577`` in which will be an
 ``InitialConditions.h5`` file. Now we can start running our lightcones. In a real
@@ -465,7 +486,7 @@ parallelize over the different parameters, but here we just show the basics::
     $ for zeta in 30.0 29.0 31.0 35.0          # iterate over all parameters
       do
         21cmfast run lightcone --param-file cache/config/base.toml \
-          --seed 77577 --cachedir cache \      # need these to specify the same ICs
+          --cachedir cache \                   # need this to specify the same ICs
           --redshift-range 5.8 25 \            # specify redshift range
           --hii-eff-factor $zeta \             # override the astrophysical parameter
           --out lightcones/lc_zeta${zeta}.h5 \ # unique name of ligthcone output
