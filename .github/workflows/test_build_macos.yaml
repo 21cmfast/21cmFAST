@@ -41,13 +41,12 @@ jobs:
 
       - name: Install Non-Python Dependencies
         run: |
-          conda install fftw gsl compilers pkg-config
+          conda install pip fftw gsl compilers pkg-config
 
       - name: Install 21cmFAST
         run: |
           which python
           python --version
-          python -m pip install -U pip
           CC=${{ matrix.compiler }} python -m pip install .
 
       - name: Test Import
