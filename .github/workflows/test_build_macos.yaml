@@ -43,20 +43,13 @@ jobs:
         run: |
           conda install fftw gsl compilers pkg-config
 
-      # - name: Set FFTW3 paths (Apple Silicon)
-      #   if: runner.os == 'macOS' && runner.arch == 'ARM64'
-      #   run: echo "FFTW_LIB=/opt/homebrew/opt/fftw/lib" >> $GITHUB_ENV
-      #        echo "FFTW_INC=/opt/homebrew/opt/fftw/include" >> $GITHUB_ENV
-
-      # - name: Set FFTW3 paths (Intel)
-      #   if: runner.os == 'macOS' && runner.arch == 'ARM64'
-      #   run: echo "FFTW_LIB=/opt/local/opt/fftw/lib" >> $GITHUB_ENV
-      #        echo "FFTW_INC=/opt/local/opt/fftw/include" >> $GITHUB_ENV
-
       - name: Install 21cmFAST
         run: |
-          CC=${{ matrix.compiler }} pip install .
+          which python
+          python --version
+          python -m pip install -U pip
+          CC=${{ matrix.compiler }} python -m pip install .
 
       - name: Test Import
         run: |
-          python -c "import py21cmfast"
+          python -c "import py21cmfast; print(py21cmfast.__version__)"
