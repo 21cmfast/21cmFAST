@@ -1248,7 +1248,8 @@ void set_ionized_temperatures(IonizedBox *box, PerturbedField *perturbed_field, 
 }
 
 void set_recombination_rates(IonizedBox *box, IonizedBox *previous_ionize_box,
-                             PerturbedField *perturbed_field, struct IonBoxConstants *consts) {
+                             PerturbedField *perturbed_field, struct IonBoxConstants *consts,
+                             float global_xHI, float global_photionization_rate) {
     bool finite_error = false;
     int box_dim[3] = {simulation_options_global->HII_DIM, simulation_options_global->HII_DIM,
                       HII_D_PARA};
@@ -1258,6 +1259,7 @@ void set_recombination_rates(IonizedBox *box, IonizedBox *previous_ionize_box,
         double curr_dens, dNrec;
         double z_eff;
         unsigned long long int idx;
+        float ionisation_rate_G12, x_HI;
 #pragma omp for
         for (x = 0; x < simulation_options_global->HII_DIM; x++) {
             for (y = 0; y < simulation_options_global->HII_DIM; y++) {
@@ -1268,20 +1270,27 @@ void set_recombination_rates(IonizedBox *box, IonizedBox *previous_ionize_box,
                     // curr_dens = 1.0 + (perturbed_field->density[idx]) /
                     // adjustment_factor;
                     idx = grid_index_general(x, y, z, box_dim);
-                    curr_dens = 1.0 + (perturbed_field->density[idx]);
+                    if (astro_options_global->RECOMB_MODEL == 1) {
+                        curr_dens = 1.0;
+                        ionisation_rate_G12 = global_photionization_rate;
+                        x_HI = global_xHI;
+                    } else {
+                        curr_dens = 1.0 + (perturbed_field->density[idx]);
+                        ionisation_rate_G12 = box->ionisation_rate_G12[idx];
+                        x_HI = box->neutral_fraction[idx];
+                    }
                     z_eff = pow(curr_dens, 1.0 / 3.0);
                     z_eff *= (1 + consts->stored_redshift);
 
-                    dNrec = splined_recombination_rate(z_eff - 1., box->ionisation_rate_G12[idx]) *
-                            consts->fabs_dtdz * consts->dz * (1. - box->neutral_fraction[idx]);
+                    dNrec = splined_recombination_rate(z_eff - 1., ionisation_rate_G12) *
+                            consts->fabs_dtdz * consts->dz * (1. - x_HI);
 
                     if (isfinite(dNrec) == 0) {
                         finite_error = true;
                         LOG_ERROR(
                             "RECOMB: non-finite cell (%d,%d,%d): d %.4e | G12 %.4e | xH %.4e ==> "
                             "dNrec %.4e Nrec_last (%.4e --> %.4e)",
-                            x, y, z, curr_dens, box->ionisation_rate_G12[idx],
-                            box->neutral_fraction[idx], dNrec,
+                            x, y, z, curr_dens, ionisation_rate_G12, x_HI, dNrec,
                             previous_ionize_box->cumulative_recombinations[idx],
                             box->cumulative_recombinations[idx]);
                     }
@@ -1294,8 +1303,8 @@ void set_recombination_rates(IonizedBox *box, IonizedBox *previous_ionize_box,
                         LOG_SUPER_DEBUG(
                             "Cell 0: d %.4e | G12 %.4e | xH %.4e ==> dNrec %.4e Nrec (%.4e --> "
                             "%.4e)",
-                            curr_dens, box->ionisation_rate_G12[idx], box->neutral_fraction[idx],
-                            dNrec, previous_ionize_box->cumulative_recombinations[idx],
+                            curr_dens, ionisation_rate_G12, x_HI, dNrec,
+                            previous_ionize_box->cumulative_recombinations[idx],
                             box->cumulative_recombinations[idx]);
                     }
 #endif
@@ -1582,15 +1591,20 @@ int ComputeIonizedBox(float redshift, float prev_redshift, PerturbedField *pertu
 
             // find the neutral fraction
             global_xH = 0;
+            float global_photoionization_rate = 0;
 
 #pragma omp parallel shared(box) private(ct) num_threads(simulation_options_global -> N_THREADS)
             {
-#pragma omp for reduction(+ : global_xH)
+#pragma omp for reduction(+ : global_xH, global_photoionization_rate)
                 for (ct = 0; ct < HII_TOT_NUM_PIXELS; ct++) {
                     global_xH += box->neutral_fraction[ct];
+                    if (astro_options_global->RECOMB_MODEL == 1) {
+                        global_photoionization_rate += box->ionisation_rate_G12[ct];
+                    }
                 }
             }
             global_xH /= (float)HII_TOT_NUM_PIXELS;
+            global_photoionization_rate /= (float)HII_TOT_NUM_PIXELS;
 
             if (isfinite(global_xH) == 0) {
                 LOG_ERROR(
@@ -1602,7 +1616,7 @@ int ComputeIonizedBox(float redshift, float prev_redshift, PerturbedField *pertu
             // update the N_rec field
             if (astro_options_global->RECOMB_MODEL > 0) {
                 set_recombination_rates(box, previous_ionize_box, perturbed_field,
-                                        &ionbox_constants);
+                                        &ionbox_constants, global_xH, global_photoionization_rate);
             }
 
             if (!ionbox_constants.fix_mean) {
