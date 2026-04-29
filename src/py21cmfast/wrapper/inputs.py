@@ -1563,12 +1563,12 @@ def get_logspaced_redshifts(
         10
         ** np.arange(
             np.log10(1 + min_redshift),
-            np.log10(1 + max_redshift) + z_step_factor,
-            z_step_factor,
+            np.log10((1 + max_redshift) * z_step_factor),
+            np.log10(z_step_factor),
         )
         - 1
     )
-    return tuple(redshifts)
+    return tuple(redshifts[::-1])
 
 
 def _node_redshifts_converter(value) -> tuple[float, ...] | None:
@@ -2052,9 +2052,9 @@ class InputParameters:
         if nz is not None:
             node_redshifts = tuple((np.geomspace(1 + zmin, 1 + zmax, nz) - 1).tolist())
         else:
-            if step is None and zstep_factor is not None:
+            if step is None and zstep_factor is None:
                 step = self.simulation_options.ZPRIME_STEP_FACTOR
-            if zstep_factor is not None:
+            elif zstep_factor is not None:
                 step = zstep_factor
                 warnings.warn(
                     "The `zstep_factor` argument is deprecated and will be removed in a future version. Please use `step` instead.",
