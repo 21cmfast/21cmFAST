@@ -1,0 +1,96 @@
+name: Test MacOS Build
+
+# Test on all pushes, except when the push is literally just a tag (because we
+# tag automatically via CI, and therefore there's no extra code in that push).
+# Also, only test on pull requests into main.
+on:
+  push:
+    tags-ignore:
+      - 'v*'
+  pull_request:
+    branches:
+      - 'main'
+
+
+jobs:
+  miniconda-based-build:
+    name: Test Miniconda-Based Build
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os:
+        - macos-latest   # always up-to-date arm64-based os.
+        - macos-26       # arm64-based os. Cycle out when it gets out of date
+        - macos-26-intel # intel-based os. Cycle out when it gets out of date
+        - macos-15       # arm64-based os. Cycle out when it gets out of date
+        - macos-15-intel # intel-based os. Cycle out when it gets out of date
+        - macos-14       # arm64-based os. Cycle out when it gets out of date
+        - ubuntu-latest  # Linux-based os / only other is 22.04 which is surely old enough not to test any more
+
+        python-version: ["3.12", "3.13", "3.14"]
+        compiler: ["gcc", "clang"]
+        non-python-dependency-manager: ["conda", "brew", "apt-get"]
+        exclude:
+          # Exclude brew and apt-get on non-Linux OSes, and apt-get on Linux OSes
+          - os: macos-latest
+            non-python-dependency-manager: apt-get
+          - os: macos-26
+            non-python-dependency-manager: apt-get
+          - os: macos-26-intel
+            non-python-dependency-manager: apt-get
+          - os: macos-15
+            non-python-dependency-manager: apt-get
+          - os: macos-15-intel
+            non-python-dependency-manager: apt-get
+          - os: macos-14
+            non-python-dependency-manager: apt-get
+          - os: ubuntu-latest
+            non-python-dependency-manager: brew
+
+    defaults:
+     run:
+       # Adding -l {0} ensures conda can be found properly in each step
+       shell: bash -l {0}
+    steps:
+      - uses: actions/checkout@master
+        with:
+          fetch-depth: 0
+
+      - name: Setup Miniconda
+        if: matrix.non-python-dependency-manager == 'conda'
+        uses: conda-incubator/setup-miniconda@v3
+        with:
+          channels: conda-forge,defaults
+          python-version: ${{ matrix.python-version }}
+          channel-priority: true
+
+      - name: Setup Python
+        if: matrix.non-python-dependency-manager != 'conda'
+        uses: actions/setup-python@v6
+        with:
+          python-version: ${{ matrix.python-version }}
+
+      - name: Install Non-Python Dependencies (Conda)
+        if: matrix.non-python-dependency-manager == 'conda'
+        run: |
+          conda install pip fftw gsl compilers pkg-config
+
+      - name: Install Non-Python Dependencies (Brew)
+        if: matrix.non-python-dependency-manager == 'brew'
+        run: |
+          brew install fftw gsl pkgconf
+
+      - name: Install Non-Python Dependencies (apt-get)
+        if: matrix.non-python-dependency-manager == 'apt-get'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libfftw3-dev libgsl-dev pkg-config
+
+      - name: Install 21cmFAST
+        run: |
+          CC=${{ matrix.compiler }} python -m pip install .
+
+      - name: Test Import
+        run: |
+          python -c "import py21cmfast; print(py21cmfast.__version__)"
