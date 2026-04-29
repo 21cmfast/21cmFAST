@@ -74,18 +74,19 @@ jobs:
 
       - name: Install Non-Python Dependencies (Conda)
         if: matrix.non-python-dependency-manager == 'conda'
+        # Apparently we should always use llvm-openmp, even when using gcc.
         run: |
-          conda install pip fftw gsl compilers pkg-config
+          conda install pip fftw gsl llvm-openmp compilers pkg-config
 
-      - name: Install OpenMP (Conda+clang)
-        if: matrix.non-python-dependency-manager == 'conda' && matrix.compiler == 'clang'
-        run: |
-          conda install -c conda-forge llvm-openmp
+      # - name: Install OpenMP (Conda+clang)
+      #   if: matrix.non-python-dependency-manager == 'conda' && matrix.compiler == 'clang'
+      #   run: |
+      #     conda install -c conda-forge llvm-openmp
 
-      - name: Install OpenMP (Conda+gcc)
-        if: matrix.non-python-dependency-manager == 'conda' && matrix.compiler == 'gcc'
-        run: |
-          conda install -c conda-forge libgomp
+      # - name: Install OpenMP (Conda+gcc)
+      #   if: matrix.non-python-dependency-manager == 'conda' && matrix.compiler == 'gcc'
+      #   run: |
+      #     conda install -c conda-forge libgomp
 
       - name: Install Non-Python Dependencies (Brew)
         if: matrix.non-python-dependency-manager == 'brew'
