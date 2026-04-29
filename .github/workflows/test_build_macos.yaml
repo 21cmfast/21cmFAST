@@ -2,14 +2,13 @@ name: Test MacOS Build
 
 # Test on all pushes, except when the push is literally just a tag (because we
 # tag automatically via CI, and therefore there's no extra code in that push).
-# Also, only test on pull requests into main.
 on:
   push:
     tags-ignore:
       - 'v*'
   pull_request:
     branches:
-      - 'main'
+      - '*'
 
 
 jobs:
@@ -44,7 +43,9 @@ jobs:
 
       - name: Install Non-Python Dependencies
         run: |
-          conda install fftw gsl
+          run: brew install fftw fftw-fftw3-float gsl
+
+#        conda install fftw gsl
 
       - name: Install 21cmFAST
         run: |

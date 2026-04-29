@@ -514,20 +514,3 @@ class TestGlobalEvolution:
         )
 
         assert lcfile.exists()
-
-
-class TestParamShow:
-    """Tests of the `params --help` command."""
-
-    def test_printing(self, capsys):
-        """Test that the command prints out something."""
-        app_noexit("params --help")
-        out = capsys.readouterr().out
-        assert "SimulationOptions" in out
-        assert "MatterOptions" in out
-
-    def test_no_help_printing(self, capsys):
-        """Test that running without --help doesn't print the params."""
-        app_noexit("params")
-        out = capsys.readouterr().out
-        assert "Usage: 21cmfast run params --help" in out

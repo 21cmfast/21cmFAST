@@ -193,28 +193,6 @@ class Parameters:
     ] = _MatterOptions()
 
 
-@app.command(name="params")
-def params_show(
-    simulation_options: Annotated[
-        _SimulationOptions, Parameter(name="*", group="SimulationOptions")
-    ] = _SimulationOptions(),
-    astro_options: Annotated[
-        _AstroOptions, Parameter(name="*", group="AstroOptions")
-    ] = _AstroOptions(),
-    astro_params: Annotated[_AstroParams, Parameter(name="*", group="AstroParams")] = (
-        _AstroParams()
-    ),
-    cosmo_params: Annotated[_CosmoParams, Parameter(name="*", group="CosmoParams")] = (
-        _CosmoParams()
-    ),
-    matter_options: Annotated[
-        _MatterOptions, Parameter(name="*", group="MatterOptions")
-    ] = _MatterOptions(),
-):
-    """Show all available simulation parameters with --help."""
-    print("Usage: 21cmfast run params --help")
-
-
 def _get_inputs(
     options: RunParams | ParameterSelection, params: Parameters
 ) -> tuple[InputParameters, bool]:
@@ -500,7 +478,23 @@ def _run_setup(
 
 
 @run.command
-def params(params: Parameters = Parameters()):
+def params(
+    simulation_options: Annotated[
+        _SimulationOptions, Parameter(name="*", group="SimulationOptions")
+    ] = _SimulationOptions(),
+    astro_options: Annotated[
+        _AstroOptions, Parameter(name="*", group="AstroOptions")
+    ] = _AstroOptions(),
+    astro_params: Annotated[_AstroParams, Parameter(name="*", group="AstroParams")] = (
+        _AstroParams()
+    ),
+    cosmo_params: Annotated[_CosmoParams, Parameter(name="*", group="CosmoParams")] = (
+        _CosmoParams()
+    ),
+    matter_options: Annotated[
+        _MatterOptions, Parameter(name="*", group="MatterOptions")
+    ] = _MatterOptions(),
+):
     """Show the current simulation parameters."""
     cns.print("Usage: 21cmfast run params --help")
 
