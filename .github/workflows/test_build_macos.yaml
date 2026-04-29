@@ -43,7 +43,7 @@ jobs:
 
       - name: Install Non-Python Dependencies
         run: |
-          brew install fftw fftw-fftw3-float gsl
+          brew install fftw gsl
 
 #        conda install fftw gsl
 
