@@ -236,6 +236,42 @@ class TestAstroOptions:
         ):
             AstroOptions(USE_EXP_FILTER=True, HII_FILTER="sharp-k")
 
+    @pytest.mark.parametrize("recomb_model", ["none", "homogeneous", "inhomogeneous"])
+    def test_recomb_model_basic(self, recomb_model):
+        """Test basic RECOMB_MODEL usage without INHOMO_RECO."""
+        opts_none = AstroOptions(RECOMB_MODEL=recomb_model)
+        assert recomb_model == opts_none.RECOMB_MODEL
+        assert opts_none.INHOMO_RECO is False if recomb_model == "none" else True
+
+    def test_inhomo_reco_deprecated_warning(self):
+        """Test that using INHOMO_RECO=True shows deprecation warning."""
+        with pytest.warns(UserWarning, match="INHOMO_RECO is deprecated"):
+            opts = AstroOptions(INHOMO_RECO=True)
+        assert opts.RECOMB_MODEL == "inhomogeneous"
+        assert opts.INHOMO_RECO is True
+
+    @pytest.mark.parametrize("kwargs", [{}, {"INHOMO_RECO": False}])
+    def test_inhomo_reco_false_sets_none(self, kwargs):
+        """Test that INHOMO_RECO=False (or not provided) sets RECOMB_MODEL='none'."""
+        opts = AstroOptions(**kwargs)
+        assert opts.RECOMB_MODEL == "none"
+        assert opts.INHOMO_RECO is False
+
+    @pytest.mark.parametrize("recomb_model", ["none", "homogeneous", "inhomogeneous"])
+    def test_recomb_model_conflict(self, recomb_model):
+        """Test error when INHOMO_RECO=False conflicts with RECOMB_MODEL!='none'."""
+        inhomo_reco_wrong = recomb_model == "none"
+        with pytest.raises(
+            ValueError,
+            match=f"RECOMB_MODEL is set to '{recomb_model}' but INHOMO_RECO is {inhomo_reco_wrong}",
+        ):
+            AstroOptions(INHOMO_RECO=inhomo_reco_wrong, RECOMB_MODEL=recomb_model)
+
+    def test_recomb_model_choices_valid(self):
+        """Test that only valid RECOMB_MODEL choices are accepted."""
+        with pytest.raises(ValueError, match="RECOMB_MODEL must be one of"):
+            AstroOptions(RECOMB_MODEL="invalid")
+
 
 class TestSimulationOptions:
     """Test the SimulationOptions class."""
