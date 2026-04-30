@@ -130,6 +130,13 @@ OPTIONS_TESTRUNS = {
         18,
         {"USE_TS_FLUCT": True, "SOURCE_MODEL": "CONST-ION-EFF"},
     ],
+    "homo": [
+        18,
+        {
+            "RECOMB_MODEL": "homogeneous",
+            "R_BUBBLE_MAX": 50.0,
+        },
+    ],
     "inhomo": [
         18,
         {
