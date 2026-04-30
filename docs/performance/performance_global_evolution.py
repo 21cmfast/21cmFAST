@@ -39,7 +39,7 @@ def measure_global_evolution_runtime(template, **kwargs):
         template, random_seed=1234, **kwargs
     ).with_logspaced_redshifts(
         zmax=zmax,
-        zstep_factor=zstep_factor,
+        step=zstep_factor,
     )
 
     runtime = run_global_evolution(inputs)

@@ -107,6 +107,11 @@ def prepare_inputs_for_serialization(
     # we can simply leave it out of the written TOML (or HDF5) when its value is None,
     # and it will anyway be set to its own default if read back in.
     out = {}
+    if "random_seed" in dct:
+        out["random_seed"] = dct.pop("random_seed")
+    if "node_redshifts" in dct:
+        out["node_redshifts"] = dct.pop("node_redshifts")
+
     for structname, structvals in dct.items():
         this = {}
         clsname = snake_to_camel(structname)

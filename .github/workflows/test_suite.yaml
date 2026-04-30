@@ -60,11 +60,11 @@ jobs:
 
       - name: Install Non-Python Dependencies
         run: |
-          conda install fftw gsl numba
+          conda install pip fftw gsl numba compilers pkg-config
 
       - name: Install 21cmFAST
         run: |
-          LOG_LEVEL=${{ env.log_level }} pip install ".[dev]"
+          LOG_LEVEL=${{ env.log_level }} python -m pip install ".[dev]"
 
       - name: Run Unit Tests
         run: |

@@ -1559,10 +1559,15 @@ def get_logspaced_redshifts(
     max_redshift: float,
 ) -> tuple[float, ...]:
     """Compute a sequence of redshifts to evolve over that are log-spaced."""
-    redshifts = [min_redshift]
-    while redshifts[-1] < max_redshift:
-        redshifts.append((redshifts[-1] + 1.0) * z_step_factor - 1.0)
-
+    redshifts = (
+        10
+        ** np.arange(
+            np.log10(1 + min_redshift),
+            np.log10((1 + max_redshift) * z_step_factor),
+            np.log10(z_step_factor),
+        )
+        - 1
+    )
     return tuple(redshifts[::-1])
 
 
@@ -1917,7 +1922,7 @@ class InputParameters:
     def from_template(
         cls,
         name: str | Path | Sequence[str | Path],
-        random_seed: int,
+        random_seed: int | None = None,
         node_redshifts: tuple[float] | None = None,
         **kwargs,
     ) -> Self:
@@ -1931,7 +1936,7 @@ class InputParameters:
             built from left-to-right so that the parameters at the end of the list
             will have precedence.
         random_seed
-            A random seed to use for the run. Must be specified manually.
+            A random seed to use for the run.
         node_redshifts
             The redshifts at which to evolve the simulation (if applicable). Default
             detects whether evolution is required and sets the node redshifts according
@@ -1945,13 +1950,15 @@ class InputParameters:
         """
         from .._templates import create_params_from_template
 
-        cls_kw = {"random_seed": random_seed}
-        if node_redshifts is not None:
-            cls_kw["node_redshifts"] = node_redshifts
-
         dct = create_params_from_template(name, **kwargs)
         dct.pop("cosmo_tables")
-        return cls(**dct, **cls_kw)
+
+        if random_seed is not None:
+            dct["random_seed"] = random_seed
+        if node_redshifts is not None:
+            dct["node_redshifts"] = node_redshifts
+
+        return cls(**dct)
 
     def clone(self, **kwargs) -> Self:
         """Generate a copy of the InputParameter structure with specified changes."""
@@ -2017,22 +2024,87 @@ class InputParameters:
         self,
         zmin: float = 5.5,
         zmax: float | None = None,
+        step: float | None = None,
         zstep_factor: float | None = None,
+        nz: int | None = None,
     ) -> Self:
-        """Create a new InputParameters instance with logspaced redshifts."""
+        """Create a new InputParameters instance with logspaced redshifts.
+
+        Parameters
+        ----------
+        zmin
+            Minimum redshift of the node grid.
+        zmax
+            Maximum redshift of the node grid. Defaults to ``Z_HEAT_MAX`` from
+            :class:`SimulationOptions`.
+        step
+            Multiplicative step factor between consecutive ``(1 + z)`` values.
+            Defaults to ``ZPRIME_STEP_FACTOR`` from :class:`SimulationOptions`.
+            Ignored when ``nz`` is provided.
+        nz
+            If given, produce exactly ``nz`` redshifts equally spaced in
+            ``log(1 + z)`` between ``zmin`` and ``zmax``, overriding
+            ``step``.
+        """
         if zmax is None:
             zmax = self.simulation_options.Z_HEAT_MAX
 
-        if zstep_factor is None:
-            zstep_factor = self.simulation_options.ZPRIME_STEP_FACTOR
-
-        return self.clone(
-            node_redshifts=get_logspaced_redshifts(
+        if nz is not None:
+            node_redshifts = tuple((np.geomspace(1 + zmin, 1 + zmax, nz) - 1).tolist())
+        else:
+            if step is None and zstep_factor is None:
+                step = self.simulation_options.ZPRIME_STEP_FACTOR
+            elif zstep_factor is not None:
+                step = zstep_factor
+                warnings.warn(
+                    "The `zstep_factor` argument is deprecated and will be removed in a future version. Please use `step` instead.",
+                    DeprecationWarning,
+                    stacklevel=2,
+                )
+            node_redshifts = get_logspaced_redshifts(
                 min_redshift=zmin,
-                z_step_factor=zstep_factor,
+                z_step_factor=step,
                 max_redshift=zmax,
             )
-        )
+
+        return self.clone(node_redshifts=node_redshifts)
+
+    def with_linear_redshifts(
+        self,
+        zmin: float = 5.5,
+        zmax: float | None = None,
+        step: float | None = None,
+        nz: int | None = None,
+    ) -> Self:
+        """Create a new InputParameters instance with linearly-spaced redshifts.
+
+        Parameters
+        ----------
+        zmin
+            Minimum redshift of the node grid.
+        zmax
+            Maximum redshift of the node grid. Defaults to ``Z_HEAT_MAX`` from
+            :class:`SimulationOptions`.
+        zstep
+            Linear step size between consecutive redshifts. The grid will
+            include ``zmin`` and extend up to at least ``zmax``. Ignored when
+            ``nz`` is provided.
+        nz
+            If given, produce exactly ``nz`` redshifts linearly spaced between
+            ``zmin`` and ``zmax``, overriding ``step``.
+        """
+        if zmax is None:
+            zmax = self.simulation_options.Z_HEAT_MAX
+
+        if nz is not None:
+            node_redshifts = tuple(np.linspace(zmin, zmax, nz).tolist())
+        elif step is not None:
+            # Use half-step tolerance so that zmax is always included in the grid.
+            node_redshifts = tuple(np.arange(zmin, zmax + step * 0.5, step).tolist())
+        else:
+            raise ValueError("Either `nz` or `step` must be provided.")
+
+        return self.clone(node_redshifts=node_redshifts)
 
     def asdict(
         self,

@@ -42,7 +42,11 @@ class TestTemplateCreate:
         p1 = create_params_from_template(tmp_path / "simple.toml")
         p2 = create_params_from_template("simple")
 
-        assert all(v == p2[k] for k, v in p1.items())
+        # A full TOML may include extra top-level keys (random_seed, node_redshifts)
+        # that are not present in the minimal built-in template. Compare only the
+        # struct params that are common to both.
+        struct_keys = [k for k in p1 if k in p2]
+        assert all(p1[k] == p2[k] for k in struct_keys)
 
     def test_create_with_explicit_params(self, tmp_path: Path):
         """Test that overriding params does change the inputs."""
@@ -83,6 +87,96 @@ class TestTemplateCreate:
         out = tmp_path / "parent" / "config.toml"
         app_noexit(f"template create --template simple --out {out}")
         assert out.exists()
+
+    def test_node_redshifts_logspace_zstep(self, tmp_path: Path):
+        """Test that --nodez.min/--nodez.max/--nodez.step embed logspaced node_redshifts."""
+        out = tmp_path / "logspace.toml"
+        app_noexit(
+            f"template create --template simple --out {out} "
+            "--nodez.min 5.0 --nodez.max 20.0 --nodez.step 1.05"
+        )
+        assert out.exists()
+
+        p = create_params_from_template(out)
+        nz = p["node_redshifts"]
+        assert nz is not None
+        assert len(nz) > 0
+        assert min(nz) == pytest.approx(5.0, rel=1e-4)
+        assert max(nz) >= 20.0
+
+    def test_node_redshifts_logspace_nz(self, tmp_path: Path):
+        """Test that --nodez.n overrides --nodez.step for logspaced node_redshifts."""
+        out = tmp_path / "logspace_nz.toml"
+        app_noexit(
+            f"template create --template simple --out {out} "
+            "--nodez.min 5.0 --nodez.max 20.0 --nodez.n 10"
+        )
+        assert out.exists()
+
+        p = create_params_from_template(out)
+        nz = p["node_redshifts"]
+        assert nz is not None
+        assert len(nz) == 10
+        assert min(nz) == pytest.approx(5.0, rel=1e-4)
+        assert max(nz) == pytest.approx(20.0, rel=1e-4)
+
+    def test_node_redshifts_linear_zstep(self, tmp_path: Path):
+        """Test that --nodez.spacing linear with --nodez.step produces linear node_redshifts."""
+        out = tmp_path / "linear.toml"
+        app_noexit(
+            f"template create --template simple --out {out} "
+            "--nodez.min 5.0 --nodez.max 20.0 --nodez.step 1.5 --nodez.spacing linear"
+        )
+        assert out.exists()
+
+        p = create_params_from_template(out)
+        nz = p["node_redshifts"]
+        assert nz is not None
+        assert len(nz) > 0
+        assert min(nz) == pytest.approx(5.0, rel=1e-4)
+        # Spacing should be roughly linear (constant differences)
+        diffs = [nz[i] - nz[i + 1] for i in range(len(nz) - 1)]
+        assert all(abs(d - diffs[0]) < 1e-8 for d in diffs)
+
+    def test_node_redshifts_linear_nz(self, tmp_path: Path):
+        """Test that --nodez.n with --nodez.spacing linear produces exactly nz nodes."""
+        out = tmp_path / "linear_nz.toml"
+        app_noexit(
+            f"template create --template simple --out {out} "
+            "--nodez.min 5.0 --nodez.max 20.0 --nodez.n 8 --nodez.spacing linear"
+        )
+        assert out.exists()
+
+        p = create_params_from_template(out)
+        nz = p["node_redshifts"]
+        assert nz is not None
+        assert len(nz) == 8
+        assert min(nz) == pytest.approx(5.0, rel=1e-4)
+        assert max(nz) == pytest.approx(20.0, rel=1e-4)
+
+    def test_no_node_redshifts_without_z_args(self, tmp_path: Path):
+        """Test that without z-related args, node_redshifts remain as template default."""
+        out = tmp_path / "no_nz.toml"
+        app_noexit(f"template create --template simple --out {out}")
+
+        p = create_params_from_template(out)
+        # simple template has no evolution, so default node_redshifts should be empty
+        assert not p.get("node_redshifts")
+
+    def test_random_seed_embedded(self, tmp_path: Path):
+        """Test that --random-seed (and --seed alias) embed the seed in the template."""
+        out = tmp_path / "seeded.toml"
+        app_noexit(f"template create --template simple --out {out} --random-seed 1234")
+        assert out.exists()
+
+        p = create_params_from_template(out)
+        assert p["random_seed"] == 1234
+
+        # Test the --seed alias too
+        out2 = tmp_path / "seeded2.toml"
+        app_noexit(f"template create --template simple --out {out2} --seed 5678")
+        p2 = create_params_from_template(out2)
+        assert p2["random_seed"] == 5678
 
 
 class TestTemplateShow:
@@ -184,7 +278,7 @@ class TestRunICS:
     def test_warn_formatting(self, tmp_path, capsys):
         """Test that warnings are printed properly."""
         app_noexit(
-            f"run ics --template simple tiny --box-len 400 --zmin 5.0 --cachedir {tmp_path}"
+            f"run ics --template simple tiny --box-len 400 --nodez.min 5.0 --cachedir {tmp_path}"
         )
         out = capsys.readouterr().out
         assert "Resolution is likely too low" in out
@@ -204,6 +298,33 @@ class TestRunICS:
         app_noexit(f"run ics --template simple tiny --cachedir {tmp_path}")
         out = capsys.readouterr().out
         assert "skipping computation" in out
+
+    def test_passing_nodez_overwriting_template(self, capsys, tmp_path):
+        """Test that passing nodez parameters does overwrite the template node redshifts."""
+        app_noexit(
+            f"template create --template latest tiny --nodez.min 5.0 --nodez.n 10 --out {tmp_path / 'latest.toml'}"
+        )
+
+        with (tmp_path / "latest.toml").open("rb") as f:
+            data = toml.load(f)
+        assert "node_redshifts" in data
+        assert len(data["node_redshifts"]) == 10
+        assert min(data["node_redshifts"]) == pytest.approx(5.0, rel=1e-4)
+
+        # Run ICs again, this time overwriting the node redshift info with
+        # --nodez.min and --nodez.n
+        app_noexit(
+            f"run ics --param-file {tmp_path / 'latest.toml'} --cachedir {tmp_path} "
+            f"--nodez.min 10.0 --nodez.n 10"
+        )
+
+        out = capsys.readouterr().out
+        outfile = out.split("conditions to ")[-1].replace("\n", "").strip()
+        assert Path(outfile).exists()
+        ics = read_output_struct(outfile)
+        assert ics.inputs.node_redshifts is not None
+        assert len(ics.inputs.node_redshifts) == 10
+        assert min(ics.inputs.node_redshifts) == pytest.approx(10.0, rel=1e-4)
 
 
 class TestRunCoeval:
