@@ -99,6 +99,15 @@ jobs:
           sudo apt-get update
           sudo apt-get install -y libfftw3-dev libgsl-dev libomp-dev pkg-config
 
+      - name: Debug info for clang builds
+        if: matrix.compiler == 'clang'
+        run: |
+          clang --version
+          dpkg -l | grep -E 'clang|llvm|libomp' || true
+          dpkg -L libomp-dev || true
+          find /usr -name 'libomp.so*' 2>/dev/null | sort
+          ldconfig -p | grep -i omp || true
+
       - name: Install 21cmFAST
         run: |
           CC=${{ matrix.compiler }} python -m pip install .
