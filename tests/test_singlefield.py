@@ -293,6 +293,7 @@ def test_using_cached_halo_catalog(ic, test_direc):
         halo_catalog=halo_catalog,
         write=True,
         cache=cache,
+        regenerate=False,
     )
 
     # Now get the halo field again at the same redshift -- should be cached
