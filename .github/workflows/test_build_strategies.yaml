@@ -13,7 +13,7 @@ on:
 
 
 jobs:
-  miniconda-based-build:
+  test-build-strategies:
     name: Test Miniconda-Based Build
     runs-on: ${{ matrix.os }}
     env:
@@ -25,8 +25,6 @@ jobs:
         os:
         - macos-26       # arm64-based os. Cycle out when it gets out of date
         - macos-26-intel # intel-based os. Cycle out when it gets out of date
-        - macos-15       # arm64-based os. Cycle out when it gets out of date
-        - macos-15-intel # intel-based os. Cycle out when it gets out of date
         - macos-14       # arm64-based os. Cycle out when it gets out of date
         - ubuntu-latest  # Linux-based os / only other is 22.04 which is surely old enough not to test any more
 
@@ -40,10 +38,6 @@ jobs:
           - os: macos-26
             non-python-dependency-manager: apt-get
           - os: macos-26-intel
-            non-python-dependency-manager: apt-get
-          - os: macos-15
-            non-python-dependency-manager: apt-get
-          - os: macos-15-intel
             non-python-dependency-manager: apt-get
           - os: macos-14
             non-python-dependency-manager: apt-get
@@ -92,6 +86,7 @@ jobs:
         with:
           compiler: gcc
           version: ${{ env.GCC_VERSION }}
+          update-environment: false  # Don't set things like CC.
 
       # - name: Install OpenMP (Conda+clang)
       #   if: matrix.non-python-dependency-manager == 'conda' && matrix.compiler == 'clang'
