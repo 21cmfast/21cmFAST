@@ -42,7 +42,7 @@ def recursive_difference(
     return out
 
 
-def show_references(inputs: InputParameters, print_to_stdout=True):
+def show_references(inputs: InputParameters, lightcone=True, print_to_stdout=True):
     """Print out all the relevant references for a simulation based on input parameters."""
     ref_string = (
         "The main reference for 21cmFAST v3+:\n"
@@ -57,6 +57,29 @@ def show_references(inputs: InputParameters, print_to_stdout=True):
         "Astronomical Society, Volume 411, Issue 2, pp. 955-972 (2011),\n"
         "https://ui.adsabs.harvard.edu/link_gateway/2011MNRAS.411..955M/doi:10.1111/j.1365-2966.2010.17731.x\n\n"
     )
+
+    if inputs.astro_options.INHOMO_RECO:
+        ref_string += (
+            "Inhomogeneous recombination model introduced in:\n"
+            "=============================================\n"
+            "Sobacchi, E., Mesinger, A.,\n"
+            "“Inhomogeneous recombinations during cosmic reionization”,\n"
+            "Monthly Notices of the Royal Astronomical Society,\n"
+            "vol. 440, no. 2, pp. 1662-1673, 2014.\n"
+            "https://doi.org/10.1093/mnras/stu377.\n\n"
+        )
+
+    if lightcone:
+        ref_string += (
+            "Lightcone and redshift space distortions first introduced in:\n"
+            "=============================================\n"
+            "Greig, B., Mesinger, A.,\n"
+            "“21CMMC with a 3D light-cone: the impact of the co-evolution approximation on \n"
+            "the astrophysics of reionisation and cosmic dawn.”,\n"
+            "Monthly Notices of the Royal Astronomical Society,\n"
+            "vol. 477, no. 3, 3217-3229, 2018.\n"
+            "https://doi.org/10.1093/mnras/sty796.\n\n"
+        )
 
     if inputs.matter_options.SOURCE_MODEL in [
         "E-INTEGRAL",
@@ -81,12 +104,27 @@ def show_references(inputs: InputParameters, print_to_stdout=True):
             "“A tale of two sites - I. Inferring the properties of minihalo-hosted galaxies from\n"
             "current observations”, Monthly Notices of the Royal Astronomical Society, vol. 495,\n"
             "no. 1, pp. 123–140, 2020. https://doi.org/10.1093/mnras/staa1131.\n\n"
+        )
+
+    if inputs.matter_options.USE_RELATIVE_VELOCITIES:
+        ref_string += (
             "With improvements and DM-baryon relative velocity model in:\n"
             "===========================================================\n"
             "Muñoz, J.B., Qin, Y., Mesinger, A., Murray, S., Greig, B., and Mason, C.,\n"
             '"The Impact of the First Galaxies on Cosmic Dawn and Reionization",\n'
             "Monthly Notices of the Royal Astronomical Society, vol. 511, no. 3,\n"
-            "pp 3657-3681, 2022 https://doi.org/10.1093/mnras/stac185\n"
+            "pp 3657-3681, 2022 https://doi.org/10.1093/mnras/stac185\n\n"
+        )
+
+    if inputs.astro_options.PHOTON_CONS_TYPE != "no-photoncons":
+        ref_string += (
+            "Photon conservation correction introduced in:\n"
+            "=============================================\n"
+            "Park, J., Greig, B., Mesinger, A.,\n"
+            "“Calibrating excursion set reionization models to approximately conserve ionizing photons”,\n"
+            "Monthly Notices of the Royal Astronomical Society,\n"
+            "vol. 517, no. 1, pp. 192-200, 2022.\n"
+            "https://doi.org/10.1093/mnras/stac2756.\n\n"
         )
 
     if inputs.matter_options.lagrangian_source_grid:
@@ -96,7 +134,17 @@ def show_references(inputs: InputParameters, print_to_stdout=True):
             "Davies, J. E., Mesinger, A., Murray, S. G.,\n"
             '"Efficient simulation of discrete galaxy populations and associated radiation\n'
             'fields during the first billion years",\n'
-            "eprint arXiv:2504.17254, 2025. https://doi.org/10.48550/arXiv.2504.17254\n\n"
+            "Astronomy and Astrophysics, vol. 701, A. 236, 2025.\n"
+            "https://doi.org/10.1051/0004-6361/202554951.\n\n"
+        )
+
+    if inputs.astro_options.LYA_MULTIPLE_SCATTERING:
+        ref_string += (
+            "Lyman alpha multiple scattering effect introduced in:\n"
+            "========================================================\n"
+            "Flitter, J., Munoz, J. B., Mesinger, A.,\n"
+            '"Semi-analytical approach to Lyman-alpha multiple-scattering in 21-cm signal simulations",\n'
+            "eprint arXiv:2601.14360, 2026. https://doi.org/10.48550/arXiv.2601.14360.\n\n"
         )
 
     if print_to_stdout:

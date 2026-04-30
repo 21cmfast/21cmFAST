@@ -8,6 +8,7 @@
    quickstart
    tutorials
    performance
+   models
    faqs/index
    updates_from_v3
    acknowledge
@@ -15,6 +16,8 @@
 .. toctree::
    :caption: API Reference
    :hidden:
+   :maxdepth: 1
+
    autoapi/py21cmfast/index
 
 .. toctree::

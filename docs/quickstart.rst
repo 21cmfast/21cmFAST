@@ -168,5 +168,25 @@ The major differences here are that:
    the physical fields we want written out as lightcones. The default is to save only
    the 21cm brightness temperature.
 
+
+Computing global evolution with the CLI
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+The CLI also has a command for computing the global evolution of any of the quantities
+in the simulation. This is a much faster way to get the global evolution than running a
+full lightcone, since it only computes the average value of the fields at each redshift,
+and does not have to worry about stitching together the coeval boxes into a lightcone.
+The command is very similar to the lightcone command, but with a few differences::
+
+    $ 21cmfast run global \
+        --zmin 6.0 \                   # minimum redshift to evolve down to
+        --template EOS21 \             # base your simulation on the simple + small templates
+        --out global-evolution.h5  \   # output file
+        --cachedir cache \             # configure outputs and cache
+
+As always use the ``--help`` option for more information on the available options, and
+the `API Documentation <reference/_autosummary/py21cmfast.wrapper.inputs.html>`_ for a
+full list of parameters that can be passed to the CLI.
+
 There are many more options, so make sure to read the full
 `CLI tutorial <tutorials/cli_usage.html>`_.

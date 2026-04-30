@@ -9,34 +9,80 @@ from py21cmfast.utils import recursive_difference, show_references
 
 def test_ref_printing():
     inputs = InputParameters.from_template("latest", random_seed=1234)
-    ref_str = show_references(inputs, print_to_stdout=False)
+    ref_str = show_references(inputs, lightcone=True, print_to_stdout=False)
 
-    assert "2011MNRAS.411..955M" in ref_str
-    assert "10.21105/joss.02582" in ref_str
-    assert "10.1093/mnras/stz032" in ref_str
-    assert "10.1093/mnras/staa1131" not in ref_str
-    assert "10.1093/mnras/stac185" not in ref_str
-    assert "10.48550/arXiv.2504.17254" not in ref_str
+    assert "2011MNRAS.411..955M" in ref_str  # 21cmFAST first paper
+    assert "10.21105/joss.02582" in ref_str  # v3 (wrapper)
+    assert "10.1093/mnras/stu377" in ref_str  # INHOMO_RECO
+    assert "10.1093/mnras/sty796" in ref_str  # LIGHTCONE + RSD
+    assert "10.1093/mnras/stz032" in ref_str  # USE_MASS_DEPENDENT_ZETA
+    assert "10.1093/mnras/staa1131" not in ref_str  # USE_MINI_HALOS
+    assert "10.1093/mnras/stac185" not in ref_str  # USE_RELATIVE_VELOCITIES
+    assert "10.1093/mnras/stac2756" not in ref_str  # PHOTON_CONS
+    assert "10.1051/0004-6361/202554951" not in ref_str  # LAGRANGIAN_SOURCE_MODEL
+    assert "10.48550/arXiv.2601.14360" not in ref_str  # LYA_MULTIPLE_SCATTERING
 
-    inputs = InputParameters.from_template("mini-dhalos", random_seed=1234)
-    ref_str = show_references(inputs, print_to_stdout=False)
+    inputs = InputParameters.from_template(
+        "mini-dhalos", random_seed=1234, K_MAX_FOR_CLASS=1.0
+    )
+    ref_str = show_references(inputs, lightcone=True, print_to_stdout=False)
 
-    assert "2011MNRAS.411..955M" in ref_str
-    assert "10.21105/joss.02582" in ref_str
-    assert "10.1093/mnras/stz032" in ref_str
-    assert "10.1093/mnras/staa1131" in ref_str
-    assert "10.1093/mnras/stac185" in ref_str
-    assert "10.48550/arXiv.2504.17254" in ref_str
+    assert "2011MNRAS.411..955M" in ref_str  # 21cmFAST first paper
+    assert "10.21105/joss.02582" in ref_str  # v3 (wrapper)
+    assert "10.1093/mnras/stu377" in ref_str  # INHOMO_RECO
+    assert "10.1093/mnras/sty796" in ref_str  # LIGHTCONE + RSD
+    assert "10.1093/mnras/stz032" in ref_str  # USE_MASS_DEPENDENT_ZETA
+    assert "10.1093/mnras/staa1131" in ref_str  # USE_MINI_HALOS
+    assert "10.1093/mnras/stac185" in ref_str  # USE_RELATIVE_VELOCITIES
+    assert "10.1093/mnras/stac2756" not in ref_str  # PHOTON_CONS
+    assert "10.1051/0004-6361/202554951" in ref_str  # LAGRANGIAN_SOURCE_MODEL
+    assert "10.48550/arXiv.2601.14360" not in ref_str  # LYA_MULTIPLE_SCATTERING
 
     inputs = InputParameters.from_template("const-zeta", random_seed=1234)
-    ref_str = show_references(inputs, print_to_stdout=True)
+    ref_str = show_references(inputs, lightcone=True, print_to_stdout=True)
 
-    assert "2011MNRAS.411..955M" in ref_str
-    assert "10.21105/joss.02582" in ref_str
-    assert "10.1093/mnras/stz032" not in ref_str
-    assert "10.1093/mnras/staa1131" not in ref_str
-    assert "10.1093/mnras/stac185" not in ref_str
-    assert "10.48550/arXiv.2504.17254" not in ref_str
+    assert "2011MNRAS.411..955M" in ref_str  # 21cmFAST first paper
+    assert "10.21105/joss.02582" in ref_str  # v3 (wrapper)
+    assert "10.1093/mnras/stu377" not in ref_str  # INHOMO_RECO
+    assert "10.1093/mnras/sty796" in ref_str  # LIGHTCONE + RSD
+    assert "10.1093/mnras/stz032" not in ref_str  # USE_MASS_DEPENDENT_ZETA
+    assert "10.1093/mnras/staa1131" not in ref_str  # USE_MINI_HALOS
+    assert "10.1093/mnras/stac185" not in ref_str  # USE_RELATIVE_VELOCITIES
+    assert "10.1093/mnras/stac2756" not in ref_str  # PHOTON_CONS
+    assert "10.1051/0004-6361/202554951" not in ref_str  # LAGRANGIAN_SOURCE_MODEL
+    assert "10.48550/arXiv.2601.14360" not in ref_str  # LYA_MULTIPLE_SCATTERING
+
+    inputs = InputParameters.from_template(
+        "fixed-halos", random_seed=1234, LYA_MULTIPLE_SCATTERING=True
+    )
+    ref_str = show_references(inputs, lightcone=True, print_to_stdout=True)
+
+    assert "2011MNRAS.411..955M" in ref_str  # 21cmFAST first paper
+    assert "10.21105/joss.02582" in ref_str  # v3 (wrapper)
+    assert "10.1093/mnras/stu377" in ref_str  # INHOMO_RECO
+    assert "10.1093/mnras/sty796" in ref_str  # LIGHTCONE + RSD
+    assert "10.1093/mnras/stz032" in ref_str  # USE_MASS_DEPENDENT_ZETA
+    assert "10.1093/mnras/staa1131" not in ref_str  # USE_MINI_HALOS
+    assert "10.1093/mnras/stac185" not in ref_str  # USE_RELATIVE_VELOCITIES
+    assert "10.1093/mnras/stac2756" not in ref_str  # PHOTON_CONS
+    assert "10.1051/0004-6361/202554951" in ref_str  # LAGRANGIAN_SOURCE_MODEL
+    assert "10.48550/arXiv.2601.14360" in ref_str  # LYA_MULTIPLE_SCATTERING
+
+    inputs = InputParameters.from_template(
+        "latest", random_seed=1234, PHOTON_CONS_TYPE="z-photoncons"
+    )
+    ref_str = show_references(inputs, lightcone=False, print_to_stdout=True)
+
+    assert "2011MNRAS.411..955M" in ref_str  # 21cmFAST first paper
+    assert "10.21105/joss.02582" in ref_str  # v3 (wrapper)
+    assert "10.1093/mnras/stu377" in ref_str  # INHOMO_RECO
+    assert "10.1093/mnras/sty796" not in ref_str  # LIGHTCONE + RSD
+    assert "10.1093/mnras/stz032" in ref_str  # USE_MASS_DEPENDENT_ZETA
+    assert "10.1093/mnras/staa1131" not in ref_str  # USE_MINI_HALOS
+    assert "10.1093/mnras/stac185" not in ref_str  # USE_RELATIVE_VELOCITIES
+    assert "10.1093/mnras/stac2756" in ref_str  # PHOTON_CONS
+    assert "10.1051/0004-6361/202554951" not in ref_str  # LAGRANGIAN_SOURCE_MODEL
+    assert "10.48550/arXiv.2601.14360" not in ref_str  # LYA_MULTIPLE_SCATTERING
 
 
 class TestRecursiveDifference:

@@ -198,7 +198,7 @@ void compute_relative_velocities(fftwf_complex *box, fftwf_complex *box_saved, f
             filter_box(box, hi_dim, 0,
                        physconst.l_factor * simulation_options_global->BOX_LEN /
                            (simulation_options_global->HII_DIM + 0.0),
-                       0.);
+                       0., 0.);
         }
 
         // fft each velocity component back to real space
@@ -332,7 +332,7 @@ void compute_velocity_fields(fftwf_complex *box, fftwf_complex *box_saved, float
                 filter_box(box, hi_dim, 0,
                            physconst.l_factor * simulation_options_global->BOX_LEN /
                                (simulation_options_global->HII_DIM + 0.0),
-                           0.);
+                           0., 0.);
             }
         }
 
@@ -515,7 +515,7 @@ void compute_velocity_fields_2LPT(fftwf_complex *box, fftwf_complex *box_saved,
                 filter_box(box, hi_dim, 0,
                            physconst.l_factor * simulation_options_global->BOX_LEN /
                                (simulation_options_global->HII_DIM + 0.0),
-                           0.);
+                           0., 0.);
             }
         }
 
@@ -703,7 +703,7 @@ int ComputeInitialConditions(unsigned long long random_seed, InitialConditions *
             filter_box(HIRES_box, hi_dim, 0,
                        physconst.l_factor * simulation_options_global->BOX_LEN /
                            (simulation_options_global->HII_DIM + 0.0),
-                       0.);
+                       0., 0.);
         }
 
         // FFT back to real space

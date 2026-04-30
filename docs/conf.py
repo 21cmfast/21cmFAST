@@ -37,14 +37,14 @@ autosectionlabel_prefix_document = True
 # autodoc_use_legacy_class_based = True
 
 # Auto-API settings
-autoapi_options=[
-    "members",
-    "undoc-members",
-    "show-inheritance",
-    "show-module-summary",
-    "special-members",
-    "imported-members",
-    "inherited-members",
+autoapi_options=[ 
+    'members', 
+    'undoc-members', 
+    'show-inheritance', 
+    'show-module-summary', 
+    #'special-members', 
+    'imported-members',
+    'inherited-members',
 ]
 autoapi_dirs = ["../src/py21cmfast"]
 autoapi_add_toctree_entry = False  # We add it ourselves in index.rst
@@ -52,7 +52,8 @@ autoapi_python_class_content = "init"
 autoapi_member_order = "groupwise"
 autoapi_own_page_level = "class"
 autoapi_keep_files = True
-autodoc_typehints = "description"
+autodoc_typehints = 'both'
+autoapi_template_dir = 'templates/autoapi'
 
 autosummary_generate = False
 numpydoc_show_class_members = False

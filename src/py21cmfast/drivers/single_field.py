@@ -9,6 +9,7 @@ import logging
 import warnings
 
 import numpy as np
+from astropy import constants
 from astropy import units as un
 from astropy.cosmology import z_at_value
 
@@ -462,6 +463,7 @@ def compute_xray_source_field(
     initial_conditions: InitialConditions,
     hboxes: list[HaloBox],
     redshift: float,
+    previous_ionize_box: IonizedBox | None = None,
 ) -> XraySourceBox:
     r"""
     Compute filtered grid of SFR for use in spin temperature calculation.
@@ -478,6 +480,9 @@ def compute_xray_source_field(
         The initial conditions of the run. The user and cosmo params
     hboxes: Sequence of :class:`~HaloBox` instances
         This contains the list of Halobox instances which are used to create this source field
+    previous_ionize_box: :class:`IonizedBox` or None
+        An ionized box at higher redshift. This is only used if `LYA_MULTIPLE_SCATTERING` is true.
+
 
     Returns
     -------
@@ -528,6 +533,34 @@ def compute_xray_source_field(
     # inner and outer redshifts (following the C code)
     zpp_avg = zpp_edges - np.diff(np.insert(zpp_edges, 0, redshift)) / 2
 
+    # Compute the comoving diffusion scale in the case of Lyman alpha multiple scattering
+    if inputs.astro_options.LYA_MULTIPLE_SCATTERING:
+        # TODO: In principle, the diffusion scale varies locally but for simplicty, we consider the global ionization value.
+        # See https://github.com/21cmfast/21cmFAST/issues/606.
+        if previous_ionize_box is None:
+            x_HI = 1.0
+        else:
+            x_HI = previous_ionize_box.neutral_fraction.value.mean()
+        A_alpha = 6.25e8 * un.Hz
+        nu_Lya = 2.46606727e15 * un.Hz
+        n_H_z0 = (
+            (1.0 - inputs.cosmo_params.Y_He)
+            * inputs.cosmo_params.cosmo.critical_density(0)
+            * inputs.cosmo_params.OMb
+            / constants.m_p
+        )
+        # Eq. (24) in arxiv: 2601.14360
+        R_star = 3.0 * constants.c**4 * A_alpha**2 * n_H_z0 * x_HI * (1.0 + redshift)
+        R_star /= (
+            32.0
+            * np.pi**3
+            * nu_Lya**4
+            * inputs.cosmo_params.cosmo.H0**2
+            * inputs.cosmo_params.OMm
+        )
+    else:
+        R_star = 0.0 * un.Mpc
+
     interp_fields = ["halo_sfr", "halo_xray"]
     if inputs.astro_options.USE_MINI_HALOS:
         interp_fields += ["halo_sfr_mini", "log10_Mcrit_MCG_ave"]
@@ -544,6 +577,9 @@ def compute_xray_source_field(
             if inputs.astro_options.USE_MINI_HALOS:
                 box.filtered_sfr_mini.value[i] = 0
                 box.mean_log10_Mcrit_LW.value[i] = inputs.astro_params.M_TURN  # minimum
+                if inputs.astro_options.LYA_MULTIPLE_SCATTERING:
+                    box.filtered_sfr_lw.value[i] = 0
+                    box.filtered_sfr_mini_lw.value[i] = 0
             logger.debug(f"ignoring Radius {i} which is above Z_HEAT_MAX")
             continue
 
@@ -563,6 +599,9 @@ def compute_xray_source_field(
             if inputs.astro_options.USE_MINI_HALOS:
                 box.filtered_sfr_mini.value[i] = 0
                 box.mean_log10_Mcrit_LW.value[i] = hbox_interp.log10_Mcrit_MCG_ave
+                if inputs.astro_options.LYA_MULTIPLE_SCATTERING:
+                    box.filtered_sfr_lw.value[i] = 0
+                    box.filtered_sfr_mini_lw.value[i] = 0
             logger.debug(f"ignoring Radius {i} due to no stars")
             continue
 
@@ -571,6 +610,7 @@ def compute_xray_source_field(
             R_inner=R_inner,
             R_outer=R_outer,
             R_ct=i,
+            R_star=R_star.to("Mpc").value,
             allow_already_computed=True,
         )
 
