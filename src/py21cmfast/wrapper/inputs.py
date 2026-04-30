@@ -1150,6 +1150,10 @@ class AstroOptions(InputStruct):
                 f"RECOMB_MODEL is set to '{val}' but INHOMO_RECO is False! "
                 "Either set INHOMO_RECO to True or change RECOMB_MODEL to 'none'."
             )
+        if not self.CELL_RECOMB and val == "homogeneous":
+            raise ValueError(
+                "CELL_RECOMB cannot be False when RECOMB_MODEL is 'homogeneous'!"
+            )
 
     @USE_MINI_HALOS.validator
     def _USE_MINI_HALOS_vald(self, att, val):

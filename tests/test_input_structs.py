@@ -272,6 +272,16 @@ class TestAstroOptions:
         with pytest.raises(ValueError, match="RECOMB_MODEL must be one of"):
             AstroOptions(RECOMB_MODEL="invalid")
 
+    def test_recomb_model_homo_with_cell_recomb_false(self):
+        """Test error when RECOMB_MODEL is 'homogeneous' but CELL_RECOMB is False."""
+        with pytest.raises(
+            ValueError,
+            match="CELL_RECOMB cannot be False when RECOMB_MODEL is 'homogeneous'!",
+        ):
+            AstroOptions(
+                RECOMB_MODEL="homogeneous", CELL_RECOMB=False, USE_EXP_FILTER=False
+            )
+
 
 class TestSimulationOptions:
     """Test the SimulationOptions class."""
