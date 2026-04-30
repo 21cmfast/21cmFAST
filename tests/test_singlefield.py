@@ -552,7 +552,7 @@ def test_xray_source_field_with_zero_sfr(
     """Test compute_xray_source_field with zero sfr boxes."""
     inputs = default_input_struct_ts.evolve_input_structs(
         USE_MINI_HALOS=use_mini_halos,
-        INHOMO_RECO=True,
+        RECOMB_MODEL="inhomogeneous",
         LYA_MULTIPLE_SCATTERING=lya_multiple_scattering,
         SOURCE_MODEL="L-INTEGRAL",
     )
