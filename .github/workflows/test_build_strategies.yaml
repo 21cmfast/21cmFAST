@@ -16,6 +16,9 @@ jobs:
   miniconda-based-build:
     name: Test Miniconda-Based Build
     runs-on: ${{ matrix.os }}
+    env:
+      GCC_VERSION: 15
+      CLANG_VERSION: 18
     strategy:
       fail-fast: false
       matrix:
@@ -88,7 +91,7 @@ jobs:
         id: setup-fortran
         with:
           compiler: gcc
-          version: latest
+          version: ${{ env.GCC_VERSION }}
 
       # - name: Install OpenMP (Conda+clang)
       #   if: matrix.non-python-dependency-manager == 'conda' && matrix.compiler == 'clang'
@@ -132,7 +135,7 @@ jobs:
         #
         if: matrix.compiler == 'clang' && matrix.os == 'ubuntu-latest'
         run: |
-          echo "LIB=/usr/lib/llvm-18/lib" >> $GITHUB_ENV
+          echo "LIB=/usr/lib/llvm-${{ env.CLANG_VERSION }}/lib" >> $GITHUB_ENV
 
       - name: Install 21cmFAST
         run: |
