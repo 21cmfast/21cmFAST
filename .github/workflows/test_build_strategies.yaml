@@ -91,7 +91,7 @@ jobs:
       - name: Install Non-Python Dependencies (Brew)
         if: matrix.non-python-dependency-manager == 'brew'
         run: |
-          brew install fftw gsl libomp pkgconf gcc
+          brew install clang fftw gsl libomp pkgconf gcc
           echo "INC=$(brew --prefix)/include" >> $GITHUB_ENV
           echo "LIB=$(brew --prefix)/lib" >> $GITHUB_ENV
 
@@ -119,7 +119,7 @@ jobs:
         #
         if: matrix.compiler == 'clang' && matrix.os == 'ubuntu-latest'
         run: |
-          echo "LD_LIBRARY_PATH=/usr/lib/llvm-18/lib/:$LD_LIBRARY_PATH" >> $GITHUB_ENV
+          echo "LIB=/usr/lib/llvm-18/lib" >> $GITHUB_ENV
 
       - name: Install 21cmFAST
         run: |
