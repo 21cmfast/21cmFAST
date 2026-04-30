@@ -92,15 +92,17 @@ jobs:
         if: matrix.non-python-dependency-manager == 'brew'
         run: |
           brew install fftw gsl libomp pkgconf gcc
+          echo "INC=$(brew --prefix)/include" >> $GITHUB_ENV
+          echo "LIB=$(brew --prefix)/lib" >> $GITHUB_ENV
 
       - name: Install Non-Python Dependencies (apt-get)
         if: matrix.non-python-dependency-manager == 'apt-get'
         run: |
           sudo apt-get update
-          sudo apt-get install -y clang libfftw3-dev libgsl-dev libomp-dev pkg-config
+          sudo apt-get install -y libfftw3-dev libgsl-dev libomp-dev pkg-config
 
       - name: Debug info for clang builds
-        if: matrix.compiler == 'clang'
+        if: matrix.compiler == 'clang' && matrix.os == 'ubuntu-latest'
         run: |
           clang --version
           dpkg -l | grep -E 'clang|llvm|libomp' || true
@@ -112,13 +114,12 @@ jobs:
         # This needs to be done on Ubuntu (at least the Github Actions ubuntu-latest image)
         # because the OpenMP library installed by apt-get is not in a standard location.
         # That is, it puts it into a versioned subdirectory of /usr/lib, which is not on
-        # the default library search path. the llvm-config command finds the correct
-        # version and we add it to the library path.
+        # the default library search path.
         # This is not needed on macOS because Homebrew puts it in a standard location.
         #
         if: matrix.compiler == 'clang' && matrix.os == 'ubuntu-latest'
         run: |
-          echo "LD_LIBRARY_PATH=$(llvm-config --libdir):$LD_LIBRARY_PATH" >> $GITHUB_ENV
+          echo "LD_LIBRARY_PATH=/usr/lib/llvm-18/lib/:$LD_LIBRARY_PATH" >> $GITHUB_ENV
 
       - name: Install 21cmFAST
         run: |
