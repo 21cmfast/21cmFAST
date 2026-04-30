@@ -134,6 +134,7 @@ OPTIONS_TESTRUNS = {
         18,
         {
             "RECOMB_MODEL": "homogeneous",
+            "CELL_RECOMB": True,
             "R_BUBBLE_MAX": 50.0,
         },
     ],
@@ -330,7 +331,14 @@ def produce_coeval_power_spectra(redshift: float, cache: OutputCache, **kwargs):
     )
     p = {}
 
-    for field in COEVAL_FIELDS:
+    fields_to_compute = COEVAL_FIELDS[:]
+    if options["inputs"].astro_options.RECOMB_MODEL == "homogeneous":
+        # Do not compute power spectrum of cumulative_recombinations
+        # if RECOMB_MODEL == "homogeneous", since that field is just a single number
+        # in this case
+        fields_to_compute.remove("cumulative_recombinations")
+
+    for field in fields_to_compute:
         if hasattr(coeval, field):
             p[field], k = get_power(
                 getattr(coeval, field),

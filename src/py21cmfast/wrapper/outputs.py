@@ -1437,8 +1437,10 @@ class IonizedBox(OutputStructZ):
             out["mean_free_path"] = Array(shape, dtype=np.float32)
             out["kinetic_temperature"] = Array(shape, dtype=np.float32)
 
-        if inputs.astro_options.RECOMB_MODEL != "none":
+        if inputs.astro_options.RECOMB_MODEL == "inhomogeneous":
             out["cumulative_recombinations"] = Array(shape, dtype=np.float32)
+        elif inputs.astro_options.RECOMB_MODEL == "homogeneous":
+            out["cumulative_recombinations"] = Array((1, 1, 1), dtype=np.float32)
 
         if not inputs.matter_options.lagrangian_source_grid:
             out["unnormalised_nion"] = Array(filter_shape, dtype=np.float32)

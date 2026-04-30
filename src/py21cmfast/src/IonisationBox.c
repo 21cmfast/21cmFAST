@@ -1029,7 +1029,7 @@ void find_ionised_regions(IonizedBox *box, IonizedBox *previous_ionize_box,
         int x, y, z;
         double curr_dens, curr_fcoll, curr_fcoll_mini;
         double rec, xHII_from_xrays, res_xH;
-        unsigned long long int index_r, index_f;
+        unsigned long long int index_r, index_f, index_rec;
 #pragma omp for
         for (x = 0; x < box_dim[0]; x++) {
             for (y = 0; y < box_dim[1]; y++) {
@@ -1079,9 +1079,10 @@ void find_ionised_regions(IonizedBox *box, IonizedBox *previous_ionize_box,
 
                     if (astro_options_global->RECOMB_MODEL > 0) {
                         // number of recombinations per mean baryon
-                        if (astro_options_global->CELL_RECOMB)
-                            rec = previous_ionize_box->cumulative_recombinations[index_r];
-                        else
+                        if (astro_options_global->CELL_RECOMB) {
+                            index_rec = (astro_options_global->RECOMB_MODEL == 2) ? index_r : 0;
+                            rec = previous_ionize_box->cumulative_recombinations[index_rec];
+                        } else
                             rec = (*((float *)fg_struct->N_rec_filtered + index_f));
 
                         // number of recombinations per baryon inside cell/filter
@@ -1250,72 +1251,86 @@ void set_ionized_temperatures(IonizedBox *box, PerturbedField *perturbed_field, 
 void set_recombination_rates(IonizedBox *box, IonizedBox *previous_ionize_box,
                              PerturbedField *perturbed_field, struct IonBoxConstants *consts,
                              float global_xHI, float global_photionization_rate) {
-    bool finite_error = false;
-    int box_dim[3] = {simulation_options_global->HII_DIM, simulation_options_global->HII_DIM,
-                      HII_D_PARA};
+    if (astro_options_global->RECOMB_MODEL == 1) {
+        // Homogeneous recombination rate
+        double dNrec_global =
+            splined_recombination_rate(consts->stored_redshift, global_photionization_rate) *
+            consts->fabs_dtdz * consts->dz * (1. - global_xHI);
+        double cumulative_recomb_global =
+            previous_ionize_box->cumulative_recombinations[0] + dNrec_global;
+        if (isfinite(cumulative_recomb_global) == 0) {
+            LOG_ERROR(
+                "RECOMB: non-finite cumulative recombinations: d %.4e | G12 %.4e | xH %.4e ==> "
+                "dNrec %.4e Nrec_last (%.4e --> %.4e)",
+                1., global_photionization_rate, global_xHI, dNrec_global,
+                previous_ionize_box->cumulative_recombinations[0], cumulative_recomb_global);
+            Throw(InfinityorNaNError);
+        }
+        box->cumulative_recombinations[0] = cumulative_recomb_global;
+    } else if (astro_options_global->RECOMB_MODEL == 2) {
+        // Inhomogeneous recombination rate
+        bool finite_error = false;
+        int box_dim[3] = {simulation_options_global->HII_DIM, simulation_options_global->HII_DIM,
+                          HII_D_PARA};
 #pragma omp parallel num_threads(simulation_options_global->N_THREADS)
-    {
-        int x, y, z;
-        double curr_dens, dNrec;
-        double z_eff;
-        unsigned long long int idx;
-        float ionisation_rate_G12, x_HI;
+        {
+            int x, y, z;
+            double curr_dens, dNrec;
+            double z_eff;
+            unsigned long long int idx;
 #pragma omp for
-        for (x = 0; x < simulation_options_global->HII_DIM; x++) {
-            for (y = 0; y < simulation_options_global->HII_DIM; y++) {
-                for (z = 0; z < HII_D_PARA; z++) {
-                    // use the original density and redshift for the snapshot (not the adjusted
-                    // redshift) Only want to use the adjusted redshift for the ionisation field
-                    // NOTE: but the structure field wasn't adjusted, this seems wrong
-                    // curr_dens = 1.0 + (perturbed_field->density[idx]) /
-                    // adjustment_factor;
-                    idx = grid_index_general(x, y, z, box_dim);
-                    if (astro_options_global->RECOMB_MODEL == 1) {
-                        curr_dens = 1.0;
-                        ionisation_rate_G12 = global_photionization_rate;
-                        x_HI = global_xHI;
-                    } else {
+            for (x = 0; x < simulation_options_global->HII_DIM; x++) {
+                for (y = 0; y < simulation_options_global->HII_DIM; y++) {
+                    for (z = 0; z < HII_D_PARA; z++) {
+                        // use the original density and redshift for the snapshot (not the adjusted
+                        // redshift) Only want to use the adjusted redshift for the ionisation field
+                        // NOTE: but the structure field wasn't adjusted, this seems wrong
+                        // curr_dens = 1.0 + (perturbed_field->density[idx]) /
+                        // adjustment_factor;
+                        idx = grid_index_general(x, y, z, box_dim);
                         curr_dens = 1.0 + (perturbed_field->density[idx]);
-                        ionisation_rate_G12 = box->ionisation_rate_G12[idx];
-                        x_HI = box->neutral_fraction[idx];
-                    }
-                    z_eff = pow(curr_dens, 1.0 / 3.0);
-                    z_eff *= (1 + consts->stored_redshift);
+                        z_eff = pow(curr_dens, 1.0 / 3.0);
+                        z_eff *= (1 + consts->stored_redshift);
 
-                    dNrec = splined_recombination_rate(z_eff - 1., ionisation_rate_G12) *
-                            consts->fabs_dtdz * consts->dz * (1. - x_HI);
+                        dNrec =
+                            splined_recombination_rate(z_eff - 1., box->ionisation_rate_G12[idx]) *
+                            consts->fabs_dtdz * consts->dz * (1. - box->neutral_fraction[idx]);
 
-                    if (isfinite(dNrec) == 0) {
-                        finite_error = true;
-                        LOG_ERROR(
-                            "RECOMB: non-finite cell (%d,%d,%d): d %.4e | G12 %.4e | xH %.4e ==> "
-                            "dNrec %.4e Nrec_last (%.4e --> %.4e)",
-                            x, y, z, curr_dens, ionisation_rate_G12, x_HI, dNrec,
-                            previous_ionize_box->cumulative_recombinations[idx],
-                            box->cumulative_recombinations[idx]);
-                    }
+                        if (isfinite(dNrec) == 0) {
+                            finite_error = true;
+                            LOG_ERROR(
+                                "RECOMB: non-finite cell (%d,%d,%d): d %.4e | G12 %.4e | xH %.4e "
+                                "==> "
+                                "dNrec %.4e Nrec_last (%.4e --> %.4e)",
+                                x, y, z, curr_dens, box->ionisation_rate_G12[idx],
+                                box->neutral_fraction[idx], dNrec,
+                                previous_ionize_box->cumulative_recombinations[idx],
+                                box->cumulative_recombinations[idx]);
+                        }
 
-                    box->cumulative_recombinations[idx] =
-                        previous_ionize_box->cumulative_recombinations[idx] + dNrec;
+                        box->cumulative_recombinations[idx] =
+                            previous_ionize_box->cumulative_recombinations[idx] + dNrec;
 
 #if LOG_LEVEL >= SUPER_DEBUG_LEVEL
-                    if (x + y + z == 0) {
-                        LOG_SUPER_DEBUG(
-                            "Cell 0: d %.4e | G12 %.4e | xH %.4e ==> dNrec %.4e Nrec (%.4e --> "
-                            "%.4e)",
-                            curr_dens, ionisation_rate_G12, x_HI, dNrec,
-                            previous_ionize_box->cumulative_recombinations[idx],
-                            box->cumulative_recombinations[idx]);
-                    }
+                        if (x + y + z == 0) {
+                            LOG_SUPER_DEBUG(
+                                "Cell 0: d %.4e | G12 %.4e | xH %.4e ==> dNrec %.4e Nrec (%.4e --> "
+                                "%.4e)",
+                                curr_dens, box->ionisation_rate_G12[idx],
+                                box->neutral_fraction[idx], dNrec,
+                                previous_ionize_box->cumulative_recombinations[idx],
+                                box->cumulative_recombinations[idx]);
+                        }
 #endif
+                    }
                 }
             }
         }
-    }
 
-    if (finite_error) {
-        LOG_ERROR("Recombinations have returned either an infinite or NaN value.");
-        Throw(InfinityorNaNError);
+        if (finite_error) {
+            LOG_ERROR("Recombinations have returned either an infinite or NaN value.");
+            Throw(InfinityorNaNError);
+        }
     }
 }
 
