@@ -106,11 +106,6 @@ if "DEBUG" in os.environ:
 else:
     extra_compile_args += ["-Ofast"]
 
-if sys.platform == "darwin":
-    extra_compile_args += ["-Xpreprocessor"]
-
-extra_compile_args += ["-fopenmp"]
-
 libraries = ["m", "gsl", "gslcblas", "fftw3f_omp", "fftw3f"]
 
 # stuff for gperftools
@@ -125,6 +120,14 @@ if compiler == "clang":
     libraries += ["omp"]
 elif compiler == "gcc":
     libraries += ["gomp"]
+
+if sys.platform == "darwin":
+    extra_compile_args += ["-Xpreprocessor", "-fopenmp"]
+elif sys.platform.startswith("linux"):
+    if compiler == "clang":
+        extra_compile_args += ["-fopenmp=libomp"]
+    else:
+        extra_compile_args += ["-fopenmp"]
 
 library_dirs = []
 for k, v in os.environ.items():

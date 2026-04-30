@@ -97,7 +97,7 @@ jobs:
         if: matrix.non-python-dependency-manager == 'apt-get'
         run: |
           sudo apt-get update
-          sudo apt-get install -y libfftw3-dev libgsl-dev libomp-dev pkg-config
+          sudo apt-get install -y clang libfftw3-dev libgsl-dev libomp-dev pkg-config
 
       - name: Debug info for clang builds
         if: matrix.compiler == 'clang'
