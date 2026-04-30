@@ -78,6 +78,18 @@ jobs:
         run: |
           conda install pip fftw gsl llvm-openmp compilers pkg-config
 
+      # Because gfortran is not made available globally on MacOS through brew on GHA,
+      # it's easier to set it up via an action. It's needed for camb.
+      # On a user-setup you should just install with brew and ensure that
+      # gfortran is on your PATH.
+      - name: Install gfortran (MacOS+Brew)
+        if: matrix.non-python-dependency-manager == 'brew'
+        uses: fortran-lang/setup-fortran@v1
+        id: setup-fortran
+        with:
+          compiler: gcc
+          version: latest
+
       # - name: Install OpenMP (Conda+clang)
       #   if: matrix.non-python-dependency-manager == 'conda' && matrix.compiler == 'clang'
       #   run: |
