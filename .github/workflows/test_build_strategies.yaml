@@ -91,7 +91,7 @@ jobs:
       - name: Install Non-Python Dependencies (Brew)
         if: matrix.non-python-dependency-manager == 'brew'
         run: |
-          brew install fftw gsl libomp pkgconf
+          brew install fftw gsl libomp pkgconf gcc
 
       - name: Install Non-Python Dependencies (apt-get)
         if: matrix.non-python-dependency-manager == 'apt-get'

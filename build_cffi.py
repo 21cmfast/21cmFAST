@@ -28,6 +28,13 @@ def detect_default_compiler():
 
     source = "environment variable 'CC'" if "CC" in os.environ else "sysconfig"
     _compiler = os.environ.get("CC", sysconfig.get_config_var("CC"))
+    if not _compiler:
+        warnings.warn(
+            "No compiler was found via CC or sysconfig('CC'). "
+            "No special compiler flags will be set.",
+            stacklevel=2,
+        )
+        return "unknown"
 
     # strip any arguments from the compiler command
     _compiler = _compiler.split()[0]
@@ -35,10 +42,16 @@ def detect_default_compiler():
     print(f"Using compiler from {source}: {_compiler}")
 
     result = run([_compiler, "--version"], capture_output=True, text=True)
-    if any(s in result.stdout for s in ["gcc", "g++", "gnu"]):
-        return "gcc"
-    elif "clang" in _compiler.lower():
+    compiler_banner = f"{result.stdout}\n{result.stderr}".lower()
+
+    # Check for clang first: clang banners often include "linux-gnu", which
+    # would otherwise be misclassified as gcc by a naive "gnu" substring check.
+    if "clang" in _compiler.lower() or "clang" in compiler_banner:
         return "clang"
+    if _compiler.lower() == "gcc" or any(
+        s in compiler_banner for s in ["gcc", "g++", "gnu compiler collection"]
+    ):
+        return "gcc"
     else:
         warnings.warn(
             f"21cmFAST was not able to determine the compiler type from '{_compiler}'."
@@ -110,6 +123,8 @@ if "PROFILE" in os.environ:
 compiler = detect_default_compiler()
 if compiler == "clang":
     libraries += ["omp"]
+elif compiler == "gcc":
+    libraries += ["gomp"]
 
 library_dirs = []
 for k, v in os.environ.items():
