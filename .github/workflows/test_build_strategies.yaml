@@ -91,9 +91,10 @@ jobs:
       - name: Install Non-Python Dependencies (Brew)
         if: matrix.non-python-dependency-manager == 'brew'
         run: |
-          brew install clang fftw gsl libomp pkgconf gcc
+          brew install fftw gsl libomp pkgconf gcc
           echo "INC=$(brew --prefix)/include" >> $GITHUB_ENV
           echo "LIB=$(brew --prefix)/lib" >> $GITHUB_ENV
+          echo "Found gfortran at $(which gfortran)"
 
       - name: Install Non-Python Dependencies (apt-get)
         if: matrix.non-python-dependency-manager == 'apt-get'
