@@ -108,6 +108,18 @@ jobs:
           find /usr -name 'libomp.so*' 2>/dev/null | sort
           ldconfig -p | grep -i omp || true
 
+      - name: Set OMP library path for clang builds on ubuntu
+        # This needs to be done on Ubuntu (at least the Github Actions ubuntu-latest image)
+        # because the OpenMP library installed by apt-get is not in a standard location.
+        # That is, it puts it into a versioned subdirectory of /usr/lib, which is not on
+        # the default library search path. the llvm-config command finds the correct
+        # version and we add it to the library path.
+        # This is not needed on macOS because Homebrew puts it in a standard location.
+        #
+        if: matrix.compiler == 'clang' && matrix.os == 'ubuntu-latest'
+        run: |
+          echo "LD_LIBRARY_PATH=$(llvm-config --libdir):$LD_LIBRARY_PATH" >> $GITHUB_ENV
+
       - name: Install 21cmFAST
         run: |
           CC=${{ matrix.compiler }} python -m pip install .
