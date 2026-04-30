@@ -614,7 +614,8 @@ void copy_filter_transform(struct FilteredGrids *fg_struct, struct IonBoxConstan
             int filter_hf = astro_options_global->USE_EXP_FILTER ? 3 : consts->hii_filter;
             filter_box(fg_struct->stars_filtered, box_dim, filter_hf, R, consts->mfp_meandens, 0.);
             if (astro_options_global->RECOMB_MODEL > 0) {
-                filter_box(fg_struct->sfr_filtered, box_dim, filter_hf, R, consts->mfp_meandens, 0.);
+                filter_box(fg_struct->sfr_filtered, box_dim, filter_hf, R, consts->mfp_meandens,
+                           0.);
             }
         } else {
             if (astro_options_global->USE_MINI_HALOS) {
