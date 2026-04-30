@@ -264,7 +264,7 @@ OPTIONS_TESTRUNS = {
             "SOURCE_MODEL": "L-INTEGRAL",
             "USE_TS_FLUCT": True,
             "USE_MINI_HALOS": True,
-            "INHOMO_RECO": True,
+            "RECOMB_MODEL": "inhomogeneous",
             "N_THREADS": 4,
             "USE_RELATIVE_VELOCITIES": True,
             "POWER_SPECTRUM": "CLASS",
