@@ -2,22 +2,19 @@ name: Test MacOS Build
 
 # Test on all pushes, except when the push is literally just a tag (because we
 # tag automatically via CI, and therefore there's no extra code in that push).
-# Also, only test on pull requests into main.
 on:
   push:
     tags-ignore:
       - 'v*'
   pull_request:
     branches:
-      - 'main'
+      - '*'
 
 
 jobs:
   tests:
     if: "!contains(github.event.pull_request.labels.*.name, 'auto-pr')"
-    env:
-      PYTHON: ${{ matrix.python-version }}
-      CC: gcc
+
     name: Test MacOS Build
     runs-on: ${{ matrix.os }}
     strategy:
@@ -44,12 +41,14 @@ jobs:
 
       - name: Install Non-Python Dependencies
         run: |
-          conda install fftw gsl
+          conda install pip fftw gsl compilers pkg-config
 
       - name: Install 21cmFAST
         run: |
-          CC=${{ matrix.compiler }} pip install .
+          which python
+          python --version
+          CC=${{ matrix.compiler }} python -m pip install .
 
       - name: Test Import
         run: |
-          python -c "import py21cmfast"
+          python -c "import py21cmfast; print(py21cmfast.__version__)"
