@@ -89,7 +89,7 @@ jobs:
         - macos-14       # arm64-based os. Cycle out when it gets out of date
 
         python-version: ["3.12", "3.14"]  # bracket the versions we support.
-        compiler: ["gcc"] #, "clang"]
+        compiler: ["gcc", "clang"]
         non-python-dependency-manager: ["brew"]
         exclude:
           - python-version: "3.12"

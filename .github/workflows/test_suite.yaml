@@ -26,6 +26,22 @@ jobs:
         os: [ubuntu-latest, macos-latest]
         python-version: ["3.11", "3.12", "3.13"]
         compiler: ["gcc", "clang"]
+        include:
+          # include only unique combinations to test all the "corners" of the matrix
+          # without testing every single combination (which would be too much).
+          - os: ubuntu-latest
+            python-version: "3.11"
+            compiler: gcc
+          - os: ubuntu-latest
+            python-version: "3.12"
+            compiler: clang
+          - os: macos-latest
+            python-version: "3.13"
+            compiler: gcc
+          - os: macos-latest
+            python-version: "3.11"
+            compiler: clang
+
     defaults:
      run:
        # Adding -l {0} ensures conda can be found properly in each step
