@@ -121,6 +121,11 @@ jobs:
           find /usr -name 'libomp.so*' 2>/dev/null | sort
           ldconfig -p | grep -i omp || true
 
+      - name: Verify Python Version
+        run: |
+          which python
+          python --version
+
       - name: Set OMP library path for clang builds on ubuntu
         # This needs to be done on Ubuntu (at least the Github Actions ubuntu-latest image)
         # because the OpenMP library installed by apt-get is not in a standard location.
