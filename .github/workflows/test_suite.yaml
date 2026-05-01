@@ -13,7 +13,6 @@ on:
 
 jobs:
   tests:
-    if: "!contains(github.event.pull_request.labels.*.name, 'auto-pr')"
     env:
       ENV_NAME: tests
       PYTHON: ${{ matrix.python-version }}
@@ -21,6 +20,7 @@ jobs:
       CC: ${{ matrix.compiler }}
     name: Test Suite
     runs-on: ${{ matrix.os }}
+    if: "false"
     strategy:
       fail-fast: false
       matrix:

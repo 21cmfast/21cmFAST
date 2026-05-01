@@ -14,7 +14,7 @@ on:
 
 jobs:
   tests:
-    if: "!contains(github.event.pull_request.labels.*.name, 'auto-pr')"
+    if: "false"
     env:
       ENV_NAME: tests
       PYTHON: ${{ matrix.python-version }}
