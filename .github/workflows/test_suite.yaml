@@ -20,16 +20,12 @@ jobs:
       CC: ${{ matrix.compiler }}
     name: Test Suite
     runs-on: ${{ matrix.os }}
-    if: "false"
     strategy:
       fail-fast: false
       matrix:
         os: [ubuntu-latest, macos-latest]
-        python-version: ["3.11", "3.12"]
+        python-version: ["3.11", "3.12", "3.13"]
         compiler: ["gcc", "clang"]
-        exclude:
-          - os: ubuntu-latest
-            compiler: "clang"
     defaults:
      run:
        # Adding -l {0} ensures conda can be found properly in each step

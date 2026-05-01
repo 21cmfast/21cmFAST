@@ -24,27 +24,20 @@ jobs:
       matrix:
         os:
         - macos-26       # arm64-based os. Cycle out when it gets out of date
-        # - macos-26-intel # intel-based os. Cycle out when it gets out of date
-        # - macos-14       # arm64-based os. Cycle out when it gets out of date
-        # - ubuntu-latest  # Linux-based os / only other is 22.04 which is surely old enough not to test any more
+        - macos-26-intel # intel-based os. Cycle out when it gets out of date
+        - macos-14       # arm64-based os. Cycle out when it gets out of date
+        - ubuntu-latest  # Linux-based os / only other is 22.04 which is surely old enough not to test any more
 
         python-version: ["3.12", "3.14"]  # bracket the versions we support.
-        compiler: ["gcc"] #, "clang"]
-        # non-python-dependency-manager: ["brew"] # ["conda", "brew", "apt-get"]
-        # exclude:
-        #   # Exclude brew and apt-get on non-Linux OSes, and apt-get on Linux OSes
-        #   - os: macos-latest
-        #     non-python-dependency-manager: apt-get
-        #   - os: macos-26
-        #     non-python-dependency-manager: apt-get
-        #   - os: macos-26-intel
-        #     non-python-dependency-manager: apt-get
-        #   - os: macos-14
-        #     non-python-dependency-manager: apt-get
-        #   - os: ubuntu-latest
-        #     non-python-dependency-manager: brew
-        #   - python-version: "3.12"
-        #     compiler: clang
+        compiler: ["gcc", "clang"]
+        exclude:
+          # Eclude some combinations just to make the matrix smaller.
+          - python-version: "3.12"
+            compiler: clang
+          - python-version: "3.14"
+            compiler: gcc
+          - os: macos-14
+            python-version: "3.14"
 
     defaults:
      run:
@@ -92,16 +85,19 @@ jobs:
       matrix:
         os:
         - macos-26       # arm64-based os. Cycle out when it gets out of date
-        # - macos-26-intel # intel-based os. Cycle out when it gets out of date
-        # - macos-14       # arm64-based os. Cycle out when it gets out of date
-        # - ubuntu-latest  # Linux-based os / only other is 22.04 which is surely old enough not to test any more
+        - macos-26-intel # intel-based os. Cycle out when it gets out of date
+        - macos-14       # arm64-based os. Cycle out when it gets out of date
 
         python-version: ["3.12", "3.14"]  # bracket the versions we support.
         compiler: ["gcc"] #, "clang"]
         non-python-dependency-manager: ["brew"]
         exclude:
           - python-version: "3.12"
+            compiler: gcc
+          - python-version: "3.14"
             compiler: clang
+          - os: macos-14
+            python-version: "3.12"
 
     steps:
       - uses: actions/checkout@master
@@ -176,7 +172,7 @@ jobs:
         - ubuntu-latest  # Linux-based os / only other is 22.04 which is surely old enough not to test any more
 
         python-version: ["3.12", "3.14"]  # bracket the versions we support.
-        compiler: ["gcc"] #, "clang"]
+        compiler: ["gcc", "clang"]
         non-python-dependency-manager: ["apt-get"]
         exclude:
           - python-version: "3.12"
