@@ -77,7 +77,7 @@ compile the C++ code in `classy`, which is a dependency.
         The easiest way to get the dependencies (other than ``conda``) is via
         ``homebrew``. You can install them with::
 
-            brew install gsl fftw libomp pkfconf gcc
+            brew install gsl fftw libomp pkgconf gcc
 
         We have found that using `brew` tends to install compilers etc into versioned
         subdirectories, so if you want to use this installation strategy, you will

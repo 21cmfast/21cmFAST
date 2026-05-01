@@ -221,7 +221,7 @@ jobs:
         #
         if: matrix.compiler == 'clang'
         run: |
-          echo "LIB=/usr/lib/llvm-${{ env.CLANG_VERSION }}/lib" >> $GITHUB_ENV
+          echo "OMP_LIB=/usr/lib/llvm-${{ env.CLANG_VERSION }}/lib" >> $GITHUB_ENV
 
       - name: Install 21cmFAST
         run: |

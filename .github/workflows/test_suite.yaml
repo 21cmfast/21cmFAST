@@ -74,6 +74,11 @@ jobs:
         run: |
           conda install pip fftw gsl numba compilers pkg-config
 
+      - name: Install OpenMP for clang on Linux
+        if: matrix.os == 'ubuntu-latest' && matrix.compiler == 'clang'
+        run: |
+          conda install llvm-openmp
+
       - name: Install 21cmFAST
         run: |
           LOG_LEVEL=${{ env.log_level }} python -m pip install ".[dev]"
