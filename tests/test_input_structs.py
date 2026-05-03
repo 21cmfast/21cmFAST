@@ -4,6 +4,7 @@ import pickle
 from itertools import chain
 from typing import Any, ClassVar
 
+import deprecation
 import pytest
 
 from py21cmfast import (
@@ -245,10 +246,17 @@ class TestAstroOptions:
 
     def test_inhomo_reco_deprecated_warning(self):
         """Test that using INHOMO_RECO=True shows deprecation warning."""
-        with pytest.warns(UserWarning, match="INHOMO_RECO is deprecated"):
+        with pytest.warns(
+            deprecation.DeprecatedWarning, match="INHOMO_RECO is deprecated"
+        ):
             opts = AstroOptions(INHOMO_RECO=True)
         assert opts.RECOMB_MODEL == "inhomogeneous"
         assert opts.INHOMO_RECO is True
+
+    @deprecation.fail_if_not_removed
+    def test_inhomo_reco_is_removed(self):
+        """Fails when the removed_in version is reached, reminding you to delete INHOMO_RECO."""
+        AstroOptions(INHOMO_RECO=True)
 
     @pytest.mark.parametrize("kwargs", [{}, {"INHOMO_RECO": False}])
     def test_inhomo_reco_false_sets_none(self, kwargs):

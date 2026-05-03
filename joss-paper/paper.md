@@ -185,7 +185,7 @@ lightcone = p21c.run_lightcone(
     },
     flag_options={
         "USE_TS_FLUCT": True,  # Don't assume saturated spin temp
-        "RECOMB_MODEL": "inhomogeneous",  # Use inhomogeneous recombinations
+        "INHOMO_RECO": True,   # Use inhomogeneous recombinations
     },
     lightcone_quantities=(     # Components to store as lightcones
         "brightness_temp",
@@ -227,7 +227,7 @@ large simulations when performed on high-performance machines.
 A simple performance comparison between v3 and v2.1 (the last pure-C version), running
 a light-cone simulation over a redshift range between 35 and 5 (92 snapshots) with spin
 temperature fluctuations (`USE_TS_FLUCT`), inhomogeneous recombinations
-(`RECOMB_MODEL="inhomogeneous"`), FFTW Wisdoms (`USE_FFTW_WISDOM`) and interpolation tables
+(`INHOMO_RECO`), FFTW Wisdoms (`USE_FFTW_WISDOM`) and interpolation tables
 (`USE_INTERPOLATION_TABLES`),
 with a resolution of `HII_DIM=250` cells, and `DIM=1000` cells for the initial conditions,
 on an Intel(R) Xeon(R) CPU (E5-4657L v2 @ 2.40GHz) with 16 shared-memory cores, reveals

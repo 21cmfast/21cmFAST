@@ -19,6 +19,7 @@ from pathlib import Path
 from typing import Annotated, Any, ClassVar, Literal, Self, get_args
 
 import attrs
+import deprecation
 import numpy as np
 from astropy import constants
 from astropy import units as un
@@ -1229,17 +1230,23 @@ class AstroOptions(InputStruct):
 
     @RECOMB_MODEL.default
     def _default_recomb_model(self):
-        if self._INHOMO_RECO is True:
-            warnings.warn(
-                "INHOMO_RECO is deprecated and will be removed in a future version. "
-                "Please use RECOMB_MODEL directly instead.",
-                stacklevel=2,
-            )
-            return "inhomogeneous"
-        elif self._INHOMO_RECO is False:
+        if self._INHOMO_RECO is None:
             return "none"
-        else:  # _INHOMO_RECO is None (not provided)
-            return "none"
+
+        warnings.warn(
+            deprecation.DeprecatedWarning(
+                "INHOMO_RECO",
+                deprecated_in="4.2.0",
+                removed_in="5.0.0",
+                details=(
+                    "INHOMO_RECO is deprecated and will be removed in a future version. "
+                    "Please use RECOMB_MODEL directly instead."
+                ),
+            ),
+            stacklevel=2,
+        )
+
+        return "inhomogeneous" if self._INHOMO_RECO else "none"
 
     @RECOMB_MODEL.validator
     def _recomb_model_vld(self, att, val):

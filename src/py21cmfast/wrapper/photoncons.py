@@ -280,8 +280,8 @@ def calibrate_photon_cons(
     from ..drivers.single_field import compute_ionization_field, perturb_field
 
     # Create a new astro_params and astro_options just for the photon_cons correction
-    # NOTE: Since the calibration cannot do RECOMB_MODEL != "none", we set the R_BUBBLE_MAX
-    #   to the default w/o recombinations ONLY when the original box has RECOMB_MODEL != "none".
+    # NOTE: Since the calibration cannot do recombinations, we set the R_BUBBLE_MAX
+    #   to the default w/o recombinations ONLY when the original box has recombinations.
     # TODO: figure out if it's possible to find a "closest" Rmax, since the correction fails when
     # the histories are too different.
 
