@@ -111,7 +111,7 @@ struct FilteredGrids {
     // Used when TS_FLUCT==True
     fftwf_complex *xe_unfiltered, *xe_filtered;
 
-    // Used when INHOMO_RECO==True and CELL_RECOMB=False
+    // Used when RECOMB_MODEL > 0 and CELL_RECOMB=False
     fftwf_complex *N_rec_unfiltered, *N_rec_filtered;
 
     // Used when USE_MINI_HALOS==True and SOURCE_MODEL=='E-INTEGRAL'
@@ -155,7 +155,7 @@ void set_ionbox_constants(double redshift, double prev_redshift, struct IonBoxCo
     consts->need_minihalo_nion =
         !consts->lagrangian_source_grids && astro_options_global->USE_MINI_HALOS;
     consts->filter_recombinations =
-        astro_options_global->INHOMO_RECO && !astro_options_global->CELL_RECOMB;
+        astro_options_global->RECOMB_MODEL > 0 && !astro_options_global->CELL_RECOMB;
 
     consts->hii_filter = astro_options_global->HII_FILTER;
     consts->T_re = astro_params_global->T_RE;
@@ -258,7 +258,7 @@ void allocate_fftw_grids(struct FilteredGrids **fg_struct) {
             (fftwf_complex *)fftwf_malloc(sizeof(fftwf_complex) * HII_KSPACE_NUM_PIXELS);
     }
 
-    if (astro_options_global->INHOMO_RECO && !astro_options_global->CELL_RECOMB) {
+    if (astro_options_global->RECOMB_MODEL > 0 && !astro_options_global->CELL_RECOMB) {
         (*fg_struct)->N_rec_unfiltered = (fftwf_complex *)fftwf_malloc(
             sizeof(fftwf_complex) * HII_KSPACE_NUM_PIXELS);  // cumulative number of recombinations
         (*fg_struct)->N_rec_filtered =
@@ -271,7 +271,7 @@ void allocate_fftw_grids(struct FilteredGrids **fg_struct) {
         (*fg_struct)->stars_filtered =
             (fftwf_complex *)fftwf_malloc(sizeof(fftwf_complex) * HII_KSPACE_NUM_PIXELS);
 
-        if (astro_options_global->INHOMO_RECO) {
+        if (astro_options_global->RECOMB_MODEL > 0) {
             (*fg_struct)->sfr_unfiltered =
                 (fftwf_complex *)fftwf_malloc(sizeof(fftwf_complex) * HII_KSPACE_NUM_PIXELS);
             (*fg_struct)->sfr_filtered =
@@ -298,7 +298,7 @@ void free_fftw_grids(struct FilteredGrids *fg_struct) {
         fftwf_free(fg_struct->xe_unfiltered);
         fftwf_free(fg_struct->xe_filtered);
     }
-    if (astro_options_global->INHOMO_RECO && !astro_options_global->CELL_RECOMB) {
+    if (astro_options_global->RECOMB_MODEL > 0 && !astro_options_global->CELL_RECOMB) {
         fftwf_free(fg_struct->N_rec_unfiltered);
         fftwf_free(fg_struct->N_rec_filtered);
     }
@@ -306,7 +306,7 @@ void free_fftw_grids(struct FilteredGrids *fg_struct) {
     if (matter_options_global->SOURCE_MODEL > 1) {
         fftwf_free(fg_struct->stars_unfiltered);
         fftwf_free(fg_struct->stars_filtered);
-        if (astro_options_global->INHOMO_RECO) {
+        if (astro_options_global->RECOMB_MODEL > 0) {
             fftwf_free(fg_struct->sfr_unfiltered);
             fftwf_free(fg_struct->sfr_filtered);
         }
@@ -585,7 +585,7 @@ void copy_filter_transform(struct FilteredGrids *fg_struct, struct IonBoxConstan
     if (consts->lagrangian_source_grids) {
         memcpy(fg_struct->stars_filtered, fg_struct->stars_unfiltered,
                sizeof(fftwf_complex) * HII_KSPACE_NUM_PIXELS);
-        if (astro_options_global->INHOMO_RECO) {
+        if (astro_options_global->RECOMB_MODEL > 0) {
             memcpy(fg_struct->sfr_filtered, fg_struct->sfr_unfiltered,
                    sizeof(fftwf_complex) * HII_KSPACE_NUM_PIXELS);
         }
@@ -613,7 +613,7 @@ void copy_filter_transform(struct FilteredGrids *fg_struct, struct IonBoxConstan
         if (consts->lagrangian_source_grids) {
             int filter_hf = astro_options_global->USE_EXP_FILTER ? 3 : consts->hii_filter;
             filter_box(fg_struct->stars_filtered, box_dim, filter_hf, R, consts->mfp_meandens, 0.);
-            if (astro_options_global->INHOMO_RECO) {
+            if (astro_options_global->RECOMB_MODEL > 0) {
                 filter_box(fg_struct->sfr_filtered, box_dim, filter_hf, R, consts->mfp_meandens,
                            0.);
             }
@@ -634,7 +634,7 @@ void copy_filter_transform(struct FilteredGrids *fg_struct, struct IonBoxConstan
     if (consts->lagrangian_source_grids) {
         dft_c2r_cube(matter_options_global->USE_FFTW_WISDOM, simulation_options_global->HII_DIM,
                      HII_D_PARA, simulation_options_global->N_THREADS, fg_struct->stars_filtered);
-        if (astro_options_global->INHOMO_RECO) {
+        if (astro_options_global->RECOMB_MODEL > 0) {
             dft_c2r_cube(matter_options_global->USE_FFTW_WISDOM, simulation_options_global->HII_DIM,
                          HII_D_PARA, simulation_options_global->N_THREADS, fg_struct->sfr_filtered);
         }
@@ -819,7 +819,7 @@ void calculate_fcoll_grid(IonizedBox *box, IonizedBox *previous_ionize_box,
                     if (consts->lagrangian_source_grids) {
                         *((float *)fg_struct->stars_filtered + index_f) =
                             fmaxf(*((float *)fg_struct->stars_filtered + index_f), 0.0);
-                        if (astro_options_global->INHOMO_RECO) {
+                        if (astro_options_global->RECOMB_MODEL > 0) {
                             *((float *)fg_struct->sfr_filtered + index_f) =
                                 fmaxf(*((float *)fg_struct->sfr_filtered + index_f), 0.0);
                         }
@@ -1031,7 +1031,7 @@ void find_ionised_regions(IonizedBox *box, IonizedBox *previous_ionize_box,
         int x, y, z;
         double curr_dens, curr_fcoll, curr_fcoll_mini;
         double rec, xHII_from_xrays, res_xH;
-        unsigned long long int index_r, index_f;
+        unsigned long long int index_r, index_f, index_rec;
 #pragma omp for
         for (x = 0; x < box_dim[0]; x++) {
             for (y = 0; y < box_dim[1]; y++) {
@@ -1079,11 +1079,12 @@ void find_ionised_regions(IonizedBox *box, IonizedBox *previous_ionize_box,
                         }
                     }
 
-                    if (astro_options_global->INHOMO_RECO) {
+                    if (astro_options_global->RECOMB_MODEL > 0) {
                         // number of recombinations per mean baryon
-                        if (astro_options_global->CELL_RECOMB)
-                            rec = previous_ionize_box->cumulative_recombinations[index_r];
-                        else
+                        if (astro_options_global->CELL_RECOMB) {
+                            index_rec = (astro_options_global->RECOMB_MODEL == 2) ? index_r : 0;
+                            rec = previous_ionize_box->cumulative_recombinations[index_rec];
+                        } else
                             rec = (*((float *)fg_struct->N_rec_filtered + index_f));
 
                         // number of recombinations per baryon inside cell/filter
@@ -1115,7 +1116,7 @@ void find_ionised_regions(IonizedBox *box, IonizedBox *previous_ionize_box,
                         // if this is the first crossing of the ionization barrier for this cell
                         // (largest R), record the gamma this assumes photon-starved growth of HII
                         // regions...  breaks down post EoR
-                        if (astro_options_global->INHOMO_RECO &&
+                        if (astro_options_global->RECOMB_MODEL > 0 &&
                             (box->neutral_fraction[index_r] > FRACT_FLOAT_ERR)) {
                             if (consts->lagrangian_source_grids) {
                                 // since ION_EFF_FACTOR==1 here, gamma_prefactor is the same for ACG
@@ -1250,65 +1251,88 @@ void set_ionized_temperatures(IonizedBox *box, PerturbedField *perturbed_field, 
 }
 
 void set_recombination_rates(IonizedBox *box, IonizedBox *previous_ionize_box,
-                             PerturbedField *perturbed_field, struct IonBoxConstants *consts) {
-    bool finite_error = false;
-    int box_dim[3] = {simulation_options_global->HII_DIM, simulation_options_global->HII_DIM,
-                      HII_D_PARA};
+                             PerturbedField *perturbed_field, struct IonBoxConstants *consts,
+                             float global_xHI, float global_photionization_rate) {
+    if (astro_options_global->RECOMB_MODEL == 1) {
+        // Homogeneous recombination rate
+        double dNrec_global =
+            splined_recombination_rate(consts->stored_redshift, global_photionization_rate) *
+            consts->fabs_dtdz * consts->dz * (1. - global_xHI);
+        double cumulative_recomb_global =
+            previous_ionize_box->cumulative_recombinations[0] + dNrec_global;
+        if (isfinite(cumulative_recomb_global) == 0) {
+            LOG_ERROR(
+                "RECOMB: non-finite cumulative recombinations: d %.4e | G12 %.4e | xH %.4e ==> "
+                "dNrec %.4e Nrec_last (%.4e --> %.4e)",
+                1., global_photionization_rate, global_xHI, dNrec_global,
+                previous_ionize_box->cumulative_recombinations[0], cumulative_recomb_global);
+            Throw(InfinityorNaNError);
+        }
+        box->cumulative_recombinations[0] = cumulative_recomb_global;
+    } else if (astro_options_global->RECOMB_MODEL == 2) {
+        // Inhomogeneous recombination rate
+        bool finite_error = false;
+        int box_dim[3] = {simulation_options_global->HII_DIM, simulation_options_global->HII_DIM,
+                          HII_D_PARA};
 #pragma omp parallel num_threads(simulation_options_global->N_THREADS)
-    {
-        int x, y, z;
-        double curr_dens, dNrec;
-        double z_eff;
-        unsigned long long int idx;
+        {
+            int x, y, z;
+            double curr_dens, dNrec;
+            double z_eff;
+            unsigned long long int idx;
 #pragma omp for
-        for (x = 0; x < simulation_options_global->HII_DIM; x++) {
-            for (y = 0; y < simulation_options_global->HII_DIM; y++) {
-                for (z = 0; z < HII_D_PARA; z++) {
-                    // use the original density and redshift for the snapshot (not the adjusted
-                    // redshift) Only want to use the adjusted redshift for the ionisation field
-                    // NOTE: but the structure field wasn't adjusted, this seems wrong
-                    // curr_dens = 1.0 + (perturbed_field->density[idx]) /
-                    // adjustment_factor;
-                    idx = grid_index_general(x, y, z, box_dim);
-                    curr_dens = 1.0 + (perturbed_field->density[idx]);
-                    z_eff = pow(curr_dens, 1.0 / 3.0);
-                    z_eff *= (1 + consts->stored_redshift);
+            for (x = 0; x < simulation_options_global->HII_DIM; x++) {
+                for (y = 0; y < simulation_options_global->HII_DIM; y++) {
+                    for (z = 0; z < HII_D_PARA; z++) {
+                        // use the original density and redshift for the snapshot (not the adjusted
+                        // redshift) Only want to use the adjusted redshift for the ionisation field
+                        // NOTE: but the structure field wasn't adjusted, this seems wrong
+                        // curr_dens = 1.0 + (perturbed_field->density[idx]) /
+                        // adjustment_factor;
+                        idx = grid_index_general(x, y, z, box_dim);
+                        curr_dens = 1.0 + (perturbed_field->density[idx]);
+                        z_eff = pow(curr_dens, 1.0 / 3.0);
+                        z_eff *= (1 + consts->stored_redshift);
 
-                    dNrec = splined_recombination_rate(z_eff - 1., box->ionisation_rate_G12[idx]) *
+                        dNrec =
+                            splined_recombination_rate(z_eff - 1., box->ionisation_rate_G12[idx]) *
                             consts->fabs_dtdz * consts->dz * (1. - box->neutral_fraction[idx]);
 
-                    if (isfinite(dNrec) == 0) {
-                        finite_error = true;
-                        LOG_ERROR(
-                            "RECOMB: non-finite cell (%d,%d,%d): d %.4e | G12 %.4e | xH %.4e ==> "
-                            "dNrec %.4e Nrec_last (%.4e --> %.4e)",
-                            x, y, z, curr_dens, box->ionisation_rate_G12[idx],
-                            box->neutral_fraction[idx], dNrec,
-                            previous_ionize_box->cumulative_recombinations[idx],
-                            box->cumulative_recombinations[idx]);
-                    }
+                        if (isfinite(dNrec) == 0) {
+                            finite_error = true;
+                            LOG_ERROR(
+                                "RECOMB: non-finite cell (%d,%d,%d): d %.4e | G12 %.4e | xH %.4e "
+                                "==> "
+                                "dNrec %.4e Nrec_last (%.4e --> %.4e)",
+                                x, y, z, curr_dens, box->ionisation_rate_G12[idx],
+                                box->neutral_fraction[idx], dNrec,
+                                previous_ionize_box->cumulative_recombinations[idx],
+                                box->cumulative_recombinations[idx]);
+                        }
 
-                    box->cumulative_recombinations[idx] =
-                        previous_ionize_box->cumulative_recombinations[idx] + dNrec;
+                        box->cumulative_recombinations[idx] =
+                            previous_ionize_box->cumulative_recombinations[idx] + dNrec;
 
 #if LOG_LEVEL >= SUPER_DEBUG_LEVEL
-                    if (x + y + z == 0) {
-                        LOG_SUPER_DEBUG(
-                            "Cell 0: d %.4e | G12 %.4e | xH %.4e ==> dNrec %.4e Nrec (%.4e --> "
-                            "%.4e)",
-                            curr_dens, box->ionisation_rate_G12[idx], box->neutral_fraction[idx],
-                            dNrec, previous_ionize_box->cumulative_recombinations[idx],
-                            box->cumulative_recombinations[idx]);
-                    }
+                        if (x + y + z == 0) {
+                            LOG_SUPER_DEBUG(
+                                "Cell 0: d %.4e | G12 %.4e | xH %.4e ==> dNrec %.4e Nrec (%.4e --> "
+                                "%.4e)",
+                                curr_dens, box->ionisation_rate_G12[idx],
+                                box->neutral_fraction[idx], dNrec,
+                                previous_ionize_box->cumulative_recombinations[idx],
+                                box->cumulative_recombinations[idx]);
+                        }
 #endif
+                    }
                 }
             }
         }
-    }
 
-    if (finite_error) {
-        LOG_ERROR("Recombinations have returned either an infinite or NaN value.");
-        Throw(InfinityorNaNError);
+        if (finite_error) {
+            LOG_ERROR("Recombinations have returned either an infinite or NaN value.");
+            Throw(InfinityorNaNError);
+        }
     }
 }
 
@@ -1346,7 +1370,7 @@ int ComputeIonizedBox(float redshift, float prev_redshift, PerturbedField *pertu
         set_ionbox_constants(redshift, prev_redshift, &ionbox_constants);
 
         // boxes which aren't guaranteed to have every element assigned to need to be initialised
-        if (astro_options_global->INHOMO_RECO) {
+        if (astro_options_global->RECOMB_MODEL > 0) {
             if (INIT_RECOMBINATIONS) {
                 init_MHR();
                 INIT_RECOMBINATIONS = 0;
@@ -1475,7 +1499,7 @@ int ComputeIonizedBox(float redshift, float prev_redshift, PerturbedField *pertu
             if (ionbox_constants.lagrangian_source_grids) {
                 prepare_box_for_filtering(halos->n_ion, grid_struct->stars_unfiltered, 1., 0.,
                                           1e20);
-                if (astro_options_global->INHOMO_RECO) {
+                if (astro_options_global->RECOMB_MODEL > 0) {
                     prepare_box_for_filtering(halos->whalo_sfr, grid_struct->sfr_unfiltered, 1., 0.,
                                               1e20);
                 }
@@ -1584,15 +1608,20 @@ int ComputeIonizedBox(float redshift, float prev_redshift, PerturbedField *pertu
 
             // find the neutral fraction
             global_xH = 0;
+            float global_photoionization_rate = 0;
 
 #pragma omp parallel shared(box) private(ct) num_threads(simulation_options_global -> N_THREADS)
             {
-#pragma omp for reduction(+ : global_xH)
+#pragma omp for reduction(+ : global_xH, global_photoionization_rate)
                 for (ct = 0; ct < HII_TOT_NUM_PIXELS; ct++) {
                     global_xH += box->neutral_fraction[ct];
+                    if (astro_options_global->RECOMB_MODEL == 1) {
+                        global_photoionization_rate += box->ionisation_rate_G12[ct];
+                    }
                 }
             }
             global_xH /= (float)HII_TOT_NUM_PIXELS;
+            global_photoionization_rate /= (float)HII_TOT_NUM_PIXELS;
 
             if (isfinite(global_xH) == 0) {
                 LOG_ERROR(
@@ -1602,9 +1631,9 @@ int ComputeIonizedBox(float redshift, float prev_redshift, PerturbedField *pertu
             }
 
             // update the N_rec field
-            if (astro_options_global->INHOMO_RECO) {
+            if (astro_options_global->RECOMB_MODEL > 0) {
                 set_recombination_rates(box, previous_ionize_box, perturbed_field,
-                                        &ionbox_constants);
+                                        &ionbox_constants, global_xH, global_photoionization_rate);
             }
 
             if (!ionbox_constants.fix_mean) {

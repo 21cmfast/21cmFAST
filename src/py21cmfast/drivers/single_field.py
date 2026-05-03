@@ -336,7 +336,7 @@ def compute_halo_grid(
     # NOTE: due to the order, we use the previous spin temp here, like spin_temperature,
     #       but UNLIKE ionize_box, which uses the current box
     # TODO: think about the inconsistency here
-    # NOTE: if USE_MINI_HALOS is TRUE, so is USE_TS_FLUCT and INHOMO_RECO
+    # NOTE: if USE_MINI_HALOS is TRUE, so is USE_TS_FLUCT and RECOMB_MODEL != "none"
     if previous_spin_temp is None:
         if (
             redshift >= inputs.simulation_options.Z_HEAT_MAX
@@ -727,8 +727,8 @@ def compute_ionization_field(
     previous_perturbed_field : :class:`~PerturbedField`, optional
         An perturbed field at higher redshift. This is only used if USE_MINI_HALOS is included.
     previous_ionize_box: :class:`IonizedBox` or None
-        An ionized box at higher redshift. This is only used if `INHOMO_RECO` and/or `USE_TS_FLUCT`
-        are true. If either of these are true, and this is not given, then it will be assumed that
+        An ionized box at higher redshift. This is only used if `RECOMB_MODEL != "none"` and/or `USE_TS_FLUCT`
+        is true. If either of these are true, and this is not given, then it will be assumed that
         this is the "first box", i.e. that it can be populated accurately without knowing source
         statistics.
     spin_temp: :class:`TsBox` or None, optional

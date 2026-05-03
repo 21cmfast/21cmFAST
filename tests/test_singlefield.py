@@ -431,7 +431,7 @@ def test_bad_input_structs(default_input_struct_ts):
     test_inputs = default_input_struct_ts.evolve_input_structs(
         USE_MINI_HALOS=True,
         SOURCE_MODEL="CHMF-SAMPLER",
-        INHOMO_RECO=True,
+        RECOMB_MODEL="inhomogeneous",
     ).clone(node_redshifts=(35.0, 11.0, 10.0))
 
     # We don't need to compute since we arent testing a successful run
@@ -552,7 +552,7 @@ def test_xray_source_field_with_zero_sfr(
     """Test compute_xray_source_field with zero sfr boxes."""
     inputs = default_input_struct_ts.evolve_input_structs(
         USE_MINI_HALOS=use_mini_halos,
-        INHOMO_RECO=True,
+        RECOMB_MODEL="inhomogeneous",
         LYA_MULTIPLE_SCATTERING=lya_multiple_scattering,
         SOURCE_MODEL="L-INTEGRAL",
     )

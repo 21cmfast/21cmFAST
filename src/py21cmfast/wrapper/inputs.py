@@ -19,6 +19,7 @@ from pathlib import Path
 from typing import Annotated, Any, ClassVar, Literal, Self, get_args
 
 import attrs
+import deprecation
 import numpy as np
 from astropy import constants
 from astropy import units as un
@@ -1078,7 +1079,7 @@ class AstroOptions(InputStruct):
     ----------
     USE_MINI_HALOS : bool, optional
         Set to True if using mini-halos parameterization.
-        If True, USE_TS_FLUCT and INHOMO_RECO must be True.
+        If True, USE_TS_FLUCT must be True and RECOMB_MODEL must be not "none".
     USE_X_RAY_HEATING : bool, optional
         Whether to include X-ray heating (useful for debugging).
     USE_CMB_HEATING : bool, optional
@@ -1089,7 +1090,16 @@ class AstroOptions(InputStruct):
         https://doi.org/10.1093/mnras/stab2089)
     INHOMO_RECO : bool, optional
         Whether to perform inhomogeneous recombinations. Increases the computation
-        time.
+        time. This parameter is deprecated and will be removed in a future version, see RECOMB_MODEL
+        for the new method to control the recombination algorithm.
+    RECOMB_MODEL : str, optional
+        The recombination algorithm used in the code. Options are:
+
+        none: Ignoring recombination completely. This is not physical but allows to run the code much faster that way.
+        homogeneous: Assuming a homogeneous recombination rate. This is not physical but could be useful for debugging
+        or testing purposes, and is slightly faster than the inhomogeneous case.
+        inhomogeneous: The most physical option, where the recombination rate is calculated locally at every cell,
+        as described in Sobacchi & Mesinger 2014.
     USE_TS_FLUCT : bool, optional
         Whether to perform IGM spin temperature fluctuations (i.e. X-ray heating).
         Dramatically increases the computation time.
@@ -1182,7 +1192,9 @@ class AstroOptions(InputStruct):
     USE_X_RAY_HEATING: bool = field(default=True, converter=bool)
     USE_CMB_HEATING: bool = field(default=True, converter=bool)
     USE_LYA_HEATING: bool = field(default=True, converter=bool)
-    INHOMO_RECO: bool = field(default=False, converter=bool)
+    _INHOMO_RECO: bool | None = field(
+        default=None, converter=attrs.converters.optional(bool)
+    )
     USE_TS_FLUCT: bool = field(default=False, converter=bool)
     FIX_VCB_AVG: bool = field(default=False, converter=bool)
     USE_EXP_FILTER: bool = field(default=True, converter=bool)
@@ -1200,20 +1212,69 @@ class AstroOptions(InputStruct):
     HII_FILTER: FilterOptions = choice_field(default="spherical-tophat")
     HEAT_FILTER: FilterOptions = choice_field(default="spherical-tophat")
     IONISE_ENTIRE_SPHERE: bool = field(default=False, converter=bool)
-
+    RECOMB_MODEL: Literal["none", "homogeneous", "inhomogeneous"] = choice_field()
     INTEGRATION_METHOD_ATOMIC: IntegralMethods = choice_field(default="GAUSS-LEGENDRE")
     INTEGRATION_METHOD_MINI: IntegralMethods = choice_field(default="GAUSS-LEGENDRE")
+
+    @cached_property
+    def INHOMO_RECO(self) -> bool:
+        """Whether to perform inhomogeneous recombinations.
+
+        This is a deprecated property, and will be removed in a future version. Please use RECOMB_MODEL instead.
+        """
+        if self._INHOMO_RECO is None:
+            # User didn't explicitly set INHOMO_RECO, infer from RECOMB_MODEL
+            return self.RECOMB_MODEL != "none"
+        else:
+            return self._INHOMO_RECO
+
+    @RECOMB_MODEL.default
+    def _default_recomb_model(self):
+        if self._INHOMO_RECO is None:
+            return "none"
+
+        warnings.warn(
+            deprecation.DeprecatedWarning(
+                "INHOMO_RECO",
+                deprecated_in="4.2.0",
+                removed_in="5.0.0",
+                details=(
+                    "INHOMO_RECO is deprecated and will be removed in a future version. "
+                    "Please use RECOMB_MODEL directly instead."
+                ),
+            ),
+            stacklevel=2,
+        )
+
+        return "inhomogeneous" if self._INHOMO_RECO else "none"
+
+    @RECOMB_MODEL.validator
+    def _recomb_model_vld(self, att, val):
+        if self._INHOMO_RECO is True and val == "none":
+            raise ValueError(
+                "RECOMB_MODEL is set to 'none' but INHOMO_RECO is True! "
+                "Either set INHOMO_RECO to False or change RECOMB_MODEL to 'homogeneous' or 'inhomogeneous'."
+            )
+        if self._INHOMO_RECO is False and val != "none":
+            raise ValueError(
+                f"RECOMB_MODEL is set to '{val}' but INHOMO_RECO is False! "
+                "Either set INHOMO_RECO to True or change RECOMB_MODEL to 'none'."
+            )
+        if not self.CELL_RECOMB and val == "homogeneous":
+            raise ValueError(
+                "CELL_RECOMB cannot be False when RECOMB_MODEL is 'homogeneous'!"
+            )
 
     @USE_MINI_HALOS.validator
     def _USE_MINI_HALOS_vald(self, att, val):
         """
         Raise an error USE_MINI_HALOS is True with incompatible flags.
 
-        This happens when INHOMO_RECO or USE_TS_FLUCT is False.
+        This happens when RECOMB_MODEL='none' or USE_TS_FLUCT is False.
         """
-        if val and not self.INHOMO_RECO:
+        if val and self.RECOMB_MODEL == "none":
             raise ValueError(
-                "You have set USE_MINI_HALOS to True but INHOMO_RECO is False! "
+                "You have set USE_MINI_HALOS to True but RECOMB_MODEL is 'none'! "
             )
         if val and not self.USE_TS_FLUCT:
             raise ValueError(
@@ -1253,10 +1314,6 @@ class AstroParams(InputStruct):
 
     Parameters
     ----------
-    INHOMO_RECO : bool, optional
-        Whether inhomogeneous recombinations are being calculated. This is not a part of
-        the astro parameters structure, but is required by this class to set some
-        default behaviour.
     HII_EFF_FACTOR : float, optional
         The ionizing efficiency of high-z galaxies (zeta, from Eq. 2 of Greig+2015).
         Higher values tend to speed up reionization.
@@ -1308,7 +1365,7 @@ class AstroParams(InputStruct):
         See Sec 2.1 of Park+2018.
     R_BUBBLE_MAX : float, optional
         Mean free path in Mpc of ionizing photons within ionizing regions (Sec. 2.1.2 of
-        Greig+2015). Default is 50 if ``INHOMO_RECO`` is True, or 15.0 if not.
+        Greig+2015). Default is 50 if `RECOMB_MODEL` is not 'none', or 15.0 if it is.
     ION_Tvir_MIN : float, optional
         Minimum virial temperature of star-forming haloes (Sec 2.1.3 of Greig+2015).
         Given in log10 units.
@@ -1632,9 +1689,9 @@ class InputParameters:
 
     @node_redshifts.validator
     def _node_redshifts_validator(self, att, val):
-        if (self.astro_options.INHOMO_RECO or self.astro_options.USE_TS_FLUCT) and (
-            (max(val) if val else 0.0) < self.simulation_options.Z_HEAT_MAX
-        ):
+        if (
+            self.astro_options.RECOMB_MODEL != "none" or self.astro_options.USE_TS_FLUCT
+        ) and ((max(val) if val else 0.0) < self.simulation_options.Z_HEAT_MAX):
             raise ValueError(
                 "For runs with inhomogeneous recombinations or spin temperature fluctuations,\n"
                 + f"your maximum passed node_redshifts {max(val) if hasattr(val, '__len__') else val} must be above Z_HEAT_MAX {self.simulation_options.Z_HEAT_MAX}"
@@ -1785,11 +1842,11 @@ class InputParameters:
                 f"R_BUBBLE_MAX is larger than BOX_LEN ({val.R_BUBBLE_MAX} > {self.simulation_options.BOX_LEN}). This is not allowed."
             )
 
-        if val.R_BUBBLE_MAX != 50 and self.astro_options.INHOMO_RECO:
+        if val.R_BUBBLE_MAX != 50 and self.astro_options.RECOMB_MODEL != "none":
             warnings.warn(
-                "You are setting R_BUBBLE_MAX != 50 when INHOMO_RECO=True. "
+                "You are setting R_BUBBLE_MAX != 50 when RECOMB_MODEL != 'none'. "
                 "This is non-standard (but allowed), and usually occurs upon manual "
-                "update of INHOMO_RECO",
+                "update of RECOMB_MODEL or R_BUBBLE_MAX",
                 stacklevel=2,
             )
 
@@ -2016,7 +2073,7 @@ class InputParameters:
         """Whether evolution is required for these parameters."""
         return (
             self.astro_options.USE_TS_FLUCT
-            or self.astro_options.INHOMO_RECO
+            or self.astro_options.RECOMB_MODEL != "none"
             or self.astro_options.USE_MINI_HALOS
         )
 

@@ -163,7 +163,7 @@ def test_optional_field_perturbed_halocat(default_input_struct_lc: InputParamete
         redshift=0.0, inputs=inputs, buffer_size=1
     )
     assert isinstance(pert_halo_cat.xray_emissivity, Array)
-    inputs = inputs.evolve_input_structs(INHOMO_RECO=True)
+    inputs = inputs.evolve_input_structs(RECOMB_MODEL="inhomogeneous")
     pert_halo_cat = ox.PerturbedHaloCatalog.new(
         redshift=0.0, inputs=inputs, buffer_size=1
     )
@@ -191,7 +191,9 @@ def test_optional_field_halobox(default_input_struct_lc: InputParameters):
         assert isinstance(hb.halo_mass, Array)
         assert isinstance(hb.count, Array)
 
-        inputs = default_input_struct_lc.evolve_input_structs(INHOMO_RECO=True)
+        inputs = default_input_struct_lc.evolve_input_structs(
+            RECOMB_MODEL="inhomogeneous"
+        )
         hb = ox.HaloBox.new(redshift=0.0, inputs=inputs)
         assert isinstance(hb.whalo_sfr, Array)
 
@@ -214,7 +216,7 @@ def test_optional_field_xrs(default_input_struct_lc: InputParameters):
     inputs = default_input_struct_lc.evolve_input_structs(
         USE_TS_FLUCT=True,
         USE_MINI_HALOS=True,
-        INHOMO_RECO=True,
+        RECOMB_MODEL="inhomogeneous",
     )
     xr = ox.XraySourceBox.new(redshift=0.0, inputs=inputs)
     assert isinstance(xr.filtered_sfr_mini, Array)
@@ -230,7 +232,7 @@ def test_optional_field_ts(default_input_struct_lc: InputParameters):
 
     inputs = default_input_struct_lc.evolve_input_structs(
         USE_TS_FLUCT=True,
-        INHOMO_RECO=True,
+        RECOMB_MODEL="inhomogeneous",
         USE_MINI_HALOS=True,
     )
     ts = ox.TsBox.new(redshift=0.0, inputs=inputs)
@@ -245,7 +247,7 @@ def test_optional_field_ion(default_input_struct_lc: InputParameters):
     assert ion.cumulative_recombinations is None
 
     inputs = default_input_struct_lc.evolve_input_structs(
-        INHOMO_RECO=True,
+        RECOMB_MODEL="inhomogeneous",
     )
     ion = ox.IonizedBox.new(redshift=0.0, inputs=inputs)
     assert isinstance(ion.cumulative_recombinations, Array)

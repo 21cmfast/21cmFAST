@@ -18,5 +18,5 @@ CELL_RECOMB = false
 USE_UPPER_STELLAR_TURNOVER = false
 USE_MINI_HALOS = true
 USE_TS_FLUCT = true
-INHOMO_RECO = true
+RECOMB_MODEL = 'inhomogeneous'
 HII_FILTER = 'sharp-k'

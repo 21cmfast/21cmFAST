@@ -280,8 +280,8 @@ def calibrate_photon_cons(
     from ..drivers.single_field import compute_ionization_field, perturb_field
 
     # Create a new astro_params and astro_options just for the photon_cons correction
-    # NOTE: Since the calibration cannot do INHOMO_RECO, we set the R_BUBBLE_MAX
-    #   to the default w/o recombinations ONLY when the original box has INHOMO_RECO enabled.
+    # NOTE: Since the calibration cannot do recombinations, we set the R_BUBBLE_MAX
+    #   to the default w/o recombinations ONLY when the original box has recombinations.
     # TODO: figure out if it's possible to find a "closest" Rmax, since the correction fails when
     # the histories are too different.
 
@@ -294,12 +294,14 @@ def calibrate_photon_cons(
     }
     inputs_calibration = inputs.evolve_input_structs(
         USE_TS_FLUCT=False,
-        INHOMO_RECO=False,
+        RECOMB_MODEL="none",
         USE_MINI_HALOS=False,
         SOURCE_MODEL=source_model_calibration[inputs.matter_options.SOURCE_MODEL],
         PHOTON_CONS_TYPE="no-photoncons",
         R_BUBBLE_MAX=(
-            15 if inputs.astro_options.INHOMO_RECO else inputs.astro_params.R_BUBBLE_MAX
+            15
+            if inputs.astro_options.RECOMB_MODEL != "none"
+            else inputs.astro_params.R_BUBBLE_MAX
         ),
     )
     ib = None

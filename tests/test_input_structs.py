@@ -4,6 +4,7 @@ import pickle
 from itertools import chain
 from typing import Any, ClassVar
 
+import deprecation
 import pytest
 
 from py21cmfast import (
@@ -204,22 +205,24 @@ class TestAstroOptions:
         """Test possible exceptions when creating the object."""
         with pytest.raises(
             ValueError,
-            match="You have set USE_MINI_HALOS to True but INHOMO_RECO is False!",
+            match="You have set USE_MINI_HALOS to True but RECOMB_MODEL is 'none'!",
         ):
-            AstroOptions(USE_MINI_HALOS=True, USE_TS_FLUCT=True, INHOMO_RECO=False)
+            AstroOptions(USE_MINI_HALOS=True, USE_TS_FLUCT=True, RECOMB_MODEL="none")
 
         with pytest.raises(
             ValueError,
             match="You have set USE_MINI_HALOS to True but USE_TS_FLUCT is False!",
         ):
-            AstroOptions(USE_MINI_HALOS=True, INHOMO_RECO=True, USE_TS_FLUCT=False)
+            AstroOptions(
+                USE_MINI_HALOS=True, RECOMB_MODEL="inhomogeneous", USE_TS_FLUCT=False
+            )
 
         msg = r"USE_MINI_HALOS is not compatible with the redshift-based"
         with pytest.raises(ValueError, match=msg):
             AstroOptions(
                 PHOTON_CONS_TYPE="z-photoncons",
                 USE_MINI_HALOS=True,
-                INHOMO_RECO=True,
+                RECOMB_MODEL="inhomogeneous",
                 USE_TS_FLUCT=True,
             )
 
@@ -233,6 +236,59 @@ class TestAstroOptions:
             match="USE_EXP_FILTER can only be used with a real-space tophat HII_FILTER==0",
         ):
             AstroOptions(USE_EXP_FILTER=True, HII_FILTER="sharp-k")
+
+    @pytest.mark.parametrize("recomb_model", ["none", "homogeneous", "inhomogeneous"])
+    def test_recomb_model_basic(self, recomb_model):
+        """Test basic RECOMB_MODEL usage without INHOMO_RECO."""
+        opts_none = AstroOptions(RECOMB_MODEL=recomb_model)
+        assert recomb_model == opts_none.RECOMB_MODEL
+        assert opts_none.INHOMO_RECO is False if recomb_model == "none" else True
+
+    def test_inhomo_reco_deprecated_warning(self):
+        """Test that using INHOMO_RECO=True shows deprecation warning."""
+        with pytest.warns(
+            deprecation.DeprecatedWarning, match="INHOMO_RECO is deprecated"
+        ):
+            opts = AstroOptions(INHOMO_RECO=True)
+        assert opts.RECOMB_MODEL == "inhomogeneous"
+        assert opts.INHOMO_RECO is True
+
+    @deprecation.fail_if_not_removed
+    def test_inhomo_reco_is_removed(self):
+        """Fails when the removed_in version is reached, reminding you to delete INHOMO_RECO."""
+        AstroOptions(INHOMO_RECO=True)
+
+    @pytest.mark.parametrize("kwargs", [{}, {"INHOMO_RECO": False}])
+    def test_inhomo_reco_false_sets_none(self, kwargs):
+        """Test that INHOMO_RECO=False (or not provided) sets RECOMB_MODEL='none'."""
+        opts = AstroOptions(**kwargs)
+        assert opts.RECOMB_MODEL == "none"
+        assert opts.INHOMO_RECO is False
+
+    @pytest.mark.parametrize("recomb_model", ["none", "homogeneous", "inhomogeneous"])
+    def test_recomb_model_conflict(self, recomb_model):
+        """Test error when INHOMO_RECO=False conflicts with RECOMB_MODEL!='none'."""
+        inhomo_reco_wrong = recomb_model == "none"
+        with pytest.raises(
+            ValueError,
+            match=f"RECOMB_MODEL is set to '{recomb_model}' but INHOMO_RECO is {inhomo_reco_wrong}",
+        ):
+            AstroOptions(INHOMO_RECO=inhomo_reco_wrong, RECOMB_MODEL=recomb_model)
+
+    def test_recomb_model_choices_valid(self):
+        """Test that only valid RECOMB_MODEL choices are accepted."""
+        with pytest.raises(ValueError, match="RECOMB_MODEL must be one of"):
+            AstroOptions(RECOMB_MODEL="invalid")
+
+    def test_recomb_model_homo_with_cell_recomb_false(self):
+        """Test error when RECOMB_MODEL is 'homogeneous' but CELL_RECOMB is False."""
+        with pytest.raises(
+            ValueError,
+            match="CELL_RECOMB cannot be False when RECOMB_MODEL is 'homogeneous'!",
+        ):
+            AstroOptions(
+                RECOMB_MODEL="homogeneous", CELL_RECOMB=False, USE_EXP_FILTER=False
+            )
 
 
 class TestSimulationOptions:
@@ -401,7 +457,7 @@ class TestInputParameters:
                 "matter_options": MatterOptions(SOURCE_MODEL="CONST-ION-EFF"),
                 "astro_options": AstroOptions(
                     USE_MINI_HALOS=True,
-                    INHOMO_RECO=True,
+                    RECOMB_MODEL="inhomogeneous",
                     USE_TS_FLUCT=True,
                     USE_EXP_FILTER=False,
                     USE_UPPER_STELLAR_TURNOVER=False,
@@ -481,7 +537,7 @@ class TestInputParameters:
             {
                 "astro_params": AstroParams(M_TURN=10),
                 "astro_options": AstroOptions(
-                    USE_MINI_HALOS=True, USE_TS_FLUCT=True, INHOMO_RECO=True
+                    USE_MINI_HALOS=True, USE_TS_FLUCT=True, RECOMB_MODEL="inhomogeneous"
                 ),
             },
         ),
@@ -490,11 +546,11 @@ class TestInputParameters:
             {"simulation_options": SimulationOptions(BOX_LEN=50, DIM=20)},
         ),
         (
-            r"This is non\-standard \(but allowed\), and usually occurs upon manual update of INHOMO_RECO",
+            r"This is non\-standard \(but allowed\), and usually occurs upon manual update of RECOMB_MODEL or R_BUBBLE_MAX",
             {
                 "astro_params": AstroParams(R_BUBBLE_MAX=10),
                 "simulation_options": SimulationOptions(BOX_LEN=50),
-                "astro_options": AstroOptions(INHOMO_RECO=True),
+                "astro_options": AstroOptions(RECOMB_MODEL="inhomogeneous"),
             },
         ),
         (
@@ -502,7 +558,7 @@ class TestInputParameters:
             {
                 "matter_options": MatterOptions(USE_RELATIVE_VELOCITIES=False),
                 "astro_options": AstroOptions(
-                    USE_MINI_HALOS=True, INHOMO_RECO=True, USE_TS_FLUCT=True
+                    USE_MINI_HALOS=True, RECOMB_MODEL="inhomogeneous", USE_TS_FLUCT=True
                 ),
             },
         ),
