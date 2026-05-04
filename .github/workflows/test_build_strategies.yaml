@@ -143,8 +143,8 @@ jobs:
       - name: Specify clang compiler exactly to avoid using shims
         if: matrix.compiler == 'clang'
         run: |
-          echo "CC=clang-${CLANG_VERSION}" >> $GITHUB_ENV
-          echo "CXX=clang++-${CLANG_VERSION}" >> $GITHUB_ENV
+          echo "CC=clang" >> $GITHUB_ENV
+          echo "CXX=clang++" >> $GITHUB_ENV
 
       - name: Verify Python Version
         run: |
