@@ -155,6 +155,7 @@ jobs:
 
       - name: Debug what gcc points to
         run: |
+          export PATH="/usr/bin:/bin:/usr/sbin:/sbin:$PATH"
           which gcc || true
           which g++ || true
           gcc --version || true
@@ -164,6 +165,10 @@ jobs:
 
       - name: Install 21cmFAST
         run: |
+          # Need to get "gcc" to point to clang when it is a clang build.
+          # This is what usually happens on MacOS, but on GHA, it points to the
+          # homebrew gcc, which causes it to fail because it mixes toolchains.
+          export PATH="/usr/bin:/bin:/usr/sbin:/sbin:$PATH"
           python -m pip install .
 
       - name: Debug classy toolchain/runtime
