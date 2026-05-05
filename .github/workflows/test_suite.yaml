@@ -23,9 +23,6 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        os: [ubuntu-latest, macos-latest]
-        python-version: ["3.11", "3.12", "3.13"]
-        compiler: ["gcc", "clang"]
         include:
           # include only unique combinations to test all the "corners" of the matrix
           # without testing every single combination (which would be too much).

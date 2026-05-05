@@ -159,6 +159,23 @@ jobs:
         run: |
           python -m pip install .
 
+      - name: Debug classy toolchain/runtime
+        if: matrix.os == 'macos-26-intel' && matrix.compiler == 'clang'
+        run: |
+          env | sort | grep -E '^(CC|CXX|CFLAGS|CXXFLAGS|LDFLAGS|CPPFLAGS|SDKROOT|MACOSX_DEPLOYMENT_TARGET|GSL_|FFTW_|OMP_)' || true
+          which clang
+          which clang++
+          clang --version
+          clang++ --version
+          which gfortran || true
+          which gcc-15 || true
+          which g++-15 || true
+          python -m pip show classy || true
+          python -m pip freeze | grep classy || true
+          find /Library/Frameworks/Python.framework/Versions -path '*site-packages/classy/_classy*.so' || true
+          otool -L /Library/Frameworks/Python.framework/Versions/${{ matrix.python-version }}/lib/python${{ matrix.python-version }}/site-packages/classy/_classy*.so || true
+          nm -gU /Library/Frameworks/Python.framework/Versions/${{ matrix.python-version }}/lib/python${{ matrix.python-version }}/site-packages/classy/_classy*.so | grep forced_unwind || true
+
       - name: Test Import
         run: |
           python -c "import py21cmfast; print(py21cmfast.__version__)"
