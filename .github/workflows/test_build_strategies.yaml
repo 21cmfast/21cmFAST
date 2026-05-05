@@ -14,7 +14,6 @@ on:
 
 jobs:
   test-conda-strategies:
-    if: "false"
     name: Test Miniconda-Based Build
     runs-on: ${{ matrix.os }}
     strategy:
@@ -153,21 +152,22 @@ jobs:
           which python
           python --version
 
-      - name: Debug what gcc points to
-        run: |
-          export PATH="/usr/bin:/bin:/usr/sbin:/sbin:$PATH"
-          which gcc || true
-          which g++ || true
-          gcc --version || true
-          g++ --version || true
-          echo "libgcc file name:"
-          gcc -print-libgcc-file-name
-
       - name: Install 21cmFAST
         run: |
           # Need to get "gcc" to point to clang when it is a clang build.
           # This is what usually happens on MacOS, but on GHA, it points to the
           # homebrew gcc, which causes it to fail because it mixes toolchains.
+          # The key point is that classy *specifically* (and incorrectly) uses "gcc",
+          # regardless of what CC is set to. Since MacOS by default re-routes gcc to
+          # actually point to clang, this is not going to be an issue, because we can
+          # use "clang" to build 21cmFAST, and (implicitly) "gcc" to build classy, and
+          # they will both use the same clang compiler, and therefore be compatible.
+          # If we use "gcc" to build 21cmFAST, then classy will also use "gcc" (whether
+          # this is actually gcc or not), and again will be compatible. Problems occur
+          # when clang is used, but gcc really does point to gcc (for example if gcc
+          # is installed with homebrew). The following just forces the PATH to see
+          # the Apple-shim gcc (actually clang) before the homebrew gcc, which fixes
+          # the issue.
           export PATH="/usr/bin:/bin:/usr/sbin:/sbin:$PATH"
           python -m pip install .
 
@@ -193,7 +193,6 @@ jobs:
           python -c "import py21cmfast; print(py21cmfast.__version__)"
 
   test-ubuntu-package-manager-strategies:
-    if: "false"
     name: Test ubuntu package-manager-based Build
     runs-on: ${{ matrix.os }}
     env:

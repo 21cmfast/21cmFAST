@@ -77,13 +77,18 @@ compile the C++ code in `classy`, which is a dependency.
         The easiest way to get the dependencies (other than ``conda``) is via
         ``homebrew``. You can install them with::
 
-            brew install gsl fftw libomp pkgconf gcc
+            brew install gsl fftw libomp
 
         We have found that using `brew` tends to install compilers etc into versioned
         subdirectories, so if you want to use this installation strategy, you will
         likely need to specify the compiler explicitly. For example, in our CI tests,
         we have to specify (e.g.) ``CC=gcc-15`` and ``CXX=g++-15`` for the installation
-        to work. See below for how to specify the compiler at installation time.
+        to work. See below for how to specify the compiler at installation time. On
+        modern MacOS versions, ``gcc`` actually points to ``clang``, which is also
+        fine. One thing to watch out for is specifically using ``clang`` as the compiler,
+        and having ``gcc`` **not** be a simple shim to ``clang``. In this case,
+        the ``classy`` dependency will fail, because it (incorrectly) points to ``gcc``
+        instead of using the ``CC`` variable.
 
     .. tab-item:: HPC
 

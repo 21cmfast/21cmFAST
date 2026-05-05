@@ -13,7 +13,6 @@ on:
 
 jobs:
   tests:
-    if: "false"
     env:
       ENV_NAME: tests
       PYTHON: ${{ matrix.python-version }}
