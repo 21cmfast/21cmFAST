@@ -153,25 +153,14 @@ jobs:
           which python
           python --version
 
-      - name: Install classy explicitly with clang toolchain
-        if: matrix.os == 'macos-26-intel' && matrix.compiler == 'clang'
+      - name: Debug what gcc points to
         run: |
-          export CPPFLAGS="-I$(brew --prefix gsl)/include -I$(brew --prefix fftw)/include -I$(brew --prefix libomp)/include"
-          export LDFLAGS="-L$(brew --prefix gsl)/lib -L$(brew --prefix fftw)/lib -L$(brew --prefix libomp)/lib -L/usr/lib"
-          export CXXFLAGS="-stdlib=libc++"
-          python -m pip install --no-build-isolation --no-binary classy classy==3.3.4.0 -v
-
-      - name: Inspect classy symbols
-        if: matrix.os == 'macos-26-intel' && matrix.compiler == 'clang'
-        run: |
-          SO=$(python - <<'PY'
-          import glob
-          print(glob.glob('/Library/Frameworks/Python.framework/Versions/3.12/lib/python3.12/site-packages/classy/_classy*.so')[0])
-          PY
-          )
-          echo "$SO"
-          nm -gU "$SO" | c++filt | grep forced_unwind || true
-          nm -u "$SO" | c++filt | sort | tail -200 || true
+          which gcc || true
+          which g++ || true
+          gcc --version || true
+          g++ --version || true
+          echo "libgcc file name:"
+          gcc -print-libgcc-file-name
 
       - name: Install 21cmFAST
         run: |
@@ -193,8 +182,6 @@ jobs:
           find /Library/Frameworks/Python.framework/Versions -path '*site-packages/classy/_classy*.so' || true
           otool -L /Library/Frameworks/Python.framework/Versions/${{ matrix.python-version }}/lib/python${{ matrix.python-version }}/site-packages/classy/_classy*.so || true
           nm -gU /Library/Frameworks/Python.framework/Versions/${{ matrix.python-version }}/lib/python${{ matrix.python-version }}/site-packages/classy/_classy*.so | grep forced_unwind || true
-
-
 
       - name: Test Import
         run: |
