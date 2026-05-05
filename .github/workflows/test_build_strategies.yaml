@@ -128,9 +128,13 @@ jobs:
 
       - name: Install Non-Python Dependencies (Brew)
         run: |
-          brew install fftw gsl libomp pkgconf gcc
-          echo "INC=$(brew --prefix)/include" >> $GITHUB_ENV
-          echo "LIB=$(brew --prefix)/lib" >> $GITHUB_ENV
+          brew install fftw gsl libomp
+          echo "GSL_INC=$(brew --prefix gsl)/include" >> $GITHUB_ENV
+          echo "FFTW_INC=$(brew --prefix fftw)/include" >> $GITHUB_ENV
+          echo "OMP_INC=$(brew --prefix libomp)/include" >> $GITHUB_ENV
+          echo "GSL_LIB=$(brew --prefix gsl)/lib" >> $GITHUB_ENV
+          echo "FFTW_LIB=$(brew --prefix fftw)/lib" >> $GITHUB_ENV
+          echo "OMP_LIB=$(brew --prefix libomp)/lib" >> $GITHUB_ENV
           echo "Found gfortran at $(which gfortran)"
           echo "$BREW_PREFIX/bin" >> $GITHUB_PATH
 
