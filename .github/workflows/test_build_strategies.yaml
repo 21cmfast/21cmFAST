@@ -73,7 +73,6 @@ jobs:
 
 
   test-macos-package-manager-strategies:
-    if: "false"
     name: Test macos package-manager-based Build
     runs-on: ${{ matrix.os }}
     env:
@@ -202,6 +201,7 @@ jobs:
           python -c "import py21cmfast; print(py21cmfast.__version__)"
 
   test-ubuntu-package-manager-strategies:
+    if: "false"
     name: Test ubuntu package-manager-based Build
     runs-on: ${{ matrix.os }}
     env:
