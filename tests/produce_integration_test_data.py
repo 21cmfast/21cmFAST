@@ -102,6 +102,7 @@ OPTIONS_TESTRUNS = {
             "N_THREADS": 4,
             "USE_RELATIVE_VELOCITIES": True,
             "POWER_SPECTRUM": "CLASS",
+            "K_MAX_FOR_CLASS": 1.0,
         },
     ],
     "mini_gamma_approx": [
@@ -118,6 +119,7 @@ OPTIONS_TESTRUNS = {
             "INTEGRATION_METHOD_MINI": "GAMMA-APPROX",
             "INTEGRATION_METHOD_ATOMIC": "GAMMA-APPROX",
             "POWER_SPECTRUM": "CLASS",
+            "K_MAX_FOR_CLASS": 1.0,
         },
     ],
     "ts": [
@@ -173,6 +175,7 @@ OPTIONS_TESTRUNS = {
             "USE_RELATIVE_VELOCITIES": True,
             "POWER_SPECTRUM": "CLASS",
             "M_TURN": 5.0,
+            "K_MAX_FOR_CLASS": 1.0,
         },
     ],
     "sampler_ts": [
@@ -223,7 +226,7 @@ OPTIONS_TESTRUNS = {
         },
     ],
     "photoncons-z": [
-        18,
+        12,
         {
             "PHOTON_CONS_TYPE": "z-photoncons",
         },
@@ -319,7 +322,7 @@ def produce_coeval_power_spectra(redshift: float, cache: OutputCache, **kwargs):
                 getattr(coeval, field),
                 boxlength=coeval.simulation_options.BOX_LEN,
                 bins_upto_boxlen=True,
-            )
+            )[:2]
 
     return k, p, coeval
 
@@ -372,7 +375,7 @@ def produce_lc_power_spectra(redshift: float, cache: OutputCache, **kwargs):
                 lightcone.lightcones[field],
                 boxlength=lightcone.lightcone_dimensions,
                 bins_upto_boxlen=True,
-            )
+            )[:2]
 
     return k, p, lightcone
 
@@ -390,12 +393,12 @@ def produce_perturb_field_data(redshift, **kwargs):
         pt_box.get("density"),
         boxlength=options["inputs"].simulation_options.BOX_LEN,
         bins_upto_boxlen=True,
-    )
+    )[:2]
     p_vel, k_vel = get_power(
         pt_box.get("velocity_z") * velocity_normalisation,
         boxlength=options["inputs"].simulation_options.BOX_LEN,
         bins_upto_boxlen=True,
-    )
+    )[:2]
 
     def hist(kind, xmin, xmax, nbins):
         data = pt_box.get(kind)
@@ -473,6 +476,15 @@ def produce_power_spectra_for_tests(
 
         lc_grp["global_neutral_fraction"] = lc.global_quantities["neutral_fraction"]
         lc_grp["global_brightness_temp"] = lc.global_quantities["brightness_temp"]
+        if lc.inputs.matter_options.POWER_SPECTRUM == "CLASS":
+            cosmo_tbls_grp = fl.create_group("cosmo_tables")
+            trans_density_grp = cosmo_tbls_grp.create_group("transfer_density")
+            trans_density_grp["x_values"] = (
+                lc.inputs.cosmo_tables.transfer_density.x_values
+            )
+            trans_density_grp["y_values"] = (
+                lc.inputs.cosmo_tables.transfer_density.y_values
+            )
 
     cns.print(f"\tProduced {fname}")
     return fname, coeval, lc

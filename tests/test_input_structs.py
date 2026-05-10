@@ -20,6 +20,7 @@ from py21cmfast.input_serialization import (
     deserialize_inputs,
     prepare_inputs_for_serialization,
 )
+from py21cmfast.wrapper.inputs import CosmoTables, Table1D
 
 _TEMPLATES = tmpl.list_templates()
 _ALL_ALIASES = list(chain.from_iterable(t["aliases"] for t in _TEMPLATES))
@@ -97,7 +98,7 @@ class TestInputStructSubclasses:
         assert self.cosmo == c4
 
         # Make sure the c data gets loaded fine.
-        assert c4.cstruct.SIGMA_8 == self.cosmo.cstruct.SIGMA_8
+        assert c4.cstruct.hlittle == self.cosmo.cstruct.hlittle
 
     def test_asdict(self):
         """Test the asdict() method works."""
@@ -109,6 +110,60 @@ class TestInputStructSubclasses:
             c5.cdict != c5.asdict()
         )  # not the same because the former doesn't include dynamic parameters.
         assert c5 == self.cosmo
+
+
+class TestCosmoTables:
+    """Tests of CosmoTables."""
+
+    def setup_class(self):
+        """Set up basic objects to have fun with."""
+        self.size = 3
+        self.x_values = [1, 2, 3]
+        self.y_values = [4, 5, 6]
+        self.transfer_density = (
+            Table1D(
+                size=self.size,
+                x_values=self.x_values,
+                y_values=self.y_values,
+            ),
+        )
+        self.transfer_vcb = Table1D(
+            size=self.size,
+            x_values=self.x_values,
+            y_values=self.y_values,
+        )
+        self.cosmo_tables = CosmoTables(
+            transfer_density=self.transfer_density, transfer_vcb=self.transfer_vcb
+        )
+
+    def test_constructed_from_itself(self):
+        """Test that constructing an object from itself returns a new equivalent one."""
+        cosmo_tables2 = CosmoTables.new(self.cosmo_tables)
+        cosmo_tables3 = CosmoTables.new(
+            {
+                "transfer_density": self.cosmo_tables.transfer_density,
+                "transfer_vcb": self.cosmo_tables.transfer_vcb,
+            }
+        )
+
+        assert self.cosmo_tables == cosmo_tables2
+        assert self.cosmo_tables == cosmo_tables3
+        assert self.cosmo_tables is not cosmo_tables2
+        assert self.cosmo_tables is not cosmo_tables3
+
+    def test_none_input_to_new(self):
+        """Test None input to a new CosmoTables."""
+        cosmo_tables2 = CosmoTables.new()
+        cosmo_tables3 = CosmoTables.new()
+
+        assert self.cosmo_tables != cosmo_tables2
+        assert cosmo_tables2 == cosmo_tables3
+        assert cosmo_tables2 is not cosmo_tables3
+
+    def test_bad_input(self):
+        """Test bad inputs."""
+        with pytest.raises(ValueError, match="Cannot instantiate"):
+            CosmoParams.new("")
 
 
 class TestCosmoParams:
@@ -474,29 +529,102 @@ class TestInputParameters:
         altered_struct = self.default.evolve_input_structs(BOX_LEN=100)
         assert altered_struct.simulation_options.BOX_LEN == 100
 
+        assert self.default.cosmo_tables.ps_norm == self.default.cosmo_params.SIGMA_8
+        assert self.default.cosmo_tables.USE_SIGMA_8
+
+        altered_struct_CLASS = self.default.evolve_input_structs(
+            POWER_SPECTRUM="CLASS", K_MAX_FOR_CLASS=1.0
+        )
+        altered_struct2 = self.default.evolve_input_structs(OMm=0.5)
+        altered_struct3 = altered_struct2.evolve_input_structs(POWER_SPECTRUM="EH")
+
+        assert self.default.cosmo_tables.transfer_density is None
+        assert altered_struct_CLASS.cosmo_tables.transfer_density is not None
+        assert altered_struct_CLASS.cosmo_tables != altered_struct2.cosmo_tables
+        assert altered_struct3.cosmo_tables.transfer_density is None
+        assert (
+            altered_struct_CLASS.cosmo_tables.ps_norm
+            == altered_struct_CLASS.cosmo_params.SIGMA_8
+        )
+        assert altered_struct_CLASS.cosmo_tables.USE_SIGMA_8
+
         altered_struct = self.default.evolve_input_structs(SIGMA_8=1.0)
         assert altered_struct.cosmo_params.SIGMA_8 == 1.0
 
         altered_struct = self.default.evolve_input_structs(A_s=3.0e-9)
         assert altered_struct.cosmo_params.A_s == 3.0e-9
+        # Even though we work with A_s, transfer function is EH, so we still use sigma8 at the backend
+        assert (
+            altered_struct.cosmo_tables.ps_norm == altered_struct.cosmo_params.SIGMA_8
+        )
+        assert altered_struct.cosmo_tables.USE_SIGMA_8
 
         # Test defaults with kwargs
         altered_struct = self.default_sigma8.evolve_input_structs(SIGMA_8=1.0)
         assert altered_struct.cosmo_params.SIGMA_8 == 1.0
+        assert (
+            altered_struct.cosmo_tables.ps_norm == altered_struct.cosmo_params.SIGMA_8
+        )
+        assert altered_struct.cosmo_tables.USE_SIGMA_8
 
         altered_struct = self.default_A_s.evolve_input_structs(A_s=3.0e-9)
         assert altered_struct.cosmo_params.A_s == 3.0e-9
+        # Even though we work with A_s, transfer function is EH, so we still use sigma8 at the backend
+        assert (
+            altered_struct.cosmo_tables.ps_norm == altered_struct.cosmo_params.SIGMA_8
+        )
+        assert altered_struct.cosmo_tables.USE_SIGMA_8
 
+        # Check that we can set A_s over the CLASS inputs and that we actually use it at the backend
+        altered_struct = altered_struct_CLASS.evolve_input_structs(A_s=3.0e-9)
+        assert altered_struct.cosmo_tables.ps_norm == altered_struct.cosmo_params.A_s
+        assert not altered_struct.cosmo_tables.USE_SIGMA_8
+        # Now check that if we switch to sigma8, we use it at the backend!
+        altered_struct = altered_struct_CLASS.evolve_input_structs(
+            SIGMA_8=1.0, A_s=None
+        )
+        assert (
+            altered_struct.cosmo_tables.ps_norm == altered_struct.cosmo_params.SIGMA_8
+        )
+        assert altered_struct.cosmo_tables.USE_SIGMA_8
+        # Last check, switching agaim from sigma8 to A_s (but this time SIGMA_8 is not None)
+        altered_struct = altered_struct_CLASS.evolve_input_structs(
+            A_s=3.0e-9, SIGMA_8=None
+        )
+        assert altered_struct.cosmo_tables.ps_norm == altered_struct.cosmo_params.A_s
+        assert not altered_struct.cosmo_tables.USE_SIGMA_8
+
+        # Check that we cannot work with both parameters
         with pytest.raises(ValueError, match="Cannot set both SIGMA_8 and A_s!"):
             self.default_sigma8.evolve_input_structs(A_s=3.0e-9)
 
         with pytest.raises(ValueError, match="Cannot set both SIGMA_8 and A_s!"):
             self.default_A_s.evolve_input_structs(SIGMA_8=1.0)
 
+        # Check that we can change normalization parameter if we set the other parameter to None
+        altered_struct = self.default_sigma8.evolve_input_structs(
+            A_s=3.0e-9, SIGMA_8=None
+        )
+        assert altered_struct.cosmo_params.A_s == 3.0e-9
+        # Even though we work with A_s, transfer function is EH, so we still use sigma8 at the backend
+        assert (
+            altered_struct.cosmo_tables.ps_norm == altered_struct.cosmo_params.SIGMA_8
+        )
+        assert altered_struct.cosmo_tables.USE_SIGMA_8
+        altered_struct = self.default_A_s.evolve_input_structs(SIGMA_8=1.0, A_s=None)
+        assert altered_struct.cosmo_params.SIGMA_8 == 1.0
+        assert (
+            altered_struct.cosmo_tables.ps_norm == altered_struct.cosmo_params.SIGMA_8
+        )
+        assert altered_struct.cosmo_tables.USE_SIGMA_8
+
     @pytest.mark.parametrize("template", _ALL_ALIASES)
     def test_from_template(self, template):
         """Test that creation from a template works for all templates."""
-        inputs = InputParameters.from_template(template, random_seed=1)
+        # Some templates require running CLASS. We set K_MAX_FOR_CLASS to be small so the test won't take too long
+        inputs = InputParameters.from_template(
+            template, random_seed=1, K_MAX_FOR_CLASS=1.0
+        )
         assert isinstance(inputs, InputParameters)
 
     def test_bad_input(self):

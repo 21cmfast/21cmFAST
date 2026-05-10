@@ -125,6 +125,7 @@ def write_template(
         The path of the output.
     """
     inputs_dct = prepare_inputs_for_serialization(inputs, mode=mode)
+    inputs_dct.pop("CosmoTables", None)
 
     template_file = Path(template_file)
     doc = tomlkit.document()

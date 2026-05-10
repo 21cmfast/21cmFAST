@@ -36,8 +36,14 @@ void set_integral_constants(IntegralCondition *consts, double redshift, double M
     consts->lnM_max = log(M_max);
     consts->M_cell = M_cell;
     consts->lnM_cell = log(M_cell);
-    // no table since this should be called once
-    consts->sigma_cell = sigma_z0(M_cell);
+    if (simulation_options_global->HII_DIM == 1 && simulation_options_global->BOX_LEN > 1e5) {
+        // When simulating only the global signal, the box/cell size should be infinite, so the
+        // conditional sigma is 0
+        consts->sigma_cell = 0.;
+    } else {
+        // no table since this should be called once
+        consts->sigma_cell = sigma_z0(M_cell);
+    }
 }
 
 // calculates halo properties from astro parameters plus the correlated rng
@@ -141,6 +147,8 @@ int get_uhmf_averages(double M_min, double M_max, double M_turn_a, double M_turn
         integral_xray = Xray_General(consts->redshift, lnMmin, lnMmax, M_turn_a, M_turn_m, consts);
     }
 
+    averages_out->count = Nhalo_General(consts->redshift, lnMmin, lnMmax) * prefactor_mass *
+                          VOLUME / HII_TOT_NUM_PIXELS;
     averages_out->halo_mass = mass_intgrl * prefactor_mass;
     averages_out->stellar_mass = intgrl_stars_only * prefactor_stars;
     averages_out->sfr_10 = intgrl_stars_only * prefactor_sfr;
@@ -158,7 +166,7 @@ int get_uhmf_averages(double M_min, double M_max, double M_turn_a, double M_turn
 }
 
 HaloProperties get_halobox_averages(HaloBox *grids) {
-    int mean_count = 0;
+    double mean_count = 0.;
     double mean_mass = 0., mean_stars = 0., mean_stars_mini = 0., mean_sfr = 0., mean_sfr_mini = 0.;
     double mean_n_ion = 0., mean_xray = 0., mean_wsfr = 0.;
 
@@ -184,7 +192,7 @@ HaloProperties get_halobox_averages(HaloBox *grids) {
     }
 
     HaloProperties averages = {
-        .count = (double)mean_count / HII_TOT_NUM_PIXELS,
+        .count = mean_count / HII_TOT_NUM_PIXELS,
         .halo_mass = mean_mass / HII_TOT_NUM_PIXELS,
         .stellar_mass = mean_stars / HII_TOT_NUM_PIXELS,
         .stellar_mass_mini = mean_stars_mini / HII_TOT_NUM_PIXELS,
@@ -228,6 +236,7 @@ void mean_fix_grids(double M_min, double M_max, HaloBox *grids, ScalingConstants
         }
 
         if (config_settings.EXTRA_HALOBOX_FIELDS) {
+            grids->count[idx] *= averages_global.count / averages_hbox.count;
             grids->halo_mass[idx] *= averages_global.halo_mass / averages_hbox.halo_mass;
             grids->halo_stars[idx] *= averages_global.stellar_mass / averages_hbox.stellar_mass;
             if (astro_options_global->USE_MINI_HALOS) {
@@ -280,14 +289,17 @@ void get_cell_integrals(double dens, double l10_mturn_a, double l10_mturn_m,
     }
 
     if (config_settings.EXTRA_HALOBOX_FIELDS) {
+        properties->count =
+            EvaluateNhalo(dens, growth_z, log(M_min), log(M_max), M_cell, sigma_cell, dens) *
+            M_cell;
         properties->halo_mass =
             EvaluateMcoll(dens, growth_z, log(M_min), log(M_max), M_cell, sigma_cell, dens);
     }
 }
 
-// Fixed halo grids, where each property is set as the integral of the CMF on the EULERIAN cell
-// scale As per default 21cmfast (strange pretending that the lagrangian density is eulerian and
-// then *(1+delta)) This outputs the UN-NORMALISED grids (before mean-adjustment)
+// Fixed halo grids, where each property is set as the integral of the CMF on the LAGRANGIAN cell,
+// and then the properties are moved to the EULERIAN grid according to the velocities.
+// This outputs the UN-NORMALISED grids (before mean-adjustment)
 int set_fixed_grids(double M_min, double M_max, InitialConditions *ini_boxes, float *mturn_a_grid,
                     float *mturn_m_grid, ScalingConstants *consts, HaloBox *grids) {
     double M_cell;
@@ -600,7 +612,7 @@ int ComputeHaloBox(InitialConditions *ini_boxes, HaloCatalog *halos, HaloCatalog
             if (config_settings.EXTRA_HALOBOX_FIELDS) {
                 grids->halo_mass[idx] = 0.0;
                 grids->halo_stars[idx] = 0.0;
-                grids->count[idx] = 0;
+                grids->count[idx] = 0.0;
                 if (astro_options_global->USE_MINI_HALOS) {
                     grids->halo_stars_mini[idx] = 0.0;
                 }

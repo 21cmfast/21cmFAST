@@ -68,6 +68,8 @@ void Broadcast_struct_global_all(SimulationOptions *simulation_options,
                                  MatterOptions *matter_options, CosmoParams *cosmo_params,
                                  AstroParams *astro_params, AstroOptions *astro_options);
 void Broadcast_snapshot_info(int n_nodes, double *node_redshifts, int curr_node);
+
+void Free_cosmo_tables_global();
 void initialiseSigmaMInterpTable(float M_Min, float M_Max);
 void initialise_GL(double lnM_Min, double lnM_Max);
 /*---------------------------*/
@@ -119,6 +121,7 @@ double dicke(double z);
 double sigma_z0(double M);
 double dsigmasqdm_z0(double M);
 double power_in_k(double k);
+double power_in_vcb(double k);
 double get_delta_crit(int HMF, double sigma, double growthf);
 double atomic_cooling_threshold(float z);
 double unconditional_hmf(double growthf, double lnM, double z, int HMF);

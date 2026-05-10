@@ -293,6 +293,51 @@ def test_ps_runs(default_input_struct):
     assert ps.shape == (len(k_values),)
     assert np.all(ps >= 0.0)
 
+    with pytest.raises(
+        ValueError,
+        match=r"inputs.matter_options.USE_RELATIVE_VELOCITIES must be True in order to compute the v_cb power spectrum\.",
+    ):
+        cf.get_vcb_power_values(
+            inputs=default_input_struct,
+            k_values=k_values,
+        )
+
+    ps = cf.get_vcb_power_values(
+        inputs=default_input_struct.evolve_input_structs(
+            POWER_SPECTRUM="CLASS",
+            USE_RELATIVE_VELOCITIES=True,
+            K_MAX_FOR_CLASS=1.0,
+        ),
+        k_values=k_values,
+    )
+
+    assert ps.shape == (len(k_values),)
+    assert np.all(ps >= 0.0)
+
+
+def test_ps_with_A_s_and_sigma8(default_input_struct):
+    """Test that we get the same power spectrum, regadless if we use A_s or sigma_8."""
+    k_values = np.logspace(-3, 1, num=64)
+
+    input_CLASS = default_input_struct.evolve_input_structs(
+        POWER_SPECTRUM="CLASS", K_MAX_FOR_CLASS=1.0
+    )
+    A_s = input_CLASS.cosmo_params.A_s
+
+    ps_sigma8 = cf.get_matter_power_values(
+        inputs=input_CLASS,
+        k_values=k_values,
+    )
+    ps_A_s = cf.get_matter_power_values(
+        inputs=input_CLASS.evolve_input_structs(A_s=A_s, SIGMA_8=None),
+        k_values=k_values,
+    )
+    np.testing.assert_allclose(
+        ps_sigma8,
+        ps_A_s,
+        rtol=5e-4,
+    )
+
 
 def make_matterfield_comparison_plot(
     x,

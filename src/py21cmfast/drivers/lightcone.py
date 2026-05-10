@@ -156,9 +156,19 @@ class LightCone:
         return self.inputs.astro_params
 
     @property
+    def cosmo_tables(self):
+        """Cosmo tables shared by all datasets."""
+        return self.inputs.cosmo_tables
+
+    @property
     def random_seed(self):
         """Random seed shared by all datasets."""
         return self.inputs.random_seed
+
+    @property
+    def node_redshifts(self):
+        """Redshifts at which coeval boxes and global quantities are computed."""
+        return self.inputs.node_redshifts
 
     @cached_property
     def lightcone_redshifts(self) -> np.ndarray:
@@ -312,7 +322,8 @@ class AngularLightcone(LightCone):
         raise AttributeError("This is not an attribute of an AngularLightcone")
 
 
-def _check_desired_arrays_exist(desired_arrays: list[str], inputs: InputParameters):
+def _get_all_possible_arrays(inputs: InputParameters) -> list[str]:
+
     possible_outputs = [
         InitialConditions.new(inputs),
         PerturbedField.new(inputs, redshift=0),
@@ -321,20 +332,23 @@ def _check_desired_arrays_exist(desired_arrays: list[str], inputs: InputParamete
         IonizedBox.new(inputs, redshift=0),
         BrightnessTemp.new(inputs, redshift=0),
     ]
-    for name in desired_arrays:
-        exists = False
-        for output in possible_outputs:
-            if name in output.arrays or name in [
-                "log10_mturn_acg",
-                "log10_mturn_mcg",
-                "los_velocity",
-            ]:
-                exists = True
-                break
-        if not exists:
-            raise ValueError(
-                f"You asked for {name} but it is not computed for the inputs: {inputs}"
-            )
+    return [name for output in possible_outputs for name in output.arrays]
+
+
+def _check_desired_arrays_exist(desired_arrays: list[str], inputs: InputParameters):
+    possible_arrays = _get_all_possible_arrays(inputs)
+    unknown = [
+        name
+        for name in desired_arrays
+        if name
+        not in [*possible_arrays, "log10_mturn_acg", "log10_mturn_mcg", "los_velocity"]
+    ]
+
+    if unknown:
+        raise ValueError(
+            f"The following arrays: {unknown} were asked for but are not computed for the "
+            f"inputs: {inputs}.\nThe possible arrays that can be output for these inputs are: {possible_arrays}"
+        )
 
 
 def setup_lightcone_instance(
@@ -403,17 +417,14 @@ def _run_lightcone_from_perturbed_fields(
     apply_rsds: bool,
     n_rsd_subcells: int,
     halofield_list: list[HaloCatalog],
-    regenerate: bool | None = None,
-    cache: OutputCache = _ocache,
     cleanup: bool = True,
     write: CacheConfig = _cache,
     progressbar: bool = False,
     lightcone_filename: str | Path | None = None,
+    **iokw,
 ):
     # Get the redshift through which we scroll and evaluate the ionization field.
     scrollz = np.array([pf.redshift for pf in perturbed_fields])
-
-    iokw = {"regenerate": regenerate, "cache": cache}
 
     # Create the LightCone instance, loading from file if needed
     lightcone = setup_lightcone_instance(
@@ -433,13 +444,14 @@ def _run_lightcone_from_perturbed_fields(
         inputs=inputs,
         initial_conditions=initial_conditions,
         photon_nonconservation_data=photon_nonconservation_data,
+        cache=iokw.get("cache"),
+        regenerate=iokw.get("regenerate"),
         minimum_node=lightcone._last_completed_node,
-        **iokw,
     )
 
     if idx < lightcone._last_completed_node:
         warnings.warn(
-            f"The cache at {cache} only contains complete coeval boxes for {idx + 1} redshift nodes, "
+            f"The cache at {iokw.get('cache')} only contains complete coeval boxes for {idx + 1} redshift nodes, "
             f"instead of {lightcone._last_completed_node + 1}, which is the current checkpointing "
             f"redshift of the lightcone. Repeating the higher-z calculations...",
             stacklevel=2,
@@ -639,7 +651,7 @@ def generate_lightcone(
 
     _check_desired_arrays_exist(lightconer.quantities, inputs)
 
-    iokw = {"cache": cache, "regenerate": regenerate}
+    iokw = {"cache": cache, "regenerate": regenerate, "free_cosmo_tables": False}
 
     (
         initial_conditions,
@@ -661,22 +673,26 @@ def generate_lightcone(
         lightconer=lightconer,
         inputs=inputs,
         lc_distances=lc_distances,
-        regenerate=regenerate,
         halofield_list=halofield_list,
         photon_nonconservation_data=photon_nonconservation_data,
         include_dvdr_in_tau21=include_dvdr_in_tau21,
         apply_rsds=apply_rsds,
         n_rsd_subcells=n_rsd_subcells,
-        cache=cache,
         write=write,
         cleanup=cleanup,
         progressbar=progressbar,
         lightcone_filename=lightcone_filename,
+        **iokw,
     )
 
+    lib.Free_cosmo_tables_global()
 
-def run_lightcone(**kwargs) -> LightCone:  # noqa: D103
+
+def run_lightcone(**kwargs) -> LightCone:
+    """Run a lightcone simulation and return the final lightcone object.
+
+    This simply wraps :func:`generate_lightcone` and returns the final lightcone
+    object after the generator has been exhausted. All parameters are passed
+    directly to :func:`generate_lightcone`.
+    """
     return deque(generate_lightcone(**kwargs), maxlen=1)[0][-1]
-
-
-run_lightcone.__doc__ = generate_lightcone.__doc__

@@ -1,17 +1,15 @@
 on:
-  pull_request:
+  pull_request_target:
     types: [closed]
 
 jobs:
-  archive_pr_branch:
-    name: Archive closed PR branch with Bencher
-    # DO NOT REMOVE: For handling Fork PRs see Pull Requests from Forks
-    if: github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name == github.repository
+  archive_fork_pr_branch:
+    name: Archive closed fork PR branch with Bencher
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@v6
       - uses: bencherdev/bencher@main
-      - name: Archive closed PR branch with Bencher
+      - name: Archive closed fork PR branch with Bencher
         run: |
           bencher archive \
           --project 21cmfast \

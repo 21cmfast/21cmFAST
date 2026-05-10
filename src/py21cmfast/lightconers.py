@@ -346,6 +346,11 @@ class Lightconer(ABC):
                 "You are attempting to run a lightcone with no node_redshifts."
                 "Please set node_redshifts on the `inputs` parameter."
             )
+        if self.cosmo != inputs.cosmo_params.cosmo:
+            raise ValueError(
+                "The cosmology used to construct the lightcone is not the same as the cosmology in the input parameters. "
+                "Please make sure that your lightconer.cosmo is the same as inputs.cosmo_params.cosmo."
+            )
         lcd = self.lc_distances
         d_node_min = self.cosmo.comoving_distance(min(inputs.node_redshifts))
         d_node_max = self.cosmo.comoving_distance(max(inputs.node_redshifts))
@@ -376,7 +381,14 @@ class Lightconer(ABC):
             return lightconer
 
         if classy_output is None:
-            classy_output = run_classy(inputs=inputs, output="vTk")
+            classy_output = run_classy(
+                h=inputs.cosmo_params.hlittle,
+                Omega_cdm=inputs.cosmo_params.OMm - inputs.cosmo_params.OMb,
+                Omega_b=inputs.cosmo_params.OMb,
+                n_s=inputs.cosmo_params.POWER_INDEX,
+                sigma8=inputs.cosmo_params.SIGMA_8,
+                output="vTk",
+            )
         lcd_limits_rsd = self.find_required_lightcone_limits(
             classy_output=classy_output, inputs=inputs
         )

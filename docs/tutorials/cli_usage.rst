@@ -170,7 +170,7 @@ differently depending on the simualation:
 2. For ``21cmfast run lightcone`` the ``--out <path.h5>`` parameter specifies an output
    *file*, and there is only lightcone file created.
 
-The other kind of output is the cache. The way that ``21cmFAST `` works is that it
+The other kind of output is the cache. The way that ``21cmFAST`` works is that it
 simulates several kinds of physical fields that build on each other. Each step of this
 process can be written to file. These files can be used for three purposes:
 

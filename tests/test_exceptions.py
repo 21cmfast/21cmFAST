@@ -2,8 +2,8 @@
 
 import numpy as np
 import pytest
-
 from py21cmfast.c_21cmfast import ffi, lib
+
 from py21cmfast.wrapper.exceptions import (
     PHOTONCONSERROR,
     ParameterError,

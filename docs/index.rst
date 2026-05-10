@@ -1,21 +1,29 @@
 .. include:: readme.rst
 
-Contents
-========
 .. toctree::
-   :maxdepth: 2
+   :hidden:
+   :maxdepth: 1
 
    installation
    quickstart
    tutorials
-   reference/index
+   performance
+   faqs/index
+   updates_from_v3
+   acknowledge
+
+.. toctree::
+   :caption: API Reference
+   :hidden:
+   autoapi/py21cmfast/index
+
+.. toctree::
+   :hidden:
+   :caption: Development
+
+   developer_install
    contributing
-   authors
+   notes_for_developers
+   license
    changelog
-
-Indices and tables
-==================
-
-* :ref:`genindex`
-* :ref:`modindex`
-* :ref:`search`
+   authors

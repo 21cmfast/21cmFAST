@@ -61,7 +61,7 @@ typedef struct HaloBox {
     float *halo_mass;
     float *halo_stars;
     float *halo_stars_mini;
-    int *count;
+    float *count;
 
     // For IonisationBox.c and SpinTemperatureBox.c
     float *n_ion;     // weighted by F_ESC*PopN_ion
@@ -91,6 +91,7 @@ typedef struct TsBox {
     float *xray_ionised_fraction;
     float *kinetic_temp_neutral;
     float *J_21_LW;
+    double Q_HI;
 } TsBox;
 
 typedef struct IonizedBox {

@@ -14,7 +14,6 @@ on:
 
 jobs:
   tests:
-    if: "!contains(github.event.pull_request.labels.*.name, 'auto-pr')"
     env:
       ENV_NAME: tests
       PYTHON: ${{ matrix.python-version }}
@@ -26,7 +25,7 @@ jobs:
       fail-fast: false
       matrix:
         os: [ubuntu-latest]
-        python-version: ["3.11"]
+        python-version: ["3.13"]  # latest version of python we support.
         tutorial: ["coeval_cubes", "caching", "lightcones"]
     defaults:
      run:
@@ -43,7 +42,7 @@ jobs:
         run: echo "commit_message=$(git show -s --format=%s)" >> "$GITHUB_ENV"
 
       - name: Setup Miniconda
-        uses: conda-incubator/setup-miniconda@v3
+        uses: conda-incubator/setup-miniconda@v4
         with:
           channels: conda-forge,defaults
           python-version: ${{ matrix.python-version }}
@@ -80,7 +79,7 @@ jobs:
             TEST_RUN=True papermill -k tests --request-save-on-cell-execute docs/tutorials/${{ matrix.tutorial }}.ipynb ${{ matrix.tutorial }}.ipynb
 
       - name: Archive Notebooks
-        uses: actions/upload-artifact@v5
+        uses: actions/upload-artifact@v7
         with:
           name: tutorials-${{ matrix.tutorial }}
           path: |

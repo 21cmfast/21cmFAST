@@ -10,8 +10,8 @@ import os
 import py21cmfast
 
 extensions = [
-    "sphinx.ext.autodoc",
-    "sphinx.ext.autosummary",
+    "sphinx.ext.autodoc.typehints",
+#    "sphinx.ext.autosummary",
     "sphinx.ext.coverage",
     "sphinx.ext.doctest",
     "sphinx.ext.extlinks",
@@ -21,8 +21,11 @@ extensions = [
     "sphinx.ext.viewcode",
     "sphinx.ext.mathjax",
     "sphinx.ext.autosectionlabel",
+    "autoapi.extension",
     "numpydoc",
     "nbsphinx",
+    "sphinx_design",
+    "sphinx_copybutton",
     "IPython.sphinxext.ipython_console_highlighting",
 ]
 if os.getenv("SPELLCHECK"):
@@ -31,8 +34,27 @@ if os.getenv("SPELLCHECK"):
     spelling_lang = "en_US"
 
 autosectionlabel_prefix_document = True
+# autodoc_use_legacy_class_based = True
 
-autosummary_generate = True
+# Auto-API settings
+autoapi_options=[
+    "members",
+    "undoc-members",
+    "show-inheritance",
+    "show-module-summary",
+    "special-members",
+    "imported-members",
+    "inherited-members",
+]
+autoapi_dirs = ["../src/py21cmfast"]
+autoapi_add_toctree_entry = False  # We add it ourselves in index.rst
+autoapi_python_class_content = "init"
+autoapi_member_order = "groupwise"
+autoapi_own_page_level = "class"
+autoapi_keep_files = True
+autodoc_typehints = "description"
+
+autosummary_generate = False
 numpydoc_show_class_members = False
 
 source_suffix = ".rst"
@@ -53,7 +75,18 @@ extlinks = {
 # on_rtd = os.environ.get("READTHEDOCS", None) == "True"
 
 html_theme = "furo"
+html_style = "css/custom.css"
+html_logo = "images/Logo_square_transparent.png"
 
+# These folders are copied to the documentation's HTML output
+html_static_path = ["_static"]
+html_css_files = [
+    "css/custom.css",
+]
+
+html_theme_options = {
+    "sidebar_hide_name": True,
+}
 html_use_smartypants = True
 html_last_updated_fmt = "%b %d, %Y"
 html_split_index = False

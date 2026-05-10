@@ -120,7 +120,10 @@ class TestInputsIO:
     ):
         """Test that writing inputs to file then reading them again gets the same answer."""
         if not isinstance(inputs, InputParameters):
-            inputs = InputParameters.from_template(inputs, random_seed=0)
+            # Some templates require running CLASS. We set K_MAX_FOR_CLASS to be small so the test won't take too long
+            inputs = InputParameters.from_template(
+                inputs, random_seed=0, K_MAX_FOR_CLASS=1.0
+            )
 
         pth = tmp_path / "tmp.h5"
         h5._write_inputs_to_group(inputs, pth)

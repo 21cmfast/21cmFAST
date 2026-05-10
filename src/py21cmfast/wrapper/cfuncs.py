@@ -32,7 +32,13 @@ def broadcast_input_struct(inputs: InputParameters):
         inputs.cosmo_params.cstruct,
         inputs.astro_params.cstruct,
         inputs.astro_options.cstruct,
+        inputs.cosmo_tables.cstruct,
     )
+
+
+def free_cosmo_tables():
+    """Free the memory of cosmo_tables_global that was allocated at the C backend."""
+    lib.Free_cosmo_tables_global()
 
 
 def broadcast_params(func: Callable, redshift: float | None = None) -> Callable:
@@ -52,7 +58,17 @@ def broadcast_params(func: Callable, redshift: float | None = None) -> Callable:
                 ).ctypes.data,
                 inputs.node_redshifts.cstruct.node_redshifts.index(redshift),
             )
-        return func(*args, inputs=inputs, **kwargs)
+        try:
+            out = func(*args, inputs=inputs, **kwargs)
+        except:
+            # Always free on error, regardless of the flag
+            free_cosmo_tables()
+            raise  # Re-raise the original exception
+        else:
+            # Only free on success if the flag allows it
+            if kwargs.get("free_cosmo_tables", True):
+                free_cosmo_tables()
+            return out
 
     return wrapper
 
@@ -112,11 +128,7 @@ def init_gl(func: Callable) -> Callable:
 
 
 @broadcast_params
-def get_expected_nhalo(
-    *,
-    redshift: float,
-    inputs: InputParameters,
-) -> int:
+def get_expected_nhalo(*, redshift: float, inputs: InputParameters, **kwargs) -> int:
     """Get the expected number of halos in a given box.
 
     Parameters
@@ -133,10 +145,7 @@ def get_expected_nhalo(
 
 @broadcast_params
 def get_halo_catalog_buffer_size(
-    *,
-    redshift: float,
-    inputs: InputParameters,
-    min_size: int = 1000000,
+    *, redshift: float, inputs: InputParameters, min_size: int = 1000000, **kwargs
 ) -> int:
     """Compute the required size of the memory buffer to hold a halo list.
 
@@ -150,7 +159,11 @@ def get_halo_catalog_buffer_size(
         A minimum size to be used as the buffer.
     """
     # find the buffer size from expected halos in the box
-    hbuffer_size = get_expected_nhalo(redshift=redshift, inputs=inputs)
+    hbuffer_size = get_expected_nhalo(
+        redshift=redshift,
+        inputs=inputs,
+        free_cosmo_tables=kwargs.get("free_cosmo_tables", True),
+    )
     hbuffer_size = int((hbuffer_size + 1) * config["HALO_CATALOG_MEM_FACTOR"])
 
     # set a minimum in case of fluctuation at high z
@@ -413,21 +426,20 @@ def compute_luminosity_function(
 
 
 @cache
-@broadcast_params
 def construct_fftw_wisdoms(
     *,
-    inputs: InputParameters,
+    use_fftw_wisdom: bool,
 ) -> int:
     """Construct all necessary FFTW wisdoms.
 
     Parameters
     ----------
-    inputs : :class:`~inputs.InputParameters`
-        Parameters defining the simulation run.
+    USE_FFTW_WISDOM : bool
+        Whether we are interested in having FFTW wisdoms.
 
     """
     # Run the C code
-    if inputs.matter_options.USE_FFTW_WISDOM:
+    if use_fftw_wisdom:
         return lib.CreateFFTWWisdoms()
     else:
         return 0
@@ -439,8 +451,23 @@ def get_matter_power_values(
     inputs: InputParameters,
     k_values: Sequence[float],
 ):
-    """Evaluate the power at a certain scale from the 21cmFAST backend."""
+    """Evaluate the matter density power spectrum (at z=0) at a certain scale from the 21cmFAST backend."""
     return np.vectorize(lib.power_in_k)(k_values)
+
+
+@init_backend_ps
+def get_vcb_power_values(
+    *,
+    inputs: InputParameters,
+    k_values: Sequence[float],
+):
+    """Evaluate the vcb power spectrum (at kinematic decoupling) at a certain scale from the 21cmFAST backend."""
+    if inputs.matter_options.USE_RELATIVE_VELOCITIES:
+        return np.vectorize(lib.power_in_vcb)(k_values)
+    else:
+        raise ValueError(
+            "inputs.matter_options.USE_RELATIVE_VELOCITIES must be True in order to compute the v_cb power spectrum."
+        )
 
 
 @broadcast_params
@@ -503,7 +530,7 @@ def get_delta_crit(*, inputs: InputParameters, mass: float, redshift: float):
     """Get the critical collapse density given a mass, redshift and parameters."""
     sigma, _ = evaluate_sigma(inputs=inputs, masses=np.array([mass]))
     growth = get_growth_factor(inputs=inputs, redshift=redshift)
-    return get_delta_crit_nu(inputs.matter_options.cdict["HMF"], sigma, growth)
+    return get_delta_crit_nu(inputs.matter_options.cdict["HMF"], sigma[0], growth)
 
 
 def get_delta_crit_nu(hmf_int_flag: int, sigma: float, growth: float):

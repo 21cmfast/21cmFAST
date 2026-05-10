@@ -7,7 +7,7 @@ import attrs
 
 from .utils import recursive_difference
 from .wrapper._utils import camel_to_snake, snake_to_camel
-from .wrapper.inputs import InputParameters, InputStruct
+from .wrapper.inputs import CosmoTables, InputParameters, InputStruct, Table1D
 
 
 def convert_inputs_to_dict(
@@ -57,7 +57,11 @@ def convert_inputs_to_dict(
     if mode == "minimal":
         defaults = InputParameters(random_seed=0)
         default_dct = defaults.asdict(**kw)
+        cosmo_tables_key = "CosmoTables" if camel else "cosmo_tables"
+        # we still want to keep cosmo_tables, even in minimal mode (since we want to keep ps_norm and USE_SIGMA_8)
+        cosmo_tables_dct = all_inputs[cosmo_tables_key].copy()
         all_inputs = recursive_difference(all_inputs, default_dct)
+        all_inputs[cosmo_tables_key] = cosmo_tables_dct
 
     return all_inputs
 
@@ -106,7 +110,10 @@ def prepare_inputs_for_serialization(
     for structname, structvals in dct.items():
         this = {}
         clsname = snake_to_camel(structname)
-        fields = attrs.fields_dict(InputStruct._subclasses[clsname])
+        if clsname in InputStruct._subclasses:
+            fields = attrs.fields_dict(InputStruct._subclasses[clsname])
+        elif clsname == "CosmoTables":
+            fields = attrs.fields_dict(CosmoTables)
 
         for key, val in structvals.items():
             if val is None:
@@ -162,7 +169,9 @@ def deserialize_inputs(
 
     input_dict = {}
     extra_params = {}
-    for structname, kls in InputStruct._subclasses.items():
+    for structname, kls in (
+        InputStruct._subclasses | {"CosmoTables": CosmoTables}
+    ).items():
         # Use field.alias instead of field.name because the alias is what needs
         # to be passed to the class constructor (e.g. "DIM" instead of "_DIM")
         fieldnames = [field.alias for field in attrs.fields(kls)]
@@ -170,7 +179,16 @@ def deserialize_inputs(
 
         these_all = dict_of_structdicts.pop(structname, {})
 
-        these = {kk: these_all[kk] for kk in these_all if kk in fieldnames}
+        if structname == "CosmoTables":
+            these = {
+                kk: Table1D(**these_all[kk])
+                if isinstance(these_all[kk], dict)
+                else these_all[kk]
+                for kk in these_all
+                if kk in fieldnames
+            }
+        else:
+            these = {kk: these_all[kk] for kk in these_all if kk in fieldnames}
         extra = {kk: these_all[kk] for kk in these_all if kk not in fieldnames}
 
         # Here, if structname is not in the input dict_of_structdicts, it is OK,

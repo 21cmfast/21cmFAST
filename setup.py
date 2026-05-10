@@ -39,7 +39,7 @@ test_req = [
     "pytest-mock",
 ]
 
-doc_req = ["nbsphinx", "numpydoc", "sphinx >= 1.3", "furo"]
+doc_req = ["nbsphinx", "numpydoc", "sphinx >= 1.3", "furo", "ipython", "pandoc"]
 
 setup(
     name="21cmFAST",
@@ -88,9 +88,10 @@ setup(
         "cosmotile>=0.2.5",
         "attrs",
         "tqdm",
-        "classy",
+        "classy>=3.3.4",
         "cyclopts",
         "tomlkit",
+        "hmf",
     ],
     extras_require={"tests": test_req, "docs": doc_req, "dev": test_req + doc_req},
     setup_requires=["cffi>=1.0", "setuptools_scm"],

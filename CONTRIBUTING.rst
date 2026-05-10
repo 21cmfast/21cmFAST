@@ -42,9 +42,9 @@ The difference between members and non-members only applies to the first step
 of the development process.
 
 Note that it is highly recommended to work in an isolated python environment with
-all requirements installed from ``environment_dev.txt``. This will also ensure that
-pre-commit hooks will run that enforce the ``black`` coding style. If you do not
-install these requirements, you must manually run ``black`` before committing your changes,
+all dev requirements installed. This will ensure that
+pre-commit hooks will run that enforce the ``ruff`` checks. If you do not
+install these requirements, you must manually run ``ruff`` before committing your changes,
 otherwise your changes will likely fail continuous integration.
 
 As a *member*:
@@ -55,36 +55,22 @@ As a *member*:
 
 As a *non-member*:
 
-1. First fork ``21cmFAST <https://github.com/21cmFAST/21cmFAST>``_
+1. First fork `21cmFAST <https://github.com/21cmFAST/21cmFAST>`_
    (look for the "Fork" button), then clone the fork locally::
 
     git clone git@github.com:your_name_here/21cmFAST.git
 
 The following steps are the same for both *members* and *non-members*:
 
-2. Install a fresh new isolated environment::
+2. Install the code in "editable" or "development" mode
+   (see `developer installation instructions <https://21cmfast.readthedocs.io/en/latest/developer_install.html>`_).
 
-       conda create -n 21cmfast python=3
-       conda activate 21cmfast
-
-3. Install the *development* requirements for the project::
-
-    conda env update -f environment_dev.yml
-
-4. Install 21cmFAST. See `Installation <./installation.html>`_ for more details.::
-
-    pip install -e .
-
-4. Install pre-commit hooks::
-
-    pre-commit install
-
-5. Create a branch for local development::
+3. Create a branch for local development::
 
     git checkout -b name-of-your-bugfix-or-feature
 
-   Now you can make your changes locally. **Note: as a member, you _must_ do step 5. If you
-   make changes on main, you will _not_ be able to push them**.
+   Now you can make your changes locally. **Note: as a member, you _must_ do this step.
+   If you make changes on main, you will _not_ be able to push them**.
 
 6. When you're done making changes, run ``pytest`` to check that your changes didn't
    break things. You can run a single test or subset of tests as well (see pytest docs)::

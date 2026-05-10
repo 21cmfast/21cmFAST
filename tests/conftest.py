@@ -310,3 +310,23 @@ def lc(rectlcn, ic, cache, default_input_struct_lc):
         cache=cache,
         include_dvdr_in_tau21=False,
     )
+
+
+@pytest.fixture(scope="session")
+def tiny_inputs():
+    return (
+        InputParameters.from_template(["simple", "tiny"], random_seed=1234)
+        .evolve_input_structs(
+            PHOTON_CONS_TYPE="z-photoncons",
+            Z_HEAT_MAX=20,
+        )
+        .with_logspaced_redshifts(
+            zmin=10,
+            zmax=20,
+        )
+    )
+
+
+@pytest.fixture(scope="session")
+def tiny_ics(tiny_inputs):
+    return compute_initial_conditions(inputs=tiny_inputs)

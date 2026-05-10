@@ -47,7 +47,6 @@ float *del_fcoll_Rct, *del_fcoll_Rct_MINI;
 
 // radiative term boxes which are summed over R
 double *dxheat_dt_box, *dxion_source_dt_box, *dxlya_dt_box, *dstarlya_dt_box;
-double *dxheat_dt_box_MINI, *dxion_source_dt_box_MINI, *dxlya_dt_box_MINI, *dstarlya_dt_box_MINI;
 double *dstarlyLW_dt_box, *dstarlyLW_dt_box_MINI;
 double *dstarlya_cont_dt_box, *dstarlya_inj_dt_box;
 double *dstarlya_cont_dt_box_MINI, *dstarlya_inj_dt_box_MINI;
@@ -105,8 +104,6 @@ int ComputeTsBox(short cleanup, PerturbedField *perturbed_field, XraySourceBox *
         ts_main(cleanup, perturbed_field, source_box, previous_spin_temp, ini_boxes,
                 this_spin_temp);
 
-        destruct_heat();
-
     }  // End of try
     Catch(status) { return (status); }
     return (0);
@@ -145,7 +142,9 @@ void alloc_global_arrays() {
     }
     inverse_diff = (float *)calloc(x_int_NXHII, sizeof(float));
     // actual heating term boxes
-    dxheat_dt_box = (double *)calloc(HII_TOT_NUM_PIXELS, sizeof(double));
+    if (astro_options_global->USE_X_RAY_HEATING) {
+        dxheat_dt_box = (double *)calloc(HII_TOT_NUM_PIXELS, sizeof(double));
+    }
     dxion_source_dt_box = (double *)calloc(HII_TOT_NUM_PIXELS, sizeof(double));
     dxlya_dt_box = (double *)calloc(HII_TOT_NUM_PIXELS, sizeof(double));
     dstarlya_dt_box = (double *)calloc(HII_TOT_NUM_PIXELS, sizeof(double));
@@ -176,8 +175,10 @@ void alloc_global_arrays() {
     }
 
     // Nonhalo stuff
-    int num_R_boxes = matter_options_global->MINIMIZE_MEMORY ? 1 : astro_params_global->N_STEP_TS;
     if (matter_options_global->SOURCE_MODEL < 2) {
+        int num_R_boxes =
+            matter_options_global->MINIMIZE_MEMORY ? 1 : astro_params_global->N_STEP_TS;
+
         delNL0 = (float **)calloc(num_R_boxes, sizeof(float *));
         for (i = 0; i < num_R_boxes; i++) {
             delNL0[i] = (float *)calloc((float)HII_TOT_NUM_PIXELS, sizeof(float));
@@ -207,6 +208,9 @@ void alloc_global_arrays() {
 }
 
 void free_ts_global_arrays() {
+    // free external interpolation tables that are initialized in heating_healper_progs.c
+    destruct_heat();
+
     int i;
     // frequency integrals
     for (i = 0; i < x_int_NXHII; i++) {
@@ -255,7 +259,9 @@ void free_ts_global_arrays() {
     }
 
     // boxes
-    free(dxheat_dt_box);
+    if (astro_options_global->USE_X_RAY_HEATING) {
+        free(dxheat_dt_box);
+    }
     free(dxion_source_dt_box);
     free(dxlya_dt_box);
     free(dstarlya_dt_box);
@@ -272,8 +278,10 @@ void free_ts_global_arrays() {
     free(inverse_val_box);
 
     // interp tables
-    int num_R_boxes = matter_options_global->MINIMIZE_MEMORY ? 1 : astro_params_global->N_STEP_TS;
     if (matter_options_global->SOURCE_MODEL < 2) {
+        int num_R_boxes =
+            matter_options_global->MINIMIZE_MEMORY ? 1 : astro_params_global->N_STEP_TS;
+
         for (i = 0; i < num_R_boxes; i++) {
             free(delNL0[i]);
         }
@@ -305,8 +313,15 @@ void setup_z_edges(double zp) {
     double dzpp_for_evolve;
     int R_ct;
 
-    R = physconst.l_factor * simulation_options_global->BOX_LEN /
-        (float)simulation_options_global->HII_DIM;
+    if (simulation_options_global->HII_DIM == 1) {
+        // If HII_DIM=1 (happens when we run_global_evolution), we take a typical cell size
+        // of 1.5Mpc, just to for setting the z'' array (note that filtering won't be done on a box
+        // with a single cell)
+        R = physconst.l_factor * 1.5;
+    } else {
+        R = physconst.l_factor * simulation_options_global->BOX_LEN /
+            (float)simulation_options_global->HII_DIM;
+    }
     R_factor = pow(astro_params_global->R_MAX_TS / R, 1 / ((float)astro_params_global->N_STEP_TS));
 
     for (R_ct = 0; R_ct < astro_params_global->N_STEP_TS; R_ct++) {
@@ -659,35 +674,36 @@ void one_annular_filter(float *input_box, float *output_box, double R_inner, dou
             }
         }
     }
-
-    // Transform unfiltered box to k-space to prepare for filtering
-    // this would normally only be done once but we're using a different redshift for each R now
-    dft_r2c_cube(matter_options_global->USE_FFTW_WISDOM, simulation_options_global->HII_DIM,
-                 HII_D_PARA, simulation_options_global->N_THREADS, unfiltered_box);
+    // No need to filter the box if we only have one cell!
+    if (simulation_options_global->HII_DIM > 1) {
+        // Transform unfiltered box to k-space to prepare for filtering
+        // this would normally only be done once but we're using a different redshift for each R now
+        dft_r2c_cube(matter_options_global->USE_FFTW_WISDOM, simulation_options_global->HII_DIM,
+                     HII_D_PARA, simulation_options_global->N_THREADS, unfiltered_box);
 
 // remember to add the factor of VOLUME/TOT_NUM_PIXELS when converting from real space to k-space
 // Note: we will leave off factor of VOLUME, in anticipation of the inverse FFT below
 #pragma omp parallel num_threads(simulation_options_global->N_THREADS)
-    {
+        {
 #pragma omp for
-        for (ct = 0; ct < HII_KSPACE_NUM_PIXELS; ct++) {
-            unfiltered_box[ct] /= (float)HII_TOT_NUM_PIXELS;
+            for (ct = 0; ct < HII_KSPACE_NUM_PIXELS; ct++) {
+                unfiltered_box[ct] /= (float)HII_TOT_NUM_PIXELS;
+            }
         }
+
+        // Smooth the density field, at the same time store the minimum and maximum densities for
+        // their usage in the interpolation tables copy over unfiltered box
+        memcpy(filtered_box, unfiltered_box, sizeof(fftwf_complex) * HII_KSPACE_NUM_PIXELS);
+
+        // Don't filter on the cell scale
+        if (R_inner > 0) {
+            filter_box(filtered_box, box_dim, 4, R_inner, R_outer);
+        }
+
+        // now fft back to real space
+        dft_c2r_cube(matter_options_global->USE_FFTW_WISDOM, simulation_options_global->HII_DIM,
+                     HII_D_PARA, simulation_options_global->N_THREADS, filtered_box);
     }
-
-    // Smooth the density field, at the same time store the minimum and maximum densities for their
-    // usage in the interpolation tables copy over unfiltered box
-    memcpy(filtered_box, unfiltered_box, sizeof(fftwf_complex) * HII_KSPACE_NUM_PIXELS);
-
-    // Don't filter on the cell scale
-    if (R_inner > 0) {
-        filter_box(filtered_box, box_dim, 4, R_inner, R_outer);
-    }
-
-    // now fft back to real space
-    dft_c2r_cube(matter_options_global->USE_FFTW_WISDOM, simulation_options_global->HII_DIM,
-                 HII_D_PARA, simulation_options_global->N_THREADS, filtered_box);
-
 // copy over the values
 #pragma omp parallel private(i, j, k) num_threads(simulation_options_global -> N_THREADS) \
     reduction(+ : filtered_avg)
@@ -700,7 +716,11 @@ void one_annular_filter(float *input_box, float *output_box, double R_inner, dou
                 for (k = 0; k < box_dim[2]; k++) {
                     index_r = grid_index_general(i, j, k, box_dim);
                     index_f = grid_index_fftw_r(i, j, k, box_dim);
-                    curr_val = *((float *)filtered_box + index_f);
+                    if (simulation_options_global->HII_DIM > 1) {
+                        curr_val = *((float *)filtered_box + index_f);
+                    } else {  // Just take the unfiltered box/cell if HII_DIM = 1
+                        curr_val = *((float *)unfiltered_box + index_f);
+                    }
                     // correct for aliasing in the filtering step
                     if (curr_val < 0.) curr_val = 0.;
 
@@ -761,9 +781,12 @@ int UpdateXraySourceBox(HaloBox *halobox, double R_inner, double R_outer, int R_
                             fsfr_avg_mini, sfr_avg_mini, source_box->mean_log10_Mcrit_LW[R_ct]);
         }
 
-        fftwf_forget_wisdom();
-        fftwf_cleanup_threads();
-        fftwf_cleanup();
+        // free fftwf only if we have a full box (with more than one cell)
+        if (simulation_options_global->HII_DIM > 1) {
+            fftwf_forget_wisdom();
+            fftwf_cleanup_threads();
+            fftwf_cleanup();
+        }
     }  // End of try
     Catch(status) { return (status); }
     return (0);
@@ -779,7 +802,7 @@ void fill_freqint_tables(double zp, double x_e_ave, double filling_factor_of_HI_
     int x_e_ct, R_ct;
     int R_start, R_end;
     // if we minimize mem these arrays are filled one by one
-    if (matter_options_global->MINIMIZE_MEMORY) {
+    if (matter_options_global->MINIMIZE_MEMORY && matter_options_global->SOURCE_MODEL < 2) {
         R_start = R_mm;
         R_end = R_mm + 1;
     } else {
@@ -938,16 +961,21 @@ int global_reion_properties(double zp, double x_e_ave, double *log10_Mcrit_LW_av
     LOG_DEBUG("nion zp = %.3e (%.3e MINI)", sum_nion, sum_nion_mini);
 
     double ION_EFF_FACTOR, ION_EFF_FACTOR_MINI;
-    ION_EFF_FACTOR = astro_params_global->F_STAR10 * astro_params_global->F_ESC10 *
-                     astro_params_global->POP2_ION;
-    ION_EFF_FACTOR_MINI = astro_params_global->F_STAR7_MINI * astro_params_global->F_ESC7_MINI *
-                          astro_params_global->POP3_ION;
+    if (matter_options_global->SOURCE_MODEL > 0) {
+        ION_EFF_FACTOR = astro_params_global->F_STAR10 * astro_params_global->F_ESC10 *
+                         astro_params_global->POP2_ION;
+        ION_EFF_FACTOR_MINI = astro_params_global->F_STAR7_MINI * astro_params_global->F_ESC7_MINI *
+                              astro_params_global->POP3_ION;
+    } else {
+        // no mini-halos when SOURCE_MODEL=0 (constant ionization efficiency)
+        ION_EFF_FACTOR = astro_params_global->HII_EFF_FACTOR;
+    }
 
     // NOTE: only used without MASS_DEPENDENT_ZETA
     *Q_HI = 1 - (ION_EFF_FACTOR * sum_nion + ION_EFF_FACTOR_MINI * sum_nion_mini) / (1.0 - x_e_ave);
 
     // Initialise freq tables & prefactors (x_e by R tables)
-    if (!matter_options_global->MINIMIZE_MEMORY) {
+    if (matter_options_global->SOURCE_MODEL >= 2 || !matter_options_global->MINIMIZE_MEMORY) {
         // Now global SFRD at (R_ct) for the mean fixing
         for (R_ct = 0; R_ct < astro_params_global->N_STEP_TS; R_ct++) {
             zpp = zpp_for_evolve_list[R_ct];
@@ -1173,7 +1201,14 @@ struct Ts_cell get_Ts_fast(float zp, float dzp, struct spintemp_from_sfr_prefact
     tau21 = (3 * physconst.h_p * physconst.A10 * physconst.c_cms * physconst.lambda_21 *
              physconst.lambda_21 / 32. / M_PI / physconst.k_B) *
             ((1 - rad->prev_xe) * consts->N_zp) / rad->prev_Ts / consts->hubble_zp;
-    xCMB = (1. - exp(-tau21)) / tau21;
+
+    if (tau21 > 1e-8) {
+        xCMB = (1. - exp(-tau21)) / tau21;
+    } else {
+        // When tau21 is very small, we can use the Taylor expansion of the exponential
+        // to avoid numerical issues
+        xCMB = 1. - tau21 / 2 * (1 - tau21 / 3 * (1 - tau21 / 4));
+    }
 
     // Electron density
     // NOTE: Nb_zp includes helium, TODO: make sure this is right
@@ -1198,7 +1233,11 @@ struct Ts_cell get_Ts_fast(float zp, float dzp, struct spintemp_from_sfr_prefact
                 (consts->Trad - rad->prev_Tk);
 
     // X-ray heating
-    dxheat_dzp = rad->dxheat_dt * consts->dt_dzp * 2.0 / 3.0 / physconst.k_B / (1.0 + rad->prev_xe);
+    dxheat_dzp = 0.;
+    if (astro_options_global->USE_X_RAY_HEATING) {
+        dxheat_dzp =
+            rad->dxheat_dt * consts->dt_dzp * 2.0 / 3.0 / physconst.k_B / (1.0 + rad->prev_xe);
+    }
     // CMB heating rate
     dCMBheat_dzp = 0.;
     if (astro_options_global->USE_CMB_HEATING) {
@@ -1343,6 +1382,8 @@ void ts_main(short cleanup, PerturbedField *perturbed_field, XraySourceBox *sour
     // allocate the global arrays we always use
     if (!TsInterpArraysInitialised) {
         alloc_global_arrays();
+        // Initialize heating interpolation arrays
+        init_heat();
     }
 
     // NOTE: If we re-allow other redshifts in perturbed_field, this will need to change
@@ -1381,8 +1422,6 @@ void ts_main(short cleanup, PerturbedField *perturbed_field, XraySourceBox *sour
         sigma_max[R_ct] = EvaluateSigma(log(M_max_R[R_ct]));
     }
 
-    // Initialize heating interpolation arrays
-    init_heat();
     if (redshift >= simulation_options_global->Z_HEAT_MAX) {
         LOG_DEBUG("redshift greater than Z_HEAT_MAX");
         init_first_Ts(this_spin_temp, perturbed_field->density, redshift, &x_e_ave_p, &Tk_ave_p);
@@ -1470,8 +1509,10 @@ void ts_main(short cleanup, PerturbedField *perturbed_field, XraySourceBox *sour
     //   and use them to give: Filling factor at zp (only used for !MASS_DEPENDENT_ZETA to get
     //   ion_eff) global SFRD at each filter radius (numerator of ST_over_PS factor)
     double Q_HI_zp;
+
     NO_LIGHT = global_reion_properties(redshift, x_e_ave_p, ave_log10_MturnLW, mean_sfr_zpp,
                                        mean_sfr_zpp_mini, &Q_HI_zp);
+    this_spin_temp->Q_HI = Q_HI_zp;
 
 #pragma omp parallel private(box_ct) num_threads(simulation_options_global -> N_THREADS)
     {
@@ -1492,7 +1533,9 @@ void ts_main(short cleanup, PerturbedField *perturbed_field, XraySourceBox *sour
                                       inverse_diff[m_xHII_low_box[box_ct]];
 
             // initialise += boxes (memory sometimes re-used)
-            dxheat_dt_box[box_ct] = 0.;
+            if (astro_options_global->USE_X_RAY_HEATING) {
+                dxheat_dt_box[box_ct] = 0.;
+            }
             dxion_source_dt_box[box_ct] = 0.;
             dxlya_dt_box[box_ct] = 0.;
             dstarlya_dt_box[box_ct] = 0.;
@@ -1536,8 +1579,13 @@ void ts_main(short cleanup, PerturbedField *perturbed_field, XraySourceBox *sour
 
             set_scaling_constants(zpp, &sc, false);
 
-            // index for grids
-            R_index = matter_options_global->MINIMIZE_MEMORY ? 0 : R_ct;
+            // index for grids. For Eulerian grid source models (<2), we can use a single
+            // filter radius at a time, if MINIMIZE_MEMORY=True
+            if (matter_options_global->SOURCE_MODEL < 2 && matter_options_global->MINIMIZE_MEMORY) {
+                R_index = 0;
+            } else {
+                R_index = R_ct;
+            }
 
             if (matter_options_global->SOURCE_MODEL < 2) {
                 if (matter_options_global->MINIMIZE_MEMORY) {
@@ -1622,12 +1670,11 @@ void ts_main(short cleanup, PerturbedField *perturbed_field, XraySourceBox *sour
                     // loop than an inner one.
 
                     if (matter_options_global->SOURCE_MODEL > 1) {
-                        sfr_term = source_box->filtered_sfr[R_index * HII_TOT_NUM_PIXELS + box_ct] *
+                        sfr_term = source_box->filtered_sfr[R_ct * HII_TOT_NUM_PIXELS + box_ct] *
                                    z_edge_factor;
                         // Minihalos and s->yr conversion are already included here
-                        xray_sfr =
-                            source_box->filtered_xray[R_index * HII_TOT_NUM_PIXELS + box_ct] *
-                            z_edge_factor * xray_R_factor * 1e38;
+                        xray_sfr = source_box->filtered_xray[R_ct * HII_TOT_NUM_PIXELS + box_ct] *
+                                   z_edge_factor * xray_R_factor * 1e38;
                     } else {
                         // NOTE: for SOURCE_MODEL==0 F_STAR10 is still used for constant
                         // stellar fraction
@@ -1653,8 +1700,11 @@ void ts_main(short cleanup, PerturbedField *perturbed_field, XraySourceBox *sour
                     }
                     xidx = m_xHII_low_box[box_ct];
                     ival = inverse_val_box[box_ct];
-                    dxheat_dt_box[box_ct] += xray_sfr * (freq_int_heat_tbl_diff[xidx][R_ct] * ival +
-                                                         freq_int_heat_tbl[xidx][R_ct]);
+                    if (astro_options_global->USE_X_RAY_HEATING) {
+                        dxheat_dt_box[box_ct] +=
+                            xray_sfr * (freq_int_heat_tbl_diff[xidx][R_ct] * ival +
+                                        freq_int_heat_tbl[xidx][R_ct]);
+                    }
                     dxion_source_dt_box[box_ct] +=
                         xray_sfr *
                         (freq_int_ion_tbl_diff[xidx][R_ct] * ival + freq_int_ion_tbl[xidx][R_ct]);
@@ -1711,11 +1761,19 @@ void ts_main(short cleanup, PerturbedField *perturbed_field, XraySourceBox *sour
                                     (1 + delNL0[R_index][box_ct] * zpp_growth[R_ct]) *
                                     avg_fix_term_MINI * astro_params_global->F_STAR7_MINI);
 
-                        LOG_SUPER_DEBUG("xh %.2e | xi %.2e | xl %.2e | sl %.2e",
-                                        dxheat_dt_box[box_ct] / astro_params_global->L_X,
-                                        dxion_source_dt_box[box_ct] / astro_params_global->L_X,
-                                        dxlya_dt_box[box_ct] / astro_params_global->L_X,
-                                        dstarlya_dt_box[box_ct]);
+                        if (astro_options_global->USE_X_RAY_HEATING) {
+                            LOG_SUPER_DEBUG("xh %.2e | xi %.2e | xl %.2e | sl %.2e",
+                                            dxheat_dt_box[box_ct] / astro_params_global->L_X,
+                                            dxion_source_dt_box[box_ct] / astro_params_global->L_X,
+                                            dxlya_dt_box[box_ct] / astro_params_global->L_X,
+                                            dstarlya_dt_box[box_ct]);
+                        } else {
+                            LOG_SUPER_DEBUG("xi %.2e | xl %.2e | sl %.2e",
+                                            dxion_source_dt_box[box_ct] / astro_params_global->L_X,
+                                            dxlya_dt_box[box_ct] / astro_params_global->L_X,
+                                            dstarlya_dt_box[box_ct]);
+                        }
+
                         if (astro_options_global->USE_LYA_HEATING)
                             LOG_SUPER_DEBUG("ct %.2e | ij %.2e", dstarlya_cont_dt_box[box_ct],
                                             dstarlya_inj_dt_box[box_ct]);
@@ -1751,8 +1809,10 @@ void ts_main(short cleanup, PerturbedField *perturbed_field, XraySourceBox *sour
             }
 
             // Add prefactors that don't depend on R
-            rad.dxheat_dt =
-                dxheat_dt_box[box_ct] * zp_consts.xray_prefactor * zp_consts.volunit_inv;
+            if (astro_options_global->USE_X_RAY_HEATING) {
+                rad.dxheat_dt =
+                    dxheat_dt_box[box_ct] * zp_consts.xray_prefactor * zp_consts.volunit_inv;
+            }
             rad.dxion_dt =
                 dxion_source_dt_box[box_ct] * zp_consts.xray_prefactor * zp_consts.volunit_inv;
             // 2 density terms from downscattering absorbers
@@ -1836,12 +1896,19 @@ void ts_main(short cleanup, PerturbedField *perturbed_field, XraySourceBox *sour
 
     for (box_ct = 0; box_ct < HII_TOT_NUM_PIXELS; box_ct++) {
         if (isfinite(this_spin_temp->spin_temperature[box_ct]) == 0) {
-            LOG_ERROR(
-                "Estimated spin temperature is either infinite of NaN!"
-                "idx %llu delta %.3e dxheat %.3e dxion %.3e dxlya %.3e dstarlya %.3e",
-                box_ct, perturbed_field->density[box_ct], dxheat_dt_box[box_ct],
-                dxion_source_dt_box[box_ct], dxlya_dt_box[box_ct], dstarlya_dt_box[box_ct]);
-            //                Throw(ParameterError);
+            if (astro_options_global->USE_X_RAY_HEATING) {
+                LOG_ERROR(
+                    "Estimated spin temperature is either infinite of NaN!"
+                    "idx %llu delta %.3e dxheat %.3e dxion %.3e dxlya %.3e dstarlya %.3e",
+                    box_ct, perturbed_field->density[box_ct], dxheat_dt_box[box_ct],
+                    dxion_source_dt_box[box_ct], dxlya_dt_box[box_ct], dstarlya_dt_box[box_ct]);
+            } else {
+                LOG_ERROR(
+                    "Estimated spin temperature is either infinite of NaN!"
+                    "idx %llu delta %.3e dxion %.3e dxlya %.3e dstarlya %.3e",
+                    box_ct, perturbed_field->density[box_ct], dxion_source_dt_box[box_ct],
+                    dxlya_dt_box[box_ct], dstarlya_dt_box[box_ct]);
+            }
             Throw(InfinityorNaNError);
         }
     }

@@ -394,6 +394,7 @@ def evolve_halos(
     initial_conditions: InitialConditions,
     cache: OutputCache,
     regenerate: bool,
+    free_cosmo_tables: bool,
     progressbar: bool = False,
 ):
     """
@@ -442,6 +443,7 @@ def evolve_halos(
         "initial_conditions": initial_conditions,
         "cache": cache,
         "regenerate": regenerate,
+        "free_cosmo_tables": free_cosmo_tables,
     }
     halos_desc = None
     with _progressbar(disable=not progressbar) as _progbar:
@@ -558,7 +560,7 @@ def generate_coeval(
     if not out_redshifts and not inputs.node_redshifts:
         raise ValueError("out_redshifts must be given if inputs has no node redshifts")
 
-    iokw = {"regenerate": regenerate, "cache": cache}
+    iokw = {"regenerate": regenerate, "cache": cache, "free_cosmo_tables": False}
 
     if not hasattr(out_redshifts, "__len__"):
         out_redshifts = [out_redshifts]
@@ -597,8 +599,9 @@ def generate_coeval(
         inputs=inputs,
         initial_conditions=initial_conditions,
         photon_nonconservation_data=photon_nonconservation_data,
+        cache=cache,
+        regenerate=regenerate,
         minimum_node=first_out_node,
-        **iokw,
     )
     # convert node_redshift index to all_redshift index
     if idx > 0:
@@ -623,12 +626,17 @@ def generate_coeval(
     if lib.photon_cons_allocated:
         lib.FreePhotonConsMemory()
 
+    lib.Free_cosmo_tables_global()
 
-def run_coeval(**kwargs) -> list[Coeval]:  # noqa: D103
+
+def run_coeval(**kwargs) -> list[Coeval]:
+    """Run a coeval simulation and return the resulting coeval boxes.
+
+    This simply wraps :func:`generate_coeval` and returns a list of coeval objects
+    at the requested output redshifts after the generator has been exhausted. All
+    parameters are passed directly to :func:`generate_coeval`.
+    """
     return [coeval for coeval, in_outputs in generate_coeval(**kwargs) if in_outputs]
-
-
-run_coeval.__doc__ = generate_coeval.__doc__
 
 
 def _obtain_starting_point_for_scrolling(
@@ -732,7 +740,6 @@ def _redshift_loop_generator(
                 if inputs.matter_options.has_discrete_halos:
                     this_halofield = halofield_list[iz]
                     this_halofield.load_all()
-
                 this_halobox = sf.compute_halo_grid(
                     inputs=inputs,
                     halo_catalog=this_halofield,
@@ -802,7 +809,10 @@ def _redshift_loop_generator(
 
             # We purge previous fields and those we no longer need
             if prev_coeval is not None:
-                prev_coeval.perturbed_field.purge()
+                if (
+                    inputs.simulation_options.HII_DIM > 1
+                ):  # No need to purge if we have just one cell
+                    prev_coeval.perturbed_field.purge()
                 if (
                     inputs.matter_options.lagrangian_source_grid
                     and write.halobox
@@ -830,11 +840,15 @@ def _setup_ics_and_pfs_for_scrolling(
     inputs: InputParameters,
     write: CacheConfig,
     progressbar: bool,
+    overdensity_z0: float | None = None,
     **iokw,
 ) -> tuple[InitialConditions, list[PerturbedField], list[HaloCatalog], dict]:
     if initial_conditions is None:
         initial_conditions = sf.compute_initial_conditions(
-            inputs=inputs, write=write.initial_conditions, **iokw
+            inputs=inputs,
+            write=write.initial_conditions,
+            initial_density=overdensity_z0,
+            **iokw,
         )
 
     # We can go ahead and purge some of the stuff in the initial_conditions, but only if
@@ -847,7 +861,10 @@ def _setup_ics_and_pfs_for_scrolling(
     }
     photon_nonconservation_data = {}
     if inputs.astro_options.PHOTON_CONS_TYPE != "no-photoncons":
-        photon_nonconservation_data = setup_photon_cons(**kw)
+        # Note that we need to pass the inputs directly here.
+        # Otherwise, they are taken from initial_conditions, which may have
+        # a different (compatible) set of inputs.
+        photon_nonconservation_data = setup_photon_cons(inputs=inputs, **kw)
 
     if (
         inputs.astro_options.PHOTON_CONS_TYPE == "z-photoncons"

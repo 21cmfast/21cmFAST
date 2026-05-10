@@ -70,6 +70,9 @@
 - name: "type: performance: speed"
   description: Performance improvements that reduce walltime
   color: "016175"
+- name: "type: performance: gpu"
+  description: Performance improvements to do with GPU
+  color: "016175"
 - name: "type: ci"
   description: Updates to CI (GH actions, RTD, etc.)
   color: "000000"
@@ -90,6 +93,9 @@
 - name: "context: C backend"
   description: Changes occur predominantly in the C code
   color: "#1d76db"
+- name: "context: CUDA"
+  description: Changes occur predominantly in CUDA code
+  color: "#1d76db"
 - name: "context: cache/io"
   description: Changes predominantly affect caching or I/O
   color: "#1d76db"
@@ -102,3 +108,10 @@
 - name: "context: python wrapper"
   description: Changes predominantly concerning the python wrapper
   color: "#1d76db"
+
+- name: "effort: low"
+  description: Issues that will require less than a day of coding to implement
+  color: "BFD4F2"
+- name: "effort: high"
+  description: Issues that will probably require >1 full day of coding to implement
+  color: "B60205"

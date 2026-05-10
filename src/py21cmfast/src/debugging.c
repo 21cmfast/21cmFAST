@@ -101,7 +101,6 @@ void writeMatterOptions(MatterOptions *p) {
 void writeCosmoParams(CosmoParams *p) {
     LOG_INFO(
         "\n        CosmoParams:\n"
-        "       SIGMA_8=%8.3f\n"
         "       hlittle=%8.3f\n"
         "       OMm=%8.3f\n"
         "       OMl=%8.3f\n"
@@ -113,8 +112,8 @@ void writeCosmoParams(CosmoParams *p) {
         "       Y_He=%8.3f\n"
         "       wl=%8.3f\n"
         "       POWER_INDEX=%8.3f\n",
-        p->SIGMA_8, p->hlittle, p->OMm, p->OMl, p->OMb, p->OMn, p->OMk, p->OMr, p->OMtot, p->Y_He,
-        p->wl, p->POWER_INDEX);
+        p->hlittle, p->OMm, p->OMl, p->OMb, p->OMn, p->OMk, p->OMr, p->OMtot, p->Y_He, p->wl,
+        p->POWER_INDEX);
 }
 
 void writeAstroParams(AstroParams *p) {

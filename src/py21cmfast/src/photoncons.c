@@ -34,6 +34,7 @@
 #include "logger.h"
 
 bool photon_cons_allocated = false;
+static bool nfhistory_spline_allocated = false;  // track whether NFHistory splines are initialized
 // These globals hold values relevant for the photon conservation (z-shift) model
 static float calibrated_NF_min;
 static double *deltaz, *deltaz_smoothed, *NeutralFractions, *z_Q, *Q_value, *nf_vals, *z_vals;
@@ -320,9 +321,12 @@ int InitialisePhotonCons() {
 int PhotonCons_Calibration(double *z_estimate, double *xH_estimate, int NSpline) {
     int status;
     Try {
-        if (xH_estimate[NSpline - 1] > 0.0 && xH_estimate[NSpline - 2] > 0.0 &&
-            xH_estimate[NSpline - 3] > 0.0 && xH_estimate[0] <= PhotonConsStart) {
+        // Only initialize once to avoid redundant allocations and spline construction.
+        // This ensures the splines are always available when needed, while maintaining
+        // good performance by avoiding re-initialization on subsequent calls.
+        if (!nfhistory_spline_allocated) {
             initialise_NFHistory_spline(z_estimate, xH_estimate, NSpline);
+            nfhistory_spline_allocated = true;
         }
     }
     Catch(status) { return status; }
@@ -1015,6 +1019,7 @@ void FreePhotonConsMemory() {
     LOG_DEBUG("Done Freeing photon cons memory.");
 
     photon_cons_allocated = false;
+    nfhistory_spline_allocated = false;
 }
 
 // quick functions to set/get alpha photoncons parameters
