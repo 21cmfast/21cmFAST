@@ -394,7 +394,7 @@ int ComputePerturbedField(InitialConditions *boxes, PerturbedField *perturbed_fi
     int status;
     Try {  // This Try{} wraps the whole function, so we don't indent.
 
-        double redshift = get_current_redshift(boxes);
+        double redshift = get_current_redshift();
         // Makes the parameter structs visible to a variety of functions/macros
         // Do each time to avoid Python garbage collection issues
 

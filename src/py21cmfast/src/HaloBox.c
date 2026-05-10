@@ -585,8 +585,8 @@ int ComputeHaloBox(InitialConditions *ini_boxes, HaloCatalog *halos, HaloCatalog
                 "And current catalogues must not have SFRs computed.");
             Throw(ValueError);
         }
-        double redshift = get_current_redshift(ini_boxes);
-        double redshift_prev = get_previous_redshift(ini_boxes);
+        double redshift = get_current_redshift();
+        double redshift_prev = get_previous_redshift();
 
 #if LOG_LEVEL >= SUPER_DEBUG_LEVEL
         writeSimulationOptions(simulation_options_global);

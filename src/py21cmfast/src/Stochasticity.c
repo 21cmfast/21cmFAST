@@ -207,6 +207,8 @@ int add_properties_cat(unsigned long long int seed, float redshift, HaloCatalog 
     gsl_rng *rng_stoc[simulation_options_global->N_THREADS];
     seed_rng_threads_fast(rng_stoc, seed);
 
+    initialise_sfh_structs(redshift, -1.0, -1.0, false);
+
     LOG_DEBUG("computing rng for %llu halos", halos->n_halos);
 
     // loop through the halos and assign properties
@@ -225,6 +227,7 @@ int add_properties_cat(unsigned long long int seed, float redshift, HaloCatalog 
     }
 
     free_rng_threads(rng_stoc);
+    cleanup_sfh_structs();
 
     LOG_DEBUG("Done.");
     return 0;
@@ -1052,7 +1055,7 @@ int stochastic_halofield(unsigned long long int seed, float *dens_field, float *
                          HaloCatalog *halos_desc, HaloCatalog *halos) {
     double redshift = get_current_redshift();
     double redshift_desc = get_descendant_redshift();
-    double redshift_desc2 = get_redshift_relative(-2);
+    double redshift_desc2 = get_redshift_relative(2);
 
     if (redshift_desc > 0 && halos_desc->n_halos == 0) {
         LOG_DEBUG("No halos to sample from redshifts %.2f to %.2f, continuing...", redshift_desc,
@@ -1068,18 +1071,17 @@ int stochastic_halofield(unsigned long long int seed, float *dens_field, float *
 
     struct HaloSamplingConstants hs_constants;
     stoc_set_consts_z(&hs_constants, redshift, redshift_desc, from_catalog);
+    initialise_sfh_structs(redshift, redshift_desc, redshift_desc2, from_catalog);
 
     // Fill them
     // NOTE:Halos prev in the first box corresponds to the large DexM halos
     if (!from_catalog) {
         LOG_DEBUG("building first halo field at z=%.1f", redshift);
-        initialise_sfh_structs(redshift, -1.0, -1.0, false);
         sample_halo_grids(rng_stoc, redshift, dens_field, halo_overlap_box, halos_desc, halos,
                           &hs_constants);
     } else {
         LOG_DEBUG("Calculating halo progenitors from z=%.1f to z=%.1f | %llu", redshift_desc,
                   redshift, halos_desc->n_halos);
-        initialise_sfh_structs(redshift, redshift_desc, redshift_desc2, true);
         sample_halo_progenitors(rng_stoc, redshift_desc, redshift, halos_desc, halos,
                                 &hs_constants);
     }
@@ -1087,13 +1089,13 @@ int stochastic_halofield(unsigned long long int seed, float *dens_field, float *
     LOG_DEBUG("Found %llu Halos", halos->n_halos);
 
     if (halos->n_halos >= 3) {
-        LOG_DEBUG("First few Masses:  %11.3e %11.3e %11.3e", halos->halo_masses[0],
+        LOG_DEBUG("First few Masses:       %11.3e %11.3e %11.3e", halos->halo_masses[0],
                   halos->halo_masses[1], halos->halo_masses[2]);
-        LOG_DEBUG("First few SFR10 RNG: %11.3e %11.3e %11.3e", halos->sfr_10[0], halos->sfr_10[1],
-                  halos->sfr_10[2]);
-        LOG_DEBUG("First few SFR100 RNG:     %11.3e %11.3e %11.3e", halos->sfr_100[0],
+        LOG_DEBUG("First few SFR10 RNG:    %11.3e %11.3e %11.3e", halos->sfr_10[0],
+                  halos->sfr_10[1], halos->sfr_10[2]);
+        LOG_DEBUG("First few SFR100 RNG:   %11.3e %11.3e %11.3e", halos->sfr_100[0],
                   halos->sfr_100[1], halos->sfr_100[2]);
-        LOG_DEBUG("First few Snapshot RNG:     %11.3e %11.3e %11.3e", halos->stellar_mass[0],
+        LOG_DEBUG("First few Snapshot RNG: %11.3e %11.3e %11.3e", halos->stellar_mass[0],
                   halos->stellar_mass[1], halos->stellar_mass[2]);
     }
 

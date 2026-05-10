@@ -66,7 +66,8 @@ void Broadcast_struct_global_noastro(SimulationOptions *simulation_options,
                                      MatterOptions *matter_options, CosmoParams *cosmo_params);
 void Broadcast_struct_global_all(SimulationOptions *simulation_options,
                                  MatterOptions *matter_options, CosmoParams *cosmo_params,
-                                 AstroParams *astro_params, AstroOptions *astro_options);
+                                 AstroParams *astro_params, AstroOptions *astro_options,
+                                 CosmoTables *cosmo_tables);
 void Broadcast_snapshot_info(int n_nodes, double *node_redshifts, int curr_node);
 
 void Free_cosmo_tables_global();

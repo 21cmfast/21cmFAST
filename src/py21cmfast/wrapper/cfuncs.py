@@ -24,7 +24,7 @@ logger = logging.getLogger(__name__)
 # TODO: a lot of these assume input as numpy arrays via use of .shape, explicitly require this
 
 
-def broadcast_input_struct(inputs: InputParameters):
+def broadcast_input_struct(inputs: InputParameters, redshift: float | None = None):
     """Broadcast the parameters to the C library."""
     lib.Broadcast_struct_global_all(
         inputs.simulation_options.cstruct,
@@ -34,6 +34,14 @@ def broadcast_input_struct(inputs: InputParameters):
         inputs.astro_options.cstruct,
         inputs.cosmo_tables.cstruct,
     )
+    if redshift is not None:
+        lib.Broadcast_snapshot_info(
+            len(inputs.node_redshifts),
+            ffi.cast(
+                "double*", np.array(inputs.node_redshifts, dtype="f8").ctypes.data
+            ),
+            inputs.node_redshifts.index(redshift),
+        )
 
 
 def free_cosmo_tables():
@@ -50,14 +58,6 @@ def broadcast_params(func: Callable, redshift: float | None = None) -> Callable:
 
     def wrapper(*args, inputs: InputParameters, **kwargs):
         broadcast_input_struct(inputs)
-        if redshift is not None:
-            lib.Broadcast_snapshot_info(
-                inputs.node_redshifts.cstruct.size,
-                np.array(
-                    inputs.node_redshifts.cstruct.node_redshifts, dtype="f8"
-                ).ctypes.data,
-                inputs.node_redshifts.cstruct.node_redshifts.index(redshift),
-            )
         try:
             out = func(*args, inputs=inputs, **kwargs)
         except:

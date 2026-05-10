@@ -417,14 +417,23 @@ void initialise_sfh_structs(double z0, double z1, double z2, bool conditioned) {
     sfh_mats.L_cov = gsl_matrix_alloc(3, 3);
     sfh_mats.mean_correction = gsl_matrix_alloc(3, 3);
 
-    if (z0 < 0. || conditioned && (z1 < 0. || z2 < 0.)) {
-        LOG_ERROR("You provided negative redshifts for SFH initialisation!");
+    if (z0 < 0. || conditioned && !(z2 <= z1 <= z0)) {
+        LOG_ERROR("You provided invalid redshifts for SFH initialisation!");
+        LOG_ERROR("Provided redshifts: z0 = %f, z1 = %f, z2 = %f", z0, z1, z2);
+        LOG_ERROR("All redshifts must satisfy z2 < z1 < z0 if contitioned");
         Throw(ValueError);
     }
 
-    // positive for z2 > z1 > z0
-    double tau = time_between_z(z0, z1) / (physconst.s_per_yr * 1e6);       // Myr
-    double tau_prev = time_between_z(z1, z2) / (physconst.s_per_yr * 1e6);  // Myr
+    double tau = astro_params_global->SFH_TAU * 100;  // long timescale for uncorrelated sampling
+    double tau_prev = astro_params_global->SFH_TAU * 100;
+    if (conditioned) {
+        tau = time_between_z(z0, z1) / (physconst.s_per_yr * 1e6);  // Myr
+        if (z2 >= 0.) {
+            tau_prev = time_between_z(z1, z2) / (physconst.s_per_yr * 1e6);  // Myr
+        }
+    }
+    LOG_DEBUG("Initialising SFH structs with tau = %f Myr and tau_prev = %f Myr", tau, tau_prev);
+    LOG_DEBUG(" from redshifts z0 = %f, z1 = %f, z2 = %f", z0, z1, z2);
 
     // initialise_psd_corrfunc_tables(tau, tau_prev);
     // fill_covar_from_tables(tau, sfh_mats.curr_cov, sfh_mats.prev_cov, sfh_mats.pxc_cov);

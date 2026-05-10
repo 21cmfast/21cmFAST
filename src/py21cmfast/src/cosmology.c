@@ -774,6 +774,7 @@ double t_hubble(float z) { return 1.0 / hubble(z); }
 /* comoving distance (in cm) per unit redshift */
 double drdz(float z) { return (1.0 + z) * physconst.c_cms * dtdz(z); }
 
+// NB: this will be positive when z_low < z_high
 double time_between_z(double z_low, double z_high) {
     double result, error;
     gsl_function F;

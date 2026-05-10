@@ -40,7 +40,7 @@ int ComputeHaloCatalog(InitialConditions *boxes, unsigned long long int random_s
     int status;
 
     Try {  // This Try brackets the whole function, so we don't indent.
-        double redshift = get_current_redshift(boxes);
+        double redshift = get_current_redshift();
         bool from_catalog =
             (matter_options_global->SOURCE_MODEL == 4 && get_descendant_redshift() > 0);
         if (halos->sfh_computed || halos_desc->sfh_computed) {

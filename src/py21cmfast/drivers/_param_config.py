@@ -224,8 +224,8 @@ class _OutputStructComputationInspect:
     def _make_wisdoms(self, use_fftw_wisdom: bool):
         construct_fftw_wisdoms(use_fftw_wisdom=use_fftw_wisdom)
 
-    def _broadcast_inputs(self, inputs: InputParameters):
-        broadcast_input_struct(inputs=inputs)
+    def _broadcast_inputs(self, inputs: InputParameters, redshift: float | None = None):
+        broadcast_input_struct(inputs=inputs, redshift=redshift)
 
     def _free_cosmo_tables(self):
         free_cosmo_tables()
@@ -458,7 +458,7 @@ class single_field_func(_OutputStructComputationInspect):  # noqa: N801
             kwargs["inputs"] = inputs
 
         if out is None:
-            self._broadcast_inputs(inputs)
+            self._broadcast_inputs(inputs, redshift=current_redshift)
             self._make_wisdoms(inputs.matter_options.USE_FFTW_WISDOM)
             out = self._func(**kwargs)
             self._handle_write_to_cache(cache, write, out)

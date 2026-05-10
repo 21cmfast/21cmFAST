@@ -775,7 +775,7 @@ class HaloCatalog(OutputStructZ):
     halo_coords = _arrayfield()
     n_halos: int = attrs.field(default=None)
     buffer_size: int = attrs.field(default=None)
-    _sfh_computed: bool = attrs.field(init=False, default=False)
+    sfh_computed: bool = attrs.field(init=False, default=False)
 
     @classmethod
     def new(
@@ -815,7 +815,7 @@ class HaloCatalog(OutputStructZ):
             halo_masses=Array((buffer_size,), dtype=np.float32),
             sfr_10=Array((buffer_size,), dtype=np.float32),
             sfr_100=Array((buffer_size,), dtype=np.float32),
-            sfr_snapshot=Array((buffer_size,), dtype=np.float32),
+            stellar_mass=Array((buffer_size,), dtype=np.float32),
             descendant_index=Array((buffer_size,), dtype=np.int64),
             halo_coords=Array((buffer_size, 3), dtype=np.float32),
             redshift=redshift,
@@ -840,9 +840,9 @@ class HaloCatalog(OutputStructZ):
                 required += [
                     "halo_masses",
                     "halo_coords",
-                    "star_rng",
-                    "sfr_rng",
-                    "xray_rng",
+                    "sfr_10",
+                    "sfr_100",
+                    "stellar_mass",
                 ]
         else:
             raise ValueError(
@@ -971,9 +971,9 @@ class PerturbedHaloCatalog(OutputStructZ):
             required += [
                 "halo_coords",
                 "halo_masses",
-                "star_rng",
-                "sfr_rng",
-                "xray_rng",
+                "sfr_10",
+                "sfr_100",
+                "stellar_mass",
             ]
         else:
             raise ValueError(
