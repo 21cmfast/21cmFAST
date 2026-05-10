@@ -749,7 +749,6 @@ class PerturbedField(OutputStructZ):
         """Compute the function."""
         return self._compute(
             allow_already_computed,
-            self.redshift,
             ics,
         )
 
@@ -860,8 +859,6 @@ class HaloCatalog(OutputStructZ):
         """Compute the function."""
         return self._compute(
             allow_already_computed,
-            self.desc_redshift,
-            self.redshift,
             ics,
             ics.random_seed,
             descendant_halos,
@@ -982,7 +979,6 @@ class PerturbedHaloCatalog(OutputStructZ):
         """Compute the function."""
         return self._compute(
             allow_already_computed,
-            self.redshift,
             ics,
             previous_spin_temp,
             previous_ionize_box,
@@ -1106,7 +1102,6 @@ class HaloBox(OutputStructZ):
         """Compute the function."""
         return self._compute(
             allow_already_computed,
-            self.redshift,
             initial_conditions,
             halo_catalog,
             previous_halo_catalog,
@@ -1352,9 +1347,6 @@ class TsBox(OutputStructZ):
         """Compute the function."""
         return self._compute(
             allow_already_computed,
-            self.redshift,
-            prev_spin_temp.redshift,
-            perturbed_field.redshift,
             cleanup,
             perturbed_field,
             xray_source_box,
@@ -1519,8 +1511,6 @@ class IonizedBox(OutputStructZ):
         """Compute the function."""
         return self._compute(
             allow_already_computed,
-            self.redshift,
-            prev_perturbed_field.redshift,
             perturbed_field,
             prev_perturbed_field,
             prev_ionize_box,
@@ -1611,7 +1601,6 @@ class BrightnessTemp(OutputStructZ):
         """Compute the function."""
         return self._compute(
             allow_already_computed,
-            self.redshift,
             spin_temp,
             ionized_box,
             perturbed_field,
