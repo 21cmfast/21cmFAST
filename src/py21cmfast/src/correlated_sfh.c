@@ -55,12 +55,12 @@ static SFH_matrices sfh_mats;
 void print_gsl_matrix(gsl_matrix *mat, const char *label) {
     int nrows = mat->size1;
     int ncols = mat->size2;
-    fprintf(stdout, "%s\n", label);
+    fprintf(stderr, "%s\n", label);
     for (int i = 0; i < nrows; i++) {
         for (int j = 0; j < ncols; j++) {
-            fprintf(stdout, "%9.4f ", gsl_matrix_get(mat, i, j));
+            fprintf(stderr, "%9.4f ", gsl_matrix_get(mat, i, j));
         }
-        fprintf(stdout, "\n");
+        fprintf(stderr, "\n");
     }
 }
 
@@ -427,9 +427,9 @@ void initialise_sfh_structs(double z0, double z1, double z2, bool conditioned) {
     double tau = astro_params_global->SFH_TAU * 100;  // long timescale for uncorrelated sampling
     double tau_prev = astro_params_global->SFH_TAU * 100;
     if (conditioned) {
-        tau = time_between_z(z0, z1) / (physconst.s_per_yr * 1e6);  // Myr
+        tau = time_between_z(z1, z0) / (physconst.s_per_yr * 1e6);  // Myr
         if (z2 >= 0.) {
-            tau_prev = time_between_z(z1, z2) / (physconst.s_per_yr * 1e6);  // Myr
+            tau_prev = time_between_z(z2, z1) / (physconst.s_per_yr * 1e6);  // Myr
         }
     }
     LOG_DEBUG("Initialising SFH structs with tau = %f Myr and tau_prev = %f Myr", tau, tau_prev);
