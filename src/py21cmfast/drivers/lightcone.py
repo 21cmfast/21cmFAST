@@ -405,7 +405,7 @@ def setup_lightcone_instance(
     return lightcone
 
 
-def _run_lightcone_from_perturbed_fields(
+def _run_lightcone_from_perturbed_fields(  # noqa: C901
     *,
     initial_conditions: InitialConditions,
     perturbed_fields: Sequence[PerturbedField],
@@ -521,8 +521,6 @@ def _run_lightcone_from_perturbed_fields(
                     lightcone_filename, lcidx=lc_index, node_index=iz
                 )
 
-        prev_coeval = coeval
-
         # last redshift things
         if iz == len(scrollz) - 1:
             if lib.photon_cons_allocated:
@@ -569,6 +567,17 @@ def _run_lightcone_from_perturbed_fields(
                 lightcone = lightcone.trim(lc_distances.min(), lc_distances.max())
 
         yield iz, coeval.redshift, coeval, lightcone
+
+        # Purge the previous coeval after we're done with it
+        # Note: we do not attempt to purge halo box from prev_coeval, since it used in compute_xray_source_field.
+        #       The purge of the halo boxes is ultimately done in HaloBox.prepare_for_next_snapshot().
+        #       Meanwhile, fields from initial_conditions are removed via prepare_for_perturb and prepare_for_spin_temp
+        if prev_coeval is not None:
+            prev_coeval.prepare_for_next_snapshot(
+                keep=["initial_conditions", "halo_box"], force=True
+            )
+
+        prev_coeval = coeval
 
 
 @high_level_func

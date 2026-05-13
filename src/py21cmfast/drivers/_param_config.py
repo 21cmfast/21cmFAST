@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import contextlib
 import functools
+import gc
 import inspect
 import logging
 from collections.abc import Sequence
@@ -24,6 +25,18 @@ from ..wrapper.outputs import OutputStruct, OutputStructZ, _HashType
 from ..wrapper.photoncons import _photoncons_state
 
 logger = logging.getLogger(__name__)
+
+
+@contextlib.contextmanager
+def _disable_gc_context():
+    """Context manager that disables GC for its block, restoring prior state."""
+    was_enabled = gc.isenabled()
+    gc.disable()
+    try:
+        yield
+    finally:
+        if was_enabled:
+            gc.enable()
 
 
 def check_redshift_consistency(
@@ -493,5 +506,8 @@ class high_level_func(_OutputStructComputationInspect):  # noqa: N801
             kwargs["inputs"] = inputs
 
         self.check_consistency(kwargs, outputs)
-
-        yield from self._func(**kwargs)
+        # Disable the garbage collector: when enabled, it interferes with glibc's
+        # memory recycling, causing memory fragmentation. Disabling it allows glibc
+        # to recycle memory more efficiently.
+        with _disable_gc_context():
+            yield from self._func(**kwargs)
