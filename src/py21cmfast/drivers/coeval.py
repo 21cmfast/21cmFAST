@@ -647,11 +647,11 @@ def generate_coeval(
 
         # Purge the previous coeval after we're done with it
         # Note: we do not attempt to purge halo box from prev_coeval, since it used in compute_xray_source_field.
-        #       Halo boxes are ultimately purged in halo_box.prepare_for_next_snapshot().
+        #       Halo boxes are ultimately purged in halobox.prepare_for_next_snapshot().
         #       Meanwhile, unnecessary fields from initial_conditions were removed via prepare_for_perturb and prepare_for_spin_temp
         if prev_coeval is not None and prev_coeval.redshift not in out_redshifts:
             prev_coeval.prepare_for_next_snapshot(
-                keep=["initial_conditions", "halo_box"], force=True
+                keep=["initial_conditions", "halobox"], force=True
             )
 
         prev_coeval = coeval
