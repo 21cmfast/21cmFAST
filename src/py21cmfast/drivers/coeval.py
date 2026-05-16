@@ -197,6 +197,28 @@ class Coeval:
         """Random seed shared by all datasets."""
         return self.inputs.random_seed
 
+    def prepare_for_next_snapshot(
+        self,
+        keep: Sequence[str] | None = None,
+        force: bool = False,
+    ):
+        """Purge intermediate computational fields to save memory.
+
+        Purges all output structs except those specified in `keep`.
+
+        Parameters
+        ----------
+        keep : list[str], optional
+            Names of structs to keep (not purge).
+        force : bool
+            Force purge even if not saved to disk.
+        """
+        keep = set(keep or [])
+
+        for name, struct in self.output_structs.items():
+            if name not in keep and struct is not None:
+                struct.purge(force=force)
+
     def save(self, path: str | Path, clobber=False):
         """Save the Coeval object to disk."""
         path = Path(path)
@@ -607,6 +629,8 @@ def generate_coeval(
     if idx > 0:
         idx = np.argmin(np.fabs(np.array(all_redshifts) - inputs.node_redshifts[idx]))
 
+    prev_coeval = None
+
     for _, coeval in _redshift_loop_generator(  # noqa: B020
         inputs=inputs,
         all_redshifts=all_redshifts,
@@ -622,6 +646,17 @@ def generate_coeval(
         start_idx=idx + 1,
     ):
         yield coeval, coeval.redshift in out_redshifts
+
+        # Purge the previous coeval after we're done with it
+        # Note: we do not attempt to purge halo box from prev_coeval, since it used in compute_xray_source_field.
+        #       Halo boxes are ultimately purged in halobox.prepare_for_next_snapshot().
+        #       Meanwhile, unnecessary fields from initial_conditions were removed via prepare_for_perturb and prepare_for_spin_temp
+        if prev_coeval is not None and prev_coeval.redshift not in out_redshifts:
+            prev_coeval.prepare_for_next_snapshot(
+                keep=["initial_conditions", "halobox"], force=True
+            )
+
+        prev_coeval = coeval
 
     if lib.photon_cons_allocated:
         lib.FreePhotonConsMemory()
@@ -807,19 +842,14 @@ def _redshift_loop_generator(
                 photon_nonconservation_data=photon_nonconservation_data,
             )
 
-            # We purge previous fields and those we no longer need
-            if prev_coeval is not None:
-                if (
-                    inputs.simulation_options.HII_DIM > 1
-                ):  # No need to purge if we have just one cell
-                    prev_coeval.perturbed_field.purge()
-                if (
-                    inputs.matter_options.lagrangian_source_grid
-                    and write.halobox
-                    and iz + 1 < len(all_redshifts)
-                ):
-                    for hbox in hbox_arr:
-                        hbox.prepare_for_next_snapshot(next_z=all_redshifts[iz + 1])
+            if (
+                prev_coeval is not None
+                and inputs.matter_options.lagrangian_source_grid
+                and write.halobox
+                and iz + 1 < len(all_redshifts)
+            ):
+                for hbox in hbox_arr:
+                    hbox.prepare_for_next_snapshot(next_z=all_redshifts[iz + 1])
 
             if this_halofield is not None:
                 this_halofield.purge()

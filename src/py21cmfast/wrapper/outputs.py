@@ -164,6 +164,9 @@ class OutputStruct(ABC):
         return self.struct.cstruct
 
     def _init_arrays(self):
+        if self.dummy:
+            return
+
         for k, array in self.arrays.items():
             # Don't initialize C-based pointers or already-inited stuff, or stuff
             # that's computed on disk (if it's on disk, accessing the array should
