@@ -29,9 +29,8 @@
  when the code is run with redshift poor resolution and very high X-ray heating efficiency */
 #define MAX_TK (float)5e4
 
-void ts_main(float redshift, float prev_redshift, float perturbed_field_redshift, short cleanup,
-             PerturbedField *perturbed_field, XraySourceBox *source_box, TsBox *previous_spin_temp,
-             InitialConditions *ini_boxes, TsBox *this_spin_temp);
+void ts_main(short cleanup, PerturbedField *perturbed_field, XraySourceBox *source_box,
+             TsBox *previous_spin_temp, InitialConditions *ini_boxes, TsBox *this_spin_temp);
 
 // Global arrays which have yet to be moved to structs
 // R x box arrays
@@ -84,14 +83,10 @@ bool TsInterpArraysInitialised = false;
 // a debug flag for printing results from a single cell without passing cell number to the functions
 static int debug_printed;
 
-int ComputeTsBox(float redshift, float prev_redshift, float perturbed_field_redshift, short cleanup,
-                 PerturbedField *perturbed_field, XraySourceBox *source_box,
+int ComputeTsBox(short cleanup, PerturbedField *perturbed_field, XraySourceBox *source_box,
                  TsBox *previous_spin_temp, InitialConditions *ini_boxes, TsBox *this_spin_temp) {
     int status;
     Try {  // This Try{} wraps the whole function.
-        LOG_DEBUG("Spintemp input values:");
-        LOG_DEBUG("redshift=%f, prev_redshift=%f perturbed_field_redshift=%f", redshift,
-                  prev_redshift, perturbed_field_redshift);
 
 #if LOG_LEVEL >= SUPER_DEBUG_LEVEL
         writeSimulationOptions(simulation_options_global);
@@ -106,8 +101,8 @@ int ComputeTsBox(float redshift, float prev_redshift, float perturbed_field_reds
         omp_set_num_threads(simulation_options_global->N_THREADS);
         debug_printed = 0;
 
-        ts_main(redshift, prev_redshift, perturbed_field_redshift, cleanup, perturbed_field,
-                source_box, previous_spin_temp, ini_boxes, this_spin_temp);
+        ts_main(cleanup, perturbed_field, source_box, previous_spin_temp, ini_boxes,
+                this_spin_temp);
 
     }  // End of try
     Catch(status) { return (status); }
@@ -882,18 +877,18 @@ void fill_freqint_tables(double zp, double x_e_ave, double filling_factor_of_HI_
 
 // construct a Ts table above Z_HEAT_MAX, this can happen if we are computing the first box or if we
 // request a redshift above Z_HEAT_MAX
-void init_first_Ts(TsBox *box, float *dens, float z, float zp, double *x_e_ave, double *Tk_ave) {
+void init_first_Ts(TsBox *box, float *dens, float z, double *x_e_ave, double *Tk_ave) {
     unsigned long long int box_ct;
     // zp is the requested redshift, z is the perturbed field redshift
     float growth_factor_zp;
     float inverse_growth_factor_z;
     double xe, TK, cT_ad;
 
-    xe = xion_RECFAST(zp, 0);
-    TK = T_RECFAST(zp, 0);
-    cT_ad = cT_approx(zp);
+    xe = xion_RECFAST(z, 0);
+    TK = T_RECFAST(z, 0);
+    cT_ad = cT_approx(z);
 
-    growth_factor_zp = dicke(zp);
+    growth_factor_zp = dicke(z);
     inverse_growth_factor_z = 1 / dicke(z);
 
     *x_e_ave = xe;
@@ -1372,9 +1367,8 @@ struct Ts_cell get_Ts_fast(float zp, float dzp, struct spintemp_from_sfr_prefact
 }
 
 // outer-level function for calculating Ts based on the Halo boxes
-void ts_main(float redshift, float prev_redshift, float perturbed_field_redshift, short cleanup,
-             PerturbedField *perturbed_field, XraySourceBox *source_box, TsBox *previous_spin_temp,
-             InitialConditions *ini_boxes, TsBox *this_spin_temp) {
+void ts_main(short cleanup, PerturbedField *perturbed_field, XraySourceBox *source_box,
+             TsBox *previous_spin_temp, InitialConditions *ini_boxes, TsBox *this_spin_temp) {
     int R_ct;
     unsigned long long int box_ct;
     double x_e_ave_p, Tk_ave_p;
@@ -1392,9 +1386,16 @@ void ts_main(float redshift, float prev_redshift, float perturbed_field_redshift
         init_heat();
     }
 
+    // NOTE: If we re-allow other redshifts in perturbed_field, this will need to change
+    double redshift = get_current_redshift();
+    double prev_redshift = get_previous_redshift();
+
+    LOG_DEBUG("Spintemp input values:");
+    LOG_DEBUG("redshift=%f, prev_redshift=%f", redshift, prev_redshift);
+
     // NOTE: For the code to work, previous_spin_temp MUST be allocated &
     // calculated if redshift < Z_HEAT_MAX
-    growth_factor_z = dicke(perturbed_field_redshift);
+    growth_factor_z = dicke(redshift);
     inverse_growth_factor_z = 1. / growth_factor_z;
 
     growth_factor_zp = dicke(redshift);
@@ -1423,8 +1424,7 @@ void ts_main(float redshift, float prev_redshift, float perturbed_field_redshift
 
     if (redshift >= simulation_options_global->Z_HEAT_MAX) {
         LOG_DEBUG("redshift greater than Z_HEAT_MAX");
-        init_first_Ts(this_spin_temp, perturbed_field->density, perturbed_field_redshift, redshift,
-                      &x_e_ave_p, &Tk_ave_p);
+        init_first_Ts(this_spin_temp, perturbed_field->density, redshift, &x_e_ave_p, &Tk_ave_p);
         return;
     }
 

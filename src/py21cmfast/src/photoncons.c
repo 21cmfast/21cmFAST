@@ -165,9 +165,9 @@ int InitialisePhotonCons() {
                 z0 = 1. / (a + delta_a) - 1.;
                 z1 = 1. / (a - delta_a) - 1.;
 
-                sc_i = evolve_scaling_constants_to_redshift(zi, &sc_i, false);
-                sc_0 = evolve_scaling_constants_to_redshift(z0, &sc_i, false);
-                sc_1 = evolve_scaling_constants_to_redshift(z1, &sc_i, false);
+                sc_i = evolve_scaling_constants_to_redshift(zi, &sc_i);
+                sc_0 = evolve_scaling_constants_to_redshift(z0, &sc_i);
+                sc_1 = evolve_scaling_constants_to_redshift(z1, &sc_i);
                 // Ionizing emissivity (num of photons per baryon)
                 // We Force QAG due to the changing limits and messy implementation which I will fix
                 // later (hopefully move the whole thing to python)

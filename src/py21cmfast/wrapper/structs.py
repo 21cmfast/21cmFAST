@@ -31,7 +31,14 @@ class StructWrapper:
     cstruct = attrs.field(default=None)
     _ffi = attrs.field(default=ffi)
 
-    _TYPEMAP = bidict({"float32": "float *", "float64": "double *", "int32": "int *"})
+    _TYPEMAP = bidict(
+        {
+            "float32": "float *",
+            "float64": "double *",
+            "int32": "int *",
+            "int64": "long long unsigned int *",
+        }
+    )
 
     @_name.default
     def _name_default(self):

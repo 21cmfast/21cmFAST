@@ -238,6 +238,15 @@ void move_grid_galprops(double redshift, float *dens_pointer, int dens_dim[3],
     double prefactor_nion = prefactor_stars * consts->fesc_10 * consts->pop2_ion;
     double prefactor_nion_mini = prefactor_stars_mini * consts->fesc_7 * consts->pop3_ion;
 
+    // apply corrections
+    prefactor_stars = prefactor_stars * consts->sampled_mean_correction[2];
+    prefactor_stars_mini = prefactor_stars_mini * consts->sampled_mean_correction[2];
+    prefactor_xray = prefactor_xray * consts->sampled_mean_correction[0];
+    prefactor_sfr = prefactor_sfr * consts->sampled_mean_correction[0];
+    prefactor_sfr_mini = prefactor_sfr_mini * consts->sampled_mean_correction[0];
+    prefactor_nion = prefactor_nion * consts->sampled_mean_correction[2];
+    prefactor_nion_mini = prefactor_nion_mini * consts->sampled_mean_correction[2];
+
     // Setup IC velocity factors
     double growth_factor = dicke(redshift);
     double displacement_factor_2LPT = -(3.0 / 7.0) * growth_factor * growth_factor;  // 2LPT eq. D8
@@ -338,7 +347,7 @@ void move_grid_galprops(double redshift, float *dens_pointer, int dens_dim[3],
         }
     }
     // Without stochasticity, these grids are the same to a constant
-    double prefactor_wsfr = 1 / consts->t_h / consts->t_star;
+    double prefactor_wsfr = 1 / consts->t_h / consts->t_star * consts->integral_mean_correction[1];
     if (astro_options_global->INHOMO_RECO) {
         for (int i = 0; i < HII_TOT_NUM_PIXELS; i++) {
             boxes->whalo_sfr[i] = boxes->n_ion[i] * prefactor_wsfr;
@@ -346,7 +355,8 @@ void move_grid_galprops(double redshift, float *dens_pointer, int dens_dim[3],
     }
 }
 
-void move_halo_galprops(double redshift, HaloCatalog *halos, float *vel_pointers[3],
+void move_halo_galprops(HaloCatalog *halos, float *progenitor_hm, float *progenitor_sm,
+                        float *progenitor_sm_mini, float *vel_pointers[3],
                         float *vel_pointers_2LPT[3], int vel_dim[3], float *mturn_a_grid,
                         float *mturn_m_grid, HaloBox *boxes, int out_dim[3],
                         ScalingConstants *consts) {
@@ -357,6 +367,9 @@ void move_halo_galprops(double redshift, HaloCatalog *halos, float *vel_pointers
     double cell_size_inv_v = vel_dim[0] / simulation_options_global->BOX_LEN;
     double cell_size_inv_o = out_dim[0] / simulation_options_global->BOX_LEN;
     double cell_vol_inv = cell_size_inv_o * cell_size_inv_o * cell_size_inv_o;
+
+    double redshift = get_current_redshift();
+    double snapshot_time = time_between_z(get_previous_redshift(), redshift);
 
     // Setup IC velocity factors
     double growth_factor = dicke(redshift);
@@ -381,6 +394,8 @@ void move_halo_galprops(double redshift, HaloCatalog *halos, float *vel_pointers
         double M_turn_m = consts->mturn_m_nofb;
         double halo_rng[3];
         double hmass;
+        double prog_hm;
+        double prog_sm[2];
 #pragma omp for
         for (i = 0; i < halos->n_halos; i++) {
             hmass = halos->halo_masses[i];
@@ -414,16 +429,20 @@ void move_halo_galprops(double redshift, HaloCatalog *halos, float *vel_pointers
                 M_turn_a = pow(10, cic_read_float(mturn_a_grid, pos, out_dim));
                 M_turn_m = pow(10, cic_read_float(mturn_m_grid, pos, out_dim));
             }
-            halo_rng[0] = halos->star_rng[i];
-            halo_rng[1] = halos->sfr_rng[i];
-            halo_rng[2] = halos->xray_rng[i];
+            halo_rng[0] = halos->sfr_10[i];
+            halo_rng[1] = halos->sfr_100[i];
+            halo_rng[2] = halos->stellar_mass[i];
 
             // CIC interpolation
-            set_halo_properties(hmass, M_turn_a, M_turn_m, consts, halo_rng, &properties);
-            do_cic_interpolation(boxes->halo_sfr, pos, out_dim, properties.halo_sfr);
+            prog_hm = progenitor_hm[i];
+            prog_sm[0] = progenitor_sm[i];
+            prog_sm[1] = progenitor_sm_mini[i];
+            set_halo_properties(snapshot_time, hmass, M_turn_a, M_turn_m, prog_hm, prog_sm, consts,
+                                halo_rng, &properties);
+            do_cic_interpolation(boxes->halo_sfr, pos, out_dim, properties.sfr_10);
             do_cic_interpolation(boxes->n_ion, pos, out_dim, properties.n_ion);
             if (astro_options_global->USE_MINI_HALOS) {
-                do_cic_interpolation(boxes->halo_sfr_mini, pos, out_dim, properties.sfr_mini);
+                do_cic_interpolation(boxes->halo_sfr_mini, pos, out_dim, properties.sfr_10_mcg);
             }
             if (astro_options_global->USE_TS_FLUCT) {
                 do_cic_interpolation(boxes->halo_xray, pos, out_dim, properties.halo_xray);
@@ -441,14 +460,21 @@ void move_halo_galprops(double redshift, HaloCatalog *halos, float *vel_pointers
                 }
             }
 
+            // feed back the halo properties we need to store onto the HaloCatalog
+            // NOTE: these probably won't be cached and are purged at the end of the snapshot
+            // TODO: make it very clear what's in the struct at what stage
+            halos->sfr_10[i] = properties.sfr_10;  // TODO: we don't need to store this really
+            halos->sfr_100[i] = properties.stellar_mass_mini;  // TODO:naming is misleading here
+            halos->stellar_mass[i] = properties.stellar_mass;
+
 #if LOG_LEVEL >= ULTRA_DEBUG_LEVEL
             if (i < 10) {
                 LOG_ULTRA_DEBUG(
                     "First 10 Halos: HM: %.2e SM: %.2e (%.2e) SF: %.2e (%.2e) X: %.2e NI: %.2e WS: "
                     "%.2e Z : %.2e ct : %llu",
-                    hmass, properties.stellar_mass, properties.stellar_mass_mini,
-                    properties.halo_sfr, properties.sfr_mini, properties.halo_xray,
-                    properties.n_ion, properties.fescweighted_sfr, properties.metallicity, i);
+                    hmass, properties.stellar_mass, properties.stellar_mass_mini, properties.sfr_10,
+                    properties.sfr_10_mcg, properties.halo_xray, properties.n_ion,
+                    properties.fescweighted_sfr, properties.metallicity, i);
                 LOG_ULTRA_DEBUG("Mturn_a %.2e Mturn_m %.2e RNG %.3f %.3f %.3f", M_turn_a, M_turn_m,
                                 halo_rng[0], halo_rng[1], halo_rng[2]);
             }

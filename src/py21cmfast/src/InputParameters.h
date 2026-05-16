@@ -13,4 +13,11 @@ void Broadcast_struct_global_all(SimulationOptions *simulation_options,
 void Broadcast_struct_global_noastro(SimulationOptions *simulation_options,
                                      MatterOptions *matter_options, CosmoParams *cosmo_params);
 
+void Broadcast_snapshot_info(int n_nodes, double *node_redshifts, int curr_node);
+
+double get_redshift_relative(int offset);
+double get_current_redshift();
+double get_previous_redshift();
+double get_descendant_redshift();
+
 #endif

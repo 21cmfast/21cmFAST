@@ -4,8 +4,7 @@
 #include "InputParameters.h"
 #include "OutputStructs.h"
 
-int ComputePerturbedHaloCatalog(float redshift, InitialConditions *boxes, TsBox *prev_ts,
-                                IonizedBox *prev_ion, HaloCatalog *halos,
-                                PerturbedHaloCatalog *halos_perturbed);
+int ComputePerturbedHaloCatalog(InitialConditions *boxes, TsBox *prev_ts, IonizedBox *prev_ion,
+                                HaloCatalog *halos, PerturbedHaloCatalog *halos_perturbed);
 
 #endif

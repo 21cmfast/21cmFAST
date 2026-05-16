@@ -1310,13 +1310,14 @@ void set_recombination_rates(IonizedBox *box, IonizedBox *previous_ionize_box,
     }
 }
 
-int ComputeIonizedBox(float redshift, float prev_redshift, PerturbedField *perturbed_field,
-                      PerturbedField *previous_perturbed_field, IonizedBox *previous_ionize_box,
-                      TsBox *spin_temp, HaloBox *halos, InitialConditions *ini_boxes,
-                      IonizedBox *box) {
+int ComputeIonizedBox(PerturbedField *perturbed_field, PerturbedField *previous_perturbed_field,
+                      IonizedBox *previous_ionize_box, TsBox *spin_temp, HaloBox *halos,
+                      InitialConditions *ini_boxes, IonizedBox *box) {
     int status;
 
     Try {  // This Try brackets the whole function, so we don't indent.
+        double redshift = get_current_redshift();
+        double prev_redshift = get_previous_redshift();
         LOG_DEBUG("input values:");
         LOG_DEBUG("redshift=%f, prev_redshift=%f", redshift, prev_redshift);
 #if LOG_LEVEL >= DEBUG_LEVEL

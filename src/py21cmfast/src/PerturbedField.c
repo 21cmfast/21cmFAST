@@ -382,8 +382,7 @@ void compute_perturbed_velocities(unsigned short axis, double redshift,
                       simulation_options_global->HII_DIM, HII_D_PARA, "  ");
 }
 
-int ComputePerturbedField(float redshift, InitialConditions *boxes,
-                          PerturbedField *perturbed_field) {
+int ComputePerturbedField(InitialConditions *boxes, PerturbedField *perturbed_field) {
     /*
      ComputePerturbedField uses the first-order Langragian displacement field to move the
      masses in the cells of the density field. The high-res density field is extrapolated
@@ -395,6 +394,7 @@ int ComputePerturbedField(float redshift, InitialConditions *boxes,
     int status;
     Try {  // This Try{} wraps the whole function, so we don't indent.
 
+        double redshift = get_current_redshift();
         // Makes the parameter structs visible to a variety of functions/macros
         // Do each time to avoid Python garbage collection issues
 

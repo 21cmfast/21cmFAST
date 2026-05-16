@@ -5,30 +5,24 @@
 /* OutputStruct COMPUTE FUNCTIONS */
 int ComputeInitialConditions(unsigned long long random_seed, InitialConditions *boxes);
 
-int ComputePerturbedField(float redshift, InitialConditions *boxes,
-                          PerturbedField *perturbed_field);
+int ComputePerturbedField(InitialConditions *boxes, PerturbedField *perturbed_field);
 
-int ComputeHaloCatalog(float redshift_desc, float redshift, InitialConditions *boxes,
-                       unsigned long long int random_seed, HaloCatalog *halos_desc,
-                       HaloCatalog *halos);
+int ComputeHaloCatalog(InitialConditions *boxes, unsigned long long int random_seed,
+                       HaloCatalog *halos_desc, HaloCatalog *halos);
 
-int ComputePerturbedHaloCatalog(float redshift, InitialConditions *boxes, TsBox *prev_ts,
-                                IonizedBox *prev_ion, HaloCatalog *halos,
-                                PerturbedHaloCatalog *halos_perturbed);
+int ComputePerturbedHaloCatalog(InitialConditions *boxes, TsBox *prev_ts, IonizedBox *prev_ion,
+                                HaloCatalog *halos, PerturbedHaloCatalog *halos_perturbed);
 
-int ComputeTsBox(float redshift, float prev_redshift, float perturbed_field_redshift, short cleanup,
-                 PerturbedField *perturbed_field, XraySourceBox *source_box,
-                 TsBox *previous_spin_temp, InitialConditions *ini_boxes, TsBox *this_spin_temp);
+int ComputeTsBox(InitialConditions *boxes, TsBox *prev_ts, XraySourceBox *source_box,
+                 TsBox *this_spin_temp);
+int ComputeIonizedBox(PerturbedField *perturbed_field, PerturbedField *previous_perturbed_field,
+                      IonizedBox *previous_ionize_box, TsBox *spin_temp, HaloBox *halos,
+                      InitialConditions *ini_boxes, IonizedBox *box);
 
-int ComputeIonizedBox(float redshift, float prev_redshift, PerturbedField *perturbed_field,
-                      PerturbedField *previous_perturbed_field, IonizedBox *previous_ionize_box,
-                      TsBox *spin_temp, HaloBox *halos, InitialConditions *ini_boxes,
-                      IonizedBox *box);
+int ComputeBrightnessTemp(TsBox *spin_temp, IonizedBox *ionized_box, PerturbedField *perturb_field,
+                          BrightnessTemp *box);
 
-int ComputeBrightnessTemp(float redshift, TsBox *spin_temp, IonizedBox *ionized_box,
-                          PerturbedField *perturb_field, BrightnessTemp *box);
-
-int ComputeHaloBox(double redshift, InitialConditions *ini_boxes, HaloCatalog *halos,
+int ComputeHaloBox(InitialConditions *ini_boxes, HaloCatalog *halos, HaloCatalog *halos_prev,
                    TsBox *previous_spin_temp, IonizedBox *previous_ionize_box, HaloBox *grids);
 
 int UpdateXraySourceBox(HaloBox *halobox, double R_inner, double R_outer, int R_ct,
@@ -74,6 +68,8 @@ void Broadcast_struct_global_all(SimulationOptions *simulation_options,
                                  MatterOptions *matter_options, CosmoParams *cosmo_params,
                                  AstroParams *astro_params, AstroOptions *astro_options,
                                  CosmoTables *cosmo_tables);
+void Broadcast_snapshot_info(int n_nodes, double *node_redshifts, int curr_node);
+
 void Free_cosmo_tables_global();
 void initialiseSigmaMInterpTable(float M_Min, float M_Max);
 void initialise_GL(double lnM_Min, double lnM_Max);
@@ -119,6 +115,7 @@ int test_halo_props(double redshift, float *vcb_grid, float *J21_LW_grid, float 
                     float *Gamma12_ion_grid, int n_halos, float *halo_masses, float *halo_coords,
                     float *star_rng, float *sfr_rnd, float *xray_rng, float *halo_props_out);
 int test_filter(float *input_box, double R, double R_param, int filter_flag, double *result);
+int test_sfh_corr(double z0, double z1, double z2);
 
 /* Functions required to access cosmology & mass functions directly */
 double dicke(double z);

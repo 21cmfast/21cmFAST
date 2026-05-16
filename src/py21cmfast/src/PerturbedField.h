@@ -4,7 +4,6 @@
 #include "InputParameters.h"
 #include "OutputStructs.h"
 
-int ComputePerturbedField(float redshift, InitialConditions *boxes,
-                          PerturbedField *perturbed_field);
+int ComputePerturbedField(InitialConditions *boxes, PerturbedField *perturbed_field);
 
 #endif

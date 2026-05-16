@@ -13,7 +13,8 @@ void move_grid_galprops(double redshift, float *dens_pointer, int dens_dim[3],
                         HaloBox *boxes, int out_dim[3], float *mturn_a_grid, float *mturn_m_grid,
                         ScalingConstants *consts, IntegralCondition *integral_cond);
 
-void move_halo_galprops(double redshift, HaloCatalog *halos, float *vel_pointers[3],
+void move_halo_galprops(HaloCatalog *halos, float *progenitor_hm, float *progenitor_sm,
+                        float *progenitor_sm_mini, float *vel_pointers[3],
                         float *vel_pointers_2LPT[3], int vel_dim[3], float *mturn_a_grid,
                         float *mturn_m_grid, HaloBox *boxes, int out_dim[3],
                         ScalingConstants *consts);

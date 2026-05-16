@@ -703,7 +703,8 @@ double dicke(double z) {
 }
 
 /* function DTDZ returns the value of dt/dz at the redshift parameter z. */
-double dtdz(float z) {
+// TODO: This is equivalent to 1/(1+z) * H(z), figure out why it's like this
+double dtdz(double z) {
     double x, dxdz, const1, denom, numer;
     x = sqrt(cosmo_params_global->OMl / cosmo_params_global->OMm) * pow(1 + z, -3.0 / 2.0);
     dxdz = sqrt(cosmo_params_global->OMl / cosmo_params_global->OMm) * pow(1 + z, -5.0 / 2.0) *
@@ -772,3 +773,28 @@ double t_hubble(float z) { return 1.0 / hubble(z); }
 
 /* comoving distance (in cm) per unit redshift */
 double drdz(float z) { return (1.0 + z) * physconst.c_cms * dtdz(z); }
+
+// NB: this will be positive when z_low < z_high
+double time_between_z(double z_low, double z_high) {
+    double result, error;
+    gsl_function F;
+    double rel_tol = 1e-4;  //<- relative tolerance
+    int w_size = 1000;
+    gsl_integration_workspace *w = gsl_integration_workspace_alloc(w_size);
+
+    int status;
+    F.function = &dtdz;
+
+    gsl_set_error_handler_off();
+    status = gsl_integration_qag(&F, z_high, z_low, 0, rel_tol, w_size, GSL_INTEG_GAUSS61, w,
+                                 &result, &error);
+
+    if (status != 0) {
+        LOG_ERROR("gsl integration error occured!");
+        LOG_ERROR("z_low = %.4e z_high = %.4e", z_low, z_high);
+        CATCH_GSL_ERROR(status);
+    }
+
+    gsl_integration_workspace_free(w);
+    return result;
+}

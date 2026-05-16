@@ -22,9 +22,21 @@ typedef struct HaloCatalog {
     float *halo_coords;
 
     // Halo properties for stochastic model
-    float *star_rng;
-    float *sfr_rng;
-    float *xray_rng;
+    // before the forward loop (sfh_computed==false) these are
+    // sfr_10: Stochastic component for SFR averaged over 10 Myr
+    // sfr_100: Stochastic component for SFR averaged over 100 Myr
+    // stellar_mass: Stochastic component for SFR averaged over the last snapshot
+    // TODO: give these more generic names
+    float *sfr_10;
+    float *sfr_100;
+    float *stellar_mass;
+    // After the forward loop (sfh_computed == true), these are
+    //  sfr_10: SFR averaged over 10 Myr
+    //  sfr_100: total stellar mass in ACG
+    //  stellar_mass: total stellar mass in MCG
+
+    long long unsigned int *descendant_index;
+    bool sfh_computed;
 } HaloCatalog;
 
 typedef struct PerturbedHaloCatalog {

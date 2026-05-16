@@ -1266,6 +1266,10 @@ class AstroParams(InputStruct):
         The maximum frequency of the X-ray band used to calculate the X-ray Luminosity.
     NU_X_MAX: float, optional
         The maximum frequency of the integrals over nu for the x-ray heating/ionisation rates.
+    SFH_TAU: float, optional
+        The time-scale in Myr of at which the PSD of star formation rate fluctuations decay.
+    SFH_INDEX: float, optional
+        The power-law index of the PSD of star formation rate fluctuations.
     """
 
     HII_EFF_FACTOR: float = field(
@@ -1378,6 +1382,10 @@ class AstroParams(InputStruct):
     NU_X_MAX: float = field(
         default=10000.0, converter=float, validator=validators.gt(0)
     )
+
+    # TODO: default values pending, taken from the CIGALE / Carvahal-Bohorquez et al. 2025
+    SFH_TAU: float = field(default=150.0, converter=float, validator=validators.gt(0))
+    SFH_INDEX: float = field(default=2.0, converter=float)
 
     # set the default of the minihalo scalings to continue the same PL
     @F_STAR7_MINI.default

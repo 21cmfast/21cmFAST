@@ -24,7 +24,7 @@ logger = logging.getLogger(__name__)
 # TODO: a lot of these assume input as numpy arrays via use of .shape, explicitly require this
 
 
-def broadcast_input_struct(inputs: InputParameters):
+def broadcast_input_struct(inputs: InputParameters, redshift: float | None = None):
     """Broadcast the parameters to the C library."""
     lib.Broadcast_struct_global_all(
         inputs.simulation_options.cstruct,
@@ -34,6 +34,14 @@ def broadcast_input_struct(inputs: InputParameters):
         inputs.astro_options.cstruct,
         inputs.cosmo_tables.cstruct,
     )
+    if redshift is not None:
+        lib.Broadcast_snapshot_info(
+            len(inputs.node_redshifts),
+            ffi.cast(
+                "double*", np.array(inputs.node_redshifts, dtype="f8").ctypes.data
+            ),
+            inputs.node_redshifts.index(redshift),
+        )
 
 
 def free_cosmo_tables():
@@ -41,7 +49,7 @@ def free_cosmo_tables():
     lib.Free_cosmo_tables_global()
 
 
-def broadcast_params(func: Callable) -> Callable:
+def broadcast_params(func: Callable, redshift: float | None = None) -> Callable:
     """Broadcast the parameters to the C library before calling the function.
 
     This should be added as a decorator to any function which accesses the
@@ -1018,4 +1026,32 @@ def return_chmf_value(
         delta_values[:, None, None],
         sigma[None, :, None],
         inputs.matter_options.cdict["HMF"],
+    )
+
+
+@broadcast_params
+def test_sfh_print(
+    *,
+    inputs: InputParameters,
+    z0: float,
+    z1: float,
+    z2: float,
+):
+    """Test the SFH printing function from the backend.
+
+    Parameters
+    ----------
+    inputs : InputParameters
+        The input parameters defining the simulation run.
+    z0 : float
+        The current redshift.
+    z1 : float
+        The previous redshift.
+    z2 : float
+        The second previous redshift.
+    """
+    lib.test_sfh_corr(
+        z0,
+        z1,
+        z2,
     )

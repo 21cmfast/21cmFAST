@@ -19,10 +19,11 @@
 #include "indexing.h"
 #include "logger.h"
 
-int ComputeBrightnessTemp(float redshift, TsBox *spin_temp, IonizedBox *ionized_box,
-                          PerturbedField *perturb_field, BrightnessTemp *box) {
+int ComputeBrightnessTemp(TsBox *spin_temp, IonizedBox *ionized_box, PerturbedField *perturb_field,
+                          BrightnessTemp *box) {
     int status;
     Try {  // Try block around whole function.
+        double redshift = get_current_redshift();
         LOG_DEBUG("Starting Brightness Temperature calculation for redshift %f", redshift);
         // Makes the parameter structs visible to a variety of functions/macros
         // Do each time to avoid Python garbage collection issues
