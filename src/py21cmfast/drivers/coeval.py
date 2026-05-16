@@ -199,7 +199,7 @@ class Coeval:
 
     def prepare_for_next_snapshot(
         self,
-        keep: Sequence[str] | None = [],
+        keep: Sequence[str] | None = None,
         force: bool = False,
     ):
         """Purge intermediate computational fields to save memory.
@@ -213,6 +213,8 @@ class Coeval:
         force : bool
             Force purge even if not saved to disk.
         """
+        keep = set(keep or [])
+
         for name, struct in self.output_structs.items():
             if name not in keep and struct is not None:
                 struct.purge(force=force)

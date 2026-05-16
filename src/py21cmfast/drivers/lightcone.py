@@ -19,8 +19,8 @@ from ..c_21cmfast import lib
 from ..io import h5
 from ..io.caching import CacheConfig, OutputCache
 from ..lightconers import Lightconer, RectilinearLightconer
-from ..rsds import apply_rsds as do_rsds
-from ..rsds import include_dvdr_in_tau21 as do_dvdr_in_tau21
+from ..rsds import apply_rsds as _apply_rsds
+from ..rsds import include_dvdr_in_tau21 as _apply_dvdr_in_tau21
 from ..wrapper.inputs import InputParameters
 from ..wrapper.outputs import (
     BrightnessTemp,
@@ -246,6 +246,68 @@ class LightCone:
             self._last_completed_lcidx = lcidx
             self._last_completed_node = node_index
 
+    def _finalize_lightcone_at_last_redshift(
+        self,
+        iz: int,
+        scrollz: np.ndarray,
+        include_dvdr_in_tau21: bool,
+        apply_rsds: bool,
+        n_rsd_subcells: int,
+        inputs: InputParameters,
+        lightconer: Lightconer,
+        lc_distances: np.ndarray,
+        lowz_buffer_pixels: int,
+        highz_buffer_pixels: int,
+        lightcone_filename: str | Path | None,
+    ) -> Self:
+        """Finalize lightcone at the last redshift (apply dvdr, rsds, trim)."""
+        if iz != len(scrollz) - 1:
+            return self
+
+        if lib.photon_cons_allocated:
+            lib.FreePhotonConsMemory()
+
+        if include_dvdr_in_tau21:
+            self.lightcones["brightness_temp"] = _apply_dvdr_in_tau21(
+                brightness_temp=self.lightcones["brightness_temp"],
+                los_velocity=self.lightcones["los_velocity"],
+                redshifts=self.lightcone_redshifts,
+                inputs=inputs,
+                tau_21=(
+                    self.lightcones["tau_21"]
+                    if inputs.astro_options.USE_TS_FLUCT
+                    else None
+                ),
+                periodic=False,
+            )
+
+        if apply_rsds:
+            for q in lightconer.quantities:
+                field_with_rsds = _apply_rsds(
+                    field=self.lightcones[q],
+                    los_velocity=self.lightcones["los_velocity"],
+                    redshifts=self.lightcone_redshifts,
+                    inputs=inputs,
+                    periodic=False,
+                    n_rsd_subcells=n_rsd_subcells,
+                )
+
+                self.lightcones[q + "_with_rsds"] = field_with_rsds
+
+                if lightcone_filename:
+                    if Path(lightcone_filename).exists():
+                        with h5py.File(lightcone_filename, "a") as fl:
+                            fl["lightcones"][q + "_with_rsds"] = field_with_rsds
+                    else:
+                        self.save(
+                            lightcone_filename,
+                            lowz_buffer_pixels=lowz_buffer_pixels,
+                            highz_buffer_pixels=highz_buffer_pixels,
+                        )
+
+            self = self.trim(lc_distances.min(), lc_distances.max())
+        return self
+
     def trim(self, mind: units.Quantity, maxd: units.Quantity) -> Self:
         """Create a new lightcone box containing only the desired distances range."""
         inds = np.logical_and(
@@ -405,7 +467,7 @@ def setup_lightcone_instance(
     return lightcone
 
 
-def _run_lightcone_from_perturbed_fields(  # noqa: C901
+def _run_lightcone_from_perturbed_fields(
     *,
     initial_conditions: InitialConditions,
     perturbed_fields: Sequence[PerturbedField],
@@ -523,48 +585,19 @@ def _run_lightcone_from_perturbed_fields(  # noqa: C901
 
         # last redshift things
         if iz == len(scrollz) - 1:
-            if lib.photon_cons_allocated:
-                lib.FreePhotonConsMemory()
-
-            if include_dvdr_in_tau21:
-                lightcone.lightcones["brightness_temp"] = do_dvdr_in_tau21(
-                    brightness_temp=lightcone.lightcones["brightness_temp"],
-                    los_velocity=lightcone.lightcones["los_velocity"],
-                    redshifts=lightcone.lightcone_redshifts,
-                    inputs=inputs,
-                    tau_21=(
-                        lightcone.lightcones["tau_21"]
-                        if inputs.astro_options.USE_TS_FLUCT
-                        else None
-                    ),
-                    periodic=False,
-                )
-
-            if apply_rsds:
-                for q in lightconer.quantities:
-                    field_with_rsds = do_rsds(
-                        field=lightcone.lightcones[q],
-                        los_velocity=lightcone.lightcones["los_velocity"],
-                        redshifts=lightcone.lightcone_redshifts,
-                        inputs=inputs,
-                        periodic=False,
-                        n_rsd_subcells=n_rsd_subcells,
-                    )
-
-                    lightcone.lightcones[q + "_with_rsds"] = field_with_rsds
-
-                    if lightcone_filename:
-                        if Path(lightcone_filename).exists():
-                            with h5py.File(lightcone_filename, "a") as fl:
-                                fl["lightcones"][q + "_with_rsds"] = field_with_rsds
-                        else:
-                            lightcone.save(
-                                lightcone_filename,
-                                lowz_buffer_pixels=lowz_buffer_pixels,
-                                highz_buffer_pixels=highz_buffer_pixels,
-                            )
-
-                lightcone = lightcone.trim(lc_distances.min(), lc_distances.max())
+            lightcone = lightcone._finalize_lightcone_at_last_redshift(
+                iz=iz,
+                scrollz=scrollz,
+                include_dvdr_in_tau21=include_dvdr_in_tau21,
+                apply_rsds=apply_rsds,
+                n_rsd_subcells=n_rsd_subcells,
+                inputs=inputs,
+                lightconer=lightconer,
+                lc_distances=lc_distances,
+                lowz_buffer_pixels=lowz_buffer_pixels,
+                highz_buffer_pixels=highz_buffer_pixels,
+                lightcone_filename=lightcone_filename,
+            )
 
         yield iz, coeval.redshift, coeval, lightcone
 
