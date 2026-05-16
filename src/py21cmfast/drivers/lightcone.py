@@ -248,8 +248,6 @@ class LightCone:
 
     def _finalize_lightcone_at_last_redshift(
         self,
-        iz: int,
-        scrollz: np.ndarray,
         include_dvdr_in_tau21: bool,
         apply_rsds: bool,
         n_rsd_subcells: int,
@@ -261,9 +259,6 @@ class LightCone:
         lightcone_filename: str | Path | None,
     ) -> Self:
         """Finalize lightcone at the last redshift (apply dvdr, rsds, trim)."""
-        if iz != len(scrollz) - 1:
-            return self
-
         if lib.photon_cons_allocated:
             lib.FreePhotonConsMemory()
 
@@ -586,8 +581,6 @@ def _run_lightcone_from_perturbed_fields(
         # last redshift things
         if iz == len(scrollz) - 1:
             lightcone = lightcone._finalize_lightcone_at_last_redshift(
-                iz=iz,
-                scrollz=scrollz,
                 include_dvdr_in_tau21=include_dvdr_in_tau21,
                 apply_rsds=apply_rsds,
                 n_rsd_subcells=n_rsd_subcells,
