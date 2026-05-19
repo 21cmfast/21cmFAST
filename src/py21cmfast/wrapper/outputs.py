@@ -759,6 +759,22 @@ class PerturbedField(OutputStructZ):
         return self.velocity_z  # for backwards compatibility
 
 
+@attrs.define(frozen=True, slots=True)
+class Halo:
+    """Represents a single halo from a HaloCatalog.
+
+    This class wraps individual halo data extracted from a HaloCatalog,
+    providing easy access to its properties (mass, coordinates, RNG seeds, etc.).
+    """
+
+    mass: float
+    coords: np.ndarray
+    redshift: float
+    star_rng: float | None = None
+    sfr_rng: float | None = None
+    xray_rng: float | None = None
+
+
 @attrs.define(slots=False, kw_only=True)
 class HaloCatalog(OutputStructZ):
     """A class containing all fields related to halos."""
@@ -864,6 +880,28 @@ class HaloCatalog(OutputStructZ):
             ics.random_seed,
             descendant_halos,
         )
+
+    def __getitem__(self, index: int) -> Halo:
+        """Get a specific halo by index."""
+        if not isinstance(index, int) or index < 0 or index >= self.n_halos:
+            raise IndexError(f"Halo index {index} out of range [0, {self.n_halos})")
+        return Halo(
+            mass=float(self.halo_masses.value[index]),
+            coords=self.halo_coords.value[index].copy(),
+            redshift=self.redshift,
+            star_rng=float(self.star_rng.value[index]),
+            sfr_rng=float(self.sfr_rng.value[index]),
+            xray_rng=float(self.xray_rng.value[index]),
+        )
+
+    def __iter__(self):
+        """Iterate over halos in the catalog, yielding Halo objects."""
+        for i in range(self.n_halos):
+            yield self[i]
+
+    def __len__(self):
+        """Return the number of halos in the catalog."""
+        return self.n_halos
 
 
 @attrs.define(slots=False, kw_only=True)
@@ -986,6 +1024,25 @@ class PerturbedHaloCatalog(OutputStructZ):
             previous_ionize_box,
             halo_catalog,
         )
+
+    def __getitem__(self, index: int) -> Halo:
+        """Get a specific halo by index."""
+        if not isinstance(index, int) or index < 0 or index >= self.n_halos:
+            raise IndexError(f"Halo index {index} out of range [0, {self.n_halos})")
+        return Halo(
+            mass=float(self.halo_masses.value[index]),
+            coords=self.halo_coords.value[index].copy(),
+            redshift=self.redshift,
+        )
+
+    def __iter__(self):
+        """Iterate over halos in the catalog, yielding Halo objects."""
+        for i in range(self.n_halos):
+            yield self[i]
+
+    def __len__(self):
+        """Return the number of halos in the catalog."""
+        return self.n_halos
 
 
 @attrs.define(slots=False, kw_only=True)
