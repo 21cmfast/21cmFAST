@@ -790,11 +790,14 @@ int sample_halo_grids(gsl_rng **rng_arr, double redshift, float *dens_field,
     double total_volume_excluded = 0.;
     double total_volume_dexm = 0.;
     double cell_volume = VOLUME / pow((double)simulation_options_global->HII_DIM, 3);
-    bool out_of_buffer = false;
+    bool out_of_buffer;
     bool any_thread_overflowed = false;
 
 #pragma omp parallel num_threads(simulation_options_global->N_THREADS) private(out_of_buffer)
     {
+        // Initialize private out_of_buffer for this thread
+        bool out_of_buffer = false;
+
         // PRIVATE VARIABLES
         int x, y, z, i;
         unsigned long long int halo_idx, cell_idx;
