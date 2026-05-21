@@ -308,44 +308,10 @@ int ComputeHaloCatalog(float redshift_desc, float redshift, InitialConditions *b
         LOG_DEBUG("Obtained %llu halo masses and positions, now saving to HaloCatalog struct.",
                   total_halo_num);
 
-        // Allocate the Halo Mass and Coordinate Fields (non-wrapper structure)
-        if (matter_options_global->SOURCE_MODEL == 4)
-            init_halo_coords(halos_dexm, total_halo_num);
-        else
-            halos_dexm->n_halos = total_halo_num;
-
-        // Assign to the struct
-        // NOTE: To thread this part, we would need to keep track of how many halos are in each
-        // thread before
-        //       OR assign a buffer of size n_halo * n_thread (in case the last thread has all the
-        //       halos), copy the structure from stochasticity.c with the assignment and condensing
-        bool out_of_buffer = false;
-        unsigned long long int count = 0;
-        float halo_buf = 0;
-        for (x = 0; x < grid_dim; x++) {
-            for (y = 0; y < grid_dim; y++) {
-                for (z = 0; z < z_dim; z++) {
-                    halo_buf = halo_catalog[grid_index_general(x, y, z, box_dim)];
-                    if (halo_buf > 0.) {
-                        if (!out_of_buffer) {
-                            halos_dexm->halo_masses[count] = halo_buf;
-                            // place DexM halos at the centre of the cell
-                            halos_dexm->halo_coords[3 * count + 0] = x * cell_length;
-                            halos_dexm->halo_coords[3 * count + 1] = y * cell_length;
-                            halos_dexm->halo_coords[3 * count + 2] = z * cell_length;
-                        }
-                        count++;
-                        if (count >= halos_dexm->buffer_size) {
-                            out_of_buffer = true;
-                        }
-                    }
-                }
-            }
-        }
         // This could happen only if SOURCE_MODEL == 3, since in this configuration
         // the memory allocated for the DEXM halo catalog is smaller
-        if (out_of_buffer) {
-            double ratio = (double)count / (double)halos_dexm->buffer_size;
+        if (total_halo_num > halos->buffer_size) {
+            double ratio = (double)total_halo_num / (double)halos->buffer_size;
             // Suggest new factor (with 10-20% safety margin)
             double suggested_factor = config_settings.HALO_CATALOG_MEM_FACTOR * ratio * 1.15;
             LOG_ERROR(
@@ -360,6 +326,35 @@ int ComputeHaloCatalog(float redshift_desc, float redshift, InitialConditions *b
                 "even if you increase `HALO_CATALOG_MEM_FACTOR`.",
                 config_settings.HALO_CATALOG_MEM_FACTOR, suggested_factor);
             Throw(ValueError);
+        }
+
+        // Allocate the Halo Mass and Coordinate Fields (non-wrapper structure)
+        if (matter_options_global->SOURCE_MODEL == 4)
+            init_halo_coords(halos_dexm, total_halo_num);
+        else
+            halos_dexm->n_halos = total_halo_num;
+
+        // Assign to the struct
+        // NOTE: To thread this part, we would need to keep track of how many halos are in each
+        // thread before
+        //       OR assign a buffer of size n_halo * n_thread (in case the last thread has all the
+        //       halos), copy the structure from stochasticity.c with the assignment and condensing
+        unsigned long long int count = 0;
+        float halo_buf = 0;
+        for (x = 0; x < grid_dim; x++) {
+            for (y = 0; y < grid_dim; y++) {
+                for (z = 0; z < z_dim; z++) {
+                    halo_buf = halo_catalog[grid_index_general(x, y, z, box_dim)];
+                    if (halo_buf > 0.) {
+                        halos_dexm->halo_masses[count] = halo_buf;
+                        // place DexM halos at the centre of the cell
+                        halos_dexm->halo_coords[3 * count + 0] = x * cell_length;
+                        halos_dexm->halo_coords[3 * count + 1] = y * cell_length;
+                        halos_dexm->halo_coords[3 * count + 2] = z * cell_length;
+                        count++;
+                    }
+                }
+            }
         }
 
         add_properties_cat(random_seed, redshift, halos_dexm);
