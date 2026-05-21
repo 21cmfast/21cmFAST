@@ -319,6 +319,7 @@ int ComputeHaloCatalog(float redshift_desc, float redshift, InitialConditions *b
         // thread before
         //       OR assign a buffer of size n_halo * n_thread (in case the last thread has all the
         //       halos), copy the structure from stochasticity.c with the assignment and condensing
+        bool out_of_buffer = false;
         unsigned long long int count = 0;
         float halo_buf = 0;
         for (x = 0; x < grid_dim; x++) {
@@ -326,15 +327,39 @@ int ComputeHaloCatalog(float redshift_desc, float redshift, InitialConditions *b
                 for (z = 0; z < z_dim; z++) {
                     halo_buf = halo_catalog[grid_index_general(x, y, z, box_dim)];
                     if (halo_buf > 0.) {
-                        halos_dexm->halo_masses[count] = halo_buf;
-                        // place DexM halos at the centre of the cell
-                        halos_dexm->halo_coords[3 * count + 0] = x * cell_length;
-                        halos_dexm->halo_coords[3 * count + 1] = y * cell_length;
-                        halos_dexm->halo_coords[3 * count + 2] = z * cell_length;
+                        if (!out_of_buffer) {
+                            halos_dexm->halo_masses[count] = halo_buf;
+                            // place DexM halos at the centre of the cell
+                            halos_dexm->halo_coords[3 * count + 0] = x * cell_length;
+                            halos_dexm->halo_coords[3 * count + 1] = y * cell_length;
+                            halos_dexm->halo_coords[3 * count + 2] = z * cell_length;
+                        }
                         count++;
+                        if (count >= halos_dexm->buffer_size) {
+                            out_of_buffer = true;
+                        }
                     }
                 }
             }
+        }
+        // This could happen only if SOURCE_MODEL == 3, since in this configuration
+        // the memory allocated for the DEXM halo catalog is smaller
+        if (out_of_buffer) {
+            double ratio = (double)count / (double)halos_dexm->buffer_size;
+            // Suggest new factor (with 10-20% safety margin)
+            double suggested_factor = config_settings.HALO_CATALOG_MEM_FACTOR * ratio * 1.15;
+            LOG_ERROR(
+                "This error was raised because the number of total halos that were found in the "
+                "box is "
+                "larger than the number that was allocated for the halo catalog!\n"
+                "Try raising p21c.config['HALO_CATALOG_MEM_FACTOR'] from %.2f to %.2f.\n"
+                "If your previous halo catalogs are stored in the cache and you run the code with "
+                "regenerate=False, "
+                "then don't worry, the code will read those halos from the cache instead of "
+                "re-evaluating them, "
+                "even if you increase `HALO_CATALOG_MEM_FACTOR`.",
+                config_settings.HALO_CATALOG_MEM_FACTOR, suggested_factor);
+            Throw(ValueError);
         }
 
         add_properties_cat(random_seed, redshift, halos_dexm);

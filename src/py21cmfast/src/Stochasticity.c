@@ -43,7 +43,12 @@ void print_hs_consts(struct HaloSamplingConstants *c) {
 double expected_nhalo(double redshift) {
     // minimum sampled mass
 
-    double M_min = simulation_options_global->SAMPLER_MIN_MASS;
+    double M_min;
+    if (matter_options_global->SOURCE_MODEL == 4)
+        M_min = simulation_options_global->SAMPLER_MIN_MASS;
+    else
+        M_min = RtoM(physconst.l_factor * simulation_options_global->BOX_LEN /
+                     simulation_options_global->DIM);
     // maximum sampled mass
     double M_max = RHOcrit * cosmo_params_global->OMm * VOLUME / HII_TOT_NUM_PIXELS;
     double result;
