@@ -90,12 +90,11 @@ int ComputeHaloCatalog(float redshift_desc, float redshift, InitialConditions *b
         // set minimum source mass
         // if we use the sampler we want to stop at the HII cell mass
         if (matter_options_global->SOURCE_MODEL == 4)
-            M_MIN = fmax(M_MIN, RtoM(physconst.l_factor * simulation_options_global->BOX_LEN /
-                                     simulation_options_global->HII_DIM));
+            M_MIN = RtoM(physconst.l_factor * simulation_options_global->BOX_LEN /
+                         simulation_options_global->HII_DIM);
         // otherwise we stop at the cell mass
         else
-            M_MIN = fmax(M_MIN,
-                         RtoM(physconst.l_factor * simulation_options_global->BOX_LEN / grid_dim));
+            M_MIN = RtoM(physconst.l_factor * simulation_options_global->BOX_LEN / grid_dim);
 
         // allocate array for the k-space box
         density_field = (fftwf_complex *)fftwf_malloc(sizeof(fftwf_complex) * KSPACE_NUM_PIXELS);
