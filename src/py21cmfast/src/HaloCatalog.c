@@ -400,13 +400,9 @@ int ComputeHaloCatalog(float redshift_desc, float redshift, InitialConditions *b
                     }
                 }
             }
-            // Only call stochastic_halofield for SOURCE_MODEL != 3 (i.e., SOURCE_MODEL == 4)
-            // For SOURCE_MODEL=3, small halos are already handled by the integral contribution in
-            // set_fixed_grids
-            if (matter_options_global->SOURCE_MODEL != 3) {
-                stochastic_halofield(random_seed, redshift_desc, redshift, boxes->lowres_density,
-                                     halo_overlap_box, halos_dexm, halos);
-            }
+
+            stochastic_halofield(random_seed, redshift_desc, redshift, boxes->lowres_density,
+                                 halo_overlap_box, halos_dexm, halos);
 
             // Here, halos_dexm is allocated in the C, so free it
             free_halo_catalog(halos_dexm);
