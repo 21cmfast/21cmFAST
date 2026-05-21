@@ -927,9 +927,11 @@ int sample_halo_grids(gsl_rng **rng_arr, double redshift, float *dens_field,
                 max_halos_per_thread = nhalo_threads[n_t];
             }
         }
-        double ratio = (double)max_halos_per_thread / (double)arraysize_local;
+        double expected_nhalo_val = expected_nhalo(redshift);
+        double expected_buffer_per_thread =
+            (expected_nhalo_val + 1) / simulation_options_global->N_THREADS;
         // Suggest new factor (with 10-20% safety margin)
-        double suggested_factor = config_settings.HALO_CATALOG_MEM_FACTOR * ratio * 1.15;
+        double suggested_factor = max_halos_per_thread / expected_buffer_per_thread * 1.15;
         LOG_ERROR(
             "This error was raised because the number of total halos that were found in the box is "
             "larger than the number that was allocated for the halo catalog!\n"
@@ -1102,9 +1104,11 @@ int sample_halo_progenitors(gsl_rng **rng_arr, double z_in, double z_out, HaloCa
                 max_halos_per_thread = nhalo_threads[n_t];
             }
         }
-        double ratio = (double)max_halos_per_thread / (double)arraysize_local;
+        double expected_nhalo_val = expected_nhalo(z_out);
+        double expected_buffer_per_thread =
+            (expected_nhalo_val + 1) / simulation_options_global->N_THREADS;
         // Suggest new factor (with 10-20% safety margin)
-        double suggested_factor = config_settings.HALO_CATALOG_MEM_FACTOR * ratio * 1.15;
+        double suggested_factor = max_halos_per_thread / expected_buffer_per_thread * 1.15;
         LOG_ERROR(
             "This error was raised because the number of total halos that were found in the box is "
             "larger than the number that was allocated for the halo catalog!\n"

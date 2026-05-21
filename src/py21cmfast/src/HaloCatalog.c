@@ -311,9 +311,10 @@ int ComputeHaloCatalog(float redshift_desc, float redshift, InitialConditions *b
         // This could happen only if SOURCE_MODEL == 3, since in this configuration
         // the memory allocated for the DEXM halo catalog is smaller
         if (total_halo_num > halos->buffer_size) {
-            double ratio = (double)total_halo_num / (double)halos->buffer_size;
+            LOG_ERROR("Halo buffer overflow (allocated %llu halos)", halos->buffer_size);
+            double expected_nhalo_val = expected_nhalo(redshift);
             // Suggest new factor (with 10-20% safety margin)
-            double suggested_factor = config_settings.HALO_CATALOG_MEM_FACTOR * ratio * 1.15;
+            double suggested_factor = total_halo_num / (expected_nhalo_val + 1) * 1.15;
             LOG_ERROR(
                 "This error was raised because the number of total halos that were found in the "
                 "box is "

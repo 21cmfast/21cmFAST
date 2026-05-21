@@ -277,13 +277,19 @@ def test_incompatible_parameters(
         )
 
 
-def test_using_cached_halo_catalog(ic, test_direc):
+def test_using_cached_halo_catalog(default_input_struct, test_direc):
     """Test whether the C-based memory in halo fields is cached correctly.
 
     Prior to v3.1 this was segfaulting, so this test ensure that this behaviour does
     not regress.
     """
     cache = OutputCache(test_direc)
+
+    ic = p21c.compute_initial_conditions(
+        inputs=default_input_struct.evolve_input_structs(SOURCE_MODEL="CHMF-SAMPLER"),
+        write=True,
+        cache=cache,
+    )
     halo_catalog = p21c.determine_halo_catalog(
         redshift=10.0, initial_conditions=ic, write=True, cache=cache
     )
