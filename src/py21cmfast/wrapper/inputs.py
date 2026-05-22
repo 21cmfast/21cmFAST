@@ -1520,7 +1520,9 @@ class InputParameters:
                 + f"your maximum passed node_redshifts {max(val) if hasattr(val, '__len__') else val} must be above Z_HEAT_MAX {self.simulation_options.Z_HEAT_MAX}"
             )
 
-    def _cosmo_tables_default(self) -> CosmoTables:
+    @cached_property
+    def cosmo_tables(self) -> CosmoTables:
+        """Cosmological tables derived from fundamental input parameters."""
         if self.matter_options.POWER_SPECTRUM == "CLASS":
             if self.simulation_options.K_MAX_FOR_CLASS is not None:
                 k_max = self.simulation_options.K_MAX_FOR_CLASS / un.Mpc
@@ -1598,11 +1600,6 @@ class InputParameters:
                 ps_norm=self.cosmo_params.SIGMA_8, USE_SIGMA_8=True
             )
         return cosmo_tables
-
-    @cached_property
-    def cosmo_tables(self) -> CosmoTables:
-        """Cosmological tables derived from fundamental input parameters."""
-        return self._cosmo_tables_default()
 
     @astro_options.validator
     def _astro_options_validator(self, att, val):

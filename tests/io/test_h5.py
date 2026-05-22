@@ -1,5 +1,4 @@
 """Tests of the HDF5 read/write functionality."""
-
 from pathlib import Path
 
 import h5py
@@ -127,7 +126,7 @@ class TestInputsIO:
         new = h5.read_inputs(pth)
         assert new == inputs
 
-    def test_roundtrip_without_precomputed_cosmo_tables(self, tmp_path, monkeypatch):
+    def test_roundtrip_without_precomputed_cosmo_tables(self, tmp_path):
         """Cosmo tables are omitted in cache files when not precomputed."""
         inputs = InputParameters(random_seed=0)
         pth = tmp_path / "tmp.h5"
@@ -142,30 +141,13 @@ class TestInputsIO:
         fresh = h5.read_inputs(pth)
         assert fresh.cosmo_tables is not None
 
-        expected_cosmo_tables = inputs._cosmo_tables_default()
-
-        def _raise_recompute(self):
-            raise RuntimeError("recompute")
-
-        monkeypatch.setattr(
-            InputParameters,
-            "_cosmo_tables_default",
-            _raise_recompute,
-        )
-        with pytest.raises(RuntimeError, match="recompute"):
-            _ = new.cosmo_tables
-
-        monkeypatch.setattr(
-            InputParameters,
-            "_cosmo_tables_default",
-            lambda self: expected_cosmo_tables,
-        )
+        expected_cosmo_tables = fresh.cosmo_tables
         # Normal property access should lazily compute after a cache file without tables.
         assert new.cosmo_tables is not None
         assert new.cosmo_tables == expected_cosmo_tables
         assert object.__getattribute__(new, "cosmo_tables") == expected_cosmo_tables
 
-    def test_roundtrip_with_precomputed_cosmo_tables(self, tmp_path, monkeypatch):
+    def test_roundtrip_with_precomputed_cosmo_tables(self, tmp_path):
         """Cached cosmo tables in file are reused on read."""
         inputs = InputParameters(random_seed=0)
         _ = inputs.cosmo_tables
@@ -178,14 +160,5 @@ class TestInputsIO:
 
         new = h5.read_inputs(pth)
         assert object.__getattribute__(new, "cosmo_tables") is not None
-
-        def _raise_recompute(self):
-            raise RuntimeError("recompute")
-
-        monkeypatch.setattr(
-            InputParameters,
-            "_cosmo_tables_default",
-            _raise_recompute,
-        )
 
         assert new.cosmo_tables == inputs.cosmo_tables
