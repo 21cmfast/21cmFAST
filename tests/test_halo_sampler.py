@@ -1,5 +1,10 @@
 """Tests of the halo sampler."""
 
+import os
+import re
+import tempfile
+from pathlib import Path
+
 import matplotlib as mpl
 import numpy as np
 import pytest
@@ -8,10 +13,12 @@ from py21cmfast import (
     IonizedBox,
     TsBox,
     compute_initial_conditions,
+    config,
     determine_halo_catalog,
     perturb_halo_catalog,
 )
 from py21cmfast.wrapper import cfuncs as cf
+from py21cmfast.wrapper.exceptions import ArgumentValueError
 
 from . import test_c_interpolation_tables as cint
 from .produce_integration_test_data import get_all_options_struct, print_failure_stats
@@ -259,6 +266,88 @@ def make_dummy_box(inputs, curr_redshift, redshift_type, output_cls):
         )
 
     return box
+
+
+def test_halo_buffer_overflow_error_message(default_input_struct):
+    """Verify that halo buffer overflow error message is informative."""
+    # Create a temporary file to capture C stderr
+    with tempfile.NamedTemporaryFile(mode="w+", delete=False) as stderr_file:
+        stderr_path = stderr_file.name
+
+    try:
+        # Save original stderr file descriptor
+        old_stderr = os.dup(2)  # fd 2 is stderr
+
+        # Small factor to trigger overflow
+        halo_catalog_mem_factor = 1.0
+        redshift = 6.0
+        inputs = default_input_struct.evolve_input_structs(
+            SOURCE_MODEL="CHMF-SAMPLER",
+            N_THREADS=4,  # With more threads, the chance to get an overflow increases
+        )
+
+        # Redirect C stderr to our temp file
+        with Path.open(stderr_path, "w") as f:
+            os.dup2(f.fileno(), 2)
+
+        try:
+            with config.use(HALO_CATALOG_MEM_FACTOR=halo_catalog_mem_factor):
+                ic = compute_initial_conditions(inputs=inputs)
+                with pytest.raises(ArgumentValueError):
+                    # This is going to fail due to overflow, because our halo_catalog_mem_factor is too small
+                    determine_halo_catalog(
+                        redshift=redshift,
+                        initial_conditions=ic,
+                    )
+        finally:
+            # Restore stderr
+            os.dup2(old_stderr, 2)
+            os.close(old_stderr)
+
+        # Read the captured C stderr output
+        with Path.open(stderr_path) as f:
+            stderr_output = f.read()
+
+        # Verify the information per thread is presented in the error message
+        with config.use(HALO_CATALOG_MEM_FACTOR=halo_catalog_mem_factor):
+            buffer_size = cf.get_halo_catalog_buffer_size(
+                inputs=inputs, redshift=redshift
+            )
+        arraysize_local = int(buffer_size / inputs.simulation_options.N_THREADS)
+        assert (
+            f"Halo buffer overflow (allocated {arraysize_local} halos per thread)"
+            in stderr_output
+        )
+        max_halos_per_thread = 0
+        for thread_num in range(inputs.simulation_options.N_THREADS):
+            halos_thread_match = re.search(
+                f"Thread {thread_num}: " + r"(\d+) halos", stderr_output
+            )
+            assert halos_thread_match is not None, (
+                f"Could not find 'Thread {thread_num}: N halos' in stderr"
+            )
+            nhalo_threads = int(halos_thread_match.group(1))
+            max_halos_per_thread = max(max_halos_per_thread, nhalo_threads)
+        assert max_halos_per_thread > arraysize_local, (
+            "Max halos per thread should exceed allocated buffer to trigger overflow"
+        )
+        # Verify the suggested factor below matches the error message
+        expected_nhalo_val = cf.get_expected_nhalo(inputs=inputs, redshift=redshift)
+        expected_buffer_per_thread = (
+            expected_nhalo_val + 1
+        ) / inputs.simulation_options.N_THREADS
+        suggested_factor = max_halos_per_thread / expected_buffer_per_thread * 1.15
+        assert (
+            f"Try raising p21c.config['HALO_CATALOG_MEM_FACTOR'] from {halo_catalog_mem_factor:0.2f} to {suggested_factor:0.2f}"
+            in stderr_output
+        )
+        assert suggested_factor > 1, (
+            "Suggested factor should be greater than 1 to resolve the overflow"
+        )
+
+    finally:
+        # Clean up temp file
+        Path.unlink(stderr_path)
 
 
 def test_perturb_halos(default_input_struct_ts):
