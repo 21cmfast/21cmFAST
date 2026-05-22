@@ -136,13 +136,13 @@ class TestInputsIO:
             assert "cosmo_tables" not in fl["InputParameters"]
 
         new = h5.read_inputs(pth)
-        with pytest.raises(AttributeError, match="cosmo_tables"):
+        with pytest.raises(AttributeError, match="has no attribute 'cosmo_tables'"):
             object.__getattribute__(new, "cosmo_tables")
         fresh = h5.read_inputs(pth)
         assert fresh.cosmo_tables is not None
 
         expected_cosmo_tables = fresh.cosmo_tables
-        with pytest.raises(AttributeError, match="cosmo_tables"):
+        with pytest.raises(AttributeError, match="has no attribute 'cosmo_tables'"):
             object.__getattribute__(new, "cosmo_tables")
         # Normal property access should lazily compute after a cache file without tables.
         assert new.cosmo_tables is not None
