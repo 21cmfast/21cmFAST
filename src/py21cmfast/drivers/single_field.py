@@ -192,17 +192,19 @@ def determine_halo_catalog(
         descendant_halos = HaloCatalog.dummy()
 
     # Initialize halo list boxes.
-    fields = HaloCatalog.new(
+    halo_catalog = HaloCatalog.new(
         redshift=redshift,
         desc_redshift=descendant_halos.redshift,
         inputs=inputs,
     )
 
     # Run the C Code
-    return fields.compute(
+    halo_catalog.compute(
         ics=initial_conditions,
         descendant_halos=descendant_halos,
     )
+
+    return halo_catalog.trim_to_n_halos()
 
 
 @single_field_func

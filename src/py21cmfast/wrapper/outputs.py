@@ -824,6 +824,36 @@ class HaloCatalog(OutputStructZ):
             **kw,
         )
 
+    def trim_to_n_halos(self) -> HaloCatalog:
+        """Return a trimmed version of the halo catalog with only the actual number of halos."""
+        n_halos = self.n_halos
+        halo_catalog_trimmed = HaloCatalog.new(
+            redshift=self.redshift,
+            desc_redshift=self.desc_redshift,
+            inputs=self.inputs,
+            buffer_size=n_halos,
+        )
+
+        halo_catalog_trimmed.n_halos = n_halos
+        # Set the arrays to the correct size, and copy the trimmed values from the original halo catalog
+        for name, array in self.arrays.items():
+            shape = (n_halos,) if name != "halo_coords" else (n_halos, 3)
+            val = (
+                array.value[:n_halos]
+                if name != "halo_coords"
+                else array.value[:n_halos, :]
+            )
+            setattr(
+                halo_catalog_trimmed,
+                name,
+                Array(shape=shape, dtype=np.float32).initialize().with_value(val=val),
+            )
+
+        # Purge the original halo catalog because it was exposed to C
+        self.purge(force=True)
+
+        return halo_catalog_trimmed
+
     def get_required_input_arrays(self, input_box: OutputStruct) -> list[str]:
         """Return all input arrays required to compute this object."""
         required = []
