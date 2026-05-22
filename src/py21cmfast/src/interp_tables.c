@@ -272,9 +272,11 @@ void init_FcollTable(double zmin, double zmax, bool x_ray) {
         if (matter_options_global->HMF == HMF_PS)
             fcoll_z_table.y_arr[i] = FgtrM(z_val, M_min);
         else {
-            if (astro_options_global->INTEGRATION_METHOD_ATOMIC == INTEGRATION_METHOD_GAUSS_LEGENDRE ||
+            if (astro_options_global->INTEGRATION_METHOD_ATOMIC ==
+                    INTEGRATION_METHOD_GAUSS_LEGENDRE ||
                 (astro_options_global->USE_MINI_HALOS &&
-                 astro_options_global->INTEGRATION_METHOD_MINI == INTEGRATION_METHOD_GAUSS_LEGENDRE))
+                 astro_options_global->INTEGRATION_METHOD_MINI ==
+                     INTEGRATION_METHOD_GAUSS_LEGENDRE))
                 initialise_GL(lnMmin, lnMmax);
             fcoll_z_table.y_arr[i] = Fcoll_General(z_val, lnMmin, lnMmax);
         }

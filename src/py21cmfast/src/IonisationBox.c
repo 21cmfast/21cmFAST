@@ -235,7 +235,8 @@ void allocate_fftw_grids(struct FilteredGrids **fg_struct) {
     (*fg_struct)->deltax_filtered =
         (fftwf_complex *)fftwf_malloc(sizeof(fftwf_complex) * HII_KSPACE_NUM_PIXELS);
 
-    if (astro_options_global->USE_MINI_HALOS && matter_options_global->SOURCE_MODEL < SOURCE_MODEL_L_INTEGRAL) {
+    if (astro_options_global->USE_MINI_HALOS &&
+        matter_options_global->SOURCE_MODEL < SOURCE_MODEL_L_INTEGRAL) {
         (*fg_struct)->prev_deltax_unfiltered =
             (fftwf_complex *)fftwf_malloc(sizeof(fftwf_complex) * HII_KSPACE_NUM_PIXELS);
         (*fg_struct)->prev_deltax_filtered =
@@ -285,7 +286,8 @@ void free_fftw_grids(struct FilteredGrids *fg_struct) {
     fftwf_free(fg_struct->deltax_unfiltered);
     fftwf_free(fg_struct->deltax_filtered);
 
-    if (astro_options_global->USE_MINI_HALOS && matter_options_global->SOURCE_MODEL < SOURCE_MODEL_L_INTEGRAL) {
+    if (astro_options_global->USE_MINI_HALOS &&
+        matter_options_global->SOURCE_MODEL < SOURCE_MODEL_L_INTEGRAL) {
         fftwf_free(fg_struct->prev_deltax_unfiltered);
         fftwf_free(fg_struct->prev_deltax_filtered);
 
@@ -1440,7 +1442,8 @@ int ComputeIonizedBox(float redshift, float prev_redshift, PerturbedField *pertu
 
         // HMF integral initialisation
         if (matter_options_global->USE_INTERPOLATION_TABLES > INTERPOLATION_NO) {
-            if (astro_options_global->INTEGRATION_METHOD_ATOMIC == INTEGRATION_METHOD_GAMMA_APPROX ||
+            if (astro_options_global->INTEGRATION_METHOD_ATOMIC ==
+                    INTEGRATION_METHOD_GAMMA_APPROX ||
                 astro_options_global->INTEGRATION_METHOD_MINI == INTEGRATION_METHOD_GAMMA_APPROX)
                 initialiseSigmaMInterpTable(fmin(MMIN_FAST, ionbox_constants.M_min), 1e20);
             else

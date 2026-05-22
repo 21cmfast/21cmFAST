@@ -120,7 +120,8 @@ int InitialisePhotonCons() {
             ION_EFF_FACTOR = astro_params_global->POP2_ION * astro_params_global->F_STAR10 *
                              astro_params_global->F_ESC10;
             M_MIN = astro_params_global->M_TURN / 50.;
-            if (astro_options_global->INTEGRATION_METHOD_ATOMIC == INTEGRATION_METHOD_GAMMA_APPROX ||
+            if (astro_options_global->INTEGRATION_METHOD_ATOMIC ==
+                    INTEGRATION_METHOD_GAMMA_APPROX ||
                 astro_options_global->INTEGRATION_METHOD_MINI == INTEGRATION_METHOD_GAMMA_APPROX) {
                 initialiseSigmaMInterpTable(fmin(MMIN_FAST, M_MIN), 1e20);
             } else {
@@ -187,13 +188,15 @@ int InitialisePhotonCons() {
                     }
 
                     if (M_MIN_z0 < M_MIN_z1) {
-                        if (astro_options_global->INTEGRATION_METHOD_ATOMIC == INTEGRATION_METHOD_GAMMA_APPROX) {
+                        if (astro_options_global->INTEGRATION_METHOD_ATOMIC ==
+                            INTEGRATION_METHOD_GAMMA_APPROX) {
                             initialiseSigmaMInterpTable(fmin(MMIN_FAST, M_MIN_z0), 1e20);
                         } else {
                             initialiseSigmaMInterpTable(M_MIN_z0, 1e20);
                         }
                     } else {
-                        if (astro_options_global->INTEGRATION_METHOD_ATOMIC == INTEGRATION_METHOD_GAMMA_APPROX) {
+                        if (astro_options_global->INTEGRATION_METHOD_ATOMIC ==
+                            INTEGRATION_METHOD_GAMMA_APPROX) {
                             initialiseSigmaMInterpTable(fmin(MMIN_FAST, M_MIN_z1), 1e20);
                         } else {
                             initialiseSigmaMInterpTable(M_MIN_z1, 1e20);

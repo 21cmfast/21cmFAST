@@ -1017,7 +1017,8 @@ double Nion_ConditionalM_MINI(double growthf, double lnM1, double lnM2, double l
 
     // If we don't have a corresponding CMF, use EPS and normalise
     // NOTE: it's possible we may want to use another default
-    if (params.HMF != HMF_PS && params.HMF != HMF_ST && params.HMF != HMF_DELOS) params.HMF = HMF_PS;
+    if (params.HMF != HMF_PS && params.HMF != HMF_ST && params.HMF != HMF_DELOS)
+        params.HMF = HMF_PS;
 
     return IntegratedNdM(lnM1, lnM2, params, &c_nion_integrand_mini, method);
 }
@@ -1053,7 +1054,8 @@ double Nion_ConditionalM(double growthf, double lnM1, double lnM2, double lnM_co
 
     // If we don't have a corresponding CMF, use EPS and normalise
     // NOTE: it's possible we may want to use another default
-    if (params.HMF != HMF_PS && params.HMF != HMF_ST && params.HMF != HMF_DELOS) params.HMF = HMF_PS;
+    if (params.HMF != HMF_PS && params.HMF != HMF_ST && params.HMF != HMF_DELOS)
+        params.HMF = HMF_PS;
     return IntegratedNdM(lnM1, lnM2, params, &c_nion_integrand, method);
 }
 
@@ -1096,7 +1098,8 @@ double Xray_ConditionalM(double redshift, double growthf, double lnM1, double ln
 
     // If we don't have a corresponding CMF, use EPS and normalise
     // NOTE: it's possible we may want to use another default
-    if (params.HMF != HMF_PS && params.HMF != HMF_ST && params.HMF != HMF_DELOS) params.HMF = HMF_PS;
+    if (params.HMF != HMF_PS && params.HMF != HMF_ST && params.HMF != HMF_DELOS)
+        params.HMF = HMF_PS;
 
     return IntegratedNdM(lnM1, lnM2, params, &c_xray_integrand, method);
 }
@@ -1235,7 +1238,8 @@ float Mass_limit_bisection(float Mmin, float Mmax, float PL, float FRAC) {
 //       from M_MIN_INTEGRAL
 double minimum_source_mass(double redshift, bool xray) {
     double Mmin, min_factor, mu_factor, t_vir_min;
-    if (matter_options_global->SOURCE_MODEL > SOURCE_MODEL_CONST_ION_EFF && !astro_options_global->USE_MINI_HALOS)
+    if (matter_options_global->SOURCE_MODEL > SOURCE_MODEL_CONST_ION_EFF &&
+        !astro_options_global->USE_MINI_HALOS)
         min_factor = 50.;  // small lower bound to cover far below the turnover
     else
         min_factor = 1.;  // sharp cutoff

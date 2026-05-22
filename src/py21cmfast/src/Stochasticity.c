@@ -699,7 +699,8 @@ int stoc_sample(struct HaloSamplingConstants *hs_constants, gsl_rng *rng, int *n
     }
 
     // We always use Number-Limited sampling for grid-based cases
-    if (matter_options_global->SAMPLE_METHOD == SAMPLE_NUMBER_LIMITED || !hs_constants->from_catalog) {
+    if (matter_options_global->SAMPLE_METHOD == SAMPLE_NUMBER_LIMITED ||
+        !hs_constants->from_catalog) {
         err = stoc_halo_sample(hs_constants, rng, n_halo_out, M_out);
         // err = stoc_halo_sample_tol(hs_constants, rng, n_halo_out, M_out);
     } else if (matter_options_global->SAMPLE_METHOD == SAMPLE_MASS_LIMITED) {

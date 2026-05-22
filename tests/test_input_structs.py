@@ -223,7 +223,9 @@ class TestAstroOptions:
             ),
         ],
     )
-    def test_enum_options_to_cdict(self, kwargs: dict[str, Any], expected: dict[str, int]):
+    def test_enum_options_to_cdict(
+        self, kwargs: dict[str, Any], expected: dict[str, int]
+    ):
         """Check enum-like option fields are mapped to their expected integer values."""
         options = AstroOptions(**kwargs)
         for key, val in expected.items():
@@ -422,7 +424,9 @@ class TestMatterOptions:
             ({"SOURCE_MODEL": "DEXM-ESF"}, {"SOURCE_MODEL": 3}),
         ],
     )
-    def test_enum_options_to_cdict(self, kwargs: dict[str, Any], expected: dict[str, int]):
+    def test_enum_options_to_cdict(
+        self, kwargs: dict[str, Any], expected: dict[str, int]
+    ):
         """Check enum-like option fields are mapped to their expected integer values."""
         options = MatterOptions(**kwargs)
         for key, val in expected.items():
