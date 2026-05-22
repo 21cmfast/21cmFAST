@@ -126,9 +126,11 @@ class TestInputsIO:
         new = h5.read_inputs(pth)
         assert new == inputs
 
-    def test_roundtrip_without_precomputed_cosmo_tables(self, tmp_path):
+    def test_roundtrip_without_precomputed_cosmo_tables(self, tmp_path, monkeypatch):
         """Cosmo tables are omitted in cache files when not precomputed."""
-        inputs = InputParameters(random_seed=0)
+        inputs = InputParameters(random_seed=0).evolve_input_structs(
+            POWER_SPECTRUM="CLASS", K_MAX_FOR_CLASS=1.0
+        )
         pth = tmp_path / "tmp.h5"
         h5._write_inputs_to_group(inputs, pth)
 
@@ -141,17 +143,19 @@ class TestInputsIO:
         fresh = h5.read_inputs(pth)
         assert fresh.cosmo_tables is not None
 
-        expected_cosmo_tables = fresh.cosmo_tables
-        # Normal property access should lazily compute after a cache file without tables.
-        cosmo_tables = new.cosmo_tables
-        assert cosmo_tables is not None
-        assert cosmo_tables == expected_cosmo_tables
-        assert object.__getattribute__(new, "cosmo_tables") is cosmo_tables
-        assert new.cosmo_tables is cosmo_tables
+        def _raise_recompute(*args, **kwargs):
+            raise RuntimeError("recompute")
 
-    def test_roundtrip_with_precomputed_cosmo_tables(self, tmp_path):
+        monkeypatch.setattr("py21cmfast.wrapper.inputs.run_classy", _raise_recompute)
+        # Access after deserialization without cached tables should invoke computation.
+        with pytest.raises(RuntimeError, match="recompute"):
+            _ = new.cosmo_tables
+
+    def test_roundtrip_with_precomputed_cosmo_tables(self, tmp_path, monkeypatch):
         """Cached cosmo tables in file are reused on read."""
-        inputs = InputParameters(random_seed=0)
+        inputs = InputParameters(random_seed=0).evolve_input_structs(
+            POWER_SPECTRUM="CLASS", K_MAX_FOR_CLASS=1.0
+        )
         _ = inputs.cosmo_tables
 
         pth = tmp_path / "tmp.h5"
@@ -163,4 +167,8 @@ class TestInputsIO:
         new = h5.read_inputs(pth)
         assert object.__getattribute__(new, "cosmo_tables") is not None
 
+        def _raise_recompute(*args, **kwargs):
+            raise RuntimeError("recompute")
+
+        monkeypatch.setattr("py21cmfast.wrapper.inputs.run_classy", _raise_recompute)
         assert new.cosmo_tables == inputs.cosmo_tables
