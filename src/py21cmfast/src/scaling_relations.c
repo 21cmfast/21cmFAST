@@ -37,7 +37,7 @@ void set_scaling_constants(double redshift, ScalingConstants *consts, bool use_p
     consts->redshift = redshift;
 
     // Set on for the fixed grid case since we are missing halos above the cell mass
-    consts->fix_mean = matter_options_global->HMF == 2 || matter_options_global->HMF == 3;
+    consts->fix_mean = matter_options_global->HMF == HMF_WATSON || matter_options_global->HMF == HMF_WATSON_Z;
     // whether to fix *integrated* (not sampled) galaxy properties to the expected mean
     consts->scaling_median = astro_options_global->HALO_SCALING_RELATIONS_MEDIAN;
 
@@ -67,9 +67,9 @@ void set_scaling_constants(double redshift, ScalingConstants *consts, bool use_p
     consts->fesc_7 = astro_params_global->F_ESC7_MINI;
 
     if (use_photoncons) {
-        if (astro_options_global->PHOTON_CONS_TYPE == 2)
+        if (astro_options_global->PHOTON_CONS_TYPE == PHOTON_CONS_ALPHA)
             consts->alpha_esc = get_fesc_fit(redshift);
-        else if (astro_options_global->PHOTON_CONS_TYPE == 3)
+        else if (astro_options_global->PHOTON_CONS_TYPE == PHOTON_CONS_F)
             consts->fesc_10 = get_fesc_fit(redshift);
     }
 
@@ -122,9 +122,9 @@ ScalingConstants evolve_scaling_constants_to_redshift(double redshift, ScalingCo
     sc_z.t_h = t_hubble(redshift);
 
     if (use_photoncons) {
-        if (astro_options_global->PHOTON_CONS_TYPE == 2)
+        if (astro_options_global->PHOTON_CONS_TYPE == PHOTON_CONS_ALPHA)
             sc_z.alpha_esc = get_fesc_fit(redshift);
-        else if (astro_options_global->PHOTON_CONS_TYPE == 3)
+        else if (astro_options_global->PHOTON_CONS_TYPE == PHOTON_CONS_F)
             sc_z.fesc_10 = get_fesc_fit(redshift);
 
         // if we altered the escape fraction, we need to recalculate the mass limits

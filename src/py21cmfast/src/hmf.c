@@ -131,8 +131,8 @@ double sheth_delc_fixed(double del, double sig) {
 
 // Get the relevant excursion set barrier density given the user-specified HMF
 double get_delta_crit(int HMF, double sigma, double growthf) {
-    if (HMF == 4) return physconst.delta_c_delos;
-    if (HMF == 1) return sheth_delc_fixed(physconst.delta_c_sph / growthf, sigma) * growthf;
+    if (HMF == HMF_DELOS) return physconst.delta_c_delos;
+    if (HMF == HMF_ST) return sheth_delc_fixed(physconst.delta_c_sph / growthf, sigma) * growthf;
 
     return physconst.delta_c_sph;
 }
@@ -436,13 +436,13 @@ double xray_fraction_doublePL(double lnM, void *param_struct) {
 
 double conditional_hmf(double growthf, double lnM, double delta, double sigma, int HMF) {
     // dNdlnM = dfcoll/dM * M / M * constants
-    if (HMF == 0) {
+    if (HMF == HMF_PS) {
         return dNdM_conditional_EPS(growthf, lnM, delta, sigma);
     }
-    if (HMF == 1) {
+    if (HMF == HMF_ST) {
         return dNdM_conditional_ST(growthf, lnM, delta, sigma);
     }
-    if (HMF == 4) {
+    if (HMF == HMF_DELOS) {
         return dNdlnM_conditional_Delos(growthf, lnM, delta, sigma);
     }
     // NOTE: Normalisation scaling is currently applied outside the integral, per condition
@@ -478,20 +478,20 @@ double c_xray_integrand(double lnM, void *param_struct) {
 
 double unconditional_hmf(double growthf, double lnM, double z, int HMF) {
     // most of the UMFs are defined with M, but we integrate over lnM
-    // NOTE: HMF > 4 or < 0 gets caught earlier, so unless some strange change is made this is fine
-    if (HMF == 0) {
+    // NOTE: HMF outside [HMF_PS, HMF_DELOS] gets caught earlier.
+    if (HMF == HMF_PS) {
         return dNdlnM_PS(growthf, lnM);
     }
-    if (HMF == 1) {
+    if (HMF == HMF_ST) {
         return dNdlnM_st(growthf, lnM);
     }
-    if (HMF == 2) {
+    if (HMF == HMF_WATSON) {
         return dNdlnM_WatsonFOF(growthf, lnM);
     }
-    if (HMF == 3) {
+    if (HMF == HMF_WATSON_Z) {
         return dNdlnM_WatsonFOF_z(z, growthf, lnM);
     }
-    if (HMF == 4) {
+    if (HMF == HMF_DELOS) {
         return dNdlnM_Delos(growthf, lnM);
     } else {
         LOG_ERROR("Invalid HMF %d", HMF);
@@ -1017,7 +1017,7 @@ double Nion_ConditionalM_MINI(double growthf, double lnM1, double lnM2, double l
 
     // If we don't have a corresponding CMF, use EPS and normalise
     // NOTE: it's possible we may want to use another default
-    if (params.HMF != 0 && params.HMF != 1 && params.HMF != 4) params.HMF = 0;
+    if (params.HMF != HMF_PS && params.HMF != HMF_ST && params.HMF != HMF_DELOS) params.HMF = HMF_PS;
 
     return IntegratedNdM(lnM1, lnM2, params, &c_nion_integrand_mini, method);
 }
@@ -1053,7 +1053,7 @@ double Nion_ConditionalM(double growthf, double lnM1, double lnM2, double lnM_co
 
     // If we don't have a corresponding CMF, use EPS and normalise
     // NOTE: it's possible we may want to use another default
-    if (params.HMF != 0 && params.HMF != 1 && params.HMF != 4) params.HMF = 0;
+    if (params.HMF != HMF_PS && params.HMF != HMF_ST && params.HMF != HMF_DELOS) params.HMF = HMF_PS;
     return IntegratedNdM(lnM1, lnM2, params, &c_nion_integrand, method);
 }
 
@@ -1096,7 +1096,7 @@ double Xray_ConditionalM(double redshift, double growthf, double lnM1, double ln
 
     // If we don't have a corresponding CMF, use EPS and normalise
     // NOTE: it's possible we may want to use another default
-    if (params.HMF != 0 && params.HMF != 1 && params.HMF != 4) params.HMF = 0;
+    if (params.HMF != HMF_PS && params.HMF != HMF_ST && params.HMF != HMF_DELOS) params.HMF = HMF_PS;
 
     return IntegratedNdM(lnM1, lnM2, params, &c_xray_integrand, method);
 }
@@ -1235,7 +1235,7 @@ float Mass_limit_bisection(float Mmin, float Mmax, float PL, float FRAC) {
 //       from M_MIN_INTEGRAL
 double minimum_source_mass(double redshift, bool xray) {
     double Mmin, min_factor, mu_factor, t_vir_min;
-    if (matter_options_global->SOURCE_MODEL > 0 && !astro_options_global->USE_MINI_HALOS)
+    if (matter_options_global->SOURCE_MODEL > SOURCE_MODEL_CONST_ION_EFF && !astro_options_global->USE_MINI_HALOS)
         min_factor = 50.;  // small lower bound to cover far below the turnover
     else
         min_factor = 1.;  // sharp cutoff

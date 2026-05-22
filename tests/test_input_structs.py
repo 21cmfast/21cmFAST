@@ -199,6 +199,36 @@ class TestCosmoParams:
 class TestAstroOptions:
     """Tests of AstroOptions."""
 
+    @pytest.mark.parametrize(
+        ("kwargs", "expected"),
+        [
+            ({"PHOTON_CONS_TYPE": "z-photoncons"}, {"PHOTON_CONS_TYPE": 1}),
+            ({"PHOTON_CONS_TYPE": "alpha-photoncons"}, {"PHOTON_CONS_TYPE": 2}),
+            ({"PHOTON_CONS_TYPE": "f-photoncons"}, {"PHOTON_CONS_TYPE": 3}),
+            (
+                {"USE_EXP_FILTER": False, "HII_FILTER": "gaussian"},
+                {"HII_FILTER": 2},
+            ),
+            (
+                {"USE_EXP_FILTER": False, "HEAT_FILTER": "sharp-k"},
+                {"HEAT_FILTER": 1},
+            ),
+            (
+                {"INTEGRATION_METHOD_ATOMIC": "GSL-QAG"},
+                {"INTEGRATION_METHOD_ATOMIC": 0},
+            ),
+            (
+                {"INTEGRATION_METHOD_MINI": "GAMMA-APPROX"},
+                {"INTEGRATION_METHOD_MINI": 2},
+            ),
+        ],
+    )
+    def test_enum_options_to_cdict(self, kwargs: dict[str, Any], expected: dict[str, int]):
+        """Check enum-like option fields are mapped to their expected integer values."""
+        options = AstroOptions(**kwargs)
+        for key, val in expected.items():
+            assert options.cdict[key] == val
+
     # Testing all the AstroOptions dependencies, including emitted warnings
     def test_bad_inputs(self):
         """Test possible exceptions when creating the object."""
@@ -371,6 +401,32 @@ class TestSimulationOptions:
 
 class TestMatterOptions:
     """Tests of the MatterOptions class."""
+
+    @pytest.mark.parametrize(
+        ("kwargs", "expected"),
+        [
+            ({"HMF": "PS"}, {"HMF": 0}),
+            ({"HMF": "DELOS", "SOURCE_MODEL": "E-INTEGRAL"}, {"HMF": 4}),
+            ({"POWER_SPECTRUM": "CLASS"}, {"POWER_SPECTRUM": 5}),
+            (
+                {
+                    "USE_INTERPOLATION_TABLES": "sigma-interpolation",
+                    "SOURCE_MODEL": "E-INTEGRAL",
+                },
+                {"USE_INTERPOLATION_TABLES": 1},
+            ),
+            ({"SAMPLE_METHOD": "PARTITION"}, {"SAMPLE_METHOD": 2}),
+            ({"FILTER": "gaussian"}, {"FILTER": 2}),
+            ({"HALO_FILTER": "sharp-k"}, {"HALO_FILTER": 1}),
+            ({"PERTURB_ALGORITHM": "LINEAR"}, {"PERTURB_ALGORITHM": 0}),
+            ({"SOURCE_MODEL": "DEXM-ESF"}, {"SOURCE_MODEL": 3}),
+        ],
+    )
+    def test_enum_options_to_cdict(self, kwargs: dict[str, Any], expected: dict[str, int]):
+        """Check enum-like option fields are mapped to their expected integer values."""
+        options = MatterOptions(**kwargs)
+        for key, val in expected.items():
+            assert options.cdict[key] == val
 
     def test_bad_inputs(self):
         """Test that exceptions are raised for bad inputs."""

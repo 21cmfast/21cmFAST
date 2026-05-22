@@ -49,7 +49,7 @@ double expected_nhalo(double redshift) {
     double result;
 
     init_ps();
-    if (matter_options_global->USE_INTERPOLATION_TABLES > 0)
+    if (matter_options_global->USE_INTERPOLATION_TABLES > INTERPOLATION_NO)
         initialiseSigmaMInterpTable(M_min, M_max);
 
     result = Nhalo_General(redshift, log(M_min), log(M_max)) * VOLUME * cosmo_params_global->OMm *
@@ -57,7 +57,7 @@ double expected_nhalo(double redshift) {
     LOG_DEBUG("Expected %.2e Halos in the box from masses %.2e to %.2e at z=%.2f", result, M_min,
               M_max, redshift);
 
-    if (matter_options_global->USE_INTERPOLATION_TABLES > 0) freeSigmaMInterpTable();
+    if (matter_options_global->USE_INTERPOLATION_TABLES > INTERPOLATION_NO) freeSigmaMInterpTable();
 
     return result;
 }
@@ -94,14 +94,14 @@ void stoc_set_consts_z(struct HaloSamplingConstants *const_struct, double redshi
     const_struct->lnM_max_tb = log(const_struct->M_max_tables);
 
     init_ps();
-    if (matter_options_global->USE_INTERPOLATION_TABLES > 0) {
+    if (matter_options_global->USE_INTERPOLATION_TABLES > INTERPOLATION_NO) {
         // the binary split needs to go below the resolution
-        if (matter_options_global->SAMPLE_METHOD == 3)
+        if (matter_options_global->SAMPLE_METHOD == SAMPLE_BINARY_SPLIT)
             initialiseSigmaMInterpTable(const_struct->M_min / 2, const_struct->M_max_tables);
         else
             initialiseSigmaMInterpTable(const_struct->M_min, const_struct->M_max_tables);
 
-        if (matter_options_global->SAMPLE_METHOD == 2) InitialiseSigmaInverseTable();
+        if (matter_options_global->SAMPLE_METHOD == SAMPLE_PARTITION) InitialiseSigmaInverseTable();
     }
 
     const_struct->sigma_min = EvaluateSigma(const_struct->lnM_min);
@@ -129,13 +129,13 @@ void stoc_set_consts_z(struct HaloSamplingConstants *const_struct, double redshi
                                const_struct->lnM_max_tb, const_struct->lnM_min,
                                const_struct->lnM_max_tb, const_struct->growth_out,
                                const_struct->growth_in, true);
-        if (matter_options_global->SAMPLE_METHOD == 0 ||
-            matter_options_global->SAMPLE_METHOD == 1) {
+        if (matter_options_global->SAMPLE_METHOD == SAMPLE_MASS_LIMITED ||
+            matter_options_global->SAMPLE_METHOD == SAMPLE_NUMBER_LIMITED) {
             initialise_dNdM_inverse_table(log(simulation_options_global->SAMPLER_MIN_MASS),
                                           const_struct->lnM_max_tb, const_struct->lnM_min,
                                           const_struct->growth_out, const_struct->growth_in, true);
         }
-        if (matter_options_global->SAMPLE_METHOD == 3) {
+        if (matter_options_global->SAMPLE_METHOD == SAMPLE_BINARY_SPLIT) {
             initialise_J_split_table(200, 1e-4, 20., 0.2);
         }
     } else {
@@ -421,9 +421,9 @@ bool partition_rejection(double sigma_m, double sigma_min, double sigma_cond, do
                          double growthf, gsl_rng *rng) {
     // no rejection in EPS
     double test1, test2, randval;
-    if (matter_options_global->HMF == 0) {
+    if (matter_options_global->HMF == HMF_PS) {
         return false;
-    } else if (matter_options_global->HMF == 1) {
+    } else if (matter_options_global->HMF == HMF_ST) {
         test1 = st_taylor_factor(sigma_m, sigma_cond, growthf, NULL) -
                 del_c;  // maximum barrier term in mass range
         test2 = st_taylor_factor(sigma_min, sigma_cond, growthf, NULL) - del_c;
@@ -699,14 +699,14 @@ int stoc_sample(struct HaloSamplingConstants *hs_constants, gsl_rng *rng, int *n
     }
 
     // We always use Number-Limited sampling for grid-based cases
-    if (matter_options_global->SAMPLE_METHOD == 1 || !hs_constants->from_catalog) {
+    if (matter_options_global->SAMPLE_METHOD == SAMPLE_NUMBER_LIMITED || !hs_constants->from_catalog) {
         err = stoc_halo_sample(hs_constants, rng, n_halo_out, M_out);
         // err = stoc_halo_sample_tol(hs_constants, rng, n_halo_out, M_out);
-    } else if (matter_options_global->SAMPLE_METHOD == 0) {
+    } else if (matter_options_global->SAMPLE_METHOD == SAMPLE_MASS_LIMITED) {
         err = stoc_mass_sample(hs_constants, rng, n_halo_out, M_out);
-    } else if (matter_options_global->SAMPLE_METHOD == 2) {
+    } else if (matter_options_global->SAMPLE_METHOD == SAMPLE_PARTITION) {
         err = stoc_partition_sample(hs_constants, rng, n_halo_out, M_out);
-    } else if (matter_options_global->SAMPLE_METHOD == 3) {
+    } else if (matter_options_global->SAMPLE_METHOD == SAMPLE_BINARY_SPLIT) {
         err = stoc_split_sample(hs_constants, rng, n_halo_out, M_out);
     } else {
         LOG_ERROR("Invalid sampling method");
@@ -1121,7 +1121,7 @@ int stochastic_halofield(unsigned long long int seed, float redshift_desc, float
                   halos->xray_rng[1], halos->xray_rng[2]);
     }
 
-    if (matter_options_global->USE_INTERPOLATION_TABLES > 0) {
+    if (matter_options_global->USE_INTERPOLATION_TABLES > INTERPOLATION_NO) {
         freeSigmaMInterpTable();
     }
     free_dNdM_tables();
@@ -1264,7 +1264,7 @@ int single_test_sample(unsigned long long int seed, int n_condition, float *cond
             }
         }
 
-        if (matter_options_global->USE_INTERPOLATION_TABLES > 0) {
+        if (matter_options_global->USE_INTERPOLATION_TABLES > INTERPOLATION_NO) {
             freeSigmaMInterpTable();
         }
         free_dNdM_tables();

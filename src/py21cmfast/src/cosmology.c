@@ -276,7 +276,7 @@ double power_in_k(double k) {
         return 0.;
     } else {
         T = transfer_function(k);
-        if (matter_options_global->POWER_SPECTRUM < 5) {
+        if (matter_options_global->POWER_SPECTRUM < POWER_SPECTRUM_CLASS) {
             // In non-CLASS transfer functions (EH, BBKS, etc), the convention is that the transfer
             // function approches unity as k->0. We therefore have to multiply by k^2 in order to
             // match with the CLASS notation that is used below.
@@ -287,7 +287,7 @@ double power_in_k(double k) {
         p = cosmo_consts.sigma_norm * primordial * T * T / pow(k, 3);
 
         // NOTE: USE_RELATIVE_VELOCITIES is only allowed if using CLASS
-        if (matter_options_global->POWER_SPECTRUM == 5 &&
+        if (matter_options_global->POWER_SPECTRUM == POWER_SPECTRUM_CLASS &&
             matter_options_global->USE_RELATIVE_VELOCITIES) {
             // jbm:Add average relvel suppression
             p *= 1.0 - A_VCB_PM * exp(-pow(log(k / KP_VCB_PM), 2.0) /
@@ -306,7 +306,7 @@ double power_in_vcb(double k) {
     double p, T, primordial;
 
     // only works if using CLASS
-    if (matter_options_global->POWER_SPECTRUM == 5) {  // CLASS
+    if (matter_options_global->POWER_SPECTRUM == POWER_SPECTRUM_CLASS) {  // CLASS
         if (k == 0.) {
             return 0.;
         } else {
@@ -512,7 +512,7 @@ void init_ps() {
     // function is used for extrapolating the transfer function at high k.
     TFset_parameters();
 
-    if (matter_options_global->POWER_SPECTRUM == 5) {
+    if (matter_options_global->POWER_SPECTRUM == POWER_SPECTRUM_CLASS) {
         // We start the interpolator if using CLASS:
         LOG_DEBUG("Setting CLASS Transfer Function inits.");
         transfer_function_CLASS(1.0, 0, 0);
@@ -554,7 +554,7 @@ void init_ps() {
 // function to free arrays related to the power spectrum
 void free_ps() {
     // we free the PS interpolator if using CLASS:
-    if (matter_options_global->POWER_SPECTRUM == 5) {
+    if (matter_options_global->POWER_SPECTRUM == POWER_SPECTRUM_CLASS) {
         transfer_function_CLASS(1.0, -1, 0);
     }
 
@@ -588,9 +588,9 @@ double ddicke_dz(double z) {
 double MtoR(double M) {
     // set R according to M<->R conversion defined by the filter type in
     // ../Parameter_files/COSMOLOGY.H
-    if (matter_options_global->FILTER == 0)  // top hat M = (4/3) PI <rho> R^3
+    if (matter_options_global->FILTER == FILTER_TOPHAT)  // top hat M = (4/3) PI <rho> R^3
         return pow(3 * M / (4 * M_PI * cosmo_params_global->OMm * RHOcrit), 1.0 / 3.0);
-    else if (matter_options_global->FILTER == 2)  // gaussian: M = (2PI)^1.5 <rho> R^3
+    else if (matter_options_global->FILTER == FILTER_GAUSSIAN)  // gaussian: M = (2PI)^1.5 <rho> R^3
         return pow(M / (pow(2 * M_PI, 1.5) * cosmo_params_global->OMm * RHOcrit), 1.0 / 3.0);
     else  // filter not defined
         LOG_ERROR("No such filter = %i. Results are bogus.", matter_options_global->FILTER);
@@ -601,9 +601,9 @@ double MtoR(double M) {
 double RtoM(double R) {
     // set M according to M<->R conversion defined by the filter type in
     // ../Parameter_files/COSMOLOGY.H
-    if (matter_options_global->FILTER == 0)  // top hat M = (4/3) PI <rho> R^3
+    if (matter_options_global->FILTER == FILTER_TOPHAT)  // top hat M = (4/3) PI <rho> R^3
         return (4.0 / 3.0) * M_PI * pow(R, 3) * (cosmo_params_global->OMm * RHOcrit);
-    else if (matter_options_global->FILTER == 2)  // gaussian: M = (2PI)^1.5 <rho> R^3
+    else if (matter_options_global->FILTER == FILTER_GAUSSIAN)  // gaussian: M = (2PI)^1.5 <rho> R^3
         return pow(2 * M_PI, 1.5) * cosmo_params_global->OMm * RHOcrit * pow(R, 3);
     else  // filter not defined
         LOG_ERROR("No such filter = %i. Results are bogus.", matter_options_global->FILTER);
