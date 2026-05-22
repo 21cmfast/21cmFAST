@@ -147,6 +147,7 @@ class TestInputsIO:
         assert cosmo_tables is not None
         assert cosmo_tables == expected_cosmo_tables
         assert object.__getattribute__(new, "cosmo_tables") is cosmo_tables
+        assert new.cosmo_tables is cosmo_tables
 
     def test_roundtrip_with_precomputed_cosmo_tables(self, tmp_path):
         """Cached cosmo tables in file are reused on read."""
