@@ -110,12 +110,9 @@ class TestWriteTemplate:
     @pytest.mark.parametrize("mode", ["full", "minimal"])
     def test_roundtrip(self, template, tmp_path: Path, mode: str):
         """Test that writing then reading a template gives the same answer."""
-        # Some templates require running CLASS. We set K_MAX_FOR_CLASS to be small so the test won't take too long
-        inputs = InputParameters.from_template(
-            template, random_seed=1, K_MAX_FOR_CLASS=1.0
-        )
+        inputs = InputParameters.from_template(template, random_seed=1)
         pth = tmp_path / "tmp.toml"
         tmpl.write_template(inputs, pth, mode=mode)
 
-        new = InputParameters.from_template(pth, random_seed=1, K_MAX_FOR_CLASS=1.0)
+        new = InputParameters.from_template(pth, random_seed=1)
         assert new == inputs
