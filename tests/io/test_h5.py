@@ -142,14 +142,31 @@ class TestInputsIO:
         new = h5.read_inputs(pth)
         with pytest.raises(AttributeError, match="cosmo_tables"):
             object.__getattribute__(new, "cosmo_tables")
+        fresh = h5.read_inputs(pth)
+        assert fresh.cosmo_tables is not None
+
+        expected_cosmo_tables = inputs._cosmo_tables_default()
+
+        def _raise_recompute(self):
+            raise RuntimeError("recompute")
 
         monkeypatch.setattr(
             InputParameters,
             "_cosmo_tables_default",
-            lambda self: (_ for _ in ()).throw(RuntimeError("recompute")),
+            _raise_recompute,
         )
         with pytest.raises(RuntimeError, match="recompute"):
             _ = new.cosmo_tables
+
+        monkeypatch.setattr(
+            InputParameters,
+            "_cosmo_tables_default",
+            lambda self: expected_cosmo_tables,
+        )
+        # Normal property access should lazily compute after a cache file without tables.
+        assert new.cosmo_tables is not None
+        assert new.cosmo_tables == expected_cosmo_tables
+        assert object.__getattribute__(new, "cosmo_tables") == expected_cosmo_tables
 
     def test_roundtrip_with_precomputed_cosmo_tables(self, tmp_path, monkeypatch):
         """Cached cosmo tables in file are reused on read."""
@@ -163,12 +180,15 @@ class TestInputsIO:
             assert "cosmo_tables" in fl["InputParameters"]
 
         new = h5.read_inputs(pth)
-        object.__getattribute__(new, "cosmo_tables")
+        assert object.__getattribute__(new, "cosmo_tables") is not None
+
+        def _raise_recompute(self):
+            raise RuntimeError("recompute")
 
         monkeypatch.setattr(
             InputParameters,
             "_cosmo_tables_default",
-            lambda self: (_ for _ in ()).throw(RuntimeError("recompute")),
+            _raise_recompute,
         )
 
         assert new.cosmo_tables == inputs.cosmo_tables

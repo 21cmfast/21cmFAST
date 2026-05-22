@@ -10,6 +10,11 @@ from .wrapper._utils import camel_to_snake, snake_to_camel
 from .wrapper.inputs import CosmoTables, InputParameters, InputStruct, Table1D
 
 
+def _deserialize_cosmo_table(value: dict[str, Any] | Table1D | Any) -> Table1D | Any:
+    """Deserialize a CosmoTables subfield value to Table1D when needed."""
+    return Table1D(**value) if isinstance(value, dict) else value
+
+
 def convert_inputs_to_dict(
     inputs: InputParameters,
     mode: Literal["full", "minimal"] = "full",
@@ -62,7 +67,9 @@ def convert_inputs_to_dict(
         cosmo_tables_key = "CosmoTables" if camel else "cosmo_tables"
         # we still want to keep cosmo_tables, even in minimal mode (since we want
         # to keep ps_norm and USE_SIGMA_8), if they are present.
-        cosmo_tables_dct = all_inputs.get(cosmo_tables_key, {}).copy()
+        cosmo_tables_dct = None
+        if cosmo_tables_key in all_inputs:
+            cosmo_tables_dct = all_inputs[cosmo_tables_key].copy()
         all_inputs = recursive_difference(all_inputs, default_dct)
         if cosmo_tables_dct:
             all_inputs[cosmo_tables_key] = cosmo_tables_dct
@@ -213,8 +220,10 @@ def deserialize_inputs(
         fieldnames = [field.alias for field in attrs.fields(CosmoTables)]
         kw_dict = {kk: loose_params.pop(kk) for kk in fieldnames if kk in loose_params}
         these_all = dict_of_structdicts.pop(structname, {})
+        # Table1D instances may arrive either as serialized dicts (e.g. from HDF5/TOML)
+        # or as already-instantiated Table1D objects (e.g. in-memory call sites).
         these = {
-            kk: Table1D(**these_all[kk]) if isinstance(these_all[kk], dict) else these_all[kk]
+            kk: _deserialize_cosmo_table(these_all[kk])
             for kk in these_all
             if kk in fieldnames
         }

@@ -349,6 +349,10 @@ def _read_inputs_v4(group: h5py.Group, safe: bool = True):
         node_redshifts=node_redshifts, random_seed=random_seed, **kwargs
     )
     if has_cosmo_tables and cosmo_tables is not None:
+        # Populate the cached_property slot directly so tables loaded from file are
+        # reused without recomputing or triggering the cached_property getter.
+        # InputParameters is frozen, and cached_property has no public setter, so
+        # direct slot assignment is required to pre-populate the cached value.
         object.__setattr__(out, "cosmo_tables", cosmo_tables)
     return out
 
