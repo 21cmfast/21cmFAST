@@ -1,4 +1,5 @@
 """Tests of the HDF5 read/write functionality."""
+
 from pathlib import Path
 
 import h5py
