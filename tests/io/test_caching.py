@@ -283,7 +283,9 @@ class TestOutputCache:
         reader_spy = mocker.spy(h5, "read_output_struct")
         compute_spy = mocker.spy(InitialConditions, "compute")
 
-        ics_default = compute_initial_conditions(inputs=default_input_struct, cache=cache)
+        ics_default = compute_initial_conditions(
+            inputs=default_input_struct, cache=cache
+        )
         assert reader_spy.call_count == 1
         assert compute_spy.call_count == 0
         assert ics_default == ic
