@@ -279,7 +279,7 @@ class TestOutputCache:
         cache,
         mocker,
     ):
-        """Test that the rengerate keyword works as intended, skipping calculation and loading from cache."""
+        """Test that the regenerate keyword works as intended, skipping calculation and loading from cache."""
         reader_spy = mocker.spy(h5, "read_output_struct")
         compute_spy = mocker.spy(InitialConditions, "compute")
 
