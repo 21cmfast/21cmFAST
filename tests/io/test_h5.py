@@ -142,6 +142,8 @@ class TestInputsIO:
         assert fresh.cosmo_tables is not None
 
         expected_cosmo_tables = fresh.cosmo_tables
+        with pytest.raises(AttributeError, match="cosmo_tables"):
+            object.__getattribute__(new, "cosmo_tables")
         # Normal property access should lazily compute after a cache file without tables.
         assert new.cosmo_tables is not None
         assert new.cosmo_tables == expected_cosmo_tables
