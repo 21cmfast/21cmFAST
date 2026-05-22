@@ -142,7 +142,11 @@ def _write_inputs_to_group(
     grp.attrs["21cmFAST-version"] = __version__
 
     inputsdct = prepare_inputs_for_serialization(
-        inputs, mode="full", only_structs=True, camel=False
+        inputs,
+        mode="full",
+        only_structs=True,
+        camel=False,
+        include_cosmo_tables="if_cached",
     )
 
     # Write the input structs. Note that all the "work" for converting attributes
@@ -332,16 +336,21 @@ def read_inputs(
 def _read_inputs_v4(group: h5py.Group, safe: bool = True):
     # Read the input parameter dictionaries from file.
     kwargs = hdf5_to_dict(group)
+    has_cosmo_tables = "cosmo_tables" in kwargs
     del kwargs["21cmFAST-version"]
 
     # The node_redshifts and random_seed are treated differently.
     node_redshifts = kwargs.pop("node_redshifts")
     random_seed = kwargs.pop("random_seed")
 
-    kwargs = deserialize_inputs(kwargs, safe=safe)
-    return InputParameters(
+    kwargs = deserialize_inputs(kwargs, safe=safe, include_cosmo_tables=True)
+    cosmo_tables = kwargs.pop("cosmo_tables", None)
+    out = InputParameters(
         node_redshifts=node_redshifts, random_seed=random_seed, **kwargs
     )
+    if has_cosmo_tables and cosmo_tables is not None:
+        object.__setattr__(out, "cosmo_tables", cosmo_tables)
+    return out
 
 
 def _read_outputs(

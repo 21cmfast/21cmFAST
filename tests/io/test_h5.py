@@ -129,3 +129,46 @@ class TestInputsIO:
         h5._write_inputs_to_group(inputs, pth)
         new = h5.read_inputs(pth)
         assert new == inputs
+
+    def test_roundtrip_without_precomputed_cosmo_tables(self, tmp_path, monkeypatch):
+        """Cosmo tables are omitted in cache files when not precomputed."""
+        inputs = InputParameters(random_seed=0)
+        pth = tmp_path / "tmp.h5"
+        h5._write_inputs_to_group(inputs, pth)
+
+        with h5py.File(pth, "r") as fl:
+            assert "cosmo_tables" not in fl["InputParameters"]
+
+        new = h5.read_inputs(pth)
+        with pytest.raises(AttributeError, match="cosmo_tables"):
+            object.__getattribute__(new, "cosmo_tables")
+
+        monkeypatch.setattr(
+            InputParameters,
+            "_cosmo_tables_default",
+            lambda self: (_ for _ in ()).throw(RuntimeError("recompute")),
+        )
+        with pytest.raises(RuntimeError, match="recompute"):
+            _ = new.cosmo_tables
+
+    def test_roundtrip_with_precomputed_cosmo_tables(self, tmp_path, monkeypatch):
+        """Cached cosmo tables in file are reused on read."""
+        inputs = InputParameters(random_seed=0)
+        _ = inputs.cosmo_tables
+
+        pth = tmp_path / "tmp.h5"
+        h5._write_inputs_to_group(inputs, pth)
+
+        with h5py.File(pth, "r") as fl:
+            assert "cosmo_tables" in fl["InputParameters"]
+
+        new = h5.read_inputs(pth)
+        object.__getattribute__(new, "cosmo_tables")
+
+        monkeypatch.setattr(
+            InputParameters,
+            "_cosmo_tables_default",
+            lambda self: (_ for _ in ()).throw(RuntimeError("recompute")),
+        )
+
+        assert new.cosmo_tables == inputs.cosmo_tables

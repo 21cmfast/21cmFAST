@@ -17,6 +17,7 @@ def convert_inputs_to_dict(
     camel: bool = True,
     only_cstruct_params: bool = False,
     use_aliases: bool = True,
+    include_cosmo_tables: Literal["always", "if_cached", "never"] = "always",
 ) -> dict[str, dict[str, Any]]:
     """Convert an InputParameters object to a dictionary, with various options.
 
@@ -51,6 +52,7 @@ def convert_inputs_to_dict(
         "camel": camel,
         "only_cstruct_params": only_cstruct_params,
         "use_aliases": use_aliases,
+        "include_cosmo_tables": include_cosmo_tables,
     }
     all_inputs = inputs.asdict(**kw)
 
@@ -58,10 +60,12 @@ def convert_inputs_to_dict(
         defaults = InputParameters(random_seed=0)
         default_dct = defaults.asdict(**kw)
         cosmo_tables_key = "CosmoTables" if camel else "cosmo_tables"
-        # we still want to keep cosmo_tables, even in minimal mode (since we want to keep ps_norm and USE_SIGMA_8)
-        cosmo_tables_dct = all_inputs[cosmo_tables_key].copy()
+        # we still want to keep cosmo_tables, even in minimal mode (since we want
+        # to keep ps_norm and USE_SIGMA_8), if they are present.
+        cosmo_tables_dct = all_inputs.get(cosmo_tables_key, {}).copy()
         all_inputs = recursive_difference(all_inputs, default_dct)
-        all_inputs[cosmo_tables_key] = cosmo_tables_dct
+        if cosmo_tables_dct:
+            all_inputs[cosmo_tables_key] = cosmo_tables_dct
 
     return all_inputs
 
@@ -71,6 +75,7 @@ def prepare_inputs_for_serialization(
     mode: Literal["full", "minimal"] = "full",
     only_structs: bool = True,
     camel: bool = True,
+    include_cosmo_tables: Literal["always", "if_cached", "never"] = "always",
 ) -> dict[str, dict[str, Any]]:
     """Prepare an inputs class for serialization (to e.g. TOML, YAML or HDF5).
 
@@ -84,6 +89,7 @@ def prepare_inputs_for_serialization(
         only_structs=only_structs,
         camel=camel,
         use_aliases=False,  # convert to aliases below instead.
+        include_cosmo_tables=include_cosmo_tables,
     )
 
     # dct is a dict of dicts, where each subdict represents a
@@ -134,7 +140,10 @@ def prepare_inputs_for_serialization(
 
 
 def deserialize_inputs(
-    dict_of_structdicts: dict[str, Any], safe: bool = True, **loose_params
+    dict_of_structdicts: dict[str, Any],
+    safe: bool = True,
+    include_cosmo_tables: bool = False,
+    **loose_params,
 ) -> dict[str, InputStruct]:
     """Construct a dictionary of InputStructs ready to be converted to InputParameters.
 
@@ -169,9 +178,7 @@ def deserialize_inputs(
 
     input_dict = {}
     extra_params = {}
-    for structname, kls in (
-        InputStruct._subclasses | {"CosmoTables": CosmoTables}
-    ).items():
+    for structname, kls in InputStruct._subclasses.items():
         # Use field.alias instead of field.name because the alias is what needs
         # to be passed to the class constructor (e.g. "DIM" instead of "_DIM")
         fieldnames = [field.alias for field in attrs.fields(kls)]
@@ -200,6 +207,25 @@ def deserialize_inputs(
 
         if extra:
             extra_params[structname] = extra
+
+    if include_cosmo_tables:
+        structname = "CosmoTables"
+        fieldnames = [field.alias for field in attrs.fields(CosmoTables)]
+        kw_dict = {kk: loose_params.pop(kk) for kk in fieldnames if kk in loose_params}
+        these_all = dict_of_structdicts.pop(structname, {})
+        these = {
+            kk: Table1D(**these_all[kk]) if isinstance(these_all[kk], dict) else these_all[kk]
+            for kk in these_all
+            if kk in fieldnames
+        }
+        extra = {kk: these_all[kk] for kk in these_all if kk not in fieldnames}
+        arg_dict = {**these, **kw_dict}
+        if arg_dict:
+            input_dict[camel_to_snake(structname)] = CosmoTables.new(arg_dict)
+        if extra:
+            extra_params[structname] = extra
+    else:
+        dict_of_structdicts.pop("CosmoTables", None)
 
     if dict_of_structdicts:
         warnings.warn(

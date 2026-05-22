@@ -6,7 +6,7 @@ from pathlib import Path
 import pytest
 
 from py21cmfast import _templates as tmpl
-from py21cmfast.wrapper.inputs import CosmoTables, InputParameters, InputStruct
+from py21cmfast.wrapper.inputs import InputParameters, InputStruct
 
 _TEMPLATES = tmpl.list_templates()
 _ALL_ALIASES = list(chain.from_iterable(t["aliases"] for t in _TEMPLATES))
@@ -81,9 +81,8 @@ class TestCreateParamsFromTemplate:
     def test_each_template_works(self, template: str):
         """Test that each template creates a dict of input structs."""
         dct = tmpl.create_params_from_template(template)
-        cosmo_tables = dct.pop("cosmo_tables")
         assert all(isinstance(v, InputStruct) for v in dct.values())
-        assert isinstance(cosmo_tables, CosmoTables)
+        assert "cosmo_tables" not in dct
 
     def test_adding_kwargs(self):
         """Test that also specifying loose params does set those params."""
