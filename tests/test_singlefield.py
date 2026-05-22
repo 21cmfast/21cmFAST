@@ -294,6 +294,14 @@ def test_using_cached_halo_catalog(default_input_struct, test_direc):
         redshift=10.0, initial_conditions=ic, write=True, cache=cache
     )
 
+    # Make sure the size of the halo catalog is the same as the number of halos that were found
+    assert halo_catalog.buffer_size == halo_catalog.n_halos
+    assert halo_catalog.halo_masses.shape == (halo_catalog.n_halos,)
+    assert halo_catalog.star_rng.shape == (halo_catalog.n_halos,)
+    assert halo_catalog.sfr_rng.shape == (halo_catalog.n_halos,)
+    assert halo_catalog.xray_rng.shape == (halo_catalog.n_halos,)
+    assert halo_catalog.halo_coords.shape == (halo_catalog.n_halos, 3)
+
     pt_halos = p21c.perturb_halo_catalog(
         initial_conditions=ic,
         halo_catalog=halo_catalog,
