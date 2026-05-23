@@ -71,7 +71,7 @@ def convert_inputs_to_dict(
         if cosmo_tables_key in all_inputs:
             cosmo_tables_dct = all_inputs[cosmo_tables_key].copy()
         all_inputs = recursive_difference(all_inputs, default_dct)
-        if cosmo_tables_dct:
+        if cosmo_tables_dct is not None:
             all_inputs[cosmo_tables_key] = cosmo_tables_dct
 
     return all_inputs
