@@ -672,7 +672,7 @@ def compute_spin_temperature(
     redshift = perturbed_field.redshift
 
     if redshift >= inputs.simulation_options.Z_HEAT_MAX:
-        previous_spin_temp = TsBox.new(inputs=inputs, redshift=0.0, dummy=True)
+        previous_spin_temp = TsBox.dummy()
 
     if xray_source_box is None:
         if inputs.matter_options.lagrangian_source_grid:
@@ -794,7 +794,7 @@ def compute_ionization_field(
             raise ValueError("No spin temperature box given but USE_TS_FLUCT=True")
 
         # Run the C Code
-        return box.compute(
+        box.compute(
             perturbed_field=perturbed_field,
             prev_perturbed_field=previous_perturbed_field,
             prev_ionize_box=previous_ionized_box,
@@ -816,7 +816,14 @@ def compute_ionization_field(
             previous_ionized_box=previous_ionized_box,
             spin_temp=spin_temp,
         )
-        return box
+
+    # There is a need to purge the "initial" boxes since they were exposed to C
+    if previous_ionized_box.initial:
+        previous_ionized_box.purge(force=True)
+    if previous_perturbed_field.initial:
+        previous_perturbed_field.purge(force=True)
+
+    return box
 
 
 @single_field_func
