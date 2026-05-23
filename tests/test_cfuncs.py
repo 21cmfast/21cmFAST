@@ -4,9 +4,25 @@ import matplotlib as mpl
 import numpy as np
 import pytest
 from hmf import MassFunction
+from scipy import optimize
 
 import py21cmfast as p21c
 from py21cmfast.wrapper import cfuncs as cf
+
+YUNG24_PHYSICAL_PARAMS = {
+    "A_0": 0.13765772,
+    "A_1": -0.01003821,
+    "A_2": 0.00102964,
+    "a_0": 1.06641384,
+    "a_1": 0.02475576,
+    "a_2": -0.00283342,
+    "b_0": 4.86693806,
+    "b_1": 0.09212356,
+    "b_2": -0.01426283,
+    "c_0": 1.19837952,
+    "c_1": -0.00142967,
+    "c_2": -0.00033074,
+}
 
 
 def test_run_lf():
@@ -232,7 +248,7 @@ def test_matterfield_statistics(default_input_struct, hmf_model, ps_model, plt):
     )
 
 
-@pytest.mark.parametrize("hmf_model", ["PS", "ST"])
+@pytest.mark.parametrize("hmf_model", ["PS", "ST", "REED07", "YUNG24"])
 @pytest.mark.parametrize(
     "ps_model", ["EH", "BBKS", "EFSTATHIOU", "PEEBLES", "WHITE", "CLASS"]
 )
@@ -253,6 +269,124 @@ def test_hmf_runs(default_input_struct, hmf_model, ps_model):
 
     assert hmf_vals.shape == (len(mass_range),)
     assert np.all(~np.isnan(hmf_vals))
+
+
+@pytest.mark.parametrize("hmf_model", ["REED07", "YUNG24"])
+@pytest.mark.parametrize("ps_model", ["EH", "BBKS"])
+def test_new_hmf_matches_reference(default_input_struct, hmf_model, ps_model):
+    redshift = 8.0
+    if hmf_model == "REED07":
+        transfer_map = {
+            "EH": "EH_NoBAO",
+            "BBKS": "BBKS",
+        }
+        if ps_model == "BBKS":
+            transfer_params = {
+                "use_sugiyama_baryons": True,
+                "use_liddle_baryons": False,
+            }
+        else:
+            transfer_params = {}
+
+        comparison_mf = MassFunction(
+            z=redshift,
+            Mmin=7,
+            Mmax=12,
+            hmf_model="Reed07",
+            transfer_model=transfer_map[ps_model],
+            transfer_params=transfer_params,
+            growth_model="GenMFGrowth",
+            delta_c=1.686,
+        )
+        inputs = default_input_struct.clone(
+            cosmo_params=p21c.CosmoParams.from_astropy(
+                comparison_mf.cosmo,
+                SIGMA_8=comparison_mf.sigma_8,
+                POWER_INDEX=comparison_mf.n,
+            ),
+        ).evolve_input_structs(
+            POWER_SPECTRUM=ps_model,
+            HMF=hmf_model,
+            USE_INTERPOLATION_TABLES="no-interpolation",
+        )
+        h = inputs.cosmo_params.cosmo.h
+        masses = comparison_mf.m / h
+        hmf_vals = cf.return_uhmf_value(
+            inputs=inputs,
+            redshift=redshift,
+            mass_values=masses,
+        )
+        mass_dens = (
+            inputs.cosmo_params.cosmo.critical_density(0).to("M_sun Mpc^-3").value
+            * inputs.cosmo_params.cosmo.Om0
+        )
+
+        np.testing.assert_allclose(
+            mass_dens * hmf_vals,
+            comparison_mf.dndlnm * (h**3),
+            rtol=2e-2,
+        )
+    else:
+        masses = np.logspace(7, 12, num=64)
+        inputs = default_input_struct.evolve_input_structs(
+            POWER_SPECTRUM=ps_model,
+            HMF=hmf_model,
+            USE_INTERPOLATION_TABLES="no-interpolation",
+        )
+        hmf_vals = cf.return_uhmf_value(
+            inputs=inputs, redshift=redshift, mass_values=masses
+        )
+        sigma0, dsigmasqdm = cf.evaluate_sigma(inputs=inputs, masses=masses)
+
+        ps_inputs = inputs.evolve_input_structs(HMF="PS")
+        ps_hmf_vals = cf.return_uhmf_value(
+            inputs=ps_inputs, redshift=redshift, mass_values=masses
+        )
+        test_idx = len(masses) // 2
+        delta_c = 1.686
+
+        def ps_difference(growth):
+            sigma_z = sigma0[test_idx] * growth
+            dsigmadm = dsigmasqdm[test_idx] * growth / (2 * sigma0[test_idx])
+            expected = (
+                -np.sqrt(2 / np.pi)
+                * (delta_c / sigma_z**2)
+                * dsigmadm
+                * np.exp(-(delta_c**2) / (2 * sigma_z**2))
+            )
+            return expected - ps_hmf_vals[test_idx]
+
+        growth = optimize.brentq(ps_difference, 1e-4, 1.0)
+        sigma = sigma0 * growth
+        dlnsdlnm = -masses * dsigmasqdm / (2 * sigma0**2)
+
+        # TODO: Switch this branch to using hmf once Yung24 is merged there.
+        z = redshift
+        a_z = (
+            YUNG24_PHYSICAL_PARAMS["a_0"]
+            + YUNG24_PHYSICAL_PARAMS["a_1"] * z
+            + YUNG24_PHYSICAL_PARAMS["a_2"] * z**2
+        )
+        b_z = (
+            YUNG24_PHYSICAL_PARAMS["b_0"]
+            + YUNG24_PHYSICAL_PARAMS["b_1"] * z
+            + YUNG24_PHYSICAL_PARAMS["b_2"] * z**2
+        )
+        c_z = (
+            YUNG24_PHYSICAL_PARAMS["c_0"]
+            + YUNG24_PHYSICAL_PARAMS["c_1"] * z
+            + YUNG24_PHYSICAL_PARAMS["c_2"] * z**2
+        )
+        A_z = (
+            YUNG24_PHYSICAL_PARAMS["A_0"]
+            + YUNG24_PHYSICAL_PARAMS["A_1"] * z
+            + YUNG24_PHYSICAL_PARAMS["A_2"] * z**2
+        )
+        f_sigma = A_z * ((sigma / b_z) ** (-a_z) + 1) * np.exp(-c_z / sigma**2)
+
+        expected = f_sigma * dlnsdlnm / masses
+
+        np.testing.assert_allclose(hmf_vals, expected, rtol=1e-6)
 
 
 @pytest.mark.parametrize("hmf_model", ["PS", "ST"])

@@ -24,7 +24,7 @@ jobs:
         uses: conda-incubator/setup-miniconda@v4
         with:
             channels: conda-forge,defaults
-            python-version: 3.11
+            python-version: 3.12
             channel-priority: true
 
       - name: Install Non-Python Dependencies
