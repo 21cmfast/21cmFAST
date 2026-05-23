@@ -224,8 +224,8 @@ void move_grid_galprops(double redshift, float *dens_pointer, int dens_dim[3],
     double box_size[3] = {boxlen, boxlen, boxlen_z};
     double dim_ratio_vel = (double)vel_dim[0] / (double)dens_dim[0];
     double dim_ratio_out = (double)out_dim[0] / (double)dens_dim[0];
-    double vol_ratio_out = (double)(out_dim[0] * out_dim[1] * out_dim[2]) /
-                           (double)(dens_dim[0] * dens_dim[1] * dens_dim[2]);
+    double vol_ratio_out = ((double)out_dim[0] * out_dim[1] * out_dim[2]) /
+                           ((double)dens_dim[0] * dens_dim[1] * dens_dim[2]);
 
     double prefactor_mass = RHOcrit * cosmo_params_global->OMm * vol_ratio_out;
     double prefactor_stars = RHOcrit * cosmo_params_global->OMb * consts->fstar_10 * vol_ratio_out;
@@ -340,7 +340,7 @@ void move_grid_galprops(double redshift, float *dens_pointer, int dens_dim[3],
     // Without stochasticity, these grids are the same to a constant
     double prefactor_wsfr = 1 / consts->t_h / consts->t_star;
     if (astro_options_global->INHOMO_RECO) {
-        for (int i = 0; i < HII_TOT_NUM_PIXELS; i++) {
+        for (unsigned long long int i = 0; i < HII_TOT_NUM_PIXELS; i++) {
             boxes->whalo_sfr[i] = boxes->n_ion[i] * prefactor_wsfr;
         }
     }

@@ -186,7 +186,7 @@ void alloc_global_arrays() {
 
         delNL0 = (float **)calloc(num_R_boxes, sizeof(float *));
         for (i = 0; i < num_R_boxes; i++) {
-            delNL0[i] = (float *)calloc((float)HII_TOT_NUM_PIXELS, sizeof(float));
+            delNL0[i] = (float *)calloc(HII_TOT_NUM_PIXELS, sizeof(float));
         }
         if (astro_options_global->USE_MINI_HALOS) {
             log10_Mcrit_LW = (float **)calloc(num_R_boxes, sizeof(float *));

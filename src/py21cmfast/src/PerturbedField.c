@@ -185,9 +185,8 @@ void normalise_delta_grid(fftwf_complex *deltap1_grid) {
     int hi_dim[3] = {simulation_options_global->DIM, simulation_options_global->DIM, D_PARA};
     // Renormalise the lowres box
     double mass_factor =
-        matter_options_global->PERTURB_ON_HIGH_RES
-            ? 1.0
-            : (lo_dim[0] * lo_dim[1] * lo_dim[2]) / (double)(hi_dim[0] * hi_dim[1] * hi_dim[2]);
+        matter_options_global->PERTURB_ON_HIGH_RES ? 1.0
+                                                    : HII_TOT_NUM_PIXELS / (double)TOT_NUM_PIXELS;
 #pragma omp parallel private(i, j, k) num_threads(simulation_options_global -> N_THREADS)
     {
         unsigned long long int grid_index;
@@ -244,7 +243,7 @@ void smooth_and_clip_density(fftwf_complex *lowres_grid, fftwf_complex *density_
                       simulation_options_global->HII_DIM, 2 * (HII_D_PARA / 2 + 1), "  ");
 
     // normalize after FFT
-    int bad_count = 0;
+    unsigned long long int bad_count = 0;
 #pragma omp parallel shared(lowres_grid) private(i, j, k) \
     num_threads(simulation_options_global -> N_THREADS) reduction(+ : bad_count)
     {
@@ -271,7 +270,7 @@ void smooth_and_clip_density(fftwf_complex *lowres_grid, fftwf_complex *density_
             }
         }
     }
-    if (bad_count >= 5) LOG_WARNING("Total number of bad indices: %d", bad_count);
+    if (bad_count >= 5) LOG_WARNING("Total number of bad indices: %llu", bad_count);
     LOG_SUPER_DEBUG("delta normalized: ");
     debugSummarizeBox((float *)lowres_grid, simulation_options_global->HII_DIM,
                       simulation_options_global->HII_DIM, 2 * (HII_D_PARA / 2 + 1), "  ");

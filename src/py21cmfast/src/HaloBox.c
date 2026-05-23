@@ -167,7 +167,7 @@ HaloProperties get_halobox_averages(HaloBox *grids) {
 
 #pragma omp parallel for reduction(+ : mean_count, mean_mass, mean_stars, mean_stars_mini, \
                                        mean_sfr, mean_sfr_mini, mean_n_ion, mean_xray, mean_wsfr)
-    for (int i = 0; i < HII_TOT_NUM_PIXELS; i++) {
+    for (unsigned long long int i = 0; i < HII_TOT_NUM_PIXELS; i++) {
         mean_sfr += grids->halo_sfr[i];
         mean_n_ion += grids->n_ion[i];
         if (astro_options_global->USE_TS_FLUCT) {
