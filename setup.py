@@ -24,7 +24,7 @@ if "TOXENV" in os.environ and "SETUPPY_CFLAGS" in os.environ:
 test_req = [
     "clang-format",
     "clang-tidy",
-    "hmf",
+    "mpmath",
     "pre-commit",
     "pytest>=5.0",
     "pytest-cov",
@@ -92,6 +92,7 @@ setup(
         "cyclopts",
         "tomlkit",
         "hmf",
+        "deprecation",
     ],
     extras_require={"tests": test_req, "docs": doc_req, "dev": test_req + doc_req},
     setup_requires=["cffi>=1.0", "setuptools_scm"],

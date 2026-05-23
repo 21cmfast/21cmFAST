@@ -1,6 +1,6 @@
-==============================
-Changes from 21cmFAST v3 to v4
-==============================
+=====================
+Changes from v3 to v4
+=====================
 
 This page outlines the main differences between the usage of ``21cmFAST`` versions 3 and
 4. Use this documentation as a reference for understanding and adapting to the updates in
@@ -100,7 +100,7 @@ templates, but they are briefly described below:
 
 
 Caching
-=======
+========
 Significant improvements were made to the caching mechanism for ``21cmFAST`` outputs.
 We provide the class ``OutputCache`` for searching, reading and writing low-level
 outputs to file, and ``RunCache`` for specifying all the outputs needed to complete a

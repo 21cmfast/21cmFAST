@@ -152,7 +152,7 @@ void assign_to_lowres_grid(fftwf_complex *hires_grid, fftwf_complex *lowres_grid
 
     // Now filter the box
     filter_box(hires_grid, hi_dim, 0,
-               physconst.l_factor * simulation_options_global->BOX_LEN / (lo_dim[0] + 0.0), 0.);
+               physconst.l_factor * simulation_options_global->BOX_LEN / (lo_dim[0] + 0.0), 0., 0.);
 
     // FFT back to real space
     dft_c2r_cube(matter_options_global->USE_FFTW_WISDOM, hi_dim[0], hi_dim[2],
@@ -222,7 +222,7 @@ void smooth_and_clip_density(fftwf_complex *lowres_grid, fftwf_complex *density_
                    simulation_options_global->DENSITY_SMOOTH_RADIUS *
                        simulation_options_global->BOX_LEN /
                        (float)simulation_options_global->HII_DIM,
-                   0.);
+                   0., 0.);
     }
 
     LOG_SUPER_DEBUG("delta_k after smoothing: ");
@@ -354,7 +354,7 @@ void compute_perturbed_velocities(unsigned short axis, double redshift,
         filter_box(velocity_fft_grid, box_dim, 0,
                    physconst.l_factor * simulation_options_global->BOX_LEN /
                        (simulation_options_global->HII_DIM + 0.0),
-                   0.);
+                   0., 0.);
     }
 
     dft_c2r_cube(matter_options_global->USE_FFTW_WISDOM, box_dim[0], box_dim[2],

@@ -267,7 +267,7 @@ def test_perturb_halos(default_input_struct_ts):
         SOURCE_MODEL="CHMF-SAMPLER",
         SAMPLER_MIN_MASS=5e9,
         PERTURB_ON_HIGH_RES=True,
-        INHOMO_RECO=True,
+        RECOMB_MODEL="inhomogeneous",
         USE_MINI_HALOS=True,
         USE_RELATIVE_VELOCITIES=True,
         POWER_SPECTRUM="CLASS",

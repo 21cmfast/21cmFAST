@@ -27,12 +27,12 @@ logger = logging.getLogger(__name__)
 def broadcast_input_struct(inputs: InputParameters):
     """Broadcast the parameters to the C library."""
     lib.Broadcast_struct_global_all(
-        inputs.simulation_options.cstruct,
-        inputs.matter_options.cstruct,
-        inputs.cosmo_params.cstruct,
-        inputs.astro_params.cstruct,
-        inputs.astro_options.cstruct,
-        inputs.cosmo_tables.cstruct,
+        inputs.simulation_options._cstruct,
+        inputs.matter_options._cstruct,
+        inputs.cosmo_params._cstruct,
+        inputs.astro_params._cstruct,
+        inputs.astro_options._cstruct,
+        inputs.cosmo_tables._cstruct,
     )
 
 

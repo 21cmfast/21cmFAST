@@ -339,7 +339,7 @@ void move_grid_galprops(double redshift, float *dens_pointer, int dens_dim[3],
     }
     // Without stochasticity, these grids are the same to a constant
     double prefactor_wsfr = 1 / consts->t_h / consts->t_star;
-    if (astro_options_global->INHOMO_RECO) {
+    if (astro_options_global->RECOMB_MODEL > 0) {
         for (int i = 0; i < HII_TOT_NUM_PIXELS; i++) {
             boxes->whalo_sfr[i] = boxes->n_ion[i] * prefactor_wsfr;
         }
@@ -428,7 +428,7 @@ void move_halo_galprops(double redshift, HaloCatalog *halos, float *vel_pointers
             if (astro_options_global->USE_TS_FLUCT) {
                 do_cic_interpolation(boxes->halo_xray, pos, out_dim, properties.halo_xray);
             }
-            if (astro_options_global->INHOMO_RECO) {
+            if (astro_options_global->RECOMB_MODEL > 0) {
                 do_cic_interpolation(boxes->whalo_sfr, pos, out_dim, properties.fescweighted_sfr);
             }
             if (config_settings.EXTRA_HALOBOX_FIELDS) {
@@ -461,7 +461,7 @@ void move_halo_galprops(double redshift, HaloCatalog *halos, float *vel_pointers
             if (astro_options_global->USE_TS_FLUCT) {
                 boxes->halo_xray[i_cell] *= cell_vol_inv;
             }
-            if (astro_options_global->INHOMO_RECO) {
+            if (astro_options_global->RECOMB_MODEL > 0) {
                 boxes->whalo_sfr[i_cell] *= cell_vol_inv;
             }
             if (astro_options_global->USE_MINI_HALOS) {

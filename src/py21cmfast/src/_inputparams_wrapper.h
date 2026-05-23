@@ -137,12 +137,14 @@ typedef struct AstroOptions {
     bool USE_X_RAY_HEATING;
     bool USE_CMB_HEATING;  // CMB Heating Flag
     bool USE_LYA_HEATING;  // Lya Heating Flag
-    bool INHOMO_RECO;
+    int RECOMB_MODEL;
     bool USE_TS_FLUCT;
     bool M_MIN_in_Mass;
     bool FIX_VCB_AVG;
     bool USE_EXP_FILTER;
     bool CELL_RECOMB;
+    bool LYA_MULTIPLE_SCATTERING;
+    bool USE_ADIABATIC_FLUCTUATIONS;
     int PHOTON_CONS_TYPE;
     bool USE_UPPER_STELLAR_TURNOVER;
     bool HALO_SCALING_RELATIONS_MEDIAN;

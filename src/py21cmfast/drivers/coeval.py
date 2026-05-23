@@ -791,6 +791,7 @@ def _redshift_loop_generator(
                     this_xraysource = sf.compute_xray_source_field(
                         redshift=z,
                         hboxes=[*hbox_arr, this_halobox],
+                        previous_ionize_box=getattr(prev_coeval, "ionized_box", None),
                         write=write.xray_source_box,
                         **kw,
                     )
@@ -951,7 +952,7 @@ def _get_required_redshifts_coeval(
     # Turn into a set so that exact matching user-set redshift
     # don't double-up with scrolling ones.
     if (
-        (inputs.astro_options.USE_TS_FLUCT or inputs.astro_options.INHOMO_RECO)
+        inputs.evolution_required
         and user_redshifts
         and min(inputs.node_redshifts) > min(user_redshifts)
     ):

@@ -10,6 +10,8 @@ from py21cmfast import (
     InitialConditions,  # An example of an output struct
     InputParameters,
     config,
+    determine_halo_catalog,
+    perturb_halo_catalog,
 )
 from py21cmfast.wrapper import outputs as ox
 from py21cmfast.wrapper.arrays import Array
@@ -18,6 +20,21 @@ from py21cmfast.wrapper.arrays import Array
 @pytest.fixture
 def init(default_input_struct: InputParameters):
     return InitialConditions.new(inputs=default_input_struct)
+
+
+@pytest.fixture
+def halo_cat(ic: InitialConditions, default_input_struct: InputParameters):
+    return determine_halo_catalog(
+        redshift=10.0, initial_conditions=ic, inputs=default_input_struct
+    )
+
+
+@pytest.fixture
+def pert_halo_cat(ic: InitialConditions, halo_cat: ox.HaloCatalog):
+    return perturb_halo_catalog(
+        initial_conditions=ic,
+        halo_catalog=halo_cat,
+    )
 
 
 def test_different_seeds(
@@ -200,7 +217,7 @@ def test_optional_field_perturbed_halocat(default_input_struct_lc: InputParamete
         redshift=0.0, inputs=inputs, buffer_size=1
     )
     assert isinstance(pert_halo_cat.xray_emissivity, Array)
-    inputs = inputs.evolve_input_structs(INHOMO_RECO=True)
+    inputs = inputs.evolve_input_structs(RECOMB_MODEL="inhomogeneous")
     pert_halo_cat = ox.PerturbedHaloCatalog.new(
         redshift=0.0, inputs=inputs, buffer_size=1
     )
@@ -228,7 +245,9 @@ def test_optional_field_halobox(default_input_struct_lc: InputParameters):
         assert isinstance(hb.halo_mass, Array)
         assert isinstance(hb.count, Array)
 
-        inputs = default_input_struct_lc.evolve_input_structs(INHOMO_RECO=True)
+        inputs = default_input_struct_lc.evolve_input_structs(
+            RECOMB_MODEL="inhomogeneous"
+        )
         hb = ox.HaloBox.new(redshift=0.0, inputs=inputs)
         assert isinstance(hb.whalo_sfr, Array)
 
@@ -251,7 +270,7 @@ def test_optional_field_xrs(default_input_struct_lc: InputParameters):
     inputs = default_input_struct_lc.evolve_input_structs(
         USE_TS_FLUCT=True,
         USE_MINI_HALOS=True,
-        INHOMO_RECO=True,
+        RECOMB_MODEL="inhomogeneous",
     )
     xr = ox.XraySourceBox.new(redshift=0.0, inputs=inputs)
     assert isinstance(xr.filtered_sfr_mini, Array)
@@ -267,7 +286,7 @@ def test_optional_field_ts(default_input_struct_lc: InputParameters):
 
     inputs = default_input_struct_lc.evolve_input_structs(
         USE_TS_FLUCT=True,
-        INHOMO_RECO=True,
+        RECOMB_MODEL="inhomogeneous",
         USE_MINI_HALOS=True,
     )
     ts = ox.TsBox.new(redshift=0.0, inputs=inputs)
@@ -282,7 +301,7 @@ def test_optional_field_ion(default_input_struct_lc: InputParameters):
     assert ion.cumulative_recombinations is None
 
     inputs = default_input_struct_lc.evolve_input_structs(
-        INHOMO_RECO=True,
+        RECOMB_MODEL="inhomogeneous",
     )
     ion = ox.IonizedBox.new(redshift=0.0, inputs=inputs)
     assert isinstance(ion.cumulative_recombinations, Array)
@@ -317,3 +336,68 @@ def test_bad_required_array(default_input_struct, struct):
 
     with pytest.raises(ValueError, match="is not an input required for"):
         _ = output.get_required_input_arrays(bt)
+
+
+def test_halocatalog_iteration(halo_cat: ox.HaloCatalog):
+    """Test HaloCatalog iteration, len, and indexing."""
+    # Test len
+    assert len(halo_cat) == halo_cat.n_halos
+
+    # Test iteration and indexing
+    halo_list = []
+    for halo in halo_cat:
+        halo_list.append(halo)
+        assert isinstance(halo, ox.Halo)
+        assert halo.mass is not None
+        assert halo.coords is not None
+        assert halo.star_rng is not None
+        assert halo.sfr_rng is not None
+        assert halo.xray_rng is not None
+        assert halo.redshift is not None
+
+    assert len(halo_list) == halo_cat.n_halos
+
+    # Test indexing
+    first_halo = halo_cat[0]
+    assert isinstance(first_halo, ox.Halo)
+    assert first_halo.mass == halo_list[0].mass
+    assert np.all(first_halo.coords == halo_list[0].coords)
+
+
+def test_perturbed_halocatalog_iteration(pert_halo_cat: ox.PerturbedHaloCatalog):
+    """Test PerturbedHaloCatalog iteration, len, and indexing."""
+    # Test len
+    assert len(pert_halo_cat) == pert_halo_cat.n_halos
+
+    # Test iteration and indexing
+    halo_list = []
+    for halo in pert_halo_cat:
+        halo_list.append(halo)
+        assert isinstance(halo, ox.Halo)
+        assert halo.mass is not None
+        assert halo.coords is not None
+        assert halo.redshift is not None
+
+    assert len(halo_list) == pert_halo_cat.n_halos
+
+    # Test indexing
+    first_halo = pert_halo_cat[0]
+    assert isinstance(first_halo, ox.Halo)
+    assert first_halo.mass == halo_list[0].mass
+    assert np.all(first_halo.coords == halo_list[0].coords)
+
+
+def test_bad_indices_for_halocatalog(
+    halo_cat: ox.HaloCatalog, pert_halo_cat: ox.PerturbedHaloCatalog
+):
+    """Test bad indices for halo catalog and perturbed halo catalog."""
+    with pytest.raises(IndexError, match=f"Halo index {halo_cat.n_halos} out of range"):
+        halo_cat[halo_cat.n_halos]
+    with pytest.raises(IndexError, match="Halo index -1 out of range"):
+        halo_cat[-1]
+    with pytest.raises(
+        IndexError, match=f"Halo index {pert_halo_cat.n_halos} out of range"
+    ):
+        pert_halo_cat[pert_halo_cat.n_halos]
+    with pytest.raises(IndexError, match="Halo index -1 out of range"):
+        pert_halo_cat[-1]

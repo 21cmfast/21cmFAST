@@ -93,7 +93,7 @@ OPTIONS_TESTRUNS = {
         18,
         {
             "USE_MINI_HALOS": True,
-            "INHOMO_RECO": True,
+            "RECOMB_MODEL": "inhomogeneous",
             "R_BUBBLE_MAX": 50.0,
             "USE_TS_FLUCT": True,
             "M_TURN": 5.0,
@@ -109,7 +109,7 @@ OPTIONS_TESTRUNS = {
         18,
         {
             "USE_MINI_HALOS": True,
-            "INHOMO_RECO": True,
+            "RECOMB_MODEL": "inhomogeneous",
             "R_BUBBLE_MAX": 50.0,
             "USE_TS_FLUCT": True,
             "M_TURN": 5.0,
@@ -130,17 +130,25 @@ OPTIONS_TESTRUNS = {
         18,
         {"USE_TS_FLUCT": True, "SOURCE_MODEL": "CONST-ION-EFF"},
     ],
+    "homo": [
+        18,
+        {
+            "RECOMB_MODEL": "homogeneous",
+            "CELL_RECOMB": True,
+            "R_BUBBLE_MAX": 50.0,
+        },
+    ],
     "inhomo": [
         18,
         {
-            "INHOMO_RECO": True,
+            "RECOMB_MODEL": "inhomogeneous",
             "R_BUBBLE_MAX": 50.0,
         },
     ],
     "inhomo_ts": [
         18,
         {
-            "INHOMO_RECO": True,
+            "RECOMB_MODEL": "inhomogeneous",
             "USE_TS_FLUCT": True,
             "R_BUBBLE_MAX": 50.0,
         },
@@ -170,7 +178,7 @@ OPTIONS_TESTRUNS = {
             "SOURCE_MODEL": "CHMF-SAMPLER",
             "USE_MINI_HALOS": True,
             "USE_TS_FLUCT": True,
-            "INHOMO_RECO": True,
+            "RECOMB_MODEL": "inhomogeneous",
             "R_BUBBLE_MAX": 50.0,
             "USE_RELATIVE_VELOCITIES": True,
             "POWER_SPECTRUM": "CLASS",
@@ -189,7 +197,7 @@ OPTIONS_TESTRUNS = {
         18,
         {
             "SOURCE_MODEL": "CHMF-SAMPLER",
-            "INHOMO_RECO": True,
+            "RECOMB_MODEL": "inhomogeneous",
             "R_BUBBLE_MAX": 50.0,
         },
     ],
@@ -198,7 +206,7 @@ OPTIONS_TESTRUNS = {
         {
             "SOURCE_MODEL": "CHMF-SAMPLER",
             "USE_TS_FLUCT": True,
-            "INHOMO_RECO": True,
+            "RECOMB_MODEL": "inhomogeneous",
             "R_BUBBLE_MAX": 50.0,
         },
     ],
@@ -207,7 +215,7 @@ OPTIONS_TESTRUNS = {
         {
             "SOURCE_MODEL": "CHMF-SAMPLER",
             "USE_TS_FLUCT": True,
-            "INHOMO_RECO": True,
+            "RECOMB_MODEL": "inhomogeneous",
             "R_BUBBLE_MAX": 50.0,
             "N_THREADS": 1,
         },
@@ -235,12 +243,36 @@ OPTIONS_TESTRUNS = {
         18,
         {
             "USE_TS_FLUCT": True,
-            "INHOMO_RECO": True,
+            "RECOMB_MODEL": "inhomogeneous",
             "R_BUBBLE_MAX": 50.0,
             "MINIMIZE_MEMORY": True,
         },
     ],
     "fftw_wisdom": [18, {"USE_FFTW_WISDOM": True}],
+    "multiple_scattering": [
+        18,
+        {
+            "LYA_MULTIPLE_SCATTERING": True,
+            "SOURCE_MODEL": "L-INTEGRAL",
+            "USE_TS_FLUCT": True,
+        },
+    ],
+    "multiple_scattering_mini": [
+        18,
+        {
+            "LYA_MULTIPLE_SCATTERING": True,
+            "SOURCE_MODEL": "L-INTEGRAL",
+            "USE_TS_FLUCT": True,
+            "USE_MINI_HALOS": True,
+            "RECOMB_MODEL": "inhomogeneous",
+            "N_THREADS": 4,
+            "USE_RELATIVE_VELOCITIES": True,
+            "POWER_SPECTRUM": "CLASS",
+            "K_MAX_FOR_CLASS": 1.0,
+            "R_BUBBLE_MAX": 50.0,
+            "M_TURN": 5.0,
+        },
+    ],
 }
 
 if len(set(OPTIONS_TESTRUNS.keys())) != len(list(OPTIONS_TESTRUNS.keys())):
@@ -264,7 +296,10 @@ def get_node_z(redshift, lc=False, **kwargs):
     """
     node_redshifts = None
     max_redshift = redshift + 2
-    if kwargs.get("USE_TS_FLUCT", False) or kwargs.get("INHOMO_RECO", False):
+    if (
+        kwargs.get("USE_TS_FLUCT", False)
+        or kwargs.get("RECOMB_MODEL", "none") != "none"
+    ):
         max_redshift = kwargs.get(
             "Z_HEAT_MAX",
             DEFAULT_INPUTS_TESTRUNS.get(
@@ -272,7 +307,11 @@ def get_node_z(redshift, lc=False, **kwargs):
             ),
         )
 
-    if lc or kwargs.get("USE_TS_FLUCT", False) or kwargs.get("INHOMO_RECO", False):
+    if (
+        lc
+        or kwargs.get("USE_TS_FLUCT", False)
+        or kwargs.get("RECOMB_MODEL", "none") != "none"
+    ):
         node_redshifts = get_logspaced_redshifts(
             min_redshift=redshift,
             max_redshift=max_redshift,
@@ -316,7 +355,14 @@ def produce_coeval_power_spectra(redshift: float, cache: OutputCache, **kwargs):
     )
     p = {}
 
-    for field in COEVAL_FIELDS:
+    fields_to_compute = COEVAL_FIELDS[:]
+    if options["inputs"].astro_options.RECOMB_MODEL == "homogeneous":
+        # Do not compute power spectrum of cumulative_recombinations
+        # if RECOMB_MODEL == "homogeneous", since that field is just a single number
+        # in this case
+        fields_to_compute.remove("cumulative_recombinations")
+
+    for field in fields_to_compute:
         if hasattr(coeval, field):
             p[field], k = get_power(
                 getattr(coeval, field),
@@ -340,7 +386,7 @@ def get_lc_fields(inputs):
         ]
     if not inputs.astro_options.USE_MINI_HALOS:
         quantities.remove("J_21_LW")
-    if not inputs.astro_options.INHOMO_RECO:
+    if inputs.astro_options.RECOMB_MODEL == "none":
         quantities.remove("cumulative_recombinations")
 
     return quantities

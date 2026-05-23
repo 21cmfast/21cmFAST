@@ -58,30 +58,42 @@ Examples
 --------
 A typical example of using this module would be the following.
 
->>> import py21cmfast as p21
+>>> import py21cmfast as p21c
 
 Get coeval cubes at redshift 7,8 and 9, without spin temperature or inhomogeneous
 recombinations:
 
->>> coeval = p21.run_coeval(
->>>     redshift=[7,8,9],
->>>     cosmo_params=p21.CosmoParams(hlittle=0.7),
->>>     simulation_options=p21.SimulationOptions(HII_DIM=100)
+>>> cosmo_params=p21c.CosmoParams(hlittle=0.7),
+>>> simulation_options=p21c.SimulationOptions(HII_DIM=100)
+>>> inputs =p21c.InputParameters(random_seed=1, cosmo_params=cosmo_params, simulation_options=simulation_options)
+>>> coeval = p21c.run_coeval(
+>>>     out_redshifts=[7,8,9],
+>>>     inputs=inputs,
 >>> )
 
 Get coeval cubes at the same redshift, with both spin temperature and inhomogeneous
 recombinations, pulled from the natural evolution of the fields:
 
->>> all_boxes = p21.run_coeval(
->>>                 redshift=[7,8,9],
->>>                 simulation_options=p21.SimulationOptions(HII_DIM=100),
->>>                 astro_options=p21.AstroOptions(INHOMO_RECO=True),
->>>                 do_spin_temp=True
->>>             )
+>>> simulation_options=p21c.SimulationOptions(HII_DIM=100),
+>>> astro_options=p21c.AstroOptions(RECOMB_MODEL="inhomogeneous",USE_TS_FLUCT=True)
+>>> inputs =p21c.InputParameters(random_seed=1, astro_options=astro_options, simulation_options=simulation_options)
+>>> all_boxes = p21c.run_coeval(
+>>>     out_redshifts=[7,8,9],
+>>>     inputs=inputs,
+>>> )
 
-Get a self-consistent lightcone defined between z1 and z2 (`z_step_factor` changes the
+Get a self-consistent lightcone defined between z1 and z2 (`z_step` changes the
 logarithmic steps between redshift that are actually evaluated, which are then
 interpolated onto the lightcone cells):
 
->>> lightcone = p21.run_lightcone(redshift=z2, max_redshift=z2, z_step_factor=1.03)
+>>> inputs = p21c.InputParameters(random_seed=1).with_logspaced_redshifts(zmin=z1, zmax=z2, z_step=1.03)
+>>> lightconer = RectLCer.between_redshifts(
+>>>     min_redshift=inputs.node_redshifts[-1]+0.5,
+>>>     max_redshift=inputs.node_redshifts[0]-0.5,
+>>>     resolution=inputs.simulation_options.cell_size,
+>>>     cosmo=inputs.cosmo_params.cosmo,
+>>> )
+>>> lightcone = p21c.run_lightcone(inputs=inputs,lightconer=lightconer)
+
+Note that the lightconer redshifts must be within the range of node_redshifts.
 """

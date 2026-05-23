@@ -154,14 +154,14 @@ class OutputStruct(ABC):
         return {k: x for k, x in me.items() if isinstance(x, Array)}
 
     @cached_property
-    def struct(self) -> StructWrapper:
+    def _struct(self) -> StructWrapper:
         """The python-wrapped struct associated with this input object."""
         return StructWrapper(self._name)
 
     @cached_property
-    def cstruct(self) -> StructWrapper:
+    def _cstruct(self) -> StructWrapper:
         """The object pointing to the memory accessed by C-code for this struct."""
-        return self.struct.cstruct
+        return self._struct.cstruct
 
     def _init_arrays(self):
         if self.dummy:
@@ -196,11 +196,11 @@ class OutputStruct(ABC):
             # to unnecessarily load things in. We leave it to the user to ensure that all
             # required arrays are loaded into memory before calling this function.
             if array.state.initialized:
-                self.struct.expose_to_c(array, name)
+                self._struct.expose_to_c(array, name)
 
-        for k in self.struct.primitive_fields:
+        for k in self._struct.primitive_fields:
             if getattr(self, k) is not None:
-                setattr(self.cstruct, k, getattr(self, k))
+                setattr(self._cstruct, k, getattr(self, k))
 
     def pull_from_backend(self):
         """Sync the current state of the object with the underlying C-struct.
@@ -208,8 +208,8 @@ class OutputStruct(ABC):
         This will pull any primitives calculated in the backend to the python object.
         Arrays are passed in as pointers, and do not need to be copied back.
         """
-        for k in self.struct.primitive_fields:
-            setattr(self, k, getattr(self.cstruct, k))
+        for k in self._struct.primitive_fields:
+            setattr(self, k, getattr(self._cstruct, k))
 
     def get(self, ary: str | Array):
         """If possible, load an array from disk, storing it and returning the underlying array."""
@@ -312,7 +312,7 @@ class OutputStruct(ABC):
             return
 
         if state.c_has_active_memory:
-            lib.free(getattr(self.cstruct, k))
+            lib.free(getattr(self._cstruct, k))
 
         setattr(self, k, array.without_value())
 
@@ -410,7 +410,7 @@ class OutputStruct(ABC):
         # print primitive fields
         out += "".join(
             f"{indent}    {fieldname:>25}: {getattr(self, fieldname, 'non-existent')}\n"
-            for fieldname in self.struct.primitive_fields
+            for fieldname in self._struct.primitive_fields
         )
 
         return out
@@ -457,7 +457,7 @@ class OutputStruct(ABC):
         # Construct the args. All StructWrapper objects need to actually pass their
         # underlying cstruct, rather than themselves.
         inputs = [
-            arg.cstruct if isinstance(arg, OutputStruct | InputStruct) else arg
+            arg._cstruct if isinstance(arg, OutputStruct | InputStruct) else arg
             for arg in args
         ]
         # Sync the python/C memory
@@ -474,7 +474,7 @@ class OutputStruct(ABC):
 
         # Perform the C computation
         try:
-            exitcode = self._c_compute_function(*inputs, self.cstruct)
+            exitcode = self._c_compute_function(*inputs, self._cstruct)
         except TypeError as e:
             logger.error(f"Arguments to {self._c_compute_function.__name__}: {inputs}")
             raise e
@@ -762,6 +762,22 @@ class PerturbedField(OutputStructZ):
         return self.velocity_z  # for backwards compatibility
 
 
+@attrs.define(frozen=True, slots=True)
+class Halo:
+    """Represents a single halo from a HaloCatalog.
+
+    This class wraps individual halo data extracted from a HaloCatalog,
+    providing easy access to its properties (mass, coordinates, RNG seeds, etc.).
+    """
+
+    mass: float
+    coords: np.ndarray
+    redshift: float
+    star_rng: float | None = None
+    sfr_rng: float | None = None
+    xray_rng: float | None = None
+
+
 @attrs.define(slots=False, kw_only=True)
 class HaloCatalog(OutputStructZ):
     """A class containing all fields related to halos."""
@@ -868,6 +884,28 @@ class HaloCatalog(OutputStructZ):
             descendant_halos,
         )
 
+    def __getitem__(self, index: int) -> Halo:
+        """Get a specific halo by index."""
+        if not isinstance(index, int) or index < 0 or index >= self.n_halos:
+            raise IndexError(f"Halo index {index} out of range [0, {self.n_halos})")
+        return Halo(
+            mass=float(self.halo_masses.value[index]),
+            coords=self.halo_coords.value[index].copy(),
+            redshift=self.redshift,
+            star_rng=float(self.star_rng.value[index]),
+            sfr_rng=float(self.sfr_rng.value[index]),
+            xray_rng=float(self.xray_rng.value[index]),
+        )
+
+    def __iter__(self):
+        """Iterate over halos in the catalog, yielding Halo objects."""
+        for i in range(self.n_halos):
+            yield self[i]
+
+    def __len__(self):
+        """Return the number of halos in the catalog."""
+        return self.n_halos
+
 
 @attrs.define(slots=False, kw_only=True)
 class PerturbedHaloCatalog(OutputStructZ):
@@ -935,7 +973,7 @@ class PerturbedHaloCatalog(OutputStructZ):
         }
         if inputs.astro_options.USE_TS_FLUCT:
             out["xray_emissivity"] = Array((buffer_size,), dtype=np.float32)
-        if inputs.astro_options.INHOMO_RECO:
+        if inputs.astro_options.RECOMB_MODEL != "none":
             out["fesc_sfr"] = Array((buffer_size,), dtype=np.float32)
         if inputs.astro_options.USE_MINI_HALOS:
             out["stellar_mini"] = Array((buffer_size,), dtype=np.float32)
@@ -1004,6 +1042,25 @@ class PerturbedHaloCatalog(OutputStructZ):
             halo_catalog,
         )
 
+    def __getitem__(self, index: int) -> Halo:
+        """Get a specific halo by index."""
+        if not isinstance(index, int) or index < 0 or index >= self.n_halos:
+            raise IndexError(f"Halo index {index} out of range [0, {self.n_halos})")
+        return Halo(
+            mass=float(self.halo_masses.value[index]),
+            coords=self.halo_coords.value[index].copy(),
+            redshift=self.redshift,
+        )
+
+    def __iter__(self):
+        """Iterate over halos in the catalog, yielding Halo objects."""
+        for i in range(self.n_halos):
+            yield self[i]
+
+    def __len__(self):
+        """Return the number of halos in the catalog."""
+        return self.n_halos
+
 
 @attrs.define(slots=False, kw_only=True)
 class HaloBox(OutputStructZ):
@@ -1052,7 +1109,7 @@ class HaloBox(OutputStructZ):
         if inputs.astro_options.USE_MINI_HALOS:
             out["halo_sfr_mini"] = Array(shape, dtype=np.float32)
 
-        if inputs.astro_options.INHOMO_RECO:
+        if inputs.astro_options.RECOMB_MODEL != "none":
             out["whalo_sfr"] = Array(shape, dtype=np.float32)
 
         if inputs.astro_options.USE_TS_FLUCT:
@@ -1163,6 +1220,8 @@ class XraySourceBox(OutputStructZ):
     filtered_sfr = _arrayfield()
     filtered_sfr_mini = _arrayfield(optional=True)
     filtered_xray = _arrayfield()
+    filtered_sfr_lw = _arrayfield(optional=True)
+    filtered_sfr_mini_lw = _arrayfield(optional=True)
     mean_sfr = _arrayfield()
     mean_sfr_mini = _arrayfield(optional=True)
     mean_log10_Mcrit_LW = _arrayfield(optional=True)
@@ -1207,6 +1266,9 @@ class XraySourceBox(OutputStructZ):
             out["mean_log10_Mcrit_LW"] = Array(
                 (inputs.astro_params.N_STEP_TS,), dtype=np.float64
             )
+            if inputs.astro_options.LYA_MULTIPLE_SCATTERING:
+                out["filtered_sfr_lw"] = Array(shape, dtype=np.float32)
+                out["filtered_sfr_mini_lw"] = Array(shape, dtype=np.float32)
 
         return cls(
             inputs=inputs,
@@ -1233,6 +1295,7 @@ class XraySourceBox(OutputStructZ):
         R_inner,
         R_outer,
         R_ct,
+        R_star,
         allow_already_computed: bool = False,
     ):
         """Compute the function."""
@@ -1242,6 +1305,7 @@ class XraySourceBox(OutputStructZ):
             R_inner,
             R_outer,
             R_ct,
+            R_star,
         )
 
 
@@ -1287,6 +1351,7 @@ class TsBox(OutputStructZ):
         }
         if inputs.astro_options.USE_MINI_HALOS:
             out["J_21_LW"] = Array(shape, dtype=np.float32)
+
         return cls(inputs=inputs, redshift=redshift, **out, **kw)
 
     @cached_property
@@ -1454,8 +1519,10 @@ class IonizedBox(OutputStructZ):
             out["mean_free_path"] = Array(shape, dtype=np.float32)
             out["kinetic_temperature"] = Array(shape, dtype=np.float32)
 
-        if inputs.astro_options.INHOMO_RECO:
+        if inputs.astro_options.RECOMB_MODEL == "inhomogeneous":
             out["cumulative_recombinations"] = Array(shape, dtype=np.float32)
+        elif inputs.astro_options.RECOMB_MODEL == "homogeneous":
+            out["cumulative_recombinations"] = Array((1, 1, 1), dtype=np.float32)
 
         if not inputs.matter_options.lagrangian_source_grid:
             out["unnormalised_nion"] = Array(filter_shape, dtype=np.float32)
@@ -1492,7 +1559,7 @@ class IonizedBox(OutputStructZ):
                 required += ["J_21_LW"]
         elif isinstance(input_box, IonizedBox):
             required += ["z_reion", "ionisation_rate_G12"]
-            if self.astro_options.INHOMO_RECO:
+            if self.astro_options.RECOMB_MODEL != "none":
                 required += [
                     "cumulative_recombinations",
                 ]
@@ -1506,7 +1573,7 @@ class IonizedBox(OutputStructZ):
                 ]
         elif isinstance(input_box, HaloBox):
             required += ["n_ion"]
-            if self.astro_options.INHOMO_RECO:
+            if self.astro_options.RECOMB_MODEL != "none":
                 required += ["whalo_sfr"]
         else:
             raise ValueError(

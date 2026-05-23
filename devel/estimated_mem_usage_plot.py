@@ -22,7 +22,7 @@ matter_params = MatterParams(
 )
 astro_flags = AstroFlags(
     {
-        "INHOMO_RECO": True,
+        "RECOMB_MODEL": "inhomogeneous",
         "USE_TS_FLUCT": True,
         "USE_MINI_HALOS": True,
     },
