@@ -208,3 +208,19 @@ class Array:
             cache_backend=backend,
             state=self.state.loaded_from_disk(),
         )
+
+
+@attrs.define(slots=False, frozen=False)
+class MutableArray(Array):
+    """Array variant that allows modification during construction."""
+
+    def trim_and_freeze(self, trimmed_shape, trimmed_value) -> Array:
+        """Convert to immutable Array after trimming."""
+        return Array(
+            shape=trimmed_shape,
+            value=trimmed_value,
+            dtype=self.dtype,
+            state=self.state,
+            initfunc=self.initfunc,
+            cache_backend=self.cache_backend,
+        )

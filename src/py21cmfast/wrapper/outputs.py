@@ -30,7 +30,7 @@ from bidict import bidict
 
 from .._cfg import config
 from ..c_21cmfast import lib
-from .arrays import Array
+from .arrays import Array, MutableArray
 from .exceptions import _process_exitcode
 from .inputs import (
     AstroOptions,
@@ -814,45 +814,35 @@ class HaloCatalog(OutputStructZ):
 
         return cls(
             inputs=inputs,
-            halo_masses=Array((buffer_size,), dtype=np.float32),
-            star_rng=Array((buffer_size,), dtype=np.float32),
-            sfr_rng=Array((buffer_size,), dtype=np.float32),
-            xray_rng=Array((buffer_size,), dtype=np.float32),
-            halo_coords=Array((buffer_size, 3), dtype=np.float32),
+            halo_masses=MutableArray((buffer_size,), dtype=np.float32),
+            star_rng=MutableArray((buffer_size,), dtype=np.float32),
+            sfr_rng=MutableArray((buffer_size,), dtype=np.float32),
+            xray_rng=MutableArray((buffer_size,), dtype=np.float32),
+            halo_coords=MutableArray((buffer_size, 3), dtype=np.float32),
             redshift=redshift,
             buffer_size=buffer_size,
             **kw,
         )
 
-    def trim_to_n_halos(self) -> HaloCatalog:
-        """Return a trimmed version of the halo catalog with only the actual number of halos."""
+    def trim_to_n_halos(self) -> Self:
+        """Trim the halo catalog to have its size the same as the actual number of halos."""
         n_halos = self.n_halos
-        halo_catalog_trimmed = HaloCatalog.new(
-            redshift=self.redshift,
-            desc_redshift=self.desc_redshift,
-            inputs=self.inputs,
-            buffer_size=n_halos,
-        )
-
-        halo_catalog_trimmed.n_halos = n_halos
+        self.buffer_size = n_halos
+        self.n_halos = n_halos
         # Set the arrays to the correct size, and copy the trimmed values from the original halo catalog
         for name, array in self.arrays.items():
-            shape = (n_halos,) if name != "halo_coords" else (n_halos, 3)
-            val = (
+            trimmed_shape = (n_halos,) if name != "halo_coords" else (n_halos, 3)
+            trimmed_value = (
                 array.value[:n_halos]
                 if name != "halo_coords"
                 else array.value[:n_halos, :]
             )
-            setattr(
-                halo_catalog_trimmed,
-                name,
-                Array(shape=shape, dtype=np.float32).initialize().with_value(val=val),
+            frozen_array = array.trim_and_freeze(
+                trimmed_shape=trimmed_shape, trimmed_value=trimmed_value
             )
+            setattr(self, name, frozen_array)
 
-        # Purge the original halo catalog because it was exposed to C
-        self.purge(force=True)
-
-        return halo_catalog_trimmed
+        return self
 
     def get_required_input_arrays(self, input_box: OutputStruct) -> list[str]:
         """Return all input arrays required to compute this object."""
