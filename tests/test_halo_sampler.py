@@ -272,7 +272,7 @@ def test_halo_buffer_overflow_error_message(default_input_struct):
     """Verify that halo buffer overflow error message is informative."""
     # Create a temporary file to capture C stderr
     with tempfile.NamedTemporaryFile(mode="w+", delete=False) as stderr_file:
-        stderr_path = stderr_file.name
+        stderr_path = Path(stderr_file.name)
 
     try:
         # Save original stderr file descriptor
@@ -287,7 +287,7 @@ def test_halo_buffer_overflow_error_message(default_input_struct):
         )
 
         # Redirect C stderr to our temp file
-        with Path.open(stderr_path, "w") as f:
+        with stderr_path.open("w") as f:
             os.dup2(f.fileno(), 2)
 
         try:
@@ -305,7 +305,7 @@ def test_halo_buffer_overflow_error_message(default_input_struct):
             os.close(old_stderr)
 
         # Read the captured C stderr output
-        with Path.open(stderr_path) as f:
+        with stderr_path.open() as f:
             stderr_output = f.read()
 
         # Verify the information per thread is presented in the error message
@@ -347,7 +347,7 @@ def test_halo_buffer_overflow_error_message(default_input_struct):
 
     finally:
         # Clean up temp file
-        Path.unlink(stderr_path)
+        stderr_path.unlink()
 
 
 def test_perturb_halos(default_input_struct_ts):

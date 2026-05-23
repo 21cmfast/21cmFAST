@@ -795,10 +795,9 @@ int sample_halo_grids(gsl_rng **rng_arr, double redshift, float *dens_field,
     double total_volume_excluded = 0.;
     double total_volume_dexm = 0.;
     double cell_volume = VOLUME / pow((double)simulation_options_global->HII_DIM, 3);
-    bool out_of_buffer;
     bool any_thread_overflowed = false;
 
-#pragma omp parallel num_threads(simulation_options_global->N_THREADS) private(out_of_buffer)
+#pragma omp parallel num_threads(simulation_options_global->N_THREADS)
     {
         // Initialize private out_of_buffer for this thread
         bool out_of_buffer = false;
@@ -980,10 +979,9 @@ int sample_halo_progenitors(gsl_rng **rng_arr, double z_in, double z_out, HaloCa
     double corr_arr[3] = {hs_constants->corr_star, hs_constants->corr_sfr, hs_constants->corr_xray};
     double boxlen[3] = {simulation_options_global->BOX_LEN, simulation_options_global->BOX_LEN,
                         BOXLEN_PARA};
-    bool out_of_buffer;
     bool any_thread_overflowed = false;
 
-#pragma omp parallel num_threads(simulation_options_global->N_THREADS) private(out_of_buffer)
+#pragma omp parallel num_threads(simulation_options_global->N_THREADS)
     {
         // Initialize private out_of_buffer for this thread
         bool out_of_buffer = false;
