@@ -209,18 +209,8 @@ class Array:
             state=self.state.loaded_from_disk(),
         )
 
-
-@attrs.define(slots=False, frozen=False)
-class MutableArray(Array):
-    """Array variant that allows modification during construction."""
-
-    def trim_and_freeze(self, trimmed_shape, trimmed_value) -> Array:
-        """Convert to immutable Array after trimming."""
-        return Array(
-            shape=trimmed_shape,
-            value=trimmed_value,
-            dtype=self.dtype,
-            state=self.state,
-            initfunc=self.initfunc,
-            cache_backend=self.cache_backend,
-        )
+    def trimmed(self, trimmed_shape: tuple[int]) -> Self:
+        """Return a new Array with the same data but a different shape, by slicing the original array."""
+        slc = tuple(slice(0, n) for n in trimmed_shape)
+        trimmed_value = self.value[slc]
+        return attrs.evolve(self, shape=trimmed_shape, value=trimmed_value)

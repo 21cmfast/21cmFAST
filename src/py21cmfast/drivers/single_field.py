@@ -204,7 +204,8 @@ def determine_halo_catalog(
         descendant_halos=descendant_halos,
     )
 
-    return halo_catalog.trim_to_n_halos()
+    halo_catalog.trim_to_n_halos()
+    return halo_catalog
 
 
 @single_field_func

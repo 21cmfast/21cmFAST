@@ -30,7 +30,7 @@ from bidict import bidict
 
 from .._cfg import config
 from ..c_21cmfast import lib
-from .arrays import Array, MutableArray
+from .arrays import Array
 from .exceptions import _process_exitcode
 from .inputs import (
     AstroOptions,
@@ -814,11 +814,11 @@ class HaloCatalog(OutputStructZ):
 
         return cls(
             inputs=inputs,
-            halo_masses=MutableArray((buffer_size,), dtype=np.float32),
-            star_rng=MutableArray((buffer_size,), dtype=np.float32),
-            sfr_rng=MutableArray((buffer_size,), dtype=np.float32),
-            xray_rng=MutableArray((buffer_size,), dtype=np.float32),
-            halo_coords=MutableArray((buffer_size, 3), dtype=np.float32),
+            halo_masses=Array((buffer_size,), dtype=np.float32),
+            star_rng=Array((buffer_size,), dtype=np.float32),
+            sfr_rng=Array((buffer_size,), dtype=np.float32),
+            xray_rng=Array((buffer_size,), dtype=np.float32),
+            halo_coords=Array((buffer_size, 3), dtype=np.float32),
             redshift=redshift,
             buffer_size=buffer_size,
             **kw,
@@ -826,23 +826,11 @@ class HaloCatalog(OutputStructZ):
 
     def trim_to_n_halos(self) -> Self:
         """Trim the halo catalog to have its size the same as the actual number of halos."""
-        n_halos = self.n_halos
-        self.buffer_size = n_halos
-        self.n_halos = n_halos
-        # Set the arrays to the correct size, and copy the trimmed values from the original halo catalog
+        self.buffer_size = self.n_halos
         for name, array in self.arrays.items():
-            trimmed_shape = (n_halos,) if name != "halo_coords" else (n_halos, 3)
-            trimmed_value = (
-                array.value[:n_halos]
-                if name != "halo_coords"
-                else array.value[:n_halos, :]
-            )
-            frozen_array = array.trim_and_freeze(
-                trimmed_shape=trimmed_shape, trimmed_value=trimmed_value
-            )
-            setattr(self, name, frozen_array)
-
-        return self
+            new_shape = (self.n_halos, *array.shape[1:])
+            new_array = array.trimmed(new_shape)
+            setattr(self, name, new_array)
 
     def get_required_input_arrays(self, input_box: OutputStruct) -> list[str]:
         """Return all input arrays required to compute this object."""
