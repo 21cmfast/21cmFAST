@@ -189,28 +189,61 @@ void writeAstroOptions(AstroOptions *p) {
         p->INTEGRATION_METHOD_MINI);
 }
 
-void get_corner_indices(int size_x, int size_y, int size_z, unsigned long long indices[8]) {
-    indices[0] = 0;                                                       //(x0,y0,z0)
-    indices[1] = (unsigned long long)(size_z) * (size_y * (size_x - 1));  //(x1,y0,z0)
-    indices[2] = (unsigned long long)(size_z) * ((size_y - 1));           //(x0,y1,z0)
-    indices[3] =
-        (unsigned long long)(size_z) * ((size_y - 1) + size_y * (size_x - 1));  //(x1,y1,z0)
-    indices[4] = (size_z - 1);                                                  //(x0,y0,z1)
-    indices[5] =
-        (size_z - 1) + (unsigned long long)(size_z) * (size_y * (size_x - 1));  //(x1,y0,z1)
-    indices[6] = (size_z - 1) + (unsigned long long)(size_z) * ((size_y - 1));  //(x0,y1,z1)
-    indices[7] = (size_z - 1) + (unsigned long long)(size_z) *
-                                    ((size_y - 1) + size_y * (size_x - 1));  //(x1,y1,z1)
+// Wrapper function to select appropriate indexing function based on layout
+static unsigned long long get_corner_index(int x, int y, int z, int dim[3], GridLayout layout) {
+    if (layout == FFTW_REAL_LAYOUT) {
+        return grid_index_fftw_r(x, y, z, dim);
+    } else if (layout == FFTW_COMPLEX_LAYOUT) {
+        return grid_index_fftw_c(x, y, z, dim);
+    } else {  // STANDARD_LAYOUT
+        return grid_index_general(x, y, z, dim);
+    }
 }
 
-void debugSummarizeBox(float *box, int size_x, int size_y, int size_z, char *indent) {
+// Helper to compute dimensions based on layout type
+static void compute_layout_dims(int size_x, int size_y, int size_z, GridLayout layout, int dim[3],
+                                int *original_z) {
+    dim[0] = size_x;
+    dim[1] = size_y;
+
+    if (layout == FFTW_REAL_LAYOUT) {
+        *original_z = 2 * (size_z / 2 - 1);
+        dim[2] = *original_z;
+    } else if (layout == FFTW_COMPLEX_LAYOUT) {
+        *original_z = 2 * (size_z - 1);
+        dim[2] = size_z;
+    } else {  // STANDARD_LAYOUT
+        *original_z = size_z;
+        dim[2] = size_z;
+    }
+}
+
+void get_corner_indices(int size_x, int size_y, int size_z, GridLayout layout,
+                        unsigned long long indices[8]) {
+    int original_z;
+    int dim[3];
+
+    compute_layout_dims(size_x, size_y, size_z, layout, dim, &original_z);
+
+    // Compute all 8 corner indices using wrapper function
+    indices[0] = get_corner_index(0, 0, 0, dim, layout);
+    indices[1] = get_corner_index(size_x - 1, 0, 0, dim, layout);
+    indices[2] = get_corner_index(0, size_y - 1, 0, dim, layout);
+    indices[3] = get_corner_index(size_x - 1, size_y - 1, 0, dim, layout);
+    indices[4] = get_corner_index(0, 0, original_z - 1, dim, layout);
+    indices[5] = get_corner_index(size_x - 1, 0, original_z - 1, dim, layout);
+    indices[6] = get_corner_index(0, size_y - 1, original_z - 1, dim, layout);
+    indices[7] = get_corner_index(size_x - 1, size_y - 1, original_z - 1, dim, layout);
+}
+
+void debugSummarizeBox(float *box, int size_x, int size_y, int size_z, GridLayout layout,
+                       char *indent) {
 #if LOG_LEVEL >= SUPER_DEBUG_LEVEL
     float corners[8];
     unsigned long long indices[8];
     unsigned long long idx;
-    unsigned long long tot_size = (unsigned long long)size_x * size_y * size_z;
 
-    get_corner_indices(size_x, size_y, size_z, indices);
+    get_corner_indices(size_x, size_y, size_z, layout, indices);
     for (idx = 0; idx < 8; idx++) {
         corners[idx] = box[indices[idx]];
     }
@@ -224,25 +257,41 @@ void debugSummarizeBox(float *box, int size_x, int size_y, int size_z, char *ind
     mn = box[0];
     mx = box[0];
 
-    for (idx = 0; idx < tot_size; idx++) {
-        sum += box[idx];
-        mn = fminf(mn, box[idx]);
-        mx = fmaxf(mx, box[idx]);
+    // Select indexing function and extract unpadded z based on layout
+    int original_z;
+    int dim[3];
+
+    compute_layout_dims(size_x, size_y, size_z, layout, dim, &original_z);
+
+    // Uniform loop using wrapper function
+    int i, j, k;
+    unsigned long long grid_idx;
+
+    for (i = 0; i < size_x; i++) {
+        for (j = 0; j < size_y; j++) {
+            for (k = 0; k < original_z; k++) {
+                grid_idx = get_corner_index(i, j, k, dim, layout);
+                sum += box[grid_idx];
+                mn = fminf(mn, box[grid_idx]);
+                mx = fmaxf(mx, box[grid_idx]);
+            }
+        }
     }
+    unsigned long long tot_size = (unsigned long long)size_x * size_y * original_z;
     mean = sum / tot_size;
 
     LOG_SUPER_DEBUG("%sSum/Mean/Min/Max: %.4e, %.4e, %.4e, %.4e", indent, sum, mean, mn, mx);
 #endif
 }
 
-void debugSummarizeBoxDouble(double *box, int size_x, int size_y, int size_z, char *indent) {
+void debugSummarizeBoxDouble(double *box, int size_x, int size_y, int size_z, GridLayout layout,
+                             char *indent) {
 #if LOG_LEVEL >= SUPER_DEBUG_LEVEL
     double corners[8];
     unsigned long long indices[8];
     unsigned long long idx;
-    unsigned long long tot_size = (unsigned long long)size_x * size_y * size_z;
 
-    get_corner_indices(size_x, size_y, size_z, indices);
+    get_corner_indices(size_x, size_y, size_z, layout, indices);
     for (idx = 0; idx < 8; idx++) {
         corners[idx] = box[indices[idx]];
     }
@@ -256,32 +305,46 @@ void debugSummarizeBoxDouble(double *box, int size_x, int size_y, int size_z, ch
     mn = box[0];
     mx = box[0];
 
-    for (idx = 0; idx < tot_size; idx++) {
-        sum += box[idx];
-        mn = fminf(mn, box[idx]);
-        mx = fmaxf(mx, box[idx]);
+    // Select indexing function and extract unpadded z based on layout
+    int original_z;
+    int dim[3];
+
+    compute_layout_dims(size_x, size_y, size_z, layout, dim, &original_z);
+
+    // Uniform loop using wrapper function
+    int i, j, k;
+    unsigned long long grid_idx;
+
+    for (i = 0; i < size_x; i++) {
+        for (j = 0; j < size_y; j++) {
+            for (k = 0; k < original_z; k++) {
+                grid_idx = get_corner_index(i, j, k, dim, layout);
+                sum += box[grid_idx];
+                mn = fmin(mn, box[grid_idx]);
+                mx = fmax(mx, box[grid_idx]);
+            }
+        }
     }
+    unsigned long long tot_size = (unsigned long long)size_x * size_y * original_z;
     mean = sum / tot_size;
 
     LOG_SUPER_DEBUG("%sSum/Mean/Min/Max: %.4e, %.4e, %.4e, %.4e", indent, sum, mean, mn, mx);
 #endif
 }
 
-void debugSummarizeBoxComplex(float complex *box, int size_x, int size_y, int size_z,
-                              char *indent) {
+void debugSummarizeBoxComplex(fftwf_complex *box, int size_x, int size_y, int size_z,
+                              GridLayout layout, char *indent) {
 #if LOG_LEVEL >= SUPER_DEBUG_LEVEL
     float corners_real[8];
     float corners_imag[8];
     unsigned long long indices[8];
     unsigned long long idx;
-    unsigned long long tot_size = (unsigned long long)size_x * size_y * size_z;
-    float complex buf;
 
-    get_corner_indices(size_x, size_y, size_z, indices);
+    get_corner_indices(size_x, size_y, size_z, layout, indices);
     for (idx = 0; idx < 8; idx++) {
-        buf = box[indices[idx]];
-        corners_real[idx] = creal(buf);
-        corners_imag[idx] = cimag(buf);
+        float *elem = (float *)&box[indices[idx]];
+        corners_real[idx] = elem[0];
+        corners_imag[idx] = elem[1];
     }
 
     LOG_SUPER_DEBUG("%sCorners (Real Part): %.4e %.4e %.4e %.4e %.4e %.4e %.4e %.4e", indent,
@@ -297,11 +360,27 @@ void debugSummarizeBoxComplex(float complex *box, int size_x, int size_y, int si
     mn = box[0];
     mx = box[0];
 
-    for (idx = 0; idx < tot_size; idx++) {
-        sum += box[idx];
-        mn = fminf(mn, box[idx]);
-        mx = fmaxf(mx, box[idx]);
+    // Select indexing function and extract unpadded z based on layout
+    int original_z;
+    int dim[3];
+
+    compute_layout_dims(size_x, size_y, size_z, layout, dim, &original_z);
+
+    // Uniform loop using wrapper function
+    int i, j, k;
+    unsigned long long grid_idx;
+
+    for (i = 0; i < size_x; i++) {
+        for (j = 0; j < size_y; j++) {
+            for (k = 0; k < original_z; k++) {
+                grid_idx = get_corner_index(i, j, k, dim, layout);
+                sum += box[grid_idx];
+                mn = fminf(mn, box[grid_idx]);
+                mx = fmaxf(mx, box[grid_idx]);
+            }
+        }
     }
+    unsigned long long tot_size = (unsigned long long)size_x * size_y * original_z;
     mean = sum / tot_size;
 
     LOG_SUPER_DEBUG("%sSum/Mean/Min/Max: %.4e+%.4ei, %.4e+%.4ei, %.4e+%.4ei, %.4e+%.4ei", indent,
@@ -313,25 +392,25 @@ void debugSummarizeBoxComplex(float complex *box, int size_x, int size_y, int si
 void debugSummarizeIC(InitialConditions *x, int HII_DIM, int DIM, float NCF) {
     LOG_SUPER_DEBUG("Summary of InitialConditions:");
     LOG_SUPER_DEBUG("  lowres_density: ");
-    debugSummarizeBox(x->lowres_density, HII_DIM, HII_DIM, HII_D_PARA, "    ");
+    debugSummarizeBox(x->lowres_density, HII_DIM, HII_DIM, HII_D_PARA, STANDARD_LAYOUT, "    ");
     LOG_SUPER_DEBUG("  hires_density: ");
-    debugSummarizeBox(x->hires_density, DIM, DIM, D_PARA, "    ");
+    debugSummarizeBox(x->hires_density, DIM, DIM, D_PARA, STANDARD_LAYOUT, "    ");
     LOG_SUPER_DEBUG("  lowres_vx: ");
-    debugSummarizeBox(x->lowres_vx, HII_DIM, HII_DIM, HII_D_PARA, "    ");
+    debugSummarizeBox(x->lowres_vx, HII_DIM, HII_DIM, HII_D_PARA, STANDARD_LAYOUT, "    ");
     LOG_SUPER_DEBUG("  lowres_vy: ");
-    debugSummarizeBox(x->lowres_vy, HII_DIM, HII_DIM, HII_D_PARA, "    ");
+    debugSummarizeBox(x->lowres_vy, HII_DIM, HII_DIM, HII_D_PARA, STANDARD_LAYOUT, "    ");
     LOG_SUPER_DEBUG("  lowres_vz: ");
-    debugSummarizeBox(x->lowres_vz, HII_DIM, HII_DIM, HII_D_PARA, "    ");
+    debugSummarizeBox(x->lowres_vz, HII_DIM, HII_DIM, HII_D_PARA, STANDARD_LAYOUT, "    ");
 }
 
 void debugSummarizePerturbedField(PerturbedField *x, int HII_DIM, float NCF) {
     LOG_SUPER_DEBUG("Summary of PerturbedField:");
     LOG_SUPER_DEBUG("  density: ");
-    debugSummarizeBox(x->density, HII_DIM, HII_DIM, HII_D_PARA, "    ");
+    debugSummarizeBox(x->density, HII_DIM, HII_DIM, HII_D_PARA, STANDARD_LAYOUT, "    ");
     LOG_SUPER_DEBUG("  velocity_x: ");
-    debugSummarizeBox(x->velocity_x, HII_DIM, HII_DIM, HII_D_PARA, "    ");
+    debugSummarizeBox(x->velocity_x, HII_DIM, HII_DIM, HII_D_PARA, STANDARD_LAYOUT, "    ");
     LOG_SUPER_DEBUG("  velocity_y: ");
-    debugSummarizeBox(x->velocity_y, HII_DIM, HII_DIM, HII_D_PARA, "    ");
+    debugSummarizeBox(x->velocity_y, HII_DIM, HII_DIM, HII_D_PARA, STANDARD_LAYOUT, "    ");
     LOG_SUPER_DEBUG("  velocity_z: ");
-    debugSummarizeBox(x->velocity_z, HII_DIM, HII_DIM, HII_D_PARA, "    ");
+    debugSummarizeBox(x->velocity_z, HII_DIM, HII_DIM, HII_D_PARA, STANDARD_LAYOUT, "    ");
 }
