@@ -1361,7 +1361,7 @@ int ComputeIonizedBox(float redshift, float prev_redshift, PerturbedField *pertu
 
         LOG_SUPER_DEBUG("z_reion init: ");
         debugSummarizeBox(box->z_reion, simulation_options_global->HII_DIM,
-                          simulation_options_global->HII_DIM, HII_D_PARA, "  ");
+                          simulation_options_global->HII_DIM, HII_D_PARA, STANDARD_LAYOUT, "  ");
 
         // Modify the current sampled redshift to a redshift which matches the expected filling
         // factor given our astrophysical parameterisation. This is the photon non-conservation
@@ -1573,7 +1573,8 @@ int ComputeIonizedBox(float redshift, float prev_redshift, PerturbedField *pertu
 #if LOG_LEVEL >= ULTRA_DEBUG_LEVEL
                 LOG_ULTRA_DEBUG("z_reion after R=%f: ", curr_radius.R);
                 debugSummarizeBox(box->z_reion, simulation_options_global->HII_DIM,
-                                  simulation_options_global->HII_DIM, HII_D_PARA, "  ");
+                                  simulation_options_global->HII_DIM, HII_D_PARA, STANDARD_LAYOUT,
+                                  "  ");
 #endif
             }
             if (!matter_options_global->MINIMIZE_MEMORY) {
