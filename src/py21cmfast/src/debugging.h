@@ -8,10 +8,11 @@
 #include "OutputStructs.h"
 
 // Grid layout types for debug output
+// Indicates how size_z parameter is interpreted:
 typedef enum {
-    STANDARD_LAYOUT,     // Row-major layout: stride = size_z
-    FFTW_REAL_LAYOUT,    // FFT real-space layout: stride = 2*(size_z/2+1)
-    FFTW_COMPLEX_LAYOUT  // FFT complex-space layout: stride = size_z/2+1
+    STANDARD_LAYOUT,     // size_z is the actual dimension (no padding)
+    FFTW_REAL_LAYOUT,    // size_z is the padded real-space dimension: 2*(unpadded_z/2+1)
+    FFTW_COMPLEX_LAYOUT  // size_z is the padded complex dimension: unpadded_z/2+1
 } GridLayout;
 
 // Input debugging

@@ -200,25 +200,30 @@ static unsigned long long get_corner_index(int x, int y, int z, int dim[3], Grid
     }
 }
 
+// Helper to compute dimensions based on layout type
+static void compute_layout_dims(int size_x, int size_y, int size_z, GridLayout layout, int dim[3],
+                                int *original_z) {
+    dim[0] = size_x;
+    dim[1] = size_y;
+
+    if (layout == FFTW_REAL_LAYOUT) {
+        *original_z = 2 * (size_z / 2 - 1);
+        dim[2] = *original_z;
+    } else if (layout == FFTW_COMPLEX_LAYOUT) {
+        *original_z = 2 * (size_z - 1);
+        dim[2] = size_z;
+    } else {  // STANDARD_LAYOUT
+        *original_z = size_z;
+        dim[2] = size_z;
+    }
+}
+
 void get_corner_indices(int size_x, int size_y, int size_z, GridLayout layout,
                         unsigned long long indices[8]) {
     int original_z;
     int dim[3];
 
-    dim[0] = size_x;
-    dim[1] = size_y;
-
-    // Extract unpadded z and set dim[2] based on layout
-    if (layout == FFTW_REAL_LAYOUT) {
-        original_z = 2 * (size_z / 2 - 1);
-        dim[2] = original_z;
-    } else if (layout == FFTW_COMPLEX_LAYOUT) {
-        original_z = 2 * (size_z - 1);
-        dim[2] = size_z;  // Keep padded dimension for complex indexing
-    } else {              // STANDARD_LAYOUT
-        original_z = size_z;
-        dim[2] = size_z;
-    }
+    compute_layout_dims(size_x, size_y, size_z, layout, dim, &original_z);
 
     // Compute all 8 corner indices using wrapper function
     indices[0] = get_corner_index(0, 0, 0, dim, layout);
@@ -254,18 +259,9 @@ void debugSummarizeBox(float *box, int size_x, int size_y, int size_z, GridLayou
 
     // Select indexing function and extract unpadded z based on layout
     int original_z;
-    int dim[3] = {size_x, size_y};
+    int dim[3];
 
-    if (layout == FFTW_REAL_LAYOUT) {
-        original_z = 2 * (size_z / 2 - 1);
-        dim[2] = original_z;
-    } else if (layout == FFTW_COMPLEX_LAYOUT) {
-        original_z = 2 * (size_z - 1);
-        dim[2] = size_z;
-    } else {  // STANDARD_LAYOUT
-        original_z = size_z;
-        dim[2] = size_z;
-    }
+    compute_layout_dims(size_x, size_y, size_z, layout, dim, &original_z);
 
     // Uniform loop using wrapper function
     int i, j, k;
@@ -311,18 +307,9 @@ void debugSummarizeBoxDouble(double *box, int size_x, int size_y, int size_z, Gr
 
     // Select indexing function and extract unpadded z based on layout
     int original_z;
-    int dim[3] = {size_x, size_y};
+    int dim[3];
 
-    if (layout == FFTW_REAL_LAYOUT) {
-        original_z = 2 * (size_z / 2 - 1);
-        dim[2] = original_z;
-    } else if (layout == FFTW_COMPLEX_LAYOUT) {
-        original_z = 2 * (size_z - 1);
-        dim[2] = size_z;
-    } else {  // STANDARD_LAYOUT
-        original_z = size_z;
-        dim[2] = size_z;
-    }
+    compute_layout_dims(size_x, size_y, size_z, layout, dim, &original_z);
 
     // Uniform loop using wrapper function
     int i, j, k;
@@ -352,13 +339,12 @@ void debugSummarizeBoxComplex(fftwf_complex *box, int size_x, int size_y, int si
     float corners_imag[8];
     unsigned long long indices[8];
     unsigned long long idx;
-    fftwf_complex buf;
 
     get_corner_indices(size_x, size_y, size_z, layout, indices);
     for (idx = 0; idx < 8; idx++) {
-        buf = box[indices[idx]];
-        corners_real[idx] = crealf(buf);
-        corners_imag[idx] = cimagf(buf);
+        float *elem = (float *)&box[indices[idx]];
+        corners_real[idx] = elem[0];
+        corners_imag[idx] = elem[1];
     }
 
     LOG_SUPER_DEBUG("%sCorners (Real Part): %.4e %.4e %.4e %.4e %.4e %.4e %.4e %.4e", indent,
@@ -376,18 +362,9 @@ void debugSummarizeBoxComplex(fftwf_complex *box, int size_x, int size_y, int si
 
     // Select indexing function and extract unpadded z based on layout
     int original_z;
-    int dim[3] = {size_x, size_y};
+    int dim[3];
 
-    if (layout == FFTW_REAL_LAYOUT) {
-        original_z = 2 * (size_z / 2 - 1);
-        dim[2] = original_z;
-    } else if (layout == FFTW_COMPLEX_LAYOUT) {
-        original_z = 2 * (size_z - 1);
-        dim[2] = size_z;
-    } else {  // STANDARD_LAYOUT
-        original_z = size_z;
-        dim[2] = size_z;
-    }
+    compute_layout_dims(size_x, size_y, size_z, layout, dim, &original_z);
 
     // Uniform loop using wrapper function
     int i, j, k;
