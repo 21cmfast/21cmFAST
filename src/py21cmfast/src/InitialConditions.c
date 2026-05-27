@@ -460,7 +460,7 @@ void compute_velocity_fields_2LPT(fftwf_complex *box, fftwf_complex *box_saved,
         // Now sum the stored components to get the laplacian of phi_2 (eq. D13b)
 #pragma omp parallel private(i, j, k) num_threads(simulation_options_global -> N_THREADS)
         {
-            unsigned long long index, index_f;
+            unsigned long long int index, index_f;
             double component_ii, component_jj, component_ij;
 #pragma omp for
             for (i = 0; i < hi_dim[0]; i++) {
@@ -544,7 +544,7 @@ void compute_velocity_fields_2LPT(fftwf_complex *box, fftwf_complex *box_saved,
 }
 
 // Re-write of init.c for original 21cmFAST
-int ComputeInitialConditions(unsigned long long random_seed, InitialConditions *boxes) {
+int ComputeInitialConditions(unsigned long long int random_seed, InitialConditions *boxes) {
     //     Generates the initial conditions: gaussian random density field
     //     (simulation_options_global->DIM^3) as well as the equal or lower resolution velocity
     //     fields, and smoothed density field (simulation_options_global->HII_DIM^3).

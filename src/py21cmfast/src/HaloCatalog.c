@@ -72,7 +72,7 @@ int ComputeHaloCatalog(float redshift_desc, float redshift, InitialConditions *b
         float growth_factor, R, delta_m, M, Delta_R, delta_crit;
         char *in_halo, *forbidden;
         int i, j, k, x, y, z;
-        long long unsigned int total_halo_num, r_halo_num;
+        unsigned long long int total_halo_num, r_halo_num;
         float R_temp, M_MIN;
 
         LOG_DEBUG("Begin Initialisation");
@@ -404,7 +404,7 @@ int ComputeHaloCatalog(float redshift_desc, float redshift, InitialConditions *b
             // Now downsample the highres grid to get the lowres version
 #pragma omp parallel private(i, j, k) num_threads(simulation_options_global -> N_THREADS)
             {
-                int index, hi_index;
+                unsigned long long int index, hi_index;
 #pragma omp for
                 for (i = 0; i < simulation_options_global->HII_DIM; i++) {
                     for (j = 0; j < simulation_options_global->HII_DIM; j++) {
@@ -471,7 +471,7 @@ int check_halo(char *in_halo, float R, int x, int y, int z, int check_type) {
     int x_curr, y_curr, z_curr, x_min, x_max, y_min, y_max, z_min, z_max, R_index;
     float Rsq_curr_index;
     int x_index, y_index, z_index;
-    long long unsigned int curr_index;
+    unsigned long long int curr_index;
 
     if (check_type == 1) {
         // scale R to a effective overlap size, using R_OVERLAP_FACTOR
@@ -552,7 +552,7 @@ int check_halo(char *in_halo, float R, int x, int y, int z, int check_type) {
     return 0;
 }
 
-void init_halo_coords(HaloCatalog *halos, long long unsigned int n_halos) {
+void init_halo_coords(HaloCatalog *halos, unsigned long long int n_halos) {
     // Minimise memory usage by only storing the halo mass and positions
     halos->n_halos = n_halos;
     unsigned long long int alloc_size = fmax(1, n_halos);

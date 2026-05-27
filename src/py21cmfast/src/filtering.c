@@ -133,7 +133,7 @@ void filter_box(fftwf_complex *box, int box_dim[3], int filter_type, float R, fl
     {
         int n_x, n_z, n_y;
         float k_x, k_y, k_z, k_mag_sq, kR;
-        unsigned long long grid_index;
+        unsigned long long int grid_index;
 #pragma omp for
         for (n_x = 0; n_x < box_dim[0]; n_x++) {
             if (n_x > (box_dim[0] / 2)) {

@@ -1215,7 +1215,7 @@ int single_test_sample(unsigned long long int seed, int n_condition, float *cond
         // halo catalogues + cell sums from multiple conditions, given M as cell descendant
         // halos/cells the result mapping is n_halo_total (1) (exp_n,exp_m,n_prog,m_prog) (n_desc)
         // M_cat (n_prog_total)
-        int n_halo_tot = 0;
+        unsigned long long int n_halo_tot = 0;
 #pragma omp parallel num_threads(simulation_options_global->N_THREADS) private(i, j)
         {
             float out_hm[MAX_HALO_CELL];
@@ -1279,7 +1279,7 @@ int single_test_sample(unsigned long long int seed, int n_condition, float *cond
         }
 
         out_n_tot[0] = n_halo_tot;
-        LOG_DEBUG("Found %d halos", n_halo_tot);
+        LOG_DEBUG("Found %llu halos", n_halo_tot);
 
         // get expected values from the saved mass range
         if (hs_constants->from_catalog) {

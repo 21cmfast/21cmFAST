@@ -177,7 +177,7 @@ void move_grid_masses(double redshift, float *dens_pointer, int dens_dim[3], flo
         int i, j, k, axis;
         double pos[3], curr_dens;
         int ipos[3];
-        unsigned long long vel_index, dens_index;
+        unsigned long long int vel_index, dens_index;
 #pragma omp for
         for (i = 0; i < dens_dim[0]; i++) {
             for (j = 0; j < dens_dim[1]; j++) {
@@ -259,7 +259,7 @@ void move_grid_galprops(double redshift, float *dens_pointer, int dens_dim[3],
         int i, j, k, axis;
         double pos[3], curr_dens;
         int ipos[3];
-        unsigned long long vel_index, dens_index, mturn_index;
+        unsigned long long int vel_index, dens_index, mturn_index;
         double l10_mturn_a = log10(consts->mturn_a_nofb);
         double l10_mturn_m = log10(consts->mturn_m_nofb);
         HaloProperties properties;
@@ -372,10 +372,10 @@ void move_halo_galprops(double redshift, HaloCatalog *halos, float *vel_pointers
         displacement_factor_2LPT - init_displacement_factor_2LPT;
 #pragma omp parallel num_threads(simulation_options_global->N_THREADS)
     {
-        int i, axis;
+        int axis;
         double pos[3];
         int ipos[3];
-        unsigned long long vel_index;
+        unsigned long long int i, vel_index;
         HaloProperties properties;
         double M_turn_a = consts->mturn_a_nofb;
         double M_turn_m = consts->mturn_m_nofb;

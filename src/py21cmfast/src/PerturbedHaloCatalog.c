@@ -102,7 +102,7 @@ int ComputePerturbedHaloCatalog(float redshift, InitialConditions *boxes, TsBox 
     reduction(+ : n_exact_dim)
         {
             double pos[3];
-            unsigned long long grid_index;
+            unsigned long long int grid_index;
             int ipos[3];
 #pragma omp for
             for (i_halo = 0; i_halo < halos->n_halos; i_halo++) {

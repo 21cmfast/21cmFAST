@@ -320,7 +320,7 @@ void compute_perturbed_velocities(unsigned short axis, double redshift,
 #pragma omp parallel private(n_x, n_y, n_z, k_x, k_y, k_z, k_sq, kvec) \
     num_threads(simulation_options_global -> N_THREADS)
     {
-        unsigned long long grid_index;
+        unsigned long long int grid_index;
 #pragma omp for
         for (n_x = 0; n_x < box_dim[0]; n_x++) {
             k_x = index_to_k(n_x, box_len[0], box_dim[0]);

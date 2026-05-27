@@ -343,7 +343,8 @@ void update_in_sphere(float *box, int dimensions, int dimensions_ncf, float R, f
     int x_curr, y_curr, z_curr, xb_min, xb_max, yb_min, yb_max, zb_min, zb_max, R_index;
     int xl_min, xl_max, yl_min, yl_max, zl_min, zl_max;
     float Rsq_curr_index;
-    int x, y, z, index;
+    int x, y, z;
+    unsigned long long int index;
 
     int index_arr[3];
     int box_dim[3] = {dimensions, dimensions, dimensions_ncf};
