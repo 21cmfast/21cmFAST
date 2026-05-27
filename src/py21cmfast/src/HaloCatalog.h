@@ -4,9 +4,9 @@
 
 #include "InputParameters.h"
 #include "OutputStructs.h"
+#include "indexing.h"
 
 int ComputeHaloCatalog(float redshift_desc, float redshift, InitialConditions *boxes,
-                       unsigned long long int random_seed, HaloCatalog *halos_desc,
-                       HaloCatalog *halos);
+                       index_t random_seed, HaloCatalog *halos_desc, HaloCatalog *halos);
 
 #endif

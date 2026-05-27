@@ -35,7 +35,7 @@ void adj_complex_conj(fftwf_complex *HIRES_box) {
         mid_index[i] = box_dim[i] / 2;
     }
 
-    unsigned long long int corner_indices[8] = {
+    index_t corner_indices[8] = {
         grid_index_fftw_c(0, 0, mid_index[2], box_dim),
         grid_index_fftw_c(0, mid_index[1], 0, box_dim),
         grid_index_fftw_c(0, mid_index[1], mid_index[2], box_dim),
@@ -54,8 +54,8 @@ void adj_complex_conj(fftwf_complex *HIRES_box) {
 #pragma omp parallel shared(HIRES_box) private(i, j, k) \
     num_threads(simulation_options_global -> N_THREADS)
     {
-        unsigned long long int index;
-        unsigned long long int index_rx, index_ry, index_rxy;
+        index_t index;
+        index_t index_rx, index_ry, index_rxy;
 #pragma omp for
         for (i = 1; i < mid_index[0]; i++) {
             // just j corners
@@ -85,8 +85,8 @@ void adj_complex_conj(fftwf_complex *HIRES_box) {
 #pragma omp parallel shared(HIRES_box) private(i, j, k) \
     num_threads(simulation_options_global -> N_THREADS)
     {
-        unsigned long long int index;
-        unsigned long long int index_ry;
+        index_t index;
+        index_t index_ry;
 #pragma omp for
         for (i = 0; i <= mid_index[0]; i += mid_index[0]) {
             for (j = 1; j < mid_index[1]; j++) {
@@ -159,7 +159,7 @@ void compute_relative_velocities(fftwf_complex *box, fftwf_complex *box_saved, f
         {
             double k_x, k_y, k_z, k_mag;
             double p, p_vcb;
-            unsigned long long int index;
+            index_t index;
             double kvec[3];
 #pragma omp for
             for (n_x = 0; n_x < hi_dim[0]; n_x++) {
@@ -208,7 +208,7 @@ void compute_relative_velocities(fftwf_complex *box, fftwf_complex *box_saved, f
 #pragma omp parallel private(i, j, k) num_threads(simulation_options_global -> N_THREADS)
         {
             double vcb_i;
-            unsigned long long int index_r, index_f;
+            index_t index_r, index_f;
             int resampled_index[3];
 #pragma omp for
             for (i = 0; i < lo_dim[0]; i++) {
@@ -242,7 +242,7 @@ void compute_f_gradient(fftwf_complex *box_in, fftwf_complex *box_out, int dim[3
     int n_x, n_y, n_z;
 #pragma omp parallel private(n_x, n_y, n_z) num_threads(simulation_options_global -> N_THREADS)
     {
-        unsigned long long int index;
+        index_t index;
         double k_x, k_y, k_z, k_sq;
 #pragma omp for
         for (n_x = 0; n_x < dim[0]; n_x++) {
@@ -271,7 +271,7 @@ void compute_f_laplacian(fftwf_complex *box_in, fftwf_complex *box_out, int dim[
     int n_x, n_y, n_z;
 #pragma omp parallel private(n_x, n_y, n_z) num_threads(simulation_options_global -> N_THREADS)
     {
-        unsigned long long int index;
+        index_t index;
         double k_x, k_y, k_z, k_sq;
 #pragma omp for
         for (n_x = 0; n_x < dim[0]; n_x++) {
@@ -343,7 +343,7 @@ void compute_velocity_fields(fftwf_complex *box, fftwf_complex *box_saved, float
         // now sample the filtered box
 #pragma omp parallel private(i, j, k) num_threads(simulation_options_global -> N_THREADS)
         {
-            unsigned long long int index, index_f;
+            index_t index, index_f;
             int resampled_index[3];
 #pragma omp for
             for (i = 0; i < pt_dim[0]; i++) {
@@ -405,7 +405,7 @@ void compute_velocity_fields_2LPT(fftwf_complex *box, fftwf_complex *box_saved,
     // First zero the workspace box for summation
 #pragma omp parallel private(i, j, k) num_threads(simulation_options_global -> N_THREADS)
     {
-        unsigned long long int index;
+        index_t index;
 #pragma omp for
         for (i = 0; i < hi_dim[0]; i++) {
             for (j = 0; j < hi_dim[1]; j++) {
@@ -431,8 +431,8 @@ void compute_velocity_fields_2LPT(fftwf_complex *box, fftwf_complex *box_saved,
         // This will usually be in the allocated hires_vi_2LPT boxes
 #pragma omp parallel private(i, j, k) num_threads(simulation_options_global -> N_THREADS)
         {
-            unsigned long long int index;
-            unsigned long long int index_f;
+            index_t index;
+            index_t index_f;
 #pragma omp for
             for (i = 0; i < hi_dim[0]; i++) {
                 for (j = 0; j < hi_dim[1]; j++) {
@@ -460,7 +460,7 @@ void compute_velocity_fields_2LPT(fftwf_complex *box, fftwf_complex *box_saved,
         // Now sum the stored components to get the laplacian of phi_2 (eq. D13b)
 #pragma omp parallel private(i, j, k) num_threads(simulation_options_global -> N_THREADS)
         {
-            unsigned long long int index, index_f;
+            index_t index, index_f;
             double component_ii, component_jj, component_ij;
 #pragma omp for
             for (i = 0; i < hi_dim[0]; i++) {
@@ -485,7 +485,7 @@ void compute_velocity_fields_2LPT(fftwf_complex *box, fftwf_complex *box_saved,
 
 #pragma omp parallel private(i, j, k) num_threads(simulation_options_global -> N_THREADS)
     {
-        unsigned long long int index;
+        index_t index;
 #pragma omp for
         for (i = 0; i < hi_dim[0]; i++) {
             for (j = 0; j < hi_dim[1]; j++) {
@@ -525,7 +525,7 @@ void compute_velocity_fields_2LPT(fftwf_complex *box, fftwf_complex *box_saved,
         // now sample the filtered box
 #pragma omp parallel private(i, j, k) num_threads(simulation_options_global -> N_THREADS)
         {
-            unsigned long long int index, index_f;
+            index_t index, index_f;
             int resampled_index[3];
 #pragma omp for
             for (i = 0; i < pt_dim[0]; i++) {
@@ -544,7 +544,7 @@ void compute_velocity_fields_2LPT(fftwf_complex *box, fftwf_complex *box_saved,
 }
 
 // Re-write of init.c for original 21cmFAST
-int ComputeInitialConditions(unsigned long long int random_seed, InitialConditions *boxes) {
+int ComputeInitialConditions(index_t random_seed, InitialConditions *boxes) {
     //     Generates the initial conditions: gaussian random density field
     //     (simulation_options_global->DIM^3) as well as the equal or lower resolution velocity
     //     fields, and smoothed density field (simulation_options_global->HII_DIM^3).
@@ -566,7 +566,7 @@ int ComputeInitialConditions(unsigned long long int random_seed, InitialConditio
 #endif
 
         int i, j, k;
-        unsigned long long int box_ct;
+        index_t box_ct;
 
         gsl_rng *r[simulation_options_global->N_THREADS];
         seed_rng_threads(r, random_seed);
@@ -639,7 +639,7 @@ int ComputeInitialConditions(unsigned long long int random_seed, InitialConditio
 #pragma omp parallel shared(boxes, HIRES_box) private(i, j, k) \
     num_threads(simulation_options_global -> N_THREADS)
             {
-                unsigned long long int index_r, index_f;
+                index_t index_r, index_f;
 #pragma omp for
                 for (i = 0; i < hi_dim[0]; i++) {
                     for (j = 0; j < hi_dim[1]; j++) {
@@ -679,7 +679,7 @@ int ComputeInitialConditions(unsigned long long int random_seed, InitialConditio
 #pragma omp parallel shared(boxes, HIRES_box) private(i, j, k) \
     num_threads(simulation_options_global -> N_THREADS)
             {
-                unsigned long long int index_r, index_f;
+                index_t index_r, index_f;
 #pragma omp for
                 for (i = 0; i < hi_dim[0]; i++) {
                     for (j = 0; j < hi_dim[1]; j++) {
@@ -715,7 +715,7 @@ int ComputeInitialConditions(unsigned long long int random_seed, InitialConditio
 #pragma omp parallel shared(boxes, HIRES_box, dim_ratio_hi_lo) private(i, j, k) \
     num_threads(simulation_options_global -> N_THREADS)
         {
-            unsigned long long int index_r, index_f;
+            index_t index_r, index_f;
             int resampled_index[3];
 #pragma omp for
             for (i = 0; i < lo_dim[0]; i++) {

@@ -6,7 +6,8 @@
 
 #include "InputParameters.h"
 #include "OutputStructs.h"
+#include "indexing.h"
 
-int ComputeInitialConditions(unsigned long long random_seed, InitialConditions *boxes);
+int ComputeInitialConditions(index_t random_seed, InitialConditions *boxes);
 
 #endif

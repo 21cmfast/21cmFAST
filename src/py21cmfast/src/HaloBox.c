@@ -167,7 +167,7 @@ HaloProperties get_halobox_averages(HaloBox *grids) {
 
 #pragma omp parallel for reduction(+ : mean_count, mean_mass, mean_stars, mean_stars_mini, \
                                        mean_sfr, mean_sfr_mini, mean_n_ion, mean_xray, mean_wsfr)
-    for (unsigned long long int i = 0; i < HII_TOT_NUM_PIXELS; i++) {
+    for (index_t i = 0; i < HII_TOT_NUM_PIXELS; i++) {
         mean_sfr += grids->halo_sfr[i];
         mean_n_ion += grids->n_ion[i];
         if (astro_options_global->USE_TS_FLUCT) {
@@ -212,7 +212,7 @@ void mean_fix_grids(double M_min, double M_max, HaloBox *grids, ScalingConstants
     HaloProperties averages_hbox;
     averages_hbox = get_halobox_averages(grids);
 
-    unsigned long long int idx;
+    index_t idx;
 #pragma omp parallel for num_threads(simulation_options_global->N_THREADS) private(idx)
     for (idx = 0; idx < HII_TOT_NUM_PIXELS; idx++) {
         grids->halo_sfr[idx] *= averages_global.halo_sfr / averages_hbox.halo_sfr;
@@ -318,7 +318,7 @@ int set_fixed_grids(double M_min, double M_max, InitialConditions *ini_boxes, fl
     float *vel_pointers[3];
     float *vel_pointers_2LPT[3];
     int grid_dim[3];
-    unsigned long long int num_pixels;
+    index_t num_pixels;
     float *dens_pointer;
     int out_dim[3] = {simulation_options_global->HII_DIM, simulation_options_global->HII_DIM,
                       HII_D_PARA};  // always output to lowres grid
@@ -354,7 +354,7 @@ int set_fixed_grids(double M_min, double M_max, InitialConditions *ini_boxes, fl
     set_integral_constants(&integral_cond, ev_consts->redshift, M_min, M_max, M_cell);
 #pragma omp parallel num_threads(simulation_options_global->N_THREADS)
     {
-        unsigned long long int i;
+        index_t i;
         double dens;
 #pragma omp for reduction(min : min_density) reduction(max : max_density)
         for (i = 0; i < num_pixels; i++) {
@@ -473,7 +473,7 @@ void get_log10_turnovers(InitialConditions *ini_boxes, TsBox *previous_spin_temp
 
 #pragma omp parallel num_threads(simulation_options_global->N_THREADS)
     {
-        unsigned long long int i;
+        index_t i;
         double J21_val, Gamma12_val, zre_val;
         double curr_vcb = consts->vcb_norel;
         double M_turn_m;
@@ -576,7 +576,7 @@ int ComputeHaloBox(double redshift, InitialConditions *ini_boxes, HaloCatalog *h
 
         LOG_DEBUG("Resetting halobox dim %d %llu %llu", simulation_options_global->HII_DIM,
                   HII_D_PARA, HII_TOT_NUM_PIXELS);
-        unsigned long long int idx;
+        index_t idx;
 #pragma omp parallel for num_threads(simulation_options_global->N_THREADS) private(idx)
         for (idx = 0; idx < HII_TOT_NUM_PIXELS; idx++) {
             grids->n_ion[idx] = 0.0;
@@ -666,7 +666,7 @@ int ComputeHaloBox(double redshift, InitialConditions *ini_boxes, HaloCatalog *h
 // test function for getting halo properties from the wrapper, can use a lot of memory for large
 // catalogs
 int test_halo_props(double redshift, float *vcb_grid, float *J21_LW_grid, float *z_re_grid,
-                    float *Gamma12_ion_grid, unsigned long long int n_halos, float *halo_masses,
+                    float *Gamma12_ion_grid, index_t n_halos, float *halo_masses,
                     float *halo_coords, float *star_rng, float *sfr_rng, float *xray_rng,
                     float *halo_props_out) {
     int status;
@@ -688,7 +688,7 @@ int test_halo_props(double redshift, float *vcb_grid, float *J21_LW_grid, float 
 #pragma omp parallel num_threads(simulation_options_global->N_THREADS)
         {
             int x, y, z;
-            unsigned long long int i_halo, i_cell;
+            index_t i_halo, i_cell;
             double m;
             double J21_val, Gamma12_val, zre_val;
 
@@ -812,7 +812,7 @@ int convert_halo_props(double redshift, InitialConditions *ics, TsBox *prev_ts,
         simulation_options_global->HII_DIM / (double)simulation_options_global->DIM;
 #pragma omp parallel num_threads(simulation_options_global->N_THREADS)
     {
-        unsigned long long int i_halo;
+        index_t i_halo;
         double m;
 
         double M_turn_m = hbox_consts.mturn_m_nofb;

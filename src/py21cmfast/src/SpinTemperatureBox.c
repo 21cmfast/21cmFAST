@@ -505,7 +505,7 @@ void calculate_spectral_factors(double zp) {
 void prepare_filter_boxes(double redshift, float *input_dens, float *input_vcb, float *input_j21,
                           fftwf_complex *output_dens, fftwf_complex *output_LW) {
     int i, j, k;
-    unsigned long long int ct, index_f;
+    index_t ct, index_f;
     double curr_vcb, curr_j21, M_buf;
     int box_dim[3] = {simulation_options_global->HII_DIM, simulation_options_global->HII_DIM,
                       HII_D_PARA};
@@ -608,7 +608,7 @@ void fill_Rbox_table(float **result, fftwf_complex *unfiltered_box, double *R_ar
 #pragma omp parallel private(i, j, k) num_threads(simulation_options_global -> N_THREADS)
         {
             float curr;
-            unsigned long long int index_r, index_f;
+            index_t index_r, index_f;
 #pragma omp for reduction(+ : ave_buffer) reduction(max : max_out_R) reduction(min : min_out_R)
             for (i = 0; i < box_dim[0]; i++) {
                 for (j = 0; j < box_dim[1]; j++) {
@@ -650,7 +650,7 @@ void fill_Rbox_table(float **result, fftwf_complex *unfiltered_box, double *R_ar
 void one_annular_filter(float *input_box, float *output_box, double R_inner, double R_outer,
                         double *u_avg, double *f_avg) {
     int i, j, k;
-    unsigned long long int ct;
+    index_t ct;
     double unfiltered_avg = 0;
     double filtered_avg = 0;
     int box_dim[3] = {simulation_options_global->HII_DIM, simulation_options_global->HII_DIM,
@@ -665,7 +665,7 @@ void one_annular_filter(float *input_box, float *output_box, double R_inner, dou
     reduction(+ : unfiltered_avg)
     {
         float curr_val;
-        unsigned long long int index_r, index_f;
+        index_t index_r, index_f;
 #pragma omp for
         for (i = 0; i < box_dim[0]; i++) {
             for (j = 0; j < box_dim[1]; j++) {
@@ -714,7 +714,7 @@ void one_annular_filter(float *input_box, float *output_box, double R_inner, dou
     reduction(+ : filtered_avg)
     {
         float curr_val;
-        unsigned long long int index_f, index_r;
+        index_t index_f, index_r;
 #pragma omp for
         for (i = 0; i < box_dim[0]; i++) {
             for (j = 0; j < box_dim[1]; j++) {
@@ -883,7 +883,7 @@ void fill_freqint_tables(double zp, double x_e_ave, double filling_factor_of_HI_
 // construct a Ts table above Z_HEAT_MAX, this can happen if we are computing the first box or if we
 // request a redshift above Z_HEAT_MAX
 void init_first_Ts(TsBox *box, float *dens, float z, float zp, double *x_e_ave, double *Tk_ave) {
-    unsigned long long int box_ct;
+    index_t box_ct;
     // zp is the requested redshift, z is the perturbed field redshift
     float growth_factor_zp;
     float inverse_growth_factor_z;
@@ -1024,7 +1024,7 @@ void calculate_sfrd_from_grid(int R_ct, float *dens_R_grid, float *Mcrit_R_grid,
 
 #pragma omp parallel num_threads(simulation_options_global->N_THREADS)
     {
-        unsigned long long int box_ct;
+        index_t box_ct;
         double curr_dens;
         double curr_mcrit = 0.;
         double fcoll, dfcoll;
@@ -1376,7 +1376,7 @@ void ts_main(float redshift, float prev_redshift, float perturbed_field_redshift
              PerturbedField *perturbed_field, XraySourceBox *source_box, TsBox *previous_spin_temp,
              InitialConditions *ini_boxes, TsBox *this_spin_temp) {
     int R_ct;
-    unsigned long long int box_ct;
+    index_t box_ct;
     double x_e_ave_p, Tk_ave_p;
     double growth_factor_z, growth_factor_zp;
     double inverse_growth_factor_z;
