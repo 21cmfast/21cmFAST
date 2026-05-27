@@ -90,12 +90,11 @@ int ComputeHaloCatalog(float redshift_desc, float redshift, InitialConditions *b
         // set minimum source mass
         // if we use the sampler we want to stop at the HII cell mass
         if (matter_options_global->SOURCE_MODEL == 4)
-            M_MIN = fmax(M_MIN, RtoM(physconst.l_factor * simulation_options_global->BOX_LEN /
-                                     simulation_options_global->HII_DIM));
+            M_MIN = RtoM(physconst.l_factor * simulation_options_global->BOX_LEN /
+                         simulation_options_global->HII_DIM);
         // otherwise we stop at the cell mass
         else
-            M_MIN = fmax(M_MIN,
-                         RtoM(physconst.l_factor * simulation_options_global->BOX_LEN / grid_dim));
+            M_MIN = RtoM(physconst.l_factor * simulation_options_global->BOX_LEN / grid_dim);
 
         // allocate array for the k-space box
         density_field = (fftwf_complex *)fftwf_malloc(sizeof(fftwf_complex) * KSPACE_NUM_PIXELS);
@@ -308,6 +307,27 @@ int ComputeHaloCatalog(float redshift_desc, float redshift, InitialConditions *b
 
         LOG_DEBUG("Obtained %llu halo masses and positions, now saving to HaloCatalog struct.",
                   total_halo_num);
+
+        // This could happen only if SOURCE_MODEL == 3, since in this configuration
+        // the memory allocated for the DEXM halo catalog is smaller
+        if (total_halo_num > halos->buffer_size) {
+            LOG_ERROR("Halo buffer overflow (allocated %llu halos)", halos->buffer_size);
+            double expected_nhalo_val = expected_nhalo(redshift);
+            // Suggest new factor (with 10-20% safety margin)
+            double suggested_factor = total_halo_num / (expected_nhalo_val + 1) * 1.15;
+            LOG_ERROR(
+                "This error was raised because the number of total halos that were found in the "
+                "box is "
+                "larger than the number that was allocated for the halo catalog!\n"
+                "Try raising p21c.config['HALO_CATALOG_MEM_FACTOR'] from %.2f to %.2f.\n"
+                "If your previous halo catalogs are stored in the cache and you run the code with "
+                "regenerate=False, "
+                "then don't worry, the code will read those halos from the cache instead of "
+                "re-evaluating them, "
+                "even if you increase `HALO_CATALOG_MEM_FACTOR`.",
+                config_settings.HALO_CATALOG_MEM_FACTOR, suggested_factor);
+            Throw(ValueError);
+        }
 
         // Allocate the Halo Mass and Coordinate Fields (non-wrapper structure)
         if (matter_options_global->SOURCE_MODEL == 4)

@@ -108,7 +108,8 @@ void make_density_grid(float redshift, fftwf_complex *fft_density_grid, InitialC
                          box_dim, resampled_box, box_dim);
 
         LOG_SUPER_DEBUG("resampled_box: ");
-        debugSummarizeBoxDouble(resampled_box, box_dim[0], box_dim[1], box_dim[2], "  ");
+        debugSummarizeBoxDouble(resampled_box, box_dim[0], box_dim[1], box_dim[2], STANDARD_LAYOUT,
+                                "  ");
 
         // Resample back to a fftw float for remaining algorithm
 #pragma omp parallel private(i, j, k) num_threads(simulation_options_global -> N_THREADS)
@@ -129,7 +130,7 @@ void make_density_grid(float redshift, fftwf_complex *fft_density_grid, InitialC
 
         LOG_SUPER_DEBUG("density_perturb: ");
         debugSummarizeBox((float *)fft_density_grid, box_dim[0], box_dim[1],
-                          2 * (box_dim[2] / 2 + 1), "  ");
+                          2 * (box_dim[2] / 2 + 1), FFTW_REAL_LAYOUT, "  ");
     }
 }
 
@@ -204,7 +205,8 @@ void normalise_delta_grid(fftwf_complex *deltap1_grid) {
         }
     }
     LOG_SUPER_DEBUG("delta after normalisation: ");
-    debugSummarizeBox((float *)deltap1_grid, lo_dim[0], lo_dim[1], 2 * (lo_dim[2] / 2 + 1), "  ");
+    debugSummarizeBox((float *)deltap1_grid, lo_dim[0], lo_dim[1], 2 * (lo_dim[2] / 2 + 1),
+                      FFTW_REAL_LAYOUT, "  ");
 }
 
 void smooth_and_clip_density(fftwf_complex *lowres_grid, fftwf_complex *density_perturb_saved) {
@@ -226,7 +228,8 @@ void smooth_and_clip_density(fftwf_complex *lowres_grid, fftwf_complex *density_
 
     LOG_SUPER_DEBUG("delta_k after smoothing: ");
     debugSummarizeBox((float *)lowres_grid, simulation_options_global->HII_DIM,
-                      simulation_options_global->HII_DIM, 2 * (HII_D_PARA / 2 + 1), "  ");
+                      simulation_options_global->HII_DIM, 2 * (HII_D_PARA / 2 + 1),
+                      FFTW_REAL_LAYOUT, "  ");
 
     // save a copy of the k-space density field for velocity computation
     // TODO: The grid saving is awkward, it happens in different functions depending on the
@@ -240,7 +243,8 @@ void smooth_and_clip_density(fftwf_complex *lowres_grid, fftwf_complex *density_
 
     LOG_SUPER_DEBUG("delta back in real space: ");
     debugSummarizeBox((float *)lowres_grid, simulation_options_global->HII_DIM,
-                      simulation_options_global->HII_DIM, 2 * (HII_D_PARA / 2 + 1), "  ");
+                      simulation_options_global->HII_DIM, 2 * (HII_D_PARA / 2 + 1),
+                      FFTW_REAL_LAYOUT, "  ");
 
     // normalize after FFT
     unsigned long long int bad_count = 0;
@@ -273,7 +277,8 @@ void smooth_and_clip_density(fftwf_complex *lowres_grid, fftwf_complex *density_
     if (bad_count >= 5) LOG_WARNING("Total number of bad indices: %llu", bad_count);
     LOG_SUPER_DEBUG("delta normalized: ");
     debugSummarizeBox((float *)lowres_grid, simulation_options_global->HII_DIM,
-                      simulation_options_global->HII_DIM, 2 * (HII_D_PARA / 2 + 1), "  ");
+                      simulation_options_global->HII_DIM, 2 * (HII_D_PARA / 2 + 1),
+                      FFTW_REAL_LAYOUT, "  ");
 }
 
 void compute_perturbed_velocities(unsigned short axis, double redshift,
@@ -345,8 +350,8 @@ void compute_perturbed_velocities(unsigned short axis, double redshift,
     }
 
     LOG_SUPER_DEBUG("density_perturb after modification by dDdt: ");
-    debugSummarizeBoxComplex((float complex *)velocity_fft_grid, box_dim[0], box_dim[1],
-                             box_dim[2] / 2 + 1, "  ");
+    debugSummarizeBoxComplex((fftwf_complex *)velocity_fft_grid, box_dim[0], box_dim[1],
+                             box_dim[2] / 2 + 1, FFTW_COMPLEX_LAYOUT, "  ");
 
     if (matter_options_global->PERTURB_ON_HIGH_RES &&
         simulation_options_global->DIM != simulation_options_global->HII_DIM) {
@@ -378,7 +383,7 @@ void compute_perturbed_velocities(unsigned short axis, double redshift,
     }
     LOG_SUPER_DEBUG("velocity: ");
     debugSummarizeBox(velocity, simulation_options_global->HII_DIM,
-                      simulation_options_global->HII_DIM, HII_D_PARA, "  ");
+                      simulation_options_global->HII_DIM, HII_D_PARA, STANDARD_LAYOUT, "  ");
 }
 
 int ComputePerturbedField(float redshift, InitialConditions *boxes,

@@ -83,11 +83,10 @@ def test_all_fields_exist(struct: ox.OutputStruct):
 def test_halocatalogs(default_input_struct_lc: InputParameters):
     """Ensure that the halo catalogs can be made."""
     # First let's define buffer_size
-    halo_cat = ox.HaloCatalog.new(
-        redshift=0.0, inputs=default_input_struct_lc, buffer_size=1
-    )
+    inputs = default_input_struct_lc.evolve_input_structs(SOURCE_MODEL="CHMF-SAMPLER")
+    halo_cat = ox.HaloCatalog.new(redshift=0.0, inputs=inputs, buffer_size=1)
     pert_halo_cat = ox.PerturbedHaloCatalog.new(
-        redshift=0.0, inputs=default_input_struct_lc, buffer_size=1
+        redshift=0.0, inputs=inputs, buffer_size=1
     )
     assert isinstance(halo_cat, ox.HaloCatalog)
     assert isinstance(pert_halo_cat, ox.PerturbedHaloCatalog)
@@ -95,22 +94,18 @@ def test_halocatalogs(default_input_struct_lc: InputParameters):
     # Now let's not define buffer_size, it should default to None
     halo_cat = ox.HaloCatalog.new(
         redshift=0.0,
-        inputs=default_input_struct_lc,  # buffer_size = None
+        inputs=inputs,  # buffer_size = None
     )
     pert_halo_cat = ox.PerturbedHaloCatalog.new(
         redshift=0.0,
-        inputs=default_input_struct_lc,  # buffer_size = None
+        inputs=inputs,  # buffer_size = None
     )
     assert isinstance(halo_cat, ox.HaloCatalog)
     assert isinstance(pert_halo_cat, ox.PerturbedHaloCatalog)
 
     # Now let's define dummy=True
-    halo_cat = ox.HaloCatalog.new(
-        redshift=0.0, inputs=default_input_struct_lc, dummy=True
-    )
-    pert_halo_cat = ox.PerturbedHaloCatalog.new(
-        redshift=0.0, inputs=default_input_struct_lc, dummy=True
-    )
+    halo_cat = ox.HaloCatalog.new(redshift=0.0, inputs=inputs, dummy=True)
+    pert_halo_cat = ox.PerturbedHaloCatalog.new(redshift=0.0, inputs=inputs, dummy=True)
     assert isinstance(halo_cat, ox.HaloCatalog)
     assert isinstance(pert_halo_cat, ox.PerturbedHaloCatalog)
     assert halo_cat.buffer_size == 0
@@ -309,8 +304,9 @@ def test_optional_field_bt(default_input_struct_lc: InputParameters):
 @pytest.mark.parametrize("struct", list(ox.OutputStructZ.__subclasses__()))
 def test_bad_required_array(default_input_struct, struct):
     # no struct takes this input
-    bt = ox.BrightnessTemp.new(redshift=10.0, inputs=default_input_struct)
-    kwargs = {"inputs": default_input_struct, "redshift": 10.0}
+    inputs = default_input_struct.evolve_input_structs(SOURCE_MODEL="CHMF-SAMPLER")
+    bt = ox.BrightnessTemp.new(redshift=10.0, inputs=inputs)
+    kwargs = {"inputs": inputs, "redshift": 10.0}
     if struct is ox.PerturbedHaloCatalog:
         kwargs["buffer_size"] = 1
     output = struct.new(**kwargs)

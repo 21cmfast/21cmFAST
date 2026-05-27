@@ -824,6 +824,14 @@ class HaloCatalog(OutputStructZ):
             **kw,
         )
 
+    def trim_to_n_halos(self) -> Self:
+        """Trim the halo catalog to have its size the same as the actual number of halos."""
+        self.buffer_size = self.n_halos
+        for name, array in self.arrays.items():
+            new_shape = (self.n_halos, *array.shape[1:])
+            new_array = array.trimmed(new_shape)
+            setattr(self, name, new_array)
+
     def get_required_input_arrays(self, input_box: OutputStruct) -> list[str]:
         """Return all input arrays required to compute this object."""
         required = []
