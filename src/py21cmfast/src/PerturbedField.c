@@ -184,9 +184,9 @@ void normalise_delta_grid(fftwf_complex *deltap1_grid) {
                      HII_D_PARA};
     int hi_dim[3] = {simulation_options_global->DIM, simulation_options_global->DIM, D_PARA};
     // Renormalise the lowres box
-    double mass_factor =
-        matter_options_global->PERTURB_ON_HIGH_RES ? 1.0
-                                                    : HII_TOT_NUM_PIXELS / (double)TOT_NUM_PIXELS;
+    double mass_factor = matter_options_global->PERTURB_ON_HIGH_RES
+                             ? 1.0
+                             : HII_TOT_NUM_PIXELS / (double)TOT_NUM_PIXELS;
 #pragma omp parallel private(i, j, k) num_threads(simulation_options_global -> N_THREADS)
     {
         unsigned long long int grid_index;
