@@ -36,10 +36,9 @@ class _InitManager:
     init_heat: bool = False
 
 
-def broadcast_input_struct(*args, skip: bool = False, **kwargs):
+def broadcast_input_struct(inputs: InputParameters, skip: bool = False):
     """Broadcast the parameters to the C library, and construct FFTW wisdoms if necessary."""
     if not skip:
-        inputs = _get_inputs_from_call(*args, **kwargs)
         lib.Broadcast_struct_global_all(
             inputs.simulation_options.cstruct,
             inputs.matter_options.cstruct,
@@ -52,23 +51,24 @@ def broadcast_input_struct(*args, skip: bool = False, **kwargs):
             construct_fftw_wisdoms()
 
 
-def initialize_power_spectrum(*args, skip: bool = False, **kwargs):
+def initialize_power_spectrum(inputs: InputParameters, skip: bool = False):
     """Initialize power spectrum at the C backend."""
     if not skip:
         lib.init_ps()
 
 
-def initialize_sigma_tables(*args, skip: bool = False, **kwargs):
+def initialize_sigma_tables(inputs: InputParameters, skip: bool = False):
     """Initialize sigma interpolation tables at the C backend."""
-    if not skip:
-        inputs = _get_inputs_from_call(*args, **kwargs)
-        if inputs.matter_options.USE_INTERPOLATION_TABLES != "no-interpolation":
-            sigma_min_mass = kwargs.get("M_min", 5e2)
-            sigma_max_mass = kwargs.get("M_max", 1e20)
-            lib.initialiseSigmaMInterpTable(sigma_min_mass, sigma_max_mass)
+    if (
+        not skip
+        and inputs.matter_options.USE_INTERPOLATION_TABLES != "no-interpolation"
+    ):
+        sigma_min_mass = 5e2
+        sigma_max_mass = 1e20
+        lib.initialiseSigmaMInterpTable(sigma_min_mass, sigma_max_mass)
 
 
-def initialize_heat(*args, skip: bool = False, **kwargs):
+def initialize_heat(inputs: InputParameters, skip: bool = False):
     """Initialize heat interpolation tables at the C backend."""
     if not skip:
         lib.init_heat()
@@ -80,27 +80,28 @@ def construct_fftw_wisdoms():
     lib.CreateFFTWWisdoms()
 
 
-def free_cosmo_tables(*args, skip: bool = False, **kwargs):
+def free_cosmo_tables(inputs: InputParameters, skip: bool = False):
     """Free the memory of cosmo_tables_global that was allocated at the C backend."""
     if not skip:
         lib.Free_cosmo_tables_global()
 
 
-def free_power_spectrum(*args, skip: bool = False, **kwargs):
+def free_power_spectrum(inputs: InputParameters, skip: bool = False):
     """Free the memory of power spectrum that was allocated at the C backend."""
     if not skip:
         lib.free_ps()
 
 
-def free_sigma_tables(*args, skip: bool = False, **kwargs):
+def free_sigma_tables(inputs: InputParameters, skip: bool = False):
     """Free sigma interpolation tables at the C backend."""
-    if not skip:
-        inputs = _get_inputs_from_call(*args, **kwargs)
-        if inputs.matter_options.USE_INTERPOLATION_TABLES != "no-interpolation":
-            lib.freeSigmaMInterpTable()
+    if (
+        not skip
+        and inputs.matter_options.USE_INTERPOLATION_TABLES != "no-interpolation"
+    ):
+        lib.freeSigmaMInterpTable()
 
 
-def free_heat(*args, skip: bool = False, **kwargs):
+def free_heat(inputs: InputParameters, skip: bool = False):
     """Free heat interpolation tables at the C backend."""
     if not skip:
         lib.destruct_heat()
@@ -138,15 +139,13 @@ def _make_lifecycle_decorator(
 
     def _make_wrapper(func):
         def wrapper(*args, **kwargs):
-            current_inputs = _get_inputs_from_call(*args, **kwargs)
-            init_manager = kwargs.get(
-                "init_manager", _InitManager(inputs=current_inputs)
-            )
-            if init_manager.inputs != current_inputs:
-                init_manager = _InitManager(inputs=current_inputs)
+            inputs = _get_inputs_from_call(*args, **kwargs)
+            init_manager = kwargs.get("init_manager", _InitManager(inputs=inputs))
+            if init_manager.inputs != inputs:
+                init_manager = _InitManager(inputs=inputs)
             kwargs["init_manager"] = init_manager
             skip = getattr(init_manager, manager_field)
-            init_func(*args, skip=skip, **kwargs)
+            init_func(inputs=inputs, skip=skip)
             if not skip:
                 setattr(init_manager, manager_field, True)
             try:
@@ -154,23 +153,21 @@ def _make_lifecycle_decorator(
             except Exception:
                 if not skip:
                     setattr(init_manager, manager_field, False)
-                free_func(*args, skip=skip, **kwargs)
+                free_func(inputs=inputs, skip=skip)
                 raise
             if not skip:
                 setattr(init_manager, manager_field, False)
-            free_func(*args, skip=skip, **kwargs)
+            free_func(inputs=inputs, skip=skip)
             return out
 
         def generator_wrapper(*args, **kwargs):
-            current_inputs = _get_inputs_from_call(*args, **kwargs)
-            init_manager = kwargs.get(
-                "init_manager", _InitManager(inputs=current_inputs)
-            )
-            if init_manager.inputs != current_inputs:
-                init_manager = _InitManager(inputs=current_inputs)
+            inputs = _get_inputs_from_call(*args, **kwargs)
+            init_manager = kwargs.get("init_manager", _InitManager(inputs=inputs))
+            if init_manager.inputs != inputs:
+                init_manager = _InitManager(inputs=inputs)
             kwargs["init_manager"] = init_manager
             skip = getattr(init_manager, manager_field)
-            init_func(*args, skip=skip, **kwargs)
+            init_func(inputs=inputs, skip=skip)
             if not skip:
                 setattr(init_manager, manager_field, True)
             try:
@@ -178,11 +175,11 @@ def _make_lifecycle_decorator(
             except Exception:
                 if not skip:
                     setattr(init_manager, manager_field, False)
-                free_func(*args, skip=skip, **kwargs)
+                free_func(inputs=inputs, skip=skip)
                 raise
             if not skip:
                 setattr(init_manager, manager_field, False)
-            free_func(*args, skip=skip, **kwargs)
+            free_func(inputs=inputs, skip=skip)
 
         result = generator_wrapper if is_generator else wrapper
         functools.update_wrapper(result, func)
