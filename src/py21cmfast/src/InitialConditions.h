@@ -8,6 +8,6 @@
 #include "OutputStructs.h"
 #include "indexing.h"
 
-int ComputeInitialConditions(index_t random_seed, InitialConditions *boxes);
+int ComputeInitialConditions(random_huge random_seed, InitialConditions *boxes);
 
 #endif

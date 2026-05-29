@@ -60,7 +60,7 @@ int ComputeBrightnessTemp(float redshift, TsBox *spin_temp, IonizedBox *ionized_
                                 T_rad) private(i, j, k, pixel_deltax, pixel_x_HI)               \
     num_threads(simulation_options_global -> N_THREADS)
         {
-            index_t index;
+            index_huge index;
 #pragma omp for reduction(+ : ave)
             for (i = 0; i < simulation_options_global->HII_DIM; i++) {
                 for (j = 0; j < simulation_options_global->HII_DIM; j++) {

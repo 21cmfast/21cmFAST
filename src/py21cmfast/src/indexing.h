@@ -24,7 +24,9 @@
 #ifndef _INDEXING_H
 #define _INDEXING_H
 
-typedef unsigned long long int index_t;
+typedef unsigned long long int index_huge;
+typedef unsigned long long int size_huge;
+typedef unsigned long long int random_huge;
 
 #include <gsl/gsl_rng.h>
 #include <math.h>
@@ -44,36 +46,34 @@ typedef unsigned long long int index_t;
 // -------------------------------------------------------------------------------------
 // Convenience Macros for hi-resolution boxes
 // -------------------------------------------------------------------------------------
-#define D_PARA                                              \
-    (index_t)(simulation_options_global->NON_CUBIC_FACTOR * \
-              simulation_options_global->DIM)  // the long long dimension
-#define TOT_NUM_PIXELS                                                          \
-    ((index_t)simulation_options_global->DIM * simulation_options_global->DIM * \
+#define D_PARA (int)(simulation_options_global->NON_CUBIC_FACTOR * simulation_options_global->DIM)
+#define TOT_NUM_PIXELS                                                            \
+    ((size_huge)simulation_options_global->DIM * simulation_options_global->DIM * \
      D_PARA)  // no padding
 
 // Fourier-Transform numbers
-#define TOT_FFT_NUM_PIXELS                                                             \
-    ((index_t)simulation_options_global->DIM * simulation_options_global->DIM * 2llu * \
-     (D_PARA / 2 + 1llu))
+#define TOT_FFT_NUM_PIXELS                                                            \
+    ((size_huge)simulation_options_global->DIM * simulation_options_global->DIM * 2 * \
+     (D_PARA / 2 + 1))
 #define KSPACE_NUM_PIXELS \
-    ((index_t)simulation_options_global->DIM * simulation_options_global->DIM * (D_PARA / 2 + 1llu))
+    ((size_huge)simulation_options_global->DIM * simulation_options_global->DIM * (D_PARA / 2 + 1))
 
 // -------------------------------------------------------------------------------------
 // Convenience Macros for low-resolution boxes
 // -------------------------------------------------------------------------------------
 #define HII_D_PARA \
-    (index_t)(simulation_options_global->NON_CUBIC_FACTOR * simulation_options_global->HII_DIM)
-#define HII_TOT_NUM_PIXELS                                                                       \
-    (index_t)((index_t)simulation_options_global->HII_DIM * simulation_options_global->HII_DIM * \
-              HII_D_PARA)
+    (int)(simulation_options_global->NON_CUBIC_FACTOR * simulation_options_global->HII_DIM)
+#define HII_TOT_NUM_PIXELS                                                                \
+    ((size_huge)simulation_options_global->HII_DIM * simulation_options_global->HII_DIM * \
+     HII_D_PARA)
 
 // Fourier-Transform numbers
-#define HII_TOT_FFT_NUM_PIXELS                                                                 \
-    ((index_t)simulation_options_global->HII_DIM * simulation_options_global->HII_DIM * 2llu * \
-     (HII_D_PARA / 2 + 1llu))
-#define HII_KSPACE_NUM_PIXELS                                                           \
-    ((index_t)simulation_options_global->HII_DIM * simulation_options_global->HII_DIM * \
-     (HII_D_PARA / 2 + 1llu))
+#define HII_TOT_FFT_NUM_PIXELS                                                                \
+    ((size_huge)simulation_options_global->HII_DIM * simulation_options_global->HII_DIM * 2 * \
+     (HII_D_PARA / 2 + 1))
+#define HII_KSPACE_NUM_PIXELS                                                             \
+    ((size_huge)simulation_options_global->HII_DIM * simulation_options_global->HII_DIM * \
+     (HII_D_PARA / 2 + 1))
 
 void wrap_position(double pos[3], double size[3]);
 void wrap_coord(int idx[3], int size[3]);
@@ -81,20 +81,20 @@ void random_point_in_sphere(double centre[3], double radius, gsl_rng *rng, doubl
 void random_point_in_cell(int idx[3], double cell_len, gsl_rng *rng, double *point);
 
 // Indexing a 3D array stored in a 1D array
-inline index_t grid_index_general(int x, int y, int z, int dim[3]) {
-    return (z) + (dim[2] + 0llu) * (y + (dim[1] + 0llu) * x);
+inline index_huge grid_index_general(int x, int y, int z, int dim[3]) {
+    return (index_huge)z + dim[2] * ((index_huge)y + dim[1] * (index_huge)x);
 }
 
 // Indexing a 3D array stored in a 1D array, where the 3D array is the real-space
 // representation of a Fourier Transform (with padding on the last axis)
-inline index_t grid_index_fftw_r(int x, int y, int z, int dim[3]) {
-    return (z) + 2llu * (dim[2] / 2 + 1llu) * (y + (dim[1] + 0llu) * x);
+inline index_huge grid_index_fftw_r(int x, int y, int z, int dim[3]) {
+    return (index_huge)z + 2 * (dim[2] / 2 + 1) * ((index_huge)y + dim[1] * (index_huge)x);
 }
 
 // Indexing a 3D array stored in a 1D array, where the 3D array is the complex-space
 // representation of a Fourier Transform (with padding on the last axis)
-inline index_t grid_index_fftw_c(int x, int y, int z, int dim[3]) {
-    return (z) + (dim[2] / 2 + 1llu) * (y + (dim[1] + 0llu) * x);
+inline index_huge grid_index_fftw_c(int x, int y, int z, int dim[3]) {
+    return (index_huge)z + (dim[2] / 2 + 1) * ((index_huge)y + dim[1] * (index_huge)x);
 }
 
 // Convert a position on [0,BOX_LEN] to an index for a particular cell size.

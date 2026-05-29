@@ -7,6 +7,6 @@
 #include "indexing.h"
 
 int ComputeHaloCatalog(float redshift_desc, float redshift, InitialConditions *boxes,
-                       index_t random_seed, HaloCatalog *halos_desc, HaloCatalog *halos);
+                       random_huge random_seed, HaloCatalog *halos_desc, HaloCatalog *halos);
 
 #endif

@@ -44,7 +44,7 @@ int ComputePerturbedHaloCatalog(float redshift, InitialConditions *boxes, TsBox 
 
         float growth_factor, displacement_factor_2LPT, init_growth_factor,
             init_displacement_factor_2LPT;
-        index_t i_halo;
+        index_huge i_halo;
 
         // Function for deciding the dimensions of loops when we could
         // use either the low or high resolution grids.
@@ -96,13 +96,13 @@ int ComputePerturbedHaloCatalog(float redshift, InitialConditions *boxes, TsBox 
         halos_perturbed->n_halos = halos->n_halos;
 
         // ******************   END INITIALIZATION     ******************************** //
-        index_t n_exact_dim = 0;
+        size_huge n_exact_dim = 0;
         bool error_in_parallel = false;
 #pragma omp parallel private(i_halo) num_threads(simulation_options_global -> N_THREADS) \
     reduction(+ : n_exact_dim)
         {
             double pos[3];
-            index_t grid_index;
+            index_huge grid_index;
             int ipos[3];
 #pragma omp for
             for (i_halo = 0; i_halo < halos->n_halos; i_halo++) {
