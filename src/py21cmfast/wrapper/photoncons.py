@@ -205,7 +205,7 @@ def _get_photon_nonconservation_data() -> dict:
     }
 
 
-@init_sigma_table(is_generator=False)
+@init_sigma_table()
 def setup_photon_cons(
     initial_conditions: InitialConditions,
     inputs: InputParameters | None = None,
@@ -395,7 +395,7 @@ def calibrate_photon_cons(
 
 # (Jdavies): I needed a function to access the delta z from the wrapper
 # get_photoncons_data does not have the edge cases that adjust_redshifts_for_photoncons does
-@c_wrapper(is_generator=False)
+@c_wrapper()
 def get_photoncons_dz(inputs, redshift, **kwargs):
     """Access the delta z arrays from the photon conservation model in C."""
     deltaz = np.zeros(1).astype("f4")

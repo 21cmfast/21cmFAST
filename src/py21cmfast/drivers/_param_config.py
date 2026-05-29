@@ -133,7 +133,6 @@ def _make_lifecycle_decorator(
     free_func: Callable,
     manager_field: str,
     next_decorator: Callable | None = None,
-    is_generator: bool = False,
 ) -> Callable:
     """Build a decorator that calls init_func before and free_func after the wrapped function."""
 
@@ -181,60 +180,56 @@ def _make_lifecycle_decorator(
                 setattr(init_manager, manager_field, False)
             free_func(inputs=inputs, skip=skip)
 
-        result = generator_wrapper if is_generator else wrapper
+        result = generator_wrapper if inspect.isgeneratorfunction(func) else wrapper
         functools.update_wrapper(result, func)
         if next_decorator is not None:
-            result = next_decorator(is_generator=is_generator)(result)
+            result = next_decorator()(result)
         return result
 
     return _make_wrapper
 
 
-def c_wrapper(*, is_generator: bool = False) -> Callable:
+def c_wrapper() -> Callable:
     """Broadcast inputs and construct FFTW wisdom before calling the function."""
     return _make_lifecycle_decorator(
         init_func=broadcast_input_struct,
         free_func=free_cosmo_tables,
         manager_field="broadcast_inputs",
         next_decorator=None,
-        is_generator=is_generator,
     )
 
 
-def init_backend_ps(*, is_generator: bool = False) -> Callable:
+def init_backend_ps() -> Callable:
     """Initialise the backend power-spectrum before calling the function."""
     return _make_lifecycle_decorator(
         init_func=initialize_power_spectrum,
         free_func=free_power_spectrum,
         manager_field="init_ps",
         next_decorator=c_wrapper,
-        is_generator=is_generator,
     )
 
 
-def init_sigma_table(*, is_generator: bool = False) -> Callable:
+def init_sigma_table() -> Callable:
     """Initialise the the sigma interpolation table before calling the function."""
     return _make_lifecycle_decorator(
         init_func=initialize_sigma_tables,
         free_func=free_sigma_tables,
         manager_field="init_sigma",
         next_decorator=init_backend_ps,
-        is_generator=is_generator,
     )
 
 
-def init_heat_tables(*, is_generator: bool = False) -> Callable:
+def init_heat_tables() -> Callable:
     """Initialise the the heat interpolation tables before calling the function."""
     return _make_lifecycle_decorator(
         init_func=initialize_heat,
         free_func=free_heat,
         manager_field="init_heat",
         next_decorator=c_wrapper,
-        is_generator=is_generator,
     )
 
 
-# TODO: this seemed unused...
+# TODO: this seems unused...
 def init_gl(func: Callable) -> Callable:
     """Initialise the Gauss-Legendre integration if required before calling the function.
 
@@ -243,7 +238,7 @@ def init_gl(func: Callable) -> Callable:
     any function which calls backend integrals directly.
     """
 
-    @init_sigma_table(is_generator=False)
+    @init_sigma_table()
     def wrapper(*args, inputs: InputParameters, **kwargs):
         if "GAUSS-LEGENDRE" in (
             inputs.astro_options.INTEGRATION_METHOD_ATOMIC,

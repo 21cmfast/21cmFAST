@@ -228,8 +228,8 @@ class GlobalEvolution:
 
 
 @high_level_func
-@init_sigma_table(is_generator=True)
-@init_heat_tables(is_generator=True)
+@init_sigma_table()
+@init_heat_tables()
 def generate_global_evolution(
     *,
     inputs: InputParameters,
