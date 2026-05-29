@@ -29,6 +29,7 @@ logger = logging.getLogger(__name__)
 class _InitManager:
     """Class for tracking the initialization states in the C backend."""
 
+    inputs: InputParameters | None = None
     broadcast_inputs: bool = False
     init_ps: bool = False
     init_sigma: bool = False
@@ -137,7 +138,12 @@ def _make_lifecycle_decorator(
 
     def _make_wrapper(func):
         def wrapper(*args, **kwargs):
-            init_manager = kwargs.get("init_manager", _InitManager())
+            current_inputs = _get_inputs_from_call(*args, **kwargs)
+            init_manager = kwargs.get(
+                "init_manager", _InitManager(inputs=current_inputs)
+            )
+            if init_manager.inputs != current_inputs:
+                init_manager = _InitManager(inputs=current_inputs)
             kwargs["init_manager"] = init_manager
             skip = getattr(init_manager, manager_field)
             init_func(*args, skip=skip, **kwargs)
@@ -156,7 +162,12 @@ def _make_lifecycle_decorator(
             return out
 
         def generator_wrapper(*args, **kwargs):
-            init_manager = kwargs.get("init_manager", _InitManager())
+            current_inputs = _get_inputs_from_call(*args, **kwargs)
+            init_manager = kwargs.get(
+                "init_manager", _InitManager(inputs=current_inputs)
+            )
+            if init_manager.inputs != current_inputs:
+                init_manager = _InitManager(inputs=current_inputs)
             kwargs["init_manager"] = init_manager
             skip = getattr(init_manager, manager_field)
             init_func(*args, skip=skip, **kwargs)
