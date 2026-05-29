@@ -190,7 +190,7 @@ void writeAstroOptions(AstroOptions *p) {
 }
 
 // Wrapper function to select appropriate indexing function based on layout
-static unsigned long long get_corner_index(int x, int y, int z, int dim[3], GridLayout layout) {
+static index_huge get_corner_index(int x, int y, int z, int dim[3], GridLayout layout) {
     if (layout == FFTW_REAL_LAYOUT) {
         return grid_index_fftw_r(x, y, z, dim);
     } else if (layout == FFTW_COMPLEX_LAYOUT) {
@@ -219,7 +219,7 @@ static void compute_layout_dims(int size_x, int size_y, int size_z, GridLayout l
 }
 
 void get_corner_indices(int size_x, int size_y, int size_z, GridLayout layout,
-                        unsigned long long indices[8]) {
+                        index_huge indices[8]) {
     int original_z;
     int dim[3];
 
@@ -240,8 +240,8 @@ void debugSummarizeBox(float *box, int size_x, int size_y, int size_z, GridLayou
                        char *indent) {
 #if LOG_LEVEL >= SUPER_DEBUG_LEVEL
     float corners[8];
-    unsigned long long indices[8];
-    unsigned long long idx;
+    index_huge indices[8];
+    index_huge idx;
 
     get_corner_indices(size_x, size_y, size_z, layout, indices);
     for (idx = 0; idx < 8; idx++) {
@@ -265,7 +265,7 @@ void debugSummarizeBox(float *box, int size_x, int size_y, int size_z, GridLayou
 
     // Uniform loop using wrapper function
     int i, j, k;
-    unsigned long long grid_idx;
+    index_huge grid_idx;
 
     for (i = 0; i < size_x; i++) {
         for (j = 0; j < size_y; j++) {
@@ -277,7 +277,7 @@ void debugSummarizeBox(float *box, int size_x, int size_y, int size_z, GridLayou
             }
         }
     }
-    unsigned long long tot_size = (unsigned long long)size_x * size_y * original_z;
+    size_huge tot_size = (size_huge)size_x * size_y * original_z;
     mean = sum / tot_size;
 
     LOG_SUPER_DEBUG("%sSum/Mean/Min/Max: %.4e, %.4e, %.4e, %.4e", indent, sum, mean, mn, mx);
@@ -288,8 +288,8 @@ void debugSummarizeBoxDouble(double *box, int size_x, int size_y, int size_z, Gr
                              char *indent) {
 #if LOG_LEVEL >= SUPER_DEBUG_LEVEL
     double corners[8];
-    unsigned long long indices[8];
-    unsigned long long idx;
+    index_huge indices[8];
+    index_huge idx;
 
     get_corner_indices(size_x, size_y, size_z, layout, indices);
     for (idx = 0; idx < 8; idx++) {
@@ -313,7 +313,7 @@ void debugSummarizeBoxDouble(double *box, int size_x, int size_y, int size_z, Gr
 
     // Uniform loop using wrapper function
     int i, j, k;
-    unsigned long long grid_idx;
+    index_huge grid_idx;
 
     for (i = 0; i < size_x; i++) {
         for (j = 0; j < size_y; j++) {
@@ -325,7 +325,7 @@ void debugSummarizeBoxDouble(double *box, int size_x, int size_y, int size_z, Gr
             }
         }
     }
-    unsigned long long tot_size = (unsigned long long)size_x * size_y * original_z;
+    size_huge tot_size = (size_huge)size_x * size_y * original_z;
     mean = sum / tot_size;
 
     LOG_SUPER_DEBUG("%sSum/Mean/Min/Max: %.4e, %.4e, %.4e, %.4e", indent, sum, mean, mn, mx);
@@ -337,8 +337,8 @@ void debugSummarizeBoxComplex(fftwf_complex *box, int size_x, int size_y, int si
 #if LOG_LEVEL >= SUPER_DEBUG_LEVEL
     float corners_real[8];
     float corners_imag[8];
-    unsigned long long indices[8];
-    unsigned long long idx;
+    index_huge indices[8];
+    index_huge idx;
 
     get_corner_indices(size_x, size_y, size_z, layout, indices);
     for (idx = 0; idx < 8; idx++) {
@@ -368,7 +368,7 @@ void debugSummarizeBoxComplex(fftwf_complex *box, int size_x, int size_y, int si
 
     // Uniform loop using wrapper function
     int i, j, k;
-    unsigned long long grid_idx;
+    index_huge grid_idx;
 
     for (i = 0; i < size_x; i++) {
         for (j = 0; j < size_y; j++) {
@@ -380,7 +380,7 @@ void debugSummarizeBoxComplex(fftwf_complex *box, int size_x, int size_y, int si
             }
         }
     }
-    unsigned long long tot_size = (unsigned long long)size_x * size_y * original_z;
+    size_huge tot_size = (size_huge)size_x * size_y * original_z;
     mean = sum / tot_size;
 
     LOG_SUPER_DEBUG("%sSum/Mean/Min/Max: %.4e+%.4ei, %.4e+%.4ei, %.4e+%.4ei, %.4e+%.4ei", indent,

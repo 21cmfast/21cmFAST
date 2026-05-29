@@ -30,14 +30,13 @@
 #include "logger.h"
 
 int check_halo(char *in_halo, float R, int x, int y, int z, int check_type);
-void init_halo_coords(HaloCatalog *halos, long long unsigned int n_halos);
+void init_halo_coords(HaloCatalog *halos, size_huge n_halos);
 int pixel_in_halo(int grid_dim, int z_dim, int x, int x_index, int y, int y_index, int z,
                   int z_index, float Rsq_curr_index);
 void free_halo_catalog(HaloCatalog *halos);
 
 int ComputeHaloCatalog(float redshift_desc, float redshift, InitialConditions *boxes,
-                       unsigned long long int random_seed, HaloCatalog *halos_desc,
-                       HaloCatalog *halos) {
+                       random_huge random_seed, HaloCatalog *halos_desc, HaloCatalog *halos) {
     int status;
 
     Try {  // This Try brackets the whole function, so we don't indent.
@@ -72,7 +71,7 @@ int ComputeHaloCatalog(float redshift_desc, float redshift, InitialConditions *b
         float growth_factor, R, delta_m, M, Delta_R, delta_crit;
         char *in_halo, *forbidden;
         int i, j, k, x, y, z;
-        long long unsigned int total_halo_num, r_halo_num;
+        size_huge total_halo_num, r_halo_num;
         float R_temp, M_MIN;
 
         LOG_DEBUG("Begin Initialisation");
@@ -112,12 +111,12 @@ int ComputeHaloCatalog(float redshift_desc, float redshift, InitialConditions *b
         }
 
         // Unused variables, for future threading
-        //  unsigned long long int nhalo_threads[simulation_options_global->N_THREADS];
-        //  unsigned long long int istart_threads[simulation_options_global->N_THREADS];
+        //  index_t nhalo_threads[simulation_options_global->N_THREADS];
+        //  index_t istart_threads[simulation_options_global->N_THREADS];
         //  //expected TOTAL halos in box from minimum source mass
 
-        // unsigned long long int arraysize_total = halos->buffer_size;
-        // unsigned long long int arraysize_local = arraysize_total /
+        // index_t arraysize_total = halos->buffer_size;
+        // index_t arraysize_local = arraysize_total /
         // simulation_options_global->N_THREADS;
 
 #if LOG_LEVEL >= DEBUG_LEVEL
@@ -132,7 +131,7 @@ int ComputeHaloCatalog(float redshift_desc, float redshift, InitialConditions *b
 #pragma omp parallel shared(boxes, density_field) private(i, j, k) \
     num_threads(simulation_options_global -> N_THREADS)
         {
-            unsigned long long int index_r, index_f;
+            index_huge index_r, index_f;
 #pragma omp for
             for (i = 0; i < grid_dim; i++) {
                 for (j = 0; j < grid_dim; j++) {
@@ -247,7 +246,7 @@ int ComputeHaloCatalog(float redshift_desc, float redshift, InitialConditions *b
             // now lets scroll through the box, flagging all pixels with delta_m > delta_crit
             r_halo_num = 0;
 
-            unsigned long long int idx_r, idx_f;
+            index_huge idx_r, idx_f;
             // THREADING: Fix the race condition propertly to thread: it doesn't matter which thread
             // finds the halo first
             //   but if two threads find a halo in the same region simultaneously (before the first
@@ -340,7 +339,7 @@ int ComputeHaloCatalog(float redshift_desc, float redshift, InitialConditions *b
         // thread before
         //       OR assign a buffer of size n_halo * n_thread (in case the last thread has all the
         //       halos), copy the structure from stochasticity.c with the assignment and condensing
-        unsigned long long int count = 0;
+        size_huge count = 0;
         float halo_buf = 0;
         for (x = 0; x < grid_dim; x++) {
             for (y = 0; y < grid_dim; y++) {
@@ -369,7 +368,7 @@ int ComputeHaloCatalog(float redshift_desc, float redshift, InitialConditions *b
             // we don't need the density field anymore so we reuse it
 #pragma omp parallel private(i, j, k) num_threads(simulation_options_global -> N_THREADS)
             {
-                unsigned long long int index_r, index_f;
+                index_huge index_r, index_f;
 #pragma omp for
                 for (i = 0; i < grid_dim; i++) {
                     for (j = 0; j < grid_dim; j++) {
@@ -404,7 +403,7 @@ int ComputeHaloCatalog(float redshift_desc, float redshift, InitialConditions *b
             // Now downsample the highres grid to get the lowres version
 #pragma omp parallel private(i, j, k) num_threads(simulation_options_global -> N_THREADS)
             {
-                int index, hi_index;
+                index_huge index, hi_index;
 #pragma omp for
                 for (i = 0; i < simulation_options_global->HII_DIM; i++) {
                     for (j = 0; j < simulation_options_global->HII_DIM; j++) {
@@ -471,7 +470,7 @@ int check_halo(char *in_halo, float R, int x, int y, int z, int check_type) {
     int x_curr, y_curr, z_curr, x_min, x_max, y_min, y_max, z_min, z_max, R_index;
     float Rsq_curr_index;
     int x_index, y_index, z_index;
-    long long unsigned int curr_index;
+    index_huge curr_index;
 
     if (check_type == 1) {
         // scale R to a effective overlap size, using R_OVERLAP_FACTOR
@@ -552,10 +551,10 @@ int check_halo(char *in_halo, float R, int x, int y, int z, int check_type) {
     return 0;
 }
 
-void init_halo_coords(HaloCatalog *halos, long long unsigned int n_halos) {
+void init_halo_coords(HaloCatalog *halos, size_huge n_halos) {
     // Minimise memory usage by only storing the halo mass and positions
     halos->n_halos = n_halos;
-    unsigned long long int alloc_size = fmax(1, n_halos);
+    size_huge alloc_size = fmax(1, n_halos);
     halos->halo_masses = (float *)calloc(alloc_size, sizeof(float));
     halos->halo_coords = (float *)calloc(3 * alloc_size, sizeof(float));
 
