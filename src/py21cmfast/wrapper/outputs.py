@@ -807,7 +807,7 @@ class HaloCatalog(OutputStructZ):
             buffer_size = get_halo_catalog_buffer_size(
                 redshift=redshift,
                 inputs=inputs,
-                init_manager=kw.pop("init_manager", _InitManager()),
+                init_manager=kw.pop("init_manager", _InitManager(inputs=inputs)),
             )
 
         return cls(

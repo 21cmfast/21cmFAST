@@ -672,7 +672,7 @@ class single_field_func(_OutputStructComputationInspect):  # noqa: N801
         cache = kwargs.pop("cache", None)
         regen = kwargs.pop("regenerate", True)
         write = kwargs.pop("write", False)
-        init_manager = kwargs.get("init_manager", _InitManager())
+        init_manager = kwargs.get("init_manager", _InitManager(inputs=inputs))
 
         out = self._handle_read_from_cache(
             inputs, current_redshift, init_manager, cache, regen

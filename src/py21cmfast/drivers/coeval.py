@@ -399,7 +399,7 @@ def evolve_halos(
     initial_conditions: InitialConditions,
     cache: OutputCache,
     regenerate: bool,
-    init_manager: _InitManager = _InitManager(),
+    init_manager: _InitManager | None = None,
     progressbar: bool = False,
 ):
     """
@@ -442,6 +442,9 @@ def evolve_halos(
             " evolving them across multiple redshifts. This will result in very high memory usage",
             stacklevel=2,
         )
+
+    if init_manager is None:
+        init_manager = _InitManager(inputs=inputs)
 
     halofield_list = []
     kw = {
