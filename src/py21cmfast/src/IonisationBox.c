@@ -34,8 +34,6 @@
 #define LOG10_MTURN_MAX ((double)(10))  // maximum mturn limit enforced on grids
 #define HII_ROUND_ERR (1e-5)            // do not run excursion-set below this expected HII fraction
 
-int INIT_RECOMBINATIONS = 1;
-
 // Parameters for the ionisation box calculations
 struct IonBoxConstants {
     // redshift constants
@@ -1325,14 +1323,6 @@ int ComputeIonizedBox(float redshift, float prev_redshift, PerturbedField *pertu
 
         struct IonBoxConstants ionbox_constants;
         set_ionbox_constants(redshift, prev_redshift, &ionbox_constants);
-
-        // boxes which aren't guaranteed to have every element assigned to need to be initialised
-        if (astro_options_global->INHOMO_RECO) {
-            if (INIT_RECOMBINATIONS) {
-                init_MHR();
-                INIT_RECOMBINATIONS = 0;
-            }
-        }
 
 #pragma omp parallel shared(box) private(ct) num_threads(simulation_options_global -> N_THREADS)
         {

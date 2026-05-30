@@ -59,9 +59,11 @@ from ..c_21cmfast import ffi, lib
 from ..drivers._param_config import (
     broadcast_input_struct,
     c_wrapper,
+    init_recombination_rate,
     init_sigma_table,
     initialize_heat,
     initialize_power_spectrum,
+    initialize_recombination_rate,
     initialize_sigma_tables,
 )
 from ._utils import _process_exitcode
@@ -205,7 +207,11 @@ def _get_photon_nonconservation_data() -> dict:
     }
 
 
+# NOTE: at the moment, photon non-conservation correction runs without recombination (for some reason...)
+# so the initialization of the recombination rate is not strictly necessary. However, it's good to keep the
+# recombination rate initializer here in case this will be changed in the future.
 @init_sigma_table()
+@init_recombination_rate()
 def setup_photon_cons(
     initial_conditions: InitialConditions,
     inputs: InputParameters | None = None,
@@ -391,6 +397,7 @@ def calibrate_photon_cons(
     initialize_power_spectrum(inputs=inputs)
     initialize_sigma_tables(inputs=inputs)
     initialize_heat(inputs=inputs)
+    initialize_recombination_rate(inputs=inputs)
 
 
 # (Jdavies): I needed a function to access the delta z from the wrapper

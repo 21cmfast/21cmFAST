@@ -20,7 +20,12 @@ from ..wrapper.outputs import (
     IonizedBox,
     TsBox,
 )
-from ._param_config import high_level_func, init_heat_tables, init_sigma_table
+from ._param_config import (
+    high_level_func,
+    init_heat_tables,
+    init_recombination_rate,
+    init_sigma_table,
+)
 from .coeval import _redshift_loop_generator, _setup_ics_and_pfs_for_scrolling
 
 
@@ -227,9 +232,15 @@ class GlobalEvolution:
         )
 
 
+# NOTE: generate_global_evolution does not really need to initialize the recombination rate,
+# since it doesn't run the excursion set algorithm in the reionization code and at the moment
+# we do not apply recombination corrections when computing the global reionization history,
+# similarly as in the photon non-conservation correction. However, it's good to keep the
+# recombination rate initializer here in case this will be changed in the future.
 @high_level_func
 @init_sigma_table()
 @init_heat_tables()
+@init_recombination_rate()
 def generate_global_evolution(
     *,
     inputs: InputParameters,

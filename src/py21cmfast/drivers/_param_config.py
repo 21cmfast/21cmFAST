@@ -34,6 +34,7 @@ class _InitManager:
     init_ps: bool = False
     init_sigma: bool = False
     init_heat: bool = False
+    init_recomb: bool = False
 
 
 def broadcast_input_struct(inputs: InputParameters, skip: bool = False):
@@ -74,6 +75,12 @@ def initialize_heat(inputs: InputParameters, skip: bool = False):
         lib.init_heat()
 
 
+def initialize_recombination_rate(inputs: InputParameters, skip: bool = False):
+    """Initialize recombination rate interpolation tables at the C backend."""
+    if not skip and inputs.astro_options.INHOMO_RECO:
+        lib.init_MHR()
+
+
 @cache
 def construct_fftw_wisdoms():
     """Construct all necessary FFTW wisdoms."""
@@ -105,6 +112,12 @@ def free_heat(inputs: InputParameters, skip: bool = False):
     """Free heat interpolation tables at the C backend."""
     if not skip:
         lib.destruct_heat()
+
+
+def free_recombination_rate(inputs: InputParameters, skip: bool = False):
+    """Free recombination rate interpolation tables at the C backend."""
+    if not skip and inputs.astro_options.INHOMO_RECO:
+        lib.free_MHR()
 
 
 def _get_inputs_from_call(*args, **kwargs) -> InputParameters:
@@ -225,6 +238,16 @@ def init_heat_tables() -> Callable:
         init_func=initialize_heat,
         free_func=free_heat,
         manager_field="init_heat",
+        next_decorator=c_wrapper,
+    )
+
+
+def init_recombination_rate() -> Callable:
+    """Initialise the recombination rate interpolation tables before calling the function."""
+    return _make_lifecycle_decorator(
+        init_func=initialize_recombination_rate,
+        free_func=free_recombination_rate,
+        manager_field="init_recomb",
         next_decorator=c_wrapper,
     )
 

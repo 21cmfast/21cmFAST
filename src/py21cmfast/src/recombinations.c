@@ -45,7 +45,6 @@ static gsl_spline *RR_spline[RR_Z_NPTS];
 static bool oob_warning_printed;
 
 double recombination_rate(double z_eff, double gamma12_bg, double T4, int usecaseB);
-void free_MHR(); /* deallocates the gsl structures from init_MHR */
 double Gamma_SS(double Gamma_bg, double Delta, double T_4,
                 double z);  // ionization rate w. self shielding
 double MHR_rr(double del, void *params);

@@ -30,6 +30,7 @@ from ._param_config import (
     check_output_consistency,
     init_backend_ps,
     init_heat_tables,
+    init_recombination_rate,
     init_sigma_table,
     single_field_func,
 )
@@ -683,6 +684,7 @@ def compute_spin_temperature(
 @single_field_func
 @init_sigma_table()
 @init_heat_tables()
+@init_recombination_rate()
 def compute_ionization_field(
     *,
     perturbed_field: PerturbedField,

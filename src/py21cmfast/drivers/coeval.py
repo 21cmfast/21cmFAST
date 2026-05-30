@@ -36,6 +36,7 @@ from ._param_config import (
     _InitManager,
     high_level_func,
     init_heat_tables,
+    init_recombination_rate,
     init_sigma_table,
 )
 
@@ -485,6 +486,7 @@ def evolve_halos(
 @high_level_func
 @init_sigma_table()
 @init_heat_tables()
+@init_recombination_rate()
 def generate_coeval(
     *,
     inputs: InputParameters | None = None,
