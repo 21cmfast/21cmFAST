@@ -164,6 +164,9 @@ class OutputStruct(ABC):
         return self.struct.cstruct
 
     def _init_arrays(self):
+        if self.dummy:
+            return
+
         for k, array in self.arrays.items():
             # Don't initialize C-based pointers or already-inited stuff, or stuff
             # that's computed on disk (if it's on disk, accessing the array should
@@ -822,6 +825,14 @@ class HaloCatalog(OutputStructZ):
             **kw,
         )
 
+    def trim_to_n_halos(self) -> Self:
+        """Trim the halo catalog to have its size the same as the actual number of halos."""
+        self.buffer_size = self.n_halos
+        for name, array in self.arrays.items():
+            new_shape = (self.n_halos, *array.shape[1:])
+            new_array = array.trimmed(new_shape)
+            setattr(self, name, new_array)
+
     def get_required_input_arrays(self, input_box: OutputStruct) -> list[str]:
         """Return all input arrays required to compute this object."""
         required = []
@@ -896,7 +907,7 @@ class PerturbedHaloCatalog(OutputStructZ):
         cls,
         inputs: InputParameters,
         redshift: float,
-        buffer_size: float,
+        buffer_size: float | None = None,
         **kw,
     ) -> Self:
         """Create a new PerturbedHaloCatalog instance with the given inputs.
@@ -913,6 +924,17 @@ class PerturbedHaloCatalog(OutputStructZ):
         All other parameters are passed through to the :class:`PerturbedHaloCatalog`
         constructor.
         """
+        from .cfuncs import get_halo_catalog_buffer_size
+
+        if kw.get("dummy", False):
+            buffer_size = 0
+        elif buffer_size is None:
+            buffer_size = get_halo_catalog_buffer_size(
+                redshift=redshift,
+                inputs=inputs,
+                free_cosmo_tables=kw.get("free_cosmo_tables", False),
+            )
+
         out = {
             "halo_coords": Array((buffer_size, 3), dtype=np.float32),
             "halo_masses": Array((buffer_size,), dtype=np.float32),
@@ -961,6 +983,9 @@ class PerturbedHaloCatalog(OutputStructZ):
             required += [
                 "halo_coords",
                 "halo_masses",
+                "star_rng",
+                "sfr_rng",
+                "xray_rng",
             ]
         else:
             raise ValueError(
@@ -1043,7 +1068,7 @@ class HaloBox(OutputStructZ):
             out["halo_xray"] = Array(shape, dtype=np.float32)
 
         if config["EXTRA_HALOBOX_FIELDS"]:
-            out["count"] = Array(shape, dtype=np.int32)
+            out["count"] = Array(shape, dtype=np.float32)
             out["halo_mass"] = Array(shape, dtype=np.float32)
             out["halo_stars"] = Array(shape, dtype=np.float32)
             if inputs.astro_options.USE_MINI_HALOS:
@@ -1367,10 +1392,10 @@ class IonizedBox(OutputStructZ):
 
     neutral_fraction = _arrayfield()
     ionisation_rate_G12 = _arrayfield()
-    mean_free_path = _arrayfield()
     z_reion = _arrayfield()
+    mean_free_path = _arrayfield(optional=True)
     cumulative_recombinations = _arrayfield(optional=True)
-    kinetic_temperature = _arrayfield()
+    kinetic_temperature = _arrayfield(optional=True)
     unnormalised_nion = _arrayfield(optional=True)
     unnormalised_nion_mini = _arrayfield(optional=True)
     log10_Mturnover_ave: float = attrs.field(default=None)
@@ -1431,10 +1456,12 @@ class IonizedBox(OutputStructZ):
         out = {
             "neutral_fraction": Array(shape, initfunc=np.ones, dtype=np.float32),
             "ionisation_rate_G12": Array(shape, dtype=np.float32),
-            "mean_free_path": Array(shape, dtype=np.float32),
             "z_reion": Array(shape, dtype=np.float32),
-            "kinetic_temperature": Array(shape, dtype=np.float32),
         }
+
+        if not inputs.matter_options.MINIMIZE_MEMORY:
+            out["mean_free_path"] = Array(shape, dtype=np.float32)
+            out["kinetic_temperature"] = Array(shape, dtype=np.float32)
 
         if inputs.astro_options.INHOMO_RECO:
             out["cumulative_recombinations"] = Array(shape, dtype=np.float32)

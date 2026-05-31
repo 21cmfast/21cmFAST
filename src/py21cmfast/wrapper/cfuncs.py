@@ -29,7 +29,22 @@ def get_expected_nhalo(*, redshift: float, inputs: InputParameters, **kwargs) ->
         The redshift at which to calculate the halo list.
     inputs: :class:`~InputParameters`
         The input parameters of the run
+
+    Returns
+    -------
+    n_halo : float
+        The expected number of halos in the box at the given redshift under the given model.
+
+    Raises
+    ------
+    ValueError :
+        If the matter options do not have a discrete halo model.
     """
+    if not inputs.matter_options.has_discrete_halos:
+        raise ValueError(
+            "SOURCE_MODEL must have a discrete halo model in order to calculate the expected number of halos in the box. "
+            "Change SOURCE_MODEL to either 'DEXM-ESF' or 'CHMF-SAMPLER' in order to use this function."
+        )
     return lib.expected_nhalo(
         redshift,
     )
@@ -408,7 +423,7 @@ def get_delta_crit(*, inputs: InputParameters, mass: float, redshift: float, **k
     """Get the critical collapse density given a mass, redshift and parameters."""
     sigma, _ = evaluate_sigma(inputs=inputs, masses=np.array([mass]))
     growth = get_growth_factor(inputs=inputs, redshift=redshift)
-    return get_delta_crit_nu(inputs.matter_options.cdict["HMF"], sigma, growth)
+    return get_delta_crit_nu(inputs.matter_options.cdict["HMF"], sigma[0], growth)
 
 
 def get_delta_crit_nu(hmf_int_flag: int, sigma: float, growth: float):

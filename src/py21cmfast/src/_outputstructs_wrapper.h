@@ -16,8 +16,8 @@ typedef struct PerturbedField {
 } PerturbedField;
 
 typedef struct HaloCatalog {
-    long long unsigned int n_halos;
-    long long unsigned int buffer_size;
+    unsigned long long int n_halos;
+    unsigned long long int buffer_size;
     float *halo_masses;
     float *halo_coords;
 
@@ -28,8 +28,8 @@ typedef struct HaloCatalog {
 } HaloCatalog;
 
 typedef struct PerturbedHaloCatalog {
-    long long unsigned int n_halos;
-    long long unsigned int buffer_size;
+    unsigned long long int n_halos;
+    unsigned long long int buffer_size;
     float *halo_masses;
     float *halo_coords;
 
@@ -49,7 +49,7 @@ typedef struct HaloBox {
     float *halo_mass;
     float *halo_stars;
     float *halo_stars_mini;
-    int *count;
+    float *count;
 
     // For IonisationBox.c and SpinTemperatureBox.c
     float *n_ion;     // weighted by F_ESC*PopN_ion

@@ -80,6 +80,38 @@ def test_all_fields_exist(struct: ox.OutputStruct):
         assert name in this
 
 
+def test_halocatalogs(default_input_struct_lc: InputParameters):
+    """Ensure that the halo catalogs can be made."""
+    # First let's define buffer_size
+    inputs = default_input_struct_lc.evolve_input_structs(SOURCE_MODEL="CHMF-SAMPLER")
+    halo_cat = ox.HaloCatalog.new(redshift=0.0, inputs=inputs, buffer_size=1)
+    pert_halo_cat = ox.PerturbedHaloCatalog.new(
+        redshift=0.0, inputs=inputs, buffer_size=1
+    )
+    assert isinstance(halo_cat, ox.HaloCatalog)
+    assert isinstance(pert_halo_cat, ox.PerturbedHaloCatalog)
+
+    # Now let's not define buffer_size, it should default to None
+    halo_cat = ox.HaloCatalog.new(
+        redshift=0.0,
+        inputs=inputs,  # buffer_size = None
+    )
+    pert_halo_cat = ox.PerturbedHaloCatalog.new(
+        redshift=0.0,
+        inputs=inputs,  # buffer_size = None
+    )
+    assert isinstance(halo_cat, ox.HaloCatalog)
+    assert isinstance(pert_halo_cat, ox.PerturbedHaloCatalog)
+
+    # Now let's define dummy=True
+    halo_cat = ox.HaloCatalog.new(redshift=0.0, inputs=inputs, dummy=True)
+    pert_halo_cat = ox.PerturbedHaloCatalog.new(redshift=0.0, inputs=inputs, dummy=True)
+    assert isinstance(halo_cat, ox.HaloCatalog)
+    assert isinstance(pert_halo_cat, ox.PerturbedHaloCatalog)
+    assert halo_cat.buffer_size == 0
+    assert pert_halo_cat.buffer_size == 0
+
+
 # NOTE: These do not test every field, but does test every conditional in the
 #   OutputStruct constructors, a better approach would probably be to have a
 #   comprehensive list of {"field_name": {"flag": value}} conditions for the fields
@@ -189,6 +221,7 @@ def test_optional_field_halobox(default_input_struct_lc: InputParameters):
     with config.use(EXTRA_HALOBOX_FIELDS=True):
         hb = ox.HaloBox.new(redshift=0.0, inputs=default_input_struct_lc)
         assert isinstance(hb.halo_mass, Array)
+        assert isinstance(hb.count, Array)
 
         inputs = default_input_struct_lc.evolve_input_structs(INHOMO_RECO=True)
         hb = ox.HaloBox.new(redshift=0.0, inputs=inputs)
@@ -271,8 +304,9 @@ def test_optional_field_bt(default_input_struct_lc: InputParameters):
 @pytest.mark.parametrize("struct", list(ox.OutputStructZ.__subclasses__()))
 def test_bad_required_array(default_input_struct, struct):
     # no struct takes this input
-    bt = ox.BrightnessTemp.new(redshift=10.0, inputs=default_input_struct)
-    kwargs = {"inputs": default_input_struct, "redshift": 10.0}
+    inputs = default_input_struct.evolve_input_structs(SOURCE_MODEL="CHMF-SAMPLER")
+    bt = ox.BrightnessTemp.new(redshift=10.0, inputs=inputs)
+    kwargs = {"inputs": inputs, "redshift": 10.0}
     if struct is ox.PerturbedHaloCatalog:
         kwargs["buffer_size"] = 1
     output = struct.new(**kwargs)

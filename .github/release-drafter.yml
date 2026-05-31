@@ -18,6 +18,7 @@ categories:
       - "type: performance: memory"
       - "type: performance: speed"
       - "type: accuracy"
+      - "type: performance: gpu"
   - title: ":rotating_light: Testing"
     labels:
       - "type: testing"

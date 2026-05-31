@@ -35,15 +35,14 @@ static inline void do_cic_interpolation_double(double *resampled_box, double pos
     wrap_coord(ipos, box_dim);
     wrap_coord(iposp1, box_dim);
 
-    unsigned long long int cic_indices[8] = {
-        grid_index_general(ipos[0], ipos[1], ipos[2], box_dim),
-        grid_index_general(iposp1[0], ipos[1], ipos[2], box_dim),
-        grid_index_general(ipos[0], iposp1[1], ipos[2], box_dim),
-        grid_index_general(iposp1[0], iposp1[1], ipos[2], box_dim),
-        grid_index_general(ipos[0], ipos[1], iposp1[2], box_dim),
-        grid_index_general(iposp1[0], ipos[1], iposp1[2], box_dim),
-        grid_index_general(ipos[0], iposp1[1], iposp1[2], box_dim),
-        grid_index_general(iposp1[0], iposp1[1], iposp1[2], box_dim)};
+    index_huge cic_indices[8] = {grid_index_general(ipos[0], ipos[1], ipos[2], box_dim),
+                                 grid_index_general(iposp1[0], ipos[1], ipos[2], box_dim),
+                                 grid_index_general(ipos[0], iposp1[1], ipos[2], box_dim),
+                                 grid_index_general(iposp1[0], iposp1[1], ipos[2], box_dim),
+                                 grid_index_general(ipos[0], ipos[1], iposp1[2], box_dim),
+                                 grid_index_general(iposp1[0], ipos[1], iposp1[2], box_dim),
+                                 grid_index_general(ipos[0], iposp1[1], iposp1[2], box_dim),
+                                 grid_index_general(iposp1[0], iposp1[1], iposp1[2], box_dim)};
 
     double cic_weights[8] = {(1. - dist[0]) * (1. - dist[1]) * (1. - dist[2]),
                              dist[0] * (1. - dist[1]) * (1. - dist[2]),
@@ -76,15 +75,14 @@ static inline void do_cic_interpolation_float(float *resampled_box, double pos[3
     wrap_coord(ipos, box_dim);
     wrap_coord(iposp1, box_dim);
 
-    unsigned long long int cic_indices[8] = {
-        grid_index_general(ipos[0], ipos[1], ipos[2], box_dim),
-        grid_index_general(iposp1[0], ipos[1], ipos[2], box_dim),
-        grid_index_general(ipos[0], iposp1[1], ipos[2], box_dim),
-        grid_index_general(iposp1[0], iposp1[1], ipos[2], box_dim),
-        grid_index_general(ipos[0], ipos[1], iposp1[2], box_dim),
-        grid_index_general(iposp1[0], ipos[1], iposp1[2], box_dim),
-        grid_index_general(ipos[0], iposp1[1], iposp1[2], box_dim),
-        grid_index_general(iposp1[0], iposp1[1], iposp1[2], box_dim)};
+    index_huge cic_indices[8] = {grid_index_general(ipos[0], ipos[1], ipos[2], box_dim),
+                                 grid_index_general(iposp1[0], ipos[1], ipos[2], box_dim),
+                                 grid_index_general(ipos[0], iposp1[1], ipos[2], box_dim),
+                                 grid_index_general(iposp1[0], iposp1[1], ipos[2], box_dim),
+                                 grid_index_general(ipos[0], ipos[1], iposp1[2], box_dim),
+                                 grid_index_general(iposp1[0], ipos[1], iposp1[2], box_dim),
+                                 grid_index_general(ipos[0], iposp1[1], iposp1[2], box_dim),
+                                 grid_index_general(iposp1[0], iposp1[1], iposp1[2], box_dim)};
 
     double cic_weights[8] = {(1. - dist[0]) * (1. - dist[1]) * (1. - dist[2]),
                              dist[0] * (1. - dist[1]) * (1. - dist[2]),
@@ -116,15 +114,14 @@ static inline double cic_read_float(float *box, double pos[3], int box_dim[3]) {
     wrap_coord(ipos, box_dim);
     wrap_coord(iposp1, box_dim);
 
-    unsigned long long int cic_indices[8] = {
-        grid_index_general(ipos[0], ipos[1], ipos[2], box_dim),
-        grid_index_general(iposp1[0], ipos[1], ipos[2], box_dim),
-        grid_index_general(ipos[0], iposp1[1], ipos[2], box_dim),
-        grid_index_general(iposp1[0], iposp1[1], ipos[2], box_dim),
-        grid_index_general(ipos[0], ipos[1], iposp1[2], box_dim),
-        grid_index_general(iposp1[0], ipos[1], iposp1[2], box_dim),
-        grid_index_general(ipos[0], iposp1[1], iposp1[2], box_dim),
-        grid_index_general(iposp1[0], iposp1[1], iposp1[2], box_dim)};
+    index_huge cic_indices[8] = {grid_index_general(ipos[0], ipos[1], ipos[2], box_dim),
+                                 grid_index_general(iposp1[0], ipos[1], ipos[2], box_dim),
+                                 grid_index_general(ipos[0], iposp1[1], ipos[2], box_dim),
+                                 grid_index_general(iposp1[0], iposp1[1], ipos[2], box_dim),
+                                 grid_index_general(ipos[0], ipos[1], iposp1[2], box_dim),
+                                 grid_index_general(iposp1[0], ipos[1], iposp1[2], box_dim),
+                                 grid_index_general(ipos[0], iposp1[1], iposp1[2], box_dim),
+                                 grid_index_general(iposp1[0], iposp1[1], iposp1[2], box_dim)};
 
     double cic_weights[8] = {(1. - dist[0]) * (1. - dist[1]) * (1. - dist[2]),
                              dist[0] * (1. - dist[1]) * (1. - dist[2]),
@@ -177,7 +174,7 @@ void move_grid_masses(double redshift, float *dens_pointer, int dens_dim[3], flo
         int i, j, k, axis;
         double pos[3], curr_dens;
         int ipos[3];
-        unsigned long long vel_index, dens_index;
+        index_huge vel_index, dens_index;
 #pragma omp for
         for (i = 0; i < dens_dim[0]; i++) {
             for (j = 0; j < dens_dim[1]; j++) {
@@ -224,8 +221,8 @@ void move_grid_galprops(double redshift, float *dens_pointer, int dens_dim[3],
     double box_size[3] = {boxlen, boxlen, boxlen_z};
     double dim_ratio_vel = (double)vel_dim[0] / (double)dens_dim[0];
     double dim_ratio_out = (double)out_dim[0] / (double)dens_dim[0];
-    double vol_ratio_out = (double)(out_dim[0] * out_dim[1] * out_dim[2]) /
-                           (double)(dens_dim[0] * dens_dim[1] * dens_dim[2]);
+    double vol_ratio_out = ((double)out_dim[0] * (double)out_dim[1] * (double)out_dim[2]) /
+                           ((double)dens_dim[0] * (double)dens_dim[1] * (double)dens_dim[2]);
 
     double prefactor_mass = RHOcrit * cosmo_params_global->OMm * vol_ratio_out;
     double prefactor_stars = RHOcrit * cosmo_params_global->OMb * consts->fstar_10 * vol_ratio_out;
@@ -259,7 +256,7 @@ void move_grid_galprops(double redshift, float *dens_pointer, int dens_dim[3],
         int i, j, k, axis;
         double pos[3], curr_dens;
         int ipos[3];
-        unsigned long long vel_index, dens_index, mturn_index;
+        index_huge vel_index, dens_index, mturn_index;
         double l10_mturn_a = log10(consts->mturn_a_nofb);
         double l10_mturn_m = log10(consts->mturn_m_nofb);
         HaloProperties properties;
@@ -322,6 +319,7 @@ void move_grid_galprops(double redshift, float *dens_pointer, int dens_dim[3],
                     }
 
                     if (config_settings.EXTRA_HALOBOX_FIELDS) {
+                        do_cic_interpolation(boxes->count, pos, out_dim, properties.count);
                         do_cic_interpolation(boxes->halo_mass, pos, out_dim,
                                              properties.halo_mass * prefactor_mass);
                         do_cic_interpolation(boxes->halo_stars, pos, out_dim,
@@ -339,7 +337,7 @@ void move_grid_galprops(double redshift, float *dens_pointer, int dens_dim[3],
     // Without stochasticity, these grids are the same to a constant
     double prefactor_wsfr = 1 / consts->t_h / consts->t_star;
     if (astro_options_global->INHOMO_RECO) {
-        for (int i = 0; i < HII_TOT_NUM_PIXELS; i++) {
+        for (index_huge i = 0; i < HII_TOT_NUM_PIXELS; i++) {
             boxes->whalo_sfr[i] = boxes->n_ion[i] * prefactor_wsfr;
         }
     }
@@ -371,10 +369,10 @@ void move_halo_galprops(double redshift, HaloCatalog *halos, float *vel_pointers
         displacement_factor_2LPT - init_displacement_factor_2LPT;
 #pragma omp parallel num_threads(simulation_options_global->N_THREADS)
     {
-        int i, axis;
+        int axis;
         double pos[3];
         int ipos[3];
-        unsigned long long vel_index;
+        index_huge i, vel_index;
         HaloProperties properties;
         double M_turn_a = consts->mturn_a_nofb;
         double M_turn_m = consts->mturn_m_nofb;
@@ -431,6 +429,7 @@ void move_halo_galprops(double redshift, HaloCatalog *halos, float *vel_pointers
                 do_cic_interpolation(boxes->whalo_sfr, pos, out_dim, properties.fescweighted_sfr);
             }
             if (config_settings.EXTRA_HALOBOX_FIELDS) {
+                do_cic_interpolation(boxes->count, pos, out_dim, 1.0);
                 do_cic_interpolation(boxes->halo_mass, pos, out_dim, properties.halo_mass);
                 do_cic_interpolation(boxes->halo_stars, pos, out_dim, properties.stellar_mass);
                 if (astro_options_global->USE_MINI_HALOS) {
@@ -453,7 +452,7 @@ void move_halo_galprops(double redshift, HaloCatalog *halos, float *vel_pointers
 #endif
         }
 #pragma omp for
-        for (unsigned long long int i_cell = 0; i_cell < HII_TOT_NUM_PIXELS; i_cell++) {
+        for (index_huge i_cell = 0; i_cell < HII_TOT_NUM_PIXELS; i_cell++) {
             boxes->n_ion[i_cell] *= cell_vol_inv;
             boxes->halo_sfr[i_cell] *= cell_vol_inv;
             if (astro_options_global->USE_TS_FLUCT) {

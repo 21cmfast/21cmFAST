@@ -3,7 +3,7 @@ Installation
 ============
 
 .. attention:: Due to ``classy`` not being available on ``conda-forge``, we do not
-          support installation via ``conda`` from v4 (it was support for v3.x.x).
+          support installation via ``conda`` from v4 (it was supported for v3.x.x).
           Please use ``pip`` or ``uv`` installation as described below.
 
 
@@ -27,6 +27,20 @@ See the `FAQ <faqs/installation_faq>`_ for more detailed questions on installati
 If you are on MacOS and are having trouble with installation (or would like to share
 a successful installation strategy!) please see
 `this discussion <https://github.com/21cmfast/21cmFAST/discussions/208>`_.
+Note also that we have a CI workflow (`test_build_strategies.yaml`) that tests various
+installation strategies on various OSes, so if you are having trouble with installation,
+please check the CI results to see if your OS and installation strategy is covered by
+the tests (and if not, please let us know!). Following the steps in that YAML file
+should lead to a successful installation, and if not, the CI results may give some
+clues as to what is going wrong.
+
+One of the main things to note is that all the compiled code needs to be compiled with
+the same toolchain, and this toolchain also needs to be the same as the one used at
+import time. Very often this works out of the box (according to the below instructions),
+but if you have multiple compilers installed, or if you are on a HPC environment where
+the compilers are not in the standard location, then you may need to specify the compiler
+and library locations explicitly (see below). This includes the `CXX` compiler used to
+compile the C++ code in `classy`, which is a dependency.
 
 
 .. tab-set::
@@ -36,11 +50,7 @@ a successful installation strategy!) please see
         If you are using ``conda``, the easiest way to get the dependencies is to
         install them via ``conda`` itself. You can do this with::
 
-            conda install -c conda-forge gsl fftw
-
-        Note that if you are using ``conda`` to install these packages, you may
-        need to point to the relevant ``lib/`` and ``include/`` folders for both
-        ``gsl`` and ``fftw`` during installation of ``21cmFAST`` (see below).
+            conda install -c conda-forge gsl fftw compilers pkg-config
 
     .. tab-item:: Linux
 
@@ -54,14 +64,31 @@ a successful installation strategy!) please see
 
         On Debian-based distros::
 
-            sudo apt-get install libfftw3-dev libgsl-dev
+            sudo apt-get install libfftw3-dev libgsl-dev libomp-dev pkg-config
+
+        On Ubuntu (but not, apparently, Arch-based distros) if using clang instead of
+        gcc, you will also need to point the linker to the specific version of ``libomp``
+        installed by `apt-get`. You can do this (for example, with clang v15) with::
+
+            export OMP_LIB="/usr/lib/llvm-15/lib"
 
     .. tab-item:: MacOS
 
         The easiest way to get the dependencies (other than ``conda``) is via
         ``homebrew``. You can install them with::
 
-            brew install gsl fftw
+            brew install gsl fftw libomp
+
+        We have found that using `brew` tends to install compilers etc into versioned
+        subdirectories, so if you want to use this installation strategy, you will
+        likely need to specify the compiler explicitly. For example, in our CI tests,
+        we have to specify (e.g.) ``CC=gcc-15`` and ``CXX=g++-15`` for the installation
+        to work. See below for how to specify the compiler at installation time. On
+        modern MacOS versions, ``gcc`` actually points to ``clang``, which is also
+        fine. One thing to watch out for is specifically using ``clang`` as the compiler,
+        and having ``gcc`` **not** be a simple shim to ``clang``. In this case,
+        the ``classy`` dependency will fail, because it (incorrectly) points to ``gcc``
+        instead of using the ``CC`` variable.
 
     .. tab-item:: HPC
 
@@ -84,7 +111,7 @@ The following options will be set as options at the front of the installation co
 (see below).
 
 To specify the C compiler, use ``CC`` (e.g. ``CC=gcc`` or ``CC=clang``). Usually this
-will not be necessary sinc the default compiler should work. However, if you'd like to
+will not be necessary since the default compiler should work. However, if you'd like to
 use ``clang`` on linux, for example, you may need to set ``CC`` explicitly.
 
 To add a library search path, use ``<LIBRARY>_LIB`` where ``<LIBRARY>`` is either
@@ -108,6 +135,8 @@ to find the include files.
 
               CFLAGS="-isysroot /Library/Developer/CommandLineTools/SDKs/MacOSX<input version>.sdk"
 
+          This does not appear to be necessary for MacOS 14+, at least, not if installing
+          the dependencies with homebrew or conda.
 
 
 Other Compile Options
@@ -163,7 +192,7 @@ version should be the latest compatible version):
 
         .. code-block:: bash
 
-            conda create -n 21cmfast_env python=3.13 numpy scipy click pyyaml cffi astropy h5py matplotlib attrs
+            conda create -n 21cmfast_env python=3.13 fftw gsl compilers pkg-config numpy scipy click pyyaml cffi astropy h5py matplotlib attrs
             conda activate 21cmfast_env
 
     .. tab-item:: uv (rec. for linux)

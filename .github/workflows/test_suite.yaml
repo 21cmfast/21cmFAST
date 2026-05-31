@@ -13,7 +13,6 @@ on:
 
 jobs:
   tests:
-    if: "!contains(github.event.pull_request.labels.*.name, 'auto-pr')"
     env:
       ENV_NAME: tests
       PYTHON: ${{ matrix.python-version }}
@@ -24,12 +23,22 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        os: [ubuntu-latest, macos-latest]
-        python-version: ["3.11", "3.12"]
-        compiler: ["gcc", "clang"]
-        exclude:
+        include:
+          # include only unique combinations to test all the "corners" of the matrix
+          # without testing every single combination (which would be too much).
           - os: ubuntu-latest
-            compiler: "clang"
+            python-version: "3.11"
+            compiler: gcc
+          - os: ubuntu-latest
+            python-version: "3.12"
+            compiler: clang
+          - os: macos-latest
+            python-version: "3.13"
+            compiler: gcc
+          - os: macos-latest
+            python-version: "3.11"
+            compiler: clang
+
     defaults:
      run:
        # Adding -l {0} ensures conda can be found properly in each step
@@ -40,7 +49,7 @@ jobs:
           fetch-depth: 0
 
       - name: Setup Miniconda
-        uses: conda-incubator/setup-miniconda@v3
+        uses: conda-incubator/setup-miniconda@v4
         with:
           channels: conda-forge,defaults
           python-version: ${{ matrix.python-version }}
@@ -60,11 +69,16 @@ jobs:
 
       - name: Install Non-Python Dependencies
         run: |
-          conda install fftw gsl numba
+          conda install pip fftw gsl numba compilers pkg-config
+
+      - name: Install OpenMP for clang on Linux
+        if: matrix.os == 'ubuntu-latest' && matrix.compiler == 'clang'
+        run: |
+          conda install llvm-openmp
 
       - name: Install 21cmFAST
         run: |
-          LOG_LEVEL=${{ env.log_level }} pip install ".[dev]"
+          LOG_LEVEL=${{ env.log_level }} python -m pip install ".[dev]"
 
       - name: Run Unit Tests
         run: |
@@ -85,13 +99,13 @@ jobs:
 
       - name: Archive Integration Test Plots
         if: always()
-        uses: actions/upload-artifact@v6
+        uses: actions/upload-artifact@v7
         with:
           name: integration-test-plots-${{ matrix.os }}-${{ matrix.python-version }}-${{ matrix.compiler }}
           path: |
             testplots/*.pdf
 
-      - uses: codecov/codecov-action@v5
+      - uses: codecov/codecov-action@v6
         if: matrix.os == 'ubuntu-latest' && success() && !contains(github.event.pull_request.labels.*.name, 'auto-pr')
         with:
           fail_ci_if_error: true

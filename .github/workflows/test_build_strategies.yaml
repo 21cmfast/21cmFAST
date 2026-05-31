@@ -1,0 +1,265 @@
+name: Test Build Strategies
+
+# Test on all pushes, except when the push is literally just a tag (because we
+# tag automatically via CI, and therefore there's no extra code in that push).
+# Also, only test on pull requests into main.
+on:
+  push:
+    tags-ignore:
+      - 'v*'
+  pull_request:
+    branches:
+      - 'main'
+
+
+jobs:
+  test-conda-strategies:
+    name: Test Miniconda-Based Build
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os:
+        - macos-26       # arm64-based os. Cycle out when it gets out of date
+        - macos-26-intel # intel-based os. Cycle out when it gets out of date
+        - macos-14       # arm64-based os. Cycle out when it gets out of date
+        - ubuntu-latest  # Linux-based os / only other is 22.04 which is surely old enough not to test any more
+
+        python-version: ["3.12", "3.14"]  # bracket the versions we support.
+        compiler: ["gcc", "clang"]
+        exclude:
+          # Eclude some combinations just to make the matrix smaller.
+          - python-version: "3.12"
+            compiler: clang
+          - python-version: "3.14"
+            compiler: gcc
+          - os: macos-14
+            python-version: "3.14"
+
+    defaults:
+     run:
+       # Adding -l {0} ensures conda can be found properly in each step
+       shell: bash -l {0}
+    steps:
+      - uses: actions/checkout@master
+        with:
+          fetch-depth: 0
+
+      - name: Setup Miniconda
+        uses: conda-incubator/setup-miniconda@v3
+        with:
+          channels: conda-forge,defaults
+          python-version: ${{ matrix.python-version }}
+          channel-priority: true
+
+      - name: Install Non-Python Dependencies (Conda)
+        # Apparently we should always use llvm-openmp, even when using gcc.
+        run: |
+          conda install pip fftw gsl llvm-openmp compilers pkg-config
+
+      - name: Verify Python Version
+        run: |
+          which python
+          python --version
+
+      - name: Install 21cmFAST
+        run: |
+          CC=${{ matrix.compiler }} python -m pip install .
+
+      - name: Test Import
+        run: |
+          python -c "import py21cmfast; print(py21cmfast.__version__)"
+
+
+  test-macos-package-manager-strategies:
+    name: Test macos package-manager-based Build
+    runs-on: ${{ matrix.os }}
+    env:
+      GCC_VERSION: 15
+      CLANG_VERSION: 18
+    strategy:
+      fail-fast: false
+      matrix:
+        os:
+        - macos-26       # arm64-based os. Cycle out when it gets out of date
+        - macos-26-intel # intel-based os. Cycle out when it gets out of date
+        - macos-14       # arm64-based os. Cycle out when it gets out of date
+
+        python-version: ["3.12", "3.14"]  # bracket the versions we support.
+        compiler: ["gcc", "clang"]
+        non-python-dependency-manager: ["brew"]
+        exclude:
+          - python-version: "3.12"
+            compiler: gcc
+          - python-version: "3.14"
+            compiler: clang
+          - os: macos-14
+            python-version: "3.12"
+
+    steps:
+      - uses: actions/checkout@master
+        with:
+          fetch-depth: 0
+
+      - name: Setup Python
+        uses: actions/setup-python@v6
+        with:
+          python-version: ${{ matrix.python-version }}
+
+      - name: Verify Python Version
+        run: |
+          which python
+          python --version
+
+      # Because gfortran is not made available globally on MacOS through brew on GHA,
+      # it's easier to set it up via an action. It's needed for camb.
+      # On a user-setup you should just install with brew and ensure that
+      # gfortran is on your PATH.
+      - name: Install gfortran (MacOS+Brew)
+        uses: fortran-lang/setup-fortran@v1
+        id: setup-fortran
+        with:
+          compiler: gcc
+          version: ${{ env.GCC_VERSION }}
+          update-environment: false  # Don't set things like CC.
+
+      - name: Install Non-Python Dependencies (Brew)
+        run: |
+          brew install fftw gsl libomp
+          echo "GSL_INC=$(brew --prefix gsl)/include" >> $GITHUB_ENV
+          echo "FFTW_INC=$(brew --prefix fftw)/include" >> $GITHUB_ENV
+          echo "OMP_INC=$(brew --prefix libomp)/include" >> $GITHUB_ENV
+          echo "GSL_LIB=$(brew --prefix gsl)/lib" >> $GITHUB_ENV
+          echo "FFTW_LIB=$(brew --prefix fftw)/lib" >> $GITHUB_ENV
+          echo "OMP_LIB=$(brew --prefix libomp)/lib" >> $GITHUB_ENV
+          echo "Found gfortran at $(which gfortran)"
+          echo "$BREW_PREFIX/bin" >> $GITHUB_PATH
+
+      - name: Specify gcc compiler exactly to avoid using shims
+        if: matrix.compiler == 'gcc'
+        run: |
+          echo "CC=gcc-${GCC_VERSION}" >> $GITHUB_ENV
+          echo "CXX=g++-${GCC_VERSION}" >> $GITHUB_ENV
+
+      - name: Specify clang compiler exactly to avoid using shims
+        if: matrix.compiler == 'clang'
+        run: |
+          echo "CC=clang" >> $GITHUB_ENV
+          echo "CXX=clang++" >> $GITHUB_ENV
+
+      - name: Verify Python Version
+        run: |
+          which python
+          python --version
+
+      - name: Install 21cmFAST
+        run: |
+          # Need to get "gcc" to point to clang when it is a clang build.
+          # This is what usually happens on MacOS, but on GHA, it points to the
+          # homebrew gcc, which causes it to fail because it mixes toolchains.
+          # The key point is that classy *specifically* (and incorrectly) uses "gcc",
+          # regardless of what CC is set to. Since MacOS by default re-routes gcc to
+          # actually point to clang, this is not going to be an issue, because we can
+          # use "clang" to build 21cmFAST, and (implicitly) "gcc" to build classy, and
+          # they will both use the same clang compiler, and therefore be compatible.
+          # If we use "gcc" to build 21cmFAST, then classy will also use "gcc" (whether
+          # this is actually gcc or not), and again will be compatible. Problems occur
+          # when clang is used, but gcc really does point to gcc (for example if gcc
+          # is installed with homebrew). The following just forces the PATH to see
+          # the Apple-shim gcc (actually clang) before the homebrew gcc, which fixes
+          # the issue.
+          export PATH="/usr/bin:/bin:/usr/sbin:/sbin:$PATH"
+          python -m pip install .
+
+      - name: Debug classy toolchain/runtime
+        if: matrix.os == 'macos-26-intel' && matrix.compiler == 'clang'
+        run: |
+          env | sort | grep -E '^(CC|CXX|CFLAGS|CXXFLAGS|LDFLAGS|CPPFLAGS|SDKROOT|MACOSX_DEPLOYMENT_TARGET|GSL_|FFTW_|OMP_)' || true
+          which clang
+          which clang++
+          clang --version
+          clang++ --version
+          which gfortran || true
+          which gcc-15 || true
+          which g++-15 || true
+          python -m pip show classy || true
+          python -m pip freeze | grep classy || true
+          find /Library/Frameworks/Python.framework/Versions -path '*site-packages/classy/_classy*.so' || true
+          otool -L /Library/Frameworks/Python.framework/Versions/${{ matrix.python-version }}/lib/python${{ matrix.python-version }}/site-packages/classy/_classy*.so || true
+          nm -gU /Library/Frameworks/Python.framework/Versions/${{ matrix.python-version }}/lib/python${{ matrix.python-version }}/site-packages/classy/_classy*.so | grep forced_unwind || true
+
+      - name: Test Import
+        run: |
+          python -c "import py21cmfast; print(py21cmfast.__version__)"
+
+  test-ubuntu-package-manager-strategies:
+    name: Test ubuntu package-manager-based Build
+    runs-on: ${{ matrix.os }}
+    env:
+      GCC_VERSION: 15
+      CLANG_VERSION: 18
+    strategy:
+      fail-fast: false
+      matrix:
+        os:
+        - ubuntu-latest  # Linux-based os / only other is 22.04 which is surely old enough not to test any more
+
+        python-version: ["3.12", "3.14"]  # bracket the versions we support.
+        compiler: ["gcc", "clang"]
+        non-python-dependency-manager: ["apt-get"]
+        exclude:
+          - python-version: "3.12"
+            compiler: clang
+
+    steps:
+      - uses: actions/checkout@master
+        with:
+          fetch-depth: 0
+
+      - name: Setup Python
+        uses: actions/setup-python@v6
+        with:
+          python-version: ${{ matrix.python-version }}
+
+      - name: Verify Python Version
+        run: |
+          which python
+          python --version
+
+      - name: Install Non-Python Dependencies (apt-get)
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libfftw3-dev libgsl-dev libomp-dev pkg-config
+
+      - name: Debug info for clang builds
+        if: matrix.compiler == 'clang'
+        run: |
+          clang --version
+          dpkg -l | grep -E 'clang|llvm|libomp' || true
+          dpkg -L libomp-dev || true
+          find /usr -name 'libomp.so*' 2>/dev/null | sort
+          ldconfig -p | grep -i omp || true
+
+      - name: Verify Python Version
+        run: |
+          which python
+          python --version
+
+      - name: Set OMP library path for clang builds on ubuntu
+        # This needs to be done on Ubuntu (at least the Github Actions ubuntu-latest image)
+        # because the OpenMP library installed by apt-get is not in a standard location.
+        # That is, it puts it into a versioned subdirectory of /usr/lib, which is not on
+        # the default library search path.
+        # This is not needed on macOS because Homebrew puts it in a standard location.
+        #
+        if: matrix.compiler == 'clang'
+        run: |
+          echo "OMP_LIB=/usr/lib/llvm-${{ env.CLANG_VERSION }}/lib" >> $GITHUB_ENV
+
+      - name: Install 21cmFAST
+        run: |
+          CC=${{ matrix.compiler }} python -m pip install .
+
+      - name: Test Import
+        run: |
+          python -c "import py21cmfast; print(py21cmfast.__version__)"

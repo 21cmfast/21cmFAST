@@ -318,7 +318,7 @@ void free_fftw_grids(struct FilteredGrids *fg_struct) {
 void prepare_box_for_filtering(float *input_box, fftwf_complex *output_c_box, double const_factor,
                                double limit_min, double limit_max) {
     int i, j, k;
-    unsigned long long int ct;
+    index_huge ct;
     // NOTE: Meraxes just applies a pointer cast box = (fftwf_complex *) input. Figure out why this
     // works. They pad the input by a factor of 2 to cover the complex part, but from the type I
     // thought it would be stored [(r,c),(r,c)...] Not [(r,r,r,r....),(c,c,c....)] so the alignment
@@ -327,7 +327,7 @@ void prepare_box_for_filtering(float *input_box, fftwf_complex *output_c_box, do
                       HII_D_PARA};
 #pragma omp parallel private(i, j, k) num_threads(simulation_options_global -> N_THREADS)
     {
-        unsigned long long int index, index_f;
+        index_huge index, index_f;
         double curr_cell;
 #pragma omp for collapse(3)
         for (i = 0; i < box_dim[0]; i++) {
@@ -361,7 +361,7 @@ void setup_first_z_prevbox(IonizedBox *previous_ionize_box, PerturbedField *prev
                            int n_radii) {
     LOG_DEBUG("first redshift, do some initialization");
     int i, j, k;
-    unsigned long long int ct;
+    index_huge ct;
     int box_dim[3] = {simulation_options_global->HII_DIM, simulation_options_global->HII_DIM,
                       HII_D_PARA};
 
@@ -410,7 +410,7 @@ void calculate_mcrit_boxes(IonizedBox *prev_ionbox, TsBox *spin_temp, InitialCon
         double Mcrit_RE, Mcrit_LW;
         double curr_Mt, curr_Mt_MINI;
         double curr_vcb = consts->scale_consts.vcb_norel;
-        unsigned long long int index, index_f;
+        index_huge index, index_f;
 #pragma omp for reduction(+ : ave_log10_Mturnover, ave_log10_Mturnover_MINI)
         for (x = 0; x < box_dim[0]; x++) {
             for (y = 0; y < box_dim[1]; y++) {
@@ -527,7 +527,7 @@ void set_mean_fcoll(struct IonBoxConstants *c, IonizedBox *prev_box, IonizedBox 
 double set_fully_neutral_box(IonizedBox *box, TsBox *spin_temp, PerturbedField *perturbed_field,
                              struct IonBoxConstants *consts) {
     double global_xH = 0.;
-    unsigned long long int ct;
+    index_huge ct;
     if (astro_options_global->USE_TS_FLUCT) {
 #pragma omp parallel private(ct) num_threads(simulation_options_global -> N_THREADS)
         {
@@ -536,7 +536,9 @@ double set_fully_neutral_box(IonizedBox *box, TsBox *spin_temp, PerturbedField *
                 box->neutral_fraction[ct] =
                     1. - spin_temp->xray_ionised_fraction[ct];  // convert from x_e to xH
                 global_xH += box->neutral_fraction[ct];
-                box->kinetic_temperature[ct] = spin_temp->kinetic_temp_neutral[ct];
+                if (!matter_options_global->MINIMIZE_MEMORY) {
+                    box->kinetic_temperature[ct] = spin_temp->kinetic_temp_neutral[ct];
+                }
             }
         }
         global_xH /= (double)HII_TOT_NUM_PIXELS;
@@ -547,9 +549,11 @@ double set_fully_neutral_box(IonizedBox *box, TsBox *spin_temp, PerturbedField *
 #pragma omp for
             for (ct = 0; ct < HII_TOT_NUM_PIXELS; ct++) {
                 box->neutral_fraction[ct] = global_xH;
-                box->kinetic_temperature[ct] =
-                    consts->TK_nofluct *
-                    (1.0 + consts->adia_TK_term * perturbed_field->density[ct]);
+                if (!matter_options_global->MINIMIZE_MEMORY) {
+                    box->kinetic_temperature[ct] =
+                        consts->TK_nofluct *
+                        (1.0 + consts->adia_TK_term * perturbed_field->density[ct]);
+                }
             }
         }
     }
@@ -668,7 +672,7 @@ void clip_and_get_extrema(fftwf_complex *grid, double lower_limit, double upper_
     {
         int x, y, z;
         float curr;
-        unsigned long long int index;
+        index_huge index;
 #pragma omp for reduction(max : max_buf) reduction(min : min_buf)
         for (x = 0; x < simulation_options_global->HII_DIM; x++) {
             for (y = 0; y < simulation_options_global->HII_DIM; y++) {
@@ -781,7 +785,7 @@ void calculate_fcoll_grid(IonizedBox *box, IonizedBox *previous_ionize_box,
         double prev_dens = 0, prev_Splined_Fcoll = 0., prev_Splined_Fcoll_MINI = 0.;
         // is only overwritten with minihalos
         log10_Mturnover = log10(consts->scale_consts.mturn_a_nofb);
-        unsigned long long int index_r, index_f;
+        index_huge index_r, index_f;
 #pragma omp for reduction(+ : f_coll_total, f_coll_MINI_total)
         for (x = 0; x < box_dim[0]; x++) {
             for (y = 0; y < box_dim[1]; y++) {
@@ -1023,7 +1027,7 @@ void find_ionised_regions(IonizedBox *box, IonizedBox *previous_ionize_box,
         int x, y, z;
         double curr_dens, curr_fcoll, curr_fcoll_mini;
         double rec, xHII_from_xrays, res_xH;
-        unsigned long long int index_r, index_f;
+        index_huge index_r, index_f;
 #pragma omp for
         for (x = 0; x < box_dim[0]; x++) {
             for (y = 0; y < box_dim[1]; y++) {
@@ -1120,7 +1124,9 @@ void find_ionised_regions(IonizedBox *box, IonizedBox *previous_ionize_box,
                                     rspec.R * (consts->gamma_prefactor * curr_fcoll +
                                                consts->gamma_prefactor_mini * curr_fcoll_mini);
                             }
-                            box->mean_free_path[index_r] = rspec.R;
+                            if (!matter_options_global->MINIMIZE_MEMORY) {
+                                box->mean_free_path[index_r] = rspec.R;
+                            }
                         }
 
                         // keep track of the first time this cell is ionized (earliest time)
@@ -1152,14 +1158,20 @@ void find_ionised_regions(IonizedBox *box, IonizedBox *previous_ionize_box,
                                  curr_fcoll_mini * consts->ion_eff_factor_mini;
                         // put the partial ionization here because we need to exclude
                         // xHII_from_xrays...
-                        if (astro_options_global->USE_TS_FLUCT) {
-                            box->kinetic_temperature[index_r] = ComputePartiallyIonizedTemperature(
-                                spin_temp->kinetic_temp_neutral[index_r], res_xH, consts->T_re);
-                        } else {
-                            box->kinetic_temperature[index_r] = ComputePartiallyIonizedTemperature(
-                                consts->TK_nofluct *
-                                    (1 + consts->adia_TK_term * perturbed_field->density[index_r]),
-                                res_xH, consts->T_re);
+                        if (!matter_options_global->MINIMIZE_MEMORY) {
+                            if (astro_options_global->USE_TS_FLUCT) {
+                                box->kinetic_temperature[index_r] =
+                                    ComputePartiallyIonizedTemperature(
+                                        spin_temp->kinetic_temp_neutral[index_r], res_xH,
+                                        consts->T_re);
+                            } else {
+                                box->kinetic_temperature[index_r] =
+                                    ComputePartiallyIonizedTemperature(
+                                        consts->TK_nofluct *
+                                            (1 + consts->adia_TK_term *
+                                                     perturbed_field->density[index_r]),
+                                        res_xH, consts->T_re);
+                            }
                         }
                         res_xH -= xHII_from_xrays;
 
@@ -1184,7 +1196,7 @@ void set_ionized_temperatures(IonizedBox *box, PerturbedField *perturbed_field, 
     int box_dim[3] = {simulation_options_global->HII_DIM, simulation_options_global->HII_DIM,
                       HII_D_PARA};
 
-    unsigned long long int idx;
+    index_huge idx;
 #pragma omp parallel private(x, y, z, idx) num_threads(simulation_options_global -> N_THREADS)
     {
         float thistk;
@@ -1243,7 +1255,7 @@ void set_recombination_rates(IonizedBox *box, IonizedBox *previous_ionize_box,
         int x, y, z;
         double curr_dens, dNrec;
         double z_eff;
-        unsigned long long int idx;
+        index_huge idx;
 #pragma omp for
         for (x = 0; x < simulation_options_global->HII_DIM; x++) {
             for (y = 0; y < simulation_options_global->HII_DIM; y++) {
@@ -1317,7 +1329,7 @@ int ComputeIonizedBox(float redshift, float prev_redshift, PerturbedField *pertu
         // Do each time to avoid Python garbage collection issues
         omp_set_num_threads(simulation_options_global->N_THREADS);
 
-        unsigned long long ct;
+        index_huge ct;
 
         double global_xH;
 
@@ -1334,7 +1346,7 @@ int ComputeIonizedBox(float redshift, float prev_redshift, PerturbedField *pertu
 
         LOG_SUPER_DEBUG("z_reion init: ");
         debugSummarizeBox(box->z_reion, simulation_options_global->HII_DIM,
-                          simulation_options_global->HII_DIM, HII_D_PARA, "  ");
+                          simulation_options_global->HII_DIM, HII_D_PARA, STANDARD_LAYOUT, "  ");
 
         // Modify the current sampled redshift to a redshift which matches the expected filling
         // factor given our astrophysical parameterisation. This is the photon non-conservation
@@ -1537,10 +1549,13 @@ int ComputeIonizedBox(float redshift, float prev_redshift, PerturbedField *pertu
 #if LOG_LEVEL >= ULTRA_DEBUG_LEVEL
                 LOG_ULTRA_DEBUG("z_reion after R=%f: ", curr_radius.R);
                 debugSummarizeBox(box->z_reion, simulation_options_global->HII_DIM,
-                                  simulation_options_global->HII_DIM, HII_D_PARA, "  ");
+                                  simulation_options_global->HII_DIM, HII_D_PARA, STANDARD_LAYOUT,
+                                  "  ");
 #endif
             }
-            set_ionized_temperatures(box, perturbed_field, spin_temp, &ionbox_constants);
+            if (!matter_options_global->MINIMIZE_MEMORY) {
+                set_ionized_temperatures(box, perturbed_field, spin_temp, &ionbox_constants);
+            }
 
             // find the neutral fraction
             global_xH = 0;

@@ -30,6 +30,15 @@ def ic_newseed(default_input_struct, cache: p21c.OutputCache):
 
 
 @pytest.fixture(scope="module")
+def ic_with_halos(default_input_struct, cache: p21c.OutputCache):
+    return p21c.compute_initial_conditions(
+        inputs=default_input_struct.evolve_input_structs(SOURCE_MODEL="CHMF-SAMPLER"),
+        write=True,
+        cache=cache,
+    )
+
+
+@pytest.fixture(scope="module")
 def perturb_field_lowz(ic: InitialConditions, low_redshift: float, cache: OutputCache):
     """A default perturb_field."""
     return p21c.perturb_field(
@@ -277,34 +286,56 @@ def test_incompatible_parameters(
         )
 
 
-def test_using_cached_halo_catalog(ic, test_direc):
+@pytest.mark.parametrize("regenerate", [True, False])
+def test_halo_catalog_trim(ic_with_halos, cache, regenerate):
+    """Test whether the halo catalog is correctly trimmed to the number of halos found."""
+    halo_catalog = p21c.determine_halo_catalog(
+        redshift=10.0,
+        initial_conditions=ic_with_halos,
+        write=True,
+        cache=cache,
+        regenerate=regenerate,
+    )
+
+    # Make sure the size of the halo catalog is the same as the number of halos that were found
+    assert halo_catalog.buffer_size == halo_catalog.n_halos
+    assert halo_catalog.halo_masses.shape == (halo_catalog.n_halos,)
+    assert halo_catalog.star_rng.shape == (halo_catalog.n_halos,)
+    assert halo_catalog.sfr_rng.shape == (halo_catalog.n_halos,)
+    assert halo_catalog.xray_rng.shape == (halo_catalog.n_halos,)
+    assert halo_catalog.halo_coords.shape == (halo_catalog.n_halos, 3)
+
+
+def test_using_cached_halo_catalog(ic_with_halos, test_direc):
     """Test whether the C-based memory in halo fields is cached correctly.
 
     Prior to v3.1 this was segfaulting, so this test ensure that this behaviour does
     not regress.
     """
     cache = OutputCache(test_direc)
+
     halo_catalog = p21c.determine_halo_catalog(
-        redshift=10.0, initial_conditions=ic, write=True, cache=cache
+        redshift=10.0, initial_conditions=ic_with_halos, write=True, cache=cache
     )
 
     pt_halos = p21c.perturb_halo_catalog(
-        initial_conditions=ic,
+        initial_conditions=ic_with_halos,
         halo_catalog=halo_catalog,
         write=True,
         cache=cache,
+        regenerate=False,
     )
 
     # Now get the halo field again at the same redshift -- should be cached
     new_halo_catalog = p21c.determine_halo_catalog(
         redshift=10.0,
-        initial_conditions=ic,
+        initial_conditions=ic_with_halos,
         write=False,
         regenerate=False,
     )
 
     new_pt_halos = p21c.perturb_halo_catalog(
-        initial_conditions=ic,
+        initial_conditions=ic_with_halos,
         halo_catalog=new_halo_catalog,
         write=False,
         regenerate=False,

@@ -19,8 +19,8 @@ from ..c_21cmfast import lib
 from ..io import h5
 from ..io.caching import CacheConfig, OutputCache
 from ..lightconers import Lightconer, RectilinearLightconer
-from ..rsds import apply_rsds as do_rsds
-from ..rsds import include_dvdr_in_tau21 as do_dvdr_in_tau21
+from ..rsds import apply_rsds as _apply_rsds
+from ..rsds import include_dvdr_in_tau21 as _apply_dvdr_in_tau21
 from ..wrapper.inputs import InputParameters
 from ..wrapper.outputs import (
     BrightnessTemp,
@@ -246,6 +246,63 @@ class LightCone:
             self._last_completed_lcidx = lcidx
             self._last_completed_node = node_index
 
+    def _finalize_lightcone_at_last_redshift(
+        self,
+        include_dvdr_in_tau21: bool,
+        apply_rsds: bool,
+        n_rsd_subcells: int,
+        inputs: InputParameters,
+        lightconer: Lightconer,
+        lc_distances: np.ndarray,
+        lowz_buffer_pixels: int,
+        highz_buffer_pixels: int,
+        lightcone_filename: str | Path | None,
+    ) -> Self:
+        """Finalize lightcone at the last redshift (apply dvdr, rsds, trim)."""
+        if lib.photon_cons_allocated:
+            lib.FreePhotonConsMemory()
+
+        if include_dvdr_in_tau21:
+            self.lightcones["brightness_temp"] = _apply_dvdr_in_tau21(
+                brightness_temp=self.lightcones["brightness_temp"],
+                los_velocity=self.lightcones["los_velocity"],
+                redshifts=self.lightcone_redshifts,
+                inputs=inputs,
+                tau_21=(
+                    self.lightcones["tau_21"]
+                    if inputs.astro_options.USE_TS_FLUCT
+                    else None
+                ),
+                periodic=False,
+            )
+
+        if apply_rsds:
+            for q in lightconer.quantities:
+                field_with_rsds = _apply_rsds(
+                    field=self.lightcones[q],
+                    los_velocity=self.lightcones["los_velocity"],
+                    redshifts=self.lightcone_redshifts,
+                    inputs=inputs,
+                    periodic=False,
+                    n_rsd_subcells=n_rsd_subcells,
+                )
+
+                self.lightcones[q + "_with_rsds"] = field_with_rsds
+
+                if lightcone_filename:
+                    if Path(lightcone_filename).exists():
+                        with h5py.File(lightcone_filename, "a") as fl:
+                            fl["lightcones"][q + "_with_rsds"] = field_with_rsds
+                    else:
+                        self.save(
+                            lightcone_filename,
+                            lowz_buffer_pixels=lowz_buffer_pixels,
+                            highz_buffer_pixels=highz_buffer_pixels,
+                        )
+
+            self = self.trim(lc_distances.min(), lc_distances.max())
+        return self
+
     def trim(self, mind: units.Quantity, maxd: units.Quantity) -> Self:
         """Create a new lightcone box containing only the desired distances range."""
         inds = np.logical_and(
@@ -322,7 +379,8 @@ class AngularLightcone(LightCone):
         raise AttributeError("This is not an attribute of an AngularLightcone")
 
 
-def _check_desired_arrays_exist(desired_arrays: list[str], inputs: InputParameters):
+def _get_all_possible_arrays(inputs: InputParameters) -> list[str]:
+
     possible_outputs = [
         InitialConditions.new(inputs),
         PerturbedField.new(inputs, redshift=0),
@@ -331,20 +389,23 @@ def _check_desired_arrays_exist(desired_arrays: list[str], inputs: InputParamete
         IonizedBox.new(inputs, redshift=0),
         BrightnessTemp.new(inputs, redshift=0),
     ]
-    for name in desired_arrays:
-        exists = False
-        for output in possible_outputs:
-            if name in output.arrays or name in [
-                "log10_mturn_acg",
-                "log10_mturn_mcg",
-                "los_velocity",
-            ]:
-                exists = True
-                break
-        if not exists:
-            raise ValueError(
-                f"You asked for {name} but it is not computed for the inputs: {inputs}"
-            )
+    return [name for output in possible_outputs for name in output.arrays]
+
+
+def _check_desired_arrays_exist(desired_arrays: list[str], inputs: InputParameters):
+    possible_arrays = _get_all_possible_arrays(inputs)
+    unknown = [
+        name
+        for name in desired_arrays
+        if name
+        not in [*possible_arrays, "log10_mturn_acg", "log10_mturn_mcg", "los_velocity"]
+    ]
+
+    if unknown:
+        raise ValueError(
+            f"The following arrays: {unknown} were asked for but are not computed for the "
+            f"inputs: {inputs}.\nThe possible arrays that can be output for these inputs are: {possible_arrays}"
+        )
 
 
 def setup_lightcone_instance(
@@ -517,54 +578,32 @@ def _run_lightcone_from_perturbed_fields(
                     lightcone_filename, lcidx=lc_index, node_index=iz
                 )
 
-        prev_coeval = coeval
-
         # last redshift things
         if iz == len(scrollz) - 1:
-            if lib.photon_cons_allocated:
-                lib.FreePhotonConsMemory()
-
-            if include_dvdr_in_tau21:
-                lightcone.lightcones["brightness_temp"] = do_dvdr_in_tau21(
-                    brightness_temp=lightcone.lightcones["brightness_temp"],
-                    los_velocity=lightcone.lightcones["los_velocity"],
-                    redshifts=lightcone.lightcone_redshifts,
-                    inputs=inputs,
-                    tau_21=(
-                        lightcone.lightcones["tau_21"]
-                        if inputs.astro_options.USE_TS_FLUCT
-                        else None
-                    ),
-                    periodic=False,
-                )
-
-            if apply_rsds:
-                for q in lightconer.quantities:
-                    field_with_rsds = do_rsds(
-                        field=lightcone.lightcones[q],
-                        los_velocity=lightcone.lightcones["los_velocity"],
-                        redshifts=lightcone.lightcone_redshifts,
-                        inputs=inputs,
-                        periodic=False,
-                        n_rsd_subcells=n_rsd_subcells,
-                    )
-
-                    lightcone.lightcones[q + "_with_rsds"] = field_with_rsds
-
-                    if lightcone_filename:
-                        if Path(lightcone_filename).exists():
-                            with h5py.File(lightcone_filename, "a") as fl:
-                                fl["lightcones"][q + "_with_rsds"] = field_with_rsds
-                        else:
-                            lightcone.save(
-                                lightcone_filename,
-                                lowz_buffer_pixels=lowz_buffer_pixels,
-                                highz_buffer_pixels=highz_buffer_pixels,
-                            )
-
-                lightcone = lightcone.trim(lc_distances.min(), lc_distances.max())
+            lightcone = lightcone._finalize_lightcone_at_last_redshift(
+                include_dvdr_in_tau21=include_dvdr_in_tau21,
+                apply_rsds=apply_rsds,
+                n_rsd_subcells=n_rsd_subcells,
+                inputs=inputs,
+                lightconer=lightconer,
+                lc_distances=lc_distances,
+                lowz_buffer_pixels=lowz_buffer_pixels,
+                highz_buffer_pixels=highz_buffer_pixels,
+                lightcone_filename=lightcone_filename,
+            )
 
         yield iz, coeval.redshift, coeval, lightcone
+
+        # Purge the previous coeval after we're done with it
+        # Note: we do not attempt to purge halo box from prev_coeval, since it used in compute_xray_source_field.
+        #       Halo boxes are ultimately purged in halobox.prepare_for_next_snapshot().
+        #       Meanwhile, unnecessary fields from initial_conditions were removed via prepare_for_perturb and prepare_for_spin_temp
+        if prev_coeval is not None:
+            prev_coeval.prepare_for_next_snapshot(
+                keep=["initial_conditions", "halobox"], force=True
+            )
+
+        prev_coeval = coeval
 
 
 @high_level_func

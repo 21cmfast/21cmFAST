@@ -21,7 +21,7 @@ jobs:
       - uses: actions/checkout@v6
 
       - name: Setup Miniconda
-        uses: conda-incubator/setup-miniconda@v3
+        uses: conda-incubator/setup-miniconda@v4
         with:
             channels: conda-forge,defaults
             python-version: 3.11
@@ -29,7 +29,7 @@ jobs:
 
       - name: Install Non-Python Dependencies
         run: |
-          conda install fftw gsl numba
+          conda install pip fftw gsl numba compilers pkg-config
 
       - name: Install 21cmFAST
         run: |
@@ -40,12 +40,12 @@ jobs:
           pytest --benchmark-json results.json tests/test_integration_features.py
 
       - name: Upload Benchmark Results
-        uses: actions/upload-artifact@v6
+        uses: actions/upload-artifact@v7
         with:
           name: benchmark_results.json
           path: ./results.json
       - name: Upload GitHub Pull Request Event
-        uses: actions/upload-artifact@v6
+        uses: actions/upload-artifact@v7
         with:
           name: event.json
           path: ${{ github.event_path }}
