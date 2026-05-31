@@ -206,9 +206,9 @@ def _get_photon_nonconservation_data() -> dict:
 
 
 # NOTE: at the moment, photon non-conservation correction runs without recombination (for some reason...)
-# so the initialization of the recombination rate is not strictly necessary. However, it's good to keep the
-# recombination rate initializer here in case this will be changed in the future.
-@c_state_initializer(init_sigma=True, init_recomb=True)
+# so the initialization of the recombination rate is not strictly necessary.
+# In case this is changed in the future, it is important to set init_recomb=True
+@c_state_initializer(init_sigma=True, init_recomb=False)
 def setup_photon_cons(
     initial_conditions: InitialConditions,
     inputs: InputParameters | None = None,

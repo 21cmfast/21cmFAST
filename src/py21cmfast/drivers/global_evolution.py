@@ -230,11 +230,16 @@ class GlobalEvolution:
         )
 
 
-# NOTE: generate_global_evolution does not really need to initialize the recombination rate,
+# TODO: generate_global_evolution does not really need to initialize the recombination rate,
 # since it doesn't run the excursion set algorithm in the reionization code and at the moment
 # we do not apply recombination corrections when computing the global reionization history,
-# similarly as in the photon non-conservation correction. However, it's good to keep the
-# recombination rate initializer here in case this will be changed in the future.
+# similarly as in the photon non-conservation correction. Therefore, having init_recomb=True below yields
+# an overhead of a few seconds in the runtime.
+# However, if init_recomb=False, the code becomes MUCH slower, since each call to compute_ionization_field will
+# re-initialize the recombination rate table (if INOHMO_RECO=True). This could had been fixed by
+# forcing INHOMO_RECO=False in run_global_evolution, but this would limit the usage of running the code with mini-halos,
+# since currently there is no way to run mini-halos without recombinations. Once this limitation is relaxed in the future,
+# we could set init_recomb=False and save a few seconds.
 @high_level_func
 @c_state_initializer(init_sigma=True, init_heat=True, init_recomb=True)
 def generate_global_evolution(
