@@ -21,10 +21,8 @@ from ..wrapper.outputs import (
     TsBox,
 )
 from ._param_config import (
+    c_state_initializer,
     high_level_func,
-    init_heat_tables,
-    init_recombination_rate,
-    init_sigma_table,
 )
 from .coeval import _redshift_loop_generator, _setup_ics_and_pfs_for_scrolling
 
@@ -238,9 +236,7 @@ class GlobalEvolution:
 # similarly as in the photon non-conservation correction. However, it's good to keep the
 # recombination rate initializer here in case this will be changed in the future.
 @high_level_func
-@init_sigma_table()
-@init_heat_tables()
-@init_recombination_rate()
+@c_state_initializer(init_sigma=True, init_heat=True, init_recomb=True)
 def generate_global_evolution(
     *,
     inputs: InputParameters,
@@ -250,7 +246,7 @@ def generate_global_evolution(
 ):
     """Run the global evolution and return the result.
 
-    This is simply a wrapper to :func:`generate_global_evolution`.
+    This is simply a wrapper to :func:`run_global_evolution`.
     """
     # NOTE: inputs here is already inputs_one_cell (the modified single-cell
     # InputParameters). The validation and construction of inputs_one_cell is

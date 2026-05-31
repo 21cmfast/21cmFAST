@@ -58,9 +58,7 @@ from scipy.optimize import curve_fit
 from ..c_21cmfast import ffi, lib
 from ..drivers._param_config import (
     broadcast_input_struct,
-    c_wrapper,
-    init_recombination_rate,
-    init_sigma_table,
+    c_state_initializer,
     initialize_heat,
     initialize_power_spectrum,
     initialize_recombination_rate,
@@ -210,8 +208,7 @@ def _get_photon_nonconservation_data() -> dict:
 # NOTE: at the moment, photon non-conservation correction runs without recombination (for some reason...)
 # so the initialization of the recombination rate is not strictly necessary. However, it's good to keep the
 # recombination rate initializer here in case this will be changed in the future.
-@init_sigma_table()
-@init_recombination_rate()
+@c_state_initializer(init_sigma=True, init_recomb=True)
 def setup_photon_cons(
     initial_conditions: InitialConditions,
     inputs: InputParameters | None = None,
@@ -402,7 +399,7 @@ def calibrate_photon_cons(
 
 # (Jdavies): I needed a function to access the delta z from the wrapper
 # get_photoncons_data does not have the edge cases that adjust_redshifts_for_photoncons does
-@c_wrapper()
+@c_state_initializer(broadcast_inputs=True)
 def get_photoncons_dz(inputs, redshift, **kwargs):
     """Access the delta z arrays from the photon conservation model in C."""
     deltaz = np.zeros(1).astype("f4")

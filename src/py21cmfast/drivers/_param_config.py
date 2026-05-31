@@ -274,6 +274,32 @@ def init_gl(func: Callable) -> Callable:
     return wrapper
 
 
+def c_state_initializer(
+    *,
+    broadcast_inputs: bool = False,
+    init_ps: bool = False,
+    init_sigma: bool = False,
+    init_heat: bool = False,
+    init_recomb: bool = False,
+) -> Callable:
+    def _decorator(func):
+        result = func
+        if broadcast_inputs:
+            result = c_wrapper()(result)
+        if init_ps:
+            result = init_backend_ps()(result)
+        if init_sigma:
+            result = init_sigma_table()(result)
+        if init_heat:
+            result = init_heat_tables()(result)
+        if init_recomb:
+            result = init_recombination_rate()(result)
+        functools.update_wrapper(result, func)
+        return result
+
+    return _decorator
+
+
 def check_redshift_consistency(
     redshift: float, output_structs: list[OutputStruct], funcname: str = "unknown"
 ) -> None:

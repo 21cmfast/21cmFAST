@@ -32,13 +32,7 @@ from ..wrapper.outputs import (
 )
 from ..wrapper.photoncons import _get_photon_nonconservation_data, setup_photon_cons
 from . import single_field as sf
-from ._param_config import (
-    _InitManager,
-    high_level_func,
-    init_heat_tables,
-    init_recombination_rate,
-    init_sigma_table,
-)
+from ._param_config import _InitManager, c_state_initializer, high_level_func
 
 logger = logging.getLogger(__name__)
 
@@ -484,9 +478,7 @@ def evolve_halos(
 
 
 @high_level_func
-@init_sigma_table()
-@init_heat_tables()
-@init_recombination_rate()
+@c_state_initializer(init_sigma=True, init_heat=True, init_recomb=True)
 def generate_coeval(
     *,
     inputs: InputParameters | None = None,

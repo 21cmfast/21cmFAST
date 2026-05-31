@@ -26,12 +26,8 @@ from ..wrapper.outputs import (
     XraySourceBox,
 )
 from ._param_config import (
-    c_wrapper,
+    c_state_initializer,
     check_output_consistency,
-    init_backend_ps,
-    init_heat_tables,
-    init_recombination_rate,
-    init_sigma_table,
     single_field_func,
 )
 
@@ -39,7 +35,7 @@ logger = logging.getLogger(__name__)
 
 
 @single_field_func
-@init_backend_ps()
+@c_state_initializer(init_ps=True)
 def compute_initial_conditions(
     *,
     inputs: InputParameters,
@@ -118,7 +114,7 @@ def compute_initial_conditions(
 
 
 @single_field_func
-@c_wrapper()
+@c_state_initializer(broadcast_inputs=True)
 def perturb_field(
     *,
     redshift: float,
@@ -162,7 +158,7 @@ def perturb_field(
 
 
 @single_field_func
-@init_sigma_table()
+@c_state_initializer(init_sigma=True)
 def determine_halo_catalog(
     *,
     redshift: float,
@@ -220,7 +216,7 @@ def determine_halo_catalog(
 
 
 @single_field_func
-@c_wrapper()
+@c_state_initializer(broadcast_inputs=True)
 def perturb_halo_catalog(
     *,
     initial_conditions: InitialConditions,
@@ -298,7 +294,7 @@ def perturb_halo_catalog(
 
 
 @single_field_func
-@init_sigma_table()
+@c_state_initializer(init_sigma=True)
 def compute_halo_grid(
     *,
     redshift: float,
@@ -475,7 +471,7 @@ def interp_halo_boxes(
 #   over multiple redshifts in a nice way using this wrapper.
 # TODO: if we move some code to jax or similar I think this would be one of the first candidates (just filling out some filtered grids)
 @single_field_func
-@c_wrapper()
+@c_state_initializer(broadcast_inputs=True)
 def compute_xray_source_field(
     *,
     initial_conditions: InitialConditions,
@@ -605,8 +601,7 @@ def compute_xray_source_field(
 
 
 @single_field_func
-@init_sigma_table()
-@init_heat_tables()
+@c_state_initializer(init_sigma=True, init_heat=True)
 def compute_spin_temperature(
     *,
     initial_conditions: InitialConditions,
@@ -682,9 +677,7 @@ def compute_spin_temperature(
 
 
 @single_field_func
-@init_sigma_table()
-@init_heat_tables()
-@init_recombination_rate()
+@c_state_initializer(init_sigma=True, init_heat=True, init_recomb=True)
 def compute_ionization_field(
     *,
     perturbed_field: PerturbedField,
@@ -807,7 +800,7 @@ def compute_ionization_field(
 
 
 @single_field_func
-@c_wrapper()
+@c_state_initializer(broadcast_inputs=True)
 def brightness_temperature(
     *,
     ionized_box: IonizedBox,
