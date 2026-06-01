@@ -64,10 +64,6 @@ static inline bool source_model_uses_eulerian_grids(int source_model) {
     return source_model < SOURCE_MODEL_L_INTEGRAL;
 }
 
-static inline bool source_model_uses_integral_grids(int source_model) {
-    return source_model >= SOURCE_MODEL_L_INTEGRAL;
-}
-
 static inline bool source_model_uses_sampled_halos(int source_model) {
     return source_model > SOURCE_MODEL_L_INTEGRAL;
 }

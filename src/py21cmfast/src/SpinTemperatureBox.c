@@ -981,7 +981,7 @@ int global_reion_properties(double zp, double x_e_ave, double *log10_Mcrit_LW_av
     *Q_HI = 1 - (ION_EFF_FACTOR * sum_nion + ION_EFF_FACTOR_MINI * sum_nion_mini) / (1.0 - x_e_ave);
 
     // Initialise freq tables & prefactors (x_e by R tables)
-    if (source_model_uses_integral_grids(matter_options_global->SOURCE_MODEL) ||
+    if (source_model_uses_lagrangian_grids(matter_options_global->SOURCE_MODEL) ||
         !matter_options_global->MINIMIZE_MEMORY) {
         // Now global SFRD at (R_ct) for the mean fixing
         for (R_ct = 0; R_ct < astro_params_global->N_STEP_TS; R_ct++) {
