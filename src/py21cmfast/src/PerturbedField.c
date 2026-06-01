@@ -65,7 +65,7 @@ void make_density_grid(float redshift, fftwf_complex *fft_density_grid, InitialC
     if (matter_options_global->PERTURB_ALGORITHM == PERTURB_ALGORITHM_LINEAR) {
 #pragma omp parallel private(i, j, k) num_threads(simulation_options_global -> N_THREADS)
         {
-            unsigned long long int grid_index, fft_index;
+            index_huge grid_index, fft_index;
 #pragma omp for
             for (i = 0; i < box_dim[0]; i++) {
                 for (j = 0; j < box_dim[1]; j++) {
@@ -82,7 +82,7 @@ void make_density_grid(float redshift, fftwf_complex *fft_density_grid, InitialC
         // Apply Zel'dovich/2LPT correction
 #pragma omp parallel private(i, j, k) num_threads(simulation_options_global -> N_THREADS)
         {
-            unsigned long long int fft_index;
+            index_huge fft_index;
 #pragma omp for
             for (i = 0; i < box_dim[0]; i++) {
                 for (j = 0; j < box_dim[1]; j++) {
@@ -108,12 +108,13 @@ void make_density_grid(float redshift, fftwf_complex *fft_density_grid, InitialC
                          box_dim, resampled_box, box_dim);
 
         LOG_SUPER_DEBUG("resampled_box: ");
-        debugSummarizeBoxDouble(resampled_box, box_dim[0], box_dim[1], box_dim[2], "  ");
+        debugSummarizeBoxDouble(resampled_box, box_dim[0], box_dim[1], box_dim[2], STANDARD_LAYOUT,
+                                "  ");
 
         // Resample back to a fftw float for remaining algorithm
 #pragma omp parallel private(i, j, k) num_threads(simulation_options_global -> N_THREADS)
         {
-            unsigned long long int grid_index, fft_index;
+            index_huge grid_index, fft_index;
 #pragma omp for
             for (i = 0; i < box_dim[0]; i++) {
                 for (j = 0; j < box_dim[1]; j++) {
@@ -129,7 +130,7 @@ void make_density_grid(float redshift, fftwf_complex *fft_density_grid, InitialC
 
         LOG_SUPER_DEBUG("density_perturb: ");
         debugSummarizeBox((float *)fft_density_grid, box_dim[0], box_dim[1],
-                          2 * (box_dim[2] / 2 + 1), "  ");
+                          2 * (box_dim[2] / 2 + 1), FFTW_REAL_LAYOUT, "  ");
     }
 }
 
@@ -184,13 +185,12 @@ void normalise_delta_grid(fftwf_complex *deltap1_grid) {
                      HII_D_PARA};
     int hi_dim[3] = {simulation_options_global->DIM, simulation_options_global->DIM, D_PARA};
     // Renormalise the lowres box
-    double mass_factor =
-        matter_options_global->PERTURB_ON_HIGH_RES
-            ? 1.0
-            : (lo_dim[0] * lo_dim[1] * lo_dim[2]) / (double)(hi_dim[0] * hi_dim[1] * hi_dim[2]);
+    double mass_factor = matter_options_global->PERTURB_ON_HIGH_RES
+                             ? 1.0
+                             : HII_TOT_NUM_PIXELS / (double)TOT_NUM_PIXELS;
 #pragma omp parallel private(i, j, k) num_threads(simulation_options_global -> N_THREADS)
     {
-        unsigned long long int grid_index;
+        index_huge grid_index;
         float *cell_ptr;
 #pragma omp for
         for (i = 0; i < lo_dim[0]; i++) {
@@ -205,7 +205,8 @@ void normalise_delta_grid(fftwf_complex *deltap1_grid) {
         }
     }
     LOG_SUPER_DEBUG("delta after normalisation: ");
-    debugSummarizeBox((float *)deltap1_grid, lo_dim[0], lo_dim[1], 2 * (lo_dim[2] / 2 + 1), "  ");
+    debugSummarizeBox((float *)deltap1_grid, lo_dim[0], lo_dim[1], 2 * (lo_dim[2] / 2 + 1),
+                      FFTW_REAL_LAYOUT, "  ");
 }
 
 void smooth_and_clip_density(fftwf_complex *lowres_grid, fftwf_complex *density_perturb_saved) {
@@ -227,7 +228,8 @@ void smooth_and_clip_density(fftwf_complex *lowres_grid, fftwf_complex *density_
 
     LOG_SUPER_DEBUG("delta_k after smoothing: ");
     debugSummarizeBox((float *)lowres_grid, simulation_options_global->HII_DIM,
-                      simulation_options_global->HII_DIM, 2 * (HII_D_PARA / 2 + 1), "  ");
+                      simulation_options_global->HII_DIM, 2 * (HII_D_PARA / 2 + 1),
+                      FFTW_REAL_LAYOUT, "  ");
 
     // save a copy of the k-space density field for velocity computation
     // TODO: The grid saving is awkward, it happens in different functions depending on the
@@ -241,14 +243,15 @@ void smooth_and_clip_density(fftwf_complex *lowres_grid, fftwf_complex *density_
 
     LOG_SUPER_DEBUG("delta back in real space: ");
     debugSummarizeBox((float *)lowres_grid, simulation_options_global->HII_DIM,
-                      simulation_options_global->HII_DIM, 2 * (HII_D_PARA / 2 + 1), "  ");
+                      simulation_options_global->HII_DIM, 2 * (HII_D_PARA / 2 + 1),
+                      FFTW_REAL_LAYOUT, "  ");
 
     // normalize after FFT
-    int bad_count = 0;
+    size_huge bad_count = 0;
 #pragma omp parallel shared(lowres_grid) private(i, j, k) \
     num_threads(simulation_options_global -> N_THREADS) reduction(+ : bad_count)
     {
-        unsigned long long int grid_index;
+        index_huge grid_index;
 #pragma omp for
         for (i = 0; i < simulation_options_global->HII_DIM; i++) {
             for (j = 0; j < simulation_options_global->HII_DIM; j++) {
@@ -271,10 +274,11 @@ void smooth_and_clip_density(fftwf_complex *lowres_grid, fftwf_complex *density_
             }
         }
     }
-    if (bad_count >= 5) LOG_WARNING("Total number of bad indices: %d", bad_count);
+    if (bad_count >= 5) LOG_WARNING("Total number of bad indices: %llu", bad_count);
     LOG_SUPER_DEBUG("delta normalized: ");
     debugSummarizeBox((float *)lowres_grid, simulation_options_global->HII_DIM,
-                      simulation_options_global->HII_DIM, 2 * (HII_D_PARA / 2 + 1), "  ");
+                      simulation_options_global->HII_DIM, 2 * (HII_D_PARA / 2 + 1),
+                      FFTW_REAL_LAYOUT, "  ");
 }
 
 void compute_perturbed_velocities(unsigned short axis, double redshift,
@@ -286,7 +290,7 @@ void compute_perturbed_velocities(unsigned short axis, double redshift,
 
     float kvec[3];
     double dDdt_over_D = ddickedt(redshift) / dicke(redshift);
-    unsigned long long int n_k_pixels, n_r_pixels;
+    size_huge n_k_pixels, n_r_pixels;
     // Function for deciding the dimensions of loops when we could
     // use either the low or high resolution grids.
     int box_dim[3];
@@ -316,7 +320,7 @@ void compute_perturbed_velocities(unsigned short axis, double redshift,
 #pragma omp parallel private(n_x, n_y, n_z, k_x, k_y, k_z, k_sq, kvec) \
     num_threads(simulation_options_global -> N_THREADS)
     {
-        unsigned long long grid_index;
+        index_huge grid_index;
 #pragma omp for
         for (n_x = 0; n_x < box_dim[0]; n_x++) {
             k_x = index_to_k(n_x, box_len[0], box_dim[0]);
@@ -346,8 +350,8 @@ void compute_perturbed_velocities(unsigned short axis, double redshift,
     }
 
     LOG_SUPER_DEBUG("density_perturb after modification by dDdt: ");
-    debugSummarizeBoxComplex((float complex *)velocity_fft_grid, box_dim[0], box_dim[1],
-                             box_dim[2] / 2 + 1, "  ");
+    debugSummarizeBoxComplex((fftwf_complex *)velocity_fft_grid, box_dim[0], box_dim[1],
+                             box_dim[2] / 2 + 1, FFTW_COMPLEX_LAYOUT, "  ");
 
     if (matter_options_global->PERTURB_ON_HIGH_RES &&
         simulation_options_global->DIM != simulation_options_global->HII_DIM) {
@@ -362,7 +366,7 @@ void compute_perturbed_velocities(unsigned short axis, double redshift,
 
 #pragma omp parallel private(i, j, k) num_threads(simulation_options_global -> N_THREADS)
     {
-        unsigned long long int grid_index_f, grid_index_r;
+        index_huge grid_index_f, grid_index_r;
         int grid_ipos[3];
 #pragma omp for
         for (i = 0; i < lo_dim[0]; i++) {
@@ -379,7 +383,7 @@ void compute_perturbed_velocities(unsigned short axis, double redshift,
     }
     LOG_SUPER_DEBUG("velocity: ");
     debugSummarizeBox(velocity, simulation_options_global->HII_DIM,
-                      simulation_options_global->HII_DIM, HII_D_PARA, "  ");
+                      simulation_options_global->HII_DIM, HII_D_PARA, STANDARD_LAYOUT, "  ");
 }
 
 int ComputePerturbedField(float redshift, InitialConditions *boxes,
@@ -445,7 +449,7 @@ int ComputePerturbedField(float redshift, InitialConditions *boxes,
                          HII_D_PARA};
 #pragma omp parallel num_threads(simulation_options_global->N_THREADS)
         {
-            unsigned long long int index_r, index_f;
+            index_huge index_r, index_f;
 #pragma omp for
             for (int i = 0; i < lo_dim[0]; i++) {
                 for (int j = 0; j < lo_dim[1]; j++) {
