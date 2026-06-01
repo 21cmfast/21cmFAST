@@ -44,7 +44,7 @@ double expected_nhalo(double redshift) {
     // minimum sampled mass
 
     double M_min;
-    if (matter_options_global->SOURCE_MODEL == 4)
+    if (matter_options_global->SOURCE_MODEL == SOURCE_MODEL_CHMF_SAMPLER)
         M_min = simulation_options_global->SAMPLER_MIN_MASS;
     else
         M_min = RtoM(physconst.l_factor * simulation_options_global->BOX_LEN /
@@ -54,7 +54,7 @@ double expected_nhalo(double redshift) {
     double result;
 
     init_ps();
-    if (matter_options_global->USE_INTERPOLATION_TABLES > INTERPOLATION_NO)
+    if (uses_interpolation_tables(matter_options_global->USE_INTERPOLATION_TABLES))
         initialiseSigmaMInterpTable(M_min, M_max);
 
     result = Nhalo_General(redshift, log(M_min), log(M_max)) * VOLUME * cosmo_params_global->OMm *
@@ -62,7 +62,8 @@ double expected_nhalo(double redshift) {
     LOG_DEBUG("Expected %.2e Halos in the box from masses %.2e to %.2e at z=%.2f", result, M_min,
               M_max, redshift);
 
-    if (matter_options_global->USE_INTERPOLATION_TABLES > INTERPOLATION_NO) freeSigmaMInterpTable();
+    if (uses_interpolation_tables(matter_options_global->USE_INTERPOLATION_TABLES))
+        freeSigmaMInterpTable();
 
     return result;
 }
@@ -99,7 +100,7 @@ void stoc_set_consts_z(struct HaloSamplingConstants *const_struct, double redshi
     const_struct->lnM_max_tb = log(const_struct->M_max_tables);
 
     init_ps();
-    if (matter_options_global->USE_INTERPOLATION_TABLES > INTERPOLATION_NO) {
+    if (uses_interpolation_tables(matter_options_global->USE_INTERPOLATION_TABLES)) {
         // the binary split needs to go below the resolution
         if (matter_options_global->SAMPLE_METHOD == SAMPLE_BINARY_SPLIT)
             initialiseSigmaMInterpTable(const_struct->M_min / 2, const_struct->M_max_tables);
@@ -1167,7 +1168,7 @@ int stochastic_halofield(random_huge seed, float redshift_desc, float redshift, 
                   halos->xray_rng[1], halos->xray_rng[2]);
     }
 
-    if (matter_options_global->USE_INTERPOLATION_TABLES > INTERPOLATION_NO) {
+    if (uses_interpolation_tables(matter_options_global->USE_INTERPOLATION_TABLES)) {
         freeSigmaMInterpTable();
     }
     free_dNdM_tables();
@@ -1310,7 +1311,7 @@ int single_test_sample(random_huge seed, int n_condition, float *conditions, flo
             }
         }
 
-        if (matter_options_global->USE_INTERPOLATION_TABLES > INTERPOLATION_NO) {
+        if (uses_interpolation_tables(matter_options_global->USE_INTERPOLATION_TABLES)) {
             freeSigmaMInterpTable();
         }
         free_dNdM_tables();

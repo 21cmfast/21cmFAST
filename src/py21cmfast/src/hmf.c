@@ -1238,7 +1238,7 @@ float Mass_limit_bisection(float Mmin, float Mmax, float PL, float FRAC) {
 //       from M_MIN_INTEGRAL
 double minimum_source_mass(double redshift, bool xray) {
     double Mmin, min_factor, mu_factor, t_vir_min;
-    if (matter_options_global->SOURCE_MODEL > SOURCE_MODEL_CONST_ION_EFF &&
+    if (source_model_is_mass_dependent(matter_options_global->SOURCE_MODEL) &&
         !astro_options_global->USE_MINI_HALOS)
         min_factor = 50.;  // small lower bound to cover far below the turnover
     else

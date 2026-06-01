@@ -180,7 +180,7 @@ void alloc_global_arrays() {
     }
 
     // Nonhalo stuff
-    if (matter_options_global->SOURCE_MODEL < SOURCE_MODEL_L_INTEGRAL) {
+    if (source_model_uses_eulerian_grids(matter_options_global->SOURCE_MODEL)) {
         int num_R_boxes =
             matter_options_global->MINIMIZE_MEMORY ? 1 : astro_params_global->N_STEP_TS;
 
@@ -283,7 +283,7 @@ void free_ts_global_arrays() {
     free(inverse_val_box);
 
     // interp tables
-    if (matter_options_global->SOURCE_MODEL < SOURCE_MODEL_L_INTEGRAL) {
+    if (source_model_uses_eulerian_grids(matter_options_global->SOURCE_MODEL)) {
         int num_R_boxes =
             matter_options_global->MINIMIZE_MEMORY ? 1 : astro_params_global->N_STEP_TS;
 
@@ -808,7 +808,7 @@ void fill_freqint_tables(double zp, double x_e_ave, double filling_factor_of_HI_
     int R_start, R_end;
     // if we minimize mem these arrays are filled one by one
     if (matter_options_global->MINIMIZE_MEMORY &&
-        matter_options_global->SOURCE_MODEL < SOURCE_MODEL_L_INTEGRAL) {
+        source_model_uses_eulerian_grids(matter_options_global->SOURCE_MODEL)) {
         R_start = R_mm;
         R_end = R_mm + 1;
     } else {
@@ -933,7 +933,7 @@ int global_reion_properties(double zp, double x_e_ave, double *log10_Mcrit_LW_av
     ScalingConstants sc;
     set_scaling_constants(zp, &sc, false);
 
-    if (matter_options_global->USE_INTERPOLATION_TABLES > INTERPOLATION_SIGMA) {
+    if (uses_hmf_interpolation(matter_options_global->USE_INTERPOLATION_TABLES)) {
         determine_zpp_min = zp * 0.999;
         // NOTE: must be called after setup_z_edges for this line
         determine_zpp_max = zpp_for_evolve_list[astro_params_global->N_STEP_TS - 1] * 1.001;
@@ -944,7 +944,7 @@ int global_reion_properties(double zp, double x_e_ave, double *log10_Mcrit_LW_av
         //   ~100 redshifts. The benefit of interpolating here would only matter if we keep the same
         //   table over subsequent snapshots, which we don't seem to do. The Nion table is used in
         //   nu_tau_one a lot but I think there's a better way to do that
-        if (matter_options_global->SOURCE_MODEL > SOURCE_MODEL_CONST_ION_EFF) {
+        if (source_model_is_mass_dependent(matter_options_global->SOURCE_MODEL)) {
             /* initialise interpolation of the mean collapse fraction for global reionization.*/
             initialise_Nion_Ts_spline(zpp_interp_points_SFR, determine_zpp_min, determine_zpp_max,
                                       &sc);
@@ -967,7 +967,7 @@ int global_reion_properties(double zp, double x_e_ave, double *log10_Mcrit_LW_av
     LOG_DEBUG("nion zp = %.3e (%.3e MINI)", sum_nion, sum_nion_mini);
 
     double ION_EFF_FACTOR, ION_EFF_FACTOR_MINI;
-    if (matter_options_global->SOURCE_MODEL > SOURCE_MODEL_CONST_ION_EFF) {
+    if (source_model_is_mass_dependent(matter_options_global->SOURCE_MODEL)) {
         ION_EFF_FACTOR = astro_params_global->F_STAR10 * astro_params_global->F_ESC10 *
                          astro_params_global->POP2_ION;
         ION_EFF_FACTOR_MINI = astro_params_global->F_STAR7_MINI * astro_params_global->F_ESC7_MINI *
@@ -981,7 +981,7 @@ int global_reion_properties(double zp, double x_e_ave, double *log10_Mcrit_LW_av
     *Q_HI = 1 - (ION_EFF_FACTOR * sum_nion + ION_EFF_FACTOR_MINI * sum_nion_mini) / (1.0 - x_e_ave);
 
     // Initialise freq tables & prefactors (x_e by R tables)
-    if (matter_options_global->SOURCE_MODEL >= SOURCE_MODEL_L_INTEGRAL ||
+    if (source_model_uses_integral_grids(matter_options_global->SOURCE_MODEL) ||
         !matter_options_global->MINIMIZE_MEMORY) {
         // Now global SFRD at (R_ct) for the mean fixing
         for (R_ct = 0; R_ct < astro_params_global->N_STEP_TS; R_ct++) {
@@ -1007,7 +1007,7 @@ void calculate_sfrd_from_grid(int R_ct, float *dens_R_grid, float *Mcrit_R_grid,
          astro_options_global->INTEGRATION_METHOD_MINI == INTEGRATION_METHOD_GAUSS_LEGENDRE))
         initialise_GL(log(M_min_R[R_ct]), log(M_max_R[R_ct]));
 
-    if (matter_options_global->USE_INTERPOLATION_TABLES > INTERPOLATION_SIGMA) {
+    if (uses_hmf_interpolation(matter_options_global->USE_INTERPOLATION_TABLES)) {
         if (matter_options_global->SOURCE_MODEL == SOURCE_MODEL_E_INTEGRAL) {
             initialise_SFRD_Conditional_table(zpp_for_evolve_list[R_ct],
                                               min_densities[R_ct] * zpp_growth[R_ct],
@@ -1158,7 +1158,7 @@ void set_zp_consts(double zp, struct spintemp_from_sfr_prefactors *consts) {
                                  (1 - 0.75 * cosmo_params_global->Y_He);
 
     // converts the grid emissivity unit to per cm-3
-    if (matter_options_global->SOURCE_MODEL > SOURCE_MODEL_E_INTEGRAL) {
+    if (source_model_uses_lagrangian_grids(matter_options_global->SOURCE_MODEL)) {
         consts->volunit_inv = pow(physconst.cm_per_Mpc, -3);
     } else {
         consts->volunit_inv = cosmo_params_global->OMb * RHOcrit * pow(physconst.cm_per_Mpc, -3);
@@ -1414,7 +1414,7 @@ void ts_main(float redshift, float prev_redshift, float perturbed_field_redshift
         M_MIN_tb = fmin(MMIN_FAST, M_MIN_tb);
 
     // we need a larger table here due to the large radii
-    if (matter_options_global->USE_INTERPOLATION_TABLES > INTERPOLATION_NO)
+    if (uses_interpolation_tables(matter_options_global->USE_INTERPOLATION_TABLES))
         initialiseSigmaMInterpTable(M_MIN_tb / 2, 1e20);
 
     // now that we have the sigma table we can assign the sigma arrays
@@ -1444,7 +1444,7 @@ void ts_main(float redshift, float prev_redshift, float perturbed_field_redshift
     fftwf_complex *delta_unfiltered = NULL;
     double log10_Mcrit_limit;
 
-    if (matter_options_global->SOURCE_MODEL < SOURCE_MODEL_L_INTEGRAL) {
+    if (source_model_uses_eulerian_grids(matter_options_global->SOURCE_MODEL)) {
         // copy over to FFTW, do the forward FFTs and apply constants
         delta_unfiltered =
             (fftwf_complex *)fftwf_malloc(sizeof(fftwf_complex) * HII_KSPACE_NUM_PIXELS);
@@ -1583,14 +1583,14 @@ void ts_main(float redshift, float prev_redshift, float perturbed_field_redshift
 
             // index for grids. For Eulerian grid source models (<2), we can use a single
             // filter radius at a time, if MINIMIZE_MEMORY=True
-            if (matter_options_global->SOURCE_MODEL < SOURCE_MODEL_L_INTEGRAL &&
+            if (source_model_uses_eulerian_grids(matter_options_global->SOURCE_MODEL) &&
                 matter_options_global->MINIMIZE_MEMORY) {
                 R_index = 0;
             } else {
                 R_index = R_ct;
             }
 
-            if (matter_options_global->SOURCE_MODEL < SOURCE_MODEL_L_INTEGRAL) {
+            if (source_model_uses_eulerian_grids(matter_options_global->SOURCE_MODEL)) {
                 if (matter_options_global->MINIMIZE_MEMORY) {
                     // we call the filtering functions once here per R
                     // This unnecessarily allocates and frees a fftwf box every time but surely
@@ -1672,7 +1672,7 @@ void ts_main(float redshift, float prev_redshift, float perturbed_field_redshift
                     // Secondly, it is *likely* faster to fill these boxes, and sum with a outer R
                     // loop than an inner one.
 
-                    if (matter_options_global->SOURCE_MODEL > SOURCE_MODEL_E_INTEGRAL) {
+                    if (source_model_uses_lagrangian_grids(matter_options_global->SOURCE_MODEL)) {
                         sfr_term = source_box->filtered_sfr[R_ct * HII_TOT_NUM_PIXELS + box_ct] *
                                    z_edge_factor;
                         // Minihalos and s->yr conversion are already included here
@@ -1687,7 +1687,8 @@ void ts_main(float redshift, float prev_redshift, float perturbed_field_redshift
                                    physconst.s_per_yr;
                     }
                     if (astro_options_global->USE_MINI_HALOS) {
-                        if (matter_options_global->SOURCE_MODEL > SOURCE_MODEL_E_INTEGRAL) {
+                        if (source_model_uses_lagrangian_grids(
+                                matter_options_global->SOURCE_MODEL)) {
                             sfr_term_mini =
                                 source_box->filtered_sfr_mini[R_ct * HII_TOT_NUM_PIXELS + box_ct] *
                                 z_edge_factor;
@@ -1727,7 +1728,7 @@ void ts_main(float redshift, float prev_redshift, float perturbed_field_redshift
                     // (filtered density) is not calculated
 #if LOG_LEVEL >= SUPER_DEBUG_LEVEL
                     if (box_ct == 0 &&
-                        matter_options_global->SOURCE_MODEL < SOURCE_MODEL_L_INTEGRAL) {
+                        source_model_uses_eulerian_grids(matter_options_global->SOURCE_MODEL)) {
                         double integral_db;
                         if (matter_options_global->SOURCE_MODEL == SOURCE_MODEL_E_INTEGRAL) {
                             integral_db =
@@ -1917,7 +1918,7 @@ void ts_main(float redshift, float prev_redshift, float perturbed_field_redshift
         }
     }
 
-    if (matter_options_global->SOURCE_MODEL < SOURCE_MODEL_L_INTEGRAL) {
+    if (source_model_uses_eulerian_grids(matter_options_global->SOURCE_MODEL)) {
         fftwf_free(delta_unfiltered);
         if (astro_options_global->USE_MINI_HALOS) {
             fftwf_free(log10_Mcrit_LW_unfiltered);

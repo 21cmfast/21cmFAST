@@ -388,7 +388,7 @@ int set_fixed_grids(double M_min, double M_max, InitialConditions *ini_boxes, fl
 
     LOG_DEBUG("Mean halo boxes || M = [%.2e %.2e] | Mcell = %.2e", M_min, M_max, M_cell);
     // These tables are coarser than needed, an initial loop for Mturn to find limits may help
-    if (matter_options_global->USE_INTERPOLATION_TABLES > INTERPOLATION_SIGMA) {
+    if (uses_hmf_interpolation(matter_options_global->USE_INTERPOLATION_TABLES)) {
         if (astro_options_global->INTEGRATION_METHOD_ATOMIC == INTEGRATION_METHOD_GAUSS_LEGENDRE ||
             (astro_options_global->USE_MINI_HALOS &&
              astro_options_global->INTEGRATION_METHOD_MINI == INTEGRATION_METHOD_GAUSS_LEGENDRE)) {
@@ -609,7 +609,7 @@ int ComputeHaloBox(double redshift, InitialConditions *ini_boxes, HaloCatalog *h
         double M_max_integral;
 
         init_ps();
-        if (matter_options_global->USE_INTERPOLATION_TABLES > INTERPOLATION_NO) {
+        if (uses_interpolation_tables(matter_options_global->USE_INTERPOLATION_TABLES)) {
             // this needs to be initialised above MMax because of Nion_General
             initialiseSigmaMInterpTable(M_min / 2, M_MAX_INTEGRAL);
         }
@@ -625,7 +625,7 @@ int ComputeHaloBox(double redshift, InitialConditions *ini_boxes, HaloCatalog *h
                             mturn_m_grid, &hbox_consts, mturn_averages);
         grids->log10_Mcrit_ACG_ave = mturn_averages[0];
         grids->log10_Mcrit_MCG_ave = mturn_averages[1];
-        if (matter_options_global->SOURCE_MODEL > SOURCE_MODEL_L_INTEGRAL) {
+        if (source_model_uses_sampled_halos(matter_options_global->SOURCE_MODEL)) {
             sum_halos_onto_grid(redshift, ini_boxes, halos, mturn_a_grid, mturn_m_grid,
                                 &hbox_consts, grids);
         }
@@ -654,7 +654,7 @@ int ComputeHaloBox(double redshift, InitialConditions *ini_boxes, HaloCatalog *h
         LOG_SUPER_DEBUG("log10 Mutrn ACG: %.6e", pow(10, grids->log10_Mcrit_ACG_ave));
         LOG_SUPER_DEBUG("log10 Mutrn MCG: %.6e", pow(10, grids->log10_Mcrit_MCG_ave));
 
-        if (matter_options_global->USE_INTERPOLATION_TABLES > INTERPOLATION_NO) {
+        if (uses_interpolation_tables(matter_options_global->USE_INTERPOLATION_TABLES)) {
             freeSigmaMInterpTable();
         }
     }
