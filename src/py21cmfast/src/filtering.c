@@ -133,7 +133,7 @@ void filter_box(fftwf_complex *box, int box_dim[3], int filter_type, float R, fl
     {
         int n_x, n_z, n_y;
         float k_x, k_y, k_z, k_mag_sq, kR;
-        unsigned long long grid_index;
+        index_huge grid_index;
 #pragma omp for
         for (n_x = 0; n_x < box_dim[0]; n_x++) {
             if (n_x > (box_dim[0] / 2)) {
@@ -197,7 +197,7 @@ void filter_box(fftwf_complex *box, int box_dim[3], int filter_type, float R, fl
 // Test function to filter a box without computing a whole output box
 int test_filter(float *input_box, double R, double R_param, int filter_flag, double *result) {
     int i, j, k;
-    unsigned long long int ii, jj;
+    index_huge ii, jj;
     int box_dim[3] = {
         simulation_options_global->HII_DIM, simulation_options_global->HII_DIM,
         simulation_options_global->NON_CUBIC_FACTOR * simulation_options_global->HII_DIM};

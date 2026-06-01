@@ -208,3 +208,9 @@ class Array:
             cache_backend=backend,
             state=self.state.loaded_from_disk(),
         )
+
+    def trimmed(self, trimmed_shape: tuple[int]) -> Self:
+        """Return a new Array with the same data but a different shape, by slicing the original array."""
+        slc = tuple(slice(0, n) for n in trimmed_shape)
+        trimmed_value = self.value[slc]
+        return attrs.evolve(self, shape=trimmed_shape, value=trimmed_value)

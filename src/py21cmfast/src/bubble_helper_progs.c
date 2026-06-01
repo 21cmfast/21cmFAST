@@ -267,7 +267,7 @@ void check_region(float *box, int dimensions, int dimensions_ncf, float Rsq_curr
 
     int index_arr[3];
     int box_dim[3] = {dimensions, dimensions, dimensions_ncf};
-    unsigned long long int index;
+    index_huge index;
     for (x_curr = x_min; x_curr <= x_max; x_curr++) {
         for (y_curr = y_min; y_curr <= y_max; y_curr++) {
             for (z_curr = z_min; z_curr <= z_max; z_curr++) {
@@ -343,7 +343,8 @@ void update_in_sphere(float *box, int dimensions, int dimensions_ncf, float R, f
     int x_curr, y_curr, z_curr, xb_min, xb_max, yb_min, yb_max, zb_min, zb_max, R_index;
     int xl_min, xl_max, yl_min, yl_max, zl_min, zl_max;
     float Rsq_curr_index;
-    int x, y, z, index;
+    int x, y, z;
+    index_huge index;
 
     int index_arr[3];
     int box_dim[3] = {dimensions, dimensions, dimensions_ncf};
