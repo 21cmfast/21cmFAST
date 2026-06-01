@@ -144,7 +144,8 @@ def show_references(inputs: InputParameters, lightcone=True, print_to_stdout=Tru
             "========================================================\n"
             "Flitter, J., Munoz, J. B., Mesinger, A.,\n"
             '"Semi-analytical approach to Lyman-alpha multiple-scattering in 21-cm signal simulations",\n'
-            "eprint arXiv:2601.14360, 2026. https://doi.org/10.48550/arXiv.2601.14360.\n\n"
+            "Physical Review D, vol. 113, no. 10, 103552, 2026.\n"
+            "https://doi.org/10.1103/5r5v-nk5j.\n\n"
         )
 
     if print_to_stdout:

@@ -20,7 +20,7 @@ def test_ref_printing():
     assert "10.1093/mnras/stac185" not in ref_str  # USE_RELATIVE_VELOCITIES
     assert "10.1093/mnras/stac2756" not in ref_str  # PHOTON_CONS
     assert "10.1051/0004-6361/202554951" not in ref_str  # LAGRANGIAN_SOURCE_MODEL
-    assert "10.48550/arXiv.2601.14360" not in ref_str  # LYA_MULTIPLE_SCATTERING
+    assert "10.1103/5r5v-nk5j" not in ref_str  # LYA_MULTIPLE_SCATTERING
 
     inputs = InputParameters.from_template(
         "mini-dhalos", random_seed=1234, K_MAX_FOR_CLASS=1.0
@@ -36,7 +36,7 @@ def test_ref_printing():
     assert "10.1093/mnras/stac185" in ref_str  # USE_RELATIVE_VELOCITIES
     assert "10.1093/mnras/stac2756" not in ref_str  # PHOTON_CONS
     assert "10.1051/0004-6361/202554951" in ref_str  # LAGRANGIAN_SOURCE_MODEL
-    assert "10.48550/arXiv.2601.14360" not in ref_str  # LYA_MULTIPLE_SCATTERING
+    assert "10.1103/5r5v-nk5j" not in ref_str  # LYA_MULTIPLE_SCATTERING
 
     inputs = InputParameters.from_template("const-zeta", random_seed=1234)
     ref_str = show_references(inputs, lightcone=True, print_to_stdout=True)
@@ -50,7 +50,7 @@ def test_ref_printing():
     assert "10.1093/mnras/stac185" not in ref_str  # USE_RELATIVE_VELOCITIES
     assert "10.1093/mnras/stac2756" not in ref_str  # PHOTON_CONS
     assert "10.1051/0004-6361/202554951" not in ref_str  # LAGRANGIAN_SOURCE_MODEL
-    assert "10.48550/arXiv.2601.14360" not in ref_str  # LYA_MULTIPLE_SCATTERING
+    assert "10.1103/5r5v-nk5j" not in ref_str  # LYA_MULTIPLE_SCATTERING
 
     inputs = InputParameters.from_template(
         "fixed-halos", random_seed=1234, LYA_MULTIPLE_SCATTERING=True
@@ -66,7 +66,7 @@ def test_ref_printing():
     assert "10.1093/mnras/stac185" not in ref_str  # USE_RELATIVE_VELOCITIES
     assert "10.1093/mnras/stac2756" not in ref_str  # PHOTON_CONS
     assert "10.1051/0004-6361/202554951" in ref_str  # LAGRANGIAN_SOURCE_MODEL
-    assert "10.48550/arXiv.2601.14360" in ref_str  # LYA_MULTIPLE_SCATTERING
+    assert "10.1103/5r5v-nk5j" in ref_str  # LYA_MULTIPLE_SCATTERING
 
     inputs = InputParameters.from_template(
         "latest", random_seed=1234, PHOTON_CONS_TYPE="z-photoncons"
@@ -82,7 +82,7 @@ def test_ref_printing():
     assert "10.1093/mnras/stac185" not in ref_str  # USE_RELATIVE_VELOCITIES
     assert "10.1093/mnras/stac2756" in ref_str  # PHOTON_CONS
     assert "10.1051/0004-6361/202554951" not in ref_str  # LAGRANGIAN_SOURCE_MODEL
-    assert "10.48550/arXiv.2601.14360" not in ref_str  # LYA_MULTIPLE_SCATTERING
+    assert "10.1103/5r5v-nk5j" not in ref_str  # LYA_MULTIPLE_SCATTERING
 
 
 class TestRecursiveDifference:

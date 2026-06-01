@@ -19,7 +19,8 @@ Lyman alpha multiple scattering
 
     Flitter, J., Munoz, J. B., Mesinger, A.,
     "Semi-analytical approach to Lyman-alpha multiple-scattering in 21-cm signal simulations",
-    eprint arXiv:2601.14360, 2026. https://doi.org/10.48550/arXiv.2601.14360.
+    Physical Review D, vol. 113, no. 10, 103552, 2026,
+    https://doi.org/10.1103/5r5v-nk5j.
 
 Discrete Halo Sampler / version 4:
 
