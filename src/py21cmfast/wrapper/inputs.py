@@ -609,8 +609,8 @@ class MatterOptions(InputStruct):
         Watson (Watson FOF)
         Watson-z (Watson FOF-z)
         Delos (Delos+23)
-        Reed07 (Reed+07)
-        Yung24 (Yung+24)
+        Reed07 (Reed+07; arXiv:0607150)
+        Yung24 (Yung+24; arXiv:2304.04348)
     USE_RELATIVE_VELOCITIES: int, optional
         Flag to decide whether to use relative velocities.
         If True, POWER_SPECTRUM is automatically set to 5. Default False.

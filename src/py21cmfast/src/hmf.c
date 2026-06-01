@@ -59,7 +59,7 @@
 #define SHETH_p (0.175)  // Sheth and Tormen p parameter (from Jenkins et al. 2001)
 #define SHETH_A (0.353)  // Sheth and Tormen A parameter (from Jenkins et al. 2001)
 
-// Reed 2007 parameters
+// Reed 2007 (arXiv:0607150) parameters
 #define REED07_A (0.3222)
 #define REED07_p (0.3)
 #define REED07_a (0.764)
@@ -69,7 +69,7 @@
 #define REED07_G2_CENTER (0.75)
 #define REED07_G2_WIDTH (0.2)
 
-// Yung et al. 2024 parameters for physical units (Msun, Mpc^-3 dex^-1)
+// Yung et al. 2024 (arXiv:2304.04348) parameters for physical units (Msun, Mpc^-3 dex^-1)
 #define YUNG24_A_0 (0.13765772)
 #define YUNG24_A_1 (-0.01003821)
 #define YUNG24_A_2 (0.00102964)
@@ -416,6 +416,7 @@ double dNdlnM_WatsonFOF_z(double z, double growthf, double lnM) {
     return -(dsigmadm / sigma) * f_sigma;
 }
 
+// Reed et al. 2007 halo mass function fit (arXiv:0607150)
 double dNdlnM_Reed07(double growthf, double lnM) {
     double sigma, sigma_z, dsigmadm, neff, nu, lnsigma, G_1, G_2, f_sigma, a_prefac;
 
@@ -437,6 +438,7 @@ double dNdlnM_Reed07(double growthf, double lnM) {
     return -(dsigmadm / sigma_z) * f_sigma;
 }
 
+// Yung et al. 2024 halo mass function fit (arXiv:2304.04348)
 double dNdlnM_Yung24(double z, double growthf, double lnM) {
     double sigma, sigma_z, dsigmadm, A_z, a_z, b_z, c_z, f_sigma;
 
