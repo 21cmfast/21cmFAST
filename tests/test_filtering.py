@@ -39,6 +39,7 @@ def call_test_filter(
         filter_flag,
         ffi.cast("double *", output_box.ctypes.data),
     )
+    return output_box
 
 
 # NOTE: These don't directly test against the expected FFT of these filters applied

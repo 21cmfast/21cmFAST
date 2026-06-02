@@ -126,6 +126,7 @@ class GlobalInitializationManager:
 
             sigma_min_mass = 5e2
             sigma_max_mass = 1e20
+
             lib.initialiseSigmaMInterpTable(sigma_min_mass, sigma_max_mass)
             self.sigma_inited = True
 
