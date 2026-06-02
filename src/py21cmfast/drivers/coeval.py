@@ -140,9 +140,11 @@ class Coeval:
             if fld.name in ignore_structs:
                 continue
 
-            if issubclass(fld.type, OutputStruct):
-                output_structs.append(fld.type)
-            else:
+            try:
+                if issubclass(fld.type, OutputStruct):
+                    output_structs.append(fld.type)
+            except TypeError:
+                # type is not a class, could be a Union
                 args = get_args(fld.type)
                 for k in args:
                     if issubclass(k, OutputStruct):
@@ -382,7 +384,17 @@ class Coeval:
             raise FileExistsError(f"The file {path} does not exist!")
 
         selfdict = attrs.fields_dict(cls)
-        type_to_name = {v.type.__name__: k for k, v in selfdict.items()}
+
+        type_to_name = {}
+        for k, v in selfdict.items():
+            try:
+                type_to_name[v.type.__name__] = k
+            except AttributeError:
+                # This means the field is a Union, so we need to check the args for the OutputStruct type
+                for arg in get_args(v.type):
+                    if issubclass(arg, OutputStruct):
+                        type_to_name[arg.__name__] = k
+                        break
 
         with h5py.File(path, "r") as fl:
             if not fl.attrs.get("coeval", False):

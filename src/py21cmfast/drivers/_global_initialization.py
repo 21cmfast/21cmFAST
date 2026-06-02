@@ -8,6 +8,7 @@ and interpolation tables.
 import functools
 import inspect
 import logging
+from collections.abc import Callable
 
 import attrs
 
@@ -153,7 +154,7 @@ def c_state_initializer(
     init_sigma: bool = False,
     init_heat: bool = False,
     init_recomb: bool = False,
-) -> callable:
+) -> Callable:
     """Build a decorator that calls init_func before and free_func after the wrapped function."""
 
     def _make_wrapper(func):

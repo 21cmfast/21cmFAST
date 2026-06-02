@@ -7,7 +7,8 @@ from matplotlib.colors import Normalize
 from py21cmfast.c_21cmfast import ffi, lib
 from scipy.stats import binned_statistic as binstat
 
-from py21cmfast.drivers._param_config import broadcast_input_struct
+from py21cmfast import InputParameters
+from py21cmfast.drivers._global_initialization import c_state_initializer
 
 from . import produce_integration_test_data as prd
 from .test_c_interpolation_tables import print_failure_stats
@@ -19,6 +20,25 @@ R_PARAM_LIST = [
     10,
     20,
 ]  # default test HII_DIM = 50, we want max R < BOX_LEN*HII_DIM/3
+
+
+@c_state_initializer(broadcast_inputs=True)
+def call_test_filter(
+    inputs: InputParameters,
+    input_box: np.ndarray,
+    R,
+    R_param,
+    filter_flag,
+):
+    output_box = np.zeros((inputs.simulation_options.HII_DIM,) * 3, dtype="f8")
+
+    lib.test_filter(
+        ffi.cast("float *", input_box.ctypes.data),
+        R,
+        R_param,
+        filter_flag,
+        ffi.cast("double *", output_box.ctypes.data),
+    )
 
 
 # NOTE: These don't directly test against the expected FFT of these filters applied
@@ -95,7 +115,6 @@ def test_filters(filter_flag, R, plt):
     # testing a single pixel source
     input_box_centre = np.zeros((up.HII_DIM,) * 3, dtype="f4")
     input_box_centre[up.HII_DIM // 2, up.HII_DIM // 2, up.HII_DIM // 2] = 1.0
-    output_box_centre = np.zeros((up.HII_DIM,) * 3, dtype="f8")
     # use MFP=20 for the exp filter, use a 4 cell shell for the annular filter
     if filter_flag == 3:
         R_param = 20
@@ -104,13 +123,12 @@ def test_filters(filter_flag, R, plt):
     else:
         R_param = 0
 
-    broadcast_input_struct(inputs)
-    lib.test_filter(
-        ffi.cast("float *", input_box_centre.ctypes.data),
-        R,
-        R_param,
-        filter_flag,
-        ffi.cast("double *", output_box_centre.ctypes.data),
+    output_box_centre = call_test_filter(
+        inputs=inputs,
+        input_box=input_box_centre,
+        R=R,
+        R_param=R_param,
+        filter_flag=filter_flag,
     )
 
     # expected outputs given in cell units
