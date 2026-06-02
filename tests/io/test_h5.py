@@ -153,7 +153,7 @@ class TestInputsIO:
     def test_roundtrip_with_precomputed_cosmo_tables(self, tmp_path, monkeypatch):
         """Cached cosmo tables in file are reused on read."""
         inputs = InputParameters(random_seed=0).evolve_input_structs(
-            POWER_SPECTRUM="CLASS"
+            POWER_SPECTRUM="CLASS", K_MAX_FOR_CLASS=1.0
         )
         _ = inputs.cosmo_tables
 
