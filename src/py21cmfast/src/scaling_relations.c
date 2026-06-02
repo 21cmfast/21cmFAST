@@ -37,7 +37,9 @@ void set_scaling_constants(double redshift, ScalingConstants *consts, bool use_p
     consts->redshift = redshift;
 
     // Set on for the fixed grid case since we are missing halos above the cell mass
-    consts->fix_mean = matter_options_global->HMF == 2 || matter_options_global->HMF == 3;
+    consts->fix_mean =
+        matter_options_global->HMF == HMF_WATSON || matter_options_global->HMF == HMF_WATSON_Z ||
+        matter_options_global->HMF == HMF_REED07 || matter_options_global->HMF == HMF_YUNG24;
     // whether to fix *integrated* (not sampled) galaxy properties to the expected mean
     consts->scaling_median = astro_options_global->HALO_SCALING_RELATIONS_MEDIAN;
 

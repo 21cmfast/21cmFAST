@@ -6,7 +6,7 @@ build-backend = "setuptools.build_meta"
 
 [tool.ruff]
 line-length = 88
-target-version = "py311"
+target-version = "py312"
 exclude = [
   "*.ipynb",  # include these later
   "devel/filter_valgrind.py",

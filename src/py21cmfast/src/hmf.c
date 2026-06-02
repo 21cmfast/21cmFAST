@@ -59,6 +59,30 @@
 #define SHETH_p (0.175)  // Sheth and Tormen p parameter (from Jenkins et al. 2001)
 #define SHETH_A (0.353)  // Sheth and Tormen A parameter (from Jenkins et al. 2001)
 
+// Reed 2007 (arXiv:0607150) parameters
+#define REED07_A (0.3222)
+#define REED07_p (0.3)
+#define REED07_a (0.764)
+#define REED07_c (1.08)
+#define REED07_G1_CENTER (0.4)
+#define REED07_G1_WIDTH (0.6)
+#define REED07_G2_CENTER (0.75)
+#define REED07_G2_WIDTH (0.2)
+
+// Yung et al. 2024 (arXiv:2304.04348) parameters for physical units (Msun, Mpc^-3 dex^-1)
+#define YUNG24_A_0 (0.13765772)
+#define YUNG24_A_1 (-0.01003821)
+#define YUNG24_A_2 (0.00102964)
+#define YUNG24_a_0 (1.06641384)
+#define YUNG24_a_1 (0.02475576)
+#define YUNG24_a_2 (-0.00283342)
+#define YUNG24_b_0 (4.86693806)
+#define YUNG24_b_1 (0.09212356)
+#define YUNG24_b_2 (-0.01426283)
+#define YUNG24_c_0 (1.19837952)
+#define YUNG24_c_1 (-0.00142967)
+#define YUNG24_c_2 (-0.00033074)
+
 // Gauss-Legendre integration constants
 #define NGL_INT 100  // 100
 // These arrays hold the points and weights for the Gauss-Legendre integration routine
@@ -129,10 +153,19 @@ double sheth_delc_fixed(double del, double sig) {
            (1. + JENKINS_b * pow(sig * sig / (JENKINS_a * del * del), JENKINS_c));
 }
 
+double effective_spectral_index(double lnM) {
+    double sigma, dsigmasqdm, dlnsdlnm;
+    sigma = EvaluateSigma(lnM);
+    dsigmasqdm = EvaluatedSigmasqdm(lnM);
+    dlnsdlnm = -exp(lnM) * dsigmasqdm / (2. * sigma * sigma);
+
+    return -3. * (2. * dlnsdlnm + 1.);
+}
+
 // Get the relevant excursion set barrier density given the user-specified HMF
 double get_delta_crit(int HMF, double sigma, double growthf) {
-    if (HMF == 4) return physconst.delta_c_delos;
-    if (HMF == 1) return sheth_delc_fixed(physconst.delta_c_sph / growthf, sigma) * growthf;
+    if (HMF == HMF_DELOS) return physconst.delta_c_delos;
+    if (HMF == HMF_ST) return sheth_delc_fixed(physconst.delta_c_sph / growthf, sigma) * growthf;
 
     return physconst.delta_c_sph;
 }
@@ -383,6 +416,47 @@ double dNdlnM_WatsonFOF_z(double z, double growthf, double lnM) {
     return -(dsigmadm / sigma) * f_sigma;
 }
 
+// Reed et al. 2007 halo mass function fit (arXiv:0607150)
+double dNdlnM_Reed07(double growthf, double lnM) {
+    double sigma, sigma_z, dsigmadm, neff, nu, lnsigma, G_1, G_2, f_sigma, a_prefac;
+
+    sigma = EvaluateSigma(lnM);
+    dsigmadm = EvaluatedSigmasqdm(lnM);
+    sigma_z = sigma * growthf;
+    dsigmadm = dsigmadm * (growthf * growthf / (2. * sigma_z));
+    neff = effective_spectral_index(lnM);
+    nu = physconst.delta_c_sph / sigma_z;
+    lnsigma = -log(sigma_z);
+    G_1 = exp(-pow(lnsigma - REED07_G1_CENTER, 2) / (2. * REED07_G1_WIDTH * REED07_G1_WIDTH));
+    G_2 = exp(-pow(lnsigma - REED07_G2_CENTER, 2) / (2. * REED07_G2_WIDTH * REED07_G2_WIDTH));
+    a_prefac = REED07_a / REED07_c;
+
+    f_sigma = REED07_A * sqrt(2. * a_prefac / M_PI) *
+              (1. + pow(1. / (a_prefac * nu * nu), REED07_p) + 0.6 * G_1 + 0.4 * G_2) * nu *
+              exp(-REED07_c * a_prefac * nu * nu / 2. - 0.03 * pow(nu, 0.6) / pow(neff + 3., 2));
+
+    return -(dsigmadm / sigma_z) * f_sigma;
+}
+
+// Yung et al. 2024 halo mass function fit (arXiv:2304.04348)
+double dNdlnM_Yung24(double z, double growthf, double lnM) {
+    double sigma, sigma_z, dsigmadm, A_z, a_z, b_z, c_z, f_sigma;
+
+    sigma = EvaluateSigma(lnM);
+    dsigmadm = EvaluatedSigmasqdm(lnM);
+    sigma_z = sigma * growthf;
+    dsigmadm = dsigmadm * (growthf * growthf / (2. * sigma_z));
+
+    A_z = YUNG24_A_0 + YUNG24_A_1 * z + YUNG24_A_2 * z * z;
+    a_z = YUNG24_a_0 + YUNG24_a_1 * z + YUNG24_a_2 * z * z;
+    b_z = YUNG24_b_0 + YUNG24_b_1 * z + YUNG24_b_2 * z * z;
+    c_z = YUNG24_c_0 + YUNG24_c_1 * z + YUNG24_c_2 * z * z;
+
+    f_sigma = A_z * (pow(sigma_z / b_z, -a_z) + 1.) * exp(-c_z / (sigma_z * sigma_z));
+
+    return -(dsigmadm / sigma_z) * f_sigma;
+}
+
 // Halo property helper functions for HMF integrals
 // scaling relation for M_halo --> n_ion used in integrands
 double nion_fraction(double lnM, void *param_struct) {
@@ -436,13 +510,13 @@ double xray_fraction_doublePL(double lnM, void *param_struct) {
 
 double conditional_hmf(double growthf, double lnM, double delta, double sigma, int HMF) {
     // dNdlnM = dfcoll/dM * M / M * constants
-    if (HMF == 0) {
+    if (HMF == HMF_PS) {
         return dNdM_conditional_EPS(growthf, lnM, delta, sigma);
     }
-    if (HMF == 1) {
+    if (HMF == HMF_ST) {
         return dNdM_conditional_ST(growthf, lnM, delta, sigma);
     }
-    if (HMF == 4) {
+    if (HMF == HMF_DELOS) {
         return dNdlnM_conditional_Delos(growthf, lnM, delta, sigma);
     }
     // NOTE: Normalisation scaling is currently applied outside the integral, per condition
@@ -478,21 +552,26 @@ double c_xray_integrand(double lnM, void *param_struct) {
 
 double unconditional_hmf(double growthf, double lnM, double z, int HMF) {
     // most of the UMFs are defined with M, but we integrate over lnM
-    // NOTE: HMF > 4 or < 0 gets caught earlier, so unless some strange change is made this is fine
-    if (HMF == 0) {
+    if (HMF == HMF_PS) {
         return dNdlnM_PS(growthf, lnM);
     }
-    if (HMF == 1) {
+    if (HMF == HMF_ST) {
         return dNdlnM_st(growthf, lnM);
     }
-    if (HMF == 2) {
+    if (HMF == HMF_WATSON) {
         return dNdlnM_WatsonFOF(growthf, lnM);
     }
-    if (HMF == 3) {
+    if (HMF == HMF_WATSON_Z) {
         return dNdlnM_WatsonFOF_z(z, growthf, lnM);
     }
-    if (HMF == 4) {
+    if (HMF == HMF_DELOS) {
         return dNdlnM_Delos(growthf, lnM);
+    }
+    if (HMF == HMF_REED07) {
+        return dNdlnM_Reed07(growthf, lnM);
+    }
+    if (HMF == HMF_YUNG24) {
+        return dNdlnM_Yung24(z, growthf, lnM);
     } else {
         LOG_ERROR("Invalid HMF %d", HMF);
         Throw(ValueError);

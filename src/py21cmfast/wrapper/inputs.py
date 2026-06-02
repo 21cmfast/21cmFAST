@@ -604,14 +604,14 @@ class MatterOptions(InputStruct):
         Determines which halo mass function to be used for the normalisation of the
         collapsed fraction (default Sheth-Tormen). Should be one of the
         following codes:
-
-        * PS (Press-Schechter)
-        * ST (Sheth-Tormen)
-        * Watson (Watson FOF)
-        * Watson-z (Watson FOF-z)
-        * Delos (Delos+23)
-
-    USE_RELATIVE_VELOCITIES
+        PS (Press-Schechter)
+        ST (Sheth-Tormen)
+        Watson (Watson FOF)
+        Watson-z (Watson FOF-z)
+        Delos (Delos+23)
+        Reed07 (Reed+07; arXiv:0607150)
+        Yung24 (Yung+24; arXiv:2304.04348)
+    USE_RELATIVE_VELOCITIES: int, optional
         Flag to decide whether to use relative velocities.
         If True, POWER_SPECTRUM is automatically set to 5. Default False.
     POWER_SPECTRUM
@@ -704,7 +704,9 @@ class MatterOptions(InputStruct):
           the 'DEXM-ESF' method for halos above the HII_DIM cell mass.
     """
 
-    HMF: Literal["PS", "ST", "WATSON", "WATSON-Z", "DELOS"] = choice_field(default="ST")
+    HMF: Literal["PS", "ST", "WATSON", "WATSON-Z", "DELOS", "REED07", "YUNG24"] = (
+        choice_field(default="ST")
+    )
     USE_RELATIVE_VELOCITIES: bool = field(default=False, converter=bool)
     POWER_SPECTRUM: Literal["EH", "BBKS", "EFSTATHIOU", "PEEBLES", "WHITE", "CLASS"] = (
         choice_field()
