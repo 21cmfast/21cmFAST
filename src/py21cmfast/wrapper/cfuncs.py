@@ -69,7 +69,6 @@ def get_halo_catalog_buffer_size(
     hbuffer_size = get_expected_nhalo(
         redshift=redshift,
         inputs=inputs,
-        init_manager=kwargs.get("init_manager"),
     )
     hbuffer_size = int((hbuffer_size + 1) * config["HALO_CATALOG_MEM_FACTOR"])
 

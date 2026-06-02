@@ -205,7 +205,6 @@ def determine_halo_catalog(
         redshift=redshift,
         desc_redshift=descendant_halos.redshift,
         inputs=inputs,
-        init_manager=kwargs.get("init_manager"),
     )
 
     # Run the C Code

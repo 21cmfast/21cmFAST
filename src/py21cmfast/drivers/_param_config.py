@@ -392,7 +392,6 @@ class _OutputStructComputationInspect:
         # First check whether the boxes already exist.
         if issubclass(self._kls, OutputStructZ):
             if issubclass(self._kls, HaloCatalog | PerturbedHaloCatalog):
-                # We need to provide init_manager because there is a call to a C function when doing HaloCatalog.new()
                 obj = self._kls.new(
                     inputs=inputs,
                     redshift=current_redshift,

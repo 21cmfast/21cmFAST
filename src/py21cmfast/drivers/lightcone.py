@@ -690,7 +690,6 @@ def generate_lightcone(
     iokw = {
         "cache": cache,
         "regenerate": regenerate,
-        "init_manager": kwargs.get("init_manager"),
     }
 
     (

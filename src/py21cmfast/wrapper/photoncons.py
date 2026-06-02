@@ -289,12 +289,6 @@ def calibrate_photon_cons(
     # avoiding circular imports by importing here
     from ..drivers.single_field import compute_ionization_field, perturb_field
 
-    # The single field calls below use inputs_calibration, not the inputs that was already broadcast by
-    # the high-level caller. We therefore toggle off the broadcast_inputs flag, so that the single field
-    # calls will broadcast inputs_calibration
-    # TODO: This is hacky (better to put this entire module under high_level_func)
-    kwargs["init_manager"].broadcast_inputs = False
-
     # Create a new astro_params and astro_options just for the photon_cons correction
     # NOTE: Since the calibration cannot do INHOMO_RECO, we set the R_BUBBLE_MAX
     #   to the default w/o recombinations ONLY when the original box has INHOMO_RECO enabled.

@@ -584,7 +584,6 @@ def generate_coeval(
     iokw = {
         "regenerate": regenerate,
         "cache": cache,
-        "init_manager": kwargs.get("init_manager"),
     }
 
     if not hasattr(out_redshifts, "__len__"):
