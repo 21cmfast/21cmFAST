@@ -146,6 +146,8 @@ def _write_inputs_to_group(
         mode="full",
         only_structs=True,
         camel=False,
+        # Cache files should persist cosmo tables only when already materialized,
+        # so serialization never forces a CLASS run on write.
         include_cosmo_tables="if_cached",
     )
 

@@ -22,9 +22,7 @@ def test_ref_printing():
     assert "10.1051/0004-6361/202554951" not in ref_str  # LAGRANGIAN_SOURCE_MODEL
     assert "10.48550/arXiv.2601.14360" not in ref_str  # LYA_MULTIPLE_SCATTERING
 
-    inputs = InputParameters.from_template(
-        "mini-dhalos", random_seed=1234, K_MAX_FOR_CLASS=1.0
-    )
+    inputs = InputParameters.from_template("mini-dhalos", random_seed=1234)
     ref_str = show_references(inputs, lightcone=True, print_to_stdout=False)
 
     assert "2011MNRAS.411..955M" in ref_str  # 21cmFAST first paper

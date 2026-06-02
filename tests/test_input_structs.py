@@ -602,9 +602,7 @@ class TestInputParameters:
         assert self.default.cosmo_tables.ps_norm == self.default.cosmo_params.SIGMA_8
         assert self.default.cosmo_tables.USE_SIGMA_8
 
-        altered_struct_CLASS = self.default.evolve_input_structs(
-            POWER_SPECTRUM="CLASS", K_MAX_FOR_CLASS=1.0
-        )
+        altered_struct_CLASS = self.default.evolve_input_structs(POWER_SPECTRUM="CLASS")
         altered_struct2 = self.default.evolve_input_structs(OMm=0.5)
         altered_struct3 = altered_struct2.evolve_input_structs(POWER_SPECTRUM="EH")
 

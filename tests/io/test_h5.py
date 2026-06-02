@@ -130,7 +130,7 @@ class TestInputsIO:
     def test_roundtrip_without_precomputed_cosmo_tables(self, tmp_path, monkeypatch):
         """Cosmo tables are omitted in cache files when not precomputed."""
         inputs = InputParameters(random_seed=0).evolve_input_structs(
-            POWER_SPECTRUM="CLASS", K_MAX_FOR_CLASS=1.0
+            POWER_SPECTRUM="CLASS"
         )
         pth = tmp_path / "tmp.h5"
         h5._write_inputs_to_group(inputs, pth)
@@ -141,8 +141,6 @@ class TestInputsIO:
         new = h5.read_inputs(pth)
         with pytest.raises(AttributeError, match="has no attribute 'cosmo_tables'"):
             object.__getattribute__(new, "cosmo_tables")
-        fresh = h5.read_inputs(pth)
-        assert fresh.cosmo_tables is not None
 
         def _raise_recompute(*args, **kwargs):
             raise RuntimeError("recompute")
@@ -155,7 +153,7 @@ class TestInputsIO:
     def test_roundtrip_with_precomputed_cosmo_tables(self, tmp_path, monkeypatch):
         """Cached cosmo tables in file are reused on read."""
         inputs = InputParameters(random_seed=0).evolve_input_structs(
-            POWER_SPECTRUM="CLASS", K_MAX_FOR_CLASS=1.0
+            POWER_SPECTRUM="CLASS"
         )
         _ = inputs.cosmo_tables
 

@@ -2151,12 +2151,42 @@ class InputParameters:
         use_aliases: bool = True,
         include_cosmo_tables: Literal["always", "if_cached", "never"] = "always",
     ) -> dict[str, dict[str, Any]]:
-        """Convert the instance to a recursive dictionary."""
+        """Convert the instance to a recursive dictionary.
+
+        Parameters
+        ----------
+        only_structs
+            If True, only include parameter-struct-like fields (including
+            ``cosmo_tables`` when included).
+        camel
+            If True, convert top-level input struct keys to CamelCase.
+        remove_base_cosmo
+            If True, remove the non-serializable ``_base_cosmo`` object from
+            ``cosmo_params``.
+        only_cstruct_params
+            If True, keep only fields that are required by each C struct.
+        use_aliases
+            If True, use constructor aliases for InputStruct fields (e.g. ``DIM``
+            instead of ``_DIM``).
+        include_cosmo_tables
+            Controls whether cached cosmology tables are emitted in the dictionary.
+
+            - ``"always"``: force materialization of :attr:`cosmo_tables` and include
+              it in the output. This is the default for in-memory conversions.
+            - ``"if_cached"``: include tables only if they were already materialized,
+              which avoids triggering CLASS work during serialization.
+            - ``"never"``: omit tables entirely, useful for portable templates.
+        """
         dct = attrs.asdict(self, recurse=True)
 
+        # We use a tri-state here because different writers need different behavior:
+        # full in-memory snapshots, cache writes that should not trigger CLASS, and
+        # portable template files that should never store derived tables.
         if include_cosmo_tables == "always":
             dct["cosmo_tables"] = attrs.asdict(self.cosmo_tables, recurse=True)
         elif include_cosmo_tables == "if_cached":
+            # On attrs slot classes, the cached value is absent until materialized,
+            # and object.__getattribute__ raises AttributeError in that case.
             try:
                 cosmo_tables = object.__getattribute__(self, "cosmo_tables")
             except AttributeError:

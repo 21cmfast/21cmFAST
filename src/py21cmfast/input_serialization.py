@@ -51,6 +51,12 @@ def convert_inputs_to_dict(
         If True, use correct aliases for parameters, which allows the dictionary
         to be passed back into the InputStruct constructors (e.g. use DIM instead
         of _DIM).
+    include_cosmo_tables
+        Controls whether derived ``cosmo_tables`` are emitted.
+
+        - ``"always"`` includes them and may materialize CLASS-derived tables.
+        - ``"if_cached"`` includes them only if already materialized on ``inputs``.
+        - ``"never"`` omits them.
     """
     kw = {
         "only_structs": only_structs,
@@ -89,6 +95,24 @@ def prepare_inputs_for_serialization(
     This is a thin wrapper around :func:`~convert_inputs_to_dict` that also
     ensures that 'None' values are removed (so long as their default is also None)
     and that the parameter names map back to aliases of InputStruct attributes.
+
+    Parameters
+    ----------
+    inputs
+        The input parameters to convert.
+    mode
+        Either ``"full"`` or ``"minimal"``. ``"minimal"`` keeps only differences
+        from defaults (plus any included ``cosmo_tables``).
+    only_structs
+        If True, include only input-struct fields.
+    camel
+        If True, use CamelCase top-level struct keys.
+    include_cosmo_tables
+        Forwarded to :func:`convert_inputs_to_dict`.
+
+        Use ``"if_cached"`` for cache writes to avoid triggering expensive CLASS
+        computations, and ``"never"`` for template files that should not carry
+        derived tables.
     """
     dct = convert_inputs_to_dict(
         inputs,
@@ -166,6 +190,12 @@ def deserialize_inputs(
         InputParameters (e.g. CosmoParams, SimulationOptions), and whose values
         are dictionaries of parameters specific to each struct. Not every parameter
         of every struct is required.
+    safe
+        Whether to raise on unrecognized/excess parameters.
+    include_cosmo_tables
+        Whether to deserialize the optional ``CosmoTables`` block if present.
+        This is intentionally a boolean because deserialization does not need the
+        tri-state behavior used when serializing.
 
     Other Parameters
     ----------------
