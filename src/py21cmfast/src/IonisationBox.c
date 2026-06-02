@@ -147,8 +147,9 @@ void set_ionbox_constants(double redshift, double prev_redshift, struct IonBoxCo
 
     // whether to fix *integrated* (not sampled) galaxy properties to the expected mean
     //   constant for now, to be a flag later
-    consts->mass_dep_zeta = matter_options_global->SOURCE_MODEL > 0;
-    consts->lagrangian_source_grids = matter_options_global->SOURCE_MODEL > 1;
+    consts->mass_dep_zeta = source_model_is_mass_dependent(matter_options_global->SOURCE_MODEL);
+    consts->lagrangian_source_grids =
+        source_model_uses_lagrangian_grids(matter_options_global->SOURCE_MODEL);
     consts->fix_mean = !consts->lagrangian_source_grids;  // for now, opposite of above
     consts->need_minihalo_nion =
         !consts->lagrangian_source_grids && astro_options_global->USE_MINI_HALOS;
@@ -158,7 +159,7 @@ void set_ionbox_constants(double redshift, double prev_redshift, struct IonBoxCo
     consts->hii_filter = astro_options_global->HII_FILTER;
     consts->T_re = astro_params_global->T_RE;
 
-    if (matter_options_global->SOURCE_MODEL > 0) {
+    if (source_model_is_mass_dependent(matter_options_global->SOURCE_MODEL)) {
         consts->ion_eff_factor_gl = sc.pop2_ion * sc.fstar_10 * sc.fesc_10;
         consts->ion_eff_factor_mini_gl = sc.pop3_ion * sc.fstar_7 * sc.fesc_7;
     } else {
@@ -233,7 +234,8 @@ void allocate_fftw_grids(struct FilteredGrids **fg_struct) {
     (*fg_struct)->deltax_filtered =
         (fftwf_complex *)fftwf_malloc(sizeof(fftwf_complex) * HII_KSPACE_NUM_PIXELS);
 
-    if (astro_options_global->USE_MINI_HALOS && matter_options_global->SOURCE_MODEL < 2) {
+    if (astro_options_global->USE_MINI_HALOS &&
+        source_model_uses_eulerian_grids(matter_options_global->SOURCE_MODEL)) {
         (*fg_struct)->prev_deltax_unfiltered =
             (fftwf_complex *)fftwf_malloc(sizeof(fftwf_complex) * HII_KSPACE_NUM_PIXELS);
         (*fg_struct)->prev_deltax_filtered =
@@ -263,7 +265,7 @@ void allocate_fftw_grids(struct FilteredGrids **fg_struct) {
             (fftwf_complex *)fftwf_malloc(sizeof(fftwf_complex) * HII_KSPACE_NUM_PIXELS);
     }
 
-    if (matter_options_global->SOURCE_MODEL > 1) {
+    if (source_model_uses_lagrangian_grids(matter_options_global->SOURCE_MODEL)) {
         (*fg_struct)->stars_unfiltered =
             (fftwf_complex *)fftwf_malloc(sizeof(fftwf_complex) * HII_KSPACE_NUM_PIXELS);
         (*fg_struct)->stars_filtered =
@@ -283,7 +285,8 @@ void free_fftw_grids(struct FilteredGrids *fg_struct) {
     fftwf_free(fg_struct->deltax_unfiltered);
     fftwf_free(fg_struct->deltax_filtered);
 
-    if (astro_options_global->USE_MINI_HALOS && matter_options_global->SOURCE_MODEL < 2) {
+    if (astro_options_global->USE_MINI_HALOS &&
+        source_model_uses_eulerian_grids(matter_options_global->SOURCE_MODEL)) {
         fftwf_free(fg_struct->prev_deltax_unfiltered);
         fftwf_free(fg_struct->prev_deltax_filtered);
 
@@ -301,7 +304,7 @@ void free_fftw_grids(struct FilteredGrids *fg_struct) {
         fftwf_free(fg_struct->N_rec_filtered);
     }
 
-    if (matter_options_global->SOURCE_MODEL > 1) {
+    if (source_model_uses_lagrangian_grids(matter_options_global->SOURCE_MODEL)) {
         fftwf_free(fg_struct->stars_unfiltered);
         fftwf_free(fg_struct->stars_filtered);
         if (astro_options_global->INHOMO_RECO) {
@@ -465,7 +468,7 @@ void set_mean_fcoll(struct IonBoxConstants *c, IonizedBox *prev_box, IonizedBox 
                     double mturn_acg, double mturn_mcg, double *f_limit_acg, double *f_limit_mcg) {
     double f_coll_curr = 0., f_coll_prev = 0., f_coll_curr_mini = 0., f_coll_prev_mini = 0.;
     ScalingConstants *sc_ptr = &(c->scale_consts);
-    if (matter_options_global->SOURCE_MODEL > 0) {
+    if (source_model_is_mass_dependent(matter_options_global->SOURCE_MODEL)) {
         f_coll_curr = Nion_General(c->redshift, c->lnMmin, c->lnMmax_gl, mturn_acg, sc_ptr);
         *f_limit_acg = Nion_General(simulation_options_global->Z_HEAT_MAX, c->lnMmin, c->lnMmax_gl,
                                     mturn_acg, sc_ptr);
@@ -720,11 +723,11 @@ void setup_integration_tables(struct FilteredGrids *fg_struct, struct IonBoxCons
         LOG_SUPER_DEBUG("Tb limits d (%.2e,%.2e), m (%.2e,%.2e) t (%.2e,%.2e) tm (%.2e,%.2e)",
                         min_density, max_density, consts->M_min, rspec.M_max_R, log10Mturn_min,
                         log10Mturn_max, log10Mturn_min_MINI, log10Mturn_max_MINI);
-        if (astro_options_global->INTEGRATION_METHOD_ATOMIC == 1 ||
+        if (astro_options_global->INTEGRATION_METHOD_ATOMIC == INTEGRATION_METHOD_GAUSS_LEGENDRE ||
             (astro_options_global->USE_MINI_HALOS &&
-             astro_options_global->INTEGRATION_METHOD_MINI == 1))
+             astro_options_global->INTEGRATION_METHOD_MINI == INTEGRATION_METHOD_GAUSS_LEGENDRE))
             initialise_GL(consts->lnMmin, rspec.ln_M_max_R);
-        if (matter_options_global->USE_INTERPOLATION_TABLES > 1) {
+        if (uses_hmf_interpolation(matter_options_global->USE_INTERPOLATION_TABLES)) {
             // Buffers to avoid both zero bin widths and max cell segfault in 2D interptables
             prev_min_density -= 0.001;
             prev_max_density += 0.001;
@@ -754,7 +757,7 @@ void setup_integration_tables(struct FilteredGrids *fg_struct, struct IonBoxCons
         // (and some others)
         // TODO: I don't expect this to be a bottleneck, but we can look into re-making the 2/3D
         // ERFC tables if needed
-        if (matter_options_global->USE_INTERPOLATION_TABLES > 1)
+        if (uses_hmf_interpolation(matter_options_global->USE_INTERPOLATION_TABLES))
             initialise_FgtrM_delta_table(min_density, max_density, consts->redshift,
                                          consts->growth_factor, consts->sigma_minmass,
                                          rspec.sigma_maxmass);
@@ -1353,7 +1356,7 @@ int ComputeIonizedBox(float redshift, float prev_redshift, PerturbedField *pertu
         // correction
         float absolute_delta_z = 0.;
         float redshift_pc, stored_redshift_pc;
-        if (astro_options_global->PHOTON_CONS_TYPE == 1) {
+        if (astro_options_global->PHOTON_CONS_TYPE == PHOTON_CONS_Z) {
             redshift_pc = redshift;
             adjust_redshifts_for_photoncons(simulation_options_global->ZPRIME_STEP_FACTOR,
                                             &redshift_pc, &stored_redshift_pc, &absolute_delta_z);
@@ -1425,7 +1428,7 @@ int ComputeIonizedBox(float redshift, float prev_redshift, PerturbedField *pertu
 
         if (astro_options_global->INTEGRATION_METHOD_ATOMIC == 1 ||
             (astro_options_global->USE_MINI_HALOS &&
-             astro_options_global->INTEGRATION_METHOD_MINI == 1))
+             astro_options_global->INTEGRATION_METHOD_MINI == INTEGRATION_METHOD_GAUSS_LEGENDRE))
             initialise_GL(ionbox_constants.lnMmin, ionbox_constants.lnMmax_gl);
 
         double f_limit_acg;

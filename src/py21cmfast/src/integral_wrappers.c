@@ -109,7 +109,7 @@ void get_global_SFRD_z(int n_redshift, double *redshifts, double *log10_turnover
         if (redshifts[i] > z_max) z_max = redshifts[i];
     }
 
-    if (matter_options_global->USE_INTERPOLATION_TABLES > 1) {
+    if (uses_hmf_interpolation(matter_options_global->USE_INTERPOLATION_TABLES)) {
         initialise_SFRD_spline(zpp_interp_points_SFR, z_min, z_max + 0.01, &sc);
     }
 
@@ -133,7 +133,7 @@ void get_global_Nion_z(int n_redshift, double *redshifts, double *log10_turnover
         if (redshifts[i] > z_max) z_max = redshifts[i];
     }
 
-    if (matter_options_global->USE_INTERPOLATION_TABLES > 1) {
+    if (uses_hmf_interpolation(matter_options_global->USE_INTERPOLATION_TABLES)) {
         initialise_Nion_Ts_spline(zpp_interp_points_SFR, z_min, z_max + 0.01, &sc);
     }
     for (i = 0; i < n_redshift; i++) {
@@ -161,7 +161,7 @@ void get_conditional_FgtrM(double redshift, double R, int n_densities, double *d
         if (dens < min_dens) min_dens = dens;
         if (dens > max_dens) max_dens = dens;
     }
-    if (matter_options_global->USE_INTERPOLATION_TABLES > 1) {
+    if (uses_hmf_interpolation(matter_options_global->USE_INTERPOLATION_TABLES)) {
         initialise_FgtrM_delta_table(min_dens, max_dens + 0.01, redshift, growthf, sigma_min,
                                      sigma_cond);
     }
@@ -180,9 +180,9 @@ void get_conditional_SFRD(double redshift, double R, int n_densities, double *de
     double sigma_cond = EvaluateSigma(log(M_cond));
     double growthf = dicke(redshift);
 
-    if (astro_options_global->INTEGRATION_METHOD_ATOMIC == 1 ||
+    if (astro_options_global->INTEGRATION_METHOD_ATOMIC == INTEGRATION_METHOD_GAUSS_LEGENDRE ||
         (astro_options_global->USE_MINI_HALOS &&
-         astro_options_global->INTEGRATION_METHOD_MINI == 1))
+         astro_options_global->INTEGRATION_METHOD_MINI == INTEGRATION_METHOD_GAUSS_LEGENDRE))
         initialise_GL(log(M_min), log(M_cond));
 
     ScalingConstants sc;
@@ -198,7 +198,7 @@ void get_conditional_SFRD(double redshift, double R, int n_densities, double *de
         if (dens > max_dens) max_dens = dens;
     }
 
-    if (matter_options_global->USE_INTERPOLATION_TABLES > 1) {
+    if (uses_hmf_interpolation(matter_options_global->USE_INTERPOLATION_TABLES)) {
         initialise_SFRD_Conditional_table(redshift, min_dens, max_dens, M_min, M_cond, M_cond, &sc);
     }
     for (i = 0; i < n_densities; i++)
@@ -219,9 +219,9 @@ void get_conditional_Nion(double redshift, double R, int n_densities, double *de
     double sigma_cond = EvaluateSigma(log(M_cond));
     double growthf = dicke(redshift);
 
-    if (astro_options_global->INTEGRATION_METHOD_ATOMIC == 1 ||
+    if (astro_options_global->INTEGRATION_METHOD_ATOMIC == INTEGRATION_METHOD_GAUSS_LEGENDRE ||
         (astro_options_global->USE_MINI_HALOS &&
-         astro_options_global->INTEGRATION_METHOD_MINI == 1))
+         astro_options_global->INTEGRATION_METHOD_MINI == INTEGRATION_METHOD_GAUSS_LEGENDRE))
         initialise_GL(log(M_min), log(M_cond));
 
     ScalingConstants sc;
@@ -247,7 +247,7 @@ void get_conditional_Nion(double redshift, double R, int n_densities, double *de
         if (l10mturn_m > max_l10mturn_mcg) max_l10mturn_mcg = l10mturn_m;
     }
 
-    if (matter_options_global->USE_INTERPOLATION_TABLES > 1) {
+    if (uses_hmf_interpolation(matter_options_global->USE_INTERPOLATION_TABLES)) {
         initialise_Nion_Conditional_spline(redshift, min_dens, max_dens, M_min, M_cond, M_cond,
                                            min_l10mturn_acg, max_l10mturn_acg, min_l10mturn_mcg,
                                            max_l10mturn_mcg, &sc, false);
@@ -270,9 +270,9 @@ void get_conditional_Xray(double redshift, double R, int n_densities, double *de
     double sigma_cond = EvaluateSigma(log(M_cond));
     double growthf = dicke(redshift);
 
-    if (astro_options_global->INTEGRATION_METHOD_ATOMIC == 1 ||
+    if (astro_options_global->INTEGRATION_METHOD_ATOMIC == INTEGRATION_METHOD_GAUSS_LEGENDRE ||
         (astro_options_global->USE_MINI_HALOS &&
-         astro_options_global->INTEGRATION_METHOD_MINI == 1))
+         astro_options_global->INTEGRATION_METHOD_MINI == INTEGRATION_METHOD_GAUSS_LEGENDRE))
         initialise_GL(log(M_min), log(M_cond));
 
     ScalingConstants sc;
@@ -288,7 +288,7 @@ void get_conditional_Xray(double redshift, double R, int n_densities, double *de
         if (dens > max_dens) max_dens = dens;
     }
 
-    if (matter_options_global->USE_INTERPOLATION_TABLES > 1) {
+    if (uses_hmf_interpolation(matter_options_global->USE_INTERPOLATION_TABLES)) {
         initialise_Xray_Conditional_table(redshift, min_dens, max_dens, M_min, M_cond, M_cond, &sc);
     }
     for (i = 0; i < n_densities; i++)

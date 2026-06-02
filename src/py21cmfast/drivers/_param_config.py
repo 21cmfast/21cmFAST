@@ -455,7 +455,7 @@ class single_field_func(_OutputStructComputationInspect):  # noqa: N801
         self.check_backend_state(inputs)
 
         cache = kwargs.pop("cache", None)
-        regen = kwargs.pop("regenerate", True)
+        regen = kwargs.pop("regenerate", cache is None)
         write = kwargs.pop("write", False)
 
         out = self._handle_read_from_cache(inputs, current_redshift, cache, regen)

@@ -62,7 +62,7 @@ void make_density_grid(float redshift, fftwf_complex *fft_density_grid, InitialC
     double *resampled_box;
 
     // check if the linear evolution flag was set
-    if (matter_options_global->PERTURB_ALGORITHM == 0) {
+    if (matter_options_global->PERTURB_ALGORITHM == PERTURB_ALGORITHM_LINEAR) {
 #pragma omp parallel private(i, j, k) num_threads(simulation_options_global -> N_THREADS)
         {
             index_huge grid_index, fft_index;
@@ -437,7 +437,7 @@ int ComputePerturbedField(float redshift, InitialConditions *boxes,
             assign_to_lowres_grid(HIRES_density_perturb, LOWRES_density_perturb,
                                   density_perturb_saved);
         }
-        if (matter_options_global->PERTURB_ALGORITHM > 0) {
+        if (matter_options_global->PERTURB_ALGORITHM > PERTURB_ALGORITHM_LINEAR) {
             normalise_delta_grid(LOWRES_density_perturb);
         }
 

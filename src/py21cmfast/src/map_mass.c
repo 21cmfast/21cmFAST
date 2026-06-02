@@ -190,7 +190,7 @@ void move_grid_masses(double redshift, float *dens_pointer, int dens_dim[3], flo
                         pos[axis] +=
                             vel_pointers[axis][vel_index] * velocity_displacement_factor[axis];
                         // add 2LPT second order corrections
-                        if (matter_options_global->PERTURB_ALGORITHM == 2) {
+                        if (matter_options_global->PERTURB_ALGORITHM == PERTURB_ALGORITHM_2LPT) {
                             pos[axis] -= vel_pointers_2LPT[axis][vel_index] *
                                          velocity_displacement_factor_2LPT[axis];
                         }
@@ -275,7 +275,7 @@ void move_grid_galprops(double redshift, float *dens_pointer, int dens_dim[3],
                         pos[axis] +=
                             vel_pointers[axis][vel_index] * velocity_displacement_factor[axis];
                         // add 2LPT second order corrections
-                        if (matter_options_global->PERTURB_ALGORITHM == 2) {
+                        if (matter_options_global->PERTURB_ALGORITHM == PERTURB_ALGORITHM_2LPT) {
                             pos[axis] -= vel_pointers_2LPT[axis][vel_index] *
                                          velocity_displacement_factor_2LPT[axis];
                         }
@@ -396,7 +396,7 @@ void move_halo_galprops(double redshift, HaloCatalog *halos, float *vel_pointers
             for (axis = 0; axis < 3; axis++) {
                 pos[axis] += vel_pointers[axis][vel_index] * velocity_displacement_factor;
                 // add 2LPT second order corrections
-                if (matter_options_global->PERTURB_ALGORITHM == 2) {
+                if (matter_options_global->PERTURB_ALGORITHM == PERTURB_ALGORITHM_2LPT) {
                     pos[axis] -=
                         vel_pointers_2LPT[axis][vel_index] * velocity_displacement_factor_2LPT;
                 }
