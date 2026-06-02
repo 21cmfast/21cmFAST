@@ -190,7 +190,7 @@ double asymptotic_2F3(double kR, double alpha, double beta) {
     // as given in
     // https://functions.wolfram.com/HypergeometricFunctions/Hypergeometric2F3/06/02/03/01/0003/. In
     // our case, z=-kR^2/4 and the parameters of the hypergeometric function are given below
-    // (see also Eq. D8 in arxiv: 2601.14360)
+    // (see also Eq. E8 in arxiv: 2601.14360)
     double a1 = (2. + alpha) / 2.;
     double a2 = (3. + alpha) / 2.;
     double b1 = 5. / 2.;
@@ -256,7 +256,7 @@ double hyper_2F3(double kR, double alpha, double beta) {
         return 3.0 / (pow(kR, 3)) * (sin(kR) - cos(kR) * kR);
     }
     // For a small argument, we compute the hypergeometric function through power-law expansion
-    // This is Eq. (D7) in arxiv: 2601.14360
+    // This is Eq. (E7) in arxiv: 2601.14360
     if (kR < 30.) {
         int n;
         int max_terms = 1000;
