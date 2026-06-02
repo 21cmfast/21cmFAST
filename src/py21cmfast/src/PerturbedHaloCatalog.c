@@ -118,7 +118,7 @@ int ComputePerturbedHaloCatalog(float redshift, InitialConditions *boxes, TsBox 
 
                 for (int i_dim = 0; i_dim < 3; i_dim++) {
                     pos[i_dim] += vel_pointers[i_dim][grid_index] * velocity_displacement_factor;
-                    if (matter_options_global->PERTURB_ALGORITHM == 2)
+                    if (matter_options_global->PERTURB_ALGORITHM == PERTURB_ALGORITHM_2LPT)
                         pos[i_dim] -= vel_pointers_2LPT[i_dim][grid_index] *
                                       velocity_displacement_factor_2LPT;
                 }

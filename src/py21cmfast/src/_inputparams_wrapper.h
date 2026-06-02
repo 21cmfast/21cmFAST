@@ -3,6 +3,10 @@
 */
 // WARNING: DO NOT #include THIS FILE IN THE C CODE EXCEPT FOR IN InputParameters.h
 
+typedef int hmf_model_t;
+typedef int source_model_t;
+typedef int integration_method_t;
+
 typedef struct CosmoParams {
     // NOTE: power spectrum normalization (A_s or sigma_8) is given by ps_norm in cosmo_tables
     float hlittle;
@@ -56,7 +60,7 @@ typedef struct SimulationOptions {
 
 typedef struct MatterOptions {
     bool USE_FFTW_WISDOM;
-    int HMF;
+    hmf_model_t HMF;
     int USE_RELATIVE_VELOCITIES;
     int POWER_SPECTRUM;
     int USE_INTERPOLATION_TABLES;
@@ -69,7 +73,7 @@ typedef struct MatterOptions {
     int HALO_FILTER;
     bool SMOOTH_EVOLVED_DENSITY_FIELD;
 
-    int SOURCE_MODEL;
+    source_model_t SOURCE_MODEL;
     int SAMPLE_METHOD;
 } MatterOptions;
 
@@ -149,8 +153,8 @@ typedef struct AstroOptions {
     int HII_FILTER;
     int HEAT_FILTER;
     bool IONISE_ENTIRE_SPHERE;
-    int INTEGRATION_METHOD_ATOMIC;
-    int INTEGRATION_METHOD_MINI;
+    integration_method_t INTEGRATION_METHOD_ATOMIC;
+    integration_method_t INTEGRATION_METHOD_MINI;
 } AstroOptions;
 
 typedef struct Table1D {
