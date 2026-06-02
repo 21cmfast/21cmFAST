@@ -23,7 +23,7 @@ void Broadcast_struct_global_all(SimulationOptions *simulation_options,
         cosmo_tables_global->ps_norm = cosmo_tables->ps_norm;
         cosmo_tables_global->USE_SIGMA_8 = cosmo_tables->USE_SIGMA_8;
 
-        if (matter_options_global->POWER_SPECTRUM == 5) {
+        if (matter_options_global->POWER_SPECTRUM == POWER_SPECTRUM_CLASS) {
             n = cosmo_tables->transfer_density->size;
             cosmo_tables_global->transfer_density = malloc(sizeof(Table1D));
             cosmo_tables_global->transfer_density->size = n;
@@ -44,7 +44,7 @@ void Broadcast_struct_global_all(SimulationOptions *simulation_options,
     // time), it's essentially impossible to know the user's mind and when they might want to
     // refresh the transfer density to a new cosmology, so it's better to just assume every time
     // that they might have a different transfer function.
-    if (matter_options_global->POWER_SPECTRUM == 5) {
+    if (matter_options_global->POWER_SPECTRUM == POWER_SPECTRUM_CLASS) {
         n = cosmo_tables->transfer_density->size;
         memcpy(cosmo_tables_global->transfer_density->x_values,
                cosmo_tables->transfer_density->x_values, n * sizeof(double));
@@ -68,7 +68,7 @@ void Broadcast_struct_global_noastro(SimulationOptions *simulation_options,
 
 void Free_cosmo_tables_global() {
     if (allocated_cosmo_tables) {
-        if (matter_options_global->POWER_SPECTRUM == 5) {
+        if (matter_options_global->POWER_SPECTRUM == POWER_SPECTRUM_CLASS) {
             free(cosmo_tables_global->transfer_density->x_values);
             free(cosmo_tables_global->transfer_density->y_values);
             free(cosmo_tables_global->transfer_density);

@@ -746,7 +746,7 @@ int ComputeInitialConditions(random_huge random_seed, InitialConditions *boxes) 
 
         // NOTE: we are using the hires_vi_2LPT boxes as workspace for storing diagonal components
         // of phi_1, to avoid allocating more memory (argument 3)
-        if (matter_options_global->PERTURB_ALGORITHM == 2) {
+        if (matter_options_global->PERTURB_ALGORITHM == PERTURB_ALGORITHM_2LPT) {
             compute_velocity_fields_2LPT(HIRES_box, HIRES_box_saved, hires_v_2LPT,
                                          vel_pointers_2LPT);
         }

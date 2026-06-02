@@ -388,10 +388,10 @@ int set_fixed_grids(double M_min, double M_max, InitialConditions *ini_boxes, fl
 
     LOG_DEBUG("Mean halo boxes || M = [%.2e %.2e] | Mcell = %.2e", M_min, M_max, M_cell);
     // These tables are coarser than needed, an initial loop for Mturn to find limits may help
-    if (matter_options_global->USE_INTERPOLATION_TABLES > 1) {
-        if (astro_options_global->INTEGRATION_METHOD_ATOMIC == 1 ||
+    if (uses_hmf_interpolation(matter_options_global->USE_INTERPOLATION_TABLES)) {
+        if (astro_options_global->INTEGRATION_METHOD_ATOMIC == INTEGRATION_METHOD_GAUSS_LEGENDRE ||
             (astro_options_global->USE_MINI_HALOS &&
-             astro_options_global->INTEGRATION_METHOD_MINI == 1)) {
+             astro_options_global->INTEGRATION_METHOD_MINI == INTEGRATION_METHOD_GAUSS_LEGENDRE)) {
             initialise_GL(integral_cond.lnM_min, integral_cond.lnM_max);
         }
         // This table assumes no reionisation feedback
@@ -619,14 +619,14 @@ int ComputeHaloBox(double redshift, InitialConditions *ini_boxes, HaloCatalog *h
                             mturn_m_grid, &hbox_consts, mturn_averages);
         grids->log10_Mcrit_ACG_ave = mturn_averages[0];
         grids->log10_Mcrit_MCG_ave = mturn_averages[1];
-        if (matter_options_global->SOURCE_MODEL > 2) {
+        if (source_model_uses_sampled_halos(matter_options_global->SOURCE_MODEL)) {
             sum_halos_onto_grid(redshift, ini_boxes, halos, mturn_a_grid, mturn_m_grid,
                                 &hbox_consts, grids);
         }
         // set sub-catalogue properties
-        if (matter_options_global->SOURCE_MODEL == 4) {
+        if (matter_options_global->SOURCE_MODEL == SOURCE_MODEL_CHMF_SAMPLER) {
             M_max_integral = simulation_options_global->SAMPLER_MIN_MASS;
-        } else if (matter_options_global->SOURCE_MODEL == 3) {
+        } else if (matter_options_global->SOURCE_MODEL == SOURCE_MODEL_DEXM_ESF) {
             M_max_integral = RtoM(physconst.l_factor * simulation_options_global->BOX_LEN /
                                   simulation_options_global->DIM);
         } else {
