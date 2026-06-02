@@ -147,9 +147,13 @@ def write_template(
         only_structs = mode == "minimal"
 
     inputs_dct = prepare_inputs_for_serialization(
-        inputs, mode=mode, only_structs=only_structs
+        inputs,
+        mode=mode,
+        only_structs=only_structs,
+        # Templates should remain portable and contain only user-settable inputs,
+        # not derived cached cosmology tables.
+        include_cosmo_tables="never",
     )
-    inputs_dct.pop("CosmoTables", None)
 
     template_file = Path(template_file)
     doc = tomlkit.document()

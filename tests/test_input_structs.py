@@ -602,9 +602,7 @@ class TestInputParameters:
         assert self.default.cosmo_tables.ps_norm == self.default.cosmo_params.SIGMA_8
         assert self.default.cosmo_tables.USE_SIGMA_8
 
-        altered_struct_CLASS = self.default.evolve_input_structs(
-            POWER_SPECTRUM="CLASS", K_MAX_FOR_CLASS=1.0
-        )
+        altered_struct_CLASS = self.default.evolve_input_structs(POWER_SPECTRUM="CLASS")
         altered_struct2 = self.default.evolve_input_structs(OMm=0.5)
         altered_struct3 = altered_struct2.evolve_input_structs(POWER_SPECTRUM="EH")
 
@@ -691,10 +689,7 @@ class TestInputParameters:
     @pytest.mark.parametrize("template", _ALL_ALIASES)
     def test_from_template(self, template):
         """Test that creation from a template works for all templates."""
-        # Some templates require running CLASS. We set K_MAX_FOR_CLASS to be small so the test won't take too long
-        inputs = InputParameters.from_template(
-            template, random_seed=1, K_MAX_FOR_CLASS=1.0
-        )
+        inputs = InputParameters.from_template(template, random_seed=1)
         assert isinstance(inputs, InputParameters)
 
     def test_bad_input(self):

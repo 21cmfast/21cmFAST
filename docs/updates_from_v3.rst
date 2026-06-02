@@ -100,7 +100,7 @@ templates, but they are briefly described below:
 
 
 Caching
-=======
+========
 Significant improvements were made to the caching mechanism for ``21cmFAST`` outputs.
 We provide the class ``OutputCache`` for searching, reading and writing low-level
 outputs to file, and ``RunCache`` for specifying all the outputs needed to complete a

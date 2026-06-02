@@ -377,7 +377,7 @@ class CosmoTables:
             val = getattr(self, k)
             if isinstance(val, Table1D):
                 setattr(self._struct.cstruct, k, val._cstruct)
-            elif isinstance(val, (float | bool)) or val is not None:
+            elif isinstance(val, (float, bool)) or val is not None:
                 setattr(self._struct.cstruct, k, val)
 
         return self._struct.cstruct
@@ -1675,7 +1675,6 @@ class InputParameters:
     astro_options: AstroOptions = input_param_field(AstroOptions)
     astro_params: AstroParams = input_param_field(AstroParams)
     node_redshifts = _field(converter=_node_redshifts_converter)
-    cosmo_tables: CosmoTables = field()
 
     @node_redshifts.default
     def _node_redshifts_default(self):
@@ -1699,8 +1698,9 @@ class InputParameters:
                 + f"your maximum passed node_redshifts {max(val) if hasattr(val, '__len__') else val} must be above Z_HEAT_MAX {self.simulation_options.Z_HEAT_MAX}"
             )
 
-    @cosmo_tables.default
-    def _cosmo_tables_default(self):
+    @cached_property
+    def cosmo_tables(self) -> CosmoTables:
+        """Cosmological tables derived from fundamental input parameters."""
         if self.matter_options.POWER_SPECTRUM == "CLASS":
             if self.simulation_options.K_MAX_FOR_CLASS is not None:
                 k_max = self.simulation_options.K_MAX_FOR_CLASS / un.Mpc
@@ -1944,7 +1944,6 @@ class InputParameters:
             "matter_options",
             "astro_params",
             "astro_options",
-            "cosmo_tables",
         ):
             obj = getattr(self, inp_type)
             struct_args[inp_type] = obj.clone(
@@ -1955,27 +1954,7 @@ class InputParameters:
             wrong_key = next(iter(kwargs_copy.keys()))
             raise TypeError(f"{wrong_key} is not a valid keyword input.")
 
-        inputs_clone = self.clone(**struct_args)
-        if inputs_clone.matter_options.POWER_SPECTRUM == "CLASS":
-            if (
-                self.matter_options.POWER_SPECTRUM != "CLASS"
-                or np.any([hasattr(self.cosmo_params, k) for k in kwargs])
-                or (
-                    self.simulation_options.K_MAX_FOR_CLASS
-                    != inputs_clone.simulation_options.K_MAX_FOR_CLASS
-                )
-            ):
-                # we need to run CLASS again and update cosmo_tables
-                struct_args["cosmo_tables"] = inputs_clone._cosmo_tables_default()
-                inputs_clone = self.clone(**struct_args)
-        else:
-            # No need to have the tables from the original inputs, but we do need to change ps_norm and USE_SIGMA_8
-            struct_args["cosmo_tables"] = CosmoTables(
-                ps_norm=inputs_clone.cosmo_params.SIGMA_8, USE_SIGMA_8=True
-            )
-            inputs_clone = self.clone(**struct_args)
-
-        return inputs_clone
+        return self.clone(**struct_args)
 
     @classmethod
     def from_template(
@@ -2010,7 +1989,7 @@ class InputParameters:
         from .._templates import create_params_from_template
 
         dct = create_params_from_template(name, **kwargs)
-        dct.pop("cosmo_tables")
+        dct.pop("cosmo_tables", None)
 
         if random_seed is not None:
             dct["random_seed"] = random_seed
@@ -2172,9 +2151,51 @@ class InputParameters:
         remove_base_cosmo: bool = True,
         only_cstruct_params: bool = True,
         use_aliases: bool = True,
+        include_cosmo_tables: Literal["always", "if_cached", "never"] = "always",
     ) -> dict[str, dict[str, Any]]:
-        """Convert the instance to a recursive dictionary."""
+        """Convert the instance to a recursive dictionary.
+
+        Parameters
+        ----------
+        only_structs
+            If True, only include parameter-struct-like fields (including
+            ``cosmo_tables`` when included).
+        camel
+            If True, convert top-level input struct keys to CamelCase.
+        remove_base_cosmo
+            If True, remove the non-serializable ``_base_cosmo`` object from
+            ``cosmo_params``.
+        only_cstruct_params
+            If True, keep only fields that are required by each C struct.
+        use_aliases
+            If True, use constructor aliases for InputStruct fields (e.g. ``DIM``
+            instead of ``_DIM``).
+        include_cosmo_tables
+            Controls whether cached cosmology tables are emitted in the dictionary.
+
+            - ``"always"``: force materialization of :attr:`cosmo_tables` and include
+              it in the output. This is the default for in-memory conversions.
+            - ``"if_cached"``: include tables only if they were already materialized,
+              which avoids triggering CLASS work during serialization.
+            - ``"never"``: omit tables entirely, useful for portable templates.
+        """
         dct = attrs.asdict(self, recurse=True)
+
+        # We use a tri-state here because different writers need different behavior:
+        # full in-memory snapshots, cache writes that should not trigger CLASS, and
+        # portable template files that should never store derived tables.
+        if include_cosmo_tables == "always":
+            dct["cosmo_tables"] = attrs.asdict(self.cosmo_tables, recurse=True)
+        elif include_cosmo_tables == "if_cached":
+            # On attrs slot classes, the cached value is absent until materialized,
+            # and object.__getattribute__ raises AttributeError in that case.
+            try:
+                cosmo_tables = object.__getattribute__(self, "cosmo_tables")
+            except AttributeError:
+                cosmo_tables = None
+
+            if cosmo_tables is not None:
+                dct["cosmo_tables"] = attrs.asdict(cosmo_tables, recurse=True)
 
         if remove_base_cosmo:
             del dct["cosmo_params"]["_base_cosmo"]
