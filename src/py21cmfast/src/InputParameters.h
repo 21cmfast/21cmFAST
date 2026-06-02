@@ -53,27 +53,28 @@
 #define INTEGRATION_METHOD_GAMMA_APPROX 2
 
 static inline bool source_model_is_mass_dependent(int source_model) {
-    return source_model > SOURCE_MODEL_CONST_ION_EFF;
-}
-
-static inline bool source_model_uses_lagrangian_grids(int source_model) {
-    return source_model > SOURCE_MODEL_E_INTEGRAL;
+    return source_model != SOURCE_MODEL_CONST_ION_EFF;
 }
 
 static inline bool source_model_uses_eulerian_grids(int source_model) {
-    return source_model < SOURCE_MODEL_L_INTEGRAL;
+    return (source_model == SOURCE_MODEL_E_INTEGRAL || source_model == SOURCE_MODEL_CONST_ION_EFF);
+}
+
+static inline bool source_model_uses_lagrangian_grids(int source_model) {
+    return !source_model_uses_eulerian_grids(source_model);
 }
 
 static inline bool source_model_uses_sampled_halos(int source_model) {
-    return source_model > SOURCE_MODEL_L_INTEGRAL;
+    return (source_model_uses_lagrangian_grids(source_model) &&
+            source_model != SOURCE_MODEL_L_INTEGRAL);
 }
 
 static inline bool uses_interpolation_tables(int interpolation_mode) {
-    return interpolation_mode > INTERPOLATION_NO;
+    return interpolation_mode != INTERPOLATION_NO;
 }
 
 static inline bool uses_hmf_interpolation(int interpolation_mode) {
-    return interpolation_mode > INTERPOLATION_SIGMA;
+    return interpolation_mode == INTERPOLATION_HMF;
 }
 
 void Broadcast_struct_global_all(SimulationOptions *simulation_options,
