@@ -21,7 +21,6 @@ from ..wrapper.outputs import (
     TsBox,
 )
 from ._param_config import (
-    c_state_initializer,
     high_level_func,
 )
 from .coeval import _redshift_loop_generator, _setup_ics_and_pfs_for_scrolling
@@ -241,7 +240,6 @@ class GlobalEvolution:
 # since currently there is no way to run mini-halos without recombinations. Once this limitation is relaxed in the future,
 # we could set init_recomb=False and save a few seconds.
 @high_level_func
-@c_state_initializer(init_sigma=True, init_heat=True, init_recomb=True)
 def generate_global_evolution(
     *,
     inputs: InputParameters,
@@ -268,7 +266,6 @@ def generate_global_evolution(
     iokw = {
         "cache": None,
         "regenerate": True,
-        "init_manager": kwargs.get("init_manager"),
     }
 
     (

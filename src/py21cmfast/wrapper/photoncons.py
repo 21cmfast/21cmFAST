@@ -56,14 +56,7 @@ import numpy as np
 from scipy.optimize import curve_fit
 
 from ..c_21cmfast import ffi, lib
-from ..drivers._param_config import (
-    broadcast_input_struct,
-    c_state_initializer,
-    initialize_heat,
-    initialize_power_spectrum,
-    initialize_recombination_rate,
-    initialize_sigma_tables,
-)
+from ..drivers._global_initialization import c_state_initializer
 from ._utils import _process_exitcode
 from .inputs import InputParameters
 from .outputs import InitialConditions
@@ -267,6 +260,13 @@ def setup_photon_cons(
     return photoncons_data
 
 
+@c_state_initializer(
+    broadcast_inputs=True,
+    init_ps=True,
+    init_sigma=True,
+    init_heat=True,
+    init_recomb=True,
+)
 def calibrate_photon_cons(
     inputs: InputParameters,
     initial_conditions: InitialConditions,
@@ -386,15 +386,6 @@ def calibrate_photon_cons(
         nf_estimate=neutral_fraction_photon_cons,
         NSpline=len(fast_node_redshifts),
     )
-
-    # Re-broadcast the main inputs after the photon-cons calibration loop is over
-    # TODO: This is hacky (better to put this entire module under high_level_func)
-    kwargs["init_manager"].broadcast_inputs = True
-    broadcast_input_struct(inputs=inputs)
-    initialize_power_spectrum(inputs=inputs)
-    initialize_sigma_tables(inputs=inputs)
-    initialize_heat(inputs=inputs)
-    initialize_recombination_rate(inputs=inputs)
 
 
 # (Jdavies): I needed a function to access the delta z from the wrapper

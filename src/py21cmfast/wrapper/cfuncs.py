@@ -10,7 +10,7 @@ from scipy.interpolate import interp1d
 
 from .._cfg import config
 from ..c_21cmfast import ffi, lib
-from ..drivers._param_config import c_state_initializer
+from ..drivers._global_initialization import c_state_initializer
 from ._utils import _process_exitcode
 from .inputs import InputParameters
 

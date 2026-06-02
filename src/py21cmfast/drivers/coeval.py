@@ -32,7 +32,7 @@ from ..wrapper.outputs import (
 )
 from ..wrapper.photoncons import _get_photon_nonconservation_data, setup_photon_cons
 from . import single_field as sf
-from ._param_config import _InitManager, c_state_initializer, high_level_func
+from ._param_config import high_level_func
 
 logger = logging.getLogger(__name__)
 
@@ -73,11 +73,11 @@ class Coeval:
     brightness_temperature: BrightnessTemp = attrs.field(
         validator=attrs.validators.instance_of(BrightnessTemp)
     )
-    ts_box: TsBox = attrs.field(
+    ts_box: TsBox | None = attrs.field(
         default=None,
         validator=attrs.validators.optional(attrs.validators.instance_of(TsBox)),
     )
-    halobox: HaloBox = attrs.field(
+    halobox: HaloBox | None = attrs.field(
         default=None,
         validator=attrs.validators.optional(attrs.validators.instance_of(HaloBox)),
     )
@@ -133,7 +133,7 @@ class Coeval:
         }
 
     @classmethod
-    def get_fields(cls, ignore_structs: tuple[str] = ()) -> list[str]:
+    def get_fields(cls, ignore_structs: tuple[str, ...] = ()) -> list[str]:
         """Obtain a list of name of simulation boxes saved in the Coeval object."""
         output_structs = []
         for fld in attrs.fields(cls):
@@ -199,7 +199,7 @@ class Coeval:
 
     def prepare_for_next_snapshot(
         self,
-        keep: Sequence[str] | None = None,
+        keepset: Sequence[str] | None = None,
         force: bool = False,
     ):
         """Purge intermediate computational fields to save memory.
@@ -213,10 +213,10 @@ class Coeval:
         force : bool
             Force purge even if not saved to disk.
         """
-        keep = set(keep or [])
+        keepset = set(keepset or [])
 
         for name, struct in self.output_structs.items():
-            if name not in keep and struct is not None:
+            if name not in keepset and struct is not None:
                 struct.purge(force=force)
 
     def save(self, path: str | Path, clobber=False):
@@ -416,7 +416,6 @@ def evolve_halos(
     initial_conditions: InitialConditions,
     cache: OutputCache,
     regenerate: bool,
-    init_manager: _InitManager | None = None,
     progressbar: bool = False,
 ):
     """
@@ -460,15 +459,11 @@ def evolve_halos(
             stacklevel=2,
         )
 
-    if init_manager is None:
-        init_manager = _InitManager(inputs=inputs)
-
     halofield_list = []
     kw = {
         "initial_conditions": initial_conditions,
         "cache": cache,
         "regenerate": regenerate,
-        "init_manager": init_manager,
     }
     halos_desc = None
     with _progressbar(disable=not progressbar) as _progbar:
@@ -500,11 +495,10 @@ def evolve_halos(
 
 
 @high_level_func
-@c_state_initializer(init_sigma=True, init_heat=True, init_recomb=True)
 def generate_coeval(
     *,
     inputs: InputParameters | None = None,
-    out_redshifts: float | tuple[float] = (),
+    out_redshifts: float | tuple[float, ...] = (),
     regenerate: bool | None = None,
     write: CacheConfig | bool = True,
     cache: OutputCache | None = None,
@@ -663,7 +657,7 @@ def generate_coeval(
         #       Meanwhile, unnecessary fields from initial_conditions were removed via prepare_for_perturb and prepare_for_spin_temp
         if prev_coeval is not None and prev_coeval.redshift not in out_redshifts:
             prev_coeval.prepare_for_next_snapshot(
-                keep=["initial_conditions", "halobox"], force=True
+                keepset=["initial_conditions", "halobox"], force=True
             )
 
         prev_coeval = coeval

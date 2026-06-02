@@ -31,7 +31,7 @@ from ..wrapper.outputs import (
     PerturbedField,
     TsBox,
 )
-from ._param_config import c_state_initializer, high_level_func
+from ._param_config import high_level_func
 from .coeval import (
     _obtain_starting_point_for_scrolling,
     _redshift_loop_generator,
@@ -600,14 +600,13 @@ def _run_lightcone_from_perturbed_fields(
         #       Meanwhile, unnecessary fields from initial_conditions were removed via prepare_for_perturb and prepare_for_spin_temp
         if prev_coeval is not None:
             prev_coeval.prepare_for_next_snapshot(
-                keep=["initial_conditions", "halobox"], force=True
+                keepset=["initial_conditions", "halobox"], force=True
             )
 
         prev_coeval = coeval
 
 
 @high_level_func
-@c_state_initializer(init_sigma=True, init_heat=True, init_recomb=True)
 def generate_lightcone(
     *,
     lightconer: Lightconer,

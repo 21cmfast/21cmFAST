@@ -25,8 +25,8 @@ from ..wrapper.outputs import (
     TsBox,
     XraySourceBox,
 )
+from ._global_initialization import c_state_initializer
 from ._param_config import (
-    c_state_initializer,
     check_output_consistency,
     single_field_func,
 )
