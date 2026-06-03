@@ -44,7 +44,7 @@ int ComputePerturbedHaloCatalog(float redshift, InitialConditions *boxes, TsBox 
 
         float growth_factor, displacement_factor_2LPT, init_growth_factor,
             init_displacement_factor_2LPT;
-        unsigned long long int i_halo;
+        index_huge i_halo;
 
         // Function for deciding the dimensions of loops when we could
         // use either the low or high resolution grids.
@@ -96,13 +96,13 @@ int ComputePerturbedHaloCatalog(float redshift, InitialConditions *boxes, TsBox 
         halos_perturbed->n_halos = halos->n_halos;
 
         // ******************   END INITIALIZATION     ******************************** //
-        unsigned long long int n_exact_dim = 0;
+        size_huge n_exact_dim = 0;
         bool error_in_parallel = false;
 #pragma omp parallel private(i_halo) num_threads(simulation_options_global -> N_THREADS) \
     reduction(+ : n_exact_dim)
         {
             double pos[3];
-            unsigned long long grid_index;
+            index_huge grid_index;
             int ipos[3];
 #pragma omp for
             for (i_halo = 0; i_halo < halos->n_halos; i_halo++) {
@@ -118,7 +118,7 @@ int ComputePerturbedHaloCatalog(float redshift, InitialConditions *boxes, TsBox 
 
                 for (int i_dim = 0; i_dim < 3; i_dim++) {
                     pos[i_dim] += vel_pointers[i_dim][grid_index] * velocity_displacement_factor;
-                    if (matter_options_global->PERTURB_ALGORITHM == 2)
+                    if (matter_options_global->PERTURB_ALGORITHM == PERTURB_ALGORITHM_2LPT)
                         pos[i_dim] -= vel_pointers_2LPT[i_dim][grid_index] *
                                       velocity_displacement_factor_2LPT;
                 }

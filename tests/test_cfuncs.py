@@ -66,6 +66,14 @@ def test_run_tau():
     assert tau
 
 
+def test_bad_input_for_expected_nhalo(default_input_struct):
+    """Test the expected_nhalo cannot be evaluated if the halo model is not discrete."""
+    with pytest.raises(
+        ValueError, match="SOURCE_MODEL must have a discrete halo model"
+    ):
+        cf.get_expected_nhalo(redshift=8.0, inputs=default_input_struct)
+
+
 def test_bad_integral_inputs(default_input_struct):
     # make arrays with different shapes
     redshifts = np.linspace(6, 35, num=20)

@@ -129,7 +129,22 @@ def get_expected_nhalo(*, redshift: float, inputs: InputParameters, **kwargs) ->
         The redshift at which to calculate the halo list.
     inputs: :class:`~InputParameters`
         The input parameters of the run
+
+    Returns
+    -------
+    n_halo : float
+        The expected number of halos in the box at the given redshift under the given model.
+
+    Raises
+    ------
+    ValueError :
+        If the matter options do not have a discrete halo model.
     """
+    if not inputs.matter_options.has_discrete_halos:
+        raise ValueError(
+            "SOURCE_MODEL must have a discrete halo model in order to calculate the expected number of halos in the box. "
+            "Change SOURCE_MODEL to either 'DEXM-ESF' or 'CHMF-SAMPLER' in order to use this function."
+        )
     return lib.expected_nhalo(
         redshift,
     )

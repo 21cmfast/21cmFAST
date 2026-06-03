@@ -3,7 +3,7 @@
     are visible to the python wrapper */
 
 /* OutputStruct COMPUTE FUNCTIONS */
-int ComputeInitialConditions(unsigned long long random_seed, InitialConditions *boxes);
+int ComputeInitialConditions(unsigned long long int random_seed, InitialConditions *boxes);
 
 int ComputePerturbedField(float redshift, InitialConditions *boxes,
                           PerturbedField *perturbed_field);
