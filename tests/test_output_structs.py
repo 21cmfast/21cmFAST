@@ -9,6 +9,8 @@ import pytest
 from py21cmfast import (
     InitialConditions,  # An example of an output struct
     InputParameters,
+    OutputCache,
+    compute_initial_conditions,
     config,
     determine_halo_catalog,
     perturb_halo_catalog,
@@ -22,17 +24,28 @@ def init(default_input_struct: InputParameters):
     return InitialConditions.new(inputs=default_input_struct)
 
 
-@pytest.fixture
-def halo_cat(ic: InitialConditions, default_input_struct: InputParameters):
-    return determine_halo_catalog(
-        redshift=10.0, initial_conditions=ic, inputs=default_input_struct
+@pytest.fixture(scope="module")
+def ic_with_halos(default_input_struct, cache: OutputCache):
+    return compute_initial_conditions(
+        inputs=default_input_struct.evolve_input_structs(SOURCE_MODEL="CHMF-SAMPLER"),
+        write=True,
+        cache=cache,
     )
 
 
 @pytest.fixture
-def pert_halo_cat(ic: InitialConditions, halo_cat: ox.HaloCatalog):
+def halo_cat(ic_with_halos: InitialConditions, default_input_struct: InputParameters):
+    return determine_halo_catalog(
+        redshift=10.0,
+        initial_conditions=ic_with_halos,
+        inputs=default_input_struct.evolve_input_structs(SOURCE_MODEL="CHMF-SAMPLER"),
+    )
+
+
+@pytest.fixture
+def pert_halo_cat(ic_with_halos: InitialConditions, halo_cat: ox.HaloCatalog):
     return perturb_halo_catalog(
-        initial_conditions=ic,
+        initial_conditions=ic_with_halos,
         halo_catalog=halo_cat,
     )
 
