@@ -9,7 +9,7 @@ import logging
 import re
 from hashlib import md5
 from pathlib import Path
-from typing import ClassVar, Self
+from typing import ClassVar, Self, TypedDict, Unpack
 
 import attrs
 import numpy as np
@@ -537,6 +537,19 @@ class RunCache:
         return True
 
 
+class CacheConfigUpdate(TypedDict, total=False):
+    """A TypedDict for updating CacheConfig objects."""
+
+    initial_conditions: bool
+    perturbed_field: bool
+    spin_temp: bool
+    ionized_box: bool
+    brightness_temp: bool
+    halobox: bool
+    halo_catalog: bool
+    xray_source_box: bool
+
+
 @attrs.define
 class CacheConfig:
     """A configuration object that specifies whether a certain field should be cached."""
@@ -550,13 +563,17 @@ class CacheConfig:
     halo_catalog: bool = attrs.field(default=True, converter=bool)
     xray_source_box: bool = attrs.field(default=True, converter=bool)
 
-    @classmethod
-    def on(cls) -> Self:
-        """Generate a CacheConfig where all boxes are cached."""
-        return cls()
+    def update(self, **kwargs: Unpack[CacheConfigUpdate]) -> Self:
+        """Return a new CacheConfig with the given fields updated."""
+        return attrs.evolve(self, **kwargs)
 
     @classmethod
-    def off(cls):
+    def on(cls, **kwargs: Unpack[CacheConfigUpdate]) -> Self:
+        """Generate a CacheConfig where all boxes are cached."""
+        return cls().update(**kwargs)
+
+    @classmethod
+    def off(cls, **kwargs: Unpack[CacheConfigUpdate]) -> Self:
         """Generate a CacheConfig where no boxes are cached."""
         return cls(
             initial_conditions=False,
@@ -567,10 +584,10 @@ class CacheConfig:
             halobox=False,
             halo_catalog=False,
             xray_source_box=False,
-        )
+        ).update(**kwargs)
 
     @classmethod
-    def noloop(cls):
+    def noloop(cls, **kwargs: Unpack[CacheConfigUpdate]) -> Self:
         """Generate a CacheConfig where only boxes not requiring evolution are cached."""
         return cls(
             initial_conditions=True,
@@ -581,10 +598,10 @@ class CacheConfig:
             halobox=False,
             halo_catalog=True,
             xray_source_box=False,
-        )
+        ).update(**kwargs)
 
     @classmethod
-    def last_step_only(cls):
+    def last_step_only(cls, **kwargs: Unpack[CacheConfigUpdate]) -> Self:
         """Generate a CacheConfig where only boxes needed from more than one step away are cached.
 
         This represents the minimum caching setup which will *never* store every redshift in memory.
@@ -601,4 +618,4 @@ class CacheConfig:
             halobox=True,
             halo_catalog=True,
             xray_source_box=False,
-        )
+        ).update(**kwargs)

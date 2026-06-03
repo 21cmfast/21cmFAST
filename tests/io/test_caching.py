@@ -63,6 +63,48 @@ def partial_run_cache(tmp_path_factory):
     return cache
 
 
+class TestCacheConfig:
+    """Tests of the CacheConfig class."""
+
+    def test_on_and_off(self):
+        """Test that the on and off classmethods produce the expected configs."""
+        config_on = caching.CacheConfig.on()
+        assert all(attrs.asdict(config_on).values())
+
+        config_off = caching.CacheConfig.off()
+        assert not any(attrs.asdict(config_off).values())
+
+    @pytest.mark.parametrize("config_method", ["on", "off", "noloop", "last_step_only"])
+    def test_update(self, config_method):
+        """Test that the update method produces the expected configs."""
+        config = getattr(caching.CacheConfig, config_method)()
+        fields = attrs.fields(caching.CacheConfig)
+
+        # Annoying fields that we don't want to cache
+        annoying_fields = ["xray_source_box", "initial_conditions"]
+        kwargs = dict.fromkeys(annoying_fields, False)
+
+        # First check that the update method works as expected
+        updated_config = config.update(**kwargs)
+        for field in fields:
+            if field.name in annoying_fields:
+                assert not getattr(updated_config, field.name)
+            else:
+                assert getattr(updated_config, field.name) == getattr(
+                    config, field.name
+                )
+
+        # Then check that the classmethod versions also work as expected
+        updated_config = getattr(caching.CacheConfig, config_method)(**kwargs)
+        for field in fields:
+            if field.name in annoying_fields:
+                assert not getattr(updated_config, field.name)
+            else:
+                assert getattr(updated_config, field.name) == getattr(
+                    config, field.name
+                )
+
+
 class TestRunCache:
     """Tests of the RunCache class."""
 
