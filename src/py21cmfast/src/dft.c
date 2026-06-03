@@ -24,8 +24,8 @@ int dft_c2r_cube(bool use_wisdom, int dim, int dim_los, int n_threads, fftwf_com
     Try {
         if (use_wisdom) {
             // Check to see if the wisdom exists
-            snprintf(wisdom_filename, sizeof(wisdom_filename), "%s/c2r_DIM%d_DIM%d_NTHREADS%d", config_settings.wisdoms_path,
-                    dim, dim_los, n_threads);
+            snprintf(wisdom_filename, sizeof(wisdom_filename), "%s/c2r_DIM%d_DIM%d_NTHREADS%d",
+                     config_settings.wisdoms_path, dim, dim_los, n_threads);
 
             if (fftwf_import_wisdom_from_filename(wisdom_filename) != 0) {
                 flag = FFTW_WISDOM_ONLY;
@@ -52,8 +52,8 @@ int dft_r2c_cube(bool use_wisdom, int dim, int dim_los, int n_threads, fftwf_com
     Try {
         if (use_wisdom) {
             // Check to see if the wisdom exists
-            snprintf(wisdom_filename, sizeof(wisdom_filename), "%s/r2c_DIM%d_DIM%d_NTHREADS%d", config_settings.wisdoms_path,
-                    dim, dim_los, n_threads);
+            snprintf(wisdom_filename, sizeof(wisdom_filename), "%s/r2c_DIM%d_DIM%d_NTHREADS%d",
+                     config_settings.wisdoms_path, dim, dim_los, n_threads);
 
             if (fftwf_import_wisdom_from_filename(wisdom_filename) != 0) {
                 flag = FFTW_WISDOM_ONLY;
