@@ -1278,11 +1278,11 @@ void set_recombination_rates(IonizedBox *box, IonizedBox *previous_ionize_box,
         int box_dim[3] = {simulation_options_global->HII_DIM, simulation_options_global->HII_DIM,
                           HII_D_PARA};
 #pragma omp parallel num_threads(simulation_options_global->N_THREADS)
-    {
-        int x, y, z;
-        double curr_dens, dNrec;
-        double z_eff;
-        index_huge idx;
+        {
+            int x, y, z;
+            double curr_dens, dNrec;
+            double z_eff;
+            index_huge idx;
 #pragma omp for
             for (x = 0; x < simulation_options_global->HII_DIM; x++) {
                 for (y = 0; y < simulation_options_global->HII_DIM; y++) {
