@@ -3,6 +3,7 @@
 
 #include "InputParameters.h"
 #include "OutputStructs.h"
+#include "indexing.h"
 
 // parameters for the halo mass->stars calculations
 // Note: ideally I would split this into constants set per snapshot and
@@ -39,12 +40,11 @@ struct HaloSamplingConstants {
     double expected_M;
 };
 
-int stochastic_halofield(unsigned long long int seed, float redshift_desc, float redshift,
-                         float *dens_field, float *halo_overlap_box, HaloCatalog *halos_desc,
-                         HaloCatalog *halos);
+int stochastic_halofield(random_huge seed, float redshift_desc, float redshift, float *dens_field,
+                         float *halo_overlap_box, HaloCatalog *halos_desc, HaloCatalog *halos);
 
-int single_test_sample(unsigned long long int seed, int n_condition, float *conditions,
-                       float *cond_crd, double z_out, double z_in, int *out_n_tot, int *out_n_cell,
+int single_test_sample(random_huge seed, int n_condition, float *conditions, float *cond_crd,
+                       double z_out, double z_in, int *out_n_tot, int *out_n_cell,
                        double *out_n_exp, double *out_m_cell, double *out_m_exp,
                        float *out_halo_masses, float *out_halo_coords);
 
@@ -53,7 +53,7 @@ int single_test_sample(unsigned long long int seed, int n_condition, float *cond
 double expected_nhalo(double redshift);
 
 // used in HaloCatalog.c to assign rng to DexM halos
-int add_properties_cat(unsigned long long int seed, float redshift, HaloCatalog *halos);
+int add_properties_cat(random_huge seed, float redshift, HaloCatalog *halos);
 
 void stoc_set_consts_z(struct HaloSamplingConstants *const_struct, double redshift,
                        double redshift_desc);

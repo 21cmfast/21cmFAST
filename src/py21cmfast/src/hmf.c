@@ -552,6 +552,7 @@ double c_xray_integrand(double lnM, void *param_struct) {
 
 double unconditional_hmf(double growthf, double lnM, double z, int HMF) {
     // most of the UMFs are defined with M, but we integrate over lnM
+    // NOTE: HMF outside [HMF_PS, HMF_DELOS] gets caught earlier.
     if (HMF == HMF_PS) {
         return dNdlnM_PS(growthf, lnM);
     }
@@ -1096,7 +1097,8 @@ double Nion_ConditionalM_MINI(double growthf, double lnM1, double lnM2, double l
 
     // If we don't have a corresponding CMF, use EPS and normalise
     // NOTE: it's possible we may want to use another default
-    if (params.HMF != 0 && params.HMF != 1 && params.HMF != 4) params.HMF = 0;
+    if (params.HMF != HMF_PS && params.HMF != HMF_ST && params.HMF != HMF_DELOS)
+        params.HMF = HMF_PS;
 
     return IntegratedNdM(lnM1, lnM2, params, &c_nion_integrand_mini, method);
 }
@@ -1132,7 +1134,8 @@ double Nion_ConditionalM(double growthf, double lnM1, double lnM2, double lnM_co
 
     // If we don't have a corresponding CMF, use EPS and normalise
     // NOTE: it's possible we may want to use another default
-    if (params.HMF != 0 && params.HMF != 1 && params.HMF != 4) params.HMF = 0;
+    if (params.HMF != HMF_PS && params.HMF != HMF_ST && params.HMF != HMF_DELOS)
+        params.HMF = HMF_PS;
     return IntegratedNdM(lnM1, lnM2, params, &c_nion_integrand, method);
 }
 
@@ -1175,7 +1178,8 @@ double Xray_ConditionalM(double redshift, double growthf, double lnM1, double ln
 
     // If we don't have a corresponding CMF, use EPS and normalise
     // NOTE: it's possible we may want to use another default
-    if (params.HMF != 0 && params.HMF != 1 && params.HMF != 4) params.HMF = 0;
+    if (params.HMF != HMF_PS && params.HMF != HMF_ST && params.HMF != HMF_DELOS)
+        params.HMF = HMF_PS;
 
     return IntegratedNdM(lnM1, lnM2, params, &c_xray_integrand, method);
 }
@@ -1314,7 +1318,8 @@ float Mass_limit_bisection(float Mmin, float Mmax, float PL, float FRAC) {
 //       from M_MIN_INTEGRAL
 double minimum_source_mass(double redshift, bool xray) {
     double Mmin, min_factor, mu_factor, t_vir_min;
-    if (matter_options_global->SOURCE_MODEL > 0 && !astro_options_global->USE_MINI_HALOS)
+    if (source_model_is_mass_dependent(matter_options_global->SOURCE_MODEL) &&
+        !astro_options_global->USE_MINI_HALOS)
         min_factor = 50.;  // small lower bound to cover far below the turnover
     else
         min_factor = 1.;  // sharp cutoff
