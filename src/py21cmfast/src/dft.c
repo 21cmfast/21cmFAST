@@ -78,6 +78,7 @@ int CreateFFTWWisdoms() {
         fftwf_plan plan;
 
         char wisdom_filename[500];
+        int nwritten;
 
         omp_set_num_threads(simulation_options_global->N_THREADS);
         fftwf_init_threads();
@@ -90,8 +91,13 @@ int CreateFFTWWisdoms() {
         fftwf_complex *LOWRES_box =
             (fftwf_complex *)fftwf_malloc(sizeof(fftwf_complex) * HII_KSPACE_NUM_PIXELS);
 
-        sprintf(wisdom_filename, "%s/r2c_DIM%d_DIM%d_NTHREADS%d", config_settings.wisdoms_path,
-                simulation_options_global->DIM, (int)D_PARA, simulation_options_global->N_THREADS);
+        nwritten = snprintf(wisdom_filename, sizeof(wisdom_filename),
+                            "%s/r2c_DIM%d_DIM%d_NTHREADS%d", config_settings.wisdoms_path,
+                            simulation_options_global->DIM, (int)D_PARA,
+                            simulation_options_global->N_THREADS);
+        if (nwritten >= (int)sizeof(wisdom_filename)) {
+            LOG_WARNING("Wisdom path too long, filename was truncated: %s", wisdom_filename);
+        }
         if (fftwf_import_wisdom_from_filename(wisdom_filename) == 0) {
             plan = fftwf_plan_dft_r2c_3d(simulation_options_global->DIM,
                                          simulation_options_global->DIM, D_PARA, (float *)HIRES_box,
@@ -100,8 +106,13 @@ int CreateFFTWWisdoms() {
             fftwf_destroy_plan(plan);
         }
 
-        sprintf(wisdom_filename, "%s/c2r_DIM%d_DIM%d_NTHREADS%d", config_settings.wisdoms_path,
-                simulation_options_global->DIM, (int)D_PARA, simulation_options_global->N_THREADS);
+        nwritten = snprintf(wisdom_filename, sizeof(wisdom_filename),
+                            "%s/c2r_DIM%d_DIM%d_NTHREADS%d", config_settings.wisdoms_path,
+                            simulation_options_global->DIM, (int)D_PARA,
+                            simulation_options_global->N_THREADS);
+        if (nwritten >= (int)sizeof(wisdom_filename)) {
+            LOG_WARNING("Wisdom path too long, filename was truncated: %s", wisdom_filename);
+        }
         if (fftwf_import_wisdom_from_filename(wisdom_filename) == 0) {
             plan = fftwf_plan_dft_c2r_3d(
                 simulation_options_global->DIM, simulation_options_global->DIM, D_PARA,
@@ -110,9 +121,13 @@ int CreateFFTWWisdoms() {
             fftwf_destroy_plan(plan);
         }
 
-        sprintf(wisdom_filename, "%s/r2c_DIM%d_DIM%d_NTHREADS%d", config_settings.wisdoms_path,
-                simulation_options_global->HII_DIM, (int)HII_D_PARA,
-                simulation_options_global->N_THREADS);
+        nwritten = snprintf(wisdom_filename, sizeof(wisdom_filename),
+                            "%s/r2c_DIM%d_DIM%d_NTHREADS%d", config_settings.wisdoms_path,
+                            simulation_options_global->HII_DIM, (int)HII_D_PARA,
+                            simulation_options_global->N_THREADS);
+        if (nwritten >= (int)sizeof(wisdom_filename)) {
+            LOG_WARNING("Wisdom path too long, filename was truncated: %s", wisdom_filename);
+        }
         if (fftwf_import_wisdom_from_filename(wisdom_filename) == 0) {
             plan = fftwf_plan_dft_r2c_3d(
                 simulation_options_global->HII_DIM, simulation_options_global->HII_DIM, HII_D_PARA,
@@ -121,9 +136,13 @@ int CreateFFTWWisdoms() {
             fftwf_destroy_plan(plan);
         }
 
-        sprintf(wisdom_filename, "%s/c2r_DIM%d_DIM%d_NTHREADS%d", config_settings.wisdoms_path,
-                simulation_options_global->HII_DIM, (int)HII_D_PARA,
-                simulation_options_global->N_THREADS);
+        nwritten = snprintf(wisdom_filename, sizeof(wisdom_filename),
+                            "%s/c2r_DIM%d_DIM%d_NTHREADS%d", config_settings.wisdoms_path,
+                            simulation_options_global->HII_DIM, (int)HII_D_PARA,
+                            simulation_options_global->N_THREADS);
+        if (nwritten >= (int)sizeof(wisdom_filename)) {
+            LOG_WARNING("Wisdom path too long, filename was truncated: %s", wisdom_filename);
+        }
         if (fftwf_import_wisdom_from_filename(wisdom_filename) == 0) {
             plan = fftwf_plan_dft_c2r_3d(
                 simulation_options_global->HII_DIM, simulation_options_global->HII_DIM, HII_D_PARA,
