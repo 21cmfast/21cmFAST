@@ -5,6 +5,7 @@ This correctly handles backend global state, such as the power spectrum tables
 and interpolation tables.
 """
 
+import atexit
 import functools
 import inspect
 import logging
@@ -78,9 +79,11 @@ class GlobalInitializationManager:
             # Free everything and start again.
             self.free()
 
-        # Now we can safely set the inputs, knowing that either they are the same as
-        # before or that we've freed the previous state.
-        self.inputs = inputs
+            # Note that we ONLY reset the inputs in the case that they're not equal
+            # The backend relies on *pointers* to the underlying C structs, so even
+            # if the new inputs is equal to the old, it will have a different memory
+            # address. We don't want to use the new memory address for the backend.
+            self.inputs = inputs
 
         if broadcast_inputs:
             self.broadcast_input_struct()
@@ -144,8 +147,14 @@ class GlobalInitializationManager:
             lib.init_MHR()
             self.recomb_inited = True
 
+    def __atexit__(self):
+        """Free the global state when the program exits."""
+        self.free()
+
 
 _GlobalInitManagerSingleton = GlobalInitializationManager()
+
+atexit.register(_GlobalInitManagerSingleton.__atexit__)
 
 
 def c_state_initializer(
