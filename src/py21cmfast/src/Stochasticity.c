@@ -53,17 +53,10 @@ double expected_nhalo(double redshift) {
     double M_max = RHOcrit * cosmo_params_global->OMm * VOLUME / HII_TOT_NUM_PIXELS;
     double result;
 
-    init_ps();
-    if (uses_interpolation_tables(matter_options_global->USE_INTERPOLATION_TABLES))
-        initialiseSigmaMInterpTable(M_min, M_max);
-
     result = Nhalo_General(redshift, log(M_min), log(M_max)) * VOLUME * cosmo_params_global->OMm *
              RHOcrit;
     LOG_DEBUG("Expected %.2e Halos in the box from masses %.2e to %.2e at z=%.2f", result, M_min,
               M_max, redshift);
-
-    if (uses_interpolation_tables(matter_options_global->USE_INTERPOLATION_TABLES))
-        freeSigmaMInterpTable();
 
     return result;
 }
@@ -99,15 +92,9 @@ void stoc_set_consts_z(struct HaloSamplingConstants *const_struct, double redshi
     const_struct->M_max_tables = M_MAX_INTEGRAL;
     const_struct->lnM_max_tb = log(const_struct->M_max_tables);
 
-    init_ps();
-    if (uses_interpolation_tables(matter_options_global->USE_INTERPOLATION_TABLES)) {
-        // the binary split needs to go below the resolution
-        if (matter_options_global->SAMPLE_METHOD == SAMPLE_BINARY_SPLIT)
-            initialiseSigmaMInterpTable(const_struct->M_min / 2, const_struct->M_max_tables);
-        else
-            initialiseSigmaMInterpTable(const_struct->M_min, const_struct->M_max_tables);
-
-        if (matter_options_global->SAMPLE_METHOD == SAMPLE_PARTITION) InitialiseSigmaInverseTable();
+    if (uses_interpolation_tables(matter_options_global->USE_INTERPOLATION_TABLES) &&
+        matter_options_global->SAMPLE_METHOD == SAMPLE_PARTITION) {
+        InitialiseSigmaInverseTable();
     }
 
     const_struct->sigma_min = EvaluateSigma(const_struct->lnM_min);
@@ -1168,9 +1155,6 @@ int stochastic_halofield(random_huge seed, float redshift_desc, float redshift, 
                   halos->xray_rng[1], halos->xray_rng[2]);
     }
 
-    if (uses_interpolation_tables(matter_options_global->USE_INTERPOLATION_TABLES)) {
-        freeSigmaMInterpTable();
-    }
     free_dNdM_tables();
 
     free_rng_threads(rng_stoc);
@@ -1311,9 +1295,6 @@ int single_test_sample(random_huge seed, int n_condition, float *conditions, flo
             }
         }
 
-        if (uses_interpolation_tables(matter_options_global->USE_INTERPOLATION_TABLES)) {
-            freeSigmaMInterpTable();
-        }
         free_dNdM_tables();
 
         free_rng_threads(rng_stoc);

@@ -34,8 +34,6 @@
 #define LOG10_MTURN_MAX ((double)(10))  // maximum mturn limit enforced on grids
 #define HII_ROUND_ERR (1e-5)            // do not run excursion-set below this expected HII fraction
 
-int INIT_RECOMBINATIONS = 1;
-
 // Parameters for the ionisation box calculations
 struct IonBoxConstants {
     // redshift constants
@@ -1364,21 +1362,8 @@ int ComputeIonizedBox(float redshift, float prev_redshift, PerturbedField *pertu
 
         double global_xH;
 
-        if (!astro_options_global->USE_TS_FLUCT) {
-            init_heat();
-        }
-        init_ps();
-
         struct IonBoxConstants ionbox_constants;
         set_ionbox_constants(redshift, prev_redshift, &ionbox_constants);
-
-        // boxes which aren't guaranteed to have every element assigned to need to be initialised
-        if (astro_options_global->RECOMB_MODEL > 0) {
-            if (INIT_RECOMBINATIONS) {
-                init_MHR();
-                INIT_RECOMBINATIONS = 0;
-            }
-        }
 
 #pragma omp parallel shared(box) private(ct) num_threads(simulation_options_global -> N_THREADS)
         {
@@ -1466,16 +1451,6 @@ int ComputeIonizedBox(float redshift, float prev_redshift, PerturbedField *pertu
         }
         // lets check if we are going to bother with computing the inhmogeneous field at all...
         global_xH = 0.0;
-
-        // HMF integral initialisation
-        if (uses_interpolation_tables(matter_options_global->USE_INTERPOLATION_TABLES)) {
-            if (astro_options_global->INTEGRATION_METHOD_ATOMIC ==
-                    INTEGRATION_METHOD_GAMMA_APPROX ||
-                astro_options_global->INTEGRATION_METHOD_MINI == INTEGRATION_METHOD_GAMMA_APPROX)
-                initialiseSigmaMInterpTable(fmin(MMIN_FAST, ionbox_constants.M_min), 1e20);
-            else
-                initialiseSigmaMInterpTable(ionbox_constants.M_min, 1e20);
-        }
 
         if (astro_options_global->INTEGRATION_METHOD_ATOMIC == INTEGRATION_METHOD_GAUSS_LEGENDRE ||
             (astro_options_global->USE_MINI_HALOS &&
@@ -1653,17 +1628,8 @@ int ComputeIonizedBox(float redshift, float prev_redshift, PerturbedField *pertu
             fftwf_forget_wisdom();
         }
 
-        if (!astro_options_global->USE_TS_FLUCT) {
-            destruct_heat();
-        }
-
         LOG_DEBUG("global_xH = %e", global_xH);
         free_fftw_grids(grid_struct);
-
-        if (!astro_options_global->USE_TS_FLUCT &&
-            uses_interpolation_tables(matter_options_global->USE_INTERPOLATION_TABLES)) {
-            freeSigmaMInterpTable();
-        }
 
         // This function checks for allocation so don't worry about double-freeing tables
         free_conditional_tables();

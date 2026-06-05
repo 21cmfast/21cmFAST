@@ -15,14 +15,12 @@ from ..input_serialization import convert_inputs_to_dict
 from ..io import h5
 from ..io.caching import OutputCache
 from ..utils import recursive_difference
-from ..wrapper.cfuncs import (
-    broadcast_input_struct,
-    construct_fftw_wisdoms,
-    free_cosmo_tables,
-)
 from ..wrapper.inputs import InputParameters
-from ..wrapper.outputs import OutputStruct, OutputStructZ, _HashType
-from ..wrapper.photoncons import _photoncons_state
+from ..wrapper.outputs import (
+    OutputStruct,
+    OutputStructZ,
+    _HashType,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -206,7 +204,7 @@ class _OutputStructComputationInspect:
         OutputStruct that is given.
         """
         inputs = kwargs.get("inputs")
-        if inputs is not None:
+        if inputs is not None and isinstance(inputs, InputParameters):
             return inputs
 
         outputs = _OutputStructComputationInspect._get_all_output_struct_inputs(
@@ -233,15 +231,6 @@ class _OutputStructComputationInspect:
         given_inputs = kwargs.get("inputs")
         if given_inputs is not None:
             check_consistency_of_outputs_with_inputs(given_inputs, outputs.values())
-
-    def _make_wisdoms(self, use_fftw_wisdom: bool):
-        construct_fftw_wisdoms(use_fftw_wisdom=use_fftw_wisdom)
-
-    def _broadcast_inputs(self, inputs: InputParameters):
-        broadcast_input_struct(inputs=inputs)
-
-    def _free_cosmo_tables(self):
-        free_cosmo_tables()
 
     def check_output_struct_types(self, outputs: dict[str, OutputStruct]):
         """Check given OutputStruct parameters.
@@ -370,6 +359,8 @@ class _OutputStructComputationInspect:
         both needed and not initialised.
         In Future, may hold more backend state checks.
         """
+        from ..wrapper.photoncons import _photoncons_state
+
         # we need photon cons to be done before any non-IC box is computed
         if (
             inputs.astro_options.PHOTON_CONS_TYPE != "no-photoncons"
@@ -461,8 +452,6 @@ class single_field_func(_OutputStructComputationInspect):  # noqa: N801
 
         out = self._handle_read_from_cache(inputs, current_redshift, cache, regen)
 
-        free_cosmo_tables = kwargs.pop("free_cosmo_tables", True)
-
         if "inputs" in self._signature.parameters:
             # Here we set the inputs (if accepted by the function signature)
             # to the most advanced ones. This is the explicitly-passed inputs if
@@ -471,16 +460,8 @@ class single_field_func(_OutputStructComputationInspect):  # noqa: N801
             kwargs["inputs"] = inputs
 
         if out is None:
-            self._broadcast_inputs(inputs)
-            self._make_wisdoms(inputs.matter_options.USE_FFTW_WISDOM)
             out = self._func(**kwargs)
             self._handle_write_to_cache(cache, write, out)
-
-        # Free cosmo_tables, unless it is explicitly requested to keep their memory
-        # (useful in macro functions like run_coeval and run_lightcone, so we won't have to
-        # free and reallocate memory repeatedly)
-        if free_cosmo_tables:
-            self._free_cosmo_tables()
 
         return out
 

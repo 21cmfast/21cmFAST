@@ -26,6 +26,7 @@ from ..wrapper.outputs import (
     TsBox,
     XraySourceBox,
 )
+from ._global_initialization import init_c_state
 from ._param_config import (
     check_output_consistency,
     single_field_func,
@@ -35,8 +36,11 @@ logger = logging.getLogger(__name__)
 
 
 @single_field_func
+@init_c_state(ps=True)
 def compute_initial_conditions(
-    *, inputs: InputParameters, initial_density: np.ndarray | float | None = None
+    *,
+    inputs: InputParameters,
+    initial_density: np.ndarray | float | None = None,
 ) -> InitialConditions:
     r"""
     Compute initial conditions.
@@ -110,6 +114,7 @@ def compute_initial_conditions(
 
 
 @single_field_func
+@init_c_state(broadcast_inputs=True)
 def perturb_field(
     *,
     redshift: float,
@@ -152,6 +157,7 @@ def perturb_field(
 
 
 @single_field_func
+@init_c_state(sigma=True)
 def determine_halo_catalog(
     *,
     redshift: float,
@@ -210,6 +216,7 @@ def determine_halo_catalog(
 
 
 @single_field_func
+@init_c_state(broadcast_inputs=True)
 def perturb_halo_catalog(
     *,
     initial_conditions: InitialConditions,
@@ -286,6 +293,7 @@ def perturb_halo_catalog(
 
 
 @single_field_func
+@init_c_state(sigma=True)
 def compute_halo_grid(
     *,
     redshift: float,
@@ -461,6 +469,7 @@ def interp_halo_boxes(
 #   over multiple redshifts in a nice way using this wrapper.
 # TODO: if we move some code to jax or similar I think this would be one of the first candidates (just filling out some filtered grids)
 @single_field_func
+@init_c_state(broadcast_inputs=True)
 def compute_xray_source_field(
     *,
     initial_conditions: InitialConditions,
@@ -628,6 +637,7 @@ def compute_xray_source_field(
 
 
 @single_field_func
+@init_c_state(sigma=True, heat=True)
 def compute_spin_temperature(
     *,
     initial_conditions: InitialConditions,
@@ -702,6 +712,7 @@ def compute_spin_temperature(
 
 
 @single_field_func
+@init_c_state(sigma=True, heat=True, recomb=True)
 def compute_ionization_field(
     *,
     perturbed_field: PerturbedField,
@@ -830,6 +841,7 @@ def compute_ionization_field(
 
 
 @single_field_func
+@init_c_state(broadcast_inputs=True)
 def brightness_temperature(
     *,
     ionized_box: IonizedBox,

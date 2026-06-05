@@ -651,7 +651,9 @@ def test_Xray_conditional_tables(
 
     Xray_tables = cf.evaluate_Xray_cond(
         inputs=inputs.evolve_input_structs(
-            USE_INTERPOLATION_TABLES="hmf-interpolation"
+            USE_INTERPOLATION_TABLES="hmf-interpolation",
+            INTEGRATION_METHOD_ATOMIC=OPTIONS_INTMETHOD[intmethod],
+            INTEGRATION_METHOD_MINI=OPTIONS_INTMETHOD[intmethod],
         ),
         redshift=redshift,
         radius=R,
@@ -661,7 +663,9 @@ def test_Xray_conditional_tables(
 
     Xray_integrals = cf.evaluate_Xray_cond(
         inputs=inputs.evolve_input_structs(
-            USE_INTERPOLATION_TABLES="sigma-interpolation"
+            USE_INTERPOLATION_TABLES="sigma-interpolation",
+            INTEGRATION_METHOD_ATOMIC=OPTIONS_INTMETHOD[intmethod],
+            INTEGRATION_METHOD_MINI=OPTIONS_INTMETHOD[intmethod],
         ),
         redshift=redshift,
         radius=R,
@@ -732,7 +736,9 @@ def test_SFRD_conditional_table(
 
     SFRD_tables, SFRD_tables_mini = cf.evaluate_SFRD_cond(
         inputs=inputs.evolve_input_structs(
-            USE_INTERPOLATION_TABLES="hmf-interpolation"
+            USE_INTERPOLATION_TABLES="hmf-interpolation",
+            INTEGRATION_METHOD_ATOMIC=OPTIONS_INTMETHOD[intmethod],
+            INTEGRATION_METHOD_MINI=OPTIONS_INTMETHOD[intmethod],
         ),
         radius=R,
         redshift=redshift,
@@ -742,7 +748,9 @@ def test_SFRD_conditional_table(
 
     SFRD_integrals, SFRD_integrals_mini = cf.evaluate_SFRD_cond(
         inputs=inputs.evolve_input_structs(
-            USE_INTERPOLATION_TABLES="sigma-interpolation"
+            USE_INTERPOLATION_TABLES="sigma-interpolation",
+            INTEGRATION_METHOD_ATOMIC=OPTIONS_INTMETHOD[intmethod],
+            INTEGRATION_METHOD_MINI=OPTIONS_INTMETHOD[intmethod],
         ),
         radius=R,
         redshift=redshift,

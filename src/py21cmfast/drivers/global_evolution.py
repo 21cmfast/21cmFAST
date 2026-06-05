@@ -9,7 +9,6 @@ import h5py
 import numpy as np
 
 from .. import __version__
-from ..c_21cmfast import lib
 from ..io import h5
 from ..io.caching import CacheConfig
 from ..wrapper.arrays import Array
@@ -232,7 +231,7 @@ def run_global_evolution(
     source_model: str | None = None,
     progressbar: bool = False,
     overdensity_z0: float | None = None,
-):
+) -> GlobalEvolution:
     r"""
     Compute the global evolution of all the fields in the simulation.
 
@@ -319,6 +318,7 @@ def run_global_evolution(
         "USE_UPPER_STELLAR_TURNOVER": False,  # no upper stellar turnover without discrete halos
         "USE_EXP_FILTER": False,  # we don't run reionization module, so we can leave this parameter on False for all source models
         "KEEP_3D_VELOCITIES": False,  # we don't need any velocities
+        "USE_FFTW_WISDOM": False,  # we don't do FFT when we have just one cell
         "PHOTON_CONS_TYPE": "no-photoncons",  # we don't do photon conservation
     }
     inputs_one_cell = inputs.evolve_input_structs(**new_input_kwargs)
@@ -334,7 +334,10 @@ def run_global_evolution(
 
     prev_coeval = None
 
-    iokw = {"cache": None, "regenerate": True, "free_cosmo_tables": False}
+    iokw = {
+        "cache": None,
+        "regenerate": True,
+    }
 
     (
         initial_conditions,
@@ -370,7 +373,5 @@ def run_global_evolution(
             )
 
         prev_coeval = coeval
-
-    lib.Free_cosmo_tables_global()
 
     return global_evolution
