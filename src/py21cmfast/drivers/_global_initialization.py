@@ -148,7 +148,13 @@ class GlobalInitializationManager:
         if not self.inputs_are_broadcast:
             self.broadcast_input_struct()
 
-        if self.inputs.astro_options.INHOMO_RECO and not self.recomb_inited:
+        # NOTE: run_global_evolution at the moment does not do recombination calculations, so we only initialize if HII_DIM > 1.
+        # If this is changed in the future, it will be necessary to remove the HII_DIM > 1 condition below, since it would cause a segfault!
+        if (
+            self.inputs.astro_options.INHOMO_RECO
+            and self.inputs.simulation_options.HII_DIM > 1
+            and not self.recomb_inited
+        ):
             lib.init_MHR()
             self.recomb_inited = True
 
