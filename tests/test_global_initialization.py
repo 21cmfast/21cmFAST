@@ -57,7 +57,7 @@ def test_initializations():
             SOURCE_MODEL="L-INTEGRAL",
             USE_UPPER_STELLAR_TURNOVER=False,
             USE_INTERPOLATION_TABLES="no-interpolation",
-            INHOMO_RECO=False,
+            RECOMB_MODEL="none",
         )
     )
 
@@ -75,7 +75,7 @@ def test_initializations():
 
     # Now let's change the inputs to ones that will allow the initialization of all tables, and check that it works as expected
     _GlobalInitManagerSingleton.inputs = _GlobalInitManagerSingleton.inputs.with_logspaced_redshifts().evolve_input_structs(
-        USE_INTERPOLATION_TABLES="sigma-interpolation", INHOMO_RECO=True
+        USE_INTERPOLATION_TABLES="sigma-interpolation", RECOMB_MODEL="inhomogeneous"
     )
 
     _GlobalInitManagerSingleton.broadcast_input_struct()
@@ -128,7 +128,7 @@ def test_direct_initializations_for_heat_and_recomb():
 
     # Now let's change the inputs to ones that will allow the initialization of the recombination rate, and check that it works as expected
     _GlobalInitManagerSingleton.inputs = _GlobalInitManagerSingleton.inputs.with_logspaced_redshifts().evolve_input_structs(
-        INHOMO_RECO=True
+        RECOMB_MODEL="inhomogeneous"
     )
     _GlobalInitManagerSingleton.initialize_recombination_rate()
     assert _GlobalInitManagerSingleton.inputs_are_broadcast
