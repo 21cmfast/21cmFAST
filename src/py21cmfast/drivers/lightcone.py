@@ -600,7 +600,7 @@ def _run_lightcone_from_perturbed_fields(
         #       Meanwhile, unnecessary fields from initial_conditions were removed via prepare_for_perturb and prepare_for_spin_temp
         if prev_coeval is not None:
             prev_coeval.prepare_for_next_snapshot(
-                keep=["initial_conditions", "halobox"], force=True
+                keepset=["initial_conditions", "halobox"], force=True
             )
 
         prev_coeval = coeval
@@ -686,7 +686,10 @@ def generate_lightcone(
 
     _check_desired_arrays_exist(lightconer.quantities, inputs)
 
-    iokw = {"cache": cache, "regenerate": regenerate, "free_cosmo_tables": False}
+    iokw = {
+        "cache": cache,
+        "regenerate": regenerate,
+    }
 
     (
         initial_conditions,
@@ -719,8 +722,6 @@ def generate_lightcone(
         lightcone_filename=lightcone_filename,
         **iokw,
     )
-
-    lib.Free_cosmo_tables_global()
 
 
 def run_lightcone(**kwargs) -> LightCone:

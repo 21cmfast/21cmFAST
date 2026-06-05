@@ -48,7 +48,6 @@ __all__ = [
     "compute_xray_source_field",
     "config",
     "configure_logging",
-    "construct_fftw_wisdoms",
     "create_params_from_template",
     "determine_halo_catalog",
     "generate_coeval",
@@ -96,7 +95,6 @@ from .lightconers import AngularLightconer, RectilinearLightconer
 from .wrapper.cfuncs import (
     compute_luminosity_function,
     compute_tau,
-    construct_fftw_wisdoms,
 )
 from .wrapper.classy_interface import compute_rms, run_classy
 from .wrapper.inputs import (
