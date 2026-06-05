@@ -99,12 +99,12 @@ class GlobalInitializationManager:
         """Broadcast the parameters to the C library, and construct FFTW wisdoms if necessary."""
         if not self.inputs_are_broadcast:
             lib.Broadcast_struct_global_all(
-                self.inputs.simulation_options.cstruct,
-                self.inputs.matter_options.cstruct,
-                self.inputs.cosmo_params.cstruct,
-                self.inputs.astro_params.cstruct,
-                self.inputs.astro_options.cstruct,
-                self.inputs.cosmo_tables.cstruct,
+                self.inputs.simulation_options._cstruct,
+                self.inputs.matter_options._cstruct,
+                self.inputs.cosmo_params._cstruct,
+                self.inputs.astro_params._cstruct,
+                self.inputs.astro_options._cstruct,
+                self.inputs.cosmo_tables._cstruct,
             )
             if self.inputs.matter_options.USE_FFTW_WISDOM:
                 lib.CreateFFTWWisdoms()
