@@ -10,7 +10,7 @@ from scipy.interpolate import interp1d
 
 from .._cfg import config
 from ..c_21cmfast import ffi, lib
-from ..drivers._global_initialization import c_state_initializer
+from ..drivers._global_initialization import init_c_state
 from ._utils import _process_exitcode
 from .inputs import InputParameters
 
@@ -19,7 +19,7 @@ logger = logging.getLogger(__name__)
 # TODO: a lot of these assume input as numpy arrays via use of .shape, explicitly require this
 
 
-@c_state_initializer(init_sigma=True)
+@init_c_state(sigma=True)
 def get_expected_nhalo(*, redshift: float, inputs: InputParameters) -> int:
     """Get the expected number of halos in a given box.
 
@@ -50,7 +50,7 @@ def get_expected_nhalo(*, redshift: float, inputs: InputParameters) -> int:
     )
 
 
-@c_state_initializer(init_sigma=True)
+@init_c_state(sigma=True)
 def get_halo_catalog_buffer_size(
     *, redshift: float, inputs: InputParameters, min_size: int = 1000000
 ) -> int:
@@ -76,7 +76,7 @@ def get_halo_catalog_buffer_size(
     return int(max(hbuffer_size, min_size))
 
 
-@c_state_initializer(broadcast_inputs=True)
+@init_c_state(broadcast_inputs=True)
 def compute_tau(
     *,
     redshifts: Sequence[float],
@@ -130,7 +130,7 @@ def compute_tau(
     )
 
 
-@c_state_initializer(init_sigma=True)
+@init_c_state(sigma=True)
 def compute_luminosity_function(
     *,
     redshifts: Sequence[float],
@@ -331,7 +331,7 @@ def compute_luminosity_function(
         )
 
 
-@c_state_initializer(init_ps=True)
+@init_c_state(ps=True)
 def get_matter_power_values(
     *,
     inputs: InputParameters,
@@ -341,7 +341,7 @@ def get_matter_power_values(
     return np.vectorize(lib.power_in_k)(k_values)
 
 
-@c_state_initializer(init_ps=True)
+@init_c_state(ps=True)
 def get_vcb_power_values(
     *,
     inputs: InputParameters,
@@ -356,7 +356,7 @@ def get_vcb_power_values(
         )
 
 
-@c_state_initializer(init_sigma=True)
+@init_c_state(sigma=True)
 def evaluate_sigma(
     *,
     inputs: InputParameters,
@@ -381,7 +381,7 @@ def evaluate_sigma(
     return sigma, dsigmasq
 
 
-@c_state_initializer(broadcast_inputs=True)
+@init_c_state(broadcast_inputs=True)
 def get_growth_factor(
     *,
     inputs: InputParameters,
@@ -411,7 +411,7 @@ def get_condition_mass(inputs: InputParameters, R: float):
     return volume * rhocrit
 
 
-@c_state_initializer(broadcast_inputs=True)
+@init_c_state(broadcast_inputs=True)
 def get_delta_crit(*, inputs: InputParameters, mass: float, redshift: float):
     """Get the critical collapse density given a mass, redshift and parameters."""
     sigma, _ = evaluate_sigma(inputs=inputs, masses=np.array([mass]))
@@ -425,7 +425,7 @@ def get_delta_crit_nu(hmf_int_flag: int, sigma: float, growth: float):
     return lib.get_delta_crit(hmf_int_flag, sigma, growth)
 
 
-@c_state_initializer(init_sigma=True)
+@init_c_state(sigma=True)
 def evaluate_condition_integrals(
     inputs: InputParameters,
     cond_array: NDArray[np.floating],
@@ -454,7 +454,7 @@ def evaluate_condition_integrals(
     return n_halo, m_coll
 
 
-@c_state_initializer(init_sigma=True)
+@init_c_state(sigma=True)
 def integrate_chmf_interval(
     inputs: InputParameters,
     redshift: float,
@@ -487,7 +487,7 @@ def integrate_chmf_interval(
     return out_prob
 
 
-@c_state_initializer(init_sigma=True)
+@init_c_state(sigma=True)
 def evaluate_inverse_table(
     inputs: InputParameters,
     cond_array: NDArray[np.floating],
@@ -521,7 +521,7 @@ def evaluate_inverse_table(
     return masses
 
 
-@c_state_initializer(init_sigma=True)
+@init_c_state(sigma=True)
 def evaluate_FgtrM_cond(
     inputs: InputParameters,
     densities: NDArray[np.floating],
@@ -544,7 +544,7 @@ def evaluate_FgtrM_cond(
     return fcoll, dfcoll
 
 
-@c_state_initializer(init_sigma=True)
+@init_c_state(sigma=True)
 def evaluate_SFRD_z(
     *,
     inputs: InputParameters,
@@ -574,7 +574,7 @@ def evaluate_SFRD_z(
     return sfrd, sfrd_mini
 
 
-@c_state_initializer(init_sigma=True)
+@init_c_state(sigma=True)
 def evaluate_Nion_z(
     *,
     inputs: InputParameters,
@@ -604,7 +604,7 @@ def evaluate_Nion_z(
     return nion, nion_mini
 
 
-@c_state_initializer(init_sigma=True)
+@init_c_state(sigma=True)
 def evaluate_SFRD_cond(
     *,
     inputs: InputParameters,
@@ -637,7 +637,7 @@ def evaluate_SFRD_cond(
     return sfrd, sfrd_mini
 
 
-@c_state_initializer(init_sigma=True)
+@init_c_state(sigma=True)
 def evaluate_Nion_cond(
     *,
     inputs: InputParameters,
@@ -673,7 +673,7 @@ def evaluate_Nion_cond(
     return nion, nion_mini
 
 
-@c_state_initializer(init_sigma=True)
+@init_c_state(sigma=True)
 def evaluate_Xray_cond(
     *,
     inputs: InputParameters,
@@ -705,7 +705,7 @@ def evaluate_Xray_cond(
     return xray
 
 
-@c_state_initializer(init_sigma=True)
+@init_c_state(sigma=True)
 def sample_halos_from_conditions(
     *,
     inputs: InputParameters,
@@ -758,7 +758,7 @@ def sample_halos_from_conditions(
     }
 
 
-@c_state_initializer(broadcast_inputs=True)
+@init_c_state(broadcast_inputs=True)
 def convert_halo_properties(
     *,
     redshift: float,
@@ -855,7 +855,7 @@ def convert_halo_properties(
     }
 
 
-@c_state_initializer(init_sigma=True)
+@init_c_state(sigma=True)
 def return_uhmf_value(
     *,
     inputs: InputParameters,
@@ -879,7 +879,7 @@ def return_uhmf_value(
     )
 
 
-@c_state_initializer(init_sigma=True)
+@init_c_state(sigma=True)
 def return_chmf_value(
     *,
     inputs: InputParameters,

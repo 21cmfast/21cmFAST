@@ -163,18 +163,13 @@ class GlobalInitializationManager:
         self.free()
 
 
-_GlobalInitManagerSingleton = GlobalInitializationManager()
-
-atexit.register(_GlobalInitManagerSingleton.__atexit__)
-
-
-def c_state_initializer(
+def init_c_state(
     *,
     broadcast_inputs: bool = False,
-    init_ps: bool = False,
-    init_sigma: bool = False,
-    init_heat: bool = False,
-    init_recomb: bool = False,
+    ps: bool = False,
+    sigma: bool = False,
+    heat: bool = False,
+    recomb: bool = False,
 ) -> Callable:
     """Build a decorator that calls init_func before and free_func after the wrapped function."""
 
@@ -185,10 +180,10 @@ def c_state_initializer(
             _GlobalInitManagerSingleton.init(
                 inputs=inputs,
                 broadcast_inputs=broadcast_inputs,
-                ps=init_ps,
-                sigma=init_sigma,
-                heat=init_heat,
-                recomb=init_recomb,
+                ps=ps,
+                sigma=sigma,
+                heat=heat,
+                recomb=recomb,
             )
 
         def wrapper(**kwargs):
@@ -200,3 +195,10 @@ def c_state_initializer(
         return result
 
     return _make_wrapper
+
+
+# Instantiate the singleton for the global initialization manager (this happens at import time)
+_GlobalInitManagerSingleton = GlobalInitializationManager()
+
+# Register the atexit function. When python exits, this will free any tables that were allocated in C
+atexit.register(_GlobalInitManagerSingleton.__atexit__)

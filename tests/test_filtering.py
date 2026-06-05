@@ -8,7 +8,7 @@ from py21cmfast.c_21cmfast import ffi, lib
 from scipy.stats import binned_statistic as binstat
 
 from py21cmfast import InputParameters
-from py21cmfast.drivers._global_initialization import c_state_initializer
+from py21cmfast.drivers._global_initialization import init_c_state
 
 from . import produce_integration_test_data as prd
 from .test_c_interpolation_tables import print_failure_stats
@@ -22,7 +22,7 @@ R_PARAM_LIST = [
 ]  # default test HII_DIM = 50, we want max R < BOX_LEN*HII_DIM/3
 
 
-@c_state_initializer(broadcast_inputs=True)
+@init_c_state(broadcast_inputs=True)
 def call_test_filter(
     inputs: InputParameters,
     input_box: np.ndarray,
