@@ -517,7 +517,6 @@ def generate_coeval(
     initial_conditions: InitialConditions | None = None,
     cleanup: bool = True,
     progressbar: bool = False,
-    **kwargs,
 ):
     r"""
     Perform a full coeval simulation of all fields at given redshifts.

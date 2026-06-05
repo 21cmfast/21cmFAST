@@ -40,7 +40,6 @@ def compute_initial_conditions(
     *,
     inputs: InputParameters,
     initial_density: np.ndarray | float | None = None,
-    **kwargs,
 ) -> InitialConditions:
     r"""
     Compute initial conditions.
@@ -120,7 +119,6 @@ def perturb_field(
     redshift: float,
     inputs: InputParameters | None = None,
     initial_conditions: InitialConditions,
-    **kwargs,
 ) -> PerturbedField:
     r"""
     Compute a perturbed field at a given redshift.
@@ -165,7 +163,6 @@ def determine_halo_catalog(
     inputs: InputParameters | None = None,
     initial_conditions: InitialConditions,
     descendant_halos: HaloCatalog | None = None,
-    **kwargs,
 ) -> HaloCatalog:
     r"""
     Find a halo list, given a redshift.
@@ -226,7 +223,6 @@ def perturb_halo_catalog(
     previous_spin_temp: TsBox | None = None,
     previous_ionize_box: IonizedBox | None = None,
     halo_catalog: HaloCatalog,
-    **kwargs,
 ) -> PerturbedHaloCatalog:
     r"""
     Given a halo list, perturb the halos for a given redshift.
@@ -305,7 +301,6 @@ def compute_halo_grid(
     halo_catalog: HaloCatalog | None = None,
     previous_spin_temp: TsBox | None = None,
     previous_ionize_box: IonizedBox | None = None,
-    **kwargs,
 ) -> HaloBox:
     r"""
     Compute grids of halo properties from a catalogue.
@@ -479,7 +474,6 @@ def compute_xray_source_field(
     initial_conditions: InitialConditions,
     hboxes: list[HaloBox],
     redshift: float,
-    **kwargs,
 ) -> XraySourceBox:
     r"""
     Compute filtered grid of SFR for use in spin temperature calculation.
@@ -612,7 +606,6 @@ def compute_spin_temperature(
     xray_source_box: XraySourceBox | None = None,
     previous_spin_temp: TsBox | None = None,
     cleanup: bool = False,
-    **kwargs,
 ) -> TsBox:
     r"""
     Compute spin temperature boxes at a given redshift.
@@ -689,7 +682,6 @@ def compute_ionization_field(
     previous_ionized_box: IonizedBox | None = None,
     spin_temp: TsBox | None = None,
     halobox: HaloBox | None = None,
-    **kwargs,
 ) -> IonizedBox:
     r"""
     Compute an ionized box at a given redshift.
@@ -815,7 +807,6 @@ def brightness_temperature(
     ionized_box: IonizedBox,
     perturbed_field: PerturbedField,
     spin_temp: TsBox | None = None,
-    **kwargs,
 ) -> BrightnessTemp:
     r"""
     Compute a coeval brightness temperature box.

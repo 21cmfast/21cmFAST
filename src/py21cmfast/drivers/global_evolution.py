@@ -235,7 +235,6 @@ def generate_global_evolution(
     inputs: InputParameters,
     progressbar: bool = False,
     overdensity_z0: float | None = None,
-    **kwargs,
 ):
     """Run the global evolution and return the result.
 

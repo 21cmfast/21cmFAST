@@ -17,10 +17,8 @@ from ..io.caching import OutputCache
 from ..utils import recursive_difference
 from ..wrapper.inputs import InputParameters
 from ..wrapper.outputs import (
-    HaloCatalog,
     OutputStruct,
     OutputStructZ,
-    PerturbedHaloCatalog,
     _HashType,
 )
 
@@ -391,13 +389,7 @@ class _OutputStructComputationInspect:
 
         # First check whether the boxes already exist.
         if issubclass(self._kls, OutputStructZ):
-            if issubclass(self._kls, HaloCatalog | PerturbedHaloCatalog):
-                obj = self._kls.new(
-                    inputs=inputs,
-                    redshift=current_redshift,
-                )
-            else:
-                obj = self._kls.new(inputs=inputs, redshift=current_redshift)
+            obj = self._kls.new(inputs=inputs, redshift=current_redshift)
         else:
             obj = self._kls.new(inputs=inputs)
 

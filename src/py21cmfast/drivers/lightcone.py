@@ -621,7 +621,6 @@ def generate_lightcone(
     regenerate: bool = True,
     progressbar: bool = False,
     lightcone_filename: str | Path | None = None,
-    **kwargs,
 ):
     r"""
     Create a generator function for a lightcone run.
