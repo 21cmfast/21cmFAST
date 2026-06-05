@@ -7,7 +7,6 @@ and interpolation tables.
 
 import atexit
 import functools
-import inspect
 import logging
 from collections.abc import Callable
 
@@ -190,11 +189,7 @@ def c_state_initializer(
             setup(**kwargs)
             return func(**kwargs)
 
-        def generator_wrapper(*args, **kwargs):
-            setup(**kwargs)
-            yield from func(*args, **kwargs)
-
-        result = generator_wrapper if inspect.isgeneratorfunction(func) else wrapper
+        result = wrapper
         functools.update_wrapper(result, func)
         return result
 
