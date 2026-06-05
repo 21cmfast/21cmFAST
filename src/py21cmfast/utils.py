@@ -60,7 +60,7 @@ def show_references(inputs: InputParameters, lightcone=True, print_to_stdout=Tru
 
     if inputs.astro_options.RECOMB_MODEL != "none":
         ref_string += (
-            "Inhomogeneous recombination model introduced in:\n"
+            "Recombination model introduced in:\n"
             "=============================================\n"
             "Sobacchi, E., Mesinger, A.,\n"
             "“Inhomogeneous recombinations during cosmic reionization”,\n"
