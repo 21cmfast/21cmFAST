@@ -20,9 +20,6 @@ from ..wrapper.outputs import (
     IonizedBox,
     TsBox,
 )
-from ._param_config import (
-    high_level_func,
-)
 from .coeval import _redshift_loop_generator, _setup_ics_and_pfs_for_scrolling
 
 
@@ -229,72 +226,6 @@ class GlobalEvolution:
         )
 
 
-@high_level_func
-def generate_global_evolution(
-    *,
-    inputs: InputParameters,
-    progressbar: bool = False,
-    overdensity_z0: float | None = None,
-):
-    """Run the global evolution and return the result.
-
-    This is simply a wrapper to :func:`run_global_evolution`.
-    """
-    # NOTE: inputs here is already inputs_one_cell (the modified single-cell
-    # InputParameters). The validation and construction of inputs_one_cell is
-    # done in run_global_evolution before calling this function.
-    global_evolution = GlobalEvolution(
-        inputs=inputs,
-        quantities={},
-    )
-    for quantity in global_evolution.get_fields(inputs):
-        global_evolution.quantities[quantity] = np.zeros(len(inputs.node_redshifts))
-
-    prev_coeval = None
-
-    iokw = {
-        "cache": None,
-        "regenerate": True,
-    }
-
-    (
-        initial_conditions,
-        perturbed_fields,
-        halofield_list,
-        photon_nonconservation_data,
-    ) = _setup_ics_and_pfs_for_scrolling(
-        all_redshifts=inputs.node_redshifts,
-        inputs=inputs,
-        initial_conditions=None,
-        write=CacheConfig.off(),
-        progressbar=progressbar,
-        overdensity_z0=overdensity_z0,
-        **iokw,
-    )
-
-    for iz, coeval in _redshift_loop_generator(
-        inputs=inputs,
-        initial_conditions=initial_conditions,
-        all_redshifts=inputs.node_redshifts,
-        perturbed_field=perturbed_fields,
-        halofield_list=halofield_list,
-        write=CacheConfig.off(),
-        cleanup=True,
-        progressbar=progressbar,
-        photon_nonconservation_data=photon_nonconservation_data,
-        init_coeval=prev_coeval,
-        iokw=iokw,
-    ):
-        for quantity in global_evolution.quantities:
-            global_evolution.quantities[quantity][iz] = np.mean(
-                getattr(coeval, quantity)
-            )
-
-        prev_coeval = coeval
-
-    yield global_evolution
-
-
 def run_global_evolution(
     inputs: InputParameters,
     source_model: str | None = None,
@@ -392,11 +323,55 @@ def run_global_evolution(
     }
     inputs_one_cell = inputs.evolve_input_structs(**new_input_kwargs)
 
-    results = list(
-        generate_global_evolution(
-            inputs=inputs_one_cell,
-            progressbar=progressbar,
-            overdensity_z0=overdensity_z0,
-        )
+    global_evolution = GlobalEvolution(
+        inputs=inputs_one_cell,
+        quantities={},
     )
-    return results[0]
+    for quantity in global_evolution.get_fields(inputs_one_cell):
+        global_evolution.quantities[quantity] = np.zeros(
+            len(inputs_one_cell.node_redshifts)
+        )
+
+    prev_coeval = None
+
+    iokw = {
+        "cache": None,
+        "regenerate": True,
+    }
+
+    (
+        initial_conditions,
+        perturbed_fields,
+        halofield_list,
+        photon_nonconservation_data,
+    ) = _setup_ics_and_pfs_for_scrolling(
+        all_redshifts=inputs_one_cell.node_redshifts,
+        inputs=inputs_one_cell,
+        initial_conditions=None,
+        write=CacheConfig.off(),
+        progressbar=progressbar,
+        overdensity_z0=overdensity_z0,
+        **iokw,
+    )
+
+    for iz, coeval in _redshift_loop_generator(
+        inputs=inputs_one_cell,
+        initial_conditions=initial_conditions,
+        all_redshifts=inputs_one_cell.node_redshifts,
+        perturbed_field=perturbed_fields,
+        halofield_list=halofield_list,
+        write=CacheConfig.off(),
+        cleanup=True,
+        progressbar=progressbar,
+        photon_nonconservation_data=photon_nonconservation_data,
+        init_coeval=prev_coeval,
+        iokw=iokw,
+    ):
+        for quantity in global_evolution.quantities:
+            global_evolution.quantities[quantity][iz] = np.mean(
+                getattr(coeval, quantity)
+            )
+
+        prev_coeval = coeval
+
+    return global_evolution
