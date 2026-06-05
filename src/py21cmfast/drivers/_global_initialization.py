@@ -79,7 +79,7 @@ class GlobalInitializationManager:
             # Free everything and start again.
             self.free()
 
-            # Note that we ONLY reset the inputs in the case that they're not equal
+            # Note that we ONLY reset the inputs in the case that they're not equal.
             # The backend relies on *pointers* to the underlying C structs, so even
             # if the new inputs is equal to the old, it will have a different memory
             # address. We don't want to use the new memory address for the backend.
@@ -114,36 +114,42 @@ class GlobalInitializationManager:
 
     def initialize_power_spectrum(self):
         """Initialize power spectrum at the C backend."""
-        if not self.ps_inited:
+        if not self.inputs_are_broadcast:
             self.broadcast_input_struct()
+
+        if not self.ps_inited:
             lib.init_ps()
             self.ps_inited = True
 
     def initialize_sigma_tables(self):
         """Initialize sigma interpolation tables at the C backend."""
+        if not self.ps_inited:
+            self.initialize_power_spectrum()
+
         if (
             self.inputs.matter_options.USE_INTERPOLATION_TABLES != "no-interpolation"
             and not self.sigma_inited
         ):
-            self.initialize_power_spectrum()
-
             sigma_min_mass = 5e2
             sigma_max_mass = 1e20
-
             lib.initialiseSigmaMInterpTable(sigma_min_mass, sigma_max_mass)
             self.sigma_inited = True
 
     def initialize_heat(self):
         """Initialize heat interpolation tables at the C backend."""
+        if not self.inputs_are_broadcast:
+            self.broadcast_input_struct()
+
         if not self.heat_inited:
-            self.initialize_sigma_tables()
             lib.init_heat()
             self.heat_inited = True
 
     def initialize_recombination_rate(self):
         """Initialize recombination rate interpolation tables at the C backend."""
+        if not self.inputs_are_broadcast:
+            self.broadcast_input_struct()
+
         if self.inputs.astro_options.INHOMO_RECO and not self.recomb_inited:
-            self.initialize_sigma_tables()
             lib.init_MHR()
             self.recomb_inited = True
 

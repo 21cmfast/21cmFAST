@@ -360,7 +360,7 @@ def get_vcb_power_values(
         )
 
 
-@c_state_initializer(init_sigma=True, init_ps=True)
+@c_state_initializer(init_sigma=True)
 def evaluate_sigma(
     *,
     inputs: InputParameters,
