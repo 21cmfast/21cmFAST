@@ -29,33 +29,24 @@ void Broadcast_struct_global_all(SimulationOptions *simulation_options,
             cosmo_tables_global->transfer_density->size = n;
             cosmo_tables_global->transfer_density->x_values = malloc(n * sizeof(double));
             cosmo_tables_global->transfer_density->y_values = malloc(n * sizeof(double));
+            memcpy(cosmo_tables_global->transfer_density->x_values,
+                   cosmo_tables->transfer_density->x_values, n * sizeof(double));
+            memcpy(cosmo_tables_global->transfer_density->y_values,
+                   cosmo_tables->transfer_density->y_values, n * sizeof(double));
 
             n = cosmo_tables->transfer_vcb->size;
             cosmo_tables_global->transfer_vcb = malloc(sizeof(Table1D));
             cosmo_tables_global->transfer_vcb->size = n;
             cosmo_tables_global->transfer_vcb->x_values = malloc(n * sizeof(double));
             cosmo_tables_global->transfer_vcb->y_values = malloc(n * sizeof(double));
+            memcpy(cosmo_tables_global->transfer_vcb->x_values,
+                   cosmo_tables->transfer_vcb->x_values, n * sizeof(double));
+            memcpy(cosmo_tables_global->transfer_vcb->y_values,
+                   cosmo_tables->transfer_vcb->y_values, n * sizeof(double));
         }
 
         allocated_cosmo_tables = true;
         LOG_DEBUG("Allocated memory for cosmo_tables_global");
-    }
-    // NOTE: While this is somewhat wasteful (re-copying EVERY time, though not re-allocating every
-    // time), it's essentially impossible to know the user's mind and when they might want to
-    // refresh the transfer density to a new cosmology, so it's better to just assume every time
-    // that they might have a different transfer function.
-    if (matter_options_global->POWER_SPECTRUM == POWER_SPECTRUM_CLASS) {
-        n = cosmo_tables->transfer_density->size;
-        memcpy(cosmo_tables_global->transfer_density->x_values,
-               cosmo_tables->transfer_density->x_values, n * sizeof(double));
-        memcpy(cosmo_tables_global->transfer_density->y_values,
-               cosmo_tables->transfer_density->y_values, n * sizeof(double));
-
-        n = cosmo_tables->transfer_vcb->size;
-        memcpy(cosmo_tables_global->transfer_vcb->x_values, cosmo_tables->transfer_vcb->x_values,
-               n * sizeof(double));
-        memcpy(cosmo_tables_global->transfer_vcb->y_values, cosmo_tables->transfer_vcb->y_values,
-               n * sizeof(double));
     }
 }
 
