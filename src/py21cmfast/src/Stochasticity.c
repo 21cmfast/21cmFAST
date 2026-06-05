@@ -92,8 +92,8 @@ void stoc_set_consts_z(struct HaloSamplingConstants *const_struct, double redshi
     const_struct->M_max_tables = M_MAX_INTEGRAL;
     const_struct->lnM_max_tb = log(const_struct->M_max_tables);
 
-    if (matter_options_global->USE_INTERPOLATION_TABLES > 0 &&
-        matter_options_global->SAMPLE_METHOD == 2) {
+    if (uses_interpolation_tables(matter_options_global->USE_INTERPOLATION_TABLES) &&
+        matter_options_global->SAMPLE_METHOD == SAMPLE_PARTITION) {
         InitialiseSigmaInverseTable();
     }
 

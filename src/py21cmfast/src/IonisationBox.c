@@ -1426,7 +1426,7 @@ int ComputeIonizedBox(float redshift, float prev_redshift, PerturbedField *pertu
         // lets check if we are going to bother with computing the inhmogeneous field at all...
         global_xH = 0.0;
 
-        if (astro_options_global->INTEGRATION_METHOD_ATOMIC == 1 ||
+        if (astro_options_global->INTEGRATION_METHOD_ATOMIC == INTEGRATION_METHOD_GAUSS_LEGENDRE ||
             (astro_options_global->USE_MINI_HALOS &&
              astro_options_global->INTEGRATION_METHOD_MINI == INTEGRATION_METHOD_GAUSS_LEGENDRE))
             initialise_GL(ionbox_constants.lnMmin, ionbox_constants.lnMmax_gl);

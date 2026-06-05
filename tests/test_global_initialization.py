@@ -108,3 +108,31 @@ def test_free():
     assert not _GlobalInitManagerSingleton.sigma_inited
     assert not _GlobalInitManagerSingleton.heat_inited
     assert not _GlobalInitManagerSingleton.recomb_inited
+
+
+def test_direct_initializations_for_heat_and_recomb():
+    """Test that direct initializations for heat and recombination rate work as expected."""
+    # Ensure we start with a clean slate
+    _GlobalInitManagerSingleton.free()
+
+    # Let's begin with a direct initialization of the heating tables
+    _GlobalInitManagerSingleton.initialize_heat()
+    assert _GlobalInitManagerSingleton.inputs_are_broadcast
+    assert not _GlobalInitManagerSingleton.ps_inited
+    assert not _GlobalInitManagerSingleton.sigma_inited
+    assert _GlobalInitManagerSingleton.heat_inited
+    assert not _GlobalInitManagerSingleton.recomb_inited
+
+    # Free again
+    _GlobalInitManagerSingleton.free()
+
+    # Now let's change the inputs to ones that will allow the initialization of the recombination rate, and check that it works as expected
+    _GlobalInitManagerSingleton.inputs = _GlobalInitManagerSingleton.inputs.with_logspaced_redshifts().evolve_input_structs(
+        INHOMO_RECO=True
+    )
+    _GlobalInitManagerSingleton.initialize_recombination_rate()
+    assert _GlobalInitManagerSingleton.inputs_are_broadcast
+    assert not _GlobalInitManagerSingleton.ps_inited
+    assert not _GlobalInitManagerSingleton.sigma_inited
+    assert not _GlobalInitManagerSingleton.heat_inited
+    assert _GlobalInitManagerSingleton.recomb_inited
