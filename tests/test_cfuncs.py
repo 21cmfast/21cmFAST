@@ -9,6 +9,15 @@ import py21cmfast as p21c
 from py21cmfast.wrapper import cfuncs as cf
 
 
+def test_broadcast_input_struct_backwards_compat(default_input_struct):
+    from py21cmfast.drivers._global_initialization import _GlobalInitManagerSingleton
+
+    _GlobalInitManagerSingleton.free()
+    cf.broadcast_input_struct(inputs=default_input_struct)
+    assert _GlobalInitManagerSingleton.inputs_are_broadcast
+    _GlobalInitManagerSingleton.free()
+
+
 def test_run_lf():
     inputs = p21c.InputParameters(random_seed=9)
     *_, lf = p21c.compute_luminosity_function(

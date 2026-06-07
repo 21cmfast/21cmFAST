@@ -10,13 +10,39 @@ from scipy.interpolate import interp1d
 
 from .._cfg import config
 from ..c_21cmfast import ffi, lib
-from ..drivers._global_initialization import init_c_state
+from ..drivers._global_initialization import _GlobalInitManagerSingleton, init_c_state
 from ._utils import _process_exitcode
 from .inputs import InputParameters
 
 logger = logging.getLogger(__name__)
 
 # TODO: a lot of these assume input as numpy arrays via use of .shape, explicitly require this
+
+
+def broadcast_input_struct(*args, **kwargs):
+    """Broadcast input parameters to the C backend.
+
+    This function is kept for backward compatibility with older wrappers/tests that
+    import it from :mod:`py21cmfast.wrapper.cfuncs`.
+    """
+    inputs = kwargs.get("inputs")
+
+    if inputs is None:
+        for val in (*args, *kwargs.values()):
+            if isinstance(val, InputParameters):
+                inputs = val
+                break
+            if hasattr(val, "inputs") and isinstance(val.inputs, InputParameters):
+                inputs = val.inputs
+                break
+
+    if inputs is None:
+        raise ValueError(
+            "Could not determine InputParameters. Ensure `inputs` is passed or at "
+            "least one argument has an `inputs` attribute."
+        )
+
+    _GlobalInitManagerSingleton.init(inputs=inputs, broadcast_inputs=True)
 
 
 @init_c_state(sigma=True)
