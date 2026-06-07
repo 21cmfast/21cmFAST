@@ -146,4 +146,6 @@ double atomic_cooling_threshold(float z);
 double unconditional_hmf(double growthf, double lnM, double z, int HMF);
 double conditional_hmf(double growthf, double lnM, double delta, double sigma, int HMF);
 double expected_nhalo(double redshift);
+void compute_mturns(float z, float J_21_LW, float vcb, float Gamma12, float z_reion,
+                    double *M_turn_a, double *M_turn_m);
 /*-----------------------*/

@@ -12,7 +12,7 @@ from .. import __version__
 from ..io import h5
 from ..io.caching import CacheConfig
 from ..wrapper.arrays import Array
-from ..wrapper.cfuncs import evaluate_Nion_z
+from ..wrapper.cfuncs import compute_mturns, evaluate_Nion_z
 from ..wrapper.inputs import InputParameters
 from ..wrapper.outputs import (
     BrightnessTemp,
@@ -58,7 +58,7 @@ def compute_global_reionization_at_z(
             inputs=inputs,
             redshifts=np.asarray(redshift),
             # I just put here an arbitrary number because we currently don't allow to have mini-halos when USE_TS_FLUCT=False.
-            # TODO: should this limitation be relaxed in the future?
+            # TODO: this limitation be relaxed in the future, see https://github.com/21cmfast/21cmFAST/issues/600
             log10mturns=np.asarray(5.0),
         )
         if inputs.matter_options.SOURCE_MODEL == "CONST-ION-EFF":
@@ -70,8 +70,12 @@ def compute_global_reionization_at_z(
                 * inputs.astro_params.POP2_ION
             )
         Q_HI = 1.0 - ion_eff_factor * nion
+        # We don't need J_LW_21 because we currently don't allow to have mini-halos when USE_TS_FLUCT=False.
+        # TODO: this limitation be relaxed in the future, see https://github.com/21cmfast/21cmFAST/issues/600
+        J_LW_21 = 0.0
     else:
         Q_HI = spin_temp.Q_HI
+        J_LW_21 = spin_temp.J_21_LW.value
 
     # TODO: I think a more accurate global Q_HI can be achieved by solving an ODE that includes also the recombination rate
     Q_HI = Q_HI if Q_HI > 0.0 else 0.0
@@ -85,13 +89,26 @@ def compute_global_reionization_at_z(
         dQdz = 0.0
     dzdt = -(1.0 + redshift) * inputs.cosmo_params.cosmo.H(redshift)
     ionisation_rate_G12 = np.abs(dQdz * dzdt)
+    ionisation_rate_G12 = ionisation_rate_G12.to("1/s").value
     # TODO: is there a more clever way to estimate global z_reion?
     z_reion = -1.0 if Q_HI > 0.0 else redshift
+
+    # Global v_cb is determined according to the flag FIX_VCB_AVG
+    v_cb = inputs.astro_params.FIXED_VAVG if inputs.astro_options.FIX_VCB_AVG else 0.0
+
+    M_turn_a, M_turn_m = compute_mturns(
+        inputs=inputs,
+        redshifts=redshift,
+        J_LW_21=J_LW_21,
+        v_cb=v_cb,
+        ionisation_rate_G12=ionisation_rate_G12,
+        z_reion=z_reion,
+    )
 
     # Now initialize the output box with the global values!
     required_arrays = {
         "neutral_fraction": Q_HI,
-        "ionisation_rate_G12": ionisation_rate_G12.to("1/s"),
+        "ionisation_rate_G12": ionisation_rate_G12,
         "z_reion": z_reion,
     }
     for name, val in required_arrays.items():
@@ -102,6 +119,8 @@ def compute_global_reionization_at_z(
             .initialize()
             .with_value(val=val * np.ones(shape)),
         )
+    box.log10_Mturnover_ave = np.log10(M_turn_a)
+    box.log10_Mturnover_MINI_ave = np.log10(M_turn_m)
     return box
 
 
@@ -132,7 +151,13 @@ class GlobalEvolution:
             possible_outputs.append(TsBox.new(inputs, redshift=0))
         if inputs.matter_options.lagrangian_source_grid:
             possible_outputs.append(HaloBox.new(inputs, redshift=0))
-        field_names = ("density", "neutral_fraction", "ionisation_rate_G12")
+        field_names = (
+            "density",
+            "neutral_fraction",
+            "ionisation_rate_G12",
+            "log10_mturn_acg",
+            "log10_mturn_mcg",
+        )
         for output in possible_outputs:
             field_names += tuple(output.arrays.keys())
         return field_names
@@ -368,9 +393,18 @@ def run_global_evolution(
         iokw=iokw,
     ):
         for quantity in global_evolution.quantities:
-            global_evolution.quantities[quantity][iz] = np.mean(
-                getattr(coeval, quantity)
-            )
+            if quantity == "log10_mturn_acg":
+                global_evolution.quantities[quantity][iz] = (
+                    coeval.ionized_box.log10_Mturnover_ave
+                )
+            elif quantity == "log10_mturn_mcg":
+                global_evolution.quantities[quantity][iz] = (
+                    coeval.ionized_box.log10_Mturnover_MINI_ave
+                )
+            else:
+                global_evolution.quantities[quantity][iz] = np.mean(
+                    getattr(coeval, quantity)
+                )
 
         prev_coeval = coeval
 

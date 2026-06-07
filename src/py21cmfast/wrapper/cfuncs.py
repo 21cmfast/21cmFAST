@@ -77,6 +77,78 @@ def get_halo_catalog_buffer_size(
 
 
 @init_c_state(broadcast_inputs=True)
+def compute_mturns(
+    *,
+    inputs: InputParameters,
+    redshifts: float | Sequence[float],
+    J_LW_21: float | Sequence[float],
+    v_cb: float | Sequence[float],
+    ionisation_rate_G12: float | Sequence[float],
+    z_reion: float | Sequence[float],
+):
+    """
+    Compute the turnover masses for both ACGs and MCGs at a given redshift.
+
+    Parameters
+    ----------
+    redshifts : array-like
+        The redshifts at which to compute the turnover masses.
+    J_LW_21 : array-like
+        The Lyman-Werner flux in units of 1e-21 erg/s/Hz/cm^2/sr at the given redshifts.
+    v_cb : array-like
+        The amplitude of the relative velocity between dark matter and baryons in units of km/s at the given redshifts.
+    ionisation_rate_G12 : array-like
+        The ionisation rate in units of 1e-12 s^-1 at the given redshifts.
+    z_reion : array-like
+        The reionisation redshift at the given redshifts.
+
+    Returns
+    -------
+    M_turn_a : array-like
+        The turnover mass for atomic cooling halos at the given redshifts.
+    M_turn_m : array-like
+        The turnover mass for molecular cooling halos at the given redshifts.
+
+    Raises
+    ------
+    ValueError :
+        If the input arrays do not have the same length.
+    """
+    lengths = {
+        len(x)
+        for x in (redshifts, J_LW_21, v_cb, ionisation_rate_G12, z_reion)
+        if hasattr(x, "__len__")
+    }
+    if len(lengths) > 1:
+        raise ValueError(
+            "All input arrays must have the same length, got lengths: "
+            + ", ".join(
+                f"{name}={len(x)}"
+                for name, x in zip(
+                    ("redshifts", "J_LW_21", "v_cb", "ionisation_rate_G12", "z_reion"),
+                    (redshifts, J_LW_21, v_cb, ionisation_rate_G12, z_reion),
+                    strict=False,
+                )
+                if hasattr(x, "__len__")
+            )
+        )
+
+    M_turn_a_ffi = ffi.new("double *")
+    M_turn_m_ffi = ffi.new("double *")
+
+    def _scalar_call(z, j, v, g, zr):
+        lib.compute_mturns(z, j, v, g, zr, M_turn_a_ffi, M_turn_m_ffi)
+        return M_turn_a_ffi[0], M_turn_m_ffi[0]
+
+    vfunc = np.vectorize(_scalar_call, otypes=[np.float64, np.float64])
+    M_turn_a, M_turn_m = vfunc(redshifts, J_LW_21, v_cb, ionisation_rate_G12, z_reion)
+
+    if M_turn_a.ndim == 0:  # scalar input case
+        return float(M_turn_a), float(M_turn_m)
+    return M_turn_a, M_turn_m
+
+
+@init_c_state(broadcast_inputs=True)
 def compute_tau(
     *,
     redshifts: Sequence[float],
