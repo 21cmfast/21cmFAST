@@ -1,6 +1,7 @@
 """Low-level python wrappers of C functions."""
 
 import logging
+import warnings
 from collections.abc import Sequence
 from typing import Literal
 
@@ -11,6 +12,7 @@ from scipy.interpolate import interp1d
 from .._cfg import config
 from ..c_21cmfast import ffi, lib
 from ..drivers._global_initialization import init_c_state
+from ..drivers.lightcone import LightCone
 from ._utils import _process_exitcode
 from .inputs import InputParameters
 
@@ -208,8 +210,7 @@ def compute_luminosity_function(
     redshifts: Sequence[float],
     inputs: InputParameters,
     nbins: int = 100,
-    mturnovers: np.ndarray | None = None,
-    mturnovers_mini: np.ndarray | None = None,
+    lightcone: LightCone | None = None,
     component: Literal["both", "acg", "mcg"] = "both",
 ) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
     """Compute a the luminosity function over a given number of bins and redshifts.
@@ -222,12 +223,10 @@ def compute_luminosity_function(
         The input parameters defining the simulation run.
     nbins : int, optional
         The number of luminosity bins to produce for the luminosity function.
-    mturnovers : array-like, optional
-        The turnover mass at each redshift for massive halos (ACGs).
-        Only required when USE_MINI_HALOS is True.
-    mturnovers_mini : array-like, optional
-        The turnover mass at each redshift for minihalos (MCGs).
-        Only required when USE_MINI_HALOS is True.
+    lightcone : :class:`~LightCone`, optional
+        The lightcone object containing the necessary data for the computation.
+        If not provided, the function will estimate the global m_turnover values,
+        otherwise they will be extracted from the given lightcone.
     component : str, {'both', 'acg', 'mcg}
         The component of the LF to be calculated.
 
@@ -242,42 +241,26 @@ def compute_luminosity_function(
         Shape [nredshifts, nbins].
     """
     astro_options = inputs.astro_options
-    astro_params = inputs.astro_params
 
     redshifts = np.array(redshifts, dtype="float32")
-    if astro_options.USE_MINI_HALOS:
-        if component in ["both", "acg"]:
-            if mturnovers is None:
-                raise ValueError(
-                    "calculating ACG LFs with mini-halo feature requires users to "
-                    "specify mturnovers!"
-                )
 
-            mturnovers = np.array(mturnovers, dtype=np.float32)
-            if len(mturnovers) != len(redshifts):
-                raise ValueError(
-                    f"mturnovers ({len(mturnovers)}) does not match the length of "
-                    f"redshifts ({len(redshifts)})"
-                )
-        if component in ["both", "mcg"]:
-            if mturnovers_mini is None:
-                raise ValueError(
-                    "calculating MCG LFs with mini-halo feature requires users to "
-                    "specify mturnovers_MINI!"
-                )
-
-            mturnovers_mini = np.array(mturnovers_mini, dtype="float32")
-            if len(mturnovers_mini) != len(redshifts):
-                raise ValueError(
-                    f"mturnovers_MINI ({len(mturnovers)}) does not match the length of "
-                    f"redshifts ({len(redshifts)})"
-                )
-
-    else:
-        mturnovers = (
-            np.zeros(len(redshifts), dtype=np.float32) + 10**astro_params.M_TURN
+    if not astro_options.USE_MINI_HALOS:
+        warnings.warn(
+            "USE_MINI_HALOS is False, so only ACG LFs are computed.",
+            stacklevel=2,
         )
         component = "acg"
+
+    if lightcone is not None:
+        mturnovers = pow(10.0, lightcone.global_quantities["log10_mturn_acg"])
+        mturnovers_mini = pow(10.0, lightcone.global_quantities["log10_mturn_mcg"])
+    else:
+        from ..drivers.global_evolution import run_global_evolution
+
+        # If lightcone is not provided, we estimate the turnover masses from the global evolution
+        global_evolution = run_global_evolution(inputs=inputs)
+        mturnovers = pow(10.0, global_evolution.quantities["log10_mturn_acg"])
+        mturnovers_mini = pow(10.0, global_evolution.quantities["log10_mturn_mcg"])
 
     lfunc = np.zeros(len(redshifts) * nbins)
     Muvfunc = np.zeros(len(redshifts) * nbins)

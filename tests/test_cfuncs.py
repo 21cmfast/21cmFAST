@@ -25,17 +25,25 @@ YUNG24_PHYSICAL_PARAMS = {
 }
 
 
-def test_run_lf():
-    inputs = p21c.InputParameters(random_seed=9)
+@pytest.mark.parametrize("use_lightcone", [True, False])
+def test_run_lf(default_input_struct_lc, lc, use_lightcone):
+    inputs = default_input_struct_lc
+    lightcone = lc if use_lightcone else None
     *_, lf = p21c.compute_luminosity_function(
-        inputs=inputs, redshifts=[7, 8, 9], nbins=100
+        inputs=inputs,
+        redshifts=[7, 8, 9],
+        nbins=100,
+        lightcone=lightcone,
     )
     assert np.all(lf[~np.isnan(lf)] > -30)
     assert lf.shape == (3, 100)
 
     # Check that memory is in-tact and a second run also works:
     _muv, _mhalo, lf2 = p21c.compute_luminosity_function(
-        inputs=inputs, redshifts=[7, 8, 9], nbins=100
+        inputs=inputs,
+        redshifts=[7, 8, 9],
+        nbins=100,
+        lightcone=lightcone,
     )
     assert lf2.shape == (3, 100)
     assert np.allclose(lf2[~np.isnan(lf2)], lf[~np.isnan(lf)])
@@ -45,10 +53,9 @@ def test_run_lf():
     _muv_minih, _mhalo_minih, lf_minih = p21c.compute_luminosity_function(
         redshifts=[7, 8, 9],
         nbins=100,
+        lightcone=lightcone,
         component="mcg",
         inputs=inputs,
-        mturnovers=[7.0, 7.0, 7.0],
-        mturnovers_mini=[5.0, 5.0, 5.0],
     )
     assert np.all(lf_minih[~np.isnan(lf_minih)] > -30)
     assert lf_minih.shape == (3, 100)
