@@ -614,24 +614,53 @@ def evaluate_SFRD_z(
     *,
     inputs: InputParameters,
     redshifts: NDArray[np.floating],
-    log10mturns: NDArray[np.floating],
+    lightcone: LightCone | None = None,
 ):
-    """Evaluate the global star formation rate density expected at a range of redshifts."""
-    if redshifts.shape != log10mturns.shape:
-        raise ValueError(
-            f"the shapes of the input arrays `redshifts` {redshifts.shape} and `log10mturns` {log10mturns.shape}"
-            " must be equal."
-        )
+    """
+    Evaluate the global star formation rate density expected at a range of redshifts.
 
-    redshifts = redshifts.astype("f8")
-    log10mturns = log10mturns.astype("f8")
+    For now, it returns a dimensionless SFRD. TODO: fix this!
+
+    Parameters
+    ----------
+    inputs: :class:`~InputParameters`
+        The input parameters defining the simulation run.
+    redshifts : array-like
+        The redshifts at which to compute the SFRD.
+    lightcone : :class:`~LightCone` or None, optional
+        The lightcone object to use for the computation.
+        If None, the function will estimate the global m_turnover values,
+        otherwise they will be extracted from the given lightcone.
+
+    Returns
+    -------
+    sfrd : np.ndarray
+        The global star formation rate density at the given redshifts for ACGs.
+    sfrd_mini : np.ndarray
+        The global star formation rate density at the given redshifts for MCGs.
+    """
+    if lightcone is not None:
+        log10mturns_mini_global = lightcone.global_quantities["log10_mturn_mcg"]
+    else:
+        from ..drivers.global_evolution import run_global_evolution
+
+        # If lightcone is not provided, we estimate the turnover masses from the global evolution
+        global_evolution = run_global_evolution(inputs=inputs)
+        log10mturns_mini_global = global_evolution.quantities["log10_mturn_mcg"]
+
+    log10mturns_mini = np.interp(
+        redshifts, inputs.node_redshifts, log10mturns_mini_global
+    )
+
+    redshifts = np.asarray(redshifts).astype("f8")
+    log10mturns_mini = log10mturns_mini.astype("f8")
     sfrd = np.zeros_like(redshifts)
     sfrd_mini = np.zeros_like(redshifts)
 
     lib.get_global_SFRD_z(
         redshifts.size,
         ffi.cast("double *", ffi.from_buffer(redshifts)),
-        ffi.cast("double *", ffi.from_buffer(log10mturns)),
+        ffi.cast("double *", ffi.from_buffer(log10mturns_mini)),
         ffi.cast("double *", ffi.from_buffer(sfrd)),
         ffi.cast("double *", ffi.from_buffer(sfrd_mini)),
     )

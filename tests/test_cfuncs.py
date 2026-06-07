@@ -121,13 +121,6 @@ def test_bad_integral_inputs(default_input_struct):
         )
 
     with pytest.raises(ValueError, match="the shapes of"):
-        cf.evaluate_SFRD_z(
-            inputs=default_input_struct,
-            redshifts=redshifts,
-            log10mturns=lnM_base,
-        )
-
-    with pytest.raises(ValueError, match="the shapes of"):
         cf.evaluate_Nion_z(
             inputs=default_input_struct,
             redshifts=redshifts,
@@ -551,3 +544,20 @@ def make_matterfield_comparison_plot(
     axs[0, 3].loglog(k, true[3], linestyle="-", label="Truth", **kwargs)
     axs[0, 3].loglog(k, test[3], linestyle=":", linewidth=3, label="Test", **kwargs)
     axs[1, 3].semilogx(k, (test[3] - true[3]) / true[3], **kwargs)
+
+
+@pytest.mark.parametrize("use_lightcone", [True, False])
+def test_functions_with_and_without_lightcone(
+    default_input_struct_lc, lc, use_lightcone
+):
+    """Test that we can run functions with and without a lightcone as an input."""
+    inputs = default_input_struct_lc
+    lightcone = lc if use_lightcone else None
+
+    redshifts = [7, 8, 9]
+
+    sfrd, sfrd_mini = cf.evaluate_SFRD_z(
+        inputs=inputs, redshifts=redshifts, lightcone=lightcone
+    )
+    assert len(sfrd) == len(redshifts)
+    assert len(sfrd_mini) == len(redshifts)

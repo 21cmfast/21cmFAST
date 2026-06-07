@@ -362,7 +362,7 @@ def test_FgtrM_conditional_tables(R, delta_range, plt):
 
 
 @pytest.mark.parametrize("name", options_hmf)
-def test_SFRD_z_tables(name, z_range, log10_mturn_range, plt):
+def test_SFRD_z_tables(name, z_range, plt):
     redshift, kwargs = OPTIONS_HMF[name]
     inputs = get_all_options_struct(
         redshift,
@@ -372,31 +372,26 @@ def test_SFRD_z_tables(name, z_range, log10_mturn_range, plt):
         **kwargs,
     )["inputs"]
 
-    z_input, mt_input = np.meshgrid(z_range, log10_mturn_range, indexing="ij")
     SFRD_tables, SFRD_tables_mini = cf.evaluate_SFRD_z(
         inputs=inputs.evolve_input_structs(
             USE_INTERPOLATION_TABLES="hmf-interpolation"
         ),
-        redshifts=z_input,
-        log10mturns=mt_input,
+        redshifts=z_range,
     )
     SFRD_integrals, SFRD_integrals_mini = cf.evaluate_SFRD_z(
         inputs=inputs.evolve_input_structs(
             USE_INTERPOLATION_TABLES="sigma-interpolation"
         ),
-        redshifts=z_input,
-        log10mturns=mt_input,
+        redshifts=z_range,
     )
 
     abs_tol = 1e-5
     if plt == mpl.pyplot:
-        xl = log10_mturn_range.size - 1
-        sel_m = np.linspace(0, xl, num=5).astype(int)
         make_table_comparison_plot(
             [z_range, z_range],
-            [np.array([0]), 10 ** log10_mturn_range[sel_m]],
-            [SFRD_tables[..., 0], SFRD_tables_mini[..., sel_m]],
-            [SFRD_integrals[..., 0], SFRD_integrals_mini[..., sel_m]],
+            [None, None],
+            [SFRD_tables, SFRD_tables_mini],
+            [SFRD_integrals, SFRD_integrals_mini],
             plt,
             abstol=abs_tol,
             reltol=RELATIVE_TOLERANCE,
@@ -416,7 +411,7 @@ def test_SFRD_z_tables(name, z_range, log10_mturn_range, plt):
     print_failure_stats(
         SFRD_tables_mini,
         SFRD_integrals_mini,
-        [z_range, 10**log10_mturn_range],
+        [z_range],
         abs_tol,
         RELATIVE_TOLERANCE,
         "SFRD_z_mini",
