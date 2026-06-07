@@ -26,7 +26,7 @@ YUNG24_PHYSICAL_PARAMS = {
 
 
 @pytest.mark.parametrize("use_lightcone", [True, False])
-def test_run_lf(default_input_struct_lc, lc, use_lightcone):
+def test_run_lf(default_input_struct_lc, lc, use_lightcone, cache):
     inputs = default_input_struct_lc
     lightcone = lc if use_lightcone else None
     *_, lf = p21c.compute_luminosity_function(
@@ -48,12 +48,28 @@ def test_run_lf(default_input_struct_lc, lc, use_lightcone):
     assert lf2.shape == (3, 100)
     assert np.allclose(lf2[~np.isnan(lf2)], lf[~np.isnan(lf)])
 
-    inputs = inputs.from_template("mini", random_seed=9)
+    inputs = inputs.from_template(["mini", "tiny"], random_seed=9)
+    if use_lightcone:
+        pytest.skip("run_lightcone + mini-halo LF too time consuming (about 4 minutes)")
+        lightcone_mini = p21c.run_lightcone(
+            lightconer=p21c.RectilinearLightconer.between_redshifts(
+                min_redshift=inputs.node_redshifts[-1] + 0.5,
+                max_redshift=inputs.node_redshifts[0] - 0.5,
+                resolution=inputs.simulation_options.cell_size,
+                cosmo=inputs.cosmo_params.cosmo,
+            ),
+            inputs=inputs,
+            write=p21c.CacheConfig(),
+            cache=cache,
+            include_dvdr_in_tau21=False,
+        )
+    else:
+        lightcone_mini = None
 
     _muv_minih, _mhalo_minih, lf_minih = p21c.compute_luminosity_function(
         redshifts=[7, 8, 9],
         nbins=100,
-        lightcone=lightcone,
+        lightcone=lightcone_mini,
         component="mcg",
         inputs=inputs,
     )

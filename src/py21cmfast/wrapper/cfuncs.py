@@ -252,15 +252,25 @@ def compute_luminosity_function(
         component = "acg"
 
     if lightcone is not None:
-        mturnovers = pow(10.0, lightcone.global_quantities["log10_mturn_acg"])
-        mturnovers_mini = pow(10.0, lightcone.global_quantities["log10_mturn_mcg"])
+        mturnovers_global = pow(10.0, lightcone.global_quantities["log10_mturn_acg"])
+        mturnovers_mini_global = pow(
+            10.0, lightcone.global_quantities["log10_mturn_mcg"]
+        )
     else:
         from ..drivers.global_evolution import run_global_evolution
 
         # If lightcone is not provided, we estimate the turnover masses from the global evolution
         global_evolution = run_global_evolution(inputs=inputs)
-        mturnovers = pow(10.0, global_evolution.quantities["log10_mturn_acg"])
-        mturnovers_mini = pow(10.0, global_evolution.quantities["log10_mturn_mcg"])
+        mturnovers_global = pow(10.0, global_evolution.quantities["log10_mturn_acg"])
+        mturnovers_mini_global = pow(
+            10.0, global_evolution.quantities["log10_mturn_mcg"]
+        )
+
+    # Interpolate the mturnover arrays at the input redshifts
+    mturnovers = np.interp(redshifts, inputs.node_redshifts, mturnovers_global)
+    mturnovers_mini = np.interp(
+        redshifts, inputs.node_redshifts, mturnovers_mini_global
+    )
 
     lfunc = np.zeros(len(redshifts) * nbins)
     Muvfunc = np.zeros(len(redshifts) * nbins)
