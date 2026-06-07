@@ -28,7 +28,16 @@ def broadcast_input_struct(*args, **kwargs):
     inputs = kwargs.get("inputs")
 
     if inputs is None:
-        for val in (*args, *kwargs.values()):
+        for val in args:
+            if isinstance(val, InputParameters):
+                inputs = val
+                break
+            if hasattr(val, "inputs") and isinstance(val.inputs, InputParameters):
+                inputs = val.inputs
+                break
+
+    if inputs is None:
+        for val in kwargs.values():
             if isinstance(val, InputParameters):
                 inputs = val
                 break
@@ -38,8 +47,9 @@ def broadcast_input_struct(*args, **kwargs):
 
     if inputs is None:
         raise ValueError(
-            "Could not determine InputParameters. Ensure `inputs` is passed or at "
-            "least one argument has an `inputs` attribute."
+            "Could not determine InputParameters. Ensure `inputs` is passed as an "
+            "InputParameters instance or at least one argument has an `inputs` "
+            "attribute containing InputParameters."
         )
 
     _GlobalInitManagerSingleton.init(inputs=inputs, broadcast_inputs=True)
