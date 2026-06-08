@@ -25,8 +25,38 @@ YUNG24_PHYSICAL_PARAMS = {
 }
 
 
+@pytest.fixture(scope="module")
+def default_input_struct_lc_mini(default_input_struct_lc):
+    """A default input struct with mini halos turned on."""
+    return default_input_struct_lc.evolve_input_structs(
+        USE_MINI_HALOS=True,
+        RECOMB_MODEL="inhomogeneous",
+        USE_TS_FLUCT=True,
+        K_MAX_FOR_CLASS=1.0,
+        N_THREADS=4.0,  # To speed it up
+        HII_DIM=2,  # it's a mini lightcone!
+        DIM=2 * 3,
+        BOX_LEN=2 * 1.5,
+        R_BUBBLE_MAX=2,
+    )
+
+
+@pytest.fixture(scope="module")
+def lc_mini(default_input_struct_lc_mini, rectlcn, cache):
+    """A lightcone with mini halos turned on."""
+    return p21c.run_lightcone(
+        lightconer=rectlcn,
+        inputs=default_input_struct_lc_mini,
+        write=p21c.CacheConfig(),
+        cache=cache,
+        include_dvdr_in_tau21=False,
+    )
+
+
 @pytest.mark.parametrize("use_lightcone", [True, False])
-def test_run_lf(default_input_struct_lc, lc, use_lightcone, cache):
+def test_run_lf(
+    default_input_struct_lc, default_input_struct_lc_mini, lc, lc_mini, use_lightcone
+):
     inputs = default_input_struct_lc
     lightcone = lc if use_lightcone else None
     *_, lf = p21c.compute_luminosity_function(
@@ -48,30 +78,14 @@ def test_run_lf(default_input_struct_lc, lc, use_lightcone, cache):
     assert lf2.shape == (3, 100)
     assert np.allclose(lf2[~np.isnan(lf2)], lf[~np.isnan(lf)])
 
-    inputs = inputs.from_template(["mini", "tiny"], random_seed=9)
-    if use_lightcone:
-        pytest.skip("run_lightcone + mini-halo LF too time consuming (about 4 minutes)")
-        lightcone_mini = p21c.run_lightcone(
-            lightconer=p21c.RectilinearLightconer.between_redshifts(
-                min_redshift=inputs.node_redshifts[-1] + 0.5,
-                max_redshift=inputs.node_redshifts[0] - 0.5,
-                resolution=inputs.simulation_options.cell_size,
-                cosmo=inputs.cosmo_params.cosmo,
-            ),
-            inputs=inputs,
-            write=p21c.CacheConfig(),
-            cache=cache,
-            include_dvdr_in_tau21=False,
-        )
-    else:
-        lightcone_mini = None
+    lightcone_mini = lc_mini if use_lightcone else None
 
     _muv_minih, _mhalo_minih, lf_minih = p21c.compute_luminosity_function(
         redshifts=[7, 8, 9],
         nbins=100,
         lightcone=lightcone_mini,
         component="mcg",
-        inputs=inputs,
+        inputs=default_input_struct_lc_mini,
     )
     assert np.all(lf_minih[~np.isnan(lf_minih)] > -30)
     assert lf_minih.shape == (3, 100)
@@ -512,12 +526,21 @@ def make_matterfield_comparison_plot(
 
 
 @pytest.mark.parametrize("use_lightcone", [True, False])
+@pytest.mark.parametrize("use_mini_halos", [True, False])
 def test_functions_with_and_without_lightcone(
-    default_input_struct_lc, lc, use_lightcone
+    default_input_struct_lc,
+    lc,
+    default_input_struct_lc_mini,
+    lc_mini,
+    use_lightcone,
+    use_mini_halos,
 ):
     """Test that we can run functions with and without a lightcone as an input."""
-    inputs = default_input_struct_lc
-    lightcone = lc if use_lightcone else None
+    inputs = default_input_struct_lc_mini if use_mini_halos else default_input_struct_lc
+    if use_mini_halos:
+        lightcone = lc_mini if use_lightcone else None
+    else:
+        lightcone = lc if use_lightcone else None
 
     redshifts = [7, 8, 9]
     densities = np.linspace(-0.98, 1.7, num=800)

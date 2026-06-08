@@ -230,22 +230,18 @@ void get_conditional_Nion(double redshift, double R, int n_densities, double *de
     int i;
     double min_dens = -1;
     double max_dens = 10;
-    double min_l10mturn_acg = 10.;
-    double min_l10mturn_mcg = 10.;
-    double max_l10mturn_acg = 5.;
-    double max_l10mturn_mcg = 5.;
     double dens, l10mturn_a, l10mturn_m;
     for (i = 0; i < n_densities; i++) {
         dens = densities[i];
-        l10mturn_a = log10_mturn_acg;
-        l10mturn_m = log10_mturn_mcg;
         if (dens < min_dens) min_dens = dens;
         if (dens > max_dens) max_dens = dens;
-        if (l10mturn_a < min_l10mturn_acg) min_l10mturn_acg = l10mturn_a;
-        if (l10mturn_a > max_l10mturn_acg) max_l10mturn_acg = l10mturn_a;
-        if (l10mturn_m < min_l10mturn_mcg) min_l10mturn_mcg = l10mturn_m;
-        if (l10mturn_m > max_l10mturn_mcg) max_l10mturn_mcg = l10mturn_m;
     }
+
+    double eps = 0.01;
+    double min_l10mturn_acg = log10_mturn_acg - eps;
+    double max_l10mturn_acg = log10_mturn_acg + eps;
+    double min_l10mturn_mcg = log10_mturn_mcg - eps;
+    double max_l10mturn_mcg = log10_mturn_mcg + eps;
 
     if (uses_hmf_interpolation(matter_options_global->USE_INTERPOLATION_TABLES)) {
         initialise_Nion_Conditional_spline(redshift, min_dens, max_dens, M_min, M_cond, M_cond,
