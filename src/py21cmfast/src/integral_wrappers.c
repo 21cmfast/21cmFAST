@@ -104,6 +104,8 @@ void get_global_SFRD_z(int n_redshift, double *redshifts, double *log10_turnover
     int i;
     double z_min = simulation_options_global->Z_HEAT_MAX;
     double z_max = 0.;
+    double SFRD_FACTOR, SFRD_FACTOR_MINI;
+
     for (i = 0; i < n_redshift; i++) {
         if (redshifts[i] < z_min) z_min = redshifts[i];
         if (redshifts[i] > z_max) z_max = redshifts[i];
@@ -114,9 +116,15 @@ void get_global_SFRD_z(int n_redshift, double *redshifts, double *log10_turnover
     }
 
     for (i = 0; i < n_redshift; i++) {
-        out_sfrd[i] = EvaluateSFRD(redshifts[i], &sc);
-        if (astro_options_global->USE_MINI_HALOS)
-            out_sfrd_mini[i] = EvaluateSFRD_MINI(redshifts[i], log10_turnovers_mcg[i], &sc);
+        SFRD_FACTOR = astro_params_global->F_STAR10 * cosmo_params_global->OMb * RHOcrit /
+                      astro_params_global->t_STAR / t_hubble(redshifts[i]);
+        out_sfrd[i] = SFRD_FACTOR * EvaluateSFRD(redshifts[i], &sc);
+        if (astro_options_global->USE_MINI_HALOS) {
+            SFRD_FACTOR_MINI = astro_params_global->F_STAR7_MINI * cosmo_params_global->OMb *
+                               RHOcrit / astro_params_global->t_STAR / t_hubble(redshifts[i]);
+            out_sfrd_mini[i] =
+                SFRD_FACTOR_MINI * EvaluateSFRD_MINI(redshifts[i], log10_turnovers_mcg[i], &sc);
+        }
     }
 }
 
@@ -204,6 +212,11 @@ void get_conditional_SFRD(double redshift, double R, int n_densities, double *de
     double min_dens = -1;
     double max_dens = 10;
     double dens;
+    double SFRD_FACTOR = astro_params_global->F_STAR10 * cosmo_params_global->OMb * RHOcrit /
+                         astro_params_global->t_STAR / t_hubble(redshift);
+    double SFRD_FACTOR_MINI = astro_params_global->F_STAR7_MINI * cosmo_params_global->OMb *
+                              RHOcrit / astro_params_global->t_STAR / t_hubble(redshift);
+
     for (i = 0; i < n_densities; i++) {
         dens = densities[i];
         if (dens < min_dens) min_dens = dens;
@@ -213,13 +226,14 @@ void get_conditional_SFRD(double redshift, double R, int n_densities, double *de
     if (uses_hmf_interpolation(matter_options_global->USE_INTERPOLATION_TABLES)) {
         initialise_SFRD_Conditional_table(redshift, min_dens, max_dens, M_min, M_cond, M_cond, &sc);
     }
-    for (i = 0; i < n_densities; i++)
-        out_sfrd[i] =
-            EvaluateSFRD_Conditional(densities[i], growthf, M_min, M_cond, M_cond, sigma_cond, &sc);
-    if (astro_options_global->USE_MINI_HALOS) {
-        for (i = 0; i < n_densities; i++)
-            out_sfrd_mini[i] = EvaluateSFRD_Conditional_MINI(
-                densities[i], log10_mturn_mini, growthf, M_min, M_cond, M_cond, sigma_cond, &sc);
+    for (i = 0; i < n_densities; i++) {
+        out_sfrd[i] = SFRD_FACTOR * EvaluateSFRD_Conditional(densities[i], growthf, M_min, M_cond,
+                                                             M_cond, sigma_cond, &sc);
+        if (astro_options_global->USE_MINI_HALOS) {
+            out_sfrd_mini[i] = SFRD_FACTOR_MINI * EvaluateSFRD_Conditional_MINI(
+                                                      densities[i], log10_mturn_mini, growthf,
+                                                      M_min, M_cond, M_cond, sigma_cond, &sc);
+        }
     }
 }
 

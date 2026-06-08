@@ -614,9 +614,7 @@ def evaluate_SFRD_z(
     lightcone: LightCone | None = None,
 ):
     """
-    Evaluate the global star formation rate density expected at a range of redshifts.
-
-    For now, it returns a dimensionless SFRD. TODO: fix this!
+    Evaluate the global star formation rate density (in units of M_sun/s/Mpc^3) expected at a range of redshifts.
 
     Parameters
     ----------
@@ -738,9 +736,7 @@ def evaluate_SFRD_cond(
     lightcone: LightCone | None = None,
 ):
     """
-    Evaluate the conditional star formation rate density expected at a range of densities.
-
-    For now, it returns a dimensionless SFRD. TODO: fix this!
+    Evaluate the conditional star formation rate density (in units of M_sun/s/Mpc^3) expected at a range of densities.
 
     Parameters
     ----------

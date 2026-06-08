@@ -177,13 +177,6 @@ class TestPerturb:
         }[inputs.matter_options.PERTURB_ALGORITHM]
         dens = np.roll(ics.get("lowres_density"), roll_var, (0, 1, 2)) * d_z
 
-        prefac_sfr = (
-            inputs.cosmo_params.cosmo.critical_density(0).to("Msun Mpc-3").value
-            * inputs.astro_params.cdict["F_STAR10"]
-            * inputs.cosmo_params.OMb
-            * inputs.cosmo_params.cosmo.H(test_pt_z).to("s-1").value
-            / inputs.astro_params.t_STAR
-        )
         prefac_nion = (
             inputs.cosmo_params.cosmo.critical_density(0).to("Msun Mpc-3").value
             * inputs.cosmo_params.OMb
@@ -198,7 +191,6 @@ class TestPerturb:
             radius=cell_radius,
             densities=dens,
         )
-        integral_sfrd *= prefac_sfr
 
         integral_nion, _ = cf.evaluate_Nion_cond(
             inputs=inputs,
