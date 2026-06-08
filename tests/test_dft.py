@@ -2,7 +2,7 @@
 
 import py21cmfast as p21c
 from py21cmfast.c_21cmfast import lib
-from py21cmfast.wrapper.cfuncs import broadcast_input_struct
+from py21cmfast.drivers._global_initialization import _GlobalInitManagerSingleton
 
 
 def _small_inputs():
@@ -17,7 +17,7 @@ def test_create_fftw_wisdoms_normal_path(tmp_path):
     wisdom_dir = tmp_path / "wisdoms"
     wisdom_dir.mkdir()
 
-    broadcast_input_struct(inputs=_small_inputs())
+    _GlobalInitManagerSingleton.init(inputs=_small_inputs(), broadcast_inputs=True)
     with p21c.config.use(wisdoms_path=str(wisdom_dir)):
         status = lib.CreateFFTWWisdoms()
 
@@ -33,7 +33,7 @@ def test_create_fftw_wisdoms_long_path_no_crash():
     """
     oversized_path = "a" * 600  # well beyond the 500-byte wisdom_filename buffer
 
-    broadcast_input_struct(inputs=_small_inputs())
+    _GlobalInitManagerSingleton.init(inputs=_small_inputs(), broadcast_inputs=True)
     with p21c.config.use(wisdoms_path=oversized_path):
         status = lib.CreateFFTWWisdoms()
 
