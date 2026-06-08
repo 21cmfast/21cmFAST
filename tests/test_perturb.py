@@ -201,7 +201,6 @@ class TestPerturb:
             redshift=test_pt_z,
             radius=cell_radius,
             densities=dens,
-            log10mturns=mt_grid,
         )
         integral_sfrd *= prefac_sfr
 

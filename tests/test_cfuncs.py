@@ -128,15 +128,6 @@ def test_bad_integral_inputs(default_input_struct):
         )
 
     with pytest.raises(ValueError, match="the shapes of"):
-        cf.evaluate_SFRD_cond(
-            inputs=default_input_struct,
-            redshift=redshifts[0],
-            densities=densities,
-            log10mturns=lnM_base,
-            radius=10.0,
-        )
-
-    with pytest.raises(ValueError, match="the shapes of"):
         cf.evaluate_Nion_cond(
             inputs=default_input_struct,
             redshift=redshifts[0],
@@ -555,9 +546,21 @@ def test_functions_with_and_without_lightcone(
     lightcone = lc if use_lightcone else None
 
     redshifts = [7, 8, 9]
+    densities = np.linspace(-0.98, 1.7, num=800)
+    radius = 5  # Mpc
 
     sfrd, sfrd_mini = cf.evaluate_SFRD_z(
         inputs=inputs, redshifts=redshifts, lightcone=lightcone
     )
     assert len(sfrd) == len(redshifts)
     assert len(sfrd_mini) == len(redshifts)
+
+    sfrd, sfrd_mini = cf.evaluate_SFRD_cond(
+        inputs=inputs,
+        redshift=redshifts[0],
+        radius=radius,
+        densities=densities,
+        lightcone=lightcone,
+    )
+    assert len(sfrd) == len(densities)
+    assert len(sfrd_mini) == len(densities)

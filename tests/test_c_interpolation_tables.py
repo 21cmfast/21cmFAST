@@ -709,9 +709,7 @@ def test_Xray_conditional_tables(
 @pytest.mark.parametrize("R", R_PARAM_LIST)
 @pytest.mark.parametrize("name", options_hmf)
 @pytest.mark.parametrize("intmethod", options_intmethod)
-def test_SFRD_conditional_table(
-    name, log10_mturn_range, delta_range, R, intmethod, plt
-):
+def test_SFRD_conditional_table(name, delta_range, R, intmethod, plt):
     if intmethod == "FFCOLL":
         if name != "PS":
             pytest.skip("FAST FFCOLL INTEGRALS WORK ONLY WITH EPS")
@@ -724,10 +722,9 @@ def test_SFRD_conditional_table(
         USE_MINI_HALOS=True,
         RECOMB_MODEL="inhomogeneous",
         USE_TS_FLUCT=True,
+        ZPRIME_STEP_FACTOR=1.2,  # speed it up a bit because the functions below call run_global_evolution
         **kwargs,
     )["inputs"]
-
-    d_input, mt_input = np.meshgrid(delta_range, log10_mturn_range, indexing="ij")
 
     SFRD_tables, SFRD_tables_mini = cf.evaluate_SFRD_cond(
         inputs=inputs.evolve_input_structs(
@@ -737,8 +734,7 @@ def test_SFRD_conditional_table(
         ),
         radius=R,
         redshift=redshift,
-        densities=d_input,
-        log10mturns=mt_input,
+        densities=delta_range,
     )
 
     SFRD_integrals, SFRD_integrals_mini = cf.evaluate_SFRD_cond(
@@ -749,8 +745,7 @@ def test_SFRD_conditional_table(
         ),
         radius=R,
         redshift=redshift,
-        densities=d_input,
-        log10mturns=mt_input,
+        densities=delta_range,
     )
 
     # The bilinear interpolation we use underperforms at high mturn due to the sharp
@@ -759,13 +754,11 @@ def test_SFRD_conditional_table(
     # TODO: In future we should investigate cubic splines etc.
     abs_tol = 1e-8
     if plt == mpl.pyplot:
-        xl = log10_mturn_range.size - 1
-        sel_m = np.linspace(0, xl, num=5).astype(int)
         make_table_comparison_plot(
             [delta_range, delta_range],
-            [np.array([0]), 10 ** log10_mturn_range[sel_m]],
-            [SFRD_tables[:, 0], SFRD_tables_mini[..., sel_m]],
-            [SFRD_integrals[:, 0], SFRD_integrals_mini[..., sel_m]],
+            [None, None],
+            [SFRD_tables, SFRD_tables_mini],
+            [SFRD_integrals, SFRD_integrals_mini],
             plt,
             abstol=abs_tol,
             reltol=RELATIVE_TOLERANCE,
@@ -787,7 +780,7 @@ def test_SFRD_conditional_table(
     print_failure_stats(
         SFRD_tables_mini[sel_delta],
         SFRD_integrals_mini[sel_delta],
-        [delta_range[sel_delta], 10**log10_mturn_range],
+        [delta_range[sel_delta]],
         abs_tol,
         RELATIVE_TOLERANCE,
         "SFRD_c_mini",
@@ -822,6 +815,7 @@ def test_conditional_integral_methods(
         USE_MINI_HALOS=True,
         RECOMB_MODEL="inhomogeneous",
         USE_TS_FLUCT=True,
+        ZPRIME_STEP_FACTOR=1.2,  # speed it up a bit because the functions below call run_global_evolution
         **kwargs,
     )["inputs"]
 
@@ -845,7 +839,6 @@ def test_conditional_integral_methods(
                 redshift=redshift,
                 radius=R,
                 densities=d_input,
-                log10mturns=mt_input,
             )
         else:
             buf, buf_mini = cf.evaluate_Nion_cond(

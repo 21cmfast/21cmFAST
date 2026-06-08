@@ -114,26 +114,23 @@ def compute_mturns(
     Raises
     ------
     ValueError :
-        If the input arrays do not have the same length.
+        If the input arrays do not have the same shape.
     """
-    lengths = {
-        len(x)
-        for x in (redshifts, J_LW_21, v_cb, ionisation_rate_G12, z_reion)
-        if hasattr(x, "__len__")
+    inputs_to_check = {
+        "J_LW_21": J_LW_21,
+        "v_cb": v_cb,
+        "ionisation_rate_G12": ionisation_rate_G12,
+        "z_reion": z_reion,
     }
-    if len(lengths) > 1:
-        raise ValueError(
-            "All input arrays must have the same length, got lengths: "
-            + ", ".join(
-                f"{name}={len(x)}"
-                for name, x in zip(
-                    ("redshifts", "J_LW_21", "v_cb", "ionisation_rate_G12", "z_reion"),
-                    (redshifts, J_LW_21, v_cb, ionisation_rate_G12, z_reion),
-                    strict=False,
-                )
-                if hasattr(x, "__len__")
+
+    redshifts_shape = np.asarray(redshifts).shape
+    for name, value in inputs_to_check.items():
+        current_shape = np.asarray(value).shape
+        if current_shape != redshifts_shape:
+            raise ValueError(
+                f"The shapes of redshifts and {name} are not the same! "
+                f"Got {redshifts_shape} and {current_shape}."
             )
-        )
 
     M_turn_a_ffi = ffi.new("double *")
     M_turn_m_ffi = ffi.new("double *")
@@ -705,16 +702,50 @@ def evaluate_SFRD_cond(
     redshift: float,
     radius: float,
     densities: NDArray[np.floating],
-    log10mturns: NDArray[np.floating],
+    lightcone: LightCone | None = None,
 ):
-    """Evaluate the conditional star formation rate density expected at a range of densities."""
-    if densities.shape != log10mturns.shape:
-        raise ValueError(
-            "the shapes of the input arrays `densities` and `log10mturns` must be equal"
-        )
+    """
+    Evaluate the conditional star formation rate density expected at a range of densities.
+
+    For now, it returns a dimensionless SFRD. TODO: fix this!
+
+    Parameters
+    ----------
+    inputs: :class:`~InputParameters`
+        The input parameters defining the simulation run.
+    redshift : float
+        The redshift at which to compute the SFRD.
+    radius : float
+        The radius at which to compute the conditional SFRD.
+    densities : array-like
+        The densities at which to compute the conditional SFRD.
+    lightcone : :class:`~LightCone` or None, optional
+        The lightcone object to use for the computation.
+        If None, the function will estimate the global m_turnover values,
+        otherwise they will be extracted from the given lightcone.
+
+    Returns
+    -------
+    sfrd : np.ndarray
+        The conditional star formation rate density at the given redshift and radius for ACGs.
+    sfrd_mini : np.ndarray
+        The conditional star formation rate density at the given redshift and radius for MCGs.
+    """
+    if lightcone is not None:
+        log10mturns_mini_global = lightcone.global_quantities["log10_mturn_mcg"]
+    else:
+        from ..drivers.global_evolution import run_global_evolution
+
+        # If lightcone is not provided, we estimate the turnover masses from the global evolution
+        global_evolution = run_global_evolution(inputs=inputs)
+        log10mturns_mini_global = global_evolution.quantities["log10_mturn_mcg"]
+
+    log10mturns_mini = np.interp(
+        redshift, inputs.node_redshifts, log10mturns_mini_global
+    )
 
     densities = densities.astype("f8")
-    log10mturns = log10mturns.astype("f8")
+    log10mturns_mini = np.full_like(densities, log10mturns_mini, dtype="f8")
     sfrd = np.zeros_like(densities)
     sfrd_mini = np.zeros_like(densities)
 
@@ -723,7 +754,7 @@ def evaluate_SFRD_cond(
         radius,
         densities.size,
         ffi.cast("double *", ffi.from_buffer(densities)),
-        ffi.cast("double *", ffi.from_buffer(log10mturns)),
+        ffi.cast("double *", ffi.from_buffer(log10mturns_mini)),
         ffi.cast("double *", ffi.from_buffer(sfrd)),
         ffi.cast("double *", ffi.from_buffer(sfrd_mini)),
     )

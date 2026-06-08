@@ -75,7 +75,11 @@ def compute_global_reionization_at_z(
         J_LW_21 = 0.0
     else:
         Q_HI = spin_temp.Q_HI
-        J_LW_21 = spin_temp.J_21_LW.value
+        J_LW_21 = (
+            np.squeeze(spin_temp.J_21_LW.value)
+            if spin_temp.J_21_LW is not None
+            else 0.0
+        )
 
     # TODO: I think a more accurate global Q_HI can be achieved by solving an ODE that includes also the recombination rate
     Q_HI = Q_HI if Q_HI > 0.0 else 0.0
@@ -89,7 +93,7 @@ def compute_global_reionization_at_z(
         dQdz = 0.0
     dzdt = -(1.0 + redshift) * inputs.cosmo_params.cosmo.H(redshift)
     ionisation_rate_G12 = np.abs(dQdz * dzdt)
-    ionisation_rate_G12 = ionisation_rate_G12.to("1/s").value
+    ionisation_rate_G12 = np.squeeze(ionisation_rate_G12.to("1/s").value)
     # TODO: is there a more clever way to estimate global z_reion?
     z_reion = -1.0 if Q_HI > 0.0 else redshift
 
