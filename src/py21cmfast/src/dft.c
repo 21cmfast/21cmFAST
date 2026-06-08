@@ -91,10 +91,10 @@ int CreateFFTWWisdoms() {
         fftwf_complex *LOWRES_box =
             (fftwf_complex *)fftwf_malloc(sizeof(fftwf_complex) * HII_KSPACE_NUM_PIXELS);
 
-        nwritten = snprintf(wisdom_filename, sizeof(wisdom_filename),
-                            "%s/r2c_DIM%d_DIM%d_NTHREADS%d", config_settings.wisdoms_path,
-                            simulation_options_global->DIM, (int)D_PARA,
-                            simulation_options_global->N_THREADS);
+        nwritten =
+            snprintf(wisdom_filename, sizeof(wisdom_filename), "%s/r2c_DIM%d_DIM%d_NTHREADS%d",
+                     config_settings.wisdoms_path, simulation_options_global->DIM, (int)D_PARA,
+                     simulation_options_global->N_THREADS);
         if (nwritten >= (int)sizeof(wisdom_filename)) {
             LOG_WARNING("Wisdom path too long, filename was truncated: %s", wisdom_filename);
         }
@@ -106,10 +106,10 @@ int CreateFFTWWisdoms() {
             fftwf_destroy_plan(plan);
         }
 
-        nwritten = snprintf(wisdom_filename, sizeof(wisdom_filename),
-                            "%s/c2r_DIM%d_DIM%d_NTHREADS%d", config_settings.wisdoms_path,
-                            simulation_options_global->DIM, (int)D_PARA,
-                            simulation_options_global->N_THREADS);
+        nwritten =
+            snprintf(wisdom_filename, sizeof(wisdom_filename), "%s/c2r_DIM%d_DIM%d_NTHREADS%d",
+                     config_settings.wisdoms_path, simulation_options_global->DIM, (int)D_PARA,
+                     simulation_options_global->N_THREADS);
         if (nwritten >= (int)sizeof(wisdom_filename)) {
             LOG_WARNING("Wisdom path too long, filename was truncated: %s", wisdom_filename);
         }
@@ -121,10 +121,10 @@ int CreateFFTWWisdoms() {
             fftwf_destroy_plan(plan);
         }
 
-        nwritten = snprintf(wisdom_filename, sizeof(wisdom_filename),
-                            "%s/r2c_DIM%d_DIM%d_NTHREADS%d", config_settings.wisdoms_path,
-                            simulation_options_global->HII_DIM, (int)HII_D_PARA,
-                            simulation_options_global->N_THREADS);
+        nwritten =
+            snprintf(wisdom_filename, sizeof(wisdom_filename), "%s/r2c_DIM%d_DIM%d_NTHREADS%d",
+                     config_settings.wisdoms_path, simulation_options_global->HII_DIM,
+                     (int)HII_D_PARA, simulation_options_global->N_THREADS);
         if (nwritten >= (int)sizeof(wisdom_filename)) {
             LOG_WARNING("Wisdom path too long, filename was truncated: %s", wisdom_filename);
         }
@@ -136,10 +136,10 @@ int CreateFFTWWisdoms() {
             fftwf_destroy_plan(plan);
         }
 
-        nwritten = snprintf(wisdom_filename, sizeof(wisdom_filename),
-                            "%s/c2r_DIM%d_DIM%d_NTHREADS%d", config_settings.wisdoms_path,
-                            simulation_options_global->HII_DIM, (int)HII_D_PARA,
-                            simulation_options_global->N_THREADS);
+        nwritten =
+            snprintf(wisdom_filename, sizeof(wisdom_filename), "%s/c2r_DIM%d_DIM%d_NTHREADS%d",
+                     config_settings.wisdoms_path, simulation_options_global->HII_DIM,
+                     (int)HII_D_PARA, simulation_options_global->N_THREADS);
         if (nwritten >= (int)sizeof(wisdom_filename)) {
             LOG_WARNING("Wisdom path too long, filename was truncated: %s", wisdom_filename);
         }

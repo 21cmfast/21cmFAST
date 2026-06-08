@@ -1,7 +1,8 @@
 """Regression tests for DFT/FFTW wisdom path handling."""
 
-import py21cmfast as p21c
 from py21cmfast.c_21cmfast import lib
+
+import py21cmfast as p21c
 from py21cmfast.drivers._global_initialization import _GlobalInitManagerSingleton
 
 
