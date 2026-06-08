@@ -678,8 +678,6 @@ def evaluate_Nion_z(
     """
     Evaluate the global number of ionising photons per baryon, expected at a range of redshifts.
 
-    For now, it returns a dimensionless Nion. TODO: fix this!
-
     Parameters
     ----------
     inputs: :class:`~InputParameters`
@@ -810,8 +808,6 @@ def evaluate_Nion_cond(
 ):
     """
     Evaluate the global number of ionising photons per baryon, expected at a range of densities.
-
-    For now, it returns a dimensionless Nion. TODO: fix this!
 
     Parameters
     ----------

@@ -133,13 +133,25 @@ void get_global_Nion_z(int n_redshift, double *redshifts, double *log10_turnover
         if (redshifts[i] > z_max) z_max = redshifts[i];
     }
 
+    double ION_EFF_FACTOR, ION_EFF_FACTOR_MINI;
+    if (source_model_is_mass_dependent(matter_options_global->SOURCE_MODEL)) {
+        ION_EFF_FACTOR = astro_params_global->F_STAR10 * astro_params_global->F_ESC10 *
+                         astro_params_global->POP2_ION;
+        ION_EFF_FACTOR_MINI = astro_params_global->F_STAR7_MINI * astro_params_global->F_ESC7_MINI *
+                              astro_params_global->POP3_ION;
+    } else {
+        // no mini-halos when SOURCE_MODE is mass independent (constant ionization efficiency)
+        ION_EFF_FACTOR = astro_params_global->HII_EFF_FACTOR;
+    }
+
     if (uses_hmf_interpolation(matter_options_global->USE_INTERPOLATION_TABLES)) {
         initialise_Nion_Ts_spline(zpp_interp_points_SFR, z_min, z_max + 0.01, &sc);
     }
     for (i = 0; i < n_redshift; i++) {
-        out_nion[i] = EvaluateNionTs(redshifts[i], &sc);
+        out_nion[i] = ION_EFF_FACTOR * EvaluateNionTs(redshifts[i], &sc);
         if (astro_options_global->USE_MINI_HALOS)
-            out_nion_mini[i] = EvaluateNionTs_MINI(redshifts[i], log10_turnovers_mcg[i], &sc);
+            out_nion_mini[i] = ION_EFF_FACTOR_MINI *
+                               EvaluateNionTs_MINI(redshifts[i], log10_turnovers_mcg[i], &sc);
     }
 }
 
@@ -243,19 +255,32 @@ void get_conditional_Nion(double redshift, double R, int n_densities, double *de
     double min_l10mturn_mcg = log10_mturn_mcg - eps;
     double max_l10mturn_mcg = log10_mturn_mcg + eps;
 
+    double ION_EFF_FACTOR, ION_EFF_FACTOR_MINI;
+    if (source_model_is_mass_dependent(matter_options_global->SOURCE_MODEL)) {
+        ION_EFF_FACTOR = astro_params_global->F_STAR10 * astro_params_global->F_ESC10 *
+                         astro_params_global->POP2_ION;
+        ION_EFF_FACTOR_MINI = astro_params_global->F_STAR7_MINI * astro_params_global->F_ESC7_MINI *
+                              astro_params_global->POP3_ION;
+    } else {
+        // no mini-halos when SOURCE_MODE is mass independent (constant ionization efficiency)
+        ION_EFF_FACTOR = astro_params_global->HII_EFF_FACTOR;
+    }
+
     if (uses_hmf_interpolation(matter_options_global->USE_INTERPOLATION_TABLES)) {
         initialise_Nion_Conditional_spline(redshift, min_dens, max_dens, M_min, M_cond, M_cond,
                                            min_l10mturn_acg, max_l10mturn_acg, min_l10mturn_mcg,
                                            max_l10mturn_mcg, &sc, false);
     }
     for (i = 0; i < n_densities; i++)
-        out_nion[i] = EvaluateNion_Conditional(densities[i], log10_mturn_acg, growthf, M_min,
-                                               M_cond, M_cond, sigma_cond, &sc, false);
+        out_nion[i] =
+            ION_EFF_FACTOR * EvaluateNion_Conditional(densities[i], log10_mturn_acg, growthf, M_min,
+                                                      M_cond, M_cond, sigma_cond, &sc, false);
     if (astro_options_global->USE_MINI_HALOS) {
         for (i = 0; i < n_densities; i++)
             out_nion_mini[i] =
-                EvaluateNion_Conditional_MINI(densities[i], log10_mturn_mcg, growthf, M_min, M_cond,
-                                              M_cond, sigma_cond, &sc, false);
+                ION_EFF_FACTOR_MINI * EvaluateNion_Conditional_MINI(densities[i], log10_mturn_mcg,
+                                                                    growthf, M_min, M_cond, M_cond,
+                                                                    sigma_cond, &sc, false);
     }
 }
 

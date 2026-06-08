@@ -186,10 +186,7 @@ class TestPerturb:
         )
         prefac_nion = (
             inputs.cosmo_params.cosmo.critical_density(0).to("Msun Mpc-3").value
-            * inputs.astro_params.cdict["F_STAR10"]
             * inputs.cosmo_params.OMb
-            * inputs.astro_params.cdict["F_ESC10"]
-            * inputs.astro_params.cdict["POP2_ION"]
         )
         prefac_xray = (
             inputs.cosmo_params.cosmo.critical_density(0).to("Msun Mpc-3").value

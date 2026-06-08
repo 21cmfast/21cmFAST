@@ -59,15 +59,7 @@ def compute_global_reionization_at_z(
         #       When that happens, note that the call below to evaluate_Nion_z calls run_global_evolution,
         #       so be careful to avoid infinite recursion!
         nion, _ = evaluate_Nion_z(inputs=inputs, redshifts=np.asarray(redshift))
-        if inputs.matter_options.SOURCE_MODEL == "CONST-ION-EFF":
-            ion_eff_factor = inputs.astro_params.HII_EFF_FACTOR
-        else:
-            ion_eff_factor = (
-                pow(10.0, inputs.astro_params.F_STAR10)
-                * pow(10.0, inputs.astro_params.F_ESC10)
-                * inputs.astro_params.POP2_ION
-            )
-        Q_HI = 1.0 - ion_eff_factor * nion
+        Q_HI = 1.0 - nion
         # We don't need J_LW_21 because we currently don't allow to have mini-halos when USE_TS_FLUCT=False.
         # TODO: this limitation will be relaxed in the future, see https://github.com/21cmfast/21cmFAST/issues/600
         J_LW_21 = 0.0

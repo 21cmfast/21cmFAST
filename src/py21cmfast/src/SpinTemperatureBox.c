@@ -983,7 +983,7 @@ int global_reion_properties(double zp, double x_e_ave, double *log10_Mcrit_LW_av
         ION_EFF_FACTOR_MINI = astro_params_global->F_STAR7_MINI * astro_params_global->F_ESC7_MINI *
                               astro_params_global->POP3_ION;
     } else {
-        // no mini-halos when SOURCE_MODEL=0 (constant ionization efficiency)
+        // no mini-halos when SOURCE_MODE is mass independent (constant ionization efficiency)
         ION_EFF_FACTOR = astro_params_global->HII_EFF_FACTOR;
     }
 
