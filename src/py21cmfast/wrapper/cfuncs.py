@@ -870,20 +870,18 @@ def evaluate_Xray_cond(
     lightcone: LightCone | None = None,
 ):
     """
-    Evaluate the conditional X-ray luminosity expected at a range of densities.
-
-    For now, it returns X-ray luminosity in units of 1e-38 erg/s/rho_m. TODO: fix this!
+    Evaluate the conditional X-ray emissivity (in units of erg/s/Mpc^3) expected at a range of densities.
 
     Parameters
     ----------
     inputs: :class:`~InputParameters`
         The input parameters defining the simulation run.
     redshift : float
-        The redshift at which to compute the conditional X-ray luminosity.
+        The redshift at which to compute the conditional X-ray emissivity.
     radius : float
-        The radius of the region at which to compute the conditional X-ray luminosity.
+        The radius of the region at which to compute the conditional X-ray emissivity.
     densities : array-like
-        The densities at which to compute the conditional X-ray luminosity.
+        The densities at which to compute the conditional X-ray emissivity.
     lightcone : :class:`~LightCone` or None, optional
         The lightcone object to use for the computation.
         If None, the function will estimate the global m_turnover values,
@@ -891,8 +889,8 @@ def evaluate_Xray_cond(
 
     Returns
     -------
-    xray_luminosity : np.ndarray
-        The conditional X-ray luminosity at the given redshift and radius for ACGs and MCGs combined.
+    xray_emissivity : np.ndarray
+        The conditional X-ray emissivity at the given redshift and radius for ACGs and MCGs combined.
     """
     if inputs.astro_options.USE_MINI_HALOS:
         if lightcone is not None:
@@ -911,7 +909,7 @@ def evaluate_Xray_cond(
         log10mturn_mini = 0.0  # dummy value for no mini halos
 
     densities = densities.astype("f8")
-    xray_luminosity = np.zeros_like(densities)
+    xray_emissivity = np.zeros_like(densities)
 
     lib.get_conditional_Xray(
         redshift,
@@ -919,10 +917,10 @@ def evaluate_Xray_cond(
         densities.size,
         ffi.cast("double *", ffi.from_buffer(densities)),
         log10mturn_mini,
-        ffi.cast("double *", ffi.from_buffer(xray_luminosity)),
+        ffi.cast("double *", ffi.from_buffer(xray_emissivity)),
     )
 
-    return xray_luminosity
+    return xray_emissivity
 
 
 @init_c_state(sigma=True)

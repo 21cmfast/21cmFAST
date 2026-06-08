@@ -323,10 +323,13 @@ void get_conditional_Xray(double redshift, double R, int n_densities, double *de
         if (dens > max_dens) max_dens = dens;
     }
 
+    double X_RAY_FACTOR = RHOcrit * cosmo_params_global->OMm * 1e38;
+
     if (uses_hmf_interpolation(matter_options_global->USE_INTERPOLATION_TABLES)) {
         initialise_Xray_Conditional_table(redshift, min_dens, max_dens, M_min, M_cond, M_cond, &sc);
     }
     for (i = 0; i < n_densities; i++)
-        out_xray[i] = EvaluateXray_Conditional(densities[i], log10_mturn_mini, redshift, growthf,
-                                               M_min, M_cond, M_cond, sigma_cond, &sc);
+        out_xray[i] = X_RAY_FACTOR * EvaluateXray_Conditional(densities[i], log10_mturn_mini,
+                                                              redshift, growthf, M_min, M_cond,
+                                                              M_cond, sigma_cond, &sc);
 }

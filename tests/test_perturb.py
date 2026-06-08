@@ -181,10 +181,8 @@ class TestPerturb:
             inputs.cosmo_params.cosmo.critical_density(0).to("Msun Mpc-3").value
             * inputs.cosmo_params.OMb
         )
-        prefac_xray = (
-            inputs.cosmo_params.cosmo.critical_density(0).to("Msun Mpc-3").value
-            * inputs.cosmo_params.OMm
-        )
+        prefac_xray = 1e-38
+
         integral_sfrd, _ = cf.evaluate_SFRD_cond(
             inputs=inputs,
             redshift=test_pt_z,
