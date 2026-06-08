@@ -174,7 +174,7 @@ void get_conditional_FgtrM(double redshift, double R, int n_densities, double *d
 }
 
 void get_conditional_SFRD(double redshift, double R, int n_densities, double *densities,
-                          double *log10_mturns, double *out_sfrd, double *out_sfrd_mini) {
+                          double log10_mturns_mini, double *out_sfrd, double *out_sfrd_mini) {
     double M_min = minimum_source_mass(redshift, true);
     double M_cond = RtoM(R);
     double sigma_cond = EvaluateSigma(log(M_cond));
@@ -207,7 +207,7 @@ void get_conditional_SFRD(double redshift, double R, int n_densities, double *de
     if (astro_options_global->USE_MINI_HALOS) {
         for (i = 0; i < n_densities; i++)
             out_sfrd_mini[i] = EvaluateSFRD_Conditional_MINI(
-                densities[i], log10_mturns[i], growthf, M_min, M_cond, M_cond, sigma_cond, &sc);
+                densities[i], log10_mturns_mini, growthf, M_min, M_cond, M_cond, sigma_cond, &sc);
     }
 }
 

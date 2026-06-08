@@ -745,7 +745,6 @@ def evaluate_SFRD_cond(
     )
 
     densities = densities.astype("f8")
-    log10mturns_mini = np.full_like(densities, log10mturns_mini, dtype="f8")
     sfrd = np.zeros_like(densities)
     sfrd_mini = np.zeros_like(densities)
 
@@ -754,7 +753,7 @@ def evaluate_SFRD_cond(
         radius,
         densities.size,
         ffi.cast("double *", ffi.from_buffer(densities)),
-        ffi.cast("double *", ffi.from_buffer(log10mturns_mini)),
+        log10mturns_mini,
         ffi.cast("double *", ffi.from_buffer(sfrd)),
         ffi.cast("double *", ffi.from_buffer(sfrd_mini)),
     )
