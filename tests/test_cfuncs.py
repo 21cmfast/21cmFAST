@@ -137,15 +137,6 @@ def test_bad_integral_inputs(default_input_struct):
             radius=10.0,
         )
 
-    with pytest.raises(ValueError, match="the shapes of"):
-        cf.evaluate_Xray_cond(
-            inputs=default_input_struct,
-            redshift=redshifts[0],
-            densities=densities,
-            log10mturns=lnM_base,
-            radius=10.0,
-        )
-
     with pytest.raises(
         ValueError, match="Halo masses and rng shapes must be identical"
     ):
@@ -564,3 +555,12 @@ def test_functions_with_and_without_lightcone(
     )
     assert len(sfrd) == len(densities)
     assert len(sfrd_mini) == len(densities)
+
+    xray_luminosity = cf.evaluate_Xray_cond(
+        inputs=inputs,
+        redshift=redshifts[0],
+        radius=radius,
+        densities=densities,
+        lightcone=lightcone,
+    )
+    assert len(xray_luminosity) == len(densities)

@@ -108,7 +108,7 @@ void get_conditional_Nion(double redshift, double R, int n_densities, double *de
                           double *log10_mturns_acg, double *log10_mturns_mcg, double *out_nion,
                           double *out_nion_mini);
 void get_conditional_Xray(double redshift, double R, int n_densities, double *densities,
-                          double *log10_mturns, double *out_xray);
+                          double log10_mturns_mini, double *out_xray);
 /*--------------------------------*/
 
 /* Error framework testing */

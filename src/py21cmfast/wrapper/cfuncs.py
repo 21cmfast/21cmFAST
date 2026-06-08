@@ -716,7 +716,7 @@ def evaluate_SFRD_cond(
     redshift : float
         The redshift at which to compute the SFRD.
     radius : float
-        The radius at which to compute the conditional SFRD.
+        The radius of the region at which to compute the conditional SFRD.
     densities : array-like
         The densities at which to compute the conditional SFRD.
     lightcone : :class:`~LightCone` or None, optional
@@ -740,7 +740,7 @@ def evaluate_SFRD_cond(
         global_evolution = run_global_evolution(inputs=inputs)
         log10mturns_mini_global = global_evolution.quantities["log10_mturn_mcg"]
 
-    log10mturns_mini = np.interp(
+    log10mturn_mini = np.interp(
         redshift, inputs.node_redshifts, log10mturns_mini_global
     )
 
@@ -753,7 +753,7 @@ def evaluate_SFRD_cond(
         radius,
         densities.size,
         ffi.cast("double *", ffi.from_buffer(densities)),
-        log10mturns_mini,
+        log10mturn_mini,
         ffi.cast("double *", ffi.from_buffer(sfrd)),
         ffi.cast("double *", ffi.from_buffer(sfrd_mini)),
     )
@@ -804,29 +804,59 @@ def evaluate_Xray_cond(
     redshift: float,
     radius: float,
     densities: NDArray[np.floating],
-    log10mturns: NDArray[np.floating],
+    lightcone: LightCone | None = None,
 ):
-    """Evaluate the conditional star formation rate density expected at a range of densities."""
-    if densities.shape != log10mturns.shape:
-        raise ValueError(
-            "the shapes of the input arrays `cond_array` and `probabilities"
-            " must be equal."
-        )
+    """
+    Evaluate the conditional X-ray luminosity expected at a range of densities.
+
+    For now, it returns X-ray luminosity in units of 1e-38 erg/s/rho_m. TODO: fix this!
+
+    Parameters
+    ----------
+    inputs: :class:`~InputParameters`
+        The input parameters defining the simulation run.
+    redshift : float
+        The redshift at which to compute the conditional X-ray luminosity.
+    radius : float
+        The radius of the region at which to compute the conditional X-ray luminosity.
+    densities : array-like
+        The densities at which to compute the conditional X-ray luminosity.
+    lightcone : :class:`~LightCone` or None, optional
+        The lightcone object to use for the computation.
+        If None, the function will estimate the global m_turnover values,
+        otherwise they will be extracted from the given lightcone.
+
+    Returns
+    -------
+    xray_luminosity : np.ndarray
+        The conditional X-ray luminosity at the given redshift and radius for ACGs and MCGs combined.
+    """
+    if lightcone is not None:
+        log10mturns_mini_global = lightcone.global_quantities["log10_mturn_mcg"]
+    else:
+        from ..drivers.global_evolution import run_global_evolution
+
+        # If lightcone is not provided, we estimate the turnover masses from the global evolution
+        global_evolution = run_global_evolution(inputs=inputs)
+        log10mturns_mini_global = global_evolution.quantities["log10_mturn_mcg"]
+
+    log10mturn_mini = np.interp(
+        redshift, inputs.node_redshifts, log10mturns_mini_global
+    )
 
     densities = densities.astype("f8")
-    log10mturns = log10mturns.astype("f8")
-    xray = np.zeros_like(densities)
+    xray_luminosity = np.zeros_like(densities)
 
     lib.get_conditional_Xray(
         redshift,
         radius,
         densities.size,
         ffi.cast("double *", ffi.from_buffer(densities)),
-        ffi.cast("double *", ffi.from_buffer(log10mturns)),
-        ffi.cast("double *", ffi.from_buffer(xray)),
+        log10mturn_mini,
+        ffi.cast("double *", ffi.from_buffer(xray_luminosity)),
     )
 
-    return xray
+    return xray_luminosity
 
 
 @init_c_state(sigma=True)

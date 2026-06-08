@@ -620,9 +620,7 @@ def test_Nion_conditional_tables(
 @pytest.mark.parametrize("R", R_PARAM_LIST)
 @pytest.mark.parametrize("name", options_hmf)
 @pytest.mark.parametrize("intmethod", options_intmethod)
-def test_Xray_conditional_tables(
-    name, log10_mturn_range, delta_range, R, mini, intmethod, plt
-):
+def test_Xray_conditional_tables(name, delta_range, R, mini, intmethod, plt):
     if intmethod == "FFCOLL":
         if name != "PS":
             pytest.skip("FAST FFCOLL INTEGRALS WORK ONLY WITH EPS")
@@ -639,10 +637,9 @@ def test_Xray_conditional_tables(
         USE_MINI_HALOS=mini_flag,
         RECOMB_MODEL="inhomogeneous",
         USE_TS_FLUCT=True,
+        ZPRIME_STEP_FACTOR=1.2,  # speed it up a bit because the functions below call run_global_evolution
         **kwargs,
     )["inputs"]
-
-    d_input, mt_input = np.meshgrid(delta_range, log10_mturn_range, indexing="ij")
 
     Xray_tables = cf.evaluate_Xray_cond(
         inputs=inputs.evolve_input_structs(
@@ -652,8 +649,7 @@ def test_Xray_conditional_tables(
         ),
         redshift=redshift,
         radius=R,
-        densities=d_input,
-        log10mturns=mt_input,
+        densities=delta_range,
     )
 
     Xray_integrals = cf.evaluate_Xray_cond(
@@ -664,21 +660,16 @@ def test_Xray_conditional_tables(
         ),
         redshift=redshift,
         radius=R,
-        densities=d_input,
-        log10mturns=mt_input,
+        densities=delta_range,
     )
 
     abs_tol = 0.0
     if plt == mpl.pyplot:
-        xl = log10_mturn_range.size - 1
-        sel_m = np.linspace(0, xl, num=5).astype(int)
-        Xray_tb_plot = Xray_tables[..., sel_m]
-        Xray_il_plot = Xray_integrals[..., sel_m]
         make_table_comparison_plot(
             [delta_range],
-            [10 ** log10_mturn_range[sel_m]],
-            [Xray_tb_plot],
-            [Xray_il_plot],
+            [None],
+            [Xray_tables],
+            [Xray_integrals],
             plt,
             abstol=abs_tol,
             reltol=RELATIVE_TOLERANCE,
@@ -692,7 +683,7 @@ def test_Xray_conditional_tables(
     print_failure_stats(
         Xray_tables[sel_delta],
         Xray_integrals[sel_delta],
-        [delta_range[sel_delta], 10**log10_mturn_range],
+        [delta_range[sel_delta]],
         abs_tol,
         RELATIVE_TOLERANCE,
         "Xray_c",
