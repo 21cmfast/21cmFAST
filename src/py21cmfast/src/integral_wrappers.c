@@ -212,7 +212,7 @@ void get_conditional_SFRD(double redshift, double R, int n_densities, double *de
 }
 
 void get_conditional_Nion(double redshift, double R, int n_densities, double *densities,
-                          double *log10_mturns_acg, double *log10_mturns_mcg, double *out_nion,
+                          double log10_mturn_acg, double log10_mturn_mcg, double *out_nion,
                           double *out_nion_mini) {
     double M_min = minimum_source_mass(redshift, true);
     double M_cond = RtoM(R);
@@ -237,8 +237,8 @@ void get_conditional_Nion(double redshift, double R, int n_densities, double *de
     double dens, l10mturn_a, l10mturn_m;
     for (i = 0; i < n_densities; i++) {
         dens = densities[i];
-        l10mturn_a = log10_mturns_acg[i];
-        l10mturn_m = log10_mturns_mcg[i];
+        l10mturn_a = log10_mturn_acg;
+        l10mturn_m = log10_mturn_mcg;
         if (dens < min_dens) min_dens = dens;
         if (dens > max_dens) max_dens = dens;
         if (l10mturn_a < min_l10mturn_acg) min_l10mturn_acg = l10mturn_a;
@@ -253,13 +253,13 @@ void get_conditional_Nion(double redshift, double R, int n_densities, double *de
                                            max_l10mturn_mcg, &sc, false);
     }
     for (i = 0; i < n_densities; i++)
-        out_nion[i] = EvaluateNion_Conditional(densities[i], log10_mturns_acg[i], growthf, M_min,
+        out_nion[i] = EvaluateNion_Conditional(densities[i], log10_mturn_acg, growthf, M_min,
                                                M_cond, M_cond, sigma_cond, &sc, false);
     if (astro_options_global->USE_MINI_HALOS) {
         for (i = 0; i < n_densities; i++)
             out_nion_mini[i] =
-                EvaluateNion_Conditional_MINI(densities[i], log10_mturns_mcg[i], growthf, M_min,
-                                              M_cond, M_cond, sigma_cond, &sc, false);
+                EvaluateNion_Conditional_MINI(densities[i], log10_mturn_mcg, growthf, M_min, M_cond,
+                                              M_cond, sigma_cond, &sc, false);
     }
 }
 

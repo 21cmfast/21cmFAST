@@ -120,16 +120,6 @@ def test_bad_integral_inputs(default_input_struct):
             probabilities=np.ones(len(densities) - 1),
         )
 
-    with pytest.raises(ValueError, match="the shapes of"):
-        cf.evaluate_Nion_cond(
-            inputs=default_input_struct,
-            redshift=redshifts[0],
-            densities=densities,
-            l10mturns_acg=lnM_base,
-            l10mturns_mcg=lnM_base,
-            radius=10.0,
-        )
-
     with pytest.raises(
         ValueError, match="Halo masses and rng shapes must be identical"
     ):
@@ -554,6 +544,16 @@ def test_functions_with_and_without_lightcone(
     )
     assert len(sfrd) == len(densities)
     assert len(sfrd_mini) == len(densities)
+
+    nion, nion_mini = cf.evaluate_Nion_cond(
+        inputs=inputs,
+        redshift=redshifts[0],
+        radius=radius,
+        densities=densities,
+        lightcone=lightcone,
+    )
+    assert len(nion) == len(densities)
+    assert len(nion_mini) == len(densities)
 
     xray_luminosity = cf.evaluate_Xray_cond(
         inputs=inputs,

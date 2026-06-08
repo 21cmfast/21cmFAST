@@ -714,7 +714,7 @@ def evaluate_Nion_z(
     else:
         log10mturns_mini = np.zeros_like(redshifts)  # dummy value for no mini halos
 
-    redshifts = redshifts.astype("f8")
+    redshifts = np.asarray(redshifts).astype("f8")
     log10mturns_mini = log10mturns_mini.astype("f8")
     nion = np.zeros_like(redshifts)
     nion_mini = np.zeros_like(redshifts)
@@ -806,18 +806,51 @@ def evaluate_Nion_cond(
     redshift: float,
     radius: float,
     densities: NDArray[np.floating],
-    l10mturns_acg: NDArray[np.floating],
-    l10mturns_mcg: NDArray[np.floating],
+    lightcone: LightCone | None = None,
 ):
-    """Evaluate the conditional ionising emissivity expected at a range of densities."""
-    if not (densities.shape == l10mturns_mcg.shape == l10mturns_acg.shape):
-        raise ValueError(
-            "the shapes of the input arrays `densities` and `log10mturns_x` must be equal"
-        )
+    """
+    Evaluate the global number of ionising photons per baryon, expected at a range of densities.
+
+    For now, it returns a dimensionless Nion. TODO: fix this!
+
+    Parameters
+    ----------
+    inputs: :class:`~InputParameters`
+        The input parameters defining the simulation run.
+    redshift : float
+        The redshift at which to compute Nion.
+    radius : float
+        The radius of the region at which to compute the conditional Nion.
+    densities : array-like
+        The densities at which to compute the conditional Nion.
+    lightcone : :class:`~LightCone` or None, optional
+        The lightcone object to use for the computation.
+        If None, the function will estimate the global m_turnover values,
+        otherwise they will be extracted from the given lightcone.
+
+    Returns
+    -------
+    nion : np.ndarray
+        The conditional number of ionising photons per baryon at the given redshift and radius for ACGs.
+    nion_mini : np.ndarray
+        The conditional number of ionising photons per baryon at the given redshift and radius for MCGs.
+    """
+    # TODO: Why this function is the only one that needs the global mturnover values for ACGs?
+    if lightcone is not None:
+        log10mturns_global = lightcone.global_quantities["log10_mturn_acg"]
+        log10mturns_mini_global = lightcone.global_quantities["log10_mturn_mcg"]
+    else:
+        from ..drivers.global_evolution import run_global_evolution
+
+        # If lightcone is not provided, we estimate the turnover masses from the global evolution
+        global_evolution = run_global_evolution(inputs=inputs)
+        log10mturns_global = global_evolution.quantities["log10_mturn_acg"]
+        log10mturns_mini_global = global_evolution.quantities["log10_mturn_mcg"]
+
+    log10mturn_acg = np.interp(redshift, inputs.node_redshifts, log10mturns_global)
+    log10mturn_mcg = np.interp(redshift, inputs.node_redshifts, log10mturns_mini_global)
 
     densities = densities.astype("f8")
-    l10mturns_acg = l10mturns_acg.astype("f8")
-    l10mturns_mcg = l10mturns_mcg.astype("f8")
     nion = np.zeros_like(densities)
     nion_mini = np.zeros_like(densities)
 
@@ -826,8 +859,8 @@ def evaluate_Nion_cond(
         radius,
         densities.size,
         ffi.cast("double *", ffi.from_buffer(densities)),
-        ffi.cast("double *", ffi.from_buffer(l10mturns_acg)),
-        ffi.cast("double *", ffi.from_buffer(l10mturns_mcg)),
+        log10mturn_acg,
+        log10mturn_mcg,
         ffi.cast("double *", ffi.from_buffer(nion)),
         ffi.cast("double *", ffi.from_buffer(nion_mini)),
     )

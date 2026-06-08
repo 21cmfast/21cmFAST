@@ -62,12 +62,6 @@ def mass_range():
     return np.logspace(7, 13, num=200)
 
 
-# Mass turnover range for testing CMF/UMF integrals
-@pytest.fixture(scope="module")
-def log10_mturn_range():
-    return np.linspace(5, 8.5, num=40)
-
-
 # redshift range for testing UMF integrals
 @pytest.fixture(scope="module")
 def z_range():
@@ -504,9 +498,7 @@ def test_Nion_z_tables(name, z_range, plt):
 @pytest.mark.parametrize("R", R_PARAM_LIST)
 @pytest.mark.parametrize("name", options_hmf)
 @pytest.mark.parametrize("intmethod", options_intmethod)
-def test_Nion_conditional_tables(
-    name, log10_mturn_range, delta_range, R, mini, intmethod, plt
-):
+def test_Nion_conditional_tables(name, delta_range, R, mini, intmethod, plt):
     if intmethod == "FFCOLL":
         if name != "PS":
             pytest.skip("FAST FFCOLL INTEGRALS WORK ONLY WITH EPS")
@@ -522,13 +514,9 @@ def test_Nion_conditional_tables(
         USE_MINI_HALOS=mini_flag,
         RECOMB_MODEL="inhomogeneous",
         USE_TS_FLUCT=True,
+        ZPRIME_STEP_FACTOR=1.2,  # speed it up a bit because the functions below call run_global_evolution
         **kwargs,
     )["inputs"]
-
-    # NOTE: we still pass a 2D array when minihalos are off.
-    #   part of the test is that passing different mturns *doesn't* change
-    #   the integral without minihalos
-    d_input, mt_input = np.meshgrid(delta_range, log10_mturn_range, indexing="ij")
 
     Nion_tables, Nion_tables_mini = cf.evaluate_Nion_cond(
         inputs=inputs.evolve_input_structs(
@@ -536,9 +524,7 @@ def test_Nion_conditional_tables(
         ),
         redshift=redshift,
         radius=R,
-        densities=d_input,
-        l10mturns_mcg=mt_input,
-        l10mturns_acg=mt_input,
+        densities=delta_range,
     )
 
     Nion_integrals, Nion_integrals_mini = cf.evaluate_Nion_cond(
@@ -547,9 +533,7 @@ def test_Nion_conditional_tables(
         ),
         redshift=redshift,
         radius=R,
-        densities=d_input,
-        l10mturns_mcg=mt_input,
-        l10mturns_acg=mt_input,
+        densities=delta_range,
     )
 
     # The bilinear interpolation we use underperforms at high mturn due to the sharp
@@ -559,16 +543,11 @@ def test_Nion_conditional_tables(
     abs_tol = 1e-8
 
     if plt == mpl.pyplot:
-        xl = log10_mturn_range.size - 1
-        sel_m = np.linspace(0, xl, num=5).astype(int)
-        Nion_tb_plot = Nion_tables[..., sel_m]
-        Nion_il_plot = Nion_integrals[..., sel_m]
-
         make_table_comparison_plot(
             [delta_range, delta_range],
-            [np.array([0]), 10 ** log10_mturn_range[sel_m]],
-            [Nion_tb_plot[..., 0], Nion_tables_mini[..., sel_m]],
-            [Nion_il_plot[..., 0], Nion_integrals_mini[..., sel_m]],
+            [None, None],
+            [Nion_tables, Nion_tables_mini],
+            [Nion_integrals, Nion_integrals_mini],
             plt,
             abstol=abs_tol,
             reltol=RELATIVE_TOLERANCE,
@@ -582,7 +561,7 @@ def test_Nion_conditional_tables(
     print_failure_stats(
         Nion_tables[sel_delta],
         Nion_integrals[sel_delta],
-        [delta_range[sel_delta], 10**log10_mturn_range],
+        [delta_range[sel_delta]],
         abs_tol,
         RELATIVE_TOLERANCE,
         "Nion_c",
@@ -592,7 +571,7 @@ def test_Nion_conditional_tables(
         print_failure_stats(
             Nion_tables_mini[sel_delta],
             Nion_integrals_mini[sel_delta],
-            [delta_range[sel_delta], 10**log10_mturn_range],
+            [delta_range[sel_delta]],
             abs_tol,
             RELATIVE_TOLERANCE,
             "Nion_c_mini",
@@ -794,9 +773,7 @@ INTEGRAND_OPTIONS = ["sfrd", "n_ion"]
 @pytest.mark.parametrize("R", R_PARAM_LIST)
 @pytest.mark.parametrize("name", options_hmf)
 @pytest.mark.parametrize("integrand", INTEGRAND_OPTIONS)
-def test_conditional_integral_methods(
-    R, log10_mturn_range, delta_range, name, integrand, plt
-):
+def test_conditional_integral_methods(R, delta_range, name, integrand, plt):
     redshift, kwargs = OPTIONS_HMF[name]
     inputs = get_all_options_struct(
         redshift,
@@ -806,8 +783,6 @@ def test_conditional_integral_methods(
         ZPRIME_STEP_FACTOR=1.2,  # speed it up a bit because the functions below call run_global_evolution
         **kwargs,
     )["inputs"]
-
-    d_input, mt_input = np.meshgrid(delta_range, log10_mturn_range, indexing="ij")
 
     integrals = []
     integrals_mini = []
@@ -826,29 +801,25 @@ def test_conditional_integral_methods(
                 inputs=inputs,
                 redshift=redshift,
                 radius=R,
-                densities=d_input,
+                densities=delta_range,
             )
         else:
             buf, buf_mini = cf.evaluate_Nion_cond(
                 inputs=inputs,
                 redshift=redshift,
                 radius=R,
-                densities=d_input,
-                l10mturns_acg=mt_input,
-                l10mturns_mcg=mt_input,
+                densities=delta_range,
             )
         integrals.append(buf)
         integrals_mini.append(buf_mini)
 
     abs_tol = 1e-6  # minimum = exp(-40) ~1e-18
     if plt == mpl.pyplot:
-        xl = log10_mturn_range.size - 1
-        sel_m = np.linspace(0, xl, num=5).astype(int)
-        iplot = [i[..., sel_m] if i.ndim == 2 else i for i in integrals]
-        iplot_mini = [i[..., sel_m] for i in integrals_mini]
+        iplot = [i[:, None] if i.ndim == 1 else i for i in integrals]
+        iplot_mini = [i[:, None] if i.ndim == 1 else i for i in integrals_mini]
         make_integral_comparison_plot(
             delta_range,
-            10 ** log10_mturn_range[sel_m],
+            None,
             iplot,
             iplot_mini,
             plt,
@@ -914,6 +885,8 @@ def make_integral_comparison_plot(x1, x2, integral_list, integral_list_second, p
         if len(i_first.shape) == 1:
             i_first = i_first[:, None]
             comparison = integral_list[0][:, None]
+        if len(i_second.shape) == 1:
+            i_second = i_second[:, None]
         for j in range(i_first.shape[1]):
             axs[0, 0].semilogy(
                 x1, i_first[:, j], color=f"C{j:d}", linestyle=styles[i], linewidth=2

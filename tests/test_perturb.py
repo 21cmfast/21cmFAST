@@ -176,7 +176,6 @@ class TestPerturb:
             "2LPT": (0, 1, -1),
         }[inputs.matter_options.PERTURB_ALGORITHM]
         dens = np.roll(ics.get("lowres_density"), roll_var, (0, 1, 2)) * d_z
-        mt_grid = np.full_like(dens, inputs.astro_params.M_TURN)
 
         prefac_sfr = (
             inputs.cosmo_params.cosmo.critical_density(0).to("Msun Mpc-3").value
@@ -209,8 +208,6 @@ class TestPerturb:
             redshift=test_pt_z,
             radius=cell_radius,
             densities=dens,
-            l10mturns_acg=mt_grid,
-            l10mturns_mcg=mt_grid,
         )
         integral_nion *= prefac_nion
 
