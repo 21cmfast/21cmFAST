@@ -207,6 +207,8 @@ def compute_luminosity_function(
     redshifts: Sequence[float],
     inputs: InputParameters,
     nbins: int = 100,
+    mturnovers: np.ndarray | None = None,
+    mturnovers_mini: np.ndarray | None = None,
     lightcone: LightCone | None = None,
     component: Literal["both", "acg", "mcg"] = "both",
 ) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
@@ -240,6 +242,12 @@ def compute_luminosity_function(
     astro_options = inputs.astro_options
 
     redshifts = np.array(redshifts, dtype="float32")
+
+    if (mturnovers is not None) or (mturnovers_mini is not None):
+        raise TypeError(
+            "`mturnovers` and `mturnovers_mini` have been removed. "
+            "Please use the `lightcone` argument instead, or don't use it to estimate the turnover masses."
+        )
 
     if not astro_options.USE_MINI_HALOS:
         warnings.warn(
@@ -611,6 +619,7 @@ def evaluate_SFRD_z(
     *,
     inputs: InputParameters,
     redshifts: NDArray[np.floating],
+    log10mturns: NDArray[np.floating] | None = None,
     lightcone: LightCone | None = None,
 ):
     """
@@ -634,6 +643,12 @@ def evaluate_SFRD_z(
     sfrd_mini : np.ndarray
         The global star formation rate density at the given redshifts for MCGs.
     """
+    if log10mturns is not None:
+        raise TypeError(
+            "`log10mturns` has been removed. "
+            "Please use the `lightcone` argument instead, or don't use it to estimate the turnover masses."
+        )
+
     if inputs.astro_options.USE_MINI_HALOS:
         if lightcone is not None:
             log10mturns_mini_global = lightcone.global_quantities["log10_mturn_mcg"]
@@ -671,6 +686,7 @@ def evaluate_Nion_z(
     *,
     inputs: InputParameters,
     redshifts: NDArray[np.floating],
+    log10mturns: NDArray[np.floating] | None = None,
     lightcone: LightCone | None = None,
 ):
     """
@@ -694,6 +710,12 @@ def evaluate_Nion_z(
     nion_mini : np.ndarray
         The global number of ionising photons per baryon at the given redshifts for MCGs.
     """
+    if log10mturns is not None:
+        raise TypeError(
+            "`log10mturns` has been removed. "
+            "Please use the `lightcone` argument instead, or don't use it to estimate the turnover masses."
+        )
+
     if inputs.astro_options.USE_MINI_HALOS:
         if lightcone is not None:
             log10mturns_mini_global = lightcone.global_quantities["log10_mturn_mcg"]
@@ -733,6 +755,7 @@ def evaluate_SFRD_cond(
     redshift: float,
     radius: float,
     densities: NDArray[np.floating],
+    log10mturns: NDArray[np.floating] | None = None,
     lightcone: LightCone | None = None,
 ):
     """
@@ -760,6 +783,12 @@ def evaluate_SFRD_cond(
     sfrd_mini : np.ndarray
         The conditional star formation rate density at the given redshift and radius for MCGs.
     """
+    if log10mturns is not None:
+        raise TypeError(
+            "`log10mturns` has been removed. "
+            "Please use the `lightcone` argument instead, or don't use it to estimate the turnover masses."
+        )
+
     if inputs.astro_options.USE_MINI_HALOS:
         if lightcone is not None:
             log10mturns_mini_global = lightcone.global_quantities["log10_mturn_mcg"]
@@ -800,6 +829,8 @@ def evaluate_Nion_cond(
     redshift: float,
     radius: float,
     densities: NDArray[np.floating],
+    l10mturns_acg: NDArray[np.floating] | None = None,
+    l10mturns_mcg: NDArray[np.floating] | None = None,
     lightcone: LightCone | None = None,
 ):
     """
@@ -827,6 +858,12 @@ def evaluate_Nion_cond(
     nion_mini : np.ndarray
         The conditional number of ionising photons per baryon at the given redshift and radius for MCGs.
     """
+    if (l10mturns_acg is not None) or (l10mturns_mcg is not None):
+        raise TypeError(
+            "`l10mturns_acg` and `l10mturns_mcg` have been removed. "
+            "Please use the `lightcone` argument instead, or don't use it to estimate the turnover masses."
+        )
+
     # TODO: Why this function is the only one that needs the global mturnover values for ACGs?
     if lightcone is not None:
         log10mturns_global = lightcone.global_quantities["log10_mturn_acg"]
@@ -867,6 +904,7 @@ def evaluate_Xray_cond(
     redshift: float,
     radius: float,
     densities: NDArray[np.floating],
+    log10mturns: NDArray[np.floating] | None = None,
     lightcone: LightCone | None = None,
 ):
     """
@@ -892,6 +930,12 @@ def evaluate_Xray_cond(
     xray_emissivity : np.ndarray
         The conditional X-ray emissivity at the given redshift and radius for ACGs and MCGs combined.
     """
+    if log10mturns is not None:
+        raise TypeError(
+            "`log10mturns` has been removed. "
+            "Please use the `lightcone` argument instead, or don't use it to estimate the turnover masses."
+        )
+
     if inputs.astro_options.USE_MINI_HALOS:
         if lightcone is not None:
             log10mturns_mini_global = lightcone.global_quantities["log10_mturn_mcg"]

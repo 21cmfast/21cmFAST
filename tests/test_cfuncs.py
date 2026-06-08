@@ -586,3 +586,71 @@ def test_functions_with_and_without_lightcone(
         lightcone=lightcone,
     )
     assert len(xray_luminosity) == len(densities)
+
+
+def test_removed_log10mturns_argument(default_input_struct):
+    """Test that removed `log10mturns` arguments raise a TypeError with a message."""
+    with pytest.raises(
+        TypeError, match="`mturnovers` and `mturnovers_mini` have been removed"
+    ):
+        cf.compute_luminosity_function(
+            inputs=default_input_struct,
+            redshifts=[7, 8, 9],
+            nbins=100,
+            mturnovers=np.array([1e7, 1e8, 1e9]),
+            mturnovers_mini=np.array([1e4, 1e5, 1e6]),
+        )
+
+    with pytest.raises(TypeError, match="`log10mturns` has been removed"):
+        cf.evaluate_SFRD_z(
+            inputs=default_input_struct,
+            redshifts=[7, 8, 9],
+            log10mturns=np.array([8.0, 8.5, 9.0]),
+        )
+
+    with pytest.raises(TypeError, match="`log10mturns` has been removed"):
+        cf.evaluate_Nion_z(
+            inputs=default_input_struct,
+            redshifts=[7, 8, 9],
+            log10mturns=np.array([8.0, 8.5, 9.0]),
+        )
+
+    with pytest.raises(TypeError, match="`log10mturns` has been removed"):
+        cf.evaluate_SFRD_cond(
+            inputs=default_input_struct,
+            redshift=8.0,
+            radius=5,
+            densities=np.linspace(-0.98, 1.7, num=800),
+            log10mturns=np.linspace(8.0, 9.0, num=800),
+        )
+
+    with pytest.raises(
+        TypeError, match="`l10mturns_acg` and `l10mturns_mcg` have been removed"
+    ):
+        cf.evaluate_Nion_cond(
+            inputs=default_input_struct,
+            redshift=8.0,
+            radius=5,
+            densities=np.linspace(-0.98, 1.7, num=800),
+            l10mturns_acg=np.linspace(8.0, 9.0, num=800),
+            l10mturns_mcg=np.linspace(7.0, 8.0, num=800),
+        )
+
+    with pytest.raises(TypeError, match="`log10mturns` has been removed"):
+        cf.evaluate_Xray_cond(
+            inputs=default_input_struct,
+            redshift=8.0,
+            radius=5,
+            densities=np.linspace(-0.98, 1.7, num=800),
+            log10mturns=np.linspace(8.0, 9.0, num=800),
+        )
+
+
+def test_removed_arguments_are_cleaned_up_in_v5():
+    """Reminder to remove the TypeError checks for log10mturns etc. in v5."""
+    version = tuple(int(x) for x in p21c.__version__.split(".")[:2])
+    if version >= (5, 0):
+        pytest.fail(
+            "Version is now >= 5.0 — please remove the deprecated `mturnovers`, "
+            "`log10mturns`, `l10mturns_acg`, and `l10mturns_mcg` arguments and this test."
+        )
