@@ -369,6 +369,7 @@ def test_SFRD_z_tables(name, z_range, plt):
         USE_MINI_HALOS=True,
         RECOMB_MODEL="inhomogeneous",
         USE_TS_FLUCT=True,
+        ZPRIME_STEP_FACTOR=1.2,  # speed it up a bit because the functions below call run_global_evolution
         **kwargs,
     )["inputs"]
 
@@ -426,41 +427,37 @@ def test_SFRD_z_tables(name, z_range, plt):
 
 
 @pytest.mark.parametrize("name", options_hmf)
-def test_Nion_z_tables(name, z_range, log10_mturn_range, plt):
+def test_Nion_z_tables(name, z_range, plt):
     redshift, kwargs = OPTIONS_HMF[name]
     inputs = get_all_options_struct(
         redshift,
         USE_MINI_HALOS=True,
         RECOMB_MODEL="inhomogeneous",
         USE_TS_FLUCT=True,
+        ZPRIME_STEP_FACTOR=1.2,  # speed it up a bit because the functions below call run_global_evolution
         **kwargs,
     )["inputs"]
 
-    z_input, mt_input = np.meshgrid(z_range, log10_mturn_range, indexing="ij")
     nion_tables, nion_tables_mini = cf.evaluate_Nion_z(
         inputs=inputs.evolve_input_structs(
             USE_INTERPOLATION_TABLES="hmf-interpolation"
         ),
-        redshifts=z_input,
-        log10mturns=mt_input,
+        redshifts=z_range,
     )
     nion_integrals, nion_integrals_mini = cf.evaluate_Nion_z(
         inputs=inputs.evolve_input_structs(
             USE_INTERPOLATION_TABLES="sigma-interpolation"
         ),
-        redshifts=z_input,
-        log10mturns=mt_input,
+        redshifts=z_range,
     )
 
     abs_tol = 2e-6
     if plt == mpl.pyplot:
-        xl = log10_mturn_range.size - 1
-        sel_m = np.linspace(0, xl, num=5).astype(int)
         make_table_comparison_plot(
             [z_range, z_range],
-            [np.array([0]), 10 ** log10_mturn_range[sel_m]],
-            [nion_tables[..., 0], nion_tables_mini[..., sel_m]],
-            [nion_integrals[..., 0], nion_integrals_mini[..., sel_m]],
+            [None, None],
+            [nion_tables, nion_tables_mini],
+            [nion_integrals, nion_integrals_mini],
             plt,
             abstol=abs_tol,
             reltol=RELATIVE_TOLERANCE,
@@ -480,7 +477,7 @@ def test_Nion_z_tables(name, z_range, log10_mturn_range, plt):
     print_failure_stats(
         nion_tables_mini,
         nion_integrals_mini,
-        [z_range, 10**log10_mturn_range],
+        [z_range],
         abs_tol,
         RELATIVE_TOLERANCE,
         "SFRD_z_mini",

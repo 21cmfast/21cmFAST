@@ -54,13 +54,11 @@ def compute_global_reionization_at_z(
 
     if spin_temp is None:
         # We compute Q_HI very similarly as in SpinTemperatureBox.c.
-        nion, _ = evaluate_Nion_z(
-            inputs=inputs,
-            redshifts=np.asarray(redshift),
-            # I just put here an arbitrary number because we currently don't allow to have mini-halos when USE_TS_FLUCT=False.
-            # TODO: this limitation be relaxed in the future, see https://github.com/21cmfast/21cmFAST/issues/600
-            log10mturns=np.asarray(5.0),
-        )
+        # TODO: We currently don't allow to have mini-halos when USE_TS_FLUCT=False.
+        #       This limitation however should be relaxed in the future, see https://github.com/21cmfast/21cmFAST/issues/600.
+        #       When that happens, note that the call below to evaluate_Nion_z calls run_global_evolution,
+        #       so be careful to avoid infinite recursion!
+        nion, _ = evaluate_Nion_z(inputs=inputs, redshifts=np.asarray(redshift))
         if inputs.matter_options.SOURCE_MODEL == "CONST-ION-EFF":
             ion_eff_factor = inputs.astro_params.HII_EFF_FACTOR
         else:
@@ -71,7 +69,7 @@ def compute_global_reionization_at_z(
             )
         Q_HI = 1.0 - ion_eff_factor * nion
         # We don't need J_LW_21 because we currently don't allow to have mini-halos when USE_TS_FLUCT=False.
-        # TODO: this limitation be relaxed in the future, see https://github.com/21cmfast/21cmFAST/issues/600
+        # TODO: this limitation will be relaxed in the future, see https://github.com/21cmfast/21cmFAST/issues/600
         J_LW_21 = 0.0
     else:
         Q_HI = spin_temp.Q_HI

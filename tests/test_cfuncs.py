@@ -121,13 +121,6 @@ def test_bad_integral_inputs(default_input_struct):
         )
 
     with pytest.raises(ValueError, match="the shapes of"):
-        cf.evaluate_Nion_z(
-            inputs=default_input_struct,
-            redshifts=redshifts,
-            log10mturns=lnM_base,
-        )
-
-    with pytest.raises(ValueError, match="the shapes of"):
         cf.evaluate_Nion_cond(
             inputs=default_input_struct,
             redshift=redshifts[0],
@@ -545,6 +538,12 @@ def test_functions_with_and_without_lightcone(
     )
     assert len(sfrd) == len(redshifts)
     assert len(sfrd_mini) == len(redshifts)
+
+    nion, nion_mini = cf.evaluate_Nion_z(
+        inputs=inputs, redshifts=redshifts, lightcone=lightcone
+    )
+    assert len(nion) == len(redshifts)
+    assert len(nion_mini) == len(redshifts)
 
     sfrd, sfrd_mini = cf.evaluate_SFRD_cond(
         inputs=inputs,
