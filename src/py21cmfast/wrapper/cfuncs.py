@@ -88,7 +88,7 @@ def compute_mturns(
     v_cb: float | Sequence[float],
     ionisation_rate_G12: float | Sequence[float],
     z_reion: float | Sequence[float],
-):
+) -> tuple[float, float]:
     """
     Compute the turnover masses for both ACGs and MCGs at a given redshift.
 
@@ -252,7 +252,8 @@ def compute_luminosity_function(
     if (mturnovers is not None) or (mturnovers_mini is not None):
         raise TypeError(
             "`mturnovers` and `mturnovers_mini` have been removed. "
-            "Please use the `lightcone` argument instead, or don't use it to estimate the turnover masses."
+            "Please use the `lightcone` or `global_evolution` arguments instead, "
+            "or leave unspecified and they will be estimated automatically."
         )
 
     if not astro_options.USE_MINI_HALOS and component != "acg":
@@ -659,7 +660,8 @@ def evaluate_SFRD_z(
     if log10mturns is not None:
         raise TypeError(
             "`log10mturns` has been removed. "
-            "Please use the `lightcone` argument instead, or don't use it to estimate the turnover masses."
+            "Please use the `lightcone` or `global_evolution` arguments instead, "
+            "or leave unspecified and they will be estimated automatically."
         )
 
     if inputs.astro_options.USE_MINI_HALOS:
@@ -733,7 +735,8 @@ def evaluate_Nion_z(
     if log10mturns is not None:
         raise TypeError(
             "`log10mturns` has been removed. "
-            "Please use the `lightcone` argument instead, or don't use it to estimate the turnover masses."
+            "Please use the `lightcone` or `global_evolution` arguments instead, "
+            "or leave unspecified and they will be estimated automatically."
         )
 
     if inputs.astro_options.USE_MINI_HALOS:
@@ -814,7 +817,8 @@ def evaluate_SFRD_cond(
     if log10mturns is not None:
         raise TypeError(
             "`log10mturns` has been removed. "
-            "Please use the `lightcone` argument instead, or don't use it to estimate the turnover masses."
+            "Please use the `lightcone` or `global_evolution` arguments instead, "
+            "or leave unspecified and they will be estimated automatically."
         )
 
     if inputs.astro_options.USE_MINI_HALOS:
@@ -897,7 +901,8 @@ def evaluate_Nion_cond(
     if (l10mturns_acg is not None) or (l10mturns_mcg is not None):
         raise TypeError(
             "`l10mturns_acg` and `l10mturns_mcg` have been removed. "
-            "Please use the `lightcone` argument instead, or don't use it to estimate the turnover masses."
+            "Please use the `lightcone` or `global_evolution` arguments instead, "
+            "or leave unspecified and they will be estimated automatically."
         )
 
     # TODO: Why this function is the only one that needs the global mturnover values for ACGs?
@@ -980,7 +985,8 @@ def evaluate_Xray_cond(
     if log10mturns is not None:
         raise TypeError(
             "`log10mturns` has been removed. "
-            "Please use the `lightcone` argument instead, or don't use it to estimate the turnover masses."
+            "Please use the `lightcone` or `global_evolution` arguments instead, "
+            "or leave unspecified and they will be estimated automatically."
         )
 
     if inputs.astro_options.USE_MINI_HALOS:
