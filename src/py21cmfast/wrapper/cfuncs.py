@@ -227,7 +227,7 @@ def compute_luminosity_function(
         If not provided, the function will estimate the global m_turnover values,
         otherwise they will be extracted from the given lightcone.
     component : str, {'both', 'acg', 'mcg}
-        The component of the LF to be calculated.
+        The component of the LF to be calculated. Forced to be 'acg' if USE_MINI_HALOS is False.
 
     Returns
     -------
@@ -249,7 +249,7 @@ def compute_luminosity_function(
             "Please use the `lightcone` argument instead, or don't use it to estimate the turnover masses."
         )
 
-    if not astro_options.USE_MINI_HALOS:
+    if not astro_options.USE_MINI_HALOS and component != "acg":
         warnings.warn(
             "USE_MINI_HALOS is False, so only ACG LFs are computed.",
             stacklevel=2,
@@ -272,9 +272,11 @@ def compute_luminosity_function(
         )
 
     # Interpolate the mturnover arrays at the input redshifts
-    mturnovers = np.interp(redshifts, inputs.node_redshifts, mturnovers_global)
+    mturnovers = np.interp(
+        redshifts, inputs.node_redshifts[::-1], mturnovers_global[::-1]
+    )
     mturnovers_mini = np.interp(
-        redshifts, inputs.node_redshifts, mturnovers_mini_global
+        redshifts, inputs.node_redshifts[::-1], mturnovers_mini_global[::-1]
     )
 
     lfunc = np.zeros(len(redshifts) * nbins)
@@ -660,7 +662,7 @@ def evaluate_SFRD_z(
             log10mturns_mini_global = global_evolution.quantities["log10_mturn_mcg"]
 
         log10mturns_mini = np.interp(
-            redshifts, inputs.node_redshifts, log10mturns_mini_global
+            redshifts, inputs.node_redshifts[::-1], log10mturns_mini_global[::-1]
         )
     else:
         log10mturns_mini = np.zeros_like(redshifts)  # dummy value for no mini halos
@@ -727,7 +729,7 @@ def evaluate_Nion_z(
             log10mturns_mini_global = global_evolution.quantities["log10_mturn_mcg"]
 
         log10mturns_mini = np.interp(
-            redshifts, inputs.node_redshifts, log10mturns_mini_global
+            redshifts, inputs.node_redshifts[::-1], log10mturns_mini_global[::-1]
         )
     else:
         log10mturns_mini = np.zeros_like(redshifts)  # dummy value for no mini halos
@@ -800,7 +802,7 @@ def evaluate_SFRD_cond(
             log10mturns_mini_global = global_evolution.quantities["log10_mturn_mcg"]
 
         log10mturn_mini = np.interp(
-            redshift, inputs.node_redshifts, log10mturns_mini_global
+            redshift, inputs.node_redshifts[::-1], log10mturns_mini_global[::-1]
         )
     else:
         log10mturn_mini = 0.0  # dummy value for no mini halos
@@ -876,8 +878,12 @@ def evaluate_Nion_cond(
         log10mturns_global = global_evolution.quantities["log10_mturn_acg"]
         log10mturns_mini_global = global_evolution.quantities["log10_mturn_mcg"]
 
-    log10mturn_acg = np.interp(redshift, inputs.node_redshifts, log10mturns_global)
-    log10mturn_mcg = np.interp(redshift, inputs.node_redshifts, log10mturns_mini_global)
+    log10mturn_acg = np.interp(
+        redshift, inputs.node_redshifts[::-1], log10mturns_global[::-1]
+    )
+    log10mturn_mcg = np.interp(
+        redshift, inputs.node_redshifts[::-1], log10mturns_mini_global[::-1]
+    )
 
     densities = densities.astype("f8")
     nion = np.zeros_like(densities)
@@ -947,7 +953,7 @@ def evaluate_Xray_cond(
             log10mturns_mini_global = global_evolution.quantities["log10_mturn_mcg"]
 
         log10mturn_mini = np.interp(
-            redshift, inputs.node_redshifts, log10mturns_mini_global
+            redshift, inputs.node_redshifts[::-1], log10mturns_mini_global[::-1]
         )
     else:
         log10mturn_mini = 0.0  # dummy value for no mini halos

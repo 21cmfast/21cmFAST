@@ -18,6 +18,7 @@ from ..wrapper.outputs import (
     BrightnessTemp,
     HaloBox,
     IonizedBox,
+    PerturbedField,
     TsBox,
 )
 from .coeval import _redshift_loop_generator, _setup_ics_and_pfs_for_scrolling
@@ -139,19 +140,15 @@ class GlobalEvolution:
     def get_fields(cls, inputs: InputParameters) -> tuple:
         """Get a list of the names of the available fields in the simulation."""
         possible_outputs = [
+            PerturbedField.new(inputs, redshift=0),
+            IonizedBox.new(inputs, redshift=0),
             BrightnessTemp.new(inputs, redshift=0),
         ]
         if inputs.astro_options.USE_TS_FLUCT:
             possible_outputs.append(TsBox.new(inputs, redshift=0))
         if inputs.matter_options.lagrangian_source_grid:
             possible_outputs.append(HaloBox.new(inputs, redshift=0))
-        field_names = (
-            "density",
-            "neutral_fraction",
-            "ionisation_rate_G12",
-            "log10_mturn_acg",
-            "log10_mturn_mcg",
-        )
+        field_names = ("log10_mturn_acg", "log10_mturn_mcg")
         for output in possible_outputs:
             field_names += tuple(output.arrays.keys())
         return field_names

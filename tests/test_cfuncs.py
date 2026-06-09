@@ -117,6 +117,16 @@ def test_bad_integral_inputs(default_input_struct):
     lnM_base = np.linspace(7, 13, num=30)
     densities = np.linspace(-1, 3, num=25)
 
+    with pytest.raises(ValueError, match="The shapes of redshifts and"):
+        cf.compute_mturns(
+            inputs=default_input_struct,
+            redshifts=redshifts,
+            J_LW_21=redshifts,
+            v_cb=redshifts,
+            ionisation_rate_G12=redshifts,
+            z_reion=densities,
+        )
+
     with pytest.raises(ValueError, match="the shapes of"):
         cf.integrate_chmf_interval(
             inputs=default_input_struct,
@@ -654,3 +664,38 @@ def test_removed_arguments_are_cleaned_up_in_v5():
             "Version is now >= 5.0 — please remove the deprecated `mturnovers`, "
             "`log10mturns`, `l10mturns_acg`, and `l10mturns_mcg` arguments and this test."
         )
+
+
+def test_roundtrip_mturns(default_input_struct_ts):
+    """Test that the mturns computed in the global evolution can be used to compute the same mturns through the compute_mturns function."""
+    inputs = default_input_struct_ts.evolve_input_structs(
+        USE_MINI_HALOS=True, RECOMB_MODEL="inhomogeneous", K_MAX_FOR_CLASS=1.0
+    )
+    # Run global evolution and extract global fields
+    global_evolution = p21c.run_global_evolution(inputs=inputs)
+    log10_mturn_acg_global = global_evolution.quantities["log10_mturn_acg"]
+    log10_mturn_mcg_global = global_evolution.quantities["log10_mturn_mcg"]
+    J_21_LW_global = global_evolution.quantities["J_21_LW"]
+    z_reion_global = global_evolution.quantities["z_reion"]
+    ionisation_rate_G12_global = global_evolution.quantities["ionisation_rate_G12"]
+    v_cb = inputs.astro_params.FIXED_VAVG if inputs.astro_options.FIX_VCB_AVG else 0.0
+    # Given the above fields, compute mturns using the cfuncs function
+    Mturn_a_global, M_turn_m_global = cf.compute_mturns(
+        inputs=inputs,
+        redshifts=global_evolution.node_redshifts,
+        J_LW_21=J_21_LW_global,
+        v_cb=np.full_like(global_evolution.node_redshifts, v_cb),
+        ionisation_rate_G12=ionisation_rate_G12_global,
+        z_reion=z_reion_global,
+    )
+    # And compare!
+    np.testing.assert_allclose(
+        log10_mturn_acg_global,
+        np.log10(Mturn_a_global),
+        rtol=1e-4,
+    )
+    np.testing.assert_allclose(
+        log10_mturn_mcg_global,
+        np.log10(M_turn_m_global),
+        rtol=1e-4,
+    )
