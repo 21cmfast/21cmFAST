@@ -35,39 +35,34 @@ def default_input_struct_lc_mini(default_input_struct_lc):
         RECOMB_MODEL="inhomogeneous",
         USE_TS_FLUCT=True,
         K_MAX_FOR_CLASS=1.0,
-        N_THREADS=4,  # To speed it up
-        HII_DIM=2,  # it's a mini lightcone!
-        DIM=None,
-        BOX_LEN=None,
-        HIRES_TO_LOWRES_FACTOR=3,
-        LOWRES_CELL_SIZE_MPC=1.5,
-        R_BUBBLE_MAX=2,
     )
 
 
 @pytest.fixture(scope="module")
-def lc_mini(default_input_struct_lc_mini, rectlcn, cache):
-    """A lightcone with mini halos turned on."""
-    return p21c.run_lightcone(
-        lightconer=rectlcn,
-        inputs=default_input_struct_lc_mini,
-        write=p21c.CacheConfig(),
-        cache=cache,
-        include_dvdr_in_tau21=False,
-    )
+def default_global_evolution(default_input_struct_lc_mini):
+    """A default global signal (with mini halos)."""
+    return p21c.run_global_evolution(inputs=default_input_struct_lc_mini)
 
 
-@pytest.mark.parametrize("use_lightcone", [True, False])
+@pytest.mark.parametrize("what_to_use", ["lightcone", "global_evolution", "nothing"])
 def test_run_lf(
-    default_input_struct_lc, default_input_struct_lc_mini, lc, lc_mini, use_lightcone
+    default_input_struct_lc,
+    default_input_struct_lc_mini,
+    lc,
+    default_global_evolution,
+    what_to_use,
 ):
     inputs = default_input_struct_lc
-    lightcone = lc if use_lightcone else None
+    lightcone = lc if what_to_use == "lightcone" else None
+    global_evolution = (
+        default_global_evolution if what_to_use == "global_evolution" else None
+    )
     *_, lf = p21c.compute_luminosity_function(
         inputs=inputs,
         redshifts=[7, 8, 9],
         nbins=100,
         lightcone=lightcone,
+        global_evolution=global_evolution,
     )
     assert np.all(lf[~np.isnan(lf)] > -30)
     assert lf.shape == (3, 100)
@@ -78,16 +73,16 @@ def test_run_lf(
         redshifts=[7, 8, 9],
         nbins=100,
         lightcone=lightcone,
+        global_evolution=global_evolution,
     )
     assert lf2.shape == (3, 100)
     assert np.allclose(lf2[~np.isnan(lf2)], lf[~np.isnan(lf)])
 
-    lightcone_mini = lc_mini if use_lightcone else None
-
     _muv_minih, _mhalo_minih, lf_minih = p21c.compute_luminosity_function(
         redshifts=[7, 8, 9],
         nbins=100,
-        lightcone=lightcone_mini,
+        lightcone=lightcone,
+        global_evolution=global_evolution,
         component="mcg",
         inputs=default_input_struct_lc_mini,
     )
@@ -539,7 +534,7 @@ def make_matterfield_comparison_plot(
     axs[1, 3].semilogx(k, (test[3] - true[3]) / true[3], **kwargs)
 
 
-@pytest.mark.parametrize("use_lightcone", [True, False])
+@pytest.mark.parametrize("what_to_use", ["lightcone", "global_evolution", "nothing"])
 @pytest.mark.parametrize("use_mini_halos", [True, False])
 @pytest.mark.parametrize(
     "func",
@@ -553,19 +548,24 @@ def make_matterfield_comparison_plot(
 )
 def test_functions_with_and_without_lightcone(
     default_input_struct_lc,
-    lc,
     default_input_struct_lc_mini,
-    lc_mini,
-    use_lightcone,
+    lc,
+    default_global_evolution,
+    what_to_use,
     use_mini_halos,
     func: Callable,
 ):
-    """Test that we can run functions with and without a lightcone as an input."""
+    """
+    Test that we can run functions with and without a lightcone as an input.
+
+    NOTE: The used inputs and lightcone.inputs are actually not the same when using mini halos!
+          But it should not concern us for this test :)
+    """
     inputs = default_input_struct_lc_mini if use_mini_halos else default_input_struct_lc
-    if use_mini_halos:
-        lightcone = lc_mini if use_lightcone else None
-    else:
-        lightcone = lc if use_lightcone else None
+    lightcone = lc if what_to_use == "lightcone" else None
+    global_evolution = (
+        default_global_evolution if what_to_use == "global_evolution" else None
+    )
 
     redshifts = [7, 8, 9]
     densities = np.linspace(-0.98, 1.7, num=800)
@@ -591,7 +591,12 @@ def test_functions_with_and_without_lightcone(
         },
     }
 
-    output = func(inputs=inputs, **kwargs[func], lightcone=lightcone)
+    output = func(
+        inputs=inputs,
+        **kwargs[func],
+        lightcone=lightcone,
+        global_evolution=global_evolution,
+    )
     if func in [cf.evaluate_SFRD_z, cf.evaluate_Nion_z]:
         assert len(output[0]) == len(redshifts)
         if use_mini_halos:

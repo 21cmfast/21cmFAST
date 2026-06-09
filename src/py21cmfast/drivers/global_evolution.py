@@ -12,7 +12,6 @@ from .. import __version__
 from ..io import h5
 from ..io.caching import CacheConfig
 from ..wrapper.arrays import Array
-from ..wrapper.cfuncs import compute_mturns, evaluate_Nion_z
 from ..wrapper.inputs import InputParameters
 from ..wrapper.outputs import (
     BrightnessTemp,
@@ -50,6 +49,8 @@ def compute_global_reionization_at_z(
     :class:`~IonizedBox` :
         An object containing the ionized box data.
     """
+    from ..wrapper.cfuncs import compute_mturns, evaluate_Nion_z
+
     box = IonizedBox.new(inputs=inputs, redshift=redshift)
     shape = (1, 1, 1)
 

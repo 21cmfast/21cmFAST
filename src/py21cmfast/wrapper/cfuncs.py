@@ -12,6 +12,7 @@ from scipy.interpolate import interp1d
 from .._cfg import config
 from ..c_21cmfast import ffi, lib
 from ..drivers._global_initialization import init_c_state
+from ..drivers.global_evolution import GlobalEvolution, run_global_evolution
 from ..drivers.lightcone import LightCone
 from ._utils import _process_exitcode
 from .inputs import InputParameters
@@ -210,6 +211,7 @@ def compute_luminosity_function(
     mturnovers: np.ndarray | None = None,
     mturnovers_mini: np.ndarray | None = None,
     lightcone: LightCone | None = None,
+    global_evolution: GlobalEvolution | None = None,
     component: Literal["both", "acg", "mcg"] = "both",
 ) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
     """Compute a the luminosity function over a given number of bins and redshifts.
@@ -222,10 +224,14 @@ def compute_luminosity_function(
         The input parameters defining the simulation run.
     nbins : int, optional
         The number of luminosity bins to produce for the luminosity function.
-    lightcone : :class:`~LightCone`, optional
-        The lightcone object containing the necessary data for the computation.
-        If not provided, the function will estimate the global m_turnover values,
+    lightcone : :class:`~LightCone` or None, optional
+        The lightcone object to use for the computation.
+        If None, the function will consider `global_evolution` for the global m_turnover values,
         otherwise they will be extracted from the given lightcone.
+    global_evolution : :class:`~GlobalEvolution` or None, optional
+        The global evolution object to use for the computation.
+        If None, the function will run a global evolution to estimate the global m_turnover values,
+        otherwise they will be extracted from the given global evolution.
     component : str, {'both', 'acg', 'mcg}
         The component of the LF to be calculated. Forced to be 'acg' if USE_MINI_HALOS is False.
 
@@ -262,10 +268,9 @@ def compute_luminosity_function(
             10.0, lightcone.global_quantities["log10_mturn_mcg"]
         )
     else:
-        from ..drivers.global_evolution import run_global_evolution
-
         # If lightcone is not provided, we estimate the turnover masses from the global evolution
-        global_evolution = run_global_evolution(inputs=inputs)
+        if global_evolution is None:
+            global_evolution = run_global_evolution(inputs=inputs)
         mturnovers_global = pow(10.0, global_evolution.quantities["log10_mturn_acg"])
         mturnovers_mini_global = pow(
             10.0, global_evolution.quantities["log10_mturn_mcg"]
@@ -623,6 +628,7 @@ def evaluate_SFRD_z(
     redshifts: NDArray[np.floating],
     log10mturns: NDArray[np.floating] | None = None,
     lightcone: LightCone | None = None,
+    global_evolution: GlobalEvolution | None = None,
 ):
     """
     Evaluate the global star formation rate density (in units of M_sun/s/Mpc^3) expected at a range of redshifts.
@@ -635,8 +641,12 @@ def evaluate_SFRD_z(
         The redshifts at which to compute the SFRD.
     lightcone : :class:`~LightCone` or None, optional
         The lightcone object to use for the computation.
-        If None, the function will estimate the global m_turnover values,
+        If None, the function will consider `global_evolution` for the global m_turnover values,
         otherwise they will be extracted from the given lightcone.
+    global_evolution : :class:`~GlobalEvolution` or None, optional
+        The global evolution object to use for the computation.
+        If None, the function will run a global evolution to estimate the global m_turnover values,
+        otherwise they will be extracted from the given global evolution.
 
     Returns
     -------
@@ -656,10 +666,9 @@ def evaluate_SFRD_z(
         if lightcone is not None:
             log10mturns_mini_global = lightcone.global_quantities["log10_mturn_mcg"]
         else:
-            from ..drivers.global_evolution import run_global_evolution
-
             # If lightcone is not provided, we estimate the turnover masses from the global evolution
-            global_evolution = run_global_evolution(inputs=inputs)
+            if global_evolution is None:
+                global_evolution = run_global_evolution(inputs=inputs)
             log10mturns_mini_global = global_evolution.quantities["log10_mturn_mcg"]
 
         log10mturns_mini = np.interp(
@@ -693,6 +702,7 @@ def evaluate_Nion_z(
     redshifts: NDArray[np.floating],
     log10mturns: NDArray[np.floating] | None = None,
     lightcone: LightCone | None = None,
+    global_evolution: GlobalEvolution | None = None,
 ):
     """
     Evaluate the global number of ionising photons per baryon, expected at a range of redshifts.
@@ -705,8 +715,12 @@ def evaluate_Nion_z(
         The redshifts at which to compute Nion.
     lightcone : :class:`~LightCone` or None, optional
         The lightcone object to use for the computation.
-        If None, the function will estimate the global m_turnover values,
+        If None, the function will consider `global_evolution` for the global m_turnover values,
         otherwise they will be extracted from the given lightcone.
+    global_evolution : :class:`~GlobalEvolution` or None, optional
+        The global evolution object to use for the computation.
+        If None, the function will run a global evolution to estimate the global m_turnover values,
+        otherwise they will be extracted from the given global evolution.
 
     Returns
     -------
@@ -726,10 +740,9 @@ def evaluate_Nion_z(
         if lightcone is not None:
             log10mturns_mini_global = lightcone.global_quantities["log10_mturn_mcg"]
         else:
-            from ..drivers.global_evolution import run_global_evolution
-
             # If lightcone is not provided, we estimate the turnover masses from the global evolution
-            global_evolution = run_global_evolution(inputs=inputs)
+            if global_evolution is None:
+                global_evolution = run_global_evolution(inputs=inputs)
             log10mturns_mini_global = global_evolution.quantities["log10_mturn_mcg"]
 
         log10mturns_mini = np.interp(
@@ -766,6 +779,7 @@ def evaluate_SFRD_cond(
     densities: NDArray[np.floating],
     log10mturns: NDArray[np.floating] | None = None,
     lightcone: LightCone | None = None,
+    global_evolution: GlobalEvolution | None = None,
 ):
     """
     Evaluate the conditional star formation rate density (in units of M_sun/s/Mpc^3) expected at a range of densities.
@@ -782,8 +796,12 @@ def evaluate_SFRD_cond(
         The densities at which to compute the conditional SFRD.
     lightcone : :class:`~LightCone` or None, optional
         The lightcone object to use for the computation.
-        If None, the function will estimate the global m_turnover values,
+        If None, the function will consider `global_evolution` for the global m_turnover values,
         otherwise they will be extracted from the given lightcone.
+    global_evolution : :class:`~GlobalEvolution` or None, optional
+        The global evolution object to use for the computation.
+        If None, the function will run a global evolution to estimate the global m_turnover values,
+        otherwise they will be extracted from the given global evolution.
 
     Returns
     -------
@@ -803,10 +821,9 @@ def evaluate_SFRD_cond(
         if lightcone is not None:
             log10mturns_mini_global = lightcone.global_quantities["log10_mturn_mcg"]
         else:
-            from ..drivers.global_evolution import run_global_evolution
-
             # If lightcone is not provided, we estimate the turnover masses from the global evolution
-            global_evolution = run_global_evolution(inputs=inputs)
+            if global_evolution is None:
+                global_evolution = run_global_evolution(inputs=inputs)
             log10mturns_mini_global = global_evolution.quantities["log10_mturn_mcg"]
 
         log10mturn_mini = np.interp(
@@ -845,6 +862,7 @@ def evaluate_Nion_cond(
     l10mturns_acg: NDArray[np.floating] | None = None,
     l10mturns_mcg: NDArray[np.floating] | None = None,
     lightcone: LightCone | None = None,
+    global_evolution: GlobalEvolution | None = None,
 ):
     """
     Evaluate the global number of ionising photons per baryon, expected at a range of densities.
@@ -861,8 +879,12 @@ def evaluate_Nion_cond(
         The densities at which to compute the conditional Nion.
     lightcone : :class:`~LightCone` or None, optional
         The lightcone object to use for the computation.
-        If None, the function will estimate the global m_turnover values,
+        If None, the function will consider `global_evolution` for the global m_turnover values,
         otherwise they will be extracted from the given lightcone.
+    global_evolution : :class:`~GlobalEvolution` or None, optional
+        The global evolution object to use for the computation.
+        If None, the function will run a global evolution to estimate the global m_turnover values,
+        otherwise they will be extracted from the given global evolution.
 
     Returns
     -------
@@ -883,10 +905,9 @@ def evaluate_Nion_cond(
         log10mturns_global = lightcone.global_quantities["log10_mturn_acg"]
         log10mturns_mini_global = lightcone.global_quantities["log10_mturn_mcg"]
     else:
-        from ..drivers.global_evolution import run_global_evolution
-
         # If lightcone is not provided, we estimate the turnover masses from the global evolution
-        global_evolution = run_global_evolution(inputs=inputs)
+        if global_evolution is None:
+            global_evolution = run_global_evolution(inputs=inputs)
         log10mturns_global = global_evolution.quantities["log10_mturn_acg"]
         log10mturns_mini_global = global_evolution.quantities["log10_mturn_mcg"]
 
@@ -927,6 +948,7 @@ def evaluate_Xray_cond(
     densities: NDArray[np.floating],
     log10mturns: NDArray[np.floating] | None = None,
     lightcone: LightCone | None = None,
+    global_evolution: GlobalEvolution | None = None,
 ):
     """
     Evaluate the conditional X-ray emissivity (in units of erg/s/Mpc^3) expected at a range of densities.
@@ -943,8 +965,12 @@ def evaluate_Xray_cond(
         The densities at which to compute the conditional X-ray emissivity.
     lightcone : :class:`~LightCone` or None, optional
         The lightcone object to use for the computation.
-        If None, the function will estimate the global m_turnover values,
+        If None, the function will consider `global_evolution` for the global m_turnover values,
         otherwise they will be extracted from the given lightcone.
+    global_evolution : :class:`~GlobalEvolution` or None, optional
+        The global evolution object to use for the computation.
+        If None, the function will run a global evolution to estimate the global m_turnover values,
+        otherwise they will be extracted from the given global evolution.
 
     Returns
     -------
@@ -961,10 +987,9 @@ def evaluate_Xray_cond(
         if lightcone is not None:
             log10mturns_mini_global = lightcone.global_quantities["log10_mturn_mcg"]
         else:
-            from ..drivers.global_evolution import run_global_evolution
-
             # If lightcone is not provided, we estimate the turnover masses from the global evolution
-            global_evolution = run_global_evolution(inputs=inputs)
+            if global_evolution is None:
+                global_evolution = run_global_evolution(inputs=inputs)
             log10mturns_mini_global = global_evolution.quantities["log10_mturn_mcg"]
 
         log10mturn_mini = np.interp(

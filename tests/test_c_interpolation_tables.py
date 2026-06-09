@@ -4,6 +4,7 @@ import matplotlib as mpl
 import numpy as np
 import pytest
 
+import py21cmfast as p21c
 from py21cmfast.wrapper import cfuncs as cf
 
 from .produce_integration_test_data import get_all_options_struct, print_failure_stats
@@ -28,8 +29,8 @@ OPTIONS_PS = {
 }
 
 OPTIONS_HMF = {
-    "PS": [10, {"HMF": "PS"}],
-    "ST": [10, {"HMF": "ST"}],
+    "PS": [10, {"HMF": "PS", "ZPRIME_STEP_FACTOR": 1.2}],
+    "ST": [10, {"HMF": "ST", "ZPRIME_STEP_FACTOR": 1.2}],
 }
 
 OPTIONS_INTMETHOD = {
@@ -66,6 +67,25 @@ def mass_range():
 @pytest.fixture(scope="module")
 def z_range():
     return np.linspace(6, 35, num=100)
+
+
+@pytest.fixture(scope="module")
+def default_input_struct_lc_mini(default_input_struct_lc):
+    """A default input struct with mini halos turned on."""
+    return default_input_struct_lc.evolve_input_structs(
+        USE_MINI_HALOS=True,
+        RECOMB_MODEL="inhomogeneous",
+        USE_TS_FLUCT=True,
+        K_MAX_FOR_CLASS=1.0,
+    ).with_logspaced_redshifts(
+        zmin=OPTIONS_HMF["PS"][0], step=OPTIONS_HMF["PS"][1]["ZPRIME_STEP_FACTOR"]
+    )
+
+
+@pytest.fixture(scope="module")
+def default_global_evolution(default_input_struct_lc_mini):
+    """A default global signal (with mini halos)."""
+    return p21c.run_global_evolution(inputs=default_input_struct_lc_mini)
 
 
 def get_delta_subset(inputs, redshift, R, delta_range):
@@ -356,14 +376,13 @@ def test_FgtrM_conditional_tables(R, delta_range, plt):
 
 
 @pytest.mark.parametrize("name", options_hmf)
-def test_SFRD_z_tables(name, z_range, plt):
+def test_SFRD_z_tables(name, z_range, default_global_evolution, plt):
     redshift, kwargs = OPTIONS_HMF[name]
     inputs = get_all_options_struct(
         redshift,
         USE_MINI_HALOS=True,
         RECOMB_MODEL="inhomogeneous",
         USE_TS_FLUCT=True,
-        ZPRIME_STEP_FACTOR=1.2,  # speed it up a bit because the functions below call run_global_evolution
         **kwargs,
     )["inputs"]
 
@@ -372,12 +391,14 @@ def test_SFRD_z_tables(name, z_range, plt):
             USE_INTERPOLATION_TABLES="hmf-interpolation"
         ),
         redshifts=z_range,
+        global_evolution=default_global_evolution,
     )
     SFRD_integrals, SFRD_integrals_mini = cf.evaluate_SFRD_z(
         inputs=inputs.evolve_input_structs(
             USE_INTERPOLATION_TABLES="sigma-interpolation"
         ),
         redshifts=z_range,
+        global_evolution=default_global_evolution,
     )
 
     abs_tol = 1e-5
@@ -421,14 +442,13 @@ def test_SFRD_z_tables(name, z_range, plt):
 
 
 @pytest.mark.parametrize("name", options_hmf)
-def test_Nion_z_tables(name, z_range, plt):
+def test_Nion_z_tables(name, z_range, default_global_evolution, plt):
     redshift, kwargs = OPTIONS_HMF[name]
     inputs = get_all_options_struct(
         redshift,
         USE_MINI_HALOS=True,
         RECOMB_MODEL="inhomogeneous",
         USE_TS_FLUCT=True,
-        ZPRIME_STEP_FACTOR=1.2,  # speed it up a bit because the functions below call run_global_evolution
         **kwargs,
     )["inputs"]
 
@@ -437,12 +457,14 @@ def test_Nion_z_tables(name, z_range, plt):
             USE_INTERPOLATION_TABLES="hmf-interpolation"
         ),
         redshifts=z_range,
+        global_evolution=default_global_evolution,
     )
     nion_integrals, nion_integrals_mini = cf.evaluate_Nion_z(
         inputs=inputs.evolve_input_structs(
             USE_INTERPOLATION_TABLES="sigma-interpolation"
         ),
         redshifts=z_range,
+        global_evolution=default_global_evolution,
     )
 
     abs_tol = 2e-6
@@ -498,7 +520,9 @@ def test_Nion_z_tables(name, z_range, plt):
 @pytest.mark.parametrize("R", R_PARAM_LIST)
 @pytest.mark.parametrize("name", options_hmf)
 @pytest.mark.parametrize("intmethod", options_intmethod)
-def test_Nion_conditional_tables(name, delta_range, R, mini, intmethod, plt):
+def test_Nion_conditional_tables(
+    name, delta_range, R, mini, intmethod, default_global_evolution, plt
+):
     if intmethod == "FFCOLL":
         if name != "PS":
             pytest.skip("FAST FFCOLL INTEGRALS WORK ONLY WITH EPS")
@@ -514,7 +538,6 @@ def test_Nion_conditional_tables(name, delta_range, R, mini, intmethod, plt):
         USE_MINI_HALOS=mini_flag,
         RECOMB_MODEL="inhomogeneous",
         USE_TS_FLUCT=True,
-        ZPRIME_STEP_FACTOR=1.2,  # speed it up a bit because the functions below call run_global_evolution
         **kwargs,
     )["inputs"]
 
@@ -525,6 +548,7 @@ def test_Nion_conditional_tables(name, delta_range, R, mini, intmethod, plt):
         redshift=redshift,
         radius=R,
         densities=delta_range,
+        global_evolution=default_global_evolution,
     )
 
     Nion_integrals, Nion_integrals_mini = cf.evaluate_Nion_cond(
@@ -534,6 +558,7 @@ def test_Nion_conditional_tables(name, delta_range, R, mini, intmethod, plt):
         redshift=redshift,
         radius=R,
         densities=delta_range,
+        global_evolution=default_global_evolution,
     )
 
     # The bilinear interpolation we use underperforms at high mturn due to the sharp
@@ -611,7 +636,9 @@ def test_Nion_conditional_tables(name, delta_range, R, mini, intmethod, plt):
 @pytest.mark.parametrize("R", R_PARAM_LIST)
 @pytest.mark.parametrize("name", options_hmf)
 @pytest.mark.parametrize("intmethod", options_intmethod)
-def test_Xray_conditional_tables(name, delta_range, R, mini, intmethod, plt):
+def test_Xray_conditional_tables(
+    name, delta_range, R, mini, intmethod, default_global_evolution, plt
+):
     if intmethod == "FFCOLL":
         if name != "PS":
             pytest.skip("FAST FFCOLL INTEGRALS WORK ONLY WITH EPS")
@@ -628,7 +655,6 @@ def test_Xray_conditional_tables(name, delta_range, R, mini, intmethod, plt):
         USE_MINI_HALOS=mini_flag,
         RECOMB_MODEL="inhomogeneous",
         USE_TS_FLUCT=True,
-        ZPRIME_STEP_FACTOR=1.2,  # speed it up a bit because the functions below call run_global_evolution
         **kwargs,
     )["inputs"]
 
@@ -641,6 +667,7 @@ def test_Xray_conditional_tables(name, delta_range, R, mini, intmethod, plt):
         redshift=redshift,
         radius=R,
         densities=delta_range,
+        global_evolution=default_global_evolution,
     )
 
     Xray_integrals = cf.evaluate_Xray_cond(
@@ -652,6 +679,7 @@ def test_Xray_conditional_tables(name, delta_range, R, mini, intmethod, plt):
         redshift=redshift,
         radius=R,
         densities=delta_range,
+        global_evolution=default_global_evolution,
     )
 
     abs_tol = 0.0
@@ -691,7 +719,9 @@ def test_Xray_conditional_tables(name, delta_range, R, mini, intmethod, plt):
 @pytest.mark.parametrize("R", R_PARAM_LIST)
 @pytest.mark.parametrize("name", options_hmf)
 @pytest.mark.parametrize("intmethod", options_intmethod)
-def test_SFRD_conditional_table(name, delta_range, R, intmethod, plt):
+def test_SFRD_conditional_table(
+    name, delta_range, R, intmethod, default_global_evolution, plt
+):
     if intmethod == "FFCOLL":
         if name != "PS":
             pytest.skip("FAST FFCOLL INTEGRALS WORK ONLY WITH EPS")
@@ -704,7 +734,6 @@ def test_SFRD_conditional_table(name, delta_range, R, intmethod, plt):
         USE_MINI_HALOS=True,
         RECOMB_MODEL="inhomogeneous",
         USE_TS_FLUCT=True,
-        ZPRIME_STEP_FACTOR=1.2,  # speed it up a bit because the functions below call run_global_evolution
         **kwargs,
     )["inputs"]
 
@@ -717,6 +746,7 @@ def test_SFRD_conditional_table(name, delta_range, R, intmethod, plt):
         radius=R,
         redshift=redshift,
         densities=delta_range,
+        global_evolution=default_global_evolution,
     )
 
     SFRD_integrals, SFRD_integrals_mini = cf.evaluate_SFRD_cond(
@@ -728,6 +758,7 @@ def test_SFRD_conditional_table(name, delta_range, R, intmethod, plt):
         radius=R,
         redshift=redshift,
         densities=delta_range,
+        global_evolution=default_global_evolution,
     )
 
     # The bilinear interpolation we use underperforms at high mturn due to the sharp
@@ -788,14 +819,15 @@ INTEGRAND_OPTIONS = ["sfrd", "n_ion"]
 @pytest.mark.parametrize("R", R_PARAM_LIST)
 @pytest.mark.parametrize("name", options_hmf)
 @pytest.mark.parametrize("integrand", INTEGRAND_OPTIONS)
-def test_conditional_integral_methods(R, delta_range, name, integrand, plt):
+def test_conditional_integral_methods(
+    R, delta_range, name, integrand, default_global_evolution, plt
+):
     redshift, kwargs = OPTIONS_HMF[name]
     inputs = get_all_options_struct(
         redshift,
         USE_MINI_HALOS=True,
         RECOMB_MODEL="inhomogeneous",
         USE_TS_FLUCT=True,
-        ZPRIME_STEP_FACTOR=1.2,  # speed it up a bit because the functions below call run_global_evolution
         **kwargs,
     )["inputs"]
 
@@ -817,6 +849,7 @@ def test_conditional_integral_methods(R, delta_range, name, integrand, plt):
                 redshift=redshift,
                 radius=R,
                 densities=delta_range,
+                global_evolution=default_global_evolution,
             )
         else:
             buf, buf_mini = cf.evaluate_Nion_cond(
@@ -824,6 +857,7 @@ def test_conditional_integral_methods(R, delta_range, name, integrand, plt):
                 redshift=redshift,
                 radius=R,
                 densities=delta_range,
+                global_evolution=default_global_evolution,
             )
         integrals.append(buf)
         integrals_mini.append(buf_mini)
