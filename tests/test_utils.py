@@ -13,7 +13,7 @@ def test_ref_printing():
 
     assert "2011MNRAS.411..955M" in ref_str  # 21cmFAST first paper
     assert "10.21105/joss.02582" in ref_str  # v3 (wrapper)
-    assert "10.1093/mnras/stu377" in ref_str  # INHOMO_RECO
+    assert "10.1093/mnras/stu377" in ref_str  # inhomogeneous recombinations
     assert "10.1093/mnras/sty796" in ref_str  # LIGHTCONE + RSD
     assert "10.1093/mnras/stz032" in ref_str  # USE_MASS_DEPENDENT_ZETA
     assert "10.1093/mnras/staa1131" not in ref_str  # USE_MINI_HALOS
@@ -27,7 +27,7 @@ def test_ref_printing():
 
     assert "2011MNRAS.411..955M" in ref_str  # 21cmFAST first paper
     assert "10.21105/joss.02582" in ref_str  # v3 (wrapper)
-    assert "10.1093/mnras/stu377" in ref_str  # INHOMO_RECO
+    assert "10.1093/mnras/stu377" in ref_str  # inhomogeneous recombinations
     assert "10.1093/mnras/sty796" in ref_str  # LIGHTCONE + RSD
     assert "10.1093/mnras/stz032" in ref_str  # USE_MASS_DEPENDENT_ZETA
     assert "10.1093/mnras/staa1131" in ref_str  # USE_MINI_HALOS
@@ -41,7 +41,7 @@ def test_ref_printing():
 
     assert "2011MNRAS.411..955M" in ref_str  # 21cmFAST first paper
     assert "10.21105/joss.02582" in ref_str  # v3 (wrapper)
-    assert "10.1093/mnras/stu377" not in ref_str  # INHOMO_RECO
+    assert "10.1093/mnras/stu377" not in ref_str  # inhomogeneous recombinations
     assert "10.1093/mnras/sty796" in ref_str  # LIGHTCONE + RSD
     assert "10.1093/mnras/stz032" not in ref_str  # USE_MASS_DEPENDENT_ZETA
     assert "10.1093/mnras/staa1131" not in ref_str  # USE_MINI_HALOS
@@ -57,7 +57,7 @@ def test_ref_printing():
 
     assert "2011MNRAS.411..955M" in ref_str  # 21cmFAST first paper
     assert "10.21105/joss.02582" in ref_str  # v3 (wrapper)
-    assert "10.1093/mnras/stu377" in ref_str  # INHOMO_RECO
+    assert "10.1093/mnras/stu377" in ref_str  # inhomogeneous recombinations
     assert "10.1093/mnras/sty796" in ref_str  # LIGHTCONE + RSD
     assert "10.1093/mnras/stz032" in ref_str  # USE_MASS_DEPENDENT_ZETA
     assert "10.1093/mnras/staa1131" not in ref_str  # USE_MINI_HALOS
@@ -73,7 +73,7 @@ def test_ref_printing():
 
     assert "2011MNRAS.411..955M" in ref_str  # 21cmFAST first paper
     assert "10.21105/joss.02582" in ref_str  # v3 (wrapper)
-    assert "10.1093/mnras/stu377" in ref_str  # INHOMO_RECO
+    assert "10.1093/mnras/stu377" in ref_str  # inhomogeneous recombinations
     assert "10.1093/mnras/sty796" not in ref_str  # LIGHTCONE + RSD
     assert "10.1093/mnras/stz032" in ref_str  # USE_MASS_DEPENDENT_ZETA
     assert "10.1093/mnras/staa1131" not in ref_str  # USE_MINI_HALOS

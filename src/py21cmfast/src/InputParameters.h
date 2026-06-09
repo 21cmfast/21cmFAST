@@ -52,6 +52,10 @@
 #define INTEGRATION_METHOD_GAUSS_LEGENDRE 1
 #define INTEGRATION_METHOD_GAMMA_APPROX 2
 
+#define RECOMB_MODEL_NO 0
+#define RECOMB_MODEL_HOMOGENEOUS 1
+#define RECOMB_MODEL_INHOMOGENEOUS 2
+
 static inline bool source_model_is_mass_dependent(int source_model) {
     return source_model != SOURCE_MODEL_CONST_ION_EFF;
 }
@@ -76,6 +80,8 @@ static inline bool uses_interpolation_tables(int interpolation_mode) {
 static inline bool uses_hmf_interpolation(int interpolation_mode) {
     return interpolation_mode == INTERPOLATION_HMF;
 }
+
+static inline bool uses_recombination(int recomb_model) { return recomb_model != RECOMB_MODEL_NO; }
 
 void Broadcast_struct_global_all(SimulationOptions *simulation_options,
                                  MatterOptions *matter_options, CosmoParams *cosmo_params,
