@@ -29,8 +29,8 @@ OPTIONS_PS = {
 }
 
 OPTIONS_HMF = {
-    "PS": [10, {"HMF": "PS", "ZPRIME_STEP_FACTOR": 1.2}],
-    "ST": [10, {"HMF": "ST", "ZPRIME_STEP_FACTOR": 1.2}],
+    "PS": [10, {"HMF": "PS"}],
+    "ST": [10, {"HMF": "ST"}],
 }
 
 OPTIONS_INTMETHOD = {
@@ -77,9 +77,7 @@ def default_input_struct_lc_mini(default_input_struct_lc):
         RECOMB_MODEL="inhomogeneous",
         USE_TS_FLUCT=True,
         K_MAX_FOR_CLASS=1.0,
-    ).with_logspaced_redshifts(
-        zmin=OPTIONS_HMF["PS"][0], step=OPTIONS_HMF["PS"][1]["ZPRIME_STEP_FACTOR"]
-    )
+    ).with_logspaced_redshifts(zmin=OPTIONS_HMF["PS"][0], step=1.2)
 
 
 @pytest.fixture(scope="module")
@@ -383,6 +381,7 @@ def test_SFRD_z_tables(name, z_range, default_global_evolution, plt):
         USE_MINI_HALOS=True,
         RECOMB_MODEL="inhomogeneous",
         USE_TS_FLUCT=True,
+        ZPRIME_STEP_FACTOR=1.2,  # needed because we need inputs.node_redshifts == default_global_evolution.node_redshifts
         **kwargs,
     )["inputs"]
 
@@ -449,6 +448,7 @@ def test_Nion_z_tables(name, z_range, default_global_evolution, plt):
         USE_MINI_HALOS=True,
         RECOMB_MODEL="inhomogeneous",
         USE_TS_FLUCT=True,
+        ZPRIME_STEP_FACTOR=1.2,  # needed because we need inputs.node_redshifts == default_global_evolution.node_redshifts
         **kwargs,
     )["inputs"]
 
@@ -538,6 +538,7 @@ def test_Nion_conditional_tables(
         USE_MINI_HALOS=mini_flag,
         RECOMB_MODEL="inhomogeneous",
         USE_TS_FLUCT=True,
+        ZPRIME_STEP_FACTOR=1.2,  # needed because we need inputs.node_redshifts == default_global_evolution.node_redshifts
         **kwargs,
     )["inputs"]
 
@@ -655,6 +656,7 @@ def test_Xray_conditional_tables(
         USE_MINI_HALOS=mini_flag,
         RECOMB_MODEL="inhomogeneous",
         USE_TS_FLUCT=True,
+        ZPRIME_STEP_FACTOR=1.2,  # needed because we need inputs.node_redshifts == default_global_evolution.node_redshifts
         **kwargs,
     )["inputs"]
 
@@ -734,6 +736,7 @@ def test_SFRD_conditional_table(
         USE_MINI_HALOS=True,
         RECOMB_MODEL="inhomogeneous",
         USE_TS_FLUCT=True,
+        ZPRIME_STEP_FACTOR=1.2,  # needed because we need inputs.node_redshifts == default_global_evolution.node_redshifts
         **kwargs,
     )["inputs"]
 
@@ -828,6 +831,7 @@ def test_conditional_integral_methods(
         USE_MINI_HALOS=True,
         RECOMB_MODEL="inhomogeneous",
         USE_TS_FLUCT=True,
+        ZPRIME_STEP_FACTOR=1.2,  # needed because we need inputs.node_redshifts == default_global_evolution.node_redshifts
         **kwargs,
     )["inputs"]
 
