@@ -1,5 +1,7 @@
 """Test the wrapper functions which access the C-backend, but not though an OutputStruct compute() method."""
 
+from collections.abc import Callable
+
 import matplotlib as mpl
 import numpy as np
 import pytest
@@ -33,10 +35,12 @@ def default_input_struct_lc_mini(default_input_struct_lc):
         RECOMB_MODEL="inhomogeneous",
         USE_TS_FLUCT=True,
         K_MAX_FOR_CLASS=1.0,
-        N_THREADS=4.0,  # To speed it up
+        N_THREADS=4,  # To speed it up
         HII_DIM=2,  # it's a mini lightcone!
-        DIM=2 * 3,
-        BOX_LEN=2 * 1.5,
+        DIM=None,
+        BOX_LEN=None,
+        HIRES_TO_LOWRES_FACTOR=3,
+        LOWRES_CELL_SIZE_MPC=1.5,
         R_BUBBLE_MAX=2,
     )
 
@@ -537,6 +541,16 @@ def make_matterfield_comparison_plot(
 
 @pytest.mark.parametrize("use_lightcone", [True, False])
 @pytest.mark.parametrize("use_mini_halos", [True, False])
+@pytest.mark.parametrize(
+    "func",
+    [
+        cf.evaluate_SFRD_z,
+        cf.evaluate_Nion_z,
+        cf.evaluate_SFRD_cond,
+        cf.evaluate_Nion_cond,
+        cf.evaluate_Xray_cond,
+    ],
+)
 def test_functions_with_and_without_lightcone(
     default_input_struct_lc,
     lc,
@@ -544,6 +558,7 @@ def test_functions_with_and_without_lightcone(
     lc_mini,
     use_lightcone,
     use_mini_halos,
+    func: Callable,
 ):
     """Test that we can run functions with and without a lightcone as an input."""
     inputs = default_input_struct_lc_mini if use_mini_halos else default_input_struct_lc
@@ -556,46 +571,35 @@ def test_functions_with_and_without_lightcone(
     densities = np.linspace(-0.98, 1.7, num=800)
     radius = 5  # Mpc
 
-    sfrd, sfrd_mini = cf.evaluate_SFRD_z(
-        inputs=inputs, redshifts=redshifts, lightcone=lightcone
-    )
-    assert len(sfrd) == len(redshifts)
-    assert len(sfrd_mini) == len(redshifts)
+    kwargs = {
+        cf.evaluate_SFRD_z: {"redshifts": redshifts},
+        cf.evaluate_Nion_z: {"redshifts": redshifts},
+        cf.evaluate_SFRD_cond: {
+            "redshift": redshifts[0],
+            "radius": radius,
+            "densities": densities,
+        },
+        cf.evaluate_Nion_cond: {
+            "redshift": redshifts[0],
+            "radius": radius,
+            "densities": densities,
+        },
+        cf.evaluate_Xray_cond: {
+            "redshift": redshifts[0],
+            "radius": radius,
+            "densities": densities,
+        },
+    }
 
-    nion, nion_mini = cf.evaluate_Nion_z(
-        inputs=inputs, redshifts=redshifts, lightcone=lightcone
-    )
-    assert len(nion) == len(redshifts)
-    assert len(nion_mini) == len(redshifts)
-
-    sfrd, sfrd_mini = cf.evaluate_SFRD_cond(
-        inputs=inputs,
-        redshift=redshifts[0],
-        radius=radius,
-        densities=densities,
-        lightcone=lightcone,
-    )
-    assert len(sfrd) == len(densities)
-    assert len(sfrd_mini) == len(densities)
-
-    nion, nion_mini = cf.evaluate_Nion_cond(
-        inputs=inputs,
-        redshift=redshifts[0],
-        radius=radius,
-        densities=densities,
-        lightcone=lightcone,
-    )
-    assert len(nion) == len(densities)
-    assert len(nion_mini) == len(densities)
-
-    xray_luminosity = cf.evaluate_Xray_cond(
-        inputs=inputs,
-        redshift=redshifts[0],
-        radius=radius,
-        densities=densities,
-        lightcone=lightcone,
-    )
-    assert len(xray_luminosity) == len(densities)
+    output = func(inputs=inputs, **kwargs[func], lightcone=lightcone)
+    if func in [cf.evaluate_SFRD_z, cf.evaluate_Nion_z]:
+        assert len(output[0]) == len(redshifts)
+        assert len(output[1]) == len(redshifts)  # output_mini
+    elif func in [cf.evaluate_SFRD_cond, cf.evaluate_Nion_cond]:
+        assert len(output[0]) == len(densities)
+        assert len(output[1]) == len(densities)  # output_mini
+    elif func == cf.evaluate_Xray_cond:
+        assert len(output) == len(densities)
 
 
 def test_removed_log10mturns_argument(default_input_struct):

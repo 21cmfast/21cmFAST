@@ -323,6 +323,7 @@ def run_global_evolution(
 
     new_input_kwargs = {
         "HIRES_TO_LOWRES_FACTOR": None,  # we set below DIM=HII_DIM=1
+        "LOWRES_CELL_SIZE_MPC": None,  # we set below to be equal to BOX_LEN since we have only one cell
         "DIM": 1,  # we need only one cell
         "HII_DIM": 1,  # we need only one cell
         "BOX_LEN": 1e6,  # we need a huge box/cell in order to simulate the global evolution
