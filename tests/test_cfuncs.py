@@ -594,10 +594,20 @@ def test_functions_with_and_without_lightcone(
     output = func(inputs=inputs, **kwargs[func], lightcone=lightcone)
     if func in [cf.evaluate_SFRD_z, cf.evaluate_Nion_z]:
         assert len(output[0]) == len(redshifts)
-        assert len(output[1]) == len(redshifts)  # output_mini
+        if use_mini_halos:
+            assert len(output[1]) == len(redshifts)
+        else:
+            assert (
+                output[1] is None
+            )  # output_mini should be None if not using mini halos
     elif func in [cf.evaluate_SFRD_cond, cf.evaluate_Nion_cond]:
         assert len(output[0]) == len(densities)
-        assert len(output[1]) == len(densities)  # output_mini
+        if use_mini_halos:
+            assert len(output[1]) == len(densities)
+        else:
+            assert (
+                output[1] is None
+            )  # output_mini should be None if not using mini halos
     elif func == cf.evaluate_Xray_cond:
         assert len(output) == len(densities)
 

@@ -543,18 +543,32 @@ def test_Nion_conditional_tables(name, delta_range, R, mini, intmethod, plt):
     abs_tol = 1e-8
 
     if plt == mpl.pyplot:
-        make_table_comparison_plot(
-            [delta_range, delta_range],
-            [None, None],
-            [Nion_tables, Nion_tables_mini],
-            [Nion_integrals, Nion_integrals_mini],
-            plt,
-            abstol=abs_tol,
-            reltol=RELATIVE_TOLERANCE,
-            label_test=[True, False],
-            xlabels=["delta", "delta"],
-            ylabels=["Nion", "Nion_mini"],
-        )
+        if mini_flag:
+            make_table_comparison_plot(
+                [delta_range, delta_range],
+                [None, None],
+                [Nion_tables, Nion_tables_mini],
+                [Nion_integrals, Nion_integrals_mini],
+                plt,
+                abstol=abs_tol,
+                reltol=RELATIVE_TOLERANCE,
+                label_test=[True, False],
+                xlabels=["delta", "delta"],
+                ylabels=["Nion", "Nion_mini"],
+            )
+        else:
+            make_table_comparison_plot(
+                [delta_range],
+                [None],
+                [Nion_tables],
+                [Nion_integrals],
+                plt,
+                abstol=abs_tol,
+                reltol=RELATIVE_TOLERANCE,
+                label_test=[True],
+                xlabels=["delta"],
+                ylabels=["Nion"],
+            )
 
     sel_delta = get_delta_subset(inputs, redshift, R, delta_range)
 
@@ -584,12 +598,13 @@ def test_Nion_conditional_tables(name, delta_range, R, mini, intmethod, plt):
         rtol=RELATIVE_TOLERANCE,
     )
 
-    np.testing.assert_allclose(
-        Nion_tables_mini[sel_delta],
-        Nion_integrals_mini[sel_delta],
-        atol=abs_tol,
-        rtol=RELATIVE_TOLERANCE,
-    )
+    if mini_flag:
+        np.testing.assert_allclose(
+            Nion_tables_mini[sel_delta],
+            Nion_integrals_mini[sel_delta],
+            atol=abs_tol,
+            rtol=RELATIVE_TOLERANCE,
+        )
 
 
 @pytest.mark.parametrize("mini", ["mini", "acg"])

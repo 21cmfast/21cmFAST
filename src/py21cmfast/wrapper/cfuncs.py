@@ -642,8 +642,9 @@ def evaluate_SFRD_z(
     -------
     sfrd : np.ndarray
         The global star formation rate density at the given redshifts for ACGs.
-    sfrd_mini : np.ndarray
+    sfrd_mini : np.ndarray or None
         The global star formation rate density at the given redshifts for MCGs.
+        Will be None if `USE_MINI_HALOS` is False.
     """
     if log10mturns is not None:
         raise TypeError(
@@ -679,6 +680,8 @@ def evaluate_SFRD_z(
         ffi.cast("double *", ffi.from_buffer(sfrd)),
         ffi.cast("double *", ffi.from_buffer(sfrd_mini)),
     )
+    if not inputs.astro_options.USE_MINI_HALOS:
+        sfrd_mini = None
 
     return sfrd, sfrd_mini
 
@@ -709,8 +712,9 @@ def evaluate_Nion_z(
     -------
     nion : np.ndarray
         The global number of ionising photons per baryon at the given redshifts for ACGs.
-    nion_mini : np.ndarray
+    nion_mini : np.ndarray or None
         The global number of ionising photons per baryon at the given redshifts for MCGs.
+        Will be None if `USE_MINI_HALOS` is False.
     """
     if log10mturns is not None:
         raise TypeError(
@@ -747,6 +751,9 @@ def evaluate_Nion_z(
         ffi.cast("double *", ffi.from_buffer(nion_mini)),
     )
 
+    if not inputs.astro_options.USE_MINI_HALOS:
+        nion_mini = None
+
     return nion, nion_mini
 
 
@@ -782,8 +789,9 @@ def evaluate_SFRD_cond(
     -------
     sfrd : np.ndarray
         The conditional star formation rate density at the given redshift and radius for ACGs.
-    sfrd_mini : np.ndarray
+    sfrd_mini : np.ndarray or None
         The conditional star formation rate density at the given redshift and radius for MCGs.
+        Will be None if `USE_MINI_HALOS` is False.
     """
     if log10mturns is not None:
         raise TypeError(
@@ -821,6 +829,9 @@ def evaluate_SFRD_cond(
         ffi.cast("double *", ffi.from_buffer(sfrd_mini)),
     )
 
+    if not inputs.astro_options.USE_MINI_HALOS:
+        sfrd_mini = None
+
     return sfrd, sfrd_mini
 
 
@@ -857,8 +868,9 @@ def evaluate_Nion_cond(
     -------
     nion : np.ndarray
         The conditional number of ionising photons per baryon at the given redshift and radius for ACGs.
-    nion_mini : np.ndarray
+    nion_mini : np.ndarray or None
         The conditional number of ionising photons per baryon at the given redshift and radius for MCGs.
+        Will be None if `USE_MINI_HALOS` is False.
     """
     if (l10mturns_acg is not None) or (l10mturns_mcg is not None):
         raise TypeError(
@@ -899,6 +911,9 @@ def evaluate_Nion_cond(
         ffi.cast("double *", ffi.from_buffer(nion)),
         ffi.cast("double *", ffi.from_buffer(nion_mini)),
     )
+
+    if not inputs.astro_options.USE_MINI_HALOS:
+        nion_mini = None
 
     return nion, nion_mini
 
