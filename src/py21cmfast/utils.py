@@ -58,9 +58,9 @@ def show_references(inputs: InputParameters, lightcone=True, print_to_stdout=Tru
         "https://ui.adsabs.harvard.edu/link_gateway/2011MNRAS.411..955M/doi:10.1111/j.1365-2966.2010.17731.x\n\n"
     )
 
-    if inputs.astro_options.INHOMO_RECO:
+    if inputs.astro_options.RECOMB_MODEL != "none":
         ref_string += (
-            "Inhomogeneous recombination model introduced in:\n"
+            "Recombination model introduced in:\n"
             "=============================================\n"
             "Sobacchi, E., Mesinger, A.,\n"
             "“Inhomogeneous recombinations during cosmic reionization”,\n"
