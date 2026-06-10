@@ -85,7 +85,7 @@ def dex2exp_transformer(x, att: attrs.Attribute):
     10^[-M_turn/M /ln(10)], if we wish to combine the arguments in the power-law. Since the C code
     works with base-e, it saves the need to divide by ln(10).
 
-    While the multplication/division by ln(10) is not a major overhead for one halo, when the box
+    While the multiplication/division by ln(10) is not a major overhead for one halo, when the box
     contains billions of halos that are evolved through various redshift snapshots, the work with
     base-e in the C code saves us from executing billions of unnecessary multiplications/divisions.
     """

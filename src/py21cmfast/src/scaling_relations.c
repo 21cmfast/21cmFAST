@@ -464,7 +464,7 @@ void get_halo_xray(double sfr, double sfr_mini, double metallicity, double xray_
     // absorbed in the line for xray_sample below for computational efficiency
     mu_x = get_lx_on_sfr(sfr, metallicity, consts->l_x) * (sfr * physconst.s_per_yr);
 
-    double lx_mini = 0.;
+    double mu_x_mini = 0.;
     if (astro_options_global->USE_MINI_HALOS) {
         // Since there *are* some SFR-dependent
         // models, this is done separately
