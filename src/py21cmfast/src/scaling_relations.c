@@ -456,7 +456,7 @@ void get_halo_metallicity(double sfr, double stellar, double redshift, double *z
 void get_halo_xray(double sfr, double sfr_mini, double metallicity, double xray_rng,
                    ScalingConstants *consts, double *xray_out) {
     double sigma_xray = consts->sigma_xray;
-    double mu_x, mu_x_mini, xray_sample;
+    double mu_x, xray_sample;
 
     // Set the mu parameter for the distribution (according to Eq. 13 in
     // https://arxiv.org/pdf/2504.17254) Note that the mu parameter is adjusted with exp(-sigma^2
