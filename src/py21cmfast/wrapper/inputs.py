@@ -89,7 +89,7 @@ def dex2exp_transformer(x, att: attrs.Attribute):
     contains billions of halos that are evolved through various redshift snapshots, the work with
     base-e in the C code saves us from executing billions of unnecessary multiplications/divisions.
     """
-    return 2.3025851 * x  # np.log(10) * x
+    return np.log(10) * x
 
 
 def choice_transformer(choice: str, att: attrs.Attribute) -> int:
