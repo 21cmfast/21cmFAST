@@ -1545,7 +1545,9 @@ class AstroParams(InputStruct):
     SIGMA_SFR_LIM: float = field(
         default=0.19, converter=float, transformer=dex2exp_transformer
     )
-    SIGMA_SFR_INDEX: float = field(default=-0.12, converter=float)
+    SIGMA_SFR_INDEX: float = field(
+        default=-0.12, converter=float, transformer=dex2exp_transformer
+    )
 
     T_RE: float = field(default=2e4, converter=float)
     FIXED_VAVG: float = field(
