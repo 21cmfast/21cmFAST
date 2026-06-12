@@ -69,11 +69,11 @@ def test_direct_initializations(_run):
         )
     )
 
-    _GlobalInitManagerSingleton.broadcast_input_struct()
-    _GlobalInitManagerSingleton.initialize_power_spectrum()
-    _GlobalInitManagerSingleton.initialize_sigma_tables()
-    _GlobalInitManagerSingleton.initialize_heat()
-    _GlobalInitManagerSingleton.initialize_recombination_rate()
+    _GlobalInitManagerSingleton._broadcast_input_struct()
+    _GlobalInitManagerSingleton._initialize_power_spectrum()
+    _GlobalInitManagerSingleton._initialize_sigma_tables()
+    _GlobalInitManagerSingleton._initialize_heat()
+    _GlobalInitManagerSingleton._initialize_recombination_rate()
 
     assert _GlobalInitManagerSingleton.inputs_are_broadcast
     assert _GlobalInitManagerSingleton.ps_inited
@@ -93,11 +93,11 @@ def test_direct_initializations(_run):
         RECOMB_MODEL="inhomogeneous",
     )
 
-    _GlobalInitManagerSingleton.broadcast_input_struct()
-    _GlobalInitManagerSingleton.initialize_power_spectrum()
-    _GlobalInitManagerSingleton.initialize_sigma_tables()
-    _GlobalInitManagerSingleton.initialize_heat()
-    _GlobalInitManagerSingleton.initialize_recombination_rate()
+    _GlobalInitManagerSingleton._broadcast_input_struct()
+    _GlobalInitManagerSingleton._initialize_power_spectrum()
+    _GlobalInitManagerSingleton._initialize_sigma_tables()
+    _GlobalInitManagerSingleton._initialize_heat()
+    _GlobalInitManagerSingleton._initialize_recombination_rate()
 
     assert _GlobalInitManagerSingleton.inputs_are_broadcast
     assert _GlobalInitManagerSingleton.ps_inited
@@ -131,7 +131,7 @@ def test_direct_initializations_for_heat_and_recomb():
     _GlobalInitManagerSingleton.free()
 
     # Let's begin with a direct initialization of the heating tables
-    _GlobalInitManagerSingleton.initialize_heat()
+    _GlobalInitManagerSingleton._initialize_heat()
     assert _GlobalInitManagerSingleton.inputs_are_broadcast
     assert not _GlobalInitManagerSingleton.ps_inited
     assert not _GlobalInitManagerSingleton.sigma_inited
@@ -145,7 +145,7 @@ def test_direct_initializations_for_heat_and_recomb():
     _GlobalInitManagerSingleton.inputs = _GlobalInitManagerSingleton.inputs.with_logspaced_redshifts().evolve_input_structs(
         RECOMB_MODEL="inhomogeneous"
     )
-    _GlobalInitManagerSingleton.initialize_recombination_rate()
+    _GlobalInitManagerSingleton._initialize_recombination_rate()
     assert _GlobalInitManagerSingleton.inputs_are_broadcast
     assert not _GlobalInitManagerSingleton.ps_inited
     assert not _GlobalInitManagerSingleton.sigma_inited
