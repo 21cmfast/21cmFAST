@@ -813,6 +813,14 @@ def evaluate_SFRD_cond(
     sfrd_mini : np.ndarray or None
         The conditional star formation rate density at the given redshift and radius for MCGs.
         Will be None if `USE_MINI_HALOS` is False.
+
+    Notes
+    -----
+    This function estimates the conditional SFRD by using the global turnover masses.
+    In reality, these turnover masses do not depend solely on redshift, but also on the local
+    density field, as well on its environment and history. Since it is impossible to well-define
+    the conditional SFRD in given region by only providing redshift and density, we approximate
+    the used turnover masses in this calculation to be the global ones.
     """
     if log10mturns is not None:
         raise TypeError(
@@ -897,6 +905,14 @@ def evaluate_Nion_cond(
     nion_mini : np.ndarray or None
         The conditional number of ionising photons per baryon at the given redshift and radius for MCGs.
         Will be None if `USE_MINI_HALOS` is False.
+
+    Notes
+    -----
+    This function estimates the conditional N_ion by using the global turnover masses.
+    In reality, these turnover masses do not depend solely on redshift, but also on the local
+    density field, as well on its environment and history. Since it is impossible to well-define
+    the conditional N_ion in given region by only providing redshift and density, we approximate
+    the used turnover masses in this calculation to be the global ones.
     """
     if (l10mturns_acg is not None) or (l10mturns_mcg is not None):
         raise TypeError(
@@ -981,6 +997,15 @@ def evaluate_Xray_cond(
     -------
     xray_emissivity : np.ndarray
         The conditional X-ray emissivity at the given redshift and radius for ACGs and MCGs combined.
+
+    Notes
+    -----
+    This function estimates the conditional X-ray emissivity by using the global turnover masses.
+    In reality, these turnover masses do not depend solely on redshift, but also on the local
+    density field, as well on its environment and history. Since it is impossible to well-define
+    the conditional X-ray emissivity in given region by only providing redshift and density, we approximate
+    the used turnover masses in this calculation to be the global ones.
+
     """
     if log10mturns is not None:
         raise TypeError(
