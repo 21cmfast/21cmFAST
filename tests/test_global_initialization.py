@@ -49,9 +49,9 @@ def test_init():
 
 
 @pytest.mark.parametrize("_run", range(N_REPEAT))
-def test_initializations(_run):
+def test_direct_initializations(_run):
     """
-    Test that initializations work as expected.
+    Test that direct initializations work as expected.
 
     We run this test several times because segfaults can still occur unexpectedly, even if one test passes smoothly.
     """
@@ -81,7 +81,8 @@ def test_initializations(_run):
     assert _GlobalInitManagerSingleton.heat_inited
     assert not _GlobalInitManagerSingleton.recomb_inited
 
-    # NOTE: it is very important to free everything that was initialized, otherwise segfaults could occur!
+    # NOTE: before initializing again below with different inputs, it is very important to free everything that was initialized,
+    # otherwise segfaults could occur!
     _GlobalInitManagerSingleton.free()
 
     # Now let's change the inputs to ones that will allow the initialization of all tables, and check that it works as expected
