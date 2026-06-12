@@ -54,6 +54,9 @@ def test_direct_initializations(_run):
     Test that direct initializations work as expected.
 
     We run this test several times because segfaults can still occur unexpectedly, even if one test passes smoothly.
+
+    NOTE: it is NOT a good idea to call directly these initialization functions, as they could lead to segfaults
+    with uncautious usage!
     """
     # Ensure we start with a clean slate
     _GlobalInitManagerSingleton.free()
@@ -82,7 +85,8 @@ def test_direct_initializations(_run):
     assert not _GlobalInitManagerSingleton.recomb_inited
 
     # NOTE: before initializing again below with different inputs, it is very important to free everything that was initialized,
-    # otherwise segfaults could occur!
+    # otherwise segfaults could occur! Note that these segfaults are not a problem with the user-facing logic of the code, but
+    # rather due to our attempts of calling the private functions directly
     _GlobalInitManagerSingleton.free()
 
     # Now let's change the inputs to ones that will allow the initialization of all tables, and check that it works as expected
