@@ -8,6 +8,8 @@ from py21cmfast.drivers._global_initialization import (
     _GlobalInitManagerSingleton,
 )
 
+N_REPEAT = 10
+
 
 def test_global_initialization_is_singleton():
     """Test that the GlobalInitializationManager is a singleton."""
@@ -46,12 +48,18 @@ def test_init():
     )  # not initialized, because default is to have no recombinations
 
 
-def test_initializations():
-    """Test that initializations work as expected."""
+@pytest.mark.parametrize("_run", range(N_REPEAT))
+def test_initializations(_run):
+    """
+    Test that initializations work as expected.
+
+    We run this test several times because segfaults can still occur unexpectedly, even if one test passes smoothly.
+    """
     # Ensure we start with a clean slate
     _GlobalInitManagerSingleton.free()
 
-    # Let's give the initializer inputs that will prevent the initialization of sigma and recombination rate tables
+    # Let's give the initializer inputs that will prevent the initialization of sigma and recombination rate tables,
+    # as well as the CLASS transfer function tables
     _GlobalInitManagerSingleton.inputs = (
         _GlobalInitManagerSingleton.inputs.evolve_input_structs(
             SOURCE_MODEL="L-INTEGRAL",
@@ -73,9 +81,15 @@ def test_initializations():
     assert _GlobalInitManagerSingleton.heat_inited
     assert not _GlobalInitManagerSingleton.recomb_inited
 
+    # NOTE: it is very important to free everything that was initialized, otherwise segfaults could occur!
+    _GlobalInitManagerSingleton.free()
+
     # Now let's change the inputs to ones that will allow the initialization of all tables, and check that it works as expected
     _GlobalInitManagerSingleton.inputs = _GlobalInitManagerSingleton.inputs.with_logspaced_redshifts().evolve_input_structs(
-        USE_INTERPOLATION_TABLES="sigma-interpolation", RECOMB_MODEL="inhomogeneous"
+        POWER_SPECTRUM="CLASS",
+        K_MAX_FOR_CLASS=1.0,
+        USE_INTERPOLATION_TABLES="sigma-interpolation",
+        RECOMB_MODEL="inhomogeneous",
     )
 
     _GlobalInitManagerSingleton.broadcast_input_struct()
