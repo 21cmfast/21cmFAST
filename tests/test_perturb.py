@@ -176,42 +176,25 @@ class TestPerturb:
             "2LPT": (0, 1, -1),
         }[inputs.matter_options.PERTURB_ALGORITHM]
         dens = np.roll(ics.get("lowres_density"), roll_var, (0, 1, 2)) * d_z
-        mt_grid = np.full_like(dens, inputs.astro_params.M_TURN)
 
-        prefac_sfr = (
-            inputs.cosmo_params.cosmo.critical_density(0).to("Msun Mpc-3").value
-            * inputs.astro_params.cdict["F_STAR10"]
-            * inputs.cosmo_params.OMb
-            * inputs.cosmo_params.cosmo.H(test_pt_z).to("s-1").value
-            / inputs.astro_params.t_STAR
-        )
         prefac_nion = (
             inputs.cosmo_params.cosmo.critical_density(0).to("Msun Mpc-3").value
-            * inputs.astro_params.cdict["F_STAR10"]
             * inputs.cosmo_params.OMb
-            * inputs.astro_params.cdict["F_ESC10"]
-            * inputs.astro_params.cdict["POP2_ION"]
         )
-        prefac_xray = (
-            inputs.cosmo_params.cosmo.critical_density(0).to("Msun Mpc-3").value
-            * inputs.cosmo_params.OMm
-        )
+        prefac_xray = 1e-38
+
         integral_sfrd, _ = cf.evaluate_SFRD_cond(
             inputs=inputs,
             redshift=test_pt_z,
             radius=cell_radius,
             densities=dens,
-            log10mturns=mt_grid,
         )
-        integral_sfrd *= prefac_sfr
 
         integral_nion, _ = cf.evaluate_Nion_cond(
             inputs=inputs,
             redshift=test_pt_z,
             radius=cell_radius,
             densities=dens,
-            l10mturns_acg=mt_grid,
-            l10mturns_mcg=mt_grid,
         )
         integral_nion *= prefac_nion
 
@@ -220,7 +203,6 @@ class TestPerturb:
             redshift=test_pt_z,
             radius=cell_radius,
             densities=dens,
-            log10mturns=mt_grid,
         )
         integral_xray *= prefac_xray
 

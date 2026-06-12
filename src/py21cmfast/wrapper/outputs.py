@@ -681,7 +681,7 @@ class PerturbedField(OutputStructZ):
     _compat_hash = _HashType.zgrid
 
     density = _arrayfield()
-    velocity_z = _arrayfield()
+    velocity_z = _arrayfield(optional=True)
     velocity_x = _arrayfield(optional=True)
     velocity_y = _arrayfield(optional=True)
 
@@ -707,11 +707,14 @@ class PerturbedField(OutputStructZ):
 
         out = {
             "density": Array(shape, dtype=np.float32),
-            "velocity_z": Array(shape, dtype=np.float32),
         }
-        if inputs.matter_options.KEEP_3D_VELOCITIES:
-            out["velocity_x"] = Array(shape, dtype=np.float32)
-            out["velocity_y"] = Array(shape, dtype=np.float32)
+
+        # No need for velocities in a homogeneous universe!
+        if dim > 1:
+            out["velocity_z"] = Array(shape, dtype=np.float32)
+            if inputs.matter_options.KEEP_3D_VELOCITIES:
+                out["velocity_x"] = Array(shape, dtype=np.float32)
+                out["velocity_y"] = Array(shape, dtype=np.float32)
 
         return cls(inputs=inputs, redshift=redshift, **out, **kw)
 

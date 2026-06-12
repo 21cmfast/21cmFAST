@@ -1,6 +1,7 @@
 """Low-level python wrappers of C functions."""
 
 import logging
+import warnings
 from collections.abc import Sequence
 from typing import Literal
 
@@ -11,6 +12,8 @@ from scipy.interpolate import interp1d
 from .._cfg import config
 from ..c_21cmfast import ffi, lib
 from ..drivers._global_initialization import init_c_state
+from ..drivers.global_evolution import GlobalEvolution, run_global_evolution
+from ..drivers.lightcone import LightCone
 from ._utils import _process_exitcode
 from .inputs import InputParameters
 
@@ -77,6 +80,75 @@ def get_halo_catalog_buffer_size(
 
 
 @init_c_state(broadcast_inputs=True)
+def compute_mturns(
+    *,
+    inputs: InputParameters,
+    redshifts: float | Sequence[float],
+    J_LW_21: float | Sequence[float],
+    v_cb: float | Sequence[float],
+    ionisation_rate_G12: float | Sequence[float],
+    z_reion: float | Sequence[float],
+) -> tuple[float, float]:
+    """
+    Compute the turnover masses for both ACGs and MCGs at a given redshift.
+
+    Parameters
+    ----------
+    redshifts : array-like
+        The redshifts at which to compute the turnover masses.
+    J_LW_21 : array-like
+        The Lyman-Werner flux in units of 1e-21 erg/s/Hz/cm^2/sr at the given redshifts.
+    v_cb : array-like
+        The amplitude of the relative velocity between dark matter and baryons in units of km/s at the given redshifts.
+    ionisation_rate_G12 : array-like
+        The ionisation rate in units of 1e-12 s^-1 at the given redshifts.
+    z_reion : array-like
+        The reionisation redshift at the given redshifts.
+
+    Returns
+    -------
+    M_turn_a : array-like
+        The turnover mass for atomic cooling halos at the given redshifts.
+    M_turn_m : array-like
+        The turnover mass for molecular cooling halos at the given redshifts.
+
+    Raises
+    ------
+    ValueError :
+        If the input arrays do not have the same shape.
+    """
+    inputs_to_check = {
+        "J_LW_21": J_LW_21,
+        "v_cb": v_cb,
+        "ionisation_rate_G12": ionisation_rate_G12,
+        "z_reion": z_reion,
+    }
+
+    redshifts_shape = np.asarray(redshifts).shape
+    for name, value in inputs_to_check.items():
+        current_shape = np.asarray(value).shape
+        if current_shape != redshifts_shape:
+            raise ValueError(
+                f"The shapes of redshifts and {name} are not the same! "
+                f"Got {redshifts_shape} and {current_shape}."
+            )
+
+    M_turn_a_ffi = ffi.new("double *")
+    M_turn_m_ffi = ffi.new("double *")
+
+    def _scalar_call(z, j, v, g, zr):
+        lib.compute_mturns(z, j, v, g, zr, M_turn_a_ffi, M_turn_m_ffi)
+        return M_turn_a_ffi[0], M_turn_m_ffi[0]
+
+    vfunc = np.vectorize(_scalar_call, otypes=[np.float64, np.float64])
+    M_turn_a, M_turn_m = vfunc(redshifts, J_LW_21, v_cb, ionisation_rate_G12, z_reion)
+
+    if M_turn_a.ndim == 0:  # scalar input case
+        return float(M_turn_a), float(M_turn_m)
+    return M_turn_a, M_turn_m
+
+
+@init_c_state(broadcast_inputs=True)
 def compute_tau(
     *,
     redshifts: Sequence[float],
@@ -138,6 +210,8 @@ def compute_luminosity_function(
     nbins: int = 100,
     mturnovers: np.ndarray | None = None,
     mturnovers_mini: np.ndarray | None = None,
+    lightcone: LightCone | None = None,
+    global_evolution: GlobalEvolution | None = None,
     component: Literal["both", "acg", "mcg"] = "both",
 ) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
     """Compute a the luminosity function over a given number of bins and redshifts.
@@ -150,14 +224,16 @@ def compute_luminosity_function(
         The input parameters defining the simulation run.
     nbins : int, optional
         The number of luminosity bins to produce for the luminosity function.
-    mturnovers : array-like, optional
-        The turnover mass at each redshift for massive halos (ACGs).
-        Only required when USE_MINI_HALOS is True.
-    mturnovers_mini : array-like, optional
-        The turnover mass at each redshift for minihalos (MCGs).
-        Only required when USE_MINI_HALOS is True.
+    lightcone : :class:`~LightCone` or None, optional
+        The lightcone object to use for the computation.
+        If None, the function will consider `global_evolution` for the global m_turnover values,
+        otherwise they will be extracted from the given lightcone.
+    global_evolution : :class:`~GlobalEvolution` or None, optional
+        The global evolution object to use for the computation.
+        If None, the function will run a global evolution to estimate the global m_turnover values,
+        otherwise they will be extracted from the given global evolution.
     component : str, {'both', 'acg', 'mcg}
-        The component of the LF to be calculated.
+        The component of the LF to be calculated. Forced to be 'acg' if USE_MINI_HALOS is False.
 
     Returns
     -------
@@ -170,42 +246,44 @@ def compute_luminosity_function(
         Shape [nredshifts, nbins].
     """
     astro_options = inputs.astro_options
-    astro_params = inputs.astro_params
 
     redshifts = np.array(redshifts, dtype="float32")
-    if astro_options.USE_MINI_HALOS:
-        if component in ["both", "acg"]:
-            if mturnovers is None:
-                raise ValueError(
-                    "calculating ACG LFs with mini-halo feature requires users to "
-                    "specify mturnovers!"
-                )
 
-            mturnovers = np.array(mturnovers, dtype=np.float32)
-            if len(mturnovers) != len(redshifts):
-                raise ValueError(
-                    f"mturnovers ({len(mturnovers)}) does not match the length of "
-                    f"redshifts ({len(redshifts)})"
-                )
-        if component in ["both", "mcg"]:
-            if mturnovers_mini is None:
-                raise ValueError(
-                    "calculating MCG LFs with mini-halo feature requires users to "
-                    "specify mturnovers_MINI!"
-                )
+    if (mturnovers is not None) or (mturnovers_mini is not None):
+        raise TypeError(
+            "`mturnovers` and `mturnovers_mini` have been removed. "
+            "Please use the `lightcone` or `global_evolution` arguments instead, "
+            "or leave unspecified and they will be estimated automatically."
+        )
 
-            mturnovers_mini = np.array(mturnovers_mini, dtype="float32")
-            if len(mturnovers_mini) != len(redshifts):
-                raise ValueError(
-                    f"mturnovers_MINI ({len(mturnovers)}) does not match the length of "
-                    f"redshifts ({len(redshifts)})"
-                )
-
-    else:
-        mturnovers = (
-            np.zeros(len(redshifts), dtype=np.float32) + 10**astro_params.M_TURN
+    if not astro_options.USE_MINI_HALOS and component != "acg":
+        warnings.warn(
+            "USE_MINI_HALOS is False, so only ACG LFs are computed.",
+            stacklevel=2,
         )
         component = "acg"
+
+    if lightcone is not None:
+        mturnovers_global = pow(10.0, lightcone.global_quantities["log10_mturn_acg"])
+        mturnovers_mini_global = pow(
+            10.0, lightcone.global_quantities["log10_mturn_mcg"]
+        )
+    else:
+        # If lightcone is not provided, we estimate the turnover masses from the global evolution
+        if global_evolution is None:
+            global_evolution = run_global_evolution(inputs=inputs)
+        mturnovers_global = pow(10.0, global_evolution.quantities["log10_mturn_acg"])
+        mturnovers_mini_global = pow(
+            10.0, global_evolution.quantities["log10_mturn_mcg"]
+        )
+
+    # Interpolate the mturnover arrays at the input redshifts
+    mturnovers = np.interp(
+        redshifts, inputs.node_redshifts[::-1], mturnovers_global[::-1]
+    )
+    mturnovers_mini = np.interp(
+        redshifts, inputs.node_redshifts[::-1], mturnovers_mini_global[::-1]
+    )
 
     lfunc = np.zeros(len(redshifts) * nbins)
     Muvfunc = np.zeros(len(redshifts) * nbins)
@@ -549,27 +627,72 @@ def evaluate_SFRD_z(
     *,
     inputs: InputParameters,
     redshifts: NDArray[np.floating],
-    log10mturns: NDArray[np.floating],
+    log10mturns: NDArray[np.floating] | None = None,
+    lightcone: LightCone | None = None,
+    global_evolution: GlobalEvolution | None = None,
 ):
-    """Evaluate the global star formation rate density expected at a range of redshifts."""
-    if redshifts.shape != log10mturns.shape:
-        raise ValueError(
-            f"the shapes of the input arrays `redshifts` {redshifts.shape} and `log10mturns` {log10mturns.shape}"
-            " must be equal."
+    """
+    Evaluate the global star formation rate density (in units of M_sun/s/Mpc^3) expected at a range of redshifts.
+
+    Parameters
+    ----------
+    inputs: :class:`~InputParameters`
+        The input parameters defining the simulation run.
+    redshifts : array-like
+        The redshifts at which to compute the SFRD.
+    lightcone : :class:`~LightCone` or None, optional
+        The lightcone object to use for the computation.
+        If None, the function will consider `global_evolution` for the global m_turnover values,
+        otherwise they will be extracted from the given lightcone.
+    global_evolution : :class:`~GlobalEvolution` or None, optional
+        The global evolution object to use for the computation.
+        If None, the function will run a global evolution to estimate the global m_turnover values,
+        otherwise they will be extracted from the given global evolution.
+
+    Returns
+    -------
+    sfrd : np.ndarray
+        The global star formation rate density at the given redshifts for ACGs.
+    sfrd_mini : np.ndarray or None
+        The global star formation rate density at the given redshifts for MCGs.
+        Will be None if `USE_MINI_HALOS` is False.
+    """
+    if log10mturns is not None:
+        raise TypeError(
+            "`log10mturns` has been removed. "
+            "Please use the `lightcone` or `global_evolution` arguments instead, "
+            "or leave unspecified and they will be estimated automatically."
         )
 
-    redshifts = redshifts.astype("f8")
-    log10mturns = log10mturns.astype("f8")
+    if inputs.astro_options.USE_MINI_HALOS:
+        if lightcone is not None:
+            log10mturns_mini_global = lightcone.global_quantities["log10_mturn_mcg"]
+        else:
+            # If lightcone is not provided, we estimate the turnover masses from the global evolution
+            if global_evolution is None:
+                global_evolution = run_global_evolution(inputs=inputs)
+            log10mturns_mini_global = global_evolution.quantities["log10_mturn_mcg"]
+
+        log10mturns_mini = np.interp(
+            redshifts, inputs.node_redshifts[::-1], log10mturns_mini_global[::-1]
+        )
+    else:
+        log10mturns_mini = np.zeros_like(redshifts)  # dummy value for no mini halos
+
+    redshifts = np.asarray(redshifts).astype("f8")
+    log10mturns_mini = log10mturns_mini.astype("f8")
     sfrd = np.zeros_like(redshifts)
     sfrd_mini = np.zeros_like(redshifts)
 
     lib.get_global_SFRD_z(
         redshifts.size,
         ffi.cast("double *", ffi.from_buffer(redshifts)),
-        ffi.cast("double *", ffi.from_buffer(log10mturns)),
+        ffi.cast("double *", ffi.from_buffer(log10mturns_mini)),
         ffi.cast("double *", ffi.from_buffer(sfrd)),
         ffi.cast("double *", ffi.from_buffer(sfrd_mini)),
     )
+    if not inputs.astro_options.USE_MINI_HALOS:
+        sfrd_mini = None
 
     return sfrd, sfrd_mini
 
@@ -579,27 +702,73 @@ def evaluate_Nion_z(
     *,
     inputs: InputParameters,
     redshifts: NDArray[np.floating],
-    log10mturns: NDArray[np.floating],
+    log10mturns: NDArray[np.floating] | None = None,
+    lightcone: LightCone | None = None,
+    global_evolution: GlobalEvolution | None = None,
 ):
-    """Evaluate the global ionising emissivity expected at a range of redshifts."""
-    if redshifts.shape != log10mturns.shape:
-        raise ValueError(
-            "the shapes of the input arrays `redshifts` and `log10mturns`"
-            " must be equal."
+    """
+    Evaluate the global number of ionising photons per baryon, expected at a range of redshifts.
+
+    Parameters
+    ----------
+    inputs: :class:`~InputParameters`
+        The input parameters defining the simulation run.
+    redshifts : array-like
+        The redshifts at which to compute Nion.
+    lightcone : :class:`~LightCone` or None, optional
+        The lightcone object to use for the computation.
+        If None, the function will consider `global_evolution` for the global m_turnover values,
+        otherwise they will be extracted from the given lightcone.
+    global_evolution : :class:`~GlobalEvolution` or None, optional
+        The global evolution object to use for the computation.
+        If None, the function will run a global evolution to estimate the global m_turnover values,
+        otherwise they will be extracted from the given global evolution.
+
+    Returns
+    -------
+    nion : np.ndarray
+        The global number of ionising photons per baryon at the given redshifts for ACGs.
+    nion_mini : np.ndarray or None
+        The global number of ionising photons per baryon at the given redshifts for MCGs.
+        Will be None if `USE_MINI_HALOS` is False.
+    """
+    if log10mturns is not None:
+        raise TypeError(
+            "`log10mturns` has been removed. "
+            "Please use the `lightcone` or `global_evolution` arguments instead, "
+            "or leave unspecified and they will be estimated automatically."
         )
 
-    redshifts = redshifts.astype("f8")
-    log10mturns = log10mturns.astype("f8")
+    if inputs.astro_options.USE_MINI_HALOS:
+        if lightcone is not None:
+            log10mturns_mini_global = lightcone.global_quantities["log10_mturn_mcg"]
+        else:
+            # If lightcone is not provided, we estimate the turnover masses from the global evolution
+            if global_evolution is None:
+                global_evolution = run_global_evolution(inputs=inputs)
+            log10mturns_mini_global = global_evolution.quantities["log10_mturn_mcg"]
+
+        log10mturns_mini = np.interp(
+            redshifts, inputs.node_redshifts[::-1], log10mturns_mini_global[::-1]
+        )
+    else:
+        log10mturns_mini = np.zeros_like(redshifts)  # dummy value for no mini halos
+
+    redshifts = np.asarray(redshifts).astype("f8")
+    log10mturns_mini = log10mturns_mini.astype("f8")
     nion = np.zeros_like(redshifts)
     nion_mini = np.zeros_like(redshifts)
 
     lib.get_global_Nion_z(
         redshifts.size,
         ffi.cast("double *", ffi.from_buffer(redshifts)),
-        ffi.cast("double *", ffi.from_buffer(log10mturns)),
+        ffi.cast("double *", ffi.from_buffer(log10mturns_mini)),
         ffi.cast("double *", ffi.from_buffer(nion)),
         ffi.cast("double *", ffi.from_buffer(nion_mini)),
     )
+
+    if not inputs.astro_options.USE_MINI_HALOS:
+        nion_mini = None
 
     return nion, nion_mini
 
@@ -611,16 +780,71 @@ def evaluate_SFRD_cond(
     redshift: float,
     radius: float,
     densities: NDArray[np.floating],
-    log10mturns: NDArray[np.floating],
+    log10mturns: NDArray[np.floating] | None = None,
+    lightcone: LightCone | None = None,
+    global_evolution: GlobalEvolution | None = None,
 ):
-    """Evaluate the conditional star formation rate density expected at a range of densities."""
-    if densities.shape != log10mturns.shape:
-        raise ValueError(
-            "the shapes of the input arrays `densities` and `log10mturns` must be equal"
+    """
+    Evaluate the conditional star formation rate density (in units of M_sun/s/Mpc^3) expected at a range of densities.
+
+    Parameters
+    ----------
+    inputs: :class:`~InputParameters`
+        The input parameters defining the simulation run.
+    redshift : float
+        The redshift at which to compute the SFRD.
+    radius : float
+        The radius of the region at which to compute the conditional SFRD.
+    densities : array-like
+        The densities at which to compute the conditional SFRD.
+    lightcone : :class:`~LightCone` or None, optional
+        The lightcone object to use for the computation.
+        If None, the function will consider `global_evolution` for the global m_turnover values,
+        otherwise they will be extracted from the given lightcone.
+    global_evolution : :class:`~GlobalEvolution` or None, optional
+        The global evolution object to use for the computation.
+        If None, the function will run a global evolution to estimate the global m_turnover values,
+        otherwise they will be extracted from the given global evolution.
+
+    Returns
+    -------
+    sfrd : np.ndarray
+        The conditional star formation rate density at the given redshift and radius for ACGs.
+    sfrd_mini : np.ndarray or None
+        The conditional star formation rate density at the given redshift and radius for MCGs.
+        Will be None if `USE_MINI_HALOS` is False.
+
+    Notes
+    -----
+    This function estimates the conditional SFRD by using the global turnover masses.
+    In reality, these turnover masses do not depend solely on redshift, but also on the local
+    density field, as well on its environment and history. Since it is impossible to well-define
+    the conditional SFRD in given region by only providing redshift and density, we approximate
+    the used turnover masses in this calculation to be the global ones.
+    """
+    if log10mturns is not None:
+        raise TypeError(
+            "`log10mturns` has been removed. "
+            "Please use the `lightcone` or `global_evolution` arguments instead, "
+            "or leave unspecified and they will be estimated automatically."
         )
 
+    if inputs.astro_options.USE_MINI_HALOS:
+        if lightcone is not None:
+            log10mturns_mini_global = lightcone.global_quantities["log10_mturn_mcg"]
+        else:
+            # If lightcone is not provided, we estimate the turnover masses from the global evolution
+            if global_evolution is None:
+                global_evolution = run_global_evolution(inputs=inputs)
+            log10mturns_mini_global = global_evolution.quantities["log10_mturn_mcg"]
+
+        log10mturn_mini = np.interp(
+            redshift, inputs.node_redshifts[::-1], log10mturns_mini_global[::-1]
+        )
+    else:
+        log10mturn_mini = 0.0  # dummy value for no mini halos
+
     densities = densities.astype("f8")
-    log10mturns = log10mturns.astype("f8")
     sfrd = np.zeros_like(densities)
     sfrd_mini = np.zeros_like(densities)
 
@@ -629,10 +853,13 @@ def evaluate_SFRD_cond(
         radius,
         densities.size,
         ffi.cast("double *", ffi.from_buffer(densities)),
-        ffi.cast("double *", ffi.from_buffer(log10mturns)),
+        log10mturn_mini,
         ffi.cast("double *", ffi.from_buffer(sfrd)),
         ffi.cast("double *", ffi.from_buffer(sfrd_mini)),
     )
+
+    if not inputs.astro_options.USE_MINI_HALOS:
+        sfrd_mini = None
 
     return sfrd, sfrd_mini
 
@@ -644,18 +871,75 @@ def evaluate_Nion_cond(
     redshift: float,
     radius: float,
     densities: NDArray[np.floating],
-    l10mturns_acg: NDArray[np.floating],
-    l10mturns_mcg: NDArray[np.floating],
+    l10mturns_acg: NDArray[np.floating] | None = None,
+    l10mturns_mcg: NDArray[np.floating] | None = None,
+    lightcone: LightCone | None = None,
+    global_evolution: GlobalEvolution | None = None,
 ):
-    """Evaluate the conditional ionising emissivity expected at a range of densities."""
-    if not (densities.shape == l10mturns_mcg.shape == l10mturns_acg.shape):
-        raise ValueError(
-            "the shapes of the input arrays `densities` and `log10mturns_x` must be equal"
+    """
+    Evaluate the global number of ionising photons per baryon, expected at a range of densities.
+
+    Parameters
+    ----------
+    inputs: :class:`~InputParameters`
+        The input parameters defining the simulation run.
+    redshift : float
+        The redshift at which to compute Nion.
+    radius : float
+        The radius of the region at which to compute the conditional Nion.
+    densities : array-like
+        The densities at which to compute the conditional Nion.
+    lightcone : :class:`~LightCone` or None, optional
+        The lightcone object to use for the computation.
+        If None, the function will consider `global_evolution` for the global m_turnover values,
+        otherwise they will be extracted from the given lightcone.
+    global_evolution : :class:`~GlobalEvolution` or None, optional
+        The global evolution object to use for the computation.
+        If None, the function will run a global evolution to estimate the global m_turnover values,
+        otherwise they will be extracted from the given global evolution.
+
+    Returns
+    -------
+    nion : np.ndarray
+        The conditional number of ionising photons per baryon at the given redshift and radius for ACGs.
+    nion_mini : np.ndarray or None
+        The conditional number of ionising photons per baryon at the given redshift and radius for MCGs.
+        Will be None if `USE_MINI_HALOS` is False.
+
+    Notes
+    -----
+    This function estimates the conditional N_ion by using the global turnover masses.
+    In reality, these turnover masses do not depend solely on redshift, but also on the local
+    density field, as well on its environment and history. Since it is impossible to well-define
+    the conditional N_ion in given region by only providing redshift and density, we approximate
+    the used turnover masses in this calculation to be the global ones.
+    """
+    if (l10mturns_acg is not None) or (l10mturns_mcg is not None):
+        raise TypeError(
+            "`l10mturns_acg` and `l10mturns_mcg` have been removed. "
+            "Please use the `lightcone` or `global_evolution` arguments instead, "
+            "or leave unspecified and they will be estimated automatically."
         )
 
+    # TODO: Why this function is the only one that needs the global mturnover values for ACGs?
+    if lightcone is not None:
+        log10mturns_global = lightcone.global_quantities["log10_mturn_acg"]
+        log10mturns_mini_global = lightcone.global_quantities["log10_mturn_mcg"]
+    else:
+        # If lightcone is not provided, we estimate the turnover masses from the global evolution
+        if global_evolution is None:
+            global_evolution = run_global_evolution(inputs=inputs)
+        log10mturns_global = global_evolution.quantities["log10_mturn_acg"]
+        log10mturns_mini_global = global_evolution.quantities["log10_mturn_mcg"]
+
+    log10mturn_acg = np.interp(
+        redshift, inputs.node_redshifts[::-1], log10mturns_global[::-1]
+    )
+    log10mturn_mcg = np.interp(
+        redshift, inputs.node_redshifts[::-1], log10mturns_mini_global[::-1]
+    )
+
     densities = densities.astype("f8")
-    l10mturns_acg = l10mturns_acg.astype("f8")
-    l10mturns_mcg = l10mturns_mcg.astype("f8")
     nion = np.zeros_like(densities)
     nion_mini = np.zeros_like(densities)
 
@@ -664,11 +948,14 @@ def evaluate_Nion_cond(
         radius,
         densities.size,
         ffi.cast("double *", ffi.from_buffer(densities)),
-        ffi.cast("double *", ffi.from_buffer(l10mturns_acg)),
-        ffi.cast("double *", ffi.from_buffer(l10mturns_mcg)),
+        log10mturn_acg,
+        log10mturn_mcg,
         ffi.cast("double *", ffi.from_buffer(nion)),
         ffi.cast("double *", ffi.from_buffer(nion_mini)),
     )
+
+    if not inputs.astro_options.USE_MINI_HALOS:
+        nion_mini = None
 
     return nion, nion_mini
 
@@ -680,29 +967,81 @@ def evaluate_Xray_cond(
     redshift: float,
     radius: float,
     densities: NDArray[np.floating],
-    log10mturns: NDArray[np.floating],
+    log10mturns: NDArray[np.floating] | None = None,
+    lightcone: LightCone | None = None,
+    global_evolution: GlobalEvolution | None = None,
 ):
-    """Evaluate the conditional star formation rate density expected at a range of densities."""
-    if densities.shape != log10mturns.shape:
-        raise ValueError(
-            "the shapes of the input arrays `cond_array` and `probabilities"
-            " must be equal."
+    """
+    Evaluate the conditional X-ray emissivity (in units of erg/s/Mpc^3) expected at a range of densities.
+
+    Parameters
+    ----------
+    inputs: :class:`~InputParameters`
+        The input parameters defining the simulation run.
+    redshift : float
+        The redshift at which to compute the conditional X-ray emissivity.
+    radius : float
+        The radius of the region at which to compute the conditional X-ray emissivity.
+    densities : array-like
+        The densities at which to compute the conditional X-ray emissivity.
+    lightcone : :class:`~LightCone` or None, optional
+        The lightcone object to use for the computation.
+        If None, the function will consider `global_evolution` for the global m_turnover values,
+        otherwise they will be extracted from the given lightcone.
+    global_evolution : :class:`~GlobalEvolution` or None, optional
+        The global evolution object to use for the computation.
+        If None, the function will run a global evolution to estimate the global m_turnover values,
+        otherwise they will be extracted from the given global evolution.
+
+    Returns
+    -------
+    xray_emissivity : np.ndarray
+        The conditional X-ray emissivity at the given redshift and radius for ACGs and MCGs combined.
+
+    Notes
+    -----
+    This function estimates the conditional X-ray emissivity by using the global turnover masses.
+    In reality, these turnover masses do not depend solely on redshift, but also on the local
+    density field, as well on its environment and history. Since it is impossible to well-define
+    the conditional X-ray emissivity in given region by only providing redshift and density, we approximate
+    the used turnover masses in this calculation to be the global ones.
+
+    """
+    if log10mturns is not None:
+        raise TypeError(
+            "`log10mturns` has been removed. "
+            "Please use the `lightcone` or `global_evolution` arguments instead, "
+            "or leave unspecified and they will be estimated automatically."
         )
 
+    if inputs.astro_options.USE_MINI_HALOS:
+        if lightcone is not None:
+            log10mturns_mini_global = lightcone.global_quantities["log10_mturn_mcg"]
+        else:
+            # If lightcone is not provided, we estimate the turnover masses from the global evolution
+            if global_evolution is None:
+                global_evolution = run_global_evolution(inputs=inputs)
+            log10mturns_mini_global = global_evolution.quantities["log10_mturn_mcg"]
+
+        log10mturn_mini = np.interp(
+            redshift, inputs.node_redshifts[::-1], log10mturns_mini_global[::-1]
+        )
+    else:
+        log10mturn_mini = 0.0  # dummy value for no mini halos
+
     densities = densities.astype("f8")
-    log10mturns = log10mturns.astype("f8")
-    xray = np.zeros_like(densities)
+    xray_emissivity = np.zeros_like(densities)
 
     lib.get_conditional_Xray(
         redshift,
         radius,
         densities.size,
         ffi.cast("double *", ffi.from_buffer(densities)),
-        ffi.cast("double *", ffi.from_buffer(log10mturns)),
-        ffi.cast("double *", ffi.from_buffer(xray)),
+        log10mturn_mini,
+        ffi.cast("double *", ffi.from_buffer(xray_emissivity)),
     )
 
-    return xray
+    return xray_emissivity
 
 
 @init_c_state(sigma=True)

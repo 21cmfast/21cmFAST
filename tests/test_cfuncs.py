@@ -1,5 +1,7 @@
 """Test the wrapper functions which access the C-backend, but not though an OutputStruct compute() method."""
 
+from collections.abc import Callable
+
 import matplotlib as mpl
 import numpy as np
 import pytest
@@ -25,30 +27,64 @@ YUNG24_PHYSICAL_PARAMS = {
 }
 
 
-def test_run_lf():
-    inputs = p21c.InputParameters(random_seed=9)
+@pytest.fixture(scope="module")
+def default_input_struct_lc_mini(default_input_struct_lc):
+    """A default input struct with mini halos turned on."""
+    return default_input_struct_lc.evolve_input_structs(
+        USE_MINI_HALOS=True,
+        RECOMB_MODEL="inhomogeneous",
+        USE_TS_FLUCT=True,
+        K_MAX_FOR_CLASS=1.0,
+    )
+
+
+@pytest.fixture(scope="module")
+def default_global_evolution(default_input_struct_lc_mini):
+    """A default global signal (with mini halos)."""
+    return p21c.run_global_evolution(inputs=default_input_struct_lc_mini)
+
+
+@pytest.mark.parametrize("what_to_use", ["lightcone", "global_evolution", "nothing"])
+def test_run_lf(
+    default_input_struct_lc,
+    default_input_struct_lc_mini,
+    lc,
+    default_global_evolution,
+    what_to_use,
+):
+    inputs = default_input_struct_lc
+    lightcone = lc if what_to_use == "lightcone" else None
+    global_evolution = (
+        default_global_evolution if what_to_use == "global_evolution" else None
+    )
     *_, lf = p21c.compute_luminosity_function(
-        inputs=inputs, redshifts=[7, 8, 9], nbins=100
+        inputs=inputs,
+        redshifts=[7, 8, 9],
+        nbins=100,
+        lightcone=lightcone,
+        global_evolution=global_evolution,
     )
     assert np.all(lf[~np.isnan(lf)] > -30)
     assert lf.shape == (3, 100)
 
     # Check that memory is in-tact and a second run also works:
     _muv, _mhalo, lf2 = p21c.compute_luminosity_function(
-        inputs=inputs, redshifts=[7, 8, 9], nbins=100
+        inputs=inputs,
+        redshifts=[7, 8, 9],
+        nbins=100,
+        lightcone=lightcone,
+        global_evolution=global_evolution,
     )
     assert lf2.shape == (3, 100)
     assert np.allclose(lf2[~np.isnan(lf2)], lf[~np.isnan(lf)])
 
-    inputs = inputs.from_template("mini", random_seed=9)
-
     _muv_minih, _mhalo_minih, lf_minih = p21c.compute_luminosity_function(
         redshifts=[7, 8, 9],
         nbins=100,
+        lightcone=lightcone,
+        global_evolution=global_evolution,
         component="mcg",
-        inputs=inputs,
-        mturnovers=[7.0, 7.0, 7.0],
-        mturnovers_mini=[5.0, 5.0, 5.0],
+        inputs=default_input_struct_lc_mini,
     )
     assert np.all(lf_minih[~np.isnan(lf_minih)] > -30)
     assert lf_minih.shape == (3, 100)
@@ -80,6 +116,16 @@ def test_bad_integral_inputs(default_input_struct):
     lnM_base = np.linspace(7, 13, num=30)
     densities = np.linspace(-1, 3, num=25)
 
+    with pytest.raises(ValueError, match="The shapes of redshifts and"):
+        cf.compute_mturns(
+            inputs=default_input_struct,
+            redshifts=redshifts,
+            J_LW_21=redshifts,
+            v_cb=redshifts,
+            ionisation_rate_G12=redshifts,
+            z_reion=densities,
+        )
+
     with pytest.raises(ValueError, match="the shapes of"):
         cf.integrate_chmf_interval(
             inputs=default_input_struct,
@@ -95,48 +141,6 @@ def test_bad_integral_inputs(default_input_struct):
             redshift=redshifts[0],
             cond_array=densities,
             probabilities=np.ones(len(densities) - 1),
-        )
-
-    with pytest.raises(ValueError, match="the shapes of"):
-        cf.evaluate_SFRD_z(
-            inputs=default_input_struct,
-            redshifts=redshifts,
-            log10mturns=lnM_base,
-        )
-
-    with pytest.raises(ValueError, match="the shapes of"):
-        cf.evaluate_Nion_z(
-            inputs=default_input_struct,
-            redshifts=redshifts,
-            log10mturns=lnM_base,
-        )
-
-    with pytest.raises(ValueError, match="the shapes of"):
-        cf.evaluate_SFRD_cond(
-            inputs=default_input_struct,
-            redshift=redshifts[0],
-            densities=densities,
-            log10mturns=lnM_base,
-            radius=10.0,
-        )
-
-    with pytest.raises(ValueError, match="the shapes of"):
-        cf.evaluate_Nion_cond(
-            inputs=default_input_struct,
-            redshift=redshifts[0],
-            densities=densities,
-            l10mturns_acg=lnM_base,
-            l10mturns_mcg=lnM_base,
-            radius=10.0,
-        )
-
-    with pytest.raises(ValueError, match="the shapes of"):
-        cf.evaluate_Xray_cond(
-            inputs=default_input_struct,
-            redshift=redshifts[0],
-            densities=densities,
-            log10mturns=lnM_base,
-            radius=10.0,
         )
 
     with pytest.raises(
@@ -528,3 +532,189 @@ def make_matterfield_comparison_plot(
     axs[0, 3].loglog(k, true[3], linestyle="-", label="Truth", **kwargs)
     axs[0, 3].loglog(k, test[3], linestyle=":", linewidth=3, label="Test", **kwargs)
     axs[1, 3].semilogx(k, (test[3] - true[3]) / true[3], **kwargs)
+
+
+@pytest.mark.parametrize("what_to_use", ["lightcone", "global_evolution", "nothing"])
+@pytest.mark.parametrize("use_mini_halos", [True, False])
+@pytest.mark.parametrize(
+    "func",
+    [
+        cf.evaluate_SFRD_z,
+        cf.evaluate_Nion_z,
+        cf.evaluate_SFRD_cond,
+        cf.evaluate_Nion_cond,
+        cf.evaluate_Xray_cond,
+    ],
+)
+def test_functions_with_and_without_lightcone(
+    default_input_struct_lc,
+    default_input_struct_lc_mini,
+    lc,
+    default_global_evolution,
+    what_to_use,
+    use_mini_halos,
+    func: Callable,
+):
+    """
+    Test that we can run functions with and without a lightcone as an input.
+
+    NOTE: The used inputs and lightcone.inputs are actually not the same when using mini halos!
+          But it should not concern us for this test :)
+    """
+    inputs = default_input_struct_lc_mini if use_mini_halos else default_input_struct_lc
+    lightcone = lc if what_to_use == "lightcone" else None
+    global_evolution = (
+        default_global_evolution if what_to_use == "global_evolution" else None
+    )
+
+    redshifts = [7, 8, 9]
+    densities = np.linspace(-0.98, 1.7, num=800)
+    radius = 5  # Mpc
+
+    kwargs = {
+        cf.evaluate_SFRD_z: {"redshifts": redshifts},
+        cf.evaluate_Nion_z: {"redshifts": redshifts},
+        cf.evaluate_SFRD_cond: {
+            "redshift": redshifts[0],
+            "radius": radius,
+            "densities": densities,
+        },
+        cf.evaluate_Nion_cond: {
+            "redshift": redshifts[0],
+            "radius": radius,
+            "densities": densities,
+        },
+        cf.evaluate_Xray_cond: {
+            "redshift": redshifts[0],
+            "radius": radius,
+            "densities": densities,
+        },
+    }
+
+    output = func(
+        inputs=inputs,
+        **kwargs[func],
+        lightcone=lightcone,
+        global_evolution=global_evolution,
+    )
+    if func in [cf.evaluate_SFRD_z, cf.evaluate_Nion_z]:
+        assert len(output[0]) == len(redshifts)
+        if use_mini_halos:
+            assert len(output[1]) == len(redshifts)
+        else:
+            assert (
+                output[1] is None
+            )  # output_mini should be None if not using mini halos
+    elif func in [cf.evaluate_SFRD_cond, cf.evaluate_Nion_cond]:
+        assert len(output[0]) == len(densities)
+        if use_mini_halos:
+            assert len(output[1]) == len(densities)
+        else:
+            assert (
+                output[1] is None
+            )  # output_mini should be None if not using mini halos
+    elif func == cf.evaluate_Xray_cond:
+        assert len(output) == len(densities)
+
+
+def test_removed_log10mturns_argument(default_input_struct):
+    """Test that removed `log10mturns` arguments raise a TypeError with a message."""
+    with pytest.raises(
+        TypeError, match="`mturnovers` and `mturnovers_mini` have been removed"
+    ):
+        cf.compute_luminosity_function(
+            inputs=default_input_struct,
+            redshifts=[7, 8, 9],
+            nbins=100,
+            mturnovers=np.array([1e7, 1e8, 1e9]),
+            mturnovers_mini=np.array([1e4, 1e5, 1e6]),
+        )
+
+    with pytest.raises(TypeError, match="`log10mturns` has been removed"):
+        cf.evaluate_SFRD_z(
+            inputs=default_input_struct,
+            redshifts=[7, 8, 9],
+            log10mturns=np.array([8.0, 8.5, 9.0]),
+        )
+
+    with pytest.raises(TypeError, match="`log10mturns` has been removed"):
+        cf.evaluate_Nion_z(
+            inputs=default_input_struct,
+            redshifts=[7, 8, 9],
+            log10mturns=np.array([8.0, 8.5, 9.0]),
+        )
+
+    with pytest.raises(TypeError, match="`log10mturns` has been removed"):
+        cf.evaluate_SFRD_cond(
+            inputs=default_input_struct,
+            redshift=8.0,
+            radius=5,
+            densities=np.linspace(-0.98, 1.7, num=800),
+            log10mturns=np.linspace(8.0, 9.0, num=800),
+        )
+
+    with pytest.raises(
+        TypeError, match="`l10mturns_acg` and `l10mturns_mcg` have been removed"
+    ):
+        cf.evaluate_Nion_cond(
+            inputs=default_input_struct,
+            redshift=8.0,
+            radius=5,
+            densities=np.linspace(-0.98, 1.7, num=800),
+            l10mturns_acg=np.linspace(8.0, 9.0, num=800),
+            l10mturns_mcg=np.linspace(7.0, 8.0, num=800),
+        )
+
+    with pytest.raises(TypeError, match="`log10mturns` has been removed"):
+        cf.evaluate_Xray_cond(
+            inputs=default_input_struct,
+            redshift=8.0,
+            radius=5,
+            densities=np.linspace(-0.98, 1.7, num=800),
+            log10mturns=np.linspace(8.0, 9.0, num=800),
+        )
+
+
+def test_removed_arguments_are_cleaned_up_in_v5():
+    """Reminder to remove the TypeError checks for log10mturns etc. in v5."""
+    version = tuple(int(x) for x in p21c.__version__.split(".")[:2])
+    if version >= (5, 0):
+        pytest.fail(
+            "Version is now >= 5.0 — please remove the deprecated `mturnovers`, "
+            "`log10mturns`, `l10mturns_acg`, and `l10mturns_mcg` arguments and this test."
+        )
+
+
+def test_roundtrip_mturns(default_input_struct_ts):
+    """Test that the mturns computed in the global evolution can be used to compute the same mturns through the compute_mturns function."""
+    inputs = default_input_struct_ts.evolve_input_structs(
+        USE_MINI_HALOS=True, RECOMB_MODEL="inhomogeneous", K_MAX_FOR_CLASS=1.0
+    )
+    # Run global evolution and extract global fields
+    global_evolution = p21c.run_global_evolution(inputs=inputs)
+    log10_mturn_acg_global = global_evolution.quantities["log10_mturn_acg"]
+    log10_mturn_mcg_global = global_evolution.quantities["log10_mturn_mcg"]
+    J_21_LW_global = global_evolution.quantities["J_21_LW"]
+    z_reion_global = global_evolution.quantities["z_reion"]
+    ionisation_rate_G12_global = global_evolution.quantities["ionisation_rate_G12"]
+    v_cb = inputs.astro_params.FIXED_VAVG if inputs.astro_options.FIX_VCB_AVG else 0.0
+    # Given the above fields, compute mturns using the cfuncs function
+    Mturn_a_global, M_turn_m_global = cf.compute_mturns(
+        inputs=inputs,
+        redshifts=global_evolution.node_redshifts,
+        J_LW_21=J_21_LW_global,
+        v_cb=np.full_like(global_evolution.node_redshifts, v_cb),
+        ionisation_rate_G12=ionisation_rate_G12_global,
+        z_reion=z_reion_global,
+    )
+    # And compare!
+    np.testing.assert_allclose(
+        log10_mturn_acg_global,
+        np.log10(Mturn_a_global),
+        rtol=1e-4,
+    )
+    np.testing.assert_allclose(
+        log10_mturn_mcg_global,
+        np.log10(M_turn_m_global),
+        rtol=1e-4,
+    )

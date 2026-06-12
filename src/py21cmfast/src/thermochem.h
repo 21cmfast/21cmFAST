@@ -20,5 +20,7 @@ double HeI_ion_crosssec(double nu);
 double HeII_ion_crosssec(double nu);
 double HI_ion_crosssec(double nu);
 double neutral_fraction(double density, double T4, double gamma, int usecaseB);
+void compute_mturns(float z, float J_21_LW, float vcb, float Gamma12, float z_reion,
+                    double *M_turn_a, double *M_turn_m);
 
 #endif
