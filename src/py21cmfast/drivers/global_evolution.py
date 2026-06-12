@@ -12,12 +12,12 @@ from .. import __version__
 from ..io import h5
 from ..io.caching import CacheConfig
 from ..wrapper.arrays import Array
-from ..wrapper.cfuncs import evaluate_Nion_z
 from ..wrapper.inputs import InputParameters
 from ..wrapper.outputs import (
     BrightnessTemp,
     HaloBox,
     IonizedBox,
+    PerturbedField,
     TsBox,
 )
 from .coeval import _redshift_loop_generator, _setup_ics_and_pfs_for_scrolling
@@ -49,29 +49,29 @@ def compute_global_reionization_at_z(
     :class:`~IonizedBox` :
         An object containing the ionized box data.
     """
+    from ..wrapper.cfuncs import compute_mturns, evaluate_Nion_z
+
     box = IonizedBox.new(inputs=inputs, redshift=redshift)
     shape = (1, 1, 1)
 
     if spin_temp is None:
         # We compute Q_HI very similarly as in SpinTemperatureBox.c.
-        nion, _ = evaluate_Nion_z(
-            inputs=inputs,
-            redshifts=np.asarray(redshift),
-            # I just put here an arbitrary number because we currently don't allow to have mini-halos when USE_TS_FLUCT=False.
-            # TODO: should this limitation be relaxed in the future?
-            log10mturns=np.asarray(5.0),
-        )
-        if inputs.matter_options.SOURCE_MODEL == "CONST-ION-EFF":
-            ion_eff_factor = inputs.astro_params.HII_EFF_FACTOR
-        else:
-            ion_eff_factor = (
-                pow(10.0, inputs.astro_params.F_STAR10)
-                * pow(10.0, inputs.astro_params.F_ESC10)
-                * inputs.astro_params.POP2_ION
-            )
-        Q_HI = 1.0 - ion_eff_factor * nion
+        # TODO: We currently don't allow to have mini-halos when USE_TS_FLUCT=False.
+        #       This limitation however should be relaxed in the future, see https://github.com/21cmfast/21cmFAST/issues/600.
+        #       When that happens, note that the call below to evaluate_Nion_z calls run_global_evolution,
+        #       so be careful to avoid infinite recursion!
+        nion, _ = evaluate_Nion_z(inputs=inputs, redshifts=np.asarray(redshift))
+        Q_HI = 1.0 - nion
+        # We don't need J_LW_21 because we currently don't allow to have mini-halos when USE_TS_FLUCT=False.
+        # TODO: this limitation will be relaxed in the future, see https://github.com/21cmfast/21cmFAST/issues/600
+        J_LW_21 = 0.0
     else:
         Q_HI = spin_temp.Q_HI
+        J_LW_21 = (
+            np.squeeze(spin_temp.J_21_LW.value)
+            if spin_temp.J_21_LW is not None
+            else 0.0
+        )
 
     # TODO: I think a more accurate global Q_HI can be achieved by solving an ODE that includes also the recombination rate
     Q_HI = Q_HI if Q_HI > 0.0 else 0.0
@@ -85,13 +85,26 @@ def compute_global_reionization_at_z(
         dQdz = 0.0
     dzdt = -(1.0 + redshift) * inputs.cosmo_params.cosmo.H(redshift)
     ionisation_rate_G12 = np.abs(dQdz * dzdt)
+    ionisation_rate_G12 = np.squeeze(ionisation_rate_G12.to("1/s").value)
     # TODO: is there a more clever way to estimate global z_reion?
     z_reion = -1.0 if Q_HI > 0.0 else redshift
+
+    # Global v_cb is determined according to the flag FIX_VCB_AVG
+    v_cb = inputs.astro_params.FIXED_VAVG if inputs.astro_options.FIX_VCB_AVG else 0.0
+
+    M_turn_a, M_turn_m = compute_mturns(
+        inputs=inputs,
+        redshifts=redshift,
+        J_LW_21=J_LW_21,
+        v_cb=v_cb,
+        ionisation_rate_G12=ionisation_rate_G12,
+        z_reion=z_reion,
+    )
 
     # Now initialize the output box with the global values!
     required_arrays = {
         "neutral_fraction": Q_HI,
-        "ionisation_rate_G12": ionisation_rate_G12.to("1/s"),
+        "ionisation_rate_G12": ionisation_rate_G12,
         "z_reion": z_reion,
     }
     for name, val in required_arrays.items():
@@ -102,6 +115,8 @@ def compute_global_reionization_at_z(
             .initialize()
             .with_value(val=val * np.ones(shape)),
         )
+    box.log10_Mturnover_ave = np.log10(M_turn_a)
+    box.log10_Mturnover_MINI_ave = np.log10(M_turn_m)
     return box
 
 
@@ -126,13 +141,15 @@ class GlobalEvolution:
     def get_fields(cls, inputs: InputParameters) -> tuple:
         """Get a list of the names of the available fields in the simulation."""
         possible_outputs = [
+            PerturbedField.new(inputs, redshift=0),
+            IonizedBox.new(inputs, redshift=0),
             BrightnessTemp.new(inputs, redshift=0),
         ]
         if inputs.astro_options.USE_TS_FLUCT:
             possible_outputs.append(TsBox.new(inputs, redshift=0))
         if inputs.matter_options.lagrangian_source_grid:
             possible_outputs.append(HaloBox.new(inputs, redshift=0))
-        field_names = ("density", "neutral_fraction", "ionisation_rate_G12")
+        field_names = ("log10_mturn_acg", "log10_mturn_mcg")
         for output in possible_outputs:
             field_names += tuple(output.arrays.keys())
         return field_names
@@ -307,6 +324,7 @@ def run_global_evolution(
 
     new_input_kwargs = {
         "HIRES_TO_LOWRES_FACTOR": None,  # we set below DIM=HII_DIM=1
+        "LOWRES_CELL_SIZE_MPC": None,  # we set below to be equal to BOX_LEN since we have only one cell
         "DIM": 1,  # we need only one cell
         "HII_DIM": 1,  # we need only one cell
         "BOX_LEN": 1e6,  # we need a huge box/cell in order to simulate the global evolution
@@ -368,9 +386,18 @@ def run_global_evolution(
         iokw=iokw,
     ):
         for quantity in global_evolution.quantities:
-            global_evolution.quantities[quantity][iz] = np.mean(
-                getattr(coeval, quantity)
-            )
+            if quantity == "log10_mturn_acg":
+                global_evolution.quantities[quantity][iz] = (
+                    coeval.ionized_box.log10_Mturnover_ave
+                )
+            elif quantity == "log10_mturn_mcg":
+                global_evolution.quantities[quantity][iz] = (
+                    coeval.ionized_box.log10_Mturnover_MINI_ave
+                )
+            else:
+                global_evolution.quantities[quantity][iz] = np.mean(
+                    getattr(coeval, quantity)
+                )
 
         prev_coeval = coeval
 

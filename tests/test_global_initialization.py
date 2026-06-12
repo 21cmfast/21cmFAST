@@ -8,6 +8,8 @@ from py21cmfast.drivers._global_initialization import (
     _GlobalInitManagerSingleton,
 )
 
+N_REPEAT = 10
+
 
 def test_global_initialization_is_singleton():
     """Test that the GlobalInitializationManager is a singleton."""
@@ -46,12 +48,21 @@ def test_init():
     )  # not initialized, because default is to have no recombinations
 
 
-def test_initializations():
-    """Test that initializations work as expected."""
+@pytest.mark.parametrize("_run", range(N_REPEAT))
+def test_direct_initializations(_run):
+    """
+    Test that direct initializations work as expected.
+
+    We run this test several times because segfaults can still occur unexpectedly, even if one test passes smoothly.
+
+    NOTE: it is NOT a good idea to call directly these initialization functions, as they could lead to segfaults
+    with uncautious usage!
+    """
     # Ensure we start with a clean slate
     _GlobalInitManagerSingleton.free()
 
-    # Let's give the initializer inputs that will prevent the initialization of sigma and recombination rate tables
+    # Let's give the initializer inputs that will prevent the initialization of sigma and recombination rate tables,
+    # as well as the CLASS transfer function tables
     _GlobalInitManagerSingleton.inputs = (
         _GlobalInitManagerSingleton.inputs.evolve_input_structs(
             SOURCE_MODEL="L-INTEGRAL",
@@ -61,11 +72,11 @@ def test_initializations():
         )
     )
 
-    _GlobalInitManagerSingleton.broadcast_input_struct()
-    _GlobalInitManagerSingleton.initialize_power_spectrum()
-    _GlobalInitManagerSingleton.initialize_sigma_tables()
-    _GlobalInitManagerSingleton.initialize_heat()
-    _GlobalInitManagerSingleton.initialize_recombination_rate()
+    _GlobalInitManagerSingleton._broadcast_input_struct()
+    _GlobalInitManagerSingleton._initialize_power_spectrum()
+    _GlobalInitManagerSingleton._initialize_sigma_tables()
+    _GlobalInitManagerSingleton._initialize_heat()
+    _GlobalInitManagerSingleton._initialize_recombination_rate()
 
     assert _GlobalInitManagerSingleton.inputs_are_broadcast
     assert _GlobalInitManagerSingleton.ps_inited
@@ -73,16 +84,24 @@ def test_initializations():
     assert _GlobalInitManagerSingleton.heat_inited
     assert not _GlobalInitManagerSingleton.recomb_inited
 
+    # NOTE: before initializing again below with different inputs, it is very important to free everything that was initialized,
+    # otherwise segfaults could occur! Note that these segfaults are not a problem with the user-facing logic of the code, but
+    # rather due to our attempts of calling the private functions directly
+    _GlobalInitManagerSingleton.free()
+
     # Now let's change the inputs to ones that will allow the initialization of all tables, and check that it works as expected
     _GlobalInitManagerSingleton.inputs = _GlobalInitManagerSingleton.inputs.with_logspaced_redshifts().evolve_input_structs(
-        USE_INTERPOLATION_TABLES="sigma-interpolation", RECOMB_MODEL="inhomogeneous"
+        POWER_SPECTRUM="CLASS",
+        K_MAX_FOR_CLASS=1.0,
+        USE_INTERPOLATION_TABLES="sigma-interpolation",
+        RECOMB_MODEL="inhomogeneous",
     )
 
-    _GlobalInitManagerSingleton.broadcast_input_struct()
-    _GlobalInitManagerSingleton.initialize_power_spectrum()
-    _GlobalInitManagerSingleton.initialize_sigma_tables()
-    _GlobalInitManagerSingleton.initialize_heat()
-    _GlobalInitManagerSingleton.initialize_recombination_rate()
+    _GlobalInitManagerSingleton._broadcast_input_struct()
+    _GlobalInitManagerSingleton._initialize_power_spectrum()
+    _GlobalInitManagerSingleton._initialize_sigma_tables()
+    _GlobalInitManagerSingleton._initialize_heat()
+    _GlobalInitManagerSingleton._initialize_recombination_rate()
 
     assert _GlobalInitManagerSingleton.inputs_are_broadcast
     assert _GlobalInitManagerSingleton.ps_inited
@@ -116,7 +135,7 @@ def test_direct_initializations_for_heat_and_recomb():
     _GlobalInitManagerSingleton.free()
 
     # Let's begin with a direct initialization of the heating tables
-    _GlobalInitManagerSingleton.initialize_heat()
+    _GlobalInitManagerSingleton._initialize_heat()
     assert _GlobalInitManagerSingleton.inputs_are_broadcast
     assert not _GlobalInitManagerSingleton.ps_inited
     assert not _GlobalInitManagerSingleton.sigma_inited
@@ -130,7 +149,7 @@ def test_direct_initializations_for_heat_and_recomb():
     _GlobalInitManagerSingleton.inputs = _GlobalInitManagerSingleton.inputs.with_logspaced_redshifts().evolve_input_structs(
         RECOMB_MODEL="inhomogeneous"
     )
-    _GlobalInitManagerSingleton.initialize_recombination_rate()
+    _GlobalInitManagerSingleton._initialize_recombination_rate()
     assert _GlobalInitManagerSingleton.inputs_are_broadcast
     assert not _GlobalInitManagerSingleton.ps_inited
     assert not _GlobalInitManagerSingleton.sigma_inited

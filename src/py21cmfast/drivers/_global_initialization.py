@@ -85,17 +85,17 @@ class GlobalInitializationManager:
             self.inputs = inputs
 
         if broadcast_inputs:
-            self.broadcast_input_struct()
+            self._broadcast_input_struct()
         if ps:
-            self.initialize_power_spectrum()
+            self._initialize_power_spectrum()
         if sigma:
-            self.initialize_sigma_tables()
+            self._initialize_sigma_tables()
         if heat:
-            self.initialize_heat()
+            self._initialize_heat()
         if recomb:
-            self.initialize_recombination_rate()
+            self._initialize_recombination_rate()
 
-    def broadcast_input_struct(self):
+    def _broadcast_input_struct(self):
         """Broadcast the parameters to the C library, and construct FFTW wisdoms if necessary."""
         if not self.inputs_are_broadcast:
             lib.Broadcast_struct_global_all(
@@ -111,19 +111,19 @@ class GlobalInitializationManager:
 
             self.inputs_are_broadcast = True
 
-    def initialize_power_spectrum(self):
+    def _initialize_power_spectrum(self):
         """Initialize power spectrum at the C backend."""
         if not self.inputs_are_broadcast:
-            self.broadcast_input_struct()
+            self._broadcast_input_struct()
 
         if not self.ps_inited:
             lib.init_ps()
             self.ps_inited = True
 
-    def initialize_sigma_tables(self):
+    def _initialize_sigma_tables(self):
         """Initialize sigma interpolation tables at the C backend."""
         if not self.ps_inited:
-            self.initialize_power_spectrum()
+            self._initialize_power_spectrum()
 
         if (
             self.inputs.matter_options.USE_INTERPOLATION_TABLES != "no-interpolation"
@@ -134,19 +134,19 @@ class GlobalInitializationManager:
             lib.initialiseSigmaMInterpTable(sigma_min_mass, sigma_max_mass)
             self.sigma_inited = True
 
-    def initialize_heat(self):
+    def _initialize_heat(self):
         """Initialize heat interpolation tables at the C backend."""
         if not self.inputs_are_broadcast:
-            self.broadcast_input_struct()
+            self._broadcast_input_struct()
 
         if not self.heat_inited:
             lib.init_heat()
             self.heat_inited = True
 
-    def initialize_recombination_rate(self):
+    def _initialize_recombination_rate(self):
         """Initialize recombination rate interpolation tables at the C backend."""
         if not self.inputs_are_broadcast:
-            self.broadcast_input_struct()
+            self._broadcast_input_struct()
 
         # NOTE: run_global_evolution at the moment does not do recombination calculations, so we only initialize if HII_DIM > 1.
         # If this is changed in the future, it will be necessary to remove the HII_DIM > 1 condition below, since it would cause a segfault!

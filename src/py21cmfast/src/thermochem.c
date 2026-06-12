@@ -305,3 +305,13 @@ double reionization_feedback(float z, float Gamma_halo_HII, float z_IN) {
            pow((1. + z) / 10, REION_SM13_B) *
            pow(1 - pow((1. + z) / (1. + z_IN), REION_SM13_C), REION_SM13_D);
 }
+
+void compute_mturns(float z, float J_21_LW, float vcb, float Gamma12, float z_reion,
+                    double *M_turn_a, double *M_turn_m) {
+    double M_turn_r = reionization_feedback(z, Gamma12, z_reion);
+    *M_turn_a = atomic_cooling_threshold(z);
+    *M_turn_m = lyman_werner_threshold(z, J_21_LW, vcb);
+    *M_turn_a = fmax(*M_turn_a, fmax(M_turn_r, astro_params_global->M_TURN));
+    *M_turn_m = fmax(*M_turn_m, fmax(M_turn_r, astro_params_global->M_TURN));
+    return;
+}
