@@ -66,8 +66,30 @@ def logtransformer(x, att: attrs.Attribute):
 
 
 def dex2exp_transformer(x, att: attrs.Attribute):
-    """Convert from dex to exponential space."""
-    return 2.3025851 * x
+    """
+    Convert from dex to exponential space.
+
+    Notes
+    -----
+    The reason why we convert our sigma parameters (the width of the lognormal distributions)
+    from base-10 to base-e is because the C code works with lognormal distributions in base-e, for the
+    following reasons:
+    1. If HALO_SCALING_RELATIONS_MEDIAN = False, the mu parameter of the distribution has to be adjusted
+    by a factor of the form  exp(-sigma^2 /2), if the distribution and sigma are in base-e, or by
+    a factor of the form 10^{-ln(10)*sigma^2 /2} if the distribution and sigma are in base-10. Using
+    base-e in the C code saves us from multiplying by ln(10).
+    2. In the case of stellar mass (stellar fraction), there is a multiplicative term of the form
+    exp(-M_turn/M). Numerically, it is more efficient to combine the arguments of this exponent
+    with the normally distributed random variable (to make the distribution log-normal), which is
+    what the C code does. Working with base-10 in the C could would require having an expression like
+    10^[-M_turn/M /ln(10)], if we wish to combine the arguments in the power-law. Since the C code
+    works with base-e, it saves the need to divide by ln(10).
+
+    While the multiplication/division by ln(10) is not a major overhead for one halo, when the box
+    contains billions of halos that are evolved through various redshift snapshots, the work with
+    base-e in the C code saves us from executing billions of unnecessary multiplications/divisions.
+    """
+    return np.log(10) * x
 
 
 def choice_transformer(choice: str, att: attrs.Attribute) -> int:
@@ -1523,7 +1545,9 @@ class AstroParams(InputStruct):
     SIGMA_SFR_LIM: float = field(
         default=0.19, converter=float, transformer=dex2exp_transformer
     )
-    SIGMA_SFR_INDEX: float = field(default=-0.12, converter=float)
+    SIGMA_SFR_INDEX: float = field(
+        default=-0.12, converter=float, transformer=dex2exp_transformer
+    )
 
     T_RE: float = field(default=2e4, converter=float)
     FIXED_VAVG: float = field(
