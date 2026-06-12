@@ -464,15 +464,17 @@ int ComputePerturbedField(float redshift, InitialConditions *boxes,
         }
 
         // ****  Convert to velocities ***** //
-        // We re-use fft_density_grid to hold the FFTW velocity field
-        if (matter_options_global->KEEP_3D_VELOCITIES) {
-            compute_perturbed_velocities(0, redshift, density_perturb_saved, fft_density_grid,
-                                         perturbed_field->velocity_x);
-            compute_perturbed_velocities(1, redshift, density_perturb_saved, fft_density_grid,
-                                         perturbed_field->velocity_y);
+        if (simulation_options_global->HII_DIM > 1) {
+            // We re-use fft_density_grid to hold the FFTW velocity field
+            if (matter_options_global->KEEP_3D_VELOCITIES) {
+                compute_perturbed_velocities(0, redshift, density_perturb_saved, fft_density_grid,
+                                             perturbed_field->velocity_x);
+                compute_perturbed_velocities(1, redshift, density_perturb_saved, fft_density_grid,
+                                             perturbed_field->velocity_y);
+            }
+            compute_perturbed_velocities(2, redshift, density_perturb_saved, fft_density_grid,
+                                         perturbed_field->velocity_z);
         }
-        compute_perturbed_velocities(2, redshift, density_perturb_saved, fft_density_grid,
-                                     perturbed_field->velocity_z);
 
         fftwf_cleanup_threads();
         fftwf_cleanup();

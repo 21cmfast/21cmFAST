@@ -999,7 +999,7 @@ class SimulationOptions(InputStruct):
         if self._BOX_LEN is not None:
             return self._BOX_LEN
         else:
-            return int(self.HII_DIM * self.LOWRES_CELL_SIZE_MPC)
+            return np.round(self.HII_DIM * self.LOWRES_CELL_SIZE_MPC, 3)
 
     @_HIRES_TO_LOWRES_FACTOR.validator
     def _hires_to_lowres_vld(self, att, val):
