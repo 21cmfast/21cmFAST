@@ -1,6 +1,7 @@
 """Test filtering of the density field."""
 
 import matplotlib as mpl
+import mpmath
 import numpy as np
 import pytest
 from matplotlib.colors import Normalize
@@ -28,6 +29,7 @@ def call_test_filter(
     input_box: np.ndarray,
     R,
     R_param,
+    R_star,
     filter_flag,
 ):
     output_box = np.zeros((inputs.simulation_options.HII_DIM,) * 3, dtype="f8")
@@ -36,6 +38,7 @@ def call_test_filter(
         ffi.cast("float *", input_box.ctypes.data),
         R,
         R_param,
+        R_star,
         filter_flag,
         ffi.cast("double *", output_box.ctypes.data),
     )
@@ -74,8 +77,8 @@ def get_expected_output_centre(r_in, R_filter, R_param, filter_flag):
         return (R_ratio < 1) * np.exp(-r_in / R_param) / exp_vol
     elif filter_flag == 4:
         # output is spherical shell
-        exp_vol = 4 / 3 * np.pi * (R_filter**3 - R_param**3)
-        return (R_ratio < 1) * (R_param <= r_in) / exp_vol
+        exp_vol = 4 / 3 * np.pi * (R_param**3 - R_filter**3)
+        return (R_ratio > 1) * (R_param >= r_in) / exp_vol
 
 
 # return binned quantities
@@ -120,7 +123,7 @@ def test_filters(filter_flag, R, plt):
     if filter_flag == 3:
         R_param = 20
     elif filter_flag == 4:
-        R_param = max(R - 4 * (up.BOX_LEN / up.HII_DIM), 0)
+        R_param = R + 4 * (up.BOX_LEN / up.HII_DIM)
     else:
         R_param = 0
 
@@ -129,6 +132,7 @@ def test_filters(filter_flag, R, plt):
         input_box=input_box_centre,
         R=R,
         R_param=R_param,
+        R_star=0,
         filter_flag=filter_flag,
     )
 
@@ -317,3 +321,77 @@ def filter_plot(
         axs[idx, 3].grid()
         axs[idx, 3].set_xlabel("expected cell value")
         axs[idx, 3].set_ylabel("filtered cell value")
+
+
+@pytest.mark.parametrize("R_inner", R_PARAM_LIST)
+@pytest.mark.parametrize("n", [2, 4, 6, 8])
+@pytest.mark.parametrize("R_star", [1e-6, 5, 10, 20])
+def test_MS_filter(R_inner, n, R_star):
+    """Test the multiple scattering filter."""
+    opts = prd.get_all_options_struct(redshift=10.0)
+    inputs = opts["inputs"]
+    up = inputs.simulation_options
+
+    # testing a random input box
+    rng = np.random.default_rng(12345)
+    input_box = rng.random((up.HII_DIM,) * 3)
+    output_box_SL = np.zeros((up.HII_DIM,) * 3, dtype="f8")
+    output_box_MS = np.zeros((up.HII_DIM,) * 3, dtype="f8")
+
+    R_outer = n * R_inner
+
+    output_box_SL = call_test_filter(
+        inputs=inputs,
+        input_box=input_box,
+        R=R_inner,
+        R_param=R_outer,
+        R_star=R_star,
+        filter_flag=4,
+    )
+
+    output_box_MS = call_test_filter(
+        inputs=inputs,
+        input_box=input_box,
+        R=R_inner,
+        R_param=R_outer,
+        R_star=R_star,
+        filter_flag=5,
+    )
+
+    if R_star < 1:
+        # Test that MS filter returns the same output as the SL filter in the SL limit (R_star -> 0).
+        np.testing.assert_allclose(output_box_SL, output_box_MS, atol=1e-4)
+    else:
+        # Test that the SL and MS filters yield different outputs if R_star is not too small
+        assert not np.allclose(output_box_SL, output_box_MS, atol=1e-4)
+
+
+@pytest.mark.parametrize("x_em", [0.0, 0.1, 0.5, 1.0, 5.0, 10.0, 50.0, 100.0, 500.0])
+def test_hyper_2F3(x_em):
+    """Test the implementation of the hypergeometric function in the C code."""
+    mu = lib.compute_mu_for_multiple_scattering(x_em)
+    eta = lib.compute_eta_for_multiple_scattering(x_em)
+
+    # Eq. (28) in arxiv: 2601.14360 (mu = alpha/(alpha+beta), eta = alpha/(alpha+beta^2))
+    if mu == 0.0 and eta == 0.0:
+        alpha = np.inf
+        beta = 0.0
+    else:
+        alpha = (1.0 / eta - 1.0) / pow(1.0 / mu - 1.0, 2)
+        beta = (1.0 / eta - 1.0) / (1.0 / mu - 1.0)
+
+    kR_array = np.logspace(-1, 3, 100)
+    hyper_python = np.array(
+        [
+            float(
+                mpmath.hyper(
+                    [(2.0 + alpha) / 2.0, (3.0 + alpha) / 2.0],
+                    [5.0 / 2.0, (2.0 + alpha + beta) / 2.0, (3.0 + alpha + beta) / 2.0],
+                    -0.25 * kR**2,
+                )
+            )
+            for kR in kR_array
+        ]
+    )
+    hyper_C = np.array([lib.hyper_2F3(kR, alpha, beta) for kR in kR_array])
+    np.testing.assert_allclose(hyper_python, hyper_C, rtol=0.0, atol=2e-3)

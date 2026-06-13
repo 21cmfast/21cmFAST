@@ -181,7 +181,7 @@ class _OutputStructComputationInspect:
 
         if recurse:
             for k, v in kwargs.items():
-                if hasattr(v, "__len__") and isinstance(v[0], OutputStruct):
+                if isinstance(v, (list, tuple)) and isinstance(v[0], OutputStruct):
                     d |= {f"{k}_{i}": vv for i, vv in enumerate(v)}
 
         return d

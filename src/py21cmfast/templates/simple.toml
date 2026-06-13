@@ -15,5 +15,5 @@ CELL_RECOMB = false
 USE_UPPER_STELLAR_TURNOVER = false
 USE_MINI_HALOS = false
 USE_TS_FLUCT = false
-INHOMO_RECO = false
+RECOMB_MODEL = 'none'
 HII_FILTER = 'sharp-k'

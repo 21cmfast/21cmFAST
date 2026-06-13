@@ -10,6 +10,14 @@
 #define M_MIN_INTEGRAL 1e5
 #define M_MAX_INTEGRAL 1e16
 
+#define HMF_PS 0
+#define HMF_ST 1
+#define HMF_WATSON 2
+#define HMF_WATSON_Z 3
+#define HMF_DELOS 4
+#define HMF_REED07 5
+#define HMF_YUNG24 6
+
 /* HMF Integrals */
 void initialise_GL(double lnM_Min, double lnM_Max);
 

@@ -19,6 +19,28 @@ class TestConvertInputsToDict:
         assert "ps_norm" in out["CosmoTables"]
         assert "USE_SIGMA_8" in out["CosmoTables"]
 
+    def test_minimal_preserves_empty_cosmo_tables(self, monkeypatch):
+        """Test that an intentionally empty CosmoTables dict is preserved in minimal mode."""
+
+        def _fake_asdict(self, **kwargs):
+            return {
+                "SimulationOptions": {},
+                "CosmoParams": {},
+                "MatterOptions": {},
+                "AstroOptions": {},
+                "AstroParams": {},
+                "CosmoTables": {},
+            }
+
+        monkeypatch.setattr(InputParameters, "asdict", _fake_asdict)
+
+        out = srlz.convert_inputs_to_dict(
+            InputParameters(random_seed=0), mode="minimal"
+        )
+
+        assert "CosmoTables" in out
+        assert out["CosmoTables"] == {}
+
     @pytest.mark.parametrize("mode", ["full", "minimal"])
     def test_default_with_nonstructs(self, mode):
         """Test also reading extra info like random_seed."""

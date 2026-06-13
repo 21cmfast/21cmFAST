@@ -10,6 +10,11 @@ from .wrapper._utils import camel_to_snake, snake_to_camel
 from .wrapper.inputs import CosmoTables, InputParameters, InputStruct, Table1D
 
 
+def _deserialize_cosmo_table(value: dict[str, Any] | Table1D | Any) -> Table1D | Any:
+    """Deserialize a CosmoTables subfield value to Table1D when needed."""
+    return Table1D(**value) if isinstance(value, dict) else value
+
+
 def convert_inputs_to_dict(
     inputs: InputParameters,
     mode: Literal["full", "minimal"] = "full",
@@ -17,6 +22,7 @@ def convert_inputs_to_dict(
     camel: bool = True,
     only_cstruct_params: bool = False,
     use_aliases: bool = True,
+    include_cosmo_tables: Literal["always", "if_cached", "never"] = "always",
 ) -> dict[str, dict[str, Any]]:
     """Convert an InputParameters object to a dictionary, with various options.
 
@@ -45,12 +51,19 @@ def convert_inputs_to_dict(
         If True, use correct aliases for parameters, which allows the dictionary
         to be passed back into the InputStruct constructors (e.g. use DIM instead
         of _DIM).
+    include_cosmo_tables
+        Controls whether derived ``cosmo_tables`` are emitted.
+
+        - ``"always"`` includes them and may materialize CLASS-derived tables.
+        - ``"if_cached"`` includes them only if already materialized on ``inputs``.
+        - ``"never"`` omits them.
     """
     kw = {
         "only_structs": only_structs,
         "camel": camel,
         "only_cstruct_params": only_cstruct_params,
         "use_aliases": use_aliases,
+        "include_cosmo_tables": include_cosmo_tables,
     }
     all_inputs = inputs.asdict(**kw)
 
@@ -58,10 +71,14 @@ def convert_inputs_to_dict(
         defaults = InputParameters(random_seed=0)
         default_dct = defaults.asdict(**kw)
         cosmo_tables_key = "CosmoTables" if camel else "cosmo_tables"
-        # we still want to keep cosmo_tables, even in minimal mode (since we want to keep ps_norm and USE_SIGMA_8)
-        cosmo_tables_dct = all_inputs[cosmo_tables_key].copy()
+        # we still want to keep cosmo_tables, even in minimal mode (since we want
+        # to keep ps_norm and USE_SIGMA_8), if they are present.
+        cosmo_tables_dct = None
+        if cosmo_tables_key in all_inputs:
+            cosmo_tables_dct = all_inputs[cosmo_tables_key].copy()
         all_inputs = recursive_difference(all_inputs, default_dct)
-        all_inputs[cosmo_tables_key] = cosmo_tables_dct
+        if cosmo_tables_dct is not None:
+            all_inputs[cosmo_tables_key] = cosmo_tables_dct
 
     return all_inputs
 
@@ -71,12 +88,31 @@ def prepare_inputs_for_serialization(
     mode: Literal["full", "minimal"] = "full",
     only_structs: bool = True,
     camel: bool = True,
+    include_cosmo_tables: Literal["always", "if_cached", "never"] = "always",
 ) -> dict[str, dict[str, Any]]:
     """Prepare an inputs class for serialization (to e.g. TOML, YAML or HDF5).
 
     This is a thin wrapper around :func:`~convert_inputs_to_dict` that also
     ensures that 'None' values are removed (so long as their default is also None)
     and that the parameter names map back to aliases of InputStruct attributes.
+
+    Parameters
+    ----------
+    inputs
+        The input parameters to convert.
+    mode
+        Either ``"full"`` or ``"minimal"``. ``"minimal"`` keeps only differences
+        from defaults (plus any included ``cosmo_tables``).
+    only_structs
+        If True, include only input-struct fields.
+    camel
+        If True, use CamelCase top-level struct keys.
+    include_cosmo_tables
+        Forwarded to :func:`convert_inputs_to_dict`.
+
+        Use ``"if_cached"`` for cache writes to avoid triggering expensive CLASS
+        computations, and ``"never"`` for template files that should not carry
+        derived tables.
     """
     dct = convert_inputs_to_dict(
         inputs,
@@ -84,6 +120,7 @@ def prepare_inputs_for_serialization(
         only_structs=only_structs,
         camel=camel,
         use_aliases=False,  # convert to aliases below instead.
+        include_cosmo_tables=include_cosmo_tables,
     )
 
     # dct is a dict of dicts, where each subdict represents a
@@ -107,6 +144,11 @@ def prepare_inputs_for_serialization(
     # we can simply leave it out of the written TOML (or HDF5) when its value is None,
     # and it will anyway be set to its own default if read back in.
     out = {}
+    if "random_seed" in dct:
+        out["random_seed"] = dct.pop("random_seed")
+    if "node_redshifts" in dct:
+        out["node_redshifts"] = dct.pop("node_redshifts")
+
     for structname, structvals in dct.items():
         this = {}
         clsname = snake_to_camel(structname)
@@ -134,7 +176,10 @@ def prepare_inputs_for_serialization(
 
 
 def deserialize_inputs(
-    dict_of_structdicts: dict[str, Any], safe: bool = True, **loose_params
+    dict_of_structdicts: dict[str, Any],
+    safe: bool = True,
+    include_cosmo_tables: bool = False,
+    **loose_params,
 ) -> dict[str, InputStruct]:
     """Construct a dictionary of InputStructs ready to be converted to InputParameters.
 
@@ -145,6 +190,12 @@ def deserialize_inputs(
         InputParameters (e.g. CosmoParams, SimulationOptions), and whose values
         are dictionaries of parameters specific to each struct. Not every parameter
         of every struct is required.
+    safe
+        Whether to raise on unrecognized/excess parameters.
+    include_cosmo_tables
+        Whether to deserialize the optional ``CosmoTables`` block if present.
+        This is intentionally a boolean because deserialization does not need the
+        tri-state behavior used when serializing.
 
     Other Parameters
     ----------------
@@ -169,9 +220,7 @@ def deserialize_inputs(
 
     input_dict = {}
     extra_params = {}
-    for structname, kls in (
-        InputStruct._subclasses | {"CosmoTables": CosmoTables}
-    ).items():
+    for structname, kls in InputStruct._subclasses.items():
         # Use field.alias instead of field.name because the alias is what needs
         # to be passed to the class constructor (e.g. "DIM" instead of "_DIM")
         fieldnames = [field.alias for field in attrs.fields(kls)]
@@ -200,6 +249,27 @@ def deserialize_inputs(
 
         if extra:
             extra_params[structname] = extra
+
+    if include_cosmo_tables:
+        structname = "CosmoTables"
+        fieldnames = [field.alias for field in attrs.fields(CosmoTables)]
+        kw_dict = {kk: loose_params.pop(kk) for kk in fieldnames if kk in loose_params}
+        these_all = dict_of_structdicts.pop(structname, {})
+        # Table1D instances may arrive either as serialized dicts (e.g. from HDF5/TOML)
+        # or as already-instantiated Table1D objects (e.g. in-memory call sites).
+        these = {
+            kk: _deserialize_cosmo_table(these_all[kk])
+            for kk in these_all
+            if kk in fieldnames
+        }
+        extra = {kk: these_all[kk] for kk in these_all if kk not in fieldnames}
+        arg_dict = {**these, **kw_dict}
+        if arg_dict:
+            input_dict[camel_to_snake(structname)] = CosmoTables.new(arg_dict)
+        if extra:
+            extra_params[structname] = extra
+    else:
+        dict_of_structdicts.pop("CosmoTables", None)
 
     if dict_of_structdicts:
         warnings.warn(

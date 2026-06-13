@@ -387,14 +387,19 @@ class Coeval:
 
         type_to_name = {}
         for k, v in selfdict.items():
+            # Try direct __name__ first (simple, non-generic types)
             try:
-                type_to_name[v.type.__name__] = k
-            except AttributeError:
-                # This means the field is a Union, so we need to check the args for the OutputStruct type
+                if issubclass(v.type, OutputStruct):
+                    type_to_name[v.type.__name__] = k
+            except TypeError:
+                # v.type is a generic alias (e.g. TsBox | None) — check args
                 for arg in get_args(v.type):
-                    if issubclass(arg, OutputStruct):
-                        type_to_name[arg.__name__] = k
-                        break
+                    try:
+                        if issubclass(arg, OutputStruct):
+                            type_to_name[arg.__name__] = k
+                            break
+                    except TypeError:
+                        continue  # arg is itself a generic alias, skip
 
         with h5py.File(path, "r") as fl:
             if not fl.attrs.get("coeval", False):
@@ -406,10 +411,16 @@ class Coeval:
             photoncons = {k: v[...] for k, v in grp.items()}
             keys.remove("photon_nonconservation_data")
 
-            kwargs = {
-                type_to_name[k]: h5.read_output_struct(path, struct=k, safe=safe)
-                for k in keys
-            }
+            kwargs = {}
+            for k in keys:
+                if k not in type_to_name:
+                    raise ValueError(
+                        f"HDF5 group '{k}' in {path} does not correspond to any "
+                        f"known OutputStruct field on {cls.__name__}."
+                    )
+                kwargs[type_to_name[k]] = h5.read_output_struct(
+                    path, struct=k, safe=safe
+                )
             return cls(photon_nonconservation_data=photoncons, **kwargs)
 
     def __eq__(self, other):
@@ -803,6 +814,7 @@ def _redshift_loop_generator(
                     this_xraysource = sf.compute_xray_source_field(
                         redshift=z,
                         hboxes=[*hbox_arr, this_halobox],
+                        previous_ionize_box=getattr(prev_coeval, "ionized_box", None),
                         write=write.xray_source_box,
                         **kw,
                     )
@@ -963,7 +975,7 @@ def _get_required_redshifts_coeval(
     # Turn into a set so that exact matching user-set redshift
     # don't double-up with scrolling ones.
     if (
-        (inputs.astro_options.USE_TS_FLUCT or inputs.astro_options.INHOMO_RECO)
+        inputs.evolution_required
         and user_redshifts
         and min(inputs.node_redshifts) > min(user_redshifts)
     ):

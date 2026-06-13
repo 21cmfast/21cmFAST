@@ -1,6 +1,6 @@
-=======
+========
 Authors
-=======
+========
 
 * Brad Greig - github.com/BradGreig
 * Andrei Mesinger - github.com/andreimesinger

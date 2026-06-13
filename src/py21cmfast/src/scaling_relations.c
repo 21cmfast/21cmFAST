@@ -38,7 +38,8 @@ void set_scaling_constants(double redshift, ScalingConstants *consts, bool use_p
 
     // Set on for the fixed grid case since we are missing halos above the cell mass
     consts->fix_mean =
-        matter_options_global->HMF == HMF_WATSON || matter_options_global->HMF == HMF_WATSON_Z;
+        matter_options_global->HMF == HMF_WATSON || matter_options_global->HMF == HMF_WATSON_Z ||
+        matter_options_global->HMF == HMF_REED07 || matter_options_global->HMF == HMF_YUNG24;
     // whether to fix *integrated* (not sampled) galaxy properties to the expected mean
     consts->scaling_median = astro_options_global->HALO_SCALING_RELATIONS_MEDIAN;
 
@@ -325,45 +326,63 @@ void get_halo_stellarmass(double halo_mass, double mturn_acg, double mturn_mcg, 
     double f_a_mini = consts->alpha_star_mini;
 
     // intermediates
-    double fstar_mean;
+    double mu_fstar, mu_fstar_mini;
     double f_sample, f_sample_mini;
-    double sm_sample, sm_sample_mini;
+    double star_mass_sample, star_mass_sample_mini;
 
     double baryon_ratio = cosmo_params_global->OMb / cosmo_params_global->OMm;
     // adjustment to the mean for lognormal scatter
     double stoc_adjustment_term = consts->scaling_median ? 0 : sigma_star * sigma_star / 2.;
 
+    // Set the mu parameter for the distribution (according to Eq. 10 in
+    // https://arxiv.org/pdf/2504.17254) NOTE: Since we have a constraint that the fraction of
+    // baryonic mass that is converted into stars must be less than unity,
+    //       we have to compute f_star first, and we treat it as the lognormal variable below.
+    //       Note also that Eq. 10 contains an additional exponent, it is absorbed in the line below
+    //       for f_sample for computational efficiency. Finally, the mu parameter is adjusted with
+    //       exp(-sigma^2 /2), in case we want to interpret it as the mean of the f_star
+    //       distribution, this exponent is also absorbed in the line for f_sample below, for
+    //       computational efficiency
     // We don't want an upturn even with a negative ALPHA_STAR
     if (astro_options_global->USE_UPPER_STELLAR_TURNOVER && (f_a > fu_a)) {
-        fstar_mean = scaling_double_PL(halo_mass, f_a, consts->upper_pivot_ratio, fu_a, fu_p);
+        mu_fstar = f_10 * scaling_double_PL(halo_mass, f_a, consts->upper_pivot_ratio, fu_a, fu_p);
     } else {
-        fstar_mean = scaling_single_PL(halo_mass, consts->alpha_star, 1e10);  // PL term
+        mu_fstar = f_10 * scaling_single_PL(halo_mass, consts->alpha_star, 1e10);
     }
     // 1e10 normalisation of stellar mass
-    f_sample = f_10 * fstar_mean *
-               exp(-mturn_acg / halo_mass + star_rng * sigma_star - stoc_adjustment_term);
+    // NOTE: while the lognormal distribution in the C code is with respect to base-e (since the rng
+    // variable distributes normally, and
+    //      we use an exponent below), the sigma parameters are converted from the user's specified
+    //      input ("sigma_user") in units of base-10 (dex) to base-e via dex2exp_transformer (in
+    //      inputs.py). Therefore, the samples below are effectively distributed as lognormal in
+    //      base-10, namely the log_10 of the sample distributes as a Gaussian with s.t.d equals to
+    //      sigma_user, while the mean (median) of the samples (not their logarithm!) is given by
+    //      the above mu_fstar, if HALO_SCALING_RELATIONS_MEDIAN = False (True)
+    f_sample =
+        mu_fstar * exp(-mturn_acg / halo_mass + star_rng * sigma_star - stoc_adjustment_term);
     if (f_sample > 1.) f_sample = 1.;
 
-    sm_sample = f_sample * halo_mass * baryon_ratio;
-    *star_acg = sm_sample;
+    star_mass_sample = f_sample * halo_mass * baryon_ratio;
+    *star_acg = star_mass_sample;
 
     if (!astro_options_global->USE_MINI_HALOS) {
         *star_mcg = 0.;
         return;
     }
 
-    f_sample_mini = scaling_single_PL(halo_mass, f_a_mini, 1e7) * f_7;
-    f_sample_mini *= exp(-mturn_mcg / halo_mass - halo_mass / consts->acg_thresh +
-                         star_rng * sigma_star - stoc_adjustment_term);
+    // See comments above for how f_sample_mini is distributed
+    mu_fstar_mini = f_7 * scaling_single_PL(halo_mass, f_a_mini, 1e7);
+    f_sample_mini = mu_fstar_mini * exp(-mturn_mcg / halo_mass - halo_mass / consts->acg_thresh +
+                                        star_rng * sigma_star - stoc_adjustment_term);
     if (f_sample_mini > 1.) f_sample_mini = 1.;
 
-    sm_sample_mini = f_sample_mini * halo_mass * baryon_ratio;
-    *star_mcg = sm_sample_mini;
+    star_mass_sample_mini = f_sample_mini * halo_mass * baryon_ratio;
+    *star_mcg = star_mass_sample_mini;
 }
 
 void get_halo_sfr(double stellar_mass, double stellar_mass_mini, double sfr_rng,
                   ScalingConstants *consts, double *sfr, double *sfr_mini) {
-    double sfr_mean, sfr_mean_mini;
+    double mu_sfr, mu_sfr_mini;
     double sfr_sample, sfr_sample_mini;
 
     double sigma_sfr_lim = consts->sigma_sfr_lim;
@@ -374,15 +393,30 @@ void get_halo_sfr(double stellar_mass, double stellar_mass_mini, double sfr_rng,
     double sigma_sfr = 0.;
 
     if (sigma_sfr_lim > 0.) {
+        // Set the sigma parameter for the distribution (according to Eq. 12 in
+        // https://arxiv.org/pdf/2504.17254)
         sigma_sfr =
             sigma_sfr_idx * log10((stellar_mass + stellar_mass_mini) / 1e10) + sigma_sfr_lim;
         if (sigma_sfr < sigma_sfr_lim) sigma_sfr = sigma_sfr_lim;
     }
-    sfr_mean = stellar_mass / (consts->t_star * consts->t_h);
+
+    // Set the mu parameter for the distribution (according to Eq. 11 in
+    // https://arxiv.org/pdf/2504.17254) Note that the mu parameter is adjusted with exp(-sigma^2
+    // /2), in case we want to interpret it as the mean of the sfr distribution, this exponent is
+    // absorbed in the line for sfr_sample below for computational efficiency
+    mu_sfr = stellar_mass / (consts->t_star * consts->t_h);
 
     // adjustment to the mean for lognormal scatter
     double stoc_adjustment_term = consts->scaling_median ? 0 : sigma_sfr * sigma_sfr / 2.;
-    sfr_sample = sfr_mean * exp(sfr_rng * sigma_sfr - stoc_adjustment_term);
+    // NOTE: while the lognormal distribution in the C code is with respect to base-e (since the rng
+    // variable distributes normally, and
+    //      we use an exponent below), the sigma parameters are converted from the user's specified
+    //      input ("sigma_user") in units of base-10 (dex) to base-e via dex2exp_transformer (in
+    //      inputs.py). Therefore, the samples below are effectively distributed as lognormal in
+    //      base-10, namely the log_10 of the sample distributes as a Gaussian with s.t.d equals to
+    //      sigma_user, while the mean (median) of the samples (not their logarithm!) is given by
+    //      the above mu_sfr, if HALO_SCALING_RELATIONS_MEDIAN = False (True)
+    sfr_sample = mu_sfr * exp(sfr_rng * sigma_sfr - stoc_adjustment_term);
     *sfr = sfr_sample;
 
     if (!astro_options_global->USE_MINI_HALOS) {
@@ -390,14 +424,16 @@ void get_halo_sfr(double stellar_mass, double stellar_mass_mini, double sfr_rng,
         return;
     }
 
-    sfr_mean_mini = stellar_mass_mini / (consts->t_star * consts->t_h);
-    sfr_sample_mini = sfr_mean_mini * exp(sfr_rng * sigma_sfr - stoc_adjustment_term);
+    // See comments above for how sfr_sample_mini is distributed
+    mu_sfr_mini = stellar_mass_mini / (consts->t_star * consts->t_h);
+    sfr_sample_mini = mu_sfr_mini * exp(sfr_rng * sigma_sfr - stoc_adjustment_term);
     *sfr_mini = sfr_sample_mini;
 }
 
 void get_halo_metallicity(double sfr, double stellar, double redshift, double *z_out) {
+    // This function follows Eq. 14 and 15 in https://arxiv.org/pdf/2504.17254
     // Hardcoded for now: 6 extra fit parameters in the equation
-    double z_denom, z_result;
+    double M0, z_sample;
     double redshift_scaling = pow(10, -0.056 * redshift + 0.064);
     double stellar_term = 1.;
 
@@ -408,32 +444,45 @@ void get_halo_metallicity(double sfr, double stellar, double redshift, double *z
     //   where M* ~ 1e-300, but if we change the SSFR relation to a MAR relation
     //   we will need to change this as well
     if (stellar > 0 && sfr > 0.) {
-        z_denom = (1.28825e10 * pow(sfr * physconst.s_per_yr, 0.56));
-        stellar_term = pow(1 + pow(stellar / z_denom, -2.1), -0.148);
+        M0 = (1.28825e10 * pow(sfr * physconst.s_per_yr, 0.56));
+        stellar_term = pow(1 + pow(stellar / M0, -2.1), -0.148);
     }
 
-    z_result = 1.23 * stellar_term * redshift_scaling;
+    z_sample = 1.23 * stellar_term * redshift_scaling;
 
-    *z_out = z_result;
+    *z_out = z_sample;
 }
 
 void get_halo_xray(double sfr, double sfr_mini, double metallicity, double xray_rng,
                    ScalingConstants *consts, double *xray_out) {
     double sigma_xray = consts->sigma_xray;
+    double mu_x, xray_sample;
 
-    // adjustment to the mean for lognormal scatter
-    double stoc_adjustment_term = consts->scaling_median ? 0 : sigma_xray * sigma_xray / 2.;
-    double rng_factor = exp(xray_rng * consts->sigma_xray - stoc_adjustment_term);
+    // Set the mu parameter for the distribution (according to Eq. 13 in
+    // https://arxiv.org/pdf/2504.17254) Note that the mu parameter is adjusted with exp(-sigma^2
+    // /2), in case we want to interpret it as the mean of the xray distribution, this exponent is
+    // absorbed in the line for xray_sample below for computational efficiency
+    mu_x = get_lx_on_sfr(sfr, metallicity, consts->l_x) * (sfr * physconst.s_per_yr);
 
-    double lx_over_sfr = get_lx_on_sfr(sfr, metallicity, consts->l_x);
-    double xray = lx_over_sfr * (sfr * physconst.s_per_yr) * rng_factor;
-
+    double mu_x_mini = 0.;
     if (astro_options_global->USE_MINI_HALOS) {
         // Since there *are* some SFR-dependent
         // models, this is done separately
-        lx_over_sfr = get_lx_on_sfr(sfr_mini, metallicity, consts->l_x_mini);
-        xray += lx_over_sfr * (sfr_mini * physconst.s_per_yr) * rng_factor;
+        mu_x_mini = get_lx_on_sfr(sfr_mini, metallicity, consts->l_x_mini) *
+                    (sfr_mini * physconst.s_per_yr);
     }
+    mu_x += mu_x_mini;
 
-    *xray_out = xray;
+    // adjustment to the mean for lognormal scatter
+    double stoc_adjustment_term = consts->scaling_median ? 0 : sigma_xray * sigma_xray / 2.;
+    // NOTE: while the lognormal distribution in the C code is with respect to base-e (since the rng
+    // variable distributes normally, and
+    //      we use an exponent below), the sigma parameters are converted from the user's specified
+    //      input ("sigma_user") in units of base-10 (dex) to base-e via dex2exp_transformer (in
+    //      inputs.py). Therefore, the samples below are effectively distributed as lognormal in
+    //      base-10, namely the log_10 of the sample distributes as a Gaussian with s.t.d equals to
+    //      sigma_user, while the mean (median) of the samples (not their logarithm!) is given by
+    //      the above mu_x, if HALO_SCALING_RELATIONS_MEDIAN = False (True)
+    xray_sample = mu_x * exp(xray_rng * consts->sigma_xray - stoc_adjustment_term);
+    *xray_out = xray_sample;
 }

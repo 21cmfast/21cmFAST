@@ -31,7 +31,7 @@ int ComputeBrightnessTemp(float redshift, TsBox *spin_temp, IonizedBox *ionized_
 int ComputeHaloBox(double redshift, InitialConditions *ini_boxes, HaloCatalog *halos,
                    TsBox *previous_spin_temp, IonizedBox *previous_ionize_box, HaloBox *grids);
 
-int UpdateXraySourceBox(HaloBox *halobox, double R_inner, double R_outer, int R_ct,
+int UpdateXraySourceBox(HaloBox *halobox, double R_inner, double R_outer, int R_ct, double R_star,
                         XraySourceBox *source_box);
 /*--------------------------*/
 
@@ -103,12 +103,12 @@ void get_global_Nion_z(int n_redshift, double *redshifts, double *log10_turnover
 void get_conditional_FgtrM(double redshift, double R, int n_densities, double *densities,
                            double *out_fcoll, double *out_dfcoll);
 void get_conditional_SFRD(double redshift, double R, int n_densities, double *densities,
-                          double *log10_mturns, double *out_sfrd, double *out_sfrd_mini);
+                          double log10_mturns_mini, double *out_sfrd, double *out_sfrd_mini);
 void get_conditional_Nion(double redshift, double R, int n_densities, double *densities,
-                          double *log10_mturns_acg, double *log10_mturns_mcg, double *out_nion,
+                          double log10_mturn_acg, double log10_mturn_mcg, double *out_nion,
                           double *out_nion_mini);
 void get_conditional_Xray(double redshift, double R, int n_densities, double *densities,
-                          double *log10_mturns, double *out_xray);
+                          double log10_mturns_mini, double *out_xray);
 /*--------------------------------*/
 
 /* Error framework testing */
@@ -127,7 +127,13 @@ int single_test_sample(unsigned long long int seed, int n_condition, float *cond
 int test_halo_props(double redshift, float *vcb_grid, float *J21_LW_grid, float *z_re_grid,
                     float *Gamma12_ion_grid, int n_halos, float *halo_masses, float *halo_coords,
                     float *star_rng, float *sfr_rnd, float *xray_rng, float *halo_props_out);
-int test_filter(float *input_box, double R, double R_param, int filter_flag, double *result);
+int test_filter(float *input_box, double R, double R_param, double R_star, int filter_flag,
+                double *result);
+
+// test functions for multiple scattering
+double compute_mu_for_multiple_scattering(double x_em);
+double compute_eta_for_multiple_scattering(double x_em);
+double hyper_2F3(double kR, double alpha, double beta);
 
 /* Functions required to access cosmology & mass functions directly */
 double dicke(double z);
@@ -140,4 +146,6 @@ double atomic_cooling_threshold(float z);
 double unconditional_hmf(double growthf, double lnM, double z, int HMF);
 double conditional_hmf(double growthf, double lnM, double delta, double sigma, int HMF);
 double expected_nhalo(double redshift);
+void compute_mturns(float z, float J_21_LW, float vcb, float Gamma12, float z_reion,
+                    double *M_turn_a, double *M_turn_m);
 /*-----------------------*/

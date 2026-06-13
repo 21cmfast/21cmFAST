@@ -142,7 +142,13 @@ def _write_inputs_to_group(
     grp.attrs["21cmFAST-version"] = __version__
 
     inputsdct = prepare_inputs_for_serialization(
-        inputs, mode="full", only_structs=True, camel=False
+        inputs,
+        mode="full",
+        only_structs=True,
+        camel=False,
+        # Cache files should persist cosmo tables only when already materialized,
+        # so serialization never forces a CLASS run on write.
+        include_cosmo_tables="if_cached",
     )
 
     # Write the input structs. Note that all the "work" for converting attributes
@@ -205,7 +211,7 @@ def write_outputs_to_group(
         new = array.written_to_disk(H5Backend(group.file.filename, f"{group.name}/{k}"))
         setattr(output, k, new)
 
-    for k in output.struct.primitive_fields:
+    for k in output._struct.primitive_fields:
         try:
             group.attrs[k] = getattr(output, k)
         except TypeError as e:
@@ -332,16 +338,25 @@ def read_inputs(
 def _read_inputs_v4(group: h5py.Group, safe: bool = True):
     # Read the input parameter dictionaries from file.
     kwargs = hdf5_to_dict(group)
+    has_cosmo_tables = "cosmo_tables" in kwargs
     del kwargs["21cmFAST-version"]
 
     # The node_redshifts and random_seed are treated differently.
     node_redshifts = kwargs.pop("node_redshifts")
     random_seed = kwargs.pop("random_seed")
 
-    kwargs = deserialize_inputs(kwargs, safe=safe)
-    return InputParameters(
+    kwargs = deserialize_inputs(kwargs, safe=safe, include_cosmo_tables=True)
+    cosmo_tables = kwargs.pop("cosmo_tables", None)
+    out = InputParameters(
         node_redshifts=node_redshifts, random_seed=random_seed, **kwargs
     )
+    if has_cosmo_tables and cosmo_tables is not None:
+        # Populate the cached_property slot directly so tables loaded from file are
+        # reused without recomputing or triggering the cached_property getter.
+        # InputParameters is frozen, and cached_property has no public setter, so
+        # direct slot assignment is required to pre-populate the cached value.
+        object.__setattr__(out, "cosmo_tables", cosmo_tables)
+    return out
 
 
 def _read_outputs(
