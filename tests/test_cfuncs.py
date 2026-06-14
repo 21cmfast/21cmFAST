@@ -697,7 +697,14 @@ def test_roundtrip_mturns(default_input_struct_ts):
     J_21_LW_global = global_evolution.quantities["J_21_LW"]
     z_reion_global = global_evolution.quantities["z_reion"]
     ionisation_rate_G12_global = global_evolution.quantities["ionisation_rate_G12"]
-    v_cb = inputs.astro_params.FIXED_VAVG if inputs.astro_options.FIX_VCB_AVG else 0.0
+    v_cb = (
+        inputs.astro_params.FIXED_VAVG
+        if (
+            inputs.matter_options.USE_RELATIVE_VELOCITIES
+            or inputs.astro_options.FIX_VCB_AVG
+        )
+        else 0.0
+    )
     # Given the above fields, compute mturns using the cfuncs function
     Mturn_a_global, M_turn_m_global = cf.compute_mturns(
         inputs=inputs,
