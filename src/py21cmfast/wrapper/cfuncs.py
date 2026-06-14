@@ -109,8 +109,9 @@ def compute_mturns(
     -------
     M_turn_a : array-like
         The turnover mass for atomic cooling halos at the given redshifts.
-    M_turn_m : array-like
+    M_turn_m : array-like or None
         The turnover mass for molecular cooling halos at the given redshifts.
+        Will be None if `USE_MINI_HALOS` is False.
 
     Raises
     ------
@@ -143,8 +144,12 @@ def compute_mturns(
     vfunc = np.vectorize(_scalar_call, otypes=[np.float64, np.float64])
     M_turn_a, M_turn_m = vfunc(redshifts, J_LW_21, v_cb, ionisation_rate_G12, z_reion)
 
+    if not inputs.astro_options.USE_MINI_HALOS:
+        M_turn_m = None
+
     if M_turn_a.ndim == 0:  # scalar input case
-        return float(M_turn_a), float(M_turn_m)
+        M_turn_m_float = None if M_turn_m is None else float(M_turn_m)
+        return float(M_turn_a), M_turn_m_float
     return M_turn_a, M_turn_m
 
 

@@ -123,7 +123,8 @@ def compute_global_reionization_at_z(
             .with_value(val=val * np.ones(shape)),
         )
     box.log10_Mturnover_ave = np.log10(M_turn_a)
-    box.log10_Mturnover_MINI_ave = np.log10(M_turn_m)
+    if M_turn_m is not None:
+        box.log10_Mturnover_MINI_ave = np.log10(M_turn_m)
     return box
 
 
