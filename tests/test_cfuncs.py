@@ -685,10 +685,19 @@ def test_removed_arguments_are_cleaned_up_in_v5():
         )
 
 
-def test_roundtrip_mturns(default_input_struct_ts):
+@pytest.mark.parametrize("use_relative_velocities", [True, False])
+@pytest.mark.parametrize("fix_vcb_avg", [True, False])
+def test_roundtrip_mturns(
+    default_input_struct_ts, use_relative_velocities, fix_vcb_avg
+):
     """Test that the mturns computed in the global evolution can be used to compute the same mturns through the compute_mturns function."""
     inputs = default_input_struct_ts.evolve_input_structs(
-        USE_MINI_HALOS=True, RECOMB_MODEL="inhomogeneous", K_MAX_FOR_CLASS=1.0
+        USE_MINI_HALOS=True,
+        RECOMB_MODEL="inhomogeneous",
+        K_MAX_FOR_CLASS=1.0,
+        USE_RELATIVE_VELOCITIES=use_relative_velocities,
+        FIX_VCB_AVG=fix_vcb_avg,
+        POWER_SPECTRUM="CLASS" if use_relative_velocities else "EH",
     )
     # Run global evolution and extract global fields
     global_evolution = p21c.run_global_evolution(inputs=inputs)
@@ -697,7 +706,11 @@ def test_roundtrip_mturns(default_input_struct_ts):
     J_21_LW_global = global_evolution.quantities["J_21_LW"]
     z_reion_global = global_evolution.quantities["z_reion"]
     ionisation_rate_G12_global = global_evolution.quantities["ionisation_rate_G12"]
-    v_cb = inputs.astro_params.FIXED_VAVG if inputs.astro_options.FIX_VCB_AVG else 0.0
+    v_cb = (
+        inputs.astro_params.FIXED_VAVG
+        if (use_relative_velocities or fix_vcb_avg)
+        else 0.0
+    )
     # Given the above fields, compute mturns using the cfuncs function
     Mturn_a_global, M_turn_m_global = cf.compute_mturns(
         inputs=inputs,

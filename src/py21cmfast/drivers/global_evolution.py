@@ -90,7 +90,14 @@ def compute_global_reionization_at_z(
     z_reion = -1.0 if Q_HI > 0.0 else redshift
 
     # Global v_cb is determined according to the flag FIX_VCB_AVG
-    v_cb = inputs.astro_params.FIXED_VAVG if inputs.astro_options.FIX_VCB_AVG else 0.0
+    v_cb = (
+        inputs.astro_params.FIXED_VAVG
+        if (
+            inputs.matter_options.USE_RELATIVE_VELOCITIES
+            or inputs.astro_options.FIX_VCB_AVG
+        )
+        else 0.0
+    )
 
     M_turn_a, M_turn_m = compute_mturns(
         inputs=inputs,
@@ -116,7 +123,8 @@ def compute_global_reionization_at_z(
             .with_value(val=val * np.ones(shape)),
         )
     box.log10_Mturnover_ave = np.log10(M_turn_a)
-    box.log10_Mturnover_MINI_ave = np.log10(M_turn_m)
+    if M_turn_m is not None:
+        box.log10_Mturnover_MINI_ave = np.log10(M_turn_m)
     return box
 
 
