@@ -6,7 +6,7 @@
 
 [MatterOptions]
 SOURCE_MODEL = 'CHMF-SAMPLER'
-USE_RELATIVE_VELOCITIES = true
+V_CB_MODEL = 'FLUCTS'
 
 [AstroParams]
 R_BUBBLE_MAX = 50.0

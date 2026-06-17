@@ -93,7 +93,7 @@ def compute_global_reionization_at_z(
     v_cb = (
         inputs.astro_params.FIXED_VAVG
         if (
-            inputs.matter_options.USE_RELATIVE_VELOCITIES
+            inputs.matter_options.V_CB_MODEL == "FLUCTS"
             or inputs.astro_options.FIX_VCB_AVG
         )
         else 0.0

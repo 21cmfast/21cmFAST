@@ -106,7 +106,7 @@ def show_references(inputs: InputParameters, lightcone=True, print_to_stdout=Tru
             "no. 1, pp. 123–140, 2020. https://doi.org/10.1093/mnras/staa1131.\n\n"
         )
 
-    if inputs.matter_options.USE_RELATIVE_VELOCITIES:
+    if inputs.matter_options.V_CB_MODEL != "NONE":
         ref_string += (
             "With improvements and DM-baryon relative velocity model in:\n"
             "===========================================================\n"

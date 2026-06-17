@@ -497,9 +497,9 @@ class TestMatterOptions:
                 USE_INTERPOLATION_TABLES="sigma-interpolation",
             )
 
-        msg = r"Can only use 'CLASS' power spectrum with relative velocities"
+        msg = r"Can only use 'CLASS' power spectrum with V_CB_MODEL='FLUCTS'!"
         with pytest.raises(ValueError, match=msg):
-            MatterOptions(USE_RELATIVE_VELOCITIES=True, POWER_SPECTRUM="EH")
+            MatterOptions(V_CB_MODEL="FLUCTS", POWER_SPECTRUM="EH")
 
         msg = r"The conditional mass functions requied for the discrete halo field"
         with pytest.raises(NotImplementedError, match=msg):
@@ -614,9 +614,9 @@ class TestInputParameters:
             },
         ),
         (
-            "USE_MINI_HALOS needs USE_RELATIVE_VELOCITIES",
+            "USE_MINI_HALOS needs a non-trivial V_CB_MODEL",
             {
-                "matter_options": MatterOptions(USE_RELATIVE_VELOCITIES=False),
+                "matter_options": MatterOptions(V_CB_MODEL="NONE"),
                 "astro_options": AstroOptions(
                     USE_MINI_HALOS=True, RECOMB_MODEL="inhomogeneous", USE_TS_FLUCT=True
                 ),

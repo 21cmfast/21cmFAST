@@ -637,15 +637,16 @@ class MatterOptions(InputStruct):
         Flag to decide whether to use relative velocities.
         If True, POWER_SPECTRUM is automatically set to 5. Default False.
     POWER_SPECTRUM
-        Determines which power spectrum to use, default EH (unless `USE_RELATIVE_VELOCITIES`
-        is True). Use the following codes:
+        Determines which power spectrum to use, default EH (unless `V_CB_MODEL`
+        is "FLUCTS"). Use the following codes:
 
         * EH : Eisenstein & Hu 1999
         * BBKS: Bardeen et al. 1986
         * EFSTATHIOU: Efstathiou et al. 1992
         * PEEBLES: Peebles 1980
         * WHITE: White 1985
-        * CLASS: Uses fits from the CLASS code
+        * CLASS: Runs the CLASS code to compute the power spectrum. This is the most precise, but also the slowest (can take ~30 seconds
+          at most and can be reduced if USE_MINI_HALOS=False or K_MAX_FOR_CLASS is set to a low value).
     PERTURB_ON_HIGH_RES
         Whether to perform the Zel'Dovich or 2LPT perturbation on the low or high
         resolution grid.
@@ -699,6 +700,17 @@ class MatterOptions(InputStruct):
     KEEP_3D_VELOCITIES
         Whether to keep the 3D velocities in the ICs.
         If False, only the z velocity is kept.
+    V_CB_MODEL
+        The model to use for the relative velocity field between the (cold) dark matter and the baryons,
+        at the moment of kinematic decoupling. Options are:
+
+        * ``NONE``: Zero relative velocity is assumed.
+        * ``AVG-AUTO``: The mean relative velocity is used in every cell in the box. It computed from linear theory,
+          given the cosmological parameters.
+        * ``FLUCTS``: The relative velocity field is computed on the Lagrangian grid using linear theory. The relative velocity field
+          is assumed to be curl-free and completely correlated with the density field (in Fourier space).
+        * ``AVG-DEBUG``: A single value of the relative velocity is used in every cell in the box. It is set by the ``V_CB_AVG_DEBUG``
+        parameter in AstroParams. This is only for debugging purposes and should not be used in production.
     SOURCE_MODEL
         The source model to use in the simulation. Options are:
 
@@ -729,7 +741,10 @@ class MatterOptions(InputStruct):
     HMF: Literal["PS", "ST", "WATSON", "WATSON-Z", "DELOS", "REED07", "YUNG24"] = (
         choice_field(default="ST")
     )
-    USE_RELATIVE_VELOCITIES: bool = field(default=False, converter=bool)
+    _USE_RELATIVE_VELOCITIES: bool = field(
+        default=None, converter=attrs.converters.optional(bool)
+    )
+    V_CB_MODEL: Literal["NONE", "AVG-AUTO", "FLUCTS", "AVG-DEBUG"] = choice_field()
     POWER_SPECTRUM: Literal["EH", "BBKS", "EFSTATHIOU", "PEEBLES", "WHITE", "CLASS"] = (
         choice_field()
     )
@@ -762,13 +777,59 @@ class MatterOptions(InputStruct):
 
     @POWER_SPECTRUM.default
     def _ps_default(self):
-        return "CLASS" if self.USE_RELATIVE_VELOCITIES else "EH"
+        return "CLASS" if self.V_CB_MODEL == "FLUCTS" else "EH"
 
     @POWER_SPECTRUM.validator
     def _POWER_SPECTRUM_vld(self, att, val):
-        if self.USE_RELATIVE_VELOCITIES and val != "CLASS":
+        if self.V_CB_MODEL == "FLUCTS" and val != "CLASS":
             raise ValueError(
-                "Can only use 'CLASS' power spectrum with relative velocities"
+                "Can only use 'CLASS' power spectrum with V_CB_MODEL='FLUCTS'! "
+                "Please set POWER_SPECTRUM to 'CLASS' or change V_CB_MODEL to something else."
+            )
+
+    @cached_property
+    def USE_RELATIVE_VELOCITIES(self) -> bool:
+        """Whether to use the fluctuating field of the relative velocity between (cold) dark matter and baryons.
+
+        This is a deprecated property, and will be removed in a future version. Please use V_CB_MODEL instead.
+        """
+        if self._USE_RELATIVE_VELOCITIES is None:
+            # User didn't explicitly set USE_RELATIVE_VELOCITIES, infer from V_CB_MODEL
+            return self.V_CB_MODEL == "FLUCTS"
+        else:
+            return self._USE_RELATIVE_VELOCITIES
+
+    @V_CB_MODEL.default
+    def _default_v_cb_model(self):
+        if self._USE_RELATIVE_VELOCITIES is None:
+            return "NONE"
+
+        warnings.warn(
+            deprecation.DeprecatedWarning(
+                "USE_RELATIVE_VELOCITIES",
+                deprecated_in="4.3.0",
+                removed_in="5.0.0",
+                details=(
+                    "USE_RELATIVE_VELOCITIES is deprecated and will be removed in a future version. "
+                    "Please use V_CB_MODEL directly instead."
+                ),
+            ),
+            stacklevel=2,
+        )
+
+        return "FLUCTS" if self._USE_RELATIVE_VELOCITIES else "NONE"
+
+    @V_CB_MODEL.validator
+    def _v_cb_model_vld(self, att, val):
+        if self._USE_RELATIVE_VELOCITIES is True and val == "NONE":
+            raise ValueError(
+                "V_CB_MODEL is set to 'NONE' but USE_RELATIVE_VELOCITIES is True! "
+                "Either set USE_RELATIVE_VELOCITIES to False or change V_CB_MODEL to 'FLUCTS'."
+            )
+        if self._USE_RELATIVE_VELOCITIES is False and val != "NONE":
+            raise ValueError(
+                f"V_CB_MODEL is set to '{val}' but USE_RELATIVE_VELOCITIES is False! "
+                "Either set USE_RELATIVE_VELOCITIES to True or change V_CB_MODEL to 'FLUCTS'."
             )
 
     @SOURCE_MODEL.validator
@@ -1808,9 +1869,9 @@ class InputParameters:
         if self.matter_options is None:
             return
         if val.USE_MINI_HALOS:
-            if not self.matter_options.USE_RELATIVE_VELOCITIES and not val.FIX_VCB_AVG:
+            if self.matter_options.V_CB_MODEL == "NONE":
                 warnings.warn(
-                    "USE_MINI_HALOS needs USE_RELATIVE_VELOCITIES to get the right evolution!",
+                    "USE_MINI_HALOS needs a non-trivial V_CB_MODEL to get the right evolution!",
                     stacklevel=2,
                 )
             if self.matter_options.SOURCE_MODEL == "CONST-ION-EFF":

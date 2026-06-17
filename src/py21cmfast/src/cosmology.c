@@ -286,9 +286,9 @@ double power_in_k(double k) {
         primordial = primordial_curvature_power_spectrum(k);
         p = cosmo_consts.sigma_norm * primordial * T * T / pow(k, 3);
 
-        // NOTE: USE_RELATIVE_VELOCITIES is only allowed if using CLASS
+        // NOTE: V_CB_MODEL_FLUCTS is only allowed if using CLASS
         if (matter_options_global->POWER_SPECTRUM == POWER_SPECTRUM_CLASS &&
-            matter_options_global->USE_RELATIVE_VELOCITIES) {
+            uses_v_cb(matter_options_global->V_CB_MODEL)) {
             // jbm:Add average relvel suppression
             p *= 1.0 - A_VCB_PM * exp(-pow(log(k / KP_VCB_PM), 2.0) /
                                       (2.0 * SIGMAK_VCB_PM * SIGMAK_VCB_PM));
@@ -319,7 +319,7 @@ double power_in_vcb(double k) {
         }
     } else {
         LOG_ERROR(
-            "Cannot get P_cb unless using CLASS: %i\n Set USE_RELATIVE_VELOCITIES 0 or use "
+            "Cannot get P_cb unless using CLASS: %i\n Set V_CB_MODEL != V_CB_MODEL_NO or use "
             "CLASS.\n",
             matter_options_global->POWER_SPECTRUM);
         Throw(ValueError);

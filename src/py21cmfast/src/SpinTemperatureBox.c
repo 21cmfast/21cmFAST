@@ -541,7 +541,7 @@ void prepare_filter_boxes(double redshift, float *input_dens, float *input_vcb, 
                     ct = grid_index_general(i, j, k, box_dim);
                     index_f = grid_index_fftw_r(i, j, k, box_dim);
                     if (!astro_options_global->FIX_VCB_AVG &&
-                        matter_options_global->USE_RELATIVE_VELOCITIES) {
+                        matter_options_global->V_CB_MODEL == V_CB_MODEL_FLUCTS) {
                         curr_vcb = input_vcb[ct];
                     }
                     curr_j21 = input_j21[ct];

@@ -426,7 +426,7 @@ void calculate_mcrit_boxes(IonizedBox *prev_ionbox, TsBox *spin_temp, InitialCon
                                                      prev_ionbox->ionisation_rate_G12[index],
                                                      prev_ionbox->z_reion[index]);
 
-                    if (matter_options_global->USE_RELATIVE_VELOCITIES &&
+                    if (matter_options_global->V_CB_MODEL == V_CB_MODEL_FLUCTS &&
                         !astro_options_global->FIX_VCB_AVG)
                         curr_vcb = ini_boxes->lowres_vcb[index];
 

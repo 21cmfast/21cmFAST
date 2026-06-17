@@ -484,7 +484,7 @@ void get_log10_turnovers(InitialConditions *ini_boxes, TsBox *previous_spin_temp
 #pragma omp for reduction(+ : log10_mturn_m_avg, log10_mturn_a_avg)
         for (i = 0; i < HII_TOT_NUM_PIXELS; i++) {
             if (!astro_options_global->FIX_VCB_AVG &&
-                matter_options_global->USE_RELATIVE_VELOCITIES) {
+                matter_options_global->V_CB_MODEL == V_CB_MODEL_FLUCTS) {
                 curr_vcb = ini_boxes->lowres_vcb[i];
             }
             J21_val = Gamma12_val = zre_val = 0.;
@@ -722,7 +722,7 @@ int test_halo_props(double redshift, float *vcb_grid, float *J21_LW_grid, float 
                 // not done previously
                 if (astro_options_global->USE_MINI_HALOS) {
                     if (!astro_options_global->FIX_VCB_AVG &&
-                        matter_options_global->USE_RELATIVE_VELOCITIES)
+                        matter_options_global->V_CB_MODEL == V_CB_MODEL_FLUCTS)
                         curr_vcb = vcb_grid[i_cell];
 
                     J21_val = Gamma12_val = zre_val = 0.;

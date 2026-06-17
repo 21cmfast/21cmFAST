@@ -5,6 +5,7 @@
 
 typedef int hmf_model_t;
 typedef int source_model_t;
+typedef int v_cb_model_t;
 typedef int integration_method_t;
 
 typedef struct CosmoParams {
@@ -61,7 +62,7 @@ typedef struct SimulationOptions {
 typedef struct MatterOptions {
     bool USE_FFTW_WISDOM;
     hmf_model_t HMF;
-    int USE_RELATIVE_VELOCITIES;
+    v_cb_model_t V_CB_MODEL;
     int POWER_SPECTRUM;
     int USE_INTERPOLATION_TABLES;
     bool PERTURB_ON_HIGH_RES;

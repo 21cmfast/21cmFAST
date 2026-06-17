@@ -6,7 +6,7 @@
 
 [MatterOptions]
 SOURCE_MODEL = 'E-INTEGRAL'
-USE_RELATIVE_VELOCITIES = false
+V_CB_MODEL = 'FLUCTS'
 
 [AstroParams]
 F_STAR10 = -1.25
