@@ -685,7 +685,7 @@ def test_removed_arguments_are_cleaned_up_in_v5():
         )
 
 
-@pytest.mark.parametrize("v_cb_model", ["NONE", "AVG-AUTO", "FLUCTS"])
+@pytest.mark.parametrize("v_cb_model", ["NONE", "FLUCTS", "AVG-DEBUG"])
 def test_roundtrip_mturns(default_input_struct_ts, v_cb_model):
     """Test that the mturns computed in the global evolution can be used to compute the same mturns through the compute_mturns function."""
     inputs = default_input_struct_ts.evolve_input_structs(
@@ -703,8 +703,8 @@ def test_roundtrip_mturns(default_input_struct_ts, v_cb_model):
     z_reion_global = global_evolution.quantities["z_reion"]
     ionisation_rate_G12_global = global_evolution.quantities["ionisation_rate_G12"]
     v_cb = (
-        inputs.astro_params.FIXED_VAVG
-        if (v_cb_model == "FLUCTS" or v_cb_model == "AVG-AUTO")
+        inputs.astro_params.V_CB_AVG_DEBUG
+        if (v_cb_model == "FLUCTS" or v_cb_model == "AVG-DEBUG")
         else 0.0
     )
     # Given the above fields, compute mturns using the cfuncs function

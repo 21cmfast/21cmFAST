@@ -91,10 +91,10 @@ def compute_global_reionization_at_z(
 
     # Global v_cb is determined according to V_CB_MODEL
     v_cb = (
-        inputs.astro_params.FIXED_VAVG
+        inputs.astro_params.V_CB_AVG_DEBUG
         if (
             inputs.matter_options.V_CB_MODEL == "FLUCTS"
-            or inputs.matter_options.V_CB_MODEL == "AVG-AUTO"
+            or inputs.matter_options.V_CB_MODEL == "AVG-DEBUG"
         )
         else 0.0
     )

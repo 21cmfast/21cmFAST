@@ -1284,7 +1284,7 @@ class AstroOptions(InputStruct):
         default=None, converter=attrs.converters.optional(bool)
     )
     USE_TS_FLUCT: bool = field(default=False, converter=bool)
-    FIX_VCB_AVG: bool | None = field(
+    _FIX_VCB_AVG: bool | None = field(
         default=None, converter=attrs.converters.optional(bool)
     )
     USE_EXP_FILTER: bool = field(default=True, converter=bool)
@@ -1306,22 +1306,16 @@ class AstroOptions(InputStruct):
     INTEGRATION_METHOD_ATOMIC: IntegralMethods = choice_field(default="GAUSS-LEGENDRE")
     INTEGRATION_METHOD_MINI: IntegralMethods = choice_field(default="GAUSS-LEGENDRE")
 
-    @FIX_VCB_AVG.validator
-    def _fix_vcb_avg_vld(self, att, val):
-        if val is not None:
-            # User set explicitly FIX_VCB_AVG, raise a warning that it is deprecated and will be removed in a future version
-            warnings.warn(
-                deprecation.DeprecatedWarning(
-                    "FIX_VCB_AVG",
-                    deprecated_in="4.3.0",
-                    removed_in="5.0.0",
-                    details=(
-                        "FIX_VCB_AVG is deprecated and will be removed in a future version. "
-                        "Please use V_CB_MODEL directly instead."
-                    ),
-                ),
-                stacklevel=2,
-            )
+    @cached_property
+    def FIX_VCB_AVG(self) -> bool:
+        """Whether to fix the relative velocity between (cold) dark matter and baryons on a constant mean value from linear perturbation theory.
+
+        This is a deprecated property, and will be removed in a future version. Please use V_CB_MODEL instead.
+        """
+        if self._FIX_VCB_AVG is None:
+            return None
+        else:
+            return self._FIX_VCB_AVG
 
     @cached_property
     def INHOMO_RECO(self) -> bool:
@@ -1520,9 +1514,15 @@ class AstroParams(InputStruct):
         Lognormal scatter (dex) of the Xray luminosity relation (a function of stellar
         mass, star formation rate and redshift). This scatter is uniform across all
         halo properties and redshifts.
-    FIXED_VAVG : float, optional
-        The fixed value of the average velocity used when MatterOptions.V_CB_MODEL is
-        "AVG-AUTO".
+    FIXED_VAVG : float or None, optional
+        A possible input that sets a fixed constant value of the relative velocity between (cold) dark matter and baryons,
+        in units of km/s. Becomes relevant only when AstroOptions.FIX_VCB_AVG is True.
+        This parameter is deprecated and will be removed in a future version, see V_CB_AVG_DEBUG for the new way to directly
+        control this parameter.
+    V_CB_AVG_DEBUG : float, optional
+        A possible input that sets a fixed constant value of the relative velocity between (cold) dark matter and baryons,
+        in units of km/s. Should be used only for debugging and testing purposes.
+        Becomes relevant only when MatterOptions.V_CB_MODEL is "AVG-DEBUG".
     POP2_ION: float, optional
         Number of ionizing photons per baryon produced by Pop II stars.
     POP3_ION: float, optional
@@ -1633,9 +1633,11 @@ class AstroParams(InputStruct):
     )
 
     T_RE: float = field(default=2e4, converter=float)
-    FIXED_VAVG: float = field(
-        default=25.86, converter=float, validator=validators.gt(0)
+    _FIXED_VAVG: bool | None = field(
+        default=None, converter=attrs.converters.optional(float)
     )
+    V_CB_AVG_DEBUG: float = field(converter=float, validator=validators.gt(0))
+
     POP2_ION: float = field(default=5000.0, converter=float)
     POP3_ION: float = field(default=44021.0, converter=float)
 
@@ -1698,6 +1700,36 @@ class AstroParams(InputStruct):
                 NU_X_MAX
                 """
             )
+
+    @cached_property
+    def FIXED_VAVG(self) -> bool:
+        """A fixed constant value of the relative velocity between (cold) dark matter and baryons, in units of km/s.
+
+        Becomes relevant only when AstroOptions.FIX_VCB_AVG is True.
+
+        This is a deprecated property, and will be removed in a future version. Please use V_CB_AVG_DEBUG instead.
+        """
+        return self._FIXED_VAVG
+
+    @V_CB_AVG_DEBUG.default
+    def _default_v_cb_avg_debug(self):
+        if self._FIXED_VAVG is None:
+            return 25.86  # Nice default value in km/s
+
+        warnings.warn(
+            deprecation.DeprecatedWarning(
+                "FIXED_VAVG",
+                deprecated_in="4.2.0",
+                removed_in="5.0.0",
+                details=(
+                    "FIXED_VAVG is deprecated and will be removed in a future version. "
+                    "Please use V_CB_AVG_DEBUG directly instead."
+                ),
+            ),
+            stacklevel=2,
+        )
+
+        return self._FIXED_VAVG
 
 
 class InputCrossValidationError(ValueError):
@@ -1900,25 +1932,36 @@ class InputParameters:
                 raise ValueError(
                     "SOURCE_MODEL == 'CONST-ION-EFF' is not compatible with USE_MINI_HALOS=True"
                 )
-
-        if (
-            self.astro_options.FIX_VCB_AVG is not None
-            and not self.astro_options.FIX_VCB_AVG
-            and self.matter_options.V_CB_MODEL == "AVG-AUTO"
-        ):
-            raise ValueError(
-                "FIX_VCB_AVG=False is not compatible with V_CB_MODEL == 'AVG-AUTO'! "
-                "Either change V_CB_MODEL or set FIX_VCB_AVG to True."
+        if self.astro_options.FIX_VCB_AVG is not None:
+            # User set explicitly FIX_VCB_AVG, raise a warning that it is deprecated and will be removed in a future version
+            warnings.warn(
+                deprecation.DeprecatedWarning(
+                    "FIX_VCB_AVG",
+                    deprecated_in="4.3.0",
+                    removed_in="5.0.0",
+                    details=(
+                        "FIX_VCB_AVG is deprecated and will be removed in a future version. "
+                        "Please use V_CB_MODEL directly instead."
+                    ),
+                ),
+                stacklevel=2,
             )
-        elif (
-            self.astro_options.FIX_VCB_AVG is not None
-            and self.astro_options.FIX_VCB_AVG
-            and self.matter_options.V_CB_MODEL != "AVG-AUTO"
-        ):
-            raise ValueError(
-                "FIX_VCB_AVG=True is not compatible with V_CB_MODEL != 'AVG-AUTO'! "
-                "Either change V_CB_MODEL or set FIX_VCB_AVG to False."
-            )
+            if (
+                not self.astro_options.FIX_VCB_AVG
+                and self.matter_options.V_CB_MODEL == "AVG-AUTO"
+            ):
+                raise ValueError(
+                    "FIX_VCB_AVG=False is not compatible with V_CB_MODEL == 'AVG-AUTO'! "
+                    "Either change V_CB_MODEL or set FIX_VCB_AVG to True."
+                )
+            elif (
+                self.astro_options.FIX_VCB_AVG
+                and self.matter_options.V_CB_MODEL != "AVG-AUTO"
+            ):
+                raise ValueError(
+                    "FIX_VCB_AVG=True is not compatible with V_CB_MODEL != 'AVG-AUTO'! "
+                    "Either change V_CB_MODEL or set FIX_VCB_AVG to False."
+                )
 
         if self.matter_options.lagrangian_source_grid:
             if val.PHOTON_CONS_TYPE == "z-photoncons":

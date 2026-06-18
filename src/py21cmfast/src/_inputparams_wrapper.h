@@ -120,7 +120,7 @@ typedef struct AstroParams {
     double A_VCB;
     double BETA_VCB;
 
-    double FIXED_VAVG;
+    double V_CB_AVG_DEBUG;
     double POP2_ION;
     double POP3_ION;
 

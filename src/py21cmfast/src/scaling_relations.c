@@ -85,8 +85,8 @@ void set_scaling_constants(double redshift, ScalingConstants *consts, bool use_p
 
     consts->mturn_m_nofb = 0.;
     if (astro_options_global->USE_MINI_HALOS) {
-        consts->vcb_const = matter_options_global->V_CB_MODEL == V_CB_MODEL_AVG_AUTO
-                                ? astro_params_global->FIXED_VAVG
+        consts->vcb_const = matter_options_global->V_CB_MODEL == V_CB_MODEL_AVG_DEBUG
+                                ? astro_params_global->V_CB_AVG_DEBUG
                                 : 0;
         consts->mturn_m_nofb = lyman_werner_threshold(redshift, 0., consts->vcb_const);
     }
