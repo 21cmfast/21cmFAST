@@ -532,7 +532,9 @@ void prepare_filter_boxes(double redshift, float *input_dens, float *input_vcb, 
     }
 
     if (astro_options_global->USE_MINI_HALOS) {
-        curr_vcb = astro_options_global->FIX_VCB_AVG ? astro_params_global->FIXED_VAVG : 0;
+        curr_vcb = matter_options_global->V_CB_MODEL == V_CB_MODEL_AVG_AUTO
+                       ? astro_params_global->FIXED_VAVG
+                       : 0;
 #pragma omp parallel for firstprivate(curr_vcb) private(i, j, k, curr_j21, M_buf, ct, index_f) \
     num_threads(simulation_options_global->N_THREADS) collapse(3)
         for (i = 0; i < box_dim[0]; i++) {
@@ -540,8 +542,7 @@ void prepare_filter_boxes(double redshift, float *input_dens, float *input_vcb, 
                 for (k = 0; k < box_dim[2]; k++) {
                     ct = grid_index_general(i, j, k, box_dim);
                     index_f = grid_index_fftw_r(i, j, k, box_dim);
-                    if (!astro_options_global->FIX_VCB_AVG &&
-                        matter_options_global->V_CB_MODEL == V_CB_MODEL_FLUCTS) {
+                    if (matter_options_global->V_CB_MODEL == V_CB_MODEL_FLUCTS) {
                         curr_vcb = input_vcb[ct];
                     }
                     curr_j21 = input_j21[ct];

@@ -685,16 +685,14 @@ def test_removed_arguments_are_cleaned_up_in_v5():
         )
 
 
-@pytest.mark.parametrize("v_cb_model", ["NONE", "FLUCTS"])
-@pytest.mark.parametrize("fix_vcb_avg", [True, False])
-def test_roundtrip_mturns(default_input_struct_ts, v_cb_model, fix_vcb_avg):
+@pytest.mark.parametrize("v_cb_model", ["NONE", "AVG-AUTO", "FLUCTS"])
+def test_roundtrip_mturns(default_input_struct_ts, v_cb_model):
     """Test that the mturns computed in the global evolution can be used to compute the same mturns through the compute_mturns function."""
     inputs = default_input_struct_ts.evolve_input_structs(
         USE_MINI_HALOS=True,
         RECOMB_MODEL="inhomogeneous",
         K_MAX_FOR_CLASS=1.0,
         V_CB_MODEL=v_cb_model,
-        FIX_VCB_AVG=fix_vcb_avg,
         POWER_SPECTRUM="CLASS" if v_cb_model == "FLUCTS" else "EH",
     )
     # Run global evolution and extract global fields
@@ -706,7 +704,7 @@ def test_roundtrip_mturns(default_input_struct_ts, v_cb_model, fix_vcb_avg):
     ionisation_rate_G12_global = global_evolution.quantities["ionisation_rate_G12"]
     v_cb = (
         inputs.astro_params.FIXED_VAVG
-        if (v_cb_model == "FLUCTS" or fix_vcb_avg)
+        if (v_cb_model == "FLUCTS" or v_cb_model == "AVG-AUTO")
         else 0.0
     )
     # Given the above fields, compute mturns using the cfuncs function

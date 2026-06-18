@@ -426,8 +426,7 @@ void calculate_mcrit_boxes(IonizedBox *prev_ionbox, TsBox *spin_temp, InitialCon
                                                      prev_ionbox->ionisation_rate_G12[index],
                                                      prev_ionbox->z_reion[index]);
 
-                    if (matter_options_global->V_CB_MODEL == V_CB_MODEL_FLUCTS &&
-                        !astro_options_global->FIX_VCB_AVG)
+                    if (matter_options_global->V_CB_MODEL == V_CB_MODEL_FLUCTS)
                         curr_vcb = ini_boxes->lowres_vcb[index];
 
                     Mcrit_LW = lyman_werner_threshold(consts->redshift, spin_temp->J_21_LW[index],

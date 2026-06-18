@@ -89,12 +89,12 @@ def compute_global_reionization_at_z(
     # TODO: is there a more clever way to estimate global z_reion?
     z_reion = -1.0 if Q_HI > 0.0 else redshift
 
-    # Global v_cb is determined according to the flag FIX_VCB_AVG
+    # Global v_cb is determined according to V_CB_MODEL
     v_cb = (
         inputs.astro_params.FIXED_VAVG
         if (
             inputs.matter_options.V_CB_MODEL == "FLUCTS"
-            or inputs.astro_options.FIX_VCB_AVG
+            or inputs.matter_options.V_CB_MODEL == "AVG-AUTO"
         )
         else 0.0
     )

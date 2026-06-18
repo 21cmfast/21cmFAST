@@ -145,7 +145,6 @@ typedef struct AstroOptions {
     int RECOMB_MODEL;
     bool USE_TS_FLUCT;
     bool M_MIN_in_Mass;
-    bool FIX_VCB_AVG;
     bool USE_EXP_FILTER;
     bool CELL_RECOMB;
     bool LYA_MULTIPLE_SCATTERING;

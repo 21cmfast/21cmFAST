@@ -85,7 +85,9 @@ void set_scaling_constants(double redshift, ScalingConstants *consts, bool use_p
 
     consts->mturn_m_nofb = 0.;
     if (astro_options_global->USE_MINI_HALOS) {
-        consts->vcb_norel = astro_options_global->FIX_VCB_AVG ? astro_params_global->FIXED_VAVG : 0;
+        consts->vcb_norel = matter_options_global->V_CB_MODEL == V_CB_MODEL_AVG_AUTO
+                                ? astro_params_global->FIXED_VAVG
+                                : 0;
         consts->mturn_m_nofb = lyman_werner_threshold(redshift, 0., consts->vcb_norel);
     }
 
@@ -147,7 +149,9 @@ ScalingConstants evolve_scaling_constants_to_redshift(double redshift, ScalingCo
 
     sc_z.mturn_m_nofb = 0.;
     if (astro_options_global->USE_MINI_HALOS) {
-        sc_z.vcb_norel = astro_options_global->FIX_VCB_AVG ? astro_params_global->FIXED_VAVG : 0;
+        sc_z.vcb_norel = matter_options_global->V_CB_MODEL == V_CB_MODEL_AVG_AUTO
+                             ? astro_params_global->FIXED_VAVG
+                             : 0;
         sc_z.mturn_m_nofb = lyman_werner_threshold(redshift, 0., sc_z.vcb_norel);
     }
 

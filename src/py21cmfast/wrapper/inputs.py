@@ -633,9 +633,10 @@ class MatterOptions(InputStruct):
         Delos (Delos+23)
         Reed07 (Reed+07; arXiv:0607150)
         Yung24 (Yung+24; arXiv:2304.04348)
-    USE_RELATIVE_VELOCITIES: int, optional
+    USE_RELATIVE_VELOCITIES: bool or None, optional
         Flag to decide whether to use relative velocities.
-        If True, POWER_SPECTRUM is automatically set to 5. Default False.
+        This parameter is deprecated and will be removed in a future version, see V_CB_MODEL for the new method
+        to control the relative velocity.
     POWER_SPECTRUM
         Determines which power spectrum to use, default EH (unless `V_CB_MODEL`
         is "FLUCTS"). Use the following codes:
@@ -708,7 +709,8 @@ class MatterOptions(InputStruct):
         * ``AVG-AUTO``: The mean relative velocity is used in every cell in the box. It computed from linear theory,
           given the cosmological parameters.
         * ``FLUCTS``: The relative velocity field is computed on the Lagrangian grid using linear theory. The relative velocity field
-          is assumed to be curl-free and completely correlated with the density field (in Fourier space).
+          is assumed to be curl-free and completely correlated with the density field (in Fourier space). In this option, POWER_SPECTRUM
+          is automatically set to ``CLASS``.
         * ``AVG-DEBUG``: A single value of the relative velocity is used in every cell in the box. It is set by the ``V_CB_AVG_DEBUG``
         parameter in AstroParams. This is only for debugging purposes and should not be used in production.
     SOURCE_MODEL
@@ -741,7 +743,7 @@ class MatterOptions(InputStruct):
     HMF: Literal["PS", "ST", "WATSON", "WATSON-Z", "DELOS", "REED07", "YUNG24"] = (
         choice_field(default="ST")
     )
-    _USE_RELATIVE_VELOCITIES: bool = field(
+    _USE_RELATIVE_VELOCITIES: bool | None = field(
         default=None, converter=attrs.converters.optional(bool)
     )
     V_CB_MODEL: Literal["NONE", "AVG-AUTO", "FLUCTS", "AVG-DEBUG"] = choice_field()
@@ -1173,7 +1175,7 @@ class AstroOptions(InputStruct):
     USE_LYA_HEATING : bool, optional
         Whether to use Lyman-alpha heating. (cf Sec. 3 of Reis+2021,
         https://doi.org/10.1093/mnras/stab2089)
-    INHOMO_RECO : bool, optional
+    INHOMO_RECO : bool or None, optional
         Whether to perform inhomogeneous recombinations. Increases the computation
         time. This parameter is deprecated and will be removed in a future version, see RECOMB_MODEL
         for the new method to control the recombination algorithm.
@@ -1205,10 +1207,11 @@ class AstroOptions(InputStruct):
         * f-photoncons: Adjustment to the escape fraction normalisation, runs one
           calibration simulation to find the adjustment as a function of xH where
           ``f'/f = xH_global/xH_calibration``
-    FIX_VCB_AVG: bool, optional
-        Determines whether to use a fixed vcb=VAVG (*regardless* of
-        USE_RELATIVE_VELOCITIES). It includes the average effect of velocities but not
-        its fluctuations. See `Muñoz+21 <https://arxiv.org/abs/2110.13919>`_)
+    FIX_VCB_AVG: bool or None, optional
+        Whether to fix the field of the relative velocity between (cold) dark matter and
+        baryons on a constant mean value from linear perturbation theory. This parameter is
+        deprecated and will be removed in a future version, see V_CB_MODEL for the new method
+        to control the relative velocity.
     USE_EXP_FILTER: bool, optional
         Use the exponential filter (MFP-epsilon(r) from Davies & Furlanetto 2021) when
         calculating ionising emissivity fields.
@@ -1281,7 +1284,9 @@ class AstroOptions(InputStruct):
         default=None, converter=attrs.converters.optional(bool)
     )
     USE_TS_FLUCT: bool = field(default=False, converter=bool)
-    FIX_VCB_AVG: bool = field(default=False, converter=bool)
+    FIX_VCB_AVG: bool | None = field(
+        default=None, converter=attrs.converters.optional(bool)
+    )
     USE_EXP_FILTER: bool = field(default=True, converter=bool)
     CELL_RECOMB: bool = field(default=True, converter=bool)
     LYA_MULTIPLE_SCATTERING = field(default=False, converter=bool)
@@ -1300,6 +1305,23 @@ class AstroOptions(InputStruct):
     RECOMB_MODEL: Literal["none", "homogeneous", "inhomogeneous"] = choice_field()
     INTEGRATION_METHOD_ATOMIC: IntegralMethods = choice_field(default="GAUSS-LEGENDRE")
     INTEGRATION_METHOD_MINI: IntegralMethods = choice_field(default="GAUSS-LEGENDRE")
+
+    @FIX_VCB_AVG.validator
+    def _fix_vcb_avg_vld(self, att, val):
+        if val is not None:
+            # User set explicitly FIX_VCB_AVG, raise a warning that it is deprecated and will be removed in a future version
+            warnings.warn(
+                deprecation.DeprecatedWarning(
+                    "FIX_VCB_AVG",
+                    deprecated_in="4.3.0",
+                    removed_in="5.0.0",
+                    details=(
+                        "FIX_VCB_AVG is deprecated and will be removed in a future version. "
+                        "Please use V_CB_MODEL directly instead."
+                    ),
+                ),
+                stacklevel=2,
+            )
 
     @cached_property
     def INHOMO_RECO(self) -> bool:
@@ -1499,8 +1521,8 @@ class AstroParams(InputStruct):
         mass, star formation rate and redshift). This scatter is uniform across all
         halo properties and redshifts.
     FIXED_VAVG : float, optional
-        The fixed value of the average velocity used when AstroOptions.FIX_VCB_AVG is
-        set to True.
+        The fixed value of the average velocity used when MatterOptions.V_CB_MODEL is
+        "AVG-AUTO".
     POP2_ION: float, optional
         Number of ionizing photons per baryon produced by Pop II stars.
     POP3_ION: float, optional
@@ -1878,6 +1900,25 @@ class InputParameters:
                 raise ValueError(
                     "SOURCE_MODEL == 'CONST-ION-EFF' is not compatible with USE_MINI_HALOS=True"
                 )
+
+        if (
+            self.astro_options.FIX_VCB_AVG is not None
+            and not self.astro_options.FIX_VCB_AVG
+            and self.matter_options.V_CB_MODEL == "AVG-AUTO"
+        ):
+            raise ValueError(
+                "FIX_VCB_AVG=False is not compatible with V_CB_MODEL == 'AVG-AUTO'! "
+                "Either change V_CB_MODEL or set FIX_VCB_AVG to True."
+            )
+        elif (
+            self.astro_options.FIX_VCB_AVG is not None
+            and self.astro_options.FIX_VCB_AVG
+            and self.matter_options.V_CB_MODEL != "AVG-AUTO"
+        ):
+            raise ValueError(
+                "FIX_VCB_AVG=True is not compatible with V_CB_MODEL != 'AVG-AUTO'! "
+                "Either change V_CB_MODEL or set FIX_VCB_AVG to False."
+            )
 
         if self.matter_options.lagrangian_source_grid:
             if val.PHOTON_CONS_TYPE == "z-photoncons":
