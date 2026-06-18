@@ -1164,7 +1164,10 @@ class HaloBox(OutputStructZ):
             if self.matter_options.PERTURB_ALGORITHM == "2LPT":
                 required += [f"{k}_2LPT" for k in required if "_v" in k]
 
-            if self.matter_options.V_CB_MODEL == "FLUCTS":
+            if (
+                self.matter_options.V_CB_MODEL == "FLUCTS"
+                and self.astro_options.USE_MINI_HALOS
+            ):
                 required += ["lowres_vcb"]
         else:
             raise ValueError(f"{type(input_box)} is not an input required for HaloBox!")
@@ -1557,7 +1560,7 @@ class IonizedBox(OutputStructZ):
         if isinstance(input_box, InitialConditions):
             if (
                 self.matter_options.V_CB_MODEL == "FLUCTS"
-                and self.matter_options.mass_dependent_zeta
+                and self.astro_options.USE_MINI_HALOS
             ):
                 required += ["lowres_vcb"]
         elif isinstance(input_box, PerturbedField):

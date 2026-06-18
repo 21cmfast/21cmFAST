@@ -1872,40 +1872,49 @@ class InputParameters:
                 output="mTk,vTk",
                 P_k_max=k_max,
             )
+
             # Linear matter density transfer function at z=0
             transfer_density = get_transfer_function(
                 classy_output=classy_output, kind="d_m", z=0.0
             )
-            # Linear vcb transfer function at kinematic decoupling
-            z_dec = find_redshift_kinematic_decoupling(classy_output)
-            transfer_vcb = (
-                (
-                    get_transfer_function(
-                        classy_output=classy_output, kind="v_cb", z=z_dec
-                    )
-                    / constants.c  # Need to normalize by c, because ComputeInitialConditions() accepts to receive a dimensionless transfer function
-                ).to(un.dimensionless_unscaled)
-            )
-
             # Include a sample at k=0
             k_transfer_with_0 = np.concatenate(([0.0], k_transfer))
             transfer_density = np.concatenate(([0.0], transfer_density))
-            transfer_vcb = np.concatenate(([0.0], transfer_vcb))
+            # Create a Table1D for the density transfer function
+            transfer_density = Table1D(
+                size=k_transfer_with_0.size,
+                x_values=k_transfer_with_0,
+                y_values=transfer_density,
+            )
+
+            if self.matter_options.V_CB_MODEL == "FLUCTS":
+                # Linear vcb transfer function at kinematic decoupling
+                z_dec = find_redshift_kinematic_decoupling(classy_output)
+                transfer_vcb = (
+                    (
+                        get_transfer_function(
+                            classy_output=classy_output, kind="v_cb", z=z_dec
+                        )
+                        / constants.c  # Need to normalize by c, because ComputeInitialConditions() expects to receive a dimensionless transfer function
+                    ).to(un.dimensionless_unscaled)
+                )
+                # Include a sample at k=0
+                transfer_vcb = np.concatenate(([0.0], transfer_vcb))
+                # Create a Table1D for the vcb transfer function
+                transfer_vcb = Table1D(
+                    size=k_transfer_with_0.size,
+                    x_values=k_transfer_with_0,
+                    y_values=transfer_vcb,
+                )
+            else:
+                transfer_vcb = None
 
             # we use A_s to normalize the power spectrum only if it was provided
             USE_SIGMA_8 = self.cosmo_params._A_s is None
 
             cosmo_tables = CosmoTables(
-                transfer_density=Table1D(
-                    size=k_transfer_with_0.size,
-                    x_values=k_transfer_with_0,
-                    y_values=transfer_density,
-                ),
-                transfer_vcb=Table1D(
-                    size=k_transfer_with_0.size,
-                    x_values=k_transfer_with_0,
-                    y_values=transfer_vcb,
-                ),
+                transfer_density=transfer_density,
+                transfer_vcb=transfer_vcb,
                 ps_norm=self.cosmo_params.SIGMA_8
                 if USE_SIGMA_8
                 else self.cosmo_params.A_s,
@@ -1932,6 +1941,13 @@ class InputParameters:
                 raise ValueError(
                     "SOURCE_MODEL == 'CONST-ION-EFF' is not compatible with USE_MINI_HALOS=True"
                 )
+        elif self.matter_options.V_CB_MODEL != "NONE":
+            warnings.warn(
+                "USE_MINI_HALOS is False but V_CB_MODEL != 'NONE'. Note that the relative velocity between (cold) dark matter and baryons"
+                " is only relevant when mini-halos are present.",
+                stacklevel=2,
+            )
+
         if self.astro_options.FIX_VCB_AVG is not None:
             # User set explicitly FIX_VCB_AVG, raise a warning that it is deprecated and will be removed in a future version
             warnings.warn(
