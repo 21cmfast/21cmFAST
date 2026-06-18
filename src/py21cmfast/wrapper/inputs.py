@@ -1912,14 +1912,8 @@ class InputParameters:
                 y_values=transfer_density,
             )
 
-            transfer_vcb = None
-
-            # Find the redshift of kinematic decoupling if we need to use the v_cb field, either through its fluctuations or its average value
-            if (
-                self.matter_options.V_CB_MODEL == "AVG-AUTO"
-                or self.matter_options.V_CB_MODEL == "FLUCTS"
-            ):
-                z_dec = find_redshift_kinematic_decoupling(classy_output)
+            # Find the redshift of kinematic decoupling
+            z_dec = find_redshift_kinematic_decoupling(classy_output)
 
             # If we use the fluctuations of the v_cb field, find its transfer function at the redshift of kinematic decoupling
             if self.matter_options.V_CB_MODEL == "FLUCTS":
@@ -1940,22 +1934,20 @@ class InputParameters:
                     x_values=k_transfer_with_0,
                     y_values=transfer_vcb,
                 )
+            else:
+                transfer_vcb = None
 
-            # If we use the average value of v_cb (or run global evolution with v_cb fluctuations), we compute its RMS value at kinematic decoupling
-            if self.matter_options.V_CB_MODEL == "AVG-AUTO" or (
-                self.matter_options.V_CB_MODEL == "FLUCTS"
-                and self.simulation_options.HII_DIM == 1
-            ):
-                # For LCDM cosmology with Planck 2018 parameters, the rms is 29.3 km/s
-                V_CB_RMS = (
-                    compute_rms(classy_output, kind="v_cb", redshifts=z_dec)
-                    .to("km/s")
-                    .value[0]
-                )
-                # Assuming a Maxwell-Boltzmann distribution (consistent with the v_cb field distribution when V_CB_MODEL="FLUCTS"),
-                # the mean value is given by the rms times sqrt(8/3pi) = 0.92
-                # This gives a mean value of ~ 27 km/s for Planck 2018 cosmology
-                V_CB_AVG = np.sqrt(8 / (3 * np.pi)) * V_CB_RMS
+            # Compute the RMS value of the v_cb field at kinematic decoupling
+            # For LCDM cosmology with Planck 2018 parameters, the rms is 29.3 km/s
+            V_CB_RMS = (
+                compute_rms(classy_output, kind="v_cb", redshifts=z_dec)
+                .to("km/s")
+                .value[0]
+            )
+            # Assuming a Maxwell-Boltzmann distribution (consistent with the v_cb field distribution when V_CB_MODEL="FLUCTS"),
+            # the mean value is given by the rms times sqrt(8/3pi) = 0.92
+            # This gives a mean value of ~ 27 km/s for Planck 2018 cosmology
+            V_CB_AVG = np.sqrt(8 / (3 * np.pi)) * V_CB_RMS
 
             # we use A_s to normalize the power spectrum only if it was provided
             USE_SIGMA_8 = self.cosmo_params._A_s is None

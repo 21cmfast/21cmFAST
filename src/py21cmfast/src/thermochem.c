@@ -14,7 +14,6 @@
 #include "logger.h"
 
 #define MIN_DENSITY_LOW_LIMIT (9e-8)
-#define SIGMAVCB (29.0)  // rms value of the DM-b relative velocity [im km/s]
 
 // ----------------------------------------------------------------------------------------- //
 
@@ -289,6 +288,11 @@ double lyman_werner_threshold(float z, float J_21_LW, float vcb) {
     double mcrit_noLW = 3.314e7 * pow(1. + z, -1.5);
     double f_LW = 1.0 + astro_params_global->A_LW * pow(J_21_LW, astro_params_global->BETA_LW);
 
+    // v_cb is normalized by the rms value of the DM-b relative velocity at kinematic decoupling,
+    // which, under the assumption of Maxwell-Boltzmann distribution, can be achieved by multiplying
+    // the mean v_cb by sqrt(3pi / 8). This gives about 29.3 km/s for LCDM cosmology with Planck
+    // 2018 parameters
+    double SIGMAVCB = cosmo_tables_global->V_CB_AVG * sqrt(3 * M_PI / 8);
     double f_vcb =
         pow(1.0 + astro_params_global->A_VCB * vcb / SIGMAVCB, astro_params_global->BETA_VCB);
 
