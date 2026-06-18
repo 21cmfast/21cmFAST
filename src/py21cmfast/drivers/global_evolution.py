@@ -90,14 +90,13 @@ def compute_global_reionization_at_z(
     z_reion = -1.0 if Q_HI > 0.0 else redshift
 
     # Global v_cb is determined according to V_CB_MODEL
-    v_cb = (
-        inputs.astro_params.V_CB_AVG_DEBUG
-        if (
-            inputs.matter_options.V_CB_MODEL == "FLUCTS"
-            or inputs.matter_options.V_CB_MODEL == "AVG-DEBUG"
-        )
-        else 0.0
-    )
+    match inputs.matter_options.V_CB_MODEL:
+        case "NONE":
+            v_cb = 0.0
+        case "AVG-AUTO" | "FLUCTS":
+            v_cb = inputs.cosmo_tables.V_CB_AVG
+        case "AVG-DEBUG":
+            v_cb = inputs.astro_params.V_CB_AVG_DEBUG
 
     M_turn_a, M_turn_m = compute_mturns(
         inputs=inputs,

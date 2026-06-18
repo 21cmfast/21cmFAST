@@ -32,6 +32,7 @@ from .._cfg import config
 from ..c_21cmfast import ffi
 from ._utils import snake_to_camel
 from .classy_interface import (
+    compute_rms,
     find_redshift_kinematic_decoupling,
     get_transfer_function,
     k_transfer,
@@ -131,6 +132,10 @@ Planck18 = Planck15.clone(
     Neff=3.044,
     name="Planck18",
 )
+
+# The mean value of the amplitude of the relative velocity between baryons and cold dark matter at kinematic decoupling, in km/s,
+# for LCDM Planck 2018 cosmology
+V_CB_AVG_DEFAULT = 27.0
 
 
 @attrs.define(frozen=True, kw_only=True)
@@ -351,12 +356,30 @@ class Table1D:
 
 @attrs.define(frozen=True, kw_only=True)
 class CosmoTables:
-    """Class for storing interpolation tables of cosmological functions (e.g. transfer functions, growth factor)."""
+    """Class for storing interpolation tables of cosmological functions (e.g. transfer functions, growth factor).
 
-    transfer_density: Table1D = field(default=None)
-    transfer_vcb: Table1D = field(default=None)
-    ps_norm: float = field(default=None)
-    USE_SIGMA_8: bool = field(default=None)
+    Attributes
+    ----------
+    transfer_density : Table1D | None
+        Interpolation table for the density transfer function.
+        In InputParameters, becomes non-trivial only if MatterOptions.POWER_SPECTRUM is set to "CLASS".
+    transfer_vcb : Table1D | None
+        Interpolation table for the velocity transfer function.
+        In InputParameters, becomes non-trivial only if MatterOptions.POWER_SPECTRUM is set to "CLASS" and MatterOptions.V_CB_MODEL = "FLUCTS".
+    USE_SIGMA_8 : bool | None
+        Flag to indicate whether to use CosmoParams.SIGMA_8 or CosmoParams.A_s for the normalization of the power spectrum.
+    ps_norm : float | None
+        Normalization factor for the power spectrum. If USE_SIGMA_8 is True, this is set to CosmoParams.SIGMA_8, otherwise it is set to CosmoParams.A_s.
+    V_CB_AVG : float | None
+        Mean value of the amplitude of the relative velocity between baryons and cold dark matter at kinematic decoupling, in km/s.
+        In InputParameters, becomes non-trivial only if MatterOptions.V_CB_MODEL is set to "AVG-AUTO".
+    """
+
+    transfer_density: Table1D | None = field(default=None)
+    transfer_vcb: Table1D | None = field(default=None)
+    ps_norm: float | None = field(default=None)
+    USE_SIGMA_8: bool | None = field(default=None)
+    V_CB_AVG: float | None = field(default=None)
 
     @classmethod
     def new(cls, x: dict | Self | None = None, **kwargs):
@@ -706,12 +729,12 @@ class MatterOptions(InputStruct):
         at the moment of kinematic decoupling. Options are:
 
         * ``NONE``: Zero relative velocity is assumed.
-        * ``AVG-AUTO``: The mean relative velocity is used in every cell in the box. It computed from linear theory,
+        * ``AVG-AUTO``: The mean of the amplitude of the relative velocity is used in every cell in the box. It computed from linear theory,
           given the cosmological parameters.
         * ``FLUCTS``: The relative velocity field is computed on the Lagrangian grid using linear theory. The relative velocity field
           is assumed to be curl-free and completely correlated with the density field (in Fourier space). In this option, POWER_SPECTRUM
           is automatically set to ``CLASS``.
-        * ``AVG-DEBUG``: A single value of the relative velocity is used in every cell in the box. It is set by the ``V_CB_AVG_DEBUG``
+        * ``AVG-DEBUG``: A single value for the amplitude of the relative velocity is used in every cell in the box. It is set by the ``V_CB_AVG_DEBUG``
         parameter in AstroParams. This is only for debugging purposes and should not be used in production.
     SOURCE_MODEL
         The source model to use in the simulation. Options are:
@@ -1208,7 +1231,7 @@ class AstroOptions(InputStruct):
           calibration simulation to find the adjustment as a function of xH where
           ``f'/f = xH_global/xH_calibration``
     FIX_VCB_AVG: bool or None, optional
-        Whether to fix the field of the relative velocity between (cold) dark matter and
+        Whether to fix the amplitude of the relative velocity between (cold) dark matter and
         baryons on a constant mean value from linear perturbation theory. This parameter is
         deprecated and will be removed in a future version, see V_CB_MODEL for the new method
         to control the relative velocity.
@@ -1308,7 +1331,7 @@ class AstroOptions(InputStruct):
 
     @cached_property
     def FIX_VCB_AVG(self) -> bool:
-        """Whether to fix the relative velocity between (cold) dark matter and baryons on a constant mean value from linear perturbation theory.
+        """Whether to fix the amplitude of the relative velocity between (cold) dark matter and baryons on a constant mean value from linear perturbation theory.
 
         This is a deprecated property, and will be removed in a future version. Please use V_CB_MODEL instead.
         """
@@ -1515,12 +1538,12 @@ class AstroParams(InputStruct):
         mass, star formation rate and redshift). This scatter is uniform across all
         halo properties and redshifts.
     FIXED_VAVG : float or None, optional
-        A possible input that sets a fixed constant value of the relative velocity between (cold) dark matter and baryons,
+        A possible input that sets a fixed constant value for the amplitude of the relative velocity between (cold) dark matter and baryons,
         in units of km/s. Becomes relevant only when AstroOptions.FIX_VCB_AVG is True.
         This parameter is deprecated and will be removed in a future version, see V_CB_AVG_DEBUG for the new way to directly
         control this parameter.
     V_CB_AVG_DEBUG : float, optional
-        A possible input that sets a fixed constant value of the relative velocity between (cold) dark matter and baryons,
+        A possible input that sets a fixed constant value for the amplitude of the relative velocity between (cold) dark matter and baryons,
         in units of km/s. Should be used only for debugging and testing purposes.
         Becomes relevant only when MatterOptions.V_CB_MODEL is "AVG-DEBUG".
     POP2_ION: float, optional
@@ -1703,7 +1726,7 @@ class AstroParams(InputStruct):
 
     @cached_property
     def FIXED_VAVG(self) -> bool:
-        """A fixed constant value of the relative velocity between (cold) dark matter and baryons, in units of km/s.
+        """A fixed constant value for the amplitude of the relative velocity between (cold) dark matter and baryons, in units of km/s.
 
         Becomes relevant only when AstroOptions.FIX_VCB_AVG is True.
 
@@ -1714,7 +1737,7 @@ class AstroParams(InputStruct):
     @V_CB_AVG_DEBUG.default
     def _default_v_cb_avg_debug(self):
         if self._FIXED_VAVG is None:
-            return 25.86  # Nice default value in km/s
+            return V_CB_AVG_DEFAULT
 
         warnings.warn(
             deprecation.DeprecatedWarning(
@@ -1839,7 +1862,9 @@ class InputParameters:
 
     @cached_property
     def cosmo_tables(self) -> CosmoTables:
-        """Cosmological tables derived from fundamental input parameters."""
+        """Cosmological tables and constants derived from fundamental input parameters."""
+        V_CB_AVG = V_CB_AVG_DEFAULT
+
         if self.matter_options.POWER_SPECTRUM == "CLASS":
             if self.simulation_options.K_MAX_FOR_CLASS is not None:
                 k_max = self.simulation_options.K_MAX_FOR_CLASS / un.Mpc
@@ -1887,9 +1912,18 @@ class InputParameters:
                 y_values=transfer_density,
             )
 
+            transfer_vcb = None
+
+            # Find the redshift of kinematic decoupling if we need to use the v_cb field, either through its fluctuations or its average value
+            if (
+                self.matter_options.V_CB_MODEL == "AVG-AUTO"
+                or self.matter_options.V_CB_MODEL == "FLUCTS"
+            ):
+                z_dec = find_redshift_kinematic_decoupling(classy_output)
+
+            # If we use the fluctuations of the v_cb field, find its transfer function at the redshift of kinematic decoupling
             if self.matter_options.V_CB_MODEL == "FLUCTS":
                 # Linear vcb transfer function at kinematic decoupling
-                z_dec = find_redshift_kinematic_decoupling(classy_output)
                 transfer_vcb = (
                     (
                         get_transfer_function(
@@ -1906,8 +1940,22 @@ class InputParameters:
                     x_values=k_transfer_with_0,
                     y_values=transfer_vcb,
                 )
-            else:
-                transfer_vcb = None
+
+            # If we use the average value of v_cb (or run global evolution with v_cb fluctuations), we compute its RMS value at kinematic decoupling
+            if self.matter_options.V_CB_MODEL == "AVG-AUTO" or (
+                self.matter_options.V_CB_MODEL == "FLUCTS"
+                and self.simulation_options.HII_DIM == 1
+            ):
+                # For LCDM cosmology with Planck 2018 parameters, the rms is 29.3 km/s
+                V_CB_RMS = (
+                    compute_rms(classy_output, kind="v_cb", redshifts=z_dec)
+                    .to("km/s")
+                    .value[0]
+                )
+                # Assuming a Maxwell-Boltzmann distribution (consistent with the v_cb field distribution when V_CB_MODEL="FLUCTS"),
+                # the mean value is given by the rms times sqrt(8/3pi) = 0.92
+                # This gives a mean value of ~ 27 km/s for Planck 2018 cosmology
+                V_CB_AVG = np.sqrt(8 / (3 * np.pi)) * V_CB_RMS
 
             # we use A_s to normalize the power spectrum only if it was provided
             USE_SIGMA_8 = self.cosmo_params._A_s is None
@@ -1919,11 +1967,14 @@ class InputParameters:
                 if USE_SIGMA_8
                 else self.cosmo_params.A_s,
                 USE_SIGMA_8=USE_SIGMA_8,
+                V_CB_AVG=V_CB_AVG,
             )
         else:
             # we ALWAYS use sigma8 to normalize the power spectrum if we don't use CLASS
             cosmo_tables = CosmoTables(
-                ps_norm=self.cosmo_params.SIGMA_8, USE_SIGMA_8=True
+                ps_norm=self.cosmo_params.SIGMA_8,
+                USE_SIGMA_8=True,
+                V_CB_AVG=V_CB_AVG,
             )
         return cosmo_tables
 

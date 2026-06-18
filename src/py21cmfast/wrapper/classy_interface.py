@@ -269,8 +269,7 @@ def compute_rms(
     else:
         smoothing_radius *= units.Mpc
 
-    if isinstance(redshifts, int | float):
-        redshifts = [redshifts]
+    redshifts = np.atleast_1d(redshifts)
 
     A_s = classy_output.get_current_derived_parameters(["A_s"])["A_s"]
     priomordial_PS = A_s * pow(k_transfer / k_pivot, classy_output.n_s() - 1.0)

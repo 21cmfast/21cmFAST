@@ -83,11 +83,23 @@ void set_scaling_constants(double redshift, ScalingConstants *consts, bool use_p
     if (astro_options_global->USE_MINI_HALOS)
         consts->mturn_a_nofb = fmax(consts->acg_thresh, consts->mturn_a_nofb);
 
+    switch (matter_options_global->V_CB_MODEL) {
+        case V_CB_MODEL_NO:
+            consts->vcb_const = 0.;
+            break;
+        case V_CB_MODEL_AVG_AUTO:
+            consts->vcb_const = cosmo_tables_global->V_CB_AVG;
+            break;
+        case V_CB_MODEL_AVG_DEBUG:
+            consts->vcb_const = astro_params_global->V_CB_AVG_DEBUG;
+            break;
+        default:  // V_CB_MODEL_FLUCTS
+            consts->vcb_const = 0.;
+            break;
+    }
+
     consts->mturn_m_nofb = 0.;
     if (astro_options_global->USE_MINI_HALOS) {
-        consts->vcb_const = matter_options_global->V_CB_MODEL == V_CB_MODEL_AVG_DEBUG
-                                ? astro_params_global->V_CB_AVG_DEBUG
-                                : 0;
         consts->mturn_m_nofb = lyman_werner_threshold(redshift, 0., consts->vcb_const);
     }
 
