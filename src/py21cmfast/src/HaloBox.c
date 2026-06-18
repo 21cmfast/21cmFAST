@@ -476,7 +476,7 @@ void get_log10_turnovers(InitialConditions *ini_boxes, TsBox *previous_spin_temp
     {
         index_huge i;
         double J21_val, Gamma12_val, zre_val;
-        double curr_vcb = consts->vcb_norel;
+        double curr_vcb = consts->vcb_const;
         double M_turn_m;
         double M_turn_a = consts->mturn_a_nofb;
         double M_turn_r;
@@ -682,7 +682,7 @@ int test_halo_props(double redshift, float *vcb_grid, float *J21_LW_grid, float 
             double m;
             double J21_val, Gamma12_val, zre_val;
 
-            double curr_vcb = hbox_consts.vcb_norel;
+            double curr_vcb = hbox_consts.vcb_const;
             double M_turn_m = hbox_consts.mturn_m_nofb;
             double M_turn_a = hbox_consts.mturn_a_nofb;
             double M_turn_r = 0.;

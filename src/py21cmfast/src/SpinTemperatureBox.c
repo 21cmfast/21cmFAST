@@ -500,7 +500,8 @@ void calculate_spectral_factors(double zp) {
 
 // fill fftwf boxes, do the r2c transform and normalise
 void prepare_filter_boxes(double redshift, float *input_dens, float *input_vcb, float *input_j21,
-                          fftwf_complex *output_dens, fftwf_complex *output_LW) {
+                          fftwf_complex *output_dens, fftwf_complex *output_LW,
+                          ScalingConstants *sc) {
     int i, j, k;
     index_huge ct, index_f;
     double curr_vcb, curr_j21, M_buf;
@@ -532,9 +533,7 @@ void prepare_filter_boxes(double redshift, float *input_dens, float *input_vcb, 
     }
 
     if (astro_options_global->USE_MINI_HALOS) {
-        curr_vcb = matter_options_global->V_CB_MODEL == V_CB_MODEL_AVG_AUTO
-                       ? astro_params_global->FIXED_VAVG
-                       : 0;
+        curr_vcb = sc->vcb_const;
 #pragma omp parallel for firstprivate(curr_vcb) private(i, j, k, curr_j21, M_buf, ct, index_f) \
     num_threads(simulation_options_global->N_THREADS) collapse(3)
         for (i = 0; i < box_dim[0]; i++) {
@@ -1399,6 +1398,8 @@ void ts_main(float redshift, float prev_redshift, float perturbed_field_redshift
     if (!TsInterpArraysInitialised) {
         alloc_global_arrays();
     }
+    ScalingConstants sc, sc_sfrd;
+    set_scaling_constants(redshift, &sc, false);
 
     // NOTE: For the code to work, previous_spin_temp MUST be allocated &
     // calculated if redshift < Z_HEAT_MAX
@@ -1449,7 +1450,7 @@ void ts_main(float redshift, float prev_redshift, float perturbed_field_redshift
         LOG_ULTRA_DEBUG("Starting unfiltered boxes.");
         prepare_filter_boxes(redshift, perturbed_field->density, ini_boxes->lowres_vcb,
                              previous_spin_temp->J_21_LW, delta_unfiltered,
-                             log10_Mcrit_LW_unfiltered);
+                             log10_Mcrit_LW_unfiltered, &sc);
         LOG_ULTRA_DEBUG("Prepared unfiltered boxes.");
         // fill the filtered boxes if we are storing them all
         if (!matter_options_global->MINIMIZE_MEMORY) {
@@ -1555,7 +1556,6 @@ void ts_main(float redshift, float prev_redshift, float perturbed_field_redshift
     int R_index;
     float *delta_box_input;
     float *Mcrit_box_input = NULL;  // may be unused
-    ScalingConstants sc, sc_sfrd;
 
     // if we have stars, fill in the heating term boxes
     if (!NO_LIGHT) {
