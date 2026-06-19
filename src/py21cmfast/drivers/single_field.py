@@ -588,7 +588,9 @@ def compute_xray_source_field(
             box.filtered_xray.value[i] = 0
             if inputs.astro_options.USE_MINI_HALOS:
                 box.filtered_sfr_mini.value[i] = 0
-                box.mean_log10_Mcrit_LW.value[i] = inputs.astro_params.M_TURN  # minimum
+                box.mean_log10_Mcrit_LW.value[i] = (
+                    inputs.astro_params.M_TURN_STELLAR_FEEDBACK
+                )  # minimum
                 if inputs.astro_options.LYA_MULTIPLE_SCATTERING:
                     box.filtered_sfr_lw.value[i] = 0
                     box.filtered_sfr_mini_lw.value[i] = 0

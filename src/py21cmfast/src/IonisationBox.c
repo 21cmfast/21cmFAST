@@ -1443,7 +1443,7 @@ int ComputeIonizedBox(float redshift, float prev_redshift, PerturbedField *pertu
                 LOG_DEBUG("average log10 turnover masses are %.2f and %.2f for ACGs and MCGs",
                           box->log10_Mturnover_ave, box->log10_Mturnover_MINI_ave);
             } else {
-                Mturnover_global_avg = astro_params_global->M_TURN;
+                Mturnover_global_avg = astro_params_global->M_TURN_STELLAR_FEEDBACK;
                 box->log10_Mturnover_ave = log10(Mturnover_global_avg);
                 box->log10_Mturnover_MINI_ave = 0.0;  // not used
             }

@@ -61,9 +61,12 @@ def choice_field(*, validator=None, **kwargs):
     return field(validator=vld, transformer=choice_transformer, converter=str, **kwargs)
 
 
-def logtransformer(x, att: attrs.Attribute):
+def logtransformer(x: float | None, att: attrs.Attribute):
     """Convert from log to linear space."""
-    return 10**x
+    if x is None:
+        return None
+    else:
+        return 10**x
 
 
 def dex2exp_transformer(x, att: attrs.Attribute):
@@ -1480,7 +1483,12 @@ class AstroParams(InputStruct):
     ALPHA_ESC : float, optional
         Power-law index of escape fraction as a function of halo mass. See Sec 2.1 of
         Park+2018.
-    M_TURN : float, optional
+    M_TURN : float or None, optional
+        Turnover mass (in log10 solar mass units) for quenching of star formation in
+        halos, due to SNe or photo-heating feedback, or inefficient gas accretion.
+        This parameter is deprecated and will be removed in a future version, see M_TURN_STELLAR_FEEDBACK for the new way to directly
+        control this parameter.
+    M_TURN_STELLAR_FEEDBACK : float, optional
         Turnover mass (in log10 solar mass units) for quenching of star formation in
         halos, due to SNe or photo-heating feedback, or inefficient gas accretion.
         See Sec 2.1 of Park+2018.
@@ -1595,8 +1603,13 @@ class AstroParams(InputStruct):
         converter=float,
         transformer=logtransformer,
     )
-    M_TURN: float = field(
-        default=8.7,
+    _M_TURN: float | None = field(
+        default=None,
+        converter=attrs.converters.optional(float),
+        validator=validators.optional(validators.gt(0)),
+        transformer=logtransformer,
+    )
+    M_TURN_STELLAR_FEEDBACK: float = field(
         converter=float,
         validator=validators.gt(0),
         transformer=logtransformer,
@@ -1750,6 +1763,34 @@ class AstroParams(InputStruct):
         )
 
         return self._FIXED_VAVG
+
+    @cached_property
+    def M_TURN(self) -> float | None:
+        """Turnover mass (in log10 solar mass units) for quenching of star formation in halos, due to SNe or photo-heating feedback, or inefficient gas accretion.
+
+        This is a deprecated property, and will be removed in v5. Please use M_TURN_STELLAR_FEEDBACK instead.
+        """
+        return self._M_TURN
+
+    @M_TURN_STELLAR_FEEDBACK.default
+    def _default_m_turn_stellar_feedback(self):
+        if self._M_TURN is None:
+            return 8.7
+
+        warnings.warn(
+            deprecation.DeprecatedWarning(
+                "M_TURN",
+                deprecated_in="4.2.0",
+                removed_in="5.0.0",
+                details=(
+                    "M_TURN is deprecated and will be removed in a future version. "
+                    "Please use M_TURN_STELLAR_FEEDBACK directly instead."
+                ),
+            ),
+            stacklevel=2,
+        )
+
+        return self._M_TURN
 
 
 class InputCrossValidationError(ValueError):
@@ -2077,11 +2118,11 @@ class InputParameters:
                 stacklevel=2,
             )
 
-        if val.M_TURN > 8 and self.astro_options.USE_MINI_HALOS:
+        if val.M_TURN_STELLAR_FEEDBACK > 8 and self.astro_options.USE_MINI_HALOS:
             warnings.warn(
-                "You are setting M_TURN > 8 when USE_MINI_HALOS=True. "
-                "This is non-standard (but allowed), and usually occurs upon manual "
-                "update of M_TURN",
+                "You are setting M_TURN_STELLAR_FEEDBACK > 8 when USE_MINI_HALOS=True. "
+                "The star formation in mini-halos with a mass smaller than M_TURN_STELLAR_FEEDBACK "
+                "is highly suppressed. Make sure you know what you are doing!",
                 stacklevel=2,
             )
 
@@ -2484,7 +2525,8 @@ def check_halomass_range(inputs: InputParameters) -> None:
         min_integral_mass = 1e5 * un.M_sun
     else:
         min_integral_mass = (
-            max(inputs.astro_params.cdict["M_TURN"] / 50, 1e5) * un.M_sun
+            max(inputs.astro_params.cdict["M_TURN_STELLAR_FEEDBACK"] / 50, 1e5)
+            * un.M_sun
         )
     max_integral_mass = 1e16 * un.M_sun  # define macro in hmf.h
 
@@ -2544,7 +2586,7 @@ def check_halomass_range(inputs: InputParameters) -> None:
 
     if min(min(mass_limits)) > min_integral_mass:
         warnings.warn(
-            f"The minimum halo mass {min(min(mass_limits)):.2e} is high compared to the turnover {inputs.astro_params.cdict['M_TURN']:.2e}. "
+            f"The minimum halo mass {min(min(mass_limits)):.2e} is high compared to the turnover {inputs.astro_params.cdict['M_TURN_STELLAR_FEEDBACK']:.2e}. "
             f"Halos below {min(min(mass_limits)):.2e} will not be accounted for in the simulation.",
             stacklevel=2,
         )

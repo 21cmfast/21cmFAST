@@ -118,7 +118,7 @@ int InitialisePhotonCons() {
         if (source_model_is_mass_dependent(matter_options_global->SOURCE_MODEL)) {
             ION_EFF_FACTOR = astro_params_global->POP2_ION * astro_params_global->F_STAR10 *
                              astro_params_global->F_ESC10;
-            M_MIN = astro_params_global->M_TURN / 50.;
+            M_MIN = astro_params_global->M_TURN_STELLAR_FEEDBACK / 50.;
             lnMmin = log(M_MIN);
         } else {
             ION_EFF_FACTOR = astro_params_global->HII_EFF_FACTOR;
@@ -166,9 +166,11 @@ int InitialisePhotonCons() {
                 // later (hopefully move the whole thing to python)
                 if (source_model_is_mass_dependent(matter_options_global->SOURCE_MODEL)) {
                     Nion0 = ION_EFF_FACTOR *
-                            Nion_General(z0, lnMmin, lnMmax, astro_params_global->M_TURN, &sc_0);
+                            Nion_General(z0, lnMmin, lnMmax,
+                                         astro_params_global->M_TURN_STELLAR_FEEDBACK, &sc_0);
                     Nion1 = ION_EFF_FACTOR *
-                            Nion_General(z1, lnMmin, lnMmax, astro_params_global->M_TURN, &sc_1);
+                            Nion_General(z1, lnMmin, lnMmax,
+                                         astro_params_global->M_TURN_STELLAR_FEEDBACK, &sc_1);
                 } else {
                     // set the minimum source mass
                     if (astro_params_global->ION_Tvir_MIN < 9.99999e3) {  // neutral IGM

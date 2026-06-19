@@ -157,7 +157,7 @@ def test_halo_prop_sampling(default_input_struct_ts, plt):
 
     inputs = default_input_struct_ts.evolve_input_structs(
         USE_UPPER_STELLAR_TURNOVER=False,
-        M_TURN=5.0,
+        M_TURN_STELLAR_FEEDBACK=5.0,
         F_STAR10=-1,
         ALPHA_STAR=0.0,
         t_STAR=0.1,
@@ -184,7 +184,7 @@ def test_halo_prop_sampling(default_input_struct_ts, plt):
         ap_c["F_STAR10"]
         * ((halo_masses / 1e10) ** ap_c["ALPHA_STAR"])
         * np.exp(
-            -(ap_c["M_TURN"] / halo_masses)
+            -(ap_c["M_TURN_STELLAR_FEEDBACK"] / halo_masses)
             + (halo_rng_in * ap_c["SIGMA_STAR"])
             - (ap_c["SIGMA_STAR"] ** 2 / 2)
         )

@@ -313,8 +313,8 @@ int set_fixed_grids(double M_min, double M_max, InitialConditions *ini_boxes, fl
     double max_density = 0.;
     double min_log10_mturn_a = log10(M_MAX_INTEGRAL);
     double min_log10_mturn_m = log10(M_MAX_INTEGRAL);
-    double max_log10_mturn_a = log10(astro_params_global->M_TURN);
-    double max_log10_mturn_m = log10(astro_params_global->M_TURN);
+    double max_log10_mturn_a = log10(astro_params_global->M_TURN_STELLAR_FEEDBACK);
+    double max_log10_mturn_m = log10(astro_params_global->M_TURN_STELLAR_FEEDBACK);
 
     float *vel_pointers[3];
     float *vel_pointers_2LPT[3];
@@ -494,8 +494,8 @@ void get_log10_turnovers(InitialConditions *ini_boxes, TsBox *previous_spin_temp
             }
             M_turn_m = lyman_werner_threshold(consts->redshift, J21_val, curr_vcb);
             M_turn_r = reionization_feedback(consts->redshift, Gamma12_val, zre_val);
-            M_turn_a = fmax(M_turn_a, fmax(M_turn_r, astro_params_global->M_TURN));
-            M_turn_m = fmax(M_turn_m, fmax(M_turn_r, astro_params_global->M_TURN));
+            M_turn_a = fmax(M_turn_a, fmax(M_turn_r, astro_params_global->M_TURN_STELLAR_FEEDBACK));
+            M_turn_m = fmax(M_turn_m, fmax(M_turn_r, astro_params_global->M_TURN_STELLAR_FEEDBACK));
 
             mturn_a_grid[i] = log10(M_turn_a);
             log10_mturn_a_avg += log10(M_turn_a);
@@ -732,8 +732,10 @@ int test_halo_props(double redshift, float *vcb_grid, float *J21_LW_grid, float 
                     M_turn_a = hbox_consts.mturn_a_nofb;
                     M_turn_m = lyman_werner_threshold(redshift, J21_val, curr_vcb);
                     M_turn_r = reionization_feedback(redshift, Gamma12_val, zre_val);
-                    M_turn_a = fmax(M_turn_a, fmax(M_turn_r, astro_params_global->M_TURN));
-                    M_turn_m = fmax(M_turn_m, fmax(M_turn_r, astro_params_global->M_TURN));
+                    M_turn_a = fmax(M_turn_a,
+                                    fmax(M_turn_r, astro_params_global->M_TURN_STELLAR_FEEDBACK));
+                    M_turn_m = fmax(M_turn_m,
+                                    fmax(M_turn_r, astro_params_global->M_TURN_STELLAR_FEEDBACK));
                 }
 
                 // these are the halo property RNG sequences

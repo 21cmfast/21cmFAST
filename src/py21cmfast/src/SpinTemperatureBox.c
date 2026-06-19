@@ -548,7 +548,7 @@ void prepare_filter_boxes(double redshift, float *input_dens, float *input_vcb, 
                     // NOTE: we don't use reionization_feedback here, I assume it wouldn't do much
                     // but it's inconsistent
                     M_buf = lyman_werner_threshold(redshift, curr_j21, curr_vcb);
-                    M_buf = fmax(M_buf, astro_params_global->M_TURN);
+                    M_buf = fmax(M_buf, astro_params_global->M_TURN_STELLAR_FEEDBACK);
                     *((float *)output_LW + index_f) = log10(M_buf);
                 }
             }

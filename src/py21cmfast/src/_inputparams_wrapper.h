@@ -107,7 +107,7 @@ typedef struct AstroParams {
 
     float T_RE;
 
-    float M_TURN;
+    float M_TURN_STELLAR_FEEDBACK;
     float R_BUBBLE_MAX;
     float ION_Tvir_MIN;
     double F_H2_SHIELD;

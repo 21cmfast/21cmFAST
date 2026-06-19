@@ -1329,7 +1329,7 @@ double minimum_source_mass(double redshift, bool xray) {
     } else if (astro_options_global->M_MIN_in_Mass) {
         // NOTE: previously this divided Mturn by 50 in spin temperature, but not in the ionised box
         //      which I think is a bug with M_MIN_in_Mass, since there is a sharp cutoff
-        Mmin = astro_params_global->M_TURN;
+        Mmin = astro_params_global->M_TURN_STELLAR_FEEDBACK;
     } else {
         // if the virial temp minimum is set below ionisation we need to set mu accordingly
         t_vir_min = xray ? astro_params_global->X_RAY_Tvir_MIN : astro_params_global->ION_Tvir_MIN;
