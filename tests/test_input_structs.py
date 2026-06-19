@@ -701,7 +701,12 @@ class TestInputParameters:
 
     def setup_class(self):
         """Create a default InputParameters."""
-        self.default = InputParameters(random_seed=1)
+        # In test_evolve, we inspect the content of cosmo_tables after evolving the input structs, which causes CLASS to run multiple times,
+        # when POWER_SPECTRUM is set to "CLASS". To reduce the time of the test, we set K_MAX_FOR_CLASS to a small value.
+        self.simulation_options_default = SimulationOptions.new(K_MAX_FOR_CLASS=0.01)
+        self.default = InputParameters(
+            random_seed=1, simulation_options=self.simulation_options_default
+        )
         self.default_sigma8 = InputParameters(
             random_seed=1, cosmo_params=CosmoParams(SIGMA_8=1.0)
         )
@@ -761,7 +766,9 @@ class TestInputParameters:
     def test_default(self):
         """Test the default object is, well, default."""
         assert self.default.cosmo_params == CosmoParams.new()
-        assert self.default.simulation_options == SimulationOptions.new()
+        assert self.default.simulation_options == SimulationOptions.new(
+            K_MAX_FOR_CLASS=0.01
+        )
         assert self.default.matter_options == MatterOptions.new()
         assert self.default.astro_params == AstroParams.new()
         assert self.default.astro_options == AstroOptions.new()
