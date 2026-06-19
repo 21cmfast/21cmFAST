@@ -516,7 +516,7 @@ class TestMatterOptions:
                 USE_INTERPOLATION_TABLES="sigma-interpolation",
             )
 
-        msg = r"Can only use 'CLASS' power spectrum with V_CB_MODEL='FLUCTS'!"
+        msg = r"When using V_CB_MODEL='FLUCTS', you must use POWER_SPECTRUM = 'CLASS'!"
         with pytest.raises(ValueError, match=msg):
             MatterOptions(V_CB_MODEL="FLUCTS", POWER_SPECTRUM="EH")
 
@@ -730,7 +730,7 @@ class TestInputParameters:
     @pytest.mark.parametrize("fix_vcb_avg", [True, False])
     def test_fix_vcb_avg_deprecated_warning(self, fix_vcb_avg):
         """Test that using FIX_VCB_AVG=True shows deprecation warning."""
-        v_cb_model = "AVG-AUTO" if fix_vcb_avg else "NONE"
+        v_cb_model = "AVG-DEBUG" if fix_vcb_avg else "NONE"
         with pytest.warns(
             deprecation.DeprecatedWarning, match="FIX_VCB_AVG is deprecated"
         ):
@@ -748,13 +748,13 @@ class TestInputParameters:
         InputParameters(
             random_seed=1,
             astro_options=AstroOptions(FIX_VCB_AVG=True),
-            matter_options=MatterOptions(V_CB_MODEL="AVG-AUTO"),
+            matter_options=MatterOptions(V_CB_MODEL="AVG-DEBUG"),
         )
 
     @pytest.mark.parametrize("fix_vcb_avg", [True, False])
     def test_fix_vcb_avg_conflict(self, fix_vcb_avg):
         """Test error when FIX_VCB_AVG conflicts with V_CB_MODEL."""
-        v_cb_model_wrong = "NONE" if fix_vcb_avg else "AVG-AUTO"
+        v_cb_model_wrong = "NONE" if fix_vcb_avg else "AVG-DEBUG"
         with pytest.raises(
             ValueError,
             match=f"FIX_VCB_AVG={fix_vcb_avg} is not compatible with ",

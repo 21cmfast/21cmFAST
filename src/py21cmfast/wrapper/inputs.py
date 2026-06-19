@@ -729,7 +729,7 @@ class MatterOptions(InputStruct):
         at the moment of kinematic decoupling. Options are:
 
         * ``NONE``: Zero relative velocity is assumed.
-        * ``AVG-AUTO``: The mean of the amplitude of the relative velocity is used in every cell in the box. It computed from linear theory,
+        * ``AVG-AUTO``: The mean of the amplitude of the relative velocity is used in every cell in the box. It is computed from linear theory,
           given the cosmological parameters.
         * ``FLUCTS``: The relative velocity field is computed on the Lagrangian grid using linear theory. The relative velocity field
           is assumed to be curl-free and completely correlated with the density field (in Fourier space). In this option, POWER_SPECTRUM
@@ -808,7 +808,7 @@ class MatterOptions(InputStruct):
     def _POWER_SPECTRUM_vld(self, att, val):
         if self.V_CB_MODEL == "FLUCTS" and val != "CLASS":
             raise ValueError(
-                "Can only use 'CLASS' power spectrum with V_CB_MODEL='FLUCTS'! "
+                "When using V_CB_MODEL='FLUCTS', you must use POWER_SPECTRUM = 'CLASS'! "
                 "Please set POWER_SPECTRUM to 'CLASS' or change V_CB_MODEL to something else."
             )
 
@@ -816,7 +816,7 @@ class MatterOptions(InputStruct):
     def USE_RELATIVE_VELOCITIES(self) -> bool:
         """Whether to use the fluctuating field of the relative velocity between (cold) dark matter and baryons.
 
-        This is a deprecated property, and will be removed in a future version. Please use V_CB_MODEL instead.
+        This is a deprecated property, and will be removed in v5. Please use V_CB_MODEL instead.
         """
         if self._USE_RELATIVE_VELOCITIES is None:
             # User didn't explicitly set USE_RELATIVE_VELOCITIES, infer from V_CB_MODEL
@@ -1333,18 +1333,15 @@ class AstroOptions(InputStruct):
     def FIX_VCB_AVG(self) -> bool:
         """Whether to fix the amplitude of the relative velocity between (cold) dark matter and baryons on a constant mean value from linear perturbation theory.
 
-        This is a deprecated property, and will be removed in a future version. Please use V_CB_MODEL instead.
+        This is a deprecated property, and will be removed in v5. Please use V_CB_MODEL instead.
         """
-        if self._FIX_VCB_AVG is None:
-            return None
-        else:
-            return self._FIX_VCB_AVG
+        return self._FIX_VCB_AVG
 
     @cached_property
     def INHOMO_RECO(self) -> bool:
         """Whether to perform inhomogeneous recombinations.
 
-        This is a deprecated property, and will be removed in a future version. Please use RECOMB_MODEL instead.
+        This is a deprecated property, and will be removed in v5. Please use RECOMB_MODEL instead.
         """
         if self._INHOMO_RECO is None:
             # User didn't explicitly set INHOMO_RECO, infer from RECOMB_MODEL
@@ -1730,7 +1727,7 @@ class AstroParams(InputStruct):
 
         Becomes relevant only when AstroOptions.FIX_VCB_AVG is True.
 
-        This is a deprecated property, and will be removed in a future version. Please use V_CB_AVG_DEBUG instead.
+        This is a deprecated property, and will be removed in v5. Please use V_CB_AVG_DEBUG instead.
         """
         return self._FIXED_VAVG
 
@@ -2007,18 +2004,18 @@ class InputParameters:
             )
             if (
                 not self.astro_options.FIX_VCB_AVG
-                and self.matter_options.V_CB_MODEL == "AVG-AUTO"
+                and self.matter_options.V_CB_MODEL == "AVG-DEBUG"
             ):
                 raise ValueError(
-                    "FIX_VCB_AVG=False is not compatible with V_CB_MODEL == 'AVG-AUTO'! "
+                    "FIX_VCB_AVG=False is not compatible with V_CB_MODEL = 'AVG-DEBUG'! "
                     "Either change V_CB_MODEL or set FIX_VCB_AVG to True."
                 )
             elif (
                 self.astro_options.FIX_VCB_AVG
-                and self.matter_options.V_CB_MODEL != "AVG-AUTO"
+                and self.matter_options.V_CB_MODEL != "AVG-DEBUG"
             ):
                 raise ValueError(
-                    "FIX_VCB_AVG=True is not compatible with V_CB_MODEL != 'AVG-AUTO'! "
+                    f"FIX_VCB_AVG=True is not compatible with V_CB_MODEL = {self.matter_options.V_CB_MODEL}! "
                     "Either change V_CB_MODEL or set FIX_VCB_AVG to False."
                 )
 
