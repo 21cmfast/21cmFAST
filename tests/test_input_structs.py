@@ -197,6 +197,25 @@ class TestCosmoParams:
             CosmoParams(SIGMA_8=self.sigma_8, A_s=self.A_s)
 
 
+class TestAstroParams:
+    """Tests of AstroParams."""
+
+    def test_fix_vcb_avg_deprecated_warning(self):
+        """Test that using FIXED_VAVG=True shows deprecation warning."""
+        fixed_vavg = 1.0  # dummy value for testing
+        with pytest.warns(
+            deprecation.DeprecatedWarning, match="FIXED_VAVG is deprecated"
+        ):
+            astro_params = AstroParams(FIXED_VAVG=fixed_vavg)
+        assert fixed_vavg == astro_params.FIXED_VAVG
+        assert fixed_vavg == astro_params.V_CB_AVG_DEBUG
+
+    @deprecation.fail_if_not_removed
+    def test_fixed_vavg_is_removed(self):
+        """Fails when the removed_in version is reached, reminding you to delete FIXED_VAVG."""
+        AstroParams(FIXED_VAVG=1.0)
+
+
 class TestAstroOptions:
     """Tests of AstroOptions."""
 
@@ -497,13 +516,61 @@ class TestMatterOptions:
                 USE_INTERPOLATION_TABLES="sigma-interpolation",
             )
 
-        msg = r"Can only use 'CLASS' power spectrum with relative velocities"
+        msg = r"When using V_CB_MODEL='FLUCTS', you must use POWER_SPECTRUM = 'CLASS'!"
         with pytest.raises(ValueError, match=msg):
-            MatterOptions(USE_RELATIVE_VELOCITIES=True, POWER_SPECTRUM="EH")
+            MatterOptions(V_CB_MODEL="FLUCTS", POWER_SPECTRUM="EH")
 
         msg = r"The conditional mass functions requied for the discrete halo field"
         with pytest.raises(NotImplementedError, match=msg):
             MatterOptions(SOURCE_MODEL="CHMF-SAMPLER", HMF="WATSON")
+
+    @pytest.mark.parametrize("v_cb_model", ["NONE", "AVG-AUTO", "FLUCTS", "AVG-DEBUG"])
+    def test_v_cb_model_basic(self, v_cb_model):
+        """Test basic V_CB_MODEL usage without USE_RELATIVE_VELOCITIES."""
+        opts_none = MatterOptions(V_CB_MODEL=v_cb_model)
+        assert v_cb_model == opts_none.V_CB_MODEL
+        assert (
+            opts_none.USE_RELATIVE_VELOCITIES is False if v_cb_model == "NONE" else True
+        )
+
+    def test_use_relative_velocities_deprecated_warning(self):
+        """Test that using USE_RELATIVE_VELOCITIES=True shows deprecation warning."""
+        with pytest.warns(
+            deprecation.DeprecatedWarning, match="USE_RELATIVE_VELOCITIES is deprecated"
+        ):
+            opts = MatterOptions(USE_RELATIVE_VELOCITIES=True)
+        assert opts.V_CB_MODEL == "FLUCTS"
+        assert opts.USE_RELATIVE_VELOCITIES is True
+
+    @deprecation.fail_if_not_removed
+    def test_use_relative_velocities_is_removed(self):
+        """Fails when the removed_in version is reached, reminding you to delete USE_RELATIVE_VELOCITIES."""
+        MatterOptions(USE_RELATIVE_VELOCITIES=True)
+
+    @pytest.mark.parametrize("kwargs", [{}, {"USE_RELATIVE_VELOCITIES": False}])
+    def test_use_relative_velocities_false_sets_none(self, kwargs):
+        """Test that USE_RELATIVE_VELOCITIES=False (or not provided) sets V_CB_MODEL='NONE'."""
+        opts = MatterOptions(**kwargs)
+        assert opts.V_CB_MODEL == "NONE"
+        assert opts.USE_RELATIVE_VELOCITIES is False
+
+    @pytest.mark.parametrize("v_cb_model", ["NONE", "AVG-AUTO", "FLUCTS", "AVG-DEBUG"])
+    def test_v_cb_model_conflict(self, v_cb_model):
+        """Test error when USE_RELATIVE_VELOCITIES=False conflicts with V_CB_MODEL!='NONE'."""
+        use_relative_veclocities_wrong = v_cb_model == "NONE"
+        with pytest.raises(
+            ValueError,
+            match=f"V_CB_MODEL is set to '{v_cb_model}' but USE_RELATIVE_VELOCITIES is {use_relative_veclocities_wrong}",
+        ):
+            MatterOptions(
+                USE_RELATIVE_VELOCITIES=use_relative_veclocities_wrong,
+                V_CB_MODEL=v_cb_model,
+            )
+
+    def test_v_cb_model_choices_valid(self):
+        """Test that only valid V_CB_MODEL choices are accepted."""
+        with pytest.raises(ValueError, match="V_CB_MODEL must be one of"):
+            MatterOptions(V_CB_MODEL="invalid")
 
 
 class TestInputParameters:
@@ -614,11 +681,20 @@ class TestInputParameters:
             },
         ),
         (
-            "USE_MINI_HALOS needs USE_RELATIVE_VELOCITIES",
+            "USE_MINI_HALOS needs a non-trivial V_CB_MODEL",
             {
-                "matter_options": MatterOptions(USE_RELATIVE_VELOCITIES=False),
+                "matter_options": MatterOptions(V_CB_MODEL="NONE"),
                 "astro_options": AstroOptions(
                     USE_MINI_HALOS=True, RECOMB_MODEL="inhomogeneous", USE_TS_FLUCT=True
+                ),
+            },
+        ),
+        (
+            "USE_MINI_HALOS is False but V_CB_MODEL != 'NONE'",
+            {
+                "matter_options": MatterOptions(V_CB_MODEL="FLUCTS"),
+                "astro_options": AstroOptions(
+                    USE_MINI_HALOS=False,
                 ),
             },
         ),
@@ -626,7 +702,12 @@ class TestInputParameters:
 
     def setup_class(self):
         """Create a default InputParameters."""
-        self.default = InputParameters(random_seed=1)
+        # In test_evolve, we inspect the content of cosmo_tables after evolving the input structs, which causes CLASS to run multiple times,
+        # when POWER_SPECTRUM is set to "CLASS". To reduce the time of the test, we set K_MAX_FOR_CLASS to a small value.
+        self.simulation_options_default = SimulationOptions.new(K_MAX_FOR_CLASS=0.01)
+        self.default = InputParameters(
+            random_seed=1, simulation_options=self.simulation_options_default
+        )
         self.default_sigma8 = InputParameters(
             random_seed=1, cosmo_params=CosmoParams(SIGMA_8=1.0)
         )
@@ -646,10 +727,50 @@ class TestInputParameters:
         with pytest.warns(UserWarning, match=msg):
             InputParameters(random_seed=1, **kw)
 
+    @pytest.mark.parametrize("fix_vcb_avg", [True, False])
+    def test_fix_vcb_avg_deprecated_warning(self, fix_vcb_avg):
+        """Test that using FIX_VCB_AVG=True shows deprecation warning."""
+        v_cb_model = "AVG-DEBUG" if fix_vcb_avg else "NONE"
+        with pytest.warns(
+            deprecation.DeprecatedWarning, match="FIX_VCB_AVG is deprecated"
+        ):
+            inputs = InputParameters(
+                random_seed=1,
+                astro_options=AstroOptions(FIX_VCB_AVG=fix_vcb_avg),
+                matter_options=MatterOptions(V_CB_MODEL=v_cb_model),
+            )
+        assert v_cb_model == inputs.matter_options.V_CB_MODEL
+        assert fix_vcb_avg == inputs.astro_options.FIX_VCB_AVG
+
+    @deprecation.fail_if_not_removed
+    def test_fix_vcb_avg_is_removed(self):
+        """Fails when the removed_in version is reached, reminding you to delete FIX_VCB_AVG."""
+        InputParameters(
+            random_seed=1,
+            astro_options=AstroOptions(FIX_VCB_AVG=True),
+            matter_options=MatterOptions(V_CB_MODEL="AVG-DEBUG"),
+        )
+
+    @pytest.mark.parametrize("fix_vcb_avg", [True, False])
+    def test_fix_vcb_avg_conflict(self, fix_vcb_avg):
+        """Test error when FIX_VCB_AVG conflicts with V_CB_MODEL."""
+        v_cb_model_wrong = "NONE" if fix_vcb_avg else "AVG-DEBUG"
+        with pytest.raises(
+            ValueError,
+            match=f"FIX_VCB_AVG={fix_vcb_avg} is not compatible with ",
+        ):
+            InputParameters(
+                random_seed=1,
+                astro_options=AstroOptions(FIX_VCB_AVG=fix_vcb_avg),
+                matter_options=MatterOptions(V_CB_MODEL=v_cb_model_wrong),
+            )
+
     def test_default(self):
         """Test the default object is, well, default."""
         assert self.default.cosmo_params == CosmoParams.new()
-        assert self.default.simulation_options == SimulationOptions.new()
+        assert self.default.simulation_options == SimulationOptions.new(
+            K_MAX_FOR_CLASS=0.01
+        )
         assert self.default.matter_options == MatterOptions.new()
         assert self.default.astro_params == AstroParams.new()
         assert self.default.astro_options == AstroOptions.new()
