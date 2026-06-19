@@ -210,6 +210,7 @@ class TestAstroParams:
         assert fixed_vavg == astro_params.FIXED_VAVG
         assert fixed_vavg == astro_params.V_CB_AVG_DEBUG
 
+    @deprecation.fail_if_not_removed
     def test_fixed_vavg_is_removed(self):
         """Fails when the removed_in version is reached, reminding you to delete FIXED_VAVG."""
         AstroParams(FIXED_VAVG=1.0)
@@ -741,6 +742,7 @@ class TestInputParameters:
         assert v_cb_model == inputs.matter_options.V_CB_MODEL
         assert fix_vcb_avg == inputs.astro_options.FIX_VCB_AVG
 
+    @deprecation.fail_if_not_removed
     def test_fix_vcb_avg_is_removed(self):
         """Fails when the removed_in version is reached, reminding you to delete FIX_VCB_AVG."""
         InputParameters(

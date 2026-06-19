@@ -1656,7 +1656,7 @@ class AstroParams(InputStruct):
     )
 
     T_RE: float = field(default=2e4, converter=float)
-    _FIXED_VAVG: bool | None = field(
+    _FIXED_VAVG: float | None = field(
         default=None, converter=attrs.converters.optional(float)
     )
     V_CB_AVG_DEBUG: float = field(converter=float, validator=validators.gt(0))
@@ -1725,7 +1725,7 @@ class AstroParams(InputStruct):
             )
 
     @cached_property
-    def FIXED_VAVG(self) -> bool:
+    def FIXED_VAVG(self) -> float | None:
         """A fixed constant value for the amplitude of the relative velocity between (cold) dark matter and baryons, in units of km/s.
 
         Becomes relevant only when AstroOptions.FIX_VCB_AVG is True.
