@@ -43,7 +43,6 @@ typedef struct ScalingConstants {
     double vcb_const;
     double acg_thresh;
     double mturn_a_nofb;
-    double mturn_m_nofb;
 
     double Mlim_Fstar;
     double Mlim_Fesc;

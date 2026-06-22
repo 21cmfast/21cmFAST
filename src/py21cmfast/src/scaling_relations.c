@@ -26,8 +26,7 @@ void print_sc_consts(ScalingConstants *c) {
     LOG_DEBUG("FESC: f10 %.2e a %.2e f7 %.2e", c->fesc_10, c->alpha_esc, c->fesc_7);
     LOG_DEBUG("SSFR: t* %.2e th %.8e sigma %.2e idx %.2e", c->t_star, c->t_h, c->sigma_sfr_lim,
               c->sigma_sfr_idx);
-    LOG_DEBUG("Turnovers (nofb) ACG %.2e MCG %.2e Upper %.2e", c->mturn_a_nofb, c->mturn_m_nofb,
-              c->acg_thresh);
+    LOG_DEBUG("Turnovers (nofb) ACG %.2e Upper %.2e", c->mturn_a_nofb, c->acg_thresh);
     LOG_DEBUG("Limits (ACG,MCG) F* (%.2e %.2e) Fesc (%.2e %.2e)", c->Mlim_Fstar, c->Mlim_Fstar_mini,
               c->Mlim_Fesc, c->Mlim_Fesc_mini);
     return;
@@ -98,11 +97,6 @@ void set_scaling_constants(double redshift, ScalingConstants *consts, bool use_p
             break;
     }
 
-    consts->mturn_m_nofb = 0.;
-    if (astro_options_global->USE_MINI_HALOS) {
-        consts->mturn_m_nofb = lyman_werner_threshold(redshift, 0., consts->vcb_const);
-    }
-
     consts->Mlim_Fstar =
         Mass_limit_bisection(M_MIN_INTEGRAL, M_MAX_INTEGRAL, consts->alpha_star, consts->fstar_10);
     consts->Mlim_Fesc =
@@ -158,11 +152,6 @@ ScalingConstants evolve_scaling_constants_to_redshift(double redshift, ScalingCo
     sc_z.mturn_a_nofb = astro_params_global->M_TURN_STELLAR_FEEDBACK;
     if (astro_options_global->USE_MINI_HALOS)
         sc_z.mturn_a_nofb = fmax(sc_z.acg_thresh, sc_z.mturn_a_nofb);
-
-    sc_z.mturn_m_nofb = 0.;
-    if (astro_options_global->USE_MINI_HALOS) {
-        sc_z.mturn_m_nofb = lyman_werner_threshold(redshift, 0., sc_z.vcb_const);
-    }
 
     return sc_z;
 }

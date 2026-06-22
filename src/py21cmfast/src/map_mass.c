@@ -258,7 +258,7 @@ void move_grid_galprops(double redshift, float *dens_pointer, int dens_dim[3],
         int ipos[3];
         index_huge vel_index, dens_index, mturn_index;
         double l10_mturn_a = log10(consts->mturn_a_nofb);
-        double l10_mturn_m = log10(consts->mturn_m_nofb);
+        double l10_mturn_m = 0.;  // dummy value for the USE_MINI_HALOS = false branch
         HaloProperties properties;
 #pragma omp for
         for (i = 0; i < dens_dim[0]; i++) {
@@ -375,7 +375,7 @@ void move_halo_galprops(double redshift, HaloCatalog *halos, float *vel_pointers
         index_huge i, vel_index;
         HaloProperties properties;
         double M_turn_a = consts->mturn_a_nofb;
-        double M_turn_m = consts->mturn_m_nofb;
+        double M_turn_m = 0.;  // dummy value for the USE_MINI_HALOS = false branch
         double halo_rng[3];
         double hmass;
 #pragma omp for

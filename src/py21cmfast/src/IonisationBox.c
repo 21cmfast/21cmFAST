@@ -441,8 +441,7 @@ void calculate_mcrit_boxes(IonizedBox *prev_ionbox, TsBox *spin_temp, InitialCon
                     // affect both minihaloes (MCGs) and regular ACGs, but they're smaller ~10%. See
                     // Sec 2 of Muñoz+21 (2110.13919)
                     curr_Mt = log10(fmax(Mcrit_RE, consts->scale_consts.mturn_a_nofb));
-                    curr_Mt_MINI =
-                        log10(fmax(Mcrit_RE, fmax(Mcrit_LW, consts->scale_consts.mturn_m_nofb)));
+                    curr_Mt_MINI = log10(fmax(Mcrit_RE, Mcrit_LW));
 
                     // To avoid allocating another box we directly assign turnover masses to the
                     // fftw grid

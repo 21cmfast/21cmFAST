@@ -364,7 +364,7 @@ int set_fixed_grids(double M_min, double M_max, InitialConditions *ini_boxes, fl
             if (dens < min_density) min_density = dens;
         }
 
-        double M_turn_m = ev_consts->mturn_m_nofb;
+        double M_turn_m;
         double M_turn_a = ev_consts->mturn_a_nofb;
 #pragma omp for reduction(min : min_log10_mturn_a, min_log10_mturn_m) \
     reduction(max : max_log10_mturn_a, max_log10_mturn_m)
@@ -466,7 +466,7 @@ void get_log10_turnovers(InitialConditions *ini_boxes, TsBox *previous_spin_temp
                          IonizedBox *previous_ionize_box, float *mturn_a_grid, float *mturn_m_grid,
                          ScalingConstants *consts, double averages[2]) {
     averages[0] = log10(consts->mturn_a_nofb);
-    averages[1] = log10(consts->mturn_m_nofb);
+    averages[1] = 0.;  // dummy value for the USE_MINI_HALOS = false branch
     if (!astro_options_global->USE_MINI_HALOS) {
         return;
     }
@@ -683,7 +683,7 @@ int test_halo_props(double redshift, float *vcb_grid, float *J21_LW_grid, float 
             double J21_val, Gamma12_val, zre_val;
 
             double curr_vcb = hbox_consts.vcb_const;
-            double M_turn_m = hbox_consts.mturn_m_nofb;
+            double M_turn_m = 0.;  // dummy value for the USE_MINI_HALOS = false branch
             double M_turn_a = hbox_consts.mturn_a_nofb;
             double M_turn_r = 0.;
 
@@ -806,7 +806,7 @@ int convert_halo_props(double redshift, InitialConditions *ics, TsBox *prev_ts,
         index_huge i_halo;
         double m;
 
-        double M_turn_m = hbox_consts.mturn_m_nofb;
+        double M_turn_m = 0.;  // dummy value for the USE_MINI_HALOS = false branch
         double M_turn_a = hbox_consts.mturn_a_nofb;
 
         double in_props[3];
