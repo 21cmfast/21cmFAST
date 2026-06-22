@@ -78,9 +78,7 @@ void set_scaling_constants(double redshift, ScalingConstants *consts, bool use_p
     consts->pop3_ion = astro_params_global->POP3_ION;
 
     consts->acg_thresh = atomic_cooling_threshold(redshift);
-    consts->mturn_a_nofb = astro_params_global->M_TURN_STELLAR_FEEDBACK;
-    if (astro_options_global->USE_MINI_HALOS)
-        consts->mturn_a_nofb = fmax(consts->acg_thresh, consts->mturn_a_nofb);
+    consts->mturn_a_nofb = fmax(consts->acg_thresh, astro_params_global->M_TURN_STELLAR_FEEDBACK);
 
     switch (matter_options_global->V_CB_MODEL) {
         case V_CB_MODEL_NO:
@@ -149,9 +147,7 @@ ScalingConstants evolve_scaling_constants_to_redshift(double redshift, ScalingCo
     }
 
     sc_z.acg_thresh = atomic_cooling_threshold(redshift);
-    sc_z.mturn_a_nofb = astro_params_global->M_TURN_STELLAR_FEEDBACK;
-    if (astro_options_global->USE_MINI_HALOS)
-        sc_z.mturn_a_nofb = fmax(sc_z.acg_thresh, sc_z.mturn_a_nofb);
+    sc_z.mturn_a_nofb = fmax(sc_z.acg_thresh, astro_params_global->M_TURN_STELLAR_FEEDBACK);
 
     return sc_z;
 }

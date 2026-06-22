@@ -80,6 +80,28 @@ def get_halo_catalog_buffer_size(
 
 
 @init_c_state(broadcast_inputs=True)
+def get_atomic_cooling_mass_threshold(
+    *, redshifts: float | Sequence[float], inputs: InputParameters
+) -> float | np.ndarray:
+    """Get the atomic cooling threshold mass at a given redshift.
+
+    Parameters
+    ----------
+    redshifts : array-like
+        The redshifts at which to compute the atomic cooling threshold mass.
+    inputs: :class:`~InputParameters`
+        The input parameters of the run
+
+    Returns
+    -------
+    M_turn_a : array-like
+        The atomic cooling threshold mass at the given redshifts.
+    """
+    vfunc = np.vectorize(lib.atomic_cooling_threshold, otypes=[np.float64])
+    return vfunc(redshifts)
+
+
+@init_c_state(broadcast_inputs=True)
 def compute_mturns(
     *,
     inputs: InputParameters,
