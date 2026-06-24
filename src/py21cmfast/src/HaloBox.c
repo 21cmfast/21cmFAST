@@ -278,8 +278,8 @@ void get_cell_integrals(double dens, double l10_mturn_a, double l10_mturn_m,
 
     if (astro_options_global->USE_TS_FLUCT) {
         properties->halo_xray =
-            EvaluateXray_Conditional(dens, l10_mturn_m, consts->redshift, growth_z, M_min, M_max,
-                                     M_cell, sigma_cell, consts);
+            EvaluateXray_Conditional(dens, l10_mturn_a, l10_mturn_m, consts->redshift, growth_z,
+                                     M_min, M_max, M_cell, sigma_cell, consts);
     }
 
     if (config_settings.EXTRA_HALOBOX_FIELDS) {

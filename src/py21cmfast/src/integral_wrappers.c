@@ -301,7 +301,7 @@ void get_conditional_Nion(double redshift, double R, int n_densities, double *de
 }
 
 void get_conditional_Xray(double redshift, double R, int n_densities, double *densities,
-                          double log10_mturn_mini, double *out_xray) {
+                          double log10_mturn_acg, double log10_mturn_mcg, double *out_xray) {
     double M_min = minimum_source_mass(redshift, true);
     double M_cond = RtoM(R);
     double sigma_cond = EvaluateSigma(log(M_cond));
@@ -331,7 +331,7 @@ void get_conditional_Xray(double redshift, double R, int n_densities, double *de
         initialise_Xray_Conditional_table(redshift, min_dens, max_dens, M_min, M_cond, M_cond, &sc);
     }
     for (i = 0; i < n_densities; i++)
-        out_xray[i] = X_RAY_FACTOR * EvaluateXray_Conditional(densities[i], log10_mturn_mini,
-                                                              redshift, growthf, M_min, M_cond,
-                                                              M_cond, sigma_cond, &sc);
+        out_xray[i] = X_RAY_FACTOR * EvaluateXray_Conditional(
+                                         densities[i], log10_mturn_acg, log10_mturn_mcg, redshift,
+                                         growthf, M_min, M_cond, M_cond, sigma_cond, &sc);
 }

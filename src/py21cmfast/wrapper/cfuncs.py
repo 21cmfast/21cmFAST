@@ -1080,20 +1080,31 @@ def evaluate_Xray_cond(
             "or leave unspecified and they will be estimated automatically."
         )
 
+    if lightcone is not None:
+        log10mturns_acg_global = lightcone.global_quantities["log10_mturn_acg"]
+    else:
+        # If lightcone is not provided, we estimate the turnover masses from the global evolution
+        if global_evolution is None:
+            global_evolution = run_global_evolution(inputs=inputs)
+        log10mturns_acg_global = global_evolution.quantities["log10_mturn_acg"]
+
+    log10mturns_acg = np.interp(
+        redshift, inputs.node_redshifts[::-1], log10mturns_acg_global[::-1]
+    )
     if inputs.astro_options.USE_MINI_HALOS:
         if lightcone is not None:
-            log10mturns_mini_global = lightcone.global_quantities["log10_mturn_mcg"]
+            log10mturns_mcg_global = lightcone.global_quantities["log10_mturn_mcg"]
         else:
             # If lightcone is not provided, we estimate the turnover masses from the global evolution
             if global_evolution is None:
                 global_evolution = run_global_evolution(inputs=inputs)
-            log10mturns_mini_global = global_evolution.quantities["log10_mturn_mcg"]
+            log10mturns_mcg_global = global_evolution.quantities["log10_mturn_mcg"]
 
-        log10mturn_mini = np.interp(
-            redshift, inputs.node_redshifts[::-1], log10mturns_mini_global[::-1]
+        log10mturn_mcg = np.interp(
+            redshift, inputs.node_redshifts[::-1], log10mturns_mcg_global[::-1]
         )
     else:
-        log10mturn_mini = 0.0  # dummy value for no mini halos
+        log10mturn_mcg = 0.0  # dummy value for no mini halos
 
     densities = densities.astype("f8")
     xray_emissivity = np.zeros_like(densities)
@@ -1103,7 +1114,8 @@ def evaluate_Xray_cond(
         radius,
         densities.size,
         ffi.cast("double *", ffi.from_buffer(densities)),
-        log10mturn_mini,
+        log10mturns_acg,
+        log10mturn_mcg,
         ffi.cast("double *", ffi.from_buffer(xray_emissivity)),
     )
 
