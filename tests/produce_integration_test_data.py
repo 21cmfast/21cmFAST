@@ -294,6 +294,9 @@ def get_node_z(redshift, lc=False, **kwargs):
 
     Values for the spacing and maximum go kwargs --> test defaults --> struct defaults
     """
+    if "node_redshifts" in kwargs:
+        return kwargs["node_redshifts"]
+
     node_redshifts = None
     max_redshift = redshift + 2
     if (
@@ -327,6 +330,7 @@ def get_node_z(redshift, lc=False, **kwargs):
 
 def get_all_options_struct(redshift, lc=False, **kwargs):
     node_redshifts = get_node_z(redshift, lc=lc, **kwargs)
+    kwargs.pop("node_redshifts", None)  # Remove node_redshifts from kwargs if present
 
     inputs = InputParameters(
         node_redshifts=node_redshifts,

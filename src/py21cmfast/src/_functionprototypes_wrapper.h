@@ -96,10 +96,10 @@ void get_halo_chmf_interval(double redshift, double z_prev, int n_conditions, do
                             int n_masslim, double *lnM_lo, double *lnM_hi, double *out_n);
 void get_halomass_at_probability(double redshift, double z_prev, int n_conditions,
                                  double *cond_values, double *probabilities, double *out_mass);
-void get_global_SFRD_z(int n_redshift, double *redshifts, double *log10_turnovers_mcg,
-                       double *out_sfrd, double *out_sfrd_mini);
-void get_global_Nion_z(int n_redshift, double *redshifts, double *log10_turnovers_mcg,
-                       double *out_nion, double *out_nion_mini);
+void get_global_SFRD_z(int n_redshift, double *redshifts, double *log10_turnovers_acg,
+                       double *log10_turnovers_mcg, double *out_sfrd, double *out_sfrd_mini);
+void get_global_Nion_z(int n_redshift, double *redshifts, double *log10_turnovers_acg,
+                       double *log10_turnovers_mcg, double *out_nion, double *out_nion_mini);
 void get_conditional_FgtrM(double redshift, double R, int n_densities, double *densities,
                            double *out_fcoll, double *out_dfcoll);
 void get_conditional_SFRD(double redshift, double R, int n_densities, double *densities,

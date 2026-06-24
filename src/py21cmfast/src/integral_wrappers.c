@@ -96,8 +96,8 @@ void get_halomass_at_probability(double redshift, double z_prev, int n_condition
     }
 }
 
-void get_global_SFRD_z(int n_redshift, double *redshifts, double *log10_turnovers_mcg,
-                       double *out_sfrd, double *out_sfrd_mini) {
+void get_global_SFRD_z(int n_redshift, double *redshifts, double *log10_turnovers_acg,
+                       double *log10_turnovers_mcg, double *out_sfrd, double *out_sfrd_mini) {
     ScalingConstants sc;
     set_scaling_constants(redshifts[0], &sc, false);
 
@@ -123,13 +123,14 @@ void get_global_SFRD_z(int n_redshift, double *redshifts, double *log10_turnover
             SFRD_FACTOR_MINI = astro_params_global->F_STAR7_MINI * cosmo_params_global->OMb *
                                RHOcrit / astro_params_global->t_STAR / t_hubble(redshifts[i]);
             out_sfrd_mini[i] =
-                SFRD_FACTOR_MINI * EvaluateSFRD_MINI(redshifts[i], log10_turnovers_mcg[i], &sc);
+                SFRD_FACTOR_MINI * EvaluateSFRD_MINI(redshifts[i], log10_turnovers_acg[i],
+                                                     log10_turnovers_mcg[i], &sc);
         }
     }
 }
 
-void get_global_Nion_z(int n_redshift, double *redshifts, double *log10_turnovers_mcg,
-                       double *out_nion, double *out_nion_mini) {
+void get_global_Nion_z(int n_redshift, double *redshifts, double *log10_turnovers_acg,
+                       double *log10_turnovers_mcg, double *out_nion, double *out_nion_mini) {
     ScalingConstants sc;
     set_scaling_constants(redshifts[0], &sc, false);
 
@@ -158,8 +159,9 @@ void get_global_Nion_z(int n_redshift, double *redshifts, double *log10_turnover
     for (i = 0; i < n_redshift; i++) {
         out_nion[i] = ION_EFF_FACTOR * EvaluateNionTs(redshifts[i], &sc);
         if (astro_options_global->USE_MINI_HALOS)
-            out_nion_mini[i] = ION_EFF_FACTOR_MINI *
-                               EvaluateNionTs_MINI(redshifts[i], log10_turnovers_mcg[i], &sc);
+            out_nion_mini[i] =
+                ION_EFF_FACTOR_MINI * EvaluateNionTs_MINI(redshifts[i], log10_turnovers_acg[i],
+                                                          log10_turnovers_mcg[i], &sc);
     }
 }
 

@@ -60,7 +60,9 @@ def compute_global_reionization_at_z(
         #       This limitation however should be relaxed in the future, see https://github.com/21cmfast/21cmFAST/issues/600.
         #       When that happens, note that the call below to evaluate_Nion_z calls run_global_evolution,
         #       so be careful to avoid infinite recursion!
-        nion, _ = evaluate_Nion_z(inputs=inputs, redshifts=np.asarray(redshift))
+        nion, _ = evaluate_Nion_z(
+            inputs=inputs, redshifts=np.asarray(redshift), avoid_recursion=True
+        )
         Q_HI = 1.0 - nion
         # We don't need J_LW_21 because we currently don't allow to have mini-halos when USE_TS_FLUCT=False.
         # TODO: this limitation will be relaxed in the future, see https://github.com/21cmfast/21cmFAST/issues/600

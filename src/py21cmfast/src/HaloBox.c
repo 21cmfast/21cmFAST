@@ -134,10 +134,10 @@ int get_uhmf_averages(double M_min, double M_max, double M_turn_a, double M_turn
     intgrl_stars_only = Nion_General(consts->redshift, lnMmin, lnMmax, M_turn_a, &consts_sfrd);
     if (astro_options_global->USE_MINI_HALOS) {
         intgrl_fesc_weighted_mini =
-            Nion_General_MINI(consts->redshift, lnMmin, lnMmax, M_turn_m, consts);
+            Nion_General_MINI(consts->redshift, lnMmin, lnMmax, M_turn_a, M_turn_m, consts);
 
         intgrl_stars_only_mini =
-            Nion_General_MINI(consts->redshift, lnMmin, lnMmax, M_turn_m, &consts_sfrd);
+            Nion_General_MINI(consts->redshift, lnMmin, lnMmax, M_turn_a, M_turn_m, &consts_sfrd);
     }
     if (astro_options_global->USE_TS_FLUCT) {
         integral_xray = Xray_General(consts->redshift, lnMmin, lnMmax, M_turn_a, M_turn_m, consts);

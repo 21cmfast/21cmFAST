@@ -483,18 +483,18 @@ void set_mean_fcoll(struct IonBoxConstants *c, IonizedBox *prev_box, IonizedBox 
                     Nion_General(c->prev_redshift, c->lnMmin, c->lnMmax_gl, mturn_acg, sc_ptr);
                 curr_box->mean_f_coll = prev_box->mean_f_coll + f_coll_curr - f_coll_prev;
             }
-            f_coll_curr_mini =
-                Nion_General_MINI(c->redshift, c->lnMmin, c->lnMmax_gl, mturn_mcg, sc_ptr);
+            f_coll_curr_mini = Nion_General_MINI(c->redshift, c->lnMmin, c->lnMmax_gl, mturn_acg,
+                                                 mturn_mcg, sc_ptr);
             if (prev_box->mean_f_coll_MINI * c->ion_eff_factor_gl < 1e-4) {
                 curr_box->mean_f_coll_MINI = f_coll_curr_mini;
             } else {
-                f_coll_prev_mini =
-                    Nion_General_MINI(c->prev_redshift, c->lnMmin, c->lnMmax_gl, mturn_mcg, sc_ptr);
+                f_coll_prev_mini = Nion_General_MINI(c->prev_redshift, c->lnMmin, c->lnMmax_gl,
+                                                     mturn_acg, mturn_mcg, sc_ptr);
                 curr_box->mean_f_coll_MINI =
                     prev_box->mean_f_coll_MINI + f_coll_curr_mini - f_coll_prev_mini;
             }
             *f_limit_mcg = Nion_General_MINI(simulation_options_global->Z_HEAT_MAX, c->lnMmin,
-                                             c->lnMmax_gl, mturn_mcg, sc_ptr);
+                                             c->lnMmax_gl, mturn_acg, mturn_mcg, sc_ptr);
         } else {
             curr_box->mean_f_coll = f_coll_curr;
             curr_box->mean_f_coll_MINI = 0.;

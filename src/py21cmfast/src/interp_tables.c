@@ -130,11 +130,14 @@ void initialise_SFRD_spline(int Nbin, float zmin, float zmax, ScalingConstants *
             sc_sfrd = evolve_scaling_constants_to_redshift(z_val, &sc_sfrd, false);
             lnMmin = log(minimum_source_mass(z_val, true));
 
+            // NOTE: we use mturn_nofb as the ACG turnover mass, because if the reionization
+            // feedback dominates, then the the turnover masses for ACG and MCG are the same, in
+            // which case the MCG contribution is negligible
             if (astro_options_global->USE_MINI_HALOS) {
                 for (j = 0; j < NMTURN; j++) {
                     mturn_mcg = pow(10, SFRD_z_table_MINI.y_min + j * SFRD_z_table_MINI.y_width);
-                    SFRD_z_table_MINI.z_arr[i][j] =
-                        Nion_General_MINI(z_val, lnMmin, lnMmax, mturn_mcg, &sc_sfrd);
+                    SFRD_z_table_MINI.z_arr[i][j] = Nion_General_MINI(
+                        z_val, lnMmin, lnMmax, sc_sfrd.mturn_a_nofb, mturn_mcg, &sc_sfrd);
                 }
             }
             SFRD_z_table.y_arr[i] =
@@ -196,11 +199,14 @@ void initialise_Nion_Ts_spline(int Nbin, float zmin, float zmax, ScalingConstant
             // Minor note: while this is called in xray, we use it to estimate ionised fraction, do
             // we use ION_Tvir_MIN if applicable?
             lnMmin = log(minimum_source_mass(z_val, true));
+            // NOTE: we use mturn_nofb as the ACG turnover mass, because if the reionization
+            // feedback dominates, then the the turnover masses for ACG and MCG are the same, in
+            // which case the MCG contribution is negligible
             if (astro_options_global->USE_MINI_HALOS) {
                 for (j = 0; j < NMTURN; j++) {
                     mturn_mcg = pow(10, Nion_z_table_MINI.y_min + j * Nion_z_table_MINI.y_width);
-                    Nion_z_table_MINI.z_arr[i][j] =
-                        Nion_General_MINI(z_val, lnMmin, lnMmax, mturn_mcg, &sc_z);
+                    Nion_z_table_MINI.z_arr[i][j] = Nion_General_MINI(
+                        z_val, lnMmin, lnMmax, sc_z.mturn_a_nofb, mturn_mcg, &sc_z);
                 }
             }
             Nion_z_table.y_arr[i] = Nion_General(z_val, lnMmin, lnMmax, sc_z.mturn_a_nofb, &sc_z);
@@ -909,15 +915,21 @@ double EvaluateNionTs(double redshift, ScalingConstants *sc) {
     return Fcoll_General(redshift, lnMmin, lnMmax);
 }
 
-double EvaluateNionTs_MINI(double redshift, double log10_Mturn_LW_ave, ScalingConstants *sc) {
+double EvaluateNionTs_MINI(double redshift, double log10_Mturn_ACG_ave, double log10_Mturn_MCG_ave,
+                           ScalingConstants *sc) {
+    // No MCGs can form if their turnover mass is above the ACG turnover mass
+    if (log10_Mturn_MCG_ave > log10_Mturn_ACG_ave) {
+        return 0.;
+    }
+
     if (uses_hmf_interpolation(matter_options_global->USE_INTERPOLATION_TABLES)) {
-        return EvaluateRGTable2D(redshift, log10_Mturn_LW_ave, &Nion_z_table_MINI);
+        return EvaluateRGTable2D(redshift, log10_Mturn_MCG_ave, &Nion_z_table_MINI);
     }
     double lnMmin = log(minimum_source_mass(redshift, true));
     double lnMmax = log(M_MAX_INTEGRAL);
     ScalingConstants sc_z = evolve_scaling_constants_to_redshift(redshift, sc, false);
-
-    return Nion_General_MINI(redshift, lnMmin, lnMmax, pow(10., log10_Mturn_LW_ave), &sc_z);
+    return Nion_General_MINI(redshift, lnMmin, lnMmax, pow(10., log10_Mturn_ACG_ave),
+                             pow(10., log10_Mturn_MCG_ave), &sc_z);
 }
 
 double EvaluateSFRD(double redshift, ScalingConstants *sc) {
@@ -943,9 +955,14 @@ double EvaluateSFRD(double redshift, ScalingConstants *sc) {
     return Fcoll_General(redshift, lnMmin, lnMmax);
 }
 
-double EvaluateSFRD_MINI(double redshift, double log10_Mturn_LW_ave, ScalingConstants *sc) {
+double EvaluateSFRD_MINI(double redshift, double log10_Mturn_ACG_ave, double log10_Mturn_MCG_ave,
+                         ScalingConstants *sc) {
+    // No MCGs can form if their turnover mass is above the ACG turnover mass
+    if (log10_Mturn_MCG_ave > log10_Mturn_ACG_ave) {
+        return 0.;
+    }
     if (uses_hmf_interpolation(matter_options_global->USE_INTERPOLATION_TABLES)) {
-        return EvaluateRGTable2D(redshift, log10_Mturn_LW_ave, &SFRD_z_table_MINI);
+        return EvaluateRGTable2D(redshift, log10_Mturn_MCG_ave, &SFRD_z_table_MINI);
     }
 
     double lnMmin = log(minimum_source_mass(redshift, true));
@@ -954,7 +971,8 @@ double EvaluateSFRD_MINI(double redshift, double log10_Mturn_LW_ave, ScalingCons
     ScalingConstants sc_sfrd = evolve_scaling_constants_sfr(sc);
     sc_sfrd = evolve_scaling_constants_to_redshift(redshift, &sc_sfrd, false);
 
-    return Nion_General_MINI(redshift, lnMmin, lnMmax, pow(10., log10_Mturn_LW_ave), &sc_sfrd);
+    return Nion_General_MINI(redshift, lnMmin, lnMmax, pow(10., log10_Mturn_ACG_ave),
+                             pow(10., log10_Mturn_MCG_ave), &sc_sfrd);
 }
 
 double EvaluateSFRD_Conditional(double delta, double growthf, double M_min, double M_max,

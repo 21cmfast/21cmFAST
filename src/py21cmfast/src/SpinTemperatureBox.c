@@ -833,10 +833,10 @@ void fill_freqint_tables(double zp, double x_e_ave, double filling_factor_of_HI_
         //   density -> volume weighted cell average || halo -> halo weighted average
         for (R_ct = R_start; R_ct < R_end; R_ct++) {
             if (astro_options_global->USE_MINI_HALOS) {
-                lower_int_limit =
-                    fmax(nu_tau_one_MINI(zp, zpp_for_evolve_list[R_ct], x_e_ave,
-                                         filling_factor_of_HI_zp, log10_Mcrit_LW_ave[R_ct], sc),
-                         (astro_params_global->NU_X_THRESH) * physconst.eV_to_Hz);
+                lower_int_limit = fmax(
+                    nu_tau_one_MINI(zp, zpp_for_evolve_list[R_ct], x_e_ave, filling_factor_of_HI_zp,
+                                    log10(sc->mturn_a_nofb), log10_Mcrit_LW_ave[R_ct], sc),
+                    (astro_params_global->NU_X_THRESH) * physconst.eV_to_Hz);
             } else {
                 lower_int_limit = fmax(
                     nu_tau_one(zp, zpp_for_evolve_list[R_ct], x_e_ave, filling_factor_of_HI_zp, sc),
@@ -971,7 +971,7 @@ int global_reion_properties(double zp, double x_e_ave, double *log10_Mcrit_LW_av
     //   change this to a saved reionisation/sfrd history from previous snapshots
     sum_nion = EvaluateNionTs(zp, &sc);
     if (astro_options_global->USE_MINI_HALOS) {
-        sum_nion_mini = EvaluateNionTs_MINI(zp, log10_Mcrit_LW_ave[0], &sc);
+        sum_nion_mini = EvaluateNionTs_MINI(zp, log10(sc.mturn_a_nofb), log10_Mcrit_LW_ave[0], &sc);
     }
 
     LOG_DEBUG("nion zp = %.3e (%.3e MINI)", sum_nion, sum_nion_mini);
@@ -998,7 +998,8 @@ int global_reion_properties(double zp, double x_e_ave, double *log10_Mcrit_LW_av
             zpp = zpp_for_evolve_list[R_ct];
             mean_sfr_zpp[R_ct] = EvaluateSFRD(zpp, &sc);
             if (astro_options_global->USE_MINI_HALOS) {
-                mean_sfr_zpp_mini[R_ct] = EvaluateSFRD_MINI(zpp, log10_Mcrit_LW_ave[R_ct], &sc);
+                mean_sfr_zpp_mini[R_ct] =
+                    EvaluateSFRD_MINI(zpp, log10(sc.mturn_a_nofb), log10_Mcrit_LW_ave[R_ct], &sc);
             }
         }
         fill_freqint_tables(zp, x_e_ave, *Q_HI, log10_Mcrit_LW_ave, 0, &sc);
@@ -1600,8 +1601,9 @@ void ts_main(float redshift, float prev_redshift, float perturbed_field_redshift
                     // get the global things we missed before
                     mean_sfr_zpp[R_ct] = EvaluateSFRD(zpp_for_evolve_list[R_ct], &sc);
                     if (astro_options_global->USE_MINI_HALOS) {
-                        mean_sfr_zpp_mini[R_ct] = EvaluateSFRD_MINI(zpp_for_evolve_list[R_ct],
-                                                                    ave_log10_MturnLW[R_ct], &sc);
+                        mean_sfr_zpp_mini[R_ct] =
+                            EvaluateSFRD_MINI(zpp_for_evolve_list[R_ct], log10(sc.mturn_a_nofb),
+                                              ave_log10_MturnLW[R_ct], &sc);
                     }
                     // fill one row of the interp tables
                     fill_freqint_tables(redshift, x_e_ave_p, Q_HI_zp, ave_log10_MturnLW, R_ct, &sc);
@@ -1631,8 +1633,8 @@ void ts_main(float redshift, float prev_redshift, float perturbed_field_redshift
                         "MINI sfrd val %.3e global %.3e (int %.3e) ratio %.3e log10McritLW %.3e",
                         ave_fcoll_MINI, mean_sfr_zpp_mini[R_ct],
                         Nion_General_MINI(zpp_for_evolve_list[R_ct], log(M_min_R[R_ct]),
-                                          log(M_MAX_INTEGRAL), pow(10., ave_log10_MturnLW[R_ct]),
-                                          &sc_sfrd),
+                                          log(M_MAX_INTEGRAL), sc_sfrd.mturn_a_nofb,
+                                          pow(10., ave_log10_MturnLW[R_ct]), &sc_sfrd),
                         avg_fix_term_MINI, ave_log10_MturnLW[R_ct]);
                 }
 #endif

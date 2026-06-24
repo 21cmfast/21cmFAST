@@ -970,13 +970,18 @@ double Nion_General(double z, double lnM_Min, double lnM_Max, double MassTurnove
     return IntegratedNdM(lnM_Min, lnM_Max, params, &u_nion_integrand, 0);
 }
 
-double Nion_General_MINI(double z, double lnM_Min, double lnM_Max, double MassTurnover,
-                         ScalingConstants *sc) {
+double Nion_General_MINI(double z, double lnM_Min, double lnM_Max, double mturn_acg,
+                         double mturn_mcg, ScalingConstants *sc) {
+    // No MCGs can form if their turnover mass is above the ACG turnover mass
+    if (mturn_mcg > mturn_acg) {
+        return 0.;
+    }
+
     struct parameters_gsl_MF_integrals params = {
         .redshift = z,
         .growthf = dicke(z),
-        .Mturn_mcg = MassTurnover,
-        .Mturn_upper = sc->acg_thresh,
+        .Mturn_mcg = mturn_mcg,
+        .Mturn_upper = mturn_acg,
         .alpha_star = sc->alpha_star_mini,
         .alpha_esc = sc->alpha_esc,
         .f_star_norm = log(sc->fstar_7),

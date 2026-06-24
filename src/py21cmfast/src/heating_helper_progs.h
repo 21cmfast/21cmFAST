@@ -45,7 +45,7 @@ double Energy_Lya_heating(double Tk, double Ts, double tau_gp, int flag);
 
 // rootfind to get the distance at which GP optical depth tau==1
 double nu_tau_one_MINI(double zp, double zpp, double x_e, double HI_filling_factor_zp,
-                       double log10_Mturn_MINI, ScalingConstants *sc);
+                       double log10_Mturn_acg, double log10_Mturn_mcg, ScalingConstants *sc);
 double nu_tau_one(double zp, double zpp, double x_e, double HI_filling_factor_zp,
                   ScalingConstants *sc);
 

@@ -77,7 +77,8 @@ def default_input_struct_lc_mini(default_input_struct_lc):
         RECOMB_MODEL="inhomogeneous",
         USE_TS_FLUCT=True,
         K_MAX_FOR_CLASS=1.0,
-    ).with_logspaced_redshifts(zmin=OPTIONS_HMF["PS"][0], step=1.2)
+        M_TURN_STELLAR_FEEDBACK=5.0,
+    ).with_logspaced_redshifts(zmin=6, step=1.2)
 
 
 @pytest.fixture(scope="module")
@@ -382,6 +383,8 @@ def test_SFRD_z_tables(name, z_range, default_global_evolution, plt):
         RECOMB_MODEL="inhomogeneous",
         USE_TS_FLUCT=True,
         ZPRIME_STEP_FACTOR=1.2,  # needed because we need inputs.node_redshifts == default_global_evolution.node_redshifts
+        M_TURN_STELLAR_FEEDBACK=5.0,
+        node_redshifts=default_global_evolution.node_redshifts,
         **kwargs,
     )["inputs"]
 
@@ -449,6 +452,8 @@ def test_Nion_z_tables(name, z_range, default_global_evolution, plt):
         RECOMB_MODEL="inhomogeneous",
         USE_TS_FLUCT=True,
         ZPRIME_STEP_FACTOR=1.2,  # needed because we need inputs.node_redshifts == default_global_evolution.node_redshifts
+        M_TURN_STELLAR_FEEDBACK=5.0,
+        node_redshifts=default_global_evolution.node_redshifts,
         **kwargs,
     )["inputs"]
 
@@ -539,6 +544,8 @@ def test_Nion_conditional_tables(
         RECOMB_MODEL="inhomogeneous",
         USE_TS_FLUCT=True,
         ZPRIME_STEP_FACTOR=1.2,  # needed because we need inputs.node_redshifts == default_global_evolution.node_redshifts
+        M_TURN_STELLAR_FEEDBACK=5.0,
+        node_redshifts=default_global_evolution.node_redshifts,
         **kwargs,
     )["inputs"]
 
@@ -657,6 +664,8 @@ def test_Xray_conditional_tables(
         RECOMB_MODEL="inhomogeneous",
         USE_TS_FLUCT=True,
         ZPRIME_STEP_FACTOR=1.2,  # needed because we need inputs.node_redshifts == default_global_evolution.node_redshifts
+        M_TURN_STELLAR_FEEDBACK=5.0,
+        node_redshifts=default_global_evolution.node_redshifts,
         **kwargs,
     )["inputs"]
 
@@ -737,6 +746,8 @@ def test_SFRD_conditional_table(
         RECOMB_MODEL="inhomogeneous",
         USE_TS_FLUCT=True,
         ZPRIME_STEP_FACTOR=1.2,  # needed because we need inputs.node_redshifts == default_global_evolution.node_redshifts
+        M_TURN_STELLAR_FEEDBACK=5.0,
+        node_redshifts=default_global_evolution.node_redshifts,
         **kwargs,
     )["inputs"]
 
@@ -832,6 +843,8 @@ def test_conditional_integral_methods(
         RECOMB_MODEL="inhomogeneous",
         USE_TS_FLUCT=True,
         ZPRIME_STEP_FACTOR=1.2,  # needed because we need inputs.node_redshifts == default_global_evolution.node_redshifts
+        M_TURN_STELLAR_FEEDBACK=5.0,
+        node_redshifts=default_global_evolution.node_redshifts,
         **kwargs,
     )["inputs"]
 
