@@ -844,9 +844,9 @@ void calculate_fcoll_grid(IonizedBox *box, IonizedBox *previous_ionize_box,
                                     *((float *)fg_struct->log10_Mturnover_MINI_filtered + index_f);
 
                                 Splined_Fcoll_MINI = EvaluateNion_Conditional_MINI(
-                                    curr_dens, log10_Mturnover_MINI, consts->growth_factor,
-                                    consts->M_min, rspec->M_max_R, rspec->M_max_R,
-                                    rspec->sigma_maxmass, sc_ptr, false);
+                                    curr_dens, log10_Mturnover, log10_Mturnover_MINI,
+                                    consts->growth_factor, consts->M_min, rspec->M_max_R,
+                                    rspec->M_max_R, rspec->sigma_maxmass, sc_ptr, false);
 
                                 if (previous_ionize_box->mean_f_coll_MINI *
                                             consts->ion_eff_factor_mini_gl +
@@ -860,9 +860,9 @@ void calculate_fcoll_grid(IonizedBox *box, IonizedBox *previous_ionize_box,
                                         consts->M_min, rspec->M_max_R, rspec->M_max_R,
                                         rspec->sigma_maxmass, sc_ptr, true);
                                     prev_Splined_Fcoll_MINI = EvaluateNion_Conditional_MINI(
-                                        prev_dens, log10_Mturnover_MINI, consts->prev_growth_factor,
-                                        consts->M_min, rspec->M_max_R, rspec->M_max_R,
-                                        rspec->sigma_maxmass, sc_ptr, true);
+                                        prev_dens, log10_Mturnover, log10_Mturnover_MINI,
+                                        consts->prev_growth_factor, consts->M_min, rspec->M_max_R,
+                                        rspec->M_max_R, rspec->sigma_maxmass, sc_ptr, true);
                                 } else {
                                     prev_Splined_Fcoll = 0.;
                                     prev_Splined_Fcoll_MINI = 0.;

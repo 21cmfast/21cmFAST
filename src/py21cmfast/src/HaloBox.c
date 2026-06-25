@@ -270,10 +270,11 @@ void get_cell_integrals(double dens, double l10_mturn_a, double l10_mturn_m,
     //   for post-processing
     if (astro_options_global->USE_MINI_HALOS) {
         properties->stellar_mass_mini = EvaluateSFRD_Conditional_MINI(
-            dens, l10_mturn_m, growth_z, M_min, M_max, M_cell, sigma_cell, consts);
+            dens, l10_mturn_a, l10_mturn_m, growth_z, M_min, M_max, M_cell, sigma_cell, consts);
         // re-using field
-        properties->fescweighted_sfr = EvaluateNion_Conditional_MINI(
-            dens, l10_mturn_m, growth_z, M_min, M_max, M_cell, sigma_cell, consts, false);
+        properties->fescweighted_sfr =
+            EvaluateNion_Conditional_MINI(dens, l10_mturn_a, l10_mturn_m, growth_z, M_min, M_max,
+                                          M_cell, sigma_cell, consts, false);
     }
 
     if (astro_options_global->USE_TS_FLUCT) {

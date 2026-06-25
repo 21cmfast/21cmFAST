@@ -196,7 +196,8 @@ void get_conditional_FgtrM(double redshift, double R, int n_densities, double *d
 }
 
 void get_conditional_SFRD(double redshift, double R, int n_densities, double *densities,
-                          double log10_mturn_mini, double *out_sfrd, double *out_sfrd_mini) {
+                          double log10_mturn_acg, double log10_mturn_mcg, double *out_sfrd,
+                          double *out_sfrd_mini) {
     double M_min = minimum_source_mass(redshift, true);
     double M_cond = RtoM(R);
     double sigma_cond = EvaluateSigma(log(M_cond));
@@ -232,9 +233,10 @@ void get_conditional_SFRD(double redshift, double R, int n_densities, double *de
         out_sfrd[i] = SFRD_FACTOR * EvaluateSFRD_Conditional(densities[i], growthf, M_min, M_cond,
                                                              M_cond, sigma_cond, &sc);
         if (astro_options_global->USE_MINI_HALOS) {
-            out_sfrd_mini[i] = SFRD_FACTOR_MINI * EvaluateSFRD_Conditional_MINI(
-                                                      densities[i], log10_mturn_mini, growthf,
-                                                      M_min, M_cond, M_cond, sigma_cond, &sc);
+            out_sfrd_mini[i] =
+                SFRD_FACTOR_MINI * EvaluateSFRD_Conditional_MINI(densities[i], log10_mturn_acg,
+                                                                 log10_mturn_mcg, growthf, M_min,
+                                                                 M_cond, M_cond, sigma_cond, &sc);
         }
     }
 }
@@ -258,13 +260,20 @@ void get_conditional_Nion(double redshift, double R, int n_densities, double *de
     int i;
     double min_dens = -1;
     double max_dens = 10;
-    double dens, l10mturn_a, l10mturn_m;
+    double dens;
     for (i = 0; i < n_densities; i++) {
         dens = densities[i];
         if (dens < min_dens) min_dens = dens;
         if (dens > max_dens) max_dens = dens;
     }
 
+    // TODO: these lines do no appear in get_conditional_SFRD, even though both functions are very
+    // similar. I think this is because initialise_Nion_Conditional_spline, unlike
+    // initialise_SFRD_Conditional_table, needs to know the range of the ACG turnover masses to set
+    // up the spline, there is a comment above initialise_Nion_Conditional_spline in interp_tables.c
+    // that says "SFRD tables have fixed Mturn range, Nion tables vary". I really see no reason why
+    // these functions should behave differently, the only difference between them is that the Nion
+    // integrals contain an extra power-law for the escape fraction
     double eps = 0.01;
     double min_l10mturn_acg = log10_mturn_acg - eps;
     double max_l10mturn_acg = log10_mturn_acg + eps;
@@ -294,9 +303,9 @@ void get_conditional_Nion(double redshift, double R, int n_densities, double *de
     if (astro_options_global->USE_MINI_HALOS) {
         for (i = 0; i < n_densities; i++)
             out_nion_mini[i] =
-                ION_EFF_FACTOR_MINI * EvaluateNion_Conditional_MINI(densities[i], log10_mturn_mcg,
-                                                                    growthf, M_min, M_cond, M_cond,
-                                                                    sigma_cond, &sc, false);
+                ION_EFF_FACTOR_MINI * EvaluateNion_Conditional_MINI(
+                                          densities[i], log10_mturn_acg, log10_mturn_mcg, growthf,
+                                          M_min, M_cond, M_cond, sigma_cond, &sc, false);
     }
 }
 

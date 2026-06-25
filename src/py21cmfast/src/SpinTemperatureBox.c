@@ -1055,8 +1055,8 @@ void calculate_sfrd_from_grid(int R_ct, float *dens_R_grid, float *Mcrit_R_grid,
 
                 if (astro_options_global->USE_MINI_HALOS) {
                     fcoll_MINI = EvaluateSFRD_Conditional_MINI(
-                        curr_dens, curr_mcrit, zpp_growth[R_ct], M_min_R[R_ct], M_max_R[R_ct],
-                        M_max_R[R_ct], sigma_max[R_ct], sc);
+                        curr_dens, log10(sc->mturn_a_nofb), curr_mcrit, zpp_growth[R_ct],
+                        M_min_R[R_ct], M_max_R[R_ct], M_max_R[R_ct], sigma_max[R_ct], sc);
                     sfrd_grid_mini[box_ct] = (1. + curr_dens) * fcoll_MINI;
                 }
             } else {
@@ -1775,8 +1775,8 @@ void ts_main(float redshift, float prev_redshift, float perturbed_field_redshift
                                     zpp_growth[R_ct], log(M_min_R[R_ct]), log(M_max_R[R_ct]),
                                     log(M_max_R[R_ct]), sigma_max[R_ct],
                                     delNL0[R_index][box_ct] * zpp_growth[R_ct],
-                                    pow(10, log10_Mcrit_LW[R_ct][box_ct]), &sc_sfrd,
-                                    astro_options_global->INTEGRATION_METHOD_MINI) *
+                                    sc_sfrd.mturn_a_nofb, pow(10, log10_Mcrit_LW[R_ct][box_ct]),
+                                    &sc_sfrd, astro_options_global->INTEGRATION_METHOD_MINI) *
                                     z_edge_factor *
                                     (1 + delNL0[R_index][box_ct] * zpp_growth[R_ct]) *
                                     avg_fix_term_MINI * astro_params_global->F_STAR7_MINI);

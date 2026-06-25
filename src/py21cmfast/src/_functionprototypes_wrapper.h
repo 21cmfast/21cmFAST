@@ -103,7 +103,8 @@ void get_global_Nion_z(int n_redshift, double *redshifts, double *log10_turnover
 void get_conditional_FgtrM(double redshift, double R, int n_densities, double *densities,
                            double *out_fcoll, double *out_dfcoll);
 void get_conditional_SFRD(double redshift, double R, int n_densities, double *densities,
-                          double log10_mturns_mini, double *out_sfrd, double *out_sfrd_mini);
+                          double log10_mturn_acg, double log10_mturn_mcg, double *out_sfrd,
+                          double *out_sfrd_mini);
 void get_conditional_Nion(double redshift, double R, int n_densities, double *densities,
                           double log10_mturn_acg, double log10_mturn_mcg, double *out_nion,
                           double *out_nion_mini);

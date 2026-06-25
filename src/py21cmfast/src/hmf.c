@@ -1078,12 +1078,19 @@ double Mcoll_Conditional(double growthf, double lnM1, double lnM2, double lnM_co
 }
 
 double Nion_ConditionalM_MINI(double growthf, double lnM1, double lnM2, double lnM_cond,
-                              double sigma2, double delta2, double MassTurnover,
+                              double sigma2, double delta2, double mturn_acg, double mturn_mcg,
                               ScalingConstants *sc, int method) {
+    // No MCGs can form if their turnover mass is above the ACG turnover mass,
+    // or if the ACG and MCG turnover masses are the same (can happen if the reionization feedback
+    // is the dominant effect)
+    if (mturn_mcg >= mturn_acg) {
+        return 0.;
+    }
+
     struct parameters_gsl_MF_integrals params = {
         .growthf = growthf,
-        .Mturn_mcg = MassTurnover,
-        .Mturn_upper = sc->acg_thresh,
+        .Mturn_mcg = mturn_mcg,
+        .Mturn_upper = mturn_acg,
         .alpha_star = sc->alpha_star_mini,
         .alpha_esc = sc->alpha_esc,
         .f_star_norm = log(sc->fstar_7),
