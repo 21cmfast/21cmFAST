@@ -401,61 +401,60 @@ void setup_first_z_prevbox(IonizedBox *previous_ionize_box, PerturbedField *prev
 }
 
 void calculate_mcrit_boxes(IonizedBox *prev_ionbox, TsBox *spin_temp, InitialConditions *ini_boxes,
-                           struct IonBoxConstants *consts, fftwf_complex *log10_mcrit_acg,
-                           fftwf_complex *log10_mcrit_mcg, double *avg_mturn_acg,
-                           double *avg_mturn_mcg) {
-    double ave_log10_Mturnover = 0.;
-    double ave_log10_Mturnover_MINI = 0.;
+                           struct IonBoxConstants *consts, fftwf_complex *log10_mturn_acg_grid,
+                           fftwf_complex *log10_mturn_mcg_grid, double *log10_mturn_a_avg_out,
+                           double *log10_mturn_m_avg_out) {
+    double log10_mturn_m_avg = 0., log10_mturn_a_avg = 0.;
     int box_dim[3] = {simulation_options_global->HII_DIM, simulation_options_global->HII_DIM,
                       HII_D_PARA};
 
 #pragma omp parallel num_threads(simulation_options_global->N_THREADS)
     {
         int x, y, z;
-        double Mcrit_RE, Mcrit_LW;
-        double curr_Mt, curr_Mt_MINI;
+        double J21_val, Gamma12_val, zre_val;
         double curr_vcb = consts->scale_consts.vcb_const;
+        double M_turn_m;
+        double M_turn_a = consts->scale_consts.mturn_a_nofb;
+        double M_turn_r;
         index_huge index, index_f;
-#pragma omp for reduction(+ : ave_log10_Mturnover, ave_log10_Mturnover_MINI)
+#pragma omp for reduction(+ : log10_mturn_a_avg, log10_mturn_m_avg)
         for (x = 0; x < box_dim[0]; x++) {
             for (y = 0; y < box_dim[1]; y++) {
                 for (z = 0; z < box_dim[2]; z++) {
                     index = grid_index_general(x, y, z, box_dim);
                     index_f = grid_index_fftw_r(x, y, z, box_dim);
-                    Mcrit_RE = reionization_feedback(consts->redshift,
-                                                     prev_ionbox->ionisation_rate_G12[index],
-                                                     prev_ionbox->z_reion[index]);
-
                     if (matter_options_global->V_CB_MODEL == V_CB_MODEL_FLUCTS)
                         curr_vcb = ini_boxes->lowres_vcb[index];
-
-                    Mcrit_LW = lyman_werner_threshold(consts->redshift, spin_temp->J_21_LW[index],
-                                                      curr_vcb);
-                    if (Mcrit_LW != Mcrit_LW || Mcrit_LW == 0) {
-                        LOG_ERROR("Mcrit error %d %d %d: M %.2e z %.2f J %.2e v %.2e", x, y, z,
-                                  Mcrit_LW, consts->redshift, spin_temp->J_21_LW[index], curr_vcb);
-                        Throw(ValueError);
+                    J21_val = Gamma12_val = zre_val = 0.;
+                    if (consts->redshift < simulation_options_global->Z_HEAT_MAX) {
+                        J21_val = spin_temp->J_21_LW[index];
+                        Gamma12_val = prev_ionbox->ionisation_rate_G12[index];
+                        zre_val = prev_ionbox->z_reion[index];
                     }
-
-                    // JBM: this only accounts for effect 3 (largest on minihaloes). Effects 1 and 2
-                    // affect both minihaloes (MCGs) and regular ACGs, but they're smaller ~10%. See
-                    // Sec 2 of Muñoz+21 (2110.13919)
-                    curr_Mt = log10(fmax(Mcrit_RE, consts->scale_consts.mturn_a_nofb));
-                    curr_Mt_MINI = log10(fmax(Mcrit_RE, Mcrit_LW));
-
-                    // To avoid allocating another box we directly assign turnover masses to the
-                    // fftw grid
-                    *((float *)log10_mcrit_acg + index_f) = curr_Mt;
-                    *((float *)log10_mcrit_mcg + index_f) = curr_Mt_MINI;
-
-                    ave_log10_Mturnover += curr_Mt;
-                    ave_log10_Mturnover_MINI += curr_Mt_MINI;
+                    // TODO: This code is almost identical to the code in compute_mturns in
+                    // thermochem.c. The only difference is that the homogeneous (feedback-free) ACG
+                    // turnover mass is computed once outside the loop. For best modularity, it's
+                    // worth to consider to use compute_mturns, at the cost of computing the
+                    // homogeneous ACG turnover mass at each cell. I am not sure how much overhead
+                    // this would be, if it is negligible then we should definitely use
+                    // compute_mturns for code clarity
+                    M_turn_r = reionization_feedback(consts->redshift, Gamma12_val, zre_val);
+                    M_turn_a = fmax(M_turn_a, M_turn_r);
+                    *((float *)log10_mturn_acg_grid + index_f) = log10(M_turn_a);
+                    log10_mturn_a_avg += log10(M_turn_a);
+                    if (astro_options_global->USE_MINI_HALOS) {
+                        M_turn_m = fmax(lyman_werner_threshold(consts->redshift, J21_val, curr_vcb),
+                                        astro_params_global->M_TURN_STELLAR_FEEDBACK);
+                        M_turn_m = fmax(M_turn_m, M_turn_r);
+                        *((float *)log10_mturn_mcg_grid + index_f) = log10(M_turn_m);
+                        log10_mturn_m_avg += log10(M_turn_m);
+                    }
                 }
             }
         }
     }
-    *avg_mturn_acg = ave_log10_Mturnover / HII_TOT_NUM_PIXELS;
-    *avg_mturn_mcg = ave_log10_Mturnover_MINI / HII_TOT_NUM_PIXELS;
+    *log10_mturn_a_avg_out = log10_mturn_a_avg / HII_TOT_NUM_PIXELS;
+    *log10_mturn_m_avg_out = log10_mturn_m_avg / HII_TOT_NUM_PIXELS;
 }
 
 // Determine the normalisation for the excursion set algorithm
