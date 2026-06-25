@@ -739,13 +739,20 @@ int test_halo_props(double redshift, float *vcb_grid, float *J21_LW_grid, float 
                         Gamma12_val = Gamma12_ion_grid[i_cell];
                         zre_val = z_re_grid[i_cell];
                     }
-                    M_turn_a = hbox_consts.mturn_a_nofb;
-                    M_turn_m = lyman_werner_threshold(redshift, J21_val, curr_vcb);
+                    // TODO: This code is almost identical to the code in compute_mturns in
+                    // thermochem.c. The only difference is that the homogeneous (feedback-free) ACG
+                    // turnover mass is computed once outside the loop. For best modularity, it's
+                    // worth to consider to use compute_mturns, at the cost of computing the
+                    // homogeneous ACG turnover mass at each cell. I am not sure how much overhead
+                    // this would be, if it is negligible then we should definitely use
+                    // compute_mturns for code clarity
                     M_turn_r = reionization_feedback(redshift, Gamma12_val, zre_val);
-                    M_turn_a = fmax(M_turn_a,
-                                    fmax(M_turn_r, astro_params_global->M_TURN_STELLAR_FEEDBACK));
-                    M_turn_m = fmax(M_turn_m,
-                                    fmax(M_turn_r, astro_params_global->M_TURN_STELLAR_FEEDBACK));
+                    M_turn_a = fmax(M_turn_a, M_turn_r);
+                    if (astro_options_global->USE_MINI_HALOS) {
+                        M_turn_m = fmax(lyman_werner_threshold(redshift, J21_val, curr_vcb),
+                                        astro_params_global->M_TURN_STELLAR_FEEDBACK);
+                        M_turn_m = fmax(M_turn_m, M_turn_r);
+                    }
                 }
 
                 // these are the halo property RNG sequences
