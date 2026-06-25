@@ -253,11 +253,11 @@ def compute_luminosity_function(
         The number of luminosity bins to produce for the luminosity function.
     lightcone : :class:`~LightCone` or None, optional
         The lightcone object to use for the computation.
-        If None, the function will consider `global_evolution` for the global m_turnover values,
+        If None, the function will consider `global_evolution` for the global turnover masses,
         otherwise they will be extracted from the given lightcone.
     global_evolution : :class:`~GlobalEvolution` or None, optional
         The global evolution object to use for the computation.
-        If None, the function will run a global evolution to estimate the global m_turnover values,
+        If None, the function will run a global evolution to estimate the global turnover masses,
         otherwise they will be extracted from the given global evolution.
     component : str, {'both', 'acg', 'mcg}
         The component of the LF to be calculated. Forced to be 'acg' if USE_MINI_HALOS is False.
@@ -669,11 +669,11 @@ def evaluate_SFRD_z(
         The redshifts at which to compute the SFRD.
     lightcone : :class:`~LightCone` or None, optional
         The lightcone object to use for the computation.
-        If None, the function will consider `global_evolution` for the global m_turnover values,
+        If None, the function will consider `global_evolution` for the global turnover masses,
         otherwise they will be extracted from the given lightcone.
     global_evolution : :class:`~GlobalEvolution` or None, optional
         The global evolution object to use for the computation.
-        If None, the function will run a global evolution to estimate the global m_turnover values,
+        If None, the function will run a global evolution to estimate the global turnover masses,
         otherwise they will be extracted from the given global evolution.
 
     Returns
@@ -758,11 +758,11 @@ def evaluate_Nion_z(
         The redshifts at which to compute Nion.
     lightcone : :class:`~LightCone` or None, optional
         The lightcone object to use for the computation.
-        If None, the function will consider `global_evolution` for the global m_turnover values,
+        If None, the function will consider `global_evolution` for the global turnover masses,
         otherwise they will be extracted from the given lightcone.
     global_evolution : :class:`~GlobalEvolution` or None, optional
         The global evolution object to use for the computation.
-        If None, the function will run a global evolution to estimate the global m_turnover values,
+        If None, the function will run a global evolution to estimate the global turnover masses,
         otherwise they will be extracted from the given global evolution.
 
     Returns
@@ -865,11 +865,11 @@ def evaluate_SFRD_cond(
         The densities at which to compute the conditional SFRD.
     lightcone : :class:`~LightCone` or None, optional
         The lightcone object to use for the computation.
-        If None, the function will consider `global_evolution` for the global m_turnover values,
+        If None, the function will consider `global_evolution` for the global turnover masses,
         otherwise they will be extracted from the given lightcone.
     global_evolution : :class:`~GlobalEvolution` or None, optional
         The global evolution object to use for the computation.
-        If None, the function will run a global evolution to estimate the global m_turnover values,
+        If None, the function will run a global evolution to estimate the global turnover masses,
         otherwise they will be extracted from the given global evolution.
 
     Returns
@@ -969,11 +969,11 @@ def evaluate_Nion_cond(
         The densities at which to compute the conditional Nion.
     lightcone : :class:`~LightCone` or None, optional
         The lightcone object to use for the computation.
-        If None, the function will consider `global_evolution` for the global m_turnover values,
+        If None, the function will consider `global_evolution` for the global turnover masses,
         otherwise they will be extracted from the given lightcone.
     global_evolution : :class:`~GlobalEvolution` or None, optional
         The global evolution object to use for the computation.
-        If None, the function will run a global evolution to estimate the global m_turnover values,
+        If None, the function will run a global evolution to estimate the global turnover masses,
         otherwise they will be extracted from the given global evolution.
 
     Returns
@@ -1072,11 +1072,11 @@ def evaluate_Xray_cond(
         The densities at which to compute the conditional X-ray emissivity.
     lightcone : :class:`~LightCone` or None, optional
         The lightcone object to use for the computation.
-        If None, the function will consider `global_evolution` for the global m_turnover values,
+        If None, the function will consider `global_evolution` for the global turnover masses,
         otherwise they will be extracted from the given lightcone.
     global_evolution : :class:`~GlobalEvolution` or None, optional
         The global evolution object to use for the computation.
-        If None, the function will run a global evolution to estimate the global m_turnover values,
+        If None, the function will run a global evolution to estimate the global turnover masses,
         otherwise they will be extracted from the given global evolution.
 
     Returns
