@@ -287,11 +287,13 @@ void move_grid_galprops(double redshift, float *dens_pointer, int dens_dim[3],
                     dens_index = grid_index_general(i, j, k, dens_dim);
                     curr_dens = dens_pointer[dens_index] * growth_factor;
 
-                    // mturn grids are at the output resolution (lower res)
-                    if (astro_options_global->USE_MINI_HALOS) {
-                        resample_index((int[3]){i, j, k}, dim_ratio_out, ipos);
-                        mturn_index = grid_index_general(ipos[0], ipos[1], ipos[2], out_dim);
+                    resample_index((int[3]){i, j, k}, dim_ratio_out, ipos);
+                    mturn_index = grid_index_general(ipos[0], ipos[1], ipos[2], out_dim);
+                    if (uses_reionization_feedback_in_acgs(
+                            astro_options_global->REIONIZATION_FEEDBACK_MODEL)) {
                         l10_mturn_a = log10_mturn_a_grid[dens_index];
+                    }
+                    if (astro_options_global->USE_MINI_HALOS) {
                         l10_mturn_m = log10_mturn_m_grid[dens_index];
                     }
 
@@ -407,9 +409,11 @@ void move_halo_galprops(double redshift, HaloCatalog *halos, float *vel_pointers
             pos[0] = pos[0] * out_dim[0] / box_size[0];
             pos[1] = pos[1] * out_dim[1] / box_size[1];
             pos[2] = pos[2] * out_dim[2] / box_size[2];
-
-            if (astro_options_global->USE_MINI_HALOS) {
+            if (uses_reionization_feedback_in_acgs(
+                    astro_options_global->REIONIZATION_FEEDBACK_MODEL)) {
                 M_turn_a = pow(10, cic_read_float(log10_mturn_a_grid, pos, out_dim));
+            }
+            if (astro_options_global->USE_MINI_HALOS) {
                 M_turn_m = pow(10, cic_read_float(log10_mturn_m_grid, pos, out_dim));
             }
             halo_rng[0] = halos->star_rng[i];

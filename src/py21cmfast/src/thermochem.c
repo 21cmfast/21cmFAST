@@ -312,13 +312,20 @@ double reionization_feedback(float z, float Gamma_halo_HII, float z_IN) {
 
 void compute_mturns(float z, float J_21_LW, float vcb, float Gamma12, float z_reion,
                     double *M_turn_a, double *M_turn_m) {
-    double M_turn_r = reionization_feedback(z, Gamma12, z_reion);
+    double M_turn_r = 0.;
     *M_turn_a = fmax(atomic_cooling_threshold(z), astro_params_global->M_TURN_STELLAR_FEEDBACK);
-    *M_turn_a = fmax(*M_turn_a, M_turn_r);
+    if (uses_reionization_feedback(astro_options_global->REIONIZATION_FEEDBACK_MODEL)) {
+        M_turn_r = reionization_feedback(z, Gamma12, z_reion);
+    }
+    if (uses_reionization_feedback_in_acgs(astro_options_global->REIONIZATION_FEEDBACK_MODEL)) {
+        *M_turn_a = fmax(*M_turn_a, M_turn_r);
+    }
     if (astro_options_global->USE_MINI_HALOS) {
         *M_turn_m = fmax(lyman_werner_threshold(z, J_21_LW, vcb),
                          astro_params_global->M_TURN_STELLAR_FEEDBACK);
-        *M_turn_m = fmax(*M_turn_m, M_turn_r);
+        if (uses_reionization_feedback_in_mcgs(astro_options_global->REIONIZATION_FEEDBACK_MODEL)) {
+            *M_turn_m = fmax(*M_turn_m, M_turn_r);
+        }
     }
     return;
 }

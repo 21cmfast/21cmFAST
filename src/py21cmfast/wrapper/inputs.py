@@ -1233,6 +1233,18 @@ class AstroOptions(InputStruct):
         * f-photoncons: Adjustment to the escape fraction normalisation, runs one
           calibration simulation to find the adjustment as a function of xH where
           ``f'/f = xH_global/xH_calibration``
+    REIONIZATION_FEEDBACK_MODEL: str, optional
+        The model to use for the reionization feedback on the turnover mass, see Sobacchi and Mesinger 2013 (https://arxiv.org/pdf/1301.6776).
+        Options are:
+
+        * ``NONE``: No reionization feedback is applied on neither ACGs nor MCGs.
+        * ``ACG``: Reionization feedback is applied only on ACGs. This is a bit slower than
+            the previous option because the ACG turnover mass in this model is inhomogeneous
+            and needs to be calculated at every cell.
+        * ``MCG``: Reionization feedback is applied only on MCGs. This does not increase the computation
+            time since the MCG turnover mass in inhomogeneous by nature due to LW flux, see Qin et al. 2020 (https://arxiv.org/pdf/2003.04442).
+            Becomes relevant only when ``USE_MINI_HALOS`` is True.
+        * ``BOTH``: Reionization feedback is applied on both ACGs and MCGs. Becomes relevant only when ``USE_MINI_HALOS`` is True.
     FIX_VCB_AVG: bool or None, optional
         Whether to fix the amplitude of the relative velocity between (cold) dark matter and
         baryons on a constant mean value from linear perturbation theory. This parameter is
@@ -1329,6 +1341,7 @@ class AstroOptions(InputStruct):
     HEAT_FILTER: FilterOptions = choice_field(default="spherical-tophat")
     IONISE_ENTIRE_SPHERE: bool = field(default=False, converter=bool)
     RECOMB_MODEL: Literal["none", "homogeneous", "inhomogeneous"] = choice_field()
+    REIONIZATION_FEEDBACK_MODEL: Literal["NONE", "ACG", "MCG", "BOTH"] = choice_field()
     INTEGRATION_METHOD_ATOMIC: IntegralMethods = choice_field(default="GAUSS-LEGENDRE")
     INTEGRATION_METHOD_MINI: IntegralMethods = choice_field(default="GAUSS-LEGENDRE")
 
@@ -1351,6 +1364,22 @@ class AstroOptions(InputStruct):
             return self.RECOMB_MODEL != "none"
         else:
             return self._INHOMO_RECO
+
+    @REIONIZATION_FEEDBACK_MODEL.default
+    def _default_reionization_feedback_model(self):
+        return "BOTH" if self.USE_MINI_HALOS else "NONE"
+
+    @REIONIZATION_FEEDBACK_MODEL.validator
+    def _reionization_feedback_model_vld(self, att, val):
+        if not self.USE_MINI_HALOS and val in ["MCG", "BOTH"]:
+            equiv_model = "NONE" if val == "MCG" else "ACG"
+            warnings.warn(
+                f"REIONIZATION_FEEDBACK_MODEL is set to '{val}' but USE_MINI_HALOS is False! "
+                f"This is equivalent to setting REIONIZATION_FEEDBACK_MODEL='{equiv_model}'. "
+                "Either set USE_MINI_HALOS to True or change REIONIZATION_FEEDBACK_MODEL to 'NONE' or 'ACG' "
+                "to silence this warning",
+                stacklevel=2,
+            )
 
     @RECOMB_MODEL.default
     def _default_recomb_model(self):

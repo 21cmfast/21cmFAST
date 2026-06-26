@@ -996,7 +996,9 @@ double EvaluateSFRD_Conditional(double delta, double growthf, double M_min, doub
     }
 
     ScalingConstants sc_sfrd = evolve_scaling_constants_sfr(sc);
-    // SFRD in Ts assumes no (reion) feedback on ACG
+    // The ACG turnover mass should be taken from the input to this functions, just like in
+    // EvaluateNion_Conditional. This is a bug (see more info in
+    // https://github.com/21cmfast/21cmFAST/issues/732)
     return Nion_ConditionalM(growthf, log(M_min), log(M_max), log(M_cond), sigma_max, delta,
                              sc_sfrd.mturn_a_nofb, &sc_sfrd,
                              astro_options_global->INTEGRATION_METHOD_ATOMIC);

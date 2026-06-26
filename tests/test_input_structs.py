@@ -301,6 +301,24 @@ class TestAstroOptions:
         ):
             AstroOptions(USE_EXP_FILTER=True, HII_FILTER="sharp-k")
 
+    @pytest.mark.parametrize("use_mini_halos", [True, False])
+    def test_reionization_feedback_model_default(self, use_mini_halos):
+        """Test that REIONIZATION_FEEDBACK_MODEL defaults to the correct option based on USE_MINI_HALOS."""
+        opts = AstroOptions(
+            USE_MINI_HALOS=use_mini_halos,
+            RECOMB_MODEL="inhomogeneous",
+            USE_TS_FLUCT=True,
+        )
+        correct_model = "BOTH" if use_mini_halos else "NONE"
+        assert correct_model == opts.REIONIZATION_FEEDBACK_MODEL
+
+    def test_reionization_feedback_model_choices_valid(self):
+        """Test that only valid REIONIZATION_FEEDBACK_MODEL choices are accepted."""
+        with pytest.raises(
+            ValueError, match="REIONIZATION_FEEDBACK_MODEL must be one of"
+        ):
+            AstroOptions(REIONIZATION_FEEDBACK_MODEL="invalid")
+
     @pytest.mark.parametrize("recomb_model", ["none", "homogeneous", "inhomogeneous"])
     def test_recomb_model_basic(self, recomb_model):
         """Test basic RECOMB_MODEL usage without INHOMO_RECO."""
@@ -709,6 +727,24 @@ class TestInputParameters:
                 "astro_options": AstroOptions(
                     USE_MINI_HALOS=False,
                 ),
+            },
+        ),
+        (
+            "REIONIZATION_FEEDBACK_MODEL is set to 'BOTH' but USE_MINI_HALOS is False! ",
+            {
+                "astro_options": AstroOptions(
+                    USE_MINI_HALOS=False,
+                    REIONIZATION_FEEDBACK_MODEL="BOTH",
+                )
+            },
+        ),
+        (
+            "REIONIZATION_FEEDBACK_MODEL is set to 'MCG' but USE_MINI_HALOS is False! ",
+            {
+                "astro_options": AstroOptions(
+                    USE_MINI_HALOS=False,
+                    REIONIZATION_FEEDBACK_MODEL="MCG",
+                )
             },
         ),
     ]

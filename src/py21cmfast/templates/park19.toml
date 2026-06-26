@@ -29,3 +29,4 @@ USE_LYA_HEATING = false
 USE_TS_FLUCT = true
 RECOMB_MODEL = 'inhomogeneous'
 HII_FILTER = 'sharp-k'
+REIONIZATION_FEEDBACK_MODEL = 'NONE'

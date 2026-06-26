@@ -371,6 +371,8 @@ int set_fixed_grids(double M_min, double M_max, InitialConditions *ini_boxes,
 #pragma omp for reduction(min : min_log10_mturn_a, min_log10_mturn_m) \
     reduction(max : max_log10_mturn_a, max_log10_mturn_m)
         for (i = 0; i < HII_TOT_NUM_PIXELS; i++) {
+            // TODO: log10_mturn_a_grid is also needed if we use mini-halos with interpolation
+            // tables. This should be fixed (see https://github.com/21cmfast/21cmFAST/issues/732)
             if (astro_options_global->USE_MINI_HALOS) {
                 log10_M_turn_a = log10_mturn_a_grid[i];
                 log10_M_turn_m = log10_mturn_m_grid[i];
@@ -401,8 +403,7 @@ int set_fixed_grids(double M_min, double M_max, InitialConditions *ini_boxes,
         initialise_SFRD_Conditional_table(ev_consts->redshift, min_density, max_density, M_min,
                                           M_max, M_cell, ev_consts);
 
-        // This table includes reionisation feedback, but takes the atomic turnover anyway for the
-        // upper turnover
+        // This table includes reionisation feedback
         initialise_Nion_Conditional_spline(ev_consts->redshift, min_density, max_density, M_min,
                                            M_max, M_cell, min_log10_mturn_a, max_log10_mturn_a,
                                            min_log10_mturn_m, max_log10_mturn_m, ev_consts, false);
@@ -467,62 +468,91 @@ void halobox_debug_print_avg(HaloBox *halobox, ScalingConstants *consts, double 
 void get_log10_turnovers(InitialConditions *ini_boxes, TsBox *previous_spin_temp,
                          IonizedBox *previous_ionize_box, float *log10_mturn_a_grid,
                          float *log10_mturn_m_grid, ScalingConstants *consts, double averages[2]) {
-    averages[0] = log10(consts->mturn_a_nofb);
-    averages[1] = 0.;  // dummy value for the USE_MINI_HALOS = false branch
-    if (!astro_options_global->USE_MINI_HALOS) {
-        return;
-    }
     double log10_mturn_m_avg = 0., log10_mturn_a_avg = 0.;
-
+    // If we either use mini-halos or at least the reionization feedback model is applied on the ACG
+    // turnover mass, we need to compute the local fluctuating turnover mass at every cell. The mean
+    // of the log10 of these turnover mass fields is then computed from averaging over the box
+    if (astro_options_global->USE_MINI_HALOS ||
+        uses_reionization_feedback_in_acgs(astro_options_global->REIONIZATION_FEEDBACK_MODEL)) {
 #pragma omp parallel num_threads(simulation_options_global->N_THREADS)
-    {
-        index_huge i;
-        double J21_val, Gamma12_val, zre_val;
-        double curr_vcb = consts->vcb_const;
-        double M_turn_m;
-        double M_turn_a = consts->mturn_a_nofb;
-        double M_turn_r;
+        {
+            index_huge i;
+            double J21_val = 0., Gamma12_val = 0., zre_val = 0.;
+            double curr_vcb = consts->vcb_const;
+            double M_turn_a = consts->mturn_a_nofb;
+            double M_turn_m;
+            double M_turn_r =
+                0.;  // initialization can be removed once
+                     // https://github.com/21cmfast/21cmFAST/issues/732 is fixed (see comment below)
 
-#pragma omp for reduction(+ : log10_mturn_m_avg, log10_mturn_a_avg)
-        for (i = 0; i < HII_TOT_NUM_PIXELS; i++) {
-            if (matter_options_global->V_CB_MODEL == V_CB_MODEL_FLUCTS) {
-                curr_vcb = ini_boxes->lowres_vcb[i];
-            }
-            J21_val = Gamma12_val = zre_val = 0.;
-            if (consts->redshift < simulation_options_global->Z_HEAT_MAX) {
-                J21_val = previous_spin_temp->J_21_LW[i];
-                Gamma12_val = previous_ionize_box->ionisation_rate_G12[i];
-                zre_val = previous_ionize_box->z_reion[i];
-            }
-            // TODO: This code is almost identical to the code in compute_mturns in thermochem.c.
-            // The only difference is that the homogeneous (feedback-free) ACG turnover mass is
-            // computed once outside the loop. For best modularity, it's worth to consider to use
-            // compute_mturns, at the cost of computing the homogeneous ACG turnover mass at each
-            // cell. I am not sure how much overhead this would be, if it is negligible then we
-            // should definitely use compute_mturns for code clarity
-            M_turn_r = reionization_feedback(consts->redshift, Gamma12_val, zre_val);
-            M_turn_a = fmax(M_turn_a, M_turn_r);
-            log10_mturn_a_grid[i] = log10(M_turn_a);
-            log10_mturn_a_avg += log10(M_turn_a);
-            if (astro_options_global->USE_MINI_HALOS) {
-                M_turn_m = fmax(lyman_werner_threshold(consts->redshift, J21_val, curr_vcb),
-                                astro_params_global->M_TURN_STELLAR_FEEDBACK);
-                M_turn_m = fmax(M_turn_m, M_turn_r);
-                log10_mturn_m_grid[i] = log10(M_turn_m);
-                log10_mturn_m_avg += log10(M_turn_m);
+#pragma omp for reduction(+ : log10_mturn_a_avg, log10_mturn_m_avg)
+            for (i = 0; i < HII_TOT_NUM_PIXELS; i++) {
+                if (matter_options_global->V_CB_MODEL == V_CB_MODEL_FLUCTS &&
+                    astro_options_global->USE_MINI_HALOS) {
+                    curr_vcb = ini_boxes->lowres_vcb[i];
+                }
+                if (consts->redshift < simulation_options_global->Z_HEAT_MAX) {
+                    if (astro_options_global->USE_MINI_HALOS) {
+                        J21_val = previous_spin_temp->J_21_LW[i];
+                    }
+                    if (uses_reionization_feedback(
+                            astro_options_global->REIONIZATION_FEEDBACK_MODEL)) {
+                        Gamma12_val = previous_ionize_box->ionisation_rate_G12[i];
+                        zre_val = previous_ionize_box->z_reion[i];
+                    }
+                }
+                // TODO: This code is almost identical to the code in compute_mturns in
+                // thermochem.c. The only difference is that the homogeneous (feedback-free) ACG
+                // turnover mass is computed once outside the loop. For best modularity, it's worth
+                // to consider to use compute_mturns, at the cost of computing the homogeneous ACG
+                // turnover mass at each cell. I am not sure how much overhead this would be, if it
+                // is negligible then we should definitely use compute_mturns for code clarity
+                if (uses_reionization_feedback(astro_options_global->REIONIZATION_FEEDBACK_MODEL)) {
+                    M_turn_r = reionization_feedback(consts->redshift, Gamma12_val, zre_val);
+                }
+                // TODO: log10_mturn_a_grid is also needed if we use mini-halos with interpolation
+                // tables. This should be fixed (see
+                // https://github.com/21cmfast/21cmFAST/issues/732)
+                if (uses_reionization_feedback_in_acgs(
+                        astro_options_global->REIONIZATION_FEEDBACK_MODEL) ||
+                    (astro_options_global->USE_MINI_HALOS &&
+                     uses_hmf_interpolation(matter_options_global->USE_INTERPOLATION_TABLES))) {
+                    M_turn_a = fmax(M_turn_a, M_turn_r);
+                    log10_mturn_a_grid[i] = log10(M_turn_a);
+                    log10_mturn_a_avg += log10(M_turn_a);
+                }
+                if (astro_options_global->USE_MINI_HALOS) {
+                    M_turn_m = fmax(lyman_werner_threshold(consts->redshift, J21_val, curr_vcb),
+                                    astro_params_global->M_TURN_STELLAR_FEEDBACK);
+                    if (uses_reionization_feedback_in_mcgs(
+                            astro_options_global->REIONIZATION_FEEDBACK_MODEL)) {
+                        M_turn_m = fmax(M_turn_m, M_turn_r);
+                    }
+                    log10_mturn_m_grid[i] = log10(M_turn_m);
+                    log10_mturn_m_avg += log10(M_turn_m);
+                }
             }
         }
     }
 
-    // NOTE: This average log10 Mturn will be passed onto the spin temperature calculations where
-    // It is used to perform the frequency integrals (over tau, dependent on <XHI>), and possibly
-    // for mean fixing. It is the volume-weighted mean of LOG10 Mturn, although we could do another
-    // weighting or use Mturn directly None of these are a perfect representation due to the
-    // nonlinear way turnover mass affects N_ion
-    log10_mturn_a_avg /= HII_TOT_NUM_PIXELS;
-    log10_mturn_m_avg /= HII_TOT_NUM_PIXELS;
-    averages[0] = log10_mturn_a_avg;
-    averages[1] = log10_mturn_m_avg;
+    if (uses_reionization_feedback_in_acgs(astro_options_global->REIONIZATION_FEEDBACK_MODEL)) {
+        // NOTE: This average log10 Mturn will be passed onto the spin temperature calculations
+        // where It is used to perform the frequency integrals (over tau, dependent on <XHI>), and
+        // possibly for mean fixing. It is the volume-weighted mean of LOG10 Mturn, although we
+        // could do another weighting or use Mturn directly None of these are a perfect
+        // representation due to the nonlinear way turnover mass affects N_ion
+        log10_mturn_a_avg /= HII_TOT_NUM_PIXELS;
+        averages[0] = log10_mturn_a_avg;
+    } else {
+        averages[0] = log10(consts->mturn_a_nofb);
+    }
+
+    if (astro_options_global->USE_MINI_HALOS) {
+        log10_mturn_m_avg /= HII_TOT_NUM_PIXELS;
+        averages[1] = log10_mturn_m_avg;
+    } else {
+        averages[1] = 0.;  // dummy value for the USE_MINI_HALOS = false branch
+    }
 }
 
 void sum_halos_onto_grid(double redshift, InitialConditions *ini_boxes, HaloCatalog *halos,
@@ -620,8 +650,14 @@ int ComputeHaloBox(double redshift, InitialConditions *ini_boxes, HaloCatalog *h
 
         float *log10_mturn_a_grid = NULL;
         float *log10_mturn_m_grid = NULL;
-        if (astro_options_global->USE_MINI_HALOS) {
+        // TODO: log10_mturn_a_grid is also needed if we use mini-halos with interpolation tables.
+        // This should be fixed (see https://github.com/21cmfast/21cmFAST/issues/732)
+        if (uses_reionization_feedback_in_acgs(astro_options_global->REIONIZATION_FEEDBACK_MODEL) ||
+            (astro_options_global->USE_MINI_HALOS &&
+             uses_hmf_interpolation(matter_options_global->USE_INTERPOLATION_TABLES))) {
             log10_mturn_a_grid = calloc(HII_TOT_NUM_PIXELS, sizeof(float));
+        }
+        if (astro_options_global->USE_MINI_HALOS) {
             log10_mturn_m_grid = calloc(HII_TOT_NUM_PIXELS, sizeof(float));
         }
         double log10_mturn_averages[2];
@@ -649,8 +685,14 @@ int ComputeHaloBox(double redshift, InitialConditions *ini_boxes, HaloCatalog *h
         }
         halobox_debug_print_avg(grids, &hbox_consts, M_min, M_MAX_INTEGRAL);
 
-        if (astro_options_global->USE_MINI_HALOS) {
+        // TODO: log10_mturn_a_grid is also needed if we use mini-halos with interpolation tables.
+        // This should be fixed (see https://github.com/21cmfast/21cmFAST/issues/732)
+        if (uses_reionization_feedback_in_acgs(astro_options_global->REIONIZATION_FEEDBACK_MODEL) ||
+            (astro_options_global->USE_MINI_HALOS &&
+             uses_hmf_interpolation(matter_options_global->USE_INTERPOLATION_TABLES))) {
             free(log10_mturn_a_grid);
+        }
+        if (astro_options_global->USE_MINI_HALOS) {
             free(log10_mturn_m_grid);
         }
         // NOTE: the density-grid based calculations (SOURCE_MODEL='E-INTEGRAL')
@@ -690,12 +732,11 @@ int test_halo_props(double redshift, float *vcb_grid, float *J21_LW_grid, float 
             int x, y, z;
             index_huge i_halo, i_cell;
             double m;
-            double J21_val, Gamma12_val, zre_val;
-
+            double J21_val = 0., Gamma12_val = 0., zre_val = 0.;
             double curr_vcb = hbox_consts.vcb_const;
-            double M_turn_m = 0.;  // dummy value for the USE_MINI_HALOS = false branch
             double M_turn_a = hbox_consts.mturn_a_nofb;
-            double M_turn_r = 0.;
+            double M_turn_m = 0.;  // dummy value for the USE_MINI_HALOS = false branch
+            double M_turn_r;
 
             double in_props[3], halo_pos[3];
             HaloProperties out_props;
@@ -729,11 +770,13 @@ int test_halo_props(double redshift, float *vcb_grid, float *J21_LW_grid, float 
                 // set values before reionisation feedback
                 // NOTE: I could easily apply reionization feedback without minihalos but this was
                 // not done previously
-                if (astro_options_global->USE_MINI_HALOS) {
-                    if (matter_options_global->V_CB_MODEL == V_CB_MODEL_FLUCTS)
+                if (astro_options_global->USE_MINI_HALOS ||
+                    uses_reionization_feedback_in_acgs(
+                        astro_options_global->REIONIZATION_FEEDBACK_MODEL)) {
+                    if (matter_options_global->V_CB_MODEL == V_CB_MODEL_FLUCTS &&
+                        astro_options_global->USE_MINI_HALOS) {
                         curr_vcb = vcb_grid[i_cell];
-
-                    J21_val = Gamma12_val = zre_val = 0.;
+                    }
                     if (redshift < simulation_options_global->Z_HEAT_MAX) {
                         J21_val = J21_LW_grid[i_cell];
                         Gamma12_val = Gamma12_ion_grid[i_cell];
@@ -746,12 +789,21 @@ int test_halo_props(double redshift, float *vcb_grid, float *J21_LW_grid, float 
                     // homogeneous ACG turnover mass at each cell. I am not sure how much overhead
                     // this would be, if it is negligible then we should definitely use
                     // compute_mturns for code clarity
-                    M_turn_r = reionization_feedback(redshift, Gamma12_val, zre_val);
-                    M_turn_a = fmax(M_turn_a, M_turn_r);
+                    if (uses_reionization_feedback(
+                            astro_options_global->REIONIZATION_FEEDBACK_MODEL)) {
+                        M_turn_r = reionization_feedback(redshift, Gamma12_val, zre_val);
+                    }
+                    if (uses_reionization_feedback_in_acgs(
+                            astro_options_global->REIONIZATION_FEEDBACK_MODEL)) {
+                        M_turn_a = fmax(M_turn_a, M_turn_r);
+                    }
                     if (astro_options_global->USE_MINI_HALOS) {
                         M_turn_m = fmax(lyman_werner_threshold(redshift, J21_val, curr_vcb),
                                         astro_params_global->M_TURN_STELLAR_FEEDBACK);
-                        M_turn_m = fmax(M_turn_m, M_turn_r);
+                        if (uses_reionization_feedback_in_mcgs(
+                                astro_options_global->REIONIZATION_FEEDBACK_MODEL)) {
+                            M_turn_m = fmax(M_turn_m, M_turn_r);
+                        }
                     }
                 }
 
@@ -803,15 +855,21 @@ int convert_halo_props(double redshift, InitialConditions *ics, TsBox *prev_ts,
     ScalingConstants hbox_consts;
     set_scaling_constants(redshift, &hbox_consts, true);
     // print_sc_consts(&hbox_consts);
-    float *mturn_a_grid = NULL;
-    float *mturn_m_grid = NULL;
+    float *log10_mturn_a_grid = NULL;
+    float *log10_mturn_m_grid = NULL;
+    // TODO: log10_mturn_a_grid is also needed if we use mini-halos with interpolation tables.
+    // This should be fixed (see https://github.com/21cmfast/21cmFAST/issues/732)
+    if (uses_reionization_feedback_in_acgs(astro_options_global->REIONIZATION_FEEDBACK_MODEL) ||
+        (astro_options_global->USE_MINI_HALOS &&
+         uses_hmf_interpolation(matter_options_global->USE_INTERPOLATION_TABLES))) {
+        log10_mturn_a_grid = calloc(HII_TOT_NUM_PIXELS, sizeof(float));
+    }
     if (astro_options_global->USE_MINI_HALOS) {
-        mturn_a_grid = calloc(HII_TOT_NUM_PIXELS, sizeof(float));
-        mturn_m_grid = calloc(HII_TOT_NUM_PIXELS, sizeof(float));
+        log10_mturn_m_grid = calloc(HII_TOT_NUM_PIXELS, sizeof(float));
     }
     double mturn_averages[2];
-    get_log10_turnovers(ics, prev_ts, prev_ion, mturn_a_grid, mturn_m_grid, &hbox_consts,
-                        mturn_averages);
+    get_log10_turnovers(ics, prev_ts, prev_ion, log10_mturn_a_grid, log10_mturn_m_grid,
+                        &hbox_consts, mturn_averages);
 
     int lo_dim[3] = {simulation_options_global->HII_DIM, simulation_options_global->HII_DIM,
                      HII_D_PARA};  // always output to lowres grid
@@ -847,9 +905,13 @@ int convert_halo_props(double redshift, InitialConditions *ics, TsBox *prev_ts,
 
             LOG_ULTRA_DEBUG("getting mturns for halo at (%.2f, %.2f, %.2f)", halo_pos[0],
                             halo_pos[1], halo_pos[2]);
+
+            if (uses_reionization_feedback_in_acgs(
+                    astro_options_global->REIONIZATION_FEEDBACK_MODEL)) {
+                M_turn_a = pow(10, cic_read_float_wrapper(log10_mturn_a_grid, halo_pos, lo_dim));
+            }
             if (astro_options_global->USE_MINI_HALOS) {
-                M_turn_a = pow(10, cic_read_float_wrapper(mturn_a_grid, halo_pos, lo_dim));
-                M_turn_m = pow(10, cic_read_float_wrapper(mturn_m_grid, halo_pos, lo_dim));
+                M_turn_m = pow(10, cic_read_float_wrapper(log10_mturn_m_grid, halo_pos, lo_dim));
             }
 
             // these are the halo property RNG sequences
@@ -891,9 +953,15 @@ int convert_halo_props(double redshift, InitialConditions *ics, TsBox *prev_ts,
             }
         }
     }
+    // TODO: log10_mturn_a_grid is also needed if we use mini-halos with interpolation tables.
+    // This should be fixed (see https://github.com/21cmfast/21cmFAST/issues/732)
+    if (uses_reionization_feedback_in_acgs(astro_options_global->REIONIZATION_FEEDBACK_MODEL) ||
+        (astro_options_global->USE_MINI_HALOS &&
+         uses_hmf_interpolation(matter_options_global->USE_INTERPOLATION_TABLES))) {
+        free(log10_mturn_a_grid);
+    }
     if (astro_options_global->USE_MINI_HALOS) {
-        free(mturn_a_grid);
-        free(mturn_m_grid);
+        free(log10_mturn_m_grid);
     }
     return 0;
 }

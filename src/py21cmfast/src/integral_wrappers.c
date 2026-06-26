@@ -268,12 +268,7 @@ void get_conditional_Nion(double redshift, double R, int n_densities, double *de
     }
 
     // TODO: these lines do no appear in get_conditional_SFRD, even though both functions are very
-    // similar. I think this is because initialise_Nion_Conditional_spline, unlike
-    // initialise_SFRD_Conditional_table, needs to know the range of the ACG turnover masses to set
-    // up the spline, there is a comment above initialise_Nion_Conditional_spline in interp_tables.c
-    // that says "SFRD tables have fixed Mturn range, Nion tables vary". I really see no reason why
-    // these functions should behave differently, the only difference between them is that the Nion
-    // integrals contain an extra power-law for the escape fraction
+    // similar. See https://github.com/21cmfast/21cmFAST/issues/732 for more details
     double eps = 0.01;
     double min_l10mturn_acg = log10_mturn_acg - eps;
     double max_l10mturn_acg = log10_mturn_acg + eps;

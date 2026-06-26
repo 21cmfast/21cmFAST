@@ -234,6 +234,18 @@ void allocate_fftw_grids(struct FilteredGrids **fg_struct) {
     (*fg_struct)->deltax_filtered =
         (fftwf_complex *)fftwf_malloc(sizeof(fftwf_complex) * HII_KSPACE_NUM_PIXELS);
 
+    // TODO: log10_mturn_a_grid is also needed if we use mini-halos with interpolation tables.
+    // This should be fixed (see https://github.com/21cmfast/21cmFAST/issues/732)
+    if (source_model_uses_eulerian_grids(matter_options_global->SOURCE_MODEL) &&
+        (uses_reionization_feedback_in_acgs(astro_options_global->REIONIZATION_FEEDBACK_MODEL) ||
+         (astro_options_global->USE_MINI_HALOS &&
+          uses_hmf_interpolation(matter_options_global->USE_INTERPOLATION_TABLES)))) {
+        (*fg_struct)->log10_Mturnover_unfiltered =
+            (fftwf_complex *)fftwf_malloc(sizeof(fftwf_complex) * HII_KSPACE_NUM_PIXELS);
+        (*fg_struct)->log10_Mturnover_filtered =
+            (fftwf_complex *)fftwf_malloc(sizeof(fftwf_complex) * HII_KSPACE_NUM_PIXELS);
+    }
+
     if (astro_options_global->USE_MINI_HALOS &&
         source_model_uses_eulerian_grids(matter_options_global->SOURCE_MODEL)) {
         (*fg_struct)->prev_deltax_unfiltered =
@@ -241,10 +253,6 @@ void allocate_fftw_grids(struct FilteredGrids **fg_struct) {
         (*fg_struct)->prev_deltax_filtered =
             (fftwf_complex *)fftwf_malloc(sizeof(fftwf_complex) * HII_KSPACE_NUM_PIXELS);
 
-        (*fg_struct)->log10_Mturnover_unfiltered =
-            (fftwf_complex *)fftwf_malloc(sizeof(fftwf_complex) * HII_KSPACE_NUM_PIXELS);
-        (*fg_struct)->log10_Mturnover_filtered =
-            (fftwf_complex *)fftwf_malloc(sizeof(fftwf_complex) * HII_KSPACE_NUM_PIXELS);
         (*fg_struct)->log10_Mturnover_MINI_unfiltered =
             (fftwf_complex *)fftwf_malloc(sizeof(fftwf_complex) * HII_KSPACE_NUM_PIXELS);
         (*fg_struct)->log10_Mturnover_MINI_filtered =
@@ -286,13 +294,21 @@ void free_fftw_grids(struct FilteredGrids *fg_struct) {
     fftwf_free(fg_struct->deltax_unfiltered);
     fftwf_free(fg_struct->deltax_filtered);
 
+    // TODO: log10_mturn_a_grid is also needed if we use mini-halos with interpolation tables.
+    // This should be fixed (see https://github.com/21cmfast/21cmFAST/issues/732)
+    if (source_model_uses_eulerian_grids(matter_options_global->SOURCE_MODEL) &&
+        (uses_reionization_feedback_in_acgs(astro_options_global->REIONIZATION_FEEDBACK_MODEL) ||
+         (astro_options_global->USE_MINI_HALOS &&
+          uses_hmf_interpolation(matter_options_global->USE_INTERPOLATION_TABLES)))) {
+        fftwf_free(fg_struct->log10_Mturnover_unfiltered);
+        fftwf_free(fg_struct->log10_Mturnover_filtered);
+    }
+
     if (astro_options_global->USE_MINI_HALOS &&
         source_model_uses_eulerian_grids(matter_options_global->SOURCE_MODEL)) {
         fftwf_free(fg_struct->prev_deltax_unfiltered);
         fftwf_free(fg_struct->prev_deltax_filtered);
 
-        fftwf_free(fg_struct->log10_Mturnover_unfiltered);
-        fftwf_free(fg_struct->log10_Mturnover_filtered);
         fftwf_free(fg_struct->log10_Mturnover_MINI_unfiltered);
         fftwf_free(fg_struct->log10_Mturnover_MINI_filtered);
     }
@@ -400,61 +416,104 @@ void setup_first_z_prevbox(IonizedBox *previous_ionize_box, PerturbedField *prev
     }
 }
 
+// TODO: This functions is almost identical to get_log10_turnovers in HaloBox.c
+// (the main difference is that here we work with arrays with FFT padding).
+// It would be nice to merge them into a single function
 void calculate_mcrit_boxes(IonizedBox *prev_ionbox, TsBox *spin_temp, InitialConditions *ini_boxes,
                            struct IonBoxConstants *consts, fftwf_complex *log10_mturn_acg_grid,
                            fftwf_complex *log10_mturn_mcg_grid, double *log10_mturn_a_avg_out,
                            double *log10_mturn_m_avg_out) {
     double log10_mturn_m_avg = 0., log10_mturn_a_avg = 0.;
-    int box_dim[3] = {simulation_options_global->HII_DIM, simulation_options_global->HII_DIM,
-                      HII_D_PARA};
+    // If we either use mini-halos or at least the reionization feedback model is applied on the ACG
+    // turnover mass, we need to compute the local fluctuating turnover mass at every cell. The mean
+    // of the log10 of these turnover mass fields is then computed from averaging over the box
+    if (astro_options_global->USE_MINI_HALOS ||
+        uses_reionization_feedback_in_acgs(astro_options_global->REIONIZATION_FEEDBACK_MODEL)) {
+        int box_dim[3] = {simulation_options_global->HII_DIM, simulation_options_global->HII_DIM,
+                          HII_D_PARA};
 
 #pragma omp parallel num_threads(simulation_options_global->N_THREADS)
-    {
-        int x, y, z;
-        double J21_val, Gamma12_val, zre_val;
-        double curr_vcb = consts->scale_consts.vcb_const;
-        double M_turn_m;
-        double M_turn_a = consts->scale_consts.mturn_a_nofb;
-        double M_turn_r;
-        index_huge index, index_f;
+        {
+            int x, y, z;
+            index_huge index, index_f;
+            double J21_val = 0., Gamma12_val = 0., zre_val = 0.;
+            double curr_vcb = consts->scale_consts.vcb_const;
+            double M_turn_a = consts->scale_consts.mturn_a_nofb;
+            double M_turn_m;
+            double M_turn_r =
+                0.;  // initialization can be removed once
+                     // https://github.com/21cmfast/21cmFAST/issues/732 is fixed (see comment below)
+
 #pragma omp for reduction(+ : log10_mturn_a_avg, log10_mturn_m_avg)
-        for (x = 0; x < box_dim[0]; x++) {
-            for (y = 0; y < box_dim[1]; y++) {
-                for (z = 0; z < box_dim[2]; z++) {
-                    index = grid_index_general(x, y, z, box_dim);
-                    index_f = grid_index_fftw_r(x, y, z, box_dim);
-                    if (matter_options_global->V_CB_MODEL == V_CB_MODEL_FLUCTS)
-                        curr_vcb = ini_boxes->lowres_vcb[index];
-                    J21_val = Gamma12_val = zre_val = 0.;
-                    if (consts->redshift < simulation_options_global->Z_HEAT_MAX) {
-                        J21_val = spin_temp->J_21_LW[index];
-                        Gamma12_val = prev_ionbox->ionisation_rate_G12[index];
-                        zre_val = prev_ionbox->z_reion[index];
-                    }
-                    // TODO: This code is almost identical to the code in compute_mturns in
-                    // thermochem.c. The only difference is that the homogeneous (feedback-free) ACG
-                    // turnover mass is computed once outside the loop. For best modularity, it's
-                    // worth to consider to use compute_mturns, at the cost of computing the
-                    // homogeneous ACG turnover mass at each cell. I am not sure how much overhead
-                    // this would be, if it is negligible then we should definitely use
-                    // compute_mturns for code clarity
-                    M_turn_r = reionization_feedback(consts->redshift, Gamma12_val, zre_val);
-                    M_turn_a = fmax(M_turn_a, M_turn_r);
-                    *((float *)log10_mturn_acg_grid + index_f) = log10(M_turn_a);
-                    log10_mturn_a_avg += log10(M_turn_a);
-                    if (astro_options_global->USE_MINI_HALOS) {
-                        M_turn_m = fmax(lyman_werner_threshold(consts->redshift, J21_val, curr_vcb),
-                                        astro_params_global->M_TURN_STELLAR_FEEDBACK);
-                        M_turn_m = fmax(M_turn_m, M_turn_r);
-                        *((float *)log10_mturn_mcg_grid + index_f) = log10(M_turn_m);
-                        log10_mturn_m_avg += log10(M_turn_m);
+            for (x = 0; x < box_dim[0]; x++) {
+                for (y = 0; y < box_dim[1]; y++) {
+                    for (z = 0; z < box_dim[2]; z++) {
+                        index = grid_index_general(x, y, z, box_dim);
+                        index_f = grid_index_fftw_r(x, y, z, box_dim);
+                        if (matter_options_global->V_CB_MODEL == V_CB_MODEL_FLUCTS &&
+                            astro_options_global->USE_MINI_HALOS) {
+                            curr_vcb = ini_boxes->lowres_vcb[index];
+                        }
+                        if (consts->redshift < simulation_options_global->Z_HEAT_MAX) {
+                            if (astro_options_global->USE_MINI_HALOS) {
+                                J21_val = spin_temp->J_21_LW[index];
+                            }
+                            if (uses_reionization_feedback(
+                                    astro_options_global->REIONIZATION_FEEDBACK_MODEL)) {
+                                Gamma12_val = prev_ionbox->ionisation_rate_G12[index];
+                                zre_val = prev_ionbox->z_reion[index];
+                            }
+                        }
+                        // TODO: This code is almost identical to the code in compute_mturns in
+                        // thermochem.c. The only difference is that the homogeneous (feedback-free)
+                        // ACG turnover mass is computed once outside the loop. For best modularity,
+                        // it's worth to consider to use compute_mturns, at the cost of computing
+                        // the homogeneous ACG turnover mass at each cell. I am not sure how much
+                        // overhead this would be, if it is negligible then we should definitely use
+                        // compute_mturns for code clarity
+                        if (uses_reionization_feedback(
+                                astro_options_global->REIONIZATION_FEEDBACK_MODEL)) {
+                            M_turn_r =
+                                reionization_feedback(consts->redshift, Gamma12_val, zre_val);
+                        }
+                        // TODO: log10_mturn_a_grid is also needed if we use mini-halos with
+                        // interpolation tables. This should be fixed (see
+                        // https://github.com/21cmfast/21cmFAST/issues/732)
+                        if (uses_reionization_feedback_in_acgs(
+                                astro_options_global->REIONIZATION_FEEDBACK_MODEL) ||
+                            (astro_options_global->USE_MINI_HALOS &&
+                             uses_hmf_interpolation(
+                                 matter_options_global->USE_INTERPOLATION_TABLES))) {
+                            M_turn_a = fmax(M_turn_a, M_turn_r);
+                            *((float *)log10_mturn_acg_grid + index_f) = log10(M_turn_a);
+                            log10_mturn_a_avg += log10(M_turn_a);
+                        }
+                        if (astro_options_global->USE_MINI_HALOS) {
+                            M_turn_m =
+                                fmax(lyman_werner_threshold(consts->redshift, J21_val, curr_vcb),
+                                     astro_params_global->M_TURN_STELLAR_FEEDBACK);
+                            if (uses_reionization_feedback_in_mcgs(
+                                    astro_options_global->REIONIZATION_FEEDBACK_MODEL)) {
+                                M_turn_m = fmax(M_turn_m, M_turn_r);
+                            }
+                            *((float *)log10_mturn_mcg_grid + index_f) = log10(M_turn_m);
+                            log10_mturn_m_avg += log10(M_turn_m);
+                        }
                     }
                 }
             }
         }
     }
-    *log10_mturn_a_avg_out = log10_mturn_a_avg / HII_TOT_NUM_PIXELS;
-    *log10_mturn_m_avg_out = log10_mturn_m_avg / HII_TOT_NUM_PIXELS;
+    if (uses_reionization_feedback_in_acgs(astro_options_global->REIONIZATION_FEEDBACK_MODEL)) {
+        *log10_mturn_a_avg_out = log10_mturn_a_avg / HII_TOT_NUM_PIXELS;
+    } else {
+        *log10_mturn_a_avg_out = log10(consts->scale_consts.mturn_a_nofb);
+    }
+    if (astro_options_global->USE_MINI_HALOS) {
+        *log10_mturn_m_avg_out = log10_mturn_m_avg / HII_TOT_NUM_PIXELS;
+    } else {
+        *log10_mturn_m_avg_out = 0.;  // dummy value for the USE_MINI_HALOS = false branch
+    }
 }
 
 // Determine the normalisation for the excursion set algorithm
@@ -590,13 +649,19 @@ void copy_filter_transform(struct FilteredGrids *fg_struct, struct IonBoxConstan
                    sizeof(fftwf_complex) * HII_KSPACE_NUM_PIXELS);
         }
     } else {
+        // TODO: log10_mturn_a_grid is also needed if we use mini-halos with interpolation tables.
+        // This should be fixed (see https://github.com/21cmfast/21cmFAST/issues/732)
+        if (uses_reionization_feedback_in_acgs(astro_options_global->REIONIZATION_FEEDBACK_MODEL) ||
+            (astro_options_global->USE_MINI_HALOS &&
+             uses_hmf_interpolation(matter_options_global->USE_INTERPOLATION_TABLES))) {
+            memcpy(fg_struct->log10_Mturnover_filtered, fg_struct->log10_Mturnover_unfiltered,
+                   sizeof(fftwf_complex) * HII_KSPACE_NUM_PIXELS);
+        }
         if (astro_options_global->USE_MINI_HALOS) {
             memcpy(fg_struct->prev_deltax_filtered, fg_struct->prev_deltax_unfiltered,
                    sizeof(fftwf_complex) * HII_KSPACE_NUM_PIXELS);
             memcpy(fg_struct->log10_Mturnover_MINI_filtered,
                    fg_struct->log10_Mturnover_MINI_unfiltered,
-                   sizeof(fftwf_complex) * HII_KSPACE_NUM_PIXELS);
-            memcpy(fg_struct->log10_Mturnover_filtered, fg_struct->log10_Mturnover_unfiltered,
                    sizeof(fftwf_complex) * HII_KSPACE_NUM_PIXELS);
         }
     }
@@ -618,12 +683,19 @@ void copy_filter_transform(struct FilteredGrids *fg_struct, struct IonBoxConstan
                            0.);
             }
         } else {
+            // TODO: log10_mturn_a_grid is also needed if we use mini-halos with interpolation
+            // tables. This should be fixed (see https://github.com/21cmfast/21cmFAST/issues/732)
+            if (uses_reionization_feedback_in_acgs(
+                    astro_options_global->REIONIZATION_FEEDBACK_MODEL) ||
+                (astro_options_global->USE_MINI_HALOS &&
+                 uses_hmf_interpolation(matter_options_global->USE_INTERPOLATION_TABLES))) {
+                filter_box(fg_struct->log10_Mturnover_filtered, box_dim, consts->hii_filter, R, 0.,
+                           0.);
+            }
             if (astro_options_global->USE_MINI_HALOS) {
                 filter_box(fg_struct->prev_deltax_filtered, box_dim, consts->hii_filter, R, 0., 0.);
                 filter_box(fg_struct->log10_Mturnover_MINI_filtered, box_dim, consts->hii_filter, R,
                            0., 0.);
-                filter_box(fg_struct->log10_Mturnover_filtered, box_dim, consts->hii_filter, R, 0.,
-                           0.);
             }
         }
     }
@@ -639,6 +711,15 @@ void copy_filter_transform(struct FilteredGrids *fg_struct, struct IonBoxConstan
                          HII_D_PARA, simulation_options_global->N_THREADS, fg_struct->sfr_filtered);
         }
     } else {
+        // TODO: log10_mturn_a_grid is also needed if we use mini-halos with interpolation tables.
+        // This should be fixed (see https://github.com/21cmfast/21cmFAST/issues/732)
+        if (uses_reionization_feedback_in_acgs(astro_options_global->REIONIZATION_FEEDBACK_MODEL) ||
+            (astro_options_global->USE_MINI_HALOS &&
+             uses_hmf_interpolation(matter_options_global->USE_INTERPOLATION_TABLES))) {
+            dft_c2r_cube(matter_options_global->USE_FFTW_WISDOM, simulation_options_global->HII_DIM,
+                         HII_D_PARA, simulation_options_global->N_THREADS,
+                         fg_struct->log10_Mturnover_filtered);
+        }
         if (astro_options_global->USE_MINI_HALOS) {
             dft_c2r_cube(matter_options_global->USE_FFTW_WISDOM, simulation_options_global->HII_DIM,
                          HII_D_PARA, simulation_options_global->N_THREADS,
@@ -646,9 +727,6 @@ void copy_filter_transform(struct FilteredGrids *fg_struct, struct IonBoxConstan
             dft_c2r_cube(matter_options_global->USE_FFTW_WISDOM, simulation_options_global->HII_DIM,
                          HII_D_PARA, simulation_options_global->N_THREADS,
                          fg_struct->log10_Mturnover_MINI_filtered);
-            dft_c2r_cube(matter_options_global->USE_FFTW_WISDOM, simulation_options_global->HII_DIM,
-                         HII_D_PARA, simulation_options_global->N_THREADS,
-                         fg_struct->log10_Mturnover_filtered);
         }
     }
     if (astro_options_global->USE_TS_FLUCT) {
@@ -711,12 +789,18 @@ void setup_integration_tables(struct FilteredGrids *fg_struct, struct IonBoxCons
     max_density += 0.001;
 
     if (consts->mass_dep_zeta) {
+        // TODO: log10_mturn_a_grid is also needed if we use mini-halos with interpolation tables.
+        // This should be fixed (see https://github.com/21cmfast/21cmFAST/issues/732)
+        if (uses_reionization_feedback_in_acgs(astro_options_global->REIONIZATION_FEEDBACK_MODEL) ||
+            (astro_options_global->USE_MINI_HALOS &&
+             uses_hmf_interpolation(matter_options_global->USE_INTERPOLATION_TABLES))) {
+            clip_and_get_extrema(fg_struct->log10_Mturnover_filtered, 0., LOG10_MTURN_MAX,
+                                 &log10Mturn_min, &log10Mturn_max);
+        }
         if (astro_options_global->USE_MINI_HALOS) {
             // do the same for prev
             clip_and_get_extrema(fg_struct->prev_deltax_filtered, -1, 1e6, &prev_min_density,
                                  &prev_max_density);
-            clip_and_get_extrema(fg_struct->log10_Mturnover_filtered, 0., LOG10_MTURN_MAX,
-                                 &log10Mturn_min, &log10Mturn_max);
             clip_and_get_extrema(fg_struct->log10_Mturnover_MINI_filtered, 0., LOG10_MTURN_MAX,
                                  &log10Mturn_min_MINI, &log10Mturn_max_MINI);
         }
@@ -787,7 +871,8 @@ void calculate_fcoll_grid(IonizedBox *box, IonizedBox *previous_ionize_box,
         double Splined_Fcoll, Splined_Fcoll_MINI;
         double log10_Mturnover, log10_Mturnover_MINI;
         double prev_dens = 0, prev_Splined_Fcoll = 0., prev_Splined_Fcoll_MINI = 0.;
-        // is only overwritten with minihalos
+        // log10_Mturnover is only overwritten later if reionization feedback is applied on the ACG
+        // turnover mass, otherwise it is the same for all cells
         log10_Mturnover = log10(consts->scale_consts.mturn_a_nofb);
         index_huge index_r, index_f;
 #pragma omp for reduction(+ : f_coll_total, f_coll_MINI_total)
@@ -836,9 +921,12 @@ void calculate_fcoll_grid(IonizedBox *box, IonizedBox *previous_ionize_box,
                     } else {
                         curr_dens = *((float *)fg_struct->deltax_filtered + index_f);
                         if (consts->mass_dep_zeta) {
-                            if (astro_options_global->USE_MINI_HALOS) {
+                            if (uses_reionization_feedback_in_acgs(
+                                    astro_options_global->REIONIZATION_FEEDBACK_MODEL)) {
                                 log10_Mturnover =
                                     *((float *)fg_struct->log10_Mturnover_filtered + index_f);
+                            }
+                            if (astro_options_global->USE_MINI_HALOS) {
                                 log10_Mturnover_MINI =
                                     *((float *)fg_struct->log10_Mturnover_MINI_filtered + index_f);
 
@@ -1427,24 +1515,17 @@ int ComputeIonizedBox(float redshift, float prev_redshift, PerturbedField *pertu
             Mturnover_global_avg = pow(10., halos->log10_Mcrit_ACG_ave);
             Mturnover_global_avg_MINI = pow(10., halos->log10_Mcrit_MCG_ave);
         } else if (ionbox_constants.mass_dep_zeta) {
-            if (astro_options_global->USE_MINI_HALOS) {
-                LOG_SUPER_DEBUG(
-                    "Calculating and outputting Mcrit boxes for atomic and molecular halos...");
-                calculate_mcrit_boxes(previous_ionize_box, spin_temp, ini_boxes, &ionbox_constants,
-                                      grid_struct->log10_Mturnover_unfiltered,
-                                      grid_struct->log10_Mturnover_MINI_unfiltered,
-                                      &(box->log10_Mturnover_ave),
-                                      &(box->log10_Mturnover_MINI_ave));
+            LOG_SUPER_DEBUG(
+                "Calculating and outputting Mcrit boxes for atomic and molecular halos...");
+            calculate_mcrit_boxes(previous_ionize_box, spin_temp, ini_boxes, &ionbox_constants,
+                                  grid_struct->log10_Mturnover_unfiltered,
+                                  grid_struct->log10_Mturnover_MINI_unfiltered,
+                                  &(box->log10_Mturnover_ave), &(box->log10_Mturnover_MINI_ave));
 
-                Mturnover_global_avg = pow(10., box->log10_Mturnover_ave);
-                Mturnover_global_avg_MINI = pow(10., box->log10_Mturnover_MINI_ave);
-                LOG_DEBUG("average log10 turnover masses are %.2f and %.2f for ACGs and MCGs",
-                          box->log10_Mturnover_ave, box->log10_Mturnover_MINI_ave);
-            } else {
-                Mturnover_global_avg = astro_params_global->M_TURN_STELLAR_FEEDBACK;
-                box->log10_Mturnover_ave = log10(Mturnover_global_avg);
-                box->log10_Mturnover_MINI_ave = 0.0;  // not used
-            }
+            Mturnover_global_avg = pow(10., box->log10_Mturnover_ave);
+            Mturnover_global_avg_MINI = pow(10., box->log10_Mturnover_MINI_ave);
+            LOG_DEBUG("average log10 turnover masses are %.2f and %.2f for ACGs and MCGs",
+                      box->log10_Mturnover_ave, box->log10_Mturnover_MINI_ave);
         } else {
             // just store the sharp cutoff mass
             Mturnover_global_avg = ionbox_constants.M_min;
@@ -1485,6 +1566,21 @@ int ComputeIonizedBox(float redshift, float prev_redshift, PerturbedField *pertu
                                               1e20);
                 }
             } else {
+                // TODO: log10_mturn_a_grid is also needed if we use mini-halos with interpolation
+                // tables. This should be fixed (see
+                // https://github.com/21cmfast/21cmFAST/issues/732)
+                if (uses_reionization_feedback_in_acgs(
+                        astro_options_global->REIONIZATION_FEEDBACK_MODEL) ||
+                    (astro_options_global->USE_MINI_HALOS &&
+                     uses_hmf_interpolation(matter_options_global->USE_INTERPOLATION_TABLES))) {
+                    dft_r2c_cube(matter_options_global->USE_FFTW_WISDOM,
+                                 simulation_options_global->HII_DIM, HII_D_PARA,
+                                 simulation_options_global->N_THREADS,
+                                 grid_struct->log10_Mturnover_unfiltered);
+                    for (ct = 0; ct < HII_KSPACE_NUM_PIXELS; ct++) {
+                        grid_struct->log10_Mturnover_unfiltered[ct] /= (float)HII_TOT_NUM_PIXELS;
+                    }
+                }
                 if (astro_options_global->USE_MINI_HALOS) {
                     prepare_box_for_filtering(previous_perturbed_field->density,
                                               grid_struct->prev_deltax_unfiltered, 1., -1, 1e6);
@@ -1494,12 +1590,7 @@ int ComputeIonizedBox(float redshift, float prev_redshift, PerturbedField *pertu
                                  simulation_options_global->HII_DIM, HII_D_PARA,
                                  simulation_options_global->N_THREADS,
                                  grid_struct->log10_Mturnover_MINI_unfiltered);
-                    dft_r2c_cube(matter_options_global->USE_FFTW_WISDOM,
-                                 simulation_options_global->HII_DIM, HII_D_PARA,
-                                 simulation_options_global->N_THREADS,
-                                 grid_struct->log10_Mturnover_unfiltered);
                     for (ct = 0; ct < HII_KSPACE_NUM_PIXELS; ct++) {
-                        grid_struct->log10_Mturnover_unfiltered[ct] /= (float)HII_TOT_NUM_PIXELS;
                         grid_struct->log10_Mturnover_MINI_unfiltered[ct] /=
                             (float)HII_TOT_NUM_PIXELS;
                     }
