@@ -1034,11 +1034,9 @@ double EvaluateNion_Conditional(double delta, double log10Mturn, double growthf,
         return exp(EvaluateRGTable1D_f(delta, &Nion_conditional_table1D));
     }
 
-    // NOTE: turning minihalos off turns off feedback in the model. This may be slightly misleading
-    //   to ignore a passed parameter but until we make the change in the model we force it here
-    double mturn = astro_options_global->USE_MINI_HALOS ? pow(10, log10Mturn) : sc->mturn_a_nofb;
-    return Nion_ConditionalM(growthf, log(M_min), log(M_max), log(M_cond), sigma_max, delta, mturn,
-                             sc, astro_options_global->INTEGRATION_METHOD_ATOMIC);
+    return Nion_ConditionalM(growthf, log(M_min), log(M_max), log(M_cond), sigma_max, delta,
+                             pow(10, log10Mturn), sc,
+                             astro_options_global->INTEGRATION_METHOD_ATOMIC);
 }
 
 double EvaluateNion_Conditional_MINI(double delta, double log10Mturn_a, double log10Mturn_m,

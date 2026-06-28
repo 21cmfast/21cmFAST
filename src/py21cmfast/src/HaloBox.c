@@ -522,7 +522,8 @@ void get_log10_turnovers(InitialConditions *ini_boxes, TsBox *previous_spin_temp
                     log10_mturn_a_avg += log10(M_turn_a);
                 }
                 if (astro_options_global->USE_MINI_HALOS) {
-                    M_turn_m = fmax(lyman_werner_threshold(consts->redshift, J21_val, curr_vcb),
+                    M_turn_m = fmax(molecular_cooling_threshold_with_feedbacks(consts->redshift,
+                                                                               J21_val, curr_vcb),
                                     astro_params_global->M_TURN_STELLAR_FEEDBACK);
                     if (uses_reionization_feedback_in_mcgs(
                             astro_options_global->REIONIZATION_FEEDBACK_MODEL)) {
@@ -798,8 +799,9 @@ int test_halo_props(double redshift, float *vcb_grid, float *J21_LW_grid, float 
                         M_turn_a = fmax(M_turn_a, M_turn_r);
                     }
                     if (astro_options_global->USE_MINI_HALOS) {
-                        M_turn_m = fmax(lyman_werner_threshold(redshift, J21_val, curr_vcb),
-                                        astro_params_global->M_TURN_STELLAR_FEEDBACK);
+                        M_turn_m = fmax(
+                            molecular_cooling_threshold_with_feedbacks(redshift, J21_val, curr_vcb),
+                            astro_params_global->M_TURN_STELLAR_FEEDBACK);
                         if (uses_reionization_feedback_in_mcgs(
                                 astro_options_global->REIONIZATION_FEEDBACK_MODEL)) {
                             M_turn_m = fmax(M_turn_m, M_turn_r);

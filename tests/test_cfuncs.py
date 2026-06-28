@@ -117,6 +117,14 @@ def test_bad_integral_inputs(default_input_struct):
     densities = np.linspace(-1, 3, num=25)
 
     with pytest.raises(ValueError, match="The shapes of redshifts and"):
+        cf.get_molecular_cooling_threshold_with_feedbacks(
+            inputs=default_input_struct,
+            redshifts=redshifts,
+            J_LW_21=densities,
+            v_cb=redshifts,
+        )
+
+    with pytest.raises(ValueError, match="The shapes of redshifts and"):
         cf.compute_mturns(
             inputs=default_input_struct,
             redshifts=redshifts,

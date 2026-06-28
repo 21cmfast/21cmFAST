@@ -6,7 +6,7 @@
 float ComputeTau(int Npoints, float *redshifts, float *global_xHI, float z_re_HeII);
 double molecular_cooling_threshold(float z);
 double atomic_cooling_threshold(float z);
-double lyman_werner_threshold(float z, float J_21_LW, float vcb);
+double molecular_cooling_threshold_with_feedbacks(float z, float J_21_LW, float vcb);
 double reionization_feedback(float z, float Gamma_halo_HII, float z_IN);
 float ComputeFullyIonizedTemperature(float z_re, float z, float delta, float T_re);
 float ComputePartiallyIonizedTemperature(float T_HI, float res_xH, float T_re);

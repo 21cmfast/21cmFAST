@@ -547,7 +547,8 @@ void prepare_filter_boxes(double redshift, float *input_dens, float *input_vcb, 
                     curr_j21 = input_j21[ct];
                     // NOTE: we don't use reionization_feedback here, I assume it wouldn't do much
                     // but it's inconsistent
-                    M_buf = lyman_werner_threshold(redshift, curr_j21, curr_vcb);
+                    M_buf =
+                        molecular_cooling_threshold_with_feedbacks(redshift, curr_j21, curr_vcb);
                     M_buf = fmax(M_buf, astro_params_global->M_TURN_STELLAR_FEEDBACK);
                     *((float *)output_LW + index_f) = log10(M_buf);
                 }
@@ -1462,7 +1463,8 @@ void ts_main(float redshift, float prev_redshift, float perturbed_field_redshift
                 // NOTE: we are using previous_zp LW threshold for all zpp, inconsistent with the
                 // halo model
                 // minimum turnover NOTE: should be zpp_max?
-                log10_Mcrit_limit = log10(lyman_werner_threshold(redshift, 0., 0.));
+                log10_Mcrit_limit =
+                    log10(molecular_cooling_threshold_with_feedbacks(redshift, 0., 0.));
                 fill_Rbox_table(log10_Mcrit_LW, log10_Mcrit_LW_unfiltered, R_values,
                                 astro_params_global->N_STEP_TS, log10_Mcrit_limit, 1,
                                 min_log10_MturnLW, ave_log10_MturnLW, max_log10_MturnLW);

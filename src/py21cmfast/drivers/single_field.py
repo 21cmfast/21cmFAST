@@ -588,19 +588,19 @@ def compute_xray_source_field(
             box.filtered_xray.value[i] = 0
             if inputs.astro_options.USE_MINI_HALOS:
                 # If the shell is beyond z_max, we set the SFR to zero and compute the mean log10_Mcrit_MCG
-                # under the assumption of zero LW flux, no reionization feedback, and a constant v_cb
+                # under the assumption of zero LW flux a constant v_cb, and no reionization feedback
                 from ..wrapper import cfuncs
 
-                _, mturn_MCG = cfuncs.compute_mturns(
+                mturn_MCG = cfuncs.get_molecular_cooling_threshold_with_feedbacks(
                     inputs=inputs,
                     redshifts=zpp_avg[i],
                     J_LW_21=0.0,
                     v_cb=inputs.cosmo_tables.V_CB_AVG,
-                    ionisation_rate_G12=0.0,
-                    z_reion=-1.0,
                 )
                 box.filtered_sfr_mini.value[i] = 0
-                box.mean_log10_Mcrit_LW.value[i] = np.log10(mturn_MCG)
+                box.mean_log10_Mcrit_LW.value[i] = np.log10(
+                    np.max([mturn_MCG, inputs.astro_params.M_TURN_STELLAR_FEEDBACK])
+                )
                 if inputs.astro_options.LYA_MULTIPLE_SCATTERING:
                     box.filtered_sfr_lw.value[i] = 0
                     box.filtered_sfr_mini_lw.value[i] = 0

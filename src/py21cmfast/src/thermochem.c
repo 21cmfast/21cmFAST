@@ -278,7 +278,7 @@ double atomic_cooling_threshold(float z) { return TtoM(z, 1e4, 0.59); }
 
 double molecular_cooling_threshold(float z) { return TtoM(z, 600, 1.22); }
 
-double lyman_werner_threshold(float z, float J_21_LW, float vcb) {
+double molecular_cooling_threshold_with_feedbacks(float z, float J_21_LW, float vcb) {
     // correction follows Schauer+20, fit jointly to LW feedback and relative velocities. They find
     // weaker effect of LW feedback than before (Stacy+11, Greif+11, etc.) due to HII self
     // shielding.
@@ -321,7 +321,7 @@ void compute_mturns(float z, float J_21_LW, float vcb, float Gamma12, float z_re
         *M_turn_a = fmax(*M_turn_a, M_turn_r);
     }
     if (astro_options_global->USE_MINI_HALOS) {
-        *M_turn_m = fmax(lyman_werner_threshold(z, J_21_LW, vcb),
+        *M_turn_m = fmax(molecular_cooling_threshold_with_feedbacks(z, J_21_LW, vcb),
                          astro_params_global->M_TURN_STELLAR_FEEDBACK);
         if (uses_reionization_feedback_in_mcgs(astro_options_global->REIONIZATION_FEEDBACK_MODEL)) {
             *M_turn_m = fmax(*M_turn_m, M_turn_r);

@@ -144,6 +144,7 @@ double power_in_k(double k);
 double power_in_vcb(double k);
 double get_delta_crit(int HMF, double sigma, double growthf);
 double atomic_cooling_threshold(float z);
+double molecular_cooling_threshold_with_feedbacks(float z, float J_21_LW, float vcb);
 double unconditional_hmf(double growthf, double lnM, double z, int HMF);
 double conditional_hmf(double growthf, double lnM, double delta, double sigma, int HMF);
 double expected_nhalo(double redshift);

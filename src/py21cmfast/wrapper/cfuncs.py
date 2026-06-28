@@ -102,6 +102,52 @@ def get_atomic_cooling_mass_threshold(
 
 
 @init_c_state(broadcast_inputs=True)
+def get_molecular_cooling_threshold_with_feedbacks(
+    *,
+    redshifts: float | Sequence[float],
+    inputs: InputParameters,
+    J_LW_21: float | Sequence[float],
+    v_cb: float | Sequence[float],
+) -> float | np.ndarray:
+    """Get the molecular cooling threshold mass at a given redshift.
+
+    Parameters
+    ----------
+    redshifts : array-like
+        The redshifts at which to compute the molecular cooling threshold mass.
+    inputs: :class:`~InputParameters`
+        The input parameters of the run
+    J_LW_21 : array-like
+        The Lyman-Werner flux in units of 1e-21 erg/s/Hz/cm^2/sr at the given redshifts.
+    v_cb : array-like
+        The amplitude of the relative velocity between dark matter and baryons in units of km/s at the given redshifts.
+
+    Returns
+    -------
+    M_turn_m : array-like
+        The molecular cooling threshold mass at the given redshifts.
+    """
+    inputs_to_check = {
+        "J_LW_21": J_LW_21,
+        "v_cb": v_cb,
+    }
+
+    redshifts_shape = np.asarray(redshifts).shape
+    for name, value in inputs_to_check.items():
+        current_shape = np.asarray(value).shape
+        if current_shape != redshifts_shape:
+            raise ValueError(
+                f"The shapes of redshifts and {name} are not the same! "
+                f"Got {redshifts_shape} and {current_shape}."
+            )
+
+    vfunc = np.vectorize(
+        lib.molecular_cooling_threshold_with_feedbacks, otypes=[np.float64]
+    )
+    return vfunc(redshifts, J_LW_21, v_cb)
+
+
+@init_c_state(broadcast_inputs=True)
 def compute_mturns(
     *,
     inputs: InputParameters,
@@ -290,27 +336,16 @@ def compute_luminosity_function(
         )
         component = "acg"
 
-    if lightcone is not None:
-        mturnovers_global = pow(10.0, lightcone.global_quantities["log10_mturn_acg"])
-        mturnovers_mini_global = pow(
-            10.0, lightcone.global_quantities["log10_mturn_mcg"]
-        )
-    else:
-        # If lightcone is not provided, we estimate the turnover masses from the global evolution
-        if global_evolution is None:
-            global_evolution = run_global_evolution(inputs=inputs)
-        mturnovers_global = pow(10.0, global_evolution.quantities["log10_mturn_acg"])
-        mturnovers_mini_global = pow(
-            10.0, global_evolution.quantities["log10_mturn_mcg"]
-        )
+    log10mturns_acg, log10mturns_mcg = get_log10mturns_helper(
+        inputs=inputs,
+        redshifts=redshifts,
+        lightcone=lightcone,
+        global_evolution=global_evolution,
+        component=component,
+    )
 
-    # Interpolate the mturnover arrays at the input redshifts
-    mturnovers = np.interp(
-        redshifts, inputs.node_redshifts[::-1], mturnovers_global[::-1]
-    )
-    mturnovers_mini = np.interp(
-        redshifts, inputs.node_redshifts[::-1], mturnovers_mini_global[::-1]
-    )
+    mturnovers = pow(10.0, log10mturns_acg)
+    mturnovers_mini = pow(10.0, log10mturns_mcg)
 
     lfunc = np.zeros(len(redshifts) * nbins)
     Muvfunc = np.zeros(len(redshifts) * nbins)
@@ -691,31 +726,13 @@ def evaluate_SFRD_z(
             "or leave unspecified and they will be estimated automatically."
         )
 
-    if lightcone is not None:
-        log10mturns_acg_global = lightcone.global_quantities["log10_mturn_acg"]
-    else:
-        # If lightcone is not provided, we estimate the turnover masses from the global evolution
-        if global_evolution is None:
-            global_evolution = run_global_evolution(inputs=inputs)
-        log10mturns_acg_global = global_evolution.quantities["log10_mturn_acg"]
-
-    log10mturns_acg = np.interp(
-        redshifts, inputs.node_redshifts[::-1], log10mturns_acg_global[::-1]
+    log10mturns_acg, log10mturns_mcg = get_log10mturns_helper(
+        inputs=inputs,
+        redshifts=redshifts,
+        lightcone=lightcone,
+        global_evolution=global_evolution,
+        component="both" if inputs.astro_options.USE_MINI_HALOS else "acg",
     )
-    if inputs.astro_options.USE_MINI_HALOS:
-        if lightcone is not None:
-            log10mturns_mcg_global = lightcone.global_quantities["log10_mturn_mcg"]
-        else:
-            # If lightcone is not provided, we estimate the turnover masses from the global evolution
-            if global_evolution is None:
-                global_evolution = run_global_evolution(inputs=inputs)
-            log10mturns_mcg_global = global_evolution.quantities["log10_mturn_mcg"]
-
-        log10mturns_mcg = np.interp(
-            redshifts, inputs.node_redshifts[::-1], log10mturns_mcg_global[::-1]
-        )
-    else:
-        log10mturns_mcg = np.zeros_like(redshifts)  # dummy value for no mini halos
 
     redshifts = np.asarray(redshifts).astype("f8")
     log10mturns_acg = log10mturns_acg.astype("f8")
@@ -745,7 +762,6 @@ def evaluate_Nion_z(
     log10mturns: NDArray[np.floating] | None = None,
     lightcone: LightCone | None = None,
     global_evolution: GlobalEvolution | None = None,
-    avoid_recursion: bool = False,  # TODO: remove this argument after USE_REIONIZATION_FEEDBACK is added
 ):
     """
     Evaluate the global number of ionising photons per baryon, expected at a range of redshifts.
@@ -780,43 +796,13 @@ def evaluate_Nion_z(
             "or leave unspecified and they will be estimated automatically."
         )
 
-    if avoid_recursion:
-        # Get ACG turnover mass under the assumption of no reionization feedback (ionisation_rate_G12=0, z_reion=-1)
-        M_turn_a, _ = compute_mturns(
-            inputs=inputs,
-            redshifts=redshifts,
-            J_LW_21=0.0,
-            v_cb=0.0,
-            ionisation_rate_G12=0.0,
-            z_reion=-1.0,
-        )
-        log10mturns_acg = np.log10(M_turn_a)
-    else:
-        if lightcone is not None:
-            log10mturns_acg_global = lightcone.global_quantities["log10_mturn_acg"]
-        else:
-            # If lightcone is not provided, we estimate the turnover masses from the global evolution
-            if global_evolution is None:
-                global_evolution = run_global_evolution(inputs=inputs)
-            log10mturns_acg_global = global_evolution.quantities["log10_mturn_acg"]
-
-        log10mturns_acg = np.interp(
-            redshifts, inputs.node_redshifts[::-1], log10mturns_acg_global[::-1]
-        )
-    if inputs.astro_options.USE_MINI_HALOS:
-        if lightcone is not None:
-            log10mturns_mcg_global = lightcone.global_quantities["log10_mturn_mcg"]
-        else:
-            # If lightcone is not provided, we estimate the turnover masses from the global evolution
-            if global_evolution is None:
-                global_evolution = run_global_evolution(inputs=inputs)
-            log10mturns_mcg_global = global_evolution.quantities["log10_mturn_mcg"]
-
-        log10mturns_mcg = np.interp(
-            redshifts, inputs.node_redshifts[::-1], log10mturns_mcg_global[::-1]
-        )
-    else:
-        log10mturns_mcg = np.zeros_like(redshifts)  # dummy value for no mini halos
+    log10mturns_acg, log10mturns_mcg = get_log10mturns_helper(
+        inputs=inputs,
+        redshifts=redshifts,
+        lightcone=lightcone,
+        global_evolution=global_evolution,
+        component="both" if inputs.astro_options.USE_MINI_HALOS else "acg",
+    )
 
     redshifts = np.asarray(redshifts).astype("f8")
     log10mturns_acg = log10mturns_acg.astype("f8")
@@ -895,31 +881,13 @@ def evaluate_SFRD_cond(
             "or leave unspecified and they will be estimated automatically."
         )
 
-    if lightcone is not None:
-        log10mturns_acg_global = lightcone.global_quantities["log10_mturn_acg"]
-    else:
-        # If lightcone is not provided, we estimate the turnover masses from the global evolution
-        if global_evolution is None:
-            global_evolution = run_global_evolution(inputs=inputs)
-        log10mturns_acg_global = global_evolution.quantities["log10_mturn_acg"]
-
-    log10mturn_acg = np.interp(
-        redshift, inputs.node_redshifts[::-1], log10mturns_acg_global[::-1]
+    log10mturn_acg, log10mturn_mcg = get_log10mturns_helper(
+        inputs=inputs,
+        redshifts=redshift,
+        lightcone=lightcone,
+        global_evolution=global_evolution,
+        component="both" if inputs.astro_options.USE_MINI_HALOS else "acg",
     )
-    if inputs.astro_options.USE_MINI_HALOS:
-        if lightcone is not None:
-            log10mturns_mcg_global = lightcone.global_quantities["log10_mturn_mcg"]
-        else:
-            # If lightcone is not provided, we estimate the turnover masses from the global evolution
-            if global_evolution is None:
-                global_evolution = run_global_evolution(inputs=inputs)
-            log10mturns_mcg_global = global_evolution.quantities["log10_mturn_mcg"]
-
-        log10mturn_mcg = np.interp(
-            redshift, inputs.node_redshifts[::-1], log10mturns_mcg_global[::-1]
-        )
-    else:
-        log10mturn_mcg = 0.0  # dummy value for no mini halos
 
     densities = densities.astype("f8")
     sfrd = np.zeros_like(densities)
@@ -999,31 +967,13 @@ def evaluate_Nion_cond(
             "or leave unspecified and they will be estimated automatically."
         )
 
-    if lightcone is not None:
-        log10mturns_acg_global = lightcone.global_quantities["log10_mturn_acg"]
-    else:
-        # If lightcone is not provided, we estimate the turnover masses from the global evolution
-        if global_evolution is None:
-            global_evolution = run_global_evolution(inputs=inputs)
-        log10mturns_acg_global = global_evolution.quantities["log10_mturn_acg"]
-
-    log10mturn_acg = np.interp(
-        redshift, inputs.node_redshifts[::-1], log10mturns_acg_global[::-1]
+    log10mturn_acg, log10mturn_mcg = get_log10mturns_helper(
+        inputs=inputs,
+        redshifts=redshift,
+        lightcone=lightcone,
+        global_evolution=global_evolution,
+        component="both" if inputs.astro_options.USE_MINI_HALOS else "acg",
     )
-    if inputs.astro_options.USE_MINI_HALOS:
-        if lightcone is not None:
-            log10mturns_mcg_global = lightcone.global_quantities["log10_mturn_mcg"]
-        else:
-            # If lightcone is not provided, we estimate the turnover masses from the global evolution
-            if global_evolution is None:
-                global_evolution = run_global_evolution(inputs=inputs)
-            log10mturns_mcg_global = global_evolution.quantities["log10_mturn_mcg"]
-
-        log10mturn_mcg = np.interp(
-            redshift, inputs.node_redshifts[::-1], log10mturns_mcg_global[::-1]
-        )
-    else:
-        log10mturn_mcg = 0.0  # dummy value for no mini halos
 
     densities = densities.astype("f8")
     nion = np.zeros_like(densities)
@@ -1100,31 +1050,13 @@ def evaluate_Xray_cond(
             "or leave unspecified and they will be estimated automatically."
         )
 
-    if lightcone is not None:
-        log10mturns_acg_global = lightcone.global_quantities["log10_mturn_acg"]
-    else:
-        # If lightcone is not provided, we estimate the turnover masses from the global evolution
-        if global_evolution is None:
-            global_evolution = run_global_evolution(inputs=inputs)
-        log10mturns_acg_global = global_evolution.quantities["log10_mturn_acg"]
-
-    log10mturn_acg = np.interp(
-        redshift, inputs.node_redshifts[::-1], log10mturns_acg_global[::-1]
+    log10mturn_acg, log10mturn_mcg = get_log10mturns_helper(
+        inputs=inputs,
+        redshifts=redshift,
+        lightcone=lightcone,
+        global_evolution=global_evolution,
+        component="both" if inputs.astro_options.USE_MINI_HALOS else "acg",
     )
-    if inputs.astro_options.USE_MINI_HALOS:
-        if lightcone is not None:
-            log10mturns_mcg_global = lightcone.global_quantities["log10_mturn_mcg"]
-        else:
-            # If lightcone is not provided, we estimate the turnover masses from the global evolution
-            if global_evolution is None:
-                global_evolution = run_global_evolution(inputs=inputs)
-            log10mturns_mcg_global = global_evolution.quantities["log10_mturn_mcg"]
-
-        log10mturn_mcg = np.interp(
-            redshift, inputs.node_redshifts[::-1], log10mturns_mcg_global[::-1]
-        )
-    else:
-        log10mturn_mcg = 0.0  # dummy value for no mini halos
 
     densities = densities.astype("f8")
     xray_emissivity = np.zeros_like(densities)
@@ -1350,3 +1282,79 @@ def return_chmf_value(
         sigma[None, :, None],
         inputs.matter_options.cdict["HMF"],
     )
+
+
+def get_log10mturns_helper(
+    *,
+    inputs: InputParameters,
+    redshifts: Sequence[float],
+    lightcone: LightCone | None = None,
+    global_evolution: GlobalEvolution | None = None,
+    component: Literal["both", "acg", "mcg"] = "acg",
+):
+    """
+    Get the global log10 turnover masses for ACGs and MCGs at given redshifts, given a lightcone or global evolution objects.
+
+    Parameters
+    ----------
+    inputs : InputParameters
+        The input parameters defining the simulation run.
+    redshifts : Sequence[float]
+        The redshifts at which to evaluate the turnover masses.
+    lightcone : LightCone or None, optional
+        The lightcone object to use for the computation.
+        If None, the function will consider `global_evolution` for the global turnover masses,
+        otherwise they will be extracted from the given lightcone.
+    global_evolution : GlobalEvolution or None, optional
+        The global evolution object to use for the computation.
+        If None, the function will run a global evolution to estimate the global turnover masses,
+        otherwise they will be extracted from the given global evolution.
+    component : str, optional
+        Which component's turnover mass to return. Options are "both", "acg", or "mcg".
+
+    Returns
+    -------
+    log10mturns_acg : np.ndarray
+        The log10 turnover masses for ACGs at the given redshifts.
+    log10mturns_mcg : np.ndarray or None
+        The log10 turnover masses for MCGs at the given redshifts. Will be None if `component` is "acg".
+    """
+    # We need to set from where we take the global turnover masses only if they cannot be determined deterministically (i.e. not from a simulation)
+    if component in [
+        "mcg",
+        "both",
+    ] or inputs.astro_options.REIONIZATION_FEEDBACK_MODEL in ["ACG", "BOTH"]:
+        if lightcone is not None:
+            global_quantities = lightcone.global_quantities
+        else:
+            if global_evolution is None:
+                # If both lightcone and global evolution are not provided, we run a quick global evolution simulation.
+                global_evolution = run_global_evolution(inputs=inputs)
+            global_quantities = global_evolution.quantities
+
+    if component in ("both", "acg"):
+        # The ACG turnover mass can be set deterministically if reionization feedback is not applied,
+        # no need to take if from lightcone or global evolution in this case
+        if inputs.astro_options.REIONIZATION_FEEDBACK_MODEL in ["NONE", "MCG"]:
+            M_turn_a = get_atomic_cooling_mass_threshold(
+                inputs=inputs, redshifts=redshifts
+            )
+            M_turn_a = np.maximum(M_turn_a, inputs.astro_params.M_TURN_STELLAR_FEEDBACK)
+            log10mturns_acg = np.log10(M_turn_a)
+        else:
+            log10mturns_acg_global = global_quantities["log10_mturn_acg"]
+            log10mturns_acg = np.interp(
+                redshifts, inputs.node_redshifts[::-1], log10mturns_acg_global[::-1]
+            )
+    else:
+        log10mturns_acg = np.zeros_like(redshifts)
+
+    if component in ("both", "mcg"):
+        log10mturns_mcg_global = global_quantities["log10_mturn_mcg"]
+        log10mturns_mcg = np.interp(
+            redshifts, inputs.node_redshifts[::-1], log10mturns_mcg_global[::-1]
+        )
+    else:
+        log10mturns_mcg = np.zeros_like(redshifts)
+
+    return log10mturns_acg, log10mturns_mcg

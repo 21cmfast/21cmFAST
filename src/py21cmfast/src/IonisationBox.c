@@ -114,8 +114,8 @@ struct FilteredGrids {
 
     // Used when USE_MINI_HALOS==True and SOURCE_MODEL=='E-INTEGRAL'
     fftwf_complex *prev_deltax_unfiltered, *prev_deltax_filtered;
-    fftwf_complex *log10_Mturnover_unfiltered, *log10_Mturnover_filtered;
-    fftwf_complex *log10_Mturnover_MINI_unfiltered, *log10_Mturnover_MINI_filtered;
+    fftwf_complex *log10_mturn_a_grid_unfiltered, *log10_mturn_a_grid_filtered;
+    fftwf_complex *log10_mturn_m_grid_unfiltered, *log10_mturn_m_grid_filtered;
 
     // Used when SOURCE_MODEL=='L-INTEGRAL'
     fftwf_complex *stars_unfiltered, *stars_filtered;
@@ -240,9 +240,9 @@ void allocate_fftw_grids(struct FilteredGrids **fg_struct) {
         (uses_reionization_feedback_in_acgs(astro_options_global->REIONIZATION_FEEDBACK_MODEL) ||
          (astro_options_global->USE_MINI_HALOS &&
           uses_hmf_interpolation(matter_options_global->USE_INTERPOLATION_TABLES)))) {
-        (*fg_struct)->log10_Mturnover_unfiltered =
+        (*fg_struct)->log10_mturn_a_grid_unfiltered =
             (fftwf_complex *)fftwf_malloc(sizeof(fftwf_complex) * HII_KSPACE_NUM_PIXELS);
-        (*fg_struct)->log10_Mturnover_filtered =
+        (*fg_struct)->log10_mturn_a_grid_filtered =
             (fftwf_complex *)fftwf_malloc(sizeof(fftwf_complex) * HII_KSPACE_NUM_PIXELS);
     }
 
@@ -253,9 +253,9 @@ void allocate_fftw_grids(struct FilteredGrids **fg_struct) {
         (*fg_struct)->prev_deltax_filtered =
             (fftwf_complex *)fftwf_malloc(sizeof(fftwf_complex) * HII_KSPACE_NUM_PIXELS);
 
-        (*fg_struct)->log10_Mturnover_MINI_unfiltered =
+        (*fg_struct)->log10_mturn_m_grid_unfiltered =
             (fftwf_complex *)fftwf_malloc(sizeof(fftwf_complex) * HII_KSPACE_NUM_PIXELS);
-        (*fg_struct)->log10_Mturnover_MINI_filtered =
+        (*fg_struct)->log10_mturn_m_grid_filtered =
             (fftwf_complex *)fftwf_malloc(sizeof(fftwf_complex) * HII_KSPACE_NUM_PIXELS);
     }
 
@@ -300,8 +300,8 @@ void free_fftw_grids(struct FilteredGrids *fg_struct) {
         (uses_reionization_feedback_in_acgs(astro_options_global->REIONIZATION_FEEDBACK_MODEL) ||
          (astro_options_global->USE_MINI_HALOS &&
           uses_hmf_interpolation(matter_options_global->USE_INTERPOLATION_TABLES)))) {
-        fftwf_free(fg_struct->log10_Mturnover_unfiltered);
-        fftwf_free(fg_struct->log10_Mturnover_filtered);
+        fftwf_free(fg_struct->log10_mturn_a_grid_unfiltered);
+        fftwf_free(fg_struct->log10_mturn_a_grid_filtered);
     }
 
     if (astro_options_global->USE_MINI_HALOS &&
@@ -309,8 +309,8 @@ void free_fftw_grids(struct FilteredGrids *fg_struct) {
         fftwf_free(fg_struct->prev_deltax_unfiltered);
         fftwf_free(fg_struct->prev_deltax_filtered);
 
-        fftwf_free(fg_struct->log10_Mturnover_MINI_unfiltered);
-        fftwf_free(fg_struct->log10_Mturnover_MINI_filtered);
+        fftwf_free(fg_struct->log10_mturn_m_grid_unfiltered);
+        fftwf_free(fg_struct->log10_mturn_m_grid_filtered);
     }
     if (astro_options_global->USE_TS_FLUCT) {
         fftwf_free(fg_struct->xe_unfiltered);
@@ -489,9 +489,9 @@ void calculate_mcrit_boxes(IonizedBox *prev_ionbox, TsBox *spin_temp, InitialCon
                             log10_mturn_a_avg += log10(M_turn_a);
                         }
                         if (astro_options_global->USE_MINI_HALOS) {
-                            M_turn_m =
-                                fmax(lyman_werner_threshold(consts->redshift, J21_val, curr_vcb),
-                                     astro_params_global->M_TURN_STELLAR_FEEDBACK);
+                            M_turn_m = fmax(molecular_cooling_threshold_with_feedbacks(
+                                                consts->redshift, J21_val, curr_vcb),
+                                            astro_params_global->M_TURN_STELLAR_FEEDBACK);
                             if (uses_reionization_feedback_in_mcgs(
                                     astro_options_global->REIONIZATION_FEEDBACK_MODEL)) {
                                 M_turn_m = fmax(M_turn_m, M_turn_r);
@@ -654,14 +654,13 @@ void copy_filter_transform(struct FilteredGrids *fg_struct, struct IonBoxConstan
         if (uses_reionization_feedback_in_acgs(astro_options_global->REIONIZATION_FEEDBACK_MODEL) ||
             (astro_options_global->USE_MINI_HALOS &&
              uses_hmf_interpolation(matter_options_global->USE_INTERPOLATION_TABLES))) {
-            memcpy(fg_struct->log10_Mturnover_filtered, fg_struct->log10_Mturnover_unfiltered,
+            memcpy(fg_struct->log10_mturn_a_grid_filtered, fg_struct->log10_mturn_a_grid_unfiltered,
                    sizeof(fftwf_complex) * HII_KSPACE_NUM_PIXELS);
         }
         if (astro_options_global->USE_MINI_HALOS) {
             memcpy(fg_struct->prev_deltax_filtered, fg_struct->prev_deltax_unfiltered,
                    sizeof(fftwf_complex) * HII_KSPACE_NUM_PIXELS);
-            memcpy(fg_struct->log10_Mturnover_MINI_filtered,
-                   fg_struct->log10_Mturnover_MINI_unfiltered,
+            memcpy(fg_struct->log10_mturn_m_grid_filtered, fg_struct->log10_mturn_m_grid_unfiltered,
                    sizeof(fftwf_complex) * HII_KSPACE_NUM_PIXELS);
         }
     }
@@ -689,12 +688,12 @@ void copy_filter_transform(struct FilteredGrids *fg_struct, struct IonBoxConstan
                     astro_options_global->REIONIZATION_FEEDBACK_MODEL) ||
                 (astro_options_global->USE_MINI_HALOS &&
                  uses_hmf_interpolation(matter_options_global->USE_INTERPOLATION_TABLES))) {
-                filter_box(fg_struct->log10_Mturnover_filtered, box_dim, consts->hii_filter, R, 0.,
-                           0.);
+                filter_box(fg_struct->log10_mturn_a_grid_filtered, box_dim, consts->hii_filter, R,
+                           0., 0.);
             }
             if (astro_options_global->USE_MINI_HALOS) {
                 filter_box(fg_struct->prev_deltax_filtered, box_dim, consts->hii_filter, R, 0., 0.);
-                filter_box(fg_struct->log10_Mturnover_MINI_filtered, box_dim, consts->hii_filter, R,
+                filter_box(fg_struct->log10_mturn_m_grid_filtered, box_dim, consts->hii_filter, R,
                            0., 0.);
             }
         }
@@ -718,7 +717,7 @@ void copy_filter_transform(struct FilteredGrids *fg_struct, struct IonBoxConstan
              uses_hmf_interpolation(matter_options_global->USE_INTERPOLATION_TABLES))) {
             dft_c2r_cube(matter_options_global->USE_FFTW_WISDOM, simulation_options_global->HII_DIM,
                          HII_D_PARA, simulation_options_global->N_THREADS,
-                         fg_struct->log10_Mturnover_filtered);
+                         fg_struct->log10_mturn_a_grid_filtered);
         }
         if (astro_options_global->USE_MINI_HALOS) {
             dft_c2r_cube(matter_options_global->USE_FFTW_WISDOM, simulation_options_global->HII_DIM,
@@ -726,7 +725,7 @@ void copy_filter_transform(struct FilteredGrids *fg_struct, struct IonBoxConstan
                          fg_struct->prev_deltax_filtered);
             dft_c2r_cube(matter_options_global->USE_FFTW_WISDOM, simulation_options_global->HII_DIM,
                          HII_D_PARA, simulation_options_global->N_THREADS,
-                         fg_struct->log10_Mturnover_MINI_filtered);
+                         fg_struct->log10_mturn_m_grid_filtered);
         }
     }
     if (astro_options_global->USE_TS_FLUCT) {
@@ -794,14 +793,14 @@ void setup_integration_tables(struct FilteredGrids *fg_struct, struct IonBoxCons
         if (uses_reionization_feedback_in_acgs(astro_options_global->REIONIZATION_FEEDBACK_MODEL) ||
             (astro_options_global->USE_MINI_HALOS &&
              uses_hmf_interpolation(matter_options_global->USE_INTERPOLATION_TABLES))) {
-            clip_and_get_extrema(fg_struct->log10_Mturnover_filtered, 0., LOG10_MTURN_MAX,
+            clip_and_get_extrema(fg_struct->log10_mturn_a_grid_filtered, 0., LOG10_MTURN_MAX,
                                  &log10Mturn_min, &log10Mturn_max);
         }
         if (astro_options_global->USE_MINI_HALOS) {
             // do the same for prev
             clip_and_get_extrema(fg_struct->prev_deltax_filtered, -1, 1e6, &prev_min_density,
                                  &prev_max_density);
-            clip_and_get_extrema(fg_struct->log10_Mturnover_MINI_filtered, 0., LOG10_MTURN_MAX,
+            clip_and_get_extrema(fg_struct->log10_mturn_m_grid_filtered, 0., LOG10_MTURN_MAX,
                                  &log10Mturn_min_MINI, &log10Mturn_max_MINI);
         }
 
@@ -869,11 +868,11 @@ void calculate_fcoll_grid(IonizedBox *box, IonizedBox *previous_ionize_box,
         int x, y, z;
         double curr_dens;
         double Splined_Fcoll, Splined_Fcoll_MINI;
-        double log10_Mturnover, log10_Mturnover_MINI;
+        double log10_mturn_a, log10_mturn_m;
         double prev_dens = 0, prev_Splined_Fcoll = 0., prev_Splined_Fcoll_MINI = 0.;
-        // log10_Mturnover is only overwritten later if reionization feedback is applied on the ACG
+        // log10_mturn_a is only overwritten later if reionization feedback is applied on the ACG
         // turnover mass, otherwise it is the same for all cells
-        log10_Mturnover = log10(consts->scale_consts.mturn_a_nofb);
+        log10_mturn_a = log10(consts->scale_consts.mturn_a_nofb);
         index_huge index_r, index_f;
 #pragma omp for reduction(+ : f_coll_total, f_coll_MINI_total)
         for (x = 0; x < box_dim[0]; x++) {
@@ -923,17 +922,17 @@ void calculate_fcoll_grid(IonizedBox *box, IonizedBox *previous_ionize_box,
                         if (consts->mass_dep_zeta) {
                             if (uses_reionization_feedback_in_acgs(
                                     astro_options_global->REIONIZATION_FEEDBACK_MODEL)) {
-                                log10_Mturnover =
-                                    *((float *)fg_struct->log10_Mturnover_filtered + index_f);
+                                log10_mturn_a =
+                                    *((float *)fg_struct->log10_mturn_a_grid_filtered + index_f);
                             }
                             if (astro_options_global->USE_MINI_HALOS) {
-                                log10_Mturnover_MINI =
-                                    *((float *)fg_struct->log10_Mturnover_MINI_filtered + index_f);
+                                log10_mturn_m =
+                                    *((float *)fg_struct->log10_mturn_m_grid_filtered + index_f);
 
                                 Splined_Fcoll_MINI = EvaluateNion_Conditional_MINI(
-                                    curr_dens, log10_Mturnover, log10_Mturnover_MINI,
-                                    consts->growth_factor, consts->M_min, rspec->M_max_R,
-                                    rspec->M_max_R, rspec->sigma_maxmass, sc_ptr, false);
+                                    curr_dens, log10_mturn_a, log10_mturn_m, consts->growth_factor,
+                                    consts->M_min, rspec->M_max_R, rspec->M_max_R,
+                                    rspec->sigma_maxmass, sc_ptr, false);
 
                                 if (previous_ionize_box->mean_f_coll_MINI *
                                             consts->ion_eff_factor_mini_gl +
@@ -943,11 +942,11 @@ void calculate_fcoll_grid(IonizedBox *box, IonizedBox *previous_ionize_box,
                                     prev_dens =
                                         *((float *)fg_struct->prev_deltax_filtered + index_f);
                                     prev_Splined_Fcoll = EvaluateNion_Conditional(
-                                        prev_dens, log10_Mturnover, consts->prev_growth_factor,
+                                        prev_dens, log10_mturn_a, consts->prev_growth_factor,
                                         consts->M_min, rspec->M_max_R, rspec->M_max_R,
                                         rspec->sigma_maxmass, sc_ptr, true);
                                     prev_Splined_Fcoll_MINI = EvaluateNion_Conditional_MINI(
-                                        prev_dens, log10_Mturnover, log10_Mturnover_MINI,
+                                        prev_dens, log10_mturn_a, log10_mturn_m,
                                         consts->prev_growth_factor, consts->M_min, rspec->M_max_R,
                                         rspec->M_max_R, rspec->sigma_maxmass, sc_ptr, true);
                                 } else {
@@ -956,7 +955,7 @@ void calculate_fcoll_grid(IonizedBox *box, IonizedBox *previous_ionize_box,
                                 }
                             }
                             Splined_Fcoll = EvaluateNion_Conditional(
-                                curr_dens, log10_Mturnover, consts->growth_factor, consts->M_min,
+                                curr_dens, log10_mturn_a, consts->growth_factor, consts->M_min,
                                 rspec->M_max_R, rspec->M_max_R, rspec->sigma_maxmass, sc_ptr,
                                 false);
                         } else {
@@ -994,8 +993,8 @@ void calculate_fcoll_grid(IonizedBox *box, IonizedBox *previous_ionize_box,
                                     ->unnormalised_nion[fc_r_idx * HII_TOT_NUM_PIXELS + index_r],
                                 prev_Splined_Fcoll, Splined_Fcoll,
                                 box->unnormalised_nion[fc_r_idx * HII_TOT_NUM_PIXELS + index_r],
-                                log10_Mturnover,
-                                *((float *)fg_struct->log10_Mturnover_filtered + index_f));
+                                log10_mturn_a,
+                                *((float *)fg_struct->log10_mturn_m_grid_filtered + index_f));
                         }
 
                         if (Splined_Fcoll_MINI > 1.) Splined_Fcoll_MINI = 1.;
@@ -1020,16 +1019,15 @@ void calculate_fcoll_grid(IonizedBox *box, IonizedBox *previous_ionize_box,
                                 "f_coll_MINI is either infinite or NaN %d R=%g (%d,%d,%d)?: dens "
                                 "%g, prev %g",
                                 rspec->R_index, rspec->R, x, y, z, curr_dens, prev_dens);
-                            LOG_ERROR(
-                                "prev box %g intgrl %g curr int %g --> %g  l10mturn %g (%g)",
-                                previous_ionize_box
-                                    ->unnormalised_nion_mini[fc_r_idx * HII_TOT_NUM_PIXELS +
-                                                             index_r],
-                                prev_Splined_Fcoll_MINI, Splined_Fcoll_MINI,
-                                box->unnormalised_nion_mini[fc_r_idx * HII_TOT_NUM_PIXELS +
-                                                            index_r],
-                                log10_Mturnover_MINI,
-                                *((float *)fg_struct->log10_Mturnover_MINI_filtered + index_f));
+                            LOG_ERROR("prev box %g intgrl %g curr int %g --> %g  l10mturn %g (%g)",
+                                      previous_ionize_box
+                                          ->unnormalised_nion_mini[fc_r_idx * HII_TOT_NUM_PIXELS +
+                                                                   index_r],
+                                      prev_Splined_Fcoll_MINI, Splined_Fcoll_MINI,
+                                      box->unnormalised_nion_mini[fc_r_idx * HII_TOT_NUM_PIXELS +
+                                                                  index_r],
+                                      log10_mturn_m,
+                                      *((float *)fg_struct->log10_mturn_m_grid_filtered + index_f));
                             Throw(InfinityorNaNError);
                         }
                     } else {
@@ -1507,28 +1505,28 @@ int ComputeIonizedBox(float redshift, float prev_redshift, PerturbedField *pertu
         allocate_fftw_grids(&grid_struct);
 
         // Find the mass limits and average turnovers
-        double Mturnover_global_avg = 0., Mturnover_global_avg_MINI = 0.;
+        double mturn_a_avg = 0., mturn_m_avg = 0.;
         if (ionbox_constants.lagrangian_source_grids) {
             // Here these are only used for the global calculations
             box->log10_Mturnover_ave = halos->log10_Mcrit_ACG_ave;
             box->log10_Mturnover_MINI_ave = halos->log10_Mcrit_MCG_ave;
-            Mturnover_global_avg = pow(10., halos->log10_Mcrit_ACG_ave);
-            Mturnover_global_avg_MINI = pow(10., halos->log10_Mcrit_MCG_ave);
+            mturn_a_avg = pow(10., halos->log10_Mcrit_ACG_ave);
+            mturn_m_avg = pow(10., halos->log10_Mcrit_MCG_ave);
         } else if (ionbox_constants.mass_dep_zeta) {
             LOG_SUPER_DEBUG(
                 "Calculating and outputting Mcrit boxes for atomic and molecular halos...");
             calculate_mcrit_boxes(previous_ionize_box, spin_temp, ini_boxes, &ionbox_constants,
-                                  grid_struct->log10_Mturnover_unfiltered,
-                                  grid_struct->log10_Mturnover_MINI_unfiltered,
+                                  grid_struct->log10_mturn_a_grid_unfiltered,
+                                  grid_struct->log10_mturn_m_grid_unfiltered,
                                   &(box->log10_Mturnover_ave), &(box->log10_Mturnover_MINI_ave));
 
-            Mturnover_global_avg = pow(10., box->log10_Mturnover_ave);
-            Mturnover_global_avg_MINI = pow(10., box->log10_Mturnover_MINI_ave);
+            mturn_a_avg = pow(10., box->log10_Mturnover_ave);
+            mturn_m_avg = pow(10., box->log10_Mturnover_MINI_ave);
             LOG_DEBUG("average log10 turnover masses are %.2f and %.2f for ACGs and MCGs",
                       box->log10_Mturnover_ave, box->log10_Mturnover_MINI_ave);
         } else {
             // just store the sharp cutoff mass
-            Mturnover_global_avg = ionbox_constants.M_min;
+            mturn_a_avg = ionbox_constants.M_min;
             box->log10_Mturnover_ave = log10(ionbox_constants.M_min);
             box->log10_Mturnover_MINI_ave = 0.0;  // not used
         }
@@ -1542,8 +1540,8 @@ int ComputeIonizedBox(float redshift, float prev_redshift, PerturbedField *pertu
 
         double f_limit_acg;
         double f_limit_mcg;
-        set_mean_fcoll(&ionbox_constants, previous_ionize_box, box, Mturnover_global_avg,
-                       Mturnover_global_avg_MINI, &f_limit_acg, &f_limit_mcg);
+        set_mean_fcoll(&ionbox_constants, previous_ionize_box, box, mturn_a_avg, mturn_m_avg,
+                       &f_limit_acg, &f_limit_mcg);
         double exp_global_hii = box->mean_f_coll * ionbox_constants.ion_eff_factor_gl +
                                 box->mean_f_coll_MINI * ionbox_constants.ion_eff_factor_mini_gl;
 
@@ -1576,9 +1574,9 @@ int ComputeIonizedBox(float redshift, float prev_redshift, PerturbedField *pertu
                     dft_r2c_cube(matter_options_global->USE_FFTW_WISDOM,
                                  simulation_options_global->HII_DIM, HII_D_PARA,
                                  simulation_options_global->N_THREADS,
-                                 grid_struct->log10_Mturnover_unfiltered);
+                                 grid_struct->log10_mturn_a_grid_unfiltered);
                     for (ct = 0; ct < HII_KSPACE_NUM_PIXELS; ct++) {
-                        grid_struct->log10_Mturnover_unfiltered[ct] /= (float)HII_TOT_NUM_PIXELS;
+                        grid_struct->log10_mturn_a_grid_unfiltered[ct] /= (float)HII_TOT_NUM_PIXELS;
                     }
                 }
                 if (astro_options_global->USE_MINI_HALOS) {
@@ -1589,10 +1587,9 @@ int ComputeIonizedBox(float redshift, float prev_redshift, PerturbedField *pertu
                     dft_r2c_cube(matter_options_global->USE_FFTW_WISDOM,
                                  simulation_options_global->HII_DIM, HII_D_PARA,
                                  simulation_options_global->N_THREADS,
-                                 grid_struct->log10_Mturnover_MINI_unfiltered);
+                                 grid_struct->log10_mturn_m_grid_unfiltered);
                     for (ct = 0; ct < HII_KSPACE_NUM_PIXELS; ct++) {
-                        grid_struct->log10_Mturnover_MINI_unfiltered[ct] /=
-                            (float)HII_TOT_NUM_PIXELS;
+                        grid_struct->log10_mturn_m_grid_unfiltered[ct] /= (float)HII_TOT_NUM_PIXELS;
                     }
                 }
             }
