@@ -35,6 +35,7 @@ def default_input_struct_lc_mini(default_input_struct_lc):
         RECOMB_MODEL="inhomogeneous",
         USE_TS_FLUCT=True,
         K_MAX_FOR_CLASS=1.0,
+        M_TURN_STELLAR_FEEDBACK=5.0,
     )
 
 

@@ -320,7 +320,7 @@ def compute_luminosity_function(
     """
     astro_options = inputs.astro_options
 
-    redshifts = np.array(redshifts, dtype="float32")
+    redshifts = np.array(redshifts, dtype="float64")
 
     if (mturnovers is not None) or (mturnovers_mini is not None):
         raise TypeError(
@@ -341,11 +341,11 @@ def compute_luminosity_function(
         redshifts=redshifts,
         lightcone=lightcone,
         global_evolution=global_evolution,
-        component=component,
+        component=component if component == "acg" else "both",
     )
 
-    mturnovers = pow(10.0, log10mturns_acg)
-    mturnovers_mini = pow(10.0, log10mturns_mcg)
+    mturns_acg = pow(10.0, log10mturns_acg)
+    mturns_mcg = pow(10.0, log10mturns_mcg)
 
     lfunc = np.zeros(len(redshifts) * nbins)
     Muvfunc = np.zeros(len(redshifts) * nbins)
@@ -377,8 +377,9 @@ def compute_luminosity_function(
             nbins,
             1,
             len(redshifts),
-            ffi.cast("float *", ffi.from_buffer(redshifts)),
-            ffi.cast("float *", ffi.from_buffer(mturnovers)),
+            ffi.cast("double *", ffi.from_buffer(redshifts)),
+            ffi.cast("double *", ffi.from_buffer(mturns_acg)),
+            ffi.cast("double *", ffi.from_buffer(mturns_mcg)),
             c_Muvfunc,
             c_Mhfunc,
             c_lfunc,
@@ -400,8 +401,9 @@ def compute_luminosity_function(
             nbins,
             2,
             len(redshifts),
-            ffi.cast("float *", ffi.from_buffer(redshifts)),
-            ffi.cast("float *", ffi.from_buffer(mturnovers_mini)),
+            ffi.cast("double *", ffi.from_buffer(redshifts)),
+            ffi.cast("double *", ffi.from_buffer(mturns_acg)),
+            ffi.cast("double *", ffi.from_buffer(mturns_mcg)),
             c_Muvfunc_MINI,
             c_Mhfunc_MINI,
             c_lfunc_MINI,
