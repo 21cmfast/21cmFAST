@@ -118,7 +118,7 @@ void get_global_SFRD_z(int n_redshift, double *redshifts, double *log10_turnover
     for (i = 0; i < n_redshift; i++) {
         SFRD_FACTOR = astro_params_global->F_STAR10 * cosmo_params_global->OMb * RHOcrit /
                       astro_params_global->t_STAR / t_hubble(redshifts[i]);
-        out_sfrd[i] = SFRD_FACTOR * EvaluateSFRD(redshifts[i], &sc);
+        out_sfrd[i] = SFRD_FACTOR * EvaluateSFRD(redshifts[i], log10_turnovers_acg[i], &sc);
         if (astro_options_global->USE_MINI_HALOS) {
             SFRD_FACTOR_MINI = astro_params_global->F_STAR7_MINI * cosmo_params_global->OMb *
                                RHOcrit / astro_params_global->t_STAR / t_hubble(redshifts[i]);

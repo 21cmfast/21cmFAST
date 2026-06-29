@@ -8,7 +8,7 @@
 // all down the chain, so we broadcast them
 
 void initialise_SFRD_spline(int Nbin, float zmin, float zmax, ScalingConstants *sc);
-double EvaluateSFRD(double redshift, ScalingConstants *sc);
+double EvaluateSFRD(double redshift, double log10_Mturn_ACG_ave, ScalingConstants *sc);
 double EvaluateSFRD_MINI(double redshift, double log10_Mturn_ACG_ave, double log10_Mturn_MCG_ave,
                          ScalingConstants *sc);
 

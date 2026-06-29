@@ -1006,7 +1006,12 @@ int global_reion_properties(double zp, double x_e_ave, double *log10_Mcrit_LW_av
         // Now global SFRD at (R_ct) for the mean fixing
         for (R_ct = 0; R_ct < astro_params_global->N_STEP_TS; R_ct++) {
             zpp = zpp_for_evolve_list[R_ct];
-            mean_sfr_zpp[R_ct] = EvaluateSFRD(zpp, &sc);
+            // TODO: At the moment, reionization feedback cannot be accounted in
+            // SpinTemperatureBox.c,
+            //      see https://github.com/21cmfast/21cmFAST/issues/470. Thus, we use the
+            //      feedback-free ACG turnover mass. It is important to remember to fix this when
+            //      issue #470 is fixed!
+            mean_sfr_zpp[R_ct] = EvaluateSFRD(zpp, log10(sc.mturn_a_nofb), &sc);
             if (astro_options_global->USE_MINI_HALOS) {
                 mean_sfr_zpp_mini[R_ct] =
                     EvaluateSFRD_MINI(zpp, log10(sc.mturn_a_nofb), log10_Mcrit_LW_ave[R_ct], &sc);
@@ -1614,7 +1619,13 @@ void ts_main(float redshift, float prev_redshift, float perturbed_field_redshift
                                         &ave_log10_MturnLW[R_ct], &max_log10_MturnLW[R_ct]);
                     }
                     // get the global things we missed before
-                    mean_sfr_zpp[R_ct] = EvaluateSFRD(zpp_for_evolve_list[R_ct], &sc);
+                    // TODO: At the moment, reionization feedback cannot be accounted in
+                    // SpinTemperatureBox.c,
+                    //      see https://github.com/21cmfast/21cmFAST/issues/470. Thus, we use the
+                    //      feedback-free ACG turnover mass. It is important to remember to fix this
+                    //      when issue #470 is fixed!
+                    mean_sfr_zpp[R_ct] =
+                        EvaluateSFRD(zpp_for_evolve_list[R_ct], log10(sc.mturn_a_nofb), &sc);
                     if (astro_options_global->USE_MINI_HALOS) {
                         mean_sfr_zpp_mini[R_ct] =
                             EvaluateSFRD_MINI(zpp_for_evolve_list[R_ct], log10(sc.mturn_a_nofb),

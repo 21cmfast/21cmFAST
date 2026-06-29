@@ -107,6 +107,7 @@ void initialise_SFRD_spline(int Nbin, float zmin, float zmax, ScalingConstants *
     double lnMmax = log(Mmax);
 
     LOG_SUPER_DEBUG("initing SFRD spline from %.2f to %.2f", zmin, zmax);
+
     if (!SFRD_z_table.allocated) {
         allocate_RGTable1D(Nbin, &SFRD_z_table);
     }
@@ -116,7 +117,6 @@ void initialise_SFRD_spline(int Nbin, float zmin, float zmax, ScalingConstants *
 
     SFRD_z_table.x_min = zmin;
     SFRD_z_table.x_width = (zmax - zmin) / ((double)Nbin - 1.);
-
     if (astro_options_global->USE_MINI_HALOS) {
         SFRD_z_table_MINI.x_min = zmin;
         SFRD_z_table_MINI.x_width = (zmax - zmin) / ((double)Nbin - 1.);
@@ -130,15 +130,27 @@ void initialise_SFRD_spline(int Nbin, float zmin, float zmax, ScalingConstants *
         ScalingConstants sc_sfrd;
         sc_sfrd = evolve_scaling_constants_sfr(sc);
         double mturn_mcg;
-        double lnMmin;
         double z_val;
+        double lnMmin;
 #pragma omp for
         for (i = 0; i < Nbin; i++) {
             z_val = SFRD_z_table.x_min +
                     i * SFRD_z_table.x_width;  // both tables will have the same values here
             sc_sfrd = evolve_scaling_constants_to_redshift(z_val, &sc_sfrd, false);
             lnMmin = log(minimum_source_mass(z_val, true));
-
+            // TODO: at the moment, we use the feedback-free ACG turnover mass for the ACG SFRD
+            // table, since this interpolation table is only used within the scope of
+            // SpinTemperatureBox.c, which currently cannot account for reionization feedback (see
+            // https://github.com/21cmfast/21cmFAST/issues/470), see comments in
+            // SpinTemperatureBox.c and EvaluateSFRD. It is important to remember to allow to have
+            // a 2D interpolation table for the ACG SFRD table in the future when issue #470 is
+            // fixed!
+            SFRD_z_table.y_arr[i] =
+                Nion_General(z_val, lnMmin, lnMmax, sc_sfrd.mturn_a_nofb, &sc_sfrd);
+            if (isfinite(SFRD_z_table.y_arr[i]) == 0) {
+                LOG_ERROR("Detected either an infinite or NaN value in SFRD table");
+                Throw(TableGenerationError);
+            }
             // NOTE: we use below mturn_a_nofb as the ACG turnover mass, because if the reionization
             // feedback dominates, then the the turnover masses for ACG and MCG are the same, in
             // which case the MCG contribution is negligible
@@ -147,23 +159,10 @@ void initialise_SFRD_spline(int Nbin, float zmin, float zmax, ScalingConstants *
                     mturn_mcg = pow(10, SFRD_z_table_MINI.y_min + j * SFRD_z_table_MINI.y_width);
                     SFRD_z_table_MINI.z_arr[i][j] = Nion_General_MINI(
                         z_val, lnMmin, lnMmax, sc_sfrd.mturn_a_nofb, mturn_mcg, &sc_sfrd);
-                }
-            }
-            SFRD_z_table.y_arr[i] =
-                Nion_General(z_val, lnMmin, lnMmax, sc_sfrd.mturn_a_nofb, &sc_sfrd);
-        }
-    }
-
-    for (i = 0; i < Nbin; i++) {
-        if (isfinite(SFRD_z_table.y_arr[i]) == 0) {
-            LOG_ERROR("Detected either an infinite or NaN value in SFRD table");
-            Throw(TableGenerationError);
-        }
-        if (astro_options_global->USE_MINI_HALOS) {
-            for (j = 0; j < NMTURN; j++) {
-                if (isfinite(SFRD_z_table_MINI.z_arr[i][j]) == 0) {
-                    LOG_ERROR("Detected either an infinite or NaN value in SFRD_MINI table");
-                    Throw(TableGenerationError);
+                    if (isfinite(SFRD_z_table_MINI.z_arr[i][j]) == 0) {
+                        LOG_ERROR("Detected either an infinite or NaN value in SFRD_MINI table");
+                        Throw(TableGenerationError);
+                    }
                 }
             }
         }
@@ -990,7 +989,6 @@ double EvaluateNionTs(double redshift, double log10_Mturn_ACG_ave, ScalingConsta
 
     ScalingConstants sc_z = evolve_scaling_constants_to_redshift(redshift, sc, false);
 
-    // minihalos uses a different turnover mass
     if (source_model_is_mass_dependent(matter_options_global->SOURCE_MODEL))
         return Nion_General(redshift, lnMmin, lnMmax, pow(10., log10_Mturn_ACG_ave), &sc_z);
 
@@ -1016,9 +1014,19 @@ double EvaluateNionTs_MINI(double redshift, double log10_Mturn_ACG_ave, double l
                              pow(10., log10_Mturn_MCG_ave), &sc_z);
 }
 
-double EvaluateSFRD(double redshift, ScalingConstants *sc) {
+double EvaluateSFRD(double redshift, double log10_Mturn_ACG_ave, ScalingConstants *sc) {
     if (uses_hmf_interpolation(matter_options_global->USE_INTERPOLATION_TABLES)) {
         if (source_model_is_mass_dependent(matter_options_global->SOURCE_MODEL))
+            // TODO: at the moment, EvaluateSFRD always uses 1D interpolation table, even though
+            // it receives log10_Mturn_ACG_ave as an input. This is because this function is only
+            // used within the scope of SpinTemperatureBox.c, and there is a known issue
+            // (https://github.com/21cmfast/21cmFAST/issues/470) that currently prevents us from
+            // applying the reionization feedback on the ACG turnover mass in that module.
+            // Therefore, log10_Mturn_ACG_ave that EvaluateSFRD receives now must be the
+            // feedback-free turnover mass, which is exactly what we use in contructing the 1D
+            // interpolation table (see comment in initialise_SFRD_spline). It is important to
+            // remember to allow this function to use 2D interpolation table in the future when
+            // issue #470 is fixed!
             return EvaluateRGTable1D(redshift, &SFRD_z_table);
         return EvaluateRGTable1D(redshift, &fcoll_z_table);
     }
@@ -1035,7 +1043,8 @@ double EvaluateSFRD(double redshift, ScalingConstants *sc) {
     sc_sfrd = evolve_scaling_constants_to_redshift(redshift, &sc_sfrd, false);
 
     if (source_model_is_mass_dependent(matter_options_global->SOURCE_MODEL))
-        return Nion_General(redshift, lnMmin, lnMmax, sc_sfrd.mturn_a_nofb, &sc_sfrd);
+        return Nion_General(redshift, lnMmin, lnMmax, pow(10., log10_Mturn_ACG_ave), &sc_sfrd);
+
     return Fcoll_General(redshift, lnMmin, lnMmax);
 }
 
