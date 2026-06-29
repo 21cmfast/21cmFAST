@@ -263,11 +263,8 @@ void get_cell_integrals(double dens, double l10_mturn_a, double l10_mturn_m,
     // halo_mass --> total mass
     properties->n_ion = EvaluateNion_Conditional(dens, l10_mturn_a, growth_z, M_min, M_max, M_cell,
                                                  sigma_cell, consts, false);
-    properties->stellar_mass =
-        EvaluateSFRD_Conditional(dens, growth_z, M_min, M_max, M_cell, sigma_cell, consts);
-    // TODO: SFRD tables still assume no reion feedback, this should be fixed
-    //   although it doesn't affect the histories (only used in Ts) it makes outputs wrong
-    //   for post-processing
+    properties->stellar_mass = EvaluateSFRD_Conditional(dens, l10_mturn_a, growth_z, M_min, M_max,
+                                                        M_cell, sigma_cell, consts);
     if (astro_options_global->USE_MINI_HALOS) {
         properties->stellar_mass_mini = EvaluateSFRD_Conditional_MINI(
             dens, l10_mturn_a, l10_mturn_m, growth_z, M_min, M_max, M_cell, sigma_cell, consts);

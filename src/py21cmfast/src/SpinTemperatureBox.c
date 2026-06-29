@@ -1059,8 +1059,12 @@ void calculate_sfrd_from_grid(int R_ct, float *dens_R_grid, float *Mcrit_R_grid,
             if (astro_options_global->USE_MINI_HALOS) curr_mcrit = Mcrit_R_grid[box_ct];
 
             if (matter_options_global->SOURCE_MODEL == SOURCE_MODEL_E_INTEGRAL) {
-                fcoll = EvaluateSFRD_Conditional(curr_dens, zpp_growth[R_ct], M_min_R[R_ct],
-                                                 M_max_R[R_ct], M_max_R[R_ct], sigma_max[R_ct], sc);
+                // TODO: we use below mturn_a_nofb as the ACG turnover mass, because we don't have
+                // the reionization feedback in this module! (see
+                // https://github.com/21cmfast/21cmFAST/issues/470)
+                fcoll = EvaluateSFRD_Conditional(curr_dens, log10(sc->mturn_a_nofb),
+                                                 zpp_growth[R_ct], M_min_R[R_ct], M_max_R[R_ct],
+                                                 M_max_R[R_ct], sigma_max[R_ct], sc);
                 sfrd_grid[box_ct] = (1. + curr_dens) * fcoll;
 
                 if (astro_options_global->USE_MINI_HALOS) {
