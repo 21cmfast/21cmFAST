@@ -157,7 +157,7 @@ void get_global_Nion_z(int n_redshift, double *redshifts, double *log10_turnover
         initialise_Nion_Ts_spline(zpp_interp_points_SFR, z_min, z_max + 0.01, &sc);
     }
     for (i = 0; i < n_redshift; i++) {
-        out_nion[i] = ION_EFF_FACTOR * EvaluateNionTs(redshifts[i], &sc);
+        out_nion[i] = ION_EFF_FACTOR * EvaluateNionTs(redshifts[i], log10_turnovers_acg[i], &sc);
         if (astro_options_global->USE_MINI_HALOS)
             out_nion_mini[i] =
                 ION_EFF_FACTOR_MINI * EvaluateNionTs_MINI(redshifts[i], log10_turnovers_acg[i],

@@ -21,7 +21,7 @@
 /* HMF Integrals */
 void initialise_GL(double lnM_Min, double lnM_Max);
 
-double Nion_General(double z, double lnM_Min, double lnM_Max, double MassTurnover,
+double Nion_General(double z, double lnM_Min, double lnM_Max, double mturn_acg,
                     ScalingConstants *sc);
 double Nion_General_MINI(double z, double lnM_Min, double lnM_Max, double mturn_acg,
                          double mturn_mcg, ScalingConstants *sc);

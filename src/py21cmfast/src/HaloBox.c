@@ -371,14 +371,15 @@ int set_fixed_grids(double M_min, double M_max, InitialConditions *ini_boxes,
 #pragma omp for reduction(min : min_log10_mturn_a, min_log10_mturn_m) \
     reduction(max : max_log10_mturn_a, max_log10_mturn_m)
         for (i = 0; i < HII_TOT_NUM_PIXELS; i++) {
-            // TODO: log10_mturn_a_grid is also needed if we use mini-halos with interpolation
-            // tables. This should be fixed (see https://github.com/21cmfast/21cmFAST/issues/732)
-            if (astro_options_global->USE_MINI_HALOS) {
+            if (uses_reionization_feedback_in_acgs(
+                    astro_options_global->REIONIZATION_FEEDBACK_MODEL)) {
                 log10_M_turn_a = log10_mturn_a_grid[i];
-                log10_M_turn_m = log10_mturn_m_grid[i];
                 if (min_log10_mturn_a > log10_M_turn_a) min_log10_mturn_a = log10_M_turn_a;
-                if (min_log10_mturn_m > log10_M_turn_m) min_log10_mturn_m = log10_M_turn_m;
                 if (max_log10_mturn_a < log10_M_turn_a) max_log10_mturn_a = log10_M_turn_a;
+            }
+            if (astro_options_global->USE_MINI_HALOS) {
+                log10_M_turn_m = log10_mturn_m_grid[i];
+                if (min_log10_mturn_m > log10_M_turn_m) min_log10_mturn_m = log10_M_turn_m;
                 if (max_log10_mturn_m < log10_M_turn_m) max_log10_mturn_m = log10_M_turn_m;
             }
         }
@@ -481,9 +482,7 @@ void get_log10_turnovers(InitialConditions *ini_boxes, TsBox *previous_spin_temp
             double curr_vcb = consts->vcb_const;
             double M_turn_a = consts->mturn_a_nofb;
             double M_turn_m;
-            double M_turn_r =
-                0.;  // initialization can be removed once
-                     // https://github.com/21cmfast/21cmFAST/issues/732 is fixed (see comment below)
+            double M_turn_r;
 
 #pragma omp for reduction(+ : log10_mturn_a_avg, log10_mturn_m_avg)
             for (i = 0; i < HII_TOT_NUM_PIXELS; i++) {
@@ -510,13 +509,8 @@ void get_log10_turnovers(InitialConditions *ini_boxes, TsBox *previous_spin_temp
                 if (uses_reionization_feedback(astro_options_global->REIONIZATION_FEEDBACK_MODEL)) {
                     M_turn_r = reionization_feedback(consts->redshift, Gamma12_val, zre_val);
                 }
-                // TODO: log10_mturn_a_grid is also needed if we use mini-halos with interpolation
-                // tables. This should be fixed (see
-                // https://github.com/21cmfast/21cmFAST/issues/732)
                 if (uses_reionization_feedback_in_acgs(
-                        astro_options_global->REIONIZATION_FEEDBACK_MODEL) ||
-                    (astro_options_global->USE_MINI_HALOS &&
-                     uses_hmf_interpolation(matter_options_global->USE_INTERPOLATION_TABLES))) {
+                        astro_options_global->REIONIZATION_FEEDBACK_MODEL)) {
                     M_turn_a = fmax(M_turn_a, M_turn_r);
                     log10_mturn_a_grid[i] = log10(M_turn_a);
                     log10_mturn_a_avg += log10(M_turn_a);
@@ -651,11 +645,8 @@ int ComputeHaloBox(double redshift, InitialConditions *ini_boxes, HaloCatalog *h
 
         float *log10_mturn_a_grid = NULL;
         float *log10_mturn_m_grid = NULL;
-        // TODO: log10_mturn_a_grid is also needed if we use mini-halos with interpolation tables.
-        // This should be fixed (see https://github.com/21cmfast/21cmFAST/issues/732)
-        if (uses_reionization_feedback_in_acgs(astro_options_global->REIONIZATION_FEEDBACK_MODEL) ||
-            (astro_options_global->USE_MINI_HALOS &&
-             uses_hmf_interpolation(matter_options_global->USE_INTERPOLATION_TABLES))) {
+
+        if (uses_reionization_feedback_in_acgs(astro_options_global->REIONIZATION_FEEDBACK_MODEL)) {
             log10_mturn_a_grid = calloc(HII_TOT_NUM_PIXELS, sizeof(float));
         }
         if (astro_options_global->USE_MINI_HALOS) {
@@ -686,11 +677,7 @@ int ComputeHaloBox(double redshift, InitialConditions *ini_boxes, HaloCatalog *h
         }
         halobox_debug_print_avg(grids, &hbox_consts, M_min, M_MAX_INTEGRAL);
 
-        // TODO: log10_mturn_a_grid is also needed if we use mini-halos with interpolation tables.
-        // This should be fixed (see https://github.com/21cmfast/21cmFAST/issues/732)
-        if (uses_reionization_feedback_in_acgs(astro_options_global->REIONIZATION_FEEDBACK_MODEL) ||
-            (astro_options_global->USE_MINI_HALOS &&
-             uses_hmf_interpolation(matter_options_global->USE_INTERPOLATION_TABLES))) {
+        if (uses_reionization_feedback_in_acgs(astro_options_global->REIONIZATION_FEEDBACK_MODEL)) {
             free(log10_mturn_a_grid);
         }
         if (astro_options_global->USE_MINI_HALOS) {
@@ -859,11 +846,8 @@ int convert_halo_props(double redshift, InitialConditions *ics, TsBox *prev_ts,
     // print_sc_consts(&hbox_consts);
     float *log10_mturn_a_grid = NULL;
     float *log10_mturn_m_grid = NULL;
-    // TODO: log10_mturn_a_grid is also needed if we use mini-halos with interpolation tables.
-    // This should be fixed (see https://github.com/21cmfast/21cmFAST/issues/732)
-    if (uses_reionization_feedback_in_acgs(astro_options_global->REIONIZATION_FEEDBACK_MODEL) ||
-        (astro_options_global->USE_MINI_HALOS &&
-         uses_hmf_interpolation(matter_options_global->USE_INTERPOLATION_TABLES))) {
+
+    if (uses_reionization_feedback_in_acgs(astro_options_global->REIONIZATION_FEEDBACK_MODEL)) {
         log10_mturn_a_grid = calloc(HII_TOT_NUM_PIXELS, sizeof(float));
     }
     if (astro_options_global->USE_MINI_HALOS) {
@@ -955,11 +939,7 @@ int convert_halo_props(double redshift, InitialConditions *ics, TsBox *prev_ts,
             }
         }
     }
-    // TODO: log10_mturn_a_grid is also needed if we use mini-halos with interpolation tables.
-    // This should be fixed (see https://github.com/21cmfast/21cmFAST/issues/732)
-    if (uses_reionization_feedback_in_acgs(astro_options_global->REIONIZATION_FEEDBACK_MODEL) ||
-        (astro_options_global->USE_MINI_HALOS &&
-         uses_hmf_interpolation(matter_options_global->USE_INTERPOLATION_TABLES))) {
+    if (uses_reionization_feedback_in_acgs(astro_options_global->REIONIZATION_FEEDBACK_MODEL)) {
         free(log10_mturn_a_grid);
     }
     if (astro_options_global->USE_MINI_HALOS) {

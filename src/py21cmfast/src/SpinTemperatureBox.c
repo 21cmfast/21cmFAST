@@ -833,15 +833,21 @@ void fill_freqint_tables(double zp, double x_e_ave, double filling_factor_of_HI_
         // weighting of the average
         //   density -> volume weighted cell average || halo -> halo weighted average
         for (R_ct = R_start; R_ct < R_end; R_ct++) {
+            // TODO: At the moment, reionization feedback cannot be accounted in
+            // SpinTemperatureBox.c,
+            //      see https://github.com/21cmfast/21cmFAST/issues/470. Thus, we use the
+            //      feedback-free ACG turnover mass. It is important to remember to fix this when
+            //      issue #470 is fixed!
             if (astro_options_global->USE_MINI_HALOS) {
                 lower_int_limit = fmax(
                     nu_tau_one_MINI(zp, zpp_for_evolve_list[R_ct], x_e_ave, filling_factor_of_HI_zp,
                                     log10(sc->mturn_a_nofb), log10_Mcrit_LW_ave[R_ct], sc),
                     (astro_params_global->NU_X_THRESH) * physconst.eV_to_Hz);
             } else {
-                lower_int_limit = fmax(
-                    nu_tau_one(zp, zpp_for_evolve_list[R_ct], x_e_ave, filling_factor_of_HI_zp, sc),
-                    (astro_params_global->NU_X_THRESH) * physconst.eV_to_Hz);
+                lower_int_limit =
+                    fmax(nu_tau_one(zp, zpp_for_evolve_list[R_ct], x_e_ave, filling_factor_of_HI_zp,
+                                    log10(sc->mturn_a_nofb), sc),
+                         (astro_params_global->NU_X_THRESH) * physconst.eV_to_Hz);
             }
             // set up frequency integral table for later interpolation for the cell's x_e value
             for (x_e_ct = 0; x_e_ct < x_int_NXHII; x_e_ct++) {
@@ -970,7 +976,10 @@ int global_reion_properties(double zp, double x_e_ave, double *log10_Mcrit_LW_av
     // For consistency between halo and non-halo based, the NO_LIGHT and filling_factor_zp
     //   are based on the expected global Nion. as mentioned above it would be nice to
     //   change this to a saved reionisation/sfrd history from previous snapshots
-    sum_nion = EvaluateNionTs(zp, &sc);
+    // TODO: At the moment, reionization feedback cannot be accounted in SpinTemperatureBox.c,
+    //      see https://github.com/21cmfast/21cmFAST/issues/470. Thus, we use the feedback-free ACG
+    //      turnover mass. It is important to remember to fix this when issue #470 is fixed!
+    sum_nion = EvaluateNionTs(zp, log10(sc.mturn_a_nofb), &sc);
     if (astro_options_global->USE_MINI_HALOS) {
         sum_nion_mini = EvaluateNionTs_MINI(zp, log10(sc.mturn_a_nofb), log10_Mcrit_LW_ave[0], &sc);
     }

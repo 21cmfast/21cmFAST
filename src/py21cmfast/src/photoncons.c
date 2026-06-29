@@ -165,6 +165,8 @@ int InitialisePhotonCons() {
                 // We Force QAG due to the changing limits and messy implementation which I will fix
                 // later (hopefully move the whole thing to python)
                 if (source_model_is_mass_dependent(matter_options_global->SOURCE_MODEL)) {
+                    // TODO: the passed ACG turnover mass that we give below has to be updated to
+                    // be more consistent with what's done in the rest of the code
                     Nion0 = ION_EFF_FACTOR *
                             Nion_General(z0, lnMmin, lnMmax,
                                          astro_params_global->M_TURN_STELLAR_FEEDBACK, &sc_0);

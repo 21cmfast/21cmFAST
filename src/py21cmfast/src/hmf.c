@@ -952,12 +952,12 @@ double Fcoll_General(double z, double lnM_min, double lnM_max) {
     return IntegratedNdM(lnM_min, lnM_max, integral_params, &u_fcoll_integrand, 0);
 }
 
-double Nion_General(double z, double lnM_Min, double lnM_Max, double MassTurnover,
+double Nion_General(double z, double lnM_Min, double lnM_Max, double mturn_acg,
                     ScalingConstants *sc) {
     struct parameters_gsl_MF_integrals params = {
         .redshift = z,
         .growthf = dicke(z),
-        .Mturn_acg = MassTurnover,
+        .Mturn_acg = mturn_acg,
         .alpha_star = sc->alpha_star,
         .alpha_esc = sc->alpha_esc,
         .f_star_norm = log(sc->fstar_10),

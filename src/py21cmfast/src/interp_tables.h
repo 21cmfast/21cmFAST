@@ -13,7 +13,7 @@ double EvaluateSFRD_MINI(double redshift, double log10_Mturn_ACG_ave, double log
                          ScalingConstants *sc);
 
 void initialise_Nion_Ts_spline(int Nbin, float zmin, float zmax, ScalingConstants *sc);
-double EvaluateNionTs(double redshift, ScalingConstants *sc);
+double EvaluateNionTs(double redshift, double log10_Mturn_ACG_ave, ScalingConstants *sc);
 double EvaluateNionTs_MINI(double redshift, double log10_Mturn_ACG_ave, double log10_Mturn_MCG_ave,
                            ScalingConstants *sc);
 

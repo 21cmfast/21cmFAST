@@ -199,30 +199,30 @@ void initialise_Nion_Ts_spline(int Nbin, float zmin, float zmax, ScalingConstant
             // Minor note: while this is called in xray, we use it to estimate ionised fraction, do
             // we use ION_Tvir_MIN if applicable?
             lnMmin = log(minimum_source_mass(z_val, true));
+            // TODO: at the moment, we use the feedback-free ACG turnover mass for the ACG Nion
+            // table, since this interpolation table is only used within the scope of
+            // SpinTemperatureBox.c, which currently cannot account for reionization feedback (see
+            // https://github.com/21cmfast/21cmFAST/issues/470), see comments in
+            // SpinTemperatureBox.c and EvaluateNionTs. It is important to remember to allow to have
+            // a 2D interpolation table for the ACG Nion table in the future when issue #470 is
+            // fixed!
+            Nion_z_table.y_arr[i] = Nion_General(z_val, lnMmin, lnMmax, sc_z.mturn_a_nofb, &sc_z);
+            if (isfinite(Nion_z_table.y_arr[i]) == 0) {
+                LOG_ERROR("Detected either an infinite or NaN value in Nion_z_table");
+                Throw(TableGenerationError);
+            }
             // NOTE: we use below mturn_a_nofb as the ACG turnover mass, because if the reionization
             // feedback dominates, then the the turnover masses for ACG and MCG are the same, in
-            // which case the MCG contribution is negligible
+            // which case the MCG contribution is negligible (see comment in EvaluateNionTs_MINI)
             if (astro_options_global->USE_MINI_HALOS) {
                 for (j = 0; j < NMTURN; j++) {
                     mturn_mcg = pow(10, Nion_z_table_MINI.y_min + j * Nion_z_table_MINI.y_width);
                     Nion_z_table_MINI.z_arr[i][j] = Nion_General_MINI(
                         z_val, lnMmin, lnMmax, sc_z.mturn_a_nofb, mturn_mcg, &sc_z);
-                }
-            }
-            Nion_z_table.y_arr[i] = Nion_General(z_val, lnMmin, lnMmax, sc_z.mturn_a_nofb, &sc_z);
-        }
-    }
-
-    for (i = 0; i < Nbin; i++) {
-        if (isfinite(Nion_z_table.y_arr[i]) == 0) {
-            LOG_ERROR("Detected either an infinite or NaN value in Nion_z_val");
-            Throw(TableGenerationError);
-        }
-        if (astro_options_global->USE_MINI_HALOS) {
-            for (j = 0; j < NMTURN; j++) {
-                if (isfinite(Nion_z_table_MINI.z_arr[i][j]) == 0) {
-                    LOG_ERROR("Detected either an infinite or NaN value in Nion_z_val_MINI");
-                    Throw(TableGenerationError);
+                    if (isfinite(Nion_z_table_MINI.z_arr[i][j]) == 0) {
+                        LOG_ERROR("Detected either an infinite or NaN value in Nion_z_table_MINI");
+                        Throw(TableGenerationError);
+                    }
                 }
             }
         }
@@ -905,12 +905,21 @@ void free_global_tables() {
     free_RGTable2D(&Xray_z_table_2D);
 }
 
-// JD: moving the interp table evaluations here since some of them are needed in nu_tau_one
 // NOTE: with SOURCE_MODEL==0 both EvaluateNionTs and EvaluateSFRD return Fcoll
-double EvaluateNionTs(double redshift, ScalingConstants *sc) {
+double EvaluateNionTs(double redshift, double log10_Mturn_ACG_ave, ScalingConstants *sc) {
     // differences in turnover are handled by table setup
     if (uses_hmf_interpolation(matter_options_global->USE_INTERPOLATION_TABLES)) {
         if (source_model_is_mass_dependent(matter_options_global->SOURCE_MODEL))
+            // TODO: at the moment, EvaluateNionTs always uses 1D interpolation table, even though
+            // it receives log10_Mturn_ACG_ave as an input. This is because this function is only
+            // used within the scope of SpinTemperatureBox.c, and there is a known issue
+            // (https://github.com/21cmfast/21cmFAST/issues/470) that currently prevents us from
+            // applying the reionization feedback on the ACG turnover mass in that module.
+            // Therefore, log10_Mturn_ACG_ave that EvaluateNionTs receives now must be the
+            // feedback-free turnover mass, which is exactly what we use in contructing the 1D
+            // interpolation table (see comment in initialise_Nion_Ts_spline). It is important to
+            // remember to allow this function to use 2D interpolation table in the future when
+            // issue #470 is fixed!
             return EvaluateRGTable1D(redshift, &Nion_z_table);
         return EvaluateRGTable1D(redshift, &fcoll_z_table);
     }
@@ -925,7 +934,7 @@ double EvaluateNionTs(double redshift, ScalingConstants *sc) {
 
     // minihalos uses a different turnover mass
     if (source_model_is_mass_dependent(matter_options_global->SOURCE_MODEL))
-        return Nion_General(redshift, lnMmin, lnMmax, sc_z.mturn_a_nofb, &sc_z);
+        return Nion_General(redshift, lnMmin, lnMmax, pow(10., log10_Mturn_ACG_ave), &sc_z);
 
     return Fcoll_General(redshift, lnMmin, lnMmax);
 }
