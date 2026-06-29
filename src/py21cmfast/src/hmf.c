@@ -1125,10 +1125,10 @@ double Nion_ConditionalM_MINI(double growthf, double lnM1, double lnM2, double l
 }
 
 double Nion_ConditionalM(double growthf, double lnM1, double lnM2, double lnM_cond, double sigma2,
-                         double delta2, double MassTurnover, ScalingConstants *sc, int method) {
+                         double delta2, double mturn_acg, ScalingConstants *sc, int method) {
     struct parameters_gsl_MF_integrals params = {
         .growthf = growthf,
-        .Mturn_acg = MassTurnover,
+        .Mturn_acg = mturn_acg,
         .alpha_star = sc->alpha_star,
         .alpha_esc = sc->alpha_esc,
         .f_star_norm = log(sc->fstar_10),

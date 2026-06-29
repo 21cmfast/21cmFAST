@@ -38,7 +38,7 @@ double Nion_ConditionalM_MINI(double growthf, double lnM1, double lnM2, double l
                               double sigma2, double delta2, double mturn_acg, double mturn_mcg,
                               ScalingConstants *sc, int method);
 double Nion_ConditionalM(double growthf, double lnM1, double lnM2, double lnM_cond, double sigma2,
-                         double delta2, double MassTurnover, ScalingConstants *sc, int method);
+                         double delta2, double mturn_acg, ScalingConstants *sc, int method);
 double Xray_ConditionalM(double redshift, double growthf, double lnM1, double lnM2, double lnM_cond,
                          double sigma2, double delta2, double mturn_acg, double mturn_mcg,
                          ScalingConstants *sc, int method);

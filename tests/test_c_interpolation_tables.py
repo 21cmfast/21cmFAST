@@ -525,8 +525,16 @@ def test_Nion_z_tables(name, z_range, default_global_evolution, plt):
 @pytest.mark.parametrize("R", R_PARAM_LIST)
 @pytest.mark.parametrize("name", options_hmf)
 @pytest.mark.parametrize("intmethod", options_intmethod)
+@pytest.mark.parametrize("reionization_feedback_model", ["NONE", "ACG", "MCG", "BOTH"])
 def test_Nion_conditional_tables(
-    name, delta_range, R, mini, intmethod, default_global_evolution, plt
+    name,
+    delta_range,
+    R,
+    mini,
+    reionization_feedback_model,
+    intmethod,
+    default_global_evolution,
+    plt,
 ):
     if intmethod == "FFCOLL":
         if name != "PS":
@@ -537,6 +545,12 @@ def test_Nion_conditional_tables(
             )
 
     mini_flag = mini == "mini"
+
+    if not mini_flag and reionization_feedback_model in ["MCG", "BOTH"]:
+        pytest.skip(
+            "NO POINT IN TESTING REIONIZATION FEEDBACK ON MCG TURNOVER MASS WITHOUT MCGS"
+        )
+
     redshift, kwargs = OPTIONS_HMF[name]
     inputs = get_all_options_struct(
         redshift,
@@ -545,13 +559,16 @@ def test_Nion_conditional_tables(
         USE_TS_FLUCT=True,
         ZPRIME_STEP_FACTOR=1.2,  # needed because we need inputs.node_redshifts == default_global_evolution.node_redshifts
         M_TURN_STELLAR_FEEDBACK=5.0,
+        REIONIZATION_FEEDBACK_MODEL=reionization_feedback_model,
+        INTEGRATION_METHOD_ATOMIC=OPTIONS_INTMETHOD[intmethod],
+        INTEGRATION_METHOD_MINI=OPTIONS_INTMETHOD[intmethod],
         node_redshifts=default_global_evolution.node_redshifts,
         **kwargs,
     )["inputs"]
 
     Nion_tables, Nion_tables_mini = cf.evaluate_Nion_cond(
         inputs=inputs.evolve_input_structs(
-            USE_INTERPOLATION_TABLES="hmf-interpolation"
+            USE_INTERPOLATION_TABLES="hmf-interpolation",
         ),
         redshift=redshift,
         radius=R,
@@ -561,7 +578,7 @@ def test_Nion_conditional_tables(
 
     Nion_integrals, Nion_integrals_mini = cf.evaluate_Nion_cond(
         inputs=inputs.evolve_input_structs(
-            USE_INTERPOLATION_TABLES="sigma-interpolation"
+            USE_INTERPOLATION_TABLES="sigma-interpolation",
         ),
         redshift=redshift,
         radius=R,
@@ -665,6 +682,8 @@ def test_Xray_conditional_tables(
         USE_TS_FLUCT=True,
         ZPRIME_STEP_FACTOR=1.2,  # needed because we need inputs.node_redshifts == default_global_evolution.node_redshifts
         M_TURN_STELLAR_FEEDBACK=5.0,
+        INTEGRATION_METHOD_ATOMIC=OPTIONS_INTMETHOD[intmethod],
+        INTEGRATION_METHOD_MINI=OPTIONS_INTMETHOD[intmethod],
         node_redshifts=default_global_evolution.node_redshifts,
         **kwargs,
     )["inputs"]
@@ -672,8 +691,6 @@ def test_Xray_conditional_tables(
     Xray_tables = cf.evaluate_Xray_cond(
         inputs=inputs.evolve_input_structs(
             USE_INTERPOLATION_TABLES="hmf-interpolation",
-            INTEGRATION_METHOD_ATOMIC=OPTIONS_INTMETHOD[intmethod],
-            INTEGRATION_METHOD_MINI=OPTIONS_INTMETHOD[intmethod],
         ),
         redshift=redshift,
         radius=R,
@@ -684,8 +701,6 @@ def test_Xray_conditional_tables(
     Xray_integrals = cf.evaluate_Xray_cond(
         inputs=inputs.evolve_input_structs(
             USE_INTERPOLATION_TABLES="sigma-interpolation",
-            INTEGRATION_METHOD_ATOMIC=OPTIONS_INTMETHOD[intmethod],
-            INTEGRATION_METHOD_MINI=OPTIONS_INTMETHOD[intmethod],
         ),
         redshift=redshift,
         radius=R,
@@ -747,6 +762,8 @@ def test_SFRD_conditional_table(
         USE_TS_FLUCT=True,
         ZPRIME_STEP_FACTOR=1.2,  # needed because we need inputs.node_redshifts == default_global_evolution.node_redshifts
         M_TURN_STELLAR_FEEDBACK=5.0,
+        INTEGRATION_METHOD_ATOMIC=OPTIONS_INTMETHOD[intmethod],
+        INTEGRATION_METHOD_MINI=OPTIONS_INTMETHOD[intmethod],
         node_redshifts=default_global_evolution.node_redshifts,
         **kwargs,
     )["inputs"]
@@ -754,8 +771,6 @@ def test_SFRD_conditional_table(
     SFRD_tables, SFRD_tables_mini = cf.evaluate_SFRD_cond(
         inputs=inputs.evolve_input_structs(
             USE_INTERPOLATION_TABLES="hmf-interpolation",
-            INTEGRATION_METHOD_ATOMIC=OPTIONS_INTMETHOD[intmethod],
-            INTEGRATION_METHOD_MINI=OPTIONS_INTMETHOD[intmethod],
         ),
         radius=R,
         redshift=redshift,
@@ -766,8 +781,6 @@ def test_SFRD_conditional_table(
     SFRD_integrals, SFRD_integrals_mini = cf.evaluate_SFRD_cond(
         inputs=inputs.evolve_input_structs(
             USE_INTERPOLATION_TABLES="sigma-interpolation",
-            INTEGRATION_METHOD_ATOMIC=OPTIONS_INTMETHOD[intmethod],
-            INTEGRATION_METHOD_MINI=OPTIONS_INTMETHOD[intmethod],
         ),
         radius=R,
         redshift=redshift,

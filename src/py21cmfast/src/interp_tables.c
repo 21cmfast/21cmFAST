@@ -130,7 +130,7 @@ void initialise_SFRD_spline(int Nbin, float zmin, float zmax, ScalingConstants *
             sc_sfrd = evolve_scaling_constants_to_redshift(z_val, &sc_sfrd, false);
             lnMmin = log(minimum_source_mass(z_val, true));
 
-            // NOTE: we use below mturn_nofb as the ACG turnover mass, because if the reionization
+            // NOTE: we use below mturn_a_nofb as the ACG turnover mass, because if the reionization
             // feedback dominates, then the the turnover masses for ACG and MCG are the same, in
             // which case the MCG contribution is negligible
             if (astro_options_global->USE_MINI_HALOS) {
@@ -199,7 +199,7 @@ void initialise_Nion_Ts_spline(int Nbin, float zmin, float zmax, ScalingConstant
             // Minor note: while this is called in xray, we use it to estimate ionised fraction, do
             // we use ION_Tvir_MIN if applicable?
             lnMmin = log(minimum_source_mass(z_val, true));
-            // NOTE: we use below mturn_nofb as the ACG turnover mass, because if the reionization
+            // NOTE: we use below mturn_a_nofb as the ACG turnover mass, because if the reionization
             // feedback dominates, then the the turnover masses for ACG and MCG are the same, in
             // which case the MCG contribution is negligible
             if (astro_options_global->USE_MINI_HALOS) {
@@ -289,8 +289,6 @@ void init_FcollTable(double zmin, double zmax, bool x_ray) {
     }
 }
 
-// NOTE: since reionisation feedback is not included in the Ts calculation, the SFRD spline
-//   is Rx1D unlike the Mini table, which is Rx2D
 // NOTE: SFRD tables have fixed Mturn range, Nion tables vary
 // NOTE: it would be slightly less accurate but maybe faster to tabulate in linear delta, linear
 // Fcoll rather than linear-log, check the profiles
@@ -301,8 +299,8 @@ void initialise_Nion_Conditional_spline(double z, double min_density, double max
                                         ScalingConstants *sc, bool prev) {
     int i, j;
     double overdense_table[NDELTA];
-    double mturns[NMTURN], mturns_MINI[NMTURN];
-    RGTable2D_f *table_2d, *table_mini;
+    double mturns_acg[NMTURN], mturns_mcg[NMTURN];
+    RGTable2D_f *table_acg_2d, *table_mcg_2d;
 
     LOG_SUPER_DEBUG("Initialising Nion conditional table at mass %.2e from delta %.2e to %.2e",
                     Mcond, min_density, max_density);
@@ -314,31 +312,27 @@ void initialise_Nion_Conditional_spline(double z, double min_density, double max
     double lnMmax = log(Mmax);
     double sigma2 = EvaluateSigma(log(Mcond));
 
-    // If we use minihalos, both tables are 2D (delta,mturn) due to reionisaiton feedback
-    // otherwise, the Nion table is 1D, since reionsaiton feedback is only active with minihalos
-    if (astro_options_global->USE_MINI_HALOS) {
+    // The ACG table could become 2D (delta,mturn) if we apply the inhomogeneous reionization
+    // feedback on the ACG turnover mass, otherwise it is 1D (delta) while mturn is set
+    // deterministically by the redshift
+    if (uses_reionization_feedback_in_acgs(astro_options_global->REIONIZATION_FEEDBACK_MODEL)) {
         if (prev) {
-            table_2d = &Nion_conditional_table_prev;
-            table_mini = &Nion_conditional_table_MINI_prev;
+            table_acg_2d = &Nion_conditional_table_prev;
         } else {
-            table_2d = &Nion_conditional_table2D;
-            table_mini = &Nion_conditional_table_MINI;
+            table_acg_2d = &Nion_conditional_table2D;
         }
-        if (!table_2d->allocated) {
-            allocate_RGTable2D_f(NDELTA, NMTURN, table_2d);
+        if (!table_acg_2d->allocated) {
+            allocate_RGTable2D_f(NDELTA, NMTURN, table_acg_2d);
         }
-        if (!table_mini->allocated) {
-            allocate_RGTable2D_f(NDELTA, NMTURN, table_mini);
-        }
-        table_2d->x_min = min_density;
-        table_2d->x_width = (max_density - min_density) / (NDELTA - 1.);
-        table_2d->y_min = log10Mturn_min;
-        table_2d->y_width = (log10Mturn_max - log10Mturn_min) / (NMTURN - 1.);
+        table_acg_2d->x_min = min_density;
+        table_acg_2d->x_width = (max_density - min_density) / (NDELTA - 1.);
+        table_acg_2d->y_min = log10Mturn_min;
+        table_acg_2d->y_width = (log10Mturn_max - log10Mturn_min) / (NMTURN - 1.);
 
-        table_mini->x_min = min_density;
-        table_mini->x_width = (max_density - min_density) / (NDELTA - 1.);
-        table_mini->y_min = log10Mturn_min_MINI;
-        table_mini->y_width = (log10Mturn_max_MINI - log10Mturn_min_MINI) / (NMTURN - 1.);
+        for (i = 0; i < NMTURN; i++) {
+            mturns_acg[i] = pow(10., log10Mturn_min + (float)i / ((float)NMTURN - 1.) *
+                                                          (log10Mturn_max - log10Mturn_min));
+        }
     } else {
         if (!Nion_conditional_table1D.allocated) {
             allocate_RGTable1D_f(NDELTA, &Nion_conditional_table1D);
@@ -347,71 +341,82 @@ void initialise_Nion_Conditional_spline(double z, double min_density, double max
         Nion_conditional_table1D.x_width = (max_density - min_density) / (NDELTA - 1.);
     }
 
-    for (i = 0; i < NDELTA; i++) {
-        overdense_table[i] =
-            min_density + (float)i / ((float)NDELTA - 1.) * (max_density - min_density);
-    }
+    // The MCG table is always 2D (delta,mturn) even without reionization feedback,
+    // because of the inhomogeneous LW and v_cb feedbacks
     if (astro_options_global->USE_MINI_HALOS) {
+        if (prev) {
+            table_mcg_2d = &Nion_conditional_table_MINI_prev;
+        } else {
+            table_mcg_2d = &Nion_conditional_table_MINI;
+        }
+        if (!table_mcg_2d->allocated) {
+            allocate_RGTable2D_f(NDELTA, NMTURN, table_mcg_2d);
+        }
+        table_mcg_2d->x_min = min_density;
+        table_mcg_2d->x_width = (max_density - min_density) / (NDELTA - 1.);
+        table_mcg_2d->y_min = log10Mturn_min_MINI;
+        table_mcg_2d->y_width = (log10Mturn_max_MINI - log10Mturn_min_MINI) / (NMTURN - 1.);
+
         for (i = 0; i < NMTURN; i++) {
-            mturns[i] = pow(10., log10Mturn_min + (float)i / ((float)NMTURN - 1.) *
-                                                      (log10Mturn_max - log10Mturn_min));
-            mturns_MINI[i] =
+            mturns_mcg[i] =
                 pow(10., log10Mturn_min_MINI + (float)i / ((float)NMTURN - 1.) *
                                                    (log10Mturn_max_MINI - log10Mturn_min_MINI));
         }
+    }
+
+    for (i = 0; i < NDELTA; i++) {
+        overdense_table[i] =
+            min_density + (float)i / ((float)NDELTA - 1.) * (max_density - min_density);
     }
 
 #pragma omp parallel private(i, j) num_threads(simulation_options_global -> N_THREADS)
     {
 #pragma omp for
         for (i = 0; i < NDELTA; i++) {
-            if (!astro_options_global->USE_MINI_HALOS) {
-                // pass constant M_turn as minimum
+            if (uses_reionization_feedback_in_acgs(
+                    astro_options_global->REIONIZATION_FEEDBACK_MODEL)) {
+                for (j = 0; j < NMTURN; j++) {
+                    table_acg_2d->z_arr[i][j] = log(Nion_ConditionalM(
+                        growthf, lnMmin, lnMmax, log(Mcond), sigma2, overdense_table[i],
+                        mturns_acg[j], sc, astro_options_global->INTEGRATION_METHOD_ATOMIC));
+
+                    if (table_acg_2d->z_arr[i][j] < -40.) table_acg_2d->z_arr[i][j] = -40.;
+                    if (isfinite(table_acg_2d->z_arr[i][j]) == 0) {
+                        LOG_ERROR("Detected either an infinite or NaN value in table_acg_2d");
+                        Throw(TableGenerationError);
+                    }
+                }
+            } else {
+                // use mturn_a_nofb as the ACG turnover mass
                 Nion_conditional_table1D.y_arr[i] = log(Nion_ConditionalM(
                     growthf, lnMmin, lnMmax, log(Mcond), sigma2, overdense_table[i],
                     sc->mturn_a_nofb, sc, astro_options_global->INTEGRATION_METHOD_ATOMIC));
                 if (Nion_conditional_table1D.y_arr[i] < -40.)
                     Nion_conditional_table1D.y_arr[i] = -40.;
-
-                continue;
+                if (isfinite(Nion_conditional_table1D.y_arr[i]) == 0) {
+                    LOG_ERROR(
+                        "Detected either an infinite or NaN value in Nion_conditional_table1D");
+                    Throw(TableGenerationError);
+                }
             }
-            for (j = 0; j < NMTURN; j++) {
-                table_2d->z_arr[i][j] = log(Nion_ConditionalM(
-                    growthf, lnMmin, lnMmax, log(Mcond), sigma2, overdense_table[i], mturns[j], sc,
-                    astro_options_global->INTEGRATION_METHOD_ATOMIC));
 
-                if (table_2d->z_arr[i][j] < -40.) table_2d->z_arr[i][j] = -40.;
-
-                // NOTE: we use below mturn_nofb as the ACG turnover mass, because if the
-                // reionization feedback dominates, then the the turnover masses for ACG and MCG are
-                // the same, in which case the MCG contribution is negligible
-                table_mini->z_arr[i][j] =
-                    log(Nion_ConditionalM_MINI(growthf, lnMmin, lnMmax, log(Mcond), sigma2,
-                                               overdense_table[i], sc->mturn_a_nofb, mturns_MINI[j],
+            if (astro_options_global->USE_MINI_HALOS) {
+                for (j = 0; j < NMTURN; j++) {
+                    // NOTE: we use below mturn_a_nofb as the ACG turnover mass, because if the
+                    // reionization feedback dominates, then the the turnover masses for ACG and MCG
+                    // are the same, in which case the MCG contribution is negligible (see comment
+                    // in EvaluateNion_Conditional_MINI)
+                    table_mcg_2d->z_arr[i][j] = log(
+                        Nion_ConditionalM_MINI(growthf, lnMmin, lnMmax, log(Mcond), sigma2,
+                                               overdense_table[i], sc->mturn_a_nofb, mturns_mcg[j],
                                                sc, astro_options_global->INTEGRATION_METHOD_MINI));
 
-                if (table_mini->z_arr[i][j] < -40.) table_mini->z_arr[i][j] = -40.;
-            }
-        }
-    }
-
-    for (i = 0; i < NDELTA; i++) {
-        if (!astro_options_global->USE_MINI_HALOS) {
-            if (isfinite(Nion_conditional_table1D.y_arr[i]) == 0) {
-                LOG_ERROR("Detected either an infinite or NaN value in Nion_spline_1D");
-                Throw(TableGenerationError);
-            }
-            continue;
-        }
-        for (j = 0; j < NMTURN; j++) {
-            if (isfinite(table_2d->z_arr[i][j]) == 0) {
-                LOG_ERROR("Detected either an infinite or NaN value in Nion_spline");
-                Throw(TableGenerationError);
-            }
-
-            if (isfinite(table_2d->z_arr[i][j]) == 0) {
-                LOG_ERROR("Detected either an infinite or NaN value in Nion_spline_MINI");
-                Throw(TableGenerationError);
+                    if (table_mcg_2d->z_arr[i][j] < -40.) table_mcg_2d->z_arr[i][j] = -40.;
+                    if (isfinite(table_mcg_2d->z_arr[i][j]) == 0) {
+                        LOG_ERROR("Detected either an infinite or NaN value in table_mcg_2d");
+                        Throw(TableGenerationError);
+                    }
+                }
             }
         }
     }
@@ -478,7 +483,7 @@ void initialise_SFRD_Conditional_table(double z, double min_density, double max_
             if (!astro_options_global->USE_MINI_HALOS) continue;
 
             for (k = 0; k < NMTURN; k++) {
-                // NOTE: we use below mturn_nofb as the ACG turnover mass, because if the
+                // NOTE: we use below mturn_a_nofb as the ACG turnover mass, because if the
                 // reionization feedback dominates, then the the turnover masses for ACG and MCG are
                 // the same, in which case the MCG contribution is negligible
                 SFRD_conditional_table_MINI.z_arr[i][k] = log(Nion_ConditionalM_MINI(
@@ -561,7 +566,7 @@ void initialise_Xray_Conditional_table(double redshift, double min_density, doub
                 continue;
             }
 
-            // NOTE: we use below mturn_nofb as the ACG turnover mass, because if the reionization
+            // NOTE: we use below mturn_a_nofb as the ACG turnover mass, because if the reionization
             // feedback dominates, then the the turnover masses for ACG and MCG are the same, in
             // which case the MCG contribution is negligible
             for (k = 0; k < NMTURN; k++) {
@@ -1029,7 +1034,7 @@ double EvaluateNion_Conditional(double delta, double log10Mturn, double growthf,
                                 bool prev) {
     RGTable2D_f *table = prev ? &Nion_conditional_table_prev : &Nion_conditional_table2D;
     if (uses_hmf_interpolation(matter_options_global->USE_INTERPOLATION_TABLES)) {
-        if (astro_options_global->USE_MINI_HALOS)
+        if (uses_reionization_feedback_in_acgs(astro_options_global->REIONIZATION_FEEDBACK_MODEL))
             return exp(EvaluateRGTable2D_f(delta, log10Mturn, table));
         return exp(EvaluateRGTable1D_f(delta, &Nion_conditional_table1D));
     }
