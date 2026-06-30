@@ -26,7 +26,7 @@ void print_sc_consts(ScalingConstants *c) {
     LOG_DEBUG("FESC: f10 %.2e a %.2e f7 %.2e", c->fesc_10, c->alpha_esc, c->fesc_7);
     LOG_DEBUG("SSFR: t* %.2e th %.8e sigma %.2e idx %.2e", c->t_star, c->t_h, c->sigma_sfr_lim,
               c->sigma_sfr_idx);
-    LOG_DEBUG("Turnovers (nofb) ACG %.2e", c->mturn_a_nofb);
+    LOG_DEBUG("Turnovers (nofb) ACG %.2e", c->mturn_acg_homogeneous);
     LOG_DEBUG("Limits (ACG,MCG) F* (%.2e %.2e) Fesc (%.2e %.2e)", c->Mlim_Fstar, c->Mlim_Fstar_mini,
               c->Mlim_Fesc, c->Mlim_Fesc_mini);
     return;
@@ -77,7 +77,7 @@ void set_scaling_constants(double redshift, ScalingConstants *consts, bool use_p
     consts->pop2_ion = astro_params_global->POP2_ION;
     consts->pop3_ion = astro_params_global->POP3_ION;
 
-    consts->mturn_a_nofb =
+    consts->mturn_acg_homogeneous =
         fmax(atomic_cooling_threshold(redshift), astro_params_global->M_TURN_STELLAR_FEEDBACK);
 
     switch (matter_options_global->V_CB_MODEL) {
@@ -146,7 +146,7 @@ ScalingConstants evolve_scaling_constants_to_redshift(double redshift, ScalingCo
         }
     }
 
-    sc_z.mturn_a_nofb =
+    sc_z.mturn_acg_homogeneous =
         fmax(atomic_cooling_threshold(redshift), astro_params_global->M_TURN_STELLAR_FEEDBACK);
 
     return sc_z;

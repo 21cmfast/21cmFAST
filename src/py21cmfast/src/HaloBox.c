@@ -448,11 +448,10 @@ void get_log10_turnovers(InitialConditions *ini_boxes, TsBox *previous_spin_temp
 #pragma omp parallel num_threads(simulation_options_global->N_THREADS)
         {
             index_huge i;
-            double J21_val = 0., Gamma12_val = 0., zre_val = 0.;
-            double curr_vcb = consts->vcb_const;
-            double M_turn_a = consts->mturn_a_nofb;
-            double M_turn_m;
-            double M_turn_r;
+            float J21_val = 0., Gamma12_val = 0., zre_val = 0.;
+            float curr_vcb = consts->vcb_const;
+            float M_turn_a;
+            float M_turn_m;
 
 #pragma omp for reduction(+ : log10_mturn_a_avg, log10_mturn_m_avg)
             for (i = 0; i < HII_TOT_NUM_PIXELS; i++) {
@@ -470,29 +469,16 @@ void get_log10_turnovers(InitialConditions *ini_boxes, TsBox *previous_spin_temp
                         zre_val = previous_ionize_box->z_reion[i];
                     }
                 }
-                // TODO: This code is almost identical to the code in compute_mturns in
-                // thermochem.c. The only difference is that the homogeneous (feedback-free) ACG
-                // turnover mass is computed once outside the loop. For best modularity, it's worth
-                // to consider to use compute_mturns, at the cost of computing the homogeneous ACG
-                // turnover mass at each cell. I am not sure how much overhead this would be, if it
-                // is negligible then we should definitely use compute_mturns for code clarity
-                if (uses_reionization_feedback(astro_options_global->REIONIZATION_FEEDBACK_MODEL)) {
-                    M_turn_r = reionization_feedback(consts->redshift, Gamma12_val, zre_val);
-                }
+                compute_mturns_inhomogeneous(consts->redshift, consts->mturn_acg_homogeneous,
+                                             J21_val, curr_vcb, Gamma12_val, zre_val, &M_turn_a,
+                                             &M_turn_m);
+
                 if (uses_reionization_feedback_in_acgs(
                         astro_options_global->REIONIZATION_FEEDBACK_MODEL)) {
-                    M_turn_a = fmax(M_turn_a, M_turn_r);
                     log10_mturn_a_grid[i] = log10(M_turn_a);
                     log10_mturn_a_avg += log10(M_turn_a);
                 }
                 if (astro_options_global->USE_MINI_HALOS) {
-                    M_turn_m = fmax(molecular_cooling_threshold_with_feedbacks(consts->redshift,
-                                                                               J21_val, curr_vcb),
-                                    astro_params_global->M_TURN_STELLAR_FEEDBACK);
-                    if (uses_reionization_feedback_in_mcgs(
-                            astro_options_global->REIONIZATION_FEEDBACK_MODEL)) {
-                        M_turn_m = fmax(M_turn_m, M_turn_r);
-                    }
                     log10_mturn_m_grid[i] = log10(M_turn_m);
                     log10_mturn_m_avg += log10(M_turn_m);
                 }
@@ -509,7 +495,7 @@ void get_log10_turnovers(InitialConditions *ini_boxes, TsBox *previous_spin_temp
         log10_mturn_a_avg /= HII_TOT_NUM_PIXELS;
         averages[0] = log10_mturn_a_avg;
     } else {
-        averages[0] = log10(consts->mturn_a_nofb);
+        averages[0] = log10(consts->mturn_acg_homogeneous);
     }
 
     if (astro_options_global->USE_MINI_HALOS) {
@@ -690,11 +676,12 @@ int test_halo_props(double redshift, float *vcb_grid, float *J21_LW_grid, float 
             int x, y, z;
             index_huge i_halo, i_cell;
             double m;
-            double J21_val = 0., Gamma12_val = 0., zre_val = 0.;
-            double curr_vcb = hbox_consts.vcb_const;
-            double M_turn_a = hbox_consts.mturn_a_nofb;
-            double M_turn_m = 0.;  // dummy value for the USE_MINI_HALOS = false branch
-            double M_turn_r;
+            float J21_val = 0., Gamma12_val = 0., zre_val = 0.;
+            float curr_vcb = hbox_consts.vcb_const;
+            float M_turn_a =
+                hbox_consts.mturn_acg_homogeneous;  // used if we don't apply inhomogeneous
+                                                    // reionization feedback on ACGS
+            float M_turn_m = 0.;  // dummy value for the USE_MINI_HALOS = false branch
 
             double in_props[3], halo_pos[3];
             HaloProperties out_props;
@@ -740,30 +727,10 @@ int test_halo_props(double redshift, float *vcb_grid, float *J21_LW_grid, float 
                         Gamma12_val = Gamma12_ion_grid[i_cell];
                         zre_val = z_re_grid[i_cell];
                     }
-                    // TODO: This code is almost identical to the code in compute_mturns in
-                    // thermochem.c. The only difference is that the homogeneous (feedback-free) ACG
-                    // turnover mass is computed once outside the loop. For best modularity, it's
-                    // worth to consider to use compute_mturns, at the cost of computing the
-                    // homogeneous ACG turnover mass at each cell. I am not sure how much overhead
-                    // this would be, if it is negligible then we should definitely use
-                    // compute_mturns for code clarity
-                    if (uses_reionization_feedback(
-                            astro_options_global->REIONIZATION_FEEDBACK_MODEL)) {
-                        M_turn_r = reionization_feedback(redshift, Gamma12_val, zre_val);
-                    }
-                    if (uses_reionization_feedback_in_acgs(
-                            astro_options_global->REIONIZATION_FEEDBACK_MODEL)) {
-                        M_turn_a = fmax(M_turn_a, M_turn_r);
-                    }
-                    if (astro_options_global->USE_MINI_HALOS) {
-                        M_turn_m = fmax(
-                            molecular_cooling_threshold_with_feedbacks(redshift, J21_val, curr_vcb),
-                            astro_params_global->M_TURN_STELLAR_FEEDBACK);
-                        if (uses_reionization_feedback_in_mcgs(
-                                astro_options_global->REIONIZATION_FEEDBACK_MODEL)) {
-                            M_turn_m = fmax(M_turn_m, M_turn_r);
-                        }
-                    }
+
+                    compute_mturns_inhomogeneous(redshift, hbox_consts.mturn_acg_homogeneous,
+                                                 J21_val, curr_vcb, Gamma12_val, zre_val, &M_turn_a,
+                                                 &M_turn_m);
                 }
 
                 // these are the halo property RNG sequences
@@ -773,21 +740,20 @@ int test_halo_props(double redshift, float *vcb_grid, float *J21_LW_grid, float 
 
                 set_halo_properties(m, M_turn_a, M_turn_m, &hbox_consts, in_props, &out_props);
 
-                halo_props_out[12 * i_halo + 0] = out_props.halo_mass;
-                halo_props_out[12 * i_halo + 1] = out_props.stellar_mass;
-                halo_props_out[12 * i_halo + 2] = out_props.halo_sfr;
+                halo_props_out[11 * i_halo + 0] = out_props.halo_mass;
+                halo_props_out[11 * i_halo + 1] = out_props.stellar_mass;
+                halo_props_out[11 * i_halo + 2] = out_props.halo_sfr;
 
-                halo_props_out[12 * i_halo + 3] = out_props.halo_xray;
-                halo_props_out[12 * i_halo + 4] = out_props.n_ion;
-                halo_props_out[12 * i_halo + 5] = out_props.fescweighted_sfr;
+                halo_props_out[11 * i_halo + 3] = out_props.halo_xray;
+                halo_props_out[11 * i_halo + 4] = out_props.n_ion;
+                halo_props_out[11 * i_halo + 5] = out_props.fescweighted_sfr;
 
-                halo_props_out[12 * i_halo + 6] = out_props.stellar_mass_mini;
-                halo_props_out[12 * i_halo + 7] = out_props.sfr_mini;
+                halo_props_out[11 * i_halo + 6] = out_props.stellar_mass_mini;
+                halo_props_out[11 * i_halo + 7] = out_props.sfr_mini;
 
-                halo_props_out[12 * i_halo + 8] = M_turn_a;
-                halo_props_out[12 * i_halo + 9] = M_turn_m;
-                halo_props_out[12 * i_halo + 10] = M_turn_r;
-                halo_props_out[12 * i_halo + 11] = out_props.metallicity;
+                halo_props_out[11 * i_halo + 8] = M_turn_a;
+                halo_props_out[11 * i_halo + 9] = M_turn_m;
+                halo_props_out[11 * i_halo + 10] = out_props.metallicity;
 
                 if (i_halo < 10) {
                     LOG_ULTRA_DEBUG("HM %.2e SM %.2e SF %.2e NI %.2e LX %.2e", out_props.halo_mass,
@@ -795,8 +761,7 @@ int test_halo_props(double redshift, float *vcb_grid, float *J21_LW_grid, float 
                                     out_props.halo_xray);
                     LOG_ULTRA_DEBUG("MINI: SM %.2e SF %.2e WSF %.2e", out_props.stellar_mass_mini,
                                     out_props.sfr_mini, out_props.fescweighted_sfr);
-                    LOG_ULTRA_DEBUG("Mturns ACG %.2e MCG %.2e Reion %.2e", M_turn_a, M_turn_m,
-                                    M_turn_r);
+                    LOG_ULTRA_DEBUG("Mturns ACG %.2e MCG %.2e", M_turn_a, M_turn_m);
                     LOG_ULTRA_DEBUG("RNG: STAR %.2e SFR %.2e XRAY %.2e", in_props[0], in_props[1],
                                     in_props[2]);
                 }
@@ -838,7 +803,9 @@ int convert_halo_props(double redshift, InitialConditions *ics, TsBox *prev_ts,
         double m;
 
         double M_turn_m = 0.;  // dummy value for the USE_MINI_HALOS = false branch
-        double M_turn_a = hbox_consts.mturn_a_nofb;
+        double M_turn_a =
+            hbox_consts.mturn_acg_homogeneous;  // used if we don't apply inhomogeneous reionization
+                                                // feedback on ACGS
 
         double in_props[3];
         double halo_pos[3];

@@ -202,14 +202,14 @@ def compute_mturns(
                 f"Got {redshifts_shape} and {current_shape}."
             )
 
-    M_turn_a_ffi = ffi.new("double *")
-    M_turn_m_ffi = ffi.new("double *")
+    M_turn_a_ffi = ffi.new("float *")
+    M_turn_m_ffi = ffi.new("float *")
 
     def _scalar_call(z, j, v, g, zr):
         lib.compute_mturns(z, j, v, g, zr, M_turn_a_ffi, M_turn_m_ffi)
         return M_turn_a_ffi[0], M_turn_m_ffi[0]
 
-    vfunc = np.vectorize(_scalar_call, otypes=[np.float64, np.float64])
+    vfunc = np.vectorize(_scalar_call, otypes=[np.float32, np.float32])
     M_turn_a, M_turn_m = vfunc(redshifts, J_LW_21, v_cb, ionisation_rate_G12, z_reion)
 
     if not inputs.astro_options.USE_MINI_HALOS:
@@ -1168,7 +1168,7 @@ def convert_halo_properties(
         raise ValueError("Halo masses and rng shapes must be identical.")
 
     n_halos = halo_masses.size
-    out_buffer = np.zeros((n_halos, 12), dtype="f4")
+    out_buffer = np.zeros((n_halos, 11), dtype="f4")
     lo_dim = (inputs.simulation_options.HII_DIM,) * 3
 
     if halo_coords is None:
@@ -1208,7 +1208,7 @@ def convert_halo_properties(
         ffi.cast("float *", out_buffer.ctypes.data),
     )
 
-    out_buffer = out_buffer.reshape(n_halos, 12)
+    out_buffer = out_buffer.reshape(n_halos, 11)
 
     return {
         "halo_mass": out_buffer[:, 0].reshape(halo_masses.shape),
@@ -1221,8 +1221,7 @@ def convert_halo_properties(
         "halo_sfr_mini": out_buffer[:, 7].reshape(halo_masses.shape),
         "mturn_a": out_buffer[:, 8].reshape(halo_masses.shape),
         "mturn_m": out_buffer[:, 9].reshape(halo_masses.shape),
-        "mturn_r": out_buffer[:, 10].reshape(halo_masses.shape),
-        "metallicity": out_buffer[:, 11].reshape(halo_masses.shape),
+        "metallicity": out_buffer[:, 10].reshape(halo_masses.shape),
     }
 
 

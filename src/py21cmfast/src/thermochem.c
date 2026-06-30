@@ -310,10 +310,19 @@ double reionization_feedback(float z, float Gamma_halo_HII, float z_IN) {
            pow(1 - pow((1. + z) / (1. + z_IN), REION_SM13_C), REION_SM13_D);
 }
 
-void compute_mturns(float z, float J_21_LW, float vcb, float Gamma12, float z_reion,
-                    double *M_turn_a, double *M_turn_m) {
-    double M_turn_r = 0.;
-    *M_turn_a = fmax(atomic_cooling_threshold(z), astro_params_global->M_TURN_STELLAR_FEEDBACK);
+void compute_mturns(double z, float J_21_LW, float vcb, float Gamma12, float z_reion,
+                    float *M_turn_a, float *M_turn_m) {
+    float M_turn_a_homo =
+        fmax(atomic_cooling_threshold(z), astro_params_global->M_TURN_STELLAR_FEEDBACK);
+    compute_mturns_inhomogeneous(z, M_turn_a_homo, J_21_LW, vcb, Gamma12, z_reion, M_turn_a,
+                                 M_turn_m);
+    return;
+}
+
+void compute_mturns_inhomogeneous(double z, double M_turn_a_homo, float J_21_LW, float vcb,
+                                  float Gamma12, float z_reion, float *M_turn_a, float *M_turn_m) {
+    float M_turn_r;
+    *M_turn_a = M_turn_a_homo;
     if (uses_reionization_feedback(astro_options_global->REIONIZATION_FEEDBACK_MODEL)) {
         M_turn_r = reionization_feedback(z, Gamma12, z_reion);
     }

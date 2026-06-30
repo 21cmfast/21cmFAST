@@ -258,7 +258,9 @@ void move_grid_galprops(double redshift, float *dens_pointer, int dens_dim[3],
         double pos[3], curr_dens;
         int ipos[3];
         index_huge vel_index, dens_index, mturn_index;
-        double l10_mturn_a = log10(consts->mturn_a_nofb);
+        double l10_mturn_a =
+            log10(consts->mturn_acg_homogeneous);  // used if we don't apply inhomogeneous
+                                                   // reionization feedback on ACGS
         double l10_mturn_m = 0.;  // dummy value for the USE_MINI_HALOS = false branch
         HaloProperties properties;
 #pragma omp for
@@ -377,7 +379,8 @@ void move_halo_galprops(double redshift, HaloCatalog *halos, float *vel_pointers
         int ipos[3];
         index_huge i, vel_index;
         HaloProperties properties;
-        double M_turn_a = consts->mturn_a_nofb;
+        double M_turn_a = consts->mturn_acg_homogeneous;  // used if we don't apply inhomogeneous
+                                                          // reionization feedback on ACGS
         double M_turn_m = 0.;  // dummy value for the USE_MINI_HALOS = false branch
         double halo_rng[3];
         double hmass;

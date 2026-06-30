@@ -426,11 +426,10 @@ void calculate_mcrit_boxes(IonizedBox *prev_ionbox, TsBox *spin_temp, InitialCon
         {
             int x, y, z;
             index_huge index, index_f;
-            double J21_val = 0., Gamma12_val = 0., zre_val = 0.;
-            double curr_vcb = consts->scale_consts.vcb_const;
-            double M_turn_a = consts->scale_consts.mturn_a_nofb;
-            double M_turn_m;
-            double M_turn_r;
+            float J21_val = 0., Gamma12_val = 0., zre_val = 0.;
+            float curr_vcb = consts->scale_consts.vcb_const;
+            float M_turn_a;
+            float M_turn_m;
 
 #pragma omp for reduction(+ : log10_mturn_a_avg, log10_mturn_m_avg)
             for (x = 0; x < box_dim[0]; x++) {
@@ -452,32 +451,17 @@ void calculate_mcrit_boxes(IonizedBox *prev_ionbox, TsBox *spin_temp, InitialCon
                                 zre_val = prev_ionbox->z_reion[index];
                             }
                         }
-                        // TODO: This code is almost identical to the code in compute_mturns in
-                        // thermochem.c. The only difference is that the homogeneous (feedback-free)
-                        // ACG turnover mass is computed once outside the loop. For best modularity,
-                        // it's worth to consider to use compute_mturns, at the cost of computing
-                        // the homogeneous ACG turnover mass at each cell. I am not sure how much
-                        // overhead this would be, if it is negligible then we should definitely use
-                        // compute_mturns for code clarity
-                        if (uses_reionization_feedback(
-                                astro_options_global->REIONIZATION_FEEDBACK_MODEL)) {
-                            M_turn_r =
-                                reionization_feedback(consts->redshift, Gamma12_val, zre_val);
-                        }
+
+                        compute_mturns_inhomogeneous(
+                            consts->redshift, consts->scale_consts.mturn_acg_homogeneous, J21_val,
+                            curr_vcb, Gamma12_val, zre_val, &M_turn_a, &M_turn_m);
+
                         if (uses_reionization_feedback_in_acgs(
                                 astro_options_global->REIONIZATION_FEEDBACK_MODEL)) {
-                            M_turn_a = fmax(M_turn_a, M_turn_r);
                             *((float *)log10_mturn_acg_grid + index_f) = log10(M_turn_a);
                             log10_mturn_a_avg += log10(M_turn_a);
                         }
                         if (astro_options_global->USE_MINI_HALOS) {
-                            M_turn_m = fmax(molecular_cooling_threshold_with_feedbacks(
-                                                consts->redshift, J21_val, curr_vcb),
-                                            astro_params_global->M_TURN_STELLAR_FEEDBACK);
-                            if (uses_reionization_feedback_in_mcgs(
-                                    astro_options_global->REIONIZATION_FEEDBACK_MODEL)) {
-                                M_turn_m = fmax(M_turn_m, M_turn_r);
-                            }
                             *((float *)log10_mturn_mcg_grid + index_f) = log10(M_turn_m);
                             log10_mturn_m_avg += log10(M_turn_m);
                         }
@@ -489,7 +473,7 @@ void calculate_mcrit_boxes(IonizedBox *prev_ionbox, TsBox *spin_temp, InitialCon
     if (uses_reionization_feedback_in_acgs(astro_options_global->REIONIZATION_FEEDBACK_MODEL)) {
         *log10_mturn_a_avg_out = log10_mturn_a_avg / HII_TOT_NUM_PIXELS;
     } else {
-        *log10_mturn_a_avg_out = log10(consts->scale_consts.mturn_a_nofb);
+        *log10_mturn_a_avg_out = log10(consts->scale_consts.mturn_acg_homogeneous);
     }
     if (astro_options_global->USE_MINI_HALOS) {
         *log10_mturn_m_avg_out = log10_mturn_m_avg / HII_TOT_NUM_PIXELS;
@@ -828,9 +812,9 @@ void calculate_fcoll_grid(IonizedBox *box, IonizedBox *previous_ionize_box,
         double Splined_Fcoll, Splined_Fcoll_MINI;
         double log10_mturn_a, log10_mturn_m;
         double prev_dens = 0, prev_Splined_Fcoll = 0., prev_Splined_Fcoll_MINI = 0.;
-        // log10_mturn_a is only overwritten later if reionization feedback is applied on the ACG
-        // turnover mass, otherwise it is the same for all cells
-        log10_mturn_a = log10(consts->scale_consts.mturn_a_nofb);
+        log10_mturn_a = log10(
+            consts->scale_consts.mturn_acg_homogeneous);  // used if we don't apply inhomogeneous
+                                                          // reionization feedback on ACGS
         index_huge index_r, index_f;
 #pragma omp for reduction(+ : f_coll_total, f_coll_MINI_total)
         for (x = 0; x < box_dim[0]; x++) {

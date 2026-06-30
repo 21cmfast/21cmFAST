@@ -139,27 +139,28 @@ void initialise_SFRD_spline(int Nbin, float zmin, float zmax, ScalingConstants *
                     i * SFRD_z_table.x_width;  // both tables will have the same values here
             sc_sfrd = evolve_scaling_constants_to_redshift(z_val, &sc_sfrd, false);
             lnMmin = log(minimum_source_mass(z_val, true));
-            // TODO: at the moment, we use the feedback-free ACG turnover mass for the ACG SFRD
-            // table, since this interpolation table is only used within the scope of
-            // SpinTemperatureBox.c, which currently cannot account for reionization feedback (see
-            // https://github.com/21cmfast/21cmFAST/issues/470), see comments in
+            // TODO: at the moment, we use the homogeneous (feedback-free) ACG turnover mass for the
+            // ACG SFRD table, since this interpolation table is only used within the scope of
+            // SpinTemperatureBox.c, which currently cannot account for inhomogeneous reionization
+            // feedback (see https://github.com/21cmfast/21cmFAST/issues/470), see comments in
             // SpinTemperatureBox.c and EvaluateSFRD. It is important to remember to allow to have
             // a 2D interpolation table for the ACG SFRD table in the future when issue #470 is
             // fixed!
             SFRD_z_table.y_arr[i] =
-                Nion_General(z_val, lnMmin, lnMmax, sc_sfrd.mturn_a_nofb, &sc_sfrd);
+                Nion_General(z_val, lnMmin, lnMmax, sc_sfrd.mturn_acg_homogeneous, &sc_sfrd);
             if (isfinite(SFRD_z_table.y_arr[i]) == 0) {
                 LOG_ERROR("Detected either an infinite or NaN value in SFRD table");
                 Throw(TableGenerationError);
             }
-            // NOTE: we use below mturn_a_nofb as the ACG turnover mass, because if the reionization
-            // feedback dominates, then the the turnover masses for ACG and MCG are the same, in
-            // which case the MCG contribution is negligible
+            // NOTE: we use below homogeneous (feedback-free) ACG turnover mass, because if the
+            // reionization feedback dominates, then the the turnover masses for ACG and MCG are the
+            // same, in which case the MCG contribution is negligible (see comment in
+            // EvaluateSFRD_MINI)
             if (astro_options_global->USE_MINI_HALOS) {
                 for (j = 0; j < NMTURN; j++) {
                     mturn_mcg = pow(10, SFRD_z_table_MINI.y_min + j * SFRD_z_table_MINI.y_width);
                     SFRD_z_table_MINI.z_arr[i][j] = Nion_General_MINI(
-                        z_val, lnMmin, lnMmax, sc_sfrd.mturn_a_nofb, mturn_mcg, &sc_sfrd);
+                        z_val, lnMmin, lnMmax, sc_sfrd.mturn_acg_homogeneous, mturn_mcg, &sc_sfrd);
                     if (isfinite(SFRD_z_table_MINI.z_arr[i][j]) == 0) {
                         LOG_ERROR("Detected either an infinite or NaN value in SFRD_MINI table");
                         Throw(TableGenerationError);
@@ -209,26 +210,28 @@ void initialise_Nion_Ts_spline(int Nbin, float zmin, float zmax, ScalingConstant
             // Minor note: while this is called in xray, we use it to estimate ionised fraction, do
             // we use ION_Tvir_MIN if applicable?
             lnMmin = log(minimum_source_mass(z_val, true));
-            // TODO: at the moment, we use the feedback-free ACG turnover mass for the ACG Nion
-            // table, since this interpolation table is only used within the scope of
-            // SpinTemperatureBox.c, which currently cannot account for reionization feedback (see
-            // https://github.com/21cmfast/21cmFAST/issues/470), see comments in
+            // TODO: at the moment, we use the homogeneous (feedback-free) ACG turnover mass for the
+            // ACG Nion table, since this interpolation table is only used within the scope of
+            // SpinTemperatureBox.c, which currently cannot account for inhomogeneous reionization
+            // feedback (see https://github.com/21cmfast/21cmFAST/issues/470), see comments in
             // SpinTemperatureBox.c and EvaluateNionTs. It is important to remember to allow to have
             // a 2D interpolation table for the ACG Nion table in the future when issue #470 is
             // fixed!
-            Nion_z_table.y_arr[i] = Nion_General(z_val, lnMmin, lnMmax, sc_z.mturn_a_nofb, &sc_z);
+            Nion_z_table.y_arr[i] =
+                Nion_General(z_val, lnMmin, lnMmax, sc_z.mturn_acg_homogeneous, &sc_z);
             if (isfinite(Nion_z_table.y_arr[i]) == 0) {
                 LOG_ERROR("Detected either an infinite or NaN value in Nion_z_table");
                 Throw(TableGenerationError);
             }
-            // NOTE: we use below mturn_a_nofb as the ACG turnover mass, because if the reionization
-            // feedback dominates, then the the turnover masses for ACG and MCG are the same, in
-            // which case the MCG contribution is negligible (see comment in EvaluateNionTs_MINI)
+            // NOTE: we use below homogeneous (feedback-free) ACG turnover mass, because if the
+            // reionization feedback dominates, then the the turnover masses for ACG and MCG are the
+            // same, in which case the MCG contribution is negligible (see comment in
+            // EvaluateNionTs_MINI)
             if (astro_options_global->USE_MINI_HALOS) {
                 for (j = 0; j < NMTURN; j++) {
                     mturn_mcg = pow(10, Nion_z_table_MINI.y_min + j * Nion_z_table_MINI.y_width);
                     Nion_z_table_MINI.z_arr[i][j] = Nion_General_MINI(
-                        z_val, lnMmin, lnMmax, sc_z.mturn_a_nofb, mturn_mcg, &sc_z);
+                        z_val, lnMmin, lnMmax, sc_z.mturn_acg_homogeneous, mturn_mcg, &sc_z);
                     if (isfinite(Nion_z_table_MINI.z_arr[i][j]) == 0) {
                         LOG_ERROR("Detected either an infinite or NaN value in Nion_z_table_MINI");
                         Throw(TableGenerationError);
@@ -395,10 +398,11 @@ void initialise_Nion_Conditional_spline(double z, double min_density, double max
                     }
                 }
             } else {
-                // use mturn_a_nofb as the ACG turnover mass
-                Nion_conditional_table1D.y_arr[i] = log(Nion_ConditionalM(
-                    growthf, lnMmin, lnMmax, lnM_condition, sigma2, overdense_table[i],
-                    sc->mturn_a_nofb, sc, astro_options_global->INTEGRATION_METHOD_ATOMIC));
+                // use homogeneous (feedback-free) ACG turnover mass
+                Nion_conditional_table1D.y_arr[i] =
+                    log(Nion_ConditionalM(growthf, lnMmin, lnMmax, lnM_condition, sigma2,
+                                          overdense_table[i], sc->mturn_acg_homogeneous, sc,
+                                          astro_options_global->INTEGRATION_METHOD_ATOMIC));
                 if (Nion_conditional_table1D.y_arr[i] < -40.)
                     Nion_conditional_table1D.y_arr[i] = -40.;
                 if (isfinite(Nion_conditional_table1D.y_arr[i]) == 0) {
@@ -410,14 +414,14 @@ void initialise_Nion_Conditional_spline(double z, double min_density, double max
 
             if (astro_options_global->USE_MINI_HALOS) {
                 for (j = 0; j < NMTURN; j++) {
-                    // NOTE: we use below mturn_a_nofb as the ACG turnover mass, because if the
-                    // reionization feedback dominates, then the the turnover masses for ACG and MCG
-                    // are the same, in which case the MCG contribution is negligible (see comment
-                    // in EvaluateNion_Conditional_MINI)
-                    table_mcg_2d->z_arr[i][j] = log(
-                        Nion_ConditionalM_MINI(growthf, lnMmin, lnMmax, lnM_condition, sigma2,
-                                               overdense_table[i], sc->mturn_a_nofb, mturns_mcg[j],
-                                               sc, astro_options_global->INTEGRATION_METHOD_MINI));
+                    // NOTE: we use below homogeneous (feedback-free) ACG turnover mass, because if
+                    // the reionization reionization feedback dominates, then the the turnover
+                    // masses for ACG and MCG are the same, in which case the MCG contribution is
+                    // negligible (see comment in EvaluateNion_Conditional_MINI)
+                    table_mcg_2d->z_arr[i][j] = log(Nion_ConditionalM_MINI(
+                        growthf, lnMmin, lnMmax, lnM_condition, sigma2, overdense_table[i],
+                        sc->mturn_acg_homogeneous, mturns_mcg[j], sc,
+                        astro_options_global->INTEGRATION_METHOD_MINI));
 
                     if (table_mcg_2d->z_arr[i][j] < -40.) table_mcg_2d->z_arr[i][j] = -40.;
                     if (isfinite(table_mcg_2d->z_arr[i][j]) == 0) {
@@ -521,11 +525,11 @@ void initialise_SFRD_Conditional_table(double z, double min_density, double max_
                     }
                 }
             } else {
-                // use mturn_a_nofb as the ACG turnover mass
-                SFRD_conditional_table1D.y_arr[i] =
-                    log(Nion_ConditionalM(growthf, lnMmin, lnMmax, lnM_condition, sigma2,
-                                          overdense_table[i], sc_sfrd.mturn_a_nofb, &sc_sfrd,
-                                          astro_options_global->INTEGRATION_METHOD_ATOMIC));
+                // use homogeneous (feedback-free) ACG turnover mass
+                SFRD_conditional_table1D.y_arr[i] = log(
+                    Nion_ConditionalM(growthf, lnMmin, lnMmax, lnM_condition, sigma2,
+                                      overdense_table[i], sc_sfrd.mturn_acg_homogeneous, &sc_sfrd,
+                                      astro_options_global->INTEGRATION_METHOD_ATOMIC));
 
                 if (SFRD_conditional_table1D.y_arr[i] < -50.)
                     SFRD_conditional_table1D.y_arr[i] = -50.;
@@ -538,13 +542,13 @@ void initialise_SFRD_Conditional_table(double z, double min_density, double max_
 
             if (astro_options_global->USE_MINI_HALOS) {
                 for (j = 0; j < NMTURN; j++) {
-                    // NOTE: we use below mturn_a_nofb as the ACG turnover mass, because if the
-                    // reionization feedback dominates, then the the turnover masses for ACG and MCG
-                    // are the same, in which case the MCG contribution is negligible (see comment
-                    // in EvaluateSFRD_Conditional_MINI)
+                    // NOTE: we use below homogeneous (feedback-free) ACG turnover mass, because if
+                    // the reionization reionization feedback dominates, then the the turnover
+                    // masses for ACG and MCG are the same, in which case the MCG contribution is
+                    // negligible (see comment in EvaluateSFRD_Conditional_MINI)
                     SFRD_conditional_table_MINI.z_arr[i][j] = log(Nion_ConditionalM_MINI(
                         growthf, lnMmin, lnMmax, lnM_condition, sigma2, overdense_table[i],
-                        sc_sfrd.mturn_a_nofb, mturns_mcg[j], &sc_sfrd,
+                        sc_sfrd.mturn_acg_homogeneous, mturns_mcg[j], &sc_sfrd,
                         astro_options_global->INTEGRATION_METHOD_MINI));
 
                     if (SFRD_conditional_table_MINI.z_arr[i][j] < -50.)
@@ -655,11 +659,11 @@ void initialise_Xray_Conditional_table(double redshift, double min_density, doub
                         }
                     }
                 } else {
-                    // use mturn_a_nofb as the ACG turnover mass
-                    Xray_conditional_table_1D.y_arr[i] =
-                        log(Xray_ConditionalM(redshift, growthf, lnMmin, lnMmax, lnM_condition,
-                                              sigma2, overdense_table[i], sc->mturn_a_nofb, 0., sc,
-                                              astro_options_global->INTEGRATION_METHOD_ATOMIC));
+                    // use homogeneous (feedback-free) ACG turnover mass
+                    Xray_conditional_table_1D.y_arr[i] = log(
+                        Xray_ConditionalM(redshift, growthf, lnMmin, lnMmax, lnM_condition, sigma2,
+                                          overdense_table[i], sc->mturn_acg_homogeneous, 0., sc,
+                                          astro_options_global->INTEGRATION_METHOD_ATOMIC));
 
                     if (Xray_conditional_table_1D.y_arr[i] < -50.)
                         Xray_conditional_table_1D.y_arr[i] = -50.;
@@ -672,14 +676,14 @@ void initialise_Xray_Conditional_table(double redshift, double min_density, doub
                 }
             } else {
                 for (j = 0; j < NMTURN; j++) {
-                    // NOTE: we use below mturn_a_nofb as the ACG turnover mass, because if the
-                    // reionization feedback dominates, then the the turnover masses for ACG and MCG
-                    // are the same, in which case the MCG contribution is negligible (see comment
-                    // in EvaluateXray_Conditional)
-                    Xray_conditional_table_MINI.z_arr[i][j] = log(
-                        Xray_ConditionalM(redshift, growthf, lnMmin, lnMmax, lnM_condition, sigma2,
-                                          overdense_table[i], sc->mturn_a_nofb, mturns_mcg[j], sc,
-                                          astro_options_global->INTEGRATION_METHOD_MINI));
+                    // NOTE: we use below homogeneous (feedback-free) ACG turnover mass, because if
+                    // the reionization reionization feedback dominates, then the the turnover
+                    // masses for ACG and MCG are the same, in which case the MCG contribution is
+                    // negligible (see comment in EvaluateXray_Conditional)
+                    Xray_conditional_table_MINI.z_arr[i][j] = log(Xray_ConditionalM(
+                        redshift, growthf, lnMmin, lnMmax, lnM_condition, sigma2,
+                        overdense_table[i], sc->mturn_acg_homogeneous, mturns_mcg[j], sc,
+                        astro_options_global->INTEGRATION_METHOD_MINI));
 
                     if (Xray_conditional_table_MINI.z_arr[i][j] < -50.)
                         Xray_conditional_table_MINI.z_arr[i][j] = -50.;
