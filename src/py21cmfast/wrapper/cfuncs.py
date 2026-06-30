@@ -148,6 +148,50 @@ def get_molecular_cooling_threshold_with_feedbacks(
 
 
 @init_c_state(broadcast_inputs=True)
+def get_reionization_feedback(
+    *,
+    redshifts: float | Sequence[float],
+    inputs: InputParameters,
+    ionisation_rate_G12: float | Sequence[float],
+    z_reion: float | Sequence[float],
+) -> float | np.ndarray:
+    """Get the reionization feedback mass at a given redshift.
+
+    Parameters
+    ----------
+    redshifts : array-like
+        The redshifts at which to compute the reionization feedback mass.
+    inputs: :class:`~InputParameters`
+        The input parameters of the run
+    ionisation_rate_G12 : array-like
+        The ionisation rate in units of 1e-12 s^-1 at the given redshifts.
+    z_reion : array-like
+        The reionisation redshift at the given redshifts.
+
+    Returns
+    -------
+    M_turn_r : array-like
+        The reionization feedback mass at the given redshifts.
+    """
+    inputs_to_check = {
+        "ionisation_rate_G12": ionisation_rate_G12,
+        "z_reion": z_reion,
+    }
+
+    redshifts_shape = np.asarray(redshifts).shape
+    for name, value in inputs_to_check.items():
+        current_shape = np.asarray(value).shape
+        if current_shape != redshifts_shape:
+            raise ValueError(
+                f"The shapes of redshifts and {name} are not the same! "
+                f"Got {redshifts_shape} and {current_shape}."
+            )
+
+    vfunc = np.vectorize(lib.reionization_feedback, otypes=[np.float64])
+    return vfunc(redshifts, ionisation_rate_G12, z_reion)
+
+
+@init_c_state(broadcast_inputs=True)
 def compute_mturns(
     *,
     inputs: InputParameters,
