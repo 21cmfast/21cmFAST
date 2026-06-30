@@ -310,10 +310,6 @@ int set_fixed_grids(double M_min, double M_max, InitialConditions *ini_boxes,
     // find grid limits for tables
     double min_density = 0.;
     double max_density = 0.;
-    double min_log10_mturn_a = log10(M_MAX_INTEGRAL);
-    double min_log10_mturn_m = log10(M_MAX_INTEGRAL);
-    double max_log10_mturn_a = log10(astro_params_global->M_TURN_STELLAR_FEEDBACK);
-    double max_log10_mturn_m = log10(astro_params_global->M_TURN_STELLAR_FEEDBACK);
 
     float *vel_pointers[3];
     float *vel_pointers_2LPT[3];
@@ -362,32 +358,10 @@ int set_fixed_grids(double M_min, double M_max, InitialConditions *ini_boxes,
             if (dens > max_density) max_density = dens;
             if (dens < min_density) min_density = dens;
         }
-
-        double log10_M_turn_m;
-        double log10_M_turn_a = log10(ev_consts->mturn_a_nofb);
-#pragma omp for reduction(min : min_log10_mturn_a, min_log10_mturn_m) \
-    reduction(max : max_log10_mturn_a, max_log10_mturn_m)
-        for (i = 0; i < HII_TOT_NUM_PIXELS; i++) {
-            if (uses_reionization_feedback_in_acgs(
-                    astro_options_global->REIONIZATION_FEEDBACK_MODEL)) {
-                log10_M_turn_a = log10_mturn_a_grid[i];
-                if (min_log10_mturn_a > log10_M_turn_a) min_log10_mturn_a = log10_M_turn_a;
-                if (max_log10_mturn_a < log10_M_turn_a) max_log10_mturn_a = log10_M_turn_a;
-            }
-            if (astro_options_global->USE_MINI_HALOS) {
-                log10_M_turn_m = log10_mturn_m_grid[i];
-                if (min_log10_mturn_m > log10_M_turn_m) min_log10_mturn_m = log10_M_turn_m;
-                if (max_log10_mturn_m < log10_M_turn_m) max_log10_mturn_m = log10_M_turn_m;
-            }
-        }
     }
     // buffers for table ranges
     min_density = min_density * 1.001;  // negative
     max_density = max_density * 1.001;
-    min_log10_mturn_a = min_log10_mturn_a * 0.999;
-    min_log10_mturn_m = min_log10_mturn_m * 0.999;
-    max_log10_mturn_a = max_log10_mturn_a * 1.001;
-    max_log10_mturn_m = max_log10_mturn_m * 1.001;
 
     LOG_DEBUG("Mean halo boxes || M = [%.2e %.2e] | Mcell = %.2e", M_min, M_max, M_cell);
     // These tables are coarser than needed, an initial loop for Mturn to find limits may help
@@ -403,8 +377,7 @@ int set_fixed_grids(double M_min, double M_max, InitialConditions *ini_boxes,
 
         // This table includes reionisation feedback
         initialise_Nion_Conditional_spline(ev_consts->redshift, min_density, max_density, M_min,
-                                           M_max, M_cell, min_log10_mturn_a, max_log10_mturn_a,
-                                           min_log10_mturn_m, max_log10_mturn_m, ev_consts, false);
+                                           M_max, M_cell, ev_consts, false);
 
         initialise_dNdM_tables(min_density, max_density, integral_cond.lnM_min,
                                integral_cond.lnM_max, integral_cond.growth_factor,

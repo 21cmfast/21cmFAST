@@ -747,8 +747,7 @@ void clip_and_get_extrema(fftwf_complex *grid, double lower_limit, double upper_
 void setup_integration_tables(struct FilteredGrids *fg_struct, struct IonBoxConstants *consts,
                               struct RadiusSpec rspec, bool need_prev) {
     double min_density, max_density, prev_min_density = 0., prev_max_density = 0.;
-    double log10Mturn_min = 0., log10Mturn_max = 0., log10Mturn_min_MINI = 0.,
-           log10Mturn_max_MINI = 0.;
+    double null_min = 0., null_max = 0;
     ScalingConstants *sc_ptr = &(consts->scale_consts);
 
     // TODO: instead of putting a random upper limit, put a proper flag for switching of one/both
@@ -760,19 +759,18 @@ void setup_integration_tables(struct FilteredGrids *fg_struct, struct IonBoxCons
     if (consts->mass_dep_zeta) {
         if (uses_reionization_feedback_in_acgs(astro_options_global->REIONIZATION_FEEDBACK_MODEL)) {
             clip_and_get_extrema(fg_struct->log10_mturn_a_grid_filtered, 0., LOG10_MTURN_MAX,
-                                 &log10Mturn_min, &log10Mturn_max);
+                                 &null_min, &null_max);
         }
         if (astro_options_global->USE_MINI_HALOS) {
             // do the same for prev
             clip_and_get_extrema(fg_struct->prev_deltax_filtered, -1, 1e6, &prev_min_density,
                                  &prev_max_density);
             clip_and_get_extrema(fg_struct->log10_mturn_m_grid_filtered, 0., LOG10_MTURN_MAX,
-                                 &log10Mturn_min_MINI, &log10Mturn_max_MINI);
+                                 &null_min, &null_max);
         }
 
-        LOG_SUPER_DEBUG("Tb limits d (%.2e,%.2e), m (%.2e,%.2e) t (%.2e,%.2e) tm (%.2e,%.2e)",
-                        min_density, max_density, consts->M_min, rspec.M_max_R, log10Mturn_min,
-                        log10Mturn_max, log10Mturn_min_MINI, log10Mturn_max_MINI);
+        LOG_SUPER_DEBUG("Tb limits d (%.2e,%.2e), m (%.2e,%.2e)", min_density, max_density,
+                        consts->M_min, rspec.M_max_R);
         if (astro_options_global->INTEGRATION_METHOD_ATOMIC == INTEGRATION_METHOD_GAUSS_LEGENDRE ||
             (astro_options_global->USE_MINI_HALOS &&
              astro_options_global->INTEGRATION_METHOD_MINI == INTEGRATION_METHOD_GAUSS_LEGENDRE))
@@ -781,25 +779,19 @@ void setup_integration_tables(struct FilteredGrids *fg_struct, struct IonBoxCons
             // Buffers to avoid both zero bin widths and max cell segfault in 2D interptables
             prev_min_density -= 0.001;
             prev_max_density += 0.001;
-            log10Mturn_min = log10Mturn_min * 0.99;
-            log10Mturn_max = log10Mturn_max * 1.01;
-            log10Mturn_min_MINI = log10Mturn_min_MINI * 0.99;
-            log10Mturn_max_MINI = log10Mturn_max_MINI * 1.01;
 
             // current redshift tables (automatically handles minihalo case)
             initialise_Nion_Conditional_spline(consts->redshift, min_density, max_density,
-                                               consts->M_min, rspec.M_max_R, rspec.M_max_R,
-                                               log10Mturn_min, log10Mturn_max, log10Mturn_min_MINI,
-                                               log10Mturn_max_MINI, sc_ptr, false);
+                                               consts->M_min, rspec.M_max_R, rspec.M_max_R, sc_ptr,
+                                               false);
 
             // previous redshift tables if needed
             if (need_prev && astro_options_global->USE_MINI_HALOS) {
                 // NOTE: we intentionally use the lower turnovers at this redshift, but should we be
                 // doing the same for the upper turnover?
-                initialise_Nion_Conditional_spline(
-                    consts->prev_redshift, prev_min_density, prev_max_density, consts->M_min,
-                    rspec.M_max_R, rspec.M_max_R, log10Mturn_min, log10Mturn_max,
-                    log10Mturn_min_MINI, log10Mturn_max_MINI, sc_ptr, true);
+                initialise_Nion_Conditional_spline(consts->prev_redshift, prev_min_density,
+                                                   prev_max_density, consts->M_min, rspec.M_max_R,
+                                                   rspec.M_max_R, sc_ptr, true);
             }
         }
     } else {

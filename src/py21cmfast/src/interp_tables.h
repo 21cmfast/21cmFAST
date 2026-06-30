@@ -26,8 +26,6 @@ double EvaluatedFcolldz(double delta, double redshift, double sigma_min, double 
 
 void initialise_Nion_Conditional_spline(double z, double min_density, double max_density,
                                         double Mmin, double Mmax, double Mcond,
-                                        double log10Mturn_min, double log10Mturn_max,
-                                        double log10Mturn_min_MINI, double log10Mturn_max_MINI,
                                         ScalingConstants *sc, bool prev);
 double EvaluateNion_Conditional(double delta, double log10Mturn_a, double growthf, double M_min,
                                 double M_max, double M_cond, double sigma_max, ScalingConstants *sc,

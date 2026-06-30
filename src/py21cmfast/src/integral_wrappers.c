@@ -268,14 +268,6 @@ void get_conditional_Nion(double redshift, double R, int n_densities, double *de
         if (dens > max_dens) max_dens = dens;
     }
 
-    // TODO: these lines do no appear in get_conditional_SFRD, even though both functions are very
-    // similar. See https://github.com/21cmfast/21cmFAST/issues/732 for more details
-    double eps = 0.01;
-    double min_l10mturn_acg = log10_mturn_acg - eps;
-    double max_l10mturn_acg = log10_mturn_acg + eps;
-    double min_l10mturn_mcg = log10_mturn_mcg - eps;
-    double max_l10mturn_mcg = log10_mturn_mcg + eps;
-
     double ION_EFF_FACTOR, ION_EFF_FACTOR_MINI;
     if (source_model_is_mass_dependent(matter_options_global->SOURCE_MODEL)) {
         ION_EFF_FACTOR = astro_params_global->F_STAR10 * astro_params_global->F_ESC10 *
@@ -288,9 +280,8 @@ void get_conditional_Nion(double redshift, double R, int n_densities, double *de
     }
 
     if (uses_hmf_interpolation(matter_options_global->USE_INTERPOLATION_TABLES)) {
-        initialise_Nion_Conditional_spline(redshift, min_dens, max_dens, M_min, M_cond, M_cond,
-                                           min_l10mturn_acg, max_l10mturn_acg, min_l10mturn_mcg,
-                                           max_l10mturn_mcg, &sc, false);
+        initialise_Nion_Conditional_spline(redshift, min_dens, max_dens, M_min, M_cond, M_cond, &sc,
+                                           false);
     }
     for (i = 0; i < n_densities; i++)
         out_nion[i] =

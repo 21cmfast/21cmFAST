@@ -299,13 +299,10 @@ void init_FcollTable(double zmin, double zmax, bool x_ray) {
     }
 }
 
-// NOTE: SFRD tables have fixed Mturn range, Nion tables vary
 // NOTE: it would be slightly less accurate but maybe faster to tabulate in linear delta, linear
 // Fcoll rather than linear-log, check the profiles
 void initialise_Nion_Conditional_spline(double z, double min_density, double max_density,
                                         double Mmin, double Mmax, double Mcond,
-                                        double log10Mturn_min, double log10Mturn_max,
-                                        double log10Mturn_min_MINI, double log10Mturn_max_MINI,
                                         ScalingConstants *sc, bool prev) {
     int i, j;
     double overdense_table[NDELTA];
@@ -314,8 +311,6 @@ void initialise_Nion_Conditional_spline(double z, double min_density, double max
 
     LOG_SUPER_DEBUG("Initialising Nion conditional table at mass %.2e from delta %.2e to %.2e",
                     Mcond, min_density, max_density);
-    LOG_SUPER_DEBUG("l10Mturns ACG %.2e %.2e MCG %.2e %.2e", log10Mturn_min, log10Mturn_max,
-                    log10Mturn_min_MINI, log10Mturn_max_MINI);
 
     double lnM_condition = log(Mcond);
     double growthf = dicke(z);
@@ -338,12 +333,13 @@ void initialise_Nion_Conditional_spline(double z, double min_density, double max
         }
         table_acg_2d->x_min = min_density;
         table_acg_2d->x_width = (max_density - min_density) / (NDELTA - 1.);
-        table_acg_2d->y_min = log10Mturn_min;
-        table_acg_2d->y_width = (log10Mturn_max - log10Mturn_min) / (NMTURN - 1.);
+        table_acg_2d->y_min = LOG10_MTURN_ACG_MIN;
+        table_acg_2d->y_width = (LOG10_MTURN_ACG_MAX - LOG10_MTURN_ACG_MIN) / (NMTURN - 1.);
 
         for (i = 0; i < NMTURN; i++) {
-            mturns_acg[i] = pow(10., log10Mturn_min + (float)i / ((float)NMTURN - 1.) *
-                                                          (log10Mturn_max - log10Mturn_min));
+            mturns_acg[i] =
+                pow(10., LOG10_MTURN_ACG_MIN + (float)i / ((float)NMTURN - 1.) *
+                                                   (LOG10_MTURN_ACG_MAX - LOG10_MTURN_ACG_MIN));
         }
     } else {
         if (!Nion_conditional_table1D.allocated) {
@@ -366,13 +362,13 @@ void initialise_Nion_Conditional_spline(double z, double min_density, double max
         }
         table_mcg_2d->x_min = min_density;
         table_mcg_2d->x_width = (max_density - min_density) / (NDELTA - 1.);
-        table_mcg_2d->y_min = log10Mturn_min_MINI;
-        table_mcg_2d->y_width = (log10Mturn_max_MINI - log10Mturn_min_MINI) / (NMTURN - 1.);
+        table_mcg_2d->y_min = LOG10_MTURN_MCG_MIN;
+        table_mcg_2d->y_width = (LOG10_MTURN_MCG_MAX - LOG10_MTURN_MCG_MIN) / (NMTURN - 1.);
 
         for (i = 0; i < NMTURN; i++) {
             mturns_mcg[i] =
-                pow(10., log10Mturn_min_MINI + (float)i / ((float)NMTURN - 1.) *
-                                                   (log10Mturn_max_MINI - log10Mturn_min_MINI));
+                pow(10., LOG10_MTURN_MCG_MIN + (float)i / ((float)NMTURN - 1.) *
+                                                   (LOG10_MTURN_MCG_MAX - LOG10_MTURN_MCG_MIN));
         }
     }
 
@@ -434,7 +430,6 @@ void initialise_Nion_Conditional_spline(double z, double min_density, double max
     }
 }
 
-// NOTE: Here we use the constant Mturn limits instead of variables like in the Nion tables
 void initialise_SFRD_Conditional_table(double z, double min_density, double max_density,
                                        double Mmin, double Mmax, double Mcond,
                                        ScalingConstants *sc) {
