@@ -664,8 +664,16 @@ def test_Nion_conditional_tables(
 @pytest.mark.parametrize("R", R_PARAM_LIST)
 @pytest.mark.parametrize("name", options_hmf)
 @pytest.mark.parametrize("intmethod", options_intmethod)
+@pytest.mark.parametrize("reionization_feedback_model", ["NONE", "ACG", "MCG", "BOTH"])
 def test_Xray_conditional_tables(
-    name, delta_range, R, mini, intmethod, default_global_evolution_mini, plt
+    name,
+    delta_range,
+    R,
+    mini,
+    reionization_feedback_model,
+    intmethod,
+    default_global_evolution_mini,
+    plt,
 ):
     if intmethod == "FFCOLL":
         if name != "PS":
@@ -677,6 +685,11 @@ def test_Xray_conditional_tables(
 
     mini_flag = mini == "mini"
 
+    if not mini_flag and reionization_feedback_model in ["MCG", "BOTH"]:
+        pytest.skip(
+            "NO POINT IN TESTING REIONIZATION FEEDBACK ON MCG TURNOVER MASS WITHOUT MCGS"
+        )
+
     redshift, kwargs = OPTIONS_HMF[name]
     global_evolution = default_global_evolution_mini
     inputs = get_all_options_struct(
@@ -686,6 +699,7 @@ def test_Xray_conditional_tables(
         USE_TS_FLUCT=True,
         ZPRIME_STEP_FACTOR=1.2,  # needed because we need inputs.node_redshifts == global_evolution.node_redshifts
         M_TURN_STELLAR_FEEDBACK=5.0,
+        REIONIZATION_FEEDBACK_MODEL=reionization_feedback_model,
         INTEGRATION_METHOD_ATOMIC=OPTIONS_INTMETHOD[intmethod],
         INTEGRATION_METHOD_MINI=OPTIONS_INTMETHOD[intmethod],
         node_redshifts=global_evolution.node_redshifts,
