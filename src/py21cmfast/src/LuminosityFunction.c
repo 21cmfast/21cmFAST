@@ -183,7 +183,13 @@ int ComputeLF(int nbins, int component, int NUM_OF_REDSHIFT_FOR_LF, double *z_LF
                         f_duty_upper = 1.;
                         M_turns[i_z] = M_TURNs_ACG[i_z];
                     } else {
-                        f_duty_upper = exp(-(Mhalo_param[i] / M_TURNs_ACG[i_z]));
+                        if (M_TURNs_MCG[i_z] >= M_TURNs_ACG[i_z]) {
+                            // TODO: is this the correct thing to do? See
+                            // https://github.com/21cmfast/21cmFAST/issues/733
+                            f_duty_upper = 0.;
+                        } else {
+                            f_duty_upper = exp(-(Mhalo_param[i] / M_TURNs_ACG[i_z]));
+                        }
                         M_turns[i_z] = M_TURNs_MCG[i_z];
                     }
 
@@ -249,7 +255,13 @@ int ComputeLF(int nbins, int component, int NUM_OF_REDSHIFT_FOR_LF, double *z_LF
                         f_duty_upper = 1.;
                         M_turns[i_z] = M_TURNs_ACG[i_z];
                     } else {
-                        f_duty_upper = exp(-(Mhalo_param[i] / M_TURNs_ACG[i_z]));
+                        if (M_TURNs_MCG[i_z] >= M_TURNs_ACG[i_z]) {
+                            // TODO: is this the correct thing to do? See
+                            // https://github.com/21cmfast/21cmFAST/issues/733
+                            f_duty_upper = 0.;
+                        } else {
+                            f_duty_upper = exp(-(Mhalo_param[i] / M_TURNs_ACG[i_z]));
+                        }
                         M_turns[i_z] = M_TURNs_MCG[i_z];
                     }
 
